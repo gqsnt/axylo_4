@@ -21,9 +21,8 @@
 
   // The chart repaints by itself when <html> or <body> changes its class, style or data-theme.
   const root = document.documentElement;
-  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
-  root.dataset.theme = dark ? 'dark' : 'light';
-  document.querySelector('#theme').addEventListener('click', () => {
+  root.dataset.theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  document.getElementById('theme')?.addEventListener('click', () => {
     root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
   });
 </script>

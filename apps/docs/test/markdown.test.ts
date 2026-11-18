@@ -1,6 +1,6 @@
 // The documentation's Markdown converter, on the subset the pages use. Expected HTML is written by hand.
 import { describe, expect, it } from 'vitest';
-import { escapeHtml, markdownToHtml, renderInline, slug, splitRow, wordCount } from '../lib/markdown.mjs';
+import { checkHref, escapeHtml, markdownToHtml, renderInline, slug, splitRow, wordCount } from '../lib/markdown.mjs';
 
 describe('inline', () => {
   it('escapes every special character in text', () => {
@@ -23,10 +23,21 @@ describe('inline', () => {
   it('renders links, rewrites their targets and escapes them', () => {
     const link = (url: string) => url.replace(/\.md/, '.html');
     expect(renderInline('see [the data page](data.md#gaps)', link)).toBe('see <a href="data.html#gaps">the data page</a>');
-    expect(renderInline('[x](a"b)')).toBe('<a href="a&quot;b">x</a>');
+    expect(renderInline('[x](a.md?b=1&c=2)')).toBe('<a href="a.md?b=1&amp;c=2">x</a>');
+    expect(() => renderInline('[x](a"b)')).toThrow();
   });
   it('allows code inside link text', () => {
     expect(renderInline('[`zoom`](updating.md)')).toBe('<a href="updating.md"><code>zoom</code></a>');
+  });
+  it('allows only relative paths, fragments, https: and mailto: as link destinations', () => {
+    for (const ok of ['data.md#gaps', '#top', '../x/y.ts', 'https://example.org/a', 'mailto:someone@example.org']) expect(checkHref(ok)).toBe(ok);
+    for (const bad of ['javascript:alert(1)', 'custom:chapter', 'data:text/html,x', '//evil.example/x', 'http://example.org', 'JavaScript:x', 'a b']) {
+      expect(() => checkHref(bad), bad).toThrow();
+    }
+    expect(() => renderInline('[Custom](custom:chapter)')).toThrow(/not allowed/);
+  });
+  it('reads a link destination with balanced parentheses', () => {
+    expect(renderInline('[Guide](guide(v2).md) then')).toBe('<a href="guide(v2).md">Guide</a> then');
   });
   it('honours backslash escapes', () => {
     expect(renderInline('\\*not em\\* and a \\| pipe')).toBe('*not em* and a | pipe');
@@ -40,6 +51,11 @@ describe('blocks', () => {
     expect(html).toContain('<h1 id="title">Title</h1>');
     expect(html).toContain('<h2 id="what-is-not-in-10">What is not in 1.0</h2>');
     expect(headings.map(h => h.id)).toEqual(['title', 'what-is-not-in-10', 'notes', 'notes-2']);
+  });
+  it('keeps heading ids unique across the page, block quotes and literal suffixes included', () => {
+    const headings: { id: string }[] = [];
+    markdownToHtml('## Notes\n\n## Notes\n\n## Notes-2\n\n> ## Notes', { headings: headings as never });
+    expect(headings.map(h => h.id)).toEqual(['notes', 'notes-2', 'notes-2-2', 'notes-3']);
   });
   it('slugs drop code markers and punctuation like GitHub', () => {
     expect(slug('validate() in Node and in tests')).toBe('validate-in-node-and-in-tests');
@@ -77,6 +93,14 @@ describe('blocks', () => {
   });
   it('splits rows only on unescaped pipes', () => {
     expect(splitRow('| a | `b \\| c` | d |')).toEqual(['a', '`b \\| c`', 'd']);
+  });
+  it('treats each directive line as a block of its own, also without blank lines around it', () => {
+    const seen: string[] = [];
+    const html = markdownToHtml('Text before\n[example: a](a.ts)\n[example: b](b.ts)\nText after', {
+      directive: d => { seen.push(d.name); return `<div>${d.name}</div>`; },
+    });
+    expect(seen).toEqual(['a', 'b']);
+    expect(html).toBe('<p>Text before</p>\n<div>a</div>\n<div>b</div>\n<p>Text after</p>');
   });
   it('hands directive lines to the caller and keeps other links inline', () => {
     const seen: unknown[] = [];

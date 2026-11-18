@@ -1,7 +1,8 @@
 /**
- * The built site itself, in system Chrome: every page loads without console errors or failed requests, does
- * not scroll sideways on a phone, names its example frames, and has no axe-core violations of its own (the
- * charts inside the frames are the library's, and are checked by the library's own accessibility tests).
+ * The built site itself, in system Chrome, served from its own directory (the deployment root, so a link that
+ * leaves it fails): every page loads without console errors or failed requests, does not scroll sideways on a
+ * phone, names its example frames, and has no axe-core violations of its own (the charts inside the frames are
+ * the library's, and are checked by the library's own accessibility tests). Source pages are sampled.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import fs from 'node:fs';
@@ -9,7 +10,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { chromium, type Browser } from 'playwright-core';
 import { buildSite } from '../lib/site.mjs';
-import { repoRoot } from '../lib/examples.mjs';
+import { docsRoot, repoRoot } from '../lib/examples.mjs';
 import { serve } from '../lib/serve.mjs';
 import { pages } from '../data/nav.mjs';
 import { diagnostics } from '../data/diagnostics.mjs';
@@ -20,16 +21,21 @@ let browser: Browser;
 
 beforeAll(async () => {
   await buildSite();
-  server = await serve();
+  server = await serve(path.join(docsRoot, 'dist'));
   browser = await chromium.launch({ channel: 'chrome', headless: true });
-}, 120_000);
+}, 180_000);
 
 afterAll(async () => {
   await browser?.close();
   await server?.close();
 });
 
-const all = [...pages.map(p => `${p.page}.html`), ...diagnostics.map(d => `diagnostics/${d.code}.html`)];
+const all = [
+  ...pages.map(p => `${p.page}.html`),
+  ...diagnostics.map(d => `diagnostics/${d.code}.html`),
+  'source/docs/decisions/0003-default-palette.md.html',
+  'source/research/harness/src/libs/chartjs.js.html',
+];
 
 describe('site pages', () => {
   it.each(all)('%s', async file => {
@@ -40,7 +46,7 @@ describe('site pages', () => {
       page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
       page.on('pageerror', e => errors.push(e.message));
       page.on('response', r => { if (r.status() >= 400) errors.push(`HTTP ${r.status()} ${r.url()}`); });
-      await page.goto(server.url(`apps/docs/dist/${file}`));
+      await page.goto(server.url(file));
       const frames = await page.evaluate(() => [...document.querySelectorAll('iframe')].map(f => f.title));
       expect(frames.every(title => title.startsWith('Live example: ')), 'every frame has a title').toBe(true);
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);

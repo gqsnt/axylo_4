@@ -1,6 +1,5 @@
-// A static file server over the repository, for the browser tests and the screenshot script. The site's
-// links into the repository (decision records, example sources) resolve because the site is served at
-// /apps/docs/dist/ under the repository root. The caller stops what it started with `close()`.
+// A static file server, for the browser tests and the screenshot script. The site is served from its own
+// directory, the deployment root, so a link that leaves it fails. The caller stops what it started with `close()`.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';

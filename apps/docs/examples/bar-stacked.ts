@@ -1,7 +1,7 @@
 import { bar } from 'axylo';
 
-// Stacked bars with both signs: positive parts stack up from zero, negative parts down from it,
-// and the value axis covers both totals.
+// Gains stack up from zero and losses down from it. Each bar shows two totals, the gains above zero and
+// the losses below; it does not show their difference. The tooltip names both ("165 k USD and -60 k USD" for 2025 Q1).
 const rows = [
   { quarter: '2025 Q1', new: 120, expansion: 45, churn: -60 },
   { quarter: '2025 Q2', new: 135, expansion: 52, churn: -48 },
@@ -10,7 +10,7 @@ const rows = [
 ];
 
 bar('#chart', {
-  title: 'Net revenue change by quarter',
+  title: 'Revenue gains and losses by quarter',
   data: rows,
   x: { field: 'quarter', ordered: true },
   y: [

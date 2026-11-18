@@ -3,9 +3,10 @@
  * fenced code blocks, pipe tables, flat bulleted and numbered lists, block quotes, whole-line HTML comments
  * (dropped), and the inline forms `code`, **strong**, *emphasis*, [links](url) and backslash escapes.
  *
- * Raw HTML is never passed through: every character of text is escaped, so a page cannot inject markup
- * (and neither can data quoted into a page). A line that is only a link whose text starts with `example:`,
- * `source:` or `table:` is a directive; the caller decides what it becomes.
+ * Raw HTML is never passed through: every character of text is escaped, so a page cannot inject markup. Link
+ * destinations are limited to site-relative paths, fragments, `https:` and `mailto:`; anything else throws.
+ * A line that is only a link whose text starts with `example:`, `source:` or `table:` is a directive, always
+ * a block of its own; the caller decides what it becomes.
  */
 
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -13,6 +14,21 @@ const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&
 /** Escapes text for HTML element content and quoted attribute values. */
 export function escapeHtml(text) {
   return String(text).replace(/[&<>"']/g, c => ESCAPES[c]);
+}
+
+/**
+ * A link destination the site may emit: a relative path (no scheme, not protocol-relative), a fragment, an
+ * `https:` URL or a `mailto:` address. Throws otherwise, naming the destination.
+ */
+export function checkHref(url) {
+  const value = String(url);
+  if (/[\s<>"'`\\]/.test(value) || value === '') throw new Error(`Link destination ${JSON.stringify(value)} is not allowed: it contains a space, quote or angle bracket, or is empty`);
+  if (value.startsWith('#')) return value;
+  if (/^https:\/\/[^/]/i.test(value) || /^mailto:[^:/]+@[^:/]+$/i.test(value)) return value;
+  if (value.startsWith('//') || /^[a-z][a-z0-9+.-]*:/i.test(value)) {
+    throw new Error(`Link destination ${JSON.stringify(value)} is not allowed: only relative paths, fragments, https: and mailto: are`);
+  }
+  return value;
 }
 
 /**
@@ -28,12 +44,12 @@ export function plainText(text) {
   return text
     .replace(/\\([\\`*_[\]()|#<>!-])/g, '$1')
     .replace(/`([^`]*)`/g, '$1')
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/\[([^\]]*)\]\((?:[^()]|\([^()]*\))*\)/g, '$1')
     .replace(/\*\*([^*]+)\*\*/g, '$1')
     .replace(/\*([^*]+)\*/g, '$1');
 }
 
-const DIRECTIVE = /^\[(example|source|table):\s*([^\]]+)\]\(([^)\s]+)\)$/;
+export const DIRECTIVE = /^\[(example|source|table):\s*([^\]]+)\]\(([^)\s]+)\)$/;
 const FENCE = /^(`{3,})\s*([\w-]*)\s*$/;
 const HEADING = /^(#{1,4})\s+(.+?)\s*#*\s*$/;
 const BULLET = /^[-*]\s+(.*)$/;
@@ -43,13 +59,14 @@ const COMMENT = /^<!--.*-->$/;
 
 /**
  * Converts `source` to HTML.
- * - `link(url)` rewrites a link target (for example `data.md#gaps` to `data.html#gaps`).
+ * - `link(url)` rewrites a link destination (for example `data.md#gaps` to `data.html#gaps`); its result is
+ *   checked with `checkHref`.
  * - `directive({ kind, name, target })` returns the HTML for a directive line.
  * - `headings` receives each heading as { level, text, id } in order.
+ * - `ids` is the set of ids already used on the page; headings get ids not in it, block quotes included.
  */
-export function markdownToHtml(source, { link = url => url, directive, headings = [] } = {}) {
+export function markdownToHtml(source, { link = url => url, directive, headings = [], ids = new Set() } = {}) {
   const lines = source.replace(/\r\n?/g, '\n').split('\n');
-  const used = new Map();
   const out = [];
   const inline = text => renderInline(text, link);
   // Each table's scroll region is named after the heading it sits under, so that no two share a name.
@@ -65,7 +82,8 @@ export function markdownToHtml(source, { link = url => url, directive, headings 
   let i = 0;
   while (i < lines.length) {
     const line = lines[i];
-    if (line.trim() === '' || COMMENT.test(line.trim())) { i++; continue; }
+    const trimmed = line.trim();
+    if (trimmed === '' || COMMENT.test(trimmed)) { i++; continue; }
 
     const fence = FENCE.exec(line);
     if (fence) {
@@ -77,13 +95,18 @@ export function markdownToHtml(source, { link = url => url, directive, headings 
       continue;
     }
 
+    const d = DIRECTIVE.exec(trimmed);
+    if (d) {
+      if (!directive) throw new Error(`A directive is not allowed here: ${trimmed}`);
+      out.push(directive({ kind: d[1], name: d[2].trim(), target: d[3] }));
+      i++;
+      continue;
+    }
+
     const heading = HEADING.exec(line);
     if (heading) {
       const level = heading[1].length;
-      const base = slug(heading[2]);
-      const n = (used.get(base) ?? 0) + 1;
-      used.set(base, n);
-      const id = n === 1 ? base : `${base}-${n}`;
+      const id = uniqueId(slug(heading[2]), ids);
       headings.push({ level, text: plainText(heading[2]), id });
       section = plainText(heading[2]);
       out.push(`<h${level} id="${escapeHtml(id)}">${inline(heading[2])}</h${level}>`);
@@ -104,7 +127,7 @@ export function markdownToHtml(source, { link = url => url, directive, headings 
     if (line.startsWith('>')) {
       const body = [];
       while (i < lines.length && lines[i].startsWith('>')) body.push(lines[i++].replace(/^>\s?/, ''));
-      out.push(`<blockquote>${markdownToHtml(body.join('\n'), { link, directive, headings: [] })}</blockquote>`);
+      out.push(`<blockquote>${markdownToHtml(body.join('\n'), { link, directive: undefined, headings, ids })}</blockquote>`);
       continue;
     }
 
@@ -129,23 +152,25 @@ export function markdownToHtml(source, { link = url => url, directive, headings 
     }
 
     const paragraph = [];
-    while (i < lines.length && lines[i].trim() !== '' && !startsBlock(lines, i)) paragraph.push(lines[i++].trim());
-    if (paragraph.length === 0) { paragraph.push(line.trim()); i++; }
-    const text = paragraph.join(' ');
-    const d = paragraph.length === 1 ? DIRECTIVE.exec(text) : null;
-    if (d && directive) {
-      out.push(directive({ kind: d[1], name: d[2].trim(), target: d[3] }));
-    } else {
-      out.push(`<p>${inline(text)}</p>`);
-    }
+    while (i < lines.length && lines[i].trim() !== '' && (paragraph.length === 0 || !startsBlock(lines, i))) paragraph.push(lines[i++].trim());
+    out.push(`<p>${inline(paragraph.join(' '))}</p>`);
   }
   return out.join('\n');
+}
+
+/** `base`, or `base-2`, `base-3` … : the first not yet used on the page. Reserves it. */
+export function uniqueId(base, ids) {
+  let id = base;
+  for (let n = 2; ids.has(id); n++) id = `${base}-${n}`;
+  ids.add(id);
+  return id;
 }
 
 function startsBlock(lines, i) {
   const line = lines[i];
   return FENCE.test(line) || HEADING.test(line) || line.startsWith('>') || BULLET.test(line) || NUMBERED.test(line) ||
-    COMMENT.test(line.trim()) || (line.startsWith('|') && i + 1 < lines.length && TABLE_RULE.test(lines[i + 1]));
+    COMMENT.test(line.trim()) || DIRECTIVE.test(line.trim()) ||
+    (line.startsWith('|') && i + 1 < lines.length && TABLE_RULE.test(lines[i + 1]));
 }
 
 /** Splits a table row on pipes that are not escaped; `\|` stays in the cell as a literal pipe. */
@@ -176,6 +201,21 @@ export function codeBlock(code, language = '') {
   return `<pre tabindex="0"><code${cls}>${escapeHtml(code)}</code></pre>`;
 }
 
+/**
+ * The end of a link destination that starts at `open` (the index of its `(`): balanced parentheses, so
+ * `guide(v2).md` is one destination. -1 when it does not close.
+ */
+function destinationEnd(text, open) {
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    if (text[i] === '\\') { i++; continue; }
+    if (text[i] === '(') depth++;
+    else if (text[i] === ')' && --depth === 0) return i;
+    else if (/\s/.test(text[i])) return -1;
+  }
+  return -1;
+}
+
 /** Inline Markdown to HTML. Unmatched markers are kept as text. */
 export function renderInline(text, link = url => url) {
   let out = '';
@@ -203,11 +243,11 @@ export function renderInline(text, link = url => url) {
     if (c === '[') {
       const close = matchBracket(text, i);
       if (close !== -1 && text[close + 1] === '(') {
-        const end = text.indexOf(')', close + 2);
+        const end = destinationEnd(text, close + 1);
         if (end !== -1) {
           const label = text.slice(i + 1, close);
           const url = text.slice(close + 2, end).trim();
-          out += `<a href="${escapeHtml(link(url))}">${renderInline(label, link)}</a>`;
+          out += `<a href="${escapeHtml(checkHref(link(url)))}">${renderInline(label, link)}</a>`;
           i = end + 1;
           continue;
         }

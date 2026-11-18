@@ -1,0 +1,36 @@
+<style>
+  :root { --brand-direct: #1f6fb2; --brand-referral: #b4530f; }
+  @media (prefers-color-scheme: dark) { :root { --brand-direct: #6cb4ee; --brand-referral: #f0a060; } }
+</style>
+
+<div id="chart"></div>
+<p><output id="picked">Press Enter on a point, or click one.</output></p>
+
+<script type="module">
+  import { line } from 'axylo';
+
+  // Wide rows: the series keys are the field names (`direct`, `referral`); `label` is what the reader sees.
+  const rows = [
+    { day: '2026-03-02', direct: 3120, referral: 410 },
+    { day: '2026-03-03', direct: 3380, referral: 455 },
+    { day: '2026-03-04', direct: 3290, referral: 390 },
+  ];
+  const labels = { direct: 'Direct', referral: 'Referral' };
+
+  const chart = line('#chart', {
+    title: 'Sessions by channel',
+    data: rows,
+    x: 'day',
+    y: [{ field: 'direct', label: labels.direct }, { field: 'referral', label: labels.referral }],
+    // `colors` and events use the series key: for wide rows, the field name, not the label.
+    colors: { direct: 'var(--brand-direct)', referral: 'var(--brand-referral)' },
+  });
+
+  chart.on('select', point => {
+    const output = document.getElementById('picked');
+    // `point.row` is your own row, or null for a position no row of yours holds; check before using it.
+    if (output) output.textContent = point.row
+      ? `${labels[/** @type {'direct' | 'referral'} */ (point.series)]} on ${point.x}: ${point.y} (row ${point.index})`
+      : `No row at ${point.x}.`;
+  });
+</script>

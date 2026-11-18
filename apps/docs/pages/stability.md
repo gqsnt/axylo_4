@@ -18,22 +18,24 @@ Axylo follows semantic versioning:
 
 **Deprecation.** A deprecated API keeps working for at least one minor release and at least six months, and its documentation says what to use instead. The documented examples of the previous release must still compile and run against each release candidate.
 
-**What the promise covers.** The functions and types exported by `axylo` and `@axylo/react` (the declarations in `packages/axylo/src/public.ts`), the diagnostic codes and their levels, the CSS custom properties documented on [Theming](theming.md), and the keys of `messages`. Match diagnostics on `code`; messages are written for people.
+**What the promise covers.** The functions and types exported by `axylo` (declared in `packages/axylo/src/public.ts`) and by `@axylo/react` (declared in `packages/react/src/index.ts`), the diagnostic codes and their levels, the CSS custom properties documented on [Theming](theming.md), and the keys of `messages`. Match diagnostics on `code`; their messages are written for people.
 
 **What it does not cover.** The chart's internal DOM structure and class names, the custom properties listed as internal, the roles the plot uses to talk to assistive technology (chosen without screen-reader rehearsal, and changeable in a minor release if rehearsal shows a better pattern), and the exact pixels of the drawing.
 
 ## Supported environments
 
-| Dimension | 1.0 |
+These are the targets of 1.0 (spec section 2.3). What has been verified so far is listed after the table.
+
+| Dimension | 1.0 target |
 |---|---|
-| Browsers | The current and previous major versions of Chrome, Edge, Firefox and Safari, on macOS and iOS. |
+| Browsers | The current and previous major versions of Chrome, Edge and Firefox, and of Safari on macOS and iOS. |
 | TypeScript | 5.4 and later. Plain JavaScript is fully supported; types are an aid, not a requirement. |
 | React | 18 and 19, through `@axylo/react`. |
 | Node | Importing `axylo` touches no DOM, and `validate()` runs there. Charts themselves need a browser. |
 | Text direction | Left-to-right pages. Right-to-left text renders, but the layout is not mirrored. |
-| Built-in text | English, replaceable through `messages`. |
+| Built-in text | English. Reader-facing messages are replaceable through `messages`; diagnostics keep their English wording. |
 
-Verified so far: Chrome on Linux desktop only. Firefox, Safari, Edge, Windows, macOS and phones have not been tested yet; see [Accessibility](accessibility.md#limits).
+Verified so far: desktop Chrome on Linux, by the library's acceptance tests and the distribution tests (which install the packed packages, also under a Content Security Policy). Firefox, Safari, Edge, Windows, macOS and phones have not been tested yet; see [Accessibility](accessibility.md#what-has-and-has-not-been-verified).
 
 ## Licence
 
@@ -57,7 +59,7 @@ Not planned for 1.0, with the reason it can wait:
 | Nested field paths (`'user.country'`) | Flatten rows before passing them. |
 | Vue, Svelte and Angular adapters, a custom element | Thin wrappers over the same handle. |
 | A plugin or custom-mark API | Waits until two real uses show its shape. |
-| Translations of built-in text | `messages` makes them possible; only English ships. |
+| Translations of built-in text | `messages` makes reader-facing ones possible; only English ships. |
 | Workers, WebGL or WebGPU | Decided from measurements. |
 
 Not the audience for 1.0: analysts exploring data in notebooks, designers building bespoke graphics, and teams that need maps, financial charts or network diagrams.

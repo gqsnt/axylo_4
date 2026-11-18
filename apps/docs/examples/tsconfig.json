@@ -1,10 +1,7 @@
 {
+  // For editors only. The examples are type-checked by the tests in a clean consumer of the packed
+  // packages (apps/docs/lib/consumer.mjs, consumerTsconfig), not against the workspace.
   "extends": "../../../tsconfig.base.json",
-  "compilerOptions": {
-    "noEmit": true,
-    "jsx": "react-jsx",
-    "types": [],
-    "lib": ["ES2022", "DOM", "DOM.Iterable"]
-  },
+  "compilerOptions": { "noEmit": true, "jsx": "react-jsx", "types": [], "lib": ["ES2022", "DOM", "DOM.Iterable"] },
   "include": ["*.ts", "*.tsx"]
 }

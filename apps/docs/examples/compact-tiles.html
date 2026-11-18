@@ -8,17 +8,17 @@
 <div class="tiles">
   <section class="tile">
     <h3 id="sessions-heading">Sessions, last 30 days</h3>
-    <p>48,210</p>
+    <p id="sessions-total"></p>
     <div id="sessions-spark"></div>
   </section>
   <section class="tile">
     <h3 id="revenue-heading">Revenue, last 30 days</h3>
-    <p>$182,400</p>
+    <p id="revenue-total"></p>
     <div id="revenue-spark"></div>
   </section>
   <section class="tile">
-    <h3 id="errors-heading">Errors per day</h3>
-    <p>37</p>
+    <h3 id="errors-heading">Errors on the latest day</h3>
+    <p id="errors-latest"></p>
     <div id="errors-spark"></div>
   </section>
 </div>
@@ -33,6 +33,17 @@
     revenue: Math.round(5600 + 40 * i + 700 * Math.cos(i / 3)),
     errors: Math.max(0, Math.round(30 + 10 * Math.sin(i * 1.3))),
   }));
+
+  // The headline numbers come from the same rows as the sparklines.
+  /** @param {string} id @param {string} text */
+  const show = (id, text) => {
+    const element = document.getElementById(id);
+    if (element) element.textContent = text;
+  };
+  const sum = (/** @type {number[]} */ values) => values.reduce((a, b) => a + b, 0);
+  show('sessions-total', sum(rows.map(r => r.sessions)).toLocaleString('en-US'));
+  show('revenue-total', '$' + sum(rows.map(r => r.revenue)).toLocaleString('en-US'));
+  show('errors-latest', String(rows[rows.length - 1]?.errors ?? ''));
 
   // Marks only. Each tile's heading names its chart; the chart describes itself to assistive
   // technology with its generated summary (range, minimum, maximum, last value).

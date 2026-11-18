@@ -7,12 +7,12 @@ A chart function returns a handle with six members:
 ```ts
 const chart = line('#sessions', options);
 
-chart.update({ title: 'Sessions' });                               // change options
+chart.update({ title: 'Sessions' });                                   // change options
 chart.append([{ day: '2026-05-01', sessions: 41210 }], { keep: 120 }); // add rows
-chart.zoom(['2026-03-01', '2026-03-31']);                           // set the visible x range
-const off = chart.on('hover', point => console.log(point));        // listen; off() stops
-chart.diagnostics;                                                 // what is wrong, right now
-chart.destroy();                                                   // remove the chart
+chart.zoom(['2026-03-01', '2026-03-31']);                               // set the visible x range
+const off = chart.on('hover', point => console.log(point));            // listen; off() stops
+chart.diagnostics;                                                     // what is wrong, right now
+chart.destroy();                                                       // remove the chart
 ```
 
 There is no `resize()`: the chart follows its container by itself.
@@ -21,7 +21,7 @@ There is no `resize()`: the chart follows its container by itself.
 
 1. **Calls apply in the order you make them.** `update({ data })` followed by `append(rows)` appends to the new data.
 2. **Checking is immediate.** Each call reads and checks its input before it returns. `chart.diagnostics` is up to date as soon as the call returns, and a `strict` chart throws from that call.
-3. **Drawing waits for the next frame.** All the calls made before the next animation frame are drawn once, together. Ten updates in a row cost one drawing.
+3. **Drawing waits for the next frame.** All the calls made before the next animation frame are drawn once, together.
 4. **Everything switches together.** Marks, labels, the tooltip, keyboard navigation and the accessibility text move to the new state in the same frame. No frame shows half of one state and half of another.
 
 ## update: change options
@@ -34,35 +34,31 @@ There is no `resize()`: the chart follows its container by itself.
 | Present as `undefined` | Returns that option to its default. |
 | Absent | Stays as it is. |
 
-A new `data` replaces the data, including anything appended. Field options that only change presentation (`domain`, `format`, `tickFormat`, `title`, colours) do not make the chart read the rows again.
+A new `data` replaces the data, including anything appended. Changing only how values look (`domain`, `format`, `tickFormat`, `title`, `colors`) does not make the chart read the rows again; changing a field, its `label` or its `unit` does.
 
 [example: update](../examples/update.html)
 
 ## append and keep
 
-`append(rows, { keep })` adds rows at the end. It is the fast path for live data: earlier rows are not read again.
+`append(rows, { keep })` adds rows at the end.
 
+- When the new rows are at or after the last x, they are read and added without reading the earlier rows again. Rows before the last x are still accepted, but the chart rebuilds its data from all the rows it holds, which is slower, and raises warning [AX151](diagnostics.md#ax151); a `strict` chart rejects such a call instead.
 - `keep` is the number of distinct x values to retain; older ones are dropped. Without it, every row is kept.
-- Rows should be at or after the last x. Rows before it are still accepted, through the slower full update, with warning [AX151](diagnostics.md#ax151).
-- When the view is zoomed to the latest edge, it follows new data. Zoomed elsewhere, it stays where it is.
+- When the view is zoomed to the latest edge, it moves with new data, keeping its width. Zoomed elsewhere, it stays where it is.
 - Appended rows are checked like any others, and a `strict` chart throws on a bad one.
-- Data arriving does not speak: announcements happen only when the reader moves, and keyboard focus stays on the same point until that point leaves the window.
+- Arriving data is not announced. The plot's value text, which describes the point in keyboard focus, is not rewritten when an append only changes the point count or position number; it is rewritten when the focused point's own values change or the point leaves the window. Whether a screen reader then speaks depends on the reader; this has not been tried with one.
 
 [example: stream](../examples/stream.html)
 
 ### Pause and resume
 
-Once a chart has been appended to, its toolbar shows a Pause control. While paused, new rows are taken and checked but not shown, and the view does not move, so a reader can study a moment of a live chart. Resume shows everything that arrived. Pause is in the chart's own toolbar for the reader; there is no method for it.
+Once a chart has been appended to, its toolbar shows a Pause control. While paused, new rows are taken and checked but not shown, and the view does not move, so a reader can study a moment of a live chart. Resume shows the data as it is then: everything that arrived, within `keep`. Pause is in the chart's own toolbar for the reader; there is no method for it.
 
 ## zoom
 
-`zoom([from, to])` sets the visible x range, in the same kind of values as your x field (date strings, numbers, `Date` objects). `zoom(null)` shows everything. A range that cannot be read is reported and ignored; `zoom` never throws.
+`zoom([from, to])` sets the visible x range, given in the form of the x axis: date strings or `Date` objects for calendar dates, `Date` objects or epoch milliseconds for instants, numbers for a number axis. `zoom(null)` shows everything. Only date, time and number x axes zoom: `zoom()` on a category axis or a donut is reported as an option that does not apply ([AX150](diagnostics.md#ax150)) and ignored. A range that cannot be read is reported and ignored too; `zoom` never throws.
 
-The reader can zoom too, on date, time and number x axes: with the Zoom in and Zoom out buttons (and, once zoomed, Pan left, Pan right and Reset zoom), by dragging across the plot, with `+`, `-`, `0` and Shift with the arrows while the plot has focus, with the wheel while the plot has focus (never with Ctrl or Meta held, so browser zoom keeps working), and with pinch and two-finger pan when `zoom: 'touch'` is set. A one-finger drag always scrolls the page. Every one of these works with single clicks or keys alone; no gesture is required.
-
-Every change of the visible range, by your call or by the reader, fires the `zoom` event.
-
-[example: zoom](../examples/zoom.html)
+The reader can zoom as well, on the same axes: with the Zoom in and Zoom out buttons (and, once zoomed, Pan left, Pan right and Reset zoom), by dragging across the plot, with `+`, `-`, `0` and Shift with the arrows while the plot has focus, with the wheel while the plot has focus (never with Ctrl or Meta held, so browser zoom keeps working), and with pinch and two-finger pan when `zoom: 'touch'` is set. A one-finger drag always scrolls the page. The buttons and keys need only single clicks or key presses.
 
 ## on: events
 
@@ -70,17 +66,26 @@ Every change of the visible range, by your call or by the reader, fires the `zoo
 
 | Event | Payload | When |
 |---|---|---|
-| `hover` | A point, or `null` when the pointer leaves | The datum under the pointer, or the keyboard's point, changes. |
+| `hover` | A point, or `null` when nothing is picked | The datum under the pointer, or the keyboard's point, changes. |
 | `select` | A point | The reader clicks a point or presses Enter or Space on it. |
-| `zoom` | `[from, to]`, or `null` for the whole range | The visible range changes. |
+| `zoom` | `[from, to]`, or `null` for the whole range | A `zoom()` call, or the reader's zoom or pan, changes the visible range. Not when the view moves with appended data. |
 
-In event payloads, date and time x values currently arrive as epoch milliseconds (a calendar date as its UTC midnight), whatever form your data used; `new Date(value)` reads either form, as the zoom example does.
+A point is `{ series, x, y, row, index }`:
 
-A point is `{ series, x, y, row, index }`: the series name (the slice label on a donut), the x value, the value (`null` for no data), your own row object (with typed columns, an object built from the columns at that index), and the row's index in your data.
+- `series` is the series key: the `series` field's value for long rows, the field name for wide rows (not its `label`), the slice label on a donut;
+- `x` is in the form `zoom()` accepts for the axis: a `Date` for an instant, `'YYYY-MM-DD'` for a calendar date, an ISO date-time without offset for a wall-clock time, the category's label, otherwise the number. The two ends of a `zoom` event take the same form, except that an end between two calendar dates stays a number, which `zoom()` reads as the same position. Either can be passed to another chart's `zoom()` unchanged. Do not turn a wall-clock time into a `Date`: that would read it in the viewer's zone;
+- `y` is the value, `null` for no data;
+- `row` is your own row object (with typed columns, an object built from the columns at that index), and `index` its index in your data. A position no row of yours holds (an inferred missing step, a donut's "Other") has `row: null` and `index: -1`.
+
+[example: zoom](../examples/zoom.html)
+
+A zoom event's range drives a second chart:
+
+[example: zoom-linked](../examples/zoom-linked.html)
 
 ## diagnostics
 
-`chart.diagnostics` lists the diagnostics for the current options and data. It is current as soon as a create, `update` or `append` returns. Diagnostics found later, while drawing (contrast, labels that stop fitting after a resize, a formatter that throws), are added when found. See [Diagnostics](diagnostics.md).
+`chart.diagnostics` lists the diagnostics for the current options and data. It is current as soon as a create, `update` or `append` returns. Diagnostics found later, while drawing (contrast, labels that stop fitting after a resize, a formatter that fails), are added when found. See [Diagnostics](diagnostics.md).
 
 ## destroy
 
@@ -90,7 +95,7 @@ A point is `{ series, x, y, row, index }`: the series name (the slice label on a
 
 With `strict: true`, any error or warning found while checking a create, `update` or `append` call throws from that call, and the chart keeps its last valid state. The thrown error is named `AxyloStrictError`, its message starts with the first diagnostic, and its `diagnostics` property has all of them. A rejected create leaves nothing behind in the page.
 
-Hints never throw. Neither do diagnostics that can only arise later, while drawing: those are reported when found.
+Hints never throw. Neither do diagnostics found later while drawing, nor an internal failure ([AX199](diagnostics.md#ax199)): those are reported when found.
 
 [example: strict](../examples/strict.html)
 

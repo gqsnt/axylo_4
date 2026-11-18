@@ -2,7 +2,7 @@
 
 After this page you can use Axylo's React components, choose between props and the imperative handle, keep re-renders cheap, handle events and errors, and render on the server.
 
-`@axylo/react` works with React 18 and 19. It is a thin layer: each component creates an ordinary Axylo chart in an empty `<div>` and turns prop changes into `update` calls.
+`@axylo/react` works with React 18 and 19. It is a thin layer: each component creates an ordinary Axylo chart in an empty `<div>` and turns prop changes into `update` calls. Its declarations are in the `@axylo/react` package; the option types come from `axylo`.
 
 ```sh
 npm install axylo @axylo/react
@@ -27,8 +27,8 @@ npm install axylo @axylo/react
 
 On each render the component compares the new props with the ones it last applied, and calls `chart.update` with only what changed.
 
-- `data` is compared by identity. A new array, even with the same rows, is read again. Keep data in state, memoise it with `useMemo`, or build it outside the component. In development, the same content arriving as a new array three renders running prints a hint, `[axylo/react] … memoize it`, to the console.
-- Every other prop is compared by content, so an inline `x={{ field: 'day', type: 'date' }}` or `reference={[{ y: 90, label: 'Target' }]}` costs nothing when it has not changed. Do not change an option object in place: a value changed under the same reference is not seen.
+- `data` is compared by identity: a new array, even with the same rows, is read again. Keep data in state, memoise it with `useMemo`, or build it outside the component. In development, a `data` prop that is a new object three renders running, each time with the same length and the same first and last rows, prints a hint to memoise it (`[axylo/react] …`). Only those are compared, so the hint is a guess, not a check of the content.
+- Every other prop is compared by content, so an inline `x={{ field: 'day', type: 'date' }}` or `reference={[{ y: 90, label: 'Target' }]}` does not update the chart when it has not changed. The comparison itself runs on every render, so a very large option object costs that much each time. Do not change an option object in place: a value changed under the same reference is not seen.
 - A prop you remove is sent as `undefined`, which returns that option to its default.
 - Event handlers are replaced without recreating the chart, so inline arrow functions are fine. `onDiagnostic` too.
 
@@ -42,9 +42,7 @@ When `data` is a prop, a new `data` replaces whatever was appended, so a streami
 
 ## Lifecycle
 
-The chart is created when the component mounts and destroyed when it unmounts. It is correct under StrictMode's setup, cleanup and setup again. A chart hidden by Suspense is not destroyed: when it is shown again it is the same chart, with its appended rows and zoom.
-
-The component creates the chart during React's layout phase, so a parent's layout effect or callback ref already finds `ref.current.chart` with the committed options, and calls made there apply in the order React committed them.
+The chart is created when the component mounts and destroyed when it unmounts. It is created again correctly under StrictMode's setup, cleanup and setup. The component creates the chart during React's layout phase, so a parent's layout effect or callback ref already finds `ref.current.chart` with the committed options, and calls made there apply in the order React committed them. The adapter is written to keep a chart hidden by Suspense, so that it comes back with its appended rows and zoom; no example on this site shows that.
 
 ## Errors and error boundaries
 

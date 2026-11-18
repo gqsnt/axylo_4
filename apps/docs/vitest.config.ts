@@ -8,10 +8,8 @@ export default defineConfig({
   define: { __DEV__: 'true' },
   test: {
     root: fileURLToPath(new URL('../..', import.meta.url)),
-    // The Node examples import the package by name, so they run with the browser suite, after the build.
-    include: process.env.AXYLO_BROWSER
-      ? ['apps/docs/test/**/*.browser.test.ts', 'apps/docs/examples/node/*.test.ts']
-      : ['apps/docs/test/**/*.test.ts'],
+    // The Node examples run against the packed package, from node.browser.test.ts, after the build.
+    include: process.env.AXYLO_BROWSER ? ['apps/docs/test/**/*.browser.test.ts'] : ['apps/docs/test/**/*.test.ts'],
     exclude: process.env.AXYLO_BROWSER ? ['**/node_modules/**'] : ['**/node_modules/**', '**/*.browser.test.ts'],
     testTimeout: process.env.AXYLO_BROWSER ? 60000 : 30000,
     hookTimeout: 120000,

@@ -4,7 +4,7 @@ After this page you know when a donut is the right choice, which options it take
 
 ## When to use it
 
-A donut shows the shares of one whole: sessions by browser, budget by item. It works for a handful of parts; with more than eight, Axylo groups the smallest. To compare amounts that are not parts of one whole, or many categories, use a [bar chart](bar.md).
+A donut shows the shares of one whole: sessions by browser, budget by item. It works for a handful of parts; when more than eight have a value, Axylo groups the smallest. To compare amounts that are not parts of one whole, or many categories, use a [bar chart](bar.md).
 
 [example: donut-basic](../examples/donut-basic.ts)
 
@@ -17,7 +17,7 @@ donut(target, { data, label, value, ...options });
 
 | Option | On a donut |
 |---|---|
-| `label` | The field that names each slice. Labels must be unique. |
+| `label` | The field that names each slice. Labels must be unique. The label is also the slice's key, for `colors` and events. |
 | `value` | The value field: a field name or a [value field object](options.md#value-fields) (`label`, `unit`, `scale`, `format`). Values must not be negative. |
 | Common options | `title`, `labelledBy`, `subtitle`, `description`, `state`, `legend`, `tooltip`, `table`, `colors`, `messages`, `locale`, `strict`, `onDiagnostic`. |
 
@@ -28,12 +28,12 @@ Not on a donut, and a type error if given: `x`, `y` and `series` (a donut has a 
 | Behaviour | Donut |
 |---|---|
 | Order | Slices keep the order of the data, start at 12 o'clock and run clockwise. |
-| Legend | Every slice, in slice order, with its value and percentage as text. |
-| Pointer | The slice under the pointer. The tooltip shows its label, value and percentage. |
+| Legend | Every slice, in slice order, with its value and its share as text. Shares have at most one fraction digit. Each entry has a button that selects its slice. |
+| Pointer | The slice under the pointer. The tooltip shows its label, value and share. |
 | Keyboard | Through the slices in slice order. |
 | Zero and missing | A zero slice is listed in the legend without an arc. A slice with no value is listed as "No data". |
 | Negative | A negative value is error [AX120](diagnostics.md#ax120): the donut shows its error state, since a negative share cannot be drawn. |
-| More than eight | The seven largest slices are drawn and the rest grouped as "Other (n)", with [AX121](diagnostics.md#ax121). The table still lists every category. |
+| More than eight | Counted among slices with a positive value only. When more than eight have one, the seven largest are drawn and the rest of those are grouped as "Other (n)", with [AX121](diagnostics.md#ax121). Zero and missing slices never count and are never grouped: each stays listed on its own. The table lists every category. "Other" has a key of its own and the muted colour. |
 | All zero | The empty state: there is no whole to divide. |
 | Duplicates | Two slices with the same label are [AX108](diagnostics.md#ax108): the donut is not drawn. |
 | Separators | Adjacent slices are separated by at least 1 px of background. |

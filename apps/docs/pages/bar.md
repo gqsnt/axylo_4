@@ -4,7 +4,7 @@ After this page you know when to use a bar chart, how to group, stack and turn b
 
 ## When to use it
 
-Bars compare categories: satisfaction by team, tickets by product area, orders per region. A bar's length is its value, so the value axis always starts at zero. Bars over a date axis compare counts per period (orders per day).
+Bars compare categories: satisfaction by team, tickets by product area, orders per region. A bar's length is its value, so the value axis always includes zero. Bars over a date axis compare counts per period (orders per day).
 
 Use a [line chart](line.md) to show a trend over many points, and a [donut](donut.md) only for the shares of one whole.
 
@@ -20,10 +20,10 @@ bar(target, { data, x, y, series, layout: 'grouped', horizontal: false, ...optio
 | Option | On a bar chart |
 |---|---|
 | `x` | The categories (or dates, numbers). Categories keep the order of the data. `ordered: true` says they have a natural order (months, age bands), which allows thinning their labels. |
-| `y`, `series` | One value field with `series`, or a list of fields. Several series make groups. |
+| `y`, `series` | One value field (with `series` for long rows), or a list of fields. Several series make groups. |
 | `layout` | `'grouped'` (default) puts the series side by side; `'stacked'` stacks them. |
-| `horizontal` | `true` draws the bars from the left, with the categories down the side. Default: `false`. |
-| `zoom` | On date, time and number x only. A category axis is not zoomable. |
+| `horizontal` | `true` draws the bars from the left, with the categories down the side. Default: `false`. A `y` reference then runs up and down the plot, and an `x` reference across it. |
+| `zoom` | On date, time and number x only. A category axis does not zoom. |
 | `reference`, `compact` | As on a line chart. |
 | `domain` on `y` | Widened to include zero, with [AX110](diagnostics.md#ax110). |
 | Common options | `title`, `labelledBy`, `subtitle`, `description`, `state`, `legend`, `tooltip`, `table`, `colors`, `messages`, `locale`, `strict`, `onDiagnostic`. |
@@ -37,13 +37,13 @@ Not on a bar chart: `stacked` (that is `layout: 'stacked'` here), `label` and `v
 | Pointer | The band under the pointer: the whole category, not only the bar. The tooltip lists every series in that category. |
 | Keyboard | By category, then series. |
 | Zoom | Only on date, time and number x. |
-| Baseline | Always zero. An author `domain` without zero is widened ([AX110](diagnostics.md#ax110)). |
-| Missing values | A missing bar gets a small "no data" mark at the baseline, distinct from a zero bar. |
-| Stacking | Positive parts stack up from zero, negative parts down from it; the axis covers both totals. A missing part has zero height and marks its stack "incomplete". |
+| Baseline | The value axis always includes zero; an author `domain` without zero is widened ([AX110](diagnostics.md#ax110)). Grouped bars grow from zero. |
+| Missing values | A missing bar gets a small "no data" mark, distinct from a zero bar: at the baseline for grouped bars, at the edge of the stack for stacked ones. |
+| Stacking | Positive parts stack up from zero, negative parts down from it, and the axis covers both. With mixed signs each bar shows two totals, of its positive and of its negative parts, and the readout names both ("Total 165 k USD and -60 k USD" in the example below); the bar does not show their difference. A missing part has zero height and the total is marked "incomplete". |
 | Long labels | Remedies in order: thinning (date, number and `ordered` category axes only), wrapping to three lines, rotating up to 45°, truncating in the middle with the full text in tooltip and table. If labels still do not fit, the chart says "Some labels hidden. See table." and [AX143](diagnostics.md#ax143) suggests `horizontal: true`. Axylo never switches orientation by itself: that would change what the chart says at a glance. |
-| Many bars | Not simplified. More bars than pixels along the axis are drawn, with hint [AX132](diagnostics.md#ax132). |
-| Limit | Eight series, then [AX130](diagnostics.md#ax130). |
-| Reference lines | Drawn and labelled, included in the domain, listed in the summary and table caption. |
+| Many bars | Not simplified. More x positions than pixels along the axis are drawn, with hint [AX132](diagnostics.md#ax132). |
+| Many series | Colour and fill pattern: from the ninth series bars get patterns, which gives 32 distinct combinations before they repeat; warning [AX130](diagnostics.md#ax130) from the ninth. |
+| Reference lines | Drawn and labelled, included in the automatic domain, listed in the summary and table caption. |
 
 ## Horizontal and grouped bars
 

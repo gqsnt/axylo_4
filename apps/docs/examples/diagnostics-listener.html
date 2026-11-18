@@ -6,13 +6,15 @@
 <script type="module">
   import { line } from 'axylo';
 
+  const log = document.getElementById('log');
+  if (!log) throw new Error('#log is missing from the page');
+
   const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   const values = [10, 20, null, NaN, '40', undefined, 70];
   // Untyped, as rows from an API response are.
   const rows = /** @type {any[]} */ (days.map((day, i) => ({ day, value: values[i] })));
-  const log = document.querySelector('#log');
 
-  const chart = line('#chart', {
+  line('#chart', {
     title: 'Dirty input',
     data: rows,
     x: 'day',
@@ -20,11 +22,8 @@
     // Called once for each diagnostic the chart newly finds, in every build.
     onDiagnostic(d) {
       const item = document.createElement('li');
-      item.textContent = `${d.code} (${d.level}), field ${d.field}, rows ${d.rows?.join(', ')}`;
+      item.textContent = `${d.code} (${d.level}), field ${d.field ?? 'none'}, rows ${d.rows?.join(', ') ?? 'none'}`;
       log.append(item);
     },
   });
-
-  // The same list, current as soon as the call returns.
-  console.log(chart.diagnostics.map(d => d.code).join(' '));
 </script>

@@ -8,17 +8,29 @@
 <script type="module">
   import { line } from 'axylo';
 
-  /** @param {number} start the first day of the week in March */
+  /** @param {string} id */
+  const byId = id => {
+    const element = document.getElementById(id);
+    if (!element) throw new Error(`#${id} is missing from the page`);
+    return element;
+  };
+
+  /** @param {number} start the first day of the week, in March */
   const week = start => Array.from({ length: 7 }, (_, i) => ({
     day: `2026-03-${String(start + i).padStart(2, '0')}`,
     orders: Math.round(180 + 25 * Math.sin(start + i)),
     revenue: Math.round(9000 + 1400 * Math.cos(start + i)),
   }));
 
-  const chart = line('#chart', { title: 'Orders', data: week(2), x: 'day', y: 'orders' });
-
-  const metric = document.querySelector('#metric');
+  let start = 2;
   let revenue = false;
+  let subtitle = false;
+  // The subtitle always names the week shown, whichever button was pressed last.
+  const subtitleText = () => (subtitle ? `Week of ${start} March` : undefined);
+
+  const chart = line('#chart', { title: 'Orders', data: week(start), x: 'day', y: 'orders' });
+
+  const metric = byId('metric');
   metric.addEventListener('click', () => {
     revenue = !revenue;
     // A present key replaces its old value whole: `y` is a new field spec, `title` a new title.
@@ -28,18 +40,17 @@
     metric.textContent = revenue ? 'Show orders' : 'Show revenue';
   });
 
-  const toggle = document.querySelector('#subtitle');
-  let subtitle = false;
+  const toggle = byId('subtitle');
   toggle.addEventListener('click', () => {
     subtitle = !subtitle;
     // `undefined` returns the option to its default (no subtitle). Absent keys stay as they are.
-    chart.update({ subtitle: subtitle ? 'Week of 2 March' : undefined });
+    chart.update({ subtitle: subtitleText() });
     toggle.textContent = subtitle ? 'Remove the subtitle' : 'Add a subtitle';
   });
 
-  let start = 2;
-  document.querySelector('#next').addEventListener('click', () => {
+  byId('next').addEventListener('click', () => {
     start = start === 2 ? 9 : 2;
-    chart.update({ data: week(start), subtitle: subtitle ? `Week of ${start} March` : undefined });
+    // New data replaces the old.
+    chart.update({ data: week(start), subtitle: subtitleText() });
   });
 </script>

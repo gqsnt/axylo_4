@@ -13,9 +13,6 @@ function makeRows(): Row[] {
   }))).flat();
 }
 
-// Events give dates as epoch milliseconds; a calendar date is its UTC midnight.
-const day = (value: string | number | Date) => new Date(value).toISOString().slice(0, 10);
-
 function SessionsCard() {
   // Memoised: `data` is compared by identity, so a new array on every render would be read again.
   const rows = useMemo(makeRows, []);
@@ -30,7 +27,8 @@ function SessionsCard() {
         series="channel"
         onHover={setHovered}
       />
-      <p>{hovered ? `${hovered.series} on ${day(hovered.x)}: ${hovered.y ?? 'no data'}` : 'Point at the chart.'}</p>
+      {/* On a calendar-date axis `x` is the day as written, '2026-03-01'; `series` is the series key. */}
+      <p>{hovered ? `${hovered.series} on ${String(hovered.x)}: ${hovered.y ?? 'no data'}` : 'Point at the chart.'}</p>
     </section>
   );
 }

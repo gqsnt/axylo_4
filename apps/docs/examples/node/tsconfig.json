@@ -1,5 +1,7 @@
 {
+  // The package's declarations refer to DOM types (HTMLElement), so Node code that imports them needs the
+  // DOM library too.
   "extends": "../../../../tsconfig.base.json",
-  "compilerOptions": { "noEmit": true, "types": ["node"], "lib": ["ES2022"] },
+  "compilerOptions": { "noEmit": true, "types": ["node"], "lib": ["ES2022", "DOM"] },
   "include": ["*.ts"]
 }

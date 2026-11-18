@@ -1,0 +1,23 @@
+<div id="overview"></div>
+<div id="detail" style="margin-top: 24px"></div>
+
+<script type="module">
+  import { line } from 'axylo';
+
+  const start = Date.UTC(2026, 2, 10, 0, 0);
+  const rows = Array.from({ length: 288 }, (_, i) => ({
+    at: start + i * 300_000,
+    requests: Math.round(900 + 400 * Math.sin(i / 30) + 120 * Math.sin(i * 1.7)),
+    errors: Math.max(0, Math.round(6 + 5 * Math.sin(i / 11))),
+  }));
+  const overview = line('#overview', {
+    title: 'Requests per 5 minutes', data: rows, x: { field: 'at', type: 'time', timeZone: 'UTC' }, y: 'requests',
+  });
+  const detail = line('#detail', {
+    title: 'Errors per 5 minutes', data: rows, x: { field: 'at', type: 'time', timeZone: 'UTC' }, y: 'errors', zoom: false,
+  });
+
+  // The event's window is in the form zoom() takes (here two Date objects), so it can be passed on as it is.
+  overview.on('zoom', window => detail.zoom(window));
+  overview.zoom([new Date(start + 6 * 3_600_000), new Date(start + 12 * 3_600_000)]);
+</script>

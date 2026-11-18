@@ -24,7 +24,7 @@ const shots = asked.length
 const outDir = path.join(docsRoot, asked.length ? '.scratch/shots' : 'screenshots');
 fs.mkdirSync(outDir, { recursive: true });
 
-const server = await serve();
+const server = await serve(path.join(docsRoot, 'dist'));
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   for (const shot of shots) {
@@ -33,7 +33,7 @@ try {
       deviceScaleFactor: shot.width < 600 ? 2 : 1, locale: 'en-US', timezoneId: 'Europe/Berlin',
     });
     const page = await context.newPage();
-    await page.goto(server.url(`apps/docs/dist/${shot.page}.html`), { waitUntil: 'load' });
+    await page.goto(server.url(`${shot.page}.html`), { waitUntil: 'load' });
     // Lazy frames load as they come into view: scroll through once, then wait for every frame to settle.
     await page.evaluate(async () => {
       for (let y = 0; y < document.body.scrollHeight; y += innerHeight / 2) { scrollTo(0, y); await new Promise(r => setTimeout(r, 60)); }
