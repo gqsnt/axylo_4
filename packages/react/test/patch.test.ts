@@ -11,6 +11,16 @@ const rows = [{ day: '2026-01-01', sessions: 1 }, { day: '2026-01-02', sessions:
 const patchOf = (a: Record<string, unknown>, b: Record<string, unknown>) => diff(optionsOf(a, forward), optionsOf(b, forward));
 
 describe('optionsOf', () => {
+  it('routes id, className, style and data-* to the container, and keeps aria-* for core validation', () => {
+    const options = optionsOf({ data: rows, id: 'sessions', className: 'c', style: {}, 'data-testid': 't', 'data-x': 1, 'aria-label': 'L', title: 'T' }, forward);
+    expect(options).toEqual({ data: rows, 'aria-label': 'L', title: 'T' });
+  });
+
+  it('copies own props only', () => {
+    const props = Object.assign(Object.create({ inherited: 1 }) as Record<string, unknown>, { data: rows });
+    expect(Object.keys(optionsOf(props, forward))).toEqual(['data']);
+  });
+
   it('drops the component props and keeps every option', () => {
     const style = { height: 300 };
     const options = optionsOf({ data: rows, x: 'day', y: 'sessions', className: 'card', style, onHover() {}, onSelect() {}, onZoom() {}, strict: true }, forward);
@@ -42,9 +52,16 @@ describe('diff', () => {
     expect(Object.keys(patch!).sort()).toEqual(['title', 'tooltip']);
   });
 
-  it('treats an explicit undefined like an absent prop', () => {
-    expect(patchOf({ data: rows, title: undefined }, { data: rows })).toBeNull();
-    expect(patchOf({ data: rows }, { data: rows, title: undefined })).toBeNull();
+  // Plan 1.5: a key present and set to undefined returns to its default, so the transition between absent
+  // and present-undefined is sent (the chart may hold a value set through the ref in the meantime).
+  it('sends the transition between an absent prop and an explicit undefined, as an own key', () => {
+    const on = patchOf({ data: rows }, { data: rows, title: undefined });
+    expect(on).toEqual({ title: undefined });
+    expect(Object.hasOwn(on!, 'title')).toBe(true);
+    const off = patchOf({ data: rows, title: undefined }, { data: rows });
+    expect(off).toEqual({ title: undefined });
+    expect(Object.hasOwn(off!, 'title')).toBe(true);
+    expect(patchOf({ data: rows, title: undefined }, { data: rows, title: undefined })).toBeNull();
   });
 
   it('compares field specs and other object options structurally', () => {
@@ -90,16 +107,81 @@ describe('diff', () => {
     expect(patchOf({ data: rows, y: { field: 'v', format } }, { data: rows, y: { field: 'v', format: (v: number) => `${v}` } })).not.toBeNull();
   });
 
-  it('for any options, the patch applied to the old options gives the new ones (property)', () => {
-    const value = fc.oneof(fc.string(), fc.integer(), fc.boolean(), fc.constant(undefined), fc.array(fc.integer(), { maxLength: 3 }), fc.dictionary(fc.string({ maxLength: 3 }), fc.integer(), { maxKeys: 3 }));
+  it('for any options, the patch holds exactly the keys whose presence or value changed (property)', () => {
+    // An oracle independent of `equal`: a canonical string that tells holes, undefined and absence apart.
+    const canon = (v: unknown): string => {
+      if (Array.isArray(v)) return `[${Array.from({ length: v.length }, (_, i) => i in v ? canon(v[i]) : '<hole>').join(',')}]`;
+      if (v !== null && typeof v === 'object') return `{${Object.keys(v).sort().map(k => `${k}:${canon((v as Record<string, unknown>)[k])}`).join(',')}}`;
+      return `${typeof v}:${String(v)}`;
+    };
+    const key = fc.constantFrom('a', 'b', 'c');
+    const leaf = fc.oneof(fc.string({ maxLength: 2 }), fc.integer({ min: -2, max: 2 }), fc.boolean(), fc.constant(undefined));
+    const value = fc.oneof(leaf, fc.array(leaf, { maxLength: 3 }), fc.sparseArray(leaf, { maxLength: 3 }), fc.dictionary(key, leaf, { maxKeys: 3 }));
     const options = fc.dictionary(fc.constantFrom('title', 'x', 'y', 'legend', 'colors', 'reference', 'locale'), value);
     fc.assert(fc.property(options, options, (a, b) => {
-      const patch = diff(a, b) ?? {};
-      const applied: Record<string, unknown> = { ...a };
-      for (const [k, v] of Object.entries(patch)) applied[k] = v;
-      for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) expect(equal(applied[k], b[k])).toBe(true);
+      const patch = diff(a, b);
+      const expected = [...new Set([...Object.keys(a), ...Object.keys(b)])]
+        .filter(k => Object.hasOwn(a, k) !== Object.hasOwn(b, k) || canon(a[k]) !== canon(b[k])).sort();
+      expect(Object.keys(patch ?? {}).sort()).toEqual(expected);
+      for (const k of expected) expect(Object.is(patch![k], b[k])).toBe(true);
+      // Symmetric: what changed from a to b changed from b to a.
+      expect(Object.keys(diff(b, a) ?? {}).sort()).toEqual(expected);
       expect(diff(b, b)).toBeNull();
     }));
+  });
+
+  it('sees a hole filled or opened in an option array, in both directions', () => {
+    // eslint-disable-next-line no-sparse-arrays
+    expect(diff({ y: Array(1) }, { y: ['v'] })).toEqual({ y: ['v'] });
+    expect(diff({ y: ['v'] }, { y: Array(1) })).not.toBeNull();
+    expect(diff({ y: [undefined] }, { y: Array(1) })).not.toBeNull();
+    expect(diff({ reference: [{ y: 1, label: 'a' }, , { y: 3, label: 'c' }] }, { reference: [{ y: 1, label: 'a' }, { y: 2, label: 'b' }, { y: 3, label: 'c' }] })).not.toBeNull();
+  });
+
+  it('never throws, and treats values it does not understand by identity', () => {
+    type Cyclic = { field: string; meta?: unknown };
+    const a: Cyclic = { field: 'v' };
+    a.meta = a;
+    const b: Cyclic = { field: 'v' };
+    b.meta = b;
+    expect(() => diff({ y: a }, { y: b })).not.toThrow();
+    const c: Cyclic = { field: 'w' };
+    c.meta = c;
+    expect(diff({ y: a }, { y: c })).toEqual({ y: c });
+    // Mutually recursive pairs, and a getter that throws.
+    const p: Record<string, unknown> = {};
+    const q: Record<string, unknown> = { p };
+    p.q = q;
+    const p2: Record<string, unknown> = {};
+    const q2: Record<string, unknown> = { p: p2 };
+    p2.q = q2;
+    expect(() => diff({ x: p }, { x: p2 })).not.toThrow();
+    const throwing = { get field(): string { throw new Error('getter'); } };
+    expect(() => diff({ x: { field: 'v' } }, { x: throwing })).not.toThrow();
+    expect(diff({ x: { field: 'v' } }, { x: throwing })).toEqual({ x: throwing });
+    // React elements (a mistake, but one that must not take the chart down) are opaque.
+    const element = (props: unknown) => ({ $$typeof: Symbol.for('react.transitional.element'), type: 'b', key: null, props });
+    const cyclicProps: Record<string, unknown> = {};
+    cyclicProps.self = cyclicProps;
+    const e1 = element(cyclicProps);
+    const e2 = element(cyclicProps);
+    expect(() => diff({ title: e1 }, { title: e2 })).not.toThrow();
+    expect(diff({ title: e1 }, { title: e2 })).toEqual({ title: e2 });
+    expect(diff({ title: e1 }, { title: e1 })).toBeNull();
+    // Class instances and other non-plain objects by identity.
+    class Spec { field = 'v'; }
+    expect(diff({ y: new Spec() }, { y: new Spec() })).not.toBeNull();
+  });
+
+  it('compares own properties, enumerable or not, and never reads inherited ones', () => {
+    const hidden = (field: string) => Object.defineProperty({}, 'field', { value: field, enumerable: false });
+    expect(diff({ x: hidden('a') }, { x: hidden('b') })).not.toBeNull();
+    expect(diff({ x: hidden('a') }, { x: hidden('a') })).toBeNull();
+    const removed = diff({ toString: 'mine' }, {});
+    expect(removed).toEqual({ toString: undefined });
+    expect(Object.hasOwn(removed!, 'toString') && removed!.toString === undefined).toBe(true);
+    expect(diff({}, {})).toBeNull();
+    expect(diff({ constructor: 1 }, { constructor: 1 })).toBeNull();
   });
 });
 
@@ -120,6 +202,14 @@ describe('looksSame', () => {
     expect(looksSame(rows, [rows[0], { day: '2026-01-02', sessions: 9 }])).toBe(false);
     const t = new Float64Array(3);
     expect(looksSame({ columns: { t } }, { columns: { t } })).toBe(true);
-    expect(looksSame({ columns: { t } }, { columns: { t: new Float64Array(3) } })).toBe(false);
+    expect(looksSame({ columns: { t } }, { columns: { t: new Float64Array([1, 0, 0]) } })).toBe(false);
+  });
+
+  it('is a sample of the endpoints: dates rebuilt in endpoint rows and fresh equal columns match', () => {
+    const at = (d: number) => ({ t: new Date(Date.UTC(2026, 0, d)), v: d });
+    expect(looksSame([at(1), at(2)], [at(1), at(2)])).toBe(true);
+    expect(looksSame({ columns: { t: new Float64Array([1, 2, 3]) } }, { columns: { t: new Float64Array([1, 2, 3]) } })).toBe(true);
+    // Only the endpoints are sampled: a changed middle row still matches. The hint says so.
+    expect(looksSame([at(1), at(2), at(3)], [at(1), { t: at(2).t, v: 99 }, at(3)])).toBe(true);
   });
 });

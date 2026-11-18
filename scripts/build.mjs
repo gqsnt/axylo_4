@@ -19,4 +19,6 @@ await Promise.all([
   fs.writeFileSync(`${pkg}/dist/axylo.css`, mod.AXYLO_CSS);
 }
 execFileSync('npx', ['tsc', '-p', `${pkg}/tsconfig.build.json`], { stdio: 'inherit' });
+// The React adapter needs the declarations just written.
+execFileSync('node', ['packages/react/build.mjs'], { stdio: 'inherit' });
 console.log('built', fs.readdirSync(`${pkg}/dist`).filter(f => !fs.statSync(`${pkg}/dist/${f}`).isDirectory()).join(', '));

@@ -46,12 +46,12 @@ const drop = (target: EventTarget, type: string, listener: unknown, capture: boo
 };
 EventTarget.prototype.addEventListener = function (this: EventTarget, type: string, listener: EventListenerOrEventListenerObject | null, options?: boolean | AddEventListenerOptions) {
   const capture = captureOf(options);
-  // `once` listeners remove themselves when they fire; they are not what a teardown has to undo.
-  const once = typeof options === 'object' && options.once;
-  if (listener && !once && !listeners.some(e => e.target === this && e.type === type && e.listener === listener && e.capture === capture)) {
+  if (listener && !listeners.some(e => e.target === this && e.type === type && e.listener === listener && e.capture === capture)) {
     listeners.push({ id: ++ids, target: this, type, listener, capture });
     const signal = typeof options === 'object' ? options.signal : undefined;
     if (signal) add.call(signal, 'abort', () => drop(this, type, listener, capture));
+    // A `once` listener is gone after its first event: a companion registered after it sees the same event.
+    if (typeof options === 'object' && options.once) add.call(this, type, () => drop(this, type, listener, capture), { once: true, capture });
   }
   add.call(this, type, listener, options);
 };
@@ -65,8 +65,14 @@ export const probe = {
   get observers() { return observing.size; },
   get pendingFrames() { return pendingFrames.size; },
   mark: () => ids,
-  /** Listeners added after `mark` that are still registered on something that can still fire them. */
+  /** Listeners added after `mark` and still registered on something that can still fire them. */
   leakedSince: (mark: number): string[] => listeners
     .filter(e => e.id > mark && (!(e.target instanceof Node) || e.target.isConnected))
+    .map(e => `${(e.target as { constructor: { name: string } }).constructor.name}:${e.type}`),
+  detachedTargets: (mark: number): Element[] => listeners
+    .filter(e => e.id > mark && e.target instanceof Element && !e.target.isConnected).map(e => e.target as Element),
+  /** Listeners added after `mark` and still registered on nodes that have left the document. */
+  detachedSince: (mark: number): string[] => listeners
+    .filter(e => e.id > mark && e.target instanceof Node && !e.target.isConnected)
     .map(e => `${(e.target as { constructor: { name: string } }).constructor.name}:${e.type}`),
 };

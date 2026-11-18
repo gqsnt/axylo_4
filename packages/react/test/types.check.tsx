@@ -29,23 +29,39 @@ export function Valid() {
   );
 }
 
+/**
+ * Each mistake is paired with the same expression made valid, so the directive is known to cover the
+ * mistake and not something else on its line.
+ */
 export function Invalid() {
+  const wide = ['sessions', 'visits'] as const;
   return (
     <>
+      <Line data={rows} x="day" y="sessions" />
       {/* @ts-expect-error misspelled field */}
       <Line data={rows} x="day" y="sesions" />
+      <Line data={rows} x="day" y={{ field: 'count', parse: 'number' }} />
       {/* @ts-expect-error a text field on a value axis without parse: 'number' */}
       <Line data={rows} x="day" y="channel" />
+      <Line data={rows} x="day" y={wide} />
       {/* @ts-expect-error series cannot be combined with wide y */}
-      <Line data={rows} x="day" y={['sessions', 'visits']} series="channel" />
+      <Line data={rows} x="day" y={wide} series="channel" />
+      <Line data={rows} x="day" y="sessions" zoom />
+      <Donut data={rows} label="channel" value="sessions" />
       {/* @ts-expect-error zoom does not apply to a donut */}
       <Donut data={rows} label="channel" value="sessions" zoom />
+      <Line data={rows} x="day" y="sessions" onZoom={() => {}} />
       {/* @ts-expect-error onZoom does not apply to a donut either */}
       <Donut data={rows} label="channel" value="sessions" onZoom={() => {}} />
+      <Bar data={rows} x="day" y="sessions" />
       {/* @ts-expect-error the same misspelling on the other chart types */}
       <Bar data={rows} x="day" y="sesions" />
+      <Scatter data={rows} x={{ field: 'visits', type: 'number' }} y="sessions" />
       {/* @ts-expect-error a category x on a scatter chart */}
       <Scatter data={rows} x={{ field: 'channel', type: 'category' }} y="sessions" />
+      <Line data={rows} x="day" y="sessions" id="card" data-testid="card" />
+      {/* @ts-expect-error a DOM event prop is not a chart prop */}
+      <Line data={rows} x="day" y="sessions" onClick={() => {}} />
     </>
   );
 }
@@ -56,8 +72,9 @@ export function core(el: HTMLElement) {
   line(el, { data: rows, x: 'day', y: 'sesions' });
   // @ts-expect-error a text field on a value axis without parse: 'number'
   line(el, { data: rows, x: 'day', y: 'channel' });
+  line(el, { data: rows, x: 'day', y: ['sessions', 'visits'] as const });
   // @ts-expect-error series cannot be combined with wide y
-  line(el, { data: rows, x: 'day', y: ['sessions', 'visits'], series: 'channel' });
+  line(el, { data: rows, x: 'day', y: ['sessions', 'visits'] as const, series: 'channel' });
   // @ts-expect-error zoom does not apply to a donut
   donut(el, { data: rows, label: 'channel', value: 'sessions', zoom: true });
 }
