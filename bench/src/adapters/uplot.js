@@ -81,6 +81,7 @@ export function createUplot(el, fix, opts = {}, tweak = {}) {
     drawnNewestX: () => drawnNewest,
     zoom(lo, hi) { pending = true; u.setScale('x', { min: lo, max: hi }); },
     hoverTarget: () => u.over,
+    hoverGeometry: () => { const r = u.over.getBoundingClientRect(); return { plot: { left: r.left, top: r.top, width: r.width, height: r.height }, xDomain: [u.scales.x.min, u.scales.x.max] }; },
     hoveredIndex: () => (u.cursor.idx == null ? NaN : u.cursor.idx),
     // The legend's live value for series 1 reads datum i in uPlot's own value format.
     readoutShows(i) {

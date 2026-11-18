@@ -22,7 +22,8 @@ test('a band from the same workload, bytes, pixel ratio, Chrome and host is acce
   assert.deepEqual(bandMismatches(aa, controlsOf(target)), []);
   const n = loadNoise(['aa-1'], dir, controlsOf(target));
   assert.ok(Number.isFinite(n.metrics.taskMs.lo) && Number.isFinite(n.metrics.taskMs.hi));
-  assert.match(n.calibration, /exploratory: band from 1 session; plan 3.3 asks for at least 3/);
+  assert.match(n.calibration, /exploratory: no metric has 3 sessions with 20\+ pairs \(1 session given/);
+  assert.equal(n.metrics.taskMs.calibrated, false);
 });
 
 test('a band from another pixel ratio, Chrome, host, build or parameter set is refused, not warned about', () => {
@@ -34,6 +35,7 @@ test('a band from another pixel ratio, Chrome, host, build or parameter set is r
     [{ params: { size: '3x120', gaps: true } }, /parameters/],
     [{ settleMs: 200 }, /settle 500 ms, comparison 200 ms/],
     [{ headless: false }, /headless, comparison headed/],
+    [{ baseline: 'axylo-canvas', candidate: 'axylo-svg' }, /adapter uplot, comparison axylo-canvas vs axylo-svg/],
   ];
   for (const [change, why] of cases) {
     const t = record({ runId: 'cmp', runs: [], ...change });
@@ -47,6 +49,22 @@ test('a record that does not say which files it served cannot be a band (older r
   assert.match(bandMismatches(old, controlsOf(target)).join('|'), /does not say which files it served/);
 });
 
+test('an ineligible session (load at a block start) cannot be a band', () => {
+  const busy = record({ runId: 'aa-busy', mode: 'aa', baseline: 'uplot', candidate: 'uplot', runs: aaRuns });
+  busy.blocks[4].load1 = 3.2;
+  assert.match(bandMismatches(busy, controlsOf(target)).join('|'), /session not eligible: block 4: one-minute load 3\.2/);
+});
+
+test('three matching sessions, only one with 20 pairs for the metric: exploratory, not "band from 3 sessions"', () => {
+  write(dir, record({ runId: 'aa-t1', mode: 'aa', baseline: 'uplot', candidate: 'uplot', runs: aaRuns }));
+  write(dir, record({ runId: 'aa-t2', mode: 'aa', baseline: 'uplot', candidate: 'uplot', runs: timedRuns(6, () => 10, k => 10 + k * 0.1) }));
+  write(dir, record({ runId: 'aa-t3', mode: 'aa', baseline: 'uplot', candidate: 'uplot', runs: timedRuns(6, () => 10, k => 10 + k * 0.1) }));
+  const n = loadNoise(['aa-t1', 'aa-t2', 'aa-t3'], dir, controlsOf(target));
+  assert.equal(n.metrics.taskMs.sessions, 1);
+  assert.equal(n.metrics.taskMs.calibrated, false);
+  assert.doesNotMatch(n.calibration, /band from 3 sessions/);
+});
+
 test('a band needs enough complete pairs per metric', () => {
   write(dir, record({ runId: 'aa-few', mode: 'aa', baseline: 'uplot', candidate: 'uplot', runs: timedRuns(6, () => 10, k => 10 + k * 0.1) }));
   const n = loadNoise(['aa-few'], dir, controlsOf(target));
@@ -56,8 +74,11 @@ test('a band needs enough complete pairs per metric', () => {
 test('analyze.mjs prints the stored analysis by default, and re-analysis keeps or refuses the band', () => {
   // The comparison: B is 2 ms faster with small jitter, 20 blocks: interval [-2, -2]. The stored record used a
   // wide A-versus-A band (A and B spread over 10..19 in different orders: band [-2.5, 2.5]), which covers it.
-  const wide = write(dir, record({ runId: 'aa-wide', mode: 'aa', baseline: 'uplot', candidate: 'uplot', runs: timedRuns(MIN_BAND_PAIRS, k => 10 + (k % 10), k => 10 + ((k * 7 + 3) % 10)) }));
-  const noise = loadNoise(['aa-wide'], dir, controlsOf(target));
+  // Three sessions, so the band is calibrated and gates (one session would be exploratory and not used).
+  const wideIds = ['aa-wide', 'aa-wide-2', 'aa-wide-3'];
+  const [wide] = wideIds.map(id => write(dir, record({ runId: id, mode: 'aa', baseline: 'uplot', candidate: 'uplot', runs: timedRuns(MIN_BAND_PAIRS, k => 10 + (k % 10), k => 10 + ((k * 7 + 3) % 10)) })));
+  const noise = loadNoise(wideIds, dir, controlsOf(target));
+  assert.equal(noise.metrics.taskMs.calibrated, true);
   const cmpRuns = timedRuns(20, k => 10 + (k % 3) * 0.2, k => 8 + (k % 3) * 0.2);
   write(dir, record({ runId: 'cmp-wide', runs: cmpRuns, noise, noiseFrom: noise.sources }));
   const stored = JSON.parse(fs.readFileSync(path.join(dir, 'cmp-wide.json'), 'utf8')).analysis.metrics.taskMs;

@@ -102,7 +102,12 @@ export function admit(spec, result, floor, { requireDrawn = false } = {}) {
   // Workload-specific end states, checked in the page: the marks changed color (theme), the charts follow their
   // container's width (resize), the readout followed the pointer (hover), the final zoom window (zoom).
   const extra = [];
-  for (const [key, label] of [['themeCheck', 'theme'], ['resizeCheck', 'resize'], ['hoverCheck', 'hover'], ['zoomCheck', 'zoom'], ['lifecycleCheck', 'lifecycle']]) {
+  // Resize probe: the readback at the narrowest width is admitted like the final one (drawn geometry, renderer).
+  if (result.intermediateDescribe) {
+    const mid = checkViews(exp.views, result.intermediateDescribe, exp.columns.map(columns => ({ columns, requireDrawn, expectRenderer })));
+    for (const r of mid.reasons) extra.push(`at the narrowest width: ${r}`);
+  }
+  for (const [key, label] of [['themeCheck', 'theme'], ['resizeCheck', 'resize'], ['hoverCheck', 'hover'], ['zoomCheck', 'zoom'], ['lifecycleCheck', 'lifecycle'], ['compactCheck', 'compact']]) {
     const c = result[key];
     if (c && !c.ok) for (const r of c.reasons) extra.push(`${label}: ${r}`);
   }
@@ -258,7 +263,7 @@ export async function runOnce(browser, server, spec) {
       run.reason = admission.reasons.slice(0, 5).join('; ');
       delete run.deltas;
       delete run.memory;
-      run.result = { env: result.env, adapter: result.adapter, checksum: result.checksum, describe: result.describe, themeCheck: result.themeCheck, resizeCheck: result.resizeCheck, hoverCheck: result.hoverCheck, hover: result.hover, zoomCheck: result.zoomCheck };
+      run.result = { env: result.env, adapter: result.adapter, checksum: result.checksum, describe: result.describe, themeCheck: result.themeCheck, resizeCheck: result.resizeCheck, hoverCheck: result.hoverCheck, hover: result.hover, zoomCheck: result.zoomCheck, compactCheck: result.compactCheck };
     }
     return run;
   } catch (e) {

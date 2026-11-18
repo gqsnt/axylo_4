@@ -23,8 +23,9 @@
 // Not applied: fixed scale min/max and ticks.sampleSize / rotation limits ("Specify min and max for scales",
 // "Disable ticks rotation") because they need knowledge of the data or change the axis labels.
 //
-// Input: one {x, y} object per point is built from the typed columns inside the timed work; Chart.js has no typed
-// column input. Streaming pushes and shifts the same array and calls chart.update('none').
+// Input: one {x, y, i} object per point is built from the typed columns inside the timed work; Chart.js has no typed
+// column input. `i` (the source index) is instrumentation: Chart.js ignores it, its decimation copies keep it, and the
+// readback uses it because decimation rewrites the x of some points (one extra property per point, timed). Streaming pushes and shifts the same array and calls chart.update('none').
 import { Chart, benchPlugin, handleFor, newState, canvasIn, chartjsAvailable } from './chartjs-common.js';
 
 const held = (chart, i) => { const d = chart.data.datasets[i]; return d._data ?? d.data; };
@@ -39,9 +40,10 @@ export default {
   create(el, fix, opts = {}) {
     const state = newState();
     const n = fix.x.length;
+    let next = 0;
     const arrays = fix.ys.map(col => {
       const pts = new Array(n);
-      for (let k = 0; k < n; k++) pts[k] = { x: fix.x[k], y: col[k] };
+      for (let k = 0; k < n; k++) pts[k] = { x: fix.x[k], y: col[k], i: k };
       return pts;
     });
     const chart = new Chart(canvasIn(el, state, opts), {
@@ -59,7 +61,8 @@ export default {
       plugins: [benchPlugin(state, newestHeld)],
     });
     const append = (x, ys) => {
-      for (let s = 0; s < ys.length; s++) { arrays[s].push({ x, y: ys[s] }); arrays[s].shift(); }
+      next++;
+      for (let s = 0; s < ys.length; s++) { arrays[s].push({ x, y: ys[s], i: n + next - 1 }); arrays[s].shift(); }
       chart.update('none');
     };
     return handleFor(chart, state, append, held);

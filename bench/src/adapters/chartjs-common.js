@@ -15,7 +15,8 @@ export function benchPlugin(state, newestOf) {
     afterDraw: chart => {
       state.drawnNewest = newestOf(chart);
       const t = chart.tooltip;
-      state.tooltipIndex = t && t.opacity > 0 && t.dataPoints?.length ? t.dataPoints[0].dataIndex : NaN;
+      // With decimation the tooltip's dataIndex is into the decimated copy; the point's own `i` is the source index.
+      state.tooltipIndex = t && t.opacity > 0 && t.dataPoints?.length ? (t.dataPoints[0].raw?.i ?? t.dataPoints[0].dataIndex) : NaN;
     },
   };
 }
@@ -33,7 +34,8 @@ export function handleFor(chart, state, append, heldData) {
       chart.update('none');
     },
     hoverTarget: () => chart.canvas,
-    hoveredIndex: () => { const a = chart.getActiveElements?.(); return a?.length ? a[0].index : NaN; },
+    hoverGeometry: () => { const r = chart.canvas.getBoundingClientRect(), a = chart.chartArea; return { plot: { left: r.left + a.left, top: r.top + a.top, width: a.right - a.left, height: a.bottom - a.top }, xDomain: [chart.scales.x.min, chart.scales.x.max] }; },
+    hoveredIndex: () => { const a = chart.getActiveElements?.(); if (!a?.length) return NaN; const p = chart.data.datasets[a[0].datasetIndex]?.data?.[a[0].index]; return p?.i ?? a[0].index; },
     readoutShows: i => state.tooltipIndex === i,
     // Reads Chart.js's own objects, not the fixture:
     //   x range  chart.scales.x.min / max  (time scale: epoch milliseconds)
@@ -53,10 +55,13 @@ export function handleFor(chart, state, append, heldData) {
           const pts = heldData(chart, i);
           let missing = 0;
           for (let k = 0; k < pts.length; k++) { const y = pts[k].y; if (y == null || y !== y) missing++; }
-          const heldX = pts.map(p => p.x);
           const drawnPoints = ds._decimated ? ds.data : pts;
           const spanGaps = !!(ds.spanGaps ?? chart.options.spanGaps);
-          return { points: pts.length, oldestX: pts[0]?.x, newestX: pts[pts.length - 1]?.x, missing, drawnPoints: drawnPoints.length, drawn: { kind: 'indices', paths: chartjsDrawnPaths(drawnPoints, heldX, spanGaps), decimated: !!ds._decimated } };
+          // Held points are drawn as they are (position = index); decimated copies carry their source index `i`.
+          const base = pts[0]?.i ?? 0;
+          const indexOf = ds._decimated ? (p => p.i - base) : ((_, j) => j);
+          if (ds._decimated && !drawnPoints.every(p => Number.isInteger(p.i))) return { points: pts.length, oldestX: pts[0]?.x, newestX: pts[pts.length - 1]?.x, missing, drawn: { kind: 'not-applicable', reason: 'decimated points without source indices' } };
+          return { points: pts.length, oldestX: pts[0]?.x, newestX: pts[pts.length - 1]?.x, missing, drawnPoints: drawnPoints.length, drawn: { kind: 'indices', paths: chartjsDrawnPaths(drawnPoints, indexOf, spanGaps), decimated: !!ds._decimated } };
         }),
       };
     },

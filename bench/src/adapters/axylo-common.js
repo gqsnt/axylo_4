@@ -1,10 +1,11 @@
 // Axylo, default options, from a script-tag build loaded as a classic script (the file users would load).
 //
 // Adapter parameters (runner: --baseline axylo:renderer=svg,build=dev; or the fixed axylo-canvas / axylo-svg):
-//   renderer  'canvas' (default) | 'svg'   always passed to Axylo as its internal `__renderer` option (which exists
-//                                           for the M1 renderer comparison only). Both values are passed explicitly:
-//                                           the library's own default has changed before (it is SVG now), and an
-//                                           adapter that relies on it would measure the default twice.
+//   renderer  'canvas' | 'svg'             passed to Axylo as its internal `__renderer` option (which exists for the
+//                                           renderer comparison only). The fixed adapters axylo-canvas and axylo-svg
+//                                           always pass it. The generic `axylo` adapter without a renderer parameter
+//                                           passes nothing and measures the public default (SVG today), which is what
+//                                           the budgets P1-P8 are about; the renderer it got is read back and recorded.
 //   build     'prod' (default) | 'dev'     prod = axylo/axylo.iife.min.js (__DEV__ = false); dev = axylo.iife.js
 //                                           (__DEV__ = true), used only to attribute profiles. Both are compiled by
 //                                           bench/build.mjs into the session's sealed artifact.
@@ -34,8 +35,8 @@ const NO_HOOK = 'this Axylo build has no benchmark hook (chart.__bench); use a d
 const FILES = { prod: './axylo/axylo.iife.min.js', dev: './axylo/axylo.iife.js' };
 
 const resolve = (fixed, params) => {
-  const p = { renderer: 'canvas', build: 'prod', ...params, ...fixed };
-  if (!['canvas', 'svg'].includes(p.renderer)) throw new Error(`axylo: renderer must be canvas or svg, got ${p.renderer}`);
+  const p = { build: 'prod', ...params, ...fixed };
+  if (p.renderer !== undefined && !['canvas', 'svg'].includes(p.renderer)) throw new Error(`axylo: renderer must be canvas or svg, got ${p.renderer}`);
   if (!FILES[p.build]) throw new Error(`axylo: build must be prod or dev, got ${p.build}`);
   return p;
 };
@@ -50,12 +51,35 @@ function loadScript(src) {
   });
 }
 
-/** Which mark renderer the committed chart in `el` uses, from the elements that exist. */
-export function rendererIn(el) {
+/**
+ * Which mark renderer the committed chart in `el` uses: from the elements that exist, and from the library's own
+ * report (`__bench.describe().renderer`) when given. If the two disagree the kind is 'inconsistent'.
+ */
+export function rendererIn(el, reported = null) {
   const canvases = el.querySelectorAll('.axylo-canvas canvas').length;
   const svgs = el.querySelectorAll('svg.axylo-svg').length;
-  const kind = canvases && !svgs ? 'canvas' : svgs && !canvases ? 'svg' : canvases || svgs ? 'mixed' : 'none';
-  return { kind, canvases, svgs };
+  const dom = canvases && !svgs ? 'canvas' : svgs && !canvases ? 'svg' : canvases || svgs ? 'mixed' : 'none';
+  const kind = reported == null ? dom : reported === dom ? dom : 'inconsistent';
+  return { kind, canvases, svgs, ...(reported != null ? { reported, dom } : {}) };
+}
+
+/** Kept indexes and run starts (offsets into kept) -> index paths of contiguous ranges (admission kind 'indices'). */
+export function keptPaths(kept, breaks) {
+  const starts = [0, ...breaks, kept.length];
+  const paths = [];
+  for (let r = 0; r + 1 < starts.length; r++) {
+    const path = [];
+    let s = -1, e = -1;
+    for (let k = starts[r]; k < starts[r + 1]; k++) {
+      const i = kept[k];
+      if (s >= 0 && i === e + 1) e = i;
+      else if (s >= 0 && i === e) continue;
+      else { if (s >= 0) path.push(s, e); s = e = i; }
+    }
+    if (s >= 0) path.push(s, e);
+    if (path.length) paths.push(path);
+  }
+  return paths;
 }
 
 /** "M1 2L3 4L5 6M7 8L9 10" -> [[1, 2, 3, 4, 5, 6], [7, 8, 9, 10]]; null when the data has other commands (arcs, curves, close). */
@@ -74,6 +98,39 @@ export function parsePolylines(d) {
 
 const vertexCount = polylines => polylines.reduce((s, p) => s + p.length / 2, 0);
 
+const clipRectOf = (svg, node) => {
+  const clip = /url\(["']?#([^"')]+)/.exec(node.getAttribute('clip-path') ?? '');
+  const rect = clip && svg.querySelector(`[id="${clip[1]}"] rect`);
+  return rect ? { x: +rect.getAttribute('x'), y: +rect.getAttribute('y'), width: +rect.getAttribute('width'), height: +rect.getAttribute('height') } : null;
+};
+
+/** Scatter marker centres and the plot rectangle (probe runs): SVG circle paths, or Canvas arc() calls. */
+export function circleCenters(d) {
+  const out = [];
+  const re = /M\s*(-?[\d.]+(?:e[-+]?\d+)?)[\s,]+(-?[\d.]+(?:e[-+]?\d+)?)\s*A\s*(-?[\d.]+)/g;
+  let m;
+  while ((m = re.exec(d))) out.push(Number(m[1]) - Number(m[3]), Number(m[2]));
+  return out;
+}
+function scatterPoints(el, capture) {
+  const svg = el.querySelector('svg.axylo-svg');
+  if (svg) {
+    const centers = [];
+    let plot = null;
+    for (const p of svg.querySelectorAll('.axylo-scene path')) {
+      const d = p.getAttribute('d') ?? '';
+      if (!d.includes('A')) continue;
+      centers.push(...circleCenters(d));
+      plot ??= clipRectOf(svg, p);
+    }
+    return { plot, centers };
+  }
+  const scene = el.querySelector('.axylo-canvas canvas');
+  if (!scene || !capture) return null;
+  const c = capture.of(scene);
+  return { plot: c.clip, centers: c.arcs };
+}
+
 /** The series strokes and plot rectangle, from the SVG marks (no capture needed: they are in the DOM). */
 function svgStrokes(el) {
   const svg = el.querySelector('svg.axylo-svg');
@@ -86,9 +143,7 @@ function svgStrokes(el) {
     const cs = getComputedStyle(p);
     if (cs.stroke === 'none' || (cs.fill !== 'none' && cs.fill !== 'transparent')) continue;
     strokes.push({ color: cs.stroke, polylines });
-    const clip = /url\(["']?#([^"')]+)/.exec(p.getAttribute('clip-path') ?? '');
-    const rect = clip && svg.querySelector(`[id="${clip[1]}"] rect`);
-    if (rect && !plot) plot = { x: +rect.getAttribute('x'), y: +rect.getAttribute('y'), width: +rect.getAttribute('width'), height: +rect.getAttribute('height') };
+    plot ??= clipRectOf(svg, p);
   }
   return { plot, strokes };
 }
@@ -108,9 +163,9 @@ export function axyloAdapter(id, fixed = {}) {
     library: 'Axylo',
     version: __VERSIONS__.axylo,
     config: 'default',
-    configFor: params => { const p = resolve(fixed, params); return `default options, ${p.renderer} mark renderer (__renderer: '${p.renderer}'), ${p.build === 'prod' ? 'production build (axylo.iife.min.js)' : 'DEVELOPMENT build (axylo.iife.js)'}`; },
+    configFor: params => { const p = resolve(fixed, params); return `default options, ${p.renderer ? `${p.renderer} mark renderer (__renderer: '${p.renderer}')` : 'the public default mark renderer (no __renderer)'}, ${p.build === 'prod' ? 'production build (axylo.iife.min.js)' : 'DEVELOPMENT build (axylo.iife.js)'}`; },
     resolvedParams: params => resolve(fixed, params),
-    expectRendererFor: params => resolve(fixed, params).renderer,
+    expectRendererFor: params => resolve(fixed, params).renderer ?? null,
     async load(params) {
       const p = resolve(fixed, params);
       globalThis.__AXYLO_BENCH__ = true;
@@ -127,14 +182,14 @@ export function axyloAdapter(id, fixed = {}) {
       const A = globalThis.Axylo;
       let chart;
       if (opts.kind === 'scatter') {
-        chart = A.scatter(el, { data: { columns: { x: fix.x, y: fix.ys[0] } }, x: { field: 'x', type: 'number' }, y: 'y', title: 'Benchmark', __renderer: p.renderer });
+        chart = A.scatter(el, { data: { columns: { x: fix.x, y: fix.ys[0] } }, x: { field: 'x', type: 'number' }, y: 'y', title: fix.title ?? 'Benchmark', ...(p.renderer ? { __renderer: p.renderer } : {}) });
       } else {
         const columns = { t: fix.x };
         fix.names.forEach((n, i) => { columns[n] = fix.ys[i]; });
         chart = A.line(el, {
-          data: { columns }, x: { field: 't', type: 'time', timeZone: 'UTC' }, y: fix.names, title: 'Benchmark',
+          data: { columns }, x: { field: 't', type: 'time', timeZone: 'UTC' }, y: fix.names, title: fix.title ?? 'Benchmark',
           ...(opts.compact ? { compact: true } : {}),
-          __renderer: p.renderer,
+          ...(p.renderer ? { __renderer: p.renderer } : {}),
         });
       }
       const hook = chart.__bench;
@@ -165,16 +220,37 @@ export function axyloAdapter(id, fixed = {}) {
         drawnNewestX: () => drawnNewest,
         zoom: (lo, hi) => chart.zoom([lo, hi]),
         hoverTarget: () => el.querySelector('.axylo-plot') ?? el,
+        // Where data maps on screen, read before the timed window: the plot rectangle from the library's hook when it
+        // reports one (`plot`, CSS px in the plot container), else the SVG renderer's clip rectangle; the canvas
+        // renderer without the hook has none, and W-hover then reports "not available".
+        hoverGeometry() {
+          if (!hook) return null;
+          const d = hook.describe();
+          const container = el.querySelector('.axylo-plot');
+          let rect = null, origin = null;
+          if (d.plot && container) { rect = d.plot; origin = container.getBoundingClientRect(); }
+          else {
+            const svg = el.querySelector('svg.axylo-svg');
+            const path = svg?.querySelector('.axylo-scene path[clip-path]');
+            if (path) { rect = clipRectOf(svg, path); origin = svg.getBoundingClientRect(); }
+          }
+          if (!rect || !d.xDomain) return null;
+          return { plot: { left: origin.left + rect.x, top: origin.top + rect.y, width: rect.width, height: rect.height }, xDomain: d.xDomain };
+        },
         hoveredIndex: () => hovered,
-        // The readout shows datum i when the visible tooltip (or the fixed readout under the plot) has a value row
-        // reading the datum's y in the spec's readout format (F6, en-US).
+        // The readout shows datum i when the visible tooltip (or the readout strip) has a value row reading exactly
+        // the datum's y in the spec's readout format (F6, en-US). Exact text: "10.24" does not show 1.
         readoutShows(i) {
-          const box = [el.querySelector('.axylo-tooltip'), el.querySelector('.axylo-readout')].find(b => b && !b.hidden);
-          if (!box) return false;
           const want = fmt.format(fix.ys[0][i]);
-          for (const v of box.querySelectorAll('.axylo-tooltip-value')) if (v.textContent.startsWith(want)) return true;
+          for (const box of [el.querySelector('.axylo-tooltip'), el.querySelector('.axylo-readout')]) {
+            if (!box || box.hidden) continue;
+            for (const v of box.querySelectorAll('.axylo-tooltip-value')) if (v.textContent.trim() === want) return true;
+          }
           return false;
         },
+        // P7: bytes in buffers the library holds beyond the caller's columns, counted by the library. Needs
+        // `__bench.memory()` (see README, "What the harness needs from the library"); absent, not available.
+        memory: () => (typeof hook?.memory === 'function' ? (m => ({ bytes: m.bytes, buffers: m.buffers }))(hook.memory()) : { na: 'this Axylo build has no __bench.memory() owned-buffer count' }),
         themeColors(_el, { capture } = {}) {
           // Expected: the color the library assigns each series in the current scheme, through the custom property
           // it sets on the chart root (--axylo-series-color-N), resolved by the browser on a probe element.
@@ -187,26 +263,35 @@ export function axyloAdapter(id, fixed = {}) {
             s.remove();
             return c;
           });
-          const r = rendererIn(el).kind === 'svg' ? svgStrokes(el) : canvasStrokes(el, capture);
+          const r = rendererIn(el).dom === 'svg' || rendererIn(el).kind === 'svg' ? svgStrokes(el) : canvasStrokes(el, capture);
           const marks = (r?.strokes ?? []).filter(s => vertexCount(s.polylines) >= 3).map(s => s.color);
           return { expected, marks };
         },
         describe({ capture, probe } = {}) {
           if (!hook) return null;
           const d = hook.describe();
-          const renderer = rendererIn(el);
-          let drawnPixels = null, drawn;
-          if (opts.kind === 'scatter') drawn = { kind: 'not-applicable', reason: 'scatter point marks are not captured; the held readback and the visible ranges are checked' };
-          else if (probe === 'geometry') {
-            drawnPixels = renderer.kind === 'svg' ? svgStrokes(el) : canvasStrokes(el, capture);
-            drawn = drawnPixels ? { kind: 'pixels' } : { kind: 'not-captured', reason: `no ${renderer.kind} strokes found` };
-          } else drawn = { kind: 'not-captured', reason: 'Axylo has no drawn-index readback; its strokes are captured only in the untimed probe run' };
+          const renderer = rendererIn(el, d.renderer ?? null);
+          const dom = renderer.dom ?? renderer.kind;
+          let drawnPixels = null, drawnPoints = null;
+          if (probe === 'geometry') {
+            if (opts.kind === 'scatter') drawnPoints = scatterPoints(el, capture);
+            else drawnPixels = dom === 'svg' ? svgStrokes(el) : canvasStrokes(el, capture);
+          }
+          // Per series: the library's kept indexes (with run starts when it reports them); a stream's kept indexes
+          // are rows of the individual append calls, which this readback does not map, so they are not used there.
+          const drawnOf = s => {
+            if (opts.kind === 'scatter') return { kind: 'points' };
+            if (Array.isArray(s.kept) && !opts.window) return Array.isArray(s.breaks) ? { kind: 'indices', paths: keptPaths(s.kept, s.breaks), source: 'kept + breaks' } : { kind: 'kept', kept: s.kept };
+            if (drawnPixels) return { kind: 'pixels' };
+            return { kind: 'not-captured', reason: opts.window ? 'stream: kept indexes refer to append calls; strokes captured only in the probe run' : 'this Axylo build reports no kept indexes; strokes are captured only in the probe run' };
+          };
           return {
-            reads: 'Axylo chart.__bench.describe(): committed view xDomain/yDomain; per series slots held, first and last x, non-value slots; renderer from the mark elements; strokes in probe runs',
+            reads: 'Axylo chart.__bench.describe(): committed view xDomain/yDomain; per series slots held, first and last x, non-value slots, kept indexes (and run starts when reported); renderer reported by the library and read from the mark elements; strokes or markers in probe runs',
             renderer,
             x: d.xDomain, y: d.yDomain,
-            series: d.series.map(s => ({ points: s.points, oldestX: s.oldestX, newestX: s.newestX, missing: s.missing, drawn })),
+            series: d.series.map(s => ({ points: s.points, oldestX: s.oldestX, newestX: s.newestX, missing: s.missing, drawn: drawnOf(s) })),
             ...(drawnPixels ? { drawnPixels } : {}),
+            ...(drawnPoints ? { drawnPoints } : {}),
           };
         },
         destroy: () => chart.destroy(),

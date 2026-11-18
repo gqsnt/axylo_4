@@ -69,7 +69,9 @@ export function trendFixture() {
   let extremeIndex = 0;
   for (let i = 1; i < n; i++) if (ys[0][i] > ys[0][extremeIndex]) extremeIndex = i;
   return {
-    name: 'trend', x, ys, names: ['Direct', 'Organic search', 'Referral'], step: DAY,
+    // The fixture's own title (research/harness/src/data.js), passed as the chart title: budgets apply to default
+    // options with the reader's title, not a harness label.
+    name: 'trend', title: 'Daily sessions by channel', x, ys, names: ['Direct', 'Organic search', 'Referral'], step: DAY,
     extreme: { series: 0, index: extremeIndex, x: x[extremeIndex], y: ys[0][extremeIndex], injected: false },
   };
 }
@@ -81,7 +83,7 @@ export function trendSeries(i) {
   const y = t.ys[s];
   let extremeIndex = 0;
   for (let k = 1; k < y.length; k++) if (y[k] > y[extremeIndex]) extremeIndex = k;
-  return { name: `trend:${t.names[s]}`, x: t.x, ys: [y], names: [t.names[s]], step: DAY, extreme: { series: 0, index: extremeIndex, x: t.x[extremeIndex], y: y[extremeIndex], injected: false } };
+  return { name: `trend:${t.names[s]}`, title: t.names[s], x: t.x, ys: [y], names: [t.names[s]], step: DAY, extreme: { series: 0, index: extremeIndex, x: t.x[extremeIndex], y: y[extremeIndex], injected: false } };
 }
 
 /**
@@ -124,28 +126,40 @@ export function lineFixture({ series, points, gaps = false, seed = 1 }) {
 }
 
 /**
- * Scatter (W-types, renderer decision): one series, x strictly increasing with random spacing (so the input order is
- * the x order and the first and last x are well defined), y uniform or clustered around five centres. One extreme
- * is injected as in lineFixture.
+ * Scatter (W-types, renderer decision): one series of `points` (x, y) pairs, x strictly increasing so the input
+ * order is the x order. Uniform: x with random spacing, y uniform. Clustered: points drawn around five centres in
+ * both x and y (a two-dimensional cluster, the hard case for a grid index), then ordered by x; ties in x are moved
+ * up by one unit so x stays strictly increasing. One extreme is injected as in lineFixture.
  */
 export function scatterFixture({ points, clustered = false, seed = 3 }) {
   const r = rng(seed);
-  const x = new Float64Array(points), y = new Float64Array(points);
-  let t = 0;
+  let x = new Float64Array(points), y = new Float64Array(points);
   const centres = [[0.15, 0.2], [0.35, 0.8], [0.5, 0.45], [0.7, 0.7], [0.9, 0.3]];
-  for (let i = 0; i < points; i++) {
-    t += 1 + Math.floor(r() * 9);
-    x[i] = t;
-    if (clustered) {
+  if (clustered) {
+    const span = points * 5; // the same x range as the uniform variant
+    const bell = () => r() + r() + r() - 1.5;
+    for (let i = 0; i < points; i++) {
       const c = centres[Math.floor(r() * centres.length)];
-      // sum of three uniforms: a cheap bell around the centre
-      y[i] = Math.round((c[1] * 1000 + (r() + r() + r() - 1.5) * 60) * 100) / 100;
-    } else y[i] = Math.round(r() * 100000) / 100;
+      x[i] = Math.round(c[0] * span + bell() * span * 0.03);
+      y[i] = Math.round((c[1] * 1000 + bell() * 60) * 100) / 100;
+    }
+    const order = Array.from({ length: points }, (_, i) => i).sort((a, b) => x[a] - x[b] || a - b);
+    const sx = new Float64Array(points), sy = new Float64Array(points);
+    order.forEach((from, to) => { sx[to] = x[from]; sy[to] = y[from]; });
+    for (let i = 1; i < points; i++) if (sx[i] <= sx[i - 1]) sx[i] = sx[i - 1] + 1;
+    x = sx; y = sy;
+  } else {
+    let t = 0;
+    for (let i = 0; i < points; i++) {
+      t += 1 + Math.floor(r() * 9);
+      x[i] = t;
+      y[i] = Math.round(r() * 100000) / 100;
+    }
   }
   const extremeIndex = Math.floor(points * 0.37);
   const { lo, hi } = extent(y);
   y[extremeIndex] = Math.round((hi + (hi - lo) + 1) * 100) / 100;
-  return { scatter: true, x, ys: [y], names: ['points'], step: null, extreme: { series: 0, index: extremeIndex, x: x[extremeIndex], y: y[extremeIndex], injected: true } };
+  return { scatter: true, clustered, x, ys: [y], names: ['points'], step: null, extreme: { series: 0, index: extremeIndex, x: x[extremeIndex], y: y[extremeIndex], injected: true } };
 }
 
 /**
@@ -259,6 +273,8 @@ export function expectedView(fix, visible = null) {
     // A scatter's x is a number axis, which a library may round out to nice tick values (0 to 60,000 for data
     // from 5 to 50,000): up to a quarter of the range per side; a time axis gets the default 10%.
     ...(fix.scatter ? { xSlack: 0.25 } : {}),
+    // A zoomed view must be exactly the window passed to zoom() (to the millisecond), not a padded one.
+    ...(visible ? { xSlack: 0 } : {}),
   };
 }
 

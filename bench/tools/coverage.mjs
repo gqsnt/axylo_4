@@ -10,7 +10,7 @@
 //   unguarded  the share of "better", "worse" and "inconclusive" from the interval alone;
 //   with rule  the same after analyze()'s minimum-pairs rule (MIN_PAIRS), which is what a session reports.
 //
-//   node bench/tools/coverage.mjs [--trials 2000] [--iterations 2000] [--sizes 6,10,20,40] [--seed 7]
+//   node bench/tools/coverage.mjs [--level 0.95 | 0.99444] [--trials 2000] [--iterations 2000] [--sizes 6,10,20,40] [--seed 7]
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -19,7 +19,7 @@ import { pairedBootstrap, classify, MIN_PAIRS, parseSeed } from '../src/stats.js
 
 export const reviewerDistribution = { A: () => 10, B: r => (r() < 0.49 ? 5 : 11), trueDiff: 1, wrong: 'better' };
 
-export function coverage({ sizes = [6, 10, 20, 40], trials = 2000, iterations = 2000, seed = 7, dist = reviewerDistribution } = {}) {
+export function coverage({ sizes = [6, 10, 20, 40], trials = 2000, iterations = 2000, seed = 7, dist = reviewerDistribution, level = 0.95 } = {}) {
   const r = rng(seed);
   const rows = [];
   for (const n of sizes) {
@@ -28,7 +28,7 @@ export function coverage({ sizes = [6, 10, 20, 40], trials = 2000, iterations = 
     const strata = Array.from({ length: n }, (_, i) => (i < n / 2 ? 'AB' : 'BA'));
     for (let t = 0; t < trials; t++) {
       const a = Array.from({ length: n }, () => dist.A(r)), b = Array.from({ length: n }, () => dist.B(r));
-      const ci = pairedBootstrap(a, b, { iterations, seed: Math.floor(r() * 2 ** 31), strata });
+      const ci = pairedBootstrap(a, b, { iterations, seed: Math.floor(r() * 2 ** 31), strata, level });
       count[classify(ci, null)]++;
     }
     const share = k => count[k] / trials;
@@ -41,14 +41,14 @@ export function coverage({ sizes = [6, 10, 20, 40], trials = 2000, iterations = 
       falseVerdictRateUnguarded: share(dist.wrong),
     });
   }
-  return { distribution: 'A = 10; B = 5 (p = 0.49) or 11; true median(B) - median(A) = +1', minPairs: MIN_PAIRS, iterations, seed, rows };
+  return { distribution: 'A = 10; B = 5 (p = 0.49) or 11; true median(B) - median(A) = +1', minPairs: MIN_PAIRS, iterations, seed, level, rows };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const { values } = parseArgs({ options: { trials: { type: 'string', default: '2000' }, iterations: { type: 'string', default: '2000' }, sizes: { type: 'string', default: '6,10,20,40' }, seed: { type: 'string', default: '7' } } });
-  const res = coverage({ trials: Number(values.trials), iterations: Number(values.iterations), sizes: values.sizes.split(',').map(Number), seed: parseSeed(values.seed, '--seed') });
+  const { values } = parseArgs({ options: { level: { type: 'string', default: '0.95' }, trials: { type: 'string', default: '2000' }, iterations: { type: 'string', default: '2000' }, sizes: { type: 'string', default: '6,10,20,40' }, seed: { type: 'string', default: '7' } } });
+  const res = coverage({ trials: Number(values.trials), iterations: Number(values.iterations), sizes: values.sizes.split(',').map(Number), seed: parseSeed(values.seed, '--seed'), level: Number(values.level) });
   const pct = v => `${(100 * v).toFixed(1)}%`;
-  console.log(`${res.distribution}\nbootstrap iterations ${res.iterations}, seed ${res.seed}, verdict rule: at least ${res.minPairs} complete pairs\n`);
+  console.log(`${res.distribution}\ninterval level ${res.level}, bootstrap iterations ${res.iterations}, seed ${res.seed}, verdict rule: at least ${res.minPairs} complete pairs\n`);
   console.log('pairs  trials  unguarded better / worse / inconclusive   reported (with rule) better / worse / inconclusive');
   for (const row of res.rows) console.log(`${String(row.pairs).padStart(5)}  ${String(row.trials).padStart(6)}  ${pct(row.unguarded.better).padStart(6)} / ${pct(row.unguarded.worse).padStart(6)} / ${pct(row.unguarded.inconclusive).padStart(6)}            ${pct(row.withRule.better).padStart(6)} / ${pct(row.withRule.worse).padStart(6)} / ${pct(row.withRule.inconclusive).padStart(6)}`);
   console.log('\n"better" is the wrong direction here: it is the false-verdict rate.');

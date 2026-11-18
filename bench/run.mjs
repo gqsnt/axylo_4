@@ -21,6 +21,7 @@ import { startServer, launchBrowser, runOnce, machineRecord, expectedFor } from 
 import { balancedOrder, summarizeRun, analyze, parseSeed, median, DEFAULT_BOOTSTRAP_SEED } from './src/stats.js';
 import { formatAnalysis } from './lib/report.mjs';
 import { parseAdapterRef, loadNoise, controlsOf, WORKLOADS } from './lib/refs.mjs';
+import { endpointById, sessionEligibility, RENDERERS, LOAD_LIMIT } from './src/decision.js';
 
 /** Workloads that a budget in spec section 5 names; they default to the plan's 20 runs per configuration. */
 export const DEFAULT_BLOCKS = 20;
@@ -41,7 +42,7 @@ export function workloadParams(workload, a) {
     case 'hover': return def({ size: a.size ?? '1x100000', gaps: false, moves: n(a.moves) ?? 200 });
     case 'zoom': return def({ size: a.size ?? '1x100000', gaps: false });
     case 'mem': return def({ size: a.size ?? '1x1000000', gaps: false });
-    case 'lifecycle': return def({ fixture: 'trend', cycles: n(a.cycles) ?? 1000 });
+    case 'lifecycle': return def({ fixture: 'trend', cycles: n(a.cycles) ?? 2500 }); // plan 5.1: windows 1,500-2,000 and 2,000-2,500
     default: throw new Error(`unknown workload ${workload}`);
   }
 }
@@ -79,12 +80,17 @@ export async function runSession(cfg) {
       workload: cfg.workload, params: cfg.params, blocks: cfg.blocks, order, seed: cfg.seed, bootstrapSeed: cfg.bootstrapSeed,
       settleMs: cfg.settleMs, timeoutMs: cfg.timeoutMs, dpr: cfg.dpr, viewport: [1440, 900],
       warmup: 'one untimed admission run per side (A then B), then one untimed warm-up run per side in the opposite order (B then A), so each side has run twice in this browser before timing starts',
+      isolate: !!cfg.isolate,
+      isolation: cfg.isolate ? 'a fresh browser process for every run (plan 5.1, where order changes the estimate)' : 'one browser process for the session, a fresh context per run',
+      endpoint: cfg.endpoint ?? null,
       noiseFrom: null,
     },
     environment: null,
     hashes: { fixtureChecksum: expectedFor(cfg.workload, cfg.params).checksum, slots: { A: artifactSlot(cfg.artifacts.A), B: artifactSlot(cfg.artifacts.B ?? cfg.artifacts.A) } },
     admission: {},
     probes: {},
+    // One-minute load at the start of every block (plan 5.1: a session counts only if it is under 1.0 at each).
+    blocks: [],
     runs: [],
     analysis: null,
   };
@@ -103,6 +109,7 @@ export async function runSession(cfg) {
       }
       record.integrity = { violations: server.violations() };
     }
+    record.eligibility = sessionEligibility(record);
     save();
     await browser?.close().catch(() => {});
     await server?.close().catch(() => {});
@@ -128,6 +135,13 @@ export async function runSession(cfg) {
     log(`run ${runId}\n  ${cfg.mode === 'aa' ? `A-versus-A: ${cfg.A.ref}` : cfg.mode === 'builds' ? `two builds of ${cfg.A.ref}: A=${cfg.artifacts.A.id} B=${cfg.artifacts.B.id}` : `A=${cfg.A.ref}  B=${cfg.B.ref}`}  ${cfg.workload} ${JSON.stringify(cfg.params)}  ${cfg.blocks} blocks  order seed ${cfg.seed}, bootstrap seed ${cfg.bootstrapSeed}`);
     log(`  Chrome ${browser.version()} ${cfg.headed ? 'headed' : 'headless'}, history -> ${path.relative(process.cwd(), file)}`);
 
+    // Every run goes through here: in isolated sessions each run gets its own browser process, and every run
+    // records the Chrome version it ran in (a session counts only with one version).
+    const execute = async s => {
+      if (!cfg.isolate) return { ...(await runOnce(browser, server, s)), chromeVersion: browser.version() };
+      const own = await launchBrowser({ headed: cfg.headed });
+      try { return { ...(await runOnce(own, server, s)), chromeVersion: own.version() }; } finally { await own.close().catch(() => {}); }
+    };
     const spec = (side, extra = {}) => ({ adapter: (side === 'A' ? refA : refB).id, adapterParams: (side === 'A' ? refA : refB).params, slot: cfg[side].slot, workload: cfg.workload, params: cfg.params, settleMs: cfg.settleMs, timeoutMs: cfg.timeoutMs, dpr: cfg.dpr, ...extra });
     const sides = cfg.mode === 'aa' ? ['A'] : ['A', 'B'];
     const keyOf = side => `${cfg[side].slot}:${cfg[side].ref}`;
@@ -135,11 +149,11 @@ export async function runSession(cfg) {
     // Admission: one untimed probe run per side that captures what the chart drew. A side that does not show the
     // fixture is not timed at all.
     for (const side of sides) {
-      const r = await runOnce(browser, server, spec(side, { probe: 'geometry' }));
+      const r = await execute(spec(side, { probe: 'geometry' }));
       const adm = { outcome: r.outcome, reason: r.reason ?? r.error ?? null, admission: r.admission ?? null, describe: r.result?.describe ?? null, adapter: r.result?.adapter ?? null, themeCheck: r.result?.themeCheck, resizeCheck: r.result?.resizeCheck, hoverCheck: r.result?.hoverCheck, theme: r.result?.theme ? { framesToChange: r.result.theme.framesToChange, states: r.result.theme.states } : undefined, resize: r.result?.resize ? { intermediate: r.result.resize.intermediate } : undefined };
       record.admission[keyOf(side)] = adm;
       if (r.result?.env && !record.environment.page) record.environment.page = r.result.env;
-      record.runs.push({ index: record.runs.length, phase: 'admission', side, adapter: r.adapter, slot: cfg[side].slot, outcome: r.outcome, reason: adm.reason, limits: r.admission?.limits, durationMs: r.durationMs, logs: r.logs, pageErrors: r.pageErrors });
+      record.runs.push({ index: record.runs.length, phase: 'admission', chromeVersion: r.chromeVersion, side, adapter: r.adapter, slot: cfg[side].slot, outcome: r.outcome, reason: adm.reason, limits: r.admission?.limits, durationMs: r.durationMs, logs: r.logs, pageErrors: r.pageErrors });
       if (cfg.workload === 'theme' && r.outcome === 'ok') {
         const ftc = r.result.theme.framesToChange;
         record.probes[`${keyOf(side)}:colors`] = { kind: 'per-mark colors after every toggle; frames until new colors (4 untimed toggles)', outcome: 'ok', summary: { framesToNewColor: ftc.every(v => v !== null) ? Math.max(...ftc) : 'not available: a toggle took more than 10 frames' } };
@@ -151,7 +165,7 @@ export async function runSession(cfg) {
       // Drawing work per toggle, counted in its own untimed run (the counters add work, so never in a timed run).
       for (const side of sides) {
         if (record.admission[keyOf(side)].outcome !== 'ok') continue;
-        const r = await runOnce(browser, server, spec(side, { probe: 'counters' }));
+        const r = await execute(spec(side, { probe: 'counters' }));
         const w = r.result?.theme?.work ?? [];
         record.probes[`${keyOf(side)}:counters`] = { kind: 'Canvas 2D calls and DOM mutations per toggle', outcome: r.outcome, reason: r.reason ?? r.error, summary: w.length ? { canvasCallsPerToggle: median(w.map(x => x.canvasCalls)), mutationsPerToggle: median(w.map(x => x.mutations)) } : null };
         record.runs.push({ index: record.runs.length, phase: 'probe', side, probe: 'counters', adapter: r.adapter, slot: cfg[side].slot, outcome: r.outcome, durationMs: r.durationMs, work: w });
@@ -167,15 +181,18 @@ export async function runSession(cfg) {
     }
     // Symmetric warm-up: the admission runs went A then B; one more untimed run each, B then A.
     for (const side of [...sides].reverse()) {
-      const r = await runOnce(browser, server, spec(side));
-      record.runs.push({ index: record.runs.length, phase: 'warmup', side, adapter: r.adapter, slot: cfg[side].slot, outcome: r.outcome, reason: r.reason ?? r.error ?? null, durationMs: r.durationMs });
+      const r = await execute(spec(side));
+      record.runs.push({ index: record.runs.length, phase: 'warmup', chromeVersion: r.chromeVersion, side, adapter: r.adapter, slot: cfg[side].slot, outcome: r.outcome, reason: r.reason ?? r.error ?? null, durationMs: r.durationMs });
       save();
     }
 
     for (let b = 0; b < order.length; b++) {
+      const load1 = os.loadavg()[0];
+      record.blocks.push({ block: b, load1, at: new Date().toISOString() });
+      if (!(load1 < LOAD_LIMIT)) log(`  block ${b + 1}: one-minute load ${load1.toFixed(2)} at its start (limit ${LOAD_LIMIT}): this session will not count`);
       for (let pos = 0; pos < 2; pos++) {
         const side = order[b][pos];
-        const r = await runOnce(browser, server, spec(side));
+        const r = await execute(spec(side));
         const run = { index: record.runs.length, phase: 'timed', block: b, position: pos, config: side, startedAt: new Date(Date.now() - r.durationMs).toISOString(), ...r, ref: cfg[side].ref };
         if (r.outcome === 'ok') run.summary = summarizeRun(cfg.workload, r);
         record.runs.push(run);
@@ -192,7 +209,8 @@ export async function runSession(cfg) {
       await stop('aborted', 'artifact integrity');
       return record;
     }
-    record.analysis = analyze(cfg.workload, record.runs, { noise: cfg.noise ?? null, bootstrapSeed: cfg.bootstrapSeed });
+    const ep = cfg.endpoint ? endpointById(cfg.endpoint) : null;
+    record.analysis = analyze(cfg.workload, record.runs, { noise: cfg.noise ?? null, bootstrapSeed: cfg.bootstrapSeed, ...(ep && ep.swi ? { endpoint: { metric: ep.metric, swi: ep.swi, tol: ep.tol } } : {}) });
     await stop('complete', 'all blocks run');
     log(formatAnalysis(record));
     return record;
@@ -211,10 +229,15 @@ export async function runSession(cfg) {
  * its interval is above the declared tolerance (so the regression is larger than tolerated, not just non-zero).
  */
 export function screeningVerdict(record, tolerance) {
+  // A job that could not measure the candidate is its own outcome, never "within tolerance": a candidate that times
+  // out in every block must not clear the screen. It is retried like a regression and flagged if it repeats.
+  if (record.analysis?.notCompared) return { status: 'failed', exceeds: false, failed: true, why: `not compared: ${record.analysis.notCompared.join('; ')}` };
+  const rel = record.analysis?.reliability;
+  if (rel?.failed?.B) return { status: 'failed', exceeds: false, failed: true, why: `the candidate failed ${rel.failed.B} of ${rel.timed.B} timed runs` };
   const m = Object.values(record.analysis?.metrics ?? {}).find(x => x.primary);
-  if (!m || m.na) return { exceeds: false, why: `primary metric not available${m?.na ? `: ${m.na}` : ''}` };
-  const exceeds = m.outcome === 'worse' && m.lo > tolerance;
-  return { exceeds, why: `${m.key}: ${m.outcome}, interval [${m.lo}, ${m.hi}] against tolerance ${tolerance}` };
+  if (!m || m.na) return { status: 'failed', exceeds: false, failed: true, why: `primary metric not available${m?.na ? `: ${m.na}` : ''}` };
+  const exceeds = m.lo > tolerance && m.outcome !== 'inconclusive';
+  return { status: exceeds ? 'exceeds' : m.pairs >= 20 ? 'within' : 'inconclusive', exceeds, failed: false, why: `${m.key}: interval [${m.lo}, ${m.hi}] against tolerance ${tolerance}` };
 }
 
 async function main() {
@@ -230,15 +253,21 @@ async function main() {
         seed: { type: 'string' }, 'bootstrap-seed': { type: 'string' }, dpr: { type: 'string', default: '1' }, headed: { type: 'boolean', default: false },
         noise: { type: 'string' }, 'history-dir': { type: 'string' }, artifact: { type: 'string' }, source: { type: 'string' },
         screen: { type: 'boolean', default: false }, tolerance: { type: 'string' }, 'allow-harness-difference': { type: 'boolean', default: false },
-        quiet: { type: 'boolean', default: false },
+        quiet: { type: 'boolean', default: false }, isolate: { type: 'boolean', default: false }, endpoint: { type: 'string' },
       },
     }));
   } catch (e) { die(e.message); }
-  const workload = a.workload;
+  // --endpoint pins the recipe of a declared endpoint (src/decision.js): workload and parameters come from the table,
+  // and the renderer comparison's adapters are the default sides.
+  const ep = a.endpoint ? endpointById(a.endpoint) : null;
+  if (a.endpoint && !ep) die(`unknown endpoint ${a.endpoint}`);
+  if (ep && (a.size || a.fixture || a.charts || a.window || a.samples || a.moves || a.cycles || a.gaps || a.clustered)) die('--endpoint fixes the workload parameters; do not combine it with --size, --fixture and the like');
+  const workload = ep ? ep.workload : a.workload;
   if (!WORKLOADS.includes(workload)) die(`unknown workload ${workload} (${WORKLOADS.join(', ')})`);
   if (a.fixture && a.fixture !== 'trend') die(`unknown fixture ${a.fixture} (trend)`);
   let params;
-  try { params = workloadParams(workload, a); } catch (e) { die(e.message); }
+  try { params = ep ? { ...ep.params } : workloadParams(workload, a); } catch (e) { die(e.message); }
+  if (ep?.family === 'renderer' && !a.aa && !a.base) { a.baseline ??= RENDERERS.A.adapter; a.candidate ??= RENDERERS.B.adapter; }
   const blocks = a.blocks === undefined ? DEFAULT_BLOCKS : Number(a.blocks);
   let seed, bootstrapSeed;
   try {
@@ -277,18 +306,18 @@ async function main() {
   let tolerance = null;
   if (a.screen) { tolerance = Number(a.tolerance); if (a.tolerance === undefined || !Number.isFinite(tolerance)) die('--screen needs --tolerance <largest regression tolerated, in the primary metric\'s unit>; the plan has it declared per workload before measuring'); }
 
-  const cfg = { mode, A, B, artifacts, workload, params, blocks, seed, bootstrapSeed, settleMs, timeoutMs, dpr, headed: a.headed, noiseIds: a.noise ? a.noise.split(',') : null, historyDir, quiet: a.quiet, command: process.argv.slice(2) };
+  const cfg = { mode, A, B, artifacts, workload, params, blocks, isolate: a.isolate, endpoint: ep?.id, seed, bootstrapSeed, settleMs, timeoutMs, dpr, headed: a.headed, noiseIds: a.noise ? a.noise.split(',') : null, historyDir, quiet: a.quiet, command: process.argv.slice(2) };
   try {
     const first = await runSession(cfg);
     if (!a.screen) return;
     const v1 = screeningVerdict(first, tolerance);
-    console.log(`screening, first job ${first.runId}: ${v1.exceeds ? 'worse than tolerance' : 'within tolerance or inconclusive'} (${v1.why})`);
-    if (!v1.exceeds) return;
+    console.log(`screening, first job ${first.runId}: ${v1.status} (${v1.why})`);
+    if (!v1.exceeds && !v1.failed) return;
     const again = await runSession({ ...cfg, seed: crypto.randomInt(1, 2 ** 31), command: [...cfg.command, '(screening rerun)'] });
     const v2 = screeningVerdict(again, tolerance);
-    const flagged = v2.exceeds;
-    console.log(`screening, rerun ${again.runId}: ${v2.exceeds ? 'worse than tolerance' : 'within tolerance or inconclusive'} (${v2.why})`);
-    console.log(flagged ? 'FLAGGED: worse than the tolerance in two jobs in a row' : 'not flagged: the rerun did not confirm the first job');
+    const flagged = v2.exceeds || v2.failed;
+    console.log(`screening, rerun ${again.runId}: ${v2.status} (${v2.why})`);
+    console.log(flagged ? `FLAGGED: ${v1.status} then ${v2.status}, two jobs in a row` : 'not flagged: the rerun did not confirm the first job');
     const screenFile = path.join(historyDir, `${again.runId}.screening.json`);
     fs.writeFileSync(screenFile, JSON.stringify({ schema: 'axylo-bench-screening/1', tolerance, jobs: [first.runId, again.runId], verdicts: [v1, v2], flagged }, null, 1));
     if (flagged) process.exitCode = 3;

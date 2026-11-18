@@ -5,28 +5,30 @@ budgets P1–P8 in [docs/02-product-spec.md](../docs/02-product-spec.md) section
 Axylo and comparison libraries in system Chrome. It accepts a timing only for a chart that was checked to show the
 right data and to have drawn it, and it compares two configurations (or two builds) in randomized, balanced blocks.
 
-Revised 2026-11-18 after the cross-provider review `reviews/2026-11-18/impl/wp/bench.review.md`. Records written
-before that (schema `axylo-bench/1`, the M1 session) keep their stored analysis; they cannot serve as noise bands for
-new records (they do not record which files they served or the host).
+Revised twice on 2026-11-18 after cross-provider reviews (`reviews/2026-11-18/impl/wp/bench.review.md`, then
+`misc-opus.review.md` part A). The second pass implements plan section 5.1 as the decision procedure
+(`src/decision.js`, `decision.mjs`). Records written before (schema `axylo-bench/1`, the M1 session) keep their
+stored analysis; they cannot serve as noise bands or endpoint results (no served files, host or per-block load).
 
 ## Commands
 
 ```bash
 node --test bench/test/*.test.mjs                                   # pure tests (Node only, no browser; builds one artifact), seconds
 node --test --test-concurrency=1 bench/test/browser/*.test.mjs      # browser tests: fresh production rebuild, system Chrome, ~2 min
-node bench/tools/coverage.mjs                                       # coverage check of the verdict procedure (finding 11)
+node bench/tools/coverage.mjs [--level 0.99444]                     # coverage check of the verdict procedure
+node bench/tools/canvas-cost.mjs                                    # marginal gzip size of the Canvas renderer (rule 3)
+
+# the renderer decision (plan 5.1): see "Renderer decision" below
+node bench/decision.mjs plan
 
 node bench/build.mjs                                  # one sealed artifact in bench/artifacts/<id>/ (run.mjs does this itself)
 
-# baseline A against candidate B; 20 blocks by default (10 AB + 10 BA), a fresh browser context per run
-node bench/run.mjs --baseline axylo-canvas --candidate axylo-svg --workload first --fixture trend           # P1
-node bench/run.mjs --baseline axylo-canvas --candidate axylo-svg --workload first --size 1x100000           # P2
-node bench/run.mjs --baseline axylo-canvas --candidate axylo-svg --workload stream                          # P3
-node bench/run.mjs --baseline uplot        --candidate axylo-svg --workload hover                           # P4
-node bench/run.mjs --baseline axylo-canvas --candidate axylo-svg --workload page --fixture trend            # P5
-node bench/run.mjs --baseline axylo-canvas --candidate axylo-svg --workload mem                             # P7 owned bytes
-node bench/run.mjs --baseline axylo-canvas --candidate axylo-svg --workload lifecycle                       # P7 heap trend
-node bench/run.mjs --baseline axylo-canvas --candidate axylo-svg --workload compact                         # P8
+# a declared endpoint's pinned recipe (workload and parameters from src/decision.js; Canvas against SVG by default)
+node bench/run.mjs --endpoint P1            # also P2-100k, P2-1M, P3-task, P5, P8, scatter-50k, line-10x100k, zoom-100k
+node bench/run.mjs --endpoint P4 --baseline uplot --candidate axylo        # budget paths: `axylo` = the public default
+node bench/run.mjs --endpoint P7-lifecycle --aa axylo
+# any workload by hand; 20 blocks by default (10 AB + 10 BA); --isolate = a fresh browser process per run
+node bench/run.mjs --baseline axylo-canvas --candidate axylo-svg --workload first --size 1x100000
 
 # smoke comparison (2 blocks: shows the harness works; never a verdict, never evidence)
 node bench/run.mjs --baseline axylo-canvas --candidate axylo-svg --workload first --size 3x120 --blocks 2 --settle 200
@@ -50,8 +52,70 @@ Other options of `run.mjs`: `--size SxN`, `--fixture trend`, `--gaps` (5% missin
 `--charts`, `--toggles`, `--window`/`--samples`, `--moves`, `--cycles`, `--blocks` (even), `--settle` ms (default
 500), `--timeout` ms per run, `--seed` (block order) and `--bootstrap-seed` (both integers 0…2³²−1; anything else
 is an error, and both are recorded), `--dpr 1|2`, `--headed`, `--history-dir`, `--artifact <dir>` (reuse a sealed
-artifact), `--source <checkout>` (build the library from another checkout). `bench/results/m1-session.sh` is the
+artifact), `--source <checkout>` (build the library from another checkout), `--endpoint <id>`, `--isolate`. `bench/results/m1-session.sh` is the
 historical M1 session script; it uses options this runner no longer has.
+
+## Renderer decision (plan 5.1)
+
+`src/decision.js` holds the declared endpoints as data and the decision as pure functions; `decision.mjs` runs the
+jobs and applies them. Endpoints (B − A = SVG − Canvas, lower is better):
+
+| Endpoint | Workload, parameters | Metric | Worthwhile / tolerated | Everyday |
+|---|---|---|---|---|
+| P1 | `first`, `trend` | task time | 1 / 0.5 ms | yes |
+| P2-100k | `first`, 1×100,000 | task time | 6 / 3 ms | |
+| P3-task | `stream`, 600 + 300 | task time per update (per run) | 0.2 / 0.1 ms | P3 |
+| P3-late | same job | runs with an interval later than 25 ms | fewer / no more runs | P3 |
+| P5 | `page`, 24 × `trend`, 340×200 | task time | 20 / 10 ms | yes |
+| P8 | `compact`, 40 × 160×48 | task time | 8 / 4 ms | yes |
+| scatter-50k | `scatter`, 50,000 uniform | first draw (create → first frame after ready) | 10% / 5% of the slower pilot median | |
+| line-10x100k | `first`, 10×100,000 | task time | same | |
+| zoom-100k | `zoom`, 1×100,000 | task time per step | same | |
+
+Budget endpoints outside the renderer family: P2-1M (25 / 12.5 ms), P4 (1.7 / 0.8 ms, nearest-rank p95), P7-mem
+(10% / 5% of two 1,000,000-value columns), P7-lifecycle (heap growth over 1% between cycles 1,500–2,000 and
+2,000–2,500 fails).
+
+How one endpoint becomes a result (`assessEndpoint`), in order; anything but "measured" leaves the decision open:
+1. **missing**: no comparison record. **ineligible**: the session's one-minute load was not under 1.0 at the start
+   of every block, Chrome changed, or its environment (host, Chrome, headless, DPR, settle, artifact) differs from the
+   family's (pinned to the first endpoint record).
+2. Not admitted, or any timed run not finished or not admitted: a **failure of that renderer** on that endpoint,
+   which counts as worse beyond tolerance (a result, not a missing value).
+3. **thresholds**: a budget-less endpoint whose thresholds were not frozen by the pilot before the comparison started.
+4. **no-control**: fewer than three eligible A-versus-A sessions of *each* renderer, same workload, parameters,
+   environment and bytes, each with at least 20 complete pairs for this metric (counted per metric).
+5. The interval is computed at 99.44% (Bonferroni for nine endpoints). Thresholds are floored at the noise edge
+   (largest |end| over the qualifying control intervals at the same level); an edge at or above the tolerance makes
+   the endpoint **too noisy to gate**: it counts for neither side. **exploratory**: fewer than 20 complete pairs.
+6. **carry-over**: the AB and BA estimates differ by more than the noise edge; withheld (rerun with `--isolate`).
+7. Classification (`classifyEndpoint`): better / worse beyond the worthwhile margin, worse beyond tolerance, or no
+   worthwhile difference, else inconclusive. Twenty identical pairs at 10.0 against 9.7 ms on P1 are "no worthwhile
+   difference".
+
+The rule (`decideRenderer`): any primary endpoint missing, withheld or inconclusive → **no decision yet** with the
+list. Rule 1: a renderer worse beyond tolerance somewhere and better by the worthwhile margin nowhere loses. Rule 2:
+both win somewhere → the default is the one winning more of P1, P3, P5, P8 (P3 is won only with the task-time win and
+no more late runs; more late runs lose it); the other is **kept for the chart type** of an endpoint where its gain's
+lower bound is at least 4× the worthwhile threshold. Rule 3 (nothing separates them, or equal everyday counts): SVG
+stays; Canvas leaves the 1.0 bundle only if its marginal size (`tools/canvas-cost.mjs`) exceeds 512 B gzipped.
+
+Interpretations where 5.1 is not explicit (flagged in the report to the owner): "too noisy" means the noise edge
+reaches the *tolerance*; the noise edge comes from both renderers' controls at the family level; an inconclusive
+primary endpoint blocks a decision (section 5: "triggers a rerun, not a pass"); two losers under rule 1 give no
+decision (the plan has no rule); P3-late compares counts of late runs directly, with no interval; a kept second
+renderer needs the 4× gain on a measured interval, not on a count; the control sessions are separate A-versus-A
+jobs in the same environment, not part of the comparison job.
+
+Command sequence on a quiet machine (`node bench/decision.mjs plan` prints it with the estimated durations):
+
+```bash
+node bench/build.mjs                                     # artifact <A>; the whole family uses it
+node bench/decision.mjs controls --artifact <A>          # three times, as separate sessions (~51 min each)
+node bench/decision.mjs pilot --artifact <A>             # ~14 min: freezes thresholds, checks AB/BA agreement
+node bench/decision.mjs endpoints --artifact <A>         # ~25-31 min: --isolate where the pilot found order effects
+node bench/decision.mjs decide --artifact <A>            # writes bench/decision/decision-<time>.json
+```
 
 ## Provenance: sealed artifacts
 
@@ -84,6 +148,9 @@ hashes; it writes only to an explicit `--out`).
 | `src/fixtures.js` | Seeded, deterministic data, including the named `trend` fixture (pure) |
 | `src/admission.js` | The admission check: held readback, drawn readback, renderer identity (pure) |
 | `src/drawn.js` | Drawn index paths for uPlot and Chart.js, the theme per-mark check (pure) |
+| `src/decision.js` | Declared endpoints, eligibility, controls, the plan 5.1 decision rule (pure) |
+| `decision.mjs` | Runs controls, pilot and endpoints; writes the decision (`bench/decision/`) |
+| `tools/canvas-cost.mjs` | Marginal gzip size of the Canvas renderer from matched builds |
 | `src/stats.js` | Per-run summaries, balanced order, stratified paired bootstrap, verdict rules (pure) |
 | `src/adapters/*.js` | `noop`, `uplot`, `chartjs`, `chartjs-tuned`, `axylo`, `axylo-canvas`, `axylo-svg` |
 | `test/adapters/*.js` | Deliberately broken adapters, used by the browser tests only |
@@ -107,7 +174,9 @@ An adapter module's default export has `id`, `library`, `version`, `config`, `av
 - `append(x, ys)`, `drawnNewestX()`: streaming, with the newest x the chart has drawn. Axylo's is constant time: the
   `ready()` called right after an append resolves after the frame that drew it; no `describe()` scan.
 - `zoom(lo, hi)`: Axylo `chart.zoom([lo, hi])` (public API); uPlot `setScale('x', …)`; Chart.js scale min/max.
-- `hoverTarget()`, `hoveredIndex()`, `readoutShows(i)`: W-hover.
+- `hoverGeometry()` (plot rectangle in client px and committed x domain), `hoveredIndex()` (the datum the chart's
+  hover state committed), `readoutShows(i)` (exact text of datum i's value in the visible readout): W-hover.
+- `memory()`: bytes the library counts in its own buffers (P7); Axylo needs `__bench.memory()` for it.
 - `themeColors(el)`: the colors the library assigns each series in the current scheme and the colors the marks show.
 - `describe({ capture, probe })`: the readback, after the measured window (below).
 - `destroy()`.
@@ -122,7 +191,8 @@ libraries is not a budget (spec 5, rule 2) and, because of the rows below, not a
 
 | | Axylo (default) | uPlot (default) | Chart.js starter | Chart.js tuned |
 |---|---|---|---|---|
-| Marks | one path per series; Canvas 2D or SVG (`__renderer`, always explicit); simplification per pixel column and run | one path per series, Canvas 2D; nulls break the line, clipped at whole device pixels (sub-pixel gaps are not visible as breaks) | line plus a point marker on every point, Canvas 2D | line, no point markers; min-max decimation above 4× the canvas width, which skips missing values (draws across gaps: not admitted on gappy data) |
+| Marks | one path per series; Canvas 2D or SVG (`__renderer` in the fixed adapters; the public default, SVG today, in the generic `axylo` adapter); simplification per pixel column and run | one path per series, Canvas 2D; nulls break the line, clipped at whole device pixels (sub-pixel gaps are not visible as breaks) | line plus a point marker on every point, Canvas 2D | line, no point markers; min-max decimation above 4× the canvas width, which skips missing values (draws across gaps: not admitted on gappy data); every point carries its source index `i` for the readback (one extra property per point, inside the timed work) |
+| Pointer | reads the pointer in CSS px; tooltip anchored to the datum, pointer-transparent; plots under 240×140 use a readout strip | cursor at whole pixels | tooltip on a hit marker | nearest decimated point: on 10,000 points it commits a neighbour of the datum under the pointer on some moves (not admitted for W-hover) |
 | Text | DOM text, inherits the page font (here 12px system-ui) | canvas text, its own default `12px system-ui, …` | canvas text, Chart.js default `12px 'Helvetica Neue', Helvetica, Arial` | same |
 | Legend | yes (DOM, series toggles) | yes, below the plot, with live values (30 px reserved) | yes (canvas) | yes |
 | Tooltip / readout | yes, DOM; fixed readout under the plot when it does not fit | no tooltip; cursor and live legend values | yes, only when the pointer hits a point marker (default `intersect: true`): not admitted for W-hover | yes, nearest point along x (`intersect: false`) |
@@ -140,14 +210,14 @@ libraries is not a budget (spec 5, rule 2) and, because of the rows below, not a
 | `first` | P1 (`--fixture trend`), P2 (`--size 1x100000`, `1x1000000`) | Create one line chart; any `SxN` (`10x100000` for the renderer decision), `--gaps` | one 800×400 |
 | `page` | P5 (`--fixture trend`) | 24 charts at once (`trend` each, or `SxN` with its own seed) | 24 of 340×200, 4 columns |
 | `compact` | P8 | 40 `compact: true` charts, one `trend` series each (spec 3.7, AX131) | 40 of 160×48, 8 columns |
-| `scatter` | renderer decision | One scatter of 10,000 / 50,000 / 200,000 points (`--size 1xN`), `--clustered` | one 800×400 |
+| `scatter` | renderer decision | One scatter of 10,000 / 50,000 / 200,000 points (`--size 1xN`); `--clustered`: five clusters in x and y | one 800×400 |
 | `stream` | P3 | A 600-point window; 300 samples from a producer on an independent 60 Hz clock | one 800×400 |
-| `hover` | P4 | 200 real pointer moves left to right across a 100,000-point chart (CDP Input) | one 800×400 |
+| `hover` | P4 | 200 real pointer moves (CDP Input) to known data across a 100,000-point chart, at whole client pixels | one 800×400 |
 | `zoom` | renderer decision | 60 calls to the public zoom: 20 in, 20 out, 20 pan steps, ending on a known window | one 800×400 |
 | `theme` | – | 20 toggles of a class-based dark theme on `<html>` | one 800×400 |
-| `resize` | – | 1,200 → 400 → 1,200 px in a fixed sequence of 123 widths, one per frame | 1,200×400, or 24 in 4 columns of 200 px |
+| `resize` | – | 1,200 → 400 → 1,200 px in a fixed sequence of 123 widths, one per frame | 1,200×400, or 24 stacked in one column, 200 px tall (every chart stays above Axylo's 240×140 layout switch) |
 | `mem` | P7 | Create one chart of 1,000,000 points; memory after forced collection | one 800×400 |
-| `lifecycle` | P7 | 1,000 create–destroy cycles of `trend` after 20 warm-up cycles | one 800×400 |
+| `lifecycle` | P7 | 2,500 create–destroy cycles of `trend` after 20 warm-up cycles; heap every 100 cycles over 1,500–2,500 | one 800×400 |
 
 The named `trend` fixture (3 × 120 daily points, "Direct", "Organic search", "Referral", a 7-day outage in
 "Referral") is copied value for value from `research/harness/src/data.js`; a test compares the two. Its largest value
@@ -164,37 +234,42 @@ drawn-geometry admission now rejects such a run ("the chart drew no line strokes
 Before an adapter is timed, the runner does one untimed **probe** run per side (`probe=geometry`) and compares the
 readback with facts derived in Node from the fixture (`src/admission.js`). Every timed run is checked again after its
 measurement window (the readback is never taken inside it). A run that fails is `not-admitted`; its timing is
-discarded and it is not paired. The checks:
+discarded and, for the decision, it is a failure of that configuration. The checks:
 
-- **held**: the visible x range contains the expected range (the data's, or the final zoom window) and is not wider
-  than it plus 10% per side (25% for a scatter's number axis, which may round to nice ticks); the visible y range
+- **held**: the visible x range contains the expected range and is not wider than it plus 10% per side (25% for a
+  scatter's number axis; exactly the requested window, to the millisecond, for a zoomed view); the visible y range
   contains the data's y extent in that window and the extreme, and is at most 4× the data's scale; per series the
-  points held, the oldest and newest x to the millisecond, and the number of missing values (**required** from every
-  adapter); the page built the same data as the runner (FNV-1a checksum).
-- **drawn**, index readback (uPlot, Chart.js): the source indices the library draws, as connected paths. Rejected:
-  two retained neighbours joined across a missing source value, a drawn point at a missing value, drawn indices that
-  do not cover the visible window, drawn extremes in the window that are not the data's extremes.
-- **drawn**, pixel readback (Axylo, probe runs only): the polylines the library stroked (SVG path data; Canvas 2D
-  moveTo/lineTo on the scene canvas, recorded only in the probe run), mapped through the plot clip rectangle and the
-  committed domains. The series is the stroke through its first and last visible points; its highest and lowest
-  vertices must sit within 1.5 px of where the data's extremes map; no single segment may cross a missing stretch at
-  least 2 px wide. Gaps narrower than 2 px are not checked at this resolution (index readbacks check every gap).
-  Timed runs of Axylo report `not-captured`, recorded as a limit: Axylo exposes no drawn-index readback.
-- **renderer**: Axylo adapters always pass `__renderer`, and the committed chart's mark elements must be the named
-  renderer (`.axylo-canvas` canvases or `svg.axylo-svg`), in probe and timed runs.
-- **stream**: an unfinished stream (a sample never received or never acknowledged by the draw record, the watchdog
-  fired, or a frame log that does not cover P3's 300 intervals) is outcome `incomplete`, a failure, never a timing.
-- **theme** (probe): after every toggle, every series mark's color must equal the color the library assigns that
-  series in the current scheme (Axylo: `--axylo-series-color-N` on the chart root, resolved on a probe element);
-  one stale mark fails. Frames until the new colors show: 4 further untimed toggles. Canvas 2D calls and DOM
-  mutations per toggle: a separate untimed `counters` run. Timed theme runs do neither.
-- **resize**: final geometry in every run; in the probe run also at the narrowest width (after the charts report
-  ready), so a chart that never follows its container is caught although it fits again at 1,200 px.
-- **hover**: the readout must match the datum the chart's hover state picked for each move, move left to right,
-  span the data, and show at least one distinct datum per two moves.
+  points held, the oldest and newest x to the millisecond, and the number of missing values (**required**); the page
+  built the same data as the runner (FNV-1a checksum).
+- **drawn, index paths** (uPlot; Chart.js through decimation, by the source index each point carries; Axylo when the
+  library reports run starts): rejected for two retained neighbours joined across a missing value, a drawn point at a
+  missing value, drawn indices that do not cover the visible window, drawn extremes that are not the data's.
+- **drawn, kept indexes** (Axylo's `__bench.describe().series[i].kept`, in probe and timed runs): in range, in order,
+  none at a missing value, covering the window, the data's extremes kept. A flat kept list cannot say whether two kept
+  indexes either side of a gap are joined, so gap topology comes from the strokes (next) in the probe run.
+- **drawn, strokes** (Axylo, probe runs): the polylines stroked (SVG path data; Canvas moveTo/lineTo on the scene
+  canvas), mapped through the plot clip rectangle and the committed domains. Each series gets its own stroke (one
+  stroke cannot stand for two series), through its first and last visible points; its extreme vertices within
+  1.5 px of the data's extremes; no continuous pen-down path across a missing stretch at least 2 px wide, however many
+  segments it uses.
+- **drawn, scatter points** (Axylo, probe runs): the marker centres (SVG circle paths, Canvas `arc` calls): one per
+  point, spanning the mapped data extremes in x and y, and a marker at the injected extreme. An empty shell fails.
+- **renderer**: the committed chart's mark elements, and the library's own report, must be the renderer the adapter
+  named; when the two disagree the kind is `inconsistent`.
+- **stream**: a sample never received or never acknowledged, the watchdog fired, or a frame log without a frame at or
+  before the first due time and 300 intervals after it: outcome `incomplete`, a failure.
+- **theme** (probe): a fresh reference chart is drawn in each scheme first; after every toggle every series mark of the
+  toggled chart must show the reference color of the scheme now set, and the color the library assigns. A chart frozen
+  in either scheme fails on the next toggle. Frames until the new colors show: 4 further untimed toggles. Canvas 2D
+  calls and DOM mutations: a separate untimed `counters` run. Timed theme runs do neither.
+- **resize**: final geometry in every run; in the probe run, at the narrowest width, the outer geometry and the full
+  readback (strokes, renderer, ranges) admitted like the final one.
+- **hover**: every move's pointermove arrives; the committed datum is the one under the pointer (within half a device
+  pixel); the readout shows exactly its value; misses beyond 5% fail the run (its p95 is a missed deadline).
+- **compact** (P8): no text labels or controls, an element with `role="img"`, an accessible name and a description,
+  no tab stop.
 
-Not done: screenshots against untimed references (plan 3.1), tooltip text against expected strings, gap checks below
-2 px for Axylo, scatter point geometry.
+Not done: screenshots against untimed references (plan 3.1), gap topology below 2 px for Axylo without run starts.
 
 ## Metrics
 
@@ -205,32 +280,33 @@ before the create call until a fixed settle window (500 ms) after every chart re
 work wherever it is scheduled; not GPU-process or raster-thread work. The window includes adapter conversion and the
 harness's own constant (the `noop` floor shows it); fixture generation, adapter loading and the readback are outside.
 
-**P3** (`stream`): `taskMsPerUpdate` = TaskDuration from the producer's start until the frame in which the last
-sample was visible, divided by the 300 samples, one number per run; the comparison and the budget take the median of
-those per-run numbers. This is the plan's definition (3.1, "main-thread task time divided by updates"). The spec's
-"median" (P3 row) could also be read as the median of individual updates' costs, which TaskDuration cannot separate;
-the harness implements the plan's statistic. `lateFrames` = frame intervals over 1.5× the observed refresh interval
-(25 ms at 60 Hz) among exactly 300 consecutive intervals, starting with the interval in which the first sample fell
-due; the frame log keeps running after the last sample until it covers them. These are animation-frame callback
-intervals, not presented frames (no trace). Per sequence number: `delay*` (scheduled time to the frame callback
-whose drawn state includes it), `maxBacklog`, `coalesced`. Small backlog and coalescing counts are mostly the beat
-between the two 60 Hz clocks.
+**P3** (`stream`): `taskMsPerUpdate` = TaskDuration from the producer's start until the frame callback in which the
+chart acknowledged the last sample, divided by the 300 samples, one number per run; the comparison and the budget
+take the median of those per-run numbers (plan 3.1 and 5.1; the spec's P3 "median" read the same way). The window
+includes dispatch, append, the chart's work and the harness's tracking. `lateFrames` = frame intervals later than
+**25 ms (fixed)** among exactly 300 consecutive intervals starting with the one that holds the first sample's due
+time; the pacing loop starts before the start mark and runs past the last sample, and a log without a frame at or
+before the first due time fails the run. `lateRun` (0 or 1) feeds the P3-late endpoint. Per sequence number
+`ackDelay*`: scheduled time to the frame callback in which the chart **acknowledged** a revision including it (its
+`ready()`), which is not a presented frame (no trace); a coalesced revision acknowledges several sequences at once.
 
 **Frame intervals** (`resize`, `zoom`): every interval that overlaps the window, including those that start before
 it or end after it.
 
-**P4** (`hover`): per move, `pointermove` `event.timeStamp` to the first animation-frame callback in which the
-readout shows the datum the chart's hover state picked; the 95th percentile over moves (`inputToReadoutP95Ms`). The
-reader is registered from a window listener in the bubbling phase, after the chart's own listener ran. It is the
-frame callback, not presentation.
+**P4** (`hover`): per move, `pointermove` `event.timeStamp` to the first animation-frame callback in which the chart's
+committed hover datum is the target (the datum under the pointer at the event's clientX) and the visible readout shows
+its value exactly; the **nearest-rank** 95th percentile over the 200 moves, with every miss kept as +Infinity
+(`inputToReadoutP95Ms`); `missedMoves`. Each move has its own waiter, so a callback left over after a timeout cannot
+release the next move. Frame callback, not presentation (no trace).
 
-**P7** (`mem`): `ownedBytes` = (JS heap used + ArrayBuffer backing storage, `Runtime.getHeapUsage` after
-`HeapProfiler.collectGarbage`) with the chart minus with only the caller's columns on the page; `ownedRatio` = that
-divided by the bytes of the caller's columns (budget ≤ 1). Canvas backing stores are not JavaScript memory and are
-reported separately (`canvasBackingBytes`, calculated as width × height × 4). (`lifecycle`): least-squares slope of
-the same heap figure over checkpoints after 0, 100, 300 and 1,000 cycles (`heapSlopeBytesPerCycle`), and the change in
-JS event listeners and DOM nodes from the first to the last checkpoint. The plan says "gated on slope" but declares no
-threshold; the slope is reported, not gated.
+**P7** (`mem`): `ownedBytes` = bytes in buffers the library holds beyond the caller's columns, **counted by the library**
+(`__bench.memory()`); this build has no such hook, so it is `not available` and P7-mem cannot be measured yet.
+Reported separately and never added: isolate JS heap after forced GC (chart minus data), isolate backing storage
+(ArrayBuffers and external strings), renderer PSS, calculated canvas bytes. (`lifecycle`): `heapGrowth` = median heap
+after forced GC over checkpoints at cycles 2,000–2,500 divided by the median over 1,500–2,000, minus 1; above 1% the
+gate fails (`heapGate`). Also the slope over all checkpoints, and from after warm-up to the end the change in JS event
+listeners, DOM nodes and live Resize/Mutation/Intersection observers (constructors wrapped in this workload only).
+Not built: peak memory during a data replacement.
 
 **Memory** (create workloads, outside the timed window): `heapChartBytes`, renderer and GPU process PSS (Linux
 `/proc`), calculated canvas bytes, `domNodes`. Never added together. Where an instrument is missing the result says
@@ -245,50 +321,50 @@ frames, allocation sites behind GC, and other threads are not attributed. Profil
 ## Statistics
 
 - Blocks of two (AB or BA), as many AB as BA, in an order shuffled with the recorded order seed. Before timing:
-  probe runs A then B, then one untimed warm-up run per side B then A (symmetric), all in the same browser.
-- For each metric: the median per configuration and the difference of medians (B − A) with a paired bootstrap 95%
-  percentile interval (10,000 resamples; recorded bootstrap seed). Resampling keeps the order strata: each resample
-  draws as many AB pairs from the AB blocks and as many BA pairs from the BA blocks as there are.
-- **Per-order estimates** (`AB | BA` column): the difference of medians within each order. With no differential
-  carry-over they agree; the reviewer's carry-over case gives −6 and −2. Carry-over is shown, not corrected.
-- Outcome: `better` if the whole interval is below zero (and below the noise band), `worse` if above, else
-  `inconclusive`, which never means "no difference".
-- **Verdict rule**: at least 20 complete pairs (plan 3.3: "20 runs for full comparisons" until a pilot sets sample
-  sizes); fewer pairs show the interval and are inconclusive by rule.
-- **Reliability gates speed**: any failed timed run (not-admitted, incomplete, error, timeout, crash) makes every
-  timing survivor-only, labelled *conditional*; when the candidate failed more runs than the baseline, or had more
-  runs with late frames (`lateFrames`, `framesOverThreshold` > 0), no metric may be called `better`.
-- **Noise bands** (`--noise`): an A-versus-A record is used only if it matches the comparison's workload, parameters,
-  settle, pixel ratio, Chrome version, headless/headed, host (name, CPU, cores) and bytes (every file it served is
-  byte-identical in one of the comparison's artifacts), with at least 20 complete pairs per metric. A mismatch is an
-  error, not a warning. Several bands are united per metric; fewer than three sessions are labelled exploratory.
-- **Replay** (`analyze.mjs`): prints the stored analysis by default. `--reanalyze` resolves the recorded bands again
-  under the same rules and stops if they cannot be used; `--zero-only` asks for a zero-only analysis explicitly and
-  the output says so. The band used is printed per metric.
+  probe runs A then B, then one untimed warm-up run per side B then A, in the same browser; with `--isolate`, every
+  run in a fresh browser process. The one-minute load at the start of every block is recorded (`blocks`), and the
+  session's `eligibility` (load under 1.0 at every block start, one Chrome version) is stored with the record.
+- For each metric: the median per configuration and the difference of medians (B − A) with a paired bootstrap
+  percentile interval (10,000 resamples, recorded bootstrap seed, 95% by default, 99.44% in the decision family),
+  keeping the order strata. Per-order estimates (`AB | BA`) are printed; the decision withholds an endpoint whose two
+  estimates differ by more than the noise edge.
+- A declared endpoint's metric (`--endpoint`) is classified against its thresholds (above); other metrics against
+  zero (or a calibrated band), labelled secondary.
+- **Verdict rule**: at least 20 complete pairs (plan 3.3).
+- **Reliability gates both directions**: a configuration can be shown better than the other only if it had no failed
+  run (not admitted, incomplete, error, timeout, crash) and no run with a late frame in the job. Every timing is
+  labelled conditional when any run failed.
+- **Noise bands** (`--noise`): an A-versus-A record is used only if it is an eligible session of one of the compared
+  adapters, with the same workload, parameters, settle, pixel ratio, Chrome, headless/headed, host and bytes. A band
+  gates a metric only with three such sessions of at least 20 pairs **for that metric**; otherwise it is shown as
+  exploratory and not used.
+- **Replay** (`analyze.mjs`): prints the stored analysis by default; `--reanalyze` resolves the recorded bands again
+  under the same rules and stops if they cannot be used; `--zero-only` is explicit and labelled.
 
 **Coverage, measured** (`node bench/tools/coverage.mjs`, 2,000 trials per size, 2,000 bootstrap resamples each,
-seed 7; run 2026-11-18). The reviewer's discrete distribution: A = 10; B = 5 with probability 0.49, else 11 (true
-difference +1, so "better" is wrong).
+seed 7). The reviewer's discrete distribution: A = 10; B = 5 with probability 0.49, else 11 (true difference +1, so
+"better" is wrong). Interval alone, better / worse / inconclusive:
 
-| Complete pairs | Interval alone: better / worse / inconclusive | Reported (with the 20-pair rule) |
+| Complete pairs | 95% | 99.44% (decision family) |
 |---|---|---|
-| 6 | 21.1% / 1.6% / 77.3% | 0% / 0% / 100% |
-| 10 | 8.9% / 3.8% / 87.3% | 0% / 0% / 100% |
-| 20 | 5.0% / 2.5% / 92.5% | 5.0% / 2.5% / 92.5% |
-| 40 | 2.8% / 2.1% / 95.0% | 2.8% / 2.1% / 95.0% |
+| 6 | 21.1% / 1.6% / 77.3% | not run |
+| 10 | 8.9% / 3.8% / 87.3% | not run |
+| 20 | 5.0% / 2.5% / 92.5% | 1.3% / 0.7% / 98.1% |
+| 40 | 2.8% / 2.1% / 95.0% | 0.4% / 0.4% / 99.3% |
 
-So at the plan's sample size the procedure still calls B better 5.0% of the time on this distribution, about twice
-the nominal 2.5% for one side of a 95% interval; this is a near-tie of a discrete median, the hard case for any
-median-based estimate. Calibrating the inference to the chosen estimand (plan: "set from a pilot") is not done here.
+Below 20 pairs the rule reports inconclusive. At the plan's sample size the family interval still calls B better 1.3%
+of the time on this near-tie of a discrete median, above the nominal 0.28% for one side; in the decision a win must
+also clear the worthwhile threshold. Calibrating the inference to the estimand is left to the pilot.
 
 ## Two builds and screening (plan 6)
 
 `--adapter <ref> --base <artifact> --candidate <artifact>` runs two immutable builds of the library in one balanced
 job: the same adapter, slot A served from the base artifact and slot B from the candidate. It refuses two artifacts
 whose harness files (page, adapters) differ, so only the library differs. `--screen --tolerance <t>` applies the
-pull-request rule: when the primary metric is `worse` with the lower end of its interval above `t` (the largest
-regression tolerated, in the metric's unit), the job is rerun once with a new order seed; two in a row flag the
-change (exit code 3, `<run id>.screening.json`). Tolerances are to be declared per workload before measuring (plan
+pull-request rule: when the lower end of the primary metric's interval is above `t` (the largest regression
+tolerated, in the metric's unit), or the candidate could not be measured (not compared, failed runs, metric not
+available: outcome `failed`, never "within tolerance"), the job is rerun once with a new order seed; two in a row
+flag the change (exit code 3, `<run id>.screening.json`). Tolerances are to be declared per workload before measuring (plan
 5); none are declared yet, so `--tolerance` is required. Not built: the nightly reference-machine confirmation, the
 last-release comparison, a CI job.
 
@@ -299,23 +375,49 @@ last-release comparison, a CI job.
 served bytes differed from the artifact. Runs have a `phase` (`admission`, `probe`, `warmup`, `timed`) and an
 `outcome` (`ok`, `not-admitted`, `incomplete`, `not-available`, `error`, `timeout`, `crash`) with the reason, console
 errors, raw CDP deltas, the readback and admission limits, and for streaming every per-sample array and frame
-timestamp. `design` holds both seeds; `hashes.slots` the artifact provenance and served-file hashes; `probes` the
-untimed probe summaries (theme counters, frames to new color).
+timestamp, and the Chrome version of every run. `design` holds both seeds, `isolate` and `endpoint`; `blocks` the
+load at every block start; `eligibility` the session's; `hashes.slots` the artifact provenance and served-file
+hashes; `probes` the untimed probe summaries (theme counters, frames to new color). The decision writes
+`bench/decision/ledger.json` (which job is which), `pilot.json` (frozen thresholds, order checks) and
+`decision-<time>.json`.
 
 ## Limits
 
 - Headless Chrome on this machine uses SwiftShader for WebGL; Canvas 2D and SVG raster differ from a headed browser
   with a GPU. `--headed` exists. One machine, one browser; no Firefox, WebKit, Edge, throttled or phone profile.
-- The machine is not idle (other agents and builds run); the load average is recorded, not gated.
+- The machine is not idle (other agents and builds run): the load at every block start is recorded, and a session with
+  load at or above 1.0 does not count for the decision.
 - No traces: presentation time, GPU and raster time, Long Animation Frames are not measured; P3 and P4 are frame
   callback times.
 - Readiness comes from each library's hooks; screenshot validation is not implemented.
 - Not built from the plan: rows vs typed columns, irregular x, the mixed page, W-replace, W-keys, W-busy, the other
   chart types of W-types, W-load, peak memory during a replacement, the CI job and the history page.
 
+## What the harness needs from the library
+
+- **Run starts in the kept selection**: `__bench.describe().series[i].breaks`, the offsets into `kept` at which a new
+  run starts (the `breaks` of `simplifyLine`'s `JoinedRuns`, which the hook already computes), and `isolated` if those
+  are drawn as markers. With them the adapter checks gap topology index-exactly in every run (it already reads
+  `breaks` when present).
+- **Plot rectangle**: `__bench.describe().plot`, `{ x, y, width, height }` in CSS px of the plot container, so W-hover
+  can place the pointer on the Canvas renderer too (today only the SVG clip rectangle gives it; Canvas reports "not
+  available" for W-hover).
+- **Owned bytes** (P7): `__bench.memory()` returning `{ bytes, buffers: [{ name, bytes }] }`, the byte length of every
+  typed array or ArrayBuffer the chart holds that is not one of the caller's columns (store copies, frame, scene,
+  simplification and lookup buffers), counted when called, with canvas backing stores excluded (they are reported
+  separately).
+- **Stream rows**: the kept indexes of a streaming chart refer to rows of individual `append` calls; a window-relative
+  index (or the x of each kept slot) would let the stream be checked like a static chart.
+
 ## Observed in this revision (smoke runs, machine under load; not evidence)
 
-- At the current library source, the hover readout on a 10,000-point Axylo chart showed 4 distinct data over 40
-  moves (indices 407, 2826, 5244, 7662): it does not follow the pointer datum by datum, so W-hover does not admit
-  Axylo yet. uPlot is admitted. Library behaviour, not changed here.
-- At 230×115 tiles Axylo drew no marks (L8 fallback), and the M1 dashboard records drew none either (above).
+- Load average 5–10 during this pass: every session was recorded as ineligible, as it should be.
+- P4 at the current source, public default (SVG): admitted with exact datum and readout on 1×100,000 (the earlier
+  4-distinct-readouts behaviour is gone). uPlot admitted. Chart.js tuned committed a neighbour of the datum under the
+  pointer on 1–2 of 40 moves (decimated tooltip): not admitted.
+- 24-chart resize (one column, 1,200 × 200 px tiles at the end): both Axylo renderers drew the series with a y mapping
+  that matches a domain of about [50, 200] while `__bench.describe()` reported [80, 180] (marks up to ~13 px off), so
+  the probe rejects it. Single-chart resize is admitted. Library behaviour, to be looked at in the core.
+- Marginal Canvas renderer size at the current source: 2,186 B gzip (6,250 B minified, 1,758 B brotli), from matched
+  production builds; a byte count, not a timing.
+- At 230×115 tiles Axylo drew no marks (L8 fallback), and the M1 dashboard records drew none either.

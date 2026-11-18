@@ -4,7 +4,7 @@
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 
-let canvas, svg, generic, rendererIn, parsePolylines;
+let canvas, svg, generic, rendererIn, parsePolylines, keptPaths, circleCenters;
 const calls = [];
 let describeCalls = 0;
 const fakeChart = () => {
@@ -29,7 +29,7 @@ before(async () => {
   canvas = (await import('../src/adapters/axylo-canvas.js')).default;
   svg = (await import('../src/adapters/axylo-svg.js')).default;
   generic = (await import('../src/adapters/axylo.js')).default;
-  ({ rendererIn, parsePolylines } = await import('../src/adapters/axylo-common.js'));
+  ({ rendererIn, parsePolylines, keptPaths, circleCenters } = await import('../src/adapters/axylo-common.js'));
 });
 
 const fix = { x: Float64Array.from([1, 2, 3]), ys: [Float64Array.from([4, 5, 6])], names: ['s0'] };
@@ -43,16 +43,36 @@ test('both fixed adapters pass __renderer explicitly, canvas included', () => {
   assert.ok(Object.hasOwn(calls[0].opts, '__renderer'), 'canvas must not rely on the library default');
 });
 
-test('the parameterized adapter passes its renderer explicitly too, default canvas', () => {
+test('the generic adapter follows the public default unless a renderer is named; the fixed ones always name theirs', () => {
+  // Budget paths (P1-P8) measure the library as users get it: no __renderer, the renderer read back afterwards.
   calls.length = 0;
   generic.create(fakeEl(0, 0), fix, { params: {} });
   generic.create(fakeEl(0, 0), fix, { params: { renderer: 'svg' } });
   generic.create(fakeEl(0, 0), fix, { params: { renderer: 'svg' }, kind: 'scatter' });
-  assert.deepEqual(calls.map(c => [c.type, c.opts.__renderer]), [['line', 'canvas'], ['line', 'svg'], ['scatter', 'svg']]);
+  assert.equal(Object.hasOwn(calls[0].opts, '__renderer'), false);
+  assert.deepEqual(calls.slice(1).map(c => [c.type, c.opts.__renderer]), [['line', 'svg'], ['scatter', 'svg']]);
+  assert.equal(generic.expectRendererFor({}), null);
   assert.equal(canvas.expectRendererFor({}), 'canvas');
   assert.equal(svg.expectRendererFor({ renderer: 'canvas' }), 'svg'); // the fixed id wins over a parameter
   assert.equal(generic.expectRendererFor({ renderer: 'svg' }), 'svg');
   assert.throws(() => generic.create(fakeEl(0, 0), fix, { params: { renderer: 'webgl' } }), /renderer must be canvas or svg/);
+});
+
+test('the library\'s renderer report and the mark elements must agree', () => {
+  assert.equal(rendererIn(fakeEl(0, 1), 'svg').kind, 'svg');
+  assert.equal(rendererIn(fakeEl(0, 1), 'canvas').kind, 'inconsistent');
+});
+
+test('kept indexes and run starts become index paths; the readback uses the library\'s kept selection', () => {
+  // kept 0,1,2,5,6 with a new run starting at offset 3 (index 5): two runs, [0..2] and [5..6].
+  assert.deepEqual(keptPaths([0, 1, 2, 5, 6], [3]), [[0, 2], [5, 6]]);
+  // Without the break the same kept list is one run: 2 joined to 5 (a bridge if 3..4 are missing).
+  assert.deepEqual(keptPaths([0, 1, 2, 5, 6], []), [[0, 2, 5, 6]]);
+  assert.deepEqual(keptPaths([3, 3, 4], []), [[3, 4]]);
+});
+
+test('scatter marker centres are read from SVG circle paths', () => {
+  assert.deepEqual(circleCenters('M12 5 A2 2 0 1 1 8 5 A2 2 0 1 1 12 5ZM22.5 7 A2 2 0 1 1 18.5 7 A2 2 0 1 1 22.5 7Z'), [10, 5, 20.5, 7]);
 });
 
 test('compact charts pass compact: true; other options stay default', () => {

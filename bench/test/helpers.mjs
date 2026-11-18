@@ -32,6 +32,7 @@ export function record({ runId, mode = 'compare', workload = 'first', params = {
     environment: { browser: { version: chrome, headless }, host },
     hashes: { slots: { A: slot, B: slot } },
     runs,
+    blocks: Array.from({ length: runs.length / 2 }, (_, block) => ({ block, load1: 0.4 })),
   };
   rec.analysis = analyze(workload, runs, { noise });
   return rec;

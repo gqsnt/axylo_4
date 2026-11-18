@@ -64,7 +64,7 @@ test('workload parameters: P1 and P5 use the named trend fixture; budget workloa
   assert.deepEqual(workloadParams('compact', {}), { fixture: 'trend', charts: 40 });
   assert.deepEqual(workloadParams('first', { size: '10x100000' }), { size: '10x100000', gaps: false });
   assert.deepEqual(workloadParams('scatter', { size: '1x200000', clustered: true }), { size: '1x200000', clustered: true });
-  assert.deepEqual(workloadParams('lifecycle', {}), { fixture: 'trend', cycles: 1000 });
+  assert.deepEqual(workloadParams('lifecycle', {}), { fixture: 'trend', cycles: 2500 });
   for (const w of ['first', 'page', 'compact', 'scatter', 'stream', 'theme', 'resize', 'hover', 'zoom', 'mem', 'lifecycle'])
     assert.ok(Object.values(workloadParams(w, {})).every(v => v !== undefined), w);
 });
@@ -74,7 +74,13 @@ test('screening: worse beyond the tolerance means the lower bound of the regress
   assert.equal(screeningVerdict(rec({ outcome: 'worse', lo: 3, hi: 5 }), 2).exceeds, true);
   assert.equal(screeningVerdict(rec({ outcome: 'worse', lo: 1, hi: 5 }), 2).exceeds, false);
   assert.equal(screeningVerdict(rec({ outcome: 'inconclusive', lo: 3, hi: 5 }), 2).exceeds, false);
-  assert.equal(screeningVerdict(rec({ na: 'not available: x' }), 2).exceeds, false);
+  // A candidate that never finished is not "within tolerance" (review 2, finding 10): its own outcome, retried.
+  const na = screeningVerdict(rec({ na: 'not available: x' }), 2);
+  assert.equal(na.status, 'failed');
+  assert.equal(na.failed, true);
+  const allTimeouts = { analysis: { reliability: { failed: { A: 0, B: 20 }, timed: { A: 20, B: 20 } }, metrics: { taskMs: { key: 'taskMs', primary: true, na: 'not available: no complete pair' } } } };
+  assert.equal(screeningVerdict(allTimeouts, 2).status, 'failed');
+  assert.equal(screeningVerdict({ analysis: { notCompared: ['B:axylo-svg: not-admitted'] } }, 2).status, 'failed');
 });
 
 test('the trend fixture is the specification\'s: Phase 1 values, names, the 7-day outage', async () => {

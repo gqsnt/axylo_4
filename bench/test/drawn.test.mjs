@@ -83,7 +83,43 @@ test('pixel readback: an honest polyline with a pen-up across the gap passes', (
 
 test('pixel readback: one segment across a resolvable gap is rejected', () => {
   const pixels = { plot, strokes: [{ color: '#000', polylines: [verts([0, 1, 2, 6, 7, 8, 9, 10])] }] };
-  assert.match(checkDrawnPixels(PX, PY, pixels, [0, 10], [0, 10], P_CTX, 's').join('|'), /1 of 1 resolvable gaps are crossed by one drawn segment \(indices 2\.\.6, 40\.0 px\)/);
+  assert.match(checkDrawnPixels(PX, PY, pixels, [0, 10], [0, 10], P_CTX, 's').join('|'), /1 of 1 resolvable gaps are crossed by one continuous drawn path \(indices 2\.\.6, 40\.0 px\)/);
+});
+
+test('pixel readback: a gap crossed by several short segments is still a bridge (review 2, finding 4)', () => {
+  // 2 -> (30, 60) -> (45, 50) -> 6: no single segment spans 20..60 px, the path does.
+  const poly = [...verts([0, 1, 2]), 30, 60, 45, 50, ...verts([6, 7, 8, 9, 10])];
+  const r = checkDrawnPixels(PX, PY, { plot, strokes: [{ color: '#000', polylines: [poly] }] }, [0, 10], [0, 10], P_CTX, 's');
+  assert.match(r.join('|'), /crossed by one continuous drawn path/);
+});
+
+test('pixel readback: one stroke cannot stand for two series', () => {
+  const stroke = { color: '#000', polylines: [verts([0, 1, 2]), verts([6, 7, 8, 9, 10])] };
+  const taken = new Set();
+  assert.deepEqual(checkDrawnPixels(PX, PY, { plot, strokes: [stroke] }, [0, 10], [0, 10], P_CTX, 's0', taken), []);
+  assert.match(checkDrawnPixels(PX, PY, { plot, strokes: [stroke] }, [0, 10], [0, 10], P_CTX, 's1', taken)[0], /no other drawn stroke passes/);
+});
+
+test('kept indexes (no run boundaries): extremes, coverage and missing values are checked', () => {
+  const ok = checkView(EXPECTED, readback({ kind: 'kept', kept: [0, 1, 3, 4, 5] }), { columns });
+  assert.equal(ok.admitted, true);
+  assert.match(ok.limits[0], /gap topology needs run boundaries/);
+  assert.match(checkView(EXPECTED, readback({ kind: 'kept', kept: [0, 1, 2, 3, 5] }), { columns }).reasons.join('|'), /1 kept indexes at missing source values[\s\S]*kept extremes \[1, 5\]/);
+  assert.match(checkView(EXPECTED, readback({ kind: 'kept', kept: [0, 1, 3, 4] }), { columns }).reasons[0], /do not cover the visible data \[0, 5\]/);
+  assert.equal(checkView(EXPECTED, readback({ kind: 'kept', kept: [0, 1, 3, 4, 5] }), { columns, requireDrawn: true }).admitted, false);
+});
+
+test('scatter is admitted against drawn point geometry and the injected extreme; an empty shell fails', () => {
+  // Plot 100 x 100 at (0, 0), x domain [0, 10], y domain [0, 10]; four points, the extreme (5, 10) at (50, 0).
+  const sx = Float64Array.from([0, 3, 5, 10]), sy = Float64Array.from([2, 4, 10, 0]);
+  const exp = { series: 1, points: 4, oldestX: 0, newestX: 10, visibleX: [0, 10], window: [0, 3], yMin: 0, yMax: 10, seriesY: [[0, 10]], missing: [0], extreme: { x: 5, y: 10, injected: true }, scatter: true, xSlack: 0.25 };
+  const base = { x: [0, 10], y: [0, 10], series: [{ points: 4, oldestX: 0, newestX: 10, missing: 0, drawn: { kind: 'points' } }] };
+  const centers = [0, 80, 30, 60, 50, 0, 100, 100];
+  const cols = { columns: { x: sx, ys: [sy] } };
+  assert.deepEqual(checkView(exp, { ...base, drawnPoints: { plot, centers } }, cols).reasons, []);
+  assert.match(checkView(exp, { ...base, drawnPoints: { plot, centers: [] } }, cols).reasons[0], /drew no point markers/);
+  assert.match(checkView(exp, { ...base, drawnPoints: { plot, centers: [0, 80, 30, 60, 100, 100] } }, cols).reasons.join('|'), /3 point markers drawn for 4 points[\s\S]*no marker at the injected extreme/);
+  assert.equal(checkView(exp, base, { ...cols, requireDrawn: true }).admitted, false, 'a probe run must capture the markers');
 });
 
 test('pixel readback: a clipped extreme is rejected; a stroke that misses the data is not taken for the series', () => {
@@ -101,15 +137,17 @@ test('index paths of uPlot data: runs of non-null inside the drawn window; spanG
   assert.deepEqual(uplotDrawnPaths(col, [2, 4], false), [[2, 3]]);
 });
 
-test('index paths of Chart.js drawn points: decimated points map back by x, NaN breaks, repeats are one point', () => {
-  const held = [0, 1, 2, 3, 4, 5, 6, 7].map(x => ({ x, y: x === 4 ? NaN : x }));
-  const heldX = held.map(p => p.x);
-  // A min-max decimation keeping 0, 0 (first = min), 2, 3, NaN at 4, 6, 7: two paths.
-  const drawn = [held[0], held[0], held[2], held[3], held[4], held[6], held[7]];
-  assert.deepEqual(chartjsDrawnPaths(drawn, heldX, false), [[0, 0, 2, 3], [6, 7]]);
+test('index paths of Chart.js drawn points: source indices carried through decimation, NaN breaks, repeats are one point', () => {
+  const held = [0, 1, 2, 3, 4, 5, 6, 7].map(x => ({ x, y: x === 4 ? NaN : x, i: x }));
+  const byI = p => p.i;
+  // A min-max decimation keeping 0, 0 (first = min), 2, 3, NaN at 4, 6, 7: two paths. Decimation copies points and
+  // moves some to the column's x (review 2: 1,380 of 2,981 on the gappy fixture): the copies keep `i`.
+  const moved = p => ({ ...p, x: p.x + 0.4 });
+  const drawn = [held[0], held[0], moved(held[2]), held[3], held[4], moved(held[6]), held[7]];
+  assert.deepEqual(chartjsDrawnPaths(drawn, byI, false), [[0, 0, 2, 3], [6, 7]]);
   // Without the NaN point the decimated copy joins 3 to 6 across the missing 4: one path.
-  const bridged = [held[0], held[2], held[3], held[6], held[7]];
-  const paths = chartjsDrawnPaths(bridged, heldX, false);
+  const bridged = [held[0], held[2], held[3], moved(held[6]), held[7]];
+  const paths = chartjsDrawnPaths(bridged, byI, false);
   assert.deepEqual(paths, [[0, 0, 2, 3, 6, 7]]);
   const col = Float64Array.from(held, p => p.y);
   const reasons = checkDrawnIndices(col, { paths }, { window: [0, 7], seriesY: [0, 7] }, 's');

@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { MIN_BAND_PAIRS, MIN_BAND_SESSIONS } from '../src/stats.js';
+import { sessionEligibility } from '../src/decision.js';
 
 export const WORKLOADS = ['first', 'page', 'compact', 'scatter', 'stream', 'theme', 'resize', 'hover', 'zoom', 'mem', 'lifecycle'];
 
@@ -42,6 +43,7 @@ export function controlsOf(record) {
     host: env.host ?? null,
     files: record.hashes?.files ?? null,
     slots: record.hashes?.slots ?? null,
+    adapters: [record.design?.baseline, record.design?.candidate].filter(Boolean),
   };
 }
 
@@ -51,6 +53,10 @@ const hostKey = h => (h ? `${h.hostname} / ${h.cpuModel} / ${h.logicalCores} cor
 export function bandMismatches(n, c) {
   const out = [];
   const nc = controlsOf(n);
+  // The control must be one of the compared configurations: a uPlot A-versus-A says nothing about Canvas against SVG.
+  if (c.adapters?.length && !c.adapters.includes(n.design?.baseline)) out.push(`adapter ${n.design?.baseline}, comparison ${c.adapters.join(' vs ')}`);
+  const el = sessionEligibility(n);
+  if (!el.eligible) out.push(`session not eligible: ${el.reasons.slice(0, 2).join('; ')}`);
   if (nc.workload !== c.workload) out.push(`workload ${nc.workload}, comparison ${c.workload}`);
   if (stableJson(nc.params) !== stableJson(c.params)) out.push(`parameters ${stableJson(nc.params)}, comparison ${stableJson(c.params)}`);
   if (nc.settleMs !== c.settleMs) out.push(`settle ${nc.settleMs} ms, comparison ${c.settleMs} ms`);
@@ -100,10 +106,18 @@ export function loadNoise(refs, historyDir, controls) {
     }
   }
   if (problems.length) throw new Error(problems.join('\n'));
+  // Counted per metric: a session gives a band for a metric only with enough pairs for that metric, and a band
+  // gates only with three such sessions; otherwise it is shown as exploratory and not used to classify.
+  for (const m of Object.values(metrics)) {
+    m.sessions = new Set(m.from).size;
+    m.calibrated = m.sessions >= MIN_BAND_SESSIONS;
+    m.calibration = m.calibrated ? `band from ${m.sessions} sessions` : `exploratory: band from ${m.sessions} session${m.sessions === 1 ? '' : 's'} with ${MIN_BAND_PAIRS}+ pairs; plan 3.3 asks for at least ${MIN_BAND_SESSIONS}; not used to classify`;
+  }
   const sessions = new Set(sources.map(s => s.runId)).size;
+  const calibratedMetrics = Object.entries(metrics).filter(([, m]) => m.calibrated).map(([k]) => k);
   return {
     sources, metrics, sessions,
-    calibration: sessions >= MIN_BAND_SESSIONS ? `band from ${sessions} sessions` : `exploratory: band from ${sessions} session${sessions === 1 ? '' : 's'}; plan 3.3 asks for at least ${MIN_BAND_SESSIONS}`,
+    calibration: calibratedMetrics.length ? `calibrated for ${calibratedMetrics.join(', ')}; other metrics exploratory` : `exploratory: no metric has ${MIN_BAND_SESSIONS} sessions with ${MIN_BAND_PAIRS}+ pairs (${sessions} session${sessions === 1 ? '' : 's'} given; plan 3.3 asks for at least ${MIN_BAND_SESSIONS} per metric); not used to classify`,
     minPairs: MIN_BAND_PAIRS,
   };
 }

@@ -99,24 +99,33 @@ function canvasBacking() {
 function installCapture() {
   const P = CanvasRenderingContext2D.prototype;
   const by = new WeakMap();
-  const st = ctx => { let s = by.get(ctx.canvas); if (!s) by.set(ctx.canvas, s = { strokes: [], clip: null, path: [], open: null, rect: null }); return s; };
+  const st = ctx => { let s = by.get(ctx.canvas); if (!s) by.set(ctx.canvas, s = { strokes: [], arcs: [], clip: null, path: [], open: null, rect: null }); return s; };
   const orig = {};
   const wrap = (name, fn) => { orig[name] = P[name]; P[name] = function (...a) { fn(this, a); return orig[name].apply(this, a); }; };
   wrap('beginPath', ctx => { const s = st(ctx); s.path = []; s.open = null; s.rect = null; });
   wrap('moveTo', (ctx, [x, y]) => { const s = st(ctx); s.open = [x, y]; s.path.push(s.open); });
   wrap('lineTo', (ctx, [x, y]) => { const s = st(ctx); if (!s.open) { s.open = [x, y]; s.path.push(s.open); } else s.open.push(x, y); });
   wrap('rect', (ctx, [x, y, w, h]) => { st(ctx).rect = { x, y, width: w, height: h }; });
+  wrap('arc', (ctx, [x, y]) => { st(ctx).arcs.push(x, y); });
   wrap('clip', ctx => { const s = st(ctx); if (s.rect) s.clip = s.rect; });
   wrap('stroke', (ctx, a) => { const s = st(ctx); s.strokes.push(a[0] ? { color: String(ctx.strokeStyle), path2d: true, polylines: [] } : { color: String(ctx.strokeStyle), polylines: s.path.filter(p => p.length >= 4).map(p => p.slice()) }); });
   wrap('clearRect', (ctx, [x, y, w, h]) => {
     const m = ctx.getTransform();
     const X = m.a * x + m.e, Y = m.d * y + m.f, W = m.a * w, H = m.d * h;
-    if (X <= 0 && Y <= 0 && X + W >= ctx.canvas.width && Y + H >= ctx.canvas.height) { const s = st(ctx); s.strokes = []; }
+    if (X <= 0 && Y <= 0 && X + W >= ctx.canvas.width && Y + H >= ctx.canvas.height) { const s = st(ctx); s.strokes = []; s.arcs = []; }
   });
-  return { of: canvas => { const s = by.get(canvas); return s ? { strokes: s.strokes, clip: s.clip } : { strokes: [], clip: null }; } };
+  return { of: canvas => { const s = by.get(canvas); return s ? { strokes: s.strokes, arcs: s.arcs, clip: s.clip } : { strokes: [], arcs: [], clip: null }; } };
 }
 const capture = probe === 'geometry' ? installCapture() : null;
 const describeAll = handles => handles.map(h => h.describe({ capture, probe }));
+// P7's owned bytes come only from the library's own count (adapter.memory(): the library's buffers beyond the
+// caller's columns); without it the quantity is not available, never an isolate heap delta.
+const ownedBytes = handles => {
+  if (!handles.every(h => typeof h.memory === 'function')) return { na: 'the adapter has no owned-buffer count' };
+  const counts = handles.map(h => h.memory());
+  if (counts.some(c => !c || !Number.isFinite(c.bytes))) return { na: counts.find(c => c?.na)?.na ?? 'the library reports no owned-buffer count (__bench.memory() missing)' };
+  return { bytes: counts.reduce((s, c) => s + c.bytes, 0), detail: counts.map(c => c.buffers ?? null) };
+};
 
 // ── W-first, W-page, W-compact, W-scatter, W-mem ────────────────────────────────────────────────
 // From the create call until a fixed settle window after every chart reports ready. The readback (describe) is
@@ -143,6 +152,9 @@ async function runCreate(adapter, fixtures, els) {
     timing: { syncMs: r3(tSync - t0), readyMs: r3(tReady - t0), readyFrameMs: r3(tReadyFrame - t0), windowMs: r3(tEnd - t0), settleMs },
     canvasBacking: backing,
     callerColumnBytes: fixtures.reduce((s, f) => s + f.x.byteLength + f.ys.reduce((t, c) => t + c.byteLength, 0), 0),
+    // P7: bytes the library holds beyond the caller's columns, counted by the library itself (after the window).
+    owned: workload === 'mem' ? ownedBytes(handles) : undefined,
+    ...(workload === 'compact' ? { compactCheck: compactCheck(els) } : {}),
     describe: describeAll(handles),
   };
 }
@@ -186,7 +198,7 @@ async function runStream(adapter, fix, el) {
   const finished = new Promise(r => { finish = r; });
   let framesDone;
   const framesCovered = new Promise(r => { framesDone = r; });
-  const dueBy = t => Math.max(0, Math.min(N, Math.floor((t - startAt) / period) + 1));
+  const dueBy = t => (Number.isNaN(startAt) ? 0 : Math.max(0, Math.min(N, Math.floor((t - startAt) / period) + 1)));
 
   // Frame pacing loop. Its callback runs first in each frame (registered earliest), so it accounts the previous
   // frame: by then that frame's visibility has been read.
@@ -219,9 +231,12 @@ async function runStream(adapter, fix, el) {
     if (!readerPending) { readerPending = true; requestAnimationFrame(reader); }
   };
 
+  // Frame pacing starts before the start mark and before the first due time, so the interval holding the first
+  // sample is sampled from both sides (a stalled first callback shows as a late interval, not a later start).
+  requestAnimationFrame(pace);
+  await raf(); await raf(); await raf();
   await metrics('stream:start');
   await inTask(() => {
-    requestAnimationFrame(pace);
     startAt = performance.now() + 50;
     worker.postMessage({ startAt, pageOrigin: performance.timeOrigin, period, count: N });
   });
@@ -281,10 +296,33 @@ function themeState(handle, el) {
 }
 // W-theme: toggle a class-based dark theme on <html> and measure main-thread task time per toggle, over a fixed
 // window of three animation frames plus 50 ms (Axylo promises the repaint within one frame, spec L4). Timed runs
-// do nothing else. The 'geometry' probe checks every mark's color after every toggle and counts frames until the
-// new colors show; the 'counters' probe counts drawing calls and mutations per toggle.
+// do nothing else. The 'geometry' probe first draws a fresh reference chart in each scheme (its mark colors are what
+// that scheme should look like, independent of how the toggled chart updates), then after every toggle checks every
+// mark of the toggled chart against the reference for the scheme now set and against the colors the library assigns;
+// it also counts frames until the new colors show. The 'counters' probe counts drawing calls and mutations.
+async function referenceColors(adapter, fix) {
+  const html = document.documentElement;
+  const out = {};
+  for (const scheme of ['light', 'dark']) {
+    html.classList.toggle('bench-dark', scheme === 'dark');
+    await raf();
+    const box = document.getElementById('root').appendChild(Object.assign(document.createElement('div'), { className: 'chart' }));
+    const h = adapter.create(box, fix, { params: adapterParams });
+    await h.ready;
+    await raf();
+    const t = h.themeColors?.(box, { capture });
+    out[scheme] = t ? t.marks.map(normColor) : null;
+    h.destroy();
+    box.remove();
+  }
+  html.classList.remove('bench-dark');
+  await raf(); await raf();
+  return out;
+}
+
 async function runTheme(adapter, fix, el) {
   const toggles = params.toggles ?? 20;
+  const reference = probe === 'geometry' ? await referenceColors(adapter, fix) : null;
   await metrics('create:start');
   const handle = await inTask(() => adapter.create(el, fix, { params: adapterParams }));
   await handle.ready;
@@ -294,10 +332,20 @@ async function runTheme(adapter, fix, el) {
   const reasons = [], states = [];
   const counter = probe === 'counters' ? workCounter(el) : null;
   const work = [];
-  if (probe === 'geometry') {
+  const check = (when, scheme) => {
     const s = themeState(handle, el);
-    if (!s) reasons.push('the adapter has no theme readback (the library has no theme mechanism)');
-    else { states.push(s); const m = themeMismatch(s); if (m) reasons.push(`before the first toggle: ${m}`); }
+    if (!s) { reasons.push('the adapter has no theme readback (the library has no theme mechanism)'); return; }
+    states.push({ scheme, ...s });
+    const m = themeMismatch(s);
+    if (m) reasons.push(`${when}: ${m}`);
+    const ref = reference?.[scheme];
+    if (!ref) { reasons.push(`${when}: no reference chart colors for ${scheme}`); return; }
+    const bad = s.marks.map((c, k) => (c !== ref[k] ? `series ${k} ${c}, a fresh ${scheme} chart shows ${ref[k]}` : null)).filter(Boolean);
+    if (bad.length || s.marks.length !== ref.length) reasons.push(`${when} (${scheme}): ${bad.join('; ') || `${s.marks.length} marks, a fresh chart has ${ref.length}`}`);
+  };
+  if (probe === 'geometry') {
+    check('before the first toggle', 'light');
+    if (reference?.light && reference?.dark && reference.light.join() === reference.dark.join()) reasons.push(`a fresh chart shows the same mark colors in both schemes (${reference.light.join(', ')}): the toggle cannot be checked`);
   }
   for (let i = 0; i < toggles; i++) {
     counter?.take();
@@ -307,33 +355,27 @@ async function runTheme(adapter, fix, el) {
     await sleep(50);
     await metrics(`toggle${i}:end`);
     if (counter) work.push(counter.take());
-    if (probe === 'geometry' && !reasons.length) {
-      const s = themeState(handle, el);
-      states.push(s);
-      const m = themeMismatch(s);
-      if (m) reasons.push(`after toggle ${i + 1}: ${m}`);
-      else if (i === 0 && s.marks.every((c, k) => c === states[0].marks[k])) reasons.push(`the marks kept their colors on the first toggle (${s.marks.join(', ')})`);
-    }
+    if (probe === 'geometry' && reasons.length < 5) check(`after toggle ${i + 1}`, i % 2 === 0 ? 'dark' : 'light');
   }
   counter?.stop();
-  // Latency: untimed toggles, the marks read after every frame until each shows its expected color (<= 10 frames).
+  // Latency: untimed toggles, the marks read after every frame until each shows its new scheme's reference color.
   const framesToChange = [];
   if (probe === 'geometry' && !reasons.length) {
     for (let i = 0; i < 4; i++) {
-      const before = themeState(handle, el).marks.join();
+      const next = html.classList.contains('bench-dark') ? 'light' : 'dark';
       html.classList.toggle('bench-dark');
       // Let mutation observers (where a library notices the toggle) run first, so a frame callback the library
       // registers in response comes before this sampler's in the same frame.
       await Promise.resolve();
       let n = 0, ok = false;
-      while (n < 10 && !ok) { await raf(); n++; const s = themeState(handle, el); ok = !themeMismatch(s) && s.marks.join() !== before; }
+      while (n < 10 && !ok) { await raf(); n++; const s = themeState(handle, el); ok = s.marks.join() === reference[next].join(); }
       framesToChange.push(ok ? n : null);
     }
   }
   if (html.classList.contains('bench-dark')) html.classList.remove('bench-dark');
   await raf(); await raf();
   return {
-    theme: { toggles, windowFrames: 3, windowExtraMs: 50, probe, work, states: probe === 'geometry' ? states.slice(0, 3) : undefined, framesToChange },
+    theme: { toggles, windowFrames: 3, windowExtraMs: 50, probe, work, reference, states: probe === 'geometry' ? states.slice(0, 3) : undefined, framesToChange },
     themeCheck: probe === 'geometry' ? { ok: reasons.length === 0, reasons: reasons.slice(0, 5) } : undefined,
     timing: { settleMs },
     describe: describeAll([handle]),
@@ -343,9 +385,12 @@ async function runTheme(adapter, fix, el) {
 // ── resize ──────────────────────────────────────────────────────────────────────────────────────
 // W-resize: the box holding the chart(s) goes 1,200 -> 400 -> 1,200 px in a fixed sequence of widths, one per
 // animation frame (60 down, 60 up, 3 at the end), so every adapter receives the same steps however busy it is
-// (2 s at 60 Hz; the elapsed time is recorded). Task time and frame intervals are recorded over the sequence. Every
-// run checks the final geometry; the 'geometry' probe also stops at the narrowest width, waits for the charts to
-// report ready, and checks the intermediate geometry there.
+// (2 s at 60 Hz; the elapsed time is recorded). The 24-chart variant stacks the charts in one column so every chart
+// stays above the size where Axylo switches layout (240 x 140 px readout strip, 120 x 80 px fallback): renderer
+// resize timing, not responsive fallback. Frame pacing runs before the start mark and until after the charts report
+// ready, so intervals across both ends are sampled. Every run checks the final geometry; the 'geometry' probe also
+// stops at the narrowest width, waits for the charts to report ready, checks the outer geometry and returns the full
+// readback there (drawn strokes, renderer, ranges), which the runner admits like the final one.
 function widestGraphic(el) { let w = 0; for (const g of el.querySelectorAll('canvas, svg')) w = Math.max(w, g.getBoundingClientRect().width); return w; }
 function fillReasons(els, when) {
   const out = [];
@@ -368,13 +413,15 @@ async function runResize(adapter, fixtures, els, box) {
   await metrics('create:end');
   const frames = [], applied = [];
   const reasons = [];
-  let intermediate = null;
+  let intermediate = null, intermediateDescribe = null, pacing = true;
+  const pace = ts => { frames.push(ts); if (pacing) requestAnimationFrame(pace); };
+  requestAnimationFrame(pace);
+  await raf(); await raf();
   await metrics('resize:start');
   const startAt = performance.now();
   await new Promise(resolve => {
     let k = 0;
-    const step = async ts => {
-      frames.push(ts);
+    const step = async () => {
       if (k >= widths.length) { resolve(); return; }
       box.style.width = `${widths[k]}px`;
       applied.push(widths[k]);
@@ -384,6 +431,7 @@ async function runResize(adapter, fixtures, els, box) {
         await Promise.all(handles.map(h => h.ready));
         await raf();
         intermediate = els.map(el => ({ container: el.clientWidth, widest: r3(widestGraphic(el)) }));
+        intermediateDescribe = describeAll(handles);
         reasons.push(...fillReasons(els, `at ${narrow} px`));
       }
       k++;
@@ -391,77 +439,89 @@ async function runResize(adapter, fixtures, els, box) {
     };
     inTask(() => requestAnimationFrame(step));
   });
-  const endAt = performance.now();
   await Promise.all(handles.map(h => h.ready));
+  const endAt = performance.now();
   await metrics('resize:end');
+  await raf(); await raf();
+  pacing = false;
   await sleep(settleMs);
   reasons.push(...fillReasons(els, 'after the resize'));
   return {
     resize: { from: wide, to: narrow, steps: widths.length, startAt: r3(startAt), endAt: r3(endAt), elapsedMs: r3(endAt - startAt), frames: frames.map(r3), widths: applied, intermediate },
     resizeCheck: { ok: reasons.length === 0, reasons: reasons.slice(0, 5) },
+    ...(intermediateDescribe ? { intermediateDescribe } : {}),
     timing: { settleMs },
     describe: describeAll(handles),
   };
 }
 
 // ── W-hover (P4) ────────────────────────────────────────────────────────────────────────────────
-// 200 real pointer moves left to right across the plot (CDP Input through the runner). For each move: the
-// pointermove event's timeStamp, then the first animation-frame callback in which the chart's readout shows the
-// datum the chart's own hover state picked for that event. The frame reader is registered from a window listener
-// in the bubbling phase, after the chart's own listener on the plot has run, so a frame callback the chart
-// registered for the move runs before it. This is the frame callback, not presentation (no trace).
+// 200 real pointer moves (CDP Input through the runner), each to an independently known datum: target k is source
+// index round(n (0.05 + 0.9 k / 199)), placed at the client x where that datum maps (the adapter's plot rectangle and
+// committed x domain, read before the timed window). For each move, in the move's own waiter: the pointermove
+// event's timeStamp and clientX; the datum the pointer is nearest to at that clientX (expected); then the first
+// animation-frame callback in which the chart's committed hover datum is that datum (within half a device pixel)
+// and its visible readout shows exactly that datum's value. A move that never matches within 10 frames is a missed
+// deadline (+Infinity in the nearest-rank percentile). The frame reader is registered from a window listener in the
+// bubbling phase, after the chart's own listener on the plot ran. This is the frame callback, not presentation.
 async function runHover(adapter, fix, el) {
   const moves = params.moves ?? 200;
   const handle = await inTask(() => adapter.create(el, fix, { params: adapterParams, hover: true }));
   await handle.ready;
   await sleep(settleMs);
-  if (!handle.hoverTarget) return { unsupported: 'the adapter has no hover readout' };
-  const rect = handle.hoverTarget().getBoundingClientRect();
-  const y = rect.top + rect.height / 2;
-  const xs = Array.from({ length: moves }, (_, k) => rect.left + rect.width * (0.1 + 0.8 * k / (moves - 1)));
-  const eventAt = new Float64Array(moves).fill(NaN), shownAt = new Float64Array(moves).fill(NaN), picked = new Float64Array(moves).fill(NaN);
-  let current = -1, waiting = null;
+  const geo = handle.hoverGeometry?.();
+  if (!geo) return { unsupported: handle.hoverGeometry ? 'the adapter cannot read the plot rectangle in this configuration' : 'the adapter has no hover readout' };
+  const { plot, xDomain: [X0, X1] } = geo;
+  const n = fix.x.length;
+  const toClient = v => plot.left + ((v - X0) / (X1 - X0)) * plot.width;
+  const fromClient = cx => X0 + ((cx - plot.left) / plot.width) * (X1 - X0);
+  const halfDevicePx = 0.5 / devicePixelRatio;
+  const nearest = xv => { let lo = 0, hi = n - 1; while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (fix.x[mid] <= xv) lo = mid; else hi = mid; } return Math.abs(fix.x[hi] - xv) < Math.abs(fix.x[lo] - xv) ? hi : lo; };
+  const targets = Array.from({ length: moves }, (_, k) => Math.round((n - 1) * (0.05 + 0.9 * k / Math.max(1, moves - 1))));
+  const y = plot.top + plot.height / 2;
+  const log = targets.map(t => ({ target: t, event: null, clientX: null, expected: null, committed: null, shown: null, frames: 0 }));
+  let current = null;
   const onMove = e => {
-    if (current < 0) return;
-    eventAt[current] = e.timeStamp;
-    const k = current;
-    let frames = 0;
+    const mv = current;
+    if (!mv || mv.event !== null) return;
+    mv.event = e.timeStamp; mv.clientX = e.clientX;
+    mv.expected = nearest(fromClient(e.clientX));
     const read = () => {
-      frames++;
+      mv.frames++;
       const idx = handle.hoveredIndex();
-      if (Number.isFinite(idx) && handle.readoutShows(idx)) { shownAt[k] = performance.now(); picked[k] = idx; waiting?.(); return; }
-      if (frames < 10) requestAnimationFrame(read); else waiting?.();
+      mv.committed = Number.isFinite(idx) ? idx : null;
+      const close = mv.committed !== null && Math.abs(toClient(fix.x[mv.committed]) - e.clientX) <= Math.abs(toClient(fix.x[mv.expected]) - e.clientX) + halfDevicePx;
+      if (close && handle.readoutShows(mv.committed)) { mv.shown = performance.now(); mv.done(); return; }
+      if (mv.frames < 10) requestAnimationFrame(read); else mv.done();
     };
     requestAnimationFrame(read);
   };
   window.addEventListener('pointermove', onMove);
   // Untimed: put the pointer on the plot once so the first timed move is a move, not an entry.
-  await window.__benchPointer?.(rect.left + rect.width * 0.05, y);
+  await window.__benchPointer?.(plot.left + 2, y);
   await raf(); await raf();
   await metrics('hover:start');
   for (let k = 0; k < moves; k++) {
-    current = k;
-    const seen = new Promise(r => { waiting = r; });
-    await window.__benchPointer?.(xs[k], y);
-    await Promise.race([seen, sleep(500)]);
-    waiting = null;
+    const mv = log[k];
+    const finished = new Promise(r => { mv.done = r; });
+    current = mv;
+    // Whole client pixels: libraries read the pointer at pixel resolution, so a fractional position names no datum.
+    await window.__benchPointer?.(Math.round(toClient(fix.x[targets[k]])), Math.round(y));
+    await Promise.race([finished, sleep(500)]);
+    current = null;
   }
   await metrics('hover:end');
-  current = -1;
   window.removeEventListener('pointermove', onMove);
-  const latencies = Array.from(eventAt, (t, k) => (Number.isFinite(shownAt[k]) && Number.isFinite(t) ? shownAt[k] - t : NaN));
+  const latencies = log.map(m => (m.shown !== null && m.event !== null ? r3(m.shown - m.event) : null));
+  const missed = latencies.filter(v => v === null).length;
   const reasons = [];
-  const missed = latencies.filter(v => !Number.isFinite(v)).length;
-  if (missed > moves * 0.05) reasons.push(`${missed} of ${moves} moves never showed a matching readout within 10 frames`);
-  const idx = Array.from(picked).filter(Number.isFinite);
-  for (let i = 1; i < idx.length; i++) if (idx[i] < idx[i - 1]) { reasons.push(`readout went backwards (${idx[i - 1]} then ${idx[i]}) on a left-to-right sweep`); break; }
-  const n = fix.x.length;
-  if (idx.length && (idx[0] > 0.2 * n || idx[idx.length - 1] < 0.8 * n)) reasons.push(`readouts span indices ${idx[0]}..${idx[idx.length - 1]} of ${n} for a sweep over 10%..90% of the plot`);
-  // Moves are at least a pixel apart over at least as many data as moves, so each should read a datum of its own.
-  const distinct = new Set(idx).size;
-  if (n >= moves && distinct < moves / 2) reasons.push(`the readout showed ${distinct} distinct data for ${moves} moves over ${n} points: it does not follow the datum under the pointer`);
+  if (missed > moves * 0.05) reasons.push(`${missed} of ${moves} moves never showed the target datum's readout within 10 frames (the 95th percentile is a missed deadline)`);
+  const wrong = log.filter(m => m.event !== null && m.shown === null && m.committed !== null && m.committed !== m.expected).length;
+  if (wrong) reasons.push(`${wrong} moves committed a datum other than the one under the pointer`);
+  const noEvent = log.filter(m => m.event === null).length;
+  if (noEvent) reasons.push(`${noEvent} moves produced no pointermove event`);
   return {
-    hover: { moves, latencies: latencies.map(r3), picked: Array.from(picked), missed },
+    hover: { moves, latencies, missed, log: log.map(({ done, ...m }) => m), plot, xDomain: [X0, X1] },
     hoverCheck: { ok: reasons.length === 0, reasons },
     timing: { settleMs },
     describe: describeAll([handle]),
@@ -471,7 +531,8 @@ async function runHover(adapter, fix, el) {
 // ── W-zoom ──────────────────────────────────────────────────────────────────────────────────────
 // 60 calls to the public zoom (Axylo chart.zoom([lo, hi])): 20 in, 20 out, 20 pan steps; each waits for the chart
 // to report the step drawn and one frame. The final window is known in Node (fixtures.zoomSteps), so the admission
-// check reads back exactly that view and the drawn extremes inside it.
+// check reads back exactly that view and the drawn extremes inside it; the 'geometry' probe also reads back the
+// committed x range after steps 10, 30 and 50, which must be the requested window to the millisecond.
 async function runZoom(adapter, fix, el) {
   const steps = zoomSteps(fix);
   const handle = await inTask(() => adapter.create(el, fix, { params: adapterParams }));
@@ -482,39 +543,63 @@ async function runZoom(adapter, fix, el) {
   let pacing = true;
   const pace = ts => { frames.push(ts); if (pacing) requestAnimationFrame(pace); };
   requestAnimationFrame(pace);
-  await raf();
-  const stepToFrame = [];
+  await raf(); await raf();
+  const stepToFrame = [], intermediate = [], reasons = [];
+  const checkAt = new Set([9, 29, 49]);
   await metrics('zoom:start');
   const startAt = performance.now();
-  for (const [lo, hi] of steps) {
+  for (let k = 0; k < steps.length; k++) {
+    const [lo, hi] = steps[k];
     const t0 = await inTask(() => { const t = performance.now(); handle.zoom(lo, hi); return t; });
     await handle.ready;
     await raf();
     stepToFrame.push(r3(performance.now() - t0));
+    if (probe === 'geometry' && checkAt.has(k)) {
+      const x = handle.describe({ probe: null }).x;
+      intermediate.push({ step: k, requested: [lo, hi], committed: x });
+      if (!(Math.abs(x[0] - lo) <= 1 && Math.abs(x[1] - hi) <= 1)) reasons.push(`after step ${k + 1} the committed x range is [${x[0]}, ${x[1]}], requested [${lo}, ${hi}]`);
+    }
   }
   const endAt = performance.now();
   await metrics('zoom:end');
-  await raf();
+  await raf(); await raf();
   pacing = false;
   return {
-    zoom: { steps: steps.length, finalWindow: steps[steps.length - 1], stepToFrame, startAt: r3(startAt), endAt: r3(endAt), frames: frames.map(r3) },
+    zoom: { steps: steps.length, finalWindow: steps[steps.length - 1], stepToFrame, startAt: r3(startAt), endAt: r3(endAt), frames: frames.map(r3), intermediate },
+    ...(probe === 'geometry' ? { zoomCheck: { ok: reasons.length === 0, reasons } } : {}),
     timing: { settleMs },
     describe: describeAll([handle]),
   };
 }
 
 // ── W-mem lifecycle (P7) ────────────────────────────────────────────────────────────────────────
-// Create, wait for ready, destroy, on one container, `cycles` times after 20 warm-up cycles; heap after forced
-// collection (and listener and node counts) at checkpoints. The readback for admission comes from one more chart
-// created after the last checkpoint.
+// Create, wait for ready, destroy, on one container, `cycles` times (2,500 by default) after 20 warm-up cycles;
+// heap after forced collection, JS listeners, DOM nodes and live observers at checkpoints: after warm-up, 100, 300,
+// 1,000, and every 100 cycles over plan 5.1's windows 1,500-2,000 and 2,000-2,500. Live observers are counted by
+// wrapping the Resize/Mutation/Intersection observer constructors (constructed and not disconnected), installed in
+// this workload only. The readback for admission comes from one more chart created after the last checkpoint.
+function observerCounter() {
+  let live = 0;
+  for (const name of ['ResizeObserver', 'MutationObserver', 'IntersectionObserver']) {
+    const Orig = window[name];
+    if (!Orig) continue;
+    window[name] = class extends Orig {
+      constructor(...a) { super(...a); this.__benchLive = true; live++; }
+      disconnect() { if (this.__benchLive) { this.__benchLive = false; live--; } return super.disconnect(); }
+    };
+  }
+  return () => live;
+}
 async function runLifecycle(adapter, fix, el) {
-  const cycles = params.cycles ?? 1000, warm = 20;
+  const cycles = params.cycles ?? 2500, warm = 20;
+  const liveObservers = observerCounter();
   const at = new Set([0, 100, 300, 1000, cycles].filter(c => c <= cycles));
+  for (let c = 1500; c <= Math.min(2500, cycles); c += 100) at.add(c);
   const checkpoints = [];
   const once = async () => { const h = adapter.create(el, fix, { params: adapterParams }); await h.ready; h.destroy(); };
   for (let i = 0; i < warm; i++) await once();
   for (let c = 0; c <= cycles; c++) {
-    if (at.has(c)) { const label = `cycles${c}`; await raf(); await memory(label); checkpoints.push({ cycles: c, label }); }
+    if (at.has(c)) { const label = `cycles${c}`; await raf(); await memory(label); checkpoints.push({ cycles: c, label, observers: liveObservers() }); }
     if (c < cycles) await once();
   }
   const leftover = el.childElementCount;
@@ -522,6 +607,28 @@ async function runLifecycle(adapter, fix, el) {
   await handle.ready;
   const reasons = leftover ? [`${leftover} elements left in the container after the last destroy()`] : [];
   return { lifecycle: { cycles, warm, checkpoints, leftover }, lifecycleCheck: { ok: !reasons.length, reasons }, timing: { settleMs }, describe: describeAll([handle]) };
+}
+
+// ── P8: what a compact chart must be (spec 3.7, C1) ─────────────────────────────────────────────
+// Marks only (no tick labels, legend entries or controls), a static image with a text alternative (role="img", an
+// accessible name, a description with text), and no tab stop. Read after the measured window.
+function compactCheck(els) {
+  const reasons = [];
+  const focusable = 'a[href], button, input, select, textarea, [tabindex]';
+  els.forEach((el, i) => {
+    if (reasons.length >= 5) return;
+    const labels = el.querySelectorAll('.axylo-label').length, controls = el.querySelectorAll('.axylo-control, .axylo-legend-entry').length;
+    if (labels || controls) reasons.push(`chart ${i}: ${labels} text labels and ${controls} controls in a compact chart`);
+    const img = el.querySelector('[role="img"]');
+    if (!img) { reasons.push(`chart ${i}: no element with role="img"`); return; }
+    const name = img.getAttribute('aria-label') || (img.getAttribute('aria-labelledby') ?? '').split(/\s+/).map(id => document.getElementById(id)?.textContent ?? '').join(' ').trim();
+    if (!name) reasons.push(`chart ${i}: the image has no accessible name`);
+    const desc = (img.getAttribute('aria-describedby') ?? '').split(/\s+/).filter(Boolean).map(id => document.getElementById(id)?.textContent ?? '').join(' ').trim();
+    if (!desc) reasons.push(`chart ${i}: the image has no description`);
+    const stops = [...el.querySelectorAll(focusable)].filter(n => n.tabIndex >= 0 && !n.disabled && !n.hidden && n.getAttribute('aria-hidden') !== 'true');
+    if (stops.length) reasons.push(`chart ${i}: ${stops.length} tab stops`);
+  });
+  return { ok: reasons.length === 0, reasons };
 }
 
 async function main() {

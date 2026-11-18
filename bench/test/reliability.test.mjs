@@ -106,3 +106,21 @@ test('P3 lateness: exactly 300 intervals for 300 samples, from the interval hold
   assert.ok(Math.abs(s.taskMsPerUpdate - 1) < 1e-9);
   assert.equal(lateWindow(frameLog(0, 250), 5, 300), null);
 });
+
+test('review 2: a frame log that starts after the first due time is not a lateness window', () => {
+  // lateWindow([160, 177, 194, 211], 40, 3) used to report three 17 ms intervals starting at 160 ms.
+  assert.equal(lateWindow([160, 177, 194, 211], 40, 3), null);
+  assert.deepEqual(lateWindow([30, 47, 64, 81], 40, 3).intervals, [17, 17, 17]);
+});
+
+test('review 2: equal failure counts on different blocks leave no conditional "better"', () => {
+  // 22 blocks; A fails block 1, B fails block 2; B is 2 ms faster on the 20 survivors.
+  const runs = [];
+  for (let b = 0; b < 22; b++) runs.push(...pair(b, 10, b === 2 ? { outcome: 'timeout' } : { outcome: 'ok', summary: { taskMs: 8 } }));
+  runs[2] = { ...runs[2], outcome: 'error', summary: undefined }; // block 1, config A
+  const m = analyze('first', runs).metrics.taskMs;
+  assert.ok(m.pairs >= MIN_PAIRS);
+  assert.ok(m.hi < 0);
+  assert.equal(m.outcome, 'inconclusive');
+  assert.match(m.outcomeNote, /"better" blocked: the candidate failed 1 of 22/);
+});

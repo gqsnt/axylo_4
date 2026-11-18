@@ -158,9 +158,12 @@ test('resize: a chart that never follows its container passes the final check bu
 test('new workloads run end to end: hover (P4), zoom, compact (P8), scatter, mem and lifecycle (P7)', async () => {
   const cases = [
     ['uplot', 'hover', { size: '1x10000', gaps: false, moves: 30 }],
+    // P4 on the budget path: the public default renderer, exact datum and readout per move.
+    ['axylo', 'hover', { size: '1x100000', gaps: false, moves: 30 }],
     ['axylo-svg', 'zoom', { size: '1x10000', gaps: false }],
     ['axylo-canvas', 'compact', { fixture: 'trend', charts: 40 }],
     ['axylo-svg', 'scatter', { size: '1x10000', clustered: true }],
+    ['axylo-canvas', 'scatter', { size: '1x10000', clustered: false }],
     ['axylo-canvas', 'mem', { size: '1x100000', gaps: false }],
     ['axylo-svg', 'lifecycle', { fixture: 'trend', cycles: 20 }],
   ];
@@ -170,4 +173,13 @@ test('new workloads run end to end: hover (P4), zoom, compact (P8), scatter, mem
   }
   const na = await runOnce(browser, server, spec('uplot', 'compact', { fixture: 'trend', charts: 40 }));
   assert.equal(na.outcome, 'not-available');
+  // The library's owned-buffer count is not in this build: P7 owned bytes are "not available", never a heap delta.
+  const mem = await runOnce(browser, server, spec('axylo-canvas', 'mem', { size: '1x100000', gaps: false }));
+  assert.ok(mem.result.owned.na);
+});
+
+test('P4 counts a stale or wrong readout as a missed deadline (Chart.js tuned commits decimated neighbours)', async () => {
+  const r = await runOnce(browser, server, probe('chartjs-tuned', 'hover', { size: '1x10000', gaps: false, moves: 40 }));
+  assert.equal(r.outcome, 'not-admitted');
+  assert.match(r.reason, /committed a datum other than the one under the pointer/);
 });

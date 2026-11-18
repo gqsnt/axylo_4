@@ -84,7 +84,7 @@ export function checkDrawnIndices(col, drawn, { window, seriesY, scatter }, labe
  * through the series' first and last visible data points. Its vertex extremes inside the plot must sit where the
  * data's extremes map, and no segment may run across a missing stretch at least PX_GAP_MIN wide.
  */
-export function checkDrawnPixels(x, col, pixels, xDomain, yDomain, { window, seriesY }, label) {
+export function checkDrawnPixels(x, col, pixels, xDomain, yDomain, { window, seriesY }, label, taken = new Set()) {
   const reasons = [];
   const { plot, strokes } = pixels;
   if (Array.isArray(strokes) && strokes.length === 0) return [`${label}: the chart drew no line strokes${plot && plot.height < 20 ? ` (its plot area is ${plot.width}×${plot.height} px)` : ''}`];
@@ -98,8 +98,10 @@ export function checkDrawnPixels(x, col, pixels, xDomain, yDomain, { window, ser
   const near = (poly, tx, ty) => { for (let i = 0; i + 1 < poly.length; i += 2) if (Math.abs(poly[i] - tx) <= PX_TOLERANCE && Math.abs(poly[i + 1] - ty) <= PX_TOLERANCE) return true; return false; };
   const hasNear = (s, tx, ty) => s.polylines.some(p => near(p, tx, ty));
   const fx = px(x[first]), fy = py(col[first]), lx = px(x[last]), ly = py(col[last]);
-  const stroke = strokes.find(s => hasNear(s, fx, fy) && hasNear(s, lx, ly));
-  if (!stroke) return [`${label}: no drawn stroke passes through the first visible point (${fx.toFixed(1)}, ${fy.toFixed(1)}) px and the last (${lx.toFixed(1)}, ${ly.toFixed(1)}) px`];
+  // One stroke per series: a stroke already taken by another series cannot stand for this one.
+  const stroke = strokes.find(s => !taken.has(s) && hasNear(s, fx, fy) && hasNear(s, lx, ly));
+  if (!stroke) return [`${label}: no ${taken.size ? 'other ' : ''}drawn stroke passes through the first visible point (${fx.toFixed(1)}, ${fy.toFixed(1)}) px and the last (${lx.toFixed(1)}, ${ly.toFixed(1)}) px`];
+  taken.add(stroke);
   let top = Infinity, bottom = -Infinity;
   for (const p of stroke.polylines) for (let i = 0; i + 1 < p.length; i += 2) {
     if (p[i] < plot.x - 0.5 || p[i] > plot.x + plot.width + 0.5) continue;
@@ -120,18 +122,81 @@ export function checkDrawnPixels(x, col, pixels, xDomain, yDomain, { window, ser
   }
   let bridged = 0;
   const examples = [];
+  // A gap is bridged when one continuous polyline (pen down throughout) has a vertex at or before the last finite
+  // point and a later vertex at or after the next one: however many short segments it uses to get across.
   for (const [pa, pb, a, b] of gaps) {
     let hit = false;
     for (const p of stroke.polylines) {
-      for (let i = 0; i + 3 < p.length; i += 2) {
-        const sx0 = Math.min(p[i], p[i + 2]), sx1 = Math.max(p[i], p[i + 2]);
-        if (sx0 <= pa + 0.5 && sx1 >= pb - 0.5) { hit = true; break; }
+      let before = false;
+      for (let i = 0; i + 1 < p.length; i += 2) {
+        if (p[i] <= pa + 0.5) before = true;
+        else if (before && p[i] >= pb - 0.5) { hit = true; break; }
       }
       if (hit) break;
     }
     if (hit) { bridged++; if (examples.length < 3) examples.push(`indices ${a}..${b}, ${(pb - pa).toFixed(1)} px`); }
   }
-  if (bridged) reasons.push(`${label}: ${bridged} of ${gaps.length} resolvable gaps are crossed by one drawn segment (${examples.join('; ')})`);
+  if (bridged) reasons.push(`${label}: ${bridged} of ${gaps.length} resolvable gaps are crossed by one continuous drawn path (${examples.join('; ')})`);
+  return reasons;
+}
+
+/**
+ * Kept-index readback (Axylo's `__bench.describe().series[i].kept` without run boundaries): the caller's row
+ * indexes the simplified drawing kept, in drawing order. Checked: in range, in order, none at a missing value,
+ * covering the visible data, the data's extremes in the window kept. Not checkable from a flat list: whether two
+ * consecutive kept indexes on either side of a gap are joined or broken (gap topology); with `breaks` (offsets at
+ * which a new run starts) the adapter reports kind 'indices' instead, which is checked in full.
+ */
+export function checkKept(col, kept, { window, seriesY }, label) {
+  const reasons = [];
+  if (!Array.isArray(kept) || !kept.length) return [`${label}: the chart reports no kept indexes`];
+  let prev = -1, lo = Infinity, hi = -Infinity, atMissing = 0, disorder = 0;
+  for (const i of kept) {
+    if (!Number.isInteger(i) || i < 0 || i >= col.length) { reasons.push(`${label}: kept index ${i} outside the ${col.length} rows`); return reasons; }
+    if (i < prev) disorder++;
+    prev = i;
+    const v = col[i];
+    if (v !== v) { atMissing++; continue; }
+    if (i >= window[0] && i <= window[1]) { if (v < lo) lo = v; if (v > hi) hi = v; }
+  }
+  if (disorder) reasons.push(`${label}: ${disorder} kept indexes out of drawing order`);
+  if (atMissing) reasons.push(`${label}: ${atMissing} kept indexes at missing source values`);
+  const [first, last] = finiteBounds(col, window[0], window[1]);
+  if (first >= 0) {
+    if (kept[0] > first || kept[kept.length - 1] < last) reasons.push(`${label}: kept indexes [${kept[0]}, ${kept[kept.length - 1]}] do not cover the visible data [${first}, ${last}]`);
+    if (lo !== seriesY[0] || hi !== seriesY[1]) reasons.push(`${label}: kept extremes [${lo}, ${hi}] are not the data's extremes [${seriesY[0]}, ${seriesY[1]}] in the visible window`);
+  }
+  return reasons;
+}
+
+/**
+ * Scatter point geometry (probe runs): the centres of the markers the chart drew, in CSS px of the plot container.
+ * Every point is drawn (count), the drawn centres span where the data's extremes map (x and y), and a marker sits
+ * where the injected extreme maps. An empty renderer shell has no markers and fails.
+ */
+export function checkScatterPoints(x, col, points, xDomain, yDomain, extreme, label) {
+  const { plot, centers } = points;
+  if (!Array.isArray(centers) || centers.length === 0) return [`${label}: the chart drew no point markers`];
+  if (!plot || !(plot.width > 0) || !(plot.height > 0)) return [`${label}: no plot rectangle in the point readback`];
+  const reasons = [];
+  const [X0, X1] = xDomain, [Y0, Y1] = yDomain;
+  const px = v => plot.x + ((v - X0) / (X1 - X0)) * plot.width;
+  const py = v => plot.y + ((Y1 - v) / (Y1 - Y0)) * plot.height;
+  const n = centers.length / 2;
+  let finite = 0, xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
+  for (let i = 0; i < col.length; i++) if (col[i] === col[i]) { finite++; xmin = Math.min(xmin, x[i]); xmax = Math.max(xmax, x[i]); ymin = Math.min(ymin, col[i]); ymax = Math.max(ymax, col[i]); }
+  if (n !== finite) reasons.push(`${label}: ${n} point markers drawn for ${finite} points`);
+  let cx0 = Infinity, cx1 = -Infinity, cy0 = Infinity, cy1 = -Infinity, hit = false;
+  const ex = px(extreme.x), ey = py(extreme.y);
+  for (let i = 0; i + 1 < centers.length; i += 2) {
+    const cx = centers[i], cy = centers[i + 1];
+    if (cx < cx0) cx0 = cx; if (cx > cx1) cx1 = cx; if (cy < cy0) cy0 = cy; if (cy > cy1) cy1 = cy;
+    if (Math.abs(cx - ex) <= PX_TOLERANCE && Math.abs(cy - ey) <= PX_TOLERANCE) hit = true;
+  }
+  if (!hit) reasons.push(`${label}: no marker at the injected extreme (${ex.toFixed(1)}, ${ey.toFixed(1)}) px`);
+  const off = (a, b) => !(Math.abs(a - b) <= PX_TOLERANCE);
+  if (off(cx0, px(xmin)) || off(cx1, px(xmax))) reasons.push(`${label}: markers span x ${cx0.toFixed(1)}..${cx1.toFixed(1)} px, the data ${px(xmin).toFixed(1)}..${px(xmax).toFixed(1)} px`);
+  if (off(cy0, py(ymax)) || off(cy1, py(ymin))) reasons.push(`${label}: markers span y ${cy0.toFixed(1)}..${cy1.toFixed(1)} px, the data ${py(ymax).toFixed(1)}..${py(ymin).toFixed(1)} px`);
   return reasons;
 }
 
@@ -161,7 +226,7 @@ export function checkView(expected, seen, opts = {}) {
   const xSpan = vx1 - vx0, xSlack = expected.xSlack ?? X_SLACK;
   if (x0 > vx0 + X_EXACT_MS || x1 < vx1 - X_EXACT_MS)
     reasons.push(`visible x [${x0}, ${x1}] does not contain the expected x range [${vx0}, ${vx1}]`);
-  if (x0 < vx0 - xSlack * xSpan || x1 > vx1 + xSlack * xSpan)
+  if (x0 < vx0 - xSlack * xSpan - X_EXACT_MS || x1 > vx1 + xSlack * xSpan + X_EXACT_MS)
     reasons.push(`visible x [${x0}, ${x1}] is wider than the expected x range plus ${xSlack * 100}% per side`);
 
   if (y0 > expected.yMin || y1 < expected.yMax)
@@ -174,6 +239,7 @@ export function checkView(expected, seen, opts = {}) {
   if (!(ex.x >= x0 && ex.x <= x1)) reasons.push(`${ex.injected === false ? 'extreme' : 'injected extreme'} x=${ex.x} is outside visible x [${x0}, ${x1}]`);
 
   const ss = seen.series ?? [];
+  const taken = new Set();
   if (ss.length !== expected.series) reasons.push(`chart holds ${ss.length} series, fixture has ${expected.series}`);
   ss.slice(0, expected.series).forEach((s, i) => {
     if (s.points !== expected.points) reasons.push(`series ${i}: chart holds ${s.points} points, fixture ${expected.points}`);
@@ -191,12 +257,23 @@ export function checkView(expected, seen, opts = {}) {
       return;
     }
     if (d.kind === 'not-applicable') { limits.push(`series ${i}: drawn geometry not checked: ${d.reason}`); return; }
+    if (d.kind === 'points') {
+      if (!opts.columns) { limits.push(`series ${i}: point readback present but no columns given`); return; }
+      if (!seen.drawnPoints) { if (opts.requireDrawn) reasons.push(`series ${i}: point geometry not captured in a run that must capture it`); else limits.push(`series ${i}: point geometry checked in the untimed probe run only`); return; }
+      for (const r of checkScatterPoints(opts.columns.x, opts.columns.ys[i], seen.drawnPoints, [x0, x1], [y0, y1], expected.extreme, `series ${i}`)) reasons.push(r);
+      return;
+    }
     if (!opts.columns) { limits.push(`series ${i}: drawn readback present but no columns given to check it against`); return; }
     const col = opts.columns.ys[i];
     if (d.kind === 'indices') for (const r of checkDrawnIndices(col, d, ctx, `series ${i}`)) reasons.push(r);
-    else if (d.kind === 'pixels') {
+    else if (d.kind === 'kept') {
+      for (const r of checkKept(col, d.kept, ctx, `series ${i}`)) reasons.push(r);
+      if (seen.drawnPixels) for (const r of checkDrawnPixels(opts.columns.x, col, seen.drawnPixels, [x0, x1], [y0, y1], ctx, `series ${i}`, taken)) reasons.push(r);
+      else if (opts.requireDrawn) reasons.push(`series ${i}: strokes not captured in a run that must capture them (gap topology)`);
+      else limits.push(`series ${i}: kept indexes checked; gap topology needs run boundaries from the library or the probe run's strokes`);
+    } else if (d.kind === 'pixels') {
       if (!seen.drawnPixels) reasons.push(`series ${i}: pixel readback announced but no captured strokes`);
-      else for (const r of checkDrawnPixels(opts.columns.x, col, seen.drawnPixels, [x0, x1], [y0, y1], ctx, `series ${i}`)) reasons.push(r);
+      else for (const r of checkDrawnPixels(opts.columns.x, col, seen.drawnPixels, [x0, x1], [y0, y1], ctx, `series ${i}`, taken)) reasons.push(r);
     } else reasons.push(`series ${i}: unknown drawn readback kind ${JSON.stringify(d.kind)}`);
   });
   return { admitted: reasons.length === 0, reasons, limits };

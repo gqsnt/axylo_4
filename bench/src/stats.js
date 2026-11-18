@@ -11,6 +11,22 @@ export function quantile(values, p) {
 export const median = v => quantile(v, 0.5);
 
 /**
+ * Nearest-rank percentile: the smallest value with at least p of the values at or below it. Used for P4, where a
+ * move whose readout never matched is a missed deadline and enters as +Infinity, so misses cannot drop out of the
+ * tail (189 moves at 8 ms, one at 100 ms and ten misses give 100 ms, not 8 ms).
+ */
+export function nearestRank(values, p) {
+  const s = Float64Array.from(values, v => (Number.isNaN(v) ? Infinity : v)).sort();
+  if (!s.length) return NaN;
+  return s[Math.max(0, Math.ceil(p * s.length) - 1)];
+}
+
+/** P3's fixed lateness threshold (plan 5.1): an interval later than 25 ms, whatever the observed refresh rate. */
+export const LATE_MS = 25;
+/** P7 lifecycle gate (plan 5.1): heap growth above 1% between the two windows fails. */
+export const LIFECYCLE_GROWTH_LIMIT = 0.01;
+
+/**
  * Seeds are recorded so a run can be replayed exactly; a seed that the generator would silently coerce (a string,
  * a fraction, a negative number, NaN) would make the record lie about how it was produced, so it is an error.
  */
@@ -48,7 +64,8 @@ export function balancedOrder(blocks, seed) {
  * pairs as it has, so the balance the design fixed (as many AB as BA) is kept in every resample instead of being
  * left to chance.
  */
-export function pairedBootstrap(a, b, { iterations = 10000, seed = DEFAULT_BOOTSTRAP_SEED, strata = null } = {}) {
+export function pairedBootstrap(a, b, { iterations = 10000, seed = DEFAULT_BOOTSTRAP_SEED, strata = null, level = 0.95 } = {}) {
+  if (!(level > 0 && level < 1)) throw new Error(`interval level must be between 0 and 1, got ${level}`);
   const n = a.length;
   if (n !== b.length) throw new Error('paired samples must have equal length');
   checkSeed(seed, 'bootstrap seed');
@@ -68,7 +85,8 @@ export function pairedBootstrap(a, b, { iterations = 10000, seed = DEFAULT_BOOTS
     for (const g of groups) for (let j = 0; j < g.length; j++) { const i = g[Math.floor(r() * g.length)]; ra[k] = a[i]; rb[k] = b[i]; k++; }
     diffs[it] = median(rb) - median(ra);
   }
-  return { n, estimate: median(b) - median(a), lo: quantile(diffs, 0.025), hi: quantile(diffs, 0.975), stratified: !!strata };
+  const tail = (1 - level) / 2;
+  return { n, estimate: median(b) - median(a), lo: quantile(diffs, tail), hi: quantile(diffs, 1 - tail), stratified: !!strata, level };
 }
 
 /**
@@ -126,7 +144,10 @@ export const METRICS = {
   first: CREATE,
   page: CREATE,
   compact: CREATE,
-  scatter: CREATE,
+  // Plan 5.1 names the scatter endpoint "first draw": time to the first frame after the chart reports the data
+  // drawn, not settle-inclusive task time (still reported). Not validated against a presented frame (no trace).
+  scatter: [{ key: 'readyFrameMs', unit: 'ms', primary: true, what: 'first draw: create call to the first animation frame after the adapter reported the data drawn' },
+    ...CREATE.map(m => (m.key === 'taskMs' ? { ...m, primary: false } : m)).filter(m => m.key !== 'readyFrameMs')],
   theme: [
     { key: 'taskMsPerToggle', unit: 'ms', primary: true, what: 'median over toggles of TaskDuration from the class toggle to 3 frames + 50 ms later (no counters, no pixel reads in timed runs)' },
     { key: 'taskMsToggleMax', unit: 'ms', what: 'largest per-toggle TaskDuration' },
@@ -142,10 +163,10 @@ export const METRICS = {
     // "median" is then the median of those per-run numbers over runs. It is not the median of individual updates'
     // costs, which TaskDuration cannot separate (see README, "P3").
     { key: 'taskMsPerUpdate', unit: 'ms', primary: true, what: 'P3: main-thread TaskDuration from stream start to last sample visible, divided by samples (per run)' },
-    { key: 'lateFrames', unit: 'frames', what: 'P3: frame intervals over 25 ms (1.5x refresh) among the 300 intervals that start at the first sample\'s due time' },
-    { key: 'delayP50Ms', unit: 'ms', what: 'median per-sample delay, scheduled time to the frame callback whose drawn state includes it' },
-    { key: 'delayP95Ms', unit: 'ms', what: '95th percentile of that delay' },
-    { key: 'delayMaxMs', unit: 'ms', what: 'largest delay' },
+    { key: 'lateFrames', unit: 'frames', what: 'P3: frame intervals later than 25 ms (fixed, plan 5.1) among the 300 intervals that start at the first sample\'s due time' },
+    { key: 'ackDelayP50Ms', unit: 'ms', what: 'median per-sample delay, scheduled time to the frame callback in which the chart acknowledged a revision including it (an acknowledgement, not a presented frame)' },
+    { key: 'ackDelayP95Ms', unit: 'ms', what: '95th percentile of that delay' },
+    { key: 'ackDelayMaxMs', unit: 'ms', what: 'largest delay' },
     { key: 'maxBacklog', unit: 'samples', what: 'largest number of due samples not yet shown after a frame' },
     { key: 'coalesced', unit: 'samples', what: 'samples first shown in the same frame as a later sample' },
     { key: 'frameP95Ms', unit: 'ms', what: '95th percentile of the same 300 frame intervals' },
@@ -153,9 +174,9 @@ export const METRICS = {
     { key: 'createTaskMs', unit: 'ms', what: 'TaskDuration to create the initial window and settle' },
   ],
   hover: [
-    { key: 'inputToReadoutP95Ms', unit: 'ms', primary: true, what: 'P4: 95th percentile over moves of pointermove event.timeStamp to the frame callback whose readout shows the hovered datum' },
-    { key: 'inputToReadoutP50Ms', unit: 'ms', what: 'median of the same' },
-    { key: 'inputToReadoutMaxMs', unit: 'ms', what: 'largest of the same' },
+    { key: 'inputToReadoutP95Ms', unit: 'ms', primary: true, what: 'P4: nearest-rank 95th percentile over moves of pointermove event.timeStamp to the frame callback whose committed datum and visible readout are the target datum; a miss counts as +Infinity' },
+    { key: 'inputToReadoutP50Ms', unit: 'ms', what: 'nearest-rank median of the same' },
+    { key: 'missedMoves', unit: 'moves', what: 'moves whose readout never matched within 10 frames (deadline failures)' },
     { key: 'taskMsPerMove', unit: 'ms', what: 'TaskDuration over the moves divided by moves' },
   ],
   zoom: [
@@ -164,16 +185,20 @@ export const METRICS = {
     ...FRAMES,
   ],
   mem: [
-    { key: 'ownedBytes', unit: 'bytes', primary: true, what: 'P7: (JS heap used + ArrayBuffer backing storage) after forced GC with the chart, minus with only the caller\'s columns' },
+    // Four quantities, never added (plan 3.1). Only the first is P7, and only from the library's own count.
+    { key: 'ownedBytes', unit: 'bytes', primary: true, what: 'P7: bytes in buffers the library holds beyond the caller\'s columns, counted by the library (__bench.memory()); not available without that hook' },
     { key: 'ownedRatio', unit: 'x', what: 'P7: ownedBytes / bytes of the caller\'s columns (budget: at most 1)' },
-    { key: 'heapChartBytes', unit: 'bytes', what: 'JS heap used only (no ArrayBuffer backing), chart minus data' },
-    { key: 'canvasBackingBytes', unit: 'bytes', what: 'CALCULATED canvas backing stores (not Axylo JS memory, reported separately)' },
+    { key: 'heapChartBytes', unit: 'bytes', what: 'isolate JS heap used after forced GC, chart minus data (everything on the page, not only the library)' },
+    { key: 'backingStorageChartBytes', unit: 'bytes', what: 'isolate backing storage (ArrayBuffers and external strings), chart minus data' },
+    { key: 'canvasBackingBytes', unit: 'bytes', what: 'CALCULATED canvas backing stores (not JS memory)' },
     { key: 'rendererPssChartBytes', unit: 'bytes', what: 'page renderer PSS, chart minus data' },
   ],
   lifecycle: [
-    { key: 'heapSlopeBytesPerCycle', unit: 'bytes', primary: true, what: 'P7: least-squares slope of (heap used + backing storage) after forced GC over the checkpoints, per create-destroy cycle' },
-    { key: 'listenersAfter', unit: 'listeners', what: 'JS event listeners on the page after the last cycle minus before the first' },
-    { key: 'nodesAfter', unit: 'nodes', what: 'DOM nodes after the last cycle minus before the first' },
+    { key: 'heapGrowth', unit: 'x', primary: true, what: 'P7 (plan 5.1): median heap after forced GC over cycles 2,000-2,500 divided by that over 1,500-2,000, minus 1 (gate: above 0.01 fails)' },
+    { key: 'heapSlopeBytesPerCycle', unit: 'bytes', what: 'least-squares slope of heap after forced GC over all checkpoints, per cycle' },
+    { key: 'listenersAfter', unit: 'listeners', what: 'JS event listeners on the page after the last cycle minus after warm-up' },
+    { key: 'observersAfter', unit: 'observers', what: 'Resize/Mutation/Intersection observers constructed and never disconnected, after the last cycle minus after warm-up' },
+    { key: 'nodesAfter', unit: 'nodes', what: 'DOM nodes after the last cycle minus after warm-up' },
   ],
 };
 
@@ -201,12 +226,15 @@ export function intervalsOverlapping(frames, from, to) {
 /**
  * P3's lateness window: exactly `count` consecutive frame intervals, starting with the interval in which the first
  * sample falls due (the last frame at or before that time, to the next). 300 samples at 60 Hz give 300 intervals.
- * Returns null when the frame log does not reach that far (the run then fails; see streamCompletion).
+ * Returns null unless the frame log has a frame at or before the first due time and reaches `count` intervals past
+ * it (the run then fails; see streamCompletion): samples on both sides of the window.
  */
 export function lateWindow(frames, firstDue, count) {
   let i0 = -1;
   for (let i = 0; i < frames.length; i++) { if (frames[i] <= firstDue) i0 = i; else break; }
-  if (i0 < 0) i0 = 0; // the pacing loop started after the first due time; begin at its first frame
+  // A frame log that starts after the first due time cannot show whether the first interval was late (a stalled
+  // first callback would be invisible): the window is not covered, and the run fails rather than start later.
+  if (i0 < 0) return null;
   if (i0 + count >= frames.length) return null;
   const iv = [];
   for (let i = i0; i < i0 + count; i++) iv.push(frames[i + 1] - frames[i]);
@@ -292,8 +320,8 @@ export function summarizeRun(workload, run) {
     out.taskMsPerUpdate = Number.isFinite(task) ? task / s.samples : NA('TaskDuration missing');
     const delays = [];
     for (let i = 0; i < s.samples; i++) if (Number.isFinite(s.visible[i]) && Number.isFinite(s.due[i])) delays.push(s.visible[i] - s.due[i]);
-    if (delays.length) { out.delayP50Ms = quantile(delays, 0.5); out.delayP95Ms = quantile(delays, 0.95); out.delayMaxMs = Math.max(...delays); }
-    else out.delayP50Ms = out.delayP95Ms = out.delayMaxMs = NA('no sample became visible');
+    if (delays.length) { out.ackDelayP50Ms = quantile(delays, 0.5); out.ackDelayP95Ms = quantile(delays, 0.95); out.ackDelayMaxMs = Math.max(...delays); }
+    else out.ackDelayP50Ms = out.ackDelayP95Ms = out.ackDelayMaxMs = NA('no sample was acknowledged');
     out.maxBacklog = s.maxBacklog;
     out.coalesced = s.coalesced;
     out.neverVisible = s.neverVisible;
@@ -302,8 +330,9 @@ export function summarizeRun(workload, run) {
     else {
       out.frameP95Ms = quantile(w.intervals, 0.95);
       out.frameP99Ms = quantile(w.intervals, 0.99);
-      out.lateFrames = Number.isFinite(refresh) ? w.intervals.filter(v => v > 1.5 * refresh).length : NA('refresh rate not observed');
-      out.lateThresholdMs = Number.isFinite(refresh) ? 1.5 * refresh : null;
+      out.lateFrames = w.intervals.filter(v => v > LATE_MS).length;
+      out.lateThresholdMs = LATE_MS;
+      out.lateRun = out.lateFrames > 0 ? 1 : 0;
       out.lateWindowIntervals = w.intervals.length;
     }
     const c = ms(run.deltas, 'create:start', 'create:end', 'TaskDuration');
@@ -312,9 +341,11 @@ export function summarizeRun(workload, run) {
   }
   if (workload === 'hover') {
     const h = run.result.hover;
-    const lat = h.latencies.filter(Number.isFinite);
-    if (lat.length) { out.inputToReadoutP95Ms = quantile(lat, 0.95); out.inputToReadoutP50Ms = quantile(lat, 0.5); out.inputToReadoutMaxMs = Math.max(...lat); }
-    else out.inputToReadoutP95Ms = out.inputToReadoutP50Ms = out.inputToReadoutMaxMs = NA('no readout matched');
+    // Misses (null or NaN) are deadline failures: +Infinity in the percentile, never dropped.
+    const lat = h.latencies.map(v => (v == null || Number.isNaN(v) ? Infinity : v));
+    out.inputToReadoutP95Ms = nearestRank(lat, 0.95);
+    out.inputToReadoutP50Ms = nearestRank(lat, 0.5);
+    out.missedMoves = lat.filter(v => v === Infinity).length;
     const t = ms(run.deltas, 'hover:start', 'hover:end', 'TaskDuration');
     out.taskMsPerMove = Number.isFinite(t) ? t / h.moves : NA('TaskDuration missing');
     return out;
@@ -330,13 +361,13 @@ export function summarizeRun(workload, run) {
   }
   if (workload === 'mem') {
     const m = run.memory?.samples;
-    if (!m?.chart || !m?.data) { for (const k of ['ownedBytes', 'ownedRatio', 'heapChartBytes', 'rendererPssChartBytes']) out[k] = NA(run.memory?.na ?? 'memory not sampled'); }
+    const owned = run.result.owned;
+    out.ownedBytes = owned && Number.isFinite(owned.bytes) ? owned.bytes : NA(owned?.na ?? 'the library reports no owned-buffer count (__bench.memory() missing); an isolate heap delta is not Axylo-owned memory');
+    out.ownedRatio = typeof out.ownedBytes === 'number' && run.result.callerColumnBytes ? out.ownedBytes / run.result.callerColumnBytes : NA('owned bytes not available');
+    if (!m?.chart || !m?.data) { for (const k of ['heapChartBytes', 'backingStorageChartBytes', 'rendererPssChartBytes']) out[k] = NA(run.memory?.na ?? 'memory not sampled'); }
     else {
-      const total = s => (Number.isFinite(s.backingStorage) ? s.heapUsed + s.backingStorage : NaN);
-      const owned = total(m.chart) - total(m.data);
-      out.ownedBytes = Number.isFinite(owned) ? owned : NA('Runtime.getHeapUsage reports no backingStorageSize in this Chrome; ArrayBuffer memory cannot be separated');
-      out.ownedRatio = Number.isFinite(owned) && run.result.callerColumnBytes ? owned / run.result.callerColumnBytes : NA('owned bytes not available');
       out.heapChartBytes = m.chart.heapUsed - m.data.heapUsed;
+      out.backingStorageChartBytes = Number.isFinite(m.chart.backingStorage) && Number.isFinite(m.data.backingStorage) ? m.chart.backingStorage - m.data.backingStorage : NA('Runtime.getHeapUsage reports no backingStorageSize in this Chrome');
       out.rendererPssChartBytes = Number.isFinite(m.chart.renderer?.pss) && Number.isFinite(m.data.renderer?.pss) ? m.chart.renderer.pss - m.data.renderer.pss : NA(m.chart.renderer?.na ?? 'renderer PSS missing');
     }
     const cb = run.result.canvasBacking;
@@ -344,14 +375,20 @@ export function summarizeRun(workload, run) {
     return out;
   }
   if (workload === 'lifecycle') {
-    const pts = run.result.lifecycle.checkpoints.map(c => ({ c: c.cycles, mem: run.memory?.samples?.[c.label] }));
+    const pts = run.result.lifecycle.checkpoints.map(c => ({ c: c.cycles, observers: c.observers, mem: run.memory?.samples?.[c.label] }));
     const ok = pts.filter(p => p.mem && Number.isFinite(p.mem.heapUsed));
-    const bytes = p => p.mem.heapUsed + (Number.isFinite(p.mem.backingStorage) ? p.mem.backingStorage : 0);
-    out.heapSlopeBytesPerCycle = ok.length >= 3 ? slope(ok.map(p => p.c), ok.map(bytes)) : NA('fewer than 3 memory checkpoints');
-    out.heapCheckpoints = ok.map(p => [p.c, bytes(p)]);
-    const first = ok[0]?.mem, last = ok[ok.length - 1]?.mem;
-    out.listenersAfter = Number.isFinite(first?.listeners) && Number.isFinite(last?.listeners) ? last.listeners - first.listeners : NA('listener count not read');
-    out.nodesAfter = Number.isFinite(first?.nodes) && Number.isFinite(last?.nodes) ? last.nodes - first.nodes : NA('node count not read');
+    // Heap after forced collection: the JS heap, as plan 5.1 says; backing storage is a separate quantity.
+    const heap = p => p.mem.heapUsed;
+    const inWin = (a, b) => ok.filter(p => p.c >= a && p.c <= b).map(heap);
+    const w1 = inWin(1500, 2000), w2 = inWin(2000, 2500);
+    out.heapGrowth = w1.length >= 3 && w2.length >= 3 ? median(w2) / median(w1) - 1 : NA('the run does not cover cycles 1,500-2,500 with at least three checkpoints per window');
+    out.heapGate = typeof out.heapGrowth === 'number' ? (out.heapGrowth > LIFECYCLE_GROWTH_LIMIT ? 'fail' : 'pass') : 'not available';
+    out.heapSlopeBytesPerCycle = ok.length >= 3 ? slope(ok.map(p => p.c), ok.map(heap)) : NA('fewer than 3 memory checkpoints');
+    out.heapCheckpoints = ok.map(p => [p.c, heap(p)]);
+    const first = ok[0], last = ok[ok.length - 1];
+    out.listenersAfter = Number.isFinite(first?.mem.listeners) && Number.isFinite(last?.mem.listeners) ? last.mem.listeners - first.mem.listeners : NA('listener count not read');
+    out.observersAfter = Number.isFinite(first?.observers) && Number.isFinite(last?.observers) ? last.observers - first.observers : NA('observer count not read');
+    out.nodesAfter = Number.isFinite(first?.mem.nodes) && Number.isFinite(last?.mem.nodes) ? last.mem.nodes - first.mem.nodes : NA('node count not read');
     return out;
   }
   // create workloads: first, page, compact, scatter
@@ -373,16 +410,43 @@ export function summarizeRun(workload, run) {
 export const FAILURE_OUTCOMES = ['not-admitted', 'incomplete', 'error', 'timeout', 'crash', 'not-available'];
 
 /**
- * Pair the summarized runs by block and compare B (candidate) with A (baseline) on every metric.
- * Only blocks in which both runs are "ok" and admitted are paired; the rest are counted, and they gate the speed
- * verdicts:
- *   - when any timed run failed, every timing is survivor-only and is labelled conditional;
- *   - when the candidate failed more runs than the baseline, no metric may be called "better" for it: a
- *     configuration that times out on most runs and is fast on the rest has not been shown to be faster;
- *   - when the candidate had more adverse runs (any frame over the threshold, `adverse` below) than the baseline,
- *     "better" is blocked as well: a median count of late frames hides runs that stalled.
+ * A declared endpoint's classification (plan 5 and 5.1), for an interval [lo, hi] of B - A where lower is better.
+ * `swi` is the smallest worthwhile improvement and `tol` the largest tolerated regression, both positive, in the
+ * metric's unit. `edge` is the upper edge of the A-versus-A noise band (largest |end| of the band), or null when no
+ * calibrated control exists. Neither threshold may be below the edge; when the edge reaches the tolerance the
+ * endpoint is "too noisy to gate" and counts for neither side.
+ *   bWins       the whole improvement interval is beyond the worthwhile threshold (B better);
+ *   aWins       the same for A;
+ *   bBeyondTol  B is worse than A beyond the tolerance (the whole interval);
+ *   aBeyondTol  A is worse than B beyond the tolerance;
+ *   equivalent  the interval lies within the worthwhile band and neither side regresses beyond tolerance.
  */
-export function analyze(workload, runs, { noise = null, bootstrapSeed = DEFAULT_BOOTSTRAP_SEED, zeroOnly = false } = {}) {
+export function classifyEndpoint(ci, { swi, tol }, edge = null) {
+  if (!(swi > 0) || !(tol > 0)) throw new Error('an endpoint needs positive thresholds');
+  const sw = Math.max(swi, edge ?? 0), tl = Math.max(tol, edge ?? 0);
+  const base = { thresholds: { swi: sw, tol: tl, declared: { swi, tol }, noiseEdge: edge } };
+  if (!Number.isFinite(ci.lo) || !Number.isFinite(ci.hi)) return { ...base, label: 'inconclusive', bWins: false, aWins: false, bBeyondTol: false, aBeyondTol: false, equivalent: false };
+  if (edge != null && edge >= tol) return { ...base, label: 'too noisy to gate', tooNoisy: true, bWins: false, aWins: false, bBeyondTol: false, aBeyondTol: false, equivalent: false };
+  const r = { bWins: ci.hi < -sw, aWins: ci.lo > sw, bBeyondTol: ci.lo > tl, aBeyondTol: ci.hi < -tl };
+  r.equivalent = !r.bBeyondTol && !r.aBeyondTol && ci.lo >= -sw && ci.hi <= sw;
+  const label = r.bWins ? 'better' : r.aWins ? 'worse' : r.bBeyondTol ? 'worse beyond tolerance, not by the worthwhile margin'
+    : r.aBeyondTol ? 'better beyond tolerance, not by the worthwhile margin' : r.equivalent ? 'no worthwhile difference' : 'inconclusive';
+  return { ...base, label, ...r };
+}
+
+/**
+ * Pair the summarized runs by block and compare B (candidate) with A (baseline) on every metric.
+ * Only blocks in which both runs are "ok" and admitted are paired; the rest are counted, and they gate the verdicts
+ * in both directions: a configuration can be shown better than the other only if it had no failed run (not
+ * admitted, incomplete, error, timeout, crash) and no adverse run (a late frame interval) in the job. So a
+ * candidate that fails on some blocks cannot be called better on its survivors, and equal failure counts on
+ * different blocks leave no verdict either way. Every timing is labelled conditional when any run failed.
+ *
+ * opts.level     interval level (0.95; a family of k endpoints uses 1 - 0.05 / k, plan 5.1)
+ * opts.endpoint  { metric, swi, tol } of a declared endpoint (src/decision.js): its metric is classified against the
+ *                thresholds (classifyEndpoint) instead of against zero, and is a verdict only with a calibrated band.
+ */
+export function analyze(workload, runs, { noise = null, bootstrapSeed = DEFAULT_BOOTSTRAP_SEED, zeroOnly = false, level = 0.95, endpoint = null } = {}) {
   checkSeed(bootstrapSeed, 'bootstrap seed');
   const blocks = new Map();
   for (const r of runs) {
@@ -404,13 +468,14 @@ export function analyze(workload, runs, { noise = null, bootstrapSeed = DEFAULT_
   const adverseKey = workload === 'stream' ? 'lateFrames' : (workload === 'resize' || workload === 'zoom') ? 'framesOverThreshold' : null;
   const adverse = { A: 0, B: 0 };
   if (adverseKey) for (const r of runs) if (r.phase === 'timed' && r.outcome === 'ok' && typeof r.summary?.[adverseKey] === 'number' && r.summary[adverseKey] > 0) adverse[r.config]++;
+  const unreliable = side => (failed[side] ? `the ${side === 'B' ? 'candidate' : 'baseline'} failed ${failed[side]} of ${timed[side]} timed runs` : adverse[side] ? `the ${side === 'B' ? 'candidate' : 'baseline'} had ${adverse[side]} runs with ${adverseKey} > 0` : null);
   const reliability = {
     timed, failed,
     failureRate: { A: timed.A ? failed.A / timed.A : NaN, B: timed.B ? failed.B / timed.B : NaN },
     adverseKey, adverse,
     conditional: failed.A + failed.B > 0,
-    betterBlocked: failed.B > failed.A ? `the candidate failed ${failed.B} of ${timed.B} timed runs, the baseline ${failed.A} of ${timed.A}`
-      : adverse.B > adverse.A ? `the candidate had ${adverse.B} runs with ${adverseKey} > 0, the baseline ${adverse.A}` : null,
+    betterBlocked: unreliable('B'),
+    worseBlocked: unreliable('A'),
   };
   const metrics = {};
   for (const m of METRICS[workload]) {
@@ -422,9 +487,9 @@ export function analyze(workload, runs, { noise = null, bootstrapSeed = DEFAULT_
       continue;
     }
     const strata = pairs.map(orderOf);
-    const ci = pairedBootstrap(a, b, { seed: bootstrapSeed, strata: strata.every(Boolean) ? strata : null });
+    const ci = pairedBootstrap(a, b, { seed: bootstrapSeed, strata: strata.every(Boolean) ? strata : null, level });
     const band = noise?.metrics?.[m.key];
-    const bandUsable = !zeroOnly && band && Number.isFinite(band.lo) && Number.isFinite(band.hi) ? { lo: band.lo, hi: band.hi } : null;
+    const bandUsable = !zeroOnly && band && band.calibrated !== false && Number.isFinite(band.lo) && Number.isFinite(band.hi) ? { lo: band.lo, hi: band.hi } : null;
     // Per-order estimates make differential carry-over visible: with no carry-over, AB and BA blocks estimate the
     // same difference.
     const byOrder = {};
@@ -432,23 +497,34 @@ export function analyze(workload, runs, { noise = null, bootstrapSeed = DEFAULT_
       const idx = strata.map((s, i) => (s === o ? i : -1)).filter(i => i >= 0);
       byOrder[o] = idx.length ? { pairs: idx.length, diff: median(idx.map(i => b[i])) - median(idx.map(i => a[i])) } : { pairs: 0, diff: NaN };
     }
-    let outcome = pairs.length >= MIN_PAIRS ? classify(ci, bandUsable) : 'inconclusive';
     const notes = [];
-    if (pairs.length < MIN_PAIRS) notes.push(`inconclusive by rule: ${pairs.length} complete pairs, fewer than ${MIN_PAIRS}`);
-    if (outcome === 'better' && reliability.betterBlocked) { outcome = 'inconclusive'; notes.push(`"better" blocked: ${reliability.betterBlocked}`); }
+    let outcome, ep = null;
+    const declared = endpoint && endpoint.metric === m.key;
+    if (declared) {
+      const edge = bandUsable ? Math.max(Math.abs(bandUsable.lo), Math.abs(bandUsable.hi)) : null;
+      ep = classifyEndpoint(ci, endpoint, edge);
+      outcome = ep.label;
+      if (!bandUsable) notes.push('not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)');
+    } else outcome = classify(ci, bandUsable);
+    if (pairs.length < MIN_PAIRS) { outcome = 'inconclusive'; notes.push(`inconclusive by rule: ${pairs.length} complete pairs, fewer than ${MIN_PAIRS}`); }
+    const improves = declared ? ep.bWins : outcome === 'better';
+    const regresses = declared ? ep.aWins : outcome === 'worse';
+    if (improves && reliability.betterBlocked) { outcome = 'inconclusive'; notes.push(`"better" blocked: ${reliability.betterBlocked}`); }
+    if (regresses && reliability.worseBlocked) { outcome = 'inconclusive'; notes.push(`"worse" blocked: ${reliability.worseBlocked}`); }
     metrics[m.key] = {
-      ...m, pairs: pairs.length,
+      ...m, ...(declared ? { endpoint: { ...ep, metric: m.key } } : { scope: 'secondary: classified against zero (or the band), no declared threshold' }),
+      pairs: pairs.length, level,
       medianA: median(a), medianB: median(b),
       diff: ci.estimate, lo: ci.lo, hi: ci.hi, ...(ci.note ? { note: ci.note } : {}),
       relative: median(a) ? ci.estimate / median(a) : null,
       blockDiffs: pairs.map((p, i) => b[i] - a[i]),
       byOrder,
       noiseBand: zeroOnly ? 'zero-only analysis (explicitly requested): no noise band'
-        : bandUsable ?? (noise ? 'not available: metric missing in the noise run' : 'not available: no A-versus-A run given (--noise)'),
+        : bandUsable ?? (band ? `not available: ${band.calibration ?? 'band not calibrated'}` : noise ? 'not available: metric missing in the noise run' : 'not available: no A-versus-A run given (--noise)'),
       outcome,
       ...(reliability.conditional ? { conditional: `survivor-only: ${failed.A} baseline and ${failed.B} candidate timed runs failed and are not in this timing` } : {}),
       ...(notes.length ? { outcomeNote: notes.join('; ') } : {}),
     };
   }
-  return { completePairs: complete.length, blocks: blocks.size, outcomes, reliability, bootstrapSeed, zeroOnly: !!zeroOnly, metrics };
+  return { completePairs: complete.length, blocks: blocks.size, outcomes, reliability, bootstrapSeed, level, zeroOnly: !!zeroOnly, ...(endpoint ? { endpoint } : {}), metrics };
 }

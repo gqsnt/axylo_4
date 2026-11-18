@@ -58,7 +58,9 @@ export function positionMap(map) {
       if (!seg) continue;
       const v = decodeVlq(seg);
       col += v[0];
-      if (v.length >= 4) { src += v[1]; row.push([col, src]); }
+      // A one-field segment starts an explicitly unmapped stretch: kept, so columns after it are not given to the
+      // source before it.
+      if (v.length >= 4) { src += v[1]; row.push([col, src]); } else row.push([col, -1]);
     }
     lines.push(row);
   });
@@ -67,7 +69,7 @@ export function positionMap(map) {
     if (!segs?.length) return null;
     let lo = 0, hi = segs.length - 1, best = -1;
     while (lo <= hi) { const mid = (lo + hi) >> 1; if (segs[mid][0] <= column) { best = mid; lo = mid + 1; } else hi = mid - 1; }
-    return best < 0 ? null : sources[segs[best][1]];
+    return best < 0 || segs[best][1] < 0 ? null : sources[segs[best][1]];
   };
 }
 

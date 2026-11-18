@@ -32,6 +32,13 @@ test('the VLQ decoder and the position map read the source map', () => {
   assert.equal(at(1, 0), null);
 });
 
+test('an explicitly unmapped segment stays unmapped (review 2, finding 11)', () => {
+  // "AAAA,U": column 0 maps to normalize.ts; column 10 starts an unmapped segment. Column 11 is not normalization.
+  const at = positionMap({ version: 3, sources: ['../../packages/axylo/src/data/normalize.ts'], mappings: 'AAAA,U' });
+  assert.equal(at(0, 5), 'data/normalize.ts');
+  assert.equal(at(0, 11), null);
+});
+
 test('self time goes to the leaf; inclusive time to every stage on the stack', () => {
   const s = summarizeProfile(profile, { map, build: 'prod' });
   const self = Object.fromEntries(s.self.map(r => [r.k, r.ms]));

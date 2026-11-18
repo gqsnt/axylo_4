@@ -22,26 +22,22 @@ export function uplotDrawnPaths(col, idxs, spanGaps) {
   return paths;
 }
 
-/** First index i with xs[i] >= v. */
-function lowerBound(xs, v) {
-  let lo = 0, hi = xs.length;
-  while (lo < hi) { const mid = (lo + hi) >>> 1; if (xs[mid] < v) lo = mid + 1; else hi = mid; }
-  return lo;
-}
-
 /**
- * Chart.js: the points the line controller draws, in order (with the decimation plugin active, the decimated copy
- * in dataset.data; its points are the original {x, y} objects, so each maps back to its held index by x). Chart.js
- * breaks the line at a point whose y is null or NaN unless spanGaps is set (default false).
+ * Chart.js: the points the line controller draws, in order. With the decimation plugin active this is the decimated
+ * copy in dataset.data, whose points are *copies* of the originals, some with a rewritten x (min-max decimation puts
+ * a column's intermediate points at the column's x): so the source index cannot be recovered from x. The tuned
+ * adapter therefore gives every point its source index `i`, which the copies keep; `indexOf(point, position)`
+ * returns the held index. Chart.js breaks the line at a point whose y is null or NaN unless spanGaps is set.
  */
-export function chartjsDrawnPaths(drawnPoints, heldX, spanGaps) {
+export function chartjsDrawnPaths(drawnPoints, indexOf, spanGaps) {
   const paths = [];
   let path = null, rs = -1, re = -1;
   const flush = () => { if (rs >= 0) path.push(rs, re); rs = re = -1; };
-  for (const p of drawnPoints) {
+  for (let j = 0; j < drawnPoints.length; j++) {
+    const p = drawnPoints[j];
     const y = p?.y;
     if (y == null || y !== y) { if (!spanGaps) { flush(); if (path?.length) paths.push(path); path = null; } continue; }
-    const i = lowerBound(heldX, p.x);
+    const i = indexOf(p, j);
     if (!path) path = [];
     // min-max decimation can emit one point twice (a column's first point is also its minimum): a zero-length
     // segment, not a new range.
