@@ -1,5 +1,6 @@
 import type { DiagnosticInput, DiagnosticSink, DonutFrame, PointFrame } from '../core/contracts';
 import { DiagnosticCollector } from '../diagnostics';
+import { lowerBound } from '../lookup/search';
 import { normalize, pointFrame, readX, reportCalendarDates, type DataEnvironment, type FrameVersion } from './normalize';
 import { resolveOptions, resolveTable, retargetOptions, withoutTable, type ResolvedOptions } from './options';
 import { Reports } from './reports';
@@ -32,6 +33,7 @@ type Open<F> = (result: Result<F>) => Storage<F> | null;
 const doubles = (length: number) => new Float64Array(length);
 const indexes = (length: number) => new Int32Array(length);
 const states = (length: number) => new Uint8Array(length);
+const empty = new Float64Array();
 
 function buildPoints(options: ResolvedOptions, environment: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): Result<PointFrame> {
   if (!options.valid) {
@@ -87,6 +89,7 @@ class Points implements Storage<PointFrame> {
     private readonly kind: PointFrame['xKind'],
     private readonly positions: Column<Float64Array>, private distinct: number,
     private readonly x: Column<Float64Array>, private readonly y: Column<Float64Array>, private readonly row: Column<Int32Array>,
+    private readonly missingX: Column<Float64Array>,
     private readonly calendar: CalendarWindow | null,
   ) {}
 
@@ -102,7 +105,8 @@ class Points implements Storage<PointFrame> {
       calendar?.observe(position);
     }
     return new Points(frame.xKind, new Column(doubles, positions), distinct,
-      new Column(doubles, series.x), new Column(doubles, series.y), new Column(indexes, series.row), calendar);
+      new Column(doubles, series.x), new Column(doubles, series.y), new Column(indexes, series.row),
+      new Column(doubles, series.missingX ?? empty), calendar);
   }
 
   extend(next: Result<PointFrame>, rows: StreamRows, firstRow: number, keep: number | undefined): Points | null {
@@ -121,11 +125,12 @@ class Points implements Storage<PointFrame> {
       if (calendar.daily()) return null;
     }
     const draft = new Points(this.kind, this.positions.fork(), this.distinct,
-      this.x.fork(), this.y.fork(), this.row.fork(), calendar);
+      this.x.fork(), this.y.fork(), this.row.fork(), this.missingX.fork(), calendar);
     draft.positions.append(next.positions);
     draft.x.append(series.x);
     draft.y.append(series.y);
     draft.row.append(series.row);
+    if (series.missingX) draft.missingX.append(series.missingX);
     let previous = last;
     for (let i = 0; i < next.positions.length; i++) {
       const position = next.positions[i]!;
@@ -146,13 +151,12 @@ class Points implements Storage<PointFrame> {
       }
       if (calendar?.daily()) return null;
       const first = positions[removed] ?? Infinity;
-      const x = draft.x.view();
-      let points = 0;
-      while (points < x.length && x[points]! < first) points++;
+      const points = lowerBound(draft.x.view(), first);
       draft.positions.drop(removed);
       draft.x.drop(points);
       draft.y.drop(points);
       draft.row.drop(points);
+      draft.missingX.drop(lowerBound(draft.missingX.view(), first));
     }
 
     return draft;
@@ -161,7 +165,10 @@ class Points implements Storage<PointFrame> {
   commit(): void { this.calendar?.commit(); }
 
   frame(frame: PointFrame): PointFrame {
-    return { ...frame, series: [{ ...frame.series[0]!, x: this.x.view(), y: this.y.view(), row: this.row.view() }] };
+    const missingX = this.missingX.view();
+    return { ...frame, series: [{
+      ...frame.series[0]!, x: this.x.view(), y: this.y.view(), row: this.row.view(), missingX: missingX.length ? missingX : undefined,
+    }] };
   }
 }
 

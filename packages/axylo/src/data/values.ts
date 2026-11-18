@@ -79,7 +79,8 @@ export function readValues(
       }
     } else if (raw === undefined) {
       state = SLOT_ABSENT_FIELD;
-      reports.add('AX102', zero ? 'changed' : 'omitted', startRow + table.rowIndex(i), undefined, undefined, { outcome });
+      reports.add('AX102', zero ? 'changed' : 'omitted', startRow + table.rowIndex(i), undefined, undefined,
+        { outcome: zero ? undefined : outcome });
     } else if (raw === null || raw === '') {
       state = SLOT_NULL;
     } else if (mode === 'decimal') {

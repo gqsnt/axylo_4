@@ -151,10 +151,10 @@ it('releases the original backing buffer of a sliced Uint8Array subclass', async
   expect(s.frame.source.rowAt(299)).toEqual({ x: 299, y: 2 });
 });
 
-type Entry = { index: number; row: ReturnType<typeof row> };
-type Snapshot = { frame: Frame; rows: readonly Entry[]; field: 'y' | 'z'; next: number };
+type Entry = { index: number; row: Omit<ReturnType<typeof row>, 'y' | 'z'> & { y: number | null; z: number | null } };
+type Snapshot = { frame: Frame; rows: readonly Entry[]; field: 'y' | 'z'; next: number; zero?: boolean };
 
-function checkFrame({ frame, rows, field, next }: Snapshot, live: boolean) {
+function checkFrame({ frame, rows, field, next, zero = false }: Snapshot, live: boolean) {
   const indexes = rows.map(entry => entry.index);
   const xs = rows.map(entry => entry.row.x);
   const values = rows.map(entry => entry.row[field]);
@@ -167,9 +167,12 @@ function checkFrame({ frame, rows, field, next }: Snapshot, live: boolean) {
       expect([...frame.series[0]!.row!]).toEqual(indexes);
     }
   } else if (frame.shape === 'points') {
-    expect([...frame.series[0]!.x]).toEqual(xs);
-    expect([...frame.series[0]!.y]).toEqual(values);
-    expect([...frame.series[0]!.row!]).toEqual(indexes);
+    const points = rows.filter(entry => zero || entry.row[field] !== null);
+    const missing = zero ? [] : rows.filter(entry => entry.row[field] === null);
+    expect([...frame.series[0]!.x]).toEqual(points.map(entry => entry.row.x));
+    expect([...frame.series[0]!.y]).toEqual(points.map(entry => entry.row[field] ?? 0));
+    expect([...frame.series[0]!.row!]).toEqual(points.map(entry => entry.index));
+    expect([...(frame.series[0]!.missingX ?? [])]).toEqual(missing.map(entry => entry.row.x));
   } else {
     expect([...frame.labels]).toEqual(rows.map(entry => entry.row.label));
     expect([...frame.values]).toEqual(values);
@@ -189,7 +192,7 @@ const count = fc.integer({ min: 0, max: 7 });
 const operations = fc.array(fc.oneof(
   fc.record({ operation: fc.constant('append' as const), count, keep: fc.option(count, { nil: undefined }) }),
   fc.record({ operation: fc.constant('replace' as const), count, start: fc.integer({ min: -50, max: 50 }) }),
-  fc.record({ operation: fc.constant('reencode' as const), field: fc.constantFrom('y' as const, 'z' as const) }),
+  fc.record({ operation: fc.constant('reencode' as const), field: fc.constantFrom('y' as const, 'z' as const), zero: fc.boolean() }),
   fc.record({ operation: fc.constant('retire' as const), back: count }),
 ), { minLength: 1, maxLength: 35 });
 
@@ -198,6 +201,7 @@ for (const kind of types) {
     fc.assert(fc.property(operations, ops => {
       const s = store(kind, []);
       let field: Snapshot['field'] = 'y';
+      let zero = false;
       let rows: Entry[] = [];
       let next = 0;
       let x = 0;
@@ -206,12 +210,19 @@ for (const kind of types) {
       let rowsAdded = 0;
       let seededRows = 0;
       let appends = 0;
-      const snapshots: Snapshot[] = [{ frame: s.frame, rows, field, next }];
+      const snapshots: Snapshot[] = [{ frame: s.frame, rows, field, next, zero }];
+      const observation = (x: number): Entry['row'] => {
+        const item = row(x);
+        return kind === 'scatter' ? { ...item, y: x % 3 === 0 ? null : item.y, z: x % 5 === 0 ? null : item.z } : item;
+      };
+      const encoding = (data: unknown) => zero ? resolveOptions('scatter', {
+        data, x: { field: 'x', type: 'number' }, y: { field, missing: 'zero' },
+      }, quiet) : options(kind, data, field);
       for (const op of ops) {
         const before = s.frame;
         const revised = { revision: before.revision + 1, epoch: before.epoch + 1 };
         if (op.operation === 'append') {
-          const incoming = Array.from({ length: op.count }, () => row(x++));
+          const incoming = Array.from({ length: op.count }, () => observation(x++));
           rows = [...rows, ...incoming.map(item => ({ index: next++, row: item }))];
           if (op.keep !== undefined) rows = rows.slice(Math.max(0, rows.length - op.keep));
           const { result: prepared, bytes } = allocated(() => s.prepareAppend(incoming, { keep: op.keep }));
@@ -219,24 +230,25 @@ for (const kind of types) {
           rowsAdded += incoming.length;
           appends++;
           expect(s.frame).toBe(before);
-          checkFrame({ frame: prepared.frame, rows, field, next }, true);
+          checkFrame({ frame: prepared.frame, rows, field, next, zero }, true);
           prepared.commit();
         } else if (op.operation === 'replace') {
           x = op.start;
           next = 0;
-          const data = Array.from({ length: op.count }, () => row(x++));
+          const data = Array.from({ length: op.count }, () => observation(x++));
           rows = data.map(item => ({ index: next++, row: item }));
           seededRows += rows.length;
-          s.prepareReplace(data, options(kind, data, field), revised).commit();
+          s.prepareReplace(data, encoding(data), revised).commit();
         } else if (op.operation === 'reencode') {
           field = op.field;
+          zero = kind === 'scatter' && op.zero;
           seededRows += rows.length;
-          s.prepareReencode(options(kind, rows.map(entry => entry.row), field), revised).commit();
+          s.prepareReencode(encoding(rows.map(entry => entry.row)), revised).commit();
         } else {
           retired = Math.max(retired, before.revision - op.back);
           s.retire(retired);
         }
-        if (s.frame !== before) snapshots.push({ frame: s.frame, rows, field, next });
+        if (s.frame !== before) snapshots.push({ frame: s.frame, rows, field, next, zero });
         const retained = new Set(rows.map(entry => entry.row));
         for (const snapshot of snapshots) {
           const live = snapshot.frame.revision > retired;
@@ -272,6 +284,62 @@ for (const kind of types) {
     expect(bytes).toBeLessThan(256 * updates);
   });
 }
+
+it('shares scatter missing positions through append and offset keep, then retires the evicted rows', async () => {
+  function setup() {
+    const dropped = { x: 1, y: null };
+    const ref = new WeakRef(dropped);
+    const data = [dropped, { x: 2, y: 4 }, { x: 3, y: null }];
+    const s = new PointStore(options('scatter', data), utc, version);
+    const old = s.frame;
+    const missing = old.series[0]!.missingX!;
+    expect(missing).toEqual(Float64Array.of(1, 3));
+    const accepted = s.prepareAppend([{ x: 3, y: null }, { x: 4, y: null }], { keep: 3 });
+    const current = accepted.frame.series[0]!.missingX!;
+    expect(current).toEqual(Float64Array.of(3, 3, 4));
+    expect(current.buffer).toBe(missing.buffer);
+    expect(current.byteOffset).toBe(missing.byteOffset + Float64Array.BYTES_PER_ELEMENT);
+    const competing = s.prepareAppend([{ x: 5, y: null }], { keep: 3 });
+    expect(competing.frame.series[0]!.missingX).toEqual(Float64Array.of(3, 5));
+    accepted.commit();
+    expect(() => competing.commit()).toThrow('Cannot commit a superseded data revision.');
+    expect(current).toEqual(Float64Array.of(3, 3, 4));
+    expect(old.source.rowAt(0)).toBe(dropped);
+    s.retire(old.revision);
+    expect(old.source.rowAt(0)).toBeNull();
+    expect(missing).toEqual(Float64Array.of(1, 3));
+    expect(s.retainedRowCount).toBe(4);
+    return { s, ref };
+  }
+  const { s, ref } = setup();
+  await expectCollected(ref);
+  expect(s.frame.series[0]!.missingX).toEqual(Float64Array.of(3, 3, 4));
+});
+
+it('rebuilds scatter missing positions for absent fields, re-encoding, and replacement', () => {
+  const s = new PointStore(options('scatter', [{ x: 1, y: 2 }, { x: 3, y: null }]), utc, version);
+  const missing = { x: 2 };
+  const next = s.append([missing, { x: 4, y: 5 }], { keep: 3 });
+  expect(next.series[0]!.missingX).toEqual(Float64Array.of(2, 3));
+  expect(s.diagnostics).toMatchObject([
+    { code: 'AX102', effect: 'omitted', rows: [2], count: 1 }, { code: 'AX151', rows: [2], count: 1 },
+  ]);
+  const encoding = s.resolveEncoding({ x: 'x', y: { field: 'y', missing: 'zero' } }, quiet);
+  const zeros = s.reencode(encoding, { epoch: version.epoch + 1, revision: next.revision + 1 });
+  expect(zeros.series[0]!.x).toEqual(Float64Array.of(2, 3, 4));
+  expect(zeros.series[0]!.y).toEqual(Float64Array.of(0, 0, 5));
+  expect(zeros.series[0]!.row).toEqual(Int32Array.of(2, 1, 3));
+  expect(zeros.source.rowAt(zeros.series[0]!.row![0]!)).toBe(missing);
+  expect(zeros.series[0]!.missingX?.length ?? 0).toBe(0);
+  expect(s.diagnostics).toMatchObject([{ code: 'AX102', effect: 'changed', rows: [2], count: 1 }]);
+  const replacement = [{ x: 10, y: null }, { x: 9, y: 1 }, { x: 11 }];
+  const final = s.replace(replacement, options('scatter', replacement), { epoch: zeros.epoch + 1, revision: zeros.revision + 1 });
+  expect(final.series[0]!.missingX).toEqual(Float64Array.of(10, 11));
+  s.retire(zeros.revision);
+  expect(zeros.source.rowAt(2)).toBeNull();
+  expect(next.series[0]!.missingX).toEqual(Float64Array.of(2, 3));
+  expect(s.retainedRowCount).toBe(3);
+});
 
 for (const kind of types) {
   it(`${kind} keeps competing previews and captured views independent`, () => {

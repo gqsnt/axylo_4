@@ -218,6 +218,46 @@ it('merges scatter rows in x then y order including hidden series', () => {
   expect(model.summary).not.toContain('B:');
 });
 
+it('merges in-range scatter gaps with points and excludes them from summary statistics', () => {
+  const points = frame('scatter', { x: 'x', y: 'y', series: 'group', data: [
+    { x: 2, y: -4, group: 'A' }, { x: 4, y: -6, group: 'A' }, { x: 4, y: 1, group: 'B' },
+  ] });
+  const data = { ...points, series: [
+    { ...points.series[0]!, missingX: Float64Array.of(-1, 0, 3, 4, 4, 5) },
+    { ...points.series[1]!, missingX: Float64Array.of(2, 4) },
+  ] };
+  const model = read(scatter(data, { xDomain: [0, 4], visible: [true, false] }), {
+    messages: resolveMessages({ noData: 'Keine Daten' }),
+  });
+  const table = model.table!;
+  expect(table.rowCount).toBe(9);
+  expect(table.row(6)).toEqual(['4', 'A', 'Keine Daten']);
+  expect(Array.from({ length: table.rowCount }, (_, i) => table.row(i))).toEqual([
+    ['0', 'A', 'Keine Daten'], ['2', 'A', '-4'], ['2', 'B', 'Keine Daten'], ['3', 'A', 'Keine Daten'],
+    ['4', 'A', '-6'], ['4', 'B', '1'], ['4', 'A', 'Keine Daten'], ['4', 'A', 'Keine Daten'], ['4', 'B', 'Keine Daten'],
+  ]);
+  expect(table.row(9)).toBeNull();
+  expect(table.pageForX(5)).toBeNull();
+  expect(model.summary).toBe('Scatter chart with 1 series. x from 2 to 4. y from -6 to -4. A: minimum -6, maximum -4, last -6.');
+});
+
+it('counts missing scatter observations across a page boundary and in a range with no points', () => {
+  const points = frame('scatter', { x: 'x', y: 'y', data: [{ x: 1, y: 8 }, { x: 3, y: 0 }] });
+  const data = { ...points, series: [{ ...points.series[0]!, missingX: new Float64Array(100).fill(2) }] };
+  const table = read(scatter(data, { xDomain: [1, 3] })).table!;
+  expect(table.rowCount).toBe(102);
+  expect(table.pageForX(2)).toBe(0);
+  expect(table.pageForX(3)).toBe(1);
+  expect(table.row(100)).toEqual(['2', 'y', 'No data']);
+  expect(table.row(101)).toEqual(['3', 'y', '0']);
+  expect(table.row(0)).toEqual(['1', 'y', '8']);
+  expect(table.row(99)).toEqual(['2', 'y', 'No data']);
+  const gapOnly = read(scatter(data, { xDomain: [2, 2], visiblePoints: [{ start: 1, end: 1 }] }));
+  expect(gapOnly.table?.rowCount).toBe(100);
+  expect(gapOnly.table?.row(99)).toEqual(['2', 'y', 'No data']);
+  expect(gapOnly.summary).toBe(defaultMessages.empty);
+});
+
 it('uses message overrides for chart types and table headers and uses a field name for the absent y label', () => {
   const messages = resolveMessages({
     category: 'Kategorie', percentage: 'Anteil', series: 'Reihe', value: 'Wert',

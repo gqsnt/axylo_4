@@ -350,7 +350,13 @@ export function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticS
   const value = options.values[0]!;
   const included = x.order === null ? undefined : (row: number) => Number.isFinite(x.positions[row]);
   const members = groups(options, x, sink);
-  const values = readValues(table, value, sink, false, 0, undefined, included, 'The affected points are not drawn.');
+  const values = readValues(table, value, sink, true, 0, undefined, included, 'The affected points are not drawn.');
+  const isMissing = (row: number) => values.slot[row] === SLOT_NULL || values.slot[row] === SLOT_ABSENT_FIELD;
+  if (value.missing === 'zero') {
+    for (let row = 0; row < values.slot.length; row++) {
+      if (isMissing(row)) values.slot[row] = SLOT_VALUE;
+    }
+  }
   const series = members.map(group => {
     const length = group.order?.length ?? x.positions.length;
     if (!group.order && values.y instanceof Float64Array && values.slot.every(slot => slot === SLOT_VALUE)) {
@@ -361,14 +367,24 @@ export function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticS
     }
     const rows = new Int32Array(length);
     let next = 0;
+    let missing = 0;
     for (let i = 0; i < length; i++) {
       const row = group.order?.[i] ?? i;
       if (values.slot[row] === SLOT_VALUE) rows[next++] = row;
+      else if (isMissing(row)) missing++;
+    }
+    const missingX = missing ? new Float64Array(missing) : undefined;
+    if (missingX) {
+      let index = 0;
+      for (let i = 0; i < length; i++) {
+        const row = group.order?.[i] ?? i;
+        if (isMissing(row)) missingX[index++] = x.positions[row]!;
+      }
     }
     const kept = rows.subarray(0, next);
     kept.sort((a, b) => x.positions[a]! - x.positions[b]! || values.y[a]! - values.y[b]!);
     return {
-      key: group.key, label: group.label, drawable: true,
+      key: group.key, label: group.label, drawable: true, missingX,
       x: Float64Array.from(kept, row => x.positions[row]!), y: Float64Array.from(kept, row => values.y[row]!), row: Int32Array.from(kept, table.rowIndex),
     };
   });

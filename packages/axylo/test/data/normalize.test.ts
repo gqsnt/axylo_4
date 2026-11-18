@@ -248,6 +248,42 @@ describe('F8, F11 and DX2 frame shapes', () => {
     ]);
   });
 
+  it.each(['gap', 'zero'] as const)('normalizes scatter observations with missing y in %s mode', missing => {
+    const data = [
+      { x: 8, y: null, group: 'B' }, { x: 4, group: 'A' }, { x: 2, y: null, group: 'A' },
+      { x: 4, y: null, group: 'A' }, { x: 4, y: -2, group: 'A' }, { x: 1, y: 0, group: 'B' },
+      { group: 'A' }, { x: 5, y: NaN, group: 'B' }, { x: 6, y: 'bad', group: 'B' },
+    ];
+    const { frame, diagnostics } = check('scatter', { data, x: 'x', y: { field: 'y', missing }, series: 'group' });
+    if (frame.shape !== 'points') throw new Error('Expected a point frame');
+    expect(frame.series.map(s => [s.key, [...s.x], [...s.y], [...s.row!], [...(s.missingX ?? [])]])).toEqual(missing === 'gap' ? [
+      ['B', [1], [0], [5], [8]], ['A', [4], [-2], [4], [2, 4, 4]],
+    ] : [
+      ['B', [1, 8], [0, 0], [5, 0], []], ['A', [2, 4, 4, 4], [0, -2, 0, 0], [2, 4, 1, 3], []],
+    ]);
+    const issues = diagnostics.inputs();
+    expect(issues.map(({ code, field, effect, count, rows }) => [code, field, effect, count, rows])).toEqual([
+      ['AX102', 'x', 'omitted', 1, [6]],
+      ['AX102', 'y', missing === 'zero' ? 'changed' : 'omitted', 1, [1]],
+      ['AX103', 'y', 'omitted', 1, [7]],
+      ['AX106', 'y', 'omitted', 1, [8]],
+    ]);
+    expect(issues[1]!.message).toContain(missing === 'zero' ? 'Shown as zeros.' : 'The affected points are not drawn.');
+  });
+
+  it('uses typed-column NaN as missing y and leaves the caller columns intact', () => {
+    const data = { columns: { x: Float64Array.of(1, 2, 3), y: Float64Array.of(5, NaN, 0) } };
+    const gap = check('scatter', { data, x: 'x', y: 'y' });
+    const zero = check('scatter', { data, x: 'x', y: { field: 'y', missing: 'zero' } });
+    if (gap.frame.shape !== 'points' || zero.frame.shape !== 'points') throw new Error('Expected point frames');
+    expect(gap.frame.series[0]!.missingX).toEqual(Float64Array.of(2));
+    expect(zero.frame.series[0]!.x).toBe(data.columns.x);
+    expect(zero.frame.series[0]!.y).toEqual(Float64Array.of(5, 0, 0));
+    expect(zero.frame.source.rowAt(1)).toEqual({ x: 2, y: NaN });
+    expect(gap.diagnostics.inputs()).toEqual([]);
+    expect(zero.diagnostics.inputs()).toEqual([]);
+  });
+
   it('keeps donut labels, values, zeros and nulls in caller order', () => {
     const data = [{ label: 'East', count: 0 }, { label: 'West', count: null }, { label: 'North', count: 15 }];
     const { frame, diagnostics } = check('donut', { data, label: 'label', value: { field: 'count', label: 'Count', unit: 'people' } });
