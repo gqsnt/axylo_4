@@ -98,9 +98,12 @@ describe('linearTickCandidates', () => {
   });
 
   it('keeps every tick inside the domain, sets densest first, no duplicates (property)', () => {
-    const domain = fc
-      .tuple(fc.double({ min: -1e9, max: 1e9, noNaN: true, noDefaultInfinity: true }), fc.double({ min: -1e9, max: 1e9, noNaN: true, noDefaultInfinity: true }))
-      .filter(([a, b]) => Math.abs(a - b) > 1e-12 && Math.abs(a - b) > 1e-9 * Math.max(Math.abs(a), Math.abs(b)));
+    // Any two distinct doubles, and narrow ranges on large bases (review finding 2): no filter.
+    const anyDouble = fc.double({ noNaN: true, noDefaultInfinity: true });
+    const narrow = fc
+      .tuple(fc.double({ min: -1e15, max: 1e15, noNaN: true, noDefaultInfinity: true }), fc.double({ min: -16, max: 2, noNaN: true }))
+      .map(([b, e]) => [b, b + Math.max(Math.abs(b), 1) * 10 ** e] as [number, number]);
+    const domain = fc.oneof(fc.tuple(anyDouble, anyDouble), narrow).filter(([a, b]) => a !== b);
     fc.assert(
       fc.property(domain, ([a, b]) => {
         const lo = Math.min(a, b);

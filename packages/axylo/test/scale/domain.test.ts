@@ -128,7 +128,7 @@ describe('valueDomain properties', () => {
     // For non-constant data the domain ends are the first and last tick of one of the tick candidate sets,
     // and that set's step is larger than the overshoot at each end.
     fc.assert(
-      fc.property(data.filter(ys => Math.max(...ys) - Math.min(...ys) > 1e-6 * Math.max(1, ...ys.map(Math.abs))), fc.boolean(), (ys, includeZero) => {
+      fc.property(data.filter(ys => Math.max(...ys) - Math.min(...ys) > 1e-12 * Math.max(1, ...ys.map(Math.abs))), fc.boolean(), (ys, includeZero) => {
         let min = Math.min(...ys);
         let max = Math.max(...ys);
         const [lo, hi] = valueDomain({ min, max, includeZero }).domain;

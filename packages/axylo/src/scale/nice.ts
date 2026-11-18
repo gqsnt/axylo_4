@@ -49,22 +49,24 @@ export function stepMultiple(i: number, s: NiceStep): number {
   return v === 0 ? 0 : v; // no -0
 }
 
-/** Index of the first multiple of the step at or above x. */
+/**
+ * Index of the first multiple of the step at or above x. The quotient is off by at most an index or two
+ * from rounding, so the estimate starts at the plain quotient and is corrected by comparing the actual
+ * multiples with x. (A relative tolerance on the quotient would move a large index by dozens of steps.)
+ */
 export function firstIndexAtOrAbove(x: number, s: NiceStep): number {
-  const q = x / s.value;
-  let i = Math.ceil(q - 1e-9 * Math.max(1, Math.abs(q)));
+  let i = Math.ceil(x / s.value);
   // Bounded: where the step is below the resolution of x, neighbouring multiples are the same double.
-  for (let n = 0; n < 4 && stepMultiple(i, s) < x; n++) i++;
-  for (let n = 0; n < 4 && stepMultiple(i - 1, s) >= x; n++) i--;
+  for (let n = 0; n < 8 && stepMultiple(i, s) < x; n++) i++;
+  for (let n = 0; n < 8 && stepMultiple(i - 1, s) >= x; n++) i--;
   return i;
 }
 
 /** Index of the last multiple of the step at or below x. */
 export function lastIndexAtOrBelow(x: number, s: NiceStep): number {
-  const q = x / s.value;
-  let i = Math.floor(q + 1e-9 * Math.max(1, Math.abs(q)));
-  for (let n = 0; n < 4 && stepMultiple(i, s) > x; n++) i--;
-  for (let n = 0; n < 4 && stepMultiple(i + 1, s) <= x; n++) i++;
+  let i = Math.floor(x / s.value);
+  for (let n = 0; n < 8 && stepMultiple(i, s) > x; n++) i--;
+  for (let n = 0; n < 8 && stepMultiple(i + 1, s) <= x; n++) i++;
   return i;
 }
 

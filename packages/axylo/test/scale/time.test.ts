@@ -198,6 +198,8 @@ describe('timeTickCandidates properties', () => {
             if (i > 0) expect(set[i]!.value).toBeGreaterThan(set[i - 1]!.value);
             expect(set[i]!.label.length).toBeGreaterThan(0);
           }
+          // Labels within a set never read the same (review finding 4: folds; finding 13: eras).
+          expect(new Set(set.map(t => t.label)).size).toBe(set.length);
           if (k === 'date' && dateUnit !== 'day' && set.length > 1) {
             // Month and year axes: every tick on the first of a month (of January for years).
             for (const t of set) {

@@ -22,22 +22,26 @@ Code: Claude Opus 5.5 (effort high), Codex `gpt-6.2-sol` (effort xhigh). Design,
 
 ## Work packages
 
-Observed model and effort are read from harness metadata when a package finishes; "pending" until then.
+Observed model and effort are read from harness metadata (Codex session rollouts, Claude subagent transcripts).
 
 | Package | Owner (requested → observed) | Files | State |
 |---|---|---|---|
-| Contracts review | Codex gpt-6.2-sol max → gpt-6.2-sol, max | read-only | Done; 14 findings, most accepted in simplified form (see commit 2047383) |
-| Scales, ticks, time zones, formatting | Claude Opus 5.5 high → claude-opus-5-5, high | `src/scale`, `src/format`, tests | Done and committed (93 tests pass, verified by coordinator). Cross-review by Codex gpt-6.2-astra xhigh running: `wp/scale.review.md` |
-| Benchmark harness, first version | Claude Opus 5.5 high → claude-opus-5-5 (effort to confirm from transcript) | `bench/` | Done and committed (17 harness tests pass, verified by coordinator). Reproduces uPlot and Chart.js with a noise band. Not yet cross-reviewed. Needs a readiness and readback hook in Axylo benchmark builds before Axylo can be admitted |
-| Data layer and diagnostics | Codex gpt-6.2-sol xhigh → pending | `src/data`, `src/diagnostics`, tests | Running |
-| Layout and drawing simplification | Codex gpt-6.2-sol xhigh → pending | `src/layout`, `src/simplify`, tests | Running |
-| Canvas and SVG renderers, text layer, theme | Claude Opus 5.5 high → pending | `src/render`, `src/theme`, tests | Running |
+| Contracts review | Codex gpt-6.2-sol max → gpt-6.2-sol, max | read-only | Done; applied in commit 2047383 |
+| Scales, ticks, time zones, formatting | Claude Opus 5.5 high → claude-opus-5-5, high | `src/scale`, `src/format` | Committed. Reviewed by Codex gpt-6.2-astra xhigh (`wp/scale.review.md`: 2 blocking, 12 major). Fixes in progress by the original agent |
+| Benchmark harness, first version | Claude Opus 5.5 high → claude-opus-5-5, high | `bench/` | Committed. Not yet cross-reviewed. Needs a readiness and readback hook in Axylo benchmark builds |
+| Data layer and diagnostics | Codex gpt-6.2-sol xhigh → gpt-6.2-sol, xhigh | `src/data`, `src/diagnostics` | Committed (60 tests). Review by Opus 5.5 xhigh running. Known fix: scatter must allow duplicate x |
+| Layout and drawing simplification | Codex gpt-6.2-sol xhigh → gpt-6.2-sol, xhigh | `src/layout`, `src/simplify` | Committed (24 tests). Review by Opus 5.5 xhigh running |
+| Canvas and SVG renderers, text layer, theme | Claude Opus 5.5 high → pending | `src/render`, `src/theme` | Running |
+| View and scene building | Codex gpt-6.2-sol xhigh → pending | `src/view`, `src/scene` | Running |
+| Lookup, reader model, messages | Codex gpt-6.2-sol xhigh → pending | `src/lookup`, `src/reader`, `src/messages` | Running |
 
-Briefs and reports: `reviews/2026-11-18/impl/wp/`.
+Briefs, reports and reviews: `reviews/2026-11-18/impl/wp/`.
 
 ## Next action
 
-As each package returns: run `npm run typecheck && npm test`, read its report, have the other provider review it (Opus xhigh reviews Codex code; Codex gpt-6.2-astra xhigh reviews Opus code), fix, commit. Then round 2: scene builders, the two mark renderers, the DOM text layer and figure, theme detection, and the chart core with the commit contract, which together make the M1 vertical slice.
+1. As reviews return: send the findings to the package's author to fix (Codex packages: a new `codex exec` run with the review file; Opus packages: resume the agent), verify, commit.
+2. When renderers, view/scene and lookup/reader are in: dispatch the chart core (commit contract, figure DOM, resize, theme wiring, tooltip, keyboard, toolbar, table, benchmark hook) to Opus 5.5 high, which gives the M1 vertical slice for `line`.
+3. Then the M1 measurements: canvas against SVG on the benchmark harness, and the decision record.
 
 ## Known limits that no agent can close
 

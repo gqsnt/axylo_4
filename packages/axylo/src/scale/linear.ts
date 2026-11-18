@@ -24,15 +24,23 @@ export function continuous(type: 'linear' | 'time', domain: readonly [number, nu
   const r1 = range[1];
   const span = d1 - d0;
   const extent = r1 - r0;
-  const mid = (r0 + r1) / 2;
-  return {
-    type,
-    domain: [d0, d1],
-    range: [r0, r1],
-    // A zero-width domain (one value, one instant) is drawn in the middle of the range.
-    map: span === 0 ? () => mid : (v: number) => r0 + ((v - d0) / span) * extent,
-    invert: extent === 0 ? () => d0 : (p: number) => d0 + ((p - r0) / extent) * span,
+  const mid = r0 / 2 + r1 / 2;
+  // A domain wider than the largest double (say [-1e308, 1e308]) is interpolated on halves, so the
+  // intermediate width never overflows.
+  const overflow = !Number.isFinite(span) && Number.isFinite(d0) && Number.isFinite(d1);
+  const halfSpan = d1 / 2 - d0 / 2;
+  let map: (v: number) => number;
+  let invert: (p: number) => number;
+  if (span === 0) map = () => mid; // a zero-width domain (one value, one instant) is drawn in the middle
+  else if (overflow) map = (v: number) => r0 + ((v / 2 - d0 / 2) / halfSpan) * extent;
+  else map = (v: number) => r0 + ((v - d0) / span) * extent;
+  if (extent === 0) invert = () => d0;
+  else if (overflow) invert = (p: number) => {
+    const f = (p - r0) / extent;
+    return d0 * (1 - f) + d1 * f;
   };
+  else invert = (p: number) => d0 + ((p - r0) / extent) * span;
+  return { type, domain: [d0, d1], range: [r0, r1], map, invert };
 }
 
 function sortedDomain(domain: readonly [number, number]): [number, number] {
@@ -47,14 +55,16 @@ export function linearTickCandidates(domain: readonly [number, number], format: 
   const [lo, hi] = sortedDomain(domain);
   if (!Number.isFinite(lo) || !Number.isFinite(hi)) return [];
   // A width that no nice step can resolve (subnormal, or below the precision of the values) gets one tick.
-  const tooNarrow = !((hi - lo) / (MAX_TICKS - 1) > 1e-300) || hi - lo <= 4 * Number.EPSILON * Math.max(Math.abs(lo), Math.abs(hi));
+  // Divided before subtracting, so that [-1e308, 1e308] does not overflow.
+  const width = hi / (MAX_TICKS - 1) - lo / (MAX_TICKS - 1);
+  const tooNarrow = !(width > 1e-300) || hi - lo <= 4 * Number.EPSILON * Math.max(Math.abs(lo), Math.abs(hi));
   if (lo === hi || tooNarrow) {
     const v = lo === 0 ? 0 : lo;
     return [[{ value: v, label: format(v, { step: 0, maxAbs: Math.abs(v) }) }]];
   }
   const sets: Tick[][] = [];
-  let step = niceStepAtLeast((hi - lo) / (MAX_TICKS - 1));
-  for (let guard = 0; guard < 40; guard++) {
+  let step = niceStepAtLeast(width);
+  for (let guard = 0; guard < 40 && Number.isFinite(step.value); guard++) {
     const i0 = firstIndexAtOrAbove(lo, step);
     const i1 = lastIndexAtOrBelow(hi, step);
     const count = i1 - i0 + 1;
@@ -74,6 +84,11 @@ export function linearTickCandidates(domain: readonly [number, number], format: 
     }
     if (count <= 1) break;
     step = nextNiceStep(step);
+  }
+  // Near the largest doubles the next step overflows; the only multiple of an infinite step is zero.
+  const last = sets[sets.length - 1];
+  if (!Number.isFinite(step.value) && last !== undefined && last.length > 1 && lo <= 0 && hi >= 0) {
+    pushCandidate(sets, [{ value: 0, label: format(0, { step: 0, maxAbs: 0 }) }]);
   }
   return sets;
 }

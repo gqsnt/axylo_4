@@ -94,7 +94,7 @@ function probeColors(element: HTMLElement, expressions: readonly string[]): stri
   box.style.setProperty('display', 'none');
   const probes = expressions.map(expression => {
     const probe = doc.createElement('span');
-    // Without this, forced colors would replace every probed value with CanvasText.
+    // Forced colors may replace an author `color` with CanvasText; the probe must read what was asked.
     probe.style.setProperty('forced-color-adjust', 'none');
     probe.style.setProperty('color', expression);
     box.appendChild(probe);

@@ -9,6 +9,8 @@
 const MINUTE = 60_000;
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
+/** Largest |epoch ms| a Date can hold. */
+export const MAX_DATE = 8.64e15;
 
 const fieldFormatters = new Map<string, Intl.DateTimeFormat>();
 
@@ -50,8 +52,9 @@ export function utcFields(year: number, month: number, day: number, hour = 0, mi
  */
 export function zoneOffset(timeZone: string, instant: number): number {
   if (isUtc(timeZone) || !Number.isFinite(instant)) return 0;
-  // Offsets change on whole seconds, and Intl drops milliseconds, so compare at the whole second.
-  const second = Math.floor(instant / 1000) * 1000;
+  // Offsets change on whole seconds, and Intl drops milliseconds, so compare at the whole second. Outside
+  // the Date range Intl throws; the offset at the nearest representable second stands in.
+  const second = Math.min(Math.max(Math.floor(instant / 1000) * 1000, -MAX_DATE + DAY), MAX_DATE - DAY);
   let year = 0, month = 0, day = 0, hour = 0, minute = 0, sec = 0;
   let bc = false;
   for (const part of fieldFormatter(timeZone).formatToParts(second)) {
@@ -120,6 +123,32 @@ export function wallToInstant(timeZone: string, wall: number, disambiguation: Di
   // In a gap the offset grows (before < after). Reading the wall time with the earlier offset lands after
   // the transition, with the later offset before it.
   return disambiguation === 'earlier' ? wall - after : wall - before;
+}
+
+/**
+ * The first instant whose local wall time is at or after `wall`: the instant of `wall` itself, or, when
+ * `wall` falls in a gap, the moment the clocks jump past it. This is the start of a calendar day whose
+ * midnight does not exist (Toronto, 31 March 1919: clocks went from 23:30 to 00:30 at 04:30Z).
+ */
+export function firstInstantAtOrAfterWall(timeZone: string, wall: number): number {
+  const found = wallToInstants(timeZone, wall);
+  if (found.length > 0) return found[0] as number;
+  const before = zoneOffset(timeZone, wall - DAY);
+  const after = zoneOffset(timeZone, wall + DAY);
+  // wall - after reads earlier than `wall` (still before the jump); wall - before reads later (after it).
+  return firstInstantWithOffset(timeZone, wall - after, wall - before, after);
+}
+
+/** The first whole second in (lo, hi] at which the zone's offset is `offset`, by bisection (offset differs at lo). */
+export function firstInstantWithOffset(timeZone: string, lo: number, hi: number, offset: number): number {
+  let a = Math.floor(lo / 1000);
+  let b = Math.ceil(hi / 1000);
+  while (b - a > 1) {
+    const m = Math.floor((a + b) / 2);
+    if (zoneOffset(timeZone, m * 1000) === offset) b = m;
+    else a = m;
+  }
+  return Math.max(b * 1000, lo);
 }
 
 export const TIME = { MINUTE, HOUR, DAY } as const;

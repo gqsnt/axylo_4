@@ -41,27 +41,47 @@ export function bandScale(count: number, range: readonly [number, number], paddi
 }
 
 /**
- * Sets of category labels: every category, then every 2nd, 3rd, …, always keeping the first. Sets that would
- * not be smaller than the one before are skipped, and so are thinned sets with more ticks than any screen
- * could show, which keeps the cost bounded for very many categories.
+ * Sets of category labels, densest first: every category, then every k-th, always keeping the first.
+ *
+ * Strides are 1 to 10, then 20, 50, 100, 200, 500, … (1, 2, 5 × 10^k), so there are about 3·log10(n) + 10
+ * sets for n categories. Sets are built on first read and kept, so laying out 100,000 categories costs
+ * only the sets layout actually looks at. The result is still a plain readonly array of arrays.
  */
 export function bandTickCandidates(labels: readonly string[]): TickCandidates {
   const n = labels.length;
   if (n === 0) return [];
-  const sets: Tick[][] = [];
+  const strides: number[] = [];
   let lastSize = Infinity;
-  for (let k = 1; k <= n; k++) {
+  for (const k of strideSequence(n)) {
     const size = Math.ceil(n / k);
-    if (size >= lastSize) continue;
-    if (k > 1 && size > MAX_THINNED) continue;
-    const set: Tick[] = [];
-    for (let i = 0; i < n; i += k) set.push({ value: i, label: labels[i] as string });
-    sets.push(set);
-    lastSize = size;
+    if (size < lastSize) {
+      strides.push(k);
+      lastSize = size;
+    }
     if (size === 1) break;
   }
+  const sets: Tick[][] = [];
+  strides.forEach((k, index) => {
+    let built: Tick[] | null = null;
+    Object.defineProperty(sets, index, {
+      enumerable: true,
+      get(): Tick[] {
+        if (built === null) {
+          const set: Tick[] = [];
+          for (let i = 0; i < n; i += k) set.push({ value: i, label: labels[i] as string });
+          built = set;
+        }
+        return built;
+      },
+    });
+  });
   return sets;
 }
 
-/** No axis is wide enough for more labels than this at the 12 px minimum text size (spec L2). */
-const MAX_THINNED = 1000;
+/** 1, 2, …, 10, 20, 50, 100, 200, 500, … up to the first stride at or above n. */
+function strideSequence(n: number): number[] {
+  const out: number[] = [];
+  for (let k = 1; k <= 10; k++) out.push(k);
+  for (let base = 10; out[out.length - 1]! < n; base *= 10) out.push(2 * base, 5 * base, 10 * base);
+  return out;
+}

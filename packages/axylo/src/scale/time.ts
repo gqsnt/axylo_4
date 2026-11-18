@@ -8,7 +8,7 @@
 import type { ContinuousScale, Tick, TickCandidates } from '../core/contracts';
 import { continuous, pushCandidate } from './linear';
 import { MAX_TICKS } from './nice';
-import { TIME, instantToWall, utcFields, wallToInstant, zoneOffset } from './zone';
+import { MAX_DATE, TIME, firstInstantAtOrAfterWall, firstInstantWithOffset, instantToWall, utcFields, zoneOffset } from './zone';
 import { dateTimeFormat } from '../format/intl';
 
 const { MINUTE, HOUR, DAY } = TIME;
@@ -85,9 +85,10 @@ function finestUnit(options: TimeTickOptions): TimeUnit {
  * axis zone: day and coarser ticks fall on local midnight, so a "day" may be 23 or 25 hours long.
  */
 export function timeTickCandidates(domain: readonly [number, number], options: TimeTickOptions): TickCandidates {
-  const lo = Math.min(domain[0], domain[1]);
-  const hi = Math.max(domain[0], domain[1]);
-  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return [];
+  // Ticks only exist where a Date can represent the position.
+  const lo = Math.max(Math.min(domain[0], domain[1]), -MAX_DATE);
+  const hi = Math.min(Math.max(domain[0], domain[1]), MAX_DATE);
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || lo > hi) return [];
   const zone = axisZone(options);
   const finest = UNIT_ORDER.indexOf(finestUnit(options));
   const span = hi - lo;
@@ -145,12 +146,12 @@ function boundaries(interval: Interval, lo: number, hi: number, zone: string, lo
   // Wall time of an instant moves back by at most the size of a fold (two hours in any zone in use), so a
   // three-hour margin covers every boundary whose instant lies in [lo, hi]. Day and coarser units have at
   // most one boundary in the margin, so it costs nothing.
-  const wallLo = instantToWall(zone, lo) - 3 * HOUR;
-  const wallHi = instantToWall(zone, hi) + 3 * HOUR;
+  const wallLo = Math.max(instantToWall(zone, lo) - 3 * HOUR, -MAX_DATE);
+  const wallHi = Math.min(instantToWall(zone, hi) + 3 * HOUR, MAX_DATE);
   const out: number[] = [];
   for (const w of wallBoundaries(interval, wallLo, wallHi, locale)) {
-    // Midnight inside a gap (zones that change at 00:00) moves to the first instant of that day.
-    const t = wallToInstant(zone, w, 'compatible');
+    // A calendar boundary is the first instant of its day, also where midnight falls in a gap.
+    const t = firstInstantAtOrAfterWall(zone, w);
     if (t >= lo && t <= hi) out.push(t);
   }
   out.sort((a, b) => a - b);
@@ -181,18 +182,6 @@ function clockBoundaries(size: number, lo: number, hi: number, zone: string): nu
   return out;
 }
 
-/** The first whole second in (lo, hi] at which the zone's offset is `offset`, found by bisection. */
-function firstInstantWithOffset(zone: string, lo: number, hi: number, offset: number): number {
-  let a = Math.floor(lo / SECOND); // offset differs here
-  let b = Math.ceil(hi / SECOND); // offset is `offset` here
-  while (b - a > 1) {
-    const m = Math.floor((a + b) / 2);
-    if (zoneOffset(zone, m * SECOND) === offset) b = m;
-    else a = m;
-  }
-  return Math.max(b * SECOND, lo);
-}
-
 /** Wall values (local fields read as UTC) on the interval's boundaries in [wallLo, wallHi]. */
 function wallBoundaries(interval: Interval, wallLo: number, wallHi: number, locale: string): number[] {
   const out: number[] = [];
@@ -211,25 +200,24 @@ function wallBoundaries(interval: Interval, wallLo: number, wallHi: number, loca
     for (let w = day * DAY; w <= wallHi; w += 7 * DAY) out.push(w);
     return out;
   }
-  const start = new Date(wallLo);
+  // Month and year loops run over the years of the range, so they end even where a boundary is not
+  // representable (utcFields gives NaN past the Date range).
+  const yLo = new Date(wallLo).getUTCFullYear();
+  const yHi = new Date(wallHi).getUTCFullYear();
+  if (!Number.isFinite(yLo) || !Number.isFinite(yHi)) return out;
   if (unit === 'month') {
-    let y = start.getUTCFullYear();
-    let m = start.getUTCMonth() - (start.getUTCMonth() % n);
-    for (;;) {
-      const w = utcFields(y, m, 1);
-      if (w > wallHi) break;
-      if (w >= wallLo) out.push(w);
-      m += n;
-      if (m >= 12) { y += 1; m -= 12; }
+    for (let y = yLo; y <= yHi; y++) {
+      for (let m = 0; m < 12; m += n) {
+        const w = utcFields(y, m, 1);
+        if (Number.isFinite(w) && w >= wallLo && w <= wallHi) out.push(w);
+      }
     }
     return out;
   }
   // year
-  const y0 = start.getUTCFullYear();
-  for (let y = y0 - (((y0 % n) + n) % n); ; y += n) {
+  for (let y = yLo - (((yLo % n) + n) % n); y <= yHi; y += n) {
     const w = utcFields(y, 0, 1);
-    if (w > wallHi) break;
-    if (w >= wallLo) out.push(w);
+    if (Number.isFinite(w) && w >= wallLo && w <= wallHi) out.push(w);
   }
   return out;
 }
@@ -295,35 +283,61 @@ function labelOptions(level: Level): { short: Intl.DateTimeFormatOptions; contex
 }
 
 /**
+ * Ways to tell apart built-in labels that still read the same, tried in order: the zone abbreviation and
+ * then the numeric offset (the same clock time twice in a fold), then the era (1 BC and AD 1).
+ */
+function disambiguators(zone: string): Intl.DateTimeFormatOptions[] {
+  const named: Intl.DateTimeFormatOptions[] = zone === 'UTC' ? [] : [{ timeZoneName: 'short' }, { timeZoneName: 'shortOffset' }];
+  return [...named, { era: 'short' }, { era: 'short', year: 'numeric', timeZoneName: 'shortOffset' }];
+}
+
+/**
  * Labels a tick set. The context (year for month and day ticks, date for clock ticks) is written on the
- * first tick and wherever it changes, so every label is unambiguous with its left neighbours.
+ * first tick and wherever it changes, so every label is unambiguous with its left neighbours. A set that
+ * reaches before year 1 carries the era on every label, and labels that would still read the same are
+ * told apart (see `disambiguators`).
  */
 function label(values: readonly number[], unit: TimeUnit, zone: string, options: TimeTickOptions): Tick[] {
   const level = levelOf(unit);
   const { short, context } = labelOptions(level);
+  const walls = values.map(v => new Date(instantToWall(zone, v)));
+  // Astronomical year 0 is 1 BC: Intl writes it as "1", like AD 1, unless the era is shown.
+  const era: Intl.DateTimeFormatOptions = walls.some(w => w.getUTCFullYear() < 1) ? { era: 'short' } : {};
+  const fields: Intl.DateTimeFormatOptions[] = [];
+  const builtIn: boolean[] = [];
   const ticks: Tick[] = [];
-  const used: Intl.DateTimeFormatOptions[] = [];
   let previous = NaN;
-  for (const value of values) {
-    const wall = new Date(instantToWall(zone, value));
+  values.forEach((value, i) => {
+    const wall = walls[i]!;
     // Year for calendar ticks, calendar day for clock ticks.
     const key = level === 'month' || level === 'day'
       ? wall.getUTCFullYear()
       : wall.getUTCFullYear() * 10000 + wall.getUTCMonth() * 100 + wall.getUTCDate();
-    const fields = context !== null && key !== previous ? context : short;
+    const f = { ...(context !== null && key !== previous ? context : short), ...era };
     previous = key;
-    used.push(fields);
-    ticks.push({ value, label: customLabel(options.label, value) ?? dateTimeFormat(options.locale, { ...fields, timeZone: zone }).format(value) });
-  }
-  if (!options.label && zone !== 'UTC') {
-    // In a fold the same clock time comes twice ("1:00 AM", "1:00 AM"); the zone abbreviation tells them apart.
-    for (let i = 1; i < ticks.length; i++) {
-      if (ticks[i]!.label !== ticks[i - 1]!.label) continue;
-      for (const j of [i - 1, i]) {
-        const named = dateTimeFormat(options.locale, { ...used[j], timeZoneName: 'short', timeZone: zone });
-        ticks[j] = { value: ticks[j]!.value, label: named.format(ticks[j]!.value) };
-      }
+    fields.push(f);
+    const custom = customLabel(options.label, value);
+    builtIn.push(custom === null);
+    ticks.push({ value, label: custom ?? dateTimeFormat(options.locale, { ...f, timeZone: zone }).format(value) });
+  });
+  for (const extra of disambiguators(zone)) {
+    const repeated = repeatedBuiltIn(ticks, builtIn);
+    if (repeated.length === 0) break;
+    for (const j of repeated) {
+      fields[j] = { ...fields[j], ...extra };
+      ticks[j] = { value: ticks[j]!.value, label: dateTimeFormat(options.locale, { ...fields[j], timeZone: zone }).format(ticks[j]!.value) };
     }
   }
   return ticks;
+}
+
+/** Indexes of built-in labels that equal another label anywhere in the set. */
+function repeatedBuiltIn(ticks: readonly Tick[], builtIn: readonly boolean[]): number[] {
+  const count = new Map<string, number>();
+  for (const t of ticks) count.set(t.label, (count.get(t.label) ?? 0) + 1);
+  const out: number[] = [];
+  ticks.forEach((t, i) => {
+    if (builtIn[i] && (count.get(t.label) ?? 0) > 1) out.push(i);
+  });
+  return out;
 }
