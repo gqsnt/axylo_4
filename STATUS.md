@@ -30,9 +30,14 @@ Observed model and effort are read from harness metadata (Codex session rollouts
 
 Finished and committed, each written by one provider and reviewed by the other: scales and formatting; layout and simplification; data layer, diagnostics and stores; renderers, text layer and theme; view and scene; lookup, reader and messages; chart core part 1 (review findings not yet fixed, see below); chart core part 2 (review running); benchmark harness and the M1 renderer measurements (not reviewed).
 
-| Running now (2026-11-18 evening, after commit d33df71; the closing pass is committed, all agents idle) | Who | Files |
+| Running now (2026-11-18 night, after commit 71f2a02) | Who | Files |
 |---|---|---|
-| Coordinator's verification of d33df71 on the shared build: core browser suites on SVG, `chart` + `a11y` on canvas, `tests/dist` Node and browser, docs browser; logs `acceptance/results/verify-d33df71/{svg,canvas,dist,dist-browser,docs-browser}.txt` | coordinator | reads `packages/axylo/dist` (built from d33df71) |
+| The text test's scatter fixture (premise out of date since 6ebdb6f), agent a61d95e46b3f0f3aa | Claude Opus 5.5 high | `tests/dist/pages`, `tests/dist/text.browser.test.ts` |
+| Docs: the AX160 page (tick case has no note), known limits, long tooltip values, new WCAG citations with a reason for each uncited criterion, agent a04bfe28413f07034 | Claude Opus 5.5 | `apps/docs/**` |
+| Small size cuts in `src/dom` and the stylesheet (duplicates, dead code), agent aa0e6fca8e4a6224b | Claude Opus 5.5 high | `src/dom`, `src/core/focus.ts`, `src/theme/css.ts` |
+| Matrix re-merge against the current spec and tests, writes `wp/matrix-merge.report.md`, agent a7e48ddd0321b1b1e | Claude Opus 5.5 xhigh | `acceptance/matrix.json` |
+
+Coordinator's verification of d33df71 on the shared build built from it (logs `acceptance/results/verify-d33df71/`): core browser suites on SVG 962 passed, 1 skipped (963); `chart` + `a11y` on canvas 312 passed, 4 skipped; `tests/dist` Node 90 of 90; `tests/dist` browser 22 of 26 (the four text tests, fixture out of date); docs browser 169 of 170 (the AX160 page expects a note that the tick-only rule removed). Whole Node suite 1752 passed. Spec rows now cite the WCAG criteria they cover (71f2a02), the coordinator's mapping, to be reviewed with the matrix.
 
 Closing pass commits: lookup (0d9532f), controller (68b3d6c), interaction (d33df71); reports `wp/closing.*.report.md`. The check they answer: `wp/final-check.review.md` (Codex gpt-6.2-sol max, of 9f9eeef). By the owner's stop rule no review follows; the evidence is each fix's own test (written first, failing on the old code) and the coordinator's runs. Verification of 9f9eeef (before the closing pass): SVG 948 passed, 1 skipped; canvas 298 passed, 4 skipped.
 
