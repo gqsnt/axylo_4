@@ -125,6 +125,8 @@ export interface PointSeries {
    * and do not appear here; a value that cannot be plotted is never imputed.
    */
   readonly missingX?: Float64Array;
+  /** Source row index of each entry of `missingX`, in the same order; present whenever `missingX` and `row` are. */
+  readonly missingRow?: Int32Array;
 }
 
 /**

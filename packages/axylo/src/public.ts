@@ -129,7 +129,9 @@ export type DonutOptions<Row> = CommonOptions<Row> & { label: SeriesKey<Row>; va
 /**
  * `x`, and the two ends of a `zoom` event, are in the form `zoom()` accepts for the axis: a Date for instants,
  * 'YYYY-MM-DD' for calendar dates, an ISO date-time without offset for wall-clock times, the category for a
- * category axis, otherwise the number. They can be passed to another chart's `zoom()` unchanged.
+ * category axis, otherwise the number. They can be passed to another chart's `zoom()` unchanged. A position that
+ * a Date or a string cannot hold exactly (between milliseconds, or between days) is given as a number, which
+ * `zoom()` reads as the same position.
  */
 export interface Point<Row> { series: string; x: XValue; y: number | null; row: Row | null; index: number }
 
