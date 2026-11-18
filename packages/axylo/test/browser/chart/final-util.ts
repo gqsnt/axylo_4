@@ -3,6 +3,7 @@
  * against decision 0004 revision 3.
  */
 import type { Page } from 'playwright-core';
+import { requireEngineFeature } from '../harness';
 
 export type Box = { x: number; y: number; width: number; height: number };
 export type Pt = { x: number; y: number };
@@ -82,6 +83,7 @@ export const TALL = ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6'].map((x, i) => ({ x, y: 
 
 /** Chrome's accessibility nodes (role and name) under the first element matching `selector`. */
 export async function axButtons(page: Page, selector: string): Promise<string[]> {
+  requireEngineFeature(['chromium'], 'the computed accessibility tree is read through the Chrome DevTools protocol');
   const client = await page.context().newCDPSession(page);
   try {
     const { root } = await client.send('DOM.getDocument', { depth: 0 });

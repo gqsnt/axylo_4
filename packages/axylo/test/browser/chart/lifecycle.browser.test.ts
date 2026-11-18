@@ -3,7 +3,7 @@
  * counters the development build exposes (`chart.__dev.stages()`).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { start, stop } from '../harness';
+import { requireEngineFeature, start, stop } from '../harness';
 import { chartPage, closePage } from './util';
 
 beforeAll(start);
@@ -308,6 +308,7 @@ describe('commit contract (plan 1.5, spec DX5)', () => {
   });
 
   it('after destroy() no listener is registered: not on the plot, the document or the window', async () => {
+    requireEngineFeature(['chromium'], 'the registered event listeners are read through the Chrome DevTools protocol (DOMDebugger.getEventListeners)');
     // Registration itself, read through the DevTools protocol: a destroyed controller that ignores its
     // listeners would pass the test above (controller review, finding 20).
     const page = await chartPage();
@@ -339,6 +340,7 @@ describe('commit contract (plan 1.5, spec DX5)', () => {
 
 describe('memory (spec P7, DX5)', () => {
   it('a destroyed handle that the page keeps retains neither the data nor the figure', async () => {
+    requireEngineFeature(['chromium'], 'a heap snapshot is taken through the Chrome DevTools protocol (HeapProfiler)');
     const page = await chartPage();
     const cdp = await page.context().newCDPSession(page);
     await page.evaluate(async () => {
@@ -370,6 +372,7 @@ describe('memory (spec P7, DX5)', () => {
   // now judged after that warm-up, with a tighter allowance (1%). The snapshot test below checks retained
   // objects directly.
   it('create–destroy cycles show no upward heap trend once the engine has warmed up', async () => {
+    requireEngineFeature(['chromium'], 'the heap is collected and measured through the Chrome DevTools protocol (HeapProfiler, Runtime.getHeapUsage)');
     const page = await chartPage();
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('HeapProfiler.enable');
@@ -407,6 +410,7 @@ describe('memory (spec P7, DX5)', () => {
   // to compiled code (V8 InstructionStream, Code and their metadata), not to objects the chart retains. This
   // test counts only what a leak would leave: every heap object except compiled code and V8's own metadata.
   it('objects other than compiled code do not grow from cycle 300 to cycle 1,000', async () => {
+    requireEngineFeature(['chromium'], 'the heap is collected and measured through the Chrome DevTools protocol (HeapProfiler, Runtime.getHeapUsage)');
     const page = await chartPage();
     const cdp = await page.context().newCDPSession(page);
     const cycles = (n: number) => page.evaluate(async k => {

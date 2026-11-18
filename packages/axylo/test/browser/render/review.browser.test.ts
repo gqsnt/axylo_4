@@ -454,11 +454,17 @@ describe('finding 18: stronger checks', () => {
     const violations: string[] = [];
     await page.route('**/blank.html', async route => {
       const response = await route.fetch();
-      await route.fulfill({ response, headers: { ...response.headers(), 'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self'" } });
+      // The test page's own inline <style> is removed: the policy blocks it anyway (so the page renders as
+      // before), and its violation is the page's, not the library's. WebKit delivers that event late, after a
+      // listener added once the page has loaded, where Chrome delivers it before.
+      const body = (await response.text()).replace(/<style>[\s\S]*?<\/style>\n?/, '');
+      await route.fulfill({ response, body, headers: { ...response.headers(), 'content-security-policy': "default-src 'self'; script-src 'self'; style-src 'self'" } });
     });
-    await page.goto(url('packages/axylo/test/browser/blank.html'));
+    // Listening from the start of the document, so no violation can arrive before the listener does.
     await page.exposeFunction('reportViolation', (v: string) => { violations.push(v); });
-    await page.evaluate(() => document.addEventListener('securitypolicyviolation', e => (window as unknown as { reportViolation(v: string): void }).reportViolation(`${e.violatedDirective} ${e.blockedURI}`)));
+    await page.addInitScript(() => document.addEventListener('securitypolicyviolation', e => (window as unknown as { reportViolation(v: string): void }).reportViolation(`${e.violatedDirective} ${e.blockedURI}`)));
+    await page.goto(url('packages/axylo/test/browser/blank.html'));
+    expect(await page.locator('style').count(), 'the page itself has no inline style').toBe(0);
     await page.addScriptTag({ url: url(`packages/axylo/test/browser/.out/${ENTRY.split('/').pop()!.replace(/\.ts$/, '.js')}`) });
     const probes = await page.evaluate(() => {
       window.axr.mount('svg', 20, 360);
@@ -467,10 +473,12 @@ describe('finding 18: stronger checks', () => {
     });
     for (const p of probes) for (const k of ['x', 'y', 'width', 'height'] as const) expect(Math.abs(p.rect[k] - p.box[k])).toBeLessThanOrEqual(1.5);
     expect(await page.evaluate(() => getComputedStyle(document.querySelector('.axylo-svg')!).position)).toBe('absolute');
-    const img = await shot(page, 20, 360, 400, 300);
-    expect(diff(at(img, 85, 50), series(0))).toBeLessThanOrEqual(8);
     await frames(page, 2);
     expect(violations).toEqual([]);
+    // The pixels are read after the check: in Playwright's WebKit every screenshot inserts a <style> into the
+    // page, which this policy rightly blocks (one violation per screenshot, on a page without the library too).
+    const img = await shot(page, 20, 360, 400, 300);
+    expect(diff(at(img, 85, 50), series(0))).toBeLessThanOrEqual(8);
     await close(page);
   });
 });
@@ -481,15 +489,21 @@ describe('RectMark.pattern (spec F9 second cue)', () => {
     const page = await open();
     await page.evaluate(() => { window.axr.mount('canvas', 20, 60, { scene: 'pattern' }); window.axr.mount('svg', 460, 60, { scene: 'pattern' }); });
     const images = [await shot(page, 20, 60, 400, 300), await shot(page, 460, 60, 400, 300)];
-    // Pixels of the bar interior (2 px in from each edge) that are close to the background color.
-    const light = (img: Image, x0: number): number => {
+    // Pixels of a bar's interior (2 px in from each edge) that differ from the plain bar's colour by more than a
+    // quarter of the range (64/255): what F9 needs is a pattern that stands clear of the bar's own colour. Not
+    // "close to the background": how far a 1 px line or a radius-1 dot gets towards it is the engine's
+    // anti-aliasing (a dot's pixels reach 52/255 from white in Chrome, 106/255 in WebKit).
+    const plainColor = (img: Image): RGB => at(img, 90, 150);
+    const marked = (img: Image, x0: number): number => {
+      const plain = plainColor(img);
       let n = 0;
-      for (let y = 62; y < 238; y++) for (let x = x0 + 2; x < x0 + 58; x++) if (diff(at(img, x, y), WHITE) < 80) n++;
+      for (let y = 62; y < 238; y++) for (let x = x0 + 2; x < x0 + 58; x++) if (diff(at(img, x, y), plain) > 64) n++;
       return n;
     };
     for (const img of images) {
-      expect(light(img, 60)).toBe(0);
-      const diagonal = light(img, 140), cross = light(img, 220), dots = light(img, 300);
+      expect(diff(plainColor(img), WHITE), 'the plain bar is painted').toBeGreaterThan(64);
+      expect(marked(img, 60)).toBe(0);
+      const diagonal = marked(img, 140), cross = marked(img, 220), dots = marked(img, 300);
       // About 1 px lines every 5.7 px: roughly a sixth of the area, twice that for the cross hatch.
       expect(diagonal).toBeGreaterThan(800);
       expect(cross).toBeGreaterThan(diagonal * 1.4);

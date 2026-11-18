@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
-import { start, stop } from '../harness';
+import { requireEngineFeature, start, stop } from '../harness';
 import { LIGHT } from '../../../src/theme/palette';
 import { closePage, count, hex, shot } from './util';
 import { contrastOf, fixturePage, make } from '../a11y/util';
@@ -432,6 +432,8 @@ describe('touch (spec I4)', () => {
     expect(await floating(page).isVisible()).toBe(false);
     expect(await page.locator('#chart .axylo-plot').evaluate(el => getComputedStyle(el).touchAction)).toBe('manipulation');
 
+    // The taps above run on every engine; the drag needs moving touch input.
+    requireEngineFeature(['chromium'], 'moving touch input is dispatched through the Chrome DevTools protocol');
     const client = await page.context().newCDPSession(page);
     const y0 = g.plot.y + g.plot.height - 20;
     await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x, y: y0 }] });
@@ -445,6 +447,7 @@ describe('touch (spec I4)', () => {
   });
 
   it("with zoom: 'touch' a pinch zooms through the public path; without it the chart leaves pinch to the page", async () => {
+    requireEngineFeature(['chromium'], 'multi-point touch input is dispatched through the Chrome DevTools protocol');
     const page = await fixturePage({ hasTouch: true });
     await make(page, 'trend', { zoom: 'touch' });
     expect(await page.locator('#chart .axylo-plot').evaluate(el => getComputedStyle(el).touchAction)).toBe('pan-x pan-y');

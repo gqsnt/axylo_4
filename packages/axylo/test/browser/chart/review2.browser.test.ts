@@ -7,7 +7,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
-import { start, stop } from '../harness';
+import { ENGINE, requireEngineFeature, start, stop } from '../harness';
 import { chartPage, closePage } from './util';
 
 beforeAll(start);
@@ -17,6 +17,7 @@ interface Ax { role: string; name: string; value: string; min: number | null; ma
 
 /** Chrome's accessibility node for the first element matching `selector`. */
 async function ax(page: Page, selector: string): Promise<Ax> {
+  requireEngineFeature(['chromium'], 'the computed accessibility tree is read through the Chrome DevTools protocol');
   const client = await page.context().newCDPSession(page);
   try {
     const { root } = await client.send('DOM.getDocument', { depth: 0 });
@@ -614,8 +615,11 @@ describe('language of the plot (finding 19)', () => {
 
 describe('swatches repeat the contrast dash (finding 22)', () => {
   it('under prefers-contrast: more a line swatch uses the dash its line uses', async () => {
-    const page = await chartPage();
-    await page.emulateMedia({ contrast: 'more' } as never);
+    // Playwright's Firefox flips matchMedia for an emulated contrast but leaves the media rules of a sheet
+    // already loaded unevaluated (a plain <style> page shows it too), so on Firefox the preference is set on
+    // the context, before the page loads. The chart is created after it either way.
+    const page = ENGINE === 'firefox' ? await chartPage({ contrast: 'more' }) : await chartPage();
+    if (ENGINE !== 'firefox') await page.emulateMedia({ contrast: 'more' } as never);
     const data = [1, 2].flatMap(x => ['a', 'b'].map(s => ({ x, s, y: x })));
     await create(page, 'line', { title: 'C', data, x: 'x', y: 'y', series: 's' });
     const dashes = await page.evaluate(() => [...document.querySelectorAll('#chart .axylo-legend-entry .axylo-swatch-line')].map(l => getComputedStyle(l).strokeDasharray));
