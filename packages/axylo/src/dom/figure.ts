@@ -53,7 +53,7 @@ export interface Figure {
   readonly figure: HTMLElement;
   readonly plot: HTMLElement;
   readonly tooltip: HTMLElement;
-  /** Fixed readout under the plot, used instead of the tooltip when it cannot fit beside the mark. */
+  /** The readout strip under the plot (readout mode, decided by layout): two reserved lines of running text. */
   readonly readout: HTMLElement;
   /** Legend, toolbar and table, in that order, between the plot and the note. */
   readonly controls: HTMLElement;
@@ -159,13 +159,17 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
   side.hidden = true;
   const body = make('div', 'axylo-body');
   const stage = make('div', 'axylo-stage');
-  stage.append(plot);
+  // The readout strip sits under the plot in the plot's column: in readout mode it is in the flow there, so it
+  // covers nothing and nothing covers it (decision 0004 revision 2, rule 5).
+  stage.append(plot, readout);
   body.append(stage, side);
   caption.append(title, subtitle, description, summary);
-  figure.append(caption, top, body, controls, note, live, tooltip, readout);
+  figure.append(caption, top, body, controls, note, live, tooltip);
   root.appendChild(figure);
 
   let last: FigureModel | null = null;
+  /** The note's runs as last written, when it was written as runs. */
+  let noteRuns: string | null = null;
 
   return {
     figure,
@@ -221,8 +225,10 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
       const segments = compact ? null : model.noteSegments ?? null;
       if (segments && segments.length > 1) {
         // Runs in their own languages: one span each, so assistive technology switches voice per run.
-        const signature = JSON.stringify(segments);
-        if (note.dataset.segments !== signature) {
+        // Compared in memory: nothing but the runs' text reaches the page (the distribution test reads every
+        // attribute for stray serialized data).
+        const signature = segments.map(run => `${run.lang ?? ''}\u0001${run.text}`).join('\u0002');
+        if (noteRuns !== signature) {
           note.replaceChildren(...segments.map(run => {
             const span = doc.createElement('span');
             // The runs carry their own spacing (the reader joins sentences with a space run).
@@ -230,11 +236,11 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
             if (run.lang !== null) span.setAttribute('lang', run.lang);
             return span;
           }));
-          note.dataset.segments = signature;
+          noteRuns = signature;
         }
         setAttr(note, 'lang', null);
       } else {
-        delete note.dataset.segments;
+        noteRuns = null;
         if (note.firstElementChild) note.textContent = '';
         setText(note, compact ? '' : segments?.[0]?.text ?? model.note ?? '');
         setAttr(note, 'lang', segments ? segments[0]?.lang ?? null : model.noteLang ?? null);

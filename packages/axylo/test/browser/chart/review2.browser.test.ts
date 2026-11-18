@@ -278,26 +278,31 @@ describe('teardown: listeners on the chart\'s own elements', () => {
 });
 
 describe('the tooltip stays clear of the pointer and the click meant for the plot (I1, WCAG 1.4.13)', () => {
-  it('between two points the floating tooltip does not contain the pointer, and a click there selects', async () => {
+  it('a hovered tooltip takes no pointer events; a click on the plot selects and pins the datum under the pointer', async () => {
+    // Decision 0004 revision 2, rules 3 and 4 (revision 1 kept the tooltip clear of the pointer instead).
     const page = await chartPage();
     await create(page, 'line', { title: 'E', data: Array.from({ length: 20 }, (_, i) => ({ x: i, y: i })), x: 'x', y: 'y' });
     await page.evaluate(() => { (window as unknown as { selected: unknown[] }).selected = []; window.charts[0]!.on('select', p => (window as unknown as { selected: unknown[] }).selected.push((p as { x: unknown }).x)); });
     const box = (await page.locator('#chart .axylo-proxy').boundingBox())!;
     const expected: number[] = [];
+    const title = () => page.locator('#chart .axylo-tooltip .axylo-tooltip-title').textContent();
     for (const share of [0.12, 0.37, 0.52, 0.81]) {
       const x = box.x + share * box.width;
       const y = box.y + box.height / 2;
+      await page.keyboard.press('Escape');
       await page.mouse.move(x, y);
-      // Interaction review part 3: the tooltip must be the floating one here (a 720 px plot), and it names the
-      // datum nearest the pointer; the selection is that datum, not just some selection.
-      const tip = await page.locator('#chart .axylo-tooltip').boundingBox();
-      expect(tip, `share ${share}`).not.toBeNull();
-      expect(x >= tip!.x && x <= tip!.x + tip!.width && y >= tip!.y && y <= tip!.y + tip!.height, `share ${share}`).toBe(false);
       const nearest = Math.round(share * 19);
-      expect((await page.locator('#chart .axylo-tooltip .axylo-tooltip-title').textContent())?.trim()).toBe(String(nearest));
-      expected.push(nearest);
+      if (expected.length === 0) {
+        // Hovered: text that the pointer passes through.
+        expect(await page.locator('#chart .axylo-tooltip').evaluate(el => getComputedStyle(el).pointerEvents)).toBe('none');
+        expect((await title())?.trim()).toBe(String(nearest));
+      }
       await page.mouse.down();
       await page.mouse.up();
+      // Pinned at the clicked datum, taking events.
+      expect((await title())?.trim(), `share ${share}`).toBe(String(nearest));
+      expect(await page.locator('#chart .axylo-tooltip').evaluate(el => getComputedStyle(el).pointerEvents)).toBe('auto');
+      expected.push(nearest);
     }
     expect(await page.evaluate(() => (window as unknown as { selected: unknown[] }).selected)).toEqual(expected);
     expect(await closePage(page)).toEqual([]);
@@ -431,9 +436,9 @@ describe('a drag cancelled with Escape (finding 10)', () => {
 });
 
 describe('tooltip persistence and dismissal (finding 13)', () => {
-  it('in a 260 px tile the readout can be hovered without closing', async () => {
-    const page = await chartPage({ css: '#chart { width: 260px; height: 300px; }' });
-    // Names long enough that no side of a 260 px tile holds the tooltip: the readout is used.
+  it('in readout mode (a 220 px tile) the strip can be hovered without closing', async () => {
+    // Decision 0004 revision 2, rule 5: a plot narrower than 240 px has the readout strip under it.
+    const page = await chartPage({ css: '#chart { width: 220px; height: 380px; }' });
     const data = ['Organic search', 'Direct traffic', 'Referral partners'].flatMap(s => [0, 1, 2].map(x => ({ x, s, y: x * 1000 })));
     await create(page, 'line', { title: 'Narrow', data, x: 'x', y: 'y', series: 's' });
     const box = (await page.locator('#chart .axylo-proxy').boundingBox())!;
@@ -441,8 +446,11 @@ describe('tooltip persistence and dismissal (finding 13)', () => {
     const readout = page.locator('#chart .axylo-readout');
     expect(await readout.isVisible()).toBe(true);
     const r = (await readout.boundingBox())!;
+    const before = await readout.textContent();
+    expect(before).toMatch(/Organic search/);
     await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2, { steps: 5 });
     expect(await readout.isVisible()).toBe(true);
+    expect(await readout.textContent()).toBe(before);
     expect(await closePage(page)).toEqual([]);
   });
 
@@ -469,9 +477,11 @@ describe('a selectable tooltip row (finding 8)', () => {
     await create(page, 'line', { title: 'Rows', data, x: 'x', y: 'y', series: 's' });
     await page.evaluate(() => { (window as unknown as { selected: unknown[] }).selected = []; window.charts[0]!.on('select', p => (window as unknown as { selected: unknown[] }).selected.push((p as { series: string }).series)); });
     const box = (await page.locator('#chart .axylo-proxy').boundingBox())!;
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-    await page.locator('#chart .axylo-tooltip .axylo-tooltip-row', { hasText: 'b' }).click();
-    expect(await page.evaluate(() => (window as unknown as { selected: unknown[] }).selected)).toEqual(['b']);
+    // Decision 0004 revision 2, rule 4: a hovered tooltip is text; a click on the plot pins it (and selects
+    // the primary series), and the pinned rows are the buttons.
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.locator('#chart .axylo-tooltip button.axylo-tooltip-row', { hasText: 'b' }).click();
+    expect(await page.evaluate(() => (window as unknown as { selected: unknown[] }).selected)).toEqual(['a', 'b']);
     expect(await closePage(page)).toEqual([]);
   });
 });

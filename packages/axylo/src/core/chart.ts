@@ -116,6 +116,24 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
     };
     cleanup.push(unwatch);
 
+    // A font can arrive without a 'loadingdone' (a FontFace loaded first and then added to document.fonts):
+    // a probe set like the labels changes size whenever their font does, and that is a font load (L1).
+    const fontProbe = doc.createElement('div');
+    fontProbe.className = 'axylo-font-probe';
+    textLayer.element.appendChild(fontProbe);
+    let probeSize: string | null = null;
+    const fontObserver = new win.ResizeObserver(() => {
+      const box = fontProbe.getBoundingClientRect();
+      const size = `${box.width}x${box.height}`;
+      if (probeSize !== null && size !== probeSize && controller !== null && root.isConnected) {
+        noteFontLoad(doc);
+        controller.invalidate.fonts();
+      }
+      probeSize = size;
+    });
+    fontObserver.observe(fontProbe);
+    cleanup.push(() => fontObserver.disconnect());
+
     const resizeObserver = new win.ResizeObserver(() => {
       if (controller === null) return;
       // A target taken out of the document reports a zero box: let go of the document until it returns.
@@ -171,7 +189,8 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
         // When the plot is squeezed to nothing, how far the rest overflows the figure is how much room is
         // missing; that keeps the L8 decision continuous below zero.
         const overflow = plot.height < 1 ? Math.max(0, figure.figure.scrollHeight - figure.figure.clientHeight) : 0;
-        return { width: plot.width / sx, height: plot.height / sy - overflow };
+        const stage = figure.stage.getBoundingClientRect();
+        return { width: plot.width / sx, height: plot.height / sy - overflow, room: { width: stage.width / sx, height: stage.height / sy } };
       },
       devicePixelRatio: () => win.devicePixelRatio || 1,
       // Scoped to this chart's own figure: properties and the scheme go with it (finding 10).

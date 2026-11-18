@@ -81,7 +81,8 @@ describe('axe-core reports no violations (spec A8)', () => {
 
 describe('axe-core in the states the fixture loop does not reach (review 2, finding 21)', () => {
   it('trend paused, zoomed, in the narrow readout and in the internal-error state: no violations; undecided rules listed apart', async () => {
-    const page = await structuredPage({ css: '#narrow { width: 260px; height: 300px; }' });
+    // Readout mode is decided by layout: a plot narrower than 240 px (decision 0004 revision 2, rule 5).
+    const page = await structuredPage({ css: '#narrow { width: 220px; height: 300px; }' });
     await make(page, 'trend');
     const results: Record<string, { violations: string[]; incomplete: string[] }> = {};
     const check = async (state: string) => {

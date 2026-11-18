@@ -140,10 +140,10 @@ describe('part 1 item 11: a pinned scatter point needs a drawn anchor', () => {
       window.charts[0]!.append(Array.from({ length: 8 }, (_, i) => ({ x: 5, y: 5, s: `S${i + 1}` })));
     });
     await settle(page);
-    // Nine points at (5, 5): eight rows and one more.
-    const rows = await page.locator('#chart .axylo-tooltip .axylo-tooltip-row:visible, #chart .axylo-readout .axylo-tooltip-row:visible').count();
-    expect(rows).toBe(8);
-    expect(await tipText(page)).toMatch(/1 more/);
+    // Nine points at (5, 5): the rows shown and "+N more" add up to nine (rule 6 may move rows into "+N more").
+    const rows = await page.locator('#chart .axylo-tooltip .axylo-tooltip-row:visible').count();
+    const more = Number(/(\d+) more/.exec((await tipText(page)) ?? '')?.[1] ?? 0);
+    expect(rows + more).toBe(9);
     expect(await closePage(page)).toEqual([]);
   });
 });
@@ -176,8 +176,9 @@ describe('part 1 item 12: one coordinate system under a CSS transform', () => {
       // Inside the (scaled) figure, horizontally around the bar, and clear of the pointer.
       expect(tip.x).toBeGreaterThanOrEqual(figure.x - 1);
       expect(tip.x + tip.w).toBeLessThanOrEqual(figure.x + figure.width + 1);
-      expect(Math.abs(tip.x + tip.w / 2 - x)).toBeLessThan(tip.w);
-      expect(x >= tip.x && x <= tip.x + tip.w && y >= tip.y && y <= tip.y + tip.h).toBe(false);
+      // Wholly inside the (scaled) plot, as decision 0004 revision 2 requires.
+      expect(tip.y).toBeGreaterThanOrEqual(plot.y - 1);
+      expect(tip.y + tip.h).toBeLessThanOrEqual(plot.y + plot.height + 1);
     }
     expect(await closePage(page)).toEqual([]);
   });
@@ -230,6 +231,40 @@ describe('the language watcher', () => {
     expect(after.summary).toContain('1.234,5');
     expect(after.proxyLang).toBe('en');
     expect(after.theme).toBe(before.theme);
+    expect(await closePage(page)).toEqual([]);
+  });
+});
+
+describe('sixth pass: A7 and the note runs', () => {
+  it('A7 bar: a sliding category window does not rewrite the text of the focused, unchanged datum', async () => {
+    const page = await chartPage();
+    await create(page, 'bar', { title: 'Q', data: ['Q1', 'Q2', 'Q3', 'Q4'].map((x, i) => ({ x, y: i + 1 })), x: 'x', y: 'y' });
+    await page.focus(proxy);
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowRight');
+    const before = await page.locator(proxy).getAttribute('aria-valuetext');
+    expect(before).toMatch(/^Q3/);
+    await page.evaluate(() => { window.charts[0]!.append([{ x: 'Q5', y: 5 }], { keep: 4 }); });
+    await settle(page);
+    expect(await page.locator(proxy).getAttribute('aria-valuetext')).toBe(before);
+    expect(await closePage(page)).toEqual([]);
+  });
+
+  it('the note is written as text: no serialized runs in any text or attribute of the figure', async () => {
+    const page = await chartPage({ query: '?lang=de' });
+    await page.evaluate(() => { document.documentElement.lang = 'de'; });
+    await create(page, 'line', { title: 'N', data: [{ x: 1, y: 1 }, { x: 2, y: Number.NaN }, { x: 3, y: 3 }], x: 'x', y: 'y', messages: { seeTable: 'Siehe Tabelle.' } });
+    const found = await page.evaluate(() => {
+      const fig = document.querySelector('#chart figure')!;
+      const out: string[] = [];
+      for (const el of [fig, ...fig.querySelectorAll('*')]) {
+        for (const a of el.attributes) if (/"text"\s*:|"lang"\s*:/.test(a.value)) out.push(`${el.tagName} ${a.name}`);
+      }
+      if (/"text"\s*:/.test(fig.textContent ?? '')) out.push('text');
+      return { out, note: document.querySelector('#chart .axylo-note')!.textContent };
+    });
+    expect(found.out).toEqual([]);
+    expect(found.note).toMatch(/Siehe Tabelle\./);
     expect(await closePage(page)).toEqual([]);
   });
 });

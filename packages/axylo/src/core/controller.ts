@@ -97,7 +97,21 @@ export interface DevHook {
 
 export type ChartHandle = Chart<unknown, Record<string, unknown>> & { __bench?: BenchHook; __dev?: DevHook };
 
-export interface Size { readonly width: number; readonly height: number }
+export interface Size {
+  readonly width: number;
+  readonly height: number;
+  /**
+   * The plot's column (the plot and, in readout mode, the strip under it): the same in both modes, so the
+   * mode decided from it does not flip with its own strip. Absent: the plot's size.
+   */
+  readonly room?: { readonly width: number; readonly height: number };
+}
+
+/** Decision 0004 revision 2, rule 5: a plot narrower or shorter than this is in readout mode. */
+const READOUT_WIDTH = 240;
+const READOUT_HEIGHT = 140;
+/** Spec L8: the smallest plot height drawn. */
+const MIN_PLOT_HEIGHT = 80;
 
 /** Everything the controller needs from the page. */
 export interface Host {
@@ -827,6 +841,10 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
   let frameScheduled = false;
   let size: Size | null = null;
   let sizeDirty = true;
+  /** The readout strip is reserved under the plot (decision 0004 revision 2, rule 5). */
+  let readoutMode = false;
+  /** The strip's height as last measured (two 24 px lines until then). */
+  let stripHeight = 48;
   /** L8 fallback: what the fallback's own DOM adds to the plot size, measured when it was entered. */
   let fallback: { width: number; height: number } | null = null;
   let textStyle: TextStyle | null = null;
@@ -1142,7 +1160,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       inspectable: (shown.kind === 'empty' || (shown.kind === 'error' && shown.message === 'seriesNotDrawn')) &&
         (reader.table?.rowCount ?? 0) > 0,
       empty: shown.kind === 'empty', message: shown.kind === 'ready' ? null : shown.text,
-      zoom: zoomOn, zoomed, streaming, paused, epoch: a.frame.epoch, english, pageLang: lang,
+      zoom: zoomOn, zoomed, streaming, paused, epoch: a.frame.epoch, english, pageLang: lang, readout: readoutMode,
     });
 
     let { reader, inputs: readerInputs } = settleReader(hiddenIn(drawn?.layout));
@@ -1155,28 +1173,19 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     const keys = themeKeys(view);
     const nextThemeKey = [keys.join('\u0000'), a.options.colors];
     if (themeDirty || !theme || !sameKey(themeKey, nextThemeKey)) {
-      stage('theme');
       mutate();
-      const resolution = host.theme(keys, object(a.options.colors) as Record<string, string>);
-      theme = resolution;
-      themeKey = nextThemeKey;
-      // A detached chart gets the light defaults; it resolves again in the next frame that draws.
-      themeDirty = resolution.resolved === false;
-      themeRevision++;
-      // When the backdrop could not be determined the background is a guess, so contrast is not judged.
-      const low = resolution.backdropKnown === false ? [] : lowContrastSeries(resolution.theme).filter(i => i < keys.length);
-      setPresentation('theme', low.length ? [createDiagnostic('AX141', 'none', { count: low.length }, 'presentation')] : []);
+      resolveTheme(keys, a.options.colors, nextThemeKey);
     }
 
 
     // The fallback is only for a plot; a state message is shown in whatever room there is.
     if (shown.kind !== 'ready' || compact) fallback = null;
     let tooSmall = fallback !== null;
-    let arranged: { reader: ReaderModel; small: boolean } | null = null;
+    let arranged: { reader: ReaderModel; small: boolean; strip: boolean } | null = null;
     /** Puts the caption and the controls in place for one mode, and says whether anything moved. */
     const arrange = (small: boolean): boolean => {
-      if (arranged && arranged.reader === reader && arranged.small === small) return false;
-      arranged = { reader, small };
+      if (arranged && arranged.reader === reader && arranged.small === small && arranged.strip === readoutMode) return false;
+      arranged = { reader, small, strip: readoutMode };
       stage('figure');
       const model = modelFor(reader, small);
       mutate();
@@ -1198,20 +1207,39 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     };
     let layout: Layout;
     let lKey: readonly unknown[] | null = null;
-    const plotLayout = (at: Size): { layout: Layout; key: readonly unknown[] } => {
+    const plotLayout = (at: Size, strip = 0): { layout: Layout; key: readonly unknown[] } => {
       // A visible figure that leaves the plot no room is too small (L8), not unmeasured.
       if (!compact && (at.width <= 0 || at.height <= 0)) {
         return { layout: { kind: 'too-small', width: Math.max(0, at.width), height: Math.max(0, at.height) }, key: ['too-small', at.width, at.height] };
       }
-      const key = layoutKey(view, at, style, fontEpoch, axisContext);
+      const key = [...layoutKey(view, at, style, fontEpoch, axisContext), strip];
       if (drawn && drawn.layoutKey && sameKey(drawn.layoutKey, key) && drawn.layout.kind !== 'unmeasured') return { layout: drawn.layout, key: drawn.layoutKey };
       if (lastLayout && sameKey(lastLayout.key, key)) return lastLayout;
       stage('layout');
       setPresentation('layout', []);
-      const result = { layout: computeLayout(layoutInput(view, at, { measurer: host.measurer, style }, axisContext)), key };
+      const input = layoutInput(view, at, { measurer: host.measurer, style }, axisContext);
+      const result = { layout: computeLayout(input), key };
       lastLayout = result;
       return result;
     };
+    // Readout mode, decided by layout (rule 5): the plot's rectangle as it is without the strip, laid out in
+    // the plot's whole column, is narrower than 240 or shorter than 140 CSS px. The strip is then reserved and
+    // the plot measured again; the decision does not depend on the strip, so it cannot flip with it. Held
+    // while the plot is too small (L8): that state has no strip.
+    if (size !== null && size.width > 0 && shown.kind === 'ready' && !compact && !tooSmall) {
+      const room = size.room ?? size;
+      if (readoutMode && size.room) stripHeight = Math.max(0, size.room.height - size.height) || stripHeight;
+      const without = plotLayout({ width: room.width, height: room.height }).layout;
+      // The strip is reserved only where the plot keeps the L8 minimum beside it: a plot that the strip would
+      // make too small is drawn without one (the tooltip then floats, rule 6), and L8 itself is judged on the
+      // plot as drawn.
+      const wantStrip = a.options.tooltip !== false && without.kind === 'plot' &&
+        (without.plot.width < READOUT_WIDTH || without.plot.height < READOUT_HEIGHT) && without.plot.height - stripHeight >= MIN_PLOT_HEIGHT;
+      if (wantStrip !== readoutMode) {
+        readoutMode = wantStrip;
+        if (arrange(tooSmall)) size = host.measure() ?? size;
+      }
+    }
     if (size === null || size.width <= 0) {
       layout = { kind: 'unmeasured', width: size?.width ?? 0, height: size?.height ?? 0 };
     } else if (shown.kind !== 'ready') {
@@ -1229,7 +1257,8 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
        * judged on is the size that mode really has. Each mode is then self-consistent, and stepping the
        * container through the boundary switches once, at the same size in both directions.
        */
-      let result = plotLayout(fallback ? { width: size.width - fallback.width, height: size.height - fallback.height } : size);
+      const strip = readoutMode && size.room ? Math.max(0, size.room.height - size.height) : 0;
+      let result = plotLayout(fallback ? { width: size.width - fallback.width, height: size.height - fallback.height } : size, strip);
       for (let pass = 0; pass < 4; pass++) {
         const small = result.layout.kind === 'too-small';
         if (small && !tooSmall) {
@@ -1252,7 +1281,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
         const now = host.measure();
         if (now === null || (now.width === size.width && now.height === size.height)) break;
         size = now;
-        result = plotLayout(size);
+        result = plotLayout(size, readoutMode && size.room ? Math.max(0, size.room.height - size.height) : 0);
       }
       layout = result.layout;
       lKey = result.key;
@@ -1289,11 +1318,12 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     }
 
     // Lookup reads the frame through the view; it switches with the marks.
-    const lookupInputs = [view, layout, formatters, a.messages, locale];
+    // Scatter ties are decided within half a device pixel: the ratio is part of what the lookup depends on.
+    const lookupInputs = [view, layout, formatters, a.messages, locale, view.kind === 'scatter' ? pixelRatio : 1];
     let lookup = drawn?.lookup;
     if (!lookup || !drawn || !sameKey(drawn.lookupInputs, lookupInputs)) {
       stage('lookup');
-      lookup = buildLookup(view, layout, formatters, a.messages, locale);
+      lookup = buildLookup(view, layout, formatters, a.messages, locale, pixelRatio);
     }
 
     // Marks: drawn again for a new scene, a new theme or a new pixel ratio, never rebuilt for a theme alone.
@@ -1396,6 +1426,20 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     themeDirty = true;
     sizeDirty = true;
     settle(a.revision);
+  }
+
+  /** Resolves the theme for these series keys and writes it (custom properties, scheme) on the figure. */
+  function resolveTheme(keys: readonly string[], colors: unknown, key: readonly unknown[]): void {
+    stage('theme');
+    const resolution = host.theme(keys, object(colors) as Record<string, string>);
+    theme = resolution;
+    themeKey = key;
+    // A detached chart gets the light defaults; it resolves again in the next frame that draws.
+    themeDirty = resolution.resolved === false;
+    themeRevision++;
+    // When the backdrop could not be determined the background is a guess, so contrast is not judged.
+    const low = resolution.backdropKnown === false ? [] : lowContrastSeries(resolution.theme).filter(i => i < keys.length);
+    setPresentation('theme', low.length ? [createDiagnostic('AX141', 'none', { count: low.length }, 'presentation')] : []);
   }
 
   /**
@@ -1528,8 +1572,21 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       if (destroyed) return;
       themeDirty = true;
       textStyleDirty = true;
-      // Through the frame scheduler: the repaint is the next frame's, drawn once with whatever else is
-      // pending (one draw per animation frame; review 3, finding 19).
+      // The colours are resolved and written now, in the observer's callback, so the marks show the new
+      // scheme in the first frame after the change (L4): their paint refers to the custom properties written
+      // here. What is drawn as pixels (canvas) is repainted by the next frame, once, through the scheduler
+      // (one draw per animation frame; review 3, finding 19). Only when what is on screen is also what is
+      // accepted, so the colours written belong to the marks shown.
+      const a = accepted;
+      if (!inFrame && a && drawn && theme && drawn.accepted.view === a.view) {
+        try {
+          const keys = themeKeys(a.view);
+          resolveTheme(keys, a.options.colors, [keys.join('\u0000'), a.options.colors]);
+          if (!themeDirty) deliverChanges();
+        } catch {
+          themeDirty = true;
+        }
+      }
       schedule();
     },
     language() {

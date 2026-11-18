@@ -24,14 +24,14 @@ import type {
 import type { Messages } from '../public';
 import { fill } from '../messages';
 import {
-  buildOverlay, canZoomIn, minimumWidth, panWindow, positionAt, positionText, refsAt, sameRef, stepAcross, stepInSeries, zoomStep,
+  buildOverlay, OUTLINE_REACH, RING_REACH, canZoomIn, minimumWidth, panWindow, positionAt, positionText, refsAt, sameRef, stepAcross, stepInSeries, zoomStep,
   targetBox, targetOf, valueText, PAN_SHARE, ZOOM_FACTOR, type Mode,
 } from '../core/focus';
 import type { Figure } from './figure';
 import { sameTarget } from './pointer';
 import { createTableView, type TableView } from './table';
 import { createToolbar, type Toolbar, type ToolbarItem } from './toolbar';
-import { createTooltip, cssScale, type TooltipContent } from './tooltip';
+import { createTooltip, cssScale, type Placement, type TooltipContent } from './tooltip';
 import { createSwatch, type SwatchSpec } from './swatch';
 import { sliceText } from '../lookup/text';
 
@@ -76,6 +76,11 @@ export interface ControlsState {
   english(key: keyof Messages): string | null;
   /** The page's own language, for author text inside an element marked 'en'. */
   readonly pageLang: string | null;
+  /**
+   * Readout mode (decision 0004 revision 2, rule 5), decided by layout: the plot is narrower than 240 or
+   * shorter than 140 CSS px. A strip of two lines is reserved under the plot and there is no floating tooltip.
+   */
+  readonly readout?: boolean;
 }
 
 /** What one drawn frame shows, as the interaction layer needs it. */
@@ -154,7 +159,7 @@ function categoriesOf(view: View): readonly string[] | null {
 export function createInteraction(figure: Figure, renderer: MarkRenderer, actions: Actions): Interaction {
   const doc = figure.figure.ownerDocument;
   const plot = figure.plot;
-  const tooltip = createTooltip(figure.tooltip, figure.readout, figure.figure, plot);
+  const tooltip = createTooltip(figure.tooltip, figure.readout, figure.figure);
 
   let c: Committed | null = null;
   /** The newest controls state (prepared or committed), for the toolbar's actions. */
@@ -175,6 +180,8 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   let shownOrdinal = 0;
   /** What the value text was last written about (decision 0004, part 2). */
   let shownText: { ref: DatumRef | null; mode: Mode; reading: string | null } | null = null;
+  /** The pointer's datum and the rectangle its floating tooltip took (decision 0004 r2, rule 3). */
+  let heldTip: { target: PickTarget; rect: Rect } | null = null;
   let lastHover: DatumRef | null = null;
   let presented = '';
   let dirty = true;
@@ -258,6 +265,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     plot.addEventListener('wheel', onWheel, { passive: false, signal });
     figure.tooltip.addEventListener('pointerleave', onTooltipLeave, { signal });
     figure.readout.addEventListener('pointerleave', onTooltipLeave, { signal });
+    figure.stage.addEventListener('pointerleave', onStageLeave, { signal });
     listenDocument();
   }
 
@@ -420,7 +428,8 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     const visibleRing = proxyFocused && proxy.matches(':focus-visible') ? focus : null;
     const only = mode === 'single' && source === 'keyboard' ? focus : null;
     const showTip = d.tooltip && target !== null && !(dismissed !== null && sameTarget(dismissed, target));
-    const key = JSON.stringify([target, visibleRing, only, showTip, source === 'pointer' && pointer ? [Math.round(pointer.x / 8), Math.round(pointer.y / 8)] : null, pinned]);
+    // The pointer's own position is not part of it: the tooltip depends on the datum only (decision 0004 r2).
+    const key = JSON.stringify([target, visibleRing, only, showTip, pinned]);
     markLegend(proxyFocused && focus?.kind === 'slice' ? focus.sliceKey : null);
     if (!dirty && key === presented) return;
     presented = key;
@@ -437,29 +446,53 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
         const content: TooltipContent = {
           model, swatch: swatchFor(d), moreRows: count => fill(d.messages.moreRows, { count: d.formatters.count(count) }),
           totalLabel: d.messages.total,
-          // A row is selectable by pointer and touch too, so a series that is not the primary one can be
-          // chosen without a keyboard (WCAG 2.5.1).
+          // A pinned row selects its series, so one that is not the primary can be chosen without a keyboard
+          // (WCAG 2.5.1); a hovered tooltip is text (decision 0004 revision 2, rule 4).
           select: row => actions.select(row.ref),
         };
-        // Layout pixels of the plot to viewport pixels, through any CSS transform (part 1 item 12).
-        const box = plot.getBoundingClientRect();
-        const k = cssScale(plot);
-        const toPage = (r: Rect): Rect => ({ x: box.left + r.x * k.x, y: box.top + r.y * k.y, width: r.width * k.x, height: r.height * k.y });
-        const local = targetBox(d.view, d.lookup, target, only) ??
-          (pointer ? { x: pointer.x, y: pointer.y, width: 0, height: 0 } : null);
-        const anchor = local ? toPage(local) : { x: box.left + box.width / 2, y: box.top + box.height / 2, width: 0, height: 0 };
-        // The tooltip keeps clear of the pointer as well as of the marks, so the next click reaches the plot.
-        const at = source === 'pointer' && pointer ? { x: box.left + pointer.x * k.x, y: box.top + pointer.y * k.y } : null;
-        const ringBox = visibleRing ? d.lookup.anchor(visibleRing) : null;
-        const avoid: Rect[] = ringBox ? [toPage({ x: ringBox.x - 6, y: ringBox.y - 6, width: ringBox.width + 12, height: ringBox.height + 12 })] : [];
-        // The reading axis: x, or y for horizontal bars; none for a donut (decision 0004).
-        const axis = d.view.kind === 'donut' ? null : horizontalBars(d) ? 'y' : 'x';
-        // A tooltip pinned by a tap is one to act in: its rows get full touch-sized targets (new item 9).
-        figure.tooltip.classList.toggle('axylo-tooltip-pinned', pinned);
-        if (!tooltip.show(content, anchor, at, avoid, axis)) tooltip.readout(content);
+        if (figure.figure.classList.contains('axylo-readout-mode')) tooltip.strip(content, pinned);
+        else {
+          tooltip.show(content, placementFor(d, target, only), pinned);
+          // Where the pointer's datum showed its tooltip: on scatter and donut the datum is held there.
+          if (source === 'pointer') heldTip = { target, rect: tooltip.rect()! };
+        }
       }
     }
     hover(target === null ? null : source === 'keyboard' ? focus : d.lookup.primary(target));
+  }
+
+  /**
+   * Decision 0004 revision 2, rules 1 and 2: where the tooltip may go, from the datum only. The box is the
+   * datum's active marks enlarged by the focus ring; the plot is the marks' rectangle inset by the plot's
+   * outline; every control of the figure is avoided. All in viewport pixels.
+   */
+  function placementFor(d: Committed, target: PickTarget, only: DatumRef | null): Placement {
+    const box = plot.getBoundingClientRect();
+    const k = cssScale(plot);
+    const toPage = (r: Rect): Rect => ({ x: box.left + r.x * k.x, y: box.top + r.y * k.y, width: r.width * k.x, height: r.height * k.y });
+    const area = d.layout.kind === 'plot' ? d.layout.plot : { x: 0, y: 0, width: d.layout.width, height: d.layout.height };
+    const marks = targetBox(d.view, d.lookup, target, only) ?? { x: area.x + area.width / 2, y: area.y + area.height / 2, width: 0, height: 0 };
+    const ring = RING_REACH;
+    const datum = { x: marks.x - ring, y: marks.y - ring, width: marks.width + 2 * ring, height: marks.height + 2 * ring };
+    const inset = OUTLINE_REACH;
+    const plotRect = { x: area.x + inset, y: area.y + inset, width: Math.max(0, area.width - 2 * inset), height: Math.max(0, area.height - 2 * inset) };
+    let hole: Rect | null = null;
+    if (d.layout.kind === 'plot' && d.layout.projection.kind === 'ring' && d.layout.projection.r0 > 0) {
+      // The largest square inside the hole.
+      const { cx, cy, r0 } = d.layout.projection;
+      const half = r0 / Math.SQRT2 - 2;
+      if (half > 0) hole = { x: cx - half, y: cy - half, width: 2 * half, height: 2 * half };
+    }
+    const controls: Rect[] = [];
+    for (const el of figure.figure.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], [tabindex]')) {
+      if (el === proxy || figure.tooltip.contains(el)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) controls.push({ x: r.left, y: r.top, width: r.width, height: r.height });
+    }
+    return {
+      box: toPage(datum), plot: toPage(plotRect), order: horizontalBars(d) ? 'horizontal' : 'vertical',
+      hole: hole ? toPage(hole) : null, controls,
+    };
   }
 
   function hover(ref: DatumRef | null): void {
@@ -525,6 +558,8 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   /** A keyboard move changed what is shown: a tooltip closed with Escape for another datum may show again. */
   function keyboardMoved(d: Committed): void {
     if (dismissed !== null && focus && !sameTarget(dismissed, keyboardTarget(d, focus))) dismissed = null;
+    // The reader moved on: a tooltip pinned by a click belongs to the datum that was clicked.
+    if (pinned) unpin();
   }
 
   function move(direction: StepDirection): void {
@@ -770,17 +805,33 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     const d = c;
     if (!plotReady(d)) return;
     pointer = at;
+    // A pinned tooltip stays until Escape, a click elsewhere, or its datum leaves (decision 0004 rule 4).
+    if (pinned) return;
     let target = d.lookup.pick(at.x, at.y);
-    // On the way down to the readout under the plot (past the axis labels) the datum stays, so the readout
-    // can be reached and hovered (WCAG 1.4.13; review 2, finding 13).
-    if (target === null && pointerTarget !== null && tooltip.where === 'readout' && d.layout.kind === 'plot' &&
-      at.y > d.layout.plot.y + d.layout.plot.height) target = pointerTarget;
+    // Scatter and donut have no reading axis: while the pointer is inside the tooltip's rectangle the datum
+    // is held, computed here from coordinates (the tooltip itself takes no events, rule 3).
+    // The rectangle is the one the tooltip had for its datum, also when the way there crossed no datum (the
+    // gap between a slice and a tooltip in the hole) and the tooltip was hidden meanwhile.
+    if ((d.view.kind === 'scatter' || d.view.kind === 'donut') && heldTip && insideRect(heldTip.rect, at) &&
+      (target === null || !sameTarget(target, heldTip.target))) target = heldTip.target;
+    // In readout mode the way down to the strip crosses the axis labels under the plot: the datum stays.
+    if (target === null && pointerTarget !== null && figure.figure.classList.contains('axylo-readout-mode') &&
+      d.layout.kind === 'plot' && at.y > d.layout.plot.y + d.layout.plot.height) target = pointerTarget;
     if (!sameTarget(target, pointerTarget)) {
       pointerTarget = target;
       if (target !== null && dismissed !== null && !sameTarget(dismissed, target)) dismissed = null;
     }
     source = 'pointer';
     present();
+  }
+
+  /** Whether a point in plot pixels is inside a rectangle in viewport pixels. */
+  function insideRect(r: Rect, at: { x: number; y: number }): boolean {
+    const box = plot.getBoundingClientRect();
+    const k = cssScale(plot);
+    const x = box.left + at.x * k.x;
+    const y = box.top + at.y * k.y;
+    return x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height;
   }
 
   function onPointerMove(event: PointerEvent): void {
@@ -812,6 +863,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
 
   function leave(): void {
     pointer = null;
+    heldTip = null;
     if (!pinned) pointerTarget = null;
     if (source === 'pointer' && !pinned) source = proxyFocused && !fromClick ? 'keyboard' : null;
     present();
@@ -825,11 +877,21 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   function onPointerLeave(event: PointerEvent): void {
     if (event.pointerType === 'touch' || down?.dragging) return;
     if (intoTip(event.relatedTarget)) return;
+    // In readout mode the strip under the plot is part of what can be hovered (WCAG 1.4.13): leaving the
+    // plot into the plot's column keeps the readout until the column itself is left.
+    if (figure.figure.classList.contains('axylo-readout-mode') && event.relatedTarget instanceof Node && figure.stage.contains(event.relatedTarget)) return;
+    leave();
+  }
+
+  function onStageLeave(event: PointerEvent): void {
+    if (event.pointerType === 'touch' || down?.dragging || !figure.figure.classList.contains('axylo-readout-mode')) return;
+    if (event.relatedTarget instanceof Node && (figure.stage.contains(event.relatedTarget) || intoTip(event.relatedTarget))) return;
     leave();
   }
 
   function onTooltipLeave(event: PointerEvent): void {
     if (event.relatedTarget instanceof Node && (plot.contains(event.relatedTarget) || intoTip(event.relatedTarget))) return;
+    if (figure.figure.classList.contains('axylo-readout-mode') && event.relatedTarget instanceof Node && figure.stage.contains(event.relatedTarget)) return;
     leave();
   }
 
@@ -908,9 +970,12 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       pointAt(at);
       return;
     }
-    // A click: the keyboard continues from here, the wheel may zoom, and the datum is selected.
+    // A click: the datum under the pointer is pinned (decision 0004 rule 4), the keyboard continues from
+    // here, the wheel may zoom, and the datum is selected.
+    if (pinned) { pinned = false; doc.removeEventListener('pointerdown', onDocumentDown, true); }
     pointAt(at);
     if (!pointerTarget || !proxy) return;
+    pin();
     clickFocus = true;
     try {
       proxy.focus({ preventScroll: true });
@@ -924,6 +989,8 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       writeProxy(true);
       actions.select(focus);
     }
+    source = 'pointer';
+    present();
   }
 
   function onPointerCancel(event: PointerEvent): void {
@@ -960,15 +1027,20 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       return;
     }
     pointerTarget = target;
+    pin();
+    present();
+    // A tap selects, as a click and Enter do (WCAG 2.5.1).
+    const ref = d.lookup.primary(target);
+    if (ref) actions.select(ref);
+  }
+
+  /** Pins the pointer's datum: its tooltip takes events and its rows become buttons. */
+  function pin(): void {
     pinned = true;
     dismissed = null;
     source = 'pointer';
     if (attached && documentListeners) doc.addEventListener('pointerdown', onDocumentDown, { capture: true, signal: documentListeners.signal });
     dirty = true;
-    present();
-    // A tap selects, as a click and Enter do (WCAG 2.5.1).
-    const ref = d.lookup.primary(target);
-    if (ref) actions.select(ref);
   }
 
   function unpin(): void {
@@ -1031,9 +1103,14 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       endDrag();
       return;
     }
-    // The pointer's tooltip closes on Escape wherever focus is; the key is not consumed (decision 0001).
+    // The pointer's tooltip, hovered or pinned, closes on Escape wherever focus is, until the pointer reaches
+    // another datum; the key is not consumed (decision 0001; decision 0004 rule 7).
     if (source === 'pointer' && tooltip.visible && pointerTarget) {
       dismissed = pointerTarget;
+      if (pinned) {
+        pinned = false;
+        doc.removeEventListener('pointerdown', onDocumentDown, true);
+      }
       dirty = true;
       present();
     }
@@ -1384,6 +1461,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       mode = 'all';
       dismissed = null;
       unpin();
+      heldTip = null;
       lastHover = null;
       shownText = null;
       focus = proxyFocused && plotReady(next) ? initialFocusFor(next) : null;
@@ -1391,6 +1469,9 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       const map = remapper(previous.view, next.view);
       if (map) {
         focus = map(focus);
+        // The text describes a category, not a position: it is remapped with it, so a sliding window does
+        // not rewrite the text of an unchanged datum (decision 0004 part 2; A7).
+        if (shownText) shownText = { ...shownText, ref: map(shownText.ref) };
         if (focus === null) mode = 'all';
         lastHover = map(lastHover);
         const same = remapper(previous.view, next.view, true)!;
@@ -1434,12 +1515,20 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       build();
       renderControls(state);
     }
+    // The strip is reserved before the plot is measured, so the plot's size is the one it really has.
+    const strip = state.interactive && state.tooltip && state.readout === true && !state.tooSmall;
+    if (figure.figure.classList.contains('axylo-readout-mode') !== strip) {
+      figure.figure.classList.toggle('axylo-readout-mode', strip);
+      tooltip.hide();
+      presented = '';
+    }
     return layoutSignature() !== before;
   }
 
   /** What around the plot can change its size: which controls exist, where, and their labels. */
   function layoutSignature(): string {
-    return [figure.top, figure.side, figure.controls].map(host => host.hidden ? '' : host.textContent ?? '').join('\u0000');
+    return [figure.top, figure.side, figure.controls].map(host => host.hidden ? '' : host.textContent ?? '').join('\u0000') +
+      (figure.figure.classList.contains('axylo-readout-mode') ? '\u0000readout' : '');
   }
 
   function clear(): void {

@@ -118,3 +118,28 @@ describe('contrast (spec A5, AX141)', () => {
     expect(await closePage(page)).toEqual([]);
   });
 });
+
+describe('L4: the new scheme in the first frame after the page changes (sixth pass)', () => {
+  it('a class on <html> that darkens the page: the series colour the marks resolve to is dark in the next animation frame', async () => {
+    const page = await chartPage({ css: '.dk { background: #121212; color: #e8e8e8; }' });
+    await page.evaluate(async () => {
+      const chart = window.Axylo.line!('#chart', { title: 'T', data: [0, 1, 2].map(x => ({ x, y: x })), x: 'x', y: 'y' });
+      window.charts.push(chart);
+      await chart.__bench.ready();
+    });
+    const before = await resolvedSeries(page);
+    const after = await page.evaluate(() => new Promise<number[]>(resolve => {
+      document.documentElement.classList.add('dk');
+      requestAnimationFrame(() => {
+        const probe = document.querySelector('#chart figure')!.appendChild(document.createElement('span'));
+        probe.style.color = 'var(--axylo-series-color-1)';
+        const rgb = getComputedStyle(probe).color.match(/\d+/g)!.map(Number);
+        probe.remove();
+        resolve(rgb);
+      });
+    }));
+    expect(after).not.toEqual([...before]);
+    expect(after).toEqual([...hex(DARK.series[0]!)]);
+    expect(await closePage(page)).toEqual([]);
+  });
+});

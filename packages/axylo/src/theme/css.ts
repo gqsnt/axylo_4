@@ -120,9 +120,11 @@ ${forced}
   .axylo-title { font-weight: 600; font-size: 1.125em; line-height: 1.3; overflow-wrap: anywhere; }
   .axylo-subtitle { margin: 0.125em 0 0; font-size: max(12px, 0.875em); color: var(--axylo-muted, var(--axylo-default-muted)); overflow-wrap: anywhere; }
   .axylo-summary { margin: 0.25em 0 0; font-size: max(12px, 0.875em); }
-  /* Shown in the too-small state (spec L8): only the summary's first sentence (the whole text is the figure's
-     description), wrapped rather than clipped, so no text leaves the figure. */
-  .axylo-summary:not(.axylo-visually-hidden) { overflow-wrap: anywhere; }
+  /* Shown in the too-small state (spec L8): the first sentence of the generated summary, on at most two lines,
+     cut with an ellipsis beyond that; the whole text stays the figure's description. */
+  .axylo-summary:not(.axylo-visually-hidden) {
+    overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+  }
   /*
    * The plot takes what the caption and note leave. Its content is a spacer that is 16:9 of its width,
    * clamped to 160–480 px (spec L3): that is its height when the container has none of its own, and only
@@ -145,27 +147,39 @@ ${forced}
     color: var(--axylo-text, currentColor); pointer-events: none;
   }
   .axylo-note { flex: none; margin: 0.5em 0 0; font-size: max(12px, 0.875em); }
-  /* The tooltip can itself be hovered (spec I1, WCAG 1.4.13), so it takes pointer events. */
-  .axylo .axylo-tooltip, .axylo .axylo-readout {
-    position: absolute; left: 0; top: 0; z-index: 3; box-sizing: border-box;
+  /* Measures nothing on screen: it has the labels' font, and its size changes when that font arrives. */
+  .axylo .axylo-text > .axylo-font-probe { position: absolute; left: 0; top: 0; white-space: pre; visibility: hidden; pointer-events: none; }
+  .axylo .axylo-text > .axylo-font-probe::before { content: "Mg 0123456789"; }
+  /* Decision 0004 revision 2: a hovered tooltip is text that never takes the pointer (rule 3); a pinned one
+     takes events and its rows are buttons of at least 24 px (rule 4). */
+  .axylo .axylo-tooltip {
+    position: absolute; left: 0; top: 0; z-index: 3; box-sizing: border-box; pointer-events: none;
     max-width: min(320px, 100%); padding: 4px 8px; border: 1px solid var(--axylo-axis, var(--axylo-default-axis)); border-radius: 4px;
     background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background))); color: var(--axylo-text, currentColor);
     font-size: max(12px, 0.875em); line-height: 1.4;
   }
-  /* The fixed readout under the plot of a narrow tile (spec I1): it overlays what is below, so showing it
-     never changes the figure's size. */
-  .axylo .axylo-readout { right: 0; max-width: none; }
-  /* A tooltip row or a slice-list entry can be chosen with a click or a tap (WCAG 2.5.1): real buttons, at
-     least 24 px tall (WCAG 2.5.8), that look like the text they hold. */
+  .axylo .axylo-tooltip.axylo-tooltip-pinned { pointer-events: auto; }
+  /* Readout mode (rule 5): a strip of two lines reserved under the plot, in the plot's column, as running
+     text. Outside readout mode it does not exist. */
+  .axylo .axylo-readout { display: none; }
+  .axylo .axylo-readout-mode .axylo-readout {
+    display: block; flex: none; box-sizing: border-box; height: calc(2 * max(24px, 1.4 * max(12px, 0.875em)));
+    margin: 0; padding: 0 4px; overflow: hidden; font-size: max(12px, 0.875em); line-height: max(24px, 1.4em);
+    color: var(--axylo-text, currentColor); overflow-wrap: anywhere;
+  }
+  .axylo .axylo-readout-mode .axylo-readout[hidden] { display: block !important; visibility: hidden; }
+  .axylo .axylo-readout .axylo-tooltip-title { display: inline; }
+  .axylo .axylo-readout .axylo-readout-entry, .axylo .axylo-readout .axylo-tooltip-series { display: inline; }
+  .axylo .axylo-readout .axylo-swatch { vertical-align: middle; margin-inline-end: 0.25em; }
+  /* A pinned row or a slice-list entry can be chosen with a click or a tap (WCAG 2.5.1): real buttons, at
+     least 24 × 24 px (WCAG 2.5.8), that look like the text they hold. */
   .axylo .axylo-tooltip-choice, .axylo .axylo-legend-choice {
     cursor: pointer; box-sizing: border-box; margin: 0; padding: 0; border: 0; background: none;
-    font: inherit; color: inherit; text-align: inherit; align-items: center;
+    font: inherit; color: inherit; text-align: inherit; align-items: center; min-height: 24px; min-width: 24px;
   }
-  .axylo .axylo-legend-choice, .axylo .axylo-readout .axylo-tooltip-choice,
-  .axylo .axylo-tooltip-pinned .axylo-tooltip-choice { min-height: 24px; }
-  /* A hover tooltip keeps text-height rows, so it still fits beside the mark (decision 0004); the rows are
-     24 px wherever they are acted on by touch: pinned by a tap, and in the fixed readout. */
-  .axylo .axylo-tooltip-choice { width: 100%; }
+  .axylo .axylo-legend-choice { display: inline-flex; gap: 0.375em; }
+  .axylo .axylo-tooltip .axylo-tooltip-choice { width: 100%; }
+  .axylo .axylo-readout .axylo-tooltip-choice { display: inline-flex; vertical-align: middle; }
   .axylo .axylo-legend-choice { display: inline-flex; gap: 0.375em; min-width: 24px; }
   .axylo .axylo-tooltip-title { font-weight: 600; }
   .axylo .axylo-tooltip-row { display: flex; gap: 1em; justify-content: space-between; }

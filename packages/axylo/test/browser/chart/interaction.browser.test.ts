@@ -72,11 +72,11 @@ describe('tooltip (spec I1)', () => {
       expect(box.y).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
       expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
-      // Decision 0004: the tooltip is across the reading axis (above or below the pointer), centred on the
-      // active x along it, so it never contains the pointer and reading along x never enters it.
-      const at = await page.evaluate(() => window.charts[0]!.__bench.describe().xDomain);
-      expect(at).toBeTruthy();
-      expect(py < box.y || py > box.y + box.height, JSON.stringify({ px, py, box })).toBe(true);
+      // Decision 0004 revision 2, rule 1: the position is the datum's alone. Moving the pointer across the
+      // reading axis (same x, same datum) leaves the tooltip exactly where it is.
+      await page.mouse.move(px, py + (py > cy ? -12 : 12));
+      const again = (await floating(page).boundingBox())!;
+      expect(again, JSON.stringify({ px, py, box })).toEqual(box);
     }
     expect(await closePage(page)).toEqual([]);
   });
@@ -116,16 +116,20 @@ describe('tooltip (spec I1)', () => {
     expect(await closePage(page)).toEqual([]);
   });
 
-  it('in a 260 px wide tile the same content is shown in the fixed readout under the plot', async () => {
-    const page = await fixturePage({ css: '#chart { width: 260px; height: 300px; }' });
+  it('in a 220 px wide tile (readout mode) the same content is shown in the strip under the plot', async () => {
+    // Decision 0004 revision 2, rule 5: readout mode is a plot narrower than 240 px.
+    const page = await fixturePage({ css: '#chart { width: 220px; height: 300px; }' });
     await make(page, 'trend');
     const g = await geometry(page);
     await page.mouse.move(g.plot.x + g.plot.width / 2, g.plot.y + g.plot.height / 2);
     const readout = page.locator('#chart .axylo-readout');
     expect(await readout.isVisible()).toBe(true);
     expect(await floating(page).isVisible()).toBe(false);
+    // Running text on two lines: the x, then the series in order, ending in "+N more" when they do not fit.
     const text = (await readout.textContent())!;
-    for (const name of ['Direct', 'Organic search', 'Referral']) expect(text).toContain(name);
+    expect(text).toContain('Direct');
+    const fits = ['Organic search', 'Referral'].every(name => text.includes(name));
+    expect(fits || /\d+ more$/.test(text.trim()), text).toBe(true);
     const [r, plot] = [(await readout.boundingBox())!, (await page.locator('#chart .axylo-plot').boundingBox())!];
     expect(Math.abs(r.y - (plot.y + plot.height))).toBeLessThanOrEqual(1);
     expect(await closePage(page)).toEqual([]);
@@ -753,11 +757,13 @@ describe('figure details (spec L6, 3.5, events)', () => {
     const g = await geometry(page);
     const series = await page.evaluate(() => window.fx.trend.series);
     await page.mouse.move(xPixel(g, START + 20 * DAY), g.plot.y + 50);
+    await page.mouse.move(5, 5);
+    await page.mouse.move(xPixel(g, START + 20 * DAY), g.plot.y + 50);
+    // A click pins (decision 0004 revision 2, rule 4): leaving afterwards keeps the pinned datum.
     await page.mouse.down();
     await page.mouse.up();
-    await page.mouse.move(5, 5);
     const events = await page.evaluate(() => (window as unknown as { events: unknown[] }).events);
-    expect(events).toEqual([['hover', 'Direct'], ['select', 'Direct', series[0]!.values[20]], ['hover', null]]);
+    expect(events).toEqual([['hover', 'Direct'], ['hover', null], ['hover', 'Direct'], ['select', 'Direct', series[0]!.values[20]]]);
     expect(await closePage(page)).toEqual([]);
   });
 });

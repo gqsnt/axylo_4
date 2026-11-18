@@ -11,6 +11,7 @@ import {
   type AlignedView, type DatumRef, type Formatters, type Layout, type Lookup, type Mark, type Overlay,
   type PickTarget, type Rect, type RuleMark, type ScatterView, type StepDirection, type View,
 } from './contracts';
+import { donutGeometry } from '../view/donut-geometry';
 import type { Messages } from '../public';
 import { fill, pointOf } from '../messages';
 
@@ -168,6 +169,10 @@ export interface OverlayInput {
 const HALO = 13;
 const MARKER = 9;
 const RING_GAP = 4;
+/** How far the keyboard's datum ring reaches beyond the datum's box: the widest gap and half its stroke. */
+export const RING_REACH = 9;
+/** How far inside the plot's rectangle its focus outline reaches (2 px at an offset of -3 px). */
+export const OUTLINE_REACH = 4;
 
 function rule(x1: number, y1: number, x2: number, y2: number, name: 'axis' | 'focus' | 'text', width: number): RuleMark {
   return { type: 'rule', x1, y1, x2, y2, stroke: { kind: 'token', name }, strokeWidth: width, dash: null, role: 'cursor' };
@@ -228,9 +233,14 @@ export function buildOverlay(input: OverlayInput): Overlay | null {
       clipped.push({ type: 'points', series: s, xy, shape, size: MARKER, fill: { kind: 'series', index: s } });
     }
   } else if (target?.kind === 'slice' && view.kind === 'donut' && projection.kind === 'ring') {
-    const slice = view.slices.find(s => s.key === target.sliceKey);
-    if (slice?.angles && slice.angles[1] > slice.angles[0]) {
-      const angles = Float32Array.of(slice.angles[0], slice.angles[1]);
+    // The outline follows the slice as drawn: a slice thinner than a pixel of arc is widened to stay visible.
+    const geometry = donutGeometry(view.slices, projection);
+    const at = geometry.drawn.findIndex(s => s.key === target.sliceKey);
+    const slice = at >= 0 ? geometry.drawn[at] : undefined;
+    const from = at >= 0 ? geometry.angles[2 * at]! : 0;
+    const to = at >= 0 ? geometry.angles[2 * at + 1]! : 0;
+    if (slice && to > from) {
+      const angles = Float32Array.of(from, to);
       const fills = [{ kind: 'token', name: 'text' } as const];
       unclipped.push({ type: 'arcs', cx: projection.cx, cy: projection.cy, r0: projection.r1 + 1, r1: projection.r1 + 4, angles, fills, gap: 0 });
       if (projection.r0 > 5) {
@@ -241,7 +251,14 @@ export function buildOverlay(input: OverlayInput): Overlay | null {
 
   if (ring) {
     const box = lookup.anchor(ring);
-    if (box) unclipped.push(...outline(box, box.width === 0 && box.height === 0 ? 8 : RING_GAP, 'focus', 2));
+    if (box) {
+      // Drawn inside the plot's box, so it is painted at the last point and at the top of a donut too (A2):
+      // the ring's lines are kept a half stroke inside the plot.
+      const gap = box.width === 0 && box.height === 0 ? 8 : RING_GAP;
+      const x0 = Math.max(plot.x + 1, box.x - gap), y0 = Math.max(plot.y + 1, box.y - gap);
+      const x1 = Math.min(plot.x + plot.width - 1, box.x + box.width + gap), y1 = Math.min(plot.y + plot.height - 1, box.y + box.height + gap);
+      if (x1 > x0 && y1 > y0) unclipped.push(...outline({ x: x0, y: y0, width: x1 - x0, height: y1 - y0 }, 0, 'focus', 2));
+    }
   }
   return clipped.length || unclipped.length ? { clip: plot, clipped, unclipped } : null;
 }
