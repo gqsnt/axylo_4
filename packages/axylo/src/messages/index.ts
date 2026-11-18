@@ -62,7 +62,7 @@ export const defaultMessages: Messages = {
   panLeft: 'Pan left',
   panRight: 'Pan right',
   jumpNotFound: 'No row matches {x}. Example: {example}',
-  plotInstructions: 'Arrow keys move between points. Enter shows one series at a time. Plus and minus zoom.',
+  plotInstructions: 'Arrow keys move between points. Enter shows one series at a time. Plus and minus zoom.',  seeTable: 'See table.',
 };
 
 export function fill(template: string, values: Readonly<Record<string, string | number>>): string {

@@ -13,7 +13,7 @@ it('gives every public message a non-empty default', () => {
     category: true, percentage: true, series: true, value: true,
     typeLine: true, typeArea: true, typeBar: true, typeScatter: true, typeDonut: true,
     plotRole: true, pointAll: true, seriesValue: true, position: true, total: true,
-    panLeft: true, panRight: true, jumpNotFound: true, plotInstructions: true,
+    panLeft: true, panRight: true, jumpNotFound: true, plotInstructions: true, seeTable: true,
     donutSummary: true, seriesNoData: true, seriesNotDrawn: true, referenceLine: true, referenceBand: true,
     previousPage: true, nextPage: true, pageOf: true, jumpToX: true, showSeries: true, hideSeries: true,
   };
