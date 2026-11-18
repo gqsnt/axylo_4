@@ -6,7 +6,8 @@
  * outcome and strict behaviour of every minimal input, are checked in diagnostics.browser.test.ts.
  *
  * Here: each entry's level is the registry's; its condition starts with the specification's condition for
- * that code, word for word; and each minimal input that runs in Node raises its code through validate(), with
+ * that code, word for word; every further case is complete (a browser case with the sample details its page
+ * prints from); and each input that runs in Node, minimal or not, raises its code through validate(), with
  * the field and rows its documented outcome gives.
  */
 import { describe, expect, it } from 'vitest';
@@ -48,6 +49,15 @@ describe('diagnostics documentation covers the registry', () => {
     expect(['node', 'browser']).toContain(d.run);
     expect(typeof d.outcome?.because === 'string' && d.outcome.because.length > 0, `${code}.outcome.because`).toBe(true);
   });
+  it.each(diagnostics.filter(d => 'cases' in d).map(d => [d.code, d] as const))('%s: every further case is complete', (code, d) => {
+    for (const c of (d as { cases: readonly Case[] }).cases) {
+      expect(typeof c.label === 'string' && c.label.length > 0, `${code}: a case without a label`).toBe(true);
+      expect(['node', 'browser'], `${code}, ${c.label}: run`).toContain(c.run);
+      expect(typeof c.input === 'string' && c.input.length > 0, `${code}, ${c.label}: input`).toBe(true);
+      expect(typeof c.outcome?.because === 'string' && c.outcome.because.length > 0, `${code}, ${c.label}: outcome.because`).toBe(true);
+      if (c.run === 'browser') expect(c.sample, `${code}, ${c.label}: a browser case needs sample details`).toBeDefined();
+    }
+  });
   it.each(diagnostics.map(d => [d.code, d] as const))('%s: the condition starts with the specification\'s', (code, d) => {
     const spec = specConditions().get(code);
     expect(spec, `${code} is in the specification's table`).toBeDefined();
@@ -55,9 +65,14 @@ describe('diagnostics documentation covers the registry', () => {
   });
 });
 
-describe('minimal inputs that run in Node raise their code, with the documented field and rows', () => {
-  const inNode = diagnostics.filter(d => d.run === 'node');
-  it.each(inNode.map(d => [d.code, d] as const))('%s', (code, d) => {
+interface Case { label: string; run: string; input: string; sample?: object; outcome: { field: string | null; rows?: readonly number[]; because: string } }
+
+describe('inputs that run in Node raise their code, with the documented field and rows', () => {
+  const inNode = diagnostics.flatMap(d => [[d.code, d] as const, ...((d as { cases?: readonly Case[] }).cases ?? [])
+    .map(c => [`${d.code}, ${c.label}`, { ...c, code: d.code }] as const)])
+    .filter(([, d]) => d.run === 'node');
+  it.each(inNode)('%s', (_, d) => {
+    const code = d.code;
     const found = new Function('validate', `return ${d.input}`)(validate) as { code: string; field?: string; rows?: readonly number[] }[];
     const mine = found.filter(f => f.code === code);
     expect(mine.length, `${code} raised`).toBeGreaterThan(0);

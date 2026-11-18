@@ -52,13 +52,22 @@ A new `data` replaces the data, including anything appended. Changing only how v
 
 ### Pause and resume
 
-Once a chart has been appended to, its toolbar shows a Pause control. While paused, new rows are taken and checked but not shown, and the view does not move, so a reader can study a moment of a live chart. Resume shows the data as it is then: everything that arrived, within `keep`. Pause is in the chart's own toolbar for the reader; there is no method for it.
+Once a chart has been appended to, its toolbar shows a Pause control. While paused, new rows are taken and checked but not shown, and the view does not move, so a reader can study a moment of a live chart. Their diagnostics come with the `append` call, as when running: rows that bring a ninth series raise [AX130](diagnostics.md#ax130) then, and a `strict` chart rejects that call. Resume shows the data as it is then: everything that arrived, within `keep`. Pause is in the chart's own toolbar for the reader; there is no method for it.
 
 ## zoom
 
-`zoom([from, to])` sets the visible x range, given in the form of the x axis: date strings or `Date` objects for calendar dates, `Date` objects or epoch milliseconds for instants, numbers for a number axis. `zoom(null)` shows everything. Only date, time and number x axes zoom: `zoom()` on a category axis or a donut is reported as an option that does not apply ([AX150](diagnostics.md#ax150)) and ignored. A range that cannot be read is reported and ignored too; `zoom` never throws.
+`zoom([from, to])` sets the visible x range, given in the form of the x axis: date strings or `Date` objects for calendar dates, `Date` objects or epoch milliseconds for instants, numbers for a number axis. `zoom(null)` shows everything. A range that cannot be read is reported and ignored; `zoom` never throws.
 
-The reader can zoom as well, on the same axes: with the Zoom in and Zoom out buttons (and, once zoomed, Pan left, Pan right and Reset zoom), by dragging across the plot, with `+`, `-`, `0` and Shift with the arrows while the plot has focus, with the wheel while the plot has focus (never with Ctrl or Meta held, so browser zoom keeps working), and with pinch and two-finger pan when `zoom: 'touch'` is set. A one-finger drag always scrolls the page. The buttons and keys need only single clicks or key presses.
+Zoom applies to the date, time and number x axes of full line, area, bar and scatter charts (scatter along x only in 1.0). A category axis, a donut and a compact chart do not zoom in 1.0. There `zoom()` changes nothing and reports [AX150](diagnostics.md#ax150) when it is called: the diagnostic is printed and passed to `onDiagnostic`, and is not kept in `chart.diagnostics`. A compact chart does not keep the range for later either, so turning `compact` off does not apply it.
+
+Where zoom applies, the reader has four ways to zoom:
+
+1. **Buttons, with single clicks.** Zoom in and Zoom out in the toolbar; once zoomed, also Pan left and Pan right (half a view each way, unavailable at an end) and Reset zoom.
+2. **Choosing a range.** Drag across the plot. Or, without dragging, press Select range (the symbol after Zoom in) and click or tap the two ends of the range, in either order; the first end is marked in the plot. While Select range is pressed, a click sets an end and neither pins a tooltip nor selects. The toggle releases itself after the second end; pressing it again or Escape releases it sooner, and a drag zooms as a drag and releases it too.
+3. **Keys,** while the plot has focus: `+` and `-` zoom, `0` shows everything, and Shift with Left or Right pans. The wheel zooms as well while the plot has focus, never with Ctrl or Meta held, so browser zoom and page scrolling keep working.
+4. **Pinch,** when `zoom: 'touch'` is set: two fingers zoom, and moving them pans.
+
+A one-finger drag always scrolls the page. `zoom: false` removes the reader's ways to zoom.
 
 ## on: events
 
@@ -95,7 +104,7 @@ A zoom event's range drives a second chart:
 
 With `strict: true`, any error or warning found while checking a create, `update` or `append` call throws from that call, and the chart keeps its last valid state. The thrown error is named `AxyloStrictError`, its message starts with the first diagnostic, and its `diagnostics` property has all of them. A rejected create leaves nothing behind in the page.
 
-Hints never throw. Neither do diagnostics found later while drawing, nor an internal failure ([AX199](diagnostics.md#ax199)): those are reported when found.
+Hints never throw. Neither do diagnostics found later while drawing, nor an internal failure while drawing ([AX199](diagnostics.md#ax199)): those are reported when found. A failure while the call itself is checked (a row getter that throws) rejects the call.
 
 [example: strict](../examples/strict.html)
 

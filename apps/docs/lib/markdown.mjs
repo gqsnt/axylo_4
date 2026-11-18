@@ -5,7 +5,7 @@
  *
  * Raw HTML is never passed through: every character of text is escaped, so a page cannot inject markup. Link
  * destinations are limited to site-relative paths, fragments, `https:` and `mailto:`; anything else throws.
- * A line that is only a link whose text starts with `example:`, `source:` or `table:` is a directive, always
+ * A line that is only a link whose text starts with `example:`, `source:`, `table:` or `output:` is a directive, always
  * a block of its own; the caller decides what it becomes.
  */
 
@@ -49,7 +49,7 @@ export function plainText(text) {
     .replace(/\*([^*]+)\*/g, '$1');
 }
 
-export const DIRECTIVE = /^\[(example|source|table):\s*([^\]]+)\]\(([^)\s]+)\)$/;
+export const DIRECTIVE = /^\[(example|source|table|output):\s*([^\]]+)\]\(([^)\s]+)\)$/;
 const FENCE = /^(`{3,})\s*([\w-]*)\s*$/;
 const HEADING = /^(#{1,4})\s+(.+?)\s*#*\s*$/;
 const BULLET = /^[-*]\s+(.*)$/;

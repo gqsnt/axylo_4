@@ -110,6 +110,13 @@ describe('blocks', () => {
     expect(seen).toEqual([{ kind: 'example', name: 'first', target: '../examples/first.ts' }]);
     expect(html).toBe('<div>live</div>\n<p><a href="x.md">a link</a></p>');
   });
+  it('knows the four directive kinds and no other', () => {
+    const seen: unknown[] = [];
+    markdownToHtml('[source: s](s.ts)\n[table: t](t.mjs)\n[output: AX103](d.mjs)\n[render: r](r.ts)', {
+      directive: d => { seen.push(d.kind); return '<div></div>'; },
+    });
+    expect(seen).toEqual(['source', 'table', 'output']);
+  });
 });
 
 describe('helpers', () => {

@@ -21,7 +21,7 @@ donut(target, { data, label, value, ...options });
 | `value` | The value field: a field name or a [value field object](options.md#value-fields) (`label`, `unit`, `scale`, `format`). Values must not be negative. |
 | Common options | `title`, `labelledBy`, `subtitle`, `description`, `state`, `legend`, `tooltip`, `table`, `colors`, `messages`, `locale`, `strict`, `onDiagnostic`. |
 
-Not on a donut, and a type error if given: `x`, `y` and `series` (a donut has a label and a value), `zoom` and `reference` (there is no axis), `compact`, `stacked`, `layout`, `horizontal`.
+Not on a donut, and a type error if given: `x`, `y` and `series` (a donut has a label and a value), `zoom` and `reference` (there is no axis), `compact`, `stacked`, `layout`, `horizontal`. Without an axis there is nothing for `chart.zoom()` or a `tickFormat` on the value field to act on: both change nothing and are reported ([AX150](diagnostics.md#ax150)).
 
 ## How a donut behaves
 
@@ -29,7 +29,7 @@ Not on a donut, and a type error if given: `x`, `y` and `series` (a donut has a 
 |---|---|
 | Order | Slices keep the order of the data, start at 12 o'clock and run clockwise. |
 | Legend | Every slice, in slice order, with its value and its share as text. Shares have at most one fraction digit. Each entry has a button that selects its slice. |
-| Pointer | The slice under the pointer. The tooltip shows its label, value and share. |
+| Pointer | The slice under the pointer. The tooltip shows its label, value and share, in the hole when it fits there; a click pins it. The hole itself selects nothing. |
 | Keyboard | Through the slices in slice order. |
 | Zero and missing | A zero slice is listed in the legend without an arc. A slice with no value is listed as "No data". |
 | Negative | A negative value is error [AX120](diagnostics.md#ax120): the donut shows its error state, since a negative share cannot be drawn. |

@@ -11,7 +11,12 @@
 //   written and once with `strict: true`, and checks `outcome.field` (the diagnostic's field), `outcome.rows`
 //   when given, `outcome.strict` (whether a strict chart throws it from the call) and `outcome.reader` (what the
 //   figure shows: `note: …`, `message: …`, `fallback` for the summary in place of the plot, or `nothing`).
-//   `sample` gives the registry details the page uses to show the message of a browser-only code.
+//   `sample` gives the registry details the page uses to show the message of a browser-only input; the browser
+//   test checks that the line the page shows is one the library printed. `outcome.listed: false` says the code
+//   is passed to `onDiagnostic` and printed but not kept in `chart.diagnostics` (a `zoom()` that changes nothing).
+// - `cases` (optional) are further inputs that raise the same code, each with a `label`, `run`, `input`,
+//   `outcome` and, for the browser, `sample`; the page shows each with what it printed, and the tests run them
+//   like the minimal input.
 
 export const diagnostics = [
   {
@@ -31,7 +36,7 @@ export const diagnostics = [
   },
   {
     code: 'AX101', level: 'error', title: 'A field that is not in the data',
-    condition: 'A named field is not a key of any row. Checked only when there are rows: an empty data set gives no evidence of which keys exist.', drawn: 'Error state; the message lists the keys that exist and, when one is close, the closest match.',
+    condition: 'A named field is not a key of any row. Checked only when there are rows: an empty data set gives no evidence of which keys exist. When rows that `append` adds bring the field, a chart that is not `strict` reads its data again with it and the code goes; rows appended while the reader has paused the chart do that when they are shown, on Resume.', drawn: 'Error state; the message lists the keys that exist and, when one is close, the closest match.',
     see: 'The chart shows its error state. The console lists the fields the rows do have and, when one of them is close in spelling, asks whether you meant it.',
     why: 'Usually a typo, or rows from an API whose field names changed. With typed rows in TypeScript the same mistake does not compile; with untyped rows this is how you find it.',
     fix: 'Compare the field with the keys listed in the message, which come from your rows. Use the suggested spelling when one is offered. If the field is optional in your data, make sure at least one row carries it.',
@@ -248,7 +253,7 @@ export const diagnostics = [
   },
   {
     code: 'AX130', level: 'warning', title: 'More than eight series',
-    condition: 'More than eight series.', drawn: 'All series, with dash or marker differences.',
+    condition: 'More than eight series. Rows appended while the reader has paused the chart count when `append` is called, although they are drawn only on Resume: an append that brings a ninth series raises the code then, and a `strict` chart rejects that call.', drawn: 'All series, with dash or marker differences.',
     see: 'Every series is drawn. Beyond eight, colours repeat, and each series keeps its own combination of colour and dash or marker; bars use colour and fill pattern, which gives 32 distinct combinations before they repeat.',
     why: 'Eight colours is about as many as a reader can keep apart, also with a colour-vision deficiency (F9). Eight is where the warning starts, not a hard limit.',
     fix: 'Filter to the series that matter, group the rest, or split the chart into small multiples.',
@@ -383,7 +388,7 @@ line(target, {
     why: 'Axylo tries, in order: thinning (date, time, number and `ordered` category axes only), wrapping to three lines, rotating up to 45°, and truncating in the middle. It never overlaps labels and never hides one without telling the reader (L1).',
     fix: 'Give the chart more width, shorten the labels, or, for vertical bars with category labels, use `horizontal: true`, where long labels read naturally. Axylo does not switch orientation for you: that would change what the chart says at a glance.',
     run: 'browser',
-    sample: { chart: 'Tickets by team', details: { field: 'team', count: 12 } },
+    sample: { chart: 'Tickets by team', details: { field: 'team', count: 30, chartType: 'bar', xKind: 'category', horizontal: false } },
     input: `target.style.width = '320px';
 bar(target, {
   title: 'Tickets by team',
@@ -395,10 +400,10 @@ bar(target, {
   },
   {
     code: 'AX150', level: 'warning', title: 'An option Axylo does not know',
-    condition: 'Unknown option key. Also an option or value that does not apply to the chart (a `y` list on a scatter chart, `zoom` on a category axis, an unknown value such as `missing: \'none\'`).', drawn: 'Ignored; the message suggests the closest known key. A `y` list on a scatter chart cannot be ignored: that chart shows its error state.',
-    see: 'The chart is drawn without the option. The console names it and, when one is close, the option you probably meant. When the option was needed to draw at all (a scatter chart given a list of `y` fields), the chart shows its error state instead.',
-    why: 'A misspelled option would otherwise be ignored in silence. In TypeScript the same mistake does not compile.',
-    fix: 'Use the name from the message, or check the [options reference](options.md) for the chart type. Options that do not exist on purpose (`width`, `height`, `theme`, `palette`, `animation`) are explained there.',
+    condition: 'Unknown option key. Also a value that is not one of the option\'s values (`missing: \'none\'`), and an option that does not apply to the chart: a tick format where no ticks are drawn (a compact chart, a donut, a `y` field after the first), `reference` on a compact chart, `series` with a list of `y` fields, a `y` list on a scatter chart, and a `zoom()` call where the chart does not zoom (a category axis, a donut, a compact chart). Every case is below.', drawn: 'Ignored; the message suggests the closest known key. A `y` list on a scatter chart cannot be ignored: that chart shows its error state.',
+    see: 'The chart is drawn without the option. The console names it, says why it does not apply when that is the reason, and, when one is close, gives the option you probably meant. When the option was needed to draw at all (a scatter chart given a list of `y` fields), the chart shows its error state instead. A `zoom()` call that cannot apply is reported when it is made, printed and passed to `onDiagnostic`; it is not kept in `chart.diagnostics`, since it changed nothing.',
+    why: 'A misspelled option, or one that cannot do anything on this chart, would otherwise be ignored in silence. In TypeScript most of these mistakes do not compile.',
+    fix: 'Use the name from the message, or check the [options reference](options.md) for the chart type. Options that do not exist on purpose (`width`, `height`, `theme`, `palette`, `animation`) are explained there. For an option that does not apply, remove it, or use a chart where it does: zoom needs a date, time or number x axis on a full chart.',
     run: 'node',
     input: `validate('line', {
   title: 'Sessions',
@@ -408,6 +413,129 @@ bar(target, {
   tooltips: false,
 })`,
     outcome: { field: 'tooltips', strict: true, reader: 'nothing', because: '`tooltips` is not an option; `tooltip` is.' },
+    cases: [
+      {
+        label: 'A value the option does not take',
+        run: 'node',
+        input: `validate('line', {
+  title: 'Sessions',
+  data: [{ day: '2026-01-01', sessions: 120 }, { day: '2026-01-02', sessions: 130 }],
+  x: 'day',
+  y: { field: 'sessions', missing: 'none' },
+})`,
+        outcome: { field: 'y.missing', strict: true, reader: 'nothing', because: '`missing` takes `\'gap\'` or `\'zero\'`; the default, `\'gap\'`, is used.' },
+      },
+      {
+        label: 'A tick format on a compact chart',
+        run: 'node',
+        input: `validate('line', {
+  title: 'Sessions',
+  compact: true,
+  data: [{ day: '2026-01-01', sessions: 120 }, { day: '2026-01-02', sessions: 130 }],
+  x: 'day',
+  y: { field: 'sessions', tickFormat: v => v + ' visits' },
+})`,
+        outcome: { field: 'y.tickFormat', strict: true, reader: 'nothing', because: 'A compact chart draws no axes, so the format would label nothing.' },
+      },
+      {
+        label: 'A tick format on a donut',
+        run: 'node',
+        input: `validate('donut', {
+  title: 'Sessions by device',
+  data: [{ device: 'Phone', sessions: 620 }, { device: 'Desktop', sessions: 380 }],
+  label: 'device',
+  value: { field: 'sessions', tickFormat: v => v + ' visits' },
+})`,
+        outcome: { field: 'value.tickFormat', strict: true, reader: 'nothing', because: 'A donut has no axis.' },
+      },
+      {
+        label: 'A tick format on a y field after the first',
+        run: 'node',
+        input: `validate('line', {
+  title: 'Visits and signups',
+  data: [{ day: '2026-01-01', visits: 120, signups: 8 }, { day: '2026-01-02', visits: 130, signups: 11 }],
+  x: 'day',
+  y: ['visits', { field: 'signups', tickFormat: v => v + ' signups' }],
+})`,
+        outcome: { field: 'y[1].tickFormat', strict: true, reader: 'nothing', because: 'The two fields share one value axis, which takes its tick format from the first, `visits`.' },
+      },
+      {
+        label: 'A reference on a compact chart',
+        run: 'node',
+        input: `validate('line', {
+  title: 'Sessions',
+  compact: true,
+  data: [{ day: '2026-01-01', sessions: 120 }, { day: '2026-01-02', sessions: 130 }],
+  x: 'day',
+  y: 'sessions',
+  reference: [{ y: 200, label: 'Target' }],
+})`,
+        outcome: { field: 'reference', strict: true, reader: 'nothing', because: 'A compact chart draws no references, so a target far from the data cannot flatten the sparkline.' },
+      },
+      {
+        label: 'A series field with a list of y fields',
+        run: 'node',
+        input: `validate('line', {
+  title: 'Visits and signups',
+  data: [{ day: '2026-01-01', visits: 120, signups: 8, region: 'EU' }],
+  x: 'day',
+  y: ['visits', 'signups'],
+  series: 'region',
+})`,
+        outcome: { field: 'series', strict: true, reader: 'nothing', because: 'With wide rows each `y` field is a series already; `series` is for long rows with one `y`.' },
+      },
+      {
+        label: 'A list of y fields on a scatter chart',
+        run: 'node',
+        input: `validate('scatter', {
+  title: 'Latency against size',
+  data: [{ kb: 12, p50: 80, p95: 140 }, { kb: 40, p50: 95, p95: 210 }],
+  x: 'kb',
+  y: ['p50', 'p95'],
+})`,
+        outcome: { field: 'y', strict: true, reader: 'message: The chart could not be drawn.', because: 'A scatter chart plots one `y` field against `x`; there is no list form to fall back on, so nothing can be drawn.' },
+      },
+      {
+        label: 'zoom() on a category axis',
+        run: 'browser',
+        sample: { chart: 'Sessions by weekday', details: { field: 'zoom', detail: 'Zoom applies to time, date and number x axes only.' } },
+        input: `const chart = bar(target, {
+  title: 'Sessions by weekday',
+  data: [{ day: 'Mon', sessions: 120 }, { day: 'Tue', sessions: 130 }, { day: 'Wed', sessions: 90 }],
+  x: 'day',
+  y: 'sessions',
+});
+chart.zoom(['Mon', 'Tue']);`,
+        outcome: { field: 'zoom', listed: false, strict: false, reader: 'nothing', because: 'The weekdays are categories, and a category axis does not zoom in 1.0. The call changes nothing, so a strict chart has nothing to reject.' },
+      },
+      {
+        label: 'zoom() on a donut',
+        run: 'browser',
+        sample: { chart: 'Sessions by device', details: { field: 'zoom', detail: 'Zoom applies to time, date and number x axes only.' } },
+        input: `const chart = donut(target, {
+  title: 'Sessions by device',
+  data: [{ device: 'Phone', sessions: 620 }, { device: 'Desktop', sessions: 380 }],
+  label: 'device',
+  value: 'sessions',
+});
+chart.zoom(['Phone', 'Desktop']);`,
+        outcome: { field: 'zoom', listed: false, strict: false, reader: 'nothing', because: 'A donut has no x axis to zoom.' },
+      },
+      {
+        label: 'zoom() on a compact chart',
+        run: 'browser',
+        sample: { chart: 'Sessions', details: { field: 'zoom', detail: 'A compact chart does not zoom.' } },
+        input: `const chart = line(target, {
+  title: 'Sessions',
+  compact: true,
+  data: [{ day: '2026-01-01', sessions: 120 }, { day: '2026-01-02', sessions: 130 }, { day: '2026-01-03', sessions: 125 }],
+  x: 'day',
+  y: 'sessions',
+});
+chart.zoom(['2026-01-01', '2026-01-02']);`,
+        outcome: { field: 'zoom', listed: false, strict: false, reader: 'nothing', because: 'A compact chart has no zoom; the window is not kept for later either.' },
+      },
+    ],
   },
   {
     code: 'AX151', level: 'warning', title: 'Appended rows out of order',
@@ -459,10 +587,10 @@ chart.append([{ day: '2026-01-01', sessions: 110 }]);`,
   },
   {
     code: 'AX199', level: 'error', title: 'Axylo failed',
-    condition: 'Axylo itself failed while building the chart.', drawn: 'Error state with a generic message.',
-    see: 'The chart shows "Something went wrong while drawing the chart." The underlying exception is printed with `console.error`; the diagnostic itself is printed and passed to `onDiagnostic` like any other. It is never thrown, also by a `strict` chart.',
-    why: 'Something inside Axylo threw. The chart catches it so that the rest of the page keeps working.',
-    fix: 'If your data and options are ordinary, this is a defect in Axylo: please report it with the error printed in the console. The minimal input below is not a defect: it makes reading a row throw, which Axylo reports the same way because it cannot tell the two apart.',
+    condition: 'Axylo itself failed while building the chart. Also an error thrown by your own code while Axylo runs it, such as a getter on a row: Axylo cannot tell the two apart.', drawn: 'Error state with a generic message.',
+    see: 'The chart shows its internal-error message (the `internalError` text of `messages`) in place of the plot. The error that was thrown is printed with `console.error`, and then the diagnostic, which is also passed to `onDiagnostic` like any other. A `strict` chart rejects a call that fails while it is being checked, as this input does, with AX199 after anything else the call found, and keeps its last valid state; a failure later, while drawing, is never thrown.',
+    why: 'Something threw while the chart was being built: in Axylo, or in code of yours that Axylo was running. The chart catches it so that the rest of the page keeps working.',
+    fix: 'Read the error printed before the diagnostic. When it comes from your code, fix it there; the minimal input below is of that kind, a row whose getter throws. Otherwise it is a defect in Axylo: please report it with that error.',
     run: 'node',
     input: `validate('line', {
   title: 'Sessions',
@@ -470,6 +598,6 @@ chart.append([{ day: '2026-01-01', sessions: 110 }]);`,
   x: 'day',
   y: 'sessions',
 })`,
-    outcome: { field: null, strict: false, reader: 'message: Something went wrong while drawing the chart.', because: 'Reading row 0\'s `day` throws.' },
+    outcome: { field: null, strict: true, reader: 'message: Something went wrong while drawing the chart.', because: 'Reading row 0\'s `day` throws while the create call reads the data.' },
   },
 ];

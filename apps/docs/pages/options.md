@@ -33,7 +33,7 @@ On every chart type.
 | `description` | `string` | none | Added to the generated summary. The time zone and any omitted values are always stated. |
 | `state` | `'ready' \| 'loading' \| { error: string } \| { empty: string }` | `'ready'` | Shows a loading, error or empty message inside the plot instead of the data. |
 | `legend` | `'auto' \| false \| 'top' \| 'right' \| 'bottom'` | `'auto'` | Where the legend goes, or `false` for none. `'auto'` places it under the plot. A chart with one series has no legend entries. |
-| `tooltip` | `boolean` | `true` | The pointer tooltip. Keyboard reading is not affected. |
+| `tooltip` | `boolean` | `true` | The pointer readout: the tooltip, or in a small plot the strip under it. With `false` nothing is pinned, and a click still selects. Keyboard reading is not affected. |
 | `table` | `boolean` | `true` | The "View as table" control. |
 | `colors` | `Readonly<Record<string, string>>` | none | A CSS colour per series key: the `series` value for long rows, the field name for wide rows, the slice label on a donut. |
 | `messages` | `Partial<Messages>` | built-in English | Replacements for text the reader sees. See [Messages](#messages). |
@@ -70,7 +70,7 @@ On line, area, bar and scatter charts.
 <!-- options: CartesianOptions -->
 | Option | Type | Default | Meaning |
 |---|---|---|---|
-| `zoom` | `boolean \| 'touch'` | `true` | Zoom and pan, on date, time and number x axes only; a category axis never zooms. `'touch'` also takes pinch and two-finger drag on touch screens. |
+| `zoom` | `boolean \| 'touch'` | `true` | Zoom and pan, on date, time and number x axes only: a category axis and a compact chart never zoom. `'touch'` also takes pinch and two-finger drag on touch screens. |
 | `reference` | `readonly Reference[]` | none | Reference lines and bands. See [Reference](#reference). Not on compact charts. |
 
 ### Reference
@@ -182,7 +182,7 @@ Every chart function returns a `Chart<Row, Options>`.
 |---|---|---|
 | `update` | `(patch: Partial<Options>) => void` | Change options: a present key replaces, `undefined` restores the default, an absent key stays. See [Updating](updating.md#update-change-options). |
 | `append` | `(rows: readonly Row[], options?: { keep?: number }) => void` | Add rows at the end. |
-| `zoom` | `(domain: readonly [XValue, XValue] \| null) => void` | Set the visible x range; `null` shows everything. |
+| `zoom` | `(domain: readonly [XValue, XValue] \| null) => void` | Set the visible x range; `null` shows everything. Where the chart does not zoom (a category axis, a donut, a compact chart), it changes nothing and reports [AX150](diagnostics.md#ax150). |
 | `on` | `<E extends keyof ChartEvents<Row>>(event: E, listener: (payload: ChartEvents<Row>[E]) => void) => () => void` | Listen to `hover`, `select` or `zoom`; returns a function that removes the listener. |
 | `diagnostics` | `readonly Diagnostic[]` | Diagnostics for the current options and data, current as soon as a call returns. |
 | `destroy` | `() => void` | Remove the chart and everything it attached. Later calls do nothing. |
@@ -235,7 +235,7 @@ Every message the chart shows the reader can be replaced through `messages`: the
 
 [example: messages-translated](../examples/messages-translated.ts)
 
-The built-in English text, read from the library when this site is built:
+Every key, with its built-in English text, read from the library when this site is built, and where the chart shows it. A few keys are not shown by 1.0 and are kept so that an override of them still type-checks:
 
 [table: messages](../../../packages/axylo/src/messages/index.ts)
 

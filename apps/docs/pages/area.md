@@ -31,7 +31,7 @@ Not on an area chart: `layout` and `horizontal` (bars only), `label` and `value`
 
 | Behaviour | Area |
 |---|---|
-| Pointer | The nearest x, as on a line. The tooltip lists every visible series at that x and, when stacked, the total. |
+| Pointer | The nearest x, as on a line. The tooltip lists every visible series at that x and, when stacked, the total; a click pins it. |
 | Keyboard | By x, then series, as on a line. |
 | Zoom | As on a line: date, time and number x; a category axis does not zoom. |
 | Baseline | The value axis always includes zero. |

@@ -23,7 +23,7 @@ One row per x and series, as most SQL queries and APIs return it. `series` names
 
 ### Wide rows
 
-One row per x, one field per series. `y` is a list of fields, and there is no `series`. Passing both is a type error, and at run time it raises [AX150](diagnostics.md#ax150). Each field is a series: its key is the field name (`direct`), its name for the reader is the field's `label` (`'Direct'`). Use the key in `colors` and in event handlers, and the label for display. The series share one value axis: the first field's `domain` and `scale` set it, and with more than one field the axis is titled "Value" (the `value` message).
+One row per x, one field per series. `y` is a list of fields, and there is no `series`. Passing both is a type error, and at run time it raises [AX150](diagnostics.md#ax150). Each field is a series: its key is the field name (`direct`), its name for the reader is the field's `label` (`'Direct'`). Use the key in `colors` and in event handlers, and the label for display. The series share one value axis: the first field's `domain`, `scale` and `tickFormat` set it (a `tickFormat` on a later field is reported, [AX150](diagnostics.md#ax150)), and with more than one field the axis is titled "Value" (the `value` message). The chart's generated name and its summary name the series rather than that axis ("Line chart of Visits and Signups by day", with fields labelled `'Visits'` and `'Signups'`). When the series have different units, the summary gives each series' range in its own unit and no range for the chart as a whole.
 
 [example: data-wide](../examples/data-wide.ts)
 
@@ -148,6 +148,8 @@ A percent or ratio scale is declared, never guessed from a label. Its axis ends 
 [example: units](../examples/units.ts)
 
 Bar and area value axes always include zero, since a bar's length and an area's height are their values. A `domain` that leaves zero out is widened, with warning [AX110](diagnostics.md#ax110). Line and scatter axes fit the data.
+
+Value axes (y, and both axes of a scatter chart) end on a drawn tick at or beyond the data, the reference lines and bands, and stack totals; in a plot too narrow to label an end tick, the axis takes the next coarser step. A date, time or number x axis of a line, area or bar chart spans exactly its data instead (for bars, plus half a band at each end), so a time series is not padded to the next round tick.
 
 ## What Axylo reads, keeps and copies
 

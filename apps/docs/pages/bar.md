@@ -34,15 +34,15 @@ Not on a bar chart: `stacked` (that is `layout: 'stacked'` here), `label` and `v
 
 | Behaviour | Bar |
 |---|---|
-| Pointer | The band under the pointer: the whole category, not only the bar. The tooltip lists every series in that category. |
+| Pointer | The band under the pointer: the whole category, not only the bar. The tooltip lists every series in that category; a click pins it. See [reading values with a pointer](accessibility.md#reading-values-with-a-pointer). |
 | Keyboard | By category, then series. |
-| Zoom | Only on date, time and number x. |
+| Zoom | Only on date, time and number x, as on a line. On a category axis `zoom()` changes nothing and is reported ([AX150](diagnostics.md#ax150)). |
 | Baseline | The value axis always includes zero; an author `domain` without zero is widened ([AX110](diagnostics.md#ax110)). Grouped bars grow from zero. |
 | Missing values | A missing bar gets a small "no data" mark, distinct from a zero bar: at the baseline for grouped bars, at the edge of the stack for stacked ones. |
 | Stacking | Positive parts stack up from zero, negative parts down from it, and the axis covers both. With mixed signs each bar shows two totals, of its positive and of its negative parts, and the readout names both ("Total 165 k USD and -60 k USD" in the example below); the bar does not show their difference. A missing part has zero height and the total is marked "incomplete". |
 | Long labels | Remedies in order: thinning (date, number and `ordered` category axes only), wrapping to three lines, rotating up to 45°, truncating in the middle with the full text in tooltip and table. If labels still do not fit, the chart says "Some labels hidden. See table." and [AX143](diagnostics.md#ax143) suggests `horizontal: true`. Axylo never switches orientation by itself: that would change what the chart says at a glance. |
 | Many bars | Not simplified. More x positions than pixels along the axis are drawn, with hint [AX132](diagnostics.md#ax132). |
-| Many series | Colour and fill pattern: from the ninth series bars get patterns, which gives 32 distinct combinations before they repeat; warning [AX130](diagnostics.md#ax130) from the ninth. |
+| Many series | Colour and fill pattern: from the ninth series bars get patterns, which gives 32 distinct combinations before they repeat; warning [AX130](diagnostics.md#ax130) from the ninth. A [compact](compact.md) bar chart, which has no legend, gives neighbouring series different patterns from the second series on. |
 | Reference lines | Drawn and labelled, included in the automatic domain, listed in the summary and table caption. |
 
 ## Horizontal and grouped bars

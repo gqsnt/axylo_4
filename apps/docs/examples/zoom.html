@@ -26,9 +26,12 @@
   byId('last-week').addEventListener('click', () => chart.zoom(['2026-03-25', '2026-03-31']));
   byId('all').addEventListener('click', () => chart.zoom(null));
 
-  // On a calendar-date axis the event gives dates as 'YYYY-MM-DD', the form zoom() takes.
+  // The ends come in the form zoom() takes for this axis: 'YYYY-MM-DD' for a whole day, and a number for a
+  // place between two days, which a drag or Select range usually gives. Either can go to another zoom().
+  /** @param {import('axylo').XValue} end */
+  const write = end => typeof end === 'number' ? `${end} (between two days)` : String(end);
   chart.on('zoom', window => {
-    byId('range').textContent = window ? `Showing ${window[0]} to ${window[1]}.` : 'Showing everything.';
+    byId('range').textContent = window ? `Showing ${write(window[0])} to ${write(window[1])}.` : 'Showing everything.';
   });
   chart.on('select', point => {
     byId('picked').textContent = `Selected ${point.series} on ${point.x}: ${point.y ?? 'no data'} (row ${point.index}).`;

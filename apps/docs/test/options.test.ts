@@ -18,6 +18,7 @@ import path from 'node:path';
 import { API } from 'typescript/unstable/sync';
 import { cacheDir, docsRoot, repoRoot } from '../lib/examples.mjs';
 import { defaultMessages } from '../../../packages/axylo/src/messages/index';
+import { messageUses } from '../data/messages.mjs';
 
 const L = 'LineOptions<Row>';
 /** The type a group documents, and the keys of that type the group stands for. */
@@ -168,5 +169,10 @@ describe('options reference against the public types', () => {
   it('the generated Messages table lists every key of Messages', () => {
     // The table is generated from defaultMessages; this checks that defaultMessages has exactly the type's keys.
     expect(Object.keys(defaultMessages).sort()).toEqual(parseUnion(results.keys_Messages!));
+  });
+
+  it('the table says where each message is shown, for exactly those keys', () => {
+    expect(Object.keys(messageUses).sort()).toEqual(parseUnion(results.keys_Messages!));
+    expect(Object.entries(messageUses).filter(([, where]) => typeof where !== 'string' || where.trim() === '')).toEqual([]);
   });
 });

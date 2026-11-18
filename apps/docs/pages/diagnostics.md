@@ -6,9 +6,7 @@ After this page you can read an Axylo diagnostic, collect diagnostics in your ow
 
 When Axylo cannot draw something as given, it prints one line to the console:
 
-```text
-[axylo AX103] "Conversion": Field "rate" has 1 non-finite value at row 1 (NaN). Check the calculation that produced it or send null for no data. Shown as gaps.
-```
+[output: AX103](../data/diagnostics.mjs)
 
 | Part | Here |
 |---|---|
@@ -52,11 +50,11 @@ interface Diagnostic {
 
 ## When they are found
 
-Most diagnostics are found while a call checks its input: the create, `update` or `append` call. Those are in `chart.diagnostics` when the call returns. A few can only be found later, while drawing: low contrast after the page's CSS changes ([AX141](diagnostics.md#ax141)), a plot too small ([AX142](diagnostics.md#ax142)), labels that stop fitting after a resize ([AX143](diagnostics.md#ax143)), more bars than pixels ([AX132](diagnostics.md#ax132)), a formatter that fails ([AX160](diagnostics.md#ax160)), a `labelledBy` that names no element when there is no `title` ([AX140](diagnostics.md#ax140)), and an internal failure ([AX199](diagnostics.md#ax199)). They are reported when found, through the same console line and `onDiagnostic`.
+Most diagnostics are found while a call checks its input: the create, `update` or `append` call. Those are in `chart.diagnostics` when the call returns. A few can only be found later, while drawing: low contrast after the page's CSS changes ([AX141](diagnostics.md#ax141)), a plot too small ([AX142](diagnostics.md#ax142)), labels that stop fitting after a resize ([AX143](diagnostics.md#ax143)), more bars than pixels ([AX132](diagnostics.md#ax132)), a formatter that fails ([AX160](diagnostics.md#ax160)), a `labelledBy` that names no element when there is no `title` ([AX140](diagnostics.md#ax140)), and an internal failure ([AX199](diagnostics.md#ax199)). They are reported when found, through the same console line and `onDiagnostic`. A `zoom()` call that cannot apply (a category axis, a donut, a compact chart) is reported when it is made, through the console line and `onDiagnostic` only: it changes nothing, so `chart.diagnostics` does not list it ([AX150](diagnostics.md#ax150)).
 
 ## Strict mode
 
-`strict: true` makes the chart throw on any error or warning found while checking a create, `update` or `append` call, synchronously from that call. The chart keeps its last valid state; a rejected create leaves nothing in the page. The error is named `AxyloStrictError`, and its `diagnostics` property has every diagnostic of the rejected call. Hints never throw, and neither do diagnostics found later while drawing, nor an internal failure ([AX199](diagnostics.md#ax199)), whose exception is printed with `console.error`. Each code's page says whether a strict chart throws it. See the example in [Updating](updating.md#strict-mode).
+`strict: true` makes the chart throw on any error or warning found while checking a create, `update` or `append` call, synchronously from that call. The chart keeps its last valid state; a rejected create leaves nothing in the page. The error is named `AxyloStrictError`, and its `diagnostics` property has every diagnostic of the rejected call. Hints never throw, and neither do diagnostics found later while drawing. A failure while a call is being checked (such as a row getter that throws, [AX199](diagnostics.md#ax199)) rejects that call too, with AX199 after what it had found; a failure later, while drawing, is never thrown. Each code's page says whether a strict chart throws it. See the example in [Updating](updating.md#strict-mode).
 
 ## validate() in Node and in tests
 

@@ -7,6 +7,9 @@
  * - The stylesheet, the script-tag file and `validate()` come from the installed tarball. Two inputs are read
  *   from the library's source because the bundle does not export them (the built-in messages and the
  *   registry's message templates); the build checks that the installed files were built from that source.
+ * - The conformance page is generated from the specification and the acceptance checker's report
+ *   (lib/conformance.mjs), and the size table from scripts/size.mjs's last measurement, shown only when it
+ *   measured the very tarball installed here.
  * - Every link stays inside the site: a link to a file of the repository publishes that file as a source page
  *   under source/, with one anchor per line, at the revision the site was built from.
  * - The site is built into a temporary directory, checked (links, anchors, unique ids), and only then
@@ -21,6 +24,7 @@ import { checkHref, codeBlock, escapeHtml, markdownToHtml, renderInline, uniqueI
 import { docsRoot, hostOf, htmlScripts, listExamples, listHelpers, repoRoot, writeConsumerSources } from './examples.mjs';
 import { consumerDir, guard, installed, prepareConsumer } from './consumer.mjs';
 import { readThemeDefaults } from './theme.mjs';
+import { readConformance } from './conformance.mjs';
 import { nav, pages } from '../data/nav.mjs';
 
 const pagesDir = path.join(docsRoot, 'pages');
@@ -34,6 +38,8 @@ const TABLES = {
   'internal tokens': 'apps/docs/data/tokens.mjs',
   messages: 'packages/axylo/src/messages/index.ts',
   palette: 'packages/axylo/src/theme/palette.ts',
+  conformance: 'acceptance/check.mjs',
+  sizes: 'bench/size-latest.json',
 };
 /** Where `[source: …]` may quote from. */
 const SOURCE_ROOTS = ['examples/first-chart/', 'research/harness/src/libs/', 'apps/docs/examples/'];
@@ -69,7 +75,7 @@ function gitRevision() {
  * axylo.dev.js, must equal the installed file byte for byte. Anything else means packages/axylo/dist is older
  * or newer than its source.
  */
-async function checkSameRevision(css, bundle) {
+async function checkSameRevision(css, bundle, { unchecked = false, log = () => {} } = {}) {
   const problems = [];
   const { stylesheets, DEVELOPMENT } = await import(pathToFileURL(path.join(repoRoot, 'scripts/build.mjs')).href);
   const { minified } = await stylesheets();
@@ -85,19 +91,31 @@ async function checkSameRevision(css, bundle) {
   const source = JSON.parse(fs.readFileSync(path.join(repoRoot, 'packages/axylo/package.json'), 'utf8')).version;
   const shipped = JSON.parse(fs.readFileSync(path.join(installed('axylo'), 'package.json'), 'utf8')).version;
   if (source !== shipped) problems.push(`version ${shipped} installed, ${source} in source`);
-  if (problems.length) {
+  if (problems.length && !unchecked) {
     throw new Error(`The packed library and its source differ (run \`npm run build\`, then build the site again):\n  ${problems.join('\n  ')}`);
   }
-  return (await importSource('packages/axylo/src/messages/index.ts')).defaultMessages;
+  for (const p of problems) log(`unchecked library: ${p}`);
+  return { messages: (await importSource('packages/axylo/src/messages/index.ts')).defaultMessages, problems };
 }
 
-export async function buildSite({ outDir = path.join(docsRoot, 'dist'), log = () => {} } = {}) {
+const DIST = path.join(docsRoot, 'dist');
+/** Where a build that skipped the revision check goes: never the site's own output. */
+export const UNCHECKED_DIR = path.join(docsRoot, '.cache/unchecked-site');
+
+/**
+ * `uncheckedLibrary`: build even when the packed library is not the build of its current source (while
+ * someone else's rebuild is pending), to check the pages, links and generated tables. Such a build goes to
+ * UNCHECKED_DIR only, and every page says what it was built against, so it cannot be published by mistake.
+ */
+export async function buildSite({ outDir, log = () => {}, uncheckedLibrary = false } = {}) {
+  outDir ??= uncheckedLibrary ? UNCHECKED_DIR : DIST;
+  if (uncheckedLibrary && path.resolve(outDir) === DIST) throw new Error('An unchecked build never replaces apps/docs/dist');
   const revision = gitRevision();
   const packed = prepareConsumer({ log });
   const lib = installed('axylo');
   const css = fs.readFileSync(path.join(lib, 'dist/axylo.css'), 'utf8');
   const bundle = fs.readFileSync(path.join(lib, 'dist/axylo.dev.js'), 'utf8');
-  const messages = await checkSameRevision(css, bundle);
+  const { messages, problems: unchecked } = await checkSameRevision(css, bundle, { unchecked: uncheckedLibrary, log });
   const theme = readThemeDefaults(css);
 
   const tmp = `${outDir}.tmp-${process.pid}`;
@@ -110,9 +128,15 @@ export async function buildSite({ outDir = path.join(docsRoot, 'dist'), log = ()
     const examples = await buildExamples(tmp);
     const { diagnostics } = await import(pathToFileURL(path.join(docsRoot, 'data/diagnostics.mjs')).href + `?t=${Date.now()}`);
     const { tokens, internalTokens } = await import(pathToFileURL(path.join(docsRoot, 'data/tokens.mjs')).href + `?t=${Date.now()}`);
+    const { messageUses } = await import(pathToFileURL(path.join(docsRoot, 'data/messages.mjs')).href + `?t=${Date.now()}`);
     const seen = await diagnosticOutput(diagnostics);
     const version = packed.axylo.version;
-    const ctx = { outDir: tmp, examples, diagnostics, seen, tokens, internalTokens, messages, theme, warnings, version, revision, published: new Set() };
+    const conformance = await readConformance({ root: repoRoot, revision });
+    const sizes = readSizes(packed.axylo.integrity);
+    const ctx = {
+      outDir: tmp, examples, diagnostics, seen, tokens, internalTokens, messages, messageUses, theme, warnings, version, revision,
+      unchecked, conformance, sizes, published: new Set(),
+    };
 
     const report = [];
     for (const [index, entry] of pages.entries()) {
@@ -128,7 +152,7 @@ export async function buildSite({ outDir = path.join(docsRoot, 'dist'), log = ()
 
     const problems = checkSite(tmp);
     if (problems.length) throw new Error('The site has broken links or duplicate ids:\n' + problems.join('\n'));
-    fs.writeFileSync(path.join(tmp, 'build.json'), JSON.stringify({ revision, packed: Object.fromEntries(Object.entries(packed).map(([n, p]) => [n, { tarball: p.tarball, integrity: p.integrity }])), examples }, null, 1));
+    fs.writeFileSync(path.join(tmp, 'build.json'), JSON.stringify({ revision, unchecked, packed: Object.fromEntries(Object.entries(packed).map(([n, p]) => [n, { tarball: p.tarball, integrity: p.integrity }])), examples }, null, 1));
 
     // Replace the previous site only now.
     const old = `${outDir}.old-${process.pid}`;
@@ -136,7 +160,7 @@ export async function buildSite({ outDir = path.join(docsRoot, 'dist'), log = ()
     fs.renameSync(tmp, outDir);
     fs.rmSync(old, { recursive: true, force: true });
     for (const w of warnings) log('warning: ' + w);
-    return { pages: report, examples, warnings, diagnostics: diagnostics.length, published: ctx.published.size, revision };
+    return { pages: report, examples, warnings, diagnostics: diagnostics.length, published: ctx.published.size, revision, unchecked, outDir };
   } catch (error) {
     fs.rmSync(tmp, { recursive: true, force: true });
     throw error;
@@ -288,7 +312,17 @@ function directive({ kind, name, target }, where, ctx, ids) {
   if (kind === 'example') return exampleBlock(name, target, where, ctx, ids);
   if (kind === 'source') return sourceBlock(name, target, where, ctx);
   if (kind === 'table') return generatedTable(name, target, where, ctx);
+  if (kind === 'output') return diagnosticOutputBlock(name, target, where, ctx);
   throw new Error(`Unknown directive ${kind}`);
+}
+
+/** `[output: AX103](../data/diagnostics.mjs)`: what that code's minimal input printed when the site was built. */
+function diagnosticOutputBlock(code, target, where, ctx) {
+  const relative = repoPath(where, target);
+  if (relative !== 'apps/docs/data/diagnostics.mjs') throw new Error(`${path.relative(repoRoot, where)}: [output:] names apps/docs/data/diagnostics.mjs, not ${relative}`);
+  const printed = ctx.seen.get(code);
+  if (!printed) throw new Error(`${path.relative(repoRoot, where)}: no diagnostic ${code}`);
+  return `${codeBlock(printed[0].join('\n'), 'text')}<p class="small">Printed by <a href="diagnostics/${escapeHtml(code)}.html">${escapeHtml(code)}</a>'s minimal input when this site was built.</p>`;
 }
 
 function repoPath(where, target) {
@@ -348,14 +382,83 @@ function generatedTable(name, target, where, ctx) {
   const relative = repoPath(where, target);
   if (relative !== expected) throw new Error(`${path.relative(repoRoot, where)}: table "${name}" is generated from ${expected}, not ${relative}`);
   ctx.published.add(relative);
-  const table = name === 'diagnostic codes' ? diagnosticsTable(ctx)
+  const link = url => pageLink(url, where, '', ctx);
+  if (name === 'conformance') return conformanceTables(ctx, link);
+  if (name === 'sizes') return sizesTable(ctx);
+  const table = name === 'diagnostic codes' ? diagnosticsTable(ctx, link)
     : name === 'theme tokens' ? tokensTable(ctx)
       : name === 'internal tokens' ? internalTokensTable(ctx)
-        : name === 'messages' ? messagesTable(ctx)
+        : name === 'messages' ? messagesTable(ctx, link)
           : paletteTable(ctx);
   const from = name === 'palette' || name === 'theme tokens'
     ? ` Colours read from the packed <code>axylo/axylo.css</code>.` : '';
-  return `${table}<p class="small">Generated from <a href="${sourcePath(relative)}">${escapeHtml(relative)}</a>.${from}</p>`;
+  const also = name === 'messages' ? ` and, for where each is shown, <a href="${sourcePath('apps/docs/data/messages.mjs')}">apps/docs/data/messages.mjs</a>` : '';
+  if (also) ctx.published.add('apps/docs/data/messages.mjs');
+  return `${table}<p class="small">Generated from <a href="${sourcePath(relative)}">${escapeHtml(relative)}</a>${also}.${from}</p>`;
+}
+
+/**
+ * The conformance page's tables (lib/conformance.mjs): each WCAG criterion the specification cites, the
+ * specification's text for the rows that cite it, and what the acceptance checker recorded for them at this
+ * revision; then the result files the checker was given, and the criteria the specification does not cite.
+ */
+function conformanceTables(ctx) {
+  const { criteria, checker, uncited } = ctx.conformance;
+  const spec = path.join(repoRoot, 'docs/02-product-spec.md');
+  const specLink = url => pageLink(url, spec, '', ctx);
+  const specPage = sourcePath('docs/02-product-spec.md');
+  ctx.published.add('docs/02-product-spec.md');
+  const checkerPage = sourcePath('acceptance/check.mjs');
+  const engines = ['chromium', 'firefox', 'webkit', null];
+  const engineName = engine => engine === null ? 'Unit tests (Node)' : checker.label(engine);
+  const state = checker.refused
+    ? `<p><strong>Nothing is counted on this page.</strong> When this site was built, <a href="${checkerPage}">the acceptance checker</a> refused its matrix (${checker.refused.length} ${checker.refused.length === 1 ? 'problem' : 'problems'}), so every result below reads “not recorded” and no cited test is listed. The first problem it gave: <code>${escapeHtml(checker.refused[0])}</code></p>`
+    : `<p>Each entry is <a href="${checkerPage}">the acceptance checker</a>’s, run in release mode when this site was built: a result counts only when its recorded provenance matches the revision the site was built from.</p>`;
+  const tests = c => c.tests.length ? `<details><summary>Tests the matrix cites: ${c.tests.length}</summary><ul>${c.tests.map(t =>
+    `<li>${escapeHtml(t.kind)}${t.engine ? `, ${escapeHtml(checker.label(t.engine))}` : ''}: <code>${escapeHtml(t.file)}</code>${t.test ? `, “${escapeHtml(t.test)}”` : ''}</li>`).join('')}</ul></details>` : '';
+  const rows = criteria.map(c => [
+    `<th scope="row">${escapeHtml(c.sc)} ${escapeHtml(c.name)} <span class="small">(level ${escapeHtml(c.level)})</span></th>`,
+    `<td>${c.rows.map(r => `<p><a href="${specPage}">${escapeHtml(r.id)}</a>: ${renderInline(r.criterion, specLink)}</p>`).join('')}</td>`,
+    `<td><ul class="evidence">${c.verdict.map(v => `<li>Checker, ${escapeHtml(v.id)}: ${escapeHtml(v.text)}</li>`).join('')}${engines.map(engine =>
+      `<li>${escapeHtml(engineName(engine))}: ${escapeHtml(c.engines[String(engine)])}</li>`).join('')}</ul>${tests(c)}</td>`,
+  ]);
+  const table = htmlTable(['Success criterion', 'What Axylo does (the specification\'s rows that cite it)', 'Evidence at this revision'], rows, 'WCAG criteria the specification cites');
+  const files = checker.files.length
+    ? htmlTable(['Result file', 'Engine', 'Recorded at commit', 'Counted'], checker.files.map(f => [
+      `<th scope="row"><code>${escapeHtml(f.file)}</code></th>`, `<td>${escapeHtml(engineName(f.engine))}</td>`,
+      `<td>${f.provenance?.commit ? `<code>${escapeHtml(f.provenance.commit.slice(0, 7))}</code>${f.provenance.dirty ? ', with uncommitted changes' : ''}` : 'not recorded'}</td>`,
+      `<td>${checker.refused ? 'No: the checker refused its matrix' : f.counted ? 'Yes' : `No: ${escapeHtml(f.why ?? 'not read by the checker')}`}</td>`,
+    ]), 'Result files')
+    : '<p>No result files were present in <code>acceptance/results/</code> when this site was built (they are not kept in the repository).</p>';
+  const rest = `<p>The specification cites ${criteria.length} of the ${criteria.length + uncited.length} level A and AA success criteria of WCAG 2.2. This page records nothing about the others, whether they apply or not: ${uncited.map(c => `${escapeHtml(c.sc)} ${escapeHtml(c.name)}`).join(', ')}.</p>`;
+  return `${state}${table}<h3>Result files</h3>${files}<h3>Criteria the specification does not cite</h3>${rest}<p class="small">Generated from <a href="${specPage}">docs/02-product-spec.md</a> and <a href="${checkerPage}">acceptance/check.mjs</a>.</p>`;
+}
+
+/**
+ * scripts/size.mjs's last measurement (bench/size-latest.json). Its numbers are shown only when it measured
+ * the very tarball this site installed (the same npm integrity); otherwise only the targets are.
+ */
+function readSizes(integrity) {
+  const file = path.join(repoRoot, 'bench/size-latest.json');
+  if (!fs.existsSync(file)) return { measured: false, date: null, rows: [] };
+  const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (!Array.isArray(data.rows)) throw new Error('bench/size-latest.json: no rows');
+  return { measured: data.packed?.axylo === integrity, date: data.date ?? null, method: data.method ?? '', rows: data.rows };
+}
+
+function sizesTable(ctx) {
+  const { measured, date, method, rows } = ctx.sizes;
+  const note = `<p class="small">From <a href="${sourcePath('bench/size-latest.json')}">bench/size-latest.json</a>, written by <code>scripts/size.mjs</code>${date ? ` on ${escapeHtml(date.slice(0, 10))}` : ''}.</p>`;
+  if (!measured) {
+    const targets = rows.filter(r => r.targetKiB !== null);
+    return `<p>No size measurement of the packed files this site was built from: the last one measured a different build, so no measured size is shown here. The targets:</p>${htmlTable(['What a page loads', 'Target, gzipped'],
+      targets.map(r => [`<th scope="row">${escapeHtml(r.entry)}</th>`, `<td>${escapeHtml(String(r.targetKiB))} KiB</td>`]), 'Size targets')}${note}`;
+  }
+  const status = r => r.targetKiB === null ? 'No target' : r.over ? 'Not met' : 'Met';
+  return `${htmlTable(['What a page loads', 'Gzipped, measured', 'Target', 'Target met'], rows.map(r => [
+    `<th scope="row">${escapeHtml(r.entry)}</th>`, `<td>${escapeHtml(String(r.totalKiB))} KiB</td>`,
+    `<td>${r.targetKiB === null ? '–' : `${escapeHtml(String(r.targetKiB))} KiB`}</td>`, `<td>${status(r)}</td>`,
+  ]), 'Measured sizes')}<p class="small">Measured from the same packed tarball this site installed (${escapeHtml(method)}).</p>${note}`;
 }
 
 function htmlTable(head, rows, caption) {
@@ -363,12 +466,12 @@ function htmlTable(head, rows, caption) {
   return `<div class="table-scroll" tabindex="0" role="region" aria-label="${escapeHtml(caption)}"><table><thead><tr>${th}</tr></thead><tbody>${rows.map(r => `<tr>${r.join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 
-function diagnosticsTable(ctx) {
+function diagnosticsTable(ctx, link) {
   const rows = ctx.diagnostics.map(d => [
     `<th scope="row"><a href="diagnostics/${d.code}.html">${d.code}</a></th>`,
     `<td><span class="level level-${d.level}">${escapeHtml(d.level)}</span></td>`,
-    `<td>${renderInline(d.condition)}</td>`,
-    `<td>${renderInline(d.drawn)}</td>`,
+    `<td>${renderInline(d.condition, link)}</td>`,
+    `<td>${renderInline(d.drawn, link)}</td>`,
   ]);
   return htmlTable(['Code', 'Level', 'When', 'What is drawn'], rows, 'Diagnostic codes');
 }
@@ -399,11 +502,18 @@ function internalTokensTable(ctx) {
   return htmlTable(['Property', 'Why it exists'], rows, 'Internal custom properties');
 }
 
-function messagesTable(ctx) {
+/** Keys and text from the library's defaultMessages; where each is shown from data/messages.mjs, key for key. */
+function messagesTable(ctx, link) {
+  const keys = Object.keys(ctx.messages);
+  const unknown = Object.keys(ctx.messageUses).filter(key => !keys.includes(key));
+  const undescribed = keys.filter(key => !Object.hasOwn(ctx.messageUses, key));
+  if (unknown.length || undescribed.length) {
+    throw new Error(`apps/docs/data/messages.mjs and defaultMessages differ: ${[...undescribed.map(k => `no entry for ${k}`), ...unknown.map(k => `${k} is not a message key`)].join(', ')}`);
+  }
   const rows = Object.entries(ctx.messages).map(([key, text]) => [
-    `<th scope="row"><code>${escapeHtml(key)}</code></th>`, `<td>${escapeHtml(text)}</td>`,
+    `<th scope="row"><code>${escapeHtml(key)}</code></th>`, `<td>${escapeHtml(text)}</td>`, `<td>${renderInline(ctx.messageUses[key], link)}</td>`,
   ]);
-  return htmlTable(['Key', 'Built-in English text'], rows, 'Built-in messages');
+  return htmlTable(['Key', 'Built-in English text', 'Where it is shown'], rows, 'Built-in messages');
 }
 
 function paletteTable(ctx) {
@@ -430,65 +540,79 @@ async function diagnosticOutput(diagnostics) {
   const registry = await importSource('packages/axylo/src/diagnostics/registry.ts');
   const out = new Map();
   for (const d of diagnostics) {
-    if (d.run === 'node') {
-      const found = new Function('validate', `return ${d.input}`)(lib.validate);
-      const mine = found.filter(x => x.code === d.code);
-      if (mine.length === 0) throw new Error(`${d.code}: the minimal input does not raise it (got ${found.map(x => x.code).join(', ') || 'nothing'})`);
-      out.set(d.code, mine.map(x => `[axylo ${x.code}] ${JSON.stringify(x.chart)}: ${x.message}`));
-    } else {
-      const made = registry.createDiagnostic(d.code, d.sample?.effect ?? 'none', d.sample?.details ?? {});
-      out.set(d.code, [`[axylo ${d.code}] ${JSON.stringify(d.sample?.chart ?? 'Chart title')}: ${made.message}`]);
-    }
+    // The minimal input first, then each further case: one list of printed lines per input.
+    out.set(d.code, [d, ...(d.cases ?? [])].map((input, i) => {
+      const which = i === 0 ? 'the minimal input' : `case "${input.label}"`;
+      if (input.run === 'node') {
+        const found = new Function('validate', `return ${input.input}`)(lib.validate);
+        const mine = found.filter(x => x.code === d.code && (i === 0 || x.field === input.outcome.field));
+        if (mine.length === 0) throw new Error(`${d.code}: ${which} does not raise it (got ${found.map(x => `${x.code} ${x.field ?? ''}`).join(', ') || 'nothing'})`);
+        return mine.map(x => `[axylo ${x.code}] ${JSON.stringify(x.chart)}: ${x.message}`);
+      }
+      if (!input.sample) throw new Error(`${d.code}: ${which} runs in a browser and needs a sample`);
+      const made = registry.createDiagnostic(d.code, input.sample.effect ?? 'none', input.sample.details ?? {});
+      return [`[axylo ${d.code}] ${JSON.stringify(input.sample.chart ?? 'Chart title')}: ${made.message}`];
+    }));
   }
   return out;
 }
 
 function renderDiagnosticPage(d, ctx) {
-  const where = path.join(docsRoot, 'data/diagnostics.mjs');
   const ids = reservedIds();
   const md = s => markdownToHtml(s, { ids, link: url => pageLink(url, path.join(pagesDir, 'x.md'), '../', ctx) });
   const index = ctx.diagnostics.indexOf(d);
   const prev = ctx.diagnostics[index - 1];
   const next = ctx.diagnostics[index + 1];
-  const how = d.run === 'node'
-    ? 'Checked with <code>validate()</code> from the packed package when this site was built; the message above is its output.'
-    : 'This code needs a page to arise. The documentation\'s browser test renders this input and checks the code, the field and what the reader sees; the message above is the registry text for sample details.';
-  for (const id of ['top', 'what-you-see', 'why', 'how-to-fix', 'minimal-input']) ids.add(id);
+  const how = input => input.run === 'node'
+    ? 'Checked with <code>validate()</code> from the packed package when this site was built; the message is its output.'
+    : 'This needs a page to arise. The documentation\'s browser test runs this input and checks the code, the field, what the reader sees and that the message printed is the one shown here, which the build made from the registry with the details of this input.';
+  const printed = ctx.seen.get(d.code);
+  const cases = d.cases ?? [];
+  for (const id of ['top', 'what-you-see', 'why', 'how-to-fix', 'minimal-input', 'other-cases', ...cases.map((_, i) => `case-${i + 1}`)]) ids.add(id);
+  // Each printed block has an id, so the browser test can compare it with what the library prints.
+  const output = i => `<div id="output-${i}">${codeBlock(printed[i].join('\n'), 'text')}</div>`;
+  const other = cases.length ? `<h2 id="other-cases">Other inputs that raise it</h2>
+${cases.map((c, i) => `<h3 id="case-${i + 1}">${escapeHtml(c.label)}</h3>
+${codeBlock(c.input, 'js')}
+${output(i + 1)}
+${outcomeTable(d.code, c, `What this input does: ${c.label}`)}
+<p class="small">${how(c)}</p>`).join('\n')}` : '';
   const body = `<p class="crumb"><a href="../diagnostics.html">Diagnostics</a> › ${d.code}</p>
 <h1 id="top">${d.code}: ${escapeHtml(d.title)}</h1>
 <p><span class="level level-${d.level}">${escapeHtml(d.level)}</span> ${renderInline(levelText(d.level))}</p>
 <h2 id="what-you-see">What you see</h2>
 ${md(d.see)}
-${codeBlock(ctx.seen.get(d.code).join('\n'), 'text')}
+${output(0)}
 <h2 id="why">Why</h2>
 ${md(d.why)}
 <h2 id="how-to-fix">How to fix it</h2>
 ${md(d.fix)}
 <h2 id="minimal-input">A minimal input that raises it</h2>
 ${codeBlock(d.input, 'js')}
-${outcomeTable(d)}
-<p class="small">${how}</p>
+${outcomeTable(d.code, d, 'What the minimal input does')}
+<p class="small">${how(d)}</p>
+${other}
 <nav class="pager" aria-label="Previous and next code">${prev ? `<a rel="prev" href="${prev.code}.html">← ${prev.code}</a>` : '<span></span>'}${next ? `<a rel="next" href="${next.code}.html">${next.code} →</a>` : ''}</nav>`;
-  void where;
   return layout({ title: `${d.code}: ${d.title}`, body, current: 'diagnostics', base: '../', ctx, sourceFile: 'apps/docs/data/diagnostics.mjs' });
 }
 
-/** The checked facts of the minimal input: the same ones the tests assert. */
-function outcomeTable(d) {
-  const o = d.outcome;
+/** The checked facts of one input: the same ones the tests assert. */
+function outcomeTable(code, input, name) {
+  const o = input.outcome;
   const reader = o.reader === 'nothing' ? 'No note and no message: the chart as drawn.'
     : o.reader === 'fallback' ? 'The title, a short summary and the table control, in place of the plot.'
       : o.reader.startsWith('note: ') ? `The note “${escapeHtml(o.reader.slice(6))}” in the figure.`
         : o.reader.startsWith('message: ') ? `“${escapeHtml(o.reader.slice(9))}” in place of the plot.`
-          : missingReader(d.code);
+          : missingReader(code);
   const rows = [
     ['Why it raises the code', renderInline(o.because)],
     ['Field', o.field === null ? 'None: it is about the chart as a whole.' : `<code>${escapeHtml(o.field)}</code>`],
     ...(o.rows ? [['Rows', o.rows.join(', ')]] : []),
     ['Reader sees', reader],
+    ['In <code>chart.diagnostics</code>', o.listed === false ? 'No: printed and passed to <code>onDiagnostic</code> when the call is made, since it changes nothing.' : 'Yes.'],
     ['A strict chart', o.strict ? 'Throws, from the call that gave this input.' : 'Does not throw.'],
   ];
-  return `<div class="table-scroll" tabindex="0" role="region" aria-label="What the minimal input does"><table><tbody>${rows.map(([k, v]) => `<tr><th scope="row">${k}</th><td>${v}</td></tr>`).join('')}</tbody></table></div>`;
+  return `<div class="table-scroll" tabindex="0" role="region" aria-label="${escapeHtml(name)}"><table><tbody>${rows.map(([k, v]) => `<tr><th scope="row">${k}</th><td>${v}</td></tr>`).join('')}</tbody></table></div>`;
 }
 
 function missingReader(code) {
@@ -546,7 +670,7 @@ function layout({ title, body, current, base, ctx, sourceFile }) {
 <article>
 ${body}
 </article>
-<footer class="page-footer"><p>Source of this page: <code>${escapeHtml(sourceFile)}</code>. Built from revision ${escapeHtml(at)}. The live examples run the packed packages (version ${escapeHtml(ctx.version)}, development condition), installed into a clean consumer.</p></footer>
+<footer class="page-footer"><p>Source of this page: <code>${escapeHtml(sourceFile)}</code>. Built from revision ${escapeHtml(at)}. The live examples run the packed packages (version ${escapeHtml(ctx.version)}, development condition), installed into a clean consumer.</p>${ctx.unchecked.length ? `<p><strong>Not for publishing:</strong> this site was built against a packed library that is not the build of its source (${escapeHtml(ctx.unchecked.join('; '))}).</p>` : ''}</footer>
 </main>
 </div>
 </body>

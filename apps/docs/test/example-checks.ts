@@ -217,6 +217,25 @@ export const checks: Record<string, Check> = {
     await t.page.waitForTimeout(150);
     await t.value(0, ['Home', 'Enter']);
     expect(await t.text('#picked')).toBe(`Selected sessions on 2026-03-25: ${3569} (row 24).`);
+    // Select range (spec I4, the toggle the page documents): two clicks on the plot set the two ends, here the
+    // later one first, and the toggle releases itself. Between 35% and 75% of the plot's width lie fewer than the
+    // 31 days of March, so the zoomed view has fewer points, whatever the width; the clicks select nothing.
+    await t.click('#all');
+    await t.until(`document.querySelector('#range').textContent === 'Showing everything.'`);
+    await t.page.waitForTimeout(150);
+    const toggle = t.page.locator('#chart').getByRole('button', { name: 'Select range' });
+    await toggle.click();
+    expect(await toggle.getAttribute('aria-pressed')).toBe('true');
+    const plot = (await t.page.locator('#chart .axylo-plot').boundingBox())!;
+    await t.page.mouse.click(plot.x + plot.width * 0.75, plot.y + plot.height / 2);
+    await t.page.mouse.click(plot.x + plot.width * 0.35, plot.y + plot.height / 2);
+    await t.until(`document.querySelector('#range').textContent !== 'Showing everything.'`);
+    expect(await t.text('#range')).toMatch(/^Showing \S+( \(between two days\))? to \S+( \(between two days\))?\.$/);
+    expect(await toggle.getAttribute('aria-pressed')).toBe('false');
+    expect(await t.text('#picked')).toBe(`Selected sessions on 2026-03-25: ${3569} (row 24).`);
+    await t.page.waitForTimeout(150);
+    const count = Number(/Point \d+ of (\d+)/.exec(await t.value(0, ['Home']))?.[1]);
+    expect(count > 1 && count < 31, `${count} points in view`).toBe(true);
   } },
   'zoom-linked': { charts: 2, run: async t => {
     has(await t.desc(1), 'Mar 10, 2026, 6:00 AM UTC', 'Mar 10, 2026, 12:00 PM UTC');

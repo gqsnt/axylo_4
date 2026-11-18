@@ -33,9 +33,18 @@ These are the targets of 1.0 (spec section 2.3). What has been verified so far i
 | Frameworks | None needed. No adapter ships in 1.0; the library is called from any framework's mount and unmount hooks. |
 | Node | Importing `axylo` touches no DOM, and `validate()` runs there. Charts themselves need a browser. |
 | Text direction | Left-to-right pages. Right-to-left text renders, but the layout is not mirrored. |
+| Transformed ancestors | A chart inside a translated or scaled element (any positive scale, uniform or not) is exact. Inside a rotated, skewed or mirrored element it draws, but pointing and tooltip placement are wrong: not supported in 1.0. |
 | Built-in text | English. Reader-facing messages are replaceable through `messages`; diagnostics keep their English wording. |
 
-Verified so far: desktop Chrome on Linux, by the library's acceptance tests and the distribution tests (which install the packed packages, also under a Content Security Policy). Firefox, Safari, Edge, Windows, macOS and phones have not been tested yet; see [Accessibility](accessibility.md#what-has-and-has-not-been-verified).
+Tested so far, on Linux: the library's acceptance tests in Chrome and in Playwright's builds of Firefox and WebKit (Playwright's WebKit, not Safari), and the distribution tests in Chrome (they install the packed package, also under a Content Security Policy). Safari itself, Edge, Windows, macOS and phones have not been tested. No screen-reader rehearsal was done for 1.0. What the acceptance checker recorded for this revision is on the [conformance page](conformance.md); see also [Accessibility](accessibility.md#what-has-and-has-not-been-verified).
+
+## Size and memory
+
+The size targets of 1.0, set by the owner after measuring the built library: 96 KiB gzipped for a page that uses everything, and 80 KiB for a page that uses only `line`, the stylesheet included. They are not a release gate yet. The last measurement (`npm run size`, which measures the packed files the way a bundler would):
+
+[table: sizes](../../../bench/size-latest.json)
+
+Memory: once a chart opened on typed columns has been appended to, Axylo keeps its own exact copy of x and y and one state byte per point, 17 bytes per point against the 16 of your two `Float64Array` columns. The memory budget of 1.0 is therefore 1.1 times the size of your two columns, for 1,000,000 points, with no upward trend over 1,000 cycles of create and destroy. This documentation shows no memory measurement. A chart that is never appended to reads typed columns in place where it can (see [what Axylo reads, keeps and copies](data.md#what-axylo-reads-keeps-and-copies)).
 
 ## Licence
 
