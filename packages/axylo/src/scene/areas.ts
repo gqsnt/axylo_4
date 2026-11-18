@@ -1,5 +1,5 @@
 import {
-  type AlignedView, type AreaMark, type IndexRange, type PathMark, type PointMark, type StackView,
+  SLOT_NO_ROW, SLOT_NULL, SLOT_VALUE, type AlignedView, type AreaMark, type IndexRange, type PathMark, type PointMark, type StackView,
 } from '../core/contracts';
 import { buildPoints, simplifyArea, simplifyLine, type AreaBoundary, type JoinedRuns, type LineInput } from '../simplify';
 import { seriesPaint, token } from './geometry';
@@ -185,8 +185,17 @@ export function addStackedAreas(
       ? Float64Array.from(y.subarray(draw.start, draw.end), (value, i) =>
         (value < 0 ? negativeLine : positiveLine)[draw.start + i]!)
       : (hasNegative ? negativeLine : positiveLine).subarray(draw.start, draw.end);
+    // The line follows its band (F10): a slot the series has no row for is a missing component in a stack,
+    // so the line is not joined across it as it would be outside one (F5). Outside the view, only a value next
+    // to a value inside it is drawn, as the segment that reaches the edge.
+    const { start: first, end: after } = view.visibleSlots;
     addLine({
-      ...input, x: input.x.subarray(draw.start, draw.end), y: line, slot: slot.subarray(draw.start, draw.end),
+      ...input, x: input.x.subarray(draw.start, draw.end), y: line,
+      slot: slot.subarray(draw.start, draw.end).map((state, i) => {
+        const at = draw.start + i;
+        const joins = at >= first && at < after || at === first - 1 && slot[first] === SLOT_VALUE || at === after && slot[after - 1] === SLOT_VALUE;
+        return state === SLOT_NO_ROW || !joins ? SLOT_NULL : state;
+      }),
       range: { start: 0, end: length },
     }, view, series, {
       start: view.visibleSlots.start - draw.start, end: view.visibleSlots.end - draw.start,

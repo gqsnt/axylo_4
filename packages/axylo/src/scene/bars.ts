@@ -1,5 +1,5 @@
 import {
-  SLOT_VALUE, type AlignedView, type Projection, type Rect, type RectMark, type XScale,
+  SLOT_NO_ROW, SLOT_VALUE, type AlignedView, type Projection, type Rect, type RectMark, type XScale,
 } from '../core/contracts';
 import { barHalfWidth } from '../view/bar-bands';
 import { clamp, COORDINATE_LIMIT, position, seriesPaint, token } from './geometry';
@@ -75,9 +75,14 @@ export function barMarks(view: AlignedView, projection: Bands, plot: Rect): Rect
     const prevPos = stack?.positive[i - 1];
     const prevNeg = stack?.negative[i - 1];
     let valid = 0;
-    for (let j = start; j < end; j++) if (slot[j] === SLOT_VALUE) valid++;
+    let missed = 0;
+    for (let j = start; j < end; j++) {
+      if (slot[j] === SLOT_VALUE) valid++;
+      else if (slot[j] !== SLOT_NO_ROW) missed++;
+    }
     const values = new Float32Array(valid * 4);
-    const absent = new Float32Array((end - start - valid) * 4);
+    // A missing bar gets the "no data" mark; a slot the series merely has no row for gets nothing (F2).
+    const absent = new Float32Array(missed * 4);
     let valueOffset = 0;
     let missingOffset = 0;
 
@@ -89,6 +94,7 @@ export function barMarks(view: AlignedView, projection: Bands, plot: Rect): Rect
       const mid = bandStart + part * ((stack ? 0 : i) + 0.5);
       const across = band.type === 'band' ? clamp(mid - width / 2, low, Math.max(low, high - width)) : mid - width / 2;
       const isValue = slot[j] === SLOT_VALUE;
+      if (!isValue && slot[j] === SLOT_NO_ROW) continue;
       const positiveTotal = positives?.[j] ?? 0;
       const negativeTotal = negatives?.[j] ?? 0;
       // A missing value has no sign. Prefer the positive edge unless only the negative side exists
