@@ -447,6 +447,12 @@
           "kind": "browser",
           "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
           "title": "F2 line: the tooltip, the table and the keyboard read \"No data\" at the missing value, and the zero next to it as 0"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/f-missing-values.test.ts",
+          "title": "F2 line: line draws an absent step on a regular instant axis as a gap, through the controller",
+          "registration": "F2 ${type}: ${kind} draws an absent step on a regular instant axis as a gap, through the controller"
         }
       ],
       "area": [
@@ -491,6 +497,12 @@
           "kind": "browser",
           "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
           "title": "F2 area: the tooltip, the table and the keyboard read \"No data\" at the missing value, and the zero next to it as 0"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/f-missing-values.test.ts",
+          "title": "F2 area: area draws an absent step on a regular instant axis as a gap, through the controller",
+          "registration": "F2 ${type}: ${kind} draws an absent step on a regular instant axis as a gap, through the controller"
         }
       ],
       "bar": [
@@ -542,6 +554,12 @@
           "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
           "prefix": "F2 bars",
           "atLeast": 2
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/f-missing-values.test.ts",
+          "title": "F2 bar: bar draws an absent step on a regular instant axis as a gap, through the controller",
+          "registration": "F2 ${type}: ${kind} draws an absent step on a regular instant axis as a gap, through the controller"
         }
       ],
       "scatter": [
@@ -675,22 +693,38 @@
           "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
           "prefix": "F2 bars",
           "atLeast": 2
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/f-missing-values.test.ts",
+          "title": "F2 compact: line draws an absent step on a regular instant axis as a gap, through the controller",
+          "registration": "F2 ${type}: ${kind} draws an absent step on a regular instant axis as a gap, through the controller"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/f-missing-values.test.ts",
+          "title": "F2 compact: area draws an absent step on a regular instant axis as a gap, through the controller",
+          "registration": "F2 ${type}: ${kind} draws an absent step on a regular instant axis as a gap, through the controller"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/f-missing-values.test.ts",
+          "title": "F2 compact: bar draws an absent step on a regular instant axis as a gap, through the controller",
+          "registration": "F2 ${type}: ${kind} draws an absent step on a regular instant axis as a gap, through the controller"
         }
       ]
     },
     "gaps": {
-      "line": "An absent step on a regular time (instant) axis, drawn through the controller, is tested by \"F2 {type}: {kind} draws an absent step on a regular instant axis as a gap, through the controller\" (f-missing-values.test.ts), which the checker cannot credit yet: its title comes from a template, and packages/axylo/test/acceptance/EVIDENCE.json, written before it, does not list it; every drawn absent-step test the matrix cites uses a date axis.",
-      "area": "An absent step on a regular time (instant) axis, drawn through the controller, is tested by \"F2 {type}: {kind} draws an absent step on a regular instant axis as a gap, through the controller\" (f-missing-values.test.ts), which the checker cannot credit yet: its title comes from a template, and packages/axylo/test/acceptance/EVIDENCE.json, written before it, does not list it; every drawn absent-step test the matrix cites uses a date axis.",
-      "bar": "An absent step on a regular time (instant) axis, drawn through the controller, is tested by \"F2 {type}: {kind} draws an absent step on a regular instant axis as a gap, through the controller\" (f-missing-values.test.ts), which the checker cannot credit yet: its title comes from a template, and packages/axylo/test/acceptance/EVIDENCE.json, written before it, does not list it; every drawn absent-step test the matrix cites uses a date axis. That a slot a series has no row for gets no bar and no mark is shown on the scene only (stack-no-row.test.ts, stacked and grouped bars), not drawn in a browser.",
-      "compact": "Drawn in Chrome: compact line and compact area (gaps, the isolated point, the date-axis gap, missing: 'zero') and compact bar (missing: 'zero', the \"no data\" mark, cited through the \"F2 bars\" describe, whose two cases are the full and the compact bar). For compact line and area the zeros filled in by missing: 'zero' are shown to be the lowest vertices, not to sit on the plot's zero baseline. The property over generated missing indexes runs on compact area only. An absent step on a regular time (instant) axis, drawn through the controller, is tested by \"F2 {type}: {kind} draws an absent step on a regular instant axis as a gap, through the controller\" (f-missing-values.test.ts), which the checker cannot credit yet: its title comes from a template, and packages/axylo/test/acceptance/EVIDENCE.json, written before it, does not list it; every drawn absent-step test the matrix cites uses a date axis. That a slot a series has no row for gets no bar and no mark is tested on full bars only (stack-no-row.test.ts), not on a compact bar."
+      "bar": "That a slot a series has no row for gets no bar and no mark is shown on the scene only (stack-no-row.test.ts, stacked and grouped bars), not drawn in a browser.",
+      "compact": "Drawn in Chrome: compact line and compact area (gaps, the isolated point, the date-axis gap, missing: 'zero') and compact bar (missing: 'zero', the \"no data\" mark, cited through the \"F2 bars\" describe, whose two cases are the full and the compact bar). For compact line and area the zeros filled in by missing: 'zero' are shown to be the lowest vertices, not to sit on the plot's zero baseline. The property over generated missing indexes runs on compact area only. That a slot a series has no row for gets no bar and no mark is tested on full bars only (stack-no-row.test.ts), not on a compact bar."
     },
     "limits": {
-      "line": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. Gaps are read from the SVG path's vertices and from screenshots with the gridlines made transparent; the readouts from the tooltip's text, the table's accessibility tree and the plot's value text.",
-      "area": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. Gaps are read from the SVG path's vertices and from screenshots with the gridlines made transparent; the readouts from the tooltip's text, the table's accessibility tree and the plot's value text.",
-      "bar": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. The \"no data\" mark is checked painted for an explicit null on a category axis; at an absent date step and for an absent field it is checked in the Node scene. The readouts are read from the tooltip's text, the table's accessibility tree and the plot's value text. The \"F2 bars\" describe holds two cases whose titles are chosen by a conditional expression the source scan cannot read (full bar and compact bar); it is cited with atLeast 2, so both must pass.",
+      "line": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. Gaps are read from the SVG path's vertices and from screenshots with the gridlines made transparent; the readouts from the tooltip's text, the table's accessibility tree and the plot's value text. The instant-axis absent step is checked through the controller (Node): AX105, the broken stroke or the \"no data\" mark, and \"No data\" in the table and the tooltip.",
+      "area": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. Gaps are read from the SVG path's vertices and from screenshots with the gridlines made transparent; the readouts from the tooltip's text, the table's accessibility tree and the plot's value text. The instant-axis absent step is checked through the controller (Node): AX105, the broken stroke or the \"no data\" mark, and \"No data\" in the table and the tooltip.",
+      "bar": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. The \"no data\" mark is checked painted for an explicit null on a category axis; at an absent date step and for an absent field it is checked in the Node scene. The readouts are read from the tooltip's text, the table's accessibility tree and the plot's value text. The \"F2 bars\" describe holds two cases whose titles are chosen by a conditional expression the source scan cannot read (full bar and compact bar); it is cited with atLeast 2, so both must pass. The instant-axis absent step is checked through the controller (Node): AX105, the broken stroke or the \"no data\" mark, and \"No data\" in the table and the tooltip.",
       "scatter": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. A point without a y has no position: the tests check that it is not drawn and that the keyboard skips it, so only the table can say \"No data\". Scatter draws no lines, so bridging, isolated points and absent steps do not reach it.",
       "donut": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. The keyboard reading of null and absent slices is checked in Node; Chrome checks the arcs and the table.",
-      "compact": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. The Node tests run compact line, area and bar; a compact chart has no tooltip, table or keyboard reading, so the \"No data\" readouts do not reach it. The \"F2 bars\" describe holds two cases whose titles are chosen by a conditional expression the source scan cannot read (full bar and compact bar); it is cited with atLeast 2, so both must pass."
+      "compact": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. The Node tests run compact line, area and bar; a compact chart has no tooltip, table or keyboard reading, so the \"No data\" readouts do not reach it. The \"F2 bars\" describe holds two cases whose titles are chosen by a conditional expression the source scan cannot read (full bar and compact bar); it is cited with atLeast 2, so both must pass. The instant-axis absent step is checked through the controller (Node): AX105, the broken stroke or the \"no data\" mark (compact has no table or tooltip)."
     }
   },
   {
@@ -1009,6 +1043,24 @@
           "kind": "unit",
           "file": "packages/axylo/test/acceptance/f-disclosure.test.ts",
           "title": "F12 line: an x that cannot be read (AX107) leaves the note and the summary statement"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 line: an error prints once in a production build and the chart shows its error state",
+          "registration": "F3 ${type}: an error prints once in a production build and the chart shows its error state"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 line: in production a code prints once per page across two charts",
+          "registration": "F3 ${type}: in production a code prints once per page across two charts"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 line: in production a hint is delivered to onDiagnostic and not printed",
+          "registration": "F3 ${type}: in production a hint is delivered to onDiagnostic and not printed"
         }
       ],
       "area": [
@@ -1231,6 +1283,24 @@
           "kind": "unit",
           "file": "packages/axylo/test/acceptance/f-disclosure.test.ts",
           "title": "F12 area: an x that cannot be read (AX107) leaves the note and the summary statement"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 area: an error prints once in a production build and the chart shows its error state",
+          "registration": "F3 ${type}: an error prints once in a production build and the chart shows its error state"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 area: in production a code prints once per page across two charts",
+          "registration": "F3 ${type}: in production a code prints once per page across two charts"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 area: in production a hint is delivered to onDiagnostic and not printed",
+          "registration": "F3 ${type}: in production a hint is delivered to onDiagnostic and not printed"
         }
       ],
       "bar": [
@@ -1465,6 +1535,24 @@
           "kind": "unit",
           "file": "packages/axylo/test/acceptance/f-disclosure.test.ts",
           "title": "F12 bar: an x that cannot be read (AX107) leaves the note and the summary statement"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 bar: an error prints once in a production build and the chart shows its error state",
+          "registration": "F3 ${type}: an error prints once in a production build and the chart shows its error state"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 bar: in production a code prints once per page across two charts",
+          "registration": "F3 ${type}: in production a code prints once per page across two charts"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 bar: in production a hint is delivered to onDiagnostic and not printed",
+          "registration": "F3 ${type}: in production a hint is delivered to onDiagnostic and not printed"
         }
       ],
       "scatter": [
@@ -1675,6 +1763,24 @@
           "kind": "unit",
           "file": "packages/axylo/test/acceptance/f-disclosure.test.ts",
           "title": "F12 scatter: an x that cannot be read (AX107) leaves the note and the summary statement"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 scatter: an error prints once in a production build and the chart shows its error state",
+          "registration": "F3 ${type}: an error prints once in a production build and the chart shows its error state"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 scatter: in production a code prints once per page across two charts",
+          "registration": "F3 ${type}: in production a code prints once per page across two charts"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 scatter: in production a hint is delivered to onDiagnostic and not printed",
+          "registration": "F3 ${type}: in production a hint is delivered to onDiagnostic and not printed"
         }
       ],
       "donut": [
@@ -1844,6 +1950,24 @@
           "kind": "unit",
           "file": "packages/axylo/test/acceptance/dx-diagnostics.test.ts",
           "title": "F3 donut: field and row indexes of an unreadable x and of a duplicate x name the caller's rows"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 donut: an error prints once in a production build and the chart shows its error state",
+          "registration": "F3 ${type}: an error prints once in a production build and the chart shows its error state"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 donut: in production a code prints once per page across two charts",
+          "registration": "F3 ${type}: in production a code prints once per page across two charts"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 donut: in production a hint is delivered to onDiagnostic and not printed",
+          "registration": "F3 ${type}: in production a hint is delivered to onDiagnostic and not printed"
         }
       ],
       "compact": [
@@ -2103,6 +2227,60 @@
           "kind": "unit",
           "file": "packages/axylo/test/acceptance/dx-diagnostics.test.ts",
           "title": "F3 compact: field and row indexes of an unreadable x and of a duplicate x name the caller's rows"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 compact line: an error prints once in a production build and the chart shows its error state",
+          "registration": "F3 ${type}: an error prints once in a production build and the chart shows its error state"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 compact line: in production a code prints once per page across two charts",
+          "registration": "F3 ${type}: in production a code prints once per page across two charts"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 compact line: in production a hint is delivered to onDiagnostic and not printed",
+          "registration": "F3 ${type}: in production a hint is delivered to onDiagnostic and not printed"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 compact area: an error prints once in a production build and the chart shows its error state",
+          "registration": "F3 ${type}: an error prints once in a production build and the chart shows its error state"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 compact area: in production a code prints once per page across two charts",
+          "registration": "F3 ${type}: in production a code prints once per page across two charts"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 compact area: in production a hint is delivered to onDiagnostic and not printed",
+          "registration": "F3 ${type}: in production a hint is delivered to onDiagnostic and not printed"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 compact bar: an error prints once in a production build and the chart shows its error state",
+          "registration": "F3 ${type}: an error prints once in a production build and the chart shows its error state"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 compact bar: in production a code prints once per page across two charts",
+          "registration": "F3 ${type}: in production a code prints once per page across two charts"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/production.test.ts",
+          "title": "F3 compact bar: in production a hint is delivered to onDiagnostic and not printed",
+          "registration": "F3 ${type}: in production a hint is delivered to onDiagnostic and not printed"
         }
       ]
     },
@@ -2361,20 +2539,20 @@
       ]
     },
     "gaps": {
-      "line": "AX143 is checked on a line chart only for its message wording (unit test; a category line can hide its labels). Delivery in a production build (an error printed once with the error state, a code printed once across two charts on one page, a hint delivered to onDiagnostic and not printed) is tested per type by production.test.ts's \"F3 {type}: …\" cases, which the checker cannot credit yet: their titles come from a template, and packages/axylo/test/acceptance/EVIDENCE.json, written before it, does not list them. On a line chart the production delivery of AX140 and AX104 is checked by cited tests. Under strict, warnings found while validating create, update and append are thrown (AX103; dx-controller.test.ts) and a hint is not; an error found by strict validation is not checked to throw, and no late warning other than AX160 and AX141 is checked not to throw (the AX142 case is a hint). Field and row indexes are asserted on this type for AX102, AX103, AX104, AX106, AX107 and AX108; for the other data codes only in the registry's unit tests.",
-      "area": "AX141 is checked on area only as the code Chrome raises after the background changes. AX142 is checked in Chrome for its level and the fallback, not its delivery. AX143 is checked on area only for its message wording (unit test). A tick formatter that throws (AX160 without a note) has no area check. Delivery in a production build (an error printed once with the error state, a code printed once across two charts on one page, a hint delivered to onDiagnostic and not printed) is tested per type by production.test.ts's \"F3 {type}: …\" cases, which the checker cannot credit yet: their titles come from a template, and packages/axylo/test/acceptance/EVIDENCE.json, written before it, does not list them. Under strict, warnings found while validating create, update and append are thrown (AX103; dx-controller.test.ts) and a hint is not; an error found by strict validation is not checked to throw, and no late warning other than AX160 is checked not to throw (the AX142 case is a hint). Field and row indexes are asserted on this type for AX102, AX103, AX106, AX107 and AX108 only.",
-      "bar": "AX141 is checked on bar only as the code Chrome raises after the background changes. AX142 is checked in Chrome for its level and the fallback, not its delivery. A tick formatter that throws (AX160 without a note) has no bar check. Delivery in a production build (an error printed once with the error state, a code printed once across two charts on one page, a hint delivered to onDiagnostic and not printed) is tested per type by production.test.ts's \"F3 {type}: …\" cases, which the checker cannot credit yet: their titles come from a template, and packages/axylo/test/acceptance/EVIDENCE.json, written before it, does not list them. Under strict, warnings found while validating create, update and append are thrown (AX103; dx-controller.test.ts) and a hint is not; an error found by strict validation is not checked to throw, and no late warning other than AX160 is checked not to throw (the AX142 case is a hint). Field and row indexes are asserted on this type for AX102, AX103, AX106, AX107 and AX108 only.",
-      "scatter": "AX141 is checked on scatter only as the code Chrome raises after the background changes. AX142 is checked in Chrome for its level and the fallback, not its delivery. AX143 has no scatter check. A tick formatter that throws is checked only for raising AX160, not for its level, delivery, fallback text or the absent note. Delivery in a production build (an error printed once with the error state, a code printed once across two charts on one page, a hint delivered to onDiagnostic and not printed) is tested per type by production.test.ts's \"F3 {type}: …\" cases, which the checker cannot credit yet: their titles come from a template, and packages/axylo/test/acceptance/EVIDENCE.json, written before it, does not list them. Under strict, warnings found while validating create, update and append are thrown (AX103; dx-controller.test.ts) and a hint is not; an error found by strict validation is not checked to throw, and no late warning other than AX160 is checked not to throw (the AX142 case is a hint). Field and row indexes are asserted on this type for AX102, AX103, AX106 and AX107 only.",
-      "donut": "AX141 is checked on donut only as the code Chrome raises after the background changes. AX142 is checked in Chrome for its level and the fallback, not its delivery. Delivery in a production build (an error printed once with the error state, a code printed once across two charts on one page, a hint delivered to onDiagnostic and not printed) is tested per type by production.test.ts's \"F3 {type}: …\" cases, which the checker cannot credit yet: their titles come from a template, and packages/axylo/test/acceptance/EVIDENCE.json, written before it, does not list them. Under strict, warnings found while validating create, update and append are thrown (AX103; dx-controller.test.ts) and a hint is not; an error found by strict validation is not checked to throw, and no late warning other than AX160 is checked not to throw (the AX142 case is a hint). Field and row indexes are asserted on this type for AX102, AX103, AX106, AX107 and AX108 only.",
-      "compact": "AX141 is checked for compact line only, as the code Chrome raises after the background changes. AX132 (compact bar with more bars than pixels) has no compact check. Delivery in a production build (an error printed once with the error state, a code printed once across two charts on one page, a hint delivered to onDiagnostic and not printed) is tested per type by production.test.ts's \"F3 {type}: …\" cases, which the checker cannot credit yet: their titles come from a template, and packages/axylo/test/acceptance/EVIDENCE.json, written before it, does not list them. Compact line's AX140 warning in production is checked by a cited test. Under strict, warnings found while validating create, update and append are thrown (AX103; dx-controller.test.ts) and a hint is not; an error found by strict validation is not checked to throw, and no late warning other than AX160 is checked not to throw (the AX142 case is a hint). Field and row indexes are asserted for AX102, AX103, AX106, AX107 and AX108 only."
+      "line": "AX143 is checked on a line chart only for its message wording (unit test; a category line can hide its labels). Under strict, warnings found while validating create, update and append are thrown (AX103; dx-controller.test.ts) and a hint is not; an error found by strict validation is not checked to throw, and no late warning other than AX160 and AX141 is checked not to throw (the AX142 case is a hint). Field and row indexes are asserted on this type for AX102, AX103, AX104, AX106, AX107 and AX108; for the other data codes only in the registry's unit tests.",
+      "area": "AX141 is checked on area only as the code Chrome raises after the background changes. AX142 is checked in Chrome for its level and the fallback, not its delivery. AX143 is checked on area only for its message wording (unit test). A tick formatter that throws (AX160 without a note) has no area check. Under strict, warnings found while validating create, update and append are thrown (AX103; dx-controller.test.ts) and a hint is not; an error found by strict validation is not checked to throw, and no late warning other than AX160 is checked not to throw (the AX142 case is a hint). Field and row indexes are asserted on this type for AX102, AX103, AX106, AX107 and AX108 only.",
+      "bar": "AX141 is checked on bar only as the code Chrome raises after the background changes. AX142 is checked in Chrome for its level and the fallback, not its delivery. A tick formatter that throws (AX160 without a note) has no bar check. Under strict, warnings found while validating create, update and append are thrown (AX103; dx-controller.test.ts) and a hint is not; an error found by strict validation is not checked to throw, and no late warning other than AX160 is checked not to throw (the AX142 case is a hint). Field and row indexes are asserted on this type for AX102, AX103, AX106, AX107 and AX108 only.",
+      "scatter": "AX141 is checked on scatter only as the code Chrome raises after the background changes. AX142 is checked in Chrome for its level and the fallback, not its delivery. AX143 has no scatter check. A tick formatter that throws is checked only for raising AX160, not for its level, delivery, fallback text or the absent note. Under strict, warnings found while validating create, update and append are thrown (AX103; dx-controller.test.ts) and a hint is not; an error found by strict validation is not checked to throw, and no late warning other than AX160 is checked not to throw (the AX142 case is a hint). Field and row indexes are asserted on this type for AX102, AX103, AX106 and AX107 only.",
+      "donut": "AX141 is checked on donut only as the code Chrome raises after the background changes. AX142 is checked in Chrome for its level and the fallback, not its delivery. Under strict, warnings found while validating create, update and append are thrown (AX103; dx-controller.test.ts) and a hint is not; an error found by strict validation is not checked to throw, and no late warning other than AX160 is checked not to throw (the AX142 case is a hint). Field and row indexes are asserted on this type for AX102, AX103, AX106, AX107 and AX108 only.",
+      "compact": "AX141 is checked for compact line only, as the code Chrome raises after the background changes. AX132 (compact bar with more bars than pixels) has no compact check. Under strict, warnings found while validating create, update and append are thrown (AX103; dx-controller.test.ts) and a hint is not; an error found by strict validation is not checked to throw, and no late warning other than AX160 is checked not to throw. Field and row indexes are asserted for AX102, AX103, AX106, AX107 and AX108 only."
     },
     "limits": {
-      "line": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. Node acceptance tests run the controller with a recording host (development build unless the test names production): drawn output is asserted on the scene handed to the renderer, reader text on the figure, table, tooltip and value-text models handed to the DOM layer.",
-      "area": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. Node acceptance tests run the controller with a recording host (development build unless the test names production): drawn output is asserted on the scene handed to the renderer, reader text on the figure, table, tooltip and value-text models handed to the DOM layer.",
-      "bar": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. Node acceptance tests run the controller with a recording host (development build unless the test names production): drawn output is asserted on the scene handed to the renderer, reader text on the figure, table, tooltip and value-text models handed to the DOM layer.",
-      "scatter": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. Node acceptance tests run the controller with a recording host (development build unless the test names production): drawn output is asserted on the scene handed to the renderer, reader text on the figure, table, tooltip and value-text models handed to the DOM layer.",
-      "donut": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. Node acceptance tests run the controller with a recording host (development build unless the test names production): drawn output is asserted on the scene handed to the renderer, reader text on the figure, table, tooltip and value-text models handed to the DOM layer.",
-      "compact": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. Node acceptance tests run the controller with a recording host (development build unless the test names production): drawn output is asserted on the scene handed to the renderer, reader text on the figure, table, tooltip and value-text models handed to the DOM layer. Compact kinds: the Node tests run line, area and bar (AX110 on area and bar only); the browser tests C1, C2 and C4 run all three kinds; A1, A5 and F2 run compact line only."
+      "line": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. Node acceptance tests run the controller with a recording host (development build unless the test names production): drawn output is asserted on the scene handed to the renderer, reader text on the figure, table, tooltip and value-text models handed to the DOM layer. Production delivery is checked on a production-define bundle of the controller and the recording host (Node): AX101 printed once with the error state, AX103 printed once across two charts sharing one console, AX104 delivered and not printed.",
+      "area": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. Node acceptance tests run the controller with a recording host (development build unless the test names production): drawn output is asserted on the scene handed to the renderer, reader text on the figure, table, tooltip and value-text models handed to the DOM layer. Production delivery is checked on a production-define bundle of the controller and the recording host (Node): AX101 printed once with the error state, AX103 printed once across two charts sharing one console, AX104 delivered and not printed.",
+      "bar": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. Node acceptance tests run the controller with a recording host (development build unless the test names production): drawn output is asserted on the scene handed to the renderer, reader text on the figure, table, tooltip and value-text models handed to the DOM layer. Production delivery is checked on a production-define bundle of the controller and the recording host (Node): AX101 printed once with the error state, AX103 printed once across two charts sharing one console, AX104 delivered and not printed.",
+      "scatter": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. Node acceptance tests run the controller with a recording host (development build unless the test names production): drawn output is asserted on the scene handed to the renderer, reader text on the figure, table, tooltip and value-text models handed to the DOM layer. Production delivery is checked on a production-define bundle of the controller and the recording host (Node): AX101 printed once with the error state, AX103 printed once across two charts sharing one console, AX104 delivered and not printed.",
+      "donut": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. Node acceptance tests run the controller with a recording host (development build unless the test names production): drawn output is asserted on the scene handed to the renderer, reader text on the figure, table, tooltip and value-text models handed to the DOM layer. Production delivery is checked on a production-define bundle of the controller and the recording host (Node): AX101 printed once with the error state, AX103 printed once across two charts sharing one console, AX104 delivered and not printed.",
+      "compact": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. Node acceptance tests run the controller with a recording host (development build unless the test names production): drawn output is asserted on the scene handed to the renderer, reader text on the figure, table, tooltip and value-text models handed to the DOM layer. Compact kinds: the Node tests run line, area and bar (AX110 on area and bar only); the browser tests C1, C2 and C4 run all three kinds; A1, A5 and F2 run compact line only. Production delivery is checked on a production-define bundle of the controller and the recording host (Node): AX101 printed once with the error state, AX103 printed once across two charts sharing one console, AX104 delivered and not printed, for compact line, area and bar."
     }
   },
   {
@@ -3832,6 +4010,12 @@
           "kind": "unit",
           "file": "packages/axylo/test/acceptance/f-domains.test.ts",
           "title": "F7 area: a continuous x spans exactly its data and the x references it draws"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/f-domains.test.ts",
+          "title": "F7 area: a stacked area's automatic domain ends at the first tick at or beyond the stack totals",
+          "registration": "F7 ${type}: a stacked ${kind}'s automatic domain ends at the first tick at or beyond the stack totals${type === 'compact' ? ' (no ticks drawn: the same domain as the full chart)' : ''}"
         }
       ],
       "bar": [
@@ -3897,6 +4081,12 @@
           "kind": "unit",
           "file": "packages/axylo/test/acceptance/f-domains.test.ts",
           "title": "F7 bar: after a zoom on x, a y axis with no author domain is fitted to the values in view"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/f-domains.test.ts",
+          "title": "F7 bar: a stacked bar's automatic domain ends at the first tick at or beyond the stack totals",
+          "registration": "F7 ${type}: a stacked ${kind}'s automatic domain ends at the first tick at or beyond the stack totals${type === 'compact' ? ' (no ticks drawn: the same domain as the full chart)' : ''}"
         }
       ],
       "scatter": [
@@ -4022,6 +4212,18 @@
           "kind": "unit",
           "file": "packages/axylo/test/acceptance/f-domains.test.ts",
           "title": "F7 compact: a compact bar has the same value domain as the full chart, though it draws no ticks"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/f-domains.test.ts",
+          "title": "F7 compact: a stacked area's automatic domain ends at the first tick at or beyond the stack totals (no ticks drawn: the same domain as the full chart)",
+          "registration": "F7 ${type}: a stacked ${kind}'s automatic domain ends at the first tick at or beyond the stack totals${type === 'compact' ? ' (no ticks drawn: the same domain as the full chart)' : ''}"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/acceptance/f-domains.test.ts",
+          "title": "F7 compact: a stacked bar's automatic domain ends at the first tick at or beyond the stack totals (no ticks drawn: the same domain as the full chart)",
+          "registration": "F7 ${type}: a stacked ${kind}'s automatic domain ends at the first tick at or beyond the stack totals${type === 'compact' ? ' (no ticks drawn: the same domain as the full chart)' : ''}"
         }
       ]
     },
@@ -4051,10 +4253,10 @@
     },
     "gaps": {
       "line": "The exact x span is tested on a numeric x only, not on a time series.",
-      "area": "The exact x span is tested on a numeric x only, not on a time series. That the domain ends at the first tick at or beyond the stack totals is tested by \"F7 area: a stacked … automatic domain ends at the first tick at or beyond the stack totals\" (f-domains.test.ts), which the checker cannot credit yet: its title comes from a template, and packages/axylo/test/acceptance/EVIDENCE.json, written before it, does not list it. No test puts a y reference band beside an area's data.",
-      "bar": "The half-band x span is checked at the view stage on a numeric x only (regular and irregular steps), not on a time series. That the domain ends at the first tick at or beyond the stack totals is tested by \"F7 bar: a stacked … automatic domain ends at the first tick at or beyond the stack totals\" (f-domains.test.ts), which the checker cannot credit yet: its title comes from a template, and packages/axylo/test/acceptance/EVIDENCE.json, written before it, does not list it.",
+      "area": "The exact x span is tested on a numeric x only, not on a time series. No test puts a y reference band beside an area's data.",
+      "bar": "The half-band x span is checked at the view stage on a numeric x only (regular and irregular steps), not on a time series.",
       "scatter": "A time (instant) x is not tested. A declared percent or ratio scale is tested on y only. No test puts a y reference band beside a scatter's data.",
-      "compact": "For compact area and bar, that a reference leaves the domain unchanged is shown at the view stage only, that it leaves the description unchanged is not checked, and AX150 is checked at validation only. That a compact chart's x spans exactly its data is not tested. That the domain ends at the first tick at or beyond the stack totals is tested by \"F7 compact: a stacked … automatic domain ends at the first tick at or beyond the stack totals\" (f-domains.test.ts), which the checker cannot credit yet: its title comes from a template, and packages/axylo/test/acceptance/EVIDENCE.json, written before it, does not list it."
+      "compact": "For compact area and bar, that a reference leaves the domain unchanged is shown at the view stage only, that it leaves the description unchanged is not checked, and AX150 is checked at validation only. That a compact chart's x spans exactly its data is not tested."
     },
     "limits": {
       "line": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. Node evidence: committed domains and the drawn tick values of the layout. Chrome reads the domains the chart reports through its test hook, for a y reference line above the data. The y band is checked at the view stage, the exact x span in the committed view.",
