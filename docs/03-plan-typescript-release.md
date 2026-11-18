@@ -8,7 +8,7 @@ This plan builds the product defined in [02-product-spec.md](02-product-spec.md)
 
 ## 1. Public API
 
-The declarations are in [docs/api/axylo.d.ts](api/axylo.d.ts), and every example below is in [docs/api/examples.ts](api/examples.ts). Both were type-checked with TypeScript 7.0.2 in strict mode: the examples compile, and seven deliberate mistakes fail to compile. Nothing is implemented.
+The declarations are in [packages/axylo/src/public.ts](../packages/axylo/src/public.ts), and every example below is in [docs/api/examples.ts](api/examples.ts), type-checked against the package by `npm run typecheck`: the examples compile, and the deliberate mistakes fail to compile. (The first revision of this plan carried a separate declaration sketch, `docs/api/axylo.d.ts`; the package replaced it.)
 
 ### 1.1 Shape
 
@@ -259,7 +259,7 @@ Each milestone ends with outcomes checked by a command, an example that runs in 
 ### M0. Foundations (ceiling: 5 days)
 
 - Repository, build, test runners, CI matrix.
-- Public declarations generated from source and matching [docs/api/axylo.d.ts](api/axylo.d.ts); the examples file compiles in CI.
+- Public declarations generated from source; the examples file compiles against them in CI.
 - The acceptance matrix as data, every row "not yet", with applicability decided per chart type.
 - The benchmark harness from the performance plan, section 3: readiness markers, main-thread accounting, the reference-machine record, and adapters for uPlot and Chart.js. It measures those two before any Axylo code exists.
 

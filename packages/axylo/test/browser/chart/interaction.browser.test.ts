@@ -457,7 +457,8 @@ describe('streaming (spec I6, A7)', () => {
     await page.evaluate(async rows => { window.charts[0]!.append(rows, { keep: 120 }); }, rowsFor(123));
     await settle(page);
     expect((await text())!.startsWith(date(START + 4 * DAY))).toBe(true);
-    expect((await text())!.endsWith('Point 1 of 120.')).toBe(true);
+    // The position message ('Point {index} of {count}') ends the all-series value text.
+    expect((await text())!.endsWith('Point 1 of 120')).toBe(true);
     // The next move starts from there.
     await page.keyboard.press('ArrowRight');
     expect((await text())!.startsWith(date(START + 5 * DAY))).toBe(true);

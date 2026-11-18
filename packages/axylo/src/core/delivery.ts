@@ -42,14 +42,22 @@ export class Delivery {
 
   constructor(private readonly options: DeliveryOptions) {}
 
-  /** Prints and hands to the listener the diagnostics in `found` that are not in `before`. */
-  deliver(found: readonly Diagnostic[], before: readonly Diagnostic[], listener: DiagnosticListener | null): void {
-    const known = new Set(before.map(diagnosticKey));
+  /**
+   * Prints and hands to the listener the diagnostics in `found` that are not in `before`. The listener is
+   * author code: after each call `alive` says whether to go on (the chart may have been destroyed or have
+   * moved to a new state that delivers its own findings).
+   */
+  deliver(
+    found: readonly Diagnostic[], before: readonly Diagnostic[] | ReadonlySet<string>, listener: DiagnosticListener | null,
+    alive: () => boolean = () => true,
+  ): void {
+    const known = new Set(before instanceof Set ? before : (before as readonly Diagnostic[]).map(diagnosticKey));
     for (const d of found) {
+      if (!alive()) return;
       if (known.has(diagnosticKey(d))) continue;
       known.add(diagnosticKey(d));
       this.print(d);
-      if (listener) this.call(listener, d);
+      if (listener) this.notify(listener, d);
     }
   }
 
@@ -71,7 +79,8 @@ export class Delivery {
     this.options.console?.error(`[axylo] ${JSON.stringify(chart)}: internal error while drawing the chart.`, error);
   }
 
-  private call(listener: DiagnosticListener, d: Diagnostic): void {
+  /** Hands one diagnostic to the author's listener; a listener that throws is reported once and ignored. */
+  notify(listener: DiagnosticListener, d: Diagnostic): void {
     try {
       listener(d);
     } catch (error) {

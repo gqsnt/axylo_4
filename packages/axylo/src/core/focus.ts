@@ -111,21 +111,15 @@ export function refsAt(view: AlignedView, x: number): DatumRef[] {
   return readableSeries(view).map(s => ({ kind: 'aligned', seriesKey: view.frame.series[s]!.key, x }) as const);
 }
 
-/**
- * The position sentence of the `pointOf` message ("Point {index} of {count}."), so "all" mode can end with
- * the same words a translation gives the single-series text. When the template has no separate sentence for
- * it, the whole template is used with empty series, x and value.
- */
+/** The place of a datum among the visible ones, as the `position` message says it ("Point 4 of 10"). */
 export function positionText(messages: Messages, formatters: Formatters, ordinal: number, count: number): string {
-  const values = { index: formatters.count(ordinal + 1), count: formatters.count(count), series: '', x: '', value: '' };
-  const sentences = messages.pointOf.match(/[^.!?。！？]+[.!?。！？]*|[.!?。！？]+/gu) ?? [];
-  const own = sentences.filter(part => /\{(?:index|count)\}/.test(part));
-  const rest = sentences.filter(part => !/\{(?:index|count)\}/.test(part));
-  if (own.length && rest.length) return fill(own.join('').trim(), values);
-  return fill(messages.pointOf, values).trim();
+  return fill(messages.position, { index: formatters.count(ordinal + 1), count: formatters.count(count) });
 }
 
-/** Value text of the proxy (decision 0001): what the reader is on, ending with its place. */
+/**
+ * Value text of the proxy (decision 0001): what the reader is on, ending with its place. "All" mode reads
+ * every series at the x with `pointAll` and `seriesValue`; one series (single mode, scatter) uses `pointOf`.
+ */
 export function valueText(
   view: View, lookup: Lookup, focus: DatumRef, mode: Mode, formatters: Formatters, messages: Messages,
 ): string | null {
@@ -136,15 +130,17 @@ export function valueText(
     const datum = lookup.datum(focus);
     if (!datum) return null;
     const share = datum.percent === null || datum.percent === datum.value ? '' : ` (${datum.percent})`;
-    return `${datum.seriesLabel}: ${datum.value}${share}. ${position}`;
+    return fill(messages.pointAll, {
+      x: datum.seriesLabel, values: datum.value + share, position,
+    });
   }
   if (view.kind !== 'scatter' && mode === 'all' && focus.kind === 'aligned') {
     const rows = refsAt(view, focus.x).flatMap(ref => {
       const datum = lookup.datum(ref);
-      return datum ? [`${datum.seriesLabel} ${datum.value}`] : [];
+      return datum ? [fill(messages.seriesValue, { series: datum.seriesLabel, value: datum.value })] : [];
     });
     if (!rows.length) return null;
-    return `${formatters.x(focus.x)}: ${rows.join('; ')}. ${position}`;
+    return fill(messages.pointAll, { x: formatters.x(focus.x), values: rows.join('; '), position });
   }
   return pointOf(lookup, focus, formatters, messages);
 }

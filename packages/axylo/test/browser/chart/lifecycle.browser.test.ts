@@ -19,7 +19,8 @@ describe('resize (spec L3)', () => {
       await chart.__bench.ready();
       const widths: number[] = [];
       const lastLabelRight = () => Math.max(...[...el.querySelectorAll('.axylo-label')].map(l => l.getBoundingClientRect().right)) - el.getBoundingClientRect().left;
-      const marks = () => (el.querySelector('.axylo-canvas') as HTMLElement).getBoundingClientRect().width;
+      // Either renderer: the canvas renderer's wrapper or the SVG element.
+      const marks = () => (el.querySelector('.axylo-canvas, .axylo-svg') as HTMLElement).getBoundingClientRect().width;
       const first = chart.__dev.stages();
       widths.push(marks());
       el.style.width = '360px';
@@ -287,12 +288,17 @@ describe('commit contract (plan 1.5, spec DX5)', () => {
       const el = document.getElementById('chart')!;
       const chart = window.Axylo.line!(el, { title: 'Gone', data: window.fx.trendRows(), x: 'day', y: 'sessions', series: 'channel' });
       await chart.__bench.ready();
+      // The pointer listeners sit on the plot, not on the root: dispatch where they were.
+      const plot = el.querySelector('.axylo-plot')!;
+      const hovers: unknown[] = [];
+      chart.on('hover', p => hovers.push(p));
       chart.destroy();
       const stages = chart.__dev.stages();
       el.style.width = '300px';
       document.documentElement.classList.add('dark');
       document.body.setAttribute('data-theme', 'dark');
-      el.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 100 }));
+      plot.dispatchEvent(new PointerEvent('pointermove', { clientX: 100, clientY: 100, bubbles: true }));
+      if (hovers.length) throw new Error('hover after destroy');
       await window.nextFrames(4);
       return { stages, later: chart.__dev.stages(), children: el.childElementCount };
     });
@@ -303,6 +309,32 @@ describe('commit contract (plan 1.5, spec DX5)', () => {
 });
 
 describe('memory (spec P7, DX5)', () => {
+  it('a destroyed handle that the page keeps retains neither the data nor the figure', async () => {
+    const page = await chartPage();
+    const cdp = await page.context().newCDPSession(page);
+    await page.evaluate(async () => {
+      const el = document.getElementById('chart')!;
+      const w = window as unknown as { kept: unknown[]; refs: WeakRef<object>[] };
+      w.kept = [];
+      w.refs = [];
+      for (let i = 0; i < 5; i++) {
+        const rows = Array.from({ length: 1000 }, (_, k) => ({ x: k, y: k % 17 }));
+        const chart = window.Axylo.line!(el, { title: 'Kept', data: rows, x: 'x', y: 'y' });
+        await chart.__bench.ready();
+        chart.append([{ x: 1000, y: 1 }], { keep: 500 });
+        await chart.__bench.ready();
+        w.refs.push(new WeakRef(rows), new WeakRef(el.querySelector('figure')!));
+        chart.destroy();
+        w.kept.push(chart);
+      }
+    });
+    await cdp.send('HeapProfiler.collectGarbage');
+    await cdp.send('HeapProfiler.collectGarbage');
+    const alive = await page.evaluate(() => (window as unknown as { refs: WeakRef<object>[] }).refs.filter(r => r.deref() !== undefined).length);
+    expect(alive).toBe(0);
+    expect(await closePage(page)).toEqual([]);
+  });
+
   // Method corrected by the coordinator on 2026-11-18. The first version compared cycles 200–400 with 800–1000
   // and allowed 5%; it measured 5.3%, and heap snapshots put that growth in the engine's compiled code, which
   // keeps growing until about 1,500 cycles and then stops. A leak is growth that does not stop, so the trend is

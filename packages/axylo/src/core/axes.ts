@@ -76,15 +76,6 @@ function continuousX(
   return { type: kind === 'number' ? 'linear' as const : 'time' as const, domain, candidates, mayThin: true };
 }
 
-/** Bars on a continuous x need half a step of room at each end, or the outer bars are cut in half. */
-function barDomain(values: Float64Array, start: number, end: number, domain: Span): Span {
-  const count = end - start;
-  if (count < 1) return domain;
-  const step = count > 1 ? (values[end - 1]! - values[start]!) / (count - 1) : 1;
-  const half = step / 2;
-  return [domain[0] - half, domain[1] + half];
-}
-
 export function layoutInput(
   view: View, size: { width: number; height: number }, text: { measurer: TextMeasurer; style: TextStyle }, ctx: AxisContext,
 ): LayoutInput {
@@ -126,13 +117,11 @@ export function layoutInput(
       ? { ...common, kind: 'bands', horizontal: view.horizontal, x, y, references }
       : { ...common, kind: 'xy', x, y, references };
   }
-  const domain = view.kind === 'bar'
-    ? barDomain(column.values, view.visibleSlots.start, view.visibleSlots.end, view.xDomain)
-    : view.xDomain;
-  const x = { ...continuousX(column.kind, domain, column.timeZone, column.dateUnit, ctx), title: xTitle };
-  // A bar axis is padded by half a step; reference labels are placed against the domain actually shown.
+  // Bars on a continuous x: the view's domain already has room for the outer bars (view/bar-bands.ts), and
+  // ticks, marks and lookup all use that one domain.
+  const x = { ...continuousX(column.kind, view.xDomain, column.timeZone, column.dateUnit, ctx), title: xTitle };
   return view.kind === 'bar'
-    ? { ...common, kind: 'bands', horizontal: view.horizontal, x, y, references, referenceXDomain: view.xDomain }
+    ? { ...common, kind: 'bands', horizontal: view.horizontal, x, y, references }
     : { ...common, kind: 'xy', x, y, references };
 }
 
@@ -172,8 +161,9 @@ export function layoutKey(
     return base;
   }
   const column = view.frame.x;
+  // No slot indexes: layout reads domains, categories and labels only, never which slots are visible.
   base.push(column.kind, column.timeZone, column.dateUnit, column.ordered, view.frame.xLabel, view.frame.yLabel,
-    view.horizontal, view.visibleSlots.start, view.visibleSlots.end, column.categories);
+    view.horizontal, column.categories);
   for (const s of view.frame.series) base.push(s.valueScale);
   return base;
 }

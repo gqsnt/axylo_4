@@ -6,8 +6,8 @@ import type {
   AreaOptions, BarOptions, Chart, Diagnostic, DonutOptions, LineOptions, ScatterOptions, Target,
 } from './public';
 import { createChart } from './core/chart';
-import { validateOptions } from './data';
-import { createDiagnostic } from './diagnostics';
+import { staticDiagnostics } from './core/stages';
+import { viewerTimeZone } from './core/environment';
 
 export type * from './public';
 
@@ -31,20 +31,16 @@ export function donut<Row>(target: Target, options: DonutOptions<Row>): Chart<Ro
   return createChart('donut', target, options) as unknown as Chart<Row, DonutOptions<Row>>;
 }
 
-/** Runs option resolution and normalization only, without a DOM, and returns the diagnostics (plan 1.6). */
-export function validate<Row>(type: 'line' | 'area' | 'bar', options: LineOptions<Row> | AreaOptions<Row> | BarOptions<Row>): Diagnostic[];
+/**
+ * Runs the synchronous stages of a create call without a DOM (option resolution, normalization, the view's
+ * domain and series checks, naming) and returns the same call-origin diagnostics a created chart reports
+ * (plan 1.6). Each chart type takes its own options, so an option that does not apply does not compile.
+ */
+export function validate<Row>(type: 'line', options: LineOptions<Row>): Diagnostic[];
+export function validate<Row>(type: 'area', options: AreaOptions<Row>): Diagnostic[];
+export function validate<Row>(type: 'bar', options: BarOptions<Row>): Diagnostic[];
 export function validate<Row>(type: 'scatter', options: ScatterOptions<Row>): Diagnostic[];
 export function validate<Row>(type: 'donut', options: DonutOptions<Row>): Diagnostic[];
 export function validate(type: 'line' | 'area' | 'bar' | 'scatter' | 'donut', options: unknown): Diagnostic[] {
-  const given = options !== null && typeof options === 'object';
-  const { __renderer: _renderer, ...rest } = (given ? options : {}) as Record<string, unknown>;
-  const found = [...validateOptions(type, given ? rest : options)];
-  // The chart raises AX140 when it is created; validate says the same.
-  const title = typeof rest.title === 'string' ? rest.title : (rest.title as { text?: unknown } | undefined)?.text;
-  const named = (typeof title === 'string' && title !== '') || (typeof rest.labelledBy === 'string' && rest.labelledBy !== '');
-  if (!named) {
-    const { effect: _e, origin: _o, ...d } = createDiagnostic('AX140', 'none');
-    found.push({ ...d, chart: type });
-  }
-  return found;
+  return staticDiagnostics(type, options, viewerTimeZone());
 }

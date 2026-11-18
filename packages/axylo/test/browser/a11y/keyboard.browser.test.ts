@@ -125,7 +125,7 @@ describe('keyboard walk on the trend fixture (decision 0001)', () => {
     await page.focus('#before');
     await page.keyboard.press('Tab');
     let node = await axNode(page, '#chart .axylo-proxy');
-    expect(node).toMatchObject({ role: 'slider', name: 'Chart plot', roledescription: 'Line', focused: true, value: '0', max: 119 });
+    expect(node).toMatchObject({ role: 'slider', name: 'Chart plot', roledescription: 'Line chart', focused: true, value: '0', max: 119 });
     expect(node.text).toContain(date(0));
     for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
 
@@ -134,7 +134,7 @@ describe('keyboard walk on the trend fixture (decision 0001)', () => {
     expect(node.role).toBe('slider');
     expect(node.text.startsWith(date(3))).toBe(true);
     for (const s of series) expect(node.text).toContain(`${s.name} ${number(s.values[3]!)}`);
-    expect(node.text.endsWith('Point 4 of 120.')).toBe(true);
+    expect(node.text.endsWith('Point 4 of 120')).toBe(true);
     expect(node).toMatchObject({ value: '3', max: 119, focused: true });
     const tree = await aria(page);
     expect(tree).toContain('slider "Chart plot"');
@@ -176,7 +176,7 @@ describe('keyboard walk on the trend fixture (decision 0001)', () => {
     expect((await axNode(page, '#chart .axylo-proxy')).text.startsWith('Organic search, ')).toBe(true);
     await page.keyboard.press('Escape');
     node = await axNode(page, '#chart .axylo-proxy');
-    expect(node.text.startsWith(date(119) + ', 12:00 AM UTC: Direct ')).toBe(true);
+    expect(node.text.startsWith(date(119) + ', 12:00 AM UTC. Direct ')).toBe(true);
     const escape = await page.evaluate(() => new Promise<boolean>(resolve => {
       document.addEventListener('keydown', e => resolve(e.defaultPrevented), { once: true });
       document.querySelector<HTMLElement>('#chart .axylo-proxy')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
@@ -228,7 +228,7 @@ describe('missing data and hidden series', () => {
     let text = (await axNode(page, '#chart .axylo-proxy')).text;
     expect(text.startsWith(date(60))).toBe(true);
     expect(text).toContain('Referral No data');
-    expect(text.endsWith('Point 61 of 120.')).toBe(true);
+    expect(text.endsWith('Point 61 of 120')).toBe(true);
 
     // In single-series mode Referral skips its own outage (lookup.step): from day 59 Right lands on day 67.
     await page.keyboard.press('ArrowLeft');

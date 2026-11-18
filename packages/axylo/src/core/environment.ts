@@ -59,12 +59,32 @@ export function readTextStyle(element: Element): TextStyle {
 }
 
 const contexts = new WeakMap<Document, CanvasRenderingContext2D | null>();
-const caches = new WeakMap<Document, Map<string, Map<string, number>>>();
-const CACHE_LIMIT = 4096;
+/** Measured widths per document, for every style together, so the bound holds for the whole page. */
+const caches = new WeakMap<Document, Map<string, number>>();
+const fontEpochs = new WeakMap<Document, number>();
+export const MEASUREMENT_CACHE_LIMIT = 8192;
 
 /**
- * Canvas `measureText` with the computed font, plus the page's letter and word spacing (added the way CSS
- * adds them: after every character, and after every space). Cached per style and string.
+ * Web fonts finished loading in `doc`: widths measured with a fallback font are wrong now. Every chart of
+ * the document calls this on the same event; the first clears the cache and the epoch moves on.
+ */
+export function noteFontLoad(doc: Document): void {
+  fontEpochs.set(doc, (fontEpochs.get(doc) ?? 0) + 1);
+  caches.get(doc)?.clear();
+}
+
+/** How many widths the document's cache holds (for tests of its bound). */
+export function measurementCacheSize(doc: Document): number {
+  return caches.get(doc)?.size ?? 0;
+}
+
+type SpacingContext = CanvasRenderingContext2D & { letterSpacing?: string; wordSpacing?: string };
+
+/**
+ * Canvas `measureText` with the computed font and the page's letter and word spacing (spec A6). Where the
+ * context supports `letterSpacing` and `wordSpacing` they are set on it, so the browser adds them as it
+ * does for the text layer; otherwise they are added the way CSS adds them (after every character, and
+ * after every space). Cached per document, font epoch, style and string.
  */
 export function createMeasurer(doc: Document): TextMeasurer {
   return {
@@ -74,28 +94,37 @@ export function createMeasurer(doc: Document): TextMeasurer {
         ctx = doc.createElement('canvas').getContext('2d');
         contexts.set(doc, ctx);
       }
-      let byStyle = caches.get(doc);
-      if (!byStyle) caches.set(doc, byStyle = new Map());
-      const key = `${style.font}|${style.letterSpacing}|${style.wordSpacing}`;
-      let cache = byStyle.get(key);
-      if (!cache) byStyle.set(key, cache = new Map());
-      const hit = cache.get(text);
+      let cache = caches.get(doc);
+      if (!cache) caches.set(doc, cache = new Map());
+      const key = `${fontEpochs.get(doc) ?? 0}|${style.font}|${style.letterSpacing}|${style.wordSpacing}|${text}`;
+      const hit = cache.get(key);
       if (hit !== undefined) return hit;
       let width: number;
+      let spaced = false;
       if (ctx) {
-        if (ctx.font !== style.font) ctx.font = style.font;
-        width = ctx.measureText(text).width;
+        const c = ctx as SpacingContext;
+        if (c.font !== style.font) c.font = style.font;
+        if (typeof c.letterSpacing === 'string' && typeof c.wordSpacing === 'string') {
+          const letter = `${style.letterSpacing}px`;
+          const word = `${style.wordSpacing}px`;
+          if (c.letterSpacing !== letter) c.letterSpacing = letter;
+          if (c.wordSpacing !== word) c.wordSpacing = word;
+          spaced = true;
+        }
+        width = c.measureText(text).width;
       } else {
         width = text.length * parseFloat(/(\d+(?:\.\d+)?)px/.exec(style.font)?.[1] ?? '12') * 0.6;
       }
-      if (style.letterSpacing !== 0) width += style.letterSpacing * [...text].length;
-      if (style.wordSpacing !== 0) {
-        let spaces = 0;
-        for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) === 32) spaces++;
-        width += style.wordSpacing * spaces;
+      if (!spaced) {
+        if (style.letterSpacing !== 0) width += style.letterSpacing * [...text].length;
+        if (style.wordSpacing !== 0) {
+          let spaces = 0;
+          for (let i = 0; i < text.length; i++) if (text.charCodeAt(i) === 32) spaces++;
+          width += style.wordSpacing * spaces;
+        }
       }
-      if (cache.size >= CACHE_LIMIT) cache.clear();
-      cache.set(text, width);
+      if (cache.size >= MEASUREMENT_CACHE_LIMIT) cache.clear();
+      cache.set(key, width);
       return width;
     },
   };

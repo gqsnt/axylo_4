@@ -3,8 +3,9 @@
  * it the figure holds the caption (title, subtitle, summary), the plot container (marks, text layer, state
  * message), the reader's note, a polite live region and the tooltip. Only text is ever set, never HTML.
  *
- * The interaction layer (dom/interaction.ts) adds the keyboard proxy inside the plot and fills `controls`
- * (legend, toolbar, table) and `readout`; the figure only provides those slots.
+ * The interaction layer (dom/interaction.ts) adds the keyboard proxy inside the plot and fills the control
+ * slots (`top` above the plot, `side` beside it, `controls` under it: legend, toolbar, table) and `readout`;
+ * the figure only provides those slots. The plot and `side` share the `body` row.
  */
 
 export interface TitleModel {
@@ -44,8 +45,15 @@ export interface Figure {
   readonly readout: HTMLElement;
   /** Legend, toolbar and table, in that order, between the plot and the note. */
   readonly controls: HTMLElement;
+  /** Between the caption and the plot (`legend: 'top'`). */
+  readonly top: HTMLElement;
+  /** Beside the plot, in the same row (`legend: 'right'`). */
+  readonly side: HTMLElement;
+  /** The row holding the plot and `side`; it takes the height the caption and controls leave. */
+  readonly body: HTMLElement;
   readonly id: string;
-  update(model: FigureModel): void;
+  /** Returns true when something that can change the figure's layout was written. */
+  update(model: FigureModel): boolean;
   /** Puts text in the polite live region (state changes only, spec L7, A7). */
   announce(text: string): void;
   /** Removes everything the figure added to the root, and the root's added class. */
@@ -122,8 +130,14 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
   readout.setAttribute('aria-hidden', 'true');
   const controls = make('div', 'axylo-controls');
   controls.hidden = true;
+  const top = make('div', 'axylo-controls-top');
+  top.hidden = true;
+  const side = make('div', 'axylo-controls-side');
+  side.hidden = true;
+  const body = make('div', 'axylo-body');
+  body.append(plot, side);
   caption.append(title, subtitle, summary);
-  figure.append(caption, plot, controls, note, live, tooltip, readout);
+  figure.append(caption, top, body, controls, note, live, tooltip, readout);
   root.appendChild(figure);
 
   let last: FigureModel | null = null;
@@ -134,9 +148,13 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
     tooltip,
     readout,
     controls,
+    top,
+    side,
+    body,
     id,
-    update(model: FigureModel): void {
-      if (last !== null && same(last, model)) return;
+    update(model: FigureModel): boolean {
+      if (last !== null && same(last, model)) return false;
+      const moved = last === null || movesLayout(last, model);
       last = model;
       const { compact } = model;
       figure.classList.toggle('axylo-compact', compact);
@@ -178,6 +196,7 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
 
       setText(message, model.message ?? '');
       show(message, model.message !== null);
+      return moved;
     },
     announce(text: string): void {
       setText(live, text);
@@ -188,6 +207,14 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
       if (!hadClassAttribute && root.classList.length === 0) root.removeAttribute('class');
     },
   };
+}
+
+/** Whether going from `a` to `b` can change the size of anything around the plot (the caption or the note). */
+function movesLayout(a: FigureModel, b: FigureModel): boolean {
+  const heading = (m: FigureModel) => m.compact || m.title === null ? '' : `${m.title.visible}\u0000${m.title.level}\u0000${m.title.text}`;
+  return a.compact !== b.compact || heading(a) !== heading(b) || (a.compact ? '' : a.subtitle) !== (b.compact ? '' : b.subtitle) ||
+    a.summaryVisible !== b.summaryVisible || (b.summaryVisible && a.summary !== b.summary) ||
+    (a.compact ? null : a.note) !== (b.compact ? null : b.note);
 }
 
 function same(a: FigureModel, b: FigureModel): boolean {

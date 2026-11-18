@@ -1,5 +1,5 @@
-// Every example in docs/03-plan-typescript-release.md, type-checked against axylo.d.ts.
-import { line, bar, area, donut, scatter, validate, type Chart, type LineOptions } from './axylo';
+// Every example in docs/03-plan-typescript-release.md, type-checked against the package's real entry point.
+import { line, bar, area, donut, scatter, validate, type Chart, type LineOptions } from '../../packages/axylo/src/index';
 
 // --- the first chart: long rows
 interface Session { day: string; channel: string; sessions: number | null }
@@ -48,6 +48,20 @@ line('#kpi', { data: samples, x: { field: 'ts', type: 'time' }, y: 'sessions', c
 const problems = validate('line', { data: rows, x: 'day', y: 'sessions', series: 'channel' });
 problems.map(d => `${d.code} ${d.chart}: ${d.message}`);
 
+// --- validate takes each chart type's own options
+validate('area', { data: rows, x: 'day', y: 'sessions', series: 'channel', stacked: true });
+validate('bar', { data: wide, x: 'day', y: ['direct', 'organic'], layout: 'stacked', horizontal: true });
+validate('scatter', { data: pts, x: 'size', y: 'latency' });
+validate('donut', { data: shares, label: 'browser', value: 'share' });
+
+// --- more options of plan 1.4
+line('#i', { data: rows, x: 'day', y: 'sessions', series: 'channel', zoom: 'touch' });
+bar('#j', { data: pg, x: { field: 'day', ordered: true }, y: { field: 'count', parse: 'number' } });
+line('#k', { data: rows, x: 'day', y: 'sessions', series: 'channel', labelledBy: 'sessions-heading' });
+line('#l', { data: rows, x: 'day', y: 'sessions', series: 'channel', colors: { Direct: 'var(--brand-1)', Referral: '#7a3' } });
+bar('#m', { data: pg, x: 'day', y: { field: 'count', parse: 'number' }, compact: true, title: 'Daily count' });
+line('#n', { data: rows, x: 'day', y: 'sessions', series: 'channel', legend: 'right' });
+
 // --- a handle type an application can store
 declare const stored: Chart<Session, LineOptions<Session>>;
 stored.diagnostics.length;
@@ -69,3 +83,19 @@ chart.append([{ day: '2026-05-01', channel: 'Direct', sessions: '41210' }]);
 scatter('#x', { data: pts, x: 'size', y: 'latency', compact: true });
 // @ts-expect-error a category field cannot be the donut value
 donut('#x', { data: shares, label: 'browser', value: 'browser' });
+// @ts-expect-error validate('line', …) does not take an area-only option
+validate('line', { data: rows, x: 'day', y: 'sessions', stacked: true });
+// @ts-expect-error validate('line', …) does not take a bar-only option
+validate('line', { data: rows, x: 'day', y: 'sessions', layout: 'stacked' });
+// @ts-expect-error validate('scatter', …) does not take compact
+validate('scatter', { data: pts, x: 'size', y: 'latency', compact: true });
+// @ts-expect-error zoom is a boolean or 'touch'
+line('#x', { data: rows, x: 'day', y: 'sessions', zoom: 'pinch' });
+// @ts-expect-error ordered applies to the x field of an aligned chart, not to scatter
+scatter('#x', { data: pts, x: { field: 'size', ordered: true }, y: 'latency' });
+// @ts-expect-error labelledBy is an element id, not an element
+line('#x', { data: rows, x: 'day', y: 'sessions', labelledBy: document.body });
+// @ts-expect-error colors map series names to CSS colors, not palette indexes
+line('#x', { data: rows, x: 'day', y: 'sessions', series: 'channel', colors: { Direct: 1 } });
+// @ts-expect-error compact is a boolean
+line('#x', { data: rows, x: 'day', y: 'sessions', compact: 'yes' });

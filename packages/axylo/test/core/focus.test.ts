@@ -38,8 +38,9 @@ describe('all-series navigation (decision 0001)', () => {
     for (let x: number | null = stepAcross(view, null, 'first'); x !== null; x = stepAcross(view, x, 'next')) visited.push(x);
     expect(visited).toEqual([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
     const text = valueText(view, lookup, lookup.primary({ kind: 'x', x: 4 })!, 'all', formatters, defaultMessages);
-    expect(text).toBe('4: A 14 ms; B No data; C 34 ms. Point 5 of 10.');
-    expect(valueText(view, lookup, ref('A', 7), 'all', formatters, defaultMessages)).toBe('7: A 17 ms; B 27 ms; C No data. Point 8 of 10.');
+    // pointAll '{x}. {values}. {position}', seriesValue '{series} {value}', position 'Point {index} of {count}'.
+    expect(text).toBe('4. A 14 ms; B No data; C 34 ms. Point 5 of 10');
+    expect(valueText(view, lookup, ref('A', 7), 'all', formatters, defaultMessages)).toBe('7. A 17 ms; B 27 ms; C No data. Point 8 of 10');
   });
 
   it('skips an x that only a hidden series observes', () => {
@@ -79,12 +80,12 @@ describe('all-series navigation (decision 0001)', () => {
 });
 
 describe('value text (spec A3)', () => {
-  it('single-series mode uses the pointOf message; the position sentence follows a translation', () => {
+  it('single-series mode uses the pointOf message; all mode reads pointAll, seriesValue and position, which a translation replaces', () => {
     const { view, lookup, formatters } = model();
     expect(valueText(view, lookup, ref('B', 3), 'single', formatters, defaultMessages)).toBe('B, 3, 23 ms. Point 4 of 10.');
-    const de = resolveMessages({ pointOf: '{series}, {x}: {value}. Punkt {index} von {count}.' });
-    expect(positionText(de, formatters, 3, 10)).toBe('Punkt 4 von 10.');
-    expect(valueText(view, lookup, ref('A', 3), 'all', formatters, de)).toBe('3: A 13 ms; B 23 ms; C 33 ms. Punkt 4 von 10.');
+    const de = resolveMessages({ pointAll: '{x}: {values} ({position})', seriesValue: '{series} = {value}', position: 'Punkt {index} von {count}' });
+    expect(positionText(de, formatters, 3, 10)).toBe('Punkt 4 von 10');
+    expect(valueText(view, lookup, ref('A', 3), 'all', formatters, de)).toBe('3: A = 13 ms; B = 23 ms; C = 33 ms (Punkt 4 von 10)');
   });
 
   it('a datum outside the view has no text', () => {

@@ -13,9 +13,9 @@ describe('the package in Node (spec DX8)', () => {
 
   it('validate reports the combined dirty fixture as AX102, AX103 and AX106, once each', () => {
     const data = days.map((day, i) => (dirty[i] === undefined ? { day } : { day, value: dirty[i] }));
-    for (const type of ['line', 'area', 'bar'] as const) {
-      const codes = Axylo.validate(type, { title: 'Dirty input', data: data as never, x: 'day', y: 'value' as never }).map(d => d.code).sort();
-      expect(codes, type).toEqual(['AX102', 'AX103', 'AX106']);
+    const options = { title: 'Dirty input', data: data as never, x: 'day', y: 'value' as never };
+    for (const [type, diagnostics] of [['line', Axylo.validate('line', options as never)], ['area', Axylo.validate('area', options as never)], ['bar', Axylo.validate('bar', options as never)]] as const) {
+      expect(diagnostics.map(d => d.code).sort(), type).toEqual(['AX102', 'AX103', 'AX106']);
     }
   });
 

@@ -1,6 +1,7 @@
 /**
- * The legend and tooltip swatch: a small SVG that repeats how a series is drawn (spec A5): its color, its
- * marker shape, and for lines its dash. The color is the series' custom property on the chart root
+ * The legend and tooltip swatch: a small SVG that repeats how a series is drawn (spec A5): a filled square
+ * for bars and areas (with the bar's pattern past the eighth series, spec F9), the line with its dash and
+ * marker for lines, the marker for scatter. The color is the series' custom property on the chart root
  * (`--axylo-series-color-N`), so a theme change or forced colors restyle it with no call.
  *
  * A hidden series is drawn as an outline of the same shape (spec I2: marked by shape, not by dimming).
@@ -18,6 +19,33 @@ export interface SwatchSpec {
   readonly line: boolean;
   /** Outline only: the series is hidden. */
   readonly hollow: boolean;
+  /** A filled square whatever the marker (bars and areas fill a region, they have no marker). */
+  readonly fill?: boolean;
+  /** The bar pattern drawn over the fill in the background color, or null. */
+  readonly pattern?: 'diagonal' | 'cross' | 'dots' | null;
+}
+
+const BACKGROUND = 'var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)))';
+
+/** The pattern inside the 10 × 10 chip at (5, 1), as path data: lines x + y = c (and x − y = c), or dots. */
+function patternPath(kind: 'diagonal' | 'cross' | 'dots'): string {
+  const x0 = 5, y0 = 1, size = 10;
+  if (kind === 'dots') {
+    let d = '';
+    for (const [cx, cy] of [[7.5, 3.5], [12.5, 3.5], [10, 6], [7.5, 8.5], [12.5, 8.5]] as const) {
+      d += `M${cx + 1} ${cy}a1 1 0 1 0 -2 0a1 1 0 1 0 2 0Z`;
+    }
+    return d;
+  }
+  let d = '';
+  // Diagonals every 4 px, clipped to the chip by hand (no <clipPath>, so no ids to keep unique).
+  for (let c = 4; c < 2 * size; c += 4) {
+    const a = Math.max(0, c - size);
+    const b = Math.min(size, c);
+    d += `M${x0 + a} ${y0 + size - (c - a)}L${x0 + b} ${y0 + size - (c - b)}`;
+    if (kind === 'cross') d += `M${x0 + a} ${y0 + (c - a)}L${x0 + b} ${y0 + (c - b)}`;
+  }
+  return d;
 }
 
 function colorOf(index: number | null): string {
@@ -61,16 +89,29 @@ export function createSwatch(doc: Document, spec: SwatchSpec): SVGSVGElement {
     svg.appendChild(line);
   }
   const shape = doc.createElementNS(NS, 'path');
-  // Without a cue (a donut slice, a single bar series) the swatch is a square chip.
-  shape.setAttribute('d', markerPath(spec.cue?.marker ?? 'square', 10, 6, spec.cue ? 10 : 11));
+  // Bars, areas and donut slices are filled regions: a square chip. Otherwise the series' marker.
+  const chip = spec.fill === true || !spec.cue;
+  shape.setAttribute('d', chip ? 'M5 1H15V11H5Z' : markerPath(spec.cue!.marker, 10, 6, 10));
   if (spec.hollow) {
     // Under the line a hollow marker needs the background inside it, or the line shows through.
-    shape.setAttribute('fill', 'var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)))');
+    shape.setAttribute('fill', BACKGROUND);
     shape.setAttribute('stroke', 'currentColor');
     shape.setAttribute('stroke-width', '1.5');
   } else {
     shape.setAttribute('fill', 'currentColor');
   }
   svg.appendChild(shape);
+  if (chip && spec.pattern && !spec.hollow) {
+    const pattern = doc.createElementNS(NS, 'path');
+    pattern.setAttribute('class', 'axylo-swatch-pattern');
+    pattern.setAttribute('d', patternPath(spec.pattern));
+    if (spec.pattern === 'dots') pattern.setAttribute('fill', BACKGROUND);
+    else {
+      pattern.setAttribute('fill', 'none');
+      pattern.setAttribute('stroke', BACKGROUND);
+      pattern.setAttribute('stroke-width', '1.5');
+    }
+    svg.appendChild(pattern);
+  }
   return svg;
 }

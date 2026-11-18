@@ -13,6 +13,8 @@ export interface TooltipContent {
   readonly model: TooltipModel;
   readonly swatch: (row: DatumText) => SwatchSpec | null;
   readonly moreRows: (count: number) => string;
+  /** Label of the stack total row (the `total` message). */
+  readonly totalLabel?: string;
 }
 
 export interface TooltipView {
@@ -31,7 +33,7 @@ export interface TooltipView {
 const OFFSET = 12;
 const MARGIN = 4;
 
-function fill(element: HTMLElement, { model, swatch, moreRows }: TooltipContent): void {
+function fill(element: HTMLElement, { model, swatch, moreRows, totalLabel }: TooltipContent): void {
   const doc = element.ownerDocument;
   const heading = doc.createElement('div');
   heading.className = 'axylo-tooltip-title';
@@ -59,8 +61,14 @@ function fill(element: HTMLElement, { model, swatch, moreRows }: TooltipContent)
   }
   if (model.total !== null) {
     const total = doc.createElement('div');
-    total.className = 'axylo-tooltip-total';
-    total.textContent = model.total;
+    total.className = 'axylo-tooltip-row axylo-tooltip-total';
+    const name = doc.createElement('span');
+    name.className = 'axylo-tooltip-series';
+    name.textContent = totalLabel ?? '';
+    const value = doc.createElement('span');
+    value.className = 'axylo-tooltip-value';
+    value.textContent = model.total;
+    total.append(name, value);
     rows.push(total);
   }
   element.replaceChildren(...rows);
@@ -125,7 +133,8 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     readout(content) {
       hideFloating();
       fill(readoutElement, content);
-      readoutElement.style.top = `${plot.offsetTop + plot.offsetHeight}px`;
+      // Under the plot, in the figure's coordinates (the plot may sit in a row with a legend beside it).
+      readoutElement.style.top = `${plot.getBoundingClientRect().bottom - figure.getBoundingClientRect().top}px`;
       readoutElement.hidden = false;
       visible = true;
     },

@@ -49,7 +49,8 @@ export interface ControlsState {
   /** A full chart; false for the compact variant, which is a static image (spec C1). */
   readonly interactive: boolean;
   readonly tooltip: boolean;
-  readonly legend: boolean;
+  /** Where the legend part of the toolbar goes (plan 1.4, `legend`), or false for none. */
+  readonly legend: false | 'top' | 'right' | 'bottom';
   /** Zoom applies to this chart (spec 3.6) and is not switched off; 'touch' also captures pinch. */
   readonly zoom: false | true | 'touch';
   readonly zoomed: boolean;
@@ -90,7 +91,28 @@ export interface Interaction {
   commit(state: Committed | null): void;
   /** Internal failure or destroy: everything goes, nothing is left focusable. */
   clear(): void;
+  /**
+   * The chart is in the document: listeners on the document itself (Escape, a tap outside a pinned
+   * tooltip) may be held. `detach` lets go of them while the chart is out of the document.
+   */
+  attach(): void;
+  detach(): void;
   destroy(): void;
+}
+
+/** Bar series past the eighth carry a pattern (spec F9); the same rule as the scene's bars. */
+const PATTERNS = ['diagonal', 'cross', 'dots'] as const;
+export function seriesPattern(index: number): SwatchSpec['pattern'] {
+  const group = Math.floor(index / 8);
+  return group ? PATTERNS[(group - 1) % PATTERNS.length]! : null;
+}
+
+/** How a series is drawn, repeated in its legend and tooltip swatch (spec A5). */
+export function seriesSwatch(kind: ControlsState['kind'], index: number, cue: SwatchSpec['cue'], hollow: boolean): SwatchSpec {
+  if (kind === 'bar' || kind === 'area') {
+    return { color: index, cue, line: false, hollow, fill: true, pattern: kind === 'bar' ? seriesPattern(index) : null };
+  }
+  return { color: index, cue, line: kind === 'line', hollow };
 }
 
 const NAVIGATION: Readonly<Record<string, StepDirection>> = {
@@ -150,6 +172,8 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   let pinchFrame = 0;
   let pinchWindow: Span | null | undefined;
   let destroyed = false;
+  /** The chart is in the document, so the document's own listeners may be held. */
+  let attached = true;
 
   // ── elements (built for full charts only) ──────────────────────────────────────────────────────
 
@@ -187,7 +211,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     plot.addEventListener('pointercancel', onPointerCancel);
     plot.addEventListener('wheel', onWheel, { passive: false });
     figure.tooltip.addEventListener('pointerleave', onTooltipLeave);
-    doc.addEventListener('keydown', onDocumentKey);
+    if (attached) doc.addEventListener('keydown', onDocumentKey);
   }
 
   function unbuild(): void {
@@ -209,8 +233,10 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     figure.tooltip.removeEventListener('pointerleave', onTooltipLeave);
     doc.removeEventListener('keydown', onDocumentKey);
     doc.removeEventListener('pointerdown', onDocumentDown, true);
-    figure.controls.hidden = true;
-    figure.controls.replaceChildren();
+    for (const host of [figure.controls, figure.top, figure.side]) {
+      host.hidden = true;
+      host.replaceChildren();
+    }
     plot.classList.remove('axylo-touch-zoom', 'axylo-zoomable');
   }
 
@@ -259,7 +285,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     const view = d.view;
     return row => {
       if (view.kind === 'donut') return { color: view.slices[row.seriesIndex]?.colorIndex ?? null, cue: null, line: false, hollow: false };
-      return { color: row.seriesIndex, cue: view.cues[row.seriesIndex] ?? null, line: view.kind === 'line', hollow: false };
+      return seriesSwatch(view.kind, row.seriesIndex, view.cues[row.seriesIndex] ?? null, false);
     };
   }
 
@@ -292,7 +318,10 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       if (model.rows.length === 0) {
         tooltip.hide();
       } else {
-        const content: TooltipContent = { model, swatch: swatchFor(d), moreRows: count => fill(d.messages.moreRows, { count: d.formatters.count(count) }) };
+        const content: TooltipContent = {
+          model, swatch: swatchFor(d), moreRows: count => fill(d.messages.moreRows, { count: d.formatters.count(count) }),
+          totalLabel: d.messages.total,
+        };
         const box = plot.getBoundingClientRect();
         const local = targetBox(d.view, d.lookup, target, only) ??
           (pointer ? { x: pointer.x, y: pointer.y, width: 0, height: 0 } : null);
@@ -699,7 +728,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     pinned = true;
     dismissed = null;
     source = 'pointer';
-    doc.addEventListener('pointerdown', onDocumentDown, true);
+    if (attached) doc.addEventListener('pointerdown', onDocumentDown, true);
     dirty = true;
     present();
   }
@@ -784,9 +813,9 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       return text;
     });
     // The plot keeps its size while the table is open, so the table never squeezes it.
-    const height = plot.getBoundingClientRect().height;
-    plot.style.flex = 'none';
-    plot.style.height = `${height}px`;
+    const height = figure.body.getBoundingClientRect().height;
+    figure.body.style.flex = 'none';
+    figure.body.style.height = `${height}px`;
     figure.figure.classList.add('axylo-table-open');
     tableModel = null;
     renderTable(d);
@@ -797,8 +826,8 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     tableView.destroy();
     tableView = null;
     tableModel = null;
-    plot.style.flex = '';
-    plot.style.height = '';
+    figure.body.style.flex = '';
+    figure.body.style.height = '';
     figure.figure.classList.remove('axylo-table-open');
   }
 
@@ -828,7 +857,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       const shown = view.visible[i] === true;
       return {
         key: `series:${s.key}`, label: s.label, pressed: shown, lang: hiddenLang, className: 'axylo-control axylo-legend-entry',
-        struck: !shown, swatch: { color: i, cue: view.cues[i] ?? null, line: view.kind === 'line', hollow: !shown },
+        struck: !shown, swatch: seriesSwatch(view.kind, i, view.cues[i] ?? null, !shown),
         activate: () => actions.toggle(s.key),
       };
     });
@@ -845,6 +874,9 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     if (d.ready && d.zoom && !d.tooSmall) {
       items.push(button('zoomIn', () => zoomBy(1 / ZOOM_FACTOR)), button('zoomOut', () => zoomBy(ZOOM_FACTOR)));
       if (d.zoomed) items.push(button('resetZoom', () => requestZoom(null)));
+    } else if (d.zoom && d.zoomed && !d.tooSmall) {
+      // A window with nothing in it shows the empty state; the way back to everything stays.
+      items.push(button('resetZoom', () => requestZoom(null)));
     }
     if (d.streaming && d.ready) {
       const key = d.paused ? 'resume' : 'pause';
@@ -896,33 +928,43 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     }
   }
 
+  /** Puts exactly `wanted`, in order, into `host`, moving rather than rebuilding (focus stays). */
+  function place(host: HTMLElement, wanted: readonly Element[]): void {
+    let at: ChildNode | null = host.firstChild;
+    for (const el of wanted) {
+      if (at !== el) host.insertBefore(el, at);
+      at = el.nextSibling;
+    }
+    while (at) {
+      const next: ChildNode | null = at.nextSibling;
+      at.remove();
+      at = next;
+    }
+    host.hidden = wanted.length === 0;
+  }
+
   function renderControls(d: ControlsState): void {
     if (!toolbar) return;
     cs = d;
     renderDonutLegend(d);
     const items = controlItems(d);
     toolbar.render(items, d.messages.controlsLabel, d.english('controlsLabel'));
-    const host = figure.controls;
-    const wanted: Element[] = [];
-    if (legendList) wanted.push(legendList);
-    if (items.length) wanted.push(toolbar.element);
+    // The legend, and the toolbar it is part of (one tab stop, spec A2), go where `legend` says; the table
+    // always opens under the plot.
+    const legend: Element[] = [];
+    if (legendList) legend.push(legendList);
+    if (items.length) legend.push(toolbar.element);
+    const where = d.legend === 'top' ? figure.top : d.legend === 'right' ? figure.side : figure.controls;
+    const bottom: Element[] = where === figure.controls ? [...legend] : [];
     if (tableView && d.reader.table && d.ready) {
       renderTable(d);
-      wanted.push(tableView.element);
+      bottom.push(tableView.element);
     } else if (tableView) {
       closeTable();
     }
-    let place: ChildNode | null = host.firstChild;
-    for (const el of wanted) {
-      if (place !== el) host.insertBefore(el, place);
-      place = el.nextSibling;
-    }
-    while (place) {
-      const next: ChildNode | null = place.nextSibling;
-      place.remove();
-      place = next;
-    }
-    host.hidden = wanted.length === 0;
+    if (where !== figure.controls) place(where, legend);
+    for (const other of [figure.top, figure.side]) if (other !== where) place(other, []);
+    place(figure.controls, bottom);
   }
 
   // ── commit ─────────────────────────────────────────────────────────────────────────────────────
@@ -941,7 +983,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     }
     setAttr(proxy, 'aria-label', d.messages.plotLabel);
     const type = { line: 'typeLine', area: 'typeArea', bar: 'typeBar', scatter: 'typeScatter', donut: 'typeDonut' } as const;
-    setAttr(proxy, 'aria-roledescription', d.messages[type[d.kind]]);
+    setAttr(proxy, 'aria-roledescription', fill(d.messages.plotRole, { type: d.messages[type[d.kind]] }));
     plot.classList.toggle('axylo-touch-zoom', d.zoom === 'touch');
     plot.classList.toggle('axylo-zoomable', d.zoom !== false);
   }
@@ -999,10 +1041,9 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     return layoutSignature() !== before;
   }
 
-  /** What under the plot can change its height: which controls exist and their labels. */
+  /** What around the plot can change its size: which controls exist, where, and their labels. */
   function layoutSignature(): string {
-    const host = figure.controls;
-    return host.hidden ? '' : host.textContent ?? '';
+    return [figure.top, figure.side, figure.controls].map(host => host.hidden ? '' : host.textContent ?? '').join('\u0000');
   }
 
   function clear(): void {
@@ -1024,6 +1065,18 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       c = null;
       cs = null;
       clear();
+    },
+    attach() {
+      if (attached || destroyed) return;
+      attached = true;
+      if (proxy) doc.addEventListener('keydown', onDocumentKey);
+    },
+    detach() {
+      if (!attached) return;
+      attached = false;
+      doc.removeEventListener('keydown', onDocumentKey);
+      unpin();
+      doc.removeEventListener('pointerdown', onDocumentDown, true);
     },
     destroy() {
       if (destroyed) return;

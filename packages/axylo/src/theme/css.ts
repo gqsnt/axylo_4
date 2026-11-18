@@ -125,6 +125,8 @@ ${forced}
    * clamped to 160–480 px (spec L3): that is its height when the container has none of its own, and only
    * its starting size when it does (flex then grows or shrinks it to fit).
    */
+  /* The plot and a legend beside it share one row, which takes what the caption and the controls leave. */
+  .axylo-body { flex: 1 1 auto; display: flex; flex-direction: row; min-height: 0; min-width: 0; }
   .axylo-plot { position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; overflow: hidden; }
   .axylo-plot::before { content: ""; display: block; width: 100%; aspect-ratio: 16 / 9; min-height: 160px; max-height: 480px; }
   .axylo-compact .axylo-plot::before { aspect-ratio: auto; min-height: 0; max-height: none; height: 32px; }
@@ -157,6 +159,11 @@ ${forced}
     text-align: end; font-weight: 600; font-variant-numeric: tabular-nums;
   }
   .axylo .axylo-swatch { flex: none; display: inline-block; overflow: visible; }
+  /* A reference label sits on a plate of the backdrop color, so it stays readable over marks (spec L6). */
+  .axylo .axylo-label[data-role="reference"] {
+    background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)));
+    box-shadow: 0 0 0 2px var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)));
+  }
 
   /*
    * Interaction. The plot keeps a one-finger drag for the page (spec I4); with zoom: 'touch' pinch and
@@ -184,6 +191,13 @@ ${forced}
 
   /* Legend, toolbar and table, under the plot. */
   .axylo .axylo-controls { flex: none; display: flex; flex-direction: column; gap: 0.5em; margin: 0.5em 0 0; min-width: 0; }
+  /* legend: 'top' puts the legend and its toolbar above the plot; 'right' beside it, entries stacked. */
+  .axylo .axylo-controls-top, .axylo .axylo-controls-side { flex: none; display: flex; flex-direction: column; gap: 0.5em; min-width: 0; }
+  .axylo .axylo-controls-top { margin: 0 0 0.5em; }
+  .axylo .axylo-controls-side { margin: 0 0 0 0.75em; max-width: 40%; overflow: auto; }
+  .axylo .axylo-controls-side .axylo-toolbar { flex-direction: column; align-items: stretch; flex-wrap: nowrap; }
+  .axylo .axylo-controls-side .axylo-legend-list { flex-direction: column; flex-wrap: nowrap; }
+  .axylo .axylo-controls-side .axylo-legend-entry + .axylo-control:not(.axylo-legend-entry) { margin-inline-start: 0; margin-block-start: 0.5em; }
   .axylo .axylo-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; }
   .axylo .axylo-control {
     display: inline-flex; align-items: center; gap: 0.375em; box-sizing: border-box; min-width: 24px; min-height: 24px;
