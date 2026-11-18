@@ -1,0 +1,2628 @@
+{
+ "thresholds": {
+  "contrast": 3,
+  "minDelta": 0.1,
+  "prefix4": 0.14,
+  "hueMatch": 30,
+  "token": 0.1,
+  "composite": 0.06,
+  "alphas": [
+   0.25,
+   0.8
+  ],
+  "prefixes": [
+   3,
+   4,
+   5,
+   6
+  ]
+ },
+ "schemes": {
+  "light": {
+   "background": "#ffffff",
+   "tokens": {
+    "axis": "#5f6470",
+    "grid": "#e2e4e9",
+    "muted": "#62666f",
+    "reference": "#474b55",
+    "focus": "#1f5fcc"
+   },
+   "series": [
+    {
+     "slot": 1,
+     "hex": "#4395ea",
+     "oklch": [
+      0.659,
+      0.15,
+      251.8
+     ],
+     "contrast": 3.12,
+     "hueDiffToOtherScheme": 0.1
+    },
+    {
+     "slot": 2,
+     "hex": "#e77412",
+     "oklch": [
+      0.681,
+      0.17,
+      52.1
+     ],
+     "contrast": 3.04,
+     "hueDiffToOtherScheme": 0.1
+    },
+    {
+     "slot": 3,
+     "hex": "#085e01",
+     "oklch": [
+      0.419,
+      0.14,
+      142
+     ],
+     "contrast": 8.04,
+     "hueDiffToOtherScheme": 7.7
+    },
+    {
+     "slot": 4,
+     "hex": "#5f2083",
+     "oklch": [
+      0.391,
+      0.159,
+      310
+     ],
+     "contrast": 10.39,
+     "hueDiffToOtherScheme": 5.2
+    },
+    {
+     "slot": 5,
+     "hex": "#ba5f50",
+     "oklch": [
+      0.59,
+      0.12,
+      30.7
+     ],
+     "contrast": 4.34,
+     "hueDiffToOtherScheme": 2.1
+    },
+    {
+     "slot": 6,
+     "hex": "#087ca6",
+     "oklch": [
+      0.551,
+      0.11,
+      231.4
+     ],
+     "contrast": 4.73,
+     "hueDiffToOtherScheme": 7.8
+    },
+    {
+     "slot": 7,
+     "hex": "#a12c63",
+     "oklch": [
+      0.49,
+      0.16,
+      356.1
+     ],
+     "contrast": 6.87,
+     "hueDiffToOtherScheme": 3.3
+    },
+    {
+     "slot": 8,
+     "hex": "#8f9299",
+     "oklch": [
+      0.66,
+      0.011,
+      267.3
+     ],
+     "contrast": 3.12,
+     "hueDiffToOtherScheme": 18.5
+    }
+   ],
+   "minDelta": {
+    "normal": {
+     "min": 0.116,
+     "pair": [
+      2,
+      5
+     ]
+    },
+    "protan": {
+     "min": 0.1,
+     "pair": [
+      6,
+      8
+     ]
+    },
+    "deutan": {
+     "min": 0.101,
+     "pair": [
+      5,
+      8
+     ]
+    },
+    "tritan": {
+     "min": 0.103,
+     "pair": [
+      2,
+      5
+     ]
+    }
+   },
+   "prefixes": {
+    "3": {
+     "normal": {
+      "min": 0.316,
+      "pair": [
+       1,
+       2
+      ]
+     },
+     "protan": {
+      "min": 0.169,
+      "pair": [
+       2,
+       3
+      ]
+     },
+     "deutan": {
+      "min": 0.281,
+      "pair": [
+       2,
+       3
+      ]
+     },
+     "tritan": {
+      "min": 0.254,
+      "pair": [
+       1,
+       3
+      ]
+     }
+    },
+    "4": {
+     "normal": {
+      "min": 0.299,
+      "pair": [
+       3,
+       4
+      ]
+     },
+     "protan": {
+      "min": 0.169,
+      "pair": [
+       2,
+       3
+      ]
+     },
+     "deutan": {
+      "min": 0.201,
+      "pair": [
+       3,
+       4
+      ]
+     },
+     "tritan": {
+      "min": 0.141,
+      "pair": [
+       3,
+       4
+      ]
+     }
+    },
+    "5": {
+     "normal": {
+      "min": 0.116,
+      "pair": [
+       2,
+       5
+      ]
+     },
+     "protan": {
+      "min": 0.102,
+      "pair": [
+       3,
+       5
+      ]
+     },
+     "deutan": {
+      "min": 0.119,
+      "pair": [
+       2,
+       5
+      ]
+     },
+     "tritan": {
+      "min": 0.103,
+      "pair": [
+       2,
+       5
+      ]
+     }
+    },
+    "6": {
+     "normal": {
+      "min": 0.116,
+      "pair": [
+       2,
+       5
+      ]
+     },
+     "protan": {
+      "min": 0.102,
+      "pair": [
+       3,
+       5
+      ]
+     },
+     "deutan": {
+      "min": 0.118,
+      "pair": [
+       1,
+       6
+      ]
+     },
+     "tritan": {
+      "min": 0.103,
+      "pair": [
+       2,
+       5
+      ]
+     }
+    }
+   },
+   "tokenDistance": {
+    "focus": {
+     "min": 0.108,
+     "slot": 6
+    },
+    "reference": {
+     "min": 0.148,
+     "slot": 4
+    },
+    "muted": {
+     "min": 0.106,
+     "slot": 6
+    }
+   },
+   "composites": {
+    "0.25": {
+     "normal": {
+      "minNeighbour": 0.061,
+      "pair": [
+       4,
+       5
+      ],
+      "neighbours": [
+       0.082,
+       0.079,
+       0.077,
+       0.061,
+       0.061,
+       0.065,
+       0.062
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.082
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.073
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.061
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.033
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.071
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.035
+       }
+      ]
+     },
+     "protan": {
+      "minNeighbour": 0.029,
+      "pair": [
+       5,
+       6
+      ],
+      "neighbours": [
+       0.073,
+       0.036,
+       0.061,
+       0.057,
+       0.029,
+       0.04,
+       0.064
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.083
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.076
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.054
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.029
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.068
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.029
+       }
+      ]
+     },
+     "deutan": {
+      "minNeighbour": 0.023,
+      "pair": [
+       6,
+       7
+      ],
+      "neighbours": [
+       0.079,
+       0.064,
+       0.048,
+       0.063,
+       0.043,
+       0.023,
+       0.049
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.077
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.06
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.051
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.03
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.05
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.034
+       }
+      ]
+     },
+     "tritan": {
+      "minNeighbour": 0.04,
+      "pair": [
+       3,
+       4
+      ],
+      "neighbours": [
+       0.083,
+       0.088,
+       0.04,
+       0.052,
+       0.082,
+       0.085,
+       0.064
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.057
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.079
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.073
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.029
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.086
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.037
+       }
+      ]
+     }
+    },
+    "0.8": {
+     "normal": {
+      "minNeighbour": 0.194,
+      "pair": [
+       5,
+       6
+      ],
+      "neighbours": [
+       0.263,
+       0.275,
+       0.26,
+       0.215,
+       0.194,
+       0.213,
+       0.198
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.279
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.248
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.207
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.103
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.241
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.113
+       }
+      ]
+     },
+     "protan": {
+      "minNeighbour": 0.101,
+      "pair": [
+       5,
+       6
+      ],
+      "neighbours": [
+       0.232,
+       0.129,
+       0.211,
+       0.2,
+       0.101,
+       0.137,
+       0.205
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.277
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.261
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.185
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.096
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.23
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.098
+       }
+      ]
+     },
+     "deutan": {
+      "minNeighbour": 0.081,
+      "pair": [
+       6,
+       7
+      ],
+      "neighbours": [
+       0.249,
+       0.221,
+       0.168,
+       0.226,
+       0.141,
+       0.081,
+       0.144
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.261
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.209
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.176
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.096
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.169
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.113
+       }
+      ]
+     },
+     "tritan": {
+      "minNeighbour": 0.131,
+      "pair": [
+       3,
+       4
+      ],
+      "neighbours": [
+       0.283,
+       0.312,
+       0.131,
+       0.185,
+       0.234,
+       0.256,
+       0.207
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.194
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.268
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.248
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.079
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.294
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.117
+       }
+      ]
+     }
+    }
+   },
+   "checks": [
+    {
+     "constraint": 1,
+     "check": "lowest contrast on background",
+     "value": 3.041,
+     "limit": 3,
+     "ok": true
+    },
+    {
+     "constraint": 2,
+     "check": "min pairwise ΔE (all 8), normal",
+     "value": 0.116,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 2,
+     "check": "min pairwise ΔE (all 8), protan",
+     "value": 0.1,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 2,
+     "check": "min pairwise ΔE (all 8), deutan",
+     "value": 0.101,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 2,
+     "check": "min pairwise ΔE (all 8), tritan",
+     "value": 0.103,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 3), normal",
+     "value": 0.316,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 3), protan",
+     "value": 0.169,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 3), deutan",
+     "value": 0.281,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 3), tritan",
+     "value": 0.254,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 4), normal",
+     "value": 0.299,
+     "limit": 0.14,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 4), protan",
+     "value": 0.169,
+     "limit": 0.14,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 4), deutan",
+     "value": 0.201,
+     "limit": 0.14,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 4), tritan",
+     "value": 0.141,
+     "limit": 0.14,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 5), normal",
+     "value": 0.116,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 5), protan",
+     "value": 0.102,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 5), deutan",
+     "value": 0.119,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 5), tritan",
+     "value": 0.103,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 6), normal",
+     "value": 0.116,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 6), protan",
+     "value": 0.102,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 6), deutan",
+     "value": 0.118,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 6), tritan",
+     "value": 0.103,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 4,
+     "check": "largest light/dark hue difference per slot (°)",
+     "value": 18.492,
+     "limit": 30,
+     "ok": true
+    },
+    {
+     "constraint": 5,
+     "check": "nearest series to focus token",
+     "value": 0.108,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 5,
+     "check": "nearest series to reference token",
+     "value": 0.148,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 5,
+     "check": "nearest series to muted token",
+     "value": 0.106,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 6,
+     "check": "min neighbour ΔE at 25% opacity, normal",
+     "value": 0.061,
+     "limit": 0.06,
+     "ok": true
+    },
+    {
+     "constraint": 6,
+     "check": "min neighbour ΔE at 80% opacity, normal",
+     "value": 0.194,
+     "limit": 0.06,
+     "ok": true
+    }
+   ]
+  },
+  "dark": {
+   "background": "#16181d",
+   "tokens": {
+    "axis": "#8b909c",
+    "grid": "#30343c",
+    "muted": "#9da2ad",
+    "reference": "#bcc0c9",
+    "focus": "#79a8ff"
+   },
+   "series": [
+    {
+     "slot": 1,
+     "hex": "#1c73c5",
+     "oklch": [
+      0.55,
+      0.15,
+      251.9
+     ],
+     "contrast": 3.64,
+     "hueDiffToOtherScheme": 0.1
+    },
+    {
+     "slot": 2,
+     "hex": "#d77939",
+     "oklch": [
+      0.669,
+      0.14,
+      52
+     ],
+     "contrast": 5.65,
+     "hueDiffToOtherScheme": 0.1
+    },
+    {
+     "slot": 3,
+     "hex": "#b0e391",
+     "oklch": [
+      0.861,
+      0.121,
+      134.3
+     ],
+     "contrast": 12.04,
+     "hueDiffToOtherScheme": 7.7
+    },
+    {
+     "slot": 4,
+     "hex": "#bf93f1",
+     "oklch": [
+      0.74,
+      0.139,
+      304.8
+     ],
+     "contrast": 7.32,
+     "hueDiffToOtherScheme": 5.2
+    },
+    {
+     "slot": 5,
+     "hex": "#bc5145",
+     "oklch": [
+      0.57,
+      0.141,
+      28.7
+     ],
+     "contrast": 3.72,
+     "hueDiffToOtherScheme": 2.1
+    },
+    {
+     "slot": 6,
+     "hex": "#71daff",
+     "oklch": [
+      0.839,
+      0.11,
+      223.6
+     ],
+     "contrast": 11.14,
+     "hueDiffToOtherScheme": 7.8
+    },
+    {
+     "slot": 7,
+     "hex": "#fa93b5",
+     "oklch": [
+      0.78,
+      0.129,
+      359.3
+     ],
+     "contrast": 8.38,
+     "hueDiffToOtherScheme": 3.3
+    },
+    {
+     "slot": 8,
+     "hex": "#82828f",
+     "oklch": [
+      0.611,
+      0.019,
+      285.8
+     ],
+     "contrast": 4.68,
+     "hueDiffToOtherScheme": 18.5
+    }
+   ],
+   "minDelta": {
+    "normal": {
+     "min": 0.114,
+     "pair": [
+      2,
+      5
+     ]
+    },
+    "protan": {
+     "min": 0.101,
+     "pair": [
+      4,
+      7
+     ]
+    },
+    "deutan": {
+     "min": 0.101,
+     "pair": [
+      5,
+      8
+     ]
+    },
+    "tritan": {
+     "min": 0.101,
+     "pair": [
+      1,
+      8
+     ]
+    }
+   },
+   "prefixes": {
+    "3": {
+     "normal": {
+      "min": 0.258,
+      "pair": [
+       2,
+       3
+      ]
+     },
+     "protan": {
+      "min": 0.236,
+      "pair": [
+       1,
+       2
+      ]
+     },
+     "deutan": {
+      "min": 0.187,
+      "pair": [
+       2,
+       3
+      ]
+     },
+     "tritan": {
+      "min": 0.283,
+      "pair": [
+       2,
+       3
+      ]
+     }
+    },
+    "4": {
+     "normal": {
+      "min": 0.23,
+      "pair": [
+       1,
+       4
+      ]
+     },
+     "protan": {
+      "min": 0.146,
+      "pair": [
+       1,
+       4
+      ]
+     },
+     "deutan": {
+      "min": 0.187,
+      "pair": [
+       2,
+       3
+      ]
+     },
+     "tritan": {
+      "min": 0.152,
+      "pair": [
+       3,
+       4
+      ]
+     }
+    },
+    "5": {
+     "normal": {
+      "min": 0.114,
+      "pair": [
+       2,
+       5
+      ]
+     },
+     "protan": {
+      "min": 0.122,
+      "pair": [
+       2,
+       5
+      ]
+     },
+     "deutan": {
+      "min": 0.107,
+      "pair": [
+       2,
+       5
+      ]
+     },
+     "tritan": {
+      "min": 0.101,
+      "pair": [
+       2,
+       5
+      ]
+     }
+    },
+    "6": {
+     "normal": {
+      "min": 0.114,
+      "pair": [
+       2,
+       5
+      ]
+     },
+     "protan": {
+      "min": 0.122,
+      "pair": [
+       2,
+       5
+      ]
+     },
+     "deutan": {
+      "min": 0.102,
+      "pair": [
+       4,
+       6
+      ]
+     },
+     "tritan": {
+      "min": 0.101,
+      "pair": [
+       3,
+       6
+      ]
+     }
+    }
+   },
+   "tokenDistance": {
+    "focus": {
+     "min": 0.101,
+     "slot": 4
+    },
+    "reference": {
+     "min": 0.106,
+     "slot": 6
+    },
+    "muted": {
+     "min": 0.101,
+     "slot": 8
+    }
+   },
+   "composites": {
+    "0.25": {
+     "normal": {
+      "minNeighbour": 0.06,
+      "pair": [
+       7,
+       8
+      ],
+      "neighbours": [
+       0.097,
+       0.08,
+       0.088,
+       0.078,
+       0.114,
+       0.071,
+       0.06
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.12
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.073
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.082
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.092
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.099
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.048
+       }
+      ]
+     },
+     "protan": {
+      "minNeighbour": 0.033,
+      "pair": [
+       7,
+       8
+      ],
+      "neighbours": [
+       0.073,
+       0.082,
+       0.082,
+       0.085,
+       0.119,
+       0.047,
+       0.033
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.115
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.045
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.058
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.093
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.055
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.036
+       }
+      ]
+     },
+     "deutan": {
+      "minNeighbour": 0.031,
+      "pair": [
+       6,
+       7
+      ],
+      "neighbours": [
+       0.095,
+       0.06,
+       0.072,
+       0.075,
+       0.093,
+       0.031,
+       0.05
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.125
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.064
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.069
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.093
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.09
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.049
+       }
+      ]
+     },
+     "tritan": {
+      "minNeighbour": 0.046,
+      "pair": [
+       3,
+       4
+      ],
+      "neighbours": [
+       0.104,
+       0.088,
+       0.046,
+       0.071,
+       0.131,
+       0.094,
+       0.067
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.103
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.08
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.1
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.088
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.116
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.05
+       }
+      ]
+     }
+    },
+    "0.8": {
+     "normal": {
+      "minNeighbour": 0.174,
+      "pair": [
+       7,
+       8
+      ],
+      "neighbours": [
+       0.258,
+       0.214,
+       0.237,
+       0.211,
+       0.305,
+       0.191,
+       0.174
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.323
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.192
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.225
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.249
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.268
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.124
+       }
+      ]
+     },
+     "protan": {
+      "minNeighbour": 0.095,
+      "pair": [
+       7,
+       8
+      ],
+      "neighbours": [
+       0.197,
+       0.221,
+       0.223,
+       0.234,
+       0.324,
+       0.128,
+       0.095
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.311
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.121
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.163
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.253
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.152
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.098
+       }
+      ]
+     },
+     "deutan": {
+      "minNeighbour": 0.085,
+      "pair": [
+       6,
+       7
+      ],
+      "neighbours": [
+       0.254,
+       0.156,
+       0.193,
+       0.201,
+       0.247,
+       0.085,
+       0.147
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.336
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.17
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.193
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.254
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.249
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.13
+       }
+      ]
+     },
+     "tritan": {
+      "minNeighbour": 0.126,
+      "pair": [
+       3,
+       4
+      ],
+      "neighbours": [
+       0.239,
+       0.236,
+       0.126,
+       0.19,
+       0.348,
+       0.251,
+       0.192
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.251
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.176
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.234
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.226
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.275
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.088
+       }
+      ]
+     }
+    }
+   },
+   "checks": [
+    {
+     "constraint": 1,
+     "check": "lowest contrast on background",
+     "value": 3.643,
+     "limit": 3,
+     "ok": true
+    },
+    {
+     "constraint": 2,
+     "check": "min pairwise ΔE (all 8), normal",
+     "value": 0.114,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 2,
+     "check": "min pairwise ΔE (all 8), protan",
+     "value": 0.101,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 2,
+     "check": "min pairwise ΔE (all 8), deutan",
+     "value": 0.101,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 2,
+     "check": "min pairwise ΔE (all 8), tritan",
+     "value": 0.101,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 3), normal",
+     "value": 0.258,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 3), protan",
+     "value": 0.236,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 3), deutan",
+     "value": 0.187,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 3), tritan",
+     "value": 0.283,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 4), normal",
+     "value": 0.23,
+     "limit": 0.14,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 4), protan",
+     "value": 0.146,
+     "limit": 0.14,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 4), deutan",
+     "value": 0.187,
+     "limit": 0.14,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 4), tritan",
+     "value": 0.152,
+     "limit": 0.14,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 5), normal",
+     "value": 0.114,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 5), protan",
+     "value": 0.122,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 5), deutan",
+     "value": 0.107,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 5), tritan",
+     "value": 0.101,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 6), normal",
+     "value": 0.114,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 6), protan",
+     "value": 0.122,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 6), deutan",
+     "value": 0.102,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
+     "check": "min pairwise ΔE (first 6), tritan",
+     "value": 0.101,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 4,
+     "check": "largest light/dark hue difference per slot (°)",
+     "value": 18.492,
+     "limit": 30,
+     "ok": true
+    },
+    {
+     "constraint": 5,
+     "check": "nearest series to focus token",
+     "value": 0.101,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 5,
+     "check": "nearest series to reference token",
+     "value": 0.106,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 5,
+     "check": "nearest series to muted token",
+     "value": 0.101,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 6,
+     "check": "min neighbour ΔE at 25% opacity, normal",
+     "value": 0.06,
+     "limit": 0.06,
+     "ok": true
+    },
+    {
+     "constraint": 6,
+     "check": "min neighbour ΔE at 80% opacity, normal",
+     "value": 0.174,
+     "limit": 0.06,
+     "ok": true
+    }
+   ]
+  }
+ },
+ "strokes": {
+  "method": "random-walk polyline (120 points over 600 CSS px, steps up to ±9 px), stroke width 2, round joins; per pixel column, core = most covered pixel, weighted = coverage-weighted mean of touched pixels (coverage > 0.02); p10 and median over columns",
+  "chrome": "157.0.8103.78",
+  "schemes": {
+   "light": {
+    "background": "#ffffff",
+    "rows": [
+     {
+      "color": "#4395ea",
+      "swatch": 3.12,
+      "canvas@1": {
+       "core": {
+        "p10": 3.12,
+        "median": 3.12
+       },
+       "weighted": {
+        "p10": 2.48,
+        "median": 2.57
+       }
+      },
+      "svg@1": {
+       "core": {
+        "p10": 3.12,
+        "median": 3.12
+       },
+       "weighted": {
+        "p10": 2.47,
+        "median": 2.57
+       }
+      },
+      "canvas@2": {
+       "core": {
+        "p10": 3.12,
+        "median": 3.12
+       },
+       "weighted": {
+        "p10": 2.75,
+        "median": 2.84
+       }
+      },
+      "svg@2": {
+       "core": {
+        "p10": 3.12,
+        "median": 3.12
+       },
+       "weighted": {
+        "p10": 2.75,
+        "median": 2.84
+       }
+      }
+     },
+     {
+      "color": "#e77412",
+      "swatch": 3.04,
+      "canvas@1": {
+       "core": {
+        "p10": 3.04,
+        "median": 3.04
+       },
+       "weighted": {
+        "p10": 2.47,
+        "median": 2.55
+       }
+      },
+      "svg@1": {
+       "core": {
+        "p10": 3.04,
+        "median": 3.04
+       },
+       "weighted": {
+        "p10": 2.47,
+        "median": 2.55
+       }
+      },
+      "canvas@2": {
+       "core": {
+        "p10": 3.04,
+        "median": 3.04
+       },
+       "weighted": {
+        "p10": 2.73,
+        "median": 2.79
+       }
+      },
+      "svg@2": {
+       "core": {
+        "p10": 3.04,
+        "median": 3.04
+       },
+       "weighted": {
+        "p10": 2.73,
+        "median": 2.79
+       }
+      }
+     },
+     {
+      "color": "#085e01",
+      "swatch": 8.04,
+      "canvas@1": {
+       "core": {
+        "p10": 8.04,
+        "median": 8.04
+       },
+       "weighted": {
+        "p10": 5.14,
+        "median": 5.54
+       }
+      },
+      "svg@1": {
+       "core": {
+        "p10": 8.04,
+        "median": 8.04
+       },
+       "weighted": {
+        "p10": 5.14,
+        "median": 5.54
+       }
+      },
+      "canvas@2": {
+       "core": {
+        "p10": 8.04,
+        "median": 8.04
+       },
+       "weighted": {
+        "p10": 6.34,
+        "median": 6.64
+       }
+      },
+      "svg@2": {
+       "core": {
+        "p10": 8.04,
+        "median": 8.04
+       },
+       "weighted": {
+        "p10": 6.34,
+        "median": 6.64
+       }
+      }
+     },
+     {
+      "color": "#5f2083",
+      "swatch": 10.39,
+      "canvas@1": {
+       "core": {
+        "p10": 10.39,
+        "median": 10.39
+       },
+       "weighted": {
+        "p10": 6.33,
+        "median": 6.89
+       }
+      },
+      "svg@1": {
+       "core": {
+        "p10": 10.39,
+        "median": 10.39
+       },
+       "weighted": {
+        "p10": 6.33,
+        "median": 6.89
+       }
+      },
+      "canvas@2": {
+       "core": {
+        "p10": 10.39,
+        "median": 10.39
+       },
+       "weighted": {
+        "p10": 8.08,
+        "median": 8.47
+       }
+      },
+      "svg@2": {
+       "core": {
+        "p10": 10.39,
+        "median": 10.39
+       },
+       "weighted": {
+        "p10": 8.08,
+        "median": 8.47
+       }
+      }
+     },
+     {
+      "color": "#ba5f50",
+      "swatch": 4.34,
+      "canvas@1": {
+       "core": {
+        "p10": 4.34,
+        "median": 4.34
+       },
+       "weighted": {
+        "p10": 3.18,
+        "median": 3.35
+       }
+      },
+      "svg@1": {
+       "core": {
+        "p10": 4.34,
+        "median": 4.34
+       },
+       "weighted": {
+        "p10": 3.18,
+        "median": 3.35
+       }
+      },
+      "canvas@2": {
+       "core": {
+        "p10": 4.34,
+        "median": 4.34
+       },
+       "weighted": {
+        "p10": 3.67,
+        "median": 3.8
+       }
+      },
+      "svg@2": {
+       "core": {
+        "p10": 4.34,
+        "median": 4.34
+       },
+       "weighted": {
+        "p10": 3.67,
+        "median": 3.8
+       }
+      }
+     },
+     {
+      "color": "#087ca6",
+      "swatch": 4.73,
+      "canvas@1": {
+       "core": {
+        "p10": 4.73,
+        "median": 4.73
+       },
+       "weighted": {
+        "p10": 3.42,
+        "median": 3.6
+       }
+      },
+      "svg@1": {
+       "core": {
+        "p10": 4.73,
+        "median": 4.73
+       },
+       "weighted": {
+        "p10": 3.42,
+        "median": 3.6
+       }
+      },
+      "canvas@2": {
+       "core": {
+        "p10": 4.73,
+        "median": 4.73
+       },
+       "weighted": {
+        "p10": 3.99,
+        "median": 4.15
+       }
+      },
+      "svg@2": {
+       "core": {
+        "p10": 4.73,
+        "median": 4.73
+       },
+       "weighted": {
+        "p10": 3.99,
+        "median": 4.15
+       }
+      }
+     },
+     {
+      "color": "#a12c63",
+      "swatch": 6.87,
+      "canvas@1": {
+       "core": {
+        "p10": 6.87,
+        "median": 6.87
+       },
+       "weighted": {
+        "p10": 4.67,
+        "median": 5
+       }
+      },
+      "svg@1": {
+       "core": {
+        "p10": 6.87,
+        "median": 6.87
+       },
+       "weighted": {
+        "p10": 4.67,
+        "median": 5
+       }
+      },
+      "canvas@2": {
+       "core": {
+        "p10": 6.87,
+        "median": 6.87
+       },
+       "weighted": {
+        "p10": 5.66,
+        "median": 5.9
+       }
+      },
+      "svg@2": {
+       "core": {
+        "p10": 6.87,
+        "median": 6.87
+       },
+       "weighted": {
+        "p10": 5.66,
+        "median": 5.9
+       }
+      }
+     },
+     {
+      "color": "#8f9299",
+      "swatch": 3.12,
+      "canvas@1": {
+       "core": {
+        "p10": 3.12,
+        "median": 3.12
+       },
+       "weighted": {
+        "p10": 2.43,
+        "median": 2.52
+       }
+      },
+      "svg@1": {
+       "core": {
+        "p10": 3.12,
+        "median": 3.12
+       },
+       "weighted": {
+        "p10": 2.41,
+        "median": 2.52
+       }
+      },
+      "canvas@2": {
+       "core": {
+        "p10": 3.12,
+        "median": 3.12
+       },
+       "weighted": {
+        "p10": 2.72,
+        "median": 2.79
+       }
+      },
+      "svg@2": {
+       "core": {
+        "p10": 3.12,
+        "median": 3.12
+       },
+       "weighted": {
+        "p10": 2.72,
+        "median": 2.79
+       }
+      }
+     }
+    ]
+   },
+   "dark": {
+    "background": "#16181d",
+    "rows": [
+     {
+      "color": "#1c73c5",
+      "swatch": 3.64,
+      "canvas@1": {
+       "core": {
+        "p10": 3.64,
+        "median": 3.64
+       },
+       "weighted": {
+        "p10": 2.82,
+        "median": 2.95
+       }
+      },
+      "svg@1": {
+       "core": {
+        "p10": 3.64,
+        "median": 3.64
+       },
+       "weighted": {
+        "p10": 2.82,
+        "median": 2.95
+       }
+      },
+      "canvas@2": {
+       "core": {
+        "p10": 3.64,
+        "median": 3.64
+       },
+       "weighted": {
+        "p10": 3.19,
+        "median": 3.29
+       }
+      },
+      "svg@2": {
+       "core": {
+        "p10": 3.64,
+        "median": 3.64
+       },
+       "weighted": {
+        "p10": 3.19,
+        "median": 3.29
+       }
+      }
+     },
+     {
+      "color": "#d77939",
+      "swatch": 5.65,
+      "canvas@1": {
+       "core": {
+        "p10": 5.65,
+        "median": 5.65
+       },
+       "weighted": {
+        "p10": 4.13,
+        "median": 4.36
+       }
+      },
+      "svg@1": {
+       "core": {
+        "p10": 5.65,
+        "median": 5.65
+       },
+       "weighted": {
+        "p10": 4.1,
+        "median": 4.36
+       }
+      },
+      "canvas@2": {
+       "core": {
+        "p10": 5.65,
+        "median": 5.65
+       },
+       "weighted": {
+        "p10": 4.8,
+        "median": 4.97
+       }
+      },
+      "svg@2": {
+       "core": {
+        "p10": 5.65,
+        "median": 5.65
+       },
+       "weighted": {
+        "p10": 4.8,
+        "median": 4.97
+       }
+      }
+     },
+     {
+      "color": "#b0e391",
+      "swatch": 12.04,
+      "canvas@1": {
+       "core": {
+        "p10": 12.04,
+        "median": 12.04
+       },
+       "weighted": {
+        "p10": 8.29,
+        "median": 8.84
+       }
+      },
+      "svg@1": {
+       "core": {
+        "p10": 12.04,
+        "median": 12.04
+       },
+       "weighted": {
+        "p10": 8.22,
+        "median": 8.84
+       }
+      },
+      "canvas@2": {
+       "core": {
+        "p10": 12.04,
+        "median": 12.04
+       },
+       "weighted": {
+        "p10": 9.96,
+        "median": 10.36
+       }
+      },
+      "svg@2": {
+       "core": {
+        "p10": 12.04,
+        "median": 12.04
+       },
+       "weighted": {
+        "p10": 9.96,
+        "median": 10.36
+       }
+      }
+     },
+     {
+      "color": "#bf93f1",
+      "swatch": 7.32,
+      "canvas@1": {
+       "core": {
+        "p10": 7.32,
+        "median": 7.32
+       },
+       "weighted": {
+        "p10": 5.24,
+        "median": 5.51
+       }
+      },
+      "svg@1": {
+       "core": {
+        "p10": 7.32,
+        "median": 7.32
+       },
+       "weighted": {
+        "p10": 5.19,
+        "median": 5.51
+       }
+      },
+      "canvas@2": {
+       "core": {
+        "p10": 7.32,
+        "median": 7.32
+       },
+       "weighted": {
+        "p10": 6.17,
+        "median": 6.36
+       }
+      },
+      "svg@2": {
+       "core": {
+        "p10": 7.32,
+        "median": 7.32
+       },
+       "weighted": {
+        "p10": 6.17,
+        "median": 6.36
+       }
+      }
+     },
+     {
+      "color": "#bc5145",
+      "swatch": 3.72,
+      "canvas@1": {
+       "core": {
+        "p10": 3.72,
+        "median": 3.72
+       },
+       "weighted": {
+        "p10": 2.84,
+        "median": 2.99
+       }
+      },
+      "svg@1": {
+       "core": {
+        "p10": 3.72,
+        "median": 3.72
+       },
+       "weighted": {
+        "p10": 2.84,
+        "median": 2.99
+       }
+      },
+      "canvas@2": {
+       "core": {
+        "p10": 3.72,
+        "median": 3.72
+       },
+       "weighted": {
+        "p10": 3.23,
+        "median": 3.33
+       }
+      },
+      "svg@2": {
+       "core": {
+        "p10": 3.72,
+        "median": 3.72
+       },
+       "weighted": {
+        "p10": 3.23,
+        "median": 3.33
+       }
+      }
+     },
+     {
+      "color": "#71daff",
+      "swatch": 11.14,
+      "canvas@1": {
+       "core": {
+        "p10": 11.14,
+        "median": 11.14
+       },
+       "weighted": {
+        "p10": 7.66,
+        "median": 8.17
+       }
+      },
+      "svg@1": {
+       "core": {
+        "p10": 11.14,
+        "median": 11.14
+       },
+       "weighted": {
+        "p10": 7.66,
+        "median": 8.17
+       }
+      },
+      "canvas@2": {
+       "core": {
+        "p10": 11.14,
+        "median": 11.14
+       },
+       "weighted": {
+        "p10": 9.24,
+        "median": 9.62
+       }
+      },
+      "svg@2": {
+       "core": {
+        "p10": 11.14,
+        "median": 11.14
+       },
+       "weighted": {
+        "p10": 9.24,
+        "median": 9.62
+       }
+      }
+     },
+     {
+      "color": "#fa93b5",
+      "swatch": 8.38,
+      "canvas@1": {
+       "core": {
+        "p10": 8.38,
+        "median": 8.38
+       },
+       "weighted": {
+        "p10": 5.91,
+        "median": 6.29
+       }
+      },
+      "svg@1": {
+       "core": {
+        "p10": 8.38,
+        "median": 8.38
+       },
+       "weighted": {
+        "p10": 5.91,
+        "median": 6.24
+       }
+      },
+      "canvas@2": {
+       "core": {
+        "p10": 8.38,
+        "median": 8.38
+       },
+       "weighted": {
+        "p10": 7,
+        "median": 7.26
+       }
+      },
+      "svg@2": {
+       "core": {
+        "p10": 8.38,
+        "median": 8.38
+       },
+       "weighted": {
+        "p10": 7,
+        "median": 7.26
+       }
+      }
+     },
+     {
+      "color": "#82828f",
+      "swatch": 4.68,
+      "canvas@1": {
+       "core": {
+        "p10": 4.68,
+        "median": 4.68
+       },
+       "weighted": {
+        "p10": 3.52,
+        "median": 3.69
+       }
+      },
+      "svg@1": {
+       "core": {
+        "p10": 4.68,
+        "median": 4.68
+       },
+       "weighted": {
+        "p10": 3.52,
+        "median": 3.69
+       }
+      },
+      "canvas@2": {
+       "core": {
+        "p10": 4.68,
+        "median": 4.68
+       },
+       "weighted": {
+        "p10": 4.02,
+        "median": 4.18
+       }
+      },
+      "svg@2": {
+       "core": {
+        "p10": 4.68,
+        "median": 4.68
+       },
+       "weighted": {
+        "p10": 4.02,
+        "median": 4.18
+       }
+      }
+     }
+    ]
+   }
+  }
+ }
+}
