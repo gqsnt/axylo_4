@@ -67,11 +67,18 @@ export function linearTickCandidates(domain: readonly [number, number], format: 
   for (let guard = 0; guard < 40 && Number.isFinite(step.value); guard++) {
     const i0 = firstIndexAtOrAbove(lo, step);
     const i1 = lastIndexAtOrBelow(hi, step);
+    // Beyond 2^53 the index arithmetic is no longer exact (i + 1 === i), and a double cannot hold those
+    // multiples anyway: such a step is below the resolution of the values, so try a coarser one.
+    if (!(Math.max(Math.abs(i0), Math.abs(i1)) * step.mantissa <= Number.MAX_SAFE_INTEGER)) {
+      step = nextNiceStep(step);
+      continue;
+    }
     const count = i1 - i0 + 1;
     if (count >= 1 && count <= MAX_TICKS) {
       const values: number[] = [];
-      for (let i = i0; i <= i1; i++) {
-        const v = stepMultiple(i, step);
+      // Counted, not `i <= i1`: the loop must end whatever the index arithmetic does.
+      for (let n = 0; n < count; n++) {
+        const v = stepMultiple(i0 + n, step);
         // Where the step is below the resolution of the values, neighbours collapse to one double.
         if (v >= lo && v <= hi && values[values.length - 1] !== v) values.push(v);
       }
@@ -84,6 +91,11 @@ export function linearTickCandidates(domain: readonly [number, number], format: 
     }
     if (count <= 1) break;
     step = nextNiceStep(step);
+  }
+  // Every step was below the resolution of the values: one tick, as for a domain too narrow to divide.
+  if (sets.length === 0) {
+    const v = lo === 0 ? 0 : lo;
+    return [[{ value: v, label: format(v, { step: 0, maxAbs: Math.abs(v) }) }]];
   }
   // Near the largest doubles the next step overflows; the only multiple of an infinite step is zero.
   const last = sets[sets.length - 1];

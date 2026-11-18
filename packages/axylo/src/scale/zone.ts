@@ -141,9 +141,11 @@ export function firstInstantAtOrAfterWall(timeZone: string, wall: number): numbe
 
 /** The first whole second in (lo, hi] at which the zone's offset is `offset`, by bisection (offset differs at lo). */
 export function firstInstantWithOffset(timeZone: string, lo: number, hi: number, offset: number): number {
+  if (!Number.isFinite(lo) || !Number.isFinite(hi)) return hi;
   let a = Math.floor(lo / 1000);
   let b = Math.ceil(hi / 1000);
-  while (b - a > 1) {
+  // 64 halvings cover any range of whole seconds a Date can hold; the bound keeps the loop finite regardless.
+  for (let k = 0; k < 64 && b - a > 1; k++) {
     const m = Math.floor((a + b) / 2);
     if (zoneOffset(timeZone, m * 1000) === offset) b = m;
     else a = m;

@@ -7,7 +7,7 @@ import type { BandScale, Tick, TickCandidates } from '../core/contracts';
  * rectangle at map(i) with width `bandwidth` covers it either way.
  */
 export function bandScale(count: number, range: readonly [number, number], padding: number): BandScale {
-  const n = Math.max(0, Math.floor(count));
+  const n = Number.isFinite(count) ? Math.max(0, Math.floor(count)) : 0;
   const p = Number.isFinite(padding) ? Math.min(Math.max(padding, 0), 0.95) : 0;
   const r0 = range[0];
   const r1 = range[1];

@@ -13,6 +13,11 @@ import { dateTimeFormat } from '../format/intl';
 
 const { MINUTE, HOUR, DAY } = TIME;
 const SECOND = 1000;
+/**
+ * Upper bound on boundaries generated for one interval. Intervals are only generated when about
+ * MAX_TICKS + 2 of them fit the domain, so this is never reached; it keeps every loop finite regardless.
+ */
+const MAX_BOUNDARIES = 1000;
 
 export function timeScale(domain: readonly [number, number], range: readonly [number, number]): ContinuousScale {
   return continuous('time', domain, range);
@@ -139,7 +144,8 @@ function boundaries(interval: Interval, lo: number, hi: number, zone: string, lo
   if (interval.unit === 'millisecond') {
     // Zone offsets are whole seconds, so millisecond boundaries are the same in every zone.
     const out: number[] = [];
-    for (let t = Math.ceil(lo / interval.n) * interval.n; t <= hi; t += interval.n) out.push(t);
+    // Bounded: callers only ask for intervals with a few ticks in the domain.
+    for (let t = Math.ceil(lo / interval.n) * interval.n, k = 0; t <= hi && k < MAX_BOUNDARIES; t += interval.n, k++) out.push(t);
     return out;
   }
   if (isFixed(interval.unit)) return clockBoundaries(interval.n * UNIT_MS[interval.unit], lo, hi, zone);
@@ -166,7 +172,7 @@ function boundaries(interval: Interval, lo: number, hi: number, zone: string, lo
 function clockBoundaries(size: number, lo: number, hi: number, zone: string): number[] {
   const out: number[] = [];
   const push = (from: number, to: number, offset: number): void => {
-    for (let t = Math.ceil((from + offset) / size) * size - offset; t <= to; t += size) out.push(t);
+    for (let t = Math.ceil((from + offset) / size) * size - offset, k = 0; t <= to && k < MAX_BOUNDARIES; t += size, k++) out.push(t);
   };
   const offLo = zoneOffset(zone, lo);
   const offHi = zoneOffset(zone, hi);
@@ -189,15 +195,15 @@ function wallBoundaries(interval: Interval, wallLo: number, wallHi: number, loca
   if (unit === 'day') {
     // Days count from 1970-01-01, which keeps 2-day ticks evenly spaced across month ends.
     const size = n * UNIT_MS[unit];
-    for (let w = Math.ceil(wallLo / size) * size; w <= wallHi; w += size) out.push(w);
+    for (let w = Math.ceil(wallLo / size) * size, k = 0; w <= wallHi && k < MAX_BOUNDARIES; w += size, k++) out.push(w);
     return out;
   }
   if (unit === 'week') {
     const first = weekStart(locale);
     let day = Math.ceil(wallLo / DAY);
     // 1970-01-01 was a Thursday (weekday 4, Sunday = 0).
-    while ((((day + 4) % 7) + 7) % 7 !== first) day++;
-    for (let w = day * DAY; w <= wallHi; w += 7 * DAY) out.push(w);
+    for (let k = 0; k < 7 && (((day + 4) % 7) + 7) % 7 !== first; k++) day++;
+    for (let w = day * DAY, k = 0; w <= wallHi && k < MAX_BOUNDARIES; w += 7 * DAY, k++) out.push(w);
     return out;
   }
   // Month and year loops run over the years of the range, so they end even where a boundary is not
@@ -206,7 +212,7 @@ function wallBoundaries(interval: Interval, wallLo: number, wallHi: number, loca
   const yHi = new Date(wallHi).getUTCFullYear();
   if (!Number.isFinite(yLo) || !Number.isFinite(yHi)) return out;
   if (unit === 'month') {
-    for (let y = yLo; y <= yHi; y++) {
+    for (let y = yLo; y <= yHi && y - yLo < MAX_BOUNDARIES; y++) {
       for (let m = 0; m < 12; m += n) {
         const w = utcFields(y, m, 1);
         if (Number.isFinite(w) && w >= wallLo && w <= wallHi) out.push(w);
@@ -215,7 +221,7 @@ function wallBoundaries(interval: Interval, wallLo: number, wallHi: number, loca
     return out;
   }
   // year
-  for (let y = yLo - (((yLo % n) + n) % n); y <= yHi; y += n) {
+  for (let y = yLo - (((yLo % n) + n) % n), k = 0; y <= yHi && k < MAX_BOUNDARIES; y += n, k++) {
     const w = utcFields(y, 0, 1);
     if (Number.isFinite(w) && w >= wallLo && w <= wallHi) out.push(w);
   }

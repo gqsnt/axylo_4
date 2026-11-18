@@ -38,7 +38,7 @@ export function defaultTimeReadout(
   locale: string,
   dateUnit: 'day' | 'month' | 'year' | null | undefined = null,
 ): string {
-  if (!Number.isFinite(position)) return String(position);
+  if (!representable(position)) return String(position);
   const zone = zoneOf(kind, timeZone);
   const wall = kind === 'time' ? instantToWall(zone, position) : position;
   // Astronomical year 0 is 1 BC, which Intl writes "1" like AD 1 unless the era is shown.
@@ -57,6 +57,11 @@ export function defaultTimeReadout(
   if (kind === 'time') options.timeZoneName = 'short';
   options.timeZone = zone;
   return dateTimeFormat(locale, options).format(position);
+}
+
+/** Positions a Date can hold; Intl throws on any other ("Invalid time value"), so they are written as numbers. */
+function representable(position: number): boolean {
+  return Number.isFinite(position) && Math.abs(position) <= 8.64e15;
 }
 
 /** The zone's name at an instant as Intl writes it ("PST", "GMT+5:30"), in the given style. */
@@ -128,7 +133,9 @@ function authorTimeFormat(spec: TimeReadoutSpec, fallback: ((position: number) =
 /** Readout formatter for a temporal x axis. */
 export function createTimeReadout(spec: TimeReadoutSpec): (position: number) => string {
   const fallback = (position: number): string => defaultTimeReadout(position, spec.kind, spec.timeZone, spec.locale, spec.dateUnit);
-  return authorTimeFormat(spec, fallback, true) ?? fallback;
+  const author = authorTimeFormat(spec, fallback, true);
+  if (author === null) return fallback;
+  return (position: number) => (representable(position) ? author(position) : String(position));
 }
 
 /**
@@ -138,5 +145,7 @@ export function createTimeReadout(spec: TimeReadoutSpec): (position: number) => 
  * description name it.
  */
 export function createTimeTickLabel(spec: TimeReadoutSpec): ((position: number) => string) | null {
-  return authorTimeFormat(spec, null, false);
+  const author = authorTimeFormat(spec, null, false);
+  if (author === null) return null;
+  return (position: number) => (representable(position) ? author(position) : String(position));
 }
