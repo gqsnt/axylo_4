@@ -127,6 +127,8 @@ describe('data review regressions', () => {
       ['AX107', 'x', 2, [87, 90]], ['AX107', 's', 2, [88, 91]],
     ]);
     expect([...before.series[0]!.y]).toEqual([1]);
+    expect(before.source.rowAt(0)).toEqual({ x: 0, y: 1, s: 'old' });
+    store.retire(before.revision);
     expect(before.source.rowAt(0)).toBeNull();
   });
 

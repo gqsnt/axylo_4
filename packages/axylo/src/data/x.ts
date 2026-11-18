@@ -1,4 +1,7 @@
-import type { Environment, XColumn, XKind } from '../core/contracts';
+import type { DiagnosticInput, Environment, XColumn, XKind } from '../core/contracts';
+import { DiagnosticCollector, report, type DiagnosticCode } from '../diagnostics';
+import { diagnosticContext } from '../diagnostics/registry';
+import type { XValue } from '../public';
 import { canonicalZone, type ResolvedXField } from './options';
 import { Reports } from './reports';
 import type { Table } from './table';
@@ -10,6 +13,51 @@ const maxInstant = 8_640_000_000_000_000;
 export const DAY = 86_400_000;
 export const HOUR = 3_600_000;
 export type DateUnit = NonNullable<XColumn['dateUnit']>;
+
+export interface XAxisMeta extends Pick<XColumn, 'kind' | 'categories' | 'timeZone'> {
+  readonly field?: ResolvedXField;
+}
+
+export interface XPositionParser {
+  position(value: XValue): number | null;
+  readonly reports: readonly DiagnosticInput[];
+}
+
+/**
+ * Converts author values to positions on a resolved axis. Categories must already exist.
+ * Reports accumulate by code and field for this parser and have no source row provenance.
+ */
+export function createXParser(axis: XAxisMeta, environment: Pick<Environment, 'timeZone'>): XPositionParser {
+  const field = axis.field ?? {
+    field: 'x', label: 'x', unit: null, type: axis.kind === 'wall' || axis.kind === 'number' ? null : axis.kind,
+    timeZone: 'local', ordered: false, format: null, tickFormat: null, domain: null,
+  };
+  const parser = new XParser({ ...field, timeZone: axis.timeZone ?? field.timeZone }, axis.kind, environment);
+  const categories = new Map(axis.categories?.map((label, index) => [label, index]));
+  const diagnostics = new DiagnosticCollector();
+  return {
+    position(value) {
+      if (axis.kind === 'category') {
+        const name = nameOf(value);
+        const index = name === null ? undefined : categories.get(name);
+        if (index !== undefined) return index;
+        report(diagnostics, 'AX107', 'none', { field: field.field, rows: [], outcome: 'The option is ignored.' });
+        return null;
+      }
+      const reports = new Reports(field.field);
+      const position = parser.read(value, -1, reports);
+      reports.flush({ add(diagnostic) {
+        const { code, count, effect } = diagnostic;
+        const context = diagnosticContext(diagnostic);
+        report(diagnostics, code as DiagnosticCode, 'none', {
+          ...context, field: field.field, count, rows: [], outcome: effect === 'omitted' ? 'The option is ignored.' : context?.outcome,
+        });
+      } });
+      return Number.isFinite(position) ? position : null;
+    },
+    get reports() { return diagnostics.inputs(); },
+  };
+}
 
 export function dateUnitOf(value: unknown): DateUnit {
   if (typeof value === 'string' && calendar.test(value)) {
@@ -55,14 +103,14 @@ export function countKinds(table: Table, field: string, series: string | null = 
   if (series === null && (column instanceof Float64Array || column instanceof Float32Array)) {
     for (const value of column) {
       if (Number.isFinite(value)) votes.number++;
-      else votes.category++;
+      else if (!Number.isNaN(value)) votes.category++;
     }
     return votes;
   }
   for (let i = 0; i < table.length; i++) {
     if (series !== null && nameOf(table.read(i, series)) === null) continue;
     const value = table.read(i, field);
-    if (value == null || value === '') continue;
+    if (value == null || value === '' || Number.isNaN(value) && table.isColumnRow(i)) continue;
     votes[kindOf(value) ?? 'category']++;
   }
   return votes;
@@ -120,6 +168,16 @@ export class XParser {
 
   categoryName(position: number): string | undefined {
     return this.names?.[position - this.firstIndex + this.firstCategory];
+  }
+
+  fork(): XParser {
+    const draft = new XParser(this.field, this.kind, { timeZone: this.timeZone ?? 'UTC' }, this.scatter, this.categories ?? undefined);
+    draft.dateUnit = this.dateUnit;
+    draft.firstIndex = this.firstIndex;
+    if (draft.indexes && this.firstIndex !== 0) {
+      for (const [name, index] of draft.indexes) draft.indexes.set(name, index + this.firstIndex);
+    }
+    return draft;
   }
 
   evictCategories(count: number): void {

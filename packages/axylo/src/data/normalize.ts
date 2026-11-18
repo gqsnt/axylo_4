@@ -7,10 +7,10 @@ import { report, type DiagnosticDetails } from '../diagnostics';
 import type { AlignedChartType, ChartType, ResolvedOptions, ResolvedValueField } from './options';
 import { Reports } from './reports';
 import { calendarIntervals, inferGaps, snapGap } from './steps';
-import type { DiagnosticTrace } from './store-diagnostics';
+import { recordDiagnostics, StreamDiagnostics, type DiagnosticTrace } from './store-diagnostics';
 import type { Table } from './table';
-import { readValues, type Values } from './values';
-import { inferKind, nameOf, positionName, XParser } from './x';
+import { readValues, type ValueCounts, type Values } from './values';
+import { dateUnitOf, inferKind, nameOf, positionName, XParser, type DateUnit } from './x';
 
 export type DataEnvironment = Pick<Environment, 'timeZone'>;
 export interface FrameVersion { readonly epoch: number; readonly revision: number }
@@ -29,6 +29,7 @@ export interface XData {
   readonly parser: XParser;
   readonly positions: Float64Array;
   readonly order: Int32Array | null;
+  readonly dateUnits: Record<DateUnit, number> | null;
 }
 
 export function readX(type: ChartType, options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, categories?: readonly string[]): XData {
@@ -36,6 +37,7 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
   const kind = x.type ?? inferKind(table, x.field, options.series) ?? (categories ? 'category' : 'number');
   const parser = new XParser(x, kind, env, type === 'scatter', categories);
   const reports = new Reports(x.field, sink);
+  const dateUnits = kind === 'date' ? { day: 0, month: 0, year: 0 } : null;
   const input = table.columns?.[x.field];
   let positions = input instanceof Float64Array && (kind === 'number' || kind === 'time')
     ? input : new Float64Array(table.length);
@@ -44,9 +46,9 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
   let valid = 0;
   for (let i = 0; i < table.length; i++) {
     const usableSeries = options.series === null || nameOf(table.read(i, options.series)) !== null;
-    const value = usableSeries
-      ? parser.read(input === undefined ? table.read(i, x.field) : input[i], table.rowIndex(i), reports, options.values.length)
-      : NaN;
+    const raw = usableSeries ? input === undefined ? table.read(i, x.field) : input[i] : undefined;
+    const value = usableSeries && !(Number.isNaN(raw) && table.isColumnRow(i))
+      ? parser.read(raw, table.rowIndex(i), reports, options.values.length) : NaN;
     if (positions === input && !Object.is(positions[i], value)) positions = positions.slice();
     if (positions !== input) positions[i] = value;
     if (!Number.isFinite(value)) {
@@ -54,20 +56,21 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
       continue;
     }
     if (!(value > last)) ascending = false;
+    if (dateUnits) dateUnits[dateUnitOf(raw)]++;
     last = value;
     valid++;
   }
   reports.flush(sink);
-  if (ascending) return { parser, positions, order: null };
+  if (ascending) return { parser, positions, order: null, dateUnits };
 
   const order = new Int32Array(valid);
   let next = 0;
   for (let i = 0; i < positions.length; i++) if (Number.isFinite(positions[i])) order[next++] = i;
   order.sort((a, b) => positions[a]! - positions[b]!);
-  return { parser, positions, order };
+  return { parser, positions, order, dateUnits };
 }
 
-function reportCalendarDates(x: XData, table: Table, sink: DiagnosticSink): void {
+export function reportCalendarDates(x: XData, table: Table, sink: DiagnosticSink): void {
   if (x.parser.kind !== 'time') return;
   const length = x.order?.length ?? x.positions.length;
   if (length < 2) return;
@@ -113,6 +116,7 @@ function groups(options: ResolvedOptions, x: XData, sink: DiagnosticSink): Group
     const raw = table.read(i, series);
     const name = nameOf(raw);
     if (name === null) {
+      if (Number.isNaN(raw) && table.isColumnRow(i)) continue;
       if (raw === undefined) reports.add('AX102', 'omitted', table.rowIndex(i), undefined, undefined, { outcome: 'The affected row is not drawn.' });
       else reports.add('AX107', 'omitted', table.rowIndex(i), raw, 'Supply a name for the series in each row.');
       continue;
@@ -296,7 +300,9 @@ export function alignmentFits(series: number, positions: number, sink: Diagnosti
   return false;
 }
 
-export function alignedFrame(options: ResolvedOptions, x: XData, sink: DiagnosticSink, version: FrameVersion): AlignedFrame {
+export function alignedFrame(
+  options: ResolvedOptions, x: XData, sink: DiagnosticSink, version: FrameVersion, counts?: Map<string, ValueCounts>,
+): AlignedFrame {
   const axis = x.parser.column(x.positions);
   const { table } = options;
   const frame = {
@@ -316,15 +322,20 @@ export function alignedFrame(options: ResolvedOptions, x: XData, sink: Diagnosti
   const column = { ...axis, values: positions };
   const included = x.order === null ? undefined : (row: number) => Number.isFinite(x.positions[row]);
   const shared = options.series === null ? undefined : readValues(table, options.values[0]!, sink, true, 0, undefined, included);
-  const series = aligned.map(group => alignedSeries(group, column, x, table,
-    shared ?? readValues(table, group.group.value, sink, true, 0, undefined, included)));
+  const series = aligned.map(group => {
+    const value = group.group.value;
+    const count = counts ? { decimal: 0, other: 0 } : undefined;
+    const values = shared ?? readValues(table, value, sink, true, 0, undefined, included, undefined, count);
+    if (count) counts!.set(value.field, count);
+    return alignedSeries(group, column, x, table, values);
+  });
   for (const { group, gaps, sparse } of aligned) {
     reportGaps(sink, options.x.field, group.value.missing === 'zero', gaps, axis, group.label, sparse, group.key);
   }
   return { ...frame, x: column, length: positions.length, series };
 }
 
-function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticSink, version: FrameVersion): PointFrame {
+export function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticSink, version: FrameVersion): PointFrame {
   const { table } = options;
   const value = options.values[0]!;
   const included = x.order === null ? undefined : (row: number) => Number.isFinite(x.positions[row]);
@@ -371,6 +382,7 @@ function donutFrame(options: ResolvedOptions, sink: DiagnosticSink, version: Fra
     const raw = table.read(i, x.field);
     const name = nameOf(raw);
     if (name === null) {
+      if (Number.isNaN(raw) && table.isColumnRow(i)) continue;
       if (raw === undefined) issues.add('AX102', 'omitted', table.rowIndex(i), undefined, undefined, { outcome: 'The affected slice is not drawn.' });
       else issues.add('AX107', 'omitted', table.rowIndex(i), raw, 'Supply a label for each donut value.');
     } else {
@@ -406,6 +418,20 @@ function donutFrame(options: ResolvedOptions, sink: DiagnosticSink, version: Fra
   };
 }
 
+interface AlignedSeed {
+  readonly options: ResolvedOptions;
+  readonly type: AlignedChartType;
+  readonly x: XData;
+  readonly counts: Map<string, ValueCounts>;
+  readonly diagnostics: StreamDiagnostics;
+}
+
+const alignedSeeds = new WeakMap<AlignedFrame, AlignedSeed>();
+
+export function alignedSeed(frame: AlignedFrame): AlignedSeed | undefined {
+  return alignedSeeds.get(frame);
+}
+
 export function normalize(type: AlignedChartType, options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): AlignedFrame;
 export function normalize(type: 'scatter', options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): PointFrame;
 export function normalize(type: 'donut', options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): DonutFrame;
@@ -413,7 +439,16 @@ export function normalize(type: ChartType, options: ResolvedOptions, env: DataEn
 export function normalize(type: ChartType, options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): Frame {
   const valid = options.valid ? options : { ...options, table: { ...options.table, columns: null, length: 0 } };
   if (type === 'donut') return donutFrame(valid, sink, version);
-  const x = readX(type, valid, env, sink);
+  const diagnostics = type !== 'scatter' && options.valid && options.series === null ? new StreamDiagnostics() : null;
+  const observe = diagnostics ? recordDiagnostics(sink, diagnostics) : sink;
+  const x = readX(type, valid, env, observe);
   reportCalendarDates(x, valid.table, sink);
-  return type === 'scatter' ? pointFrame(valid, x, sink, version) : alignedFrame(valid, x, sink, version);
+  if (type === 'scatter') return pointFrame(valid, x, sink, version);
+  // Ascending wide axes can initialize the streaming indexes from normalized positions.
+  const counts = diagnostics && x.order === null ? new Map<string, ValueCounts>() : undefined;
+  const frame = alignedFrame(valid, x, observe, version, counts);
+  if (counts && diagnostics && frame.series.length === options.values.length) {
+    alignedSeeds.set(frame, { options, type, x, counts, diagnostics });
+  }
+  return frame;
 }

@@ -21,13 +21,14 @@ export class FrameBuffers {
   end: number;
   distinct: number;
 
-  constructor(frame: AlignedFrame, positions: Float64Array, order: Int32Array | null) {
-    this.end = frame.length;
+  constructor(frame?: AlignedFrame, positions?: Float64Array, order: Int32Array | null = null) {
+    this.end = frame?.length ?? 0;
     this.distinct = 0;
     const capacity = Math.max(16, this.end * 2);
     this.x = new Float64Array(capacity);
-    this.x.set(frame.x.values);
     this.observed = new Uint8Array(capacity);
+    if (!frame || !positions) return;
+    this.x.set(frame.x.values);
     let slot = 0;
     const length = order?.length ?? positions.length;
     for (let i = 0; i < length; i++) {
@@ -46,6 +47,19 @@ export class FrameBuffers {
       else for (let i = 0; i < this.end; i++) series.row[i] = i;
       this.series.set(description.key, series);
     }
+  }
+
+  fork(): FrameBuffers {
+    const draft = new FrameBuffers();
+    draft.x = this.x.slice();
+    draft.observed = this.observed.slice();
+    draft.start = this.start;
+    draft.end = this.end;
+    draft.distinct = this.distinct;
+    for (const [key, { description, y, slot, row }] of this.series) {
+      draft.series.set(key, { description, y: y.slice(), slot: slot.slice(), row: row.slice() });
+    }
+    return draft;
   }
 
   reserve(extra: number): boolean {

@@ -11,6 +11,16 @@ export class CalendarWindow {
 
   constructor(private readonly zone: string = 'UTC') {}
 
+  fork(): CalendarWindow {
+    const draft = new CalendarWindow(this.zone);
+    for (const row of this.rows) draft.rows.add(row);
+    for (const position of this.utcBreaks) draft.utcBreaks.add(position);
+    for (const position of this.localBreaks) draft.localBreaks.add(position);
+    draft.last = this.last;
+    draft.distinct = this.distinct;
+    return draft;
+  }
+
   observe(position: number): void {
     if (position === this.last) return;
     if (this.distinct) {

@@ -124,7 +124,7 @@ function unknownKeys(options: Record<string, unknown>, keys: readonly string[], 
   }
 }
 
-function resolveTable(data: unknown, sink: DiagnosticSink): { table: Table; valid: boolean } {
+export function resolveTable(data: unknown, sink: DiagnosticSink): { table: Table; valid: boolean } {
   if (Array.isArray(data)) return { table: rowsTable(data), valid: true };
   const columns = object(object(data).columns) as Columns;
   const keys = Object.keys(columns);
@@ -179,7 +179,32 @@ function resolveValue(input: unknown, path: string, sink: DiagnosticSink): Resol
   };
 }
 
-export function resolveOptions(type: ChartType, input: unknown, sink: DiagnosticSink): ResolvedOptions {
+const encodings = new WeakMap<ResolvedOptions, {
+  readonly named: readonly (readonly [string | null, string])[];
+  readonly supported: boolean;
+}>();
+
+export function withoutTable(options: ResolvedOptions): ResolvedOptions {
+  const resolved = { ...options, table: rowsTable([]) };
+  const encoding = encodings.get(options);
+  if (encoding) encodings.set(resolved, encoding);
+  return resolved;
+}
+
+export function retargetOptions(options: ResolvedOptions, table: Table, sink: DiagnosticSink, validData = true): ResolvedOptions {
+  const encoding = encodings.get(options);
+  const named = encoding?.named ?? [
+    [options.x.field, 'x'] as const,
+    ...options.values.map(value => [value.field, 'y'] as const),
+    ...(options.series === null ? [] : [[options.series, 'series'] as const]),
+  ];
+  const valid = checkFields(table, named, sink) && (encoding?.supported ?? options.valid) && validData;
+  const resolved = { ...options, table, valid };
+  if (encoding) encodings.set(resolved, encoding);
+  return resolved;
+}
+
+export function resolveOptions(type: ChartType, input: unknown, sink: DiagnosticSink, retained?: Table): ResolvedOptions {
   const options = object(input);
   unknownKeys(options, keysForChart[type], sink);
   unknownKeys(object(options.title), ['text', 'visible', 'level'], sink, 'title.');
@@ -191,7 +216,7 @@ export function resolveOptions(type: ChartType, input: unknown, sink: Diagnostic
     });
   }
 
-  const { table, valid: validTable } = resolveTable(options.data, sink);
+  const { table, valid: validTable } = retained ? { table: retained, valid: true } : resolveTable(options.data, sink);
   const donut = type === 'donut';
   const xInput = donut ? options.label : options.x;
   const x = resolveX(xInput, type, sink);
@@ -218,7 +243,9 @@ export function resolveOptions(type: ChartType, input: unknown, sink: Diagnostic
   const title = typeof options.title === 'string' ? options.title : object(options.title).text;
   const name = typeof title === 'string' && title ? title
     : typeof options.labelledBy === 'string' && options.labelledBy ? options.labelledBy : type;
-  return { table, x, values, form: wide ? 'wide' : 'long', series, valid, name };
+  const resolved: ResolvedOptions = { table, x, values, form: wide ? 'wide' : 'long', series, valid, name };
+  encodings.set(resolved, { named: fields, supported: !wide || supportsWide });
+  return resolved;
 }
 
 export function checkFields(table: Table, fields: readonly (readonly [string | null, string])[], sink: DiagnosticSink): boolean {

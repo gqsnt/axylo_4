@@ -5,6 +5,7 @@ import type { Table } from './table';
 
 const decimal = /^[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
 export type ValueMode = 'empty' | 'decimal' | 'other';
+export type ValueCounts = Record<Exclude<ValueMode, 'empty'>, number>;
 
 export function valueMode(value: unknown, column: boolean): ValueMode {
   if (value == null || value === '' || (column && typeof value === 'number' && Number.isNaN(value))) return 'empty';
@@ -36,6 +37,7 @@ export function readValues(
   mode?: ValueMode,
   included?: (row: number) => boolean,
   outcome?: string,
+  counts?: ValueCounts,
 ): Values {
   mode ??= inspectValues(table, field.field, included);
   const column = table.columns?.[field.field];
@@ -47,6 +49,10 @@ export function readValues(
   for (let i = 0; i < table.length; i++) {
     if (included && !included(i)) continue;
     const raw = column === undefined ? table.read(i, field.field) : column[i];
+    if (counts) {
+      const kind = valueMode(raw, table.isColumnRow(i));
+      if (kind !== 'empty') counts[kind]++;
+    }
     let value = NaN;
     let state: SlotState = SLOT_VALUE;
     if (typeof raw === 'number') {

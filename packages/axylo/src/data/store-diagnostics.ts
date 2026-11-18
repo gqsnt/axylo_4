@@ -1,5 +1,5 @@
 import type { DiagnosticEffect, DiagnosticInput, DiagnosticSink, XColumn } from '../core/contracts';
-import { DiagnosticCollector, createDiagnostic, type DiagnosticCode, type DiagnosticDetails } from '../diagnostics';
+import { DiagnosticCollector, createDiagnostic, report, type DiagnosticCode, type DiagnosticDetails } from '../diagnostics';
 import { diagnosticContext } from '../diagnostics/registry';
 import { positionName } from './x';
 
@@ -7,6 +7,28 @@ export interface DiagnosticTrace extends DiagnosticSink {
   traceRow?(code: DiagnosticCode, field: string, effect: DiagnosticEffect, row: number, amount?: number, example?: string, series?: string): void;
   traceGaps?(field: string, effect: DiagnosticEffect, positions: Float64Array, details?: DiagnosticDetails, axis?: XColumn): void;
   traceSparseGaps?(details: DiagnosticDetails, seriesKey?: string): void;
+}
+
+export function recordDiagnostics(sink: DiagnosticTrace, record: StreamDiagnostics): DiagnosticTrace {
+  return {
+    add(diagnostic) {
+      record.add(diagnostic);
+      sink.add(diagnostic);
+    },
+    traceRow(...args) {
+      record.traceRow(...args);
+      sink.traceRow?.(...args);
+    },
+    traceGaps(...args) {
+      record.traceGaps(...args);
+      sink.traceGaps?.(...args);
+    },
+    traceSparseGaps(details, seriesKey) {
+      record.traceSparseGaps(details, seriesKey);
+      if (sink.traceSparseGaps) sink.traceSparseGaps(details, seriesKey);
+      else report(sink, 'AX105', 'none', details);
+    },
+  };
 }
 
 function keyOf(code: DiagnosticInput['code'], field: string | undefined, effect: DiagnosticEffect): string {
@@ -36,6 +58,12 @@ function addSamples(target: Set<string>, samples: Iterable<string>): void {
 export class StreamDiagnostics extends DiagnosticCollector implements DiagnosticTrace {
   private readonly occurrences = new Map<string, Occurrences>();
   private readonly sparse = new Map<string, DiagnosticInput>();
+
+  fork(): StreamDiagnostics {
+    const draft = new StreamDiagnostics();
+    draft.merge(this);
+    return draft;
+  }
 
   private trace(key: string, coordinate: number, gaps: boolean, amount: number,
     examples: Iterable<string>, series: Iterable<string>, axis?: XColumn): void {

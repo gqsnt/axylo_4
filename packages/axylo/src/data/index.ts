@@ -3,4 +3,8 @@ export type { DataEnvironment, FrameVersion } from './normalize';
 export { resolveOptions } from './options';
 export type { AlignedChartType, ChartType, ResolvedOptions, ResolvedValueField, ResolvedXField } from './options';
 export { AlignedStore } from './store';
+export { DonutStore, PointStore } from './store-unaligned';
+export type { PreparedFrame, StoreAppendOptions } from './transaction';
+export { createXParser } from './x';
+export type { XAxisMeta, XPositionParser } from './x';
 export { validateOptions } from './validate';

@@ -12,6 +12,13 @@ export interface Table extends RowSource {
   keys(): readonly string[];
 }
 
+const origins = new WeakMap<Table, readonly unknown[] | Columns>();
+
+export function sameTableData(a: Table, b: Table): boolean {
+  const origin = origins.get(a);
+  return a === b || (origin !== undefined && origin === origins.get(b) && a.length === b.length);
+}
+
 function record(row: unknown): Record<string, unknown> | null {
   return row !== null && typeof row === 'object' ? row as Record<string, unknown> : null;
 }
@@ -22,7 +29,7 @@ export function rowValue(row: unknown, field: string): unknown {
 }
 
 export function rowsTable(rows: readonly unknown[]): Table {
-  return {
+  const table: Table = {
     length: rows.length,
     columns: null,
     read: (row, field) => rowValue(rows[row], field),
@@ -39,11 +46,13 @@ export function rowsTable(rows: readonly unknown[]): Table {
       return [...keys];
     },
   };
+  origins.set(table, rows);
+  return table;
 }
 
 export function columnsTable(columns: Columns, length: number): Table {
   const keys = Object.keys(columns);
-  return {
+  const table: Table = {
     length,
     columns,
     read: (row, field) => Object.hasOwn(columns, field) ? columns[field]?.[row] : undefined,
@@ -55,4 +64,6 @@ export function columnsTable(columns: Columns, length: number): Table {
     rowIndex: row => row,
     keys: () => keys,
   };
+  origins.set(table, columns);
+  return table;
 }
