@@ -9,31 +9,33 @@ export class Reports {
     rows: number[];
     examples: string[];
     detail?: string;
+    outcome?: string;
+    series: Set<string>;
   }>();
 
   constructor(private readonly field: string, private readonly sink?: DiagnosticTrace) {}
 
-  add(code: DiagnosticCode, effect: DiagnosticEffect, row: number, example?: unknown, detail?: string): void {
+  add(code: DiagnosticCode, effect: DiagnosticEffect, row: number, example?: unknown, detail?: string, options?: {
+    amount?: number; series?: string; position?: string; outcome?: string;
+  }): void {
     let entry = this.entries.get(code);
     if (!entry) {
-      entry = { effect, count: 0, rows: [], examples: [], detail };
+      entry = { effect, count: 0, rows: [], examples: [], detail, outcome: options?.outcome, series: new Set() };
       this.entries.set(code, entry);
     }
-    this.sink?.traceRow?.(code, this.field, effect, row);
-    entry.count++;
-    if (entry.rows.length < 10) {
-      entry.rows.push(row);
-      if (example !== undefined) {
-        const text = typeof example === 'string' ? JSON.stringify(example)
-          : example !== null && typeof example === 'object' ? Object.prototype.toString.call(example) : String(example);
-        entry.examples.push(text);
-      }
-    }
+    const amount = options?.amount ?? 1;
+    const text = options?.position ?? (example === undefined ? undefined : typeof example === 'string' ? JSON.stringify(example)
+      : example !== null && typeof example === 'object' ? Object.prototype.toString.call(example) : String(example));
+    this.sink?.traceRow?.(code, this.field, effect, row, amount, text, options?.series);
+    entry.count += amount;
+    if (entry.rows.length < 10 && !entry.rows.includes(row)) entry.rows.push(row);
+    if (text !== undefined && entry.examples.length < 10 && !entry.examples.includes(text)) entry.examples.push(text);
+    if (options?.series !== undefined && entry.series.size < 10) entry.series.add(options.series);
   }
 
   flush(sink: DiagnosticSink): void {
-    for (const [code, { effect, count, rows, examples, detail }] of this.entries) {
-      report(sink, code, effect, { field: this.field, count, rows, examples, detail });
+    for (const [code, { effect, count, rows, examples, detail, outcome, series }] of this.entries) {
+      report(sink, code, effect, { field: this.field, count, rows, examples, detail, outcome, series: [...series] });
     }
   }
 }

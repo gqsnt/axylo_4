@@ -1,5 +1,5 @@
 import type { DiagnosticSink } from '../core/contracts';
-import type { ValueFieldOptions, XFieldOptions } from '../public';
+import type { Messages, ValueFieldOptions, XFieldOptions } from '../public';
 import { report } from '../diagnostics';
 import { columnsTable, rowsTable, type Columns, type Table } from './table';
 
@@ -52,36 +52,63 @@ const fieldKeys = ['field', 'label', 'unit', 'format', 'tickFormat', 'domain'];
 const scatterXKeys = [...fieldKeys, 'type', 'timeZone'];
 const xKeys = [...scatterXKeys, 'ordered'];
 const valueKeys = [...fieldKeys, 'scale', 'missing', 'parse'];
-const messageKeys = ['viewAsTable', 'hideTable', 'noData', 'noObservation', 'incompleteStack', 'moreRows', 'otherSlices',
-  'valuesNotShown', 'valuesChanged', 'labelsHidden', 'loading', 'empty', 'error', 'internalError', 'chartName',
-  'chartSummary', 'seriesSummary', 'referenceSummary', 'timeZoneNote', 'plotLabel', 'controlsLabel', 'pointOf',
-  'zoomIn', 'zoomOut', 'resetZoom', 'pause', 'resume', 'previousPage', 'nextPage', 'pageOf', 'jumpToX'];
+const messageKeys = {
+  viewAsTable: true, hideTable: true, noData: true, noObservation: true, incompleteStack: true, moreRows: true,
+  otherSlices: true, valuesNotShown: true, valuesChanged: true, labelsHidden: true, loading: true, empty: true,
+  error: true, internalError: true, chartName: true, chartSummary: true, seriesSummary: true, referenceSummary: true,
+  timeZoneNote: true, plotLabel: true, controlsLabel: true, pointOf: true, zoomIn: true, zoomOut: true, resetZoom: true,
+  pause: true, resume: true, previousPage: true, nextPage: true, pageOf: true, jumpToX: true, showSeries: true, hideSeries: true,
+  category: true, percentage: true, series: true, value: true, typeLine: true, typeArea: true, typeBar: true, typeScatter: true,
+  typeDonut: true, donutSummary: true, seriesNoData: true, seriesNotDrawn: true, referenceLine: true, referenceBand: true,
+} satisfies Record<keyof Messages, true>;
 
 function distance(a: string, b: string): number {
-  const costs = Array.from({ length: b.length + 1 }, (_, i) => i);
+  let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+  let earlier = previous;
   for (let i = 1; i <= a.length; i++) {
-    let diagonal = costs[0]!;
-    costs[0] = i;
+    const costs = [i];
     for (let j = 1; j <= b.length; j++) {
-      const above = costs[j]!;
-      costs[j] = Math.min(above + 1, costs[j - 1]! + 1, diagonal + (a[i - 1] === b[j - 1] ? 0 : 1));
-      diagonal = above;
+      let cost = Math.min(previous[j]! + 1, costs[j - 1]! + 1, previous[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (i > 1 && j > 1 && a[i - 2] === b[j - 1] && a[i - 1] === b[j - 2]) {
+        cost = Math.min(cost, earlier[j - 2]! + 1);
+      }
+      costs.push(cost);
     }
+    earlier = previous;
+    previous = costs;
   }
-  return costs[b.length]!;
+  return previous[b.length]!;
 }
 
-function closest(name: string, keys: readonly string[]): string | undefined {
-  let suggestion: string | undefined;
+function closest<T extends string>(name: string, keys: readonly T[], limit = name.length / 3): T | undefined {
+  let suggestion: T | undefined;
   let best = Infinity;
   for (const key of keys) {
+    if (name === key || Math.abs(name.length - key.length) > limit) continue;
     const score = distance(name.toLowerCase(), key.toLowerCase());
-    if (score < best) {
+    if (score <= limit && score < best) {
       suggestion = key;
       best = score;
     }
   }
   return suggestion;
+}
+
+function literal<const T extends string>(value: unknown, keys: readonly T[], field: string, sink: DiagnosticSink): T | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value === 'string' && keys.includes(value as T)) return value as T;
+  const suggestion = typeof value === 'string' ? closest(value, keys, Infinity) : keys[0];
+  report(sink, 'AX150', 'none', { field, suggestion, detail: 'Use a supported value for this option.' });
+  return undefined;
+}
+
+export function canonicalZone(zone: unknown): string | undefined {
+  if (typeof zone !== 'string') return undefined;
+  try {
+    return Intl.DateTimeFormat('en', { timeZone: zone }).resolvedOptions().timeZone;
+  } catch {
+    return undefined;
+  }
 }
 
 function object(value: unknown): Record<string, unknown> {
@@ -102,13 +129,17 @@ function resolveTable(data: unknown, sink: DiagnosticSink): { table: Table; vali
   const columns = object(object(data).columns) as Columns;
   const keys = Object.keys(columns);
   const length = columns[keys[0] ?? '']?.length ?? 0;
-  const differing = keys.find(key => columns[key]?.length !== length);
+  const differing = keys.find(key => {
+    const column = columns[key];
+    return typeof column !== 'object' || column === null || column.length !== length ||
+      !Number.isInteger(column.length) || column.length < 0 || column.length > 0x7fffffff;
+  });
   if (differing !== undefined) {
     report(sink, 'AX100', 'chart-error', {
       field: differing, count: 1, examples: keys.map(key => JSON.stringify(key) + ': ' + columns[key]?.length),
     });
   }
-  return { table: columnsTable(columns, length), valid: differing === undefined };
+  return { table: columnsTable(columns, differing === undefined ? length : 0), valid: differing === undefined };
 }
 
 function fieldName(input: unknown): string | null {
@@ -120,10 +151,17 @@ function resolveX(input: unknown, type: ChartType, sink: DiagnosticSink): Resolv
   const options = object(input) as XFieldOptions;
   if (type !== 'donut') unknownKeys(object(input), type === 'scatter' ? scatterXKeys : xKeys, sink, 'x.');
   const field = fieldName(input) ?? '';
+  const declared = literal(options.type, ['number', 'time', 'date', 'category'], 'x.type', sink);
+  const zone = options.timeZone === undefined || options.timeZone === 'local'
+    ? 'local' : canonicalZone(options.timeZone);
+  if (zone === undefined) {
+    const examples = typeof options.timeZone === 'string' ? [JSON.stringify(options.timeZone)] : undefined;
+    report(sink, 'AX152', 'none', { field: 'x.timeZone', examples });
+  }
   return {
     field, label: options.label ?? field, unit: options.unit ?? null,
-    type: type === 'donut' ? 'category' : options.type ?? null,
-    timeZone: options.timeZone ?? 'local', ordered: type !== 'scatter' && (options.ordered ?? false),
+    type: type === 'donut' ? 'category' : declared ?? null,
+    timeZone: zone ?? 'local', ordered: type !== 'scatter' && (options.ordered ?? false),
     format: options.format ?? null, tickFormat: options.tickFormat ?? null, domain: options.domain ?? null,
   };
 }
@@ -133,8 +171,10 @@ function resolveValue(input: unknown, path: string, sink: DiagnosticSink): Resol
   unknownKeys(object(input), valueKeys, sink, path);
   const field = fieldName(input) ?? '';
   return {
-    field, label: options.label ?? field, unit: options.unit ?? null, scale: options.scale ?? null,
-    missing: options.missing ?? 'gap', parse: options.parse ?? null, format: options.format ?? null,
+    field, label: options.label ?? field, unit: options.unit ?? null,
+    scale: literal(options.scale, ['percent', 'ratio'], path + 'scale', sink) ?? null,
+    missing: literal(options.missing, ['gap', 'zero'], path + 'missing', sink) ?? 'gap',
+    parse: literal(options.parse, ['number'], path + 'parse', sink) ?? null, format: options.format ?? null,
     tickFormat: options.tickFormat ?? null, domain: options.domain ?? null,
   };
 }
@@ -144,7 +184,7 @@ export function resolveOptions(type: ChartType, input: unknown, sink: Diagnostic
   unknownKeys(options, keysForChart[type], sink);
   unknownKeys(object(options.title), ['text', 'visible', 'level'], sink, 'title.');
   unknownKeys(object(options.state), ['error', 'empty'], sink, 'state.');
-  unknownKeys(object(options.messages), messageKeys, sink, 'messages.');
+  unknownKeys(object(options.messages), Object.keys(messageKeys), sink, 'messages.');
   if (type !== 'donut' && Array.isArray(options.reference)) {
     options.reference.forEach((reference, row) => {
       unknownKeys(object(reference), ['x', 'y', 'label'], sink, 'reference[' + row + '].');
@@ -173,6 +213,15 @@ export function resolveOptions(type: ChartType, input: unknown, sink: Diagnostic
   for (const input of valueInputs) fields.push([fieldName(input), donut ? 'value' : 'y']);
   if (values.length === 0) fields.push([null, 'y']);
   if (series !== null) fields.push([series, 'series']);
+  valid = checkFields(table, fields, sink) && valid;
+
+  const title = typeof options.title === 'string' ? options.title : object(options.title).text;
+  const name = typeof title === 'string' && title ? title
+    : typeof options.labelledBy === 'string' && options.labelledBy ? options.labelledBy : type;
+  return { table, x, values, form: wide ? 'wide' : 'long', series, valid, name };
+}
+
+export function checkFields(table: Table, fields: readonly (readonly [string | null, string])[], sink: DiagnosticSink): boolean {
   const reported = new Set<string>();
   for (const [field, role] of fields) {
     if (field !== null && (table.columns === null && table.length === 0 || table.hasField(field))) continue;
@@ -180,12 +229,7 @@ export function resolveOptions(type: ChartType, input: unknown, sink: Diagnostic
     if (reported.has(name)) continue;
     reported.add(name);
     const keys = table.keys();
-    report(sink, 'AX101', 'chart-error', { field: name, keys, suggestion: closest(name, keys), count: 1 });
-    valid = false;
+    report(sink, 'AX101', 'chart-error', { field: name, keys, suggestion: field === null ? undefined : closest(name, keys), count: 1 });
   }
-
-  const title = typeof options.title === 'string' ? options.title : object(options.title).text;
-  const name = typeof title === 'string' && title ? title
-    : typeof options.labelledBy === 'string' && options.labelledBy ? options.labelledBy : type;
-  return { table, x, values, form: wide ? 'wide' : 'long', series, valid, name };
+  return reported.size === 0;
 }

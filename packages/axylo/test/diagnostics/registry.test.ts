@@ -25,8 +25,8 @@ describe('diagnostic registry', () => {
       AX100: 'error', AX101: 'error', AX102: 'warning', AX103: 'warning', AX104: 'hint', AX105: 'hint',
       AX106: 'warning', AX107: 'warning', AX108: 'error', AX109: 'hint', AX110: 'warning',
       AX111: 'hint', AX112: 'hint', AX120: 'error', AX121: 'warning', AX130: 'warning', AX131: 'hint',
-      AX132: 'hint', AX133: 'hint', AX140: 'warning', AX141: 'warning', AX142: 'hint', AX143: 'hint',
-      AX150: 'warning', AX151: 'warning', AX160: 'warning',
+      AX132: 'hint', AX133: 'hint', AX134: 'error', AX140: 'warning', AX141: 'warning', AX142: 'hint', AX143: 'hint',
+      AX150: 'warning', AX151: 'warning', AX152: 'warning', AX160: 'warning',
     });
   });
 
@@ -69,7 +69,7 @@ describe('diagnostic registry', () => {
     expectDiagnostic(diagnostic, 'AX105', 'hint', 'none', 'day', 1, undefined, 'explicit nulls');
     expect(diagnostic?.message).toContain('(3)');
     expectDiagnostic(line(data, { y: { field: 'value', missing: 'zero' } })[0],
-      'AX105', 'hint', 'changed', 'day', 1, undefined, 'explicit nulls');
+      'AX105', 'hint', 'none', 'day', 1, undefined, 'explicit nulls');
   });
 
   it('AX106 identifies unplottable strings', () => {
@@ -156,4 +156,26 @@ describe('diagnostic collector', () => {
     collector.add(createDiagnostic('AX160', 'none', { field: 'value' }));
     expect(collector.inputs()[0]).toMatchObject({ origin: 'call', count: 2 });
   });
+});
+
+it('deduplicates example rows and counts all occurrences before capping samples', () => {
+  const collector = new DiagnosticCollector();
+  collector.add(createDiagnostic('AX103', 'omitted', { field: 'y', rows: [1, 1, ...Array.from({ length: 10 }, (_, i) => i + 2)] }));
+  collector.add(createDiagnostic('AX103', 'omitted', { field: 'y', rows: [3, 12] }));
+  expect(collector.inputs()).toMatchObject([{
+    count: 14, rows: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], message: expect.stringContaining('14 non-finite values'),
+  }]);
+});
+
+it('uses date positions and series names and ends messages with the drawing outcome', () => {
+  const gaps = line([1, 2, 4, 5].map(day => ({ day: '2026-03-0' + day, value: 1, s: 'Revenue' })), { series: 's' });
+  expect(gaps[0]?.message).toMatch(/"Revenue".*2026-03-03.*Shown as gaps\.$/);
+  const duplicates = line([0, 1].map(() => ({ day: '2026-03-01', value: 1, s: 'Revenue' })), { series: 's' });
+  expect(duplicates[0]?.message).toMatch(/"Revenue".*2026-03-01.*series is not drawn\.$/i);
+});
+
+it('does not suggest far-off names or a field name already present in the data', () => {
+  const diagnostics = line([{ day: 1, value: 2, x: 1 }], { x: { field: 9 }, qqqqqqqqqqqq: true });
+  expect(diagnostics).toHaveLength(2);
+  expect(diagnostics.every(diagnostic => !diagnostic.message.includes('Did you mean'))).toBe(true);
 });

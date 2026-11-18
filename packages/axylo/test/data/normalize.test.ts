@@ -113,7 +113,7 @@ describe('F2 and F3 slot states', () => {
     expect([...frame.series[0]!.slot]).toEqual([SLOT_VALUE, SLOT_VALUE, SLOT_VALUE, SLOT_INVALID, SLOT_VALUE, SLOT_VALUE]);
     expect([...frame.series[0]!.y]).toEqual([0, 0, 0, NaN, 7, 0]);
     expect([...frame.series[0]!.row!]).toEqual([-1, -1, -1, 2, 3, -1]);
-    expect(readerDisclosure(diagnostics.inputs())).toEqual({ omitted: 1, changed: 2 });
+    expect(readerDisclosure(diagnostics.inputs())).toEqual({ omitted: 1, changed: 1 });
   });
 });
 
@@ -133,7 +133,7 @@ describe('F4 x kinds', () => {
       expect([...frame.x.values]).toEqual(millis);
       expect(frame.x).toMatchObject(variant === 0
         ? { kind: 'date', dateUnit: 'day', timeZone: null }
-        : { kind: 'time', dateUnit: null, timeZone });
+        : { kind: 'time', dateUnit: null, timeZone: Intl.DateTimeFormat('en', { timeZone }).resolvedOptions().timeZone });
       expect(diagnostics.inputs().map(d => d.code)).toEqual(variant === 0 ? [] : ['AX111']);
     }
   });
@@ -203,7 +203,7 @@ describe('F8, F11 and DX2 frame shapes', () => {
     const { frame, diagnostics } = aligned({ data, x: 'x', y: ['a', 'b'] });
     expect(frame.series.map(s => s.drawable)).toEqual([false, false]);
     expect(frame.series.map(s => [...s.y])).toEqual([[1, 2, 3], [11, 22, 33]]);
-    expect(diagnostics.inputs()).toMatchObject([{ code: 'AX108', count: 2, rows: [2, 2] }]);
+    expect(diagnostics.inputs()).toMatchObject([{ code: 'AX108', count: 2, rows: [2] }]);
   });
 
   it('produces equal aligned values and slots from long, wide and typed inputs', () => {
@@ -240,11 +240,11 @@ describe('F8, F11 and DX2 frame shapes', () => {
     if (frame.shape !== 'points') throw new Error('Expected a point frame');
     expect(frame).toMatchObject({ xLabel: 'Hours', xUnit: 'h', yUnit: 'kg', xKind: 'number' });
     expect(frame.series.map(s => [[...s.x], [...s.y], [...s.row!], s.drawable])).toEqual([
-      [[1, 1, 2], [3, 5, 8], [2, 1, 0], false], [[0], [7], [3], true],
+      [[1, 1, 2], [3, 5, 8], [2, 1, 0], true], [[0], [7], [3], true],
     ]);
     expect(frame.source.rowAt(2)).toBe(data[2]);
     expect(diagnostics.inputs()).toMatchObject([
-      { code: 'AX102', field: 'x', rows: [4] }, { code: 'AX103', field: 'y', rows: [6] }, { code: 'AX108', rows: [2] },
+      { code: 'AX102', field: 'x', rows: [4] }, { code: 'AX103', field: 'y', rows: [6] },
     ]);
   });
 
@@ -261,17 +261,24 @@ describe('F8, F11 and DX2 frame shapes', () => {
     expect(diagnostics.inputs()).toEqual([]);
   });
 
-  it('normalizes one million ascending typed values in under 700 ms and borrows the y and x buffers', () => {
+  it('borrows one million ascending typed values with a warmed median under 100 ms', () => {
     const length = 1_000_000;
     const x = new Float64Array(length);
     const y = new Float32Array(length);
     for (let i = 0; i < length; i++) x[i] = i;
     y[4] = NaN;
     y[length - 1] = 123;
-    const start = performance.now();
-    const { frame, diagnostics } = aligned({ data: { columns: { x, y } }, x: 'x', y: 'y' });
-    const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(700);
+    const options = { data: { columns: { x, y } }, x: 'x', y: 'y' };
+    for (let i = 0; i < 3; i++) aligned(options);
+    const timings: number[] = [];
+    let result = aligned(options);
+    for (let i = 0; i < 5; i++) {
+      const start = performance.now();
+      result = aligned(options);
+      timings.push(performance.now() - start);
+    }
+    expect(timings.sort((a, b) => a - b)[2]).toBeLessThan(100);
+    const { frame, diagnostics } = result;
     expect(frame.length).toBe(length);
     expect(frame.x.values).toBe(x);
     const series = frame.series[0]!;
@@ -344,4 +351,57 @@ it('resolves the long and wide field descriptions with explicit formatting defau
     ],
   });
   expect(aligned({ data, x: 'day', y: 'a', series: 'name' }).resolved).toMatchObject({ form: 'long', series: 'name' });
+});
+
+it('preserves aligned slot and provenance invariants across x kinds and data forms', () => {
+  const axes = {
+    number: { kind: 'number', raw: (i: number) => i / 10, position: (i: number) => i / 10 },
+    day: {
+      kind: 'date', raw: (i: number) => new Date(Date.UTC(2026, 2, 1 + i)).toISOString().slice(0, 10),
+      position: (i: number) => Date.UTC(2026, 2, 1 + i),
+    },
+    month: { kind: 'date', raw: (i: number) => '2026-' + String(i + 1).padStart(2, '0'), position: (i: number) => Date.UTC(2026, i, 1) },
+    year: { kind: 'date', raw: (i: number) => String(2026 + i), position: (i: number) => Date.UTC(2026 + i, 0, 1) },
+    time: { kind: 'time', raw: (i: number) => new Date(Date.UTC(2026, 2, 1, i)), position: (i: number) => Date.UTC(2026, 2, 1, i) },
+    wall: {
+      kind: 'wall', raw: (i: number) => '2026-03-01 0' + i + ':00', position: (i: number) => Date.UTC(2026, 2, 1, i),
+    },
+    category: { kind: 'category', raw: (i: number) => 'place ' + i, position: () => NaN },
+  } as const;
+  const value = fc.oneof(fc.integer(), fc.constant(null), fc.constant(undefined), fc.constant(NaN), fc.constant('9'), fc.constant('bad'));
+  const records = fc.array(fc.record({ index: fc.integer({ min: 0, max: 9 }), a: value, b: value, s: fc.constantFrom('a', 'b') }), {
+    minLength: 1, maxLength: 25,
+  });
+  fc.assert(fc.property(fc.constantFrom(...Object.keys(axes) as (keyof typeof axes)[]),
+    fc.constantFrom('wide', 'long', 'columns'), records, fc.boolean(), (kind, form, data, zero) => {
+      const axis = axes[kind];
+      const rows = data.map(({ index, ...row }) => ({ ...row, x: axis.raw(index) }));
+      const missing = zero ? 'zero' : 'gap';
+      const fields = ['a', 'b'].map(field => ({ field, missing }));
+      const options = form === 'long'
+        ? { data: rows, x: 'x', y: fields[0], series: 's' }
+        : { data: form === 'wide' ? rows : { columns: { x: rows.map(row => row.x), a: Float64Array.from(rows, row => typeof row.a === 'number' ? row.a : NaN),
+          b: Float64Array.from(rows, row => typeof row.b === 'number' ? row.b : NaN) } }, x: 'x', y: fields };
+      const { frame, diagnostics } = aligned(options);
+      const repeat = aligned(options);
+      expect(contents(frame)).toEqual(contents(repeat.frame));
+      expect(diagnostics.inputs()).toEqual(repeat.diagnostics.inputs());
+      expect(frame.x.kind).toBe(axis.kind);
+      for (let i = 1; i < frame.length; i++) expect(frame.x.values[i]).toBeGreaterThan(frame.x.values[i - 1]!);
+      for (const series of frame.series) {
+        for (let i = 0; i < frame.length; i++) {
+          expect(Number.isNaN(series.y[i])).toBe(series.slot[i] !== SLOT_VALUE);
+          const row = series.row?.[i] ?? i;
+          if (row === -1) {
+            if (zero) expect(series.y[i]).toBe(0);
+            else expect([SLOT_NO_ROW, SLOT_GAP]).toContain(series.slot[i]);
+            continue;
+          }
+          expect(row).toBeLessThan(data.length);
+          expect(frame.source.rowAt(row)).toMatchObject({ x: rows[row]!.x });
+          if (kind === 'category') expect(frame.x.categories?.[frame.x.values[i]!]).toBe(rows[row]!.x);
+          else expect(frame.x.values[i]).toBe(axis.position(data[row]!.index));
+        }
+      }
+    }), { numRuns: 160 });
 });

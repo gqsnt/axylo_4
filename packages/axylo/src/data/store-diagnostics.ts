@@ -1,78 +1,125 @@
-import type { DiagnosticEffect, DiagnosticInput, DiagnosticSink } from '../core/contracts';
-import { DiagnosticCollector, createDiagnostic, type DiagnosticCode } from '../diagnostics';
+import type { DiagnosticEffect, DiagnosticInput, DiagnosticSink, XColumn } from '../core/contracts';
+import { DiagnosticCollector, createDiagnostic, type DiagnosticCode, type DiagnosticDetails } from '../diagnostics';
 import { diagnosticContext } from '../diagnostics/registry';
+import { positionName } from './x';
 
 export interface DiagnosticTrace extends DiagnosticSink {
-  traceRow?(code: DiagnosticCode, field: string, effect: DiagnosticEffect, row: number): void;
-  traceGaps?(field: string, effect: DiagnosticEffect, positions: Float64Array): void;
+  traceRow?(code: DiagnosticCode, field: string, effect: DiagnosticEffect, row: number, amount?: number, example?: string, series?: string): void;
+  traceGaps?(field: string, effect: DiagnosticEffect, positions: Float64Array, details?: DiagnosticDetails, axis?: XColumn): void;
+  traceSparseGaps?(details: DiagnosticDetails, seriesKey?: string): void;
 }
 
 function keyOf(code: DiagnosticInput['code'], field: string | undefined, effect: DiagnosticEffect): string {
   return JSON.stringify([code, field, effect]);
 }
 
-interface Occurrences {
-  readonly coordinates: Map<number, number>;
-  readonly gaps: boolean;
+interface Sample {
   count: number;
+  readonly examples: Set<string>;
+  readonly series: Set<string>;
+}
+
+interface Occurrences {
+  readonly coordinates: Map<number, Sample>;
+  readonly gaps: boolean;
+  readonly axis?: XColumn;
+  count: number;
+}
+
+function addSamples(target: Set<string>, samples: Iterable<string>): void {
+  for (const sample of samples) {
+    if (target.size === 10) break;
+    target.add(sample);
+  }
 }
 
 export class StreamDiagnostics extends DiagnosticCollector implements DiagnosticTrace {
   private readonly occurrences = new Map<string, Occurrences>();
+  private readonly sparse = new Map<string, DiagnosticInput>();
 
-  private trace(key: string, coordinate: number, gaps: boolean, amount = 1): void {
+  private trace(key: string, coordinate: number, gaps: boolean, amount: number,
+    examples: Iterable<string>, series: Iterable<string>, axis?: XColumn): void {
     let entry = this.occurrences.get(key);
-    if (!entry) this.occurrences.set(key, entry = { coordinates: new Map(), count: 0, gaps });
-    entry.coordinates.set(coordinate, (entry.coordinates.get(coordinate) ?? 0) + amount);
+    if (!entry) this.occurrences.set(key, entry = { coordinates: new Map(), count: 0, gaps, axis });
+    let sample = entry.coordinates.get(coordinate);
+    if (!sample) entry.coordinates.set(coordinate, sample = { count: 0, examples: new Set(), series: new Set() });
+    sample.count += amount;
+    addSamples(sample.examples, examples);
+    addSamples(sample.series, series);
     entry.count += amount;
   }
 
-  traceRow(code: DiagnosticCode, field: string, effect: DiagnosticEffect, row: number): void {
-    this.trace(keyOf(code, field, effect), row, false);
+  traceRow(code: DiagnosticCode, field: string, effect: DiagnosticEffect, row: number, amount = 1, example?: string, series?: string): void {
+    this.trace(keyOf(code, field, effect), row, false, amount, example === undefined ? [] : [example], series === undefined ? [] : [series]);
   }
 
-  traceGaps(field: string, effect: DiagnosticEffect, positions: Float64Array): void {
+  traceGaps(field: string, effect: DiagnosticEffect, positions: Float64Array, details?: DiagnosticDetails, axis?: XColumn): void {
     const key = keyOf('AX105', field, effect);
-    for (const position of positions) this.trace(key, position, true);
+    for (const position of positions) this.trace(key, position, true, 1, [], details?.series ?? [], axis);
+  }
+
+  traceSparseGaps(details: DiagnosticDetails, seriesKey?: string): void {
+    this.sparse.set(seriesKey ?? details.sparseSeries?.[0] ?? '', createDiagnostic('AX105', 'none', details));
   }
 
   merge(batch: StreamDiagnostics): void {
-    for (const diagnostic of batch.inputs()) this.add(diagnostic);
-    for (const [key, { coordinates, gaps }] of batch.occurrences) {
-      for (const [coordinate, amount] of coordinates) this.trace(key, coordinate, gaps, amount);
+    for (const [name, diagnostic] of batch.sparse) this.sparse.set(name, diagnostic);
+    for (const diagnostic of batch.entries.values()) this.add(diagnostic);
+    for (const [key, { coordinates, gaps, axis }] of batch.occurrences) {
+      for (const [coordinate, sample] of coordinates) this.trace(key, coordinate, gaps, sample.count, sample.examples, sample.series, axis);
     }
   }
 
   evict(coordinate: number, gaps: boolean): void {
-    for (const occurrence of this.occurrences.values()) {
+    for (const [key, occurrence] of this.occurrences) {
       if (occurrence.gaps !== gaps) continue;
-      const amount = occurrence.coordinates.get(coordinate);
-      if (amount === undefined) continue;
-      occurrence.count -= amount;
+      const sample = occurrence.coordinates.get(coordinate);
+      if (!sample) continue;
+      occurrence.count -= sample.count;
       occurrence.coordinates.delete(coordinate);
+      if (occurrence.count === 0) {
+        this.entries.delete(key);
+        this.occurrences.delete(key);
+      }
     }
   }
 
+  evictSeries(key: string): void {
+    this.sparse.delete(key);
+  }
+
+  override inputs(): readonly DiagnosticInput[] {
+    return this.retained();
+  }
+
   retained(): readonly DiagnosticInput[] {
-    const result: DiagnosticInput[] = [];
-    for (const diagnostic of this.inputs()) {
-      const { code, field, effect } = diagnostic;
+    const result = new DiagnosticCollector();
+    for (const diagnostic of this.entries.values()) {
+      const { code, field, effect, origin } = diagnostic;
       const entry = this.occurrences.get(keyOf(code, field, effect));
-      if (!entry || entry.count === diagnostic.count) {
-        result.push(diagnostic);
+      if (!entry) {
+        result.add(diagnostic);
         continue;
       }
-      if (entry.count === 0) continue;
-      const samples: number[] = [];
-      for (const [coordinate, amount] of entry.coordinates) {
-        for (let i = 0; i < amount && samples.length < 10; i++) samples.push(coordinate);
-        if (samples.length === 10) break;
+      const rows: number[] = [];
+      const examples = new Set<string>();
+      const series = new Set<string>();
+      for (const [coordinate, sample] of entry.coordinates) {
+        if (entry.gaps) {
+          examples.add(entry.axis ? positionName(entry.axis, coordinate) : String(coordinate));
+        } else {
+          rows.push(coordinate);
+          addSamples(examples, sample.examples);
+        }
+        addSamples(series, sample.series);
+        if (rows.length === 10 || entry.gaps && examples.size === 10) break;
       }
-      result.push(createDiagnostic(code as DiagnosticCode, effect, {
+      result.add(createDiagnostic(code as DiagnosticCode, effect, {
         ...diagnosticContext(diagnostic), field, count: entry.count,
-        rows: entry.gaps ? undefined : samples, examples: entry.gaps ? samples.map(String) : undefined,
-      }));
+        rows: entry.gaps ? undefined : rows, examples: [...examples], series: [...series],
+      }, origin));
     }
-    return result;
+    for (const diagnostic of this.sparse.values()) result.add(diagnostic);
+    return result.inputs();
   }
 }

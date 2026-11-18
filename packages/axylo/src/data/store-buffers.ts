@@ -15,6 +15,7 @@ function buffers(description: SeriesDescription, capacity: number): SeriesBuffer
 export class FrameBuffers {
   x: Float64Array;
   observed: Uint8Array;
+  private categoryPositions = new Float64Array();
   readonly series = new Map<string, SeriesBuffers>();
   start = 0;
   end: number;
@@ -49,6 +50,15 @@ export class FrameBuffers {
 
   reserve(extra: number): boolean {
     if (this.end + extra <= this.x.length) return false;
+    this.resize(extra);
+    return true;
+  }
+
+  shrink(): void {
+    if (this.x.length > Math.max(32, 4 * (this.end - this.start))) this.resize(0);
+  }
+
+  private resize(extra: number): void {
     const { start, end } = this;
     const count = end - start;
     const capacity = Math.max(16, 2 * (count + extra));
@@ -58,6 +68,7 @@ export class FrameBuffers {
     observed.set(this.observed.subarray(start, end));
     this.x = x;
     this.observed = observed;
+    if (this.categoryPositions.length > capacity) this.categoryPositions = new Float64Array();
     for (const [key, previous] of this.series) {
       const series = buffers(previous.description, capacity);
       series.y.set(previous.y.subarray(start, end));
@@ -67,7 +78,6 @@ export class FrameBuffers {
     }
     this.start = 0;
     this.end = count;
-    return true;
   }
 
   copySeries(series: SeriesBuffers): SeriesBuffers {
@@ -101,18 +111,59 @@ export class FrameBuffers {
     }
   }
 
-  frame(previous: AlignedFrame, axis: XColumn, source: RowSource): AlignedFrame {
+  frame(previous: AlignedFrame, axis: XColumn, source: RowSource, open?: (key: string) => boolean): AlignedFrame {
     const { start, end } = this;
+    let positions = this.x.subarray(start, end);
+    if (axis.kind === 'category' && positions[0]) {
+      if (this.categoryPositions.length < positions.length) {
+        const capacity = Math.max(16, positions.length * 2);
+        this.categoryPositions = Float64Array.from({ length: capacity }, (_, i) => i);
+      }
+      positions = this.categoryPositions.subarray(0, positions.length);
+    }
     return {
       ...previous, source, revision: previous.revision, length: end - start,
       x: {
-        values: this.x.subarray(start, end), kind: axis.kind, dateUnit: axis.dateUnit,
+        values: positions, kind: axis.kind, dateUnit: axis.dateUnit,
         timeZone: axis.timeZone, ordered: axis.ordered,
-        get categories() { return axis.categories; },
+        get categories() { return axis.kind === 'category' && end === start ? [] : axis.categories; },
       },
-      series: Array.from(this.series.values(), ({ description, y, slot, row }) => ({
-        ...description, y: y.subarray(start, end), slot: slot.subarray(start, end), row: row.subarray(start, end),
-      })),
+      series: Array.from(this.series.values(), ({ description, y, slot, row }) => {
+        if (end === start || !open?.(description.key)) {
+          return { ...description, y: y.subarray(start, end), slot: slot.subarray(start, end), row: row.subarray(start, end) };
+        }
+        // The last x may still receive an observation. Copy its older view only if a reader asks for it.
+        const tailY = y[end - 1]!;
+        const tailSlot = slot[end - 1]!;
+        const tailRow = row[end - 1]!;
+        let values: Float64Array | undefined;
+        let states: Uint8Array | undefined;
+        let rows: Int32Array | undefined;
+        return {
+          ...description,
+          get y() {
+            if (!values) {
+              values = y.slice(start, end);
+              values[values.length - 1] = tailY;
+            }
+            return values;
+          },
+          get slot() {
+            if (!states) {
+              states = slot.slice(start, end);
+              states[states.length - 1] = tailSlot;
+            }
+            return states;
+          },
+          get row() {
+            if (!rows) {
+              rows = row.slice(start, end);
+              rows[rows.length - 1] = tailRow;
+            }
+            return rows;
+          },
+        };
+      }),
     };
   }
 }

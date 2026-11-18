@@ -112,14 +112,14 @@ describe('streaming', () => {
     expect(outOfOrder.source.rowAt(5)).toBeNull();
   });
 
-  it('keeps category identities stable across eviction and keeps old category views immutable', () => {
+  it('evicts unused categories, rebases their indexes, and keeps old category views immutable', () => {
     const data = [{ x: 'Monday', y: 1 }, { x: 'Tuesday', y: 2 }];
     const stream = store({ data, x: 'x', y: 'y' });
     const before = stream.frame;
     const after = stream.append([{ x: 'Wednesday', y: 3 }], { keep: 2 });
     expect(before.x.categories).toEqual(['Monday', 'Tuesday']);
-    expect(after.x.categories).toEqual(['Monday', 'Tuesday', 'Wednesday']);
-    expect([...after.x.values]).toEqual([1, 2]);
+    expect(after.x.categories).toEqual(['Tuesday', 'Wednesday']);
+    expect([...after.x.values]).toEqual([0, 1]);
     expect([...after.series[0]!.row!]).toEqual([1, 2]);
   });
 
@@ -227,4 +227,52 @@ it('matches full long-form normalization when series arrive one row at a time at
     for (const row of data) stream.append([row]);
     expect(contents(stream.frame)).toEqual(contents(aligned(options).frame));
   }));
+});
+
+it('matches full normalization across batches, retained windows and older revisions', () => {
+  const samples = fc.array(fc.record({
+    advance: fc.integer({ min: 1, max: 3 }),
+    groups: fc.subarray(['a', 'b', 'c'], { minLength: 1 }),
+    y: fc.oneof(fc.integer(), fc.constant(null)),
+  }), { minLength: 1, maxLength: 30 });
+  const shapes = fc.constantFrom('number', 'date', 'month', 'time', 'wall', 'category');
+  type SampleRow = { x: number | string; y: number | null } &
+    ({ s: string } | { a: number | null; b: number | null; c: number | null });
+  fc.assert(fc.property(samples, shapes, fc.boolean(), fc.array(fc.integer({ min: 1, max: 5 }), { minLength: 1, maxLength: 8 }),
+    fc.option(fc.integer({ min: 1, max: 8 }), { nil: undefined }), (samples, kind, long, sizes, keep) => {
+      const values = ['a', 'b', 'c'];
+      const encoding = long ? { x: 'x', y: 'y', series: 's' } : { x: 'x', y: values };
+      const makeX = (n: number): number | string => {
+        if (kind === 'number') return n / 10;
+        if (kind === 'category') return 'item ' + n;
+        if (kind === 'month') return new Date(Date.UTC(2026, n, 1)).toISOString().slice(0, 7);
+        const iso = new Date(Date.UTC(2026, 2, 1 + n)).toISOString();
+        if (kind === 'date') return iso.slice(0, 10);
+        if (kind === 'wall') return iso.replace('T', ' ').slice(0, -1);
+        return iso;
+      };
+      let n = 0;
+      const data = samples.flatMap<SampleRow>(({ advance, groups, y }) => {
+        n += advance;
+        const x = makeX(n);
+        return long ? groups.map(s => ({ x, y, s })) : [{ x, y, a: y, b: y, c: y }];
+      });
+      const streaming = store({ data: [], ...encoding });
+      const revisions: { frame: typeof streaming.frame; snapshot: ReturnType<typeof contents> }[] = [];
+      for (let start = 0, batch = 0; start < data.length; batch++) {
+        const end = Math.min(data.length, start + sizes[batch % sizes.length]!);
+        const frame = streaming.append(data.slice(start, end), { keep });
+        const snapshot = contents(frame);
+        revisions.push({ frame, snapshot });
+        const observed = [...new Set(data.slice(0, end).map(row => row.x))];
+        const window = new Set(keep === undefined ? observed : observed.slice(-keep));
+        const kept = data.slice(0, end).map((row, i) => ({ row, i })).filter(({ row }) => window.has(row.x));
+        const full = contents(aligned({ data: kept.map(({ row }) => row), ...encoding }).frame);
+        const remapped = full.series.map(series => ({ ...series, row: series.row.map(row => row < 0 ? row : kept[row]!.i) }));
+        const byKey = (a: { key: string }, b: { key: string }) => a.key.localeCompare(b.key);
+        expect({ ...snapshot, series: [...snapshot.series].sort(byKey) }).toEqual({ ...full, series: remapped.sort(byKey) });
+        start = end;
+      }
+      for (const { frame, snapshot } of revisions) expect(contents(frame)).toEqual(snapshot);
+    }), { numRuns: 150 });
 });

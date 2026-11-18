@@ -3,14 +3,14 @@ import {
   type AlignedFrame, type DiagnosticSink, type DonutFrame, type Environment, type Frame, type PointFrame,
   type RowSource, type Series, type XColumn,
 } from '../core/contracts';
-import { report } from '../diagnostics';
+import { report, type DiagnosticDetails } from '../diagnostics';
 import type { AlignedChartType, ChartType, ResolvedOptions, ResolvedValueField } from './options';
 import { Reports } from './reports';
-import { inferGaps, snapGap } from './steps';
+import { calendarIntervals, inferGaps, snapGap } from './steps';
 import type { DiagnosticTrace } from './store-diagnostics';
 import type { Table } from './table';
 import { readValues, type Values } from './values';
-import { dailyDelta, DAY, inferKind, nameOf, sameDailyTime, XParser } from './x';
+import { inferKind, nameOf, positionName, XParser } from './x';
 
 export type DataEnvironment = Pick<Environment, 'timeZone'>;
 export interface FrameVersion { readonly epoch: number; readonly revision: number }
@@ -33,7 +33,7 @@ export interface XData {
 
 export function readX(type: ChartType, options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, categories?: readonly string[]): XData {
   const { x, table } = options;
-  const kind = x.type ?? (categories ? 'category' : inferKind(table, x.field, options.series) ?? 'number');
+  const kind = x.type ?? inferKind(table, x.field, options.series) ?? (categories ? 'category' : 'number');
   const parser = new XParser(x, kind, env, type === 'scatter', categories);
   const reports = new Reports(x.field, sink);
   const input = table.columns?.[x.field];
@@ -45,7 +45,7 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
   for (let i = 0; i < table.length; i++) {
     const usableSeries = options.series === null || nameOf(table.read(i, options.series)) !== null;
     const value = usableSeries
-      ? parser.read(input === undefined ? table.read(i, x.field) : input[i], table.rowIndex(i), reports)
+      ? parser.read(input === undefined ? table.read(i, x.field) : input[i], table.rowIndex(i), reports, options.values.length)
       : NaN;
     if (positions === input && !Object.is(positions[i], value)) positions = positions.slice();
     if (positions !== input) positions[i] = value;
@@ -73,11 +73,13 @@ function reportCalendarDates(x: XData, table: Table, sink: DiagnosticSink): void
   if (length < 2) return;
   const first = x.positions[x.order?.[0] ?? 0]!;
   let last = first;
+  const zone = x.parser.timeZone ?? 'UTC';
+  let matches = 3;
   for (let i = 1; i < length; i++) {
     const position = x.positions[x.order?.[i] ?? i]!;
     if (position === last) continue;
-    const delta = dailyDelta(position - last);
-    if (delta < DAY || delta % DAY || !sameDailyTime(first, position)) return;
+    matches &= calendarIntervals(last, position, zone);
+    if (!matches) return;
     last = position;
   }
   if (last === first) return;
@@ -92,15 +94,14 @@ interface Group {
   readonly key: string;
   readonly label: string;
   readonly value: ResolvedValueField;
-  readonly values: Values;
   readonly order: Int32Array | null;
 }
 
-function groups(options: ResolvedOptions, x: XData, sink: DiagnosticSink, impute: boolean): Group[] {
+function groups(options: ResolvedOptions, x: XData, sink: DiagnosticSink): Group[] {
   const { table, series } = options;
   if (series === null) {
     return options.values.map(value => ({
-      key: value.field, label: value.label, value, values: readValues(table, value, sink, impute), order: x.order,
+      key: value.field, label: value.label, value, order: x.order,
     }));
   }
 
@@ -112,17 +113,17 @@ function groups(options: ResolvedOptions, x: XData, sink: DiagnosticSink, impute
     const raw = table.read(i, series);
     const name = nameOf(raw);
     if (name === null) {
-      if (raw === undefined) reports.add('AX102', 'omitted', table.rowIndex(i));
+      if (raw === undefined) reports.add('AX102', 'omitted', table.rowIndex(i), undefined, undefined, { outcome: 'The affected row is not drawn.' });
       else reports.add('AX107', 'omitted', table.rowIndex(i), raw, 'Supply a name for the series in each row.');
       continue;
     }
+    if (!Number.isFinite(x.positions[i])) continue;
     let index = indexes.get(name);
     if (index === undefined) {
       index = indexes.size;
       indexes.set(name, index);
       counts.push(0);
     }
-    if (!Number.isFinite(x.positions[i])) continue;
     membership[i] = index;
     counts[index] = counts[index]! + 1;
   }
@@ -138,8 +139,7 @@ function groups(options: ResolvedOptions, x: XData, sink: DiagnosticSink, impute
     counts[index] = counts[index]! + 1;
   }
   const value = options.values[0]!;
-  const values = readValues(table, value, sink, impute);
-  return Array.from(indexes, ([key, index]) => ({ key, label: key, value, values, order: orders[index]! }));
+  return Array.from(indexes, ([key, index]) => ({ key, label: key, value, order: orders[index]! }));
 }
 
 interface AlignedGroup {
@@ -147,9 +147,10 @@ interface AlignedGroup {
   readonly order: Int32Array | null;
   readonly gaps: Float64Array | null;
   readonly drawable: boolean;
+  readonly sparse?: number;
 }
 
-function alignGroup(group: Group, x: XData, axis: XColumn, field: string, table: Table, sink: DiagnosticSink): AlignedGroup {
+function alignGroup(group: Group, x: XData, axis: XColumn, field: string, table: Table, sink: DiagnosticSink, grid?: AlignedGroup): AlignedGroup {
   const { positions } = x;
   let order = group.order;
   let drawable = true;
@@ -162,7 +163,9 @@ function alignGroup(group: Group, x: XData, axis: XColumn, field: string, table:
       const row = order[i]!;
       const position = positions[row]!;
       if (position === previous) {
-        duplicates.add('AX108', 'series-disabled', table.rowIndex(row), group.key);
+        duplicates.add('AX108', 'series-disabled', table.rowIndex(row), undefined, undefined, {
+          series: group.label, position: positionName(axis, position),
+        });
         if (drawable) kept = order.slice();
         drawable = false;
       } else {
@@ -173,13 +176,18 @@ function alignGroup(group: Group, x: XData, axis: XColumn, field: string, table:
     duplicates.flush(sink);
     order = kept.subarray(0, distinct);
   }
+  if (grid) return { group, order, drawable, gaps: grid.gaps, sparse: grid.sparse };
+  let sparse: number | undefined;
   const gaps = inferGaps(axis, order?.length ?? positions.length, i => positions[order?.[i] ?? i]!,
-    (gap, a, b, step) => snapGap(gap, a, b, step, x.order?.length ?? positions.length, i => positions[x.order?.[i] ?? i]!));
-  return { group, order, gaps, drawable };
+    (gap, a, b, step) => snapGap(gap, a, b, step, x.order?.length ?? positions.length, i => positions[x.order?.[i] ?? i]!),
+    count => { sparse = count; });
+  return { group, order, gaps, drawable, sparse };
 }
 
 function combinePositions(x: XData, groups: readonly AlignedGroup[]): Float64Array {
-  const gapCount = groups.reduce((n, group) => n + (group.gaps?.length ?? 0), 0);
+  const gapSets = new Set(groups.flatMap(group => group.gaps ? [group.gaps] : []));
+  let gapCount = 0;
+  for (const gaps of gapSets) gapCount += gaps.length;
   if (x.order === null && gapCount === 0) return x.positions;
   const observed = x.order?.length ?? x.positions.length;
   const positions = new Float64Array(observed + gapCount);
@@ -189,8 +197,7 @@ function combinePositions(x: XData, groups: readonly AlignedGroup[]): Float64Arr
     positions.set(x.positions);
   }
   let next = observed;
-  for (const { gaps } of groups) {
-    if (!gaps) continue;
+  for (const gaps of gapSets) {
     positions.set(gaps, next);
     next += gaps.length;
   }
@@ -213,19 +220,29 @@ export function seriesDescription(key: string, label: string, value: ResolvedVal
 
 export function reportGaps(
   sink: DiagnosticSink, field: string, changed: boolean, gaps: Float64Array | null,
+  axis?: XColumn, name?: string, sparse?: number, seriesKey?: string,
 ): void {
-  if (!gaps?.length) return;
-  const effect = changed ? 'changed' : 'none';
-  (sink as DiagnosticTrace).traceGaps?.(field, effect, gaps);
-  report(sink, 'AX105', effect, { field, count: gaps.length, examples: Array.from(gaps.subarray(0, 10), String) });
+  if (!gaps?.length && !sparse) return;
+  const details: DiagnosticDetails = {
+    field, count: sparse ?? gaps?.length, series: name === undefined ? undefined : [name],
+    sparseSeries: sparse && name !== undefined ? [name] : undefined,
+    examples: gaps ? Array.from(gaps.subarray(0, 10), position => axis ? positionName(axis, position) : String(position)) : undefined,
+    zeroSeries: changed && !sparse ? name === undefined ? [] : [name] : undefined,
+  };
+  const trace = sink as DiagnosticTrace;
+  if (sparse && trace.traceSparseGaps) {
+    trace.traceSparseGaps(details, seriesKey);
+    return;
+  }
+  if (gaps) trace.traceGaps?.(field, 'none', gaps, details, axis);
+  report(sink, 'AX105', 'none', details);
 }
 
-function alignedSeries(aligned: AlignedGroup, axis: XColumn, x: XData, table: Table, sink: DiagnosticSink): Series {
+function alignedSeries(aligned: AlignedGroup, axis: XColumn, x: XData, table: Table, values: Values): Series {
   const { group, order, gaps, drawable } = aligned;
-  const { values, value } = group;
+  const { value } = group;
   const zero = value.missing === 'zero';
   const description = seriesDescription(group.key, group.label, value);
-  reportGaps(sink, x.parser.field.field, zero, gaps);
 
   if (order === null && axis.values === x.positions) {
     let row = table.columns ? null : sourceRows(table);
@@ -269,50 +286,69 @@ function alignedSeries(aligned: AlignedGroup, axis: XColumn, x: XData, table: Ta
   return { ...description, drawable, y, slot, row };
 }
 
+const maxAlignedSlots = 20_000_000;
+
+export function alignmentFits(series: number, positions: number, sink: DiagnosticSink): boolean {
+  if (series * positions <= maxAlignedSlots) return true;
+  report(sink, 'AX134', 'chart-error', {
+    count: 1, detail: 'The aligned frame has ' + series + ' series and ' + positions + ' x positions, exceeding 20,000,000 slots.',
+  });
+  return false;
+}
+
 export function alignedFrame(options: ResolvedOptions, x: XData, sink: DiagnosticSink, version: FrameVersion): AlignedFrame {
   const axis = x.parser.column(x.positions);
-  const aligned = groups(options, x, sink, true).map(group => alignGroup(group, x, axis, options.x.field, options.table, sink));
-  const positions = combinePositions(x, aligned);
-  const column = { ...axis, values: positions };
-  return {
-    ...base(options.table, version), shape: 'aligned', x: column, length: positions.length,
-    series: aligned.map(group => alignedSeries(group, column, x, options.table, sink)),
+  const { table } = options;
+  const frame = {
+    ...base(table, version), shape: 'aligned' as const,
     xLabel: options.x.label, yLabel: options.values.length === 1 ? options.values[0]!.label : null,
   };
+  const empty = () => ({ ...frame, x: { ...axis, values: new Float64Array(), categories: axis.categories && [] }, length: 0, series: [] });
+  const observed = combinePositions(x, []);
+  const groupsBySeries = groups(options, x, sink);
+  if (!alignmentFits(groupsBySeries.length, observed.length, sink)) return empty();
+  const aligned: AlignedGroup[] = [];
+  for (const group of groupsBySeries) {
+    aligned.push(alignGroup(group, x, axis, options.x.field, table, sink, options.series === null ? aligned[0] : undefined));
+  }
+  const positions = aligned.some(group => group.gaps) ? combinePositions(x, aligned) : observed;
+  if (!alignmentFits(aligned.length, positions.length, sink)) return empty();
+  const column = { ...axis, values: positions };
+  const included = x.order === null ? undefined : (row: number) => Number.isFinite(x.positions[row]);
+  const shared = options.series === null ? undefined : readValues(table, options.values[0]!, sink, true, 0, undefined, included);
+  const series = aligned.map(group => alignedSeries(group, column, x, table,
+    shared ?? readValues(table, group.group.value, sink, true, 0, undefined, included)));
+  for (const { group, gaps, sparse } of aligned) {
+    reportGaps(sink, options.x.field, group.value.missing === 'zero', gaps, axis, group.label, sparse, group.key);
+  }
+  return { ...frame, x: column, length: positions.length, series };
 }
 
 function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticSink, version: FrameVersion): PointFrame {
   const { table } = options;
   const value = options.values[0]!;
-  const series = groups(options, x, sink, false).map(group => {
+  const included = x.order === null ? undefined : (row: number) => Number.isFinite(x.positions[row]);
+  const members = groups(options, x, sink);
+  const values = readValues(table, value, sink, false, 0, undefined, included, 'The affected points are not drawn.');
+  const series = members.map(group => {
     const length = group.order?.length ?? x.positions.length;
-    if (!group.order && group.values.y instanceof Float64Array && group.values.slot.every(slot => slot === SLOT_VALUE)) {
+    if (!group.order && values.y instanceof Float64Array && values.slot.every(slot => slot === SLOT_VALUE)) {
       return {
-        key: group.key, label: group.label, drawable: true, x: x.positions, y: group.values.y,
+        key: group.key, label: group.label, drawable: true, x: x.positions, y: values.y,
         row: table.columns ? null : sourceRows(table),
       };
     }
     const rows = new Int32Array(length);
     let next = 0;
-    let previous = -Infinity;
-    const duplicates = new Reports(options.x.field, sink);
-    let drawable = true;
     for (let i = 0; i < length; i++) {
       const row = group.order?.[i] ?? i;
-      const position = x.positions[row]!;
-      if (position === previous) {
-        duplicates.add('AX108', 'series-disabled', table.rowIndex(row), group.key);
-        drawable = false;
-      }
-      previous = position;
-      if (group.values.slot[row] === SLOT_VALUE) rows[next++] = row;
+      if (values.slot[row] === SLOT_VALUE) rows[next++] = row;
     }
-    duplicates.flush(sink);
     const kept = rows.subarray(0, next);
-    kept.sort((a, b) => x.positions[a]! - x.positions[b]! || group.values.y[a]! - group.values.y[b]!);
+    kept.sort((a, b) => x.positions[a]! - x.positions[b]! || values.y[a]! - values.y[b]!);
     return {
-      key: group.key, label: group.label, drawable,
-      x: Float64Array.from(kept, row => x.positions[row]!), y: Float64Array.from(kept, row => group.values.y[row]!), row: Int32Array.from(kept, table.rowIndex),
+      key: group.key, label: group.label, drawable: true,
+      x: Float64Array.from(kept, row => x.positions[row]!), y: Float64Array.from(kept, row => values.y[row]!), row: Int32Array.from(kept, table.rowIndex),
     };
   });
 
@@ -325,36 +361,47 @@ function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticSink, ve
 function donutFrame(options: ResolvedOptions, sink: DiagnosticSink, version: FrameVersion): DonutFrame {
   const { table, x } = options;
   const field = options.values[0]!;
-  const values = readValues(table, field, sink, false);
   const labels: string[] = [];
   const seen = new Set<string>();
   const issues = new Reports(x.field, sink);
   const negatives = new Reports(field.field, sink);
   const rows = new Int32Array(table.length);
+  const included = new Uint8Array(table.length);
   for (let i = 0; i < table.length; i++) {
     const raw = table.read(i, x.field);
     const name = nameOf(raw);
     if (name === null) {
-      if (raw === undefined) issues.add('AX102', 'omitted', table.rowIndex(i));
+      if (raw === undefined) issues.add('AX102', 'omitted', table.rowIndex(i), undefined, undefined, { outcome: 'The affected slice is not drawn.' });
       else issues.add('AX107', 'omitted', table.rowIndex(i), raw, 'Supply a label for each donut value.');
     } else {
       if (seen.has(name)) issues.add('AX108', 'chart-error', table.rowIndex(i), name);
       seen.add(name);
       rows[labels.length] = i;
       labels.push(name);
+      included[i] = 1;
     }
-    const value = values.y[i]!;
-    if (value < 0) negatives.add('AX120', 'chart-error', table.rowIndex(i), value);
   }
   issues.flush(sink);
-  negatives.flush(sink);
   const order = rows.subarray(0, labels.length);
+  const values = readValues(table, field, sink, true, 0, undefined, i => included[i] === 1);
+  const provenance = table.columns && order.length === table.length && field.missing !== 'zero'
+    ? null : Int32Array.from(order, table.rowIndex);
+  for (let i = 0; i < order.length; i++) {
+    const row = order[i]!;
+    const value = values.y[row]!;
+    if (value < 0) negatives.add('AX120', 'chart-error', table.rowIndex(row), value);
+    if (field.missing === 'zero' && (values.slot[row] === SLOT_NULL || values.slot[row] === SLOT_ABSENT_FIELD)) {
+      values.slot[row] = SLOT_VALUE;
+      provenance![i] = -1;
+    }
+  }
+  negatives.flush(sink);
   const allRows = order.length === table.length;
   return {
     ...base(table, version), shape: 'donut', labels,
     values: allRows && values.y instanceof Float64Array ? values.y : Float64Array.from(order, row => values.y[row]!),
     slot: allRows ? values.slot : Uint8Array.from(order, row => values.slot[row]!),
-    row: table.columns && allRows ? null : Int32Array.from(order, table.rowIndex),
+    row: provenance,
     valueLabel: field.label, unit: field.unit, valueScale: field.scale,
   };
 }
