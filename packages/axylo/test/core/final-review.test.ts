@@ -7,6 +7,7 @@ import { describe, expect, it } from 'vitest';
 import type { AlignedView, DatumRef } from '../../src/core/contracts';
 import type { Diagnostic, Point } from '../../src/public';
 import { lastModel, record, type Recording } from './host';
+import { defaultMessages } from '../../src/messages';
 
 const rowsOf = (values: readonly number[]) => values.map(x => ({ x, y: x * 10 }));
 const ref = (x: number, seriesKey = 'y'): DatumRef => ({ kind: 'aligned', seriesKey, x });
@@ -415,18 +416,23 @@ describe('final review, displayed snapshots: a property over richer call sequenc
       let next = 3;
       let tick = 1;
       let keepUsed = Infinity;
+      /** The store's rows (0 while the chart shows the caller's own data) and the policy's baseline. */
+      let streamed = false;
+      let baseline = 0;
+      let lastShown: number[] | null = null;
       for (const step of sequence) {
         switch (step.op) {
           case 'append': {
             const xs = Array.from({ length: step.n }, () => next++);
             chart.append(add(xs), step.keep === null ? undefined : { keep: step.keep });
             data = [...data, ...xs];
+            streamed = true;
             if (step.keep !== null) { data = data.slice(-step.keep); keepUsed = step.keep; }
             if (!paused) visible = data;
             break;
           }
           case 'title': title = `M${tick++}`; chart.update({ title }); break;
-          case 'data': data = [next, next + 1]; next += 2; add(data); chart.update({ data: data.map(x => rows.get(x)) }); visible = data; keepUsed = Infinity; break;
+          case 'data': data = [next, next + 1]; next += 2; add(data); chart.update({ data: data.map(x => rows.get(x)) }); visible = data; keepUsed = Infinity; streamed = false; break;
           case 'reencode': field = field === 'a' ? 'b' : 'a'; chart.update({ y: { field, format } }); break;
           case 'pause': chart && r.controller.actions.pause(true); paused = true; break;
           case 'resume': r.controller.actions.pause(false); paused = false; if (!failing) visible = data; break;
@@ -439,10 +445,23 @@ describe('final review, displayed snapshots: a property over richer call sequenc
           case 'restore': r.container = { width: 720, height: 400 }; r.controller.invalidate.resize(); collapsed = false; break;
           case 'reenter': reenterOnce = true; chart.update({ description: `d${tick++}` }); break;
         }
-        if (step.op !== 'frame' || failing || failedSinceHeal || collapsed) {
-          if (!failing && step.op === 'frame') failedSinceHeal = false;
+        if (step.op !== 'frame') continue;
+        if (collapsed) {
+          // Nothing could be measured: no marks outlive the frame, and the error state, if any, is complete.
+          if (r.draws.length) expect(r.draws.at(-1)!.marks).toEqual([]);
           continue;
         }
+        const errorShown = lastModel(r)?.message === defaultMessages.internalError;
+        if (failing || failedSinceHeal) {
+          // A frame that hit the failing stage, or a call that did, shows the error state: AX199 and no marks.
+          if (errorShown) {
+            expect(chart.diagnostics.map(d => d.code)).toContain('AX199');
+            if (r.draws.length) expect(r.draws.at(-1)!.marks).toEqual([]);
+          }
+          if (failing || errorShown) continue;
+          failedSinceHeal = false;
+        }
+        expect(errorShown).toBe(false);
         // After a clean frame: the drawn window is the model's (marks, lookup and caption on one revision).
         const committed = r.committed;
         if (!committed) continue;
@@ -451,15 +470,39 @@ describe('final review, displayed snapshots: a property over richer call sequenc
         if (!paused) expect(xs).toEqual(visible);
         else expect(visible.slice(-xs.length)).toEqual(xs);
         expect(lastModel(r).title?.text).toBe(title);
-        // The drawn path has a vertex for each value in the window, at most (simplification only removes).
-        const path = r.draws.at(-1)!.marks.find(m => m.type === 'path');
-        if (path?.type === 'path') expect(path.xy.length / 2).toBeLessThanOrEqual(xs.length + 1);
+        // The marks, read back through the drawn projection, are the model's rows: every vertex is a row of the
+        // window (its x and its value of the current field), inside the zoomed domain or the nearest row beyond
+        // each end of it (a segment crossing the edge), and a window with rows in the domain has a path.
+        const layout = committed.layout;
+        if (layout.kind === 'plot' && layout.projection.kind === 'xy' && layout.projection.x.type !== 'band') {
+          const { x: px, y: py } = layout.projection;
+          const [d0, d1] = px.domain;
+          const inside = xs.filter(x => x >= d0 && x <= d1);
+          const allowed = new Set(inside);
+          const below = xs.filter(x => x < d0).at(-1);
+          const above = xs.find(x => x > d1);
+          if (below !== undefined) allowed.add(below);
+          if (above !== undefined) allowed.add(above);
+          const path = r.draws.at(-1)!.marks.find(m => m.type === 'path');
+          if (inside.length > 1) expect(path).toBeDefined();
+          if (path?.type === 'path') {
+            for (let k = 0; k < path.xy.length; k += 2) {
+              const x = px.invert(path.xy[k]!);
+              const nearest = Math.round(x);
+              expect(Math.abs(x - nearest)).toBeLessThan(0.1);
+              expect(allowed.has(nearest)).toBe(true);
+              expect(py.invert(path.xy[k + 1]!)).toBeCloseTo(rows.get(nearest)![field] as number, 1);
+            }
+          }
+        }
         // Every x on screen answers a hover with the caller's own row.
         for (const x of xs) expect(hoverRow(r, x, view.frame.series[0]!.key)?.row).toBe(rows.get(x));
-        // Retention: what is on screen, twice, plus the slack, and what keep allows.
-        if (Number.isFinite(keepUsed)) {
-          expect(chart.__dev!.retainedRows()).toBeLessThanOrEqual(2 * Math.max(xs.length, keepUsed) + 8 + 3);
-        }
+        // Retention, at the policy's own bound: running, the store holds the model's window and nothing else;
+        // paused, at most twice what it held when the shown rows last changed, plus 8, or the window itself.
+        const retained = chart.__dev!.retainedRows();
+        if (lastShown === null || lastShown.join() !== xs.join()) { baseline = retained; lastShown = xs; }
+        if (!paused) expect(retained).toBe(streamed ? data.length : 0);
+        else expect(retained).toBeLessThanOrEqual(Math.max(2 * baseline + 8, data.length));
       }
       if (destroyAtEnd) {
         chart.destroy();
@@ -596,8 +639,12 @@ describe('final review, displayed snapshots: two series on line, bar and scatter
         let next = 4;
         let tick = 1;
         let keepUsed = Infinity;
+        let streamed = false;
+        let baseline = 0;
+        let lastShown: number[] | null = null;
         const appendModel = (xs: number[], keep: number | null) => {
           data = [...data, ...xs];
+          streamed = true;
           if (keep !== null) { data = data.slice(-keep); keepUsed = keep; }
           if (!paused) visible = data;
         };
@@ -610,7 +657,7 @@ describe('final review, displayed snapshots: two series on line, bar and scatter
               break;
             }
             case 'title': title = `M${tick++}`; chart.update({ title }); break;
-            case 'data': data = [next, next + 1, next + 2]; next += 3; add(data); chart.update({ data: data.map(x => rows.get(x)) }); visible = data; keepUsed = Infinity; break;
+            case 'data': data = [next, next + 1, next + 2]; next += 3; add(data); chart.update({ data: data.map(x => rows.get(x)) }); visible = data; keepUsed = Infinity; streamed = false; break;
             case 'reencode': field = field === 'a' ? 'b' : 'a'; chart.update({ y: field }); break;
             case 'pause': r.controller.actions.pause(true); paused = true; break;
             case 'resume': r.controller.actions.pause(false); paused = false; if (!failing) visible = data; break;
@@ -646,10 +693,21 @@ describe('final review, displayed snapshots: two series on line, bar and scatter
               break;
             }
           }
-          if (step.op !== 'frame' || failing || failedSinceHeal || collapsed) {
-            if (!failing && step.op === 'frame') failedSinceHeal = false;
+          if (step.op !== 'frame') continue;
+          if (collapsed) {
+            if (r.draws.length) expect(r.draws.at(-1)!.marks).toEqual([]);
             continue;
           }
+          const errorShown = lastModel(r)?.message === defaultMessages.internalError;
+          if (failing || failedSinceHeal) {
+            if (errorShown) {
+              expect(chart.diagnostics.map(d => d.code)).toContain('AX199');
+              if (r.draws.length) expect(r.draws.at(-1)!.marks).toEqual([]);
+            }
+            if (failing || errorShown) continue;
+            failedSinceHeal = false;
+          }
+          expect(errorShown).toBe(false);
           const committed = r.committed;
           if (!committed) continue;
           const view = committed.view;
@@ -664,8 +722,25 @@ describe('final review, displayed snapshots: two series on line, bar and scatter
               const row = rows.get(x)!;
               expect(hoverRow(r, x, String(row.s))?.row).toBe(row);
             }
+          } else {
+            // Scatter provenance: every point answers a hover with the caller's own row, found by its source row.
+            for (const s of view.frame.series) {
+              for (let i = 0; i < s.x.length; i++) {
+                const target: DatumRef = { kind: 'point', seriesKey: s.key, row: s.row ? s.row[i]! : i, x: s.x[i]! };
+                let seen: Point<unknown> | null | undefined;
+                const off = chart.on('hover', p => { seen = p; });
+                r.controller.actions.hover(target);
+                r.frames(1);
+                off();
+                expect(seen?.row).toBe(rows.get(s.x[i]!));
+                expect(seen?.y).toBe(s.y[i]);
+              }
+            }
           }
-          if (Number.isFinite(keepUsed)) expect(chart.__dev!.retainedRows()).toBeLessThanOrEqual(2 * Math.max(xs.length, keepUsed) + 8 + 3);
+          const retained = chart.__dev!.retainedRows();
+          if (lastShown === null || lastShown.join() !== xs.join()) { baseline = retained; lastShown = xs; }
+          if (!paused) expect(retained).toBe(streamed ? data.length : 0);
+          else expect(retained).toBeLessThanOrEqual(Math.max(2 * baseline + 8, data.length));
         }
         chart.destroy();
         expect(chart.__dev!.retainedRows()).toBe(0);

@@ -107,20 +107,28 @@ export function createChart(composition: Composition, target: unknown, input: un
           try { stop(); } catch { /* keep releasing */ }
         }
       };
-      stops.push(watchTheme(root, () => c.invalidate.theme()));
-      stops.push(watchEnvironment(win, {
-        pixelRatio: () => c.invalidate.pixelRatio(),
-        motion() {
-          // Nothing is animated yet (spec I5), so there is nothing to change.
-        },
-        fonts() {
-          noteFontLoad(doc);
-          c.invalidate.fonts();
-        },
-      }));
-      stops.push(watchLanguage(root, () => c.invalidate.language()));
-      interaction.attach();
-      stops.push(() => interaction.detach());
+      try {
+        stops.push(watchTheme(root, () => c.invalidate.theme()));
+        stops.push(watchEnvironment(win, {
+          pixelRatio: () => c.invalidate.pixelRatio(),
+          motion() {
+            // Nothing is animated yet (spec I5), so there is nothing to change.
+          },
+          fonts() {
+            noteFontLoad(doc);
+            c.invalidate.fonts();
+          },
+        }));
+        stops.push(watchLanguage(root, () => c.invalidate.language()));
+        interaction.attach();
+        stops.push(() => interaction.detach());
+      } catch (error) {
+        // This attempt's subscriptions are released and the chart is not watching: the next resize
+        // notification tries again, instead of finding `watching` set and skipping setup (verification,
+        // defect 11).
+        unwatch();
+        throw error;
+      }
     };
     const unwatch = (): void => {
       watching?.();

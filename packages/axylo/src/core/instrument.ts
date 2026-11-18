@@ -6,7 +6,7 @@
  * `globalThis.__AXYLO_BENCH__`), and absent from every shipped production file: the controller calls in only
  * under `instrumented`, which the build folds to false. What the harness reads next goes here, from `Probe`.
  */
-import type { Layout, Scene, View } from './contracts';
+import type { Frame, Layout, Scene, View } from './contracts';
 import type { Table } from '../data/table';
 import { ByteCount, CallerBuffers, type OwnedBytes } from '../data/store-bytes';
 import { SLOT_NO_ROW, SLOT_VALUE } from './contracts';
@@ -96,7 +96,9 @@ export interface Probe {
   renderer(): 'canvas' | 'svg';
   retainedRows(): number;
   /** The streaming store, when there is one. */
-  store(): { ownedBytes?: () => OwnedBytes } | null;
+  store(): { ownedBytes?: (frames?: readonly Frame[]) => OwnedBytes } | null;
+  /** Every frame the chart still holds: displayed, pending, held while paused, being published. */
+  frames(): readonly Frame[];
 }
 
 export function attachHooks(handle: ChartHandle, probe: Probe): void {
@@ -148,11 +150,14 @@ export function attachHooks(handle: ChartHandle, probe: Probe): void {
       },
       memory() {
         const d = probe.shown();
-        const own = probe.store()?.ownedBytes?.();
+        // The store counts the frames still held with its own buffers, in one deduplicated set: a displayed
+        // frame older than the store's head can hold buffers the head no longer has (verification, defect 12).
+        const frames = probe.frames();
+        const own = probe.store()?.ownedBytes?.(frames);
         const caller = new CallerBuffers();
         if (d) caller.add(d.table);
         const count = new ByteCount(caller);
-        if (d && !own) count.frame(d.view.frame);
+        if (!own) for (const frame of frames) count.frame(frame);
         if (d) d.scene.marks.forEach((m, i) => {
           for (const [key, value] of Object.entries(m)) if (ArrayBuffer.isView(value)) count.add(`scene mark ${i} ${key}`, value);
         });

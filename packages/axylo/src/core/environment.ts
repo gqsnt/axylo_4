@@ -181,7 +181,14 @@ export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; mo
     motion.addEventListener('change', onMotion);
     undo.push(() => motion.removeEventListener('change', onMotion));
     const fonts = win.document.fonts as FontFaceSet | undefined;
-    const onFonts = (): void => { if (!stopped) handlers.fonts(); };
+    // A load that brought no font faces changed nothing: Firefox fires an empty 'loadingdone' some 100 ms after
+    // the page loads, and taking it for a font change ran layout again at the same sizes (spec L3; engines
+    // report 2, item 2).
+    const onFonts = (event: Event): void => {
+      const faces = (event as Event & { fontfaces?: ArrayLike<unknown> }).fontfaces;
+      if (stopped || (faces !== undefined && faces.length === 0)) return;
+      handlers.fonts();
+    };
     fonts?.addEventListener('loadingdone', onFonts);
     undo.push(() => fonts?.removeEventListener('loadingdone', onFonts));
   } catch (error) {

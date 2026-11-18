@@ -18,7 +18,7 @@
 import {
   SLOT_NO_ROW, SLOT_VALUE,
   type DatumRef, type DiagnosticInput, type Formatters, type Frame, type Layout, type Lookup, type MarkRenderer,
-  type PlacedText, type ReaderModel, type ResolvedTheme, type PaintBindings, type Scene, type TextMeasurer,
+  type PlacedText, type PointSeries, type ReaderModel, type ResolvedTheme, type PaintBindings, type Scene, type TextMeasurer,
   type TextStyle, type View,
 } from './contracts';
 import type { ChartEvents, Diagnostic, Messages, Point, Title, XValue } from '../public';
@@ -36,7 +36,7 @@ import { OptionsStore, sameValue, type OptionRecord } from './options';
 import { Delivery, diagnosticKey, StrictError, strictViolations, type DeliveryConsole } from './delivery';
 import { layoutInput, layoutKey, sameKey, tickFormatFailures, type AxisContext } from './axes';
 import { zoomApplies } from './focus';
-import { lowerBound } from '../lookup/search';
+import { lowerBound, upperBound } from '../lookup/search';
 import {
   completeViewDiagnostics, dedupe, encodingChanged, isCompact, namesOnlyChanged, namingDiagnostics, object, publicOptions, stringOption,
   titleOf, toPublic, viewKeyFor, viewStateFor, type Span,
@@ -60,7 +60,10 @@ const KIND_MESSAGES = { line: 'typeLine', area: 'typeArea', bar: 'typeBar', scat
 const DATA_CODES = new Set(['AX100', 'AX101']);
 /** Rows a store may hold beyond twice what was on screen before the frames that pin it copy their rows. */
 const RETENTION_SLACK = 8;
-/** Positions of the title, the labelledBy id and the caption in the reader's inputs: they name, they do not summarize. */
+/**
+ * Positions of the reader's inputs the summary does not read: the title, the labelledBy id and the caption
+ * name the chart, and the count of hidden labels is said by the note only (reader/index.ts).
+ */
 const NAMING_INPUTS = new Set([3, 4, 9, 13]);
 
 export interface Size {
@@ -317,6 +320,18 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     const own = frozenRows.get(frame);
     return own ? own.get(row) ?? null : frame.source.rowAt(row);
   };
+  /**
+   * One past the last source index each store frame can address: a store numbers rows in arrival order (the
+   * opening data first), so a frame's raw window can be read back without the store (re-encoding while paused).
+   */
+  const rowEnds = new WeakMap<Frame, number>();
+  /** Rows of a store below this source index came from the caller's typed columns (its opening data). */
+  const columnRows = new WeakMap<Store, number>();
+  /** `frame` addresses the rows `from` did, and `added` more. */
+  const ends = (frame: Frame, from: Frame, added = 0): void => {
+    const end = rowEnds.get(from);
+    if (end !== undefined) rowEnds.set(frame, end + added);
+  };
   /** What the store held right after the last release with a frame on screen: the bound's baseline. */
   let retainedBaseline = 0;
   let epochs = 0;
@@ -325,8 +340,6 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   let listeners = new Map<keyof ChartEvents<unknown>, Set<(payload: never) => void>>();
   /** True while a frame runs: findings are delivered at its end, not from inside a stage. */
   let inFrame = false;
-  /** The call being prepared: what it found so far, for a failure before it is accepted (finding 7). */
-  let preparing: { sink: DiagnosticCollector; strict: boolean; name: string; handler: unknown } | null = null;
   /** The accepted state a running frame publishes: its rows are kept until it is on screen. */
   let inflight: Accepted | null = null;
 
@@ -382,6 +395,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   }
 
   function formatterFailed(field: string): void {
+    // A frame a formatter's own call superseded is not drawn: what its formatters threw on is not reported.
+    if (inFrame && inflight !== null && inflight !== accepted) return;
     addPresentation('format', createDiagnostic('AX160', 'changed', { field }, 'presentation'));
   }
 
@@ -498,6 +513,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
    * then the options, then the state. Nothing before this changes the chart.
    */
   function accept(c: Candidate, viewed: Viewed, follow: boolean, commit: (() => void) | null): void {
+    // Liveness before acceptance: a chart destroyed by author code during the call takes nothing (defect 6).
+    if (destroyed) return;
     commit?.();
     if (commit && c.store && c.store.frame === c.frame) storeFrames.add(c.frame);
     if (held && c.frame === held.frame) held = null;
@@ -524,6 +541,19 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     else presentation.delete(where);
   }
 
+  /**
+   * The call being prepared: what it found so far, for a failure before it is accepted (finding 7). One per
+   * call, so a nested call made by author code (a getter) cannot end the outer call's strict check (defect 6).
+   */
+  interface Preparation {
+    sink: DiagnosticCollector | null;
+    strict: boolean;
+    name: string;
+    handler: unknown;
+    /** AX140 of a create: validate() lists it after AX199. */
+    naming: readonly DiagnosticInput[];
+  }
+
   /** A strict chart rejects a create, update or append whose own findings include an error or warning. */
   function rejectIfStrict(strict: boolean, found: readonly DiagnosticInput[], name: string, handler: unknown): void {
     if (!strict || strictViolations(found).length === 0) return;
@@ -532,25 +562,26 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   }
 
   /** Runs a call. A strict rejection propagates; anything else that throws becomes the internal-error state. */
-  function guarded(run: () => void): void {
+  function guarded(run: (call: Preparation) => void): void {
     if (destroyed) return;
+    const call: Preparation = { sink: null, strict: false, name: '', handler: undefined, naming: [] };
     try {
-      run();
-      preparing = null;
+      run(call);
     } catch (error) {
-      const call = preparing;
-      preparing = null;
       if (error instanceof StrictError) throw error;
+      // Author code destroyed the chart during the call: nothing is reported on a handle that is gone.
+      if (destroyed) return;
       // A failure while a call was prepared (a row getter that throws): what the call had found until then is
       // kept, with AX199 after it, as validate() reports it; under strict that is a rejection, before the
       // accepted chart changes (final review, finding 7).
-      const before = call?.sink.inputs() ?? [];
-      if (call?.strict) {
-        const found = [...before, createDiagnostic('AX199', 'chart-error', {}, 'presentation')];
+      const before = call.sink?.inputs() ?? [];
+      const after = accepted === null ? call.naming : [];
+      if (call.strict) {
+        const found = [...before, createDiagnostic('AX199', 'chart-error', {}, 'presentation'), ...after];
         deliverRejected(found, call.name, call.handler);
         throw new StrictError(call.name, toPublic(found, call.name));
       }
-      raiseInternal(error, before);
+      raiseInternal(error, before, after);
       // A create that failed has nothing to draw from: show the error state now (never a blank box).
       if (accepted === null) showInternal(resolveMessages(object(options.current.messages)), chartName(options.current), options.current);
       schedule();
@@ -562,13 +593,16 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   }
 
   function update(patch: unknown): void {
-    guarded(() => {
+    guarded(call => {
       stage('options');
       const { next, changed } = options.preview(patch);
       const previous = accepted;
       const supplied = patch !== null && typeof patch === 'object' && Object.hasOwn(patch, 'data');
       const optionSink = new DiagnosticCollector();
-      preparing = { sink: optionSink, strict: next.strict === true, name: chartName(next), handler: next.onDiagnostic };
+      Object.assign(call, {
+        sink: optionSink, strict: next.strict === true, name: chartName(next), handler: next.onDiagnostic,
+        naming: previous === null ? namingDiagnostics(next) : [],
+      });
       const messages = messagesFor(next, previous);
       let c: Candidate;
       let commit: (() => void) | null = null;
@@ -605,16 +639,24 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         const store = previous!.store!;
         const resolved = store.resolveEncoding(publicOptions(next), optionSink);
         const prepared: PreparedFrame<Frame> = store.prepareReencode(resolved, nextVersion());
+        ends(prepared.frame, store.frame);
         commit = prepared.commit;
         const opts = optionSink.inputs();
         if (paused && held) {
           // Paused: the rows on screen are read again with the new fields on their own, and the arrivals stay
-          // held, re-encoded in the store, until Resume (review 3, finding 5).
-          const table = displayedTable(previous!.frame);
+          // held, re-encoded in the store, until Resume (review 3, finding 5). The rows on screen are the
+          // displayed revision's raw window, typed-column rows marked as such (verification, defect 4).
+          const table = displayedTable(previous!.frame, store);
           const shownResolved = resolveOptions(kind, publicOptions(next), new DiagnosticCollector(), table);
           const shownSink = new DiagnosticCollector();
           const shown = composition.normalize(kind, shownResolved, environment, shownSink, nextVersion());
-          heldAfter = { frame: prepared.frame, dataDiagnostics: prepared.diagnostics, viewDiagnostics: [] };
+          // Both views are built and validated before either is accepted: the held one keeps its findings
+          // (AX130 of a held ninth series), which count for strict and for `diagnostics` (defect 4).
+          const heldView = viewFor({
+            options: next, resolved, source: resolved, store, frame: prepared.frame, dataDiagnostics: prepared.diagnostics,
+            dataOptions: [], optionDiagnostics: [], zoom: previous!.zoom, hidden: previous!.hidden, messages,
+          }, null);
+          heldAfter = { frame: prepared.frame, dataDiagnostics: prepared.diagnostics, viewDiagnostics: heldView.viewDiagnostics };
           c = {
             options: next, resolved, source: shownResolved, store, frame: shown, dataDiagnostics: shownSink.inputs(),
             dataOptions: [], optionDiagnostics: dedupe(opts, prepared.diagnostics),
@@ -645,6 +687,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         };
       }
       const viewed = viewFor(c, previous);
+      // Author code (a getter) destroyed the chart while the call was prepared: nothing is accepted.
+      if (destroyed) return;
       const found = [...c.optionDiagnostics, ...c.dataDiagnostics, ...viewed.viewDiagnostics, ...namingDiagnostics(next)];
       // While paused the held window is part of the chart: its findings count for strict too (finding 6).
       const keptHeld = heldAfter ?? (c.frame === previous?.frame ? held : null);
@@ -661,13 +705,21 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   }
 
   function openStore(a: Accepted): Store {
-    return composition.openStore(a.frame, a.source, a.options.data, environment, kind);
+    const store = composition.openStore(a.frame, a.source, a.options.data, environment, kind);
+    const table = a.source.table;
+    if (table) {
+      rowEnds.set(store.frame, table.length);
+      columnRows.set(store, table.columns ? table.length : 0);
+    }
+    return store;
   }
 
   function append(rows: unknown, appendOptions?: { keep?: number }): void {
-    guarded(() => {
+    guarded(call => {
       const previous = accepted;
       if (!previous) return;
+      // A row getter that throws is a failure of this call: under strict, a rejection (defect 6).
+      Object.assign(call, { strict: previous.options.strict === true, name: previous.name, handler: previous.options.onDiagnostic });
       // The pause control appears (spec I6) once an append was accepted, not before it validated.
       if (!Array.isArray(rows) || rows.length === 0) {
         if (!streaming) { streaming = true; schedule(); }
@@ -678,6 +730,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       const store = previous.store ?? openStore(previous);
       const prepared = (store.prepareAppend as (r: readonly unknown[], o: { keep?: number }) => PreparedFrame<Frame>)(
         rows, keep === undefined ? {} : { keep });
+      ends(prepared.frame, store.frame, rows.length);
       // While paused the view does not move (spec I6), but the rows are validated now, with the window shown.
       const base = held ? { ...previous, frame: held.frame } : previous;
       let zoom = previous.zoom;
@@ -701,6 +754,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         const resolved = store.resolveEncoding(publicOptions(previous.options), check);
         if (!check.inputs().some(d => d.code === 'AX101')) {
           const again: PreparedFrame<Frame> = store.prepareReencode(resolved, nextVersion());
+          ends(again.frame, prepared.frame);
           commitAppend = again.commit;
           c = {
             ...c, resolved, source: resolved, frame: again.frame, dataDiagnostics: again.diagnostics, dataOptions: [],
@@ -709,6 +763,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         }
       }
       const viewed = viewFor(c, base);
+      if (destroyed) return;
       const found = [...prepared.callDiagnostics, ...viewed.found];
       rejectIfStrict(previous.options.strict === true, found, previous.name, previous.options.onDiagnostic);
       if (paused) {
@@ -740,20 +795,37 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
 
   /**
    * The caller's rows of a displayed frame as a table, in source order and with their own source indexes, so
-   * they can be normalized again on their own (re-encoding what is on screen while paused).
+   * they can be normalized again on their own (re-encoding what is on screen while paused). A frame over the
+   * caller's own table is read from it; a store frame from its raw window, with the rows that came from typed
+   * columns marked as such (a NaN there is "no data", not an unplottable value; verification, defect 4).
    */
-  function displayedTable(frame: Frame): Table {
-    const own = frozenRows.get(frame) ?? freeze(frame).rows;
-    const indexes = [...own.keys()].sort((p, q) => p - q);
-    const rows = indexes.map(i => own.get(i));
+  function displayedTable(frame: Frame, store: Store | null): Table {
+    const own = frozenRows.get(frame);
+    if (!own && !storeFrames.has(frame) && isTable(frame.source)) return frame.source;
+    const rows = own ?? freeze(frame).rows;
+    const indexes = [...rows.keys()].sort((p, q) => p - q);
+    const columns = store ? columnRows.get(store) ?? 0 : 0;
     // Positions read the rows in order; provenance and events read them by their own source index.
-    return { ...rowsTable(rows), rowIndex: i => indexes[i]!, rowAt: index => own.get(index) ?? null };
+    return {
+      ...rowsTable(indexes.map(i => rows.get(i))), isColumnRow: i => indexes[i]! < columns,
+      rowIndex: i => indexes[i]!, rowAt: index => rows.get(index) ?? null,
+    };
   }
 
-  /** The caller's rows every slot of `frame` refers to, read once, so the frame stays addressable on its own. */
+  /**
+   * The caller's rows of `frame`'s revision, read once, so the frame stays addressable on its own: every row
+   * a slot refers to, and the raw window around them (rows with no usable x, which re-encoding to another
+   * field can make points; verification, defect 4). The window is the retained rows from the lowest one a
+   * slot refers to up to the end of the revision, and the retained rows just below it.
+   */
   function freeze(frame: Frame): { frame: Frame; rows: Map<number, unknown> } {
     const rows = new Map<number, unknown>();
-    const keep = (row: number) => { if (row >= 0 && !rows.has(row)) rows.set(row, frame.source.rowAt(row)); };
+    let lowest = Infinity;
+    const keep = (row: number) => {
+      if (row < 0 || rows.has(row)) return;
+      rows.set(row, frame.source.rowAt(row));
+      if (row < lowest) lowest = row;
+    };
     const each = (index: Int32Array | null, length: number) => {
       for (let i = 0; i < length; i++) keep(index ? index[i]! : i);
     };
@@ -767,6 +839,20 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       }
     }
     else each(frame.row, frame.labels.length);
+    const end = rowEnds.get(frame);
+    if (end !== undefined) {
+      const from = Math.min(lowest, end);
+      for (let i = from; i < end; i++) {
+        if (rows.has(i)) continue;
+        const row = frame.source.rowAt(i);
+        if (row !== null) rows.set(i, row);
+      }
+      for (let i = from - 1; i >= 0; i--) {
+        const row = frame.source.rowAt(i);
+        if (row === null) break;
+        rows.set(i, row);
+      }
+    }
     return { frame, rows };
   }
 
@@ -883,6 +969,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
           const resolved = store.resolveEncoding(publicOptions(previous.options), check);
           if (!check.inputs().some(d => d.code === 'AX101')) {
             const again: PreparedFrame<Frame> = store.prepareReencode(resolved, nextVersion());
+            ends(again.frame, store.frame);
             commit = again.commit;
             c = {
               ...c, resolved, source: resolved, frame: again.frame, dataDiagnostics: again.diagnostics, dataOptions: [],
@@ -1014,11 +1101,11 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   }
 
   /** AX199 (spec 3.5): Axylo itself failed. Given to onDiagnostic and printed, beside the error state. */
-  function raiseInternal(error: unknown, before: readonly DiagnosticInput[] = []): void {
+  function raiseInternal(error: unknown, before: readonly DiagnosticInput[] = [], after: readonly DiagnosticInput[] = []): void {
     const first = internalError === null;
     internalError = error;
     if (first) delivery.internal(accepted?.name ?? (host.targetId || host.id), error);
-    setPresentationQuiet('internal', [...before, createDiagnostic('AX199', 'chart-error', {}, 'presentation')]);
+    setPresentationQuiet('internal', [...before, createDiagnostic('AX199', 'chart-error', {}, 'presentation'), ...after]);
     if (!inFrame) deliverChanges();
   }
 
@@ -1039,7 +1126,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     }
     const x = frame.shape === 'aligned'
       ? { kind: frame.x.kind, timeZone: frame.x.timeZone, dateUnit: frame.x.dateUnit, categories: frame.x.categories }
-      : { kind: frame.xKind, timeZone: frame.timeZone, dateUnit: pointDateUnit(frame, resolved.x.field), categories: null };
+      : { kind: frame.xKind, timeZone: frame.timeZone, dateUnit: pointDateUnit(frame, resolved.x.field, rowOf), categories: null };
     const series = frame.shape === 'aligned'
       ? frame.series.map(s => ({ field: s.field, unit: s.unit, scale: s.valueScale, format: valueFor(s.field)?.format ?? null }))
       : frame.series.map(() => ({ field: resolved.values[0]?.field ?? 'y', unit: frame.yUnit, scale: resolved.values[0]?.scale ?? null, format: resolved.values[0]?.format ?? null }));
@@ -1198,6 +1285,10 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       currentHidden = labelsHidden;
       let disclosure = disclosureNow();
       let built = readerFor(labelsHidden, disclosure);
+      // The summary runs author formatters lazily: it is made here, so what they threw on is in the
+      // disclosure this settles on, and no reader is built again once writing has started (verification,
+      // claims: a throwing value formatter ran again during the figure's write).
+      void built.reader.summary;
       const after = disclosureNow();
       if (after.omitted !== disclosure.omitted || after.changed !== disclosure.changed) {
         disclosure = after;
@@ -1254,12 +1345,10 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       xLabelGiven: typeof object(a.options.x).label === 'string',
       valueTitle: a.messages.value,
     };
-    if (shown.kind === 'ready' && !compact) {
-      setPresentation('layout', tickFormatFailures(view, axisContext).map(field => createDiagnostic('AX160', 'changed', { field }, 'presentation')));
-    } else {
-      setPresentation('layout', []);
-    }
+    const tickFailures = shown.kind === 'ready' && !compact ? tickFormatFailures(view, axisContext) : [];
+    // A formatter that changed the chart made findings about a revision that is not drawn (defect 3).
     if (!current(a)) throw ABORT;
+    setPresentation('layout', tickFailures.map(field => createDiagnostic('AX160', 'changed', { field }, 'presentation')));
 
     let { reader, inputs: readerInputs } = settleReader(hiddenIn(drawn?.layout));
     // The lazy parts of the reader model run author formatters: materialized here, before anything is written.
@@ -1531,12 +1620,13 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   function showing(a: Accepted | null): void {
     if (destroyed) return;
     const frame = a?.frame ?? null;
-    const changed = onScreen?.frame !== frame;
+    // Nothing on screen is one state, however often a hidden chart's frames say so (verification, defect 2).
+    const changed = (onScreen?.frame ?? null) !== frame;
     onScreen = frame === null ? null : { frame, store: a!.store, frozen: null };
     release();
-    // The baseline moves only when the data on screen changes: redrawing the same paused frame does not let
-    // the store grow further (final review, finding 2).
-    if (changed) retainedBaseline = accepted?.store?.retainedRowCount ?? 0;
+    // The baseline moves only when other data comes on screen: redrawing the same paused frame, or a frame
+    // that could not be measured, does not let the store grow further (final review, finding 2).
+    if (changed && frame !== null) retainedBaseline = accepted?.store?.retainedRowCount ?? 0;
   }
 
   function readyText(a: Accepted, reader: ReaderModel, byText: string | null): string {
@@ -1627,12 +1717,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       x = positionValue(frame, ref.x);
       const series = frame.series[text.seriesIndex];
       if (series) {
-        // Points are in x order: the datum is found by its x, then by its row among points at that x, with no
-        // walk over the series (final review, finding 8).
-        const rows = series.row;
-        let i = rows ? lowerBound(series.x, ref.x) : ref.row;
-        if (rows) while (i < series.x.length && series.x[i] === ref.x && rows[i] !== ref.row) i++;
-        if (i >= 0 && i < series.x.length && (rows ? rows[i] === ref.row : true)) y = series.y[i]!;
+        const i = pointIndex(series, ref, rowOf(frame, ref.row), d.accepted.resolved.values[0]?.field);
+        if (i >= 0) y = series.y[i]!;
       }
     } else if (ref.kind === 'slice' && frame.shape === 'donut') {
       x = text.seriesLabel;
@@ -1819,6 +1905,11 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       renderer: () => host.renderer.kind,
       retainedRows: () => accepted?.store?.retainedRowCount ?? 0,
       store: () => accepted?.store ?? null,
+      frames() {
+        const live = new Set<Frame>();
+        for (const f of [onScreen?.frame, drawn?.accepted.frame, accepted?.frame, held?.frame, inflight?.frame]) if (f) live.add(f);
+        return [...live];
+      },
     });
   }
   return { handle, actions, invalidate, flush };
@@ -1856,16 +1947,19 @@ const pointDateUnits = new WeakMap<Frame, 'day' | 'month' | 'year'>();
 /**
  * The precision calendar dates were written in on a scatter frame, the finest if mixed ("2024-02" is a month;
  * spec F4). The point frame has no field for it (contracts: only the aligned x column does), so it is read
- * from the caller's rows of the frame, once per frame.
+ * from the caller's rows of the frame, once per frame, through the accessor hover uses (`rowOf`): a frame
+ * that kept its own copy after the store moved on reads that copy (verification, defect 5).
  */
-function pointDateUnit(frame: Extract<Frame, { shape: 'points' }>, field: string): 'day' | 'month' | 'year' | null {
+function pointDateUnit(
+  frame: Extract<Frame, { shape: 'points' }>, field: string, rowAt: (frame: Frame, row: number) => unknown,
+): 'day' | 'month' | 'year' | null {
   if (frame.xKind !== 'date') return null;
   const known = pointDateUnits.get(frame);
   if (known) return known;
   let unit: 'day' | 'month' | 'year' = 'year';
   outer: for (const s of frame.series) {
     for (let i = 0; i < s.x.length; i++) {
-      const row = frame.source.rowAt(s.row ? s.row[i]! : i);
+      const row = rowAt(frame, s.row ? s.row[i]! : i);
       const raw = row !== null && typeof row === 'object' ? (row as Record<string, unknown>)[field] : undefined;
       const u = dateUnitOf(raw);
       if (u === 'day') { unit = 'day'; break outer; }
@@ -1878,6 +1972,34 @@ function pointDateUnit(frame: Extract<Frame, { shape: 'points' }>, field: string
 
 function sameStyle(a: TextStyle, b: TextStyle): boolean {
   return a.font === b.font && a.letterSpacing === b.letterSpacing && a.wordSpacing === b.wordSpacing && a.lineHeight === b.lineHeight;
+}
+
+/**
+ * Where a point datum is in its series. Points are sorted by x, then y: the caller's own row says which y to
+ * look for, so the datum is found by two binary searches and a check of its row, without reading the rows of
+ * every point that shares its x (verification, defect 7). The row only guides the search: when it does not
+ * lead to the datum (a value the frame read differently), the points at that x are walked.
+ */
+function pointIndex(series: PointSeries, ref: Extract<DatumRef, { kind: 'point' }>, row: unknown, field: string | undefined): number {
+  const rows = series.row;
+  const n = series.x.length;
+  if (!rows) return ref.row >= 0 && ref.row < n ? ref.row : -1;
+  const start = lowerBound(series.x, ref.x);
+  const end = upperBound(series.x, ref.x, start);
+  const raw = field !== undefined && row !== null && typeof row === 'object' ? (row as Record<string, unknown>)[field] : undefined;
+  // A null or absent value is a point only when imputed as zero (missing: 'zero').
+  const guess = typeof raw === 'number' ? raw : raw === null || raw === undefined ? 0 : NaN;
+  if (!Number.isNaN(guess)) {
+    for (let i = lowerBound(series.y, guess, start, end); i < end && series.y[i] === guess; i++) if (rows[i] === ref.row) return i;
+  }
+  for (let i = start; i < end; i++) if (rows[i] === ref.row) return i;
+  return -1;
+}
+
+/** A frame's source that is a whole table (a static frame over the caller's data). */
+function isTable(source: unknown): source is Table {
+  const t = source as Partial<Table>;
+  return typeof t.isColumnRow === 'function' && typeof t.rowIndex === 'function' && typeof t.length === 'number';
 }
 
 /** The index of `x` in sorted `values`, or -1. */

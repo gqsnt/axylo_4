@@ -84,8 +84,20 @@ type AxisParts = Record<string, unknown>;
  */
 const axisMemo = new WeakMap<View, { key: readonly unknown[]; parts: AxisParts; failed: readonly string[] }>();
 
+/**
+ * What the axis parts read from the resolved options, so an update that changes none of it (a title) reuses
+ * the labels made for this view: an author tick formatter that updates the chart on every call can then not
+ * stop every frame from publishing (verification, defect 3).
+ */
+function axisInputs(ctx: AxisContext): unknown[] {
+  const { x } = ctx.resolved;
+  const value = ctx.resolved.values[0];
+  return [x.field, x.tickFormat, x.unit, x.domain !== null && x.domain !== undefined, value?.field, value?.tickFormat,
+    value?.scale, value?.domain !== null && value?.domain !== undefined, ctx.locale, ctx.compact, ctx.xLabelGiven, ctx.valueTitle];
+}
+
 function axisParts(view: View, ctx: AxisContext): { parts: AxisParts; failed: readonly string[] } {
-  const key = [ctx.resolved, ctx.locale, ctx.compact, ctx.xLabelGiven, ctx.valueTitle];
+  const key = axisInputs(ctx);
   const hit = axisMemo.get(view);
   if (hit && hit.key.length === key.length && hit.key.every((v, i) => v === key[i])) return hit;
   const failed = new Set<string>();
@@ -142,7 +154,13 @@ function buildAxisParts(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext
       view.xDomain[0] === view.xFull[0] && view.xDomain[1] === view.xFull[1];
     const xExtent = automatic ? scatterXExtent(view) : null;
     const candidates = xExtent ? endingCandidates(x.candidates, view.xDomain, xExtent, null) : x.candidates;
-    return { kind: 'xy', x: { ...x, candidates, title: titles.x }, y, references: view.references };
+    // Wider domains on coarser steps, as for y: a plot too narrow for every set of the domain can take one
+    // that still ends at drawn ticks (verification, defect 10). Layout reads them for x once its bottom-axis
+    // fit reports a partial set (a change routed to the layout author).
+    const coarser = xExtent ? coarserDomains(xExtent[0], xExtent[1], view.xDomain).map(domain => ({
+      domain, candidates: endingCandidates(continuousX('number', domain, null, null, ctx).candidates, domain, xExtent, null),
+    })) : undefined;
+    return { kind: 'xy', x: { ...x, candidates, coarser, title: titles.x }, y, references: view.references };
   }
 
   const column = view.frame.x;
@@ -167,18 +185,33 @@ function buildAxisParts(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext
     : { kind: 'xy', x, y, references };
 }
 
-/** What scatter's automatic x domain was rounded from: the visible points' x and the x references. */
+/**
+ * What scatter's automatic x domain was rounded from, as the view rounds it: every series' x, observations
+ * with an x and no y included (they reach the table, F2), and the x references. Ticks are chosen against the
+ * same extent as the domain, or a domain widened for a missing-y position has no tick set ending at it
+ * (verification, defect 10).
+ */
 function scatterXExtent(view: Extract<View, { kind: 'scatter' }>): Span | null {
+  const known = xExtents.get(view);
+  if (known !== undefined) return known;
   let lo = Infinity;
   let hi = -Infinity;
-  view.frame.series.forEach((s, i) => {
-    if (!view.visible[i]) return;
-    const { start, end } = view.visiblePoints[i]!;
-    if (end > start) { lo = Math.min(lo, s.x[start]!); hi = Math.max(hi, s.x[end - 1]!); }
-  });
+  for (const s of view.frame.series) {
+    if (s.x.length) { lo = Math.min(lo, s.x[0]!); hi = Math.max(hi, s.x[s.x.length - 1]!); }
+    const missing = s.missingX;
+    if (missing) for (let i = 0; i < missing.length; i++) {
+      const v = missing[i]!;
+      if (Number.isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+    }
+  }
   for (const r of view.references) if (r.axis === 'x') { lo = Math.min(lo, r.from); hi = Math.max(hi, r.to); }
-  return lo <= hi ? [lo, hi] : null;
+  const extent: Span | null = lo <= hi ? [lo, hi] : null;
+  xExtents.set(view, extent);
+  return extent;
 }
+
+/** Read once per view, like `extents` (the layout key reads it every frame). */
+const xExtents = new WeakMap<View, Span | null>();
 
 /**
  * What an automatic value domain was rounded from: the visible values (stack totals for a stack), the
@@ -304,7 +337,9 @@ export function layoutKey(
   const titles = axisTitles(view, ctx);
   base.push(titles.x, titles.y);
   if (view.kind === 'scatter') {
-    base.push(view.frame.xKind, view.frame.timeZone, view.frame.xLabel, view.frame.yLabel);
+    // The x extent chooses among the x tick sets of an automatic domain, as the value extent does for y.
+    const xExtent = scatterXExtent(view);
+    base.push(view.frame.xKind, view.frame.timeZone, view.frame.xLabel, view.frame.yLabel, xExtent?.[0], xExtent?.[1]);
     return base;
   }
   const column = view.frame.x;
