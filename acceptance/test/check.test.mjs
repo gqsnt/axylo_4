@@ -6,7 +6,7 @@ import test from 'node:test';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { check } from '../check.mjs';
-import { citedTestFiles, hashFile, snapshot } from '../provenance.mjs';
+import { citedTestFiles, declaredEngines, defaultResultFile, hashFile, snapshot } from '../provenance.mjs';
 
 const root = fileURLToPath(new URL('./fixtures/', import.meta.url));
 const matrixFile = resolve(root, 'matrix.json');
@@ -321,4 +321,124 @@ test('release verifies the commit, dirty source, cited test hashes, and result b
   // This second workspace change leaves the existing dirty status unchanged.
   write('matrix.json', [...matrix].reverse());
   assert.match(check(options).report, /provenance does not match the working tree/);
+});
+
+// ── engines (AXYLO_ENGINE) ──────────────────────────────────────────────────────────────────────────
+
+/** F1's line cell cites `line renders` as browser evidence, optionally for named engines. */
+function browserMatrix(...engines) {
+  const matrix = read(matrixFile);
+  const ref = { file: 'chart.test.ts', kind: 'browser', title: 'line renders' };
+  matrix[0].evidence.line = engines.length ? engines.map(engine => (engine ? { ...ref, engine } : ref)) : [ref];
+  return matrix;
+}
+
+/** A report of `line renders` with the harness's engine record (none when `engine` is null). */
+function engineReport(engine, status = 'passed', version = { chromium: '157.0.8103.78', firefox: '159.0', webkit: '27.2' }[engine], extra = {}) {
+  const meta = engine ? { engine, engineVersion: version, ...extra } : undefined;
+  return { testResults: [{ name: './chart.test.ts', assertionResults: [
+    { title: 'line renders', ancestorTitles: ['render examples'], status, ...(meta ? { meta } : {}) },
+  ] }] };
+}
+
+const lineCell = table => /^\| F1 \| [^|]+\| ([^|]+) \|/m.exec(table)[1].trim();
+
+test('a browser citation is answered only by results of its own engine, Chrome when it names none', t => {
+  const write = workspace(t);
+  const firefox = write('browser-firefox.json', engineReport('firefox'));
+  const chrome = write('browser.json', engineReport('chromium'));
+  const legacy = write('legacy.json', engineReport(null));
+  const cell = (matrix, ...files) => {
+    const result = run({ matrixFile: write('matrix.json', matrix), resultFiles: files });
+    return { cell: lineCell(result.table), report: result.report };
+  };
+  // A Firefox pass is no evidence for a citation that needs Chrome.
+  const unanswered = cell(browserMatrix(), firefox);
+  assert.equal(unanswered.cell, 'not run');
+  assert.match(unanswered.report, /line · Required assertions have no matching passing result\. No Chrome result\./);
+  assert.equal(cell(browserMatrix('firefox'), firefox).cell, 'pass (browser-firefox.json pass)');
+  assert.equal(cell(browserMatrix(), chrome, firefox).cell, 'pass (browser.json pass)');
+  // Results that predate the engine record were all Chrome.
+  assert.equal(cell(browserMatrix(), legacy).cell, 'pass (legacy.json pass)');
+  assert.equal(cell(browserMatrix('firefox'), legacy).cell, 'not run');
+  // Cited for two engines, the cell needs both; a failure on one engine fails only the citations for it.
+  assert.equal(cell(browserMatrix(null, 'firefox'), chrome).cell, 'not run (browser.json pass)');
+  const failing = write('browser-webkit.json', engineReport('webkit', 'failed'));
+  assert.equal(cell(browserMatrix(), chrome, failing).cell, 'pass (browser.json pass)');
+  assert.equal(cell(browserMatrix(null, 'webkit'), chrome, failing).cell, 'fail (browser.json pass, browser-webkit.json fail)');
+});
+
+test('a results file that mixes engines, or disagrees with its sidecar, is refused', t => {
+  const write = workspace(t);
+  const mixed = engineReport('chromium');
+  mixed.testResults[0].assertionResults.push({ ...engineReport('firefox').testResults[0].assertionResults[0], title: 'area renders' });
+  assert.throws(() => run({ resultFiles: [write('mixed.json', mixed)] }), /mixed\.json: mixes engines \(chromium, firefox\); run each engine into its own results file/);
+  const versions = engineReport('firefox');
+  versions.testResults[0].assertionResults.push({ ...versions.testResults[0].assertionResults[0], title: 'area renders', meta: { engine: 'firefox', engineVersion: '160.0' } });
+  assert.throws(() => run({ resultFiles: [write('versions.json', versions)] }), /mixes engine versions \(firefox 159\.0, firefox 160\.0\)/);
+  const report = write('browser-webkit.json', engineReport('webkit'));
+  write('browser-webkit.provenance.json', { engine: 'firefox' });
+  assert.throws(() => run({ resultFiles: [report] }), /the provenance records firefox but the results declare webkit/);
+  assert.throws(() => run({ resultFiles: [write('odd.json', engineReport('safari'))] }), /unknown engine "safari"/);
+});
+
+test('a test reported as not run on an engine is "not run" with its reason, never a pass', t => {
+  const write = workspace(t);
+  const reason = "webkit: the browser's own computed accessibility tree is read through the Chrome DevTools protocol";
+  const report = write('browser-webkit.json', engineReport('webkit', 'skipped', '27.2', { notRun: reason }));
+  const result = run({ matrixFile: write('matrix.json', browserMatrix('webkit')), resultFiles: [report] });
+  assert.equal(lineCell(result.table), 'not run (browser-webkit.json skipped)');
+  assert.ok(result.report.includes(`Not run on ${reason}.`));
+  assert.equal(result.counts.pass, 0);
+});
+
+test('the report names the engine of each run, and WebKit is not Safari', t => {
+  const write = workspace(t);
+  const result = run({ resultFiles: [
+    write('browser.json', engineReport('chromium')),
+    write('browser-firefox.json', engineReport('firefox')),
+    write('browser-webkit.json', engineReport('webkit')),
+  ] });
+  assert.match(result.report, /`[^`]*browser\.json` · Chrome 157\.0\.8103\.78 · 1 passed assertions/);
+  assert.match(result.report, /`[^`]*browser-firefox\.json` · Firefox \(Playwright\) 159\.0 · /);
+  assert.match(result.report, /`[^`]*browser-webkit\.json` · WebKit \(Playwright\), not Safari 27\.2 · /);
+  // Node results and archived Chrome results carry no engine and the report claims none for them.
+  assert.match(run({ resultFiles: [passed] }).report, /`[^`]*results\.json` · 2 passed assertions/);
+});
+
+test('only browser evidence takes an engine, and only a known one', t => {
+  const write = workspace(t);
+  const unit = read(matrixFile);
+  unit[0].evidence.line[0].engine = 'firefox';
+  assert.throws(() => run({ matrixFile: write('unit.json', unit) }), /F1\/line: only browser evidence takes an engine/);
+  assert.throws(() => run({ matrixFile: write('safari.json', browserMatrix('safari')) }), /F1\/line: unknown engine: safari \(expected chromium, firefox, webkit\)/);
+});
+
+test('in a run on another engine, a test without an engine record stands for no engine', t => {
+  const write = workspace(t);
+  // The docs and distribution suites launch Chrome themselves whatever AXYLO_ENGINE says.
+  const report = engineReport('firefox');
+  report.testResults[0].assertionResults[0].title = 'area renders';
+  report.testResults[0].assertionResults.push(engineReport(null).testResults[0].assertionResults[0]);
+  const resultFiles = [write('browser-firefox.json', report)];
+  for (const engine of [null, 'firefox']) {
+    const result = run({ matrixFile: write('matrix.json', browserMatrix(engine)), resultFiles });
+    assert.equal(lineCell(result.table), 'not run');
+    assert.match(result.report, /browser-firefox\.json: engine not recorded in a Firefox \(Playwright\) run\./);
+  }
+  // In a Chrome run the same test is Chrome's.
+  const chrome = engineReport('chromium');
+  chrome.testResults[0].assertionResults[0].title = 'area renders';
+  chrome.testResults[0].assertionResults.push(engineReport(null).testResults[0].assertionResults[0]);
+  assert.equal(lineCell(run({ matrixFile: write('matrix.json', browserMatrix()), resultFiles: [write('browser.json', chrome)] }).table), 'pass (browser.json pass)');
+});
+
+test('run.mjs names a results file per engine and reads the engine the results declare', () => {
+  assert.equal(defaultResultFile('browser'), 'acceptance/results/browser.json');
+  assert.equal(defaultResultFile('browser', 'chromium'), 'acceptance/results/browser.json');
+  assert.equal(defaultResultFile('browser', 'firefox'), 'acceptance/results/browser-firefox.json');
+  assert.equal(defaultResultFile('browser', 'webkit'), 'acceptance/results/browser-webkit.json');
+  assert.equal(defaultResultFile('unit', 'webkit'), 'acceptance/results/unit.json');
+  assert.deepEqual(declaredEngines(engineReport('webkit')), { engines: ['webkit'], versions: ['webkit 27.2'] });
+  assert.deepEqual(declaredEngines(read(passed)), { engines: [], versions: [] });
 });

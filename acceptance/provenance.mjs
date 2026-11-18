@@ -8,6 +8,32 @@ const sha = value => createHash('sha256').update(value).digest('hex');
 
 export const hashFile = file => sha(readFileSync(file));
 
+/** The browser engines the browser harness can run (AXYLO_ENGINE), and how a report names each one. */
+export const ENGINES = ['chromium', 'firefox', 'webkit'];
+const ENGINE_LABELS = { chromium: 'Chrome', firefox: 'Firefox (Playwright)', webkit: 'WebKit (Playwright), not Safari' };
+export const engineLabel = (engine, version) => `${ENGINE_LABELS[engine] ?? engine}${version ? ' ' + version : ''}`;
+
+/**
+ * The engines a Vitest JSON report declares: the harness writes `meta.engine` and `meta.engineVersion` on
+ * every test it runs. A test without them was not run through that harness.
+ */
+export function declaredEngines(results) {
+  const engines = new Set();
+  const versions = new Set();
+  for (const suite of results?.testResults ?? []) for (const test of suite?.assertionResults ?? []) {
+    const engine = test?.meta?.engine;
+    if (engine === undefined) continue;
+    if (!ENGINES.includes(engine)) throw new Error(`unknown engine ${JSON.stringify(engine)} in ${suite.name}: ${test.title}`);
+    engines.add(engine);
+    if (typeof test.meta.engineVersion === 'string' && test.meta.engineVersion !== '') versions.add(`${engine} ${test.meta.engineVersion}`);
+  }
+  return { engines: [...engines].sort(), versions: [...versions].sort() };
+}
+
+/** Where a configuration's results go by default: the browser configuration gets one file per engine. */
+export const defaultResultFile = (name, engine = 'chromium') =>
+  `acceptance/results/${name === 'browser' && engine !== 'chromium' ? `${name}-${engine}` : name}.json`;
+
 export function citedTestFiles(matrix) {
   const files = new Set();
   for (const row of matrix) {
@@ -36,6 +62,7 @@ export function snapshot(root, files) {
   }
   // Include edits staged against HEAD even when the index matches the working file.
   tree.update(git('diff', '--cached', '--binary', 'HEAD', '--', '.', ':(exclude)acceptance/report.md'));
-  const hashes = Object.fromEntries(files.map(file => [file, hashFile(resolve(root, file))]));
+  // A cited file that is gone is the matrix's structural error, which the checker reports; the run still records.
+  const hashes = Object.fromEntries(files.map(file => [file, lstatSync(resolve(root, file), { throwIfNoEntry: false })?.isFile() ? hashFile(resolve(root, file)) : null]));
   return { commit, dirty: status.length > 0, tree: tree.digest('hex'), hashes };
 }

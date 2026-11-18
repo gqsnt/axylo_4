@@ -14,7 +14,7 @@
  * `negative-controls.browser.test.ts` that breaks the behaviour from the test side and requires the
  * checker to report it.
  */
-import type { Page } from 'playwright-core';
+import type { Locator, Page } from 'playwright-core';
 import { ENGINE, openPage, requireEngineFeature, url } from '../harness';
 
 export { ENGINE, requireEngineFeature };
@@ -289,6 +289,16 @@ export async function box(page: Page, selector: string): Promise<Box> {
   const b = await page.locator(selector).first().boundingBox();
   if (!b) throw new Error(`no box for ${selector}`);
   return b;
+}
+
+/**
+ * A control's size as the engine lays it out: its own getBoundingClientRect() in the page, in CSS px, the
+ * quantity spec I4 names. Not Playwright's boundingBox(): in Playwright's Firefox that returns 23.99999237
+ * for an element whose own rectangle is exactly 24 (its quads lose precision), so a size check would fail
+ * on the tool. No tolerance is added: 23.99 laid out in the page still fails.
+ */
+export async function cssSize(element: Locator): Promise<{ width: number; height: number }> {
+  return element.evaluate(e => { const r = e.getBoundingClientRect(); return { width: r.width, height: r.height }; });
 }
 
 /** The plot area in viewport px (the keyboard proxy covers exactly it) and the drawn domains (dev only). */

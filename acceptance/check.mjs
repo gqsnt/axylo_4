@@ -1,7 +1,7 @@
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
-import { isAbsolute, relative, resolve, sep } from 'node:path';
+import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { citedTestFiles, hashFile, snapshot } from './provenance.mjs';
+import { citedTestFiles, declaredEngines, engineLabel, ENGINES, hashFile, snapshot } from './provenance.mjs';
 import { matchesTemplate, readTitles } from './titles.mjs';
 
 const chartTypes = ['line', 'area', 'bar', 'scatter', 'donut', 'compact'];
@@ -90,8 +90,11 @@ function readMatrix(root, file, { entries: expected, diagnosticCodes }) {
   }
   function checkReference(reference, weak) {
     if (!isRecord(reference)) throw new Error('expected an evidence object');
-    const { kind, file, title, prefix, casePrefix, cases, registration, ancestors, reason, workload, history, entries } = reference;
+    const { kind, file, title, prefix, casePrefix, cases, registration, ancestors, reason, workload, history, entries, engine } = reference;
     if (![...testKinds, ...otherKinds].includes(kind)) throw new Error(`unknown evidence kind: ${kind}`);
+    // Browser evidence names the engine it needs (Chrome when it names none); Node tests have no engine.
+    if (engine !== undefined && kind !== 'browser') throw new Error('only browser evidence takes an engine');
+    if (engine !== undefined && !ENGINES.includes(engine)) throw new Error(`unknown engine: ${engine} (expected ${ENGINES.join(', ')})`);
     if (weak && !isText(reason)) throw new Error('weak evidence needs a reason');
     const entry = source(file);
     if (testKinds.includes(kind)) {
@@ -259,6 +262,7 @@ function readResults(root, roots, files, sources) {
     const failures = [];
     let passed = 0;
     let skipped = 0;
+    const { engine, engineVersion } = runEngine(file, { testResults }, provenance);
     for (const suite of testResults) {
       if (!isText(suite?.name) || !Array.isArray(suite.assertionResults)) {
         throw new Error(`${file}: expected a test file name and assertionResults`);
@@ -280,7 +284,7 @@ function readResults(root, roots, files, sources) {
         if (!isText(test?.title) || !isText(test.status) || !Array.isArray(test.ancestorTitles) || !test.ancestorTitles.every(isText)) {
           throw new Error(`${file}: expected assertion title, status and ancestorTitles in ${suite.name}`);
         }
-        if (path) index.get(path).push({ ...test, file });
+        if (path) index.get(path).push({ ...test, file, engine: testEngine(test, engine), runEngine: engine });
         if (test.status === 'passed') passed++;
         else if (test.status !== 'failed') skipped++;
         if (test.status === 'failed') {
@@ -292,14 +296,44 @@ function readResults(root, roots, files, sources) {
         const message = isText(suite.message) ? suite.message.trim().split(/\r?\n/)[0] : undefined;
         failures.push({ source, message, assertionFailed: failed });
         if (path) {
-          if (!suiteFailures.has(path)) suiteFailures.set(path, new Set());
-          suiteFailures.get(path).add(file);
+          if (!suiteFailures.has(path)) suiteFailures.set(path, new Map());
+          suiteFailures.get(path).set(file, engine);
         }
       }
     }
-    runs.push({ file, passed, skipped, failures, provenance });
+    runs.push({ file, passed, skipped, failures, provenance, engine, engineVersion });
   }
   return { index, runs, suiteFailures };
+}
+
+/**
+ * The one engine a results file ran on. The harness records it on every test (`meta.engine`), and run.mjs
+ * records the engine asked for in the sidecar. A file that declares two engines, or disagrees with its
+ * sidecar, is refused: one engine's results must never be read as another's. A file that declares none and
+ * has no engine in its sidecar predates the switch (or holds Node tests): null.
+ */
+function runEngine(file, results, provenance) {
+  const { engines, versions } = declaredEngines(results);
+  if (engines.length > 1) throw new Error(`${file}: mixes engines (${engines.join(', ')}); run each engine into its own results file`);
+  if (versions.length > 1) throw new Error(`${file}: mixes engine versions (${versions.join(', ')})`);
+  const recorded = provenance?.engine;
+  if (recorded !== undefined && recorded !== null && !ENGINES.includes(recorded)) throw new Error(`${file}: unknown engine in provenance: ${recorded}`);
+  if (engines.length && recorded && recorded !== engines[0]) {
+    throw new Error(`${file}: the provenance records ${recorded} but the results declare ${engines[0]}`);
+  }
+  const engine = engines[0] ?? recorded ?? null;
+  return { engine, engineVersion: versions.length ? versions[0].slice(engine.length + 1) : provenance?.engineVersion ?? null };
+}
+
+/**
+ * The engine one test ran on. Its own record when it has one. Without one, Chrome only in a run that is
+ * Chrome or predates the switch: every browser launcher in this repository that does not read AXYLO_ENGINE
+ * (apps/docs/test, tests/dist/browser.ts) launches system Chrome. In a run on another engine such a test is
+ * "engine not recorded" (null) and stands for no engine.
+ */
+function testEngine(test, runEngine) {
+  if (test.meta?.engine !== undefined) return test.meta.engine;
+  return runEngine === null || runEngine === 'chromium' ? 'chromium' : null;
 }
 
 const testKey = (ancestors, title) => JSON.stringify([ancestors, title]);
@@ -312,10 +346,14 @@ function resultFor(source, ref, results, suiteFailures) {
       return totalGzipBytes > targetKiB * 1024;
     });
     const status = exceeded ? 'fail' : 'pass';
-    return { status, reports: new Map([[source.path, new Set([status])]]) };
+    return { status, reports: new Map([[source.path, new Set([status])]]), reasons: new Set() };
   }
   const reports = new Map();
-  if (!testKinds.includes(ref.kind)) return { status: 'not run', reports };
+  const reasons = new Set();
+  if (!testKinds.includes(ref.kind)) return { status: 'not run', reports, reasons };
+  // A browser citation is answered only by results of its own engine: a pass elsewhere is no evidence here.
+  const engine = ref.kind === 'browser' ? ref.engine ?? 'chromium' : null;
+  const sameEngine = test => engine === null || test.engine === engine;
   const expected = ref.ancestors ? [testKey(ref.ancestors, ref.title)] : ref.registration
     ? source.titles.templates.filter(test => test.template === ref.registration)
       .map(test => testKey(test.ancestors, ref.title))
@@ -324,13 +362,20 @@ function resultFor(source, ref, results, suiteFailures) {
       .map(({ ancestors, title }) => testKey(ancestors, title));
   const keys = new Set(expected);
   const templates = ref.casePrefix ? source.titles.templates.filter(test => inSuite(test.ancestors, ref.prefix)) : [];
-  for (const file of suiteFailures.get(source.path) ?? []) reports.set(file, new Set(['fail']));
+  for (const [file, runEngine] of suiteFailures.get(source.path) ?? []) {
+    if (engine === null || runEngine === engine || (runEngine === null && engine === 'chromium')) reports.set(file, new Set(['fail']));
+  }
   const passed = new Set();
   for (const test of results.get(source.path) ?? []) {
     const key = testKey(test.ancestorTitles, test.title);
     const matches = ref.prefix ? inSuite(test.ancestorTitles, ref.prefix) && (!ref.casePrefix || test.title.startsWith(ref.casePrefix))
       : ref.ancestors ? keys.has(key) : test.title === ref.title;
     if (!matches) continue;
+    if (!sameEngine(test)) {
+      if (test.engine === null) reasons.add(`${basename(test.file)}: engine not recorded in a ${engineLabel(test.runEngine)} run`);
+      continue;
+    }
+    if (test.status !== 'passed' && test.status !== 'failed' && isText(test.meta?.notRun)) reasons.add(`Not run on ${test.meta.notRun}`);
     // Historical failures remain visible even when a suite has since replaced the assertion.
     if (test.status === 'passed' && (!ref.casePrefix || keys.has(key)
       || templates.some(candidate => testKey(candidate.ancestors, test.title) === key && matchesTemplate(test.title, candidate.template)))) {
@@ -342,11 +387,12 @@ function resultFor(source, ref, results, suiteFailures) {
   const status = [...reports.values()].some(values => values.has('fail')) ? 'fail'
     : passed.size && (!ref.cases || passed.size === ref.cases) && expected.every(key => passed.has(key))
       && [...reports.values()].every(values => !values.has('skipped')) ? 'pass' : 'not run';
-  return { status, reports };
+  if (status === 'not run' && engine !== null && !reports.size && !reasons.size) reasons.add(`No ${engineLabel(engine)} result`);
+  return { status, reports, reasons };
 }
 
 function cellFor(row, type, root, sources, results, suiteFailures) {
-  if (!row.appliesTo.includes(type)) return { status: 'not applicable', reports: new Map(), unrun: [] };
+  if (!row.appliesTo.includes(type)) return { status: 'not applicable', reports: new Map(), unrun: [], reasons: new Set() };
   const required = row.evidence?.[type] ?? [];
   const weak = row.weak?.[type] ?? [];
   const outcome = ref => resultFor(sources.get(resolve(root, ref.file)), ref, results, suiteFailures);
@@ -367,7 +413,8 @@ function cellFor(row, type, root, sources, results, suiteFailures) {
   }
   const unrun = [...required.filter((ref, i) => testKinds.includes(ref.kind) && outcomes[i].status === 'not run'),
     ...weak.filter((_, i) => testKinds.includes(weak[i].kind) && supporting[i].status === 'not run')];
-  return { status, reports, unrun };
+  const reasons = new Set([...outcomes, ...supporting].filter(result => result.status === 'not run').flatMap(result => [...result.reasons]));
+  return { status, reports, unrun, reasons };
 }
 
 const escapeCell = value => value.replaceAll('|', '\\|').replace(/\r?\n/g, ' ');
@@ -401,7 +448,10 @@ function readerDetails(rows, root, from, review) {
     if (gaps.length) weak.push(`- **${row.id}** · ${groupTypes(gaps).map(note => `Weak · ${note}`).join('\n  - ')}`);
     const absent = cellsOf('no evidence');
     if (absent.length) missing.push(`- **${row.id}** · ${absent.join(', ')} · ${row.statement}`);
-    const waiting = groupTypes(cellsOf('not run').map(type => [type, row.pending?.[type] ?? 'Required assertions have no matching passing result.']));
+    const waiting = groupTypes(cellsOf('not run').map(type => {
+      const reasons = [...cells[chartTypes.indexOf(type)].reasons].sort();
+      return [type, row.pending?.[type] ?? `Required assertions have no matching passing result.${reasons.length ? ' ' + reasons.map(reason => label(reason) + '.').join(' ') : ''}`];
+    }));
     if (waiting.length) pending.push(`- **${row.id}** · ${waiting.join('\n  - ')}`);
     for (const [type, waiver] of Object.entries(row.waivers ?? {})) {
       waivers.push(`- **${row.id}/${type}** · Waiver granted by ${waiver.grantedBy} · ${waiver.reason}`);
@@ -504,8 +554,8 @@ function describeProvenance(provenance) {
 function describeRuns(runs, root) {
   if (!runs.length) return ['Static coverage only. No Vitest reports supplied.'];
   return ['## Supplied Vitest runs', '', 'Suite counts include assertions outside the matrix. Each cell lists the reports with matching assertions, including partial evidence in weak cells.', '',
-    ...runs.flatMap(({ file, passed, skipped, failures, provenance, provenanceError }) => [
-      `- \`${relative(root, file)}\` · ${passed} passed assertions, ${failures.length} reported failures${skipped ? `, ${skipped} skipped or pending` : ''}`,
+    ...runs.flatMap(({ file, passed, skipped, failures, provenance, provenanceError, engine, engineVersion }) => [
+      `- \`${relative(root, file)}\` · ${engine ? `${engineLabel(engine, engineVersion)} · ` : ''}${passed} passed assertions, ${failures.length} reported failures${skipped ? `, ${skipped} skipped or pending` : ''}`,
       `  - Provenance: ${describeProvenance(provenance)}${provenanceError ? ' · ' + provenanceError : ''}`,
       ...failures.map(({ source, test, message, assertionFailed }) => `  - \`${source}\` · ${test ? label(test)
         : (assertionFailed ? 'Suite failed in addition to its failing assertions' : 'Suite failed without a failing assertion result')

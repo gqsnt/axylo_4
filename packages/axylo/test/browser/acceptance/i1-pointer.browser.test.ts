@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
 import { start, stop } from '../harness';
 import {
-  axWithin, box, call, center, closePage, compareTable, covered, create, createRaw, devPage, figureLayout, inside, plotGeometry, readRange, readTable, requireEngineFeature, ring, ENGINE, screenshot, settle, shapes, TOUCH_INPUT_REASON, valueText, type Box,
+  axWithin, box, call, center, closePage, compareTable, cssSize, covered, create, createRaw, devPage, figureLayout, inside, plotGeometry, readRange, readTable, requireEngineFeature, ring, ENGINE, screenshot, settle, shapes, TOUCH_INPUT_REASON, valueText, type Box,
 } from './util';
 import { calendar, CARTESIAN, ENERGY, FULL, inOrder, LATENCY, share, SHIPPED, SPEND, SPEND_TOTAL, tableOf, TYPES, withUnit, type ChartType } from './fixtures';
 import { traceMotion } from './checks';
@@ -232,7 +232,7 @@ describe('I1 tooltip under the pointer', () => {
       const n = await pinned.count();
       expect(n, 'the pinned tooltip has a button per row').toBeGreaterThan(0);
       const small: string[] = [];
-      for (const b of await pinned.all()) { const r = (await b.boundingBox())!; if (r.width < 24 || r.height < 24) small.push(`${await b.textContent()}: ${r.width.toFixed(1)}×${r.height.toFixed(1)}`); }
+      for (const b of await pinned.all()) { const r = await cssSize(b); if (r.width < 24 || r.height < 24) small.push(`${await b.textContent()}: ${r.width.toFixed(1)}×${r.height.toFixed(1)}`); }
       expect(small).toEqual([]);
       const before = await page.evaluate(() => (window as unknown as { selected: string[] }).selected.length);
       const last = pinned.nth(n - 1);
@@ -726,7 +726,7 @@ describe('I4 single pointer, touch and target size', () => {
       const measure = async (sel: string) => {
         for (const el of await page.locator(sel).all()) {
           if (!(await el.isVisible())) continue;
-          const b = (await el.boundingBox())!;
+          const b = await cssSize(el);
           if (b.width < 24 || b.height < 24) small.push(`${(await el.textContent()) || (await el.getAttribute('class'))}: ${b.width.toFixed(1)}×${b.height.toFixed(1)}`);
         }
       };

@@ -31,6 +31,18 @@ Structural errors exit 1. In `--release` mode, results must have provenance that
 | cannot be verified here | The criterion requires an environment or rehearsal outside the supplied runs. |
 | not applicable | The matrix records why the criterion does not apply. |
 
+## Browser engines
+
+The browser configuration runs on the engine `AXYLO_ENGINE` names: `chromium` (system Chrome, the default), `firefox` or `webkit` (Playwright's own builds; WebKit is the engine, not Safari). Each engine gets its own result file:
+
+```sh
+node acceptance/run.mjs browser                        # acceptance/results/browser.json
+AXYLO_ENGINE=firefox node acceptance/run.mjs browser   # acceptance/results/browser-firefox.json
+AXYLO_ENGINE=webkit node acceptance/run.mjs browser    # acceptance/results/browser-webkit.json
+```
+
+The harness records `meta.engine` and `meta.engineVersion` on every test, and the sidecar records the engine asked for and the version the results declare. The checker refuses a result file that mixes engines or disagrees with its sidecar. A browser citation takes an optional `engine` (default `chromium`) and is answered only by results of that engine; a pass on one engine never stands for another. A test that reported itself not run on an engine (`meta.notRun`) is `not run` with that reason. Results without engine records predate the switch and count as Chrome; in a run on another engine, a test without a record (the docs and distribution suites launch Chrome themselves) counts for no engine.
+
 ## Review and cite evidence
 
 Use the spec ID and short wording. Section 3.6 cells use `T-<rule>-<chart type>`. Give every excluded chart type a `notApplicable` reason. Compact covers line, area and bar variants where the rule applies.
