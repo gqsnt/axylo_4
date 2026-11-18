@@ -142,6 +142,9 @@ export const diagnosticRegistry = {
   AX160: entry('warning', d =>
     field(d) + ' has a custom formatter that threw' + rows(d) + '. Make the formatter handle every value of this field.',
   'The default format is used for the affected value.'),
+  AX199: entry('error', () =>
+    'Axylo failed while building this chart. This is a defect in Axylo, not in your data: please report it with the error printed above.',
+  'The chart shows its error state.'),
 } as const satisfies Record<Diagnostic['code'], Entry>;
 
 export type DiagnosticCode = keyof typeof diagnosticRegistry;

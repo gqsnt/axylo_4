@@ -54,6 +54,11 @@ export const defaultMessages: Messages = {
   seriesNotDrawn: '{series} could not be drawn. See table.',
   referenceLine: 'Reference line {label} at {from}.',
   referenceBand: 'Reference band {label} from {from} to {to}.',
+  plotRole: '{type} chart',
+  pointAll: '{x}. {values}. {position}',
+  seriesValue: '{series} {value}',
+  position: 'Point {index} of {count}',
+  total: 'Total',
 };
 
 export function fill(template: string, values: Readonly<Record<string, string | number>>): string {

@@ -195,4 +195,8 @@ export interface Messages {
   typeLine: string; typeArea: string; typeBar: string; typeScatter: string; typeDonut: string;
   /** Summary sentences that have no cartesian form. */
   donutSummary: string; seriesNoData: string; seriesNotDrawn: string; referenceLine: string; referenceBand: string;
+  /** What the keyboard proxy says it is ("{type} chart") and how it reads a position. */
+  plotRole: string; pointAll: string; seriesValue: string; position: string;
+  /** Label of the stack total in tooltips. */
+  total: string;
 }
