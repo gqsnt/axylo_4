@@ -30,11 +30,14 @@ Observed model and effort are read from harness metadata (Codex session rollouts
 
 Finished and committed, each written by one provider and reviewed by the other: scales and formatting; layout and simplification; data layer, diagnostics and stores; renderers, text layer and theme; view and scene; lookup, reader and messages; chart core part 1 (review findings not yet fixed, see below); chart core part 2 (review running); benchmark harness and the M1 renderer measurements (not reviewed).
 
-| Running now (2026-11-18, after commit a518cbb) | Who | Files |
+| Running now (2026-11-18, after commit 9d8784a) | Who | Files |
 |---|---|---|
-| Engine switch in the browser harness; the acceptance suite run in Playwright Firefox 159, then WebKit 27.2 (agent a61d95e46b3f0f3aa, resumed) | Claude Opus 5.5 high | `packages/axylo/test/browser/acceptance`, `harness.ts`, the two shared util files |
-| Final review of the controller and the per-chart composition | Codex gpt-6.2-sol max, read-only | → `wp/core-final.controller.review.md` |
-| Final review of the interaction and accessibility layer | Codex gpt-6.2-astra xhigh, read-only | → `wp/core-final.interaction.review.md` |
+| Controller: final review findings (three blockers in the displayed-snapshot design, paused validation, validate parity, cached-layout findings, temporal snapshots, compact zoom, watcher cleanup), readout mode as floating / strip / none, benchmark hooks, the 24-chart resize mismatch (agent a1d73b9f46c46814f, resumed) | Claude Opus 5.5 high | `src/core` except `focus.ts`, `src/kinds`, `src/theme/watch.ts`, `test/core` |
+| Interaction layer: decision 0004 revision 3 as one state machine; the final review's 16 findings, 16 earlier partials, 10 mutations (agent aa0e6fca8e4a6224b, new) | Claude Opus 5.5 high | `src/dom`, `src/core/focus.ts`, figure section of `theme/css.ts`, `test/browser/chart`, `test/browser/a11y` |
+| Data, lookup, scene, view, reader: memory budget on the first append, bounded scatter pick, 32 distinct cues, summary and diagnostics wording, `ownedBytes()` (agent a5e106319fe97c022, new) | Claude Opus 5.5 high | `src/{data,lookup,scene,view,reader,format,diagnostics,messages}` and their tests |
+| Engine switch in the browser harness; the acceptance suite in Playwright Firefox 159, then WebKit 27.2 (agent a61d95e46b3f0f3aa, resumed) | Claude Opus 5.5 high | `test/browser/acceptance`, `harness.ts`, the two shared util files |
+
+Final reviews, both "do not release yet": controller, Codex gpt-6.2-sol max, `wp/core-final.controller.review.md` (5 blocking, 11 major; the restructuring itself found clean); interaction layer, Codex gpt-6.2-astra xhigh, `wp/core-final.interaction.review.md` (5 blocking, 11 major). Decision 0004 is at revision 3 (one rest-and-corridor rule; a hold never changes what a click activates; three readout states; controls and focus rings never covered). Spec clarified: F7's first-tick rule is for value axes; F9 asks 32 distinct cue combinations for every chart type; I1 covers plots too short for the strip.
 
 Owner decisions on 2026-11-18: palette candidate B adopted (9861f54); size targets 96 KiB everything and 80 KiB line only (spec DX7); licence stays MIT with holder "The Axylo authors"; Playwright browser downloads allowed (Firefox and WebKit installed under ~/.cache/ms-playwright; the owner installed WebKit's system libraries); no screen-reader rehearsal for 1.0 (state it as not done, do not block on it); the React adapter is removed from 1.0 (bf93e1a; last state at dac5664; adapters for React, Vue, Svelte later; plain TypeScript for now).
 
@@ -54,11 +57,11 @@ Known open items carried forward:
 
 ## Next action
 
-1. When the Firefox and WebKit runs return: commit the engine switch; triage engine failures to module authors.
-2. When the two final reviews return: one fix pass by the core's author with the list above; verify; commit.
-3. Record every configuration on a quiet tree (`node acceptance/run.mjs …`; add Firefox and WebKit configurations), have the matrix's author re-merge (engines; React rows gone; DX1, DX7, DX8 amended; A3 rehearsal recorded as not done by the owner's decision), run the checker.
-4. On a quiet machine with no agents: `node bench/decision.mjs plan` (software family about 3.2 h, gpu family about 2.2 h); then budgets P1 to P8 and performance work.
-5. Conformance table (A9) from the acceptance evidence, stating no screen reader was run; agent rehearsal (DX12) against the docs; Phase 1 comparison rerun with Axylo included; final independent review of the acceptance evidence.
+1. As the four running packages return: verify (type check; Node suite; all browser suites on SVG, `chart` and `a11y` on canvas; distribution; docs), commit each with targeted paths. The three fix agents share a tree: verify the whole only when all three have reported.
+2. A short Codex verification of the fixes against the two final reviews (read-only), then record every configuration on a quiet tree, Firefox and WebKit included; the matrix must be re-merged by an Anthropic model now (engines; React rows gone; DX1, DX7, DX8 amended; A3 rehearsal recorded as not done by the owner's decision) and reviewed by Codex.
+3. A size pass toward 96 and 80 KiB (currently 104.24 and 87.50).
+4. On a quiet machine with no agents: `node bench/decision.mjs plan` (software family about 3.2 h, gpu family about 2.2 h); then budgets P1 to P8.
+5. Conformance table (A9) from the acceptance evidence, stating no screen reader was run; agent rehearsal (DX12) against the docs; Phase 1 comparison rerun with Axylo included; docs follow-up for decision 0004 revision 3 and changed diagnostics wording.
 
 ## Known limits that no agent can close
 
