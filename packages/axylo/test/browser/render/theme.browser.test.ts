@@ -10,6 +10,9 @@ import { contrastRatio, parseColor } from '../../../src/theme/color';
 import type {} from './entries/api';
 import { at, close, diff, frames, ink, open, rgb, shot, type RGB } from './util';
 
+/** AXYLO_PROPOSED_CSS=1 preloads a standalone sheet; tests of installing into a bare page do not apply then. */
+const preloaded = process.env.AXYLO_PROPOSED_CSS === '1';
+
 beforeAll(start);
 afterAll(stop);
 
@@ -82,8 +85,11 @@ describe('scheme detection (spec L4)', () => {
     const page = await open();
     await page.evaluate(() => window.axr.mount('canvas', 20, 60));
     const t = await page.evaluate(() => window.axr.theme(0));
-    expect(t.bindings.series[0]).toBe('var(--axylo-series-1)');
-    expect(t.bindings.series[7]).toBe('var(--axylo-series-8)');
+    // Marks reference a per-series property on the chart root, which holds the palette slot (review finding 6).
+    expect(t.bindings.series[0]).toBe('var(--axylo-series-color-1)');
+    expect(t.bindings.series[7]).toBe('var(--axylo-series-color-8)');
+    const slots = await page.evaluate(() => [1, 8].map(n => (document.querySelector('.axylo') as HTMLElement).style.getPropertyValue(`--axylo-series-color-${n}`)));
+    expect(slots).toEqual(['var(--axylo-series-1, var(--axylo-default-series-1))', 'var(--axylo-series-8, var(--axylo-default-series-8))']);
     expect(t.theme.paints.series.map(c => rgb(c))).toEqual(LIGHT.series.map(c => rgb(c)));
     expect(rgb(t.theme.paints.tokens.axis)).toEqual(rgb(LIGHT.axis));
     expect(rgb(t.theme.paints.tokens.background)).toEqual(rgb(LIGHT.background));
@@ -166,10 +172,7 @@ describe('forced colors (emulated)', () => {
     expect(t.theme.forcedColors).toBe(true);
     expect(new Set(t.theme.paints.series).size).toBe(1);
     expect(contrastRatio(parseColor(t.theme.paints.series[0]!)!, parseColor(t.theme.paints.tokens.background)!)).toBeGreaterThanOrEqual(4.5);
-    // An author color is set aside for the system colors.
-    const authored = await page.evaluate(() => window.axr.theme(window.axr.mount('svg', 460, 380, { keys: ['Direct'], colors: { Direct: 'rgb(200, 0, 0)' } })));
-    expect(authored.bindings.series).toEqual(['var(--axylo-series-1)']);
-    expect(authored.theme.paints.series[0]).toBe(t.theme.paints.series[0]);
+    // An author color set aside for the system colors needs the stylesheet: pending-css.browser.test.ts.
   });
 
   for (const [kind, x] of [['canvas', 20], ['svg', 460]] as const) {
@@ -227,7 +230,8 @@ describe('author colors (spec DX6)', () => {
       window.axr.mount('svg', 20, 60, { keys: ['Direct'], colors: { Direct: 'var(--brand)' } });
     });
     const t = await page.evaluate(() => window.axr.theme(0));
-    expect(t.bindings.series).toEqual(['var(--brand)']);
+    expect(t.bindings.series).toEqual(['var(--axylo-series-color-1)']);
+    expect(await page.evaluate(() => (document.querySelector('.axylo') as HTMLElement).style.getPropertyValue('--axylo-series-color-1'))).toBe('var(--axylo-forced-series, var(--brand))');
     expect(t.theme.paints.series).toEqual(['rgb(200, 0, 0)']);
     expect(diff(at(await shot(page, 20, 60, 400, 300), 85, 50), [200, 0, 0])).toBeLessThanOrEqual(8);
     await page.evaluate(() => document.documentElement.style.setProperty('--brand', 'rgb(0, 0, 200)'));
@@ -239,7 +243,7 @@ describe('author colors (spec DX6)', () => {
 });
 
 describe('ensureStyles', () => {
-  it('adds one constructable stylesheet however often it is called, and no <style> element', async () => {
+  it.skipIf(preloaded)('adds one constructable stylesheet however often it is called, and no <style> element', async () => {
     const page = await open();
     const r = await page.evaluate(() => {
       const styles = document.querySelectorAll('style').length;
@@ -251,7 +255,7 @@ describe('ensureStyles', () => {
     await close(page);
   });
 
-  it('adds nothing when the page already loaded the standalone stylesheet', async () => {
+  it.skipIf(preloaded)('adds nothing when the page already loaded the standalone stylesheet', async () => {
     const page = await open();
     await page.evaluate(() => {
       const s = document.createElement('style');

@@ -1,20 +1,43 @@
 /**
  * Canvas 2D mark renderer (plan 2.3). Paints with `theme.paints` (concrete colors), so the chart must call
  * `draw` again after a theme change. Two stacked canvases: the scene, and the overlay above it, so a cursor
- * or focus ring can move without repainting the marks.
+ * or focus ring can move without repainting the marks. The overlay's backing store is only allocated when an
+ * overlay is first drawn.
  *
- * Coordinates in the scene are CSS px; each context is scaled by the device pixel ratio once per draw.
+ * Coordinates in the scene are CSS px. The backing store is CSS size × pixel ratio, with the ratio capped
+ * so neither canvas exceeds MAX_PIXELS or MAX_SIDE (browsers refuse larger canvases, and memory is part
+ * of the renderer comparison in plan 2.3); the transform is the actual backing-to-CSS ratio per axis.
  * Nothing in the drawing loops allocates per vertex or per point.
  */
 import type { AreaMark, ArcMark, BandMark, Mark, MarkRenderer, Overlay, PaintBindings, PathMark, PointMark, Rect, RectMark, ResolvedTheme, RuleMark, Scene } from '../core/contracts';
+import type { ResolvedThemeDetails } from '../theme/resolve';
 import {
-  lifted, MARKER_POLYGONS, MISSING_STROKE, missingBox, paintOf, sector, SECTOR_APEX, SECTOR_ARCS, SECTOR_RING, snapRule, unclippedRule,
+  DOT_RADIUS, DOT_TILE, lifted, MARKER_POLYGONS, MISSING_STROKE, PATTERN_LINE, PATTERN_TILE, missingBox, paintOf, sector, SECTOR_APEX, SECTOR_ARCS, SECTOR_RING, snapRule, unclippedRule,
 } from './geometry';
 
 const SOLID: readonly number[] = [];
 const TAU = Math.PI * 2;
 
+/** Largest backing store per canvas, in device pixels: 4096², the common limit of mobile browsers. */
+export const MAX_PIXELS = 16_777_216;
+/** Largest backing store side, in device pixels. */
+export const MAX_SIDE = 8192;
+
 type Ctx = CanvasRenderingContext2D;
+
+/** Backing size for a CSS size at a requested ratio, within MAX_PIXELS and MAX_SIDE. Pure. */
+export function backingSize(width: number, height: number, dpr: number): [number, number] {
+  const w = Math.max(0, width), h = Math.max(0, height);
+  let ratio = dpr > 0 ? dpr : 1;
+  if (w > 0) ratio = Math.min(ratio, MAX_SIDE / w);
+  if (h > 0) ratio = Math.min(ratio, MAX_SIDE / h);
+  if (w * h > 0) ratio = Math.min(ratio, Math.sqrt(MAX_PIXELS / (w * h)));
+  let bw = Math.min(MAX_SIDE, Math.round(w * ratio));
+  let bh = Math.min(MAX_SIDE, Math.round(h * ratio));
+  // Rounding up both sides can overshoot the pixel budget by a row or column.
+  while (bw * bh > MAX_PIXELS) { bw = Math.floor(w * (ratio *= 0.999)); bh = Math.floor(h * ratio); }
+  return [bw, bh];
+}
 
 export function createCanvasRenderer(doc: Document = document): MarkRenderer {
   const element = doc.createElement('div');
@@ -24,74 +47,97 @@ export function createCanvasRenderer(doc: Document = document): MarkRenderer {
   const sceneCanvas = doc.createElement('canvas');
   const overlayCanvas = doc.createElement('canvas');
   for (const c of [sceneCanvas, overlayCanvas]) {
-    setStyles(c, { position: 'absolute', left: '0', top: '0', display: 'block' });
+    setStyles(c, { position: 'absolute', left: '0', top: '0', display: 'block', width: '0px', height: '0px' });
     element.appendChild(c);
   }
+  // A new canvas has a 300 × 150 store; the overlay gets one only when an overlay is drawn.
+  overlayCanvas.width = 0;
+  overlayCanvas.height = 0;
   const sceneCtx = sceneCanvas.getContext('2d');
   const overlayCtx = overlayCanvas.getContext('2d');
   if (sceneCtx === null || overlayCtx === null) throw new Error('Axylo: this browser cannot create a 2D canvas context.');
 
   const scratch = new Float64Array(8);
-  let cssWidth = 0;
-  let cssHeight = 0;
+  let cssWidth = -1;
+  let cssHeight = -1;
+  let requested = 1;
+  let backing: [number, number] = [0, 0];
   let overlay: Overlay | null = null;
   let overlayTheme: ResolvedTheme | null = null;
-  let ratio = 1;
+  let overlayAllocated = false;
 
-  function fit(canvas: HTMLCanvasElement, width: number, height: number, dpr: number): boolean {
-    const bw = Math.max(0, Math.round(width * dpr));
-    const bh = Math.max(0, Math.round(height * dpr));
+  /** Sets the backing store if it differs; returns whether it changed (which clears it). */
+  function fit(canvas: HTMLCanvasElement): boolean {
+    const [bw, bh] = backing;
     if (canvas.width === bw && canvas.height === bh) return false;
-    // Assigning width or height reallocates and clears the backing store, so only on a real change.
     canvas.width = bw;
     canvas.height = bh;
-    canvas.style.setProperty('width', `${width}px`);
-    canvas.style.setProperty('height', `${height}px`);
     return true;
   }
 
-  function begin(ctx: Ctx, canvas: HTMLCanvasElement, dpr: number): void {
+  function begin(ctx: Ctx, canvas: HTMLCanvasElement): void {
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.setTransform(scaleX(), 0, 0, scaleY(), 0, 0);
   }
 
-  function paintOverlay(dpr: number): void {
-    begin(overlayCtx!, overlayCanvas, dpr);
+  const scaleX = (): number => (cssWidth > 0 ? backing[0] / cssWidth : requested);
+  const scaleY = (): number => (cssHeight > 0 ? backing[1] / cssHeight : requested);
+
+  function resize(width: number, height: number, dpr: number): void {
+    if (width !== cssWidth || height !== cssHeight) {
+      cssWidth = width;
+      cssHeight = height;
+      // CSS size is set on its own: a backing store that happens to match must not skip it.
+      for (const el of [element, sceneCanvas, overlayCanvas]) {
+        el.style.setProperty('width', `${width}px`);
+        el.style.setProperty('height', `${height}px`);
+      }
+    }
+    requested = dpr;
+    backing = backingSize(width, height, dpr);
+  }
+
+  function paintOverlay(): void {
+    begin(overlayCtx!, overlayCanvas);
     if (overlay === null || overlayTheme === null) return;
     const contrast = overlayTheme.moreContrast || overlayTheme.forcedColors;
-    paintMarks(overlayCtx!, overlay.clipped, overlay.clip, false, overlayTheme.paints, contrast, dpr, scratch);
-    paintMarks(overlayCtx!, overlay.unclipped, null, false, overlayTheme.paints, contrast, dpr, scratch);
+    const sx = scaleX(), sy = scaleY();
+    paintMarks(overlayCtx!, overlay.clipped, overlay.clip, false, overlayTheme.paints, contrast, sx, sy, scratch);
+    paintMarks(overlayCtx!, overlay.unclipped, null, false, overlayTheme.paints, contrast, sx, sy, scratch);
   }
 
   return {
     kind: 'canvas',
     element,
     draw(scene: Scene, _bindings: PaintBindings, theme: ResolvedTheme, devicePixelRatio: number): void {
-      const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
-      if (scene.width !== cssWidth || scene.height !== cssHeight) {
-        cssWidth = scene.width;
-        cssHeight = scene.height;
-        element.style.setProperty('width', `${cssWidth}px`);
-        element.style.setProperty('height', `${cssHeight}px`);
+      resize(scene.width, scene.height, devicePixelRatio > 0 ? devicePixelRatio : 1);
+      fit(sceneCanvas);
+      begin(sceneCtx, sceneCanvas);
+      const background = (theme as ResolvedThemeDetails).plotBackground;
+      if (background != null && background !== '') {
+        sceneCtx.fillStyle = background;
+        sceneCtx.fillRect(0, 0, scene.width, scene.height);
       }
-      fit(sceneCanvas, cssWidth, cssHeight, dpr);
-      begin(sceneCtx, sceneCanvas, dpr);
-      paintMarks(sceneCtx, scene.marks, scene.clip, true, theme.paints, theme.moreContrast || theme.forcedColors, dpr, scratch);
-      // A resize clears the overlay canvas; a theme change makes its colors stale. Either way repaint it.
-      const resized = fit(overlayCanvas, cssWidth, cssHeight, dpr);
-      if (overlay !== null && (resized || dpr !== ratio || overlayTheme !== theme)) {
-        overlayTheme = theme;
-        paintOverlay(dpr);
+      paintMarks(sceneCtx, scene.marks, scene.clip, true, theme.paints, theme.moreContrast || theme.forcedColors, scaleX(), scaleY(), scratch);
+      if (overlayAllocated) {
+        // A resize clears the overlay canvas; a theme change makes its colors stale. Either way repaint it.
+        const resized = fit(overlayCanvas);
+        if (overlay !== null && (resized || overlayTheme !== theme)) {
+          overlayTheme = theme;
+          paintOverlay();
+        }
       }
-      ratio = dpr;
     },
     drawOverlay(next: Overlay | null, _bindings: PaintBindings, theme: ResolvedTheme, devicePixelRatio: number): void {
-      const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
       overlay = next;
       overlayTheme = theme;
-      fit(overlayCanvas, cssWidth, cssHeight, dpr);
-      paintOverlay(dpr);
+      if (next === null && !overlayAllocated) return;
+      overlayAllocated = true;
+      // Before the first scene there is no size yet; draw() paints the overlay once there is.
+      if (cssWidth < 0) { requested = devicePixelRatio > 0 ? devicePixelRatio : 1; return; }
+      fit(overlayCanvas);
+      paintOverlay();
     },
     destroy(): void {
       element.remove();
@@ -111,7 +157,7 @@ function setStyles(el: HTMLElement, styles: Readonly<Record<string, string>>): v
  * Paints marks back to front. With `byRole`, axis and tick rules escape the clip (scene contract); without
  * it, every mark is clipped to `clip` when one is given (overlay lists).
  */
-function paintMarks(ctx: Ctx, marks: readonly Mark[], clip: Rect | null, byRole: boolean, paints: PaintBindings, contrast: boolean, dpr: number, scratch: Float64Array): void {
+function paintMarks(ctx: Ctx, marks: readonly Mark[], clip: Rect | null, byRole: boolean, paints: PaintBindings, contrast: boolean, sx: number, sy: number, scratch: Float64Array): void {
   let clipped = false;
   for (const mark of marks) {
     const want = clip !== null && !(byRole && mark.type === 'rule' && unclippedRule(mark.role));
@@ -129,10 +175,10 @@ function paintMarks(ctx: Ctx, marks: readonly Mark[], clip: Rect | null, byRole:
     switch (mark.type) {
       case 'path': paintPath(ctx, mark, paints, contrast); break;
       case 'area': paintArea(ctx, mark, paints); break;
-      case 'rects': paintRects(ctx, mark, paints, scratch); break;
+      case 'rects': paintRects(ctx, mark, paints, clip, scratch); break;
       case 'points': paintPoints(ctx, mark, paints); break;
       case 'arcs': paintArcs(ctx, mark, paints, scratch); break;
-      case 'rule': paintRule(ctx, mark, paints, dpr, scratch); break;
+      case 'rule': paintRule(ctx, mark, paints, sx, sy, scratch); break;
       case 'band': paintBand(ctx, mark, paints); break;
     }
   }
@@ -173,6 +219,8 @@ function paintArea(ctx: Ctx, mark: AreaMark, paints: PaintBindings): void {
     const ue = Math.min(us + runs[r + 1]!, upperCount);
     const ls = runs[r + 2]!;
     const le = Math.min(ls + runs[r + 3]!, lowerCount);
+    // A region between two boundaries needs both: a run with an empty side draws nothing.
+    if (ue <= us || le <= ls) continue;
     let started = false;
     for (let k = us; k < ue; k++) {
       const x = upper[2 * k]!;
@@ -194,26 +242,68 @@ function paintArea(ctx: Ctx, mark: AreaMark, paints: PaintBindings): void {
   ctx.globalAlpha = 1;
 }
 
-function paintRects(ctx: Ctx, mark: RectMark, paints: PaintBindings, box: Float64Array): void {
+function paintRects(ctx: Ctx, mark: RectMark, paints: PaintBindings, clip: Rect | null, box: Float64Array): void {
   const color = paintOf(mark.fill, paints);
   if (color === null) return;
   const q = mark.xywh;
-  ctx.beginPath();
   if (mark.variant === 'bar') {
+    // Each rectangle on its own, like the SVG renderer's one <rect> each: overlaps composite, and opposite
+    // windings cannot cancel.
+    ctx.fillStyle = color;
     for (let i = 0; i + 3 < q.length; i += 4) {
       const x = q[i]!, y = q[i + 1]!, w = q[i + 2]!, h = q[i + 3]!;
       if (lifted(x) || lifted(y) || lifted(w) || lifted(h)) continue;
-      ctx.rect(x, y, w, h);
+      ctx.fillRect(w < 0 ? x + w : x, h < 0 ? y + h : y, Math.abs(w), Math.abs(h));
     }
-    ctx.fillStyle = color;
-    ctx.fill();
+    const pattern = mark.pattern;
+    const ink = paints.tokens.background;
+    if (pattern === undefined || pattern === 'none' || ink === '') return;
+    ctx.strokeStyle = ink;
+    ctx.fillStyle = ink;
+    ctx.lineWidth = PATTERN_LINE;
+    ctx.lineCap = 'butt';
+    ctx.setLineDash(SOLID);
+    for (let i = 0; i + 3 < q.length; i += 4) {
+      const x = q[i]!, y = q[i + 1]!, w = q[i + 2]!, h = q[i + 3]!;
+      if (lifted(x) || lifted(y) || lifted(w) || lifted(h)) continue;
+      const x0 = w < 0 ? x + w : x, y0 = h < 0 ? y + h : y, x1 = x0 + Math.abs(w), y1 = y0 + Math.abs(h);
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x0, y0, x1 - x0, y1 - y0);
+      ctx.clip();
+      ctx.beginPath();
+      if (pattern === 'dots') {
+        for (let cy = Math.floor(y0 / DOT_TILE) * DOT_TILE + DOT_TILE / 2; cy < y1 + DOT_RADIUS; cy += DOT_TILE) {
+          for (let cx = Math.floor(x0 / DOT_TILE) * DOT_TILE + DOT_TILE / 2; cx < x1 + DOT_RADIUS; cx += DOT_TILE) {
+            ctx.moveTo(cx + DOT_RADIUS, cy);
+            ctx.arc(cx, cy, DOT_RADIUS, 0, TAU);
+          }
+        }
+        ctx.fill();
+      } else {
+        // Lines x + y = c, then for the cross hatch x − y = c, every PATTERN_TILE.
+        for (let c = Math.floor((x0 + y0) / PATTERN_TILE) * PATTERN_TILE; c <= x1 + y1 + PATTERN_TILE; c += PATTERN_TILE) {
+          ctx.moveTo(c - y1 - 1, y1 + 1);
+          ctx.lineTo(c - y0 + 1, y0 - 1);
+        }
+        if (pattern === 'cross') {
+          for (let c = Math.floor((x0 - y1) / PATTERN_TILE) * PATTERN_TILE; c <= x1 - y0 + PATTERN_TILE; c += PATTERN_TILE) {
+            ctx.moveTo(y0 - 1 + c, y0 - 1);
+            ctx.lineTo(y1 + 1 + c, y1 + 1);
+          }
+        }
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
     return;
   }
-  // "No data" (spec F2): a hollow box with a diagonal, standing on the baseline.
+  // "No data" (spec F2): a hollow box with a diagonal, standing on the baseline, inside the plot.
+  ctx.beginPath();
   for (let i = 0; i + 3 < q.length; i += 4) {
     const x = q[i]!, y = q[i + 1]!, w = q[i + 2]!, h = q[i + 3]!;
     if (lifted(x) || lifted(y) || lifted(w) || lifted(h)) continue;
-    missingBox(x, y, w, h, box);
+    missingBox(x, y, w, h, box, clip);
     const bx = box[0]!, by = box[1]!, bw = box[2]!, bh = box[3]!;
     ctx.rect(bx, by, bw, bh);
     ctx.moveTo(bx, by + bh);
@@ -269,7 +359,7 @@ function paintArcs(ctx: Ctx, mark: ArcMark, paints: PaintBindings, s: Float64Arr
       if (r0 > 0) { ctx.moveTo(cx + r0, cy); ctx.arc(cx, cy, r0, TAU, 0, true); }
     } else {
       ctx.arc(cx, cy, r1, s[0]!, s[1]!);
-      if (kind === SECTOR_ARCS) ctx.arc(cx, cy, r0, s[2]!, s[3]!, true);
+      if (kind === SECTOR_ARCS) ctx.arc(cx, cy, s[6]!, s[2]!, s[3]!, true);
       else if (kind === SECTOR_APEX) ctx.lineTo(cx + s[4]! * Math.cos(s[5]!), cy + s[4]! * Math.sin(s[5]!));
       ctx.closePath();
     }
@@ -278,10 +368,10 @@ function paintArcs(ctx: Ctx, mark: ArcMark, paints: PaintBindings, s: Float64Arr
   }
 }
 
-function paintRule(ctx: Ctx, mark: RuleMark, paints: PaintBindings, dpr: number, s: Float64Array): void {
+function paintRule(ctx: Ctx, mark: RuleMark, paints: PaintBindings, sx: number, sy: number, s: Float64Array): void {
   const color = paintOf(mark.stroke, paints);
   if (color === null || !(mark.strokeWidth > 0)) return;
-  snapRule(mark.x1, mark.y1, mark.x2, mark.y2, mark.strokeWidth, dpr, s);
+  snapRule(mark.x1, mark.y1, mark.x2, mark.y2, mark.strokeWidth, sx, s, sy);
   ctx.beginPath();
   ctx.moveTo(s[0]!, s[1]!);
   ctx.lineTo(s[2]!, s[3]!);

@@ -1,11 +1,18 @@
 /**
  * Notices the page changes that can change a chart's theme (spec L4): the three media features, and the
- * `class`, `style` or `data-theme` attribute of `<html>` or `<body>`, which is how class-toggled dark
- * themes switch. Bursts are folded into one call per animation frame.
+ * `class`, `style` or `data-theme` attribute of the chart or any of its ancestors (a class-toggled dark
+ * theme may sit on `<html>`, `<body>` or a card in between). Bursts are folded into one call per frame.
+ *
+ * One MutationObserver covers the whole document (`subtree`), and a record counts only when its target is
+ * the chart or one of its ancestors at that moment, so the watch keeps working when the chart is moved to
+ * another parent or `<body>` is replaced. Inside a shadow root, that root is observed as well.
  */
 
 const QUERIES = ['(prefers-color-scheme: dark)', '(forced-colors: active)', '(prefers-contrast: more)'];
 const ATTRIBUTES = ['class', 'style', 'data-theme'];
+
+/** Declarations resolveTheme itself writes on the chart root; changes to them alone are not theme changes. */
+const OWN = /--axylo-(?:series-color-\d+|backdrop)\s*:[^;]*;?\s*/g;
 
 /** Calls `onChange` at most once per animation frame after a relevant change. Returns `stop`. */
 export function watchTheme(element: Element, onChange: () => void): () => void {
@@ -26,23 +33,22 @@ export function watchTheme(element: Element, onChange: () => void): () => void {
   const lists = QUERIES.map(q => win.matchMedia(q));
   for (const list of lists) list.addEventListener('change', schedule);
 
-  const html = doc.documentElement;
-  let body: HTMLElement | null = doc.body;
   const observer = new win.MutationObserver(records => {
-    let relevant = false;
     for (const r of records) {
-      if (r.type === 'attributes') relevant = true;
-      else if (body === null && doc.body !== null) {
-        // The script ran in <head>: start watching <body> once it exists.
-        body = doc.body;
-        observer.observe(body, { attributes: true, attributeFilter: ATTRIBUTES });
-        relevant = true;
+      if (!holds(r.target, element)) continue;
+      if (r.target === element && r.attributeName === 'style') {
+        const before = (r.oldValue ?? '').replace(OWN, '').trim();
+        const after = (element.getAttribute('style') ?? '').replace(OWN, '').trim();
+        if (before === after) continue;
       }
+      schedule();
+      return;
     }
-    if (relevant) schedule();
   });
-  observer.observe(html, { attributes: true, attributeFilter: ATTRIBUTES, childList: body === null });
-  if (body !== null) observer.observe(body, { attributes: true, attributeFilter: ATTRIBUTES });
+  const options: MutationObserverInit = { attributes: true, attributeFilter: ATTRIBUTES, attributeOldValue: true, subtree: true };
+  observer.observe(doc.documentElement, options);
+  const root = element.getRootNode();
+  if (root !== doc && 'host' in root) observer.observe(root, options);
 
   return () => {
     if (stopped) return;
@@ -52,4 +58,12 @@ export function watchTheme(element: Element, onChange: () => void): () => void {
     if (frame !== 0) win.cancelAnimationFrame(frame);
     frame = 0;
   };
+}
+
+/** True when `target` is `element` or one of its ancestors, crossing shadow roots to their hosts. */
+function holds(target: Node, element: Node): boolean {
+  for (let n: Node | null = element; n !== null; n = n.parentNode ?? ('host' in n ? (n as ShadowRoot).host : null)) {
+    if (n === target) return true;
+  }
+  return false;
 }

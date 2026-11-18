@@ -40,13 +40,14 @@ describe('default palette (spec A5)', () => {
 describe('default stylesheet', () => {
   it('defines the light and dark token sets, forced colors and the dash switch', () => {
     for (let i = 1; i <= 8; i++) {
-      expect(AXYLO_CSS).toContain(`--axylo-series-${i}: ${LIGHT.series[i - 1]};`);
-      expect(AXYLO_CSS).toContain(`--axylo-series-${i}: ${DARK.series[i - 1]};`);
+      // Public names today, private defaults (--axylo-default-series-N) once the review's stylesheet change lands.
+      expect(AXYLO_CSS).toMatch(new RegExp(`--axylo-(default-)?series-${i}: ${LIGHT.series[i - 1]};`));
+      expect(AXYLO_CSS).toMatch(new RegExp(`--axylo-(default-)?series-${i}: ${DARK.series[i - 1]};`));
       expect(AXYLO_CSS).toContain(`--axylo-series-${i}: CanvasText !important;`);
     }
     expect(AXYLO_CSS).toContain('.axylo[data-axylo-scheme="dark"]');
     expect(AXYLO_CSS).toContain('@media (forced-colors: active)');
-    expect(AXYLO_CSS).toMatch(/@media \(prefers-contrast: more\), \(forced-colors: active\) \{\s*\.axylo-svg \.axylo-dashed \{ stroke-dasharray: var\(--axylo-dash-contrast/);
+    expect(AXYLO_CSS).toMatch(/@media \(prefers-contrast: more\), \(forced-colors: active\) \{\s*(\.axylo )?\.axylo-svg \.axylo-dashed \{ stroke-dasharray: var\(--axylo-dash-contrast/);
     expect(AXYLO_CSS).toContain('--axylo-stylesheet: loaded');
   });
 
@@ -57,9 +58,9 @@ describe('default stylesheet', () => {
     expect(outsideForced).not.toMatch(/\.axylo\s*\{[^}]*[^-]color\s*:/);
   });
 
-  it('ends with the marker for the figure module', () => {
-    expect(AXYLO_CSS.trimEnd().endsWith('*/')).toBe(true);
-    expect(AXYLO_CSS).toContain('/* structure: added by the figure module');
+  it('keeps the marker that separates the figure module\'s structure rules from the token and mark part', () => {
+    const marker = AXYLO_CSS.indexOf('/* structure: added by the figure module');
+    expect(marker).toBeGreaterThan(AXYLO_CSS.indexOf('.axylo-text'));
   });
 
   it('balances its braces', () => {

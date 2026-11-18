@@ -2,13 +2,29 @@ import type { BrowserContextOptions, Page } from 'playwright-core';
 import { openEntry } from '../harness';
 import { decodePng, type Image } from './png';
 import { parseColor } from '../../../src/theme/color';
+import { AXYLO_CSS as CURRENT } from '../../../src/theme/css';
+import { AXYLO_CSS as PROPOSED } from './proposed-css';
+
+const MARKER = '/* structure: added by the figure module';
+
+/** The proposed token and mark part (proposed-css.ts) followed by the current structure part. */
+export function proposedStylesheet(): string {
+  return PROPOSED.slice(0, PROPOSED.indexOf(MARKER)) + CURRENT.slice(CURRENT.indexOf(MARKER));
+}
 
 export const ENTRY = 'packages/axylo/test/browser/render/entries/axylo-render.entry.ts';
 
-/** Opens the blank page with the render entry loaded. The page's two buttons are hidden so nothing sits behind the marks. */
+/**
+ * Opens the blank page with the render entry loaded. The page's two buttons are hidden so nothing sits
+ * behind the marks.
+ */
 export async function open(options: BrowserContextOptions = {}): Promise<Page> {
   const page = await openEntry(ENTRY, options);
   await page.addStyleTag({ content: '#before, #after { display: none; }' });
+  // AXYLO_PROPOSED_CSS=1 runs the suite against the proposed stylesheet, loaded as a standalone sheet.
+  if (process.env.AXYLO_PROPOSED_CSS === '1') {
+    await page.evaluate(css => { const s = document.createElement('style'); s.textContent = css; document.head.appendChild(s); }, proposedStylesheet());
+  }
   return page;
 }
 

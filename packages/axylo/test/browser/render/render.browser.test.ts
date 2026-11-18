@@ -168,7 +168,7 @@ describe('overlay and reuse', () => {
 
   it('svg: drawOverlay replaces its own group and leaves the scene alone', async () => {
     await page.evaluate(() => window.axr.overlay(1, true));
-    expect(await page.evaluate(() => window.axr.svgOverlayCount(1))).toBe(2);
+    expect(await page.evaluate(() => window.axr.svgOverlayCount(1))).toBe(3);
     const img = await shot(page, 460, 60, 400, 300);
     expect(diff(at(img, 330, 100), rgb(LIGHT.focus))).toBeLessThanOrEqual(4);
     expect(diff(at(img, 330, 280), WHITE)).toBeLessThanOrEqual(2);
@@ -205,7 +205,7 @@ describe('device pixel ratio 2', () => {
 
   it('canvas: backing store is twice the CSS size, and a 1 px rule covers exactly two whole device rows', async () => {
     const info = await page.evaluate(() => window.axr.canvasInfo(0));
-    expect(info).toEqual({ width: 800, height: 600, cssWidth: 400, cssHeight: 300 });
+    expect([info.width, info.height, info.cssWidth, info.cssHeight]).toEqual([800, 600, 400, 300]);
     const column = await page.evaluate(() => Array.from({ length: 21 }, (_, k) => window.axr.canvasPixel(0, 600, 510 + k)));
     expect(crisp(column, v => v[3]! > 0, v => v[3] === 255 && diff(v, rgb(LIGHT.axis)) <= 1)).toBe(2);
     const row = await page.evaluate(() => Array.from({ length: 21 }, (_, k) => window.axr.canvasPixel(0, 70 + k, 400)));

@@ -87,12 +87,20 @@ export function isLightColor(c: Rgba): boolean {
   return relativeLuminance(c) > Math.sqrt(1.05 * 0.05) - 0.05;
 }
 
-/** Indexes of series paints below 3:1 against the resolved background (the caller raises AX141). */
-export function lowContrastSeries(theme: ResolvedTheme): number[] {
+/**
+ * Indexes of series paints below 3:1 against the background (the caller raises AX141). resolveTheme already
+ * hands an opaque background (the backdrop behind the chart, or the author's background over it). For a
+ * hand-built theme whose background is translucent, pass the opaque `backdrop` it sits on; without one it is
+ * read over white, the initial page canvas. Translucent series colors are composited over the background.
+ */
+export function lowContrastSeries(theme: ResolvedTheme, backdrop?: string): number[] {
   const background = parseColor(theme.paints.tokens.background);
   const low: number[] = [];
-  if (background === null || background.a === 0) return low;
-  const opaque = background.a < 1 ? composite(background, { r: 1, g: 1, b: 1, a: 1 }) : background;
+  if (background === null) return low;
+  const white: Rgba = { r: 1, g: 1, b: 1, a: 1 };
+  let under = backdrop === undefined ? white : parseColor(backdrop) ?? white;
+  if (under.a < 1) under = composite(under, white);
+  const opaque = background.a < 1 ? composite(background, under) : background;
   theme.paints.series.forEach((paint, i) => {
     const c = parseColor(paint);
     if (c !== null && contrastRatio(c, opaque) < 3) low.push(i);

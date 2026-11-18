@@ -65,6 +65,8 @@ export function createTextLayer(doc: Document = document): TextLayer {
         while (lines.length > t.lines.length) { lines.pop()!.remove(); label.text.pop(); }
         while (lines.length < t.lines.length) {
           const line = doc.createElement('div');
+          // A blank line still takes one line height (in the reader's spacing), so anchors stay put.
+          line.style.setProperty('min-height', '1lh');
           label.el.appendChild(line);
           lines.push(line);
           label.text.push('');
