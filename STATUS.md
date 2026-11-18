@@ -30,12 +30,12 @@ Observed model and effort are read from harness metadata (Codex session rollouts
 
 Finished and committed, each written by one provider and reviewed by the other: scales and formatting; layout and simplification; data layer, diagnostics and stores; renderers, text layer and theme; view and scene; lookup, reader and messages; chart core part 1 (review findings not yet fixed, see below); chart core part 2 (review running); benchmark harness and the M1 renderer measurements (not reviewed).
 
-| Running now (2026-11-18 night, after commit 71f2a02) | Who | Files |
+| Running now (2026-11-18 night, after commit cbcc87a) | Who | Files |
 |---|---|---|
-| The text test's scatter fixture (premise out of date since 6ebdb6f), agent a61d95e46b3f0f3aa | Claude Opus 5.5 high | `tests/dist/pages`, `tests/dist/text.browser.test.ts` |
-| Docs: the AX160 page (tick case has no note), known limits, long tooltip values, new WCAG citations with a reason for each uncited criterion, agent a04bfe28413f07034 | Claude Opus 5.5 | `apps/docs/**` |
-| Small size cuts in `src/dom` and the stylesheet (duplicates, dead code), agent aa0e6fca8e4a6224b | Claude Opus 5.5 high | `src/dom`, `src/core/focus.ts`, `src/theme/css.ts` |
-| Matrix re-merge against the current spec and tests, writes `wp/matrix-merge.report.md`, agent a7e48ddd0321b1b1e | Claude Opus 5.5 xhigh | `acceptance/matrix.json` |
+| Port of `chart`, `a11y`, `render` to Firefox and WebKit, then every browser suite on both engines against the shared build of d33df71; results to `acceptance/results/engines-d33df71/` (agent a61d95e46b3f0f3aa; uncommitted guards in `test/browser/{chart,render}`) | Claude Opus 5.5 high | `packages/axylo/test/browser/**` |
+| Independent review of the re-merged matrix and of the WCAG citations, brief `wp/matrix-review.prompt.md` | Codex gpt-6.2-astra xhigh | writes `wp/matrix-review.review.md` |
+
+Committed since the closing pass: distribution fixture (e86e54f); docs with known limits and conformance reasons (a9145e3); interaction size cuts (799cbfa); matrix re-merge (d9fa4b0, report `wp/matrix-merge.report.md`: 31 gaps, 12 questions, 10 checker defects); spec A3 channel (cbcc87a). Production-bundle check of 799cbfa in an isolated checkout (`acceptance/results/verify-prod-799cbfa/`): sizes 115.65 / 96.81 KiB (both under target), `tests/dist` browser 26 of 26, docs browser 171 of 171, `tests/dist` Node 88 of 90 (the two are the isolation test, an artefact of the checkout's symlinked node_modules). Not yet run at HEAD: core browser suites on SVG and canvas (the shared build is still d33df71 while the engine runs use it).
 
 Coordinator's verification of d33df71 on the shared build built from it (logs `acceptance/results/verify-d33df71/`): core browser suites on SVG 962 passed, 1 skipped (963); `chart` + `a11y` on canvas 312 passed, 4 skipped; `tests/dist` Node 90 of 90; `tests/dist` browser 22 of 26 (the four text tests, fixture out of date); docs browser 169 of 170 (the AX160 page expects a note that the tick-only rule removed). Whole Node suite 1752 passed. Spec rows now cite the WCAG criteria they cover (71f2a02), the coordinator's mapping, to be reviewed with the matrix.
 
@@ -78,14 +78,13 @@ Known open items carried forward:
 
 ## Next action
 
-1. Read `acceptance/results/verify-d33df71/*.txt` (rerun any configuration that was interrupted; commands are in the row above and in `AGENTS.md`). Triage: the text-test fixture to the acceptance author (a61d95e46b3f0f3aa); anything else to its author.
-2. Size margin: the small remaining cuts in `src/dom` and the stylesheet (interaction author aa0e6fca8e4a6224b); decide on property mangling with a full browser run on the production bundle.
-3. Docs (a04bfe28413f07034): the limits listed above; the AX160 tick rule; then `AXYLO_BROWSER=1 npx vitest run --config apps/docs/vitest.config.ts`.
-4. Spec A9: cite the applicable WCAG 2.2 AA criteria on the spec rows that cover them (only 10 are cited; I1 lacks 1.4.13), so the generated conformance page lists them.
-5. Port the `chart`, `a11y` and `render` suites to Firefox and WebKit (CDP uses listed in `wp/engines2.report.md`), then the full acceptance suite on both engines at the current commit.
-6. Record every configuration with provenance (`node acceptance/run.mjs unit|dist|dist-browser|browser`, plus `AXYLO_ENGINE=firefox|webkit … browser`), re-merge the matrix (Anthropic model; React rows gone, new and renamed tests, engines, DX1/DX7/DX8, P7, A3 not rehearsed), Codex reviews the merge, run the checker in release mode.
-7. On a quiet machine with no agents: `node bench/decision.mjs plan` (software family about 3.2 h, gpu family about 2.2 h); then budgets P1 to P8 and the large-series path.
-8. Agent rehearsal (DX12); Phase 1 comparison rerun with Axylo included.
+1. When the engine agent reports: commit the port; `npm run build`; every core browser suite on SVG and `chart` + `a11y` on canvas at HEAD.
+2. When the matrix review arrives: record observed model and effort; fixes to the matrix by the merge's author (a7e48ddd0321b1b1e), to the spec's WCAG citations by the coordinator.
+3. The matrix report's twelve questions: settle those that only restate implemented behaviour in the spec; bring the rest to the owner.
+4. Record every configuration with provenance on a quiet tree (`node acceptance/run.mjs unit|dist|dist-browser|browser`, plus `AXYLO_ENGINE=firefox|webkit … browser`), run the checker in release mode, rebuild the docs site so the conformance page shows recorded results.
+5. Close the most important evidence gaps of `wp/matrix-merge.report.md` (compact area and bar in a browser; I1 below the L8 minimum; F3 delivery rules per type), by the acceptance author, as time allows; the rest stays listed as gaps.
+6. On a quiet machine with no agents: `node bench/decision.mjs plan` (software family about 3.2 h, gpu family about 2.2 h); then budgets P1 to P8 and the large-series path.
+7. Agent rehearsal (DX12: no script exists yet); Phase 1 comparison rerun with Axylo included. Optional size margin: property mangling (about −2.4 kB), only with the browser suites on the production bundle.
 
 ## Known limits that no agent can close
 
