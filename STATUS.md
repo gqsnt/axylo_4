@@ -8,42 +8,44 @@ Code: Claude Opus 5.5 (effort high), Codex `gpt-6.2-sol` (effort xhigh). Design,
 
 ## Milestones
 
+The plan's milestones were built in parallel by module, not strictly in order, because every stage had a fixed contract. State by plan milestone:
+
 | Milestone | State |
 |---|---|
-| M0 Foundations | In progress: workspace, toolchain, contracts, test and build scaffolding done. Contracts under review. Benchmark harness and acceptance matrix not started. |
-| M1 Vertical slice | Not started |
-| M2 Faithful data | Not started |
-| M3 Reading the chart | Not started |
-| M4 Accessibility | Not started |
-| M5 Bar, area, donut, compact, scatter | Not started |
-| M6 Updates and scale | Not started |
-| M7 Distribution and documentation | Not started |
+| M0 Foundations | Done: workspace, toolchain, contracts, benchmark harness (first version), build and size scripts. Not done: the acceptance matrix as data, CI workflows (no remote exists) |
+| M1 Vertical slice | Charts render end to end with both mark renderers. Renderer comparison: running (`bench/results/m1-renderer-comparison.md` when done). Interaction pattern: decided without a screen reader, `docs/decisions/0001-plot-interaction-pattern.md` |
+| M2 Faithful data | Data layer, diagnostics, temporal kinds, formatting, domains: built and cross-reviewed |
+| M3 Reading the chart | Title, states, pointer tooltip, label fitting: built. Legend, full tooltip, reference labels: in progress (chart core part 2, design pass 1) |
+| M4 Accessibility | In progress (chart core part 2). Screen-reader rehearsal cannot be done here |
+| M5 Bar, area, donut, compact, scatter | All render through the shared pipeline. Type-specific acceptance tests, the palette, and donut legend: in progress or not started |
+| M6 Updates and scale | update, append, zoom, simplification: built. Not started: performance tuning against budgets (first indication: about 84 ms for 100,000 points in the development build against about 12 ms for uPlot), the deferred stack rebuild, the scatter worst-case pick |
+| M7 Distribution and documentation | Not started: React adapter, documentation site, packed-distribution tests, size check against targets |
 | M8 Release | Not started |
 
 ## Work packages
 
-Observed model and effort are read from harness metadata (Codex session rollouts, Claude subagent transcripts). Briefs, reports, reviews and fix briefs are in `reviews/2026-11-18/impl/wp/` (`<package>.prompt.md`, `.report.md`, `.review.md`, `.fix.prompt.md`, `.fix.report.md`).
+Observed model and effort are read from harness metadata (Codex session rollouts, Claude subagent transcripts). Briefs, reports, reviews and fix briefs are in `reviews/2026-11-18/impl/wp/`.
 
 | Package | Author (observed) | Cross-review | State |
 |---|---|---|---|
-| Contracts | Coordinator | Codex gpt-6.2-sol max | Revised several times as reviews came in; each change is its own commit |
-| Scales, formatting | claude-opus-5-5, high | Codex gpt-6.2-astra xhigh: 14 findings | Fixed, verified, committed (143 tests) |
-| Layout, simplification | gpt-6.2-sol, xhigh | Opus 5.5 xhigh: 14 findings | Fixed, verified, committed (40 tests) |
-| Benchmark harness | claude-opus-5-5, high | Not yet reviewed | Committed (17 tests) |
-| Data layer, diagnostics | gpt-6.2-sol, xhigh | Opus 5.5 xhigh: 18 findings | Fix run in progress (Codex) |
-| Renderers, text layer, theme | claude-opus-5-5, high | Codex gpt-6.2-astra xhigh: 18 findings | Fix run in progress (Opus). Stylesheet changes are held back until the chart core releases `theme/css.ts` |
-| View, scene | gpt-6.2-sol, xhigh | Opus 5.5 xhigh: 17 findings | Fix run in progress (Codex). Finding 10 (stack rebuilt over the whole frame per revision) deferred to M6: needs a `StackView` offset |
-| Lookup, reader, messages | gpt-6.2-sol, xhigh | Opus 5.5 xhigh: 15 findings | Fix run in progress (Codex) |
-| Chart core, part 1 | Claude Opus 5.5 high (running) | – | Running |
-
-The type check is expected to be red until the four fix runs finish (new message keys, `DonutSlice.colorIndex`, point refs with `x`).
+| Scales, formatting | claude-opus-5-5, high | Codex gpt-6.2-astra xhigh: 14 findings | Fixed, committed |
+| Layout, simplification | gpt-6.2-sol, xhigh | Opus 5.5 xhigh: 14 findings | Fixed, committed |
+| Data layer, diagnostics | gpt-6.2-sol, xhigh | Opus 5.5 xhigh: 18 findings | 17 fixed, 1 left by decision; committed |
+| Renderers, text layer, theme | claude-opus-5-5, high | Codex gpt-6.2-astra xhigh: 18 findings | Fixed including the stylesheet; committed |
+| View, scene | gpt-6.2-sol, xhigh | Opus 5.5 xhigh: 17 findings | 16 fixed, finding 10 deferred to M6; committed |
+| Lookup, reader, messages | gpt-6.2-sol, xhigh | Opus 5.5 xhigh: 15 findings | 14 fixed, finding 12 partly open (dense coincident scatter pick); committed |
+| Chart core, part 1 | claude-opus-5-5, high | Codex gpt-6.2-astra xhigh: running (`wp/core1.review.md`) | Committed. Unit 483 pass, browser all pass |
+| Benchmark harness | claude-opus-5-5, high | Not yet reviewed | Committed; M1 renderer comparison running (same agent) |
+| Design pass 1 (labels wrap to three lines, reference labels, horizontal bar order, scatter x domain) | Codex gpt-6.2-sol xhigh (running) | – | Running (`wp/design-pass-1.*`) |
+| Chart core, part 2: tooltip, keyboard proxy, toolbar and legend, zoom gestures, table, announcements | Claude Opus 5.5 high (running) | – | Running |
 
 ## Next action
 
-1. As each fix run returns: read its report, run `npm run typecheck` and the package's tests, commit with targeted `git add` paths.
-2. When the renderer fixes return: apply the stylesheet changes its report lists to `packages/axylo/src/theme/css.ts` (token part only), after chart core part 1 has finished with that file.
-3. When chart core part 1 returns: verify (`npm run check`), commit, cross-review with Codex gpt-6.2-astra xhigh, then run the M1 measurement (canvas against SVG through `bench/`) and write the renderer decision record under `docs/decisions/`.
-4. Then chart core part 2 (Opus 5.5 high): keyboard model, toolbar with legend toggles, zoom and pause controls, table view, announcements, focus handling, touch; the screen-reader pattern decision by accessibility-tree inspection only.
+1. When the core part 1 review returns: send its findings to the part 2 agent (it owns the same files) once part 2 has reported, or sooner if a finding blocks it.
+2. When design pass 1 returns: verify, commit, run `node scripts/gallery.mjs light canvas` and look at the image.
+3. When the renderer comparison returns: read `bench/results/m1-renderer-comparison.md`, write `docs/decisions/0002-mark-renderer.md` from its numbers.
+4. When part 2 returns: verify (`npm run check`), commit, cross-review with Codex gpt-6.2-astra xhigh.
+5. Then: palette design (A5 thresholds, both schemes), performance work against the budgets using the profile summaries, the acceptance matrix as data, the React adapter, documentation, packed-distribution tests.
 
 ## Known limits that no agent can close
 
