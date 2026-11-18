@@ -1,0 +1,65 @@
+// Chart.js, tuned, keeping the same visible features as the starter default: time x axis, y axis, legend, tooltip.
+//
+// Every option that differs from chartjs.js, with the reason and the page that recommends it
+// (https://www.chartjs.org/docs/latest/general/performance.html unless noted):
+//   animation: false            "Disable animations": no entry or update animation, so a create or an update is
+//                               one render. Visible difference: the line appears without the entry animation.
+//   parsing: false, data as     "Data structure and format": skip parsing; data handed in Chart.js's internal
+//   {x, y} with numeric x       format. Required for the decimation plugin.
+//   normalized: true            "Data normalization": the fixture's x is unique, sorted and consistent across
+//                               datasets, so Chart.js may skip checking it.
+//   plugins.decimation:         "Data decimation" (docs/latest/configuration/decimation.html). min-max keeps each
+//     { enabled, 'min-max' }    pixel column's lowest and highest point, so spikes such as the injected extreme stay.
+//                               Active only above 4x the canvas width in points. Known fidelity risk: min-max skips
+//                               NaN values, so above that threshold a gap can be drawn across; the admission check
+//                               reads the held data (dataset._data), not the decimated copy, and does not catch this.
+//   elements.point.radius: 0    "Disable point drawing" (elements.point.radius / pointRadius). Visible difference:
+//                               no point markers, which on 3x120 are visible dots and on 10k+ points a solid band.
+//   interaction: { mode:        keeps the tooltip reachable without markers: with the default intersect: true and
+//     'nearest', axis: 'x',     radius 0 the pointer must hit a 1 px target (docs/latest/configuration/interactions.html).
+//     intersect: false }
+// Not applied: fixed scale min/max and ticks.sampleSize / rotation limits ("Specify min and max for scales",
+// "Disable ticks rotation") because they need knowledge of the data or change the axis labels.
+//
+// Input: one {x, y} object per point is built from the typed columns inside the timed work; Chart.js has no typed
+// column input. Streaming pushes and shifts the same array and calls chart.update('none').
+import { Chart, benchPlugin, handleFor, newState, canvasIn } from './chartjs-common.js';
+
+const held = (chart, i) => { const d = chart.data.datasets[i]; return d._data ?? d.data; };
+const newestHeld = chart => { const d = held(chart, 0); return d[d.length - 1]?.x; };
+
+export default {
+  id: 'chartjs-tuned',
+  library: 'Chart.js',
+  version: __VERSIONS__['chart.js'],
+  config: 'tuned, same visible features',
+  available: () => ({ ok: true }),
+  create(el, fix) {
+    const state = newState();
+    const n = fix.x.length;
+    const arrays = fix.ys.map(col => {
+      const pts = new Array(n);
+      for (let k = 0; k < n; k++) pts[k] = { x: fix.x[k], y: col[k] };
+      return pts;
+    });
+    const chart = new Chart(canvasIn(el), {
+      type: 'line',
+      data: { datasets: arrays.map((data, i) => ({ label: fix.names[i], data })) },
+      options: {
+        animation: false,
+        parsing: false,
+        normalized: true,
+        elements: { point: { radius: 0 } },
+        interaction: { mode: 'nearest', axis: 'x', intersect: false },
+        plugins: { decimation: { enabled: true, algorithm: 'min-max' } },
+        scales: { x: { type: 'time' } },
+      },
+      plugins: [benchPlugin(state, newestHeld)],
+    });
+    const append = (x, ys) => {
+      for (let s = 0; s < ys.length; s++) { arrays[s].push({ x, y: ys[s] }); arrays[s].shift(); }
+      chart.update('none');
+    };
+    return handleFor(chart, state, append, held);
+  },
+};

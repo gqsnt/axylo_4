@@ -147,7 +147,7 @@ Target: every WCAG 2.2 level AA success criterion that applies to what Axylo ren
 
 ### 3.5 Diagnostic registry
 
-Level decides delivery. **Error**: the chart or a series cannot be drawn; the chart shows its error state. **Warning**: something is not drawn as given; the reader sees the note in F12. **Hint**: advice for the author. Errors and warnings print once per code per page in every build; hints print in development builds only. `strict: true` throws on errors and warnings, synchronously from the call that caused them. Every diagnostic names the chart; those about data name the field and the first row indexes in the caller's own data.
+Level decides delivery. **Error**: the chart or a series cannot be drawn; the chart shows its error state. **Warning**: something is not drawn as given; the reader sees the note in F12. **Hint**: advice for the author. Errors and warnings print once per code per page in every build; hints print in development builds only. `strict: true` throws on errors and warnings found while validating a create, `update` or `append` call, synchronously from that call. A diagnostic that can only arise later (a contrast check after the page's CSS changes, a custom formatter that throws when a table page is built, a label that stops fitting after a resize) is reported when it is found and is never thrown. Every diagnostic names the chart; those about data name the field and the first row indexes in the caller's own data.
 
 | Code | Level | Condition | What is drawn |
 |---|---|---|---|
@@ -173,6 +173,10 @@ Level decides delivery. **Error**: the chart or a series cannot be drawn; the ch
 | AX143 | Hint | Labels hidden after every remedy | Note shown to the reader |
 | AX150 | Warning | Unknown option key | Ignored; the message suggests the closest known key |
 | AX151 | Warning | `append` rows out of order | Accepted through the slower full update |
+| AX131 | Hint | A compact chart has more than one series | Drawn, with dash differences |
+| AX132 | Hint | More bars than pixels along the category axis | Drawn; the message suggests aggregating |
+| AX133 | Hint | A scatter chart has more than 50,000 points | Drawn; the message says drawing may be slow |
+| AX160 | Warning | A custom formatter threw | The default format is used for that value |
 
 Expected results for the Phase 1 fixtures: the combined `dirty` fixture (`[10, 20, null, NaN, '40', undefined, 70]`) yields AX102, AX103 and AX106 once each, draws Mon–Tue as a segment and Sun as a point, and shows the F12 note. `dirty-string` (one `'40'` among numbers) yields AX106. A column made only of numeric strings yields AX104 and is drawn in full. `dirty-null` yields nothing.
 

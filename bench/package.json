@@ -1,0 +1,12 @@
+{
+  "name": "axylo-bench",
+  "private": true,
+  "type": "module",
+  "description": "Benchmark harness: the same workloads through Axylo and comparison libraries (docs/04-plan-performance.md).",
+  "dependencies": {
+    "chart.js": "^4.6.1",
+    "chartjs-adapter-date-fns": "^3.0.0",
+    "date-fns": "^4.4.0",
+    "uplot": "^1.6.32"
+  }
+}

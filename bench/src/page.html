@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Axylo bench</title>
+<link rel="icon" href="data:,">
+<style>
+  html, body { margin: 0; background: #fff; color: #111; font: 12px system-ui, sans-serif; }
+  #root { padding: 8px; }
+  /* 2:1 containers: Chart.js's default aspect ratio is 2:1, so every library fills the same area. */
+  .chart { width: 800px; height: 400px; overflow: hidden; position: relative; }
+  .grid { display: grid; grid-template-columns: repeat(6, 230px); gap: 6px; }
+  .grid .chart { width: 230px; height: 115px; }
+  #status { white-space: pre-wrap; font-family: monospace; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div id="status"></div>
+<script type="module" src="./page.js"></script>
+</body>
+</html>

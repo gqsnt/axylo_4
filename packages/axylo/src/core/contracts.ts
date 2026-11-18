@@ -17,11 +17,25 @@ import type { Diagnostic, XValue } from '../public';
 
 // ───────────────────────────── diagnostics ─────────────────────────────
 
+/**
+ * What a diagnostic did to the chart. Drives the reader's note (spec F12): only 'omitted' and 'changed'
+ * count towards "N values not shown"; a warning about contrast or an unknown option does not.
+ */
+export type DiagnosticEffect = 'none' | 'omitted' | 'changed' | 'series-disabled' | 'chart-error';
+
 /** A diagnostic before the chart adds its own name. */
-export type DiagnosticInput = Omit<Diagnostic, 'chart'>;
+export type DiagnosticInput = Omit<Diagnostic, 'chart'> & {
+  readonly effect: DiagnosticEffect;
+  /**
+   * 'call': found while validating a create, update or append call; a `strict` chart throws from that call.
+   * 'presentation': found later (a contrast check after a CSS change, a formatter that throws on a lazily
+   * built table cell, a label that no longer fits after a resize); reported when found, never thrown.
+   */
+  readonly origin: 'call' | 'presentation';
+};
 
 export interface DiagnosticSink {
-  /** Adds one diagnostic. Diagnostics with the same code and field are merged by the sink (counts added, rows capped at 10). */
+  /** Adds one diagnostic. The sink merges by code, field and effect: counts are added, example rows capped at 10. */
   add(d: DiagnosticInput): void;
 }
 
@@ -40,12 +54,20 @@ export interface DiagnosticSink {
 export type XKind = 'number' | 'time' | 'date' | 'wall' | 'category';
 
 /** State of one slot of an aligned series. */
-export const SLOT_VALUE = 0;    // a finite number
-export const SLOT_NULL = 1;     // explicit null: "no data", silent
-export const SLOT_INVALID = 2;  // present but not plottable (NaN, infinity, stray string, key absent in this row): reported
-export const SLOT_NO_ROW = 3;   // this series has no observation at this x and none was expected; neighbours may be joined across it
-export const SLOT_GAP = 4;      // an expected step of this series is absent (AX105): never joined across
-export type SlotState = 0 | 1 | 2 | 3 | 4;
+export const SLOT_VALUE = 0;         // a finite number
+export const SLOT_NULL = 1;          // explicit null (or NaN in a typed column, or an empty string): "no data", silent
+export const SLOT_INVALID = 2;       // present but not plottable (NaN or infinity in a row, a stray string): reported
+export const SLOT_NO_ROW = 3;        // this series has no observation at this x and none was expected; neighbours may be joined across it
+export const SLOT_GAP = 4;           // an expected step of this series is absent (AX105): never joined across
+export const SLOT_ABSENT_FIELD = 5;  // the row exists but the field's key is absent or undefined (AX102)
+export type SlotState = 0 | 1 | 2 | 3 | 4 | 5;
+/**
+ * `missing: 'zero'` on a value field is applied by normalization: slots that would be SLOT_NULL, SLOT_NO_ROW,
+ * SLOT_GAP or SLOT_ABSENT_FIELD become SLOT_VALUE with y = 0 and row = -1. SLOT_INVALID is never turned into zero.
+ */
+
+/** Half-open range of indexes. */
+export interface IndexRange { readonly start: number; readonly end: number }
 
 export interface XColumn {
   readonly kind: XKind;
@@ -55,8 +77,16 @@ export interface XColumn {
   readonly categories: readonly string[] | null;
   /** For 'time': the resolved IANA zone ('UTC', 'America/Los_Angeles', …; 'local' is resolved before it gets here). Otherwise null. */
   readonly timeZone: string | null;
-  /** For 'date': the coarsest unit every value falls on. Otherwise null. */
+  /** For 'date': the precision the values were written in ('2026-02' is a month); the finest one if they are mixed. Otherwise null. */
   readonly dateUnit: 'day' | 'month' | 'year' | null;
+  /** For 'category': true when the author declared the categories ordered, so the axis may be thinned (spec L1). */
+  readonly ordered: boolean;
+}
+
+/** The caller's data behind a frame, for events and for the table's provenance. */
+export interface RowSource {
+  /** The caller's row at a source index (materialized on demand for typed columns), or null if it is no longer retained. */
+  rowAt(sourceIndex: number): unknown;
 }
 
 /** One series of an aligned frame: a y value and a state for every x slot. */
@@ -65,8 +95,12 @@ export interface Series {
   readonly key: string;
   /** Name shown to the reader. */
   readonly label: string;
+  /** The value field this series was read from, for diagnostics. */
+  readonly field: string;
   readonly unit: string | null;
   readonly valueScale: 'percent' | 'ratio' | null;
+  /** False when the series cannot be drawn (duplicate x, AX108). It stays in the frame so the table and summary can say so. */
+  readonly drawable: boolean;
   /** y per slot. NaN wherever `slot` is not SLOT_VALUE. May be a view on the caller's typed column. */
   readonly y: Float64Array | Float32Array;
   readonly slot: Uint8Array;
@@ -78,30 +112,36 @@ export interface Series {
 export interface PointSeries {
   readonly key: string;
   readonly label: string;
+  readonly drawable: boolean;
   readonly x: Float64Array;
   readonly y: Float64Array;
   readonly row: Int32Array | null;
 }
 
 /**
- * The normalized, lossless data. Immutable: an update or append produces a new Frame with a higher revision
- * (it may share buffers with the previous one where nothing changed).
+ * The normalized, lossless data. Immutable: an update or append produces a new frame with a higher revision.
+ * Buffers may be shared between revisions; a streaming store appends into spare capacity and hands out
+ * subarray views, so an append does not copy what is already there.
  */
-export interface AlignedFrame {
-  readonly shape: 'aligned';
+interface FrameBase {
   readonly revision: number;
+  /** Changes when the data is replaced or the encoding changes; survives append and eviction. A DatumRef is only meaningful within one epoch. */
+  readonly epoch: number;
+  readonly source: RowSource;
+}
+
+export interface AlignedFrame extends FrameBase {
+  readonly shape: 'aligned';
   readonly x: XColumn;
   readonly series: readonly Series[];
   /** Number of x slots. */
   readonly length: number;
-  /** Field metadata for labels and formatting. */
   readonly xLabel: string;
   readonly yLabel: string | null;
 }
 
-export interface PointFrame {
+export interface PointFrame extends FrameBase {
   readonly shape: 'points';
-  readonly revision: number;
   readonly xKind: Exclude<XKind, 'category'>;
   readonly timeZone: string | null;
   readonly series: readonly PointSeries[];
@@ -111,7 +151,20 @@ export interface PointFrame {
   readonly yUnit: string | null;
 }
 
-export type Frame = AlignedFrame | PointFrame;
+/** Donut data: every category the caller gave, in the given order, before any grouping into "Other". */
+export interface DonutFrame extends FrameBase {
+  readonly shape: 'donut';
+  readonly labels: readonly string[];
+  /** NaN where `slot` is not SLOT_VALUE. */
+  readonly values: Float64Array;
+  readonly slot: Uint8Array;
+  readonly row: Int32Array | null;
+  readonly valueLabel: string;
+  readonly unit: string | null;
+  readonly valueScale: 'percent' | 'ratio' | null;
+}
+
+export type Frame = AlignedFrame | PointFrame | DonutFrame;
 
 /**
  * Join rule for lines and areas (spec F2). Two consecutive SLOT_VALUE slots i < j of one series are joined
@@ -172,23 +225,96 @@ export type TickCandidates = readonly (readonly Tick[])[];
 
 // ───────────────────────────── view ─────────────────────────────
 
-/** What is currently shown of a frame: which series, which x range, which value range. */
-export interface View {
-  readonly frame: Frame;
+/** A reference line (one position) or band (two) after its values were turned into axis positions. */
+export interface ResolvedReference {
+  readonly axis: 'x' | 'y';
+  readonly from: number;
+  /** Equal to `from` for a line. */
+  readonly to: number;
+  readonly label: string;
+}
+
+/** How one series is told apart without color (spec A5): a marker shape and dash patterns. */
+export interface SeriesCue {
+  readonly marker: MarkerShape;
+  readonly dash: DashStyle;
+}
+
+/**
+ * Stacking (spec F10). Positive and negative values accumulate on their own sides of zero.
+ * `positive[k]` is the upper boundary of the k-th stacked series' positive part, `positive[k - 1]` (or zero
+ * for k = 0) its lower boundary; likewise `negative`. A component that is not SLOT_VALUE contributes zero
+ * height and sets `incomplete` for that slot.
+ */
+export interface StackView {
+  /** Frame series indexes in accumulation order (hidden series are left out). */
+  readonly order: readonly number[];
+  readonly positive: readonly Float64Array[];
+  readonly negative: readonly Float64Array[];
+  /** 1 where at least one visible component is missing; null when every stack is complete. */
+  readonly incomplete: Uint8Array | null;
+}
+
+interface CartesianViewBase {
   readonly revision: number;
   /** Visibility per series (legend toggles). */
   readonly visible: readonly boolean[];
-  /** Full x domain of the data (plus author domain), and the zoomed domain actually shown. */
+  readonly cues: readonly SeriesCue[];
+  /** Full x domain of the data (plus the author's domain), and the zoomed domain actually shown. */
   readonly xFull: readonly [number, number];
   readonly xDomain: readonly [number, number];
   /** Value domain after the rules of spec F1 and F7. */
   readonly yDomain: readonly [number, number];
-  /** For aligned frames: first and last slot inside xDomain (inclusive), widened by one slot each side so lines reach the edge. */
-  readonly i0: number;
-  readonly i1: number;
-  /** Stacking, when the chart stacks: cumulative lower and upper bound per series per slot, positives and negatives apart. */
-  readonly stack: { readonly lo: readonly Float64Array[]; readonly hi: readonly Float64Array[]; readonly incomplete: Uint8Array } | null;
+  readonly references: readonly ResolvedReference[];
+  readonly compact: boolean;
 }
+
+/** What is currently shown of an aligned frame. */
+export interface AlignedView extends CartesianViewBase {
+  readonly kind: 'line' | 'area' | 'bar';
+  readonly frame: AlignedFrame;
+  /** True only for horizontal bars. */
+  readonly horizontal: boolean;
+  /** Slots whose x lies inside xDomain. Pointer and keyboard only ever land on these. */
+  readonly visibleSlots: IndexRange;
+  /**
+   * Per series, the slot range to draw: visibleSlots widened on each side to that series' nearest value it
+   * may be joined to, so a line reaches the plot edge. Never used for picking.
+   */
+  readonly drawSlots: readonly IndexRange[];
+  readonly stack: StackView | null;
+}
+
+export interface ScatterView extends CartesianViewBase {
+  readonly kind: 'scatter';
+  readonly frame: PointFrame;
+  /** Per series, the range of its points whose x lies inside xDomain. */
+  readonly visiblePoints: readonly IndexRange[];
+}
+
+/** One drawn slice or legend entry of a donut (spec F8). */
+export interface DonutSlice {
+  readonly key: string;
+  readonly label: string;
+  /** Indexes into the donut frame: one for an ordinary slice, several for "Other (n)". */
+  readonly members: readonly number[];
+  /** null = "No data". */
+  readonly value: number | null;
+  /** Share of the total, 0–1; null when there is no value. */
+  readonly ratio: number | null;
+  /** Start and end angle in radians, clockwise from 12 o'clock; null when nothing is drawn (zero or no data). */
+  readonly angles: readonly [number, number] | null;
+}
+
+export interface DonutView {
+  readonly kind: 'donut';
+  readonly revision: number;
+  readonly frame: DonutFrame;
+  readonly slices: readonly DonutSlice[];
+  readonly total: number;
+}
+
+export type View = AlignedView | ScatterView | DonutView;
 
 // ───────────────────────────── text measurement ─────────────────────────────
 
@@ -210,41 +336,68 @@ export interface TextMeasurer {
 
 export interface Rect { readonly x: number; readonly y: number; readonly width: number; readonly height: number }
 
-export type LabelRemedy = 'none' | 'thinned' | 'wrapped' | 'rotated' | 'truncated';
+export type LabelRemedy = 'thinned' | 'wrapped' | 'rotated' | 'truncated';
 
 export interface PlacedText {
   /** What is drawn (possibly truncated with an ellipsis in the middle). */
   readonly lines: readonly string[];
   /** The complete text, for tooltip and table. */
   readonly full: string;
-  /** Anchor point in CSS px relative to the figure's plot container. */
+  /** Anchor point in CSS px relative to the plot container. */
   readonly x: number;
   readonly y: number;
   readonly anchor: 'start' | 'middle' | 'end';
   readonly baseline: 'top' | 'middle' | 'bottom';
-  /** Degrees, clockwise; 0 or -45 in 1.0. */
+  /** Degrees, clockwise; 0, -45 or -90 in 1.0. */
   readonly rotate: number;
-  readonly role: 'tick-x' | 'tick-y' | 'title-x' | 'title-y' | 'value' | 'reference';
+  readonly role: 'tick-x' | 'tick-y' | 'title-x' | 'title-y' | 'value' | 'reference' | 'message';
   /** Bounding box after rotation, for the overlap test. */
   readonly box: Rect;
 }
 
-export interface Layout {
+/** The mapping from data to pixels that scene building and lookup must share. */
+export type Projection =
+  | { readonly kind: 'xy'; readonly x: XScale; readonly y: ContinuousScale }
+  /** Bars: `band` runs along the category axis, `value` along the other; `horizontal` swaps the screen axes. */
+  | { readonly kind: 'bands'; readonly horizontal: boolean; readonly band: XScale; readonly value: ContinuousScale }
+  | { readonly kind: 'ring'; readonly cx: number; readonly cy: number; readonly r0: number; readonly r1: number };
+
+/** What label fitting did on one axis, in the order it did it (spec L1). */
+export interface AxisLabelFit {
+  readonly remedies: readonly LabelRemedy[];
+  /** Labels that could not be shown after every remedy. More than zero means the reader gets the L1 note. */
+  readonly hidden: number;
+}
+
+interface LayoutSize {
   /** Size of the plot container (the element that holds marks and tick text), CSS px. */
   readonly width: number;
   readonly height: number;
-  /** Where marks are drawn. */
-  readonly plot: Rect;
-  readonly xTicks: readonly Tick[];
-  readonly yTicks: readonly Tick[];
-  readonly texts: readonly PlacedText[];
-  /** What label fitting had to do on the category or time axis (spec L1). */
-  readonly remedy: LabelRemedy;
-  /** Category labels that could not be shown after every remedy. More than zero means the reader gets the L1 note. */
-  readonly hiddenLabels: number;
-  /** True when the plot is below the minimum size and only the summary and table control are shown (spec L8). */
-  readonly tooSmall: boolean;
 }
+
+/**
+ * Layout of the plot container only. The title, summary, legend, controls, notes and table are ordinary
+ * HTML around it and are laid out by the browser; the plot container's size is whatever is left.
+ */
+export type Layout =
+  | (LayoutSize & {
+      readonly kind: 'plot';
+      /** Where marks are drawn. */
+      readonly plot: Rect;
+      readonly projection: Projection;
+      readonly xTicks: readonly Tick[];
+      readonly yTicks: readonly Tick[];
+      readonly texts: readonly PlacedText[];
+      readonly fit: { readonly x: AxisLabelFit; readonly y: AxisLabelFit };
+    })
+  /** Compact variant (spec 3.7): marks fill the container, no text. */
+  | (LayoutSize & { readonly kind: 'compact'; readonly plot: Rect; readonly projection: Projection })
+  /** The plot would be below 120 × 80 CSS px (spec L8): only the summary and the table control are shown. */
+  | (LayoutSize & { readonly kind: 'too-small' })
+  /** Loading, empty or error state (spec L7): a message instead of marks. */
+  | (LayoutSize & { readonly kind: 'message'; readonly text: PlacedText })
+  /** The container has no size yet (hidden or detached). Nothing is drawn until it gets one. */
+  | (LayoutSize & { readonly kind: 'unmeasured' });
 
 // ───────────────────────────── scene ─────────────────────────────
 
@@ -259,6 +412,12 @@ export type Paint =
 
 export type MarkerShape = 'circle' | 'square' | 'triangle' | 'diamond' | 'cross' | 'plus' | 'triangle-down' | 'star';
 
+/** Dash pattern in normal mode and under `prefers-contrast: more` or forced colors. null = solid. */
+export interface DashStyle {
+  readonly normal: readonly number[] | null;
+  readonly contrast: readonly number[] | null;
+}
+
 /** A polyline. `xy` is x0,y0,x1,y1,… in CSS px; a NaN pair lifts the pen. */
 export interface PathMark {
   readonly type: 'path';
@@ -266,16 +425,21 @@ export interface PathMark {
   readonly xy: Float32Array;
   readonly stroke: Paint;
   readonly strokeWidth: number;
-  /** null = solid. */
-  readonly dash: readonly number[] | null;
+  readonly dash: DashStyle;
 }
 
-/** A filled region between an upper and a lower polyline with the same x positions (area, stacked area). NaN pairs split it. */
+/**
+ * Filled regions between an upper and a lower boundary (area, stacked area). Each boundary is its own packed
+ * polyline, so each can keep its own extremes when simplified (spec F5), and adjacent stack bands can share
+ * the very same boundary array. `runs` holds quadruples (upperStart, upperCount, lowerStart, lowerCount) in
+ * vertices; one quadruple is one polygon: its upper vertices forward, then its lower vertices in reverse.
+ */
 export interface AreaMark {
   readonly type: 'area';
   readonly series: number;
-  readonly xyTop: Float32Array;
-  readonly xyBottom: Float32Array;
+  readonly upper: Float32Array;
+  readonly lower: Float32Array;
+  readonly runs: Uint32Array;
   readonly fill: Paint;
   readonly opacity: number;
 }
@@ -322,7 +486,15 @@ export interface RuleMark {
   readonly role: 'grid' | 'axis' | 'tick' | 'reference' | 'cursor' | 'break';
 }
 
-export type Mark = PathMark | AreaMark | RectMark | PointMark | ArcMark | RuleMark;
+/** A filled rectangle that is not data: a reference band. */
+export interface BandMark {
+  readonly type: 'band';
+  readonly box: Rect;
+  readonly fill: Paint;
+  readonly opacity: number;
+}
+
+export type Mark = PathMark | AreaMark | RectMark | PointMark | ArcMark | RuleMark | BandMark;
 
 /** Everything the mark renderer draws, back to front. Plain data: no functions, no DOM. */
 export interface Scene {
@@ -335,55 +507,144 @@ export interface Scene {
 
 // ───────────────────────────── theme ─────────────────────────────
 
-/** Colors resolved from the page for one chart (spec L4, DX6). All are CSS color strings. */
+export type PaintToken = 'axis' | 'grid' | 'reference' | 'muted' | 'focus' | 'background' | 'text';
+
+/** CSS color expressions per paint. May be `var(--axylo-series-1)` or an author's `var(--brand-1)`: unresolved. */
+export interface PaintBindings {
+  readonly tokens: Readonly<Record<PaintToken, string>>;
+  /** One expression per series index, already including the author's `colors` by series key. */
+  readonly series: readonly string[];
+}
+
+/** The same paints as concrete computed colors, plus what was detected about the page (spec L4, DX6). */
 export interface ResolvedTheme {
   readonly scheme: 'light' | 'dark';
   readonly forcedColors: boolean;
   readonly moreContrast: boolean;
-  readonly background: string;
-  readonly text: string;
-  readonly axis: string;
-  readonly grid: string;
-  readonly muted: string;
-  readonly reference: string;
-  readonly focus: string;
-  /** One color per series index, already including the author's `colors` by series key. */
-  readonly series: readonly string[];
+  readonly paints: PaintBindings;
 }
 
 // ───────────────────────────── rendering ─────────────────────────────
 
+/** Transient decoration drawn above the scene: cursor rule and highlighted points (clipped to the plot), focus ring (not clipped). */
+export interface Overlay {
+  readonly clip: Rect;
+  readonly clipped: readonly Mark[];
+  readonly unclipped: readonly Mark[];
+}
+
 /**
- * Draws a Scene's marks. Two implementations exist for the M1 comparison (canvas, svg); the rest of the
+ * Draws a scene's marks. Two implementations exist for the M1 comparison (canvas, svg); the rest of the
  * library does not know which one is in use.
+ *
+ * A canvas renderer paints with `theme.paints` (concrete colors) and must be told to draw again when the
+ * theme changes. An SVG renderer paints with `bindings` (CSS expressions), so the browser restyles it on a
+ * theme change without a call; it switches dash patterns with CSS media queries.
  */
 export interface MarkRenderer {
   readonly kind: 'canvas' | 'svg';
   /** The element to insert into the plot container. It must be aria-hidden. */
   readonly element: HTMLElement | SVGSVGElement;
-  /** Draws the scene. Called at most once per animation frame. */
-  draw(scene: Scene, theme: ResolvedTheme, devicePixelRatio: number): void;
-  /** Draws transient decoration (cursor rule, focus ring, highlighted points) without redrawing the scene. */
-  drawOverlay(marks: readonly Mark[], theme: ResolvedTheme, devicePixelRatio: number): void;
+  /** Draws the scene, replacing the previous one. Called at most once per animation frame. */
+  draw(scene: Scene, bindings: PaintBindings, theme: ResolvedTheme, devicePixelRatio: number): void;
+  /** Draws or clears (null) the overlay without redrawing the scene. */
+  drawOverlay(overlay: Overlay | null, bindings: PaintBindings, theme: ResolvedTheme, devicePixelRatio: number): void;
   destroy(): void;
 }
 
 // ───────────────────────────── lookup ─────────────────────────────
 
-/** A place in the data: which series, which slot (aligned) or which point (points). */
-export interface DatumRef {
-  readonly series: number;
-  readonly index: number;
+/**
+ * A datum by identity, not by position, so it still means the same thing after a streaming window slides.
+ * Valid within one frame epoch.
+ */
+export type DatumRef =
+  | { readonly kind: 'aligned'; readonly seriesKey: string; /** x position (category: its index at the time; categories do not slide). */ readonly x: number }
+  | { readonly kind: 'point'; readonly seriesKey: string; /** source row index */ readonly row: number }
+  | { readonly kind: 'slice'; readonly sliceKey: string };
+
+/** What the pointer is over, by the picking rule of the chart type (spec 3.6). */
+export type PickTarget =
+  | { readonly kind: 'x'; readonly x: number }                      // line, area, bar: every series at this x
+  | { readonly kind: 'point'; readonly refs: readonly DatumRef[]; readonly count: number }  // scatter: nearest point and those coinciding with it (at most 8; `count` is the full number)
+  | { readonly kind: 'slice'; readonly sliceKey: string };
+
+/** One row of a tooltip or one announced point, as text. All text comes from the frame through the formatters. */
+export interface DatumText {
+  readonly ref: DatumRef;
+  readonly seriesIndex: number;
+  readonly seriesLabel: string;
+  /** x as the reader sees it. */
+  readonly x: string;
+  /** The value with its unit, or "No data" / "No observation". */
+  readonly value: string;
+  readonly state: SlotState;
+  /** Share of the whole for a donut slice, formatted; null elsewhere. */
+  readonly percent: string | null;
+  /** Source row index, or -1. */
+  readonly row: number;
 }
 
-/** Exact answers from the frame, independent of how the scene was simplified. */
+export interface TooltipModel {
+  /** Heading: the x value (with its time zone for instants), the category, or the slice label. */
+  readonly title: string;
+  /** At most eight rows (spec I1). */
+  readonly rows: readonly DatumText[];
+  /** Rows before truncation. */
+  readonly count: number;
+  /** Stack total with "incomplete" where it applies, already formatted; null when the chart does not stack. */
+  readonly total: string | null;
+}
+
+export type StepDirection = 'next' | 'previous' | 'first' | 'last' | 'series-next' | 'series-previous' | 'page-next' | 'page-previous';
+
+/**
+ * Exact answers from the frame for one view and projection, independent of how the scene was simplified.
+ * Built once per (view, layout); cheap to build: binary search over x for aligned frames, a grid index for scatter.
+ */
 export interface Lookup {
-  /** Aligned frames: the slot whose x is nearest to a domain position, among slots inside [i0, i1]. Ties go to the later slot. -1 if none. */
-  nearestSlot(xPosition: number, view: View): number;
-  /** Point frames: the nearest point to a pixel within `radius` CSS px, or null. Ties go to the later row. */
-  nearestPoint(px: number, py: number, radius: number, view: View, xScale: ContinuousScale, yScale: ContinuousScale): DatumRef | null;
-  /** The next datum in keyboard order from `from`, or null at the end. Skips hidden series. */
-  step(from: DatumRef | null, direction: 'next' | 'previous' | 'first' | 'last' | 'series-next' | 'series-previous' | 'page-next' | 'page-previous', view: View): DatumRef | null;
+  /** What is under a pixel of the plot container, or null. */
+  pick(px: number, py: number): PickTarget | null;
+  tooltip(target: PickTarget): TooltipModel;
+  /** The datum to focus when the keyboard takes over from a pointer target. */
+  primary(target: PickTarget): DatumRef | null;
+  datum(ref: DatumRef): DatumText | null;
+  /** Where the datum is drawn, for the cursor and focus ring; null if it is not visible. */
+  anchor(ref: DatumRef): Rect | null;
+  /** Number of data the keyboard can reach in the current view, and a datum's place among them (zero based, -1 if absent). */
+  readonly count: number;
+  ordinal(ref: DatumRef): number;
+  /** Keyboard order per chart type (spec 3.6). `from` null starts at the first datum. Skips hidden series. */
+  step(from: DatumRef | null, direction: StepDirection): DatumRef | null;
+  /** After the data moved on: the same datum if it is still there, else the next one that is, else the previous, else null. */
+  resolve(ref: DatumRef): DatumRef | null;
+}
+
+// ───────────────────────────── reader model ─────────────────────────────
+
+/** The table of spec A4, built lazily from the frame: nothing is materialized until a page is asked for. */
+export interface TableModel {
+  readonly caption: string;
+  /** First entry is the x column. */
+  readonly headers: readonly string[];
+  readonly rowCount: number;
+  readonly pageSize: number;
+  /** Cells of one row as text; first cell is the row header. null outside the range. */
+  row(ordinal: number): readonly string[] | null;
+  /** Zero-based page that contains the first row at or after an x value; null if there is none. */
+  pageForX(x: XValue): number | null;
+}
+
+/** Everything a reader gets as text (spec A1, C1). */
+export interface ReaderModel {
+  /** Accessible name: the title, or a generated one. Empty when the chart is named by `labelledBy`. */
+  readonly name: string;
+  /** Generated summary plus the author's description, including time zone and omission statements. */
+  readonly summary: string;
+  /** The reader's note of spec F12 and L1, or null. */
+  readonly note: string | null;
+  /** null for the compact variant and when the table is turned off. */
+  readonly table: TableModel | null;
 }
 
 // ───────────────────────────── environment ─────────────────────────────
@@ -396,7 +657,10 @@ export interface Environment {
   readonly devicePixelRatio: number;
   readonly reducedMotion: boolean;
   readonly textStyle: TextStyle;
+  /** Increases whenever web fonts finish loading; part of the layout cache key. */
+  readonly fontEpoch: number;
   readonly development: boolean;
 }
 
 export type { Diagnostic, XValue };
+

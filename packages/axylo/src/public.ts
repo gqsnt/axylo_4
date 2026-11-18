@@ -56,6 +56,8 @@ export interface XFieldOptions extends FieldCommon {
    * 'number' and 'category' as named. Inferred when omitted, except that numbers are never inferred to be instants.
    */
   type?: 'number' | 'time' | 'date' | 'category';
+  /** Category axes only: the categories have a natural order (months, age bands), so labels may be thinned when they do not fit. */
+  ordered?: boolean;
   /** For instants only. Default 'local' (the viewer's zone). */
   timeZone?: 'local' | 'UTC' | (string & {});
   format?: Intl.DateTimeFormatOptions | Intl.NumberFormatOptions | ((value: XValue) => string);
@@ -106,8 +108,8 @@ export interface Reference {
 }
 
 export interface CartesianOptions {
-  /** Default true on time and number x axes. */
-  zoom?: boolean;
+  /** Default true on time, date and number x axes. 'touch' also captures pinch and two-finger drag on touch screens. */
+  zoom?: boolean | 'touch';
   reference?: readonly Reference[];
 }
 
@@ -117,7 +119,9 @@ export interface CompactOption { compact?: boolean }
 export type LineOptions<Row> = CommonOptions<Row> & CartesianOptions & CompactOption & Encoding<Row>;
 export type AreaOptions<Row> = CommonOptions<Row> & CartesianOptions & CompactOption & Encoding<Row> & { stacked?: boolean };
 export type BarOptions<Row> = CommonOptions<Row> & CartesianOptions & CompactOption & Encoding<Row> & { layout?: 'grouped' | 'stacked'; horizontal?: boolean };
-export type ScatterOptions<Row> = CommonOptions<Row> & CartesianOptions & { x: XField<Row>; y: ValueField<Row>; series?: SeriesKey<Row> };
+/** Scatter relates two measures: its x is a number, an instant or a date, never a category. */
+export type ScatterXField<Row> = XKey<Row> | ({ field: XKey<Row>; type?: 'number' | 'time' | 'date'; ordered?: never } & Omit<XFieldOptions, 'type' | 'ordered'>);
+export type ScatterOptions<Row> = CommonOptions<Row> & CartesianOptions & { x: ScatterXField<Row>; y: ValueField<Row>; series?: SeriesKey<Row> };
 export type DonutOptions<Row> = CommonOptions<Row> & { label: SeriesKey<Row>; value: ValueField<Row> };
 
 // ---------- handle ----------
@@ -173,7 +177,16 @@ export interface Diagnostic {
 
 /** Runs normalization and validation only. Works without a DOM, so a server or an agent can check options before rendering. */
 
+/** Built-in text. Templates use {name} placeholders. Every entry can be replaced through `messages` (spec A10). */
 export interface Messages {
-  viewAsTable: string; noData: string; loading: string; valuesNotShown: string;
-  pointOf: string; zoomIn: string; zoomOut: string; resetZoom: string; pause: string; resume: string;
+  viewAsTable: string; hideTable: string;
+  noData: string; noObservation: string; incompleteStack: string;
+  moreRows: string; otherSlices: string;
+  valuesNotShown: string; valuesChanged: string; labelsHidden: string;
+  loading: string; empty: string; error: string; internalError: string;
+  chartName: string; chartSummary: string; seriesSummary: string; referenceSummary: string; timeZoneNote: string;
+  plotLabel: string; controlsLabel: string; pointOf: string;
+  zoomIn: string; zoomOut: string; resetZoom: string; pause: string; resume: string;
+  previousPage: string; nextPage: string; pageOf: string; jumpToX: string;
+  showSeries: string; hideSeries: string;
 }
