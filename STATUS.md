@@ -30,11 +30,16 @@ Observed model and effort are read from harness metadata (Codex session rollouts
 
 Finished and committed, each written by one provider and reviewed by the other: scales and formatting; layout and simplification; data layer, diagnostics and stores; renderers, text layer and theme; view and scene; lookup, reader and messages; chart core part 1 (review findings not yet fixed, see below); chart core part 2 (review running); benchmark harness and the M1 renderer measurements (not reviewed).
 
-| Running now (2026-11-18 evening, after commit 9f9eeef; round 3 is committed) | Who | Files |
+| Running now (2026-11-18 evening, after commit a4b483d; the closing fix pass) | Who | Files |
 |---|---|---|
-| Coordinator's verification of 9f9eeef on the shared build: every core browser suite on SVG, then `chart` + `a11y` on canvas; logs `acceptance/results/verify-9f9eeef/{svg,canvas}.txt` | coordinator | reads `packages/axylo/dist` |
-| The last narrow check (owner's stop rule): five blocking items and round 3's diff, brief `wp/final-check.prompt.md` | Codex gpt-6.2-sol max | writes `wp/final-check.review.md` |
-| Behaviour-neutral size cuts outside `src/dom` (test-only members out of production, duplicate helpers, CSS minifier), from `wp/size2.analysis.md` (agent a5e106319fe97c022) | Claude Opus 5.5 high | `packages/axylo/src` outside `src/dom`, `scripts/build.mjs`, `tests/dist` |
+| Coordinator's verification of 9f9eeef on the shared build (SVG, then canvas); logs `acceptance/results/verify-9f9eeef/` | coordinator | reads `packages/axylo/dist` |
+| Closing fixes, brief `wp/closing.fix.md`: controller (C2 revision bound, AX160 redraw loop, append undoing a narrow scatter zoom), agent a1d73b9f46c46814f | Claude Opus 5.5 high | `src/core` except `focus.ts` |
+| Closing fixes: interaction (I4, I5, R1 across presentations, pinned pager anchor, stale text after `x.format`, range end clamp), agent aa0e6fca8e4a6224b | Claude Opus 5.5 high | `src/dom`, `src/core/focus.ts` |
+| Closing fixes: lookup (scatter zoom rebuilding indexes for off-screen data), agent a5e106319fe97c022 | Claude Opus 5.5 high | `src/lookup`, `src/data` |
+
+The last narrow check, Codex gpt-6.2-sol max (observed), `wp/final-check.review.md`, of 9f9eeef: R2 closed; C2, I4, I5, R1 each have one sequence left; six defects from round 3's own diff; everything else closed. By the owner's stop rule no review follows the closing pass: its fixes are proven by their tests and the coordinator's runs. To be written into the docs as limits (review section 4 and remainders): closed shadow roots (Escape may go to another chart; a closed-root slot wrapper can cut off the tooltip); a dense ring of points just beyond the coincidence radius can stall hover; a stateful formatter that throws on one call and succeeds on another can report AX160 beside a formatted label; responsive CSS scoped to the plot column can leave the readout absent; a tooltip rectangle change alone can inherit elapsed rest (I6); mixed languages on the plot's proxy; non-neighbouring compact bars may share a pattern; extreme magnitudes around 1e-43.
+
+Size cuts committed (ab82dad): test-only and benchmark-only members leave production; author's measurement −1,363 B everything, −1,002 B line only. Not yet rebuilt: after the verification run, `npm run build`, `node scripts/size.mjs --no-build`, then `tests/dist` (Node and browser, including the new `instrumentation.test.ts`) and the docs browser suite, which exercise the production bundle.
 
 Round 3 commits: lookup `members` / `has` / `slot` (91adfe7), acceptance toolbar and Select range tests with checker exports (7f9965e), docs on the checker's rows (c4689bb), controller (c29e566), stores `retainedRows` (03ff5b1), interaction (9f9eeef); reports `wp/round3.*.report.md`. Sizes at 9f9eeef: everything 116.95 KiB (target 116: over), line only 97.71 (target 98: ok).
 
