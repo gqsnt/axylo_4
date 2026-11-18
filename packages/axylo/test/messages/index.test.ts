@@ -7,7 +7,7 @@ it('gives every public message a non-empty default', () => {
     viewAsTable: true, hideTable: true, noData: true, noObservation: true, incompleteStack: true,
     moreRows: true, otherSlices: true, valuesNotShown: true, valuesChanged: true, labelsHidden: true,
     loading: true, empty: true, error: true, internalError: true,
-    chartName: true, chartSummary: true, seriesSummary: true, referenceSummary: true, timeZoneNote: true,
+    chartName: true, chartSummary: true, seriesSummary: true, timeZoneNote: true,
     plotLabel: true, controlsLabel: true, pointOf: true,
     zoomIn: true, zoomOut: true, resetZoom: true, pause: true, resume: true,
     category: true, percentage: true, series: true, value: true,
@@ -15,7 +15,7 @@ it('gives every public message a non-empty default', () => {
     plotRole: true, pointAll: true, seriesValue: true, position: true, total: true,
     panLeft: true, panRight: true, jumpNotFound: true, plotInstructions: true, selectRange: true, seeTable: true, totalMixed: true, incompleteAt: true, incompleteCount: true,
     donutSummary: true, seriesNoData: true, seriesNotDrawn: true, referenceLine: true, referenceBand: true,
-    previousPage: true, nextPage: true, pageOf: true, jumpToX: true, showSeries: true, hideSeries: true,
+    previousPage: true, nextPage: true, pageOf: true, jumpToX: true,
   };
   expect(Object.keys(defaultMessages).sort()).toEqual(Object.keys(keys).sort());
   for (const text of Object.values(defaultMessages)) expect(text.trim()).not.toBe('');

@@ -189,8 +189,11 @@ describe('data review regressions', () => {
     }]);
   });
 
-  it('accepts public showSeries and hideSeries message overrides', () => {
-    expect(validateOptions('line', { data: [], x: 'x', y: 'y', messages: { showSeries: 'Show', hideSeries: 'Hide', category: 'Category', typeBar: 'Bars' } })).toEqual([]);
+  // showSeries, hideSeries and referenceSummary were removed from Messages before 1.0 (2026-11-18): no surface
+  // used them. Every key of the public Messages is accepted; a removed one is an unknown key (AX150).
+  it('accepts overrides for public message keys and reports a key that is not one', () => {
+    expect(validateOptions('line', { data: [], x: 'x', y: 'y', messages: { category: 'Category', typeBar: 'Bars' } })).toEqual([]);
+    expect(validateOptions('line', { data: [], x: 'x', y: 'y', messages: { showSeries: 'Show' } as never }).map(d => d.code)).toEqual(['AX150']);
   });
 
   it('counts each omitted slot once and skips value checks when the row cannot be placed', () => {

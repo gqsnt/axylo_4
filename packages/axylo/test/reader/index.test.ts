@@ -369,11 +369,11 @@ it('identifies an undrawable duplicate-x series even when absent from the visibi
   expect(read(aligned(data), { compact: true }).summary).toMatch(/B could not be drawn\.$/);
 });
 
-it('formats reference lines and bands on their own axes and leaves the deprecated alias unused', () => {
+it('formats reference lines and bands on their own axes', () => {
   const formatters = { ...formatter(trend.frame), x: (x: number) => `x=${x}`, value: (_s: number, y: number) => `y=${y}` };
   const view = { ...trend, references: [{ axis: 'y', from: 20, to: 20, label: 'Goal' },
     { axis: 'x', from: 1, to: 3, label: 'Period' }] } as const;
-  const messages = resolveMessages({ referenceSummary: 'Deprecated' });
+  const messages = resolveMessages({});
   const model = read(view, { title: 'Daily sessions', messages, formatters });
   const references = 'Reference line Goal at y=20. Reference band Period from x=1 to x=3.';
   expect(model.summary.endsWith(references)).toBe(true);

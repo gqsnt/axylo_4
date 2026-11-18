@@ -191,11 +191,10 @@ export interface Messages {
   moreRows: string; otherSlices: string;
   valuesNotShown: string; valuesChanged: string; labelsHidden: string;
   loading: string; empty: string; error: string; internalError: string;
-  chartName: string; chartSummary: string; seriesSummary: string; referenceSummary: string; timeZoneNote: string;
+  chartName: string; chartSummary: string; seriesSummary: string; timeZoneNote: string;
   plotLabel: string; controlsLabel: string; pointOf: string;
   zoomIn: string; zoomOut: string; resetZoom: string; pause: string; resume: string;
   previousPage: string; nextPage: string; pageOf: string; jumpToX: string;
-  showSeries: string; hideSeries: string;
   /** Column headers and nouns. */
   category: string; percentage: string; series: string; value: string;
   /** Chart type names used in generated names and summaries. */

@@ -24,8 +24,6 @@ export const defaultMessages: Messages = {
   chartName: '{type} chart of {y} by {x}',
   chartSummary: fullChartSummary,
   seriesSummary: '{series}: minimum {min}, maximum {max}, last {last}.',
-  // Deprecated. Retained for callers with an existing override.
-  referenceSummary: 'Reference: {label}.',
   timeZoneNote: 'Times are shown in {zone}.',
   plotLabel: 'Chart plot',
   controlsLabel: 'Chart controls',
@@ -39,8 +37,6 @@ export const defaultMessages: Messages = {
   nextPage: 'Next page',
   pageOf: 'Page {page} of {count}',
   jumpToX: 'Jump to {x}',
-  showSeries: 'Show {series}',
-  hideSeries: 'Hide {series}',
   category: 'Category',
   percentage: 'Percentage',
   series: 'Series',

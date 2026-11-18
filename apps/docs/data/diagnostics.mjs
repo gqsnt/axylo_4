@@ -587,7 +587,7 @@ chart.append([{ day: '2026-01-01', sessions: 110 }]);`,
   },
   {
     code: 'AX199', level: 'error', title: 'Axylo failed',
-    condition: 'Axylo itself failed while building the chart. Also an error thrown by your own code while Axylo runs it, such as a getter on a row: Axylo cannot tell the two apart.', drawn: 'Error state with a generic message.',
+    condition: 'An error was thrown while Axylo was building the chart: by Axylo itself, or by code the author supplied that Axylo was running (a row getter, a formatter, a callback). Axylo cannot tell the two apart.', drawn: 'Error state with a generic message.',
     see: 'The chart shows its internal-error message (the `internalError` text of `messages`) in place of the plot. The error that was thrown is printed with `console.error`, and then the diagnostic, which is also passed to `onDiagnostic` like any other. A `strict` chart rejects a call that fails while it is being checked, as this input does, with AX199 after anything else the call found, and keeps its last valid state; a failure later, while drawing, is never thrown.',
     why: 'Something threw while the chart was being built: in Axylo, or in code of yours that Axylo was running. The chart catches it so that the rest of the page keeps working.',
     fix: 'Read the error printed before the diagnostic. When it comes from your code, fix it there; the minimal input below is of that kind, a row whose getter throws. Otherwise it is a defect in Axylo: please report it with that error.',
