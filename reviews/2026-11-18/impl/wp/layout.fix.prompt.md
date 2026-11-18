@@ -21,3 +21,5 @@ The reviewer also noted a wording conflict that is now resolved in the spec (F5)
 Run `npm run typecheck` and `npm test` from the repository root. Other agents are mid-change elsewhere; failures in files you do not own are not yours.
 
 Report per finding: reproduced (yes/no), fixed (yes/no), the test that covers it, and anything you disagree with and why. Paste the last lines of the test run and the measured simplification times.
+
+**Compatibility while you work:** another agent is, right now, writing code that calls your modules' current exported functions (`joinRuns`, `simplifyLine`, `buildPath`, `buildPoints`, `simplifyArea`, `computeLayout`) with their current parameter and result shapes. Do not rename or remove any exported function, parameter or result field. Additions must be optional. If the layout input currently accepts a diagnostics sink, keep the field in the type as optional and documented as ignored, and stop writing to it.

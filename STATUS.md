@@ -22,26 +22,25 @@ Code: Claude Opus 5.5 (effort high), Codex `gpt-6.2-sol` (effort xhigh). Design,
 
 ## Work packages
 
-Observed model and effort are read from harness metadata (Codex session rollouts, Claude subagent transcripts).
+Observed model and effort are read from harness metadata (Codex session rollouts, Claude subagent transcripts). Briefs, reports and reviews are in `reviews/2026-11-18/impl/wp/`.
 
-| Package | Owner (requested → observed) | Files | State |
+| Package | Author (observed) | State | Cross-review |
 |---|---|---|---|
-| Contracts review | Codex gpt-6.2-sol max → gpt-6.2-sol, max | read-only | Done; applied in commit 2047383 |
-| Scales, ticks, time zones, formatting | Claude Opus 5.5 high → claude-opus-5-5, high | `src/scale`, `src/format` | Committed. Reviewed by Codex gpt-6.2-astra xhigh (`wp/scale.review.md`: 2 blocking, 12 major). Fixes in progress by the original agent |
-| Benchmark harness, first version | Claude Opus 5.5 high → claude-opus-5-5, high | `bench/` | Committed. Not yet cross-reviewed. Needs a readiness and readback hook in Axylo benchmark builds |
-| Data layer and diagnostics | Codex gpt-6.2-sol xhigh → gpt-6.2-sol, xhigh | `src/data`, `src/diagnostics` | Committed (60 tests). Review by Opus 5.5 xhigh running. Known fix: scatter must allow duplicate x |
-| Layout and drawing simplification | Codex gpt-6.2-sol xhigh → gpt-6.2-sol, xhigh | `src/layout`, `src/simplify` | Committed (24 tests). Review by Opus 5.5 xhigh running |
-| Canvas and SVG renderers, text layer, theme | Claude Opus 5.5 high → pending | `src/render`, `src/theme` | Running |
-| View and scene building | Codex gpt-6.2-sol xhigh → pending | `src/view`, `src/scene` | Running |
-| Lookup, reader model, messages | Codex gpt-6.2-sol xhigh → pending | `src/lookup`, `src/reader`, `src/messages` | Running |
-
-Briefs, reports and reviews: `reviews/2026-11-18/impl/wp/`.
+| Contracts | Coordinator | Committed, revised once | Codex gpt-6.2-sol max: done, applied |
+| Scales, ticks, time zones, formatting (`src/scale`, `src/format`) | claude-opus-5-5, high | Committed; 143 tests | Codex gpt-6.2-astra xhigh: 14 findings, all fixed and committed |
+| Benchmark harness (`bench/`) | claude-opus-5-5, high | Committed; 17 tests | Not yet reviewed |
+| Data layer and diagnostics (`src/data`, `src/diagnostics`) | gpt-6.2-sol, xhigh | Committed; 60 tests. Known fix: scatter must allow duplicate x | Opus 5.5 xhigh: running |
+| Layout and simplification (`src/layout`, `src/simplify`) | gpt-6.2-sol, xhigh | Committed; fixes for the review running (Codex, `wp/layout.fix.*`) | Opus 5.5 xhigh: `wp/layout.review.md`, 14 findings |
+| Renderers, text layer, theme (`src/render`, `src/theme`) | claude-opus-5-5, high | Committed; 33 Node and 45 browser tests | Codex gpt-6.2-astra xhigh: running (`wp/render.review.md`) |
+| View and scene (`src/view`, `src/scene`) | gpt-6.2-sol, xhigh | Committed; 40 tests | Opus 5.5 xhigh: running |
+| Lookup, reader model, messages (`src/lookup`, `src/reader`, `src/messages`) | gpt-6.2-sol, xhigh | Committed; 28 tests. Pending: scatter refs resolve by x; test helper needs the new `x` field | Opus 5.5 xhigh: running |
+| Chart core, part 1: lifecycle, pipeline, figure DOM, all five entry points, compact, benchmark hook (`src/core`, `src/dom`, `src/index.ts`) | Claude Opus 5.5 high (running) | Running | – |
 
 ## Next action
 
-1. As reviews return: send the findings to the package's author to fix (Codex packages: a new `codex exec` run with the review file; Opus packages: resume the agent), verify, commit.
-2. When renderers, view/scene and lookup/reader are in: dispatch the chart core (commit contract, figure DOM, resize, theme wiring, tooltip, keyboard, toolbar, table, benchmark hook) to Opus 5.5 high, which gives the M1 vertical slice for `line`.
-3. Then the M1 measurements: canvas against SVG on the benchmark harness, and the decision record.
+1. As each review returns: save it under `wp/`, send its findings to the package's author to fix (Codex packages: a new `codex exec` run given the review file; Opus packages: resume the agent), verify with `npm run typecheck && npm test` (and `npm run test:browser` for browser code), commit with targeted `git add` paths.
+2. When chart core part 1 returns: verify, commit, cross-review (Codex gpt-6.2-astra xhigh), then run the M1 measurement (canvas against SVG on the benchmark harness) and write the renderer decision record.
+3. Then chart core part 2 (Opus 5.5 high): keyboard model, toolbar with legend toggles, zoom and pause, table view, announcements, focus handling, touch, the screen-reader pattern decision (by accessibility-tree inspection only; no reader can be run here).
 
 ## Known limits that no agent can close
 
