@@ -30,12 +30,15 @@ Observed model and effort are read from harness metadata (Codex session rollouts
 
 Finished and committed, each written by one provider and reviewed by the other: scales and formatting; layout and simplification; data layer, diagnostics and stores; renderers, text layer and theme; view and scene; lookup, reader and messages; chart core part 1 (review findings not yet fixed, see below); chart core part 2 (review running); benchmark harness and the M1 renderer measurements (not reviewed).
 
-| Running now (2026-11-18 night, after commit cbcc87a) | Who | Files |
+| Running now (2026-11-18 night, after commit 9611392) | Who | Files |
 |---|---|---|
-| Port of `chart`, `a11y`, `render` to Firefox and WebKit, then every browser suite on both engines against the shared build of d33df71; results to `acceptance/results/engines-d33df71/` (agent a61d95e46b3f0f3aa; uncommitted guards in `test/browser/{chart,render}`) | Claude Opus 5.5 high | `packages/axylo/test/browser/**` |
-| Independent review of the re-merged matrix and of the WCAG citations, brief `wp/matrix-review.prompt.md` | Codex gpt-6.2-astra xhigh | writes `wp/matrix-review.review.md` |
+| Coordinator's full verification of 9611392 on the shared build built from it: browser suites on SVG and canvas, Node suite, `tests/dist`, docs browser; logs `acceptance/results/verify-9611392/` | coordinator | reads `packages/axylo/dist` |
+| Matrix: applying the cross-provider review (downgrades with named gaps, P6 and DX10 no longer reading as passes, statements re-synced with the spec), agent a7e48ddd0321b1b1e; returns its report as text for `wp/matrix-merge2.report.md` | Claude Opus 5.5 | `acceptance/matrix.json`, `acceptance/report.md` |
+| Checker defects confirmed by the reviews (size provenance, wrong-revision results shown as statuses, uncitable looped tests, unreachable titles, kind against file), agent a61d95e46b3f0f3aa; after the verification run it strengthens the tests the reviews found weaker than their titles | Claude Opus 5.5 high | `acceptance/*.mjs` and their tests |
 
-Committed since the closing pass: distribution fixture (e86e54f); docs with known limits and conformance reasons (a9145e3); interaction size cuts (799cbfa); matrix re-merge (d9fa4b0, report `wp/matrix-merge.report.md`: 31 gaps, 12 questions, 10 checker defects); spec A3 channel (cbcc87a). Production-bundle check of 799cbfa in an isolated checkout (`acceptance/results/verify-prod-799cbfa/`): sizes 115.65 / 96.81 KiB (both under target), `tests/dist` browser 26 of 26, docs browser 171 of 171, `tests/dist` Node 88 of 90 (the two are the isolation test, an artefact of the checkout's symlinked node_modules). Not yet run at HEAD: core browser suites on SVG and canvas (the shared build is still d33df71 while the engine runs use it).
+Engines (author's runs on the shared build of d33df71, `acceptance/results/engines-d33df71/`): acceptance 560 passed on Chrome 158; 399 passed and 161 not run on Playwright Firefox 159 and on Playwright WebKit 27.2 (not Safari); `chart` + `a11y` + `render` 402 passed on Chrome, 388 passed and 15 not run on each other engine; no failure on any engine. The not-run tests need Chrome-only tooling (the accessibility tree through CDP: 151 + 5; multi-touch, pen, heap and listener inspection: the rest) and say so.
+
+Matrix review, Codex gpt-6.2-astra xhigh (observed), `wp/matrix-review.review.md`: of 82 cells that would have read pass, 24 established, 52 weak, 6 not for this revision. Spec WCAG citations corrected after it (6772563). Stacks: owner's "keep incomplete" implemented (f3d709b). Docs follow all of it (f43b7a0). Sizes at 9611392 on the packed files: everything 115.74 KiB (target 116), line only 96.81 (target 98).
 
 Coordinator's verification of d33df71 on the shared build built from it (logs `acceptance/results/verify-d33df71/`): core browser suites on SVG 962 passed, 1 skipped (963); `chart` + `a11y` on canvas 312 passed, 4 skipped; `tests/dist` Node 90 of 90; `tests/dist` browser 22 of 26 (the four text tests, fixture out of date); docs browser 169 of 170 (the AX160 page expects a note that the tick-only rule removed). Whole Node suite 1752 passed. Spec rows now cite the WCAG criteria they cover (71f2a02), the coordinator's mapping, to be reviewed with the matrix.
 
@@ -51,7 +54,7 @@ Round 3 commits: lookup `members` / `has` / `slot` (91adfe7), acceptance toolbar
 
 Coordinator's verification of e90d8db on the shared build (logs `acceptance/results/verify-e90d8db/`): SVG 920 passed, 4 failed, 1 skipped (925); canvas `chart` + `a11y` 280 passed, 3 skipped. The failures: three A2 toolbar tests (new button), one I1 donut hold test (real, settled by the rewritten Escape clarification). Narrow re-check, Codex gpt-6.2-sol max (observed), `wp/blockers-recheck.review.md`: hold; blocking C2, I4, I5, R1, R2; fourteen regressions R1 to R14. Round 3 answers it; common brief `wp/round3.common.md` records the coordinator's decisions (groups come from the lookup; C13 and mixed proxy languages accepted as they are; pointer tolerance in viewport pixels).
 
-The shared `packages/axylo/dist` is built from d33df71. Only the coordinator rebuilds it; agents use private builds through `AXYLO_BUNDLE`.
+The shared `packages/axylo/dist` is built from 9611392. Only the coordinator rebuilds it; agents use private builds through `AXYLO_BUNDLE`.
 
 Idle agents that can be resumed with SendMessage: controller a1d73b9f46c46814f; interaction aa0e6fca8e4a6224b; data, lookup, scene, layout a5e106319fe97c022; engines and acceptance suite a61d95e46b3f0f3aa; palette abc842fd0288bc675.
 
