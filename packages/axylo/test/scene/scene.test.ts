@@ -5,6 +5,7 @@ import type { Layout, Mark, Projection, Rect, Tick, View } from '../../src/core/
 import { missingBox } from '../../src/render/geometry';
 import { buildView } from '../../src/view';
 import { DiagnosticCollector } from '../../src/diagnostics';
+import { computeLayout } from '../../src/layout';
 import { buildScene } from '../../src/scene';
 import { bandScale, linearScale } from '../../src/scale';
 import { aligned, donut, scatter } from '../view/fixtures';
@@ -25,9 +26,10 @@ function layout(view: View, plot = clip, compact = false, padding = 0): Layout {
     };
   } else if (view.kind === 'bar') {
     const range = view.horizontal ? up : across;
+    const categoryRange = view.horizontal ? [plot.y, plot.y + plot.height] as const : across;
     projection = {
       kind: 'bands', horizontal: view.horizontal,
-      band: view.frame.x.kind === 'category' ? bandScale(view.frame.length, range, padding) : linearScale(view.xDomain, range),
+      band: view.frame.x.kind === 'category' ? bandScale(view.frame.length, categoryRange, padding) : linearScale(view.xDomain, range),
       value: linearScale(view.yDomain, view.horizontal ? across : up),
     };
   } else {
@@ -156,6 +158,40 @@ describe('line and area geometry', () => {
 });
 
 describe('bar geometry', () => {
+  it('draws horizontal category bars from top to bottom at their layout labels', () => {
+    const categories = ['First', 'Middle', 'Last'];
+    const { view } = aligned({ x: 'x', y: 'y', data: categories.map((x, i) => ({ x, y: i + 1 })) },
+      { kind: 'bar', horizontal: true, valueDomain: [0, 4], references: [{ x: 'Middle', label: 'Category' }, { y: 3, label: 'Target' }] });
+    const result = computeLayout({
+      kind: 'bands', horizontal: true, width: 320, height: 240,
+      scales: { linear: linearScale, time: linearScale, band: bandScale },
+      style: { font: '16px sans-serif', letterSpacing: 0, wordSpacing: 0, lineHeight: 16 },
+      measurer: { width: text => text.length * 7 },
+      x: { type: 'band', count: categories.length, padding: 0, mayThin: false,
+        candidates: [categories.map((label, value) => ({ label, value }))] },
+      y: { domain: view.yDomain, candidates: [[tick(0), tick(2), tick(4)]], mayThin: true },
+      references: view.references,
+    });
+    if (result.kind !== 'plot' || result.projection.kind !== 'bands' || result.projection.band.type !== 'band') {
+      throw new Error('Expected a band scale');
+    }
+    const { plot, projection } = result;
+    expect(projection.band.range).toEqual([plot.y, plot.y + plot.height]);
+    const { marks } = buildScene(view, result, dpr);
+    const [bars] = marksOf(marks, 'rects');
+    const labels = result.texts.filter(text => text.role === 'tick-x');
+    expect(labels.map(label => label.full)).toEqual(categories);
+    for (const [i, label] of labels.entries()) {
+      const center = plot.y + (i + 0.5) * plot.height / categories.length;
+      expect(label.y).toBeCloseTo(center);
+      expect(bars!.xywh[4 * i + 1]! + bars!.xywh[4 * i + 3]! / 2).toBeCloseTo(center);
+    }
+    const [category, target] = result.texts.filter(text => text.role === 'reference');
+    const [categoryRule, targetRule] = marksOf(marks, 'rule').filter(mark => mark.role === 'reference');
+    expect(category!.box.y + category!.box.height).toBeCloseTo(categoryRule!.y1 - 4);
+    expect(target!.box.x).toBeCloseTo(targetRule!.x1 + 4);
+  });
+
   it('uses projected zero as the baseline and represents missing and zero bars separately', () => {
     const { view } = aligned({
       x: 'x', y: 'y', data: [{ x: 'A', y: 4 }, { x: 'B', y: null }, { x: 'C', y: 0 }],
@@ -180,8 +216,7 @@ describe('bar geometry', () => {
     const band = 0.75 * step;
     const axis = horizontal ? 1 : 0;
     for (let i = 0; i < 2; i++) {
-      const start = horizontal
-        ? clip.y + clip.height - (i + 0.25) * step - band : clip.x + (i + 0.25) * step;
+      const start = (horizontal ? clip.y : clip.x) + (i + 0.25) * step;
       expect(a!.xywh[4 * i + axis]).toBeCloseTo(start, 4);
       expect(a!.xywh[4 * i + axis + 2]).toBeCloseTo(band / 2, 4);
       expect(b!.xywh[4 * i + axis]).toBeCloseTo(start + band / 2, 4);
@@ -212,6 +247,19 @@ describe('bar geometry', () => {
 });
 
 describe('chart decorations and other projections', () => {
+  it.each(['bar', 'area'] as const)('draws a 1.5 px dashed reference rule over %s marks', kind => {
+    const { view } = aligned({ x: 'x', y: 'y', data: [{ x: 'A', y: 8 }, { x: 'B', y: 7 }] },
+      { kind, valueDomain: [0, 10], references: [{ y: 5, label: 'Goal' }] });
+    const { marks } = buildScene(view, layout(view), dpr);
+    const fill = marks.findIndex(mark => mark.type === (kind === 'bar' ? 'rects' : 'area'));
+    const reference = marks.findIndex(mark => mark.type === 'rule' && mark.role === 'reference');
+    expect(fill).toBeGreaterThanOrEqual(0);
+    expect(reference).toBeGreaterThan(fill);
+    expect(marks[reference]).toMatchObject({
+      x1: 10, y1: 70, x2: 150, y2: 70, strokeWidth: 1.5, dash: [4, 3],
+    });
+  });
+
   it('orders clipped reference bands, the value grid, data, axes, and reference rules', () => {
     const view = line([2, 4, 6]);
     const augmented = { ...view, references: [
@@ -239,7 +287,7 @@ describe('chart decorations and other projections', () => {
       { x1: 10, y1: 20, x2: 10, y2: 120 }, { x1: 150, y1: 20, x2: 150, y2: 120 },
     ]);
     expect(rules.filter(mark => mark.role === 'reference')).toMatchObject([
-      { x1: 10, y1: 45, x2: 150, y2: 45 }, { x1: 80, y1: 20, x2: 80, y2: 120 },
+      { x1: 10, y1: 95, x2: 150, y2: 95 }, { x1: 80, y1: 20, x2: 80, y2: 120 },
     ]);
   });
 

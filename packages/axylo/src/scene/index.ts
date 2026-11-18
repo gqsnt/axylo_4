@@ -3,13 +3,14 @@ import type {
 } from '../core/contracts';
 import { addArea, addStackedAreas } from './areas';
 import { barMarks } from './bars';
-import { clamp, position, rule, seriesPaint, token } from './geometry';
+import { position, projectReference, rule, seriesPaint, token } from './geometry';
 import { addLine, drawing, scatterPoints } from './lines';
 
 type Plot = Extract<Layout, { kind: 'plot' }>;
 type Cartesian = Exclude<Projection, { kind: 'ring' }>;
 
 const TICK_LENGTH = 4;
+const REFERENCE_DASH = [4, 3] as const;
 
 function axes(projection: Cartesian) {
   return projection.kind === 'bands'
@@ -49,29 +50,19 @@ function gridAndAxes(layout: Plot, projection: Cartesian): { grid: RuleMark[]; e
 function references(view: Exclude<View, DonutView>, projection: Cartesian, plot: Rect): {
   bands: BandMark[]; lines: RuleMark[];
 } {
-  const { x, y, horizontal } = axes(projection);
   const bands: BandMark[] = [];
   const lines: RuleMark[] = [];
   const paint = token('reference');
-  for (const { axis, from, to } of view.references) {
-    const scale = axis === 'x' ? x : y;
-    const across = (axis === 'x') !== horizontal;
-    const start = across ? plot.x : plot.y;
-    const end = start + (across ? plot.width : plot.height);
-    const xReference = axis === 'x';
-    const [first, last] = view.xDomain;
-    if (xReference && (to < first || from > last)) continue;
-    const a = position(scale, xReference ? Math.max(from, first) : from);
-    const b = position(scale, xReference ? Math.min(to, last) : to);
-    if (from === to) {
-      if (a < start || a > end) continue;
-      lines.push(across ? rule('reference', paint, a, plot.y, a, plot.y + plot.height)
-        : rule('reference', paint, plot.x, a, plot.x + plot.width, a));
+  for (const reference of view.references) {
+    const projected = projectReference(reference, projection, plot, view.xDomain);
+    if (!projected) continue;
+    const { vertical, low, high } = projected;
+    if (low === high) {
+      const line = vertical ? rule('reference', paint, low, plot.y, low, plot.y + plot.height)
+        : rule('reference', paint, plot.x, low, plot.x + plot.width, low);
+      lines.push({ ...line, strokeWidth: 1.5, dash: REFERENCE_DASH });
     } else {
-      const low = clamp(Math.min(a, b), start, end);
-      const high = clamp(Math.max(a, b), start, end);
-      if (low === high) continue;
-      const box = across ? { ...plot, x: low, width: high - low } : { ...plot, y: low, height: high - low };
+      const box = vertical ? { ...plot, x: low, width: high - low } : { ...plot, y: low, height: high - low };
       bands.push({ type: 'band', box, fill: paint, opacity: 0.12 });
     }
   }

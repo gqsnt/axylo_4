@@ -1,7 +1,7 @@
 import {
   SLOT_NO_ROW, SLOT_VALUE, type AlignedFrame, type AlignedView, type DiagnosticSink, type DonutFrame,
   type DonutView, type Frame, type IndexRange, type MarkerShape, type PointFrame, type ResolvedReference,
-  type ScatterView, type SeriesCue, type StackView, type View,
+  type ScatterView, type SeriesCue, type StackView, type View, type XKind,
 } from '../core/contracts';
 import type { ResolvedXField } from '../data';
 import { report } from '../diagnostics';
@@ -250,7 +250,7 @@ function fitZoom(full: Span, zoom: Span | null): Span {
 }
 
 function xExtents(
-  data: Span, category: boolean, readX: ReturnType<typeof positionReader>, references: readonly ResolvedReference[],
+  data: Span, kind: XKind, readX: ReturnType<typeof positionReader>, references: readonly ResolvedReference[],
   state: AlignedViewState | ScatterViewState, compact: boolean, sink: DiagnosticSink,
 ): { xFull: Span; xDomain: Span } {
   const authorInput = state.xDomain === undefined ? state.xField?.domain : state.xDomain;
@@ -261,8 +261,10 @@ function xExtents(
     min = Math.min(min, reference.from);
     max = Math.max(max, reference.to);
   }
-  const xFull: Span = author ?? (min <= max ? [min, max] : category ? [0, 0] : [0, 1]);
-  const zoom = compact || category && state.kind === 'bar' ? null : readSpan(state.zoom, readX, 'zoom', sink, true);
+  const xFull: Span = state.kind === 'scatter' && kind === 'number'
+    ? valueDomain({ min, max, authorDomain: author, includeZero: false }).domain
+    : author ?? (min <= max ? [min, max] : kind === 'category' ? [0, 0] : [0, 1]);
+  const zoom = compact || kind === 'category' && state.kind === 'bar' ? null : readSpan(state.zoom, readX, 'zoom', sink, true);
   return { xFull, xDomain: fitZoom(xFull, zoom) };
 }
 
@@ -316,7 +318,7 @@ export function buildView(frame: Frame, state: ViewState, sink: DiagnosticSink):
   const xData: Span = frame.shape === 'aligned'
     ? continuousBars ? barExtent(frame.x.values) : [frame.x.values[0] ?? Infinity, frame.x.values[frame.length - 1] ?? -Infinity]
     : scatterX(frame, sink);
-  const spans = xExtents(xData, category, readX, references, state, compact, sink);
+  const spans = xExtents(xData, column.kind, readX, references, state, compact, sink);
   const xFull = keepSpan(spans.xFull, prior?.xFull);
   const xDomain = sameSpan(xFull, spans.xDomain) ? xFull : keepSpan(spans.xDomain, prior?.xDomain);
   const shared = { compact, visible, cues: seriesCues, references, revision: frame.revision, xFull, xDomain };

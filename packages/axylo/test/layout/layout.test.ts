@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import type {
-  ContinuousScale, DiagnosticInput, LabelRemedy, Layout, PlacedText, Rect, TextStyle, TickCandidates,
+  ContinuousScale, DiagnosticInput, LabelRemedy, Layout, PlacedText, Rect, ResolvedReference, TextStyle, TickCandidates,
 } from '../../src/core/contracts';
 import { computeLayout } from '../../src/layout';
 import type { BandAxis, LayoutInput, ScaleConstructors } from '../../src/layout';
@@ -238,6 +238,118 @@ describe('plot layout', () => {
     boxesFit(small);
   });
 
+  it('wraps only the long category to three lines before rotating a seven-bar chart', () => {
+    const labels = ['North', 'South', 'Infrastructure', 'Customer Success & Onboarding', 'Administration', 'Field', 'Ops'];
+    const result = plot(computeLayout({ ...input(labels, 760), kind: 'bands', horizontal: false }));
+    expect(result.fit.x).toEqual({ remedies: ['wrapped'], hidden: 0 });
+    expect(tickLabels(result).map(text => text.lines)).toEqual(labels.map((label, i) =>
+      i === 3 ? ['Customer', 'Success &', 'Onboarding'] : [label]));
+    for (const text of tickLabels(result)) expect(text.rotate).toBe(0);
+    boxesFit(result);
+  });
+
+  it('uses up to 40% of the container for the bottom margin before truncating a rotated label', () => {
+    const long = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop';
+    const labels = ['', '', '', long, 'Next', '', ''];
+    const tall = plot(computeLayout(input(labels, 910, 720)));
+    expect(tickLabels(tall).find(text => text.full === long)).toMatchObject({ lines: [long], rotate: -45 });
+    expect(tall.fit.x.remedies).toEqual(['rotated']);
+
+    const short = plot(computeLayout(input(labels, 910, 420)));
+    expect(short.fit.x.remedies).toEqual(['rotated', 'truncated']);
+    const label = tickLabels(short).find(text => text.full === long);
+    expect(label?.lines[0]).toMatch(/^ABC.*….*nop$/u);
+    expect(label?.rotate).toBe(-45);
+    for (const result of [tall, short]) {
+      expect(result.height - (result.plot.y + result.plot.height)).toBeLessThanOrEqual(result.height * 0.4 + 1e-6);
+      boxesFit(result);
+    }
+  });
+
+  it.each([false, true])('keeps tick label boxes at least 6 px from the axis lines (horizontal %s)', horizontal => {
+    const result = plot(computeLayout({ ...input(['A', 'B', 'C']), kind: 'bands', horizontal }));
+    const left = tickLabels(result, horizontal ? 'tick-x' : 'tick-y');
+    const bottom = tickLabels(result, horizontal ? 'tick-y' : 'tick-x');
+    expect(left.length).toBeGreaterThan(0);
+    expect(bottom.length).toBeGreaterThan(0);
+    for (const { box } of left) expect(result.plot.x - box.x - box.width).toBeGreaterThanOrEqual(6 - 1e-6);
+    for (const { box } of bottom) expect(box.y - result.plot.y - result.plot.height).toBeGreaterThanOrEqual(6 - 1e-6);
+    boxesFit(result);
+  });
+
+  it('places reference lines and bands beside their projected edges and flips at plot boundaries', () => {
+    const references: readonly ResolvedReference[] = [
+      { axis: 'y', from: 35, to: 35, label: 'Goal' },
+      { axis: 'y', from: 90, to: 100, label: 'High range' },
+      { axis: 'x', from: 1, to: 1, label: 'Milestone' },
+      { axis: 'x', from: 3, to: 4, label: 'Window' },
+    ];
+    const settings = {
+      ...input([], 440, 280), references,
+      x: { type: 'linear' as const, domain: [0, 4] as const, candidates: [], mayThin: true },
+    };
+    const result = plot(computeLayout(settings));
+    const { projection, plot: rect } = result;
+    if (projection.kind !== 'xy' || projection.x.type === 'band') throw new Error('Expected continuous axes');
+    const [goal, high, milestone, window] = tickLabels(result, 'reference');
+    expect([goal?.full, high?.full, milestone?.full, window?.full]).toEqual(references.map(reference => reference.label));
+    expect(goal!.box.x + goal!.box.width).toBeCloseTo(rect.x + rect.width - 4);
+    expect(goal!.box.y + goal!.box.height).toBeCloseTo(projection.y.map(35) - 4);
+    expect(high!.box.y).toBeCloseTo(projection.y.map(90) + 4);
+    expect(milestone!.box.x).toBeCloseTo(projection.x.map(1) + 4);
+    expect(milestone!.box.y).toBeCloseTo(rect.y + 4);
+    expect(window!.box.x + window!.box.width).toBeCloseTo(projection.x.map(3) - 4);
+    boxesFit(result);
+  });
+
+  it('fits overlapping reference labels and truncates overlong labels in the middle', () => {
+    const long = 'Start ' + 'long reference '.repeat(10) + 'End';
+    const references: readonly ResolvedReference[] = [
+      { axis: 'y', from: 100, to: 100, label: 'First' },
+      { axis: 'y', from: 100, to: 100, label: 'Second' },
+      { axis: 'y', from: 35, to: 35, label: long },
+    ];
+    const result = plot(computeLayout({ ...input(['A', 'B'], 340, 240), references }));
+    const labels = tickLabels(result, 'reference');
+    expect(labels.map(label => label.full)).toEqual(['First', 'Second', long]);
+    expect(labels.map(label => label.lines[0])).toMatchObject(['First', 'Second', expect.stringMatching(/^Start.*….*End$/u)]);
+    for (const { box } of labels) {
+      expect(box.x).toBeGreaterThanOrEqual(result.plot.x);
+      expect(box.y).toBeGreaterThanOrEqual(result.plot.y);
+      expect(box.x + box.width).toBeLessThanOrEqual(result.plot.x + result.plot.width + 1e-6);
+      expect(box.y + box.height).toBeLessThanOrEqual(result.plot.y + result.plot.height + 1e-6);
+    }
+    boxesFit(result);
+  });
+
+  it('labels a plot-spanning band just inside its edge when both outside positions are clipped', () => {
+    const references: readonly ResolvedReference[] = [
+      { axis: 'y', from: 0, to: 100, label: 'Full height' },
+      { axis: 'x', from: 0, to: 100, label: 'Full width' },
+    ];
+    const result = plot(computeLayout({
+      ...input([], 440, 280), references,
+      x: { type: 'linear' as const, domain: [0, 100] as const, candidates: [], mayThin: true },
+    }));
+    const [horizontal, vertical] = tickLabels(result, 'reference');
+    expect([horizontal?.lines, vertical?.lines]).toEqual([['Full height'], ['Full width']]);
+    expect(horizontal!.box.y).toBeCloseTo(result.plot.y + 4);
+    expect(vertical!.box.x).toBeCloseTo(result.plot.x + 4);
+    boxesFit(result);
+  });
+
+  it('clips reference labels to the visible x bounds on a padded bar axis', () => {
+    const result = plot(computeLayout({
+      ...input([], 440, 280), kind: 'bands', horizontal: false,
+      x: { type: 'linear', domain: [-1, 11], candidates: [], mayThin: true },
+      referenceXDomain: [0, 10],
+      references: [{ axis: 'x', from: -1, to: -1, label: 'Outside' }, { axis: 'x', from: -1, to: 2, label: 'Clipped band' }],
+    }));
+    expect(tickLabels(result, 'reference').map(text => text.full)).toEqual(['Clipped band']);
+    expect(result.fit.x.hidden).toBe(0);
+    boxesFit(result);
+  });
+
   it('keeps the distinctive ends of two middle-truncated labels', () => {
     const similar = ['Customer Success – EMEA', 'Customer Success – APAC'];
     const categories = ['North', ...similar, 'South', 'Ops', 'Field', 'Web', 'West'];
@@ -330,11 +442,11 @@ describe('plot layout', () => {
   it('hides evenly spaced horizontal bar labels when there is no room for every row', () => {
     const labels = Array.from({ length: 24 }, (_, i) => `Row ${i + 1}`);
     const result = plot(computeLayout({ ...input(labels, 410, 290), kind: 'bands', horizontal: true }));
-    expect(result.xTicks.map(tick => tick.value)).toEqual([1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23]);
+    expect(result.xTicks.map(tick => tick.value)).toEqual([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22]);
     expect(result.fit.x.hidden).toBe(12);
     if (result.projection.kind !== 'bands') throw new Error('Expected a bar projection');
     expect(result.projection.horizontal).toBe(true);
-    expect(result.projection.band.range).toEqual([result.plot.y + result.plot.height, result.plot.y]);
+    expect(result.projection.band.range).toEqual([result.plot.y, result.plot.y + result.plot.height]);
     expect(result.projection.value.range).toEqual([result.plot.x, result.plot.x + result.plot.width]);
     boxesFit(result);
   });
@@ -456,9 +568,12 @@ describe('plot layout', () => {
       identifiable(texts, labels);
       expect(result.xTicks).toHaveLength(texts.length);
       const remedies = result.fit.x.remedies;
+      if (texts.some(text => text.rotate === -45)) {
+        expect(height - result.plot.y - result.plot.height).toBeLessThanOrEqual(height * 0.4 + 1e-6);
+      }
       if (!mayThin) expect(remedies).not.toContain('thinned');
       if (!remedies.includes('thinned')) expect(result.fit.x.hidden).toBe(labels.length - texts.length);
       expect(remedies).toEqual(expectedOrder.filter(remedy => remedies.includes(remedy)));
-    }), { numRuns: 500 });
+    }), { numRuns: 1000 });
   });
 });

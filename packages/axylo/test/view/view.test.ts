@@ -133,6 +133,25 @@ describe('view domains and visibility', () => {
     expect(view.visiblePoints).toEqual([{ start: 0, end: 1 }, { start: 1, end: 2 }, { start: 0, end: 1 }]);
     expect(view.yDomain).toEqual([2, 4]);
   });
+
+  it('rounds numeric scatter x outward without forcing zero or changing an author domain', () => {
+    const points = { x: 'x', y: 'y', data: [{ x: 10, y: 10 }, { x: 998, y: 998 }] };
+    const { view } = scatter(points);
+    expect(view.xFull).toEqual([0, 1000]);
+    expect(view.xDomain).toBe(view.xFull);
+    expect(view.yDomain).toEqual(view.xFull);
+
+    const positive = scatter({ ...points, data: [{ x: 521, y: 1 }, { x: 609, y: 2 }] }).view;
+    expect(positive.xFull).toEqual([520, 620]);
+    const zoomed = scatter(points, { zoom: [20, 30] }).view;
+    expect(zoomed.xFull).toEqual([0, 1000]);
+    expect(zoomed.xDomain).toEqual([20, 30]);
+    expect(scatter(points, { xDomain: [12, 997] }).view.xFull).toEqual([12, 997]);
+
+    const dates = scatter({ ...points, data: [{ x: '2026-03-03', y: 1 }, { x: '2026-03-08', y: 2 }] }).view;
+    expect(dates.frame.xKind).toBe('date');
+    expect(dates.xFull).toEqual([Date.UTC(2026, 2, 3), Date.UTC(2026, 2, 8)]);
+  });
 });
 
 describe('stacks and series cues', () => {

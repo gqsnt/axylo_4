@@ -75,7 +75,7 @@ it('keeps numbers on category axes as category names', () => {
 it('includes x lines and bands in the automatic extent, including on scatter', () => {
   const references = [{ x: 8, label: 'Future' }, { x: [-3, -1] as const, label: 'Past' }];
   expect(aligned(line, { kind: 'line', references }).view.xFull).toEqual([-3, 8]);
-  expect(scatter(line, { references }).view.xFull).toEqual([-3, 8]);
+  expect(scatter(line, { references }).view.xFull).toEqual([-5, 10]);
 });
 
 it('uses a narrower author x domain over the data and references', () => {

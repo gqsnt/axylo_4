@@ -88,19 +88,36 @@ export function wrapText(text: string, limit: number, metrics: Metrics, lineLimi
   return lines;
 }
 
-function wrapLabel(text: string, metrics: Metrics): readonly string[] {
-  let best: readonly string[] = [text];
-  let width = metrics.width(text);
-  for (const space of text.matchAll(/ +/gu)) {
-    // Use the line break for one space so that the two lines still identify the source.
-    const split = space.index + Math.floor((space[0].length - 1) / 2);
+function wrapLabel(text: string, current: readonly string[], count: 2 | 3, metrics: Metrics): readonly string[] {
+  let best = current;
+  let width = widest(current, metrics);
+  // Replace exactly one space at each break so the lines still identify the source.
+  const splits = Array.from(text.matchAll(/ +/gu), space => space.index + Math.floor((space[0].length - 1) / 2));
+  for (const [i, split] of splits.entries()) {
     const first = text.slice(0, split);
-    const last = text.slice(split + 1);
-    if (!first.trim() || !last.trim()) continue;
-    const next = Math.max(metrics.width(first), metrics.width(last));
-    if (next < width) {
-      best = [first, last];
-      width = next;
+    if (!first.trim()) continue;
+    const firstWidth = metrics.width(first);
+    if (firstWidth >= width) break;
+    if (count === 2) {
+      const last = text.slice(split + 1);
+      const next = Math.max(firstWidth, metrics.width(last));
+      if (last.trim() && next < width) {
+        best = [first, last];
+        width = next;
+      }
+      continue;
+    }
+    for (let j = i + 1; j < splits.length; j++) {
+      const secondSplit = splits[j]!;
+      const second = text.slice(split + 1, secondSplit);
+      const secondWidth = metrics.width(second);
+      if (secondWidth >= width) break;
+      const last = text.slice(secondSplit + 1);
+      const next = Math.max(firstWidth, secondWidth, metrics.width(last));
+      if (last.trim() && next < width) {
+        best = [first, second, last];
+        width = next;
+      }
     }
   }
   return best;
@@ -171,7 +188,7 @@ function longestFit(low: number, high: number, limit: number, make: (kept: numbe
   return low;
 }
 
-function middleText(full: string, limit: number, labels: PreparedLabels, metrics: Metrics): string | undefined {
+export function middleText(full: string, limit: number, labels: PreparedLabels, metrics: Metrics): string | undefined {
   limit += EPSILON;
   if (metrics.width(full) <= limit) return full;
   if (limit < metrics.width(ELLIPSIS) || full.length < 5) return undefined;
@@ -346,6 +363,7 @@ function truncateBottom(
 export function fitBottom(
   candidates: TickCandidates, mayThin: boolean, scale: XScale, width: number, room: number,
   role: Role, metrics: Metrics, prepared = prepareLabels(mayThin ? candidates : candidates.slice(0, 1)),
+  rotatedRoom = room,
 ): FittedLabels {
   const remedies: LabelRemedy[] = [];
   let { ticks, hidden } = prepared.sets[0] ?? { ticks: [], hidden: 0 };
@@ -356,7 +374,7 @@ export function fitBottom(
     const footprint = DIAGONAL * (metrics.lineHeight + metrics.width('ii…ii'));
     const sampled = spread(ticks, span, footprint);
     if (sampled !== ticks) {
-      return truncateBottom(sampled, prepared, scale, width, room, role, metrics, ['rotated'], ticks.length + hidden);
+      return truncateBottom(sampled, prepared, scale, width, rotatedRoom, role, metrics, ['rotated'], ticks.length + hidden);
     }
   }
 
@@ -369,20 +387,42 @@ export function fitBottom(
     }
   }
 
-  const bad = conflicts(labels, 'bottom', width, room);
+  let bad = conflicts(labels, 'bottom', width, room);
   if (bad.size === 0) return result(labels, 'bottom', remedies, hidden);
-  labels = labels.map(label => {
-    if (!bad.has(label)) return label;
-    const lines = wrapLabel(label.tick.label, metrics);
-    return lines.length === 1 ? label : bottomLabel(label.tick, position(scale, label.tick), width, lines, 0, role, metrics);
-  });
+  const oneLine = labels;
+  let twoLines = labels;
+  for (const count of [2, 3] as const) {
+    if (count * metrics.lineHeight > room + EPSILON) break;
+    labels = labels.map(label => {
+      if (!bad.has(label)) return label;
+      const lines = wrapLabel(label.tick.label, label.text.lines, count, metrics);
+      return lines === label.text.lines ? label : bottomLabel(label.tick, position(scale, label.tick), width, lines, 0, role, metrics);
+    });
+    if (count === 2) twoLines = labels;
+    bad = conflicts(labels, 'bottom', width, room);
+    if (bad.size === 0) {
+      // Once the long labels fit, some neighbours can go back to fewer lines.
+      for (const [i, label] of labels.entries()) {
+        for (const shorter of [oneLine[i]!, twoLines[i]!]) {
+          if (shorter.text.lines.length >= label.text.lines.length) break;
+          const { x, width: span } = shorter.text.box;
+          if (fits(shorter, 'bottom', width, room) && !labels.some((other, j) =>
+            j !== i && x < other.text.box.x + other.text.box.width - EPSILON &&
+            other.text.box.x < x + span - EPSILON)) {
+            labels[i] = shorter;
+            break;
+          }
+        }
+      }
+      return result(labels, 'bottom', [...remedies, 'wrapped'], hidden);
+    }
+  }
   if (labels.some(label => label.text.lines.length > 1)) remedies.push('wrapped');
-  if (conflicts(labels, 'bottom', width, room).size === 0) return result(labels, 'bottom', remedies, hidden);
 
   labels = labels.map(({ tick, text }) => bottomLabel(tick, position(scale, tick), width, text.lines, -45, role, metrics));
   remedies.push('rotated');
-  if (conflicts(labels, 'bottom', width, room).size === 0) return result(labels, 'bottom', remedies, hidden);
-  return truncateBottom(ticks, prepared, scale, width, room, role, metrics, remedies, ticks.length + hidden);
+  if (conflicts(labels, 'bottom', width, rotatedRoom).size === 0) return result(labels, 'bottom', remedies, hidden);
+  return truncateBottom(ticks, prepared, scale, width, rotatedRoom, role, metrics, remedies, ticks.length + hidden);
 }
 
 export function fitLeftCategories(

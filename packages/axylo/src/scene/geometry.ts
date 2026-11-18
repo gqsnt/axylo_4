@@ -1,4 +1,4 @@
-import type { Paint, PaintToken, RuleMark, XScale } from '../core/contracts';
+import type { Paint, PaintToken, Projection, Rect, ResolvedReference, RuleMark, XScale } from '../core/contracts';
 
 export const COORDINATE_LIMIT = 2 ** 120;
 
@@ -19,6 +19,30 @@ export function position(scale: XScale, value: number): number {
 
 export function clamp(value: number, from: number, to: number): number {
   return Math.max(from, Math.min(to, value));
+}
+
+/** Use the same visible edges for reference marks and their labels. */
+export function projectReference(
+  reference: ResolvedReference, projection: Exclude<Projection, { kind: 'ring' }>, plot: Rect,
+  xDomain?: readonly [number, number],
+) {
+  const { axis, from, to } = reference;
+  const xAxis = axis === 'x';
+  const vertical = xAxis !== (projection.kind === 'bands' && projection.horizontal);
+  const scale = projection.kind === 'xy' ? projection[axis] : xAxis ? projection.band : projection.value;
+  const start = vertical ? plot.x : plot.y;
+  const end = start + (vertical ? plot.width : plot.height);
+  const domain: readonly [number, number] | undefined = xAxis
+    ? xDomain ?? (scale.type === 'band' ? [0, scale.count - 1] : scale.domain)
+    : undefined;
+  if (domain && (to < domain[0] || from > domain[1])) return null;
+  const a = position(scale, domain ? Math.max(from, domain[0]) : from);
+  if (from === to) return a >= start && a <= end ? { vertical, low: a, high: a } : null;
+
+  const b = position(scale, domain ? Math.min(to, domain[1]) : to);
+  const low = clamp(Math.min(a, b), start, end);
+  const high = clamp(Math.max(a, b), start, end);
+  return low < high ? { vertical, low, high } : null;
 }
 
 export function rule(

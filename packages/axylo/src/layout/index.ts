@@ -1,9 +1,10 @@
 import type {
-  BandScale, ContinuousScale, DiagnosticSink, Layout, PlacedText, Projection, Rect,
+  BandScale, ContinuousScale, DiagnosticSink, Layout, PlacedText, Projection, Rect, ResolvedReference,
   TextMeasurer, TextStyle, TickCandidates, XScale,
 } from '../core/contracts';
 import { fitBottom, fitLeftCategories, fitValue, messageLines, placeText, prepareLabels, wrapText } from './labels';
 import type { FittedLabels, Metrics } from './labels';
+import { placeReferences } from './references';
 
 type Span = readonly [number, number];
 
@@ -43,6 +44,9 @@ interface Axes {
   readonly x: ContinuousAxis | BandAxis;
   readonly y: ValueAxis;
   readonly scales: ScaleConstructors;
+  readonly references?: readonly ResolvedReference[];
+  /** View bounds when they differ from the scale's domain, such as on a padded bar axis. */
+  readonly referenceXDomain?: Span;
 }
 
 type Cartesian = Axes & (
@@ -68,6 +72,7 @@ export type LayoutInput =
 
 const INSET = 4;
 const GAP = 4;
+const TICK_GAP = 6;
 const MIN_WIDTH = 120;
 const MIN_HEIGHT = 80;
 const UNCHANGED = { remedies: [], hidden: 0 } as const;
@@ -80,7 +85,8 @@ function project(plot: Rect, axes: Cartesian): Exclude<Projection, { kind: 'ring
   const across: Span = [plot.x, plot.x + plot.width];
   const up: Span = [plot.y + plot.height, plot.y];
   const horizontal = axes.kind === 'bands' && axes.horizontal;
-  const x = independentScale(axes.x, horizontal ? up : across, axes.scales);
+  const down: Span = [plot.y, plot.y + plot.height];
+  const x = independentScale(axes.x, horizontal ? (axes.x.type === 'band' ? down : up) : across, axes.scales);
   const y = axes.scales.linear(axes.y.domain, horizontal ? across : up);
   return axes.kind === 'xy' ? { kind: 'xy', x, y } : { kind: 'bands', horizontal, band: x, value: y };
 }
@@ -113,7 +119,7 @@ function moveText(text: PlacedText, dx: number, dy: number): PlacedText {
 }
 
 function lane(fit: FittedLabels): number {
-  return fit.texts.length ? GAP + fit.depth : 0;
+  return fit.texts.length ? TICK_GAP + fit.depth : 0;
 }
 
 function hiddenTicks(candidates: TickCandidates): FittedLabels {
@@ -151,15 +157,17 @@ function layoutAxes(input: PlotInput & Cartesian & TextInput, size: Size, text: 
         bottomTitle.some(line => text.width(line) > plot.width)) return tooSmall(size);
     const leftTitleSize = leftTitle.length ? GAP + leftTitle.length * text.lineHeight : 0;
     const bottomTitleSize = bottomTitle.length ? GAP + bottomTitle.length * text.lineHeight : 0;
-    const leftRoom = width - 2 * INSET - MIN_WIDTH - leftTitleSize - GAP;
-    const bottomRoom = height - top - MIN_HEIGHT - INSET - clearance - bottomTitleSize - GAP;
+    const leftRoom = width - 2 * INSET - MIN_WIDTH - leftTitleSize - TICK_GAP;
+    const bottomFixed = INSET + clearance + bottomTitleSize + TICK_GAP;
+    const bottomRoom = height - top - MIN_HEIGHT - bottomFixed;
+    const rotatedRoom = Math.min(bottomRoom, height * 0.4 - bottomFixed);
 
     const leftFit = !leftLabels ? hiddenTicks(leftCandidates) : horizontal
       ? fitLeftCategories(leftCandidates[0] ?? [], xScale, width, height, leftRole, text, leftRoom, leftLabels)
       : fitValue(leftCandidates, yScale, 'left', height, leftRoom, leftRole, text, leftLabels);
     const bottomFit = !bottomLabels ? hiddenTicks(bottomCandidates) : horizontal
       ? fitValue(bottomCandidates, yScale, 'bottom', width, bottomRoom, bottomRole, text, bottomLabels)
-      : fitBottom(bottomCandidates, bottomAxis.mayThin, xScale, width, bottomRoom, bottomRole, text, bottomLabels);
+      : fitBottom(bottomCandidates, bottomAxis.mayThin, xScale, width, bottomRoom, bottomRole, text, bottomLabels, rotatedRoom);
 
     const nextLeft = INSET + lane(leftFit) + leftTitleSize;
     const nextBottom = INSET + clearance + lane(bottomFit) + bottomTitleSize;
@@ -171,8 +179,8 @@ function layoutAxes(input: PlotInput & Cartesian & TextInput, size: Size, text: 
         (growMargins && nextLeft <= left && nextBottom <= bottom)) {
       const base = plot.y + plot.height + clearance;
       const texts = [
-        ...leftFit.texts.map(label => moveText(label, left - GAP, 0)),
-        ...bottomFit.texts.map(label => moveText(label, 0, base + GAP)),
+        ...leftFit.texts.map(label => moveText(label, left - TICK_GAP, 0)),
+        ...bottomFit.texts.map(label => moveText(label, 0, base + TICK_GAP)),
       ];
       if (leftAxis.title && leftTitle.length) {
         texts.push(placeText(leftTitle, leftAxis.title, left - lane(leftFit) - GAP - leftTitle.length * text.lineHeight / 2,
@@ -185,7 +193,11 @@ function layoutAxes(input: PlotInput & Cartesian & TextInput, size: Size, text: 
 
       const xFit = horizontal ? leftFit : bottomFit;
       const yFit = horizontal ? bottomFit : leftFit;
-      return { ...size, kind: 'plot', plot, projection, xTicks: xFit.ticks, yTicks: yFit.ticks, texts, fit: { x: xFit.fit, y: yFit.fit } };
+      const hidden = placeReferences(input.references ?? [], projection, plot, texts, text, input.referenceXDomain);
+      return {
+        ...size, kind: 'plot', plot, projection, xTicks: xFit.ticks, yTicks: yFit.ticks, texts,
+        fit: { x: { ...xFit.fit, hidden: xFit.fit.hidden + hidden.x }, y: { ...yFit.fit, hidden: yFit.fit.hidden + hidden.y } },
+      };
     }
     visited.add(key);
     left = growMargins ? Math.max(left, nextLeft) : nextLeft;
