@@ -2,7 +2,7 @@ import type {
   BandScale, ContinuousScale, DiagnosticSink, Layout, PlacedText, Projection, Rect,
   TextMeasurer, TextStyle, TickCandidates, XScale,
 } from '../core/contracts';
-import { fitBottom, fitLeftCategories, fitValue, placeText, wrapText } from './labels';
+import { fitBottom, fitLeftCategories, fitValue, messageLines, placeText, prepareLabels, wrapText } from './labels';
 import type { FittedLabels, Metrics } from './labels';
 
 type Span = readonly [number, number];
@@ -55,7 +55,11 @@ interface TextInput {
   readonly style: TextStyle;
 }
 
-type PlotInput = Size & { readonly diagnostics: DiagnosticSink; readonly compact?: boolean };
+type PlotInput = Size & {
+  /** Ignored. Presentation derives AX142 and AX143 from the returned layout. */
+  readonly diagnostics?: DiagnosticSink;
+  readonly compact?: boolean;
+};
 
 export type LayoutInput =
   | (PlotInput & Cartesian & TextInput)
@@ -86,16 +90,22 @@ function ring(plot: Rect): Projection {
   return { kind: 'ring', cx: plot.x + plot.width / 2, cy: plot.y + plot.height / 2, r0: r1 * 0.6, r1 };
 }
 
-function tooSmall(size: Size, diagnostics: DiagnosticSink): Layout {
-  diagnostics.add({
-    code: 'AX142', level: 'hint', message: 'The plot needs at least 120 × 80 CSS pixels.',
-    effect: 'none', origin: 'presentation',
-  });
+function tooSmall(size: Size): Layout {
   return { ...size, kind: 'too-small' };
 }
 
 function metrics(input: TextInput): Metrics {
-  return { lineHeight: input.style.lineHeight, width: text => input.measurer.width(text, input.style) };
+  const widths = new Map<string, number>();
+  return {
+    lineHeight: input.style.lineHeight,
+    width(text) {
+      const cached = widths.get(text);
+      if (cached !== undefined) return cached;
+      const width = input.measurer.width(text, input.style);
+      widths.set(text, width);
+      return width;
+    },
+  };
 }
 
 function moveText(text: PlacedText, dx: number, dy: number): PlacedText {
@@ -106,15 +116,22 @@ function lane(fit: FittedLabels): number {
   return fit.texts.length ? GAP + fit.depth : 0;
 }
 
-function layoutAxes(input: PlotInput & Cartesian & TextInput, size: Size): Layout {
+function hiddenTicks(candidates: TickCandidates): FittedLabels {
+  return { ticks: [], texts: [], depth: 0, fit: { remedies: [], hidden: candidates[0]?.length ?? 0 } };
+}
+
+function layoutAxes(input: PlotInput & Cartesian & TextInput, size: Size, text: Metrics, showTicks: boolean): Layout {
   const { width, height } = size;
-  const text = metrics(input);
   const horizontal = input.kind === 'bands' && input.horizontal;
   const leftAxis = horizontal ? input.x : input.y;
   const bottomAxis = horizontal ? input.y : input.x;
+  const leftCandidates = horizontal ? leftAxis.candidates.slice(0, 1) : leftAxis.candidates;
+  const bottomCandidates = !horizontal && !bottomAxis.mayThin ? bottomAxis.candidates.slice(0, 1) : bottomAxis.candidates;
+  const leftLabels = showTicks ? prepareLabels(leftCandidates) : undefined;
+  const bottomLabels = showTicks ? prepareLabels(bottomCandidates) : undefined;
   const leftRole = horizontal ? 'tick-x' : 'tick-y';
   const bottomRole = horizontal ? 'tick-y' : 'tick-x';
-  const clearance = leftAxis.candidates.some(set => set.length > 0) ? text.lineHeight / 2 : 0;
+  const clearance = leftLabels?.sets.some(set => set.ticks.length > 0) ? text.lineHeight / 2 : 0;
   const top = INSET + clearance;
   let left = INSET;
   let bottom = INSET + clearance;
@@ -123,7 +140,7 @@ function layoutAxes(input: PlotInput & Cartesian & TextInput, size: Size): Layou
 
   for (;;) {
     const plot = { x: left, y: top, width: width - left - INSET, height: height - top - bottom };
-    if (plot.width < MIN_WIDTH || plot.height < MIN_HEIGHT) return tooSmall(size, input.diagnostics);
+    if (plot.width < MIN_WIDTH - 1e-7 || plot.height < MIN_HEIGHT - 1e-7) return tooSmall(size);
 
     const projection = project(plot, input);
     const xScale = projection.kind === 'xy' ? projection.x : projection.band;
@@ -131,17 +148,18 @@ function layoutAxes(input: PlotInput & Cartesian & TextInput, size: Size): Layou
     const leftTitle = leftAxis.title ? wrapText(leftAxis.title, plot.height, text) : [];
     const bottomTitle = bottomAxis.title ? wrapText(bottomAxis.title, plot.width, text) : [];
     if (leftTitle.some(line => text.width(line) > plot.height) ||
-        bottomTitle.some(line => text.width(line) > plot.width)) return tooSmall(size, input.diagnostics);
+        bottomTitle.some(line => text.width(line) > plot.width)) return tooSmall(size);
     const leftTitleSize = leftTitle.length ? GAP + leftTitle.length * text.lineHeight : 0;
     const bottomTitleSize = bottomTitle.length ? GAP + bottomTitle.length * text.lineHeight : 0;
+    const leftRoom = width - 2 * INSET - MIN_WIDTH - leftTitleSize - GAP;
     const bottomRoom = height - top - MIN_HEIGHT - INSET - clearance - bottomTitleSize - GAP;
 
-    const leftFit = horizontal
-      ? fitLeftCategories(leftAxis.candidates[0] ?? [], xScale, width, height, leftRole, text)
-      : fitValue(leftAxis.candidates, yScale, 'left', height, Infinity, leftRole, text);
-    const bottomFit = horizontal
-      ? fitValue(bottomAxis.candidates, yScale, 'bottom', width, bottomRoom, bottomRole, text)
-      : fitBottom(bottomAxis.candidates, bottomAxis.mayThin, xScale, width, bottomRoom, bottomRole, text);
+    const leftFit = !leftLabels ? hiddenTicks(leftCandidates) : horizontal
+      ? fitLeftCategories(leftCandidates[0] ?? [], xScale, width, height, leftRole, text, leftRoom, leftLabels)
+      : fitValue(leftCandidates, yScale, 'left', height, leftRoom, leftRole, text, leftLabels);
+    const bottomFit = !bottomLabels ? hiddenTicks(bottomCandidates) : horizontal
+      ? fitValue(bottomCandidates, yScale, 'bottom', width, bottomRoom, bottomRole, text, bottomLabels)
+      : fitBottom(bottomCandidates, bottomAxis.mayThin, xScale, width, bottomRoom, bottomRole, text, bottomLabels);
 
     const nextLeft = INSET + lane(leftFit) + leftTitleSize;
     const nextBottom = INSET + clearance + lane(bottomFit) + bottomTitleSize;
@@ -167,13 +185,6 @@ function layoutAxes(input: PlotInput & Cartesian & TextInput, size: Size): Layou
 
       const xFit = horizontal ? leftFit : bottomFit;
       const yFit = horizontal ? bottomFit : leftFit;
-      const hidden = xFit.fit.hidden + yFit.fit.hidden;
-      if (hidden) {
-        input.diagnostics.add({
-          code: 'AX143', level: 'hint', count: hidden, effect: 'none', origin: 'presentation',
-          message: horizontal ? 'Some labels are hidden. See the table.' : 'Some labels are hidden. Try horizontal bars or see the table.',
-        });
-      }
       return { ...size, kind: 'plot', plot, projection, xTicks: xFit.ticks, yTicks: yFit.ticks, texts, fit: { x: xFit.fit, y: yFit.fit } };
     }
     visited.add(key);
@@ -185,11 +196,12 @@ function layoutAxes(input: PlotInput & Cartesian & TextInput, size: Size): Layou
 export function computeLayout(input: LayoutInput): Layout {
   const { width, height } = input;
   const size = { width, height };
-  if (width <= 0 || height <= 0) return { ...size, kind: 'unmeasured' };
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return { ...size, kind: 'unmeasured' };
 
   if (input.kind === 'message') {
     const text = metrics(input);
-    const lines = wrapText(input.message, width, text);
+    const maxLines = Math.floor((height - 2 * INSET) / text.lineHeight);
+    const lines = messageLines(input.message, width - 2 * INSET, maxLines, text);
     return { ...size, kind: 'message', text: placeText(lines, input.message, width / 2, height / 2, 'middle', 'middle', 0, 'message', text) };
   }
   if (input.compact) {
@@ -199,9 +211,13 @@ export function computeLayout(input: LayoutInput): Layout {
     return { ...size, kind: 'compact', plot, projection: input.kind === 'ring' ? ring(plot) : project(plot, input) };
   }
   if (input.kind === 'ring') {
-    if (width < MIN_WIDTH || height < MIN_HEIGHT) return tooSmall(size, input.diagnostics);
+    if (width < MIN_WIDTH || height < MIN_HEIGHT) return tooSmall(size);
     const plot = { x: 0, y: 0, width, height };
     return { ...size, kind: 'plot', plot, projection: ring(plot), xTicks: [], yTicks: [], texts: [], fit: { x: UNCHANGED, y: UNCHANGED } };
   }
-  return layoutAxes(input, size);
+  if (width < MIN_WIDTH + 2 * INSET || height < MIN_HEIGHT + 2 * INSET) return tooSmall(size);
+  const text = metrics(input);
+  const layout = layoutAxes(input, size, text, true);
+  // A title may need the space otherwise reserved for ticks at the ends of the left axis.
+  return layout.kind === 'too-small' ? layoutAxes(input, size, text, false) : layout;
 }

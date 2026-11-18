@@ -6,11 +6,16 @@ type XMap = XScale | ((x: number) => number);
 type YMap = ContinuousScale | ((y: number) => number);
 
 export interface JoinedRuns {
-  /** Source slot indexes of runs with at least two values. */
+  /** Source slot indexes of joined runs, including runs that continue outside the range. */
   readonly indexes: Uint32Array;
   /** Offsets into indexes at which a new run starts, excluding the first run. */
   readonly breaks: Uint32Array;
   readonly isolated: Uint32Array;
+}
+
+interface AffineX {
+  readonly slope: number;
+  readonly offset: number;
 }
 
 interface DrawingInput {
@@ -19,6 +24,8 @@ interface DrawingInput {
   readonly range: IndexRange;
   /** The x projection is monotone in source order, so each column is visited once per run. */
   readonly mapX: XMap;
+  /** When supplied, x maps to CSS pixels as slope * x + offset. */
+  readonly affineX?: AffineX;
   readonly left: number;
   readonly width: number;
   readonly devicePixelRatio: number;
@@ -32,6 +39,7 @@ export interface PathInput {
   readonly x: Float64Array;
   readonly y: Values | 0;
   readonly mapX: XMap;
+  readonly affineX?: AffineX;
   readonly mapY: YMap;
 }
 
@@ -39,7 +47,15 @@ interface Columns {
   readonly x: Float64Array;
   readonly y: Values | 0;
   readonly map: (x: number) => number;
+  readonly affine?: AffineX;
   readonly ratio: number;
+}
+
+function joinedNeighbor(slot: Uint8Array, from: number, step: -1 | 1): boolean {
+  const noRow = SLOT_NO_ROW;
+  let i = from;
+  while (slot[i] === noRow) i += step;
+  return slot[i] === SLOT_VALUE;
 }
 
 function xMapper(scale: XMap): (x: number) => number {
@@ -48,30 +64,59 @@ function xMapper(scale: XMap): (x: number) => number {
 }
 
 function keepColumn(
-  indexes: Uint32Array | undefined, cursor: number, first: number, last: number, min: number, max: number,
+  indexes: Uint32Array, cursor: number, first: number, last: number, min: number, max: number,
 ): number {
   // An extreme may also be an endpoint. Emit each slot once and in source order.
   const earlier = Math.min(min, max);
   const later = Math.max(min, max);
-  if (indexes) indexes[cursor] = first;
-  cursor++;
-  if (earlier > first && earlier < last) {
-    if (indexes) indexes[cursor] = earlier;
-    cursor++;
-  }
-  if (later > earlier && later < last) {
-    if (indexes) indexes[cursor] = later;
-    cursor++;
-  }
-  if (last > first) {
-    if (indexes) indexes[cursor] = last;
-    cursor++;
-  }
+  indexes[cursor++] = first;
+  if (earlier > first && earlier < last) indexes[cursor++] = earlier;
+  if (later > earlier && later < last) indexes[cursor++] = later;
+  if (last > first) indexes[cursor++] = last;
   return cursor;
 }
 
-function scan(slot: Uint8Array, range: IndexRange, columns?: Columns, output?: JoinedRuns) {
-  const indexes = output?.indexes;
+function keepRun(
+  slot: Uint8Array, from: number, to: number, count: number, columns: Columns, indexes: Uint32Array, cursor: number,
+): number {
+  const { affine, x, y, map, ratio } = columns;
+  const slope = affine?.slope ?? 0;
+  const offset = affine?.offset ?? 0;
+  const contiguous = to - from + 1 === count;
+  const valueSlot = SLOT_VALUE;
+  let column = NaN;
+  let first = from;
+  let last = -1;
+  let min = -1;
+  let max = -1;
+  let low = 0;
+  let high = 0;
+  for (let i = from; i <= to; i++) {
+    if (!contiguous && slot[i] !== valueSlot) continue;
+    const sample = x[i]!;
+    const pixel = Math.floor((affine ? slope * sample + offset : map(sample)) * ratio);
+    const value = y === 0 ? 0 : y[i]!;
+    if (pixel !== column) {
+      if (last >= 0) cursor = keepColumn(indexes, cursor, first, last, min, max);
+      column = pixel;
+      first = min = max = i;
+      low = high = value;
+    } else {
+      if (value < low) {
+        low = value;
+        min = i;
+      }
+      if (value > high) {
+        high = value;
+        max = i;
+      }
+    }
+    last = i;
+  }
+  return keepColumn(indexes, cursor, first, last, min, max);
+}
+
+function scan(slot: Uint8Array, range: IndexRange, output?: JoinedRuns, columns?: Columns) {
   const valueSlot = SLOT_VALUE;
   const noRow = SLOT_NO_ROW;
   const gap = SLOT_GAP;
@@ -79,85 +124,61 @@ function scan(slot: Uint8Array, range: IndexRange, columns?: Columns, output?: J
   let vertices = 0;
   let breaks = 0;
   let isolated = 0;
-  let runStart = 0;
   let runFirst = -1;
   let runLast = -1;
-  let column = 0;
-  let first = -1;
-  let last = -1;
-  let min = -1;
-  let max = -1;
-  let low = 0;
-  let high = 0;
+  let runValues = 0;
   const { start, end } = range;
+  let joinsBefore = start < end && joinedNeighbor(slot, start - 1, -1);
+  const joinsAfter = start < end && joinedNeighbor(slot, end, 1);
 
   for (let i = start; i <= end; i++) {
     const state = i < end ? slot[i] : gap;
-    if (state !== valueSlot) {
-      if (state === noRow || runFirst < 0) continue;
-      if (runFirst === runLast) {
+    if (state === valueSlot) {
+      if (runValues === 0) runFirst = i;
+      let next = i + 1;
+      while (next < end && slot[next] === valueSlot) next++;
+      runValues += next - i;
+      runLast = next - 1;
+      i = runLast;
+      continue;
+    }
+    if (state === noRow) continue;
+    if (runValues > 0) {
+      values += runValues;
+      if (runValues === 1 && !joinsBefore && !(i === end && joinsAfter)) {
         if (output) output.isolated[isolated] = runFirst;
         isolated++;
       } else {
-        if (columns) vertices = keepColumn(indexes, vertices, first, last, min, max);
-        if (runStart > 0) {
-          if (output) output.breaks[breaks] = runStart;
+        if (vertices > 0) {
+          if (output) output.breaks[breaks] = vertices;
           breaks++;
         }
-      }
-      runFirst = -1;
-      runLast = -1;
-      continue;
-    }
-
-    values++;
-    if (runFirst < 0) {
-      runFirst = i;
-      runStart = vertices;
-    }
-
-    if (columns) {
-      const pixel = Math.floor(columns.map(columns.x[i]!) * columns.ratio);
-      const value = columns.y === 0 ? 0 : columns.y[i]!;
-      if (runLast < 0 || pixel !== column) {
-        if (runLast >= 0) vertices = keepColumn(indexes, vertices, first, last, min, max);
-        column = pixel;
-        first = min = max = i;
-        low = high = value;
-      } else {
-        if (value < low) {
-          low = value;
-          min = i;
-        }
-        if (value > high) {
-          high = value;
-          max = i;
+        if (!output) vertices += runValues;
+        else if (columns) vertices = keepRun(slot, runFirst, runLast, runValues, columns, output.indexes, vertices);
+        else {
+          for (let index = runFirst; index <= runLast; index++) {
+            if (slot[index] === valueSlot) output.indexes[vertices++] = index;
+          }
         }
       }
-      last = i;
-    } else if (runLast >= 0) {
-      if (runLast === runFirst) {
-        if (indexes) indexes[vertices] = runFirst;
-        vertices++;
-      }
-      if (indexes) indexes[vertices] = i;
-      vertices++;
+      runValues = 0;
     }
-    runLast = i;
+    joinsBefore = false;
   }
   return { values, vertices, breaks, isolated };
 }
 
 function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Columns): JoinedRuns {
-  const size = scan(slot, range, columns);
+  const size = scan(slot, range);
   const dense = size.values > limit;
   const output: JoinedRuns = {
-    indexes: new Uint32Array(dense ? size.vertices : size.values - size.isolated),
+    indexes: new Uint32Array(size.vertices),
     breaks: new Uint32Array(size.breaks),
     isolated: new Uint32Array(size.isolated),
   };
-  scan(slot, range, dense ? columns : undefined, output);
-  return output;
+  const { vertices } = scan(slot, range, output, dense ? columns : undefined);
+  // Keep the packed selection small even when the scratch buffer had room for every value.
+  return vertices === output.indexes.length ? output : { ...output, indexes: output.indexes.slice(0, vertices) };
 }
 
 export function joinRuns(slot: Uint8Array, range: IndexRange): JoinedRuns {
@@ -169,7 +190,7 @@ function simplifyBoundary(input: DrawingInput, y: Values | 0): JoinedRuns {
   const columns = width > 0 ? Math.ceil((left + width) * ratio) - Math.floor(left * ratio) : 0;
   const limit = 4 * columns;
   if (range.end - range.start <= limit) return joinRuns(input.slot, range);
-  return select(input.slot, range, limit, { x: input.x, y, map: xMapper(input.mapX), ratio });
+  return select(input.slot, range, limit, { x: input.x, y, map: xMapper(input.mapX), affine: input.affineX, ratio });
 }
 
 export function simplifyLine(input: LineInput): JoinedRuns {
@@ -178,7 +199,7 @@ export function simplifyLine(input: LineInput): JoinedRuns {
 
 function pack(indexes: Uint32Array, breaks: Uint32Array | null, input: PathInput): Float32Array {
   const xy = new Float32Array(2 * (indexes.length + (breaks?.length ?? 0)));
-  const { x, y, mapY } = input;
+  const { x, y, mapY, affineX } = input;
   const toX = xMapper(input.mapX);
   const toY = typeof mapY === 'function' ? mapY : (value: number) => mapY.map(value);
   let cursor = 0;
@@ -190,7 +211,8 @@ function pack(indexes: Uint32Array, breaks: Uint32Array | null, input: PathInput
       nextBreak++;
     }
     const index = indexes[i]!;
-    xy[cursor++] = toX(x[index]!);
+    const sample = x[index]!;
+    xy[cursor++] = affineX ? affineX.slope * sample + affineX.offset : toX(sample);
     xy[cursor++] = toY(y === 0 ? 0 : y[index]!);
   }
   return xy;
@@ -234,10 +256,13 @@ function prepareBoundary(input: AreaSource, values: Float64Array): AreaBoundary 
 
 function canShare(previous: AreaSource, next: AreaSource): boolean {
   if (previous.x !== next.x || previous.mapX !== next.mapX || previous.mapY !== next.mapY ||
+      previous.affineX?.slope !== next.affineX?.slope || previous.affineX?.offset !== next.affineX?.offset ||
       previous.range.start !== next.range.start || previous.range.end !== next.range.end ||
       previous.left !== next.left || previous.width !== next.width ||
       previous.devicePixelRatio !== next.devicePixelRatio) return false;
   if (previous.slot === next.slot) return true;
+  if (joinedNeighbor(previous.slot, next.range.start - 1, -1) !== joinedNeighbor(next.slot, next.range.start - 1, -1) ||
+      joinedNeighbor(previous.slot, next.range.end, 1) !== joinedNeighbor(next.slot, next.range.end, 1)) return false;
   for (let i = next.range.start; i < next.range.end; i++) {
     const a = previous.slot[i];
     const b = next.slot[i];

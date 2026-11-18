@@ -39,6 +39,18 @@ describe('joining and drawing lines', () => {
     });
   });
 
+  it('keeps a singleton in the line when it joins a value outside either end of the draw range', () => {
+    const input = line([2, NaN, 3, NaN, 4], [SLOT_VALUE, SLOT_NO_ROW, SLOT_VALUE, SLOT_NO_ROW, SLOT_VALUE]);
+    for (const draw of [range(2), range(3, 2), range(5, 3)]) {
+      const index = draw.start === 3 ? 4 : draw.start;
+      for (const joined of [joinRuns(input.slot, draw), simplifyLine({ ...input, range: draw, width: 0.1 })]) {
+        expect([...joined.indexes]).toEqual([index]);
+        expect([...joined.breaks]).toEqual([]);
+        expect([...joined.isolated]).toEqual([]);
+      }
+    }
+  });
+
   it('keeps both peaks, breaks the path in the same column, and packs the isolated point', () => {
     const input = line(
       [0, 1, 12, 2, 2, 0, NaN, 0, 2, 20, 1, 0, NaN, 8],
@@ -79,6 +91,28 @@ describe('joining and drawing lines', () => {
     expect([...kept.breaks]).toEqual([]);
   });
 
+  it('skips x mapping for sparse values and maps dense run values only once', () => {
+    const y = indexes(0, 25);
+    let calls = 0;
+    const mapX = (x: number) => { calls++; return x; };
+    const sparse = line(y, y.map(i => i % 8 ? SLOT_NO_ROW : SLOT_VALUE));
+    expect([...simplifyLine({ ...sparse, mapX }).indexes]).toEqual([0, 8, 16, 24]);
+    expect(calls).toBe(0);
+    expect([...simplifyLine({ ...line(y), mapX }).indexes]).toEqual([0, 24]);
+    expect(calls).toBe(y.length);
+  });
+
+  it('uses an optional affine projection for column selection and packed positions', () => {
+    const base = line(indexes(0, 24));
+    const settings = { ...base, left: -1, width: 2, devicePixelRatio: 1.5,
+      affineX: { slope: 6, offset: -1 }, mapY: identity };
+    const expected = simplifyLine({ ...settings, mapX: x => 6 * x - 1 });
+    const affine = { ...settings, mapX: () => { throw new Error('Used the fallback map'); } };
+    const kept = simplifyLine(affine);
+    expect(kept).toEqual(expected);
+    expect(buildPoints(kept.indexes, affine)).toEqual(buildPoints(expected.indexes, { ...settings, mapX: x => 6 * x - 1 }));
+  });
+
   it('counts the device columns touched by a fractional plot range', () => {
     const input = line(indexes(0, 9));
     const shifted = { ...input, left: 0.75, mapX: (x: number) => x + 0.75 };
@@ -110,18 +144,30 @@ describe('joining and drawing lines', () => {
         const column = (index: number) => Math.floor(mapX(x[index]!) * devicePixelRatio);
         expect(column(outlier - 1)).toBe(column(outlier + 1));
 
-        const before = performance.now();
-        const kept = simplifyLine({ x, y, slot, range: range(count), mapX, left: 0, width, devicePixelRatio });
-        const ms = performance.now() - before;
-        console.info(`Simplified ${count} slots at ${width}px and DPR ${devicePixelRatio} in ${ms.toFixed(1)} ms`);
-        expect(ms).toBeLessThan(200);
+        const input = { x, y, slot, range: range(count), mapX, left: 0, width, devicePixelRatio,
+          affineX: { slope: width, offset: 0 } };
+        const kept = simplifyLine(input);
+        for (let run = 0; run < 4; run++) simplifyLine(input);
+        const times = Array.from({ length: 7 }, () => {
+          // Vitest runs other files in parallel. Measure CPU work independently of descheduling.
+          const cpuBefore = process.threadCpuUsage();
+          const before = performance.now();
+          simplifyLine(input);
+          const wall = performance.now() - before;
+          const { user, system } = process.threadCpuUsage(cpuBefore);
+          return { cpu: (user + system) / 1000, wall };
+        });
+        const median = (clock: 'cpu' | 'wall') => times.map(time => time[clock]).sort((a, b) => a - b)[3]!;
+        console.info(`Simplified ${count} slots at ${width}px and DPR ${devicePixelRatio}: ` +
+          `${median('cpu').toFixed(1)} ms CPU, ${median('wall').toFixed(1)} ms wall (medians)`);
+        expect(median('wall')).toBeLessThan(30);
         expect(kept.indexes).toContain(outlier);
         expect(kept.indexes.length).toBe(2 * width * devicePixelRatio + 1);
       }
     }
   });
 
-  it('preserves column extrema and endpoints, never crosses a break, and is idempotent', () => {
+  it('agrees with a series-wide oracle for column extrema, range edges and device pixels', () => {
     const state = fc.oneof(
       { weight: 6, arbitrary: fc.constant(SLOT_VALUE) },
       { weight: 2, arbitrary: fc.constant(SLOT_NO_ROW) },
@@ -129,21 +175,23 @@ describe('joining and drawing lines', () => {
     );
     const row = fc.record({ state, y: fc.integer({ min: -20, max: 20 }), dx: fc.integer({ min: 1, max: 10 }) });
     fc.assert(fc.property(
-      fc.array(row, { maxLength: 180, size: 'large' }), fc.integer({ min: 1, max: 40 }), fc.constantFrom(0.75, 1, 1.5, 2),
-      fc.nat(10), fc.nat(10),
-      (rows, width, ratio, skipStart, skipEnd) => {
+      fc.array(row, { maxLength: 180, size: 'large' }), fc.integer({ min: 1, max: 40 }), fc.constantFrom(1, 1.25, 1.5, 2, 3),
+      fc.nat(5), fc.nat(5), fc.boolean(), fc.boolean(), fc.constantFrom(-0.25, 0, 0.75),
+      (middle, width, ratio, skipStart, skipEnd, narrowY, offPlot, left) => {
+        const value = { state: SLOT_VALUE, y: 1 / 3, dx: 1 };
+        const noRow = { ...value, state: SLOT_NO_ROW };
+        const rows = [value, noRow, ...middle, noRow, value];
         let current = 0;
         const x = Float64Array.from(rows, row => current += row.dx);
-        const y = Float64Array.from(rows, row => row.y);
+        const y = narrowY ? Float32Array.from(rows, row => row.y / 3) : Float64Array.from(rows, row => row.y / 3);
         const slot = Uint8Array.from(rows, row => row.state);
-        const start = Math.min(skipStart, rows.length);
-        const end = Math.max(start, rows.length - skipEnd);
-        const left = -0.25;
-        const mapX = (p: number) => left + p * width / (current + 1);
+        const start = Math.min(2 + skipStart, rows.length);
+        const end = Math.max(start, rows.length - 2 - skipEnd);
+        const mapX = (p: number) => offPlot ? -100 + 200 * p / (current + 1) : left + p * width / (current + 1);
         const input = { x, y, slot, range: range(end, start), mapX, left, width, devicePixelRatio: ratio };
         const kept = simplifyLine(input);
 
-        const values = indexes(start, end).filter(i => slot[i] === SLOT_VALUE);
+        const values = indexes(0, rows.length).filter(i => slot[i] === SLOT_VALUE);
         const runs: number[][] = [];
         for (const [offset, index] of values.entries()) {
           const previous = values[offset - 1];
@@ -153,13 +201,18 @@ describe('joining and drawing lines', () => {
             runs[runs.length - 1]!.push(index);
           }
         }
-        const dense = values.length > 4 * (Math.ceil((left + width) * ratio) - Math.floor(left * ratio));
+        const visibleCount = values.filter(i => i >= start && i < end).length;
+        // Enumerate unit device columns and count those with positive overlap with the plot.
+        const plotColumns = indexes(-128, 128).filter(i => i / ratio < left + width && (i + 1) / ratio > left);
+        const dense = visibleCount / plotColumns.length > 4;
         const expected: number[] = [];
         const breaks: number[] = [];
         const isolated: number[] = [];
         let columns = 0;
-        for (const run of runs) {
-          if (run.length === 1) {
+        for (const wholeRun of runs) {
+          const run = wholeRun.filter(i => i >= start && i < end);
+          if (!run.length) continue;
+          if (wholeRun.length === 1) {
             isolated.push(run[0]!);
             columns++;
             continue;
@@ -190,10 +243,11 @@ describe('joining and drawing lines', () => {
         if (dense) expect(kept.indexes.length + kept.isolated.length).toBeLessThanOrEqual(4 * columns);
 
         const selection = new Set([...kept.indexes, ...kept.isolated]);
-        const thinned = Uint8Array.from(slot, (state, i) => state === SLOT_VALUE && !selection.has(i) ? SLOT_NO_ROW : state);
+        const thinned = Uint8Array.from(slot, (state, i) => i >= start && i < end && state === SLOT_VALUE &&
+          !selection.has(i) ? SLOT_NO_ROW : state);
         expect(simplifyLine({ ...input, slot: thinned })).toEqual(kept);
       },
-    ), { numRuns: 300 });
+    ), { numRuns: 600 });
   });
 });
 
@@ -231,6 +285,17 @@ describe('drawing areas', () => {
     expect(next.lower).not.toBe(area.upper);
     expect(sourceIndexes(next.lower)).toEqual([0, 1, 2, 4, 5, 7, 10, 13]);
     expect([...next.runs]).toEqual([0, 3, 0, 3, 3, 2, 3, 2, 5, 3, 5, 3]);
+  });
+
+  it('recalculates an edge when adjacent bands differ in connectivity beyond the range', () => {
+    const slot = Uint8Array.of(SLOT_VALUE, SLOT_NO_ROW, SLOT_VALUE, SLOT_NULL);
+    const draw = { ...input, slot, range: range(4, 2) };
+    const broken = simplifyArea({ ...draw, slot: Uint8Array.of(SLOT_NULL, SLOT_NO_ROW, SLOT_VALUE, SLOT_NULL) });
+    const joined = simplifyArea({ ...draw, lower: broken.upperBoundary });
+    expect([...broken.isolated]).toEqual([2]);
+    expect([...joined.isolated]).toEqual([]);
+    expect(sourceIndexes(joined.lower)).toEqual([2]);
+    expect([...joined.runs]).toEqual([0, 1, 0, 1]);
   });
 
   it('supports an unstacked zero baseline without a full lower data column', () => {
