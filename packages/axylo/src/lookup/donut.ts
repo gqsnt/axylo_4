@@ -1,0 +1,89 @@
+import type { DatumRef, DonutView, Formatters, Lookup, Rect } from '../core/contracts';
+import { contains, type PlotLayout } from './geometry';
+import { pageDistance } from './search';
+import { sliceText } from './text';
+
+const TURN = 2 * Math.PI;
+
+function sectorBox(cx: number, cy: number, inner: number, outer: number, start: number, end: number): Rect {
+  let left = Infinity;
+  let right = -Infinity;
+  let top = Infinity;
+  let bottom = -Infinity;
+  function include(angle: number, radius: number) {
+    const x = cx + Math.sin(angle) * radius;
+    const y = cy - Math.cos(angle) * radius;
+    left = Math.min(left, x);
+    right = Math.max(right, x);
+    top = Math.min(top, y);
+    bottom = Math.max(bottom, y);
+  }
+  for (const radius of [inner, outer]) {
+    include(start, radius);
+    include(end, radius);
+    const quarter = Math.PI / 2;
+    for (let angle = Math.ceil(start / quarter) * quarter; angle < end; angle += quarter) include(angle, radius);
+  }
+  return { x: left, y: top, width: right - left, height: bottom - top };
+}
+
+export function donutLookup(view: DonutView, layout: PlotLayout | null, formatters: Formatters, locale: string): Lookup {
+  const { slices } = view;
+  const keys = new Map(slices.map((slice, i) => [slice.key, i]));
+  const ring = layout?.projection.kind === 'ring' ? layout.projection : null;
+  const index = (datum: DatumRef) => datum.kind === 'slice' ? keys.get(datum.sliceKey) ?? -1 : -1;
+
+  function ref(i: number): DatumRef | null {
+    const slice = slices[i];
+    return slice ? { kind: 'slice', sliceKey: slice.key } : null;
+  }
+
+  const lookup: Lookup = {
+    pick(px, py) {
+      if (!ring || !layout || !contains(layout.plot, px, py) || !(ring.r1 > ring.r0)) return null;
+      const dx = px - ring.cx;
+      const dy = py - ring.cy;
+      const radius = Math.hypot(dx, dy);
+      if (radius < ring.r0 || radius > ring.r1) return null;
+      const raw = Math.atan2(dx, -dy);
+      const angle = raw < 0 ? raw + TURN : raw;
+      const slice = slices.find(slice => slice.angles && angle >= slice.angles[0] && angle < slice.angles[1]);
+      return slice ? { kind: 'slice', sliceKey: slice.key } : null;
+    },
+    tooltip(target) {
+      const datum = target.kind === 'slice' ? lookup.datum(target) : null;
+      return { title: datum?.seriesLabel ?? '', rows: datum ? [datum] : [], count: datum ? 1 : 0, total: null };
+    },
+    primary(target) { return target.kind === 'slice' && keys.has(target.sliceKey) ? target : null; },
+    datum(datum) {
+      const i = index(datum);
+      if (i < 0) return null;
+      const { label, value, percent, state, row } = sliceText(view, slices[i]!, formatters, locale);
+      return { ref: datum, seriesIndex: i, seriesLabel: label, x: label, value, percent, state, row };
+    },
+    anchor(datum) {
+      const angles = slices[index(datum)]?.angles;
+      return ring && ring.r1 > ring.r0 && angles && angles[1] > angles[0]
+        ? sectorBox(ring.cx, ring.cy, ring.r0, ring.r1, ...angles) : null;
+    },
+    count: slices.length,
+    ordinal: index,
+    step(from, direction) {
+      if (!from) return ref(0);
+      const i = index(from);
+      if (i < 0) return null;
+      switch (direction) {
+        case 'next': return ref(i + 1);
+        case 'previous': return ref(i - 1);
+        case 'first': return ref(0);
+        case 'last': return ref(slices.length - 1);
+        case 'page-next': return ref(Math.min(slices.length - 1, i + pageDistance(slices.length)));
+        case 'page-previous': return ref(Math.max(0, i - pageDistance(slices.length)));
+        case 'series-next':
+        case 'series-previous': return null;
+      }
+    },
+    resolve(datum) { return index(datum) < 0 ? null : datum; },
+  };
+  return lookup;
+}
