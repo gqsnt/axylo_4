@@ -4,10 +4,23 @@
  * created through the public API with the hand-written fixtures in `fixtures.ts`; the accessibility tree is
  * read from Chrome itself through the DevTools protocol (roles, names, descriptions, states), never from the
  * attributes the code sets, except where a comment says Chrome cannot report the property.
+ *
+ * THIS SUITE IS EVIDENCE FOR THE SVG RENDERER ONLY. It locates marks by reading the SVG DOM (paths, rects,
+ * their colour slots) before sampling their pixels, so it says nothing about the canvas renderer, and it
+ * refuses to run when `AXYLO_RENDERER=canvas` is set rather than report SVG results under a canvas run.
+ *
+ * Every checker the suite leans on (separators, painted colour, text overlap, table comparison, the focused
+ * range, tooltip occlusion, motion, reference marks, dense columns) has a negative control in
+ * `negative-controls.browser.test.ts` that breaks the behaviour from the test side and requires the
+ * checker to report it.
  */
 import type { Page } from 'playwright-core';
 import { openPage, url } from '../harness';
 import { chartPage, RENDERER } from '../chart/util';
+
+if (RENDERER === 'canvas') {
+  throw new Error('The browser acceptance suite reads the SVG DOM and is evidence for the SVG renderer only; it does not run with AXYLO_RENDERER=canvas.');
+}
 import { decodePng, type Image } from '../render/png';
 import { type ChartType, optionsFor, type Variant } from './fixtures';
 
@@ -42,6 +55,7 @@ export async function prodPage(options: { css?: string; viewport?: { width: numb
   const page = await openPage(options.viewport ? { viewport: options.viewport } : {});
   await page.goto(url('packages/axylo/test/browser/acceptance/prod.html'));
   if (RENDERER) await page.evaluate(selectRenderer, RENDERER);
+  await page.evaluate(() => { (window as unknown as { nextFrames(n?: number): Promise<void> }).nextFrames = (n = 1) => new Promise(r => { let k = n; const f = () => (--k <= 0 ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); }); });
   await page.addStyleTag({ content: `${SHOW_BUTTONS} ${options.css ?? ''}` });
   return page;
 }
@@ -179,12 +193,44 @@ export async function axText(page: Page, selector = '#chart'): Promise<string> {
   return nodes.filter(n => n.role === 'StaticText').map(n => n.name).join(' • ');
 }
 
+/** The plot's range as the reader meets it: focus, Chrome's computed role and numbers, and its value text. */
+export interface FocusedRange {
+  /** The range is the document's active element. */
+  focused: boolean;
+  /** Chrome's computed role for it ('slider'), and whether Chrome exposes it at all. */
+  role: string;
+  ignored: boolean;
+  /** Chrome's computed numeric value and bounds. */
+  value: number;
+  max: number;
+  /**
+   * DOM ATTRIBUTE, not the computed tree: `aria-valuetext`. Chrome's DevTools tree reports the range's
+   * number as its value text (decision 0001), so the text is read from the attribute the platform tree is
+   * built from. What a screen reader speaks from it is established only by rehearsal (spec A3).
+   */
+  text: string;
+}
+
+export async function readRange(page: Page, selector = '#chart'): Promise<FocusedRange> {
+  const proxy = `${selector} .axylo-proxy`;
+  const focused = await page.evaluate(sel => document.activeElement === document.querySelector(sel), proxy);
+  const ax = await axOf(page, proxy);
+  return {
+    focused, role: ax.role, ignored: ax.ignored, value: Number(ax.value), max: Number(ax.props.valuemax),
+    text: (await page.locator(proxy).getAttribute('aria-valuetext')) ?? '',
+  };
+}
+
 /**
- * The plot proxy's value text. Chrome's DevTools tree reports the range's number, not `aria-valuetext`
- * (decision 0001), so this reads the attribute the platform tree is built from.
+ * The value text of the plot's range, after checking that the range has focus and that Chrome exposes it
+ * as a slider: a stale proxy that lost focus cannot stand in for what the reader is on. `{ focused: false }`
+ * reads it without focus (after a legend click, say), and says so at the call.
  */
-export async function valueText(page: Page, selector = '#chart'): Promise<string> {
-  return (await page.locator(`${selector} .axylo-proxy`).getAttribute('aria-valuetext')) ?? '';
+export async function valueText(page: Page, selector = '#chart', options: { focused?: boolean } = {}): Promise<string> {
+  const r = await readRange(page, selector);
+  if (options.focused !== false && !r.focused) throw new Error(`the plot's range does not have focus (text: "${r.text}")`);
+  if (r.ignored || r.role !== 'slider') throw new Error(`the plot's range is exposed as "${r.role}"${r.ignored ? ' (ignored)' : ''}, not a slider`);
+  return r.text;
 }
 
 // ── focus and tab order ────────────────────────────────────────────────────────────────────────────
@@ -243,10 +289,14 @@ export const inside = (inner: Box, outer: Box, slack = 1): boolean =>
 
 // ── pixels and colour ──────────────────────────────────────────────────────────────────────────────
 
-export async function screenshot(page: Page, selector: string): Promise<{ img: Image; box: Box }> {
-  const b = await box(page, selector);
-  const img = decodePng(await page.screenshot({ clip: b, animations: 'disabled', caret: 'hide' }));
-  return { img, box: b };
+/**
+ * A screenshot of `selector`'s box as painted. Animations are left running (Playwright's default), so a
+ * transition the library starts is captured as it is, never fast-forwarded to its end.
+ */
+export async function screenshot(page: Page, selector: string, clip?: Box): Promise<{ img: Image; box: Box; scale: number }> {
+  const b = clip ?? await box(page, selector);
+  const img = decodePng(await page.screenshot({ clip: b, animations: 'allow', caret: 'hide' }));
+  return { img, box: b, scale: img.width / b.width };
 }
 
 export type RGB = readonly [number, number, number];
@@ -408,7 +458,9 @@ export async function shapes(page: Page, selector = '#chart', maxSize = 20): Pro
         const r = el as SVGRectElement;
         const a = toPage(r.x.baseVal.value, r.y.baseVal.value);
         const b = toPage(r.x.baseVal.value + r.width.baseVal.value, r.y.baseVal.value + r.height.baseVal.value);
-        list.push({ box: { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y }, commands: 'rect', sub: 'rect' });
+        const rb = { x: a.x, y: a.y, width: b.x - a.x, height: b.y - a.y };
+        // A patterned bar is drawn twice (colour, then pattern on top): one mark.
+        if (!list.some(o => o.sub === 'rect' && Math.abs(o.box.x - rb.x) < 0.01 && Math.abs(o.box.y - rb.y) < 0.01 && Math.abs(o.box.width - rb.width) < 0.01 && Math.abs(o.box.height - rb.height) < 0.01)) list.push({ box: rb, commands: 'rect', sub: 'rect' });
         continue;
       }
       const d = el.getAttribute('d') ?? '';
@@ -449,11 +501,103 @@ export async function ring(page: Page, selector = '#chart'): Promise<{ cx: numbe
     const m = svg.getScreenCTM()!;
     let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
     for (const el of svg.querySelectorAll<SVGPathElement>('.axylo-scene path')) {
-      if (!/--axylo-series-color-/.test(el.style.getPropertyValue('color'))) continue;
+      // Slices only: arcs with an area (an empty path's box sits at the origin and would move the centre).
+      if (!/A/.test(el.getAttribute('d') ?? '')) continue;
       const b = el.getBBox();
+      if (b.width < 1 || b.height < 1) continue;
       const a = new DOMPoint(b.x, b.y).matrixTransform(m), c = new DOMPoint(b.x + b.width, b.y + b.height).matrixTransform(m);
       x0 = Math.min(x0, a.x); y0 = Math.min(y0, a.y); x1 = Math.max(x1, c.x); y1 = Math.max(y1, c.y);
     }
     return { cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, outer: (x1 - x0) / 2 };
   }, selector);
+}
+
+
+// ── painted colour ─────────────────────────────────────────────────────────────────────────────────
+
+/** The most frequent colour of the image pixels in a region (image px): the backdrop of a mostly empty area. */
+export function modeColor(img: Image, region: { x0: number; y0: number; x1: number; y1: number }): { color: RGB; share: number; pixels: number } {
+  const counts = new Map<number, number>();
+  let n = 0;
+  for (let y = Math.max(0, Math.floor(region.y0)); y < Math.min(img.height, Math.ceil(region.y1)); y++) {
+    for (let x = Math.max(0, Math.floor(region.x0)); x < Math.min(img.width, Math.ceil(region.x1)); x++) {
+      const [r, g, b] = pixel(img, x, y);
+      const key = (r << 16) | (g << 8) | b;
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+      n++;
+    }
+  }
+  let best = 0, count = 0;
+  for (const [k, c] of counts) if (c > count) { best = k; count = c; }
+  return { color: [(best >> 16) & 255, (best >> 8) & 255, best & 255], share: n ? count / n : 0, pixels: n };
+}
+
+/**
+ * The colour painted inside a mark: the most frequent colour of its interior (viewport box, inset by `inset`
+ * CSS px so anti-aliased edges are left out). `share` says how uniform the interior is.
+ */
+export function interiorColor(img: Image, view: Box, mark: Box, inset = 1): { color: RGB; share: number; pixels: number } {
+  const s = img.width / view.width;
+  return modeColor(img, { x0: (mark.x - view.x + inset) * s, y0: (mark.y - view.y + inset) * s, x1: (mark.x + mark.width - view.x - inset) * s, y1: (mark.y + mark.height - view.y - inset) * s });
+}
+
+// ── table comparison ─────────────────────────────────────────────────────────────────────────────────
+
+export interface TableRead { name: string; headers: string[]; rows: { header: string; cells: string[] }[] }
+
+/**
+ * Differences between a table as read and the expected one: the column headers in order (each header must
+ * contain its fragments in order, so a label and its unit stay together), then every row as its row header
+ * followed by its cells, exactly and in order. Swapping two cells, or two headers, is a difference.
+ */
+export function compareTable(actual: TableRead, expected: { headers: string[][]; rows: string[][] }): string[] {
+  const out: string[] = [];
+  if (actual.headers.length !== expected.headers.length) out.push(`headers: ${JSON.stringify(actual.headers)} has ${actual.headers.length}, expected ${expected.headers.length}`);
+  expected.headers.forEach((frag, i) => {
+    const h = actual.headers[i] ?? '';
+    let at = 0;
+    for (const f of frag) { const k = h.indexOf(f, at); if (k < 0) { out.push(`header ${i + 1} "${h}" lacks ${JSON.stringify(frag)}`); break; } at = k + f.length; }
+  });
+  if (actual.rows.length !== expected.rows.length) out.push(`rows: ${actual.rows.length}, expected ${expected.rows.length}`);
+  expected.rows.forEach((row, i) => {
+    const a = actual.rows[i];
+    const got = a ? [a.header, ...a.cells] : [];
+    if (JSON.stringify(got) !== JSON.stringify(row)) out.push(`row ${i + 1}: ${JSON.stringify(got)} expected ${JSON.stringify(row)}`);
+  });
+  return out;
+}
+
+/** The table inside `selector` as Chrome exposes it: its name (the caption), column headers, and rows. */
+export async function readTable(page: Page, selector = '#chart'): Promise<TableRead> {
+  const all = await axWithin(page, `${selector} table`).catch(() => [] as AX[]);
+  const table = all.find(n => n.role === 'table');
+  if (!table) return { name: '', headers: [], rows: [] };
+  const byId = new Map(all.map(n => [n.id, n]));
+  const kids = (n: AX): AX[] => n.children.map(c => byId.get(c)).filter((c): c is AX => !!c).flatMap(c => c.role === 'rowgroup' || c.role === 'generic' ? kids(c) : [c]);
+  const headers: string[] = [];
+  const rows: { header: string; cells: string[] }[] = [];
+  for (const row of all.filter(n => n.role === 'row')) {
+    const cells = kids(row);
+    const head = cells.filter(c => c.role === 'columnheader');
+    if (head.length) { headers.push(...head.map(c => c.name)); continue; }
+    rows.push({ header: cells.find(c => c.role === 'rowheader')?.name ?? '', cells: cells.filter(c => c.role === 'cell' || c.role === 'gridcell').map(c => c.name) });
+  }
+  return { name: table.name, headers, rows };
+}
+
+// ── tooltip occlusion ────────────────────────────────────────────────────────────────────────────────
+
+/** The marks a shown tooltip (or readout) box covers, by more than `slack` px; the list is empty when none. */
+export function covered(tip: Box, marks: readonly Box[], slack = 0.5): Box[] {
+  return marks.filter(m => intersects(tip, m, slack));
+}
+
+/** Waits for `n` animation frames in the page. */
+export async function frames(page: Page, n = 1): Promise<void> {
+  await page.evaluate(n => new Promise<void>(r => { let k = n; const f = () => (--k <= 0 ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); }), n);
+}
+
+/** The colour at an image pixel, as the 3×3 neighbourhood's most frequent colour (robust to one anti-aliased pixel). */
+export function inkColorAt(img: Image, x: number, y: number): RGB {
+  return modeColor(img, { x0: x - 1, y0: y - 1, x1: x + 2, y1: y + 2 }).color;
 }

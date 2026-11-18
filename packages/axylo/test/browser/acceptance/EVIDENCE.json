@@ -489,31 +489,31 @@
     "criterion": "A2",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/a2-keyboard.browser.test.ts",
-    "title": "A2 line: the keyboard focus indicator is at least 2 px and 3:1 against the chart background, and the tooltip never covers the focused datum"
+    "title": "A2 line: at every datum the keyboard reaches, the focus indicators (the plot's outline and the ring around the datum) are painted at least 2 px wide and 3:1 against their painted backdrop, and the tooltip covers neither them nor the focused datum (reading: no part of either indicator is covered)"
   },
   {
     "criterion": "A2",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/a2-keyboard.browser.test.ts",
-    "title": "A2 area: the keyboard focus indicator is at least 2 px and 3:1 against the chart background, and the tooltip never covers the focused datum"
+    "title": "A2 area: at every datum the keyboard reaches, the focus indicators (the plot's outline and the ring around the datum) are painted at least 2 px wide and 3:1 against their painted backdrop, and the tooltip covers neither them nor the focused datum (reading: no part of either indicator is covered)"
   },
   {
     "criterion": "A2",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/a2-keyboard.browser.test.ts",
-    "title": "A2 bar: the keyboard focus indicator is at least 2 px and 3:1 against the chart background, and the tooltip never covers the focused datum"
+    "title": "A2 bar: at every datum the keyboard reaches, the focus indicators (the plot's outline and the ring around the datum) are painted at least 2 px wide and 3:1 against their painted backdrop, and the tooltip covers neither them nor the focused datum (reading: no part of either indicator is covered)"
   },
   {
     "criterion": "A2",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/a2-keyboard.browser.test.ts",
-    "title": "A2 scatter: the keyboard focus indicator is at least 2 px and 3:1 against the chart background, and the tooltip never covers the focused datum"
+    "title": "A2 scatter: at every datum the keyboard reaches, the focus indicators (the plot's outline and the ring around the datum) are painted at least 2 px wide and 3:1 against their painted backdrop, and the tooltip covers neither them nor the focused datum (reading: no part of either indicator is covered)"
   },
   {
     "criterion": "A2",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/a2-keyboard.browser.test.ts",
-    "title": "A2 donut: the keyboard focus indicator is at least 2 px and 3:1 against the chart background, and the tooltip never covers the focused datum"
+    "title": "A2 donut: at every datum the keyboard reaches, the focus indicators (the plot's outline and the ring around the datum) are painted at least 2 px wide and 3:1 against their painted backdrop, and the tooltip covers neither them nor the focused datum (reading: no part of either indicator is covered)"
   },
   {
     "criterion": "A4",
@@ -579,13 +579,43 @@
     "criterion": "A4",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/a4-table.browser.test.ts",
+    "title": "A4 line: on a page of 24 charts, opening one chart's table moves none of the other 23"
+  },
+  {
+    "criterion": "A4",
+    "type": "area",
+    "file": "packages/axylo/test/browser/acceptance/a4-table.browser.test.ts",
+    "title": "A4 area: on a page of 24 charts, opening one chart's table moves none of the other 23"
+  },
+  {
+    "criterion": "A4",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/a4-table.browser.test.ts",
+    "title": "A4 bar: on a page of 24 charts, opening one chart's table moves none of the other 23"
+  },
+  {
+    "criterion": "A4",
+    "type": "scatter",
+    "file": "packages/axylo/test/browser/acceptance/a4-table.browser.test.ts",
+    "title": "A4 scatter: on a page of 24 charts, opening one chart's table moves none of the other 23"
+  },
+  {
+    "criterion": "A4",
+    "type": "donut",
+    "file": "packages/axylo/test/browser/acceptance/a4-table.browser.test.ts",
+    "title": "A4 donut: on a page of 24 charts, opening one chart's table moves none of the other 23"
+  },
+  {
+    "criterion": "A4",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/a4-table.browser.test.ts",
     "title": "A4 line: 250 rows are shown 100 per page; Next and Previous page reach every row; jumping to an x value shows the page that holds it"
   },
   {
     "criterion": "A4",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/a4-table.browser.test.ts",
-    "title": "A4 line: a \"Jump to\" value that matches no row is identified and described in visible text (reading: WCAG 3.3.1 applies to the jump field)"
+    "title": "A4 line: a \"Jump to\" value that matches no row is identified, described in visible text and associated with the field (reading: WCAG 3.3.1 applies to the jump field)"
   },
   {
     "criterion": "A4",
@@ -597,7 +627,7 @@
     "criterion": "A4",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/a4-table.browser.test.ts",
-    "title": "A4 area: a \"Jump to\" value that matches no row is identified and described in visible text (reading: WCAG 3.3.1 applies to the jump field)"
+    "title": "A4 area: a \"Jump to\" value that matches no row is identified, described in visible text and associated with the field (reading: WCAG 3.3.1 applies to the jump field)"
   },
   {
     "criterion": "A4",
@@ -609,7 +639,7 @@
     "criterion": "A4",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/a4-table.browser.test.ts",
-    "title": "A4 bar: a \"Jump to\" value that matches no row is identified and described in visible text (reading: WCAG 3.3.1 applies to the jump field)"
+    "title": "A4 bar: a \"Jump to\" value that matches no row is identified, described in visible text and associated with the field (reading: WCAG 3.3.1 applies to the jump field)"
   },
   {
     "criterion": "A4",
@@ -621,7 +651,7 @@
     "criterion": "A4",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/a4-table.browser.test.ts",
-    "title": "A4 scatter: a \"Jump to\" value that matches no row is identified and described in visible text (reading: WCAG 3.3.1 applies to the jump field)"
+    "title": "A4 scatter: a \"Jump to\" value that matches no row is identified, described in visible text and associated with the field (reading: WCAG 3.3.1 applies to the jump field)"
   },
   {
     "criterion": "A4",
@@ -633,25 +663,37 @@
     "criterion": "A4",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/a4-table.browser.test.ts",
-    "title": "A4 donut: a \"Jump to\" value that matches no row is identified and described in visible text (reading: WCAG 3.3.1 applies to the jump field)"
+    "title": "A4 donut: a \"Jump to\" value that matches no row is identified, described in visible text and associated with the field (reading: WCAG 3.3.1 applies to the jump field)"
   },
   {
     "criterion": "A4",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/a4-table.browser.test.ts",
-    "title": "A4 line: zoomed in, the table covers the current x range only"
+    "title": "A4 line: zoomed in, the table covers the current x range only, row by row"
   },
   {
     "criterion": "A4",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/a4-table.browser.test.ts",
-    "title": "A4 area: zoomed in, the table covers the current x range only"
+    "title": "A4 area: zoomed in, the table covers the current x range only, row by row"
   },
   {
     "criterion": "A4",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/a4-table.browser.test.ts",
-    "title": "A4 scatter: zoomed in, the table covers the current x range only"
+    "title": "A4 scatter: zoomed in, the table covers the current x range only, row by row"
+  },
+  {
+    "criterion": "A4",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/a4-table.browser.test.ts",
+    "title": "A4 bar: on a date x axis, zoomed in, the table covers the current x range only, row by row"
+  },
+  {
+    "criterion": "A4",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/a4-table.browser.test.ts",
+    "title": "A4 bar: on a number x axis, zoomed in, the table covers the current x range only, row by row"
   },
   {
     "criterion": "A4",
@@ -723,145 +765,151 @@
     "criterion": "A5",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 bar: stacked segments are separated by at least 1 px of background, in every stack (reading: anti-aliased background coverage summed, at least 0.75 px)"
+    "title": "A5 bar: stacked segments are separated by at least 1 px of background in every stack: geometry, and painted pixels against a 1 px control"
   },
   {
     "criterion": "A5",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 bar: grouped bars of different series are separated by at least 1 px of background (reading: two touching bars are adjacent filled marks)"
+    "title": "A5 bar: grouped bars of different series are separated by at least 1 px of background: geometry, and painted pixels against a 1 px control"
+  },
+  {
+    "criterion": "A5",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
+    "title": "A5 bar: grouped bars of different series are separated by at least 1 px of background (horizontal bars): geometry, and painted pixels against a 1 px control"
   },
   {
     "criterion": "A5",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 area: stacked areas are separated by at least 1 px of background along a vertical through the stack (reading: stacked areas are stacked segments)"
+    "title": "A5 area: stacked areas are separated by at least 1 px of background, measured across the boundary (reading: stacked areas are stacked segments)"
   },
   {
     "criterion": "A5",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 donut: adjacent slices are separated by at least 1 px of background at every boundary of the ring (reading: anti-aliased background coverage summed, at least 0.75 px)"
+    "title": "A5 donut: each of the four seams of the ring, the closing one at 12 o'clock included, is at least 1 px of background against a 1 px control at the same angle"
   },
   {
     "criterion": "A5",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 line: the eight rendered colours (light scheme) are each at least 3:1 on the background and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia"
+    "title": "A5 line: the eight painted colours (light scheme) are each at least 3:1 on their painted backdrop and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia, analytic and as an 8-bit image"
   },
   {
     "criterion": "A5",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 line: the eight rendered colours (dark scheme) are each at least 3:1 on the background and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia"
+    "title": "A5 line: the eight painted colours (dark scheme) are each at least 3:1 on their painted backdrop and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia, analytic and as an 8-bit image"
   },
   {
     "criterion": "A5",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 line: on a background the palette does not suit (the first series colour itself), AX141 is raised"
+    "title": "A5 line: on a background the palette does not suit (the first series' painted colour itself), AX141 is raised"
   },
   {
     "criterion": "A5",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 area: the eight rendered colours (light scheme) are each at least 3:1 on the background and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia"
+    "title": "A5 area: the eight painted colours (light scheme) are each at least 3:1 on their painted backdrop and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia, analytic and as an 8-bit image"
   },
   {
     "criterion": "A5",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 area: the eight rendered colours (dark scheme) are each at least 3:1 on the background and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia"
+    "title": "A5 area: the eight painted colours (dark scheme) are each at least 3:1 on their painted backdrop and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia, analytic and as an 8-bit image"
   },
   {
     "criterion": "A5",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 area: on a background the palette does not suit (the first series colour itself), AX141 is raised"
+    "title": "A5 area: on a background the palette does not suit (the first series' painted colour itself), AX141 is raised"
   },
   {
     "criterion": "A5",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 bar: the eight rendered colours (light scheme) are each at least 3:1 on the background and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia"
+    "title": "A5 bar: the eight painted colours (light scheme) are each at least 3:1 on their painted backdrop and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia, analytic and as an 8-bit image"
   },
   {
     "criterion": "A5",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 bar: the eight rendered colours (dark scheme) are each at least 3:1 on the background and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia"
+    "title": "A5 bar: the eight painted colours (dark scheme) are each at least 3:1 on their painted backdrop and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia, analytic and as an 8-bit image"
   },
   {
     "criterion": "A5",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 bar: on a background the palette does not suit (the first series colour itself), AX141 is raised"
+    "title": "A5 bar: on a background the palette does not suit (the first series' painted colour itself), AX141 is raised"
   },
   {
     "criterion": "A5",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 scatter: the eight rendered colours (light scheme) are each at least 3:1 on the background and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia"
+    "title": "A5 scatter: the eight painted colours (light scheme) are each at least 3:1 on their painted backdrop and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia, analytic and as an 8-bit image"
   },
   {
     "criterion": "A5",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 scatter: the eight rendered colours (dark scheme) are each at least 3:1 on the background and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia"
+    "title": "A5 scatter: the eight painted colours (dark scheme) are each at least 3:1 on their painted backdrop and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia, analytic and as an 8-bit image"
   },
   {
     "criterion": "A5",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 scatter: on a background the palette does not suit (the first series colour itself), AX141 is raised"
+    "title": "A5 scatter: on a background the palette does not suit (the first series' painted colour itself), AX141 is raised"
   },
   {
     "criterion": "A5",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 donut: the eight rendered colours (light scheme) are each at least 3:1 on the background and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia"
+    "title": "A5 donut: the eight painted colours (light scheme) are each at least 3:1 on their painted backdrop and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia, analytic and as an 8-bit image"
   },
   {
     "criterion": "A5",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 donut: the eight rendered colours (dark scheme) are each at least 3:1 on the background and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia"
+    "title": "A5 donut: the eight painted colours (dark scheme) are each at least 3:1 on their painted backdrop and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia, analytic and as an 8-bit image"
   },
   {
     "criterion": "A5",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 donut: on a background the palette does not suit (the first series colour itself), AX141 is raised"
+    "title": "A5 donut: on a background the palette does not suit (the first series' painted colour itself), AX141 is raised"
   },
   {
     "criterion": "A5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 compact: the eight rendered colours (light scheme) are each at least 3:1 on the background and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia"
+    "title": "A5 compact: the eight painted colours (light scheme) are each at least 3:1 on their painted backdrop and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia, analytic and as an 8-bit image"
   },
   {
     "criterion": "A5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 compact: the eight rendered colours (dark scheme) are each at least 3:1 on the background and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia"
+    "title": "A5 compact: the eight painted colours (dark scheme) are each at least 3:1 on their painted backdrop and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia, analytic and as an 8-bit image"
   },
   {
     "criterion": "A5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 compact: on a background the palette does not suit (the first series colour itself), AX141 is raised"
+    "title": "A5 compact: on a background the palette does not suit (the first series' painted colour itself), AX141 is raised"
   },
   {
     "criterion": "A5",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 line: in a grayscale screenshot three crossing lines are told apart by the marker at their last point (reading: the binarised markers, compared at their centres, overlap by at most 85 % of their union)"
+    "title": "A5 line: in grayscale, each of three crossing traces' last-point marker has the shape class of its legend marker and differs from the other two by shape class (whether a reader can follow the crossing lines remains a human judgement)"
   },
   {
     "criterion": "A6",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A6 line: at 320 CSS px wide (400 % of 1280) the page does not scroll horizontally and no chart text is clipped (Chrome)"
+    "title": "A6 line: at 400 % zoom of a 1280 × 1024 window (320 × 256 CSS px at device pixel ratio 4) the page does not scroll horizontally and no chart text is clipped, ellipsised or overlapping (Chrome)"
   },
   {
     "criterion": "A6",
@@ -873,7 +921,7 @@
     "criterion": "A6",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A6 area: at 320 CSS px wide (400 % of 1280) the page does not scroll horizontally and no chart text is clipped (Chrome)"
+    "title": "A6 area: at 400 % zoom of a 1280 × 1024 window (320 × 256 CSS px at device pixel ratio 4) the page does not scroll horizontally and no chart text is clipped, ellipsised or overlapping (Chrome)"
   },
   {
     "criterion": "A6",
@@ -885,7 +933,7 @@
     "criterion": "A6",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A6 bar: at 320 CSS px wide (400 % of 1280) the page does not scroll horizontally and no chart text is clipped (Chrome)"
+    "title": "A6 bar: at 400 % zoom of a 1280 × 1024 window (320 × 256 CSS px at device pixel ratio 4) the page does not scroll horizontally and no chart text is clipped, ellipsised or overlapping (Chrome)"
   },
   {
     "criterion": "A6",
@@ -897,7 +945,7 @@
     "criterion": "A6",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A6 scatter: at 320 CSS px wide (400 % of 1280) the page does not scroll horizontally and no chart text is clipped (Chrome)"
+    "title": "A6 scatter: at 400 % zoom of a 1280 × 1024 window (320 × 256 CSS px at device pixel ratio 4) the page does not scroll horizontally and no chart text is clipped, ellipsised or overlapping (Chrome)"
   },
   {
     "criterion": "A6",
@@ -909,7 +957,7 @@
     "criterion": "A6",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A6 donut: at 320 CSS px wide (400 % of 1280) the page does not scroll horizontally and no chart text is clipped (Chrome)"
+    "title": "A6 donut: at 400 % zoom of a 1280 × 1024 window (320 × 256 CSS px at device pixel ratio 4) the page does not scroll horizontally and no chart text is clipped, ellipsised or overlapping (Chrome)"
   },
   {
     "criterion": "A6",
@@ -927,13 +975,7 @@
     "criterion": "A7",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A7 line: with the plot focused, appends change no live region and focus stays on its datum while it is in the window"
-  },
-  {
-    "criterion": "A7",
-    "type": "line",
-    "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A7 line: with the plot focused, appended rows do not change what the focused plot says (reading: a focused range whose value text changes is spoken, so its position must not count arriving rows)"
+    "title": "A7 line: with the plot focused, a sliding window keeps focus on its datum: the value text is not rewritten while the datum stays (decision 0004), the numeric position follows it, eviction moves focus to the next datum once, and the next key reads the current count"
   },
   {
     "criterion": "A7",
@@ -945,13 +987,7 @@
     "criterion": "A7",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A7 area: with the plot focused, appends change no live region and focus stays on its datum while it is in the window"
-  },
-  {
-    "criterion": "A7",
-    "type": "area",
-    "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A7 area: with the plot focused, appended rows do not change what the focused plot says (reading: a focused range whose value text changes is spoken, so its position must not count arriving rows)"
+    "title": "A7 area: with the plot focused, a sliding window keeps focus on its datum: the value text is not rewritten while the datum stays (decision 0004), the numeric position follows it, eviction moves focus to the next datum once, and the next key reads the current count"
   },
   {
     "criterion": "A7",
@@ -963,13 +999,7 @@
     "criterion": "A7",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A7 bar: with the plot focused, appends change no live region and focus stays on its datum while it is in the window"
-  },
-  {
-    "criterion": "A7",
-    "type": "bar",
-    "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A7 bar: with the plot focused, appended rows do not change what the focused plot says (reading: a focused range whose value text changes is spoken, so its position must not count arriving rows)"
+    "title": "A7 bar: with the plot focused, a sliding window keeps focus on its datum: the value text is not rewritten while the datum stays (decision 0004), the numeric position follows it, eviction moves focus to the next datum once, and the next key reads the current count"
   },
   {
     "criterion": "A7",
@@ -981,13 +1011,7 @@
     "criterion": "A7",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A7 scatter: with the plot focused, appends change no live region and focus stays on its datum while it is in the window"
-  },
-  {
-    "criterion": "A7",
-    "type": "scatter",
-    "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A7 scatter: with the plot focused, appended rows do not change what the focused plot says (reading: a focused range whose value text changes is spoken, so its position must not count arriving rows)"
+    "title": "A7 scatter: with the plot focused, a sliding window keeps focus on its datum: the value text is not rewritten while the datum stays (decision 0004), the numeric position follows it, eviction moves focus to the next datum once, and the next key reads the current count"
   },
   {
     "criterion": "A7",
@@ -999,121 +1023,163 @@
     "criterion": "A7",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A7 donut: with the plot focused, appends change no live region and focus stays on its datum while it is in the window"
+    "title": "A7 donut: with the plot focused, a sliding window keeps focus on its datum: the value text is not rewritten while the datum stays (decision 0004), the numeric position follows it, eviction moves focus to the next datum once, and the next key reads the current count"
   },
   {
     "criterion": "A8",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A8 line: axe-core reports no violations in any state (default, keyboard focus with tooltip, pointer tooltip, table open, streaming, zoomed, a series hidden, loading, empty, error, and with values left out)"
+    "title": "A8 line: axe-core reports no violations on the whole landmarked page in every state (line: default, keyboard focus with tooltip, pointer tooltip, table open, streaming, paused, zoomed, a series hidden, loading, empty, error, and with values left out), each state checked to hold before the scan"
   },
   {
     "criterion": "A8",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A8 area: axe-core reports no violations in any state (default, keyboard focus with tooltip, pointer tooltip, table open, streaming, zoomed, a series hidden, loading, empty, error, and with values left out)"
+    "title": "A8 area: axe-core reports no violations on the whole landmarked page in every state (area: default, keyboard focus with tooltip, pointer tooltip, table open, streaming, paused, zoomed, a series hidden, loading, empty, error, and with values left out), each state checked to hold before the scan"
   },
   {
     "criterion": "A8",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A8 bar: axe-core reports no violations in any state (default, keyboard focus with tooltip, pointer tooltip, table open, streaming, a series hidden, loading, empty, error, and with values left out)"
+    "title": "A8 bar: axe-core reports no violations on the whole landmarked page in every state (bar: default, keyboard focus with tooltip, pointer tooltip, table open, streaming, paused, a series hidden, loading, empty, error, and with values left out), each state checked to hold before the scan"
   },
   {
     "criterion": "A8",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A8 scatter: axe-core reports no violations in any state (default, keyboard focus with tooltip, pointer tooltip, table open, streaming, zoomed, loading, empty, error, and with values left out)"
+    "title": "A8 scatter: axe-core reports no violations on the whole landmarked page in every state (scatter: default, keyboard focus with tooltip, pointer tooltip, table open, streaming, paused, zoomed, a series hidden, loading, empty, error, and with values left out), each state checked to hold before the scan"
   },
   {
     "criterion": "A8",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A8 donut: axe-core reports no violations in any state (default, keyboard focus with tooltip, pointer tooltip, table open, streaming, loading, empty, error, and with values left out)"
+    "title": "A8 donut: axe-core reports no violations on the whole landmarked page in every state (donut: default, keyboard focus with tooltip, pointer tooltip, table open, streaming, paused, loading, empty, error, and with values left out), each state checked to hold before the scan"
   },
   {
     "criterion": "A8",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A8 compact: axe-core reports no violations in any state (default, loading, empty, error, and with values left out)"
+    "title": "A8 compact: axe-core reports no violations on the whole landmarked page in every state (compact: default, loading, empty, error, and with values left out), each state checked to hold before the scan"
+  },
+  {
+    "criterion": "A8",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
+    "title": "A8 compact: axe-core reports no violations on the whole landmarked page in every state (compact area: default, loading, empty, error, and with values left out), each state checked to hold before the scan"
+  },
+  {
+    "criterion": "A8",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
+    "title": "A8 compact: axe-core reports no violations on the whole landmarked page in every state (compact bar: default, loading, empty, error, and with values left out), each state checked to hold before the scan"
+  },
+  {
+    "criterion": "A8",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
+    "title": "A8 line: with a 250-row table open, its scroll region scrolls and axe-core decides scrollable-region-focusable with no violation"
+  },
+  {
+    "criterion": "A8",
+    "type": "area",
+    "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
+    "title": "A8 area: with a 250-row table open, its scroll region scrolls and axe-core decides scrollable-region-focusable with no violation"
+  },
+  {
+    "criterion": "A8",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
+    "title": "A8 bar: with a 250-row table open, its scroll region scrolls and axe-core decides scrollable-region-focusable with no violation"
+  },
+  {
+    "criterion": "A8",
+    "type": "scatter",
+    "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
+    "title": "A8 scatter: with a 250-row table open, its scroll region scrolls and axe-core decides scrollable-region-focusable with no violation"
+  },
+  {
+    "criterion": "A8",
+    "type": "donut",
+    "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
+    "title": "A8 donut: with a 250-row table open, its scroll region scrolls and axe-core decides scrollable-region-focusable with no violation"
   },
   {
     "criterion": "A10",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A10 line: every built-in string is replaced through messages: none of the built-in English is left in the figure, the accessibility tree or the value text"
+    "title": "A10 line: every built-in string that a line chart shows is replaced through messages: each applicable key's own sentinel reaches a reader surface, and no built-in English is left"
   },
   {
     "criterion": "A10",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A10 line: on a lang=\"de\" page the built-in English text is marked lang=\"en\", and the author's own text is not (reading: the generated summary's sentences are built-in English)"
+    "title": "A10 line: on a lang=\"de\" page the built-in English is marked lang=\"en\" where the reader meets it: the description the figure references, the visible summary, the note, the controls, the plot's name and role; the author's title is not"
   },
   {
     "criterion": "A10",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A10 area: every built-in string is replaced through messages: none of the built-in English is left in the figure, the accessibility tree or the value text"
+    "title": "A10 area: every built-in string that a area chart shows is replaced through messages: each applicable key's own sentinel reaches a reader surface, and no built-in English is left"
   },
   {
     "criterion": "A10",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A10 area: on a lang=\"de\" page the built-in English text is marked lang=\"en\", and the author's own text is not (reading: the generated summary's sentences are built-in English)"
+    "title": "A10 area: on a lang=\"de\" page the built-in English is marked lang=\"en\" where the reader meets it: the description the figure references, the visible summary, the note, the controls, the plot's name and role; the author's title is not"
   },
   {
     "criterion": "A10",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A10 bar: every built-in string is replaced through messages: none of the built-in English is left in the figure, the accessibility tree or the value text"
+    "title": "A10 bar: every built-in string that a bar chart shows is replaced through messages: each applicable key's own sentinel reaches a reader surface, and no built-in English is left"
   },
   {
     "criterion": "A10",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A10 bar: on a lang=\"de\" page the built-in English text is marked lang=\"en\", and the author's own text is not (reading: the generated summary's sentences are built-in English)"
+    "title": "A10 bar: on a lang=\"de\" page the built-in English is marked lang=\"en\" where the reader meets it: the description the figure references, the visible summary, the note, the controls, the plot's name and role; the author's title is not"
   },
   {
     "criterion": "A10",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A10 scatter: every built-in string is replaced through messages: none of the built-in English is left in the figure, the accessibility tree or the value text"
+    "title": "A10 scatter: every built-in string that a scatter chart shows is replaced through messages: each applicable key's own sentinel reaches a reader surface, and no built-in English is left"
   },
   {
     "criterion": "A10",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A10 scatter: on a lang=\"de\" page the built-in English text is marked lang=\"en\", and the author's own text is not (reading: the generated summary's sentences are built-in English)"
+    "title": "A10 scatter: on a lang=\"de\" page the built-in English is marked lang=\"en\" where the reader meets it: the description the figure references, the visible summary, the note, the controls, the plot's name and role; the author's title is not"
   },
   {
     "criterion": "A10",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A10 donut: every built-in string is replaced through messages: none of the built-in English is left in the figure, the accessibility tree or the value text"
+    "title": "A10 donut: every built-in string that a donut chart shows is replaced through messages: each applicable key's own sentinel reaches a reader surface, and no built-in English is left"
   },
   {
     "criterion": "A10",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A10 donut: on a lang=\"de\" page the built-in English text is marked lang=\"en\", and the author's own text is not (reading: the generated summary's sentences are built-in English)"
+    "title": "A10 donut: on a lang=\"de\" page the built-in English is marked lang=\"en\" where the reader meets it: the description the figure references, the visible summary, the note, the controls, the plot's name and role; the author's title is not"
   },
   {
     "criterion": "A10",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A10 compact: every built-in string is replaced through messages: none of the built-in English is left in the figure, the accessibility tree or the value text"
+    "title": "A10 compact: every built-in string that a compact chart shows is replaced through messages: each applicable key's own sentinel reaches a reader surface, and no built-in English is left"
   },
   {
     "criterion": "A10",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A10 compact: on a lang=\"de\" page the built-in English text is marked lang=\"en\", and the author's own text is not (reading: the generated summary's sentences are built-in English)"
+    "title": "A10 compact: on a lang=\"de\" page the built-in English is marked lang=\"en\" where the reader meets it: the description the figure references, the visible summary, the note, the controls, the plot's name and role; the author's title is not"
   },
   {
     "criterion": "C1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C1 compact line: role img, named by its title, described by the generated summary (series, x range, minimum, maximum, last value)"
+    "title": "C1 compact line: role img, named by its title, described by the generated summary (each named statement: x range, y range, the series' minimum, maximum and last value), with nothing inside exposed on its own"
   },
   {
     "criterion": "C1",
@@ -1131,13 +1197,13 @@
     "criterion": "C1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C1 compact line: a page of 40 compact charts adds no tab stop, and pointing at one shows nothing a keyboard cannot reach"
+    "title": "C1 compact line: a page of 40 compact charts adds no tab stop, and pointing at one changes nothing on the page: no element appears, no text changes, no pixel changes"
   },
   {
     "criterion": "C1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C1 compact area: role img, named by its title, described by the generated summary (series, x range, minimum, maximum, last value)"
+    "title": "C1 compact area: role img, named by its title, described by the generated summary (each named statement: x range, y range, the series' minimum, maximum and last value), with nothing inside exposed on its own"
   },
   {
     "criterion": "C1",
@@ -1155,13 +1221,13 @@
     "criterion": "C1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C1 compact area: a page of 40 compact charts adds no tab stop, and pointing at one shows nothing a keyboard cannot reach"
+    "title": "C1 compact area: a page of 40 compact charts adds no tab stop, and pointing at one changes nothing on the page: no element appears, no text changes, no pixel changes"
   },
   {
     "criterion": "C1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C1 compact bar: role img, named by its title, described by the generated summary (series, x range, minimum, maximum, last value)"
+    "title": "C1 compact bar: role img, named by its title, described by the generated summary (each named statement: x range, y range, the series' minimum, maximum and last value), with nothing inside exposed on its own"
   },
   {
     "criterion": "C1",
@@ -1179,19 +1245,19 @@
     "criterion": "C1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C1 compact bar: a page of 40 compact charts adds no tab stop, and pointing at one shows nothing a keyboard cannot reach"
+    "title": "C1 compact bar: a page of 40 compact charts adds no tab stop, and pointing at one changes nothing on the page: no element appears, no text changes, no pixel changes"
   },
   {
     "criterion": "C2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C2 compact area: the value axis includes zero: the Phase 1 bars values (82–97) are drawn from a zero baseline (F1)"
+    "title": "C2 compact area: the value axis includes zero (F1): for the Phase 1 bars values (82–97) each datum is drawn at value / 97 of the height above the bottom"
   },
   {
     "criterion": "C2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C2 compact bar: the value axis includes zero: the Phase 1 bars values (82–97) are drawn from a zero baseline (F1)"
+    "title": "C2 compact bar: the value axis includes zero (F1): for the Phase 1 bars values (82–97) each datum is drawn at value / 97 of the height above the bottom"
   },
   {
     "criterion": "C2",
@@ -1203,7 +1269,31 @@
     "criterion": "C2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
+    "title": "C2 compact line: no motion (I5): from the first painted frame, frame by frame for 1.5 s, the marks never change and no animation runs"
+  },
+  {
+    "criterion": "C2",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
+    "title": "C2 compact line: the scheme comes from the page (L4): a dark page paints the marks in other colours than a light one, and a class toggle repaints them"
+  },
+  {
+    "criterion": "C2",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
     "title": "C2 compact area: shuffled input draws the same marks as sorted input (F11), and the dirty fixture yields AX102, AX103 and AX106 (F3)"
+  },
+  {
+    "criterion": "C2",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
+    "title": "C2 compact area: no motion (I5): from the first painted frame, frame by frame for 1.5 s, the marks never change and no animation runs"
+  },
+  {
+    "criterion": "C2",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
+    "title": "C2 compact area: the scheme comes from the page (L4): a dark page paints the marks in other colours than a light one, and a class toggle repaints them"
   },
   {
     "criterion": "C2",
@@ -1212,22 +1302,40 @@
     "title": "C2 compact bar: shuffled input draws the same marks as sorted input (F11), and the dirty fixture yields AX102, AX103 and AX106 (F3)"
   },
   {
-    "criterion": "C3",
+    "criterion": "C2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C3 compact line: it fills containers of 24×16, 160×48 and 600×120 CSS px; with no definite height it is 32 px tall"
+    "title": "C2 compact bar: no motion (I5): from the first painted frame, frame by frame for 1.5 s, the marks never change and no animation runs"
+  },
+  {
+    "criterion": "C2",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
+    "title": "C2 compact bar: the scheme comes from the page (L4): a dark page paints the marks in other colours than a light one, and a class toggle repaints them"
+  },
+  {
+    "criterion": "C2",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
+    "title": "C2 compact line: a null is a gap and the value between two gaps is a visible point (F2)"
   },
   {
     "criterion": "C3",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C3 compact area: it fills containers of 24×16, 160×48 and 600×120 CSS px; with no definite height it is 32 px tall"
+    "title": "C3 compact line: it fills containers of 24×16, 160×48 and 600×120 CSS px, redrawn for each: the five data are evenly spread across the width and their heights keep their order; with no definite height it is 32 px tall"
   },
   {
     "criterion": "C3",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C3 compact bar: it fills containers of 24×16, 160×48 and 600×120 CSS px; with no definite height it is 32 px tall"
+    "title": "C3 compact area: it fills containers of 24×16, 160×48 and 600×120 CSS px, redrawn for each: the five data are evenly spread across the width and their heights keep their order; with no definite height it is 32 px tall"
+  },
+  {
+    "criterion": "C3",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
+    "title": "C3 compact bar: it fills containers of 24×16, 160×48 and 600×120 CSS px, redrawn for each: the five data are evenly spread across the width and their heights keep their order; with no definite height it is 32 px tall"
   },
   {
     "criterion": "C4",
@@ -1245,25 +1353,25 @@
     "criterion": "C4",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C4 compact bar: two series differ by more than colour, and AX131 suggests one series per compact chart"
+    "title": "C4 compact bar: two series differ by more than colour, as painted (reading: A5 asks a non-colour cue of bars too), and AX131 suggests one series per compact chart"
   },
   {
     "criterion": "C5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C5 compact line: with the dirty fixture the description says 3 values are not shown and a small corner marker appears, with a text equivalent"
+    "title": "C5 compact line: with the dirty fixture the description says 3 values are not shown, and a small marker is painted inside the figure at one of its corners, with that statement as its text equivalent"
   },
   {
     "criterion": "C5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C5 compact area: with the dirty fixture the description says 3 values are not shown and a small corner marker appears, with a text equivalent"
+    "title": "C5 compact area: with the dirty fixture the description says 3 values are not shown, and a small marker is painted inside the figure at one of its corners, with that statement as its text equivalent"
   },
   {
     "criterion": "C5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C5 compact bar: with the dirty fixture the description says 3 values are not shown and a small corner marker appears, with a text equivalent"
+    "title": "C5 compact bar: with the dirty fixture the description says 3 values are not shown, and a small marker is painted inside the figure at one of its corners, with that statement as its text equivalent"
   },
   {
     "criterion": "F12",
@@ -1419,7 +1527,7 @@
     "criterion": "F12",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/f12-note.browser.test.ts",
-    "title": "F12 donut: more than eight slices are grouped into \"Other (n)\" (AX121) and the note says values are shown differently, in the figure and the accessibility tree"
+    "title": "F12 donut: more than eight slices are grouped into \"Other (n)\" (AX121) and the note says values are shown differently, not that they were left out, in the figure and the accessibility tree"
   },
   {
     "criterion": "F2",
@@ -1459,6 +1567,30 @@
   },
   {
     "criterion": "F2",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
+    "title": "F2 line: with missing: 'zero' on the field, an explicit null and an absent step are drawn at zero, on the zero baseline"
+  },
+  {
+    "criterion": "F2",
+    "type": "area",
+    "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
+    "title": "F2 area: with missing: 'zero' on the field, an explicit null and an absent step are drawn at zero, on the zero baseline"
+  },
+  {
+    "criterion": "F2",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
+    "title": "F2 bar: with missing: 'zero' on the field, an explicit null and an absent step are drawn at zero, on the zero baseline"
+  },
+  {
+    "criterion": "F2",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
+    "title": "F2 compact: with missing: 'zero' on the field, an explicit null and an absent step are drawn at zero, on the zero baseline"
+  },
+  {
+    "criterion": "F2",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
     "title": "F2 bar: a missing bar shows a \"no data\" mark at the baseline, distinct from a zero bar and from an empty band"
@@ -1485,19 +1617,19 @@
     "criterion": "F2",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
-    "title": "F2 scatter: a point with a missing y is not drawn (never at zero) and the keyboard skips it"
+    "title": "F2 scatter: a point with a missing y is not drawn (never at zero): the two drawn points are the ones at (1, 5) and (3, 7); the table lists the missing row as \"No data\"; the keyboard skips it"
   },
   {
     "criterion": "F2",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
-    "title": "F2 donut: a null slice is not drawn and the table reads \"No data\" for it"
+    "title": "F2 donut: a null slice is not drawn (A fills three quarters from 12 o'clock, C the last quarter) and the table reads \"No data\" for it"
   },
   {
     "criterion": "F8",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/f8-donut.browser.test.ts",
-    "title": "F8 donut: slices keep the given order, start at 12 o'clock and run clockwise: the ring at each slice's middle angle shows that slice's legend colour"
+    "title": "F8 donut: slices keep the given (unsorted) order, start at 12 o'clock and run clockwise: the ring at each slice's middle angle shows that slice's legend colour"
   },
   {
     "criterion": "F8",
@@ -1521,97 +1653,139 @@
     "criterion": "F8",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/f8-donut.browser.test.ts",
-    "title": "F8 donut: ten slices draw the seven largest and \"Other (3)\" with AX121; the table lists all ten categories"
+    "title": "F8 donut: ten slices in scrambled order draw the seven largest, in their given order, then \"Other (3)\" holding the other three, with AX121; arcs and legend agree; the table lists all ten in the given order"
   },
   {
     "criterion": "F8",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/f8-donut.browser.test.ts",
-    "title": "F8 donut: an all-zero donut shows the empty state inside the plot, with no slices"
+    "title": "F8 donut: eight slices are all drawn and raise no AX121; the ninth is what groups"
+  },
+  {
+    "criterion": "F8",
+    "type": "donut",
+    "file": "packages/axylo/test/browser/acceptance/f8-donut.browser.test.ts",
+    "title": "F8 donut: zero and null slices do not count toward the eight-slice limit and are never grouped: eight drawn slices plus a zero and a null raise no AX121 and list all ten, the zero and the null by name"
+  },
+  {
+    "criterion": "F8",
+    "type": "donut",
+    "file": "packages/axylo/test/browser/acceptance/f8-donut.browser.test.ts",
+    "title": "F8 donut: an all-zero donut shows the empty state inside the plot, with its exact message and no slices"
   },
   {
     "criterion": "I1",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 line: at 20 positions, the four edges included, the tooltip shows what is there by the type's picking rule, stays inside the viewport and does not cover the active mark"
+    "title": "I1 line: at 20 positions, the four edges included, what is there is shown by the type's picking rule within one frame of the move (95th percentile, counted in animation frames), inside the viewport, without covering the active mark"
   },
   {
     "criterion": "I1",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 line: the tooltip can itself be hovered without closing (reading: the pointer moves onto it in one step); Escape closes it until the pointer reaches a different datum"
+    "title": "I1 line: moving slowly from the datum straight onto the tooltip (across the reading axis, decision 0004) keeps the same datum on show all the way, and the pointer then rests on the tooltip; Escape closes it until another datum"
   },
   {
     "criterion": "I1",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 line: with ten series at one x the tooltip lists eight rows and \"+2 more\"; in a 260 px tile the same content appears in the fixed readout under the plot"
+    "title": "I1 line: neither the tooltip nor the readout ever covers a control, whether shown for the pointer or for the keyboard (decision 0004: the readout has reserved space)"
+  },
+  {
+    "criterion": "I1",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 line: with ten series at one x the tooltip lists eight of the series by name and \"+2 more\"; in a narrow tile the fixed readout under the plot lists the same eight rows and \"+2 more\""
   },
   {
     "criterion": "I1",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 area: at 20 positions, the four edges included, the tooltip shows what is there by the type's picking rule, stays inside the viewport and does not cover the active mark"
+    "title": "I1 area: at 20 positions, the four edges included, what is there is shown by the type's picking rule within one frame of the move (95th percentile, counted in animation frames), inside the viewport, without covering the active mark"
   },
   {
     "criterion": "I1",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 area: the tooltip can itself be hovered without closing (reading: the pointer moves onto it in one step); Escape closes it until the pointer reaches a different datum"
+    "title": "I1 area: moving slowly from the datum straight onto the tooltip (across the reading axis, decision 0004) keeps the same datum on show all the way, and the pointer then rests on the tooltip; Escape closes it until another datum"
   },
   {
     "criterion": "I1",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 area: with ten series at one x the tooltip lists eight rows and \"+2 more\"; in a 260 px tile the same content appears in the fixed readout under the plot"
+    "title": "I1 area: neither the tooltip nor the readout ever covers a control, whether shown for the pointer or for the keyboard (decision 0004: the readout has reserved space)"
+  },
+  {
+    "criterion": "I1",
+    "type": "area",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 area: with ten series at one x the tooltip lists eight of the series by name and \"+2 more\"; in a narrow tile the fixed readout under the plot lists the same eight rows and \"+2 more\""
   },
   {
     "criterion": "I1",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 bar: at 20 positions, the four edges included, the tooltip shows what is there by the type's picking rule, stays inside the viewport and does not cover the active mark"
+    "title": "I1 bar: at 20 positions, the four edges included, what is there is shown by the type's picking rule within one frame of the move (95th percentile, counted in animation frames), inside the viewport, without covering the active mark"
   },
   {
     "criterion": "I1",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 bar: the tooltip can itself be hovered without closing (reading: the pointer moves onto it in one step); Escape closes it until the pointer reaches a different datum"
+    "title": "I1 bar: moving slowly from the datum straight onto the tooltip (across the reading axis, decision 0004) keeps the same datum on show all the way, and the pointer then rests on the tooltip; Escape closes it until another datum"
   },
   {
     "criterion": "I1",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 bar: with ten series at one x the tooltip lists eight rows and \"+2 more\"; in a 260 px tile the same content appears in the fixed readout under the plot"
+    "title": "I1 bar: neither the tooltip nor the readout ever covers a control, whether shown for the pointer or for the keyboard (decision 0004: the readout has reserved space)"
+  },
+  {
+    "criterion": "I1",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 bar: with ten series at one x the tooltip lists eight of the series by name and \"+2 more\"; in a narrow tile the fixed readout under the plot lists the same eight rows and \"+2 more\""
   },
   {
     "criterion": "I1",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 scatter: at 20 positions, the four edges included, the tooltip shows what is there by the type's picking rule, stays inside the viewport and does not cover the active mark"
+    "title": "I1 scatter: at 20 positions, the four edges included, what is there is shown by the type's picking rule within one frame of the move (95th percentile, counted in animation frames), inside the viewport, without covering the active mark"
   },
   {
     "criterion": "I1",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 scatter: the tooltip can itself be hovered without closing (reading: the pointer moves onto it in one step); Escape closes it until the pointer reaches a different datum"
+    "title": "I1 scatter: moving slowly from the datum straight onto the tooltip (across the reading axis, decision 0004) keeps the same datum on show all the way, and the pointer then rests on the tooltip; Escape closes it until another datum"
   },
   {
     "criterion": "I1",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 scatter: with ten series on one coincident point the tooltip lists eight rows and \"+2 more\"; in a 260 px tile the same content appears in the fixed readout under the plot"
+    "title": "I1 scatter: neither the tooltip nor the readout ever covers a control, whether shown for the pointer or for the keyboard (decision 0004: the readout has reserved space)"
+  },
+  {
+    "criterion": "I1",
+    "type": "scatter",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 scatter: with ten series on one coincident point the tooltip lists eight of the series by name and \"+2 more\"; in a narrow tile the fixed readout under the plot lists the same eight rows and \"+2 more\""
   },
   {
     "criterion": "I1",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 donut: at 20 positions, the four edges included, the tooltip shows what is there by the type's picking rule, stays inside the viewport and does not cover the active mark"
+    "title": "I1 donut: at 20 positions, the four edges included, what is there is shown by the type's picking rule within one frame of the move (95th percentile, counted in animation frames), inside the viewport, without covering the active mark"
   },
   {
     "criterion": "I1",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 donut: the tooltip can itself be hovered without closing (reading: the pointer moves onto it in one step); Escape closes it until the pointer reaches a different datum"
+    "title": "I1 donut: moving slowly from the datum straight onto the tooltip (across the reading axis, decision 0004) keeps the same datum on show all the way, and the pointer then rests on the tooltip; Escape closes it until another datum"
+  },
+  {
+    "criterion": "I1",
+    "type": "donut",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 donut: neither the tooltip nor the readout ever covers a control, whether shown for the pointer or for the keyboard (decision 0004: the readout has reserved space)"
   },
   {
     "criterion": "I1",
@@ -1635,31 +1809,31 @@
     "criterion": "I2",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I2 line: legend entries are toggle buttons with a pressed state, operable by click, Enter and Space; the marks follow"
+    "title": "I2 line: legend entries are toggle buttons with a pressed state, operable by click, Enter and Space; after each, the marks follow"
   },
   {
     "criterion": "I2",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I2 area: legend entries are toggle buttons with a pressed state, operable by click, Enter and Space; the marks follow"
+    "title": "I2 area: legend entries are toggle buttons with a pressed state, operable by click, Enter and Space; after each, the marks follow"
   },
   {
     "criterion": "I2",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I2 bar: legend entries are toggle buttons with a pressed state, operable by click, Enter and Space; the marks follow"
+    "title": "I2 bar: legend entries are toggle buttons with a pressed state, operable by click, Enter and Space; after each, the marks follow"
   },
   {
     "criterion": "I2",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I2 scatter: legend entries are toggle buttons with a pressed state, operable by click, Enter and Space; the marks follow"
+    "title": "I2 scatter: legend entries are toggle buttons with a pressed state, operable by click, Enter and Space; after each, the marks follow"
   },
   {
     "criterion": "I3",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I3 line: the last quarter of the x range is reached by single clicks only: Zoom in twice, then Pan right, and Reset returns"
+    "title": "I3 line: by single clicks only: Zoom in twice quarters the range, Zoom out doubles it, Pan right reaches the end, Reset returns"
   },
   {
     "criterion": "I3",
@@ -1671,25 +1845,25 @@
     "criterion": "I3",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I3 line: from the keyboard, + and - zoom, Shift+arrows pan, 0 resets"
+    "title": "I3 line: from the keyboard, each of +, Shift+Right, Shift+Left, - and 0 has its own effect, checked after each key"
   },
   {
     "criterion": "I3",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I3 line: with zoom: 'touch' a two-finger pinch zooms; without it the pinch is left to the page"
+    "title": "I3 line: with zoom: 'touch' a two-finger pinch zooms; without it the pinch is left to the page: the chart's range is unchanged and the browser's default is not prevented"
   },
   {
     "criterion": "I3",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I3 line: the wheel over an unfocused plot scrolls the page; over the focused plot it zooms; with Ctrl held it never zooms"
+    "title": "I3 line: the wheel over an unfocused plot scrolls the page; over the focused plot it zooms; with Ctrl or Meta held it never zooms and is not cancelled"
   },
   {
     "criterion": "I3",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I3 area: the last quarter of the x range is reached by single clicks only: Zoom in twice, then Pan right, and Reset returns"
+    "title": "I3 area: by single clicks only: Zoom in twice quarters the range, Zoom out doubles it, Pan right reaches the end, Reset returns"
   },
   {
     "criterion": "I3",
@@ -1701,55 +1875,85 @@
     "criterion": "I3",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I3 area: from the keyboard, + and - zoom, Shift+arrows pan, 0 resets"
+    "title": "I3 area: from the keyboard, each of +, Shift+Right, Shift+Left, - and 0 has its own effect, checked after each key"
   },
   {
     "criterion": "I3",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I3 area: with zoom: 'touch' a two-finger pinch zooms; without it the pinch is left to the page"
+    "title": "I3 area: with zoom: 'touch' a two-finger pinch zooms; without it the pinch is left to the page: the chart's range is unchanged and the browser's default is not prevented"
   },
   {
     "criterion": "I3",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I3 area: the wheel over an unfocused plot scrolls the page; over the focused plot it zooms; with Ctrl held it never zooms"
+    "title": "I3 area: the wheel over an unfocused plot scrolls the page; over the focused plot it zooms; with Ctrl or Meta held it never zooms and is not cancelled"
   },
   {
     "criterion": "I3",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I3 bar: the last quarter of the x range is reached by single clicks only: Zoom in twice, then Pan right, and Reset returns"
+    "title": "I3 bar (number axis): by single clicks only: Zoom in twice quarters the range, Zoom out doubles it, Pan right reaches the end, Reset returns"
   },
   {
     "criterion": "I3",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I3 bar: dragging across the plot selects that x range"
+    "title": "I3 bar (number axis): dragging across the plot selects that x range"
   },
   {
     "criterion": "I3",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I3 bar: from the keyboard, + and - zoom, Shift+arrows pan, 0 resets"
+    "title": "I3 bar (number axis): from the keyboard, each of +, Shift+Right, Shift+Left, - and 0 has its own effect, checked after each key"
   },
   {
     "criterion": "I3",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I3 bar: with zoom: 'touch' a two-finger pinch zooms; without it the pinch is left to the page"
+    "title": "I3 bar (number axis): with zoom: 'touch' a two-finger pinch zooms; without it the pinch is left to the page: the chart's range is unchanged and the browser's default is not prevented"
   },
   {
     "criterion": "I3",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I3 bar: the wheel over an unfocused plot scrolls the page; over the focused plot it zooms; with Ctrl held it never zooms"
+    "title": "I3 bar (number axis): the wheel over an unfocused plot scrolls the page; over the focused plot it zooms; with Ctrl or Meta held it never zooms and is not cancelled"
+  },
+  {
+    "criterion": "I3",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I3 bar (date axis): by single clicks only: Zoom in twice quarters the range, Zoom out doubles it, Pan right reaches the end, Reset returns"
+  },
+  {
+    "criterion": "I3",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I3 bar (date axis): dragging across the plot selects that x range"
+  },
+  {
+    "criterion": "I3",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I3 bar (date axis): from the keyboard, each of +, Shift+Right, Shift+Left, - and 0 has its own effect, checked after each key"
+  },
+  {
+    "criterion": "I3",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I3 bar (date axis): with zoom: 'touch' a two-finger pinch zooms; without it the pinch is left to the page: the chart's range is unchanged and the browser's default is not prevented"
+  },
+  {
+    "criterion": "I3",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I3 bar (date axis): the wheel over an unfocused plot scrolls the page; over the focused plot it zooms; with Ctrl or Meta held it never zooms and is not cancelled"
   },
   {
     "criterion": "I3",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I3 scatter: the last quarter of the x range is reached by single clicks only: Zoom in twice, then Pan right, and Reset returns"
+    "title": "I3 scatter: by single clicks only: Zoom in twice quarters the range, Zoom out doubles it, Pan right reaches the end, Reset returns"
   },
   {
     "criterion": "I3",
@@ -1761,475 +1965,547 @@
     "criterion": "I3",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I3 scatter: from the keyboard, + and - zoom, Shift+arrows pan, 0 resets"
+    "title": "I3 scatter: from the keyboard, each of +, Shift+Right, Shift+Left, - and 0 has its own effect, checked after each key"
   },
   {
     "criterion": "I3",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I3 scatter: with zoom: 'touch' a two-finger pinch zooms; without it the pinch is left to the page"
+    "title": "I3 scatter: with zoom: 'touch' a two-finger pinch zooms; without it the pinch is left to the page: the chart's range is unchanged and the browser's default is not prevented"
   },
   {
     "criterion": "I3",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I3 scatter: the wheel over an unfocused plot scrolls the page; over the focused plot it zooms; with Ctrl held it never zooms"
+    "title": "I3 scatter: the wheel over an unfocused plot scrolls the page; over the focused plot it zooms; with Ctrl or Meta held it never zooms and is not cancelled"
   },
   {
     "criterion": "I4",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I4 line: every control (toolbar, legend, table pager, jump field) is at least 24 × 24 CSS px"
+    "title": "I4 line: every control is at least 24 × 24 CSS px: toolbar, legend, table pager, jump field, and the selectable rows of a shown tooltip"
   },
   {
     "criterion": "I4",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I4 line: a tap shows what is under the finger, and a one-finger vertical drag over the chart scrolls the page"
+    "title": "I4 line: by touch alone: a tap shows what is under the finger, taps operate the legend toggle, Zoom in where it applies, and the table control, and a one-finger vertical drag over the chart scrolls the page from where it was"
   },
   {
     "criterion": "I4",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I4 area: every control (toolbar, legend, table pager, jump field) is at least 24 × 24 CSS px"
+    "title": "I4 area: every control is at least 24 × 24 CSS px: toolbar, legend, table pager, jump field, and the selectable rows of a shown tooltip"
   },
   {
     "criterion": "I4",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I4 area: a tap shows what is under the finger, and a one-finger vertical drag over the chart scrolls the page"
+    "title": "I4 area: by touch alone: a tap shows what is under the finger, taps operate the legend toggle, Zoom in where it applies, and the table control, and a one-finger vertical drag over the chart scrolls the page from where it was"
   },
   {
     "criterion": "I4",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I4 bar: every control (toolbar, legend, table pager, jump field) is at least 24 × 24 CSS px"
+    "title": "I4 bar: every control is at least 24 × 24 CSS px: toolbar, legend, table pager, jump field, and the selectable rows of a shown tooltip"
   },
   {
     "criterion": "I4",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I4 bar: a tap shows what is under the finger, and a one-finger vertical drag over the chart scrolls the page"
+    "title": "I4 bar: by touch alone: a tap shows what is under the finger, taps operate the legend toggle, Zoom in where it applies, and the table control, and a one-finger vertical drag over the chart scrolls the page from where it was"
   },
   {
     "criterion": "I4",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I4 scatter: every control (toolbar, legend, table pager, jump field) is at least 24 × 24 CSS px"
+    "title": "I4 scatter: every control is at least 24 × 24 CSS px: toolbar, legend, table pager, jump field, and the selectable rows of a shown tooltip"
   },
   {
     "criterion": "I4",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I4 scatter: a tap shows what is under the finger, and a one-finger vertical drag over the chart scrolls the page"
+    "title": "I4 scatter: by touch alone: a tap shows what is under the finger, taps operate the legend toggle, Zoom in where it applies, and the table control, and a one-finger vertical drag over the chart scrolls the page from where it was"
   },
   {
     "criterion": "I4",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I4 donut: every control (toolbar, legend, table pager, jump field) is at least 24 × 24 CSS px"
+    "title": "I4 donut: every control is at least 24 × 24 CSS px: toolbar, legend, table pager, jump field, and the selectable rows of a shown tooltip"
   },
   {
     "criterion": "I4",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I4 donut: a tap shows what is under the finger, and a one-finger vertical drag over the chart scrolls the page"
+    "title": "I4 donut: by touch alone: a tap shows what is under the finger, taps operate the table control, and a one-finger vertical drag over the chart scrolls the page from where it was"
   },
   {
     "criterion": "I5",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 line: the first frame after fonts load equals the frame at 2.5 s within 0.1 % of pixels (prefers-reduced-motion: no-preference)"
+    "title": "I5 line: first render is not animated (prefers-reduced-motion: no-preference): from the first painted frame, frame by frame for 2.5 s, the marks' markup and computed paint never change and no animation runs on the chart; a screenshot taken with animations running matches the one at 2.5 s"
   },
   {
     "criterion": "I5",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 line: the first frame after fonts load equals the frame at 2.5 s within 0.1 % of pixels (prefers-reduced-motion: reduce)"
+    "title": "I5 line: first render is not animated (prefers-reduced-motion: reduce): from the first painted frame, frame by frame for 2.5 s, the marks' markup and computed paint never change and no animation runs on the chart; a screenshot taken with animations running matches the one at 2.5 s"
   },
   {
     "criterion": "I5",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 line: under reduced motion an update reaches its final frame in one step; without it the update has settled 300 ms later (reading: 200 ms plus 100 ms of slack on a loaded machine)"
+    "title": "I5 line: an update shows the new data and settles within 200 ms of the call, on the page's clock; under reduced motion its first frame is already the final one, with no animation"
   },
   {
     "criterion": "I5",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 area: the first frame after fonts load equals the frame at 2.5 s within 0.1 % of pixels (prefers-reduced-motion: no-preference)"
+    "title": "I5 area: first render is not animated (prefers-reduced-motion: no-preference): from the first painted frame, frame by frame for 2.5 s, the marks' markup and computed paint never change and no animation runs on the chart; a screenshot taken with animations running matches the one at 2.5 s"
   },
   {
     "criterion": "I5",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 area: the first frame after fonts load equals the frame at 2.5 s within 0.1 % of pixels (prefers-reduced-motion: reduce)"
+    "title": "I5 area: first render is not animated (prefers-reduced-motion: reduce): from the first painted frame, frame by frame for 2.5 s, the marks' markup and computed paint never change and no animation runs on the chart; a screenshot taken with animations running matches the one at 2.5 s"
   },
   {
     "criterion": "I5",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 area: under reduced motion an update reaches its final frame in one step; without it the update has settled 300 ms later (reading: 200 ms plus 100 ms of slack on a loaded machine)"
+    "title": "I5 area: an update shows the new data and settles within 200 ms of the call, on the page's clock; under reduced motion its first frame is already the final one, with no animation"
   },
   {
     "criterion": "I5",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 bar: the first frame after fonts load equals the frame at 2.5 s within 0.1 % of pixels (prefers-reduced-motion: no-preference)"
+    "title": "I5 bar: first render is not animated (prefers-reduced-motion: no-preference): from the first painted frame, frame by frame for 2.5 s, the marks' markup and computed paint never change and no animation runs on the chart; a screenshot taken with animations running matches the one at 2.5 s"
   },
   {
     "criterion": "I5",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 bar: the first frame after fonts load equals the frame at 2.5 s within 0.1 % of pixels (prefers-reduced-motion: reduce)"
+    "title": "I5 bar: first render is not animated (prefers-reduced-motion: reduce): from the first painted frame, frame by frame for 2.5 s, the marks' markup and computed paint never change and no animation runs on the chart; a screenshot taken with animations running matches the one at 2.5 s"
   },
   {
     "criterion": "I5",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 bar: under reduced motion an update reaches its final frame in one step; without it the update has settled 300 ms later (reading: 200 ms plus 100 ms of slack on a loaded machine)"
+    "title": "I5 bar: an update shows the new data and settles within 200 ms of the call, on the page's clock; under reduced motion its first frame is already the final one, with no animation"
   },
   {
     "criterion": "I5",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 scatter: the first frame after fonts load equals the frame at 2.5 s within 0.1 % of pixels (prefers-reduced-motion: no-preference)"
+    "title": "I5 scatter: first render is not animated (prefers-reduced-motion: no-preference): from the first painted frame, frame by frame for 2.5 s, the marks' markup and computed paint never change and no animation runs on the chart; a screenshot taken with animations running matches the one at 2.5 s"
   },
   {
     "criterion": "I5",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 scatter: the first frame after fonts load equals the frame at 2.5 s within 0.1 % of pixels (prefers-reduced-motion: reduce)"
+    "title": "I5 scatter: first render is not animated (prefers-reduced-motion: reduce): from the first painted frame, frame by frame for 2.5 s, the marks' markup and computed paint never change and no animation runs on the chart; a screenshot taken with animations running matches the one at 2.5 s"
   },
   {
     "criterion": "I5",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 scatter: under reduced motion an update reaches its final frame in one step; without it the update has settled 300 ms later (reading: 200 ms plus 100 ms of slack on a loaded machine)"
+    "title": "I5 scatter: an update shows the new data and settles within 200 ms of the call, on the page's clock; under reduced motion its first frame is already the final one, with no animation"
   },
   {
     "criterion": "I5",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 donut: the first frame after fonts load equals the frame at 2.5 s within 0.1 % of pixels (prefers-reduced-motion: no-preference)"
+    "title": "I5 donut: first render is not animated (prefers-reduced-motion: no-preference): from the first painted frame, frame by frame for 2.5 s, the marks' markup and computed paint never change and no animation runs on the chart; a screenshot taken with animations running matches the one at 2.5 s"
   },
   {
     "criterion": "I5",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 donut: the first frame after fonts load equals the frame at 2.5 s within 0.1 % of pixels (prefers-reduced-motion: reduce)"
+    "title": "I5 donut: first render is not animated (prefers-reduced-motion: reduce): from the first painted frame, frame by frame for 2.5 s, the marks' markup and computed paint never change and no animation runs on the chart; a screenshot taken with animations running matches the one at 2.5 s"
   },
   {
     "criterion": "I5",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 donut: under reduced motion an update reaches its final frame in one step; without it the update has settled 300 ms later (reading: 200 ms plus 100 ms of slack on a loaded machine)"
+    "title": "I5 donut: an update shows the new data and settles within 200 ms of the call, on the page's clock; under reduced motion its first frame is already the final one, with no animation"
   },
   {
     "criterion": "I5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 compact: the first frame after fonts load equals the frame at 2.5 s within 0.1 % of pixels (prefers-reduced-motion: no-preference)"
+    "title": "I5 compact: first render is not animated (prefers-reduced-motion: no-preference): from the first painted frame, frame by frame for 2.5 s, the marks' markup and computed paint never change and no animation runs on the chart; a screenshot taken with animations running matches the one at 2.5 s"
   },
   {
     "criterion": "I5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 compact: the first frame after fonts load equals the frame at 2.5 s within 0.1 % of pixels (prefers-reduced-motion: reduce)"
+    "title": "I5 compact: first render is not animated (prefers-reduced-motion: reduce): from the first painted frame, frame by frame for 2.5 s, the marks' markup and computed paint never change and no animation runs on the chart; a screenshot taken with animations running matches the one at 2.5 s"
   },
   {
     "criterion": "I5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 compact: under reduced motion an update reaches its final frame in one step; without it the update has settled 300 ms later (reading: 200 ms plus 100 ms of slack on a loaded machine)"
+    "title": "I5 compact: an update shows the new data and settles within 200 ms of the call, on the page's clock; under reduced motion its first frame is already the final one, with no animation"
+  },
+  {
+    "criterion": "I5",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I5 line: a filter change across 24 charts on one page settles within 200 ms of the change, on the page's clock"
+  },
+  {
+    "criterion": "I5",
+    "type": "area",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I5 area: a filter change across 24 charts on one page settles within 200 ms of the change, on the page's clock"
+  },
+  {
+    "criterion": "I5",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I5 bar: a filter change across 24 charts on one page settles within 200 ms of the change, on the page's clock"
+  },
+  {
+    "criterion": "I5",
+    "type": "scatter",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I5 scatter: a filter change across 24 charts on one page settles within 200 ms of the change, on the page's clock"
+  },
+  {
+    "criterion": "I5",
+    "type": "donut",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I5 donut: a filter change across 24 charts on one page settles within 200 ms of the change, on the page's clock"
   },
   {
     "criterion": "I6",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I6 line: append shows a Pause control; paused, new rows are buffered and nothing on screen moves; Resume applies them"
+    "title": "I6 line: append shows a Pause control; paused, new rows are buffered and nothing a reader gets moves (marks, summary, value text, tooltip, open table); Resume applies each buffered row once, with its values"
   },
   {
     "criterion": "I6",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I6 area: append shows a Pause control; paused, new rows are buffered and nothing on screen moves; Resume applies them"
+    "title": "I6 area: append shows a Pause control; paused, new rows are buffered and nothing a reader gets moves (marks, summary, value text, tooltip, open table); Resume applies each buffered row once, with its values"
   },
   {
     "criterion": "I6",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I6 bar: append shows a Pause control; paused, new rows are buffered and nothing on screen moves; Resume applies them"
+    "title": "I6 bar: append shows a Pause control; paused, new rows are buffered and nothing a reader gets moves (marks, summary, value text, tooltip, open table); Resume applies each buffered row once, with its values"
   },
   {
     "criterion": "I6",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I6 scatter: append shows a Pause control; paused, new rows are buffered and nothing on screen moves; Resume applies them"
+    "title": "I6 scatter: append shows a Pause control; paused, new rows are buffered and nothing a reader gets moves (marks, summary, value text, tooltip, open table); Resume applies each buffered row once, with its values"
   },
   {
     "criterion": "I6",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I6 donut: append shows a Pause control; paused, new rows are buffered and nothing on screen moves; Resume applies them"
+    "title": "I6 donut: append shows a Pause control; paused, new rows are buffered and nothing a reader gets moves (marks, summary, value text, tooltip, open table); Resume applies each buffered row once, with its values"
   },
   {
     "criterion": "L1",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L1 line: at widths 240, 320, 480, 720, 1280, 1920 px (plain) no text overlaps other text (1 px), none is outside the figure, tick labels are pairwise distinct, and no category label is hidden without the note"
+    "title": "L1 line: at widths 240, 320, 480, 720, 1280, 1920 px (plain) no painted text overlaps other text (1 px), none is clipped, ellipsised or outside the figure, tick labels are distinct, wrapped to at most three lines and rotated at most 45°, and no category label is lost without the note"
   },
   {
     "criterion": "L1",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L1 line: at widths 240, 320, 480, 720, 1280, 1920 px (WCAG 1.4.12 text spacing) no text overlaps other text (1 px), none is outside the figure, tick labels are pairwise distinct, and no category label is hidden without the note"
+    "title": "L1 line: at widths 240, 320, 480, 720, 1280, 1920 px (WCAG 1.4.12 text spacing) no painted text overlaps other text (1 px), none is clipped, ellipsised or outside the figure, tick labels are distinct, wrapped to at most three lines and rotated at most 45°, and no category label is lost without the note"
   },
   {
     "criterion": "L1",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L1 line: at widths 240, 320, 480, 720, 1280, 1920 px (200 % text-only zoom) no text overlaps other text (1 px), none is outside the figure, tick labels are pairwise distinct, and no category label is hidden without the note"
+    "title": "L1 line: at widths 240, 320, 480, 720, 1280, 1920 px (200 % text-only zoom) no painted text overlaps other text (1 px), none is clipped, ellipsised or outside the figure, tick labels are distinct, wrapped to at most three lines and rotated at most 45°, and no category label is lost without the note"
+  },
+  {
+    "criterion": "L1",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+    "title": "L1 line: after a font that loads late, the relaid-out text still neither overlaps nor is cut off nor leaves the figure (480 and 1280 px)"
   },
   {
     "criterion": "L1",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L1 area: at widths 240, 320, 480, 720, 1280, 1920 px (plain) no text overlaps other text (1 px), none is outside the figure, tick labels are pairwise distinct, and no category label is hidden without the note"
+    "title": "L1 area: at widths 240, 320, 480, 720, 1280, 1920 px (plain) no painted text overlaps other text (1 px), none is clipped, ellipsised or outside the figure, tick labels are distinct, wrapped to at most three lines and rotated at most 45°, and no category label is lost without the note"
   },
   {
     "criterion": "L1",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L1 area: at widths 240, 320, 480, 720, 1280, 1920 px (WCAG 1.4.12 text spacing) no text overlaps other text (1 px), none is outside the figure, tick labels are pairwise distinct, and no category label is hidden without the note"
+    "title": "L1 area: at widths 240, 320, 480, 720, 1280, 1920 px (WCAG 1.4.12 text spacing) no painted text overlaps other text (1 px), none is clipped, ellipsised or outside the figure, tick labels are distinct, wrapped to at most three lines and rotated at most 45°, and no category label is lost without the note"
   },
   {
     "criterion": "L1",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L1 area: at widths 240, 320, 480, 720, 1280, 1920 px (200 % text-only zoom) no text overlaps other text (1 px), none is outside the figure, tick labels are pairwise distinct, and no category label is hidden without the note"
+    "title": "L1 area: at widths 240, 320, 480, 720, 1280, 1920 px (200 % text-only zoom) no painted text overlaps other text (1 px), none is clipped, ellipsised or outside the figure, tick labels are distinct, wrapped to at most three lines and rotated at most 45°, and no category label is lost without the note"
+  },
+  {
+    "criterion": "L1",
+    "type": "area",
+    "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+    "title": "L1 area: after a font that loads late, the relaid-out text still neither overlaps nor is cut off nor leaves the figure (480 and 1280 px)"
   },
   {
     "criterion": "L1",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L1 bar: at widths 240, 320, 480, 720, 1280, 1920 px (plain) no text overlaps other text (1 px), none is outside the figure, tick labels are pairwise distinct, and no category label is hidden without the note"
+    "title": "L1 bar: at widths 240, 320, 480, 720, 1280, 1920 px (plain) no painted text overlaps other text (1 px), none is clipped, ellipsised or outside the figure, tick labels are distinct, wrapped to at most three lines and rotated at most 45°, and no category label is lost without the note"
   },
   {
     "criterion": "L1",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L1 bar: at widths 240, 320, 480, 720, 1280, 1920 px (WCAG 1.4.12 text spacing) no text overlaps other text (1 px), none is outside the figure, tick labels are pairwise distinct, and no category label is hidden without the note"
+    "title": "L1 bar: at widths 240, 320, 480, 720, 1280, 1920 px (WCAG 1.4.12 text spacing) no painted text overlaps other text (1 px), none is clipped, ellipsised or outside the figure, tick labels are distinct, wrapped to at most three lines and rotated at most 45°, and no category label is lost without the note"
   },
   {
     "criterion": "L1",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L1 bar: at widths 240, 320, 480, 720, 1280, 1920 px (200 % text-only zoom) no text overlaps other text (1 px), none is outside the figure, tick labels are pairwise distinct, and no category label is hidden without the note"
+    "title": "L1 bar: at widths 240, 320, 480, 720, 1280, 1920 px (200 % text-only zoom) no painted text overlaps other text (1 px), none is clipped, ellipsised or outside the figure, tick labels are distinct, wrapped to at most three lines and rotated at most 45°, and no category label is lost without the note"
+  },
+  {
+    "criterion": "L1",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+    "title": "L1 bar: after a font that loads late, the relaid-out text still neither overlaps nor is cut off nor leaves the figure (480 and 1280 px)"
   },
   {
     "criterion": "L1",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L1 scatter: at widths 240, 320, 480, 720, 1280, 1920 px (plain) no text overlaps other text (1 px), none is outside the figure, tick labels are pairwise distinct, and no category label is hidden without the note"
+    "title": "L1 scatter: at widths 240, 320, 480, 720, 1280, 1920 px (plain) no painted text overlaps other text (1 px), none is clipped, ellipsised or outside the figure, tick labels are distinct, wrapped to at most three lines and rotated at most 45°, and no category label is lost without the note"
   },
   {
     "criterion": "L1",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L1 scatter: at widths 240, 320, 480, 720, 1280, 1920 px (WCAG 1.4.12 text spacing) no text overlaps other text (1 px), none is outside the figure, tick labels are pairwise distinct, and no category label is hidden without the note"
+    "title": "L1 scatter: at widths 240, 320, 480, 720, 1280, 1920 px (WCAG 1.4.12 text spacing) no painted text overlaps other text (1 px), none is clipped, ellipsised or outside the figure, tick labels are distinct, wrapped to at most three lines and rotated at most 45°, and no category label is lost without the note"
   },
   {
     "criterion": "L1",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L1 scatter: at widths 240, 320, 480, 720, 1280, 1920 px (200 % text-only zoom) no text overlaps other text (1 px), none is outside the figure, tick labels are pairwise distinct, and no category label is hidden without the note"
+    "title": "L1 scatter: at widths 240, 320, 480, 720, 1280, 1920 px (200 % text-only zoom) no painted text overlaps other text (1 px), none is clipped, ellipsised or outside the figure, tick labels are distinct, wrapped to at most three lines and rotated at most 45°, and no category label is lost without the note"
+  },
+  {
+    "criterion": "L1",
+    "type": "scatter",
+    "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+    "title": "L1 scatter: after a font that loads late, the relaid-out text still neither overlaps nor is cut off nor leaves the figure (480 and 1280 px)"
   },
   {
     "criterion": "L1",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L1 donut: at widths 240, 320, 480, 720, 1280, 1920 px (plain) no text overlaps other text (1 px), none is outside the figure, tick labels are pairwise distinct, and no category label is hidden without the note"
+    "title": "L1 donut: at widths 240, 320, 480, 720, 1280, 1920 px (plain) no painted text overlaps other text (1 px), none is clipped, ellipsised or outside the figure, tick labels are distinct, wrapped to at most three lines and rotated at most 45°, and no category label is lost without the note"
   },
   {
     "criterion": "L1",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L1 donut: at widths 240, 320, 480, 720, 1280, 1920 px (WCAG 1.4.12 text spacing) no text overlaps other text (1 px), none is outside the figure, tick labels are pairwise distinct, and no category label is hidden without the note"
+    "title": "L1 donut: at widths 240, 320, 480, 720, 1280, 1920 px (WCAG 1.4.12 text spacing) no painted text overlaps other text (1 px), none is clipped, ellipsised or outside the figure, tick labels are distinct, wrapped to at most three lines and rotated at most 45°, and no category label is lost without the note"
   },
   {
     "criterion": "L1",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L1 donut: at widths 240, 320, 480, 720, 1280, 1920 px (200 % text-only zoom) no text overlaps other text (1 px), none is outside the figure, tick labels are pairwise distinct, and no category label is hidden without the note"
+    "title": "L1 donut: at widths 240, 320, 480, 720, 1280, 1920 px (200 % text-only zoom) no painted text overlaps other text (1 px), none is clipped, ellipsised or outside the figure, tick labels are distinct, wrapped to at most three lines and rotated at most 45°, and no category label is lost without the note"
+  },
+  {
+    "criterion": "L1",
+    "type": "donut",
+    "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+    "title": "L1 donut: after a font that loads late, the relaid-out text still neither overlaps nor is cut off nor leaves the figure (480 and 1280 px)"
+  },
+  {
+    "criterion": "L1",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+    "title": "L1 bar: twelve long, unordered category labels at 240 px: each is shown whole, or truncated in the middle with its full text in the table, or the note says labels are hidden and AX143 is raised"
   },
   {
     "criterion": "L2",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L2 line: in the light scheme every text is at least 12 CSS px and 4.5:1 (legend entries of hidden series included); marks, axis lines and the focus indicator are at least 3:1"
+    "title": "L2 line: in the light scheme every text is at least 12 CSS px and 4.5:1 on what is painted behind it (legend entries of hidden series included); marks, axis lines and the focus indicator are painted at least 3:1"
   },
   {
     "criterion": "L2",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L2 line: in the dark scheme every text is at least 12 CSS px and 4.5:1 (legend entries of hidden series included); marks, axis lines and the focus indicator are at least 3:1"
+    "title": "L2 line: in the dark scheme every text is at least 12 CSS px and 4.5:1 on what is painted behind it (legend entries of hidden series included); marks, axis lines and the focus indicator are painted at least 3:1"
   },
   {
     "criterion": "L2",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L2 area: in the light scheme every text is at least 12 CSS px and 4.5:1 (legend entries of hidden series included); marks, axis lines and the focus indicator are at least 3:1"
+    "title": "L2 area: in the light scheme every text is at least 12 CSS px and 4.5:1 on what is painted behind it (legend entries of hidden series included); marks, axis lines and the focus indicator are painted at least 3:1"
   },
   {
     "criterion": "L2",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L2 area: in the dark scheme every text is at least 12 CSS px and 4.5:1 (legend entries of hidden series included); marks, axis lines and the focus indicator are at least 3:1"
+    "title": "L2 area: in the dark scheme every text is at least 12 CSS px and 4.5:1 on what is painted behind it (legend entries of hidden series included); marks, axis lines and the focus indicator are painted at least 3:1"
   },
   {
     "criterion": "L2",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L2 bar: in the light scheme every text is at least 12 CSS px and 4.5:1 (legend entries of hidden series included); marks, axis lines and the focus indicator are at least 3:1"
+    "title": "L2 bar: in the light scheme every text is at least 12 CSS px and 4.5:1 on what is painted behind it (legend entries of hidden series included); marks, axis lines and the focus indicator are painted at least 3:1"
   },
   {
     "criterion": "L2",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L2 bar: in the dark scheme every text is at least 12 CSS px and 4.5:1 (legend entries of hidden series included); marks, axis lines and the focus indicator are at least 3:1"
+    "title": "L2 bar: in the dark scheme every text is at least 12 CSS px and 4.5:1 on what is painted behind it (legend entries of hidden series included); marks, axis lines and the focus indicator are painted at least 3:1"
   },
   {
     "criterion": "L2",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L2 scatter: in the light scheme every text is at least 12 CSS px and 4.5:1 (legend entries of hidden series included); marks, axis lines and the focus indicator are at least 3:1"
+    "title": "L2 scatter: in the light scheme every text is at least 12 CSS px and 4.5:1 on what is painted behind it (legend entries of hidden series included); marks, axis lines and the focus indicator are painted at least 3:1"
   },
   {
     "criterion": "L2",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L2 scatter: in the dark scheme every text is at least 12 CSS px and 4.5:1 (legend entries of hidden series included); marks, axis lines and the focus indicator are at least 3:1"
+    "title": "L2 scatter: in the dark scheme every text is at least 12 CSS px and 4.5:1 on what is painted behind it (legend entries of hidden series included); marks, axis lines and the focus indicator are painted at least 3:1"
   },
   {
     "criterion": "L2",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L2 donut: in the light scheme every text is at least 12 CSS px and 4.5:1 (legend entries of hidden series included); marks, axis lines and the focus indicator are at least 3:1"
+    "title": "L2 donut: in the light scheme every text is at least 12 CSS px and 4.5:1 on what is painted behind it (legend entries of hidden series included); marks, axis lines and the focus indicator are painted at least 3:1"
   },
   {
     "criterion": "L2",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L2 donut: in the dark scheme every text is at least 12 CSS px and 4.5:1 (legend entries of hidden series included); marks, axis lines and the focus indicator are at least 3:1"
+    "title": "L2 donut: in the dark scheme every text is at least 12 CSS px and 4.5:1 on what is painted behind it (legend entries of hidden series included); marks, axis lines and the focus indicator are painted at least 3:1"
   },
   {
     "criterion": "L2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L2 compact: in the light scheme every text is at least 12 CSS px and 4.5:1 (legend entries of hidden series included); marks, axis lines and the focus indicator are at least 3:1"
+    "title": "L2 compact: in the light scheme every text is at least 12 CSS px and 4.5:1 on what is painted behind it (legend entries of hidden series included); marks are painted at least 3:1"
   },
   {
     "criterion": "L2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L2 compact: in the dark scheme every text is at least 12 CSS px and 4.5:1 (legend entries of hidden series included); marks, axis lines and the focus indicator are at least 3:1"
+    "title": "L2 compact: in the dark scheme every text is at least 12 CSS px and 4.5:1 on what is painted behind it (legend entries of hidden series included); marks are painted at least 3:1"
   },
   {
     "criterion": "L3",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L3 line: resized 720 → 360 → 720 px with no call from the page, the figure follows in both directions"
+    "title": "L3 line: resized 720 → 360 → 720 px with no call from the page, the marks are redrawn for each width: a known datum sits at the same share of the plot, and pointing at it there shows it"
   },
   {
     "criterion": "L3",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L3 line: with no definite height the plot is 16:9 of its width, clamped to 160–480 px, and stable over 10 frames"
+    "title": "L3 line: with no definite height the plot is 16:9 of its width, clamped to 160–480 px, stable over 10 frames; an opened table flows in the figure and pushes nothing over the next element"
   },
   {
     "criterion": "L3",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L3 line: a container that starts hidden draws when it is shown"
+    "title": "L3 line: a container that starts hidden draws when it is shown, at the shown size"
   },
   {
     "criterion": "L3",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L3 area: resized 720 → 360 → 720 px with no call from the page, the figure follows in both directions"
+    "title": "L3 area: resized 720 → 360 → 720 px with no call from the page, the marks are redrawn for each width: a known datum sits at the same share of the plot, and pointing at it there shows it"
   },
   {
     "criterion": "L3",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L3 area: with no definite height the plot is 16:9 of its width, clamped to 160–480 px, and stable over 10 frames"
+    "title": "L3 area: with no definite height the plot is 16:9 of its width, clamped to 160–480 px, stable over 10 frames; an opened table flows in the figure and pushes nothing over the next element"
   },
   {
     "criterion": "L3",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L3 area: a container that starts hidden draws when it is shown"
+    "title": "L3 area: a container that starts hidden draws when it is shown, at the shown size"
   },
   {
     "criterion": "L3",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L3 bar: resized 720 → 360 → 720 px with no call from the page, the figure follows in both directions"
+    "title": "L3 bar: resized 720 → 360 → 720 px with no call from the page, the marks are redrawn for each width: a known datum sits at the same share of the plot, and pointing at it there shows it"
   },
   {
     "criterion": "L3",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L3 bar: with no definite height the plot is 16:9 of its width, clamped to 160–480 px, and stable over 10 frames"
+    "title": "L3 bar: with no definite height the plot is 16:9 of its width, clamped to 160–480 px, stable over 10 frames; an opened table flows in the figure and pushes nothing over the next element"
   },
   {
     "criterion": "L3",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L3 bar: a container that starts hidden draws when it is shown"
+    "title": "L3 bar: a container that starts hidden draws when it is shown, at the shown size"
   },
   {
     "criterion": "L3",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L3 scatter: resized 720 → 360 → 720 px with no call from the page, the figure follows in both directions"
+    "title": "L3 scatter: resized 720 → 360 → 720 px with no call from the page, the marks are redrawn for each width: a known datum sits at the same share of the plot, and pointing at it there shows it"
   },
   {
     "criterion": "L3",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L3 scatter: with no definite height the plot is 16:9 of its width, clamped to 160–480 px, and stable over 10 frames"
+    "title": "L3 scatter: with no definite height the plot is 16:9 of its width, clamped to 160–480 px, stable over 10 frames; an opened table flows in the figure and pushes nothing over the next element"
   },
   {
     "criterion": "L3",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L3 scatter: a container that starts hidden draws when it is shown"
+    "title": "L3 scatter: a container that starts hidden draws when it is shown, at the shown size"
   },
   {
     "criterion": "L3",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L3 donut: resized 720 → 360 → 720 px with no call from the page, the figure follows in both directions"
+    "title": "L3 donut: resized 720 → 360 → 720 px with no call from the page, the marks are redrawn for each width: a known datum sits at the same share of the plot, and pointing at it there shows it"
   },
   {
     "criterion": "L3",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L3 donut: with no definite height the plot is 16:9 of its width, clamped to 160–480 px, and stable over 10 frames"
+    "title": "L3 donut: with no definite height the plot is 16:9 of its width, clamped to 160–480 px, stable over 10 frames; an opened table flows in the figure and pushes nothing over the next element"
   },
   {
     "criterion": "L3",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L3 donut: a container that starts hidden draws when it is shown"
+    "title": "L3 donut: a container that starts hidden draws when it is shown, at the shown size"
   },
   {
     "criterion": "L4",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L4 line: a page that sets color-scheme: dark gets the dark marks; a class-toggled dark theme without color-scheme repaints by the next frame"
+    "title": "L4 line: the scheme is the chart element's computed color-scheme, not the text colour: dark scheme with dark text gives the dark marks, light scheme with light text the light marks; with no color-scheme, light text gives dark marks"
+  },
+  {
+    "criterion": "L4",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+    "title": "L4 line: the marks have their new colours in the first frame after each trigger: a class, style or data-theme change on <html> or <body>, a prefers-color-scheme change, and the painted pixels follow"
   },
   {
     "criterion": "L4",
@@ -2241,13 +2517,19 @@
     "criterion": "L4",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L4 line: in forced-colors mode the marks use system colours"
+    "title": "L4 line: in forced-colors mode the marks are painted in system colours, also when it is switched on at run time"
   },
   {
     "criterion": "L4",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L4 area: a page that sets color-scheme: dark gets the dark marks; a class-toggled dark theme without color-scheme repaints by the next frame"
+    "title": "L4 area: the scheme is the chart element's computed color-scheme, not the text colour: dark scheme with dark text gives the dark marks, light scheme with light text the light marks; with no color-scheme, light text gives dark marks"
+  },
+  {
+    "criterion": "L4",
+    "type": "area",
+    "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+    "title": "L4 area: the marks have their new colours in the first frame after each trigger: a class, style or data-theme change on <html> or <body>, a prefers-color-scheme change, and the painted pixels follow"
   },
   {
     "criterion": "L4",
@@ -2259,13 +2541,19 @@
     "criterion": "L4",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L4 area: in forced-colors mode the marks use system colours"
+    "title": "L4 area: in forced-colors mode the marks are painted in system colours, also when it is switched on at run time"
   },
   {
     "criterion": "L4",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L4 bar: a page that sets color-scheme: dark gets the dark marks; a class-toggled dark theme without color-scheme repaints by the next frame"
+    "title": "L4 bar: the scheme is the chart element's computed color-scheme, not the text colour: dark scheme with dark text gives the dark marks, light scheme with light text the light marks; with no color-scheme, light text gives dark marks"
+  },
+  {
+    "criterion": "L4",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+    "title": "L4 bar: the marks have their new colours in the first frame after each trigger: a class, style or data-theme change on <html> or <body>, a prefers-color-scheme change, and the painted pixels follow"
   },
   {
     "criterion": "L4",
@@ -2277,13 +2565,19 @@
     "criterion": "L4",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L4 bar: in forced-colors mode the marks use system colours"
+    "title": "L4 bar: in forced-colors mode the marks are painted in system colours, also when it is switched on at run time"
   },
   {
     "criterion": "L4",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L4 scatter: a page that sets color-scheme: dark gets the dark marks; a class-toggled dark theme without color-scheme repaints by the next frame"
+    "title": "L4 scatter: the scheme is the chart element's computed color-scheme, not the text colour: dark scheme with dark text gives the dark marks, light scheme with light text the light marks; with no color-scheme, light text gives dark marks"
+  },
+  {
+    "criterion": "L4",
+    "type": "scatter",
+    "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+    "title": "L4 scatter: the marks have their new colours in the first frame after each trigger: a class, style or data-theme change on <html> or <body>, a prefers-color-scheme change, and the painted pixels follow"
   },
   {
     "criterion": "L4",
@@ -2295,13 +2589,19 @@
     "criterion": "L4",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L4 scatter: in forced-colors mode the marks use system colours"
+    "title": "L4 scatter: in forced-colors mode the marks are painted in system colours, also when it is switched on at run time"
   },
   {
     "criterion": "L4",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L4 donut: a page that sets color-scheme: dark gets the dark marks; a class-toggled dark theme without color-scheme repaints by the next frame"
+    "title": "L4 donut: the scheme is the chart element's computed color-scheme, not the text colour: dark scheme with dark text gives the dark marks, light scheme with light text the light marks; with no color-scheme, light text gives dark marks"
+  },
+  {
+    "criterion": "L4",
+    "type": "donut",
+    "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+    "title": "L4 donut: the marks have their new colours in the first frame after each trigger: a class, style or data-theme change on <html> or <body>, a prefers-color-scheme change, and the painted pixels follow"
   },
   {
     "criterion": "L4",
@@ -2313,13 +2613,19 @@
     "criterion": "L4",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L4 donut: in forced-colors mode the marks use system colours"
+    "title": "L4 donut: in forced-colors mode the marks are painted in system colours, also when it is switched on at run time"
   },
   {
     "criterion": "L4",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L4 compact: a page that sets color-scheme: dark gets the dark marks; a class-toggled dark theme without color-scheme repaints by the next frame"
+    "title": "L4 compact: the scheme is the chart element's computed color-scheme, not the text colour: dark scheme with dark text gives the dark marks, light scheme with light text the light marks; with no color-scheme, light text gives dark marks"
+  },
+  {
+    "criterion": "L4",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+    "title": "L4 compact: the marks have their new colours in the first frame after each trigger: a class, style or data-theme change on <html> or <body>, a prefers-color-scheme change, and the painted pixels follow"
   },
   {
     "criterion": "L4",
@@ -2331,19 +2637,19 @@
     "criterion": "L4",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L4 compact: in forced-colors mode the marks use system colours"
+    "title": "L4 compact: in forced-colors mode the marks are painted in system colours, also when it is switched on at run time"
   },
   {
     "criterion": "L5",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L5 line: 120 daily points in 720 px (about 5.5 px apart) do not get a marker on every point; 12 points do; an isolated point always has one"
+    "title": "L5 line: points 11 px apart do not get a marker on every point; points 13 px apart do (the 12 px threshold bracketed); an isolated point always has one"
   },
   {
     "criterion": "L5",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L5 area: 120 daily points in 720 px (about 5.5 px apart) do not get a marker on every point; 12 points do; an isolated point always has one"
+    "title": "L5 area: points 11 px apart do not get a marker on every point; points 13 px apart do (the 12 px threshold bracketed); an isolated point always has one"
   },
   {
     "criterion": "L6",
@@ -2403,133 +2709,199 @@
     "criterion": "L7",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L7 line: empty data shows a message inside the plot and in the accessibility tree, with no tick labels and no invented axis"
+    "title": "L7 line: empty data shows its message inside the plot and in the accessibility tree, with no tick labels and no invented axis"
   },
   {
     "criterion": "L7",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L7 line: loading, an author error and an internal failure each show their message inside the plot; loading → ready is announced once, politely"
+    "title": "L7 line: loading, an author error and an internal failure each show their exact message inside the plot with no axes; each change of state is announced exactly once, politely, and nothing else is"
   },
   {
     "criterion": "L7",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L7 area: empty data shows a message inside the plot and in the accessibility tree, with no tick labels and no invented axis"
+    "title": "L7 area: empty data shows its message inside the plot and in the accessibility tree, with no tick labels and no invented axis"
   },
   {
     "criterion": "L7",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L7 area: loading, an author error and an internal failure each show their message inside the plot; loading → ready is announced once, politely"
+    "title": "L7 area: loading, an author error and an internal failure each show their exact message inside the plot with no axes; each change of state is announced exactly once, politely, and nothing else is"
   },
   {
     "criterion": "L7",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L7 bar: empty data shows a message inside the plot and in the accessibility tree, with no tick labels and no invented axis"
+    "title": "L7 bar: empty data shows its message inside the plot and in the accessibility tree, with no tick labels and no invented axis"
   },
   {
     "criterion": "L7",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L7 bar: loading, an author error and an internal failure each show their message inside the plot; loading → ready is announced once, politely"
+    "title": "L7 bar: loading, an author error and an internal failure each show their exact message inside the plot with no axes; each change of state is announced exactly once, politely, and nothing else is"
   },
   {
     "criterion": "L7",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L7 scatter: empty data shows a message inside the plot and in the accessibility tree, with no tick labels and no invented axis"
+    "title": "L7 scatter: empty data shows its message inside the plot and in the accessibility tree, with no tick labels and no invented axis"
   },
   {
     "criterion": "L7",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L7 scatter: loading, an author error and an internal failure each show their message inside the plot; loading → ready is announced once, politely"
+    "title": "L7 scatter: loading, an author error and an internal failure each show their exact message inside the plot with no axes; each change of state is announced exactly once, politely, and nothing else is"
   },
   {
     "criterion": "L7",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L7 donut: empty data shows a message inside the plot and in the accessibility tree, with no tick labels and no invented axis"
+    "title": "L7 donut: empty data shows its message inside the plot and in the accessibility tree, with no tick labels and no invented axis"
   },
   {
     "criterion": "L7",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L7 donut: loading, an author error and an internal failure each show their message inside the plot; loading → ready is announced once, politely"
+    "title": "L7 donut: loading, an author error and an internal failure each show their exact message inside the plot with no axes; each change of state is announced exactly once, politely, and nothing else is"
   },
   {
     "criterion": "L7",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L7 compact: empty data shows a message inside the plot and in the accessibility tree, with no tick labels and no invented axis"
+    "title": "L7 compact: empty data shows its message inside the plot and in the accessibility tree, with no tick labels and no invented axis"
   },
   {
     "criterion": "L7",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L7 compact: loading, an author error and an internal failure each show their message inside the plot; loading → ready is announced once, politely"
+    "title": "L7 compact: loading, an author error and an internal failure each show their exact message inside the plot with no axes; each change of state is announced exactly once, politely, and nothing else is"
   },
   {
     "criterion": "L8",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 line: a narrow container (width: 110px; height: 300px;) shows the title, the one-line summary and the table control instead of a plot, and raises AX142"
+    "title": "L8 line: shrinking the container's width 1 px at a time, the plot is drawn while it is at least 120 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
   },
   {
     "criterion": "L8",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 line: a short container (width: 600px; height: 90px;) shows the title, the one-line summary and the table control instead of a plot, and raises AX142"
+    "title": "L8 line: shrinking the container's height 1 px at a time, the plot is drawn while it is at least 80 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
   },
   {
     "criterion": "L8",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 area: a narrow container (width: 110px; height: 300px;) shows the title, the one-line summary and the table control instead of a plot, and raises AX142"
+    "title": "L8 area: shrinking the container's width 1 px at a time, the plot is drawn while it is at least 120 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
   },
   {
     "criterion": "L8",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 area: a short container (width: 600px; height: 90px;) shows the title, the one-line summary and the table control instead of a plot, and raises AX142"
+    "title": "L8 area: shrinking the container's height 1 px at a time, the plot is drawn while it is at least 80 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
   },
   {
     "criterion": "L8",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 bar: a narrow container (width: 110px; height: 300px;) shows the title, the one-line summary and the table control instead of a plot, and raises AX142"
+    "title": "L8 bar: shrinking the container's width 1 px at a time, the plot is drawn while it is at least 120 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
   },
   {
     "criterion": "L8",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 bar: a short container (width: 600px; height: 90px;) shows the title, the one-line summary and the table control instead of a plot, and raises AX142"
+    "title": "L8 bar: shrinking the container's height 1 px at a time, the plot is drawn while it is at least 80 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
   },
   {
     "criterion": "L8",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 scatter: a narrow container (width: 110px; height: 300px;) shows the title, the one-line summary and the table control instead of a plot, and raises AX142"
+    "title": "L8 scatter: shrinking the container's width 1 px at a time, the plot is drawn while it is at least 120 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
   },
   {
     "criterion": "L8",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 scatter: a short container (width: 600px; height: 90px;) shows the title, the one-line summary and the table control instead of a plot, and raises AX142"
+    "title": "L8 scatter: shrinking the container's height 1 px at a time, the plot is drawn while it is at least 80 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
   },
   {
     "criterion": "L8",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 donut: a narrow container (width: 110px; height: 300px;) shows the title, the one-line summary and the table control instead of a plot, and raises AX142"
+    "title": "L8 donut: shrinking the container's width 1 px at a time, the plot is drawn while it is at least 120 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
   },
   {
     "criterion": "L8",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 donut: a short container (width: 600px; height: 90px;) shows the title, the one-line summary and the table control instead of a plot, and raises AX142"
+    "title": "L8 donut: shrinking the container's height 1 px at a time, the plot is drawn while it is at least 80 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
+  },
+  {
+    "criterion": "A5",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
+    "title": "A5 bar: negative control: the separator check, calibrated on a 1 px control, flags a 0.5 px gap and touching marks"
+  },
+  {
+    "criterion": "A5",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
+    "title": "A5 line: negative control: painted-colour sampling reports marks made nearly transparent, and marks covered by an element"
+  },
+  {
+    "criterion": "A5",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
+    "title": "A5 line: negative control: the grayscale marker-class check reports three identical markers as not distinct"
+  },
+  {
+    "criterion": "L1",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
+    "title": "L1 line: negative control: the text check reports an overlapping label, a clipped one, and two lines that overlap by 1.1 px"
+  },
+  {
+    "criterion": "A4",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
+    "title": "A4 line: negative control: the table comparison reports two swapped cells and two swapped headers"
+  },
+  {
+    "criterion": "A1",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
+    "title": "A1 line: negative control: the summary check reports a summary without its range statement"
+  },
+  {
+    "criterion": "A2",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
+    "title": "A2 line: negative control: reading the value text fails when the range has lost focus, and when it is no longer exposed as a slider"
+  },
+  {
+    "criterion": "I1",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
+    "title": "I1 bar: negative control: the occlusion check reports a tooltip moved over the active bars"
+  },
+  {
+    "criterion": "I5",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
+    "title": "I5 line: negative control: the motion trace reports an entry animation added to the marks, and an update transition that outlasts 200 ms"
+  },
+  {
+    "criterion": "T-reference-line",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
+    "title": "T-reference-line: negative control: the reference check finds nothing once the line is removed, and a wrong colour once it is repainted"
+  },
+  {
+    "criterion": "T-dense-line",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
+    "title": "T-dense-line: negative control: the spike-column check reports a spike moved five columns away"
   },
   {
     "criterion": "T-pointer-line",
@@ -2550,6 +2922,12 @@
     "title": "T-pointer-bar: the band under the pointer is picked, even at its edge and away from the bars"
   },
   {
+    "criterion": "T-pointer-bar",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
+    "title": "T-pointer-bar: the band under the pointer is picked, even at its edge and away from the bars (horizontal bars: bands run along y)"
+  },
+  {
     "criterion": "T-pointer-donut",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
@@ -2559,37 +2937,49 @@
     "criterion": "T-pointer-scatter",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-pointer-scatter: the nearest point within 24 px is picked, nothing beyond 24 px, and a tie goes to the later row"
+    "title": "T-pointer-scatter: the nearest point within 24 px is picked: 23 px from a lone point it is, 25 px it is not"
+  },
+  {
+    "criterion": "T-pointer-scatter",
+    "type": "scatter",
+    "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
+    "title": "T-pointer-scatter: two points equally near the pointer: the later row wins, whichever series it is (source order reversed, the other wins)"
   },
   {
     "criterion": "T-tooltip-line",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-tooltip-line: every visible series at that x, and not a hidden one"
+    "title": "T-tooltip-line: every visible series at that x, in series order; a hidden series is not listed"
   },
   {
     "criterion": "T-tooltip-area",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-tooltip-area: every visible series at that x, plus the stack total"
+    "title": "T-tooltip-area: every visible series at that x and, stacked, the stack total, in series order; a hidden series is not listed"
   },
   {
     "criterion": "T-tooltip-bar",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-tooltip-bar: every series in that category"
+    "title": "T-tooltip-bar: every visible series at that category, in series order; a hidden series is not listed"
+  },
+  {
+    "criterion": "T-tooltip-bar",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
+    "title": "T-tooltip-bar: on horizontal bars too, every series in the category under the pointer"
   },
   {
     "criterion": "T-tooltip-donut",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-tooltip-donut: label, value and percentage"
+    "title": "T-tooltip-donut: label, value and percentage of the slice under the pointer"
   },
   {
     "criterion": "T-tooltip-scatter",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-tooltip-scatter: the point's series, x and y; ten coincident points list eight and \"+2 more\""
+    "title": "T-tooltip-scatter: the point's series, x and y; ten coincident points list eight distinct series of the ten and \"+2 more\""
   },
   {
     "criterion": "T-keyboard-line",
@@ -2622,6 +3012,18 @@
     "title": "T-keyboard-donut: Right walks by slice order; Left walks back in reverse"
   },
   {
+    "criterion": "F10",
+    "type": "area",
+    "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
+    "title": "F10 area: a stack with a positive and a negative part reads the positive total and the negative total in the tooltip, never their net, and the parts sit on their own sides of zero"
+  },
+  {
+    "criterion": "F10",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
+    "title": "F10 bar: a stack with a positive and a negative part reads the positive total and the negative total in the tooltip, never their net, and the parts sit on their own sides of zero"
+  },
+  {
     "criterion": "T-zoom-line",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
@@ -2637,108 +3039,156 @@
     "criterion": "T-zoom-scatter",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-zoom-scatter: x only in 1.0: zooming narrows the x range and offers zoom controls; the y axis is not zoomed"
+    "title": "T-zoom-scatter: x only in 1.0: + narrows the x range, controls are offered, and the y axis keeps the full data range though the visible y extremes change"
   },
   {
     "criterion": "T-zoom-bar",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-zoom-bar: a category bar chart has no zoom (no controls; +, wheel and drag leave the range alone); a date bar chart zooms"
+    "title": "T-zoom-bar: a category bar chart has no zoom (no controls; +, wheel and drag each leave the range alone); date and number bar charts zoom"
   },
   {
     "criterion": "T-zoom-donut",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-zoom-donut: a donut has no zoom: no controls, and +, - and the wheel change nothing drawn"
+    "title": "T-zoom-donut: a donut has no zoom: no controls, and +, - and the wheel each change nothing drawn"
   },
   {
     "criterion": "T-dense-line",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-dense-line: 100,000 samples with one outlier: the drawing reaches the outlier, and the outlier is in the table"
+    "title": "T-dense-line: 100,000 samples at device pixel ratio 1 with fixed domains: a spike at sample 61,234 and a dip at 20,000 are each drawn in their own device-pixel column and nowhere else; a break inside one column is kept; a sample the drawing dropped is in the table"
+  },
+  {
+    "criterion": "T-dense-line",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
+    "title": "T-dense-line: 100,000 samples at device pixel ratio 2 with fixed domains: a spike at sample 61,234 and a dip at 20,000 are each drawn in their own device-pixel column and nowhere else; a break inside one column is kept; a sample the drawing dropped is in the table"
   },
   {
     "criterion": "T-dense-area",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-dense-area: 100,000 samples with one outlier: the drawing reaches the outlier, and the outlier is in the table"
+    "title": "T-dense-area: 100,000 samples at device pixel ratio 1 with fixed domains: a spike at sample 61,234 and a dip at 20,000 are each drawn in their own device-pixel column and nowhere else; a break inside one column is kept; a sample the drawing dropped is in the table"
+  },
+  {
+    "criterion": "T-dense-area",
+    "type": "area",
+    "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
+    "title": "T-dense-area: 100,000 samples at device pixel ratio 2 with fixed domains: a spike at sample 61,234 and a dip at 20,000 are each drawn in their own device-pixel column and nowhere else; a break inside one column is kept; a sample the drawing dropped is in the table"
+  },
+  {
+    "criterion": "T-dense-area",
+    "type": "area",
+    "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
+    "title": "T-dense-area: stacked, the upper boundary reaches the cumulative spike (series 1 at 61,234 plus series 2 there) in its own column, at device pixel ratio 2"
   },
   {
     "criterion": "T-dense-bar",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-dense-bar: more bars than pixels raises the AX132 hint and every bar is still drawn"
+    "title": "T-dense-bar: more bars than pixels raises the AX132 hint and every bar is still drawn, each where its category is"
   },
   {
     "criterion": "T-dense-donut",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-dense-donut: no simplified drawing: eight slices, the smallest under 0.5 %, are each drawn"
+    "title": "T-dense-donut: no simplified drawing: eight slices, the smallest under 0.2 %, are each drawn at their angle in their colour"
   },
   {
     "criterion": "T-dense-scatter",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-dense-scatter: above 50,000 points the AX133 hint says drawing may be slow, and every point is drawn"
+    "title": "T-dense-scatter: above 50,000 points the AX133 hint says drawing may be slow, and every point is drawn: points chosen across the data are found at their own positions"
   },
   {
     "criterion": "T-limit-line",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-limit-line: nine series raise AX130 and all nine are drawn, each with its own combination of colour and dash or marker"
+    "title": "T-limit-line: eight series raise no AX130; nine raise AX130 once, and each of the nine is painted with its own combination of colour and dash, marker or pattern"
   },
   {
     "criterion": "T-limit-area",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-limit-area: nine series raise AX130 and all nine are drawn, each with its own combination of colour and dash or marker"
+    "title": "T-limit-area: eight series raise no AX130; nine raise AX130 once, and each of the nine is painted with its own combination of colour and dash, marker or pattern"
   },
   {
     "criterion": "T-limit-bar",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-limit-bar: nine series raise AX130 and all nine are drawn, each with its own combination of colour and dash or marker"
+    "title": "T-limit-bar: eight series raise no AX130; nine raise AX130 once, and each of the nine is painted with its own combination of colour and dash, marker or pattern"
   },
   {
     "criterion": "T-limit-scatter",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-limit-scatter: nine series raise AX130 and all nine are drawn, each with its own combination of colour and dash or marker"
+    "title": "T-limit-scatter: eight series raise no AX130; nine raise AX130 once, and each of the nine is painted with its own combination of colour and dash, marker or pattern"
+  },
+  {
+    "criterion": "F9",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
+    "title": "F9 bar: thirty-two series are each painted with their own combination of colour and fill pattern (spec F9 as settled: bar cues are distinct up to 32 series)"
   },
   {
     "criterion": "T-limit-donut",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-limit-donut: nine slices raise AX121 and draw the seven largest plus \"Other (2)\""
+    "title": "T-limit-donut: eight slices raise no AX121; nine raise it and draw the seven largest (here not the first seven) plus \"Other (2)\""
   },
   {
     "criterion": "T-reference-line",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-reference-line: a reference line beyond the data is included in the y domain, drawn with its label next to it, and listed in the summary and the table caption; a band is listed too"
+    "title": "T-reference-line: a reference line outside the data is included in the domain, painted at its position in the reference colour, labelled next to its own mark, and listed in the summary and the table caption"
+  },
+  {
+    "criterion": "T-reference-line",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
+    "title": "T-reference-line: a reference band outside the data is included in the domain, painted at its position in the reference colour, labelled next to its own mark, and listed in the summary and the table caption"
   },
   {
     "criterion": "T-reference-area",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-reference-area: a reference line beyond the data is included in the y domain, drawn with its label next to it, and listed in the summary and the table caption; a band is listed too"
+    "title": "T-reference-area: a reference line outside the data is included in the domain, painted at its position in the reference colour, labelled next to its own mark, and listed in the summary and the table caption"
+  },
+  {
+    "criterion": "T-reference-area",
+    "type": "area",
+    "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
+    "title": "T-reference-area: a reference band outside the data is included in the domain, painted at its position in the reference colour, labelled next to its own mark, and listed in the summary and the table caption"
   },
   {
     "criterion": "T-reference-bar",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-reference-bar: a reference line beyond the data is included in the y domain, drawn with its label next to it, and listed in the summary and the table caption; a band is listed too"
+    "title": "T-reference-bar: a reference line outside the data is included in the domain, painted at its position in the reference colour, labelled next to its own mark, and listed in the summary and the table caption"
+  },
+  {
+    "criterion": "T-reference-bar",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
+    "title": "T-reference-bar: a reference band outside the data is included in the domain, painted at its position in the reference colour, labelled next to its own mark, and listed in the summary and the table caption"
   },
   {
     "criterion": "T-reference-scatter",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-reference-scatter: a reference line beyond the data is included in the y domain, drawn with its label next to it, and listed in the summary and the table caption; a band is listed too"
+    "title": "T-reference-scatter: a reference line outside the data is included in the domain, painted at its position in the reference colour, labelled next to its own mark, and listed in the summary and the table caption"
+  },
+  {
+    "criterion": "T-reference-scatter",
+    "type": "scatter",
+    "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
+    "title": "T-reference-scatter: a reference band outside the data is included in the domain, painted at its position in the reference colour, labelled next to its own mark, and listed in the summary and the table caption"
   },
   {
     "criterion": "T-reference-donut",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-reference-donut: a donut has no reference lines: an author reference is not drawn and not described, and is reported"
+    "title": "T-reference-donut: a donut has no reference lines: an author reference is reported (AX150), and nothing is drawn, labelled or described for it"
   }
 ]

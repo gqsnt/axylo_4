@@ -6,17 +6,41 @@
  */
 import type { Page } from 'playwright-core';
 
-export interface TextBox { text: string; owner: number; cx: number; cy: number; w: number; h: number; angle: number; role: string }
+export interface TextBox {
+  text: string; owner: number; cx: number; cy: number; w: number; h: number; angle: number; role: string;
+  /**
+   * How much of it a reader sees: 'whole'; 'clipped' (an ancestor that hides overflow cuts it off);
+   * 'ellipsis' (cut off and ended with an ellipsis by CSS `text-overflow`). For a cut text the box is the
+   * part that is painted, not the underlying text.
+   */
+  seen: 'whole' | 'clipped' | 'ellipsis';
+}
 
 export async function textBoxes(page: Page, selector = '#chart'): Promise<TextBox[]> {
   return page.evaluate(selector => {
     const root = document.querySelector(selector)!;
-    const out: { text: string; owner: number; cx: number; cy: number; w: number; h: number; angle: number; role: string }[] = [];
+    const out: { text: string; owner: number; cx: number; cy: number; w: number; h: number; angle: number; role: string; seen: 'whole' | 'clipped' | 'ellipsis' }[] = [];
     const owners = new Map<Element, number>();
+    /** The rectangle the ancestors that hide overflow leave visible, and whether one of them ends text with an ellipsis. */
+    const clipOf = (el: Element) => {
+      let x0 = -Infinity, y0 = -Infinity, x1 = Infinity, y1 = Infinity, ellipsis = false;
+      for (let a: Element | null = el; a && a !== document.body; a = a.parentElement) {
+        const s = getComputedStyle(a);
+        if (s.textOverflow === 'ellipsis' && (a as HTMLElement).scrollWidth > (a as HTMLElement).clientWidth + 0.5) ellipsis = true;
+        if (s.overflowX !== 'visible' || s.overflowY !== 'visible' || s.clipPath !== 'none') {
+          const r = a.getBoundingClientRect();
+          if (s.overflowX !== 'visible') { x0 = Math.max(x0, r.left); x1 = Math.min(x1, r.right); }
+          if (s.overflowY !== 'visible') { y0 = Math.max(y0, r.top); y1 = Math.min(y1, r.bottom); }
+        }
+      }
+      return { x0, y0, x1, y1, ellipsis };
+    };
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     for (let n = walker.nextNode(); n; n = walker.nextNode()) {
       const el = n.parentElement!;
       if (!n.textContent?.trim()) continue;
+      // The tooltip and readout float over the plot by design while the reader asks for them; they are
+      // checked by I1 (they must not cover the active mark or a control), not counted as overlapping text.
       if (el.closest('[hidden], .axylo-visually-hidden, .axylo-tooltip, .axylo-readout, [aria-hidden="true"] svg, script, style')) continue;
       const style = getComputedStyle(el);
       if (style.visibility === 'hidden' || style.display === 'none' || Number(style.opacity) === 0) continue;
@@ -26,11 +50,15 @@ export async function textBoxes(page: Page, selector = '#chart'): Promise<TextBo
       const owner = moved ?? el;
       if (!owners.has(owner)) owners.set(owner, owners.size);
       const role = owner.closest('[data-role]')?.getAttribute('data-role') ?? owner.className;
+      const clip = clipOf(owner);
       if (moved) {
         if (out.some(b => b.owner === owners.get(owner))) continue;
         const m = new DOMMatrix(getComputedStyle(moved).transform);
         const r = moved.getBoundingClientRect();
-        out.push({ text: moved.textContent ?? '', owner: owners.get(owner)!, cx: r.x + r.width / 2, cy: r.y + r.height / 2, w: moved.offsetWidth, h: moved.offsetHeight, angle: Math.atan2(m.b, m.a), role });
+        const cut = r.left < clip.x0 - 1 || r.right > clip.x1 + 1 || r.top < clip.y0 - 1 || r.bottom > clip.y1 + 1;
+        // A wrapped label holds one child per line: its text is the lines joined by a space.
+        const text = moved.children.length ? [...moved.children].map(c => c.textContent ?? '').join(' ') : moved.textContent ?? '';
+        out.push({ text, owner: owners.get(owner)!, cx: r.x + r.width / 2, cy: r.y + r.height / 2, w: moved.offsetWidth, h: moved.offsetHeight, angle: Math.atan2(m.b, m.a), role, seen: cut ? (clip.ellipsis ? 'ellipsis' : 'clipped') : 'whole' });
         continue;
       }
       const range = document.createRange();
@@ -40,8 +68,13 @@ export async function textBoxes(page: Page, selector = '#chart'): Promise<TextBo
       const line = parseFloat(style.lineHeight);
       for (const r of range.getClientRects()) {
         if (r.width < 0.5 || r.height < 0.5) continue;
-        const h = Number.isFinite(line) ? Math.min(r.height, line) : r.height;
-        out.push({ text: n.textContent ?? '', owner: owners.get(owner)!, cx: r.x + r.width / 2, cy: r.y + r.height / 2, w: r.width, h, angle: 0, role });
+        const h0 = Number.isFinite(line) ? Math.min(r.height, line) : r.height;
+        const top = r.y + (r.height - h0) / 2;
+        // The painted part: the line box cut to the clipping rectangle.
+        const x0 = Math.max(r.left, clip.x0), x1 = Math.min(r.right, clip.x1), y0 = Math.max(top, clip.y0), y1 = Math.min(top + h0, clip.y1);
+        const cut = x0 > r.left + 1 || x1 < r.right - 1 || y0 > top + 1 || y1 < top + h0 - 1;
+        if (x1 <= x0 || y1 <= y0) { out.push({ text: n.textContent ?? '', owner: owners.get(owner)!, cx: r.x, cy: r.y, w: 0, h: 0, angle: 0, role, seen: clip.ellipsis ? 'ellipsis' : 'clipped' }); continue; }
+        out.push({ text: n.textContent ?? '', owner: owners.get(owner)!, cx: (x0 + x1) / 2, cy: (y0 + y1) / 2, w: x1 - x0, h: y1 - y0, angle: 0, role, seen: cut ? (clip.ellipsis ? 'ellipsis' : 'clipped') : 'whole' });
       }
     }
     return out;
@@ -75,12 +108,12 @@ export function extent(b: TextBox): { x0: number; y0: number; x1: number; y1: nu
   return { x0: Math.min(...p.map(q => q[0])), y0: Math.min(...p.map(q => q[1])), x1: Math.max(...p.map(q => q[0])), y1: Math.max(...p.map(q => q[1])) };
 }
 
-/** Every pair of boxes from different elements that overlap. */
+/** Every pair of painted boxes that overlap by more than `tolerance`, the lines of one element included. */
 export function overlaps(boxes: readonly TextBox[], tolerance = 1): string[] {
   const out: string[] = [];
   for (let i = 0; i < boxes.length; i++) {
     for (let j = i + 1; j < boxes.length; j++) {
-      if (boxes[i]!.owner === boxes[j]!.owner) continue;
+      if (!boxes[i]!.w || !boxes[j]!.w) continue;
       if (overlap(boxes[i]!, boxes[j]!, tolerance)) out.push(`"${boxes[i]!.text}" × "${boxes[j]!.text}"`);
     }
   }

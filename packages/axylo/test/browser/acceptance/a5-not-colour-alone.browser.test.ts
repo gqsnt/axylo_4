@@ -1,8 +1,9 @@
 /**
  * A5: series are never distinguished by colour alone, in any mode (spec 3.4). Shape markers on lines and
  * areas (last point and sparse intervals), repeated in legend and tooltip; dash under more contrast and
- * forced colours; at least 1 px of background between adjacent filled marks; the palette's contrast and
- * OKLab distances measured on the colours Chrome resolved for the rendered marks; AX141 on a background the
+ * forced colours (computed style); at least 1 px of background between adjacent filled marks, measured on
+ * painted pixels against a 1 px control drawn in the same page; the palette's contrast and OKLab
+ * distances measured on painted mark pixels and their painted backdrop; AX141 on a background the
  * palette does not suit; and a grayscale screenshot in which three crossing lines are told apart by marker.
  * Colours are never hard-coded: they are read from the page.
  */
@@ -10,11 +11,11 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
 import { start, stop } from '../harness';
 import {
-  backgroundColor, box, center, defaultBackground, ring, closePage, contrast, createRaw, create, devPage, distance, pixel, screenshot, seriesColors, settle, shapes, signature,
-  type Image, type RGB, type Shape,
+  box, center, closePage, createRaw, create, devPage, interiorColor, modeColor, ring, screenshot, settle, shapes, signature,
+  type Box, type Image, type RGB, type Shape,
 } from './util';
-import { TYPES, type ChartType } from './fixtures';
-import { gray, minimumDistance, VISIONS } from './vision';
+import { SPEND, TYPES } from './fixtures';
+import { controlCoverage, eight, markerClasses, paintedSeries, paletteProblems, scanLine, seams, strokeRuns } from './checks';
 
 beforeAll(start);
 afterAll(stop);
@@ -153,166 +154,159 @@ describe('A5 dash under more contrast and forced colours', () => {
 // ── separators between adjacent filled marks ──────────────────────────────────────────────────────
 
 /**
- * Walks `points` (image px) and, wherever the colour changes from one mark colour to another, sums how
- * much background the pixels in between show (reading of "at least 1 px of background" on an anti-aliased
- * raster: the background coverage of the pixels between two marks adds up to at least 0.75 px, which a
- * 1 px gap at any sub-pixel offset meets and two touching marks do not). A pixel's background coverage is
- * its projection onto the line from the nearest mark colour to the background.
+ * Checks one seam both ways: its geometry where the drawing gives it (`gap`, CSS px), and its painted
+ * pixels scanned across it, against the coverage a 1 px control gap reaches in this page at the same angle.
+ * Returns a description of each failure (empty when the seam is a full 1 px of background).
  */
-function separated(img: Image, points: { x: number; y: number }[], colors: readonly RGB[], bg: RGB, tolerance = 24): { transitions: number; touching: number; at: { x: number; y: number; coverage: number }[] } {
-  const nearest = (c: RGB): { k: number; d: number } => {
-    let best = { k: -1, d: Infinity };
-    colors.forEach((m, k) => { const d = distance(c, m); if (d < best.d) best = { k, d }; });
-    return best;
-  };
-  let last = -1, coverage = 0, transitions = 0, touching = 0;
-  const at: { x: number; y: number; coverage: number }[] = [];
-  let prev = '';
-  for (const p of points) {
-    if (p.x < 0 || p.y < 0 || p.x >= img.width || p.y >= img.height) continue;
-    const key = `${Math.floor(p.x)},${Math.floor(p.y)}`;
-    if (key === prev) continue;
-    prev = key;
-    const c = pixel(img, p.x, p.y);
-    const n = nearest(c);
-    if (n.d <= tolerance) {
-      if (last >= 0 && n.k !== last) {
-        transitions++;
-        if (coverage < 0.75) { touching++; at.push({ ...p, coverage }); }
-      }
-      last = n.k;
-      coverage = 0;
-      continue;
-    }
-    const m = colors[n.k]!;
-    const w = [bg[0] - m[0], bg[1] - m[1], bg[2] - m[2]];
-    const q = [c[0] - m[0], c[1] - m[1], c[2] - m[2]];
-    const len = w[0]! * w[0]! + w[1]! * w[1]! + w[2]! * w[2]! || 1;
-    coverage += Math.min(1, Math.max(0, (q[0]! * w[0]! + q[1]! * w[1]! + q[2]! * w[2]!) / len));
-  }
-  return { transitions, touching, at };
+async function seamProblems(page: Page, img: Image, view: Box, scale: number, at: { x: number; y: number }, normal: { x: number; y: number }, colors: readonly [RGB, RGB], bg: RGB, label: string): Promise<string[]> {
+  const angle = Math.atan2(normal.y, normal.x) - Math.PI / 2;
+  const floor = await controlCoverage(page, colors, bg, 1, angle);
+  const found = seams(img, scanLine({ x: (at.x - view.x) * scale, y: (at.y - view.y) * scale }, normal, 12 * scale), colors, bg);
+  const crossing = found.filter(f => f.from !== f.to);
+  if (crossing.length !== 1) return [`${label}: ${crossing.length} colour changes across the seam, expected 1`];
+  // 0.02 of rounding between two rasterisations of the same geometry; the nominal gap stays 1 px.
+  return crossing[0]!.coverage + 0.02 < floor ? [`${label}: ${crossing[0]!.coverage.toFixed(2)} px of background, the 1 px control gives ${floor.toFixed(2)}`] : [];
 }
 
-const vertical = (x: number, y0: number, y1: number) => Array.from({ length: Math.ceil(y1 - y0) }, (_, i) => ({ x, y: y0 + i }));
-const horizontal = (y: number, x0: number, x1: number) => Array.from({ length: Math.ceil(x1 - x0) }, (_, i) => ({ x: x0 + i, y }));
+/** The painted colour of a bar from its interior. */
+const barColor = (img: Image, view: Box, b: Box): RGB => interiorColor(img, view, b, 2).color;
 
 describe('A5 separators', () => {
-  it('A5 bar: stacked segments are separated by at least 1 px of background, in every stack (reading: anti-aliased background coverage summed, at least 0.75 px)', async () => {
+  it('A5 bar: stacked segments are separated by at least 1 px of background in every stack: geometry, and painted pixels against a 1 px control', async () => {
     const page = await devPage();
     await create(page, 'bar', { layout: 'stacked' });
-    const { img, box: plot } = await screenshot(page, '#chart .axylo-plot');
-    const colors = await seriesColors(page);
-    const bg = await backgroundColor(page);
+    const { img, box: view, scale } = await screenshot(page, '#chart .axylo-plot');
+    const bg = modeColor(img, { x0: 0, y0: 0, x1: img.width, y1: img.height }).color;
     const drawn = await shapes(page, '#chart', 100000);
-    const stacks = (drawn[1] ?? []).map(s => s.box);
-    expect(stacks).toHaveLength(4);
-    // Geometry first: the segment above starts at least 1 px above where the one below ends.
+    const below = (drawn[1] ?? []).map(s => s.box).sort((a, b) => a.x - b.x);
     const above = (drawn[2] ?? []).map(s => s.box).sort((a, b) => a.x - b.x);
-    [...stacks].sort((a, b) => a.x - b.x).forEach((below, i) => expect(below.y - (above[i]!.y + above[i]!.height), `stack ${i + 1} gap`).toBeGreaterThanOrEqual(1 - 0.01));
-    for (const s of stacks) {
-      const x = Math.round(s.x + s.width / 2 - plot.x);
-      const r = separated(img, vertical(x, 0, img.height), colors, bg);
-      expect(r.transitions, `stack at ${x}`).toBeGreaterThanOrEqual(1);
-      expect(r.touching, `stack at ${x}: ${JSON.stringify(r.at)}`).toBe(0);
-    }
-    expect(await closePage(page)).toEqual([]);
-  });
-
-  it('A5 bar: grouped bars of different series are separated by at least 1 px of background (reading: two touching bars are adjacent filled marks)', async () => {
-    const page = await devPage();
-    await create(page, 'bar');
-    const { img, box: plot } = await screenshot(page, '#chart .axylo-plot');
-    const colors = await seriesColors(page);
-    const bg = await backgroundColor(page);
-    const drawn = await shapes(page, '#chart', 100000);
-    const plan = (drawn[1] ?? []).map(s => s.box).sort((a, b) => a.x - b.x);
-    const actual = (drawn[2] ?? []).map(s => s.box).sort((a, b) => a.x - b.x);
-    expect(plan).toHaveLength(4);
+    expect(below).toHaveLength(4);
+    expect(above).toHaveLength(4);
+    const problems: string[] = [];
     for (let i = 0; i < 4; i++) {
-      // Just above the baseline, where both bars of the group are drawn.
-      const y = Math.round(Math.min(plan[i]!.y + plan[i]!.height, actual[i]!.y + actual[i]!.height) - plot.y - 3);
-      const r = separated(img, horizontal(y, plan[i]!.x - plot.x, actual[i]!.x + actual[i]!.width - plot.x), colors, bg);
-      expect(r.transitions).toBe(1);
-      expect(r.touching, `group ${i + 1}: ${JSON.stringify(r.at)}`).toBe(0);
+      const gap = below[i]!.y - (above[i]!.y + above[i]!.height);
+      // SVG coordinates are written to 0.01 px (render/svg.ts), so two rounded edges may sit 0.01 px closer.
+      if (gap < 1 - 0.011) problems.push(`stack ${i + 1}: geometric gap ${gap.toFixed(3)} px`);
+      const at = { x: below[i]!.x + below[i]!.width / 2, y: below[i]!.y - gap / 2 };
+      problems.push(...await seamProblems(page, img, view, scale, at, { x: 0, y: 1 }, [barColor(img, view, above[i]!), barColor(img, view, below[i]!)], bg, `stack ${i + 1}`));
     }
+    expect(problems).toEqual([]);
     expect(await closePage(page)).toEqual([]);
   });
 
-  it('A5 area: stacked areas are separated by at least 1 px of background along a vertical through the stack (reading: stacked areas are stacked segments)', async () => {
+  for (const horizontal of [false, true]) {
+    it(`A5 bar: grouped bars of different series are separated by at least 1 px of background${horizontal ? ' (horizontal bars)' : ''}: geometry, and painted pixels against a 1 px control`, async () => {
+      const page = await devPage();
+      await create(page, 'bar', horizontal ? { horizontal: true } : {});
+      const { img, box: view, scale } = await screenshot(page, '#chart .axylo-plot');
+      const bg = modeColor(img, { x0: 0, y0: 0, x1: img.width, y1: img.height }).color;
+      const drawn = await shapes(page, '#chart', 100000);
+      const key = (b: Box) => (horizontal ? b.y : b.x);
+      const plan = (drawn[1] ?? []).map(s => s.box).sort((a, b) => key(a) - key(b));
+      const actual = (drawn[2] ?? []).map(s => s.box).sort((a, b) => key(a) - key(b));
+      expect(plan).toHaveLength(4);
+      const problems: string[] = [];
+      for (let i = 0; i < 4; i++) {
+        const [first, second] = key(plan[i]!) < key(actual[i]!) ? [plan[i]!, actual[i]!] : [actual[i]!, plan[i]!];
+        const gap = horizontal ? second.y - (first.y + first.height) : second.x - (first.x + first.width);
+        if (gap < 1 - 0.011) problems.push(`group ${i + 1}: geometric gap ${gap.toFixed(3)} px`);
+        // Across the seam, near the baseline where both bars are drawn.
+        const at = horizontal ? { x: Math.min(first.x + first.width, second.x + second.width) - 4, y: first.y + first.height + gap / 2 }
+          : { x: first.x + first.width + gap / 2, y: Math.min(first.y + first.height, second.y + second.height) - 4 };
+        problems.push(...await seamProblems(page, img, view, scale, at, horizontal ? { x: 0, y: 1 } : { x: 1, y: 0 }, [barColor(img, view, first), barColor(img, view, second)], bg, `group ${i + 1}`));
+      }
+      expect(problems).toEqual([]);
+      expect(await closePage(page)).toEqual([]);
+    });
+  }
+
+  it('A5 area: stacked areas are separated by at least 1 px of background, measured across the boundary (reading: stacked areas are stacked segments)', async () => {
     const page = await devPage();
     await create(page, 'area', {}, '#chart', 'stacked');
-    const { img } = await screenshot(page, '#chart .axylo-plot');
-    const colors = await seriesColors(page);
-    const bg = await backgroundColor(page);
-    const plot = await box(page, '#chart .axylo-proxy');
-    const plotBox = await box(page, '#chart .axylo-plot');
+    const { img, box: view, scale } = await screenshot(page, '#chart .axylo-plot');
+    const bg = modeColor(img, { x0: 0, y0: 0, x1: img.width, y1: img.height }).color;
+    // The boundary between the two stacked areas is the lower series' upper edge (its stroke).
+    const runs = await strokeRuns(page, 1);
+    const line = runs.flat().sort((a, b) => a.x - b.x);
+    expect(line.length).toBeGreaterThanOrEqual(5);
+    const problems: string[] = [];
     for (const share of [0.3, 0.5, 0.7]) {
-      const x = Math.round(plot.x - plotBox.x + plot.width * share);
-      const r = separated(img, vertical(x, plot.y - plotBox.y, plot.y - plotBox.y + plot.height), colors, bg);
-      expect(r.transitions).toBeGreaterThanOrEqual(1);
-      expect(r.touching, `x at ${share}`).toBe(0);
+      const x = line[0]!.x + share * (line.at(-1)!.x - line[0]!.x);
+      const k = line.findIndex(p => p.x >= x);
+      const a = line[k - 1]!, b = line[k]!;
+      const y = a.y + ((x - a.x) / (b.x - a.x)) * (b.y - a.y);
+      const normal = { x: -(b.y - a.y), y: b.x - a.x };
+      if (normal.y < 0) { normal.x = -normal.x; normal.y = -normal.y; }
+      // The two fills either side, sampled 6 px off the boundary along the normal.
+      const n = Math.hypot(normal.x, normal.y);
+      const side = (d: number) => modeColor(img, { x0: (x + (normal.x / n) * d - view.x) * scale - 1, y0: (y + (normal.y / n) * d - view.y) * scale - 1, x1: (x + (normal.x / n) * d - view.x) * scale + 2, y1: (y + (normal.y / n) * d - view.y) * scale + 2 }).color;
+      problems.push(...await seamProblems(page, img, view, scale, { x, y }, normal, [side(-6), side(6)], bg, `x at ${share}`));
     }
+    expect(problems).toEqual([]);
     expect(await closePage(page)).toEqual([]);
   });
 
-  it('A5 donut: adjacent slices are separated by at least 1 px of background at every boundary of the ring (reading: anti-aliased background coverage summed, at least 0.75 px)', async () => {
+  it('A5 donut: each of the four seams of the ring, the closing one at 12 o\'clock included, is at least 1 px of background against a 1 px control at the same angle', async () => {
     const page = await devPage();
     await create(page, 'donut');
-    const { img, box: plot } = await screenshot(page, '#chart .axylo-plot');
-    const colors = await seriesColors(page);
-    const bg = await backgroundColor(page);
+    const { img, box: view, scale } = await screenshot(page, '#chart .axylo-plot');
+    const bg = modeColor(img, { x0: 0, y0: 0, x1: img.width, y1: img.height }).color;
     const g = await ring(page);
-    const cx = g.cx - plot.x, cy = g.cy - plot.y, outer = g.outer;
-    // Around the ring at 85 % of the outer radius, one point per 1/8 px of arc.
-    const r = outer * 0.85;
-    const n = Math.ceil(2 * Math.PI * r * 8);
-    const path = Array.from({ length: n + 1 }, (_, i) => {
-      const a = (i / n) * 2 * Math.PI;
-      return { x: Math.round(cx + r * Math.sin(a)), y: Math.round(cy - r * Math.cos(a)) };
-    });
-    const result = separated(img, path, colors, bg);
-    expect(result.transitions).toBeGreaterThanOrEqual(3);
-    expect(result.touching, JSON.stringify(result.at)).toBe(0);
+    const total = SPEND.values.reduce((a, b) => a + b, 0);
+    const r = g.outer * 0.85;
+    const point = (theta: number) => ({ x: g.cx + r * Math.sin(theta), y: g.cy - r * Math.cos(theta) });
+    const colorAt = (theta: number) => { const p = point(theta); return modeColor(img, { x0: (p.x - view.x) * scale - 2, y0: (p.y - view.y) * scale - 2, x1: (p.x - view.x) * scale + 3, y1: (p.y - view.y) * scale + 3 }).color; };
+    const problems: string[] = [];
+    let before = 0;
+    const mids = SPEND.values.map(v => { const m = (2 * Math.PI * (before + v / 2)) / total; before += v; return m; });
+    before = 0;
+    for (let i = 0; i < SPEND.values.length; i++) {
+      // The seam after slice i; the last one closes the ring at 12 o'clock.
+      before += SPEND.values[i]!;
+      const theta = (2 * Math.PI * before) / total;
+      const tangent = { x: Math.cos(theta), y: Math.sin(theta) };
+      problems.push(...await seamProblems(page, img, view, scale, point(theta), tangent, [colorAt(mids[i]!), colorAt(mids[(i + 1) % mids.length]!)], bg, `seam after ${SPEND.items[i]}`));
+    }
+    expect(problems).toEqual([]);
     expect(await closePage(page)).toEqual([]);
   });
 });
 
-// ── palette ───────────────────────────────────────────────────────────────────────────────────────
-
-/** Eight series (or slices) of the type, so the whole default palette is drawn. */
-function eight(type: ChartType): { fn: string; options: Record<string, unknown> } {
-  const names = ['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8'];
-  if (type === 'donut') return { fn: 'donut', options: { title: 'Eight', data: names.map((n, i) => ({ n, v: 10 + i })), label: 'n', value: 'v' } };
-  if (type === 'scatter') return { fn: 'scatter', options: { title: 'Eight', data: names.flatMap((s, i) => [1, 2, 3].map(x => ({ x: x + i / 10, y: i + x, s }))), x: 'x', y: 'y', series: 's' } };
-  const data = names.flatMap((s, i) => ['A', 'B', 'C'].map((x, k) => ({ x, s, y: 10 + i + k })));
-  return { fn: type === 'compact' ? 'line' : type, options: { title: 'Eight', data, x: 'x', y: 'y', series: 's', ...(type === 'compact' ? { compact: true } : {}) } };
-}
+// ── palette, on painted pixels ────────────────────────────────────────────────────────────────────
 
 describe('A5 palette', () => {
   for (const type of TYPES) {
     for (const scheme of ['light', 'dark'] as const) {
-      it(`A5 ${type}: the eight rendered colours (${scheme} scheme) are each at least 3:1 on the background and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia`, async () => {
-        const page = await devPage({ css: scheme === 'dark' ? '#chart { color-scheme: dark; }' : '' });
+      it(`A5 ${type}: the eight painted colours (${scheme} scheme) are each at least 3:1 on their painted backdrop and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia, analytic and as an 8-bit image`, async () => {
+        const page = await devPage({ deviceScaleFactor: type === 'scatter' ? 4 : 2, css: type === 'compact' ? '#chart { height: 200px; }' : '' });
         const { fn, options } = eight(type);
         await createRaw(page, fn, options);
-        const colors = await seriesColors(page);
-        expect(colors).toHaveLength(8);
-        // The default background of the scheme the chart resolved (spec A5: "the default light and dark backgrounds").
-        const bg = await defaultBackground(page);
-        colors.forEach((c, i) => expect(contrast(c, bg), `series ${i + 1} ${c} on ${bg}`).toBeGreaterThanOrEqual(3));
-        for (const vision of VISIONS) {
-          const m = minimumDistance(colors, vision);
-          expect(m.distance, `${vision}: series ${m.pair[0] + 1} and ${m.pair[1] + 1}`).toBeGreaterThanOrEqual(0.1);
+        if (scheme === 'dark') {
+          // The default dark background, painted by the page behind a chart whose computed scheme is dark.
+          await page.evaluate(() => {
+            const c = document.querySelector('#chart') as HTMLElement;
+            c.style.colorScheme = 'dark';
+          });
+          await settle(page);
+          await page.evaluate(() => {
+            const fig = document.querySelector('#chart figure')!;
+            document.body.style.background = getComputedStyle(fig).getPropertyValue('--axylo-default-background').trim();
+          });
+          await settle(page);
         }
+        const painted = await paintedSeries(page, type);
+        expect(painted.problems).toEqual([]);
+        expect(painted.colors).toHaveLength(8);
+        expect(paletteProblems(painted.colors, painted.backdrop)).toEqual([]);
         expect(await closePage(page)).toEqual([]);
       });
     }
 
-    it(`A5 ${type}: on a background the palette does not suit (the first series colour itself), AX141 is raised`, async () => {
-      const page = await devPage();
+    it(`A5 ${type}: on a background the palette does not suit (the first series' painted colour itself), AX141 is raised`, async () => {
+      const page = await devPage({ deviceScaleFactor: 2, css: type === 'compact' ? '#chart { height: 200px; }' : '' });
       const { fn, options } = eight(type);
       await createRaw(page, fn, options);
-      const [first] = await seriesColors(page);
+      const [first] = (await paintedSeries(page, type)).colors;
       await page.evaluate(([r, g, b]) => (document.querySelector('#chart') as HTMLElement).style.setProperty('--axylo-background', `rgb(${r}, ${g}, ${b})`), first!);
       await settle(page);
       const codes = await page.evaluate(() => (window as unknown as { charts: { diagnostics: { code: string }[] }[] }).charts[0]!.diagnostics.map(d => d.code));
@@ -325,34 +319,15 @@ describe('A5 palette', () => {
 // ── grayscale ─────────────────────────────────────────────────────────────────────────────────────
 
 describe('A5 grayscale', () => {
-  it('A5 line: in a grayscale screenshot three crossing lines are told apart by the marker at their last point (reading: the binarised markers, compared at their centres, overlap by at most 85 % of their union)', async () => {
-    const page = await devPage({ deviceScaleFactor: 2 });
-    // The lines cross in the middle; the last step rises by 10 on all three, so each marker is reached by
-    // the same stroke and only the marker can differ.
+  it('A5 line: in grayscale, each of three crossing traces\' last-point marker has the shape class of its legend marker and differs from the other two by shape class (whether a reader can follow the crossing lines remains a human judgement)', async () => {
+    const page = await devPage({ deviceScaleFactor: 4 });
     const values = { A: [10, 20, 40, 60, 70, 75, 78, 80, 90], B: [50, 50, 50, 50, 50, 50, 45, 40, 50], C: [90, 80, 60, 40, 20, 10, 5, 0, 10] };
     const data = Object.entries(values).flatMap(([s, v]) => v.map((y, x) => ({ x, s, y })));
     await createRaw(page, 'line', { title: 'Crossing', data, x: 'x', y: 'y', series: 's' });
-    const { img, box: plotBox } = await screenshot(page, '#chart .axylo-plot');
-    const scale = img.width / plotBox.width;
-    const bgGray = gray(await backgroundColor(page));
-    const drawn = await shapes(page, '#chart', 14);
-    const masks: boolean[][] = [];
-    const R = Math.round(8 * scale);
-    for (const slot of [1, 2, 3]) {
-      const last = (drawn[slot] ?? []).map(s => center(s.box)).sort((a, b) => b.x - a.x)[0];
-      expect(last, `marker of series ${slot}`).toBeDefined();
-      const cx = Math.round((last!.x - plotBox.x) * scale), cy = Math.round((last!.y - plotBox.y) * scale);
-      const mask: boolean[] = [];
-      for (let dy = -R; dy <= R; dy++) for (let dx = -R; dx <= R; dx++) mask.push(Math.abs(gray(pixel(img, cx + dx, cy + dy)) - bgGray) > 40);
-      masks.push(mask);
-    }
-    for (let i = 0; i < 3; i++) {
-      for (let j = i + 1; j < 3; j++) {
-        let both = 0, either = 0;
-        masks[i]!.forEach((v, k) => { if (v && masks[j]![k]) both++; if (v || masks[j]![k]) either++; });
-        expect(both / either, `series ${i + 1} and ${j + 1}`).toBeLessThanOrEqual(0.85);
-      }
-    }
+    const { plot, legend } = await markerClasses(page);
+    expect(plot.every(c => c !== 'none'), JSON.stringify(plot)).toBe(true);
+    expect(legend).toEqual(plot);
+    expect(new Set(plot).size, JSON.stringify(plot)).toBe(3);
     expect(await closePage(page)).toEqual([]);
   });
 });

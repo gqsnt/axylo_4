@@ -18,7 +18,14 @@ export const ALIGNED: readonly ('line' | 'area' | 'bar')[] = ['line', 'area', 'b
 
 export type Variant = 'default' | 'dirty' | 'instants' | 'stacked';
 
-export const number = (v: number): string => new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 }).format(v);
+/**
+ * An integer as en-US writes it ("1,200"). Only integers: every fixture value is one, so no fraction rule
+ * of F6 is re-implemented here (a fraction in an expectation is written out by hand instead).
+ */
+export const number = (v: number): string => {
+  if (!Number.isInteger(v)) throw new Error(`fixture value ${v} is not an integer; write its expected text by hand`);
+  return new Intl.NumberFormat('en-US').format(v);
+};
 /** A readout value: the full number, then the unit (reading: separated by one space). */
 export const withUnit = (v: number, unit: string): string => `${number(v)} ${unit}`;
 /** Calendar dates as readouts show them (reading: the en-US medium date). */
@@ -69,12 +76,12 @@ export const LATENCY = {
 /** Keyboard order for scatter (spec 3.6): by x, then y. Ties at x = 20 go to the lower y (US 100 before EU 140). */
 export const LATENCY_ORDER = [...LATENCY.points].sort((a, b) => a.size - b.size || a.latency - b.latency);
 
-// ── donut: monthly spend, four slices, shares 50 / 25 / 15 / 10 % ─────────────────────────────────
+// ── donut: monthly spend, four slices, shares 15 / 50 / 10 / 25 %, deliberately not sorted ─────────
 
 export const SPEND = {
   title: 'Monthly spend',
-  items: ['Rent', 'Food', 'Travel', 'Books'],
-  values: [1200, 600, 360, 240],
+  items: ['Travel', 'Rent', 'Books', 'Food'],
+  values: [360, 1200, 240, 600],
   label: 'Spend',
   unit: 'EUR',
 };
@@ -170,49 +177,104 @@ function instantOptions(type: ChartType): { fn: string; options: Record<string, 
 /** What the generated name names (spec A1: "Line chart of Sessions by Day"): the type and the measure. */
 export const TYPE_WORD: Record<ChartType, string> = { line: 'Line', area: 'Area', bar: 'Bar', scatter: 'Scatter', donut: 'Donut', compact: 'Line' };
 
-/** The expected summary statements of each default fixture (spec A1), as text fragments in order. */
-export function summaryFragments(type: ChartType): string[][] {
+/** One statement the generated summary must make (spec A1), as fragments that must appear in order in one sentence. */
+export interface Clause { name: string; fragments: string[] }
+
+/**
+ * The named statements of each default fixture's summary (spec A1: type, series, x range, y range, each
+ * series' minimum, maximum and last value). The y range is the data's (38–55 t on the bars, whose axis
+ * starts at 0), so an axis range cannot stand in for it.
+ */
+export function summaryClauses(type: ChartType): Clause[] {
+  const series = (name: string, unit: string, min: number, max: number, last: number): Clause =>
+    ({ name: `${name}: minimum, maximum, last`, fragments: [name, withUnit(min, unit), withUnit(max, unit), withUnit(last, unit)] });
   switch (type) {
     case 'line':
     case 'area':
       return [
-        [TYPE_WORD[type]],
-        [calendar(ENERGY.days[0]!), calendar(ENERGY.days.at(-1)!)],
-        [withUnit(7, ENERGY.unit), withUnit(18, ENERGY.unit)],
-        ['North', withUnit(11, 'kWh'), withUnit(18, 'kWh'), withUnit(16, 'kWh')],
-        ['South', withUnit(7, 'kWh'), withUnit(13, 'kWh'), withUnit(10, 'kWh')],
+        { name: 'type and series count', fragments: [TYPE_WORD[type], '2'] },
+        { name: 'x range', fragments: ['day', calendar(ENERGY.days[0]!), calendar(ENERGY.days.at(-1)!)] },
+        { name: 'y range', fragments: [ENERGY.label, withUnit(7, 'kWh'), withUnit(18, 'kWh')] },
+        series('North', 'kWh', 11, 18, 16), series('South', 'kWh', 7, 13, 10),
       ];
     case 'compact':
       return [
-        ['Line'],
-        [calendar(ENERGY.days[0]!), calendar(ENERGY.days.at(-1)!)],
-        [withUnit(11, ENERGY.unit), withUnit(18, ENERGY.unit)],
+        { name: 'type and series count', fragments: ['Line', '1'] },
+        { name: 'x range', fragments: ['day', calendar(ENERGY.days[0]!), calendar(ENERGY.days.at(-1)!)] },
+        { name: 'y range', fragments: [ENERGY.label, withUnit(11, 'kWh'), withUnit(18, 'kWh')] },
         // One series without a series field: it is named by the value field's label.
-        [ENERGY.label, withUnit(11, 'kWh'), withUnit(18, 'kWh'), withUnit(16, 'kWh')],
+        series(ENERGY.label, 'kWh', 11, 18, 16),
       ];
     case 'bar':
       return [
-        ['Bar'],
-        ['Q1', 'Q4'],
-        [withUnit(38, 't'), withUnit(55, 't')],
-        ['Plan', withUnit(40, 't'), withUnit(55, 't'), withUnit(55, 't')],
-        ['Actual', withUnit(38, 't'), withUnit(52, 't'), withUnit(49, 't')],
+        { name: 'type and series count', fragments: ['Bar', '2'] },
+        { name: 'x range', fragments: ['quarter', 'Q1', 'Q4'] },
+        { name: 'y range', fragments: [SHIPPED.label, withUnit(38, 't'), withUnit(55, 't')] },
+        series('Plan', 't', 40, 55, 55), series('Actual', 't', 38, 52, 49),
       ];
     case 'scatter':
       // "Last" on a scatter is the point with the largest x (reading: x order, as the keyboard walks it).
       return [
-        ['Scatter'],
-        [withUnit(10, 'kB'), withUnit(35, 'kB')],
-        [withUnit(90, 'ms'), withUnit(140, 'ms')],
-        ['EU', withUnit(120, 'ms'), withUnit(140, 'ms'), withUnit(135, 'ms')],
-        ['US', withUnit(90, 'ms'), withUnit(100, 'ms'), withUnit(95, 'ms')],
+        { name: 'type and series count', fragments: ['Scatter', '2'] },
+        { name: 'x range', fragments: [LATENCY.x.label, withUnit(10, 'kB'), withUnit(35, 'kB')] },
+        { name: 'y range', fragments: [LATENCY.y.label, withUnit(90, 'ms'), withUnit(140, 'ms')] },
+        series('EU', 'ms', 120, 140, 135), series('US', 'ms', 90, 100, 95),
       ];
     case 'donut':
-      // A donut has no x or y range; its summary is the type and each slice's value and share (reading).
+      // A donut has no x or y range; its summary is the type, the slice count and total, and each slice's
+      // value and share (reading).
       return [
-        ['Donut'],
-        ...SPEND.items.map((item, i) => [item, withUnit(SPEND.values[i]!, SPEND.unit), share(SPEND.values[i]!)]),
+        { name: 'type and slice count', fragments: ['Donut', '4'] },
+        { name: 'total', fragments: [number(SPEND_TOTAL)] },
+        ...SPEND.items.map((item, i) => ({ name: `${item}: value and share`, fragments: [item, withUnit(SPEND.values[i]!, SPEND.unit), share(SPEND.values[i]!)] })),
       ];
+  }
+}
+
+/** The sentences of a generated text: split after a full stop followed by a space or the end. */
+export const sentences = (text: string): string[] => text.split(/(?<=\.)\s+/).map(t => t.trim()).filter(Boolean);
+
+/**
+ * Which clauses `text` does not make: each needs a sentence of its own that holds all its fragments in
+ * order (two clauses cannot be satisfied by one sentence, and fragments spread over sentences do not count).
+ */
+export function missingClauses(text: string, clauses: readonly Clause[]): string[] {
+  const list = sentences(text);
+  const used = new Set<number>();
+  const missing: string[] = [];
+  for (const c of clauses) {
+    const i = list.findIndex((t, k) => !used.has(k) && inOrder(t, c.fragments));
+    if (i < 0) missing.push(`${c.name} ${JSON.stringify(c.fragments)}`);
+    else used.add(i);
+  }
+  return missing;
+}
+
+/** Ordered table expectations of each full fixture: header fragments, then each row as row header and cells. */
+export function tableOf(type: Exclude<ChartType, 'compact'>): { caption: string; headers: string[][]; rows: string[][] } {
+  switch (type) {
+    case 'line':
+    case 'area':
+      return {
+        caption: ENERGY.title, headers: [['day'], ['North', 'kWh'], ['South', 'kWh']],
+        rows: ENERGY.days.map((d, i) => [calendar(d), ...ENERGY.series.map(s => withUnit(s.values[i]!, 'kWh'))]),
+      };
+    case 'bar':
+      return {
+        caption: SHIPPED.title, headers: [['quarter'], ['Plan', 't'], ['Actual', 't']],
+        rows: SHIPPED.quarters.map((q, i) => [q, ...SHIPPED.series.map(s => withUnit(s.values[i]!, 't'))]),
+      };
+    case 'scatter':
+      // One row per point in x-then-y order (spec 3.6): x, its series, y.
+      return {
+        caption: LATENCY.title, headers: [[LATENCY.x.label, 'kB'], ['Series'], [LATENCY.y.label, 'ms']],
+        rows: LATENCY_ORDER.map(p => [withUnit(p.size, 'kB'), p.region, withUnit(p.latency, 'ms')]),
+      };
+    case 'donut':
+      return {
+        caption: SPEND.title, headers: [['Category'], [SPEND.label, 'EUR'], ['Percentage']],
+        rows: SPEND.items.map((item, i) => [item, withUnit(SPEND.values[i]!, 'EUR'), share(SPEND.values[i]!)]),
+      };
   }
 }
 

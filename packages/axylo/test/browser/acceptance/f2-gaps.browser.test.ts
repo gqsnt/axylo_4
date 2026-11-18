@@ -8,7 +8,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
 import { start, stop } from '../harness';
-import { axWithin, backgroundColor, box, closePage, createRaw, devPage, distance, pixel, screenshot, settle, shapes, valueText } from './util';
+import { axWithin, backgroundColor, box, center, closePage, createRaw, devPage, distance, pixel, plotGeometry, readTable, resolveColors, ring, screenshot, settle, shapes, valueText } from './util';
 
 beforeAll(start);
 afterAll(stop);
@@ -34,9 +34,9 @@ async function vertices(page: Page, selector = '#chart'): Promise<{ x: number; y
 }
 
 /** Non-background pixels in the columns [x0, x1) and rows [y0, y1) of the plot screenshot (viewport px). */
-async function inkIn(page: Page, x0: number, x1: number, y0: number, y1: number): Promise<number> {
-  const { img, box: plot } = await screenshot(page, '#chart .axylo-plot');
-  const bg = await backgroundColor(page);
+async function inkIn(page: Page, x0: number, x1: number, y0: number, y1: number, selector = '#chart'): Promise<number> {
+  const { img, box: plot } = await screenshot(page, `${selector} .axylo-plot`);
+  const bg = await backgroundColor(page, selector);
   let n = 0;
   for (let y = Math.ceil(y0 - plot.y); y < y1 - plot.y; y++) for (let x = Math.ceil(x0 - plot.x); x < x1 - plot.x; x++) if (distance(pixel(img, x, y), bg) > 40) n++;
   return n;
@@ -85,6 +85,47 @@ describe('F2 gaps in lines and areas', () => {
       const drawn = await scene('#chart');
       expect(drawn.length).toBeGreaterThan(0);
       expect(await scene('#other')).toEqual(drawn);
+      // And each, on its own, leaves days 8–10 undrawn: no vertex there, no ink between day 7 and day 11.
+      for (const sel of ['#chart', '#other']) {
+        const v = await vertices(page, sel);
+        const x0 = v[0]!.x, step = (v.at(-1)!.x - x0) / 19;
+        for (const k of [8, 9, 10]) expect(v.some(p => Math.abs(p.x - (x0 + k * step)) < 1), `${sel}: vertex at day ${k}`).toBe(false);
+        const svg = await box(page, `${sel} svg.axylo-svg`);
+        const top = svg.y, bottom = type === 'compact' ? svg.y + svg.height : (await box(page, `${sel} .axylo-proxy`)).y + (await box(page, `${sel} .axylo-proxy`)).height - 3;
+        expect(await inkIn(page, x0 + 7 * step + 7, x0 + 11 * step - 7, top, bottom, sel), `${sel}: ink in the gap`).toBe(0);
+      }
+      expect(await closePage(page)).toEqual([]);
+    });
+  }
+});
+
+describe("F2 missing: 'zero'", () => {
+  for (const type of ['line', 'area', 'bar', 'compact'] as const) {
+    it(`F2 ${type}: with missing: 'zero' on the field, an explicit null and an absent step are drawn at zero, on the zero baseline`, async () => {
+      const page = await devPage({ css: `${NO_GRID} ${type === 'compact' ? '#chart { width: 240px; height: 60px; }' : ''}` });
+      const day = (k: number) => new Date(Date.UTC(2026, 0, 1) + k * 864e5).toISOString().slice(0, 10);
+      // Daily counts; day 2 is null and day 4 has no row.
+      const data = [5, 6, null, 7, undefined, 8, 9].flatMap((v, k) => (v === undefined ? [] : [{ day: day(k), v }]));
+      await createRaw(page, type === 'compact' ? 'line' : type, { title: 'Counts', data, x: { field: 'day', type: 'date' }, y: { field: 'v', missing: 'zero' }, ...(type === 'compact' ? { compact: true } : {}) });
+      if (type === 'bar') {
+        const rects = ((await shapes(page, '#chart', 100000))[1] ?? []).map(s => s.box).sort((a, b) => a.x - b.x);
+        // Seven bands; at days 2 and 4 nothing rises above the baseline (a zero bar, not a gap mark).
+        const tall = rects.filter(r => r.height > 1.5);
+        expect(tall).toHaveLength(5);
+      } else {
+        const v = await vertices(page);
+        expect(v).toHaveLength(7);
+        const zero = Math.max(...v.map(p => p.y));
+        // The lowest vertices are the two zeros, at the bottom of a value axis that starts at zero.
+        const sorted = [...v].sort((a, b) => b.y - a.y);
+        expect(Math.abs(sorted[0]!.y - zero)).toBeLessThan(0.01);
+        expect(Math.abs(sorted[1]!.y - zero)).toBeLessThan(0.01);
+        expect([sorted[0]!, sorted[1]!].map(p => v.indexOf(p)).sort()).toEqual([2, 4]);
+        if (type !== 'compact') {
+          const plot = await box(page, '#chart .axylo-proxy');
+          expect(Math.abs(zero - (plot.y + plot.height))).toBeLessThanOrEqual(1);
+        }
+      }
       expect(await closePage(page)).toEqual([]);
     });
   }
@@ -141,19 +182,37 @@ describe('F2 readouts say "No data"', () => {
     });
   }
 
-  it('F2 scatter: a point with a missing y is not drawn (never at zero) and the keyboard skips it', async () => {
+  it('F2 scatter: a point with a missing y is not drawn (never at zero): the two drawn points are the ones at (1, 5) and (3, 7); the table lists the missing row as "No data"; the keyboard skips it', async () => {
     const page = await devPage();
-    await createRaw(page, 'scatter', { title: 'Missing', data: [{ x: 1, y: 5 }, { x: 2, y: null }, { x: 3, y: 7 }], x: 'x', y: 'y' });
-    const drawn = (await shapes(page, '#chart', 14))[1] ?? [];
-    expect(drawn).toHaveLength(2);
+    await createRaw(page, 'scatter', { title: 'Missing', data: [{ x: 1, y: 5 }, { x: 2, y: null }, { x: 3, y: 7 }, { x: 0, y: 0 }, { x: 4, y: 10 }], x: { field: 'x', domain: [0, 4] }, y: { field: 'y', domain: [0, 10] } });
+    const g = await plotGeometry(page);
+    const at = (x: number, y: number) => ({ x: g.plot.x + ((x - g.xDomain![0]!) / (g.xDomain![1]! - g.xDomain![0]!)) * g.plot.width, y: g.plot.y + (1 - (y - g.yDomain![0]!) / (g.yDomain![1]! - g.yDomain![0]!)) * g.plot.height });
+    const drawn = ((await shapes(page, '#chart', 14))[1] ?? []).map(s => center(s.box));
+    const near = (p: { x: number; y: number }) => drawn.some(d => Math.hypot(d.x - p.x, d.y - p.y) <= 2);
+    expect(near(at(1, 5)), 'point (1, 5)').toBe(true);
+    expect(near(at(3, 7)), 'point (3, 7)').toBe(true);
+    expect(near(at(2, 0)), 'nothing at (2, 0)').toBe(false);
+    expect(drawn.filter(d => Math.abs(d.x - at(2, 0).x) <= 2)).toEqual([]);
     await page.focus('#chart .axylo-proxy');
-    expect(await valueText(page)).toMatch(/of 2\b/);
+    expect(await valueText(page)).toMatch(/of 4\b/);
+    await page.locator('#chart [role="toolbar"] button', { hasText: 'View as table' }).click();
+    await settle(page);
+    const rows = (await readTable(page)).rows.map(r => [r.header, ...r.cells]);
+    // x, series (one series, named by the y field), y (tableOf('scatter') columns).
+    expect(rows.find(r => r[0] === '2')).toEqual(['2', 'y', 'No data']);
     expect(await closePage(page)).toEqual([]);
   });
 
-  it('F2 donut: a null slice is not drawn and the table reads "No data" for it', async () => {
+  it('F2 donut: a null slice is not drawn (A fills three quarters from 12 o\'clock, C the last quarter) and the table reads "No data" for it', async () => {
     const page = await devPage();
     await createRaw(page, 'donut', { title: 'Missing', data: [{ l: 'A', v: 3 }, { l: 'B', v: null }, { l: 'C', v: 1 }], label: 'l', value: 'v' });
+    const { img, box: plot } = await screenshot(page, '#chart .axylo-plot');
+    const g = await ring(page);
+    const legend = await resolveColors(page, await page.locator('#chart ul.axylo-legend-list > li svg.axylo-swatch').evaluateAll(els => els.map(e => getComputedStyle(e).color)));
+    const sample = (deg: number) => { const a = (deg * Math.PI) / 180; return pixel(img, g.cx - plot.x + 0.85 * g.outer * Math.sin(a), g.cy - plot.y - 0.85 * g.outer * Math.cos(a)); };
+    expect(distance(sample(135), legend[0]!), 'A at 135°').toBeLessThanOrEqual(24);
+    expect(distance(sample(315), legend[2]!), 'C at 315°').toBeLessThanOrEqual(24);
+    expect(await page.evaluate(() => document.querySelectorAll('#chart svg.axylo-svg .axylo-scene path').length)).toBe(2);
     await page.locator('#chart [role="toolbar"] button', { hasText: 'View as table' }).click();
     await settle(page);
     const rows = await page.locator('#chart table tbody tr').allInnerTexts();

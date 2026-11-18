@@ -69,6 +69,9 @@ describe('F12 values changed', () => {
       it(`F12 ${type}: a readout formatter that throws for one value (AX160) shows a note inside the figure and in the accessibility tree once a reader surface formats that value (reading: the default format in place of the author's is a changed value) (${build} build)`, async () => {
         const page = build === 'development' ? await devPage() : await prodPage();
         await page.evaluate(async type => {
+          // The two notes worded by the test, so what the note says is known exactly (spec A10 makes every
+          // built-in string replaceable); a changed value must not be reported as a lost one.
+          const messages = { valuesChanged: 'CHANGED {count}.', valuesNotShown: 'LOST {count}.' };
           const A = (window as unknown as { Axylo: Record<string, (t: string, o: unknown) => unknown> }).Axylo;
           const format = (v: number) => { if (v === 15 || v === 600 || v === 140 || v === 47) throw new Error('no'); return `${v} units`; };
           const opts: Record<string, Record<string, unknown>> = {
@@ -78,7 +81,7 @@ describe('F12 values changed', () => {
             scatter: { title: 'T', data: [120, 140, 135].map((v, i) => ({ x: i + 1, v })), x: 'x', y: { field: 'v', format } },
             donut: { title: 'T', data: [1200, 600, 360].map((v, i) => ({ l: `S${i}`, v })), label: 'l', value: { field: 'v', format } },
           };
-          const chart = A[type]!('#chart', opts[type]) as { __bench?: { ready(): Promise<void> } };
+          const chart = A[type]!('#chart', { ...opts[type], messages }) as { __bench?: { ready(): Promise<void> } };
           (window as unknown as { charts: unknown[] }).charts.push(chart);
           if (chart.__bench) await chart.__bench.ready();
           for (let i = 0; i < 3; i++) await new Promise(r => requestAnimationFrame(r));
@@ -91,23 +94,23 @@ describe('F12 values changed', () => {
         await page.waitForFunction(() => document.querySelector<HTMLElement>('#chart .axylo-note')?.hidden === false, null, { timeout: 5000 }).catch(() => undefined);
         const note = await noteState(page);
         expect(note, JSON.stringify(note)).toMatchObject({ visible: true, insideFigure: true, inTree: true });
-        expect(note.text).toMatch(/\b1\b/);
-        expect(note.text).toMatch(/table/i);
+        expect(note.text).toBe('CHANGED 1.');
+        const codes = await page.evaluate(() => (window as unknown as { charts: { diagnostics: { code: string }[] }[] }).charts[0]!.diagnostics.map(d => d.code));
+        expect(codes).toContain('AX160');
         expect(await closePage(page)).toEqual([]);
       });
     }
   }
 
-  it('F12 donut: more than eight slices are grouped into "Other (n)" (AX121) and the note says values are shown differently, in the figure and the accessibility tree', async () => {
+  it('F12 donut: more than eight slices are grouped into "Other (n)" (AX121) and the note says values are shown differently, not that they were left out, in the figure and the accessibility tree', async () => {
     const page = await devPage();
-    const values = [30, 20, 15, 10, 8, 6, 5, 4, 3, 2];
-    const built = await create(page, 'donut', { data: values.map((v, i) => ({ item: `S${i + 1}`, spend: v })) });
+    const values = [3, 30, 8, 2, 20, 15, 4, 10, 6, 5];
+    const built = await create(page, 'donut', { data: values.map((v, i) => ({ item: `S${i + 1}`, spend: v })), messages: { valuesChanged: 'CHANGED {count}.', valuesNotShown: 'LOST {count}.' } });
     expect(built.diagnostics.map(d => d.code)).toContain('AX121');
     const note = await noteState(page);
     expect(note.visible).toBe(true);
-    // Three slices (S8–S10) are not drawn as given.
-    expect(note.text).toMatch(/\b3\b/);
-    expect(note.text).toMatch(/table/i);
+    // Three slices (S1, S4, S7) are shown grouped, not lost: the changed-values note, not the omission one.
+    expect(note.text).toBe('CHANGED 3.');
     expect(note.inTree).toBe(true);
     expect(await closePage(page)).toEqual([]);
   });

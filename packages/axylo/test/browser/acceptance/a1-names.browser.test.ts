@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { start, stop } from '../harness';
 import { axe } from '../a11y/util';
 import { axOf, axWithin, closePage, create, devPage, prodPage } from './util';
-import { inOrder, summaryFragments, TYPES, TYPE_WORD, ZONE_NAMES, type ChartType } from './fixtures';
+import { missingClauses, sentences, summaryClauses, TYPES, TYPE_WORD, withUnit, ZONE_NAMES, type ChartType, type Clause } from './fixtures';
 
 beforeAll(start);
 afterAll(stop);
@@ -34,7 +34,8 @@ describe('A1 accessible name and summary', () => {
       const fig = await axOf(page, FIGURE);
       expect(fig.role).toBe(type === 'compact' ? 'image' : 'group');
       expect(fig.name).toBe(type === 'donut' ? 'Monthly spend' : type === 'bar' ? 'Shipments per quarter' : type === 'scatter' ? 'Latency by payload size' : 'Energy use by site');
-      for (const group of summaryFragments(type)) expect(inOrder(fig.description, group), `${JSON.stringify(group)} in "${fig.description}"`).toBe(true);
+      // Each named statement in a sentence of its own (removing the range statement, say, fails).
+      expect(missingClauses(fig.description, summaryClauses(type)), fig.description).toEqual([]);
       expect(await closePage(page)).toEqual([]);
     });
 
@@ -113,10 +114,20 @@ describe('A1 accessible name and summary', () => {
             : { data: [{ day: Date.UTC(2026, 2, 2), energy: 1 }, { day: Date.UTC(2026, 2, 3), energy: '__NaN__' }, { day: Date.UTC(2026, 2, 4), energy: 3 }], x: { field: 'day', type: 'time', timeZone: 'Asia/Kolkata' }, series: undefined };
       await create(page, type, { ...options, description: 'Readings from the main meter.' });
       const fig = await axOf(page, FIGURE);
-      expect(fig.description).toContain('Readings from the main meter.');
-      if (type !== 'donut') expect(ZONE_NAMES.some(z => fig.description.includes(z)), fig.description).toBe(true);
-      // One value left out (NaN, AX103): the summary says so with its count (spec A1 "any omissions", F12).
-      expect(fig.description, fig.description).toMatch(/\b1\b[^.]*not shown|not shown[^.]*\b1\b/i);
+      expect(sentences(fig.description)).toContain('Readings from the main meter.');
+      // The generated statements all stay beside the author's: ranges, the zone, the omission.
+      const unit = { line: 'kWh', area: 'kWh', bar: 't', scatter: 'ms', donut: 'EUR', compact: 'kWh' }[type];
+      const label = { line: 'Energy', area: 'Energy', bar: 'Shipped', scatter: 'Latency', donut: 'Spend', compact: 'Energy' }[type];
+      const clauses: Clause[] = type === 'donut'
+        ? [{ name: 'Rent', fragments: ['Rent', withUnit(1200, unit)] }, { name: 'Travel', fragments: ['Travel', withUnit(360, unit)] }]
+        : [
+          { name: 'x range', fragments: [type === 'bar' ? 'quarter' : type === 'scatter' ? 'size' : 'day', 'Mar 2, 2026', 'Mar 4, 2026'] },
+          { name: 'y range', fragments: [label, withUnit(1, unit), withUnit(3, unit)] },
+        ];
+      // One value left out (NaN, AX103), said with its count (spec A1 "any omissions", F12).
+      clauses.push({ name: 'omission', fragments: ['not shown', '1'] });
+      expect(missingClauses(fig.description, clauses), fig.description).toEqual([]);
+      if (type !== 'donut') expect(sentences(fig.description).some(t => ZONE_NAMES.some(z => t.includes(z))), fig.description).toBe(true);
       expect(await closePage(page)).toEqual([]);
     });
 

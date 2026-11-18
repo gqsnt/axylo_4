@@ -8,8 +8,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
 import { start, stop } from '../harness';
 import {
-  backgroundColor, box, call, closePage, contrast, create, devPage, focused, intersects, resolveColors, ring, settle, shapes, tabStops, valueText,
+  box, call, closePage, contrast, covered, create, devPage, focused, modeColor, readRange, ring, screenshot, settle, shapes, tabStops, valueText, type Box,
 } from './util';
+import { inkColor } from './checks';
 import {
   calendar, ENERGY, FULL, inOrder, LATENCY_ORDER, share, SHIPPED, SPEND, withUnit, type ChartType,
 } from './fixtures';
@@ -199,10 +200,20 @@ describe('A2 and T-keyboard: every point in order, the ends, the series', () => 
       expect(await valueText(page)).toContain(first!.name);
       await page.locator('#chart [role="toolbar"] button', { hasText: first!.name }).click();
       await settle(page);
-      const text = await valueText(page);
+      // Focus is on the legend toggle now; the range's text is read without focus here (DOM attribute).
+      let text = await valueText(page, '#chart', { focused: false });
       expect(text).toContain(xs[2]!);
       expect(text).not.toContain(first!.name);
       expect(text).toContain(second!.name);
+      // Back to the plot with the keyboard: the same x, the hidden series not read; Right moves on from there.
+      await page.keyboard.press('Shift+Tab');
+      text = await valueText(page);
+      expect(text).toContain(xs[2]!);
+      expect(text).not.toContain(first!.name);
+      await page.keyboard.press('ArrowRight');
+      text = await valueText(page);
+      expect(text).toContain(xs[3]!);
+      expect(text).not.toContain(first!.name);
       expect(await closePage(page)).toEqual([]);
     });
   }
@@ -226,39 +237,66 @@ describe('A2 and T-keyboard: every point in order, the ends, the series', () => 
   });
 });
 
+/** The overlay's focus ring around the focused datum: the overlay marks painted with the focus colour. */
+async function datumRing(page: Page): Promise<{ box: Box; strokeWidth: number }[]> {
+  return page.evaluate(() => [...document.querySelectorAll<SVGGraphicsElement>('#chart svg.axylo-svg .axylo-overlay *')]
+    .filter(e => /focus/.test(e.style.getPropertyValue('color')))
+    .map(e => {
+      // A line's box has no thickness: widen it to the painted stroke.
+      const r = e.getBoundingClientRect(), w = parseFloat(getComputedStyle(e).strokeWidth) || 0;
+      const box = { x: r.x, y: r.y, width: r.width, height: r.height };
+      if (box.width < w) { box.x -= (w - box.width) / 2; box.width = w; }
+      if (box.height < w) { box.y -= (w - box.height) / 2; box.height = w; }
+      return { box, strokeWidth: w };
+    }));
+}
+
 describe('A2 focus indicator', () => {
   for (const type of FULL as Full[]) {
-    it(`A2 ${type}: the keyboard focus indicator is at least 2 px and 3:1 against the chart background, and the tooltip never covers the focused datum`, async () => {
+    it(`A2 ${type}: at every datum the keyboard reaches, the focus indicators (the plot's outline and the ring around the datum) are painted at least 2 px wide and 3:1 against their painted backdrop, and the tooltip covers neither them nor the focused datum (reading: no part of either indicator is covered)`, async () => {
       const page = await devPage();
       await create(page, type);
       await page.focus('#before');
       await page.keyboard.press('Tab');
-      const indicator = page.locator('#chart .axylo-focus-ring');
-      expect(await indicator.isVisible()).toBe(true);
-      const style = await indicator.evaluate(el => {
-        const s = getComputedStyle(el);
-        return { width: parseFloat(s.outlineWidth), style: s.outlineStyle, color: s.outlineColor };
-      });
-      expect(style.width).toBeGreaterThanOrEqual(2);
-      expect(style.style).not.toBe('none');
-      const [color] = await resolveColors(page, [style.color]);
-      expect(contrast(color!, await backgroundColor(page))).toBeGreaterThanOrEqual(3);
-      // At every datum the keyboard reaches, the tooltip (when shown) does not cover that datum's mark.
+      expect((await readRange(page)).focused).toBe(true);
+      const outline = page.locator('#chart .axylo-focus-ring');
+      expect(await outline.isVisible()).toBe(true);
+      // Computed style: the outline's width (its painted pixels are checked below).
+      const width = await outline.evaluate(el => parseFloat(getComputedStyle(el).outlineWidth));
+      expect(width).toBeGreaterThanOrEqual(2);
       const steps = walk(type).length;
-      let checked = 0;
+      const problems: string[] = [];
       for (let i = 0; i < steps; i++) {
         if (i > 0) await page.keyboard.press('ArrowRight');
+        await settle(page);
+        const range = await readRange(page);
+        if (!range.focused || range.role !== 'slider') problems.push(`datum ${i}: the range lost focus or role`);
+        const { img, box: view } = await screenshot(page, '#chart figure');
+        // The plot's outline: a strip on each side, inside its box (outline-offset is negative).
+        const o = await box(page, '#chart .axylo-focus-ring');
+        const strips: Box[] = [
+          { x: o.x + o.width * 0.4, y: o.y + 1, width: o.width * 0.2, height: 2 }, { x: o.x + o.width * 0.4, y: o.y + o.height - 3, width: o.width * 0.2, height: 2 },
+          { x: o.x + 1, y: o.y + o.height * 0.4, width: 2, height: o.height * 0.2 }, { x: o.x + o.width - 3, y: o.y + o.height * 0.4, width: 2, height: o.height * 0.2 },
+        ];
+        const rings = await datumRing(page);
+        if (!rings.length) problems.push(`datum ${i}: no ring around the focused datum`);
+        for (const r of rings) if (r.strokeWidth < 2) problems.push(`datum ${i}: datum ring ${r.strokeWidth} px wide`);
+        // Against the chart's painted background (the figure's most frequent colour), as L2 measures it.
+        const backdrop = modeColor(img, { x0: 0, y0: 0, x1: img.width, y1: img.height }).color;
+        for (const [k, b] of [...strips, ...rings.map(r => r.box)].entries()) {
+          const ink = inkColor(img, view, b, backdrop);
+          if (!ink) { problems.push(`datum ${i}: indicator ${k} at ${JSON.stringify(b)} not painted`); continue; }
+          if (contrast(ink, backdrop) < 3) problems.push(`datum ${i}: indicator ${k} ${ink} is ${contrast(ink, backdrop).toFixed(2)}:1 on ${backdrop}`);
+        }
         const tip = page.locator('#chart .axylo-tooltip');
-        if (!(await tip.isVisible())) continue;
+        if (!(await tip.isVisible())) { problems.push(`datum ${i}: no tooltip`); continue; }
         const tipBox = await box(page, '#chart .axylo-tooltip');
         const drawn = await shapes(page, '#chart', type === 'donut' ? 10000 : type === 'bar' ? 10000 : 20);
         const marks = datumMarks(type, drawn, i, type === 'donut' ? await ring(page) : null);
-        expect(marks.length, `marks for datum ${i}`).toBeGreaterThan(0);
-        checked++;
-        for (const m of marks) expect(intersects(tipBox, m, 0.5), `datum ${i}: tooltip ${JSON.stringify(tipBox)} over mark ${JSON.stringify(m)}`).toBe(false);
+        if (!marks.length) problems.push(`datum ${i}: no mark found for the focused datum`);
+        for (const m of covered(tipBox, [...marks, ...strips, ...rings.map(r => r.box)])) problems.push(`datum ${i}: tooltip ${JSON.stringify(tipBox)} covers ${JSON.stringify(m)}`);
       }
-      // The keyboard shows the tooltip at the datum it is on (decision 0001), so the check above ran.
-      expect(checked).toBe(steps);
+      expect(problems).toEqual([]);
       expect(await closePage(page)).toEqual([]);
     });
   }

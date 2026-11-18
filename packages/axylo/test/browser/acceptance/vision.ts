@@ -37,12 +37,26 @@ export function seen(rgb: RGB, vision: Vision): Vec3 {
 
 export const oklabDistance = (a: Vec3, b: Vec3): number => Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
-/** The smallest pairwise OKLab distance among `colors` seen with `vision`, and the pair. */
-export function minimumDistance(colors: readonly RGB[], vision: Vision): { distance: number; pair: [number, number] } {
+const enc = (v: number): number => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
+
+/**
+ * OKLab of a byte colour as an 8-bit simulated image holds it: simulated in linear light, encoded and
+ * rounded to bytes, then decoded (decision 0003's raster variant).
+ */
+export function seenRaster(rgb: RGB, vision: Vision): Vec3 {
+  const l = rgb.map(v => lin(v / 255)) as unknown as Vec3;
+  const M = MACHADO[vision];
+  const bytes = [0, 1, 2].map(i => Math.round(255 * enc(clamp(M[i]![0] * l[0] + M[i]![1] * l[1] + M[i]![2] * l[2]))));
+  return oklab(bytes.map(b => lin(b / 255)) as unknown as Vec3);
+}
+
+/** The smallest pairwise OKLab distance among `colors` seen with `vision` (analytic, or as an 8-bit image), and the pair. */
+export function minimumDistance(colors: readonly RGB[], vision: Vision, raster = false): { distance: number; pair: [number, number] } {
   let best = { distance: Infinity, pair: [0, 0] as [number, number] };
+  const f = raster ? seenRaster : seen;
   for (let i = 0; i < colors.length; i++) {
     for (let j = i + 1; j < colors.length; j++) {
-      const d = oklabDistance(seen(colors[i]!, vision), seen(colors[j]!, vision));
+      const d = oklabDistance(f(colors[i]!, vision), f(colors[j]!, vision));
       if (d < best.distance) best = { distance: d, pair: [i, j] };
     }
   }
