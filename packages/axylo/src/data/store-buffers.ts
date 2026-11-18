@@ -1,6 +1,6 @@
 import { BufferWindow } from './store-window';
 import { SLOT_NO_ROW, type AlignedFrame, type RowSource, type Series, type XColumn } from '../core/contracts';
-import type { ByteCount } from './store-bytes';
+import { lazyColumns, type ByteCount } from './store-bytes';
 
 interface OpenSlot {
   readonly index: number;
@@ -109,14 +109,15 @@ export class FrameBuffers {
   setRow(series: SeriesBuffers, index: number, row: number): void {
     if (!series.row) {
       if (row === index + this.rowShift) return;
-      this.materializeRows(series);
+      // A batch writes past `end` before it moves `end`: the slots it already wrote are identity rows too.
+      this.materializeRows(series, Math.max(this.end, index));
     }
     series.row![index] = row;
   }
 
-  private materializeRows(series: SeriesBuffers): void {
+  private materializeRows(series: SeriesBuffers, end = this.end): void {
     const rows = new Int32Array(this.x.length);
-    for (let i = this.start; i < this.end; i++) rows[i] = i + this.rowShift;
+    for (let i = this.start; i < end; i++) rows[i] = i + this.rowShift;
     series.row = rows;
   }
 
@@ -247,12 +248,14 @@ export class FrameBuffers {
         let values: Float64Array | undefined;
         let states: Uint8Array | undefined;
         let rows: Int32Array | undefined;
-        return {
+        const columns = {
           ...description,
           get y() { return values ??= readColumn(y, tail, start, end, tail.y); },
           get slot() { return states ??= readColumn(slot, tail, start, end, tail.slot); },
           get row() { return row ? rows ??= readColumn(row, tail, start, end, tail.row) : null; },
         };
+        lazyColumns.set(columns, () => [values, states, rows]);
+        return columns;
       }),
     };
   }

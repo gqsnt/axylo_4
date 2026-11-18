@@ -1,5 +1,5 @@
 import type { ScatterView } from '../core/contracts';
-import { contains, scatterPosition, type PlotLayout } from './geometry';
+import { contains, pointerOnPlot, scatterPosition, type PlotLayout } from './geometry';
 
 // Squares written out, so the module does no work at import time.
 const CELL = 24;
@@ -106,6 +106,29 @@ export function scatterGrid(
       points[at] = i;
     }
   });
+
+  /** The most points in any 4 × 4 block of cells. */
+  function densestWindow(): number {
+    const counts = new Int32Array((columns + 1) * (rows + 1));
+    // Summed-area table, one row and column of zeros in front.
+    for (let at = 0; at < length; at++) counts[(row(ys[at]!) + 1) * (columns + 1) + column(xs[at]!) + 1]!++;
+    for (let r = 1; r <= rows; r++) {
+      for (let c = 1; c <= columns; c++) {
+        const i = r * (columns + 1) + c;
+        counts[i] = counts[i]! + counts[i - 1]! + counts[i - columns - 1]! - counts[i - columns - 2]!;
+      }
+    }
+    let densest = 0;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < columns; c++) {
+        const r1 = Math.min(rows, r + 4);
+        const c1 = Math.min(columns, c + 4);
+        const sum = counts[r1 * (columns + 1) + c1]! - counts[r * (columns + 1) + c1]! - counts[r1 * (columns + 1) + c]! + counts[r * (columns + 1) + c]!;
+        densest = Math.max(densest, sum);
+      }
+    }
+    return densest;
+  }
 
   type Index = (x: number, y: number, limit: number) => ScatterPick | null;
 
@@ -323,17 +346,21 @@ export function scatterGrid(
   }
 
   const exact = budget > 0 ? index(xs, ys) : null;
-  let lattice: Index | null = null;
+  // An exact pick checks each point of the cells it searches at most three times (nearest, ties, coincidence)
+  // and samples at most POINT_LIMIT rows; it searches at most 4 × 4 cells (a 49 px window over 24 px cells).
+  // When no such window holds more than the budget allows, no pick can fall back. Otherwise the lattice index
+  // is built here, with the lookup, so that no pointer move does work in proportion to the data.
+  const canFallBack = !exact || 3 * densestWindow() + 2 * POINT_LIMIT > budget;
   function latticeIndex(): Index {
-    if (lattice) return lattice;
     const lx = new Float64Array(length);
     const ly = new Float64Array(length);
     for (let at = 0; at < length; at++) {
       lx[at] = Math.round(xs[at]! * ratio) / ratio;
       ly[at] = Math.round(ys[at]! * ratio) / ratio;
     }
-    return lattice = index(lx, ly);
+    return index(lx, ly);
   }
+  let lattice: Index | null = canFallBack ? latticeIndex() : null;
 
   return {
     series, points,
@@ -342,11 +369,13 @@ export function scatterGrid(
     get cellsExamined() { return cellsExamined; },
     /** Whether the last pick was answered on the device-pixel lattice. */
     get usedLattice() { return usedLattice; },
-    pick(x: number, y: number): ScatterPick | null {
+    pick(pointerX: number, pointerY: number): ScatterPick | null {
       examined = 0;
       cellsExamined = 0;
       usedLattice = false;
-      if (!contains(plot, x, y)) return null;
+      const at = pointerOnPlot(plot, pointerX, pointerY);
+      if (!at) return null;
+      const { x, y } = at;
       if (exact) {
         try {
           return exact(x, y, budget);
@@ -355,7 +384,9 @@ export function scatterGrid(
         }
       }
       usedLattice = true;
-      return latticeIndex()(x, y, Infinity);
+      // Built with the lookup whenever a pick can need it; built here only if that bound were ever wrong.
+      lattice ??= latticeIndex();
+      return lattice(x, y, Infinity);
     },
   };
 }

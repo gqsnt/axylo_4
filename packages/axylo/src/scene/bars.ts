@@ -9,14 +9,15 @@ type Bands = Extract<Projection, { kind: 'bands' }>;
 const PATTERNS = ['diagonal', 'cross', 'dots'] as const;
 
 /**
- * The pattern over a bar series' fill. A full chart adds one past the eighth series (F9). A compact chart has
- * no legend, so past its first series bars carry a pattern from the start and two series never differ by colour
- * alone (spec A5, C4), for as long as the patterns last: its combinations are the same 32, with the pattern
- * shifted by one for every colour but the first's. Series 1 to 24 are patterned; 25 to 31 are plain and differ
- * from series 0 by colour only, which a fourth pattern would avoid. After 32, combinations repeat.
+ * The pattern over a bar series' fill. A full chart adds one past the eighth series (F9); its legend names
+ * the rest. A compact chart has no legend, so its bars side by side must differ by more than colour (spec A5,
+ * C4): series s of colour c = s mod 8 in cycle k = floor(s / 8) takes pattern (k + c) mod 4 of none, diagonal,
+ * cross, dots. Neighbours then differ by one pattern step (by two across a cycle), each colour takes all four
+ * patterns over the first 32 series (F9's 32 combinations, the same as a full chart's), and series 0 is plain.
+ * Series further apart can share a pattern and differ by colour; only more pattern values could avoid that.
  */
 export function barPattern(series: number, compact: boolean): 'none' | typeof PATTERNS[number] {
-  const group = compact ? (Math.floor(series / 8) + (series % 8 === 0 ? 0 : 1)) % 4 : Math.floor(series / 8);
+  const group = compact ? (Math.floor(series / 8) + series % 8) % 4 : Math.floor(series / 8);
   return group ? PATTERNS[(group - 1) % PATTERNS.length]! : 'none';
 }
 

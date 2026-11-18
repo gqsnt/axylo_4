@@ -24,7 +24,10 @@ describe('aligned picking', () => {
     expect(model.pick(30, 90)).toEqual({ kind: 'x', x: 20 });
     expect(model.pick(70, 10)).toEqual({ kind: 'x', x: 50 });
     expect(model.pick(100, 100)).toEqual({ kind: 'x', x: 50 });
-    for (const [x, y] of [[-0.1, 50], [100.1, 50], [50, -0.1], [50, 100.1]] as const) expect(model.pick(x, y)).toBeNull();
+    // Decision 0004 (clarifications): up to 1 CSS px outside picks as on the edge; further out, nothing.
+    expect(model.pick(-0.1, 50)).toEqual(model.pick(0, 50));
+    expect(model.pick(100.1, 50)).toEqual(model.pick(100, 50));
+    for (const [x, y] of [[-1.01, 50], [101.01, 50], [50, -1.01], [50, 101.01]] as const) expect(model.pick(x, y)).toBeNull();
   });
 
   it('picks a horizontal bar by y and returns the grouped mark bounds', () => {
@@ -229,5 +232,45 @@ describe('an incomplete stack is qualified once (spec F10, review C2-7)', () => 
     expect(model.datum(datum('S0', 0))?.value).toBe('1');
     expect(model.datum(datum('S9', 0))?.value).toBe('No data (incomplete)');
     expect(model.datum(datum('S9', 1))?.value).toBe('10');
+  });
+});
+
+describe('a pointer up to 1 CSS px outside the plot picks as on its edge (decision 0004, clarifications)', () => {
+  // Firefox and WebKit report whole pixels: the first datum on a left edge at x 65.6 is pointed at from 65.
+  const rect = { x: 65.6, y: 82.267, width: 300.4, height: 150.3 };
+  const right = rect.x + rect.width;
+  const bottom = rect.y + rect.height;
+  const data = frame('line', { data: [0, 1, 2, 3, 4].map(x => ({ x, y: x + 1 })), x: 'x', y: 'y' });
+  const layout = { ...plot({ kind: 'xy', x: linearScale([0, 4], [rect.x, right]), y: linearScale([0, 5], [bottom, rect.y]) }, 400, 260), plot: rect };
+  const model = buildLookup(aligned(data), layout, formatter(data), defaultMessages);
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+  const along = [0, 0.3, 0.7, 1];
+  // [edge point, outward direction]
+  const edges = along.flatMap(t => [
+    [[rect.x, rect.y + t * rect.height], [-1, 0]], [[right, rect.y + t * rect.height], [1, 0]],
+    [[rect.x + t * rect.width, rect.y], [0, -1]], [[rect.x + t * rect.width, bottom], [0, 1]],
+  ] as const);
+
+  it.each([0.27, 0.99, 1])('%f px outside each edge picks what the edge picks', distance => {
+    for (const [[x, y], [dx, dy]] of edges) {
+      const edge = model.pick(x, y);
+      expect(edge).not.toBeNull();
+      expect(model.pick(x + dx * distance, y + dy * distance)).toEqual(edge);
+    }
+  });
+
+  it('1.01 px outside any edge picks nothing', () => {
+    for (const [[x, y], [dx, dy]] of edges) expect(model.pick(x + dx * 1.01, y + dy * 1.01)).toBeNull();
+  });
+
+  it('for any position within 1 px outside, the pick is the pick at the position moved onto the rectangle', () => {
+    // Anywhere in the rectangle grown by 1 px on every side, the edges and corners of the band included.
+    const unit = fc.double({ min: 0, max: 1, noNaN: true });
+    const edge = fc.constantFrom(0, 1);
+    fc.assert(fc.property(fc.oneof(unit, edge), fc.oneof(unit, edge), (u, v) => {
+      const x = rect.x - 1 + u * (rect.width + 2);
+      const y = rect.y - 1 + v * (rect.height + 2);
+      expect(model.pick(x, y)).toEqual(model.pick(clamp(x, rect.x, right), clamp(y, rect.y, bottom)));
+    }), { numRuns: 2_000 });
   });
 });

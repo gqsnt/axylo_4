@@ -743,3 +743,24 @@ describe('spec F9: at least 32 distinct combinations of colour and a non-colour 
     expect(new Set(cues).size).toBe(count);
   });
 });
+
+describe('spec A5: neighbouring compact bars differ by more than colour (verification, finding 13)', () => {
+  function patterns(count: number) {
+    const keys = Array.from({ length: count }, (_, s) => `S${String(s).padStart(2, '0')}`);
+    const data = keys.map(s => ({ x: 'only', y: 3, s }));
+    const { view } = aligned({ x: 'x', y: 'y', series: 's', data }, { kind: 'bar', compact: true, valueDomain: [0, 10] });
+    const { marks } = buildScene(view, layout(view, clip, true), dpr);
+    return keys.map((_, s) => marksOf(marks, 'rects').find(mark => mark.series === s && mark.variant === 'bar')!.pattern ?? 'none');
+  }
+
+  it('three equal-height series in one category: each pattern differs from its neighbour\'s', () => {
+    const [a, b, c] = patterns(3);
+    expect(a).not.toBe(b);
+    expect(b).not.toBe(c);
+  });
+
+  it.each([2, 5, 8, 9, 16, 17, 31, 32])('%i series: every neighbouring pair has different patterns', count => {
+    const fills = patterns(count);
+    for (let s = 1; s < count; s++) expect(fills[s], `series ${s - 1} and ${s}`).not.toBe(fills[s - 1]);
+  });
+});

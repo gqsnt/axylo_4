@@ -745,3 +745,112 @@ describe('owned bytes stay near what the contract needs for each retained window
     expect(s.ownedBytes().total).toBeLessThanOrEqual(spare(keep) * (8 + 8 + 4) + keep * (8 + 8) + 64 * 1_024);
   });
 });
+
+describe('a typed opening keeps the caller\'s row behind every slot when an append has missing values', () => {
+  it('the reviewer\'s sequence: x [0, 1], y [0, 10], missing zero, append 2, null at 3, 4', () => {
+    const data = { columns: { x: Float64Array.of(0, 1), y: Float64Array.of(0, 10) } };
+    const resolved = resolveOptions('line', { data, x: { field: 'x', type: 'number' }, y: { field: 'y', missing: 'zero' } }, quiet);
+    const s = AlignedStore.fromFrame(normalize('line', resolved, utc, quiet, version), resolved, data, utc);
+    const appended = [{ x: 2, y: 20 }, { x: 3, y: null }, { x: 4, y: 40 }];
+    s.prepareAppend(appended).commit();
+    const frame = s.frame;
+    if (frame.shape !== 'aligned') throw new Error('Expected an aligned frame.');
+    const rows = frame.series[0]!.row;
+    const rowOf = (i: number) => rows ? rows[i]! : i;
+    // Rows 2, 3 and 4 are the appended ones; missing: 'zero' turns the null into a value with no row (contract).
+    expect([...frame.x.values]).toEqual([0, 1, 2, 3, 4]);
+    expect([0, 1, 2, 3, 4].map(rowOf)).toEqual([0, 1, 2, -1, 4]);
+    expect(frame.source.rowAt(rowOf(2))).toBe(appended[0]);
+    expect(frame.source.rowAt(rowOf(4))).toBe(appended[2]);
+  });
+
+  it('for any typed opening and any batch with missing values anywhere, under either missing policy', () => {
+    const y = fc.oneof(fc.integer({ min: -50, max: 50 }), fc.constant(null), fc.constant(undefined), fc.constant(Number.NaN));
+    fc.assert(fc.property(
+      fc.array(fc.oneof(fc.integer({ min: -50, max: 50 }), fc.constant(Number.NaN)), { minLength: 1, maxLength: 12 }),
+      fc.array(fc.array(y, { minLength: 1, maxLength: 6 }), { minLength: 1, maxLength: 5 }),
+      fc.constantFrom('gap' as const, 'zero' as const), fc.option(fc.integer({ min: 1, max: 20 }), { nil: undefined }),
+      (opening, batches, missing, keep) => {
+        const columns = { x: Float64Array.from(opening, (_, i) => i), y: Float64Array.from(opening) };
+        const resolved = resolveOptions('line', { data: { columns }, x: { field: 'x', type: 'number' }, y: { field: 'y', missing } }, quiet);
+        const s = AlignedStore.fromFrame(normalize('line', resolved, utc, quiet, version), resolved, { columns }, utc);
+        // The caller's rows by source index: the opening's typed rows, then every appended object.
+        const callers: ({ x: number; y: unknown } | null)[] = opening.map((value, x) => ({ x, y: value }));
+        let x = opening.length;
+        for (const values of batches) {
+          const batch = values.map(value => value === undefined ? { x: x++ } : { x: x++, y: value });
+          const prepared = s.prepareAppend(batch, { keep });
+          // A batch in which no row has the y key is rejected whole (AX101, spec 3.5): its rows are not data.
+          const rejected = prepared.callDiagnostics.some(d => d.code === 'AX101');
+          callers.push(...batch.map(row => rejected ? null : { x: row.x, y: 'y' in row ? row.y : undefined }));
+          prepared.commit();
+          const frame = s.frame;
+          if (frame.shape !== 'aligned') throw new Error('Expected an aligned frame.');
+          const series = frame.series[0]!;
+          for (let i = 0; i < frame.length; i++) {
+            const position = frame.x.values[i]!;
+            const caller = callers[position];
+            const row0 = series.row ? series.row[i]! : i;
+            // A position with no accepted row is a slot without a source row (contract: -1).
+            if (!caller) {
+              expect(row0).toBe(-1);
+              continue;
+            }
+            const absentOrNull = caller.y === null || caller.y === undefined || (position < opening.length && Number.isNaN(caller.y));
+            const row = series.row ? series.row[i]! : i;
+            // Contract: missing: 'zero' imputes null and absent values with row -1; otherwise the slot keeps its row.
+            if (missing === 'zero' && absentOrNull) {
+              expect(row).toBe(-1);
+              continue;
+            }
+            expect(row).toBe(position);
+            const got = frame.source.rowAt(row) as { x: number; y?: unknown };
+            expect(got.x).toBe(caller.x);
+            expect(got.y).toEqual(caller.y);
+          }
+        }
+      },
+    ), { numRuns: 500 });
+  });
+});
+
+it('drops the scatter x positions column once every retained row is a point again', () => {
+  const s = new PointStore(options('scatter', [{ x: 0, y: 1 }]), utc, version);
+  s.prepareAppend([{ x: 1, y: null }, { x: 2, y: 2 }]).commit();
+  expect(s.ownedBytes().buffers.map(entry => entry.name)).toContain('x positions');
+  s.prepareAppend([{ x: 3, y: 3 }], { keep: 2 }).commit();
+  const series = s.frame.shape === 'points' ? s.frame.series[0]! : null;
+  expect(series?.missingX).toBeUndefined();
+  expect([...series!.x]).toEqual([2, 3]);
+  expect(s.ownedBytes().buffers.map(entry => entry.name)).not.toContain('x positions');
+});
+
+it('counts the copy a frame makes of a column a competing tail fill has claimed', () => {
+  const data = Array.from({ length: 64 }, (_, x) => [{ x, y: x, s: 'a' }, { x, y: x, s: 'b' }]).flat();
+  const s = new AlignedStore('line', resolveOptions('line', { data, x: 'x', y: 'y', series: 's' }, quiet), utc, version);
+  s.prepareAppend([{ x: 64, y: 64, s: 'a' }]).commit();
+  const shown = s.frame;
+  // The fill writes b's open slot in place; the frame shown before it must read its own copy of that slot.
+  const fill = s.prepareAppend([{ x: 64, y: 4, s: 'b' }]);
+  const before = s.ownedBytes().total;
+  const y = shown.series[1]!.y;
+  expect(y[64]).toBeNaN();
+  expect(fill.frame.series[1]!.y[64]).toBe(4);
+  expect(y.buffer).not.toBe(fill.frame.series[1]!.y.buffer);
+  // Every buffer the store's frame holds is counted once: the copy just made is one more.
+  expect(s.ownedBytes().total - before).toBe(y.buffer.byteLength);
+  expect(s.ownedBytes().total).toBe(s.ownedBytes().total);
+});
+
+it('counts the buffers of other frames still held, each buffer once', () => {
+  const s = store('line', Array.from({ length: 16 }, (_, i) => row(i))) as AlignedStore;
+  const held = s.frame;
+  // Enough rows to outgrow the opening buffers: the held frame keeps the old ones.
+  s.prepareAppend(Array.from({ length: 64 }, (_, i) => row(16 + i))).commit();
+  if (held.shape !== 'aligned') throw new Error('Expected an aligned frame.');
+  const own = new Set([held.x.values.buffer, held.series[0]!.y.buffer, held.series[0]!.slot.buffer, held.series[0]!.row!.buffer]);
+  const extra = [...own].reduce((sum, buffer) => sum + buffer.byteLength, 0);
+  expect(held.x.values.buffer).not.toBe((s.frame as typeof held).x.values.buffer);
+  expect(s.ownedBytes([held]).total - s.ownedBytes().total).toBe(extra);
+  expect(s.ownedBytes([held, held, s.frame]).total).toBe(s.ownedBytes([held]).total);
+});

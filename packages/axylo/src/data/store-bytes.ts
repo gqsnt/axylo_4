@@ -36,6 +36,12 @@ export class CallerBuffers {
   has(buffer: ArrayBufferLike): boolean { return this.buffers.has(buffer); }
 }
 
+/**
+ * Columns a frame copies on first read (a store's open slot that a later fill has claimed), by the object that
+ * holds the getters. Reading the registry gives what has been copied so far without reading the getters.
+ */
+export const lazyColumns = new WeakMap<object, () => readonly (ArrayBufferView | null | undefined)[]>();
+
 export class ByteCount {
   private readonly seen = new Set<ArrayBufferLike>();
   private readonly entries = new Map<string, { bytes: number; buffers: number }>();
@@ -75,6 +81,7 @@ export class ByteCount {
       const value: unknown = Object.getOwnPropertyDescriptor(owner, key)?.value;
       if (ArrayBuffer.isView(value)) this.add(`${name} ${key}`, value);
     }
+    for (const copy of lazyColumns.get(owner)?.() ?? []) this.add(`${name} copy`, copy);
   }
 
   result(): OwnedBytes {

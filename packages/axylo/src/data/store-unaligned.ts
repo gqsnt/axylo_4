@@ -1,4 +1,4 @@
-import type { DiagnosticInput, DiagnosticSink, DonutFrame, PointFrame } from '../core/contracts';
+import type { DiagnosticInput, DiagnosticSink, DonutFrame, Frame, PointFrame } from '../core/contracts';
 import { DiagnosticCollector } from '../diagnostics';
 import { normalizeDonut, normalizePoints, pointFrame, readX, reportCalendarDates, type DataEnvironment, type FrameVersion } from './normalize';
 import { resolveOptions, resolveTable, retargetOptions, withoutTable, type ResolvedOptions } from './options';
@@ -195,6 +195,10 @@ class Points implements Storage<PointFrame> {
       const missing = lowerBound(draft.missingX.view(), first);
       draft.missingX.drop(missing);
       draft.missingRow.drop(missing);
+      // Once the last row without a y has left, every retained row is a point again: positions repeat x.
+      if (draft.positions && !draft.missingX.view().length && draft.positions.view().length === draft.x.view().length) {
+        draft.positions = null;
+      }
     }
 
     return draft;
@@ -339,14 +343,17 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
   get retainedRowCount(): number { return this.revisions.size; }
 
   /**
-   * The typed storage this store holds beyond the caller's columns (spec P7), with a breakdown. Walks the
-   * store's own buffers, not the data: cost grows with the number of retained row blocks.
+   * The typed storage this store holds beyond the caller's columns (spec P7), with a breakdown. Other frames
+   * still held (the one on screen while a newer one waits) are passed in `frames`: one deduplicated count, so a
+   * buffer they share with the store counts once. Walks the store's own buffers, not the data: cost grows
+   * with the number of retained row blocks.
    */
-  ownedBytes(): OwnedBytes {
+  ownedBytes(frames: readonly Frame[] = []): OwnedBytes {
     const bytes = new ByteCount(this.caller);
     this.storage?.count(bytes);
     this.revisions.count(bytes);
     bytes.frame(this.current);
+    for (const frame of frames) bytes.frame(frame);
     return bytes.result();
   }
 

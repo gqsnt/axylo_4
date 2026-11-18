@@ -1,6 +1,6 @@
 import {
   SLOT_ABSENT_FIELD, SLOT_GAP, SLOT_NO_ROW, SLOT_NULL, SLOT_VALUE,
-  type AlignedFrame, type DiagnosticInput, type DiagnosticSink, type XColumn,
+  type AlignedFrame, type DiagnosticInput, type DiagnosticSink, type Frame, type XColumn,
 } from '../core/contracts';
 import { DiagnosticCollector } from '../diagnostics';
 import {
@@ -522,15 +522,18 @@ export class AlignedStore {
   get retainedRowCount(): number { return this.revisions.size; }
 
   /**
-   * The typed storage this store holds beyond the caller's columns (spec P7), with a breakdown. Walks the
-   * store's own buffers, not the data: cost grows with the number of series and retained row blocks.
+   * The typed storage this store holds beyond the caller's columns (spec P7), with a breakdown. Other frames
+   * still held (the one on screen while a newer one waits) are passed in `frames`: one deduplicated count, so a
+   * buffer they share with the store counts once. Walks the store's own buffers, not the data: cost grows
+   * with the number of series and retained row blocks.
    */
-  ownedBytes(): OwnedBytes {
+  ownedBytes(frames: readonly Frame[] = []): OwnedBytes {
     const bytes = new ByteCount(this.caller);
     this.state.buffers.count(bytes);
     for (const [key, window] of this.state.observations) window.count(bytes, `series ${key} x history`);
     this.revisions.count(bytes);
     bytes.frame(this.current);
+    for (const frame of frames) bytes.frame(frame);
     return bytes.result();
   }
 

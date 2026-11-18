@@ -2,7 +2,7 @@ import { SLOT_NULL, SLOT_VALUE } from '../core/contracts';
 import type { AlignedView, DatumRef, DatumText, Formatters, Lookup, SlotState } from '../core/contracts';
 import type { Messages } from '../public';
 import { fill } from '../messages';
-import { clipBox, contains, pointBox, type PlotLayout } from './geometry';
+import { clipBox, contains, pointBox, pointerOnPlot, type PlotLayout } from './geometry';
 import { clamp } from '../scene/geometry';
 import { lowerBound, pageDistance } from './search';
 import { incomplete, slotText } from './text';
@@ -101,9 +101,10 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
   }
 
   return {
-    pick(px, py) {
-      if (!layout || !visible.length || !contains(layout.plot, px, py)) return null;
-      const i = nearestSlot(projection?.kind === 'bands' && projection.horizontal ? py : px);
+    pick(pointerX, pointerY) {
+      const at = layout && visible.length ? pointerOnPlot(layout.plot, pointerX, pointerY) : null;
+      if (!at) return null;
+      const i = nearestSlot(projection?.kind === 'bands' && projection.horizontal ? at.y : at.x);
       return i < 0 ? null : { kind: 'x', x: positions[i]! };
     },
     tooltip(target) {

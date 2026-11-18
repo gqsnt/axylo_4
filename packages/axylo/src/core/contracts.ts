@@ -636,6 +636,9 @@ export interface Lookup {
    * number of points, positions may be compared after rounding to the device-pixel lattice (an error of at most
    * 0.71 device px); the datum's reported values are always exact. A donut slice too thin to see is drawn,
    * and picked, at a minimum of 1 CSS px of arc; its value and share are reported unchanged.
+   * Pointer positions are known to one CSS pixel (Firefox and WebKit report whole pixels): a position up to
+   * 1 CSS px outside the plot rectangle is picked as if on the nearest point of its edge; further out,
+   * nothing is picked.
    */
   pick(px: number, py: number): PickTarget | null;
   tooltip(target: PickTarget): TooltipModel;

@@ -123,7 +123,9 @@ it.each([
     }
     expect(model.anchor(ref)).toMatchObject({ x: expect.closeTo(x, 10), y: expect.closeTo(y, 10) });
   }
-  expect(model.pick(left - 1, top)).toBeNull();
+  // Decision 0004 (clarifications): up to 1 CSS px outside picks as on the edge; further out, nothing.
+  expect(model.pick(left - 1, top)).toEqual(model.pick(left, top));
+  expect(model.pick(left - 1.01, top)).toBeNull();
 });
 
 it('indexes the rounded right and bottom edges in the same cells it searches', () => {
@@ -547,5 +549,96 @@ describe('a pick visits a number of index entries bounded by the radius and the 
       expect(model.lastPickCandidates).toBeLessThanOrEqual(exactBudget === 0 ? bound(ratio) / 2 : bound(ratio));
       if (model.lastPickLattice) expectLattice(target, latticeOracle(drawn, 100.3, 100.2, ratio));
     }
+  });
+});
+
+describe('a pointer up to 1 CSS px outside the plot picks as on its edge (decision 0004, clarifications)', () => {
+  // The type-matrix case: a point drawn on the top edge at y 82.267, the pointer reported at y 82.
+  const rect = { x: 65.6, y: 82.267, width: 300.4, height: 150.3 };
+  const right = rect.x + rect.width;
+  const bottom = rect.y + rect.height;
+  const layout = scatterLayout(rect, [0, 10], [0, 10]);
+  const onEdges = [[0, 0], [10, 0], [0, 10], [10, 10], [5, 0], [5, 10], [0, 5], [10, 5]] as const;
+  const data = points([onEdges]);
+  const { x: px, y: py } = layout.projection;
+  // Outward direction of each edge point (corners go out diagonally).
+  const outward = onEdges.map(([x, y]) => [x === 0 ? -1 : x === 10 ? 1 : 0, y === 0 ? 1 : y === 10 ? -1 : 0] as const);
+  const settings = [[1, undefined], [2, undefined], [1, 0], [2, 0], [exactRatio, undefined]] as const;
+  const clamp2 = (x: number, y: number) => [clamp(x, rect.x, right), clamp(y, rect.y, bottom)] as const;
+
+  it.each(settings)('at ratio %s (exact budget %s): 0.27, 0.99 and 1 px outside pick what the edge picks; 1.01 px nothing', (ratio, exactBudget) => {
+    const model = scatterLookup(scatter(data), layout, formatter(data), undefined, ratio, { exactBudget });
+    onEdges.forEach(([x, y], i) => {
+      const ex = px.map(x);
+      const ey = py.map(y);
+      const [dx, dy] = outward[i]!;
+      const edge = model.pick(ex, ey);
+      expect(edge).toMatchObject({ kind: 'point', refs: [point('S0', i, x)] });
+      for (const distance of [0.27, 0.99, 1]) {
+        // Along one axis, and (for a corner) along both.
+        if (dx) expect(model.pick(ex + dx * distance, ey)).toEqual(edge);
+        if (dy) expect(model.pick(ex, ey + dy * distance)).toEqual(edge);
+        expect(model.pick(ex + dx * distance, ey + dy * distance)).toEqual(edge);
+      }
+      if (dx) expect(model.pick(ex + dx * 1.01, ey)).toBeNull();
+      if (dy) expect(model.pick(ex, ey + dy * 1.01)).toBeNull();
+    });
+  });
+
+  it('for any data and any position within 1 px outside, the pick is the pick at the position moved onto the rectangle', () => {
+    const coordinate = fc.oneof(fc.constant(0), fc.constant(10), fc.integer({ min: 0, max: 1000 }).map(n => n / 100));
+    const unit = fc.oneof(fc.double({ min: 0, max: 1, noNaN: true }), fc.constantFrom(0, 1));
+    fc.assert(fc.property(fc.array(fc.tuple(coordinate, coordinate), { minLength: 1, maxLength: 40 }), unit, unit,
+      fc.constantFrom(...settings), (list, u, v, [ratio, exactBudget]) => {
+        const cloud = points([list]);
+        const model = scatterLookup(scatter(cloud), layout, formatter(cloud), undefined, ratio, { exactBudget });
+        const x = rect.x - 1 + u * (rect.width + 2);
+        const y = rect.y - 1 + v * (rect.height + 2);
+        expect(model.pick(x, y)).toEqual(model.pick(...clamp2(x, y)));
+      }), { numRuns: 1_000 });
+  });
+});
+
+describe('a pointer move does no data-sized work (final review, finding 8; verification, finding 7)', () => {
+  // Typed-array bytes allocated while `action` runs: an index built for the data would show here.
+  function allocated(action: () => void): number {
+    let bytes = 0;
+    const restore: (() => void)[] = [];
+    for (const name of ['Float64Array', 'Float32Array', 'Int32Array', 'Uint32Array', 'Uint8Array'] as const) {
+      const original = globalThis[name];
+      const counted = new Proxy(original, {
+        construct(target, args, newTarget) {
+          const result = Reflect.construct(target, args, newTarget) as InstanceType<typeof original>;
+          if (!(args[0] instanceof ArrayBuffer)) bytes += result.byteLength;
+          return result;
+        },
+      });
+      Object.defineProperty(globalThis, name, { value: counted });
+      Object.defineProperty(original.prototype, 'constructor', { value: counted });
+      restore.push(() => {
+        Object.defineProperty(original.prototype, 'constructor', { value: original });
+        Object.defineProperty(globalThis, name, { value: original });
+      });
+    }
+    try {
+      action();
+    } finally {
+      restore.forEach(undo => undo());
+    }
+    return bytes;
+  }
+
+  it.each([1, 2])('the first pick at the centre of a 32,000-point ring at ratio %i', ratio => {
+    const size = 32_000;
+    const axis = linearScale([0, 200], [0, 200]);
+    const layout = plot({ kind: 'xy', x: axis, y: axis }, 200, 200);
+    const data = points([Array.from({ length: size }, (_, i) =>
+      [100 + 20 * Math.cos(2 * Math.PI * i / size), 100 + 20 * Math.sin(2 * Math.PI * i / size)] as const)]);
+    const model = scatterLookup(scatter(data), layout, formatter(data), undefined, ratio);
+    let target: ReturnType<typeof model.pick> = null;
+    // One position per point would be 256,000 bytes; the pick may allocate only what is near the pointer.
+    expect(allocated(() => { target = model.pick(100, 100); })).toBeLessThan(16 * 1_024);
+    expect(target).not.toBeNull();
+    expect(model.lastPickLattice).toBe(true);
   });
 });

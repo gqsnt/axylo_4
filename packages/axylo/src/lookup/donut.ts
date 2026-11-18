@@ -1,6 +1,6 @@
 import type { DatumRef, DonutView, Formatters, Lookup, Rect } from '../core/contracts';
 import { donutGeometry } from '../view/donut-geometry';
-import { contains, type PlotLayout } from './geometry';
+import { pointerOnPlot, type PlotLayout } from './geometry';
 import { pageDistance } from './search';
 import { sliceText } from './text';
 
@@ -52,8 +52,10 @@ export function donutLookup(view: DonutView, layout: PlotLayout | null, formatte
   }
 
   const lookup: Lookup = {
-    pick(px, py) {
-      if (!geometry || !ring || !layout || !contains(layout.plot, px, py) || !(ring.r1 > ring.r0)) return null;
+    pick(pointerX, pointerY) {
+      const at = layout ? pointerOnPlot(layout.plot, pointerX, pointerY) : null;
+      if (!geometry || !ring || !at || !(ring.r1 > ring.r0)) return null;
+      const { x: px, y: py } = at;
       const dx = px - ring.cx;
       const dy = py - ring.cy;
       const radius = Math.hypot(dx, dy);

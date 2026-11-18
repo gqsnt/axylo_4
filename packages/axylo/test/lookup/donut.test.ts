@@ -1,4 +1,5 @@
-import { expect, it } from 'vitest';
+import fc from 'fast-check';
+import { describe, expect, it } from 'vitest';
 import type { DatumRef } from '../../src/core/contracts';
 import { buildLookup } from '../../src/lookup';
 import { defaultMessages } from '../../src/messages';
@@ -76,4 +77,33 @@ it('formats slice percentages through the supplied formatter regardless of the l
   const formatters = { ...formatter(data), percent: (ratio: number) => `share(${ratio.toFixed(3)})` };
   const lookup = buildLookup(donut(data), layout, formatters, defaultMessages, 'en-US');
   expect(lookup.datum({ kind: 'slice', sliceKey: 'Chrome' })?.percent).toBe('share(0.462)');
+});
+
+describe('a pointer up to 1 CSS px outside the plot picks as on its edge (decision 0004, clarifications)', () => {
+  // A ring whose outer edge touches the plot's fractional top and bottom edges.
+  const rect = { x: 10.4, y: 20.27, width: 120.3, height: 100.6 };
+  const cx = rect.x + rect.width / 2;
+  const cy = rect.y + rect.height / 2;
+  const touching = { ...plot({ kind: 'ring', cx, cy, r0: 30, r1: rect.height / 2 }, 150, 140), plot: rect };
+  const ring = buildLookup(donut(data), touching, formatter(data), defaultMessages, 'en-US');
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+
+  it('at the top and bottom edges: 0.27, 0.99 and 1 px outside pick the edge slice; 1.01 px nothing', () => {
+    for (const [y, out] of [[rect.y, -1], [rect.y + rect.height, 1]] as const) {
+      const edge = ring.pick(cx, y);
+      expect(edge).toMatchObject({ kind: 'slice' });
+      for (const distance of [0.27, 0.99, 1]) expect(ring.pick(cx, y + out * distance)).toEqual(edge);
+      expect(ring.pick(cx, y + out * 1.01)).toBeNull();
+    }
+    expect(ring.pick(cx, rect.y)).toEqual({ kind: 'slice', sliceKey: 'Chrome' });
+  });
+
+  it('for any position within 1 px outside, the pick is the pick at the position moved onto the rectangle', () => {
+    const unit = fc.oneof(fc.double({ min: 0, max: 1, noNaN: true }), fc.constantFrom(0, 0.5, 1));
+    fc.assert(fc.property(unit, unit, (u, v) => {
+      const x = rect.x - 1 + u * (rect.width + 2);
+      const y = rect.y - 1 + v * (rect.height + 2);
+      expect(ring.pick(x, y)).toEqual(ring.pick(clamp(x, rect.x, rect.x + rect.width), clamp(y, rect.y, rect.y + rect.height)));
+    }), { numRuns: 2_000 });
+  });
 });
