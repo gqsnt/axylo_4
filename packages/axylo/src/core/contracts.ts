@@ -592,7 +592,9 @@ export type DatumRef =
 /** What the pointer is over, by the picking rule of the chart type (spec 3.6). */
 export type PickTarget =
   | { readonly kind: 'x'; readonly x: number }                      // line, area, bar: every series at this x
-  | { readonly kind: 'point'; readonly refs: readonly DatumRef[]; readonly count: number }  // scatter: nearest point and those coinciding with it (at most 8; `count` is the full number)
+  | { readonly kind: 'point'; readonly refs: readonly DatumRef[]; readonly count: number;      // scatter: nearest point and those coinciding with it (at most 8; `count` is the full number)
+      /** Which rule decided what coincides with the nearest point: exact positions (the default when absent) or the device-pixel lattice. `Lookup.members` and `Lookup.has` use the same one. */
+      readonly rule?: 'exact' | 'lattice' }
   | { readonly kind: 'slice'; readonly sliceKey: string };
 
 /** One row of a tooltip or one announced point, as text. All text comes from the frame through the formatters. */
@@ -641,6 +643,23 @@ export interface Lookup {
    * nothing is picked.
    */
   pick(px: number, py: number): PickTarget | null;
+  /**
+   * The data a pick target stands for, in the order a tooltip lists them: for a point target, every point of
+   * the group that coincides with its first ref by the target's own rule (`target.count` of them, of which
+   * `target.refs` are the first eight); for an x target, the visible series' data at that x; for a slice,
+   * the slice. `from` and `count` page through them. Paging, dismissal and selection ask here, so nothing
+   * outside the lookup rebuilds a group by another rule. Cost: proportional to `from + count`, never to the
+   * group's size beyond that or to the data.
+   */
+  members(target: PickTarget, from: number, count: number): readonly DatumRef[];
+  /** Whether `ref` is one of the target's members, by the same rule. Cost independent of the group's size. */
+  has(target: PickTarget, ref: DatumRef): boolean;
+  /**
+   * Where the datum sits in its series' columns in this frame: the x slot of an aligned datum, the point's
+   * index in its `PointSeries`, the slice's index; -1 when it is not in the frame. A caller reads normalized
+   * values through it without searching and without reading source rows again.
+   */
+  slot(ref: DatumRef): number;
   tooltip(target: PickTarget): TooltipModel;
   /** The datum to focus when the keyboard takes over from a pointer target. */
   primary(target: PickTarget): DatumRef | null;
