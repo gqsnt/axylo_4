@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { at, chart, codes, committed, lastModel, marks, pathRuns, reading, rows, walk } from './model';
+import { at, axes, chart, defaultMessages, expectGeometry, message, pixel, points, codes, committed, lastModel, marks, pathRuns, reading, rows, walk } from './model';
 
 for (const type of ['line', 'area', 'bar', 'scatter', 'donut'] as const) {
   it(`F12 ${type}: three bad values leave a three-value note and summary while the chart preserves the good observations`, () => {
@@ -18,14 +18,18 @@ for (const type of ['line', 'area', 'bar', 'scatter', 'donut'] as const) {
     expect(r.announcements).toEqual([]);
     if (type === 'line' || type === 'area') {
       expect(pathRuns(marks(r, 'path')[0]!.xy).map(run => run.length)).toEqual([2]);
-      expect(marks(r, 'points').some(mark => mark.xy.length >= 2)).toBe(true);
+      const { x, y } = axes(r);
+      const sun = marks(r, 'points').flatMap(mark => points(mark.xy)).find(([px]) => Math.abs(px - pixel(x, 6)) < 0.001);
+      expectGeometry(sun ?? [], [pixel(x, 6), y.map(70)]);
     } else if (type === 'bar') {
       expect(marks(r, 'rects').find(mark => mark.variant === 'bar')?.xywh).toHaveLength(12);
       expect(marks(r, 'rects').find(mark => mark.variant === 'missing')?.xywh).toHaveLength(16);
     } else if (type === 'scatter') expect(marks(r, 'points')[0]?.xy).toHaveLength(6);
     else expect(marks(r, 'arcs')[0]?.angles).toHaveLength(6);
+    const noData = defaultMessages.noData;
+    expect(rows(r).map(row => row[0])).toEqual(type === 'scatter' ? ['1', '2', '3', '4', '5', '6', '7'] : weekdays);
+    expect(rows(r).map(row => row[type === 'scatter' ? 2 : 1])).toEqual(['10', '20', noData, noData, noData, noData, '70']);
     if (type !== 'scatter') {
-      expect(rows(r).map(row => row[1])).toEqual(['10', '20', 'No data', 'No data', 'No data', 'No data', '70']);
       if (type !== 'donut') expect(at(r, 4).rows[0]?.value).toBe('No data');
       else expect(reading(r, walk(r)[4]!)).toContain('No data');
     }
@@ -45,7 +49,7 @@ for (const type of ['line', 'area', 'bar', 'scatter', 'donut'] as const) {
     });
     r.frames();
     expect(codes(r)).toEqual(['AX160']);
-    const note = 'Values shown differently from the data: 1. See table.';
+    const note = message('valuesChanged', { count: 1, seeTable: defaultMessages.seeTable });
     expect(lastModel(r).note).toBe(note);
     expect(lastModel(r).summary).toContain(note);
     expect(rows(r).map(row => row[type === 'scatter' ? 2 : 1])).toEqual(['1', '2']);

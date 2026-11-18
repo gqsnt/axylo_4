@@ -1,43 +1,42 @@
 # Release acceptance
 
-From the repository root
+From the repository root, run the checker tests and record the four Vitest configurations.
 
 ```sh
 node --test acceptance/test/*.test.mjs
-mkdir -p acceptance/results
-env -u AXYLO_BROWSER timeout 400 npx vitest run --reporter=json --outputFile=acceptance/results/unit.json
-node acceptance/check.mjs --results acceptance/results/unit.json
+node acceptance/run.mjs unit
+node acceptance/run.mjs browser
+node acceptance/run.mjs dist
+node acceptance/run.mjs dist-browser
+node acceptance/check.mjs --release --write --results \
+  acceptance/results/unit.json acceptance/results/browser.json \
+  acceptance/results/dist.json acceptance/results/dist-browser.json
 ```
 
-Append any available coordinator reports to `--results`. Omit reports that are absent. The checker prints the table with each cell's result sources and regenerates [report.md](report.md). With no arguments, it checks citations and reports static coverage plus any cited packed size measurement.
+Build the packages before the browser and distribution configurations. Each wrapper run writes Vitest JSON and a neighbouring `*.provenance.json` with the Git commit, dirty flag, tree fingerprint, result hash and hashes of every cited test file. The sidecar records a working-tree change during Vitest and the release checker rejects that run. The generated `acceptance/report.md` does not affect the fingerprint. Supply the result paths to the checker and keep their sidecars beside them. For a filtered run, use `--output` to keep the full configuration’s result intact.
 
-| Result | Vitest configuration |
-|---|---|
-| `unit.json` | Root configuration in Node |
-| `browser.json` | Root configuration with `AXYLO_BROWSER=1` |
-| `dist.json` | `tests/dist/vitest.config.ts` in Node |
-| `dist-browser.json` | `tests/dist/vitest.config.ts` with `AXYLO_BROWSER=1` |
+The checker prints provenance, the matrix and the sources of each result. It writes [report.md](report.md) only with `--write`. Without results, it checks citations and shows static coverage and any cited packed size measurements. An omitted result leaves its assertions unverified. By default the checker can display historical reports, including archived absolute paths that carry a full repository-relative suffix.
 
-Use `--roots <directory>…` when a report uses paths relative to a directory other than the repository root. For example, `--roots tests/dist packages/react` also resolves paths relative to those two directories. Paths that match more than one cited source are errors. Absolute paths from an archived checkout can use their full repository-relative suffix.
+Use `--roots <directory>…` for result paths relative to additional roots such as `tests/dist` or `packages/react`. Paths that match more than one cited file are structural errors.
 
-Structural errors exit 1. With `--release`, any `fail`, `weak` or `no evidence` cell also exits 1. The report identifies pending workloads and verification that requires another environment.
+Structural errors exit 1. In `--release` mode, results must have provenance that matches the working tree. Every cell must be `pass` or `not applicable`. An owner can explicitly waive a `not run` or `cannot be verified here` cell by adding `"waivers": { "<chart type>": { "reason": "…", "grantedBy": "…" } }` to its criterion. The waiver appears in the report and leaves the original status visible.
 
 | Status | Meaning |
 |---|---|
-| pass | The required assertions passed and any measured targets were met. |
-| fail | A required assertion failed or a measured target was exceeded. A failure takes precedence when results differ. |
-| weak | Partial evidence exists and leaves a documented gap. A passing result for a cited test can coexist with a weak cell. |
+| pass | All cited assertions passed and measured targets were met. |
+| fail | A cited assertion or suite failed, or a measured target was exceeded. |
+| weak | Partial evidence leaves a documented gap. |
 | no evidence | The criterion applies and has no relevant evidence. |
-| not run | Required assertions are missing or skipped, or the cell is waiting for a valid measurement. |
+| not run | A cited assertion is missing or skipped, or the cell awaits a valid measurement. |
 | cannot be verified here | The criterion requires an environment or rehearsal outside the supplied runs. |
-| not applicable | The criterion does not apply to the chart type. The matrix records the reason. |
+| not applicable | The matrix records why the criterion does not apply. |
 
 ## Review and cite evidence
 
-Use the spec ID and short wording. Section 3.6 cells use `T-<rule>-<chart type>`. Give every excluded chart type a `notApplicable` reason. Negative type-matrix rules such as donut zoom check absence. Compact covers line, area and bar variants where the rule applies.
+Use the spec ID and short wording. Section 3.6 cells use `T-<rule>-<chart type>`. Give every excluded chart type a `notApplicable` reason. Compact covers line, area and bar variants where the rule applies.
 
-Read the assertion and its fixture before citing it. Use `evidence` for the checks needed for a cell, `gaps` for the specific unverified part when those checks are collectively partial, and `weak` for supporting citations with their own `reason`. Use `cannotVerify` for environmental limits and `pending` for work awaiting a valid run.
+Use `evidence` for the checks a cell needs, `gaps` for the unverified part when those checks are incomplete, and `weak` for supporting citations with a specific `reason`. Use `cannotVerify` for environmental limits and `pending` for work awaiting a valid run.
 
-Each citation specifies a repository-relative `file` and a `kind` of `unit`, `property`, `browser`, `size`, `benchmark`, `document` or `manual rehearsal`. For a test, give its exact Vitest `title` or a `prefix` of a `describe` title when all registered cases are required. For a generated title the source scanner cannot expand, include its source template as `registration`. Give the exact `ancestors` path when suite names are generated or a repeated title must be scoped to a particular suite. The checker verifies the source registration and joins only matching assertion identities.
+Each citation specifies a repository-relative `file` and a `kind` of `unit`, `property`, `browser`, `size`, `benchmark`, `document` or `manual rehearsal`. A test citation gives its exact Vitest `title` or a `prefix` of a describe title when all reported cases are required. A generated title may include its source template as `registration`. Use `ancestors` to cite a specific suite when titles repeat. The checker refuses citations of `.fails`, `.todo` and `.skip` and requires every matching result to pass.
 
-A `size` citation names the budgeted `entries` in the packed size artifact and compares exact gzip bytes to the recorded targets. Historical benchmarks carry a `workload` and optional `history`. Documents, manual rehearsals and provisional benchmark workloads need review outside the Vitest result join.
+A `size` citation names the budgeted `entries` in the packed size artifact. Historical benchmarks carry a `workload` and optional `history`. Documents, manual rehearsals and provisional benchmark workloads need separate review.

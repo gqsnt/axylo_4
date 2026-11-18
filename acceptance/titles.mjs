@@ -123,8 +123,10 @@ export function readTitles(source, file) {
     if (!['it', 'test', 'describe'].includes(token) || parts[index - 1] === '.') continue;
     let call = index + 1;
     let rows;
+    const modifiers = [];
     while (parts[call] === '.') {
       const modifier = parts[call + 1];
+      modifiers.push(modifier);
       call += 2;
       if (['each', 'skipIf', 'runIf'].includes(modifier) && parts[call] === '(') {
         if (modifier === 'each') rows = literalList(parts, call + 1) ?? [];
@@ -132,24 +134,27 @@ export function readTitles(source, file) {
       }
     }
     if (parts[call] !== '(') continue;
-    const titles = parts[call + 2] === ','
+    const titles = [',', ')'].includes(parts[call + 2])
       ? expandTitles(parts[call + 1], rows, loops.filter(loop => loop.start < index && index < loop.end))
       : [];
+    const containing = suites.filter(suite => suite.start < index && index < suite.end);
+    const forbidden = [...new Set([...containing.flatMap(suite => suite.forbidden),
+      ...modifiers.filter(modifier => ['fails', 'todo', 'skip'].includes(modifier))])];
     if (token === 'describe') {
       const end = closing(parts, call);
       // The callback's block ends just before the last argument or closing parenthesis.
       const start = parts.indexOf('{', call + 3);
-      if (start !== -1 && start < end) for (const title of titles) suites.push({ title, start, end: closing(parts, start) });
+      if (start !== -1 && start < end) for (const title of titles) suites.push({ title, start, end: closing(parts, start), forbidden });
     } else {
-      const ancestors = suites.filter(suite => suite.start < index && index < suite.end).map(suite => suite.title);
-      if (!titles.length && parts[call + 1]?.startsWith('`') && parts[call + 2] === ',') {
-        templates.push({ template: parts[call + 1].slice(1, -1), ancestors });
+      const ancestors = containing.map(suite => suite.title);
+      if (!titles.length && parts[call + 1]?.startsWith('`') && [',', ')'].includes(parts[call + 2])) {
+        templates.push({ template: parts[call + 1].slice(1, -1), ancestors, forbidden });
       }
       // An unresolved case must stop a partially reported suite from appearing to pass.
-      for (const title of titles.length ? titles : [null]) tests.push({ title, ancestors });
+      for (const title of titles.length ? titles : [null]) tests.push({ title, ancestors, forbidden });
     }
   }
-  return { suites: suites.map(suite => suite.title), tests, templates };
+  return { suites, tests, templates };
 }
 
 export function matchesTemplate(title, template) {

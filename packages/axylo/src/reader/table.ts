@@ -38,7 +38,7 @@ function scatterRows(view: ScatterView, work?: PointOrderWork) {
     const end = upperBound(x, max, start);
     if (start === end) return;
     // Within the missing rows, the shared x column leaves ties in series order.
-    gaps.push({ ...series, series: s, x, y: x });
+    gaps.push({ key: series.key, label: series.label, drawable: false, row: null, series: s, x, y: x });
     ranges.push({ start, end });
   });
   if (!gaps.length) return points;

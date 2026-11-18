@@ -257,9 +257,9 @@ describe('F8, F11 and DX2 frame shapes', () => {
     const { frame, diagnostics } = check('scatter', { data, x: 'x', y: { field: 'y', missing }, series: 'group' });
     if (frame.shape !== 'points') throw new Error('Expected a point frame');
     expect(frame.series.map(s => [s.key, [...s.x], [...s.y], [...s.row!], [...(s.missingX ?? [])]])).toEqual(missing === 'gap' ? [
-      ['B', [1], [0], [5], [8]], ['A', [4], [-2], [4], [2, 4, 4]],
+      ['B', [1], [0], [5], [5, 6, 8]], ['A', [4], [-2], [4], [2, 4, 4]],
     ] : [
-      ['B', [1, 8], [0, 0], [5, 0], []], ['A', [2, 4, 4, 4], [0, -2, 0, 0], [2, 4, 1, 3], []],
+      ['B', [1, 8], [0, 0], [5, 0], [5, 6]], ['A', [2, 4, 4, 4], [0, -2, 0, 0], [2, 4, 1, 3], []],
     ]);
     const issues = diagnostics.inputs();
     expect(issues.map(({ code, field, effect, count, rows }) => [code, field, effect, count, rows])).toEqual([

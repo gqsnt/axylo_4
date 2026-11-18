@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { sliceText } from '../../src/lookup/text';
-import { chart, codes, committed, expectGeometry, lastModel, marks, reading, rows, walk } from './model';
+import { chart, codes, committed, defaultMessages, message, expectGeometry, lastModel, marks, reading, rows, walk } from './model';
 
 it('F8 donut: slices start at twelve and run clockwise in input order; zero and null are listed without arcs', () => {
   const r = chart('donut', [{ x: 'Retail', y: 3 }, { x: 'None', y: 0 }, { x: 'Unknown', y: null }, { x: 'Trade', y: 1 }]);
@@ -61,8 +61,8 @@ it('F8 donut: a negative value shows the error state and clears all arcs', () =>
   r.frames();
   expect(codes(r)).toEqual(['AX120']);
   expect(marks(r, 'arcs')).toEqual([]);
-  expect(lastModel(r).message).toBe('The chart could not be drawn.');
-  expect(r.announcements).toEqual(['The chart could not be drawn.']);
+  expect(lastModel(r).message).toBe(defaultMessages.error);
+  expect(r.announcements).toEqual([defaultMessages.error]);
 });
 
 it('F8 donut: all-zero values show the empty state while the table retains both zero values', () => {
@@ -70,19 +70,33 @@ it('F8 donut: all-zero values show the empty state while the table retains both 
   r.frames();
   expect(codes(r)).toEqual([]);
   expect(marks(r, 'arcs')).toEqual([]);
-  expect(lastModel(r).message).toBe('No data to show.');
-  expect(lastModel(r).summary).toContain('No data to show.');
+  expect(lastModel(r).message).toBe(defaultMessages.empty);
+  expect(lastModel(r).summary).toContain(defaultMessages.empty);
   expect(rows(r).map(row => row.slice(0, 2))).toEqual([['A', '0'], ['B', '0']]);
 });
 
-it('F8 donut: the eight-arc limit keeps zero and missing categories separately readable (reading: only drawn arcs use the limit)', () => {
+it('F8 donut: exactly eight slices including zero and null keep both arcless categories readable', () => {
   const r = chart('donut', [
-    ...Array.from({ length: 8 }, (_, i) => ({ x: 'Positive ' + i, y: i + 1 })),
+    ...Array.from({ length: 6 }, (_, i) => ({ x: 'Positive ' + i, y: i + 1 })),
     { x: 'Zero', y: 0 }, { x: 'Missing', y: null },
   ]);
   r.frames();
   expect(codes(r)).toEqual([]);
-  expect(marks(r, 'arcs')[0]?.angles).toHaveLength(16);
+  expect(marks(r, 'arcs')[0]?.angles).toHaveLength(12);
   expect(rows(r).slice(-2).map(row => row.slice(0, 2))).toEqual([['Zero', '0'], ['Missing', 'No data']]);
   expect(walk(r).slice(-2).map(ref => committed(r).lookup.datum(ref)?.seriesLabel)).toEqual(['Zero', 'Missing']);
+});
+
+it('F8 donut: zero and null slices count toward the eight-slice limit without gaining arcs', () => {
+  const data = [
+    ...Array.from({ length: 7 }, (_, i) => ({ x: 'Slice ' + i, y: i + 1 })),
+    { x: 'Zero', y: 0 }, { x: 'Unknown', y: null },
+  ];
+  const r = chart('donut', data);
+  r.frames();
+  expect(rows(r)).toHaveLength(9);
+  expect(marks(r, 'arcs')[0]?.angles).toHaveLength(14);
+  expect(codes(r)).toEqual(['AX121']);
+  expect(r.controller.handle.diagnostics[0]?.count).toBe(2);
+  expect(lastModel(r).summary).toContain(message('otherSlices', { count: 2 }));
 });

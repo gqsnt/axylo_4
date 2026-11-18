@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { aligned, axes, chart, codes, committed, expectCompact, lastModel, marks, pathRuns, plot, scene } from './model';
+import { aligned, axes, chart, codes, committed, message, expectCompact, lastModel, marks, pathRuns, plot, scene } from './model';
 
 for (const kind of aligned) {
   it(`C1 compact: ${kind} has a name and full summary, and the committed model is static`, () => {
@@ -9,10 +9,10 @@ for (const kind of aligned) {
     r.frames();
     expect(codes(r)).toEqual(['AX140']);
     const capitalized = kind[0]!.toUpperCase() + kind.slice(1);
-    expect(lastModel(r)).toMatchObject({ compact: true, name: capitalized + ' chart of y by x', summaryVisible: false });
+    expect(lastModel(r)).toMatchObject({ compact: true, name: message('chartName', { type: capitalized, x: 'x', y: 'y' }), summaryVisible: false });
     expect(lastModel(r).summary).toContain('1 series');
     expect(lastModel(r).summary).toContain('x from 1 to 3');
-    expect(lastModel(r).summary).toContain('minimum 4, maximum 8, last 8');
+    expect(lastModel(r).summary).toContain(message('seriesSummary', { series: 'y', min: 4, max: 8, last: 8 }));
     expect(lastModel(r).summary).toContain('Collected outdoors.');
     expectCompact(r);
   });
@@ -25,7 +25,7 @@ for (const kind of aligned) {
     const initial = scene(r);
     expect(initial.marks.length).toBeGreaterThan(0);
     expect(initial.marks.every(mark => ['rects', 'area', 'path', 'points'].includes(mark.type))).toBe(true);
-    expect(lastModel(r).summary).toContain('last 8');
+    expect(lastModel(r).summary).toContain(message('seriesSummary', { series: 'y', min: 4, max: 8, last: 8 }));
     r.controller.handle.zoom([1, 2]);
     r.frames();
     expect(scene(r)).toEqual(initial);
@@ -33,7 +33,7 @@ for (const kind of aligned) {
     expect(scene(r)).toBe(initial);
     expect(r.frames()).toBe(1);
     expect(scene(r)).not.toEqual(initial);
-    expect(lastModel(r).summary).toContain('minimum 5, maximum 20, last 20');
+    expect(lastModel(r).summary).toContain(message('seriesSummary', { series: 'y', min: 5, max: 20, last: 20 }));
     expectCompact(r);
   });
 
@@ -61,7 +61,7 @@ for (const kind of aligned) {
     expect(lastModel(r).compact).toBe(true);
     expect(lastModel(r).note).toContain('Values not shown: 1.');
     expect(lastModel(r).summary).toContain('Values not shown: 1.');
-    expect(lastModel(r).summary).toContain('minimum 4, maximum 6, last 6');
+    expect(lastModel(r).summary).toContain(message('seriesSummary', { series: 'y', min: 4, max: 6, last: 6 }));
     expectCompact(r);
     expect(committed(r).reader.table).toBeNull();
     expect(lastModel(r).note).not.toContain('See table');

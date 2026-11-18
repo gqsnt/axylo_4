@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { beforeAll, expect, it } from 'vitest';
 import type { record } from '../core/host';
-import { codes, lastModel, scene } from './model';
+import { aligned, codes, defaultMessages, lastModel, message, scene } from './model';
 
 let production: typeof record;
 
@@ -31,14 +31,16 @@ for (const type of ['line', 'area', 'bar', 'scatter', 'donut'] as const) {
 }
 
 it('C5 compact: production supplies the omission count to both the corner marker and summary', () => {
-  const r = production('line', {
-    x: 'x', y: 'y', compact: true, title: 'Measured', data: [{ x: 1, y: 3 }, { x: 2, y: Infinity }, { x: 3, y: 8 }],
-  });
-  r.frames();
-  expect(codes(r)).toEqual(['AX103']);
-  expect(lastModel(r).compact).toBe(true);
-  expect(lastModel(r).note).toContain('Values not shown: 1.');
-  expect(lastModel(r).summary).toContain('Values not shown: 1.');
+  for (const kind of aligned) {
+    const r = production(kind, {
+      x: 'x', y: 'y', compact: true, title: 'Measured', data: [{ x: 1, y: 3 }, { x: 2, y: Infinity }, { x: 3, y: 8 }],
+    });
+    r.frames();
+    expect(codes(r)).toEqual(['AX103']);
+    expect(lastModel(r).compact).toBe(true);
+    expect(lastModel(r).note).toContain('Values not shown: 1.');
+    expect(lastModel(r).summary).toContain('Values not shown: 1.');
+  }
 });
 
 it('DX4 line: production delivers hint AX104 to the callback while keeping the console quiet', () => {
@@ -51,4 +53,20 @@ it('DX4 line: production delivers hint AX104 to the callback while keeping the c
   expect(codes(r)).toEqual(['AX104']);
   expect(received).toEqual(['AX104']);
   expect(r.printed).toEqual([]);
+});
+
+it('F3 line: AX140 reaches the reader and prints once without a title in production', () => {
+  const receive: string[] = [];
+  const r = production('line', {
+    x: 'x', y: 'y', data: [{ x: 1, y: 3 }, { x: 2, y: 8 }],
+    onDiagnostic: (d: { code: string }) => receive.push(d.code),
+  });
+  r.frames();
+  r.controller.invalidate.resize();
+  r.frames();
+  expect(codes(r)).toEqual(['AX140']);
+  expect(receive).toEqual(['AX140']);
+  expect(r.printed.filter(printed => printed.includes('AX140'))).toHaveLength(1);
+  expect(lastModel(r).name).toBe(message('chartName', { type: defaultMessages.typeLine, x: 'x', y: 'y' }));
+  expect(scene(r).marks.some(mark => mark.type === 'path')).toBe(true);
 });

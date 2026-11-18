@@ -1,12 +1,20 @@
 import { expect } from 'vitest';
 import type { ChartKind } from '../../src/core/controller';
 import type { DatumRef, Layout, Mark, TooltipModel, XScale } from '../../src/core/contracts';
+import { defaultMessages } from '../../src/messages';
 import { valueText } from '../../src/core/focus';
 import { lastModel, record, type HostOptions, type Recording } from '../core/host';
 
 export { lastModel, record, type Recording };
 export const types = ['line', 'area', 'bar', 'scatter', 'donut', 'compact'] as const;
 export const aligned = ['line', 'area', 'bar'] as const;
+export const compactKinds = (type: Type) => type === 'compact' ? aligned : ['line'] as const;
+export { defaultMessages };
+export function message(key: keyof typeof defaultMessages, values: Record<string, string | number> = {}) {
+  let text = defaultMessages[key];
+  for (const [name, value] of Object.entries(values)) text = text.replaceAll(`{${name}}`, String(value));
+  return text.trim();
+}
 export type Type = typeof types[number];
 export const day = 86_400_000;
 export const date = (offset: number) => Date.UTC(2024, 1, 24) + offset * day;
@@ -14,7 +22,7 @@ export const date = (offset: number) => Date.UTC(2024, 1, 24) + offset * day;
 export function chart(type: Type, data: unknown, options: Record<string, unknown> = {}, host?: HostOptions, compactKind: typeof aligned[number] = 'line') {
   const encoding = type === 'donut' ? { label: 'x', value: 'y' } : { x: 'x', y: 'y' };
   const kind: ChartKind = type === 'compact' ? compactKind : type;
-  return record(kind, { title: 'Measurements', locale: 'en-US', data, ...encoding, compact: type === 'compact' || undefined, ...options }, host);
+  return record(kind, { title: 'Measurements', data, ...encoding, compact: type === 'compact' || undefined, ...options }, host);
 }
 
 export function committed(r: Recording) {

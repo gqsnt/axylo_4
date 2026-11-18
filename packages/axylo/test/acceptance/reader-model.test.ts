@@ -1,97 +1,107 @@
 import { expect, it } from 'vitest';
 import { stepAcross, targetOf } from '../../src/core/focus';
-import { at, axes, chart, codes, committed, lastModel, marks, pixel, plot, reading, refAt, rows, scene, seriesRows, types, walk, type Type } from './model';
+import { at, axes, chart, codes, committed, compactKinds, defaultMessages, message, lastModel, marks, pixel, plot, points, reading, refAt, rows, scene, seriesRows, types, walk, type Type } from './model';
 
 const fixture = (type: Type) => type === 'donut' ? [{ x: 'A', y: 2 }, { x: 'B', y: 6 }] : [{ x: 1, y: 2 }, { x: 2, y: 6 }];
 const full = ['line', 'area', 'bar', 'scatter', 'donut'] as const;
 
 for (const type of types) {
   it(`A1 ${type}: model preserves the author’s heading, uses an existing label when given and adds the description to the data summary`, () => {
-    const r = chart(type, fixture(type), { title: { text: 'Sales', level: 4, visible: false }, description: 'From the ledger.' });
-    r.frames();
-    expect(lastModel(r)).toMatchObject({ name: 'Sales', title: { text: 'Sales', level: 4, visible: false } });
-    expect(lastModel(r).summary).toContain(type === 'donut' ? '2 slices. Total 8.' : 'minimum 2, maximum 6, last 6.');
-    expect(lastModel(r).summary).toContain('From the ledger.');
-    r.ids['card-heading'] = 'Card heading';
-    r.controller.handle.update({ labelledBy: 'card-heading' });
-    r.frames();
-    expect(lastModel(r)).toMatchObject({ labelledBy: 'card-heading', title: null });
-    expect(codes(r)).toEqual([]);
+    for (const kind of compactKinds(type)) {
+      const r = chart(type, fixture(type), { title: { text: 'Sales', level: 4, visible: false }, description: 'From the ledger.' }, undefined, kind);
+      r.frames();
+      expect(lastModel(r)).toMatchObject({ name: 'Sales', title: { text: 'Sales', level: 4, visible: false } });
+      expect(lastModel(r).summary).toContain(type === 'donut' ? message('donutSummary', { type: defaultMessages.typeDonut, count: 2, total: 8 }) : message('seriesSummary', { series: 'y', min: 2, max: 6, last: 6 }));
+      expect(lastModel(r).summary).toContain('From the ledger.');
+      r.ids['card-heading'] = 'Card heading';
+      r.controller.handle.update({ labelledBy: 'card-heading' });
+      r.frames();
+      expect(lastModel(r)).toMatchObject({ labelledBy: 'card-heading', title: null });
+      expect(codes(r)).toEqual([]);
+    }
   });
 
   it(`L7 ${type}: loading, empty and error draw no data marks and each state change is announced once`, () => {
-    const data = fixture(type);
-    const r = chart(type, data);
-    r.frames();
-    const handle = r.controller.handle;
-    for (const [patch, message] of [
-      [{ state: 'loading' }, 'Loading chart.'],
-      [{ state: 'ready', data: [] }, 'No data to show.'],
-      [{ state: { error: 'Query failed.' } }, 'Query failed.'],
-    ] as const) {
-      handle.update(patch);
+    for (const kind of compactKinds(type)) {
+      const data = fixture(type);
+      const r = chart(type, data, {}, undefined, kind);
       r.frames();
-      expect(lastModel(r).message).toBe(message);
-      expect(scene(r).marks).toEqual([]);
-      expect(r.texts.at(-1)).toEqual([]);
-      handle.update({ description: 'State stays the same.' });
+      const handle = r.controller.handle;
+      for (const [patch, message] of [
+        [{ state: 'loading' }, defaultMessages.loading],
+        [{ state: 'ready', data: [] }, defaultMessages.empty],
+        [{ state: { error: 'Query failed.' } }, 'Query failed.'],
+      ] as const) {
+        handle.update(patch);
+        r.frames();
+        expect(lastModel(r).message).toBe(message);
+        expect(scene(r).marks).toEqual([]);
+        expect(r.texts.at(-1)).toEqual([]);
+        handle.update({ description: 'State stays the same.' });
+        r.frames();
+        expect(r.announcements.filter(text => text === message)).toEqual([message]);
+      }
+      handle.update({ state: 'ready', data });
       r.frames();
-      expect(r.announcements.filter(text => text === message)).toEqual([message]);
+      expect(lastModel(r).message).toBeNull();
+      expect(r.announcements).toEqual([defaultMessages.loading, defaultMessages.empty, 'Query failed.', 'Measurements']);
     }
-    handle.update({ state: 'ready', data });
-    r.frames();
-    expect(lastModel(r).message).toBeNull();
-    expect(r.announcements).toEqual(['Loading chart.', 'No data to show.', 'Query failed.', 'Measurements']);
   });
 
   it(`L4 ${type}: a new scheme from the host repaints the committed scene within one frame`, () => {
-    const r = chart(type, fixture(type));
-    const resolve = r.host.theme;
-    let scheme: 'light' | 'dark' = 'light';
-    r.host.theme = (keys, colors) => {
-      const result = resolve(keys, colors);
-      return { ...result, theme: { ...result.theme, scheme } };
-    };
-    r.frames();
-    expect(committed(r).theme.scheme).toBe('light');
-    const first = scene(r);
-    const draws = r.draws.length;
-    scheme = 'dark';
-    r.controller.invalidate.theme();
-    expect(r.frames()).toBeLessThanOrEqual(1);
-    expect(committed(r).theme.scheme).toBe('dark');
-    expect(r.draws).toHaveLength(draws + 1);
-    expect(scene(r)).toEqual(first);
+    for (const kind of compactKinds(type)) {
+      const r = chart(type, fixture(type), {}, undefined, kind);
+      const resolve = r.host.theme;
+      let scheme: 'light' | 'dark' = 'light';
+      r.host.theme = (keys, colors) => {
+        const result = resolve(keys, colors);
+        return { ...result, theme: { ...result.theme, scheme } };
+      };
+      r.frames();
+      expect(committed(r).theme.scheme).toBe('light');
+      const first = scene(r);
+      const draws = r.draws.length;
+      scheme = 'dark';
+      r.controller.invalidate.theme();
+      expect(r.frames()).toBeLessThanOrEqual(1);
+      expect(committed(r).theme.scheme).toBe('dark');
+      expect(r.draws).toHaveLength(draws + 1);
+      expect(scene(r)).toEqual(first);
+    }
   });
 
   it(`I5 ${type}: the first model frame has final geometry and an update commits without intervening model frames`, () => {
-    const r = chart(type, fixture(type));
-    expect(r.draws).toEqual([]);
-    expect(r.frames()).toBe(1);
-    expect(r.draws).toHaveLength(1);
-    const first = scene(r);
-    r.controller.handle.update({ data: fixture(type).map(row => ({ ...row, y: row.y + 3 })) });
-    expect(scene(r)).toBe(first);
-    expect(r.frames()).toBe(1);
-    expect(r.draws).toHaveLength(2);
-    expect(lastModel(r).summary).toContain(type === 'donut' ? 'Total 14.' : 'minimum 5, maximum 9, last 9.');
-    expect(r.frames()).toBe(0);
-    expect(r.draws).toHaveLength(2);
+    for (const kind of compactKinds(type)) {
+      const r = chart(type, fixture(type), {}, undefined, kind);
+      expect(r.draws).toEqual([]);
+      expect(r.frames()).toBe(1);
+      expect(r.draws).toHaveLength(1);
+      const first = scene(r);
+      r.controller.handle.update({ data: fixture(type).map(row => ({ ...row, y: row.y + 3 })) });
+      expect(scene(r)).toBe(first);
+      expect(r.frames()).toBe(1);
+      expect(r.draws).toHaveLength(2);
+      expect(lastModel(r).summary).toContain(type === 'donut' ? message('donutSummary', { type: defaultMessages.typeDonut, count: 2, total: 14 }) : message('seriesSummary', { series: 'y', min: 5, max: 9, last: 9 }));
+      expect(r.frames()).toBe(0);
+      expect(r.draws).toHaveLength(2);
+    }
   });
 
   it(`A10 ${type}: author messages replace the model’s generated name and warning and keep built-in state text tagged English`, () => {
-    const r = chart(type, [{ x: type === 'donut' ? 'A' : 1, y: 5 }, { x: type === 'donut' ? 'B' : 2, y: Infinity }], {
-      title: undefined, messages: { chartName: 'Diagramm {x}', valuesNotShown: 'Ausgelassen: {count}.' },
-    });
-    r.host.pageLang = () => 'de';
-    r.frames();
-    expect(lastModel(r).name).toBe(type === 'donut' ? 'Diagramm Category' : 'Diagramm x');
-    expect(lastModel(r).note).toBe('Ausgelassen: 1.');
-    expect(lastModel(r).noteLang).toBeNull();
-    expect(lastModel(r).summary).toContain('Ausgelassen: 1.');
-    r.controller.handle.update({ state: 'loading' });
-    r.frames();
-    expect(lastModel(r)).toMatchObject({ message: 'Loading chart.', messageLang: 'en' });
+    for (const kind of compactKinds(type)) {
+      const r = chart(type, [{ x: type === 'donut' ? 'A' : 1, y: 5 }, { x: type === 'donut' ? 'B' : 2, y: Infinity }], {
+        title: undefined, messages: { chartName: 'Diagramm {x}', valuesNotShown: 'Ausgelassen: {count}.' },
+      }, undefined, kind);
+      r.host.pageLang = () => 'de';
+      r.frames();
+      expect(lastModel(r).name).toBe(type === 'donut' ? 'Diagramm Category' : 'Diagramm x');
+      expect(lastModel(r).note).toBe('Ausgelassen: 1.');
+      expect(lastModel(r).noteLang).toBeNull();
+      expect(lastModel(r).summary).toContain('Ausgelassen: 1.');
+      r.controller.handle.update({ state: 'loading' });
+      r.frames();
+      expect(lastModel(r)).toMatchObject({ message: defaultMessages.loading, messageLang: 'en' });
+    }
   });
 }
 
@@ -191,15 +201,17 @@ for (const type of full) {
   });
 
   it(`L8 ${type}: the undersized model keeps its title, summary and table while omitting marks`, () => {
-    const r = chart(type, fixture(type), {}, { container: { width: 95, height: 150 } });
-    r.frames();
-    expect(codes(r)).toEqual(['AX142']);
-    expect(lastModel(r)).toMatchObject({ title: { text: 'Measurements' }, summaryVisible: true });
-    expect(lastModel(r).summary).toContain(type === 'donut' ? 'Total 8.' : 'minimum 2, maximum 6');
-    expect(committed(r)).toMatchObject({ tooSmall: true, interactive: true });
-    expect(rows(r)).toHaveLength(2);
-    expect(scene(r).marks).toEqual([]);
-    expect(r.texts.at(-1)).toEqual([]);
+    for (const [width, height, captionLineHeight] of [[110, 400, 15], [600, 145, 30]] as const) {
+      const r = chart(type, fixture(type), {}, { container: { width, height }, captionLineHeight });
+      r.frames();
+      expect(codes(r)).toEqual(['AX142']);
+      expect(lastModel(r)).toMatchObject({ title: { text: 'Measurements' }, summaryVisible: true });
+      expect(lastModel(r).summary).toContain(type === 'donut' ? message('donutSummary', { type: defaultMessages.typeDonut, count: 2, total: 8 }) : message('seriesSummary', { series: 'y', min: 2, max: 6, last: 6 }));
+      expect(committed(r)).toMatchObject({ tooSmall: true, interactive: true });
+      expect(rows(r)).toHaveLength(2);
+      expect(scene(r).marks).toEqual([]);
+      expect(r.texts.at(-1)).toEqual([]);
+    }
   });
 }
 
@@ -284,15 +296,21 @@ for (const type of ['scatter', 'donut'] as const) {
 
 for (const type of ['line', 'area'] as const) {
   it(`L5 ${type}: sparse points all have markers and a dense stroke retains sparse marker cues (reading: A5 still requires sparse cues)`, () => {
-    const sparse = chart(type, [{ x: 1, y: 2 }, { x: 2, y: 6 }, { x: 3, y: 4 }]);
-    const dense = chart(type, Array.from({ length: 150 }, (_, x) => ({ x, y: 2 + x % 5 })));
-    sparse.frames();
-    dense.frames();
-    expect(marks(sparse, 'points')[0]?.xy).toHaveLength(6);
-    const markers = marks(dense, 'points')[0]!.xy;
-    expect(markers.length).toBeLessThan(150 * 2);
+    const nearby = Array.from({ length: 8 }, (_, i) => {
+      const count = 53 + i;
+      const r = chart(type, Array.from({ length: count }, (_, x) => ({ x, y: 2 + x % 5 })));
+      r.frames();
+      return { r, count, spacing: pixel(axes(r).x, 1) - pixel(axes(r).x, 0) };
+    });
+    const above = nearby.filter(({ spacing }) => spacing >= 12).at(-1)!;
+    const below = nearby.find(({ spacing }) => spacing < 12)!;
+    expect(above.spacing).toBeLessThan(12.3);
+    expect(below.spacing).toBeGreaterThan(11.7);
+    expect(marks(above.r, 'points')[0]?.xy).toHaveLength(above.count * 2);
+    const markers = points(marks(below.r, 'points')[0]!.xy);
     expect(markers.length).toBeGreaterThan(0);
-    expect(markers.at(-2)).toBeCloseTo(pixel(axes(dense).x, 149), 3);
+    expect(markers.at(-1)?.[0]).toBeCloseTo(pixel(axes(below.r).x, below.count - 1), 3);
+    for (let i = 1; i < markers.length; i++) expect(markers[i]![0] - markers[i - 1]![0]).toBeGreaterThan(12);
   });
 }
 
@@ -377,3 +395,14 @@ for (const type of ['line', 'area', 'bar', 'scatter'] as const) {
     }
   });
 }
+
+it('A7 compact: appends update the static summary quietly in line, area and bar', () => {
+  for (const kind of compactKinds('compact')) {
+    const r = chart('compact', fixture('compact'), {}, undefined, kind);
+    r.frames();
+    r.controller.handle.append([{ x: 3, y: 17 }]);
+    r.frames();
+    expect(lastModel(r).summary).toContain(message('seriesSummary', { series: 'y', min: 2, max: 17, last: 17 }));
+    expect(r.announcements).toEqual([]);
+  }
+});

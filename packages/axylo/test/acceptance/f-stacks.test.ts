@@ -1,42 +1,69 @@
 import fc from 'fast-check';
 import { expect, it } from 'vitest';
-import { at, axes, chart, expectCompact, expectGeometry, lastModel, marks, pixel, points, reading, refAt, rows } from './model';
+import { at, axes, chart, expectCompact, expectGeometry, lastModel, marks, pixel, points, reading, refAt, rows, defaultMessages } from './model';
 
 const stacks = [['area', 'area'], ['bar', 'bar'], ['compact', 'area'], ['compact', 'bar']] as const;
 const options = (kind: 'area' | 'bar') => ({ y: ['a', 'b', 'c', 'd'], ...(kind === 'area' ? { stacked: true } : { layout: 'stacked' }) });
 
 for (const [type, kind] of stacks) {
   it(`F10 ${type}: for any generated mixed-sign ${kind} stacks each drawn component uses its own side of zero and the axis covers both sums`, () => {
-    const value = fc.integer({ min: 2, max: 20 });
-    fc.assert(fc.property(value, value, value, value, (a, b, c, d) => {
-      const records = [{ x: 1, a, b: -b, c, d: -d }, { x: 2, a, b: -b, c, d: -d }];
+    const value = fc.oneof(fc.integer({ min: -20, max: 20 }), fc.constant(0), fc.constant(null));
+    const cells = fc.tuple(value, value, value, value);
+    fc.assert(fc.property(cells, cells, ([a, b, c, d], [e, f, g, h]) => {
+      const records = [
+        { x: 1, a: 7, b: -4, c: 2, d: -3 }, { x: 2, a, b, c, d },
+        { x: 3, a: -6, b: 5, c: -8, d: 6 }, { x: 4, a: e, b: f, c: g, d: h },
+        { x: 5, a: 5, b: -3, c: 0, d: null },
+      ];
       const r = chart(type, records, options(kind), undefined, kind);
       r.frames();
-      const { y } = axes(r);
-      const bases = [0, 0, a, -b];
-      const tips = [a, -b, a + c, -b - d];
-      expect(y.domain[0]).toBeLessThanOrEqual(-b - d);
-      expect(y.domain[1]).toBeGreaterThanOrEqual(a + c);
+      const { x, y } = axes(r);
+      const components = records.map(row => {
+        let positive = 0;
+        let negative = 0;
+        return [row.a, row.b, row.c, row.d].map(value => {
+          const base = (value ?? 0) < 0 ? negative : positive;
+          if ((value ?? 0) < 0) negative += value!;
+          else positive += value ?? 0;
+          return { value, base, tip: base + (value ?? 0), positive, negative };
+        });
+      });
+      expect(y.domain[0]).toBeLessThanOrEqual(Math.min(...components.map(row => row[3]!.negative)));
+      expect(y.domain[1]).toBeGreaterThanOrEqual(Math.max(...components.map(row => row[3]!.positive)));
+      const indexAt = (px: number) => records.findIndex(row => Math.abs(pixel(x, row.x) - px) < 0.001);
       if (kind === 'bar') {
+        expect(marks(r, 'rects').reduce((n, mark) => n + mark.xywh.length / 4, 0)).toBe(records.length * 4);
         for (const mark of marks(r, 'rects')) {
-          expect(mark.variant).toBe('bar');
-          expect(mark.xywh).toHaveLength(8);
-          for (const offset of [0, 4]) {
-            const pixelTop = mark.xywh[offset + 1]!;
-            const pixelBottom = pixelTop + mark.xywh[offset + 3]!;
-            const positive = tips[mark.series]! > 0;
-            expect(positive ? pixelTop : pixelBottom).toBeCloseTo(y.map(tips[mark.series]!), 3);
-            const base = positive ? pixelBottom : pixelTop;
-            expect(Math.abs(base - y.map(bases[mark.series]!))).toBeLessThanOrEqual(1.001);
-            expect(Math.sign(y.invert((pixelTop + pixelBottom) / 2))).toBe(positive ? 1 : -1);
+          for (let i = 0; i < mark.xywh.length; i += 4) {
+            const cell = components[indexAt(mark.xywh[i]! + mark.xywh[i + 2]! / 2)]![mark.series]!;
+            const top = mark.xywh[i + 1]!;
+            const bottom = top + mark.xywh[i + 3]!;
+            expect(mark.variant).toBe(cell.value === null ? 'missing' : 'bar');
+            if (cell.value === null) {
+              expect(top).toBe(bottom);
+              continue;
+            }
+            const tip = cell.tip < cell.base ? bottom : top;
+            const base = cell.tip < cell.base ? top : bottom;
+            expect(tip).toBeCloseTo(y.map(cell.tip), 3);
+            expect(Math.abs(base - y.map(cell.base))).toBeLessThanOrEqual(1.001);
+            if (!cell.value) expect(top).toBe(bottom);
           }
         }
       } else {
-        for (const mark of marks(r, 'area')) {
-          const [top, count, bottom, lowerCount] = mark.runs;
-          expect([count, lowerCount]).toEqual([2, 2]);
-          expectGeometry(points(mark.upper).slice(top!, top! + count!).map(p => p[1]), [y.map(tips[mark.series]!), y.map(tips[mark.series]!)]);
-          expectGeometry(points(mark.lower).slice(bottom!, bottom! + lowerCount!).map(p => p[1]), [y.map(bases[mark.series]!), y.map(bases[mark.series]!)]);
+        const bands = marks(r, 'area');
+        expect(bands).toHaveLength(4);
+        for (const mark of bands) {
+          const upper = points(mark.upper);
+          const lower = points(mark.lower);
+          expect(mark.runs).toHaveLength(8);
+          for (const [side, offset] of [['positive', 0], ['negative', 4]] as const) {
+            const [start, count, base, baseCount] = mark.runs.slice(offset, offset + 4);
+            expect([count, baseCount]).toEqual([records.length, records.length]);
+            expectGeometry(upper.slice(start!, start! + count!).map(p => p[1]), components.map(row => y.map(row[mark.series]![side])));
+            expectGeometry(lower.slice(base!, base! + baseCount!).map(p => p[1]),
+              components.map(row => y.map(row[mark.series - 1]?.[side] ?? 0)));
+          }
         }
       }
     }), { numRuns: 1_000 });
@@ -65,11 +92,17 @@ for (const [type, kind] of stacks) {
       expectCompact(r);
       expect(lastModel(r).summary).toContain('incomplete');
     } else {
-      expect(at(r, 1).total).toBe('4');
-      expect(at(r, 2).total).toBe('0 (incomplete)');
       expect(at(r, 2).rows.map(row => row.value)).toEqual(['5', '-3', 'No data', '-2']);
       expect(rows(r)[1]).toEqual(['2 (incomplete)', '5', '-3', 'No data', '-2']);
-      expect(reading(r, refAt(r, 2))).toContain('Total 0 (incomplete)');
+      const announced = reading(r, refAt(r, 2));
+      expect(announced).toContain(defaultMessages.incompleteStack);
+      const spokenTotals = announced?.split(defaultMessages.total)[1]?.split(defaultMessages.incompleteStack)[0];
+      expect.soft(spokenTotals?.match(/-?\d+/g)?.map(Number)).toEqual(expect.arrayContaining([5, -5]));
+      for (const [x, positive, negative] of [[1, 9, -5], [2, 5, -5]] as const) {
+        const total = at(r, x).total;
+        const totals = total?.match(/-?\d+/g)?.map(Number);
+        expect.soft(totals, 'the mixed-sign stack readout gives both sides').toEqual(expect.arrayContaining([positive, negative]));
+      }
       expect(lastModel(r).note).toBeNull();
     }
   });

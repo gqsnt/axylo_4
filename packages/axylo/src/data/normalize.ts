@@ -351,10 +351,9 @@ export function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticS
   const included = x.order === null ? undefined : (row: number) => Number.isFinite(x.positions[row]);
   const members = groups(options, x, sink);
   const values = readValues(table, value, sink, true, 0, undefined, included, 'The affected points are not drawn.');
-  const isMissing = (row: number) => values.slot[row] === SLOT_NULL || values.slot[row] === SLOT_ABSENT_FIELD;
   if (value.missing === 'zero') {
     for (let row = 0; row < values.slot.length; row++) {
-      if (isMissing(row)) values.slot[row] = SLOT_VALUE;
+      if (values.slot[row] === SLOT_NULL || values.slot[row] === SLOT_ABSENT_FIELD) values.slot[row] = SLOT_VALUE;
     }
   }
   const series = members.map(group => {
@@ -371,14 +370,15 @@ export function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticS
     for (let i = 0; i < length; i++) {
       const row = group.order?.[i] ?? i;
       if (values.slot[row] === SLOT_VALUE) rows[next++] = row;
-      else if (isMissing(row)) missing++;
+      else missing++;
     }
+    // The reader still needs each valid x when a diagnostic kept its y out of the plot.
     const missingX = missing ? new Float64Array(missing) : undefined;
     if (missingX) {
       let index = 0;
       for (let i = 0; i < length; i++) {
         const row = group.order?.[i] ?? i;
-        if (isMissing(row)) missingX[index++] = x.positions[row]!;
+        if (values.slot[row] !== SLOT_VALUE) missingX[index++] = x.positions[row]!;
       }
     }
     const kept = rows.subarray(0, next);

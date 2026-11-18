@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { expect, it } from 'vitest';
-import { aligned, at, axes, chart, codes, committed, date, expectCompact, expectGeometry, expectValues, lastModel, marks, pathRuns, pixel, points, reading, rows, walk } from './model';
+import { aligned, at, axes, chart, codes, committed, date, defaultMessages, message, expectCompact, expectGeometry, expectValues, lastModel, marks, pathRuns, pixel, points, reading, rows, walk } from './model';
 
 const observations = [
   { x: '2024-02-24', y: 6 },
@@ -41,7 +41,7 @@ for (const kind of aligned) {
           expect(Array.from(area.runs).filter((_, i) => i % 4 === 1)).toEqual([2, 2]);
         }
       }
-      expect(lastModel(r).summary).toContain('minimum 0, maximum 8, last 7');
+      expect(lastModel(r).summary).toContain(message('seriesSummary', { series: 'y', min: '0', max: '8', last: '7' }));
       expect(lastModel(r).summary).toContain('Values not shown: 1.');
       if (compact) expectCompact(r);
       else {
@@ -55,7 +55,7 @@ for (const kind of aligned) {
     it(`F2 ${type}: ${kind} missing zero makes the requested count gaps ordinary zero values`, () => {
       const r = chart(type, observations, { y: { field: 'y', missing: 'zero' } }, undefined, kind);
       r.frames();
-      expect(lastModel(r).summary).toContain('minimum 0, maximum 8, last 7');
+      expect(lastModel(r).summary).toContain(message('seriesSummary', { series: 'y', min: '0', max: '8', last: '7' }));
       const { y } = axes(r);
       if (kind === 'bar') {
         const bars = marks(r, 'rects');
@@ -67,10 +67,10 @@ for (const kind of aligned) {
         expect(runs.map(run => run.length)).toEqual([8]);
         expectGeometry([2, 4, 5, 6].map(i => runs[0]![i]![1]), [y.map(0), y.map(0), y.map(0), y.map(0)]);
       }
-      expect(lastModel(r).summary).toContain('Values shown differently from the data: 1.');
+      expect(lastModel(r).summary).toContain(message('valuesChanged', { count: 1, seeTable: '' }));
       if (compact) expectCompact(r);
       else {
-        expect(lastModel(r).note).toBe('Values shown differently from the data: 1. See table.');
+        expect(lastModel(r).note).toBe(message('valuesChanged', { count: 1, seeTable: defaultMessages.seeTable }));
         expect(rows(r).map(row => row[1])).toEqual(['6', '8', '0', '5', '0', '0', '0', '7']);
         for (const i of [2, 4, 5, 6]) expectValues(r, date(i), ['0']);
       }
@@ -80,10 +80,10 @@ for (const kind of aligned) {
 
 for (const type of ['line', 'area', 'compact'] as const) {
   it(`F2 ${type}: for any generated missing index no stroke or fill run bridges it`, () => {
-    fc.assert(fc.property(fc.array(fc.option(fc.integer({ min: -8, max: 8 }), { nil: null }), { minLength: 3, maxLength: 14 }), values => {
-      const r = chart(type, values.map((y, x) => ({ x, y })), { x: { field: 'x', type: 'number' } }, undefined, type === 'compact' ? 'area' : 'line');
+    fc.assert(fc.property(fc.array(fc.oneof(fc.integer({ min: -8, max: 8 }), fc.constantFrom(null, undefined, NaN, 'absent')), { maxLength: 14 }), values => {
+      const r = chart(type, values.map((y, x) => y === 'absent' ? { x } : { x, y }), { x: { field: 'x', type: 'number' } }, undefined, type === 'compact' ? 'area' : 'line');
       r.frames();
-      if (values.every(value => value === null)) {
+      if (values.every(value => !Number.isFinite(value))) {
         expect(marks(r, 'path')).toEqual([]);
         return;
       }
@@ -101,7 +101,7 @@ for (const type of ['line', 'area', 'compact'] as const) {
         });
       });
       for (const run of [...strokes, ...fills].map(indexes)) {
-        expect(values.slice(run[0]!, run.at(-1)! + 1)).not.toContain(null);
+        expect(values.slice(run[0]!, run.at(-1)! + 1).every(Number.isFinite)).toBe(true);
       }
     }), { numRuns: 1_000 });
   });
@@ -131,7 +131,7 @@ it('F2 scatter: gaps are unplotted, zero is readable and the table says No data 
   const { lookup } = committed(r);
   expect(refs.map(ref => lookup.datum(ref)?.value)).toEqual(['4', '0']);
   expect(reading(r, refs[1]!)).toContain('0');
-  expect(lastModel(r).summary).toContain('minimum 0, maximum 4, last 0');
+  expect(lastModel(r).summary).toContain(message('seriesSummary', { series: 'y', min: 0, max: 4, last: 0 }));
   expect(rows(r).map(row => row[2])).toEqual(['4', 'No data', 'No data', '0']);
 });
 
@@ -155,7 +155,7 @@ it('F2 donut: null and absent slices have no arc and read No data; a real zero r
   expect(refs).toHaveLength(4);
   expect(rows(r).map(row => row[1])).toEqual(['5', 'No data', 'No data', '0']);
   refs.forEach((ref, i) => expect(reading(r, ref)).toContain(['5', 'No data', 'No data', '0'][i]!));
-  expect(lastModel(r).summary).toContain('Total 5');
+  expect(lastModel(r).summary).toContain(`${defaultMessages.total} 5`);
   expect(lastModel(r).note).toBe('Values not shown: 1. See table.');
 });
 
@@ -189,5 +189,53 @@ it('F2 donut: missing zero makes null and absent counts readable as zero without
     expect(reading(r, ref)).toContain('0 (0%)');
   }
   expect(rows(r).map(row => row[1])).toEqual(['6', '0', '0', '0']);
-  expect(lastModel(r).summary).toContain('Total 6');
+  expect(lastModel(r).summary).toContain(`${defaultMessages.total} 6`);
+});
+
+for (const type of ['line', 'area'] as const) {
+  it(`F2 ${type}: an isolated value between two gaps is drawn at its coordinates below 12 px spacing`, () => {
+    const isolated = 72;
+    const r = chart(type, Array.from({ length: 150 }, (_, x) => ({
+      x, y: x === isolated ? 19 : Math.abs(x - isolated) === 1 ? null : 2,
+    })));
+    r.frames();
+    const { x, y } = axes(r);
+    expect(pixel(x, isolated + 2) - pixel(x, isolated)).toBeLessThan(12);
+    const expected = [pixel(x, isolated), y.map(19)];
+    const marker = marks(r, 'points').flatMap(mark => points(mark.xy)).find(([px]) => Math.abs(px - expected[0]!) < 0.001);
+    expectGeometry(marker ?? [], expected);
+    expect(pathRuns(marks(r, 'path')[0]!.xy).map(run => run.length)).toEqual([71, 76]);
+  });
+}
+
+it("F2 scatter: appending unplottable values retains their table rows and missing zero only imputes missing values", () => {
+  const r = chart('scatter', [{ x: 1, y: 2 }, { x: 2, y: null }], { y: { field: 'y', missing: 'zero' } });
+  r.frames();
+  r.controller.handle.append([{ x: 3, y: Infinity }, { x: 4, y: '40' }, { x: 4 }, { x: 5, y: NaN }]);
+  r.frames();
+  const { noData } = defaultMessages;
+  expect(rows(r).map(row => [row[0], row[2]])).toEqual([
+    ['1', '2'], ['2', '0'], ['3', noData], ['4', '0'], ['4', noData], ['5', noData],
+  ]);
+  expect(walk(r).map(ref => committed(r).lookup.datum(ref)?.value)).toEqual(['2', '0', '0']);
+  expect(r.controller.handle.diagnostics.map(({ code, count }) => [code, count]).sort()).toEqual([
+    ['AX102', 1], ['AX103', 2], ['AX106', 1],
+  ]);
+});
+
+it('F2 line: a generated absent daily step and the same explicit null produce the same gap', () => {
+  const offset = fc.integer({ min: 2, max: 19 });
+  fc.assert(fc.property(offset, fc.integer({ min: 2020, max: 2030 }), (missing, year) => {
+    const data = Array.from({ length: 24 }, (_, i) => ({
+      x: new Date(Date.UTC(year, 11, 20 + i)).toISOString().slice(0, 10), y: i === missing ? null : i,
+    }));
+    const explicit = chart('line', data);
+    const absent = chart('line', data.filter((_, i) => i !== missing));
+    explicit.frames();
+    absent.frames();
+    expect(codes(explicit)).toEqual([]);
+    expect(codes(absent)).toEqual(['AX105']);
+    expect(marks(absent, 'path')[0]?.xy).toEqual(marks(explicit, 'path')[0]?.xy);
+    expect(rows(absent)).toEqual(rows(explicit));
+  }), { numRuns: 1_000 });
 });

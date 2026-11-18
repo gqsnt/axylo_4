@@ -393,3 +393,19 @@ it('shares ordered time-point storage and revalidates a daily cadence exposed by
   expect([...s.frame.series[0]!.x]).toEqual([firstDay + day, firstDay + 2 * day, firstDay + 3 * day]);
   expect([...first.series[0]!.x]).toEqual(data.map(item => item.x));
 });
+
+it('keeps AX103 and AX106 positions in the scatter table column through append and eviction', () => {
+  const s = new PointStore(options('scatter', [{ x: 1, y: 4 }, { x: 2, y: null }]), utc, version);
+  const first = s.append([{ x: 3, y: Infinity }, { x: 4, y: 'bad' }, { x: 5, y: 5 }]);
+  expect(first.series[0]!.x).toEqual(Float64Array.of(1, 5));
+  expect(first.series[0]!.missingX).toEqual(Float64Array.of(2, 3, 4));
+  expect(s.diagnostics).toMatchObject([
+    { code: 'AX103', effect: 'omitted', rows: [2], count: 1 },
+    { code: 'AX106', effect: 'omitted', rows: [3], count: 1 },
+  ]);
+  const last = s.append([{ x: 6, y: 6 }], { keep: 3 });
+  expect(last.series[0]!.missingX).toEqual(Float64Array.of(4));
+  expect(last.series[0]!.x).toEqual(Float64Array.of(5, 6));
+  expect(s.diagnostics).toMatchObject([{ code: 'AX106', effect: 'omitted', rows: [3], count: 1 }]);
+  expect(first.series[0]!.missingX).toEqual(Float64Array.of(2, 3, 4));
+});
