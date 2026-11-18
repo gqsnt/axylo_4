@@ -81,6 +81,7 @@ Each type has its own rules for picking, navigation and limits. They are in the 
 | TypeScript | 5.4 and later. Plain JavaScript is fully supported; types are an aid, not a requirement. |
 | Frameworks | None needed. No adapter ships in 1.0; the library is called from any framework's mount and unmount hooks. |
 | Text direction | Left-to-right pages. Right-to-left text renders, but the layout is not mirrored; this is stated in the conformance table. |
+| Transformed ancestors | A chart inside a translated or scaled ancestor (any positive scale, uniform or not) is exact. Inside a rotated, skewed or mirrored ancestor it draws, but pointer picking and tooltip placement are wrong; this is not supported in 1.0 and the documentation says so (decision 0004, rule 10). |
 | Built-in text | English, overridable (A10). |
 
 ## 3. Acceptance criteria: the reader's experience
