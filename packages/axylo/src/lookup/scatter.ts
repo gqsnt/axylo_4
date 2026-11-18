@@ -1,5 +1,5 @@
 import { SLOT_VALUE } from '../core/contracts';
-import type { DatumRef, DatumText, Formatters, Lookup, PickTarget, ScatterView } from '../core/contracts';
+import type { DatumRef, DatumText, Formatters, Lookup, PickTarget, PointSeries, ScatterView } from '../core/contracts';
 import { contains, pointBox, scatterPosition, type PlotLayout } from './geometry';
 import { pointOrder, type PointIndex } from './point-order';
 import { POINT_LIMIT, scatterGrid, type GridOptions } from './scatter-grid';
@@ -9,6 +9,31 @@ interface ScatterWork {
   locations: number;
   seriesCandidates: number;
   orderComparisons: number;
+}
+
+/**
+ * A ref rebuilt by the caller is found by its x, then by its row among the points at that x. Where many points
+ * share an x, a row index keeps that from walking them all. It belongs to the frame's series, not to a view:
+ * kept with the series and released with it, so a zoom or pan of the same frame builds nothing again.
+ */
+const RUN = 32;
+const rowIndexes = new WeakMap<PointSeries, Map<number, number> | null>();
+function rowIndex(entry: PointSeries): Map<number, number> | null {
+  let index = rowIndexes.get(entry);
+  if (index !== undefined) return index;
+  index = null;
+  const { x, row } = entry;
+  if (row) {
+    let run = 1;
+    let longest = 1;
+    for (let i = 1; i < x.length && longest <= RUN; i++) longest = Math.max(longest, run = x[i] === x[i - 1] ? run + 1 : 1);
+    if (longest > RUN) {
+      index = new Map<number, number>();
+      for (let i = 0; i < row.length; i++) index.set(row[i]!, i);
+    }
+  }
+  rowIndexes.set(entry, index);
+  return index;
 }
 
 export function scatterLookup(
@@ -37,19 +62,7 @@ export function scatterLookup(
     return datum;
   }
 
-  // A ref rebuilt by the caller is found by its x, then by its row among the points at that x. Where many
-  // points share an x, a row index built with the lookup keeps that from walking them all.
-  const RUN = 32;
-  const byRow = series.map(({ x, row }) => {
-    if (!row) return null;
-    let run = 1;
-    let longest = 1;
-    for (let i = 1; i < x.length; i++) longest = Math.max(longest, run = x[i] === x[i - 1] ? run + 1 : 1);
-    if (longest <= RUN) return null;
-    const index = new Map<number, number>();
-    for (let i = 0; i < row.length; i++) index.set(row[i]!, i);
-    return index;
-  });
+  const byRow = series.map(rowIndex);
 
   function locate(datum: DatumRef): PointIndex | null {
     if (datum.kind !== 'point') return null;

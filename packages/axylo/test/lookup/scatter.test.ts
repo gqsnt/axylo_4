@@ -778,3 +778,70 @@ it('aligned and donut lookups answer members, has and slot from the tooltip\'s o
   expect(ring.slot(slice)).toBe(1);
   expect(ring.slot({ kind: 'slice', sliceKey: 'Z' })).toBe(-1);
 });
+
+describe('a narrow view of a large scatter frame builds its lookup from what it shows (final check, item 6)', () => {
+  // A multi-month frame: 1,000 dates with 50 measurements each, explicit source rows; the view shows one date.
+  const dates = 1_000;
+  const perDate = 50;
+  const size = dates * perDate;
+  const base = points([[]]);
+  const data = { ...base, series: [{
+    ...base.series[0]!,
+    x: Float64Array.from({ length: size }, (_, i) => Math.floor(i / perDate)),
+    y: Float64Array.from({ length: size }, (_, i) => i % perDate),
+    row: Int32Array.from({ length: size }, (_, i) => i),
+  }] };
+  const layoutFor = (day: number) => plot({ kind: 'xy', x: linearScale([day - 0.5, day + 0.5], [0, 100]), y: linearScale([0, perDate], [100, 0]) });
+  const viewOf = (day: number) => scatter(data, { xDomain: [day - 0.5, day + 0.5], visiblePoints: [{ start: day * perDate, end: (day + 1) * perDate }] });
+
+  // Typed-array bytes and Map entries made while `action` runs.
+  function work(action: () => void): { bytes: number; entries: number } {
+    let bytes = 0;
+    const restore: (() => void)[] = [];
+    for (const name of ['Float64Array', 'Int32Array', 'Uint32Array', 'Uint8Array'] as const) {
+      const original = globalThis[name];
+      const counted = new Proxy(original, {
+        construct(target, args, newTarget) {
+          const result = Reflect.construct(target, args, newTarget) as InstanceType<typeof original>;
+          if (!(args[0] instanceof ArrayBuffer)) bytes += result.byteLength;
+          return result;
+        },
+      });
+      Object.defineProperty(globalThis, name, { value: counted });
+      Object.defineProperty(original.prototype, 'constructor', { value: counted });
+      restore.push(() => {
+        Object.defineProperty(original.prototype, 'constructor', { value: original });
+        Object.defineProperty(globalThis, name, { value: original });
+      });
+    }
+    let entries = 0;
+    const set = Map.prototype.set;
+    Map.prototype.set = function (this: Map<unknown, unknown>, key: unknown, value: unknown) {
+      entries++;
+      return set.call(this, key, value);
+    };
+    try {
+      action();
+    } finally {
+      Map.prototype.set = set;
+      restore.forEach(undo => undo());
+    }
+    return { bytes, entries };
+  }
+
+  it('zooming and panning to one date: the work does not grow with the 49,950 points outside the view', () => {
+    // The first view of the frame may index its source rows once; every later view reuses that.
+    scatterLookup(viewOf(10), layoutFor(10), formatter(data));
+    for (const day of [500, 501, 999]) {
+      let model: ReturnType<typeof scatterLookup> | null = null;
+      const spent = work(() => { model = scatterLookup(viewOf(day), layoutFor(day), formatter(data)); });
+      // One shown date is 50 points: about 50 × 8-byte entries per column, never 50,000.
+      expect(spent.bytes).toBeLessThan(64 * perDate * 8);
+      expect(spent.entries).toBeLessThan(10 * perDate);
+      // A ref rebuilt by the caller is still found without walking the 50 points at its date.
+      const ref = point('S0', day * perDate + 37, day);
+      expect(model!.slot({ ...ref })).toBe(day * perDate + 37);
+      expect(model!.has(model!.pick(50, 100 - 37 * 2)! as Extract<PickTarget, { kind: 'point' }>, ref)).toBe(true);
+    }
+  });
+});

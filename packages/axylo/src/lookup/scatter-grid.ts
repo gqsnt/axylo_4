@@ -71,10 +71,12 @@ export function scatterGrid(
   const rows = Math.floor(plot.height / CELL) + 1;
   const series = new Uint32Array(count);
   const points = new Uint32Array(count);
-  // Grid index of point i of series s at atOf[first[s] + i], -1 when it is not on the plot.
-  const first = new Int32Array(view.frame.series.length + 1);
-  view.frame.series.forEach((data, s) => { first[s + 1] = first[s]! + data.x.length; });
-  const atOf = new Int32Array(first[view.frame.series.length]!).fill(-1);
+  // Grid index of point i of series s at atOf[first[s] + i - start of its range], -1 when it is not on the
+  // plot: sized to the points in view, so a narrow view of a large frame indexes only what it shows.
+  const shown = view.frame.series.map((data, s) => view.visible[s] && data.drawable ? view.visiblePoints[s]! : { start: 0, end: 0 });
+  const first = new Int32Array(shown.length + 1);
+  shown.forEach(({ start, end }, s) => { first[s + 1] = first[s]! + end - start; });
+  const atOf = new Int32Array(first[shown.length]!).fill(-1);
   const xs = new Float64Array(count);
   const ys = new Float64Array(count);
   const ratio = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
@@ -100,8 +102,7 @@ export function scatterGrid(
   }
 
   view.frame.series.forEach((data, s) => {
-    if (!view.visible[s] || !data.drawable) return;
-    const { start, end } = view.visiblePoints[s]!;
+    const { start, end } = shown[s]!;
     for (let i = start; i < end; i++) {
       const x = scatterPosition(projection.x, data.x[i]!);
       const y = scatterPosition(projection.y, data.y[i]!);
@@ -112,7 +113,7 @@ export function scatterGrid(
       ys[at] = y;
       series[at] = s;
       points[at] = i;
-      atOf[first[s]! + i] = at;
+      atOf[first[s]! + i - start] = at;
     }
   });
 
@@ -462,7 +463,8 @@ export function scatterGrid(
     },
     /** The grid index of point i of series s, or -1 when it is not on the plot. */
     at(s: number, i: number): number {
-      return i >= 0 && s >= 0 && s < view.frame.series.length && i < first[s + 1]! - first[s]! ? atOf[first[s]! + i]! : -1;
+      const range = shown[s];
+      return range && i >= range.start && i < range.end ? atOf[first[s]! + i - range.start]! : -1;
     },
     members(rule: GroupRule, at: number, from: number, take: number): number[] {
       membersRead = 0;
