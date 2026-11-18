@@ -1,9 +1,12 @@
 /**
  * The default palette (spec A5, L2; decision 0003). Constraints 1–6 of the decision, measured here with code
  * of this file's own (WCAG 2 contrast; OKLab; Machado et al. 2009 color-vision simulation at severity 1.0 in
- * linear RGB, clamped, as research/harness/palette.mjs scored the ten libraries), then compared with the record
- * the research scorer wrote (research/palette/palette.json), so the two implementations check each other and the
- * numbers in the decision record cannot drift from what ships.
+ * linear RGB, clamped, as research/harness/palette.mjs scored the ten libraries), each in two forms: analytic, on
+ * unrounded values, and quantised, on the bytes an 8-bit image holds (simulated colors rounded to bytes; fills
+ * through an 8-bit raster model, at the worst case within one byte per channel, and as Chrome drew them).
+ * Then the record the research scorer wrote (research/palette/palette.json) is compared field by field at the
+ * precision it was written in, and its browser-measured parts (strokes, Chrome fill pixels) are validated against
+ * the shipped colors.
  */
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
@@ -17,8 +20,11 @@ type Vision = 'normal' | 'protan' | 'deutan' | 'tritan';
 
 const c = (s: string): Rgba => parseColor(s)!;
 const lin = (v: number): number => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
+const enc = (v: number): number => (v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055);
 const clamp01 = (v: number): number => Math.min(1, Math.max(0, v));
 const srgb = (hex: string): Vec3 => { const p = c(hex); return [p.r, p.g, p.b]; };
+const bytesOf = (hex: string): Vec3 => srgb(hex).map(v => Math.round(v * 255)) as unknown as Vec3;
+const vec = (f: (i: 0 | 1 | 2) => number): Vec3 => [f(0), f(1), f(2)];
 
 function oklab([r, g, b]: Vec3): Vec3 {
   const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
@@ -37,20 +43,44 @@ const MACHADO: Record<Vision, readonly Vec3[]> = {
 };
 const VISIONS = Object.keys(MACHADO) as Vision[];
 
-/** OKLab of a gamma-encoded sRGB color as seen with `vision`. */
-const seen = (rgb: Vec3, vision: Vision): Vec3 => {
-  const l = rgb.map(lin) as unknown as Vec3;
-  return oklab(MACHADO[vision].map(row => clamp01(row[0] * l[0] + row[1] * l[1] + row[2] * l[2])) as unknown as Vec3);
+/** Linear RGB of a gamma-encoded sRGB color as seen with `vision`, clamped. */
+const simulated = (rgb: Vec3, vision: Vision): Vec3 => {
+  const l = vec(i => lin(rgb[i]));
+  return vec(i => clamp01(MACHADO[vision][i]![0] * l[0] + MACHADO[vision][i]![1] * l[1] + MACHADO[vision][i]![2] * l[2]));
 };
+/** OKLab of a color as seen with `vision`, unrounded. */
+const seen = (rgb: Vec3, vision: Vision): Vec3 => oklab(simulated(rgb, vision));
+/** OKLab of a byte color. */
+const labOfBytes = (b: Vec3): Vec3 => oklab(vec(i => lin(b[i] / 255)));
+/** OKLab of the simulated color after encoding and rounding to bytes, as a simulated 8-bit image holds it. */
+const seenBytes = (hex: string, vision: Vision): Vec3 => labOfBytes(vec(i => Math.round(255 * enc(simulated(srgb(hex), vision)[i]))));
 const delta = (p: Vec3, q: Vec3): number => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]);
-const hue = (hex: string): number => { const [, a, b] = seen(srgb(hex), 'normal'); return (Math.atan2(b, a) * 180 / Math.PI + 360) % 360; };
+const oklch = (hex: string): Vec3 => { const [L, a, b] = seen(srgb(hex), 'normal'); return [L, Math.hypot(a, b), (Math.atan2(b, a) * 180 / Math.PI + 360) % 360]; };
 const hueDifference = (a: number, b: number): number => { const d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
-/** Source-over at `alpha` in gamma-encoded sRGB, as the browser composites a translucent fill. */
-const over = (hex: string, alpha: number, bg: string): Vec3 => { const f = srgb(hex), b = srgb(bg); return [0, 1, 2].map(i => f[i]! * alpha + b[i]! * (1 - alpha)) as unknown as Vec3; };
+/** Source-over at `alpha` in gamma-encoded sRGB, as the browser composites a translucent fill, unrounded. */
+const over = (hex: string, alpha: number, bg: string): Vec3 => { const f = srgb(hex), b = srgb(bg); return vec(i => f[i] * alpha + b[i] * (1 - alpha)); };
+/** The same fill on an 8-bit raster: alpha quantised to round(alpha × 255) (or floor, as another rasterizer did), channels rounded. */
+const raster = (hex: string, alpha: number, bg: string, quantise: (x: number) => number = Math.round): Vec3 => {
+  const k = quantise(alpha * 255), f = bytesOf(hex), b = bytesOf(bg);
+  return vec(i => Math.round((f[i] * k + b[i] * (255 - k)) / 255));
+};
+/** Smallest difference between any byte colors within one byte per channel of `a` and of `b`. */
+function worstWithinOneByte(a: Vec3, b: Vec3): number {
+  const box = (p: Vec3): Vec3[] => {
+    const out: Vec3[] = [];
+    for (const i of [-1, 0, 1]) for (const j of [-1, 0, 1]) for (const k of [-1, 0, 1]) out.push(labOfBytes(vec(n => Math.min(255, Math.max(0, p[n] + [i, j, k][n]!)))));
+    return out;
+  };
+  const pa = box(a), pb = box(b);
+  let m = Infinity;
+  for (const p of pa) for (const q of pb) m = Math.min(m, delta(p, q));
+  return m;
+}
+const hexBytes = (hex: string): Vec3 => bytesOf(hex);
 
 /** Smallest pairwise difference among `colors` under `vision`, with the slots (1-based) of the pair. */
-function closest(colors: readonly string[], vision: Vision): { d: number; pair: [number, number] } {
-  const labs = colors.map(h => seen(srgb(h), vision));
+function closest(colors: readonly string[], vision: Vision, labOf: (hex: string, v: Vision) => Vec3 = (h, v) => seen(srgb(h), v)): { d: number; pair: [number, number] } {
+  const labs = colors.map(h => labOf(h, vision));
   let d = Infinity, pair: [number, number] = [0, 0];
   for (let i = 0; i < labs.length; i++) for (let j = i + 1; j < labs.length; j++) {
     const x = delta(labs[i]!, labs[j]!);
@@ -59,18 +89,29 @@ function closest(colors: readonly string[], vision: Vision): { d: number; pair: 
   return { d, pair };
 }
 
+/** Equal at the precision the record was written in (rounded to `digits` decimals). */
+const atPrecision = (measured: number, recorded: number, digits: number): boolean => Math.abs(measured - recorded) <= 0.5 * 10 ** -digits + 1e-9;
+
+interface PairRecord { min: number; pair: number[] }
+interface StrokeStats { core: { p10: number; median: number }; weighted: { p10: number; median: number } }
 interface RecordScheme {
   background: string;
-  series: { hex: string; contrast: number }[];
-  minDelta: Record<Vision, { min: number }>;
-  prefixes: Record<string, Record<Vision, { min: number }>>;
-  tokenDistance: Record<string, { min: number }>;
-  composites: Record<string, Record<Vision, { minNeighbour: number }>>;
+  series: { slot: number; hex: string; oklch: number[]; contrast: number; hueDiffToOtherScheme: number }[];
+  minDelta: Record<Vision, PairRecord>;
+  prefixes: Record<string, Record<Vision, PairRecord>>;
+  minDeltaBytes: Record<Vision, PairRecord>;
+  prefixesBytes: Record<string, Record<Vision, PairRecord>>;
+  tokenDistance: Record<string, { min: number; slot: number }>;
+  composites: Record<string, Record<Vision, { minNeighbour: number; pair: number[]; neighbours: number[] }>>;
+  raster: Record<string, { model: string[]; modelFloor: string[]; neighboursModel: number[]; neighboursWorstWithinOneByte: number[] }>;
+  chromeRaster: Record<string, Record<string, { pixels: string[]; neighbours: number[]; min: number }>>;
 }
+interface StrokeRecord { schemes: Record<'light' | 'dark', { background: string; rows: ({ color: string; swatch: number } & Record<string, StrokeStats | string | number>)[] }> }
 const record = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, '../../../../research/palette/palette.json'), 'utf8')) as
-  { schemes: Record<'light' | 'dark', RecordScheme> };
+  { schemes: Record<'light' | 'dark', RecordScheme>; strokes: StrokeRecord; refused: string[] };
 
 const SCHEMES = [['light', LIGHT, DARK], ['dark', DARK, LIGHT]] as const;
+const ALPHAS = [0.25, 0.8] as const;
 
 describe('scoring code used below', () => {
   it('reproduces known OKLab values and leaves grays alone under every simulation', () => {
@@ -83,17 +124,29 @@ describe('scoring code used below', () => {
     expect(red[1]).toBeCloseTo(0.2248631, 4);
     expect(red[2]).toBeCloseTo(0.1258463, 4);
     for (const v of VISIONS) {
-      const g = seen(srgb('#777777'), v), n = seen(srgb('#777777'), 'normal');
-      expect(delta(g, n), v).toBeLessThan(0.002);
+      expect(delta(seen(srgb('#777777'), v), seen(srgb('#777777'), 'normal')), v).toBeLessThan(0.002);
+      // A gray survives simulation and byte rounding within one byte.
+      expect(delta(seenBytes('#777777', v), labOfBytes(hexBytes('#777777'))), v).toBeLessThan(0.004);
     }
     // Deuteranopia collapses red and green toward the same hue: the classic confusion pair gets much closer.
     expect(delta(seen(srgb('#d62728'), 'deutan'), seen(srgb('#2ca02c'), 'deutan'))).toBeLessThan(0.5 * delta(seen(srgb('#d62728'), 'normal'), seen(srgb('#2ca02c'), 'normal')));
+  });
+
+  it('models an 8-bit fill within one byte of the pixels two rasterizers produced', () => {
+    // A CPU Skia raster of the review of 51e1be5 drew #5f2083 and #ba5f50 at 25% over white as #d7c8e0 and #eed7d4.
+    for (const [color, drawn] of [['#5f2083', '#d7c8e0'], ['#ba5f50', '#eed7d4']] as const) {
+      const m = raster(color, 0.25, '#ffffff'), d = hexBytes(drawn);
+      for (const i of [0, 1, 2] as const) expect(Math.abs(m[i] - d[i]), `${color} channel ${i}`).toBeLessThanOrEqual(1);
+    }
+    expect(worstWithinOneByte([10, 20, 30], [10, 20, 30])).toBe(0);
+    expect(worstWithinOneByte([10, 20, 30], [10, 20, 33])).toBeGreaterThan(0);
   });
 });
 
 describe('default palette (spec A5, decision 0003)', () => {
   for (const [name, scheme, other] of SCHEMES) {
     const series = scheme.series;
+    const r = record.schemes[name];
 
     it(`${name}: eight distinct series colors`, () => {
       expect(series).toHaveLength(8);
@@ -113,16 +166,23 @@ describe('default palette (spec A5, decision 0003)', () => {
       }
     });
 
-    it(`${name}: 3. the first three, four, five and six are at least 0.10 apart, the first four at least 0.14`, () => {
-      for (const n of [3, 4, 5, 6]) for (const v of VISIONS) {
-        const { d, pair } = closest(series.slice(0, n), v);
-        expect(d, `first ${n}, ${v}: slots ${pair.join(' and ')}`).toBeGreaterThanOrEqual(n === 4 ? 0.14 : 0.10);
+    it(`${name}: 2. the same after the simulated colors are rounded to bytes`, () => {
+      for (const v of VISIONS) {
+        const { d, pair } = closest(series, v, seenBytes);
+        expect(d, `${v}: slots ${pair.join(' and ')}`).toBeGreaterThanOrEqual(0.10);
+      }
+    });
+
+    it(`${name}: 3. the first three, four, five and six are at least 0.10 apart, the first four at least 0.14 (analytic and in bytes)`, () => {
+      for (const n of [3, 4, 5, 6]) for (const v of VISIONS) for (const labOf of [undefined, seenBytes]) {
+        const { d, pair } = closest(series.slice(0, n), v, labOf);
+        expect(d, `first ${n}, ${v}${labOf ? ', bytes' : ''}: slots ${pair.join(' and ')}`).toBeGreaterThanOrEqual(n === 4 ? 0.14 : 0.10);
       }
     });
 
     it(`${name}: 4. slot k is the same hue family in both schemes (OKLCH hue within 30°)`, () => {
       series.forEach((color, k) => {
-        expect(hueDifference(hue(color), hue(other.series[k]!)), `slot ${k + 1}: ${color} / ${other.series[k]}`).toBeLessThanOrEqual(30);
+        expect(hueDifference(oklch(color)[2], oklch(other.series[k]!)[2]), `slot ${k + 1}: ${color} / ${other.series[k]}`).toBeLessThanOrEqual(30);
       });
     });
 
@@ -134,7 +194,7 @@ describe('default palette (spec A5, decision 0003)', () => {
     });
 
     it(`${name}: 6. neighbours k and k+1 stay 0.06 apart as fills at 25% and 80% over the background`, () => {
-      for (const alpha of [0.25, 0.8]) {
+      for (const alpha of ALPHAS) {
         const labs = series.map(color => seen(over(color, alpha, scheme.background), 'normal'));
         for (let k = 0; k + 1 < labs.length; k++) {
           expect(delta(labs[k]!, labs[k + 1]!), `${alpha * 100}%: slots ${k + 1} and ${k + 2}`).toBeGreaterThanOrEqual(0.06);
@@ -142,23 +202,103 @@ describe('default palette (spec A5, decision 0003)', () => {
       }
     });
 
-    it(`${name}: the research record (research/palette/palette.json) holds these colors and the same measurements`, () => {
-      const r = record.schemes[name];
+    it(`${name}: 6. the same on an 8-bit raster, with alpha quantised by rounding and by flooring`, () => {
+      for (const alpha of ALPHAS) for (const quantise of [Math.round, Math.floor]) {
+        const px = series.map(color => raster(color, alpha, scheme.background, quantise));
+        for (let k = 0; k + 1 < px.length; k++) {
+          expect(delta(labOfBytes(px[k]!), labOfBytes(px[k + 1]!)), `${alpha * 100}%, ${quantise.name}: slots ${k + 1} and ${k + 2}`).toBeGreaterThanOrEqual(0.06);
+        }
+      }
+    });
+
+    it(`${name}: 6. the same on the pixels Chrome drew (research/palette/raster.json, canvas and SVG)`, () => {
+      expect(record.refused).toEqual([]);
+      expect(Object.keys(r.chromeRaster).sort()).toEqual(['canvas', 'svg']);
+      for (const [via, byAlpha] of Object.entries(r.chromeRaster)) {
+        expect(Object.keys(byAlpha).map(Number).sort()).toEqual([...ALPHAS]);
+        for (const alpha of ALPHAS) {
+          const drawn = byAlpha[String(alpha)]!.pixels;
+          expect(drawn).toHaveLength(8);
+          drawn.forEach((hex, k) => {
+            // The recorded pixel is a fill of this slot's color: within one byte of the model.
+            const m = raster(series[k]!, alpha, scheme.background), d = hexBytes(hex);
+            for (const i of [0, 1, 2] as const) expect(Math.abs(m[i] - d[i]), `${via} ${alpha} slot ${k + 1}`).toBeLessThanOrEqual(1);
+          });
+          for (let k = 0; k + 1 < drawn.length; k++) {
+            expect(delta(labOfBytes(hexBytes(drawn[k]!)), labOfBytes(hexBytes(drawn[k + 1]!))), `${via} ${alpha * 100}%: slots ${k + 1} and ${k + 2}`).toBeGreaterThanOrEqual(0.06);
+          }
+        }
+      }
+    });
+
+    it(`${name}: the research record holds these colors and every measured field at its written precision`, () => {
       expect(r.background).toBe(scheme.background);
       expect(r.series.map(s => s.hex)).toEqual([...series]);
-      series.forEach((color, k) => expect(contrastRatio(c(color), c(scheme.background))).toBeCloseTo(r.series[k]!.contrast, 1));
+      series.forEach((color, k) => {
+        const s = r.series[k]!, [L, C, h] = oklch(color);
+        expect(s.slot).toBe(k + 1);
+        expect(atPrecision(L, s.oklch[0]!, 3) && atPrecision(C, s.oklch[1]!, 3) && atPrecision(h, s.oklch[2]!, 1), `${color} OKLCH ${s.oklch.join(' ')}`).toBe(true);
+        expect(atPrecision(contrastRatio(c(color), c(scheme.background)), s.contrast, 2), `${color} contrast ${s.contrast}`).toBe(true);
+        expect(atPrecision(hueDifference(h, oklch(other.series[k]!)[2]), s.hueDiffToOtherScheme, 1), `slot ${k + 1} hue shift`).toBe(true);
+      });
+      const pairs = (measured: { d: number; pair: number[] }, rec: PairRecord, label: string): void => {
+        expect(atPrecision(measured.d, rec.min, 3), `${label}: ${measured.d} vs ${rec.min}`).toBe(true);
+        expect(rec.pair, label).toEqual(measured.pair);
+      };
       for (const v of VISIONS) {
-        expect(closest(series, v).d).toBeCloseTo(r.minDelta[v].min, 3);
-        for (const n of [3, 4, 5, 6]) expect(closest(series.slice(0, n), v).d).toBeCloseTo(r.prefixes[n]![v].min, 3);
+        pairs(closest(series, v), r.minDelta[v], `all 8, ${v}`);
+        pairs(closest(series, v, seenBytes), r.minDeltaBytes[v], `all 8, ${v}, bytes`);
+        for (const n of [3, 4, 5, 6]) {
+          pairs(closest(series.slice(0, n), v), r.prefixes[n]![v], `first ${n}, ${v}`);
+          pairs(closest(series.slice(0, n), v, seenBytes), r.prefixesBytes[n]![v], `first ${n}, ${v}, bytes`);
+        }
       }
       for (const token of ['focus', 'reference', 'muted'] as const) {
-        const t = seen(srgb(scheme[token]), 'normal');
-        expect(Math.min(...series.map(color => delta(seen(srgb(color), 'normal'), t)))).toBeCloseTo(r.tokenDistance[token]!.min, 3);
+        const t = seen(srgb(scheme[token]), 'normal'), ds = series.map(color => delta(seen(srgb(color), 'normal'), t));
+        const min = Math.min(...ds);
+        expect(atPrecision(min, r.tokenDistance[token]!.min, 3), token).toBe(true);
+        expect(r.tokenDistance[token]!.slot, token).toBe(ds.indexOf(min) + 1);
       }
-      for (const alpha of [0.25, 0.8]) {
+      for (const alpha of ALPHAS) {
+        const key = String(alpha);
         const labs = series.map(color => seen(over(color, alpha, scheme.background), 'normal'));
-        const min = Math.min(...labs.slice(1).map((l, k) => delta(labs[k]!, l)));
-        expect(min).toBeCloseTo(r.composites[String(alpha)]!.normal.minNeighbour, 3);
+        const nb = labs.slice(1).map((l, k) => delta(labs[k]!, l));
+        const rec = r.composites[key]!.normal;
+        nb.forEach((d, k) => expect(atPrecision(d, rec.neighbours[k]!, 3), `${alpha} neighbours ${k + 1}`).toBe(true));
+        expect(atPrecision(Math.min(...nb), rec.minNeighbour, 3)).toBe(true);
+        expect(rec.pair).toEqual([nb.indexOf(Math.min(...nb)) + 1, nb.indexOf(Math.min(...nb)) + 2]);
+        const px = series.map(color => raster(color, alpha, scheme.background));
+        const hex = (p: Vec3): string => '#' + p.map(v => v.toString(16).padStart(2, '0')).join('');
+        expect(r.raster[key]!.model).toEqual(px.map(hex));
+        expect(r.raster[key]!.modelFloor).toEqual(series.map(color => hex(raster(color, alpha, scheme.background, Math.floor))));
+        px.slice(1).forEach((p, k) => {
+          expect(atPrecision(delta(labOfBytes(px[k]!), labOfBytes(p)), r.raster[key]!.neighboursModel[k]!, 3), `${alpha} model ${k + 1}`).toBe(true);
+          expect(atPrecision(worstWithinOneByte(px[k]!, p), r.raster[key]!.neighboursWorstWithinOneByte[k]!, 3), `${alpha} worst ${k + 1}`).toBe(true);
+        });
+        for (const via of ['canvas', 'svg']) {
+          const x = r.chromeRaster[via]![key]!;
+          const d = x.pixels.slice(1).map((p, k) => delta(labOfBytes(hexBytes(x.pixels[k]!)), labOfBytes(hexBytes(p))));
+          d.forEach((v, k) => expect(atPrecision(v, x.neighbours[k]!, 3), `${via} ${alpha} ${k + 1}`).toBe(true));
+          expect(atPrecision(Math.min(...d), x.min, 3)).toBe(true);
+        }
+      }
+    });
+
+    it(`${name}: the 2 px stroke record describes these colors and is internally consistent`, () => {
+      const s = record.strokes.schemes[name];
+      expect(s.background).toBe(scheme.background);
+      expect(s.rows.map(row => row.color)).toEqual([...series]);
+      for (const row of s.rows) {
+        expect(atPrecision(contrastRatio(c(row.color), c(scheme.background)), row.swatch, 2), `${row.color} swatch`).toBe(true);
+        for (const key of ['canvas@1', 'svg@1', 'canvas@2', 'svg@2']) {
+          const st = row[key] as StrokeStats;
+          // Antialiasing only moves a pixel toward the background, so no statistic can exceed the swatch.
+          expect(st.core.p10, `${row.color} ${key}`).toBeLessThanOrEqual(st.core.median);
+          expect(st.core.median).toBeLessThanOrEqual(row.swatch + 0.005);
+          expect(st.weighted.p10).toBeLessThanOrEqual(st.weighted.median);
+          expect(st.weighted.median).toBeLessThanOrEqual(st.core.median + 0.005);
+          expect(st.weighted.p10).toBeGreaterThan(1);
+        }
       }
     });
 
@@ -202,4 +342,3 @@ describe('default stylesheet', () => {
     expect(AXYLO_CSS.split('{').length).toBe(AXYLO_CSS.split('}').length);
   });
 });
-

@@ -6,11 +6,13 @@
 //       red, pink or magenta: can the eight be placed at least 0.10 apart under all four visions, with 3:1 on white
 //       and clear of the tokens? (No order yet: no prefix or neighbour constraints.)
 //   node research/palette/explore.mjs orders --set=blue,orange,... [--part=0 --parts=1 --seconds=1]
-//       Every order of a set with blue first. Orders whose first four cannot reach 0.14 are skipped; the others get
-//       the full search (prefixes and neighbour composites included) with a time limit.
+//       Every order of a set with blue first. Orders whose first four are proved unable to reach 0.14 are pruned
+//       (a timed-out first-four check prunes nothing); the others get the full search (prefixes and neighbour
+//       fills included) with a time limit.
 //
-// Prints one line per set or order: OK with the cost and colors of the cheapest palette found, "no" when the
-// search proved that none exists on the grid, "??" when it ran out of time without either.
+// Prints one line per set or order, with one of three outcomes: OK with the cost and colors of the cheapest
+// palette found, "no" when the search proved that none exists on the grid, "??" when it ran out of time without
+// either. A summary of the three counts goes to stderr.
 import { candidates, compatible, search, SCHEME_TOKENS } from './fit.mjs';
 import { THRESHOLDS as T, dist } from './color.mjs';
 
@@ -35,11 +37,13 @@ export const POOL = {
   slate: { target: [0.60, 0.03, 255], L: LW, C: [0.0, 0.045], hr: 35, neutral: true },
 };
 const domain = name => candidates(0, { ...POOL[name], step: [0.01, 0.01, 3] }, tokens, null);
+// At least `limit` apart under all four visions, analytically and after rounding the simulation to bytes.
+const apart = (a, b, limit) => { for (let v = 0; v < 4; v++) if (dist(a.labs[v], b.labs[v]) < limit || dist(a.labsBytes[v], b.labsBytes[v]) < limit) return false; return true; };
 const line = (r, names) => console.log(r.best ? 'OK ' : (r.complete ? 'no ' : '?? '), r.best ? r.cost.toFixed(2).padStart(6) : '     -', names.join(','), r.best ? r.best.map(x => x.hex).join(' ') : '', r.best && !r.complete ? '(best within time limit)' : '');
 
 if (mode === 'sets') {
   const doms = Object.fromEntries(Object.keys(POOL).map(k => [k, domain(k)]));
-  const uniform = (i, a, j, b) => { for (let v = 0; v < 4; v++) if (dist(a.labs[v], b.labs[v]) < T.minDelta) return false; return true; };
+  const uniform = (i, a, j, b) => apart(a, b, T.minDelta);
   const others = Object.keys(POOL).filter(k => k !== 'blue'), combos = [];
   const pick = (start, acc) => { if (acc.length === 7) { combos.push(acc.slice()); return; } for (let i = start; i < others.length; i++) { acc.push(others[i]); pick(i + 1, acc); acc.pop(); } };
   pick(0, []);
@@ -51,18 +55,28 @@ if (mode === 'sets') {
   });
 } else if (mode === 'orders') {
   const fams = args.set.split(','), doms = Object.fromEntries(fams.map(k => [k, domain(k)]));
-  const four = (i, a, j, b) => { for (let v = 0; v < 4; v++) if (dist(a.labs[v], b.labs[v]) < T.prefix4) return false; return true; };
-  const firstFour = new Map(), perms = [];
+  const four = (i, a, j, b) => apart(a, b, T.prefix4);
+  // First-four outcome per set of four families: 'feasible', 'infeasible' (search completed without a palette) or
+  // 'unknown' (timed out without one). Only a completed proof prunes the orders that start with that set.
+  const firstFour = new Map(), perms = [], counts = { OK: 0, no: 0, '??': 0, pruned: 0 };
   const permute = (a, k = 0) => { if (k === a.length) { perms.push(a.slice()); return; } for (let i = k; i < a.length; i++) { [a[k], a[i]] = [a[i], a[k]]; permute(a, k + 1); [a[k], a[i]] = [a[i], a[k]]; } };
   permute(fams.slice(1));
   for (let p = part; p < perms.length; p += parts) {
     const order = [fams[0], ...perms[p]], key = order.slice(0, 4).sort().join();
-    if (!firstFour.has(key)) firstFour.set(key, !!search(order.slice(0, 4).map(f => doms[f]), 2, four).best);
-    if (!firstFour.get(key)) continue;
+    if (!firstFour.has(key)) {
+      const r = search(order.slice(0, 4).map(f => doms[f]), +(args.fourSeconds ?? 2), four);
+      firstFour.set(key, r.best ? 'feasible' : r.complete ? 'infeasible' : 'unknown');
+    }
+    if (firstFour.get(key) === 'infeasible') { counts.no++; counts.pruned++; console.log('no      -', order.join(','), '(first four proved infeasible)'); continue; }
     const r = search(order.map(f => doms[f]), +(args.seconds ?? 1), compatible);
-    if (r.best) line(r, order);
+    counts[r.best ? 'OK' : r.complete ? 'no' : '??']++;
+    line(r, order);
   }
-  console.error(`first-four sets that reach 0.14: ${[...firstFour].filter(([, v]) => v).map(([k]) => k).join(' | ')}`);
+  const by = o => [...firstFour].filter(([, v]) => v === o).map(([k]) => k).join(' | ') || '(none)';
+  console.error(`orders: ${counts.OK} feasible, ${counts.no} proved infeasible (${counts.pruned} by their first four), ${counts['??']} timed out`);
+  console.error(`first four feasible: ${by('feasible')}`);
+  console.error(`first four proved infeasible: ${by('infeasible')}`);
+  console.error(`first four timed out: ${by('unknown')}`);
 } else {
   console.error('usage: explore.mjs sets | orders --set=a,b,...');
   process.exitCode = 2;

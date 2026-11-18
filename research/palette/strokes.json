@@ -6,354 +6,354 @@
    "background": "#ffffff",
    "rows": [
     {
-     "color": "#4395ea",
+     "color": "#4a94eb",
      "swatch": 3.12,
      "canvas@1": {
       "core": {
        "p10": 3.12,
        "median": 3.12
+      },
+      "weighted": {
+       "p10": 2.47,
+       "median": 2.57
+      }
+     },
+     "svg@1": {
+      "core": {
+       "p10": 3.12,
+       "median": 3.12
+      },
+      "weighted": {
+       "p10": 2.47,
+       "median": 2.57
+      }
+     },
+     "canvas@2": {
+      "core": {
+       "p10": 3.12,
+       "median": 3.12
+      },
+      "weighted": {
+       "p10": 2.75,
+       "median": 2.84
+      }
+     },
+     "svg@2": {
+      "core": {
+       "p10": 3.12,
+       "median": 3.12
+      },
+      "weighted": {
+       "p10": 2.75,
+       "median": 2.84
+      }
+     }
+    },
+    {
+     "color": "#e97200",
+     "swatch": 3.06,
+     "canvas@1": {
+      "core": {
+       "p10": 3.06,
+       "median": 3.06
+      },
+      "weighted": {
+       "p10": 2.5,
+       "median": 2.59
+      }
+     },
+     "svg@1": {
+      "core": {
+       "p10": 3.06,
+       "median": 3.06
       },
       "weighted": {
        "p10": 2.48,
-       "median": 2.57
-      }
-     },
-     "svg@1": {
-      "core": {
-       "p10": 3.12,
-       "median": 3.12
-      },
-      "weighted": {
-       "p10": 2.47,
-       "median": 2.57
+       "median": 2.59
       }
      },
      "canvas@2": {
       "core": {
-       "p10": 3.12,
-       "median": 3.12
+       "p10": 3.06,
+       "median": 3.06
       },
       "weighted": {
        "p10": 2.75,
-       "median": 2.84
+       "median": 2.81
       }
      },
      "svg@2": {
       "core": {
-       "p10": 3.12,
-       "median": 3.12
+       "p10": 3.06,
+       "median": 3.06
       },
       "weighted": {
        "p10": 2.75,
-       "median": 2.84
+       "median": 2.81
       }
      }
     },
     {
-     "color": "#e77412",
-     "swatch": 3.04,
+     "color": "#136102",
+     "swatch": 7.67,
      "canvas@1": {
       "core": {
-       "p10": 3.04,
-       "median": 3.04
+       "p10": 7.67,
+       "median": 7.67
       },
       "weighted": {
-       "p10": 2.47,
-       "median": 2.55
+       "p10": 4.89,
+       "median": 5.27
       }
      },
      "svg@1": {
       "core": {
-       "p10": 3.04,
-       "median": 3.04
+       "p10": 7.67,
+       "median": 7.67
       },
       "weighted": {
-       "p10": 2.47,
-       "median": 2.55
+       "p10": 4.88,
+       "median": 5.27
       }
      },
      "canvas@2": {
       "core": {
-       "p10": 3.04,
-       "median": 3.04
+       "p10": 7.67,
+       "median": 7.67
       },
       "weighted": {
-       "p10": 2.73,
-       "median": 2.79
+       "p10": 6.03,
+       "median": 6.32
       }
      },
      "svg@2": {
       "core": {
-       "p10": 3.04,
-       "median": 3.04
+       "p10": 7.67,
+       "median": 7.67
       },
       "weighted": {
-       "p10": 2.73,
-       "median": 2.79
+       "p10": 6.03,
+       "median": 6.32
       }
      }
     },
     {
-     "color": "#085e01",
-     "swatch": 8.04,
+     "color": "#7314a2",
+     "swatch": 8.93,
      "canvas@1": {
       "core": {
-       "p10": 8.04,
-       "median": 8.04
+       "p10": 8.93,
+       "median": 8.93
       },
       "weighted": {
-       "p10": 5.14,
-       "median": 5.54
+       "p10": 5.97,
+       "median": 6.4
       }
      },
      "svg@1": {
       "core": {
-       "p10": 8.04,
-       "median": 8.04
+       "p10": 8.93,
+       "median": 8.93
       },
       "weighted": {
-       "p10": 5.14,
-       "median": 5.54
+       "p10": 5.96,
+       "median": 6.4
       }
      },
      "canvas@2": {
       "core": {
-       "p10": 8.04,
-       "median": 8.04
+       "p10": 8.93,
+       "median": 8.93
       },
       "weighted": {
-       "p10": 6.34,
-       "median": 6.64
+       "p10": 7.32,
+       "median": 7.64
       }
      },
      "svg@2": {
       "core": {
-       "p10": 8.04,
-       "median": 8.04
+       "p10": 8.93,
+       "median": 8.93
       },
       "weighted": {
-       "p10": 6.34,
-       "median": 6.64
+       "p10": 7.29,
+       "median": 7.64
       }
      }
     },
     {
-     "color": "#5f2083",
-     "swatch": 10.39,
+     "color": "#bd585e",
+     "swatch": 4.45,
      "canvas@1": {
       "core": {
-       "p10": 10.39,
-       "median": 10.39
+       "p10": 4.45,
+       "median": 4.45
       },
       "weighted": {
-       "p10": 6.33,
-       "median": 6.89
+       "p10": 3.27,
+       "median": 3.44
       }
      },
      "svg@1": {
       "core": {
-       "p10": 10.39,
-       "median": 10.39
+       "p10": 4.45,
+       "median": 4.45
       },
       "weighted": {
-       "p10": 6.33,
-       "median": 6.89
+       "p10": 3.27,
+       "median": 3.44
       }
      },
      "canvas@2": {
       "core": {
-       "p10": 10.39,
-       "median": 10.39
+       "p10": 4.45,
+       "median": 4.45
       },
       "weighted": {
-       "p10": 8.08,
-       "median": 8.47
+       "p10": 3.75,
+       "median": 3.91
       }
      },
      "svg@2": {
       "core": {
-       "p10": 10.39,
-       "median": 10.39
+       "p10": 4.45,
+       "median": 4.45
       },
       "weighted": {
-       "p10": 8.08,
-       "median": 8.47
+       "p10": 3.75,
+       "median": 3.91
       }
      }
     },
     {
-     "color": "#ba5f50",
-     "swatch": 4.34,
+     "color": "#007baa",
+     "swatch": 4.76,
      "canvas@1": {
       "core": {
-       "p10": 4.34,
-       "median": 4.34
+       "p10": 4.76,
+       "median": 4.76
       },
       "weighted": {
-       "p10": 3.18,
-       "median": 3.35
+       "p10": 3.46,
+       "median": 3.64
       }
      },
      "svg@1": {
       "core": {
-       "p10": 4.34,
-       "median": 4.34
+       "p10": 4.76,
+       "median": 4.76
       },
       "weighted": {
-       "p10": 3.18,
-       "median": 3.35
+       "p10": 3.46,
+       "median": 3.64
       }
      },
      "canvas@2": {
       "core": {
-       "p10": 4.34,
-       "median": 4.34
+       "p10": 4.76,
+       "median": 4.76
       },
       "weighted": {
-       "p10": 3.67,
-       "median": 3.8
+       "p10": 4.03,
+       "median": 4.18
       }
      },
      "svg@2": {
       "core": {
-       "p10": 4.34,
-       "median": 4.34
+       "p10": 4.76,
+       "median": 4.76
       },
       "weighted": {
-       "p10": 3.67,
-       "median": 3.8
+       "p10": 4.03,
+       "median": 4.14
       }
      }
     },
     {
-     "color": "#087ca6",
-     "swatch": 4.73,
+     "color": "#a52265",
+     "swatch": 6.96,
      "canvas@1": {
       "core": {
-       "p10": 4.73,
-       "median": 4.73
+       "p10": 6.96,
+       "median": 6.96
       },
       "weighted": {
-       "p10": 3.42,
-       "median": 3.6
+       "p10": 4.86,
+       "median": 5.17
       }
      },
      "svg@1": {
       "core": {
-       "p10": 4.73,
-       "median": 4.73
+       "p10": 6.96,
+       "median": 6.96
       },
       "weighted": {
-       "p10": 3.42,
-       "median": 3.6
+       "p10": 4.83,
+       "median": 5.17
       }
      },
      "canvas@2": {
       "core": {
-       "p10": 4.73,
-       "median": 4.73
+       "p10": 6.96,
+       "median": 6.96
       },
       "weighted": {
-       "p10": 3.99,
-       "median": 4.15
+       "p10": 5.8,
+       "median": 6.03
       }
      },
      "svg@2": {
       "core": {
-       "p10": 4.73,
-       "median": 4.73
+       "p10": 6.96,
+       "median": 6.96
       },
       "weighted": {
-       "p10": 3.99,
-       "median": 4.15
+       "p10": 5.8,
+       "median": 6.03
       }
      }
     },
     {
-     "color": "#a12c63",
-     "swatch": 6.87,
+     "color": "#9293a5",
+     "swatch": 3.03,
      "canvas@1": {
       "core": {
-       "p10": 6.87,
-       "median": 6.87
+       "p10": 3.03,
+       "median": 3.03
       },
       "weighted": {
-       "p10": 4.67,
-       "median": 5
+       "p10": 2.38,
+       "median": 2.47
       }
      },
      "svg@1": {
       "core": {
-       "p10": 6.87,
-       "median": 6.87
+       "p10": 3.03,
+       "median": 3.03
       },
       "weighted": {
-       "p10": 4.67,
-       "median": 5
+       "p10": 2.38,
+       "median": 2.47
       }
      },
      "canvas@2": {
       "core": {
-       "p10": 6.87,
-       "median": 6.87
+       "p10": 3.03,
+       "median": 3.03
       },
       "weighted": {
-       "p10": 5.66,
-       "median": 5.9
+       "p10": 2.65,
+       "median": 2.71
       }
      },
      "svg@2": {
       "core": {
-       "p10": 6.87,
-       "median": 6.87
+       "p10": 3.03,
+       "median": 3.03
       },
       "weighted": {
-       "p10": 5.66,
-       "median": 5.9
-      }
-     }
-    },
-    {
-     "color": "#8f9299",
-     "swatch": 3.12,
-     "canvas@1": {
-      "core": {
-       "p10": 3.12,
-       "median": 3.12
-      },
-      "weighted": {
-       "p10": 2.43,
-       "median": 2.52
-      }
-     },
-     "svg@1": {
-      "core": {
-       "p10": 3.12,
-       "median": 3.12
-      },
-      "weighted": {
-       "p10": 2.41,
-       "median": 2.52
-      }
-     },
-     "canvas@2": {
-      "core": {
-       "p10": 3.12,
-       "median": 3.12
-      },
-      "weighted": {
-       "p10": 2.72,
-       "median": 2.79
-      }
-     },
-     "svg@2": {
-      "core": {
-       "p10": 3.12,
-       "median": 3.12
-      },
-      "weighted": {
-       "p10": 2.72,
-       "median": 2.79
+       "p10": 2.65,
+       "median": 2.71
       }
      }
     }
@@ -363,354 +363,354 @@
    "background": "#16181d",
    "rows": [
     {
-     "color": "#1c73c5",
-     "swatch": 3.64,
+     "color": "#64acfa",
+     "swatch": 7.46,
      "canvas@1": {
       "core": {
-       "p10": 3.64,
-       "median": 3.64
+       "p10": 7.46,
+       "median": 7.46
       },
       "weighted": {
-       "p10": 2.82,
+       "p10": 5.32,
+       "median": 5.66
+      }
+     },
+     "svg@1": {
+      "core": {
+       "p10": 7.46,
+       "median": 7.46
+      },
+      "weighted": {
+       "p10": 5.32,
+       "median": 5.61
+      }
+     },
+     "canvas@2": {
+      "core": {
+       "p10": 7.46,
+       "median": 7.46
+      },
+      "weighted": {
+       "p10": 6.26,
+       "median": 6.49
+      }
+     },
+     "svg@2": {
+      "core": {
+       "p10": 7.46,
+       "median": 7.46
+      },
+      "weighted": {
+       "p10": 6.26,
+       "median": 6.49
+      }
+     }
+    },
+    {
+     "color": "#de7b2e",
+     "swatch": 5.9,
+     "canvas@1": {
+      "core": {
+       "p10": 5.9,
+       "median": 5.9
+      },
+      "weighted": {
+       "p10": 4.27,
+       "median": 4.51
+      }
+     },
+     "svg@1": {
+      "core": {
+       "p10": 5.9,
+       "median": 5.9
+      },
+      "weighted": {
+       "p10": 4.27,
+       "median": 4.51
+      }
+     },
+     "canvas@2": {
+      "core": {
+       "p10": 5.9,
+       "median": 5.9
+      },
+      "weighted": {
+       "p10": 5,
+       "median": 5.17
+      }
+     },
+     "svg@2": {
+      "core": {
+       "p10": 5.9,
+       "median": 5.9
+      },
+      "weighted": {
+       "p10": 5,
+       "median": 5.17
+      }
+     }
+    },
+    {
+     "color": "#b2e390",
+     "swatch": 12.08,
+     "canvas@1": {
+      "core": {
+       "p10": 12.08,
+       "median": 12.08
+      },
+      "weighted": {
+       "p10": 8.32,
+       "median": 8.85
+      }
+     },
+     "svg@1": {
+      "core": {
+       "p10": 12.08,
+       "median": 12.08
+      },
+      "weighted": {
+       "p10": 8.23,
+       "median": 8.85
+      }
+     },
+     "canvas@2": {
+      "core": {
+       "p10": 12.08,
+       "median": 12.08
+      },
+      "weighted": {
+       "p10": 9.97,
+       "median": 10.39
+      }
+     },
+     "svg@2": {
+      "core": {
+       "p10": 12.08,
+       "median": 12.08
+      },
+      "weighted": {
+       "p10": 9.97,
+       "median": 10.39
+      }
+     }
+    },
+    {
+     "color": "#9149b9",
+     "swatch": 3.26,
+     "canvas@1": {
+      "core": {
+       "p10": 3.26,
+       "median": 3.26
+      },
+      "weighted": {
+       "p10": 2.57,
+       "median": 2.65
+      }
+     },
+     "svg@1": {
+      "core": {
+       "p10": 3.26,
+       "median": 3.26
+      },
+      "weighted": {
+       "p10": 2.55,
+       "median": 2.65
+      }
+     },
+     "canvas@2": {
+      "core": {
+       "p10": 3.26,
+       "median": 3.26
+      },
+      "weighted": {
+       "p10": 2.87,
        "median": 2.95
       }
      },
-     "svg@1": {
+     "svg@2": {
       "core": {
-       "p10": 3.64,
-       "median": 3.64
+       "p10": 3.26,
+       "median": 3.26
       },
       "weighted": {
-       "p10": 2.82,
+       "p10": 2.87,
        "median": 2.95
       }
-     },
-     "canvas@2": {
-      "core": {
-       "p10": 3.64,
-       "median": 3.64
-      },
-      "weighted": {
-       "p10": 3.19,
-       "median": 3.29
-      }
-     },
-     "svg@2": {
-      "core": {
-       "p10": 3.64,
-       "median": 3.64
-      },
-      "weighted": {
-       "p10": 3.19,
-       "median": 3.29
-      }
      }
     },
     {
-     "color": "#d77939",
-     "swatch": 5.65,
+     "color": "#c3513d",
+     "swatch": 3.86,
      "canvas@1": {
       "core": {
-       "p10": 5.65,
-       "median": 5.65
+       "p10": 3.86,
+       "median": 3.86
       },
       "weighted": {
-       "p10": 4.13,
-       "median": 4.36
+       "p10": 2.93,
+       "median": 3.09
       }
      },
      "svg@1": {
       "core": {
-       "p10": 5.65,
-       "median": 5.65
+       "p10": 3.86,
+       "median": 3.86
       },
       "weighted": {
-       "p10": 4.1,
-       "median": 4.36
+       "p10": 2.93,
+       "median": 3.09
       }
      },
      "canvas@2": {
       "core": {
-       "p10": 5.65,
-       "median": 5.65
+       "p10": 3.86,
+       "median": 3.86
       },
       "weighted": {
-       "p10": 4.8,
-       "median": 4.97
+       "p10": 3.35,
+       "median": 3.43
       }
      },
      "svg@2": {
       "core": {
-       "p10": 5.65,
-       "median": 5.65
+       "p10": 3.86,
+       "median": 3.86
       },
       "weighted": {
-       "p10": 4.8,
-       "median": 4.97
+       "p10": 3.35,
+       "median": 3.43
       }
      }
     },
     {
-     "color": "#b0e391",
-     "swatch": 12.04,
+     "color": "#71d8ff",
+     "swatch": 10.97,
      "canvas@1": {
       "core": {
-       "p10": 12.04,
-       "median": 12.04
+       "p10": 10.97,
+       "median": 10.97
       },
       "weighted": {
-       "p10": 8.29,
-       "median": 8.84
+       "p10": 7.59,
+       "median": 8.1
       }
      },
      "svg@1": {
       "core": {
-       "p10": 12.04,
-       "median": 12.04
+       "p10": 10.97,
+       "median": 10.97
       },
       "weighted": {
-       "p10": 8.22,
-       "median": 8.84
+       "p10": 7.52,
+       "median": 8.1
       }
      },
      "canvas@2": {
       "core": {
-       "p10": 12.04,
-       "median": 12.04
+       "p10": 10.97,
+       "median": 10.97
       },
       "weighted": {
-       "p10": 9.96,
-       "median": 10.36
+       "p10": 9.08,
+       "median": 9.46
       }
      },
      "svg@2": {
       "core": {
-       "p10": 12.04,
-       "median": 12.04
+       "p10": 10.97,
+       "median": 10.97
       },
       "weighted": {
-       "p10": 9.96,
-       "median": 10.36
+       "p10": 9.08,
+       "median": 9.46
       }
      }
     },
     {
-     "color": "#bf93f1",
-     "swatch": 7.32,
+     "color": "#f898b5",
+     "swatch": 8.58,
      "canvas@1": {
       "core": {
-       "p10": 7.32,
-       "median": 7.32
+       "p10": 8.58,
+       "median": 8.58
       },
       "weighted": {
-       "p10": 5.24,
-       "median": 5.51
+       "p10": 6.04,
+       "median": 6.42
       }
      },
      "svg@1": {
       "core": {
-       "p10": 7.32,
-       "median": 7.32
+       "p10": 8.58,
+       "median": 8.58
       },
       "weighted": {
-       "p10": 5.19,
-       "median": 5.51
+       "p10": 6.04,
+       "median": 6.42
       }
      },
      "canvas@2": {
       "core": {
-       "p10": 7.32,
-       "median": 7.32
+       "p10": 8.58,
+       "median": 8.58
       },
       "weighted": {
-       "p10": 6.17,
-       "median": 6.36
+       "p10": 7.14,
+       "median": 7.45
       }
      },
      "svg@2": {
       "core": {
-       "p10": 7.32,
-       "median": 7.32
+       "p10": 8.58,
+       "median": 8.58
       },
       "weighted": {
-       "p10": 6.17,
-       "median": 6.36
+       "p10": 7.14,
+       "median": 7.45
       }
      }
     },
     {
-     "color": "#bc5145",
-     "swatch": 3.72,
+     "color": "#7a7f93",
+     "swatch": 4.47,
      "canvas@1": {
       "core": {
-       "p10": 3.72,
-       "median": 3.72
+       "p10": 4.47,
+       "median": 4.47
       },
       "weighted": {
-       "p10": 2.84,
-       "median": 2.99
+       "p10": 3.36,
+       "median": 3.55
       }
      },
      "svg@1": {
       "core": {
-       "p10": 3.72,
-       "median": 3.72
+       "p10": 4.47,
+       "median": 4.47
       },
       "weighted": {
-       "p10": 2.84,
-       "median": 2.99
+       "p10": 3.36,
+       "median": 3.55
       }
      },
      "canvas@2": {
       "core": {
-       "p10": 3.72,
-       "median": 3.72
+       "p10": 4.47,
+       "median": 4.47
       },
       "weighted": {
-       "p10": 3.23,
-       "median": 3.33
+       "p10": 3.88,
+       "median": 3.99
       }
      },
      "svg@2": {
       "core": {
-       "p10": 3.72,
-       "median": 3.72
+       "p10": 4.47,
+       "median": 4.47
       },
       "weighted": {
-       "p10": 3.23,
-       "median": 3.33
-      }
-     }
-    },
-    {
-     "color": "#71daff",
-     "swatch": 11.14,
-     "canvas@1": {
-      "core": {
-       "p10": 11.14,
-       "median": 11.14
-      },
-      "weighted": {
-       "p10": 7.66,
-       "median": 8.17
-      }
-     },
-     "svg@1": {
-      "core": {
-       "p10": 11.14,
-       "median": 11.14
-      },
-      "weighted": {
-       "p10": 7.66,
-       "median": 8.17
-      }
-     },
-     "canvas@2": {
-      "core": {
-       "p10": 11.14,
-       "median": 11.14
-      },
-      "weighted": {
-       "p10": 9.24,
-       "median": 9.62
-      }
-     },
-     "svg@2": {
-      "core": {
-       "p10": 11.14,
-       "median": 11.14
-      },
-      "weighted": {
-       "p10": 9.24,
-       "median": 9.62
-      }
-     }
-    },
-    {
-     "color": "#fa93b5",
-     "swatch": 8.38,
-     "canvas@1": {
-      "core": {
-       "p10": 8.38,
-       "median": 8.38
-      },
-      "weighted": {
-       "p10": 5.91,
-       "median": 6.29
-      }
-     },
-     "svg@1": {
-      "core": {
-       "p10": 8.38,
-       "median": 8.38
-      },
-      "weighted": {
-       "p10": 5.91,
-       "median": 6.24
-      }
-     },
-     "canvas@2": {
-      "core": {
-       "p10": 8.38,
-       "median": 8.38
-      },
-      "weighted": {
-       "p10": 7,
-       "median": 7.26
-      }
-     },
-     "svg@2": {
-      "core": {
-       "p10": 8.38,
-       "median": 8.38
-      },
-      "weighted": {
-       "p10": 7,
-       "median": 7.26
-      }
-     }
-    },
-    {
-     "color": "#82828f",
-     "swatch": 4.68,
-     "canvas@1": {
-      "core": {
-       "p10": 4.68,
-       "median": 4.68
-      },
-      "weighted": {
-       "p10": 3.52,
-       "median": 3.69
-      }
-     },
-     "svg@1": {
-      "core": {
-       "p10": 4.68,
-       "median": 4.68
-      },
-      "weighted": {
-       "p10": 3.52,
-       "median": 3.69
-      }
-     },
-     "canvas@2": {
-      "core": {
-       "p10": 4.68,
-       "median": 4.68
-      },
-      "weighted": {
-       "p10": 4.02,
-       "median": 4.18
-      }
-     },
-     "svg@2": {
-      "core": {
-       "p10": 4.68,
-       "median": 4.68
-      },
-      "weighted": {
-       "p10": 4.02,
-       "median": 4.18
+       "p10": 3.88,
+       "median": 3.99
       }
      }
     }

@@ -80,9 +80,48 @@ export function compositeLinear(hex, alpha, bgHex) {
   return f.map((v, i) => lin(v * alpha + b[i] * (1 - alpha)));
 }
 
-/** Smallest pairwise OKLab distance under one vision, with the pair. */
-export function minPair(colors, vision) {
-  const labs = colors.map(c => labUnder(c, vision));
+// --- 8-bit output. The analytic measures above work on unrounded values; what a screen shows is bytes.
+
+export const bytes = hex => [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+export const bytesToHex = b => '#' + b.map(v => v.toString(16).padStart(2, '0')).join('');
+export const labOfBytes = b => oklab(b.map(v => lin(v / 255)));
+
+/** A simulated color as an 8-bit image holds it: simulate in linear RGB, clamp, encode, round to the nearest byte. */
+export const simulateBytes = (hex, vision) => simulateLinear(linear(hex), vision).map(v => Math.round(255 * gam(v)));
+/** OKLab of the byte-rounded simulation. */
+export const labUnderBytes = (hex, vision) => labOfBytes(simulateBytes(hex, vision));
+
+/**
+ * Byte model of a translucent fill on an 8-bit raster: alpha quantised to `quantise(alpha × 255)`, each channel
+ * rounded. With Math.round it reproduces Chrome 157's canvas and SVG fills on white exactly and is within one byte
+ * on #16181d (raster.mjs); the CPU Skia raster of the review of 51e1be5 quantised alpha down (63 at 25%), which
+ * Math.floor models. The scoring uses both.
+ */
+export function rasterFill(hex, alpha, bgHex, quantise = Math.round) {
+  const k = quantise(alpha * 255), f = bytes(hex), b = bytes(bgHex);
+  return f.map((v, i) => Math.round((v * k + b[i] * (255 - k)) / 255));
+}
+
+/** The lattice of byte colors within ±r of `b` per channel (clamped to 0–255). */
+export function byteBox(b, r = 1) {
+  const out = [];
+  for (let i = -r; i <= r; i++) for (let j = -r; j <= r; j++) for (let k = -r; k <= r; k++) {
+    out.push([b[0] + i, b[1] + j, b[2] + k].map(v => Math.min(255, Math.max(0, v))));
+  }
+  return out;
+}
+
+/** Smallest OKLab distance between any byte color within ±r of `a` and any within ±r of `b`: the worst case of rounding. */
+export function boxDistance(a, b, r = 1) {
+  const la = byteBox(a, r).map(labOfBytes), lb = byteBox(b, r).map(labOfBytes);
+  let m = Infinity;
+  for (const p of la) for (const q of lb) { const d = dist(p, q); if (d < m) m = d; }
+  return m;
+}
+
+/** Smallest pairwise OKLab distance under one vision, with the pair. `labOf` picks analytic or byte-rounded. */
+export function minPair(colors, vision, labOf = labUnder) {
+  const labs = colors.map(c => labOf(c, vision));
   let min = Infinity, pair = null;
   for (let i = 0; i < labs.length; i++) for (let j = i + 1; j < labs.length; j++) {
     const d = dist(labs[i], labs[j]);
@@ -106,6 +145,11 @@ export function ringClosures(n) {
 // Tokens no series color may come within THRESHOLDS.token of: focus and reference (constraint 5) and muted,
 // which paints the donut's "Other" slice beside series slices.
 export const TOKEN_NAMES = ['focus', 'reference', 'muted'];
+
+// box: 1 also requires the fill neighbours at the worst case within one byte per channel of the model; 0 (the
+// default, what the shipped palette meets) records that worst case without requiring it. No palette meeting it was
+// found together with the decision's other goals (decision 0003, "Tried and failed").
+export const OPTIONS = { box: 0 };
 
 export const THRESHOLDS = {
   contrast: 3,
@@ -143,8 +187,18 @@ export function measureScheme(scheme, other) {
       return [v, { neighbours: nb, ring, minNeighbour: lo(nb), minRing: lo(ring) }];
     }));
   }
+  // The same distances after the simulated colors are rounded to bytes (what a simulated screenshot holds).
+  const fullBytes = Object.fromEntries(VISIONS.map(v => [v, minPair(series, v, labUnderBytes)]));
+  const prefixesBytes = Object.fromEntries(THRESHOLDS.prefixes.map(n => [n, Object.fromEntries(VISIONS.map(v => [v, minPair(series.slice(0, n), v, labUnderBytes)]))]));
+  // Fills on an 8-bit raster: the byte model, and the worst case within one byte of it.
+  const raster = {};
+  for (const alpha of THRESHOLDS.alphas) {
+    const px = series.map(c => rasterFill(c, alpha, bg)), pxFloor = series.map(c => rasterFill(c, alpha, bg, Math.floor));
+    const nb = neighbourPairs(series.length).map(([i, j]) => ({ pair: [i, j], model: dist(labOfBytes(px[i]), labOfBytes(px[j])), modelFloor: dist(labOfBytes(pxFloor[i]), labOfBytes(pxFloor[j])), worst: boxDistance(px[i], px[j]) }));
+    raster[alpha] = { pixels: px.map(bytesToHex), pixelsFloor: pxFloor.map(bytesToHex), neighbours: nb, minModel: Math.min(...nb.map(x => Math.min(x.model, x.modelFloor))), minWorst: Math.min(...nb.map(x => x.worst)) };
+  }
   const hue = other ? series.map((c, k) => hueDiff(lch(c)[2], lch(other.series[k])[2])) : null;
-  return { contrast: contrastBy, full, prefixes, tokens, composites, hue };
+  return { contrast: contrastBy, full, prefixes, tokens, composites, fullBytes, prefixesBytes, raster, hue };
 }
 
 /** The hard constraints as a list of { id, ok, value, limit, label } for one scheme. */
@@ -156,6 +210,10 @@ export function checkScheme(scheme, other) {
   if (m.hue) out.push({ id: 4, label: 'largest light/dark hue difference per slot (°)', value: Math.max(...m.hue), limit: T.hueMatch, upper: true });
   for (const t of TOKEN_NAMES) out.push({ id: 5, label: `nearest series to ${t} token`, value: m.tokens[t].min, limit: T.token });
   for (const a of T.alphas) out.push({ id: 6, label: `min neighbour ΔE at ${a * 100}% opacity, normal`, value: m.composites[a].normal.minNeighbour.d, limit: T.composite });
+  for (const v of VISIONS) out.push({ id: '2b', label: `min pairwise ΔE (all 8), ${v}, simulated then rounded to bytes`, value: m.fullBytes[v].min, limit: T.minDelta });
+  for (const n of T.prefixes) for (const v of VISIONS) out.push({ id: '3b', label: `min pairwise ΔE (first ${n}), ${v}, rounded to bytes`, value: m.prefixesBytes[n][v].min, limit: n === 4 ? T.prefix4 : T.minDelta });
+  for (const a of T.alphas) out.push({ id: '6b', label: `min neighbour ΔE at ${a * 100}%, 8-bit raster models (alpha rounded and floored)`, value: m.raster[a].minModel, limit: T.composite });
+  if (OPTIONS.box) for (const a of T.alphas) out.push({ id: '6b', label: `min neighbour ΔE at ${a * 100}%, worst case within one byte`, value: m.raster[a].minWorst, limit: T.composite });
   for (const c of out) c.ok = c.upper ? c.value <= c.limit : c.value >= c.limit;
   return { checks: out, measured: m };
 }

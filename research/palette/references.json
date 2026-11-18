@@ -1,0 +1,289 @@
+{
+ "source": "d3-scale-chromatic 3.1.1, dist/d3-scale-chromatic.mjs",
+ "palettes": {
+  "schemeTableau10": {
+   "colors": [
+    "#4e79a7",
+    "#f28e2c",
+    "#e15759",
+    "#76b7b2",
+    "#59a14f",
+    "#edc949",
+    "#af7aa1",
+    "#ff9da7",
+    "#9c755f",
+    "#bab0ab"
+   ],
+   "belowThreeToOneOnWhite": 5,
+   "belowThreeToOneOnDark": 0,
+   "contrastOnWhite": [
+    4.55,
+    2.42,
+    3.68,
+    2.29,
+    3.16,
+    1.61,
+    3.43,
+    1.98,
+    4.1,
+    2.12
+   ],
+   "first8MinDelta": {
+    "normal": {
+     "min": 0.129,
+     "pair": [
+      2,
+      8
+     ]
+    },
+    "protan": {
+     "min": 0.016,
+     "pair": [
+      4,
+      8
+     ]
+    },
+    "deutan": {
+     "min": 0.007,
+     "pair": [
+      3,
+      5
+     ]
+    },
+    "tritan": {
+     "min": 0.064,
+     "pair": [
+      2,
+      8
+     ]
+    }
+   }
+  },
+  "schemeObservable10": {
+   "colors": [
+    "#4269d0",
+    "#efb118",
+    "#ff725c",
+    "#6cc5b0",
+    "#3ca951",
+    "#ff8ab7",
+    "#a463f2",
+    "#97bbf5",
+    "#9c6b4e",
+    "#9498a0"
+   ],
+   "belowThreeToOneOnWhite": 6,
+   "belowThreeToOneOnDark": 0,
+   "contrastOnWhite": [
+    5.04,
+    1.91,
+    2.69,
+    2.05,
+    3.01,
+    2.19,
+    3.72,
+    1.95,
+    4.54,
+    2.89
+   ],
+   "first8MinDelta": {
+    "normal": {
+     "min": 0.113,
+     "pair": [
+      3,
+      6
+     ]
+    },
+    "protan": {
+     "min": 0.059,
+     "pair": [
+      1,
+      7
+     ]
+    },
+    "deutan": {
+     "min": 0.02,
+     "pair": [
+      4,
+      6
+     ]
+    },
+    "tritan": {
+     "min": 0.046,
+     "pair": [
+      4,
+      8
+     ]
+    }
+   }
+  },
+  "schemeCategory10": {
+   "colors": [
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+    "#e377c2",
+    "#7f7f7f",
+    "#bcbd22",
+    "#17becf"
+   ],
+   "belowThreeToOneOnWhite": 4,
+   "belowThreeToOneOnDark": 0,
+   "contrastOnWhite": [
+    4.82,
+    2.53,
+    3.4,
+    5.02,
+    4.26,
+    5.92,
+    2.73,
+    4,
+    2.01,
+    2.26
+   ],
+   "first8MinDelta": {
+    "normal": {
+     "min": 0.113,
+     "pair": [
+      6,
+      8
+     ]
+    },
+    "protan": {
+     "min": 0.007,
+     "pair": [
+      2,
+      3
+     ]
+    },
+    "deutan": {
+     "min": 0.039,
+     "pair": [
+      3,
+      4
+     ]
+    },
+    "tritan": {
+     "min": 0.042,
+     "pair": [
+      5,
+      8
+     ]
+    }
+   }
+  },
+  "schemeDark2": {
+   "colors": [
+    "#1b9e77",
+    "#d95f02",
+    "#7570b3",
+    "#e7298a",
+    "#66a61e",
+    "#e6ab02",
+    "#a6761d",
+    "#666666"
+   ],
+   "belowThreeToOneOnWhite": 2,
+   "belowThreeToOneOnDark": 0,
+   "contrastOnWhite": [
+    3.39,
+    3.76,
+    4.44,
+    4.13,
+    2.98,
+    2.06,
+    4.01,
+    5.74
+   ],
+   "first8MinDelta": {
+    "normal": {
+     "min": 0.099,
+     "pair": [
+      2,
+      7
+     ]
+    },
+    "protan": {
+     "min": 0.018,
+     "pair": [
+      2,
+      7
+     ]
+    },
+    "deutan": {
+     "min": 0.017,
+     "pair": [
+      1,
+      4
+     ]
+    },
+    "tritan": {
+     "min": 0.049,
+     "pair": [
+      2,
+      4
+     ]
+    }
+   }
+  },
+  "schemeSet1": {
+   "colors": [
+    "#e41a1c",
+    "#377eb8",
+    "#4daf4a",
+    "#984ea3",
+    "#ff7f00",
+    "#ffff33",
+    "#a65628",
+    "#f781bf",
+    "#999999"
+   ],
+   "belowThreeToOneOnWhite": 5,
+   "belowThreeToOneOnDark": 0,
+   "contrastOnWhite": [
+    4.71,
+    4.34,
+    2.78,
+    5.31,
+    2.53,
+    1.07,
+    5.27,
+    2.37,
+    2.85
+   ],
+   "first8MinDelta": {
+    "normal": {
+     "min": 0.13,
+     "pair": [
+      1,
+      7
+     ]
+    },
+    "protan": {
+     "min": 0.031,
+     "pair": [
+      1,
+      7
+     ]
+    },
+    "deutan": {
+     "min": 0.035,
+     "pair": [
+      2,
+      4
+     ]
+    },
+    "tritan": {
+     "min": 0.066,
+     "pair": [
+      5,
+      8
+     ]
+    }
+   }
+  }
+ }
+}

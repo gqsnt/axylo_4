@@ -1,177 +1,221 @@
 # Decision 0003: the default categorical palette
 
-Status: **proposed**, palette agent, 2026-11-18. The hard constraints below are measured and enforced by `packages/axylo/test/theme/palette.test.ts`. Whether the result is good to look at is the owner's call (see "Taste questions"). Nobody else has reviewed this work.
+Status: **proposed, refitted after review.** The first version (commit 51e1be5) was reviewed by Codex gpt-6.2-astra (`reviews/2026-11-18/impl/wp/palette.review.md`). The review confirmed the arithmetic and showed four things wrong: the uneven lightness was claimed to be forced and is not; simulated screenshots and 8-bit fills fell below the limits the record promised; the order explorer could prune a feasible order after a timeout; and the record overclaimed in several places. This version is a refit with byte-level checks and corrected text. The hard constraints are measured and tested. Whether the result is good to look at is the owner's call (see "For the owner"). The refit itself has not been reviewed.
 
-Spec: A5 (palette thresholds, provisional), L2 (3:1 for marks), F9 (eight series, no shared color). Finding R7 (docs/01-landscape.md): none of the ten measured libraries meets 3:1 and the 0.10 color-vision threshold together, and the earlier search that did (`research/palette/feasibility.json`) produced the placeholder this replaces: purples, maroons and one orange-red.
+Spec: A5 (palette thresholds, provisional), L2 (3:1 for marks), F9 (eight series). Finding R7, docs/01-landscape.md.
 
 ## The palette
 
-Slot order is blue, orange, green, purple, red, cyan, magenta, slate. The non-series tokens (axis, grid, muted, reference, focus) are unchanged.
+Slot order: blue, orange, green, purple, red, cyan, magenta, slate. That is the first version's order. Hue families are kept per slot.
 
 | Slot | Family | Light | OKLCH | Contrast on #ffffff | Dark | OKLCH | Contrast on #16181d | Hue shift |
 |---|---|---|---|---|---|---|---|---|
-| 1 | blue | `#4395ea` | 0.66 0.150 252 | 3.12 | `#1c73c5` | 0.55 0.150 252 | 3.64 | 0° |
-| 2 | orange | `#e77412` | 0.68 0.170 52 | 3.04 | `#d77939` | 0.67 0.140 52 | 5.65 | 0° |
-| 3 | green | `#085e01` | 0.42 0.140 142 | 8.04 | `#b0e391` | 0.86 0.121 134 | 12.04 | 8° |
-| 4 | purple | `#5f2083` | 0.39 0.159 310 | 10.39 | `#bf93f1` | 0.74 0.139 305 | 7.32 | 5° |
-| 5 | red | `#ba5f50` | 0.59 0.120 31 | 4.34 | `#bc5145` | 0.57 0.141 29 | 3.72 | 2° |
-| 6 | cyan | `#087ca6` | 0.55 0.110 231 | 4.73 | `#71daff` | 0.84 0.110 224 | 11.14 | 8° |
-| 7 | magenta | `#a12c63` | 0.49 0.160 356 | 6.87 | `#fa93b5` | 0.78 0.129 359 | 8.38 | 3° |
-| 8 | slate | `#8f9299` | 0.66 0.011 267 | 3.12 | `#82828f` | 0.61 0.019 286 | 4.68 | 19° |
+| 1 | blue | `#4a94eb` | 0.66 0.150 254 | 3.12 | `#64acfa` | 0.73 0.135 252 | 7.46 | 2° |
+| 2 | orange | `#e97200` | 0.68 0.175 52 | 3.06 | `#de7b2e` | 0.68 0.150 54 | 5.90 | 2° |
+| 3 | green | `#136102` | 0.43 0.140 141 | 7.67 | `#b2e390` | 0.86 0.121 133 | 12.08 | 8° |
+| 4 | purple | `#7314a2` | 0.43 0.205 310 | 8.93 | `#9149b9` | 0.54 0.177 312 | 3.26 | 2° |
+| 5 | red | `#bd585e` | 0.59 0.130 18 | 4.45 | `#c3513d` | 0.58 0.151 32 | 3.86 | 14° |
+| 6 | cyan | `#007baa` | 0.55 0.115 234 | 4.76 | `#71d8ff` | 0.83 0.110 225 | 10.97 | 9° |
+| 7 | magenta | `#a52265` | 0.49 0.175 355 | 6.96 | `#f898b5` | 0.79 0.119 1 | 8.58 | 6° |
+| 8 | slate | `#9293a5` | 0.67 0.026 283 | 3.03 | `#7a7f93` | 0.60 0.031 274 | 4.47 | 9° |
 
-The slate's hue shift is large only because it has almost no chroma (0.01–0.02), so its hue is barely defined; the seven chromatic slots move at most 8°.
+**One token changes.** The dark focus token goes from `#79a8ff` to a near-white `#e3e8f0`, which is 14.4:1 on #16181d. The old focus blue sat at OKLab L 0.735, exactly where a dark-mode series blue belongs. With it kept, no dark set I found had a first blue above L 0.55. The exact search with the blue asked for at 0.62 ended at `#3970c2`, L 0.55 (`configs/dark-n2.json`, best within 300 s). The light focus `#1f5fcc` is unchanged; `keyboard.browser.test.ts` hardcodes it. Every other token is unchanged.
+
+**Before and after.**
+
+| | 51e1be5 | Now |
+|---|---|---|
+| Light OKLab L, lowest to highest | 0.39 to 0.68 | 0.43 to 0.68 |
+| Light, spread across the first three | 0.26 | 0.25 |
+| Light, largest chroma | 0.17 | 0.205 (purple) |
+| Dark first blue | `#1c73c5`, L 0.55, 3.64:1 | `#64acfa`, L 0.73, 7.46:1 |
+| Dark, largest chroma | 0.15 | 0.177 (purple) |
+| Largest light/dark hue shift | 18.5° (slate), 8° chromatic | 13.6° (red) |
+| Byte-rounded simulation, worst pair | 0.098 (light protan 6–8) | 0.102 |
+| 25% fills on an 8-bit raster, worst neighbours | 0.0590 (review's raster) | 0.063 (Chrome, canvas and SVG) |
+
+The dark blue now has ordinary dark-mode lightness. The light set did not get much more even. Slot 3's green is still the heaviest of the first three lines on white (L 0.43 against 0.66 and 0.68). "Tried and failed" below says what I searched for that and why I stopped.
 
 ![Light scheme preview](../../research/palette/preview-light.png)
 
 ![Dark scheme preview](../../research/palette/preview-dark.png)
 
-Each preview shows the swatches with hex, contrast and nearest neighbour; lines with 3, 5 and 8 series at 2 px with Axylo's end markers; three overlapping areas at 25%; eight stacked areas at 80% with 1 px background separators; an eight-slice donut; grouped bars with six series. The same mocks follow under simulated protanopia, deuteranopia and tritanopia (the Machado matrices as SVG color matrices in linear RGB; a check against the scoring code found at most 1/255 difference per channel) and in grayscale (WCAG luminance). Source: `research/palette/preview.html`.
+Each preview shows:
+- the swatches, with hex, contrast and nearest neighbour;
+- lines with 3, 5 and 8 series at 2 px, with Axylo's end markers;
+- three overlapping areas at 25%;
+- eight stacked areas at 80%;
+- an eight-slice donut;
+- grouped bars.
+
+The same charts are repeated under the three simulations (the Machado matrices as SVG color matrices in linear RGB) and in grayscale. Source: `research/palette/preview.html`.
+
+## What is measured, and on what
+
+There are three forms of measurement:
+
+- **Analytic.** The 8-bit hex is decoded, then simulated or composited in floating point, then converted to OKLab.
+- **Bytes.** Values are rounded where an 8-bit image would round them. A simulated color is encoded and rounded to the nearest byte before the OKLab conversion; that is what the simulated rows of the preview PNGs hold. A translucent fill is quantised as a raster would quantise it: alpha at round(α×255), each channel rounded. That reproduces Chrome 157's canvas and SVG fills on white exactly and is within one byte on #16181d. The second variant, alpha at floor(α×255), is what the review's CPU Skia raster did.
+- **Chrome.** The fill pixels Chrome actually drew, canvas and SVG (`research/palette/raster.mjs`).
+
+The unit test requires the analytic and the byte forms. It checks the recorded Chrome pixels against the 0.06 limit, and checks that each recorded pixel is within one byte of the model. A stricter margin is the worst case over every byte color within one byte per channel of both fills. It is recorded but not required, because I found no palette that meets it together with the rest (0.054–0.056 is the best I saw; see below).
 
 ## Constraints, measured
 
-All values are computed on the 8-bit hex values that ship, by `research/palette/score.mjs` (record: `research/palette/palette.json`) and again, with independent code, by the unit test. ΔE is the Euclidean distance in OKLab; protan, deutan and tritan are the Machado et al. (2009) simulations at severity 1.0, applied in linear RGB and clamped, as in `research/harness/palette.mjs`.
+These come from `research/palette/palette.json`, which `score.mjs` writes. The unit test recomputes each value with its own code and compares it at the written precision, including which pair is closest.
 
 | Constraint | Check | Limit | Light | Dark |
 |---|---|---|---|---|
-| 1 | lowest contrast on background | ≥ 3 | 3.04 | 3.64 |
-| 2 | min pairwise ΔE, all 8, normal | ≥ 0.10 | 0.116 | 0.114 |
-| 2 | min pairwise ΔE, all 8, protan | ≥ 0.10 | 0.100 | 0.101 |
-| 2 | min pairwise ΔE, all 8, deutan | ≥ 0.10 | 0.101 | 0.101 |
-| 2 | min pairwise ΔE, all 8, tritan | ≥ 0.10 | 0.103 | 0.101 |
-| 3 | first 4, worst vision (tritan light, protan dark) | ≥ 0.14 | 0.141 | 0.146 |
-| 3 | first 3, 5, 6, worst vision | ≥ 0.10 | see below | see below |
-| 4 | largest light/dark OKLCH hue difference per slot | ≤ 30° | 18.5° (slate), 8° chromatic | same pairs |
-| 5 | nearest series color to focus (`#1f5fcc` / `#79a8ff`) | ≥ 0.10 | 0.108 (cyan) | 0.101 (purple) |
-| 5 | nearest series color to reference (`#474b55` / `#bcc0c9`) | ≥ 0.10 | 0.148 (purple) | 0.106 (cyan) |
-| 5+ | nearest series color to muted (`#62666f` / `#9da2ad`), my addition | ≥ 0.10 | 0.106 (cyan) | 0.101 (slate) |
-| 6 | min neighbour (k, k+1) ΔE at 25% over the background, normal | ≥ 0.06 | 0.061 | 0.060 |
-| 6 | min neighbour (k, k+1) ΔE at 80% over the background, normal | ≥ 0.06 | 0.194 | 0.174 |
+| 1 | lowest contrast on background | ≥ 3 | 3.03 (slate) | 3.26 (purple) |
+| 2 | min pairwise ΔE, all 8, normal / protan / deutan / tritan | ≥ 0.10 | 0.124 / 0.103 / 0.103 / 0.102 | 0.116 / 0.104 / 0.103 / 0.102 |
+| 2, bytes | the same after the simulation is rounded to bytes | ≥ 0.10 | 0.124 / 0.103 / 0.103 / 0.102 | 0.116 / 0.103 / 0.102 / 0.102 |
+| 3 | first 4, worst vision (analytic; bytes) | ≥ 0.14 | 0.156 protan; 0.155 | 0.158 tritan; 0.159 |
+| 3 | first 3, 5, 6, worst vision (analytic) | ≥ 0.10 | 0.156 / 0.102 / 0.102 | 0.158 / 0.103 / 0.103 |
+| 4 | largest light/dark OKLCH hue shift | ≤ 30° | 13.6° (red) | same pairs |
+| 5 | nearest series color to focus / reference / muted | ≥ 0.10 | 0.101 (cyan) / 0.152 (green) / 0.110 (cyan) | 0.138 (cyan) / 0.104 (cyan) / 0.113 (slate) |
+| 6 | neighbour fills at 25%: ideal / byte models / Chrome canvas / Chrome SVG | ≥ 0.06 | 0.064 / 0.063 / 0.063 / 0.063 | 0.064 / 0.064 / 0.063 / 0.063 |
+| 6 | neighbour fills at 80%: ideal / byte models / Chrome | ≥ 0.06 | 0.201 / 0.202 / 0.202 | 0.179 / 0.179 / 0.179 |
+| 6, recorded only | 25% fills, worst case within one byte | (0.06) | 0.056 | 0.056 |
 
-Composites are source-over in gamma-encoded sRGB, as browsers blend, then converted to OKLab.
+"Muted" is my addition to constraint 5: the donut draws its "Other" slice in the muted token, next to series slices.
 
 ### Prefix minima (constraint 3)
 
-| Prefix | Vision | Light (closest slots) | Dark (closest slots) |
+Each cell is analytic / bytes, with the closest slots.
+
+| Prefix | Vision | Light | Dark |
 |---|---|---|---|
-| first 3 | normal | 0.316 (1–2) | 0.258 (2–3) |
-| first 3 | protan | 0.169 (2–3) | 0.236 (1–2) |
-| first 3 | deutan | 0.281 (2–3) | 0.187 (2–3) |
-| first 3 | tritan | 0.254 (1–3) | 0.283 (2–3) |
-| first 4 | normal | 0.299 (3–4) | 0.230 (1–4) |
-| first 4 | protan | 0.169 (2–3) | 0.146 (1–4) |
-| first 4 | deutan | 0.201 (3–4) | 0.187 (2–3) |
-| first 4 | tritan | 0.141 (3–4) | 0.152 (3–4) |
-| first 5 | normal | 0.116 (2–5) | 0.114 (2–5) |
-| first 5 | protan | 0.102 (3–5) | 0.122 (2–5) |
-| first 5 | deutan | 0.119 (2–5) | 0.107 (2–5) |
-| first 5 | tritan | 0.103 (2–5) | 0.101 (2–5) |
-| first 6 | normal | 0.116 (2–5) | 0.114 (2–5) |
-| first 6 | protan | 0.102 (3–5) | 0.122 (2–5) |
-| first 6 | deutan | 0.118 (1–6) | 0.102 (4–6) |
-| first 6 | tritan | 0.103 (2–5) | 0.101 (3–6) |
-| all 8 | normal | 0.116 (2–5) | 0.114 (2–5) |
-| all 8 | protan | 0.100 (6–8) | 0.101 (4–7) |
-| all 8 | deutan | 0.101 (5–8) | 0.101 (5–8) |
-| all 8 | tritan | 0.103 (2–5) | 0.101 (1–8) |
+| first 3 | normal | 0.319 / 0.319 (1–2) | 0.251 / 0.251 (1–3) |
+| first 3 | protan | 0.156 / 0.155 (2–3) | 0.247 / 0.246 (1–3) |
+| first 3 | deutan | 0.270 / 0.271 (2–3) | 0.178 / 0.177 (2–3) |
+| first 3 | tritan | 0.243 / 0.241 (1–3) | 0.158 / 0.159 (1–3) |
+| first 4 | normal | 0.284 / 0.284 | 0.246 / 0.246 |
+| first 4 | protan | 0.156 / 0.155 | 0.247 / 0.246 |
+| first 4 | deutan | 0.217 / 0.217 | 0.178 / 0.177 |
+| first 4 | tritan | 0.157 / 0.157 | 0.158 / 0.159 |
+| first 5 | normal / protan / deutan / tritan | 0.135 / 0.103 / 0.136 / 0.102 | 0.116 / 0.126 / 0.109 / 0.103 |
+| first 6 | normal / protan / deutan / tritan | 0.124 / 0.103 / 0.117 / 0.102 | 0.116 / 0.124 / 0.109 / 0.103 |
 
-### What is close to its limit
+The full tables with pair identities for every row are printed by `node research/palette/score.mjs --md`.
 
-Almost everything. Within 5% of the limit in at least one scheme: contrast (light orange 3.04, blue and slate 3.12); constraint 2 under all three deficiencies in both schemes (0.100–0.103); the first four (light 0.141 under tritanopia, dark 0.146 under protanopia); the first five and six (0.101–0.103); focus and muted in dark (0.101); the 25% neighbours (light 0.061 for slots 4–5 and 5–6, dark 0.060 for slots 7–8). Only normal-vision distances, the first three, the reference token in light and the 80% composites have real room. This is what the constraints cost, not an accident of the search: the solver pushes every color as close to its target as the limits allow, so the limits end up binding. The consequence for maintenance is that a hand edit of almost any color will fail a test; change colors through `fit.mjs` and regenerate the record (`research/palette/README.md`).
+### Tight pairs and margins
 
-The new tests fail on the placeholder palette (six failures: first four under protanopia and tritanopia, light/dark hue match, 25% neighbours in both schemes, dark focus), so they are not vacuous.
+These are every measured value within 5% of its limit (`palette.json`, `tight`):
+
+- **Light:**
+  - contrast 3.026 (slate; the solver keeps 3.02);
+  - all-eight pairwise 0.102–0.103 under the three deficiencies, analytic and in bytes;
+  - first five and six 0.102–0.103;
+  - focus distance 0.101 (cyan against `#1f5fcc`).
+- **Dark:**
+  - all-eight pairwise 0.102–0.104;
+  - first five and six 0.102–0.103;
+  - reference distance 0.104 (cyan against `#bcc0c9`).
+- **Fills, both schemes:** the 25% neighbours have about 0.003–0.004 of room; the 80% fills have a lot.
+
+How fragile is that to a hand edit? I tried every one-byte change of one channel of one color: 41 of 46 light edits and 46 of 47 dark edits still meet every required check (`palette.json`, `oneByteEdits`). The first version of this record said that "almost any hand edit fails". That was wrong; the review measured 36/48 and 32/47 for 51e1be5. A changed hex still fails the record test until `score.mjs` is rerun.
+
+The solver kept margins above the tested limits: pairwise 0.102, fills 0.063, contrast 3.02, hue shift 15° for chromatic slots (`configs/fit-final.json`, `solverLimits`). In the final boxes it proved 0.065/0.103 and 0.066/0.102 infeasible, so the margins cannot be much larger near this palette.
 
 ## Thin lines
 
-`research/palette/strokes.mjs` draws each color as a 2 px random-walk polyline in headless Chrome 157 (Linux), through the canvas and through SVG, at device pixel ratio 1 and 2, and reads the pixels back. Per pixel column it takes the most covered pixel (core) and the coverage-weighted mean of the pixels the stroke touches, which is roughly what the eye sees when it cannot resolve the antialiased edge. Canvas and SVG agree to 0.01–0.05.
+`strokes.mjs` draws each color as a 2 px random-walk polyline in headless Chrome 157 (canvas and SVG, device pixel ratio 1 and 2) and reads the pixels back. For each pixel column it records two values:
 
-| | Swatch | Core, median | Weighted, DPR 1 (p10 / median) | Weighted, DPR 2 (p10 / median) |
+- **Core:** the most covered pixel.
+- **Weighted:** the coverage-weighted mean of the touched pixels, bg + (Σc²/Σc)(ink − bg), with coverage at or below 0.02 dropped.
+
+This is a legibility measurement of this rendering path, not the WCAG test. WCAG 1.4.11 allows the specified stroke color to be assessed despite antialiasing, and A5 is met on the swatch.
+
+| | Swatch | Core p10 | Weighted p10 / median, DPR 1 | Weighted p10 / median, DPR 2 |
 |---|---|---|---|---|
-| light blue `#4395ea` | 3.12 | 3.12 | 2.48 / 2.57 | 2.75 / 2.84 |
-| light orange `#e77412` | 3.04 | 3.04 | 2.47 / 2.55 | 2.73 / 2.79 |
-| light slate `#8f9299` | 3.12 | 3.12 | 2.43 / 2.52 | 2.72 / 2.79 |
-| light red `#ba5f50` | 4.34 | 4.34 | 3.18 / 3.35 | 3.67 / 3.80 |
-| light cyan `#087ca6` | 4.73 | 4.73 | 3.42 / 3.60 | 3.99 / 4.15 |
-| light green, purple, magenta | 6.9–10.4 | same | 4.67 and up | 5.66 and up |
-| dark blue `#1c73c5` | 3.64 | 3.64 | 2.82 / 2.95 | 3.19 / 3.29 |
-| dark red `#bc5145` | 3.72 | 3.72 | 2.84 / 2.99 | 3.23 / 3.33 |
-| dark slate `#82828f` | 4.68 | 4.68 | 3.52 / 3.69 | 4.02 / 4.18 |
-| dark orange, purple, magenta, cyan, green | 5.7–12.0 | same | 4.13 and up | 4.80 and up |
+| light blue `#4a94eb` | 3.12 | 3.12 | 2.47 / 2.57 | 2.75 / 2.84 |
+| light orange `#e97200` | 3.06 | 3.06 | 2.50 / 2.59 | 2.75 / 2.81 |
+| light slate `#9293a5` | 3.03 | 3.03 | 2.38 / 2.47 | 2.65 / 2.71 |
+| light red, cyan | 4.45, 4.76 | same | 3.27 / 3.44, 3.46 / 3.64 | 3.75 / 3.91, 4.03 / 4.18 |
+| light green, purple, magenta | 6.96–8.93 | same | 4.86 and up | 5.80 and up |
+| dark purple `#9149b9` | 3.26 | 3.26 | 2.57 / 2.65 | 2.87 / 2.95 |
+| dark red `#c3513d` | 3.86 | 3.86 | 2.93 / 3.09 | 3.35 / 3.43 |
+| dark slate `#7a7f93` | 4.47 | 4.47 | 3.36 / 3.55 | 3.88 / 3.99 |
+| dark blue, orange, green, cyan, pink | 5.90–12.08 | same | 4.27 and up | 5.00 and up |
 
-So a 2 px line always keeps a fully covered core pixel (in at least 90% of columns its core has the swatch's contrast), but its averaged color is lighter: about 2.5:1 for the three light colors at the 3:1 floor on a standard-density screen, 2.8:1 on a high-density one, and about 2.9–3.0:1 for the dark blue and red. Every series also has a marker at its last point and at sparse intervals (spec A5), drawn at full color.
+The core column is the 10th percentile. In at least 90% of pixel columns the most covered pixel has the swatch's contrast. The review found that a few columns, about one in 576 at DPR 1, have no fully covered pixel (for the first version's orange, the least-covered core was 96.6%). Canvas and SVG agree within 0.05. Every series also has a full-color marker at its last point and at sparse intervals (spec A5).
 
-## Why the light set looks the way it does
+## Why lightness spreads on white (corrected)
 
-Two facts decide most of the design.
+The first version said that each simulation "removes one chromatic axis", and that three deep colors were therefore forced. Both statements were wrong.
 
-1. **3:1 on white caps lightness.** WCAG relative luminance at most 0.30 means OKLab L at most about 0.64 for greens and teals, 0.66–0.67 for blues and grays, and 0.68–0.69 for oranges, reds, pinks and purples. Every light-scheme color lives between that ceiling and whatever darkness one accepts. On #16181d the floor is about L 0.53–0.58 and the ceiling is open, which is why the dark set has more room.
-2. **Each simulated deficiency removes one chromatic axis.** Protanopia and deuteranopia keep lightness and the blue–yellow axis (OKLab b) and flatten red–green (a); tritanopia keeps lightness and red–green and flattens blue–yellow. Two colors of similar lightness must differ by about 0.10 on *both* axes, or they collapse in one of the simulations. Lightness is the only cue all four visions keep.
+The Machado matrices act in linear RGB, not in OKLab. In OKLab they mostly compress the red–green direction (protanopia, deuteranopia) or the blue–yellow direction (tritanopia), but they also move lightness. For example, the first version's light blue has L 0.659 unsimulated and between 0.643 and 0.691 across the simulations. The compression is a design heuristic, not a proof.
 
-So the eight colors have to spread over lightness, and colors that share a lightness must sit diagonally opposite on the hue wheel (blue against orange, green against purple, a neutral between). Within the L 0.39–0.69 band on white that leaves room for about three colors near the 3:1 ceiling (blue, orange, slate), two in the middle (red, cyan) and three deep ones (green, purple, magenta). The first four must also be 0.14 apart, which forces them into two tiers: blue and orange at the top, a green and a purple deep enough to clear both by 0.14 in every simulation.
+The review then exhibited a two-scheme palette meeting all six constraints with light L from 0.48 to 0.69:
 
-What-if runs say this structure is not an artefact of one threshold:
+```text
+light  #3791ff #d28204 #2b6d48 #881bbd #c70f09 #1f7fae #fe1ce0 #959396
+dark   #63d2fc #f9c309 #78aa6f #bf37be #e42129 #4574fa #ee5ec3 #7e7c80
+```
 
-- With the first-four limit relaxed to 0.12 or 0.10, or the pairwise limit to 0.09 or 0.08, the best palettes found still had a deep green, purple and magenta (`fit.mjs --prefix4=`, `--minDelta=` on `configs/fit-c.json` and `fit-f.json`; best within 60 s, not proven optimal).
-- Keeping the green at L 0.50 or above and the purple and magenta at 0.48 or above (`configs/whatif-no-deep-light.json`, the `fit-k.json` boxes for the other slots) is proven infeasible on the grid at pairwise 0.10 and 0.09, and at 0.09 with the first four at 0.12; no palette was found within 60 s at 0.08 or 0.07.
-- A lighter, calmer green (chroma at most 0.14, hue 145–165, L at least 0.44, with the other boxes of `configs/fit-k.json`) is proven infeasible. A calmer green near the current colors (chroma at most 0.13, `configs/fit-o.json`) was found only at L 0.40, darker still.
+It lay outside the boxes my what-if runs had searched. What it costs is chroma: its magenta has chroma 0.30, its red 0.21 and its purple 0.23, and a hue shift sits at 29.97°.
 
-## How it was constructed
+## How the refit was done
 
-1. **Scoring first.** `research/palette/color.mjs` reimplements the study's metric and measures every constraint on rounded hex values.
-2. **Annealing, dropped.** A simulated-annealing solver over OKLCH with taste penalties, the method of the study's `search.mjs` extended with hue families and both schemes at once, found feasible palettes in a minority of seeds and only in orders nobody would choose (orange in slot 8, gray in slot 3), and could not tell an impossible order from a hard one. It was removed.
-3. **Exact search on a grid.** `fit.mjs` takes a target color per slot and scheme and a box around it (lightness, chroma, hue range), lays a grid over the box (L step 0.01, C 0.01, hue 2°), keeps the grid colors that pass contrast (with a 0.02 margin) and the token distances on their own, and runs branch and bound over the slots with forward checking on the pairwise constraints. The cost is the squared distance from the target, so the answer is the feasible palette nearest to what was asked for, and a search that completes without an answer proves the request impossible on that grid. The light scheme is solved first; the dark scheme's hue boxes are clipped to within 28° of the light result per slot.
-4. **Which families.** `explore.mjs sets` tried the 99 sets of eight families that contain a blue, an orange, a purple, a green or teal, and a red, pink or magenta, drawn from a pool that also had cyan, gold, brown and slate, with the blue held at L 0.58 or above (so it can be the single-series color and stay clear of the focus token, `#1f5fcc` at L 0.51). Without order constraints, 34 sets were feasible, 12 were proven infeasible and 53 were undecided after 3 s each.
-5. **Which order.** `explore.mjs orders` then tried orders of four promising sets, skipping orders whose first four cannot reach 0.14 (the runs were stopped after 10–46 feasible orders per set, so they are samples, not exhaustive). Every feasible order found put at least one deep color (L 0.50 or below) next to the blue in the first four. The cheapest orders of the sets built on teal with brown or gold needed either a very dark brown (`#5e3905`, `#60370b`, L ≈ 0.35) somewhere in the eight or an orange darkened to rust (`#a55112`); the set with green, cyan and red keeps the orange bright. In that set the order blue, orange, green, purple, red, cyan, magenta, slate puts the familiar first five first and the neutral last.
-6. **Targets, then looking.** I wrote targets per slot and scheme, fitted, rendered the preview, and changed targets where the result looked wrong: tighter chroma caps (proven infeasible: `configs/fit-f.json`), a lighter and bluer green (`fit-k.json`, infeasible), the red ahead of the cyan (`fit-g.json`), the 0.02 contrast margin (`fit-l.json`), and for dark a full medium blue near L 0.58 with green and purple as the light pair (`fit-n.json`). The dark boxes of `fit-k.json` (blue at L 0.60–0.66, green and purple above 0.72) were proven infeasible. My reading of why (inferred from the binding pairs, not proven): blue and purple are both in the first four and the simulations leave them mostly lightness, so the purple must sit about 0.14 above the blue, and the cyan must clear both.
-7. **Shipped run.** `configs/fit-final.json` refits small boxes around the `fit-l.json` light result and uses the `fit-n.json` dark boxes; both searches complete (proven optimal on their grids), so the run is deterministic: `node research/palette/fit.mjs --config=research/palette/configs/fit-final.json --seconds=400`.
+1. **Wider boxes, exact search.** `fit.mjs` with light floors at L 0.44–0.48 and chroma up to 0.18–0.22 (`configs/even-a.json`, `even-c.json`). Both now require analytic and byte-rounded pairwise distances and both byte models for fills. No palette was found within 300 s. That is a timeout, not a proof.
+2. **Annealing.** `anneal.mjs` searches the same grids by minimising the total shortfall. I checked it first on a known-feasible neighbourhood: it recovered the review's palette. From random starts it found feasible light sets only once the boxes were split into tiers: blue, orange and slate near 3:1, red and cyan in the middle, green, purple and magenta lower (`configs/tier-44-free.json`). It found nothing with every color at L 0.46 or above (`configs/tier-46-cr.json`).
+3. **Dark against that light set.** The searches with the old focus token failed: `dark-a2.json` (annealing) and `dark-n2.json` (exact; best blue L 0.55). Moving the dark focus to near-white let annealing find a set with a light dark-mode blue and a deeper purple (`configs/dark-c.json`).
+4. **Polish.** `configs/fit-final.json` puts small boxes around both results and adds the solver margins. Both exact searches complete, so the run is deterministic and reproduces the shipped arrays: `node research/palette/fit.mjs --config=research/palette/configs/fit-final.json --seconds=300`.
+5. **Explorer fixed.** `explore.mjs orders` now keeps three outcomes per order (feasible, proved infeasible, timed out). It prunes only on a completed proof and prints all three. The first version's family and order statistics came from the faulty explorer, and I did not rerun them in full, so they are withdrawn.
 
-## What was traded
+## Tried and failed
 
-- **Three deep colors on white.** Green (L 0.42), purple (0.39) and magenta (0.49) are much darker than blue, orange and slate (0.66–0.68). It reads as a deliberate light/deep rhythm in the 5- and 8-series mocks, but in the 3-series chart the deep green is clearly the heaviest line.
-- **The 3:1 tier sits on the floor.** Blue 3.12, orange 3.04 and slate 3.12 on white; a 2 px line of them averages about 2.5:1.
-- **The green is saturated.** At L 0.42 and chroma 0.14 the green sits on two binding pairs (the red under protanopia, the purple under tritanopia); the calmer greens the solver found were darker still.
-- **The light red is muted** (chroma 0.12 against the orange's 0.17). The orange–red pair is the closest pair under tritanopia (0.103), which turns both into pinks; a stronger red at that lightness would close it further (inferred).
-- **The dark blue is darker than dark-mode blues usually are** (`#1c73c5`, L 0.55, 3.64:1). A light dark-mode blue (L 0.72–0.84) with the dark focus token changed to white found no palette within 150 s (`configs/whatif-dark-blue-high.json`).
-- **The dark green and cyan are the brightest colors** (L 0.86 and 0.84). The targets asked for about 0.80; the solver moved them up, by my reading because of the first four and because the cyan has to clear the blue under tritanopia and the purple under deuteranopia. Their chroma is held to 0.11–0.12 so they are pale rather than neon.
-- **Red is fifth, not third.** Red cannot sit in the first four next to a bright orange at 0.14 (tritanopia merges them), so the first four are blue, orange, green, purple.
+Each line below means "not found". Only searches that complete prove anything, and those are marked.
+
+- **A lighter, calmer slot-3 green** (L 0.46 or above, chroma 0.11 or below), with restrained chroma elsewhere (`configs/green-a.json`; `green-b.json`, which also allowed a saturated red): nothing. The shortfalls were green against red under protanopia, and magenta against cyan and slate. The review's palette does have such a green (`#2b6d48`). It pays for it with a near-3:1 magenta at chroma 0.30, which the walk below could not bring down.
+- **Walking from the review's palette toward lower chroma** while staying feasible (`configs/walk-b.json`): the green and red calmed down, but the magenta stayed at chroma 0.28 or more (`#fd26e0`).
+- **The review's tier structure with chroma held at 0.22 or less** (`configs/cx-a.json`): nothing; magenta was always the shortfall.
+- **Red third**, as in Tableau 10 (`configs/red3-a.json`): nothing; red was short against green under protanopia.
+- **Magenta fourth instead of purple**, to relieve the dark blue (`configs/mag4-a.json`): feasible on white. Its dark set was proved infeasible with the old focus token (exact search, `configs/dark-n2-m4.json`), and annealing found none with the new one (`configs/dark-b2-m4.json`).
+- **Fills at the worst case within one byte per channel**: never met together with the other goals. The shipped palette's worst case is 0.056 in both schemes, short by 0.004.
+- **A palette with every light color at L 0.48 or above that also keeps chroma at 0.22 or less**: none found. As far as I can tell, the lightness-for-chroma trade the review's palette makes is real. What is not proved is that a better point does not exist; the searches above were limited in time and in boxes.
 
 ## Additions beyond the six constraints
 
-- **Muted token (tested).** The donut draws its "Other" slice in the muted token (`scene/index.ts`), next to series slices, so the solver and the test also keep every series color 0.10 from muted, the rule of constraint 5. If the owner disagrees, drop the muted line from test 5.
-- **Ring closure (recorded only).** A donut of n slices puts slice n next to slice 1. Slices are opaque in Axylo, so constraint 2 covers them; `palette.json` records the closing pairs at 25% and 80% (`ringClosures`) without requiring them. At 25% three are below 0.06 (light 6–1 0.033 and 8–1 0.035, dark 8–1 0.048).
-- **Composites under deficiencies (recorded only).** Constraint 6 asks for normal vision. Under the simulations the 25% neighbours drop to 0.023–0.046 and the 80% neighbours to 0.081–0.131 (`palette.json`, `composites`).
-- **Contrast margin in the solver.** `fit.mjs` only proposes colors at 3.02:1 or more; the test requires 3:1, as specified.
+- **Muted token** in constraint 5 (tested). The donut's "Other" slice.
+- **Byte-level checks** (tested): byte-rounded simulation; fills on both 8-bit raster models; Chrome's drawn pixels within one byte of the model and 0.06 apart.
+- **Ring closure and deficiency-simulated fills** (recorded only). At 25% the donut's closing pairs go down to 0.032 (light 8–1) and 0.037 (dark 6–1). Neighbours under simulation go down to 0.024 (light, deuteranopia). Slices are opaque in Axylo, so constraint 2 covers them.
+- **Solver margins** as listed above; the tests use the decision's limits.
 
-## An alternative I would prefer
+## For the owner
 
-I did not find one that is close. The palette I would have liked has no light color darker than about L 0.48, so that the eight colors have even weight; the what-ifs above show that this needs the pairwise limit below 0.08 and the first-four limit below 0.12 at the same time, which is not a small relaxation, and I did not construct such a palette. Simply lifting the green to L 0.50 and the purple to 0.47 in the shipped set (`#21763c`, `#723d9a`) breaks constraint 2 badly (protanopia 0.028 between green and red, deuteranopia 0.051, tritanopia 0.070), the first four (protanopia 0.098) and the 25% neighbours (0.047).
+- **Is the light set's weight acceptable?** Three colors (green, purple, magenta at L 0.43–0.49) are much darker than the three at 3:1. In the 3-series chart the green line is clearly the heaviest. I could not remove that at restrained chroma. The review's palette is more even and noticeably louder; its magenta reads as hot pink.
+- **The dark focus ring becomes near-white `#e3e8f0`** (light stays blue). This is a visible UI change, made to free the dark blue. The alternative is to keep `#79a8ff` and accept a dark blue near L 0.55.
+- **The dark set mixes very light green, cyan and pink** (L 0.79–0.86) with a deep purple (0.54) and a mid red (0.58). Purple and red are the dimmest (3.26 and 3.86:1).
+- **Slot hues moved within each family.** The light red is a coral (hue 18), the dark red a brick (hue 32). That 13.6° shift is the largest.
 
-## Taste questions for the owner
+## Reference palettes (measured)
 
-- Do the three deep colors on white read as deliberate (in the way of IBM Carbon's categorical set) or as uneven?
-- Is the slate right as the eighth series? It is kept apart from the muted gray of the donut's "Other" slice. Eight chromatic colors would need a brown or gold in slot 8, which the exploration found harder to place.
-- Is the dark blue (`#1c73c5`) acceptable as the dark-mode single-series color, or is a lighter blue worth reopening the dark focus token and the dark tiers for?
-- The dark scheme mirrors the light one by visual weight rather than by lightness: the colors that are deep on white (green, purple, magenta) are the light ones on dark. Is that the right reading of "a series must not change identity"?
+These are read from the installed d3-scale-chromatic 3.1.1 (`research/harness/node_modules`) by `research/palette/references.mjs` and scored with the same code (`research/palette/references.json`). Minima are over the first eight colors.
 
-## Palettes studied (from memory)
+| Scheme | Below 3:1 on white | Min ΔE normal / protan / deutan / tritan (closest slots) |
+|---|---|---|
+| schemeTableau10 | 5 of 10 | 0.129 / 0.016 / 0.007 (3–5, red–green) / 0.064 |
+| schemeObservable10 | 6 of 10 | 0.113 / 0.059 / 0.020 / 0.046 |
+| schemeCategory10 (D3's default, Plotly's) | 4 of 10 | 0.113 / 0.007 (2–3) / 0.039 / 0.042 |
+| schemeDark2 | 2 of 8 | 0.099 / 0.018 / 0.017 / 0.049 |
+| schemeSet1 | 5 of 9 | 0.130 / 0.031 / 0.035 / 0.066 |
 
-I had these in mind, recalled from memory rather than looked up, so any hex values I used for them may be slightly off:
-
-- **Tableau 10** (the 2016 redesign): blue first, orange second, medium chroma, a warm gray as the quiet last color. Taken: the blue-then-orange opening and a neutral in the last slot. Not taken: its lightness (most of it is below 3:1 on white) and its red next to green, which deuteranopia merges.
-- **Observable 10**: a medium blue first, modern and slightly brighter. Taken: the azure-leaning blue. Not taken: its yellow, pastel blue and pink, far below 3:1.
-- **IBM Carbon categorical**: built for 3:1 on white, with alternating deep and light colors so neighbours differ in lightness. Taken: deep, saturated colors as the price of contrast plus color-vision separation on white. Not taken: its darkest slots (L below 0.35) and its near-twin teals.
-- **Okabe–Ito** and **Paul Tol** (bright, muted): designed for color-vision deficiency. Taken: blue against orange as the opening pair, the axis every simulation keeps, and red and green separated by lightness. Not taken: the yellows and sky blues that fail 3:1 on white.
-
-Scored as I recall them, none of these meets constraints 1 and 2 together either, so this palette is constructed rather than adapted.
+Library defaults as rendered are in R7 (docs/01-landscape.md). That table has eight displayed six-slice rows. Recharts' row uses its documentation's authored colors, the D3 chart is authored, uPlot has no default palette, and ECharts was read from its options. What I took from these: the blue-then-orange opening (Tableau 10, Category 10), a quiet neutral last, and the evidence that the familiar sets put adjacent hues that deuteranopia merges (Tableau 10's red and green at 0.007). The first version also drew on palettes recalled from memory (IBM Carbon, Okabe–Ito, Paul Tol). No arrays for them are installed here, so they are not cited.
 
 ## Not verified
 
-- The browser tests that sample palette colors (`test/browser/render/*`, `test/browser/chart/render.browser.test.ts`) were not run: they need `npm run build`, which another agent was using. They read the colors from `palette.ts`, so they should follow, but that is inferred.
-- Simulation is Machado at severity 1.0 only; anomalous trichromacy at lower severity was not scored.
-- Stroke contrast was measured in headless Chrome 157 on Linux only (canvas and SVG), not in Firefox or Safari, and not on Windows.
-- No person with a color-vision deficiency looked at the previews; the simulations are the evidence.
+- The browser suites that sample palette colors were not run, because they need `npm run build`.
+  - `render.browser.test.ts` and `theme.browser.test.ts` read the colors from `palette.ts`, so they should follow; that is inferred.
+  - `keyboard.browser.test.ts` checks the light focus only, and that token is unchanged.
+  - Any browser test that checks the dark focus ring's color would see `#e3e8f0` now.
+- Raster checks cover isolated fills over the background. A 25% area over another 25% area (overlapping areas) is not scored.
+- The simulation is Machado at severity 1.0 only.
+- Strokes and fills were measured in headless Chrome 157 on Linux only.
+- Nobody with a color-vision deficiency has looked at the previews.
 
 ## Files
 
-- `packages/axylo/src/theme/palette.ts`: the two sets (names and shapes unchanged; tokens unchanged).
-- `packages/axylo/test/theme/palette.test.ts`: constraints 1–6 (and muted), with its own scoring code, cross-checked against `research/palette/palette.json`.
-- `research/palette/`: scripts, configs, `palette.json`, `strokes.json`, `preview.html`, `preview-light.png`, `preview-dark.png`; see its README.
+- `packages/axylo/src/theme/palette.ts`: both series sets and the dark focus token. Exported names and shapes are unchanged.
+- `packages/axylo/test/theme/palette.test.ts`: constraints 1–6, analytic and in bytes; Chrome fill pixels; the record at written precision; stroke-record validation.
+- `research/palette/`: `color.mjs`, `fit.mjs`, `anneal.mjs`, `explore.mjs`, `score.mjs`, `raster.mjs`, `strokes.mjs`, `preview.mjs`, `references.mjs`, `configs/`, `palette.json`, `raster.json`, `strokes.json`, `references.json`, `preview.html` and the two PNGs. See the README there.
