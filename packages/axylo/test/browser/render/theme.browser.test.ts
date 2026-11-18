@@ -27,7 +27,9 @@ describe('scheme detection (spec L4)', () => {
     const page = await open();
     await page.addStyleTag({ content: ':root { color-scheme: dark; }' });
     await page.evaluate(() => window.axr.mount('svg', 20, 60));
-    expect(await scheme(page)).toEqual({ scheme: 'dark', attribute: 'dark' });
+    // The page sets color-scheme: the stylesheet's light-dark() defaults follow the used scheme and no attribute
+    // fixes one (seventh pass, L4 on a media change); the resolved scheme and the pixels still say which.
+    expect(await scheme(page)).toEqual({ scheme: 'dark', attribute: null });
     const img = await shot(page, 20, 60, 400, 300);
     expect(diff(at(img, 85, 50), rgb(DARK.series[0]!))).toBeLessThanOrEqual(8);
     await close(page);
@@ -45,7 +47,9 @@ describe('scheme detection (spec L4)', () => {
     const page = await open({ colorScheme: 'dark' });
     await page.addStyleTag({ content: ':root { color-scheme: light; }' });
     await page.evaluate(() => window.axr.mount('svg', 20, 60));
-    expect(await scheme(page)).toEqual({ scheme: 'light', attribute: 'light' });
+    // The page sets color-scheme: the stylesheet's light-dark() defaults follow the used scheme and no attribute
+    // fixes one (seventh pass, L4 on a media change); the resolved scheme and the pixels still say which.
+    expect(await scheme(page)).toEqual({ scheme: 'light', attribute: null });
     await close(page);
   });
 

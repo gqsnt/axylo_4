@@ -105,8 +105,13 @@ describe('overlay (contracts: Overlay)', () => {
     // A and C have values at 4; B's outage has no marker.
     const points = overlay.clipped.filter(m => m.type === 'points');
     expect(points.map(p => p.type === 'points' ? p.series : -1)).toEqual([0, 0, 2, 2]);
-    expect(overlay.unclipped).toHaveLength(4);
-    expect(overlay.unclipped.every(m => m.type === 'rule' && m.stroke.kind === 'token' && m.stroke.name === 'focus' && m.strokeWidth >= 2)).toBe(true);
+    // Two tones (seventh pass, WCAG 1.4.11): four sides of background-coloured surround, then the four sides
+    // of the focus colour drawn over them, 1 px narrower on each side.
+    expect(overlay.unclipped).toHaveLength(8);
+    const surround = overlay.unclipped.slice(0, 4);
+    const ring = overlay.unclipped.slice(4);
+    expect(surround.every(m => m.type === 'rule' && m.stroke.kind === 'token' && m.stroke.name === 'background' && m.strokeWidth === 4)).toBe(true);
+    expect(ring.every(m => m.type === 'rule' && m.stroke.kind === 'token' && m.stroke.name === 'focus' && m.strokeWidth >= 2)).toBe(true);
   });
 
   it('in single-series mode only that series is highlighted; nothing to draw is null', () => {

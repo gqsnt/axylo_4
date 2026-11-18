@@ -124,8 +124,15 @@ export function resolveTheme(
   const overrideColor = override ? parseColor(overrideText!) : null;
   const background = overrideColor !== null && overrideColor.a > 0 ? composite(overrideColor, backdrop.color) : backdrop.color;
 
-  const scheme = decideScheme(style, overrideColor !== null && overrideColor.a > 0 ? background : null, canvasText!, doc);
-  if (element.getAttribute('data-axylo-scheme') !== scheme) element.setAttribute('data-axylo-scheme', scheme);
+  const overridden = overrideColor !== null && overrideColor.a > 0;
+  const scheme = decideScheme(style, overridden ? background : null, canvasText!, doc);
+  // Where the page sets the chart's color-scheme, the stylesheet's defaults follow the browser's used scheme
+  // by themselves (light-dark()), media changes included, in the frame they happen: no attribute freezes one.
+  // Otherwise (color-scheme normal, or the author's --axylo-background decides) the scheme found here is it.
+  const follows = !overridden && style.colorScheme.trim() !== '' && style.colorScheme.trim() !== 'normal';
+  if (follows) {
+    if (element.hasAttribute('data-axylo-scheme')) element.removeAttribute('data-axylo-scheme');
+  } else if (element.getAttribute('data-axylo-scheme') !== scheme) element.setAttribute('data-axylo-scheme', scheme);
 
   const expressions = [...TOKENS.map(t => TOKEN_BINDINGS[t]), ...bindings.series];
   const computed = probeColors(element, expressions);

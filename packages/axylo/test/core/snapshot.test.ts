@@ -685,3 +685,18 @@ describe('pass 5: AX143 says which chart it is, so only vertical category bars g
     if (message !== null) expect(message).not.toMatch(/horizontal/);
   });
 });
+
+describe('seventh pass: an untitled chart is named in diagnostics by its target element\'s id', () => {
+  it('a target with id "sessions": the diagnostics name "sessions", not the allocated id', () => {
+    const r = record('line', { data: rowsOf([1, 2]), x: 'x', y: 'y' }, { targetId: 'sessions' });
+    r.frames();
+    const ax140 = r.controller.handle.diagnostics.find(d => d.code === 'AX140');
+    expect(ax140?.chart).toBe('sessions');
+  });
+
+  it('a target without an id: the allocated id, as before', () => {
+    const r = record('line', { data: rowsOf([1, 2]), x: 'x', y: 'y' });
+    r.frames();
+    expect(r.controller.handle.diagnostics.find(d => d.code === 'AX140')?.chart).toBe('axylo-test');
+  });
+});

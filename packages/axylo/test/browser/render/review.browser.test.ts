@@ -194,7 +194,11 @@ describe('finding 8: theme changes on the chart\'s own ancestors', () => {
     });
     await page.evaluate(() => document.getElementById('card')!.setAttribute('data-theme', 'dark'));
     await page.waitForFunction(() => window.axr.fired() >= 1, undefined, { timeout: 2000 });
-    expect((await page.evaluate(() => window.axr.info(0))).attribute).toBe('dark');
+    // The card sets color-scheme: dark, so the defaults follow it with no attribute (seventh pass, L4); the
+    // resolved scheme is dark.
+    const info = await page.evaluate(() => window.axr.info(0));
+    expect(info.attribute).toBeNull();
+    expect(info.theme.scheme).toBe('dark');
     await page.evaluate(() => window.axr.move(0, '#card2'));
     await frames(page, 2);
     const moved = await page.evaluate(() => window.axr.fired());

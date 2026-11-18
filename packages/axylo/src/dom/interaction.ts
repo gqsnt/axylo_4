@@ -137,6 +137,9 @@ const NAVIGATION: Readonly<Record<string, StepDirection>> = {
   ArrowRight: 'next', ArrowLeft: 'previous', Home: 'first', End: 'last', PageUp: 'page-next', PageDown: 'page-previous',
 };
 const DRAG_THRESHOLD = 4;
+/** Decision 0004 rule 3b: a pointer that stays within 2 CSS px for 250 ms has come to rest on its datum. */
+const REST_DISTANCE = 2;
+const REST_TIME = 250;
 const TAP_DISTANCE = 10;
 const TAP_TIME = 500;
 
@@ -181,7 +184,11 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   /** What the value text was last written about (decision 0004, part 2). */
   let shownText: { ref: DatumRef | null; mode: Mode; reading: string | null } | null = null;
   /** The pointer's datum and the rectangle its floating tooltip took (decision 0004 r2, rule 3). */
-  let heldTip: { target: PickTarget; rect: Rect } | null = null;
+  let heldTip: { target: PickTarget; rect: Rect; across: boolean } | null = null;
+  /** Rule 3b: where the pointer last came to rest (plot pixels) and since when (event time, ms). */
+  let rest: { at: { x: number; y: number }; time: number } | null = null;
+  /** Rule 3b: the datum held along the corridor from its resting position (viewport) to its tooltip. */
+  let corridor: { from: { x: number; y: number }; rect: Rect; target: PickTarget } | null = null;
   let lastHover: DatumRef | null = null;
   let presented = '';
   let dirty = true;
@@ -452,9 +459,14 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
         };
         if (figure.figure.classList.contains('axylo-readout-mode')) tooltip.strip(content, pinned);
         else {
-          tooltip.show(content, placementFor(d, target, only), pinned);
-          // Where the pointer's datum showed its tooltip: on scatter and donut the datum is held there.
-          if (source === 'pointer') heldTip = { target, rect: tooltip.rect()! };
+          const placement = placementFor(d, target, only);
+          tooltip.show(content, placement, pinned);
+          // Where the pointer's datum showed its tooltip: on scatter and donut the datum is held there (rule 3),
+          // and whether it went across the reading axis or beside the datum (rule 3b).
+          if (source === 'pointer') {
+            const rect = tooltip.rect()!;
+            heldTip = { target, rect, across: acrossReadingAxis(d, rect, placement.box) };
+          }
         }
       }
     }
@@ -801,12 +813,30 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     return { x: (event.clientX - box.left) / k.x, y: (event.clientY - box.top) / k.y };
   }
 
-  function pointAt(at: { x: number; y: number }): void {
+  function pointAt(at: { x: number; y: number }, time = doc.defaultView?.performance.now() ?? 0): void {
     const d = c;
     if (!plotReady(d)) return;
     pointer = at;
     // A pinned tooltip stays until Escape, a click elsewhere, or its datum leaves (decision 0004 rule 4).
     if (pinned) return;
+    // Rule 3b: a move of more than 2 px ends a rest; a rest of 250 ms on a datum whose tooltip is not across
+    // the reading axis opens the corridor to that tooltip, which holds the datum until the pointer leaves it.
+    // The corridor opens on the first move after the rest, also one of 2 px or less (a datum at a band's
+    // edge would otherwise change on it).
+    if (rest && time - rest.time >= REST_TIME && !corridor && pointerTarget && heldTip && !heldTip.across &&
+      sameTarget(heldTip.target, pointerTarget) && tooltip.where === 'floating') {
+      corridor = { from: toPage(rest.at), rect: heldTip.rect, target: pointerTarget };
+    }
+    if (!rest || Math.hypot(at.x - rest.at.x, at.y - rest.at.y) > REST_DISTANCE) rest = { at, time };
+    if (corridor) {
+      if (insideHull(corridor.from, corridor.rect, toPage(at))) {
+        pointerTarget = corridor.target;
+        source = 'pointer';
+        present();
+        return;
+      }
+      corridor = null;
+    }
     let target = d.lookup.pick(at.x, at.y);
     // Scatter and donut have no reading axis: while the pointer is inside the tooltip's rectangle the datum
     // is held, computed here from coordinates (the tooltip itself takes no events, rule 3).
@@ -823,6 +853,48 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     }
     source = 'pointer';
     present();
+  }
+
+  /** A point in plot pixels, in viewport pixels. */
+  function toPage(at: { x: number; y: number }): { x: number; y: number } {
+    const box = plot.getBoundingClientRect();
+    const k = cssScale(plot);
+    return { x: box.left + at.x * k.x, y: box.top + at.y * k.y };
+  }
+
+  /**
+   * Whether the tooltip went across the reading axis (above or below for a horizontal position axis, right or
+   * left for horizontal bars), where a straight approach does not change the datum and rule 3b does not apply.
+   * Scatter and donut have no reading axis: their tooltips are never across it.
+   */
+  function acrossReadingAxis(d: Committed, rect: Rect, box: Rect): boolean {
+    if (d.view.kind === 'scatter' || d.view.kind === 'donut') return false;
+    if (horizontalBars(d)) return rect.x >= box.x + box.width - 0.5 || rect.x + rect.width <= box.x + 0.5;
+    return rect.y >= box.y + box.height - 0.5 || rect.y + rect.height <= box.y + 0.5;
+  }
+
+  /** Whether a point is inside the convex hull of `from` and the rectangle (all in viewport pixels). */
+  function insideHull(from: { x: number; y: number }, r: Rect, p: { x: number; y: number }): boolean {
+    const points = [from, { x: r.x, y: r.y }, { x: r.x + r.width, y: r.y }, { x: r.x + r.width, y: r.y + r.height }, { x: r.x, y: r.y + r.height }]
+      .sort((a, b) => a.x - b.x || a.y - b.y);
+    const cross = (o: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }) =>
+      (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+    // Andrew's monotone chain: the hull counter-clockwise.
+    const lower: { x: number; y: number }[] = [];
+    for (const q of points) {
+      while (lower.length >= 2 && cross(lower[lower.length - 2]!, lower[lower.length - 1]!, q) <= 0) lower.pop();
+      lower.push(q);
+    }
+    const upper: { x: number; y: number }[] = [];
+    for (const q of [...points].reverse()) {
+      while (upper.length >= 2 && cross(upper[upper.length - 2]!, upper[upper.length - 1]!, q) <= 0) upper.pop();
+      upper.push(q);
+    }
+    const hull = [...lower.slice(0, -1), ...upper.slice(0, -1)];
+    if (hull.length < 3) return false;
+    // Inside (or on the edge of) a counter-clockwise convex polygon: never to the right of an edge.
+    for (let i = 0; i < hull.length; i++) if (cross(hull[i]!, hull[(i + 1) % hull.length]!, p) < -1e-6) return false;
+    return true;
   }
 
   /** Whether a point in plot pixels is inside a rectangle in viewport pixels. */
@@ -858,12 +930,14 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
         return;
       }
     }
-    pointAt(at);
+    pointAt(at, event.timeStamp);
   }
 
   function leave(): void {
     pointer = null;
     heldTip = null;
+    corridor = null;
+    rest = null;
     if (!pinned) pointerTarget = null;
     if (source === 'pointer' && !pinned) source = proxyFocused && !fromClick ? 'keyboard' : null;
     present();
@@ -1462,6 +1536,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       dismissed = null;
       unpin();
       heldTip = null;
+      corridor = null;
       lastHover = null;
       shownText = null;
       focus = proxyFocused && plotReady(next) ? initialFocusFor(next) : null;

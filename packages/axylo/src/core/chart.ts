@@ -149,6 +149,8 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
     const timeZone = viewerTimeZone();
     controller = createController(kind, input, {
       id,
+      // The author's own id names an untitled chart in diagnostics; the allocated one stays for the DOM.
+      targetId: root.id || null,
       console: overrides.console === undefined ? (win.console as DeliveryConsole) : overrides.console,
       page: doc,
       timeZone,

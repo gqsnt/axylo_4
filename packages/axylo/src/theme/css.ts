@@ -17,6 +17,19 @@
  */
 import { DARK, LIGHT, type SchemeColors } from './palette';
 
+/** Each default as `light-dark(light, dark)`: the browser picks by the chart's used colour scheme. */
+function following(light: SchemeColors, dark: SchemeColors): string {
+  const pair = (a: string, b: string) => `light-dark(${a}, ${b})`;
+  const series = light.series.map((v, i) => `    --axylo-default-series-${i + 1}: ${pair(v, dark.series[i]!)};`).join('\n');
+  return `${series}
+    --axylo-default-background: ${pair(light.background, dark.background)};
+    --axylo-default-axis: ${pair(light.axis, dark.axis)};
+    --axylo-default-grid: ${pair(light.grid, dark.grid)};
+    --axylo-default-muted: ${pair(light.muted, dark.muted)};
+    --axylo-default-reference: ${pair(light.reference, dark.reference)};
+    --axylo-default-focus: ${pair(light.focus, dark.focus)};`;
+}
+
 function tokens(c: SchemeColors): string {
   const series = c.series.map((v, i) => `    --axylo-default-series-${i + 1}: ${v};`).join('\n');
   return `${series}
@@ -50,12 +63,22 @@ export const AXYLO_CSS = `/* Axylo default stylesheet */
   /* Lets ensureStyles find this sheet; it checks the sheet's effect as well, not only this sentinel. */
   :root { --axylo-stylesheet: loaded; }
 
-  /* tokens: private defaults, light set */
+  /*
+   * tokens: private defaults that follow the chart's used colour scheme (spec L4). Where the page gives the
+   * chart a color-scheme (light dark, dark, light, only …), resolveTheme writes no scheme attribute and these
+   * apply: a prefers-color-scheme change switches every var(--axylo-default-…) in the same frame as the media
+   * query, with no script (the SVG marks reference them; the canvas renderer repaints when the change event
+   * arrives, one frame behind). light-dark() is supported by the current and previous major versions of the
+   * four browsers in spec 2.3.
+   */
   .axylo {
-${tokens(LIGHT)}
+${following(LIGHT, DARK)}
   }
 
-  /* tokens: private defaults, dark set, selected by the scheme the chart resolved */
+  /* tokens: one fixed set, where the chart resolved its scheme itself (color-scheme normal; --axylo-background) */
+  .axylo[data-axylo-scheme="light"] {
+${tokens(LIGHT)}
+  }
   .axylo[data-axylo-scheme="dark"] {
 ${tokens(DARK)}
   }
@@ -218,6 +241,11 @@ ${forced}
     position: absolute; z-index: 2; display: none; box-sizing: border-box; pointer-events: none;
     /* Inside the plot's box: the plot clips, and a ring outside it would not be seen (review 2, finding 14). */
     outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: -3px;
+    /* Two tones (WCAG 1.4.11): 1 px of the background colour on each side of the 2 px outline, so the focus
+       colour is separated from any mark under it and needs 3:1 against the background only. */
+    box-shadow: inset 0 0 0 4px var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)));
+    /* Kept in forced colours, where both tokens are system colours already (Highlight on Canvas). */
+    forced-color-adjust: none;
   }
   .axylo .axylo-proxy:focus-visible + .axylo-focus-ring { display: block; }
   /* The donut slice the keyboard is on, also when it has no arc. */

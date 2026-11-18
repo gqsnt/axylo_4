@@ -114,6 +114,12 @@ function ownSuite(): boolean {
   return /\/test\/browser\/(?:chart|a11y)\//.test(path);
 }
 
+/** Suites that may run another build through AXYLO_BUNDLE without taking the renderer switch (render/). */
+function bundleSuite(): boolean {
+  const path = (expect.getState().testPath ?? '').replace(/\\/g, '/');
+  return /\/test\/browser\/render\//.test(path);
+}
+
 /** Runs in the page: makes the chart functions pass `__renderer` unless the call gives one. */
 function selectRenderer(renderer: string): void {
   const original = (window as unknown as { Axylo: Record<string, unknown> }).Axylo;
@@ -131,7 +137,7 @@ export async function chartPage(options: BrowserContextOptions & { query?: strin
   const page = await openPage(rest);
   // AXYLO_BUNDLE=<dir> (this directory's suites only): the page runs the bundle built in <dir> instead of the
   // shared dist, so a test can be shown to fail on an older revision without touching what other suites load.
-  if (BUNDLE && ownSuite()) {
+  if (BUNDLE && (ownSuite() || bundleSuite())) {
     await page.evaluate(() => {
       document.querySelector('link[rel="stylesheet"]')?.remove();
       delete (window as unknown as { Axylo?: unknown }).Axylo;

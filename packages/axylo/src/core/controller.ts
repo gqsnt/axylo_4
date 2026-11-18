@@ -115,7 +115,10 @@ const MIN_PLOT_HEIGHT = 80;
 
 /** Everything the controller needs from the page. */
 export interface Host {
+  /** Allocated, for the DOM relationships (aria-describedby, the table's id). */
   readonly id: string;
+  /** The target element's own `id`, when it has one: an untitled chart is named by it in diagnostics. */
+  readonly targetId?: string | null;
   readonly console: DeliveryConsole | null;
   /** The page the once-per-code printing rule applies to. */
   readonly page: object;
@@ -332,7 +335,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
   let inFrame = false;
 
   function chartName(o: OptionRecord): string {
-    return titleOf(o)?.text ?? host.id;
+    return titleOf(o)?.text ?? (host.targetId || host.id);
   }
 
   /** Every presentation finding once: the same code and field found by two stages (ticks and readouts) is one. */
@@ -949,7 +952,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
   function raiseInternal(error: unknown): void {
     const first = internalError === null;
     internalError = error;
-    if (first) delivery.internal(accepted?.name ?? host.id, error);
+    if (first) delivery.internal(accepted?.name ?? (host.targetId || host.id), error);
     setPresentationQuiet('internal', [createDiagnostic('AX199', 'chart-error', {}, 'presentation')]);
     if (!inFrame) deliverChanges();
   }
@@ -1575,7 +1578,10 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       // The colours are resolved and written now, in the observer's callback, so the marks show the new
       // scheme in the first frame after the change (L4): their paint refers to the custom properties written
       // here. What is drawn as pixels (canvas) is repainted by the next frame, once, through the scheduler
-      // (one draw per animation frame; review 3, finding 19). Only when what is on screen is also what is
+      // (one draw per animation frame; review 3, finding 19). On a prefers-color-scheme change the SVG marks
+      // switch in CSS in the frame of the change (light-dark() defaults), while the canvas renderer, which
+      // paints concrete colours, is one frame behind: it repaints when the media query's change event
+      // arrives, and AX141 is judged then. Only when what is on screen is also what is
       // accepted, so the colours written belong to the marks shown.
       const a = accepted;
       if (!inFrame && a && drawn && theme && drawn.accepted.view === a.view) {

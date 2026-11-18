@@ -38,7 +38,9 @@ async function resolvedSeries(page: Page): Promise<readonly [number, number, num
 describe('scheme from the page (spec L4)', () => {
   it('a page with color-scheme: dark draws the dark palette', async () => {
     const page = await chartPage({ css: ':root { color-scheme: dark; } body { background: #16181d; color: #e8eaee; }' });
-    expect((await create(page, 'canvas')).scheme).toBe('dark');
+    // The page sets the scheme: the defaults follow the browser's used scheme (light-dark()), so no attribute
+    // fixes one (seventh pass); the painted colours say which it is.
+    expect((await create(page, 'canvas')).scheme).toBeNull();
     expect(await seriesPixels(page, DARK.series[0]!)).toBeGreaterThan(200);
     expect(await closePage(page)).toEqual([]);
   });
@@ -53,7 +55,7 @@ describe('scheme from the page (spec L4)', () => {
 
   it('a light-only page under dark emulation stays light', async () => {
     const page = await chartPage({ colorScheme: 'dark', css: ':root { color-scheme: light; }' });
-    expect((await create(page, 'canvas')).scheme).toBe('light');
+    expect((await create(page, 'canvas')).scheme).toBeNull();
     expect(await seriesPixels(page, LIGHT.series[0]!)).toBeGreaterThan(200);
     expect(await closePage(page)).toEqual([]);
   });

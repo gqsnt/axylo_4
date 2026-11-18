@@ -169,18 +169,30 @@ export interface OverlayInput {
 const HALO = 13;
 const MARKER = 9;
 const RING_GAP = 4;
-/** How far the keyboard's datum ring reaches beyond the datum's box: the widest gap and half its stroke. */
-export const RING_REACH = 9;
+/**
+ * How far the keyboard's datum ring reaches beyond the datum's box: the widest gap, then the ring's 2 px in
+ * the focus colour between 1 px of background colour on each side (WCAG 1.4.11: the surround separates the
+ * focus colour from any mark it crosses, so it needs 3:1 against the background only).
+ */
+export const RING_REACH = 10;
+/** The ring in the focus colour, and the background-coloured surround it is drawn on. */
+const RING_WIDTH = 2;
+const SURROUND_WIDTH = RING_WIDTH + 2;
 /** How far inside the plot's rectangle its focus outline reaches (2 px at an offset of -3 px). */
 export const OUTLINE_REACH = 4;
 
-function rule(x1: number, y1: number, x2: number, y2: number, name: 'axis' | 'focus' | 'text', width: number): RuleMark {
+function rule(x1: number, y1: number, x2: number, y2: number, name: 'axis' | 'focus' | 'text' | 'background', width: number): RuleMark {
   return { type: 'rule', x1, y1, x2, y2, stroke: { kind: 'token', name }, strokeWidth: width, dash: null, role: 'cursor' };
 }
 
-function outline(box: Rect, gap: number, name: 'focus' | 'text', width: number): RuleMark[] {
+function outline(box: Rect, gap: number, name: 'focus' | 'text' | 'background', width: number): RuleMark[] {
   const x0 = box.x - gap, y0 = box.y - gap, x1 = box.x + box.width + gap, y1 = box.y + box.height + gap;
-  return [rule(x0, y0, x1, y0, name, width), rule(x1, y0, x1, y1, name, width), rule(x1, y1, x0, y1, name, width), rule(x0, y1, x0, y0, name, width)];
+  // Each side runs on by half the width at both ends, so the corners are closed as with square caps.
+  const h = width / 2;
+  return [
+    rule(x0 - h, y0, x1 + h, y0, name, width), rule(x1, y0 - h, x1, y1 + h, name, width),
+    rule(x1 + h, y1, x0 - h, y1, name, width), rule(x0, y1 + h, x0, y0 - h, name, width),
+  ];
 }
 
 function seriesIndex(view: View, ref: DatumRef): number {
@@ -253,11 +265,16 @@ export function buildOverlay(input: OverlayInput): Overlay | null {
     const box = lookup.anchor(ring);
     if (box) {
       // Drawn inside the plot's box, so it is painted at the last point and at the top of a donut too (A2):
-      // the ring's lines are kept a half stroke inside the plot.
+      // the ring's lines, surround included, are kept inside the plot. Two tones: the focus colour on a
+      // surround of the background colour (WCAG 1.4.11 against whatever mark the ring crosses).
       const gap = box.width === 0 && box.height === 0 ? 8 : RING_GAP;
-      const x0 = Math.max(plot.x + 1, box.x - gap), y0 = Math.max(plot.y + 1, box.y - gap);
-      const x1 = Math.min(plot.x + plot.width - 1, box.x + box.width + gap), y1 = Math.min(plot.y + plot.height - 1, box.y + box.height + gap);
-      if (x1 > x0 && y1 > y0) unclipped.push(...outline({ x: x0, y: y0, width: x1 - x0, height: y1 - y0 }, 0, 'focus', 2));
+      const inset = SURROUND_WIDTH / 2;
+      const x0 = Math.max(plot.x + inset, box.x - gap), y0 = Math.max(plot.y + inset, box.y - gap);
+      const x1 = Math.min(plot.x + plot.width - inset, box.x + box.width + gap), y1 = Math.min(plot.y + plot.height - inset, box.y + box.height + gap);
+      if (x1 > x0 && y1 > y0) {
+        const ringBox = { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
+        unclipped.push(...outline(ringBox, 0, 'background', SURROUND_WIDTH), ...outline(ringBox, 0, 'focus', RING_WIDTH));
+      }
     }
   }
   return clipped.length || unclipped.length ? { clip: plot, clipped, unclipped } : null;

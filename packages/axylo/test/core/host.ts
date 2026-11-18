@@ -48,6 +48,8 @@ export interface HostOptions {
   readonly captionLineHeight?: number;
   /** The page's `lang` (A10); 'en' when not given. */
   readonly pageLang?: string;
+  /** The target element's own id (an untitled chart's name in diagnostics). */
+  readonly targetId?: string;
 }
 
 export function record(kind: ChartKind, options: Record<string, unknown>, settings: HostOptions = {}): Recording {
@@ -88,6 +90,7 @@ export function record(kind: ChartKind, options: Record<string, unknown>, settin
 
   const host: Host = {
     id: 'axylo-test',
+    targetId: settings.targetId ?? null,
     console: settings.console === false ? null : {
       warn: (...args: unknown[]) => { rec.printed.push(String(args[0])); },
       info: (...args: unknown[]) => { rec.printed.push(String(args[0])); },
