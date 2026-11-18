@@ -146,7 +146,9 @@ The reader of that chart sees "Values not shown: 3. See table." (F12).
 
 Development and production flavours are selected through package `exports` conditions. The script-tag distribution ships `axylo.js` (development) and `axylo.min.js` (production). Errors and warnings print once per code per page in both; hints only in development.
 
-### 1.7 React adapter
+### 1.7 React adapter (not in 1.0)
+
+Removed from the first release by the owner on 2026-11-18: 1.0 is plain TypeScript, and adapters for React, Vue, Svelte and others follow later. The adapter described below was built, reviewed twice and fixed; its last state is `packages/react` at commit dac5664. The section is kept as the design to return to.
 
 ```tsx
 import { Line } from '@axylo/react';
@@ -240,7 +242,7 @@ Default styles are applied without injecting a `<style>` element, and a standalo
 
 ```
 packages/axylo/        core library (src/, test/)
-packages/react/        @axylo/react
+(packages/react/      @axylo/react: removed from 1.0, see 1.7)
 apps/docs/             documentation site; runnable examples are test fixtures
 bench/                 benchmark harness (04-plan-performance.md), built in M0
 acceptance/            the acceptance matrix and the fixtures it uses
@@ -302,7 +304,7 @@ Outcomes:
 - L1's property test in three engines, including text-spacing overrides and a late-loading font, on a category-axis line chart with long labels.
 - Tooltip tests at the edges, with sparse series, and in a narrow tile.
 - `empty`, loading, error and internal-error states visible and in the accessibility tree, each announced once.
-- Adapter tests: prop removal, handler replacement, inline field objects, StrictMode.
+- Adapter tests: prop removal, handler replacement, inline field objects, StrictMode (written and passing at commit dac5664; removed with the adapter).
 
 Example: "A dashboard tile with a target line and an empty state". Docs: Titles and labels, Tooltip, Legend, States.
 
@@ -347,12 +349,12 @@ Examples: "Live metrics", "A million points". Docs: Updating, Large data, Zoom.
 
 ### M7. Distribution and documentation (ceiling: 8 days)
 
-- `@axylo/react` finished; script-tag builds; documentation site; migration notes from Chart.js and Recharts.
+- Script-tag builds; documentation site; migration notes from Chart.js and Recharts. (No framework adapter in 1.0.)
 
 Outcomes:
-- The packed tarball installed into three clean fixtures (npm with a bundler, script tag, React): the first chart works in ten lines or fewer in each (DX1).
-- Node import and `validate()` without a DOM; SSR hydration; strict CSP with real headers (DX8).
-- Size measured on the packed distribution for line-only, full, script-tag and React cases, CSS included (DX7).
+- The packed tarball installed into two clean fixtures (npm with a bundler, script tag): the first chart works in ten lines or fewer in each (DX1).
+- Node import and `validate()` without a DOM; strict CSP with real headers (DX8).
+- Size measured on the packed distribution for line-only, full and script-tag cases, CSS included (DX7).
 - Every runnable docs example compiled and rendered from the packed distribution (DX10).
 - The agent rehearsal (DX12), recorded as rehearsal.
 

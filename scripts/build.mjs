@@ -64,8 +64,6 @@ async function main() {
   // For pages that prefer to load the stylesheet themselves, for example under a strict Content Security Policy.
   fs.writeFileSync(path.join(dist, 'axylo.css'), minified);
   execFileSync('npx', ['tsc', '-p', path.join(pkg, 'tsconfig.build.json')], { stdio: 'inherit', cwd: root });
-  // The React adapter needs the declarations just written.
-  execFileSync('node', [path.join(root, 'packages/react/build.mjs')], { stdio: 'inherit', cwd: root });
   console.log('built', fs.readdirSync(dist).filter(f => !fs.statSync(path.join(dist, f)).isDirectory()).join(', '));
 }
 

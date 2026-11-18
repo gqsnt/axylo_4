@@ -6,7 +6,7 @@
     "packages/*"
   ],
   "scripts": {
-    "typecheck": "tsc -p packages/axylo --noEmit && tsc -p docs/api && tsc -p packages/react && tsc -p tests/dist",
+    "typecheck": "tsc -p packages/axylo --noEmit && tsc -p docs/api && tsc -p tests/dist",
     "test": "vitest run",
     "build": "node scripts/build.mjs",
     "size": "node scripts/size.mjs",

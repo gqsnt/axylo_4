@@ -14,7 +14,6 @@ test-results/
 preview.log
 packages/axylo/test/browser/.out/
 .gallery/
-packages/react/test/browser/.out/
 acceptance/results/
 apps/docs/.cache/
 apps/docs/.scratch/

@@ -8,7 +8,7 @@ Based on the findings in [01-landscape.md](01-landscape.md). Finding IDs (R1–R
 
 **Axylo is the everyday chart you can ship without checking it.** The smallest correct call produces a chart that represents the data faithfully, stays readable at any width and in any color scheme, and works with a keyboard and a screen reader. When the data is wrong, Axylo says so, to the developer and to the reader, instead of drawing a guess.
 
-It is a framework-neutral TypeScript library under the MIT license, with a thin React adapter.
+It is a framework-neutral TypeScript library under the MIT license. 1.0 ships no framework adapter (owner's decision, 2026-11-18): adapters for React, Vue, Svelte and others come later; in a framework, create the chart when its element exists and call `destroy()` when it goes away.
 
 Speed is a constraint, not the headline: Axylo must stay within the budgets in section 5 with default options. Whether it can do that at a million points with its accessibility layer on is something the first milestone measures, not something this document can promise.
 
@@ -79,7 +79,7 @@ Each type has its own rules for picking, navigation and limits. They are in the 
 |---|---|
 | Browsers | The current and previous major versions of Chrome, Edge, Firefox and Safari (macOS and iOS). |
 | TypeScript | 5.4 and later. Plain JavaScript is fully supported; types are an aid, not a requirement. |
-| React | 18 and 19, through `@axylo/react`. |
+| Frameworks | None needed. No adapter ships in 1.0; the library is called from any framework's mount and unmount hooks. |
 | Text direction | Left-to-right pages. Right-to-left text renders, but the layout is not mirrored; this is stated in the conformance table. |
 | Built-in text | English, overridable (A10). |
 
@@ -219,14 +219,14 @@ Automated checks establish structure: names, roles, focus order, contrast, text.
 
 | ID | Criterion | Verified by | Driven by |
 |---|---|---|---|
-| DX1 | The first chart takes ten lines or fewer, including import, by npm, by script tag and in React. No required option besides data and fields. | Three CI tests that render the documented snippet from the packed distribution | D1 |
+| DX1 | The first chart takes ten lines or fewer, including import, by npm and by script tag. No required option besides data and fields. | Two CI tests that render the documented snippet from the packed distribution | D1 |
 | DX2 | One logical table, three ways to pass it: long rows, wide rows, typed columns. The three forms of each fixture produce the same normalized data and the same diagnostics, with row indexes in the caller's own form. | Equivalence tests | D2 |
 | DX3 | With typed rows, a misspelled field, a text field on a value axis, wide `y` combined with `series`, and an option that does not apply to the chart type all fail to compile. At run time, for untyped rows, the same mistakes raise AX101, AX106 and AX150. | [docs/api/examples.ts](api/examples.ts) compiles and each marked mistake fails (already checked with TypeScript 7.0.2); runtime tests per code | D5 |
 | DX4 | Diagnostics follow the registry in section 3.5: stable code, chart name, field and rows where they apply, the fix, and a documentation page per code. | Message snapshots; link checker | R5, D5 |
 | DX5 | Three methods change a chart: `update` changes options, `append` adds rows, `zoom` sets the view. They apply in call order. Validation and diagnostics are synchronous; drawing is deferred to the next frame; marks, labels, hit testing and the accessibility layer always switch to a new state together. `destroy()` releases everything and cancels pending work. No `resize()` exists. | Sequence tests: replace then append then zoom in one turn; a rejected `strict` update leaves the last valid chart; destroy before the frame; 1,000 create–destroy cycles show no heap growth trend (P7) | D3, R16 |
 | DX6 | Colors, font and spacing are CSS custom properties with documented names; the chart inherits `font-family` and `color`. `colors` pins a color to a series name so the same series has the same color on every chart. There is no theme object and no positional palette option. | Theming tests, including a 24-tile page where series subsets differ | R10 |
-| DX7 | Zero runtime dependencies (reconsidered only with a measured comparison). Size targets, set by the owner on 2026-11-18 after measurement: 96 KiB gzipped for everything, 80 KiB for a page that uses only `line`, 2 KiB for the React adapter, CSS included. (The first targets, 40 and 25 KiB, were written before anything was built; an analysis of the built library showed they cannot hold the accessibility layer, the table, diagnostics, three kinds of time and streaming: `reviews/2026-11-18/impl/wp/size.analysis.md`.) | size-limit in CI on the packed distribution | D4 |
-| DX8 | Importing in Node without a DOM does not throw, and `validate()` runs there. Works under React StrictMode, including setup, cleanup and setup again. Works under a Content Security Policy without `unsafe-inline` or `unsafe-eval`, served with real headers. Labels and formatter output are inserted as text, never as HTML. A target that matches no element throws an error that names the selector. | CI tests | D1 |
+| DX7 | Zero runtime dependencies (reconsidered only with a measured comparison). Size targets, set by the owner on 2026-11-18 after measurement: 96 KiB gzipped for everything and 80 KiB for a page that uses only `line`, CSS included. (The first targets, 40 and 25 KiB, were written before anything was built; an analysis of the built library showed they cannot hold the accessibility layer, the table, diagnostics, three kinds of time and streaming: `reviews/2026-11-18/impl/wp/size.analysis.md`.) | size-limit in CI on the packed distribution | D4 |
+| DX8 | Importing in Node without a DOM does not throw, and `validate()` runs there. Creating, destroying and creating again on the same element works and leaks nothing (the sequence a framework's strict or development mode produces). Works under a Content Security Policy without `unsafe-inline` or `unsafe-eval`, served with real headers. Labels and formatter output are inserted as text, never as HTML. A target that matches no element throws an error that names the selector. | CI tests | D1 |
 | DX9 | Semantic versioning. A deprecated API keeps working for at least one minor release and six months. At most one major version a year. The previous release's documented examples still compile and run against each release candidate. | Release policy; API report diff; upgrade test | D6 |
 | DX10 | Every runnable example in the documentation is compiled and rendered in CI from the packed distribution. | Docs build | D1 |
 | DX11 | MIT license for everything, including zoom and accessibility. Third-party notices are verified at release. | Repository; release check | D7 |
@@ -274,7 +274,7 @@ Three rules hold whatever the numbers become:
 | Numeric strings | R5. | Changed: a whole column of plain decimal strings is parsed with a hint; mixed columns are not. |
 | Chart types | Judgment, then the owner's decision. | All five in 1.0, plus the compact variant (3.7). |
 | MIT, including zoom and accessibility | D7. | Kept. |
-| React adapter in 1.0 | Recharts leads npm installs among chart-level libraries. | Kept, and built early to test the core API. Downloads show where charts are written, not that Axylo will be wanted there. |
+| React adapter in 1.0 | Recharts leads npm installs among chart-level libraries. | Built early to test the core API, reviewed twice, then removed from 1.0 by the owner on 2026-11-18 to keep the first release plain TypeScript. Its last state is at commit dac5664 (`packages/react`), the starting point when adapters for React, Vue and Svelte are added. |
 | Budgets apply to defaults | D8. | Kept. The ratio to uPlot is no longer a gate. |
 | Zero runtime dependencies | D4. | Kept provisionally; time-zone arithmetic uses `Intl`. |
 
