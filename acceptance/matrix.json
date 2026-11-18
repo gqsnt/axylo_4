@@ -1,0 +1,3376 @@
+[
+  {
+    "id": "F1",
+    "statement": "Bar and area value axes always include zero; a domain that excludes zero is widened and raises AX110.",
+    "appliesTo": [
+      "area",
+      "bar",
+      "compact"
+    ],
+    "notApplicable": {
+      "line": "Only bars and areas have this baseline or stack rule.",
+      "scatter": "Only bars and areas have this baseline or stack rule.",
+      "donut": "Donut uses slices, without Cartesian axes."
+    },
+    "evidence": {
+      "area": [
+        {
+          "kind": "property",
+          "file": "packages/axylo/test/scale/domain.test.ts",
+          "title": "with includeZero always contains zero, author domain or not"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "widens area author domains to zero and reports AX110"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "uses a zero baseline for an unstacked area backed by a borrowed Float32 column"
+        }
+      ],
+      "bar": [
+        {
+          "kind": "property",
+          "file": "packages/axylo/test/scale/domain.test.ts",
+          "title": "with includeZero always contains zero, author domain or not"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "widens bar author domains to zero and reports AX110"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "uses projected zero as the baseline and represents missing and zero bars separately"
+        }
+      ]
+    },
+    "weak": {
+      "compact": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/review.test.ts",
+          "title": "reports AX130, AX131 and AX110 only when their conditions newly apply",
+          "reason": "Checks AX110 for a compact area with an author domain, but does not inspect its baseline or exercise compact bars."
+        }
+      ]
+    }
+  },
+  {
+    "id": "F2",
+    "statement": "Missing values are never drawn as zero and never bridged unless the author asks; readouts say “No data”.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/data/normalize.test.ts",
+          "title": "represents seven explicit nulls and seven deleted daily rows with the same disallowed joins",
+          "reason": "Compares slot tags and diagnostics but does not compare the drawn gaps or readouts."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/data/normalize.test.ts",
+          "title": "imputes zero for absent fields, nulls, gaps, and no row, with no invented provenance",
+          "reason": "Checks stored zero imputation without checking drawn marks and all readouts."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "packs the exact projected vertices and a pen lift, and shows the isolated value",
+          "reason": "Checks one fixture’s gap and isolated mark but does not exercise deleted steps, zero imputation or accessible readouts."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/aligned.test.ts",
+          "title": "reads values, absent observations, and explicit nulls in series order",
+          "reason": "Checks missing and unobserved tooltip values but does not check table cells or announcements."
+        }
+      ],
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/simplify/simplify.test.ts",
+          "title": "preserves each boundary’s own extremes and pairs matching endpoints across breaks",
+          "reason": "Checks supplied breaks in area boundaries but does not check how missing rows or imputation produce those breaks."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "uses projected zero as the baseline and represents missing and zero bars separately",
+          "reason": "Distinguishes missing from zero at the baseline, but does not check step imputation or missing-value readouts."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/data/normalize.test.ts",
+          "title": "sorts scatter points by x then y and retains provenance while omitting invalid points",
+          "reason": "Checks invalid and missing rows at normalization, but does not exercise the declared zero-imputation path."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "lists zero and null entries with no arcs and leaves an all-zero ring empty",
+          "reason": "Checks that null does not produce an arc but does not check “No data” in reader-facing text."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "draws compact paths without axes, references, or regular markers but keeps isolated points",
+          "reason": "Exercises compact line gaps only and does not check missing compact bar or area marks."
+        }
+      ]
+    }
+  },
+  {
+    "id": "F3",
+    "statement": "Input that cannot be plotted as given is reported, never guessed.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/data.browser.test.ts",
+          "prefix": "dirty input (spec 3.5, F12)",
+          "reason": "Checks three dirty-input codes and the note, but does not cover the full diagnostic registry and drawing outcomes."
+        }
+      ],
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/core/validate.test.ts",
+          "title": "validate reports the combined dirty fixture as AX102, AX103 and AX106, once each",
+          "reason": "Checks three codes through validate without asserting drawing or disclosures."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/core/validate.test.ts",
+          "title": "validate reports the combined dirty fixture as AX102, AX103 and AX106, once each",
+          "reason": "Checks three codes through validate without asserting drawing or disclosures."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/core/validate.test.ts",
+          "title": "validate works for scatter and donut",
+          "reason": "Checks one diagnostic for each type without verifying other applicable codes or what the reader sees."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/core/validate.test.ts",
+          "title": "validate works for scatter and donut",
+          "reason": "Checks one diagnostic for each type without verifying other applicable codes or what the reader sees."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/render.browser.test.ts",
+          "title": "with values left out, the description says so and a corner marker appears; there is no note element",
+          "reason": "Asserts the omission disclosure for a dirty compact line without checking the registry’s codes and drawing outcomes."
+        }
+      ]
+    }
+  },
+  {
+    "id": "F12",
+    "statement": "When warnings mean values were left out or changed, a note appears inside the figure and in the accessibility tree, in every build.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut"
+    ],
+    "notApplicable": {
+      "compact": "Compact has a corner marker and description instead of the F12 note (C5)."
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/data.browser.test.ts",
+          "prefix": "dirty input (spec 3.5, F12)",
+          "reason": "Checks the omission count in development and production, but never changes a value through a warning and checks the changed-value note."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/reader/index.test.ts",
+          "title": "keeps disclosures before the author description and joins both visible notes",
+          "reason": "Checks the text of both notices for one supplied disclosure, but does not exercise the changed-value warning in a built chart’s accessibility tree."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/review.browser.test.ts",
+          "title": "a throwing tick formatter shows its note on the frame that found it; a working one removes AX160 and the note",
+          "reason": "Checks a changed-value note in the figure but not its accessibility-tree entry or the production build."
+        }
+      ]
+    }
+  },
+  {
+    "id": "F10",
+    "statement": "Stacks place positive and negative values on their own sides of zero; missing components mark the stack incomplete.",
+    "appliesTo": [
+      "area",
+      "bar",
+      "compact"
+    ],
+    "notApplicable": {
+      "line": "Line has no stacked variant.",
+      "scatter": "Scatter has no stacked variant.",
+      "donut": "Donut has slices rather than stacks."
+    },
+    "weak": {
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "accumulates on separate sides in series order and marks an incomplete stack",
+          "reason": "Checks stack totals, bounds and incomplete flags, but does not exercise the reader-facing tooltip, table and announcement together."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/aligned.test.ts",
+          "title": "formats stacked totals and preserves the incomplete marker for announcements",
+          "reason": "Checks a formatted tooltip and datum for a synthetic incomplete stack, but does not exercise live announcements."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/reader/index.test.ts",
+          "title": "marks an incomplete stack in its row header without changing the series cells",
+          "reason": "Checks the table model row without rendering the table or delivering an announcement."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "property",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "matches visible components of generated long-form stacks, including gaps and absent rows",
+          "reason": "Checks 1,000 stack models including missing components but does not exercise the tooltip, table or announcements."
+        }
+      ]
+    }
+  },
+  {
+    "id": "F8",
+    "statement": "Donut slices keep order, start at 12 o’clock and run clockwise; nulls, zeros, negatives and excess slices have distinct outcomes.",
+    "appliesTo": [
+      "donut"
+    ],
+    "notApplicable": {
+      "line": "This slice rule is specific to donut.",
+      "area": "This slice rule is specific to donut.",
+      "bar": "This slice rule is specific to donut.",
+      "scatter": "This slice rule is specific to donut.",
+      "compact": "This slice rule is specific to donut."
+    },
+    "weak": {
+      "donut": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "prefix": "donut slices",
+          "reason": "Checks slice geometry, grouping and diagnostics in the view but does not verify the negative and all-zero figure states or “No data” in the rendered legend."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "the donut legend is a list of six entries with value and percentage, in slice order, not buttons",
+          "reason": "Uses six non-null entries, and each displayed value and share has the same text so one missing field could pass."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "a donut with more than eight slices lists \"Other\" with its count, and a zero slice without an arc",
+          "reason": "Asserts only that an entry starts with “Other (”; neither the count nor the zero slice’s geometry is asserted."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/reader/index.test.ts",
+          "title": "presents grouped donut categories separately in the table and together in the summary",
+          "reason": "Checks the table model for all categories using a pregrouped view, without opening the grouped chart’s table."
+        }
+      ]
+    }
+  },
+  {
+    "id": "F4",
+    "statement": "Calendar dates read the same in every zone; instants name their zone; wall-clock times are shown as written.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "compact"
+    ],
+    "notApplicable": {
+      "donut": "Donut has categories and no temporal axis."
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/data.browser.test.ts",
+          "title": "the dates fixture as date strings gives identical tick text in UTC, America/Los_Angeles and Asia/Kolkata",
+          "reason": "Checks calendar ticks in three zones but does not assert local instant text and named zones for all instant forms."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/data/normalize.test.ts",
+          "title": "handles wall-clock text and explicit offsets without using the viewer zone for parsing",
+          "reason": "Checks temporal parsing and hints, but does not inspect the tooltip or heading text produced by each chart."
+        }
+      ]
+    }
+  },
+  {
+    "id": "F11",
+    "statement": "Line, area and scatter draw in x order; duplicate x disables an aligned series, while scatter keeps coincident points.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "compact"
+    ],
+    "notApplicable": {
+      "donut": "Donut has ordered slice labels rather than x. Duplicate labels are covered by F3."
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/data/normalize.test.ts",
+          "title": "sorts shuffled input and preserves original row indexes",
+          "reason": "Checks sorted normalized positions rather than identical drawing for shuffled trend input."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/data/normalize.test.ts",
+          "title": "preserves the first row and disables every affected wide series for duplicate x",
+          "reason": "Asserts AX108 and disabled flags for wide line data, without checking the drawn marks or long-form case."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/data/review.test.ts",
+          "title": "keeps scatter points sharing x or both coordinates, ordered by x then y",
+          "reason": "Proves coincident points are retained in the sorted frame but does not check that they are drawn in that order."
+        }
+      ]
+    }
+  },
+  {
+    "id": "F5",
+    "statement": "Dense drawing preserves the exact per-pixel extrema of each valid run and keeps every break.",
+    "appliesTo": [
+      "line",
+      "area",
+      "compact"
+    ],
+    "notApplicable": {
+      "bar": "Bars are never simplified (section 3.6).",
+      "scatter": "Scatter is never simplified in 1.0 (section 3.6).",
+      "donut": "Donut has no per-pixel series simplification."
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/simplify/simplify.test.ts",
+          "title": "keeps a million-slot outlier at multiple plot widths and device ratios",
+          "reason": "Checks a million-slot outlier at two DPRs, but does not check whether a sample dropped from the stroke stays reachable in the table and by keyboard."
+        },
+        {
+          "kind": "property",
+          "file": "packages/axylo/test/simplify/simplify.test.ts",
+          "title": "agrees with a series-wide oracle for column extrema, range edges and device pixels",
+          "reason": "Checks 600 generated datasets instead of the required 1,000 and does not exercise exact readouts."
+        }
+      ],
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/simplify/simplify.test.ts",
+          "title": "preserves each boundary’s own extremes and pairs matching endpoints across breaks",
+          "reason": "Checks a small example of paired area boundaries, but not dense end-to-end stack sums or reachability of dropped samples."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "draws compact paths without axes, references, or regular markers but keeps isolated points",
+          "reason": "Checks a short compact line and does not verify dense extrema in compact lines and stacked areas."
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-dense-line",
+    "statement": "Simplified drawing when dense · F5",
+    "appliesTo": [
+      "line"
+    ],
+    "notApplicable": {
+      "area": "This is the line cell in section 3.6.",
+      "bar": "This is the line cell in section 3.6.",
+      "scatter": "This is the line cell in section 3.6.",
+      "donut": "This is the line cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "property",
+          "file": "packages/axylo/test/simplify/simplify.test.ts",
+          "title": "agrees with a series-wide oracle for column extrema, range edges and device pixels",
+          "reason": "Checks 600 generated datasets instead of 1,000 and does not verify exact readouts of omitted stroke samples."
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-dense-area",
+    "statement": "Simplified drawing when dense · F5 on cumulative sums",
+    "appliesTo": [
+      "area"
+    ],
+    "notApplicable": {
+      "line": "This is the area cell in section 3.6.",
+      "bar": "This is the area cell in section 3.6.",
+      "scatter": "This is the area cell in section 3.6.",
+      "donut": "This is the area cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "weak": {
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/simplify/simplify.test.ts",
+          "title": "preserves each boundary’s own extremes and pairs matching endpoints across breaks",
+          "reason": "Checks an example of paired boundaries, without verifying dense cumulative stacks across zooms and device ratios."
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-dense-bar",
+    "statement": "Simplified drawing when dense · No; more bars than pixels raises a hint",
+    "appliesTo": [
+      "bar"
+    ],
+    "notApplicable": {
+      "line": "This is the bar cell in section 3.6.",
+      "area": "This is the bar cell in section 3.6.",
+      "scatter": "This is the bar cell in section 3.6.",
+      "donut": "This is the bar cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "weak": {
+      "bar": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "draws every subpixel band with at least a CSS pixel of width",
+          "reason": "Confirms subpixel marks are retained but does not check the required hint."
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-dense-donut",
+    "statement": "Simplified drawing when dense · No",
+    "appliesTo": [
+      "donut"
+    ],
+    "notApplicable": {
+      "line": "This is the donut cell in section 3.6.",
+      "area": "This is the donut cell in section 3.6.",
+      "bar": "This is the donut cell in section 3.6.",
+      "scatter": "This is the donut cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    }
+  },
+  {
+    "id": "T-dense-scatter",
+    "statement": "Simplified drawing when dense · No in 1.0; above 50,000 points a hint says drawing may be slow",
+    "appliesTo": [
+      "scatter"
+    ],
+    "notApplicable": {
+      "line": "This is the scatter cell in section 3.6.",
+      "area": "This is the scatter cell in section 3.6.",
+      "bar": "This is the scatter cell in section 3.6.",
+      "donut": "This is the scatter cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "weak": {
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/scatter.test.ts",
+          "title": "examines only nearby cells on a 200,000-point pick",
+          "reason": "Measures picking work rather than unchanged drawing or the over-50,000-point diagnostic."
+        }
+      ]
+    }
+  },
+  {
+    "id": "F7",
+    "statement": "The zoomed view stays inside the author or automatic domain; the automatic domain contains data, references and stack totals.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "compact"
+    ],
+    "notApplicable": {
+      "donut": "Donut uses slices, without Cartesian axes."
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "uses the author x extent and keeps the zoom width on either side",
+          "reason": "Checks zoom precedence but does not check value-scale thresholds, reference extents and tick limits together."
+        }
+      ],
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "accumulates on separate sides in series order and marks an incomplete stack",
+          "reason": "Checks both stack totals in the axis extent without checking zoom precedence or percent/ratio thresholds."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "rounds a small maximum normally and includes full scale only above the percent threshold",
+          "reason": "Checks percent but not the ratio rule or domain precedence on bars."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/review.test.ts",
+          "title": "includes x lines and bands in the automatic extent, including on scatter",
+          "reason": "Checks x-reference extents but not the combined author, automatic and zoomed limits with value-scale options."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "keeps category bars and compact charts on their full x ranges",
+          "reason": "Checks that one compact line ignores zoom but does not verify domain calculation for compact areas and bars."
+        }
+      ]
+    }
+  },
+  {
+    "id": "F6",
+    "statement": "Format numbers and dates for the page locale, separately for ticks and readouts; a throwing formatter falls back with a diagnostic.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/data.browser.test.ts",
+          "title": "a custom formatter that throws falls back to the default, raises AX160 when found, and is never thrown",
+          "reason": "Checks a throwing tick formatter but does not check the requested locales across tick labels, tooltip, table and announcements."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/format/number.test.ts",
+          "prefix": "readout format (spec F6)",
+          "reason": "Checks localized readout strings and formatter fallback without asserting that the chart passes the page locale to all reader surfaces."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "opens from the toolbar with a caption, headers with units and row headers; pages of 100; closing removes it",
+          "reason": "Checks a table value with a unit but does not compare tick and readout precision or test multiple page locales."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/donut.test.ts",
+          "title": "formats slice percentages through the supplied formatter regardless of the legacy locale argument",
+          "reason": "Checks an injected percentage formatter but does not verify default locale formatting or thrown-formatter fallback."
+        }
+      ]
+    }
+  },
+  {
+    "id": "A3",
+    "statement": "The focused point conveys its text; touch screen readers can swipe to every point or reach the table in two gestures.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut"
+    ],
+    "notApplicable": {
+      "compact": "Compact has no point navigation or table. C1 specifies its text alternative."
+    },
+    "cannotVerify": {
+      "line": "The required NVDA, VoiceOver and TalkBack browser/device rehearsals cannot be performed here.",
+      "area": "The required NVDA, VoiceOver and TalkBack browser/device rehearsals cannot be performed here.",
+      "bar": "The required NVDA, VoiceOver and TalkBack browser/device rehearsals cannot be performed here.",
+      "scatter": "The required NVDA, VoiceOver and TalkBack browser/device rehearsals cannot be performed here.",
+      "donut": "The required NVDA, VoiceOver and TalkBack browser/device rehearsals cannot be performed here."
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/a11y/keyboard.browser.test.ts",
+          "title": "reads every series at x, narrows to one with Down, reaches the ends, pages by a tenth, and selects",
+          "reason": "Checks Chrome focus and the DOM value text on several keys, but cannot establish what screen readers say or how touch gestures work."
+        }
+      ]
+    }
+  },
+  {
+    "id": "A1",
+    "statement": "Every chart has an accessible name and generated summary, and chart element ids are unique.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/render.browser.test.ts",
+          "title": "a chart without title or labelledBy gets a generated name and AX140",
+          "reason": "Checks the generated name and AX140 in one build only."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/render.browser.test.ts",
+          "title": "24 charts on one page: no duplicate ids, each its own name",
+          "reason": "Checks unique line-chart ids and authored names without inspecting ranges, per-series statistics or the accessible description."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/reader/index.test.ts",
+          "title": "summarizes three visible series within the shown range and includes the reference position in the summary and caption",
+          "reason": "Checks a reader-model summary with ranges and series extrema but there is no browser assertion on the full accessible summary across builds."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/render.browser.test.ts",
+          "prefix": "the other chart types",
+          "reason": "Asserts the title linkage and a nonempty description with the fixture, but does not verify generated naming, full summary or unique IDs for this type."
+        }
+      ],
+      "area": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/render.browser.test.ts",
+          "prefix": "the other chart types",
+          "reason": "Asserts the title linkage and a nonempty description with the fixture, but does not verify generated naming, full summary or unique IDs for this type."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/render.browser.test.ts",
+          "prefix": "the other chart types",
+          "reason": "Asserts the title linkage and a nonempty description with the fixture, but does not verify generated naming, full summary or unique IDs for this type."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/render.browser.test.ts",
+          "prefix": "the other chart types",
+          "reason": "Asserts the title linkage and a nonempty description with the fixture, but does not verify generated naming, full summary or unique IDs for this type."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/render.browser.test.ts",
+          "prefix": "the other chart types",
+          "reason": "Asserts the title linkage and a nonempty description with the fixture, but does not verify generated naming, full summary or unique IDs for this type."
+        }
+      ]
+    }
+  },
+  {
+    "id": "A2",
+    "statement": "At most two tab stops with the table closed; every point is reachable, the toolbar roves, and focus can leave the chart.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut"
+    ],
+    "notApplicable": {
+      "compact": "Static compact charts have no tab stops (C1)."
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/a11y/keyboard.browser.test.ts",
+          "prefix": "tab order (spec A2)",
+          "reason": "Checks line tab order, roving and a table-open path, but does not verify reachability of every datum and ring visibility."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/a11y/keyboard.browser.test.ts",
+          "title": "the focus ring is at least 2 px in the focus color and is drawn only for keyboard focus",
+          "reason": "Compares tooltip and ring areas but does not check actual intersection or obscuring across positions and themes."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/scatter.test.ts",
+          "title": "walks partial ranges with hidden series and duplicate x and y in fixture order",
+          "reason": "Checks the lookup order over 60 inputs, but does not drive keyboard focus or measure tab stops or the indicator."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/donut.test.ts",
+          "title": "includes zero and missing slices in keyboard order, with no drawn anchor",
+          "reason": "Checks model stepping over two arcless slices, without exercising the DOM keyboard or focus indicator."
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-keyboard-line",
+    "statement": "Keyboard order · By x, then series",
+    "appliesTo": [
+      "line"
+    ],
+    "notApplicable": {
+      "area": "This is the line cell in section 3.6.",
+      "bar": "This is the line cell in section 3.6.",
+      "scatter": "This is the line cell in section 3.6.",
+      "donut": "This is the line cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/aligned.test.ts",
+          "title": "steps within a series, switches series at the same x, and ranks by visible slot"
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/a11y/keyboard.browser.test.ts",
+          "title": "reads every series at x, narrows to one with Down, reaches the ends, pages by a tenth, and selects"
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-keyboard-area",
+    "statement": "Keyboard order · By x, then series",
+    "appliesTo": [
+      "area"
+    ],
+    "notApplicable": {
+      "line": "This is the area cell in section 3.6.",
+      "bar": "This is the area cell in section 3.6.",
+      "scatter": "This is the area cell in section 3.6.",
+      "donut": "This is the area cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    }
+  },
+  {
+    "id": "T-keyboard-bar",
+    "statement": "Keyboard order · By category, then series",
+    "appliesTo": [
+      "bar"
+    ],
+    "notApplicable": {
+      "line": "This is the bar cell in section 3.6.",
+      "area": "This is the bar cell in section 3.6.",
+      "scatter": "This is the bar cell in section 3.6.",
+      "donut": "This is the bar cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    }
+  },
+  {
+    "id": "T-keyboard-donut",
+    "statement": "Keyboard order · By slice order",
+    "appliesTo": [
+      "donut"
+    ],
+    "notApplicable": {
+      "line": "This is the donut cell in section 3.6.",
+      "area": "This is the donut cell in section 3.6.",
+      "bar": "This is the donut cell in section 3.6.",
+      "scatter": "This is the donut cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "weak": {
+      "donut": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/donut.test.ts",
+          "title": "includes zero and missing slices in keyboard order, with no drawn anchor",
+          "reason": "Checks two adjacent end-of-ring steps, without testing a full walk in slice order."
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-keyboard-scatter",
+    "statement": "Keyboard order · By x, then y",
+    "appliesTo": [
+      "scatter"
+    ],
+    "notApplicable": {
+      "line": "This is the scatter cell in section 3.6.",
+      "area": "This is the scatter cell in section 3.6.",
+      "bar": "This is the scatter cell in section 3.6.",
+      "donut": "This is the scatter cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "weak": {
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/scatter.test.ts",
+          "title": "walks partial ranges with hidden series and duplicate x and y in fixture order",
+          "reason": "Checks the lookup order over 60 inputs, but does not verify that the actual keyboard path walks the same order."
+        }
+      ]
+    }
+  },
+  {
+    "id": "A4",
+    "statement": "View as table opens a normalized HTML table in the current range, with pagination or x jump, in a focusable scroll region.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut"
+    ],
+    "notApplicable": {
+      "compact": "Compact does not include a table."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "opens from the toolbar with a caption, headers with units and row headers; pages of 100; closing removes it"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/reader/index.test.ts",
+          "title": "limits the table to the current x range and omits it when disabled or compact"
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "a value near row 900,000 of a 1,000,000-point typed-column chart is reachable; opening takes under 100 ms"
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "opening one table on a 24-chart page leaves every other chart where it was"
+        }
+      ]
+    },
+    "weak": {
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/reader/index.test.ts",
+          "title": "marks an incomplete stack in its row header without changing the series cells",
+          "reason": "Checks one table-model row but does not open an HTML table, page it or measure its scroll region."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/reader/index.test.ts",
+          "title": "merges scatter rows in x then y order including hidden series",
+          "reason": "Checks table-model row merging but does not drive the HTML table or its controls."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/reader/index.test.ts",
+          "title": "presents grouped donut categories separately in the table and together in the summary",
+          "reason": "Checks table-model rows and headers but does not verify the HTML table, focusable region or page geometry."
+        }
+      ]
+    }
+  },
+  {
+    "id": "A5",
+    "statement": "Series are never distinguished by color alone; filled marks have separators and the palette meets contrast and distance thresholds.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/theme.browser.test.ts",
+          "title": "an author color with poor contrast raises AX141 after theme resolution, and strict does not throw for it",
+          "reason": "Checks AX141 for a custom color but not the default eight colors’ pairwise difference under simulated color-vision deficiencies."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/render/theme.browser.test.ts",
+          "title": "both renderers switch to the contrast dash; canvas through the resolved theme, svg through CSS",
+          "reason": "Checks a contrast dash on a renderer fixture without checking that each of multiple series is distinguishable in the plot and its readouts."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/theme/palette.test.ts",
+          "prefix": "default palette (spec A5",
+          "reason": "Checks the shipped palette’s simulated contrast and distances, without testing the chart’s rendered marks or non-color cues."
+        }
+      ],
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "shares exact packed boundaries between adjacent stacked areas on both sides of zero",
+          "reason": "Checks common edges in the packed scene but does not verify a rendered background separator or identity markers in readouts."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/theme/palette.test.ts",
+          "prefix": "default palette (spec A5",
+          "reason": "Checks the shipped palette’s simulated contrast and distances, without testing the chart’s rendered marks or non-color cues."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/render/review.browser.test.ts",
+          "title": "a patterned bar differs from a plain bar of the same color in both renderers, and the renderers agree",
+          "reason": "Checks an author-independent renderer pattern on two marks, but not the default grouped and stacked chart cues and separators."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/theme/palette.test.ts",
+          "prefix": "default palette (spec A5",
+          "reason": "Checks the shipped palette’s simulated contrast and distances, without testing the chart’s rendered marks or non-color cues."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "offsets scatter marker shapes every eight series",
+          "reason": "Checks a marker shape across palette cycles but not palette distances or whether all cues are visible in plot and readouts."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/theme/palette.test.ts",
+          "prefix": "default palette (spec A5",
+          "reason": "Checks the shipped palette’s simulated contrast and distances, without testing the chart’s rendered marks or non-color cues."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "uses the slice palette slots and a muted Other with a one-pixel gap",
+          "reason": "Checks scene separator width but not rendered separator pixels or color-vision simulation."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/theme/palette.test.ts",
+          "prefix": "default palette (spec A5",
+          "reason": "Checks the shipped palette’s simulated contrast and distances, without testing the chart’s rendered marks or non-color cues."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "gives compact series distinct normal dashes and raises AX131",
+          "reason": "Checks two compact line dash styles without testing rendered cues for the other compact variants."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/theme/palette.test.ts",
+          "prefix": "default palette (spec A5",
+          "reason": "Checks the shipped palette’s simulated contrast and distances, without testing the chart’s rendered marks or non-color cues."
+        }
+      ]
+    }
+  },
+  {
+    "id": "L1",
+    "statement": "Text does not overlap or clip; a visible note appears if labels still do not fit.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut"
+    ],
+    "notApplicable": {
+      "compact": "Axes, plot text and title are omitted in compact mode."
+    },
+    "cannotVerify": {
+      "line": "Firefox and Safari/WebKit are unavailable here. Cross-engine browser evidence is required."
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/render/review.browser.test.ts",
+          "title": "text: after text-spacing overrides and after a late font, relaid-out labels land on their boxes and nothing is clipped",
+          "reason": "Checks a standalone text layer at one size but not generated real charts, text-only zoom or the hidden-label note."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "property",
+          "file": "packages/axylo/test/layout/layout.test.ts",
+          "title": "checks every layout kind, minimum plots and label attribution across generated sizes",
+          "reason": "Tests layout boxes with injected metrics, without testing real fonts, browser intersection or the visible note."
+        }
+      ]
+    }
+  },
+  {
+    "id": "L2",
+    "statement": "Text is at least 12 CSS px and 4.5:1; marks, axis lines and focus indicators are at least 3:1 in light and dark.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "toggles by click, Enter and Space; a hidden series leaves marks, tooltip and keyboard but stays in the table",
+          "reason": "Checks the contrast of a hidden legend entry in one scheme but does not cover all text, marks, axes and focus in both schemes."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/theme/palette.test.ts",
+          "prefix": "default palette (spec A5",
+          "reason": "Checks palette and token contrast before rendering, without checking compact marks against their actual inherited background."
+        }
+      ]
+    }
+  },
+  {
+    "id": "L7",
+    "statement": "Empty, loading, error and internal failures show a message in the plot; a change is announced once, politely.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "evidence": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/data.browser.test.ts",
+          "prefix": "states (spec L7)"
+        }
+      ]
+    },
+    "weak": {
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/core/controller.test.ts",
+          "title": "a scatter window with no point shows the empty state, and its zoom can still be reset",
+          "reason": "Checks the empty reader model only, without loading, error, internal failure or live announcement coverage."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "lists zero and null entries with no arcs and leaves an all-zero ring empty",
+          "reason": "Checks that no arcs are drawn for zero data without asserting a figure message or announcement."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/core/controller.test.ts",
+          "title": "an all-invalid chart keeps the reader note in its empty state (F12), and the compact marker (C5)",
+          "reason": "Checks an empty compact line summary but not loading/error alternatives or announcement behavior for compact variants."
+        }
+      ]
+    }
+  },
+  {
+    "id": "L8",
+    "statement": "Below a readable plot size of 120×80 CSS px, show the title, summary and table control and raise AX142.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut"
+    ],
+    "notApplicable": {
+      "compact": "Compact has its own minimum dimensions and defaults in C3."
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/core/controller.test.ts",
+          "title": "stepping the container one pixel at a time through the boundary, both ways, switches once and never alternates",
+          "reason": "Checks height-based fallback stability but not the title, summary, table control and AX142 together."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/review.browser.test.ts",
+          "title": "stepping a container one pixel at a time through the L8 boundary switches once, at the same height both ways",
+          "reason": "Checks that the line summary changes visibility at a stable boundary but does not assert table access, title and AX142."
+        }
+      ]
+    }
+  },
+  {
+    "id": "L3",
+    "statement": "The chart follows its container; automatic height is 16:9 clamped to 160–480 CSS px; initially hidden charts draw when sized.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut"
+    ],
+    "notApplicable": {
+      "compact": "Compact sizing and its different automatic height are in C3."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/lifecycle.browser.test.ts",
+          "prefix": "resize (spec L3)"
+        }
+      ]
+    }
+  },
+  {
+    "id": "L4",
+    "statement": "The chart follows the page color scheme; changes repaint within one frame and forced colors use system colors.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/theme.browser.test.ts",
+          "title": "toggling a dark class repaints within a frame, without rebuilding the scene (svg)",
+          "reason": "Asserts a one-frame repaint on one class change, without exercising all supported class, style, data-theme and media transitions on a chart."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/render/theme.browser.test.ts",
+          "prefix": "forced colors (emulated)",
+          "reason": "Checks forced system colors in a renderer harness but does not exercise switching a public chart into and out of the mode."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/render.browser.test.ts",
+          "prefix": "the other chart types",
+          "reason": "Renders a compact line but does not change the page scheme and compare the marks."
+        }
+      ]
+    }
+  },
+  {
+    "id": "A6",
+    "statement": "Reflow at 320 CSS px and 400% zoom without two-dimensional scrolling; user text spacing does not clip.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut"
+    ],
+    "notApplicable": {
+      "compact": "Compact has no visible text and its tile-size contract is in C3."
+    },
+    "cannotVerify": {
+      "line": "Firefox and Safari/WebKit are unavailable here. Cross-engine browser evidence is required.",
+      "area": "Firefox and Safari/WebKit are unavailable here. Cross-engine browser evidence is required.",
+      "bar": "Firefox and Safari/WebKit are unavailable here. Cross-engine browser evidence is required.",
+      "scatter": "Firefox and Safari/WebKit are unavailable here. Cross-engine browser evidence is required.",
+      "donut": "Firefox and Safari/WebKit are unavailable here. Cross-engine browser evidence is required."
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/render/review.browser.test.ts",
+          "title": "text: after text-spacing overrides and after a late font, relaid-out labels land on their boxes and nothing is clipped",
+          "reason": "Checks a standalone text layer under spacing overrides but does not check full-figure reflow at 320 px or 400% zoom."
+        }
+      ]
+    }
+  },
+  {
+    "id": "I1",
+    "statement": "Pointing shows the correct readout within a frame at p95; it stays in view, avoids the mark and supports hover, fallback and Escape.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut"
+    ],
+    "notApplicable": {
+      "compact": "Compact has no pointing behavior or tooltip."
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "between two days shows every series at the nearer one, within one frame",
+          "reason": "Checks one pointer move, so it cannot establish 95th-percentile input-to-readout latency."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "at each of the four plot edges it stays inside the viewport and beside the active x",
+          "reason": "Checks four edge positions and exclusion of the active x, without proving that the tooltip avoids the full active mark."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "can be hovered without closing, and Escape closes it until the pointer reaches another x",
+          "reason": "Checks hover and dismissal for one line fixture without testing the readout timing requirement."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "in a 260 px wide tile the same content is shown in the fixed readout under the plot",
+          "reason": "Checks fixed placement and series names but does not compare the full fixed readout with the floating one."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/aligned.test.ts",
+          "title": "reads values, absent observations, and explicit nulls in series order",
+          "reason": "Checks sparse-series wording in the lookup but not screen placement, hover behavior or fallback on the sparse fixture."
+        }
+      ],
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/aligned.test.ts",
+          "title": "formats stacked totals and preserves the incomplete marker for announcements",
+          "reason": "Checks a lookup stack tooltip but does not drive a pointer, measure latency or check placement and fallback."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/aligned.test.ts",
+          "title": "picks a horizontal bar by y and returns the grouped mark bounds",
+          "reason": "Checks a horizontal bar’s lookup and anchor without checking the rendered readout or timing."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/scatter.test.ts",
+          "title": "picks the nearest point within 24 px and breaks a tie by later source row",
+          "reason": "Checks nearest-point lookup without measuring rendered readout timing or verifying Escape and fallback."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "a donut slice shows label, value and percentage; the overlay outlines it",
+          "reason": "Checks one slice’s readout and overlay without the timing distribution, viewport edges, hover and Escape."
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-pointer-line",
+    "statement": "Picking by pointer · Nearest x",
+    "appliesTo": [
+      "line"
+    ],
+    "notApplicable": {
+      "area": "This is the line cell in section 3.6.",
+      "bar": "This is the line cell in section 3.6.",
+      "scatter": "This is the line cell in section 3.6.",
+      "donut": "This is the line cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/aligned.test.ts",
+          "title": "uses only visible slots, includes both plot edges, and gives midpoints to the later slot"
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-pointer-area",
+    "statement": "Picking by pointer · Nearest x",
+    "appliesTo": [
+      "area"
+    ],
+    "notApplicable": {
+      "line": "This is the area cell in section 3.6.",
+      "bar": "This is the area cell in section 3.6.",
+      "scatter": "This is the area cell in section 3.6.",
+      "donut": "This is the area cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    }
+  },
+  {
+    "id": "T-pointer-bar",
+    "statement": "Picking by pointer · The band under the pointer",
+    "appliesTo": [
+      "bar"
+    ],
+    "notApplicable": {
+      "line": "This is the bar cell in section 3.6.",
+      "area": "This is the bar cell in section 3.6.",
+      "scatter": "This is the bar cell in section 3.6.",
+      "donut": "This is the bar cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "weak": {
+      "bar": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/aligned.test.ts",
+          "title": "picks a horizontal bar by y and returns the grouped mark bounds",
+          "reason": "Checks a horizontal pick at each band center, where a nearest-category rule could also pass; it does not test band edges, inter-band gaps or vertical bars."
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-pointer-donut",
+    "statement": "Picking by pointer · The slice under the pointer",
+    "appliesTo": [
+      "donut"
+    ],
+    "notApplicable": {
+      "line": "This is the donut cell in section 3.6.",
+      "area": "This is the donut cell in section 3.6.",
+      "bar": "This is the donut cell in section 3.6.",
+      "scatter": "This is the donut cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "evidence": {
+      "donut": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/donut.test.ts",
+          "title": "picks the parts fixture from 12 o’clock clockwise within the ring"
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-pointer-scatter",
+    "statement": "Picking by pointer · Nearest point within 24 px; ties go to the later row",
+    "appliesTo": [
+      "scatter"
+    ],
+    "notApplicable": {
+      "line": "This is the scatter cell in section 3.6.",
+      "area": "This is the scatter cell in section 3.6.",
+      "bar": "This is the scatter cell in section 3.6.",
+      "donut": "This is the scatter cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "evidence": {
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/scatter.test.ts",
+          "title": "picks the nearest point within 24 px and breaks a tie by later source row"
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-tooltip-line",
+    "statement": "Tooltip content · Every visible series at that x",
+    "appliesTo": [
+      "line"
+    ],
+    "notApplicable": {
+      "area": "This is the line cell in section 3.6.",
+      "bar": "This is the line cell in section 3.6.",
+      "scatter": "This is the line cell in section 3.6.",
+      "donut": "This is the line cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/aligned.test.ts",
+          "title": "reads values, absent observations, and explicit nulls in series order"
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-tooltip-area",
+    "statement": "Tooltip content · Every visible series at that x, plus the stack total",
+    "appliesTo": [
+      "area"
+    ],
+    "notApplicable": {
+      "line": "This is the area cell in section 3.6.",
+      "bar": "This is the area cell in section 3.6.",
+      "scatter": "This is the area cell in section 3.6.",
+      "donut": "This is the area cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "weak": {
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/aligned.test.ts",
+          "title": "formats stacked totals and preserves the incomplete marker for announcements",
+          "reason": "Asserts one stack total and the missing component but does not check every series in the tooltip or exclude a hidden series."
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-tooltip-bar",
+    "statement": "Tooltip content · Every series in that category",
+    "appliesTo": [
+      "bar"
+    ],
+    "notApplicable": {
+      "line": "This is the bar cell in section 3.6.",
+      "area": "This is the bar cell in section 3.6.",
+      "scatter": "This is the bar cell in section 3.6.",
+      "donut": "This is the bar cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    }
+  },
+  {
+    "id": "T-tooltip-donut",
+    "statement": "Tooltip content · Label, value, percentage",
+    "appliesTo": [
+      "donut"
+    ],
+    "notApplicable": {
+      "line": "This is the donut cell in section 3.6.",
+      "area": "This is the donut cell in section 3.6.",
+      "bar": "This is the donut cell in section 3.6.",
+      "scatter": "This is the donut cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "evidence": {
+      "donut": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/donut.test.ts",
+          "title": "picks the parts fixture from 12 o’clock clockwise within the ring"
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-tooltip-scatter",
+    "statement": "Tooltip content · The point's series, x and y; coincident points listed, up to eight",
+    "appliesTo": [
+      "scatter"
+    ],
+    "notApplicable": {
+      "line": "This is the scatter cell in section 3.6.",
+      "area": "This is the scatter cell in section 3.6.",
+      "bar": "This is the scatter cell in section 3.6.",
+      "donut": "This is the scatter cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "evidence": {
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/scatter.test.ts",
+          "title": "picks the nearest point within 24 px and breaks a tie by later source row"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/lookup/scatter.test.ts",
+          "title": "finds coincident points across a cell boundary and retains the full count after truncation"
+        }
+      ]
+    }
+  },
+  {
+    "id": "I2",
+    "statement": "Legend entries are pressed-state toggle buttons operable by click, Enter and Space.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter"
+    ],
+    "notApplicable": {
+      "donut": "Donut uses slices rather than toggleable series.",
+      "compact": "Compact has no legend."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "toggles by click, Enter and Space; a hidden series leaves marks, tooltip and keyboard but stays in the table"
+        }
+      ]
+    }
+  },
+  {
+    "id": "I3",
+    "statement": "Zoom works by controls, drag, keyboard and opt-in pinch; the wheel respects focus and Ctrl/Meta.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter"
+    ],
+    "notApplicable": {
+      "donut": "Donut has no zoom.",
+      "compact": "Compact has no zoom."
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "Zoom in and out are single clicks around the centre; Reset appears only while zoomed; the zoom event carries the range",
+          "reason": "Uses Enter to activate Reset rather than proving that every path works by single clicks."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "the wheel does nothing while the plot is not focused (the page scrolls), zooms when it is, and never with Ctrl",
+          "reason": "Checks focused and unfocused scrolling in Chrome and uses synthetic events for the Ctrl/Meta paths, without exercising actual browser zoom shortcuts."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "with zoom: 'touch' a pinch zooms through the public path; without it the chart leaves pinch to the page",
+          "reason": "Exercises opted-in emulated pinch only; the default pinch behavior in the title is not exercised."
+        }
+      ],
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/review.test.ts",
+          "title": "fits a monthly area between observations with the zero baseline",
+          "reason": "Checks the view after a requested range, without trying the visible controls or other input paths."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "a category bar chart has no zoom controls; a donut has none",
+          "reason": "Checks that category bars lack a Zoom in button, but does not exercise any continuous-axis bar zoom path."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "keeps scatter ranges per series and uses only the points inside zoom for the value domain",
+          "reason": "Checks view filtering in a zoomed scatter plot but does not drive input methods or wheel gating."
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-zoom-line",
+    "statement": "Zoom · Yes",
+    "appliesTo": [
+      "line"
+    ],
+    "notApplicable": {
+      "area": "This is the line cell in section 3.6.",
+      "bar": "This is the line cell in section 3.6.",
+      "scatter": "This is the line cell in section 3.6.",
+      "donut": "This is the line cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "Zoom in and out are single clicks around the centre; Reset appears only while zoomed; the zoom event carries the range"
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-zoom-area",
+    "statement": "Zoom · Yes",
+    "appliesTo": [
+      "area"
+    ],
+    "notApplicable": {
+      "line": "This is the area cell in section 3.6.",
+      "bar": "This is the area cell in section 3.6.",
+      "scatter": "This is the area cell in section 3.6.",
+      "donut": "This is the area cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "evidence": {
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/review.test.ts",
+          "title": "fits a monthly area between observations with the zero baseline"
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-zoom-bar",
+    "statement": "Zoom · On time, date and numeric x only",
+    "appliesTo": [
+      "bar"
+    ],
+    "notApplicable": {
+      "line": "This is the bar cell in section 3.6.",
+      "area": "This is the bar cell in section 3.6.",
+      "scatter": "This is the bar cell in section 3.6.",
+      "donut": "This is the bar cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "weak": {
+      "bar": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "a category bar chart has no zoom controls; a donut has none",
+          "reason": "Despite the title this test constructs only a category bar, and it never tries time, date or numeric x."
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-zoom-donut",
+    "statement": "Zoom · No",
+    "appliesTo": [
+      "donut"
+    ],
+    "notApplicable": {
+      "line": "This is the donut cell in section 3.6.",
+      "area": "This is the donut cell in section 3.6.",
+      "bar": "This is the donut cell in section 3.6.",
+      "scatter": "This is the donut cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "weak": {
+      "donut": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "the donut legend is a list of six entries with value and percentage, in slice order, not buttons",
+          "reason": "Confirms there is no zoom toolbar control, without trying the zoom handle or other zoom inputs."
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-zoom-scatter",
+    "statement": "Zoom · Yes, both axes later; x only in 1.0",
+    "appliesTo": [
+      "scatter"
+    ],
+    "notApplicable": {
+      "line": "This is the scatter cell in section 3.6.",
+      "area": "This is the scatter cell in section 3.6.",
+      "bar": "This is the scatter cell in section 3.6.",
+      "donut": "This is the scatter cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "evidence": {
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "keeps scatter ranges per series and uses only the points inside zoom for the value domain"
+        }
+      ]
+    }
+  },
+  {
+    "id": "I4",
+    "statement": "Every interaction works by a single pointer and touch; controls measure at least 24×24 CSS px; one-finger drag scrolls the page.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut"
+    ],
+    "notApplicable": {
+      "compact": "Compact presents no interactive controls."
+    },
+    "cannotVerify": {
+      "line": "Native touch on a real phone cannot be verified here. Chrome touch emulation alone is insufficient for this device check.",
+      "area": "Native touch on a real phone cannot be verified here. Chrome touch emulation alone is insufficient for this device check.",
+      "bar": "Native touch on a real phone cannot be verified here. Chrome touch emulation alone is insufficient for this device check.",
+      "scatter": "Native touch on a real phone cannot be verified here. Chrome touch emulation alone is insufficient for this device check.",
+      "donut": "Native touch on a real phone cannot be verified here. Chrome touch emulation alone is insufficient for this device check."
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "a tap pins the tooltip and a tap elsewhere dismisses it; a one-finger vertical drag scrolls the page",
+          "reason": "Checks emulated taps and page scroll but does not exercise the other controls on a real phone."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/a11y/axe.browser.test.ts",
+          "title": "every control and the focus indicator are visible in forced colors; nothing animates under reduced motion",
+          "reason": "Checks line toolbar control sizes but not all table controls or touch paths."
+        }
+      ]
+    }
+  },
+  {
+    "id": "A7",
+    "statement": "Data arriving does not speak; focus stays on the datum until it leaves the streaming window.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut"
+    ],
+    "notApplicable": {
+      "compact": "Compact has no point focus or streaming announcements."
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "24 charts appending for two seconds change no live region",
+          "reason": "Counts live-region mutations while none of the streaming charts has focus."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "keyboard focus stays on its datum until it leaves the window, then resolves forward",
+          "reason": "Checks focused value continuity and eviction but does not count live-region mutations while focused."
+        }
+      ]
+    }
+  },
+  {
+    "id": "I6",
+    "statement": "Append shows Pause/Resume; while paused, new rows are buffered and the view does not move.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut"
+    ],
+    "notApplicable": {
+      "compact": "Compact has no toolbar or Pause/Resume control."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "a pause control appears after append; paused, rows are buffered and nothing moves; resume applies them"
+        }
+      ]
+    },
+    "weak": {
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/core/controller.test.ts",
+          "title": "while paused, scatter and donut validate appended rows when append is called",
+          "reason": "Exercises scatter buffering through the controller without checking for a Pause/Resume control in the figure."
+        }
+      ]
+    }
+  },
+  {
+    "id": "I5",
+    "statement": "No first-render animation; updates take at most 200 ms and reduced motion removes transitions.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/a11y/axe.browser.test.ts",
+          "title": "every control and the focus indicator are visible in forced colors; nothing animates under reduced motion",
+          "reason": "Samples CSS motion state after setup and zoom, without comparing first and later pixels in both settings or timing the 24-chart update."
+        }
+      ]
+    }
+  },
+  {
+    "id": "A8",
+    "statement": "axe-core reports no violations on any fixture in any state, including heading-order and scrollable-region-focusable.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/a11y/axe.browser.test.ts",
+          "title": "trend: default, table open, tooltip shown, series hidden",
+          "reason": "Runs default, tooltip, hidden-series and table states, but omits zoomed, paused and error-recovery states."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/a11y/axe.browser.test.ts",
+          "title": "dirty: default, table open, tooltip shown, series hidden",
+          "reason": "Checks the named fixture once per applicable default/interactive state, without exercising state changes."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/a11y/axe.browser.test.ts",
+          "title": "empty: default, table open, tooltip shown, series hidden",
+          "reason": "Checks the named fixture once per applicable default/interactive state, without exercising state changes."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/a11y/axe.browser.test.ts",
+          "title": "loading: default, table open, tooltip shown, series hidden",
+          "reason": "Checks the named fixture once per applicable default/interactive state, without exercising state changes."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/a11y/axe.browser.test.ts",
+          "title": "error: default, table open, tooltip shown, series hidden",
+          "reason": "Checks the named fixture once per applicable default/interactive state, without exercising state changes."
+        }
+      ],
+      "area": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/a11y/axe.browser.test.ts",
+          "title": "stacked: default, table open, tooltip shown, series hidden",
+          "reason": "Checks four basic states without testing zoomed or paused states."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/a11y/axe.browser.test.ts",
+          "title": "bars: default, table open, tooltip shown, series hidden",
+          "reason": "Checks the single-series category fixture only, without grouped, stacked, hidden-series or continuous-axis bar states."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/a11y/axe.browser.test.ts",
+          "title": "scatter: default, table open, tooltip shown, series hidden",
+          "reason": "Checks basic interaction states but does not cover zoomed, paused or empty-view scatter."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/a11y/axe.browser.test.ts",
+          "title": "parts: default, table open, tooltip shown, series hidden",
+          "reason": "Checks only the ordinary parts fixture, without grouped, all-zero or error states."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/a11y/axe.browser.test.ts",
+          "title": "compact: default, table open, tooltip shown, series hidden",
+          "reason": "Checks the default compact line without dirty, compact bar or compact area fixtures."
+        }
+      ]
+    }
+  },
+  {
+    "id": "A10",
+    "statement": "Every built-in string can be replaced; built-in English is marked lang=\"en\" on non-English pages.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/a11y/axe.browser.test.ts",
+          "prefix": "language (spec A10)",
+          "reason": "Checks a zoom label and loading message overrides and selected language tags, without exercising all built-in strings."
+        }
+      ]
+    }
+  },
+  {
+    "id": "A9",
+    "statement": "A published WCAG 2.2 AA conformance table lists each applicable criterion, its test, author obligations and limits.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "document",
+          "file": "acceptance/README.md",
+          "reason": "The acceptance checker validates named test references, but no published WCAG-by-success-criterion conformance table is present."
+        }
+      ],
+      "area": [
+        {
+          "kind": "document",
+          "file": "acceptance/README.md",
+          "reason": "The acceptance checker validates named test references, but no published WCAG-by-success-criterion conformance table is present."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "document",
+          "file": "acceptance/README.md",
+          "reason": "The acceptance checker validates named test references, but no published WCAG-by-success-criterion conformance table is present."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "document",
+          "file": "acceptance/README.md",
+          "reason": "The acceptance checker validates named test references, but no published WCAG-by-success-criterion conformance table is present."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "document",
+          "file": "acceptance/README.md",
+          "reason": "The acceptance checker validates named test references, but no published WCAG-by-success-criterion conformance table is present."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "document",
+          "file": "acceptance/README.md",
+          "reason": "The acceptance checker validates named test references, but no published WCAG-by-success-criterion conformance table is present."
+        }
+      ]
+    }
+  },
+  {
+    "id": "F9",
+    "statement": "Up to eight series have distinct colors; above eight each keeps a distinct cue and AX130 is raised.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "compact"
+    ],
+    "notApplicable": {
+      "donut": "Donut uses slices rather than toggleable series."
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "assigns a unique normal color/dash pair to each of 12 series and warns once",
+          "reason": "Checks dash and shape identities and AX130, but infers color from a palette index rather than checking the actual colors."
+        }
+      ],
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/review.test.ts",
+          "title": "reports AX130, AX131 and AX110 only when their conditions newly apply",
+          "reason": "Checks the diagnostic at nine series without checking the active colors and mark cues."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "assigns each palette cycle its own bar pattern (stacked false)",
+          "reason": "Checks bar pattern/slot assignments but not the actual colors and threshold diagnostic."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "offsets scatter marker shapes every eight series",
+          "reason": "Checks marker changes without comparing actual colors or checking the series-limit diagnostic."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "gives compact series distinct normal dashes and raises AX131",
+          "reason": "Checks two line dashes and AX131, but not the eight-series color limit or AX130 in all compact variants."
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-limit-line",
+    "statement": "Limit that raises a diagnostic · Eight series",
+    "appliesTo": [
+      "line"
+    ],
+    "notApplicable": {
+      "area": "This is the line cell in section 3.6.",
+      "bar": "This is the line cell in section 3.6.",
+      "scatter": "This is the line cell in section 3.6.",
+      "donut": "This is the line cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/core/controller.test.ts",
+          "title": "a ninth series is rejected (AX130), leaves store, frame, view and diagnostics as they were, and later appends work"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "assigns a unique normal color/dash pair to each of 12 series and warns once"
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-limit-area",
+    "statement": "Limit that raises a diagnostic · Eight series",
+    "appliesTo": [
+      "area"
+    ],
+    "notApplicable": {
+      "line": "This is the area cell in section 3.6.",
+      "bar": "This is the area cell in section 3.6.",
+      "scatter": "This is the area cell in section 3.6.",
+      "donut": "This is the area cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "weak": {
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/review.test.ts",
+          "title": "reports AX130, AX131 and AX110 only when their conditions newly apply",
+          "reason": "Checks that nine series raise AX130 but does not test eight series without the warning."
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-limit-bar",
+    "statement": "Limit that raises a diagnostic · Eight series",
+    "appliesTo": [
+      "bar"
+    ],
+    "notApplicable": {
+      "line": "This is the bar cell in section 3.6.",
+      "area": "This is the bar cell in section 3.6.",
+      "scatter": "This is the bar cell in section 3.6.",
+      "donut": "This is the bar cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "weak": {
+      "bar": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "assigns each palette cycle its own bar pattern (stacked false)",
+          "reason": "Checks a palette cycle without checking the ninth-series diagnostic."
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-limit-donut",
+    "statement": "Limit that raises a diagnostic · Eight slices",
+    "appliesTo": [
+      "donut"
+    ],
+    "notApplicable": {
+      "line": "This is the donut cell in section 3.6.",
+      "area": "This is the donut cell in section 3.6.",
+      "bar": "This is the donut cell in section 3.6.",
+      "scatter": "This is the donut cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "evidence": {
+      "donut": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "keeps the seven largest in original order, favoring the first tie at the cutoff"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "counts positive entries for grouping and does not render a partially negative ring"
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-limit-scatter",
+    "statement": "Limit that raises a diagnostic · Eight series",
+    "appliesTo": [
+      "scatter"
+    ],
+    "notApplicable": {
+      "line": "This is the scatter cell in section 3.6.",
+      "area": "This is the scatter cell in section 3.6.",
+      "bar": "This is the scatter cell in section 3.6.",
+      "donut": "This is the scatter cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "weak": {
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "offsets scatter marker shapes every eight series",
+          "reason": "Checks marker changes without asserting the ninth-series diagnostic."
+        }
+      ]
+    }
+  },
+  {
+    "id": "L6",
+    "statement": "Title, subtitle and labelled axes with units belong to the chart; reference labels sit by their marks and axis titles stay clear of ticks.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut"
+    ],
+    "notApplicable": {
+      "compact": "Compact omits visible titles, axes and reference decorations."
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "axis titles: time and category x untitled unless labelled; number x and value axes titled with units",
+          "reason": "Checks axis strings but not their separation from ticks or visible title and subtitle together."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "the bars fixture shows its \"Target\" reference label next to the line at 90",
+          "reason": "Checks a visible target label alongside a bar-chart reference, without asserting subtitle or axis-title overlap."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/render.browser.test.ts",
+          "prefix": "the other chart types",
+          "reason": "Checks the donut name but does not assert that an authored subtitle appears with the title."
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-reference-line",
+    "statement": "Reference lines and bands · Yes; included in the domain; listed in the summary and table caption",
+    "appliesTo": [
+      "line"
+    ],
+    "notApplicable": {
+      "area": "This is the line cell in section 3.6.",
+      "bar": "This is the line cell in section 3.6.",
+      "scatter": "This is the line cell in section 3.6.",
+      "donut": "This is the line cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "resolves references against the frame kind and includes value bands and lines in the domain"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/review.test.ts",
+          "title": "includes x lines and bands in the automatic extent, including on scatter"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "orders clipped reference bands, the value grid, data, axes, and reference rules"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/reader/index.test.ts",
+          "title": "formats reference lines and bands on their own axes and leaves the deprecated alias unused"
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-reference-area",
+    "statement": "Reference lines and bands · Yes",
+    "appliesTo": [
+      "area"
+    ],
+    "notApplicable": {
+      "line": "This is the area cell in section 3.6.",
+      "bar": "This is the area cell in section 3.6.",
+      "scatter": "This is the area cell in section 3.6.",
+      "donut": "This is the area cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "weak": {
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "draws a 1.5 px dashed reference rule over area marks",
+          "reason": "Draws a dashed rule on an area chart without exercising reference bands."
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-reference-bar",
+    "statement": "Reference lines and bands · Yes",
+    "appliesTo": [
+      "bar"
+    ],
+    "notApplicable": {
+      "line": "This is the bar cell in section 3.6.",
+      "area": "This is the bar cell in section 3.6.",
+      "scatter": "This is the bar cell in section 3.6.",
+      "donut": "This is the bar cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "evidence": {
+      "bar": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "draws a 1.5 px dashed reference rule over bar marks"
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+          "title": "the bars fixture shows its \"Target\" reference label next to the line at 90"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "centers whole continuous bars and retains bands crossing both zoom edges (horizontal false)"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "centers whole continuous bars and retains bands crossing both zoom edges (horizontal true)"
+        }
+      ]
+    }
+  },
+  {
+    "id": "T-reference-donut",
+    "statement": "Reference lines and bands · No",
+    "appliesTo": [
+      "donut"
+    ],
+    "notApplicable": {
+      "line": "This is the donut cell in section 3.6.",
+      "area": "This is the donut cell in section 3.6.",
+      "bar": "This is the donut cell in section 3.6.",
+      "scatter": "This is the donut cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    }
+  },
+  {
+    "id": "T-reference-scatter",
+    "statement": "Reference lines and bands · Yes",
+    "appliesTo": [
+      "scatter"
+    ],
+    "notApplicable": {
+      "line": "This is the scatter cell in section 3.6.",
+      "area": "This is the scatter cell in section 3.6.",
+      "bar": "This is the scatter cell in section 3.6.",
+      "donut": "This is the scatter cell in section 3.6.",
+      "compact": "Compact is specified separately in section 3.7."
+    },
+    "weak": {
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/review.test.ts",
+          "title": "includes x lines and bands in the automatic extent, including on scatter",
+          "reason": "Checks that lines and bands extend the domain without checking their scatter marks or reader output."
+        }
+      ]
+    }
+  },
+  {
+    "id": "L5",
+    "statement": "Point markers appear only when adjacent points are at least 12 px apart and always for isolated points.",
+    "appliesTo": [
+      "line",
+      "area"
+    ],
+    "notApplicable": {
+      "bar": "Bars do not have optional point markers.",
+      "scatter": "Points are the marks of a scatter chart.",
+      "donut": "Donut uses slices.",
+      "compact": "Compact omits regular point markers; isolated compact marks are covered by C2."
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "uses the minimum spacing for markers and always keeps the last joined point",
+          "reason": "Checks one sparse/dense spacing example but does not exercise the 12 px boundary or the specified sparse and trend fixtures."
+        }
+      ],
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/simplify/simplify.test.ts",
+          "title": "preserves each boundary’s own extremes and pairs matching endpoints across breaks",
+          "reason": "Checks an isolated area source index without testing regular marker density in an actual area scene."
+        }
+      ]
+    }
+  },
+  {
+    "id": "C1",
+    "statement": "A compact chart is an image with a full text alternative, no tab stop and no pointer-only behavior.",
+    "appliesTo": [
+      "compact"
+    ],
+    "notApplicable": {
+      "line": "Defined for the compact variant in section 3.7.",
+      "area": "Defined for the compact variant in section 3.7.",
+      "bar": "Defined for the compact variant in section 3.7.",
+      "scatter": "Defined for the compact variant in section 3.7.",
+      "donut": "Defined for the compact variant in section 3.7."
+    },
+    "weak": {
+      "compact": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/render.browser.test.ts",
+          "prefix": "the other chart types",
+          "reason": "Checks the image role, authored name and nonempty summary of one compact line, without generated names, all summary fields or multiple tiles."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/a11y/keyboard.browser.test.ts",
+          "title": "a compact chart adds no tab stop (spec C1)",
+          "reason": "Checks tab stops for one compact line, without the 40-tile test or asserting no pointer-only behavior."
+        }
+      ]
+    }
+  },
+  {
+    "id": "C2",
+    "statement": "Compact keeps the fidelity rules for baseline, gaps, diagnostics, simplification, sorting, motion and page scheme.",
+    "appliesTo": [
+      "compact"
+    ],
+    "notApplicable": {
+      "line": "Defined for the compact variant in section 3.7.",
+      "area": "Defined for the compact variant in section 3.7.",
+      "bar": "Defined for the compact variant in section 3.7.",
+      "scatter": "Defined for the compact variant in section 3.7.",
+      "donut": "Defined for the compact variant in section 3.7."
+    },
+    "weak": {
+      "compact": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/scene/scene.test.ts",
+          "title": "draws compact paths without axes, references, or regular markers but keeps isolated points",
+          "reason": "Only checks gap-related geometry for one compact line; it does not cover all compact fidelity rules or the other variants."
+        }
+      ]
+    }
+  },
+  {
+    "id": "C3",
+    "statement": "Compact fills its container from 24×16 CSS px and is 32 px tall without a definite height.",
+    "appliesTo": [
+      "compact"
+    ],
+    "notApplicable": {
+      "line": "Defined for the compact variant in section 3.7.",
+      "area": "Defined for the compact variant in section 3.7.",
+      "bar": "Defined for the compact variant in section 3.7.",
+      "scatter": "Defined for the compact variant in section 3.7.",
+      "donut": "Defined for the compact variant in section 3.7."
+    },
+    "weak": {
+      "compact": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/render.browser.test.ts",
+          "prefix": "the other chart types",
+          "reason": "Checks the 32 px default for one compact line but does not resize to the 24×16 minimum or exercise the other compact types."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/layout/layout.test.ts",
+          "title": "returns too-small, compact, and unmeasured layouts",
+          "reason": "Checks the plot box at 24×16 in layout, without checking the actual figure and marks at that size."
+        }
+      ]
+    }
+  },
+  {
+    "id": "C4",
+    "statement": "Multiple compact lines differ by dash as well as color; AX131 suggests one series per compact chart.",
+    "appliesTo": [
+      "compact"
+    ],
+    "notApplicable": {
+      "line": "Defined for the compact variant in section 3.7.",
+      "area": "Defined for the compact variant in section 3.7.",
+      "bar": "Defined for the compact variant in section 3.7.",
+      "scatter": "Defined for the compact variant in section 3.7.",
+      "donut": "Defined for the compact variant in section 3.7."
+    },
+    "weak": {
+      "compact": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/view/view.test.ts",
+          "title": "gives compact series distinct normal dashes and raises AX131",
+          "reason": "Checks distinct dash settings and AX131 but does not assert distinct colors or render two compact lines."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/render/review.browser.test.ts",
+          "title": "C4: a non-solid normal dash is drawn in normal mode by both renderers, and the contrast dash differs",
+          "reason": "Draws an injected dash in a renderer fixture without verifying a two-series compact chart or AX131."
+        }
+      ]
+    }
+  },
+  {
+    "id": "C5",
+    "statement": "When values are left out, the compact description says so and a corner marker has a text equivalent.",
+    "appliesTo": [
+      "compact"
+    ],
+    "notApplicable": {
+      "line": "Defined for the compact variant in section 3.7.",
+      "area": "Defined for the compact variant in section 3.7.",
+      "bar": "Defined for the compact variant in section 3.7.",
+      "scatter": "Defined for the compact variant in section 3.7.",
+      "donut": "Defined for the compact variant in section 3.7."
+    },
+    "evidence": {
+      "compact": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/render.browser.test.ts",
+          "title": "with values left out, the description says so and a corner marker appears; there is no note element"
+        }
+      ]
+    }
+  },
+  {
+    "id": "DX1",
+    "statement": "The first chart takes ten lines or fewer via npm, script tag or React, using only data and fields.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "document",
+          "file": "docs/api/examples.ts",
+          "reason": "Includes a typed starter example but does not render the npm, script-tag and React snippets from a packed distribution."
+        }
+      ]
+    }
+  },
+  {
+    "id": "DX2",
+    "statement": "Long rows, wide rows and typed columns produce the same normalized data and diagnostics with caller row indexes.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/data/normalize.test.ts",
+          "title": "produces equal aligned values and slots from long, wide and typed inputs",
+          "reason": "Checks three equivalent inputs for one data fixture and one mixed numeric diagnostic, without applying the equivalence check to the other data and diagnostics fixtures."
+        }
+      ]
+    }
+  },
+  {
+    "id": "DX3",
+    "statement": "Invalid typed calls fail to compile; their untyped equivalents raise AX101, AX106 or AX150.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "document",
+          "file": "docs/api/examples.ts",
+          "reason": "Shows compile-time examples but does not run untyped equivalents or assert the three runtime codes."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/core/validate.test.ts",
+          "title": "validate raises AX140 without a title or labelledBy, and AX101 for a misspelled field",
+          "reason": "Checks AX101 for a typo but does not assert AX106 and AX150 for the counterpart invalid calls."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "document",
+          "file": "packages/react/test/types.check.tsx",
+          "reason": "Checks invalid donut props through TypeScript but has no runtime counterpart for them."
+        }
+      ]
+    }
+  },
+  {
+    "id": "DX4",
+    "statement": "Diagnostics have stable codes, chart names, field and row indexes where appropriate, fixes and a documentation page per code.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/diagnostics/registry.test.ts",
+          "prefix": "diagnostic registry",
+          "reason": "Checks registry levels and messages for selected inputs, without checking all fields and fixes or a documentation page and live link per code."
+        }
+      ],
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/diagnostics/registry.test.ts",
+          "prefix": "diagnostic registry",
+          "reason": "Checks registry levels and messages for selected inputs, without checking all fields and fixes or a documentation page and live link per code."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/diagnostics/registry.test.ts",
+          "prefix": "diagnostic registry",
+          "reason": "Checks registry levels and messages for selected inputs, without checking all fields and fixes or a documentation page and live link per code."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/diagnostics/registry.test.ts",
+          "prefix": "diagnostic registry",
+          "reason": "Checks registry levels and messages for selected inputs, without checking all fields and fixes or a documentation page and live link per code."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/diagnostics/registry.test.ts",
+          "prefix": "diagnostic registry",
+          "reason": "Checks registry levels and messages for selected inputs, without checking all fields and fixes or a documentation page and live link per code."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/diagnostics/registry.test.ts",
+          "prefix": "diagnostic registry",
+          "reason": "Checks registry levels and messages for selected inputs, without checking all fields and fixes or a documentation page and live link per code."
+        }
+      ]
+    }
+  },
+  {
+    "id": "DX5",
+    "statement": "Update, append and zoom apply in order; validation is synchronous, one frame changes all visible state, and destroy cancels work.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/lifecycle.browser.test.ts",
+          "title": "update({ data }), append and zoom in one turn are drawn once and end in the expected state",
+          "reason": "Checks draw count and final data/range but does not observe marks, labels, hit testing and accessible readout together across the commit."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/lifecycle.browser.test.ts",
+          "title": "a rejected strict update throws and leaves the previous chart intact",
+          "reason": "Checks rollback and synchronous throwing for update on one chart without testing the rest of the commit contract."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/core/controller.test.ts",
+          "title": "scatter [10, 20] + 5 with keep 2 keeps the latest two x positions [10, 20] and raises AX151",
+          "reason": "Checks the outcome of one append rather than update/append/zoom ordering or atomic presentation."
+        }
+      ]
+    }
+  },
+  {
+    "id": "DX6",
+    "statement": "CSS custom properties style charts; font and color are inherited, and a series name pins its color across charts.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/render/theme.browser.test.ts",
+          "title": "colors: { Direct: \"var(--brand)\" } stays live in SVG: changing --brand recolors with no draw call",
+          "reason": "Checks one pinned color in a renderer harness but does not compare named series across a 24-chart page or verify font and spacing inheritance."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/core/controller.test.ts",
+          "title": "Empty: 0 before Sales: 4 with Sales pinned: the theme binds the pin to the palette slot the Sales arc uses",
+          "reason": "Checks the slice color binding on one figure without testing cross-chart pins or the CSS contract."
+        }
+      ]
+    }
+  },
+  {
+    "id": "DX7",
+    "statement": "Zero runtime dependencies and provisional minified+gzipped size targets, CSS included.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "document",
+          "file": "scripts/size.mjs",
+          "reason": "Measures local source bundles and counts CSS if present, without measuring the packed distribution or auditing runtime dependencies."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/react/test/size.test.ts",
+          "title": "production build is at most 2 KiB gzipped",
+          "reason": "Checks the local React bundle size only; it does not check the packed bytes or dependency contract."
+        }
+      ],
+      "area": [
+        {
+          "kind": "document",
+          "file": "scripts/size.mjs",
+          "reason": "Measures local source bundles and counts CSS if present, without measuring the packed distribution or auditing runtime dependencies."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/react/test/size.test.ts",
+          "title": "production build is at most 2 KiB gzipped",
+          "reason": "Checks the local React bundle size only; it does not check the packed bytes or dependency contract."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "document",
+          "file": "scripts/size.mjs",
+          "reason": "Measures local source bundles and counts CSS if present, without measuring the packed distribution or auditing runtime dependencies."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/react/test/size.test.ts",
+          "title": "production build is at most 2 KiB gzipped",
+          "reason": "Checks the local React bundle size only; it does not check the packed bytes or dependency contract."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "document",
+          "file": "scripts/size.mjs",
+          "reason": "Measures local source bundles and counts CSS if present, without measuring the packed distribution or auditing runtime dependencies."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/react/test/size.test.ts",
+          "title": "production build is at most 2 KiB gzipped",
+          "reason": "Checks the local React bundle size only; it does not check the packed bytes or dependency contract."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "document",
+          "file": "scripts/size.mjs",
+          "reason": "Measures local source bundles and counts CSS if present, without measuring the packed distribution or auditing runtime dependencies."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/react/test/size.test.ts",
+          "title": "production build is at most 2 KiB gzipped",
+          "reason": "Checks the local React bundle size only; it does not check the packed bytes or dependency contract."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "document",
+          "file": "scripts/size.mjs",
+          "reason": "Measures local source bundles and counts CSS if present, without measuring the packed distribution or auditing runtime dependencies."
+        },
+        {
+          "kind": "unit",
+          "file": "packages/react/test/size.test.ts",
+          "title": "production build is at most 2 KiB gzipped",
+          "reason": "Checks the local React bundle size only; it does not check the packed bytes or dependency contract."
+        }
+      ]
+    }
+  },
+  {
+    "id": "DX8",
+    "statement": "Works without a DOM at import, in React StrictMode and under strict CSP, inserts text safely, and names unmatched selectors.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/core/validate.test.ts",
+          "title": "imports without a DOM and exports the five chart functions and validate",
+          "reason": "Imports the source entry in Node but does not exercise the packed artifact or the browser requirements."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/react/test/browser/react.browser.test.ts",
+          "title": "setup, cleanup, setup leaves one chart; unmount leaves nothing behind",
+          "reason": "Checks StrictMode lifecycle for a line chart; that scenario does not check CSP or insertion of untrusted text."
+        },
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/render/review.browser.test.ts",
+          "title": "DX8: text layer, renderers and styles work under a Content Security Policy without unsafe-inline, served with real headers",
+          "reason": "Exercises lower-level renderers using a real CSP header but never creates a public chart under that policy."
+        }
+      ],
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/core/validate.test.ts",
+          "title": "imports without a DOM and exports the five chart functions and validate",
+          "reason": "Checks only that the export is a function in a source import, without chart-specific StrictMode, CSP or safe text assertions."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/core/validate.test.ts",
+          "title": "imports without a DOM and exports the five chart functions and validate",
+          "reason": "Checks only that the export is a function in a source import, without chart-specific StrictMode, CSP or safe text assertions."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/core/validate.test.ts",
+          "title": "imports without a DOM and exports the five chart functions and validate",
+          "reason": "Checks only that the export is a function in a source import, without chart-specific StrictMode, CSP or safe text assertions."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/core/validate.test.ts",
+          "title": "imports without a DOM and exports the five chart functions and validate",
+          "reason": "Checks only that the export is a function in a source import, without chart-specific StrictMode, CSP or safe text assertions."
+        }
+      ]
+    }
+  },
+  {
+    "id": "DX9",
+    "statement": "Follow semantic versioning and the deprecation policy; previous documented examples still compile and run.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {}
+  },
+  {
+    "id": "DX10",
+    "statement": "Every runnable documentation example is compiled and rendered in CI from the packed distribution.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "document",
+          "file": "docs/api/examples.ts",
+          "reason": "Has compile-only examples, without a packed-distribution run of every runnable documentation example."
+        }
+      ]
+    }
+  },
+  {
+    "id": "DX11",
+    "statement": "Everything is MIT licensed, with third-party notices verified at release.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "document",
+          "file": "packages/axylo/package.json",
+          "reason": "Declares MIT in package metadata but does not verify notices or that release artifacts carry the license."
+        }
+      ],
+      "area": [
+        {
+          "kind": "document",
+          "file": "packages/axylo/package.json",
+          "reason": "Declares MIT in package metadata but does not verify notices or that release artifacts carry the license."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "document",
+          "file": "packages/axylo/package.json",
+          "reason": "Declares MIT in package metadata but does not verify notices or that release artifacts carry the license."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "document",
+          "file": "packages/axylo/package.json",
+          "reason": "Declares MIT in package metadata but does not verify notices or that release artifacts carry the license."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "document",
+          "file": "packages/axylo/package.json",
+          "reason": "Declares MIT in package metadata but does not verify notices or that release artifacts carry the license."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "document",
+          "file": "packages/axylo/package.json",
+          "reason": "Declares MIT in package metadata but does not verify notices or that release artifacts carry the license."
+        }
+      ]
+    }
+  },
+  {
+    "id": "DX12",
+    "statement": "A coding agent uses published docs to make a first chart that passes reader criteria on trap fixtures.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {}
+  },
+  {
+    "id": "P1",
+    "statement": "Trend (3×120) first render · median main-thread task time of 20 runs.",
+    "appliesTo": [
+      "line"
+    ],
+    "notApplicable": {
+      "area": "The specified trend workload is a line-chart fixture.",
+      "bar": "The specified trend workload is a line-chart fixture.",
+      "scatter": "The specified trend workload is a line-chart fixture.",
+      "donut": "The specified trend workload is a line-chart fixture.",
+      "compact": "The specified trend workload is a line-chart fixture."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "benchmark",
+          "file": "bench/src/page.js",
+          "workload": "first 3×120",
+          "history": [
+            "bench/history/20261118T023022Z-first-3x120-uplot-vs-axylo-canvas-e472.json"
+          ],
+          "reason": "Eight measured runs per configuration, software rasterisation."
+        }
+      ]
+    },
+    "cannotVerify": {
+      "line": "A recorded workload was measured, but the limit is provisional and has no acceptance verdict. Hardware GPU rasterisation and the reference browser/device profiles cannot be verified here."
+    }
+  },
+  {
+    "id": "P2",
+    "statement": "One typed-column series of 100,000 and 1,000,000 points · median first-render main-thread task time.",
+    "appliesTo": [
+      "line"
+    ],
+    "notApplicable": {
+      "area": "The current workload definition uses a single dense line from typed columns.",
+      "bar": "The current workload definition uses a single dense line from typed columns.",
+      "scatter": "The current workload definition uses a single dense line from typed columns.",
+      "donut": "The current workload definition uses a single dense line from typed columns.",
+      "compact": "The current workload definition uses a single dense line from typed columns."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "benchmark",
+          "file": "bench/src/page.js",
+          "workload": "first 1×100k and 1×1M",
+          "history": [
+            "bench/history/20261118T023400Z-first-1x100000-uplot-vs-axylo-svg-e9b6.json",
+            "bench/history/20261118T023656Z-first-1x1000000-uplot-vs-axylo-svg-50d6.json"
+          ],
+          "reason": "Eight and four measured runs per configuration respectively."
+        }
+      ]
+    },
+    "cannotVerify": {
+      "line": "A recorded workload was measured, but the limit is provisional and has no acceptance verdict. Hardware GPU rasterisation and the reference browser/device profiles cannot be verified here."
+    }
+  },
+  {
+    "id": "P3",
+    "statement": "Append at 60 Hz in a 600-point window · median task time per update and frames later than 25 ms.",
+    "appliesTo": [
+      "line"
+    ],
+    "notApplicable": {
+      "area": "The specified stream workload is the line-chart fixture with a 600-point window.",
+      "bar": "The specified stream workload is the line-chart fixture with a 600-point window.",
+      "scatter": "The specified stream workload is the line-chart fixture with a 600-point window.",
+      "donut": "The specified stream workload is the line-chart fixture with a 600-point window.",
+      "compact": "The specified stream workload is the line-chart fixture with a 600-point window."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "benchmark",
+          "file": "bench/src/page.js",
+          "workload": "stream window 600 at 60 Hz",
+          "history": [
+            "bench/history/20261118T024054Z-stream-w600-uplot-vs-axylo-canvas-fcdf.json"
+          ],
+          "reason": "Independent producer clock. CDP frame callbacks do not measure actual presentation."
+        }
+      ]
+    },
+    "cannotVerify": {
+      "line": "A recorded workload was measured, but the limit is provisional and has no acceptance verdict. Hardware GPU rasterisation and the reference browser/device profiles cannot be verified here."
+    }
+  },
+  {
+    "id": "P4",
+    "statement": "Pointer across a 100,000-point chart · p95 input to the matching readout frame.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter"
+    ],
+    "notApplicable": {
+      "donut": "Donut is limited to eight drawn slices and has no 100,000-point picking workload.",
+      "compact": "Compact does not show a pointer readout."
+    },
+    "pending": {
+      "line": "The benchmark workload is not implemented and no matching history exists. Limits are provisional.",
+      "area": "The benchmark workload is not implemented and no matching history exists. Limits are provisional.",
+      "bar": "The benchmark workload is not implemented and no matching history exists. Limits are provisional.",
+      "scatter": "The benchmark workload is not implemented and no matching history exists. Limits are provisional."
+    }
+  },
+  {
+    "id": "P5",
+    "statement": "Create 24 trend charts · median total main-thread task time.",
+    "appliesTo": [
+      "line"
+    ],
+    "notApplicable": {
+      "area": "The specified trend workload is a line-chart fixture.",
+      "bar": "The specified trend workload is a line-chart fixture.",
+      "scatter": "The specified trend workload is a line-chart fixture.",
+      "donut": "The specified trend workload is a line-chart fixture.",
+      "compact": "The specified trend workload is a line-chart fixture."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "benchmark",
+          "file": "bench/src/page.js",
+          "workload": "page 24×(3×120)",
+          "history": [
+            "bench/history/20261118T023750Z-page-3x120-x24-uplot-vs-axylo-canvas-c286.json"
+          ],
+          "reason": "Eight measured runs per configuration."
+        }
+      ]
+    },
+    "cannotVerify": {
+      "line": "A recorded workload was measured, but the limit is provisional and has no acceptance verdict. Hardware GPU rasterisation and the reference browser/device profiles cannot be verified here."
+    }
+  },
+  {
+    "id": "P6",
+    "statement": "Download · exact minified and gzipped bytes, CSS included.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "weak": {
+      "line": [
+        {
+          "kind": "document",
+          "file": "scripts/size.mjs",
+          "reason": "Does not measure the packed distribution, script-tag and React entries with CSS together."
+        }
+      ],
+      "area": [
+        {
+          "kind": "document",
+          "file": "scripts/size.mjs",
+          "reason": "Does not measure the packed distribution, script-tag and React entries with CSS together."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "document",
+          "file": "scripts/size.mjs",
+          "reason": "Does not measure the packed distribution, script-tag and React entries with CSS together."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "document",
+          "file": "scripts/size.mjs",
+          "reason": "Does not measure the packed distribution, script-tag and React entries with CSS together."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "document",
+          "file": "scripts/size.mjs",
+          "reason": "Does not measure the packed distribution, script-tag and React entries with CSS together."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "document",
+          "file": "scripts/size.mjs",
+          "reason": "Does not measure the packed distribution, script-tag and React entries with CSS together."
+        }
+      ]
+    },
+    "pending": {
+      "line": "No complete bytes workload or matching history in bench. The targets remain provisional.",
+      "area": "No complete bytes workload or matching history in bench. The targets remain provisional.",
+      "bar": "No complete bytes workload or matching history in bench. The targets remain provisional.",
+      "scatter": "No complete bytes workload or matching history in bench. The targets remain provisional.",
+      "donut": "No complete bytes workload or matching history in bench. The targets remain provisional.",
+      "compact": "No complete bytes workload or matching history in bench. The targets remain provisional."
+    }
+  },
+  {
+    "id": "P7",
+    "statement": "Measure owned bytes beyond one million caller points and heap trends over 1,000 create–destroy cycles after collection.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "notApplicable": {},
+    "evidence": {
+      "line": [
+        {
+          "kind": "benchmark",
+          "file": "bench/src/page.js",
+          "workload": "first 1×1M with memory sampling",
+          "history": [
+            "bench/history/20261118T023656Z-first-1x1000000-uplot-vs-axylo-svg-50d6.json"
+          ],
+          "reason": "Records heap and process memory, without a create–destroy trend."
+        }
+      ]
+    },
+    "weak": {
+      "line": [
+        {
+          "kind": "browser",
+          "file": "packages/axylo/test/browser/chart/lifecycle.browser.test.ts",
+          "title": "objects other than compiled code do not grow from cycle 300 to cycle 1,000",
+          "reason": "Checks retained objects across 1,000 chart lifecycles, without the one-million-point owned memory measurement or a linked history file."
+        }
+      ]
+    },
+    "cannotVerify": {
+      "line": "A recorded workload was measured, but the limit is provisional and has no acceptance verdict. Hardware GPU rasterisation and the reference browser/device profiles cannot be verified here."
+    },
+    "pending": {
+      "area": "No per-type forced-GC memory measurement and lifecycle trend in benchmark history. Limits are provisional.",
+      "bar": "No per-type forced-GC memory measurement and lifecycle trend in benchmark history. Limits are provisional.",
+      "scatter": "No per-type forced-GC memory measurement and lifecycle trend in benchmark history. Limits are provisional.",
+      "donut": "No per-type forced-GC memory measurement and lifecycle trend in benchmark history. Limits are provisional.",
+      "compact": "No per-type forced-GC memory measurement and lifecycle trend in benchmark history. Limits are provisional."
+    }
+  },
+  {
+    "id": "P8",
+    "statement": "Create 40 compact charts · median total main-thread task time.",
+    "appliesTo": [
+      "compact"
+    ],
+    "notApplicable": {
+      "line": "The workload is explicitly 40 compact charts.",
+      "area": "The workload is explicitly 40 compact charts.",
+      "bar": "The workload is explicitly 40 compact charts.",
+      "scatter": "The workload is explicitly 40 compact charts.",
+      "donut": "The workload is explicitly 40 compact charts."
+    },
+    "pending": {
+      "compact": "The benchmark workload is not implemented and no matching history exists. Limits are provisional."
+    }
+  }
+]

@@ -1,0 +1,9 @@
+{
+  "testResults": [{
+    "name": "./chart.test.ts",
+    "assertionResults": [
+      { "title": "line renders", "ancestorTitles": ["render examples"], "status": "failed" },
+      { "title": "area renders", "ancestorTitles": ["render examples"], "status": "passed" }
+    ]
+  }]
+}

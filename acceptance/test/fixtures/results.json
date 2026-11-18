@@ -1,0 +1,10 @@
+{
+  "testResults": [{
+    "name": "./chart.test.ts",
+    "assertionResults": [
+      { "title": "line renders", "ancestorTitles": ["render examples"], "status": "passed" },
+      { "title": "area renders", "ancestorTitles": ["render examples"], "status": "skipped" },
+      { "title": "bar has a baseline", "ancestorTitles": ["render examples"], "status": "passed" }
+    ]
+  }]
+}

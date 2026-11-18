@@ -1,0 +1,65 @@
+[
+  {
+    "id": "F1",
+    "statement": "Show the fixture faithfully.",
+    "appliesTo": ["line", "area", "bar"],
+    "notApplicable": {
+      "scatter": "No scatter fixture.",
+      "donut": "No donut fixture.",
+      "compact": "Only full figures are scoped."
+    },
+    "evidence": {
+      "line": [{"file": "chart.test.ts", "kind": "unit", "title": "line renders"}],
+      "bar": [{"file": "chart.test.ts", "kind": "unit", "title": "bar has a baseline"}]
+    },
+    "weak": {
+      "area": [{
+        "file": "chart.test.ts", "kind": "unit", "title": "area renders",
+        "reason": "The smoke test does not check the geometry."
+      }]
+    }
+  },
+  {
+    "id": "F2",
+    "statement": "Keep breaks visible.",
+    "appliesTo": ["line"],
+    "notApplicable": {
+      "area": "Out of scope.",
+      "bar": "Out of scope.",
+      "scatter": "Out of scope.",
+      "donut": "Out of scope.",
+      "compact": "Out of scope."
+    },
+    "cannotVerify": {"line": "A real phone is required."}
+  },
+  {
+    "id": "T-pointer-line",
+    "statement": "Nearest x.",
+    "appliesTo": ["line"],
+    "notApplicable": {
+      "area": "Line cell.",
+      "bar": "Line cell.",
+      "scatter": "Line cell.",
+      "donut": "Line cell.",
+      "compact": "Line cell."
+    },
+    "evidence": {
+      "line": [{"file": "chart.test.ts", "kind": "unit", "prefix": "render examp"}]
+    }
+  },
+  {
+    "id": "T-pointer-bar",
+    "statement": "Under the pointer.",
+    "appliesTo": ["bar"],
+    "notApplicable": {
+      "line": "Bar cell.",
+      "area": "Bar cell.",
+      "scatter": "Bar cell.",
+      "donut": "Bar cell.",
+      "compact": "Bar cell."
+    },
+    "evidence": {
+      "bar": [{"file": "chart.test.ts", "kind": "unit", "prefix": "render examples"}]
+    }
+  }
+]
