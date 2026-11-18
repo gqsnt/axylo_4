@@ -127,18 +127,54 @@ describe('linearTickCandidates', () => {
     );
   });
 
+  /**
+   * Checks a candidate set against the step the generator chose, which it hands to the labeler as
+   * TickContext.step (the label carries it here). The step must be exactly 1, 2 or 5 × 10^k, and every tick
+   * must be exactly the double nearest a whole multiple of it, the multiples consecutive.
+   *
+   * Why not the difference of two ticks: ticks are rounded to doubles of their own magnitude, so near
+   * 5e5 two ticks 1e-4 apart differ by 1e-4 ± 1e-10 (seed 243009428 found lo = -524996.0308, width 0.001),
+   * and a tolerance tight enough to mean anything fails there while the ticks are right.
+   */
+  function checkNiceSet(set: readonly { value: number; label: string }[]): void {
+    const step = Number(set[0]!.label);
+    expect(set.every(t => t.label === set[0]!.label)).toBe(true);
+    const [mantissa, exponent] = step.toExponential().split('e');
+    expect(['1', '2', '5']).toContain(mantissa);
+    const k = Number(exponent);
+    let previous: bigint | null = null;
+    for (const t of set) {
+      // The index of this tick: round(value / step), done in decimal so it is exact for any magnitude.
+      const index = BigInt(Math.round(t.value / step));
+      expect(t.value).toBe(Number(`${index * BigInt(mantissa!)}e${k}`));
+      if (previous !== null) expect(index).toBe(previous + 1n);
+      previous = index;
+    }
+  }
+  const stepLabel = (_: number, c: { step: number }): string => String(c.step);
+
+  it('uses only 1, 2 or 5 times a power of ten as the step, ticks exactly on its multiples', () => {
+    // The counterexample of seed 243009428, kept as a fixed case.
+    for (const set of linearTickCandidates([-524996.0308, -524996.0308 + 0.001], stepLabel)) if (set.length > 1) checkNiceSet(set);
+    const sets = linearTickCandidates([-524996.0308, -524996.0308 + 0.001], String);
+    expect(sets[0]!.map(t => t.value)).toEqual([-524996.0308, -524996.0307, -524996.0306, -524996.0305, -524996.0304, -524996.0303, -524996.0302, -524996.0301, -524996.03, -524996.0299, -524996.0298]);
+  });
+
   it('uses only 1, 2 or 5 times a power of ten as the step (property)', () => {
     fc.assert(
       fc.property(fc.double({ min: -1e6, max: 1e6, noNaN: true }), fc.double({ min: 1e-3, max: 1e6, noNaN: true }), (lo, width) => {
-        for (const set of linearTickCandidates([lo, lo + width], plain)) {
-          if (set.length < 2) continue;
-          const step = set[1]!.value - set[0]!.value;
-          // Tick values carry rounding of their own magnitude, so the difference is a nice step only approximately.
-          const mantissa = step / 10 ** Math.floor(Math.log10(step) + 1e-6);
-          expect([1, 2, 5].some(m => Math.abs(mantissa - m) < 1e-6)).toBe(true);
-        }
+        for (const set of linearTickCandidates([lo, lo + width], stepLabel)) if (set.length > 1) checkNiceSet(set);
       }),
       { numRuns: 1000 },
+    );
+  });
+
+  it('keeps the step check for the seed that found the unsound version', () => {
+    fc.assert(
+      fc.property(fc.double({ min: -1e6, max: 1e6, noNaN: true }), fc.double({ min: 1e-3, max: 1e6, noNaN: true }), (lo, width) => {
+        for (const set of linearTickCandidates([lo, lo + width], stepLabel)) if (set.length > 1) checkNiceSet(set);
+      }),
+      { numRuns: 1000, seed: 243009428 },
     );
   });
 });

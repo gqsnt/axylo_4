@@ -174,6 +174,15 @@ describe('timeTickCandidates: zones, calendars and labels', () => {
   });
 });
 
+describe('timeTickCandidates: same clock time on different days', () => {
+  it('writes "3:00 AM" plainly on both days of a 27-hour wall axis (seed 1300592530)', () => {
+    const lo = Date.UTC(2020, 0, 1);
+    const sets = timeTickCandidates([lo, lo + 27 * H], { kind: 'wall', locale: 'en-US' });
+    const threeHourly = withCount(sets, 10);
+    expect(labels(threeHourly)).toEqual(['Jan 1, 12:00 AM', '3:00 AM', '6:00 AM', '9:00 AM', '12:00 PM', '3:00 PM', '6:00 PM', '9:00 PM', 'Jan 2, 12:00 AM', '3:00 AM']);
+  });
+});
+
 describe('timeTickCandidates properties', () => {
   const zones = fc.constantFrom(LA, PARIS, KOLKATA, 'UTC');
   const start = fc.integer({ min: Date.UTC(2020, 0, 1), max: Date.UTC(2030, 0, 1) });
@@ -198,8 +207,14 @@ describe('timeTickCandidates properties', () => {
             if (i > 0) expect(set[i]!.value).toBeGreaterThan(set[i - 1]!.value);
             expect(set[i]!.label.length).toBeGreaterThan(0);
           }
-          // Labels within a set never read the same (review finding 4: folds; finding 13: eras).
-          expect(new Set(set.map(t => t.label)).size).toBe(set.length);
+          // Labels are unambiguous in their context (review finding 4): no two ticks read the same on one
+          // local day (clock ticks; catches a fold) or in one local year (calendar ticks, all at midnight).
+          // The same clock time on two days is fine: the date is written where the day changes.
+          // Local fields come from Intl directly, not from the code under test.
+          const zoneOfAxis = k === 'time' ? timeZone : 'UTC';
+          const calendar = set.every(t => local(zoneOfAxis, t.value).hm === '00:00');
+          const contexts = set.map(t => `${calendar ? local(zoneOfAxis, t.value).ymd.slice(0, 4) : local(zoneOfAxis, t.value).ymd} ${t.label}`);
+          expect(new Set(contexts).size, contexts.join(' | ')).toBe(set.length);
           if (k === 'date' && dateUnit !== 'day' && set.length > 1) {
             // Month and year axes: every tick on the first of a month (of January for years).
             for (const t of set) {

@@ -283,7 +283,7 @@ function labelOptions(level: Level): { short: Intl.DateTimeFormatOptions; contex
 }
 
 /**
- * Ways to tell apart built-in labels that still read the same, tried in order: the zone abbreviation and
+ * Ways to tell apart built-in labels that still read the same in one context, tried in order: the zone abbreviation and
  * then the numeric offset (the same clock time twice in a fold), then the era (1 BC and AD 1).
  */
 function disambiguators(zone: string): Intl.DateTimeFormatOptions[] {
@@ -306,13 +306,16 @@ function label(values: readonly number[], unit: TimeUnit, zone: string, options:
   const fields: Intl.DateTimeFormatOptions[] = [];
   const builtIn: boolean[] = [];
   const ticks: Tick[] = [];
+  const keys: number[] = [];
   let previous = NaN;
   values.forEach((value, i) => {
     const wall = walls[i]!;
-    // Year for calendar ticks, calendar day for clock ticks.
-    const key = level === 'month' || level === 'day'
+    // The context a label is read in: the year for calendar ticks, the calendar day for clock ticks, the
+    // whole set for year ticks.
+    const key = level === 'year' ? 0 : level === 'month' || level === 'day'
       ? wall.getUTCFullYear()
       : wall.getUTCFullYear() * 10000 + wall.getUTCMonth() * 100 + wall.getUTCDate();
+    keys.push(key);
     const f = { ...(context !== null && key !== previous ? context : short), ...era };
     previous = key;
     fields.push(f);
@@ -321,7 +324,7 @@ function label(values: readonly number[], unit: TimeUnit, zone: string, options:
     ticks.push({ value, label: custom ?? dateTimeFormat(options.locale, { ...f, timeZone: zone }).format(value) });
   });
   for (const extra of disambiguators(zone)) {
-    const repeated = repeatedBuiltIn(ticks, builtIn);
+    const repeated = repeatedBuiltIn(ticks, builtIn, keys);
     if (repeated.length === 0) break;
     for (const j of repeated) {
       fields[j] = { ...fields[j], ...extra };
@@ -331,13 +334,17 @@ function label(values: readonly number[], unit: TimeUnit, zone: string, options:
   return ticks;
 }
 
-/** Indexes of built-in labels that equal another label anywhere in the set. */
-function repeatedBuiltIn(ticks: readonly Tick[], builtIn: readonly boolean[]): number[] {
+/**
+ * Indexes of built-in labels that equal another label read in the same context. "3:00 AM" on two different
+ * days is not repeated (the date is written where the day changes); "1:00 AM" twice on one day (a fold) is.
+ */
+function repeatedBuiltIn(ticks: readonly Tick[], builtIn: readonly boolean[], keys: readonly number[]): number[] {
+  const id = (i: number): string => `${keys[i]}\u0000${ticks[i]!.label}`;
   const count = new Map<string, number>();
-  for (const t of ticks) count.set(t.label, (count.get(t.label) ?? 0) + 1);
+  ticks.forEach((_, i) => count.set(id(i), (count.get(id(i)) ?? 0) + 1));
   const out: number[] = [];
-  ticks.forEach((t, i) => {
-    if (builtIn[i] && (count.get(t.label) ?? 0) > 1) out.push(i);
+  ticks.forEach((_, i) => {
+    if (builtIn[i] && (count.get(id(i)) ?? 0) > 1) out.push(i);
   });
   return out;
 }
