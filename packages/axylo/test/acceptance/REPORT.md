@@ -1,5 +1,7 @@
 # Node acceptance mutation report
 
+`EVIDENCE.json` beside this report lists every title of a real run of this directory. After adding or renaming a test, regenerate it: `npx vitest run packages/axylo/test/acceptance --reporter=json --outputFile=<scratch>/run.json`, then `node packages/axylo/test/acceptance/evidence.mjs <scratch>/run.json` (a new compact test needs its kinds in the script's `COMPACT_KINDS`, read from the test).
+
 Each scratch Vitest entry mocked the real module with a mutated copy, then imported the real acceptance tests. The control imported the same tests without a mutation. All scratch files were removed. Browser configurations were outside this run.
 
 ## Control
