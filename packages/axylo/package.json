@@ -1,0 +1,17 @@
+{
+  "name": "axylo",
+  "version": "0.0.0",
+  "description": "Everyday charts that are faithful to the data, readable everywhere and accessible by default.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./dist/axylo.dev.js",
+      "default": "./dist/axylo.js"
+    },
+    "./axylo.css": "./dist/axylo.css"
+  }
+}

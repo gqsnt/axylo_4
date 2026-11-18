@@ -1,0 +1,25 @@
+{
+  "name": "axylo-workspace",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p packages/axylo --noEmit && tsc -p docs/api",
+    "test": "vitest run",
+    "build": "node scripts/build.mjs",
+    "size": "node scripts/size.mjs",
+    "test:browser": "AXYLO_BROWSER=1 vitest run",
+    "check": "npm run typecheck && npm test && npm run build && npm run test:browser && npm run size"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "axe-core": "^4.14.1",
+    "esbuild": "^0.28.2",
+    "fast-check": "^4.10.2",
+    "playwright-core": "^1.65.1",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}
