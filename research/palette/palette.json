@@ -30,148 +30,148 @@
    "series": [
     {
      "slot": 1,
-     "hex": "#4a94eb",
+     "hex": "#2b97ee",
      "oklch": [
-      0.66,
-      0.15,
-      254.1
+      0.659,
+      0.16,
+      248.1
      ],
-     "contrast": 3.12,
-     "hueDiffToOtherScheme": 2.2
+     "contrast": 3.1,
+     "hueDiffToOtherScheme": 11.5
     },
     {
      "slot": 2,
-     "hex": "#e97200",
+     "hex": "#cf8020",
      "oklch": [
-      0.68,
-      0.175,
-      51.9
+      0.669,
+      0.14,
+      64.7
      ],
-     "contrast": 3.06,
-     "hueDiffToOtherScheme": 2.1
+     "contrast": 3.11,
+     "hueDiffToOtherScheme": 12.7
     },
     {
      "slot": 3,
-     "hex": "#136102",
+     "hex": "#0b6c49",
      "oklch": [
-      0.43,
-      0.14,
-      141.1
+      0.471,
+      0.1,
+      161.7
      ],
-     "contrast": 7.67,
-     "hueDiffToOtherScheme": 7.8
+     "contrast": 6.45,
+     "hueDiffToOtherScheme": 10
     },
     {
      "slot": 4,
-     "hex": "#7314a2",
+     "hex": "#812cc4",
      "oklch": [
-      0.435,
-      0.205,
-      310.1
+      0.499,
+      0.22,
+      304.8
      ],
-     "contrast": 8.93,
-     "hueDiffToOtherScheme": 1.5
+     "contrast": 6.79,
+     "hueDiffToOtherScheme": 14.1
     },
     {
      "slot": 5,
-     "hex": "#bd585e",
+     "hex": "#be1506",
      "oklch": [
-      0.587,
-      0.13,
-      18.3
+      0.51,
+      0.2,
+      30.1
      ],
-     "contrast": 4.45,
-     "hueDiffToOtherScheme": 13.6
+     "contrast": 6.36,
+     "hueDiffToOtherScheme": 11.8
     },
     {
      "slot": 6,
-     "hex": "#007baa",
+     "hex": "#0380a8",
      "oklch": [
-      0.549,
-      0.115,
-      234.2
+      0.561,
+      0.11,
+      229.1
      ],
-     "contrast": 4.76,
-     "hueDiffToOtherScheme": 8.9
+     "contrast": 4.51,
+     "hueDiffToOtherScheme": 0.1
     },
     {
      "slot": 7,
-     "hex": "#a52265",
+     "hex": "#8c1382",
      "oklch": [
-      0.489,
-      0.175,
-      355
+      0.45,
+      0.19,
+      332.2
      ],
-     "contrast": 6.96,
-     "hueDiffToOtherScheme": 5.8
+     "contrast": 8.3,
+     "hueDiffToOtherScheme": 13.9
     },
     {
      "slot": 8,
-     "hex": "#9293a5",
+     "hex": "#8e948f",
      "oklch": [
-      0.668,
-      0.026,
-      283.1
+      0.66,
+      0.01,
+      150.6
      ],
-     "contrast": 3.03,
-     "hueDiffToOtherScheme": 8.8
+     "contrast": 3.1,
+     "hueDiffToOtherScheme": 0.1
     }
    ],
    "minDelta": {
     "normal": {
-     "min": 0.124,
+     "min": 0.113,
      "pair": [
-      5,
+      4,
       7
      ]
     },
     "protan": {
-     "min": 0.103,
+     "min": 0.102,
      "pair": [
-      3,
-      5
+      6,
+      8
      ]
     },
     "deutan": {
-     "min": 0.103,
+     "min": 0.102,
      "pair": [
       3,
-      7
+      5
      ]
     },
     "tritan": {
      "min": 0.102,
      "pair": [
-      2,
-      5
+      1,
+      6
      ]
     }
    },
    "prefixes": {
     "3": {
      "normal": {
-      "min": 0.319,
+      "min": 0.263,
       "pair": [
        1,
-       2
+       3
       ]
      },
      "protan": {
-      "min": 0.156,
+      "min": 0.149,
       "pair": [
        2,
        3
       ]
      },
      "deutan": {
-      "min": 0.27,
+      "min": 0.235,
       "pair": [
        2,
        3
       ]
      },
      "tritan": {
-      "min": 0.243,
+      "min": 0.206,
       "pair": [
        1,
        3
@@ -180,28 +180,28 @@
     },
     "4": {
      "normal": {
-      "min": 0.284,
+      "min": 0.247,
       "pair": [
        1,
        4
       ]
      },
      "protan": {
-      "min": 0.156,
+      "min": 0.149,
       "pair": [
        2,
        3
       ]
      },
      "deutan": {
-      "min": 0.217,
+      "min": 0.154,
       "pair": [
        1,
        4
       ]
      },
      "tritan": {
-      "min": 0.157,
+      "min": 0.144,
       "pair": [
        3,
        4
@@ -210,82 +210,82 @@
     },
     "5": {
      "normal": {
-      "min": 0.135,
+      "min": 0.197,
       "pair": [
        2,
        5
       ]
      },
      "protan": {
-      "min": 0.103,
+      "min": 0.106,
       "pair": [
        3,
        5
       ]
      },
      "deutan": {
-      "min": 0.136,
+      "min": 0.102,
       "pair": [
-       2,
+       3,
        5
       ]
      },
      "tritan": {
-      "min": 0.102,
+      "min": 0.144,
       "pair": [
-       2,
-       5
+       3,
+       4
       ]
      }
     },
     "6": {
      "normal": {
-      "min": 0.124,
+      "min": 0.119,
       "pair": [
        1,
        6
       ]
      },
      "protan": {
-      "min": 0.103,
+      "min": 0.106,
       "pair": [
        3,
        5
       ]
      },
      "deutan": {
-      "min": 0.117,
+      "min": 0.102,
       "pair": [
-       1,
-       6
+       3,
+       5
       ]
      },
      "tritan": {
       "min": 0.102,
       "pair": [
-       2,
-       5
+       1,
+       6
       ]
      }
     }
    },
    "minDeltaBytes": {
     "normal": {
-     "min": 0.124,
+     "min": 0.113,
      "pair": [
-      5,
+      4,
       7
      ]
     },
     "protan": {
      "min": 0.103,
      "pair": [
-      3,
-      5
+      6,
+      8
      ]
     },
     "deutan": {
-     "min": 0.103,
+     "min": 0.102,
      "pair": [
       3,
       7
@@ -294,36 +294,36 @@
     "tritan": {
      "min": 0.102,
      "pair": [
-      5,
-      7
+      3,
+      6
      ]
     }
    },
    "prefixesBytes": {
     "3": {
      "normal": {
-      "min": 0.319,
+      "min": 0.263,
       "pair": [
        1,
-       2
+       3
       ]
      },
      "protan": {
-      "min": 0.155,
+      "min": 0.149,
       "pair": [
        2,
        3
       ]
      },
      "deutan": {
-      "min": 0.271,
+      "min": 0.235,
       "pair": [
        2,
        3
       ]
      },
      "tritan": {
-      "min": 0.241,
+      "min": 0.205,
       "pair": [
        1,
        3
@@ -332,28 +332,28 @@
     },
     "4": {
      "normal": {
-      "min": 0.284,
+      "min": 0.247,
       "pair": [
        1,
        4
       ]
      },
      "protan": {
-      "min": 0.155,
+      "min": 0.149,
       "pair": [
        2,
        3
       ]
      },
      "deutan": {
-      "min": 0.217,
+      "min": 0.153,
       "pair": [
        1,
        4
       ]
      },
      "tritan": {
-      "min": 0.157,
+      "min": 0.143,
       "pair": [
        3,
        4
@@ -362,60 +362,60 @@
     },
     "5": {
      "normal": {
-      "min": 0.135,
+      "min": 0.197,
       "pair": [
        2,
        5
       ]
      },
      "protan": {
-      "min": 0.103,
+      "min": 0.106,
       "pair": [
        3,
        5
       ]
      },
      "deutan": {
-      "min": 0.137,
+      "min": 0.103,
       "pair": [
-       2,
+       3,
        5
       ]
      },
      "tritan": {
-      "min": 0.103,
+      "min": 0.143,
       "pair": [
-       2,
-       5
+       3,
+       4
       ]
      }
     },
     "6": {
      "normal": {
-      "min": 0.124,
+      "min": 0.119,
       "pair": [
        1,
        6
       ]
      },
      "protan": {
-      "min": 0.103,
+      "min": 0.106,
       "pair": [
        3,
        5
       ]
      },
      "deutan": {
-      "min": 0.117,
+      "min": 0.103,
       "pair": [
-       1,
-       6
+       3,
+       5
       ]
      },
      "tritan": {
-      "min": 0.103,
+      "min": 0.102,
       "pair": [
-       1,
+       3,
        6
       ]
      }
@@ -423,34 +423,34 @@
    },
    "tokenDistance": {
     "focus": {
-     "min": 0.101,
+     "min": 0.116,
      "slot": 6
     },
     "reference": {
-     "min": 0.152,
+     "min": 0.121,
      "slot": 3
     },
     "muted": {
-     "min": 0.11,
+     "min": 0.111,
      "slot": 6
     }
    },
    "composites": {
     "0.25": {
      "normal": {
-      "minNeighbour": 0.064,
+      "minNeighbour": 0.065,
       "pair": [
        4,
        5
       ],
       "neighbours": [
-       0.086,
-       0.075,
-       0.094,
-       0.064,
-       0.064,
-       0.072,
-       0.069
+       0.08,
+       0.069,
+       0.08,
+       0.065,
+       0.088,
+       0.077,
+       0.083
       ],
       "ringClosures": [
        {
@@ -458,81 +458,21 @@
          3,
          1
         ],
-        "d": 0.081
+        "d": 0.058
        },
        {
         "slots": [
          4,
          1
         ],
-        "d": 0.078
+        "d": 0.069
        },
        {
         "slots": [
          5,
          1
         ],
-        "d": 0.059
-       },
-       {
-        "slots": [
-         6,
-         1
-        ],
-        "d": 0.036
-       },
-       {
-        "slots": [
-         7,
-         1
-        ],
-        "d": 0.075
-       },
-       {
-        "slots": [
-         8,
-         1
-        ],
-        "d": 0.032
-       }
-      ]
-     },
-     "protan": {
-      "minNeighbour": 0.026,
-      "pair": [
-       5,
-       6
-      ],
-      "neighbours": [
-       0.079,
-       0.033,
-       0.076,
-       0.062,
-       0.026,
-       0.045,
-       0.071
-      ],
-      "ringClosures": [
-       {
-        "slots": [
-         3,
-         1
-        ],
-        "d": 0.082
-       },
-       {
-        "slots": [
-         4,
-         1
-        ],
-        "d": 0.079
-       },
-       {
-        "slots": [
-         5,
-         1
-        ],
-        "d": 0.051
+        "d": 0.099
        },
        {
         "slots": [
@@ -546,213 +486,151 @@
          7,
          1
         ],
-        "d": 0.073
+        "d": 0.083
        },
        {
         "slots": [
          8,
          1
         ],
-        "d": 0.026
+        "d": 0.042
        }
       ]
      },
-     "deutan": {
-      "minNeighbour": 0.024,
+     "protan": {
+      "minNeighbour": 0.037,
       "pair": [
-       6,
-       7
+       2,
+       3
       ],
       "neighbours": [
-       0.084,
-       0.06,
-       0.06,
-       0.065,
-       0.04,
-       0.024,
-       0.054
+       0.07,
+       0.037,
+       0.058,
+       0.066,
+       0.068,
+       0.058,
+       0.084
       ],
       "ringClosures": [
        {
         "slots": [
          3,
-         1
-        ],
-        "d": 0.076
-       },
-       {
-        "slots": [
-         4,
          1
         ],
         "d": 0.059
        },
        {
         "slots": [
+         4,
+         1
+        ],
+        "d": 0.061
+       },
+       {
+        "slots": [
          5,
          1
         ],
-        "d": 0.046
+        "d": 0.096
        },
        {
         "slots": [
          6,
          1
         ],
-        "d": 0.032
+        "d": 0.028
        },
        {
         "slots": [
          7,
          1
         ],
-        "d": 0.052
+        "d": 0.079
        },
        {
         "slots": [
          8,
          1
         ],
-        "d": 0.031
+        "d": 0.035
        }
       ]
      },
-     "tritan": {
-      "minNeighbour": 0.046,
+     "deutan": {
+      "minNeighbour": 0.028,
       "pair": [
-       3,
-       4
+       6,
+       7
       ],
       "neighbours": [
-       0.082,
-       0.083,
-       0.046,
-       0.048,
-       0.086,
-       0.093,
-       0.071
+       0.078,
+       0.061,
+       0.043,
+       0.065,
+       0.053,
+       0.028,
+       0.069
       ],
       "ringClosures": [
        {
         "slots": [
          3,
+         1
+        ],
+        "d": 0.055
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.039
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.077
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.027
+       },
+       {
+        "slots": [
+         7,
          1
         ],
         "d": 0.054
        },
        {
         "slots": [
-         4,
-         1
-        ],
-        "d": 0.082
-       },
-       {
-        "slots": [
-         5,
-         1
-        ],
-        "d": 0.073
-       },
-       {
-        "slots": [
-         6,
-         1
-        ],
-        "d": 0.034
-       },
-       {
-        "slots": [
-         7,
-         1
-        ],
-        "d": 0.09
-       },
-       {
-        "slots": [
          8,
          1
         ],
-        "d": 0.034
-       }
-      ]
-     }
-    },
-    "0.8": {
-     "normal": {
-      "minNeighbour": 0.201,
-      "pair": [
-       5,
-       6
-      ],
-      "neighbours": [
-       0.27,
-       0.264,
-       0.307,
-       0.211,
-       0.201,
-       0.23,
-       0.215
-      ],
-      "ringClosures": [
-       {
-        "slots": [
-         3,
-         1
-        ],
-        "d": 0.275
-       },
-       {
-        "slots": [
-         4,
-         1
-        ],
-        "d": 0.25
-       },
-       {
-        "slots": [
-         5,
-         1
-        ],
-        "d": 0.203
-       },
-       {
-        "slots": [
-         6,
-         1
-        ],
-        "d": 0.107
-       },
-       {
-        "slots": [
-         7,
-         1
-        ],
-        "d": 0.251
-       },
-       {
-        "slots": [
-         8,
-         1
-        ],
-        "d": 0.103
+        "d": 0.042
        }
       ]
      },
-     "protan": {
-      "minNeighbour": 0.09,
+     "tritan": {
+      "minNeighbour": 0.05,
       "pair": [
-       5,
-       6
+       4,
+       5
       ],
       "neighbours": [
-       0.245,
-       0.118,
-       0.252,
-       0.206,
-       0.09,
-       0.148,
-       0.223
+       0.084,
+       0.083,
+       0.051,
+       0.05,
+       0.115,
+       0.088,
+       0.074
       ],
       "ringClosures": [
        {
@@ -760,119 +638,61 @@
          3,
          1
         ],
-        "d": 0.273
+        "d": 0.042
        },
        {
         "slots": [
          4,
          1
         ],
-        "d": 0.256
+        "d": 0.075
        },
        {
         "slots": [
          5,
          1
         ],
-        "d": 0.176
+        "d": 0.121
        },
        {
         "slots": [
          6,
          1
         ],
-        "d": 0.095
+        "d": 0.024
        },
        {
         "slots": [
          7,
-         1
-        ],
-        "d": 0.24
-       },
-       {
-        "slots": [
-         8,
-         1
-        ],
-        "d": 0.087
-       }
-      ]
-     },
-     "deutan": {
-      "minNeighbour": 0.085,
-      "pair": [
-       6,
-       7
-      ],
-      "neighbours": [
-       0.258,
-       0.211,
-       0.202,
-       0.223,
-       0.131,
-       0.085,
-       0.156
-      ],
-      "ringClosures": [
-       {
-        "slots": [
-         3,
-         1
-        ],
-        "d": 0.257
-       },
-       {
-        "slots": [
-         4,
-         1
-        ],
-        "d": 0.192
-       },
-       {
-        "slots": [
-         5,
-         1
-        ],
-        "d": 0.162
-       },
-       {
-        "slots": [
-         6,
          1
         ],
         "d": 0.097
        },
        {
         "slots": [
-         7,
-         1
-        ],
-        "d": 0.171
-       },
-       {
-        "slots": [
          8,
          1
         ],
-        "d": 0.103
+        "d": 0.046
        }
       ]
-     },
-     "tritan": {
-      "minNeighbour": 0.147,
+     }
+    },
+    "0.8": {
+     "normal": {
+      "minNeighbour": 0.223,
       "pair": [
-       3,
-       4
+       2,
+       3
       ],
       "neighbours": [
-       0.282,
-       0.299,
-       0.147,
-       0.16,
-       0.241,
-       0.272,
-       0.227
+       0.252,
+       0.223,
+       0.26,
+       0.234,
+       0.281,
+       0.242,
+       0.258
       ],
       "ringClosures": [
        {
@@ -880,42 +700,222 @@
          3,
          1
         ],
-        "d": 0.185
+        "d": 0.204
        },
        {
         "slots": [
          4,
          1
         ],
-        "d": 0.266
+        "d": 0.215
        },
        {
         "slots": [
          5,
          1
         ],
-        "d": 0.252
+        "d": 0.324
        },
        {
         "slots": [
          6,
          1
         ],
-        "d": 0.078
+        "d": 0.096
        },
        {
         "slots": [
          7,
          1
         ],
-        "d": 0.306
+        "d": 0.271
        },
        {
         "slots": [
          8,
          1
         ],
-        "d": 0.112
+        "d": 0.133
+       }
+      ]
+     },
+     "protan": {
+      "minNeighbour": 0.123,
+      "pair": [
+       2,
+       3
+      ],
+      "neighbours": [
+       0.226,
+       0.123,
+       0.199,
+       0.237,
+       0.221,
+       0.188,
+       0.264
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.206
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.2
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.315
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.094
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.26
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.115
+       }
+      ]
+     },
+     "deutan": {
+      "minNeighbour": 0.092,
+      "pair": [
+       6,
+       7
+      ],
+      "neighbours": [
+       0.244,
+       0.196,
+       0.158,
+       0.238,
+       0.177,
+       0.092,
+       0.205
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.194
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.133
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.251
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.09
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.176
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.133
+       }
+      ]
+     },
+     "tritan": {
+      "minNeighbour": 0.151,
+      "pair": [
+       3,
+       4
+      ],
+      "neighbours": [
+       0.242,
+       0.267,
+       0.151,
+       0.183,
+       0.338,
+       0.259,
+       0.231
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.156
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.223
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.372
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.077
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.307
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.118
        }
       ]
      }
@@ -924,115 +924,115 @@
    "raster": {
     "0.25": {
      "model": [
-      "#d2e4fa",
-      "#f9dcbf",
-      "#c4d7c0",
-      "#dcc4e8",
-      "#eed5d7",
-      "#bfdeea",
-      "#e8c8d8",
-      "#e4e4e8"
+      "#cae5fb",
+      "#f3dfc7",
+      "#c2dad1",
+      "#dfcaf0",
+      "#efc4c1",
+      "#c0dfe9",
+      "#e2c4e0",
+      "#e3e4e3"
      ],
      "modelFloor": [
-      "#d2e5fa",
-      "#fadcc0",
-      "#c5d8c0",
-      "#dcc5e8",
-      "#efd6d7",
-      "#c0deea",
-      "#e9c8d9",
-      "#e4e4e9"
+      "#cbe5fb",
+      "#f3e0c8",
+      "#c3dbd2",
+      "#e0cbf0",
+      "#efc5c1",
+      "#c1e0ea",
+      "#e3c5e0",
+      "#e3e5e3"
      ],
      "neighboursModel": [
-      0.086,
-      0.075,
-      0.093,
-      0.063,
+      0.08,
+      0.069,
+      0.08,
       0.064,
-      0.071,
-      0.068
+      0.088,
+      0.077,
+      0.082
      ],
      "neighboursWorstWithinOneByte": [
-      0.082,
-      0.071,
-      0.086,
-      0.056,
+      0.076,
+      0.064,
+      0.073,
       0.06,
-      0.066,
-      0.063
+      0.083,
+      0.071,
+      0.076
      ],
-     "minModel": 0.063,
-     "minWorstWithinOneByte": 0.056
+     "minModel": 0.064,
+     "minWorstWithinOneByte": 0.06
     },
     "0.8": {
      "model": [
-      "#6ea9ef",
-      "#ed8e33",
-      "#428135",
-      "#8f43b5",
-      "#ca797e",
-      "#3395bb",
-      "#b74e84",
-      "#a8a9b7"
+      "#55acf1",
+      "#d9994d",
+      "#3c896d",
+      "#9a56d0",
+      "#cb4438",
+      "#3599b9",
+      "#a3429b",
+      "#a5a9a5"
      ],
      "modelFloor": [
-      "#6ea9ef",
-      "#ed8e33",
-      "#428135",
-      "#8f43b5",
-      "#ca797e",
-      "#3395bb",
-      "#b74e84",
-      "#a8a9b7"
+      "#55acf1",
+      "#d9994d",
+      "#3c896d",
+      "#9a56d0",
+      "#cb4438",
+      "#3599b9",
+      "#a3429b",
+      "#a5a9a5"
      ],
      "neighboursModel": [
-      0.27,
-      0.263,
-      0.308,
-      0.211,
-      0.202,
-      0.23,
-      0.216
+      0.251,
+      0.224,
+      0.261,
+      0.234,
+      0.28,
+      0.241,
+      0.257
      ],
      "neighboursWorstWithinOneByte": [
-      0.267,
-      0.259,
-      0.302,
-      0.204,
-      0.198,
-      0.226,
-      0.211
+      0.247,
+      0.219,
+      0.254,
+      0.23,
+      0.276,
+      0.237,
+      0.251
      ],
-     "minModel": 0.202,
-     "minWorstWithinOneByte": 0.198
+     "minModel": 0.224,
+     "minWorstWithinOneByte": 0.219
     }
    },
    "checks": [
     {
      "constraint": 1,
      "check": "lowest contrast on background",
-     "value": 3.026,
+     "value": 3.096,
      "limit": 3,
      "ok": true
     },
     {
      "constraint": 2,
      "check": "min pairwise ΔE (all 8), normal",
-     "value": 0.124,
+     "value": 0.113,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 2,
      "check": "min pairwise ΔE (all 8), protan",
-     "value": 0.103,
+     "value": 0.102,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 2,
      "check": "min pairwise ΔE (all 8), deutan",
-     "value": 0.103,
+     "value": 0.102,
      "limit": 0.1,
      "ok": true
     },
@@ -1046,105 +1046,105 @@
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 3), normal",
-     "value": 0.319,
+     "value": 0.263,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 3), protan",
-     "value": 0.156,
+     "value": 0.149,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 3), deutan",
-     "value": 0.27,
+     "value": 0.235,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 3), tritan",
-     "value": 0.243,
+     "value": 0.206,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 4), normal",
-     "value": 0.284,
+     "value": 0.247,
      "limit": 0.14,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 4), protan",
-     "value": 0.156,
+     "value": 0.149,
      "limit": 0.14,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 4), deutan",
-     "value": 0.217,
+     "value": 0.154,
      "limit": 0.14,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 4), tritan",
-     "value": 0.157,
+     "value": 0.144,
      "limit": 0.14,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 5), normal",
-     "value": 0.135,
+     "value": 0.197,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 5), protan",
-     "value": 0.103,
+     "value": 0.106,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 5), deutan",
-     "value": 0.136,
-     "limit": 0.1,
-     "ok": true
-    },
-    {
-     "constraint": 3,
-     "check": "min pairwise ΔE (first 5), tritan",
      "value": 0.102,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
+     "check": "min pairwise ΔE (first 5), tritan",
+     "value": 0.144,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 3,
      "check": "min pairwise ΔE (first 6), normal",
-     "value": 0.124,
+     "value": 0.119,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 6), protan",
-     "value": 0.103,
+     "value": 0.106,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 6), deutan",
-     "value": 0.117,
+     "value": 0.102,
      "limit": 0.1,
      "ok": true
     },
@@ -1158,49 +1158,49 @@
     {
      "constraint": 4,
      "check": "largest light/dark hue difference per slot (°)",
-     "value": 13.639,
+     "value": 14.11,
      "limit": 30,
      "ok": true
     },
     {
      "constraint": 5,
      "check": "nearest series to focus token",
-     "value": 0.101,
+     "value": 0.116,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 5,
      "check": "nearest series to reference token",
-     "value": 0.152,
+     "value": 0.121,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 5,
      "check": "nearest series to muted token",
-     "value": 0.11,
+     "value": 0.111,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 6,
      "check": "min neighbour ΔE at 25% opacity, normal",
-     "value": 0.064,
+     "value": 0.065,
      "limit": 0.06,
      "ok": true
     },
     {
      "constraint": 6,
      "check": "min neighbour ΔE at 80% opacity, normal",
-     "value": 0.201,
+     "value": 0.223,
      "limit": 0.06,
      "ok": true
     },
     {
      "constraint": "2b",
      "check": "min pairwise ΔE (all 8), normal, simulated then rounded to bytes",
-     "value": 0.124,
+     "value": 0.113,
      "limit": 0.1,
      "ok": true
     },
@@ -1214,7 +1214,7 @@
     {
      "constraint": "2b",
      "check": "min pairwise ΔE (all 8), deutan, simulated then rounded to bytes",
-     "value": 0.103,
+     "value": 0.102,
      "limit": 0.1,
      "ok": true
     },
@@ -1228,161 +1228,161 @@
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 3), normal, rounded to bytes",
-     "value": 0.319,
+     "value": 0.263,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 3), protan, rounded to bytes",
-     "value": 0.155,
+     "value": 0.149,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 3), deutan, rounded to bytes",
-     "value": 0.271,
+     "value": 0.235,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 3), tritan, rounded to bytes",
-     "value": 0.241,
+     "value": 0.205,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 4), normal, rounded to bytes",
-     "value": 0.284,
+     "value": 0.247,
      "limit": 0.14,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 4), protan, rounded to bytes",
-     "value": 0.155,
+     "value": 0.149,
      "limit": 0.14,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 4), deutan, rounded to bytes",
-     "value": 0.217,
+     "value": 0.153,
      "limit": 0.14,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 4), tritan, rounded to bytes",
-     "value": 0.157,
+     "value": 0.143,
      "limit": 0.14,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 5), normal, rounded to bytes",
-     "value": 0.135,
+     "value": 0.197,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 5), protan, rounded to bytes",
-     "value": 0.103,
+     "value": 0.106,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 5), deutan, rounded to bytes",
-     "value": 0.137,
+     "value": 0.103,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 5), tritan, rounded to bytes",
-     "value": 0.103,
+     "value": 0.143,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 6), normal, rounded to bytes",
-     "value": 0.124,
+     "value": 0.119,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 6), protan, rounded to bytes",
-     "value": 0.103,
+     "value": 0.106,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 6), deutan, rounded to bytes",
-     "value": 0.117,
+     "value": 0.103,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 6), tritan, rounded to bytes",
-     "value": 0.103,
+     "value": 0.102,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "6b",
      "check": "min neighbour ΔE at 25%, 8-bit raster models (alpha rounded and floored)",
-     "value": 0.063,
+     "value": 0.064,
      "limit": 0.06,
      "ok": true
     },
     {
      "constraint": "6b",
      "check": "min neighbour ΔE at 80%, 8-bit raster models (alpha rounded and floored)",
-     "value": 0.202,
+     "value": 0.224,
      "limit": 0.06,
      "ok": true
     },
     {
      "constraint": "6b",
      "check": "min neighbour ΔE at 25%, Chrome canvas pixels",
-     "value": 0.063,
+     "value": 0.064,
      "limit": 0.06,
      "ok": true
     },
     {
      "constraint": "6b",
      "check": "min neighbour ΔE at 80%, Chrome canvas pixels",
-     "value": 0.202,
+     "value": 0.224,
      "limit": 0.06,
      "ok": true
     },
     {
      "constraint": "6b",
      "check": "min neighbour ΔE at 25%, Chrome svg pixels",
-     "value": 0.063,
+     "value": 0.064,
      "limit": 0.06,
      "ok": true
     },
     {
      "constraint": "6b",
      "check": "min neighbour ΔE at 80%, Chrome svg pixels",
-     "value": 0.202,
+     "value": 0.224,
      "limit": 0.06,
      "ok": true
     },
     {
      "constraint": "2i",
      "check": "min pairwise ΔE in the preview PNG, normal row",
-     "value": 0.124,
+     "value": 0.113,
      "limit": 0.1,
      "ok": true
     },
@@ -1396,14 +1396,14 @@
     {
      "constraint": "2i",
      "check": "min pairwise ΔE in the preview PNG, deuteranopia row",
-     "value": 0.103,
+     "value": 0.102,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "2i",
      "check": "min pairwise ΔE in the preview PNG, tritanopia row",
-     "value": 0.1,
+     "value": 0.102,
      "limit": 0.1,
      "ok": true
     }
@@ -1412,143 +1412,143 @@
     "canvas": {
      "0.25": {
       "pixels": [
-       "#d2e4fa",
-       "#f9dcbf",
-       "#c4d7c0",
-       "#dcc4e8",
-       "#eed5d7",
-       "#bfdeea",
-       "#e8c8d8",
-       "#e4e4e8"
+       "#cae5fb",
+       "#f3dfc7",
+       "#c2dad1",
+       "#dfcaf0",
+       "#efc4c1",
+       "#c0dfe9",
+       "#e2c4e0",
+       "#e3e4e3"
       ],
       "neighbours": [
-       0.086,
-       0.075,
-       0.093,
-       0.063,
+       0.08,
+       0.069,
+       0.08,
        0.064,
-       0.071,
-       0.068
+       0.088,
+       0.077,
+       0.082
       ],
-      "min": 0.063
+      "min": 0.064
      },
      "0.8": {
       "pixels": [
-       "#6ea9ef",
-       "#ed8e33",
-       "#428135",
-       "#8f43b5",
-       "#ca797e",
-       "#3395bb",
-       "#b74e84",
-       "#a8a9b7"
+       "#55acf1",
+       "#d9994d",
+       "#3c896d",
+       "#9a56d0",
+       "#cb4438",
+       "#3599b9",
+       "#a3429b",
+       "#a5a9a5"
       ],
       "neighbours": [
-       0.27,
-       0.263,
-       0.308,
-       0.211,
-       0.202,
-       0.23,
-       0.216
+       0.251,
+       0.224,
+       0.261,
+       0.234,
+       0.28,
+       0.241,
+       0.257
       ],
-      "min": 0.202
+      "min": 0.224
      }
     },
     "svg": {
      "0.25": {
       "pixels": [
-       "#d2e4fa",
-       "#f9dcbf",
-       "#c4d7c0",
-       "#dcc4e8",
-       "#eed5d7",
-       "#bfdeea",
-       "#e8c8d8",
-       "#e4e4e8"
+       "#cae5fb",
+       "#f3dfc7",
+       "#c2dad1",
+       "#dfcaf0",
+       "#efc4c1",
+       "#c0dfe9",
+       "#e2c4e0",
+       "#e3e4e3"
       ],
       "neighbours": [
-       0.086,
-       0.075,
-       0.093,
-       0.063,
+       0.08,
+       0.069,
+       0.08,
        0.064,
-       0.071,
-       0.068
+       0.088,
+       0.077,
+       0.082
       ],
-      "min": 0.063
+      "min": 0.064
      },
      "0.8": {
       "pixels": [
-       "#6ea9ef",
-       "#ed8e33",
-       "#428135",
-       "#8f43b5",
-       "#ca797e",
-       "#3395bb",
-       "#b74e84",
-       "#a8a9b7"
+       "#55acf1",
+       "#d9994d",
+       "#3c896d",
+       "#9a56d0",
+       "#cb4438",
+       "#3599b9",
+       "#a3429b",
+       "#a5a9a5"
       ],
       "neighbours": [
-       0.27,
-       0.263,
-       0.308,
-       0.211,
-       0.202,
-       0.23,
-       0.216
+       0.251,
+       0.224,
+       0.261,
+       0.234,
+       0.28,
+       0.241,
+       0.257
       ],
-      "min": 0.202
+      "min": 0.224
      }
     }
    },
    "previewImage": {
     "normal": {
      "pixels": [
-      "#4a94eb",
-      "#e97200",
-      "#136102",
-      "#7314a2",
-      "#bd585e",
-      "#007baa",
-      "#a52265",
-      "#9293a5"
+      "#2b97ee",
+      "#cf8020",
+      "#0b6c49",
+      "#812cc4",
+      "#be1506",
+      "#0380a8",
+      "#8c1382",
+      "#8e948f"
      ],
-     "min": 0.124,
+     "min": 0.113,
      "pair": [
-      5,
+      4,
       7
      ]
     },
     "protanopia": {
      "pixels": [
-      "#6d9aef",
-      "#958300",
-      "#645700",
-      "#0046a6",
-      "#6e6b5e",
-      "#647aac",
-      "#3e4a67",
-      "#8f95a6"
+      "#6d9cf2",
+      "#998708",
+      "#6a6347",
+      "#0059c8",
+      "#534800",
+      "#6b7eaa",
+      "#034485",
+      "#94938f"
      ],
      "min": 0.103,
      "pair": [
-      3,
-      5
+      6,
+      8
      ]
     },
     "deuteranopia": {
      "pixels": [
-      "#558be9",
-      "#b29e00",
-      "#5b5111",
-      "#004b9f",
-      "#887f5c",
-      "#4f6da9",
-      "#626262",
-      "#8e94a4"
+      "#508aec",
+      "#ac9922",
+      "#5f5b4b",
+      "#005bc1",
+      "#7a6c00",
+      "#5871a7",
+      "#40547f",
+      "#93928f"
      ],
-     "min": 0.103,
+     "min": 0.102,
      "pair": [
       3,
       7
@@ -1556,43 +1556,43 @@
     },
     "tritanopia": {
      "pixels": [
-      "#00a8b4",
-      "#ff5661",
-      "#005e51",
-      "#6c3d5f",
-      "#cd495b",
-      "#00878b",
-      "#b30f41",
-      "#8e9699"
+      "#00acb7",
+      "#e26d6e",
+      "#006c63",
+      "#745478",
+      "#d20016",
+      "#008b8d",
+      "#92254d",
+      "#8d9492"
      ],
-     "min": 0.1,
+     "min": 0.102,
      "pair": [
-      5,
-      7
+      3,
+      6
      ]
     }
    },
    "lightness": {
-    "min": 0.43,
-    "max": 0.68,
-    "firstThreeSpread": 0.25,
-    "maxChroma": 0.205
+    "min": 0.45,
+    "max": 0.669,
+    "firstThreeSpread": 0.198,
+    "maxChroma": 0.22
    },
    "tight": [
     {
      "check": "lowest contrast on background",
-     "value": 3.026,
-     "margin": 0.026
+     "value": 3.096,
+     "margin": 0.096
     },
     {
      "check": "min pairwise ΔE (all 8), protan",
-     "value": 0.103,
-     "margin": 0.003
+     "value": 0.102,
+     "margin": 0.002
     },
     {
      "check": "min pairwise ΔE (all 8), deutan",
-     "value": 0.103,
-     "margin": 0.003
+     "value": 0.102,
+     "margin": 0.002
     },
     {
      "check": "min pairwise ΔE (all 8), tritan",
@@ -1600,29 +1600,24 @@
      "margin": 0.002
     },
     {
-     "check": "min pairwise ΔE (first 5), protan",
-     "value": 0.103,
-     "margin": 0.003
+     "check": "min pairwise ΔE (first 4), tritan",
+     "value": 0.144,
+     "margin": 0.004
     },
     {
-     "check": "min pairwise ΔE (first 5), tritan",
+     "check": "min pairwise ΔE (first 5), deutan",
      "value": 0.102,
      "margin": 0.002
     },
     {
-     "check": "min pairwise ΔE (first 6), protan",
-     "value": 0.103,
-     "margin": 0.003
+     "check": "min pairwise ΔE (first 6), deutan",
+     "value": 0.102,
+     "margin": 0.002
     },
     {
      "check": "min pairwise ΔE (first 6), tritan",
      "value": 0.102,
      "margin": 0.002
-    },
-    {
-     "check": "nearest series to focus token",
-     "value": 0.101,
-     "margin": 0.001
     },
     {
      "check": "min pairwise ΔE (all 8), protan, simulated then rounded to bytes",
@@ -1631,8 +1626,8 @@
     },
     {
      "check": "min pairwise ΔE (all 8), deutan, simulated then rounded to bytes",
-     "value": 0.103,
-     "margin": 0.003
+     "value": 0.102,
+     "margin": 0.002
     },
     {
      "check": "min pairwise ΔE (all 8), tritan, simulated then rounded to bytes",
@@ -1640,24 +1635,24 @@
      "margin": 0.002
     },
     {
-     "check": "min pairwise ΔE (first 5), protan, rounded to bytes",
+     "check": "min pairwise ΔE (first 4), tritan, rounded to bytes",
+     "value": 0.143,
+     "margin": 0.003
+    },
+    {
+     "check": "min pairwise ΔE (first 5), deutan, rounded to bytes",
      "value": 0.103,
      "margin": 0.003
     },
     {
-     "check": "min pairwise ΔE (first 5), tritan, rounded to bytes",
-     "value": 0.103,
-     "margin": 0.003
-    },
-    {
-     "check": "min pairwise ΔE (first 6), protan, rounded to bytes",
+     "check": "min pairwise ΔE (first 6), deutan, rounded to bytes",
      "value": 0.103,
      "margin": 0.003
     },
     {
      "check": "min pairwise ΔE (first 6), tritan, rounded to bytes",
-     "value": 0.103,
-     "margin": 0.003
+     "value": 0.102,
+     "margin": 0.002
     }
    ]
   },
@@ -1673,117 +1668,117 @@
    "series": [
     {
      "slot": 1,
-     "hex": "#64acfa",
+     "hex": "#5d9afd",
      "oklch": [
-      0.731,
-      0.135,
-      251.8
+      0.691,
+      0.16,
+      259.6
      ],
-     "contrast": 7.46,
-     "hueDiffToOtherScheme": 2.2
+     "contrast": 6.35,
+     "hueDiffToOtherScheme": 11.5
     },
     {
      "slot": 2,
-     "hex": "#de7b2e",
+     "hex": "#dc772f",
      "oklch": [
-      0.681,
+      0.672,
       0.15,
-      54
+      52
      ],
-     "contrast": 5.9,
-     "hueDiffToOtherScheme": 2.1
+     "contrast": 5.69,
+     "hueDiffToOtherScheme": 12.7
     },
     {
      "slot": 3,
-     "hex": "#b2e390",
+     "hex": "#ade4ba",
      "oklch": [
-      0.862,
-      0.121,
-      133.3
+      0.87,
+      0.081,
+      151.7
      ],
-     "contrast": 12.08,
-     "hueDiffToOtherScheme": 7.8
+     "contrast": 12.33,
+     "hueDiffToOtherScheme": 10
     },
     {
      "slot": 4,
-     "hex": "#9149b9",
+     "hex": "#9443a9",
      "oklch": [
-      0.544,
-      0.177,
-      311.6
+      0.53,
+      0.171,
+      318.9
      ],
-     "contrast": 3.26,
-     "hueDiffToOtherScheme": 1.5
+     "contrast": 3.07,
+     "hueDiffToOtherScheme": 14.1
     },
     {
      "slot": 5,
-     "hex": "#c3513d",
+     "hex": "#ba4f1f",
      "oklch": [
-      0.58,
-      0.151,
-      32
+      0.56,
+      0.15,
+      41.9
      ],
-     "contrast": 3.86,
-     "hueDiffToOtherScheme": 13.6
+     "contrast": 3.57,
+     "hueDiffToOtherScheme": 11.8
     },
     {
      "slot": 6,
-     "hex": "#71d8ff",
+     "hex": "#38c7fe",
      "oklch": [
-      0.835,
-      0.11,
-      225.2
+      0.779,
+      0.14,
+      229.2
      ],
-     "contrast": 10.97,
-     "hueDiffToOtherScheme": 8.9
+     "contrast": 9.11,
+     "hueDiffToOtherScheme": 0.1
     },
     {
      "slot": 7,
-     "hex": "#f898b5",
+     "hex": "#d991b8",
      "oklch": [
-      0.786,
-      0.119,
-      0.7
+      0.74,
+      0.1,
+      346.1
      ],
-     "contrast": 8.58,
-     "hueDiffToOtherScheme": 5.8
+     "contrast": 7.35,
+     "hueDiffToOtherScheme": 13.9
     },
     {
      "slot": 8,
-     "hex": "#7a7f93",
+     "hex": "#6d736e",
      "oklch": [
-      0.599,
-      0.031,
-      274.3
+      0.549,
+      0.011,
+      150.6
      ],
-     "contrast": 4.47,
-     "hueDiffToOtherScheme": 8.8
+     "contrast": 3.66,
+     "hueDiffToOtherScheme": 0.1
     }
    ],
    "minDelta": {
     "normal": {
-     "min": 0.116,
+     "min": 0.115,
      "pair": [
       2,
       5
      ]
     },
     "protan": {
-     "min": 0.104,
+     "min": 0.105,
      "pair": [
-      1,
-      7
+      5,
+      8
      ]
     },
     "deutan": {
-     "min": 0.103,
+     "min": 0.102,
      "pair": [
       6,
       7
      ]
     },
     "tritan": {
-     "min": 0.102,
+     "min": 0.103,
      "pair": [
       4,
       8
@@ -1793,28 +1788,28 @@
    "prefixes": {
     "3": {
      "normal": {
-      "min": 0.251,
+      "min": 0.268,
       "pair": [
-       2,
+       1,
        3
       ]
      },
      "protan": {
-      "min": 0.247,
+      "min": 0.259,
       "pair": [
        1,
        3
       ]
      },
      "deutan": {
-      "min": 0.178,
+      "min": 0.208,
       "pair": [
        2,
        3
       ]
      },
      "tritan": {
-      "min": 0.158,
+      "min": 0.188,
       "pair": [
        1,
        3
@@ -1823,58 +1818,58 @@
     },
     "4": {
      "normal": {
-      "min": 0.246,
+      "min": 0.229,
       "pair": [
        1,
        4
       ]
      },
      "protan": {
-      "min": 0.247,
+      "min": 0.224,
       "pair": [
        1,
-       3
+       4
       ]
      },
      "deutan": {
-      "min": 0.178,
+      "min": 0.162,
       "pair": [
-       2,
-       3
+       1,
+       4
       ]
      },
      "tritan": {
-      "min": 0.158,
+      "min": 0.182,
       "pair": [
-       1,
-       3
+       2,
+       4
       ]
      }
     },
     "5": {
      "normal": {
-      "min": 0.116,
+      "min": 0.115,
       "pair": [
        2,
        5
       ]
      },
      "protan": {
-      "min": 0.126,
+      "min": 0.122,
       "pair": [
        2,
        5
       ]
      },
      "deutan": {
-      "min": 0.109,
+      "min": 0.113,
       "pair": [
        2,
        5
       ]
      },
      "tritan": {
-      "min": 0.103,
+      "min": 0.113,
       "pair": [
        2,
        5
@@ -1883,90 +1878,90 @@
     },
     "6": {
      "normal": {
-      "min": 0.116,
+      "min": 0.115,
       "pair": [
        2,
        5
       ]
      },
      "protan": {
-      "min": 0.124,
+      "min": 0.12,
       "pair": [
        1,
        6
       ]
      },
      "deutan": {
-      "min": 0.109,
+      "min": 0.107,
       "pair": [
-       2,
-       5
+       1,
+       6
       ]
      },
      "tritan": {
-      "min": 0.103,
+      "min": 0.105,
       "pair": [
-       2,
-       5
+       3,
+       6
       ]
      }
     }
    },
    "minDeltaBytes": {
     "normal": {
-     "min": 0.116,
+     "min": 0.115,
      "pair": [
       2,
       5
      ]
     },
     "protan": {
-     "min": 0.103,
+     "min": 0.105,
      "pair": [
-      1,
-      7
+      5,
+      8
      ]
     },
     "deutan": {
      "min": 0.102,
      "pair": [
-      3,
+      6,
       7
      ]
     },
     "tritan": {
-     "min": 0.102,
+     "min": 0.103,
      "pair": [
-      2,
-      5
+      4,
+      8
      ]
     }
    },
    "prefixesBytes": {
     "3": {
      "normal": {
-      "min": 0.251,
+      "min": 0.268,
       "pair": [
-       2,
+       1,
        3
       ]
      },
      "protan": {
-      "min": 0.246,
+      "min": 0.257,
       "pair": [
        1,
        3
       ]
      },
      "deutan": {
-      "min": 0.177,
+      "min": 0.208,
       "pair": [
        2,
        3
       ]
      },
      "tritan": {
-      "min": 0.159,
+      "min": 0.186,
       "pair": [
        1,
        3
@@ -1975,58 +1970,58 @@
     },
     "4": {
      "normal": {
-      "min": 0.246,
+      "min": 0.229,
       "pair": [
        1,
        4
       ]
      },
      "protan": {
-      "min": 0.246,
+      "min": 0.226,
       "pair": [
        1,
-       3
+       4
       ]
      },
      "deutan": {
-      "min": 0.177,
+      "min": 0.164,
       "pair": [
-       2,
-       3
+       1,
+       4
       ]
      },
      "tritan": {
-      "min": 0.159,
+      "min": 0.182,
       "pair": [
-       1,
-       3
+       2,
+       4
       ]
      }
     },
     "5": {
      "normal": {
-      "min": 0.116,
+      "min": 0.115,
       "pair": [
        2,
        5
       ]
      },
      "protan": {
-      "min": 0.125,
+      "min": 0.122,
       "pair": [
        2,
        5
       ]
      },
      "deutan": {
-      "min": 0.109,
+      "min": 0.113,
       "pair": [
        2,
        5
       ]
      },
      "tritan": {
-      "min": 0.102,
+      "min": 0.111,
       "pair": [
        2,
        5
@@ -2035,47 +2030,47 @@
     },
     "6": {
      "normal": {
-      "min": 0.116,
+      "min": 0.115,
       "pair": [
        2,
        5
       ]
      },
      "protan": {
-      "min": 0.124,
+      "min": 0.119,
       "pair": [
        1,
        6
       ]
      },
      "deutan": {
-      "min": 0.109,
+      "min": 0.105,
       "pair": [
-       2,
-       5
+       1,
+       6
       ]
      },
      "tritan": {
-      "min": 0.102,
+      "min": 0.104,
       "pair": [
-       2,
-       5
+       1,
+       6
       ]
      }
     }
    },
    "tokenDistance": {
     "focus": {
-     "min": 0.138,
-     "slot": 6
+     "min": 0.104,
+     "slot": 3
     },
     "reference": {
-     "min": 0.104,
-     "slot": 6
+     "min": 0.107,
+     "slot": 3
     },
     "muted": {
-     "min": 0.113,
-     "slot": 8
+     "min": 0.102,
+     "slot": 7
     }
    },
    "composites": {
@@ -2083,137 +2078,17 @@
      "normal": {
       "minNeighbour": 0.064,
       "pair": [
-       4,
-       5
-      ],
-      "neighbours": [
-       0.091,
-       0.079,
-       0.135,
-       0.064,
-       0.114,
-       0.067,
-       0.064
-      ],
-      "ringClosures": [
-       {
-        "slots": [
-         3,
-         1
-        ],
-        "d": 0.079
-       },
-       {
-        "slots": [
-         4,
-         1
-        ],
-        "d": 0.076
-       },
-       {
-        "slots": [
-         5,
-         1
-        ],
-        "d": 0.095
-       },
-       {
-        "slots": [
-         6,
-         1
-        ],
-        "d": 0.037
-       },
-       {
-        "slots": [
-         7,
-         1
-        ],
-        "d": 0.064
-       },
-       {
-        "slots": [
-         8,
-         1
-        ],
-        "d": 0.05
-       }
-      ]
-     },
-     "protan": {
-      "minNeighbour": 0.038,
-      "pair": [
        7,
        8
       ],
       "neighbours": [
-       0.087,
-       0.081,
-       0.135,
-       0.062,
-       0.119,
-       0.044,
-       0.038
-      ],
-      "ringClosures": [
-       {
-        "slots": [
-         3,
-         1
-        ],
-        "d": 0.076
-       },
-       {
-        "slots": [
-         4,
-         1
-        ],
-        "d": 0.076
-       },
-       {
-        "slots": [
-         5,
-         1
-        ],
-        "d": 0.095
-       },
-       {
-        "slots": [
-         6,
-         1
-        ],
-        "d": 0.037
-       },
-       {
-        "slots": [
-         7,
-         1
-        ],
-        "d": 0.031
-       },
-       {
-        "slots": [
-         8,
-         1
-        ],
-        "d": 0.053
-       }
-      ]
-     },
-     "deutan": {
-      "minNeighbour": 0.031,
-      "pair": [
-       6,
-       7
-      ],
-      "neighbours": [
+       0.095,
        0.085,
-       0.059,
-       0.121,
-       0.066,
-       0.092,
-       0.031,
-       0.056
+       0.13,
+       0.068,
+       0.116,
+       0.067,
+       0.064
       ],
       "ringClosures": [
        {
@@ -2228,21 +2103,141 @@
          4,
          1
         ],
-        "d": 0.057
+        "d": 0.07
        },
        {
         "slots": [
          5,
          1
         ],
-        "d": 0.08
+        "d": 0.101
        },
        {
         "slots": [
          6,
          1
         ],
-        "d": 0.036
+        "d": 0.037
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.056
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.063
+       }
+      ]
+     },
+     "protan": {
+      "minNeighbour": 0.038,
+      "pair": [
+       6,
+       7
+      ],
+      "neighbours": [
+       0.088,
+       0.091,
+       0.134,
+       0.068,
+       0.117,
+       0.038,
+       0.047
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.079
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.069
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.103
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.035
+       },
+       {
+        "slots": [
+         7,
+         1
+        ],
+        "d": 0.033
+       },
+       {
+        "slots": [
+         8,
+         1
+        ],
+        "d": 0.067
+       }
+      ]
+     },
+     "deutan": {
+      "minNeighbour": 0.031,
+      "pair": [
+       6,
+       7
+      ],
+      "neighbours": [
+       0.092,
+       0.069,
+       0.116,
+       0.069,
+       0.095,
+       0.031,
+       0.056
+      ],
+      "ringClosures": [
+       {
+        "slots": [
+         3,
+         1
+        ],
+        "d": 0.085
+       },
+       {
+        "slots": [
+         4,
+         1
+        ],
+        "d": 0.05
+       },
+       {
+        "slots": [
+         5,
+         1
+        ],
+        "d": 0.092
+       },
+       {
+        "slots": [
+         6,
+         1
+        ],
+        "d": 0.029
        },
        {
         "slots": [
@@ -2256,24 +2251,24 @@
          8,
          1
         ],
-        "d": 0.047
+        "d": 0.062
        }
       ]
      },
      "tritan": {
-      "minNeighbour": 0.043,
+      "minNeighbour": 0.036,
       "pair": [
        4,
        5
       ],
       "neighbours": [
        0.098,
+       0.097,
+       0.116,
+       0.036,
+       0.134,
        0.088,
-       0.106,
-       0.043,
-       0.131,
-       0.09,
-       0.072
+       0.064
       ],
       "ringClosures": [
        {
@@ -2281,7 +2276,7 @@
          3,
          1
         ],
-        "d": 0.053
+        "d": 0.063
        },
        {
         "slots": [
@@ -2295,7 +2290,7 @@
          5,
          1
         ],
-        "d": 0.111
+        "d": 0.108
        },
        {
         "slots": [
@@ -2309,33 +2304,33 @@
          7,
          1
         ],
-        "d": 0.086
+        "d": 0.073
        },
        {
         "slots": [
          8,
          1
         ],
-        "d": 0.051
+        "d": 0.054
        }
       ]
      }
     },
     "0.8": {
      "normal": {
-      "minNeighbour": 0.179,
+      "minNeighbour": 0.175,
       "pair": [
-       4,
-       5
+       6,
+       7
       ],
       "neighbours": [
-       0.24,
-       0.209,
-       0.363,
-       0.179,
-       0.304,
+       0.252,
+       0.225,
+       0.351,
        0.181,
-       0.184
+       0.304,
+       0.175,
+       0.182
       ],
       "ringClosures": [
        {
@@ -2343,21 +2338,21 @@
          3,
          1
         ],
-        "d": 0.213
+        "d": 0.223
        },
        {
         "slots": [
          4,
          1
         ],
-        "d": 0.205
+        "d": 0.191
        },
        {
         "slots": [
          5,
          1
         ],
-        "d": 0.257
+        "d": 0.269
        },
        {
         "slots": [
@@ -2371,31 +2366,31 @@
          7,
          1
         ],
-        "d": 0.178
+        "d": 0.157
        },
        {
         "slots": [
          8,
          1
         ],
-        "d": 0.14
+        "d": 0.179
        }
       ]
      },
      "protan": {
-      "minNeighbour": 0.111,
+      "minNeighbour": 0.106,
       "pair": [
-       7,
-       8
+       6,
+       7
       ],
       "neighbours": [
-       0.228,
-       0.215,
-       0.365,
-       0.176,
-       0.321,
-       0.118,
-       0.111
+       0.235,
+       0.24,
+       0.362,
+       0.186,
+       0.316,
+       0.106,
+       0.133
       ],
       "ringClosures": [
        {
@@ -2403,42 +2398,42 @@
          3,
          1
         ],
-        "d": 0.205
+        "d": 0.216
        },
        {
         "slots": [
          4,
          1
         ],
-        "d": 0.207
+        "d": 0.188
        },
        {
         "slots": [
          5,
          1
         ],
-        "d": 0.259
+        "d": 0.276
        },
        {
         "slots": [
          6,
          1
         ],
-        "d": 0.102
+        "d": 0.099
        },
        {
         "slots": [
          7,
          1
         ],
-        "d": 0.086
+        "d": 0.092
        },
        {
         "slots": [
          8,
          1
         ],
-        "d": 0.15
+        "d": 0.189
        }
       ]
      },
@@ -2449,13 +2444,13 @@
        7
       ],
       "neighbours": [
-       0.221,
-       0.15,
-       0.326,
-       0.186,
-       0.244,
+       0.241,
+       0.175,
+       0.311,
+       0.183,
+       0.249,
        0.085,
-       0.164
+       0.16
       ],
       "ringClosures": [
        {
@@ -2463,28 +2458,28 @@
          3,
          1
         ],
-        "d": 0.219
+        "d": 0.232
        },
        {
         "slots": [
          4,
          1
         ],
-        "d": 0.152
+        "d": 0.135
        },
        {
         "slots": [
          5,
          1
         ],
-        "d": 0.214
+        "d": 0.243
        },
        {
         "slots": [
          6,
          1
         ],
-        "d": 0.1
+        "d": 0.088
        },
        {
         "slots": [
@@ -2498,24 +2493,24 @@
          8,
          1
         ],
-        "d": 0.132
+        "d": 0.174
        }
       ]
      },
      "tritan": {
-      "minNeighbour": 0.122,
+      "minNeighbour": 0.099,
       "pair": [
        4,
        5
       ],
       "neighbours": [
+       0.25,
        0.255,
-       0.234,
-       0.286,
-       0.122,
-       0.348,
-       0.241,
-       0.204
+       0.312,
+       0.099,
+       0.332,
+       0.204,
+       0.183
       ],
       "ringClosures": [
        {
@@ -2523,42 +2518,42 @@
          3,
          1
         ],
-        "d": 0.135
+        "d": 0.159
        },
        {
         "slots": [
          4,
          1
         ],
-        "d": 0.222
+        "d": 0.219
        },
        {
         "slots": [
          5,
          1
         ],
-        "d": 0.292
+        "d": 0.278
        },
        {
         "slots": [
          6,
          1
         ],
-        "d": 0.087
+        "d": 0.088
        },
        {
         "slots": [
          7,
          1
         ],
-        "d": 0.229
+        "d": 0.188
        },
        {
         "slots": [
          8,
          1
         ],
-        "d": 0.141
+        "d": 0.151
        }
       ]
      }
@@ -2567,262 +2562,262 @@
    "raster": {
     "0.25": {
      "model": [
-      "#2a3d54",
-      "#483121",
-      "#3d4b3a",
-      "#352444",
-      "#412625",
-      "#2d4856",
-      "#4f3843",
-      "#2f323b"
+      "#283955",
+      "#483022",
+      "#3c4b44",
+      "#362340",
+      "#3f261e",
+      "#1f4455",
+      "#473644",
+      "#2c2f31"
      ],
      "modelFloor": [
-      "#293d54",
-      "#473021",
-      "#3d4a39",
-      "#342444",
-      "#412625",
-      "#2c4755",
-      "#4e3843",
-      "#2f313a"
+      "#283854",
+      "#472f21",
+      "#3b4a44",
+      "#352340",
+      "#3f261d",
+      "#1e4355",
+      "#463643",
+      "#2b2e31"
      ],
      "neighboursModel": [
-      0.091,
-      0.079,
-      0.136,
-      0.064,
+      0.094,
+      0.084,
+      0.13,
+      0.067,
       0.115,
       0.068,
       0.064
      ],
      "neighboursWorstWithinOneByte": [
-      0.086,
-      0.073,
-      0.127,
-      0.056,
+      0.089,
+      0.078,
+      0.122,
+      0.06,
       0.109,
       0.062,
-      0.058
+      0.057
      ],
      "minModel": 0.064,
-     "minWorstWithinOneByte": 0.056
+     "minWorstWithinOneByte": 0.057
     },
     "0.8": {
      "model": [
-      "#548ece",
-      "#b6672b",
-      "#93ba79",
-      "#783f9a",
-      "#a04637",
-      "#5fb2d2",
-      "#cb7e97",
-      "#666a7b"
+      "#4f80d0",
+      "#b4642b",
+      "#8fbb9b",
+      "#7b3a8d",
+      "#99441f",
+      "#31a4d1",
+      "#b27999",
+      "#5c615e"
      ],
      "modelFloor": [
-      "#548ece",
-      "#b6672b",
-      "#93ba79",
-      "#783f9a",
-      "#a04637",
-      "#5fb2d2",
-      "#cb7e97",
-      "#666a7b"
+      "#4f80d0",
+      "#b4642b",
+      "#8fbb9b",
+      "#7b3a8d",
+      "#99441f",
+      "#31a4d1",
+      "#b27999",
+      "#5c615e"
      ],
      "neighboursModel": [
-      0.24,
-      0.209,
-      0.362,
-      0.179,
+      0.252,
+      0.224,
+      0.351,
+      0.181,
       0.304,
-      0.182,
-      0.184
+      0.174,
+      0.181
      ],
      "neighboursWorstWithinOneByte": [
-      0.236,
-      0.204,
-      0.356,
-      0.173,
-      0.299,
-      0.178,
-      0.179
+      0.248,
+      0.219,
+      0.345,
+      0.176,
+      0.3,
+      0.17,
+      0.175
      ],
-     "minModel": 0.179,
-     "minWorstWithinOneByte": 0.173
+     "minModel": 0.174,
+     "minWorstWithinOneByte": 0.17
     }
    },
    "checks": [
     {
      "constraint": 1,
      "check": "lowest contrast on background",
-     "value": 3.262,
+     "value": 3.074,
      "limit": 3,
      "ok": true
     },
     {
      "constraint": 2,
      "check": "min pairwise ΔE (all 8), normal",
-     "value": 0.116,
+     "value": 0.115,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 2,
      "check": "min pairwise ΔE (all 8), protan",
-     "value": 0.104,
+     "value": 0.105,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 2,
      "check": "min pairwise ΔE (all 8), deutan",
-     "value": 0.103,
+     "value": 0.102,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 2,
      "check": "min pairwise ΔE (all 8), tritan",
-     "value": 0.102,
+     "value": 0.103,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 3), normal",
-     "value": 0.251,
+     "value": 0.268,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 3), protan",
-     "value": 0.247,
+     "value": 0.259,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 3), deutan",
-     "value": 0.178,
+     "value": 0.208,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 3), tritan",
-     "value": 0.158,
+     "value": 0.188,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 4), normal",
-     "value": 0.246,
+     "value": 0.229,
      "limit": 0.14,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 4), protan",
-     "value": 0.247,
+     "value": 0.224,
      "limit": 0.14,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 4), deutan",
-     "value": 0.178,
+     "value": 0.162,
      "limit": 0.14,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 4), tritan",
-     "value": 0.158,
+     "value": 0.182,
      "limit": 0.14,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 5), normal",
-     "value": 0.116,
+     "value": 0.115,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 5), protan",
-     "value": 0.126,
+     "value": 0.122,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 5), deutan",
-     "value": 0.109,
+     "value": 0.113,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 5), tritan",
-     "value": 0.103,
+     "value": 0.113,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 6), normal",
-     "value": 0.116,
+     "value": 0.115,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 6), protan",
-     "value": 0.124,
+     "value": 0.12,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 6), deutan",
-     "value": 0.109,
+     "value": 0.107,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 3,
      "check": "min pairwise ΔE (first 6), tritan",
-     "value": 0.103,
+     "value": 0.105,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 4,
      "check": "largest light/dark hue difference per slot (°)",
-     "value": 13.639,
+     "value": 14.11,
      "limit": 30,
      "ok": true
     },
     {
      "constraint": 5,
      "check": "nearest series to focus token",
-     "value": 0.138,
-     "limit": 0.1,
-     "ok": true
-    },
-    {
-     "constraint": 5,
-     "check": "nearest series to reference token",
      "value": 0.104,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": 5,
+     "check": "nearest series to reference token",
+     "value": 0.107,
+     "limit": 0.1,
+     "ok": true
+    },
+    {
+     "constraint": 5,
      "check": "nearest series to muted token",
-     "value": 0.113,
+     "value": 0.102,
      "limit": 0.1,
      "ok": true
     },
@@ -2836,21 +2831,21 @@
     {
      "constraint": 6,
      "check": "min neighbour ΔE at 80% opacity, normal",
-     "value": 0.179,
+     "value": 0.175,
      "limit": 0.06,
      "ok": true
     },
     {
      "constraint": "2b",
      "check": "min pairwise ΔE (all 8), normal, simulated then rounded to bytes",
-     "value": 0.116,
+     "value": 0.115,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "2b",
      "check": "min pairwise ΔE (all 8), protan, simulated then rounded to bytes",
-     "value": 0.103,
+     "value": 0.105,
      "limit": 0.1,
      "ok": true
     },
@@ -2864,119 +2859,119 @@
     {
      "constraint": "2b",
      "check": "min pairwise ΔE (all 8), tritan, simulated then rounded to bytes",
-     "value": 0.102,
+     "value": 0.103,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 3), normal, rounded to bytes",
-     "value": 0.251,
+     "value": 0.268,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 3), protan, rounded to bytes",
-     "value": 0.246,
+     "value": 0.257,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 3), deutan, rounded to bytes",
-     "value": 0.177,
+     "value": 0.208,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 3), tritan, rounded to bytes",
-     "value": 0.159,
+     "value": 0.186,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 4), normal, rounded to bytes",
-     "value": 0.246,
+     "value": 0.229,
      "limit": 0.14,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 4), protan, rounded to bytes",
-     "value": 0.246,
+     "value": 0.226,
      "limit": 0.14,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 4), deutan, rounded to bytes",
-     "value": 0.177,
+     "value": 0.164,
      "limit": 0.14,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 4), tritan, rounded to bytes",
-     "value": 0.159,
+     "value": 0.182,
      "limit": 0.14,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 5), normal, rounded to bytes",
-     "value": 0.116,
+     "value": 0.115,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 5), protan, rounded to bytes",
-     "value": 0.125,
+     "value": 0.122,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 5), deutan, rounded to bytes",
-     "value": 0.109,
+     "value": 0.113,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 5), tritan, rounded to bytes",
-     "value": 0.102,
+     "value": 0.111,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 6), normal, rounded to bytes",
-     "value": 0.116,
+     "value": 0.115,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 6), protan, rounded to bytes",
-     "value": 0.124,
+     "value": 0.119,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 6), deutan, rounded to bytes",
-     "value": 0.109,
+     "value": 0.105,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "3b",
      "check": "min pairwise ΔE (first 6), tritan, rounded to bytes",
-     "value": 0.102,
+     "value": 0.104,
      "limit": 0.1,
      "ok": true
     },
@@ -2990,7 +2985,7 @@
     {
      "constraint": "6b",
      "check": "min neighbour ΔE at 80%, 8-bit raster models (alpha rounded and floored)",
-     "value": 0.179,
+     "value": 0.174,
      "limit": 0.06,
      "ok": true
     },
@@ -3004,7 +2999,7 @@
     {
      "constraint": "6b",
      "check": "min neighbour ΔE at 80%, Chrome canvas pixels",
-     "value": 0.179,
+     "value": 0.175,
      "limit": 0.06,
      "ok": true
     },
@@ -3018,21 +3013,21 @@
     {
      "constraint": "6b",
      "check": "min neighbour ΔE at 80%, Chrome svg pixels",
-     "value": 0.179,
+     "value": 0.175,
      "limit": 0.06,
      "ok": true
     },
     {
      "constraint": "2i",
      "check": "min pairwise ΔE in the preview PNG, normal row",
-     "value": 0.116,
+     "value": 0.115,
      "limit": 0.1,
      "ok": true
     },
     {
      "constraint": "2i",
      "check": "min pairwise ΔE in the preview PNG, protanopia row",
-     "value": 0.103,
+     "value": 0.105,
      "limit": 0.1,
      "ok": true
     },
@@ -3046,7 +3041,7 @@
     {
      "constraint": "2i",
      "check": "min pairwise ΔE in the preview PNG, tritanopia row",
-     "value": 0.102,
+     "value": 0.103,
      "limit": 0.1,
      "ok": true
     }
@@ -3055,21 +3050,21 @@
     "canvas": {
      "0.25": {
       "pixels": [
-       "#293d54",
-       "#483121",
-       "#3d4b39",
-       "#342443",
-       "#412624",
-       "#2c4855",
-       "#4e3842",
-       "#2f323a"
+       "#273954",
+       "#473021",
+       "#3b4b44",
+       "#35233f",
+       "#3f261d",
+       "#1e4455",
+       "#463643",
+       "#2b2f31"
       ],
       "neighbours": [
-       0.091,
-       0.078,
-       0.137,
-       0.064,
-       0.115,
+       0.094,
+       0.085,
+       0.13,
+       0.068,
+       0.116,
        0.067,
        0.063
       ],
@@ -3077,45 +3072,45 @@
      },
      "0.8": {
       "pixels": [
-       "#548ecd",
-       "#b6662a",
-       "#92ba78",
-       "#783e99",
-       "#a04536",
-       "#5eb1d1",
-       "#ca7e96",
-       "#666a7b"
+       "#4e7fcf",
+       "#b4632b",
+       "#8eba9a",
+       "#7a3a8c",
+       "#99431e",
+       "#31a3d0",
+       "#b27898",
+       "#5b605d"
       ],
       "neighbours": [
-       0.24,
-       0.211,
-       0.365,
-       0.179,
-       0.303,
-       0.181,
-       0.182
+       0.252,
+       0.224,
+       0.349,
+       0.18,
+       0.304,
+       0.175,
+       0.183
       ],
-      "min": 0.179
+      "min": 0.175
      }
     },
     "svg": {
      "0.25": {
       "pixels": [
-       "#293d54",
-       "#483121",
-       "#3d4b39",
-       "#342443",
-       "#412624",
-       "#2c4855",
-       "#4e3842",
-       "#2f323a"
+       "#273954",
+       "#473021",
+       "#3b4b44",
+       "#35233f",
+       "#3f261d",
+       "#1e4455",
+       "#463643",
+       "#2b2f31"
       ],
       "neighbours": [
-       0.091,
-       0.078,
-       0.137,
-       0.064,
-       0.115,
+       0.094,
+       0.085,
+       0.13,
+       0.068,
+       0.116,
        0.067,
        0.063
       ],
@@ -3123,41 +3118,41 @@
      },
      "0.8": {
       "pixels": [
-       "#548ecd",
-       "#b6662a",
-       "#92ba78",
-       "#783e99",
-       "#a04536",
-       "#5eb1d1",
-       "#ca7e96",
-       "#666a7b"
+       "#4e7fcf",
+       "#b4632b",
+       "#8eba9a",
+       "#7a3a8c",
+       "#99431e",
+       "#31a3d0",
+       "#b27898",
+       "#5b605d"
       ],
       "neighbours": [
-       0.24,
-       0.211,
-       0.365,
-       0.179,
-       0.303,
-       0.181,
-       0.182
+       0.252,
+       0.224,
+       0.349,
+       0.18,
+       0.304,
+       0.175,
+       0.183
       ],
-      "min": 0.179
+      "min": 0.175
      }
     }
    },
    "previewImage": {
     "normal": {
      "pixels": [
-      "#64acfa",
-      "#de7b2e",
-      "#b2e390",
-      "#9149b9",
-      "#c3513d",
-      "#71d8ff",
-      "#f898b5",
-      "#7a7f93"
+      "#5d9afd",
+      "#dc772f",
+      "#ade4ba",
+      "#9443a9",
+      "#ba4f1f",
+      "#38c7fe",
+      "#d991b8",
+      "#6d736e"
      ],
-     "min": 0.116,
+     "min": 0.115,
      "pair": [
       2,
       5
@@ -3165,97 +3160,92 @@
     },
     "protanopia": {
      "pixels": [
-      "#8bb0fd",
-      "#988722",
-      "#ead78a",
-      "#1f66bd",
-      "#6f663a",
-      "#c3d4ff",
-      "#a5aab6",
-      "#7a8194"
+      "#6ea3ff",
+      "#948425",
+      "#e4dbb8",
+      "#2a60ac",
+      "#6d6117",
+      "#aac4ff",
+      "#96a0b9",
+      "#73726e"
      ],
-     "min": 0.103,
+     "min": 0.105,
      "pair": [
-      1,
-      7
+      5,
+      8
      ]
     },
     "deuteranopia": {
      "pixels": [
-      "#77a1f8",
-      "#b09d2d",
-      "#e2d394",
-      "#406bb6",
-      "#8c7e3a",
-      "#aec5ff",
-      "#bdbbb3",
-      "#787f92"
+      "#5794fb",
+      "#ac9b2e",
+      "#dbd5bc",
+      "#4968a6",
+      "#88791b",
+      "#90b1fd",
+      "#a8abb6",
+      "#72716e"
      ],
      "min": 0.102,
      "pair": [
-      3,
+      6,
       7
      ]
     },
     "tritanopia": {
      "pixels": [
-      "#00bec8",
-      "#f3656c",
-      "#b3ddce",
-      "#8c5e7a",
-      "#d6394d",
-      "#00e4e4",
-      "#ff92a2",
-      "#748385"
+      "#00b1bf",
+      "#f16168",
+      "#a5e2d8",
+      "#945470",
+      "#cd3646",
+      "#00d6d9",
+      "#e2909f",
+      "#6c7371"
      ],
-     "min": 0.102,
+     "min": 0.103,
      "pair": [
-      2,
-      5
+      4,
+      8
      ]
     }
    },
    "lightness": {
-    "min": 0.544,
-    "max": 0.862,
-    "firstThreeSpread": 0.181,
-    "maxChroma": 0.177
+    "min": 0.53,
+    "max": 0.87,
+    "firstThreeSpread": 0.198,
+    "maxChroma": 0.171
    },
    "tight": [
     {
+     "check": "lowest contrast on background",
+     "value": 3.074,
+     "margin": 0.074
+    },
+    {
      "check": "min pairwise ΔE (all 8), protan",
-     "value": 0.104,
-     "margin": 0.004
+     "value": 0.105,
+     "margin": 0.005
     },
     {
      "check": "min pairwise ΔE (all 8), deutan",
-     "value": 0.103,
-     "margin": 0.003
-    },
-    {
-     "check": "min pairwise ΔE (all 8), tritan",
      "value": 0.102,
      "margin": 0.002
     },
     {
-     "check": "min pairwise ΔE (first 5), tritan",
+     "check": "min pairwise ΔE (all 8), tritan",
      "value": 0.103,
      "margin": 0.003
     },
     {
-     "check": "min pairwise ΔE (first 6), tritan",
-     "value": 0.103,
-     "margin": 0.003
-    },
-    {
-     "check": "nearest series to reference token",
+     "check": "nearest series to focus token",
      "value": 0.104,
      "margin": 0.004
     },
     {
-     "check": "min pairwise ΔE (all 8), protan, simulated then rounded to bytes",
-     "value": 0.103,
-     "margin": 0.003
+     "check": "nearest series to muted token",
+     "value": 0.102,
+     "margin": 0.002
     },
     {
      "check": "min pairwise ΔE (all 8), deutan, simulated then rounded to bytes",
@@ -3264,30 +3254,25 @@
     },
     {
      "check": "min pairwise ΔE (all 8), tritan, simulated then rounded to bytes",
-     "value": 0.102,
-     "margin": 0.002
-    },
-    {
-     "check": "min pairwise ΔE (first 5), tritan, rounded to bytes",
-     "value": 0.102,
-     "margin": 0.002
+     "value": 0.103,
+     "margin": 0.003
     },
     {
      "check": "min pairwise ΔE (first 6), tritan, rounded to bytes",
-     "value": 0.102,
-     "margin": 0.002
+     "value": 0.104,
+     "margin": 0.004
     }
    ]
   }
  },
  "oneByteEdits": {
   "light": {
-   "edits": 46,
-   "stillMeetEveryCheck": 41
+   "edits": 48,
+   "stillMeetEveryCheck": 44
   },
   "dark": {
-   "edits": 47,
-   "stillMeetEveryCheck": 46
+   "edits": 48,
+   "stillMeetEveryCheck": 48
   }
  },
  "strokes": {
@@ -3298,68 +3283,15 @@
     "background": "#ffffff",
     "rows": [
      {
-      "color": "#4a94eb",
-      "swatch": 3.12,
+      "color": "#2b97ee",
+      "swatch": 3.1,
       "channel": 0,
       "canvas@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 3.12,
-        "median": 3.12
-       },
-       "weighted": {
-        "p10": 2.47,
-        "median": 2.57
-       }
-      },
-      "svg@1": {
-       "columns": 576,
-       "columnsWithoutFullCoverage": 1,
-       "core": {
-        "p10": 3.12,
-        "median": 3.12
-       },
-       "weighted": {
-        "p10": 2.47,
-        "median": 2.57
-       }
-      },
-      "canvas@2": {
-       "columns": 1152,
-       "columnsWithoutFullCoverage": 0,
-       "core": {
-        "p10": 3.12,
-        "median": 3.12
-       },
-       "weighted": {
-        "p10": 2.75,
-        "median": 2.84
-       }
-      },
-      "svg@2": {
-       "columns": 1152,
-       "columnsWithoutFullCoverage": 0,
-       "core": {
-        "p10": 3.12,
-        "median": 3.12
-       },
-       "weighted": {
-        "p10": 2.75,
-        "median": 2.84
-       }
-      }
-     },
-     {
-      "color": "#e97200",
-      "swatch": 3.06,
-      "channel": 2,
-      "canvas@1": {
-       "columns": 576,
-       "columnsWithoutFullCoverage": 1,
-       "core": {
-        "p10": 3.06,
-        "median": 3.06
+        "p10": 3.1,
+        "median": 3.1
        },
        "weighted": {
         "p10": 2.5,
@@ -3370,8 +3302,8 @@
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 3.06,
-        "median": 3.06
+        "p10": 3.1,
+        "median": 3.1
        },
        "weighted": {
         "p10": 2.48,
@@ -3382,342 +3314,395 @@
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 3.06,
-        "median": 3.06
+        "p10": 3.1,
+        "median": 3.1
        },
        "weighted": {
-        "p10": 2.75,
-        "median": 2.81
+        "p10": 2.77,
+        "median": 2.84
        }
       },
       "svg@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 3.06,
-        "median": 3.06
+        "p10": 3.1,
+        "median": 3.1
        },
        "weighted": {
-        "p10": 2.75,
-        "median": 2.81
+        "p10": 2.77,
+        "median": 2.84
        }
       }
      },
      {
-      "color": "#136102",
-      "swatch": 7.67,
+      "color": "#cf8020",
+      "swatch": 3.11,
       "channel": 2,
       "canvas@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 7.67,
-        "median": 7.67
+        "p10": 3.11,
+        "median": 3.11
        },
        "weighted": {
-        "p10": 4.89,
-        "median": 5.27
+        "p10": 2.47,
+        "median": 2.56
        }
       },
       "svg@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 7.67,
-        "median": 7.67
+        "p10": 3.11,
+        "median": 3.11
        },
        "weighted": {
-        "p10": 4.88,
-        "median": 5.27
+        "p10": 2.47,
+        "median": 2.56
        }
       },
       "canvas@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 7.67,
-        "median": 7.67
+        "p10": 3.11,
+        "median": 3.11
        },
        "weighted": {
-        "p10": 6.03,
-        "median": 6.32
+        "p10": 2.74,
+        "median": 2.82
        }
       },
       "svg@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 7.67,
-        "median": 7.67
+        "p10": 3.11,
+        "median": 3.11
        },
        "weighted": {
-        "p10": 6.03,
-        "median": 6.32
+        "p10": 2.74,
+        "median": 2.82
        }
       }
      },
      {
-      "color": "#7314a2",
-      "swatch": 8.93,
-      "channel": 1,
-      "canvas@1": {
-       "columns": 576,
-       "columnsWithoutFullCoverage": 1,
-       "core": {
-        "p10": 8.93,
-        "median": 8.93
-       },
-       "weighted": {
-        "p10": 5.97,
-        "median": 6.4
-       }
-      },
-      "svg@1": {
-       "columns": 576,
-       "columnsWithoutFullCoverage": 1,
-       "core": {
-        "p10": 8.93,
-        "median": 8.93
-       },
-       "weighted": {
-        "p10": 5.96,
-        "median": 6.4
-       }
-      },
-      "canvas@2": {
-       "columns": 1152,
-       "columnsWithoutFullCoverage": 0,
-       "core": {
-        "p10": 8.93,
-        "median": 8.93
-       },
-       "weighted": {
-        "p10": 7.32,
-        "median": 7.64
-       }
-      },
-      "svg@2": {
-       "columns": 1152,
-       "columnsWithoutFullCoverage": 0,
-       "core": {
-        "p10": 8.93,
-        "median": 8.93
-       },
-       "weighted": {
-        "p10": 7.29,
-        "median": 7.64
-       }
-      }
-     },
-     {
-      "color": "#bd585e",
-      "swatch": 4.45,
-      "channel": 1,
-      "canvas@1": {
-       "columns": 576,
-       "columnsWithoutFullCoverage": 1,
-       "core": {
-        "p10": 4.45,
-        "median": 4.45
-       },
-       "weighted": {
-        "p10": 3.27,
-        "median": 3.44
-       }
-      },
-      "svg@1": {
-       "columns": 576,
-       "columnsWithoutFullCoverage": 1,
-       "core": {
-        "p10": 4.45,
-        "median": 4.45
-       },
-       "weighted": {
-        "p10": 3.27,
-        "median": 3.44
-       }
-      },
-      "canvas@2": {
-       "columns": 1152,
-       "columnsWithoutFullCoverage": 0,
-       "core": {
-        "p10": 4.45,
-        "median": 4.45
-       },
-       "weighted": {
-        "p10": 3.75,
-        "median": 3.91
-       }
-      },
-      "svg@2": {
-       "columns": 1152,
-       "columnsWithoutFullCoverage": 0,
-       "core": {
-        "p10": 4.45,
-        "median": 4.45
-       },
-       "weighted": {
-        "p10": 3.75,
-        "median": 3.91
-       }
-      }
-     },
-     {
-      "color": "#007baa",
-      "swatch": 4.76,
+      "color": "#0b6c49",
+      "swatch": 6.45,
       "channel": 0,
       "canvas@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 4.76,
-        "median": 4.76
+        "p10": 6.45,
+        "median": 6.45
        },
        "weighted": {
-        "p10": 3.46,
-        "median": 3.64
+        "p10": 4.33,
+        "median": 4.6
        }
       },
       "svg@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 4.76,
-        "median": 4.76
+        "p10": 6.45,
+        "median": 6.45
        },
        "weighted": {
-        "p10": 3.46,
-        "median": 3.64
+        "p10": 4.28,
+        "median": 4.6
        }
       },
       "canvas@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 4.76,
-        "median": 4.76
+        "p10": 6.45,
+        "median": 6.45
        },
        "weighted": {
-        "p10": 4.03,
-        "median": 4.18
+        "p10": 5.18,
+        "median": 5.41
        }
       },
       "svg@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 4.76,
-        "median": 4.76
+        "p10": 6.45,
+        "median": 6.45
        },
        "weighted": {
-        "p10": 4.03,
-        "median": 4.14
+        "p10": 5.18,
+        "median": 5.41
        }
       }
      },
      {
-      "color": "#a52265",
-      "swatch": 6.96,
+      "color": "#812cc4",
+      "swatch": 6.79,
       "channel": 1,
       "canvas@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 6.96,
-        "median": 6.96
+        "p10": 6.79,
+        "median": 6.79
+       },
+       "weighted": {
+        "p10": 4.64,
+        "median": 4.98
+       }
+      },
+      "svg@1": {
+       "columns": 576,
+       "columnsWithoutFullCoverage": 1,
+       "core": {
+        "p10": 6.79,
+        "median": 6.79
+       },
+       "weighted": {
+        "p10": 4.64,
+        "median": 4.98
+       }
+      },
+      "canvas@2": {
+       "columns": 1152,
+       "columnsWithoutFullCoverage": 0,
+       "core": {
+        "p10": 6.79,
+        "median": 6.79
+       },
+       "weighted": {
+        "p10": 5.59,
+        "median": 5.82
+       }
+      },
+      "svg@2": {
+       "columns": 1152,
+       "columnsWithoutFullCoverage": 0,
+       "core": {
+        "p10": 6.79,
+        "median": 6.79
+       },
+       "weighted": {
+        "p10": 5.59,
+        "median": 5.82
+       }
+      }
+     },
+     {
+      "color": "#be1506",
+      "swatch": 6.36,
+      "channel": 2,
+      "canvas@1": {
+       "columns": 576,
+       "columnsWithoutFullCoverage": 1,
+       "core": {
+        "p10": 6.36,
+        "median": 6.36
        },
        "weighted": {
         "p10": 4.86,
-        "median": 5.17
+        "median": 5.12
        }
       },
       "svg@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 6.96,
-        "median": 6.96
+        "p10": 6.36,
+        "median": 6.36
        },
        "weighted": {
-        "p10": 4.83,
-        "median": 5.17
+        "p10": 4.86,
+        "median": 5.12
        }
       },
       "canvas@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 6.96,
-        "median": 6.96
+        "p10": 6.36,
+        "median": 6.36
        },
        "weighted": {
-        "p10": 5.8,
-        "median": 6.03
+        "p10": 5.63,
+        "median": 5.77
        }
       },
       "svg@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 6.96,
-        "median": 6.96
+        "p10": 6.36,
+        "median": 6.36
        },
        "weighted": {
-        "p10": 5.8,
-        "median": 6.03
+        "p10": 5.59,
+        "median": 5.77
        }
       }
      },
      {
-      "color": "#9293a5",
-      "swatch": 3.03,
+      "color": "#0380a8",
+      "swatch": 4.51,
       "channel": 0,
       "canvas@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 3.03,
-        "median": 3.03
+        "p10": 4.51,
+        "median": 4.51
        },
        "weighted": {
-        "p10": 2.38,
-        "median": 2.47
+        "p10": 3.32,
+        "median": 3.49
        }
       },
       "svg@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 3.03,
-        "median": 3.03
+        "p10": 4.51,
+        "median": 4.51
        },
        "weighted": {
-        "p10": 2.38,
-        "median": 2.47
+        "p10": 3.32,
+        "median": 3.49
        }
       },
       "canvas@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 3.03,
-        "median": 3.03
+        "p10": 4.51,
+        "median": 4.51
        },
        "weighted": {
-        "p10": 2.65,
-        "median": 2.71
+        "p10": 3.82,
+        "median": 3.97
        }
       },
       "svg@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 3.03,
-        "median": 3.03
+        "p10": 4.51,
+        "median": 4.51
        },
        "weighted": {
-        "p10": 2.65,
-        "median": 2.71
+        "p10": 3.82,
+        "median": 3.97
+       }
+      }
+     },
+     {
+      "color": "#8c1382",
+      "swatch": 8.3,
+      "channel": 1,
+      "canvas@1": {
+       "columns": 576,
+       "columnsWithoutFullCoverage": 1,
+       "core": {
+        "p10": 8.3,
+        "median": 8.3
+       },
+       "weighted": {
+        "p10": 5.7,
+        "median": 6.07
+       }
+      },
+      "svg@1": {
+       "columns": 576,
+       "columnsWithoutFullCoverage": 1,
+       "core": {
+        "p10": 8.3,
+        "median": 8.3
+       },
+       "weighted": {
+        "p10": 5.62,
+        "median": 6.07
+       }
+      },
+      "canvas@2": {
+       "columns": 1152,
+       "columnsWithoutFullCoverage": 0,
+       "core": {
+        "p10": 8.3,
+        "median": 8.3
+       },
+       "weighted": {
+        "p10": 6.88,
+        "median": 7.16
+       }
+      },
+      "svg@2": {
+       "columns": 1152,
+       "columnsWithoutFullCoverage": 0,
+       "core": {
+        "p10": 8.3,
+        "median": 8.3
+       },
+       "weighted": {
+        "p10": 6.82,
+        "median": 7.16
+       }
+      }
+     },
+     {
+      "color": "#8e948f",
+      "swatch": 3.1,
+      "channel": 0,
+      "canvas@1": {
+       "columns": 576,
+       "columnsWithoutFullCoverage": 1,
+       "core": {
+        "p10": 3.1,
+        "median": 3.1
+       },
+       "weighted": {
+        "p10": 2.42,
+        "median": 2.5
+       }
+      },
+      "svg@1": {
+       "columns": 576,
+       "columnsWithoutFullCoverage": 1,
+       "core": {
+        "p10": 3.1,
+        "median": 3.1
+       },
+       "weighted": {
+        "p10": 2.42,
+        "median": 2.5
+       }
+      },
+      "canvas@2": {
+       "columns": 1152,
+       "columnsWithoutFullCoverage": 0,
+       "core": {
+        "p10": 3.1,
+        "median": 3.1
+       },
+       "weighted": {
+        "p10": 2.7,
+        "median": 2.79
+       }
+      },
+      "svg@2": {
+       "columns": 1152,
+       "columnsWithoutFullCoverage": 0,
+       "core": {
+        "p10": 3.1,
+        "median": 3.1
+       },
+       "weighted": {
+        "p10": 2.7,
+        "median": 2.79
        }
       }
      }
@@ -3727,426 +3712,426 @@
     "background": "#16181d",
     "rows": [
      {
-      "color": "#64acfa",
-      "swatch": 7.46,
+      "color": "#5d9afd",
+      "swatch": 6.35,
       "channel": 2,
       "canvas@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 7.46,
-        "median": 7.46
+        "p10": 6.35,
+        "median": 6.35
        },
        "weighted": {
-        "p10": 5.32,
-        "median": 5.66
+        "p10": 4.59,
+        "median": 4.84
        }
       },
       "svg@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 7.46,
-        "median": 7.46
+        "p10": 6.35,
+        "median": 6.35
        },
        "weighted": {
-        "p10": 5.32,
-        "median": 5.61
+        "p10": 4.57,
+        "median": 4.83
        }
       },
       "canvas@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 7.46,
-        "median": 7.46
+        "p10": 6.35,
+        "median": 6.35
        },
        "weighted": {
-        "p10": 6.26,
-        "median": 6.49
+        "p10": 5.38,
+        "median": 5.58
        }
       },
       "svg@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 7.46,
-        "median": 7.46
+        "p10": 6.35,
+        "median": 6.35
        },
        "weighted": {
-        "p10": 6.26,
-        "median": 6.49
+        "p10": 5.37,
+        "median": 5.58
        }
       }
      },
      {
-      "color": "#de7b2e",
-      "swatch": 5.9,
+      "color": "#dc772f",
+      "swatch": 5.69,
       "channel": 0,
       "canvas@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 5.9,
-        "median": 5.9
+        "p10": 5.69,
+        "median": 5.69
        },
        "weighted": {
-        "p10": 4.27,
-        "median": 4.51
+        "p10": 4.13,
+        "median": 4.38
        }
       },
       "svg@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 5.9,
-        "median": 5.9
+        "p10": 5.69,
+        "median": 5.69
        },
        "weighted": {
-        "p10": 4.27,
-        "median": 4.51
+        "p10": 4.13,
+        "median": 4.38
        }
       },
       "canvas@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 5.9,
-        "median": 5.9
+        "p10": 5.69,
+        "median": 5.69
        },
        "weighted": {
-        "p10": 5,
-        "median": 5.17
+        "p10": 4.8,
+        "median": 4.97
        }
       },
       "svg@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 5.9,
-        "median": 5.9
+        "p10": 5.69,
+        "median": 5.69
        },
        "weighted": {
-        "p10": 5,
-        "median": 5.17
+        "p10": 4.8,
+        "median": 4.97
        }
       }
      },
      {
-      "color": "#b2e390",
-      "swatch": 12.08,
+      "color": "#ade4ba",
+      "swatch": 12.33,
       "channel": 1,
       "canvas@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 12.08,
-        "median": 12.08
+        "p10": 12.33,
+        "median": 12.33
        },
        "weighted": {
-        "p10": 8.32,
-        "median": 8.85
+        "p10": 8.5,
+        "median": 9.04
        }
       },
       "svg@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 12.08,
-        "median": 12.08
+        "p10": 12.33,
+        "median": 12.33
        },
        "weighted": {
-        "p10": 8.23,
-        "median": 8.85
+        "p10": 8.41,
+        "median": 9.04
        }
       },
       "canvas@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 12.08,
-        "median": 12.08
+        "p10": 12.33,
+        "median": 12.33
        },
        "weighted": {
-        "p10": 9.97,
-        "median": 10.39
+        "p10": 10.2,
+        "median": 10.6
        }
       },
       "svg@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 12.08,
-        "median": 12.08
+        "p10": 12.33,
+        "median": 12.33
        },
        "weighted": {
-        "p10": 9.97,
-        "median": 10.39
+        "p10": 10.2,
+        "median": 10.6
        }
       }
      },
      {
-      "color": "#9149b9",
-      "swatch": 3.26,
+      "color": "#9443a9",
+      "swatch": 3.07,
       "channel": 2,
       "canvas@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 3.26,
-        "median": 3.26
+        "p10": 3.07,
+        "median": 3.07
        },
        "weighted": {
-        "p10": 2.57,
-        "median": 2.65
+        "p10": 2.43,
+        "median": 2.52
        }
       },
       "svg@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 3.26,
-        "median": 3.26
+        "p10": 3.07,
+        "median": 3.07
        },
        "weighted": {
-        "p10": 2.55,
-        "median": 2.65
+        "p10": 2.43,
+        "median": 2.52
        }
       },
       "canvas@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 3.26,
-        "median": 3.26
+        "p10": 3.07,
+        "median": 3.07
        },
        "weighted": {
-        "p10": 2.87,
-        "median": 2.95
+        "p10": 2.72,
+        "median": 2.8
        }
       },
       "svg@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 3.26,
-        "median": 3.26
+        "p10": 3.07,
+        "median": 3.07
        },
        "weighted": {
-        "p10": 2.87,
-        "median": 2.95
+        "p10": 2.72,
+        "median": 2.8
        }
       }
      },
      {
-      "color": "#c3513d",
-      "swatch": 3.86,
+      "color": "#ba4f1f",
+      "swatch": 3.57,
       "channel": 0,
       "canvas@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 3.86,
-        "median": 3.86
+        "p10": 3.57,
+        "median": 3.57
        },
        "weighted": {
-        "p10": 2.93,
-        "median": 3.09
+        "p10": 2.76,
+        "median": 2.87
        }
       },
       "svg@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 3.86,
-        "median": 3.86
+        "p10": 3.57,
+        "median": 3.57
        },
        "weighted": {
-        "p10": 2.93,
-        "median": 3.09
+        "p10": 2.74,
+        "median": 2.87
        }
       },
       "canvas@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 3.86,
-        "median": 3.86
+        "p10": 3.57,
+        "median": 3.57
        },
        "weighted": {
-        "p10": 3.35,
-        "median": 3.43
+        "p10": 3.11,
+        "median": 3.22
        }
       },
       "svg@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 3.86,
-        "median": 3.86
+        "p10": 3.57,
+        "median": 3.57
        },
        "weighted": {
-        "p10": 3.35,
-        "median": 3.43
+        "p10": 3.09,
+        "median": 3.22
        }
       }
      },
      {
-      "color": "#71d8ff",
-      "swatch": 10.97,
+      "color": "#38c7fe",
+      "swatch": 9.11,
       "channel": 2,
       "canvas@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 10.97,
-        "median": 10.97
+        "p10": 9.11,
+        "median": 9.11
        },
        "weighted": {
-        "p10": 7.59,
-        "median": 8.1
+        "p10": 6.37,
+        "median": 6.75
        }
       },
       "svg@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 10.97,
-        "median": 10.97
+        "p10": 9.11,
+        "median": 9.11
        },
        "weighted": {
-        "p10": 7.52,
-        "median": 8.1
+        "p10": 6.37,
+        "median": 6.75
        }
       },
       "canvas@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 10.97,
-        "median": 10.97
+        "p10": 9.11,
+        "median": 9.11
        },
        "weighted": {
-        "p10": 9.08,
-        "median": 9.46
+        "p10": 7.54,
+        "median": 7.87
        }
       },
       "svg@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 10.97,
-        "median": 10.97
+        "p10": 9.11,
+        "median": 9.11
        },
        "weighted": {
-        "p10": 9.08,
-        "median": 9.46
+        "p10": 7.54,
+        "median": 7.87
        }
       }
      },
      {
-      "color": "#f898b5",
-      "swatch": 8.58,
+      "color": "#d991b8",
+      "swatch": 7.35,
       "channel": 0,
       "canvas@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 8.58,
-        "median": 8.58
+        "p10": 7.35,
+        "median": 7.35
        },
        "weighted": {
-        "p10": 6.04,
-        "median": 6.42
+        "p10": 5.24,
+        "median": 5.56
        }
       },
       "svg@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 8.58,
-        "median": 8.58
+        "p10": 7.35,
+        "median": 7.35
        },
        "weighted": {
-        "p10": 6.04,
-        "median": 6.42
+        "p10": 5.24,
+        "median": 5.56
        }
       },
       "canvas@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 8.58,
-        "median": 8.58
+        "p10": 7.35,
+        "median": 7.35
        },
        "weighted": {
-        "p10": 7.14,
-        "median": 7.45
+        "p10": 6.17,
+        "median": 6.38
        }
       },
       "svg@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 8.58,
-        "median": 8.58
+        "p10": 7.35,
+        "median": 7.35
        },
        "weighted": {
-        "p10": 7.14,
-        "median": 7.45
+        "p10": 6.17,
+        "median": 6.38
        }
       }
      },
      {
-      "color": "#7a7f93",
-      "swatch": 4.47,
-      "channel": 2,
+      "color": "#6d736e",
+      "swatch": 3.66,
+      "channel": 1,
       "canvas@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 4.47,
-        "median": 4.47
+        "p10": 3.66,
+        "median": 3.66
        },
        "weighted": {
-        "p10": 3.36,
-        "median": 3.55
+        "p10": 2.85,
+        "median": 2.94
        }
       },
       "svg@1": {
        "columns": 576,
        "columnsWithoutFullCoverage": 1,
        "core": {
-        "p10": 4.47,
-        "median": 4.47
+        "p10": 3.66,
+        "median": 3.66
        },
        "weighted": {
-        "p10": 3.36,
-        "median": 3.55
+        "p10": 2.81,
+        "median": 2.94
        }
       },
       "canvas@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 4.47,
-        "median": 4.47
+        "p10": 3.66,
+        "median": 3.66
        },
        "weighted": {
-        "p10": 3.88,
-        "median": 3.99
+        "p10": 3.21,
+        "median": 3.31
        }
       },
       "svg@2": {
        "columns": 1152,
        "columnsWithoutFullCoverage": 0,
        "core": {
-        "p10": 4.47,
-        "median": 4.47
+        "p10": 3.66,
+        "median": 3.66
        },
        "weighted": {
-        "p10": 3.88,
-        "median": 3.99
+        "p10": 3.21,
+        "median": 3.31
        }
       }
      }

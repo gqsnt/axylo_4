@@ -6,68 +6,15 @@
    "background": "#ffffff",
    "rows": [
     {
-     "color": "#4a94eb",
-     "swatch": 3.12,
+     "color": "#2b97ee",
+     "swatch": 3.1,
      "channel": 0,
      "canvas@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 3.12,
-       "median": 3.12
-      },
-      "weighted": {
-       "p10": 2.47,
-       "median": 2.57
-      }
-     },
-     "svg@1": {
-      "columns": 576,
-      "columnsWithoutFullCoverage": 1,
-      "core": {
-       "p10": 3.12,
-       "median": 3.12
-      },
-      "weighted": {
-       "p10": 2.47,
-       "median": 2.57
-      }
-     },
-     "canvas@2": {
-      "columns": 1152,
-      "columnsWithoutFullCoverage": 0,
-      "core": {
-       "p10": 3.12,
-       "median": 3.12
-      },
-      "weighted": {
-       "p10": 2.75,
-       "median": 2.84
-      }
-     },
-     "svg@2": {
-      "columns": 1152,
-      "columnsWithoutFullCoverage": 0,
-      "core": {
-       "p10": 3.12,
-       "median": 3.12
-      },
-      "weighted": {
-       "p10": 2.75,
-       "median": 2.84
-      }
-     }
-    },
-    {
-     "color": "#e97200",
-     "swatch": 3.06,
-     "channel": 2,
-     "canvas@1": {
-      "columns": 576,
-      "columnsWithoutFullCoverage": 1,
-      "core": {
-       "p10": 3.06,
-       "median": 3.06
+       "p10": 3.1,
+       "median": 3.1
       },
       "weighted": {
        "p10": 2.5,
@@ -78,8 +25,8 @@
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 3.06,
-       "median": 3.06
+       "p10": 3.1,
+       "median": 3.1
       },
       "weighted": {
        "p10": 2.48,
@@ -90,342 +37,395 @@
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 3.06,
-       "median": 3.06
+       "p10": 3.1,
+       "median": 3.1
       },
       "weighted": {
-       "p10": 2.75,
-       "median": 2.81
+       "p10": 2.77,
+       "median": 2.84
       }
      },
      "svg@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 3.06,
-       "median": 3.06
+       "p10": 3.1,
+       "median": 3.1
       },
       "weighted": {
-       "p10": 2.75,
-       "median": 2.81
+       "p10": 2.77,
+       "median": 2.84
       }
      }
     },
     {
-     "color": "#136102",
-     "swatch": 7.67,
+     "color": "#cf8020",
+     "swatch": 3.11,
      "channel": 2,
      "canvas@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 7.67,
-       "median": 7.67
+       "p10": 3.11,
+       "median": 3.11
       },
       "weighted": {
-       "p10": 4.89,
-       "median": 5.27
+       "p10": 2.47,
+       "median": 2.56
       }
      },
      "svg@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 7.67,
-       "median": 7.67
+       "p10": 3.11,
+       "median": 3.11
       },
       "weighted": {
-       "p10": 4.88,
-       "median": 5.27
+       "p10": 2.47,
+       "median": 2.56
       }
      },
      "canvas@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 7.67,
-       "median": 7.67
+       "p10": 3.11,
+       "median": 3.11
       },
       "weighted": {
-       "p10": 6.03,
-       "median": 6.32
+       "p10": 2.74,
+       "median": 2.82
       }
      },
      "svg@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 7.67,
-       "median": 7.67
+       "p10": 3.11,
+       "median": 3.11
       },
       "weighted": {
-       "p10": 6.03,
-       "median": 6.32
+       "p10": 2.74,
+       "median": 2.82
       }
      }
     },
     {
-     "color": "#7314a2",
-     "swatch": 8.93,
-     "channel": 1,
-     "canvas@1": {
-      "columns": 576,
-      "columnsWithoutFullCoverage": 1,
-      "core": {
-       "p10": 8.93,
-       "median": 8.93
-      },
-      "weighted": {
-       "p10": 5.97,
-       "median": 6.4
-      }
-     },
-     "svg@1": {
-      "columns": 576,
-      "columnsWithoutFullCoverage": 1,
-      "core": {
-       "p10": 8.93,
-       "median": 8.93
-      },
-      "weighted": {
-       "p10": 5.96,
-       "median": 6.4
-      }
-     },
-     "canvas@2": {
-      "columns": 1152,
-      "columnsWithoutFullCoverage": 0,
-      "core": {
-       "p10": 8.93,
-       "median": 8.93
-      },
-      "weighted": {
-       "p10": 7.32,
-       "median": 7.64
-      }
-     },
-     "svg@2": {
-      "columns": 1152,
-      "columnsWithoutFullCoverage": 0,
-      "core": {
-       "p10": 8.93,
-       "median": 8.93
-      },
-      "weighted": {
-       "p10": 7.29,
-       "median": 7.64
-      }
-     }
-    },
-    {
-     "color": "#bd585e",
-     "swatch": 4.45,
-     "channel": 1,
-     "canvas@1": {
-      "columns": 576,
-      "columnsWithoutFullCoverage": 1,
-      "core": {
-       "p10": 4.45,
-       "median": 4.45
-      },
-      "weighted": {
-       "p10": 3.27,
-       "median": 3.44
-      }
-     },
-     "svg@1": {
-      "columns": 576,
-      "columnsWithoutFullCoverage": 1,
-      "core": {
-       "p10": 4.45,
-       "median": 4.45
-      },
-      "weighted": {
-       "p10": 3.27,
-       "median": 3.44
-      }
-     },
-     "canvas@2": {
-      "columns": 1152,
-      "columnsWithoutFullCoverage": 0,
-      "core": {
-       "p10": 4.45,
-       "median": 4.45
-      },
-      "weighted": {
-       "p10": 3.75,
-       "median": 3.91
-      }
-     },
-     "svg@2": {
-      "columns": 1152,
-      "columnsWithoutFullCoverage": 0,
-      "core": {
-       "p10": 4.45,
-       "median": 4.45
-      },
-      "weighted": {
-       "p10": 3.75,
-       "median": 3.91
-      }
-     }
-    },
-    {
-     "color": "#007baa",
-     "swatch": 4.76,
+     "color": "#0b6c49",
+     "swatch": 6.45,
      "channel": 0,
      "canvas@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 4.76,
-       "median": 4.76
+       "p10": 6.45,
+       "median": 6.45
       },
       "weighted": {
-       "p10": 3.46,
-       "median": 3.64
+       "p10": 4.33,
+       "median": 4.6
       }
      },
      "svg@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 4.76,
-       "median": 4.76
+       "p10": 6.45,
+       "median": 6.45
       },
       "weighted": {
-       "p10": 3.46,
-       "median": 3.64
+       "p10": 4.28,
+       "median": 4.6
       }
      },
      "canvas@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 4.76,
-       "median": 4.76
+       "p10": 6.45,
+       "median": 6.45
       },
       "weighted": {
-       "p10": 4.03,
-       "median": 4.18
+       "p10": 5.18,
+       "median": 5.41
       }
      },
      "svg@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 4.76,
-       "median": 4.76
+       "p10": 6.45,
+       "median": 6.45
       },
       "weighted": {
-       "p10": 4.03,
-       "median": 4.14
+       "p10": 5.18,
+       "median": 5.41
       }
      }
     },
     {
-     "color": "#a52265",
-     "swatch": 6.96,
+     "color": "#812cc4",
+     "swatch": 6.79,
      "channel": 1,
      "canvas@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 6.96,
-       "median": 6.96
+       "p10": 6.79,
+       "median": 6.79
+      },
+      "weighted": {
+       "p10": 4.64,
+       "median": 4.98
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 6.79,
+       "median": 6.79
+      },
+      "weighted": {
+       "p10": 4.64,
+       "median": 4.98
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 6.79,
+       "median": 6.79
+      },
+      "weighted": {
+       "p10": 5.59,
+       "median": 5.82
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 6.79,
+       "median": 6.79
+      },
+      "weighted": {
+       "p10": 5.59,
+       "median": 5.82
+      }
+     }
+    },
+    {
+     "color": "#be1506",
+     "swatch": 6.36,
+     "channel": 2,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 6.36,
+       "median": 6.36
       },
       "weighted": {
        "p10": 4.86,
-       "median": 5.17
+       "median": 5.12
       }
      },
      "svg@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 6.96,
-       "median": 6.96
+       "p10": 6.36,
+       "median": 6.36
       },
       "weighted": {
-       "p10": 4.83,
-       "median": 5.17
+       "p10": 4.86,
+       "median": 5.12
       }
      },
      "canvas@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 6.96,
-       "median": 6.96
+       "p10": 6.36,
+       "median": 6.36
       },
       "weighted": {
-       "p10": 5.8,
-       "median": 6.03
+       "p10": 5.63,
+       "median": 5.77
       }
      },
      "svg@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 6.96,
-       "median": 6.96
+       "p10": 6.36,
+       "median": 6.36
       },
       "weighted": {
-       "p10": 5.8,
-       "median": 6.03
+       "p10": 5.59,
+       "median": 5.77
       }
      }
     },
     {
-     "color": "#9293a5",
-     "swatch": 3.03,
+     "color": "#0380a8",
+     "swatch": 4.51,
      "channel": 0,
      "canvas@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 3.03,
-       "median": 3.03
+       "p10": 4.51,
+       "median": 4.51
       },
       "weighted": {
-       "p10": 2.38,
-       "median": 2.47
+       "p10": 3.32,
+       "median": 3.49
       }
      },
      "svg@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 3.03,
-       "median": 3.03
+       "p10": 4.51,
+       "median": 4.51
       },
       "weighted": {
-       "p10": 2.38,
-       "median": 2.47
+       "p10": 3.32,
+       "median": 3.49
       }
      },
      "canvas@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 3.03,
-       "median": 3.03
+       "p10": 4.51,
+       "median": 4.51
       },
       "weighted": {
-       "p10": 2.65,
-       "median": 2.71
+       "p10": 3.82,
+       "median": 3.97
       }
      },
      "svg@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 3.03,
-       "median": 3.03
+       "p10": 4.51,
+       "median": 4.51
       },
       "weighted": {
-       "p10": 2.65,
-       "median": 2.71
+       "p10": 3.82,
+       "median": 3.97
+      }
+     }
+    },
+    {
+     "color": "#8c1382",
+     "swatch": 8.3,
+     "channel": 1,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 8.3,
+       "median": 8.3
+      },
+      "weighted": {
+       "p10": 5.7,
+       "median": 6.07
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 8.3,
+       "median": 8.3
+      },
+      "weighted": {
+       "p10": 5.62,
+       "median": 6.07
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 8.3,
+       "median": 8.3
+      },
+      "weighted": {
+       "p10": 6.88,
+       "median": 7.16
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 8.3,
+       "median": 8.3
+      },
+      "weighted": {
+       "p10": 6.82,
+       "median": 7.16
+      }
+     }
+    },
+    {
+     "color": "#8e948f",
+     "swatch": 3.1,
+     "channel": 0,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 3.1,
+       "median": 3.1
+      },
+      "weighted": {
+       "p10": 2.42,
+       "median": 2.5
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 3.1,
+       "median": 3.1
+      },
+      "weighted": {
+       "p10": 2.42,
+       "median": 2.5
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 3.1,
+       "median": 3.1
+      },
+      "weighted": {
+       "p10": 2.7,
+       "median": 2.79
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 3.1,
+       "median": 3.1
+      },
+      "weighted": {
+       "p10": 2.7,
+       "median": 2.79
       }
      }
     }
@@ -435,426 +435,426 @@
    "background": "#16181d",
    "rows": [
     {
-     "color": "#64acfa",
-     "swatch": 7.46,
+     "color": "#5d9afd",
+     "swatch": 6.35,
      "channel": 2,
      "canvas@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 7.46,
-       "median": 7.46
+       "p10": 6.35,
+       "median": 6.35
       },
       "weighted": {
-       "p10": 5.32,
-       "median": 5.66
+       "p10": 4.59,
+       "median": 4.84
       }
      },
      "svg@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 7.46,
-       "median": 7.46
+       "p10": 6.35,
+       "median": 6.35
       },
       "weighted": {
-       "p10": 5.32,
-       "median": 5.61
+       "p10": 4.57,
+       "median": 4.83
       }
      },
      "canvas@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 7.46,
-       "median": 7.46
+       "p10": 6.35,
+       "median": 6.35
       },
       "weighted": {
-       "p10": 6.26,
-       "median": 6.49
+       "p10": 5.38,
+       "median": 5.58
       }
      },
      "svg@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 7.46,
-       "median": 7.46
+       "p10": 6.35,
+       "median": 6.35
       },
       "weighted": {
-       "p10": 6.26,
-       "median": 6.49
+       "p10": 5.37,
+       "median": 5.58
       }
      }
     },
     {
-     "color": "#de7b2e",
-     "swatch": 5.9,
+     "color": "#dc772f",
+     "swatch": 5.69,
      "channel": 0,
      "canvas@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 5.9,
-       "median": 5.9
+       "p10": 5.69,
+       "median": 5.69
       },
       "weighted": {
-       "p10": 4.27,
-       "median": 4.51
+       "p10": 4.13,
+       "median": 4.38
       }
      },
      "svg@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 5.9,
-       "median": 5.9
+       "p10": 5.69,
+       "median": 5.69
       },
       "weighted": {
-       "p10": 4.27,
-       "median": 4.51
+       "p10": 4.13,
+       "median": 4.38
       }
      },
      "canvas@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 5.9,
-       "median": 5.9
+       "p10": 5.69,
+       "median": 5.69
       },
       "weighted": {
-       "p10": 5,
-       "median": 5.17
+       "p10": 4.8,
+       "median": 4.97
       }
      },
      "svg@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 5.9,
-       "median": 5.9
+       "p10": 5.69,
+       "median": 5.69
       },
       "weighted": {
-       "p10": 5,
-       "median": 5.17
+       "p10": 4.8,
+       "median": 4.97
       }
      }
     },
     {
-     "color": "#b2e390",
-     "swatch": 12.08,
+     "color": "#ade4ba",
+     "swatch": 12.33,
      "channel": 1,
      "canvas@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 12.08,
-       "median": 12.08
+       "p10": 12.33,
+       "median": 12.33
       },
       "weighted": {
-       "p10": 8.32,
-       "median": 8.85
+       "p10": 8.5,
+       "median": 9.04
       }
      },
      "svg@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 12.08,
-       "median": 12.08
+       "p10": 12.33,
+       "median": 12.33
       },
       "weighted": {
-       "p10": 8.23,
-       "median": 8.85
+       "p10": 8.41,
+       "median": 9.04
       }
      },
      "canvas@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 12.08,
-       "median": 12.08
+       "p10": 12.33,
+       "median": 12.33
       },
       "weighted": {
-       "p10": 9.97,
-       "median": 10.39
+       "p10": 10.2,
+       "median": 10.6
       }
      },
      "svg@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 12.08,
-       "median": 12.08
+       "p10": 12.33,
+       "median": 12.33
       },
       "weighted": {
-       "p10": 9.97,
-       "median": 10.39
+       "p10": 10.2,
+       "median": 10.6
       }
      }
     },
     {
-     "color": "#9149b9",
-     "swatch": 3.26,
+     "color": "#9443a9",
+     "swatch": 3.07,
      "channel": 2,
      "canvas@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 3.26,
-       "median": 3.26
+       "p10": 3.07,
+       "median": 3.07
       },
       "weighted": {
-       "p10": 2.57,
-       "median": 2.65
+       "p10": 2.43,
+       "median": 2.52
       }
      },
      "svg@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 3.26,
-       "median": 3.26
+       "p10": 3.07,
+       "median": 3.07
       },
       "weighted": {
-       "p10": 2.55,
-       "median": 2.65
+       "p10": 2.43,
+       "median": 2.52
       }
      },
      "canvas@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 3.26,
-       "median": 3.26
+       "p10": 3.07,
+       "median": 3.07
       },
       "weighted": {
-       "p10": 2.87,
-       "median": 2.95
+       "p10": 2.72,
+       "median": 2.8
       }
      },
      "svg@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 3.26,
-       "median": 3.26
+       "p10": 3.07,
+       "median": 3.07
       },
       "weighted": {
-       "p10": 2.87,
-       "median": 2.95
+       "p10": 2.72,
+       "median": 2.8
       }
      }
     },
     {
-     "color": "#c3513d",
-     "swatch": 3.86,
+     "color": "#ba4f1f",
+     "swatch": 3.57,
      "channel": 0,
      "canvas@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 3.86,
-       "median": 3.86
+       "p10": 3.57,
+       "median": 3.57
       },
       "weighted": {
-       "p10": 2.93,
-       "median": 3.09
+       "p10": 2.76,
+       "median": 2.87
       }
      },
      "svg@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 3.86,
-       "median": 3.86
+       "p10": 3.57,
+       "median": 3.57
       },
       "weighted": {
-       "p10": 2.93,
-       "median": 3.09
+       "p10": 2.74,
+       "median": 2.87
       }
      },
      "canvas@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 3.86,
-       "median": 3.86
+       "p10": 3.57,
+       "median": 3.57
       },
       "weighted": {
-       "p10": 3.35,
-       "median": 3.43
+       "p10": 3.11,
+       "median": 3.22
       }
      },
      "svg@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 3.86,
-       "median": 3.86
+       "p10": 3.57,
+       "median": 3.57
       },
       "weighted": {
-       "p10": 3.35,
-       "median": 3.43
+       "p10": 3.09,
+       "median": 3.22
       }
      }
     },
     {
-     "color": "#71d8ff",
-     "swatch": 10.97,
+     "color": "#38c7fe",
+     "swatch": 9.11,
      "channel": 2,
      "canvas@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 10.97,
-       "median": 10.97
+       "p10": 9.11,
+       "median": 9.11
       },
       "weighted": {
-       "p10": 7.59,
-       "median": 8.1
+       "p10": 6.37,
+       "median": 6.75
       }
      },
      "svg@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 10.97,
-       "median": 10.97
+       "p10": 9.11,
+       "median": 9.11
       },
       "weighted": {
-       "p10": 7.52,
-       "median": 8.1
+       "p10": 6.37,
+       "median": 6.75
       }
      },
      "canvas@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 10.97,
-       "median": 10.97
+       "p10": 9.11,
+       "median": 9.11
       },
       "weighted": {
-       "p10": 9.08,
-       "median": 9.46
+       "p10": 7.54,
+       "median": 7.87
       }
      },
      "svg@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 10.97,
-       "median": 10.97
+       "p10": 9.11,
+       "median": 9.11
       },
       "weighted": {
-       "p10": 9.08,
-       "median": 9.46
+       "p10": 7.54,
+       "median": 7.87
       }
      }
     },
     {
-     "color": "#f898b5",
-     "swatch": 8.58,
+     "color": "#d991b8",
+     "swatch": 7.35,
      "channel": 0,
      "canvas@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 8.58,
-       "median": 8.58
+       "p10": 7.35,
+       "median": 7.35
       },
       "weighted": {
-       "p10": 6.04,
-       "median": 6.42
+       "p10": 5.24,
+       "median": 5.56
       }
      },
      "svg@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 8.58,
-       "median": 8.58
+       "p10": 7.35,
+       "median": 7.35
       },
       "weighted": {
-       "p10": 6.04,
-       "median": 6.42
+       "p10": 5.24,
+       "median": 5.56
       }
      },
      "canvas@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 8.58,
-       "median": 8.58
+       "p10": 7.35,
+       "median": 7.35
       },
       "weighted": {
-       "p10": 7.14,
-       "median": 7.45
+       "p10": 6.17,
+       "median": 6.38
       }
      },
      "svg@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 8.58,
-       "median": 8.58
+       "p10": 7.35,
+       "median": 7.35
       },
       "weighted": {
-       "p10": 7.14,
-       "median": 7.45
+       "p10": 6.17,
+       "median": 6.38
       }
      }
     },
     {
-     "color": "#7a7f93",
-     "swatch": 4.47,
-     "channel": 2,
+     "color": "#6d736e",
+     "swatch": 3.66,
+     "channel": 1,
      "canvas@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 4.47,
-       "median": 4.47
+       "p10": 3.66,
+       "median": 3.66
       },
       "weighted": {
-       "p10": 3.36,
-       "median": 3.55
+       "p10": 2.85,
+       "median": 2.94
       }
      },
      "svg@1": {
       "columns": 576,
       "columnsWithoutFullCoverage": 1,
       "core": {
-       "p10": 4.47,
-       "median": 4.47
+       "p10": 3.66,
+       "median": 3.66
       },
       "weighted": {
-       "p10": 3.36,
-       "median": 3.55
+       "p10": 2.81,
+       "median": 2.94
       }
      },
      "canvas@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 4.47,
-       "median": 4.47
+       "p10": 3.66,
+       "median": 3.66
       },
       "weighted": {
-       "p10": 3.88,
-       "median": 3.99
+       "p10": 3.21,
+       "median": 3.31
       }
      },
      "svg@2": {
       "columns": 1152,
       "columnsWithoutFullCoverage": 0,
       "core": {
-       "p10": 4.47,
-       "median": 4.47
+       "p10": 3.66,
+       "median": 3.66
       },
       "weighted": {
-       "p10": 3.88,
-       "median": 3.99
+       "p10": 3.21,
+       "median": 3.31
       }
      }
     }

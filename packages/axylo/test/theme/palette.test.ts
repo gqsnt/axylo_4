@@ -418,60 +418,6 @@ describe('default palette (spec A5, decision 0003)', () => {
   }
 });
 
-describe('candidate B (decision 0003, awaiting the owner\'s choice; not what ships)', () => {
-  // The candidate is scored on the shipped backgrounds and tokens: it changes series colors only.
-  const candidate = JSON.parse(fs.readFileSync(research('candidates/candidate-b.json'), 'utf8')) as { light: string[]; dark: string[] };
-  const drawn = JSON.parse(fs.readFileSync(research('raster-b.json'), 'utf8')) as
-    { schemes: Record<'light' | 'dark', { background: string; series: string[]; pixels: Record<'canvas' | 'svg', Record<string, string[]>> }> };
-  const shot = JSON.parse(fs.readFileSync(research('preview-b-pixels.json'), 'utf8')) as
-    { schemes: Record<'light' | 'dark', { background: string; series: string[] } & Record<string, string[] | string>> };
-  for (const [name, scheme, otherName] of [['light', LIGHT, 'dark'], ['dark', DARK, 'light']] as const) {
-    const series = candidate[name], other = candidate[otherName];
-
-    it(`${name}: meets every required check of constraints 1–6, analytic and in bytes, against the shipped tokens`, () => {
-      expect(series).toHaveLength(8);
-      expect(new Set(series).size).toBe(8);
-      expect(meetsEveryCheck(series, scheme, other)).toBe(true);
-    });
-
-    it(`${name}: the fills Chrome drew for it (research/palette/raster-b.json) are its colors and stay 0.06 apart`, () => {
-      const rec = drawn.schemes[name];
-      expect(rec.background).toBe(scheme.background);
-      expect(rec.series).toEqual(series);
-      expect(Object.keys(rec.pixels).sort()).toEqual(['canvas', 'svg']);
-      for (const [via, byAlpha] of Object.entries(rec.pixels)) for (const alpha of ALPHAS) {
-        const px = byAlpha[String(alpha)]!;
-        expect(px).toHaveLength(8);
-        px.forEach((hex, k) => {
-          const m = raster(series[k]!, alpha, scheme.background), d = hexBytes(hex);
-          for (const i of [0, 1, 2] as const) expect(Math.abs(m[i] - d[i]), `${via} ${alpha} slot ${k + 1}`).toBeLessThanOrEqual(1);
-        });
-        for (let k = 0; k + 1 < px.length; k++) {
-          expect(delta(labOfBytes(hexBytes(px[k]!)), labOfBytes(hexBytes(px[k + 1]!))), `${via} ${alpha * 100}%: slots ${k + 1} and ${k + 2}`).toBeGreaterThanOrEqual(0.06);
-        }
-      }
-    });
-
-    it(`${name}: its preview PNG (research/palette/preview-b-${name}.png, donut slices read back) keeps 0.10 apart in every row`, () => {
-      const rec = shot.schemes[name], rows = { normal: 'normal', protanopia: 'protan', deuteranopia: 'deutan', tritanopia: 'tritan' } as const;
-      expect(rec.background).toBe(scheme.background);
-      expect(rec.series).toEqual(series);
-      expect(rec.normal).toEqual(series);
-      for (const [row, v] of Object.entries(rows)) {
-        const px = rec[row] as string[];
-        px.forEach((hex, k) => {
-          const model = vec(i => Math.round(255 * enc(simulated(srgb(series[k]!), v)[i]))), d = hexBytes(hex);
-          for (const i of [0, 1, 2] as const) expect(Math.abs(model[i] - d[i]), `${row} slot ${k + 1}`).toBeLessThanOrEqual(1);
-        });
-        const labs = px.map(hex => labOfBytes(hexBytes(hex)));
-        for (let i = 0; i < 8; i++) for (let j = i + 1; j < 8; j++) {
-          expect(delta(labs[i]!, labs[j]!), `${row}: slots ${i + 1} and ${j + 1}`).toBeGreaterThanOrEqual(0.10);
-        }
-      }
-    });
-  }
-});
-
 describe('default stylesheet', () => {
   it('defines the light and dark token sets, forced colors and the dash switch', () => {
     for (let i = 1; i <= 8; i++) {

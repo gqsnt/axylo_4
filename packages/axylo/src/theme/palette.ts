@@ -6,7 +6,8 @@
  * tritanopia, 0.14 among the first four; clear of the focus, reference and muted tokens; neighbours still apart
  * as 25% and 80% fills; the distances and fills also after rounding to bytes, as an 8-bit image holds them. The
  * sets were fitted by research/palette/fit.mjs (configs/fit-final.json) and are scored in
- * research/palette/palette.json.
+ * research/palette/palette.json. They are the decision's candidate B, which the owner chose on 2026-11-18 over
+ * the previous sets for a more even light scheme, a calmer first three and a neutral eighth.
  *
  * The dark focus token is a near-white rather than a blue so that the first dark series can be an ordinary
  * dark-mode blue: with the blue focus #79a8ff kept, the bounded searches recorded in decision 0003 found no dark
@@ -36,7 +37,7 @@ export const LIGHT: SchemeColors = {
   muted: '#62666f',
   reference: '#474b55',
   focus: '#1f5fcc',
-  series: ['#4a94eb', '#e97200', '#136102', '#7314a2', '#bd585e', '#007baa', '#a52265', '#9293a5'],
+  series: ['#2b97ee', '#cf8020', '#0b6c49', '#812cc4', '#be1506', '#0380a8', '#8c1382', '#8e948f'],
 };
 
 export const DARK: SchemeColors = {
@@ -46,7 +47,7 @@ export const DARK: SchemeColors = {
   muted: '#9da2ad',
   reference: '#bcc0c9',
   focus: '#e3e8f0',
-  series: ['#64acfa', '#de7b2e', '#b2e390', '#9149b9', '#c3513d', '#71d8ff', '#f898b5', '#7a7f93'],
+  series: ['#5d9afd', '#dc772f', '#ade4ba', '#9443a9', '#ba4f1f', '#38c7fe', '#d991b8', '#6d736e'],
 };
 
 export const SERIES_COUNT = 8;

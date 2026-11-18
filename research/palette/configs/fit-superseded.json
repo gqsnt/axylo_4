@@ -1,0 +1,383 @@
+{
+ "note": "Superseded palette (the refit of commit 52bbdf0, shipped until the owner adopted candidate B on 2026-11-18; decision 0003, \"Superseded\"). Light: the best annealing result for configs/tier-44-free.json (anneal.mjs, seed 22); dark: the best annealing result for configs/dark-c.json against that light set (seed 601). Both are refitted here inside small boxes, with solver margins (fills 0.063, pairwise 0.102, both analytic and in bytes; contrast 3.02), so the exact search completes and the run is deterministic. In these boxes 0.065/0.103 and 0.066/0.102 are proved infeasible.",
+ "hueClip": 15,
+ "solverLimits": {
+  "composite": 0.063,
+  "minDelta": 0.102
+ },
+ "tokens": {
+  "dark": {
+   "focus": "#e3e8f0"
+  }
+ },
+ "slots": [
+  {
+   "name": "blue",
+   "neutral": false,
+   "light": {
+    "target": [
+     0.6598,
+     0.1497,
+     254.09
+    ],
+    "L": [
+     0.6398,
+     0.6798
+    ],
+    "C": [
+     0.1297,
+     0.1697
+    ],
+    "hr": 5,
+    "step": [
+     0.005,
+     0.005,
+     1
+    ]
+   },
+   "dark": {
+    "target": [
+     0.7304,
+     0.1303,
+     251.82
+    ],
+    "L": [
+     0.7104,
+     0.7504
+    ],
+    "C": [
+     0.1103,
+     0.1503
+    ],
+    "hr": 5,
+    "step": [
+     0.005,
+     0.005,
+     1
+    ]
+   }
+  },
+  {
+   "name": "orange",
+   "neutral": false,
+   "light": {
+    "target": [
+     0.679,
+     0.1699,
+     52.89
+    ],
+    "L": [
+     0.659,
+     0.699
+    ],
+    "C": [
+     0.1499,
+     0.1899
+    ],
+    "hr": 5,
+    "step": [
+     0.005,
+     0.005,
+     1
+    ]
+   },
+   "dark": {
+    "target": [
+     0.6809,
+     0.1502,
+     53.98
+    ],
+    "L": [
+     0.6609,
+     0.7009
+    ],
+    "C": [
+     0.1302,
+     0.1702
+    ],
+    "hr": 5,
+    "step": [
+     0.005,
+     0.005,
+     1
+    ]
+   }
+  },
+  {
+   "name": "green",
+   "neutral": false,
+   "light": {
+    "target": [
+     0.4402,
+     0.1403,
+     141.08
+    ],
+    "L": [
+     0.4202,
+     0.4602
+    ],
+    "C": [
+     0.1203,
+     0.1603
+    ],
+    "hr": 5,
+    "step": [
+     0.005,
+     0.005,
+     1
+    ]
+   },
+   "dark": {
+    "target": [
+     0.8608,
+     0.1208,
+     134.27
+    ],
+    "L": [
+     0.8408,
+     0.8808
+    ],
+    "C": [
+     0.1008,
+     0.1408
+    ],
+    "hr": 5,
+    "step": [
+     0.005,
+     0.005,
+     1
+    ]
+   }
+  },
+  {
+   "name": "purple",
+   "neutral": false,
+   "light": {
+    "target": [
+     0.4393,
+     0.1997,
+     308.84
+    ],
+    "L": [
+     0.4193,
+     0.4593
+    ],
+    "C": [
+     0.1797,
+     0.2197
+    ],
+    "hr": 5,
+    "step": [
+     0.005,
+     0.005,
+     1
+    ]
+   },
+   "dark": {
+    "target": [
+     0.5492,
+     0.171,
+     312.76
+    ],
+    "L": [
+     0.5292,
+     0.5692
+    ],
+    "C": [
+     0.151,
+     0.191
+    ],
+    "hr": 5,
+    "step": [
+     0.005,
+     0.005,
+     1
+    ]
+   }
+  },
+  {
+   "name": "red",
+   "neutral": false,
+   "light": {
+    "target": [
+     0.5905,
+     0.1201,
+     19.42
+    ],
+    "L": [
+     0.5705,
+     0.6105
+    ],
+    "C": [
+     0.1001,
+     0.1401
+    ],
+    "hr": 5,
+    "step": [
+     0.005,
+     0.005,
+     1
+    ]
+   },
+   "dark": {
+    "target": [
+     0.58,
+     0.1501,
+     31.12
+    ],
+    "L": [
+     0.56,
+     0.6
+    ],
+    "C": [
+     0.1301,
+     0.1701
+    ],
+    "hr": 5,
+    "step": [
+     0.005,
+     0.005,
+     1
+    ]
+   }
+  },
+  {
+   "name": "cyan",
+   "neutral": false,
+   "light": {
+    "target": [
+     0.5393,
+     0.1104,
+     233.34
+    ],
+    "L": [
+     0.5193,
+     0.5593
+    ],
+    "C": [
+     0.0904,
+     0.1304
+    ],
+    "hr": 5,
+    "step": [
+     0.005,
+     0.005,
+     1
+    ]
+   },
+   "dark": {
+    "target": [
+     0.8288,
+     0.1102,
+     225.29
+    ],
+    "L": [
+     0.8088,
+     0.8488
+    ],
+    "C": [
+     0.0902,
+     0.1302
+    ],
+    "hr": 5,
+    "step": [
+     0.005,
+     0.005,
+     1
+    ]
+   }
+  },
+  {
+   "name": "magenta",
+   "neutral": false,
+   "light": {
+    "target": [
+     0.4994,
+     0.18,
+     356.17
+    ],
+    "L": [
+     0.4794,
+     0.5194
+    ],
+    "C": [
+     0.16,
+     0.2
+    ],
+    "hr": 5,
+    "step": [
+     0.005,
+     0.005,
+     1
+    ]
+   },
+   "dark": {
+    "target": [
+     0.7798,
+     0.1196,
+     0.75
+    ],
+    "L": [
+     0.7598,
+     0.7998
+    ],
+    "C": [
+     0.0996,
+     0.1396
+    ],
+    "hr": 5,
+    "step": [
+     0.005,
+     0.005,
+     1
+    ]
+   }
+  },
+  {
+   "name": "slate",
+   "neutral": true,
+   "light": {
+    "target": [
+     0.6692,
+     0.0302,
+     301.51
+    ],
+    "L": [
+     0.6492,
+     0.6892
+    ],
+    "C": [
+     0.0102,
+     0.0502
+    ],
+    "hr": 20,
+    "step": [
+     0.005,
+     0.005,
+     1
+    ]
+   },
+   "dark": {
+    "target": [
+     0.5992,
+     0.031,
+     274.34
+    ],
+    "L": [
+     0.5792,
+     0.6192
+    ],
+    "C": [
+     0.011,
+     0.051
+    ],
+    "hr": 20,
+    "step": [
+     0.005,
+     0.005,
+     1
+    ]
+   }
+  }
+ ]
+}
