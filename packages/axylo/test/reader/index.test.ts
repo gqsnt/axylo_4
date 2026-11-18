@@ -1,4 +1,5 @@
 import { expect, it, vi } from 'vitest';
+import { buildTable } from '../../src/reader/table';
 import { DiagnosticCollector } from '../../src/diagnostics';
 import { defaultMessages, resolveMessages } from '../../src/messages';
 import { buildReader, type ReaderInput } from '../../src/reader';
@@ -17,14 +18,14 @@ const trend = aligned(frame('line', {
   ],
 }), { visibleSlots: { start: 1, end: 4 }, references: [{ axis: 'y', from: 20, to: 20, label: 'Target' }] });
 
-it('summarizes three visible series within the shown range and names the reference', () => {
+it('summarizes three visible series within the shown range and includes the reference position in the summary and caption', () => {
   const model = read(trend, { title: { text: 'Daily sessions', visible: false }, subtitle: 'Acquisition channels' });
   expect(model.name).toBe('Daily sessions');
   expect(model.summary).toBe('Line chart with 3 series. Day from 1 to 3. Sessions from 5 to 30. '
     + 'Direct: minimum 10, maximum 30, last 20. Search: minimum 12, maximum 20, last 12. '
-    + 'Referral: minimum 5, maximum 8, last 8. Reference: Target. Acquisition channels');
+    + 'Referral: minimum 5, maximum 8, last 8. Reference line Target at 20. Acquisition channels');
   expect(model.note).toBeNull();
-  expect(model.table?.caption).toBe('Daily sessions');
+  expect(model.table?.caption).toBe('Daily sessions Reference line Target at 20.');
 });
 
 it('adds the zone for instants and leaves it out for calendar dates', () => {
@@ -44,16 +45,26 @@ it('adds the zone for instants and leaves it out for calendar dates', () => {
 it('keeps disclosures before the author description and joins both visible notes', () => {
   const input = { description: 'The reporting period was revised.', disclosure: { omitted: 2, changed: 1 }, labelsHidden: 4 };
   const model = read(trend, input);
-  expect(model.summary).toMatch(/3 values not shown\. See table\. The reporting period was revised\.$/);
-  expect(model.note).toBe('3 values not shown. See table. Some labels hidden. See table.');
-  const custom = read(trend, { ...input, messages: resolveMessages({ valuesNotShown: 'Omitted {omitted}, changed {changed}.' }) });
-  expect(custom.note).toBe('Omitted 2, changed 1. Some labels hidden. See table.');
-  expect(read(trend, { disclosure: { omitted: 0, changed: 1 }, compact: true }).summary).toContain('1 values not shown. See table.');
+  expect(model.summary).toMatch(/Values not shown: 2\. See table\. Values shown differently from the data: 1\. See table\. The reporting period was revised\.$/);
+  expect(model.note).toBe('Values not shown: 2. See table. Values shown differently from the data: 1. See table. Some labels hidden. See table.');
+  const custom = read(trend, {
+    ...input,
+    formatters: { ...formatter(trend.frame), count: n => `count(${n})` },
+    messages: resolveMessages({ valuesNotShown: 'Omitted {count}.', valuesChanged: 'Changed {count}.' }),
+  });
+  expect(custom.note).toBe('Omitted count(2). Changed count(1). Some labels hidden. See table.');
+  expect(custom.summary).toContain('Line chart with count(3) series.');
+  expect(read(trend, { disclosure: { omitted: 0, changed: 1 }, compact: true }).summary)
+    .toContain('Values shown differently from the data: 1. See table.');
 });
 
 it('uses the external heading when supplied, otherwise generates and reports a missing name', () => {
   const diagnostics = new DiagnosticCollector();
-  expect(read(trend, { labelledBy: 'heading', diagnostics }).name).toBe('');
+  const labelled = read(trend, { labelledBy: 'heading', caption: 'Outside heading', diagnostics });
+  expect(labelled.name).toBe('');
+  expect(labelled.table?.caption).toBe('Outside heading Reference line Target at 20.');
+  expect(read(trend, { labelledBy: 'heading' }).table?.caption)
+    .toBe('Line chart of Sessions by Day Reference line Target at 20.');
   expect(diagnostics.inputs()).toEqual([]);
   expect(read(trend, { diagnostics }).name).toBe('Line chart of Sessions by Day');
   expect(diagnostics.inputs()).toMatchObject([{ code: 'AX140', effect: 'none' }]);
@@ -118,7 +129,7 @@ it('presents grouped donut categories separately in the table and together in th
     value: { field: 'value', label: 'Count', unit: 'sessions' } });
   const base = donut(data);
   const model = read({ ...base, slices: [...base.slices.slice(2), {
-    key: 'other', label: 'Other (2)', members: [0, 1], value: 3, ratio: 0.03, angles: null,
+    key: 'other', label: 'Other (2)', colorIndex: 7, members: [0, 1], value: 3, ratio: 0.03, angles: [0.97 * 2 * Math.PI, 2 * Math.PI],
   }] }, { type: 'Donut' });
   const table = model.table!;
   expect(table.headers).toEqual(['Category', 'Count (sessions)', 'Percentage']);
@@ -127,7 +138,9 @@ it('presents grouped donut categories separately in the table and together in th
   expect(table.row(1)).toEqual(['C1', '2 sessions', '2%']);
   expect(table.row(8)).toEqual(['C8', '64 sessions', '64%']);
   expect(table.pageForX('C8')).toBe(0);
-  expect(model.summary).toContain('Other (2): 3 sessions (3%).');
+  expect(model.summary).toBe('Donut chart with 8 slices. Total 100 sessions. '
+    + 'C2: 3 sessions (3%). C3: 4 sessions (4%). C4: 5 sessions (5%). C5: 6 sessions (6%). '
+    + 'C6: 7 sessions (7%). C7: 8 sessions (8%). C8: 64 sessions (64%). Other (2): 3 sessions (3%).');
   expect(model.summary).not.toContain('C0:');
 });
 
@@ -148,4 +161,95 @@ it('merges scatter rows in x then y order including hidden series', () => {
   expect(table.pageForX(9)).toBeNull();
   expect(model.summary).toContain('A: minimum 5 km/h, maximum 6 km/h, last 5 km/h.');
   expect(model.summary).not.toContain('B:');
+});
+
+it('uses message overrides for chart types and table headers and uses a field name for the absent y label', () => {
+  const messages = resolveMessages({
+    category: 'Kategorie', percentage: 'Anteil', series: 'Reihe', value: 'Wert',
+    typeLine: 'Linie', typeDonut: 'Ring', typeScatter: 'Streuung',
+  });
+  const line = aligned(frame('line', { data: [{ x: 1, hits: 2 }], x: 'x', y: ['hits'] }));
+  const data = donut(frame('donut', { data: [{ cat: 'A', hits: 2 }], label: 'cat', value: 'hits' }));
+  const plot = scatter(frame('scatter', { data: [{ x: 1, y: 2 }], x: 'x', y: 'y' }));
+  expect(read(line, { messages }).name).toBe('Linie chart of hits by x');
+  expect(read(data, { messages }).table?.headers).toEqual(['Kategorie', 'hits', 'Anteil']);
+  expect(read(data, { messages }).name).toBe('Ring chart of hits by Kategorie');
+  expect(read(plot, { messages }).table?.headers).toEqual(['x', 'Reihe', 'y']);
+  expect(read(plot, { messages }).name).toBe('Streuung chart of y by x');
+});
+
+it('uses one no-data sentence per empty series, omits an unavailable value range, and stops at an empty view', () => {
+  const data = frame('line', { data: [{ x: 5, a: null, b: null }, { x: 6, a: 2, b: null }], x: 'x', y: ['a', 'b'] });
+  expect(read(aligned(data)).summary).toBe('Line chart with 2 series. x from 5 to 6. a from 2 to 2. '
+    + 'a: minimum 2, maximum 2, last 2. b: no data.');
+  expect(read(aligned(data, { visibleSlots: { start: 0, end: 1 } })).summary)
+    .toBe('Line chart with 2 series. x from 5 to 5. a: no data. b: no data.');
+  expect(read(aligned(data, { visibleSlots: { start: 1, end: 1 } })).summary).toBe('No data to show.');
+});
+
+it('identifies an undrawable duplicate-x series even when absent from the visibility mask', () => {
+  const data = frame('line', { data: [{ x: 0, y: 1, group: 'A' }, { x: 1, y: 2, group: 'A' },
+    { x: 0, y: 3, group: 'B' }, { x: 0, y: 4, group: 'B' }], x: 'x', y: 'y', series: 'group' });
+  expect(read(aligned(data)).summary).toContain('B could not be drawn. See table.');
+});
+
+it('formats reference lines and bands on their own axes and leaves the deprecated alias unused', () => {
+  const formatters = { ...formatter(trend.frame), x: (x: number) => `x=${x}`, value: (_s: number, y: number) => `y=${y}` };
+  const view = { ...trend, references: [{ axis: 'y', from: 20, to: 20, label: 'Goal' },
+    { axis: 'x', from: 1, to: 3, label: 'Period' }] } as const;
+  const messages = resolveMessages({ referenceSummary: 'Deprecated' });
+  const model = read(view, { title: 'Daily sessions', messages, formatters });
+  const references = 'Reference line Goal at y=20. Reference band Period from x=1 to x=3.';
+  expect(model.summary.endsWith(references)).toBe(true);
+  expect(model.table?.caption).toBe(`Daily sessions ${references}`);
+});
+
+it('reports only drawn donut slices and uses the supplied percent and count formatters', () => {
+  const data = donut(frame('donut', { data: [{ cat: 'A', hits: 2 }, { cat: 'Zero', hits: 0 }, { cat: 'Missing', hits: null }],
+    label: 'cat', value: 'hits' }));
+  const formatters = { ...formatter(data.frame), count: (n: number) => `count(${n})`, percent: (n: number) => `share(${n})` };
+  const model = read(data, { formatters });
+  expect(model.summary).toBe('Donut chart with count(1) slices. Total 2. A: 2 (share(1)).');
+  expect(model.table?.row(0)).toEqual(['A', '2', 'share(1)']);
+  expect(model.table?.row(1)).toEqual(['Zero', '0', 'share(0)']);
+});
+
+it('advances distant scatter table pages by one merge step per row', () => {
+  const seriesCount = 500;
+  const rows = 400;
+  const base = frame('scatter', { x: 'x', y: 'y', data: [] });
+  const data = { ...base, series: Array.from({ length: seriesCount }, (_, s) => ({
+    key: String(s), label: `S${s}`, drawable: true,
+    x: Float64Array.from({ length: rows }, (_, i) => i * 2), y: new Float64Array(rows).fill(s), row: null,
+  })) };
+  const work = { seeks: 0, steps: 0, comparisons: 0 };
+  const table = buildTable(scatter(data), 'Points', formatter(data), defaultMessages, defaultMessages, 'en-US', work);
+  expect(work).toEqual({ seeks: 0, steps: 0, comparisons: 0 });
+  const start = table.rowCount - 200;
+  expect(table.pageForX(798)).toBe(1995);
+  for (let i = 0; i < 100; i++) {
+    expect(table.row(start + i)).toEqual(['798', `S${300 + i}`, String(300 + i)]);
+  }
+  expect(work.seeks).toBe(1);
+  expect(work.steps).toBe(100);
+  expect(work.comparisons).toBeGreaterThan(0);
+  expect(work.comparisons).toBeLessThan(60_000);
+  expect(table.row(0)).toEqual(['0', 'S0', '0']);
+  expect(table.row(table.rowCount - 1)).toEqual(['798', 'S499', '499']);
+  expect(work.seeks).toBe(3);
+});
+
+it('jumps to wall-clock and calendar values using the data parser', () => {
+  const wall = frame('line', { x: 'x', y: 'y', data: [
+    { x: '2026-03-28T12:45:00', y: 1 }, { x: '2026-03-30T12:45:00', y: 2 },
+  ] });
+  const wallTable = read(aligned(wall)).table!;
+  expect(wallTable.pageForX('2026-03-30T12:45:00')).toBe(0);
+  expect(wallTable.pageForX('2026-03-30T12:45:00Z')).toBeNull();
+  expect(wallTable.pageForX('2026-03-30T12:45:01')).toBeNull();
+
+  const month = frame('line', { x: 'x', y: 'y', data: [{ x: '2026-02', y: 1 }, { x: '2026-03', y: 2 }] });
+  const dateTable = read(aligned(month)).table!;
+  expect(dateTable.pageForX('2026-02-28')).toBe(0);
+  expect(dateTable.pageForX('2026-02-29')).toBeNull();
 });

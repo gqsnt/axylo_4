@@ -27,7 +27,7 @@ function sectorBox(cx: number, cy: number, inner: number, outer: number, start: 
   return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
-export function donutLookup(view: DonutView, layout: PlotLayout | null, formatters: Formatters, locale: string): Lookup {
+export function donutLookup(view: DonutView, layout: PlotLayout | null, formatters: Formatters, locale?: string): Lookup {
   const { slices } = view;
   const keys = new Map(slices.map((slice, i) => [slice.key, i]));
   const ring = layout?.projection.kind === 'ring' ? layout.projection : null;
@@ -36,6 +36,17 @@ export function donutLookup(view: DonutView, layout: PlotLayout | null, formatte
   function ref(i: number): DatumRef | null {
     const slice = slices[i];
     return slice ? { kind: 'slice', sliceKey: slice.key } : null;
+  }
+
+  function resolve(datum: DatumRef): DatumRef | null {
+    if (datum.kind !== 'slice') return null;
+    if (keys.has(datum.sliceKey)) return datum;
+    const folded = slices.find(slice => slice.members.length > 1 && slice.members.some(i => {
+      const label = view.frame.labels[i];
+      // The view prefixes author labels that would collide with the reserved Other key.
+      return label !== undefined && datum.sliceKey === (label.startsWith('__other__') ? '__other__' + label : label);
+    }));
+    return folded ? { kind: 'slice', sliceKey: folded.key } : null;
   }
 
   const lookup: Lookup = {
@@ -70,20 +81,23 @@ export function donutLookup(view: DonutView, layout: PlotLayout | null, formatte
     ordinal: index,
     step(from, direction) {
       if (!from) return ref(0);
-      const i = index(from);
-      if (i < 0) return null;
+      const resolved = resolve(from);
+      if (!resolved) return null;
+      const i = index(resolved);
+      let to: number;
       switch (direction) {
-        case 'next': return ref(i + 1);
-        case 'previous': return ref(i - 1);
-        case 'first': return ref(0);
-        case 'last': return ref(slices.length - 1);
-        case 'page-next': return ref(Math.min(slices.length - 1, i + pageDistance(slices.length)));
-        case 'page-previous': return ref(Math.max(0, i - pageDistance(slices.length)));
+        case 'next': to = i + 1; break;
+        case 'previous': to = i - 1; break;
+        case 'first': to = 0; break;
+        case 'last': to = slices.length - 1; break;
+        case 'page-next': to = Math.min(slices.length - 1, i + pageDistance(slices.length)); break;
+        case 'page-previous': to = Math.max(0, i - pageDistance(slices.length)); break;
         case 'series-next':
         case 'series-previous': return null;
       }
+      return to === i ? null : ref(to);
     },
-    resolve(datum) { return index(datum) < 0 ? null : datum; },
+    resolve,
   };
   return lookup;
 }

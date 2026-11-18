@@ -40,3 +40,23 @@ it('includes zero and missing slices in keyboard order, with no drawn anchor', (
   expect(model.datum(zero)).toMatchObject({ value: '0%', percent: '0%' });
   expect(model.datum(missing)).toMatchObject({ value: 'No data', percent: null });
 });
+
+it('resolves a folded category through Other and returns null for a step that cannot move', () => {
+  const original = donut(data);
+  const grouped = buildLookup({
+    ...original,
+    slices: [original.slices[0]!, { key: '__other__', label: 'Other (2)', colorIndex: 1, members: [1, 2], value: 41.6, ratio: 0.416, angles: [3, 6] }],
+  }, layout, formatter(data), defaultMessages);
+  const stale = { kind: 'slice', sliceKey: 'Safari' } as const;
+  expect(grouped.resolve(stale)).toEqual({ kind: 'slice', sliceKey: '__other__' });
+  expect(grouped.step(stale, 'previous')).toEqual({ kind: 'slice', sliceKey: 'Chrome' });
+  expect(grouped.step(stale, 'page-next')).toBeNull();
+  expect(grouped.step(stale, 'last')).toBeNull();
+  expect(grouped.step({ kind: 'slice', sliceKey: 'Chrome' }, 'page-previous')).toBeNull();
+});
+
+it('formats slice percentages through the supplied formatter regardless of the legacy locale argument', () => {
+  const formatters = { ...formatter(data), percent: (ratio: number) => `share(${ratio.toFixed(3)})` };
+  const lookup = buildLookup(donut(data), layout, formatters, defaultMessages, 'en-US');
+  expect(lookup.datum({ kind: 'slice', sliceKey: 'Chrome' })?.percent).toBe('share(0.462)');
+});

@@ -1,30 +1,14 @@
-import { SLOT_VALUE, type Formatters, type SlotState, type TableModel, type View, type XKind } from '../core/contracts';
-import { Reports } from '../data/reports';
-import { XParser } from '../data/x';
-import { pointOrder } from '../lookup/point-order';
+import { SLOT_VALUE, type Formatters, type SlotState, type TableModel, type View } from '../core/contracts';
+import { pointOrder, type PointIndex, type PointOrderWork } from '../lookup/point-order';
 import { lowerBound } from '../lookup/search';
-import { donutPercent, incomplete, slotText } from '../lookup/text';
-import type { Messages, XValue } from '../public';
+import { donutRatio, incomplete, slotText } from '../lookup/text';
+import type { Messages } from '../public';
+import { readPosition } from './x';
 
 const PAGE_SIZE = 100;
 
 export function withUnit(label: string, unit: string | null): string {
   return unit ? `${label} (${unit})` : label;
-}
-
-function position(value: XValue, kind: XKind, zone: string | null, categories: readonly string[] | null = null): number {
-  if (kind === 'category') {
-    const i = value instanceof Date ? -1 : categories?.indexOf(String(value)) ?? -1;
-    if (i >= 0) return i;
-    return typeof value === 'number' && Number.isInteger(value) ? value : NaN;
-  }
-  if (typeof value === 'number') return value;
-  const timeZone = zone ?? 'UTC';
-  const parser = new XParser({
-    field: 'x', label: 'x', type: kind === 'wall' ? null : kind, timeZone,
-    unit: null, ordered: false, format: null, tickFormat: null, domain: null,
-  }, kind, { timeZone });
-  return parser.read(value, -1, new Reports('x'));
 }
 
 function page(ordinal: number, count: number): number | null {
@@ -38,13 +22,13 @@ export interface ReaderLabels {
   readonly value: string;
 }
 
-export function buildTable(view: View, caption: string, formatters: Formatters, messages: Messages, labels: ReaderLabels, locale: string): TableModel {
+export function buildTable(view: View, caption: string, formatters: Formatters, messages: Messages, labels: ReaderLabels, _locale?: string, work?: PointOrderWork): TableModel {
   if (view.kind === 'donut') {
     const { frame, total } = view;
     const rowCount = frame.labels.length;
     let weights: { max: number; total: number } | undefined;
     function writePercent(value: number): string {
-      if (Number.isFinite(total)) return donutPercent(value, total, locale);
+      if (Number.isFinite(total)) return formatters.percent(donutRatio(value, total));
       if (!weights) {
         let max = 0;
         for (let i = 0; i < rowCount; i++) if (frame.slot[i] === SLOT_VALUE) max = Math.max(max, frame.values[i]!);
@@ -52,7 +36,7 @@ export function buildTable(view: View, caption: string, formatters: Formatters, 
         for (let i = 0; i < rowCount; i++) if (frame.slot[i] === SLOT_VALUE) scaled += frame.values[i]! / max;
         weights = { max, total: scaled };
       }
-      return donutPercent(value / weights.max, weights.total, locale);
+      return formatters.percent(donutRatio(value / weights.max, weights.total));
     }
     return {
       caption, headers: [labels.category, withUnit(frame.valueLabel, frame.unit), labels.percentage], rowCount, pageSize: PAGE_SIZE,
@@ -63,23 +47,28 @@ export function buildTable(view: View, caption: string, formatters: Formatters, 
         return [frame.labels[i]!, slotText(formatters, 0, value, state), state === SLOT_VALUE && value >= 0
           ? writePercent(value) : messages.noData];
       },
-      pageForX(x) { return page(position(x, 'category', null, frame.labels), rowCount); },
+      pageForX(x) { return page(readPosition(x, 'category', null, frame.labels), rowCount); },
     };
   }
   if (view.kind === 'scatter') {
     const { frame, visiblePoints } = view;
-    const order = pointOrder(frame.series, visiblePoints);
+    const order = pointOrder(frame.series, visiblePoints, work);
+    let next: (() => PointIndex | null) | null = null;
+    let nextOrdinal = -1;
     return {
       caption, headers: [withUnit(frame.xLabel, frame.xUnit), labels.series, withUnit(frame.yLabel, frame.yUnit)],
       rowCount: order.count, pageSize: PAGE_SIZE,
       row(i) {
-        const at = order.at(i);
+        if (!Number.isInteger(i) || i < 0 || i >= order.count) return null;
+        if (i !== nextOrdinal) next = order.cursor(i);
+        const at = next?.();
+        nextOrdinal = i + 1;
         if (!at) return null;
         const series = frame.series[at.series]!;
         return [formatters.x(series.x[at.index]!), series.label, formatters.value(at.series, series.y[at.index]!)];
       },
       pageForX(x) {
-        const xPos = position(x, frame.xKind, frame.timeZone);
+        const xPos = readPosition(x, frame.xKind, frame.timeZone);
         return Number.isFinite(xPos) ? page(order.beforeX(xPos), order.count) : null;
       },
     };
@@ -97,7 +86,7 @@ export function buildTable(view: View, caption: string, formatters: Formatters, 
         ...frame.series.map((series, s) => slotText(formatters, s, series.y[at]!, series.slot[at] as SlotState))];
     },
     pageForX(x) {
-      const xPos = position(x, frame.x.kind, frame.x.timeZone, frame.x.categories);
+      const xPos = readPosition(x, frame.x.kind, frame.x.timeZone, frame.x.categories);
       return Number.isFinite(xPos) ? page(lowerBound(frame.x.values, xPos, start, end) - start, rowCount) : null;
     },
   };

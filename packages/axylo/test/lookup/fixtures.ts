@@ -41,7 +41,7 @@ export function donut(data: DonutFrame): DonutView {
       const value = data.slot[i] === SLOT_VALUE ? data.values[i]! : null;
       const ratio = value === null ? null : value / total;
       const angles = value ? [last, last += ratio! * 2 * Math.PI] as const : null;
-      return { key: label, label, members: [i], value, ratio, angles };
+      return { key: label, label, colorIndex: i, members: [i], value, ratio, angles };
     }),
   };
 }

@@ -1,45 +1,27 @@
 import { SLOT_VALUE } from '../core/contracts';
-import type { DatumRef, DatumText, Formatters, Lookup, PointSeries, ScatterView } from '../core/contracts';
+import type { DatumRef, DatumText, Formatters, Lookup, ScatterView } from '../core/contracts';
 import { contains, pointBox, type PlotLayout } from './geometry';
 import { pointOrder, type PointIndex } from './point-order';
 import { POINT_LIMIT, scatterGrid } from './scatter-grid';
-import { lowerBound, pageDistance } from './search';
+import { lowerBound, upperBound, pageDistance } from './search';
 
-function indexByRow(series: PointSeries): (row: number) => number {
-  const rows = series.row;
-  if (!rows) return row => Number.isInteger(row) && row >= 0 && row < series.x.length ? row : -1;
-  let sorted = true;
-  for (let i = 1; i < rows.length; i++) {
-    if (rows[i]! < rows[i - 1]!) { sorted = false; break; }
-  }
-  if (sorted) return row => {
-    const i = lowerBound(rows, row);
-    return rows[i] === row ? i : -1;
-  };
-  // Keep the caller's columns borrowed. Only the permutation needs space when source row order changed.
-  const order = new Uint32Array(rows.length);
-  for (let i = 0; i < order.length; i++) order[i] = i;
-  order.sort((a, b) => rows[a]! - rows[b]!);
-  return row => {
-    let start = 0;
-    let end = order.length;
-    while (start < end) {
-      const mid = start + Math.floor((end - start) / 2);
-      if (rows[order[mid]!]! < row) start = mid + 1;
-      else end = mid;
-    }
-    const i = order[start];
-    return i !== undefined && rows[i] === row ? i : -1;
-  };
+interface ScatterWork {
+  locations: number;
+  seriesCandidates: number;
+  orderComparisons: number;
 }
 
-export function scatterLookup(view: ScatterView, layout: PlotLayout | null, formatters: Formatters): Lookup & { readonly lastPickCandidates: number } {
+export function scatterLookup(
+  view: ScatterView, layout: PlotLayout | null, formatters: Formatters, work?: ScatterWork,
+): Lookup & { readonly lastPickCandidates: number; readonly lastPickCells?: number } {
   const { series } = view.frame;
   const keys = new Map(series.map((entry, i) => [entry.key, i]));
-  const rowIndexes = new Map<number, (row: number) => number>();
   const locations = new WeakMap<DatumRef, PointIndex>();
   const ranges = view.visiblePoints.map((range, s) => view.visible[s] && series[s]!.drawable ? range : { start: 0, end: 0 });
-  const order = pointOrder(series, ranges);
+  const order = pointOrder(series, ranges, work && {
+    get comparisons() { return work.orderComparisons; },
+    set comparisons(value) { work.orderComparisons = value; },
+  });
   const active = ranges.flatMap((range, s) => range.end > range.start ? [s] : []);
   const projection = layout?.projection.kind === 'xy' ? layout.projection : null;
   const grid = layout && projection ? scatterGrid(view, { ...layout, projection }, order.count) : null;
@@ -58,13 +40,44 @@ export function scatterLookup(view: ScatterView, layout: PlotLayout | null, form
     if (known) return known;
     const s = keys.get(datum.seriesKey);
     if (s === undefined) return null;
-    let locateRow = rowIndexes.get(s);
-    if (!locateRow) {
-      locateRow = indexByRow(series[s]!);
-      rowIndexes.set(s, locateRow);
+    const { x, row } = series[s]!;
+    for (let i = lowerBound(x, datum.x); x[i] === datum.x; i++) {
+      if (work) work.locations++;
+      if ((row?.[i] ?? i) !== datum.row) continue;
+      const point = { series: s, index: i };
+      locations.set(datum, point);
+      return point;
     }
-    const index = locateRow(datum.row);
-    return index < 0 ? null : { series: s, index };
+    return null;
+  }
+
+  function resolve(datum: DatumRef): DatumRef | null {
+    if (datum.kind !== 'point') return null;
+    const s = keys.get(datum.seriesKey);
+    if (s === undefined) return null;
+    const { start, end } = ranges[s]!;
+    if (!view.visible[s]) {
+      let primary: PointIndex | null = null;
+      let y = Infinity;
+      for (const t of active) {
+        const { start, end } = ranges[t]!;
+        const entry = series[t]!;
+        const i = lowerBound(entry.x, datum.x, start, end);
+        if (i < end && entry.x[i] === datum.x && entry.y[i]! < y) {
+          primary = { series: t, index: i };
+          y = entry.y[i]!;
+        }
+      }
+      return primary ? ref(primary.series, primary.index) : null;
+    }
+    if (start === end) return null;
+    const point = locate(datum);
+    if (point && point.index >= start && point.index < end) return datum;
+    const x = series[s]!.x;
+    const right = upperBound(x, datum.x, start, end);
+    if (right < end) return ref(s, right);
+    const left = lowerBound(x, datum.x, start, end) - 1;
+    return left >= start ? ref(s, left) : null;
   }
 
   function write(datum: DatumRef): DatumText | null {
@@ -87,17 +100,52 @@ export function scatterLookup(view: ScatterView, layout: PlotLayout | null, form
     const y = projection?.y.map(fromY) ?? fromY;
     let nearest = start;
     let best = Infinity;
-    for (let i = start; i < end; i++) {
-      const px = projection?.x.map(entry.x[i]!) ?? entry.x[i]!;
+
+    function consider(i: number, dx: number): void {
+      if (work) work.seriesCandidates++;
       const py = projection?.y.map(entry.y[i]!) ?? entry.y[i]!;
-      const distance = Math.hypot(px - x, py - y);
-      if (distance < best) { nearest = i; best = distance; }
+      const distance = Math.hypot(dx, py - y);
+      if (distance < best || distance === best && i < nearest) {
+        nearest = i;
+        best = distance;
+      }
+    }
+
+    const dx = (i: number) => Math.abs((projection?.x.map(entry.x[i]!) ?? entry.x[i]!) - x);
+    const flatY = projection && (projection.y.range[0] === projection.y.range[1] || projection.y.domain[0] === projection.y.domain[1]);
+    // Starting at x, only runs whose horizontal distance can still win need a y search.
+    let right = lowerBound(entry.x, fromX, start, end);
+    let left = right - 1;
+    while (left >= start || right < end) {
+      const leftDistance = left >= start ? dx(left) : Infinity;
+      const rightDistance = right < end ? dx(right) : Infinity;
+      const distance = Math.min(leftDistance, rightDistance);
+      if (distance > best) break;
+      let lo: number;
+      let hi: number;
+      if (leftDistance <= rightDistance && left >= start) {
+        hi = left + 1;
+        lo = left > start && entry.x[left] === entry.x[left - 1]
+          ? lowerBound(entry.x, entry.x[left]!, start, hi) : left;
+        left = lo - 1;
+      } else {
+        lo = right;
+        hi = right + 1 < end && entry.x[right] === entry.x[right + 1]
+          ? upperBound(entry.x, entry.x[right]!, right, end) : right + 1;
+        right = hi;
+      }
+      if (lo + 1 === hi || flatY) {
+        consider(lo, distance);
+      } else {
+        const middle = lowerBound(entry.y, fromY, lo, hi);
+        if (middle < hi) consider(middle, distance);
+        if (middle > lo) consider(lowerBound(entry.y, entry.y[middle - 1]!, lo, middle), distance);
+      }
     }
     return ref(s, nearest);
   }
 
-  function at(ordinal: number): DatumRef | null {
-    const point = order.at(ordinal);
+  function toRef(point: PointIndex | null): DatumRef | null {
     return point ? ref(point.series, point.index) : null;
   }
 
@@ -134,18 +182,25 @@ export function scatterLookup(view: ScatterView, layout: PlotLayout | null, form
       return point ? order.ordinal(point.series, point.index) : -1;
     },
     step(from, direction) {
-      if (!from) return at(0);
-      const point = locate(from);
+      if (!from) return toRef(order.edge(1));
+      const resolved = resolve(from);
+      const point = resolved && locate(resolved);
       if (!point) return null;
-      const ordinal = order.ordinal(point.series, point.index);
-      if (ordinal < 0) return null;
       switch (direction) {
-        case 'next': return at(ordinal + 1);
-        case 'previous': return at(ordinal - 1);
-        case 'first': return at(0);
-        case 'last': return at(order.count - 1);
-        case 'page-next': return at(Math.min(order.count - 1, ordinal + pageDistance(order.count)));
-        case 'page-previous': return at(Math.max(0, ordinal - pageDistance(order.count)));
+        case 'next': return toRef(order.edge(1, point));
+        case 'previous': return toRef(order.edge(-1, point));
+        case 'first':
+        case 'last': {
+          const edge = order.edge(direction === 'first' ? 1 : -1);
+          return edge?.series === point.series && edge.index === point.index ? null : toRef(edge);
+        }
+        case 'page-next':
+        case 'page-previous': {
+          const ordinal = order.ordinal(point.series, point.index);
+          const to = direction === 'page-next' ? Math.min(order.count - 1, ordinal + pageDistance(order.count))
+            : Math.max(0, ordinal - pageDistance(order.count));
+          return to === ordinal ? null : toRef(order.at(to));
+        }
         case 'series-next':
         case 'series-previous': {
           const neighbor = active[active.indexOf(point.series) + (direction === 'series-next' ? 1 : -1)];
@@ -153,7 +208,8 @@ export function scatterLookup(view: ScatterView, layout: PlotLayout | null, form
         }
       }
     },
-    resolve(datum) { return locate(datum) ? datum : null; },
+    resolve,
     get lastPickCandidates() { return grid?.examined ?? 0; },
+    get lastPickCells() { return grid?.cellsExamined ?? 0; },
   };
 }

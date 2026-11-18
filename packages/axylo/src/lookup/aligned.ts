@@ -1,11 +1,10 @@
-import { SLOT_VALUE } from '../core/contracts';
+import { SLOT_NULL, SLOT_VALUE } from '../core/contracts';
 import type { AlignedView, DatumRef, DatumText, Formatters, Lookup, SlotState } from '../core/contracts';
 import type { Messages } from '../public';
 import { clipBox, contains, pointBox, type PlotLayout } from './geometry';
 import { lowerBound, pageDistance } from './search';
 import { incomplete, slotText } from './text';
 
-const RANK_BLOCK = 256;
 const TOOLTIP_LIMIT = 8;
 
 function clamp(n: number, lo: number, hi: number): number {
@@ -19,7 +18,6 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
   const keys = new Map(frame.series.map((series, s) => [series.key, s]));
   const projection = layout?.projection;
   const xScale = projection?.kind === 'xy' ? projection.x : projection?.kind === 'bands' ? projection.band : null;
-  let ranks: Float64Array | undefined;
 
   function ref(s: number, i: number): DatumRef {
     return { kind: 'aligned', seriesKey: frame.series[s]!.key, x: positions[i]! };
@@ -63,18 +61,25 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
     };
   }
 
-  function rankBlocks(): Float64Array {
-    if (ranks) return ranks;
-    // Pointing and stepping need no index. Build a small prefix index only when an ordinal is requested.
-    ranks = new Float64Array(Math.ceil((end - start) / RANK_BLOCK) + 1);
-    for (let block = 1; block < ranks.length; block++) {
-      const lo = start + (block - 1) * RANK_BLOCK;
-      const hi = Math.min(lo + RANK_BLOCK, end);
-      let n = ranks[block - 1]!;
-      for (const s of visible) for (let i = lo; i < hi; i++) if (isValue(s, i)) n++;
-      ranks[block] = n;
+  function primary(i: number): DatumRef | null {
+    if (i < start || i >= end) return null;
+    const s = visible.find(s => isValue(s, i)) ?? visible[0];
+    return s === undefined ? null : ref(s, i);
+  }
+
+  function resolve(datum: DatumRef): DatumRef | null {
+    if (datum.kind !== 'aligned') return null;
+    const s = keys.get(datum.seriesKey);
+    if (s === undefined) return null;
+    const i = lowerBound(positions, datum.x);
+    const inView = i >= start && i < end && positions[i] === datum.x;
+    if (!view.visible[s] || !frame.series[s]!.drawable) {
+      return inView && !view.visible[s] ? primary(i) : null;
     }
-    return ranks;
+    if (inView) return datum;
+    const next = seek(s, Math.max(i, start), 1);
+    const replacement = next >= 0 ? next : seek(s, Math.min(i - 1, end - 1), -1);
+    return replacement < 0 ? null : ref(s, replacement);
   }
 
   function nearestSlot(pixel: number): number {
@@ -103,9 +108,14 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
       let total: string | null = null;
       if (stack && stack.order.length) {
         let sum = 0;
-        for (const s of stack.order) if (isValue(s, i)) sum += frame.series[s]!.y[i]!;
-        total = formatters.value(stack.order[0]!, sum);
-        if (stack.incomplete?.[i]) total = incomplete(total, messages);
+        let hasValue = false;
+        for (const s of stack.order) {
+          if (!isValue(s, i)) continue;
+          sum += frame.series[s]!.y[i]!;
+          hasValue = true;
+        }
+        total = hasValue ? formatters.value(stack.order[0]!, sum) : formatters.missing(SLOT_NULL);
+        if (hasValue && stack.incomplete?.[i]) total = incomplete(total, messages);
       }
       return {
         title: formatters.x(positions[i]!), rows: visible.slice(0, TOOLTIP_LIMIT).map(s => write(s, i)),
@@ -113,9 +123,7 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
       };
     },
     primary(target) {
-      const i = target.kind === 'x' ? index(target.x) : -1;
-      const s = i >= start && i < end ? (visible.find(s => isValue(s, i)) ?? visible[0]) : undefined;
-      return s === undefined ? null : ref(s, i);
+      return target.kind === 'x' ? primary(index(target.x)) : null;
     },
     datum(datum) {
       if (datum.kind !== 'aligned') return null;
@@ -184,30 +192,19 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
       if (length === 0 && (baseline < valueLow && tip < valueLow || baseline > valueHigh && tip > valueHigh)) return null;
       return clipBox(box, plot);
     },
-    get count() {
-      const blocks = rankBlocks();
-      return blocks[blocks.length - 1]!;
-    },
+    count: end - start,
     ordinal(datum) {
       if (datum.kind !== 'aligned') return -1;
       const s = keys.get(datum.seriesKey);
       const i = index(datum.x);
-      if (s === undefined || !visible.includes(s) || i < start || i >= end || !isValue(s, i)) return -1;
-      const block = Math.floor((i - start) / RANK_BLOCK);
-      const lo = start + block * RANK_BLOCK;
-      let n = rankBlocks()[block]!;
-      for (const series of visible) {
-        for (let j = lo; j < i; j++) if (isValue(series, j)) n++;
-        if (series < s && isValue(series, i)) n++;
-      }
-      return n;
+      return s !== undefined && view.visible[s] && frame.series[s]!.drawable && i >= start && i < end ? i - start : -1;
     },
     step(from, direction) {
       if (!from) return first();
-      if (from.kind !== 'aligned') return null;
-      const s = keys.get(from.seriesKey);
-      const at = index(from.x);
-      if (s === undefined || !visible.includes(s) || at < start || at >= end) return null;
+      const resolved = resolve(from);
+      if (resolved?.kind !== 'aligned') return null;
+      const s = keys.get(resolved.seriesKey)!;
+      const at = index(resolved.x);
       let to = -1;
       switch (direction) {
         case 'series-next':
@@ -234,17 +231,8 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
           break;
         }
       }
-      return to < 0 ? null : ref(s, to);
+      return to < 0 || to === at ? null : ref(s, to);
     },
-    resolve(datum) {
-      if (datum.kind !== 'aligned') return null;
-      const s = keys.get(datum.seriesKey);
-      if (s === undefined) return null;
-      const i = lowerBound(positions, datum.x);
-      if (positions[i] === datum.x) return datum;
-      const next = seek(s, i, 1, 0, frame.length);
-      const replacement = next >= 0 ? next : seek(s, i - 1, -1, 0, frame.length);
-      return replacement < 0 ? null : ref(s, replacement);
-    },
+    resolve,
   };
 }

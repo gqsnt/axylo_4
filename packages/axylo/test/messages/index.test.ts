@@ -10,6 +10,9 @@ it('gives every public message a non-empty default', () => {
     chartName: true, chartSummary: true, seriesSummary: true, referenceSummary: true, timeZoneNote: true,
     plotLabel: true, controlsLabel: true, pointOf: true,
     zoomIn: true, zoomOut: true, resetZoom: true, pause: true, resume: true,
+    category: true, percentage: true, series: true, value: true,
+    typeLine: true, typeArea: true, typeBar: true, typeScatter: true, typeDonut: true,
+    donutSummary: true, seriesNoData: true, seriesNotDrawn: true, referenceLine: true, referenceBand: true,
     previousPage: true, nextPage: true, pageOf: true, jumpToX: true, showSeries: true, hideSeries: true,
   };
   expect(Object.keys(defaultMessages).sort()).toEqual(Object.keys(keys).sort());

@@ -2,7 +2,7 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import type { AlignedView, DatumRef } from '../../src/core/contracts';
 import { buildLookup } from '../../src/lookup';
-import { defaultMessages } from '../../src/messages';
+import { defaultMessages, pointOf } from '../../src/messages';
 import { bandScale, linearScale } from '../../src/scale';
 import { aligned, formatter, frame, plot } from './fixtures';
 
@@ -81,7 +81,7 @@ describe('aligned readout and steps', () => {
     expect(model.datum(datum('b', 0))?.value).toBe('No data (incomplete)');
   });
 
-  it('steps within a series, switches series at the same x, and ranks by x then series', () => {
+  it('steps within a series, switches series at the same x, and ranks by visible slot', () => {
     const model = lookup(aligned(data));
     expect(model.step(null, 'next')).toEqual(datum('A', 0));
     expect(model.step(datum('A', 0), 'next')).toEqual(datum('A', 2));
@@ -89,11 +89,15 @@ describe('aligned readout and steps', () => {
     expect(model.step(datum('A', 0), 'series-next')).toEqual(datum('B', 0));
     expect(model.step(datum('B', 0), 'series-previous')).toEqual(datum('A', 0));
     expect(model.datum(datum('B', 0))?.value).toBe('No observation');
-    expect(model.ordinal(datum('B', 0))).toBe(-1);
+    expect(model.ordinal(datum('B', 0))).toBe(0);
+    const formatters = { ...formatter(data), count: (n: number) => `count(${n})` };
+    expect(pointOf(model, datum('B', 0), formatters, defaultMessages))
+      .toBe('B, 0, No observation. Point count(1) of count(3).');
+    expect(pointOf(model, datum('B', -1), formatters, defaultMessages)).toBeNull();
     expect(model.step(datum('B', 0), 'first')).toEqual(datum('B', 1));
     expect(model.step(datum('B', 1), 'last')).toEqual(datum('B', 2));
-    expect([datum('A', 0), datum('B', 1), datum('A', 2), datum('B', 2)].map(ref => model.ordinal(ref))).toEqual([0, 1, 2, 3]);
-    expect(model.count).toBe(4);
+    expect([datum('A', 0), datum('B', 1), datum('A', 2), datum('B', 2)].map(ref => model.ordinal(ref))).toEqual([0, 1, 2, 2]);
+    expect(model.count).toBe(3);
   });
 
   it('pages by a tenth of the visible slots, then skips a gap in the direction of travel', () => {
@@ -106,25 +110,47 @@ describe('aligned readout and steps', () => {
     expect(model.step(datum('y', 27), 'page-next')).toBeNull();
   });
 
-  it('walks every observation of the visible series with the correct identity and ordinal', () => {
-    fc.assert(fc.property(fc.array(fc.option(fc.integer({ min: 0, max: 99 }), { nil: null }), { maxLength: 50 }),
+  it('assigns the same visible-slot ordinal across series and skips a hidden middle series', () => {
+    const value = fc.option(fc.integer({ min: 0, max: 99 }), { nil: null });
+    fc.assert(fc.property(fc.array(fc.tuple(value, value), { minLength: 2, maxLength: 50 }),
       fc.nat(50), fc.nat(50), (values, a, b) => {
-        const start = Math.min(a, b, values.length);
-        const end = Math.min(Math.max(a, b), values.length);
-        const data = frame('line', { data: values.map((y, x) => ({ x, y, hidden: 1 })), x: 'x', y: ['y', 'hidden'] });
-        const model = lookup(aligned(data, { visibleSlots: { start, end }, visible: [true, false] }));
-        const expected = values.flatMap((value, x) => value !== null && x >= start && x < end ? [x] : []);
-        expect(model.count).toBe(expected.length);
-        let current = model.step(null, 'next');
-        for (const [ordinal, x] of expected.entries()) {
-          expect(current).toEqual(datum('y', x));
-          expect(model.ordinal(current!)).toBe(ordinal);
-          expect(model.datum(current!)).not.toBeNull();
-          expect(model.resolve(current!)).toBe(current);
-          current = model.step(current, 'next');
+        const start = Math.min(a % values.length, b % values.length);
+        const end = Math.max(a % values.length, b % values.length) + 1;
+        const data = frame('line', { data: values.map(([a, b], x) => ({ x, a, hidden: 1, b })), x: 'x', y: ['a', 'hidden', 'b'] });
+        const model = lookup(aligned(data, { visibleSlots: { start, end }, visible: [true, false, true] }));
+        expect(model.count).toBe(end - start);
+        for (let x = start; x < end; x++) {
+          const first = datum('a', x);
+          const second = datum('b', x);
+          expect(model.step(first, 'series-next')).toEqual(second);
+          expect(model.ordinal(first)).toBe(x - start);
+          expect(model.ordinal(second)).toBe(x - start);
+          expect(model.ordinal(datum('hidden', x))).toBe(-1);
+          expect(model.datum(second)).not.toBeNull();
+          const next = values.findIndex(([value], i) => i > x && i < end && value !== null);
+          expect(model.step(first, 'next')).toEqual(next < 0 ? null : datum('a', next));
         }
-        expect(current).toBeNull();
       }), { numRuns: 100 });
+  });
+
+  it('resolves hidden aligned focus and steps from the primary datum', () => {
+    const data = frame('line', { data: [0, 1, 2, 3].map(x => ({ x, a: x, b: x })), x: 'x', y: ['a', 'b'] });
+    const model = lookup(aligned(data, { visible: [true, false] }));
+    const from = datum('b', 1);
+    expect(model.resolve(from)).toEqual(datum('a', 1));
+    expect(model.step(from, 'next')).toEqual(datum('a', 2));
+    expect(model.step(from, 'first')).toEqual(datum('a', 0));
+    expect(model.resolve(datum('b', -1))).toBeNull();
+  });
+
+  it('resolves zoomed-out aligned focus to the next value in range, then the previous one', () => {
+    const data = frame('line', { data: [0, 1, 2, 3, 4, 5].map(x => ({ x, y: x === 1 ? null : x })), x: 'x', y: 'y' });
+    const model = lookup(aligned(data, { visibleSlots: { start: 1, end: 5 } }));
+    expect(model.resolve(datum('y', 0))).toEqual(datum('y', 2));
+    expect(model.resolve(datum('y', 5))).toEqual(datum('y', 4));
+    expect(model.step(datum('y', 0), 'next')).toEqual(datum('y', 3));
+    expect(model.step(datum('y', 5), 'previous')).toEqual(datum('y', 3));
+    expect(model.step(datum('y', 2), 'first')).toBeNull();
   });
 
   it('resolves identity across eviction and anchors a survivor at its new pixel', () => {
@@ -145,4 +171,25 @@ describe('aligned readout and steps', () => {
     expect(first.anchor(surviving)).toEqual({ x: 70, y: 80, width: 0, height: 0 });
     expect(second.anchor(surviving)).toEqual({ x: 20, y: 80, width: 0, height: 0 });
   });
+});
+
+it('uses the later instant at a midpoint on a reversed, irregular time scale', () => {
+  const data = frame('line', { data: [0, 1000, 4000, 7001].map(x => ({ x, y: 10 })), x: { field: 'x', type: 'time' }, y: 'y' });
+  const view = aligned(data, { visibleSlots: { start: 0, end: 3 }, xDomain: [0, 4000] });
+  const model = buildLookup(view, plot({
+    kind: 'xy', x: linearScale(view.xDomain, [100, 0]), y: linearScale([0, 10], [100, 0]),
+  }), formatter(data), defaultMessages);
+  expect(model.pick(100, 50)).toEqual({ kind: 'x', x: 0 });
+  expect(model.pick(37.51, 50)).toEqual({ kind: 'x', x: 1000 });
+  expect(model.pick(37.5, 50)).toEqual({ kind: 'x', x: 4000 });
+  expect(model.pick(0, 50)).toEqual({ kind: 'x', x: 4000 });
+});
+
+it('reads a stack total with no components as missing', () => {
+  const data = frame('area', { data: [{ x: 0, a: null, b: null }], x: 'x', y: ['a', 'b'] });
+  const model = lookup(aligned(data, { kind: 'area', stack: {
+    order: [0, 1], incomplete: Uint8Array.of(1),
+    positive: [Float64Array.of(0), Float64Array.of(0)], negative: [Float64Array.of(0), Float64Array.of(0)],
+  } }));
+  expect(model.tooltip({ kind: 'x', x: 0 }).total).toBe('No data');
 });
