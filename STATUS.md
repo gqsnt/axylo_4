@@ -28,19 +28,19 @@ Observed model and effort are read from harness metadata (Codex session rollouts
 
 Finished and committed, each written by one provider and reviewed by the other: scales and formatting; layout and simplification; data layer, diagnostics and stores; renderers, text layer and theme; view and scene; lookup, reader and messages; chart core part 1 (review findings not yet fixed, see below); chart core part 2 (review running); benchmark harness and the M1 renderer measurements (not reviewed).
 
-| Running now (2026-11-18, after commit 08b469b) | Who | Files |
+| Running now (2026-11-18, after commit a518cbb) | Who | Files |
 |---|---|---|
-| Per-chart composition for tree-shaking; stylesheet minified once; benchmark instrumentation behind a build constant; duplicate helpers (agent a8a13825a6a59c62a; brief `wp/tree-shake.prompt.md`) | Claude Opus 5.5 high | `packages/axylo/src`, `scripts/build.mjs`, package metadata, package-content tests |
-| Documentation fix pass after `wp/docs.review.md` (agent a04bfe28413f07034, resumed) | Claude Opus 5.5 xhigh | `apps/docs` |
-| Palette candidate B (more even light scheme) with comparison images; small record fixes (agent abc842fd0288bc675, resumed) | Claude Opus 5.5 xhigh | `research/palette`, `test/theme`, decision 0003; not `palette.ts` values |
+| Engine switch in the browser harness; the acceptance suite run in Playwright Firefox 159, then WebKit 27.2 (agent a61d95e46b3f0f3aa, resumed) | Claude Opus 5.5 high | `packages/axylo/test/browser/acceptance`, `harness.ts`, the two shared util files |
+| Final review of the controller and the per-chart composition | Codex gpt-6.2-sol max, read-only | → `wp/core-final.controller.review.md` |
+| Final review of the interaction and accessibility layer | Codex gpt-6.2-astra xhigh, read-only | → `wp/core-final.interaction.review.md` |
 
-State at 08b469b (coordinator runs; not a recorded run with provenance): type check clean; Node suite 2 known failures (the kept P7 memory test; the palette test file while its author edits it); **all 834 browser tests under `packages/axylo/test/browser` pass, 1 skipped, including the 555-test acceptance suite on SVG**; distribution 106 Node and 30 browser pass; React adapter 41 unit and 39 browser pass; benchmark harness 94 pure tests pass. Sizes: everything 99.47 KiB, line only 99.38, React adapter 1.94 KiB (budget 2).
+Owner decisions on 2026-11-18: palette candidate B adopted (9861f54); size targets 96 KiB everything and 80 KiB line only (spec DX7); licence stays MIT with holder "The Axylo authors"; Playwright browser downloads allowed (Firefox and WebKit installed under ~/.cache/ms-playwright; the owner installed WebKit's system libraries); no screen-reader rehearsal for 1.0 (state it as not done, do not block on it); the React adapter is removed from 1.0 (bf93e1a; last state at dac5664; adapters for React, Vue, Svelte later; plain TypeScript for now).
 
-Committed since the last checkpoint: core passes six and seven (tooltip per decision 0004 revision 2 with rule 3b; scheme switch in CSS; two-tone focus ring; diagnostic name from the target id); donut minimum arc and scatter tie rule; compact charts ignore `reference` and tick formats; matrix re-merge; browser acceptance suite aligned (555 tests); React adapter second pass; benchmark harness second pass (the plan 5.1 decision procedure, `bench/decision.mjs`); reviews of the docs site (`wp/docs.review.md`) and of the benchmark, palette and React fix passes (`wp/misc-opus.review.md`).
+State at a518cbb (coordinator runs; not a recorded run): type check clean; Node suite 1 known failure (the kept P7 memory test); core browser suites 834 pass, 1 skipped, on the restructured build with palette B (run before the React removal, which does not touch them); distribution 83 Node and 26 browser pass; docs 218 unit pass (160 browser per the author); benchmark harness 97 pure tests pass. Sizes from the packed files: everything 104.24 KiB (target 96), line only 87.50 (target 80), donut only 75.32, validate only 20.40.
 
-Open decisions for the owner: size targets (analysis proposes 96 / 80 / 2 KiB; spec says 40 / 25 / 2); palette (shipped refit, or candidate B once its images exist); licence holder wording.
+Committed since the last checkpoint: per-chart composition and the cheap size cuts (37ed261); palette B and its independent check; docs fix pass after review and its maintenance; distribution maintenance; benchmark harness third pass (instrumented and release builds apart; `--gpu`; a second decision family for GPU workloads); React removal across packages, distribution tests, docs and dev dependencies.
 
-For the core’s author after the restructuring lands (same files): the benchmark hooks the harness asks for (`describe().series[i].breaks`, `describe().plot`, `memory()` with owned bytes, window-relative kept indexes when streaming; listed in `wp/bench.fix2.report.md`); the unexplained 24-chart resize mismatch (marks up to 13 px from the reported domain); the P7 failure when a store is opened on a large static chart (needs segmented columns); the scatter pick bound (needs a contract sentence for a device-pixel lattice).
+For the core's author after the final reviews (one pass): review findings; the benchmark hooks in `src/core/instrument.ts` (`series[i].breaks`, `describe().plot`, `memory()` returning `{ bytes, buffers }`, `series[i].keptBasis === 'window'` for streams); the unexplained 24-chart resize mismatch (marks up to 13 px from the reported domain); library oddities from the docs author (`wp/docs.fix.report.md`: a wide-row summary uses the field key and puts the unit on the minimum only; the hidden plot control reads "No data" in the too-small state; AX199 wording); a size pass toward 96 and 80 KiB; the deferred P7 and scatter-pick items. Small record fixes for the palette author: `wp/palette-b.review.md` findings 1 to 6 (decision line 14 still says nobody else reviewed B).
 
 Decisions recorded: `docs/decisions/0001-plot-interaction-pattern.md` (unrehearsed), `docs/decisions/0002-mark-renderer.md` (SVG by default, from `bench/results/m1-renderer-comparison.md`).
 
@@ -52,11 +52,11 @@ Known open items carried forward:
 
 ## Next action
 
-1. As the three running packages return: verify (every suite the brief lists for the restructuring), commit.
-2. Record all four configurations on a quiet tree (`node acceptance/run.mjs unit|dist|dist-browser|browser`, about 20 minutes, touch nothing meanwhile), re-merge the matrix if titles moved, run the checker.
-3. Final review round by the other provider: the restructured core and passes three to seven (Codex gpt-6.2-sol max for the controller, gpt-6.2-astra xhigh for the interaction layer and the acceptance evidence); fixes by the authors.
-4. On a quiet machine (no agents running; about 3.2 hours): `node bench/decision.mjs plan` prints the sequence for the renderer decision; then the budgets P1 to P8 and performance work.
-5. Conformance table (A9) from the acceptance evidence; agent rehearsal (DX12) against the corrected docs; Phase 1 comparison rerun with Axylo included; final independent review of the acceptance evidence.
+1. When the Firefox and WebKit runs return: commit the engine switch; triage engine failures to module authors.
+2. When the two final reviews return: one fix pass by the core's author with the list above; verify; commit.
+3. Record every configuration on a quiet tree (`node acceptance/run.mjs …`; add Firefox and WebKit configurations), have the matrix's author re-merge (engines; React rows gone; DX1, DX7, DX8 amended; A3 rehearsal recorded as not done by the owner's decision), run the checker.
+4. On a quiet machine with no agents: `node bench/decision.mjs plan` (software family about 3.2 h, gpu family about 2.2 h); then budgets P1 to P8 and performance work.
+5. Conformance table (A9) from the acceptance evidence, stating no screen reader was run; agent rehearsal (DX12) against the docs; Phase 1 comparison rerun with Axylo included; final independent review of the acceptance evidence.
 
 ## Known limits that no agent can close
 
@@ -64,4 +64,5 @@ Corrected on 2026-11-18 after checking the machine (Ubuntu, NVIDIA RTX 2060 SUPE
 
 - **GPU rendering can be tested here.** Headless Chrome uses software rendering by default, which is all the earlier runs used. With `--enable-gpu --use-angle=gl --ignore-gpu-blocklist`, or run headed on the desktop, Chrome reports the NVIDIA GPU. The benchmark's GPU-dependent workloads (resize, pixel ratio 2, process memory) are therefore open work, not a limit.
 - **Firefox can be driven through geckodriver** (WebDriver over HTTP, no download). Playwright cannot launch the installed Firefox (it needs its own patched build: a download, which needs the owner's permission and network). A WebDriver smoke suite covers rendering, layout, keyboard and pointer in real Firefox; Chrome-only tooling (the accessibility tree through CDP, media emulation) has no equivalent there.
-- **Still outside this machine:** Safari on macOS and iOS, a real phone, Windows (and its screen readers NVDA and JAWS), VoiceOver, TalkBack. Orca, Ubuntu's screen reader, is the one rehearsal the owner can do here, by ear.
+- **Firefox and WebKit through Playwright** are installed and launch headless (allowed and completed by the owner on 2026-11-18). WebKit on Linux is the engine, not Safari.
+- **Still outside this machine:** Safari on macOS and iOS, a real phone, Windows. No screen-reader rehearsal will be done for 1.0 (owner's decision); the docs and the conformance table say so.
