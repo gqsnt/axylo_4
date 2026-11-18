@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { lstatSync, readFileSync, readlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { PACKAGES } from '../scripts/pack.mjs';
 
 const kinds = new Set(['unit', 'property', 'browser']);
 const sha = value => createHash('sha256').update(value).digest('hex');
@@ -87,4 +88,16 @@ export function snapshot(root, files) {
   // A cited file that is gone is the matrix's structural error, which the checker reports; the run still records.
   const hashes = Object.fromEntries(files.map(file => [file, lstatSync(resolve(root, file), { throwIfNoEntry: false })?.isFile() ? hashFile(resolve(root, file)) : null]));
   return { commit, dirty: status.length > 0, tree: tree.digest('hex'), hashes };
+}
+
+/**
+ * The integrity of the tarball the current tree packs, per package of scripts/pack.mjs: `npm pack` with the
+ * same flags as pack(), as a dry run (npm computes the same tarball and integrity without writing it). A size
+ * record counts only when it measured this tarball.
+ */
+export function packIntegrity(root, name = 'axylo') {
+  const out = execFileSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], {
+    cwd: resolve(root, PACKAGES[name]), encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'],
+  });
+  return JSON.parse(out)[0].integrity;
 }

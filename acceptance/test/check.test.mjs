@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { readTitles } from '../titles.mjs';
+import { SIZE_TARGETS } from '../../scripts/size.mjs';
 import test from 'node:test';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -54,7 +56,7 @@ test('evidence applies per chart type and weak tests cannot fill an evidence gap
   assert.match(normal.report, /## Evidence that exists but was not run for this report[\s\S]*F1\/area/);
   assert.match(normal.report, /The smoke test does not check the geometry\./);
   assert.deepEqual(normal.counts, {
-    pass: 2, fail: 0, weak: 1, 'no evidence': 0, 'not run': 2, 'cannot be verified here': 1, 'not applicable': 18,
+    pass: 2, fail: 0, weak: 1, 'no evidence': 0, 'not run': 2, 'not recorded for this revision': 0, 'cannot be verified here': 1, 'not applicable': 18,
   });
   assert.equal(run({ resultFiles: [passed], release: true }).exitCode, 1);
 });
@@ -79,7 +81,7 @@ describe('I1 probes', () => {
 });`);
   const matrix = read(matrixFile);
   matrix[0].evidence.line = [{
-    kind: 'browser', file: 'chart.test.ts', prefix: 'I1 probes', casePrefix: 'I1 line:', cases: 2,
+    kind: 'unit', file: 'chart.test.ts', prefix: 'I1 probes', casePrefix: 'I1 line:', cases: 2,
   }];
   const options = { root, matrixFile: write('matrix.json', matrix) };
   const assertion = (title, status) => ({ title, status, ancestorTitles: ['I1 probes'] });
@@ -205,7 +207,7 @@ test('packed size verdict uses exact bytes and names the measurement file', t =>
     packed, rows: [{ entry: 'line only', minBytes: 2000, totalGzipBytes, targetKiB: 1 }],
   });
   const spec = write('docs/02-product-spec.md', readFileSync(resolve(root, 'docs/02-product-spec.md')));
-  const options = { root: resolve(spec, '../..'), matrixFile: write('matrix.json', matrix) };
+  const options = { root: resolve(spec, '../..'), matrixFile: write('matrix.json', matrix), packIntegrity: 'sha512-axylo', sizeTargets: { 'line only': 1 } };
   write('size.json', bytes(1024));
   assert.match(check(options).table, /\bpass \(size\.json pass\)/);
   write('size.json', bytes(1025));
@@ -332,7 +334,7 @@ test('release verifies the commit, dirty source, cited test hashes, and result b
 /** F1's line cell cites `line renders` as browser evidence, optionally for named engines. */
 function browserMatrix(...engines) {
   const matrix = read(matrixFile);
-  const ref = { file: 'chart.test.ts', kind: 'browser', title: 'line renders' };
+  const ref = { file: 'chart.browser.test.ts', kind: 'browser', title: 'line renders' };
   matrix[0].evidence.line = engines.length ? engines.map(engine => (engine ? { ...ref, engine } : ref)) : [ref];
   return matrix;
 }
@@ -340,7 +342,7 @@ function browserMatrix(...engines) {
 /** A report of `line renders` with the harness's engine record (none when `engine` is null). */
 function engineReport(engine, status = 'passed', version = { chromium: '157.0.8103.78', firefox: '159.0', webkit: '27.2' }[engine], extra = {}) {
   const meta = engine ? { engine, engineVersion: version, ...extra } : undefined;
-  return { testResults: [{ name: './chart.test.ts', assertionResults: [
+  return { testResults: [{ name: './chart.browser.test.ts', assertionResults: [
     { title: 'line renders', ancestorTitles: ['render examples'], status, ...(meta ? { meta } : {}) },
   ] }] };
 }
@@ -452,7 +454,8 @@ test('run.mjs names a results file per engine and reads the engine the results d
 test('check() returns the table as data: per cell its status, reasons and reports with engine and provenance error', t => {
   const write = workspace(t);
   const files = [write('browser.json', engineReport('chromium')), write('browser-webkit.json', engineReport('webkit', 'skipped', '27.2', { notRun: 'webkit: no CDP' }))];
-  const result = run({ matrixFile: write('matrix.json', browserMatrix(null, 'webkit')), resultFiles: files, release: true });
+  // Not release mode: these runs have no provenance record, which a release refuses (the stale-run test below).
+  const result = run({ matrixFile: write('matrix.json', browserMatrix(null, 'webkit')), resultFiles: files });
   // Every row and cell of the Markdown table, and nothing else, with the same status.
   const tableRows = result.table.split('\n').slice(2).map(line => line.slice(2, -2).split(' | '));
   assert.deepEqual(result.rows.map(row => row.id), tableRows.map(cells => cells[0]));
@@ -467,10 +470,10 @@ test('check() returns the table as data: per cell its status, reasons and report
   assert.equal(line.status, 'not run');
   assert.deepEqual(line.reasons, ['Not run on webkit: no CDP']);
   assert.deepEqual(line.reports, [
-    { file: relative(root, files[0]), label: 'browser.json', source: 'run', results: ['pass'], engine: 'chromium', engineVersion: '157.0.8103.78', provenanceError: 'release requires recorded provenance' },
-    { file: relative(root, files[1]), label: 'browser-webkit.json', source: 'run', results: ['skipped'], engine: 'webkit', engineVersion: '27.2', provenanceError: 'release requires recorded provenance' },
+    { file: relative(root, files[0]), label: 'browser.json', source: 'run', results: ['pass'], engine: 'chromium', engineVersion: '157.0.8103.78', provenanceError: null },
+    { file: relative(root, files[1]), label: 'browser-webkit.json', source: 'run', results: ['skipped'], engine: 'webkit', engineVersion: '27.2', provenanceError: null },
   ]);
-  // Outside release mode nothing is refused for provenance; archived Node results have no engine.
+  // Archived Node results have no engine.
   const plain = run({ resultFiles: [passed] }).rows.find(row => row.id === 'F1').cells.line.reports;
   assert.deepEqual(plain, [{ file: 'results.json', label: 'results.json', source: 'run', results: ['pass'], engine: null, engineVersion: null, provenanceError: null }]);
   assert.equal(result.rows.find(row => row.id === 'F1').cells.scatter.status, 'not applicable');
@@ -497,4 +500,184 @@ test('the configurations and their default result files come from provenance.mjs
   const runner = readFileSync(fileURLToPath(new URL('../run.mjs', import.meta.url)), 'utf8');
   assert.match(runner, /CONFIGURATIONS as configs/);
   assert.doesNotMatch(runner, /'dist-browser':/);
+});
+
+// ── the reviewed checker defects (reviews/2026-11-18/impl/wp/matrix-merge.report.md) ──────────────────────
+
+/** A fixture tree under Git, so provenance can be recorded and compared. */
+function gitFixture(t, sourceTransform) {
+  const fixture = fixtureWith(t, undefined, sourceTransform);
+  const git = (...args) => execFileSync('git', args, { cwd: fixture.root, stdio: ['ignore', 'pipe', 'inherit'] });
+  git('init', '-q');
+  git('add', '.');
+  git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qm', 'Fixture');
+  return fixture;
+}
+
+test('defect 5: a size record counts only for the pack this tree makes, against the targets of scripts/size.mjs', t => {
+  const write = workspace(t);
+  const matrix = read(matrixFile).map(row => ({ ...row, evidence: {}, weak: {} }));
+  matrix[0].evidence = { line: [{ kind: 'size', file: 'size.json', entries: ['line only'] }] };
+  const spec = write('docs/02-product-spec.md', readFileSync(resolve(root, 'docs/02-product-spec.md')));
+  const options = { root: resolve(spec, '../..'), matrixFile: write('matrix.json', matrix), sizeTargets: { 'line only': 1 } };
+  // The record's own targetKiB (1000) is not read: 1025 bytes is over the 1 KiB target.
+  const record = totalGzipBytes => ({ packed: { axylo: 'sha512-measured', commit: 'abc1234' }, rows: [{ entry: 'line only', minBytes: 2000, totalGzipBytes, targetKiB: 1000 }] });
+  write('size.json', record(1025));
+  assert.match(check({ ...options, packIntegrity: 'sha512-measured' }).table, /\| F1 \| [^|]+\| fail \(size\.json fail\) \|/);
+  write('size.json', record(1000));
+  assert.match(check({ ...options, packIntegrity: 'sha512-measured' }).table, /\| F1 \| [^|]+\| pass \(size\.json pass\) \|/);
+  // Another pack: never pass.
+  const other = check({ ...options, packIntegrity: 'sha512-current' });
+  assert.match(other.table, /\| F1 \| [^|]+\| not recorded for this revision \(size\.json not recorded\) \|/);
+  assert.match(other.report, /size\.json: the size record measured another pack/);
+  assert.match(other.report, /Not recorded for this revision: the record measured another pack/);
+  assert.equal(other.rows[0].cells.line.reports[0].provenanceError, 'the size record measured another pack (sha512-measured)');
+  assert.equal(other.counts.pass, 0);
+  // A row without a target in scripts/size.mjs cannot be cited.
+  assert.throws(() => check({ ...options, sizeTargets: {}, packIntegrity: 'sha512-measured' }), /no size target for line only \(scripts\/size\.mjs, SIZE_TARGETS\)/);
+});
+
+test('defect 5: the size targets are written once, in scripts/size.mjs, and are the spec DX7 row\'s', () => {
+  const spec = readFileSync(fileURLToPath(new URL('../../docs/02-product-spec.md', import.meta.url)), 'utf8');
+  const dx7 = spec.split('\n').find(line => line.startsWith('| DX7 |'));
+  assert.deepEqual(Object.values(SIZE_TARGETS), [98, 116]);
+  assert.match(dx7, /116 KiB gzipped for everything and 98 KiB for a page that uses only `line`/);
+});
+
+test('defect 8: a run whose provenance is another tree answers nothing, in every mode, and is still listed with its error', t => {
+  const { write, root: fixtureRoot } = gitFixture(t);
+  const outputs = mkdtempSync(resolve(tmpdir(), 'axylo-stale-'));
+  t.after(() => rmSync(outputs, { recursive: true }));
+  const report = resolve(outputs, 'run.json');
+  writeFileSync(report, readFileSync(failed));
+  const matrix = read(matrixFile);
+  const options = { root: fixtureRoot, matrixFile: write('matrix.json', matrix), resultFiles: [report] };
+  const recorded = { ...snapshot(fixtureRoot, citedTestFiles(matrix)), resultSha256: hashFile(report) };
+  writeFileSync(resolve(outputs, 'run.provenance.json'), JSON.stringify(recorded));
+  // Matching provenance: the failure counts.
+  assert.match(check(options).table, /^\| F1 \| [^|]+\| fail \(run\.json fail\) \|/m);
+  // Another tree: neither its failure nor its pass sets a status.
+  writeFileSync(resolve(outputs, 'run.provenance.json'), JSON.stringify({ ...recorded, commit: 'old' }));
+  for (const release of [false, true]) {
+    const result = check({ ...options, release });
+    assert.match(result.table, /^\| F1 \| [^|]+\| not recorded for this revision \(run\.json not recorded\) \| weak \(run\.json not recorded\) \|/m);
+    assert.equal(result.counts.fail, 0);
+    assert.equal(result.counts.pass, 0);
+    assert.match(result.report, /run\.json` · 1 passed assertions, 1 reported failures\n {2}- Provenance: commit old, .* · provenance does not match the working tree/);
+    assert.match(result.report, /### Not recorded for this revision\n\n- \*\*F1\*\* · line · run\.json: not recorded for this revision \(provenance does not match the working tree\)\./);
+    assert.equal(result.rows[0].cells.line.reports[0].provenanceError, 'provenance does not match the working tree');
+    assert.deepEqual(result.rows[0].cells.line.reports[0].results, ['not recorded']);
+  }
+  // Without a record only a release refuses the run.
+  rmSync(resolve(outputs, 'run.provenance.json'));
+  assert.match(check(options).table, /^\| F1 \| [^|]+\| fail \(run\.json fail\) \|/m);
+  assert.match(check({ ...options, release: true }).table, /^\| F1 \| [^|]+\| not recorded for this revision /m);
+});
+
+test('defect 1: atLeast cites a suite of cases the scan cannot list, answered by the results', t => {
+  const { write, root: fixtureRoot } = fixtureWith(t, undefined, source => source + `
+const examples = discover();
+describe('examples render', () => {
+  it.each(examples)('%s renders', () => {});
+  it('the inventory is not empty', () => {});
+});`);
+  const matrix = read(matrixFile);
+  // atLeast counts the distinct passing tests under the prefix, the listed ones included: 3 cases + the inventory.
+  matrix[0].evidence.line = [{ kind: 'unit', file: 'chart.test.ts', prefix: 'examples render', atLeast: 4 }];
+  const options = { root: fixtureRoot, matrixFile: write('matrix.json', matrix) };
+  const result = (cases, extra = []) => check({ ...options, resultFiles: [write('examples.json', { testResults: [{ name: 'chart.test.ts', assertionResults: [
+    ...cases.map(([title, status]) => ({ title, status, ancestorTitles: ['examples render'] })),
+    ...extra,
+  ] }] })] }).table;
+  const inventory = ['the inventory is not empty', 'passed'];
+  assert.match(result([['a renders', 'passed'], ['b renders', 'passed'], ['c renders', 'passed'], inventory]), /\| F1 \| [^|]+\| pass \(examples\.json pass\) \|/);
+  assert.match(result([['a renders', 'passed'], ['b renders', 'passed'], inventory]), /\| F1 \| [^|]+\| not run \(examples\.json pass\) \|/);
+  assert.match(result([['a renders', 'passed'], ['b renders', 'failed'], ['c renders', 'passed'], ['d renders', 'passed'], inventory]), /\| F1 \| [^|]+\| fail \(examples\.json fail\/pass\) \|/);
+  // The suite's titles the scan does know must still be among the passes.
+  assert.match(result([['a renders', 'passed'], ['b renders', 'passed'], ['c renders', 'passed'], ['d renders', 'passed']]), /\| F1 \| [^|]+\| not run \(examples\.json pass\) \|/);
+  // A skipped case keeps it from passing.
+  assert.match(result([['a renders', 'passed'], ['b renders', 'passed'], ['c renders', 'passed'], ['d renders', 'skipped'], inventory]), /\| F1 \| [^|]+\| not run /);
+  matrix[0].evidence.line = [{ kind: 'unit', file: 'chart.test.ts', prefix: 'render examp', atLeast: 1 }];
+  assert.throws(() => check({ ...options, matrixFile: write('known.json', matrix) }), /atLeast is for a suite whose cases the source scan cannot list/);
+});
+
+test('defect 4: a title registered under a condition, or matched only by a template, needs a run that shows it', t => {
+  const { write, root: fixtureRoot } = fixtureWith(t, undefined, source => source + `
+describe('conditional', () => {
+  for (const type of ['line', 'area'] as const) {
+    if (type === 'line') it(\`only \${type}\`, () => {});
+  }
+  const name = pick();
+  it(\`computed \${name}\`, () => {});
+});`);
+  const scan = readTitles(readFileSync(resolve(fixtureRoot, 'chart.test.ts'), 'utf8'), resolve(fixtureRoot, 'chart.test.ts'));
+  assert.deepEqual(scan.tests.filter(test => test.title?.startsWith('only')).map(test => [test.title, test.conditional]), [['only line', true], ['only area', true]]);
+  const cite = refs => { const matrix = read(matrixFile); matrix[0].evidence.line = refs; return write('matrix.json', matrix); };
+  const ran = titles => write('ran.json', { testResults: [{ name: 'chart.test.ts', assertionResults: titles.map(title => ({ title, status: 'passed', ancestorTitles: ['conditional'] })) }] });
+  const area = { kind: 'unit', file: 'chart.test.ts', title: 'only area' };
+  const donut = { kind: 'unit', file: 'chart.test.ts', title: 'computed donut', registration: 'computed ${name}' };
+  // No run of the file and no EVIDENCE.json beside it: accepted, with a warning the report lists.
+  const unconfirmed = check({ root: fixtureRoot, matrixFile: cite([area, donut]) });
+  assert.deepEqual(unconfirmed.warnings, [
+    'F1/line: title not confirmed by any run (it is registered under a condition) in chart.test.ts: only area',
+    'F1/line: title not confirmed by any run (it matches a template only) in chart.test.ts: computed donut',
+  ]);
+  assert.match(unconfirmed.report, /## Warnings[\s\S]*title not confirmed by any run \(it is registered under a condition\) in chart\.test\.ts: only area/);
+  // A run of the file without those titles: structural errors.
+  assert.throws(() => check({ root: fixtureRoot, matrixFile: cite([area, donut]), resultFiles: [ran(['only line', 'computed sample'])] }),
+    /F1\/line: title never ran in chart\.test\.ts \(it is registered under a condition\): only area\nF1\/line: title never ran in chart\.test\.ts \(it matches a template only\): computed donut/);
+  // An EVIDENCE.json beside the file that lists them confirms them, as does a run that has them.
+  write('EVIDENCE.json', [{ file: 'chart.test.ts', title: 'only area' }, { file: 'chart.test.ts', title: 'computed donut' }]);
+  assert.deepEqual(check({ root: fixtureRoot, matrixFile: cite([area, donut]) }).warnings, []);
+  write('EVIDENCE.json', [{ file: 'chart.test.ts', title: 'only line' }]);
+  assert.throws(() => check({ root: fixtureRoot, matrixFile: cite([area]) }), /title never ran in chart\.test\.ts \(it is registered under a condition\): only area/);
+  assert.match(check({ root: fixtureRoot, matrixFile: cite([area]), resultFiles: [ran(['only line', 'only area'])] }).table, /\| F1 \| [^|]+\| pass \(ran\.json pass\) \|/);
+});
+
+test('defect 6: a browser citation must name a browser test file, and a Node citation must not', t => {
+  const write = workspace(t);
+  const browser = read(matrixFile);
+  browser[0].evidence.line = [{ kind: 'browser', file: 'chart.test.ts', title: 'line renders' }];
+  assert.throws(() => run({ matrixFile: write('browser.json', browser) }), /F1\/line: a browser citation names a file that is not a browser test \(\*\.browser\.test\.\*\): chart\.test\.ts/);
+  const unit = read(matrixFile);
+  unit[0].evidence.line = [{ kind: 'unit', file: 'chart.browser.test.ts', title: 'line renders' }];
+  assert.throws(() => run({ matrixFile: write('unit.json', unit) }), /F1\/line: a unit citation names a browser test file: chart\.browser\.test\.ts/);
+});
+
+test('defects 2 and 3: describe.each suites get the ancestors a run gives them', t => {
+  const { write, root: fixtureRoot } = fixtureWith(t, undefined, source => source + `
+const modes = computeModes();
+describe.each(modes)('mode %s', () => {
+  it('inner case', () => {});
+});
+describe.each([['first'], ['second']])('row %s', () => {
+  it('row case', () => {});
+});`);
+  const scan = readTitles(readFileSync(resolve(fixtureRoot, 'chart.test.ts'), 'utf8'), resolve(fixtureRoot, 'chart.test.ts'));
+  // Literal rows: one test per row's suite, never one test in both.
+  assert.deepEqual(scan.tests.filter(test => test.title === 'row case').map(test => test.ancestors), [['row first'], ['row second']]);
+  // Computed rows: one suite of unknown title.
+  assert.deepEqual(scan.tests.filter(test => test.title === 'inner case').map(test => test.ancestors), [[null]]);
+  const matrix = read(matrixFile);
+  matrix[0].evidence.line = [{ kind: 'unit', file: 'chart.test.ts', title: 'inner case' }];
+  matrix[0].evidence.bar = [{ kind: 'unit', file: 'chart.test.ts', title: 'row case', ancestors: ['row first'] }];
+  const results = write('each.json', { testResults: [{ name: 'chart.test.ts', assertionResults: [
+    { title: 'inner case', status: 'passed', ancestorTitles: ['mode light'] },
+    { title: 'inner case', status: 'passed', ancestorTitles: ['mode dark'] },
+    { title: 'row case', status: 'passed', ancestorTitles: ['row first'] },
+    { title: 'row case', status: 'passed', ancestorTitles: ['row second'] },
+  ] }] });
+  const table = check({ root: fixtureRoot, matrixFile: write('matrix.json', matrix), resultFiles: [results] }).table;
+  assert.match(table, /^\| F1 \| [^|]+\| pass \(each\.json pass\) \| [^|]+\| pass \(each\.json pass\) \|/m);
+});
+
+test('defect 1: it.each over a const list declared in the file expands to its titles', t => {
+  const { root: fixtureRoot } = fixtureWith(t, undefined, source => source + `
+const combos = [['line', false], ['bar', true]] as const;
+describe('combinations', () => {
+  it.each(combos)('%s (compact: %s)', () => {});
+});`);
+  const file = resolve(fixtureRoot, 'chart.test.ts');
+  const scan = readTitles(readFileSync(file, 'utf8'), file);
+  assert.deepEqual(scan.tests.filter(test => test.ancestors[0] === 'combinations').map(test => test.title), ['line (compact: false)', 'bar (compact: true)']);
 });

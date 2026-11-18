@@ -23,6 +23,7 @@
 // minified stylesheet, PRODUCTION constants), reads esbuild's metafile, and states how far that rebuild is from
 // the packed axylo.js.
 import { build } from 'esbuild';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
@@ -34,6 +35,15 @@ const fixtures = path.join(root, 'tests/dist/fixtures');
 const LEVEL = 9;
 const gzip = bytes => gzipSync(bytes, { level: LEVEL }).length;
 const kib = bytes => +(bytes / 1024).toFixed(2);
+
+/**
+ * The size targets (spec DX7, set by the owner on 2026-11-18), by row: the one place they are written. The
+ * acceptance checker reads them from here, not from a measurement record.
+ */
+export const SIZE_TARGETS = Object.freeze({
+  'line only (examples/first-chart/npm.ts)': 98,
+  'everything (export * from axylo)': 116,
+});
 
 /** Whether `totalBytes` is over a target given in KiB: integer bytes against targetKiB * 1024, never rounded KiB. */
 export const exceeds = (totalBytes, targetKiB) => targetKiB !== null && totalBytes > targetKiB * 1024;
@@ -58,10 +68,10 @@ async function main() {
 
   const cases = [
     {
-      entry: 'line only (examples/first-chart/npm.ts)', targetKiB: 98,
+      entry: 'line only (examples/first-chart/npm.ts)', targetKiB: SIZE_TARGETS['line only (examples/first-chart/npm.ts)'],
       build: () => consumer({ cwd: npm, contents: fs.readFileSync(path.join(npm, 'example/npm.ts'), 'utf8') }), cssFile: false,
     },
-    { entry: 'everything (export * from axylo)', targetKiB: 116, build: () => consumer({ cwd: npm, contents: "export * from 'axylo';" }), cssFile: false },
+    { entry: 'everything (export * from axylo)', targetKiB: SIZE_TARGETS['everything (export * from axylo)'], build: () => consumer({ cwd: npm, contents: "export * from 'axylo';" }), cssFile: false },
     ...['area', 'bar', 'scatter', 'donut', 'validate'].map(name => ({
       entry: `${name} only (export { ${name} } from axylo)`, targetKiB: null, cssFile: false,
       build: () => consumer({ cwd: npm, contents: `export { ${name} } from 'axylo';` }),
@@ -112,7 +122,9 @@ async function main() {
   fs.writeFileSync(path.join(root, 'bench/size-latest.json'), JSON.stringify({
     date: new Date().toISOString(),
     method: 'esbuild consumer bundles from tests/dist/fixtures (packed tarballs), minify, production condition; gzip level 9',
-    packed: { at: manifest.packedAt, axylo: manifest.packages.axylo.integrity },
+    // The pack measured, by its tarball's integrity (what the acceptance checker compares with the current
+    // pack), and the tree it was packed from.
+    packed: { at: manifest.packedAt, axylo: manifest.packages.axylo.integrity, ...treeState() },
     cssFileBytes: css.length, cssFileGzipBytes: gzip(css), rows,
     breakdown: { rebuiltMinBytes: rebuilt.outputFiles[0].contents.length, packedMinBytes: packedProd, directories: dirs, modules },
   }, null, 1));
@@ -120,6 +132,16 @@ async function main() {
   if (process.argv.includes('--check') && rows.some(r => r.over)) {
     console.error(`size target exceeded: ${rows.filter(r => r.over).map(r => `${r.entry} ${r.totalGzipBytes} B > ${r.targetBytes} B (${r.targetKiB} KiB)`).join('; ')}`);
     process.exit(1);
+  }
+}
+
+/** The commit and whether the tree had changes, for the record (the integrity is what binds it to a pack). */
+function treeState() {
+  try {
+    const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+    return { commit: git('rev-parse', 'HEAD'), dirty: git('status', '--porcelain', '--untracked-files=no') !== '' };
+  } catch {
+    return { commit: null, dirty: null };
   }
 }
 

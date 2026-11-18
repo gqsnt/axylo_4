@@ -4,6 +4,13 @@
 // It does not resolve renamed test APIs, arbitrary expressions, shared registration functions,
 // tagged tables, complex template expressions, or generated files. Unexpanded test templates can
 // still anchor exact reported titles without evaluating the expression.
+//
+// What the scanner cannot know is recorded rather than guessed:
+// - a registration inside an `if`/`else` block or statement, or after `&&`, `||`, `?` or `:`, is
+//   `conditional` (it may never run for some or all of its expanded titles);
+// - a `describe.each` whose rows are not a literal list is a suite of unknown title: `null` in the
+//   ancestors of the tests inside it, standing for exactly one runtime suite title;
+// - a `describe.each` with literal rows puts each test in one row's suite at a time, never in all of them.
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
@@ -173,8 +180,13 @@ export function readTitles(source, file) {
   const tests = [];
   const templates = [];
   const loops = [];
+  const conditions = [];
   for (let index = 0; index < parts.length; index++) {
     const token = parts[index];
+    if ((token === 'if' && parts[index + 1] === '(') || token === 'else') {
+      const body = token === 'if' ? closing(parts, index + 1) + 1 : index + 1;
+      if (parts[body] !== 'if') conditions.push({ start: body, end: parts[body] === '{' ? closing(parts, body) : statementEnd(parts, body) });
+    }
     if (token === 'for' && parts[index + 1] === '(' && parts[index + 2] === 'const' && parts[index + 4] === 'of') {
       const start = closing(parts, index + 1) + 1;
       if (parts[start] === '{') {
@@ -191,7 +203,8 @@ export function readTitles(source, file) {
       modifiers.push(modifier);
       call += 2;
       if (['each', 'skipIf', 'runIf'].includes(modifier) && parts[call] === '(') {
-        if (modifier === 'each') rows = literalList(parts, call + 1) ?? [];
+        // A literal list, or a const declared as one (here or in a named relative import), as for-of loops.
+        if (modifier === 'each') rows = literalList(parts, call + 1) ?? (parts[call + 2] === ')' ? listByName(source, file, parts[call + 1]) : null) ?? [];
         call = closing(parts, call) + 1;
       }
     }
@@ -202,21 +215,45 @@ export function readTitles(source, file) {
     const containing = suites.filter(suite => suite.start < index && index < suite.end);
     const forbidden = [...new Set([...containing.flatMap(suite => suite.forbidden),
       ...modifiers.filter(modifier => ['fails', 'todo', 'skip'].includes(modifier))])];
+    const conditional = ['&&', '||', '?', ':'].includes(parts[index - 1])
+      || conditions.some(range => range.start <= index && index <= range.end) || containing.some(suite => suite.conditional);
     if (token === 'describe') {
       const end = closing(parts, call);
       // The callback's block ends just before the last argument or closing parenthesis.
       const start = parts.indexOf('{', call + 3);
-      if (start !== -1 && start < end) for (const title of titles) suites.push({ title, start, end: closing(parts, start), forbidden });
+      // A describe.each over rows the scanner cannot list is one suite whose runtime title is unknown.
+      const names = titles.length ? titles : modifiers.includes('each') ? [null] : [];
+      if (start !== -1 && start < end) for (const title of names) suites.push({ title, start, end: closing(parts, start), forbidden, conditional });
     } else {
-      const ancestors = containing.map(suite => suite.title);
-      if (!titles.length && parts[call + 1]?.startsWith('`') && [',', ')'].includes(parts[call + 2])) {
-        templates.push({ template: parts[call + 1].slice(1, -1), ancestors, forbidden });
+      // Suites over the same block are the rows of one describe.each: a test is in one of them at a time.
+      const levels = [];
+      for (const suite of containing) {
+        const level = levels.find(group => group[0].start === suite.start && group[0].end === suite.end);
+        if (level) level.push(suite);
+        else levels.push([suite]);
       }
-      // An unresolved case must stop a partially reported suite from appearing to pass.
-      for (const title of titles.length ? titles : [null]) tests.push({ title, ancestors, forbidden });
+      const paths = levels.reduce((all, level) => all.flatMap(path => level.map(suite => [...path, suite.title])), [[]]);
+      for (const ancestors of paths) {
+        if (!titles.length && parts[call + 1]?.startsWith('`') && [',', ')'].includes(parts[call + 2])) {
+          templates.push({ template: parts[call + 1].slice(1, -1), ancestors, forbidden, conditional });
+        }
+        // An unresolved case must stop a partially reported suite from appearing to pass.
+        for (const title of titles.length ? titles : [null]) tests.push({ title, ancestors, forbidden, conditional });
+      }
     }
   }
   return { suites, tests, templates };
+}
+
+/** The last token of the statement that starts at `start`: a `;` or the token before an unmatched closer. */
+function statementEnd(parts, start) {
+  for (let index = start; index < parts.length; index++) {
+    const token = parts[index];
+    if (Object.hasOwn(closer, token)) index = closing(parts, index);
+    else if (token === ';') return index;
+    else if (token === ')' || token === ']' || token === '}') return index - 1;
+  }
+  return parts.length;
 }
 
 export function matchesTemplate(title, template) {

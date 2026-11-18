@@ -12838,17 +12838,17 @@
           "prefix": "examples render in Chrome from the packed packages"
         },
         {
-          "kind": "unit",
+          "kind": "browser",
           "file": "apps/docs/test/node.browser.test.ts",
           "title": "validate.ts runs and finds nothing blocking"
         },
         {
-          "kind": "unit",
+          "kind": "browser",
           "file": "apps/docs/test/node.browser.test.ts",
           "title": "chart-data.test.ts passes as a test"
         },
         {
-          "kind": "unit",
+          "kind": "browser",
           "file": "apps/docs/test/node.browser.test.ts",
           "title": "the example resolves the installed tarball, not the workspace"
         }
@@ -12875,17 +12875,17 @@
           "prefix": "examples render in Chrome from the packed packages"
         },
         {
-          "kind": "unit",
+          "kind": "browser",
           "file": "apps/docs/test/node.browser.test.ts",
           "title": "validate.ts runs and finds nothing blocking"
         },
         {
-          "kind": "unit",
+          "kind": "browser",
           "file": "apps/docs/test/node.browser.test.ts",
           "title": "chart-data.test.ts passes as a test"
         },
         {
-          "kind": "unit",
+          "kind": "browser",
           "file": "apps/docs/test/node.browser.test.ts",
           "title": "the example resolves the installed tarball, not the workspace"
         }
@@ -12912,17 +12912,17 @@
           "prefix": "examples render in Chrome from the packed packages"
         },
         {
-          "kind": "unit",
+          "kind": "browser",
           "file": "apps/docs/test/node.browser.test.ts",
           "title": "validate.ts runs and finds nothing blocking"
         },
         {
-          "kind": "unit",
+          "kind": "browser",
           "file": "apps/docs/test/node.browser.test.ts",
           "title": "chart-data.test.ts passes as a test"
         },
         {
-          "kind": "unit",
+          "kind": "browser",
           "file": "apps/docs/test/node.browser.test.ts",
           "title": "the example resolves the installed tarball, not the workspace"
         }
@@ -12949,17 +12949,17 @@
           "prefix": "examples render in Chrome from the packed packages"
         },
         {
-          "kind": "unit",
+          "kind": "browser",
           "file": "apps/docs/test/node.browser.test.ts",
           "title": "validate.ts runs and finds nothing blocking"
         },
         {
-          "kind": "unit",
+          "kind": "browser",
           "file": "apps/docs/test/node.browser.test.ts",
           "title": "chart-data.test.ts passes as a test"
         },
         {
-          "kind": "unit",
+          "kind": "browser",
           "file": "apps/docs/test/node.browser.test.ts",
           "title": "the example resolves the installed tarball, not the workspace"
         }
@@ -12986,17 +12986,17 @@
           "prefix": "examples render in Chrome from the packed packages"
         },
         {
-          "kind": "unit",
+          "kind": "browser",
           "file": "apps/docs/test/node.browser.test.ts",
           "title": "validate.ts runs and finds nothing blocking"
         },
         {
-          "kind": "unit",
+          "kind": "browser",
           "file": "apps/docs/test/node.browser.test.ts",
           "title": "chart-data.test.ts passes as a test"
         },
         {
-          "kind": "unit",
+          "kind": "browser",
           "file": "apps/docs/test/node.browser.test.ts",
           "title": "the example resolves the installed tarball, not the workspace"
         }
@@ -13023,17 +13023,17 @@
           "prefix": "examples render in Chrome from the packed packages"
         },
         {
-          "kind": "unit",
+          "kind": "browser",
           "file": "apps/docs/test/node.browser.test.ts",
           "title": "validate.ts runs and finds nothing blocking"
         },
         {
-          "kind": "unit",
+          "kind": "browser",
           "file": "apps/docs/test/node.browser.test.ts",
           "title": "chart-data.test.ts passes as a test"
         },
         {
-          "kind": "unit",
+          "kind": "browser",
           "file": "apps/docs/test/node.browser.test.ts",
           "title": "the example resolves the installed tarball, not the workspace"
         }

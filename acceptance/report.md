@@ -1,7 +1,20 @@
 # Acceptance report
 
 Static coverage only. No Vitest reports supplied.
+## Warnings
+
+Titles the source scan cannot vouch for, with no run to confirm them (no result of their file and no EVIDENCE.json beside it).
+
+- L2/compact: title not confirmed by any run (it matches a template only) in packages/axylo/test/theme/palette.test.ts: light: 1. every series color reaches 3:1 on the default background
+- L2/compact: title not confirmed by any run (it matches a template only) in packages/axylo/test/theme/palette.test.ts: dark: 1. every series color reaches 3:1 on the default background
+- DX1/line: title not confirmed by any run (it matches a template only) in tests/dist/first-chart.browser.test.ts: renders under the production condition
+- DX1/line: title not confirmed by any run (it matches a template only) in tests/dist/first-chart.browser.test.ts: renders under the development condition
+- DX4/line: title not confirmed by any run (it matches a template only) in tests/dist/flavours.browser.test.ts: hints print once, are delivered either way, and warnings print once
+- DX4/line: title not confirmed by any run (it matches a template only) in tests/dist/flavours.browser.test.ts: hints print never, are delivered either way, and warnings print once
+
 ## Packed size measurement
+
+Measured from the pack this tree makes (sha512-LCn3nSF7J5rm…).
 
 - line only (examples/first-chart/npm.ts) · 280,849 minified JS bytes, 96.81 KiB gzipped, 98 KiB target · [bench/size-latest.json](../bench/size-latest.json)
 - everything (export * from axylo) · 334,941 minified JS bytes, 115.74 KiB gzipped, 116 KiB target · [bench/size-latest.json](../bench/size-latest.json)
@@ -20,6 +33,7 @@ Static coverage only. No Vitest reports supplied.
 - weak · 213
 - no evidence · 0
 - not run · 95
+- not recorded for this revision · 0
 - cannot be verified here · 11
 - not applicable · 257
 
@@ -319,6 +333,10 @@ P1–P8 have a harness in `bench/`. Acceptance measurements await a quiet machin
 - **P7** · line · Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). Its endpoints P7-mem and P7-lifecycle (bench/src/decision.js) are not measured; the tests cited as weak each bound one part of the budget on line only. The harness's P7-lifecycle endpoint runs 2,500 cycles and gates on at most 1% heap growth, and the Chrome heap test compares two window means with a 1% allowance: neither shows the spec's "no upward slope" over 1,000 cycles, since a small positive slope passes both.
   - area, bar, scatter, donut, compact · Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). The harness's memory workloads draw a line; no test bounds this chart type's owned bytes or its heap over create–destroy cycles. The harness's P7-lifecycle endpoint runs 2,500 cycles and gates on at most 1% heap growth, and the Chrome heap test compares two window means with a 1% allowance: neither shows the spec's "no upward slope" over 1,000 cycles, since a small positive slope passes both.
 - **P8** · compact · Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). Its P8 endpoint (bench/src/decision.js) runs the compact workload with 40 compact line charts; no test asserts the 80 ms limit, and compact area and bar tiles have no workload.
+
+### Not recorded for this revision
+
+No cell rests on results from another revision.
 
 ### Cannot be verified here
 

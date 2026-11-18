@@ -28,6 +28,7 @@ Structural errors exit 1. In `--release` mode, results must have provenance that
 | weak | Partial evidence leaves a documented gap. |
 | no evidence | The criterion applies and has no relevant evidence. |
 | not run | A cited assertion is missing or skipped, or the cell awaits a valid measurement. |
+| not recorded for this revision | Its only answers come from runs or a size record whose provenance is another tree or pack. |
 | cannot be verified here | The criterion requires an environment or rehearsal outside the supplied runs. |
 | not applicable | The matrix records why the criterion does not apply. |
 
@@ -54,6 +55,8 @@ Use the spec ID and short wording. Section 3.6 cells use `T-<rule>-<chart type>`
 Use `evidence` for the checks a cell needs, `gaps` for the unverified part when those checks are incomplete, and `weak` for supporting citations with a specific `reason`. Use `limits` to describe the scope of a result, `cannotVerify` for environmental requirements outside the supplied runs, and `pending` for work awaiting a valid run.
 
 Each citation specifies a repository-relative `file` and a `kind` of `unit`, `property`, `browser`, `size`, `benchmark`, `document` or `manual rehearsal`. A test citation gives its exact Vitest `title` or a `prefix` of a describe title when all reported cases are required. A generated title may include its source template as `registration`. Use `ancestors` to cite a specific suite when titles repeat. The checker refuses citations of `.fails`, `.todo` and `.skip` and requires every matching result to pass.
+
+A suite whose cases the source scan cannot list (an `it.each` over rows computed at run time, such as DX10's per-example renders) is cited by its describe `prefix` with `atLeast`: the citation passes when every reported test under the prefix passed, none was skipped, the titles the scan does know are among them, and at least that many distinct tests passed. The `kind` must fit the file: `browser` for `*.browser.test.*` files, `unit` and `property` for the others. A title the scan finds only through a template, or only under an `if`, `else`, `&&`, `||` or `?:`, needs a run that shows it: a supplied result of its file or the `EVIDENCE.json` beside it. Without either the report lists a warning; a result or `EVIDENCE.json` that covers the file but lacks the title is a structural error. A `size` citation counts only when the record names the tarball integrity of the pack this tree makes (`npm pack`, as `scripts/pack.mjs` packs); the targets are `SIZE_TARGETS` in `scripts/size.mjs`. A run whose provenance sidecar does not match the tree, in any mode, and in a release a run without a sidecar, leaves its cells `not recorded for this revision`.
 
 For a describe suite shared across chart types, add a chart-specific `casePrefix` and the expected number of distinct `cases`. The checker requires all statically known cases and the expected number of passing current registrations. A failed archived result within that scope still appears in the report. Release checks also require matching provenance.
 
