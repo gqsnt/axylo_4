@@ -33,7 +33,7 @@ There is one way to do each thing: one data model, one method per kind of change
 - [Getting started](getting-started.md): install, the first chart, five things to get right with daily data, and what to check when a chart looks wrong.
 - [Your data](data.md): rows and columns, dates and times, missing values, units.
 - One page per chart type: [line](line.md), [area](area.md), [bar](bar.md), [scatter](scatter.md), [donut](donut.md), [compact](compact.md).
-- [Updating, streaming and zoom](updating.md), and the [React components](react.md).
+- [Updating, streaming and zoom](updating.md), and [using Axylo in a framework](getting-started.md#using-axylo-in-a-framework).
 - [Diagnostics](diagnostics.md): every code, with a page each.
 - [Options reference](options.md): every option of every chart type.
 - Coming from another library: [Chart.js](migrate-chartjs.md) or [Recharts](migrate-recharts.md).

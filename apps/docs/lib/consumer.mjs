@@ -5,7 +5,7 @@
  * nothing is linked to the workspace. The consumer lives under apps/docs/.cache (git-ignored):
  *
  *   .cache/packed/<name>-<version>.tgz     the tarballs
- *   .cache/consumer/package.json           axylo, @axylo/react, react, react-dom (+ types)
+ *   .cache/consumer/package.json           axylo
  *   .cache/consumer/node_modules           npm's install of those, offline
  *   .cache/consumer/src/…                  copies of the examples, so they resolve from the consumer
  *
@@ -18,7 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { cacheDir, repoRoot } from './examples.mjs';
 
-export const PACKAGES = { axylo: 'packages/axylo', '@axylo/react': 'packages/react' };
+export const PACKAGES = { axylo: 'packages/axylo' };
 export const packedDir = path.join(cacheDir, 'packed');
 export const consumerDir = path.join(cacheDir, 'consumer');
 const windows = process.platform === 'win32';
@@ -57,13 +57,7 @@ export function prepareConsumer({ log = () => {} } = {}) {
     private: true,
     type: 'module',
     description: 'Installs the packed tarballs for the documentation examples (apps/docs/lib/consumer.mjs). Generated.',
-    dependencies: {
-      axylo: `file:../packed/${packed.axylo.tarball}`,
-      '@axylo/react': `file:../packed/${packed['@axylo/react'].tarball}`,
-      react: '^19.3.1',
-      'react-dom': '^19.3.1',
-    },
-    devDependencies: { '@types/react': '^19.3.0', '@types/react-dom': '^19.3.0' },
+    dependencies: { axylo: `file:../packed/${packed.axylo.tarball}` },
   };
   fs.writeFileSync(path.join(consumerDir, 'package.json'), JSON.stringify(manifest, null, 2) + '\n');
   const record = path.join(consumerDir, '.installed.json');
@@ -72,14 +66,8 @@ export function prepareConsumer({ log = () => {} } = {}) {
   if (current !== wanted || !fs.existsSync(path.join(consumerDir, 'node_modules/axylo'))) {
     fs.rmSync(path.join(consumerDir, 'node_modules'), { recursive: true, force: true });
     const install = mode => npm(['install', mode, '--ignore-scripts', '--no-audit', '--no-fund', '--no-package-lock', '--loglevel=error'], { cwd: consumerDir });
-    try {
-      install('--offline');
-    } catch (error) {
-      // As in scripts/pack.mjs: only a cache without registry metadata for React falls back to the registry.
-      if (!/ENOTCACHED/.test(String(error.stderr ?? error))) throw error;
-      log('docs consumer: npm cache incomplete, installing with --prefer-offline');
-      install('--prefer-offline');
-    }
+    // Only the local tarball is installed, so nothing comes from a registry or the npm cache.
+    install('--offline');
     fs.writeFileSync(record, wanted);
     log(`docs consumer: installed ${Object.values(packed).map(p => p.tarball).join(', ')}`);
   }
@@ -134,14 +122,14 @@ const STRICT = {
 };
 
 /**
- * The consumer's TypeScript configurations: one for the browser examples (the .ts and .tsx files, and the
+ * The consumer's TypeScript configurations: one for the browser examples (the .ts files, and the
  * scripts of the .html examples as JavaScript under checkJs, all strict), one for the Node examples. Library
  * checking is on, so the packed declarations are checked as a consumer's compiler reads them.
  */
 export function writeConsumerTsconfigs() {
   const browser = {
-    compilerOptions: { ...STRICT, lib: ['ES2022', 'DOM', 'DOM.Iterable'], jsx: 'react-jsx', allowJs: true, checkJs: true },
-    include: ['src/*.ts', 'src/*.tsx', 'src/*.js'],
+    compilerOptions: { ...STRICT, lib: ['ES2022', 'DOM', 'DOM.Iterable'], allowJs: true, checkJs: true },
+    include: ['src/*.ts', 'src/*.js'],
   };
   const node = { compilerOptions: { ...STRICT, lib: ['ES2022', 'DOM'] }, include: ['src/node/*.ts'] };
   fs.writeFileSync(path.join(consumerDir, 'tsconfig.json'), JSON.stringify(browser, null, 2));

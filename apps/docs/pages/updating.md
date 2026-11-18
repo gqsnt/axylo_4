@@ -89,7 +89,7 @@ A zoom event's range drives a second chart:
 
 ## destroy
 
-`destroy()` cancels the pending frame, disconnects every observer and listener, removes what the chart added to its element, and makes later calls do nothing. Call it when the chart's element leaves your page. A chart whose element leaves the page without `destroy()` lets go of the page's listeners until the element returns.
+`destroy()` cancels the pending frame, disconnects every observer and listener, removes what the chart added to its element, and makes later calls do nothing. Call it when the chart's element leaves your page; a new chart can then be created on the same element (see [using Axylo in a framework](getting-started.md#using-axylo-in-a-framework)). A chart whose element leaves the page without `destroy()` lets go of the page's listeners until the element returns.
 
 ## Strict mode
 

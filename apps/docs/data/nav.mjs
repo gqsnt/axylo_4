@@ -16,7 +16,6 @@ export const nav = [
   ] },
   { section: 'Guides', pages: [
     { page: 'updating', label: 'Updating, streaming, zoom' },
-    { page: 'react', label: 'React' },
     { page: 'diagnostics', label: 'Diagnostics' },
     { page: 'theming', label: 'Theming' },
     { page: 'accessibility', label: 'Accessibility' },

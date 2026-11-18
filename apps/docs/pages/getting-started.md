@@ -1,6 +1,6 @@
 # Getting started
 
-After this page you can install Axylo, draw a first chart from rows with npm, a script tag or React, get the five things right that most often make a daily chart wrong, and know what to check when a chart looks wrong.
+After this page you can install Axylo, draw a first chart from rows with npm or a script tag, use it inside a framework, get the five things right that most often make a daily chart wrong, and know what to check when a chart looks wrong.
 
 ## Install
 
@@ -8,12 +8,6 @@ With npm and a bundler:
 
 ```sh
 npm install axylo
-```
-
-For React, add the adapter. It works with React 18 and 19.
-
-```sh
-npm install axylo @axylo/react
 ```
 
 With a script tag, load one file from the package's `dist` folder: `axylo.iife.js` is the development build (it prints hints), `axylo.iife.min.js` the production build. Both define one global, `Axylo`.
@@ -34,11 +28,15 @@ With a script tag:
 
 [example: first-chart-script](../../../examples/first-chart/script.html)
 
-In React:
-
-[example: first-chart-react](../../../examples/first-chart/react.tsx)
-
 Point at a chart, or press Tab to reach its plot and use the arrow keys, or open its table. The only required options are `data` and the fields: `x` and `y` (and `series` for long rows), or `label` and `value` for a donut. `title` is not required, but without it (or `labelledBy`) the chart gets a generated name and warning [AX140](diagnostics.md#ax140).
+
+## Using Axylo in a framework
+
+No framework adapter ships in 1.0; adapters for React, Vue, Svelte and others are planned after 1.0. Axylo is called from any framework's own hooks: create the chart when its element exists, call `update()` when your data or options change, and call `destroy()` when the element goes away. Creating, destroying and creating again on the same element is supported; it is the sequence a framework's development mode produces.
+
+The lifecycle as three plain functions:
+
+[example: lifecycle](../examples/lifecycle.ts)
 
 ## Daily data: five things to get right
 

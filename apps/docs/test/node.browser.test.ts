@@ -2,15 +2,13 @@
  * Runs in Node, after `npm run build`, with the browser suite (it needs the packed packages, not a browser).
  * The Node examples quoted on the Diagnostics page (apps/docs/examples/node, copied into the packed consumer)
  * run against the installed tarball: validate.ts as a script, chart-data.test.ts as a Vitest test in a run of
- * its own rooted in the consumer. And the React page's statement about server rendering, through the
- * installed @axylo/react.
+ * its own rooted in the consumer.
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { pathToFileURL } from 'node:url';
 import { buildSite } from '../lib/site.mjs';
 import { repoRoot } from '../lib/examples.mjs';
 import { consumerDir, installed } from '../lib/consumer.mjs';
@@ -34,22 +32,5 @@ describe('Node examples, against the packed package', () => {
     const require = createRequire(path.join(consumerDir, 'src/node/validate.ts'));
     const resolved = fs.realpathSync(require.resolve('axylo'));
     expect(path.dirname(path.dirname(resolved))).toBe(fs.realpathSync(installed('axylo')));
-  });
-});
-
-describe('React server rendering, through the installed adapter', () => {
-  it('renders only the empty container, with its own attributes', async () => {
-    const require = createRequire(path.join(consumerDir, 'package.json'));
-    const { createElement } = await import(pathToFileURL(require.resolve('react')).href);
-    const { renderToString } = await import(pathToFileURL(require.resolve('react-dom/server')).href);
-    const { Line } = await import(pathToFileURL(path.join(installed('@axylo/react'), 'dist/index.js')).href);
-    const html: string = renderToString(createElement(Line, {
-      id: 'sessions', 'data-card': 'kpi', title: 'Sessions',
-      data: [{ day: '2026-03-02', sessions: 3120 }], x: 'day', y: 'sessions',
-    }));
-    const element = /^<div((?: [\w-]+="[^"]*")*)><\/div>$/.exec(html);
-    expect(element, html).not.toBeNull();
-    const attributes = Object.fromEntries([...element![1]!.matchAll(/ ([\w-]+)="([^"]*)"/g)].map(m => [m[1], m[2]]));
-    expect(attributes).toEqual({ id: 'sessions', class: 'axylo', 'data-card': 'kpi' });
   });
 });

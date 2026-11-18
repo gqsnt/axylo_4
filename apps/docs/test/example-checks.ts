@@ -40,10 +40,6 @@ const valueText = async (t: Tools, index: number, keys: string[], ...parts: stri
 export const checks: Record<string, Check> = {
   'first-chart-npm': { charts: 1, run: t => valueText(t, 0, ['Home'], n(4210), 'Point 1 of 4') },
   'first-chart-script': { charts: 1, run: t => valueText(t, 0, ['End'], n(5127), 'Point 4 of 4') },
-  'first-chart-react': { charts: 1, run: async t => {
-    await valueText(t, 0, ['Home'], n(4210));
-    expect(await t.name(0)).toBe('Monthly visitors');
-  } },
   'a11y-card': { charts: 1, run: async t => {
     expect(await t.name(0)).toBe('Checkout latency by region');
     has(await t.desc(0), 'payment provider outage');
@@ -106,6 +102,11 @@ export const checks: Record<string, Check> = {
     const table = (await t.table(0)).join(' / ');
     has(table, 'Spain', 'Norway', 'Iceland', 'Malta');
   } },
+  lifecycle: { charts: 1, run: async t => {
+    // Mounted, unmounted and mounted again on one element: one chart, showing the data of the last refresh.
+    expect(await t.page.evaluate(() => document.querySelectorAll('#chart figure').length)).toBe(1);
+    await valueText(t, 0, ['Home'], 'Mar 9, 2026', `sessions ${n(3400)}`, 'Point 1 of 7');
+  } },
   'line-dense': { charts: 1, run: async t => {
     await valueText(t, 0, ['End'], 'Point 100,000 of 100,000');
     has(await t.desc(0), 'maximum 97 %');
@@ -143,21 +144,6 @@ export const checks: Record<string, Check> = {
     await valueText(t, 0, ['Home'], 'Orders 182');
     has(await t.desc(0), 'maximum 231');
   } },
-  'react-line': { charts: 1, run: async t => {
-    await t.value(0, ['Home']);
-    await t.until(`document.querySelector('#root section > p')?.textContent.includes('2026-03-01')`);
-    has(await t.text('#root section > p'), 'Direct on 2026-03-01: 3100');
-  } },
-  'react-stream': { charts: 1, run: async t => {
-    await t.until(`[...document.querySelectorAll('.axylo-toolbar button')].some(b => b.textContent === 'Pause')`);
-    await valueText(t, 0, ['End'], 'Point 60 of 60');
-  } },
-  'recharts-stream': { charts: 1, run: async t => {
-    await t.until(`[...document.querySelectorAll('.axylo-toolbar button')].some(b => b.textContent === 'Pause')`);
-    await valueText(t, 0, ['End'], 'Point 600 of 600');
-  } },
-  'recharts-target': { charts: 1, run: t => valueText(t, 0, ['Home'], bars.categories[0]!, `${bars.values[0]}%`) },
-  'recharts-trend': { charts: 1, run: t => valueText(t, 0, ['Home'], `Direct ${n(trend.series[0]!.values[0]!)}`, `Organic search ${n(trend.series[1]!.values[0]!)}`) },
   // The first point by x, then y: rows 0 and 95 both have size 5; row 95 (ap-south) has the lower latency.
   'scatter-basic': { charts: 1, run: t => valueText(t, 0, ['Home'], 'ap-south, 5 KB, 22 ms') },
   'scatter-missing-y': { charts: 1, run: async t => {

@@ -171,8 +171,8 @@ ${vars('dark')}
 // ---------- examples ----------
 
 /**
- * Bundles every example from the consumer, resolving the installed tarballs under the `development`
- * condition (with React's development build, the same condition), with shared chunks, and writes one page
+ * Bundles every example from the consumer, resolving the installed tarball under the `development`
+ * condition, with shared chunks, and writes one page
  * per example. Nothing may resolve outside the consumer.
  */
 async function buildExamples(outDir) {
@@ -180,13 +180,12 @@ async function buildExamples(outDir) {
   const { src } = writeConsumerSources(consumerDir);
   const entries = [];
   for (const e of examples) {
-    if (e.ext === 'tsx' && !e.mounts) entries.push(path.join(src, `${e.name}.host.tsx`));
-    else if (e.ext !== 'html') entries.push(path.join(src, `${e.name}.${e.ext}`));
+    if (e.ext !== 'html') entries.push(path.join(src, `${e.name}.${e.ext}`));
     else for (const s of htmlScripts(e).filter(s => s.kind === 'module')) entries.push(path.join(src, s.file));
   }
   await build({
     entryPoints: entries, bundle: true, format: 'esm', splitting: true, target: 'es2022', outdir: path.join(outDir, 'examples/js'),
-    jsx: 'automatic', conditions: ['development'], define: { 'process.env.NODE_ENV': '"development"' }, logLevel: 'warning',
+    conditions: ['development'], logLevel: 'warning',
     absWorkingDir: consumerDir, plugins: [guard()], entryNames: '[name]', chunkNames: 'chunk-[hash]',
   });
   const manifest = [];
@@ -216,8 +215,6 @@ function examplePage(e) {
     for (const s of htmlScripts(e).filter(s => s.kind === 'module')) {
       body = body.replace(s.match, `<script type="module" src="js/${escapeHtml(s.file)}"></script>`);
     }
-  } else if (e.ext === 'tsx') {
-    body = `<div id="root"></div>\n<script type="module" src="js/${e.name}${e.mounts ? '' : '.host'}.js"></script>`;
   } else {
     body = e.targets.map(id => `<div id="${escapeHtml(id)}" class="example-target"></div>`).join('\n') +
       `\n<script type="module" src="js/${e.name}.js"></script>`;
@@ -313,7 +310,7 @@ function exampleBlock(name, target, where, ctx, ids) {
     : '';
   const host = hostOf(full);
   const helpers = full.helpers.map(h => `<a href="${sourcePath(`apps/docs/examples/${h}`)}">examples/${escapeHtml(h)}</a>`);
-  const hostBlock = `<div class="example-host"><p><strong>To run it yourself:</strong> ${renderInline(host.text)}${helpers.length ? ` It also imports ${listText(helpers)}, the shared fixture, which must sit beside it.` : ''}</p>${host.markup ? codeBlock(host.markup, 'html') : ''}${host.code ? codeBlock(host.code, 'tsx') : ''}</div>`;
+  const hostBlock = `<div class="example-host"><p><strong>To run it yourself:</strong> ${renderInline(host.text)}${helpers.length ? ` It also imports ${listText(helpers)}, the shared fixture, which must sit beside it.` : ''}</p>${host.markup ? codeBlock(host.markup, 'html') : ''}</div>`;
   const id = uniqueId(`example-${example.name}`, ids);
   const height = example.ext === 'ts' ? example.targets.length * 470 : 470;
   return `<figure class="example" id="${escapeHtml(id)}">

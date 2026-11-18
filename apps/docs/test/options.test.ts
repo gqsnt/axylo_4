@@ -3,7 +3,7 @@
  * compiler API (typescript/unstable/sync, TypeScript 7) from the source declarations, so it needs no build:
  *
  * - keys: every key of every option type, field type, handle and event in packages/axylo/src/public.ts (and
- *   the React props in packages/react/src/index.ts) is in the reference, and nothing else is;
+ *   in the reference, and nothing else is;
  * - types: each documented type is the declared type of that key, both ways assignable (`Options` in the
  *   reference stands for the chart's options type, checked as LineOptions<Row>);
  * - required: a key documented with default "required" is required in the type, and every other key is
@@ -40,17 +40,11 @@ const GROUPS: Record<string, { type: string; keys: string }> = {
   ChartEvents: { type: 'ChartEvents<Row>', keys: 'Keys<ChartEvents<Row>>' },
   Point: { type: 'Point<Row>', keys: 'Keys<Point<Row>>' },
   Diagnostic: { type: 'Diagnostic', keys: 'Keys<Diagnostic>' },
-  ReactProps: { type: 'LineProps<Row>', keys: `Exclude<Keys<LineProps<Row>>, Keys<${L}>>` },
-  ChartRef: { type: `ChartRef<Row, ${L}>`, keys: `Keys<ChartRef<Row, ${L}>>` },
 };
 // Checks on the types themselves, so a key added to a composite type directly is not missed.
 const EXTRA: Record<string, string> = {
   LineOptions: `Keys<${L}>`,
   Messages: 'Keys<Messages>',
-  DonutReactProps: 'Exclude<Keys<DonutProps<Row>>, Keys<DonutOptions<Row>>>',
-  AreaReactProps: 'Exclude<Keys<AreaProps<Row>>, Keys<AreaOptions<Row>>>',
-  BarReactProps: 'Exclude<Keys<BarProps<Row>>, Keys<BarOptions<Row>>>',
-  ScatterReactProps: 'Exclude<Keys<ScatterProps<Row>>, Keys<ScatterOptions<Row>>>',
 };
 
 interface Row { key: string; type: string; def: string | null }
@@ -100,15 +94,13 @@ beforeAll(() => {
   fs.writeFileSync(path.join(dir, 'tsconfig.json'), JSON.stringify({
     extends: rel('tsconfig.base.json'),
     compilerOptions: {
-      noEmit: true, types: [], jsx: 'react-jsx',
-      paths: { axylo: [rel('packages/axylo/src/index.ts')], '@axylo/react': [rel('packages/react/src/index.ts')] },
+      noEmit: true, types: [],
+      paths: { axylo: [rel('packages/axylo/src/index.ts')] },
     },
     files: ['probe.ts', rel('packages/axylo/src/core/globals.d.ts')],
   }, null, 2));
   const lines = [
     "import type { AreaOptions, BarOptions, CartesianOptions, Chart, ChartEvents, CommonOptions, CompactOption, Data, Diagnostic, DonutOptions, Encoding, LineOptions, Messages, NumberKey, Point, Reference, ScatterOptions, ScatterXField, SeriesKey, StringKey, Title, ValueField, XField, XKey, XValue } from 'axylo';",
-    "import type { AreaProps, BarProps, ChartRef, DonutProps, LineProps, ScatterProps } from '@axylo/react';",
-    "import type { CSSProperties, Ref } from 'react';",
     'interface Row { day: string; v: number; s: string }',
     'type Keys<T> = T extends unknown ? { [K in keyof T]-?: [Exclude<T[K], undefined>] extends [never] ? never : K }[keyof T] : never;',
     'type Prop<T, K extends PropertyKey> = T extends unknown ? (K extends keyof T ? Exclude<T[K], undefined> : never) : never;',
@@ -171,14 +163,6 @@ describe('options reference against the public types', () => {
   it('LineOptions is exactly the common, encoding, cartesian and compact groups', () => {
     const groups = ['CommonOptions', 'Encoding', 'CartesianOptions', 'CompactOption'].flatMap(g => parseUnion(results[`keys_${g}`]!));
     expect(parseUnion(results.keys_LineOptions!)).toEqual([...new Set(groups)].sort());
-  });
-
-  it('the React components take the same extra props, except onZoom on Donut', () => {
-    const react = parseUnion(results.keys_ReactProps!);
-    expect(parseUnion(results.keys_AreaReactProps!)).toEqual(react);
-    expect(parseUnion(results.keys_BarReactProps!)).toEqual(react);
-    expect(parseUnion(results.keys_ScatterReactProps!)).toEqual(react);
-    expect(parseUnion(results.keys_DonutReactProps!)).toEqual(react.filter(k => k !== 'onZoom'));
   });
 
   it('the generated Messages table lists every key of Messages', () => {

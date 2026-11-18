@@ -57,7 +57,7 @@ afterAll(async () => {
 });
 
 describe('examples type-check in the packed consumer', () => {
-  it('browser examples: .ts and .tsx strict, .html scripts strict under checkJs, library checking on', () => {
+  it('browser examples: .ts strict, .html scripts strict under checkJs, library checking on', () => {
     const { browser: config } = writeConsumerTsconfigs();
     const result = typecheck(config);
     expect(result.errors).toBe('');
@@ -68,7 +68,7 @@ describe('examples type-check in the packed consumer', () => {
     // The test example imports Vitest, a tool the consumer does not install.
     const result = typecheck(config, ['vitest', '@vitest', 'chai', '@types/chai', '@types/deep-eql', 'expect-type', 'tinyrainbow', '@standard-schema', 'vite', 'tinybench', 'tinyexec', 'pathe', '@types/estree', 'rollup', 'esbuild', 'postcss', 'source-map-js', 'nanoid', 'picocolors', 'lightningcss', 'rolldown', '@rolldown', '@oxc-project', 'obug', 'std-env', 'magic-string', '@jridgewell', 'estree-walker', 'fdir', 'picomatch', 'tinyglobby', 'es-module-lexer', 'why-is-node-running', 'detect-libc', 'assertion-error', '@types/node', 'undici-types']);
     expect(result.errors).toBe('');
-    expect(result.outside.filter(f => /[\\/]node_modules[\\/](axylo|@axylo)[\\/]/.test(f) || /packages[\\/](axylo|react)[\\/]/.test(f))).toEqual([]);
+    expect(result.outside.filter(f => /[\\/]node_modules[\\/]axylo[\\/]/.test(f) || /packages[\\/]axylo[\\/]/.test(f))).toEqual([]);
   });
 });
 

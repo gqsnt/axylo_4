@@ -239,27 +239,6 @@ The built-in English text, read from the library when this site is built:
 
 [table: messages](../../../packages/axylo/src/messages/index.ts)
 
-## React components
-
-`Line`, `Area`, `Bar`, `Scatter` and `Donut` from `@axylo/react` take the chart type's options as props, plus these. See [React](react.md).
-
-<!-- options: ReactProps -->
-| Prop | Type | Meaning |
-|---|---|---|
-| `id` | `string` | Attribute of the container. |
-| `className` | `string` | Added to the container's class `axylo`. |
-| `style` | `CSSProperties` | Style of the container. |
-| `data-*` | `string \| number \| boolean` | Data attributes of the container. |
-| `ref` | `Ref<ChartRef<Row, Options>>` | Receives `{ chart }`. |
-| `onHover` | `(point: Point<Row> \| null) => void` | The `hover` event. |
-| `onSelect` | `(point: Point<Row>) => void` | The `select` event. |
-| `onZoom` | `(domain: readonly [XValue, XValue] \| null) => void` | The `zoom` event. Not on `Donut`. |
-
-<!-- options: ChartRef -->
-| `ChartRef` key | Type | Meaning |
-|---|---|---|
-| `chart` | `Chart<Row, Options> \| null` | The chart's handle; `null` before mount, after unmount and on the server. |
-
 ## Options that do not exist
 
 There is no `width`, `height`, `responsive`, `theme`, `palette` or `animation` option. Size comes from the container, colours from [CSS](theming.md), and motion from the reader's settings: the first render is not animated, and nothing moves under reduced motion. Each of these names, like any unknown key, is ignored with [AX150](diagnostics.md#ax150), which suggests the closest known option.
