@@ -1,10 +1,11 @@
 import type { ScatterView } from '../core/contracts';
 import { contains, scatterPosition, type PlotLayout } from './geometry';
 
+// Squares written out, so the module does no work at import time.
 const CELL = 24;
-const RADIUS2 = CELL * CELL;
+const RADIUS2 = 576; // CELL²
 const COINCIDENT = 0.5;
-const COINCIDENT2 = COINCIDENT ** 2;
+const COINCIDENT2 = 0.25; // COINCIDENT²
 const LEAF_SIZE = 32;
 export const POINT_LIMIT = 8;
 

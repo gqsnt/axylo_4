@@ -1,7 +1,7 @@
 import { SLOT_VALUE, type DiagnosticSink, type DonutFrame, type DonutSlice, type DonutView } from '../core/contracts';
 import { report } from '../diagnostics';
 
-const TURN = 2 * Math.PI;
+const TURN = 6.283185307179586; // 2π, a literal so the module does no work at import time
 const OTHER = '__other__';
 
 export function buildDonut(

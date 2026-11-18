@@ -463,13 +463,36 @@ export function normalize(type: 'scatter', options: ResolvedOptions, env: DataEn
 export function normalize(type: 'donut', options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): DonutFrame;
 export function normalize(type: ChartType, options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): Frame;
 export function normalize(type: ChartType, options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): Frame {
-  const valid = options.valid ? options : { ...options, table: { ...options.table, columns: null, length: 0 } };
-  if (type === 'donut') return donutFrame(valid, sink, version);
-  const diagnostics = type !== 'scatter' && options.valid && options.series === null ? new StreamDiagnostics() : null;
+  if (type === 'donut') return normalizeDonut(options, env, sink, version);
+  if (type === 'scatter') return normalizePoints(options, env, sink, version);
+  return normalizeAligned(type, options, env, sink, version);
+}
+
+/** Options whose data could not be read normalize as no rows. */
+function usable(options: ResolvedOptions): ResolvedOptions {
+  return options.valid ? options : { ...options, table: { ...options.table, columns: null, length: 0 } };
+}
+
+// One entry per frame shape, so a chart kind's composition reaches only its own (normalize above is the
+// dispatch for callers that hold the chart type as a value, such as validate()).
+
+export function normalizeDonut(options: ResolvedOptions, _env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): DonutFrame {
+  return donutFrame(usable(options), sink, version);
+}
+
+export function normalizePoints(options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): PointFrame {
+  const valid = usable(options);
+  const x = readX('scatter', valid, env, sink);
+  reportCalendarDates(x, valid.table, sink);
+  return pointFrame(valid, x, sink, version);
+}
+
+export function normalizeAligned(type: AlignedChartType, options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): AlignedFrame {
+  const valid = usable(options);
+  const diagnostics = options.valid && options.series === null ? new StreamDiagnostics() : null;
   const observe = diagnostics ? recordDiagnostics(sink, diagnostics) : sink;
   const x = readX(type, valid, env, observe);
   reportCalendarDates(x, valid.table, sink);
-  if (type === 'scatter') return pointFrame(valid, x, sink, version);
   // Ascending wide axes can initialize the streaming indexes from normalized positions.
   const counts = diagnostics && x.order === null ? new Map<string, ValueCounts>() : undefined;
   const frame = alignedFrame(valid, x, observe, version, counts);

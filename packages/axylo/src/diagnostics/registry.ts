@@ -27,42 +27,45 @@ const count = (d: DiagnosticDetails, word: string, plural = word + 's') =>
 const suggestion = (d: DiagnosticDetails) => d.suggestion === undefined ? '' : ' Did you mean ' + quote(d.suggestion) + '?';
 const series = (names?: readonly string[]) => names?.length ? ' in series ' + names.map(quote).join(', ') : '';
 
-type Entry = { readonly level: Diagnostic['level']; readonly message: (details: DiagnosticDetails) => string };
+/**
+ * A code's level, its message and the default outcome sentence that follows it. Plain data: building the
+ * table at import time would keep a bundler from dropping the module (message() puts the parts together).
+ */
+type Entry = {
+  readonly level: Diagnostic['level'];
+  readonly text: (details: DiagnosticDetails) => string;
+  readonly outcome: string | ((details: DiagnosticDetails) => string);
+};
 
-function entry<Level extends Diagnostic['level']>(
-  level: Level, message: Entry['message'], outcome: string | Entry['message'],
-): Entry & { readonly level: Level } {
-  return {
-    level,
-    message: details => message(details) + ' ' +
-      (details.outcome ?? (typeof outcome === 'string' ? outcome : outcome(details))),
-  };
+function message(entry: Entry, details: DiagnosticDetails): string {
+  const { outcome } = entry;
+  return entry.text(details) + ' ' + (details.outcome ?? (typeof outcome === 'string' ? outcome : outcome(details)));
 }
 
 export const diagnosticRegistry = {
-  AX100: entry('error', d =>
+  AX100: { level: 'error', text: d =>
     field(d) + ' belongs to columns with different lengths' + samples(d) + '. Supply equally long columns.',
-  'The chart shows its error state.'),
-  AX101: entry('error', d =>
+  outcome: 'The chart shows its error state.' },
+  AX101: { level: 'error', text: d =>
     field(d) + ' is missing from the data. Available fields: ' +
     (d.keys?.length ? d.keys.map(quote).join(', ') : '(none)') + '.' + suggestion(d) + ' Use an available field or add the field to the data.',
-  'The chart shows its error state.'),
-  AX102: entry('warning', d =>
+  outcome: 'The chart shows its error state.' },
+  AX102: { level: 'warning', text: d =>
     (d.outcome === 'The affected row is not drawn.'
       ? field(d) + ' is absent' + rows(d) + ', affecting ' + count(d, 'value')
       : field(d) + ' is absent in ' + count(d, 'record') + rows(d)) +
     '. Supply the field and send null if the value is known to be missing.',
-  'Shown as gaps.'),
-  AX103: entry('warning', d =>
+  outcome: 'Shown as gaps.' },
+  AX103: { level: 'warning', text: d =>
     field(d) + ' has ' + count(d, 'non-finite value') + rows(d) + samples(d) + '. Check the calculation that produced it or send null for no data.',
-  'Shown as gaps.'),
-  AX104: entry('hint', d =>
+  outcome: 'Shown as gaps.' },
+  AX104: { level: 'hint', text: d =>
     field(d) + ' has ' + count(d, 'decimal string') + rows(d) + '. Set parse: \'number\' to make conversion explicit.',
-  'The strings are parsed and drawn as numbers.'),
-  AX105: entry('hint', d =>
+  outcome: 'The strings are parsed and drawn as numbers.' },
+  AX105: { level: 'hint', text: d =>
     field(d) + ' is missing ' + count(d, 'expected step') + series(d.series) + samples(d) +
     '. Supply observations for those positions or explicit nulls to mark gaps.',
-  d => {
+  outcome: d => {
     const outcomes = [];
     const regular = d.series?.some(name => !d.sparseSeries?.includes(name) && !d.zeroSeries?.includes(name));
     if (regular || !d.sparseSeries?.length && d.zeroSeries === undefined) outcomes.push('Shown as gaps.');
@@ -73,83 +76,83 @@ export const diagnosticRegistry = {
       outcomes.push('The data' + series(d.sparseSeries) + ' was too sparse to show its absent steps as gaps.');
     }
     return outcomes.join(' ');
-  }),
-  AX106: entry('warning', d =>
+  } },
+  AX106: { level: 'warning', text: d =>
     field(d) + ' has ' + count(d, 'value that cannot be plotted as a number', 'values that cannot be plotted as numbers') +
     rows(d) + samples(d) + '. Convert values to numbers where the data is produced.',
-  'The affected values are not drawn.'),
-  AX107: entry('warning', d =>
+  outcome: 'The affected values are not drawn.' },
+  AX107: { level: 'warning', text: d =>
     field(d) + ' has ' + count(d, 'unusable value') + rows(d) + samples(d) + '. ' +
     (d.detail ?? 'Supply an x value in the declared or inferred format for each row.'),
-  'The affected rows are not drawn.'),
-  AX108: entry('error', d =>
+  outcome: 'The affected rows are not drawn.' },
+  AX108: { level: 'error', text: d =>
     field(d) + ' has ' + count(d, 'duplicate') + series(d.series) + rows(d) + samples(d) +
     '. Provide one row per x and series, or one row per donut label.',
-  d => d.series && d.series.length > 1 ? 'The affected series are not drawn.' : 'The affected series is not drawn.'),
-  AX109: entry('hint', d =>
+  outcome: d => d.series && d.series.length > 1 ? 'The affected series are not drawn.' : 'The affected series is not drawn.' },
+  AX109: { level: 'hint', text: d =>
     field(d) + ' has ' + count(d, 'numeric timestamp') + rows(d) + '. ' +
     (d.detail ?? 'Set type: \'time\' for instants and supply epoch milliseconds.'),
-  'The values are drawn as declared.'),
-  AX110: entry('warning', d =>
+  outcome: 'The values are drawn as declared.' },
+  AX110: { level: 'warning', text: d =>
     field(d) + ' has a domain that excludes zero. Include zero in the domain.',
-  'The domain is widened to include zero.'),
-  AX111: entry('hint', d =>
+  outcome: 'The domain is widened to include zero.' },
+  AX111: { level: 'hint', text: d =>
     field(d) + ' contains instants that look like calendar dates' + rows(d) + '. Use date strings such as YYYY-MM-DD for calendar dates.',
-  'The values are shown as instants with the time zone.'),
-  AX112: entry('hint', d =>
+  outcome: 'The values are shown as instants with the time zone.' },
+  AX112: { level: 'hint', text: d =>
     field(d) + ' has ' + count(d, 'date-time without an offset', 'date-times without an offset') + rows(d) +
     '. Include a UTC offset or Z if these are instants.',
-  'The values are shown as written.'),
-  AX120: entry('error', d =>
+  outcome: 'The values are shown as written.' },
+  AX120: { level: 'error', text: d =>
     field(d) + ' has ' + count(d, 'negative donut value') + rows(d) + samples(d) + '. Supply non-negative values or choose a chart that shows negatives.',
-  'The chart shows its error state.'),
-  AX121: entry('warning', d =>
+  outcome: 'The chart shows its error state.' },
+  AX121: { level: 'warning', text: d =>
     field(d) + ' produces more than eight donut slices. Aggregate the data or choose a bar chart to show every category.',
-  'The seven largest slices are shown separately and the rest are grouped as Other (n).'),
-  AX130: entry('warning', d =>
+  outcome: 'The seven largest slices are shown separately and the rest are grouped as Other (n).' },
+  AX130: { level: 'warning', text: d =>
     field(d) + ' produces more than eight series. Filter or group series to reduce the number.',
-  'All series are drawn with dash or marker differences.'),
-  AX131: entry('hint', d =>
+  outcome: 'All series are drawn with dash or marker differences.' },
+  AX131: { level: 'hint', text: d =>
     field(d) + ' produces multiple series in a compact chart. Use one series or turn off compact mode for more room.',
-  'The series are drawn with different dashes.'),
-  AX132: entry('hint', d =>
+  outcome: 'The series are drawn with different dashes.' },
+  AX132: { level: 'hint', text: d =>
     field(d) + ' produces more bars than pixels along the category axis. Aggregate categories to make the bars readable.',
-  'All bars are drawn.'),
-  AX133: entry('hint', d =>
+  outcome: 'All bars are drawn.' },
+  AX133: { level: 'hint', text: d =>
     field(d) + ' produces more than 50,000 scatter points. Filter or aggregate points to reduce drawing time.',
-  'All points are drawn, which may be slow.'),
-  AX134: entry('error', d =>
+  outcome: 'All points are drawn, which may be slow.' },
+  AX134: { level: 'error', text: d =>
     (d.detail ?? 'The aligned frame exceeds 20,000,000 slots.') + ' Use fewer series or choose a scatter chart.',
-  'The chart shows its error state.'),
-  AX140: entry('warning', () =>
+  outcome: 'The chart shows its error state.' },
+  AX140: { level: 'warning', text: () =>
     'The chart has no title or labelledBy. Set one to give it a descriptive name.',
-  'The chart uses a generated name.'),
-  AX141: entry('warning', () =>
+  outcome: 'The chart uses a generated name.' },
+  AX141: { level: 'warning', text: () =>
     'The chart palette has less than 3:1 contrast against the background. Adjust the colors or background to reach 3:1.',
-  'The chart is drawn as themed.'),
-  AX142: entry('hint', () =>
+  outcome: 'The chart is drawn as themed.' },
+  AX142: { level: 'hint', text: () =>
     'The plot is too small to draw. Give the plot more room.',
-  'The chart shows the summary and table control.'),
-  AX143: entry('hint', d =>
+  outcome: 'The chart shows the summary and table control.' },
+  AX143: { level: 'hint', text: d =>
     field(d) + ' has ' + count(d, 'label') + ' that could not fit. Give the plot more room or shorten the labels.' +
     (d.chartType === 'bar' && d.xKind === 'category' && d.horizontal !== true
       ? ' For vertical bars with category labels, try horizontal bars (horizontal: true).' : ''),
-  'The chart shows a note that labels were hidden.'),
-  AX150: entry('warning', d =>
+  outcome: 'The chart shows a note that labels were hidden.' },
+  AX150: { level: 'warning', text: d =>
     'Option ' + quote(d.field ?? '') + ' is unsupported. ' + (d.detail ?? 'Use an option supported by this chart.') + suggestion(d),
-  'The option is ignored.'),
-  AX151: entry('warning', d =>
+  outcome: 'The option is ignored.' },
+  AX151: { level: 'warning', text: d =>
     field(d) + ' has out-of-order append values' + rows(d) + '. Append rows in x order at or after the last x.',
-  'The rows are accepted through a full update.'),
-  AX152: entry('warning', d =>
+  outcome: 'The rows are accepted through a full update.' },
+  AX152: { level: 'warning', text: d =>
     'Option ' + quote(d.field ?? 'x.timeZone') + ' has an unknown time zone' + samples(d) + '. Supply a zone recognized by Intl.',
-  'The viewer’s time zone is used.'),
-  AX160: entry('warning', d =>
+  outcome: 'The viewer’s time zone is used.' },
+  AX160: { level: 'warning', text: d =>
     field(d) + ' has a custom formatter that threw' + rows(d) + '. Make the formatter handle every value of this field.',
-  'The default format is used for the affected value.'),
-  AX199: entry('error', () =>
+  outcome: 'The default format is used for the affected value.' },
+  AX199: { level: 'error', text: () =>
     'Axylo failed while building this chart. This is a defect in Axylo, not in your data: please report it with the error printed above.',
-  'The chart shows its error state.'),
+  outcome: 'The chart shows its error state.' },
 } as const satisfies Record<Diagnostic['code'], Entry>;
 
 export type DiagnosticCode = keyof typeof diagnosticRegistry;
@@ -177,7 +180,7 @@ export function createDiagnostic(
   );
   const diagnostic: DiagnosticInput = {
     code, level: diagnosticRegistry[code].level, effect: code === 'AX105' ? 'none' : effect, origin,
-    message: diagnosticRegistry[code].message({ field, rows: firstRows, count, ...context, outcome }),
+    message: message(diagnosticRegistry[code], { field, rows: firstRows, count, ...context, outcome }),
     ...(field === undefined ? {} : { field }),
     ...(firstRows === undefined ? {} : { rows: firstRows }),
     ...(count === undefined ? {} : { count }),

@@ -8,6 +8,7 @@
  * its neighbour instead of falling back to the page.
  */
 import { createSwatch, type SwatchSpec } from './swatch';
+import { setAttr } from './attributes';
 
 export interface ToolbarItem {
   readonly key: string;
@@ -34,14 +35,6 @@ export interface Toolbar {
   /** Moves focus to the control with this key; false when there is none. */
   focus(key: string): boolean;
   destroy(): void;
-}
-
-function setAttr(el: Element, name: string, value: string | null): void {
-  if (value === null) {
-    if (el.hasAttribute(name)) el.removeAttribute(name);
-  } else if (el.getAttribute(name) !== value) {
-    el.setAttribute(name, value);
-  }
 }
 
 export function createToolbar(doc: Document): Toolbar {

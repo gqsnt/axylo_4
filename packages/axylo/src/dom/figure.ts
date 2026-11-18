@@ -7,6 +7,7 @@
  * slots (`top` above the plot, `side` beside it, `controls` under it: legend, toolbar, table) and `readout`;
  * the figure only provides those slots. The plot and `side` share the `body` row.
  */
+import { setAttr } from './attributes';
 
 export interface TitleModel {
   readonly text: string;
@@ -79,14 +80,6 @@ const HIDDEN = 'axylo-visually-hidden';
 
 function setText(el: HTMLElement, text: string): void {
   if (el.textContent !== text) el.textContent = text;
-}
-
-function setAttr(el: Element, name: string, value: string | null): void {
-  if (value === null) {
-    if (el.hasAttribute(name)) el.removeAttribute(name);
-  } else if (el.getAttribute(name) !== value) {
-    el.setAttribute(name, value);
-  }
 }
 
 function show(el: HTMLElement, visible: boolean): void {

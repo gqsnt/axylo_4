@@ -1,4 +1,7 @@
-import { SLOT_VALUE, type Formatters, type IndexRange, type PointSeries, type ScatterView, type SlotState, type TableModel, type View } from '../core/contracts';
+import {
+  SLOT_VALUE, type AlignedView, type DonutView, type Formatters, type IndexRange, type PointSeries, type ScatterView, type SlotState,
+  type TableModel, type View,
+} from '../core/contracts';
 import { pointOrder, type PointIndex, type PointOrderWork } from '../lookup/point-order';
 import { lowerBound, upperBound } from '../lookup/search';
 import { donutRatio, incomplete, slotText } from '../lookup/text';
@@ -75,60 +78,71 @@ function scatterRows(view: ScatterView, work?: PointOrderWork) {
   return { count: points.count + missing.count, cursor, beforeX: (x: number) => points.beforeX(x) + missing.beforeX(x) };
 }
 
-export function buildTable(view: View, caption: string, formatters: Formatters, messages: Messages, labels: ReaderLabels, _locale?: string, work?: PointOrderWork): TableModel {
-  if (view.kind === 'donut') {
-    const { frame, total } = view;
-    const rowCount = frame.labels.length;
-    let weights: { max: number; total: number } | undefined;
-    function writePercent(value: number): string {
-      if (Number.isFinite(total)) return formatters.percent(donutRatio(value, total));
-      if (!weights) {
-        let max = 0;
-        for (let i = 0; i < rowCount; i++) if (frame.slot[i] === SLOT_VALUE) max = Math.max(max, frame.values[i]!);
-        let scaled = 0;
-        for (let i = 0; i < rowCount; i++) if (frame.slot[i] === SLOT_VALUE) scaled += frame.values[i]! / max;
-        weights = { max, total: scaled };
-      }
-      return formatters.percent(donutRatio(value / weights.max, weights.total));
-    }
-    return {
-      caption, headers: [labels.category, withUnit(frame.valueLabel, frame.unit), labels.percentage], rowCount, pageSize: PAGE_SIZE,
-      row(i) {
-        if (!Number.isInteger(i) || i < 0 || i >= rowCount) return null;
-        const state = frame.slot[i] as SlotState;
-        const value = frame.values[i]!;
-        return [frame.labels[i]!, slotText(formatters, 0, value, state), state === SLOT_VALUE && value >= 0
-          ? writePercent(value) : messages.noData];
-      },
-      pageForX(x) { return page(readPosition(x, 'category', null, frame.labels), rowCount); },
-    };
-  }
-  if (view.kind === 'scatter') {
-    const { frame } = view;
-    const order = scatterRows(view, work);
-    let next: (() => ScatterRow | null) | null = null;
-    let nextOrdinal = -1;
-    return {
-      caption, headers: [withUnit(frame.xLabel, frame.xUnit), labels.series, withUnit(frame.yLabel, frame.yUnit)],
-      rowCount: order.count, pageSize: PAGE_SIZE,
-      row(i) {
-        if (!Number.isInteger(i) || i < 0 || i >= order.count) return null;
-        if (i !== nextOrdinal) next = order.cursor(i);
-        const at = next?.();
-        nextOrdinal = i + 1;
-        if (!at) return null;
-        const series = frame.series[at.series]!;
-        if (at.missing) return [formatters.x(series.missingX![at.index]!), series.label, messages.noData];
-        return [formatters.x(series.x[at.index]!), series.label, formatters.value(at.series, series.y[at.index]!)];
-      },
-      pageForX(x) {
-        const xPos = readPosition(x, frame.xKind, frame.timeZone);
-        return Number.isFinite(xPos) ? page(order.beforeX(xPos), order.count) : null;
-      },
-    };
-  }
+/** A chart kind's table, in buildTable's terms (a kind's composition holds only its own). */
+export type TableBuilder = (
+  view: View, caption: string, formatters: Formatters, messages: Messages, labels: ReaderLabels, locale?: string, work?: PointOrderWork,
+) => TableModel;
 
-  const { frame, visibleSlots: { start, end }, stack } = view;
+export function buildTable(view: View, caption: string, formatters: Formatters, messages: Messages, labels: ReaderLabels, locale?: string, work?: PointOrderWork): TableModel {
+  const build = view.kind === 'donut' ? donutTable : view.kind === 'scatter' ? scatterTable : alignedTable;
+  return build(view, caption, formatters, messages, labels, locale, work);
+}
+
+export const donutTable: TableBuilder = (view, caption, formatters, messages, labels) => {
+  const { frame, total } = view as DonutView;
+  const rowCount = frame.labels.length;
+  let weights: { max: number; total: number } | undefined;
+  function writePercent(value: number): string {
+    if (Number.isFinite(total)) return formatters.percent(donutRatio(value, total));
+    if (!weights) {
+      let max = 0;
+      for (let i = 0; i < rowCount; i++) if (frame.slot[i] === SLOT_VALUE) max = Math.max(max, frame.values[i]!);
+      let scaled = 0;
+      for (let i = 0; i < rowCount; i++) if (frame.slot[i] === SLOT_VALUE) scaled += frame.values[i]! / max;
+      weights = { max, total: scaled };
+    }
+    return formatters.percent(donutRatio(value / weights.max, weights.total));
+  }
+  return {
+    caption, headers: [labels.category, withUnit(frame.valueLabel, frame.unit), labels.percentage], rowCount, pageSize: PAGE_SIZE,
+    row(i) {
+      if (!Number.isInteger(i) || i < 0 || i >= rowCount) return null;
+      const state = frame.slot[i] as SlotState;
+      const value = frame.values[i]!;
+      return [frame.labels[i]!, slotText(formatters, 0, value, state), state === SLOT_VALUE && value >= 0
+        ? writePercent(value) : messages.noData];
+    },
+    pageForX(x) { return page(readPosition(x, 'category', null, frame.labels), rowCount); },
+  };
+};
+
+export const scatterTable: TableBuilder = (view, caption, formatters, messages, labels, _locale, work) => {
+  const { frame } = view as ScatterView;
+  const order = scatterRows(view as ScatterView, work);
+  let next: (() => ScatterRow | null) | null = null;
+  let nextOrdinal = -1;
+  return {
+    caption, headers: [withUnit(frame.xLabel, frame.xUnit), labels.series, withUnit(frame.yLabel, frame.yUnit)],
+    rowCount: order.count, pageSize: PAGE_SIZE,
+    row(i) {
+      if (!Number.isInteger(i) || i < 0 || i >= order.count) return null;
+      if (i !== nextOrdinal) next = order.cursor(i);
+      const at = next?.();
+      nextOrdinal = i + 1;
+      if (!at) return null;
+      const series = frame.series[at.series]!;
+      if (at.missing) return [formatters.x(series.missingX![at.index]!), series.label, messages.noData];
+      return [formatters.x(series.x[at.index]!), series.label, formatters.value(at.series, series.y[at.index]!)];
+    },
+    pageForX(x) {
+      const xPos = readPosition(x, frame.xKind, frame.timeZone);
+      return Number.isFinite(xPos) ? page(order.beforeX(xPos), order.count) : null;
+    },
+  };
+};
+
+export const alignedTable: TableBuilder = (view, caption, formatters, messages, labels) => {
+  const { frame, visibleSlots: { start, end }, stack } = view as AlignedView;
   const rowCount = end - start;
   return {
     caption, headers: [withUnit(frame.xLabel, labels.xUnit ?? null), ...frame.series.map(series => withUnit(series.label, series.unit))],
@@ -145,4 +159,4 @@ export function buildTable(view: View, caption: string, formatters: Formatters, 
       return Number.isFinite(xPos) ? page(lowerBound(frame.x.values, xPos, start, end) - start, rowCount) : null;
     },
   };
-}
+};

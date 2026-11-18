@@ -12,13 +12,16 @@
  * not by polling.
  */
 import type { MarkRenderer, Scene } from './contracts';
-import { createCanvasRenderer, createSvgRenderer, createTextLayer, type TextLayer } from '../render';
+import { canvasRendererWith } from '../render/canvas';
+import { svgRendererWith } from '../render/svg';
+import { createTextLayer, type TextLayer } from '../render/text';
 import { ensureStyles, resolveTheme, watchTheme } from '../theme';
 import { createFigure, type Figure } from '../dom/figure';
 import { createInteraction, type Interaction } from '../dom/interaction';
 import type { DeliveryConsole } from './delivery';
 import { createMeasurer, noteFontLoad, readTextStyle, resolveLocale, viewerTimeZone, watchEnvironment, watchLanguage } from './environment';
-import { createController, type ChartHandle, type ChartKind, type Controller, type ControllerActions } from './controller';
+import { controllerFor, type ChartHandle, type Controller, type ControllerActions } from './controller';
+import type { Composition } from './composition';
 import { object } from './stages';
 
 export type { BenchHook, ChartHandle, ChartKind, DevHook, Stage } from './controller';
@@ -39,7 +42,7 @@ function allocateId(doc: Document): string {
   }
 }
 
-export function createChart(kind: ChartKind, target: unknown, input: unknown, overrides: ChartEnvironmentOverrides = {}): ChartHandle {
+export function createChart(composition: Composition, target: unknown, input: unknown, overrides: ChartEnvironmentOverrides = {}): ChartHandle {
   const root = resolveTarget(target);
   const doc = root.ownerDocument;
   const win = doc.defaultView;
@@ -62,7 +65,7 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
     const requested = object(input).__renderer === 'canvas' ? 'canvas' : 'svg';
     const id = allocateId(doc);
 
-    const renderer: MarkRenderer = requested === 'canvas' ? createCanvasRenderer(doc) : createSvgRenderer(doc);
+    const renderer: MarkRenderer = requested === 'canvas' ? canvasRendererWith(composition.canvas, doc) : svgRendererWith(composition.svg, doc);
     cleanup.push(() => renderer.destroy());
     const textLayer: TextLayer = createTextLayer(doc);
     cleanup.push(() => textLayer.destroy());
@@ -77,7 +80,7 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
       select: r => controller?.actions.select(r),
       hover: r => controller?.actions.hover(r),
     };
-    const interaction: Interaction = createInteraction(figure, renderer, actions);
+    const interaction: Interaction = createInteraction(composition.interaction, figure, renderer, actions);
     cleanup.push(() => interaction.destroy());
     const measurer = createMeasurer(doc);
     ensureStyles(doc);
@@ -147,7 +150,7 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
     cleanup.push(() => resizeObserver.disconnect());
 
     const timeZone = viewerTimeZone();
-    controller = createController(kind, input, {
+    controller = controllerFor(composition, input, {
       id,
       // The author's own id names an untitled chart in diagnostics; the allocated one stays for the DOM.
       targetId: root.id || null,

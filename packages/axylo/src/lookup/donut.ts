@@ -4,7 +4,7 @@ import { contains, type PlotLayout } from './geometry';
 import { pageDistance } from './search';
 import { sliceText } from './text';
 
-const TURN = 2 * Math.PI;
+const TURN = 6.283185307179586; // 2π, a literal so the module does no work at import time
 
 function sectorBox(cx: number, cy: number, inner: number, outer: number, start: number, end: number): Rect {
   let left = Infinity;

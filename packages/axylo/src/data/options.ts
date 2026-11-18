@@ -1,6 +1,7 @@
 import type { DiagnosticSink } from '../core/contracts';
-import type { Messages, ValueFieldOptions, XFieldOptions } from '../public';
+import type { ValueFieldOptions, XFieldOptions } from '../public';
 import { report } from '../diagnostics';
+import { defaultMessages } from '../messages';
 import { columnsTable, rowsTable, type Columns, type Table } from './table';
 
 export type AlignedChartType = 'line' | 'area' | 'bar';
@@ -40,29 +41,24 @@ export interface ResolvedOptions {
   readonly name: string;
 }
 
-const common = ['data', 'title', 'labelledBy', 'subtitle', 'description', 'state', 'legend', 'tooltip',
-  'table', 'colors', 'messages', 'locale', 'strict', 'onDiagnostic'];
-const cartesian = [...common, 'x', 'y', 'series', 'zoom', 'reference'];
-const aligned = [...cartesian, 'compact'];
+// The option names each chart accepts. Written out rather than spread from shared lists: building them at
+// import time would keep a bundler from dropping the module.
+const aligned = ['data', 'title', 'labelledBy', 'subtitle', 'description', 'state', 'legend', 'tooltip',
+  'table', 'colors', 'messages', 'locale', 'strict', 'onDiagnostic', 'x', 'y', 'series', 'zoom', 'reference', 'compact'];
 const keysForChart: Record<ChartType, readonly string[]> = {
-  line: aligned, area: [...aligned, 'stacked'], bar: [...aligned, 'layout', 'horizontal'],
-  scatter: cartesian, donut: [...common, 'label', 'value'],
+  line: aligned,
+  area: ['data', 'title', 'labelledBy', 'subtitle', 'description', 'state', 'legend', 'tooltip',
+    'table', 'colors', 'messages', 'locale', 'strict', 'onDiagnostic', 'x', 'y', 'series', 'zoom', 'reference', 'compact', 'stacked'],
+  bar: ['data', 'title', 'labelledBy', 'subtitle', 'description', 'state', 'legend', 'tooltip',
+    'table', 'colors', 'messages', 'locale', 'strict', 'onDiagnostic', 'x', 'y', 'series', 'zoom', 'reference', 'compact', 'layout', 'horizontal'],
+  scatter: ['data', 'title', 'labelledBy', 'subtitle', 'description', 'state', 'legend', 'tooltip',
+    'table', 'colors', 'messages', 'locale', 'strict', 'onDiagnostic', 'x', 'y', 'series', 'zoom', 'reference'],
+  donut: ['data', 'title', 'labelledBy', 'subtitle', 'description', 'state', 'legend', 'tooltip',
+    'table', 'colors', 'messages', 'locale', 'strict', 'onDiagnostic', 'label', 'value'],
 };
-const fieldKeys = ['field', 'label', 'unit', 'format', 'tickFormat', 'domain'];
-const scatterXKeys = [...fieldKeys, 'type', 'timeZone'];
-const xKeys = [...scatterXKeys, 'ordered'];
-const valueKeys = [...fieldKeys, 'scale', 'missing', 'parse'];
-const messageKeys = {
-  viewAsTable: true, hideTable: true, noData: true, noObservation: true, incompleteStack: true, moreRows: true,
-  otherSlices: true, valuesNotShown: true, valuesChanged: true, labelsHidden: true, loading: true, empty: true,
-  error: true, internalError: true, chartName: true, chartSummary: true, seriesSummary: true, referenceSummary: true,
-  timeZoneNote: true, plotLabel: true, controlsLabel: true, pointOf: true, zoomIn: true, zoomOut: true, resetZoom: true,
-  pause: true, resume: true, previousPage: true, nextPage: true, pageOf: true, jumpToX: true, showSeries: true, hideSeries: true,
-  category: true, percentage: true, series: true, value: true, typeLine: true, typeArea: true, typeBar: true, typeScatter: true,
-  typeDonut: true, donutSummary: true, seriesNoData: true, seriesNotDrawn: true, referenceLine: true, referenceBand: true,
-  plotRole: true, pointAll: true, seriesValue: true, position: true, total: true,
-  panLeft: true, panRight: true, jumpNotFound: true, plotInstructions: true, seeTable: true, totalMixed: true, incompleteAt: true, incompleteCount: true,
-} satisfies Record<keyof Messages, true>;
+const scatterXKeys = ['field', 'label', 'unit', 'format', 'tickFormat', 'domain', 'type', 'timeZone'];
+const xKeys = ['field', 'label', 'unit', 'format', 'tickFormat', 'domain', 'type', 'timeZone', 'ordered'];
+const valueKeys = ['field', 'label', 'unit', 'format', 'tickFormat', 'domain', 'scale', 'missing', 'parse'];
 
 function distance(a: string, b: string): number {
   let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
@@ -220,7 +216,8 @@ export function resolveOptions(type: ChartType, input: unknown, sink: Diagnostic
   unknownKeys(options, keysForChart[type], sink);
   unknownKeys(object(options.title), ['text', 'visible', 'level'], sink, 'title.');
   unknownKeys(object(options.state), ['error', 'empty'], sink, 'state.');
-  unknownKeys(object(options.messages), Object.keys(messageKeys), sink, 'messages.');
+  // The message keys are those of the built-in messages (the one list of them, in the same order).
+  unknownKeys(object(options.messages), Object.keys(defaultMessages), sink, 'messages.');
   if (compact && options.reference !== undefined) {
     report(sink, 'AX150', 'none', { field: 'reference', count: 1, detail: 'Compact charts draw no references.' });
   } else if (!donut && Array.isArray(options.reference)) {

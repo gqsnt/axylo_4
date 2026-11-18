@@ -302,15 +302,31 @@ export function buildView(frame: PointFrame, state: ScatterViewState, sink: Diag
 export function buildView(frame: DonutFrame, state: DonutViewState, sink: DiagnosticSink): DonutView;
 export function buildView(frame: Frame, state: ViewState, sink: DiagnosticSink): View;
 export function buildView(frame: Frame, state: ViewState, sink: DiagnosticSink): View {
-  const previous = state.previous?.kind === state.kind ? state.previous : undefined;
-  if (frame.shape === 'donut' && state.kind === 'donut') {
-    return buildDonut(frame, state.otherLabel, previous?.kind === 'donut' ? previous : undefined, sink);
-  }
+  if (frame.shape === 'donut' && state.kind === 'donut') return buildDonutView(frame, state, sink);
   if (frame.shape === 'donut' || state.kind === 'donut' || (frame.shape === 'points') !== (state.kind === 'scatter')) {
     throw new TypeError('The view kind must match the frame shape.');
   }
+  if (frame.shape === 'points' && state.kind === 'scatter') return buildScatterView(frame, state, sink);
+  if (frame.shape !== 'aligned' || state.kind === 'scatter') throw new TypeError('Expected an aligned chart.');
+  return buildAlignedView(frame, state, sink);
+}
 
-  const prior = previous?.kind !== 'donut' ? previous : undefined;
+// One builder per frame shape, so a chart kind's composition reaches only its own; buildView above is the
+// dispatch for callers that hold the kind as a value (validate()).
+
+export function buildDonutView(frame: DonutFrame, state: DonutViewState, sink: DiagnosticSink): DonutView {
+  const previous = state.previous?.kind === 'donut' ? state.previous : undefined;
+  return buildDonut(frame, state.otherLabel, previous, sink);
+}
+
+/** What the scatter and aligned views share: visibility, cues, references and the x domains. */
+function cartesianBase(
+  frame: AlignedFrame | PointFrame, state: AlignedViewState | ScatterViewState, sink: DiagnosticSink,
+  /** The data's x extent (the shape's own: bar bands, or scatter's points and their missing observations). */
+  extent: (continuousBars: boolean) => Span,
+) {
+  // A previous view of the same kind (never a donut here).
+  const prior = state.previous?.kind === state.kind ? state.previous as AlignedView | ScatterView : undefined;
   const sameFrame = prior?.frame === frame;
   const compact = state.kind !== 'scatter' && (state.compact ?? false);
   const visible = reuse(frame.series.map(series => series.drawable && !state.hidden?.has(series.key)), prior?.visible, (a, b) => a === b);
@@ -321,9 +337,7 @@ export function buildView(frame: Frame, state: ViewState, sink: DiagnosticSink):
     (a, b) => a.axis === b.axis && a.from === b.from && a.to === b.to && a.label === b.label);
   const category = column.kind === 'category';
   const continuousBars = state.kind === 'bar' && !category;
-  const xData: Span = frame.shape === 'aligned'
-    ? continuousBars ? barExtent(frame.x.values) : [frame.x.values[0] ?? Infinity, frame.x.values[frame.length - 1] ?? -Infinity]
-    : scatterX(frame, sink);
+  const xData = extent(continuousBars);
   const spans = xExtents(xData, column.kind, readX, references, state, compact, sink);
   const xFull = keepSpan(spans.xFull, prior?.xFull);
   const xDomain = sameSpan(xFull, spans.xDomain) ? xFull : keepSpan(spans.xDomain, prior?.xDomain);
@@ -331,21 +345,26 @@ export function buildView(frame: Frame, state: ViewState, sink: DiagnosticSink):
   const sameShared = sameFrame && prior.compact === compact && prior.visible === visible &&
     prior.cues === seriesCues && prior.references === references && prior.xFull === xFull && prior.xDomain === xDomain;
   const oldExtrema = sameFrame && prior.visible === visible ? extrema.get(prior) : undefined;
+  return { prior, sameFrame, compact, visible, references, category, continuousBars, xFull, xDomain, shared, sameShared, oldExtrema };
+}
 
-  if (frame.shape === 'points' && state.kind === 'scatter') {
-    const old = prior?.kind === 'scatter' ? prior : undefined;
-    const visiblePoints = sameFrame && old?.xDomain === xDomain ? old.visiblePoints : reuse(
-      frame.series.map(({ x }, i) => rangeOf(x, xDomain, old?.visiblePoints[i])), old?.visiblePoints, sameRange,
-    );
-    const data = oldExtrema && old?.visiblePoints === visiblePoints ? oldExtrema : pointExtrema(frame, visible, visiblePoints);
-    const yDomain = keepSpan(yExtent(data, references, state, state.valueScale, sink).domain, old?.yDomain);
-    if (sameShared && old?.visiblePoints === visiblePoints && old.yDomain === yDomain) return old;
-    const view: ScatterView = { ...shared, kind: 'scatter', frame, visiblePoints, yDomain };
-    extrema.set(view, data);
-    return view;
-  }
+export function buildScatterView(frame: PointFrame, state: ScatterViewState, sink: DiagnosticSink): ScatterView {
+  const { prior, sameFrame, visible, references, xDomain, shared, sameShared, oldExtrema } = cartesianBase(frame, state, sink, () => scatterX(frame, sink));
+  const old = prior?.kind === 'scatter' ? prior : undefined;
+  const visiblePoints = sameFrame && old?.xDomain === xDomain ? old.visiblePoints : reuse(
+    frame.series.map(({ x }, i) => rangeOf(x, xDomain, old?.visiblePoints[i])), old?.visiblePoints, sameRange,
+  );
+  const data = oldExtrema && old?.visiblePoints === visiblePoints ? oldExtrema : pointExtrema(frame, visible, visiblePoints);
+  const yDomain = keepSpan(yExtent(data, references, state, state.valueScale, sink).domain, old?.yDomain);
+  if (sameShared && old?.visiblePoints === visiblePoints && old.yDomain === yDomain) return old;
+  const view: ScatterView = { ...shared, kind: 'scatter', frame, visiblePoints, yDomain };
+  extrema.set(view, data);
+  return view;
+}
 
-  if (frame.shape !== 'aligned' || state.kind === 'scatter') throw new TypeError('Expected an aligned chart.');
+export function buildAlignedView(frame: AlignedFrame, state: AlignedViewState, sink: DiagnosticSink): AlignedView {
+  const { prior, sameFrame, visible, references, category, continuousBars, xDomain, shared, sameShared, oldExtrema } = cartesianBase(frame, state, sink,
+    bars => bars ? barExtent(frame.x.values) : [frame.x.values[0] ?? Infinity, frame.x.values[frame.length - 1] ?? -Infinity]);
   const old = prior?.kind === state.kind ? prior : undefined;
   const horizontal = state.kind === 'bar' && (state.horizontal ?? false);
   const visibleSlots = sameFrame && old?.xDomain === xDomain ? old.visibleSlots : rangeOf(frame.x.values, xDomain, old?.visibleSlots);

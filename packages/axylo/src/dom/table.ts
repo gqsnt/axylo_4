@@ -5,6 +5,7 @@
  * jumps to the page holding an x value. Text only, never HTML.
  */
 import type { TableModel, XValue } from '../core/contracts';
+import { setAttr } from './attributes';
 
 export interface TableTexts {
   readonly previousPage: string;
@@ -29,11 +30,6 @@ export interface TableView {
   focus(): void;
   readonly page: number;
   destroy(): void;
-}
-
-function setAttr(el: Element, name: string, value: string | null): void {
-  if (value === null) el.removeAttribute(name);
-  else if (el.getAttribute(name) !== value) el.setAttribute(name, value);
 }
 
 /**

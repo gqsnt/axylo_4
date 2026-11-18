@@ -1,11 +1,11 @@
 import type {
-  AreaMark, BandMark, DonutView, Layout, Mark, PathMark, PointMark, Projection, Rect, RuleMark, Scene, View,
+  AlignedView, AreaMark, BandMark, DonutView, Layout, Mark, PathMark, PointMark, Projection, Rect, RuleMark, Scene, View,
 } from '../core/contracts';
 import { DONUT_GAP, donutGeometry } from '../view/donut-geometry';
 import { addArea, addStackedAreas } from './areas';
 import { barMarks } from './bars';
 import { position, projectReference, rule, seriesPaint, token } from './geometry';
-import { addLine, drawing, scatterPoints } from './lines';
+import { addLine, drawing, scatterPoints, type Drawing } from './lines';
 
 type Plot = Extract<Layout, { kind: 'plot' }>;
 type Cartesian = Exclude<Projection, { kind: 'ring' }>;
@@ -78,45 +78,99 @@ function arcMarks(view: DonutView, projection: Extract<Projection, { kind: 'ring
   return [{ type: 'arcs', cx, cy, r0, r1, angles, fills, gap: DONUT_GAP }];
 }
 
-export function buildScene(view: View, layout: Layout, devicePixelRatio: number): Scene {
-  const { width, height } = layout;
-  if (layout.kind !== 'plot' && layout.kind !== 'compact') {
-    return { width, height, clip: { x: 0, y: 0, width, height }, marks: [] };
-  }
-  const { plot: clip, projection } = layout;
-  if (projection.kind === 'ring' || view.kind === 'donut') {
-    const marks = projection.kind === 'ring' && view.kind === 'donut' ? arcMarks(view, projection) : [];
-    return { width, height, clip, marks };
-  }
+/** Where the marks go: the plot or compact layout, or null for a layout with nothing drawn. */
+type Drawn = Extract<Layout, { kind: 'plot' | 'compact' }>;
 
+function emptyScene(layout: Layout): Scene {
+  const { width, height } = layout;
+  return { width, height, clip: { x: 0, y: 0, width, height }, marks: [] };
+}
+
+/** A chart kind's data marks, layered between the grid and the axes; empty when the projection does not fit. */
+export type DataLayers = (
+  view: Exclude<View, DonutView>, projection: Cartesian, clip: Rect, compact: boolean, devicePixelRatio: number,
+) => readonly (readonly Mark[])[];
+
+/** The scene of a Cartesian chart: references and grid, the kind's data layers, then axes and reference lines. */
+export function cartesianScene(layers: DataLayers, view: View, layout: Layout, devicePixelRatio: number): Scene {
+  if (layout.kind !== 'plot' && layout.kind !== 'compact') return emptyScene(layout);
+  const { width, height } = layout;
+  const { plot: clip, projection } = layout;
+  if (projection.kind === 'ring' || view.kind === 'donut') return { width, height, clip, marks: [] };
   const compact = layout.kind === 'compact' || view.compact;
   const { grid, edges } = layout.kind === 'plot' && !compact ? gridAndAxes(layout, projection) : { grid: [], edges: [] };
   const { bands, lines } = compact ? { bands: [], lines: [] } : references(view, projection, clip);
-  const layers: (readonly Mark[])[] = [bands, grid];
-  if (view.kind === 'bar' && projection.kind === 'bands') {
-    layers.push(barMarks(view, projection, clip));
-  } else if (view.kind === 'scatter' && projection.kind === 'xy') {
-    layers.push(scatterPoints(view, projection));
-  } else if ((view.kind === 'line' || view.kind === 'area') && projection.kind === 'xy') {
-    const areas: AreaMark[] = [];
-    const seams: PathMark[] = [];
-    const paths: PathMark[] = [];
-    const points: PointMark[] = [];
-    const dpr = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
-    const draw = drawing(view.frame.x.values, projection, clip, dpr);
-    if (view.kind === 'area' && view.stack) {
-      addStackedAreas(draw, view, view.stack, compact, areas, seams, paths, points);
-    } else {
-      for (let i = 0; i < view.frame.series.length; i++) {
-        if (!view.visible[i]) continue;
-        const { slot, y } = view.frame.series[i]!;
-        const input = { ...draw, range: view.drawSlots[i]!, slot, y };
-        if (view.kind === 'area') addArea(input, view, i, compact, areas, paths, points);
-        else addLine(input, view, i, view.visibleSlots, compact, paths, points);
-      }
+  return { width, height, clip, marks: [bands, grid, ...layers(view, projection, clip, compact, devicePixelRatio), edges, lines].flat() };
+}
+
+export function donutScene(view: View, layout: Layout): Scene {
+  if (layout.kind !== 'plot' && layout.kind !== 'compact') return emptyScene(layout);
+  const { width, height } = layout;
+  const { plot: clip, projection } = layout as Drawn;
+  const marks = projection.kind === 'ring' && view.kind === 'donut' ? arcMarks(view, projection) : [];
+  return { width, height, clip, marks };
+}
+
+export const barLayers: DataLayers = (view, projection, clip) =>
+  view.kind === 'bar' && projection.kind === 'bands' ? [barMarks(view, projection, clip)] : [];
+
+export const scatterLayers: DataLayers = (view, projection) =>
+  view.kind === 'scatter' && projection.kind === 'xy' ? [scatterPoints(view, projection)] : [];
+
+function seriesLayers(
+  view: Exclude<View, DonutView>, projection: Cartesian, clip: Rect, devicePixelRatio: number,
+  add: (draw: Drawing, view: AlignedView, areas: AreaMark[], seams: PathMark[], paths: PathMark[], points: PointMark[]) => void,
+): readonly (readonly Mark[])[] {
+  if ((view.kind !== 'line' && view.kind !== 'area') || projection.kind !== 'xy') return [];
+  const areas: AreaMark[] = [];
+  const seams: PathMark[] = [];
+  const paths: PathMark[] = [];
+  const points: PointMark[] = [];
+  const dpr = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
+  add(drawing(view.frame.x.values, projection, clip, dpr), view, areas, seams, paths, points);
+  return [areas, seams, paths, points];
+}
+
+export const lineLayers: DataLayers = (view, projection, clip, compact, devicePixelRatio) =>
+  seriesLayers(view, projection, clip, devicePixelRatio, (draw, aligned, _areas, _seams, paths, points) => {
+    for (let i = 0; i < aligned.frame.series.length; i++) {
+      if (!aligned.visible[i]) continue;
+      const { slot, y } = aligned.frame.series[i]!;
+      if (aligned.kind === 'line') addLine({ ...draw, range: aligned.drawSlots[i]!, slot, y }, aligned, i, aligned.visibleSlots, compact, paths, points);
     }
-    layers.push(areas, seams, paths, points);
+  });
+
+export const areaLayers: DataLayers = (view, projection, clip, compact, devicePixelRatio) =>
+  seriesLayers(view, projection, clip, devicePixelRatio, (draw, aligned, areas, seams, paths, points) => {
+    if (aligned.kind === 'area' && aligned.stack) {
+      addStackedAreas(draw, aligned, aligned.stack, compact, areas, seams, paths, points);
+      return;
+    }
+    for (let i = 0; i < aligned.frame.series.length; i++) {
+      if (!aligned.visible[i]) continue;
+      const { slot, y } = aligned.frame.series[i]!;
+      const input = { ...draw, range: aligned.drawSlots[i]!, slot, y };
+      if (aligned.kind === 'area') addArea(input, aligned, i, compact, areas, paths, points);
+      else addLine(input, aligned, i, aligned.visibleSlots, compact, paths, points);
+    }
+  });
+
+// Each kind's scene, for its composition.
+export const lineScene = (view: View, layout: Layout, devicePixelRatio: number): Scene => cartesianScene(lineLayers, view, layout, devicePixelRatio);
+export const areaScene = (view: View, layout: Layout, devicePixelRatio: number): Scene => cartesianScene(areaLayers, view, layout, devicePixelRatio);
+export const barScene = (view: View, layout: Layout, devicePixelRatio: number): Scene => cartesianScene(barLayers, view, layout, devicePixelRatio);
+export const scatterScene = (view: View, layout: Layout, devicePixelRatio: number): Scene => cartesianScene(scatterLayers, view, layout, devicePixelRatio);
+
+const allLayers: DataLayers = (view, projection, clip, compact, devicePixelRatio) =>
+  view.kind === 'bar' ? barLayers(view, projection, clip, compact, devicePixelRatio)
+    : view.kind === 'scatter' ? scatterLayers(view, projection, clip, compact, devicePixelRatio)
+      : view.kind === 'area' ? areaLayers(view, projection, clip, compact, devicePixelRatio)
+        : lineLayers(view, projection, clip, compact, devicePixelRatio);
+
+/** Every kind's scene, dispatched on the view (a kind's composition calls its own scene directly). */
+export function buildScene(view: View, layout: Layout, devicePixelRatio: number): Scene {
+  if (layout.kind === 'plot' || layout.kind === 'compact') {
+    if (layout.projection.kind === 'ring' || view.kind === 'donut') return donutScene(view, layout);
   }
-  layers.push(edges, lines);
-  return { width, height, clip, marks: layers.flat() };
+  return cartesianScene(allLayers, view, layout, devicePixelRatio);
 }

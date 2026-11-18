@@ -14,6 +14,7 @@ import {
 import { donutGeometry } from '../view/donut-geometry';
 import type { Messages } from '../public';
 import { fill, pointOf } from '../messages';
+import { lowerBound } from '../lookup/search';
 
 export type Mode = 'all' | 'single';
 type Span = readonly [number, number];
@@ -34,15 +35,6 @@ export function sameRef(a: DatumRef | null, b: DatumRef | null): boolean {
   if (a.kind === 'point' && b.kind === 'point') return a.seriesKey === b.seriesKey && a.row === b.row && a.x === b.x;
   if (a.kind === 'slice' && b.kind === 'slice') return a.sliceKey === b.sliceKey;
   return false;
-}
-
-function lowerBound(values: ArrayLike<number>, value: number, start: number, end: number): number {
-  while (start < end) {
-    const mid = (start + end) >>> 1;
-    if (values[mid]! < value) start = mid + 1;
-    else end = mid;
-  }
-  return start;
 }
 
 /** Matches lookup's page size (spec A2 "Page keys"): a tenth of the visible positions, at least one. */
@@ -177,7 +169,7 @@ const RING_GAP = 4;
 export const RING_REACH = 10;
 /** The ring in the focus colour, and the background-coloured surround it is drawn on. */
 const RING_WIDTH = 2;
-const SURROUND_WIDTH = RING_WIDTH + 2;
+const SURROUND_WIDTH = 4; // RING_WIDTH + 2, written out: no work at import time
 /** How far inside the plot's rectangle its focus outline reaches (2 px at an offset of -3 px). */
 export const OUTLINE_REACH = 4;
 
@@ -201,65 +193,90 @@ function seriesIndex(view: View, ref: DatumRef): number {
   return view.frame.series.findIndex(s => s.key === ref.seriesKey);
 }
 
+/** Adds what a chart kind draws over its marks for the shown target (cursor, points, outlines). */
+export type TargetMarks = (input: OverlayInput, plot: Rect, clipped: Mark[], unclipped: Mark[]) => void;
+
+/** Aligned charts: the cursor rule at the x, with the points (lines, areas) or outlines (bars) there. */
+export const alignedTargetMarks: TargetMarks = ({ view, layout, lookup, target, only }, plot, clipped, unclipped) => {
+  if (target?.kind !== 'x' || view.kind === 'donut' || view.kind === 'scatter' || layout.kind !== 'plot') return;
+  const projection = layout.projection;
+  const refs = only ? [only] : refsAt(view, target.x);
+  const scale = projection.kind === 'xy' ? projection.x : projection.kind === 'bands' ? projection.band : null;
+  if (scale) {
+    const at = scale.type === 'band' ? scale.center(target.x) : scale.map(target.x);
+    const across = projection.kind === 'bands' && projection.horizontal;
+    if (Number.isFinite(at)) {
+      clipped.push(across ? rule(plot.x, at, plot.x + plot.width, at, 'axis', 1) : rule(at, plot.y, at, plot.y + plot.height, 'axis', 1));
+    }
+  }
+  for (const ref of refs) {
+    const box = lookup.anchor(ref);
+    if (!box) continue;
+    if (projection.kind === 'bands') {
+      unclipped.push(...outline(box, 1, 'text', 2));
+    } else {
+      const s = seriesIndex(view, ref);
+      const cue = view.cues[s];
+      const xy = Float32Array.of(box.x + box.width / 2, box.y + box.height / 2);
+      const shape = cue?.marker ?? 'circle';
+      clipped.push({ type: 'points', series: s, xy, shape, size: HALO, fill: { kind: 'token', name: 'background' } });
+      clipped.push({ type: 'points', series: s, xy, shape, size: MARKER, fill: { kind: 'series', index: s } });
+    }
+  }
+};
+
+/** Scatter: the points under the pointer, highlighted. */
+export const scatterTargetMarks: TargetMarks = ({ view, lookup, target }, _plot, clipped) => {
+  if (target?.kind !== 'point' || view.kind !== 'scatter') return;
+  for (const ref of target.refs) {
+    const box = lookup.anchor(ref);
+    if (!box) continue;
+    const s = seriesIndex(view, ref);
+    const xy = Float32Array.of(box.x, box.y);
+    const shape = view.cues[s]?.marker ?? 'circle';
+    clipped.push({ type: 'points', series: s, xy, shape, size: HALO, fill: { kind: 'token', name: 'text' } });
+    clipped.push({ type: 'points', series: s, xy, shape, size: MARKER, fill: { kind: 'series', index: s } });
+  }
+};
+
+/** Donut: the slice outlined, outside the ring and inside the hole. */
+export const donutTargetMarks: TargetMarks = ({ view, layout, target }, _plot, _clipped, unclipped) => {
+  if (target?.kind !== 'slice' || view.kind !== 'donut' || layout.kind !== 'plot' || layout.projection.kind !== 'ring') return;
+  const projection = layout.projection;
+  // The outline follows the slice as drawn: a slice thinner than a pixel of arc is widened to stay visible.
+  const geometry = donutGeometry(view.slices, projection);
+  const at = geometry.drawn.findIndex(s => s.key === target.sliceKey);
+  const slice = at >= 0 ? geometry.drawn[at] : undefined;
+  const from = at >= 0 ? geometry.angles[2 * at]! : 0;
+  const to = at >= 0 ? geometry.angles[2 * at + 1]! : 0;
+  if (slice && to > from) {
+    const angles = Float32Array.of(from, to);
+    const fills = [{ kind: 'token', name: 'text' } as const];
+    unclipped.push({ type: 'arcs', cx: projection.cx, cy: projection.cy, r0: projection.r1 + 1, r1: projection.r1 + 4, angles, fills, gap: 0 });
+    if (projection.r0 > 5) {
+      unclipped.push({ type: 'arcs', cx: projection.cx, cy: projection.cy, r0: projection.r0 - 4, r1: projection.r0 - 1, angles, fills, gap: 0 });
+    }
+  }
+};
+
+const allTargetMarks: TargetMarks = (input, plot, clipped, unclipped) => {
+  const kind = input.view.kind;
+  (kind === 'donut' ? donutTargetMarks : kind === 'scatter' ? scatterTargetMarks : alignedTargetMarks)(input, plot, clipped, unclipped);
+};
+
 /** Cursor rule, highlighted points or bar and slice outlines, and the keyboard focus ring (contracts: Overlay). */
 export function buildOverlay(input: OverlayInput): Overlay | null {
-  const { view, layout, lookup, target, ring, only } = input;
+  return overlayWith(allTargetMarks, input);
+}
+
+/** The overlay with a chart kind's own target marks (a kind's composition holds only its own). */
+export function overlayWith(targetMarks: TargetMarks, input: OverlayInput): Overlay | null {
+  const { layout, lookup, target, ring } = input;
   if (layout.kind !== 'plot' || (target === null && ring === null)) return null;
   const plot = layout.plot;
   const clipped: Mark[] = [];
   const unclipped: Mark[] = [];
-  const projection = layout.projection;
-
-  if (target?.kind === 'x' && view.kind !== 'donut' && view.kind !== 'scatter') {
-    const refs = only ? [only] : refsAt(view, target.x);
-    const scale = projection.kind === 'xy' ? projection.x : projection.kind === 'bands' ? projection.band : null;
-    if (scale) {
-      const at = scale.type === 'band' ? scale.center(target.x) : scale.map(target.x);
-      const across = projection.kind === 'bands' && projection.horizontal;
-      if (Number.isFinite(at)) {
-        clipped.push(across ? rule(plot.x, at, plot.x + plot.width, at, 'axis', 1) : rule(at, plot.y, at, plot.y + plot.height, 'axis', 1));
-      }
-    }
-    for (const ref of refs) {
-      const box = lookup.anchor(ref);
-      if (!box) continue;
-      if (projection.kind === 'bands') {
-        unclipped.push(...outline(box, 1, 'text', 2));
-      } else {
-        const s = seriesIndex(view, ref);
-        const cue = view.cues[s];
-        const xy = Float32Array.of(box.x + box.width / 2, box.y + box.height / 2);
-        const shape = cue?.marker ?? 'circle';
-        clipped.push({ type: 'points', series: s, xy, shape, size: HALO, fill: { kind: 'token', name: 'background' } });
-        clipped.push({ type: 'points', series: s, xy, shape, size: MARKER, fill: { kind: 'series', index: s } });
-      }
-    }
-  } else if (target?.kind === 'point' && view.kind === 'scatter') {
-    for (const ref of target.refs) {
-      const box = lookup.anchor(ref);
-      if (!box) continue;
-      const s = seriesIndex(view, ref);
-      const xy = Float32Array.of(box.x, box.y);
-      const shape = view.cues[s]?.marker ?? 'circle';
-      clipped.push({ type: 'points', series: s, xy, shape, size: HALO, fill: { kind: 'token', name: 'text' } });
-      clipped.push({ type: 'points', series: s, xy, shape, size: MARKER, fill: { kind: 'series', index: s } });
-    }
-  } else if (target?.kind === 'slice' && view.kind === 'donut' && projection.kind === 'ring') {
-    // The outline follows the slice as drawn: a slice thinner than a pixel of arc is widened to stay visible.
-    const geometry = donutGeometry(view.slices, projection);
-    const at = geometry.drawn.findIndex(s => s.key === target.sliceKey);
-    const slice = at >= 0 ? geometry.drawn[at] : undefined;
-    const from = at >= 0 ? geometry.angles[2 * at]! : 0;
-    const to = at >= 0 ? geometry.angles[2 * at + 1]! : 0;
-    if (slice && to > from) {
-      const angles = Float32Array.of(from, to);
-      const fills = [{ kind: 'token', name: 'text' } as const];
-      unclipped.push({ type: 'arcs', cx: projection.cx, cy: projection.cy, r0: projection.r1 + 1, r1: projection.r1 + 4, angles, fills, gap: 0 });
-      if (projection.r0 > 5) {
-        unclipped.push({ type: 'arcs', cx: projection.cx, cy: projection.cy, r0: projection.r0 - 4, r1: projection.r0 - 1, angles, fills, gap: 0 });
-      }
-    }
-  }
+  targetMarks(input, plot, clipped, unclipped);
 
   if (ring) {
     const box = lookup.anchor(ring);

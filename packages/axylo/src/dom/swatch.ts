@@ -26,11 +26,22 @@ export interface SwatchSpec {
    * intervals (spec A5). Bars have none; they are told apart by pattern past eight series (spec F9).
    */
   readonly marker?: boolean;
-  /** The bar pattern drawn over the fill in the background color, or null. */
-  readonly pattern?: 'diagonal' | 'cross' | 'dots' | null;
+  /** The bar pattern drawn over the fill in the background color (from swatchPattern), or null. */
+  readonly pattern?: SwatchPattern | null;
+}
+
+export interface SwatchPattern {
+  readonly kind: 'diagonal' | 'cross' | 'dots';
+  /** Path data inside the chip. */
+  readonly d: string;
 }
 
 const BACKGROUND = 'var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)))';
+
+/** A bar pattern for the chip; only the bar's swatch asks for one, so only bars carry the drawing. */
+export function swatchPattern(kind: SwatchPattern['kind']): SwatchPattern {
+  return { kind, d: patternPath(kind) };
+}
 
 /** The pattern inside the 10 × 10 chip at (5, 1), as path data: lines x + y = c (and x − y = c), or dots. */
 function patternPath(kind: 'diagonal' | 'cross' | 'dots'): string {
@@ -133,8 +144,8 @@ export function createSwatch(doc: Document, spec: SwatchSpec): SVGSVGElement {
   if (chip && spec.pattern && !spec.hollow) {
     const pattern = doc.createElementNS(NS, 'path');
     pattern.setAttribute('class', 'axylo-swatch-pattern');
-    pattern.setAttribute('d', patternPath(spec.pattern));
-    if (spec.pattern === 'dots') pattern.setAttribute('fill', BACKGROUND);
+    pattern.setAttribute('d', spec.pattern.d);
+    if (spec.pattern.kind === 'dots') pattern.setAttribute('fill', BACKGROUND);
     else {
       pattern.setAttribute('fill', 'none');
       pattern.setAttribute('stroke', BACKGROUND);

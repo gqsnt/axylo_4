@@ -24,16 +24,17 @@ import type {
 import type { Messages } from '../public';
 import { fill } from '../messages';
 import {
-  buildOverlay, OUTLINE_REACH, RING_REACH, canZoomIn, minimumWidth, panWindow, positionAt, positionText, refsAt, sameRef, stepAcross, stepInSeries, zoomStep,
-  targetBox, targetOf, valueText, PAN_SHARE, ZOOM_FACTOR, type Mode,
+  overlayWith, OUTLINE_REACH, RING_REACH, canZoomIn, minimumWidth, panWindow, positionAt, positionText, refsAt, sameRef, stepAcross, zoomStep,
+  targetBox, targetOf, valueText, PAN_SHARE, ZOOM_FACTOR, type Mode, type TargetMarks,
 } from '../core/focus';
 import type { Figure } from './figure';
 import { sameTarget } from './pointer';
 import { createTableView, type TableView } from './table';
 import { createToolbar, type Toolbar, type ToolbarItem } from './toolbar';
 import { createTooltip, cssScale, type Placement, type TooltipContent } from './tooltip';
-import { createSwatch, type SwatchSpec } from './swatch';
+import { createSwatch, swatchPattern, type SwatchPattern, type SwatchSpec } from './swatch';
 import { sliceText } from '../lookup/text';
+import { setAttr } from './attributes';
 
 type Span = readonly [number, number];
 
@@ -121,17 +122,80 @@ export interface Interaction {
 
 /** Bar series past the eighth carry a pattern (spec F9); the same rule as the scene's bars. */
 const PATTERNS = ['diagonal', 'cross', 'dots'] as const;
-export function seriesPattern(index: number): SwatchSpec['pattern'] {
+export function seriesPattern(index: number): SwatchPattern['kind'] | null {
   const group = Math.floor(index / 8);
   return group ? PATTERNS[(group - 1) % PATTERNS.length]! : null;
 }
 
 /** How a series is drawn, repeated in its legend and tooltip swatch (spec A5). */
 export function seriesSwatch(kind: ControlsState['kind'], index: number, cue: SwatchSpec['cue'], hollow: boolean): SwatchSpec {
-  if (kind === 'bar') return { color: index, cue, line: false, hollow, fill: true, pattern: seriesPattern(index) };
-  if (kind === 'area') return { color: index, cue, line: false, hollow, fill: true, marker: true, pattern: null };
-  return { color: index, cue, line: kind === 'line', hollow };
+  if (kind === 'bar') return barSwatch(index, cue, hollow);
+  if (kind === 'area') return areaSwatch(index, cue, hollow);
+  return kind === 'line' ? lineSwatch(index, cue, hollow) : pointSwatch(index, cue, hollow);
 }
+
+/** One chart kind's series swatch (seriesSwatch with the kind fixed). */
+export type SeriesSwatch = (index: number, cue: SwatchSpec['cue'], hollow: boolean) => SwatchSpec;
+export const barSwatch: SeriesSwatch = (index, cue, hollow) => {
+  const pattern = seriesPattern(index);
+  return { color: index, cue, line: false, hollow, fill: true, pattern: pattern && swatchPattern(pattern) };
+};
+export const areaSwatch: SeriesSwatch = (index, cue, hollow) => ({ color: index, cue, line: false, hollow, fill: true, marker: true, pattern: null });
+export const lineSwatch: SeriesSwatch = (index, cue, hollow) => ({ color: index, cue, line: true, hollow });
+/** Scatter, and the donut, whose series swatches are never asked for (its rows are slices). */
+export const pointSwatch: SeriesSwatch = (index, cue, hollow) => ({ color: index, cue, line: false, hollow });
+
+/** The donut's slice list beside the plot: the list to show (the one given, updated) or null for none. */
+export type SliceList = (doc: Document, d: ControlsState, actions: Actions, list: HTMLUListElement | null) => HTMLUListElement | null;
+
+/** What differs between chart kinds in the interaction layer; a kind's composition holds only its own. */
+export interface InteractionParts {
+  readonly overlay: TargetMarks;
+  readonly swatch: SeriesSwatch;
+  /** Single mode's Right and Left within one series (scatter); null where single mode steps through the lookup. */
+  readonly stepInSeries: ((view: Extract<View, { kind: 'scatter' }>, ref: DatumRef, direction: StepDirection) => DatumRef | null) | null;
+  readonly sliceList: SliceList | null;
+}
+
+export const donutSliceList: SliceList = (doc, d, actions, list) => {
+  const view = d.view;
+  // The slice list is part of the full chart; the too-small state shows only title, summary and table (L8).
+  if (view.kind !== 'donut' || !d.legend || d.tooSmall || !(d.ready || d.inspectable || (view.slices.length > 0 && view.total === 0))) {
+    return null;
+  }
+  list ??= doc.createElement('ul');
+  list.className = 'axylo-legend-list';
+  const entries = view.slices.map(slice => {
+    const datum = sliceText(view, slice, d.formatters);
+    const li = doc.createElement('li');
+    li.dataset.key = slice.key;
+    const swatch = createSwatch(doc, { color: slice.colorIndex, cue: null, line: false, hollow: slice.angles === null });
+    const name = doc.createElement('span');
+    name.className = 'axylo-legend-name';
+    name.textContent = slice.label;
+    const value = doc.createElement('span');
+    value.className = 'axylo-legend-value';
+    const percent = datum?.percent;
+    value.textContent = datum ? (percent && percent !== datum.value ? `${datum.value} (${percent})` : datum.value) : '';
+    // Every slice, a zero or null one included, can be chosen by pointer as by keyboard: a button named by
+    // the entry's text, 24 px tall, outside the tab order (new item 9).
+    const choose = doc.createElement('button');
+    choose.type = 'button';
+    choose.tabIndex = -1;
+    choose.className = 'axylo-legend-choice';
+    choose.append(swatch, name, value);
+    choose.addEventListener('mousedown', event => event.preventDefault());
+    choose.addEventListener('click', () => actions.select({ kind: 'slice', sliceKey: slice.key }));
+    li.append(choose);
+    return li;
+  });
+  const signature = entries.map(e => e.textContent).join('\u0000') + view.slices.map(s => s.colorIndex).join();
+  if (list.dataset.signature !== signature) {
+    list.replaceChildren(...entries);
+    list.dataset.signature = signature;
+  }
+  return list;
+};
 
 const NAVIGATION: Readonly<Record<string, StepDirection>> = {
   ArrowRight: 'next', ArrowLeft: 'previous', Home: 'first', End: 'last', PageUp: 'page-next', PageDown: 'page-previous',
@@ -143,14 +207,6 @@ const REST_TIME = 250;
 const TAP_DISTANCE = 10;
 const TAP_TIME = 500;
 
-function setAttr(el: Element, name: string, value: string | null): void {
-  if (value === null) {
-    if (el.hasAttribute(name)) el.removeAttribute(name);
-  } else if (el.getAttribute(name) !== value) {
-    el.setAttribute(name, value);
-  }
-}
-
 function sameWindow(a: Span | null, b: Span | null): boolean {
   return a === b || (a !== null && b !== null && a[0] === b[0] && a[1] === b[1]);
 }
@@ -159,7 +215,7 @@ function categoriesOf(view: View): readonly string[] | null {
   return view.kind !== 'donut' && view.kind !== 'scatter' && view.frame.x.kind === 'category' ? view.frame.x.categories : null;
 }
 
-export function createInteraction(figure: Figure, renderer: MarkRenderer, actions: Actions): Interaction {
+export function createInteraction(parts: InteractionParts, figure: Figure, renderer: MarkRenderer, actions: Actions): Interaction {
   const doc = figure.figure.ownerDocument;
   const plot = figure.plot;
   const tooltip = createTooltip(figure.tooltip, figure.readout, figure.figure);
@@ -414,7 +470,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     const view = d.view;
     return row => {
       if (view.kind === 'donut') return { color: view.slices[row.seriesIndex]?.colorIndex ?? null, cue: null, line: false, hollow: false };
-      return seriesSwatch(view.kind, row.seriesIndex, view.cues[row.seriesIndex] ?? null, false);
+      return parts.swatch(row.seriesIndex, view.cues[row.seriesIndex] ?? null, false);
     };
   }
 
@@ -441,7 +497,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     if (!dirty && key === presented) return;
     presented = key;
     dirty = false;
-    const overlay: Overlay | null = buildOverlay({ view: d.view, layout: d.layout, lookup: d.lookup, target, ring: visibleRing, only });
+    const overlay: Overlay | null = overlayWith(parts.overlay, { view: d.view, layout: d.layout, lookup: d.lookup, target, ring: visibleRing, only });
     renderer.drawOverlay(overlay, d.bindings, d.theme, d.pixelRatio);
     if (!showTip || target === null) {
       tooltip.hide();
@@ -563,7 +619,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       const x = stepAcross(d.view, from.x, direction);
       return x === null ? null : d.lookup.primary({ kind: 'x', x });
     }
-    if (mode === 'single' && from.kind === 'point' && d.view.kind === 'scatter') return stepInSeries(d.view, from, direction);
+    if (mode === 'single' && from.kind === 'point' && d.view.kind === 'scatter' && parts.stepInSeries) return parts.stepInSeries(d.view, from, direction);
     return d.lookup.step(from, direction);
   }
 
@@ -1308,7 +1364,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       const shown = view.visible[i] === true;
       return {
         key: `series:${s.key}`, label: s.label, pressed: shown, lang: hiddenLang, className: 'axylo-control axylo-legend-entry',
-        struck: !shown, swatch: seriesSwatch(view.kind, i, view.cues[i] ?? null, !shown),
+        struck: !shown, swatch: parts.swatch(i, view.cues[i] ?? null, !shown),
         activate: () => actions.toggle(s.key),
       };
     });
@@ -1360,44 +1416,9 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   }
 
   function renderDonutLegend(d: ControlsState): void {
-    const view = d.view;
-    // The slice list is part of the full chart; the too-small state shows only title, summary and table (L8).
-    if (view.kind !== 'donut' || !d.legend || d.tooSmall || !(d.ready || d.inspectable || (view.slices.length > 0 && view.total === 0))) {
-      legendList?.remove();
-      legendList = null;
-      return;
-    }
-    legendList ??= doc.createElement('ul');
-    legendList.className = 'axylo-legend-list';
-    const entries = view.slices.map(slice => {
-      const datum = sliceText(view, slice, d.formatters);
-      const li = doc.createElement('li');
-      li.dataset.key = slice.key;
-      const swatch = createSwatch(doc, { color: slice.colorIndex, cue: null, line: false, hollow: slice.angles === null });
-      const name = doc.createElement('span');
-      name.className = 'axylo-legend-name';
-      name.textContent = slice.label;
-      const value = doc.createElement('span');
-      value.className = 'axylo-legend-value';
-      const percent = datum?.percent;
-      value.textContent = datum ? (percent && percent !== datum.value ? `${datum.value} (${percent})` : datum.value) : '';
-      // Every slice, a zero or null one included, can be chosen by pointer as by keyboard: a button named by
-      // the entry's text, 24 px tall, outside the tab order (new item 9).
-      const choose = doc.createElement('button');
-      choose.type = 'button';
-      choose.tabIndex = -1;
-      choose.className = 'axylo-legend-choice';
-      choose.append(swatch, name, value);
-      choose.addEventListener('mousedown', event => event.preventDefault());
-      choose.addEventListener('click', () => actions.select({ kind: 'slice', sliceKey: slice.key }));
-      li.append(choose);
-      return li;
-    });
-    const signature = entries.map(e => e.textContent).join('\u0000') + view.slices.map(s => s.colorIndex).join();
-    if (legendList.dataset.signature !== signature) {
-      legendList.replaceChildren(...entries);
-      legendList.dataset.signature = signature;
-    }
+    const next = parts.sliceList?.(doc, d, actions, legendList) ?? null;
+    if (next === null) legendList?.remove();
+    legendList = next;
   }
 
   /** Puts exactly `wanted`, in order, into `host`, moving rather than rebuilding. */

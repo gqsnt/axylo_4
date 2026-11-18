@@ -16,7 +16,8 @@ import {
 } from './geometry';
 
 const SOLID: readonly number[] = [];
-const TAU = Math.PI * 2;
+/** 2π as a literal: no work at import time, so a bundler can drop what is unused (also below). */
+const TAU = 6.283185307179586;
 
 /** Largest backing store per canvas, in device pixels: 4096², the common limit of mobile browsers. */
 export const MAX_PIXELS = 16_777_216;
@@ -39,7 +40,38 @@ export function backingSize(width: number, height: number, dpr: number): [number
   return [bw, bh];
 }
 
+/** What a mark painter uses besides the context: paints, the contrast setting, the clip, scale and scratch. */
+export interface CanvasPaint {
+  readonly paints: PaintBindings;
+  readonly contrast: boolean;
+  readonly clip: Rect | null;
+  readonly sx: number;
+  readonly sy: number;
+  readonly scratch: Float64Array;
+}
+
+export type CanvasMark<M extends Mark = Mark> = (ctx: Ctx, mark: M, p: CanvasPaint) => void;
+/** A painter per mark type the scenes of a chart kind can produce; a mark with no painter is not drawn. */
+export type CanvasMarks = { readonly [K in Mark['type']]?: CanvasMark<Extract<Mark, { type: K }>> };
+
+export const canvasPath: CanvasMark<PathMark> = (ctx, mark, p) => paintPath(ctx, mark, p.paints, p.contrast);
+export const canvasArea: CanvasMark<AreaMark> = (ctx, mark, p) => paintArea(ctx, mark, p.paints);
+export const canvasRects: CanvasMark<RectMark> = (ctx, mark, p) => paintRects(ctx, mark, p.paints, p.clip, p.scratch, p.sx, p.sy);
+export const canvasPoints: CanvasMark<PointMark> = (ctx, mark, p) => paintPoints(ctx, mark, p.paints);
+export const canvasArcs: CanvasMark<ArcMark> = (ctx, mark, p) => paintArcs(ctx, mark, p.paints, p.scratch);
+export const canvasRule: CanvasMark<RuleMark> = (ctx, mark, p) => paintRule(ctx, mark, p.paints, p.sx, p.sy, p.scratch);
+export const canvasBand: CanvasMark<BandMark> = (ctx, mark, p) => paintBand(ctx, mark, p.paints);
+
+const ALL_MARKS: CanvasMarks = {
+  path: canvasPath, area: canvasArea, rects: canvasRects, points: canvasPoints, arcs: canvasArcs, rule: canvasRule, band: canvasBand,
+};
+
+/** The canvas renderer with every painter (a chart kind's composition uses canvasRendererWith and its own). */
 export function createCanvasRenderer(doc: Document = document): MarkRenderer {
+  return canvasRendererWith(ALL_MARKS, doc);
+}
+
+export function canvasRendererWith(marks: CanvasMarks, doc: Document = document): MarkRenderer {
   const element = doc.createElement('div');
   element.className = 'axylo-canvas';
   element.setAttribute('aria-hidden', 'true');
@@ -103,8 +135,8 @@ export function createCanvasRenderer(doc: Document = document): MarkRenderer {
     if (overlay === null || overlayTheme === null) return;
     const contrast = overlayTheme.moreContrast || overlayTheme.forcedColors;
     const sx = scaleX(), sy = scaleY();
-    paintMarks(overlayCtx!, overlay.clipped, overlay.clip, false, overlayTheme.paints, contrast, sx, sy, scratch);
-    paintMarks(overlayCtx!, overlay.unclipped, null, false, overlayTheme.paints, contrast, sx, sy, scratch);
+    paintMarks(marks, overlayCtx!, overlay.clipped, overlay.clip, false, overlayTheme.paints, contrast, sx, sy, scratch);
+    paintMarks(marks, overlayCtx!, overlay.unclipped, null, false, overlayTheme.paints, contrast, sx, sy, scratch);
   }
 
   return {
@@ -119,7 +151,7 @@ export function createCanvasRenderer(doc: Document = document): MarkRenderer {
         sceneCtx.fillStyle = background;
         sceneCtx.fillRect(0, 0, scene.width, scene.height);
       }
-      paintMarks(sceneCtx, scene.marks, scene.clip, true, theme.paints, theme.moreContrast || theme.forcedColors, scaleX(), scaleY(), scratch);
+      paintMarks(marks, sceneCtx, scene.marks, scene.clip, true, theme.paints, theme.moreContrast || theme.forcedColors, scaleX(), scaleY(), scratch);
       if (overlayAllocated) {
         // A resize clears the overlay canvas; a theme change makes its colors stale. Either way repaint it.
         const resized = fit(overlayCanvas);
@@ -157,8 +189,12 @@ function setStyles(el: HTMLElement, styles: Readonly<Record<string, string>>): v
  * Paints marks back to front. With `byRole`, axis and tick rules escape the clip (scene contract); without
  * it, every mark is clipped to `clip` when one is given (overlay lists).
  */
-function paintMarks(ctx: Ctx, marks: readonly Mark[], clip: Rect | null, byRole: boolean, paints: PaintBindings, contrast: boolean, sx: number, sy: number, scratch: Float64Array): void {
+function paintMarks(
+  painters: CanvasMarks, ctx: Ctx, marks: readonly Mark[], clip: Rect | null, byRole: boolean, paints: PaintBindings, contrast: boolean,
+  sx: number, sy: number, scratch: Float64Array,
+): void {
   let clipped = false;
+  const p: CanvasPaint = { paints, contrast, clip, sx, sy, scratch };
   for (const mark of marks) {
     const want = clip !== null && !(byRole && mark.type === 'rule' && unclippedRule(mark.role));
     if (want !== clipped) {
@@ -172,15 +208,7 @@ function paintMarks(ctx: Ctx, marks: readonly Mark[], clip: Rect | null, byRole:
       clipped = want;
     }
     ctx.globalAlpha = 1;
-    switch (mark.type) {
-      case 'path': paintPath(ctx, mark, paints, contrast); break;
-      case 'area': paintArea(ctx, mark, paints); break;
-      case 'rects': paintRects(ctx, mark, paints, clip, scratch, sx, sy); break;
-      case 'points': paintPoints(ctx, mark, paints); break;
-      case 'arcs': paintArcs(ctx, mark, paints, scratch); break;
-      case 'rule': paintRule(ctx, mark, paints, sx, sy, scratch); break;
-      case 'band': paintBand(ctx, mark, paints); break;
-    }
+    (painters[mark.type] as CanvasMark | undefined)?.(ctx, mark, p);
   }
   if (clipped) ctx.restore();
 }

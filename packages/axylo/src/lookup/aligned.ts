@@ -3,14 +3,11 @@ import type { AlignedView, DatumRef, DatumText, Formatters, Lookup, SlotState } 
 import type { Messages } from '../public';
 import { fill } from '../messages';
 import { clipBox, contains, pointBox, type PlotLayout } from './geometry';
+import { clamp } from '../scene/geometry';
 import { lowerBound, pageDistance } from './search';
 import { incomplete, slotText } from './text';
 
 const TOOLTIP_LIMIT = 8;
-
-function clamp(n: number, lo: number, hi: number): number {
-  return Math.max(lo, Math.min(hi, n));
-}
 
 export function alignedLookup(view: AlignedView, layout: PlotLayout | null, formatters: Formatters, messages: Messages): Lookup {
   const { frame, visibleSlots: { start, end }, stack } = view;

@@ -101,7 +101,8 @@ export const SECTOR_RING = 1;    // a full annulus (one slice that is the whole 
 export const SECTOR_ARCS = 2;    // outer arc, then inner arc back
 export const SECTOR_APEX = 3;    // outer arc, then one apex point (the two moved sides meet before the inner radius)
 
-const TAU = 2 * Math.PI;
+/** 2π, written out: a computed constant is work at import time, which keeps a bundler from dropping the module. */
+const TAU = 6.283185307179586;
 /**
  * Spans this close to a full turn are a full turn. Angles arrive as Float32 (ArcMark.angles), whose spacing
  * near 4π is about 1e-6; 1e-4 rad is still far below a pixel of arc on any realistic ring (0.02 px at r 200).
@@ -173,14 +174,29 @@ function star(): number[] {
   return out;
 }
 
+let polygons: Readonly<Record<PolygonShape, Float64Array>> | null = null;
+
+/** Built on first use, not at import: the module has no import-time work, so a bundler can drop it. */
+function markerPolygons(): Readonly<Record<PolygonShape, Float64Array>> {
+  return polygons ??= {
+    square: Float64Array.of(-0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, 0.5),
+    triangle: Float64Array.of(0, -0.5, 0.5, 0.5, -0.5, 0.5),
+    'triangle-down': Float64Array.of(-0.5, -0.5, 0.5, -0.5, 0, 0.5),
+    diamond: Float64Array.of(0, -0.5, 0.5, 0, 0, 0.5, -0.5, 0),
+    plus: Float64Array.from(plus()),
+    cross: Float64Array.from(rotate45(plus())),
+    star: Float64Array.from(star()),
+  };
+}
+
 export const MARKER_POLYGONS: Readonly<Record<PolygonShape, Float64Array>> = {
-  square: Float64Array.of(-0.5, -0.5, 0.5, -0.5, 0.5, 0.5, -0.5, 0.5),
-  triangle: Float64Array.of(0, -0.5, 0.5, 0.5, -0.5, 0.5),
-  'triangle-down': Float64Array.of(-0.5, -0.5, 0.5, -0.5, 0, 0.5),
-  diamond: Float64Array.of(0, -0.5, 0.5, 0, 0, 0.5, -0.5, 0),
-  plus: Float64Array.from(plus()),
-  cross: Float64Array.from(rotate45(plus())),
-  star: Float64Array.from(star()),
+  get square() { return markerPolygons().square; },
+  get triangle() { return markerPolygons().triangle; },
+  get 'triangle-down'() { return markerPolygons()['triangle-down']; },
+  get diamond() { return markerPolygons().diamond; },
+  get plus() { return markerPolygons().plus; },
+  get cross() { return markerPolygons().cross; },
+  get star() { return markerPolygons().star; },
 };
 
 /** Signed area of a packed polygon; positive means clockwise on screen (y down). */

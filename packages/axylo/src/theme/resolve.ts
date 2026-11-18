@@ -44,7 +44,8 @@ const TOKENS: readonly PaintToken[] = ['axis', 'grid', 'reference', 'muted', 'fo
  * CSS expressions for the token paints. Each public name (which an author may set anywhere, including
  * `:root`) falls back to a private default from the stylesheet.
  */
-export const TOKEN_BINDINGS: Readonly<Record<PaintToken, string>> = Object.freeze({
+// Readonly by type; not frozen at run time, since a call at import time keeps a bundler from dropping the module.
+export const TOKEN_BINDINGS: Readonly<Record<PaintToken, string>> = {
   axis: 'var(--axylo-axis, var(--axylo-default-axis))',
   grid: 'var(--axylo-grid, var(--axylo-default-grid))',
   reference: 'var(--axylo-reference, var(--axylo-default-reference))',
@@ -54,7 +55,7 @@ export const TOKEN_BINDINGS: Readonly<Record<PaintToken, string>> = Object.freez
   background: 'var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)))',
   // The chart inherits the page's text color unless the author sets --axylo-text (spec DX6).
   text: 'var(--axylo-text, currentColor)',
-});
+};
 
 /** The palette slot for a series index, as a CSS expression. */
 export const seriesBinding = (index: number): string => {

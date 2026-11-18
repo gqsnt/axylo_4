@@ -25,7 +25,7 @@ license, and its notice under "Notices" below.
 | `axylo` | `dist/axylo.dev.js` | built from `packages/axylo/src` | MIT |
 | `axylo` | `dist/axylo.iife.js` | built from `packages/axylo/src` | MIT |
 | `axylo` | `dist/axylo.iife.min.js` | built from `packages/axylo/src` | MIT |
-| `axylo` | `dist/axylo.css` | generated from `packages/axylo/src/theme/css.ts` | MIT |
+| `axylo` | `dist/axylo.css` | generated from `packages/axylo/src/theme/css.ts` through `packages/axylo/src/theme/minify.ts` | MIT |
 | `axylo` | `dist/index.d.ts` | emitted from `packages/axylo/src/index.ts` | MIT |
 | `axylo` | `dist/public.d.ts` | emitted from `packages/axylo/src/public.ts` | MIT |
 | `@axylo/react` | `package.json` | package metadata | MIT |

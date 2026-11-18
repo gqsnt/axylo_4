@@ -21,43 +21,38 @@ import {
   type PlacedText, type ReaderModel, type ResolvedTheme, type PaintBindings, type Scene, type TextMeasurer,
   type TextStyle, type View,
 } from './contracts';
-import type { Chart, ChartEvents, Diagnostic, Messages, Point, Title, XValue } from '../public';
-import {
-  AlignedStore, DonutStore, normalize, PointStore, resolveOptions,
-  type AlignedChartType, type ChartType, type PreparedFrame, type ResolvedOptions,
-} from '../data';
+import type { ChartEvents, Diagnostic, Messages, Point, Title, XValue } from '../public';
+import type { PreparedFrame } from '../data';
+import { resolveOptions, type ChartType, type ResolvedOptions } from '../data/options';
 import { createDiagnostic, DiagnosticCollector, readerDisclosure, type DiagnosticCode } from '../diagnostics';
 import { createFormatters, type FormatSpec } from '../format';
 import { dateUnitOf } from '../data/x';
 import { rowsTable, type Table } from '../data/table';
-import { buildView } from '../view';
 import { computeLayout } from '../layout';
-import { buildScene } from '../scene';
-import { drawing } from '../scene/lines';
-import { simplifyLine } from '../simplify';
-import { buildLookup } from '../lookup';
-import { buildReader, seriesNotDrawnSentence } from '../reader';
+import { readerWith, seriesNotDrawnSentence } from '../reader';
 import { fill, resolveMessages } from '../messages';
 import { lowContrastSeries, type ThemeResolution } from '../theme';
 import { OptionsStore, sameValue, type OptionRecord } from './options';
 import { Delivery, diagnosticKey, StrictError, strictViolations, type DeliveryConsole } from './delivery';
 import { layoutInput, layoutKey, sameKey, type AxisContext } from './axes';
 import { zoomApplies } from './focus';
+import { lowerBound } from '../lookup/search';
 import {
   completeViewDiagnostics, dedupe, encodingChanged, isCompact, namesOnlyChanged, namingDiagnostics, object, publicOptions, stringOption,
   titleOf, toPublic, viewKeyFor, viewStateFor, type Span,
 } from './stages';
 import type { FigureModel } from '../dom/figure';
 import type { Committed, ControlsState } from '../dom/interaction';
+import type { Composition, Store } from './composition';
+import { attachHooks, StageCounter, type ChartHandle, type Stage } from './instrument';
+import { COMPOSITIONS } from '../kinds';
 
 export type ChartKind = ChartType;
 
 /** Thrown inside a frame to stop it before anything was written (see `frame`). */
 const ABORT = Symbol('axylo frame superseded');
 
-const STAGES = ['options', 'normalize', 'append', 'view', 'frame', 'theme', 'formatters', 'layout', 'scene', 'lookup',
-  'reader', 'draw', 'text', 'figure'] as const;
-export type Stage = typeof STAGES[number];
+export type { BenchHook, ChartHandle, DevHook, Stage } from './instrument';
 
 const KIND_NAMES: Record<ChartKind, string> = { line: 'Line', area: 'Area', bar: 'Bar', scatter: 'Scatter', donut: 'Donut' };
 const KIND_MESSAGES = { line: 'typeLine', area: 'typeArea', bar: 'typeBar', scatter: 'typeScatter', donut: 'typeDonut' } as const;
@@ -65,37 +60,6 @@ const KIND_MESSAGES = { line: 'typeLine', area: 'typeArea', bar: 'typeBar', scat
 const DATA_CODES = new Set(['AX100', 'AX101']);
 /** Positions of the title, the labelledBy id and the caption in the reader's inputs: they name, they do not summarize. */
 const NAMING_INPUTS = new Set([3, 4, 13]);
-
-/** What the benchmark harness reads (bench/README.md): readiness and what the committed frame shows. */
-export interface BenchHook {
-  readonly revision: number;
-  ready(): Promise<void>;
-  describe(): {
-    xDomain: Span | null;
-    yDomain: Span | null;
-    series: {
-      key: string; points: number; oldestX: number; newestX: number; missing: number;
-      /**
-       * Line charts: the caller's row indexes of the samples the simplified drawing kept, in drawing order (spec
-       * F5), so drawn gaps and extremes can be checked index-exactly. Absent for other chart types.
-       */
-      kept?: number[];
-    }[];
-    /** The mark renderer drawing this chart. */
-    renderer: 'canvas' | 'svg';
-  };
-}
-
-export interface DevHook {
-  stages(): Record<Stage, number>;
-  /** Makes the named stage throw, to test the internal-error state; null stops it. */
-  fail(stage: Stage | null): void;
-  readonly renderer: 'canvas' | 'svg';
-  /** Rows the streaming store still holds for revisions not yet retired (0 for a static chart). */
-  retainedRows(): number;
-}
-
-export type ChartHandle = Chart<unknown, Record<string, unknown>> & { __bench?: BenchHook; __dev?: DevHook };
 
 export interface Size {
   readonly width: number;
@@ -178,8 +142,6 @@ export interface Controller {
   /** Runs the pending frame now (tests, and theme changes that arrive inside a frame). */
   flush(): void;
 }
-
-type Store = AlignedStore | PointStore | DonutStore;
 
 /** The state a call produced. Only accepted states are drawn. */
 interface Accepted {
@@ -291,13 +253,20 @@ function deadHost(from: Host): Host {
   };
 }
 
+/** The controller for a kind given by name (tests and Node hosts); the chart functions pass their composition. */
 export function createController(kind: ChartKind, input: unknown, page: Host): Controller {
+  return controllerFor(COMPOSITIONS[kind], input, page);
+}
+
+/** The controller for one chart kind: every stage that differs between kinds comes from its composition. */
+export function controllerFor(composition: Composition, input: unknown, page: Host): Controller {
+  const kind = composition.kind;
   let host = page;
-  const counts = Object.fromEntries(STAGES.map(s => [s, 0])) as Record<Stage, number>;
-  let failing: Stage | null = null;
+  // Instrumentation (core/instrument.ts): only in development and benchmark builds; the guard folds to false in
+  // the shipped production files, which then carry neither the counters nor the hooks.
+  const stages = __DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__) ? new StageCounter() : null;
   const stage = (name: Stage): void => {
-    counts[name]++;
-    if (failing === name) throw new Error(`Axylo test hook: forced failure in the ${name} stage.`);
+    if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) stages!.ran(name);
   };
   let delivery = new Delivery({ console: host.console, development: __DEV__, page: host.page });
   const timeZone = host.timeZone;
@@ -476,7 +445,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     stage('view');
     const sink = new DiagnosticCollector();
     const state = viewStateFor(kind, c.options, c.resolved, zoom, previous?.view ?? null, c.hidden, c.messages);
-    const view = buildView(c.frame as never, state as never, sink) as View;
+    const view = composition.view(c.frame, state, sink);
     // A wall-clock window on a wall-clock axis is what the axis reads: the column's own AX112 already says
     // the values have no offset, and the window is not news (documentation finding 2).
     const found = sink.inputs().filter(d => !(d.code === 'AX112' && d.field === 'zoom' && isWall(c.frame)));
@@ -575,7 +544,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
         stage('normalize');
         const resolved = resolveOptions(kind, publicOptions(next), optionSink);
         const dataSink = new DiagnosticCollector();
-        const frame = normalize(kind, resolved, environment, dataSink, nextVersion());
+        const frame = composition.normalize(kind, resolved, environment, dataSink, nextVersion());
         const data = dataSink.inputs();
         const opts = optionSink.inputs();
         c = {
@@ -597,7 +566,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
           const table = displayedTable(previous!.frame);
           const shownResolved = resolveOptions(kind, publicOptions(next), new DiagnosticCollector(), table);
           const shownSink = new DiagnosticCollector();
-          const shown = normalize(kind, shownResolved, environment, shownSink, nextVersion());
+          const shown = composition.normalize(kind, shownResolved, environment, shownSink, nextVersion());
           heldAfter = { frame: prepared.frame, dataDiagnostics: prepared.diagnostics, viewDiagnostics: [] };
           c = {
             options: next, resolved, source: shownResolved, store, frame: shown, dataDiagnostics: shownSink.inputs(),
@@ -640,11 +609,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
   }
 
   function openStore(a: Accepted): Store {
-    const version = { epoch: a.frame.epoch, revision: a.frame.revision };
-    if (a.frame.shape === 'aligned') {
-      return AlignedStore.fromFrame(a.frame, a.source, a.options.data, environment, kind as AlignedChartType);
-    }
-    return a.frame.shape === 'points' ? new PointStore(a.source, environment, version) : new DonutStore(a.source, environment, version);
+    return composition.openStore(a.frame, a.source, a.options.data, environment, kind);
   }
 
   function append(rows: unknown, appendOptions?: { keep?: number }): void {
@@ -1096,7 +1061,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       const kept = before && sameKey(before.inputs.filter((_, i) => !NAMING_INPUTS.has(i)), inputs.filter((_, i) => !NAMING_INPUTS.has(i)))
         ? before.reader : null;
       const t = a.options.title;
-      const reader = buildReader({
+      const reader = readerWith(composition.reader, {
         view, formatters: formatters!, messages: a.messages, type: a.messages[KIND_MESSAGES[kind]] || KIND_NAMES[kind],
         title: typeof t === 'string' || (t && typeof t === 'object') ? t as string | Title : undefined,
         labelledBy: named ? by! : undefined, caption,
@@ -1317,7 +1282,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     let scene = drawn?.scene;
     if (!scene || !drawn || !sameKey(drawn.sceneInputs, sceneInputs)) {
       stage('scene');
-      scene = buildScene(view, layout, pixelRatio);
+      scene = composition.scene(view, layout, pixelRatio);
     }
 
     // Lookup reads the frame through the view; it switches with the marks.
@@ -1326,7 +1291,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     let lookup = drawn?.lookup;
     if (!lookup || !drawn || !sameKey(drawn.lookupInputs, lookupInputs)) {
       stage('lookup');
-      lookup = buildLookup(view, layout, formatters, a.messages, locale, pixelRatio);
+      lookup = composition.lookup(view, layout, formatters, a.messages, locale, pixelRatio);
     }
 
     // Marks: drawn again for a new scene, a new theme or a new pixel ratio, never rebuilt for a theme alone.
@@ -1669,46 +1634,19 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     destroy,
   };
 
-  const bench = (globalThis as { __AXYLO_BENCH__?: unknown }).__AXYLO_BENCH__ === true;
-  if (__DEV__ || bench) {
-    handle.__bench = {
-      get revision() {
-        return accepted?.revision ?? 0;
-      },
+  if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) {
+    attachHooks(handle, {
+      stages: stages!,
+      revision: () => accepted?.revision ?? 0,
       ready() {
         const revision = accepted?.revision ?? 0;
         if (destroyed || (settledRevision >= revision && !frameScheduled)) return Promise.resolve();
         return new Promise<void>(resolve => waiters.push({ revision, resolve }));
       },
-      describe() {
-        const d = drawn;
-        const renderer = host.renderer.kind;
-        if (!d) return { xDomain: null, yDomain: null, series: [], renderer };
-        const out = { ...describe(d.accepted.view), renderer };
-        const view = d.accepted.view;
-        if (view.kind === 'line' && d.layout.kind === 'plot' && d.layout.projection.kind === 'xy') {
-          // The same selection the scene made (scene/index.ts): the frame's x, the plot, the pixel ratio.
-          const draw = drawing(view.frame.x.values, d.layout.projection, d.layout.plot, pixelRatio > 0 ? pixelRatio : 1);
-          out.series = out.series.map((s, i) => {
-            const series = view.frame.series[i]!;
-            if (!view.visible[i]) return { ...s, kept: [] };
-            const runs = simplifyLine({ ...draw, range: view.drawSlots[i]!, slot: series.slot, y: series.y });
-            return { ...s, kept: Array.from(runs.indexes, slot => series.row ? series.row[slot]! : slot) };
-          });
-        }
-        return out;
-      },
-    };
-  }
-  if (__DEV__) {
-    handle.__dev = {
-      stages: () => ({ ...counts }),
-      fail(name) {
-        failing = name;
-      },
-      renderer: host.renderer.kind,
+      shown: () => drawn && { view: drawn.accepted.view, layout: drawn.layout, pixelRatio },
+      renderer: () => host.renderer.kind,
       retainedRows: () => accepted?.store?.retainedRowCount ?? 0,
-    };
+    });
   }
   return { handle, actions, invalidate, flush };
 }
@@ -1761,15 +1699,10 @@ function sameStyle(a: TextStyle, b: TextStyle): boolean {
   return a.font === b.font && a.letterSpacing === b.letterSpacing && a.wordSpacing === b.wordSpacing && a.lineHeight === b.lineHeight;
 }
 
+/** The index of `x` in sorted `values`, or -1. */
 function indexOf(values: Float64Array, x: number): number {
-  let lo = 0;
-  let hi = values.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >>> 1;
-    if (values[mid]! < x) lo = mid + 1;
-    else hi = mid;
-  }
-  return values[lo] === x ? lo : -1;
+  const at = lowerBound(values, x);
+  return values[at] === x ? at : -1;
 }
 
 /**
@@ -1791,42 +1724,6 @@ export function hasData(view: View, hidden = false): boolean {
     for (let j = start; j < end; j++) if (drawable(s.slot[j]!)) return true;
     return false;
   });
-}
-
-function describe(view: View): Omit<ReturnType<BenchHook['describe']>, 'renderer'> {
-  if (view.kind === 'donut') {
-    return { xDomain: null, yDomain: null, series: [] };
-  }
-  if (view.kind === 'scatter') {
-    return {
-      xDomain: view.xDomain, yDomain: view.yDomain,
-      series: view.frame.series.map(s => ({
-        key: s.key, points: s.x.length, oldestX: s.x[0] ?? NaN, newestX: s.x[s.x.length - 1] ?? NaN, missing: 0,
-      })),
-    };
-  }
-  const { frame } = view;
-  return {
-    xDomain: view.xDomain, yDomain: view.yDomain,
-    series: frame.series.map(s => {
-      let points = 0;
-      let missing = 0;
-      let first = -1;
-      let last = -1;
-      for (let i = 0; i < frame.length; i++) {
-        const state = s.slot[i];
-        if (state === SLOT_NO_ROW) continue;
-        points++;
-        if (first < 0) first = i;
-        last = i;
-        if (state !== SLOT_VALUE) missing++;
-      }
-      return {
-        key: s.key, points, missing,
-        oldestX: first < 0 ? NaN : frame.x.values[first]!, newestX: last < 0 ? NaN : frame.x.values[last]!,
-      };
-    }),
-  };
 }
 
 export type { DiagnosticCode };

@@ -105,7 +105,9 @@ describe('THIRD-PARTY-NOTICES.md', () => {
       expect(row.license, where).toBe('MIT');
       const name = row.pkg as Name;
       const own = /^built from `?(packages\/[\w-]+\/src)`?$/.exec(row.origin);
-      const generated = /^generated from `?(packages\/[\w/.-]+\.ts)`?$/.exec(row.origin);
+      // "generated from <module>", or "generated from <module> through <module>": a string the first exports, passed
+      // through the function the second exports (the stylesheet, minified at build time).
+      const generated = /^generated from `?(packages\/[\w/.-]+\.ts)`?(?: through `?(packages\/[\w/.-]+\.ts)`?)?$/.exec(row.origin);
       const emitted = /^emitted from `?(packages\/[\w/.-]+\.ts)`?$/.exec(row.origin);
       if (row.origin === 'package metadata') {
         expect(['package.json', 'README.md', 'LICENSE'], where).toContain(row.file);
@@ -114,10 +116,16 @@ describe('THIRD-PARTY-NOTICES.md', () => {
         expect(row.file, where).toMatch(/\.js$/);
         // The bundle-input check above covers every built JavaScript file of the package.
       } else if (generated) {
-        const r = await build({ entryPoints: [path.join(repo, generated[1]!)], bundle: true, format: 'esm', write: false, logLevel: 'silent' });
-        const mod = await import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0]!.contents).toString('base64')}`) as Record<string, unknown>;
+        const load = async (file: string) => {
+          const r = await build({ entryPoints: [path.join(repo, file)], bundle: true, format: 'esm', write: false, logLevel: 'silent' });
+          return await import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0]!.contents).toString('base64')}`) as Record<string, unknown>;
+        };
+        const mod = await load(generated[1]!);
+        const through = generated[2] ? Object.values(await load(generated[2])).filter((v): v is (s: string) => string => typeof v === 'function') : [];
+        if (generated[2]) expect(through, `${generated[2]} exports one function`).toHaveLength(1);
+        const strings = Object.values(mod).filter((v): v is string => typeof v === 'string').map(v => through.length ? through[0]!(v) : v);
         const shipped = fs.readFileSync(installed(name, row.file), 'utf8');
-        expect(Object.values(mod).some(v => v === shipped), `${where} is a string ${generated[1]} exports`).toBe(true);
+        expect(strings.some(v => v === shipped), `${where} is a string ${generated[1]} exports${generated[2] ? `, through ${generated[2]}` : ''}`).toBe(true);
       } else if (emitted) {
         expect(fs.existsSync(path.join(repo, emitted[1]!)), where).toBe(true);
         expect(row.file, where).toMatch(/\.d\.ts$/);

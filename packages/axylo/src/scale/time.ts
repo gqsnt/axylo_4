@@ -8,11 +8,15 @@
 import type { ContinuousScale, Tick, TickCandidates } from '../core/contracts';
 import { continuous, pushCandidate } from './linear';
 import { MAX_TICKS } from './nice';
-import { MAX_DATE, TIME, firstInstantAtOrAfterWall, firstInstantWithOffset, instantToWall, utcFields, zoneOffset } from './zone';
+import { MAX_DATE, firstInstantAtOrAfterWall, firstInstantWithOffset, instantToWall, utcFields, zoneOffset } from './zone';
 import { dateTimeFormat } from '../format/intl';
 
-const { MINUTE, HOUR, DAY } = TIME;
+// Literals rather than computed values throughout: the module does no work at import time, so a bundler
+// can drop it where it is not used (the same values as scale/zone.ts's TIME).
 const SECOND = 1000;
+const MINUTE = 60_000;
+const HOUR = 3_600_000;
+const DAY = 86_400_000;
 /**
  * Upper bound on boundaries generated for one interval. Intervals are only generated when about
  * MAX_TICKS + 2 of them fit the domain, so this is never reached; it keeps every loop finite regardless.
@@ -38,17 +42,19 @@ const UNIT_MS: Record<TimeUnit, number> = {
   minute: MINUTE,
   hour: HOUR,
   day: DAY,
-  week: 7 * DAY,
-  month: 30.436875 * DAY,
-  year: 365.2425 * DAY,
+  week: 604_800_000, // 7 days
+  month: 2_629_746_000, // 30.436875 days
+  year: 31_556_952_000, // 365.2425 days
 };
 
 function iv(unit: TimeUnit, n: number): Interval {
   return { unit, n, approx: n * UNIT_MS[unit] };
 }
 
+let subYear: readonly Interval[] | null = null;
+
 /** Calendar intervals finer than a year, finest first. Multiples divide the next unit, so ticks stay aligned. */
-const SUB_YEAR: readonly Interval[] = [
+const subYearIntervals = (): readonly Interval[] => subYear ??= [
   iv('millisecond', 1), iv('millisecond', 2), iv('millisecond', 5), iv('millisecond', 10), iv('millisecond', 20),
   iv('millisecond', 50), iv('millisecond', 100), iv('millisecond', 200), iv('millisecond', 500),
   iv('second', 1), iv('second', 2), iv('second', 5), iv('second', 10), iv('second', 15), iv('second', 30),
@@ -110,7 +116,7 @@ export function timeTickCandidates(domain: readonly [number, number], options: T
     return values.length > 0;
   };
 
-  for (const interval of SUB_YEAR) if (!consider(interval)) return finish(sets, lo, zone, options);
+  for (const interval of subYearIntervals()) if (!consider(interval)) return finish(sets, lo, zone, options);
   // Years: 1, 2, 5, 10, 20, 50, … until a single tick or none remains.
   for (let k = 0; k < 9; k++) {
     for (const m of [1, 2, 5]) {

@@ -2,7 +2,8 @@ import type { DatumRef, Formatters, Lookup } from '../core/contracts';
 import type { Messages } from '../public';
 
 const chartSummary = '{type} chart with {seriesCount} series. {xLabel} from {xMin} to {xMax}.';
-const fullChartSummary = chartSummary + ' {yLabel} from {yMin} to {yMax}.';
+// chartSummary and the range, written out: no work at import time.
+const fullChartSummary = '{type} chart with {seriesCount} series. {xLabel} from {xMin} to {xMax}. {yLabel} from {yMin} to {yMax}.';
 const donutSlice = '{label}: {value} ({percent}).';
 
 export const defaultMessages: Messages = {

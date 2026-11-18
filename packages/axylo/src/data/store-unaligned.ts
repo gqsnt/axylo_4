@@ -1,6 +1,6 @@
 import type { DiagnosticInput, DiagnosticSink, DonutFrame, PointFrame } from '../core/contracts';
 import { DiagnosticCollector } from '../diagnostics';
-import { normalize, pointFrame, readX, reportCalendarDates, type DataEnvironment, type FrameVersion } from './normalize';
+import { normalizeDonut, normalizePoints, pointFrame, readX, reportCalendarDates, type DataEnvironment, type FrameVersion } from './normalize';
 import { resolveOptions, resolveTable, retargetOptions, withoutTable, type ResolvedOptions } from './options';
 import { Reports } from './reports';
 import { FrameSource, RowRevisions, StreamRows } from './store-rows';
@@ -13,6 +13,7 @@ import { nameOf } from './x';
 
 const quiet: DiagnosticSink = { add() {} };
 
+// A copy of lookup/search.ts's lowerBound: the data layer does not depend on the lookup module.
 function lowerBound(values: Float64Array, value: number): number {
   let start = 0;
   let end = values.length;
@@ -43,11 +44,10 @@ type Open<F> = (result: Result<F>) => Storage<F> | null;
 const doubles = (length: number) => new Float64Array(length);
 const indexes = (length: number) => new Int32Array(length);
 const states = (length: number) => new Uint8Array(length);
-const empty = new Float64Array();
 
 function buildPoints(options: ResolvedOptions, environment: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): Result<PointFrame> {
   if (!options.valid) {
-    return { frame: normalize('scatter', options, environment, sink, version), positions: new Float64Array(), order: null };
+    return { frame: normalizePoints(options, environment, sink, version), positions: new Float64Array(), order: null };
   }
   const x = readX('scatter', options, environment, sink);
   reportCalendarDates(x, options.table, sink);
@@ -55,7 +55,7 @@ function buildPoints(options: ResolvedOptions, environment: DataEnvironment, sin
 }
 
 function buildDonut(options: ResolvedOptions, environment: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): Result<DonutFrame> {
-  const frame = normalize('donut', options, environment, sink, version);
+  const frame = normalizeDonut(options, environment, sink, version);
   const positions = new Float64Array(options.valid ? options.table.length : 0).fill(NaN);
   const labels = new Map<string, number>();
   const order = new Int32Array(frame.labels.length);
@@ -116,7 +116,7 @@ class Points implements Storage<PointFrame> {
     }
     return new Points(frame.xKind, new Column(doubles, positions), distinct,
       new Column(doubles, series.x), new Column(doubles, series.y), new Column(indexes, series.row),
-      new Column(doubles, series.missingX ?? empty), calendar);
+      new Column(doubles, series.missingX ?? new Float64Array()), calendar);
   }
 
   extend(next: Result<PointFrame>, rows: StreamRows, firstRow: number, keep: number | undefined): Points | null {
@@ -444,3 +444,9 @@ export class DonutStore extends UnalignedStore<DonutFrame> {
     super('donut', buildDonut, Slices.open, options, environment, version, sink);
   }
 }
+
+// The first append's storage for a static frame, in the form a chart kind's composition holds.
+export const openPointStore = (frame: PointFrame, source: ResolvedOptions, _data: unknown, environment: DataEnvironment): PointStore =>
+  new PointStore(source, environment, { epoch: frame.epoch, revision: frame.revision });
+export const openDonutStore = (frame: DonutFrame, source: ResolvedOptions, _data: unknown, environment: DataEnvironment): DonutStore =>
+  new DonutStore(source, environment, { epoch: frame.epoch, revision: frame.revision });

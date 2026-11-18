@@ -4,7 +4,7 @@ import {
 } from '../core/contracts';
 import { DiagnosticCollector } from '../diagnostics';
 import {
-  alignedFrame, alignedSeed, alignmentFits, normalize, readX, reportGaps, seriesDescription,
+  alignedFrame, alignedSeed, alignmentFits, normalizeAligned, readX, reportGaps, seriesDescription,
   type DataEnvironment, type FrameVersion, type XData,
 } from './normalize';
 import {
@@ -638,7 +638,7 @@ export class AlignedStore {
     const x = readX(this.type, this.fields.valid ? options : { ...options, table: rowsTable([]) },
       this.environment, diagnostics, categories ?? undefined);
     const frame = options.valid ? alignedFrame(options, x, diagnostics, version)
-      : normalize(this.type, options, this.environment, diagnostics, version);
+      : normalizeAligned(this.type, options, this.environment, diagnostics, version);
     const axis = x.parser.column(new Float64Array(), true);
     const overBudget = diagnostics.inputs().some(diagnostic => diagnostic.code === 'AX134');
     const buffers = new FrameBuffers(frame, x.positions, x.order);
@@ -1026,4 +1026,11 @@ export class AlignedStore {
     this.latest = [...this.currentDiagnostics(), ...ordering.inputs()];
     return this.current;
   }
+}
+
+/** AlignedStore.fromFrame as a plain function, for a chart kind's composition (a member read is not tree-shakable). */
+export function openAlignedStore(
+  frame: AlignedFrame, options: ResolvedOptions, data: unknown, environment: DataEnvironment, type: AlignedChartType,
+): AlignedStore {
+  return AlignedStore.fromFrame(frame, options, data, environment, type);
 }

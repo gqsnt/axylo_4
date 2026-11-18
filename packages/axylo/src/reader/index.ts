@@ -3,7 +3,7 @@ import { report } from '../diagnostics';
 import { sliceText } from '../lookup/text';
 import { defaultMessages, fill, fillChartSummary, fillDonutSlice, messageLanguage } from '../messages';
 import type { Messages, Title } from '../public';
-import { buildTable, type ReaderLabels } from './table';
+import { alignedTable, donutTable, scatterTable, type ReaderLabels, type TableBuilder } from './table';
 
 export interface ReaderInput {
   readonly view: View;
@@ -104,19 +104,31 @@ function joinSentences(sentences: readonly (readonly TextRun[])[]): TextRun[] {
   return runs;
 }
 
-function chartText(input: ReaderInput, type: string, xLabel: string, yLabel: string, table: boolean): string[] {
+type ChartText = (input: ReaderInput, type: string, xLabel: string, yLabel: string, table: boolean) => string[];
+
+/** What differs between frame shapes in the reader: the table and the summary's data sentences. */
+export interface ReaderParts {
+  readonly table: TableBuilder;
+  readonly text: ChartText;
+}
+
+const donutText: ChartText = (input, type) => {
   const { view, formatters, messages } = input;
-  if (view.kind === 'donut') {
-    const drawn = view.slices.filter(slice => slice.angles && slice.angles[1] > slice.angles[0]);
-    if (!drawn.length) return [messages.empty];
-    return [
-      fill(messages.donutSummary, { type, count: formatters.count(drawn.length), total: formatters.value(0, view.total) }),
-      ...drawn.map(slice => {
-        const { label, value, percent } = sliceText(view, slice, formatters);
-        return fillDonutSlice(label, value, percent ?? '');
-      }),
-    ];
-  }
+  if (view.kind !== 'donut') return [];
+  const drawn = view.slices.filter(slice => slice.angles && slice.angles[1] > slice.angles[0]);
+  if (!drawn.length) return [messages.empty];
+  return [
+    fill(messages.donutSummary, { type, count: formatters.count(drawn.length), total: formatters.value(0, view.total) }),
+    ...drawn.map(slice => {
+      const { label, value, percent } = sliceText(view, slice, formatters);
+      return fillDonutSlice(label, value, percent ?? '');
+    }),
+  ];
+};
+
+const cartesianText: ChartText = (input, type, xLabel, yLabel, table) => {
+  const { view, formatters, messages } = input;
+  if (view.kind === 'donut') return [];
 
   let xMin = Infinity;
   let xMax = -Infinity;
@@ -170,7 +182,11 @@ function chartText(input: ReaderInput, type: string, xLabel: string, yLabel: str
     }, range),
     ...zoneText, ...entries, ...undrawn,
   ];
-}
+};
+
+export const alignedReader: ReaderParts = { table: alignedTable, text: cartesianText };
+export const scatterReader: ReaderParts = { table: scatterTable, text: cartesianText };
+export const donutReader: ReaderParts = { table: donutTable, text: donutText };
 
 function stackText(view: View, formatters: Formatters, messages: Messages): string {
   if (view.kind === 'donut' || view.kind === 'scatter') return '';
@@ -199,7 +215,15 @@ function referenceText(view: View, formatters: Formatters, messages: Messages): 
   });
 }
 
-export function buildReader(input: ReaderInput): ReaderModel & { readonly noteSegments: readonly TextRun[] | null } {
+export type BuiltReader = ReaderModel & { readonly noteSegments: readonly TextRun[] | null };
+
+/** Every kind's reader, dispatched on the view (a kind's composition calls readerWith with its own parts). */
+export function buildReader(input: ReaderInput): BuiltReader {
+  const view = input.view;
+  return readerWith(view.kind === 'donut' ? donutReader : view.kind === 'scatter' ? scatterReader : alignedReader, input);
+}
+
+export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader {
   const { view, title, labelledBy, subtitle, description, formatters, messages, disclosure } = input;
   const labels = {
     category: input.labels?.category ?? messages.category,
@@ -220,7 +244,7 @@ export function buildReader(input: ReaderInput): ReaderModel & { readonly noteSe
   let references: string[] | undefined;
   const referencesForView = () => references ??= compact ? [] : referenceText(view, formatters, messages);
   const caption = [input.caption, name, generated, messages.plotLabel].find(text => text?.trim()) ?? defaultMessages.plotLabel;
-  const table = input.table === false || compact ? null : buildTable(
+  const table = input.table === false || compact ? null : parts.table(
     view, [caption, ...referencesForView()].join(' '), formatters, messages, labels, input.locale,
   );
   const hasTable = table !== null;
@@ -243,7 +267,7 @@ export function buildReader(input: ReaderInput): ReaderModel & { readonly noteSe
     get summary() {
       // Opening the table should not scan the rest of the frame.
       return summary ??= [
-        ...chartText(input, type, xLabel, yLabel, hasTable), compact ? stackText(view, formatters, messages) : '',
+        ...parts.text(input, type, xLabel, yLabel, hasTable), compact ? stackText(view, formatters, messages) : '',
         ...referencesForView(), subtitle, omission, description,
       ].filter(Boolean).join(' ');
     },

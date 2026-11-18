@@ -1,7 +1,8 @@
 import type { DonutSlice, Projection } from '../core/contracts';
 
-const TURN = 2 * Math.PI;
-const PRECISION = 2 ** -20;
+// 2π and 2⁻²⁰ as literals, so the module does no work at import time.
+const TURN = 6.283185307179586;
+const PRECISION = 9.5367431640625e-7;
 export const DONUT_GAP = 1;
 
 export function donutGeometry(slices: readonly DonutSlice[], ring: Extract<Projection, { kind: 'ring' }>) {

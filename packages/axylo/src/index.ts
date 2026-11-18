@@ -6,29 +6,34 @@ import type {
   AreaOptions, BarOptions, Chart, Diagnostic, DonutOptions, LineOptions, ScatterOptions, Target,
 } from './public.js';
 import { createChart } from './core/chart';
+import { AREA } from './kinds/area';
+import { BAR } from './kinds/bar';
+import { DONUT } from './kinds/donut';
+import { LINE } from './kinds/line';
+import { SCATTER } from './kinds/scatter';
 import { staticDiagnostics } from './core/stages';
 import { viewerTimeZone } from './core/environment';
 
 export type * from './public.js';
 
 export function line<Row>(target: Target, options: LineOptions<Row>): Chart<Row, LineOptions<Row>> {
-  return createChart('line', target, options) as unknown as Chart<Row, LineOptions<Row>>;
+  return createChart(LINE, target, options) as unknown as Chart<Row, LineOptions<Row>>;
 }
 
 export function area<Row>(target: Target, options: AreaOptions<Row>): Chart<Row, AreaOptions<Row>> {
-  return createChart('area', target, options) as unknown as Chart<Row, AreaOptions<Row>>;
+  return createChart(AREA, target, options) as unknown as Chart<Row, AreaOptions<Row>>;
 }
 
 export function bar<Row>(target: Target, options: BarOptions<Row>): Chart<Row, BarOptions<Row>> {
-  return createChart('bar', target, options) as unknown as Chart<Row, BarOptions<Row>>;
+  return createChart(BAR, target, options) as unknown as Chart<Row, BarOptions<Row>>;
 }
 
 export function scatter<Row>(target: Target, options: ScatterOptions<Row>): Chart<Row, ScatterOptions<Row>> {
-  return createChart('scatter', target, options) as unknown as Chart<Row, ScatterOptions<Row>>;
+  return createChart(SCATTER, target, options) as unknown as Chart<Row, ScatterOptions<Row>>;
 }
 
 export function donut<Row>(target: Target, options: DonutOptions<Row>): Chart<Row, DonutOptions<Row>> {
-  return createChart('donut', target, options) as unknown as Chart<Row, DonutOptions<Row>>;
+  return createChart(DONUT, target, options) as unknown as Chart<Row, DonutOptions<Row>>;
 }
 
 /**

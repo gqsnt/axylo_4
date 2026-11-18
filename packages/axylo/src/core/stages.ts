@@ -68,7 +68,8 @@ export function encodingChanged(before: OptionRecord, after: OptionRecord): bool
   return ENCODING_KEYS.some(key => !sameValue(fieldEncoding(before[key]), fieldEncoding(after[key])));
 }
 
-const NAMING_PARTS = new Set([...PRESENTATION_PARTS, 'label', 'unit']);
+/** PRESENTATION_PARTS with the names (a literal: no work at import time). */
+const NAMING_PARTS = new Set(['domain', 'format', 'tickFormat', 'label', 'unit']);
 
 /**
  * True when the field specs differ only in labels and units: the values read are the same, so the frame's

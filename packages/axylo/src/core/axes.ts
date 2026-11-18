@@ -9,6 +9,7 @@ import type { ResolvedOptions } from '../data';
 import { bandScale, bandTickCandidates, coarserDomains, linearScale, linearTickCandidates, timeScale, timeTickCandidates } from '../scale';
 import { createNumberTickLabeler, createTimeTickLabel, type NumberFormatOption } from '../format';
 import type { XValue } from '../public';
+import { withUnit } from '../reader/table';
 
 type Span = readonly [number, number];
 
@@ -29,10 +30,6 @@ const scales = {
   time: timeScale,
   band: bandScale,
 };
-
-function withUnit(label: string, unit: string | null): string {
-  return unit ? `${label} (${unit})` : label;
-}
 
 function numberTicks(domain: Span, locale: string, option: unknown, scale: 'percent' | 'ratio' | null, onError: (e: unknown) => void): TickCandidates {
   const tickFormat = typeof option === 'function' || (option !== null && typeof option === 'object')

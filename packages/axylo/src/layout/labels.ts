@@ -23,10 +23,11 @@ export interface FittedLabels {
 }
 
 const EPSILON = 1e-7;
-const OVERLAP_TOLERANCE = 1 - EPSILON;
+const OVERLAP_TOLERANCE = 0.9999999; // 1 - EPSILON, written out: no work at import time
 const DIAGONAL = Math.SQRT1_2;
 const ELLIPSIS = '…';
-const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+/** Created on first use, not at import. */
+let segmenter: Intl.Segmenter | null = null;
 
 export function placeText(
   lines: readonly string[], full: string, x: number, y: number,
@@ -57,6 +58,7 @@ function widest(lines: readonly string[], metrics: Metrics): number {
 }
 
 function graphemes(text: string): string[] {
+  segmenter ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' });
   return Array.from(segmenter.segment(text), part => part.segment);
 }
 

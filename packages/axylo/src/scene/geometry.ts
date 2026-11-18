@@ -1,6 +1,7 @@
 import type { Paint, PaintToken, Projection, Rect, ResolvedReference, RuleMark, XScale } from '../core/contracts';
 
-export const COORDINATE_LIMIT = 2 ** 120;
+/** 2¹²⁰, as a literal so the module does no work at import time. */
+export const COORDINATE_LIMIT = 1.329227995784916e+36;
 
 export const token = (name: PaintToken): Paint => ({ kind: 'token', name });
 export const seriesPaint = (index: number): Paint => ({ kind: 'series', index });

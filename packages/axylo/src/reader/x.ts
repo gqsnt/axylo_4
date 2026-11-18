@@ -1,5 +1,6 @@
 import type { XKind } from '../core/contracts';
-import { normalize, resolveOptions } from '../data';
+import { normalizeAligned } from '../data/normalize';
+import { resolveOptions } from '../data/options';
 import type { XValue } from '../public';
 
 const ignoreDiagnostics = { add() {} };
@@ -20,6 +21,6 @@ export function readPosition(
   const options = resolveOptions('line', {
     data: [{ x: value, y: 0 }], x: { field: 'x', type: kind === 'wall' ? undefined : kind, timeZone }, y: 'y',
   }, ignoreDiagnostics);
-  const frame = normalize('line', options, { timeZone }, ignoreDiagnostics, version);
+  const frame = normalizeAligned('line', options, { timeZone }, ignoreDiagnostics, version);
   return frame.shape === 'aligned' && frame.x.kind === kind ? frame.x.values[0] ?? NaN : NaN;
 }
