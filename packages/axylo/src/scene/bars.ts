@@ -1,9 +1,11 @@
 import {
   SLOT_VALUE, type AlignedView, type Projection, type Rect, type RectMark, type XScale,
 } from '../core/contracts';
-import { clamp, position, seriesPaint, token } from './geometry';
+import { barHalfWidth } from '../view/bar-bands';
+import { clamp, COORDINATE_LIMIT, position, seriesPaint, token } from './geometry';
 
 type Bands = Extract<Projection, { kind: 'bands' }>;
+const PATTERNS = ['diagonal', 'cross', 'dots'] as const;
 
 function bandExtents(
   scale: XScale, values: Float64Array, start: number, end: number, low: number, high: number,
@@ -16,21 +18,27 @@ function bandExtents(
     if (scale.type === 'band') {
       halfWidth = scale.bandwidth / 2;
     } else {
-      const left = i > 0 ? Math.abs(center - position(scale, values[i - 1]!)) : Infinity;
-      const right = i + 1 < values.length ? Math.abs(position(scale, values[i + 1]!) - center) : Infinity;
-      // A continuous bar has no band width in its projection. Use the closest neighbour in x.
-      const step = Math.min(left, right);
-      halfWidth = 0.4 * (Number.isFinite(step) && step > 0 ? step : high - low);
+      const half = barHalfWidth(values, i);
+      // Project the extent before clipping so zoom does not shift or narrow the bar.
+      const span = scale.domain[1] - scale.domain[0];
+      const pixels = Math.abs(scale.range[1] - scale.range[0]);
+      if (span === 0) halfWidth = (high - low) * 0.4;
+      else if (pixels === 0) halfWidth = 0;
+      else {
+        const fraction = Number.isFinite(span) ? half / span : (half / 2) / (scale.domain[1] / 2 - scale.domain[0] / 2);
+        // An extreme extrapolation still needs to fit the packed scene geometry.
+        halfWidth = Math.min(fraction * pixels, COORDINATE_LIMIT);
+      }
     }
-    extents[out++] = clamp(center - halfWidth, low, high);
-    extents[out++] = clamp(center + halfWidth, low, high);
+    extents[out++] = center - halfWidth;
+    extents[out++] = center + halfWidth;
   }
   return extents;
 }
 
 export function barMarks(view: AlignedView, projection: Bands, plot: Rect): RectMark[] {
   const { band, value, horizontal } = projection;
-  const { start, end } = view.visibleSlots;
+  const { start, end } = view.drawSlots[0] ?? view.visibleSlots;
   const { stack } = view;
   const order = stack?.order ?? view.visible.flatMap((shown, i) => shown ? [i] : []);
   const low = horizontal ? plot.y : plot.x;
@@ -40,6 +48,7 @@ export function barMarks(view: AlignedView, projection: Bands, plot: Rect): Rect
   const baseline = (v: number) => clamp(position(value, v), valueLow, valueHigh);
   const extents = bandExtents(band, view.frame.x.values, start, end, low, high);
   const positives = stack?.positive.at(-1);
+  const negatives = stack?.negative.at(-1);
   const divisor = stack ? 1 : order.length;
   const bars: RectMark[] = [];
   const missing: RectMark[] = [];
@@ -63,14 +72,19 @@ export function barMarks(view: AlignedView, projection: Bands, plot: Rect): Rect
       const part = (extents[k + 1]! - bandStart) / divisor;
       const width = Math.max(1, part);
       const mid = bandStart + part * ((stack ? 0 : i) + 0.5);
-      const across = clamp(mid - width / 2, low, Math.max(low, high - width));
+      const across = band.type === 'band' ? clamp(mid - width / 2, low, Math.max(low, high - width)) : mid - width / 2;
       const isValue = slot[j] === SLOT_VALUE;
-      const negative = isValue && y[j]! < 0;
-      const base = (negative ? prevNeg?.[j] : prevPos?.[j]) ?? 0;
+      const positiveTotal = positives?.[j] ?? 0;
+      const negativeTotal = negatives?.[j] ?? 0;
+      // A missing value has no sign. Prefer the positive edge unless only the negative side exists
+      // or the preceding components have accumulated only on that side.
+      const negative = isValue ? y[j]! < 0
+        : negativeTotal < 0 && (positiveTotal === 0 || (prevNeg?.[j] ?? 0) < 0 && (prevPos?.[j] ?? 0) === 0);
+      const base = isValue ? (negative ? prevNeg?.[j] : prevPos?.[j]) ?? 0 : negative ? negativeTotal : positiveTotal;
       const tip = isValue ? (negative ? neg?.[j] : pos?.[j]) ?? y[j]! : base;
       let from = baseline(base);
       const to = baseline(tip);
-      if (stack && (base !== 0 || negative && positives![j]! > 0) && Math.abs(to - from) > 1 &&
+      if (stack && (base !== 0 || negative && positiveTotal > 0) && Math.abs(to - from) > 1 &&
         position(value, base) === from) {
         // Leave the shared edge clear without moving the outside end of the stack.
         from += Math.sign(to - from);
@@ -88,7 +102,9 @@ export function barMarks(view: AlignedView, projection: Bands, plot: Rect): Rect
       else missingOffset = offset;
     }
 
-    bars.push({ type: 'rects', series, xywh: values, fill: seriesPaint(series), variant: 'bar' });
+    const group = Math.floor(series / 8);
+    const bar: RectMark = { type: 'rects', series, xywh: values, fill: seriesPaint(series), variant: 'bar' };
+    bars.push(group ? { ...bar, pattern: PATTERNS[(group - 1) % PATTERNS.length]! } : bar);
     if (absent.length) missing.push({ type: 'rects', series, xywh: absent, fill: token('muted'), variant: 'missing' });
   }
   return bars.concat(missing);

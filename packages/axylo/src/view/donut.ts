@@ -48,6 +48,7 @@ export function buildDonut(
   let angle = 0;
   let drawn = 0;
   const drawnCount = grouped ? 8 : positive;
+  let arcless = grouped ? 7 : positive;
   function add(key: string, label: string, members: readonly number[], value: number | null, weight: number): void {
     const ratio = value === null ? null : weight === 0 ? 0 : weight / denominator;
     let angles: DonutSlice['angles'] = null;
@@ -56,7 +57,9 @@ export function buildDonut(
       angles = [angle, end];
       angle = end;
     }
-    slices.push({ key, label, members, value, ratio, angles });
+    // Reserve the first palette slots for arcs so arcless entries cannot force the ring to wrap.
+    const colorIndex = key === OTHER ? null : angles ? drawn - 1 : arcless++;
+    slices.push({ key, label, members, value, ratio, angles, colorIndex });
   }
 
   const kept = grouped ? new Set(largest) : null;

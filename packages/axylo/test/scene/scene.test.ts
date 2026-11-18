@@ -1,6 +1,10 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
+import { SLOT_GAP, SLOT_NO_ROW, SLOT_VALUE } from '../../src/core/contracts';
 import type { Layout, Mark, Projection, Rect, Tick, View } from '../../src/core/contracts';
+import { missingBox } from '../../src/render/geometry';
+import { buildView } from '../../src/view';
+import { DiagnosticCollector } from '../../src/diagnostics';
 import { buildScene } from '../../src/scene';
 import { bandScale, linearScale } from '../../src/scale';
 import { aligned, donut, scatter } from '../view/fixtures';
@@ -259,7 +263,7 @@ describe('chart decorations and other projections', () => {
     expect(ring).toMatchObject({
       cx: 80, cy: 70, r0: 30, r1: 50, gap: 1,
       fills: [
-        ...Array.from({ length: 7 }, (_, i) => ({ kind: 'series', index: i + 1 })),
+        ...Array.from({ length: 7 }, (_, i) => ({ kind: 'series', index: i })),
         { kind: 'token', name: 'muted' },
       ],
     });
@@ -289,15 +293,6 @@ function expectPoint(x: number, y: number, plot: Rect, stroke = 0): void {
   expect(y).toBeLessThanOrEqual(plot.y + plot.height + margin);
 }
 
-function expectPacked(xy: Float32Array, plot: Rect, stroke?: number): void {
-  for (let i = 0; i < xy.length; i += 2) {
-    const x = xy[i]!;
-    const y = xy[i + 1]!;
-    if (stroke !== undefined && Number.isNaN(x)) expect(Number.isNaN(y)).toBe(true);
-    else expectPoint(x, y, plot, stroke);
-  }
-}
-
 function expectBox(x: number, y: number, width: number, height: number, plot: Rect): void {
   expect(width).toBeGreaterThanOrEqual(0);
   expect(height).toBeGreaterThanOrEqual(0);
@@ -305,7 +300,41 @@ function expectBox(x: number, y: number, width: number, height: number, plot: Re
   expectPoint(x + width, y + height, plot);
 }
 
-function expectWithinClip(mark: Mark, plot: Rect): void {
+function expectWithinClip(mark: Mark, plot: Rect, view: View, authorX: boolean, authorY: boolean): void {
+  // Joined segments and partial bar bands keep their original geometry until the renderer clips them.
+  let xOverflow = false;
+  if ('series' in mark && view.kind !== 'donut' && view.kind !== 'scatter') {
+    // Stack seams can use the union of the visible components' draw ranges.
+    const draws = mark.type === 'path' && mark.stroke.kind === 'token' ? view.drawSlots : [view.drawSlots[mark.series]!];
+    xOverflow = draws.some(draw => draw.start < view.visibleSlots.start || draw.end > view.visibleSlots.end);
+  }
+  const expectBoundary = (xy: Float32Array, allowLifts = false, allowOutsideX = xOverflow) => {
+    const margin = (allowLifts && mark.type === 'path' ? mark.strokeWidth : 0) + 0.0001;
+    const right = plot.x + plot.width;
+    const bottom = plot.y + plot.height;
+    for (let i = 0; i < xy.length; i += 2) {
+      const x = xy[i]!;
+      const y = xy[i + 1]!;
+      if (allowLifts && Number.isNaN(x)) {
+        expect(Number.isNaN(y)).toBe(true);
+        continue;
+      }
+      expect(Number.isFinite(x) && Number.isFinite(y)).toBe(true);
+      if (!allowOutsideX) expect(x >= plot.x - margin && x <= right + margin).toBe(true);
+      const insideX = x >= plot.x - 0.0001 && x <= right + 0.0001;
+      if (insideX && !authorY) expect(y >= plot.y - margin && y <= bottom + margin).toBe(true);
+      if (allowOutsideX && !authorY && i >= 2) {
+        const previousX = xy[i - 2]!;
+        const previousY = xy[i - 1]!;
+        for (const edge of [plot.x, right]) {
+          if (previousX < edge && edge < x) {
+            const atEdge = previousY + (y - previousY) * ((edge - previousX) / (x - previousX));
+            expect(atEdge >= plot.y - margin && atEdge <= bottom + margin).toBe(true);
+          }
+        }
+      }
+    }
+  };
   switch (mark.type) {
     case 'rule':
       if (mark.role === 'axis' || mark.role === 'tick') {
@@ -315,19 +344,37 @@ function expectWithinClip(mark: Mark, plot: Rect): void {
         expectPoint(mark.x2, mark.y2, plot, mark.strokeWidth);
       }
       break;
-    case 'path': expectPacked(mark.xy, plot, mark.strokeWidth); break;
-    case 'points': expectPacked(mark.xy, plot); break;
+    case 'path': expectBoundary(mark.xy, true); break;
+    case 'points': expectBoundary(mark.xy, false, false); break;
     case 'area':
-      expectPacked(mark.upper, plot);
-      expectPacked(mark.lower, plot);
+      expect(mark.upper.every(Number.isFinite) && mark.lower.every(Number.isFinite)).toBe(true);
       for (let i = 0; i < mark.runs.length; i += 4) {
-        expect((mark.runs[i]! + mark.runs[i + 1]!) * 2).toBeLessThanOrEqual(mark.upper.length);
-        expect((mark.runs[i + 2]! + mark.runs[i + 3]!) * 2).toBeLessThanOrEqual(mark.lower.length);
+        const upperStart = mark.runs[i]! * 2;
+        const lowerStart = mark.runs[i + 2]! * 2;
+        const upperEnd = upperStart + mark.runs[i + 1]! * 2;
+        const lowerEnd = lowerStart + mark.runs[i + 3]! * 2;
+        expect(upperEnd).toBeLessThanOrEqual(mark.upper.length);
+        expect(lowerEnd).toBeLessThanOrEqual(mark.lower.length);
+        expectBoundary(mark.upper.subarray(upperStart, upperEnd));
+        expectBoundary(mark.lower.subarray(lowerStart, lowerEnd));
       }
       break;
     case 'rects':
       for (let i = 0; i < mark.xywh.length; i += 4) {
-        expectBox(mark.xywh[i]!, mark.xywh[i + 1]!, mark.xywh[i + 2]!, mark.xywh[i + 3]!, plot);
+        const [x, y, w, h] = mark.xywh.subarray(i, i + 4);
+        expect([x, y, w, h].every(Number.isFinite) && w! >= 0 && h! >= 0).toBe(true);
+        if (view.kind === 'bar' && view.frame.x.kind !== 'category') {
+          const partialBands = authorX || view.xDomain !== view.xFull;
+          if (view.horizontal) {
+            expect(x! >= plot.x - 0.0001 && x! + w! <= plot.x + plot.width + 0.0001).toBe(true);
+            if (!partialBands) expect(y! >= plot.y - 0.5001 && y! + h! <= plot.y + plot.height + 0.5001).toBe(true);
+          } else {
+            expect(y! >= plot.y - 0.0001 && y! + h! <= plot.y + plot.height + 0.0001).toBe(true);
+            if (!partialBands) expect(x! >= plot.x - 0.5001 && x! + w! <= plot.x + plot.width + 0.5001).toBe(true);
+          }
+        } else {
+          expectBox(x!, y!, w!, h!, plot);
+        }
       }
       break;
     case 'band': expectBox(mark.box.x, mark.box.y, mark.box.width, mark.box.height, plot); break;
@@ -339,27 +386,240 @@ function expectWithinClip(mark: Mark, plot: Rect): void {
   }
 }
 
-it('keeps generated mark coordinates finite and clipped, with non-negative rectangle sizes', () => {
+it('keeps generated geometry finite and clipped across independent chart states', () => {
   const value = fc.option(fc.integer({ min: -500, max: 500 }), { nil: null });
-  const values = fc.array(fc.tuple(value, value), { minLength: 1, maxLength: 18 });
-  const kind = fc.constantFrom('line', 'area', 'bar', 'scatter', 'donut');
-  const size = fc.integer({ min: 1, max: 200 });
-  fc.assert(fc.property(kind, values, size, size, fc.boolean(), fc.boolean(), (chart, rows, width, height, flag, compact) => {
+  const configuration = fc.record({
+    kind: fc.constantFrom('line', 'area', 'bar', 'scatter', 'donut'),
+    rows: fc.array(fc.tuple(value, value), { minLength: 8, maxLength: 32 }),
+    width: fc.integer({ min: 1, max: 40 }),
+    height: fc.integer({ min: 1, max: 120 }),
+    dpr: fc.constantFrom(1, 1.5, 2),
+    stacked: fc.boolean(), horizontal: fc.boolean(), compact: fc.boolean(),
+    dense: fc.boolean(), long: fc.boolean(), category: fc.boolean(), author: fc.boolean(),
+    authorY: fc.boolean(), zoom: fc.boolean(), hide: fc.boolean(),
+  });
+  const exercised = new Set<string>();
+  fc.assert(fc.property(configuration, config => {
+    const { kind, width, height, stacked, horizontal, compact, authorY } = config;
     const plot = { x: 12.25, y: 16.5, width, height };
-    const references = [{ y: [-15, 15] as const, label: 'Range' }, { y: 17, label: 'Goal' }];
+    const rows = config.dense && (kind === 'line' || kind === 'area')
+      ? Array.from({ length: 480 }, (_, i) => config.rows[i % config.rows.length]!) : config.rows;
+    const last = rows.length - 1;
+    const category = config.category && kind === 'bar';
+    const references = [
+      { y: [-15, 15] as const, label: 'Range' }, { y: 17, label: 'Goal' },
+      { x: category ? 'Band 4' : [-2, last + 1] as const, label: 'Period' },
+    ];
+    const xDomain = config.author && !category ? [1.25, last - 0.25] as const : undefined;
+    const zoom = config.zoom ? [last / 4 + 0.1, last * 0.75 + 0.2] as const : null;
+    const state = {
+      zoom: category ? null : zoom, xDomain, references,
+      valueDomain: authorY ? [-200, 200] as const : undefined,
+      hidden: config.hide ? new Set(['b']) : undefined,
+    };
     let view: View;
-    if (chart === 'donut') {
-      view = donut(rows.map(([value], i) => ({ label: 'Part ' + i, value: value === null ? null : Math.abs(value) }))).view;
-    } else if (chart === 'scatter') {
-      view = scatter({ x: 'x', y: 'y', data: rows.map(([y], x) => ({ x, y })) }, { references }).view;
+    if (kind === 'donut') {
+      view = donut(rows.map(([y], i) => ({ label: 'Part ' + i, value: y === null ? null : Math.abs(y) }))).view;
+    } else if (kind === 'scatter') {
+      const data = rows.flatMap(([a, b], x) => [{ x, y: a, s: 'a' }, { x, y: b, s: 'b' }]);
+      view = scatter({ x: 'x', y: 'y', series: 's', data }, state).view;
     } else {
-      const data = rows.map(([a, b], x) => ({ x: chart === 'bar' ? 'Band ' + x : x, a, b }));
-      view = aligned({ x: 'x', y: ['a', 'b'], data }, {
-        kind: chart, stacked: flag, horizontal: flag, compact, references,
-      }).view;
+      const xAt = (i: number) => category ? 'Band ' + i : i;
+      const a = rows.flatMap(([y], i) => i === 3 ? [] : [{ x: xAt(i), y: config.dense ? y ?? 0 : y, s: 'a' }]);
+      const b = rows.flatMap(([, y], i) => i % 2 ? [] : [{ x: xAt(i), y, s: 'b' }]);
+      const data = config.long ? [...a, ...b] : rows.map(([a, b], i) => ({ x: xAt(i), a: config.dense ? a ?? 0 : a, b }));
+      view = aligned(config.long ? { x: 'x', y: 'y', series: 's', data } : { x: 'x', y: ['a', 'b'], data },
+        { ...state, kind, stacked, horizontal, compact }).view;
+      if (config.long && !category) {
+        expect(view.frame.series[0]!.slot.includes(SLOT_GAP)).toBe(true);
+        expect(view.frame.series[1]!.slot.includes(SLOT_NO_ROW)).toBe(true);
+        exercised.add('long-form states');
+      }
+      if (kind === 'bar' && !compact) exercised.add('bar ' + [stacked, horizontal, config.dpr].join('/'));
     }
-    const scene = buildScene(view, layout(view, plot, view.kind !== 'donut' && view.compact, 0.2), flag ? 2 : 1);
+    const scene = buildScene(view, layout(view, plot, view.kind !== 'donut' && view.compact, 0.2), config.dpr);
     expect(scene.clip).toBe(plot);
-    for (const mark of scene.marks) expectWithinClip(mark, plot);
-  }), { numRuns: 200 });
+    if (view.kind !== 'donut') {
+      if (xDomain) {
+        expect(view.xFull).toEqual(xDomain);
+        exercised.add('author x domain');
+      } else if (!category) {
+        expect(view.xFull[0]).toBeLessThanOrEqual(-2);
+        expect(view.xFull[1]).toBeGreaterThanOrEqual(last + 1);
+        exercised.add('automatic x references');
+      }
+      if (zoom && !view.compact && !category) {
+        expect(view.xDomain[0]).toBeGreaterThanOrEqual(view.xFull[0]);
+        expect(view.xDomain[1]).toBeLessThanOrEqual(view.xFull[1]);
+        expect(view.xDomain[1] - view.xDomain[0]).toBeCloseTo(zoom[1] - zoom[0], 10);
+        exercised.add('zoom');
+      }
+      if (config.hide) {
+        const hidden = view.frame.series.findIndex(series => series.key === 'b');
+        if (hidden >= 0) {
+          expect(view.visible[hidden]).toBe(false);
+          expect(scene.marks.some(mark => 'series' in mark && mark.series === hidden)).toBe(false);
+          exercised.add('hidden series');
+        }
+      }
+    }
+    if (view.kind === 'line' && config.dense && !config.long) {
+      const slots = view.frame.series[0]!.slot.subarray(view.visibleSlots.start, view.visibleSlots.end);
+      const columns = Math.ceil((plot.x + width) * config.dpr) - Math.floor(plot.x * config.dpr);
+      const path = marksOf(scene.marks, 'path').find(mark => mark.series === 0);
+      if (slots.length > 4 * columns && slots.every(slot => slot === SLOT_VALUE) && path && path.xy.length / 2 < slots.length) {
+        exercised.add('simplified path');
+      }
+    }
+    for (const mark of scene.marks) expectWithinClip(mark, plot, view, xDomain !== undefined, authorY);
+  }), { numRuns: 1000, seed: 536 });
+  expect(exercised).toEqual(new Set([
+    'long-form states', 'automatic x references', 'author x domain', 'hidden series', 'zoom', 'simplified path',
+    ...[false, true].flatMap(stacked => [false, true].flatMap(horizontal =>
+      [1, 1.5, 2].map(dpr => 'bar ' + [stacked, horizontal, dpr].join('/')))),
+  ]));
+});
+
+it('keeps a joined line visible from edge to edge when its zoom contains no samples', () => {
+  const { view } = aligned({ x: 'x', y: 'y', data: [50, 60, 70, 80].map((y, x) => ({ x, y })) },
+    { kind: 'line', zoom: [1.2, 1.8] });
+  const path = marksOf(buildScene(view, layout(view), dpr).marks, 'path')[0]!;
+  const [x1, y1, x2, y2] = path.xy;
+  const heightAt = (x: number) => y1! + (y2! - y1!) * (x - x1!) / (x2! - x1!);
+  expect(heightAt(clip.x)).toBeCloseTo(clip.y + clip.height, 3);
+  expect(heightAt(clip.x + clip.width)).toBeCloseTo(clip.y, 3);
+});
+
+it.each([false, true])('keeps the missing mark at the far baseline and visible through the clip (horizontal %s)', horizontal => {
+  const { view } = aligned({ x: 'x', y: 'y', data: [{ x: 'A', y: -4 }, { x: 'B', y: null }] },
+    { kind: 'bar', horizontal });
+  const scene = buildScene(view, layout(view), dpr);
+  const rect = marksOf(scene.marks, 'rects').find(mark => mark.variant === 'missing')!;
+  const [x, y, w, h] = rect.xywh;
+  if (horizontal) expect([x, w]).toEqual([clip.x + clip.width, 0]);
+  else expect([y, h]).toEqual([clip.y, 0]);
+  const outline = new Float64Array(4);
+  missingBox(x!, y!, w!, h!, outline, scene.clip);
+  expect(outline[2]).toBeGreaterThan(0);
+  expect(outline[3]).toBeGreaterThan(0);
+  expectBox(outline[0]!, outline[1]!, outline[2]!, outline[3]!, clip);
+});
+
+it('uses each donut palette slot once when eight arcs surround arcless entries', () => {
+  const values = [5, 5, 5, 5, 0, null, 5, 5, 5, 5];
+  const { view } = donut(values.map((value, i) => ({ label: 'Part ' + i, value })));
+  const drawn = view.slices.filter(slice => slice.angles);
+  expect(drawn.map(slice => slice.colorIndex)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+  const [ring] = marksOf(buildScene(view, layout(view), dpr).marks, 'arcs');
+  expect(ring!.fills).toEqual(drawn.map(slice => ({ kind: 'series', index: slice.colorIndex })));
+});
+
+it('offsets scatter marker shapes every eight series', () => {
+  const { view } = scatter({ x: 'x', y: 'y', series: 's',
+    data: Array.from({ length: 17 }, (_, i) => ({ x: i, y: i, s: 'series ' + i })) });
+  const points = marksOf(buildScene(view, layout(view), dpr).marks, 'points');
+  expect([points[0]!.shape, points[8]!.shape, points[16]!.shape]).toEqual(['circle', 'square', 'triangle']);
+});
+
+it.each([false, true])('assigns each palette cycle its own bar pattern (stacked %s)', stacked => {
+  const y = Array.from({ length: 32 }, (_, i) => 'value' + i);
+  const { view } = aligned({ x: 'x', y, data: [{ x: 'A', ...Object.fromEntries(y.map(name => [name, 1])) }] },
+    { kind: 'bar', stacked });
+  const bars = marksOf(buildScene(view, layout(view), dpr).marks, 'rects');
+  expect(bars.slice(0, 8).every(bar => bar.pattern === undefined || bar.pattern === 'none')).toBe(true);
+  expect(bars.slice(8).map(bar => bar.pattern)).toEqual(
+    ['diagonal', 'cross', 'dots'].flatMap(pattern => Array.from({ length: 8 }, () => pattern)),
+  );
+});
+
+it.each([false, true])('centers whole continuous bars and retains bands crossing both zoom edges (horizontal %s)', horizontal => {
+  const { frame, view } = aligned({
+    x: 'x', y: ['a', 'b'], data: [0, 1, 2, 3].map(x => ({ x, a: x === 0 ? 50 : 3, b: 2 })),
+  }, { kind: 'bar', horizontal });
+  expect(view.xFull).toEqual([-0.5, 3.5]);
+  const whole = layout(view);
+  const [a, b] = marksOf(buildScene(view, whole, dpr).marks, 'rects');
+  const axis = horizontal ? 1 : 0;
+  const part = (horizontal ? clip.height : clip.width) / 10;
+  for (let i = 0; i < 4; i++) {
+    const offset = 4 * i + axis;
+    const fraction = (i + 0.5) / 4;
+    const center = horizontal ? clip.y + clip.height * (1 - fraction) : clip.x + clip.width * fraction;
+    expect(a!.xywh[offset]).toBeCloseTo(center - part, 4);
+    expect(b!.xywh[offset]).toBeCloseTo(center, 4);
+    expect(a!.xywh[offset + 2]).toBeCloseTo(part, 4);
+    expect(b!.xywh[offset + 2]).toBeCloseTo(part, 4);
+  }
+  const zoomed = buildView(frame, { kind: 'bar', horizontal, zoom: [0.2, 0.8], previous: view }, new DiagnosticCollector());
+  expect(zoomed.visibleSlots).toEqual({ start: 1, end: 1 });
+  expect(zoomed.yDomain[1]).toBeGreaterThanOrEqual(50);
+  const [left, right] = marksOf(buildScene(zoomed, layout(zoomed), dpr).marks, 'rects');
+  expect(left!.xywh).toHaveLength(8);
+  expect(right!.xywh).toHaveLength(8);
+  const lo = horizontal ? clip.y : clip.x;
+  const hi = lo + (horizontal ? clip.height : clip.width);
+  const lowSlot = horizontal ? 4 : 0;
+  const highSlot = horizontal ? 0 : 4;
+  expect(left!.xywh[lowSlot + axis]).toBeLessThan(lo);
+  expect(right!.xywh[highSlot + axis]! + right!.xywh[highSlot + axis + 2]!).toBeGreaterThan(hi);
+});
+
+it('draws x references beyond the data extent and renders equal bounds as rules', () => {
+  const { view, diagnostics } = aligned({ x: 'x', y: 'y', data: [{ x: 0, y: 1 }, { x: 5, y: 3 }] }, {
+    kind: 'line', references: [{ x: [8, 8], label: 'Future' }, { y: [2, 2], label: 'Target' }],
+  });
+  const marks = buildScene(view, layout(view), dpr).marks;
+  expect(marksOf(marks, 'band')).toEqual([]);
+  expect(marksOf(marks, 'rule').filter(rule => rule.role === 'reference')).toMatchObject([
+    { x1: 150, x2: 150, y1: 20, y2: 120 }, { x1: 10, x2: 150, y1: 70, y2: 70 },
+  ]);
+  expect(diagnostics.inputs()).toEqual([]);
+});
+
+it('uses the minimum spacing for markers and always keeps the last joined point', () => {
+  const { view } = aligned({
+    x: 'x', y: 'y', data: [0, 0.01, 0.02, 0.03, 10].map((x, y) => ({ x, y })),
+  }, { kind: 'line', valueDomain: [0, 4] });
+  const [markers] = marksOf(buildScene(view, layout(view), dpr).marks, 'points');
+  expect(markers!.xy).toEqual(Float32Array.of(10 + 0.03 * 14, 45, 150, 20));
+});
+
+it.each([1, -1])('anchors a missing stack component at the outer end for sign %s', sign => {
+  const { view } = aligned({
+    x: 'x', y: ['a', 'b', 'c'], data: [{ x: 'A', a: sign * 4, b: null, c: sign * 2 }],
+  }, { kind: 'bar', stacked: true, valueDomain: [-10, 10] });
+  const rects = marksOf(buildScene(view, layout(view), dpr).marks, 'rects');
+  expect(rects.find(mark => mark.variant === 'missing')!.xywh).toEqual(Float32Array.of(10, 70 - sign * 30, 140, 0));
+});
+
+it('excludes marks and references for categories outside an author domain', () => {
+  const { view } = aligned({
+    x: 'x', y: 'y', data: ['A', 'B', 'C', 'D'].map((x, i) => ({ x, y: i + 1 })),
+  }, {
+    kind: 'line', xDomain: ['B', 'C'], valueDomain: [0, 5],
+    references: [{ x: 'A', label: 'Outside' }, { x: 'B', label: 'Inside' }],
+  });
+  expect(view.xFull).toEqual([1, 2]);
+  const { marks } = buildScene(view, layout(view), dpr);
+  expect(marksOf(marks, 'path')[0]!.xy).toEqual(Float32Array.of(62.5, 80, 97.5, 60));
+  expect(marksOf(marks, 'rule').filter(mark => mark.role === 'reference').map(mark => mark.x1)).toEqual([62.5]);
+});
+
+it('draws only the value at a single-position author domain', () => {
+  const { view } = aligned({ x: 'x', y: 'y', data: [1, 2, 3].map((y, x) => ({ x, y })) },
+    { kind: 'line', compact: true, xDomain: [1, 1], valueDomain: [0, 5] });
+  const { marks } = buildScene(view, layout(view, clip, true), dpr);
+  expect(marksOf(marks, 'path')).toEqual([]);
+  expect(marksOf(marks, 'points')[0]!.xy).toEqual(Float32Array.of(80, 80));
+});
+
+it('pads irregular bar endpoints by their own neighbour spacing and skips non-overlapping bands', () => {
+  const { frame, view } = aligned({
+    x: 'x', y: 'y', data: [0, 2, 7, 10].map(x => ({ x, y: 2 })),
+  }, { kind: 'bar' });
+  expect(view.xFull).toEqual([-1, 11.5]);
+  const zoomed = buildView(frame, { kind: 'bar', zoom: [3.5, 4.5], previous: view }, new DiagnosticCollector());
+  expect(zoomed.visibleSlots).toEqual({ start: 2, end: 2 });
+  expect(zoomed.drawSlots[0]).toEqual({ start: 2, end: 2 });
+  expect(marksOf(buildScene(zoomed, layout(zoomed), dpr).marks, 'rects')[0]!.xywh).toHaveLength(0);
 });

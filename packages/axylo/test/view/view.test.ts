@@ -1,18 +1,18 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { SLOT_GAP, SLOT_NO_ROW, SLOT_NULL } from '../../src/core/contracts';
+import { SLOT_GAP, SLOT_NO_ROW, SLOT_NULL, SLOT_VALUE } from '../../src/core/contracts';
 import { DiagnosticCollector } from '../../src/diagnostics';
 import { buildView } from '../../src/view';
 import { aligned, donut, scatter } from './fixtures';
 
 describe('view domains and visibility', () => {
-  it('widens the full x extent with author bounds and clamps a zoom on either side', () => {
+  it('uses the author x extent and keeps the zoom width on either side', () => {
     const options = { x: { field: 'x', domain: [-3, 8] }, y: 'y', data: [{ x: 0, y: 1 }, { x: 5, y: 3 }] };
-    const { view } = aligned(options, { kind: 'line', zoom: [-10, 4] });
+    const { view } = aligned(options, { kind: 'line', zoom: [-10, -4] });
     expect(view.xFull).toEqual([-3, 8]);
-    expect(view.xDomain).toEqual([-3, 4]);
+    expect(view.xDomain).toEqual([-3, 3]);
     expect(view.visibleSlots).toEqual({ start: 0, end: 1 });
-    expect(aligned(options, { kind: 'line', zoom: [4, 20] }).view.xDomain).toEqual([4, 8]);
+    expect(aligned(options, { kind: 'line', zoom: [10, 12] }).view.xDomain).toEqual([6, 8]);
     expect(aligned({ ...options, x: 'x' }, { kind: 'line', zoom: [-10, 20] }).view.xDomain).toEqual([0, 5]);
     expect(aligned(options, { kind: 'line', xDomain: null }).view.xFull).toEqual([0, 5]);
   });
@@ -40,12 +40,12 @@ describe('view domains and visibility', () => {
     const { frame, view } = aligned({
       x: { field: 'x', type: 'date' }, y: 'y',
       data: [1, 2, 3, 5, 6, 7].map(day => ({ x: '2026-03-0' + day, y: day === 6 ? null : day })),
-    }, { kind: 'line', zoom: ['2026-03-05', '2026-03-05'] });
+    }, { kind: 'line', zoom: [Date.UTC(2026, 2, 5), Date.UTC(2026, 2, 5, 12)] });
     expect(frame.series[0]!.slot[3]).toBe(SLOT_GAP);
     expect(frame.series[0]!.slot[5]).toBe(SLOT_NULL);
     expect(view.visibleSlots).toEqual({ start: 4, end: 5 });
     expect(view.drawSlots).toEqual([{ start: 4, end: 5 }]);
-    const empty = buildView(frame, { kind: 'line', zoom: ['2026-03-04', '2026-03-04'] }, new DiagnosticCollector());
+    const empty = buildView(frame, { kind: 'line', zoom: [Date.UTC(2026, 2, 4), Date.UTC(2026, 2, 4, 12)] }, new DiagnosticCollector());
     expect(empty.drawSlots).toEqual([{ start: 3, end: 4 }]);
   });
 
@@ -113,12 +113,14 @@ describe('view domains and visibility', () => {
     expect(category.references[0]!.from).toBe(1);
   });
 
-  it('reports a band whose equal bounds cannot be distinguished from a line', () => {
+  it('resolves equal reference bounds to a line without a diagnostic', () => {
     const { view, diagnostics } = aligned({ x: 'x', y: 'y', data: [{ x: 1, y: 4 }] }, {
       kind: 'line', references: [{ x: [1, 1], label: 'Band' }, { x: 1, label: 'Line' }],
     });
-    expect(view.references).toEqual([{ axis: 'x', from: 1, to: 1, label: 'Line' }]);
-    expect(diagnostics.inputs()).toEqual([expect.objectContaining({ code: 'AX150', field: 'reference[0].x' })]);
+    expect(view.references).toEqual([
+      { axis: 'x', from: 1, to: 1, label: 'Band' }, { axis: 'x', from: 1, to: 1, label: 'Line' },
+    ]);
+    expect(diagnostics.inputs()).toEqual([]);
   });
 
   it('keeps scatter ranges per series and uses only the points inside zoom for the value domain', () => {
@@ -153,11 +155,11 @@ describe('stacks and series cues', () => {
 
   it('reuses a view for identical inputs and its unchanged stack and cues across zooms', () => {
     const { frame, view } = aligned({
-      x: 'x', y: ['a', 'b'], data: [{ x: '0', a: 3, b: -2 }, { x: '1', a: 2, b: -4 }],
+      x: 'x', y: ['a', 'b'], data: [{ x: 0, a: 3, b: -2 }, { x: 1, a: 2, b: -4 }],
     }, { kind: 'area', stacked: true });
     const sink = new DiagnosticCollector();
     const same = buildView(frame, { kind: 'area', stacked: true, previous: view }, sink);
-    const zoomed = buildView(frame, { kind: 'area', stacked: true, zoom: ['1', '1'], previous: same }, sink);
+    const zoomed = buildView(frame, { kind: 'area', stacked: true, zoom: [0.5, 1], previous: same }, sink);
     expect(same).toBe(view);
     expect(zoomed.frame).toBe(frame);
     expect(zoomed.stack).toBe(view.stack);
@@ -177,7 +179,7 @@ describe('stacks and series cues', () => {
     expect(view.cues.slice(0, 8).every(cue => cue.dash.normal === null)).toBe(true);
     const identities = view.cues.map((cue, i) => JSON.stringify([i % 8, cue.dash.normal]));
     expect(new Set(identities).size).toBe(12);
-    expect(new Set(view.cues.map(cue => JSON.stringify(cue.dash.contrast))).size).toBe(12);
+    expect(new Set(view.cues.map(cue => JSON.stringify([cue.marker, cue.dash.contrast]))).size).toBe(12);
     expect(diagnostics.inputs()).toEqual([expect.objectContaining({ code: 'AX130', level: 'warning' })]);
   });
 
@@ -190,25 +192,44 @@ describe('stacks and series cues', () => {
     expect(diagnostics.inputs()).toEqual([expect.objectContaining({ code: 'AX131', level: 'hint' })]);
   });
 
-  it('keeps every cumulative total on its own side of zero for arbitrary signed values', () => {
+  it('matches visible components of generated long-form stacks, including gaps and absent rows', () => {
     const value = fc.option(fc.integer({ min: -300, max: 300 }), { nil: null });
-    fc.assert(fc.property(fc.array(fc.tuple(value, value, value), { minLength: 1, maxLength: 20 }), values => {
-      const data = values.map(([a, b, c], x) => ({ x, a, b, c }));
-      const { view } = aligned({ x: 'x', y: ['a', 'b', 'c'], data }, { kind: 'bar', stacked: true });
+    const rows = fc.array(fc.tuple(value, value, value), { minLength: 8, maxLength: 30 });
+    fc.assert(fc.property(rows, fc.boolean(), fc.boolean(), fc.boolean(), (rows, hide, zoom, author) => {
+      const data = rows.flatMap(([a, b, c], x) => [
+        ...(x === 3 ? [] : [{ x, s: 'a', y: a }]),
+        ...(x % 2 ? [] : [{ x, s: 'b', y: b }]),
+        { x, s: 'c', y: c },
+      ]);
+      const { frame, view } = aligned({ x: 'x', y: 'y', series: 's', data }, {
+        kind: 'bar', stacked: true, hidden: hide ? new Set(['b']) : undefined,
+        zoom: zoom ? [1.2, 5.9] : null, xDomain: author ? [1, 6] : null,
+      });
       const stack = view.stack!;
-      for (let i = 0; i < values.length; i++) {
-        const row = values[i]!;
-        expect(stack.incomplete?.[i] ?? 0).toBe(row.includes(null) ? 1 : 0);
-        for (let k = 0; k < row.length; k++) {
-          const sum = row.slice(0, k + 1).reduce<number>((total, value) => total + Math.max(0, value ?? 0), 0);
-          const debt = row.slice(0, k + 1).reduce<number>((total, value) => total + Math.min(0, value ?? 0), 0);
-          expect(stack.positive[k]![i]).toBe(sum);
-          expect(stack.negative[k]![i]).toBe(debt);
-          expect(view.yDomain[0]).toBeLessThanOrEqual(debt);
-          expect(view.yDomain[1]).toBeGreaterThanOrEqual(sum);
+      expect(frame.series[0]!.slot[3]).toBe(SLOT_GAP);
+      expect(frame.series[1]!.slot[3]).toBe(SLOT_NO_ROW);
+      expect(stack.order).toEqual(hide ? [0, 2] : [0, 1, 2]);
+      if (author) expect(view.xFull).toEqual([1, 6]);
+      for (let i = 0; i < rows.length; i++) {
+        const [a, b, c] = rows[i]!;
+        const components = hide ? [i === 3 ? null : a, c] : [i === 3 ? null : a, i % 2 ? null : b, c];
+        expect(stack.incomplete?.[i] ?? 0).toBe(Number(components.includes(null)));
+        let positive = 0;
+        let negative = 0;
+        for (let k = 0; k < components.length; k++) {
+          const component = components[k] ?? 0;
+          positive += Math.max(0, component);
+          negative += Math.min(0, component);
+          expect(stack.positive[k]![i]).toBe(positive);
+          expect(stack.negative[k]![i]).toBe(negative);
+          expect(frame.series[stack.order[k]!]!.slot[i] === SLOT_VALUE).toBe(components[k] !== null);
+        }
+        if (i >= view.visibleSlots.start && i < view.visibleSlots.end) {
+          expect(view.yDomain[0]).toBeLessThanOrEqual(negative);
+          expect(view.yDomain[1]).toBeGreaterThanOrEqual(positive);
         }
       }
-    }));
+    }), { numRuns: 1000 });
   });
 });
 
@@ -233,9 +254,9 @@ describe('donut slices', () => {
     const entries = [{ label: 'Zero', value: 0 }, { label: 'Missing', value: null }, { label: 'Positive', value: 5 }];
     const { view } = donut(entries);
     expect(view.slices).toEqual([
-      { key: 'Zero', label: 'Zero', members: [0], value: 0, ratio: 0, angles: null },
-      { key: 'Missing', label: 'Missing', members: [1], value: null, ratio: null, angles: null },
-      { key: 'Positive', label: 'Positive', members: [2], value: 5, ratio: 1, angles: [0, 2 * Math.PI] },
+      { key: 'Zero', label: 'Zero', members: [0], value: 0, ratio: 0, angles: null, colorIndex: 1 },
+      { key: 'Missing', label: 'Missing', members: [1], value: null, ratio: null, angles: null, colorIndex: 2 },
+      { key: 'Positive', label: 'Positive', members: [2], value: 5, ratio: 1, angles: [0, 2 * Math.PI], colorIndex: 0 },
     ]);
     const empty = donut(entries.slice(0, 2)).view;
     expect(empty.total).toBe(0);
@@ -249,7 +270,7 @@ describe('donut slices', () => {
     expect(view.total).toBe(56);
     expect(view.slices.map(slice => slice.members)).toEqual([[1], [2], [3], [4], [7], [8], [9], [0, 5, 6]]);
     expect(view.slices[7]).toEqual({
-      key: '__other__', label: '3 remaining', members: [0, 5, 6], value: 7, ratio: 1 / 8,
+      key: '__other__', label: '3 remaining', members: [0, 5, 6], value: 7, ratio: 1 / 8, colorIndex: null,
       angles: [expect.closeTo(7 * Math.PI / 4, 12), 2 * Math.PI],
     });
     expect(diagnostics.inputs()).toEqual([expect.objectContaining({ code: 'AX121', level: 'warning', count: 3 })]);

@@ -26,14 +26,20 @@ function markerIndexes(
   let count = 0;
   let first = range.end;
   let last = range.start;
+  let previousPixel = 0;
+  let showAll = true;
   for (let i = range.start; i < range.end; i++) {
     if (slot[i] !== SLOT_VALUE) continue;
     if (count++ === 0) first = i;
+    if (showAll) {
+      const pixel = mapX(x[i]!);
+      showAll = i === first || Math.abs(pixel - previousPixel) >= 12;
+      previousPixel = pixel;
+    }
     last = i;
   }
   if (!count) return isolated;
   const span = Math.abs(mapX(x[last]!) - mapX(x[first]!));
-  const showAll = count <= 1 || span >= 12 * (count - 1);
   const capacity = showAll ? count : Math.min(count, Math.floor(span / 80) + 1 + isolated.length);
   const indexes = new Uint32Array(capacity);
   let write = capacity;
@@ -62,13 +68,15 @@ export function addLine(
   paths: PathMark[], points: PointMark[], selection: JoinedRuns = simplifyLine(input),
 ): void {
   const cue = view.cues[series]!;
-  if (selection.indexes.length) {
+  // A single slot in an author domain can have joined neighbours outside the drawing.
+  const singlePoint = input.range.end - input.range.start === 1 && selection.indexes.length === 1;
+  if (selection.indexes.length && !singlePoint) {
     paths.push({
       type: 'path', series, xy: buildPath(selection.indexes, selection.breaks, input), stroke: seriesPaint(series),
       strokeWidth: 2, dash: cue.dash,
     });
   }
-  const markers = markerIndexes(input, visible, selection.isolated, compact);
+  const markers = markerIndexes(input, visible, singlePoint ? selection.indexes : selection.isolated, compact);
   if (markers.length) points.push(pointMark(series, cue, buildPoints(markers, input)));
 }
 

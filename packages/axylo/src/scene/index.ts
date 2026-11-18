@@ -58,8 +58,11 @@ function references(view: Exclude<View, DonutView>, projection: Cartesian, plot:
     const across = (axis === 'x') !== horizontal;
     const start = across ? plot.x : plot.y;
     const end = start + (across ? plot.width : plot.height);
-    const a = position(scale, from);
-    const b = position(scale, to);
+    const xReference = axis === 'x';
+    const [first, last] = view.xDomain;
+    if (xReference && (to < first || from > last)) continue;
+    const a = position(scale, xReference ? Math.max(from, first) : from);
+    const b = position(scale, xReference ? Math.min(to, last) : to);
     if (from === to) {
       if (a < start || a > end) continue;
       lines.push(across ? rule('reference', paint, a, plot.y, a, plot.y + plot.height)
@@ -78,11 +81,10 @@ function references(view: Exclude<View, DonutView>, projection: Cartesian, plot:
 function arcMarks(view: DonutView, projection: Extract<Projection, { kind: 'ring' }>): Mark[] {
   const angles: number[] = [];
   const fills: Paint[] = [];
-  for (let k = 0; k < view.slices.length; k++) {
-    const slice = view.slices[k]!;
+  for (const slice of view.slices) {
     if (slice.angles === null) continue;
     angles.push(...slice.angles);
-    fills.push(slice.key === '__other__' && slice.members.length > 1 ? token('muted') : seriesPaint(k));
+    fills.push(slice.colorIndex === null ? token('muted') : seriesPaint(slice.colorIndex));
   }
   if (!angles.length) return [];
   const { cx, cy, r0, r1 } = projection;

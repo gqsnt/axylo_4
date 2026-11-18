@@ -1,12 +1,13 @@
 import {
   SLOT_NO_ROW, SLOT_VALUE, type AlignedFrame, type AlignedView, type DiagnosticSink, type DonutFrame,
   type DonutView, type Frame, type IndexRange, type MarkerShape, type PointFrame, type ResolvedReference,
-  type ScatterView, type SeriesCue, type StackView, type View, type XColumn,
+  type ScatterView, type SeriesCue, type StackView, type View,
 } from '../core/contracts';
 import type { ResolvedXField } from '../data';
 import { report } from '../diagnostics';
 import type { Reference, ValueFieldOptions, XValue } from '../public';
 import { valueDomain } from '../scale';
+import { barExtent, barRange } from './bar-bands';
 import { buildDonut } from './donut';
 import { positionReader, readSpan, resolveReferences, type Span } from './references';
 import { buildStack, reportStack } from './stack';
@@ -45,7 +46,11 @@ export interface DonutViewState {
 export type ViewState = AlignedViewState | ScatterViewState | DonutViewState;
 
 const SHAPES: readonly MarkerShape[] = ['circle', 'square', 'triangle', 'diamond', 'cross', 'plus', 'triangle-down', 'star'];
+const CONTRAST_DASHES: readonly SeriesCue['dash']['contrast'][] = [
+  null, [12, 5], [5, 4], [1, 5], [9, 4, 1, 4], [9, 4, 1, 4, 1, 4], [12, 4, 5, 4], [1, 2],
+];
 const extrema = new WeakMap<AlignedView | ScatterView, Span>();
+const widenedDomains = new WeakMap<AlignedView, string | undefined>();
 
 function reuse<T>(values: T[], previous: readonly T[] | undefined, same: (a: T, b: T) => boolean): readonly T[] {
   if (!previous) return values;
@@ -66,16 +71,17 @@ function sameRange(a: IndexRange, b: IndexRange): boolean {
 }
 
 function cues(count: number, compact: boolean, previous: AlignedView | ScatterView | undefined, sink: DiagnosticSink): readonly SeriesCue[] {
-  if (count > SHAPES.length) report(sink, 'AX130', 'none');
-  if (compact && count > 1) report(sink, 'AX131', 'none');
+  if (count > SHAPES.length && (previous?.cues.length ?? 0) <= SHAPES.length) report(sink, 'AX130', 'none');
+  if (compact && count > 1 && !(previous?.compact && previous.cues.length > 1)) report(sink, 'AX131', 'none');
   const existing = previous?.compact === compact ? previous.cues : undefined;
   if (existing?.length === count) return existing;
   return Array.from({ length: count }, (_, i) => {
     if (existing && i < existing.length) return existing[i]!;
-    const contrast = i === 0 ? null : [2 + i, 3];
+    const cycle = Math.floor(i / SHAPES.length);
+    const contrast = CONTRAST_DASHES[i % CONTRAST_DASHES.length]!;
     return {
-      marker: SHAPES[i % SHAPES.length]!,
-      dash: { normal: compact || i >= SHAPES.length ? contrast : null, contrast },
+      marker: SHAPES[(i + cycle) % SHAPES.length]!,
+      dash: { normal: cycle ? [2 + i, 3] : compact ? contrast : null, contrast },
     };
   });
 }
@@ -121,27 +127,76 @@ function drawRange(slot: Uint8Array, range: IndexRange): IndexRange {
   return left === start && right === end ? range : { start: left, end: right };
 }
 
-function alignedExtrema(frame: AlignedFrame, visible: readonly boolean[], range: IndexRange, stack: StackView | null): Span {
+function interpolated(x: Float64Array, edge: number, left: number, right: number, a: number, b: number): number {
+  const start = x[left]!;
+  const end = x[right]!;
+  if (edge === start || a === b) return a;
+  if (edge === end) return b;
+  const width = end - start;
+  const t = Number.isFinite(width) ? (edge - start) / width : (edge / 2 - start / 2) / (end / 2 - start / 2);
+  const delta = b - a;
+  const value = Number.isFinite(delta) ? a + delta * t : a * (1 - t) + b * t;
+  return Math.max(Math.min(a, b), Math.min(value, Math.max(a, b)));
+}
+
+function alignedExtrema(
+  frame: AlignedFrame, visible: readonly boolean[], range: IndexRange, draws: readonly IndexRange[],
+  domain: Span, stack: StackView | null, kind: AlignedView['kind'],
+): Span {
   let min = Infinity;
   let max = -Infinity;
-  if (stack) {
-    const negative = stack.negative.at(-1);
-    const positive = stack.positive.at(-1);
-    if (negative && positive) {
-      for (let i = range.start; i < range.end; i++) {
-        min = Math.min(min, negative[i]!);
-        max = Math.max(max, positive[i]!);
+  const x = frame.x.values;
+  const { start, end } = kind === 'bar' ? draws[0] ?? range : range;
+  const negative = stack?.negative.at(-1);
+  const positive = stack?.positive.at(-1);
+  if (negative && positive) {
+    for (let i = start; i < end; i++) {
+      min = Math.min(min, negative[i]!);
+      max = Math.max(max, positive[i]!);
+    }
+  }
+  const include = (value: number) => {
+    min = Math.min(min, value);
+    max = Math.max(max, value);
+  };
+  let reachesLeft = false;
+  let reachesRight = false;
+
+  for (let series = 0, k = 0; series < frame.series.length; series++) {
+    if (!visible[series]) continue;
+    const { y, slot } = frame.series[series]!;
+    if (!stack) {
+      for (let j = start; j < end; j++) {
+        if (slot[j] === SLOT_VALUE) include(y[j]!);
       }
     }
-  } else {
-    for (let i = 0; i < frame.series.length; i++) {
-      if (!visible[i]) continue;
-      const { y, slot } = frame.series[i]!;
-      for (let j = range.start; j < range.end; j++) {
-        if (slot[j] !== SLOT_VALUE) continue;
-        min = Math.min(min, y[j]!);
-        max = Math.max(max, y[j]!);
-      }
+    if (kind === 'bar') continue;
+
+    const draw = draws[series]!;
+    const below = stack?.negative[k];
+    const above = stack?.positive[k++];
+    const stroke = (index: number) => (y[index]! < 0 ? below : above)?.[index] ?? y[index]!;
+    if (draw.start < start) {
+      const right = nextObservation(slot, start, draw.end, 1);
+      include(interpolated(x, domain[0], draw.start, right, stroke(draw.start), stroke(right)));
+      reachesLeft = true;
+    }
+    if (draw.end > end) {
+      const left = nextObservation(slot, end - 1, draw.start - 1, -1);
+      const right = draw.end - 1;
+      include(interpolated(x, domain[1], left, right, stroke(left), stroke(right)));
+      reachesRight = true;
+    }
+  }
+  if (negative && positive) {
+    // Stacked fills use adjacent frame slots even when their component strokes join across NO_ROW.
+    if (reachesLeft) {
+      include(interpolated(x, domain[0], start - 1, start, negative[start - 1]!, negative[start]!));
+      include(interpolated(x, domain[0], start - 1, start, positive[start - 1]!, positive[start]!));
+    }
+    if (reachesRight) {
+      include(interpolated(x, domain[1], end - 1, end, negative[end - 1]!, negative[end]!));
+      include(interpolated(x, domain[1], end - 1, end, positive[end - 1]!, positive[end]!));
     }
   }
   return [min, max];
@@ -176,35 +231,53 @@ function scatterX(frame: PointFrame, sink: DiagnosticSink): Span {
   return [min, max];
 }
 
+function fitZoom(full: Span, zoom: Span | null): Span {
+  if (!zoom) return full;
+  const [low, high] = full;
+  const [start, end] = zoom;
+  if (start >= low && end <= high) return zoom;
+  // Compare half-widths so even a window spanning the extremes of a numeric axis can be shifted.
+  const width = end - start;
+  const overflow = !Number.isFinite(width);
+  const halfWidth = end / 2 - start / 2;
+  if (overflow ? halfWidth >= high / 2 - low / 2 : width >= high - low) return full;
+  if (start < low) {
+    const shifted = overflow ? (low / 2 + halfWidth) * 2 : low + width;
+    return shifted > low ? [low, Math.min(high, shifted)] : full;
+  }
+  const shifted = overflow ? (high / 2 - halfWidth) * 2 : high - width;
+  return shifted < high ? [Math.max(low, shifted), high] : full;
+}
+
 function xExtents(
-  data: Span, column: Pick<XColumn, 'kind' | 'categories' | 'timeZone'>, readX: (value: XValue) => number,
+  data: Span, category: boolean, readX: ReturnType<typeof positionReader>, references: readonly ResolvedReference[],
   state: AlignedViewState | ScatterViewState, compact: boolean, sink: DiagnosticSink,
 ): { xFull: Span; xDomain: Span } {
-  const category = column.kind === 'category';
   const authorInput = state.xDomain === undefined ? state.xField?.domain : state.xDomain;
-  const author = category ? null : readSpan(authorInput, readX, 'x.domain', sink);
-  const min = Math.min(data[0], author?.[0] ?? Infinity);
-  const max = Math.max(data[1], author?.[1] ?? -Infinity);
-  const xFull: Span = min <= max ? [min, max] : category ? [0, 0] : [0, 1];
-  const zoom = compact || category && state.kind === 'bar' ? null : readSpan(state.zoom, readX, 'zoom', sink);
-  const clamp = (value: number) => Math.max(xFull[0], Math.min(value, xFull[1]));
-  return { xFull, xDomain: zoom ? [clamp(zoom[0]), clamp(zoom[1])] : xFull };
+  const author = readSpan(authorInput, readX, 'x.domain', sink);
+  let [min, max] = data;
+  for (const reference of references) {
+    if (reference.axis !== 'x') continue;
+    min = Math.min(min, reference.from);
+    max = Math.max(max, reference.to);
+  }
+  const xFull: Span = author ?? (min <= max ? [min, max] : category ? [0, 0] : [0, 1]);
+  const zoom = compact || category && state.kind === 'bar' ? null : readSpan(state.zoom, readX, 'zoom', sink, true);
+  return { xFull, xDomain: fitZoom(xFull, zoom) };
 }
 
 function yExtent(
   data: Span, references: readonly ResolvedReference[], state: AlignedViewState | ScatterViewState,
-  scale: CartesianState['valueScale'], field: string | undefined, sink: DiagnosticSink,
-): Span {
+  scale: CartesianState['valueScale'], sink: DiagnosticSink,
+): ReturnType<typeof valueDomain> {
   const positions = references.flatMap(r => r.axis === 'y' ? [r.from, r.to] : []);
   if (state.valueDomain && !state.valueDomain.every(Number.isFinite)) {
     report(sink, 'AX103', 'none', { field: 'y.domain' });
   }
-  const { domain, widenedToZero } = valueDomain({
+  return valueDomain({
     min: data[0], max: data[1], includeZero: state.kind === 'bar' || state.kind === 'area',
     authorDomain: state.valueDomain, valueScale: scale, references: positions,
   });
-  if (widenedToZero) report(sink, 'AX110', 'none', { field });
-  return domain;
 }
 
 function alignedScale(frame: AlignedFrame, visible: readonly boolean[]): CartesianState['valueScale'] {
@@ -238,10 +311,12 @@ export function buildView(frame: Frame, state: ViewState, sink: DiagnosticSink):
   const readX = positionReader(column, state.xField);
   const references = reuse(resolveReferences(state.references ?? [], readX, column.kind, sink), prior?.references,
     (a, b) => a.axis === b.axis && a.from === b.from && a.to === b.to && a.label === b.label);
+  const category = column.kind === 'category';
+  const continuousBars = state.kind === 'bar' && !category;
   const xData: Span = frame.shape === 'aligned'
-    ? [frame.x.values[0] ?? Infinity, frame.x.values[frame.length - 1] ?? -Infinity]
+    ? continuousBars ? barExtent(frame.x.values) : [frame.x.values[0] ?? Infinity, frame.x.values[frame.length - 1] ?? -Infinity]
     : scatterX(frame, sink);
-  const spans = xExtents(xData, column, readX, state, compact, sink);
+  const spans = xExtents(xData, category, readX, references, state, compact, sink);
   const xFull = keepSpan(spans.xFull, prior?.xFull);
   const xDomain = sameSpan(xFull, spans.xDomain) ? xFull : keepSpan(spans.xDomain, prior?.xDomain);
   const shared = { compact, visible, cues: seriesCues, references, revision: frame.revision, xFull, xDomain };
@@ -255,7 +330,7 @@ export function buildView(frame: Frame, state: ViewState, sink: DiagnosticSink):
       frame.series.map(({ x }, i) => rangeOf(x, xDomain, old?.visiblePoints[i])), old?.visiblePoints, sameRange,
     );
     const data = oldExtrema && old?.visiblePoints === visiblePoints ? oldExtrema : pointExtrema(frame, visible, visiblePoints);
-    const yDomain = keepSpan(yExtent(data, references, state, state.valueScale, state.valueField, sink), old?.yDomain);
+    const yDomain = keepSpan(yExtent(data, references, state, state.valueScale, sink).domain, old?.yDomain);
     if (sameShared && old?.visiblePoints === visiblePoints && old.yDomain === yDomain) return old;
     const view: ScatterView = { ...shared, kind: 'scatter', frame, visiblePoints, yDomain };
     extrema.set(view, data);
@@ -266,22 +341,31 @@ export function buildView(frame: Frame, state: ViewState, sink: DiagnosticSink):
   const old = prior?.kind === state.kind ? prior : undefined;
   const horizontal = state.kind === 'bar' && (state.horizontal ?? false);
   const visibleSlots = sameFrame && old?.xDomain === xDomain ? old.visibleSlots : rangeOf(frame.x.values, xDomain, old?.visibleSlots);
-  const drawSlots = sameFrame && old?.visibleSlots === visibleSlots ? old.drawSlots : reuse(
-    frame.series.map(({ slot }) => state.kind === 'bar' ? visibleSlots : drawRange(slot, visibleSlots)), old?.drawSlots, sameRange,
+  const singlePosition = xDomain[0] === xDomain[1];
+  const sameDrawWindow = sameFrame && old !== undefined && (continuousBars ? old.xDomain === xDomain
+    : old.visibleSlots === visibleSlots && (old.xDomain[0] === old.xDomain[1]) === singlePosition);
+  const barSlots = continuousBars ? barRange(frame.x.values, visibleSlots, xDomain) : visibleSlots;
+  const drawSlots = sameDrawWindow ? old.drawSlots : reuse(
+    frame.series.map(({ slot }) => state.kind === 'bar' || category || singlePosition ? barSlots : drawRange(slot, visibleSlots)),
+    old?.drawSlots, sameRange,
   );
   const stack = state.stacked && state.kind !== 'line'
     ? sameFrame && old?.visible === visible && old.stack ? old.stack : buildStack(frame, visible)
     : null;
   if (stack) reportStack(stack, sink);
-  const data = oldExtrema && old?.visibleSlots === visibleSlots && old.stack === stack
-    ? oldExtrema : alignedExtrema(frame, visible, visibleSlots, stack);
+  const data = oldExtrema && old?.xDomain === xDomain && old.stack === stack
+    ? oldExtrema : alignedExtrema(frame, visible, visibleSlots, drawSlots, xDomain, stack, state.kind);
   const scale = state.valueScale === undefined ? alignedScale(frame, visible) : state.valueScale;
   const field = state.valueField ?? (frame.yLabel === null ? undefined : frame.series[0]?.field);
-  const yDomain = keepSpan(yExtent(data, references, state, scale, field, sink), old?.yDomain);
-  if (sameShared && old?.visibleSlots === visibleSlots && old.stack === stack && old.yDomain === yDomain && old.horizontal === horizontal) {
-    return old;
-  }
+  const { domain, widenedToZero } = yExtent(data, references, state, scale, sink);
+  const wasWidened = old !== undefined && widenedDomains.has(old);
+  const sameWidening = wasWidened === widenedToZero && (!wasWidened || widenedDomains.get(old!) === field);
+  if (widenedToZero && !sameWidening) report(sink, 'AX110', 'none', { field });
+  const yDomain = keepSpan(domain, old?.yDomain);
+  if (sameShared && old?.visibleSlots === visibleSlots && old.stack === stack &&
+    old.yDomain === yDomain && old.horizontal === horizontal && sameWidening) return old;
   const view: AlignedView = { ...shared, kind: state.kind, frame, horizontal, visibleSlots, drawSlots, stack, yDomain };
   extrema.set(view, data);
+  if (widenedToZero) widenedDomains.set(view, field);
   return view;
 }
