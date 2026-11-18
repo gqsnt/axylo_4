@@ -42,6 +42,12 @@ export interface Recording {
 export interface HostOptions {
   readonly container?: { width: number; height: number } | null;
   readonly console?: boolean;
+  readonly timeZone?: string;
+  readonly locale?: string;
+  readonly textWidth?: Host['measurer']['width'];
+  readonly captionLineHeight?: number;
+  /** The page's `lang` (A10); 'en' when not given. */
+  readonly pageLang?: string;
 }
 
 export function record(kind: ChartKind, options: Record<string, unknown>, settings: HostOptions = {}): Recording {
@@ -55,7 +61,7 @@ export function record(kind: ChartKind, options: Record<string, unknown>, settin
     themeCalls: [] as { keys: readonly string[]; colors: Record<string, string> }[], printed: [] as string[], disposed: 0,
     writesAfterDispose: 0, surfaces: true,
     container: settings.container === undefined ? { width: 720, height: 400 } : settings.container,
-    lineHeight: 20, ids: {} as Record<string, string>,
+    lineHeight: settings.captionLineHeight ?? 20, ids: {} as Record<string, string>,
   };
   let model: FigureModel | null = null;
   let controls: ControlsState | null = null;
@@ -88,7 +94,7 @@ export function record(kind: ChartKind, options: Record<string, unknown>, settin
       error: (...args: unknown[]) => { rec.printed.push(String(args[0])); },
     },
     page: {},
-    timeZone: 'UTC',
+    timeZone: settings.timeZone ?? 'UTC',
     renderer: { kind: 'svg', draw: scene => { if (rec.disposed) rec.writesAfterDispose++; rec.draws.push(scene); } },
     text: { render: texts => { if (rec.disposed) rec.writesAfterDispose++; rec.texts.push(texts); } },
     surfaces(visible) {
@@ -122,7 +128,7 @@ export function record(kind: ChartKind, options: Record<string, unknown>, settin
         rec.clears++;
       },
     },
-    measurer: { width: text => text.length * 7 },
+    measurer: { width: settings.textWidth ?? (text => text.length * 7) },
     requestFrame(callback) {
       const handle = ++handles;
       queue.set(handle, callback);
@@ -131,8 +137,8 @@ export function record(kind: ChartKind, options: Record<string, unknown>, settin
     cancelFrame(handle) {
       queue.delete(handle);
     },
-    locale: option => typeof option === 'string' ? option : 'en-US',
-    pageLang: () => 'en',
+    locale: option => typeof option === 'string' ? option : settings.locale ?? 'en-US',
+    pageLang: () => settings.pageLang ?? 'en',
     labelText: id => Object.hasOwn(rec.ids, id) ? rec.ids[id]! : null,
     textStyle: () => style,
     measure: plotSize,

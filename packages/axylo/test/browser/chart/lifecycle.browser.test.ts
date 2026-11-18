@@ -306,6 +306,35 @@ describe('commit contract (plan 1.5, spec DX5)', () => {
     expect(result.children).toBe(0);
     expect(await closePage(page)).toEqual([]);
   });
+
+  it('after destroy() no listener is registered: not on the plot, the document or the window', async () => {
+    // Registration itself, read through the DevTools protocol: a destroyed controller that ignores its
+    // listeners would pass the test above (controller review, finding 20).
+    const page = await chartPage();
+    const cdp = await page.context().newCDPSession(page);
+    const listeners = async (expression: string): Promise<number> => {
+      const { result } = await cdp.send('Runtime.evaluate', { expression });
+      const { listeners } = await cdp.send('DOMDebugger.getEventListeners', { objectId: result.objectId! });
+      return listeners.length;
+    };
+    const before = { document: await listeners('document'), window: await listeners('window') };
+    await page.evaluate(async () => {
+      const el = document.getElementById('chart')!;
+      const chart = window.Axylo.line!(el, { title: 'Gone', data: window.fx.trendRows(), x: 'day', y: 'sessions', series: 'channel' });
+      await chart.__bench.ready();
+      const w = window as unknown as { gone: { chart: typeof chart; plot: Element; proxy: Element } };
+      w.gone = { chart, plot: el.querySelector('.axylo-plot')!, proxy: el.querySelector('.axylo-proxy')! };
+    });
+    expect(await listeners('window.gone.plot')).toBeGreaterThan(0);
+    expect(await listeners('window.gone.proxy')).toBeGreaterThan(0);
+    await page.evaluate(() => { (window as unknown as { gone: { chart: { destroy(): void } } }).gone.chart.destroy(); });
+    expect(await listeners('window.gone.plot')).toBe(0);
+    expect(await listeners('window.gone.proxy')).toBe(0);
+    expect(await listeners('document')).toBe(before.document);
+    expect(await listeners('window')).toBe(before.window);
+    await cdp.detach();
+    expect(await closePage(page)).toEqual([]);
+  });
 });
 
 describe('memory (spec P7, DX5)', () => {

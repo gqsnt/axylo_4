@@ -1,4 +1,4 @@
-import type { AxisLabelFit, LabelRemedy, PlacedText, Tick, TickCandidates, XScale } from '../core/contracts';
+import type { LabelRemedy, PlacedText, Tick, TickCandidates, XScale } from '../core/contracts';
 
 type Role = PlacedText['role'];
 type Side = 'bottom' | 'left';
@@ -17,7 +17,9 @@ export interface FittedLabels {
   readonly ticks: readonly Tick[];
   readonly texts: readonly PlacedText[];
   readonly depth: number;
-  readonly fit: AxisLabelFit;
+  readonly remedies: readonly LabelRemedy[];
+  /** No candidate set fitted whole: labels were dropped from the sparsest one (value axes). */
+  readonly partial?: boolean;
 }
 
 const EPSILON = 1e-7;
@@ -124,38 +126,24 @@ function wrapLabel(text: string, current: readonly string[], count: 2 | 3, metri
 }
 
 export interface PreparedLabels {
-  readonly sets: readonly { readonly ticks: readonly Tick[]; readonly hidden: number }[];
+  readonly sets: readonly (readonly Tick[])[];
   competingLabel(full: string, prefix: string, suffix: string): boolean;
 }
 
 export function prepareLabels(candidates: TickCandidates): PreparedLabels {
   const originals = new Set<string>();
   const first = new Map<string, number>();
-  const hiddenAtFullDensity = new Map<string, Set<number>>();
-  let denseHidden = 0;
   const sets = candidates.map((ticks, index) => {
     const shown: Tick[] = [];
-    let hidden = denseHidden;
     const seen = index === 0 ? first : new Map<string, number>();
     for (const tick of ticks) {
       const { label, value } = tick;
-      if (!label.trim() || seen.has(label) || (first.has(label) && first.get(label) !== value)) {
-        if (index === 0) {
-          const rejected = hiddenAtFullDensity.get(label);
-          if (rejected) rejected.add(value);
-          else hiddenAtFullDensity.set(label, new Set([value]));
-          hidden++;
-        } else if (!hiddenAtFullDensity.get(label)?.has(value)) {
-          hidden++;
-        }
-        continue;
-      }
+      if (!label.trim() || seen.has(label) || (first.has(label) && first.get(label) !== value)) continue;
       originals.add(label);
       seen.set(label, value);
       shown.push(tick);
     }
-    if (index === 0) denseHidden = hidden;
-    return { ticks: shown, hidden };
+    return shown;
   });
 
   let byEnding: Map<string, string[]> | undefined;
@@ -313,10 +301,10 @@ function conflicts(labels: readonly Label[], side: Side, span: number, room: num
   return bad;
 }
 
-function result(labels: readonly Label[], side: Side, remedies: readonly LabelRemedy[], hidden = 0): FittedLabels {
+function result(labels: readonly Label[], side: Side, remedies: readonly LabelRemedy[]): FittedLabels {
   let used = 0;
   for (const label of labels) used = Math.max(used, depth(label, side));
-  return { ticks: labels.map(label => label.tick), texts: labels.map(label => label.text), depth: used, fit: { remedies, hidden } };
+  return { ticks: labels.map(label => label.tick), texts: labels.map(label => label.text), depth: used, remedies };
 }
 
 function inSourceOrder(ticks: readonly Tick[], labels: Map<Tick, Label>): Label[] {
@@ -340,7 +328,7 @@ function spread(ticks: readonly Tick[], span: number, footprint: number): readon
 
 function truncateBottom(
   ticks: readonly Tick[], prepared: PreparedLabels, scale: XScale, width: number, room: number,
-  role: Role, metrics: Metrics, remedies: LabelRemedy[], total: number,
+  role: Role, metrics: Metrics, remedies: LabelRemedy[],
 ): FittedLabels {
   const kept = new Map<Tick, Label>();
   let edge = -Infinity;
@@ -357,7 +345,7 @@ function truncateBottom(
     edge = anchor + DIAGONAL * metrics.lineHeight;
   }
   if ([...kept.values()].some(label => label.text.lines[0] !== label.tick.label)) remedies.push('truncated');
-  return result(inSourceOrder(ticks, kept), 'bottom', remedies, total - kept.size);
+  return result(inSourceOrder(ticks, kept), 'bottom', remedies);
 }
 
 export function fitBottom(
@@ -366,7 +354,7 @@ export function fitBottom(
   rotatedRoom = room,
 ): FittedLabels {
   const remedies: LabelRemedy[] = [];
-  let { ticks, hidden } = prepared.sets[0] ?? { ticks: [], hidden: 0 };
+  let ticks = prepared.sets[0] ?? [];
   let labels: Label[] = [];
 
   if (!mayThin && scale.type === 'band') {
@@ -374,21 +362,21 @@ export function fitBottom(
     const footprint = DIAGONAL * (metrics.lineHeight + metrics.width('ii…ii'));
     const sampled = spread(ticks, span, footprint);
     if (sampled !== ticks) {
-      return truncateBottom(sampled, prepared, scale, width, rotatedRoom, role, metrics, ['rotated'], ticks.length + hidden);
+      return truncateBottom(sampled, prepared, scale, width, rotatedRoom, role, metrics, ['rotated']);
     }
   }
 
-  for (const [i, set] of prepared.sets.entries()) {
-    ({ ticks, hidden } = set);
+  for (const [i, candidate] of prepared.sets.entries()) {
+    ticks = candidate;
     labels = ticks.map(tick => bottomLabel(tick, position(scale, tick), width, [tick.label], 0, role, metrics));
     if (i === 1) remedies.push('thinned');
     if (conflicts(labels, 'bottom', width, room, mayThin ? 8 : 0).size === 0) {
-      return result(labels, 'bottom', remedies, hidden);
+      return result(labels, 'bottom', remedies);
     }
   }
 
   let bad = conflicts(labels, 'bottom', width, room);
-  if (bad.size === 0) return result(labels, 'bottom', remedies, hidden);
+  if (bad.size === 0) return result(labels, 'bottom', remedies);
   const oneLine = labels;
   let twoLines = labels;
   for (const count of [2, 3] as const) {
@@ -414,22 +402,22 @@ export function fitBottom(
           }
         }
       }
-      return result(labels, 'bottom', [...remedies, 'wrapped'], hidden);
+      return result(labels, 'bottom', [...remedies, 'wrapped']);
     }
   }
   if (labels.some(label => label.text.lines.length > 1)) remedies.push('wrapped');
 
   labels = labels.map(({ tick, text }) => bottomLabel(tick, position(scale, tick), width, text.lines, -45, role, metrics));
   remedies.push('rotated');
-  if (conflicts(labels, 'bottom', width, rotatedRoom).size === 0) return result(labels, 'bottom', remedies, hidden);
-  return truncateBottom(ticks, prepared, scale, width, rotatedRoom, role, metrics, remedies, ticks.length + hidden);
+  if (conflicts(labels, 'bottom', width, rotatedRoom).size === 0) return result(labels, 'bottom', remedies);
+  return truncateBottom(ticks, prepared, scale, width, rotatedRoom, role, metrics, remedies);
 }
 
 export function fitLeftCategories(
   ticks: readonly Tick[], scale: XScale, width: number, height: number, role: Role, metrics: Metrics,
   room = Infinity, prepared = prepareLabels([ticks]),
 ): FittedLabels {
-  const unique = prepared.sets[0]?.ticks ?? [];
+  const unique = prepared.sets[0] ?? [];
   const sampled = spread(unique, Math.abs(scale.range[1] - scale.range[0]), metrics.lineHeight);
   const limit = Math.min(width * 0.4, room);
   const kept = new Map<Tick, Label>();
@@ -444,7 +432,7 @@ export function fitLeftCategories(
     edge = top + metrics.lineHeight;
   }
   const remedies: LabelRemedy[] = [...kept.values()].some(label => label.text.lines[0] !== label.tick.label) ? ['truncated'] : [];
-  return result(inSourceOrder(sampled, kept), 'left', remedies, ticks.length - kept.size);
+  return result(inSourceOrder(sampled, kept), 'left', remedies);
 }
 
 export function fitValue(
@@ -453,17 +441,14 @@ export function fitValue(
 ): FittedLabels {
   const gap = metrics.lineHeight / 2;
   let labels: Label[] = [];
-  let hidden = 0;
-  for (const [i, set] of prepared.sets.entries()) {
-    const { ticks } = set;
-    hidden = set.hidden;
+  for (const [i, ticks] of prepared.sets.entries()) {
     labels = ticks.map(tick => {
       const pixel = position(scale, tick);
       return side === 'left'
         ? leftLabel(tick, pixel, tick.label, role, metrics)
         : bottomLabel(tick, pixel, span, [tick.label], 0, role, metrics);
     });
-    if (conflicts(labels, side, span, room, gap).size === 0) return result(labels, side, i ? ['thinned'] : [], hidden);
+    if (conflicts(labels, side, span, room, gap).size === 0) return result(labels, side, i ? ['thinned'] : []);
   }
 
   const sorted = [...labels].sort((a, b) => start(a, side) + extent(a, side) - start(b, side) - extent(b, side));
@@ -475,5 +460,5 @@ export function fitValue(
     kept.add(label);
     edge = first + extent(label, side);
   }
-  return result(labels.filter(label => kept.has(label)), side, candidates.length > 1 ? ['thinned'] : [], hidden + labels.length - kept.size);
+  return { ...result(labels.filter(label => kept.has(label)), side, candidates.length > 1 ? ['thinned'] : []), partial: true };
 }

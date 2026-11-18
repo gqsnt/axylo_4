@@ -171,14 +171,22 @@ describe('finding 6: author callbacks cannot repeat a delivery or continue work 
   it('an onDiagnostic that updates the description is given each diagnostic once', () => {
     const seen: string[] = [];
     let chart: Recording['controller']['handle'] | null = null;
+    let nested = 0;
     const r = record('line', {
-      data: rowsOf([1, 2]), x: 'x', y: 'y',
-      onDiagnostic: (d: Diagnostic) => { seen.push(d.code); chart?.update({ description: `seen ${seen.length}` }); },
+      title: 'Named', data: rowsOf([1, 2]), x: 'x', y: 'y',
+      onDiagnostic: (d: Diagnostic) => {
+        seen.push(d.code);
+        if (chart) { nested += 1; chart.update({ description: `seen ${seen.length}` }); }
+      },
     });
     chart = r.controller.handle;
+    // AX140 arrives after `chart` is assigned, so the nested update really runs (controller review, finding 20).
+    chart.update({ title: undefined });
     chart.update({ subtitle: 'again' });
     r.frames();
+    expect(nested).toBe(1);
     expect(seen).toEqual(['AX140']);
+    expect(lastModel(r).summary).toContain('seen 1');
   });
 
   it('an onDiagnostic that destroys the chart on its first diagnostic receives no other', () => {
@@ -591,5 +599,26 @@ describe('the bench describe names the kept samples and the renderer', () => {
     expect(kept[0]).toBe(0);
     expect(kept.at(-1)).toBe(n - 1);
     expect(kept).not.toContain(7000);
+    // The drawing itself, not describe()'s recomputation (controller review, finding 20): the stroke reaches
+    // the outlier's pixel and both ends, lifts the pen at the missing row, and is simplified.
+    const layout = r.layout;
+    if (layout?.kind !== 'plot' || layout.projection.kind !== 'xy') throw new Error('expected a plot');
+    const { x, y: yScale } = layout.projection;
+    if (x.type === 'band') throw new Error('expected a continuous x');
+    const path = r.draws.at(-1)!.marks.find(m => m.type === 'path' && m.series === 0);
+    if (path?.type !== 'path') throw new Error('expected the line');
+    const xs: number[] = [];
+    const ys: number[] = [];
+    let lifts = 0;
+    for (let i = 0; i < path.xy.length; i += 2) {
+      if (Number.isNaN(path.xy[i]!)) { lifts += 1; continue; }
+      xs.push(path.xy[i]!);
+      ys.push(path.xy[i + 1]!);
+    }
+    expect(xs.length).toBeLessThan(n / 4);
+    expect(Math.min(...ys)).toBeCloseTo(yScale.map(1000), 1);
+    expect(xs[0]).toBeCloseTo(x.map(0), 1);
+    expect(xs.at(-1)).toBeCloseTo(x.map(n - 1), 1);
+    expect(lifts).toBe(1);
   });
 });

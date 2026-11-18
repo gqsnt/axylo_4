@@ -120,8 +120,9 @@ ${forced}
   .axylo-title { font-weight: 600; font-size: 1.125em; line-height: 1.3; overflow-wrap: anywhere; }
   .axylo-subtitle { margin: 0.125em 0 0; font-size: max(12px, 0.875em); color: var(--axylo-muted, var(--axylo-default-muted)); overflow-wrap: anywhere; }
   .axylo-summary { margin: 0.25em 0 0; font-size: max(12px, 0.875em); }
-  /* Shown in the too-small state (spec L8): one line, so it never pushes the table control out of the figure. */
-  .axylo-summary:not(.axylo-visually-hidden) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Shown in the too-small state (spec L8): only the summary's first sentence (the whole text is the figure's
+     description), wrapped rather than clipped, so no text leaves the figure. */
+  .axylo-summary:not(.axylo-visually-hidden) { overflow-wrap: anywhere; }
   /*
    * The plot takes what the caption and note leave. Its content is a spacer that is 16:9 of its width,
    * clamped to 160–480 px (spec L3): that is its height when the container has none of its own, and only

@@ -7,7 +7,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
 import { start, stop } from '../harness';
-import { aria, chartPage, closePage } from './util';
+import { aria, chartPage, closePage, columnsWith, shot, type RGB } from './util';
 
 beforeAll(start);
 afterAll(stop);
@@ -174,13 +174,29 @@ describe('re-entrant author code (finding 6)', () => {
 describe('state (findings 8, 9, 10, 11)', () => {
   it('a segment crossing a zoomed window is drawn, not "No data"', async () => {
     const page = await chartPage();
-    const message = await page.evaluate(async () => {
+    const result = await page.evaluate(async () => {
       const chart = window.Axylo.line!('#chart', { title: 'Z', data: [{ x: 0, y: 0 }, { x: 10, y: 10 }], x: 'x', y: 'y' });
+      window.charts.push(chart);
       chart.zoom([2, 4]);
       await chart.__bench.ready();
-      return (document.querySelector('#chart .axylo-message') as HTMLElement).hidden;
+      await window.nextFrames(1);
+      const probe = document.querySelector('#chart figure')!.appendChild(document.createElement('span'));
+      probe.style.color = 'var(--axylo-series-color-1)';
+      const color = getComputedStyle(probe).color.match(/\d+/g)!.map(Number);
+      probe.remove();
+      return {
+        hidden: (document.querySelector('#chart .axylo-message') as HTMLElement).hidden,
+        color,
+        valueText: document.querySelector('#chart .axylo-proxy')?.getAttribute('aria-valuetext') ?? null,
+      };
     });
-    expect(message).toBe(true);
+    expect(result.hidden).toBe(true);
+    expect(result.valueText).not.toBe('No data to show.');
+    // The stroke itself (controller review, finding 20): the series color across most of the plot's width.
+    const { img } = await shot(page, '#chart .axylo-plot');
+    const has = columnsWith(img, result.color as unknown as RGB, 0, img.height, 40);
+    const inside = has.slice(Math.floor(img.width * 0.2), Math.floor(img.width * 0.9));
+    expect(inside.filter(Boolean).length).toBeGreaterThan(inside.length * 0.9);
     expect(await closePage(page)).toEqual([]);
   });
 
@@ -332,6 +348,35 @@ describe('lifecycle (finding 12)', () => {
       return { thrown, children: el.childElementCount, className: el.className, attributes: [...el.attributes].map(a => a.name).sort() };
     });
     expect(result.thrown).toMatch(/no observer/);
+    expect(result).toMatchObject({ children: 0, className: '', attributes: ['id'] });
+    expect(await closePage(page)).toEqual([]);
+  });
+
+  it('a failure late in setup, after the first frame was asked for, leaves the target as it was and draws nothing later', async () => {
+    // The language and theme watchers are set up last: their observer failing is a late setup failure
+    // (controller review, finding 20).
+    const page = await chartPage();
+    const result = await page.evaluate(async () => {
+      const el = document.getElementById('chart')!;
+      const original = MutationObserver.prototype.observe;
+      const frames: number[] = [];
+      const raf = window.requestAnimationFrame;
+      window.requestAnimationFrame = (cb: FrameRequestCallback) => { frames.push(1); return raf.call(window, cb); };
+      MutationObserver.prototype.observe = function () { throw new Error('late failure'); };
+      let thrown = '';
+      try {
+        window.Axylo.line!(el, { title: 'X', data: [{ x: 1, y: 1 }, { x: 2, y: 2 }], x: 'x', y: 'y' });
+      } catch (e) {
+        thrown = String(e);
+      }
+      MutationObserver.prototype.observe = original;
+      window.requestAnimationFrame = raf;
+      await window.nextFrames(3);
+      return { thrown, asked: frames.length, children: el.childElementCount, className: el.className, attributes: [...el.attributes].map(a => a.name).sort() };
+    });
+    expect(result.thrown).toMatch(/late failure/);
+    // The frame was asked for before the failure, so its cancellation is what is tested.
+    expect(result.asked).toBeGreaterThan(0);
     expect(result).toMatchObject({ children: 0, className: '', attributes: ['id'] });
     expect(await closePage(page)).toEqual([]);
   });
@@ -497,7 +542,8 @@ describe('presentation (renderer default, messages, reference plate, legend)', (
     const page = await chartPage();
     await page.evaluate(async () => {
       const data = [0, 1, 2].flatMap(x => [{ x, s: 'a', y: 1 }, { x, s: 'b', y: 2 }]);
-      const chart = window.Axylo.area!('#chart', { title: 'Stack', stacked: true, data, x: 'x', y: 'y', series: 's', messages: { total: 'Sum' } });
+      // plotRole overridden, so the text comes from the message and not from a constant (finding 20).
+      const chart = window.Axylo.area!('#chart', { title: 'Stack', stacked: true, data, x: 'x', y: 'y', series: 's', messages: { total: 'Sum', plotRole: 'Graph: {type}' } });
       window.charts.push(chart);
       await chart.__bench.ready();
     });
@@ -507,7 +553,8 @@ describe('presentation (renderer default, messages, reference plate, legend)', (
       role: document.querySelector('#chart .axylo-proxy')!.getAttribute('aria-roledescription'),
       total: document.querySelector('#chart .axylo-tooltip .axylo-tooltip-total')?.textContent,
     }));
-    expect(result).toEqual({ role: 'Area chart', total: 'Sum3' });
+    expect(result.role).toBe('Graph: Area');
+    expect(result.total).toBe('Sum3');
     expect(await closePage(page)).toEqual([]);
   });
 

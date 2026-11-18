@@ -53,19 +53,29 @@ const ENCODING_KEYS = ['x', 'y', 'series', 'label', 'value'] as const;
 /** Parts of a field spec that only the view, layout or formatting read: changing them never renormalizes. */
 const PRESENTATION_PARTS = new Set(['domain', 'format', 'tickFormat']);
 
-function fieldEncoding(spec: unknown): unknown {
-  if (Array.isArray(spec)) return spec.map(fieldEncoding);
+function fieldEncoding(spec: unknown, ignore: ReadonlySet<string> = PRESENTATION_PARTS): unknown {
+  if (Array.isArray(spec)) return spec.map(item => fieldEncoding(item, ignore));
   // 'day' and { field: 'day' } read the same field.
   if (typeof spec === 'string') return { field: spec };
   if (spec === null || typeof spec !== 'object') return spec;
   const out: Record<string, unknown> = {};
-  for (const key of Object.keys(spec)) if (!PRESENTATION_PARTS.has(key)) out[key] = (spec as Record<string, unknown>)[key];
+  for (const key of Object.keys(spec)) if (!ignore.has(key)) out[key] = (spec as Record<string, unknown>)[key];
   return out;
 }
 
 /** True when the field specs differ in something normalization reads (plan 2.2: author domains belong to the view). */
 export function encodingChanged(before: OptionRecord, after: OptionRecord): boolean {
   return ENCODING_KEYS.some(key => !sameValue(fieldEncoding(before[key]), fieldEncoding(after[key])));
+}
+
+const NAMING_PARTS = new Set([...PRESENTATION_PARTS, 'label', 'unit']);
+
+/**
+ * True when the field specs differ only in labels and units: the values read are the same, so the frame's
+ * names can be updated without reading the data again (review 3, finding 12).
+ */
+export function namesOnlyChanged(before: OptionRecord, after: OptionRecord): boolean {
+  return ENCODING_KEYS.every(key => sameValue(fieldEncoding(before[key], NAMING_PARTS), fieldEncoding(after[key], NAMING_PARTS)));
 }
 
 export function viewStateFor(

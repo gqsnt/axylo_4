@@ -179,3 +179,20 @@ export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; mo
   }
   return stop;
 }
+
+/**
+ * Calls `onChange` when a `lang` attribute changes on `element` or an ancestor: the page's language decides
+ * the formatting locale and which built-in text is marked English (spec A10, F6). An environment change,
+ * kept apart from the theme watcher. Returns `stop`.
+ */
+export function watchLanguage(element: Element, onChange: () => void): () => void {
+  const win = element.ownerDocument.defaultView;
+  if (win === null) return () => {};
+  const observer = new win.MutationObserver(records => {
+    for (const r of records) {
+      if (r.target instanceof win.Node && r.target.contains(element)) { onChange(); return; }
+    }
+  });
+  observer.observe(element.ownerDocument.documentElement, { attributes: true, attributeFilter: ['lang'], subtree: true });
+  return () => observer.disconnect();
+}

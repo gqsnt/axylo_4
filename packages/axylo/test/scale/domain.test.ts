@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { valueDomain, type ValueDomainInput } from '../../src/scale/domain';
+import { coarserDomains, valueDomain, type ValueDomainInput } from '../../src/scale/domain';
 import { linearTickCandidates } from '../../src/scale/linear';
 
 const base = { includeZero: false, authorDomain: null, valueScale: null, references: [] } satisfies Omit<ValueDomainInput, 'min' | 'max'>;
@@ -145,5 +145,44 @@ describe('valueDomain properties', () => {
       }),
       { numRuns: 1000 },
     );
+  });
+});
+
+describe('coarserDomains: an axis that ends at drawn ticks on a short plot (F7, controller review)', () => {
+  it('0 to 201 rounds to 0–250 at 50, then 0–400 at 100 and 200, then 0–500 at 500', () => {
+    // The automatic domain of [0, 201] is [0, 250] on a step of 50 (201 / 5 → 50).
+    expect(auto(0, 201).domain).toEqual([0, 250]);
+    expect(coarserDomains(0, 201, [0, 250])).toEqual([[0, 300], [0, 400], [0, 500]]);
+  });
+
+  it('for any extremes, each domain contains them, ends on multiples of a nice step and has fewer intervals', () => {
+    fc.assert(fc.property(fc.integer({ min: -5000, max: 5000 }), fc.integer({ min: 1, max: 9000 }), (low, span) => {
+      const lo = low;
+      const hi = low + span;
+      const primary = auto(lo, hi).domain;
+      const list = coarserDomains(lo, hi, primary);
+      let before = Infinity;
+      for (const [a, b] of list) {
+        expect(a).toBeLessThanOrEqual(lo);
+        expect(b).toBeGreaterThanOrEqual(hi);
+        // Some nice step s has both ends as multiples and gives fewer intervals than the previous domain.
+        const steps = [1, 2, 5].flatMap(m => [-2, -1, 0, 1, 2, 3, 4].map(e => e < 0 ? m / 10 ** -e : m * 10 ** e));
+        expect([a, b]).not.toEqual(primary);
+        const fitting = steps.filter(s => Number.isInteger(Math.round(a / s * 1e9) / 1e9) && Number.isInteger(Math.round(b / s * 1e9) / 1e9) && Math.round((b - a) / s) < before);
+        expect(fitting.length).toBeGreaterThan(0);
+        before = Math.min(...fitting.map(s => Math.round((b - a) / s)));
+      }
+      // The sparsest has at most two nice intervals (one, or two either side of zero): three ticks at most.
+      expect(Math.min(before, ...[1, 2, 5].flatMap(m => [-2, -1, 0, 1, 2, 3, 4].map(e => e < 0 ? m / 10 ** -e : m * 10 ** e))
+        .filter(s => Number.isInteger(Math.round(primary[0] / s * 1e9) / 1e9) && Number.isInteger(Math.round(primary[1] / s * 1e9) / 1e9))
+        .map(s => Math.round((primary[1] - primary[0]) / s)))).toBeLessThanOrEqual(2);
+    }));
+  });
+
+  it('a percent axis keeps its full-scale top', () => {
+    for (const [a, b] of coarserDomains(37, 92, [30, 100], true)) {
+      expect(b).toBe(100);
+      expect(a).toBeLessThanOrEqual(37);
+    }
   });
 });

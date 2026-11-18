@@ -16,6 +16,11 @@ interface Axis {
 
 export interface ValueAxis extends Axis {
   readonly domain: Span;
+  /**
+   * Wider domains, each with its own tick candidates, sparsest last. When no candidate set of `domain` fits
+   * the plot whole, the first of these whose set does is drawn, so the axis still ends at drawn ticks (F7).
+   */
+  readonly coarser?: readonly { readonly domain: Span; readonly candidates: TickCandidates }[];
 }
 
 export interface ContinuousAxis extends ValueAxis {
@@ -76,6 +81,7 @@ const TICK_GAP = 6;
 const MIN_WIDTH = 120;
 const MIN_HEIGHT = 80;
 const UNCHANGED = { remedies: [], hidden: 0 } as const;
+const NO_LABELS: FittedLabels = { ticks: [], texts: [], depth: 0, remedies: [] };
 
 function independentScale(axis: Axes['x'], range: Span, scales: ScaleConstructors): XScale {
   return axis.type === 'band' ? scales.band(axis.count, range, axis.padding) : scales[axis.type](axis.domain, range);
@@ -122,11 +128,20 @@ function lane(fit: FittedLabels): number {
   return fit.texts.length ? TICK_GAP + fit.depth : 0;
 }
 
-function hiddenTicks(candidates: TickCandidates): FittedLabels {
-  return { ticks: [], texts: [], depth: 0, fit: { remedies: [], hidden: candidates[0]?.length ?? 0 } };
+function hiddenCategories(axis: Axes['x'], fit: FittedLabels): number {
+  // A continuous tick samples the scale. A category label identifies a datum in view.
+  if (axis.type !== 'band') return 0;
+  let hidden = axis.count - fit.texts.length;
+  for (const { lines, full } of fit.texts) {
+    // Middle truncation produces one line. Wrapped lines still contain the whole label.
+    if (lines.length === 1 && lines[0] !== full) hidden++;
+  }
+  return hidden;
 }
 
-function layoutAxes(input: PlotInput & Cartesian & TextInput, size: Size, text: Metrics, showTicks: boolean): Layout {
+function layoutAxes(
+  input: PlotInput & Cartesian & TextInput, size: Size, text: Metrics, showTicks: boolean, valueFit = { partial: false },
+): Layout {
   const { width, height } = size;
   const horizontal = input.kind === 'bands' && input.horizontal;
   const leftAxis = horizontal ? input.x : input.y;
@@ -137,7 +152,7 @@ function layoutAxes(input: PlotInput & Cartesian & TextInput, size: Size, text: 
   const bottomLabels = showTicks ? prepareLabels(bottomCandidates) : undefined;
   const leftRole = horizontal ? 'tick-x' : 'tick-y';
   const bottomRole = horizontal ? 'tick-y' : 'tick-x';
-  const clearance = leftLabels?.sets.some(set => set.ticks.length > 0) ? text.lineHeight / 2 : 0;
+  const clearance = leftLabels?.sets.some(ticks => ticks.length > 0) ? text.lineHeight / 2 : 0;
   const top = INSET + clearance;
   let left = INSET;
   let bottom = INSET + clearance;
@@ -162,10 +177,10 @@ function layoutAxes(input: PlotInput & Cartesian & TextInput, size: Size, text: 
     const bottomRoom = height - top - MIN_HEIGHT - bottomFixed;
     const rotatedRoom = Math.min(bottomRoom, height * 0.4 - bottomFixed);
 
-    const leftFit = !leftLabels ? hiddenTicks(leftCandidates) : horizontal
+    const leftFit = !leftLabels ? NO_LABELS : horizontal
       ? fitLeftCategories(leftCandidates[0] ?? [], xScale, width, height, leftRole, text, leftRoom, leftLabels)
       : fitValue(leftCandidates, yScale, 'left', height, leftRoom, leftRole, text, leftLabels);
-    const bottomFit = !bottomLabels ? hiddenTicks(bottomCandidates) : horizontal
+    const bottomFit = !bottomLabels ? NO_LABELS : horizontal
       ? fitValue(bottomCandidates, yScale, 'bottom', width, bottomRoom, bottomRole, text, bottomLabels)
       : fitBottom(bottomCandidates, bottomAxis.mayThin, xScale, width, bottomRoom, bottomRole, text, bottomLabels, rotatedRoom);
 
@@ -193,10 +208,14 @@ function layoutAxes(input: PlotInput & Cartesian & TextInput, size: Size, text: 
 
       const xFit = horizontal ? leftFit : bottomFit;
       const yFit = horizontal ? bottomFit : leftFit;
-      const hidden = placeReferences(input.references ?? [], projection, plot, texts, text, input.referenceXDomain);
+      valueFit.partial = yFit.partial === true;
+      placeReferences(input.references ?? [], projection, plot, texts, text, input.referenceXDomain);
       return {
         ...size, kind: 'plot', plot, projection, xTicks: xFit.ticks, yTicks: yFit.ticks, texts,
-        fit: { x: { ...xFit.fit, hidden: xFit.fit.hidden + hidden.x }, y: { ...yFit.fit, hidden: yFit.fit.hidden + hidden.y } },
+        fit: {
+          x: { remedies: xFit.remedies, hidden: hiddenCategories(input.x, xFit) },
+          y: { remedies: yFit.remedies, hidden: 0 },
+        },
       };
     }
     visited.add(key);
@@ -229,7 +248,17 @@ export function computeLayout(input: LayoutInput): Layout {
   }
   if (width < MIN_WIDTH + 2 * INSET || height < MIN_HEIGHT + 2 * INSET) return tooSmall(size);
   const text = metrics(input);
-  const layout = layoutAxes(input, size, text, true);
+  const fit = { partial: false };
+  const layout = layoutAxes(input, size, text, true, fit);
   // A title may need the space otherwise reserved for ticks at the ends of the left axis.
-  return layout.kind === 'too-small' ? layoutAxes(input, size, text, false) : layout;
+  if (layout.kind === 'too-small') return layoutAxes(input, size, text, false);
+  // Too short for any whole tick set of the domain: a wider domain whose sparser set fits ends at its ticks.
+  if (fit.partial) {
+    for (const coarser of input.y.coarser ?? []) {
+      const next = { partial: false };
+      const wider = layoutAxes({ ...input, y: { ...input.y, ...coarser, coarser: undefined } } as typeof input, size, text, true, next);
+      if (wider.kind === 'plot' && !next.partial) return wider;
+    }
+  }
+  return layout;
 }

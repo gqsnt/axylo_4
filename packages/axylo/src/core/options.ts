@@ -31,10 +31,24 @@ export function applyPatch(current: OptionRecord, patch: unknown): Patched {
       }
       continue;
     }
-    if (!had || !Object.is(current[key], value)) changed.add(key);
-    next[key] = value;
+    // Small option inputs are kept as given at the call (a copy), never the caller's object, so editing and
+    // resubmitting that object is seen as a change (review 3, finding 12). Data stays borrowed.
+    const kept = key === 'data' ? value : snapshot(value);
+    if (!had || !Object.is(current[key], value) && !sameValue(current[key], kept)) changed.add(key);
+    next[key] = kept;
   }
   return { next, changed };
+}
+
+/** A copy of plain objects and arrays (functions, dates, typed arrays and other objects as they are). */
+function snapshot(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(snapshot);
+  if (isPlain(value)) {
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(value)) out[key] = snapshot(value[key]);
+    return out;
+  }
+  return value;
 }
 
 /** Holds the accepted options. A rejected call never reaches `commit`, so the store stays on the last valid state. */

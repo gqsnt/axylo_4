@@ -3,8 +3,10 @@ import { describe, expect, it } from 'vitest';
 import type {
   ContinuousScale, DiagnosticInput, LabelRemedy, Layout, PlacedText, Rect, ResolvedReference, TextStyle, TickCandidates,
 } from '../../src/core/contracts';
+import { createNumberTickLabeler, type NumberTickSpec } from '../../src/format';
 import { computeLayout } from '../../src/layout';
-import type { BandAxis, LayoutInput, ScaleConstructors } from '../../src/layout';
+import type { BandAxis, ContinuousAxis, LayoutInput, ScaleConstructors, ValueAxis } from '../../src/layout';
+import { linearTickCandidates, timeTickCandidates, valueDomain, type TimeTickOptions } from '../../src/scale';
 
 type Span = readonly [number, number];
 type Plot = Extract<Layout, { kind: 'plot' }>;
@@ -67,6 +69,20 @@ function input(labels: readonly string[], width = 720, height = 320, mayThin = f
   } satisfies LayoutInput;
 }
 
+function temporalAxis(domain: Span, options: TimeTickOptions): ContinuousAxis {
+  return { type: 'time', domain, candidates: timeTickCandidates(domain, options), mayThin: true };
+}
+
+function numericAxis(domain: Span, format: NumberTickSpec, title?: string): ContinuousAxis {
+  const label = createNumberTickLabeler(format);
+  return { type: 'linear', domain, candidates: linearTickCandidates(domain, label), mayThin: true, title };
+}
+
+function exampleValueAxis(values: readonly number[], title: string, format: Omit<NumberTickSpec, 'locale'> = {}): ValueAxis {
+  const { domain } = valueDomain({ min: Math.min(...values), max: Math.max(...values), includeZero: false, valueScale: format.scale });
+  return numericAxis(domain, { locale: 'en-US', ...format }, title);
+}
+
 function plot(result: Layout): Plot {
   expect(result.kind).toBe('plot');
   if (result.kind !== 'plot') throw new Error('Expected a plot');
@@ -75,6 +91,12 @@ function plot(result: Layout): Plot {
 
 function tickLabels(result: Plot, role: PlacedText['role'] = 'tick-x'): readonly PlacedText[] {
   return result.texts.filter(text => text.role === role);
+}
+
+function hiddenCategories(result: Plot, count: number): number {
+  const shown = tickLabels(result);
+  const truncated = shown.filter(text => text.lines.join(' ') !== text.full).length;
+  return count - shown.length + truncated;
 }
 
 function intersection(a: Rect, b: Rect): boolean {
@@ -130,7 +152,7 @@ describe('plot layout', () => {
     }));
     expect(Math.max(...calls.values())).toBe(1);
     expect(calls.size).toBeLessThan(500);
-    expect(medium.fit.x.hidden).toBe(1000 - medium.xTicks.length);
+    expect(medium.fit.x.hidden).toBe(hiddenCategories(medium, 1000));
     console.info(`Measured ${calls.size} strings for 1,000 categories`);
 
     const large = settings(100_000, 1200);
@@ -142,21 +164,22 @@ describe('plot layout', () => {
     expect(result.xTicks.length).toBeGreaterThan(2);
     expect(result.xTicks[0]!.value).toBeLessThan(20_000);
     expect(result.xTicks.at(-1)!.value).toBeGreaterThan(80_000);
-    expect(result.fit.x.hidden).toBe(100_000 - result.xTicks.length);
+    expect(result.fit.x.hidden).toBe(hiddenCategories(result, 100_000));
     boxesFit(result);
   });
 
   it('hides categories when fewer than two characters would fit on either side', () => {
     const labels = Array.from({ length: 200 }, (_, i) => `Category number ${i + 1}`);
     const result = plot(computeLayout(input(labels, 240)));
-    expect(result.fit.x.hidden).toBe(labels.length - result.xTicks.length);
+    expect(result.xTicks.length).toBeLessThan(labels.length);
+    expect(result.fit.x.hidden).toBe(hiddenCategories(result, labels.length));
     identifiable(tickLabels(result), labels);
   });
 
   it('shows the distinguishing part of a label or counts the label as hidden', () => {
     const labels = ['Region North Total', 'Region South Total'];
     const result = plot(computeLayout({ ...input(labels, 260), kind: 'bands', horizontal: true }));
-    expect(result.fit.x.hidden).toBe(labels.length - result.xTicks.length);
+    expect(result.fit.x.hidden).toBe(hiddenCategories(result, labels.length));
     identifiable(tickLabels(result), labels);
   });
 
@@ -196,9 +219,60 @@ describe('plot layout', () => {
     boxesFit(result);
   });
 
-  it('counts blank and later duplicate labels as hidden without changing their neighbours', () => {
+  it.each([
+    { name: 'dates.ts instants in Los Angeles', timeZone: 'America/Los_Angeles', last: Date.UTC(2026, 1, 28),
+      values: [120, 135, 128, 150, 162] },
+    { name: 'AX111 minimal input in UTC', timeZone: 'UTC', last: Date.UTC(2026, 1, 26), values: [120, 130, 125] },
+  ])('discloses no hidden ticks for $name', ({ timeZone, last, values }) => {
+    const result = plot(computeLayout({
+      ...input([], 752, 752 * 9 / 16),
+      x: temporalAxis([Date.UTC(2026, 1, 24), last], { kind: 'time', timeZone, locale: 'en-US' }),
+      y: exampleValueAxis(values, 'sessions'),
+    }));
+    expect(tickLabels(result).length).toBeGreaterThan(0);
+    expect([result.fit.x.hidden, result.fit.y.hidden]).toEqual([0, 0]);
+    boxesFit(result);
+  });
+
+  it('shows the date once for line-time.ts at phone width without disclosing hidden labels', () => {
+    const start = Date.UTC(2026, 2, 10);
+    const at = (i: number) => start + i * 600_000;
+    const values = Array.from({ length: 144 }, (_, i) => [320, 180].map((base, series) =>
+      Math.round(base + 60 * Math.sin(i / 12 + series) + (i >= 84 && i < 96 ? 400 : 0)))).flat();
+    const result = plot(computeLayout({
+      ...input([], 364, 364 * 9 / 16),
+      x: temporalAxis([at(0), at(143)], { kind: 'time', timeZone: 'UTC', locale: 'en-US' }),
+      y: exampleValueAxis(values, 'Response time (ms)'),
+      references: [
+        { axis: 'y', from: 500, to: 500, label: 'Objective' },
+        { axis: 'x', from: at(84), to: at(96), label: 'Incident' },
+      ],
+    }));
+    const labels = tickLabels(result);
+    expect(labels.length).toBeGreaterThan(1);
+    expect(labels[0]?.full).toContain('Mar 10');
+    expect(labels.slice(1).every(text => !text.full.includes('Mar 10'))).toBe(true);
+    expect([result.fit.x.hidden, result.fit.y.hidden]).toEqual([0, 0]);
+    boxesFit(result);
+  });
+
+  it.each([
+    { name: 'ratio', y: exampleValueAxis([0.031, 0.034, 0.029, 0.038], 'Conversion', { scale: 'ratio' }) },
+    { name: 'latency', y: exampleValueAxis([412, 388, 455, 1210], 'Latency (p95) (ms)', { tickFormat: { notation: 'compact' } }) },
+  ])('shows all four months at 364 px for units.ts $name without disclosing hidden labels', ({ y }) => {
+    const result = plot(computeLayout({
+      ...input([], 364, 364 * 9 / 16),
+      x: temporalAxis([Date.UTC(2026, 0, 1), Date.UTC(2026, 3, 1)], { kind: 'date', dateUnit: 'month', locale: 'en-US' }),
+      y,
+    }));
+    expect(tickLabels(result).map(text => text.lines)).toEqual([['Jan 2026'], ['Feb'], ['Mar'], ['Apr']]);
+    expect([result.fit.x.hidden, result.fit.y.hidden]).toEqual([0, 0]);
+    boxesFit(result);
+  });
+
+  it.each([false, true])('counts blank and duplicate category labels only (horizontal %s)', horizontal => {
     const labels = ['Same', 'Same', '', 'Other', ' '];
-    const result = plot(computeLayout(input(labels, 400, 200)));
+    const result = plot(computeLayout({ ...input(labels, 400, 200), kind: 'bands', horizontal }));
     expect(result.fit.x).toEqual({ remedies: [], hidden: 3 });
     expect(result.xTicks.map(tick => tick.value)).toEqual([0, 3]);
     expect(tickLabels(result).map(text => text.lines)).toEqual([['Same'], ['Other']]);
@@ -206,9 +280,32 @@ describe('plot layout', () => {
     const settings = input(['Team A', 'Team B']);
     const yTicks = [{ label: 'Zero', value: 0 }, { label: 'Zero', value: 40 },
       { label: '', value: 50 }, { label: 'Hundred', value: 100 }];
-    const value = plot(computeLayout({ ...settings, y: { ...settings.y, candidates: [yTicks] } }));
-    expect(value.fit.y).toEqual({ remedies: [], hidden: 2 });
+    const value = plot(computeLayout({ ...settings, kind: 'bands', horizontal, y: { ...settings.y, candidates: [yTicks] } }));
+    expect(value.fit.y).toEqual({ remedies: [], hidden: 0 });
     expect(value.yTicks.map(tick => tick.value)).toEqual([0, 100]);
+  });
+
+  it('counts only omitted categories when the minimum-sized plot needs the no-tick fallback', () => {
+    const x = axis(['A', 'B'], false);
+    const y = numericAxis([0, 100], { locale: 'en-US' });
+    const settings = { ...input([], 128, 88), x, y };
+    const categories = plot(computeLayout(settings));
+    expect(categories.texts).toEqual([]);
+    expect([categories.fit.x.hidden, categories.fit.y.hidden]).toEqual([2, 0]);
+    const continuous = plot(computeLayout({ ...settings, x: y }));
+    expect(continuous.texts).toEqual([]);
+    expect([continuous.fit.x.hidden, continuous.fit.y.hidden]).toEqual([0, 0]);
+  });
+
+  it('reserves the hidden-label count for axis categories when a reference label cannot fit', () => {
+    const label = 'A'.repeat(60) + 'goal' + 'Z'.repeat(60);
+    const result = plot(computeLayout({
+      ...input([], 260, 180),
+      x: numericAxis([0, 100], { locale: 'en-US' }),
+      references: [{ axis: 'x', from: 40, to: 40, label }, { axis: 'y', from: 40, to: 40, label: label.replace('goal', 'limit') }],
+    }));
+    expect(tickLabels(result, 'reference')).toHaveLength(0);
+    expect([result.fit.x.hidden, result.fit.y.hidden]).toEqual([0, 0]);
   });
 
   it('returns layout diagnostics as data and leaves a reused legacy sink alone', () => {
@@ -233,7 +330,8 @@ describe('plot layout', () => {
 
     const small = plot(computeLayout(input(teams, 340)));
     expect(small.xTicks).toHaveLength(teams.length);
-    expect(small.fit.x).toEqual({ remedies: ['wrapped', 'rotated', 'truncated'], hidden: 0 });
+    expect(small.fit.x).toEqual({ remedies: ['wrapped', 'rotated', 'truncated'], hidden: hiddenCategories(small, teams.length) });
+    expect(small.fit.x.hidden).toBeGreaterThan(0);
     distinct(tickLabels(small));
     boxesFit(small);
   });
@@ -364,7 +462,7 @@ describe('plot layout', () => {
     const horizontal = plot(computeLayout({ ...input(similar, 320), kind: 'bands', horizontal: true }));
     const onLeft = tickLabels(horizontal);
     expect(onLeft).toHaveLength(2);
-    expect(horizontal.fit.x).toEqual({ remedies: ['truncated'], hidden: 0 });
+    expect(horizontal.fit.x).toEqual({ remedies: ['truncated'], hidden: similar.length });
     expect(onLeft[0]?.lines[0]).toMatch(/….*EMEA$/u);
     expect(onLeft[1]?.lines[0]).toMatch(/….*APAC$/u);
     for (const text of onLeft) expect(text.box.width).toBeLessThanOrEqual(320 * 0.4);
@@ -375,7 +473,7 @@ describe('plot layout', () => {
     const plain = plot(computeLayout(input(teams, 340)));
     expect(plain.fit.x.remedies).toEqual(['wrapped', 'rotated', 'truncated']);
     const ordered = plot(computeLayout(input(teams, 420, 320, true)));
-    expect(ordered.fit.x).toEqual({ remedies: ['thinned'], hidden: 0 });
+    expect(ordered.fit.x).toEqual({ remedies: ['thinned'], hidden: teams.length - 3 });
     expect(ordered.xTicks.map(tick => tick.value)).toEqual([0, 3, 6]);
     expect(tickLabels(ordered).map(text => text.lines)).toEqual([[teams[0]], [teams[3]], [teams[6]]]);
     boxesFit(ordered);
@@ -495,6 +593,40 @@ describe('plot layout', () => {
     expect(tiny.text.lines).toEqual([]);
   });
 
+  it('only reports hidden category labels over generated widths, locales and axis kinds', () => {
+    const cases = fc.record({
+      kind: fc.constantFrom('number', 'time', 'date', 'wall'),
+      locale: fc.constantFrom('en-US', 'de-DE', 'ja-JP'),
+      width: fc.integer({ min: 120, max: 1920 }),
+      height: fc.integer({ min: 88, max: 480 }),
+      start: fc.integer({ min: -366, max: 366 }),
+      length: fc.integer({ min: 1, max: 366 }),
+      labels: fc.array(fc.constantFrom('Ops', 'Field', 'Customer Success & Onboarding', 'Web Services International', '', 'Legal'),
+        { minLength: 1, maxLength: 40, size: 'large' }),
+      horizontal: fc.boolean(),
+      mayThin: fc.boolean(),
+    });
+    const day = 86_400_000;
+    fc.assert(fc.property(cases, ({ kind, locale, width, height, start, length, labels, horizontal, mayThin }) => {
+      const domain = [start * 100, (start + length) * 100] as const;
+      const startDate = Date.UTC(2026, 0, 1) + start * day;
+      const x = kind === 'number' ? numericAxis(domain, { locale }) : temporalAxis(
+        [startDate, startDate + length * (kind === 'date' ? day : 3_600_000)], { kind, locale, timeZone: 'UTC' },
+      );
+      const y = numericAxis(domain, { locale });
+      const settings = { ...input(labels, width, height, mayThin), kind: 'bands', horizontal, y } as const;
+      const continuous = computeLayout({ ...settings, x });
+      if (continuous.kind === 'plot') expect([continuous.fit.x.hidden, continuous.fit.y.hidden]).toEqual([0, 0]);
+      else expect(continuous.kind).toBe('too-small');
+
+      const categorical = computeLayout(settings);
+      if (categorical.kind === 'plot') {
+        expect(categorical.fit.x.hidden).toBe(hiddenCategories(categorical, labels.length));
+        expect(categorical.fit.y.hidden).toBe(0);
+      } else expect(categorical.kind).toBe('too-small');
+    }), { numRuns: 1000 });
+  });
+
   it('checks every layout kind, minimum plots and label attribution across generated sizes', () => {
     const unbroken = fc.string({ unit: 'grapheme-ascii', minLength: 1, maxLength: 60 }).filter(text => !/\s/u.test(text));
     const shared = fc.string({ unit: 'grapheme-ascii', minLength: 1, maxLength: 20 })
@@ -572,8 +704,38 @@ describe('plot layout', () => {
         expect(height - result.plot.y - result.plot.height).toBeLessThanOrEqual(height * 0.4 + 1e-6);
       }
       if (!mayThin) expect(remedies).not.toContain('thinned');
-      if (!remedies.includes('thinned')) expect(result.fit.x.hidden).toBe(labels.length - texts.length);
+      expect(result.fit.x.hidden).toBe(mode === 'linear' || mode === 'time' ? 0 : hiddenCategories(result, labels.length));
       expect(remedies).toEqual(expectedOrder.filter(remedy => remedies.includes(remedy)));
     }), { numRuns: 1000 });
+  });
+});
+
+describe('a value axis too short for any whole tick set of its domain (F7, controller review)', () => {
+  // Domain [0, 250] on a step of 50, ticks only at multiples of 50 (each set ends at 250); its wider domains
+  // [0, 300] at 100 and [0, 400] at 200 have sparser sets that do.
+  const at = (domain: Span, step: number) => {
+    const ticks = [];
+    for (let v = domain[0]; v <= domain[1]; v += step) ticks.push({ value: v, label: String(v) });
+    return ticks;
+  };
+  const y: ValueAxis = {
+    domain: [0, 250], candidates: [at([0, 250], 50)], mayThin: true, title: 'Value',
+    coarser: [{ domain: [0, 300], candidates: [at([0, 300], 100)] }, { domain: [0, 400], candidates: [at([0, 400], 200)] }],
+  };
+
+  it('takes the first wider domain whose ticks fit whole, so the axis ends at drawn ticks', () => {
+    // With 16 px lines a label needs 16 px plus an 8 px gap: six ticks need about 144 px, four about 96.
+    const short = plot(computeLayout({ ...input(['a', 'b'], 720, 150), y }));
+    const ticks = short.yTicks.map(t => t.value);
+    const domain = short.projection.kind === 'xy' ? short.projection.y.domain : null;
+    expect(domain).not.toEqual([0, 250]);
+    expect(ticks[0]).toBe(domain![0]);
+    expect(ticks.at(-1)).toBe(domain![1]);
+  });
+
+  it('keeps the domain itself when its ticks fit', () => {
+    const tall = plot(computeLayout({ ...input(['a', 'b'], 720, 400), y }));
+    expect(tall.projection.kind === 'xy' ? tall.projection.y.domain : null).toEqual([0, 250]);
+    expect(tall.yTicks.map(t => t.value)).toEqual([0, 50, 100, 150, 200, 250]);
   });
 });

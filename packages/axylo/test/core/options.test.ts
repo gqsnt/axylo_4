@@ -50,7 +50,12 @@ describe('option patches (plan 1.5)', () => {
       for (const k of ['a', 'b', 'c', 'd', 'e']) {
         if (Object.hasOwn(patch, k)) {
           if (patch[k] === undefined) expect(Object.hasOwn(next, k)).toBe(false);
-          else expect(next[k]).toBe(patch[k]);
+          // The value as given at the call: equal content, and a copy for plain objects, so a later edit of
+          // the caller's object is not the chart's state (review 3, finding 12).
+          else {
+            expect(next[k]).toEqual(patch[k]);
+            if (patch[k] !== null && typeof patch[k] === 'object') expect(next[k]).not.toBe(patch[k]);
+          }
         } else if (Object.hasOwn(before, k)) {
           expect(next[k]).toBe(before[k]);
         } else {

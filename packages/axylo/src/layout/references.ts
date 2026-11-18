@@ -61,9 +61,8 @@ function* placements(
 export function placeReferences(
   references: readonly ResolvedReference[], projection: Cartesian, plot: Rect, texts: PlacedText[], metrics: Metrics,
   xDomain?: Span,
-): { x: number; y: number } {
-  const hidden = { x: 0, y: 0 };
-  if (!references.length) return hidden;
+): void {
+  if (!references.length) return;
   const labels = prepareLabels([references.map(({ label }, value) => ({ label, value }))]);
   for (const reference of references) {
     const projected = projectReference(reference, projection, plot, xDomain);
@@ -81,9 +80,6 @@ export function placeReferences(
     const shown = best && middleText(label, best.width, labels, metrics);
     if (best && shown?.trim()) {
       texts.push(placeText([shown], label, best.x, best.y, best.anchor, 'top', 0, 'reference', metrics));
-    } else {
-      hidden[reference.axis]++;
     }
   }
-  return hidden;
 }

@@ -292,11 +292,28 @@ export function scaleWindow(full: Span, current: Span, factor: number, center: n
   return next;
 }
 
+/**
+ * One zoom step (button, key, wheel) from `current`: the scaled window when it goes the way asked, a zoom-in
+ * strictly narrower and a zoom-out strictly wider (or the whole range, null); undefined when it would not.
+ * A window below the minimum (a public zoom() can set one) is not widened by zooming in (interaction review,
+ * new item 7).
+ */
+export function zoomStep(full: Span, current: Span, factor: number, center: number, minWidth: number): Span | null | undefined {
+  const width = current[1] - current[0];
+  const next = scaleWindow(full, current, factor, center, minWidth);
+  if (factor < 1) return next !== null && next[1] - next[0] < width ? next : undefined;
+  if (factor > 1) {
+    const whole = current[0] <= full[0] && current[1] >= full[1];
+    if (next === null) return whole ? undefined : null;
+    return next[1] - next[0] > width ? next : undefined;
+  }
+  return undefined;
+}
+
 /** Whether one Zoom in step from `window` would show a narrower window (else the control is not offered as working). */
 export function canZoomIn(view: View, window: Span): boolean {
   if (view.kind === 'donut') return false;
-  const next = scaleWindow(view.xFull, window, 1 / ZOOM_FACTOR, (window[0] + window[1]) / 2, minimumWidth(view));
-  return next !== null && next[1] - next[0] < window[1] - window[0];
+  return zoomStep(view.xFull, window, 1 / ZOOM_FACTOR, (window[0] + window[1]) / 2, minimumWidth(view)) !== undefined;
 }
 
 /** The window moved by `share` of its width (negative: towards the start); null when it would not move. */

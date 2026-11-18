@@ -17,7 +17,7 @@ import { ensureStyles, resolveTheme, watchTheme } from '../theme';
 import { createFigure, type Figure } from '../dom/figure';
 import { createInteraction, type Interaction } from '../dom/interaction';
 import type { DeliveryConsole } from './delivery';
-import { createMeasurer, noteFontLoad, readTextStyle, resolveLocale, viewerTimeZone, watchEnvironment } from './environment';
+import { createMeasurer, noteFontLoad, readTextStyle, resolveLocale, viewerTimeZone, watchEnvironment, watchLanguage } from './environment';
 import { createController, type ChartHandle, type ChartKind, type Controller, type ControllerActions } from './controller';
 import { object } from './stages';
 
@@ -101,10 +101,12 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
           c.invalidate.fonts();
         },
       });
+      const stopLanguage = watchLanguage(root, () => c.invalidate.language());
       interaction.attach();
       watching = () => {
         stopTheme();
         stopEnvironment();
+        stopLanguage();
         interaction.detach();
       };
     };

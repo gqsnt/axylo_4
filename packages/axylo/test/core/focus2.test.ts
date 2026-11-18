@@ -5,7 +5,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { AlignedView, DatumRef, ScatterView } from '../../src/core/contracts';
-import { canZoomIn, minimumWidth, scaleWindow, stepAcross, stepInSeries, valueText, zoomApplies } from '../../src/core/focus';
+import fc from 'fast-check';
+import { canZoomIn, minimumWidth, stepAcross, stepInSeries, valueText, zoomApplies, zoomStep } from '../../src/core/focus';
 import { layoutKey, type AxisContext } from '../../src/core/axes';
 import { resolveOptions } from '../../src/data';
 import { DiagnosticCollector } from '../../src/diagnostics';
@@ -66,15 +67,49 @@ describe('finding 9: one minimum window for every gesture, and no exhausted cont
   });
 
   it('a window is always strictly ordered and finite, even where doubles are coarse', () => {
-    const { view } = drawn('scatter', { data: [0, 1, 2, 3, 4].map(i => ({ x: 1e16 + i, y: i })), x: 'x', y: 'y' });
+    // Doubles near 1e16 are 2 apart and the smallest window is 64 ulps-scale wide (about 142): a range of 4096
+    // narrows a few times, then stops.
+    const { view } = drawn('scatter', { data: [0, 1024, 2048, 3072, 4096].map(i => ({ x: 1e16 + i, y: i })), x: 'x', y: 'y' });
     if (view.kind !== 'scatter') throw new Error('scatter');
-    let window: readonly [number, number] | null = view.xDomain;
-    for (let i = 0; i < 6 && window; i++) {
-      const next = scaleWindow(view.xFull, window, 0.5, (window[0] + window[1]) / 2, minimumWidth(view));
-      if (next === null || (next[0] === window[0] && next[1] === window[1])) break;
-      expect(next[1] > next[0]).toBe(true);
+    let window: readonly [number, number] = view.xDomain;
+    // Interaction review part 3: the first step is a known representable narrowing, so the loop cannot end
+    // before its first assertion.
+    const first = zoomStep(view.xFull, window, 0.5, (window[0] + window[1]) / 2, minimumWidth(view));
+    expect(first).not.toBeUndefined();
+    expect(first).not.toBeNull();
+    let steps = 0;
+    for (let next = first; next; next = zoomStep(view.xFull, window, 0.5, (window[0] + window[1]) / 2, minimumWidth(view))) {
+      expect(Number.isFinite(next[0]) && Number.isFinite(next[1])).toBe(true);
+      expect(next[1]).toBeGreaterThan(next[0]);
+      expect(next[1] - next[0]).toBeLessThan(window[1] - window[0]);
       window = next;
+      steps += 1;
+      if (steps > 64) throw new Error('zoom in did not reach its minimum');
     }
+    // Exhausted: no narrower window, and the control says so.
+    expect(canZoomIn(view, window)).toBe(false);
+  });
+
+  it('a zoom-in step never widens and a zoom-out step never narrows (interaction review, new item 7)', () => {
+    const { view } = drawn('line', { data: Array.from({ length: 11 }, (_, i) => ({ x: i * 10, y: i })), x: 'x', y: 'y' });
+    if (view.kind === 'donut') throw new Error('line');
+    // The reviewer's case: a public window [40, 45] below the gesture minimum (20).
+    expect(minimumWidth(view)).toBe(20);
+    expect(zoomStep(view.xFull, [40, 45], 0.5, 42.5, minimumWidth(view))).toBeUndefined();
+    expect(canZoomIn(view, [40, 45])).toBe(false);
+    fc.assert(fc.property(fc.double({ min: 0, max: 99, noNaN: true }), fc.double({ min: 0.001, max: 100, noNaN: true }),
+      fc.double({ min: 0.25, max: 4, noNaN: true }), fc.double({ min: 0, max: 1, noNaN: true }), (a, w, factor, share) => {
+        fc.pre(a + w <= 100 && factor !== 1);
+        const current: [number, number] = [a, a + w];
+        const next = zoomStep(view.xFull, current, factor, a + share * w, minimumWidth(view));
+        if (next === undefined) return;
+        if (factor < 1) {
+          expect(next).not.toBeNull();
+          expect(next![1] - next![0]).toBeLessThan(w);
+        } else if (next !== null) {
+          expect(next[1] - next[0]).toBeGreaterThan(w);
+        }
+      }));
   });
 
   it('category bars do not zoom (spec 3.6)', () => {

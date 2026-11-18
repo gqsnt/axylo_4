@@ -29,6 +29,7 @@ import {
 import { createDiagnostic, DiagnosticCollector, readerDisclosure, type DiagnosticCode } from '../diagnostics';
 import { createFormatters, type FormatSpec } from '../format';
 import { dateUnitOf } from '../data/x';
+import { rowsTable, type Table } from '../data/table';
 import { buildView } from '../view';
 import { computeLayout } from '../layout';
 import { buildScene } from '../scene';
@@ -36,14 +37,14 @@ import { drawing } from '../scene/lines';
 import { simplifyLine } from '../simplify';
 import { buildLookup } from '../lookup';
 import { buildReader } from '../reader';
-import { resolveMessages } from '../messages';
+import { fill, resolveMessages } from '../messages';
 import { lowContrastSeries, type ThemeResolution } from '../theme';
 import { OptionsStore, sameValue, type OptionRecord } from './options';
 import { Delivery, diagnosticKey, StrictError, strictViolations, type DeliveryConsole } from './delivery';
 import { layoutInput, layoutKey, sameKey, type AxisContext } from './axes';
 import { zoomApplies } from './focus';
 import {
-  completeViewDiagnostics, dedupe, encodingChanged, isCompact, namingDiagnostics, object, publicOptions, stringOption,
+  completeViewDiagnostics, dedupe, encodingChanged, isCompact, namesOnlyChanged, namingDiagnostics, object, publicOptions, stringOption,
   titleOf, toPublic, viewKeyFor, viewStateFor, type Span,
 } from './stages';
 import type { FigureModel } from '../dom/figure';
@@ -62,6 +63,8 @@ const KIND_NAMES: Record<ChartKind, string> = { line: 'Line', area: 'Area', bar:
 const KIND_MESSAGES = { line: 'typeLine', area: 'typeArea', bar: 'typeBar', scatter: 'typeScatter', donut: 'typeDonut' } as const;
 /** Option resolution reports these about the data; they belong to the call that set the data. */
 const DATA_CODES = new Set(['AX100', 'AX101']);
+/** Positions of the title, the labelledBy id and the caption in the reader's inputs: they name, they do not summarize. */
+const NAMING_INPUTS = new Set([3, 4, 13]);
 
 /** What the benchmark harness reads (bench/README.md): readiness and what the committed frame shows. */
 export interface BenchHook {
@@ -136,6 +139,8 @@ export interface Invalidate {
   /** The chart came back into the document: anything about the page may have changed meanwhile. */
   page(): void;
   theme(): void;
+  /** The page's language changed: locale and English marking are read again in the next frame. */
+  language(): void;
   fonts(): void;
   pixelRatio(): void;
 }
@@ -199,14 +204,50 @@ type Display =
 /** Presentation diagnostics by the stage that found them (spec 3.5: reported when found, never thrown). */
 type PresentationStage = 'theme' | 'layout' | 'fit' | 'format' | 'naming' | 'internal';
 
-/** An x position as the value the author would write, so a zoom window can be moved by positions. */
+/**
+ * An x position in the form `zoom()` and the data read it, so an event's window or `Point.x` can be passed
+ * to another chart unchanged (documentation finding 2): a Date for an instant, 'YYYY-MM-DD' for a date, an
+ * ISO date-time without offset for a wall-clock time, the category's name, else the number.
+ */
 export function positionValue(frame: Frame, position: number): XValue {
   if (frame.shape === 'donut') return position;
   const kind = frame.shape === 'points' ? frame.xKind : frame.x.kind;
   if (kind === 'time') return new Date(position);
-  if (kind === 'wall') return new Date(position).toISOString().slice(0, 23);
+  if ((kind === 'date' || kind === 'wall') && Number.isFinite(position)) {
+    const iso = new Date(position).toISOString();
+    // Only four-digit years read back as written; others stay positions.
+    if (iso.length !== 24) return position;
+    // A date is written as one; a position between dates (the padded end of a bar axis) stays a number,
+    // which zoom() reads as the same position.
+    if (kind === 'date') return iso.endsWith('T00:00:00.000Z') ? iso.slice(0, 10) : position;
+    // The shortest wall-clock form that keeps the time: seconds and milliseconds only when not zero.
+    return iso.endsWith(':00.000Z') ? iso.slice(0, 16) : iso.endsWith('.000Z') ? iso.slice(0, 19) : iso.slice(0, 23);
+  }
   if (kind === 'category' && frame.shape === 'aligned') return frame.x.categories?.[position] ?? position;
   return position;
+}
+
+/** Whether a window can be set on this frame's x axis: time, date and number axes only in 1.0 (spec I3). */
+function zoomable(frame: Frame): boolean {
+  return frame.shape === 'points' || (frame.shape === 'aligned' && frame.x.kind !== 'category');
+}
+
+/**
+ * READER CALL SITE (review modules-codex, finding 5). The sentence for a series that could not be drawn,
+ * by the reader's rule for `{seeTable}` (filled when the chart has a table; when it has none, removed with
+ * the space before it only where the template has the placeholder; an override without it used as written).
+ * This stands in for the reader's export of the same shape, which replaces it:
+ *   seriesNotDrawnSentence(messages: Messages, series: string, table: boolean): string
+ */
+function seriesNotDrawnSentence(messages: Messages, series: string, table: boolean): string {
+  const template = messages.seriesNotDrawn;
+  const seeTable = table ? messages.seeTable : '';
+  const text = fill(template, { series, seeTable });
+  return seeTable === '' && template.includes('{seeTable}') ? text.trimEnd() : text;
+}
+
+function isWall(frame: Frame): boolean {
+  return frame.shape === 'aligned' ? frame.x.kind === 'wall' : frame.shape === 'points' && frame.xKind === 'wall';
 }
 
 function latestX(frame: Frame): number {
@@ -294,9 +335,18 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     return titleOf(o)?.text ?? host.id;
   }
 
+  /** Every presentation finding once: the same code and field found by two stages (ticks and readouts) is one. */
   function presentationList(): DiagnosticInput[] {
     const out: DiagnosticInput[] = [];
-    for (const list of presentation.values()) out.push(...list);
+    const seen = new Set<string>();
+    for (const list of presentation.values()) {
+      for (const d of list) {
+        const key = `${d.code}\u0000${d.field ?? ''}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(d);
+      }
+    }
     return out;
   }
 
@@ -414,15 +464,19 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
   }
 
   function viewFor(c: Candidate, previous: Accepted | null): Viewed {
-    const key = viewKeyFor(kind, c.options, c.resolved, c.frame, c.zoom, c.hidden, c.messages);
+    // A window kept across a data change does not reach an axis it does not apply to.
+    const zoom = zoomable(c.frame) ? c.zoom : null;
+    const key = viewKeyFor(kind, c.options, c.resolved, c.frame, zoom, c.hidden, c.messages);
     if (previous && sameValue(previous.viewKey, key)) {
       return { view: previous.view, viewKey: previous.viewKey, viewDiagnostics: previous.viewDiagnostics, found: [] };
     }
     stage('view');
     const sink = new DiagnosticCollector();
-    const state = viewStateFor(kind, c.options, c.resolved, c.zoom, previous?.view ?? null, c.hidden, c.messages);
+    const state = viewStateFor(kind, c.options, c.resolved, zoom, previous?.view ?? null, c.hidden, c.messages);
     const view = buildView(c.frame as never, state as never, sink) as View;
-    const found = sink.inputs();
+    // A wall-clock window on a wall-clock axis is what the axis reads: the column's own AX112 already says
+    // the values have no offset, and the window is not news (documentation finding 2).
+    const found = sink.inputs().filter(d => !(d.code === 'AX112' && d.field === 'zoom' && isWall(c.frame)));
     const before = previous?.viewDiagnostics ?? [];
     const viewDiagnostics = completeViewDiagnostics(kind, found, before, view, state);
     const known = new Set(before.map(diagnosticKey));
@@ -439,7 +493,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
    */
   function accept(c: Candidate, viewed: Viewed, follow: boolean, commit: (() => void) | null): void {
     commit?.();
-    if (commit) storeFrames.add(c.frame);
+    if (commit && c.store && c.store.frame === c.frame) storeFrames.add(c.frame);
     if (held && c.frame === held.frame) held = null;
     options.commit(c.options);
     frameRevision = Math.max(frameRevision, c.frame.revision);
@@ -499,9 +553,20 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       const messages = messagesFor(next, previous);
       let c: Candidate;
       let commit: (() => void) | null = null;
+      let heldAfter: typeof held = null;
       const replace = previous === null || changed.has('data') || (supplied && previous.store !== null);
       const reencode = !replace && encodingChanged(previous!.options, next);
-      if (replace || (reencode && previous!.store === null)) {
+      if (!replace && reencode && previous!.store === null && namesOnlyChanged(previous!.options, next)) {
+        // Labels or units only, over the caller's own data: the same columns with new names (finding 12).
+        const resolved = resolveOptions(kind, publicOptions(next), optionSink, previous!.source.table);
+        const p = previous!;
+        const opts = optionSink.inputs().filter(d => !DATA_CODES.has(d.code));
+        c = {
+          options: next, resolved, source: resolved, store: null, frame: renamed(p.frame, resolved, frameRevision += 1),
+          dataDiagnostics: p.dataDiagnostics, dataOptions: p.dataOptions,
+          optionDiagnostics: dedupe([...p.dataOptions, ...opts], p.dataDiagnostics), zoom: p.zoom, hidden: p.hidden, messages,
+        };
+      } else if (replace || (reencode && previous!.store === null)) {
         // New data, or new fields over the caller's own data: normalized from the options, borrowing typed
         // columns (plan 1.2). A stream this replaces is dropped with everything it held.
         stage('normalize');
@@ -523,17 +588,35 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
         const prepared: PreparedFrame<Frame> = store.prepareReencode(resolved, nextVersion());
         commit = prepared.commit;
         const opts = optionSink.inputs();
-        c = {
-          options: next, resolved, source: resolved, store, frame: prepared.frame, dataDiagnostics: prepared.diagnostics,
-          dataOptions: [], optionDiagnostics: dedupe(opts, prepared.diagnostics),
-          zoom: previous!.zoom, hidden: previous!.hidden, messages,
-        };
+        if (paused && held) {
+          // Paused: the rows on screen are read again with the new fields on their own, and the arrivals stay
+          // held, re-encoded in the store, until Resume (review 3, finding 5).
+          const table = displayedTable(previous!.frame);
+          const shownResolved = resolveOptions(kind, publicOptions(next), new DiagnosticCollector(), table);
+          const shownSink = new DiagnosticCollector();
+          const shown = normalize(kind, shownResolved, environment, shownSink, nextVersion());
+          heldAfter = { frame: prepared.frame, dataDiagnostics: prepared.diagnostics, viewDiagnostics: [] };
+          c = {
+            options: next, resolved, source: shownResolved, store, frame: shown, dataDiagnostics: shownSink.inputs(),
+            dataOptions: [], optionDiagnostics: dedupe(opts, prepared.diagnostics),
+            zoom: previous!.zoom, hidden: previous!.hidden, messages,
+          };
+        } else {
+          c = {
+            options: next, resolved, source: resolved, store, frame: prepared.frame, dataDiagnostics: prepared.diagnostics,
+            dataOptions: [], optionDiagnostics: dedupe(opts, prepared.diagnostics),
+            zoom: previous!.zoom, hidden: previous!.hidden, messages,
+          };
+        }
       } else {
         // Presentation only (title, domains, references, colors, …): the frame stays. Rows held by a Resume
         // that failed are shown by the next accepted call (finding 5).
         const p = resumable(previous!);
+        // The fields are unchanged, so what the retained rows said about them still holds: a stream is checked
+        // against no rows (a title update must not walk them, finding 11) unless they were found wanting.
         const resolved = p.store
-          ? p.store.resolveEncoding(publicOptions(next), optionSink)
+          ? p.resolved.valid ? resolveOptions(kind, publicOptions(next), optionSink, rowsTable([]))
+            : p.store.resolveEncoding(publicOptions(next), optionSink)
           : resolveOptions(kind, publicOptions(next), optionSink, p.source.table);
         const opts = optionSink.inputs().filter(d => !DATA_CODES.has(d.code));
         c = {
@@ -549,6 +632,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       const follow = followsLatest(viewed.view, c.zoom);
       if (c.frame !== previous?.frame) held = null;
       accept(c, viewed, follow, commit);
+      if (heldAfter) held = heldAfter;
     });
   }
 
@@ -578,11 +662,30 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       const base = held ? { ...previous, frame: held.frame } : previous;
       let zoom = previous.zoom;
       if (!paused && previous.follow && zoom) zoom = followLatest(prepared.frame, previous.view) ?? zoom;
-      const c: Candidate = {
+      let c: Candidate = {
         options: previous.options, resolved: previous.resolved, source: previous.source, store, frame: prepared.frame,
         dataDiagnostics: prepared.diagnostics, dataOptions: previous.dataOptions,
         optionDiagnostics: previous.optionDiagnostics, zoom, hidden: previous.hidden, messages: previous.messages,
       };
+      let commitAppend: (() => void) | null = prepared.commit;
+      if (!paused && previous.dataOptions.some(d => d.code === 'AX101') && previous.options.strict !== true) {
+        // A field the earlier data did not have: once the retained rows have it, the frame is read again with
+        // the fields as given and AX101 goes (review 3, finding 8).
+        prepared.commit();
+        storeFrames.add(prepared.frame);
+        frameRevision = Math.max(frameRevision, prepared.frame.revision);
+        commitAppend = null;
+        const check = new DiagnosticCollector();
+        const resolved = store.resolveEncoding(publicOptions(previous.options), check);
+        if (!check.inputs().some(d => d.code === 'AX101')) {
+          const again: PreparedFrame<Frame> = store.prepareReencode(resolved, nextVersion());
+          commitAppend = again.commit;
+          c = {
+            ...c, resolved, source: resolved, frame: again.frame, dataDiagnostics: again.diagnostics, dataOptions: [],
+            optionDiagnostics: previous.optionDiagnostics.filter(d => !DATA_CODES.has(d.code)),
+          };
+        }
+      }
       const viewed = viewFor(c, base);
       const found = [...prepared.callDiagnostics, ...viewed.found];
       rejectIfStrict(previous.options.strict === true, found, previous.name, previous.options.onDiagnostic);
@@ -602,8 +705,20 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
         return;
       }
       streaming = true;
-      accept(c, viewed, previous.follow && zoom !== null, prepared.commit);
+      accept(c, viewed, previous.follow && zoom !== null, commitAppend);
     });
+  }
+
+  /**
+   * The caller's rows of a displayed frame as a table, in source order and with their own source indexes, so
+   * they can be normalized again on their own (re-encoding what is on screen while paused).
+   */
+  function displayedTable(frame: Frame): Table {
+    const own = onScreen && onScreen.frame === frame && onScreen.frozen ? onScreen.frozen : freeze(frame).rows;
+    const indexes = [...own.keys()].sort((p, q) => p - q);
+    const rows = indexes.map(i => own.get(i));
+    // Positions read the rows in order; provenance and events read them by their own source index.
+    return { ...rowsTable(rows), rowIndex: i => indexes[i]!, rowAt: index => own.get(index) ?? null };
   }
 
   /** The caller's rows every slot of `frame` refers to, read once, so the frame stays addressable on its own. */
@@ -648,11 +763,22 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     guarded(() => {
       const previous = accepted;
       if (!previous) return;
+      if (!zoomable(previous.frame)) {
+        // 1.0 zooms time, date and number x axes only (spec I3): a window on a donut or a category axis is an
+        // option that does not apply to the chart (DX3), reported and ignored. Clearing a zoom is no request.
+        if (domain !== null && domain !== undefined) {
+          deliverRejected([createDiagnostic('AX150', 'none', {
+            field: 'zoom', detail: 'Zoom applies to time, date and number x axes only.',
+          }, 'call')], previous.name, previous.options.onDiagnostic);
+        }
+        return;
+      }
       const pair = Array.isArray(domain) && domain.length === 2 ? [domain[0], domain[1]] as unknown as Span<XValue> : null;
       const c = viewCandidate(previous, { zoom: pair });
       const viewed = viewFor(c, previous);
       // A window that cannot be read is reported and ignored; zoom never throws (spec 3.5).
-      const bad = viewed.found.filter(d => d.field === 'zoom');
+      // A hint (AX112: a wall-clock window on a wall-clock axis) does not make the window unreadable.
+      const bad = viewed.found.filter(d => d.field === 'zoom' && d.level !== 'hint');
       if (bad.length) {
         deliverRejected(bad, previous.name, previous.options.onDiagnostic);
         return;
@@ -669,7 +795,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     });
   }
 
-  /** The window shown, as the author would write it; null when the whole range is shown. */
+  /** The window shown, in the form `zoom()` reads (positionValue); null when the whole range is shown. */
   function zoomPayload(a: Accepted): readonly [XValue, XValue] | null {
     const view = a.view;
     if (a.zoom === null || view.kind === 'donut') return null;
@@ -729,8 +855,6 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
   let announced: Display['kind'] | null = null;
   /** The accepted revision the page last settled on (drawn, or its error shown). */
   let settledRevision = 0;
-  /** The frame revision whose formatter findings the 'format' bucket holds. */
-  let formatRevision = -1;
 
   interface Drawn {
     accepted: Accepted;
@@ -793,7 +917,17 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     }
     if (stateDiagnostics(a).some(d => d.effect === 'chart-error')) return { kind: 'error', text: m.error, message: 'error' };
     // Series the reader hid are still data: the chart stays ready, so the legend can show them again.
-    if (!hasData(a.view, true)) return { kind: 'empty', text: m.empty, message: 'empty' };
+    if (!hasData(a.view, true)) {
+      // Nothing drawn because series could not be (AX108: series disabled) is not an empty chart: the figure
+      // says which, as the summary does (spec 3.5).
+      const undrawn = a.view.kind === 'donut' ? [] : a.view.frame.series.filter(s => !s.drawable);
+      if (undrawn.length) {
+        const table = a.options.table !== false && !isCompact(kind, a.options);
+        const text = undrawn.map(s => seriesNotDrawnSentence(m, s.label, table)).join(' ');
+        return { kind: 'error', text, message: 'seriesNotDrawn' };
+      }
+      return { kind: 'empty', text: m.empty, message: 'empty' };
+    }
     return { kind: 'ready' };
   }
 
@@ -907,12 +1041,11 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     let formatters = drawn?.formatters;
     if (!formatters || !drawn || !sameKey(drawn.formattersKey, fKey)) {
       stage('formatters');
+      // The bucket belongs to the formatters: emptied before they are built, so what their construction
+      // reports (an invalid Intl option) stays, and kept while they stay, as their fallback goes on (finding 13).
+      setPresentation('format', []);
       formatters = createFormatters(spec, { locale, timeZone });
-      setPresentation('format', []);
-    } else if (formatRevision !== view.frame.revision) {
-      setPresentation('format', []);
     }
-    formatRevision = view.frame.revision;
 
     // Naming (spec A1): a labelledBy that names nothing falls back to the title or a generated name.
     const by = stringOption(a.options, 'labelledBy');
@@ -924,11 +1057,16 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     const caption = named ? byText.trim() || undefined : undefined;
 
     const english = englishFor(a, lang);
-    // The note is English only when every sentence it shows is the built-in one (spec A10).
+    // The note is English only when every template it shows is the built-in one, "See table." included when
+    // it is in them (spec A10). READER CALL SITE (review modules-codex, finding 5): until the reader gives
+    // each note segment its language, the whole note is one segment and is tagged only when all of it is
+    // built-in; a sentence mixing an override with a built-in "See table." stays untagged.
     const noteLangFor = (labelsHidden: number, disclosure: { omitted: number; changed: number }): string | null => {
       const shownKeys = [disclosure.omitted > 0 ? 'valuesNotShown' : null, disclosure.changed > 0 ? 'valuesChanged' : null,
         labelsHidden > 0 ? 'labelsHidden' : null].filter((k): k is 'valuesNotShown' | 'valuesChanged' | 'labelsHidden' => k !== null);
-      return shownKeys.length > 0 && shownKeys.every(k => english(k)) ? 'en' : null;
+      const withTable = a.options.table !== false && !compact && shownKeys.some(k => a.messages[k].includes('{seeTable}'));
+      const keys: (keyof Messages)[] = withTable ? [...shownKeys, 'seeTable'] : shownKeys;
+      return shownKeys.length > 0 && keys.every(k => english(k)) ? 'en' : null;
     };
     const hiddenIn = (l: Layout | undefined) => l?.kind === 'plot' ? l.fit.x.hidden + l.fit.y.hidden : 0;
     const disclosureNow = () => readerDisclosure([...stateDiagnostics(a), ...presentationList()]);
@@ -939,6 +1077,11 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       if (drawn && sameKey(drawn.readerInputs, inputs)) return { reader: drawn.reader, inputs: drawn.readerInputs };
       if (lastReader && sameKey(lastReader.inputs, inputs)) return lastReader;
       stage('reader');
+      // The summary reads the view, not the name: when only the naming inputs changed, the statistics already
+      // written are kept rather than scanned again (finding 11).
+      const before = lastReader ?? (drawn ? { reader: drawn.reader, inputs: drawn.readerInputs } : null);
+      const kept = before && sameKey(before.inputs.filter((_, i) => !NAMING_INPUTS.has(i)), inputs.filter((_, i) => !NAMING_INPUTS.has(i)))
+        ? before.reader : null;
       const t = a.options.title;
       const reader = buildReader({
         view, formatters: formatters!, messages: a.messages, type: a.messages[KIND_MESSAGES[kind]] || KIND_NAMES[kind],
@@ -950,6 +1093,10 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
         description: stringOption(a.options, 'description') ?? undefined,
         disclosure, labelsHidden, table: a.options.table !== false, compact, locale,
       });
+      if (kept) {
+        const summary = kept.summary;
+        return lastReader = { reader: { name: reader.name, note: reader.note, table: reader.table, get summary() { return summary; } }, inputs };
+      }
       return lastReader = { reader, inputs };
     };
     /** Builds the reader; when building it found new omissions (a formatter threw), once more with them. */
@@ -971,16 +1118,22 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     const modelFor = (reader: ReaderModel, tooSmall: boolean): FigureModel => {
       const message = shown.kind === 'ready' ? null : shown.text;
       // A compact chart is one image: its description says what state it is in (C1).
-      const summary = compact && message !== null
-        ? (shown.kind === 'empty' ? `${message} ${reader.summary}` : message) : reader.summary;
+      // Loading and error are not empty (documentation findings 1 and 3): their description is the state, not
+      // a reading of data the plot does not show.
+      const summary = message === null ? reader.summary
+        : shown.kind === 'empty' ? (compact ? `${message} ${reader.summary}` : reader.summary) : message;
       return {
         compact, title: named ? null : title, labelledBy: named ? by : null, name: reader.name || a.name,
         subtitle: stringOption(a.options, 'subtitle'), summary,
         summaryVisible: tooSmall, note: noteShown ? reader.note : null, message,
         messageLang: message !== null && shown.kind !== 'ready' && shown.message ? english(shown.message) : null,
         noteLang: noteLangFor(currentHidden, disclosureNow()),
+        // READER CALL SITE (finding 5): one segment until the reader gives the note's runs their languages.
+        noteSegments: noteShown && reader.note !== null ? [{ text: reader.note, lang: noteLangFor(currentHidden, disclosureNow()) }] : null,
         // The generated summary's sentences are the built-in templates; the names in them do not change that.
-        summaryLang: english('chartSummary') && english('seriesSummary') ? 'en' : null,
+        summaryLang: message !== null && shown.kind !== 'ready' && shown.kind !== 'empty'
+          ? (shown.message && english(shown.message) ? 'en' : null)
+          : english('chartSummary') && english('seriesSummary') ? 'en' : null,
       };
     };
     const zoomOn = zoomApplies(view, a.options.zoom) ? (a.options.zoom === 'touch' ? 'touch' as const : true) : false;
@@ -989,7 +1142,10 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     const controlsFor = (reader: ReaderModel, tooSmall: boolean): ControlsState => ({
       kind, view, formatters: formatters!, messages: a.messages, reader, tooSmall,
       ready: shown.kind === 'ready', interactive: !compact, tooltip: a.options.tooltip !== false, legend,
-      inspectable: shown.kind === 'empty' && (reader.table?.rowCount ?? 0) > 0,
+      // Series that could not be drawn are still rows: the table their sentence points to is offered.
+      inspectable: (shown.kind === 'empty' || (shown.kind === 'error' && shown.message === 'seriesNotDrawn')) &&
+        (reader.table?.rowCount ?? 0) > 0,
+      empty: shown.kind === 'empty', message: shown.kind === 'ready' ? null : shown.text,
       zoom: zoomOn, zoomed, streaming, paused, epoch: a.frame.epoch, english, pageLang: lang,
     });
 
@@ -1063,6 +1219,8 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     if (size === null || size.width <= 0) {
       layout = { kind: 'unmeasured', width: size?.width ?? 0, height: size?.height ?? 0 };
     } else if (shown.kind !== 'ready') {
+      // No axes drawn: what the tick formatters reported belongs to no output any more.
+      setPresentation('layout', []);
       const h = Math.max(0, size.height);
       layout = { kind: 'unmeasured', width: size.width, height: h };
       lKey = ['message', size.width, h];
@@ -1372,6 +1530,10 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       // pending (one draw per animation frame; review 3, finding 19).
       schedule();
     },
+    language() {
+      if (destroyed) return;
+      schedule();
+    },
     fonts() {
       if (destroyed) return;
       fontEpoch++;
@@ -1484,6 +1646,25 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     };
   }
   return { handle, actions, invalidate, flush };
+}
+
+/** The same frame with the names and units the resolved fields now give (no value is read again). */
+function renamed(frame: Frame, resolved: ResolvedOptions, revision: number): Frame {
+  const value = resolved.values[0];
+  if (frame.shape === 'donut') return { ...frame, revision, valueLabel: value?.label ?? frame.valueLabel, unit: value?.unit ?? null };
+  if (frame.shape === 'points') {
+    return { ...frame, revision, xLabel: resolved.x.label, yLabel: value?.label ?? frame.yLabel, xUnit: resolved.x.unit, yUnit: value?.unit ?? null };
+  }
+  const byField = new Map(resolved.values.map(v => [v.field, v]));
+  return {
+    ...frame, revision, xLabel: resolved.x.label, yLabel: resolved.values.length === 1 ? value!.label : null,
+    series: frame.series.map(s => {
+      const v = byField.get(s.field) ?? value;
+      if (!v) return s;
+      // Named by its field (wide form, or one series without a series field), else by its series value.
+      return { ...s, unit: v.unit, label: resolved.form === 'wide' || resolved.series === null ? v.label : s.label };
+    }),
+  };
 }
 
 const pointDateUnits = new WeakMap<Frame, 'day' | 'month' | 'year'>();

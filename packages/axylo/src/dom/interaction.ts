@@ -24,7 +24,7 @@ import type {
 import type { Messages } from '../public';
 import { fill } from '../messages';
 import {
-  buildOverlay, canZoomIn, minimumWidth, panWindow, positionAt, positionText, refsAt, sameRef, scaleWindow, stepAcross, stepInSeries,
+  buildOverlay, canZoomIn, minimumWidth, panWindow, positionAt, positionText, refsAt, sameRef, stepAcross, stepInSeries, zoomStep,
   targetBox, targetOf, valueText, PAN_SHARE, ZOOM_FACTOR, type Mode,
 } from '../core/focus';
 import type { Figure } from './figure';
@@ -56,6 +56,10 @@ export interface ControlsState {
    * the donut's slice list stay (spec F8, A4, L7).
    */
   readonly inspectable?: boolean;
+  /** The chart shows its empty state (not loading or error): a zoomed window with nothing in it can recover. */
+  readonly empty?: boolean;
+  /** The state's message while not ready ("Loading chart."), which the plot reads instead of data. */
+  readonly message?: string | null;
   /** A full chart; false for the compact variant, which is a static image (spec C1). */
   readonly interactive: boolean;
   readonly tooltip: boolean;
@@ -181,7 +185,8 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   /** The one pointer that owns a press or drag (review 2, finding 10); others are ignored until it ends. */
   let down: { id: number; x: number; y: number; dragging: boolean } | null = null;
   const touches = new Map<number, { x: number; y: number; x0: number; y0: number; t0: number }>();
-  let pinch: { distance: number; window: Span; center: number } | null = null;
+  /** The two fingers a pinch started with (`ids`): a third finger does not take it over (new item 10). */
+  let pinch: { ids: readonly [number, number]; distance: number; window: Span; center: number } | null = null;
   /** A pinch happened since the last time no finger was down: the lifting fingers are not a tap. */
   let pinched = false;
   let pinchFrame = 0;
@@ -256,8 +261,44 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     listenDocument();
   }
 
+  /**
+   * The plot is about to stop being focusable (too small, compact, failure) while it has focus: focus goes to
+   * the table control when there is one, else to the figure itself, which takes focus from script only, so no
+   * tab stop is added (WCAG 2.4.3; interaction review, new item 6).
+   */
+  function handOff(toolbarStays = true): void {
+    if (!proxy || doc.activeElement !== proxy) return;
+    if (toolbarStays && toolbar?.focus('table')) return;
+    const root = figure.figure;
+    if (!root.hasAttribute('tabindex')) root.setAttribute('tabindex', '-1');
+    root.focus({ preventScroll: true });
+  }
+
+  /** Gesture work that has not reached the chart yet is dropped: cancel, blur, detach, rebuild (new item 10). */
+  function cancelGestures(): void {
+    endDrag();
+    touches.clear();
+    pinch = null;
+    pinched = false;
+    if (pinchFrame !== 0) doc.defaultView?.cancelAnimationFrame(pinchFrame);
+    pinchFrame = 0;
+    pinchWindow = undefined;
+  }
+
+  /** A pinch that ends normally (a finger lifts) keeps its last move: the queued window is applied now. */
+  function endPinch(): void {
+    pinch = null;
+    if (pinchFrame !== 0) doc.defaultView?.cancelAnimationFrame(pinchFrame);
+    pinchFrame = 0;
+    const last = pinchWindow;
+    pinchWindow = undefined;
+    if (last !== undefined) requestZoom(last);
+  }
+
   function unbuild(): void {
     if (!proxy) return;
+    handOff(false);
+    cancelGestures();
     closeTable();
     unlistenDocument();
     built?.abort();
@@ -290,8 +331,14 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   }
 
   /** A zoomed window with nothing in it: the plot keeps its focus and its zoom keys, so the reader can go back. */
-  function recoverable(d: Committed | null): d is Committed & { readonly zoomed: true } {
-    return d !== null && !d.ready && d.zoom !== false && d.zoomed && !d.tooSmall;
+  function recoverable<T extends ControlsState>(d: T | null): d is T & { readonly zoomed: true } {
+    // Loading and error are not an empty window: zooming out would not bring anything back (new item 8).
+    return d !== null && !d.ready && d.empty === true && d.zoom !== false && d.zoomed && !d.tooSmall;
+  }
+
+  /** Some series is shown: with every one hidden by the legend there is nothing to read (new item 8). */
+  function readable(d: Committed): boolean {
+    return d.view.kind === 'donut' || d.view.visible.some(Boolean);
   }
 
   function initialFocusFor(d: Committed): DatumRef | null {
@@ -439,11 +486,11 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   function writeProxy(acted: boolean): void {
     const d = c;
     if (!proxy || !d) return;
-    if (!plotReady(d)) {
+    if (!plotReady(d) || !readable(d)) {
       if (proxy.max !== '0') proxy.max = '0';
       if (proxy.value !== '0') proxy.value = '0';
       shownOrdinal = 0;
-      setAttr(proxy, 'aria-valuetext', recoverable(d) ? d.messages.empty : d.messages.noData);
+      setAttr(proxy, 'aria-valuetext', recoverable(d) || plotReady(d) ? d.messages.empty : d.message ?? d.messages.noData);
       return;
     }
     const ref = focus ?? initialFocus(d);
@@ -563,6 +610,11 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       if (d.zoom) pan(key === 'ArrowRight' ? PAN_SHARE : -PAN_SHARE);
       return;
     }
+    // Every series hidden: there is no datum to move to or select; the range stays on its one place.
+    if (!readable(d)) {
+      if (key in NAVIGATION || key === 'ArrowUp' || key === 'ArrowDown' || key === 'Enter' || key === ' ') event.preventDefault();
+      return;
+    }
     if ((key === 'ArrowUp' || key === 'ArrowDown') && d.view.kind !== 'donut') {
       event.preventDefault();
       moveSeries(key === 'ArrowDown' ? 1 : -1);
@@ -604,6 +656,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   function onProxyInput(): void {
     const d = c;
     if (!proxy || !plotReady(d)) return;
+    if (!readable(d)) { writeProxy(false); return; }
     const ordinal = Number(proxy.value);
     if (!Number.isFinite(ordinal) || ordinal === shownOrdinal) return;
     takeover(d);
@@ -666,10 +719,8 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     if (d.view.kind === 'donut' || !d.zoom) return undefined;
     const now = currentWindow(d)!;
     const at = center ?? zoomCenter(d, now);
-    const next = scaleWindow(d.view.xFull, now, factor, at, minimumWidth(d.view));
-    const nowFull = now[0] <= d.view.xFull[0] && now[1] >= d.view.xFull[1];
-    if (next === null ? nowFull : sameWindow(next, now)) return undefined;
-    return next;
+    // Zoom in never widens and zoom out never narrows, for the keys and the wheel as for the buttons.
+    return zoomStep(d.view.xFull, now, factor, at, minimumWidth(d.view));
   }
 
   function zoomBy(factor: number, center?: number): boolean {
@@ -733,7 +784,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
         const at = local(event);
         t.x = at.x;
         t.y = at.y;
-        if (pinch && touches.size === 2) pinchMove();
+        if (pinch && pinch.ids.includes(event.pointerId)) pinchMove();
       }
       return;
     }
@@ -816,9 +867,8 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     // One pointer owns a press at a time; a second one does not take the drag over.
     if (event.button !== 0 || down) return;
     down = { id: event.pointerId, x: at.x, y: at.y, dragging: false };
-    if (d.zoom) {
-      try { plot.setPointerCapture(event.pointerId); } catch { /* the pointer is already gone */ }
-    }
+    // Captured whether or not the chart zooms, so a release outside the plot still ends the press (new item 10).
+    try { plot.setPointerCapture(event.pointerId); } catch { /* the pointer is already gone */ }
   }
 
   function onPointerUp(event: PointerEvent): void {
@@ -826,7 +876,8 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     if (event.pointerType === 'touch') {
       const t = touches.get(event.pointerId);
       touches.delete(event.pointerId);
-      if (pinch && touches.size < 2) pinch = null;
+      // A pinch belongs to its two fingers: either lifting ends it, with its last move kept.
+      if (pinch && pinch.ids.includes(event.pointerId)) endPinch();
       const wasPinch = pinched;
       if (touches.size === 0) pinched = false;
       // The fingers lifting after a pinch are not a tap.
@@ -871,9 +922,14 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
 
   function onPointerCancel(event: PointerEvent): void {
     if (event.pointerType === 'touch') {
-      // The page took the gesture (a one-finger drag scrolls, spec I4).
+      // The page took the gesture (a one-finger drag scrolls, spec I4): what it had not applied is dropped.
       touches.delete(event.pointerId);
-      if (touches.size < 2) pinch = null;
+      if (pinch && pinch.ids.includes(event.pointerId)) {
+        pinch = null;
+        if (pinchFrame !== 0) doc.defaultView?.cancelAnimationFrame(pinchFrame);
+        pinchFrame = 0;
+        pinchWindow = undefined;
+      }
       if (touches.size === 0) pinched = false;
       return;
     }
@@ -887,10 +943,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   }
 
   function onWindowBlur(): void {
-    endDrag();
-    touches.clear();
-    pinch = null;
-    pinched = false;
+    cancelGestures();
   }
 
   function tap(d: Committed, at: { x: number; y: number }): void {
@@ -927,18 +980,21 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   }
 
   function startPinch(d: Committed): void {
-    const [a, b] = [...touches.values()];
-    if (!a || !b || d.view.kind === 'donut') return;
+    const [ia, ib] = [...touches.keys()];
+    const a = ia === undefined ? undefined : touches.get(ia);
+    const b = ib === undefined ? undefined : touches.get(ib);
+    if (ia === undefined || ib === undefined || !a || !b || d.view.kind === 'donut') return;
     const window = currentWindow(d)!;
     const center = positionAt(d.layout, (a.x + b.x) / 2, (a.y + b.y) / 2) ?? (window[0] + window[1]) / 2;
-    pinch = { distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), window, center };
+    pinch = { ids: [ia, ib], distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), window, center };
     tooltip.hide();
     presented = '';
   }
 
   function pinchMove(): void {
     const d = c;
-    const [a, b] = [...touches.values()];
+    const a = pinch ? touches.get(pinch.ids[0]) : undefined;
+    const b = pinch ? touches.get(pinch.ids[1]) : undefined;
     if (!pinch || !a || !b || !plotReady(d) || d.view.kind === 'donut' || d.layout.kind !== 'plot') return;
     const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
     const { window, center } = pinch;
@@ -1110,7 +1166,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     const inherited = d.english('controlsLabel') ? d.pageLang : null;
     const button = (key: keyof Messages, activate: () => void, disabled = false): ToolbarItem =>
       ({ key, label: m[key], lang: d.english(key) ?? inherited, className: 'axylo-control', activate, disabled });
-    if (d.zoom && !d.tooSmall && d.view.kind !== 'donut') {
+    if (d.zoom && !d.tooSmall && d.view.kind !== 'donut' && (d.ready || recoverable(d))) {
       const window = d.zoomed ? d.view.xDomain : d.view.xFull;
       if (d.ready) items.push(button('zoomIn', () => zoomBy(1 / ZOOM_FACTOR), !canZoomIn(d.view, window)));
       // Zoom out stays in place at full view, marked as unable to act, so the toolbar does not reflow.
@@ -1220,6 +1276,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     if (!proxy || !ring) return;
     const ready = plotReady(d);
     const usable = ready || recoverable(d);
+    if (!usable) handOff();
     proxy.hidden = !usable;
     ring.hidden = !usable;
     if (!usable) return;
@@ -1249,7 +1306,12 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
    * sliding window renumbers them, so a reference is moved to its category's new index; a category the window
    * dropped maps to the next one that is still there (the lookup's "after it" rule), else to none.
    */
-  function remapper(before: View, after: View): ((ref: DatumRef | null) => DatumRef | null) | null {
+  /**
+   * Category positions across a change of categories. Keyboard focus moves on to the next surviving category
+   * (A7); with `exact`, a pin or a dismissal follows only its own category and ends with it (interaction
+   * review, part 1 item 2): the reader never pinned or dismissed the successor.
+   */
+  function remapper(before: View, after: View, exact = false): ((ref: DatumRef | null) => DatumRef | null) | null {
     const from = categoriesOf(before);
     const to = categoriesOf(after);
     if (!from || !to || (from.length === to.length && from.every((name, i) => to[i] === name))) return null;
@@ -1258,6 +1320,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       for (let i = x; i < from.length; i++) {
         const at = index.get(from[i]!);
         if (at !== undefined) return at;
+        if (exact) return null;
       }
       return null;
     };
@@ -1314,8 +1377,9 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
         focus = map(focus);
         if (focus === null) mode = 'all';
         lastHover = map(lastHover);
-        dismissed = remapTarget(dismissed, map);
-        pointerTarget = remapTarget(pointerTarget, map);
+        const same = remapper(previous.view, next.view, true)!;
+        dismissed = remapTarget(dismissed, same);
+        pointerTarget = remapTarget(pointerTarget, pinned ? same : map);
         if (pinned && pointerTarget === null) unpin();
       }
     }
@@ -1346,9 +1410,10 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     if (destroyed) return false;
     const before = layoutSignature();
     if (!state.interactive) {
+      // The overlay is cleared while the frame that drew it is still known (new item 6).
+      clear();
       c = null;
       cs = null;
-      clear();
     } else {
       build();
       renderControls(state);
@@ -1370,6 +1435,13 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     focus = null;
     pointerTarget = null;
     pinned = false;
+    // A later full build starts from no input at all (new item 6).
+    mode = 'all';
+    source = null;
+    pointer = null;
+    dismissed = null;
+    proxyFocused = false;
+    fromClick = false;
     hover(null);
   }
 
@@ -1377,9 +1449,9 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     prepare,
     commit,
     clear() {
+      clear();
       c = null;
       cs = null;
-      clear();
     },
     attach() {
       if (attached || destroyed) return;
@@ -1389,6 +1461,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     detach() {
       if (!attached) return;
       attached = false;
+      cancelGestures();
       unpin();
       unlistenDocument();
     },

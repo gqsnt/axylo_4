@@ -9,9 +9,7 @@
  */
 
 const QUERIES = ['(prefers-color-scheme: dark)', '(forced-colors: active)', '(prefers-contrast: more)'];
-// `lang` too: the page's language decides the formatting locale and which built-in text is marked English
-// (review 3, finding 19).
-const ATTRIBUTES = ['class', 'style', 'data-theme', 'lang'];
+const ATTRIBUTES = ['class', 'style', 'data-theme'];
 
 /** Declarations resolveTheme itself writes on the chart root; changes to them alone are not theme changes. */
 const OWN = /--axylo-(?:series-color-\d+|backdrop)\s*:[^;]*;?\s*/g;

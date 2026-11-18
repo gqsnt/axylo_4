@@ -6,7 +6,7 @@
 import type { TextMeasurer, TextStyle, TickCandidates, View, XKind } from './contracts';
 import type { LayoutInput } from '../layout';
 import type { ResolvedOptions } from '../data';
-import { bandScale, bandTickCandidates, linearScale, linearTickCandidates, timeScale, timeTickCandidates } from '../scale';
+import { bandScale, bandTickCandidates, coarserDomains, linearScale, linearTickCandidates, timeScale, timeTickCandidates } from '../scale';
 import { createNumberTickLabeler, createTimeTickLabel, type NumberFormatOption } from '../format';
 import type { XValue } from '../public';
 
@@ -90,11 +90,17 @@ export function layoutInput(
     : visibleSeries.every(s => (s as { valueScale: unknown }).valueScale === firstScale) ? firstScale : null;
   const titles = axisTitles(view, ctx);
   const all = numberTicks(view.yDomain, ctx.locale, yOption, valueScale, onYError);
+  const extent = value?.domain ? null : valueExtent(view);
+  const full = valueScale === 'percent' ? 100 : valueScale === 'ratio' ? 1 : null;
   const y = {
     domain: view.yDomain,
     // An automatic domain ends at the first drawn tick at or beyond each extreme (F7): layout may only choose
-    // among the tick sets for which that holds. An author's domain is drawn as given.
-    candidates: value?.domain ? all : endingCandidates(all, view.yDomain, valueExtent(view), valueScale),
+    // among the tick sets for which that holds, and a plot too short for all of them takes a wider domain on
+    // a coarser step, chosen with its ticks. An author's domain is drawn as given.
+    candidates: extent ? endingCandidates(all, view.yDomain, extent, valueScale) : all,
+    coarser: extent ? coarserDomains(extent[0], extent[1], view.yDomain, full !== null && view.yDomain[1] === full).map(domain => ({
+      domain, candidates: endingCandidates(numberTicks(domain, ctx.locale, yOption, valueScale, onYError), domain, extent, valueScale),
+    })) : undefined,
     title: titles.y, mayThin: true,
   };
   const common = { width, height, compact: ctx.compact, measurer: text.measurer, style: text.style, scales };
@@ -131,6 +137,17 @@ export function layoutInput(
  * reference lines and bands, and zero on bar and area (spec F1, F7).
  */
 export function valueExtent(view: Exclude<View, { kind: 'donut' }>): Span | null {
+  const known = extents.get(view);
+  if (known !== undefined) return known;
+  const extent = scanExtent(view);
+  extents.set(view, extent);
+  return extent;
+}
+
+/** Views are immutable: the extent is read once per view (layout input and layout key). */
+const extents = new WeakMap<View, Span | null>();
+
+function scanExtent(view: Exclude<View, { kind: 'donut' }>): Span | null {
   let lo = Infinity;
   let hi = -Infinity;
   const take = (v: number) => { if (Number.isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; } };
@@ -227,6 +244,9 @@ export function layoutKey(
   base.push(view.xDomain[0], view.xDomain[1], view.yDomain[0], view.yDomain[1], ctx.resolved.x.tickFormat,
     ctx.resolved.x.label, ctx.resolved.x.unit, value?.tickFormat, value?.label, value?.unit, value?.scale,
     ctx.xLabelGiven, ctx.valueTitle, view.references);
+  // The extremes choose among the tick sets and wider domains of an automatic domain (F7).
+  const extent = value?.domain ? null : valueExtent(view);
+  base.push(extent?.[0], extent?.[1]);
   base.push(...view.visible);
   // The titles as drawn: a unit can change on one series only and change the shared unit (review 2, finding 20).
   const titles = axisTitles(view, ctx);

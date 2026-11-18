@@ -5,7 +5,7 @@
  * domain covers the data, stack totals and reference values, and each end is the first nice tick at or
  * beyond the extreme, so it never overshoots by a whole step.
  */
-import { firstIndexAtOrAbove, lastIndexAtOrBelow, niceStepAtLeast, stepMultiple, type NiceStep } from './nice';
+import { firstIndexAtOrAbove, lastIndexAtOrBelow, nextNiceStep, niceStepAtLeast, stepMultiple, type NiceStep } from './nice';
 
 export interface ValueDomainInput {
   /** Smallest and largest value, stack totals included. NaN (or min > max) when there is no data. */
@@ -119,4 +119,32 @@ function usable(domain: [number, number], lo: number, hi: number): [number, numb
   if (Number.isFinite(lo - h) && lo - h < lo) return [lo - h, lo];
   if (Number.isFinite(lo + h) && lo + h > lo) return [lo, lo + h];
   return [lo - 1, lo + 1];
+}
+
+/**
+ * Coarser automatic domains for [lo, hi] than `domain`, each on a larger nice step and ending at the first
+ * multiple of that step at or beyond each extreme, sparsest last (one interval). A plot too short for the
+ * ticks of `domain` takes one of these, so its axis still ends at drawn ticks (F7). With `fixedTop` the upper
+ * end stays at `domain`'s and the lower end is a whole number of steps below it.
+ */
+export function coarserDomains(lo: number, hi: number, domain: readonly [number, number], fixedTop = false): [number, number][] {
+  const out: [number, number][] = [];
+  if (!(lo < hi) || !Number.isFinite(lo) || !Number.isFinite(hi)) return out;
+  const b0 = domain[1];
+  // The automatic domain's own step, then each coarser one.
+  let step: NiceStep = nextNiceStep(domainStep(lo, hi));
+  let intervals = Infinity;
+  // Bounded: each step at least doubles, and the domain is reached in one interval within a few steps.
+  for (let n = 0; n < 12 && intervals > 1; n++, step = nextNiceStep(step)) {
+    const b = fixedTop ? b0 : stepMultiple(firstIndexAtOrAbove(hi, step), step);
+    const a = fixedTop ? b - stepMultiple(firstIndexAtOrAbove(b - lo, step), step) : stepMultiple(lastIndexAtOrBelow(lo, step), step);
+    if (!(Number.isFinite(a) && Number.isFinite(b) && a < b && a <= lo && b >= hi)) continue;
+    const count = Math.round((b - a) / step.value);
+    if (count >= intervals) continue;
+    intervals = count;
+    // A domain already offered keeps its ticks of every step: only a wider one is new.
+    if ((a === domain[0] && b === domain[1]) || out.some(d => d[0] === a && d[1] === b)) continue;
+    out.push([a === 0 ? 0 : a, b === 0 ? 0 : b]);
+  }
+  return out;
 }

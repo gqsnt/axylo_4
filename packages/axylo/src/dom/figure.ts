@@ -14,6 +14,11 @@ export interface TitleModel {
   readonly visible: boolean;
 }
 
+export interface NoteSegment {
+  readonly text: string;
+  readonly lang: string | null;
+}
+
 export interface FigureModel {
   readonly compact: boolean;
   /** The heading, or null when there is none (only `labelledBy`, or no title at all). */
@@ -35,6 +40,11 @@ export interface FigureModel {
    */
   readonly messageLang?: string | null;
   readonly noteLang?: string | null;
+  /**
+   * The note as runs of text, each with its own `lang` (A10: a sentence can mix built-in English and the
+   * author's text). When given, it is the note's content and `noteLang` is not used.
+   */
+  readonly noteSegments?: readonly NoteSegment[] | null;
   /** `lang` of the generated summary: 'en' when its built-in sentences are English on another page (A10). */
   readonly summaryLang?: string | null;
 }
@@ -208,8 +218,26 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
 
       // The compact variant has no note element: the summary says what was left out, and a corner marker
       // shows it (spec C5); the marker's text equivalent is that description.
-      setText(note, compact ? '' : model.note ?? '');
-      setAttr(note, 'lang', model.noteLang ?? null);
+      const segments = compact ? null : model.noteSegments ?? null;
+      if (segments && segments.length > 1) {
+        // Runs in their own languages: one span each, so assistive technology switches voice per run.
+        const signature = JSON.stringify(segments);
+        if (note.dataset.segments !== signature) {
+          note.replaceChildren(...segments.map((run, i) => {
+            const span = doc.createElement('span');
+            span.textContent = (i > 0 ? ' ' : '') + run.text;
+            if (run.lang !== null) span.setAttribute('lang', run.lang);
+            return span;
+          }));
+          note.dataset.segments = signature;
+        }
+        setAttr(note, 'lang', null);
+      } else {
+        delete note.dataset.segments;
+        if (note.firstElementChild) note.textContent = '';
+        setText(note, compact ? '' : segments?.[0]?.text ?? model.note ?? '');
+        setAttr(note, 'lang', segments ? segments[0]?.lang ?? null : model.noteLang ?? null);
+      }
       setAttr(message, 'lang', model.messageLang ?? null);
       show(note, !compact && model.note !== null);
       show(corner, compact && model.note !== null);
