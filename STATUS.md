@@ -26,26 +26,30 @@ The plan's milestones were built in parallel by module, not strictly in order, b
 
 Observed model and effort are read from harness metadata (Codex session rollouts, Claude subagent transcripts). Briefs, reports, reviews and fix briefs are in `reviews/2026-11-18/impl/wp/`.
 
-| Package | Author (observed) | Cross-review | State |
-|---|---|---|---|
-| Scales, formatting | claude-opus-5-5, high | Codex gpt-6.2-astra xhigh: 14 findings | Fixed, committed |
-| Layout, simplification | gpt-6.2-sol, xhigh | Opus 5.5 xhigh: 14 findings | Fixed, committed |
-| Data layer, diagnostics | gpt-6.2-sol, xhigh | Opus 5.5 xhigh: 18 findings | 17 fixed, 1 left by decision; committed |
-| Renderers, text layer, theme | claude-opus-5-5, high | Codex gpt-6.2-astra xhigh: 18 findings | Fixed including the stylesheet; committed |
-| View, scene | gpt-6.2-sol, xhigh | Opus 5.5 xhigh: 17 findings | 16 fixed, finding 10 deferred to M6; committed |
-| Lookup, reader, messages | gpt-6.2-sol, xhigh | Opus 5.5 xhigh: 15 findings | 14 fixed, finding 12 partly open (dense coincident scatter pick); committed |
-| Chart core, part 1 | claude-opus-5-5, high | Codex gpt-6.2-astra xhigh: running (`wp/core1.review.md`) | Committed. Unit 483 pass, browser all pass |
-| Benchmark harness | claude-opus-5-5, high | Not yet reviewed | Committed; M1 renderer comparison running (same agent) |
-| Design pass 1 (labels wrap to three lines, reference labels, horizontal bar order, scatter x domain) | Codex gpt-6.2-sol xhigh (running) | – | Running (`wp/design-pass-1.*`) |
-| Chart core, part 2: tooltip, keyboard proxy, toolbar and legend, zoom gestures, table, announcements | Claude Opus 5.5 high (running) | – | Running |
+Finished and committed, each written by one provider and reviewed by the other: scales and formatting; layout and simplification; data layer, diagnostics and stores; renderers, text layer and theme; view and scene; lookup, reader and messages; chart core part 1 (review findings not yet fixed, see below); chart core part 2 (review running); benchmark harness and the M1 renderer measurements (not reviewed).
+
+| Running now | Who | Files |
+|---|---|---|
+| Chart core fix pass: the 20 findings of `wp/core1.review.md`, on the new store API; SVG as default renderer; presentation fixes | Claude Opus 5.5 high | `src/core`, `src/dom`, `src/index.ts`, css structure section, `docs/api/examples.ts` |
+| Review of chart core part 2 | Codex gpt-6.2-astra xhigh, read-only | → `wp/core2.review.md` |
+| Infinite loop reached from the format tests (about 1 run in 3 hangs) | Claude Opus 5.5 high (the scales author, resumed) | `src/format`, `src/scale` |
+| React adapter | Claude Opus 5.5 high | `packages/react` |
+| Default palette, both schemes, to the A5 thresholds | Claude Opus 5.5 xhigh | `src/theme/palette.ts`, `research/palette`, `docs/decisions/0003-default-palette.md` |
+
+Decisions recorded: `docs/decisions/0001-plot-interaction-pattern.md` (unrehearsed), `docs/decisions/0002-mark-renderer.md` (SVG by default, from `bench/results/m1-renderer-comparison.md`).
+
+Known open items carried forward:
+- `npm test` can hang in `packages/axylo/test/format` until the loop is fixed; run directories separately under `timeout`.
+- View/scene review finding 10 (stack rebuilt over the whole frame per revision) and lookup review finding 12 (dense coincident scatter pick) are deferred to performance work.
+- Performance: about 80 ms for 100,000 points against about 12 ms for uPlot; profiles put it in normalization through the streaming store and in garbage collection. The fix pass moves static charts to the borrowed path.
+- Not started: acceptance matrix as data, CI workflow files, documentation site, packed-distribution tests, size check against targets, scatter renderer measurement, React adapter review, benchmark harness review.
+- `docs/api/axylo.d.ts` is superseded by the real package and is to be deleted once the examples point at it.
 
 ## Next action
 
-1. When the core part 1 review returns: send its findings to the part 2 agent (it owns the same files) once part 2 has reported, or sooner if a finding blocks it.
-2. When design pass 1 returns: verify, commit, run `node scripts/gallery.mjs light canvas` and look at the image.
-3. When the renderer comparison returns: read `bench/results/m1-renderer-comparison.md`, write `docs/decisions/0002-mark-renderer.md` from its numbers.
-4. When part 2 returns: verify (`npm run check`), commit, cross-review with Codex gpt-6.2-astra xhigh.
-5. Then: palette design (A5 thresholds, both schemes), performance work against the budgets using the profile summaries, the acceptance matrix as data, the React adapter, documentation, packed-distribution tests.
+1. As each running package returns: verify (type check, its tests, browser tests where relevant), commit with targeted paths, and send it for cross-review if it is new code (React adapter and palette tests → Codex gpt-6.2-astra xhigh).
+2. When the part 2 review returns: after the fix pass has reported, send its findings to a fix run on the same files.
+3. Then, in this order: acceptance matrix as data with a checker (Codex gpt-6.2-sol xhigh); performance work against the budgets with the harness; documentation site and examples; packed-distribution tests (npm, script tag, React), CSP test, size check; regenerate the Phase 1 comparison with Axylo included; final independent review of the acceptance evidence.
 
 ## Known limits that no agent can close
 
