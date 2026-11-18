@@ -22,13 +22,21 @@ Code: Claude Opus 5.5 (effort high), Codex `gpt-6.2-sol` (effort xhigh). Design,
 
 ## Work packages
 
+Observed model and effort are read from harness metadata when a package finishes; "pending" until then.
+
 | Package | Owner (requested → observed) | Files | State |
 |---|---|---|---|
-| Contracts review | Codex gpt-6.2-sol max → pending | read-only | Running |
+| Contracts review | Codex gpt-6.2-sol max → gpt-6.2-sol, max | read-only | Done; 14 findings, most accepted in simplified form (see commit 2047383) |
+| Scales, ticks, time zones, formatting | Claude Opus 5.5 high → pending | `src/scale`, `src/format`, tests | Running |
+| Benchmark harness, first version | Claude Opus 5.5 high → pending | `bench/` | Running |
+| Data layer and diagnostics | Codex gpt-6.2-sol xhigh → pending | `src/data`, `src/diagnostics`, tests | Running |
+| Layout and drawing simplification | Codex gpt-6.2-sol xhigh → pending | `src/layout`, `src/simplify`, tests | Running |
+
+Briefs and reports: `reviews/2026-11-18/impl/wp/`.
 
 ## Next action
 
-When the contracts review returns: apply accepted changes to `packages/axylo/src/core/contracts.ts`, commit, then dispatch round 1 (data layer; scales and formatting; layout and simplification).
+As each package returns: run `npm run typecheck && npm test`, read its report, have the other provider review it (Opus xhigh reviews Codex code; Codex gpt-6.2-astra xhigh reviews Opus code), fix, commit. Then round 2: scene builders, the two mark renderers, the DOM text layer and figure, theme detection, and the chart core with the commit contract, which together make the M1 vertical slice.
 
 ## Known limits that no agent can close
 

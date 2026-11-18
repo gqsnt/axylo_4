@@ -8,7 +8,7 @@
 import type { ContinuousScale, Tick, TickCandidates } from '../core/contracts';
 import { continuous, pushCandidate } from './linear';
 import { MAX_TICKS } from './nice';
-import { TIME, instantToWall, utcFields, wallToInstant, wallToInstants } from './zone';
+import { TIME, instantToWall, utcFields, wallToInstant, zoneOffset } from './zone';
 import { dateTimeFormat } from '../format/intl';
 
 const { MINUTE, HOUR, DAY } = TIME;
@@ -99,7 +99,9 @@ export function timeTickCandidates(domain: readonly [number, number], options: T
     if (span / interval.approx > MAX_TICKS + 2) return true;
     const values = boundaries(interval, lo, hi, zone, options.locale);
     if (values.length >= 1 && values.length <= MAX_TICKS) pushCandidate(sets, label(values, interval.unit, zone, options));
-    return values.length > 1;
+    // Go on while there is a tick: a coarser interval with as many ticks replaces the finer set, so a lone
+    // tick ends up on the roundest boundary in the domain (midnight rather than 00:00:00.000).
+    return values.length > 0;
   };
 
   for (const interval of SUB_YEAR) if (!consider(interval)) return finish(sets, lo, zone, options);
@@ -139,34 +141,64 @@ function boundaries(interval: Interval, lo: number, hi: number, zone: string, lo
     for (let t = Math.ceil(lo / interval.n) * interval.n; t <= hi; t += interval.n) out.push(t);
     return out;
   }
+  if (isFixed(interval.unit)) return clockBoundaries(interval.n * UNIT_MS[interval.unit], lo, hi, zone);
   // Wall time of an instant moves back by at most the size of a fold (two hours in any zone in use), so a
-  // three-hour margin covers every boundary whose instant lies in [lo, hi].
+  // three-hour margin covers every boundary whose instant lies in [lo, hi]. Day and coarser units have at
+  // most one boundary in the margin, so it costs nothing.
   const wallLo = instantToWall(zone, lo) - 3 * HOUR;
   const wallHi = instantToWall(zone, hi) + 3 * HOUR;
-  const walls = wallBoundaries(interval, wallLo, wallHi, locale);
   const out: number[] = [];
-  const fixed = isFixed(interval.unit);
-  for (const w of walls) {
-    if (fixed) {
-      // A clock time that happens twice (fold) is two ticks; one that never happens (gap) is none.
-      for (const t of wallToInstants(zone, w)) if (t >= lo && t <= hi) out.push(t);
-    } else {
-      // Midnight inside a gap (zones that change at 00:00) moves to the first instant of that day.
-      const t = wallToInstant(zone, w, 'compatible');
-      if (t >= lo && t <= hi) out.push(t);
-    }
+  for (const w of wallBoundaries(interval, wallLo, wallHi, locale)) {
+    // Midnight inside a gap (zones that change at 00:00) moves to the first instant of that day.
+    const t = wallToInstant(zone, w, 'compatible');
+    if (t >= lo && t <= hi) out.push(t);
   }
   out.sort((a, b) => a - b);
   return out.filter((t, i) => i === 0 || t !== out[i - 1]);
+}
+
+/**
+ * Seconds, minutes and hours: instants whose local clock is a multiple of `size`. Within a stretch of
+ * constant offset that is plain arithmetic, so the domain is cut at its offset change, if any. A clock time
+ * that happens twice (fold) gives two ticks; one that never happens (gap) gives none.
+ */
+function clockBoundaries(size: number, lo: number, hi: number, zone: string): number[] {
+  const out: number[] = [];
+  const push = (from: number, to: number, offset: number): void => {
+    for (let t = Math.ceil((from + offset) / size) * size - offset; t <= to; t += size) out.push(t);
+  };
+  const offLo = zoneOffset(zone, lo);
+  const offHi = zoneOffset(zone, hi);
+  if (offLo === offHi) {
+    // Clock ticks are only asked for spans of a few days at most, and no zone changes its offset twice
+    // and back within that.
+    push(lo, hi, offLo);
+    return out;
+  }
+  const change = firstInstantWithOffset(zone, lo, hi, offHi);
+  push(lo, change - 1, offLo);
+  push(change, hi, offHi);
+  return out;
+}
+
+/** The first whole second in (lo, hi] at which the zone's offset is `offset`, found by bisection. */
+function firstInstantWithOffset(zone: string, lo: number, hi: number, offset: number): number {
+  let a = Math.floor(lo / SECOND); // offset differs here
+  let b = Math.ceil(hi / SECOND); // offset is `offset` here
+  while (b - a > 1) {
+    const m = Math.floor((a + b) / 2);
+    if (zoneOffset(zone, m * SECOND) === offset) b = m;
+    else a = m;
+  }
+  return Math.max(b * SECOND, lo);
 }
 
 /** Wall values (local fields read as UTC) on the interval's boundaries in [wallLo, wallHi]. */
 function wallBoundaries(interval: Interval, wallLo: number, wallHi: number, locale: string): number[] {
   const out: number[] = [];
   const { unit, n } = interval;
-  if (isFixed(unit) || unit === 'day') {
-    // n divides the next unit (60 s, 60 min, 24 h), so multiples of n·unit from the epoch fall on the
-    // same clock values every day. Days count from 1970-01-01, which keeps 2-day ticks evenly spaced.
+  if (unit === 'day') {
+    // Days count from 1970-01-01, which keeps 2-day ticks evenly spaced across month ends.
     const size = n * UNIT_MS[unit];
     for (let w = Math.ceil(wallLo / size) * size; w <= wallHi; w += size) out.push(w);
     return out;

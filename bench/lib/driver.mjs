@@ -122,6 +122,8 @@ export async function runOnce(browser, base, spec) {
     timer = setTimeout(() => settle({ kind: 'timeout' }), spec.timeoutMs);
     const q = new URLSearchParams({ adapter: spec.adapter, workload: spec.workload, params: JSON.stringify(spec.params), settle: String(spec.settleMs) });
     page.goto(`${base}?${q}`).catch(e => settle({ kind: 'error', error: `navigation: ${e.message}` }));
+    // Test hook only (test/admission.test.mjs): crash the renderer to check that a crash is its own outcome.
+    if (spec.testCrashAfterMs) setTimeout(() => cdp.send('Page.crash').catch(() => {}), spec.testCrashAfterMs);
     const end = await finished;
     const rec = { adapter: spec.adapter, durationMs: Date.now() - started, logs: logs.slice(0, 20), pageErrors: pageErrors.slice(0, 10) };
     if (end.kind === 'timeout') return { ...rec, outcome: 'timeout', reason: `no result within ${spec.timeoutMs} ms`, snapshots: Object.keys(snaps) };

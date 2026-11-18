@@ -3,6 +3,12 @@
   "private": true,
   "type": "module",
   "description": "Benchmark harness: the same workloads through Axylo and comparison libraries (docs/04-plan-performance.md).",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "bench": "node run.mjs",
+    "analyze": "node analyze.mjs"
+  },
   "dependencies": {
     "chart.js": "^4.6.1",
     "chartjs-adapter-date-fns": "^3.0.0",
