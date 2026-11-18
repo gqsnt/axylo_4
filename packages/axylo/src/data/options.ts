@@ -110,7 +110,7 @@ export function canonicalZone(zone: unknown): string | undefined {
   }
 }
 
-function object(value: unknown): Record<string, unknown> {
+export function object(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' ? value as Record<string, unknown> : {};
 }
 
@@ -138,7 +138,8 @@ export function resolveTable(data: unknown, sink: DiagnosticSink): { table: Tabl
       field: differing, count: 1, examples: keys.map(key => JSON.stringify(key) + ': ' + columns[key]?.length),
     });
   }
-  borrowColumns(columns);
+  // The P7 byte count leaves out what the caller gave (development and benchmark builds count).
+  if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) borrowColumns(columns);
   return { table: columnsTable(columns, differing === undefined ? length : 0), valid: differing === undefined };
 }
 

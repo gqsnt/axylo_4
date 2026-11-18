@@ -1,5 +1,5 @@
 import { SLOT_VALUE } from '../core/contracts';
-import type { DatumRef, DatumText, Formatters, Lookup, ScatterView } from '../core/contracts';
+import type { DatumRef, DatumText, Formatters, Lookup, PickTarget, ScatterView } from '../core/contracts';
 import { contains, pointBox, scatterPosition, type PlotLayout } from './geometry';
 import { pointOrder, type PointIndex } from './point-order';
 import { POINT_LIMIT, scatterGrid, type GridOptions } from './scatter-grid';
@@ -182,8 +182,8 @@ export function scatterLookup(
     return point ? ref(point.series, point.index) : null;
   }
 
-  return {
-    pick(px, py) {
+  const lookup = {
+    pick(px: number, py: number): PickTarget | null {
       const picked = grid?.pick(px, py);
       return grid && picked ? {
         kind: 'point', refs: picked.hits.map(i => ref(grid.series[i]!, grid.points[i]!)), count: picked.count,
@@ -259,9 +259,15 @@ export function scatterLookup(
       }
     },
     resolve,
-    get lastPickCandidates() { return grid?.examined ?? 0; },
-    get lastPickCells() { return grid?.cellsExamined ?? 0; },
-    get lastPickLattice() { return grid?.usedLattice ?? false; },
-    get lastMembersRead() { return grid?.membersRead ?? 0; },
+  } satisfies Lookup;
+  // The last pick's and the last `members` call's work, for tests (development and benchmark builds only).
+  if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) {
+    Object.defineProperties(lookup, {
+      lastPickCandidates: { get: () => grid?.examined ?? 0 }, lastPickCells: { get: () => grid?.cellsExamined ?? 0 },
+      lastPickLattice: { get: () => grid?.usedLattice ?? false }, lastMembersRead: { get: () => grid?.membersRead ?? 0 },
+    });
+  }
+  return lookup as typeof lookup & {
+    readonly lastPickCandidates: number; readonly lastPickCells?: number; readonly lastPickLattice: boolean; readonly lastMembersRead: number;
   };
 }

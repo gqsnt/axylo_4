@@ -439,11 +439,8 @@ export function scatterGrid(
   // Built with the lookup whenever a pick can need it; built later only if that bound were ever wrong.
   const indexFor = (rule: GroupRule): Index => (rule === 'exact' && exact) || (lattice ??= latticeIndex());
 
-  return {
+  const grid = {
     series, points,
-    // Count individual distance checks and rows visited while sampling tooltip refs, on both indexes.
-    get examined() { return examined; },
-    get cellsExamined() { return cellsExamined; },
     /** Whether the last pick was answered on the device-pixel lattice. */
     get usedLattice() { return usedLattice; },
     pick(pointerX: number, pointerY: number): ScatterPick | null {
@@ -471,10 +468,16 @@ export function scatterGrid(
       membersRead = 0;
       return indexFor(rule).members(at, from, take);
     },
-    /** Entries the last `members` call read: group members walked and positions checked. */
-    get membersRead() { return membersRead; },
     has(rule: GroupRule, at: number, other: number): boolean {
       return indexFor(rule).has(at, other);
     },
   };
+  // Work counters, for tests (development and benchmark builds): distance checks and rows sampled by the last
+  // pick on both indexes, the cells it opened, and the entries the last `members` call read.
+  if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) {
+    Object.defineProperties(grid, {
+      examined: { get: () => examined }, cellsExamined: { get: () => cellsExamined }, membersRead: { get: () => membersRead },
+    });
+  }
+  return grid as typeof grid & { readonly examined: number; readonly cellsExamined: number; readonly membersRead: number };
 }

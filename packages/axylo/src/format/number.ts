@@ -137,7 +137,7 @@ function withUnit(text: string, unit: string | null | undefined, scale: ValueSca
 }
 
 /** Calls `report` the first time only. */
-function once(report: ((error: unknown) => void) | null | undefined): (error: unknown) => void {
+export function once(report: ((error: unknown) => void) | null | undefined): (error: unknown) => void {
   let done = false;
   return (error: unknown) => {
     if (done || !report) return;

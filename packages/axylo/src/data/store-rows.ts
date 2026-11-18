@@ -1,8 +1,7 @@
 import type { RowSource } from '../core/contracts';
-import type { ByteCount } from './store-bytes';
 
 /** Whether the first slots of `window` hold `prefix` from `start` on (checked at both ends). */
-function sameRemainder(prefix: Float64Array, start: number, window: Float64Array): boolean {
+export function sameRemainder(prefix: Float64Array, start: number, window: Float64Array): boolean {
   const remaining = prefix.length - start;
   return remaining > 0 && remaining <= window.length &&
     window[0] === prefix[start] && window[remaining - 1] === prefix[prefix.length - 1];
@@ -23,7 +22,7 @@ function blockIndex(row: number): number { return Math.floor(row / blockSize); }
 function rowBit(row: number): bigint { return 1n << BigInt(row % blockSize); }
 function fullBlock(length: number): bigint { return (1n << BigInt(length)) - 1n; }
 
-class RawRows {
+export class RawRows {
   constructor(
     private readonly objects = new StoreMap<number, unknown>(),
     private readonly columns = new StoreMap<number, ColumnBlock>(),
@@ -151,16 +150,6 @@ class RawRows {
 
   isColumn(row: number): boolean {
     return this.column(row) !== undefined;
-  }
-
-  count(bytes: ByteCount, name: string): void {
-    for (const [, block] of this.columns) {
-      const columns = block.table.columns!;
-      for (const key of Object.keys(columns)) {
-        const column = columns[key];
-        if (ArrayBuffer.isView(column)) bytes.add(name, column);
-      }
-    }
   }
 
   keysAt(row: number): readonly string[] {
@@ -343,11 +332,6 @@ export class StreamRows {
     return this.retained.copy(row, target);
   }
 
-  count(bytes: ByteCount): void {
-    bytes.add('x positions of the first rows', this.seedPositions);
-    this.retained.count(bytes, 'rows');
-  }
-
   table(incoming: readonly unknown[] = []): Table {
     const retained = this.retained;
     const first = this.next;
@@ -442,11 +426,6 @@ export class RowWindow {
     });
   }
 
-  count(bytes: ByteCount): void {
-    this.rows?.count(bytes);
-    this.archived.count(bytes, 'rows kept for earlier frames');
-  }
-
   /**
    * The source rows a published revision's `rowAt` answers, ascending, or null when it is not one of this
    * window's live revisions. The rows still retained below its end, and the evicted rows kept for it.
@@ -505,10 +484,6 @@ export class RowRevisions {
     let size = 0;
     for (const window of this.windows) size += window.size;
     return size;
-  }
-
-  count(bytes: ByteCount): void {
-    for (const window of this.windows) window.count(bytes);
   }
 
   /** See `RowWindow.retainedRows`: the frame's revision, in whichever window published it. */

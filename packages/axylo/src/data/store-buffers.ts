@@ -1,6 +1,6 @@
 import { BufferWindow } from './store-window';
 import { SLOT_NO_ROW, type AlignedFrame, type RowSource, type Series, type XColumn } from '../core/contracts';
-import { lazyColumns, type ByteCount } from './store-bytes';
+import { lazyColumns } from './store-bytes';
 
 interface OpenSlot {
   readonly index: number;
@@ -204,18 +204,6 @@ export class FrameBuffers {
     }
   }
 
-  /** Adds the storage this window owns to a byte count. */
-  count(bytes: ByteCount): void {
-    bytes.add('x', this.x);
-    if (this.observedFlags) bytes.add('observed', this.observedFlags);
-    if (this.categoryPositions.length) bytes.add('category positions', this.categoryPositions);
-    for (const [key, series] of this.series) {
-      bytes.add(`series ${key} y`, series.y);
-      bytes.add(`series ${key} slot`, series.slot);
-      if (series.row) bytes.add(`series ${key} row`, series.row);
-    }
-  }
-
   frame(previous: AlignedFrame, axis: XColumn, source: RowSource, open: (key: string) => boolean): AlignedFrame {
     const { start, end } = this;
     let positions = this.x.subarray(start, end);
@@ -254,7 +242,7 @@ export class FrameBuffers {
           get slot() { return states ??= readColumn(slot, tail, start, end, tail.slot); },
           get row() { return row ? rows ??= readColumn(row, tail, start, end, tail.row) : null; },
         };
-        lazyColumns.set(columns, () => [values, states, rows]);
+        if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) lazyColumns.set(columns, () => [values, states, rows]);
         return columns;
       }),
     };

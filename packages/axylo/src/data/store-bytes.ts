@@ -1,4 +1,9 @@
+// Development and benchmark builds only (spec P7's byte count): the stores reach this module from code behind
+// `__DEV__ || __BENCH__`, so a production bundle carries none of it.
 import type { Frame } from '../core/contracts';
+import type { FrameBuffers } from './store-buffers';
+import type { RawRows, RowRevisions } from './store-rows';
+import type { Column } from './store-window';
 import type { Table } from './table';
 
 /** The buffers a store holds for one purpose. */
@@ -99,5 +104,45 @@ export class ByteCount {
       buffers.push({ name, ...entry });
     }
     return { total, buffers };
+  }
+}
+
+// The stores' storage, read from outside the classes so their production code carries no counting members.
+
+export function countBuffers(buffers: FrameBuffers, bytes: ByteCount): void {
+  bytes.add('x', buffers.x);
+  const flags = buffers['observedFlags'];
+  if (flags) bytes.add('observed', flags);
+  const categories = buffers['categoryPositions'];
+  if (categories.length) bytes.add('category positions', categories);
+  for (const [key, series] of buffers.series) {
+    bytes.add(`series ${key} y`, series.y);
+    bytes.add(`series ${key} slot`, series.slot);
+    if (series.row) bytes.add(`series ${key} row`, series.row);
+  }
+}
+
+export function countColumn<T extends Float64Array | Int32Array | Uint8Array>(column: Column<T> | null, bytes: ByteCount, name: string): void {
+  if (column) bytes.add(name, column['data']);
+}
+
+function countRaw(rows: RawRows, bytes: ByteCount, name: string): void {
+  for (const [, block] of rows['columns']) {
+    const columns = block.table.columns!;
+    for (const key of Object.keys(columns)) {
+      const column = columns[key];
+      if (ArrayBuffer.isView(column)) bytes.add(name, column);
+    }
+  }
+}
+
+export function countRevisions(revisions: RowRevisions, bytes: ByteCount): void {
+  for (const window of revisions['windows']) {
+    const rows = window['rows'];
+    if (rows) {
+      bytes.add('x positions of the first rows', rows['seedPositions']);
+      countRaw(rows['retained'], bytes, 'rows');
+    }
+    countRaw(window['archived'], bytes, 'rows kept for earlier frames');
   }
 }

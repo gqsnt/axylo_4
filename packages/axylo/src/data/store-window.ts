@@ -1,5 +1,3 @@
-import type { ByteCount } from './store-bytes';
-
 // An inspected preparation can outlive the next one. It owns the spare slots it
 // wrote, so a competing writer must open a new buffer before reusing those indexes.
 export class BufferWindow {
@@ -137,8 +135,6 @@ export class Column<T extends NumericArray> {
   view(): T {
     return this.data.subarray(this.range.start, this.range.end) as T;
   }
-
-  count(bytes: ByteCount, name: string): void { bytes.add(name, this.data); }
 
   fork(): Column<T> {
     return Object.assign(Object.create(Column.prototype) as Column<T>, this, { range: this.range.fork() });

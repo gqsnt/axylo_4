@@ -3,28 +3,18 @@ import { DiagnosticCollector } from '../diagnostics';
 import { normalizeDonut, normalizePoints, pointFrame, readX, reportCalendarDates, type DataEnvironment, type FrameVersion } from './normalize';
 import { resolveOptions, resolveTable, retargetOptions, withoutTable, type ResolvedOptions } from './options';
 import { Reports } from './reports';
+import { lowerBound } from './search';
 import { FrameSource, RowRevisions, StreamRows } from './store-rows';
 import { CalendarWindow } from './store-calendar';
 import { StoreMap } from './store-map';
 import { Column, Labels } from './store-window';
-import { ByteCount, CallerBuffers, type OwnedBytes } from './store-bytes';
+import { ByteCount, CallerBuffers, countColumn, countRevisions, type OwnedBytes } from './store-bytes';
 import { rowsTable, type Table } from './table';
 import { once, retention, type PreparedFrame, type StoreAppendOptions } from './transaction';
 import { nameOf } from './x';
 
 const quiet: DiagnosticSink = { add() {} };
 
-// A copy of lookup/search.ts's lowerBound: the data layer does not depend on the lookup module.
-function lowerBound(values: Float64Array, value: number): number {
-  let start = 0;
-  let end = values.length;
-  while (start < end) {
-    const mid = start + Math.floor((end - start) / 2);
-    if (values[mid]! < value) start = mid + 1;
-    else end = mid;
-  }
-  return start;
-}
 
 interface Result<F> {
   readonly frame: F;
@@ -36,7 +26,6 @@ type Build<F> = (options: ResolvedOptions, environment: DataEnvironment, sink: D
 
 interface Storage<F> {
   frame(frame: F): F;
-  count(bytes: ByteCount): void;
   extend(next: Result<F>, rows: StreamRows, firstRow: number, keep: number | undefined): Storage<F> | null;
   commit(): void;
 }
@@ -206,15 +195,6 @@ class Points implements Storage<PointFrame> {
 
   commit(): void { this.calendar?.commit(); }
 
-  count(bytes: ByteCount): void {
-    this.positions?.count(bytes, 'x positions');
-    this.x.count(bytes, 'x');
-    this.y.count(bytes, 'y');
-    this.row?.count(bytes, 'row');
-    this.missingX.count(bytes, 'missing x');
-    this.missingRow.count(bytes, 'missing row');
-  }
-
   frame(frame: PointFrame): PointFrame {
     // The frame's null row means "point i came from row i": once points have left the front, it needs the index.
     if (!this.row && this.rowShift !== 0) this.row = this.rowsOf();
@@ -242,12 +222,6 @@ class Slices implements Storage<DonutFrame> {
   }
 
   commit(): void { this.positions.commit(); }
-
-  count(bytes: ByteCount): void {
-    this.values.count(bytes, 'values');
-    this.slot.count(bytes, 'slot');
-    this.row.count(bytes, 'row');
-  }
 
   extend(next: Result<DonutFrame>, rows: StreamRows, firstRow: number, keep: number | undefined): Slices | null {
     const frame = next.frame;
@@ -310,7 +284,6 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
   private current: F;
   private latest: readonly DiagnosticInput[];
   private storage: Storage<F> | null;
-  private readonly caller = new CallerBuffers();
 
   constructor(
     private readonly type: 'scatter' | 'donut',
@@ -321,7 +294,7 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
     version: FrameVersion,
     private readonly sink: DiagnosticSink,
   ) {
-    this.caller.add(options.table);
+    if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) installUnalignedExtras();
     this.rows = new StreamRows(options.table);
     this.revisions = new RowRevisions(this.rows);
     this.encoding = withoutTable(options);
@@ -339,23 +312,7 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
   }
 
   get frame(): F { return this.current; }
-  get diagnostics(): readonly DiagnosticInput[] { return this.latest; }
   get retainedRowCount(): number { return this.revisions.size; }
-
-  /**
-   * The typed storage this store holds beyond the caller's columns (spec P7), with a breakdown. Other frames
-   * still held (the one on screen while a newer one waits) are passed in `frames`: one deduplicated count, so a
-   * buffer they share with the store counts once. Walks the store's own buffers, not the data: cost grows
-   * with the number of retained row blocks.
-   */
-  ownedBytes(frames: readonly Frame[] = []): OwnedBytes {
-    const bytes = new ByteCount(this.caller);
-    this.storage?.count(bytes);
-    this.revisions.count(bytes);
-    bytes.frame(this.current);
-    for (const frame of frames) bytes.frame(frame);
-    return bytes.result();
-  }
 
   /**
    * The source rows `frame.source.rowAt` still answers, ascending, or null when the frame's revision is
@@ -369,13 +326,6 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
   /** Validates encoding against the retained rows and returns options for re-encoding this store. */
   resolveEncoding(input: unknown, sink: DiagnosticSink): ResolvedOptions {
     return withoutTable(resolveOptions(this.type, input, sink, this.rows.table()));
-  }
-
-  append(rows: readonly unknown[], options: StoreAppendOptions = {}, sink = this.sink): F {
-    const prepared = this.prepareAppend(rows, options);
-    for (const diagnostic of prepared.callDiagnostics) sink.add(diagnostic);
-    prepared.commit();
-    return prepared.frame;
   }
 
   prepareAppend(rows: readonly unknown[], options: StoreAppendOptions = {}): PreparedFrame<F> {
@@ -446,27 +396,8 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
     return this.prepare(base, result.frame, retained, extension, [], [], evicted);
   }
 
-  reencode(options: ResolvedOptions, version: FrameVersion): F {
-    const prepared = this.prepareReencode(options, version);
-    prepared.commit();
-    return prepared.frame;
-  }
-
   prepareReencode(options: ResolvedOptions, version: FrameVersion): PreparedFrame<F> {
     return this.prepareEncoding(this.rows.fork(), options, version, new DiagnosticCollector());
-  }
-
-  replace(data: unknown, options: ResolvedOptions, version: FrameVersion): F {
-    const prepared = this.prepareReplace(data, options, version);
-    prepared.commit();
-    return prepared.frame;
-  }
-
-  prepareReplace(data: unknown, options: ResolvedOptions, version: FrameVersion): PreparedFrame<F> {
-    const call = new DiagnosticCollector();
-    const replacement = resolveTable(data, call);
-    this.caller.add(replacement.table);
-    return this.prepareEncoding(new StreamRows(replacement.table), options, version, call, replacement);
   }
 
   private prepareEncoding(
@@ -506,6 +437,71 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
     }, base);
     return { frame: candidate, diagnostics, callDiagnostics, commit };
   }
+}
+
+/**
+ * Members only tests and the benchmark's memory probe use (spec P7's byte count; one-step conveniences over
+ * prepare and commit). Development and benchmark builds install them when the first store is made; the
+ * production file has none of them.
+ */
+interface UnalignedStore<F extends PointFrame | DonutFrame> {
+  readonly diagnostics: readonly DiagnosticInput[];
+  /** The typed storage beyond the caller's columns, with frames still held counted in the same set (P7). */
+  ownedBytes(frames?: readonly Frame[]): OwnedBytes;
+  append(rows: readonly unknown[], options?: StoreAppendOptions, sink?: DiagnosticSink): F;
+  reencode(options: ResolvedOptions, version: FrameVersion): F;
+  replace(data: unknown, options: ResolvedOptions, version: FrameVersion): F;
+  prepareReplace(data: unknown, options: ResolvedOptions, version: FrameVersion): PreparedFrame<F>;
+}
+
+let unalignedExtras = false;
+function installUnalignedExtras(): void {
+  if (unalignedExtras) return;
+  unalignedExtras = true;
+  type Store = UnalignedStore<PointFrame | DonutFrame>;
+  const proto = UnalignedStore.prototype as Store;
+  Object.defineProperty(proto, 'diagnostics', { configurable: true, get(this: Store) { return this['latest']; } });
+  proto.ownedBytes = function (this: Store, frames: readonly Frame[] = []): OwnedBytes {
+    const bytes = new ByteCount(new CallerBuffers());
+    const storage = this['storage'];
+    if (storage instanceof Points) {
+      countColumn(storage['positions'], bytes, 'x positions');
+      countColumn(storage['x'], bytes, 'x');
+      countColumn(storage['y'], bytes, 'y');
+      countColumn(storage['row'], bytes, 'row');
+      countColumn(storage['missingX'], bytes, 'missing x');
+      countColumn(storage['missingRow'], bytes, 'missing row');
+    } else if (storage instanceof Slices) {
+      countColumn(storage['values'], bytes, 'values');
+      countColumn(storage['slot'], bytes, 'slot');
+      countColumn(storage['row'], bytes, 'row');
+    }
+    countRevisions(this['revisions'], bytes);
+    bytes.frame(this['current']);
+    for (const frame of frames) bytes.frame(frame);
+    return bytes.result();
+  };
+  proto.append = function (this: Store, rows: readonly unknown[], options: StoreAppendOptions = {}, sink = this['sink']) {
+    const prepared = this.prepareAppend(rows, options);
+    for (const diagnostic of prepared.callDiagnostics) sink.add(diagnostic);
+    prepared.commit();
+    return prepared.frame;
+  };
+  proto.reencode = function (this: Store, options: ResolvedOptions, version: FrameVersion) {
+    const prepared = this.prepareReencode(options, version);
+    prepared.commit();
+    return prepared.frame;
+  };
+  proto.prepareReplace = function (this: Store, data: unknown, options: ResolvedOptions, version: FrameVersion) {
+    const call = new DiagnosticCollector();
+    const replacement = resolveTable(data, call);
+    return this['prepareEncoding'](new StreamRows(replacement.table), options, version, call, replacement);
+  };
+  proto.replace = function (this: Store, data: unknown, options: ResolvedOptions, version: FrameVersion) {
+    const prepared = this.prepareReplace(data, options, version);
+    prepared.commit();
+    return prepared.frame;
+  };
 }
 
 export class PointStore extends UnalignedStore<PointFrame> {

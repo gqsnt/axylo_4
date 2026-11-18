@@ -7,16 +7,15 @@
 import type { DiagnosticInput, Frame, View } from './contracts';
 import type { Diagnostic, Messages, Title, XValue } from '../public';
 import { normalize, resolveOptions, type ChartType, type ResolvedOptions } from '../data';
+import { object } from '../data/options';
+
+export { object };
 import { createDiagnostic, DiagnosticCollector, report } from '../diagnostics';
 import { buildView, type ViewState } from '../view';
 import { fill, resolveMessages } from '../messages';
 import { sameValue, INTERNAL_KEYS, type OptionRecord } from './options';
 
 export type Span<T = number> = readonly [T, T];
-
-export function object(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === 'object' ? value as Record<string, unknown> : {};
-}
 
 export function titleOf(options: OptionRecord): { text: string; level: number; visible: boolean } | null {
   const raw = options.title;

@@ -40,25 +40,8 @@ export function diagnosticKey(d: Pick<Diagnostic, 'code' | 'field' | 'message'>)
 export class Delivery {
   private listenerFailed = false;
 
-  constructor(private readonly options: DeliveryOptions) {}
-
-  /**
-   * Prints and hands to the listener the diagnostics in `found` that are not in `before`. The listener is
-   * author code: after each call `alive` says whether to go on (the chart may have been destroyed or have
-   * moved to a new state that delivers its own findings).
-   */
-  deliver(
-    found: readonly Diagnostic[], before: readonly Diagnostic[] | ReadonlySet<string>, listener: DiagnosticListener | null,
-    alive: () => boolean = () => true,
-  ): void {
-    const known = new Set(before instanceof Set ? before : (before as readonly Diagnostic[]).map(diagnosticKey));
-    for (const d of found) {
-      if (!alive()) return;
-      if (known.has(diagnosticKey(d))) continue;
-      known.add(diagnosticKey(d));
-      this.print(d);
-      if (listener) this.notify(listener, d);
-    }
+  constructor(private readonly options: DeliveryOptions) {
+    if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) installDeliver();
   }
 
   print(d: Diagnostic): void {
@@ -89,6 +72,35 @@ export class Delivery {
       this.listenerFailed = true;
     }
   }
+}
+
+export interface Delivery {
+  /**
+   * Prints and hands to the listener the diagnostics in `found` that are not in `before`. The listener is
+   * author code: after each call `alive` says whether to go on (the chart may have been destroyed or have
+   * moved to a new state that delivers its own findings). Tests only: development and benchmark builds
+   * install it when the first delivery is made; the controller delivers through `print` and `notify`.
+   */
+  deliver(
+    found: readonly Diagnostic[], before: readonly Diagnostic[] | ReadonlySet<string>, listener: DiagnosticListener | null,
+    alive?: () => boolean,
+  ): void;
+}
+
+let deliverInstalled = false;
+function installDeliver(): void {
+  if (deliverInstalled) return;
+  deliverInstalled = true;
+  Delivery.prototype.deliver = function (this: Delivery, found, before, listener, alive = () => true) {
+    const known = new Set(before instanceof Set ? before : (before as readonly Diagnostic[]).map(diagnosticKey));
+    for (const d of found) {
+      if (!alive()) return;
+      if (known.has(diagnosticKey(d))) continue;
+      known.add(diagnosticKey(d));
+      this.print(d);
+      if (listener) this.notify(listener, d);
+    }
+  };
 }
 
 /** The diagnostics `strict` throws on: errors and warnings found while validating the call. */

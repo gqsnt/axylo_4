@@ -16,10 +16,10 @@ import { gapPosition, snapGap, stepDelta, stepMultiple, supportsSteps, tooSparse
 import { BufferWindow } from './store-window';
 import { StoreMap } from './store-map';
 import { FrameBuffers, type SeriesBuffers } from './store-buffers';
-import { ByteCount, CallerBuffers, type OwnedBytes } from './store-bytes';
+import { ByteCount, CallerBuffers, countBuffers, countRevisions, type OwnedBytes } from './store-bytes';
 import { CalendarWindow } from './store-calendar';
 import { StreamDiagnostics } from './store-diagnostics';
-import { FrameSource, RowRevisions, StreamRows } from './store-rows';
+import { FrameSource, RowRevisions, sameRemainder, StreamRows } from './store-rows';
 import { rowsTable, sameTableData, type Table } from './table';
 import { once, retention, type PreparedFrame, type StoreAppendOptions } from './transaction';
 import { readValues, valueMode, type ValueCounts, type ValueMode, type Values } from './values';
@@ -143,24 +143,12 @@ class Observations {
     this.prefixStart = 0;
   }
 
-  count(bytes: ByteCount, name: string): void {
-    bytes.add(name, this.prefix);
-    if (this.positions.length) bytes.add(name, this.positions);
-  }
-
   private resize(capacity: number, extra: number): void {
     const retained = this.positions.subarray(this.range.start, this.range.end);
     this.positions = new Float64Array(capacity);
     this.positions.set(retained);
     this.range.rebase(extra);
   }
-}
-
-/** Whether the first slots of `window` hold `prefix` from `start` on (checked at both ends). */
-function sameRemainder(prefix: Float64Array, start: number, window: Float64Array): boolean {
-  const remaining = prefix.length - start;
-  return remaining > 0 && remaining <= window.length &&
-    window[0] === prefix[start] && window[remaining - 1] === prefix[prefix.length - 1];
 }
 
 function readCadence(axis: XColumn, observations: Observations): Cadence {
@@ -470,7 +458,6 @@ export class AlignedStore {
   private current: AlignedFrame;
   private latest: readonly DiagnosticInput[];
   private writing = false;
-  private readonly caller = new CallerBuffers();
 
   constructor(
     private readonly type: AlignedChartType,
@@ -480,8 +467,8 @@ export class AlignedStore {
     private readonly sink: DiagnosticSink = quiet,
     normalized?: AlignedFrame,
   ) {
+    if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) installAlignedExtras();
     const { table, ...fields } = options;
-    this.caller.add(table);
     this.rows = new StreamRows(table);
     this.revisions = new RowRevisions(this.rows);
     this.fields = fields;
@@ -515,27 +502,7 @@ export class AlignedStore {
     return this.current;
   }
 
-  get diagnostics(): readonly DiagnosticInput[] {
-    return this.latest;
-  }
-
   get retainedRowCount(): number { return this.revisions.size; }
-
-  /**
-   * The typed storage this store holds beyond the caller's columns (spec P7), with a breakdown. Other frames
-   * still held (the one on screen while a newer one waits) are passed in `frames`: one deduplicated count, so a
-   * buffer they share with the store counts once. Walks the store's own buffers, not the data: cost grows
-   * with the number of series and retained row blocks.
-   */
-  ownedBytes(frames: readonly Frame[] = []): OwnedBytes {
-    const bytes = new ByteCount(this.caller);
-    this.state.buffers.count(bytes);
-    for (const [key, window] of this.state.observations) window.count(bytes, `series ${key} x history`);
-    this.revisions.count(bytes);
-    bytes.frame(this.current);
-    for (const frame of frames) bytes.frame(frame);
-    return bytes.result();
-  }
 
   /**
    * The source rows `frame.source.rowAt` still answers, ascending, or null when the frame's revision is
@@ -555,28 +522,9 @@ export class AlignedStore {
     return this.prepare(rows, options);
   }
 
-  private prepare(rows: readonly unknown[], options: StoreAppendOptions): PreparedFrame<AlignedFrame>;
-  private prepare(rows: readonly unknown[], options: StoreAppendOptions, sink: DiagnosticSink): { commit(): void };
-  private prepare(rows: readonly unknown[], options: StoreAppendOptions, sink?: DiagnosticSink) {
+  private prepare(rows: readonly unknown[], options: StoreAppendOptions): PreparedFrame<AlignedFrame> {
     if (this.writing) throw new Error('Cannot prepare a data change during an append.');
     const base = this.current;
-    if (sink) {
-      // Without an inspected candidate, the incremental path can safely reuse the owned buffers.
-      return { commit: once(() => this.current, () => {
-        const parser = this.state.parser;
-        const count = parser.categoryCount;
-        const unit = parser.dateUnit;
-        this.writing = true;
-        try {
-          this.publish(this.appendInPlace(rows, options, sink));
-        } catch (error) {
-          parser.restore(count, unit);
-          throw error;
-        } finally {
-          this.writing = false;
-        }
-      }, base) };
-    }
     const rowsDraft = this.rows.fork();
     const evicted: number[] = [];
     rowsDraft.onForget = row => evicted.push(row);
@@ -597,28 +545,8 @@ export class AlignedStore {
     return this.transaction(base, draft, call, evicted);
   }
 
-  reencode(options: ResolvedOptions, version: FrameVersion): AlignedFrame {
-    const prepared = this.prepareReencode(options, version);
-    prepared.commit();
-    return prepared.frame;
-  }
-
   prepareReencode(options: ResolvedOptions, version: FrameVersion): PreparedFrame<AlignedFrame> {
     return this.prepareEncoding(this.rows.fork(), options, version, new DiagnosticCollector());
-  }
-
-  replace(data: unknown, options: ResolvedOptions, version: FrameVersion): AlignedFrame {
-    const prepared = this.prepareReplace(data, options, version);
-    prepared.commit();
-    return prepared.frame;
-  }
-
-  prepareReplace(data: unknown, options: ResolvedOptions, version: FrameVersion): PreparedFrame<AlignedFrame> {
-    const call = new DiagnosticCollector();
-    const { table, valid } = resolveTable(data, call);
-    this.caller.add(table);
-    const draft = new StreamRows(table);
-    return this.prepareEncoding(draft, options, version, call, { table, valid });
   }
 
   private prepareEncoding(
@@ -984,17 +912,6 @@ export class AlignedStore {
     return update || Boolean(inferred && inferred !== parser.kind);
   }
 
-  append(rows: readonly unknown[], options: { keep?: number } = {}, sink = this.sink): AlignedFrame {
-    if (retention(options) !== undefined) {
-      const prepared = this.prepareAppend(rows, options);
-      for (const diagnostic of prepared.callDiagnostics) sink.add(diagnostic);
-      prepared.commit();
-      return prepared.frame;
-    }
-    this.prepare(rows, options, sink).commit();
-    return this.current;
-  }
-
   private appendInPlace(rows: readonly unknown[], options: StoreAppendOptions, sink: DiagnosticSink): AlignedFrame {
     const { parser, buffers } = this.state;
     const categoryCount = parser.categoryCount;
@@ -1097,6 +1014,83 @@ export class AlignedStore {
     this.latest = [...this.currentDiagnostics(), ...ordering.inputs()];
     return this.current;
   }
+}
+
+/**
+ * Members only tests and the benchmark's memory probe use (spec P7's byte count; one-step conveniences over
+ * prepare and commit). Development and benchmark builds install them when the first store is made; the
+ * production file has none of them.
+ */
+export interface AlignedStore {
+  readonly diagnostics: readonly DiagnosticInput[];
+  /** The typed storage beyond the caller's columns, with frames still held counted in the same set (P7). */
+  ownedBytes(frames?: readonly Frame[]): OwnedBytes;
+  append(rows: readonly unknown[], options?: { keep?: number }, sink?: DiagnosticSink): AlignedFrame;
+  reencode(options: ResolvedOptions, version: FrameVersion): AlignedFrame;
+  replace(data: unknown, options: ResolvedOptions, version: FrameVersion): AlignedFrame;
+  prepareReplace(data: unknown, options: ResolvedOptions, version: FrameVersion): PreparedFrame<AlignedFrame>;
+}
+
+let alignedExtras = false;
+function installAlignedExtras(): void {
+  if (alignedExtras) return;
+  alignedExtras = true;
+  const proto = AlignedStore.prototype;
+  Object.defineProperty(proto, 'diagnostics', { configurable: true, get(this: AlignedStore) { return this['latest']; } });
+  proto.ownedBytes = function (this: AlignedStore, frames: readonly Frame[] = []): OwnedBytes {
+    const bytes = new ByteCount(new CallerBuffers());
+    const state = this['state'];
+    countBuffers(state.buffers, bytes);
+    for (const [key, window] of state.observations) {
+      const name = `series ${key} x history`;
+      bytes.add(name, window['prefix']);
+      if (window['positions'].length) bytes.add(name, window['positions']);
+    }
+    countRevisions(this['revisions'], bytes);
+    bytes.frame(this['current']);
+    for (const frame of frames) bytes.frame(frame);
+    return bytes.result();
+  };
+  proto.append = function (this: AlignedStore, rows: readonly unknown[], options: { keep?: number } = {}, sink = this['sink']): AlignedFrame {
+    if (retention(options) !== undefined) {
+      const prepared = this.prepareAppend(rows, options);
+      for (const diagnostic of prepared.callDiagnostics) sink.add(diagnostic);
+      prepared.commit();
+      return prepared.frame;
+    }
+    if (this['writing']) throw new Error('Cannot prepare a data change during an append.');
+    // Without an inspected candidate, the incremental path can safely reuse the owned buffers.
+    once(() => this['current'], () => {
+      const parser = this['state'].parser;
+      const count = parser.categoryCount;
+      const unit = parser.dateUnit;
+      this['writing'] = true;
+      try {
+        this['publish'](this['appendInPlace'](rows, options, sink));
+      } catch (error) {
+        parser.restore(count, unit);
+        throw error;
+      } finally {
+        this['writing'] = false;
+      }
+    }, this['current'])();
+    return this['current'];
+  };
+  proto.reencode = function (this: AlignedStore, options: ResolvedOptions, version: FrameVersion): AlignedFrame {
+    const prepared = this.prepareReencode(options, version);
+    prepared.commit();
+    return prepared.frame;
+  };
+  proto.prepareReplace = function (this: AlignedStore, data: unknown, options: ResolvedOptions, version: FrameVersion) {
+    const call = new DiagnosticCollector();
+    const { table, valid } = resolveTable(data, call);
+    return this['prepareEncoding'](new StreamRows(table), options, version, call, { table, valid });
+  };
+  proto.replace = function (this: AlignedStore, data: unknown, options: ResolvedOptions, version: FrameVersion): AlignedFrame {
+    const prepared = this.prepareReplace(data, options, version);
+    prepared.commit();
+    return prepared.frame;
+  };
 }
 
 /** AlignedStore.fromFrame as a plain function, for a chart kind's composition (a member read is not tree-shakable). */

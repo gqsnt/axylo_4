@@ -43,6 +43,7 @@ import {
 import type { FigureModel } from '../dom/figure';
 import type { Committed, ControlsState } from '../dom/interaction';
 import type { Composition, Store } from './composition';
+import { sameTextStyle } from './environment';
 import { attachHooks, StageCounter, type ChartHandle, type Stage } from './instrument';
 import { COMPOSITIONS } from '../kinds';
 
@@ -1228,7 +1229,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     };
     if (textStyleDirty) {
       const next = host.textStyle();
-      if (!textStyle || !sameStyle(textStyle, next)) textStyle = next;
+      if (!sameTextStyle(textStyle, next)) textStyle = next;
       textStyleDirty = false;
     }
     const style = textStyle!;
@@ -2012,10 +2013,6 @@ function pointDateUnit(
   }
   pointDateUnits.set(frame, unit);
   return unit;
-}
-
-function sameStyle(a: TextStyle, b: TextStyle): boolean {
-  return a.font === b.font && a.letterSpacing === b.letterSpacing && a.wordSpacing === b.wordSpacing && a.lineHeight === b.lineHeight;
 }
 
 /** A frame's source that is a whole table (a static frame over the caller's data). */

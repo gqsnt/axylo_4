@@ -8,6 +8,7 @@
 import type { XValue } from '../public';
 import { instantToWall } from '../scale/zone';
 import { dateTimeFormat } from './intl';
+import { once } from './number';
 
 export type TemporalKind = 'time' | 'date' | 'wall';
 export type DateFormatOption = Intl.DateTimeFormatOptions | Intl.NumberFormatOptions | ((value: XValue) => string);
@@ -68,15 +69,6 @@ function representable(position: number): boolean {
 function zoneName(locale: string, timeZone: string, position: number, style: 'short' | 'shortOffset' = 'short'): string {
   const parts = dateTimeFormat(locale, { timeZoneName: style, timeZone }).formatToParts(position);
   return parts.find(p => p.type === 'timeZoneName')?.value ?? '';
-}
-
-function once(report: ((error: unknown) => void) | null | undefined): (error: unknown) => void {
-  let done = false;
-  return (error: unknown) => {
-    if (done || !report) return;
-    done = true;
-    report(error);
-  };
 }
 
 /**
