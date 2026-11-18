@@ -30,22 +30,23 @@ Observed model and effort are read from harness metadata (Codex session rollouts
 
 Finished and committed, each written by one provider and reviewed by the other: scales and formatting; layout and simplification; data layer, diagnostics and stores; renderers, text layer and theme; view and scene; lookup, reader and messages; chart core part 1 (review findings not yet fixed, see below); chart core part 2 (review running); benchmark harness and the M1 renderer measurements (not reviewed).
 
-| Running now (2026-11-18 evening, after commit a4b483d; the closing fix pass) | Who | Files |
+| Running now (2026-11-18 evening, after commit d33df71; the closing pass is committed, all agents idle) | Who | Files |
 |---|---|---|
-| Coordinator's verification of 9f9eeef on the shared build (SVG, then canvas); logs `acceptance/results/verify-9f9eeef/` | coordinator | reads `packages/axylo/dist` |
-| Closing fixes, brief `wp/closing.fix.md`: controller (C2 revision bound, AX160 redraw loop, append undoing a narrow scatter zoom), agent a1d73b9f46c46814f | Claude Opus 5.5 high | `src/core` except `focus.ts` |
-| Closing fixes: interaction (I4, I5, R1 across presentations, pinned pager anchor, stale text after `x.format`, range end clamp), agent aa0e6fca8e4a6224b | Claude Opus 5.5 high | `src/dom`, `src/core/focus.ts` |
-| Closing fixes: lookup (scatter zoom rebuilding indexes for off-screen data), agent a5e106319fe97c022 | Claude Opus 5.5 high | `src/lookup`, `src/data` |
+| Coordinator's verification of d33df71 on the shared build: core browser suites on SVG, `chart` + `a11y` on canvas, `tests/dist` Node and browser, docs browser; logs `acceptance/results/verify-d33df71/{svg,canvas,dist,dist-browser,docs-browser}.txt` | coordinator | reads `packages/axylo/dist` (built from d33df71) |
 
-The last narrow check, Codex gpt-6.2-sol max (observed), `wp/final-check.review.md`, of 9f9eeef: R2 closed; C2, I4, I5, R1 each have one sequence left; six defects from round 3's own diff; everything else closed. By the owner's stop rule no review follows the closing pass: its fixes are proven by their tests and the coordinator's runs. To be written into the docs as limits (review section 4 and remainders): closed shadow roots (Escape may go to another chart; a closed-root slot wrapper can cut off the tooltip); a dense ring of points just beyond the coincidence radius can stall hover; a stateful formatter that throws on one call and succeeds on another can report AX160 beside a formatted label; responsive CSS scoped to the plot column can leave the readout absent; a tooltip rectangle change alone can inherit elapsed rest (I6); mixed languages on the plot's proxy; non-neighbouring compact bars may share a pattern; extreme magnitudes around 1e-43.
+Closing pass commits: lookup (0d9532f), controller (68b3d6c), interaction (d33df71); reports `wp/closing.*.report.md`. The check they answer: `wp/final-check.review.md` (Codex gpt-6.2-sol max, of 9f9eeef). By the owner's stop rule no review follows; the evidence is each fix's own test (written first, failing on the old code) and the coordinator's runs. Verification of 9f9eeef (before the closing pass): SVG 948 passed, 1 skipped; canvas 298 passed, 4 skipped.
 
-Size cuts committed (ab82dad): test-only and benchmark-only members leave production; author's measurement −1,363 B everything, −1,002 B line only. Not yet rebuilt: after the verification run, `npm run build`, `node scripts/size.mjs --no-build`, then `tests/dist` (Node and browser, including the new `instrumentation.test.ts`) and the docs browser suite, which exercise the production bundle.
+Found by the distribution tests (not run since before the interaction rewrite) and fixed in d33df71: a value text too long for one line hid the whole tooltip. Still expected to fail in `tests/dist/text.browser.test.ts`: the scatter fixture's premise that no sentinel x label is truncated is out of date since 6ebdb6f (a scatter's x domain ends on drawn ticks; `wp/closing.layout-labels.report.md`): the acceptance author adjusts the fixture after this run.
+
+Sizes at d33df71, packed files: everything 116.00 KiB (118,780 B against 118,784: 4 bytes under the 116 KiB target), line only 97.02 (target 98). No margin left for "everything": remaining behaviour-neutral cuts are the duplicates in `src/dom` (`pageDistance`, `setText`, three small ones), two duplicate CSS rules, and property mangling (about −2.4 kB, needs the browser suites on the production bundle).
+
+To be written into the docs as limits (final check section 4 and remainders): closed shadow roots (Escape may go to another chart; a closed-root slot wrapper can cut off the tooltip); a dense ring of points just beyond the coincidence radius can stall hover; a stateful formatter that throws on one call and succeeds on another can report AX160 beside a formatted label; responsive CSS scoped to the plot column can leave the readout absent; a tooltip rectangle change alone can inherit elapsed rest (I6); mixed languages on the plot's proxy; non-neighbouring compact bars may share a pattern; extreme magnitudes around 1e-43; value x axes reserve no room for the last tick label, so long labels rotate.
 
 Round 3 commits: lookup `members` / `has` / `slot` (91adfe7), acceptance toolbar and Select range tests with checker exports (7f9965e), docs on the checker's rows (c4689bb), controller (c29e566), stores `retainedRows` (03ff5b1), interaction (9f9eeef); reports `wp/round3.*.report.md`. Sizes at 9f9eeef: everything 116.95 KiB (target 116: over), line only 97.71 (target 98: ok).
 
 Coordinator's verification of e90d8db on the shared build (logs `acceptance/results/verify-e90d8db/`): SVG 920 passed, 4 failed, 1 skipped (925); canvas `chart` + `a11y` 280 passed, 3 skipped. The failures: three A2 toolbar tests (new button), one I1 donut hold test (real, settled by the rewritten Escape clarification). Narrow re-check, Codex gpt-6.2-sol max (observed), `wp/blockers-recheck.review.md`: hold; blocking C2, I4, I5, R1, R2; fourteen regressions R1 to R14. Round 3 answers it; common brief `wp/round3.common.md` records the coordinator's decisions (groups come from the lookup; C13 and mixed proxy languages accepted as they are; pointer tolerance in viewport pixels).
 
-The shared `packages/axylo/dist` is built from 9f9eeef. Only the coordinator rebuilds it; agents use private builds through `AXYLO_BUNDLE`.
+The shared `packages/axylo/dist` is built from d33df71. Only the coordinator rebuilds it; agents use private builds through `AXYLO_BUNDLE`.
 
 Idle agents that can be resumed with SendMessage: controller a1d73b9f46c46814f; interaction aa0e6fca8e4a6224b; data, lookup, scene, layout a5e106319fe97c022; engines and acceptance suite a61d95e46b3f0f3aa; palette abc842fd0288bc675.
 
@@ -72,15 +73,14 @@ Known open items carried forward:
 
 ## Next action
 
-1. As round 3 reports come in: lookup first (type check must be clean again), then controller, interaction, acceptance; verify each (type check, Node suite), commit with targeted paths, then `npm run build` and every browser suite on SVG and `chart` + `a11y` on canvas.
-2. One last narrow Codex check limited to the blocking list (C2, I4, I5, R1, R2) and the round 3 diff. Owner's decision (2026-11-18, "Yes, stop there"): this is the last review round on these layers. After it, whatever is not one of the five blocking items is recorded as a known limit in the docs and here, not fixed in another round. A blocking item the check finds still open is fixed and re-verified by its test, without a new full review.
-3. Size: read `wp/size2.analysis.md`; apply the behaviour-neutral cuts; bring the options that cost a feature to the owner. Docs: pass the checker's exports to the docs author.
-4. Full acceptance suite on Firefox and WebKit at the current commit (engine author, isolated or shared build with nothing else rebuilding); port the chart, a11y and render suites to the engines.
-5. Distribution configurations (`tests/dist`, Node and browser).
-6. Record every configuration with provenance (`node acceptance/run.mjs unit|dist|dist-browser|browser`, plus `AXYLO_ENGINE=firefox|webkit … browser`), re-merge the matrix (Anthropic model), Codex reviews it, run the checker.
-7. Size pass.
-8. On a quiet machine with no agents: `node bench/decision.mjs plan` (software family about 3.2 h, gpu family about 2.2 h); then budgets P1 to P8 and the large-series path.
-9. Agent rehearsal (DX12); Phase 1 comparison rerun with Axylo included.
+1. Read `acceptance/results/verify-d33df71/*.txt` (rerun any configuration that was interrupted; commands are in the row above and in `AGENTS.md`). Triage: the text-test fixture to the acceptance author (a61d95e46b3f0f3aa); anything else to its author.
+2. Size margin: the small remaining cuts in `src/dom` and the stylesheet (interaction author aa0e6fca8e4a6224b); decide on property mangling with a full browser run on the production bundle.
+3. Docs (a04bfe28413f07034): the limits listed above; the AX160 tick rule; then `AXYLO_BROWSER=1 npx vitest run --config apps/docs/vitest.config.ts`.
+4. Spec A9: cite the applicable WCAG 2.2 AA criteria on the spec rows that cover them (only 10 are cited; I1 lacks 1.4.13), so the generated conformance page lists them.
+5. Port the `chart`, `a11y` and `render` suites to Firefox and WebKit (CDP uses listed in `wp/engines2.report.md`), then the full acceptance suite on both engines at the current commit.
+6. Record every configuration with provenance (`node acceptance/run.mjs unit|dist|dist-browser|browser`, plus `AXYLO_ENGINE=firefox|webkit … browser`), re-merge the matrix (Anthropic model; React rows gone, new and renamed tests, engines, DX1/DX7/DX8, P7, A3 not rehearsed), Codex reviews the merge, run the checker in release mode.
+7. On a quiet machine with no agents: `node bench/decision.mjs plan` (software family about 3.2 h, gpu family about 2.2 h); then budgets P1 to P8 and the large-series path.
+8. Agent rehearsal (DX12); Phase 1 comparison rerun with Axylo included.
 
 ## Known limits that no agent can close
 
