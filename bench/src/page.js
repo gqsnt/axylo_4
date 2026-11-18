@@ -1,9 +1,18 @@
 // The benchmark page: one adapter, one workload, chosen by URL parameters.
-//   ?adapter=uplot&workload=first&params={"size":"1x100000"}&settle=500&aparams={"renderer":"svg"}
-// The runner exposes three bindings: __benchMetrics(label) snapshots CDP Performance.getMetrics in Node and resolves
-// once the snapshot is taken; __benchMemory(label) forces a garbage collection and records heap and process memory;
-// __benchDone(result) hands the raw result back. Opened by hand, the page prints the result.
-import { workloadData, checksum } from './fixtures.js';
+//   ?adapter=uplot&workload=first&params={"size":"1x100000"}&settle=500&aparams={"renderer":"svg"}&probe=geometry
+// The runner exposes bindings: __benchMetrics(label) snapshots CDP Performance.getMetrics in Node and resolves once
+// the snapshot is taken; __benchMemory(label) forces a garbage collection and records heap and process memory;
+// __benchPointer(x, y) dispatches a real pointer move; __benchDone(result) hands the raw result back. Opened by
+// hand, the page prints the result.
+//
+// probe: '' for timed runs, which do nothing beyond the workload inside or around the measured windows;
+//   'geometry' for the untimed admission run: Canvas 2D drawing calls are recorded so the readback can include the
+//   polylines the library stroked, the theme workload reads every mark's color after every toggle, the resize
+//   workload checks the chart's geometry at the narrowest width;
+//   'counters' for the untimed theme run that counts Canvas 2D calls and DOM mutations per toggle.
+import { workloadData, checksum, zoomSteps } from './fixtures.js';
+import { lateWindow } from './stats.js';
+import { themeMismatch } from './drawn.js';
 
 const q = new URLSearchParams(location.search);
 const adapterId = q.get('adapter');
@@ -11,8 +20,10 @@ const workload = q.get('workload');
 const params = JSON.parse(q.get('params') ?? '{}');
 const settleMs = Number(q.get('settle') ?? 500);
 const adapterParams = JSON.parse(q.get('aparams') ?? '{}');
+const probe = q.get('probe') || null;
+const profiled = q.get('profile') === '1';
 // Memory is sampled in the create workloads only, always outside the timed window.
-const memoryWanted = (workload === 'first' || workload === 'page') && params.memory !== false;
+const memoryWanted = (workload === 'first' || workload === 'page' || workload === 'compact' || workload === 'mem') && params.memory !== false;
 
 // The binding's reply arrives inside a DevTools command task, and code continuing after `await` would run inside it
 // (counted as DevToolsCommandDuration, not ScriptDuration). Measured work therefore starts inside the handler of a
@@ -55,19 +66,13 @@ async function observeRefresh() {
   return { medianIntervalMs: r3(median), hz: r3(1000 / median), minMs: r3(d[0]), maxMs: r3(d[d.length - 1]) };
 }
 
-function loadScript(src) {
-  return new Promise(res => {
-    const s = document.createElement('script');
-    s.src = src;
-    s.onload = () => res();
-    s.onerror = () => { window.__axyloLoadError = `could not load ${src}`; res(); };
-    document.head.appendChild(s);
-  });
-}
-
+const LAYOUT = {
+  page: { grid: 'grid', count: 24 },
+  compact: { grid: 'grid compact', count: 40 },
+};
 function containers(count, grid, resizable) {
   const root = document.getElementById('root');
-  const parent = grid || resizable ? Object.assign(document.createElement('div'), { className: `${grid ? 'grid' : ''} ${resizable ? 'resize-box' : ''}`.trim() }) : root;
+  const parent = grid || resizable ? Object.assign(document.createElement('div'), { className: `${grid || ''} ${resizable ? 'resize-box' : ''}`.trim() }) : root;
   if (parent !== root) root.appendChild(parent);
   const els = Array.from({ length: count }, () => parent.appendChild(Object.assign(document.createElement('div'), { className: 'chart' })));
   return { els, box: parent };
@@ -86,18 +91,49 @@ function canvasBacking() {
   return { chartCanvasBytes: chart, chartCanvasCount: count, otherCanvasBytes: other, svgElements: root.querySelectorAll('svg').length, svgPaths: root.querySelectorAll('svg path').length, domNodes: root.getElementsByTagName('*').length };
 }
 
-// W-first and W-page: from the create call until a fixed settle window after every chart reports ready.
+// ── drawing capture (probe runs only) ────────────────────────────────────────────────────────────
+// Records, per canvas, the polylines each stroke() call drew (moveTo/lineTo between beginPath and stroke, in the
+// coordinates the library passed, which for a library that draws through setTransform are CSS px), its strokeStyle,
+// and the last rectangle used as a clip. A clear of the whole canvas starts a new frame's record. Path2D strokes
+// are recorded as strokes without vertices (uPlot draws that way; its drawn readback comes from its own state).
+function installCapture() {
+  const P = CanvasRenderingContext2D.prototype;
+  const by = new WeakMap();
+  const st = ctx => { let s = by.get(ctx.canvas); if (!s) by.set(ctx.canvas, s = { strokes: [], clip: null, path: [], open: null, rect: null }); return s; };
+  const orig = {};
+  const wrap = (name, fn) => { orig[name] = P[name]; P[name] = function (...a) { fn(this, a); return orig[name].apply(this, a); }; };
+  wrap('beginPath', ctx => { const s = st(ctx); s.path = []; s.open = null; s.rect = null; });
+  wrap('moveTo', (ctx, [x, y]) => { const s = st(ctx); s.open = [x, y]; s.path.push(s.open); });
+  wrap('lineTo', (ctx, [x, y]) => { const s = st(ctx); if (!s.open) { s.open = [x, y]; s.path.push(s.open); } else s.open.push(x, y); });
+  wrap('rect', (ctx, [x, y, w, h]) => { st(ctx).rect = { x, y, width: w, height: h }; });
+  wrap('clip', ctx => { const s = st(ctx); if (s.rect) s.clip = s.rect; });
+  wrap('stroke', (ctx, a) => { const s = st(ctx); s.strokes.push(a[0] ? { color: String(ctx.strokeStyle), path2d: true, polylines: [] } : { color: String(ctx.strokeStyle), polylines: s.path.filter(p => p.length >= 4).map(p => p.slice()) }); });
+  wrap('clearRect', (ctx, [x, y, w, h]) => {
+    const m = ctx.getTransform();
+    const X = m.a * x + m.e, Y = m.d * y + m.f, W = m.a * w, H = m.d * h;
+    if (X <= 0 && Y <= 0 && X + W >= ctx.canvas.width && Y + H >= ctx.canvas.height) { const s = st(ctx); s.strokes = []; }
+  });
+  return { of: canvas => { const s = by.get(canvas); return s ? { strokes: s.strokes, clip: s.clip } : { strokes: [], clip: null }; } };
+}
+const capture = probe === 'geometry' ? installCapture() : null;
+const describeAll = handles => handles.map(h => h.describe({ capture, probe }));
+
+// ── W-first, W-page, W-compact, W-scatter, W-mem ────────────────────────────────────────────────
+// From the create call until a fixed settle window after every chart reports ready. The readback (describe) is
+// taken after the end mark, so the admission check never runs inside the measured window.
 async function runCreate(adapter, fixtures, els) {
+  const opts = { params: adapterParams, compact: workload === 'compact', kind: workload === 'scatter' ? 'scatter' : 'line' };
   await metrics('create:start');
   const { t0, handles, tSync } = await inTask(() => {
     const t0 = performance.now();
-    const handles = fixtures.map((f, i) => adapter.create(els[i], f, { params: adapterParams }));
+    const handles = fixtures.map((f, i) => adapter.create(els[i], f, opts));
     return { t0, handles, tSync: performance.now() };
   });
   await Promise.all(handles.map(h => h.ready));
   const tReady = performance.now();
   await raf();
   const tReadyFrame = performance.now();
+  if (profiled) await metrics('create:ready'); // profiled runs only: splits the profile into active and settle parts
   await sleep(settleMs);
   await metrics('create:end');
   const tEnd = performance.now();
@@ -106,7 +142,8 @@ async function runCreate(adapter, fixtures, els) {
   return {
     timing: { syncMs: r3(tSync - t0), readyMs: r3(tReady - t0), readyFrameMs: r3(tReadyFrame - t0), windowMs: r3(tEnd - t0), settleMs },
     canvasBacking: backing,
-    describe: handles.map(h => h.describe()),
+    callerColumnBytes: fixtures.reduce((s, f) => s + f.x.byteLength + f.ys.reduce((t, c) => t + c.byteLength, 0), 0),
+    describe: describeAll(handles),
   };
 }
 
@@ -129,7 +166,8 @@ onmessage = e => {
 
 // W-stream: a window chart fed by the producer. Visibility is read from the chart's own draw record
 // (adapter.drawnNewestX), in an animation-frame callback registered after the append that needs it, so it runs
-// after any frame callback the library itself registered for that append.
+// after any frame callback the library itself registered for that append. Frame pacing keeps recording after the
+// last sample until it covers P3's window of `samples` intervals from the first due time.
 async function runStream(adapter, fix, el) {
   const N = fix.samples, period = 1000 / 60;
   await metrics('create:start');
@@ -146,6 +184,8 @@ async function runStream(adapter, fix, el) {
   let prevFrameNow = NaN, startAt = NaN;
   let finish;
   const finished = new Promise(r => { finish = r; });
+  let framesDone;
+  const framesCovered = new Promise(r => { framesDone = r; });
   const dueBy = t => Math.max(0, Math.min(N, Math.floor((t - startAt) / period) + 1));
 
   // Frame pacing loop. Its callback runs first in each frame (registered earliest), so it accounts the previous
@@ -154,6 +194,7 @@ async function runStream(adapter, fix, el) {
     if (!Number.isNaN(prevFrameNow)) maxBacklog = Math.max(maxBacklog, dueBy(prevFrameNow) - visibleCount);
     prevFrameNow = performance.now();
     frames.push(ts);
+    if (Number.isFinite(due[0]) && lateWindow(frames, due[0], N)) framesDone();
     if (pacing) requestAnimationFrame(pace);
   };
   const reader = ts => {
@@ -190,6 +231,8 @@ async function runStream(adapter, fix, el) {
   clearInterval(timer);
   const tEnd = performance.now();
   await metrics('stream:end');
+  // Outside the measured window: keep the frame log going until it covers the lateness window (or give up).
+  await Promise.race([framesCovered, sleep(3000)]);
   pacing = false;
   worker.terminate();
   return {
@@ -201,43 +244,13 @@ async function runStream(adapter, fix, el) {
       frames: frames.map(r3),
     },
     timing: { settleMs },
-    describe: [handle.describe()],
+    describe: describeAll([handle]),
   };
 }
 
 // ── theme ───────────────────────────────────────────────────────────────────────────────────────
-// What the marks look like, independent of the library: the computed stroke of every SVG path, and the most
-// frequent fully opaque colors of every canvas, read from a copy (the chart's own canvas is never read back, so
-// the browser has no reason to move it off the GPU path).
-function markSignature(el) {
-  const parts = [];
-  const strokes = new Set();
-  for (const p of el.querySelectorAll('svg path, svg polyline, svg line')) {
-    const st = getComputedStyle(p).stroke;
-    if (st && st !== 'none') strokes.add(st);
-  }
-  if (strokes.size) parts.push(`svg:${[...strokes].sort().join('|')}`);
-  for (const c of el.querySelectorAll('canvas')) {
-    if (!c.width || !c.height) continue;
-    const copy = document.createElement('canvas');
-    copy.width = c.width; copy.height = c.height;
-    const ctx = copy.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(c, 0, 0);
-    const d = ctx.getImageData(0, 0, c.width, c.height).data;
-    const hist = new Map();
-    for (let i = 0; i < d.length; i += 4) {
-      if (d[i + 3] !== 255) continue;
-      const k = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2];
-      hist.set(k, (hist.get(k) ?? 0) + 1);
-    }
-    const top = [...hist.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([k]) => `#${k.toString(16).padStart(6, '0')}`).sort();
-    parts.push(`canvas:${top.join('|')}`);
-  }
-  return parts.join(' ');
-}
-
 // Counts drawing work during a window: Canvas 2D calls that put pixels down, and DOM mutation records inside the
-// chart. Counting adds one increment per call and one observer callback per batch, the same for every adapter.
+// chart. Used only in the 'counters' probe run, never in a timed run.
 function workCounter(el) {
   const names = ['stroke', 'fill', 'fillRect', 'strokeRect', 'fillText', 'strokeText', 'clearRect', 'drawImage', 'putImageData'];
   const proto = CanvasRenderingContext2D.prototype;
@@ -255,10 +268,21 @@ function workCounter(el) {
   };
 }
 
+/**
+ * Per-mark colors against the colors the library says the marks should have in the current scheme
+ * (adapter.themeColors: { expected: [css color per series], marks: [css color per series mark] }), all normalized
+ * by a canvas round-trip. Every series mark must show its expected color; one stale mark fails the check.
+ */
+const normColor = (() => { const c = document.createElement('canvas').getContext('2d'); return v => { c.fillStyle = '#000'; c.fillStyle = v; return c.fillStyle; }; })();
+function themeState(handle, el) {
+  const t = handle.themeColors?.(el, { capture });
+  if (!t) return null;
+  return { expected: t.expected.map(normColor), marks: t.marks.map(normColor) };
+}
 // W-theme: toggle a class-based dark theme on <html> and measure main-thread task time per toggle, over a fixed
-// window of three animation frames plus 50 ms (Axylo promises the repaint within one frame, spec L4). The marks'
-// colors are checked after each window. How many frames the change took is measured in separate, untimed toggles
-// afterwards, because sampling pixels in every frame would add readback work to the measured window.
+// window of three animation frames plus 50 ms (Axylo promises the repaint within one frame, spec L4). Timed runs
+// do nothing else. The 'geometry' probe checks every mark's color after every toggle and counts frames until the
+// new colors show; the 'counters' probe counts drawing calls and mutations per toggle.
 async function runTheme(adapter, fix, el) {
   const toggles = params.toggles ?? 20;
   await metrics('create:start');
@@ -267,70 +291,103 @@ async function runTheme(adapter, fix, el) {
   await sleep(settleMs);
   await metrics('create:end');
   const html = document.documentElement;
-  const signatures = [markSignature(el)];
+  const reasons = [], states = [];
+  const counter = probe === 'counters' ? workCounter(el) : null;
   const work = [];
-  const counter = workCounter(el);
+  if (probe === 'geometry') {
+    const s = themeState(handle, el);
+    if (!s) reasons.push('the adapter has no theme readback (the library has no theme mechanism)');
+    else { states.push(s); const m = themeMismatch(s); if (m) reasons.push(`before the first toggle: ${m}`); }
+  }
   for (let i = 0; i < toggles; i++) {
-    counter.take();
+    counter?.take();
     await metrics(`toggle${i}:start`);
     await inTask(() => html.classList.toggle('bench-dark'));
     await raf(); await raf(); await raf();
     await sleep(50);
     await metrics(`toggle${i}:end`);
-    work.push(counter.take());
-    signatures.push(markSignature(el));
+    if (counter) work.push(counter.take());
+    if (probe === 'geometry' && !reasons.length) {
+      const s = themeState(handle, el);
+      states.push(s);
+      const m = themeMismatch(s);
+      if (m) reasons.push(`after toggle ${i + 1}: ${m}`);
+      else if (i === 0 && s.marks.every((c, k) => c === states[0].marks[k])) reasons.push(`the marks kept their colors on the first toggle (${s.marks.join(', ')})`);
+    }
   }
-  counter.stop();
-  const reasons = [];
-  const light = signatures[0], dark = signatures[1];
-  if (light === dark) reasons.push(`marks did not change color on the first toggle (${light})`);
-  signatures.forEach((sig, i) => { const want = i % 2 ? dark : light; if (sig !== want) reasons.push(`after ${i} toggles the marks show ${sig}, expected ${want}`); });
-  // Latency: untimed toggles, the marks sampled after every frame until they change (at most 10 frames).
+  counter?.stop();
+  // Latency: untimed toggles, the marks read after every frame until each shows its expected color (<= 10 frames).
   const framesToChange = [];
-  for (let i = 0; i < 4; i++) {
-    const before = markSignature(el);
-    html.classList.toggle('bench-dark');
-    // Let mutation observers (where a library notices the toggle) run first, so a frame callback the library
-    // registers in response comes before this sampler's in the same frame.
-    await Promise.resolve();
-    let n = 0, changed = false;
-    while (n < 10 && !changed) { await raf(); n++; changed = markSignature(el) !== before; }
-    framesToChange.push(changed ? n : null);
+  if (probe === 'geometry' && !reasons.length) {
+    for (let i = 0; i < 4; i++) {
+      const before = themeState(handle, el).marks.join();
+      html.classList.toggle('bench-dark');
+      // Let mutation observers (where a library notices the toggle) run first, so a frame callback the library
+      // registers in response comes before this sampler's in the same frame.
+      await Promise.resolve();
+      let n = 0, ok = false;
+      while (n < 10 && !ok) { await raf(); n++; const s = themeState(handle, el); ok = !themeMismatch(s) && s.marks.join() !== before; }
+      framesToChange.push(ok ? n : null);
+    }
   }
   if (html.classList.contains('bench-dark')) html.classList.remove('bench-dark');
+  await raf(); await raf();
   return {
-    theme: { toggles, windowFrames: 3, windowExtraMs: 50, work, signatures: [...new Set(signatures)], framesToChange },
-    themeCheck: { ok: reasons.length === 0, reasons: reasons.slice(0, 5) },
+    theme: { toggles, windowFrames: 3, windowExtraMs: 50, probe, work, states: probe === 'geometry' ? states.slice(0, 3) : undefined, framesToChange },
+    themeCheck: probe === 'geometry' ? { ok: reasons.length === 0, reasons: reasons.slice(0, 5) } : undefined,
     timing: { settleMs },
-    describe: [handle.describe()],
+    describe: describeAll([handle]),
   };
 }
 
 // ── resize ──────────────────────────────────────────────────────────────────────────────────────
-// W-resize: the box holding the chart(s) is animated 1,200 -> 400 -> 1,200 px over 2 s, one width per animation
-// frame, linear in time. Task time and frame intervals are recorded over the animation; afterwards every chart
-// must fill its container's new width (its widest canvas or svg within 90-100% of the container).
+// W-resize: the box holding the chart(s) goes 1,200 -> 400 -> 1,200 px in a fixed sequence of widths, one per
+// animation frame (60 down, 60 up, 3 at the end), so every adapter receives the same steps however busy it is
+// (2 s at 60 Hz; the elapsed time is recorded). Task time and frame intervals are recorded over the sequence. Every
+// run checks the final geometry; the 'geometry' probe also stops at the narrowest width, waits for the charts to
+// report ready, and checks the intermediate geometry there.
+function widestGraphic(el) { let w = 0; for (const g of el.querySelectorAll('canvas, svg')) w = Math.max(w, g.getBoundingClientRect().width); return w; }
+function fillReasons(els, when) {
+  const out = [];
+  els.forEach((el, i) => {
+    const cw = el.clientWidth, widest = widestGraphic(el);
+    if (!(widest >= 0.9 * cw && widest <= cw + 1)) out.push(`chart ${i} ${when}: widest canvas/svg is ${widest.toFixed(1)} px in a ${cw} px container`);
+  });
+  return out;
+}
 async function runResize(adapter, fixtures, els, box) {
-  const duration = params.durationMs ?? 2000, wide = 1200, narrow = 400;
+  const wide = 1200, narrow = 400, down = 60, up = 60;
+  const widths = [];
+  for (let i = 1; i <= down; i++) widths.push(wide - (wide - narrow) * i / down);
+  for (let i = 1; i <= up; i++) widths.push(narrow + (wide - narrow) * i / up);
+  widths.push(wide, wide, wide);
   await metrics('create:start');
   const handles = await inTask(() => fixtures.map((f, i) => adapter.create(els[i], f, { params: adapterParams, resize: true })));
   await Promise.all(handles.map(h => h.ready));
   await sleep(settleMs);
   await metrics('create:end');
-  const frames = [], widths = [];
+  const frames = [], applied = [];
+  const reasons = [];
+  let intermediate = null;
   await metrics('resize:start');
-  let startAt = NaN;
+  const startAt = performance.now();
   await new Promise(resolve => {
-    let after = 0;
-    const step = ts => {
-      if (Number.isNaN(startAt)) startAt = performance.now();
-      const t = performance.now() - startAt;
-      const half = duration / 2;
-      const w = t < half ? wide - (wide - narrow) * t / half : t < duration ? narrow + (wide - narrow) * (t - half) / half : wide;
-      box.style.width = `${w}px`;
-      frames.push(ts); widths.push(Math.round(w));
-      if (t >= duration) after++;
-      if (after > 2) resolve(); else requestAnimationFrame(step);
+    let k = 0;
+    const step = async ts => {
+      frames.push(ts);
+      if (k >= widths.length) { resolve(); return; }
+      box.style.width = `${widths[k]}px`;
+      applied.push(widths[k]);
+      if (probe === 'geometry' && k === down - 1) {
+        // Untimed probe only: let the charts catch up at the narrowest width, then check what they committed.
+        await raf();
+        await Promise.all(handles.map(h => h.ready));
+        await raf();
+        intermediate = els.map(el => ({ container: el.clientWidth, widest: r3(widestGraphic(el)) }));
+        reasons.push(...fillReasons(els, `at ${narrow} px`));
+      }
+      k++;
+      requestAnimationFrame(step);
     };
     inTask(() => requestAnimationFrame(step));
   });
@@ -338,19 +395,133 @@ async function runResize(adapter, fixtures, els, box) {
   await Promise.all(handles.map(h => h.ready));
   await metrics('resize:end');
   await sleep(settleMs);
-  const reasons = [];
-  els.forEach((el, i) => {
-    const cw = el.clientWidth;
-    let widest = 0;
-    for (const g of el.querySelectorAll('canvas, svg')) widest = Math.max(widest, g.getBoundingClientRect().width);
-    if (!(widest >= 0.9 * cw && widest <= cw + 1)) reasons.push(`chart ${i}: widest canvas/svg is ${widest.toFixed(1)} px in a ${cw} px container after the resize`);
-  });
+  reasons.push(...fillReasons(els, 'after the resize'));
   return {
-    resize: { durationMs: duration, from: wide, to: narrow, startAt: r3(startAt), endAt: r3(endAt), frames: frames.map(r3), widths },
+    resize: { from: wide, to: narrow, steps: widths.length, startAt: r3(startAt), endAt: r3(endAt), elapsedMs: r3(endAt - startAt), frames: frames.map(r3), widths: applied, intermediate },
     resizeCheck: { ok: reasons.length === 0, reasons: reasons.slice(0, 5) },
     timing: { settleMs },
-    describe: handles.map(h => h.describe()),
+    describe: describeAll(handles),
   };
+}
+
+// ── W-hover (P4) ────────────────────────────────────────────────────────────────────────────────
+// 200 real pointer moves left to right across the plot (CDP Input through the runner). For each move: the
+// pointermove event's timeStamp, then the first animation-frame callback in which the chart's readout shows the
+// datum the chart's own hover state picked for that event. The frame reader is registered from a window listener
+// in the bubbling phase, after the chart's own listener on the plot has run, so a frame callback the chart
+// registered for the move runs before it. This is the frame callback, not presentation (no trace).
+async function runHover(adapter, fix, el) {
+  const moves = params.moves ?? 200;
+  const handle = await inTask(() => adapter.create(el, fix, { params: adapterParams, hover: true }));
+  await handle.ready;
+  await sleep(settleMs);
+  if (!handle.hoverTarget) return { unsupported: 'the adapter has no hover readout' };
+  const rect = handle.hoverTarget().getBoundingClientRect();
+  const y = rect.top + rect.height / 2;
+  const xs = Array.from({ length: moves }, (_, k) => rect.left + rect.width * (0.1 + 0.8 * k / (moves - 1)));
+  const eventAt = new Float64Array(moves).fill(NaN), shownAt = new Float64Array(moves).fill(NaN), picked = new Float64Array(moves).fill(NaN);
+  let current = -1, waiting = null;
+  const onMove = e => {
+    if (current < 0) return;
+    eventAt[current] = e.timeStamp;
+    const k = current;
+    let frames = 0;
+    const read = () => {
+      frames++;
+      const idx = handle.hoveredIndex();
+      if (Number.isFinite(idx) && handle.readoutShows(idx)) { shownAt[k] = performance.now(); picked[k] = idx; waiting?.(); return; }
+      if (frames < 10) requestAnimationFrame(read); else waiting?.();
+    };
+    requestAnimationFrame(read);
+  };
+  window.addEventListener('pointermove', onMove);
+  // Untimed: put the pointer on the plot once so the first timed move is a move, not an entry.
+  await window.__benchPointer?.(rect.left + rect.width * 0.05, y);
+  await raf(); await raf();
+  await metrics('hover:start');
+  for (let k = 0; k < moves; k++) {
+    current = k;
+    const seen = new Promise(r => { waiting = r; });
+    await window.__benchPointer?.(xs[k], y);
+    await Promise.race([seen, sleep(500)]);
+    waiting = null;
+  }
+  await metrics('hover:end');
+  current = -1;
+  window.removeEventListener('pointermove', onMove);
+  const latencies = Array.from(eventAt, (t, k) => (Number.isFinite(shownAt[k]) && Number.isFinite(t) ? shownAt[k] - t : NaN));
+  const reasons = [];
+  const missed = latencies.filter(v => !Number.isFinite(v)).length;
+  if (missed > moves * 0.05) reasons.push(`${missed} of ${moves} moves never showed a matching readout within 10 frames`);
+  const idx = Array.from(picked).filter(Number.isFinite);
+  for (let i = 1; i < idx.length; i++) if (idx[i] < idx[i - 1]) { reasons.push(`readout went backwards (${idx[i - 1]} then ${idx[i]}) on a left-to-right sweep`); break; }
+  const n = fix.x.length;
+  if (idx.length && (idx[0] > 0.2 * n || idx[idx.length - 1] < 0.8 * n)) reasons.push(`readouts span indices ${idx[0]}..${idx[idx.length - 1]} of ${n} for a sweep over 10%..90% of the plot`);
+  // Moves are at least a pixel apart over at least as many data as moves, so each should read a datum of its own.
+  const distinct = new Set(idx).size;
+  if (n >= moves && distinct < moves / 2) reasons.push(`the readout showed ${distinct} distinct data for ${moves} moves over ${n} points: it does not follow the datum under the pointer`);
+  return {
+    hover: { moves, latencies: latencies.map(r3), picked: Array.from(picked), missed },
+    hoverCheck: { ok: reasons.length === 0, reasons },
+    timing: { settleMs },
+    describe: describeAll([handle]),
+  };
+}
+
+// ── W-zoom ──────────────────────────────────────────────────────────────────────────────────────
+// 60 calls to the public zoom (Axylo chart.zoom([lo, hi])): 20 in, 20 out, 20 pan steps; each waits for the chart
+// to report the step drawn and one frame. The final window is known in Node (fixtures.zoomSteps), so the admission
+// check reads back exactly that view and the drawn extremes inside it.
+async function runZoom(adapter, fix, el) {
+  const steps = zoomSteps(fix);
+  const handle = await inTask(() => adapter.create(el, fix, { params: adapterParams }));
+  await handle.ready;
+  await sleep(settleMs);
+  if (!handle.zoom) return { unsupported: 'the adapter has no zoom' };
+  const frames = [];
+  let pacing = true;
+  const pace = ts => { frames.push(ts); if (pacing) requestAnimationFrame(pace); };
+  requestAnimationFrame(pace);
+  await raf();
+  const stepToFrame = [];
+  await metrics('zoom:start');
+  const startAt = performance.now();
+  for (const [lo, hi] of steps) {
+    const t0 = await inTask(() => { const t = performance.now(); handle.zoom(lo, hi); return t; });
+    await handle.ready;
+    await raf();
+    stepToFrame.push(r3(performance.now() - t0));
+  }
+  const endAt = performance.now();
+  await metrics('zoom:end');
+  await raf();
+  pacing = false;
+  return {
+    zoom: { steps: steps.length, finalWindow: steps[steps.length - 1], stepToFrame, startAt: r3(startAt), endAt: r3(endAt), frames: frames.map(r3) },
+    timing: { settleMs },
+    describe: describeAll([handle]),
+  };
+}
+
+// ── W-mem lifecycle (P7) ────────────────────────────────────────────────────────────────────────
+// Create, wait for ready, destroy, on one container, `cycles` times after 20 warm-up cycles; heap after forced
+// collection (and listener and node counts) at checkpoints. The readback for admission comes from one more chart
+// created after the last checkpoint.
+async function runLifecycle(adapter, fix, el) {
+  const cycles = params.cycles ?? 1000, warm = 20;
+  const at = new Set([0, 100, 300, 1000, cycles].filter(c => c <= cycles));
+  const checkpoints = [];
+  const once = async () => { const h = adapter.create(el, fix, { params: adapterParams }); await h.ready; h.destroy(); };
+  for (let i = 0; i < warm; i++) await once();
+  for (let c = 0; c <= cycles; c++) {
+    if (at.has(c)) { const label = `cycles${c}`; await raf(); await memory(label); checkpoints.push({ cycles: c, label }); }
+    if (c < cycles) await once();
+  }
+  const leftover = el.childElementCount;
+  const handle = adapter.create(el, fix, { params: adapterParams });
+  await handle.ready;
+  const reasons = leftover ? [`${leftover} elements left in the container after the last destroy()`] : [];
+  return { lifecycle: { cycles, warm, checkpoints, leftover }, lifecycleCheck: { ok: !reasons.length, reasons }, timing: { settleMs }, describe: describeAll([handle]) };
 }
 
 async function main() {
@@ -359,14 +530,15 @@ async function main() {
   const adapterUrl = new URL(`./adapters/${encodeURIComponent(adapterId)}.js`, location.href).href;
   const adapter = (await import(adapterUrl)).default;
   await adapter.load?.(adapterParams);
-  const meta = { id: adapter.id, library: adapter.library, version: adapter.version, config: adapter.configFor?.(adapterParams) ?? adapter.config, params: adapter.resolvedParams?.(adapterParams) ?? adapterParams, floor: !!adapter.floor };
-  const avail = adapter.available();
+  const meta = { id: adapter.id, library: adapter.library, version: adapter.version, config: adapter.configFor?.(adapterParams) ?? adapter.config, params: adapter.resolvedParams?.(adapterParams) ?? adapterParams, floor: !!adapter.floor, expectRenderer: adapter.expectRendererFor?.(adapterParams) ?? null };
+  const avail = adapter.available(workload);
   if (!avail.ok) return done({ outcome: 'not-available', reason: avail.reason, adapter: meta, env });
   adapter.setup?.(adapterParams);
   if (memoryWanted) await memory('blank');
   const fixtures = workloadData(workload, params);
   const sum = checksum(fixtures);
-  const { els, box } = containers(fixtures.length, workload === 'page' || (workload === 'resize' && fixtures.length > 1), workload === 'resize');
+  const grid = LAYOUT[workload]?.grid ?? (workload === 'resize' && fixtures.length > 1 ? 'grid' : null);
+  const { els, box } = containers(workload === 'lifecycle' ? 1 : fixtures.length, grid, workload === 'resize');
   env.refresh = await observeRefresh();
   await raf(); await raf(); // layout of the empty containers is done before the clock starts
   if (memoryWanted) await memory('data');
@@ -375,12 +547,16 @@ async function main() {
     result = workload === 'stream' ? await runStream(adapter, fixtures[0], els[0])
       : workload === 'theme' ? await runTheme(adapter, fixtures[0], els[0])
       : workload === 'resize' ? await runResize(adapter, fixtures, els, box)
+      : workload === 'hover' ? await runHover(adapter, fixtures[0], els[0])
+      : workload === 'zoom' ? await runZoom(adapter, fixtures[0], els[0])
+      : workload === 'lifecycle' ? await runLifecycle(adapter, fixtures[0], els[0])
       : await runCreate(adapter, fixtures, els);
   } catch (e) {
     if (e?.benchNotAdmitted) return done({ outcome: 'not-admitted', reason: e.message, adapter: meta, env, checksum: sum });
     throw e;
   }
-  done({ outcome: 'ok', adapter: meta, env, checksum: sum, ...result });
+  if (result.unsupported) return done({ outcome: 'not-available', reason: result.unsupported, adapter: meta, env });
+  done({ outcome: 'ok', adapter: meta, env, checksum: sum, probe, ...result });
 }
 
 main().catch(e => done({ outcome: 'error', error: String(e?.stack ?? e) }));

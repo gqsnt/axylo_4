@@ -11,7 +11,7 @@
 // Input: Chart.js needs plain arrays here, so each typed column is copied with Array.from inside the timed work.
 // NaN is kept; Chart.js parses it to null and leaves a gap. Streaming uses push/shift and chart.update(), the
 // pattern in the Chart.js "Updating charts" page, with its default update animation.
-import { Chart, benchPlugin, handleFor, newState, canvasIn } from './chartjs-common.js';
+import { Chart, benchPlugin, handleFor, newState, canvasIn, chartjsAvailable } from './chartjs-common.js';
 
 const newestParsed = chart => { const p = chart.getDatasetMeta(0)._parsed; return p[p.length - 1]?.x; };
 
@@ -20,12 +20,12 @@ export default {
   library: 'Chart.js',
   version: __VERSIONS__['chart.js'],
   config: 'starter default',
-  available: () => ({ ok: true }),
-  create(el, fix) {
+  available: chartjsAvailable,
+  create(el, fix, opts = {}) {
     const state = newState();
     const labels = Array.from(fix.x);
     const datasets = fix.ys.map((c, i) => ({ label: fix.names[i], data: Array.from(c) }));
-    const chart = new Chart(canvasIn(el), {
+    const chart = new Chart(canvasIn(el, state, opts), {
       type: 'line',
       data: { labels, datasets },
       options: { scales: { x: { type: 'time' } } },

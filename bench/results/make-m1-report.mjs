@@ -1,12 +1,25 @@
 #!/usr/bin/env node
-// Builds bench/results/m1-renderer-comparison.md from the history records listed in bench/results/m1-runs.tsv and
-// the profile summaries in bench/results/profiles. Numbers come only from those files.
-//   node bench/results/make-m1-report.mjs
+// Builds the M1 renderer comparison report from the history records listed in bench/results/m1-runs.tsv and the
+// profile summaries pinned in PROFILES below. Numbers and provenance come only from those files: nothing is read from
+// a build directory or the live checkout, so regenerating later cannot change what the report says about the session.
+//   node bench/results/make-m1-report.mjs --out <file>
+// The output path is explicit: bench/results/m1-renderer-comparison.md carries edits made after generation (the
+// provisional-decision warning), which a regeneration would overwrite.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
 
+const { values: cli } = parseArgs({ options: { out: { type: 'string' } } });
+if (!cli.out) { console.error('usage: node bench/results/make-m1-report.mjs --out <file>'); process.exit(2); }
 const HERE = path.dirname(fileURLToPath(import.meta.url));
+// The profiles of the M1 session, by file name; each is checked against the session's bundle hashes below.
+const PROFILES = [
+  '20261118T025413Z-first-3x120-axylo_renderer_canvas_build_prod', '20261118T025415Z-first-3x120-axylo_renderer_canvas_build_dev',
+  '20261118T025417Z-first-3x120-axylo_renderer_svg_build_prod', '20261118T025419Z-first-3x120-axylo_renderer_svg_build_dev',
+  '20261118T025421Z-first-1x100000-axylo_renderer_canvas_build_prod', '20261118T025423Z-first-1x100000-axylo_renderer_canvas_build_dev',
+  '20261118T025426Z-first-1x100000-axylo_renderer_svg_build_prod', '20261118T025428Z-first-1x100000-axylo_renderer_svg_build_dev',
+];
 const BENCH = path.resolve(HERE, '..');
 const list = fs.readFileSync(path.join(HERE, 'm1-runs.tsv'), 'utf8').trim().split('\n').map(l => l.split('\t'));
 const runs = Object.fromEntries(list.map(([label, id]) => {
@@ -42,6 +55,12 @@ const allRuns = Object.values(runs).filter(Boolean);
 const loads = allRuns.flatMap(r => [r.environment.loadAverageAtStart?.[0], r.environment.loadAverageAtEnd?.[0]]).filter(Number.isFinite);
 const pageEnv = env.page ?? {};
 const starts = allRuns.map(r => r.startedAt).sort(), ends = allRuns.map(r => r.finishedAt).filter(Boolean).sort();
+// Provenance from the records themselves: every distinct value, with how many records carry it.
+const tally = f => { const m = new Map(); for (const r of allRuns) { const k = f(r) ?? 'not recorded'; m.set(k, (m.get(k) ?? 0) + 1); } return [...m.entries()]; };
+const commits = tally(r => r.environment.commit);
+const prodHashes = tally(r => r.environment.axyloBundles?.['axylo.iife.min.js']?.sha256);
+const devHashes = tally(r => r.environment.axyloBundles?.['axylo.iife.js']?.sha256);
+const listTally = (t, f = v => v) => t.map(([k, n]) => `${f(k)} (${n} record${n === 1 ? '' : 's'})`).join('; ');
 
 out.push(`# M1 renderer comparison: Axylo Canvas 2D against SVG
 
@@ -67,8 +86,8 @@ Method and metric definitions: \`bench/README.md\`.
 | Load | 1-minute load average between ${Math.min(...loads).toFixed(1)} and ${Math.max(...loads).toFixed(1)} at run starts and ends; other agents were running tests on the machine |
 | Display | ${pageEnv.refresh ? `${pageEnv.refresh.hz} Hz observed by the page` : 'n/a'}; viewport 1,440×900; device pixel ratio 1 unless marked dpr 2 |
 | WebGL renderer | ${pageEnv.webglRenderer ?? 'n/a'} (software; not used by any configuration measured here) |
-| Axylo | production build \`axylo.iife.min.js\` sha256 ${env.axyloBundles?.['axylo.iife.min.js']?.sha256?.slice(0, 16)}…, with \`__AXYLO_BENCH__\` set; development build \`axylo.iife.js\` sha256 ${env.axyloBundles?.['axylo.iife.js']?.sha256?.slice(0, 16)}… (profiles only). Both are the snapshot of \`packages/axylo/dist\` taken once at the start of the session (built ${JSON.parse(fs.readFileSync(path.join(BENCH, 'dist/manifest.json'), 'utf8')).axylo?.['axylo.iife.min.js']?.builtAt ?? 'n/a'}). Library sources had uncommitted changes at the time: ${String(env.axyloBundles?.gitStatusOfLibrarySources ?? 'n/a').replace(/\n/g, ', ')} |
-| Commit | ${env.commit} |
+| Axylo | production build \`axylo.iife.min.js\` sha256 ${listTally(prodHashes, h => `${String(h).slice(0, 16)}…`)}, with \`__AXYLO_BENCH__\` set; development build \`axylo.iife.js\` sha256 ${listTally(devHashes, h => `${String(h).slice(0, 16)}…`)} (profiles only). The bundles were a snapshot of \`packages/axylo/dist\`; the records do not say when that was built or from which source state, so neither is stated here. Library sources had uncommitted changes when the first record was written: ${String(env.axyloBundles?.gitStatusOfLibrarySources ?? 'n/a').replace(/\n/g, ', ')} |
+| Commit | checkout HEAD when each run started, which is not necessarily the source of the bundle: ${listTally(commits, c => String(c).slice(0, 8))} |
 | Libraries | uPlot ${env.libraries.uplot}; Axylo ${env.libraries.axylo} |
 `);
 
@@ -160,7 +179,16 @@ out.push(`Timing at dpr 2 (same runs):\n\n${table(['dpr2-first-1x100000-canvas-v
 
 // Profiles
 const profDir = path.join(HERE, 'profiles');
-const profs = fs.existsSync(profDir) ? fs.readdirSync(profDir).filter(f => f.endsWith('.summary.json')).sort().map(f => JSON.parse(fs.readFileSync(path.join(profDir, f), 'utf8'))) : [];
+const sessionBundles = new Set([...prodHashes, ...devHashes].map(([h]) => h));
+const profs = PROFILES.map(name => {
+  const f = path.join(profDir, `${name}.summary.json`);
+  if (!fs.existsSync(f)) return null;
+  const p = JSON.parse(fs.readFileSync(f, 'utf8'));
+  const b = p.environment?.axyloBundles;
+  const used = p.adapter?.includes('build=dev') ? b?.['axylo.iife.js']?.sha256 : b?.['axylo.iife.min.js']?.sha256;
+  p.bundleMatches = !!used && sessionBundles.has(used);
+  return p;
+}).filter(Boolean);
 out.push(`## CPU profiles
 
 One Chrome CPU profile per renderer and build (CDP \`Profiler\`, 100 µs sampling), from the create call to the end of
@@ -177,7 +205,7 @@ for (const size of ['3x120', '1x100000']) {
       const p = profs.find(x => x.params.size === size && x.adapter === `axylo:renderer=${renderer},build=${build}`);
       if (!p) { out.push(`**${size}, ${renderer}, ${build}**: profile missing.\n`); continue; }
       const s = p.summary;
-      out.push(`**${size}, ${renderer}, ${build === 'dev' ? 'development build' : 'production build'}** — busy ${num(s.busyMs)} ms (${s.samples} samples); mapping: ${s.mapping}. File \`${p.profileFile}\`.\n`);
+      out.push(`**${size}, ${renderer}, ${build === 'dev' ? 'development build' : 'production build'}** — busy ${num(s.busyMs)} ms (${s.samples} samples); mapping: ${s.mapping}. File \`${p.profileFile}\`.${p.bundleMatches ? '' : ' **Its bundle hash is not one of the session records\' bundles.**'}\n`);
       out.push('| Stage | ms | % of busy |\n|---|---|---|');
       for (const st of s.stages.filter(x => x.k !== '(idle)')) out.push(`| ${st.k} | ${num(st.ms)} | ${st.ofBusy}% |`);
       if (build === 'dev') {
@@ -222,5 +250,5 @@ ${list.map(([l, id]) => `| ${l} | \`${id}\` | ${runs[l]?.status ?? 'missing'} |`
   against uPlot used 6.
 `);
 
-fs.writeFileSync(path.join(HERE, 'm1-renderer-comparison.md'), out.join('\n'));
-console.log(`wrote bench/results/m1-renderer-comparison.md from ${allRuns.length} records and ${profs.length} profiles`);
+fs.writeFileSync(path.resolve(cli.out), out.join('\n'));
+console.log(`wrote ${cli.out} from ${allRuns.length} records and ${profs.length} pinned profiles`);

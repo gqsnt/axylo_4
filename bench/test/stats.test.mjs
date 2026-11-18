@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { balancedOrder, pairedBootstrap, classify, quantile, analyze, MIN_PAIRS } from '../src/stats.js';
-import { lineFixture, streamFixture, expectedView, checksum } from '../src/fixtures.js';
+import { lineFixture, streamFixture, expectedView, heldColumns, checksum } from '../src/fixtures.js';
 import { checkView } from '../src/admission.js';
 
 test('blocks are balanced: as many AB as BA, for any seed', () => {
@@ -34,6 +34,12 @@ test('paired bootstrap: the interval contains the estimate and widens with noise
   const ci = pairedBootstrap(a, b);
   assert.ok(ci.lo <= ci.estimate && ci.estimate <= ci.hi);
   assert.ok(ci.hi - ci.lo > 0);
+  // The quieter control (review finding 18): the same medians with a quarter of the spread around them give a
+  // narrower interval. Spread: every value pulled to its configuration's median by 3/4.
+  const pull = (v, m) => m + (v - m) / 4;
+  const ma = 10, mb = 12;
+  const quiet = pairedBootstrap(a.map(v => pull(v, ma)), b.map(v => pull(v, mb)));
+  assert.ok(quiet.hi - quiet.lo < ci.hi - ci.lo, `quiet width ${quiet.hi - quiet.lo} should be below noisy width ${ci.hi - ci.lo}`);
 });
 
 test('three outcomes, lower is better; a noise band must be cleared as well as zero', () => {
@@ -54,27 +60,35 @@ test('fewer complete pairs than the minimum never yields a verdict', () => {
   assert.match(res.metrics.taskMs.outcomeNote, /fewer than/);
 });
 
+// The block count is MIN_PAIRS + 1 so that, with one block lost, the verdict rule still allows a verdict (the rule
+// went from 6 to the plan's 20 pairs; the assertions are unchanged).
 test('non-ok runs are not paired', () => {
   const runs = [];
-  for (let b = 0; b < 8; b++) {
-    runs.push({ phase: 'timed', block: b, config: 'A', outcome: 'ok', summary: { taskMs: 1 } });
-    runs.push({ phase: 'timed', block: b, config: 'B', outcome: b === 3 ? 'timeout' : 'ok', summary: b === 3 ? undefined : { taskMs: 2 } });
+  const n = MIN_PAIRS + 1;
+  for (let b = 0; b < n; b++) {
+    runs.push({ phase: 'timed', block: b, position: b % 2, config: 'A', outcome: 'ok', summary: { taskMs: 1 } });
+    runs.push({ phase: 'timed', block: b, position: 1 - (b % 2), config: 'B', outcome: b === 3 ? 'timeout' : 'ok', summary: b === 3 ? undefined : { taskMs: 2 } });
   }
   const res = analyze('first', runs);
-  assert.equal(res.completePairs, 7);
+  assert.equal(res.completePairs, n - 1);
   assert.equal(res.outcomes['B:timeout'], 1);
   assert.equal(res.metrics.taskMs.outcome, 'worse');
 });
 
+// A readback built from the fixture: what an honest chart that draws every point with breaks at missing values
+// reports. (Built from expectedView, so it cannot catch a wrong expectedView; drawn.test.mjs has literal cases.)
+const runsOf = col => { const p = []; let s = -1; for (let i = 0; i <= col.length; i++) { const ok = i < col.length && col[i] === col[i]; if (ok && s < 0) s = i; if (!ok && s >= 0) { p.push([s, i - 1]); s = -1; } } return p; };
 const exact = fix => {
   const e = expectedView(fix);
-  return { x: [e.oldestX, e.newestX], y: [e.yMin, e.yMax], series: e.missing.map(m => ({ points: e.points, oldestX: e.oldestX, newestX: e.newestX, missing: m })) };
+  const { ys } = heldColumns(fix);
+  return { x: [e.oldestX, e.newestX], y: [e.yMin, e.yMax], series: e.missing.map((m, i) => ({ points: e.points, oldestX: e.oldestX, newestX: e.newestX, missing: m, drawn: { kind: 'indices', paths: runsOf(ys[i]) } })) };
 };
+const cols = fix => ({ columns: heldColumns(fix) });
 
 test('admission accepts a readback that matches the fixture', () => {
   for (const fix of [lineFixture({ series: 3, points: 120 }), lineFixture({ series: 1, points: 10000, gaps: true }), streamFixture({})]) {
-    const r = checkView(expectedView(fix), exact(fix));
-    assert.deepEqual(r, { admitted: true, reasons: [] });
+    const r = checkView(expectedView(fix), exact(fix), cols(fix));
+    assert.deepEqual(r, { admitted: true, reasons: [], limits: [] });
   }
 });
 
@@ -98,18 +112,19 @@ test('admission rejects a pinned y range, a clipped extreme, a wrong count and a
   const fix = lineFixture({ series: 3, points: 120 });
   const e = expectedView(fix);
   const pinned = { ...exact(fix), y: [1e6, 2e6] };
-  assert.equal(checkView(e, pinned).admitted, false);
+  assert.equal(checkView(e, pinned, cols(fix)).admitted, false);
   const clipped = { ...exact(fix), y: [e.yMin, fix.extreme.y - 1] };
-  const rc = checkView(e, clipped);
+  const rc = checkView(e, clipped, cols(fix));
   assert.equal(rc.admitted, false);
   assert.ok(rc.reasons.some(r => r.includes('injected extreme')));
   const fewer = exact(fix); fewer.series[1].points = 119;
-  assert.equal(checkView(e, fewer).admitted, false);
-  const filledGaps = exact(lineFixture({ series: 1, points: 1000, gaps: true })); filledGaps.series[0].missing = 0;
-  assert.equal(checkView(expectedView(lineFixture({ series: 1, points: 1000, gaps: true })), filledGaps).admitted, false);
+  assert.equal(checkView(e, fewer, cols(fix)).admitted, false);
+  const g = lineFixture({ series: 1, points: 1000, gaps: true });
+  const filledGaps = exact(g); filledGaps.series[0].missing = 0;
+  assert.equal(checkView(expectedView(g), filledGaps, cols(g)).admitted, false);
   const s = streamFixture({});
   const stale = exact(s); stale.series[0].newestX -= s.step;
-  assert.equal(checkView(expectedView(s), stale).admitted, false);
+  assert.equal(checkView(expectedView(s), stale, cols(s)).admitted, false);
   assert.equal(checkView(e, null).admitted, false);
 });
 

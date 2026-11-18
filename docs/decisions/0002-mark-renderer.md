@@ -13,6 +13,7 @@ The table below is kept as measured. These statements made from it in the first 
 - **Withdrawn: normalization and garbage collection explain the gap to uPlot.** About 71–73% of busy time in the production profiles is unmapped; the normalization share comes from development builds. It is a hypothesis to test, not a finding.
 - **Narrowed: "half the renderer memory."** The halving is of the increase above a data-only page at pixel ratio 2 (34.2 → 17.7 MiB). Absolute renderer memory was 74.7 → 56.2 MiB, and at pixel ratio 1 the increase was 23.1 → 18.4 MiB.
 - **Narrowed: "no frame later than 25 ms."** True of the recorded animation-frame callbacks; the window can miss an interval that spans its boundary, and a callback is not a presented frame.
+- **Void: every 24-chart page row** (page at pixel ratio 1 and 2, resize of the 24-chart page, and the memory row). The harness fix pass found that these runs drew no marks: at 230 × 115 px each tile is below the 120 × 80 px plot minimum of spec L8, so every chart showed its text fallback. The SVG records carry `svgPaths: 0`; the canvas runs held empty canvases. The numbers compare two empty charts and say nothing about the renderers. The harness now rejects a run whose chart drew no marks, and the page workload uses 340 × 200 px tiles.
 - **Narrowed: verdicts.** 149 metric comparisons were judged without adjustment for choosing among them, on six pairs or fewer per workload, with noise bands from one session and two workload shapes. Two "SVG lower" rows allow a gain as small as 0.16 ms (10,000 points) and 6.3 ms (dashboard at pixel ratio 2).
 
 Evidence: [bench/results/m1-renderer-comparison.md](../../bench/results/m1-renderer-comparison.md). One session of 39 runs, production build, headless Chrome 157, machine under load from other work, A-versus-A noise bands for two workloads only.
@@ -27,13 +28,13 @@ Canvas → SVG, medians of main-thread task time unless stated. "Lower" means th
 | Theme change, per toggle | 2.68 ms and 27 drawing calls | 2.01 ms and no drawing call | SVG lower |
 | Resize, one chart of 100,000 points | 915 ms | 472 ms | SVG lower on the main thread |
 | Same, CPU across all threads | 1,035 ms | 1,770 ms | **SVG higher** |
-| Resize, 24-chart page | 730 ms | 525 ms | SVG lower |
+| Resize, 24-chart page | 730 ms | 525 ms | Void: no marks were drawn |
 | First chart, 10,000 points | 34.0 ms | 28.4 ms | SVG lower |
-| 24-chart page at pixel ratio 2 | 199 ms | 158 ms | SVG lower |
+| 24-chart page at pixel ratio 2 | 199 ms | 158 ms | Void: no marks were drawn |
 | First chart, 3 × 120 | 23.6 ms | 19.8 ms | Inconclusive |
 | First chart, 100,000 points | 81.8 ms | 83.5 ms | Inconclusive |
 | First chart, 1,000,000 points | 622 ms | 652 ms | Inconclusive (4 blocks) |
-| Memory, 24-chart page at pixel ratio 2 | 34.2 MiB renderer, 11.5 MiB GPU, 7.7 MiB backing stores | 17.7 MiB, 2.2 MiB, none | SVG lower; its JavaScript heap is 0.1–0.3 MiB higher and it has 144 more DOM nodes |
+| Memory, 24-chart page at pixel ratio 2 | 34.2 MiB renderer, 11.5 MiB GPU, 7.7 MiB backing stores | 17.7 MiB, 2.2 MiB, none | Void: no marks were drawn |
 
 No frame was later than 25 ms in any configuration, so frame pacing does not separate the two.
 

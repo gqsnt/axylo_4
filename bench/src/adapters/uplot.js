@@ -12,8 +12,14 @@
 // Input: typed columns go to uPlot as they are (it accepts typed arrays). uPlot marks a gap with null, which a
 // Float64Array cannot hold, so a column containing NaN is copied into a plain array with null in its place; that
 // copy is part of the timed work because it is what feeding uPlot this data costs.
+//
+// Not configured here: scatter (uPlot's default configuration draws lines) and a compact variant; those workloads
+// report "not available" for uPlot.
 import uPlot from 'uplot';
 import css from 'uplot/dist/uPlot.min.css';
+import { uplotDrawnPaths } from '../drawn.js';
+
+export { uplotDrawnPaths };
 
 const COLORS = ['#1f77b4', '#d62728', '#2ca02c', '#9467bd', '#ff7f0e'];
 const LEGEND_ROOM = 30;
@@ -32,33 +38,36 @@ export function createUplot(el, fix, opts = {}, tweak = {}) {
   const stream = !!opts.window;
   // Streaming appends with push/shift on plain arrays, uPlot's own streaming pattern; typed arrays cannot grow.
   const data = [stream ? Array.from(fix.x) : fix.x, ...fix.ys.map(c => column(c, stream))];
-  let readyResolve, drawnNewest = NaN;
-  const ready = new Promise(r => { readyResolve = r; });
+  let drawnNewest = NaN, pending = true, waiters = [];
   const options = {
     width: el.clientWidth,
     height: el.clientHeight - LEGEND_ROOM,
     ms: 1,
     series: [{}, ...fix.names.map((n, i) => ({ label: n, stroke: COLORS[i % COLORS.length] }))],
     hooks: {
-      // Instrumentation, not configuration: record what the chart had when it last drew.
-      draw: [u => { const xs = u.data[0]; drawnNewest = xs[xs.length - 1]; readyResolve(); }],
+      // Instrumentation, not configuration: record what the chart had when it last drew, and resolve readiness.
+      draw: [u => { const xs = u.data[0]; drawnNewest = xs[xs.length - 1]; pending = false; const w = waiters; waiters = []; for (const r of w) r(); }],
     },
   };
   tweak.options?.(options);
-  const u = new uPlot(options, data, el);
   // Resize workload only: uPlot does not follow its container; its demos use a resize listener and setSize. A
   // ResizeObserver on the container is the same pattern for a container that changes without a window resize.
-  let observer = null;
+  // It is registered before uPlot exists so it always runs first and marks the chart as having a draw pending.
+  let observer = null, u = null;
   if (opts.resize) {
     observer = new ResizeObserver(() => {
+      if (!u) return;
       const w = el.clientWidth, h = el.clientHeight - LEGEND_ROOM;
-      if (w !== u.width || h !== u.height) u.setSize({ width: w, height: h });
+      if (w !== u.width || h !== u.height) { pending = true; u.setSize({ width: w, height: h }); }
     });
     observer.observe(el);
   }
+  u = new uPlot(options, data, el);
+  // Readiness is re-evaluated: after a resize or zoom, a draw is pending until uPlot's draw hook runs again.
+  const readyNow = () => (pending ? new Promise(r => waiters.push(r)) : Promise.resolve());
   return {
     u,
-    ready,
+    get ready() { return readyNow(); },
     append(x, ys) {
       data[0].push(x);
       for (let s = 0; s < ys.length; s++) data[s + 1].push(ys[s] === ys[s] ? ys[s] : null);
@@ -66,23 +75,35 @@ export function createUplot(el, fix, opts = {}, tweak = {}) {
         data[0].shift();
         for (let s = 0; s < ys.length; s++) data[s + 1].shift();
       }
+      pending = true;
       u.setData(data);
     },
     drawnNewestX: () => drawnNewest,
+    zoom(lo, hi) { pending = true; u.setScale('x', { min: lo, max: hi }); },
+    hoverTarget: () => u.over,
+    hoveredIndex: () => (u.cursor.idx == null ? NaN : u.cursor.idx),
+    // The legend's live value for series 1 reads datum i in uPlot's own value format.
+    readoutShows(i) {
+      const v = u.root.querySelectorAll('.u-legend .u-series')[1]?.querySelector('.u-value');
+      if (!v) return false;
+      return v.textContent === String(u.series[1].value(u, u.data[1][i], 1, i));
+    },
     // Reads uPlot's own state, not the fixture:
     //   x range  u.scales.x.min / max   (milliseconds, because of ms: 1)
     //   y range  u.scales.y.min / max   (the one value scale every series uses by default)
-    //   per series: u.data[0].length, u.data[0][0], u.data[0][last], and the count of null in u.data[s]
+    //   per series: u.data[0].length, u.data[0][0], u.data[0][last], the count of null in u.data[s], and the
+    //   drawn index paths (uplotDrawnPaths over series.idxs and series.spanGaps)
     describe() {
       const xs = u.data[0];
       return {
-        reads: 'uPlot u.scales.x/y.{min,max}; u.data[0] length and ends; null count in u.data[s]',
+        reads: 'uPlot u.scales.x/y.{min,max}; u.data[0] length and ends; null count in u.data[s]; drawn paths from u.series[s].idxs and null breaks',
         x: [u.scales.x.min, u.scales.x.max],
         y: [u.scales.y.min, u.scales.y.max],
-        series: u.data.slice(1).map(col => {
+        series: u.data.slice(1).map((col, i) => {
           let missing = 0;
-          for (let i = 0; i < col.length; i++) if (col[i] == null) missing++;
-          return { points: col.length, oldestX: xs[0], newestX: xs[xs.length - 1], missing };
+          for (let k = 0; k < col.length; k++) if (col[k] == null) missing++;
+          const s = u.series[i + 1];
+          return { points: col.length, oldestX: xs[0], newestX: xs[xs.length - 1], missing, drawn: { kind: 'indices', paths: uplotDrawnPaths(col, s.idxs, !!s.spanGaps) } };
         }),
       };
     },
@@ -95,7 +116,7 @@ export default {
   library: 'uPlot',
   version: __VERSIONS__.uplot,
   config: 'default',
-  available: () => ({ ok: true }),
+  available: workload => (workload === 'scatter' || workload === 'compact' ? { ok: false, reason: `no ${workload} configuration for uPlot in this harness` } : { ok: true }),
   setup() {
     const s = document.createElement('style');
     s.textContent = css;

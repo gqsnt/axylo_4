@@ -1,22 +1,19 @@
-// Attributes a Chrome CPU profile (CDP Profiler) of an Axylo run to the library's pipeline stages.
+// Attributes a Chrome CPU profile (CDP Profiler) of an Axylo run to the library's pipeline stages, two ways:
 //
-// Each sample is given to the deepest stack frame that is Axylo code (so time in a browser API called by Axylo,
-// such as a canvas call or a forced layout, counts for the Axylo function that called it). That frame's source
-// module decides the stage. Samples with no Axylo frame are "(program)" (native main-thread work outside
-// JavaScript: style, layout, paint, compositing setup), "(garbage collector)", "(idle)", or other JavaScript (the
-// harness page and anything else).
+//   self       each sample goes to its leaf frame: the Axylo module of that function when the leaf is Axylo code,
+//              otherwise its category ((program): native main-thread work outside JavaScript such as style, layout
+//              and paint; (garbage collector); (idle); other JavaScript). A browser API called from Axylo that V8
+//              does not show as a frame of its own counts as self time of the calling Axylo function.
+//   inclusive  each sample counts once for every stage that has a frame anywhere on its stack, so a stage's
+//              inclusive share includes the work it called; shares do not add up to 100%.
 //
-// Positions are mapped to source modules in two ways:
-//   development build (axylo.iife.js): esbuild writes "// packages/axylo/src/<module>.ts" before each module, so a
-//     line number gives the module;
-//   production build (axylo.iife.min.js): the bench rebuilds the same file with the same esbuild options plus a
-//     source map, checks that the code is byte-identical to the shipped file, and maps line and column through it.
+// Positions are mapped to source modules through the source map bench/build.mjs wrote next to each bundle in the
+// sealed artifact the profiled run loaded, for the production and the development build alike; no rebuild is
+// involved, so the map describes the measured bytes (the build checks that the map does not change them).
+// What this cannot do: recover frames V8 inlined away (their time shows in the caller), attribute garbage
+// collection to the code that allocated, or see work on other threads (raster, GPU).
 import fs from 'node:fs';
 import path from 'node:path';
-import { build } from 'esbuild';
-import { REPO } from '../build.mjs';
-
-const AXYLO_SRC = path.join(REPO, 'packages/axylo/src');
 
 /** Directory (or file) under packages/axylo/src -> the pipeline stage named in the M1 brief. */
 export const STAGE_OF = {
@@ -34,18 +31,10 @@ export const STAGE_OF = {
   messages: 'orchestration: messages/',
   'index.ts': 'orchestration: index.ts',
 };
-const stageOf = mod => STAGE_OF[mod.split('/')[0]] ?? `other: ${mod}`;
-
-/** Line (0-based) -> module path, from the development build's module comments. */
-function devLineMap(file) {
-  const lines = fs.readFileSync(file, 'utf8').split('\n');
-  const starts = [];
-  lines.forEach((l, i) => { const m = /^\s*\/\/ packages\/axylo\/src\/(.+\.ts)$/.exec(l); if (m) starts.push([i, m[1]]); });
-  return line => { let mod = null; for (const [i, m] of starts) { if (i <= line) mod = m; else break; } return mod; };
-}
+export const stageOf = mod => STAGE_OF[mod.split('/')[0]] ?? `other: ${mod}`;
 
 const B64 = Object.fromEntries([...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'].map((c, i) => [c, i]));
-function decodeVlq(str) {
+export function decodeVlq(str) {
   const out = [];
   let shift = 0, value = 0;
   for (const ch of str) {
@@ -57,74 +46,80 @@ function decodeVlq(str) {
   return out;
 }
 
-/** (line, column) -> module path, from a source map; null when the rebuilt file differs from the shipped one. */
-async function prodPositionMap(file) {
-  const res = await build({
-    entryPoints: [path.join(AXYLO_SRC, 'index.ts')], bundle: true, target: 'es2022', legalComments: 'none', logLevel: 'silent',
-    format: 'iife', globalName: 'Axylo', minify: true, define: { __DEV__: 'false' }, sourcemap: 'external', write: false,
-    outfile: path.join(REPO, 'bench/dist/axylo-map/axylo.iife.min.js'), absWorkingDir: REPO,
-  });
-  const js = res.outputFiles.find(f => f.path.endsWith('.js')).text;
-  const map = JSON.parse(res.outputFiles.find(f => f.path.endsWith('.map')).text);
-  if (js !== fs.readFileSync(file, 'utf8')) return { map: null, note: 'not available: rebuilding packages/axylo/src now does not reproduce the measured production bundle byte for byte (the sources changed after it was built), so its minified positions cannot be mapped; see the development-build profile' };
+/** A source map (v3) -> (line, column) => module path under packages/axylo/src, or null. */
+export function positionMap(map) {
   const sources = map.sources.map(s => { const i = s.indexOf('packages/axylo/src/'); return i >= 0 ? s.slice(i + 'packages/axylo/src/'.length) : s; });
-  const lines = map.mappings.split(';').map(() => []);
+  const lines = [];
   let src = 0;
-  map.mappings.split(';').forEach((segs, line) => {
+  map.mappings.split(';').forEach(segs => {
+    const row = [];
     let col = 0;
     for (const seg of segs.split(',')) {
       if (!seg) continue;
       const v = decodeVlq(seg);
       col += v[0];
-      if (v.length >= 4) { src += v[1]; lines[line].push([col, src]); }
+      if (v.length >= 4) { src += v[1]; row.push([col, src]); }
     }
+    lines.push(row);
   });
-  return {
-    map: (line, column) => {
-      const segs = lines[line];
-      if (!segs?.length) return null;
-      let lo = 0, hi = segs.length - 1, best = -1;
-      while (lo <= hi) { const mid = (lo + hi) >> 1; if (segs[mid][0] <= column) { best = mid; lo = mid + 1; } else hi = mid - 1; }
-      return best < 0 ? null : sources[segs[best][1]];
-    },
-    note: 'production bundle rebuilt with a source map and verified byte-identical to the shipped file',
+  return (line, column) => {
+    const segs = lines[line];
+    if (!segs?.length) return null;
+    let lo = 0, hi = segs.length - 1, best = -1;
+    while (lo <= hi) { const mid = (lo + hi) >> 1; if (segs[mid][0] <= column) { best = mid; lo = mid + 1; } else hi = mid - 1; }
+    return best < 0 ? null : sources[segs[best][1]];
   };
 }
 
-export async function summarizeProfile(profile, build) {
-  // The snapshot the profiled run loaded (bench/dist/axylo), not whatever packages/axylo/dist holds now.
-  const file = path.join(REPO, 'bench/dist/axylo', build === 'dev' ? 'axylo.iife.js' : 'axylo.iife.min.js');
-  let locate, note;
-  if (build === 'dev') { const f = devLineMap(file); locate = (line) => f(line); note = 'development build, module comments'; }
-  else { const p = await prodPositionMap(file); note = p.note; locate = p.map; }
+const isAxylo = cf => /\/axylo\/axylo\.iife(\.min)?\.js/.test(cf.url);
+
+/**
+ * @param profile  a CDP Profiler profile
+ * @param opts     { map: source map object of the bundle the run loaded, build: 'prod' | 'dev' }
+ */
+export function summarizeProfile(profile, { map, build }) {
+  const locate = map ? positionMap(map) : null;
   const nodes = new Map(profile.nodes.map(n => [n.id, n]));
   const parent = new Map();
   for (const n of profile.nodes) for (const c of n.children ?? []) parent.set(c, n.id);
-  const isAxylo = cf => /\/axylo\/axylo\.iife(\.min)?\.js/.test(cf.url);
-  const byStage = {}, byModule = {}, byFunction = {};
-  let total = 0, inWindow = 0;
+  const modOf = cf => (locate ? locate(cf.lineNumber, cf.columnNumber) : null);
+  const self = {}, selfModule = {}, selfFunction = {}, inclusive = {};
+  let total = 0, samples = 0;
   const add = (o, k, t) => { o[k] = (o[k] ?? 0) + t; };
   profile.samples.forEach((id, i) => {
     const t = (profile.timeDeltas[i] ?? 0) / 1000; // ms
-    total += t;
-    let n = nodes.get(id), hit = null;
-    const leaf = n.callFrame.functionName;
-    for (let cur = id; cur !== undefined; cur = parent.get(cur)) { const node = nodes.get(cur); if (isAxylo(node.callFrame)) { hit = node; break; } }
-    if (hit) {
-      const mod = locate ? locate(hit.callFrame.lineNumber, hit.callFrame.columnNumber) : null;
-      add(byStage, mod ? stageOf(mod) : 'axylo (unmapped)', t);
-      add(byModule, mod ?? '(unmapped)', t);
-      add(byFunction, `${hit.callFrame.functionName || '(anonymous)'} @ ${mod ?? '?'}:${hit.callFrame.lineNumber + 1}`, t);
-    } else if (leaf === '(idle)') add(byStage, '(idle)', t);
-    else if (leaf === '(program)') add(byStage, '(program): native main-thread work outside JS', t);
-    else if (leaf === '(garbage collector)') add(byStage, '(garbage collector)', t);
-    else add(byStage, 'other JavaScript (harness, page)', t);
-    inWindow++;
+    total += t; samples++;
+    const leaf = nodes.get(id).callFrame;
+    if (isAxylo(leaf)) {
+      const mod = modOf(leaf);
+      add(self, mod ? stageOf(mod) : 'axylo (unmapped)', t);
+      add(selfModule, mod ?? '(unmapped)', t);
+      add(selfFunction, `${leaf.functionName || '(anonymous)'} @ ${mod ?? '?'}:${leaf.lineNumber + 1}`, t);
+    } else if (leaf.functionName === '(idle)') add(self, '(idle)', t);
+    else if (leaf.functionName === '(program)') add(self, '(program): native main-thread work outside JS', t);
+    else if (leaf.functionName === '(garbage collector)') add(self, '(garbage collector)', t);
+    else add(self, 'other JavaScript (harness, page, comparison library)', t);
+    const seen = new Set();
+    for (let cur = id; cur !== undefined; cur = parent.get(cur)) {
+      const cf = nodes.get(cur).callFrame;
+      if (!isAxylo(cf)) continue;
+      const mod = modOf(cf);
+      seen.add(mod ? stageOf(mod) : 'axylo (unmapped)');
+    }
+    if (seen.size) seen.add('Axylo (any frame)');
+    for (const s of seen) add(inclusive, s, t);
   });
-  const busy = total - (byStage['(idle)'] ?? 0);
+  const busy = total - (self['(idle)'] ?? 0);
   const table = o => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, ms]) => ({ k, ms: +ms.toFixed(2), ofBusy: busy && k !== '(idle)' ? +(100 * ms / busy).toFixed(1) : null }));
   return {
-    build, mapping: note, samples: inWindow, totalMs: +total.toFixed(2), busyMs: +busy.toFixed(2),
-    stages: table(byStage), modules: table(byModule).slice(0, 25), functions: table(byFunction).slice(0, 25),
+    build, mapping: locate ? 'source map from the sealed artifact (describes the measured bytes)' : 'not available: no source map in the artifact',
+    samples, totalMs: +total.toFixed(2), busyMs: +busy.toFixed(2),
+    self: table(self), inclusive: table(inclusive), selfModules: table(selfModule).slice(0, 25), selfFunctions: table(selfFunction).slice(0, 25),
   };
+}
+
+/** The source map of the bundle a run loaded, from its artifact directory; null when absent. */
+export function artifactMap(artifactDir, build) {
+  const p = path.join(artifactDir, 'axylo', build === 'dev' ? 'axylo.iife.js.map' : 'axylo.iife.min.js.map');
+  return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null;
 }

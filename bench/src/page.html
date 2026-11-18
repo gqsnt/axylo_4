@@ -9,13 +9,19 @@
   #root { padding: 8px; }
   /* 2:1 containers: Chart.js's default aspect ratio is 2:1, so every library fills the same area. */
   .chart { width: 800px; height: 400px; overflow: hidden; position: relative; }
-  .grid { display: grid; grid-template-columns: repeat(6, 230px); gap: 6px; }
-  .grid .chart { width: 230px; height: 115px; }
+  /* Dashboard tiles (W-page, P5): 4 columns of 340x200; the page scrolls. At the earlier 230x115 Axylo's plot was
+     below the 120x80 minimum of spec L8, so it showed its text summary instead of marks (the M1 dashboard records
+     have no SVG paths at all); a dashboard benchmark must draw charts. */
+  .grid { display: grid; grid-template-columns: repeat(4, 340px); gap: 6px; }
+  .grid .chart { width: 340px; height: 200px; }
+  /* compact workload (P8): 40 sparkline tiles, 8 x 5 */
+  .grid.compact { grid-template-columns: repeat(8, 160px); }
+  .grid.compact .chart { width: 160px; height: 48px; }
   /* resize workload: the box's width is animated; charts fill it */
   .resize-box { width: 1200px; }
   .resize-box > .chart { width: 100%; height: 400px; }
-  .resize-box.grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .resize-box.grid > .chart { width: auto; height: 115px; }
+  .resize-box.grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .resize-box.grid > .chart { width: auto; height: 200px; }
   /* theme workload: a class-toggled dark theme on <html>, as a page would ship it (spec L4) */
   html.bench-dark, html.bench-dark body { color-scheme: dark; background: #111; color: #eee; }
   #status { white-space: pre-wrap; font-family: monospace; }

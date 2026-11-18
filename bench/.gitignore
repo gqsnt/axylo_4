@@ -1,0 +1,3 @@
+# Sealed per-session build artifacts (bench/build.mjs) and scratch space; run records in history/ pin their hashes.
+artifacts/
+.scratch/

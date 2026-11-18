@@ -6,8 +6,10 @@
   "scripts": {
     "build": "node build.mjs",
     "test": "node --test test/*.test.mjs",
+    "test:browser": "node --test --test-concurrency=1 test/browser/*.test.mjs",
     "bench": "node run.mjs",
-    "analyze": "node analyze.mjs"
+    "analyze": "node analyze.mjs",
+    "coverage": "node tools/coverage.mjs"
   },
   "dependencies": {
     "chart.js": "^4.6.1",

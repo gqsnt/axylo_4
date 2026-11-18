@@ -11,8 +11,10 @@
 //   plugins.decimation:         "Data decimation" (docs/latest/configuration/decimation.html). min-max keeps each
 //     { enabled, 'min-max' }    pixel column's lowest and highest point, so spikes such as the injected extreme stay.
 //                               Active only above 4x the canvas width in points. Known fidelity risk: min-max skips
-//                               NaN values, so above that threshold a gap can be drawn across; the admission check
-//                               reads the held data (dataset._data), not the decimated copy, and does not catch this.
+//                               NaN values, so above that threshold a gap can be drawn across. The readback reports
+//                               the decimated copy Chart.js draws (chartjs-common.js, chartjsDrawnPaths), and the
+//                               admission check rejects a drawing that joins retained points across a missing value:
+//                               on gappy data above the threshold this configuration is not admitted.
 //   elements.point.radius: 0    "Disable point drawing" (elements.point.radius / pointRadius). Visible difference:
 //                               no point markers, which on 3x120 are visible dots and on 10k+ points a solid band.
 //   interaction: { mode:        keeps the tooltip reachable without markers: with the default intersect: true and
@@ -23,7 +25,7 @@
 //
 // Input: one {x, y} object per point is built from the typed columns inside the timed work; Chart.js has no typed
 // column input. Streaming pushes and shifts the same array and calls chart.update('none').
-import { Chart, benchPlugin, handleFor, newState, canvasIn } from './chartjs-common.js';
+import { Chart, benchPlugin, handleFor, newState, canvasIn, chartjsAvailable } from './chartjs-common.js';
 
 const held = (chart, i) => { const d = chart.data.datasets[i]; return d._data ?? d.data; };
 const newestHeld = chart => { const d = held(chart, 0); return d[d.length - 1]?.x; };
@@ -33,8 +35,8 @@ export default {
   library: 'Chart.js',
   version: __VERSIONS__['chart.js'],
   config: 'tuned, same visible features',
-  available: () => ({ ok: true }),
-  create(el, fix) {
+  available: chartjsAvailable,
+  create(el, fix, opts = {}) {
     const state = newState();
     const n = fix.x.length;
     const arrays = fix.ys.map(col => {
@@ -42,7 +44,7 @@ export default {
       for (let k = 0; k < n; k++) pts[k] = { x: fix.x[k], y: col[k] };
       return pts;
     });
-    const chart = new Chart(canvasIn(el), {
+    const chart = new Chart(canvasIn(el, state, opts), {
       type: 'line',
       data: { datasets: arrays.map((data, i) => ({ label: fix.names[i], data })) },
       options: {

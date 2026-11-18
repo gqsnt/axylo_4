@@ -13,6 +13,7 @@ export default {
     return {
       ready: Promise.resolve(),
       append(x) { newest = x; },
+      zoom() {},
       drawnNewestX: () => newest,
       // There is no drawing to read back; the runner records admission as "not applicable (floor)".
       describe: () => null,

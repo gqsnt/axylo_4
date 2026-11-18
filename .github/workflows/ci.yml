@@ -39,6 +39,8 @@ jobs:
       - run: npm run size
       - run: node --test bench/test/*.test.mjs
         shell: bash
+      - run: node --test --test-concurrency=1 bench/test/browser/*.test.mjs
+        shell: bash
       - run: node --test acceptance/test/*.test.mjs
         shell: bash
       - run: node acceptance/check.mjs

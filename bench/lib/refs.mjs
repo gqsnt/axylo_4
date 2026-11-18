@@ -1,8 +1,9 @@
-// Adapter references and noise bands for the runner.
+// Adapter references, workloads and noise bands for the runner and the analyzer.
 import fs from 'node:fs';
 import path from 'node:path';
+import { MIN_BAND_PAIRS, MIN_BAND_SESSIONS } from '../src/stats.js';
 
-export const WORKLOADS = ['first', 'page', 'stream', 'theme', 'resize'];
+export const WORKLOADS = ['first', 'page', 'compact', 'scatter', 'stream', 'theme', 'resize', 'hover', 'zoom', 'mem', 'lifecycle'];
 
 /**
  * "axylo:renderer=svg,build=dev" -> { id: 'axylo', params: { renderer: 'svg', build: 'dev' } }.
@@ -20,24 +21,89 @@ export function parseAdapterRef(ref) {
   return { id, params };
 }
 
+/** JSON with sorted keys, so two parameter objects compare equal whatever order they were written in. */
+export function stableJson(v) {
+  if (Array.isArray(v)) return `[${v.map(stableJson).join(',')}]`;
+  if (v && typeof v === 'object') return `{${Object.keys(v).filter(k => v[k] !== undefined).sort().map(k => `${JSON.stringify(k)}:${stableJson(v[k])}`).join(',')}}`;
+  return JSON.stringify(v);
+}
+
 /**
- * Loads one or more complete A-versus-A records for the same workload and parameters. With several, the band is
- * their union per metric (lowest lo, highest hi), the more cautious choice.
+ * What a noise band must match to be used for a comparison: the measured thing (workload, parameters, settle, pixel
+ * ratio), the bytes (every file the A-versus-A run loaded, by hash, must be byte-identical in the comparison's
+ * artifact), the browser (Chrome version, headless or headed) and the machine (host name, CPU model, cores).
+ * Taken from a history record, so the analyzer derives it from the record it replays.
  */
-export function loadNoise(refs, historyDir, workload, params) {
-  const sources = [], metrics = {};
-  for (const ref of refs) {
-    const p = fs.existsSync(ref) ? ref : path.join(historyDir, `${ref}.json`);
-    if (!fs.existsSync(p)) throw new Error(`noise run ${ref} not found`);
-    const n = JSON.parse(fs.readFileSync(p, 'utf8'));
-    if (n.design?.mode !== 'aa' || n.status !== 'complete') throw new Error(`noise run ${ref} is not a complete A-versus-A run`);
-    if (n.design.workload !== workload || JSON.stringify(n.design.params) !== JSON.stringify(params)) throw new Error(`noise run ${ref} is for ${n.design.workload} ${JSON.stringify(n.design.params)}, not this workload`);
-    sources.push({ runId: n.runId, adapter: n.design.baseline, chrome: n.environment.browser.version, dpr: n.design.dpr });
-    for (const [k, m] of Object.entries(n.analysis.metrics)) {
-      if (!Number.isFinite(m.lo) || !Number.isFinite(m.hi)) continue;
-      const cur = metrics[k];
-      metrics[k] = cur ? { lo: Math.min(cur.lo, m.lo), hi: Math.max(cur.hi, m.hi) } : { lo: m.lo, hi: m.hi };
+export function controlsOf(record) {
+  const d = record.design ?? {}, env = record.environment ?? {};
+  return {
+    workload: d.workload, params: d.params, settleMs: d.settleMs, dpr: d.dpr ?? 1,
+    chrome: env.browser?.version, headless: env.browser?.headless,
+    host: env.host ?? null,
+    files: record.hashes?.files ?? null,
+    slots: record.hashes?.slots ?? null,
+  };
+}
+
+const hostKey = h => (h ? `${h.hostname} / ${h.cpuModel} / ${h.logicalCores} cores` : 'not recorded');
+
+/** Every reason the A-versus-A record `n` cannot serve as a band for a comparison with controls `c`. */
+export function bandMismatches(n, c) {
+  const out = [];
+  const nc = controlsOf(n);
+  if (nc.workload !== c.workload) out.push(`workload ${nc.workload}, comparison ${c.workload}`);
+  if (stableJson(nc.params) !== stableJson(c.params)) out.push(`parameters ${stableJson(nc.params)}, comparison ${stableJson(c.params)}`);
+  if (nc.settleMs !== c.settleMs) out.push(`settle ${nc.settleMs} ms, comparison ${c.settleMs} ms`);
+  if (nc.dpr !== c.dpr) out.push(`device pixel ratio ${nc.dpr}, comparison ${c.dpr}`);
+  if (nc.chrome !== c.chrome) out.push(`Chrome ${nc.chrome}, comparison ${c.chrome}`);
+  if (nc.headless !== c.headless) out.push(`${nc.headless ? 'headless' : 'headed'}, comparison ${c.headless ? 'headless' : 'headed'}`);
+  if (!nc.host || !c.host || hostKey(nc.host) !== hostKey(c.host)) out.push(`host ${hostKey(nc.host)}, comparison ${hostKey(c.host)}`);
+  // Bytes: every file the band's run loaded must be the same file in one of the comparison's slots.
+  const served = n.hashes?.slots?.A?.served;
+  if (!served || !Object.keys(served).length) out.push('the band record does not say which files it served (older record)');
+  else if (!c.slots) out.push('the comparison does not record its artifact files');
+  else {
+    const fits = ['A', 'B'].some(slot => {
+      const files = c.slots[slot]?.files;
+      return files && Object.entries(served).every(([p, h]) => files[p] === h);
+    });
+    if (!fits) {
+      const diff = Object.entries(served).filter(([p, h]) => c.slots.A?.files?.[p] !== h && c.slots.B?.files?.[p] !== h).map(([p]) => p);
+      out.push(`built from different bytes: ${diff.slice(0, 4).join(', ')}${diff.length > 4 ? ', …' : ''} differ from both of the comparison's artifacts`);
     }
   }
-  return { sources, metrics };
+  return out;
+}
+
+/**
+ * Loads one or more complete A-versus-A records and checks each against the comparison's controls. A record that
+ * does not match is refused (an error, not a warning): a band from another pixel ratio, build or machine is not
+ * this comparison's noise. With several, the band is their union per metric (lowest lo, highest hi). A metric's
+ * band is used only from records with at least MIN_BAND_PAIRS complete pairs for it; fewer than
+ * MIN_BAND_SESSIONS records (sessions) make the band exploratory, which the report says.
+ */
+export function loadNoise(refs, historyDir, controls) {
+  if (!controls || !controls.workload) throw new Error('loadNoise needs the comparison\'s controls (controlsOf(record))');
+  const sources = [], metrics = {}, problems = [];
+  for (const ref of refs) {
+    const p = fs.existsSync(ref) ? ref : path.join(historyDir, `${ref}.json`);
+    if (!fs.existsSync(p)) { problems.push(`noise run ${ref} not found`); continue; }
+    const n = JSON.parse(fs.readFileSync(p, 'utf8'));
+    if (n.design?.mode !== 'aa' || n.status !== 'complete' || !n.analysis?.metrics) { problems.push(`noise run ${ref} is not a complete, analysed A-versus-A run`); continue; }
+    const mism = bandMismatches(n, controls);
+    if (mism.length) { problems.push(`noise run ${ref} does not match this comparison: ${mism.join('; ')}`); continue; }
+    sources.push({ runId: n.runId, adapter: n.design.baseline, chrome: n.environment.browser.version, dpr: n.design.dpr, completePairs: n.analysis.completePairs });
+    for (const [k, m] of Object.entries(n.analysis.metrics)) {
+      if (!Number.isFinite(m.lo) || !Number.isFinite(m.hi) || !(m.pairs >= MIN_BAND_PAIRS)) continue;
+      const cur = metrics[k];
+      metrics[k] = cur ? { lo: Math.min(cur.lo, m.lo), hi: Math.max(cur.hi, m.hi), from: [...cur.from, n.runId] } : { lo: m.lo, hi: m.hi, from: [n.runId] };
+    }
+  }
+  if (problems.length) throw new Error(problems.join('\n'));
+  const sessions = new Set(sources.map(s => s.runId)).size;
+  return {
+    sources, metrics, sessions,
+    calibration: sessions >= MIN_BAND_SESSIONS ? `band from ${sessions} sessions` : `exploratory: band from ${sessions} session${sessions === 1 ? '' : 's'}; plan 3.3 asks for at least ${MIN_BAND_SESSIONS}`,
+    minPairs: MIN_BAND_PAIRS,
+  };
 }
