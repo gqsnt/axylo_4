@@ -1,0 +1,42 @@
+# Not yet run: the repository has no remote. Written against the commands that
+# pass locally on Linux with system Chrome; Windows and macOS results are
+# unknown until this runs there.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      # The browser tests launch the runner's installed Chrome
+      # (playwright-core, channel "chrome"); no browser download.
+      # Called directly, not through the npm script: that script sets the
+      # variable with POSIX syntax, which npm on Windows runs through cmd.exe.
+      - run: npx vitest run
+        env:
+          AXYLO_BROWSER: 1
+      - run: npm run size
+      - run: node --test bench/test/*.test.mjs
+        shell: bash
+      - run: node acceptance/check.mjs
