@@ -1,25 +1,23 @@
 /**
  * Spec DX1 in a browser: each documented first chart (examples/first-chart, copied verbatim into its
- * fixture) renders from the packed files in system Chrome: a figure with an accessible name, marks drawn, no
- * console errors or warnings. Diagnostics of level error or warning print with console.warn in every build
- * (spec 3.5), so a clean console also means no error diagnostics; the error state is checked as well.
- * Also: the title is not required by any of the three routes (without it the chart still draws, with a
- * generated name, and raises only AX140), importing the package changes nothing in the document (the
- * `sideEffects` claim), the React adapter's lifecycle under StrictMode as seen from outside it, and hydration.
+ * fixture) renders from the packed files in system Chrome, by npm and by script tag: a figure with an
+ * accessible name, marks drawn, no console errors or warnings. Diagnostics of level error or warning print with
+ * console.warn in every build (spec 3.5), so a clean console also means no error diagnostics; the error state
+ * is checked as well. Also: the title is not required by either route (without it the chart still draws, with
+ * a generated name, and raises only AX140), and importing the package changes nothing in the document (the
+ * `sideEffects` claim).
  *
- * Scope (DX1): the documented first chart is a line chart; these tests establish DX1 for that chart by npm,
- * script tag and React. The other four chart functions come from the same entry points and files, so the
+ * Scope (DX1): the documented first chart is a line chart; these tests establish DX1 for that chart by npm
+ * and by script tag. The other four chart functions come from the same entry points and files, so the
  * package-level parts (resolution, loading, styles) carry over, but their own first-chart snippets are not
  * written or tested here (see README.md).
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { build } from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { BrowserContext } from 'playwright-core';
-import type { Plugin } from 'esbuild';
 import { bundle, closeBrowser, drawn, figureName, launch, open, problems, startServer, type Server } from './browser';
-import { fixture, here, inside, nodeJson } from './paths';
+import { fixture, inside } from './paths';
 
 let server: Server;
 beforeAll(async () => { server = await startServer(); await launch(); });
@@ -51,7 +49,7 @@ async function expectUntitled(w: Awaited<ReturnType<typeof open>>, selector: str
 }
 
 /** Every input of ours that esbuild bundled came from the fixture, never from packages/. */
-function fromFixture(inputs: string[], name: 'npm' | 'react'): void {
+function fromFixture(inputs: string[], name: 'npm'): void {
   expect(inputs.filter(p => p.includes(`${path.sep}packages${path.sep}`) && !inside(fixture(name), p))).toEqual([]);
 }
 
@@ -133,134 +131,6 @@ describe('script tag: examples/first-chart/script.html, with the CDN URLs answer
     const w = await open(server, cdn([]));
     await w.page.goto(`${server.origin}/first/script-untitled.html`);
     await expectUntitled(w, '#chart');
-    await w.context.close();
-  });
-});
-
-/** Resolves the adapter's `import 'axylo'` to pages/spy-axylo.ts, which wraps the packed core from the fixture. */
-const spyOnCore = (): Plugin => {
-  const spy = path.join(here, 'pages/spy-axylo.ts');
-  return {
-    name: 'spy-on-core',
-    setup(b) {
-      b.onResolve({ filter: /^axylo$/ }, async args => {
-        if (args.pluginData?.spy) return undefined;
-        if (args.importer === spy) return b.resolve('axylo', { kind: args.kind, resolveDir: fixture('react'), pluginData: { spy: true } });
-        if (inside(fixture('react', 'node_modules/@axylo/react'), args.importer)) return { path: spy };
-        return undefined;
-      });
-    },
-  };
-};
-
-describe('React: examples/first-chart/react.tsx from the react fixture', () => {
-  it('renders under StrictMode with one chart left', async () => {
-    const { url, inputs } = await bundle({ name: 'first-react', cwd: fixture('react'), entry: fixture('react', 'main.tsx'), conditions: ['development'], nodeEnv: 'development' });
-    fromFixture(inputs, 'react');
-    expect(inputs).toContain(fixture('react', 'node_modules/@axylo/react/dist/index.dev.js'));
-    server.pages.set('/first/react.html', { html: page('react', `<div id="root"></div><script src="${url}"></script>`) });
-    const w = await open(server);
-    await w.page.goto(`${server.origin}/first/react.html`);
-    const state = await drawn(w.page, '#root');
-    expect(state.figures).toBe(1);
-    expect(state.marks).toBeGreaterThan(0);
-    expect(state.errorState).toBe(false);
-    expect(await figureName(w.page, '#root')).toMatch(NAME);
-    expect(problems(w)).toEqual([]);
-    await w.context.close();
-  });
-
-  it('StrictMode, seen through the packed adapter: setup, cleanup, setup again, final unmount; the first chart no longer acts', async () => {
-    const { url, inputs } = await bundle({
-      name: 'first-react-lifecycle', cwd: fixture('react'), entry: fixture('react', 'main-strict.tsx'), conditions: ['development'],
-      nodeEnv: 'development', allow: [path.join(here, 'pages')], plugins: [spyOnCore()],
-    });
-    expect(inputs).toContain(fixture('react', 'node_modules/@axylo/react/dist/index.dev.js'));
-    expect(inputs).toContain(fixture('react', 'node_modules/axylo/dist/axylo.dev.js'));
-    server.pages.set('/first/react-lifecycle.html', { html: page('react', `<div id="root"></div><script src="${url}"></script>`) });
-    const w = await open(server);
-    await w.page.goto(`${server.origin}/first/react-lifecycle.html`);
-    expect((await drawn(w.page, '#root')).marks).toBeGreaterThan(0);
-    type Log = { id: number; what: string }[];
-    const log = () => w.page.evaluate(() => (window as unknown as { __spy: { log: Log } }).__spy.log.filter(e => !e.what.startsWith('event:')));
-    const events = () => w.page.evaluate(() => (window as unknown as { __spy: { log: Log } }).__spy.log.filter(e => e.what.startsWith('event:')));
-    // StrictMode in development runs effects, cleans them up and runs them again: create, destroy, create.
-    expect(await log()).toEqual([{ id: 1, what: 'create' }, { id: 1, what: 'destroy' }, { id: 2, what: 'create' }]);
-    expect(await w.page.locator('#root figure').count()).toBe(1);
-
-    // The first chart, destroyed, ignores every call: nothing changes, nothing is created, nothing throws.
-    const stale = await w.page.evaluate(async () => {
-      const first = (window as unknown as { __spy: { handles: { update(p: object): void; append(r: object[]): void; zoom(d: null): void }[] } }).__spy.handles[0]!;
-      first.update({ title: 'Stale' });
-      first.append([{ month: '2026-05', visitors: 1 }]);
-      first.zoom(null);
-      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-      return { figures: document.querySelectorAll('figure').length, titles: Array.from(document.querySelectorAll('.axylo-title')).map(t => t.textContent) };
-    });
-    expect(stale).toEqual({ figures: 1, titles: ['Monthly visitors'] });
-
-    // Pointer events reach the handler through the live chart only.
-    const plot = (await w.page.locator('#root .axylo-plot').boundingBox())!;
-    for (const f of [0.3, 0.5, 0.7]) { await w.page.mouse.move(plot.x + plot.width * f, plot.y + plot.height * 0.5); await w.page.waitForTimeout(50); }
-    const hovered = await events();
-    expect(hovered.length).toBeGreaterThan(0);
-    expect(new Set(hovered.map(e => e.id))).toEqual(new Set([2]));
-    expect(await w.page.evaluate(() => (window as unknown as { __hovers: number }).__hovers)).toBeGreaterThan(0);
-
-    // Unmount destroys the second chart and leaves nothing behind that still reacts.
-    await w.page.mouse.move(1, 1);
-    await w.page.evaluate(() => (window as unknown as { __unmount: () => void }).__unmount());
-    expect(await log()).toEqual([{ id: 1, what: 'create' }, { id: 1, what: 'destroy' }, { id: 2, what: 'create' }, { id: 2, what: 'destroy' }]);
-    expect(await w.page.locator('#root *').count()).toBe(0);
-    const before = (await events()).length;
-    const after = await w.page.evaluate(async () => {
-      const second = (window as unknown as { __spy: { handles: { update(p: object): void }[] } }).__spy.handles[1]!;
-      second.update({ title: 'Stale' });
-      window.dispatchEvent(new Event('resize'));
-      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-      return { figures: document.querySelectorAll('figure').length, hovers: (window as unknown as { __hovers: number }).__hovers };
-    });
-    await w.page.mouse.move(plot.x + plot.width * 0.5, plot.y + plot.height * 0.5);
-    await w.page.waitForTimeout(100);
-    expect(after.figures).toBe(0);
-    expect((await events()).length).toBe(before);
-    expect(problems(w)).toEqual([]);
-    await w.context.close();
-  });
-
-  it('does not require the title', async () => {
-    const code = fs.readFileSync(fixture('react', 'example/react.tsx'), 'utf8');
-    const untitled = code.replace(' title="Monthly visitors"', '');
-    expect(untitled).not.toBe(code);
-    fs.mkdirSync(fixture('react', '.out', 'untitled'), { recursive: true });
-    fs.writeFileSync(fixture('react', '.out', 'untitled', 'react.tsx'), untitled);
-    const { url } = await bundle({
-      name: 'first-react-untitled', cwd: fixture('react'), conditions: ['development'], nodeEnv: 'development',
-      contents: `import { createRoot } from 'react-dom/client';\nimport { MonthlyVisitors } from './.out/untitled/react';\ncreateRoot(document.getElementById('root')!).render(<MonthlyVisitors />);`,
-    });
-    server.pages.set('/first/react-untitled.html', { html: page('react', `<div id="root"></div><script src="${url}"></script>`) });
-    const w = await open(server);
-    await w.page.goto(`${server.origin}/first/react-untitled.html`);
-    await expectUntitled(w, '#root');
-    await w.context.close();
-  });
-
-  it('hydrates the server-rendered markup without a mismatch and draws', async () => {
-    const ssr = fixture('react', '.out', 'ssr.mjs');
-    await build({
-      entryPoints: [fixture('react', 'ssr.tsx')], bundle: true, platform: 'node', format: 'esm', packages: 'external',
-      jsx: 'automatic', outfile: ssr, absWorkingDir: fixture('react'), logLevel: 'silent',
-    });
-    const { markup } = nodeJson<{ markup: Record<string, string> }>(path.dirname(ssr), [ssr]);
-    const { url } = await bundle({ name: 'first-react-hydrate', cwd: fixture('react'), entry: fixture('react', 'hydrate.tsx'), conditions: ['development'], nodeEnv: 'development' });
-    server.pages.set('/first/hydrate.html', { html: page('hydrate', `<div id="root">${markup.MonthlyVisitors}</div><script src="${url}"></script>`) });
-    const w = await open(server);
-    await w.page.goto(`${server.origin}/first/hydrate.html`);
-    const state = await drawn(w.page, '#root');
-    expect(state.figures).toBe(1);
-    expect(state.marks).toBeGreaterThan(0);
-    expect(await figureName(w.page, '#root')).toMatch(NAME);
-    expect(problems(w)).toEqual([]);
     await w.context.close();
   });
 });

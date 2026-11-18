@@ -18,7 +18,7 @@ const TYPES: Record<string, string> = {
 
 /** URL prefix → directory. Nothing else on disk is reachable. */
 const MOUNTS: Record<string, string> = {
-  '/npm/': fixture('npm'), '/script/': fixture('script'), '/react/': fixture('react'), '/pages/': path.join(here, 'pages'), '/out/': out,
+  '/npm/': fixture('npm'), '/script/': fixture('script'), '/pages/': path.join(here, 'pages'), '/out/': out,
 };
 
 export interface Server {
@@ -112,17 +112,16 @@ export const problems = (w: Watched): string[] => [
 
 /** Bundles an entry for the browser, as an application's bundler would, from inside a fixture. */
 export async function bundle(options: {
-  name: string; cwd: string; entry?: string; contents?: string; format?: 'iife' | 'esm'; conditions?: string[]; nodeEnv?: 'development' | 'production';
+  name: string; cwd: string; entry?: string; contents?: string; format?: 'iife' | 'esm'; conditions?: string[];
   /** Directories besides `cwd` that imports may resolve into (test pages). Anything else fails the build. */
   allow?: string[]; plugins?: Plugin[];
 }): Promise<{ url: string; inputs: string[] }> {
   const outfile = path.join(out, `${options.name}.js`);
   const r = await build({
-    ...(options.entry ? { entryPoints: [options.entry] } : { stdin: { contents: options.contents!, resolveDir: options.cwd, loader: 'tsx' as const } }),
-    absWorkingDir: options.cwd, bundle: true, format: options.format ?? 'iife', target: 'es2022', jsx: 'automatic', outfile,
+    ...(options.entry ? { entryPoints: [options.entry] } : { stdin: { contents: options.contents!, resolveDir: options.cwd, loader: 'ts' as const } }),
+    absWorkingDir: options.cwd, bundle: true, format: options.format ?? 'iife', target: 'es2022', outfile,
     conditions: options.conditions ?? [], metafile: true, logLevel: 'silent',
     plugins: [...(options.plugins ?? []), fixtureGuard([options.cwd, ...(options.allow ?? [])])],
-    define: { 'process.env.NODE_ENV': JSON.stringify(options.nodeEnv ?? 'production') },
   });
   return { url: `/out/${options.name}.js`, inputs: Object.keys(r.metafile.inputs).map(p => path.resolve(options.cwd, p)) };
 }

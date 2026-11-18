@@ -1,5 +1,5 @@
 /**
- * The packed declarations type-check an application (strict, skipLibCheck off) for both packages, under both
+ * The packed declarations type-check an application (strict, skipLibCheck off), under both
  * module resolutions a TypeScript consumer of an ESM package uses: `Bundler` (bundled applications) and
  * `NodeNext` (Node, and libraries that must run there), which requires relative specifiers inside `.d.ts`
  * files to carry their `.js` extension. The first-chart snippets are among the checked files. Every file the
@@ -12,7 +12,6 @@ import { check, fixture, inside, outsideFixture } from './paths';
 
 describe.each([
   ['npm', ['axylo'], 'npm.ts'],
-  ['react', ['axylo', '@axylo/react'], 'react.tsx'],
 ] as const)('%s fixture', (name, packages, snippet) => {
   describe.each([['Bundler', 'tsconfig.json'], ['NodeNext', 'tsconfig.nodenext.json']] as const)('moduleResolution %s', (_mode, config) => {
     const project = fixture(name);

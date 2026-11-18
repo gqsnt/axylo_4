@@ -8,8 +8,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { exportTargets, installed, manifest, packedJson, repo } from './paths';
 
-type Name = 'axylo' | '@axylo/react';
-const NAMES: Name[] = ['axylo', '@axylo/react'];
+type Name = 'axylo';
+const NAMES: Name[] = ['axylo'];
 
 /** npm adds these whatever `files` says. */
 const ALWAYS = ['package.json', 'README.md', 'LICENSE'];
@@ -17,7 +17,7 @@ const ALWAYS = ['package.json', 'README.md', 'LICENSE'];
  * The script-tag flavours (plan 1.6: a development and a production file; examples/first-chart/script.html
  * loads the production one). They are not in `exports`, because a bundler never imports them.
  */
-const SCRIPT_TAG: Record<Name, string[]> = { axylo: ['dist/axylo.iife.js', 'dist/axylo.iife.min.js'], '@axylo/react': [] };
+const SCRIPT_TAG: Record<Name, string[]> = { axylo: ['dist/axylo.iife.js', 'dist/axylo.iife.min.js'] };
 
 const strip = (p: string): string => p.replace(/^\.\//, '');
 
@@ -83,7 +83,7 @@ describe.each(NAMES)('%s tarball', name => {
     expect(files).toContain('LICENSE');
   });
 
-  it('ships the declarations its types entries import, and they import only peers', () => {
+  it('ships the declarations its types entries import, and they import no other package (it has no peers)', () => {
     const typeEntries = exportTargets(pkg.exports).filter(t => t.condition === 'types').map(t => strip(t.target));
     expect(typeEntries.length).toBeGreaterThan(0);
     for (const entry of typeEntries) {

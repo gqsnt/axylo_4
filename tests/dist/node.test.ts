@@ -2,12 +2,9 @@
  * Spec DX8, the Node half, from the packed files in child processes started inside the fixtures (so Node,
  * not Vitest's resolver, finds the packages, and no test-runner globals are present):
  * - importing `axylo` without DOM globals does not throw and adds no globals (the `sideEffects` claim);
- * - `validate()` runs there and reports the Phase 1 `dirty` fixture as spec 3.5 and plan 1.6 say;
- * - `@axylo/react` server-renders with react-dom/server.
+ * - `validate()` runs there and reports the Phase 1 `dirty` fixture as spec 3.5 and plan 1.6 say.
  */
-import { beforeAll, describe, expect, it } from 'vitest';
-import { build } from 'esbuild';
-import path from 'node:path';
+import { describe, expect, it } from 'vitest';
 import { fixture, inside, nodeJson } from './paths';
 
 interface Probe {
@@ -45,29 +42,5 @@ describe.each([[[]], [['--conditions=development']]] as const)('axylo in plain N
 
   it('a chart function called without a document throws an error that names the target', () => {
     expect(probe.missingTarget).toContain('#nowhere');
-  });
-});
-
-describe('@axylo/react server rendering', () => {
-  let result: { domGlobals: string[]; markup: Record<string, string> };
-
-  beforeAll(async () => {
-    // Bundled only to compile the TSX: every package stays external and is resolved by Node at run time
-    // from the output's location, which is inside the fixture.
-    const outfile = fixture('react', '.out', 'ssr.mjs');
-    await build({
-      entryPoints: [fixture('react', 'ssr.tsx')], bundle: true, platform: 'node', format: 'esm', packages: 'external',
-      jsx: 'automatic', outfile, absWorkingDir: fixture('react'), logLevel: 'silent',
-    });
-    result = nodeJson(path.dirname(outfile), [outfile]);
-  });
-
-  it('runs without DOM globals', () => {
-    expect(result.domGlobals.filter(g => g !== 'navigator')).toEqual([]);
-  });
-
-  it('renders the documented snippet and each component to its empty container (the chart is created on mount, plan 1.7)', () => {
-    expect(Object.keys(result.markup).sort()).toEqual(['Area', 'Bar', 'Donut', 'Line', 'MonthlyVisitors', 'Scatter']);
-    for (const [name, html] of Object.entries(result.markup)) expect(html, name).toMatch(/^<div[^<>]*><\/div>$/);
   });
 });

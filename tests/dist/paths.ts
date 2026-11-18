@@ -11,7 +11,7 @@ export const repo = path.resolve(import.meta.dirname, '../..');
 export const here = import.meta.dirname;
 export const packed = path.join(here, '.packed');
 export const out = path.join(here, '.out');
-export const fixture = (name: 'npm' | 'script' | 'react', ...rest: string[]): string => path.join(here, 'fixtures', name, ...rest);
+export const fixture = (name: 'npm' | 'script', ...rest: string[]): string => path.join(here, 'fixtures', name, ...rest);
 export const examples = path.join(repo, 'examples/first-chart');
 
 export interface PackedPackage {
@@ -23,7 +23,7 @@ export interface PackedPackage {
   /** Paths inside the tarball, without the `package/` prefix, as npm pack listed them. */
   files: string[];
 }
-export interface Manifest { packedAt: string; packages: Record<'axylo' | '@axylo/react', PackedPackage> }
+export interface Manifest { packedAt: string; packages: Record<'axylo', PackedPackage> }
 
 export const manifest = (): Manifest => JSON.parse(fs.readFileSync(path.join(packed, 'manifest.json'), 'utf8')) as Manifest;
 
@@ -42,12 +42,12 @@ export interface PackageJson {
 }
 
 /** The package.json as it was packed (read from the unpacked tarball, not from the workspace). */
-export const packedJson = (name: 'axylo' | '@axylo/react'): PackageJson =>
+export const packedJson = (name: 'axylo'): PackageJson =>
   JSON.parse(fs.readFileSync(installed(name, 'package.json'), 'utf8')) as PackageJson;
 
 /** A file of a package as unpacked into the fixture that installs it. */
-export const installed = (name: 'axylo' | '@axylo/react', ...rest: string[]): string =>
-  fixture(name === 'axylo' ? 'npm' : 'react', 'node_modules', name, ...rest);
+export const installed = (name: 'axylo', ...rest: string[]): string =>
+  fixture('npm', 'node_modules', name, ...rest);
 
 /** Every file path an `exports` map points at, by condition, for each subpath. */
 export function exportTargets(exports: PackageJson['exports']): { subpath: string; condition: string; target: string }[] {

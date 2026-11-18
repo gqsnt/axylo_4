@@ -1,7 +1,7 @@
 /**
- * `sideEffects` in each package.json is a promise to bundlers. Two halves are checked:
- * - what the promise buys: a consumer that imports a package and uses nothing gets an empty bundle
- *   (measured with esbuild, minified, production condition, from the fixtures);
+ * `sideEffects` in the package.json is a promise to bundlers. Two halves are checked:
+ * - what the promise buys: a consumer that imports the package and uses nothing gets an empty bundle
+ *   (measured with esbuild, minified, production condition, from the npm fixture);
  * - that it is true: importing the JavaScript has no effect (no globals in Node: node.test.ts; no change to
  *   the document in a browser: first-chart.browser.test.ts), while the stylesheet subpath, which exists only
  *   for its effect, survives a side-effect import.
@@ -21,24 +21,18 @@ const bundle = async (contents: string, cwd: string, extra: Parameters<typeof bu
 };
 
 describe('a consumer that imports and uses nothing', () => {
-  for (const [name, cwd, external] of [
-    ['axylo', fixture('npm'), []],
-    ['@axylo/react', fixture('react'), ['react', 'react/*']],
-  ] as const) {
-    for (const statement of [`import ${JSON.stringify(name)};`, `import * as unused from ${JSON.stringify(name)};`]) {
-      it(`${name}: "${statement}" bundles to nothing`, async () => {
-        const files = await bundle(statement, cwd, { external: [...external] });
-        const bytes = files.reduce((n, f) => n + f.contents.length, 0);
-        console.info(`${name} "${statement}": ${bytes} bytes minified`);
-        expect(files.map(f => f.text.trim()).join('')).toBe('');
-      });
-    }
+  for (const statement of [`import 'axylo';`, `import * as unused from 'axylo';`]) {
+    it(`"${statement}" bundles to nothing`, async () => {
+      const files = await bundle(statement, fixture('npm'));
+      const bytes = files.reduce((n, f) => n + f.contents.length, 0);
+      console.info(`"${statement}": ${bytes} bytes minified`);
+      expect(files.map(f => f.text.trim()).join('')).toBe('');
+    });
   }
 });
 
 describe('the stylesheet subpath', () => {
-  it('is the only file either package declares as having side effects', () => {
-    expect(packedJson('@axylo/react').sideEffects).toBe(false);
+  it('is the only file the package declares as having side effects', () => {
     const declared = packedJson('axylo').sideEffects;
     expect(Array.isArray(declared)).toBe(true);
     for (const pattern of declared as string[]) expect(pattern).toMatch(/\.css$/);

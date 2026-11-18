@@ -1,10 +1,9 @@
 {
- "date": "2026-11-18T10:34:23.622Z",
+ "date": "2026-11-18T10:44:12.239Z",
  "method": "esbuild consumer bundles from tests/dist/fixtures (packed tarballs), minify, production condition; gzip level 9",
  "packed": {
-  "at": "2026-11-18T10:34:22.033Z",
-  "axylo": "sha512-8epevZvs5wbrp+gycPro7XvoDxSzko5ie/yKfrxMyyeyf+8AlHxfnnQI4708YG8uU6m4p0jPW8LDtmNJhykqFg==",
-  "react": "sha512-aEum7Y2hBa2Bq58TQkzo/YlACpBHJee4u8M9JFjf3CbkgD0LgrUJHssSql5usO+XxE/g0V3A3jcikdzygCBePA=="
+  "at": "2026-11-18T10:44:11.365Z",
+  "axylo": "sha512-On1X/A6oWYyA8T4FnX+5WoycK+gOXRy06i52TcVieF8Yq5RW6k66K8YLE6DTllCFk5i3QFoI/C1a17l+c11uVA=="
  },
  "cssFileBytes": 13917,
  "cssFileGzipBytes": 2886,
@@ -95,17 +94,6 @@
    "totalKiB": 107.15,
    "targetKiB": null,
    "targetBytes": null,
-   "over": false
-  },
-  {
-   "entry": "React adapter alone (react, axylo external)",
-   "minBytes": 3499,
-   "jsGzipBytes": 1671,
-   "cssFileGzipBytes": 0,
-   "totalGzipBytes": 1671,
-   "totalKiB": 1.63,
-   "targetKiB": 2,
-   "targetBytes": 2048,
    "over": false
   }
  ],

@@ -1,9 +1,8 @@
 /**
- * The fixtures reach `axylo` and `@axylo/react` only through the packed files, and nothing they did not
- * declare at all.
+ * The fixtures reach `axylo` only through the packed files, and nothing they did not declare at all.
  *
  * scripts/pack.mjs installs each fixture with `npm install --offline` from its own package.json: the
- * tarballs through `file:` specifiers, React and its types from the npm cache, nothing linked. The fixtures
+ * tarball through its `file:` specifier, nothing linked. The fixtures
  * still sit under the repository, whose root node_modules links the workspace packages, and Node, esbuild and
  * TypeScript all walk up there for anything a fixture lacks. So every resolution in these tests is guarded:
  * Node through guard/node-guard.mjs, esbuild through `fixtureGuard`, TypeScript through its file list. This
@@ -17,14 +16,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { check, fixture, fixtureGuard, inside, manifest, nodeJson, outsideFixture, repo } from './paths';
 
-type Fixture = 'npm' | 'script' | 'react';
-const FIXTURES: Fixture[] = ['npm', 'script', 'react'];
+type Fixture = 'npm' | 'script';
+const FIXTURES: Fixture[] = ['npm', 'script'];
 const declared = (name: Fixture): string[] => {
   const pkg = JSON.parse(fs.readFileSync(fixture(name, 'package.json'), 'utf8')) as { dependencies?: object; devDependencies?: object };
   return [...Object.keys(pkg.dependencies ?? {}), ...Object.keys(pkg.devDependencies ?? {})];
 };
 /** A package the root node_modules has and the fixture did not declare; a type-carrying one for tsc. */
-const UNDECLARED: Record<Fixture, string> = { npm: '@axylo/react', script: '@axylo/react', react: 'fast-check' };
+const UNDECLARED: Record<Fixture, string> = { npm: 'fast-check', script: 'fast-check' };
 
 const symlinks = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes: true }).flatMap(e => {
   const p = path.join(dir, e.name);
@@ -33,14 +32,14 @@ const symlinks = (dir: string): string[] => fs.readdirSync(dir, { withFileTypes:
 
 describe.each(FIXTURES)('%s fixture', name => {
   const dir = fixture(name);
-  const ours = declared(name).filter(n => n === 'axylo' || n === '@axylo/react');
+  const ours = declared(name).filter(n => n === 'axylo');
 
   it('was installed by npm from the packed tarballs, with no links anywhere in node_modules', () => {
     const lock = JSON.parse(fs.readFileSync(fixture(name, 'node_modules/.package-lock.json'), 'utf8')) as { packages: Record<string, { resolved?: string; integrity?: string }> };
     expect(ours.length).toBeGreaterThan(0);
     for (const pkg of ours) {
       const entry = lock.packages[`node_modules/${pkg}`];
-      const packed = manifest().packages[pkg as 'axylo' | '@axylo/react'];
+      const packed = manifest().packages[pkg as 'axylo'];
       expect(entry?.resolved).toBe(`file:../../.packed/${packed.tarball}`);
       expect(entry?.integrity).toBe(packed.integrity);
     }
@@ -57,7 +56,7 @@ describe.each(FIXTURES)('%s fixture', name => {
   for (const conditions of [[], ['--conditions=development']]) {
     it(`Node [${conditions.join(' ')}]: declared packages resolve inside the fixture; the undeclared one is stopped`, () => {
       const code = `const out = {};
-for (const s of ${JSON.stringify([...ours, ...(name === 'react' ? ['react', 'react-dom/server'] : [])])}) out[s] = import.meta.resolve(s);
+for (const s of ${JSON.stringify([...ours, 'axylo/axylo.css'])}) out[s] = import.meta.resolve(s);
 try { out.undeclared = import.meta.resolve(${JSON.stringify(UNDECLARED[name])}); } catch (e) { out.undeclared = 'stopped: ' + e.message; }
 console.log(JSON.stringify(out));`;
       const r = nodeJson<Record<string, string>>(dir, [...conditions, '--input-type=module', '-e', code]);
@@ -69,19 +68,11 @@ console.log(JSON.stringify(out));`;
     });
   }
 
-  if (name === 'react') {
-    it("Node: the adapter's own import of axylo, from inside the installed adapter, resolves to the fixture's axylo", () => {
-      const adapter = fixture('react', 'node_modules/@axylo/react/dist');
-      const r = nodeJson<string>(adapter, ['--input-type=module', '-e', "console.log(JSON.stringify(import.meta.resolve('axylo')))"], [dir]);
-      expect(inside(fixture('react', 'node_modules/axylo'), new URL(r).pathname)).toBe(true);
-    });
-  }
-
   it('esbuild: declared imports bundle inside the fixture; the undeclared one fails the build', async () => {
     const entry = ours.map(p => `export * as m${ours.indexOf(p)} from ${JSON.stringify(p)};`).join('\n');
     const ok = await build({
       stdin: { contents: entry, resolveDir: dir }, absWorkingDir: dir, bundle: true, write: false, metafile: true, logLevel: 'silent',
-      format: 'esm', jsx: 'automatic', plugins: [fixtureGuard([dir])],
+      format: 'esm', plugins: [fixtureGuard([dir])],
     });
     expect(Object.keys(ok.metafile.inputs).map(p => path.resolve(dir, p)).filter(p => !inside(dir, p) && p !== path.resolve(dir, '<stdin>'))).toEqual([]);
     const failed = await build({

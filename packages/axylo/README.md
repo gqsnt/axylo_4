@@ -50,8 +50,6 @@ hints for the author). The library applies its stylesheet at run time without cr
 linking `axylo.css` yourself, as above, is optional and suits a page with a strict Content Security Policy.
 Bundlers import it as `axylo/axylo.css`.
 
-For React, see [`@axylo/react`](https://www.npmjs.com/package/@axylo/react).
-
 ## Checking a chart without a browser
 
 `validate(type, options)` runs the same normalization in Node and returns the diagnostics a chart would

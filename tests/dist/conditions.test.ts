@@ -13,8 +13,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fixture, fixtureGuard, installed, nodeJson, packedJson } from './paths';
 
-type Name = 'axylo' | '@axylo/react';
-const FIXTURE: Record<Name, 'npm' | 'react'> = { axylo: 'npm', '@axylo/react': 'react' };
+type Name = 'axylo';
+const FIXTURE: Record<Name, 'npm'> = { axylo: 'npm' };
 
 const targetOf = (name: Name, condition: string): string => {
   const entry = packedJson(name).exports?.['.'];
@@ -22,7 +22,7 @@ const targetOf = (name: Name, condition: string): string => {
   return installed(name, entry[condition]!.replace(/^\.\//, ''));
 };
 
-describe.each(['axylo', '@axylo/react'] as const)('%s', name => {
+describe.each(['axylo'] as const)('%s', name => {
   const dev = targetOf(name, 'development');
   const prod = targetOf(name, 'default');
 
@@ -42,7 +42,7 @@ describe.each(['axylo', '@axylo/react'] as const)('%s', name => {
     const entry = async (conditions: string[]) => {
       const r = await build({
         stdin: { contents: `export * from ${JSON.stringify(name)};`, resolveDir: fixture(FIXTURE[name]) }, bundle: true, write: false,
-        metafile: true, format: 'esm', conditions, absWorkingDir: fixture(FIXTURE[name]), plugins: [fixtureGuard([fixture(FIXTURE[name])])], external: ['react', 'react/*', ...(name === 'axylo' ? [] : ['axylo'])], logLevel: 'silent',
+        metafile: true, format: 'esm', conditions, absWorkingDir: fixture(FIXTURE[name]), plugins: [fixtureGuard([fixture(FIXTURE[name])])], logLevel: 'silent',
       });
       return Object.keys(r.metafile.inputs).map(p => path.resolve(fixture(FIXTURE[name]), p)).filter(p => p === dev || p === prod);
     };
@@ -51,7 +51,7 @@ describe.each(['axylo', '@axylo/react'] as const)('%s', name => {
   });
 
   it('neither file refers to a build-time constant (__DEV__, __BENCH__: scripts/build.mjs replaces both)', () => {
-    const scriptTag = name === 'axylo' ? ['dist/axylo.iife.js', 'dist/axylo.iife.min.js'].map(f => installed('axylo', f)) : [];
+    const scriptTag = ['dist/axylo.iife.js', 'dist/axylo.iife.min.js'].map(f => installed('axylo', f));
     for (const file of [dev, prod, ...scriptTag]) expect(fs.readFileSync(file, 'utf8'), file).not.toMatch(/\b__(DEV|BENCH)__\b/);
   });
 });

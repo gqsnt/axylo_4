@@ -13,8 +13,8 @@
 // downloads it inside its JavaScript and needs no axylo.css; the script-tag snippet also links axylo.css, so
 // that row adds the file. "total" is what each page downloads.
 //
-// Targets (spec DX7, set by the owner on 2026-11-18): 96 KiB everything, 80 KiB a page that uses only `line`,
-// 2 KiB the React adapter. CI runs this script without --check until the targets are met: the flag is correct,
+// Targets (spec DX7, set by the owner on 2026-11-18): 96 KiB everything, 80 KiB a page that uses only `line`.
+// CI runs this script without --check until the targets are met: the flag is correct,
 // but it is not a gate yet. The rows for each other chart kind alone and for `validate` alone have no target;
 // they show what tree-shaking leaves.
 //
@@ -53,7 +53,6 @@ async function main() {
   }
 
   const npm = path.join(fixtures, 'npm');
-  const react = path.join(fixtures, 'react');
   const axyloFile = file => fs.readFileSync(path.join(npm, 'node_modules/axylo/dist', file));
   const css = axyloFile('axylo.css');
 
@@ -68,10 +67,6 @@ async function main() {
       build: () => consumer({ cwd: npm, contents: `export { ${name} } from 'axylo';` }),
     })),
     { entry: 'script tag (axylo.iife.min.js + axylo.css)', targetKiB: null, build: async () => ({ bytes: axyloFile('axylo.iife.min.js') }), cssFile: true },
-    {
-      entry: 'React adapter alone (react, axylo external)', targetKiB: 2, cssFile: false,
-      build: () => consumer({ cwd: react, contents: "export * from '@axylo/react';", external: ['react', 'react/*', 'react-dom', 'axylo'] }),
-    },
   ];
 
   const rows = [];
@@ -87,7 +82,7 @@ async function main() {
     });
   }
 
-  console.log(`Download size from the packed tarballs (${manifest.packages.axylo.tarball}, ${manifest.packages['@axylo/react'].tarball}, packed ${manifest.packedAt}); esbuild minify, gzip level ${LEVEL}`);
+  console.log(`Download size from the packed tarballs (${manifest.packages.axylo.tarball}, packed ${manifest.packedAt}); esbuild minify, gzip level ${LEVEL}`);
   console.table(rows.map(r => ({
     entry: r.entry, 'min B': r.minBytes, 'js gzip B': r.jsGzipBytes, 'css file gzip B': r.cssFileGzipBytes || '—',
     'total KiB': r.totalKiB, 'target KiB': r.targetKiB ?? '—', status: r.targetKiB === null ? 'no target' : r.over ? 'OVER' : 'ok',
@@ -117,7 +112,7 @@ async function main() {
   fs.writeFileSync(path.join(root, 'bench/size-latest.json'), JSON.stringify({
     date: new Date().toISOString(),
     method: 'esbuild consumer bundles from tests/dist/fixtures (packed tarballs), minify, production condition; gzip level 9',
-    packed: { at: manifest.packedAt, axylo: manifest.packages.axylo.integrity, react: manifest.packages['@axylo/react'].integrity },
+    packed: { at: manifest.packedAt, axylo: manifest.packages.axylo.integrity },
     cssFileBytes: css.length, cssFileGzipBytes: gzip(css), rows,
     breakdown: { rebuiltMinBytes: rebuilt.outputFiles[0].contents.length, packedMinBytes: packedProd, directories: dirs, modules },
   }, null, 1));

@@ -10,11 +10,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { installed, manifest, packedJson, repo } from './paths';
 
-type Name = 'axylo' | '@axylo/react';
-const NAMES: Name[] = ['axylo', '@axylo/react'];
-/** What the shipped JavaScript may import: nothing for the core; the core and React for the adapter (plan 1.7). */
-const ALLOWED_IMPORTS: Record<Name, string[]> = { axylo: [], '@axylo/react': ['axylo', 'react'] };
-const SOURCE: Record<Name, string> = { axylo: 'packages/axylo/src', '@axylo/react': 'packages/react/src' };
+type Name = 'axylo';
+const NAMES: Name[] = ['axylo'];
+/** What the shipped JavaScript may import: nothing (spec DX7, zero runtime dependencies). */
+const ALLOWED_IMPORTS: Record<Name, string[]> = { axylo: [] };
+const SOURCE: Record<Name, string> = { axylo: 'packages/axylo/src' };
 
 // The standard MIT text (opensource.org/license/mit): its grant and its warranty disclaimer.
 const MIT_GRANT = 'Permission is hereby granted, free of charge, to any person obtaining a copy';
@@ -39,7 +39,7 @@ describe.each(NAMES)('%s', name => {
     expect(Object.keys(pkg.peerDependencies ?? {}).sort()).toEqual(ALLOWED_IMPORTS[name]);
   });
 
-  it('ships JavaScript that imports nothing but its peers', async () => {
+  it('ships JavaScript that imports nothing', async () => {
     const files = manifest().packages[name].files.filter(f => f.endsWith('.js'));
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
@@ -59,7 +59,6 @@ describe.each(NAMES)('%s', name => {
     const r = await build({
       entryPoints: [path.join(src, 'index.ts')], bundle: true, write: false, metafile: true, format: 'esm', target: 'es2022',
       minify: true, define: { __DEV__: 'false' }, legalComments: 'none', logLevel: 'silent', absWorkingDir: repo,
-      external: ['react', 'react/jsx-runtime', 'react-dom', 'axylo'],
     });
     const inputs = Object.keys(r.metafile.inputs).map(p => path.resolve(repo, p));
     expect(inputs.length).toBeGreaterThan(0);
@@ -89,11 +88,11 @@ function inventory(): { pkg: string; file: string; origin: string; license: stri
 }
 
 describe('THIRD-PARTY-NOTICES.md', () => {
-  it('covers both published packages', () => {
+  it('covers the published package', () => {
     for (const name of NAMES) expect(notices()).toContain(`\`${name}\``);
   });
 
-  it('lists exactly the files of each packed tarball in its release inventory', () => {
+  it('lists exactly the files of the packed tarball in its release inventory', () => {
     const listed = inventory().map(r => `${r.pkg}/${r.file}`).sort();
     const packed = NAMES.flatMap(n => manifest().packages[n].files.map(f => `${n}/${f}`)).sort();
     expect(listed).toEqual(packed);

@@ -7,11 +7,10 @@
  * | A hint is printed (console.info "[axylo AX104] …")              | spec 3.5; plan 1.6; docs "Diagnostics"   | once        | never      |
  * | The same hint still reaches onDiagnostic and chart.diagnostics   | spec 3.5 (only printing depends on build) | yes         | yes        |
  * | A warning is printed (console.warn "[axylo AX140] …")           | spec 3.5 ("in every build")              | once        | once       |
- * | The React adapter hints to memoize data given anew three times  | plan 1.7                                 | once        | never      |
  *
- * Each core row runs on all four packed core files: the ESM development and default files (through the
+ * Each row runs on all four packed core files: the ESM development and default files (through the
  * export conditions, bundled from the npm fixture) and both script-tag files. conditions.test.ts holds a
- * supplementary, source-derived check of the same split.
+ * check that no shipped file refers to the build-time constants.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import path from 'node:path';
@@ -53,23 +52,6 @@ describe.each(Object.entries(CORE))('%s', (label, flavour) => {
     expect(seen.delivered).toContain('AX104');
     expect(seen.delivered).toContain('AX140');
     expect(seen.diagnostics).toContain('AX104');
-    expect(w.errors).toEqual([]);
-    await w.context.close();
-  });
-});
-
-describe.each([['development', 1], ['production', 0]] as const)('@axylo/react, %s', (flavour, hints) => {
-  it(`hints to memoize data given anew with the same content ${hints ? 'once' : 'never'} (plan 1.7)`, async () => {
-    const { url, inputs } = await bundle({ name: `flavour-react-${flavour}`, cwd: fixture('react'), entry: fixture('react', 'memo.tsx'), conditions: [flavour], nodeEnv: flavour });
-    expect(inputs).toContain(fixture('react', 'node_modules/@axylo/react/dist', flavour === 'development' ? 'index.dev.js' : 'index.js'));
-    server.pages.set(`/flavour/react-${flavour}.html`, { html: page(`<div class="chart" id="root"></div><script src="${url}"></script>`) });
-    const w = await open(server);
-    await w.page.goto(`${server.origin}/flavour/react-${flavour}.html`);
-    await expect.poll(() => w.page.evaluate(() => (window as unknown as { __done?: boolean }).__done ?? false)).toBe(true);
-    expect((await drawn(w.page, '#root')).marks).toBeGreaterThan(0);
-    await w.page.waitForTimeout(100);
-    expect(w.console.filter(m => m.type === 'warning' && m.text.startsWith('[axylo/react]'))).toHaveLength(hints);
-    expect(w.console.filter(m => m.type === 'error' || (m.type === 'warning' && !m.text.startsWith('[axylo/react]')))).toEqual([]);
     expect(w.errors).toEqual([]);
     await w.context.close();
   });
