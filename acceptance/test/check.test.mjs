@@ -67,6 +67,34 @@ test('a describe prefix needs all its cases, and a failure in either report rema
   assert.equal(combined.counts.pass, 1);
 });
 
+test('a scoped describe requires current cases for its chart and retains archived failures', t => {
+  const { write, root } = fixtureWith(t, undefined, source => source + `
+describe('I1 probes', () => {
+  const span = 12 / 4;
+  const pattern = () => /[\`{}]/;
+  for (const type of ['line', 'area'] as const) {
+    it(\`I1 \${type}: present \${type}\`, () => {});
+  }
+  it(\`I1 line: \${span > 1 ? \`wide \${span}\` : 'narrow'} readout\`, () => {});
+});`);
+  const matrix = read(matrixFile);
+  matrix[0].evidence.line = [{
+    kind: 'browser', file: 'chart.test.ts', prefix: 'I1 probes', casePrefix: 'I1 line:', cases: 2,
+  }];
+  const options = { root, matrixFile: write('matrix.json', matrix) };
+  const assertion = (title, status) => ({ title, status, ancestorTitles: ['I1 probes'] });
+  const summary = (title, status) => {
+    const resultFiles = [write('scoped.json', { testResults: [{
+      name: 'chart.test.ts',
+      assertionResults: [assertion('I1 line: present line', 'passed'), assertion(title, status), assertion('I1 area: present area', 'failed')],
+    }] })];
+    return check({ ...options, resultFiles }).table;
+  };
+  assert.match(summary('I1 line: wide 3 readout', 'passed'), /\| F1 \|[^|]+\| pass \(scoped\.json pass\)/);
+  assert.match(summary('I1 line: older test', 'passed'), /\| F1 \|[^|]+\| not run \(scoped\.json pass\)/);
+  assert.match(summary('I1 line: older test', 'failed'), /\| F1 \|[^|]+\| fail \(scoped\.json fail\/pass\)/);
+});
+
 test('without results, named tests are not run and gaps remain visible', () => {
   const result = run();
   assert.match(result.report, /Static coverage only/);

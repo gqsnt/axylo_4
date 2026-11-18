@@ -35,8 +35,12 @@ Structural errors exit 1. In `--release` mode, results must have provenance that
 
 Use the spec ID and short wording. Section 3.6 cells use `T-<rule>-<chart type>`. Give every excluded chart type a `notApplicable` reason. Compact covers line, area and bar variants where the rule applies.
 
-Use `evidence` for the checks a cell needs, `gaps` for the unverified part when those checks are incomplete, and `weak` for supporting citations with a specific `reason`. Use `cannotVerify` for environmental limits and `pending` for work awaiting a valid run.
+Use `evidence` for the checks a cell needs, `gaps` for the unverified part when those checks are incomplete, and `weak` for supporting citations with a specific `reason`. Use `limits` to describe the scope of a result, `cannotVerify` for environmental requirements outside the supplied runs, and `pending` for work awaiting a valid run.
 
 Each citation specifies a repository-relative `file` and a `kind` of `unit`, `property`, `browser`, `size`, `benchmark`, `document` or `manual rehearsal`. A test citation gives its exact Vitest `title` or a `prefix` of a describe title when all reported cases are required. A generated title may include its source template as `registration`. Use `ancestors` to cite a specific suite when titles repeat. The checker refuses citations of `.fails`, `.todo` and `.skip` and requires every matching result to pass.
 
+For a describe suite shared across chart types, add a chart-specific `casePrefix` and the expected number of distinct `cases`. The checker requires all statically known cases and the expected number of passing current registrations. A failed archived result within that scope still appears in the report. Release checks also require matching provenance.
+
 A `size` citation names the budgeted `entries` in the packed size artifact. Historical benchmarks carry a `workload` and optional `history`. Documents, manual rehearsals and provisional benchmark workloads need separate review.
+
+The archived four-configuration review includes [review notes](review.json) with the prior status baseline, failure causes and the browser helpers checked by negative controls.

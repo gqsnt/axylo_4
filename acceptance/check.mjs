@@ -90,7 +90,7 @@ function readMatrix(root, file, { entries: expected, diagnosticCodes }) {
   }
   function checkReference(reference, weak) {
     if (!isRecord(reference)) throw new Error('expected an evidence object');
-    const { kind, file, title, prefix, registration, ancestors, reason, workload, history, entries } = reference;
+    const { kind, file, title, prefix, casePrefix, cases, registration, ancestors, reason, workload, history, entries } = reference;
     if (![...testKinds, ...otherKinds].includes(kind)) throw new Error(`unknown evidence kind: ${kind}`);
     if (weak && !isText(reason)) throw new Error('weak evidence needs a reason');
     const entry = source(file);
@@ -100,6 +100,10 @@ function readMatrix(root, file, { entries: expected, diagnosticCodes }) {
       }
       if (ancestors !== undefined && (!isText(title) || !Array.isArray(ancestors) || !ancestors.every(isText))) {
         throw new Error('ancestors need an exact test title and an array of suite titles');
+      }
+      if ((casePrefix !== undefined || cases !== undefined)
+        && (!isText(prefix) || !isText(casePrefix) || !Number.isSafeInteger(cases) || cases < 1)) {
+        throw new Error('a scoped describe prefix needs a case prefix and a positive case count');
       }
       entry.titles ??= readTitles(readFileSync(entry.path, 'utf8'), entry.path);
       if (registration !== undefined && (!isText(title) || !isText(registration)
@@ -112,15 +116,24 @@ function readMatrix(root, file, { entries: expected, diagnosticCodes }) {
       if (prefix && !entry.titles.suites.some(suite => suite.title.startsWith(prefix))) {
         throw new Error(`missing describe prefix in ${file}: ${prefix}`);
       }
+      const registrations = prefix ? [
+        ...entry.titles.tests.filter(test => inSuite(test.ancestors, prefix)
+          && (!casePrefix || test.title?.startsWith(casePrefix))),
+        ...entry.titles.templates.filter(test => {
+          const leadingText = test.template.split('${')[0];
+          return inSuite(test.ancestors, prefix)
+            && (!casePrefix || casePrefix.startsWith(leadingText) || leadingText.startsWith(casePrefix));
+        }),
+      ] : [];
+      if (casePrefix && !registrations.length) throw new Error(`missing case prefix in ${file}: ${casePrefix}`);
       const candidates = prefix
-        ? [...entry.titles.suites.filter(suite => suite.title.startsWith(prefix)),
-          ...[...entry.titles.tests, ...entry.titles.templates].filter(test => test.ancestors.some(suite => suite.startsWith(prefix)))]
+        ? [...entry.titles.suites.filter(suite => suite.title.startsWith(prefix)), ...registrations]
         : (registration ? entry.titles.templates.filter(test => test.template === registration)
           : entry.titles.tests.filter(test => test.title === title));
       const scoped = ancestors && candidates.filter(test => JSON.stringify(test.ancestors) === JSON.stringify(ancestors));
       const forbidden = (scoped?.length ? scoped : candidates).flatMap(candidate => candidate.forbidden);
       if (forbidden.length) throw new Error(`citation uses .${forbidden[0]} in ${file}: ${title ?? prefix}`);
-    } else if (title !== undefined || prefix !== undefined || registration !== undefined || ancestors !== undefined) {
+    } else if ([title, prefix, casePrefix, cases, registration, ancestors].some(value => value !== undefined)) {
       throw new Error('only test evidence takes a title, prefix, registration or ancestors');
     }
     if (kind === 'size') {
@@ -139,7 +152,8 @@ function readMatrix(root, file, { entries: expected, diagnosticCodes }) {
     }
   }
   for (const row of matrix) {
-    const { id, statement, appliesTo, notApplicable, evidence = {}, weak = {}, gaps = {}, cannotVerify = {}, pending = {}, waivers = {} } = row ?? {};
+    const { id, statement, appliesTo, notApplicable, evidence = {}, weak = {}, gaps = {},
+      limits = {}, cannotVerify = {}, pending = {}, waivers = {} } = row ?? {};
     if (!expected.has(id)) errors.push(`stale criterion ID: ${id}`);
     if (seen.has(id)) errors.push(`duplicate criterion ID: ${id}`);
     seen.add(id);
@@ -162,7 +176,7 @@ function readMatrix(root, file, { entries: expected, diagnosticCodes }) {
     for (const type of Object.keys(notApplicable)) {
       if (!chartTypes.includes(type)) errors.push(`${id}: unknown chart type in notApplicable: ${type}`);
     }
-    for (const [key, mapping] of Object.entries({ evidence, weak, gaps, cannotVerify, pending, waivers })) {
+    for (const [key, mapping] of Object.entries({ evidence, weak, gaps, limits, cannotVerify, pending, waivers })) {
       if (!isRecord(mapping)) {
         errors.push(`${id}: expected a chart-type map for ${key}`);
         continue;
@@ -175,7 +189,7 @@ function readMatrix(root, file, { entries: expected, diagnosticCodes }) {
           }
           continue;
         }
-        if (key === 'cannotVerify' || key === 'pending' || key === 'gaps') {
+        if (key === 'cannotVerify' || key === 'pending' || key === 'gaps' || key === 'limits') {
           if (!isText(value)) errors.push(`${id}/${type}: ${key} needs a reason`);
           if (key === 'gaps' && !evidence?.[type]?.length && !weak?.[type]?.length) {
             errors.push(`${id}/${type}: gaps require partial evidence`);
@@ -289,6 +303,7 @@ function readResults(root, roots, files, sources) {
 }
 
 const testKey = (ancestors, title) => JSON.stringify([ancestors, title]);
+const inSuite = (ancestors, prefix) => ancestors.some(suite => suite.startsWith(prefix));
 
 function resultFor(source, ref, results, suiteFailures) {
   if (ref.kind === 'size') {
@@ -305,22 +320,27 @@ function resultFor(source, ref, results, suiteFailures) {
     ? source.titles.templates.filter(test => test.template === ref.registration)
       .map(test => testKey(test.ancestors, ref.title))
     : source.titles.tests.filter(({ title, ancestors }) => ref.title
-      ? title === ref.title : ancestors.some(suite => suite.startsWith(ref.prefix)))
+      ? title === ref.title : inSuite(ancestors, ref.prefix) && (!ref.casePrefix || title?.startsWith(ref.casePrefix)))
       .map(({ ancestors, title }) => testKey(ancestors, title));
   const keys = new Set(expected);
+  const templates = ref.casePrefix ? source.titles.templates.filter(test => inSuite(test.ancestors, ref.prefix)) : [];
   for (const file of suiteFailures.get(source.path) ?? []) reports.set(file, new Set(['fail']));
   const passed = new Set();
   for (const test of results.get(source.path) ?? []) {
     const key = testKey(test.ancestorTitles, test.title);
-    const matches = ref.prefix ? test.ancestorTitles.some(suite => suite.startsWith(ref.prefix))
+    const matches = ref.prefix ? inSuite(test.ancestorTitles, ref.prefix) && (!ref.casePrefix || test.title.startsWith(ref.casePrefix))
       : ref.ancestors ? keys.has(key) : test.title === ref.title;
     if (!matches) continue;
-    if (test.status === 'passed') passed.add(key);
+    // Historical failures remain visible even when a suite has since replaced the assertion.
+    if (test.status === 'passed' && (!ref.casePrefix || keys.has(key)
+      || templates.some(candidate => testKey(candidate.ancestors, test.title) === key && matchesTemplate(test.title, candidate.template)))) {
+      passed.add(key);
+    }
     if (!reports.has(test.file)) reports.set(test.file, new Set());
     reports.get(test.file).add(test.status === 'failed' ? 'fail' : test.status === 'passed' ? 'pass' : 'skipped');
   }
   const status = [...reports.values()].some(values => values.has('fail')) ? 'fail'
-    : passed.size && expected.every(key => passed.has(key))
+    : passed.size && (!ref.cases || passed.size === ref.cases) && expected.every(key => passed.has(key))
       && [...reports.values()].every(values => !values.has('skipped')) ? 'pass' : 'not run';
   return { status, reports };
 }
@@ -363,27 +383,37 @@ function groupTypes(entries) {
   return [...groups].map(([value, types]) => `${types.join(', ')} · ${value}`);
 }
 
-function readerDetails(rows, root, from) {
-  const gaps = [];
-  const limits = [];
+function readerDetails(rows, root, from, review) {
+  const failures = new Map();
+  const weak = [];
+  const missing = [];
+  const pending = [];
+  const environment = [];
+  const limits = new Map();
+  const waivers = [];
   const unrun = new Map();
   for (const { row, cells } of rows) {
-    const lines = [];
     const cellsOf = status => chartTypes.filter((_, i) => cells[i].status === status);
-    const failures = cellsOf('fail');
-    const missing = cellsOf('no evidence');
-    if (failures.length) lines.push(`Fail · ${failures.join(', ')}`);
-    if (missing.length) lines.push(`No evidence · ${missing.join(', ')} · ${row.statement}`);
-    lines.push(...groupTypes(Object.entries(row.gaps ?? {})).map(note => `Weak · ${note}`));
-    const remaining = Object.entries(row.weak ?? {}).filter(([type]) => cellsOf('weak').includes(type) && !row.gaps?.[type]);
-    lines.push(...groupTypes(remaining.flatMap(([type, refs]) => refs.map(ref => [type, ref.reason]))).map(note => `Weak · ${note}`));
-    lines.push(...groupTypes(Object.entries(row.pending ?? {})).map(note => `Pending · ${note}`));
-    if (lines.length) gaps.push(`- **${row.id}** · ${lines.join('\n  - ')}`);
+    const failed = cellsOf('fail');
+    if (failed.length) failures.set(row.id, new Set(failed));
+    const gaps = cellsOf('weak').flatMap(type => row.gaps?.[type]
+      ? [[type, row.gaps[type]]] : (row.weak?.[type] ?? []).map(ref => [type, ref.reason]));
+    if (gaps.length) weak.push(`- **${row.id}** · ${groupTypes(gaps).map(note => `Weak · ${note}`).join('\n  - ')}`);
+    const absent = cellsOf('no evidence');
+    if (absent.length) missing.push(`- **${row.id}** · ${absent.join(', ')} · ${row.statement}`);
+    const waiting = groupTypes(cellsOf('not run').map(type => [type, row.pending?.[type] ?? 'Required assertions have no matching passing result.']));
+    if (waiting.length) pending.push(`- **${row.id}** · ${waiting.join('\n  - ')}`);
     for (const [type, waiver] of Object.entries(row.waivers ?? {})) {
-      gaps.push(`- **${row.id}/${type}** · Waiver granted by ${waiver.grantedBy} · ${waiver.reason}`);
+      waivers.push(`- **${row.id}/${type}** · Waiver granted by ${waiver.grantedBy} · ${waiver.reason}`);
     }
-    const environment = groupTypes(Object.entries(row.cannotVerify ?? {}));
-    if (environment.length) limits.push(`- **${row.id}** · ${environment.join('\n  - ')}`);
+    const unavailable = groupTypes(Object.entries(row.cannotVerify ?? {}));
+    if (unavailable.length) environment.push(`- **${row.id}** · ${unavailable.join('\n  - ')}`);
+    for (const [type, note] of Object.entries(row.limits ?? {})) {
+      if (!limits.has(note)) limits.set(note, new Map());
+      const criteria = limits.get(note);
+      if (!criteria.has(row.id)) criteria.set(row.id, []);
+      criteria.get(row.id).push(type);
+    }
     for (const [i, cell] of cells.entries()) {
       for (const ref of cell.unrun) {
         if (!unrun.has(ref.file)) unrun.set(ref.file, new Set());
@@ -392,14 +422,77 @@ function readerDetails(rows, root, from) {
     }
   }
   if (rows.some(({ row }) => row.id === 'P1')) {
-    limits.push(`- **GPU** · Hardware rasterization needs a headed, GPU-backed run. Archived headless Chrome renderer comparisons cannot establish GPU performance. ${fileLink(from, root, 'docs/decisions/0002-mark-renderer.md')}`);
+    environment.push(`- **GPU** · Hardware rasterization needs a headed, GPU-backed run. ${fileLink(from, root, 'docs/decisions/0002-mark-renderer.md')}`);
   }
-  return ['## Coverage gaps in reader priority order', '', ...(gaps.length ? gaps : ['No coverage gaps recorded.']), '',
-    '## What cannot be verified here', '', ...(limits.length ? limits : ['No environment limits recorded.']), '',
+  const failedGroups = [];
+  for (const { label, cells, detail, sources = [] } of review?.failureGroups ?? []) {
+    const affected = [];
+    for (const [id, types] of Object.entries(cells)) {
+      const found = types.filter(type => failures.get(id)?.delete(type));
+      if (found.length) affected.push(`${id} (${found.join(', ')})`);
+    }
+    if (affected.length) {
+      const links = sources.map(file => fileLink(from, root, file));
+      failedGroups.push(`- **${label}** · ${affected.join(' · ')}. ${detail}${links.length ? ' ' + links.join(' · ') : ''}`);
+    }
+  }
+  for (const [id, types] of failures) {
+    if (types.size) failedGroups.push(`- **${id}** · ${[...types].join(', ')}`);
+  }
+  return [
+    '## What stands between this tree and a release', '',
+    '### Failing cells', '', ...(failedGroups.length ? failedGroups : ['No failing cells recorded.']), '',
+    '### Weak cells', '', ...(weak.length ? weak : ['No weak cells recorded.']), '',
+    '### No evidence', '', ...(missing.length ? missing : ['No cells without evidence.']), '',
+    '### Not run', '',
+    ...(rows.some(({ row }) => row.id === 'P1') && pending.length
+      ? [`P1–P8 have a harness in \`bench/\`. Acceptance measurements await a quiet machine. ${fileLink(from, root, 'bench/README.md')}`, ''] : []),
+    ...(pending.length ? pending : ['No cells awaiting a run.']), '',
+    '### Cannot be verified here', '', ...(environment.length ? environment : ['No environment limits recorded.']), '',
+    ...(waivers.length ? ['### Waivers', '', ...waivers, ''] : []),
+    ...(limits.size ? ['## Evidence limits by cell', '', ...[...limits].map(([note, criteria]) =>
+      `- ${note} **${[...criteria].map(([id, types]) => `${id} (${types.join(', ')})`).join(' · ')}**`), ''] : []),
     '## Evidence that exists but was not run for this report', '',
-    ...(unrun.size ? ['These files have citations with missing or skipped assertions in the supplied results.', ''] : []),
+    ...(unrun.size ? ['These files have citations with required assertions missing or skipped in the supplied results.', ''] : []),
     ...(unrun.size ? [...unrun].map(([file, cells]) => `- ${[...cells].join(', ')} · ${fileLink(from, root, file)}`)
-      : ['Every required executable citation has a matching result. Unmeasured workloads appear in the gap list.']), ''].join('\n');
+      : ['Every required executable citation has a matching result. Unmeasured workloads appear under Not run.']), '',
+  ].join('\n');
+}
+
+function describeReview(review, rows, counts) {
+  if (!review) return [];
+  const { scope, negativeControls, baseline, changeReasons } = review;
+  const previous = Object.fromEntries(statuses.map(status => [status, 0]));
+  const groups = new Map();
+  for (const { row, cells } of rows) {
+    const before = baseline[row.id];
+    if (!before) continue;
+    for (const [i, { status }] of cells.entries()) {
+      previous[before[i]]++;
+      if (before[i] === status) continue;
+      const transition = `${before[i]} → ${status}`;
+      if (!groups.has(transition)) groups.set(transition, new Map());
+      const group = groups.get(transition);
+      if (!group.has(row.id)) group.set(row.id, []);
+      group.get(row.id).push(chartTypes[i]);
+    }
+  }
+  return [
+    '## Scope of this evidence review', '',
+    ...scope.flatMap(paragraph => [paragraph, '']),
+    '## Status changes from the previous report', '',
+    'The baseline is the checked-in report before the re-merge. The separate coordinator checker log stopped at structural citation errors.', '',
+    '| Status | Before | After |', '| --- | ---: | ---: |',
+    ...statuses.map(status => `| ${status} | ${previous[status]} | ${counts[status]} |`), '',
+    ...[...groups].map(([transition, group]) => {
+      const count = [...group.values()].reduce((total, types) => total + types.length, 0);
+      const cells = [...group].map(([id, types]) => `${id} (${types.join(', ')})`).join(' · ');
+      return `- **${transition} (${count})** · ${changeReasons[transition] ?? 'See the evidence and blocker notes for these cells.'}\n  - ${cells}`;
+    }), '',
+    '## Negative controls', '',
+    negativeControls.intro, '',
+    ...negativeControls.checks.map(([helper, mutation]) => `- **${helper}** · ${mutation}`), '',
+  ];
 }
 
 function describeProvenance(provenance) {
@@ -477,10 +570,13 @@ export function check({ root, matrixFile = resolve(root, 'acceptance/matrix.json
     ...rows.map(({ row, cells }) => printRow([row.id, row.statement, ...cells.map(describeCell)]))].join('\n');
   const summary = statuses.map(status => `- ${status} · ${counts[status]}`).join('\n');
   const from = resolve(root, 'acceptance');
+  const notesFile = resolve(from, 'review.json');
+  const notes = statSync(notesFile, { throwIfNoEntry: false }) ? json(notesFile) : null;
+  const review = notes && runs.length === 4 && runs.every(run => run.provenance?.commit === notes.commit) ? notes : null;
   const report = ['# Acceptance report', '', ...describeRuns(runs, root), ...describeSizes(rows, root, sources, from),
     '', '## Status by chart type', '', summary, '',
     'The matrix contains individual test citations and applicability reasons. ' + fileLink(from, root, relative(root, matrixFile)), '',
-    table, '', readerDetails(rows, root, from)].join('\n') + '\n';
+    table, '', readerDetails(rows, root, from, review), ...describeReview(review, rows, counts)].join('\n') + '\n';
   const blocked = rows.some(({ row, cells }) => cells.some(({ status }, i) =>
     !['pass', 'not applicable'].includes(status)
     && (!['not run', 'cannot be verified here'].includes(status) || !row.waivers?.[chartTypes[i]])));

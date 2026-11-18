@@ -7,9 +7,59 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
-const tokens = source => [...source.matchAll(
-  /\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|\/(?:\\.|\[(?:\\.|[^\]\\\r\n])*\]|[^/\\\r\n])+\/[dgimsuvy]*|'(?:\\[\s\S]|[^'\\\r\n])*'|"(?:\\[\s\S]|[^"\\\r\n])*"|`(?:\\[\s\S]|[^`\\])*`|[\w$]+|[^\s]/g,
-)].map(match => match[0]).filter(token => !token.startsWith('//') && !token.startsWith('/*'));
+const ordinary = /\s+|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|'(?:\\[\s\S]|[^'\\])*'|"(?:\\[\s\S]|[^"\\])*"|=>|[\w$]+|[^\s]/y;
+const regexLiteral = /\/(?:\\.|\[(?:\\.|[^\]\\\r\n])*\]|[^/\\\r\n])+\/[dgimsuvy]*/y;
+const expressionStarts = new Set(['=', '(', '[', '{', ',', ':', '?', '!', '&', '|', ';', '=>', 'return']);
+
+function tokenAt(source, start, previous) {
+  if (source[start] === '`') return source.slice(start, scanTemplate(source, start).end);
+  if (source[start] === '/' && (!previous || expressionStarts.has(previous))
+    && source[start + 1] !== '/' && source[start + 1] !== '*') {
+    regexLiteral.lastIndex = start;
+    const regex = regexLiteral.exec(source);
+    if (regex) return regex[0];
+  }
+  ordinary.lastIndex = start;
+  return ordinary.exec(source)[0];
+}
+
+const trivia = token => /^\s|^\/[/\*]/.test(token);
+
+function scanTemplate(source, start) {
+  let end = start + 1;
+  const spans = [];
+  while (end < source.length) {
+    const char = source[end++];
+    if (char === '\\') end++;
+    else if (char === '`') break;
+    else if (char === '$' && source[end] === '{') {
+      const from = end - 1;
+      let braces = 1;
+      let previous = '{';
+      end++;
+      while (braces && end < source.length) {
+        const token = tokenAt(source, end, previous);
+        end += token.length;
+        if (trivia(token)) continue;
+        if (token === '{') braces++;
+        if (token === '}') braces--;
+        previous = token;
+      }
+      spans.push({ from, to: end });
+    }
+  }
+  return { end, spans };
+}
+
+function tokens(source) {
+  const parts = [];
+  for (let start = 0; start < source.length;) {
+    const token = tokenAt(source, start, parts.at(-1));
+    start += token.length;
+    if (!trivia(token)) parts.push(token);
+  }
+  return parts;
+}
 
 function unescape(text) {
   return text.replace(/\\(?:u\{([\da-f]+)\}|u([\da-f]{4})|x([\da-f]{2})|(\r\n|[\s\S]))/gi,
@@ -85,11 +135,23 @@ function expandTitles(token, rows, loops) {
   const raw = token.slice(1, -1);
   let titles = [raw];
   if (token.startsWith('`')) {
-    for (const [expression, name] of raw.matchAll(/\$\{([^}]+)\}/g)) {
-      const loop = loops.findLast(item => item.name === name.trim());
+    const spans = scanTemplate(token, 0).spans.map(({ from, to }) =>
+      ({ from, to, name: token.slice(from + 2, to - 1).trim() }));
+    let bindings = [new Map()];
+    for (const name of new Set(spans.map(span => span.name))) {
+      const loop = loops.findLast(item => item.name === name);
       if (!loop || !loop.values || loop.values.some(Array.isArray)) return [];
-      titles = titles.flatMap(title => loop.values.map(value => title.replace(expression, () => value)));
+      bindings = bindings.flatMap(binding => loop.values.map(value => new Map([...binding, [name, value]])));
     }
+    titles = bindings.map(binding => {
+      let start = 1;
+      const parts = [];
+      for (const { from, to, name } of spans) {
+        parts.push(token.slice(start, from), binding.get(name));
+        start = to;
+      }
+      return parts.join('') + token.slice(start, -1);
+    });
   }
   if (rows) {
     titles = titles.flatMap(title => rows.map((row, index) => {
@@ -158,8 +220,16 @@ export function readTitles(source, file) {
 }
 
 export function matchesTemplate(title, template) {
-  const literals = template.split(/\$\{[^}]+\}/g).map(unescape);
-  if (literals.length < 2) return false;
+  const source = '`' + template + '`';
+  const { spans } = scanTemplate(source, 0);
+  if (!spans.length) return false;
+  const literals = [];
+  let start = 1;
+  for (const { from, to } of spans) {
+    literals.push(unescape(source.slice(start, from)));
+    start = to;
+  }
+  literals.push(unescape(source.slice(start, -1)));
   const pattern = literals.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*?');
   return new RegExp('^' + pattern + '$').test(title);
 }

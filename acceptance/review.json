@@ -1,0 +1,341 @@
+{
+  "commit": "d8b41505a7ce919276d532f11c6af3d90fdfb933",
+  "scope": [
+    "The four coordinator reports describe d8b4150. The release check rejects their provenance against the working tree. The results can locate failures and evidence gaps in the recorded tree. Changed assertions and concurrent fixes need a fresh build and run.",
+    "The citation uses a describe prefix and chart-specific case prefix for I1 and I4 in i1-pointer, L8 in l-legibility, and A10 in a6-a10. These suites are the units of evidence for the revisions to hover and pinning, reserved readout mode, the small-plot summary, and message applicability. Historical failures remain visible. New or materially changed checks need fresh results even when the registration still has the same title.",
+    "The browser acceptance suite measures SVG in system Chrome. The 200% text-size and 400% page-zoom fixtures use emulation. Firefox, Safari/WebKit, real phone touch, spoken output and screen-magnifier rehearsal are outside these runs. The packed distribution checks exercise Chrome and esbuild, with the recorded CSP and fixture isolation guards.",
+    "Applicability uses continuous x for zoom in 1.0. Category line, area and bar check absent zoom controls and a no-op public zoom call. Scatter preserves its y range. I2 applies to series toggles. F8’s donut legend lists static slices. C4 applies dashes to compact strokes and takes the compact bar texture check from A5.",
+    "The million-row table jump and the three ten-line packed snippets exercise line. F10’s compact evidence uses the summary in place of full-chart readouts. The recorded P7 store assertion is a precursor to the full benchmark, which also requires post-collection lifecycle data."
+  ],
+  "failureGroups": [
+    {
+      "label": "Tooltip placement and focus clearance",
+      "cells": {
+        "I1": [
+          "line",
+          "area",
+          "bar",
+          "scatter",
+          "donut"
+        ],
+        "A2": [
+          "line",
+          "area",
+          "bar",
+          "scatter",
+          "donut"
+        ],
+        "I4": [
+          "line",
+          "area",
+          "bar",
+          "scatter",
+          "donut"
+        ]
+      },
+      "detail": "Decision 0004 revision 2 addresses the shared tooltip placement, hover and pinning path. The archive records occluded marks or controls, clipped or occluded focus indicators, hover persistence failures and rows around 17 px high. The old hover oracle also required the tooltip to receive the pointer. Revision 2 requires persistence over its rectangle while the plot receives moves, and measures row controls after pinning. The alignment and product fixes need fresh results.",
+      "sources": [
+        "docs/decisions/0004-tooltip-and-focused-text.md",
+        "reviews/2026-11-18/impl/wp/acceptance-browser.fix.report.md"
+      ]
+    },
+    {
+      "label": "Late-font layout",
+      "cells": {
+        "L1": [
+          "line",
+          "area",
+          "scatter"
+        ]
+      },
+      "detail": "The late font leaves y ticks overlapping the axis title and clips a scatter label in the archived SVG fixtures.",
+      "sources": [
+        "reviews/2026-11-18/impl/wp/acceptance-browser.fix.report.md"
+      ]
+    },
+    {
+      "label": "Scheme repaint timing",
+      "cells": {
+        "L4": [
+          "line",
+          "area",
+          "bar",
+          "scatter",
+          "donut",
+          "compact"
+        ],
+        "C2": [
+          "compact"
+        ]
+      },
+      "detail": "After a class change on the root, the marks still have their original colors at the first frame. The C2 fidelity cell includes the L4 requirement.",
+      "sources": [
+        "reviews/2026-11-18/impl/wp/acceptance-browser.fix.report.md"
+      ]
+    },
+    {
+      "label": "Superseded summary oracle",
+      "cells": {
+        "L8": [
+          "scatter",
+          "donut"
+        ]
+      },
+      "detail": "Two-line summaries fail the archived one-line rule. The current spec allows up to two lines with an ellipsis and retains the full accessible description. The archived failures leave the revised rule unverified.",
+      "sources": [
+        "docs/02-product-spec.md",
+        "reviews/2026-11-18/impl/wp/acceptance-browser.fix.report.md"
+      ]
+    },
+    {
+      "label": "Categorical stream focus",
+      "cells": {
+        "A7": [
+          "bar"
+        ]
+      },
+      "detail": "The archived sliding window rewrites value text when the same category datum moves within the window.",
+      "sources": [
+        "docs/decisions/0004-tooltip-and-focused-text.md",
+        "reviews/2026-11-18/impl/wp/acceptance-browser.fix.report.md"
+      ]
+    },
+    {
+      "label": "Scatter tie break",
+      "cells": {
+        "T-pointer-scatter": [
+          "scatter"
+        ]
+      },
+      "detail": "A reversed input order still picks the same series in the equidistant browser probe. The later caller row should win.",
+      "sources": [
+        "reviews/2026-11-18/impl/wp/acceptance-browser.fix.report.md"
+      ]
+    },
+    {
+      "label": "Thin donut slice",
+      "cells": {
+        "T-dense-donut": [
+          "donut"
+        ],
+        "F8": [
+          "donut"
+        ]
+      },
+      "detail": "The 0.1% slice has an empty SVG path in the archived fixture. The regular eight-arc threshold, grouping and share-format checks pass.",
+      "sources": [
+        "reviews/2026-11-18/impl/wp/acceptance-browser.fix.report.md"
+      ]
+    },
+    {
+      "label": "Superseded message applicability",
+      "cells": {
+        "A10": [
+          "area",
+          "bar"
+        ]
+      },
+      "detail": "The archived full-chart checks require incompleteAt and incompleteCount. The alignment pass assigns those summary templates to compact stacks and uses incompleteStack on full stacks. Current per-key results are still needed.",
+      "sources": [
+        "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts"
+      ]
+    },
+    {
+      "label": "Packed note serialization",
+      "cells": {
+        "F12": [
+          "line"
+        ],
+        "A10": [
+          "line"
+        ],
+        "DX8": [
+          "line"
+        ]
+      },
+      "detail": "Both packed text tests find the note’s text runs serialized as visible JSON. This corrupts the note and its custom See table text. The failing fixture is a line chart.",
+      "sources": [
+        "tests/dist/text.browser.test.ts"
+      ]
+    },
+    {
+      "label": "Packed gzip size",
+      "cells": {
+        "DX7": [
+          "line",
+          "area",
+          "bar",
+          "scatter",
+          "donut",
+          "compact"
+        ]
+      },
+      "detail": "Everything is 99.47 KiB against 40 KiB, line-only is 99.38 KiB against 25 KiB, and the React adapter is 1.17 KiB against 2 KiB. The analysis proposes 96, 80 and 2 KiB respectively. The owner has yet to approve a change.",
+      "sources": [
+        "bench/size-latest.json",
+        "reviews/2026-11-18/impl/wp/size.analysis.md"
+      ]
+    }
+  ],
+  "negativeControls": {
+    "intro": "All 11 browser acceptance controls passed in the recorded run. They validate test helpers and carry no criterion citation. [Browser negative controls](../packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts)",
+    "checks": [
+      [
+        "Separator measurement",
+        "Compares painted clearance to a 1 px same-angle control and flags 0.5 px or touching edges, including diagonal edges."
+      ],
+      [
+        "Painted-color sampler",
+        "Detects very faint or covered marks."
+      ],
+      [
+        "Grayscale marker classification",
+        "Flags three identical marker shapes."
+      ],
+      [
+        "Text geometry",
+        "Detects overlapping labels, clipped labels and a 1.1 px overlap between lines."
+      ],
+      [
+        "Table comparison",
+        "Detects reordered headers and swapped cell values."
+      ],
+      [
+        "Summary sentence checker",
+        "Detects a removed range sentence."
+      ],
+      [
+        "Focused value-text helper",
+        "Rejects lost focus and a control exposed as a text field."
+      ],
+      [
+        "Tooltip occlusion checker",
+        "Detects a tooltip moved onto the active bars."
+      ],
+      [
+        "Motion trace",
+        "Detects a 1 s entry fade and a 600 ms update transition."
+      ],
+      [
+        "Painted reference sampler",
+        "Detects a removed or transparent reference line."
+      ],
+      [
+        "Dense spike-column checker",
+        "Detects a spike shifted by five device-pixel columns."
+      ],
+      [
+        "Readout layout comparison",
+        "A new control in the alignment pass flags a strip that claims space only while a datum is shown. The archive predates this assertion."
+      ]
+    ]
+  },
+  "changeReasons": {
+    "not run → pass": "Current registered assertions match the d8b4150 reports, including the strengthened per-type rendering, exact content, diagnostics, geometry and packed-consumer checks.",
+    "not run → weak": "The matching assertions exercise only part of the spec.",
+    "not run → fail": "The restored citations expose historical focus clearance, scatter tie, thin slice, bar streaming and packed note failures.",
+    "weak → pass": "The combined suites close gaps in device-column extrema and breaks, modeled domains, the 24-tile table and million-row jump, painted contrast, full zoom controls, donut focus identity, frame-traced motion, compact axe states and marker spacing.",
+    "weak → fail": "The archive now supplies affirmative failures, including stronger legibility, repaint, tooltip, compact scheme and message assertions.",
+    "fail → pass": "The strengthened Node domain and stack assertions pass, and the rendered stack tests confirm both mixed-sign totals.",
+    "cannot be verified here → fail": "The archived target-size assertions failed in Chrome. Physical-phone verification is still open.",
+    "not run → not applicable": "I2 is applied to series visibility controls. The donut’s static legend is covered by F8."
+  },
+  "baseline": {
+    "L1": ["weak", "weak", "weak", "weak", "weak", "not applicable"],
+    "C4": ["not applicable", "not applicable", "not applicable", "not applicable", "not applicable", "not run"],
+    "F1": ["not applicable", "not run", "not run", "not applicable", "not applicable", "not run"],
+    "F2": ["not run", "not run", "not run", "not run", "not run", "weak"],
+    "F3": ["weak", "weak", "weak", "weak", "weak", "weak"],
+    "F12": ["not run", "not run", "not run", "not run", "not run", "not applicable"],
+    "F10": ["not applicable", "fail", "fail", "not applicable", "not applicable", "weak"],
+    "F8": ["not applicable", "not applicable", "not applicable", "not applicable", "fail", "not applicable"],
+    "F4": ["not run", "not run", "not run", "not run", "not applicable", "not run"],
+    "F11": ["pass", "pass", "pass", "pass", "not applicable", "not run"],
+    "F5": ["weak", "weak", "not applicable", "not applicable", "not applicable", "weak"],
+    "T-dense-line": ["weak", "not applicable", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "T-dense-area": ["not applicable", "weak", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "T-dense-bar": ["not applicable", "not applicable", "not run", "not applicable", "not applicable", "not applicable"],
+    "T-dense-donut": ["not applicable", "not applicable", "not applicable", "not applicable", "not run", "not applicable"],
+    "T-dense-scatter": ["not applicable", "not applicable", "not applicable", "not run", "not applicable", "not applicable"],
+    "F7": ["fail", "fail", "fail", "fail", "not applicable", "weak"],
+    "F6": ["weak", "weak", "weak", "weak", "weak", "weak"],
+    "A3": ["cannot be verified here", "cannot be verified here", "cannot be verified here", "cannot be verified here", "cannot be verified here", "not applicable"],
+    "A1": ["not run", "not run", "not run", "not run", "not run", "not run"],
+    "A2": ["not run", "not run", "not run", "not run", "not run", "not applicable"],
+    "T-keyboard-line": ["not run", "not applicable", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "T-keyboard-area": ["not applicable", "not run", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "T-keyboard-bar": ["not applicable", "not applicable", "not run", "not applicable", "not applicable", "not applicable"],
+    "T-keyboard-donut": ["not applicable", "not applicable", "not applicable", "not applicable", "not run", "not applicable"],
+    "T-keyboard-scatter": ["not applicable", "not applicable", "not applicable", "not run", "not applicable", "not applicable"],
+    "A4": ["weak", "weak", "weak", "weak", "weak", "not applicable"],
+    "A5": ["not run", "not run", "weak", "not run", "weak", "weak"],
+    "L2": ["weak", "weak", "weak", "weak", "weak", "weak"],
+    "L7": ["not run", "not run", "not run", "not run", "not run", "not run"],
+    "L8": ["weak", "weak", "weak", "weak", "weak", "not applicable"],
+    "L3": ["weak", "weak", "weak", "weak", "weak", "not applicable"],
+    "L4": ["weak", "weak", "weak", "weak", "weak", "weak"],
+    "A6": ["cannot be verified here", "cannot be verified here", "cannot be verified here", "cannot be verified here", "cannot be verified here", "not applicable"],
+    "I1": ["weak", "weak", "weak", "weak", "weak", "not applicable"],
+    "T-pointer-line": ["not run", "not applicable", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "T-pointer-area": ["not applicable", "not run", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "T-pointer-bar": ["not applicable", "not applicable", "not run", "not applicable", "not applicable", "not applicable"],
+    "T-pointer-donut": ["not applicable", "not applicable", "not applicable", "not applicable", "not run", "not applicable"],
+    "T-pointer-scatter": ["not applicable", "not applicable", "not applicable", "not run", "not applicable", "not applicable"],
+    "T-tooltip-line": ["not run", "not applicable", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "T-tooltip-area": ["not applicable", "not run", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "T-tooltip-bar": ["not applicable", "not applicable", "not run", "not applicable", "not applicable", "not applicable"],
+    "T-tooltip-donut": ["not applicable", "not applicable", "not applicable", "not applicable", "not run", "not applicable"],
+    "T-tooltip-scatter": ["not applicable", "not applicable", "not applicable", "not run", "not applicable", "not applicable"],
+    "I2": ["not run", "not run", "not run", "not run", "not run", "not applicable"],
+    "I3": ["weak", "weak", "weak", "weak", "not applicable", "not applicable"],
+    "T-zoom-line": ["not run", "not applicable", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "T-zoom-area": ["not applicable", "not run", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "T-zoom-bar": ["not applicable", "not applicable", "not run", "not applicable", "not applicable", "not applicable"],
+    "T-zoom-donut": ["not applicable", "not applicable", "not applicable", "not applicable", "not run", "not applicable"],
+    "T-zoom-scatter": ["not applicable", "not applicable", "not applicable", "not run", "not applicable", "not applicable"],
+    "I4": ["cannot be verified here", "cannot be verified here", "cannot be verified here", "cannot be verified here", "cannot be verified here", "not applicable"],
+    "A7": ["not run", "not run", "not run", "not run", "weak", "weak"],
+    "I6": ["not run", "not run", "not run", "not run", "not run", "not applicable"],
+    "I5": ["weak", "weak", "weak", "weak", "weak", "weak"],
+    "A8": ["not run", "not run", "weak", "not run", "not run", "weak"],
+    "A10": ["weak", "weak", "weak", "weak", "weak", "weak"],
+    "A9": ["no evidence", "no evidence", "no evidence", "no evidence", "no evidence", "no evidence"],
+    "F9": ["not run", "not run", "not run", "not run", "not applicable", "weak"],
+    "T-limit-line": ["not run", "not applicable", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "T-limit-area": ["not applicable", "not run", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "T-limit-bar": ["not applicable", "not applicable", "not run", "not applicable", "not applicable", "not applicable"],
+    "T-limit-donut": ["not applicable", "not applicable", "not applicable", "not applicable", "not run", "not applicable"],
+    "T-limit-scatter": ["not applicable", "not applicable", "not applicable", "not run", "not applicable", "not applicable"],
+    "L6": ["not run", "not run", "not run", "not run", "not run", "not applicable"],
+    "T-reference-line": ["not run", "not applicable", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "T-reference-area": ["not applicable", "not run", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "T-reference-bar": ["not applicable", "not applicable", "not run", "not applicable", "not applicable", "not applicable"],
+    "T-reference-donut": ["not applicable", "not applicable", "not applicable", "not applicable", "not run", "not applicable"],
+    "T-reference-scatter": ["not applicable", "not applicable", "not applicable", "not run", "not applicable", "not applicable"],
+    "L5": ["weak", "weak", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "C1": ["not applicable", "not applicable", "not applicable", "not applicable", "not applicable", "not run"],
+    "C2": ["not applicable", "not applicable", "not applicable", "not applicable", "not applicable", "weak"],
+    "C3": ["not applicable", "not applicable", "not applicable", "not applicable", "not applicable", "not run"],
+    "C5": ["not applicable", "not applicable", "not applicable", "not applicable", "not applicable", "not run"],
+    "DX1": ["not run", "weak", "weak", "weak", "weak", "weak"],
+    "DX2": ["weak", "weak", "weak", "weak", "pass", "weak"],
+    "DX3": ["weak", "weak", "weak", "weak", "weak", "weak"],
+    "DX4": ["weak", "weak", "weak", "weak", "weak", "weak"],
+    "DX5": ["weak", "weak", "weak", "weak", "weak", "weak"],
+    "DX6": ["weak", "weak", "weak", "weak", "weak", "weak"],
+    "DX7": ["fail", "fail", "fail", "fail", "fail", "fail"],
+    "DX8": ["not run", "weak", "weak", "weak", "weak", "weak"],
+    "DX9": ["no evidence", "no evidence", "no evidence", "no evidence", "no evidence", "no evidence"],
+    "DX10": ["weak", "weak", "weak", "weak", "weak", "weak"],
+    "DX11": ["not run", "not run", "not run", "not run", "not run", "not run"],
+    "DX12": ["no evidence", "no evidence", "no evidence", "no evidence", "no evidence", "no evidence"],
+    "P1": ["not run", "not applicable", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "P2": ["not run", "not applicable", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "P3": ["not run", "not applicable", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "P4": ["not run", "not run", "not run", "not run", "not applicable", "not applicable"],
+    "P5": ["not run", "not applicable", "not applicable", "not applicable", "not applicable", "not applicable"],
+    "P6": ["not run", "not run", "not run", "not run", "not run", "not run"],
+    "P7": ["not run", "not run", "not run", "not run", "not run", "not run"],
+    "P8": ["not applicable", "not applicable", "not applicable", "not applicable", "not applicable", "not run"]
+  }
+}
