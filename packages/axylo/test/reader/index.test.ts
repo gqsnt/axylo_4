@@ -3,6 +3,7 @@ import { buildTable } from '../../src/reader/table';
 import { DiagnosticCollector } from '../../src/diagnostics';
 import { defaultMessages, resolveMessages } from '../../src/messages';
 import { buildReader, type ReaderInput } from '../../src/reader';
+import { buildStack } from '../../src/view/stack';
 import { aligned, donut, formatter, frame, scatter } from '../lookup/fixtures';
 
 function read(view: ReaderInput['view'], input: Partial<ReaderInput> = {}) {
@@ -54,8 +55,35 @@ it('keeps disclosures before the author description and joins both visible notes
   });
   expect(custom.note).toBe('Omitted count(2). Changed count(1). Some labels hidden. See table.');
   expect(custom.summary).toContain('Line chart with count(3) series.');
-  expect(read(trend, { disclosure: { omitted: 0, changed: 1 }, compact: true }).summary)
-    .toContain('Values shown differently from the data: 1. See table.');
+  expect(custom.summary).toMatch(/Omitted count\(2\)\. Changed count\(1\)\. The reporting period was revised\.$/);
+});
+
+it.each([{ compact: true }, { table: false }])('keeps disclosure text without a table under %j', options => {
+  const model = read(trend, { ...options, disclosure: { omitted: 2, changed: 1 }, labelsHidden: 4 });
+  expect(model.table).toBeNull();
+  expect(model.note).toBe('Values not shown: 2. Values shown differently from the data: 1. Some labels hidden.');
+  expect(model.summary).toMatch(/Values not shown: 2\. Values shown differently from the data: 1\.$/);
+});
+
+it('fills explicit table guidance in authored disclosures and preserves overrides that omit it', () => {
+  const messages = resolveMessages({
+    valuesNotShown: 'Ausgelassen: {count}.', valuesChanged: 'Changed {count}. {seeTable}',
+    labelsHidden: 'Labels hidden: {count}. {seeTable}', seeTable: 'Check the rows.',
+  });
+  const input = { messages, disclosure: { omitted: 2, changed: 1 }, labelsHidden: 4 };
+  const model = read(trend, input);
+  expect(model.note).toBe('Ausgelassen: 2. Changed 1. Check the rows. Labels hidden: 4. Check the rows.');
+  expect(model.summary).toMatch(/Ausgelassen: 2\. Changed 1\. Check the rows\.$/);
+  const compact = read({ ...trend, compact: true }, input);
+  expect(compact.note).toBe('Ausgelassen: 2. Changed 1. Labels hidden: 4.');
+  expect(compact.summary).toMatch(/Ausgelassen: 2\. Changed 1\.$/);
+});
+
+it('skips a disclosure that becomes empty and preserves whitespace in a template without the placeholder', () => {
+  const messages = resolveMessages({ valuesNotShown: ' {seeTable}\t', valuesChanged: 'Changed {count}.  ' });
+  const model = read(trend, { messages, table: false, disclosure: { omitted: 2, changed: 1 } });
+  expect(model.note).toBe('Changed 1.  ');
+  expect(model.summary).toMatch(/Target at 20\. Changed 1\.  $/);
 });
 
 it('uses the external heading when supplied, otherwise generates and reports a missing name', () => {
@@ -112,6 +140,15 @@ it('limits the table to the current x range and omits it when disabled or compac
   expect(read(trend, { table: false }).table).toBeNull();
 });
 
+it('uses the declared x and y units in aligned table headers without formatting any rows', () => {
+  const data = frame('line', { data: [{ x: 1, y: 2 }], x: { field: 'x', label: 'Distance', unit: 'm' },
+    y: { field: 'y', label: 'Time', unit: 's' } });
+  const x = vi.fn(() => 'One metre');
+  const model = read(aligned(data), { labels: { xUnit: 'm' }, formatters: { ...formatter(data), x } });
+  expect(model.table?.headers).toEqual(['Distance (m)', 'Time (s)']);
+  expect(x).not.toHaveBeenCalled();
+});
+
 it('marks an incomplete stack in its row header without changing the series cells', () => {
   const data = frame('area', { data: [{ x: 0, a: 2, b: null }, { x: 1, a: 3, b: -1 }], x: 'x', y: ['a', 'b'] });
   const table = read(aligned(data, { kind: 'area', stack: {
@@ -121,6 +158,24 @@ it('marks an incomplete stack in its row header without changing the series cell
   } })).table!;
   expect(table.row(0)).toEqual(['0 (incomplete)', '2', 'No data']);
   expect(table.row(1)).toEqual(['1', '3', '-1']);
+});
+
+it('lists up to three shown incomplete stack positions with the x formatter and the incomplete message', () => {
+  const data = frame('area', { data: [10, 20, 30, 40, 50].map(x => ({ x, a: 2, b: x === 40 ? 1 : null })),
+    x: { field: 'x', label: 'Distance' }, y: ['a', 'b'] });
+  const view = aligned(data, { kind: 'area', compact: true, visibleSlots: { start: 1, end: 5 }, stack: buildStack(data, [true, true]) });
+  const model = read(view, { formatters: { ...formatter(data), x: x => `${x} m` },
+    messages: resolveMessages({ incompleteStack: 'partial' }) });
+  expect(model.summary).toContain('Distance (partial): 20 m, 30 m, 50 m.');
+});
+
+it('counts incomplete stacks when a compact summary would need more than three positions', () => {
+  const data = frame('bar', { data: [10, 20, 30, 40].map(x => ({ x, a: 2, b: null })),
+    x: { field: 'x', label: 'Distance' }, y: ['a', 'b'] });
+  const view = aligned(data, { kind: 'bar', stack: buildStack(data, [true, true]) });
+  const formatters = { ...formatter(data), count: (n: number) => `count(${n})` };
+  expect(read(view, { compact: true, formatters }).summary).toContain('Distance (incomplete): Total count(4).');
+  expect(read(view).summary).not.toContain('incomplete');
 });
 
 it('presents grouped donut categories separately in the table and together in the summary', () => {
@@ -191,6 +246,11 @@ it('identifies an undrawable duplicate-x series even when absent from the visibi
   const data = frame('line', { data: [{ x: 0, y: 1, group: 'A' }, { x: 1, y: 2, group: 'A' },
     { x: 0, y: 3, group: 'B' }, { x: 0, y: 4, group: 'B' }], x: 'x', y: 'y', series: 'group' });
   expect(read(aligned(data)).summary).toContain('B could not be drawn. See table.');
+  const withGuidance = resolveMessages({ seriesNotDrawn: '{series} ({seeTable})!', seeTable: 'check the rows' });
+  expect(read(aligned(data), { messages: withGuidance }).summary).toMatch(/B \(check the rows\)!$/);
+  const messages = resolveMessages({ seriesNotDrawn: 'Skipped {series}!' });
+  expect(read(aligned(data), { messages }).summary).toMatch(/Skipped B!$/);
+  expect(read(aligned(data), { compact: true }).summary).toMatch(/B could not be drawn\.$/);
 });
 
 it('formats reference lines and bands on their own axes and leaves the deprecated alias unused', () => {

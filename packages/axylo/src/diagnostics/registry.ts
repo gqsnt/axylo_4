@@ -128,7 +128,8 @@ export const diagnosticRegistry = {
     'The plot is too small to draw. Give the plot more room.',
   'The chart shows the summary and table control.'),
   AX143: entry('hint', d =>
-    field(d) + ' has ' + count(d, 'label') + ' that could not fit. Give the plot more room or shorten the labels.',
+    field(d) + ' has ' + count(d, 'label') + ' that could not fit. Give the plot more room or shorten the labels. ' +
+    'For vertical bars with category labels, try horizontal bars (horizontal: true).',
   'The chart shows a note that labels were hidden.'),
   AX150: entry('warning', d =>
     'Option ' + quote(d.field ?? '') + ' is unsupported. ' + (d.detail ?? 'Use an option supported by this chart.') + suggestion(d),

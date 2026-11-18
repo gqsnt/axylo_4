@@ -201,6 +201,6 @@ export interface Messages {
   total: string;
   /** Single-click panning (WCAG 2.5.7), the table's "Jump to" when nothing matches, and how to move in the plot. */
   panLeft: string; panRight: string; jumpNotFound: string; plotInstructions: string;
-  /** Appended to a note or summary sentence only when the chart has a table to see. */
+  /** Fills `{seeTable}` in `valuesNotShown`, `valuesChanged`, `labelsHidden` and `seriesNotDrawn` when the chart has a table; without one the placeholder is removed. An override without the placeholder is used as written. */
   seeTable: string;
 }

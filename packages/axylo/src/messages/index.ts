@@ -13,9 +13,9 @@ export const defaultMessages: Messages = {
   incompleteStack: 'incomplete',
   moreRows: '+{count} more',
   otherSlices: 'Other ({count})',
-  valuesNotShown: 'Values not shown: {count}. See table.',
-  valuesChanged: 'Values shown differently from the data: {count}. See table.',
-  labelsHidden: 'Some labels hidden. See table.',
+  valuesNotShown: 'Values not shown: {count}. {seeTable}',
+  valuesChanged: 'Values shown differently from the data: {count}. {seeTable}',
+  labelsHidden: 'Some labels hidden. {seeTable}',
   loading: 'Loading chart.',
   empty: 'No data to show.',
   error: 'The chart could not be drawn.',
@@ -51,7 +51,7 @@ export const defaultMessages: Messages = {
   typeDonut: 'Donut',
   donutSummary: '{type} chart with {count} slices. Total {total}.',
   seriesNoData: '{series}: no data.',
-  seriesNotDrawn: '{series} could not be drawn. See table.',
+  seriesNotDrawn: '{series} could not be drawn. {seeTable}',
   referenceLine: 'Reference line {label} at {from}.',
   referenceBand: 'Reference band {label} from {from} to {to}.',
   plotRole: '{type} chart',
@@ -62,7 +62,8 @@ export const defaultMessages: Messages = {
   panLeft: 'Pan left',
   panRight: 'Pan right',
   jumpNotFound: 'No row matches {x}. Example: {example}',
-  plotInstructions: 'Arrow keys move between points. Enter shows one series at a time. Plus and minus zoom.',  seeTable: 'See table.',
+  plotInstructions: 'Arrow keys move between points. Enter shows one series at a time. Plus and minus zoom.',
+  seeTable: 'See table.',
 };
 
 export function fill(template: string, values: Readonly<Record<string, string | number>>): string {

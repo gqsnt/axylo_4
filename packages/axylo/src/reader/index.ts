@@ -1,6 +1,6 @@
 import { SLOT_VALUE, type DiagnosticSink, type Formatters, type IndexRange, type ReaderModel, type View } from '../core/contracts';
 import { report } from '../diagnostics';
-import { sliceText } from '../lookup/text';
+import { incomplete, sliceText } from '../lookup/text';
 import { defaultMessages, fill, fillChartSummary, fillDonutSlice } from '../messages';
 import type { Messages, Title } from '../public';
 import { buildTable, type ReaderLabels } from './table';
@@ -29,6 +29,7 @@ export interface ReaderInput {
 const TYPE_MESSAGE = {
   line: 'typeLine', area: 'typeArea', bar: 'typeBar', scatter: 'typeScatter', donut: 'typeDonut',
 } as const;
+const MAX_STACK_POSITIONS = 3;
 
 function statistics(y: Float64Array | Float32Array, { start, end }: IndexRange, slot?: Uint8Array) {
   let min = Infinity;
@@ -45,7 +46,12 @@ function statistics(y: Float64Array | Float32Array, { start, end }: IndexRange, 
   return { min, max, last };
 }
 
-function chartText(input: ReaderInput, type: string, xLabel: string, yLabel: string): string[] {
+function fillWithTable(template: string, values: Readonly<Record<string, string | number>>, seeTable: string): string {
+  const text = fill(template, { ...values, seeTable });
+  return seeTable === '' && template.includes('{seeTable}') ? text.trimEnd() : text;
+}
+
+function chartText(input: ReaderInput, type: string, xLabel: string, yLabel: string, seeTable: string): string[] {
   const { view, formatters, messages } = input;
   if (view.kind === 'donut') {
     const drawn = view.slices.filter(slice => slice.angles && slice.angles[1] > slice.angles[0]);
@@ -82,7 +88,7 @@ function chartText(input: ReaderInput, type: string, xLabel: string, yLabel: str
   }
   frame.series.forEach((series, s) => {
     if (!series.drawable) {
-      undrawn.push(fill(messages.seriesNotDrawn, { series: series.label }));
+      undrawn.push(fillWithTable(messages.seriesNotDrawn, { series: series.label }, seeTable));
       return;
     }
     if (!view.visible[s]) return;
@@ -113,6 +119,23 @@ function chartText(input: ReaderInput, type: string, xLabel: string, yLabel: str
   ];
 }
 
+function stackText(view: View, formatters: Formatters, messages: Messages): string {
+  if (view.kind === 'donut' || view.kind === 'scatter') return '';
+  const flags = view.stack?.incomplete;
+  if (!flags) return '';
+  const positions: number[] = [];
+  let count = 0;
+  for (let i = view.visibleSlots.start; i < view.visibleSlots.end; i++) {
+    if (!flags[i]) continue;
+    if (count < MAX_STACK_POSITIONS) positions.push(view.frame.x.values[i]!);
+    count++;
+  }
+  if (!count) return '';
+  const details = count > MAX_STACK_POSITIONS
+    ? `${messages.total} ${formatters.count(count)}` : positions.map(position => formatters.x(position)).join(', ');
+  return `${incomplete(view.frame.xLabel, messages)}: ${details}.`;
+}
+
 function referenceText(view: View, formatters: Formatters, messages: Messages): string[] {
   if (view.kind === 'donut') return [];
   return view.references.map(({ axis, from, to, label }) => {
@@ -129,6 +152,7 @@ export function buildReader(input: ReaderInput): ReaderModel {
     percentage: input.labels?.percentage ?? messages.percentage,
     series: input.labels?.series ?? messages.series,
     value: input.labels?.value ?? messages.value,
+    xUnit: input.labels?.xUnit,
   };
   const type = messages[TYPE_MESSAGE[view.kind]];
   const xLabel = view.kind === 'donut' ? labels.category : view.frame.xLabel;
@@ -138,30 +162,35 @@ export function buildReader(input: ReaderInput): ReaderModel {
   if (!labelledBy && !titleText && input.diagnostics) report(input.diagnostics, 'AX140', 'none');
   const generated = fill(messages.chartName, { type, x: xLabel, y: yLabel });
   const name = labelledBy ? '' : titleText || generated;
+  const compact = input.compact === true || (view.kind !== 'donut' && view.compact);
+  let references: string[] | undefined;
+  const referencesForView = () => references ??= referenceText(view, formatters, messages);
+  const caption = [input.caption, name, generated, messages.plotLabel].find(text => text?.trim()) ?? defaultMessages.plotLabel;
+  const table = input.table === false || compact ? null : buildTable(
+    view, [caption, ...referencesForView()].join(' '), formatters, messages, labels, input.locale,
+  );
+  const seeTable = table ? messages.seeTable : '';
   const omitted = disclosure?.omitted ?? 0;
   const changed = disclosure?.changed ?? 0;
   const statements: string[] = [];
   if (omitted > 0 || changed > 0) {
     const counts = { omitted: formatters.count(omitted), changed: formatters.count(changed) };
-    if (omitted > 0) statements.push(fill(messages.valuesNotShown, { ...counts, count: counts.omitted }));
-    if (changed > 0) statements.push(fill(messages.valuesChanged, { ...counts, count: counts.changed }));
+    if (omitted > 0) statements.push(fillWithTable(messages.valuesNotShown, { ...counts, count: counts.omitted }, seeTable));
+    if (changed > 0) statements.push(fillWithTable(messages.valuesChanged, { ...counts, count: counts.changed }, seeTable));
   }
-  const omission = statements.join(' ');
+  const omission = statements.filter(Boolean).join(' ');
   const hidden = input.labelsHidden ?? 0;
-  const note = [omission, hidden > 0 ? fill(messages.labelsHidden, { count: formatters.count(hidden) }) : ''].filter(Boolean).join(' ') || null;
-  const compact = input.compact === true || (view.kind !== 'donut' && view.compact);
-  let references: string[] | undefined;
-  const referencesForView = () => references ??= referenceText(view, formatters, messages);
+  const labelsHidden = hidden > 0 ? fillWithTable(messages.labelsHidden, { count: formatters.count(hidden) }, seeTable) : '';
+  const note = [omission, labelsHidden].filter(Boolean).join(' ') || null;
   let summary: string | undefined;
-  const caption = [input.caption, name, generated, messages.plotLabel].find(text => text?.trim()) ?? defaultMessages.plotLabel;
   return {
-    name, note,
+    name, note, table,
     get summary() {
       // Opening the table should not scan the rest of the frame.
-      return summary ??= [...chartText(input, type, xLabel, yLabel), ...referencesForView(), subtitle, omission, description].filter(Boolean).join(' ');
+      return summary ??= [
+        ...chartText(input, type, xLabel, yLabel, seeTable), compact ? stackText(view, formatters, messages) : '',
+        ...referencesForView(), subtitle, omission, description,
+      ].filter(Boolean).join(' ');
     },
-    table: input.table === false || compact ? null : buildTable(
-      view, [caption, ...referencesForView()].join(' '), formatters, messages, labels, input.locale,
-    ),
   };
 }

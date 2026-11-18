@@ -111,6 +111,12 @@ describe('diagnostic registry', () => {
     expectDiagnostic(diagnostic, 'AX120', 'error', 'chart-error', 'value', 1, [0], 'Supply non-negative values');
   });
 
+  it('AX143 keeps general label-fitting advice and suggests horizontal bars for vertical category bars', () => {
+    const diagnostic = createDiagnostic('AX143', 'none', { field: 'day', count: 4 }, 'presentation');
+    expect(diagnostic.message).toContain('Give the plot more room or shorten the labels.');
+    expect(diagnostic.message).toMatch(/for vertical bars with category labels, .*horizontal bars/i);
+  });
+
   it('AX150 identifies unknown and chart-specific option keys and suggests a fix', () => {
     const data = [{ day: 1, value: 3 }];
     expectDiagnostic(line(data, { legnd: 'right' })[0], 'AX150', 'warning', 'none', 'legnd', 1, undefined, 'Did you mean "legend"?');

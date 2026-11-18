@@ -26,6 +26,16 @@ it('fills templates once, preserving unknown names and literal braces and dollar
     .toBe('{index} $& at 2 ({index} $&) {missing} {toString}');
 });
 
+it('includes the table guidance placeholder in all four default templates', () => {
+  expect(defaultMessages).toMatchObject({
+    valuesNotShown: 'Values not shown: {count}. {seeTable}',
+    valuesChanged: 'Values shown differently from the data: {count}. {seeTable}',
+    labelsHidden: 'Some labels hidden. {seeTable}',
+    seriesNotDrawn: '{series} could not be drawn. {seeTable}',
+    seeTable: 'See table.',
+  });
+});
+
 it('replaces individual messages without changing defaults or copying undefined', () => {
   const messages = resolveMessages({ noData: 'Keine Daten', loading: undefined });
   expect(messages).toEqual({ ...defaultMessages, noData: 'Keine Daten' });

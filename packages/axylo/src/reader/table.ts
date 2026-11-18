@@ -20,6 +20,8 @@ export interface ReaderLabels {
   readonly percentage: string;
   readonly series: string;
   readonly value: string;
+  /** Supplied with the labels because the aligned frame has no x unit. */
+  readonly xUnit?: string | null;
 }
 
 export function buildTable(view: View, caption: string, formatters: Formatters, messages: Messages, labels: ReaderLabels, _locale?: string, work?: PointOrderWork): TableModel {
@@ -77,7 +79,8 @@ export function buildTable(view: View, caption: string, formatters: Formatters, 
   const { frame, visibleSlots: { start, end }, stack } = view;
   const rowCount = end - start;
   return {
-    caption, headers: [frame.xLabel, ...frame.series.map(series => withUnit(series.label, series.unit))], rowCount, pageSize: PAGE_SIZE,
+    caption, headers: [withUnit(frame.xLabel, labels.xUnit ?? null), ...frame.series.map(series => withUnit(series.label, series.unit))],
+    rowCount, pageSize: PAGE_SIZE,
     row(i) {
       if (!Number.isInteger(i) || i < 0 || i >= rowCount) return null;
       const at = start + i;
