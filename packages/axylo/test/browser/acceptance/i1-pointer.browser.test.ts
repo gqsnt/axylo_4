@@ -10,7 +10,7 @@ import { start, stop } from '../harness';
 import {
   axWithin, box, call, center, closePage, compareTable, covered, create, createRaw, devPage, figureLayout, inside, plotGeometry, readRange, readTable, ring, screenshot, settle, shapes, valueText, type Box,
 } from './util';
-import { calendar, CARTESIAN, ENERGY, FULL, inOrder, LATENCY, share, SHIPPED, SPEND, tableOf, TYPES, withUnit, type ChartType } from './fixtures';
+import { calendar, CARTESIAN, ENERGY, FULL, inOrder, LATENCY, share, SHIPPED, SPEND, SPEND_TOTAL, tableOf, TYPES, withUnit, type ChartType } from './fixtures';
 import { traceMotion } from './checks';
 
 beforeAll(start);
@@ -106,6 +106,30 @@ async function plotTo(page: Page, axis: 'width' | 'height', target: number): Pro
   return got;
 }
 
+/**
+ * Both sides of the readout-mode limit along `axis`. Entering readout mode reserves the strip, so the plot
+ * jumps across the limit (about 140 → 92 px in height) and no size exists in between. By bisection on the
+ * container's size: the smallest container whose plot is at least `limit` (floating mode) and the largest
+ * whose plot is under it (readout mode), each with the plot size measured there.
+ */
+async function plotSides(page: Page, axis: 'width' | 'height', limit: number): Promise<{ floating: { container: number; plot: number }; readout: { container: number; plot: number } }> {
+  const measure = async (size: number) => {
+    await page.evaluate(([a, s]) => { (document.querySelector('#chart') as HTMLElement).style[a as 'width' | 'height'] = `${s}px`; }, [axis, size] as const);
+    await settle(page);
+    const b = await page.locator('#chart .axylo-proxy').boundingBox();
+    return b && (await page.locator('#chart .axylo-proxy').isVisible()) ? b[axis] : 0;
+  };
+  let lo = 40, hi = 1100;
+  let floating = { container: hi, plot: await measure(hi) };
+  let readout = { container: lo, plot: 0 };
+  while (hi - lo > 0.25) {
+    const mid = Math.round(((lo + hi) / 2) * 4) / 4;
+    const plot = await measure(mid);
+    if (plot >= limit) { hi = mid; floating = { container: mid, plot }; } else { lo = mid; readout = { container: mid, plot }; }
+  }
+  return { floating, readout };
+}
+
 describe('I1 tooltip under the pointer', () => {
   for (const type of FULL as Full[]) {
     it(`I1 ${type}: at 20 positions, the four edges included, what is there is shown by the type's picking rule within one frame of the move (95th percentile, counted in animation frames), inside the viewport, without covering the active mark`, async () => {
@@ -140,7 +164,7 @@ describe('I1 tooltip under the pointer', () => {
       expect(await closePage(page)).toEqual([]);
     });
 
-    it(`I1 ${type}: the tooltip can itself be hovered (decision 0004 revision 2): moving straight from the datum onto the tooltip's rectangle, it stays for the same datum (same rows) and does not move; with the pointer inside it, it is still shown; Escape closes it until another datum`, async () => {
+    it(`I1 ${type}: the tooltip can itself be hovered (decision 0004 revision 2, rule 3b): after a 300 ms rest on the datum, moving straight onto the tooltip's rectangle, it stays for the same datum (same rows) and does not move at every step; with the pointer inside it, it is still shown; Escape closes it until another datum`, async () => {
       const page = await devPage();
       await create(page, type);
       const all = await probes(page, type);
@@ -153,18 +177,15 @@ describe('I1 tooltip under the pointer', () => {
       const startRows = await rows();
       expect(says(startRows.join(' ') + ((await page.locator('#chart .axylo-tooltip .axylo-tooltip-title').textContent()) ?? ''), first) || says((await tooltip(page).textContent()) ?? '', first)).toBe(true);
       const startBox = await box(page, '#chart .axylo-tooltip');
-      // Straight onto the rectangle: to its point nearest the datum, 2 px inside. On line, area and bar that is
-      // across the reading axis when the tooltip is above or below, so the datum cannot change on the way and
-      // every step is checked; on scatter and donut the datum is held only inside the rectangle (decision 0004,
-      // rule 3), so the tooltip is checked once the pointer is in it.
+      // Rest 300 ms on the datum (decision 0004 rule 3b: a rest of 250 ms holds the datum along the corridor to
+      // a tooltip that is not across the reading axis; harmless where it is). Then straight onto the rectangle,
+      // to its point nearest the datum, 2 px inside, in 24 steps, every one checked from the first.
+      await page.waitForTimeout(300);
       const target = { x: Math.min(startBox.x + startBox.width - 2, Math.max(startBox.x + 2, first.x)), y: Math.min(startBox.y + startBox.height - 2, Math.max(startBox.y + 2, first.y)) };
-      const everyStep = type !== 'scatter' && type !== 'donut';
       const failures: string[] = [];
       for (let k = 1; k <= 24; k++) {
         await page.mouse.move(first.x + ((target.x - first.x) * k) / 24, first.y + ((target.y - first.y) * k) / 24);
         await settle(page);
-        const inRect = inside({ x: first.x + ((target.x - first.x) * k) / 24, y: first.y + ((target.y - first.y) * k) / 24, width: 0, height: 0 }, startBox, 0);
-        if (!everyStep && !inRect) continue;
         if (!(await tooltip(page).isVisible())) { failures.push(`step ${k}: the tooltip closed`); break; }
         const now = await rows();
         if (JSON.stringify(now) !== JSON.stringify(startRows)) { failures.push(`step ${k}: rows changed to ${JSON.stringify(now)}`); break; }
@@ -300,15 +321,17 @@ describe('I1 tooltip under the pointer', () => {
     });
 
     for (const axis of ['width', 'height'] as const) {
-      it(`I1 ${type}: readout mode is decided by layout: with the plot ${axis === 'width' ? '239 px wide (241 px: not)' : '139 px high (141 px: not)'}, the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it`, async () => {
+      it(`I1 ${type}: readout mode is decided by layout: on each side of the ${axis === 'width' ? '240 px width' : '140 px height'} limit (the plot jumps across it when the strip is reserved), a plot at or above it gets a floating tooltip and one below it gets the content in a strip reserved under the plot, with no floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it`, async () => {
         const page = await devPage({ viewport: { width: 1000, height: 900 } });
         await create(page, type);
         const limit = axis === 'width' ? 240 : 140;
-        for (const [target, readout] of [[limit + 1, false], [limit - 1, true]] as const) {
-          const got = await plotTo(page, axis, target);
-          // On the intended side of the limit: above it within 1.5 px; below it as close as the layout allows
-          // (the reserved strip itself takes height, so a plot just under 140 px may not exist).
-          expect(readout ? got > 0 && got < limit : got >= limit && got <= limit + 1.5, `plot ${axis} reached ${got}`).toBe(true);
+        const sides = await plotSides(page, axis, limit);
+        for (const [side, readout] of [[sides.floating, false], [sides.readout, true]] as const) {
+          await page.evaluate(([a, s]) => { (document.querySelector('#chart') as HTMLElement).style[a as 'width' | 'height'] = `${s}px`; }, [axis, side.container] as const);
+          await settle(page);
+          const got = (await box(page, '#chart .axylo-proxy'))[axis];
+          const target = `${got.toFixed(1)} px`;
+          expect(readout ? got > 0 && got < limit : got >= limit, `${readout ? 'readout' : 'floating'} side: plot ${axis} ${target}`).toBe(true);
           const layout = () => figureLayout(page);
           await page.mouse.move(0, 0);
           await settle(page);
@@ -388,6 +411,86 @@ describe('I1 tooltip under the pointer', () => {
       });
     }
   }
+
+  /** Bars that fill the plot's height (author domain [0, 100]), so a tooltip cannot go above or below and is placed beside. */
+  async function besideBars(page: Page): Promise<{ centres: number[]; tip: Box; plot: Box }> {
+    await createRaw(page, 'bar', { title: 'Tall', data: ['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6'].map(q => ({ q, v: 100 })), x: 'q', y: { field: 'v', domain: [0, 100] } });
+    const centres = ((await shapes(page, '#chart', 100000))[1] ?? []).map(s => center(s.box).x).sort((a, b) => a - b);
+    const plot = await box(page, '#chart .axylo-proxy');
+    await page.mouse.move(centres[2]!, plot.y + plot.height / 2);
+    await settle(page);
+    const tip = await box(page, '#chart .axylo-tooltip');
+    return { centres, tip, plot };
+  }
+  const title = async (page: Page) => ((await tooltip(page).isVisible()) ? ((await page.locator('#chart .axylo-tooltip .axylo-tooltip-title').textContent()) ?? '') : '');
+
+  it('I1 bar: rule 3b converse: without a rest, the straight path to a tooltip placed beside a full-height bar changes the datum as soon as it crosses into the next band', async () => {
+    const page = await devPage();
+    const { centres, tip, plot } = await besideBars(page);
+    // Precondition: the tooltip is beside the bar (not above or below), so the path to it crosses bands.
+    expect(tip.x > centres[2]! || tip.x + tip.width < centres[2]!, `tooltip ${JSON.stringify(tip)} beside the bar at ${centres[2]}`).toBe(true);
+    const y = plot.y + plot.height / 2;
+    const toward = tip.x > centres[2]! ? 1 : -1;
+    const next = centres[2 + toward]!;
+    // No rest: arrive and leave at once, in steps of 6 px, past the half-way line to the next band.
+    await page.mouse.move(0, 0);
+    await page.mouse.move(centres[2]!, y);
+    const seen: string[] = [];
+    for (let x = centres[2]!; toward > 0 ? x <= next : x >= next; x += 6 * toward) {
+      await page.mouse.move(x, y, { steps: 1 });
+      seen.push(await title(page));
+    }
+    await settle(page);
+    seen.push(await title(page));
+    expect(seen.at(-1), `datum after crossing: ${seen.join(' → ')}`).toBe(toward > 0 ? 'Q4' : 'Q2');
+    expect(await closePage(page)).toEqual([]);
+  });
+
+  it('I1 bar: rule 3b converse: after a rest, leaving the corridor to the tooltip sideways resumes picking on that move', async () => {
+    const page = await devPage();
+    const { centres, tip, plot } = await besideBars(page);
+    const y = plot.y + plot.height / 2;
+    await page.waitForTimeout(300);
+    // Part of the way along the corridor (held), then straight up out of it, over the next band.
+    const toward = tip.x > centres[2]! ? 1 : -1;
+    const next = centres[2 + toward]!;
+    await page.mouse.move(next, y, { steps: 6 });
+    await settle(page);
+    expect(await title(page), 'held along the corridor').toBe('Q3');
+    await page.mouse.move(next, Math.max(plot.y + 4, tip.y - 30), { steps: 1 });
+    await settle(page);
+    expect(await title(page), 'out of the corridor: the band under the pointer').toBe(toward > 0 ? 'Q4' : 'Q2');
+    expect(await closePage(page)).toEqual([]);
+  });
+
+  it('I1 bar: a fast sweep that never rests is never held: one move per band, across a tooltip placed beside the bars, shows every band in turn', async () => {
+    const page = await devPage();
+    const { centres, plot } = await besideBars(page);
+    const y = plot.y + plot.height / 2;
+    await page.mouse.move(0, 0);
+    const shown: string[] = [];
+    for (const x of centres) { await page.mouse.move(x, y, { steps: 1 }); await settle(page); shown.push(await title(page)); }
+    expect(shown).toEqual(['Q1', 'Q2', 'Q3', 'Q4', 'Q5', 'Q6']);
+    expect(await closePage(page)).toEqual([]);
+  });
+
+  it('I1 donut: a fast sweep that never rests is never held: one move per slice, around the ring, shows every slice in turn', async () => {
+    const page = await devPage();
+    await create(page, 'donut');
+    const g = await ring(page);
+    await page.mouse.move(0, 0);
+    const shown: string[] = [];
+    let before = 0;
+    for (let i = 0; i < SPEND.values.length; i++) {
+      const a = (2 * Math.PI * (before + SPEND.values[i]! / 2)) / SPEND_TOTAL;
+      before += SPEND.values[i]!;
+      await page.mouse.move(g.cx + 0.85 * g.outer * Math.sin(a), g.cy - 0.85 * g.outer * Math.cos(a), { steps: 1 });
+      await settle(page);
+      shown.push((await tooltip(page).isVisible()) ? ((await tooltip(page).textContent()) ?? '') : '');
+    }
+    SPEND.items.forEach((item, i) => expect(shown[i], `slice ${i + 1}`).toContain(item));
+    expect(await closePage(page)).toEqual([]);
+  });
 
   for (const type of ['line', 'area', 'bar'] as const) {
     it(`I1 ${type}: a series with no row at the pointed x reads "No observation", distinct from "No data" for an explicit null`, async () => {

@@ -1683,7 +1683,7 @@
     "criterion": "I1",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 line: the tooltip can itself be hovered (decision 0004 revision 2): moving straight from the datum onto the tooltip's rectangle, it stays for the same datum (same rows) and does not move; with the pointer inside it, it is still shown; Escape closes it until another datum"
+    "title": "I1 line: the tooltip can itself be hovered (decision 0004 revision 2, rule 3b): after a 300 ms rest on the datum, moving straight onto the tooltip's rectangle, it stays for the same datum (same rows) and does not move at every step; with the pointer inside it, it is still shown; Escape closes it until another datum"
   },
   {
     "criterion": "I1",
@@ -1707,13 +1707,13 @@
     "criterion": "I1",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 line: readout mode is decided by layout: with the plot 239 px wide (241 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+    "title": "I1 line: readout mode is decided by layout: on each side of the 240 px width limit (the plot jumps across it when the strip is reserved), a plot at or above it gets a floating tooltip and one below it gets the content in a strip reserved under the plot, with no floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
   },
   {
     "criterion": "I1",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 line: readout mode is decided by layout: with the plot 139 px high (141 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+    "title": "I1 line: readout mode is decided by layout: on each side of the 140 px height limit (the plot jumps across it when the strip is reserved), a plot at or above it gets a floating tooltip and one below it gets the content in a strip reserved under the plot, with no floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
   },
   {
     "criterion": "I1",
@@ -1731,7 +1731,7 @@
     "criterion": "I1",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 area: the tooltip can itself be hovered (decision 0004 revision 2): moving straight from the datum onto the tooltip's rectangle, it stays for the same datum (same rows) and does not move; with the pointer inside it, it is still shown; Escape closes it until another datum"
+    "title": "I1 area: the tooltip can itself be hovered (decision 0004 revision 2, rule 3b): after a 300 ms rest on the datum, moving straight onto the tooltip's rectangle, it stays for the same datum (same rows) and does not move at every step; with the pointer inside it, it is still shown; Escape closes it until another datum"
   },
   {
     "criterion": "I1",
@@ -1755,13 +1755,13 @@
     "criterion": "I1",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 area: readout mode is decided by layout: with the plot 239 px wide (241 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+    "title": "I1 area: readout mode is decided by layout: on each side of the 240 px width limit (the plot jumps across it when the strip is reserved), a plot at or above it gets a floating tooltip and one below it gets the content in a strip reserved under the plot, with no floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
   },
   {
     "criterion": "I1",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 area: readout mode is decided by layout: with the plot 139 px high (141 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+    "title": "I1 area: readout mode is decided by layout: on each side of the 140 px height limit (the plot jumps across it when the strip is reserved), a plot at or above it gets a floating tooltip and one below it gets the content in a strip reserved under the plot, with no floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
   },
   {
     "criterion": "I1",
@@ -1779,7 +1779,7 @@
     "criterion": "I1",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 bar: the tooltip can itself be hovered (decision 0004 revision 2): moving straight from the datum onto the tooltip's rectangle, it stays for the same datum (same rows) and does not move; with the pointer inside it, it is still shown; Escape closes it until another datum"
+    "title": "I1 bar: the tooltip can itself be hovered (decision 0004 revision 2, rule 3b): after a 300 ms rest on the datum, moving straight onto the tooltip's rectangle, it stays for the same datum (same rows) and does not move at every step; with the pointer inside it, it is still shown; Escape closes it until another datum"
   },
   {
     "criterion": "I1",
@@ -1803,13 +1803,13 @@
     "criterion": "I1",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 bar: readout mode is decided by layout: with the plot 239 px wide (241 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+    "title": "I1 bar: readout mode is decided by layout: on each side of the 240 px width limit (the plot jumps across it when the strip is reserved), a plot at or above it gets a floating tooltip and one below it gets the content in a strip reserved under the plot, with no floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
   },
   {
     "criterion": "I1",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 bar: readout mode is decided by layout: with the plot 139 px high (141 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+    "title": "I1 bar: readout mode is decided by layout: on each side of the 140 px height limit (the plot jumps across it when the strip is reserved), a plot at or above it gets a floating tooltip and one below it gets the content in a strip reserved under the plot, with no floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
   },
   {
     "criterion": "I1",
@@ -1827,7 +1827,7 @@
     "criterion": "I1",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 scatter: the tooltip can itself be hovered (decision 0004 revision 2): moving straight from the datum onto the tooltip's rectangle, it stays for the same datum (same rows) and does not move; with the pointer inside it, it is still shown; Escape closes it until another datum"
+    "title": "I1 scatter: the tooltip can itself be hovered (decision 0004 revision 2, rule 3b): after a 300 ms rest on the datum, moving straight onto the tooltip's rectangle, it stays for the same datum (same rows) and does not move at every step; with the pointer inside it, it is still shown; Escape closes it until another datum"
   },
   {
     "criterion": "I1",
@@ -1845,13 +1845,13 @@
     "criterion": "I1",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 scatter: readout mode is decided by layout: with the plot 239 px wide (241 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+    "title": "I1 scatter: readout mode is decided by layout: on each side of the 240 px width limit (the plot jumps across it when the strip is reserved), a plot at or above it gets a floating tooltip and one below it gets the content in a strip reserved under the plot, with no floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
   },
   {
     "criterion": "I1",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 scatter: readout mode is decided by layout: with the plot 139 px high (141 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+    "title": "I1 scatter: readout mode is decided by layout: on each side of the 140 px height limit (the plot jumps across it when the strip is reserved), a plot at or above it gets a floating tooltip and one below it gets the content in a strip reserved under the plot, with no floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
   },
   {
     "criterion": "I1",
@@ -1869,7 +1869,7 @@
     "criterion": "I1",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 donut: the tooltip can itself be hovered (decision 0004 revision 2): moving straight from the datum onto the tooltip's rectangle, it stays for the same datum (same rows) and does not move; with the pointer inside it, it is still shown; Escape closes it until another datum"
+    "title": "I1 donut: the tooltip can itself be hovered (decision 0004 revision 2, rule 3b): after a 300 ms rest on the datum, moving straight onto the tooltip's rectangle, it stays for the same datum (same rows) and does not move at every step; with the pointer inside it, it is still shown; Escape closes it until another datum"
   },
   {
     "criterion": "I1",
@@ -1887,13 +1887,37 @@
     "criterion": "I1",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 donut: readout mode is decided by layout: with the plot 239 px wide (241 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+    "title": "I1 donut: readout mode is decided by layout: on each side of the 240 px width limit (the plot jumps across it when the strip is reserved), a plot at or above it gets a floating tooltip and one below it gets the content in a strip reserved under the plot, with no floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
   },
   {
     "criterion": "I1",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 donut: readout mode is decided by layout: with the plot 139 px high (141 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+    "title": "I1 donut: readout mode is decided by layout: on each side of the 140 px height limit (the plot jumps across it when the strip is reserved), a plot at or above it gets a floating tooltip and one below it gets the content in a strip reserved under the plot, with no floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+  },
+  {
+    "criterion": "I1",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 bar: rule 3b converse: without a rest, the straight path to a tooltip placed beside a full-height bar changes the datum as soon as it crosses into the next band"
+  },
+  {
+    "criterion": "I1",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 bar: rule 3b converse: after a rest, leaving the corridor to the tooltip sideways resumes picking on that move"
+  },
+  {
+    "criterion": "I1",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 bar: a fast sweep that never rests is never held: one move per band, across a tooltip placed beside the bars, shows every band in turn"
+  },
+  {
+    "criterion": "I1",
+    "type": "donut",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 donut: a fast sweep that never rests is never held: one move per slice, around the ring, shows every slice in turn"
   },
   {
     "criterion": "I1",

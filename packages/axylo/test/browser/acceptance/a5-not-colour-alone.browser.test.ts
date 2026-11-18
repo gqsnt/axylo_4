@@ -290,7 +290,13 @@ describe('A5 palette', () => {
           await settle(page);
           await page.evaluate(() => {
             const fig = document.querySelector('#chart figure')!;
-            document.body.style.background = getComputedStyle(fig).getPropertyValue('--axylo-default-background').trim();
+            // The token may be a light-dark() pair, so it is resolved where the chart's scheme applies: a probe
+            // inside the figure painted with it, whose computed colour is then given to the page.
+            const probe = document.createElement('div');
+            probe.style.background = 'var(--axylo-default-background)';
+            fig.appendChild(probe);
+            document.body.style.background = getComputedStyle(probe).backgroundColor;
+            probe.remove();
           });
           await settle(page);
         }

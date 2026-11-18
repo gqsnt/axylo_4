@@ -366,8 +366,14 @@ export async function backgroundColor(page: Page, selector = '#chart'): Promise<
  */
 export async function defaultBackground(page: Page, selector = '#chart'): Promise<RGB> {
   const css = await page.evaluate(selector => {
-    const at = document.querySelector(`${selector} svg.axylo-svg`) ?? document.querySelector(`${selector} figure`) ?? document.querySelector(selector)!;
-    return getComputedStyle(at).getPropertyValue('--axylo-default-background').trim();
+    const at = document.querySelector(`${selector} figure`) ?? document.querySelector(selector)!;
+    // Resolved in place (the token may be a light-dark() pair that depends on the chart's scheme).
+    const probe = document.createElement('div');
+    probe.style.background = 'var(--axylo-default-background)';
+    at.appendChild(probe);
+    const c = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return c;
   }, selector);
   return (await resolveColors(page, [css]))[0]!;
 }
