@@ -111,15 +111,15 @@ function resolveTable(data: unknown, sink: DiagnosticSink): { table: Table; vali
   return { table: columnsTable(columns, length), valid: differing === undefined };
 }
 
-function fieldName(input: unknown): string {
+function fieldName(input: unknown): string | null {
   const field = typeof input === 'string' ? input : object(input).field;
-  return typeof field === 'string' ? field : '';
+  return typeof field === 'string' ? field : null;
 }
 
 function resolveX(input: unknown, type: ChartType, sink: DiagnosticSink): ResolvedXField {
   const options = object(input) as XFieldOptions;
   if (type !== 'donut') unknownKeys(object(input), type === 'scatter' ? scatterXKeys : xKeys, sink, 'x.');
-  const field = fieldName(input);
+  const field = fieldName(input) ?? '';
   return {
     field, label: options.label ?? field, unit: options.unit ?? null,
     type: type === 'donut' ? 'category' : options.type ?? null,
@@ -131,7 +131,7 @@ function resolveX(input: unknown, type: ChartType, sink: DiagnosticSink): Resolv
 function resolveValue(input: unknown, path: string, sink: DiagnosticSink): ResolvedValueField {
   const options = object(input) as ValueFieldOptions & { parse?: 'number' };
   unknownKeys(object(input), valueKeys, sink, path);
-  const field = fieldName(input);
+  const field = fieldName(input) ?? '';
   return {
     field, label: options.label ?? field, unit: options.unit ?? null, scale: options.scale ?? null,
     missing: options.missing ?? 'gap', parse: options.parse ?? null, format: options.format ?? null,
@@ -153,12 +153,13 @@ export function resolveOptions(type: ChartType, input: unknown, sink: Diagnostic
 
   const { table, valid: validTable } = resolveTable(options.data, sink);
   const donut = type === 'donut';
-  const x = resolveX(donut ? options.label : options.x, type, sink);
+  const xInput = donut ? options.label : options.x;
+  const x = resolveX(xInput, type, sink);
   const wide = !donut && Array.isArray(options.y);
   const supportsWide = type !== 'scatter' && !donut;
-  const values = wide
-    ? (options.y as readonly unknown[]).map((field, index) => resolveValue(field, 'y[' + index + '].', sink))
-    : [resolveValue(donut ? options.value : options.y, donut ? 'value.' : 'y.', sink)];
+  const valueInputs = wide ? options.y as readonly unknown[] : [donut ? options.value : options.y];
+  const values = valueInputs.map((field, index) =>
+    resolveValue(field, wide ? 'y[' + index + '].' : donut ? 'value.' : 'y.', sink));
   const series = !wide && !donut && typeof options.series === 'string' ? options.series : null;
   if (wide && options.series !== undefined) {
     report(sink, 'AX150', 'none', { field: 'series', count: 1, detail: 'Use a single y field when naming a series field.' });
@@ -168,13 +169,16 @@ export function resolveOptions(type: ChartType, input: unknown, sink: Diagnostic
   }
 
   let valid = validTable && (!wide || supportsWide);
-  const fields = new Map<string, string>();
-  fields.set(x.field || (donut ? 'label' : 'x'), x.field);
-  for (const value of values) fields.set(value.field || (donut ? 'value' : 'y'), value.field);
-  if (values.length === 0) fields.set('y', '');
-  if (series !== null) fields.set(series || 'series', series);
-  for (const [name, field] of fields) {
-    if (field && (table.columns === null && table.length === 0 || table.hasField(field))) continue;
+  const fields: [string | null, string][] = [[fieldName(xInput), donut ? 'label' : 'x']];
+  for (const input of valueInputs) fields.push([fieldName(input), donut ? 'value' : 'y']);
+  if (values.length === 0) fields.push([null, 'y']);
+  if (series !== null) fields.push([series, 'series']);
+  const reported = new Set<string>();
+  for (const [field, role] of fields) {
+    if (field !== null && (table.columns === null && table.length === 0 || table.hasField(field))) continue;
+    const name = field ?? role;
+    if (reported.has(name)) continue;
+    reported.add(name);
     const keys = table.keys();
     report(sink, 'AX101', 'chart-error', { field: name, keys, suggestion: closest(name, keys), count: 1 });
     valid = false;

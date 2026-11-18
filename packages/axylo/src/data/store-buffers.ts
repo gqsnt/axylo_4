@@ -47,8 +47,8 @@ export class FrameBuffers {
     }
   }
 
-  reserve(extra: number): void {
-    if (this.end + extra <= this.x.length) return;
+  reserve(extra: number): boolean {
+    if (this.end + extra <= this.x.length) return false;
     const { start, end } = this;
     const count = end - start;
     const capacity = Math.max(16, 2 * (count + extra));
@@ -67,6 +67,17 @@ export class FrameBuffers {
     }
     this.start = 0;
     this.end = count;
+    return true;
+  }
+
+  copySeries(series: SeriesBuffers): SeriesBuffers {
+    const copy = buffers(series.description, this.x.length);
+    const { start, end } = this;
+    copy.y.set(series.y.subarray(start, end), start);
+    copy.slot.set(series.slot.subarray(start, end), start);
+    copy.row.set(series.row.subarray(start, end), start);
+    this.series.set(series.description.key, copy);
+    return copy;
   }
 
   addSeries(description: SeriesDescription, zero: boolean): SeriesBuffers {
@@ -80,13 +91,12 @@ export class FrameBuffers {
     return series;
   }
 
-  trim(keep: number | undefined, evict: (x: number) => void): void {
+  trim(keep: number | undefined, evict: (x: number, observed: boolean) => void): void {
     if (keep === undefined || keep >= this.distinct) return;
     while (this.start < this.end && (this.distinct > keep || !this.observed[this.start])) {
-      if (this.observed[this.start]) {
-        this.distinct--;
-        evict(this.x[this.start]!);
-      }
+      const observed = this.observed[this.start] === 1;
+      if (observed) this.distinct--;
+      evict(this.x[this.start]!, observed);
       this.start++;
     }
   }
@@ -95,7 +105,11 @@ export class FrameBuffers {
     const { start, end } = this;
     return {
       ...previous, source, revision: previous.revision, length: end - start,
-      x: { ...axis, values: this.x.subarray(start, end) },
+      x: {
+        values: this.x.subarray(start, end), kind: axis.kind, dateUnit: axis.dateUnit,
+        timeZone: axis.timeZone, ordered: axis.ordered,
+        get categories() { return axis.categories; },
+      },
       series: Array.from(this.series.values(), ({ description, y, slot, row }) => ({
         ...description, y: y.subarray(start, end), slot: slot.subarray(start, end), row: row.subarray(start, end),
       })),

@@ -22,7 +22,7 @@ function validDate(year: string, month = '01', day = '01'): boolean {
 export function kindOf(value: unknown): XKind | null {
   if (typeof value === 'number') return Number.isFinite(value) ? 'number' : null;
   if (value instanceof Date) return 'time';
-  if (typeof value !== 'string' || value === '') return null;
+  if (typeof value !== 'string') return null;
   if (calendar.test(value)) return 'date';
   const parts = dateTime.exec(value);
   if (parts) return parts[8] ? 'time' : 'wall';
@@ -31,17 +31,34 @@ export function kindOf(value: unknown): XKind | null {
   return 'category';
 }
 
+function instant(value: string, kind: 'time' | 'wall'): number {
+  const parts = dateTime.exec(value);
+  if (!parts || !validDate(parts[1]!, parts[2], parts[3]) || (kind === 'time') !== Boolean(parts[8])) return NaN;
+  return Date.parse(kind === 'wall' ? value + 'Z' : value);
+}
+
 export function inferKind(table: Table, field: string, series: string | null = null): XKind | null {
+  let candidate: XKind | null = null;
   for (let i = 0; i < table.length; i++) {
     if (series !== null && nameOf(table.read(i, series)) === null) continue;
-    const kind = kindOf(table.read(i, field));
-    if (kind) return kind;
+    const value = table.read(i, field);
+    const kind = kindOf(value);
+    candidate ??= kind;
+    if (kind === 'number' || kind === 'category') return kind;
+    if (kind === 'date' && typeof value === 'string') {
+      const parts = calendar.exec(value)!;
+      if (validDate(parts[1]!, parts[2], parts[3])) return kind;
+    } else if (value instanceof Date && Number.isFinite(value.getTime())) {
+      return 'time';
+    } else if ((kind === 'time' || kind === 'wall') && typeof value === 'string' && Number.isFinite(instant(value, kind))) {
+      return kind;
+    }
   }
-  return null;
+  return candidate;
 }
 
 export function nameOf(value: unknown): string | null {
-  if (typeof value === 'string') return value === '' ? null : value;
+  if (typeof value === 'string') return value;
   if (typeof value === 'boolean' || typeof value === 'number' && Number.isFinite(value)) return String(value);
   return null;
 }
@@ -95,9 +112,7 @@ export class XParser {
       return Date.parse(parts[1] + '-' + (parts[2] ?? '01') + '-' + (parts[3] ?? '01') + 'T00:00:00Z');
     }
     if (kind === 'wall' || kind === 'time') {
-      const parts = dateTime.exec(raw);
-      if (!parts || !validDate(parts[1]!, parts[2], parts[3]) || (kind === 'time') !== Boolean(parts[8])) return NaN;
-      const position = Date.parse(kind === 'wall' ? raw + 'Z' : raw);
+      const position = instant(raw, kind);
       if (kind === 'wall' && Number.isFinite(position)) reports.add('AX112', 'none', row);
       return position;
     }
@@ -126,8 +141,14 @@ export class XParser {
   }
 
   column(values: Float64Array, snapshotCategories = false): XColumn {
+    const names = this.categories;
+    const length = names?.length;
+    let snapshot: readonly string[] | undefined;
     return {
-      kind: this.kind, values, categories: snapshotCategories ? this.categories?.slice() ?? null : this.categories,
+      kind: this.kind, values,
+      get categories() {
+        return names === null || !snapshotCategories ? names : (snapshot ??= names.slice(0, length));
+      },
       timeZone: this.timeZone, dateUnit: this.kind === 'date' ? this.dateUnit ?? 'day' : null,
       ordered: this.kind === 'category' && this.field.ordered,
     };

@@ -315,3 +315,33 @@ describe('normalization invariants', () => {
     }));
   });
 });
+
+it('matches a generated fractional gap to an existing observation within rounding error', () => {
+  const data = [
+    ...[0, 0.1, 0.2, 0.4, 0.5].map(x => ({ x, y: x, series: 'A' })),
+    { x: 0.3, y: 10, series: 'B' },
+  ];
+  const { frame, diagnostics } = aligned({ data, x: 'x', y: 'y', series: 'series' });
+  expect([...frame.x.values]).toEqual([0, 0.1, 0.2, 0.3, 0.4, 0.5]);
+  expect(frame.series[0]?.slot[3]).toBe(SLOT_GAP);
+  expect(frame.series[1]?.slot[3]).toBe(SLOT_VALUE);
+  expect(diagnostics.inputs()).toMatchObject([{ code: 'AX105', count: 1 }]);
+});
+
+it('resolves the long and wide field descriptions with explicit formatting defaults', () => {
+  const data = [{ day: '2026-01-01', a: 1, b: 2, name: 'First' }];
+  const { resolved } = aligned({
+    data,
+    x: { field: 'day', type: 'date', label: 'Day', timeZone: 'UTC' },
+    y: [{ field: 'a', unit: 'people', missing: 'zero', scale: 'percent' }, 'b'],
+  });
+  expect(resolved).toMatchObject({
+    form: 'wide', series: null,
+    x: { field: 'day', type: 'date', label: 'Day', timeZone: 'UTC', ordered: false, unit: null, domain: null },
+    values: [
+      { field: 'a', label: 'a', unit: 'people', missing: 'zero', scale: 'percent', parse: null },
+      { field: 'b', label: 'b', unit: null, missing: 'gap', scale: null, parse: null },
+    ],
+  });
+  expect(aligned({ data, x: 'day', y: 'a', series: 'name' }).resolved).toMatchObject({ form: 'long', series: 'name' });
+});

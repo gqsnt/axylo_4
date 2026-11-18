@@ -176,3 +176,55 @@ describe('streaming invariants', () => {
     }), { numRuns: 150 });
   });
 });
+
+describe('diagnostics in a retained window', () => {
+  it('discards diagnostics with their rows and lets a series draw after its duplicate x leaves', () => {
+    const data = [{ x: 0, y: 1 }, { x: 1, y: NaN }];
+    const stream = store({ data, x: 'x', y: 'y' });
+    const first = stream.frame;
+    const duplicate = stream.append([{ x: 1, y: 9 }]);
+    expect(duplicate.x.values.buffer).toBe(first.x.values.buffer);
+    expect(duplicate.series[0]!.y.buffer).toBe(first.series[0]!.y.buffer);
+    expect(first.series[0]!.drawable).toBe(true);
+    expect(duplicate.series[0]!.drawable).toBe(false);
+    expect(stream.diagnostics.map(d => [d.code, d.rows])).toEqual([['AX103', [1]], ['AX108', [2]]]);
+    const latest = stream.append([{ x: 2, y: 2 }, { x: 3, y: 3 }], { keep: 2 });
+    expect(latest.series[0]!.drawable).toBe(true);
+    expect(stream.diagnostics).toEqual([]);
+    expect(latest.source.rowAt(1)).toBeNull();
+    expect(latest.source.rowAt(2)).toBeNull();
+  });
+
+  it('retains only examples and counts within the active window after the original examples are evicted', () => {
+    const data = Array.from({ length: 15 }, (_, i) => ({ x: i, y: NaN }));
+    const stream = store({ data, x: 'x', y: 'y' });
+    stream.append([{ x: 15, y: NaN }], { keep: 4 });
+    expect(stream.diagnostics).toMatchObject([{ code: 'AX103', count: 4, rows: [12, 13, 14, 15] }]);
+  });
+
+  it('recovers the daily-calendar hint when eviction removes a non-daily interval', () => {
+    const x = { field: 'x', type: 'time' };
+    const days = [Date.UTC(2026, 2, 7), Date.UTC(2026, 2, 8), Date.UTC(2026, 2, 9), Date.UTC(2026, 2, 10)];
+    const data = [{ x: days[0]! - 3600_000, y: 4 }, ...days.slice(0, 3).map(x => ({ x, y: 5 }))];
+    const stream = store({ data, x, y: 'y' });
+    expect(stream.diagnostics.map(d => d.code)).not.toContain('AX111');
+    stream.append([{ x: days[3], y: 6 }], { keep: 3 });
+    expect(stream.diagnostics).toMatchObject([{ code: 'AX111', count: 3, rows: [2, 3, 4] }]);
+    stream.append([], { keep: 1 });
+    expect(stream.diagnostics).toEqual([]);
+  });
+});
+
+it('matches full long-form normalization when series arrive one row at a time at shared x positions', () => {
+  fc.assert(fc.property(fc.array(fc.record({
+    x: fc.integer({ min: 0, max: 20 }),
+    y: fc.oneof(fc.integer(), fc.constant(null)),
+    series: fc.constantFrom('a', 'b', 'c'),
+  }), { maxLength: 40 }), rows => {
+    const data = [...rows].sort((a, b) => a.x - b.x);
+    const options = { data, x: 'x', y: 'y', series: 'series' };
+    const stream = store({ ...options, data: [] });
+    for (const row of data) stream.append([row]);
+    expect(contents(stream.frame)).toEqual(contents(aligned(options).frame));
+  }));
+});

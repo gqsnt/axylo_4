@@ -24,7 +24,6 @@ export function inspectValues(table: Table, field: string): ValueMode {
 export interface Values {
   readonly y: Float64Array | Float32Array;
   readonly slot: Uint8Array;
-  readonly mode: ValueMode;
 }
 
 export function readValues(
@@ -37,7 +36,7 @@ export function readValues(
 ): Values {
   const column = table.columns?.[field.field];
   const zero = impute && field.missing === 'zero';
-  const reports = new Reports(field.field);
+  const reports = new Reports(field.field, sink);
   const slot = new Uint8Array(table.length);
   let y = column instanceof Float64Array || column instanceof Float32Array ? column : new Float64Array(table.length);
 
@@ -79,5 +78,5 @@ export function readValues(
   }
 
   reports.flush(sink);
-  return { y, slot, mode };
+  return { y, slot };
 }

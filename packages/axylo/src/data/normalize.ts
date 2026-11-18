@@ -6,7 +6,8 @@ import {
 import { report } from '../diagnostics';
 import type { AlignedChartType, ChartType, ResolvedOptions, ResolvedValueField } from './options';
 import { Reports } from './reports';
-import { inferGaps } from './steps';
+import { inferGaps, snapGap } from './steps';
+import type { DiagnosticTrace } from './store-diagnostics';
 import type { Table } from './table';
 import { readValues, type Values } from './values';
 import { dailyDelta, DAY, inferKind, nameOf, sameDailyTime, XParser } from './x';
@@ -34,7 +35,7 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
   const { x, table } = options;
   const kind = x.type ?? (categories ? 'category' : inferKind(table, x.field, options.series) ?? 'number');
   const parser = new XParser(x, kind, env, type === 'scatter', categories);
-  const reports = new Reports(x.field);
+  const reports = new Reports(x.field, sink);
   const input = table.columns?.[x.field];
   let positions = input instanceof Float64Array && (kind === 'number' || kind === 'time')
     ? input : new Float64Array(table.length);
@@ -66,7 +67,7 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
   return { parser, positions, order };
 }
 
-export function reportCalendarDates(x: XData, table: Table, sink: DiagnosticSink): void {
+function reportCalendarDates(x: XData, table: Table, sink: DiagnosticSink): void {
   if (x.parser.kind !== 'time') return;
   const length = x.order?.length ?? x.positions.length;
   if (length < 2) return;
@@ -106,7 +107,7 @@ function groups(options: ResolvedOptions, x: XData, sink: DiagnosticSink, impute
   const indexes = new Map<string, number>();
   const counts: number[] = [];
   const membership = new Int32Array(table.length).fill(-1);
-  const reports = new Reports(series);
+  const reports = new Reports(series, sink);
   for (let i = 0; i < table.length; i++) {
     const raw = table.read(i, series);
     const name = nameOf(raw);
@@ -148,11 +149,12 @@ interface AlignedGroup {
   readonly drawable: boolean;
 }
 
-function alignGroup(group: Group, positions: Float64Array, axis: XColumn, field: string, table: Table, sink: DiagnosticSink): AlignedGroup {
+function alignGroup(group: Group, x: XData, axis: XColumn, field: string, table: Table, sink: DiagnosticSink): AlignedGroup {
+  const { positions } = x;
   let order = group.order;
   let drawable = true;
   if (order) {
-    const duplicates = new Reports(field);
+    const duplicates = new Reports(field, sink);
     let distinct = 0;
     let kept = order;
     let previous = -Infinity;
@@ -171,7 +173,8 @@ function alignGroup(group: Group, positions: Float64Array, axis: XColumn, field:
     duplicates.flush(sink);
     order = kept.subarray(0, distinct);
   }
-  const gaps = inferGaps(axis, order?.length ?? positions.length, i => positions[order?.[i] ?? i]!);
+  const gaps = inferGaps(axis, order?.length ?? positions.length, i => positions[order?.[i] ?? i]!,
+    (gap, a, b, step) => snapGap(gap, a, b, step, x.order?.length ?? positions.length, i => positions[x.order?.[i] ?? i]!));
   return { group, order, gaps, drawable };
 }
 
@@ -212,9 +215,9 @@ export function reportGaps(
   sink: DiagnosticSink, field: string, changed: boolean, gaps: Float64Array | null,
 ): void {
   if (!gaps?.length) return;
-  report(sink, 'AX105', changed ? 'changed' : 'none', {
-    field, count: gaps.length, examples: Array.from(gaps.subarray(0, 10), String),
-  });
+  const effect = changed ? 'changed' : 'none';
+  (sink as DiagnosticTrace).traceGaps?.(field, effect, gaps);
+  report(sink, 'AX105', effect, { field, count: gaps.length, examples: Array.from(gaps.subarray(0, 10), String) });
 }
 
 function alignedSeries(aligned: AlignedGroup, axis: XColumn, x: XData, table: Table, sink: DiagnosticSink): Series {
@@ -268,7 +271,7 @@ function alignedSeries(aligned: AlignedGroup, axis: XColumn, x: XData, table: Ta
 
 export function alignedFrame(options: ResolvedOptions, x: XData, sink: DiagnosticSink, version: FrameVersion): AlignedFrame {
   const axis = x.parser.column(x.positions);
-  const aligned = groups(options, x, sink, true).map(group => alignGroup(group, x.positions, axis, options.x.field, options.table, sink));
+  const aligned = groups(options, x, sink, true).map(group => alignGroup(group, x, axis, options.x.field, options.table, sink));
   const positions = combinePositions(x, aligned);
   const column = { ...axis, values: positions };
   return {
@@ -283,10 +286,16 @@ function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticSink, ve
   const value = options.values[0]!;
   const series = groups(options, x, sink, false).map(group => {
     const length = group.order?.length ?? x.positions.length;
+    if (!group.order && group.values.y instanceof Float64Array && group.values.slot.every(slot => slot === SLOT_VALUE)) {
+      return {
+        key: group.key, label: group.label, drawable: true, x: x.positions, y: group.values.y,
+        row: table.columns ? null : sourceRows(table),
+      };
+    }
     const rows = new Int32Array(length);
     let next = 0;
     let previous = -Infinity;
-    const duplicates = new Reports(options.x.field);
+    const duplicates = new Reports(options.x.field, sink);
     let drawable = true;
     for (let i = 0; i < length; i++) {
       const row = group.order?.[i] ?? i;
@@ -319,8 +328,8 @@ function donutFrame(options: ResolvedOptions, sink: DiagnosticSink, version: Fra
   const values = readValues(table, field, sink, false);
   const labels: string[] = [];
   const seen = new Set<string>();
-  const issues = new Reports(x.field);
-  const negatives = new Reports(field.field);
+  const issues = new Reports(x.field, sink);
+  const negatives = new Reports(field.field, sink);
   const rows = new Int32Array(table.length);
   for (let i = 0; i < table.length; i++) {
     const raw = table.read(i, x.field);
@@ -340,10 +349,12 @@ function donutFrame(options: ResolvedOptions, sink: DiagnosticSink, version: Fra
   issues.flush(sink);
   negatives.flush(sink);
   const order = rows.subarray(0, labels.length);
+  const allRows = order.length === table.length;
   return {
     ...base(table, version), shape: 'donut', labels,
-    values: Float64Array.from(order, row => values.y[row]!), slot: Uint8Array.from(order, row => values.slot[row]!),
-    row: table.columns && order.length === table.length ? null : Int32Array.from(order, table.rowIndex),
+    values: allRows && values.y instanceof Float64Array ? values.y : Float64Array.from(order, row => values.y[row]!),
+    slot: allRows ? values.slot : Uint8Array.from(order, row => values.slot[row]!),
+    row: table.columns && allRows ? null : Int32Array.from(order, table.rowIndex),
     valueLabel: field.label, unit: field.unit, valueScale: field.scale,
   };
 }

@@ -24,7 +24,8 @@ export function stepMultiple(delta: number, step: number): number {
   return whole >= 1 && Number.isSafeInteger(whole) && Math.abs(ratio - whole) < 1e-9 ? whole : 0;
 }
 
-export function gapPosition(axis: Axis, a: number, b: number, step: number, steps: number): number {
+export function gapPosition(axis: Axis, a: number, b: number, step: number, steps: number, span: number): number {
+  if (axis.kind === 'number') return a + (b - a) * (steps / span);
   if (axis.kind === 'date') {
     if (axis.dateUnit === 'day') return a + steps * step * DAY;
     const from = new Date(a);
@@ -41,7 +42,27 @@ export function gapPosition(axis: Axis, a: number, b: number, step: number, step
   return a + steps * step;
 }
 
-export function inferGaps(axis: Axis, count: number, xAt: (i: number) => number): Float64Array | null {
+export function snapGap(
+  gap: number, a: number, b: number, step: number, count: number, at: (index: number) => number,
+): number {
+  let lo = 0;
+  let hi = count;
+  while (lo < hi) {
+    const mid = lo + Math.floor((hi - lo) / 2);
+    if (at(mid) < gap) lo = mid + 1;
+    else hi = mid;
+  }
+  const before = lo ? at(lo - 1) : -Infinity;
+  const after = lo < count ? at(lo) : Infinity;
+  const nearest = gap - before < after - gap ? before : after;
+  const roundingError = 4 * Number.EPSILON * Math.max(Math.abs(a), Math.abs(b));
+  return Math.abs(gap - nearest) <= Math.min(roundingError, step / 4) ? nearest : gap;
+}
+
+export function inferGaps(
+  axis: Axis, count: number, xAt: (i: number) => number,
+  snap: (gap: number, a: number, b: number, step: number) => number,
+): Float64Array | null {
   if (!supportsSteps(axis) || count < 3) return null;
   let a = xAt(0);
   let min = Infinity;
@@ -73,7 +94,10 @@ export function inferGaps(axis: Axis, count: number, xAt: (i: number) => number)
   for (let i = 1; i < count; i++) {
     const b = xAt(i);
     const multiple = stepMultiple(stepDelta(axis, a, b), min);
-    for (let j = 1; j < multiple; j++) positions[next++] = gapPosition(axis, a, b, min, j);
+    for (let j = 1; j < multiple; j++) {
+      const gap = gapPosition(axis, a, b, min, j, multiple);
+      positions[next++] = axis.kind === 'number' ? snap(gap, a, b, min) : gap;
+    }
     a = b;
   }
   return positions;

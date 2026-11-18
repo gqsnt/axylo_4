@@ -4,7 +4,8 @@ import { rowValue, type Table } from './table';
 export class StreamRows {
   private readonly added = new Map<number, unknown>();
   private readonly evicted = new Set<number>();
-  private readonly positions = new Map<number, number | number[]>();
+  private readonly positions = new Map<number, number>();
+  private readonly previousAtPosition = new Map<number, number>();
   private original: Table | null;
   private originalRemaining: number;
   next: number;
@@ -17,14 +18,14 @@ export class StreamRows {
 
   record(position: number, row: number): void {
     if (!Number.isFinite(position)) return;
-    const first = this.positions.get(position);
-    if (first === undefined) this.positions.set(position, row);
-    else if (typeof first === 'number') this.positions.set(position, [first, row]);
-    else first.push(row);
+    const previous = this.positions.get(position);
+    if (previous !== undefined) this.previousAtPosition.set(row, previous);
+    this.positions.set(position, row);
   }
 
   resetPositions(table: Table, positions: Float64Array): void {
     this.positions.clear();
+    this.previousAtPosition.clear();
     for (let i = 0; i < positions.length; i++) this.record(positions[i]!, table.rowIndex(i));
   }
 
@@ -44,10 +45,15 @@ export class StreamRows {
     }
   }
 
-  evict(position: number): void {
-    const rows = this.positions.get(position);
-    if (typeof rows === 'number') this.remove(rows);
-    else if (rows) for (const row of rows) this.remove(row);
+  evict(position: number, discard: (row: number) => void): void {
+    let row = this.positions.get(position);
+    while (row !== undefined) {
+      const previous = this.previousAtPosition.get(row);
+      this.previousAtPosition.delete(row);
+      discard(row);
+      this.remove(row);
+      row = previous;
+    }
     this.positions.delete(position);
   }
 
