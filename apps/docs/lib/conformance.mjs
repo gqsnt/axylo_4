@@ -7,24 +7,22 @@
  * - what the acceptance checker reports for those rows: `check()` of acceptance/check.mjs, in release mode,
  *   over the result files acceptance/run.mjs writes (acceptance/results/<config>[-<engine>].json, named by
  *   provenance.mjs), so a result counts only when its recorded provenance matches the working tree;
- * - which engine each result came from: the checker's own record of each run.
+ * - which engine each result came from: the checker's record of each report, or for a result that predates
+ *   the engine record, the engine its default result file runs on (provenance.mjs `resultFiles()`).
  *
  * Nothing here judges evidence: a criterion without a counted result is "not recorded", and when the checker
- * refuses its matrix nothing is counted at all. Output of the checker that this module cannot read stops the
- * build, rather than being shown as something it is not.
+ * refuses its matrix nothing is counted at all. Checker output this module cannot read stops the build,
+ * rather than being shown as something it is not.
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { splitRow } from './markdown.mjs';
 import { wcag } from '../data/wcag.mjs';
-import { repoRoot } from './examples.mjs';
+import { check, CHART_TYPES, STATUSES } from '../../../acceptance/check.mjs';
+import { ENGINES, engineLabel, resultFiles as defaultResultFiles } from '../../../acceptance/provenance.mjs';
 
-/** acceptance/run.mjs's configurations; only `browser` runs on more than one engine. */
-const CONFIGS = ['unit', 'browser', 'dist', 'dist-browser'];
-/** The checker's cell statuses (acceptance/check.mjs), longest first so a prefix never wins. */
-const STATUSES = ['cannot be verified here', 'not applicable', 'no evidence', 'not run', 'pass', 'fail', 'weak'];
 const SC = /\d\.\d{1,2}\.\d{1,2}\b/g;
+const RESULTS = ['pass', 'fail', 'skipped'];
 
 const bySc = (a, b) => {
   const x = a.split('.').map(Number);
@@ -53,33 +51,43 @@ export function citedCriteria(spec) {
   return new Map([...cited].sort(([a], [b]) => bySc(a, b)));
 }
 
-/** One cell of the checker's table: "pass (unit.json pass, browser.json pass/fail)". */
-export function parseCell(text) {
-  const status = STATUSES.find(s => text === s || text.startsWith(`${s} (`));
-  if (!status || (text !== status && !text.endsWith(')'))) throw new Error(`acceptance checker: a cell this page cannot read: "${text}"`);
-  const inner = text === status ? '' : text.slice(status.length + 2, -1);
-  const reports = inner === '' ? [] : inner.split(', ').map(item => {
-    const m = /^(.+) ((?:pass|fail|skipped)(?:\/(?:pass|fail|skipped))*)$/.exec(item);
-    if (!m) throw new Error(`acceptance checker: a report this page cannot read: "${item}" in "${text}"`);
-    return { label: m[1], results: m[2].split('/') };
-  });
-  return { status, reports };
-}
+const unreadable = what => { throw new Error(`acceptance checker: output this page cannot read: ${what}`); };
 
-/** The checker's Markdown table → row id → { statement, cells: { chartType: { status, reports } } }. */
-export function parseTable(table) {
-  const lines = table.split('\n');
-  const unescape = cell => cell.replace(/\\\|/g, '|');
-  const header = splitRow(lines[0]).map(unescape);
-  if (header[0] !== 'Criterion' || header[1] !== 'Statement' || header.length < 3) throw new Error('acceptance checker: an unexpected table header');
-  const types = header.slice(2);
-  const rows = new Map();
-  for (const line of lines.slice(2)) {
-    const cells = splitRow(line).map(unescape);
-    if (cells.length !== header.length) throw new Error(`acceptance checker: a row with ${cells.length} cells: ${line.slice(0, 80)}`);
-    rows.set(cells[0], { statement: cells[1], cells: Object.fromEntries(types.map((type, i) => [type, parseCell(cells[i + 2])])) });
+/**
+ * The checker's `rows` → row id → { statement, cells: { chartType: { status, reports } } }, each report with
+ * the engine it ran on (`engineOf` names it for a report the checker could not: results older than the engine
+ * record), whether it counts for this revision, and the commit it was recorded at. Anything outside the
+ * checker's documented shape stops the build.
+ */
+export function readRows(rows, { engineOf = () => null, commitOf = () => null } = {}) {
+  if (!Array.isArray(rows)) unreadable('rows is not a list');
+  const out = new Map();
+  for (const row of rows) {
+    if (typeof row?.id !== 'string' || typeof row.statement !== 'string' || row.cells === null || typeof row.cells !== 'object') unreadable(JSON.stringify(row)?.slice(0, 80));
+    const types = Object.keys(row.cells);
+    if (types.length !== CHART_TYPES.length || types.some((type, i) => type !== CHART_TYPES[i])) unreadable(`${row.id}: chart types ${types.join(', ')}`);
+    const cells = {};
+    for (const type of types) {
+      const cell = row.cells[type];
+      if (!STATUSES.includes(cell?.status) || !Array.isArray(cell.reports)) unreadable(`${row.id}/${type}: status ${cell?.status}`);
+      cells[type] = {
+        status: cell.status,
+        reports: cell.reports.map(report => {
+          if (typeof report?.file !== 'string' || !['run', 'size'].includes(report.source) || !Array.isArray(report.results)
+            || report.results.some(r => !RESULTS.includes(r)) || !(report.engine === null || ENGINES.includes(report.engine))) {
+            unreadable(`${row.id}/${type}: report ${JSON.stringify(report)?.slice(0, 120)}`);
+          }
+          return {
+            file: report.file, source: report.source, results: report.results,
+            engine: report.source === 'size' ? null : report.engine ?? engineOf(report.file),
+            counted: report.provenanceError === null, commit: commitOf(report.file),
+          };
+        }),
+      };
+    }
+    out.set(row.id, { statement: row.statement, cells });
   }
-  return { types, rows };
+  return out;
 }
 
 const json = file => JSON.parse(fs.readFileSync(file, 'utf8'));
@@ -87,31 +95,33 @@ const json = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 /**
  * Runs the checker on `root` (the repository; a test passes the checker's own fixtures). Returns what it
  * reported, or its refusal: `refused` holds its error lines, and then no row has a status. `files` are the
- * result files given, with what their sidecars record. By default the result files are those of
- * acceptance/run.mjs that exist under `root`.
+ * result files given, with what their sidecars record. By default the result files are acceptance/run.mjs's
+ * default ones that exist under `root`.
  */
 export async function readChecker({ root, matrixFile = path.join(root, 'acceptance/matrix.json'), resultFiles } = {}) {
-  const acceptance = file => pathToFileURL(path.join(repoRoot, 'acceptance', file)).href;
-  const { check } = await import(acceptance('check.mjs'));
-  const { ENGINES, defaultResultFile, engineLabel } = await import(acceptance('provenance.mjs'));
-  const names = resultFiles ?? CONFIGS.flatMap(name => name === 'browser' ? ENGINES.map(engine => defaultResultFile(name, engine)) : [defaultResultFile(name)])
-    .map(file => path.join(root, file));
-  const present = names.filter(file => fs.existsSync(file)).map(file => path.relative(root, file).split(path.sep).join('/'));
+  const defaults = defaultResultFiles();
+  const engineOf = file => defaults.find(d => d.file === file)?.engine ?? null;
+  const given = resultFiles ?? defaults.map(d => path.join(root, d.file));
+  const present = given.filter(file => fs.existsSync(file)).map(file => path.relative(root, file).split(path.sep).join('/'));
   const files = present.map(file => {
     const sidecar = path.join(root, file.replace(/\.json$/, '.provenance.json'));
     const provenance = fs.existsSync(sidecar) ? json(sidecar) : null;
-    // run.mjs's browser configurations launch a browser; Chrome unless the sidecar names another engine.
-    const browser = /(?:^|\/)(?:dist-)?browser(?:-\w+)?\.json$/.test(file);
-    return { file, provenance, engine: provenance?.engine ?? (browser ? 'chromium' : null) };
+    return { file, provenance, engine: provenance?.engine ?? engineOf(file) };
   });
   const label = engine => engine === null ? 'Node' : engineLabel(engine);
   let result;
   try {
     result = check({ root, matrixFile, resultFiles: present.map(file => path.join(root, file)), release: true });
   } catch (error) {
-    return { refused: String(error.message).split('\n').filter(Boolean), types: [], rows: new Map(), runs: new Map(), citations: new Map(), files, label };
+    return { refused: String(error.message).split('\n').filter(Boolean), rows: new Map(), citations: new Map(), files, label };
   }
-  const { types, rows } = parseTable(result.table);
+  const commitOf = file => files.find(f => f.file === file)?.provenance?.commit ?? null;
+  const rows = readRows(result.rows, { engineOf, commitOf });
+  for (const run of result.runs) {
+    const file = path.relative(root, run.file).split(path.sep).join('/');
+    const known = files.find(f => f.file === file);
+    if (known) Object.assign(known, { engine: run.engine ?? known.engine, counted: !run.provenanceError, why: run.provenanceError ?? null });
+  }
   // The tests each row cites, once the checker has accepted the matrix (so every citation names a real test).
   const citations = new Map();
   for (const row of json(matrixFile)) {
@@ -123,17 +133,7 @@ export async function readChecker({ root, matrixFile = path.join(root, 'acceptan
     }
     citations.set(row.id, [...seen.values()]);
   }
-  // A cell names a report by its file's base name, or by its path from the root when two share a name.
-  const runs = new Map();
-  for (const run of result.runs) {
-    const relative = path.relative(root, run.file).split(path.sep).join('/');
-    const known = files.find(f => f.file === relative);
-    const entry = { file: relative, engine: run.engine ?? known?.engine ?? null, commit: run.provenance?.commit ?? null, counted: !run.provenanceError, why: run.provenanceError ?? null };
-    runs.set(path.basename(run.file), entry);
-    runs.set(relative, entry);
-    if (known) Object.assign(known, { counted: entry.counted, why: entry.why });
-  }
-  return { refused: null, types, rows, runs, citations, files, label };
+  return { refused: null, rows, citations, files, label };
 }
 
 /**
@@ -159,15 +159,12 @@ export function evidenceFor(rows, checker) {
       groups.get(cell.status).push(type);
       if (cell.status === 'not applicable') continue;
       for (const report of cell.reports) {
-        const run = checker.runs.get(report.label);
-        if (!run) throw new Error(`acceptance checker: ${id}/${type} cites a report it did not list: ${report.label}`);
-        const bucket = seen.get(String(run.engine));
-        if (!bucket) throw new Error(`acceptance checker: ${report.label} ran on an engine this page does not know: ${run.engine}`);
-        if (run.counted) for (const value of report.results) bucket.results.add(value);
-        else {
-          bucket.stale.add(run.commit ? run.commit.slice(0, 7) : 'unknown');
-          stale = true;
-        }
+        if (!report.counted) stale = true;
+        // A size measurement is no engine's: it counts in the checker's verdict only.
+        if (report.source === 'size') continue;
+        const bucket = seen.get(String(report.engine));
+        if (report.counted) for (const value of report.results) bucket.results.add(value);
+        else bucket.stale.add(report.commit ? report.commit.slice(0, 7) : 'unknown');
       }
     }
     verdict.push({

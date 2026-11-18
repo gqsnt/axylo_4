@@ -235,7 +235,7 @@ Every message the chart shows the reader can be replaced through `messages`: the
 
 [example: messages-translated](../examples/messages-translated.ts)
 
-Every key, with its built-in English text, read from the library when this site is built, and where the chart shows it. A few keys are not shown by 1.0 and are kept so that an override of them still type-checks:
+Every key, with its built-in English text, read from the library when this site is built, and where the chart shows it:
 
 [table: messages](../../../packages/axylo/src/messages/index.ts)
 

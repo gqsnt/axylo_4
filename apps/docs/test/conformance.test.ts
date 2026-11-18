@@ -3,7 +3,8 @@
  * acceptance checker record.
  *
  * - The criteria come from the specification: every "WCAG x.y.z" a criterion row cites, and only those.
- * - The checker's table is read cell by cell, and output it cannot read stops the build.
+ * - The checker's structured rows are read as its README documents them, and output outside that shape stops
+ *   the build.
  * - Against the checker's own fixtures (acceptance/test/fixtures, whose expected cells its own tests state):
  *   a result without recorded provenance is not counted for this revision, and a refused matrix leaves
  *   every criterion "not recorded".
@@ -11,7 +12,7 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { citedCriteria, evidenceFor, parseCell, parseTable, readChecker } from '../lib/conformance.mjs';
+import { citedCriteria, evidenceFor, readChecker, readRows } from '../lib/conformance.mjs';
 import { repoRoot } from '../lib/examples.mjs';
 import { check } from '../../../acceptance/check.mjs';
 
@@ -52,27 +53,36 @@ describe('the criteria the specification cites', () => {
 });
 
 describe('reading the checker', () => {
-  it('reads a cell with and without reports', () => {
-    expect(parseCell('not applicable')).toEqual({ status: 'not applicable', reports: [] });
-    expect(parseCell('cannot be verified here')).toEqual({ status: 'cannot be verified here', reports: [] });
-    expect(parseCell('pass (unit.json pass, acceptance/results/browser.json pass/fail)')).toEqual({
-      status: 'pass', reports: [{ label: 'unit.json', results: ['pass'] }, { label: 'acceptance/results/browser.json', results: ['pass', 'fail'] }],
-    });
-  });
+  const fixtureRun = () => check({ root: fixtures, matrixFile: path.join(fixtures, 'matrix.json'), resultFiles: [path.join(fixtures, 'results.json')] });
 
-  it('stops on a cell it cannot read', () => {
-    expect(() => parseCell('passed')).toThrow(/cannot read/);
-    expect(() => parseCell('pass (unit.json green)')).toThrow(/cannot read/);
-  });
-
-  it('reads the checker\'s table on its fixtures as its own tests state it', () => {
-    const { types, rows } = parseTable(check({ root: fixtures, matrixFile: path.join(fixtures, 'matrix.json'), resultFiles: [path.join(fixtures, 'results.json')] }).table);
-    expect(types).toEqual(['line', 'area', 'bar', 'scatter', 'donut', 'compact']);
+  it('reads the checker\'s rows on its fixtures as its own tests state them', () => {
+    const rows = readRows(fixtureRun().rows);
     const f1 = rows.get('F1')!.cells;
-    expect(f1.line).toEqual({ status: 'pass', reports: [{ label: 'results.json', results: ['pass'] }] });
-    expect(f1.area).toEqual({ status: 'weak', reports: [{ label: 'results.json', results: ['skipped'] }] });
-    expect(f1.scatter!.status).toBe('not applicable');
+    expect(Object.keys(f1)).toEqual(['line', 'area', 'bar', 'scatter', 'donut', 'compact']);
+    expect(f1.line).toEqual({ status: 'pass', reports: [{ file: 'results.json', source: 'run', results: ['pass'], engine: null, counted: true, commit: null }] });
+    expect(f1.area!.status).toBe('weak');
+    expect(f1.area!.reports.map(r => r.results)).toEqual([['skipped']]);
+    expect(f1.scatter).toEqual({ status: 'not applicable', reports: [] });
     expect(rows.get('F2')!.cells.line!.status).toBe('cannot be verified here');
+  });
+
+  it('names the engine of a report that has none from its default result file', () => {
+    const rows = readRows(fixtureRun().rows, { engineOf: file => file === 'results.json' ? 'chromium' : null, commitOf: () => 'abc1234' });
+    expect(rows.get('F1')!.cells.line!.reports[0]).toMatchObject({ engine: 'chromium', commit: 'abc1234' });
+  });
+
+  it('stops on output outside the documented shape', () => {
+    const good = fixtureRun().rows;
+    const change = (edit: (row: Record<string, any>) => void) => {
+      const rows = structuredClone(good) as Record<string, any>[];
+      edit(rows[0]!);
+      return () => readRows(rows);
+    };
+    expect(change(row => { row.cells.line.status = 'passed'; })).toThrow(/cannot read/);
+    expect(change(row => { delete row.cells.compact; })).toThrow(/cannot read/);
+    expect(change(row => { row.cells.line.reports = [{ file: 'x.json', source: 'run', results: ['green'], engine: null, provenanceError: null }]; })).toThrow(/cannot read/);
+    expect(change(row => { row.cells.line.reports = [{ file: 'x.json', source: 'run', results: ['pass'], engine: 'safari', provenanceError: null }]; })).toThrow(/cannot read/);
+    expect(() => readRows(undefined)).toThrow(/cannot read/);
   });
 
   it('a result without recorded provenance is not counted for this revision', async () => {
@@ -96,17 +106,13 @@ describe('reading the checker', () => {
 
 describe('what is counted', () => {
   // A checker report as readChecker returns it, written out: one row, two engines, one stale run.
+  const report = (file: string, engine: string, results: string[], counted = true, commit = 'aaaaaaa1') => ({ file, source: 'run', results, engine, counted, commit });
   const checker = {
     refused: null,
     rows: new Map([['I4', { statement: '', cells: {
-      line: { status: 'pass', reports: [{ label: 'browser.json', results: ['pass'] }, { label: 'browser-webkit.json', results: ['pass', 'fail'] }] },
+      line: { status: 'pass', reports: [report('browser.json', 'chromium', ['pass']), report('browser-webkit.json', 'webkit', ['fail', 'pass'])] },
       donut: { status: 'not applicable', reports: [] },
     } }]]),
-    runs: new Map([
-      ['browser.json', { engine: 'chromium', counted: true, commit: 'aaaaaaa1' }],
-      ['browser-webkit.json', { engine: 'webkit', counted: true, commit: 'aaaaaaa1' }],
-      ['browser-firefox.json', { engine: 'firefox', counted: false, commit: 'bbbbbbb2' }],
-    ]),
   };
 
   it('each engine says what its own results said, and the verdict lists the chart types', () => {
@@ -117,7 +123,7 @@ describe('what is counted', () => {
   });
 
   it('a row with a result from another revision has no verdict for this one', () => {
-    const stale = { ...checker, rows: new Map([['I4', { statement: '', cells: { line: { status: 'pass', reports: [{ label: 'browser-firefox.json', results: ['pass'] }] } } }]]) };
+    const stale = { ...checker, rows: new Map([['I4', { statement: '', cells: { line: { status: 'pass', reports: [report('browser-firefox.json', 'firefox', ['pass'], false, 'bbbbbbb2')] } } }]]) };
     expect(evidenceFor([{ id: 'I4', criterion: '' }], stale)).toEqual({
       verdict: [{ id: 'I4', text: 'not recorded for this revision' }],
       engines: { chromium: 'not recorded', firefox: 'not recorded for this revision (results from bbbbbbb)', webkit: 'not recorded', null: 'not recorded' },
