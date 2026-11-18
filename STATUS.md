@@ -28,17 +28,20 @@ Observed model and effort are read from harness metadata (Codex session rollouts
 
 Finished and committed, each written by one provider and reviewed by the other: scales and formatting; layout and simplification; data layer, diagnostics and stores; renderers, text layer and theme; view and scene; lookup, reader and messages; chart core part 1 (review findings not yet fixed, see below); chart core part 2 (review running); benchmark harness and the M1 renderer measurements (not reviewed).
 
-| Running now (2026-11-18, after commit 5064114) | Who | Files |
+| Running now (2026-11-18, after commit 156f414) | Who | Files |
 |---|---|---|
-| Chart core fix pass: the 20 findings of `wp/core1.review.md`, on the new store API; SVG as default renderer; presentation fixes (agent a1d73b9f46c46814f) | Claude Opus 5.5 high | `src/core`, `src/dom`, `src/index.ts`, css structure section, `docs/api/examples.ts` |
-| Default palette, both schemes, to the A5 thresholds (agent abc842fd0288bc675) | Claude Opus 5.5 xhigh | `src/theme/palette.ts`, `research/palette`, `docs/decisions/0003-default-palette.md` |
-| Review of the React adapter (commit be123ee) | Codex gpt-6.2-astra xhigh, read-only | → `wp/react.review.md` |
-| Acceptance matrix as data plus checker | Codex gpt-6.2-sol xhigh | `acceptance/` → `wp/acceptance.report.md` |
-| Review of the benchmark harness and decision 0002 | Codex gpt-6.2-sol max, read-only | → `wp/bench.review.md` |
+| Chart core, second fix pass: the 22 findings of `wp/core2.review.md` plus teardown listeners, tooltip placement, single-pointer pan, accessibility-tree assertions (agent a1d73b9f46c46814f, resumed) | Claude Opus 5.5 high | `src/core`, `src/dom`, `src/index.ts`, css structure section, their tests |
+| Default palette, both schemes, to the A5 thresholds (agent abc842fd0288bc675) | Claude Opus 5.5 xhigh | `src/theme/palette.ts`, `test/theme`, `research/palette`, `docs/decisions/0003-default-palette.md` |
+| Benchmark harness fix pass: the 18 findings of `wp/bench.review.md`, missing budget workloads (agent a6075efd5cba2d5e5). No new measurements while the machine is busy | Claude Opus 5.5 high | `bench/` |
 
-Waiting for the fix pass: the 22 findings of `wp/core2.review.md` (4 blocking: paused appends break call order and validation; category eviction changes the focused datum; an empty zoom removes its own Reset; a focused slider keeps stale bounds). Same files, so not dispatched yet.
+Committed since the last checkpoint:
+- Chart core first fix pass (156f414): 20 findings of `wp/core1.review.md`; DOM-free controller on the store API; SVG default. Coordinator runs: type check clean, 76 core unit tests, 237 browser tests pass. Not re-reviewed: one Codex review of the controller is due after the second fix pass lands.
+- React adapter (be123ee), reviewed by Codex gpt-6.2-astra xhigh (`wp/react.review.md`), fixed (a63bbee): 34 unit and 31 browser tests pass; production file 1,436 B gzipped. React 18 and Fast Refresh untested; `package-lock.json` still lists the react-dom peer.
+- Acceptance matrix and checker (6bd5f9c, Codex gpt-6.2-sol xhigh, not cross-reviewed): 251 of 310 applicable cells have no qualifying evidence; see `acceptance/report.md`.
+- Benchmark review by Codex gpt-6.2-sol max (`wp/bench.review.md`: 5 blocking, 12 major, 1 minor). Decision 0002 is now provisional.
+- CI workflow (never run: no remote).
 
-Committed since the last checkpoint: React adapter (`packages/react`, Opus 5.5 high, 25 unit and 16 browser tests pass in the coordinator’s runs, not yet reviewed; React 18 untested); CI workflow `.github/workflows/ci.yml` (never run: no remote). The root type check fails while the core is mid-edit.
+Unit suite at 156f414: 620 pass, 7 fail (six palette tests waiting for the palette; `normalize.test.ts` "one million ascending typed values under 100 ms" measured 125 ms on a loaded machine: rerun when quiet before judging).
 
 Decisions recorded: `docs/decisions/0001-plot-interaction-pattern.md` (unrehearsed), `docs/decisions/0002-mark-renderer.md` (SVG by default, from `bench/results/m1-renderer-comparison.md`).
 
@@ -50,9 +53,11 @@ Known open items carried forward:
 
 ## Next action
 
-1. As each running package returns: verify (type check, its tests, browser tests where relevant), commit with targeted paths, and send it for cross-review if it is new code (React adapter and palette tests → Codex gpt-6.2-astra xhigh).
-2. When the part 2 review returns: after the fix pass has reported, send its findings to a fix run on the same files.
-3. Then, in this order: acceptance matrix as data with a checker (Codex gpt-6.2-sol xhigh); performance work against the budgets with the harness; documentation site and examples; packed-distribution tests (npm, script tag, React), CSP test, size check; regenerate the Phase 1 comparison with Axylo included; final independent review of the acceptance evidence.
+1. As each running package returns: verify (type check, its tests, browser tests where relevant), commit with targeted paths.
+2. After the second core fix pass: one cross-provider review of the rewritten controller and interaction layer (Codex gpt-6.2-astra xhigh), then fixes.
+3. End-to-end acceptance suite: one test per criterion and chart type for the cells `acceptance/report.md` lists as no evidence, in reader priority order (data fidelity, accessible reading, legibility and interaction). Browser tests by Opus 5.5 high; Node pipeline tests can go to Codex gpt-6.2-sol xhigh. Then a cross-review of the matrix itself.
+4. When the machine is quiet and the harness fixes are in: declare endpoints and thresholds, rerun the renderer comparison with scatter, many series, pan and zoom; then performance work against the budgets.
+5. Documentation site and examples; packed-distribution tests (npm, script tag, React), CSP test, size check; Phase 1 comparison rerun with Axylo included; conformance table (A9); final independent review of the acceptance evidence.
 
 ## Known limits that no agent can close
 
