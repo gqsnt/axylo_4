@@ -3,7 +3,7 @@
  * its sources do:
  *
  * - which WCAG 2.2 success criteria the specification cites, and in which of its criterion rows
- *   (docs/02-product-spec.md; a row cites "WCAG 2.5.1, 2.5.7" in any of its cells);
+ *   (docs/02-product-spec.md; a row cites "WCAG 2.5.1, 2.5.7" in its last column, spec A9);
  * - what the acceptance checker reports for those rows: `check()` of acceptance/check.mjs, in release mode,
  *   over the result files acceptance/run.mjs writes (acceptance/results/<config>[-<engine>].json, named by
  *   provenance.mjs), so a result counts only when its recorded provenance matches the working tree;
@@ -30,7 +30,10 @@ const bySc = (a, b) => {
   return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
 };
 
-/** Success criterion → the specification's rows that cite it, each with its criterion text (Markdown). */
+/**
+ * Success criterion → the specification's rows that cite it, each with its criterion text (Markdown). A row
+ * cites "WCAG x.y.z" in its last column (spec A9); a mention elsewhere in the row is not a citation.
+ */
 export function citedCriteria(spec) {
   const cited = new Map();
   for (const line of spec.split(/\r?\n/)) {
@@ -38,7 +41,7 @@ export function citedCriteria(spec) {
     const cells = splitRow(line);
     const id = cells[0].replace(/[*_`]/g, '');
     if (!/^[A-Z]+\d+$/.test(id)) continue;
-    for (const cell of cells.slice(1)) {
+    for (const cell of cells.slice(-1)) {
       for (const m of cell.matchAll(/WCAG((?:[\s,]+(?:and\s+)?\d\.\d{1,2}\.\d{1,2}\b)+)/g)) {
         for (const sc of m[1].match(SC)) {
           if (!wcag[sc]) throw new Error(`docs/02-product-spec.md, ${id}: WCAG ${sc} is not a level A or AA criterion of WCAG 2.2 (apps/docs/data/wcag.mjs)`);
@@ -190,5 +193,9 @@ export async function readConformance({ root }) {
     sc, name: wcag[sc][0], level: wcag[sc][1], rows, ...evidenceFor(rows, checker),
     tests: rows.flatMap(row => checker.citations.get(row.id) ?? []).filter((t, i, all) => all.findIndex(u => JSON.stringify(u) === JSON.stringify(t)) === i),
   }));
-  return { criteria, checker, uncited: uncited(cited).map(sc => ({ sc, name: wcag[sc][0], level: wcag[sc][1] })) };
+  return { criteria, checker, uncited: uncited(cited).map(sc => {
+    const [name, level, kind, why] = wcag[sc];
+    if (!kind || !why) throw new Error(`apps/docs/data/wcag.mjs: WCAG ${sc} is cited by no row of the specification and needs a reason (spec A9)`);
+    return { sc, name, level, kind, why };
+  }) };
 }

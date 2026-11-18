@@ -430,8 +430,12 @@ function conformanceTables(ctx) {
       `<td>${checker.refused ? 'No: the checker refused its matrix' : f.counted ? 'Yes' : `No: ${escapeHtml(f.why ?? 'not read by the checker')}`}</td>`,
     ]), 'Result files')
     : '<p>No result files were present in <code>acceptance/results/</code> when this site was built (they are not kept in the repository).</p>';
-  const rest = `<p>The specification cites ${criteria.length} of the ${criteria.length + uncited.length} level A and AA success criteria of WCAG 2.2. This page records nothing about the others, whether they apply or not: ${uncited.map(c => `${escapeHtml(c.sc)} ${escapeHtml(c.name)}`).join(', ')}.</p>`;
-  return `${state}${table}<h3>Result files</h3>${files}<h3>Criteria the specification does not cite</h3>${rest}<p class="small">Generated from <a href="${specPage}">docs/02-product-spec.md</a> and <a href="${checkerPage}">acceptance/check.mjs</a>.</p>`;
+  const rest = `<p>The specification cites ${criteria.length} of the ${criteria.length + uncited.length} level A and AA success criteria of WCAG 2.2. No test covers the others; why, criterion by criterion, is this documentation's own reading of what a chart renders, and “not assessed” where a criterion can apply and nothing checks it.</p>${htmlTable(['Success criterion', 'Not covered by a test', 'Why'], uncited.map(c => [
+    `<th scope="row">${escapeHtml(c.sc)} ${escapeHtml(c.name)} <span class="small">(level ${escapeHtml(c.level)})</span></th>`,
+    `<td>${escapeHtml(c.kind[0].toUpperCase() + c.kind.slice(1))}</td>`, `<td>${escapeHtml(c.why)}</td>`,
+  ]), 'Criteria the specification does not cite')}`;
+  ctx.published.add('apps/docs/data/wcag.mjs');
+  return `${state}${table}<h3>Result files</h3>${files}<h3>Criteria the specification does not cite</h3>${rest}<p class="small">Generated from <a href="${specPage}">docs/02-product-spec.md</a>, <a href="${checkerPage}">acceptance/check.mjs</a> and, for the criteria no row cites, <a href="${sourcePath('apps/docs/data/wcag.mjs')}">apps/docs/data/wcag.mjs</a>.</p>`;
 }
 
 /**
@@ -456,7 +460,7 @@ function sizesTable(ctx) {
   }
   const status = r => r.targetKiB === null ? 'No target' : r.over ? 'Not met' : 'Met';
   return `${htmlTable(['What a page loads', 'Gzipped, measured', 'Target', 'Target met'], rows.map(r => [
-    `<th scope="row">${escapeHtml(r.entry)}</th>`, `<td>${escapeHtml(String(r.totalKiB))} KiB</td>`,
+    `<th scope="row">${escapeHtml(r.entry)}</th>`, `<td>${escapeHtml(r.totalKiB.toFixed(2))} KiB</td>`,
     `<td>${r.targetKiB === null ? '–' : `${escapeHtml(String(r.targetKiB))} KiB`}</td>`, `<td>${status(r)}</td>`,
   ]), 'Measured sizes')}<p class="small">Measured from the same packed tarball this site installed (${escapeHtml(method)}).</p>${note}`;
 }

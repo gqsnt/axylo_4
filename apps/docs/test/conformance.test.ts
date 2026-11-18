@@ -2,7 +2,8 @@
  * The conformance page's data (lib/conformance.mjs): it may say only what the specification and the
  * acceptance checker record.
  *
- * - The criteria come from the specification: every "WCAG x.y.z" a criterion row cites, and only those.
+ * - The criteria come from the specification: every "WCAG x.y.z" in the last column of a criterion row (spec
+ *   A9), and only those; every criterion no row cites has a reason in data/wcag.mjs.
  * - The checker's structured rows are read as its README documents them, and output outside that shape stops
  *   the build.
  * - Against the checker's own fixtures (acceptance/test/fixtures, whose expected cells its own tests state):
@@ -12,7 +13,8 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { citedCriteria, evidenceFor, readChecker, readRows } from '../lib/conformance.mjs';
+import { citedCriteria, evidenceFor, readChecker, readRows, uncited } from '../lib/conformance.mjs';
+import { wcag } from '../data/wcag.mjs';
 import { repoRoot } from '../lib/examples.mjs';
 import { check } from '../../../acceptance/check.mjs';
 
@@ -20,7 +22,7 @@ const fixtures = path.join(repoRoot, 'acceptance/test/fixtures');
 const spec = fs.readFileSync(path.join(repoRoot, 'docs/02-product-spec.md'), 'utf8');
 
 describe('the criteria the specification cites', () => {
-  it('reads citations from any cell of a criterion row, and nothing else', () => {
+  it('reads citations from the last column of a criterion row, and nothing else', () => {
     const text = [
       '| ID | Criterion | Verified by | Driven by |',
       '|---|---|---|---|',
@@ -31,24 +33,30 @@ describe('the criteria the specification cites', () => {
       'Prose that names WCAG 2.4.7 outside a table.',
     ].join('\n');
     const cited = citedCriteria(text);
-    expect([...cited.keys()]).toEqual(['1.4.4', '1.4.12', '2.5.1', '2.5.7']);
+    expect([...cited.keys()]).toEqual(['1.4.4', '2.5.1', '2.5.7']);
     expect(cited.get('2.5.7')).toEqual([{ id: 'I3', criterion: 'Zoom four ways.' }]);
-    expect(cited.get('1.4.12')).toEqual([{ id: 'L1', criterion: 'Labels never overlap.' }]);
   });
 
   it('a criterion that is not level A or AA of WCAG 2.2 stops the build', () => {
     expect(() => citedCriteria('| X1 | Something. | x | WCAG 1.4.6 |')).toThrow(/1\.4\.6/);
   });
 
-  it('on the specification: every number a "WCAG" in a criterion row names is listed', () => {
+  it('on the specification: every number a "WCAG" in a criterion row\'s last column names is listed', () => {
     const cited = citedCriteria(spec);
     const named = new Set<string>();
     for (const line of spec.split('\n')) {
       if (!/^\| [A-Z]+\d+ \|/.test(line)) continue;
-      for (const m of line.matchAll(/WCAG ((?:\d\.\d+\.\d+(?:, )?)+)/g)) for (const n of m[1]!.split(', ')) named.add(n);
+      const last = line.replace(/\|\s*$/, '').split('|').at(-1)!;
+      for (const m of last.matchAll(/WCAG ((?:\d\.\d+\.\d+(?:, )?)+)/g)) for (const n of m[1]!.split(', ')) named.add(n);
     }
     expect(named.size).toBeGreaterThan(0);
     expect([...cited.keys()].sort()).toEqual([...named].sort());
+  });
+
+  it('every criterion no row cites has a reason: one of the two A9 names, or "not assessed"', () => {
+    const kinds = ['not applicable to a chart component', 'the page\'s responsibility', 'not assessed'];
+    const missing = uncited(citedCriteria(spec)).filter(sc => !kinds.includes(wcag[sc]![2]!) || !wcag[sc]![3]);
+    expect(missing).toEqual([]);
   });
 });
 

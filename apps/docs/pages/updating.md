@@ -58,7 +58,7 @@ Once a chart has been appended to, its toolbar shows a Pause control. While paus
 
 `zoom([from, to])` sets the visible x range, given in the form of the x axis: date strings or `Date` objects for calendar dates, `Date` objects or epoch milliseconds for instants, numbers for a number axis. `zoom(null)` shows everything. A range that cannot be read is reported and ignored; `zoom` never throws.
 
-Zoom applies to the date, time and number x axes of full line, area, bar and scatter charts (scatter along x only in 1.0). A category axis, a donut and a compact chart do not zoom in 1.0. There `zoom()` changes nothing and reports [AX150](diagnostics.md#ax150) when it is called: the diagnostic is printed and passed to `onDiagnostic`, and is not kept in `chart.diagnostics`. A compact chart does not keep the range for later either, so turning `compact` off does not apply it.
+Zoom applies to the date, time and number x axes of full line, area, bar and scatter charts (scatter along x only in 1.0). A category axis, a donut and a compact chart do not zoom in 1.0. There `zoom()` changes nothing and reports [AX150](diagnostics.md#ax150) when it is called: the diagnostic is printed and passed to `onDiagnostic`, and is not kept in `chart.diagnostics`. A compact chart does not keep the range for later either, so turning `compact` off does not apply it. On a scatter chart the whole range is the x axis as drawn, which ends on ticks (spec F7): in a narrow plot that axis can take a coarser step and a range wider than the data, and Zoom out and Reset zoom return to that range.
 
 Where zoom applies, the reader has four ways to zoom:
 

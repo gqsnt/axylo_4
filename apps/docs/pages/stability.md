@@ -38,6 +38,20 @@ These are the targets of 1.0 (spec section 2.3). What has been verified so far i
 
 Tested so far, on Linux: the library's acceptance tests in Chrome and in Playwright's builds of Firefox and WebKit (Playwright's WebKit, not Safari), and the distribution tests in Chrome (they install the packed package, also under a Content Security Policy). Safari itself, Edge, Windows, macOS and phones have not been tested. No screen-reader rehearsal was done for 1.0. What the acceptance checker recorded for this revision is on the [conformance page](conformance.md); see also [Accessibility](accessibility.md#what-has-and-has-not-been-verified).
 
+## Known limits
+
+These are known in 1.0 and not fixed in it. Each says what you would see.
+
+- **Closed shadow roots.** In a chart inside a closed shadow root, Escape can be taken by another chart on the page instead of this one. When the chart sits behind a slot inside a closed root, the wrapper around that slot can cut off its tooltip.
+- **A dense ring of scatter points.** Thousands of points packed in a ring just outside the distance at which points count as being at the same place (half a pixel) can make hovering over that spot slow.
+- **A formatter that fails only sometimes.** A formatter that throws for a value on one call and returns text on another can leave [AX160](diagnostics.md#ax160) reported beside a label that reads normally.
+- **CSS aimed at the plot's own column.** The readout strip is measured outside the plot's column, so CSS that applies only inside that column (a container query on it, for example) is not taken into account. A small plot can then show no readout although the strip would fit.
+- **A hold that starts early.** When only the tooltip's size or position changes while the pointer rests on a datum, the rest already spent counts towards the new one, so the hold can begin before a quarter of a second has passed.
+- **One language for the focused point.** The plot's value text is marked with one language, even when the messages it is built from are not all in the same language (some translated, others built in).
+- **Patterns in compact bar charts.** Neighbouring series always differ by fill pattern, but series further apart can share one, since there are four, and then differ by colour only.
+- **Very small numbers.** On an axis of values around 1e-43 or smaller, ticks can be missing or not match their labels.
+- **The end labels of a scatter chart's x axis.** That axis ends on a drawn tick at each end (spec F7) and reserves no extra room for the labels there, so long tick labels are wrapped or rotated to fit rather than left out. On a narrow plot the axis can take a coarser, wider range so that its ends are ticks.
+
 ## Size and memory
 
 The size targets of 1.0, set by the owner after measuring the built library: 116 KiB gzipped for a page that uses everything, and 98 KiB for a page that uses only `line`, the stylesheet included. They are not a release gate yet. The last measurement (`npm run size`, which measures the packed files the way a bundler would):

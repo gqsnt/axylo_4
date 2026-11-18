@@ -34,7 +34,7 @@ Not on a scatter chart, and a type error if given: `compact`, `stacked`, `layout
 |---|---|
 | Pointer | The nearest point within 24 px; when two are equally near, the later row wins. The tooltip shows the point's series, x and y, and lists the points at the same place, up to eight; a click pins it. Empty space selects nothing. See [reading values with a pointer](accessibility.md#reading-values-with-a-pointer). |
 | Keyboard | Through every visible point, ordered by x, then y. |
-| Zoom | x only in 1.0, the same ways as on a line; both axes later. |
+| Zoom | x only in 1.0, the same ways as on a line; both axes later. The full range is the x axis as drawn, which in a narrow plot can be wider than the data, since it ends on ticks. |
 | Many points | Not simplified in 1.0: every visible point is drawn. Above 50,000 points that can be plotted, hint [AX133](diagnostics.md#ax133) says drawing may be slow. |
 | Missing y | A row with an x but no y is not a point, but it is still an observation: the table lists it, with "No data". |
 | Duplicates | Points that share an x, or both coordinates, are ordinary data. |

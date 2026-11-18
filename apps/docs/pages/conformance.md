@@ -1,6 +1,6 @@
 # Conformance table
 
-After this page you know which WCAG 2.2 success criteria the specification cites, what Axylo does for each, what evidence was recorded for them when this site was built, and what that evidence cannot show.
+After this page you know which WCAG 2.2 success criteria the specification cites, what Axylo does for each, what evidence was recorded for them when this site was built, why no test covers the other level A and AA criteria, and what that evidence cannot show.
 
 This page is generated each time the site is built, from the specification's criterion rows and from the report of the acceptance checker. It says only what they record; where they record nothing, it says "not recorded". It is not a claim that a page using Axylo conforms: conformance belongs to a whole page, and the page is yours.
 
