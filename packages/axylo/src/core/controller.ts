@@ -18,7 +18,7 @@
 import {
   SLOT_NO_ROW, SLOT_VALUE,
   type DatumRef, type DiagnosticInput, type Formatters, type Frame, type Layout, type Lookup, type MarkRenderer,
-  type PlacedText, type PointSeries, type ReaderModel, type ResolvedTheme, type PaintBindings, type Scene, type TextMeasurer,
+  type PlacedText, type ReaderModel, type ResolvedTheme, type PaintBindings, type Scene, type TextMeasurer,
   type TextStyle, type View,
 } from './contracts';
 import type { ChartEvents, Diagnostic, Messages, Point, Title, XValue } from '../public';
@@ -34,9 +34,8 @@ import { fill, resolveMessages } from '../messages';
 import { lowContrastSeries, type ThemeResolution } from '../theme';
 import { OptionsStore, sameValue, type OptionRecord } from './options';
 import { Delivery, diagnosticKey, StrictError, strictViolations, type DeliveryConsole } from './delivery';
-import { layoutInput, layoutKey, sameKey, tickFormatFailures, type AxisContext } from './axes';
+import { layoutInput, layoutKey, prepareTicks, sameKey, tickFormatFailures, type AxisContext } from './axes';
 import { zoomApplies } from './focus';
-import { lowerBound, upperBound } from '../lookup/search';
 import {
   completeViewDiagnostics, dedupe, encodingChanged, isCompact, namesOnlyChanged, namingDiagnostics, object, publicOptions, stringOption,
   titleOf, toPublic, viewKeyFor, viewStateFor, type Span,
@@ -332,8 +331,12 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     const end = rowEnds.get(from);
     if (end !== undefined) rowEnds.set(frame, end + added);
   };
+  /** The wider x domain the layout drew a scatter's automatic domain on, with the domain it widened. */
+  let widenedX: { full: readonly [number, number]; drawn: readonly [number, number] } | null = null;
   /** What the store held right after the last release with a frame on screen: the bound's baseline. */
   let retainedBaseline = 0;
+  /** The revision on screen when the baseline was taken (a number: a hidden chart keeps no frame alive). */
+  let baselineRevision = -1;
   let epochs = 0;
   let frameRevision = 0;
   let commits = 0;
@@ -492,9 +495,18 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       return { view: previous.view, viewKey: previous.viewKey, viewDiagnostics: previous.viewDiagnostics, found: [] };
     }
     stage('view');
-    const sink = new DiagnosticCollector();
-    const state = viewStateFor(kind, c.options, c.resolved, zoom, previous?.view ?? null, c.hidden, c.messages);
-    const view = composition.view(c.frame, state, sink);
+    let sink = new DiagnosticCollector();
+    let state = viewStateFor(kind, c.options, c.resolved, zoom, previous?.view ?? null, c.hidden, c.messages);
+    let view = composition.view(c.frame, state, sink);
+    // A window is read against the domain that is drawn: when the layout drew this data on a wider automatic
+    // domain (a narrow scatter's coarser one, F7), that domain is the full range a window may take, for
+    // zoom() and for the gestures reading `xFull` (re-check, R8).
+    const wide = widenedX;
+    if (zoom && view.kind === 'scatter' && wide && !c.resolved.x.domain && sameKey(wide.full, view.xFull)) {
+      sink = new DiagnosticCollector();
+      state = { ...state as Exclude<typeof state, { kind: 'donut' }>, xDomain: wide.drawn };
+      view = composition.view(c.frame, state, sink);
+    }
     // A wall-clock window on a wall-clock axis is what the axis reads: the column's own AX112 already says
     // the values have no offset, and the window is not news (documentation finding 2).
     const found = sink.inputs().filter(d => !(d.code === 'AX112' && d.field === 'zoom' && isWall(c.frame)));
@@ -595,6 +607,10 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   function update(patch: unknown): void {
     guarded(call => {
       stage('options');
+      // Reading the patch runs author getters: until it has been read, the chart is as strict as it is now
+      // (re-check, C6).
+      const now = options.current;
+      Object.assign(call, { strict: now.strict === true, name: chartName(now), handler: now.onDiagnostic });
       const { next, changed } = options.preview(patch);
       const previous = accepted;
       const supplied = patch !== null && typeof patch === 'object' && Object.hasOwn(patch, 'data');
@@ -647,7 +663,11 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
           // held, re-encoded in the store, until Resume (review 3, finding 5). The rows on screen are the
           // displayed revision's raw window, typed-column rows marked as such (verification, defect 4).
           const table = displayedTable(previous!.frame, store);
-          const shownResolved = resolveOptions(kind, publicOptions(next), new DiagnosticCollector(), table);
+          // What the fields say about the rows on screen counts too: a field only the held rows have leaves
+          // the plot shown without values (AX101), which strict rejects (re-check, C4).
+          const shownOptions = new DiagnosticCollector();
+          const shownResolved = resolveOptions(kind, publicOptions(next), shownOptions, table);
+          const shownData = shownOptions.inputs().filter(d => DATA_CODES.has(d.code));
           const shownSink = new DiagnosticCollector();
           const shown = composition.normalize(kind, shownResolved, environment, shownSink, nextVersion());
           // Both views are built and validated before either is accepted: the held one keeps its findings
@@ -659,7 +679,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
           heldAfter = { frame: prepared.frame, dataDiagnostics: prepared.diagnostics, viewDiagnostics: heldView.viewDiagnostics };
           c = {
             options: next, resolved, source: shownResolved, store, frame: shown, dataDiagnostics: shownSink.inputs(),
-            dataOptions: [], optionDiagnostics: dedupe(opts, prepared.diagnostics),
+            dataOptions: shownData, optionDiagnostics: dedupe([...dedupe(shownData, opts), ...opts], prepared.diagnostics),
             zoom: previous!.zoom, hidden: previous!.hidden, messages,
           };
         } else {
@@ -820,6 +840,12 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
    */
   function freeze(frame: Frame): { frame: Frame; rows: Map<number, unknown> } {
     const rows = new Map<number, unknown>();
+    // The store knows which source rows a revision still addresses: read exactly those (re-check, C4 and R7).
+    const retained = (onScreenStore(frame) as { retainedRows?(frame: Frame): ArrayLike<number> | null } | null)?.retainedRows?.(frame);
+    if (retained) {
+      for (let i = 0; i < retained.length; i++) rows.set(retained[i]!, frame.source.rowAt(retained[i]!));
+      return { frame, rows };
+    }
     let lowest = Infinity;
     const keep = (row: number) => {
       if (row < 0 || rows.has(row)) return;
@@ -854,6 +880,12 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       }
     }
     return { frame, rows };
+  }
+
+  /** The store a frame's rows live in: the accepted chart's, when the frame came from it. */
+  function onScreenStore(frame: Frame): Store | null {
+    const store = accepted?.store ?? null;
+    return store && storeFrames.has(frame) ? store : null;
   }
 
   /** The window moved to end at the new latest x, keeping its width; null when it cannot follow. */
@@ -996,7 +1028,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   let readoutMode = false;
   /** The strip's height as last measured (two 24 px lines until then). */
   let stripHeight = 0;
-  /** The text style the strip's height was measured for. */
+  /** The text style the strip's height was measured for; null after a resize, which responsive CSS can change it with. */
   let stripStyle: TextStyle | null = null;
   /** Decision 0004 revision 3, rule 5: how a datum's values are shown when pointed at. */
   let readoutKind: ReadoutMode = 'floating';
@@ -1341,14 +1373,13 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     // cached ones included (finding 11).
     const axisContext: AxisContext = {
       resolved: a.resolved, locale, compact,
-      onFormatterError: () => {},
       xLabelGiven: typeof object(a.options.x).label === 'string',
       valueTitle: a.messages.value,
     };
-    const tickFailures = shown.kind === 'ready' && !compact ? tickFormatFailures(view, axisContext) : [];
-    // A formatter that changed the chart made findings about a revision that is not drawn (defect 3).
+    if (shown.kind === 'ready' && !compact) prepareTicks(view, axisContext);
+    // A formatter that changed the chart made findings about a revision that is not drawn (defect 3); what
+    // the formatters threw on is reported with the layout, from the ticks it draws (re-check, R12).
     if (!current(a)) throw ABORT;
-    setPresentation('layout', tickFailures.map(field => createDiagnostic('AX160', 'changed', { field }, 'presentation')));
 
     let { reader, inputs: readerInputs } = settleReader(hiddenIn(drawn?.layout));
     // The lazy parts of the reader model run author formatters: materialized here, before anything is written.
@@ -1410,7 +1441,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     if (size !== null && size.width > 0 && shown.kind === 'ready' && !compact && !tooSmall) {
       const room = size.room ?? size;
       // The strip is two line heights of its own text, measured by the host the way other text is (its own
-      // font, whatever the page's size), once per text style; when reserved, what it really took.
+      // font), once per text style and size; when reserved, what it really took.
       if (stripStyle !== style) {
         stripStyle = style;
         const measured = host.stripHeight?.();
@@ -1494,6 +1525,10 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       }
       layout = result.layout;
       lKey = result.key;
+      if (view.kind === 'scatter' && a.zoom === null) {
+        const x = layout.kind === 'plot' && layout.projection.kind === 'xy' ? layout.projection.x : null;
+        widenedX = x && x.type !== 'band' && !sameKey(x.domain, view.xFull) ? { full: view.xFull, drawn: x.domain } : null;
+      }
       if (destroyed) throw ABORT;
     }
 
@@ -1514,6 +1549,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       if (bars > along) fit.push(createDiagnostic('AX132', 'none', { field: a.resolved.x.field }, 'presentation'));
     }
     setPresentation('fit', fit);
+    setPresentation('layout', shown.kind === 'ready' && !compact
+      ? tickFormatFailures(view, axisContext, layout).map(field => createDiagnostic('AX160', 'changed', { field }, 'presentation')) : []);
     const measured = layout.kind !== 'unmeasured' || (shown.kind !== 'ready' && size !== null && size.width > 0 && size.height > 0);
     ({ reader, inputs: readerInputs } = settleReader(hidden));
     if (destroyed) throw ABORT;
@@ -1620,13 +1657,15 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   function showing(a: Accepted | null): void {
     if (destroyed) return;
     const frame = a?.frame ?? null;
-    // Nothing on screen is one state, however often a hidden chart's frames say so (verification, defect 2).
-    const changed = (onScreen?.frame ?? null) !== frame;
     onScreen = frame === null ? null : { frame, store: a!.store, frozen: null };
     release();
-    // The baseline moves only when other data comes on screen: redrawing the same paused frame, or a frame
-    // that could not be measured, does not let the store grow further (final review, finding 2).
-    if (changed && frame !== null) retainedBaseline = accepted?.store?.retainedRowCount ?? 0;
+    // The baseline moves only when other data comes on screen: redrawing the same paused frame, a frame that
+    // could not be measured, or showing again the frame shown before the chart was hidden does not let the
+    // store grow further (final review, finding 2; re-check, C2).
+    if (frame !== null && frame.revision !== baselineRevision) {
+      baselineRevision = frame.revision;
+      retainedBaseline = accepted?.store?.retainedRowCount ?? 0;
+    }
   }
 
   function readyText(a: Accepted, reader: ReaderModel, byText: string | null): string {
@@ -1706,27 +1745,31 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     const text = d.lookup.datum(ref);
     if (!text) return null;
     const frame = d.accepted.frame;
+    // Where the datum is in its columns, as the lookup located it: values come from the frame, with no search
+    // and no second read of the caller's row (re-check, C7 and R6).
+    const i = d.lookup.slot(ref);
     let x: XValue = 0;
     let y: number | null = null;
     if (ref.kind === 'aligned' && frame.shape === 'aligned') {
       x = positionValue(frame, ref.x);
       const series = frame.series[text.seriesIndex];
-      const i = indexOf(frame.x.values, ref.x);
       if (series && i >= 0 && series.slot[i] === SLOT_VALUE) y = series.y[i]!;
     } else if (ref.kind === 'point' && frame.shape === 'points') {
-      x = positionValue(frame, ref.x);
       const series = frame.series[text.seriesIndex];
-      if (series) {
-        const i = pointIndex(series, ref, rowOf(frame, ref.row), d.accepted.resolved.values[0]?.field);
-        if (i >= 0) y = series.y[i]!;
-      }
+      x = positionValue(frame, series && i >= 0 ? series.x[i]! : ref.x);
+      if (series && i >= 0) y = series.y[i]!;
     } else if (ref.kind === 'slice' && frame.shape === 'donut') {
       x = text.seriesLabel;
-      const i = frame.labels.indexOf(text.seriesLabel);
-      if (i >= 0 && frame.slot[i] === SLOT_VALUE) y = frame.values[i]!;
+      const at = frame.labels.indexOf(text.seriesLabel);
+      if (at >= 0 && frame.slot[at] === SLOT_VALUE) y = frame.values[at]!;
     }
-    const rowAt = (row: number) => rowOf(frame, row);
-    return { series: ref.kind === 'slice' ? ref.sliceKey : ref.seriesKey, x, y, row: text.row >= 0 ? rowAt(text.row) : null, index: text.row };
+    // The caller's row object, where the event promises it: taken once, through the owned-row accessor. A
+    // source that fails now (a row materialized on demand) gives none rather than failing the event.
+    let row: unknown = null;
+    if (text.row >= 0) {
+      try { row = rowOf(frame, text.row); } catch { row = null; }
+    }
+    return { series: ref.kind === 'slice' ? ref.sliceKey : ref.seriesKey, x, y, row, index: text.row };
   }
 
   /** Calls the listeners with a snapshot taken before any runs; stops when one destroys or changes the chart. */
@@ -1775,8 +1818,9 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     resize() {
       if (destroyed) return;
       sizeDirty = true;
-      // Responsive CSS can change the font or spacing with the size (plan 2.2).
+      // Responsive CSS can change the font or spacing with the size (plan 2.2), and the strip's height (R11).
       textStyleDirty = true;
+      stripStyle = null;
       schedule();
     },
     page() {
@@ -1974,38 +2018,10 @@ function sameStyle(a: TextStyle, b: TextStyle): boolean {
   return a.font === b.font && a.letterSpacing === b.letterSpacing && a.wordSpacing === b.wordSpacing && a.lineHeight === b.lineHeight;
 }
 
-/**
- * Where a point datum is in its series. Points are sorted by x, then y: the caller's own row says which y to
- * look for, so the datum is found by two binary searches and a check of its row, without reading the rows of
- * every point that shares its x (verification, defect 7). The row only guides the search: when it does not
- * lead to the datum (a value the frame read differently), the points at that x are walked.
- */
-function pointIndex(series: PointSeries, ref: Extract<DatumRef, { kind: 'point' }>, row: unknown, field: string | undefined): number {
-  const rows = series.row;
-  const n = series.x.length;
-  if (!rows) return ref.row >= 0 && ref.row < n ? ref.row : -1;
-  const start = lowerBound(series.x, ref.x);
-  const end = upperBound(series.x, ref.x, start);
-  const raw = field !== undefined && row !== null && typeof row === 'object' ? (row as Record<string, unknown>)[field] : undefined;
-  // A null or absent value is a point only when imputed as zero (missing: 'zero').
-  const guess = typeof raw === 'number' ? raw : raw === null || raw === undefined ? 0 : NaN;
-  if (!Number.isNaN(guess)) {
-    for (let i = lowerBound(series.y, guess, start, end); i < end && series.y[i] === guess; i++) if (rows[i] === ref.row) return i;
-  }
-  for (let i = start; i < end; i++) if (rows[i] === ref.row) return i;
-  return -1;
-}
-
 /** A frame's source that is a whole table (a static frame over the caller's data). */
 function isTable(source: unknown): source is Table {
   const t = source as Partial<Table>;
   return typeof t.isColumnRow === 'function' && typeof t.rowIndex === 'function' && typeof t.length === 'number';
-}
-
-/** The index of `x` in sorted `values`, or -1. */
-function indexOf(values: Float64Array, x: number): number {
-  const at = lowerBound(values, x);
-  return values[at] === x ? at : -1;
 }
 
 /**

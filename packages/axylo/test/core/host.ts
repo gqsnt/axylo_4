@@ -53,8 +53,9 @@ export interface HostOptions {
   /**
    * The readout strip's real height (two line heights of its own font). When given, a reserved strip takes
    * that much from the plot's column, as the DOM does, and the host reports the strip's height to the chart.
+   * A function: the height the page's CSS gives it now (responsive CSS can change it with the size).
    */
-  readonly strip?: number;
+  readonly strip?: number | (() => number);
   /** The host does not report the strip's height: the chart estimates it from its text style. */
   readonly stripUnknown?: boolean;
   /** Called inside the interaction layer's commit, as the DOM layer calls hover while it presents. */
@@ -76,6 +77,7 @@ export function record(kind: ChartKind, options: Record<string, unknown>, settin
   };
   let model: FigureModel | null = null;
   let controls: ControlsState | null = null;
+  const stripNow = (): number => typeof settings.strip === 'function' ? settings.strip() : settings.strip ?? 0;
   const style: TextStyle = { font: '400 12px sans-serif', letterSpacing: 0, wordSpacing: 0, lineHeight: 15 };
 
   /** The plot size the model figure gives: container minus caption (title, subtitle, visible summary) and controls. */
@@ -97,7 +99,7 @@ export function record(kind: ChartKind, options: Record<string, unknown>, settin
     const column = { width: box.width, height: box.height - used };
     if (settings.strip === undefined) return column;
     // The strip is in the plot's column: the column (room) stays, the plot gets what the strip leaves.
-    const reserved = controls && (controls as { readout?: boolean }).readout === true ? settings.strip : 0;
+    const reserved = controls && (controls as { readout?: boolean }).readout === true ? stripNow() : 0;
     return { width: column.width, height: column.height - reserved, room: column };
   }
 
@@ -159,7 +161,7 @@ export function record(kind: ChartKind, options: Record<string, unknown>, settin
     labelText: id => Object.hasOwn(rec.ids, id) ? rec.ids[id]! : null,
     textStyle: () => style,
     measure: plotSize,
-    ...(settings.strip === undefined || settings.stripUnknown ? {} : { stripHeight: () => settings.strip! }),
+    ...(settings.strip === undefined || settings.stripUnknown ? {} : { stripHeight: stripNow }),
     devicePixelRatio: () => 1,
     theme(keys, colors) {
       rec.themeCalls.push({ keys: [...keys], colors });

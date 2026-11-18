@@ -3,7 +3,7 @@
  * tick sets with labels, and their titles. Also produces the key that decides whether layout must rerun
  * (plan 2.2: a data-only update reruns layout only when tick labels or margins would change).
  */
-import type { TextMeasurer, TextStyle, TickCandidates, View, XKind } from './contracts';
+import type { Layout, TextMeasurer, TextStyle, TickCandidates, View, XKind } from './contracts';
 import type { LayoutInput } from '../layout';
 import type { ResolvedOptions } from '../data';
 import { bandScale, bandTickCandidates, coarserDomains, linearScale, linearTickCandidates, timeScale, timeTickCandidates } from '../scale';
@@ -17,8 +17,8 @@ export interface AxisContext {
   readonly resolved: ResolvedOptions;
   readonly locale: string;
   readonly compact: boolean;
-  /** Called once per field when an author tick formatter throws (the chart raises AX160). */
-  readonly onFormatterError: (field: string, error: unknown) => void;
+  /** Not read: failures are tracked per tick position and reported from the drawn ticks (tickFormatFailures). */
+  readonly onFormatterError?: (field: string, error: unknown) => void;
   /** The author gave the x field a `label` (spec L6: only then is a time, date or category axis titled). */
   readonly xLabelGiven: boolean;
   /** Title of a value axis that shows several fields with no shared label (the `value` message). */
@@ -31,31 +31,78 @@ const scales = {
   band: bandScale,
 };
 
-function numberTicks(domain: Span, locale: string, option: unknown, scale: 'percent' | 'ratio' | null, onError: (e: unknown) => void): TickCandidates {
+/**
+ * The tick positions an author tick formatter threw on while one axis's candidates were labelled. Layout
+ * draws one of several candidate sets (and maybe a coarser domain's), so AX160 is reported only when a drawn
+ * tick is among them (re-check, R12). An error the formatter wrapper did not see (an option that cannot be
+ * used at all) is about every tick.
+ */
+class TickFailures {
+  readonly positions = new Set<number>();
+  always = false;
+  private at = NaN;
+  private seen = false;
+
+  /** The author's formatter, noting the position being labelled when it throws. */
+  author(option: unknown): unknown {
+    if (typeof option !== 'function') return option;
+    const format = option as (...args: unknown[]) => unknown;
+    return (...args: unknown[]) => {
+      try {
+        return format(...args);
+      } catch (error) {
+        this.positions.add(this.at);
+        this.seen = true;
+        throw error;
+      }
+    };
+  }
+
+  /** A labeler that says which position it labels. */
+  labeler<R extends unknown[]>(label: (position: number, ...rest: R) => string): (position: number, ...rest: R) => string {
+    return (position, ...rest) => {
+      this.at = position;
+      return label(position, ...rest);
+    };
+  }
+
+  /** What a labeler reports: once per labeler, after the formatter's own throw or for the whole option. */
+  report = (): void => {
+    if (this.seen) this.seen = false;
+    else this.always = true;
+  };
+
+  failed(at: number): void { this.positions.add(at); }
+
+  drawn(ticks: readonly { readonly value: number }[]): boolean {
+    return ticks.length > 0 && (this.always || ticks.some(t => this.positions.has(t.value)));
+  }
+}
+
+function numberTicks(domain: Span, locale: string, option: unknown, scale: 'percent' | 'ratio' | null, failures: TickFailures): TickCandidates {
   const tickFormat = typeof option === 'function' || (option !== null && typeof option === 'object')
-    ? option as NumberFormatOption : null;
-  return linearTickCandidates(domain, createNumberTickLabeler({ locale, scale, tickFormat, onError }));
+    ? failures.author(option) as NumberFormatOption : null;
+  return linearTickCandidates(domain, failures.labeler(createNumberTickLabeler({ locale, scale, tickFormat, onError: failures.report })));
 }
 
 function temporalTicks(
   domain: Span, kind: 'time' | 'date' | 'wall', timeZone: string | null, dateUnit: 'day' | 'month' | 'year' | null,
-  locale: string, option: unknown, onError: (e: unknown) => void,
+  locale: string, option: unknown, failures: TickFailures,
 ): TickCandidates {
   const format = typeof option === 'function' || (option !== null && typeof option === 'object')
-    ? option as Parameters<typeof createTimeTickLabel>[0]['format'] : null;
-  const label = format ? createTimeTickLabel({ kind, timeZone, locale, dateUnit, format, onError }) : null;
-  return timeTickCandidates(domain, { kind, timeZone, locale, dateUnit, label });
+    ? failures.author(option) as Parameters<typeof createTimeTickLabel>[0]['format'] : null;
+  const label = format ? createTimeTickLabel({ kind, timeZone, locale, dateUnit, format, onError: failures.report }) : null;
+  return timeTickCandidates(domain, { kind, timeZone, locale, dateUnit, label: label && failures.labeler(label) });
 }
 
-function categoryLabels(categories: readonly string[], option: unknown, onError: (e: unknown) => void): readonly string[] {
+function categoryLabels(categories: readonly string[], option: unknown, failures: TickFailures): readonly string[] {
   if (typeof option !== 'function') return categories;
-  let failed = false;
-  return categories.map(name => {
+  return categories.map((name, i) => {
     try {
       return String((option as (value: XValue) => string)(name));
-    } catch (error) {
-      if (!failed) onError(error);
-      failed = true;
+    } catch {
+      // A band tick's value is its category's index.
+      failures.failed(i);
       return name;
     }
   });
@@ -63,13 +110,12 @@ function categoryLabels(categories: readonly string[], option: unknown, onError:
 
 function continuousX(
   kind: Exclude<XKind, 'category'>, domain: Span, timeZone: string | null, dateUnit: 'day' | 'month' | 'year' | null,
-  ctx: AxisContext,
+  ctx: AxisContext, failures: TickFailures,
 ) {
   const option = ctx.resolved.x.tickFormat;
-  const onError = (e: unknown) => ctx.onFormatterError(ctx.resolved.x.field, e);
   const candidates = kind === 'number'
-    ? numberTicks(domain, ctx.locale, option, null, onError)
-    : temporalTicks(domain, kind, timeZone, dateUnit, ctx.locale, option, onError);
+    ? numberTicks(domain, ctx.locale, option, null, failures)
+    : temporalTicks(domain, kind, timeZone, dateUnit, ctx.locale, option, failures);
   return { type: kind === 'number' ? 'linear' as const : 'time' as const, domain, candidates, mayThin: true };
 }
 
@@ -82,7 +128,12 @@ type AxisParts = Record<string, unknown>;
  * code runs once publication has started; final review, finding 1), and every layout computed from them,
  * cached or not, reports the same AX160 (finding 11).
  */
-const axisMemo = new WeakMap<View, { key: readonly unknown[]; parts: AxisParts; failed: readonly string[] }>();
+interface AxisEntry {
+  readonly key: readonly unknown[];
+  readonly parts: AxisParts;
+  readonly failures: { readonly x: TickFailures; readonly y: TickFailures };
+}
+const axisMemo = new WeakMap<View, AxisEntry>();
 
 /**
  * What the axis parts read from the resolved options, so an update that changes none of it (a title) reuses
@@ -96,21 +147,32 @@ function axisInputs(ctx: AxisContext): unknown[] {
     value?.scale, value?.domain !== null && value?.domain !== undefined, ctx.locale, ctx.compact, ctx.xLabelGiven, ctx.valueTitle];
 }
 
-function axisParts(view: View, ctx: AxisContext): { parts: AxisParts; failed: readonly string[] } {
+function axisParts(view: View, ctx: AxisContext): AxisEntry {
   const key = axisInputs(ctx);
   const hit = axisMemo.get(view);
   if (hit && hit.key.length === key.length && hit.key.every((v, i) => v === key[i])) return hit;
-  const failed = new Set<string>();
-  const local: AxisContext = { ...ctx, onFormatterError: field => { failed.add(field); } };
-  const entry = { key, parts: view.kind === 'donut' ? {} : buildAxisParts(view, local), failed: [...failed] };
+  const failures = { x: new TickFailures(), y: new TickFailures() };
+  const entry = { key, parts: view.kind === 'donut' ? {} : buildAxisParts(view, ctx, failures), failures };
   axisMemo.set(view, entry);
   return entry;
 }
 
-/** The fields whose tick formatter threw while this view's tick labels were made (they are made if needed). */
-export function tickFormatFailures(view: View, ctx: AxisContext): readonly string[] {
-  if (view.kind === 'donut') return [];
-  return axisParts(view, ctx).failed;
+/** Makes this view's tick labels now, if they are not made yet, so author tick formatters run here. */
+export function prepareTicks(view: View, ctx: AxisContext): void {
+  if (view.kind !== 'donut') axisParts(view, ctx);
+}
+
+/**
+ * The fields whose tick formatter threw on a tick the layout draws (spec 3.5, AX160): labels of candidate
+ * sets or coarser domains that were not drawn do not count (re-check, R12).
+ */
+export function tickFormatFailures(view: View, ctx: AxisContext, layout: Layout): readonly string[] {
+  if (view.kind === 'donut' || layout.kind !== 'plot') return [];
+  const { failures } = axisParts(view, ctx);
+  const out: string[] = [];
+  if (failures.x.drawn(layout.xTicks)) out.push(ctx.resolved.x.field);
+  if (failures.y.drawn(layout.yTicks)) out.push(ctx.resolved.values[0]?.field ?? 'y');
+  return out;
 }
 
 export function layoutInput(
@@ -122,10 +184,12 @@ export function layoutInput(
   return { ...common, ...axisParts(view, ctx).parts } as unknown as LayoutInput;
 }
 
-function buildAxisParts(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext): AxisParts {
+function buildAxisParts(
+  view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext, failures: { readonly x: TickFailures; readonly y: TickFailures },
+): AxisParts {
   const value = ctx.resolved.values[0];
   const yOption = value?.tickFormat ?? null;
-  const onYError = (e: unknown) => ctx.onFormatterError(value?.field ?? 'y', e);
+  const onYError = failures.y;
   const visibleSeries = view.frame.series.filter((_, i) => view.visible[i]);
   const firstScale = 'valueScale' in (visibleSeries[0] ?? {}) ? (visibleSeries[0] as { valueScale: 'percent' | 'ratio' | null }).valueScale : null;
   const valueScale = view.kind === 'scatter' ? value?.scale ?? null
@@ -147,7 +211,7 @@ function buildAxisParts(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext
   };
 
   if (view.kind === 'scatter') {
-    const x = continuousX(view.frame.xKind, view.xDomain, view.frame.timeZone, null, ctx);
+    const x = continuousX(view.frame.xKind, view.xDomain, view.frame.timeZone, null, ctx, failures.x);
     // Spec F7: both axes of scatter are value axes. An automatic number x domain (not the author's, not a
     // zoomed window) ends at the first drawn tick at or beyond each extreme, like y.
     const automatic = view.frame.xKind === 'number' && !ctx.resolved.x.domain &&
@@ -158,7 +222,7 @@ function buildAxisParts(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext
     // that still ends at drawn ticks (verification, defect 10). Layout reads them for x once its bottom-axis
     // fit reports a partial set (a change routed to the layout author).
     const coarser = xExtent ? coarserDomains(xExtent[0], xExtent[1], view.xDomain).map(domain => ({
-      domain, candidates: endingCandidates(continuousX('number', domain, null, null, ctx).candidates, domain, xExtent, null),
+      domain, candidates: endingCandidates(continuousX('number', domain, null, null, ctx, failures.x).candidates, domain, xExtent, null),
     })) : undefined;
     return { kind: 'xy', x: { ...x, candidates, coarser, title: titles.x }, y, references: view.references };
   }
@@ -166,9 +230,8 @@ function buildAxisParts(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext
   const column = view.frame.x;
   const xTitle = titles.x;
   const references = view.references;
-  const onXError = (e: unknown) => ctx.onFormatterError(ctx.resolved.x.field, e);
   if (column.kind === 'category') {
-    const labels = categoryLabels(column.categories ?? [], ctx.resolved.x.tickFormat, onXError);
+    const labels = categoryLabels(column.categories ?? [], ctx.resolved.x.tickFormat, failures.x);
     const x = {
       type: 'band' as const, count: labels.length, padding: view.kind === 'bar' ? 0.2 : 0,
       candidates: bandTickCandidates(labels), mayThin: column.ordered, title: xTitle,
@@ -179,7 +242,7 @@ function buildAxisParts(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext
   }
   // Bars on a continuous x: the view's domain already has room for the outer bars (view/bar-bands.ts), and
   // ticks, marks and lookup all use that one domain.
-  const x = { ...continuousX(column.kind, view.xDomain, column.timeZone, column.dateUnit, ctx), title: xTitle };
+  const x = { ...continuousX(column.kind, view.xDomain, column.timeZone, column.dateUnit, ctx, failures.x), title: xTitle };
   return view.kind === 'bar'
     ? { kind: 'bands', horizontal: view.horizontal, x, y, references }
     : { kind: 'xy', x, y, references };

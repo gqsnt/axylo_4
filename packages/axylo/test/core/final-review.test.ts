@@ -10,6 +10,8 @@ import { lastModel, record, type Recording } from './host';
 import { defaultMessages } from '../../src/messages';
 
 const rowsOf = (values: readonly number[]) => values.map(x => ({ x, y: x * 10 }));
+/** Calls that change what the snapshot properties' model expects on screen. */
+const MODEL_OPS = new Set(['append', 'title', 'data', 'reencode', 'resume', 'zoom', 'unzoom', 'reenter', 'hoverHook', 'zoomHook', 'hover']);
 const ref = (x: number, seriesKey = 'y'): DatumRef => ({ kind: 'aligned', seriesKey, x });
 const xsOf = (r: Recording) => Array.from((r.committed!.view as AlignedView).frame.x.values);
 
@@ -420,6 +422,7 @@ describe('final review, displayed snapshots: a property over richer call sequenc
       let streamed = false;
       let baseline = 0;
       let lastShown: number[] | null = null;
+      let unsure = false;
       for (const step of sequence) {
         switch (step.op) {
           case 'append': {
@@ -445,7 +448,11 @@ describe('final review, displayed snapshots: a property over richer call sequenc
           case 'restore': r.container = { width: 720, height: 400 }; r.controller.invalidate.resize(); collapsed = false; break;
           case 'reenter': reenterOnce = true; chart.update({ description: `d${tick++}` }); break;
         }
-        if (step.op !== 'frame') continue;
+        // A call made while a stage fails may or may not have been accepted (it fails only if it ran that stage):
+        // the model is not known again until data replaces everything on a healthy chart.
+        if (failing && MODEL_OPS.has(step.op)) unsure = true;
+        else if (!failing && step.op === 'data') unsure = false;
+        if (step.op !== 'frame' || unsure) continue;
         if (collapsed) {
           // Nothing could be measured: no marks outlive the frame, and the error state, if any, is complete.
           if (r.draws.length) expect(r.draws.at(-1)!.marks).toEqual([]);
@@ -642,6 +649,7 @@ describe('final review, displayed snapshots: two series on line, bar and scatter
         let streamed = false;
         let baseline = 0;
         let lastShown: number[] | null = null;
+        let unsure = false;
         const appendModel = (xs: number[], keep: number | null) => {
           data = [...data, ...xs];
           streamed = true;
@@ -693,7 +701,9 @@ describe('final review, displayed snapshots: two series on line, bar and scatter
               break;
             }
           }
-          if (step.op !== 'frame') continue;
+          if (failing && MODEL_OPS.has(step.op)) unsure = true;
+          else if (!failing && step.op === 'data') unsure = false;
+          if (step.op !== 'frame' || unsure) continue;
           if (collapsed) {
             if (r.draws.length) expect(r.draws.at(-1)!.marks).toEqual([]);
             continue;
