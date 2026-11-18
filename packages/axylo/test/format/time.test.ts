@@ -56,7 +56,8 @@ describe('wall readouts (as written, no zone)', () => {
 describe('author formats', () => {
   it('applies Intl options in the axis zone', () => {
     const f = createTimeReadout({ kind: 'time', timeZone: 'Asia/Kolkata', locale: 'en-US', format: { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' } });
-    expect(f(FEB24)).toBe('05:30');
+    // An instant's readout always names the zone (spec F4, review finding 10), even when the options omit it.
+    expect(f(FEB24)).toBe('05:30 GMT+5:30');
     const d = createTimeReadout({ kind: 'date', locale: 'en-US', format: { weekday: 'long', timeZone: 'Asia/Tokyo' } as Intl.DateTimeFormatOptions });
     // The date kind is always read in UTC, even when the options name another zone.
     expect(d(FEB24)).toBe('Tuesday');

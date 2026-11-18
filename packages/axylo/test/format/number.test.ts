@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { createNumberReadout, createNumberTickLabeler, defaultReadoutNumber, defaultTickNumber, readoutFractionDigits } from '../../src/format/number';
+import { createNumberReadout, createNumberTickLabeler, defaultReadoutNumber, defaultTickNumber } from '../../src/format/number';
 
 // Intl uses U+00A0 (de-DE "12,5 %", "1,5 Mio.") and, depending on ICU, U+202F in some places. Tests
 // normalize both to a plain space; every other character, including grouping separators, is exact.
@@ -9,12 +9,13 @@ const readout = (locale: string, v: number, extra: Parameters<typeof createNumbe
   norm(createNumberReadout({ locale, ...extra })(v));
 
 describe('readout format (spec F6)', () => {
-  // Expected strings: CLDR conventions as Intl.NumberFormat applies them, with the F6 digit rule
-  // (full integer part; six significant digits; at most six fraction digits).
+  // Expected strings: CLDR conventions as Intl.NumberFormat applies them, with the F6 digit rule as clarified
+  // after review: the full integer part; the fraction to six significant digits, its leading zeros not
+  // counted; trailing zeros removed.
   const cases: Array<[string, number, string, string, string]> = [
     //  what                  value          en-US           de-DE           en-IN
     ['large integer', 1234567, '1,234,567', '1.234.567', '12,34,567'],
-    ['small decimal', 0.000123456, '0.000123', '0,000123', '0.000123'],
+    ['small decimal', 0.000123456, '0.000123456', '0,000123456', '0.000123456'],
     ['value with a fraction', 36207.5, '36,207.5', '36.207,5', '36,207.5'],
     ['negative', -1234.5, '-1,234.5', '-1.234,5', '-1,234.5'],
   ];
@@ -35,18 +36,21 @@ describe('readout format (spec F6)', () => {
     expect(readout('en-US', 0.0412345, { scale: 'ratio' })).toBe('4.12345%');
   });
 
-  it('keeps the full integer part and rounds to six significant digits', () => {
-    expect(readout('en-US', 123456.789)).toBe('123,457');
-    expect(readout('en-US', 1234567.891)).toBe('1,234,568');
+  it('keeps the full integer part and rounds the fraction to six significant digits', () => {
+    expect(readout('en-US', 123456.789)).toBe('123,456.789');
+    expect(readout('en-US', 1234567.891)).toBe('1,234,567.891');
     expect(readout('en-US', 2 / 3)).toBe('0.666667');
     expect(readout('en-US', 0.1 + 0.2)).toBe('0.3');
     expect(readout('en-US', 0.5)).toBe('0.5');
     expect(readout('en-US', 1e21)).toBe('1,000,000,000,000,000,000,000');
+    // Fraction 0.000000 then 49999999: six significant digits 499999|99 round up to 500000.
+    expect(readout('en-US', 7.00000049999999)).toBe('7.0000005');
   });
 
   it('never writes "-0"', () => {
     expect(readout('en-US', -0)).toBe('0');
-    expect(readout('en-US', -0.0000001)).toBe('0');
+    // A small negative value is not zero, and is written in full.
+    expect(readout('en-US', -0.0000001)).toBe('-0.0000001');
   });
 
   it('appends the unit after a space', () => {
@@ -78,18 +82,22 @@ describe('readout format (spec F6)', () => {
     expect(errors[0]).toBeInstanceOf(RangeError);
   });
 
-  it('shows at most six fraction digits and six significant digits when there is a fraction (property)', () => {
+  it('writes the integer part in full and at most six significant fraction digits (property)', () => {
+    // Expected integer part from the input: the truncated value, or one more where the fraction rounds up.
     fc.assert(
-      fc.property(fc.double({ min: -1e12, max: 1e12, noNaN: true }).filter(v => Math.abs(v) >= 1e-6), v => {
+      fc.property(fc.double({ min: -1e12, max: 1e12, noNaN: true }).filter(v => Math.abs(v) >= 1e-90), v => {
         const text = defaultReadoutNumber(v, 'en-US');
+        expect(text.startsWith('-')).toBe(v < 0);
         const [integer = '', fraction = ''] = text.replace('-', '').split('.');
-        expect(fraction.length).toBeLessThanOrEqual(6);
+        const whole = BigInt(Math.trunc(Math.abs(v)));
+        expect([whole, whole + 1n]).toContain(BigInt(integer.replace(/,/g, '')));
         expect(fraction.endsWith('0')).toBe(false);
-        // The integer part is never abbreviated: as many digits as the rounded value has.
-        expect(integer.replace(/,/g, '')).toBe(String(Math.floor(Math.abs(Number(text.replace(/,/g, ''))))));
-        const significant = (integer.replace(/,/g, '').replace(/^0+/, '') + fraction).replace(/^0+/, '');
-        if (fraction.length > 0) expect(significant.length).toBeLessThanOrEqual(6);
-        expect(readoutFractionDigits(Math.abs(v))).toBeGreaterThanOrEqual(fraction.length);
+        // Leading zeros of the fraction do not count.
+        expect(fraction.replace(/^0+/, '').length).toBeLessThanOrEqual(6);
+        // A fraction that is there shows, unless it rounded up into the integer part.
+        if (Math.abs(v) - Math.trunc(Math.abs(v)) > 0) {
+          expect(fraction.length > 0 || BigInt(integer.replace(/,/g, '')) === whole + 1n).toBe(true);
+        }
       }),
       { numRuns: 1000 },
     );

@@ -81,7 +81,20 @@ function createXReadout(
   switch (x.kind) {
     case 'category': {
       const names = x.categories ?? [];
-      return (position: number) => names[position] ?? String(position);
+      const format = x.format;
+      const name = (position: number): string => names[position] ?? String(position);
+      // Intl options have no meaning for a name; only an author function changes it.
+      if (typeof format !== 'function') return name;
+      let reported = false;
+      return (position: number) => {
+        try {
+          return String(format(name(position)));
+        } catch (error) {
+          if (!reported && onError) onError(error);
+          reported = true;
+          return name(position);
+        }
+      };
     }
     case 'number': {
       const format = x.format;

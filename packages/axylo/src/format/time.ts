@@ -40,21 +40,29 @@ export function defaultTimeReadout(
 ): string {
   if (!Number.isFinite(position)) return String(position);
   const zone = zoneOf(kind, timeZone);
+  const wall = kind === 'time' ? instantToWall(zone, position) : position;
+  // Astronomical year 0 is 1 BC, which Intl writes "1" like AD 1 unless the era is shown.
+  const era: Intl.DateTimeFormatOptions = new Date(wall).getUTCFullYear() < 1 ? { era: 'short' } : {};
   if (kind === 'date') {
     const options: Intl.DateTimeFormatOptions =
       dateUnit === 'year' ? { year: 'numeric' }
         : dateUnit === 'month' ? { year: 'numeric', month: 'short' }
           : { year: 'numeric', month: 'short', day: 'numeric' };
-    return dateTimeFormat(locale, { ...options, timeZone: 'UTC' }).format(position);
+    return dateTimeFormat(locale, { ...options, ...era, timeZone: 'UTC' }).format(position);
   }
-  const wall = kind === 'time' ? instantToWall(zone, position) : position;
   const withinMinute = ((wall % MINUTE) + MINUTE) % MINUTE;
-  const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
+  const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', ...era };
   if (withinMinute !== 0) options.second = '2-digit';
   if (withinMinute % 1000 !== 0) options.fractionalSecondDigits = 3;
   if (kind === 'time') options.timeZoneName = 'short';
   options.timeZone = zone;
   return dateTimeFormat(locale, options).format(position);
+}
+
+/** The zone's name at an instant as Intl writes it ("PST", "GMT+5:30"), in the given style. */
+function zoneName(locale: string, timeZone: string, position: number, style: 'short' | 'shortOffset' = 'short'): string {
+  const parts = dateTimeFormat(locale, { timeZoneName: style, timeZone }).formatToParts(position);
+  return parts.find(p => p.type === 'timeZoneName')?.value ?? '';
 }
 
 function once(report: ((error: unknown) => void) | null | undefined): (error: unknown) => void {
@@ -66,27 +74,51 @@ function once(report: ((error: unknown) => void) | null | undefined): (error: un
   };
 }
 
-/** The author's format wrapped so that a failure falls back to `fallback` and is reported once. Null when there is none. */
-function authorTimeFormat(spec: TimeReadoutSpec, fallback: ((position: number) => string) | null): ((position: number) => string) | null {
+/**
+ * The author's format wrapped so that a failure falls back to `fallback` and is reported once. Null when
+ * there is none. With `requireZone` (readouts of instants, spec F4) the zone is always named: added to Intl
+ * options that leave it out, appended where the options cannot take it (dateStyle, timeStyle), and appended
+ * to a function's output that names neither the zone nor its offset.
+ */
+function authorTimeFormat(spec: TimeReadoutSpec, fallback: ((position: number) => string) | null, requireZone: boolean): ((position: number) => string) | null {
   const format = spec.format;
   if (format == null) return null;
   const report = once(spec.onError);
+  const zone = zoneOf(spec.kind, spec.timeZone);
+  const nameZone = requireZone && spec.kind === 'time';
   if (typeof format === 'function') {
     return (position: number) => {
+      let out: string;
       try {
-        return String(format(new Date(position)));
+        out = String(format(new Date(position)));
       } catch (error) {
         report(error);
         if (fallback === null) throw error;
         return fallback(position);
       }
+      if (!nameZone) return out;
+      const name = zoneName(spec.locale, zone, position);
+      if (out.includes(name) || out.includes(zoneName(spec.locale, zone, position, 'shortOffset'))) return out;
+      return `${out} ${name}`;
     };
   }
   try {
     // The axis zone always wins: date and wall positions only read correctly in UTC.
-    const dtf = dateTimeFormat(spec.locale, { ...(format as Intl.DateTimeFormatOptions), timeZone: zoneOf(spec.kind, spec.timeZone) });
+    const options = { ...(format as Intl.DateTimeFormatOptions), timeZone: zone };
+    let dtf = dateTimeFormat(spec.locale, options);
     dtf.format(0);
-    return (position: number) => dtf.format(position);
+    let append = false;
+    if (nameZone && !dtf.formatToParts(0).some(p => p.type === 'timeZoneName')) {
+      try {
+        dtf = dateTimeFormat(spec.locale, { ...options, timeZoneName: 'short' });
+      } catch {
+        append = true; // dateStyle and timeStyle cannot be combined with timeZoneName
+      }
+    }
+    const write = dtf;
+    return append
+      ? (position: number) => `${write.format(position)} ${zoneName(spec.locale, zone, position)}`
+      : (position: number) => write.format(position);
   } catch (error) {
     report(error);
     return null;
@@ -96,14 +128,15 @@ function authorTimeFormat(spec: TimeReadoutSpec, fallback: ((position: number) =
 /** Readout formatter for a temporal x axis. */
 export function createTimeReadout(spec: TimeReadoutSpec): (position: number) => string {
   const fallback = (position: number): string => defaultTimeReadout(position, spec.kind, spec.timeZone, spec.locale, spec.dateUnit);
-  return authorTimeFormat(spec, fallback) ?? fallback;
+  return authorTimeFormat(spec, fallback, true) ?? fallback;
 }
 
 /**
  * Tick labeler from the author's `tickFormat`, for `timeTickCandidates({ label })`. Null when there is none,
  * so the built-in context-aware labels apply. A failure is reported once and rethrown, and the tick
- * generator then uses its built-in label for that tick.
+ * generator then uses its built-in label for that tick. Ticks do not repeat the zone; the readouts and the
+ * description name it.
  */
 export function createTimeTickLabel(spec: TimeReadoutSpec): ((position: number) => string) | null {
-  return authorTimeFormat(spec, null);
+  return authorTimeFormat(spec, null, false);
 }
