@@ -334,6 +334,11 @@ export class StreamRows {
     return new FrameSource(this.next, this);
   }
 
+  /** Every retained source row, ascending: the opening's column rows come first, appended rows after them. */
+  retainedIndexes(): Int32Array {
+    return this.retained.indexes(0, 0);
+  }
+
   archive(row: number, target: RawRows): boolean {
     return this.retained.copy(row, target);
   }
@@ -387,6 +392,9 @@ export class FrameSource implements RowSource {
     return Number.isInteger(row) && row >= 0 && row < this.end && this.read ? this.read(row) : null;
   }
 
+  /** One past the last source row this frame can address. */
+  get limit(): number { return this.end; }
+
   bind(read: (row: number) => unknown): void {
     this.read = read;
   }
@@ -439,6 +447,29 @@ export class RowWindow {
     this.archived.count(bytes, 'rows kept for earlier frames');
   }
 
+  /**
+   * The source rows a published revision's `rowAt` answers, ascending, or null when it is not one of this
+   * window's live revisions. The rows still retained below its end, and the evicted rows kept for it.
+   */
+  retainedRows(revision: number, source: RowSource): ArrayLike<number> | null {
+    if (this.sources.get(revision) !== source || !this.rows) return null;
+    const end = (source as FrameSource).limit;
+    const current = this.rows.retainedIndexes();
+    let cut = current.length;
+    while (cut > 0 && current[cut - 1]! >= end) cut--;
+    const live = current.subarray(0, cut);
+    const kept: number[] = [];
+    for (const [row, last] of this.lastSeen) if (revision <= last && row < end) kept.push(row);
+    if (!kept.length) return live;
+    kept.sort((a, b) => a - b);
+    // Merge the two ascending lists.
+    const all = new Int32Array(live.length + kept.length);
+    for (let i = 0, j = 0, k = 0; k < all.length; k++) {
+      all[k] = j >= kept.length || i < live.length && live[i]! < kept[j]! ? live[i++]! : kept[j++]!;
+    }
+    return all;
+  }
+
   close(): void {
     this.closed = true;
     if (this.sources.size === 0) this.rows = null;
@@ -478,6 +509,15 @@ export class RowRevisions {
 
   count(bytes: ByteCount): void {
     for (const window of this.windows) window.count(bytes);
+  }
+
+  /** See `RowWindow.retainedRows`: the frame's revision, in whichever window published it. */
+  retainedRows(frame: { readonly revision: number; readonly source: RowSource }): ArrayLike<number> | null {
+    for (const window of this.windows) {
+      const rows = window.retainedRows(frame.revision, frame.source);
+      if (rows) return rows;
+    }
+    return null;
   }
 
   replace(rows: StreamRows): void {

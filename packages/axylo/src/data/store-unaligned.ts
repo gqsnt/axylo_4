@@ -357,6 +357,12 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
     return bytes.result();
   }
 
+  /**
+   * The source rows `frame.source.rowAt` still answers, ascending, or null when the frame's revision is
+   * retired or not one this store published. Imputed rows (row −1 in a series) are source rows too and listed.
+   */
+  retainedRows(frame: Frame): ArrayLike<number> | null { return this.revisions.retainedRows(frame); }
+
   /** Releases source rows through this revision. Held frame views keep their normalized values. */
   retire(revision: number): void { this.revisions.retire(Math.min(revision, this.current.revision)); }
 

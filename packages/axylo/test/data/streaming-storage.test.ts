@@ -871,3 +871,76 @@ it('never counts the caller\'s columns as owned, whatever frames are counted (R1
   count.frame(frame);
   expect(count.result().total).toBe(10);
 });
+
+describe('retainedRows(frame) lists exactly the source rows that revision\'s rowAt answers (re-check C4, R7)', () => {
+  type Retaining = { retainedRows(frame: Frame): ArrayLike<number> | null; frame: Frame; retire(revision: number): void };
+  const y = fc.oneof(fc.integer({ min: -9, max: 9 }), fc.constant(null), fc.constant(undefined));
+  const step = fc.record({
+    rows: fc.array(fc.record({ dx: fc.integer({ min: -3, max: 3 }), y, placed: fc.boolean() }), { minLength: 1, maxLength: 5 }),
+    keep: fc.option(fc.integer({ min: 1, max: 6 }), { nil: undefined }),
+    hold: fc.boolean(), retire: fc.boolean(),
+  });
+
+  function check(s: Retaining, frame: Frame, upTo: number) {
+    const listed = s.retainedRows(frame);
+    expect(listed).not.toBeNull();
+    const rows = Array.from(listed!);
+    for (let i = 1; i < rows.length; i++) expect(rows[i]!).toBeGreaterThan(rows[i - 1]!);
+    const answered = Array.from({ length: upTo }, (_, i) => i).filter(i => frame.source.rowAt(i) !== null);
+    expect(rows).toEqual(answered);
+  }
+
+  for (const kind of types) {
+    it(`${kind}: for any opening and appends with keep, late arrivals and missing values, current and held frames`, () => {
+      fc.assert(fc.property(
+        fc.array(fc.record({ y, placed: fc.boolean() }), { maxLength: 8 }), fc.boolean(), fc.constantFrom('gap' as const, 'zero' as const),
+        fc.array(step, { minLength: 1, maxLength: 8 }),
+        (opening, typed, missing, steps) => {
+          let x = 0;
+          let label = 0;
+          const make = (dx: number, value: unknown, placed: boolean) => {
+            x += dx;
+            const row: Record<string, unknown> = { x: placed ? x : null, label: placed ? `L${label++}` : null };
+            if (value !== undefined) row.y = value;
+            return row;
+          };
+          const first = opening.map(({ y: value, placed }) => make(1, value, placed));
+          const data = typed && kind !== 'donut'
+            ? { columns: { x: Float64Array.from(first, (_, i) => i), y: Float64Array.from(first, r => typeof r.y === 'number' ? r.y : NaN) } }
+            : first;
+          const encoded = resolveOptions(kind, kind === 'donut' ? { data, label: 'label', value: { field: 'y', missing } }
+            : { data, x: { field: 'x', type: 'number' }, y: { field: 'y', missing } }, quiet);
+          const s = (kind === 'scatter' ? new PointStore(encoded, utc, version) : kind === 'donut' ? new DonutStore(encoded, utc, version)
+            : AlignedStore.fromFrame(normalize('line', encoded, utc, quiet, version), encoded, data, utc)) as unknown as Retaining;
+          let total = first.length;
+          const held: Frame[] = [];
+          for (const { rows, keep, hold, retire } of steps) {
+            const before = s.frame;
+            if (hold) held.push(before);
+            const batch = rows.map(({ dx, y: value, placed }) => make(dx, value, placed));
+            (s as unknown as AlignedStore).prepareAppend(batch, { keep }).commit();
+            total += batch.length;
+            if (retire && held.length) {
+              const old = held.shift()!;
+              s.retire(old.revision);
+              expect(s.retainedRows(old)).toBeNull();
+              // A later held frame may share that revision only if it is the same frame.
+              for (let i = held.length - 1; i >= 0; i--) if (held[i]!.revision <= old.revision) held.splice(i, 1);
+            }
+            check(s, s.frame, total + 2);
+            for (const frame of held) check(s, frame, total + 2);
+          }
+        }), { numRuns: 400 });
+    });
+  }
+
+  it('gives null for a frame that is not one of the store\'s revisions', () => {
+    const s = store('line', [row(0), row(1)]) as AlignedStore;
+    const preview = s.prepareAppend([row(2)]);
+    expect(s.retainedRows(preview.frame)).toBeNull();
+    const other = store('line', [row(0)]) as AlignedStore;
+    expect(s.retainedRows(other.frame)).toBeNull();
+    preview.commit();
+    expect(Array.from(s.retainedRows(s.frame)!)).toEqual([0, 1, 2]);
+  });
+});
