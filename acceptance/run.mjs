@@ -31,7 +31,9 @@ if (!Object.hasOwn(configs, name) || !result?.endsWith('.json') || filters.some(
   if (name.includes('browser')) env.AXYLO_BROWSER = '1';
   else delete env.AXYLO_BROWSER;
   const vitest = resolve(root, 'node_modules/vitest/vitest.mjs');
-  const run = spawnSync('timeout', ['--kill-after=5', '400', process.execPath, vitest, 'run', ...configs[name],
+  // The browser configuration runs every browser suite one file at a time and takes about a quarter of an hour.
+  const limit = String(Number(process.env.AXYLO_RUN_TIMEOUT) || (name === 'browser' ? 2400 : 400));
+  const run = spawnSync('timeout', ['--kill-after=5', limit, process.execPath, vitest, 'run', ...configs[name],
     '--reporter=json', '--outputFile=' + output, ...filters], { cwd: root, env, stdio: 'inherit' });
   const after = snapshot(root, files);
   const changed = JSON.stringify(before) !== JSON.stringify(after);
