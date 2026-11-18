@@ -76,6 +76,8 @@ Known open items carried forward:
 - Not tested: the control focus-outline margin in tooltip placement; the 0.01 px held-geometry comparison (interaction author's "not done").
 - `bench/history/20261118T03503*` (two files) are left uncommitted on purpose.
 
+**Waiting on the owner (asked 2026-11-18 night):** (1) whether to record a waiver for A3 (no screen-reader rehearsal) so the release check does not block on it; (2) stacked charts where one series has no row at an x (weekly beside daily): today that x is "incomplete" and the sparse band pinches to zero while its stroke stays joined; `wp/stack-no-row.report.md`. The author's test for the other reading, `packages/axylo/test/view/stack-no-row.test.ts`, is uncommitted and has three failing cases on purpose; commit it only in the form the owner chooses.
+
 ## Next action
 
 1. When the engine agent reports: commit the port; `npm run build`; every core browser suite on SVG and `chart` + `a11y` on canvas at HEAD.
