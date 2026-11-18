@@ -414,9 +414,10 @@ function updateBars(doc: Document, g: Node, mark: RectMark, bindings: PaintBindi
   const q = mark.xywh;
   const count = q.length >> 2;
   const total = pattern === null ? count : 2 * count;
-  if (g.source !== null && g.source[0] === q && g.source[1] === pattern && g.kids.length === total) return;
+  const color = paintOf(mark.fill, bindings);
+  if (g.source !== null && g.source[0] === q && g.source[1] === pattern && g.source[2] === color && g.kids.length === total) return;
   syncKids(doc, g, total, 'rect');
-  g.source = [q, pattern];
+  g.source = [q, pattern, color];
   for (let i = 0; i < total; i++) {
     const k = i % count;
     const x = q[4 * k]!, y = q[4 * k + 1]!, w = q[4 * k + 2]!, h = q[4 * k + 3]!;
@@ -427,6 +428,9 @@ function updateBars(doc: Document, g: Node, mark: RectMark, bindings: PaintBindi
     attr(kid, 'width', bad ? '0' : String(f(Math.abs(w))));
     attr(kid, 'height', bad ? '0' : String(f(Math.abs(h))));
     css(kid, 'fill', i >= count ? pattern : null);
+    // The overlay carries the series colour too, so the element painted in that colour also says which
+    // pattern it has (spec C4, F9); the pattern's content takes its own colour from the <pattern> element.
+    css(kid, 'color', i >= count ? color : null);
   }
 }
 

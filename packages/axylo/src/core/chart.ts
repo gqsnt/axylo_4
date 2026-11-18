@@ -159,10 +159,19 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
         const box = figure.figure.getBoundingClientRect();
         if (box.width <= 0 && box.height <= 0) return null;
         const plot = figure.plot.getBoundingClientRect();
+        // Layout pixels, which the marks, the text and picking use: a CSS transform on an ancestor scales the
+        // bounding rect, not the layout (interaction review, part 1 item 12). Below 2% the ratio is the
+        // integer rounding of offsetWidth, and the fractional rect is kept.
+        const scaleOf = (rect: number, layout: number) => {
+          const k = layout > 0 && rect > 0 ? rect / layout : 1;
+          return Math.abs(k - 1) < 0.02 ? 1 : k;
+        };
+        const sx = scaleOf(plot.width, figure.plot.offsetWidth);
+        const sy = scaleOf(plot.height, figure.plot.offsetHeight);
         // When the plot is squeezed to nothing, how far the rest overflows the figure is how much room is
         // missing; that keeps the L8 decision continuous below zero.
         const overflow = plot.height < 1 ? Math.max(0, figure.figure.scrollHeight - figure.figure.clientHeight) : 0;
-        return { width: plot.width, height: plot.height - overflow };
+        return { width: plot.width / sx, height: plot.height / sy - overflow };
       },
       devicePixelRatio: () => win.devicePixelRatio || 1,
       // Scoped to this chart's own figure: properties and the scheme go with it (finding 10).

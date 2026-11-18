@@ -223,9 +223,10 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
         // Runs in their own languages: one span each, so assistive technology switches voice per run.
         const signature = JSON.stringify(segments);
         if (note.dataset.segments !== signature) {
-          note.replaceChildren(...segments.map((run, i) => {
+          note.replaceChildren(...segments.map(run => {
             const span = doc.createElement('span');
-            span.textContent = (i > 0 ? ' ' : '') + run.text;
+            // The runs carry their own spacing (the reader joins sentences with a space run).
+            span.textContent = run.text;
             if (run.lang !== null) span.setAttribute('lang', run.lang);
             return span;
           }));

@@ -1,9 +1,11 @@
 /**
  * Axis titles (spec L6, revised) and reference labels reaching layout, through `layoutInput`.
  */
+import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import type { AlignedView, TextMeasurer } from '../../src/core/contracts';
-import { layoutInput, type AxisContext } from '../../src/core/axes';
+import { endingCandidates, layoutInput, type AxisContext } from '../../src/core/axes';
+import { linearTickCandidates, valueDomain } from '../../src/scale';
 import { resolveOptions, type AlignedChartType } from '../../src/data';
 import { DiagnosticCollector } from '../../src/diagnostics';
 import { aligned, frame } from '../lookup/fixtures';
@@ -46,5 +48,32 @@ describe('axis titles (spec L6)', () => {
   it("the view's resolved references are passed to layout so their labels are placed", () => {
     const references = [{ axis: 'y', from: 1.5, to: 1.5, label: 'Target' }] as const;
     expect(titles('line', { data: days, x: 'd', y: 'v' }, { references }).references).toBe(references);
+  });
+});
+
+describe('F7: a tick set is offered only when the domain ends at its first tick at or beyond each extreme', () => {
+  it('[-0.8, 0.2] with a maximum of 0.1: the 0.1-step set (which has a tick at 0.1) is not offered', () => {
+    const sets = linearTickCandidates([-0.8, 0.2], v => String(v));
+    const offered = endingCandidates(sets, [-0.8, 0.2], [-0.8, 0.1], null);
+    for (const set of offered) {
+      const values = set.map(t => t.value);
+      expect(values.find(v => v >= 0.1)).toBe(0.2);
+    }
+    expect(offered.length).toBeGreaterThan(0);
+  });
+
+  it('for any decimal extremes, every offered set has its first tick at or beyond each extreme on the domain end', () => {
+    fc.assert(fc.property(fc.integer({ min: -2000, max: 2000 }), fc.integer({ min: 1, max: 4000 }), fc.integer({ min: 0, max: 3 }),
+      (low, span, places) => {
+        const lo = low / 10 ** places;
+        const hi = (low + span) / 10 ** places;
+        const { domain } = valueDomain({ min: lo, max: hi, includeZero: false });
+        const offered = endingCandidates(linearTickCandidates(domain, v => String(v)), domain, [lo, hi], null);
+        for (const set of offered) {
+          const values = set.map(t => t.value);
+          expect(values.find(v => v >= hi)).toBe(domain[1]);
+          expect([...values].reverse().find(v => v <= lo)).toBe(domain[0]);
+        }
+      }));
   });
 });

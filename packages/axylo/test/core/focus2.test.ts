@@ -57,13 +57,29 @@ describe('finding 7: the keyboard reaches what the pointer reaches, and reads wh
 });
 
 describe('finding 9: one minimum window for every gesture, and no exhausted control that does nothing', () => {
-  it('two or three aligned positions cannot be zoomed in, so Zoom in is not offered as working', () => {
+  it('an attainable minimum: two or three positions over [0, 100] can still be halved (interaction review, part 1 item 9)', () => {
+    // The earlier rule (two x slots) gave 200 and 100 here, wider than the axis, so Zoom in could never act.
     for (const xs of [[0, 100], [0, 50, 100]]) {
       const { view } = drawn('line', { data: xs.map(x => ({ x, y: x })), x: 'x', y: 'y' });
-      expect(canZoomIn(view, view.kind === 'donut' ? [0, 0] : view.xDomain), String(xs)).toBe(false);
+      if (view.kind === 'donut') throw new Error('line');
+      expect(minimumWidth(view), String(xs)).toBeLessThanOrEqual(50);
+      expect(canZoomIn(view, view.xDomain), String(xs)).toBe(true);
+      expect(zoomStep(view.xFull, view.xDomain, 0.5, 50, minimumWidth(view))).toEqual([25, 75]);
     }
     const { view } = drawn('line', { data: [0, 25, 50, 75, 100].map(x => ({ x, y: x })), x: 'x', y: 'y' });
     expect(canZoomIn(view, [0, 100])).toBe(true);
+  });
+
+  it('a representable halving is not refused on a large offset: [1e16, 1e16 + 4] halves to a 2-wide window', () => {
+    const { view } = drawn('scatter', { data: [0, 1, 2, 3, 4].map(i => ({ x: 1e16 + i, y: i })), x: 'x', y: 'y' });
+    if (view.kind !== 'scatter') throw new Error('scatter');
+    const full = view.xFull;
+    expect(full[1] - full[0]).toBe(4);
+    const next = zoomStep(full, full, 0.5, (full[0] + full[1]) / 2, minimumWidth(view));
+    expect(next).toBeDefined();
+    expect(next).not.toBeNull();
+    expect(next![1] - next![0]).toBe(2);
+    expect(next![1]).toBeGreaterThan(next![0]);
   });
 
   it('a window is always strictly ordered and finite, even where doubles are coarse', () => {
@@ -135,5 +151,16 @@ describe('finding 20: the layout key holds the axis titles it draws', () => {
     expect(before.includes('Value (ms)')).toBe(true);
     expect(after.includes('Value')).toBe(true);
     expect(after.includes('Value (ms)')).toBe(false);
+  });
+});
+
+describe('F10 (revised): the focused text of a mixed-sign stack gives both totals, as the tooltip does', () => {
+  it('stacked bars +3 and -2 at x 0 read the positive and the negative total, not the net 1', () => {
+    const data = [{ x: 0, s: 'a', y: 3 }, { x: 0, s: 'b', y: -2 }, { x: 1, s: 'a', y: 1 }, { x: 1, s: 'b', y: 1 }];
+    const { view, lookup, formatters } = drawn('bar', { layout: 'stacked', data, x: 'x', y: 'y', series: 's' });
+    const text = valueText(view, lookup, { kind: 'aligned', seriesKey: 'a', x: 0 }, 'all', formatters, defaultMessages)!;
+    const tooltipTotal = lookup.tooltip({ kind: 'x', x: 0 }).total;
+    expect(tooltipTotal).toBe('3 and -2');
+    expect(text).toContain(`Total ${tooltipTotal}`);
   });
 });

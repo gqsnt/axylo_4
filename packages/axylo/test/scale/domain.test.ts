@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { coarserDomains, valueDomain, type ValueDomainInput } from '../../src/scale/domain';
+import { coarserDomains, domainStep, valueDomain, type ValueDomainInput } from '../../src/scale/domain';
+import { stepMultiple } from '../../src/scale/nice';
 import { linearTickCandidates } from '../../src/scale/linear';
 
 const base = { includeZero: false, authorDomain: null, valueScale: null, references: [] } satisfies Omit<ValueDomainInput, 'min' | 'max'>;
@@ -184,5 +185,23 @@ describe('coarserDomains: an axis that ends at drawn ticks on a short plot (F7, 
       expect(b).toBe(100);
       expect(a).toBeLessThanOrEqual(37);
     }
+  });
+});
+
+describe('F7: an extreme that is a multiple of the step ends the domain exactly there', () => {
+  it('for any extreme equal to k × step for the chosen step, the domain ends at it', () => {
+    fc.assert(fc.property(fc.integer({ min: -5000, max: 5000 }), fc.integer({ min: 1, max: 5000 }), fc.integer({ min: -3, max: 3 }),
+      (a, span, e) => {
+        const scale = (n: number) => e >= 0 ? n * 10 ** e : n / 10 ** -e;
+        const lo = scale(a);
+        const hi = scale(a + span);
+        const step = domainStep(lo, hi);
+        const [d0, d1] = auto(lo, hi).domain;
+        // Multiples are compared in the step's own index space: k × step as the step writes it.
+        const k = Math.round(hi / step.value);
+        if (stepMultiple(k, step) === hi) expect(d1).toBe(hi);
+        const j = Math.round(lo / step.value);
+        if (stepMultiple(j, step) === lo) expect(d0).toBe(lo);
+      }));
   });
 });

@@ -72,3 +72,26 @@ describe('createFormatters', () => {
     expect(reports).toEqual(['sessions', 'day']);
   });
 });
+
+describe('shares (spec F8: at most one fraction digit), unlike percent-scaled values (F6)', () => {
+  it('a share of 5/29 reads 17.2%, in each locale', () => {
+    const en = createFormatters(spec({}), { locale: 'en-US', timeZone: 'UTC' });
+    expect(norm(en.percent(5 / 29))).toBe('17.2%');
+    expect(norm(en.percent(0.25))).toBe('25%');
+    expect(norm(en.percent(1))).toBe('100%');
+    expect(norm(en.percent(0))).toBe('0%');
+    const de = createFormatters(spec({}), { locale: 'de-DE', timeZone: 'UTC' });
+    expect(norm(de.percent(5 / 29))).toBe('17,2 %');
+  });
+
+  it('rounds the share as the decimal it is: 0.1235 is 12.4%, 1/3 is 33.3%', () => {
+    const f = createFormatters(spec({}), { locale: 'en-US', timeZone: 'UTC' });
+    expect(norm(f.percent(0.1235))).toBe('12.4%');
+    expect(norm(f.percent(1 / 3))).toBe('33.3%');
+  });
+
+  it('a ratio-scaled value keeps the readout digits of F6', () => {
+    const f = createFormatters(spec({}), { locale: 'en-US', timeZone: 'UTC' });
+    expect(norm(f.value(1, 5 / 29))).toBe('17.241379%');
+  });
+});

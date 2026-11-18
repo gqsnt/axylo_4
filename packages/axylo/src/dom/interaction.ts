@@ -31,7 +31,7 @@ import type { Figure } from './figure';
 import { sameTarget } from './pointer';
 import { createTableView, type TableView } from './table';
 import { createToolbar, type Toolbar, type ToolbarItem } from './toolbar';
-import { createTooltip, type TooltipContent } from './tooltip';
+import { createTooltip, cssScale, type TooltipContent } from './tooltip';
 import { createSwatch, type SwatchSpec } from './swatch';
 import { sliceText } from '../lookup/text';
 
@@ -441,17 +441,21 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
           // chosen without a keyboard (WCAG 2.5.1).
           select: row => actions.select(row.ref),
         };
+        // Layout pixels of the plot to viewport pixels, through any CSS transform (part 1 item 12).
         const box = plot.getBoundingClientRect();
+        const k = cssScale(plot);
+        const toPage = (r: Rect): Rect => ({ x: box.left + r.x * k.x, y: box.top + r.y * k.y, width: r.width * k.x, height: r.height * k.y });
         const local = targetBox(d.view, d.lookup, target, only) ??
           (pointer ? { x: pointer.x, y: pointer.y, width: 0, height: 0 } : null);
-        const anchor = local ? { x: box.left + local.x, y: box.top + local.y, width: local.width, height: local.height }
-          : { x: box.left + box.width / 2, y: box.top + box.height / 2, width: 0, height: 0 };
+        const anchor = local ? toPage(local) : { x: box.left + box.width / 2, y: box.top + box.height / 2, width: 0, height: 0 };
         // The tooltip keeps clear of the pointer as well as of the marks, so the next click reaches the plot.
-        const at = source === 'pointer' && pointer ? { x: box.left + pointer.x, y: box.top + pointer.y } : null;
+        const at = source === 'pointer' && pointer ? { x: box.left + pointer.x * k.x, y: box.top + pointer.y * k.y } : null;
         const ringBox = visibleRing ? d.lookup.anchor(visibleRing) : null;
-        const avoid: Rect[] = ringBox ? [{ x: box.left + ringBox.x - 6, y: box.top + ringBox.y - 6, width: ringBox.width + 12, height: ringBox.height + 12 }] : [];
+        const avoid: Rect[] = ringBox ? [toPage({ x: ringBox.x - 6, y: ringBox.y - 6, width: ringBox.width + 12, height: ringBox.height + 12 })] : [];
         // The reading axis: x, or y for horizontal bars; none for a donut (decision 0004).
         const axis = d.view.kind === 'donut' ? null : horizontalBars(d) ? 'y' : 'x';
+        // A tooltip pinned by a tap is one to act in: its rows get full touch-sized targets (new item 9).
+        figure.tooltip.classList.toggle('axylo-tooltip-pinned', pinned);
         if (!tooltip.show(content, anchor, at, avoid, axis)) tooltip.readout(content);
       }
     }
@@ -745,8 +749,8 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     // Spec I3: only while the plot has focus, and never with Ctrl or Meta (browser zoom, page scroll).
     if (!plotReady(d) || !d.zoom || !proxy || doc.activeElement !== proxy || event.ctrlKey || event.metaKey) return;
     if (event.deltaY === 0) return;
-    const box = plot.getBoundingClientRect();
-    const at = positionAt(d.layout, event.clientX - box.left, event.clientY - box.top);
+    const p = local(event);
+    const at = positionAt(d.layout, p.x, p.y);
     const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1;
     const factor = Math.min(4, Math.max(0.25, Math.exp(event.deltaY * unit * 0.002)));
     // The page keeps the wheel when the chart cannot zoom any further that way (review 2, finding 9).
@@ -755,9 +759,11 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
 
   // ── pointer, touch, drag ───────────────────────────────────────────────────────────────────────
 
-  function local(event: PointerEvent): { x: number; y: number } {
+  function local(event: MouseEvent): { x: number; y: number } {
+    // In the plot's layout pixels, which picking and the layout use, also under a CSS transform.
     const box = plot.getBoundingClientRect();
-    return { x: event.clientX - box.left, y: event.clientY - box.top };
+    const k = cssScale(plot);
+    return { x: (event.clientX - box.left) / k.x, y: (event.clientY - box.top) / k.y };
   }
 
   function pointAt(at: { x: number; y: number }): void {
@@ -1216,7 +1222,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       const datum = sliceText(view, slice, d.formatters);
       const li = doc.createElement('li');
       li.dataset.key = slice.key;
-      li.appendChild(createSwatch(doc, { color: slice.colorIndex, cue: null, line: false, hollow: slice.angles === null }));
+      const swatch = createSwatch(doc, { color: slice.colorIndex, cue: null, line: false, hollow: slice.angles === null });
       const name = doc.createElement('span');
       name.className = 'axylo-legend-name';
       name.textContent = slice.label;
@@ -1224,7 +1230,16 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       value.className = 'axylo-legend-value';
       const percent = datum?.percent;
       value.textContent = datum ? (percent && percent !== datum.value ? `${datum.value} (${percent})` : datum.value) : '';
-      li.append(name, value);
+      // Every slice, a zero or null one included, can be chosen by pointer as by keyboard: a button named by
+      // the entry's text, 24 px tall, outside the tab order (new item 9).
+      const choose = doc.createElement('button');
+      choose.type = 'button';
+      choose.tabIndex = -1;
+      choose.className = 'axylo-legend-choice';
+      choose.append(swatch, name, value);
+      choose.addEventListener('mousedown', event => event.preventDefault());
+      choose.addEventListener('click', () => actions.select({ kind: 'slice', sliceKey: slice.key }));
+      li.append(choose);
       return li;
     });
     const signature = entries.map(e => e.textContent).join('\u0000') + view.slices.map(s => s.colorIndex).join();
@@ -1340,12 +1355,13 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   /** A pinned target is kept only while it is still in the displayed revision, rebuilt for it (finding 11). */
   function stillPinned(next: Committed, target: PickTarget): PickTarget | null {
     if (target.kind === 'point') {
-      const refs = target.refs.filter(r => next.lookup.ordinal(r) >= 0);
-      if (!refs.length) return null;
-      const box = next.lookup.anchor(refs[0]!);
-      const picked = box ? next.lookup.pick(box.x + box.width / 2, box.y + box.height / 2) : null;
-      if (picked?.kind === 'point' && picked.refs.some(r => sameRef(r, refs[0]!))) return picked;
-      return { kind: 'point', refs, count: refs.length };
+      // A graphical pin needs its point drawn: no anchor (outside the y domain, say) ends it, and the group is
+      // rebuilt from that position, so neighbours that arrived since are counted (part 1 item 11).
+      const ref = target.refs.find(r => next.lookup.ordinal(r) >= 0);
+      const box = ref ? next.lookup.anchor(ref) : null;
+      if (!ref || !box) return null;
+      const picked = next.lookup.pick(box.x + box.width / 2, box.y + box.height / 2);
+      return picked?.kind === 'point' ? picked : null;
     }
     return next.lookup.tooltip(target).rows.length ? target : null;
   }

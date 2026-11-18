@@ -55,6 +55,20 @@ function overlaps(a: Bounds, b: Bounds): boolean {
   return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 }
 
+/**
+ * Viewport pixels per layout pixel of `el`: 1 unless an ancestor scales it with a CSS transform. Bounding
+ * rects are in viewport pixels, sizes and translations in layout pixels (part 1 item 12).
+ */
+export function cssScale(el: HTMLElement): { x: number; y: number } {
+  const box = el.getBoundingClientRect();
+  // offsetWidth is rounded to an integer: within 2% the ratio is that rounding, not a transform.
+  const ratio = (rect: number, layout: number) => {
+    const k = layout > 0 && rect > 0 ? rect / layout : 1;
+    return Number.isFinite(k) && Math.abs(k - 1) >= 0.02 ? k : 1;
+  };
+  return { x: ratio(box.width, el.offsetWidth), y: ratio(box.height, el.offsetHeight) };
+}
+
 /** The viewport, cut down by every ancestor that clips its content. */
 function clipBounds(from: Element): Bounds {
   const doc = from.ownerDocument;
@@ -87,8 +101,16 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     heading.textContent = model.title;
     const children: HTMLElement[] = [heading];
     for (const row of model.rows) {
-      const line = doc.createElement('div');
+      // A row that can be chosen is a real control: a button with the row's text as its name, at least 24 px
+      // tall (WCAG 2.5.8), outside the tab order, so the closed chart keeps its two tab stops (new item 9).
+      const line = doc.createElement(select ? 'button' : 'div');
       line.className = 'axylo-tooltip-row';
+      if (line instanceof HTMLButtonElement) {
+        line.type = 'button';
+        line.tabIndex = -1;
+        // A press does not take focus from the plot, whose keyboard reading goes on from the chosen datum.
+        line.addEventListener('mousedown', event => event.preventDefault(), { signal: rows.signal });
+      }
       const name = doc.createElement('span');
       name.className = 'axylo-tooltip-series';
       const spec = swatch(row);
@@ -148,8 +170,11 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       fill(element, content);
       element.hidden = false;
       element.style.transform = 'translate(0px, 0px)';
-      const width = element.offsetWidth;
-      const height = element.offsetHeight;
+      // All placement is in viewport pixels; the tooltip's own size is scaled into them, and the final
+      // translation back into the figure's layout pixels.
+      const scale = cssScale(figure);
+      const width = element.offsetWidth * scale.x;
+      const height = element.offsetHeight * scale.y;
       const outer = figure.getBoundingClientRect();
       // Everything the tooltip must not cover: the marks, the pointer with some room, the focus ring.
       const keep: Bounds[] = [{ left: anchor.x, top: anchor.y, right: anchor.x + anchor.width, bottom: anchor.y + anchor.height }];
@@ -193,7 +218,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
         return false;
       }
       hideReadout();
-      element.style.transform = `translate(${Math.round(spot[0] - outer.left)}px, ${Math.round(spot[1] - outer.top)}px)`;
+      element.style.transform = `translate(${Math.round((spot[0] - outer.left) / scale.x)}px, ${Math.round((spot[1] - outer.top) / scale.y)}px)`;
       visible = true;
       return true;
     },
@@ -208,8 +233,9 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       // the lowest place that does (spec I1).
       const clip = clipBounds(figure);
       const below = plot.getBoundingClientRect().bottom;
-      const top = Math.max(clip.top + MARGIN, Math.min(below, clip.bottom - MARGIN - readoutElement.offsetHeight));
-      readoutElement.style.top = `${top - outer.top}px`;
+      const scale = cssScale(figure);
+      const top = Math.max(clip.top + MARGIN, Math.min(below, clip.bottom - MARGIN - readoutElement.offsetHeight * scale.y));
+      readoutElement.style.top = `${(top - outer.top) / scale.y}px`;
       visible = true;
     },
     hide() {

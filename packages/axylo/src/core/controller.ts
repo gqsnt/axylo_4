@@ -36,7 +36,7 @@ import { buildScene } from '../scene';
 import { drawing } from '../scene/lines';
 import { simplifyLine } from '../simplify';
 import { buildLookup } from '../lookup';
-import { buildReader } from '../reader';
+import { buildReader, seriesNotDrawnSentence } from '../reader';
 import { fill, resolveMessages } from '../messages';
 import { lowContrastSeries, type ThemeResolution } from '../theme';
 import { OptionsStore, sameValue, type OptionRecord } from './options';
@@ -230,20 +230,6 @@ export function positionValue(frame: Frame, position: number): XValue {
 /** Whether a window can be set on this frame's x axis: time, date and number axes only in 1.0 (spec I3). */
 function zoomable(frame: Frame): boolean {
   return frame.shape === 'points' || (frame.shape === 'aligned' && frame.x.kind !== 'category');
-}
-
-/**
- * READER CALL SITE (review modules-codex, finding 5). The sentence for a series that could not be drawn,
- * by the reader's rule for `{seeTable}` (filled when the chart has a table; when it has none, removed with
- * the space before it only where the template has the placeholder; an override without it used as written).
- * This stands in for the reader's export of the same shape, which replaces it:
- *   seriesNotDrawnSentence(messages: Messages, series: string, table: boolean): string
- */
-function seriesNotDrawnSentence(messages: Messages, series: string, table: boolean): string {
-  const template = messages.seriesNotDrawn;
-  const seeTable = table ? messages.seeTable : '';
-  const text = fill(template, { series, seeTable });
-  return seeTable === '' && template.includes('{seeTable}') ? text.trimEnd() : text;
 }
 
 function isWall(frame: Frame): boolean {
@@ -1068,6 +1054,12 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       const keys: (keyof Messages)[] = withTable ? [...shownKeys, 'seeTable'] : shownKeys;
       return shownKeys.length > 0 && keys.every(k => english(k)) ? 'en' : null;
     };
+    const foreignPage = lang !== null && !/^en(?:-|$)/i.test(lang);
+    const noteRuns = (reader: ReaderModel): { text: string; lang: string | null }[] => {
+      const runs = (reader as ReaderModel & { noteSegments?: readonly { text: string; lang: 'en' | null }[] | null }).noteSegments;
+      if (!runs) return [{ text: reader.note ?? '', lang: noteLangFor(currentHidden, disclosureNow()) }];
+      return runs.map(run => ({ text: run.text, lang: run.lang === 'en' && foreignPage ? 'en' : null }));
+    };
     const hiddenIn = (l: Layout | undefined) => l?.kind === 'plot' ? l.fit.x.hidden + l.fit.y.hidden : 0;
     const disclosureNow = () => readerDisclosure([...stateDiagnostics(a), ...presentationList()]);
     let lastReader: { reader: ReaderModel; inputs: readonly unknown[] } | null = null;
@@ -1095,7 +1087,10 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       });
       if (kept) {
         const summary = kept.summary;
-        return lastReader = { reader: { name: reader.name, note: reader.note, table: reader.table, get summary() { return summary; } }, inputs };
+        const renamed: ReaderModel & { noteSegments: typeof reader.noteSegments } = {
+          name: reader.name, note: reader.note, table: reader.table, noteSegments: reader.noteSegments, get summary() { return summary; },
+        };
+        return lastReader = { reader: renamed, inputs };
       }
       return lastReader = { reader, inputs };
     };
@@ -1128,8 +1123,9 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
         summaryVisible: tooSmall, note: noteShown ? reader.note : null, message,
         messageLang: message !== null && shown.kind !== 'ready' && shown.message ? english(shown.message) : null,
         noteLang: noteLangFor(currentHidden, disclosureNow()),
-        // READER CALL SITE (finding 5): one segment until the reader gives the note's runs their languages.
-        noteSegments: noteShown && reader.note !== null ? [{ text: reader.note, lang: noteLangFor(currentHidden, disclosureNow()) }] : null,
+        // The reader's runs, each in its own language (reader review, finding 5); English is marked only on a
+        // page in another language (A10).
+        noteSegments: noteShown && reader.note !== null ? noteRuns(reader) : null,
         // The generated summary's sentences are the built-in templates; the names in them do not change that.
         summaryLang: message !== null && shown.kind !== 'ready' && shown.kind !== 'empty'
           ? (shown.message && english(shown.message) ? 'en' : null)
@@ -1267,7 +1263,13 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     const fit: DiagnosticInput[] = [];
     if (tooSmall || layout.kind === 'too-small') fit.push(createDiagnostic('AX142', 'none', {}, 'presentation'));
     const hidden = hiddenIn(layout);
-    if (hidden > 0) fit.push(createDiagnostic('AX143', 'none', { field: a.resolved.x.field, count: hidden }, 'presentation'));
+    if (hidden > 0) {
+      // The registry suggests horizontal bars only for vertical bars on category labels.
+      const xKind = view.kind === 'donut' ? undefined : view.kind === 'scatter' ? view.frame.xKind : view.frame.x.kind;
+      fit.push(createDiagnostic('AX143', 'none', {
+        field: a.resolved.x.field, count: hidden, chartType: view.kind, xKind, horizontal: view.kind === 'bar' ? view.horizontal : undefined,
+      }, 'presentation'));
+    }
     if (view.kind === 'bar' && layout.kind === 'plot') {
       const along = view.horizontal ? layout.plot.height : layout.plot.width;
       const bars = view.visibleSlots.end - view.visibleSlots.start;

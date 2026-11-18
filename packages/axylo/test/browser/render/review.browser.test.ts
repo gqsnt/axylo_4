@@ -504,3 +504,23 @@ describe('RectMark.pattern (spec F9 second cue)', () => {
     await close(page);
   });
 });
+
+describe('RectMark.pattern on SVG: the element that carries the series colour carries the pattern (spec C4, F9)', () => {
+  it('each patterned bar has an element painted with its series colour whose fill is the pattern', async () => {
+    const page = await open();
+    await page.evaluate(() => { window.axr.mount('svg', 20, 60, { scene: 'pattern' }); });
+    const cues = await page.evaluate(() => {
+      const out: string[] = [];
+      for (const el of document.querySelectorAll<SVGElement>('svg *')) {
+        if (!el.style.getPropertyValue('color')) continue;
+        const fill = getComputedStyle(el).fill;
+        if (fill.startsWith('url')) out.push(el.tagName);
+      }
+      return out;
+    });
+    // Three patterned bars (diagonal, cross, dots), each repeated once as its pattern overlay.
+    expect(cues.length).toBe(3);
+    expect(cues.every(tag => tag === 'rect')).toBe(true);
+    await close(page);
+  });
+});

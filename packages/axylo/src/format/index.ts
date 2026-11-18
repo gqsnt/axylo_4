@@ -4,7 +4,7 @@
  */
 import type { Environment, Formatters, SlotState, XKind } from '../core/contracts';
 import { SLOT_NO_ROW, SLOT_VALUE } from '../core/contracts';
-import { createNumberReadout, defaultReadoutNumber, type NumberFormatOption, type ValueScale } from './number';
+import { createNumberReadout, defaultReadoutNumber, shareText, type NumberFormatOption, type ValueScale } from './number';
 import { createTimeReadout, type DateFormatOption } from './time';
 
 export { createNumberReadout, createNumberTickLabeler, defaultReadoutNumber, defaultTickNumber, readoutFractionDigits } from './number';
@@ -64,7 +64,7 @@ export function createFormatters(spec: FormatSpec, env: Pick<Environment, 'local
     },
     x,
     percent(ratio: number): string {
-      return defaultReadoutNumber(ratio, locale, 'ratio');
+      return shareText(ratio, locale);
     },
     count(n: number): string {
       return defaultReadoutNumber(n, locale, null);

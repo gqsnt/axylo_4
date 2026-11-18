@@ -190,11 +190,15 @@ export function endingCandidates(sets: TickCandidates, domain: Span, extent: Spa
     if (set.length < 2) return false;
     const first = set[0]!.value;
     const last = set[set.length - 1]!.value;
-    const step = set[1]!.value - first;
-    if (!near(first, a) || !near(last, b) || !(step > 0)) return false;
-    const upper = (full !== null && near(b, full)) || near(b, hi) || b - step < hi;
-    const lower = near(a, lo) || a + step > lo;
-    return upper && lower;
+    if (!near(first, a) || !near(last, b) || !(set[1]!.value > first)) return false;
+    // Compared on the set's own ticks, not on `b - step` (0.2 - 0.1 is below 0.1 in doubles): the first tick
+    // reaching the maximum is the last one, and the last tick reaching the minimum is the first one.
+    const reachesHi = (t: number) => t >= hi || near(t, hi);
+    const reachesLo = (t: number) => t <= lo || near(t, lo);
+    const upper = (full !== null && near(b, full)) || set.findIndex(t => reachesHi(t.value)) === set.length - 1;
+    let lowest = -1;
+    for (let i = set.length - 1; i >= 0; i--) if (reachesLo(set[i]!.value)) { lowest = i; break; }
+    return upper && lowest === 0;
   });
   return fits.length ? fits : sets;
 }

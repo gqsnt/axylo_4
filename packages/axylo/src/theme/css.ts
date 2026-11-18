@@ -155,8 +155,18 @@ ${forced}
   /* The fixed readout under the plot of a narrow tile (spec I1): it overlays what is below, so showing it
      never changes the figure's size. */
   .axylo .axylo-readout { right: 0; max-width: none; }
-  /* A tooltip row can be chosen with a click or a tap (WCAG 2.5.1). */
-  .axylo .axylo-tooltip-choice { cursor: pointer; }
+  /* A tooltip row or a slice-list entry can be chosen with a click or a tap (WCAG 2.5.1): real buttons, at
+     least 24 px tall (WCAG 2.5.8), that look like the text they hold. */
+  .axylo .axylo-tooltip-choice, .axylo .axylo-legend-choice {
+    cursor: pointer; box-sizing: border-box; margin: 0; padding: 0; border: 0; background: none;
+    font: inherit; color: inherit; text-align: inherit; align-items: center;
+  }
+  .axylo .axylo-legend-choice, .axylo .axylo-readout .axylo-tooltip-choice,
+  .axylo .axylo-tooltip-pinned .axylo-tooltip-choice { min-height: 24px; }
+  /* A hover tooltip keeps text-height rows, so it still fits beside the mark (decision 0004); the rows are
+     24 px wherever they are acted on by touch: pinned by a tap, and in the fixed readout. */
+  .axylo .axylo-tooltip-choice { width: 100%; }
+  .axylo .axylo-legend-choice { display: inline-flex; gap: 0.375em; min-width: 24px; }
   .axylo .axylo-tooltip-title { font-weight: 600; }
   .axylo .axylo-tooltip-row { display: flex; gap: 1em; justify-content: space-between; }
   .axylo .axylo-tooltip-series { display: inline-flex; align-items: center; gap: 0.375em; min-width: 0; overflow-wrap: anywhere; }

@@ -105,6 +105,9 @@ function installFixtures(): void {
  */
 export const RENDERER = process.env.AXYLO_RENDERER === 'canvas' || process.env.AXYLO_RENDERER === 'svg' ? process.env.AXYLO_RENDERER : null;
 
+/** A directory holding another build's axylo.iife.js and axylo.css (see chartPage). */
+const BUNDLE = process.env.AXYLO_BUNDLE ?? null;
+
 /** Whether the running test file is one of the chart core's own browser suites (chart/, a11y/). */
 function ownSuite(): boolean {
   const path = (expect.getState().testPath ?? '').replace(/\\/g, '/');
@@ -126,6 +129,16 @@ function selectRenderer(renderer: string): void {
 export async function chartPage(options: BrowserContextOptions & { query?: string; css?: string; standaloneCss?: boolean } = {}): Promise<Page> {
   const { css, standaloneCss = true, ...rest } = options;
   const page = await openPage(rest);
+  // AXYLO_BUNDLE=<dir> (this directory's suites only): the page runs the bundle built in <dir> instead of the
+  // shared dist, so a test can be shown to fail on an older revision without touching what other suites load.
+  if (BUNDLE && ownSuite()) {
+    await page.evaluate(() => {
+      document.querySelector('link[rel="stylesheet"]')?.remove();
+      delete (window as unknown as { Axylo?: unknown }).Axylo;
+    });
+    await page.addScriptTag({ path: `${BUNDLE}/axylo.iife.js` });
+    await page.addStyleTag({ path: `${BUNDLE}/axylo.css` });
+  }
   // Only for this directory's and a11y's tests: other suites (acceptance) read the SVG DOM and choose for themselves.
   if (RENDERER && ownSuite()) await page.evaluate(selectRenderer, RENDERER);
   await page.evaluate(installFixtures);

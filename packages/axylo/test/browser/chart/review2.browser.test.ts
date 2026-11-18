@@ -283,16 +283,23 @@ describe('the tooltip stays clear of the pointer and the click meant for the plo
     await create(page, 'line', { title: 'E', data: Array.from({ length: 20 }, (_, i) => ({ x: i, y: i })), x: 'x', y: 'y' });
     await page.evaluate(() => { (window as unknown as { selected: unknown[] }).selected = []; window.charts[0]!.on('select', p => (window as unknown as { selected: unknown[] }).selected.push((p as { x: unknown }).x)); });
     const box = (await page.locator('#chart .axylo-proxy').boundingBox())!;
+    const expected: number[] = [];
     for (const share of [0.12, 0.37, 0.52, 0.81]) {
       const x = box.x + share * box.width;
       const y = box.y + box.height / 2;
       await page.mouse.move(x, y);
+      // Interaction review part 3: the tooltip must be the floating one here (a 720 px plot), and it names the
+      // datum nearest the pointer; the selection is that datum, not just some selection.
       const tip = await page.locator('#chart .axylo-tooltip').boundingBox();
-      if (tip) expect(x >= tip.x && x <= tip.x + tip.width && y >= tip.y && y <= tip.y + tip.height, `share ${share}`).toBe(false);
+      expect(tip, `share ${share}`).not.toBeNull();
+      expect(x >= tip!.x && x <= tip!.x + tip!.width && y >= tip!.y && y <= tip!.y + tip!.height, `share ${share}`).toBe(false);
+      const nearest = Math.round(share * 19);
+      expect((await page.locator('#chart .axylo-tooltip .axylo-tooltip-title').textContent())?.trim()).toBe(String(nearest));
+      expected.push(nearest);
       await page.mouse.down();
       await page.mouse.up();
     }
-    expect((await page.evaluate(() => (window as unknown as { selected: unknown[] }).selected)).length).toBe(4);
+    expect(await page.evaluate(() => (window as unknown as { selected: unknown[] }).selected)).toEqual(expected);
     expect(await closePage(page)).toEqual([]);
   });
 
@@ -373,14 +380,20 @@ describe('the range follows assistive value changes exactly (finding 6)', () => 
 });
 
 describe('zoom controls that can do nothing say so (finding 9)', () => {
-  it('two x positions cannot be zoomed into: Zoom in is aria-disabled and does nothing; the page keeps the wheel', async () => {
+  it('two x positions halve once (an attainable minimum), then Zoom in is aria-disabled and does nothing; the page keeps the wheel', async () => {
+    // The fifth pass replaced "cannot be zoomed at all" (minimum 200 on a 100-wide axis) with a minimum of at
+    // most half the axis (interaction review, part 1 item 9).
     const page = await chartPage();
     await create(page, 'line', { title: 'Z', data: [{ x: 0, y: 0 }, { x: 100, y: 1 }], x: 'x', y: 'y' });
+    expect(await button(page, 'Zoom in').getAttribute('aria-disabled')).toBeNull();
+    await button(page, 'Zoom in').click();
+    await settle(page);
+    expect(await page.evaluate(() => window.charts[0]!.__bench.describe().xDomain)).toEqual([25, 75]);
     expect(await button(page, 'Zoom in').getAttribute('aria-disabled')).toBe('true');
     // Playwright will not click an aria-disabled button; a pointer still can.
     await page.evaluate(() => [...document.querySelectorAll('#chart button')].find(b => b.textContent === 'Zoom in')!.dispatchEvent(new MouseEvent('click', { bubbles: true })));
     await settle(page);
-    expect(await page.evaluate(() => window.charts[0]!.__bench.describe().xDomain)).toEqual([0, 100]);
+    expect(await page.evaluate(() => window.charts[0]!.__bench.describe().xDomain)).toEqual([25, 75]);
     await page.focus('#chart .axylo-proxy');
     const prevented = await page.evaluate(() => {
       const event = new WheelEvent('wheel', { deltaY: -100, bubbles: true, cancelable: true, clientX: 300, clientY: 200 });
@@ -595,7 +608,13 @@ describe('swatches repeat the contrast dash (finding 22)', () => {
     // Against the plotted line itself (SVG marks): the swatch is the same pattern at half length.
     const plotted = await page.evaluate(() => [...document.querySelectorAll('#chart svg.axylo-svg path')]
       .map(p => getComputedStyle(p).strokeDasharray).filter(d => d !== 'none'));
-    if (plotted.length) expect(plotted[0]!.split(',').map(v => parseFloat(v) / 2)).toEqual(dashes[1]!.split(',').map(v => parseFloat(v)));
+    // On SVG the plotted dash must be there (interaction review part 3: an all-solid plot skipped this check);
+    // on canvas the marks are pixels and the swatch's own pattern above is what is checked.
+    const svg = await page.locator('#chart svg.axylo-svg').count();
+    if (svg) {
+      expect(plotted.length).toBeGreaterThan(0);
+      expect(plotted[0]!.split(',').map(v => parseFloat(v) / 2)).toEqual(dashes[1]!.split(',').map(v => parseFloat(v)));
+    }
     expect(await closePage(page)).toEqual([]);
   });
 });

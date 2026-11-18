@@ -115,6 +115,16 @@ export function defaultReadoutNumber(v: number, locale: string, scale: ValueScal
   }
 }
 
+/** Shares of a whole (donut slices): at most one fraction digit (spec F8), rounded as the decimal they are. */
+const SHARE_FRACTION_DIGITS = 1;
+
+/** A share (0–1) as a percentage. Values on a percent or ratio scale are readouts (F6), not shares. */
+export function shareText(ratio: number, locale: string): string {
+  const style: Intl.NumberFormatOptions = { style: 'percent', maximumFractionDigits: SHARE_FRACTION_DIGITS };
+  if (!Number.isFinite(ratio) || ratio === 0) return numberFormat(locale, style).format(ratio === 0 ? 0 : ratio);
+  return formatExact(numberFormat(locale, style), decimalString(toDecimal(ratio)));
+}
+
 /**
  * Appends the unit after a space. A percent or ratio field already shows its percent sign, so a unit of
  * '%' adds nothing; text that already ends with the unit (an author function's output) gets nothing either.

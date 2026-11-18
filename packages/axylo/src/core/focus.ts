@@ -323,15 +323,19 @@ export function panWindow(full: Span, current: Span, share: number): Span | null
   return moved[0] === current[0] ? null : moved;
 }
 
-/** Smallest window: about two x slots for aligned charts, a ten-thousandth of the range otherwise. */
+/**
+ * Smallest window: about two x slots for aligned charts, a ten-thousandth of the range otherwise, but never
+ * more than half the range, so one halving is always attainable (interaction review, part 1 item 9).
+ */
 export function minimumWidth(view: View): number {
   if (view.kind === 'donut') return 0;
   const full = view.xFull[1] - view.xFull[0];
-  // Never below what doubles can tell apart at these positions, so a window keeps two distinct ends.
-  const representable = 64 * Number.EPSILON * Math.max(Math.abs(view.xFull[0]), Math.abs(view.xFull[1]), 1);
-  if (view.kind === 'scatter') return Math.max(full / 1e4, representable);
-  const n = view.frame.x.values.length;
-  return n > 1 ? 2 * full / (n - 1) : full;
+  // Never below what doubles can tell apart at these positions: one unit in the last place keeps two ends.
+  const largest = Math.max(Math.abs(view.xFull[0]), Math.abs(view.xFull[1]), Number.MIN_VALUE);
+  const representable = 2 ** (Math.floor(Math.log2(largest)) - 52);
+  const wanted = view.kind === 'scatter' ? full / 1e4
+    : view.frame.x.values.length > 1 ? 2 * full / (view.frame.x.values.length - 1) : full;
+  return Math.max(Math.min(wanted, full / 2), representable);
 }
 
 /** Whether zoom applies to this chart (spec 3.6): not donut, not a category axis, not compact, not switched off. */

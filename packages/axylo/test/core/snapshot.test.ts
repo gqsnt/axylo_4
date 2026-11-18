@@ -656,6 +656,32 @@ describe('pass 4: reader review finding 5, the sentences the controller shows', 
     mixed.frames();
     expect(lastModel(mixed).note).toMatch(/Siehe Tabelle/);
     expect(lastModel(mixed).noteLang).toBeNull();
-    expect(lastModel(mixed).noteSegments).toEqual([{ text: lastModel(mixed).note, lang: null }]);
+    // Per run (the reader's runs): the built-in sentence in English, the author's "See table." in the page's.
+    const runs = lastModel(mixed).noteSegments!;
+    expect(runs.map(r => r.text).join('')).toBe(lastModel(mixed).note);
+    expect(runs.at(-1)).toEqual({ text: 'Siehe Tabelle.', lang: null });
+    expect(runs.some(r => r.lang === 'en' && /not shown/.test(r.text))).toBe(true);
+    // And the other way round: only the sentence overridden, the built-in "See table." is marked English.
+    const other = record('line', { title: 'N', data, x: 'x', y: 'y', messages: { valuesNotShown: '{count} Werte fehlen. {seeTable}' } }, { pageLang: 'de' });
+    other.frames();
+    const back = lastModel(other).noteSegments!;
+    expect(back.at(-1)).toEqual({ text: 'See table.', lang: 'en' });
+    expect(back[0]!.lang).toBeNull();
+  });
+});
+
+describe('pass 5: AX143 says which chart it is, so only vertical category bars get the horizontal-bar hint', () => {
+  const many = Array.from({ length: 40 }, (_, i) => ({ x: `A long category label ${i}`, y: i }));
+  const ax143 = (kind: 'bar' | 'line', extra: Record<string, unknown> = {}) => {
+    const r = record(kind, { title: 'L', data: many, x: 'x', y: 'y', ...extra }, { container: { width: 300, height: 240 } });
+    r.frames();
+    return r.controller.handle.diagnostics.find(d => d.code === 'AX143')?.message ?? null;
+  };
+  it('vertical bars on categories: the hint names horizontal bars', () => {
+    expect(ax143('bar')).toMatch(/horizontal: true/);
+  });
+  it('a line on categories: no horizontal-bar hint', () => {
+    const message = ax143('line');
+    if (message !== null) expect(message).not.toMatch(/horizontal/);
   });
 });

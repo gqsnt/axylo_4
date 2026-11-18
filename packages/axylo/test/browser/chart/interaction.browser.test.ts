@@ -187,7 +187,7 @@ describe('legend (spec I2, A5, L2, F8)', () => {
     expect(await closePage(page)).toEqual([]);
   });
 
-  it('the donut legend is a list of six entries with value and percentage, in slice order, not buttons', async () => {
+  it('the donut legend is a list of six entries with value and percentage, in slice order, outside the tab order', async () => {
     const page = await fixturePage();
     await make(page, 'parts');
     const items = page.locator('#chart ul.axylo-legend-list > li');
@@ -210,8 +210,23 @@ describe('legend (spec I2, A5, L2, F8)', () => {
       expect(fields[i]!.name).toBe(label);
       expect(fields[i]!.value === `${fx.values[i]}%` || fields[i]!.value === `${fx.values[i]}% (${share})`, `${fields[i]!.value}`).toBe(true);
     });
-    expect(await page.locator('#chart ul.axylo-legend-list button').count()).toBe(0);
+    // Entries can be chosen by pointer (interaction review, new item 9) but add no tab stop.
+    const choices = await page.locator('#chart ul.axylo-legend-list button').evaluateAll(bs => bs.map(b => (b as HTMLElement).tabIndex));
+    expect(choices).toEqual([-1, -1, -1, -1, -1, -1]);
     expect(await page.locator('#chart .axylo-toolbar button').allTextContents()).toEqual(['View as table']);
+    expect(await closePage(page)).toEqual([]);
+  });
+
+  it('where value and share differ, each legend entry shows both: 3 (60%) and 2 (40%)', async () => {
+    // Interaction review part 3: on the fixture above value and share coincide, so a lone value passed.
+    const page = await fixturePage();
+    await page.evaluate(async () => {
+      const chart = window.Axylo.donut!('#chart', { title: 'Two', data: [{ l: 'A', v: 3 }, { l: 'B', v: 2 }], label: 'l', value: 'v' });
+      window.charts.push(chart);
+      await chart.__bench.ready();
+    });
+    const values = await page.locator('#chart ul.axylo-legend-list .axylo-legend-value').allTextContents();
+    expect(values).toEqual(['3 (60%)', '2 (40%)']);
     expect(await closePage(page)).toEqual([]);
   });
 
@@ -374,11 +389,26 @@ describe('zoom (spec I3, I4)', () => {
     expect(await closePage(page)).toEqual([]);
   });
 
-  it('a category bar chart has no zoom controls; a donut has none', async () => {
-    const page = await fixturePage();
-    await make(page, 'bars');
-    expect(await page.locator('#chart button', { hasText: 'Zoom in' }).count()).toBe(0);
-    expect(await closePage(page)).toEqual([]);
+  it('category bar, line and area charts have no zoom controls; a donut has none (1.0: no category zoom)', async () => {
+    // Interaction review part 3: the earlier test created only a bar.
+    for (const [kind, options] of [
+      ['bar', { data: ['a', 'b', 'c'].map((x, i) => ({ x, y: i + 1 })), x: 'x', y: 'y' }],
+      ['line', { data: ['a', 'b', 'c'].map((x, i) => ({ x, y: i + 1 })), x: 'x', y: 'y' }],
+      ['area', { data: ['a', 'b', 'c'].map((x, i) => ({ x, y: i + 1 })), x: 'x', y: 'y' }],
+      ['donut', { data: [{ l: 'a', v: 1 }, { l: 'b', v: 2 }], label: 'l', value: 'v' }],
+    ] as const) {
+      const page = await fixturePage();
+      await page.evaluate(async ({ kind, options }) => {
+        const chart = window.Axylo[kind]!('#chart', { title: 'Z', ...options });
+        window.charts.push(chart);
+        await chart.__bench.ready();
+      }, { kind, options });
+      for (const label of ['Zoom in', 'Zoom out', 'Reset zoom']) expect(await page.locator('#chart button', { hasText: label }).count(), `${kind} ${label}`).toBe(0);
+      await page.focus('#chart .axylo-proxy');
+      await page.keyboard.press('+');
+      expect(await page.evaluate(() => window.charts[0]!.diagnostics.map(d => d.code))).not.toContain('AX199');
+      expect(await closePage(page)).toEqual([]);
+    }
   });
 });
 
