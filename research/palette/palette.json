@@ -1653,6 +1653,21 @@
      "check": "min pairwise ΔE (first 6), tritan, rounded to bytes",
      "value": 0.102,
      "margin": 0.002
+    },
+    {
+     "check": "min pairwise ΔE in the preview PNG, protanopia row",
+     "value": 0.103,
+     "margin": 0.003
+    },
+    {
+     "check": "min pairwise ΔE in the preview PNG, deuteranopia row",
+     "value": 0.102,
+     "margin": 0.002
+    },
+    {
+     "check": "min pairwise ΔE in the preview PNG, tritanopia row",
+     "value": 0.102,
+     "margin": 0.002
     }
    ]
   },
@@ -3261,6 +3276,26 @@
      "check": "min pairwise ΔE (first 6), tritan, rounded to bytes",
      "value": 0.104,
      "margin": 0.004
+    },
+    {
+     "check": "min neighbour ΔE at 25%, Chrome canvas pixels",
+     "value": 0.063,
+     "margin": 0.003
+    },
+    {
+     "check": "min neighbour ΔE at 25%, Chrome svg pixels",
+     "value": 0.063,
+     "margin": 0.003
+    },
+    {
+     "check": "min pairwise ΔE in the preview PNG, deuteranopia row",
+     "value": 0.102,
+     "margin": 0.002
+    },
+    {
+     "check": "min pairwise ΔE in the preview PNG, tritanopia row",
+     "value": 0.103,
+     "margin": 0.003
     }
    ]
   }

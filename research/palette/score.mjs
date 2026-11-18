@@ -64,7 +64,10 @@ if (preview && !mismatch(preview, 'preview-pixels.json')) for (const s of ['ligh
 
 const record = { ...(args.palette ? { candidate: path.relative(path.resolve(here, '../..'), path.resolve(args.palette)) } : {}), thresholds: T, schemes: {} };
 for (const [name, other] of [['light', 'dark'], ['dark', 'light']]) {
-  const s = theme[name], { checks, measured: m } = checkScheme(s, theme[other]);
+  const s = theme[name], { checks: modelChecks, measured: m } = checkScheme(s, theme[other]);
+  // Every check with its unrounded value: the model checks, then the browser ones appended below. The record
+  // rounds values to 3 decimals; pass/fail and the tight list are decided on these.
+  const checks = modelChecks.slice();
   const pairsOf = (map, n) => Object.fromEntries(VISIONS.map(v => [v, { min: r3(map[v].min), pair: pair1(map[v].pair) }]));
   const scheme = {
     background: s.background,
@@ -86,7 +89,7 @@ for (const [name, other] of [['light', 'dark'], ['dark', 'light']]) {
       neighboursWorstWithinOneByte: m.raster[a].neighbours.map(x => r3(x.worst)),
       minModel: r3(m.raster[a].minModel), minWorstWithinOneByte: r3(m.raster[a].minWorst),
     }])),
-    checks: checks.map(c => ({ constraint: c.id, check: c.label, value: r3(c.value), limit: c.limit, ok: c.ok })),
+    checks: null,   // filled in below, once the browser checks are in
   };
   if (raster && !mismatch(raster, 'raster.json')) {
     scheme.chromeRaster = Object.fromEntries(Object.entries(raster.schemes[name].pixels).map(([via, byAlpha]) => [via, Object.fromEntries(Object.entries(byAlpha).map(([a, px]) => {
@@ -96,7 +99,7 @@ for (const [name, other] of [['light', 'dark'], ['dark', 'light']]) {
     for (const [via, byAlpha] of Object.entries(raster.schemes[name].pixels)) for (const [a, px] of Object.entries(byAlpha)) {
       // The limit is applied to the unrounded distance; the record keeps 3 decimals.
       const min = Math.min(...neighbourPairs(px.length).map(([i, j]) => dist(labOfBytes(bytes(px[i])), labOfBytes(bytes(px[j])))));
-      scheme.checks.push({ constraint: '6b', check: `min neighbour ΔE at ${+a * 100}%, Chrome ${via} pixels`, value: r3(min), limit: T.composite, ok: min >= T.composite });
+      checks.push({ id: '6b', label: `min neighbour ΔE at ${+a * 100}%, Chrome ${via} pixels`, value: min, limit: T.composite, ok: min >= T.composite });
     }
   }
   if (preview && !refused.some(x => x.startsWith('preview-pixels.json'))) {
@@ -106,14 +109,15 @@ for (const [name, other] of [['light', 'dark'], ['dark', 'light']]) {
       const px = preview.schemes[name][row], labs = px.map(h => labOfBytes(bytes(h)));
       let min = Infinity, pair = null;
       for (let i = 0; i < 8; i++) for (let j = i + 1; j < 8; j++) { const d = dist(labs[i], labs[j]); if (d < min) { min = d; pair = [i + 1, j + 1]; } }
-      scheme.checks.push({ constraint: '2i', check: `min pairwise ΔE in the preview PNG, ${row} row`, value: r3(min), limit: T.minDelta, ok: min >= T.minDelta });
+      checks.push({ id: '2i', label: `min pairwise ΔE in the preview PNG, ${row} row`, value: min, limit: T.minDelta, ok: min >= T.minDelta });
       return [row, { pixels: px, min: r3(min), pair }];
     }));
   }
   // Evenness of weight: OKLab lightness range of the eight and of the first three, and the largest chroma.
   const Ls = s.series.map(h => lch(h)[0]), Cs = s.series.map(h => lch(h)[1]);
   scheme.lightness = { min: r3(Math.min(...Ls)), max: r3(Math.max(...Ls)), firstThreeSpread: r3(Math.max(...Ls.slice(0, 3)) - Math.min(...Ls.slice(0, 3))), maxChroma: r3(Math.max(...Cs)) };
-  // The pairs that bind: every measured value within 5% of its limit, with its margin.
+  scheme.checks = checks.map(c => ({ constraint: c.id, check: c.label, value: r3(c.value), limit: c.limit, ok: c.ok }));
+  // The pairs that bind: every measured value within 5% of its limit, with its margin, browser rows included.
   scheme.tight = checks.filter(c => !c.upper && c.value < c.limit * 1.05).map(c => ({ check: c.label, value: r3(c.value), margin: r3(c.value - c.limit) }));
   record.schemes[name] = scheme;
 }

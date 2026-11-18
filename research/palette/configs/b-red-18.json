@@ -1,5 +1,5 @@
 {
- "note": "Candidate B, light, what-if: red chroma at 0.18 or less (candidate B red is 0.20), purple cap lifted to 0.25. Completes with #2b97ee #cf8020 #166a4f #8326c9 #b3260e #0380a8 #8d0888 #8e948f: the red calms by 0.02 and purple rises to 0.23, magenta to 0.20. Not adopted.",
+ "note": "Candidate B, light, what-if: red chroma at 0.18 or less (candidate B red is 0.20), purple cap lifted to 0.25. Completes with #2b97ee #cf8020 #166a4f #8326c9 #b3260e #0380a8 #8d0888 #8e948f: the red calms by 0.02 and purple rises to 0.23, magenta to 0.20. Not adopted. Purple at 0.23 is what this search returned, not shown to be required (compare b-red-17-p22.json).",
  "hueClip": 15,
  "solverLimits": {
   "composite": 0.063,

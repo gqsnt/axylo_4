@@ -11,13 +11,19 @@ How it got here:
 2. **Refit.** The refit (52bbdf0) added byte-level checks and corrected the text. It was reviewed again (`reviews/2026-11-18/impl/wp/misc-opus.review.md`, part B; reported to me as Codex gpt-6.2-sol). That review found a more even light scheme.
 3. **Candidate B.** I refitted around that scheme by eye. The owner chose candidate B over the refit, which is kept below as "Superseded".
 
-The hard constraints are measured and tested. Nobody other than me has reviewed candidate B.
+The hard constraints are measured and tested. Candidate B has been reviewed independently (`reviews/2026-11-18/impl/wp/palette-b.review.md`, of commit 9861f54; its header records Codex gpt-6.2-astra at effort xhigh, observed in the session rollout, read-only). The review confirmed that all 16 colors meet A5 and that every row of the measured tables reproduces. Its six findings were corrections to this record, and they are applied here; none changes a color.
 
 Spec: A5 (palette thresholds, provisional), L2 (3:1 for marks), F9 (eight series). Finding R7, docs/01-landscape.md.
 
 ## The palette
 
-The slot order is blue, orange, green, purple, red, cyan, magenta, slate. That is the first version's order, and hue families are kept per slot.
+The slot order is blue, orange, green, purple, red, cyan, magenta, slate. That is the first version's order, and hue families are kept per slot within constraint 4's 30°.
+
+The family names describe the light scheme. Two dark slots read differently by eye, as the palette-B review noted (finding 6):
+- **Dark slot 5 reads as rust or burnt orange.** At hue 41.9° it is 10.1° from the dark orange (52.0°) and 11.8° from the light red (30.1°). It is also the dark scheme's closest normal-vision pair, 2–5, at 0.115.
+- **Dark slot 7 reads as a dusty pink.** The light magenta is plum (chroma 0.190); the dark one has chroma 0.100.
+
+The hue shifts per slot are 11.5°, 12.7°, 10.0°, 14.1°, 11.8°, 0.1°, 13.9° and 0.1°.
 
 | Slot | Family | Light | OKLCH | Contrast on #ffffff | Dark | OKLCH | Contrast on #16181d | Hue shift |
 |---|---|---|---|---|---|---|---|---|
@@ -93,7 +99,10 @@ There are three forms of measurement:
 The unit test requires the analytic and the byte forms. It also checks:
 - the recorded Chrome fill pixels against the 0.06 limit;
 - the recorded preview pixels against 0.10;
-- that each recorded pixel is within one byte of its model.
+- that each recorded pixel is within one byte of its model;
+- that the browser records on disk are the ones folded into `palette.json`. These are `raster.json`, `strokes.json` and `preview-pixels.json`. The test also decodes `preview-light.png` and `preview-dark.png` itself and reads each donut sample at the coordinates `preview.mjs` recorded.
+
+Before the palette-B review, the test read only the copies folded into `palette.json`. It therefore still passed with those files unreadable, or with false summary fields (review finding 4). It now also recomputes the record's check list, its pass flags, its tight list and the raster minima.
 
 A stricter margin is the worst case over every byte color within one byte per channel of both fills. It is recorded but not required. The shipped light scheme meets it (0.060); the dark scheme does not (0.057).
 
@@ -138,20 +147,25 @@ Each cell is analytic / bytes, with the closest slots.
 
 ### Tight pairs and margins
 
-These are every measured value within 5% of its limit (`palette.json`, `tight`):
+These are every measured value within 5% of its limit (`palette.json`, `tight`), the browser measurements included:
 
 - **Light:**
   - contrast 3.096 (slate; the solver keeps 3.02);
   - all-eight pairwise 0.102–0.103 under the three deficiencies, analytic and in bytes;
+  - the same in the preview PNG (0.102–0.103);
   - first four 0.144 under tritanopia (0.143 in bytes);
   - first five and six 0.102–0.103.
 - **Dark:**
   - contrast 3.074 (purple);
   - all-eight pairwise 0.102–0.105;
+  - the preview PNG's deuteranopia and tritanopia rows (0.102, 0.103);
   - first six 0.104 in bytes;
   - focus distance 0.104 (green against `#e3e8f0`);
-  - muted distance 0.102 (pink against `#9da2ad`).
+  - muted distance 0.102 (pink against `#9da2ad`);
+  - the 25% fills Chrome drew, 0.0628 in both canvas and SVG.
 - **Fills, both schemes:** the 25% neighbours have about 0.003–0.005 of room; the 80% fills have a lot.
+
+Before the palette-B review, the scorer built this list before it appended the browser checks. The record therefore left out seven qualifying values: three light and two dark preview rows, and the two dark Chrome fills (review finding 5). `score.mjs` now builds the list from every check, and the unit test recomputes it.
 
 How fragile is that to a hand edit? I tried every one-byte change of one channel of one color. 44 of 48 light edits and 48 of 48 dark edits still meet every required check (`palette.json`, `oneByteEdits`). A changed hex still fails the record test until `score.mjs` is rerun.
 
@@ -160,15 +174,19 @@ The solver kept margins above the tested limits: pairwise 0.102, fills 0.063, co
 ## Focus token under a two-tone ring
 
 The second review (part B, finding 1) showed that a single-ink focus indicator cannot work with these colors:
-- **Dark.** `#e3e8f0` is under 3:1 against five dark series colors: blue 2.27, orange 2.54, green 1.17, cyan 1.58 and pink 1.96. Purple (4.70), red (4.04) and slate (3.94) pass. No single ink reaches 3:1 against both `#16181d` and the light green; even white reaches only 1.44:1 against it.
+- **Dark.** `#e3e8f0` is under 3:1 against five dark series colors: blue 2.27, orange 2.54, green 1.17, cyan 1.58 and pink 1.96. Purple (4.70), red (4.04) and slate (3.94) pass.
 - **Light.** The same holds: `#1f5fcc` is between 1.08 and 1.90:1 against every light series color.
+- **In dark, no single ink can clear the background, the purple and the green together.** An ink 3:1 from both the background and the purple `#9443a9` has to reach at least 9.22:1 on the background. An ink 3:1 from the green `#ade4ba` has to be at most 4.11:1 or at least 37.0:1 on the background. White reaches only 17.76:1.
+- **Against the green and the background alone, one ink is possible.** `#707070` is 3.59:1 on `#16181d` and 3.44:1 against the green (palette-B review, finding 3); it fails against the purple at 1.17:1. The first version of this paragraph said no ink could clear the green and the background, which was wrong.
 
-A datum outline crossing a mark therefore fails WCAG 1.4.11 wherever it is drawn in one ink. The chart core is changing the indicator to two tones: a ring in the focus token, with a surround in the background color between the ring and the marks. That work is not in my files.
+A datum outline crossing a mark therefore fails WCAG 1.4.11 wherever it is drawn in one ink. The chart core now draws the indicator in two tones: a ring in the focus token, with a surround in the background color between the ring and the marks (`core/focus.ts`, `theme/css.ts`; not my files).
 
 **What the token must satisfy under the two-tone ring:**
 
 1. **The focus color must reach 3:1 against the background.** The ring is seen against its surround, which is the background color. Light `#1f5fcc` on `#ffffff` is 5.89:1; dark `#e3e8f0` on `#16181d` is 14.43:1. Both pass, and the L2 token test asserts it.
-2. **The surround must reach 3:1 against every mark it touches.** That is constraint 1 read the other way: every series color reaches 3:1 on its background (lowest 3.10 light, 3.07 dark), and so do the axis and reference tokens. Nothing new is needed.
+2. **Against opaque marks, the surround reaches 3:1.** That is constraint 1 read the other way: every opaque series color reaches 3:1 on its background (lowest 3.10 light, 3.07 dark), and so do the axis and reference tokens.
+   - **Translucent fills fall below it.** Measured on the fill pixels Chrome drew (`raster.json`), all 16 fills at 25% are under 3:1 against the background: the lowest is 1.27:1 (light slate) and 1.24:1 (dark purple). At 80%, 6 of 16 are under it: light blue, orange and slate (2.38–2.45:1), and dark purple, red and slate (2.38–2.77:1). The palette-B review found this (finding 1). The first version of this item said "every mark it touches", which was wrong for fills.
+   - **The ring keeps its contrast over a fill.** Both rings put a 2 px focus band between 1 px bands of the background color. The datum ring draws a 4 px background outline under a 2 px focus outline (`core/focus.ts`). The plot ring uses a 2 px outline over a 4 px inset background shadow (`theme/css.ts`). The focus color therefore always touches the background color, at 5.89:1 (light) or 14.43:1 (dark), whatever fill lies under the ring. The outer edge between a background band and a translucent fill has less than 3:1, and nothing here claims more.
 3. **The focus color needs no contrast against series colors.** The surround keeps them from touching.
 
 **Constraint 5 is no longer needed for contrast.** That constraint is the 0.10 OKLab distance between every series color and the focus token, and it never could provide contrast: an OKLab distance is not a contrast ratio. What it buys is identity. The ring's color never coincides with a series color, so a focused datum's outline is not read as a mark of its own or another series. That matters most for slot 1, the most-used series. The old dark focus `#79a8ff` is 0.050 from today's dark blue `#5d9afd`, so a ring around a series-1 point would be drawn in nearly that series' own color. I recommend keeping constraint 5. Dropping it would allow `#79a8ff` to return (7.49:1 on the background, so it would pass under two tones) at the cost of that confusion. This is the owner's call.
@@ -189,7 +207,7 @@ That pair meets every limit, and I confirmed it with the same code. By eye, it h
 So I did three things:
 - moved slot 6 to cyan and teal hues (`configs/b-cyan.json`, `b-cyan-45.json`);
 - held both eighths at chroma 0.015 or less;
-- held the dark red and orange at chroma 0.15 or less.
+- asked for calmer dark red and orange. In the wide searches, the orange was capped at chroma 0.15 and the red at 0.16. The final dark search asked for 0.14, in boxes up to 0.18. Both ended at 0.150 to two decimals (0.1503 orange, 0.1505 red).
 
 **How the sets were found.**
 - **Light.** It came from annealing, then an exact local search (`configs/b-polish-light.json`).
@@ -213,7 +231,17 @@ So I did three things:
 - **A louder light red and purple.**
   - `#be1506` is a full red (chroma 0.20), like the review's `#c61405`. It is the loudest line in the light "8 lines" panel, and the superseded coral was not.
   - The light purple is at chroma 0.220, above both other sets. In B's neighbourhood, a cap of 0.207 is proved infeasible: the exact search in `configs/b-purple-207.json` completes with no solution.
-  - Calming the red pushes purple up instead. Red at 0.18 or 0.17 is feasible only with purple at 0.23 (`b-red-18.json`, `b-red-17.json`), and red at 0.16 is proved infeasible (`b-red-16.json`).
+  - A calmer red does not need a more chromatic purple. My searches with red at 0.18 or 0.17 returned purple at 0.23 (`b-red-18.json`, `b-red-17.json`), because they minimise the distance to their targets, not purple's chroma. The first version of this item read that as "feasible only with purple at 0.23", which was wrong.
+  - On the `b-red-17` grid with purple capped at 0.22, the palette-B review (finding 2) found red at chroma 0.170 with purple at 0.2195, slightly below B's own 0.2196:
+
+    ```text
+    light  #3697f9 #cf8020 #056850 #8734cb #ab2a09 #297ea6 #8b0b8b #8e948f
+    dark   #5c97fe #dc772f #aae4bd #9443a9 #ba4f1f #2fc3ff #d791bb #6d736e
+    ```
+
+    `color.mjs` confirms that it meets every required check, analytic, in bytes and on both raster models. Its lowest contrast is 3.02:1 (light) and its largest hue shift 14.8°. It has not been rendered in Chrome.
+  - My own exact search on that grid (`configs/b-red-17-p22.json`) completes with the same red and purple, differing only in slots 6 and 8. Its dark search timed out in that config's boxes.
+  - Red at 0.16 is proved infeasible in its boxes (`b-red-16.json`).
 - **A dark purple at 3.07:1,** against 3.26 in the superseded set.
 - **Tighter dark margins to the tokens:** focus 0.104 and muted 0.102. The superseded set had 0.138 and 0.113.
 - **A dark first blue at 6.35:1** (`#5d9afd`, L 0.69) instead of `#64acfa` (7.46:1). Keeping `#64acfa` against this light set was not found (`b-dark-blue.json`): the exact search timed out and annealing found nothing.
@@ -332,20 +360,20 @@ Each line below means "not found" in the searches for the superseded refit; B's 
 - **Muted token** in constraint 5 (tested). The donut's "Other" slice.
 - **Byte-level checks** (tested): byte-rounded simulation; fills on both 8-bit raster models; Chrome's drawn pixels within one byte of the model and 0.06 apart; the preview PNG's donut pixels 0.10 apart.
 - **Ring closure and deficiency-simulated fills** (recorded only).
-  - At 25% the donut's closing pairs go down to 0.029 (light 6–1) and 0.037 (dark 6–1).
+  - At 25% the donut's closing pairs go down to 0.029 (light 6–1) and 0.037 (dark 6–1) in normal vision. Under the simulations they go lower: 0.024 (light 6–1, tritanopia) and 0.029 (dark 6–1, deuteranopia). The first version of this item gave only the normal-vision figures as the minimum (palette-B review, finding 5).
   - Neighbours under simulation go down to 0.028 (light, deuteranopia, 6–7).
   - Slices are opaque in Axylo, so constraint 2 covers them.
 - **Solver margins** as listed above. The tests use the decision's limits.
 
 ## For the owner
 
-- **The light red and purple are the loudest light colors** (chroma 0.20 and 0.22). Calming either costs the other ("What B costs").
+- **The light red and purple are the loudest light colors** (chroma 0.20 and 0.22). Purple at 0.207 is proved infeasible near B. A red at 0.17 exists without a more chromatic purple, which the palette-B review found; it is unrendered and not adopted ("What B costs").
 - **The dark focus ring is near-white `#e3e8f0`** (light stays blue).
   - This is a visible UI change, made to free the dark blue.
   - With the two-tone ring it meets its contrast need (14.4:1 on the background).
   - Reverting to `#79a8ff` is possible under two tones only if constraint 5 is dropped: it is 0.050 from the dark blue (see "Focus token under a two-tone ring").
 - **The dark set mixes three very light colors with two dimmer ones.** The light ones are the green (L 0.87), cyan (0.78) and pink (0.74). The dimmer ones are a deep purple (0.53) and a brick red (0.56), the dimmest at 3.07 and 3.57:1.
-- **Slot hues move within each family between schemes.** The largest shift is 14.1° (purple), under constraint 4's 30°.
+- **Slot hues move within each family between schemes.** The largest shift is 14.1° (purple), under constraint 4's 30°. By eye, dark slot 5 reads as rust and dark slot 7 as dusty pink (see "The palette").
 
 ## Reference palettes (measured)
 
@@ -379,11 +407,11 @@ The first version also drew on palettes recalled from memory (IBM Carbon, Okabe�
   - `keyboard.browser.test.ts` checks the light focus only, and that token is unchanged.
   - `tests/dist/csp.browser.test.ts` reads the light first series color from the packed stylesheet, so it should need no change; that is inferred, not run.
 - **The built bundle.** `packages/axylo/dist` (untracked) still declares the superseded colors until the next build, for example `--axylo-default-series-1: light-dark(#4a94eb, #64acfa)`.
-- **The focus ring.** The two-tone focus ring is being built in the chart core. Its rendered contrast against marks has not been measured here.
+- **The focus ring.** The two-tone ring is in the chart core. Its rendered pixels have not been measured here; the contrasts above are computed from the token colors.
 - **Overlapping fills.** Raster checks cover isolated fills over the background. A 25% area over another 25% area is not scored.
 - **Simulation and platform.** The simulation is Machado at severity 1.0 only. Strokes and fills were measured in headless Chrome 157 on Linux only.
 - **People.** Nobody with a color-vision deficiency has looked at the previews.
-- **Review.** Nobody other than me has reviewed B. The owner chose it from the comparison images.
+- **Review.** B has been reviewed independently (`palette-b.review.md`), without a fresh browser render. The review's red-at-0.17 counterexample has not been rendered in Chrome. The owner chose B from the comparison images.
 
 ## Files
 
@@ -394,6 +422,8 @@ The first version also drew on palettes recalled from memory (IBM Carbon, Okabe�
   - the record at its written precision;
   - stroke-record validation;
   - the preview PNG's pixels;
+  - the browser records on disk against the record, with both preview PNGs decoded;
+  - the check list, pass flags and tight list;
   - the one-byte-edit count.
 - `research/palette/`: the scripts and records.
   - Scripts: `color.mjs`, `fit.mjs`, `anneal.mjs`, `explore.mjs`, `score.mjs`, `raster.mjs`, `strokes.mjs`, `preview.mjs`, `references.mjs`.

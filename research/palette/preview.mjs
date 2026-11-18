@@ -8,7 +8,8 @@
 //   node research/palette/preview.mjs --compare=b.json --name=compare --shot     (two palettes, normal vision)
 //
 // With --shot and one palette it also writes <name>-pixels.json: the donut slice colors read back from each row of
-// the PNG, which score.mjs folds into the record.
+// the PNG, which score.mjs folds into the record, and in `samples` the PNG pixel (x, y) each was read at, so the
+// unit test can decode the PNG and check that the record still describes the image.
 //
 // The palette file is { light: [8 hex], dark: [8 hex] } (a solver candidate works); without one, the colors are
 // read from packages/axylo/src/theme/palette.ts.
@@ -191,18 +192,20 @@ if (args.shot) {
         const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
         const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
         const g = c.getContext('2d'); g.drawImage(img, 0, 0);
-        const rows = {};
+        const rows = {}, samples = {};
         for (const row of document.querySelectorAll('#' + box.id + ' .row')) {
           const svg = row.querySelectorAll('.cell svg')[5], r = svg.getBoundingClientRect(), k = r.width / 190;
           let a = -Math.PI / 2;
+          samples[row.dataset.vision] = [];
           rows[row.dataset.vision] = values.map(v => {
             const b = a + 2 * Math.PI * v / total, m = (a + b) / 2; a = b;
             const x = Math.round(r.left - box.x + (95 + 41.5 * Math.cos(m)) * k), y = Math.round(r.top - box.y + (60 + 41.5 * Math.sin(m)) * k);
+            samples[row.dataset.vision].push([x, y]);
             const d = g.getImageData(x, y, 1, 1).data;
             return '#' + [d[0], d[1], d[2]].map(n => n.toString(16).padStart(2, '0')).join('');
           });
         }
-        return rows;
+        return { ...rows, samples };
       }, { b64: buffer.toString('base64'), box: { ...box, id: scheme } });
       pixels.schemes[scheme].background = theme[scheme].background;
       pixels.schemes[scheme].series = palette[scheme];

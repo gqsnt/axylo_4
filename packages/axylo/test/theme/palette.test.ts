@@ -11,7 +11,7 @@
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { gunzipSync } from 'node:zlib';
+import { gunzipSync, inflateSync } from 'node:zlib';
 import { contrastRatio, parseColor, type Rgba } from '../../src/theme/color';
 import { DARK, LIGHT } from '../../src/theme/palette';
 import { AXYLO_CSS } from '../../src/theme/css';
@@ -107,8 +107,10 @@ interface RecordScheme {
   prefixesBytes: Record<string, Record<Vision, PairRecord>>;
   tokenDistance: Record<string, { min: number; slot: number }>;
   composites: Record<string, Record<Vision, { minNeighbour: number; pair: number[]; neighbours: number[]; ringClosures: { slots: number[]; d: number }[] }>>;
-  raster: Record<string, { model: string[]; modelFloor: string[]; neighboursModel: number[]; neighboursWorstWithinOneByte: number[] }>;
+  raster: Record<string, { model: string[]; modelFloor: string[]; neighboursModel: number[]; neighboursWorstWithinOneByte: number[]; minModel: number; minWorstWithinOneByte: number }>;
   chromeRaster: Record<string, Record<string, { pixels: string[]; neighbours: number[]; min: number }>>;
+  checks: { constraint: number | string; check: string; value: number; limit: number; ok: boolean }[];
+  tight: { check: string; value: number; margin: number }[];
 }
 interface StrokeRecord { schemes: Record<'light' | 'dark', { background: string; rows: ({ color: string; swatch: number } & Record<string, StrokeStats | string | number>)[] }> }
 const SCHEMES = [['light', LIGHT, DARK], ['dark', DARK, LIGHT]] as const;
@@ -120,6 +122,47 @@ const record = JSON.parse(fs.readFileSync(research('palette.json'), 'utf8')) as
 const strokesRaw = JSON.parse(gunzipSync(fs.readFileSync(research('strokes-raw.json.gz'))).toString('utf8')) as
   { schemes: Record<'light' | 'dark', { background: string; rows: ({ color: string; channel: number } & Record<string, string | number>)[] }> };
 const RENDERERS = ['canvas@1', 'svg@1', 'canvas@2', 'svg@2'] as const;
+/** The browser records as written to disk (raster.mjs, strokes.mjs, preview.mjs --shot), read here so that a record
+ * that no longer matches its source file fails rather than passing on the folded copy alone. */
+const drawnFills = JSON.parse(fs.readFileSync(research('raster.json'), 'utf8')) as
+  { schemes: Record<'light' | 'dark', { background: string; series: string[]; pixels: Record<string, Record<string, string[]>> }> };
+const strokesOnDisk = JSON.parse(fs.readFileSync(research('strokes.json'), 'utf8')) as StrokeRecord;
+const previewPixels = JSON.parse(fs.readFileSync(research('preview-pixels.json'), 'utf8')) as
+  { schemes: Record<'light' | 'dark', { background: string; series: string[]; samples: Record<string, [number, number][]> } & Record<string, unknown>> };
+const PREVIEW_ROWS = { normal: 'normal', protanopia: 'protan', deuteranopia: 'deutan', tritanopia: 'tritan' } as const;
+
+/** An 8-bit, non-interlaced RGB or RGBA PNG, decoded with zlib and the five PNG row filters; pixel(x, y) as hex. */
+function decodePng(file: string): { width: number; height: number; pixel: (x: number, y: number) => string } {
+  const buf = fs.readFileSync(file);
+  expect(buf.subarray(0, 8).toString('hex'), file).toBe('89504e470d0a1a0a');
+  let off = 8, width = 0, height = 0, depth = 0, type = 0, interlace = 0;
+  const idat: Buffer[] = [];
+  while (off < buf.length) {
+    const len = buf.readUInt32BE(off), kind = buf.toString('latin1', off + 4, off + 8), data = buf.subarray(off + 8, off + 8 + len);
+    if (kind === 'IHDR') { width = data.readUInt32BE(0); height = data.readUInt32BE(4); depth = data[8]!; type = data[9]!; interlace = data[12]!; }
+    else if (kind === 'IDAT') idat.push(data);
+    else if (kind === 'IEND') break;
+    off += 12 + len;
+  }
+  if (depth !== 8 || (type !== 2 && type !== 6) || interlace !== 0) throw new Error(`${file}: unsupported PNG (depth ${depth}, type ${type}, interlace ${interlace})`);
+  const bpp = type === 6 ? 4 : 3, stride = width * bpp, raw = inflateSync(Buffer.concat(idat)), out = new Uint8Array(stride * height);
+  for (let y = 0; y < height; y++) {
+    const filter = raw[y * (stride + 1)]!, src = y * (stride + 1) + 1, dst = y * stride;
+    for (let i = 0; i < stride; i++) {
+      const a = i >= bpp ? out[dst + i - bpp]! : 0, b = y > 0 ? out[dst - stride + i]! : 0, cc = i >= bpp && y > 0 ? out[dst - stride + i - bpp]! : 0;
+      const x = raw[src + i]!;
+      let v: number;
+      if (filter === 0) v = x;
+      else if (filter === 1) v = x + a;
+      else if (filter === 2) v = x + b;
+      else if (filter === 3) v = x + ((a + b) >> 1);
+      else if (filter === 4) { const p = a + b - cc, pa = Math.abs(p - a), pb = Math.abs(p - b), pc = Math.abs(p - cc); v = x + (pa <= pb && pa <= pc ? a : pb <= pc ? b : cc); }
+      else throw new Error(`${file}: row ${y} has filter ${filter}`);
+      out[dst + i] = v & 255;
+    }
+  }
+  return { width, height, pixel: (x, y) => '#' + [0, 1, 2].map(i => out[y * stride + x * bpp + i]!.toString(16).padStart(2, '0')).join('') };
+}
 
 /** Stroke statistics from raw channel bytes, independently of research/palette/color.mjs (same definition). */
 function strokeStats(ink: string, bg: string, ch: 0 | 1 | 2, encoded: string): StrokeStats {
@@ -168,6 +211,39 @@ function meetsEveryCheck(series: readonly string[], scheme: typeof LIGHT, otherS
   return true;
 }
 
+interface ExpectedCheck { constraint: number | string; check: string; value: number; limit: number; upper: boolean }
+/**
+ * The record's check list as score.mjs writes it, in its order and with its labels, with every value computed here:
+ * the model checks, then Chrome's fill pixels from raster.json, then the preview PNG's donut pixels.
+ */
+function expectedChecks(name: 'light' | 'dark', scheme: typeof LIGHT, otherSeries: readonly string[]): ExpectedCheck[] {
+  const series = scheme.series, bg = c(scheme.background), out: ExpectedCheck[] = [];
+  const add = (constraint: number | string, check: string, value: number, limit: number, upper = false): void => { out.push({ constraint, check, value, limit, upper }); };
+  const neighbours = (labs: Vec3[]): number => Math.min(...labs.slice(1).map((l, k) => delta(labs[k]!, l)));
+  add(1, 'lowest contrast on background', Math.min(...series.map(color => contrastRatio(c(color), bg))), 3);
+  for (const v of VISIONS) add(2, `min pairwise ΔE (all 8), ${v}`, closest(series, v).d, 0.10);
+  for (const n of [3, 4, 5, 6]) for (const v of VISIONS) add(3, `min pairwise ΔE (first ${n}), ${v}`, closest(series.slice(0, n), v).d, n === 4 ? 0.14 : 0.10);
+  add(4, 'largest light/dark hue difference per slot (°)', Math.max(...series.map((color, k) => hueDifference(oklch(color)[2], oklch(otherSeries[k]!)[2]))), 30, true);
+  for (const token of ['focus', 'reference', 'muted'] as const) {
+    const t = seen(srgb(scheme[token]), 'normal');
+    add(5, `nearest series to ${token} token`, Math.min(...series.map(color => delta(seen(srgb(color), 'normal'), t))), 0.10);
+  }
+  for (const alpha of ALPHAS) add(6, `min neighbour ΔE at ${alpha * 100}% opacity, normal`, neighbours(series.map(color => seen(over(color, alpha, scheme.background), 'normal'))), 0.06);
+  for (const v of VISIONS) add('2b', `min pairwise ΔE (all 8), ${v}, simulated then rounded to bytes`, closest(series, v, seenBytes).d, 0.10);
+  for (const n of [3, 4, 5, 6]) for (const v of VISIONS) add('3b', `min pairwise ΔE (first ${n}), ${v}, rounded to bytes`, closest(series.slice(0, n), v, seenBytes).d, n === 4 ? 0.14 : 0.10);
+  for (const alpha of ALPHAS) {
+    const both = [Math.round, Math.floor].map(q => neighbours(series.map(color => labOfBytes(raster(color, alpha, scheme.background, q)))));
+    add('6b', `min neighbour ΔE at ${alpha * 100}%, 8-bit raster models (alpha rounded and floored)`, Math.min(...both), 0.06);
+  }
+  for (const [via, byAlpha] of Object.entries(drawnFills.schemes[name].pixels)) for (const [alpha, px] of Object.entries(byAlpha)) {
+    add('6b', `min neighbour ΔE at ${+alpha * 100}%, Chrome ${via} pixels`, neighbours(px.map(hex => labOfBytes(hexBytes(hex)))), 0.06);
+  }
+  for (const row of Object.keys(PREVIEW_ROWS)) {
+    const px = previewPixels.schemes[name][row] as string[];
+    add('2i', `min pairwise ΔE in the preview PNG, ${row} row`, closest(px, 'normal', hex => labOfBytes(hexBytes(hex))).d, 0.10);
+  }
+  return out;
+}
 
 describe('scoring code used below', () => {
   it('reproduces known OKLab values and leaves grays alone under every simulation', () => {
@@ -342,6 +418,10 @@ describe('default palette (spec A5, decision 0003)', () => {
           expect(atPrecision(delta(labOfBytes(px[k]!), labOfBytes(p)), r.raster[key]!.neighboursModel[k]!, 3), `${alpha} model ${k + 1}`).toBe(true);
           expect(atPrecision(worstWithinOneByte(px[k]!, p), r.raster[key]!.neighboursWorstWithinOneByte[k]!, 3), `${alpha} worst ${k + 1}`).toBe(true);
         });
+        const floor = series.map(color => raster(color, alpha, scheme.background, Math.floor));
+        const modelMin = Math.min(...px.slice(1).map((p, k) => Math.min(delta(labOfBytes(px[k]!), labOfBytes(p)), delta(labOfBytes(floor[k]!), labOfBytes(floor[k + 1]!)))));
+        expect(atPrecision(modelMin, r.raster[key]!.minModel, 3), `${alpha} minModel`).toBe(true);
+        expect(atPrecision(Math.min(...px.slice(1).map((p, k) => worstWithinOneByte(px[k]!, p))), r.raster[key]!.minWorstWithinOneByte, 3), `${alpha} minWorstWithinOneByte`).toBe(true);
         for (const via of ['canvas', 'svg']) {
           const x = r.chromeRaster[via]![key]!;
           const d = x.pixels.slice(1).map((p, k) => delta(labOfBytes(hexBytes(x.pixels[k]!)), labOfBytes(hexBytes(p))));
@@ -391,6 +471,48 @@ describe('default palette (spec A5, decision 0003)', () => {
         expect(atPrecision(min, img[row]!.min, 3)).toBe(true);
         expect(img[row]!.pair).toEqual(pair);
       }
+    });
+
+    it(`${name}: the browser records on disk (raster.json, strokes.json, preview-pixels.json and the preview PNG) are what the research record folded in`, () => {
+      const fills = drawnFills.schemes[name];
+      expect(fills.background).toBe(scheme.background);
+      expect(fills.series).toEqual([...series]);
+      expect(Object.keys(fills.pixels).sort()).toEqual(Object.keys(r.chromeRaster).sort());
+      for (const [via, byAlpha] of Object.entries(fills.pixels)) {
+        expect(Object.keys(byAlpha).sort()).toEqual(Object.keys(r.chromeRaster[via]!).sort());
+        for (const [alpha, px] of Object.entries(byAlpha)) expect(r.chromeRaster[via]![alpha]!.pixels, `${via} ${alpha}`).toEqual(px);
+      }
+      expect(record.strokes.schemes[name]).toEqual(strokesOnDisk.schemes[name]);
+      const shot = previewPixels.schemes[name];
+      expect(shot.background).toBe(scheme.background);
+      expect(shot.series).toEqual([...series]);
+      for (const row of Object.keys(PREVIEW_ROWS)) expect(r.previewImage[row]!.pixels, row).toEqual(shot[row]);
+      // The PNG itself, decoded here: every sampled pixel, grayscale row included, is the recorded one.
+      const png = decodePng(research(`preview-${name}.png`));
+      for (const row of [...Object.keys(PREVIEW_ROWS), 'grayscale']) {
+        const at = shot.samples[row]!, recorded = shot[row] as string[];
+        expect(at, row).toHaveLength(8);
+        at.forEach(([x, y], k) => {
+          expect(x >= 0 && x < png.width && y >= 0 && y < png.height, `${row} slot ${k + 1} inside the image`).toBe(true);
+          expect(png.pixel(x, y), `${row} slot ${k + 1} at (${x}, ${y})`).toBe(recorded[k]);
+        });
+      }
+    });
+
+    it(`${name}: the record's check list, pass flags and tight list (within 5% of a limit) follow from the measurements`, () => {
+      const expected = expectedChecks(name, scheme, other.series);
+      expect(r.checks.map(x => [x.constraint, x.check, x.limit])).toEqual(expected.map(x => [x.constraint, x.check, x.limit]));
+      expected.forEach((x, k) => {
+        const rec = r.checks[k]!;
+        expect(atPrecision(x.value, rec.value, 3), `${x.check}: ${x.value} vs ${rec.value}`).toBe(true);
+        expect(rec.ok, x.check).toBe(x.upper ? x.value <= x.limit : x.value >= x.limit);
+      });
+      const tight = expected.filter(x => !x.upper && x.value < x.limit * 1.05);
+      expect(r.tight.map(t => t.check)).toEqual(tight.map(x => x.check));
+      tight.forEach((x, k) => {
+        expect(atPrecision(x.value, r.tight[k]!.value, 3), `${x.check} value`).toBe(true);
+        expect(atPrecision(x.value - x.limit, r.tight[k]!.margin, 3), `${x.check} margin`).toBe(true);
+      });
     });
 
     it(`${name}: the one-byte-edit count in the record is what every check gives for every one-byte edit`, () => {

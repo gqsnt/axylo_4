@@ -1,5 +1,5 @@
 {
- "note": "Candidate B, light, what-if: red chroma at 0.17 or less, purple cap lifted to 0.25. Completes with #2b97ee #cf8020 #056850 #862acc #ab2a09 #0380a8 #8b0b8b #8e948f: red at chroma 0.17, purple rises to 0.23, magenta to 0.20. Not adopted.",
+ "note": "Candidate B, light, what-if: red chroma at 0.17 or less, purple cap lifted to 0.25. Completes with #2b97ee #cf8020 #056850 #862acc #ab2a09 #0380a8 #8b0b8b #8e948f: red at chroma 0.17, purple rises to 0.23, magenta to 0.20. Not adopted. Purple at 0.23 is what this search returned (it minimises distance to the targets), not a requirement: the palette-B review found red 0.170 with purple 0.2195 on this grid with purple capped at 0.22 (b-red-17-p22.json; decision 0003, \"What B costs\").",
  "hueClip": 15,
  "solverLimits": {
   "composite": 0.063,
