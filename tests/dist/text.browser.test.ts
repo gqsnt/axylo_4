@@ -19,7 +19,7 @@ import path from 'node:path';
 import type { Page } from 'playwright-core';
 import { bundle, closeBrowser, cspPolicy, drawn, launch, open, startServer, type Server, type Watched } from './browser';
 import { fixture, here } from './paths';
-import { KINDS, MESSAGE_CHARTS, S, SOURCES, type Kind } from './pages/sentinels';
+import { KINDS, MESSAGE_CHARTS, S, scatterSize, SOURCES, type Kind } from './pages/sentinels';
 
 let server: Server;
 const pages = path.join(here, 'pages');
@@ -226,7 +226,7 @@ describe.each(Object.entries(LOADERS))('%s', (_label, loader) => {
         expect(headers[y]).toContain(s('unit'));
         const seriesCol = rows[0]!.findIndex((_, j) => j !== 0 && j !== y);
         rows.forEach((r, i) => {
-          expect(r[0], `${at} row ${i} x`).toBe(S(id.xFormat!, String(10 + 5 * i)));
+          expect(r[0], `${at} row ${i} x`).toBe(S(id.xFormat!, String(scatterSize(i))));
           expect(r[y], `${at} row ${i} y`).toContain(value(40 + ((i * 7) % 11) * 3));
           expect(r[seriesCol], `${at} row ${i} series`).toBe(i % 2 ? s('series') : 'Plain');
         });

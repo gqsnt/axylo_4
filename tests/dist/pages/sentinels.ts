@@ -23,6 +23,9 @@ export type Library = Record<Kind, Make>;
 
 const days = ['2026-03-02', '2026-03-03', '2026-03-04', '2026-03-05', '2026-03-06'];
 
+/** The scatter's x for row `i` (why these values: see the scatter case of optionsFor). */
+export const scatterSize = (i: number): number => Math.round((100 * i) / 11);
+
 /** The options for one chart type, every source filled with its sentinel. */
 export function optionsFor(kind: Kind, extra: Record<string, unknown> = {}): Record<string, unknown> {
   const s = SOURCES[kind];
@@ -43,7 +46,14 @@ export function optionsFor(kind: Kind, extra: Record<string, unknown> = {}): Rec
       return { ...common, data, series: 'year', x: { field: 'region', label: S(id('xLabel')) }, y: y('revenue'), ...extra };
     }
     case 'scatter': {
-      const data = Array.from({ length: 12 }, (_, i) => ({ size: 10 + 5 * i, latency: 40 + ((i * 7) % 11) * 3, kind: i % 2 ? S(id('series')) : 'Plain' }));
+      // x runs from 0 to 100 exactly. An automatic numeric x domain ends on drawn ticks (spec F7), so the
+      // tick sets offered are those whose steps divide [0, 100]; the coarsest, step 50, gives three ticks
+      // (0, 50, 100). Each tick label is a whole sentinel of about 26 characters, and three of them fit side
+      // by side in the 760 px chart (page.css, .chart.tall), so L1's first remedy (thinning) is enough and
+      // no label is wrapped, rotated or truncated. The earlier range, 10 to 65, made the domain [0, 80] with
+      // steps 10 and 20 only: five or more labels 134 to 219 px apart, which L1 rotates and then truncates
+      // in the middle, cutting the sentinels this test reads whole (read in the built library, d33df71).
+      const data = Array.from({ length: 12 }, (_, i) => ({ size: scatterSize(i), latency: 40 + ((i * 7) % 11) * 3, kind: i % 2 ? S(id('series')) : 'Plain' }));
       return {
         ...common, data, series: 'kind',
         x: { field: 'size', label: S(id('xLabel')), format: (v: unknown) => S(id('xFormat'), String(v)), tickFormat: (v: unknown) => S(id('xTick'), String(v)) },
