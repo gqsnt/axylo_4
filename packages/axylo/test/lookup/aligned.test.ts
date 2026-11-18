@@ -4,6 +4,7 @@ import type { AlignedView, DatumRef } from '../../src/core/contracts';
 import { buildLookup } from '../../src/lookup';
 import { defaultMessages, pointOf } from '../../src/messages';
 import { bandScale, linearScale } from '../../src/scale';
+import { buildStack } from '../../src/view/stack';
 import { aligned, formatter, frame, plot } from './fixtures';
 
 const datum = (seriesKey: string, x: number): DatumRef => ({ kind: 'aligned', seriesKey, x });
@@ -75,10 +76,22 @@ describe('aligned readout and steps', () => {
       positive: [Float64Array.of(3, 3), Float64Array.of(3, 7), Float64Array.of(3, 7)],
       negative: [Float64Array.of(0, 0), Float64Array.of(0, 0), Float64Array.of(-2, -2)],
     } }));
-    expect(model.tooltip({ kind: 'x', x: 0 }).total).toBe('1 (incomplete)');
+    expect(model.tooltip({ kind: 'x', x: 0 }).total).toBe('3 and -2 (incomplete)');
     expect(model.tooltip({ kind: 'x', x: 0 }).rows[1]?.value).toBe('No data');
-    expect(model.tooltip({ kind: 'x', x: 1 }).total).toBe('5');
+    expect(model.tooltip({ kind: 'x', x: 1 }).total).toBe('7 and -2');
     expect(model.datum(datum('b', 0))?.value).toBe('No data (incomplete)');
+  });
+
+  it('uses the author’s mixed total format and leaves same-sign and all-zero totals plain', () => {
+    const data = frame('bar', { data: [
+      { x: 0, a: -3, b: -1 }, { x: 1, a: 0, b: 0 }, { x: 2, a: 3, b: -1 },
+    ], x: 'x', y: ['a', 'b'] });
+    const view = aligned(data, { kind: 'bar', stack: buildStack(data, [true, true]) });
+    const layout = plot({ kind: 'xy', x: linearScale([0, 2], [0, 100]), y: linearScale([-4, 3], [100, 0]) });
+    const model = buildLookup(view, layout, formatter(data), { ...defaultMessages, totalMixed: '{negative} bis {positive}' });
+    expect(model.tooltip({ kind: 'x', x: 0 }).total).toBe('-4');
+    expect(model.tooltip({ kind: 'x', x: 1 }).total).toBe('0');
+    expect(model.tooltip({ kind: 'x', x: 2 }).total).toBe('-1 bis 3');
   });
 
   it('steps within a series, switches series at the same x, and ranks by visible slot', () => {

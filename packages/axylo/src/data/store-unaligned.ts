@@ -1,6 +1,5 @@
 import type { DiagnosticInput, DiagnosticSink, DonutFrame, PointFrame } from '../core/contracts';
 import { DiagnosticCollector } from '../diagnostics';
-import { lowerBound } from '../lookup/search';
 import { normalize, pointFrame, readX, reportCalendarDates, type DataEnvironment, type FrameVersion } from './normalize';
 import { resolveOptions, resolveTable, retargetOptions, withoutTable, type ResolvedOptions } from './options';
 import { Reports } from './reports';
@@ -13,6 +12,17 @@ import { once, retention, type PreparedFrame, type StoreAppendOptions } from './
 import { nameOf } from './x';
 
 const quiet: DiagnosticSink = { add() {} };
+
+function lowerBound(values: Float64Array, value: number): number {
+  let start = 0;
+  let end = values.length;
+  while (start < end) {
+    const mid = start + Math.floor((end - start) / 2);
+    if (values[mid]! < value) start = mid + 1;
+    else end = mid;
+  }
+  return start;
+}
 
 interface Result<F> {
   readonly frame: F;
@@ -280,7 +290,7 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
   get retainedRowCount(): number { return this.revisions.size; }
 
   /** Releases source rows through this revision. Held frame views keep their normalized values. */
-  retire(revision: number): void { this.revisions.retire(revision); }
+  retire(revision: number): void { this.revisions.retire(Math.min(revision, this.current.revision)); }
 
   /** Validates encoding against the retained rows and returns options for re-encoding this store. */
   resolveEncoding(input: unknown, sink: DiagnosticSink): ResolvedOptions {
@@ -333,6 +343,7 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
         result = this.build(encoded, this.environment, current, version);
       }
     }
+    retained.compactColumns();
     const ordered = ordering.inputs();
     const diagnostics = [...current.inputs(), ...ordered];
     retained.resetPositions(table, result.positions);
@@ -357,6 +368,7 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
     const extension = this.storage.extend(result, retained, this.rows.next, keep);
     retained.onForget = undefined;
     if (!extension) return null;
+    retained.compactColumns();
     return this.prepare(base, result.frame, retained, extension, [], [], evicted);
   }
 

@@ -11,8 +11,10 @@ export class BufferWindow {
     return new BufferWindow(this.start, this.end, this.written);
   }
 
+  get hasCompetingWrites(): boolean { return this.end < this.written.end; }
+
   reserve(extra: number, capacity: number): number {
-    if (this.end + extra > capacity || extra > 0 && this.end < this.written.end) {
+    if (this.end + extra > capacity || extra > 0 && this.hasCompetingWrites) {
       return Math.max(16, 2 * (this.end - this.start + extra));
     }
     this.written.end = Math.max(this.written.end, this.end + extra);

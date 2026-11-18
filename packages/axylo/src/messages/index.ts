@@ -75,12 +75,23 @@ export function fill(template: string, values: Readonly<Record<string, string | 
   );
 }
 
+const authoredMessages = new WeakMap<Messages, ReadonlySet<keyof Messages>>();
+
 export function resolveMessages(overrides?: Partial<Messages> | null): Messages {
   const messages = { ...defaultMessages };
+  const authored = new Set<keyof Messages>();
   for (const key of Object.keys(messages) as (keyof Messages)[]) {
-    messages[key] = overrides?.[key] ?? messages[key];
+    const value = overrides?.[key];
+    if (value == null) continue;
+    messages[key] = value;
+    authored.add(key);
   }
+  authoredMessages.set(messages, authored);
   return messages;
+}
+
+export function messageLanguage(messages: Messages, key: keyof Messages): 'en' | null {
+  return messages[key] === defaultMessages[key] && !authoredMessages.get(messages)?.has(key) ? 'en' : null;
 }
 
 export function fillChartSummary(

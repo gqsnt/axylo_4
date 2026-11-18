@@ -11,13 +11,16 @@ import { formatter, frame, plot, scatter } from './fixtures';
 const point = (seriesKey: string, row: number, x: number): Extract<DatumRef, { kind: 'point' }> =>
   ({ kind: 'point', seriesKey, row, x });
 
-function points(lists: readonly (readonly (readonly [number, number])[])[]): PointFrame {
+function points(lists: readonly (readonly (readonly [number, number])[])[], sourceRows?: readonly number[]): PointFrame {
   let row = 0;
   return {
     shape: 'points', epoch: 1, revision: 1, source: { rowAt: () => null },
     xKind: 'number', timeZone: null, xLabel: 'x', yLabel: 'y', xUnit: null, yUnit: null,
     series: lists.map((list, s) => {
-      const sorted = list.map(([x, y]) => ({ x, y, row: row++ })).sort((a, b) => a.x - b.x || a.y - b.y || a.row - b.row);
+      const sorted = list.map(([x, y]) => {
+        const i = row++;
+        return { x, y, row: sourceRows?.[i] ?? i };
+      }).sort((a, b) => a.x - b.x || a.y - b.y || a.row - b.row);
       return {
         key: `S${s}`, label: `S${s}`, drawable: true, x: Float64Array.from(sorted, p => p.x),
         y: Float64Array.from(sorted, p => p.y), row: Int32Array.from(sorted, p => p.row),
@@ -28,14 +31,11 @@ function points(lists: readonly (readonly (readonly [number, number])[])[]): Poi
 const layout = plot({ kind: 'xy', x: linearScale([0, 100], [0, 100]), y: linearScale([0, 100], [0, 100]) });
 
 function scatterLayout(rect: Rect, xDomain: readonly [number, number], yDomain: readonly [number, number]) {
-  return {
-    ...plot({
-      kind: 'xy',
-      x: linearScale(xDomain, [rect.x, rect.x + rect.width]),
-      y: linearScale(yDomain, [rect.y + rect.height, rect.y]),
-    }, rect.x + rect.width + 4, rect.y + rect.height + 4),
-    plot: rect,
-  };
+  const projection = {
+    kind: 'xy', x: linearScale(xDomain, [rect.x, rect.x + rect.width]),
+    y: linearScale(yDomain, [rect.y + rect.height, rect.y]),
+  } as const;
+  return { ...plot(projection, rect.x + rect.width + 4, rect.y + rect.height + 4), plot: rect, projection };
 }
 
 function clamp(value: number, low: number, high: number): number {
@@ -116,10 +116,25 @@ it('agrees with a brute-force scatter pick anywhere within radius of a drawn poi
     ([left, top, width, height], a, b, seed, [dx, dy]) => {
       const right = left + width;
       const bottom = top + height;
-      const toPixels = ([x, y]: readonly [number, number]) => [left + x * width, top + y * height] as const;
-      const series = [a.map(toPixels), b.map(toPixels)];
+      const rect = { x: left, y: top, width, height };
+      const layout = scatterLayout(rect, [-2, 2], [-2, 2]);
+      const project = ([x, y]: readonly [number, number]) => [x * 4 - 2, 2 - y * 4] as const;
+      const shared = a[0]!;
+      const inputs = [a.map(project), [shared, ...b].map(project)];
+      const length = inputs[0]!.length + inputs[1]!.length;
+      const sourceRows = Array.from({ length }, (_, i) => i);
+      let random = seed;
+      for (let i = length - 1; i > 0; i--) {
+        random = (Math.imul(1664525, random) + 1013904223) >>> 0;
+        const j = random % (i + 1);
+        [sourceRows[i], sourceRows[j]] = [sourceRows[j]!, sourceRows[i]!];
+      }
       let row = 0;
-      const drawn = series.flatMap((list, s) => list.map(([x, y]) => ({ x, y, ref: point(`S${s}`, row++, x) })));
+      const drawn = inputs.flatMap((list, s) => list.map(([x, y]) => ({
+        x: clamp(layout.projection.x.map(x), left, right), y: clamp(layout.projection.y.map(y), top, bottom),
+        ref: point(`S${s}`, sourceRows[row++]!, x),
+      })));
+      const data = points(inputs, sourceRows);
       const witness = drawn[seed % drawn.length]!;
       const px = clamp(witness.x + dx, left, right);
       const py = clamp(witness.y + dy, top, bottom);
@@ -128,10 +143,6 @@ it('agrees with a brute-force scatter pick anywhere within radius of a drawn poi
       const nearest = ranked[0]!;
       fc.pre(nearest.distance <= 24 ** 2);
       const coincident = drawn.filter(d => (d.x - nearest.x) ** 2 + (d.y - nearest.y) ** 2 <= 0.5 ** 2);
-      const x = { ...linearScale([left, right], [left, right]), map: (p: number) => p };
-      const y = { ...linearScale([top, bottom], [top, bottom]), map: (p: number) => p };
-      const data = points(series);
-      const layout = { ...plot({ kind: 'xy', x, y }), plot: { x: left, y: top, width, height } };
       const model = buildLookup(scatter(data), layout, formatter(data), defaultMessages);
       const target = model.pick(px, py);
       if (target?.kind !== 'point') throw new Error('Expected scatter target within 24 px');
@@ -142,6 +153,32 @@ it('agrees with a brute-force scatter pick anywhere within radius of a drawn poi
       expect(coincident.map(d => d.ref)).toEqual(expect.arrayContaining([...target.refs]));
     },
   ), { numRuns: 1_500 });
+});
+
+it.each([10, 8])('picks the later row from the first series when the second series is at x=%s', x => {
+  const data = points([[[10, 10]], [[x, 10]]], [5, 2]);
+  const model = buildLookup(scatter(data), layout, formatter(data), defaultMessages);
+  const refs = x === 10 ? [point('S0', 5, 10), point('S1', 2, x)] : [point('S0', 5, 10)];
+  expect(model.pick((10 + x) / 2, 10)).toEqual({ kind: 'point', refs, count: refs.length });
+});
+
+it('cannot pick a point outside the y domain from inside the plot', () => {
+  const data = points([[[25, 102]]]);
+  const model = buildLookup(scatter(data), layout, formatter(data), defaultMessages);
+  expect(model.pick(25, 99)).toBeNull();
+});
+
+it('picks an in-domain point that rounds beyond the top edge of a reversed scale', () => {
+  const rect = { x: 0, y: 1 / 17, width: 100, height: 15 / 7 };
+  const yDomain = [-1e6, 1.16e-10] as const;
+  const y = yDomain[1] - 2 ** -86;
+  const data = points([[[25, y]]]);
+  const layout = scatterLayout(rect, [0, 100], yDomain);
+  expect(y).toBeLessThan(yDomain[1]);
+  expect(layout.projection.y.map(y)).toBeLessThan(rect.y);
+  const model = buildLookup(scatter(data), layout, formatter(data), defaultMessages);
+  expect(model.pick(25, rect.y)).toMatchObject({ kind: 'point', refs: [point('S0', 0, 25)] });
+  expect(model.anchor(point('S0', 0, 25))?.y).toBe(rect.y);
 });
 
 it('finds coincident points across a cell boundary and retains the full count after truncation', () => {

@@ -7,12 +7,19 @@ export function contains(rect: Rect, x: number, y: number): boolean {
 }
 
 export function scatterPosition(scale: XScale, value: number): number {
-  if (scale.type !== 'band' && scale.domain[0] !== scale.domain[1]) {
-    // Interpolation can round a domain endpoint outside the plot, especially on a reversed axis.
-    if (value === scale.domain[0]) return scale.range[0];
-    if (value === scale.domain[1]) return scale.range[1];
-  }
-  return scale.map(value);
+  const pixel = scale.map(value);
+  if (scale.type === 'band') return pixel;
+  const [d0, d1] = scale.domain;
+  if (value < Math.min(d0, d1) || value > Math.max(d0, d1)) return pixel;
+  // Only repair rounding at the range edges for a value inside the domain. Points
+  // excluded by an author's domain must still be clipped by the plot.
+  const [r0, r1] = scale.range;
+  const low = Math.min(r0, r1);
+  const high = Math.max(r0, r1);
+  const tolerance = (high - low) * 1e-9;
+  if (pixel < low && low - pixel <= tolerance) return low;
+  if (pixel > high && pixel - high <= tolerance) return high;
+  return pixel;
 }
 
 export function pointBox(x: number, y: number): Rect {

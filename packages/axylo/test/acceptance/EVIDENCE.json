@@ -503,7 +503,7 @@
   {"criterion":"F3","type":"line","file":"packages/axylo/test/acceptance/dx-diagnostics.test.ts","title":"F3 line: AX105 distinguishes 1001 absent steps on a number axis"},
   {"criterion":"F3","type":"line","file":"packages/axylo/test/acceptance/dx-diagnostics.test.ts","title":"F3 line: AX105 distinguishes 1001 absent steps on a wall-clock axis"},
   {"criterion":"F3","type":"scatter","file":"packages/axylo/test/acceptance/dx-diagnostics.test.ts","title":"F3 scatter: AX106 retains an all-string non-decimal column only in the table"},
-  {"criterion":"F8","type":"donut","file":"packages/axylo/test/acceptance/f-donut.test.ts","title":"F8 donut: zero and null slices count toward the eight-slice limit without gaining arcs"},
+  {"criterion":"F8","type":"donut","file":"packages/axylo/test/acceptance/f-donut.test.ts","title":"F8 donut: zero and null slices stay separate and only positive slices count toward the limit"},
   {"criterion":"F4","type":"line","file":"packages/axylo/test/acceptance/f-time.test.ts","title":"F4 line: generated instants around DST and the year boundary preserve elapsed time and local readouts"},
   {"criterion":"F11","type":"scatter","file":"packages/axylo/test/acceptance/f-order.test.ts","title":"F11 scatter: generated unsorted and duplicate rows keep their x, y and caller row order"},
   {"criterion":"F5","type":"area","file":"packages/axylo/test/acceptance/f-dense.test.ts","title":"T-dense-area area: two peaks and their gap survive at two zoom levels and two device-pixel ratios"},

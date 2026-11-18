@@ -1,6 +1,7 @@
 import { SLOT_NULL, SLOT_VALUE } from '../core/contracts';
 import type { AlignedView, DatumRef, DatumText, Formatters, Lookup, SlotState } from '../core/contracts';
 import type { Messages } from '../public';
+import { fill } from '../messages';
 import { clipBox, contains, pointBox, type PlotLayout } from './geometry';
 import { lowerBound, pageDistance } from './search';
 import { incomplete, slotText } from './text';
@@ -107,14 +108,20 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
       if (i < start || i >= end) return { title: '', rows: [], count: 0, total: null };
       let total: string | null = null;
       if (stack && stack.order.length) {
-        let sum = 0;
+        let positive = 0;
+        let negative = 0;
         let hasValue = false;
         for (const s of stack.order) {
           if (!isValue(s, i)) continue;
-          sum += frame.series[s]!.y[i]!;
+          const value = frame.series[s]!.y[i]!;
+          if (value < 0) negative += value;
+          else positive += value;
           hasValue = true;
         }
-        total = hasValue ? formatters.value(stack.order[0]!, sum) : formatters.missing(SLOT_NULL);
+        const write = (value: number) => formatters.value(stack.order[0]!, value);
+        total = !hasValue ? formatters.missing(SLOT_NULL)
+          : positive > 0 && negative < 0 ? fill(messages.totalMixed, { positive: write(positive), negative: write(negative) })
+            : write(positive + negative);
         if (hasValue && stack.incomplete?.[i]) total = incomplete(total, messages);
       }
       return {

@@ -4,7 +4,10 @@ import { SLOT_NO_ROW, type AlignedFrame, type RowSource, type Series, type XColu
 interface OpenSlot {
   readonly index: number;
   exposed: boolean;
-  changed: boolean;
+  claimed: boolean;
+  readonly y: number;
+  readonly slot: number;
+  readonly row: number;
 }
 
 type SeriesDescription = Omit<Series, 'y' | 'slot' | 'row'>;
@@ -35,7 +38,7 @@ export class FrameBuffers {
   constructor(frame?: AlignedFrame, positions?: Float64Array, order: Int32Array | null = null) {
     this.range = new BufferWindow(0, frame?.length ?? 0);
     this.distinct = 0;
-    const capacity = Math.max(16, this.end * 2);
+    const capacity = this.end + Math.max(16, Math.ceil(this.end / 8));
     this.x = new Float64Array(capacity);
     this.observed = new Uint8Array(capacity);
     if (!frame || !positions) return;
@@ -68,9 +71,16 @@ export class FrameBuffers {
     return draft;
   }
 
+  get hasCompetingWrites(): boolean { return this.range.hasCompetingWrites; }
+
   reserve(extra: number): boolean {
     const capacity = this.range.reserve(extra, this.x.length);
     if (capacity) this.resize(capacity, extra);
+    // A rival may have claimed the base's tail. Reconstruct that tail before this
+    // draft can publish a longer view in which the old slot is no longer special.
+    else for (const series of this.series.values()) {
+      if (series.tail?.claimed) this.copySeries(series);
+    }
     return capacity !== 0;
   }
 
@@ -93,6 +103,7 @@ export class FrameBuffers {
       series.y.set(previous.y.subarray(start, end));
       series.slot.set(previous.slot.subarray(start, end));
       series.row.set(previous.row.subarray(start, end));
+      restoreTail(previous.tail, series, end - start - 1);
       this.series.set(key, series);
     }
     this.range.rebase(extra);
@@ -104,13 +115,18 @@ export class FrameBuffers {
     copy.y.set(series.y.subarray(start, end), start);
     copy.slot.set(series.slot.subarray(start, end), start);
     copy.row.set(series.row.subarray(start, end), start);
+    restoreTail(series.tail, copy, end - 1);
     this.series.set(series.description.key, copy);
     return copy;
   }
 
-  writeTail(series: SeriesBuffers, prepared: boolean): SeriesBuffers {
-    if (prepared || series.tail?.exposed) return this.copySeries(series);
-    if (series.tail) series.tail.changed = true;
+  writeTail(series: SeriesBuffers, hasCompetingWrites: boolean): SeriesBuffers {
+    const tail = series.tail;
+    // An advanced preview can expose this slot in the middle of its view. After a draw
+    // has requested a column, a fill copies that series' window to protect the issued view.
+    // Between draws the first writer claims the open slot and only touches the appended rows.
+    if (!tail || tail.exposed || hasCompetingWrites) return this.copySeries(series);
+    tail.claimed = true;
     series.tail = undefined;
     return series;
   }
@@ -159,31 +175,35 @@ export class FrameBuffers {
           return { ...description, y: y.subarray(start, end), slot: slot.subarray(start, end), row: row.subarray(start, end) };
         }
         const index = end - 1;
-        if (series.tail?.index !== index) series.tail = { index, exposed: false, changed: false };
+        if (series.tail?.index !== index) {
+          series.tail = { index, exposed: false, claimed: false, y: y[index]!, slot: slot[index]!, row: row[index]! };
+        }
         const tail = series.tail;
-        // Keep open slots cheap to read. A writer can reuse an unexposed slot, and the
-        // older frame then reconstructs that column only if someone opens it later.
-        const tailY = y[index]!;
-        const tailSlot = slot[index]!;
-        const tailRow = row[index]!;
         let values: Float64Array | undefined;
         let states: Uint8Array | undefined;
         let rows: Int32Array | undefined;
         return {
           ...description,
-          get y() { return values ??= readColumn(y, tail, start, end, tailY); },
-          get slot() { return states ??= readColumn(slot, tail, start, end, tailSlot); },
-          get row() { return rows ??= readColumn(row, tail, start, end, tailRow); },
+          get y() { return values ??= readColumn(y, tail, start, end, tail.y); },
+          get slot() { return states ??= readColumn(slot, tail, start, end, tail.slot); },
+          get row() { return rows ??= readColumn(row, tail, start, end, tail.row); },
         };
       }),
     };
   }
 }
 
+function restoreTail(tail: OpenSlot | undefined, series: SeriesBuffers, index: number): void {
+  if (!tail?.claimed || index < 0) return;
+  series.y[index] = tail.y;
+  series.slot[index] = tail.slot;
+  series.row[index] = tail.row;
+}
+
 function readColumn<T extends Float64Array | Uint8Array | Int32Array>(
   data: T, tail: OpenSlot, start: number, end: number, value: number,
 ): T {
-  if (!tail.changed) {
+  if (!tail.claimed) {
     tail.exposed = true;
     return data.subarray(start, end) as T;
   }

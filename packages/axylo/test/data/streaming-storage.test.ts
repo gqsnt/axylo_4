@@ -2,7 +2,7 @@ import fc from 'fast-check';
 import { expect, it } from 'vitest';
 import { SLOT_VALUE, type Frame } from '../../src/core/contracts';
 import { AlignedStore, DonutStore, PointStore, normalize, resolveOptions } from '../../src/data';
-import { utc, version } from './helpers';
+import { contents, utc, version } from './helpers';
 
 const quiet = { add() {} };
 const types = ['line', 'scatter', 'donut'] as const;
@@ -54,9 +54,14 @@ function allocated<T>(action: () => T): { result: T; bytes: number } {
   }
 }
 
-async function expectCollected(...refs: WeakRef<object>[]) {
+function requireCollection() {
   const collect = globalThis.gc;
-  if (!collect) return;
+  if (!collect) throw new Error('Forced collection requires the Vitest fork execArgv option --expose-gc.');
+  return collect;
+}
+
+async function expectCollected(...refs: WeakRef<object>[]) {
+  const collect = requireCollection();
   for (let attempt = 0; attempt < 5; attempt++) {
     // WeakRef keeps a dereferenced value alive only until the end of the job.
     await new Promise<void>(resolve => setImmediate(resolve));
@@ -64,6 +69,66 @@ async function expectCollected(...refs: WeakRef<object>[]) {
     if (refs.every(ref => ref.deref() === undefined)) return;
   }
   expect(refs.map(ref => ref.deref() === undefined)).toEqual(refs.map(() => true));
+}
+
+it('does not copy a large series window when several fills are committed between draws', () => {
+  const size = 20_000;
+  const keys = ['a', 'b', 'c', 'd'];
+  const data = Array.from({ length: size }, (_, x) => keys.map(group => ({ x, y: x + 1, group }))).flat();
+  const s = new AlignedStore('line', resolveOptions('line', { data, x: 'x', y: 'y', series: 'group' }, quiet), utc, version);
+  for (const series of s.frame.series) expect(series.y.length).toBe(size);
+  const { bytes } = allocated(() => {
+    for (const [i, group] of keys.entries()) s.prepareAppend([{ x: size, y: i + 1, group }], { keep: size }).commit();
+  });
+  console.info(`shared-x prepare + commit: ${bytes} typed-array bytes per four-row tick`);
+  expect(s.frame.series.map(series => series.y.at(-1))).toEqual([1, 2, 3, 4]);
+  expect(bytes).toBeLessThanOrEqual(256 * keys.length);
+});
+
+it('bounds the retained typed-array backing after opening a million typed observations and appending', async () => {
+  const size = 1_000_000;
+  const data = { columns: { x: Float64Array.from({ length: size }, (_, i) => i), y: Float64Array.from({ length: size }, (_, i) => i / 3) } };
+  const collect = requireCollection();
+  async function arrayBuffers() {
+    await new Promise<void>(resolve => setImmediate(resolve));
+    collect();
+    collect();
+    return process.memoryUsage().arrayBuffers;
+  }
+  const baseline = await arrayBuffers();
+  const s = store('line', data);
+  s.prepareAppend([{ x: size, y: size / 3 }]).commit();
+  const frame = s.frame;
+  if (frame.shape !== 'aligned') throw new Error('Expected an aligned streaming frame.');
+  const bytes = await arrayBuffers() - baseline;
+  console.info(`million-point typed handoff: ${bytes} retained bytes beyond caller columns`);
+  expect(frame.x.values.at(-1)).toBe(size);
+  expect(frame.series[0]!.y.at(-1)).toBe(size / 3);
+  expect(frame.series[0]!.y.at(-2)).toBe((size - 1) / 3);
+  expect(frame.source.rowAt(size - 1)).toEqual({ x: size - 1, y: (size - 1) / 3 });
+  // P7 permits one extra copy of the caller’s two columns (2 × 8 × 1,000,000).
+  // A fully materialized post-append frame already needs 17 × 1,000,001 bytes for
+  // exact x, exact y and slot states before counting any spare capacity or row indexes.
+  expect(bytes).toBeLessThanOrEqual(data.columns.x.byteLength + data.columns.y.byteLength);
+});
+
+for (const kind of types) {
+  it(`${kind} releases abandoned preview rows when their source first finds them dead`, async () => {
+    function setup() {
+      const s = store(kind, [row(0)]);
+      const rejected = row(1);
+      const ref = new WeakRef(rejected);
+      const { frame } = s.prepareAppend([rejected]);
+      expect(frame.source.rowAt(1)).toBe(rejected);
+      s.prepareAppend([row(2)]).commit();
+      expect(frame.source.rowAt(1)).toBeNull();
+      return { s, frame, ref };
+    }
+    const { s, frame, ref } = setup();
+    await expectCollected(ref);
+    expect(frame.source.rowAt(1)).toBeNull();
+    expect(s.frame.source.rowAt(1)).toEqual(row(2));
+  });
 }
 
 for (const kind of types) {
@@ -285,6 +350,136 @@ for (const kind of types) {
   });
 }
 
+function frameValues(frame: Frame): unknown {
+  if (frame.shape === 'aligned') {
+    const values = contents(frame);
+    return { ...values, x: { ...values.x, categories: frame.x.categories && [...frame.x.categories] } };
+  }
+  if (frame.shape === 'donut') return {
+    labels: [...frame.labels], values: [...frame.values], slot: [...frame.slot], row: [...frame.row ?? []],
+  };
+  return frame.series.map(({ x, y, row, missingX, ...description }) => ({
+    ...description, x: [...x], y: [...y], row: [...row ?? []], missingX: [...missingX ?? []],
+  }));
+}
+
+const generatedRows = fc.array(fc.record({
+  delta: fc.integer({ min: -2, max: 3 }),
+  group: fc.constantFrom('a', 'b', 'c'),
+  y: fc.oneof(fc.constant(null), fc.nat(100)),
+}), { minLength: 1, maxLength: 4 });
+const previewOps = fc.array(fc.record({
+  rows: generatedRows, rival: generatedRows,
+  mode: fc.constantFrom('plain', 'prepare', 'abandon', 'first-wins', 'second-wins'),
+  keep: fc.option(fc.nat(12), { nil: undefined }),
+  eager: fc.boolean(), retire: fc.option(fc.nat(4), { nil: undefined }),
+}), { minLength: 1, maxLength: 26 });
+
+for (const kind of ['line', 'category', 'scatter', 'donut'] as const) {
+  it(`${kind} agrees with eagerly read snapshots across mixed preview and append sequences`, () => {
+    fc.assert(fc.property(previewOps, ops => {
+      const data = [{ ...row(0), group: 'a' }, { ...row(0), group: 'b' }, { ...row(1), group: 'a' }]
+        .map(item => ({ ...item, x: kind === 'category' ? item.label : item.x }));
+      function open() {
+        if (kind === 'donut') return store(kind, [data[0]!, data[2]!]);
+        const chartType = kind === 'category' ? 'line' : kind;
+        const options = resolveOptions(chartType, {
+          data, x: { field: 'x', type: kind === 'category' ? 'category' : 'number' }, y: 'y', series: 'group',
+        }, quiet);
+        return kind === 'scatter' ? new PointStore(options, utc, version) : new AlignedStore('line', options, utc, version);
+      }
+      const lazy = open();
+      const eager = open();
+      const frames: { frame: Frame; values: unknown; rows: unknown[]; preview: boolean }[] = [
+        { frame: lazy.frame, values: frameValues(eager.frame), rows: data.map((_, i) => eager.frame.source.rowAt(i)), preview: false },
+      ];
+      let retired = version.revision - 1;
+      let next = kind === 'donut' ? 2 : 3;
+      let high = 1;
+      for (const op of ops) {
+        const encode = (rows: typeof op.rows) => rows.map(({ delta, group, y }) => {
+          const x = high + delta;
+          return { x: kind === 'category' ? String(x) : x, label: String(x), group, y };
+        });
+        let accepted = encode(op.rows);
+        const rival = encode(op.rival);
+        const remember = (frame: Frame, oracle: Frame, end: number, preview: boolean) => {
+          const values = frameValues(oracle);
+          const rows = Array.from({ length: end }, (_, i) => oracle.source.rowAt(i));
+          if (op.eager) expect(frameValues(frame)).toEqual(values);
+          frames.push({ frame, values, rows, preview });
+        };
+        const prepare = (rows: typeof accepted, preview: boolean) => {
+          const a = lazy.prepareAppend(rows, { keep: op.keep });
+          const b = eager.prepareAppend(rows, { keep: op.keep });
+          remember(a.frame, b.frame, next + rows.length, preview);
+          expect(a.diagnostics).toEqual(b.diagnostics);
+          return [a, b] as const;
+        };
+        if (op.mode === 'plain') {
+          const a = lazy.append(accepted);
+          const b = eager.append(accepted);
+          remember(a, b, next + accepted.length, false);
+        } else if (op.mode === 'abandon') {
+          prepare(rival, true);
+          const a = lazy.append(accepted);
+          const b = eager.append(accepted);
+          remember(a, b, next + accepted.length, false);
+        } else {
+          const a = prepare(accepted, op.mode === 'second-wins');
+          const b = op.mode === 'prepare' ? null : prepare(rival, op.mode === 'first-wins');
+          const winner = op.mode === 'second-wins' ? b! : a;
+          if (winner === b) accepted = rival;
+          for (const draft of winner) draft.commit();
+        }
+        next += accepted.length;
+        for (const item of accepted) high = Math.max(high, Number(item.x));
+        if (op.retire !== undefined) {
+          retired = Math.max(retired, lazy.frame.revision - op.retire - 1);
+          lazy.retire(retired);
+          eager.retire(retired);
+        }
+        expect(lazy.diagnostics).toEqual(eager.diagnostics);
+        expect(lazy.retainedRowCount).toBe(eager.retainedRowCount);
+      }
+      for (const { frame, values, rows, preview } of frames) {
+        expect(frameValues(frame)).toEqual(values);
+        for (const [i, source] of rows.entries()) {
+          expect(frame.source.rowAt(i)).toBe(preview || frame.revision <= retired ? null : source);
+        }
+      }
+    }), { numRuns: 400 });
+  });
+}
+
+it('keeps a competing extension independent of a draft that claimed an unread shared-x slot', () => {
+  const data = [{ x: 0, y: 1, group: 'a' }, { x: 0, y: 2, group: 'b' }, { x: 1, y: 3, group: 'a' }];
+  const s = new AlignedStore('line', resolveOptions('line', { data, x: 'x', y: 'y', series: 'group' }, quiet), utc, version);
+  const base = s.frame;
+  const fill = s.prepareAppend([{ x: 1, y: 4, group: 'b' }]);
+  const extend = s.prepareAppend([{ x: 2, y: 5, group: 'a' }]);
+  extend.commit();
+  expect([...base.series[1]!.y]).toEqual([2, NaN]);
+  expect([...s.frame.series[1]!.y]).toEqual([2, NaN, NaN]);
+  expect([...fill.frame.series[1]!.y]).toEqual([2, 4]);
+  expect([...s.frame.series[1]!.row!]).toEqual([1, -1, -1]);
+});
+
+for (const kind of types) {
+  it(`${kind} compacts a large window after dropping almost all its rows`, () => {
+    const size = 10_000;
+    const keep = 37;
+    const s = store(kind, Array.from({ length: size }, (_, i) => row(i)));
+    const old = s.frame;
+    s.prepareAppend([row(size)], { keep }).commit();
+    s.retire(old.revision);
+    expect(s.retainedRowCount).toBe(keep);
+    for (const buffer of numericBuffers(s.frame)) {
+      expect(buffer.byteLength).toBeLessThanOrEqual(2 * keep * Float64Array.BYTES_PER_ELEMENT);
+    }
+  });
+}
+
 it('shares scatter missing positions through append and offset keep, then retires the evicted rows', async () => {
   function setup() {
     const dropped = { x: 1, y: null };
@@ -346,11 +541,13 @@ for (const kind of types) {
     const data = [row(0), row(1)];
     const s = store(kind, data);
     const before = s.frame;
-    const accepted = s.prepareAppend([row(2)], { keep: 2 });
+    const appended = row(2);
+    const accepted = s.prepareAppend([appended], { keep: 2 });
     const rejected = s.prepareAppend([row(3)], { keep: 1 });
     expect(rejected.frame.source.rowAt(2)).toEqual(row(3));
     checkFrame({ frame: before, rows: data.map((row, index) => ({ row, index })), field: 'y', next: 2 }, true);
     accepted.commit();
+    checkFrame({ frame: s.frame, rows: [{ row: data[1]!, index: 1 }, { row: appended, index: 2 }], field: 'y', next: 3 }, true);
     expect(() => rejected.commit()).toThrow('Cannot commit a superseded data revision.');
     expect(rejected.frame.source.rowAt(2)).toBeNull();
     const values = rejected.frame.shape === 'aligned' ? rejected.frame.series[0]!.y :

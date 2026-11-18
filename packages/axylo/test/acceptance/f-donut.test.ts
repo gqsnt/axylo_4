@@ -87,16 +87,26 @@ it('F8 donut: exactly eight slices including zero and null keep both arcless cat
   expect(walk(r).slice(-2).map(ref => committed(r).lookup.datum(ref)?.seriesLabel)).toEqual(['Zero', 'Missing']);
 });
 
-it('F8 donut: zero and null slices count toward the eight-slice limit without gaining arcs', () => {
-  const data = [
-    ...Array.from({ length: 7 }, (_, i) => ({ x: 'Slice ' + i, y: i + 1 })),
-    { x: 'Zero', y: 0 }, { x: 'Unknown', y: null },
-  ];
-  const r = chart('donut', data);
+// F8 was amended so only slices with an arc count toward the limit.
+it('F8 donut: zero and null slices stay separate and only positive slices count toward the limit', () => {
+  const positives = Array.from({ length: 9 }, (_, i) => ({ x: 'Slice ' + i, y: i + 1 }));
+  const zero = { x: 'Zero', y: 0 };
+  const missing = { x: 'Unknown', y: null };
+  const r = chart('donut', [...positives.slice(0, 7), zero, missing]);
   r.frames();
-  expect(rows(r)).toHaveLength(9);
+  expect(codes(r)).toEqual([]);
   expect(marks(r, 'arcs')[0]?.angles).toHaveLength(14);
-  expect(codes(r)).toEqual(['AX121']);
-  expect(r.controller.handle.diagnostics[0]?.count).toBe(2);
-  expect(lastModel(r).summary).toContain(message('otherSlices', { count: 2 }));
+  expect(rows(r)).toHaveLength(9);
+  expect(rows(r).slice(-2).map(row => row.slice(0, 2))).toEqual([['Zero', '0'], ['Unknown', 'No data']]);
+  expect(walk(r).slice(-2).map(ref => committed(r).lookup.datum(ref)?.seriesLabel)).toEqual(['Zero', 'Unknown']);
+
+  const grouped = chart('donut', [...positives, zero]);
+  grouped.frames();
+  expect(codes(grouped)).toEqual(['AX121']);
+  expect(grouped.controller.handle.diagnostics[0]?.count).toBe(2);
+  // Seven individual arcs and the grouped arc are drawn. Zero remains an individual legend entry.
+  expect(marks(grouped, 'arcs')[0]?.angles).toHaveLength(16);
+  const labels = walk(grouped).map(ref => committed(grouped).lookup.datum(ref)?.seriesLabel);
+  expect(labels).toEqual([...positives.slice(2).map(row => row.x), 'Zero', message('otherSlices', { count: 2 })]);
+  expect(rows(grouped).map(row => row.slice(0, 2))).toEqual([...positives, zero].map(row => [row.x, String(row.y)]));
 });

@@ -1,7 +1,7 @@
 import { SLOT_VALUE, type DiagnosticSink, type Formatters, type IndexRange, type ReaderModel, type View } from '../core/contracts';
 import { report } from '../diagnostics';
-import { incomplete, sliceText } from '../lookup/text';
-import { defaultMessages, fill, fillChartSummary, fillDonutSlice } from '../messages';
+import { sliceText } from '../lookup/text';
+import { defaultMessages, fill, fillChartSummary, fillDonutSlice, messageLanguage } from '../messages';
 import type { Messages, Title } from '../public';
 import { buildTable, type ReaderLabels } from './table';
 
@@ -46,12 +46,65 @@ function statistics(y: Float64Array | Float32Array, { start, end }: IndexRange, 
   return { min, max, last };
 }
 
-function fillWithTable(template: string, values: Readonly<Record<string, string | number>>, seeTable: string): string {
-  const text = fill(template, { ...values, seeTable });
-  return seeTable === '' && template.includes('{seeTable}') ? text.trimEnd() : text;
+type TableSentence = 'valuesNotShown' | 'valuesChanged' | 'labelsHidden' | 'seriesNotDrawn';
+type TextRun = { readonly text: string; readonly lang: 'en' | null };
+
+function addRun(runs: TextRun[], text: string, lang: TextRun['lang']): void {
+  if (text === '') return;
+  const last = runs.at(-1);
+  if (last?.lang === lang) runs[runs.length - 1] = { text: last.text + text, lang };
+  else runs.push({ text, lang });
 }
 
-function chartText(input: ReaderInput, type: string, xLabel: string, yLabel: string, seeTable: string): string[] {
+function textOf(runs: readonly TextRun[]): string {
+  return runs.map(run => run.text).join('');
+}
+
+function omitTable(template: string): string {
+  const placeholder = /\{seeTable\}/;
+  if (!placeholder.test(template)) return template;
+  const wrapped = /\(\s*\{seeTable\}\s*\)|\[\s*\{seeTable\}\s*\]|\{\s*\{seeTable\}\s*\}|【\s*\{seeTable\}\s*】|（\s*\{seeTable\}\s*）/gu;
+  return template.replace(wrapped, '{seeTable}')
+    .replace(/(\s*)\{seeTable\}(\s*)/g, (_, before: string, after: string, at: number, source: string) => {
+      const next = source[at + before.length + '{seeTable}'.length + after.length];
+      return at > 0 && next !== undefined && !/[.,;:!?。！？)\]】）]/u.test(next) && (before || after) ? ' ' : '';
+    }).replace(/[\s\p{Bidi_Control}]+$/u, '').trimStart();
+}
+
+/** Builds one disclosure with literal whitespace and language to preserve when joining its runs. */
+export function tableSentence(
+  messages: Messages, key: TableSentence, values: Readonly<Record<string, string | number>>, table: boolean,
+): TextRun[] {
+  const result: TextRun[] = [];
+  const lang = messageLanguage(messages, key);
+  const template = table && messages.seeTable !== '' ? messages[key] : omitTable(messages[key]);
+  let start = 0;
+  for (const match of template.matchAll(/\{(\w+)\}/gu)) {
+    const name = match[1]!;
+    addRun(result, template.slice(start, match.index), lang);
+    if (name === 'seeTable') addRun(result, messages.seeTable, messageLanguage(messages, 'seeTable'));
+    else if (Object.hasOwn(values, name)) addRun(result, String(values[name]), name === 'series' ? null : lang);
+    else addRun(result, match[0], lang);
+    start = match.index + match[0].length;
+  }
+  addRun(result, template.slice(start), lang);
+  return result;
+}
+
+export function seriesNotDrawnSentence(messages: Messages, series: string, table: boolean): string {
+  return textOf(tableSentence(messages, 'seriesNotDrawn', { series }, table));
+}
+
+function joinSentences(sentences: readonly (readonly TextRun[])[]): TextRun[] {
+  const runs: TextRun[] = [];
+  for (const sentence of sentences) {
+    if (runs.length && sentence.length) addRun(runs, ' ', runs.at(-1)!.lang);
+    for (const { text, lang } of sentence) addRun(runs, text, lang);
+  }
+  return runs;
+}
+
+function chartText(input: ReaderInput, type: string, xLabel: string, yLabel: string, table: boolean): string[] {
   const { view, formatters, messages } = input;
   if (view.kind === 'donut') {
     const drawn = view.slices.filter(slice => slice.angles && slice.angles[1] > slice.angles[0]);
@@ -88,7 +141,7 @@ function chartText(input: ReaderInput, type: string, xLabel: string, yLabel: str
   }
   frame.series.forEach((series, s) => {
     if (!series.drawable) {
-      undrawn.push(fillWithTable(messages.seriesNotDrawn, { series: series.label }, seeTable));
+      undrawn.push(seriesNotDrawnSentence(messages, series.label, table));
       return;
     }
     if (!view.visible[s]) return;
@@ -131,9 +184,10 @@ function stackText(view: View, formatters: Formatters, messages: Messages): stri
     count++;
   }
   if (!count) return '';
-  const details = count > MAX_STACK_POSITIONS
-    ? `${messages.total} ${formatters.count(count)}` : positions.map(position => formatters.x(position)).join(', ');
-  return `${incomplete(view.frame.xLabel, messages)}: ${details}.`;
+  const label = view.frame.xLabel;
+  return count > MAX_STACK_POSITIONS
+    ? fill(messages.incompleteCount, { label, count: formatters.count(count) })
+    : fill(messages.incompleteAt, { label, positions: positions.map(position => formatters.x(position)).join(', ') });
 }
 
 function referenceText(view: View, formatters: Formatters, messages: Messages): string[] {
@@ -145,7 +199,7 @@ function referenceText(view: View, formatters: Formatters, messages: Messages): 
   });
 }
 
-export function buildReader(input: ReaderInput): ReaderModel {
+export function buildReader(input: ReaderInput): ReaderModel & { readonly noteSegments: readonly TextRun[] | null } {
   const { view, title, labelledBy, subtitle, description, formatters, messages, disclosure } = input;
   const labels = {
     category: input.labels?.category ?? messages.category,
@@ -169,26 +223,27 @@ export function buildReader(input: ReaderInput): ReaderModel {
   const table = input.table === false || compact ? null : buildTable(
     view, [caption, ...referencesForView()].join(' '), formatters, messages, labels, input.locale,
   );
-  const seeTable = table ? messages.seeTable : '';
+  const hasTable = table !== null;
   const omitted = disclosure?.omitted ?? 0;
   const changed = disclosure?.changed ?? 0;
-  const statements: string[] = [];
+  const statements: TextRun[][] = [];
   if (omitted > 0 || changed > 0) {
     const counts = { omitted: formatters.count(omitted), changed: formatters.count(changed) };
-    if (omitted > 0) statements.push(fillWithTable(messages.valuesNotShown, { ...counts, count: counts.omitted }, seeTable));
-    if (changed > 0) statements.push(fillWithTable(messages.valuesChanged, { ...counts, count: counts.changed }, seeTable));
+    if (omitted > 0) statements.push(tableSentence(messages, 'valuesNotShown', { ...counts, count: counts.omitted }, hasTable));
+    if (changed > 0) statements.push(tableSentence(messages, 'valuesChanged', { ...counts, count: counts.changed }, hasTable));
   }
-  const omission = statements.filter(Boolean).join(' ');
+  const omission = textOf(joinSentences(statements));
   const hidden = input.labelsHidden ?? 0;
-  const labelsHidden = hidden > 0 ? fillWithTable(messages.labelsHidden, { count: formatters.count(hidden) }, seeTable) : '';
-  const note = [omission, labelsHidden].filter(Boolean).join(' ') || null;
+  if (hidden > 0) statements.push(tableSentence(messages, 'labelsHidden', { count: formatters.count(hidden) }, hasTable));
+  const noteSegments = joinSentences(statements);
+  const note = textOf(noteSegments) || null;
   let summary: string | undefined;
   return {
-    name, note, table,
+    name, note, table, noteSegments: note ? noteSegments : null,
     get summary() {
       // Opening the table should not scan the rest of the frame.
       return summary ??= [
-        ...chartText(input, type, xLabel, yLabel, seeTable), compact ? stackText(view, formatters, messages) : '',
+        ...chartText(input, type, xLabel, yLabel, hasTable), compact ? stackText(view, formatters, messages) : '',
         ...referencesForView(), subtitle, omission, description,
       ].filter(Boolean).join(' ');
     },

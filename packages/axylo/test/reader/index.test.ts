@@ -2,7 +2,7 @@ import { expect, it, vi } from 'vitest';
 import { buildTable } from '../../src/reader/table';
 import { DiagnosticCollector } from '../../src/diagnostics';
 import { defaultMessages, resolveMessages } from '../../src/messages';
-import { buildReader, type ReaderInput } from '../../src/reader';
+import { buildReader, seriesNotDrawnSentence, tableSentence, type ReaderInput } from '../../src/reader';
 import { buildStack } from '../../src/view/stack';
 import { aligned, donut, formatter, frame, scatter } from '../lookup/fixtures';
 
@@ -86,6 +86,41 @@ it('skips a disclosure that becomes empty and preserves whitespace in a template
   expect(model.summary).toMatch(/Target at 20\. Changed 1\.  $/);
 });
 
+it('preserves language runs and punctuation through table placeholders in all four sentences', () => {
+  const messages = resolveMessages({ seeTable: 'Siehe Tabelle.', valuesChanged: 'Geändert [{seeTable}]: {count}.' });
+  expect(tableSentence(messages, 'valuesNotShown', { count: 2 }, true)).toEqual([
+    { text: 'Values not shown: 2. ', lang: 'en' }, { text: 'Siehe Tabelle.', lang: null },
+  ]);
+  expect(tableSentence(messages, 'valuesChanged', { count: 3 }, true)).toEqual([
+    { text: 'Geändert [Siehe Tabelle.]: 3.', lang: null },
+  ]);
+  expect(tableSentence(resolveMessages({ labelsHidden: '{seeTable} Einige fehlen.' }), 'labelsHidden', {}, true)).toEqual([
+    { text: 'See table.', lang: 'en' }, { text: ' Einige fehlen.', lang: null },
+  ]);
+  expect(tableSentence(defaultMessages, 'seriesNotDrawn', { series: 'München' }, true)).toEqual([
+    { text: 'München', lang: null }, { text: ' could not be drawn. See table.', lang: 'en' },
+  ]);
+  expect(tableSentence(resolveMessages({ seeTable: defaultMessages.seeTable }), 'labelsHidden', {}, true).at(-1))
+    .toEqual({ text: defaultMessages.seeTable, lang: null });
+  expect(seriesNotDrawnSentence(messages, 'München', true)).toBe('München could not be drawn. Siehe Tabelle.');
+  expect(read(trend, { messages, disclosure: { omitted: 2, changed: 3 } }).noteSegments).toEqual([
+    { text: 'Values not shown: 2. ', lang: 'en' }, { text: 'Siehe Tabelle. Geändert [Siehe Tabelle.]: 3.', lang: null },
+  ]);
+});
+
+it.each([
+  ['{seeTable} Werte: {count}.', 'Werte: 3.'],
+  ['Werte [ {seeTable} ]: {count}.', 'Werte: 3.'],
+  ['Werte ({seeTable}) fehlen: {count}.', 'Werte fehlen: 3.'],
+  ['Werte: {count}. {seeTable}‏ ⁩', 'Werte: 3.'],
+])('removes the unavailable table placeholder and its debris in %j', (valuesNotShown, expected) => {
+  const model = read(trend, { messages: resolveMessages({ valuesNotShown }), table: false, disclosure: { omitted: 3, changed: 0 } });
+  expect(model.note).toBe(expected);
+  expect(model.summary.endsWith(expected)).toBe(true);
+  expect(seriesNotDrawnSentence(resolveMessages({ seriesNotDrawn: '{series} ({seeTable})!' }), 'B', false)).toBe('B!');
+  expect(seriesNotDrawnSentence(resolveMessages({ seriesNotDrawn: ' {series}  ' }), 'B', false)).toBe(' B  ');
+});
+
 it('uses the external heading when supplied, otherwise generates and reports a missing name', () => {
   const diagnostics = new DiagnosticCollector();
   const labelled = read(trend, { labelledBy: 'heading', caption: 'Outside heading', diagnostics });
@@ -160,13 +195,13 @@ it('marks an incomplete stack in its row header without changing the series cell
   expect(table.row(1)).toEqual(['1', '3', '-1']);
 });
 
-it('lists up to three shown incomplete stack positions with the x formatter and the incomplete message', () => {
+it('lists up to three shown incomplete stack positions using the x formatter and incompleteAt', () => {
   const data = frame('area', { data: [10, 20, 30, 40, 50].map(x => ({ x, a: 2, b: x === 40 ? 1 : null })),
     x: { field: 'x', label: 'Distance' }, y: ['a', 'b'] });
   const view = aligned(data, { kind: 'area', compact: true, visibleSlots: { start: 1, end: 5 }, stack: buildStack(data, [true, true]) });
   const model = read(view, { formatters: { ...formatter(data), x: x => `${x} m` },
-    messages: resolveMessages({ incompleteStack: 'partial' }) });
-  expect(model.summary).toContain('Distance (partial): 20 m, 30 m, 50 m.');
+    messages: resolveMessages({ incompleteAt: 'Teilweise an {positions} ({label}).' }) });
+  expect(model.summary).toContain('Teilweise an 20 m, 30 m, 50 m (Distance).');
 });
 
 it('counts incomplete stacks when a compact summary would need more than three positions', () => {
@@ -174,7 +209,9 @@ it('counts incomplete stacks when a compact summary would need more than three p
     x: { field: 'x', label: 'Distance' }, y: ['a', 'b'] });
   const view = aligned(data, { kind: 'bar', stack: buildStack(data, [true, true]) });
   const formatters = { ...formatter(data), count: (n: number) => `count(${n})` };
-  expect(read(view, { compact: true, formatters }).summary).toContain('Distance (incomplete): Total count(4).');
+  expect(read(view, { compact: true, formatters }).summary).toContain('Distance: count(4) incomplete stacks.')
+  expect(read(view, { compact: true, formatters, messages: resolveMessages({ incompleteCount: '{count} Stapel ({label}).' }) }).summary)
+    .toContain('count(4) Stapel (Distance).');
   expect(read(view).summary).not.toContain('incomplete');
 });
 

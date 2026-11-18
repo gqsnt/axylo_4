@@ -1,7 +1,8 @@
 import fc from 'fast-check';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { AlignedFrame } from '../../src/core/contracts';
 import { AlignedStore, createXParser, DonutStore, PointStore, resolveOptions } from '../../src/data';
+import { RowRevisions } from '../../src/data/store-rows';
 import { DiagnosticCollector } from '../../src/diagnostics';
 import { aligned, check, contents, utc, version } from './helpers';
 
@@ -30,24 +31,43 @@ describe('prepared appends', () => {
       y: fc.oneof(fc.integer(), fc.constant(NaN), fc.constant('2'), fc.constant(null)),
     }), { maxLength: 20 });
     fc.assert(fc.property(rows, rows, rows, fc.option(fc.nat(8), { nil: undefined }), (initial, rejected, accepted, keep) => {
-      const a = stream(initial);
-      const b = stream(initial);
+      const x = 11;
+      const data = [...initial.map(row => ({ ...row, group: 'a' })), { x: 10, y: 2, group: 'b' }, { x, y: 3, group: 'a' }];
+      const make = () => new AlignedStore('line', resolve({ data, ...numbers, series: 'group' }), utc, version);
+      const a = make();
+      const b = make();
       const previous = a.frame;
       const before = bytes(previous);
-      const discarded = a.prepareAppend(rejected, { keep });
-      const expectedCandidate = stream(initial);
-      expect(contents(discarded.frame)).toEqual(contents(expectedCandidate.append(rejected, { keep })));
+      const previewRows = [...rejected.map((row, i) => ({ ...row, x: x + i + 1, group: 'a' })),
+        { x: x + rejected.length + 1, y: 7, group: 'a' }];
+      const acceptedRows = [{ x, y: 9, group: 'b' }];
+      const discarded = a.prepareAppend(previewRows, { keep });
+      const expectedCandidate = make();
+      const snapshot = contents(discarded.frame);
+      expect(snapshot).toEqual(contents(expectedCandidate.append(previewRows, { keep })));
       expect(discarded.diagnostics).toEqual(expectedCandidate.diagnostics);
       expect(a.frame).toBe(previous);
       expect(bytes(previous)).toEqual(before);
       expect(a.diagnostics).toEqual(b.diagnostics);
-      const actual = a.append(accepted, { keep });
-      const expected = b.append(accepted, { keep });
-      expect({ ...contents(actual), revision: actual.revision }).toEqual({ ...contents(expected), revision: expected.revision });
+      const actual = a.append(acceptedRows);
+      const expected = b.append(acceptedRows);
+      expect(contents(actual)).toEqual(contents(expected));
       expect(bytes(actual)).toEqual(bytes(expected));
+      expect(contents(discarded.frame)).toEqual(snapshot);
       expect(a.diagnostics).toEqual(b.diagnostics);
       for (const i of indexes(expected)) expect(actual.source.rowAt(i)).toBe(expected.source.rowAt(i));
+      const more = accepted.map((row, i) => ({ ...row, x: x + i + 1, group: 'b' }));
+      expect(contents(a.append(more, { keep }))).toEqual(contents(b.append(more, { keep })));
     }));
+  });
+
+  it('does not fill the unexposed tail inside a longer abandoned preview', () => {
+    const data = [{ x: 1, y: 1, group: 'a' }, { x: 1, y: 10, group: 'b' }, { x: 2, y: 2, group: 'a' }];
+    const s = new AlignedStore('line', resolve({ data, ...numbers, series: 'group' }), utc, version);
+    const discarded = s.prepareAppend([{ x: 3, y: 3, group: 'a' }], { keep: 100 }).frame;
+    const before = contents(discarded);
+    s.append([{ x: 2, y: 20, group: 'b' }]);
+    expect(contents(discarded)).toEqual(before);
   });
 
   it('publishes the inspected frame on commit and rejects stale transactions', () => {
@@ -151,6 +171,22 @@ describe('revision leases', () => {
     expect(b.source.rowAt(2)).toBe(last);
   });
 
+  it('clamps retirement to the current revision, including its source rows', () => {
+    const s = stream([{ x: 1, y: 2 }]);
+    const current = s.frame;
+    const retire = vi.spyOn(RowRevisions.prototype, 'retire');
+    try {
+      s.retire(current.revision + 5);
+      expect(retire).toHaveBeenCalledWith(current.revision);
+    } finally {
+      retire.mockRestore();
+    }
+    expect(current.source.rowAt(0)).toBeNull();
+    const row = { x: 2, y: 3 };
+    expect(s.append([row]).source.rowAt(1)).toBe(row);
+    expect(s.retainedRowCount).toBe(2);
+  });
+
   it('stores exactly the union of the live windows during random retirement', () => {
     const operations = fc.array(fc.record({
       x: fc.integer({ min: -15, max: 15 }), keep: fc.nat(7), retire: fc.nat(10), preview: fc.boolean(),
@@ -203,6 +239,31 @@ describe('static handoff', () => {
     expect(contents(s.frame)).toEqual(contents(initial.frame));
     expect([...s.append([{ x: 3, y: 5 }]).series[0]!.y]).toEqual([3, 4, 5]);
     expect([...y]).toEqual([3, 4]);
+  });
+
+  it('evicts both implicit typed rows and appended rows at a shared position', () => {
+    const x = Float64Array.from({ length: 259 }, (_, i) => i);
+    const y = Float64Array.from(x, i => i / 3);
+    const data = { columns: { x, y } };
+    const initial = aligned({ data, ...numbers });
+    const s = AlignedStore.fromFrame(initial.frame, initial.resolved, data, utc);
+    const duplicate = { x: 258, y: 5 };
+    const first = s.prepareAppend([duplicate], { keep: 3 });
+    first.commit();
+    expect(first.frame.source.rowAt(256)).toEqual({ x: 256, y: 256 / 3 });
+    expect(first.frame.source.rowAt(259)).toBe(duplicate);
+
+    const last = { x: 259, y: 7 };
+    const next = s.prepareAppend([last], { keep: 1 });
+    next.commit();
+    expect(next.frame.source.rowAt(258)).toBeNull();
+    expect(next.frame.source.rowAt(259)).toBeNull();
+    expect(next.frame.source.rowAt(260)).toBe(last);
+    expect(first.frame.source.rowAt(258)).toEqual({ x: 258, y: 86 });
+    expect(first.frame.source.rowAt(259)).toBe(duplicate);
+    s.retire(first.frame.revision);
+    expect(first.frame.source.rowAt(258)).toBeNull();
+    expect(s.retainedRowCount).toBe(1);
   });
 
   it('can take over a normalized ascending frame without rereading its fields', () => {

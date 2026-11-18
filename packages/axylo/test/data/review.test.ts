@@ -1,3 +1,4 @@
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { SLOT_GAP, SLOT_NO_ROW, SLOT_NULL, SLOT_VALUE } from '../../src/core/contracts';
 import { AlignedStore, validateOptions } from '../../src/data';
@@ -10,6 +11,13 @@ function stream(options: unknown) {
 }
 
 describe('data review regressions', () => {
+  it('keeps data independent of the lookup module', () => {
+    const data = new URL('../../src/data/', import.meta.url);
+    for (const name of readdirSync(data).filter(name => name.endsWith('.ts'))) {
+      expect(readFileSync(new URL(name, data), 'utf8'), name).not.toMatch(/['"]\.\.\/lookup(?:\/|['"])/);
+    }
+  });
+
   it('reports a sparse regular series without allocating slots across the x range', () => {
     const opts = { data: [0, 1, 2, 4].map(x => ({ x, y: x })), x: 'x', y: 'y' };
     const extra = { x: 10_000, y: 5 };

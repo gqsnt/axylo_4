@@ -112,9 +112,15 @@ describe('diagnostic registry', () => {
   });
 
   it('AX143 keeps general label-fitting advice and suggests horizontal bars for vertical category bars', () => {
-    const diagnostic = createDiagnostic('AX143', 'none', { field: 'day', count: 4 }, 'presentation');
-    expect(diagnostic.message).toContain('Give the plot more room or shorten the labels.');
-    expect(diagnostic.message).toMatch(/for vertical bars with category labels, .*horizontal bars/i);
+    const details = { field: 'day', count: 4 };
+    const diagnostic = (context = {}) => createDiagnostic('AX143', 'none', { ...details, ...context }, 'presentation').message;
+    expect(diagnostic({ chartType: 'bar', xKind: 'category', horizontal: false })).toContain('try horizontal bars');
+    for (const context of [{}, { chartType: 'line', xKind: 'category' }, { chartType: 'area', xKind: 'category' },
+      { chartType: 'scatter', xKind: 'number' }, { chartType: 'bar', xKind: 'category', horizontal: true },
+      { chartType: 'bar', xKind: 'number', horizontal: false }]) {
+      expect(diagnostic(context)).toContain('Give the plot more room or shorten the labels.');
+      expect(diagnostic(context)).not.toContain('try horizontal bars');
+    }
   });
 
   it('AX150 identifies unknown and chart-specific option keys and suggests a fix', () => {
