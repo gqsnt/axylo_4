@@ -156,7 +156,7 @@ Level decides delivery. **Error**: the chart or a series cannot be drawn; the ch
 | AX102 | Warning | A field is absent (`undefined`) in some rows | Gaps |
 | AX103 | Warning | A value is `NaN` or infinite | Gap |
 | AX104 | Hint | Every non-missing value of a value field is a plain decimal string (`'40'`, `'-1.5'`) | Parsed and drawn; the message suggests `parse: 'number'`. An empty string counts as missing |
-| AX105 | Hint | Steps are absent on a regular time or date axis | Gaps |
+| AX105 | Hint | Steps are absent on a regular time, date, wall-clock or number axis | Gaps. When a series would need more absent steps than twice its observations (and more than 1,000), it is treated as irregular instead: no gaps are created and the hint says so |
 | AX106 | Warning | A value field mixes numbers with strings, or holds strings that are not plain decimals (`'1,234'`, `'n/a'`) | The strings are not drawn |
 | AX107 | Warning | A date or time cannot be parsed | That row is not drawn |
 | AX108 | Error | Duplicate x within a series, or duplicate donut labels | That series, or the donut, is not drawn |
@@ -176,6 +176,8 @@ Level decides delivery. **Error**: the chart or a series cannot be drawn; the ch
 | AX131 | Hint | A compact chart has more than one series | Drawn, with dash differences |
 | AX132 | Hint | More bars than pixels along the category axis | Drawn; the message suggests aggregating |
 | AX133 | Hint | A scatter chart has more than 50,000 points | Drawn; the message says drawing may be slow |
+| AX134 | Error | Series × x positions exceeds 20,000,000 (long rows with many series and little shared x) | Error state; the message gives both counts and suggests fewer series or a scatter chart |
+| AX152 | Warning | `timeZone` is not a zone the browser knows | The viewer's zone is used |
 | AX160 | Warning | A custom formatter threw | The default format is used for that value |
 
 Expected results for the Phase 1 fixtures: the combined `dirty` fixture (`[10, 20, null, NaN, '40', undefined, 70]`) yields AX102, AX103 and AX106 once each, draws Mon–Tue as a segment and Sun as a point, and shows the F12 note. `dirty-string` (one `'40'` among numbers) yields AX106. A column made only of numeric strings yields AX104 and is drawn in full. `dirty-null` yields nothing.
