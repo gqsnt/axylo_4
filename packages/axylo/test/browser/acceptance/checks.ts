@@ -217,6 +217,11 @@ export async function strokeRuns(page: Page, slot = 1, selector = '#chart'): Pro
   }, { slot, selector });
 }
 
+/** Whether a stroke segment passes over `x` (more than `slack` px on either side of it): a line drawn across a gap. */
+export function bridges(runs: readonly { x: number; y: number }[][], x: number, slack = 1): boolean {
+  return runs.some(run => run.some((p, i) => i > 0 && Math.min(run[i - 1]!.x, p.x) < x - slack && Math.max(run[i - 1]!.x, p.x) > x + slack));
+}
+
 /**
  * Where the drawing reaches a spike: the vertices within `tolerance` px of the spike's projected height,
  * and whether every one of them lies in the device-pixel column of the spike's projected x.
@@ -354,3 +359,26 @@ export async function markerClasses(page: Page): Promise<{ plot: string[]; legen
   return { plot, legend };
 }
 
+/**
+ * The fill pattern of each bar series, in slot order: for every rect of the series, what its pattern draws (the
+ * pattern's own path), or "none" for a solid bar. A series with one pattern on every bar gives one signature.
+ */
+export async function barPatterns(page: Page): Promise<string[][]> {
+  return page.evaluate(() => {
+    const by = new Map<number, Set<string>>();
+    for (const el of document.querySelectorAll<SVGElement>('#chart svg.axylo-svg .axylo-scene rect')) {
+      let slot: number | null = null;
+      for (let e: Element | null = el; e && !e.classList.contains('axylo-scene'); e = e.parentElement) {
+        const m = /--axylo-series-color-(\d+)/.exec((e as SVGElement).style?.getPropertyValue('color') ?? '');
+        if (m) { slot = Number(m[1]); break; }
+      }
+      if (slot === null) continue;
+      const fill = getComputedStyle(el).fill;
+      const id = /url\(["']?#([^"')]+)/.exec(fill)?.[1];
+      const pattern = id ? document.getElementById(id) : null;
+      if (!by.has(slot)) by.set(slot, new Set());
+      if (pattern) by.get(slot)!.add([...pattern.querySelectorAll('path')].map(p => p.getAttribute('d')).join(' '));
+    }
+    return [...by].sort((a, b) => a[0] - b[0]).map(([, set]) => (set.size ? [...set].sort() : ['none']));
+  });
+}

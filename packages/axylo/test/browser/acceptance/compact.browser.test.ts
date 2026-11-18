@@ -8,7 +8,7 @@ import type { Page } from 'playwright-core';
 import { start, stop } from '../harness';
 import { axOf, axWithin, box, closePage, createRaw, devPage, inside, modeColor, prodPage, screenshot, settle, shapes, tabStops, type Box } from './util';
 import { DIRTY, dirtyRows, missingClauses, withUnit, type Clause } from './fixtures';
-import { inkColor, strokeRuns, traceMotion } from './checks';
+import { barPatterns, bridges, inkColor, strokeRuns, traceMotion } from './checks';
 
 beforeAll(start);
 afterAll(stop);
@@ -165,6 +165,9 @@ describe('C2 the fidelity rules hold', () => {
     const xs = runs.flat().map(p => p.x).sort((a, b) => a - b);
     const step = (xs.at(-1)! - xs[0]!) / 6;
     expect(runs.some(r => r.length >= 2 && r.some(p => Math.abs(p.x - (xs[0]! + 2 * step)) < 1)), 'nothing drawn at x = 2').toBe(false);
+    // A gap is a gap: no stroke passes over either missing x, from its neighbour on one side to the other.
+    expect(bridges(runs, xs[0]! + 2 * step), 'a stroke across the gap at x = 2').toBe(false);
+    expect(bridges(runs, xs[0]! + 4 * step), 'a stroke across the gap at x = 4').toBe(false);
     const isolated = ((await shapes(page, '#chart', 14))[1] ?? []).map(s => s.box.x + s.box.width / 2);
     expect(isolated.some(x => Math.abs(x - (xs[0]! + 3 * step)) <= 2), 'a point at x = 3').toBe(true);
     expect(await closePage(page)).toEqual([]);
@@ -226,10 +229,19 @@ describe('C4 more than one series', () => {
         };
         const t = [1, 2].map(slot => { const b = (drawn[slot] ?? []).map(s => s.box).sort((a, c) => c.height - a.height)[0]!; return texture(b); });
         expect(Math.abs(t[0]! - t[1]!), `textures ${t.map(v => v.toFixed(2)).join(' / ')}`).toBeGreaterThan(0.1);
+        // The cue C4 names: neighbouring series differ by fill pattern (each series one fill on every bar).
+        const patterns = await barPatterns(page);
+        expect(patterns, 'two bar series').toHaveLength(2);
+        expect(patterns[0], 'the neighbours\' fill patterns').not.toEqual(patterns[1]);
       } else {
         const dashes = await page.evaluate(() => [...document.querySelectorAll<SVGPathElement>('#chart svg.axylo-svg .axylo-scene path')].filter(e => /--axylo-series-color-/.test(e.style.getPropertyValue('color')) && e.style.getPropertyValue('stroke') === 'currentcolor').map(e => getComputedStyle(e).strokeDasharray));
         expect(dashes).toHaveLength(2);
         expect(dashes[0]).not.toBe(dashes[1]);
+        // As well as colour: the two series' lines are painted in different colours.
+        const colors = await page.evaluate(() => [...document.querySelectorAll<SVGPathElement>('#chart svg.axylo-svg .axylo-scene path')]
+          .filter(e => /--axylo-series-color-/.test(e.style.getPropertyValue('color')) && e.style.getPropertyValue('stroke') === 'currentcolor').map(e => getComputedStyle(e).color));
+        expect(colors).toHaveLength(2);
+        expect(colors[0], 'the two lines\' colours').not.toBe(colors[1]);
       }
       expect(await closePage(page)).toEqual([]);
     });
@@ -260,9 +272,11 @@ describe('C5 values left out', () => {
         if (Math.max(Math.abs(img.data[o]! - backdrop[0]), Math.abs(img.data[o + 1]! - backdrop[1]), Math.abs(img.data[o + 2]! - backdrop[2])) > 60) ink++;
       }
       expect(ink, 'the marker is painted').toBeGreaterThanOrEqual(3);
-      // Its text equivalent: the image's description carries the statement the marker stands for.
-      const title = await corner.getAttribute('title');
-      expect(title && fig.description.includes(title.replace(/\s*See table\.?$/, '').trim()), `${title} in ${fig.description}`).toBe(true);
+      // Its text equivalent is the omission statement itself, as F12 words it for this count. A compact chart has no
+      // table, so it does not send the reader to one. The image's description carries the same sentence.
+      const statement = `Values not shown: ${DIRTY.leftOut}.`;
+      expect(await corner.getAttribute('title'), 'the marker\'s text equivalent').toBe(statement);
+      expect(fig.description.split(/(?<=\.)\s+/), fig.description).toContain(statement);
       expect(await closePage(page)).toEqual([]);
     });
   }

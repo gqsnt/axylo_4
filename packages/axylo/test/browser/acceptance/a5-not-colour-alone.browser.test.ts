@@ -15,7 +15,7 @@ import {
   type Box, type Image, type RGB, type Shape,
 } from './util';
 import { SPEND, TYPES } from './fixtures';
-import { controlCoverage, eight, markerClasses, paintedSeries, paletteProblems, scanLine, seams, strokeRuns } from './checks';
+import { barPatterns, controlCoverage, eight, markerClasses, paintedSeries, paletteProblems, scanLine, seams, strokeRuns } from './checks';
 
 beforeAll(start);
 afterAll(stop);
@@ -116,9 +116,26 @@ describe('A5 markers repeat the series identity', () => {
     const dashes = await strokeDashes(page);
     expect(dashes).toHaveLength(2);
     expect(dashes[0]).not.toBe(dashes[1]);
+    // As well as colour: the two lines are painted in different colours.
+    const colors = await strokeColors(page);
+    expect(colors).toHaveLength(2);
+    expect(colors[0], 'the two lines\' colours').not.toEqual(colors[1]);
     expect(await closePage(page)).toEqual([]);
   });
 });
+
+/** The resolved colour of each stroked series line, in slot order. */
+async function strokeColors(page: Page, selector = '#chart'): Promise<string[]> {
+  return page.evaluate(selector => {
+    const out: [number, string][] = [];
+    for (const el of document.querySelectorAll<SVGPathElement>(`${selector} svg.axylo-svg .axylo-scene path`)) {
+      const slot = /--axylo-series-color-(\d+)/.exec(el.style.getPropertyValue('color'));
+      if (!slot || el.style.getPropertyValue('stroke') !== 'currentcolor') continue;
+      out.push([Number(slot[1]), getComputedStyle(el).color]);
+    }
+    return out.sort((a, b) => a[0] - b[0]).map(e => e[1]);
+  }, selector);
+}
 
 /** The computed dash of each stroked series line, in slot order. */
 async function strokeDashes(page: Page, selector = '#chart'): Promise<string[]> {
@@ -134,7 +151,9 @@ async function strokeDashes(page: Page, selector = '#chart'): Promise<string[]> 
 }
 
 describe('A5 dash under more contrast and forced colours', () => {
-  for (const type of ['line', 'area', 'compact'] as const) {
+  for (const type of ['line', 'area', 'compact', 'compact area'] as const) {
+    // compact is compact line; compact area takes the same three series, drawn as areas.
+    const compact = type === 'compact' || type === 'compact area';
     for (const mode of ['prefers-contrast: more', 'forced-colors: active'] as const) {
       it(`A5 ${type}: under ${mode} three lines differ by dash, pairwise`, async () => {
         const media = mode === 'prefers-contrast: more' ? { contrast: 'more' as const } : { forcedColors: 'active' as const };
@@ -142,10 +161,10 @@ describe('A5 dash under more contrast and forced colours', () => {
         // already loaded unevaluated (observed with a plain <style> page too), so on Firefox the preference is
         // set on the context, before the page loads. The chart is created after it either way.
         const early = ENGINE === 'firefox' && 'contrast' in media;
-        const page = await devPage({ ...(type === 'compact' ? { css: '#chart { width: 240px; height: 48px; }' } : {}), ...(early ? media : {}) });
+        const page = await devPage({ ...(compact ? { css: '#chart { width: 240px; height: 48px; }' } : {}), ...(early ? media : {}) });
         if (!early) await page.emulateMedia(media);
         await createRaw(page, 'line' === type || type === 'compact' ? 'line' : 'area', {
-          title: 'Three', data: denseRows(), x: { field: 'day', type: 'date' }, y: 'v', series: 's', ...(type === 'compact' ? { compact: true } : {}),
+          title: 'Three', data: denseRows(), x: { field: 'day', type: 'date' }, y: 'v', series: 's', ...(compact ? { compact: true } : {}),
         });
         const dashes = await strokeDashes(page);
         expect(dashes).toHaveLength(3);
@@ -153,6 +172,26 @@ describe('A5 dash under more contrast and forced colours', () => {
         expect(await closePage(page)).toEqual([]);
       });
     }
+  }
+});
+
+describe('A5 compact bar patterns in every mode', () => {
+  for (const mode of ['default', 'prefers-contrast: more', 'forced-colors: active'] as const) {
+    it(`A5 compact bar: ${mode === 'default' ? 'by default' : `under ${mode}`} neighbouring bar series differ by fill pattern, with no legend to tell them apart`, async () => {
+      const media = mode === 'prefers-contrast: more' ? { contrast: 'more' as const } : mode === 'forced-colors: active' ? { forcedColors: 'active' as const } : null;
+      const early = media !== null && ENGINE === 'firefox' && 'contrast' in media;
+      const page = await devPage({ css: '#chart { width: 280px; height: 60px; }', ...(early ? media : {}) });
+      if (media && !early) await page.emulateMedia(media);
+      const days = ['2026-03-02', '2026-03-03', '2026-03-04', '2026-03-05'];
+      const data = days.flatMap((day, i) => ['Alpha', 'Beta', 'Gamma'].map((s, k) => ({ day, s, v: 10 + i + 3 * k })));
+      await createRaw(page, 'bar', { compact: true, title: 'Three', data, x: { field: 'day', type: 'date' }, y: 'v', series: 's' });
+      const patterns = await barPatterns(page);
+      expect(patterns, 'three bar series').toHaveLength(3);
+      for (const p of patterns) expect(p, 'one fill per series').toHaveLength(1);
+      expect(patterns[0], 'first and second series').not.toEqual(patterns[1]);
+      expect(patterns[1], 'second and third series').not.toEqual(patterns[2]);
+      expect(await closePage(page)).toEqual([]);
+    });
   }
 });
 

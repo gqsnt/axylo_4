@@ -5,18 +5,18 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { start, stop } from '../harness';
 import { axe } from '../a11y/util';
-import { axOf, axWithin, closePage, create, devPage, prodPage } from './util';
-import { missingClauses, sentences, summaryClauses, TYPES, TYPE_WORD, withUnit, ZONE_NAMES, type ChartType, type Clause } from './fixtures';
+import { axOf, axWithin, closePage, createKind as create, devPage, paintedPixels, prodPage, settle } from './util';
+import { compactKind, KIND_WORD, missingClauses, sentences, summaryClausesKind, TYPES, withUnit, ZONE_NAMES, type Clause, type Kind } from './fixtures';
 
 beforeAll(start);
 afterAll(stop);
 
 const FIGURE = '#chart figure';
 /** The x label the generated-name test gives, and the measure each fixture plots. */
-const X_LABEL: Record<ChartType, string | null> = { line: 'Day', area: 'Day', compact: 'Day', bar: 'Quarter', scatter: 'Payload', donut: null };
-const MEASURE: Record<ChartType, string> = { line: 'Energy', area: 'Energy', compact: 'Energy', bar: 'Shipped', scatter: 'Latency', donut: 'Spend' };
+const X_LABEL: Record<Kind, string | null> = { line: 'Day', area: 'Day', compact: 'Day', 'compact area': 'Day', 'compact bar': 'Day', bar: 'Quarter', scatter: 'Payload', donut: null };
+const MEASURE: Record<Kind, string> = { line: 'Energy', area: 'Energy', compact: 'Energy', 'compact area': 'Energy', 'compact bar': 'Energy', bar: 'Shipped', scatter: 'Latency', donut: 'Spend' };
 
-function untitled(type: ChartType): Record<string, unknown> {
+function untitled(type: Kind): Record<string, unknown> {
   // `title: undefined` returns the option to its default (no title); the x field gets a label to name.
   const x = X_LABEL[type];
   const extra: Record<string, unknown> = { title: undefined };
@@ -27,33 +27,34 @@ function untitled(type: ChartType): Record<string, unknown> {
 }
 
 describe('A1 accessible name and summary', () => {
-  for (const type of TYPES) {
+  // Every full type and every compact kind (compact line is "compact"; compact area and bar take the same fixture).
+  for (const type of [...TYPES, 'compact area', 'compact bar'] as Kind[]) {
     it(`A1 ${type}: the title is the accessible name and the description is the generated summary: type, series, x and y range, each series' minimum, maximum and last value`, async () => {
       const page = await devPage();
       await create(page, type);
       const fig = await axOf(page, FIGURE);
-      expect(fig.role).toBe(type === 'compact' ? 'image' : 'group');
+      expect(fig.role).toBe(compactKind(type) ? 'image' : 'group');
       expect(fig.name).toBe(type === 'donut' ? 'Monthly spend' : type === 'bar' ? 'Shipments per quarter' : type === 'scatter' ? 'Latency by payload size' : 'Energy use by site');
       // Each named statement in a sentence of its own (removing the range statement, say, fails).
-      expect(missingClauses(fig.description, summaryClauses(type)), fig.description).toEqual([]);
+      expect(missingClauses(fig.description, summaryClausesKind(type)), fig.description).toEqual([]);
       expect(await closePage(page)).toEqual([]);
     });
 
     for (const build of ['development', 'production'] as const) {
-      it(`A1 ${type}: with no title and no labelledBy the name is generated from type and measure ("${TYPE_WORD[type]} chart of ${MEASURE[type]}…") and AX140 is raised (${build} build)`, async () => {
+      it(`A1 ${type}: with no title and no labelledBy the name is generated from type and measure ("${KIND_WORD[type]} chart of ${MEASURE[type]}…") and AX140 is raised (${build} build)`, async () => {
         const page = build === 'development' ? await devPage() : await prodPage();
         const warnings: string[] = [];
         page.on('console', m => { if (m.type() === 'warning') warnings.push(m.text()); });
         const built = await create(page, type, untitled(type));
         const fig = await axOf(page, FIGURE);
         const x = X_LABEL[type];
-        if (x) expect(fig.name).toBe(`${TYPE_WORD[type]} chart of ${MEASURE[type]} by ${x}`);
-        else expect(fig.name.startsWith(`${TYPE_WORD[type]} chart of ${MEASURE[type]}`), fig.name).toBe(true);
+        if (x) expect(fig.name).toBe(`${KIND_WORD[type]} chart of ${MEASURE[type]} by ${x}`);
+        else expect(fig.name.startsWith(`${KIND_WORD[type]} chart of ${MEASURE[type]}`), fig.name).toBe(true);
         expect(built.diagnostics.filter(d => d.code === 'AX140').map(d => d.level)).toEqual(['warning']);
         // Spec 3.5: warnings print once per code per page in every build.
         expect(warnings.filter(w => w.includes('AX140'))).toHaveLength(1);
         // The summary is still there with the generated name.
-        expect(fig.description).toContain(TYPE_WORD[type]);
+        expect(fig.description).toContain(KIND_WORD[type]);
         expect(await closePage(page)).toEqual([]);
       });
     }
@@ -75,7 +76,7 @@ describe('A1 accessible name and summary', () => {
       expect(await closePage(page)).toEqual([]);
     });
 
-    if (type !== 'compact') {
+    if (!compactKind(type)) {
       it(`A1 ${type}: the title's heading level is the author's, and a visually hidden title still names the chart`, async () => {
         const page = await devPage();
         await create(page, type, { title: { text: 'Level two', level: 2 } });
@@ -91,13 +92,9 @@ describe('A1 accessible name and summary', () => {
         expect(heading?.name).toBe('Hidden five');
         expect(heading?.props.level).toBe(5);
         expect((await axOf(page, FIGURE)).name).toBe('Hidden five');
-        // Visually hidden: no visible area on the page.
-        const size = await page.locator('#chart .axylo-title').evaluate(el => {
-          const r = el.getBoundingClientRect();
-          const s = getComputedStyle(el);
-          return { area: r.width * r.height, clipped: s.clipPath !== 'none' || s.clip !== 'auto' };
-        });
-        expect(size.area <= 1 || size.clipped).toBe(true);
+        // Visually hidden: it paints nothing. Hiding it changes no pixel of the figure, whatever hides it (a
+        // clip-path that clips nothing, or a title merely moved, would show here).
+        expect(await paintedPixels(page, '#chart .axylo-title'), 'pixels the hidden title paints').toBe(0);
         expect(await closePage(page)).toEqual([]);
       });
     }
@@ -116,8 +113,8 @@ describe('A1 accessible name and summary', () => {
       const fig = await axOf(page, FIGURE);
       expect(sentences(fig.description)).toContain('Readings from the main meter.');
       // The generated statements all stay beside the author's: ranges, the zone, the omission.
-      const unit = { line: 'kWh', area: 'kWh', bar: 't', scatter: 'ms', donut: 'EUR', compact: 'kWh' }[type];
-      const label = { line: 'Energy', area: 'Energy', bar: 'Shipped', scatter: 'Latency', donut: 'Spend', compact: 'Energy' }[type];
+      const unit = { line: 'kWh', area: 'kWh', bar: 't', scatter: 'ms', donut: 'EUR', compact: 'kWh', 'compact area': 'kWh', 'compact bar': 'kWh' }[type];
+      const label = { line: 'Energy', area: 'Energy', bar: 'Shipped', scatter: 'Latency', donut: 'Spend', compact: 'Energy', 'compact area': 'Energy', 'compact bar': 'Energy' }[type];
       const clauses: Clause[] = type === 'donut'
         ? [{ name: 'Rent', fragments: ['Rent', withUnit(1200, unit)] }, { name: 'Travel', fragments: ['Travel', withUnit(360, unit)] }]
         : [
@@ -152,8 +149,15 @@ describe('A1 accessible name and summary', () => {
         }
       });
       for (let i = 0; i < 24; i++) await create(page, type, { title: `Chart ${i + 1}` }, `#tile-${i}`);
-      const ids = await page.evaluate(() => [...document.querySelectorAll('[id]')].map(e => e.id));
-      expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
+      const duplicates = async () => { const ids = await page.evaluate(() => [...document.querySelectorAll('[id]')].map(e => e.id)); return ids.filter((id, i) => ids.indexOf(id) !== i); };
+      expect(await duplicates()).toEqual([]);
+      // And with every chart's table open, which adds the table, its caption and its scroll region.
+      if (!compactKind(type)) {
+        for (let i = 0; i < 24; i++) await page.locator(`#tile-${i} [role="toolbar"] button`, { hasText: 'View as table' }).click();
+        await settle(page);
+        expect(await page.locator('.tile table').count(), 'every table open').toBe(24);
+        expect(await duplicates(), 'ids with the tables open').toEqual([]);
+      }
       const names = [];
       for (let i = 0; i < 24; i++) names.push((await axOf(page, `#tile-${i} figure`)).name);
       expect(names).toEqual(Array.from({ length: 24 }, (_, i) => `Chart ${i + 1}`));

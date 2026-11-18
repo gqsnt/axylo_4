@@ -237,43 +237,148 @@
     "criterion": "A1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
-    "title": "A1 compact: the title is the accessible name and the description is the generated summary: type, series, x and y range, each series' minimum, maximum and last value"
+    "title": "A1 compact: the title is the accessible name and the description is the generated summary: type, series, x and y range, each series' minimum, maximum and last value",
+    "compactKind": "line"
   },
   {
     "criterion": "A1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
-    "title": "A1 compact: with no title and no labelledBy the name is generated from type and measure (\"Line chart of Energy…\") and AX140 is raised (development build)"
+    "title": "A1 compact: with no title and no labelledBy the name is generated from type and measure (\"Line chart of Energy…\") and AX140 is raised (development build)",
+    "compactKind": "line"
   },
   {
     "criterion": "A1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
-    "title": "A1 compact: with no title and no labelledBy the name is generated from type and measure (\"Line chart of Energy…\") and AX140 is raised (production build)"
+    "title": "A1 compact: with no title and no labelledBy the name is generated from type and measure (\"Line chart of Energy…\") and AX140 is raised (production build)",
+    "compactKind": "line"
   },
   {
     "criterion": "A1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
-    "title": "A1 compact: labelledBy names the chart from the page's own heading, without a heading of its own and without AX140"
+    "title": "A1 compact: labelledBy names the chart from the page's own heading, without a heading of its own and without AX140",
+    "compactKind": "line"
   },
   {
     "criterion": "A1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
-    "title": "A1 compact: an author description is added to the summary and never removes the zone or the omission statement"
+    "title": "A1 compact: an author description is added to the summary and never removes the zone or the omission statement",
+    "compactKind": "line"
   },
   {
     "criterion": "A1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
-    "title": "A1 compact: the summary of instants states the time zone they are shown in"
+    "title": "A1 compact: the summary of instants states the time zone they are shown in",
+    "compactKind": "line"
   },
   {
     "criterion": "A1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
-    "title": "A1 compact: 24 charts on one page have no duplicate ids, each its own name, and axe heading-order passes"
+    "title": "A1 compact: 24 charts on one page have no duplicate ids, each its own name, and axe heading-order passes",
+    "compactKind": "line"
+  },
+  {
+    "criterion": "A1",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
+    "title": "A1 compact area: the title is the accessible name and the description is the generated summary: type, series, x and y range, each series' minimum, maximum and last value",
+    "compactKind": "area"
+  },
+  {
+    "criterion": "A1",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
+    "title": "A1 compact area: with no title and no labelledBy the name is generated from type and measure (\"Area chart of Energy…\") and AX140 is raised (development build)",
+    "compactKind": "area"
+  },
+  {
+    "criterion": "A1",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
+    "title": "A1 compact area: with no title and no labelledBy the name is generated from type and measure (\"Area chart of Energy…\") and AX140 is raised (production build)",
+    "compactKind": "area"
+  },
+  {
+    "criterion": "A1",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
+    "title": "A1 compact area: labelledBy names the chart from the page's own heading, without a heading of its own and without AX140",
+    "compactKind": "area"
+  },
+  {
+    "criterion": "A1",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
+    "title": "A1 compact area: an author description is added to the summary and never removes the zone or the omission statement",
+    "compactKind": "area"
+  },
+  {
+    "criterion": "A1",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
+    "title": "A1 compact area: the summary of instants states the time zone they are shown in",
+    "compactKind": "area"
+  },
+  {
+    "criterion": "A1",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
+    "title": "A1 compact area: 24 charts on one page have no duplicate ids, each its own name, and axe heading-order passes",
+    "compactKind": "area"
+  },
+  {
+    "criterion": "A1",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
+    "title": "A1 compact bar: the title is the accessible name and the description is the generated summary: type, series, x and y range, each series' minimum, maximum and last value",
+    "compactKind": "bar"
+  },
+  {
+    "criterion": "A1",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
+    "title": "A1 compact bar: with no title and no labelledBy the name is generated from type and measure (\"Bar chart of Energy…\") and AX140 is raised (development build)",
+    "compactKind": "bar"
+  },
+  {
+    "criterion": "A1",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
+    "title": "A1 compact bar: with no title and no labelledBy the name is generated from type and measure (\"Bar chart of Energy…\") and AX140 is raised (production build)",
+    "compactKind": "bar"
+  },
+  {
+    "criterion": "A1",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
+    "title": "A1 compact bar: labelledBy names the chart from the page's own heading, without a heading of its own and without AX140",
+    "compactKind": "bar"
+  },
+  {
+    "criterion": "A1",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
+    "title": "A1 compact bar: an author description is added to the summary and never removes the zone or the omission statement",
+    "compactKind": "bar"
+  },
+  {
+    "criterion": "A1",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
+    "title": "A1 compact bar: the summary of instants states the time zone they are shown in",
+    "compactKind": "bar"
+  },
+  {
+    "criterion": "A1",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
+    "title": "A1 compact bar: 24 charts on one page have no duplicate ids, each its own name, and axe heading-order passes",
+    "compactKind": "bar"
   },
   {
     "criterion": "A2",
@@ -723,7 +828,8 @@
     "criterion": "A5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 compact: two compact series differ by dash as well as colour, with no legend to tell them apart"
+    "title": "A5 compact: two compact series differ by dash as well as colour, with no legend to tell them apart",
+    "compactKind": "line"
   },
   {
     "criterion": "A5",
@@ -753,13 +859,50 @@
     "criterion": "A5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 compact: under prefers-contrast: more three lines differ by dash, pairwise"
+    "title": "A5 compact: under prefers-contrast: more three lines differ by dash, pairwise",
+    "compactKind": "line"
   },
   {
     "criterion": "A5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 compact: under forced-colors: active three lines differ by dash, pairwise"
+    "title": "A5 compact: under forced-colors: active three lines differ by dash, pairwise",
+    "compactKind": "line"
+  },
+  {
+    "criterion": "A5",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
+    "title": "A5 compact area: under prefers-contrast: more three lines differ by dash, pairwise",
+    "compactKind": "area"
+  },
+  {
+    "criterion": "A5",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
+    "title": "A5 compact area: under forced-colors: active three lines differ by dash, pairwise",
+    "compactKind": "area"
+  },
+  {
+    "criterion": "A5",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
+    "title": "A5 compact bar: by default neighbouring bar series differ by fill pattern, with no legend to tell them apart",
+    "compactKind": "bar"
+  },
+  {
+    "criterion": "A5",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
+    "title": "A5 compact bar: under prefers-contrast: more neighbouring bar series differ by fill pattern, with no legend to tell them apart",
+    "compactKind": "bar"
+  },
+  {
+    "criterion": "A5",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
+    "title": "A5 compact bar: under forced-colors: active neighbouring bar series differ by fill pattern, with no legend to tell them apart",
+    "compactKind": "bar"
   },
   {
     "criterion": "A5",
@@ -885,19 +1028,22 @@
     "criterion": "A5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 compact: the eight painted colours (light scheme) are each at least 3:1 on their painted backdrop and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia, analytic and as an 8-bit image"
+    "title": "A5 compact: the eight painted colours (light scheme) are each at least 3:1 on their painted backdrop and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia, analytic and as an 8-bit image",
+    "compactKind": "line"
   },
   {
     "criterion": "A5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 compact: the eight painted colours (dark scheme) are each at least 3:1 on their painted backdrop and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia, analytic and as an 8-bit image"
+    "title": "A5 compact: the eight painted colours (dark scheme) are each at least 3:1 on their painted backdrop and at least 0.10 apart in OKLab under normal vision and simulated protanopia, deuteranopia and tritanopia, analytic and as an 8-bit image",
+    "compactKind": "line"
   },
   {
     "criterion": "A5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
-    "title": "A5 compact: on a background the palette does not suit (the first series' painted colour itself), AX141 is raised"
+    "title": "A5 compact: on a background the palette does not suit (the first series' painted colour itself), AX141 is raised",
+    "compactKind": "line"
   },
   {
     "criterion": "A5",
@@ -1059,19 +1205,28 @@
     "criterion": "A8",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A8 compact: axe-core reports no violations on the whole landmarked page in every state (compact: default, loading, empty, error, and with values left out), each state checked to hold before the scan"
+    "title": "A8 compact: axe-core reports no violations on the whole landmarked page in every state (compact: default, loading, empty, error, and with values left out), each state checked to hold before the scan",
+    "compactKind": "line"
   },
   {
     "criterion": "A8",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A8 compact: axe-core reports no violations on the whole landmarked page in every state (compact area: default, loading, empty, error, and with values left out), each state checked to hold before the scan"
+    "title": "A8 compact: axe-core reports no violations on the whole landmarked page in every state (compact area: default, loading, empty, error, and with values left out), each state checked to hold before the scan",
+    "compactKind": "area"
   },
   {
     "criterion": "A8",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A8 compact: axe-core reports no violations on the whole landmarked page in every state (compact bar: default, loading, empty, error, and with values left out), each state checked to hold before the scan"
+    "title": "A8 compact: axe-core reports no violations on the whole landmarked page in every state (compact bar: default, loading, empty, error, and with values left out), each state checked to hold before the scan",
+    "compactKind": "bar"
+  },
+  {
+    "criterion": "A8",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
+    "title": "A8 line: axe-core reports no violations on the whole landmarked page with a pinned tooltip, with the readout strip shown, and with the strip pinned, each state checked to hold before the scan"
   },
   {
     "criterion": "A8",
@@ -1083,7 +1238,19 @@
     "criterion": "A8",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
+    "title": "A8 area: axe-core reports no violations on the whole landmarked page with a pinned tooltip, with the readout strip shown, and with the strip pinned, each state checked to hold before the scan"
+  },
+  {
+    "criterion": "A8",
+    "type": "area",
+    "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
     "title": "A8 area: with a 250-row table open, its scroll region scrolls and axe-core decides scrollable-region-focusable with no violation"
+  },
+  {
+    "criterion": "A8",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
+    "title": "A8 bar: axe-core reports no violations on the whole landmarked page with a pinned tooltip, with the readout strip shown, and with the strip pinned, each state checked to hold before the scan"
   },
   {
     "criterion": "A8",
@@ -1095,7 +1262,19 @@
     "criterion": "A8",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
+    "title": "A8 scatter: axe-core reports no violations on the whole landmarked page with a pinned tooltip, with the readout strip shown, and with the strip pinned, each state checked to hold before the scan"
+  },
+  {
+    "criterion": "A8",
+    "type": "scatter",
+    "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
     "title": "A8 scatter: with a 250-row table open, its scroll region scrolls and axe-core decides scrollable-region-focusable with no violation"
+  },
+  {
+    "criterion": "A8",
+    "type": "donut",
+    "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
+    "title": "A8 donut: axe-core reports no violations on the whole landmarked page with a pinned tooltip, with the readout strip shown, and with the strip pinned, each state checked to hold before the scan"
   },
   {
     "criterion": "A8",
@@ -1167,211 +1346,246 @@
     "criterion": "A10",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A10 compact: every built-in string that a compact chart shows is replaced through messages: each applicable key's own sentinel reaches a reader surface, and no built-in English is left"
+    "title": "A10 compact: every built-in string that a compact chart shows is replaced through messages: each applicable key's own sentinel reaches a reader surface, and no built-in English is left",
+    "compactKind": "line"
   },
   {
     "criterion": "A10",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
-    "title": "A10 compact: on a lang=\"de\" page the built-in English is marked lang=\"en\" where the reader meets it: the description the figure references, the visible summary, the note, the controls, the plot's name and role; the author's title is not"
+    "title": "A10 compact: on a lang=\"de\" page the built-in English is marked lang=\"en\" where the reader meets it: the description the figure references, the visible summary, the note, the controls, the plot's name and role; the author's title is not",
+    "compactKind": "line"
   },
   {
     "criterion": "C1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C1 compact line: role img, named by its title, described by the generated summary (each named statement: x range, y range, the series' minimum, maximum and last value), with nothing inside exposed on its own"
+    "title": "C1 compact line: role img, named by its title, described by the generated summary (each named statement: x range, y range, the series' minimum, maximum and last value), with nothing inside exposed on its own",
+    "compactKind": "line"
   },
   {
     "criterion": "C1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C1 compact line: without a title the name is generated and AX140 is raised (development build)"
+    "title": "C1 compact line: without a title the name is generated and AX140 is raised (development build)",
+    "compactKind": "line"
   },
   {
     "criterion": "C1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C1 compact line: without a title the name is generated and AX140 is raised (production build)"
+    "title": "C1 compact line: without a title the name is generated and AX140 is raised (production build)",
+    "compactKind": "line"
   },
   {
     "criterion": "C1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C1 compact line: a page of 40 compact charts adds no tab stop, and pointing at one changes nothing on the page: no element appears, no text changes, no pixel changes"
+    "title": "C1 compact line: a page of 40 compact charts adds no tab stop, and pointing at one changes nothing on the page: no element appears, no text changes, no pixel changes",
+    "compactKind": "line"
   },
   {
     "criterion": "C1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C1 compact area: role img, named by its title, described by the generated summary (each named statement: x range, y range, the series' minimum, maximum and last value), with nothing inside exposed on its own"
+    "title": "C1 compact area: role img, named by its title, described by the generated summary (each named statement: x range, y range, the series' minimum, maximum and last value), with nothing inside exposed on its own",
+    "compactKind": "area"
   },
   {
     "criterion": "C1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C1 compact area: without a title the name is generated and AX140 is raised (development build)"
+    "title": "C1 compact area: without a title the name is generated and AX140 is raised (development build)",
+    "compactKind": "area"
   },
   {
     "criterion": "C1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C1 compact area: without a title the name is generated and AX140 is raised (production build)"
+    "title": "C1 compact area: without a title the name is generated and AX140 is raised (production build)",
+    "compactKind": "area"
   },
   {
     "criterion": "C1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C1 compact area: a page of 40 compact charts adds no tab stop, and pointing at one changes nothing on the page: no element appears, no text changes, no pixel changes"
+    "title": "C1 compact area: a page of 40 compact charts adds no tab stop, and pointing at one changes nothing on the page: no element appears, no text changes, no pixel changes",
+    "compactKind": "area"
   },
   {
     "criterion": "C1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C1 compact bar: role img, named by its title, described by the generated summary (each named statement: x range, y range, the series' minimum, maximum and last value), with nothing inside exposed on its own"
+    "title": "C1 compact bar: role img, named by its title, described by the generated summary (each named statement: x range, y range, the series' minimum, maximum and last value), with nothing inside exposed on its own",
+    "compactKind": "bar"
   },
   {
     "criterion": "C1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C1 compact bar: without a title the name is generated and AX140 is raised (development build)"
+    "title": "C1 compact bar: without a title the name is generated and AX140 is raised (development build)",
+    "compactKind": "bar"
   },
   {
     "criterion": "C1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C1 compact bar: without a title the name is generated and AX140 is raised (production build)"
+    "title": "C1 compact bar: without a title the name is generated and AX140 is raised (production build)",
+    "compactKind": "bar"
   },
   {
     "criterion": "C1",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C1 compact bar: a page of 40 compact charts adds no tab stop, and pointing at one changes nothing on the page: no element appears, no text changes, no pixel changes"
+    "title": "C1 compact bar: a page of 40 compact charts adds no tab stop, and pointing at one changes nothing on the page: no element appears, no text changes, no pixel changes",
+    "compactKind": "bar"
   },
   {
     "criterion": "C2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C2 compact area: the value axis includes zero (F1): for the Phase 1 bars values (82–97) each datum is drawn at value / 97 of the height above the bottom"
+    "title": "C2 compact area: the value axis includes zero (F1): for the Phase 1 bars values (82–97) each datum is drawn at value / 97 of the height above the bottom",
+    "compactKind": "area"
   },
   {
     "criterion": "C2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C2 compact bar: the value axis includes zero (F1): for the Phase 1 bars values (82–97) each datum is drawn at value / 97 of the height above the bottom"
+    "title": "C2 compact bar: the value axis includes zero (F1): for the Phase 1 bars values (82–97) each datum is drawn at value / 97 of the height above the bottom",
+    "compactKind": "bar"
   },
   {
     "criterion": "C2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C2 compact line: shuffled input draws the same marks as sorted input (F11), and the dirty fixture yields AX102, AX103 and AX106 (F3)"
+    "title": "C2 compact line: shuffled input draws the same marks as sorted input (F11), and the dirty fixture yields AX102, AX103 and AX106 (F3)",
+    "compactKind": "line"
   },
   {
     "criterion": "C2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C2 compact line: no motion (I5): from the first painted frame, frame by frame for 1.5 s, the marks never change and no animation runs"
+    "title": "C2 compact line: no motion (I5): from the first painted frame, frame by frame for 1.5 s, the marks never change and no animation runs",
+    "compactKind": "line"
   },
   {
     "criterion": "C2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C2 compact line: the scheme comes from the page (L4): a dark page paints the marks in other colours than a light one, and a class toggle repaints them"
+    "title": "C2 compact line: the scheme comes from the page (L4): a dark page paints the marks in other colours than a light one, and a class toggle repaints them",
+    "compactKind": "line"
   },
   {
     "criterion": "C2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C2 compact area: shuffled input draws the same marks as sorted input (F11), and the dirty fixture yields AX102, AX103 and AX106 (F3)"
+    "title": "C2 compact area: shuffled input draws the same marks as sorted input (F11), and the dirty fixture yields AX102, AX103 and AX106 (F3)",
+    "compactKind": "area"
   },
   {
     "criterion": "C2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C2 compact area: no motion (I5): from the first painted frame, frame by frame for 1.5 s, the marks never change and no animation runs"
+    "title": "C2 compact area: no motion (I5): from the first painted frame, frame by frame for 1.5 s, the marks never change and no animation runs",
+    "compactKind": "area"
   },
   {
     "criterion": "C2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C2 compact area: the scheme comes from the page (L4): a dark page paints the marks in other colours than a light one, and a class toggle repaints them"
+    "title": "C2 compact area: the scheme comes from the page (L4): a dark page paints the marks in other colours than a light one, and a class toggle repaints them",
+    "compactKind": "area"
   },
   {
     "criterion": "C2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C2 compact bar: shuffled input draws the same marks as sorted input (F11), and the dirty fixture yields AX102, AX103 and AX106 (F3)"
+    "title": "C2 compact bar: shuffled input draws the same marks as sorted input (F11), and the dirty fixture yields AX102, AX103 and AX106 (F3)",
+    "compactKind": "bar"
   },
   {
     "criterion": "C2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C2 compact bar: no motion (I5): from the first painted frame, frame by frame for 1.5 s, the marks never change and no animation runs"
+    "title": "C2 compact bar: no motion (I5): from the first painted frame, frame by frame for 1.5 s, the marks never change and no animation runs",
+    "compactKind": "bar"
   },
   {
     "criterion": "C2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C2 compact bar: the scheme comes from the page (L4): a dark page paints the marks in other colours than a light one, and a class toggle repaints them"
+    "title": "C2 compact bar: the scheme comes from the page (L4): a dark page paints the marks in other colours than a light one, and a class toggle repaints them",
+    "compactKind": "bar"
   },
   {
     "criterion": "C2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C2 compact line: a null is a gap and the value between two gaps is a visible point (F2)"
+    "title": "C2 compact line: a null is a gap and the value between two gaps is a visible point (F2)",
+    "compactKind": "line"
   },
   {
     "criterion": "C3",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C3 compact line: it fills containers of 24×16, 160×48 and 600×120 CSS px, redrawn for each: the five data are evenly spread across the width and their heights keep their order; with no definite height it is 32 px tall"
+    "title": "C3 compact line: it fills containers of 24×16, 160×48 and 600×120 CSS px, redrawn for each: the five data are evenly spread across the width and their heights keep their order; with no definite height it is 32 px tall",
+    "compactKind": "line"
   },
   {
     "criterion": "C3",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C3 compact area: it fills containers of 24×16, 160×48 and 600×120 CSS px, redrawn for each: the five data are evenly spread across the width and their heights keep their order; with no definite height it is 32 px tall"
+    "title": "C3 compact area: it fills containers of 24×16, 160×48 and 600×120 CSS px, redrawn for each: the five data are evenly spread across the width and their heights keep their order; with no definite height it is 32 px tall",
+    "compactKind": "area"
   },
   {
     "criterion": "C3",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C3 compact bar: it fills containers of 24×16, 160×48 and 600×120 CSS px, redrawn for each: the five data are evenly spread across the width and their heights keep their order; with no definite height it is 32 px tall"
+    "title": "C3 compact bar: it fills containers of 24×16, 160×48 and 600×120 CSS px, redrawn for each: the five data are evenly spread across the width and their heights keep their order; with no definite height it is 32 px tall",
+    "compactKind": "bar"
   },
   {
     "criterion": "C4",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C4 compact line: two series differ by dash as well as colour, and AX131 suggests one series per compact chart"
+    "title": "C4 compact line: two series differ by dash as well as colour, and AX131 suggests one series per compact chart",
+    "compactKind": "line"
   },
   {
     "criterion": "C4",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C4 compact area: two series differ by dash as well as colour, and AX131 suggests one series per compact chart"
+    "title": "C4 compact area: two series differ by dash as well as colour, and AX131 suggests one series per compact chart",
+    "compactKind": "area"
   },
   {
     "criterion": "C4",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C4 compact bar: two series differ by more than colour, as painted (reading: A5 asks a non-colour cue of bars too), and AX131 suggests one series per compact chart"
+    "title": "C4 compact bar: two series differ by more than colour, as painted (reading: A5 asks a non-colour cue of bars too), and AX131 suggests one series per compact chart",
+    "compactKind": "bar"
   },
   {
     "criterion": "C5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C5 compact line: with the dirty fixture the description says 3 values are not shown, and a small marker is painted inside the figure at one of its corners, with that statement as its text equivalent"
+    "title": "C5 compact line: with the dirty fixture the description says 3 values are not shown, and a small marker is painted inside the figure at one of its corners, with that statement as its text equivalent",
+    "compactKind": "line"
   },
   {
     "criterion": "C5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C5 compact area: with the dirty fixture the description says 3 values are not shown, and a small marker is painted inside the figure at one of its corners, with that statement as its text equivalent"
+    "title": "C5 compact area: with the dirty fixture the description says 3 values are not shown, and a small marker is painted inside the figure at one of its corners, with that statement as its text equivalent",
+    "compactKind": "area"
   },
   {
     "criterion": "C5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
-    "title": "C5 compact bar: with the dirty fixture the description says 3 values are not shown, and a small marker is painted inside the figure at one of its corners, with that statement as its text equivalent"
+    "title": "C5 compact bar: with the dirty fixture the description says 3 values are not shown, and a small marker is painted inside the figure at one of its corners, with that statement as its text equivalent",
+    "compactKind": "bar"
   },
   {
     "criterion": "F12",
@@ -1557,13 +1771,29 @@
     "criterion": "F2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
-    "title": "F2 compact: null values are gaps, never zero and never bridged, and the value isolated between two gaps is a visible point"
+    "title": "F2 compact: null values are gaps, never zero and never bridged, and the value isolated between two gaps is a visible point",
+    "compactKind": "line"
   },
   {
     "criterion": "F2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
-    "title": "F2 compact: on a regular date axis, explicit nulls and the same rows deleted render the same gap, and the deleted rows raise AX105"
+    "title": "F2 compact: on a regular date axis, explicit nulls and the same rows deleted render the same gap, and the deleted rows raise AX105",
+    "compactKind": "line"
+  },
+  {
+    "criterion": "F2",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
+    "title": "F2 compact area: null values are gaps, never zero and never bridged, and the value isolated between two gaps is a visible point",
+    "compactKind": "area"
+  },
+  {
+    "criterion": "F2",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
+    "title": "F2 compact area: on a regular date axis, explicit nulls and the same rows deleted render the same gap, and the deleted rows raise AX105",
+    "compactKind": "area"
   },
   {
     "criterion": "F2",
@@ -1587,13 +1817,35 @@
     "criterion": "F2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
-    "title": "F2 compact: with missing: 'zero' on the field, an explicit null and an absent step are drawn at zero, on the zero baseline"
+    "title": "F2 compact: with missing: 'zero' on the field, an explicit null and an absent step are drawn at zero, on the zero baseline",
+    "compactKind": "line"
+  },
+  {
+    "criterion": "F2",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
+    "title": "F2 compact area: with missing: 'zero' on the field, an explicit null and an absent step are drawn at zero, on the zero baseline",
+    "compactKind": "area"
+  },
+  {
+    "criterion": "F2",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
+    "title": "F2 compact bar: with missing: 'zero' on the field, an explicit null and an absent step are drawn at zero, on the zero baseline",
+    "compactKind": "bar"
   },
   {
     "criterion": "F2",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
     "title": "F2 bar: a missing bar shows a \"no data\" mark at the baseline, distinct from a zero bar and from an empty band"
+  },
+  {
+    "criterion": "F2",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/f2-gaps.browser.test.ts",
+    "title": "F2 compact bar: a missing bar shows a \"no data\" mark at the baseline, distinct from a zero bar (C2)",
+    "compactKind": "bar"
   },
   {
     "criterion": "F2",
@@ -1936,6 +2188,36 @@
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
     "title": "I1 bar: a series with no row at the pointed x reads \"No observation\", distinct from \"No data\" for an explicit null"
+  },
+  {
+    "criterion": "I1",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 line: where reserving the strip would leave the plot under 80 px, none is reserved and pointing shows no readout and no floating tooltip; the datum under the pointer is still highlighted (the overlay draws it, and clears when the pointer leaves) and its values are in the keyboard reading and the table"
+  },
+  {
+    "criterion": "I1",
+    "type": "area",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 area: where reserving the strip would leave the plot under 80 px, none is reserved and pointing shows no readout and no floating tooltip; the datum under the pointer is still highlighted (the overlay draws it, and clears when the pointer leaves) and its values are in the keyboard reading and the table"
+  },
+  {
+    "criterion": "I1",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 bar: where reserving the strip would leave the plot under 80 px, none is reserved and pointing shows no readout and no floating tooltip; the datum under the pointer is still highlighted (the overlay draws it, and clears when the pointer leaves) and its values are in the keyboard reading and the table"
+  },
+  {
+    "criterion": "I1",
+    "type": "scatter",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 scatter: where reserving the strip would leave the plot under 80 px, none is reserved and pointing shows no readout and no floating tooltip; the datum under the pointer is still highlighted (the overlay draws it, and clears when the pointer leaves) and its values are in the keyboard reading and the table"
+  },
+  {
+    "criterion": "I1",
+    "type": "donut",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 donut: where reserving the strip would leave the plot under 80 px, none is reserved and pointing shows no readout and no floating tooltip; the datum under the pointer is still highlighted (the overlay draws it, and clears when the pointer leaves) and its values are in the keyboard reading and the table"
   },
   {
     "criterion": "I2",
@@ -2295,19 +2577,22 @@
     "criterion": "I5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 compact: first render is not animated (prefers-reduced-motion: no-preference): from the first painted frame, frame by frame for 2.5 s, the marks' markup and computed paint never change and no animation runs on the chart; a screenshot taken with animations running matches the one at 2.5 s"
+    "title": "I5 compact: first render is not animated (prefers-reduced-motion: no-preference): from the first painted frame, frame by frame for 2.5 s, the marks' markup and computed paint never change and no animation runs on the chart; a screenshot taken with animations running matches the one at 2.5 s",
+    "compactKind": "line"
   },
   {
     "criterion": "I5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 compact: first render is not animated (prefers-reduced-motion: reduce): from the first painted frame, frame by frame for 2.5 s, the marks' markup and computed paint never change and no animation runs on the chart; a screenshot taken with animations running matches the one at 2.5 s"
+    "title": "I5 compact: first render is not animated (prefers-reduced-motion: reduce): from the first painted frame, frame by frame for 2.5 s, the marks' markup and computed paint never change and no animation runs on the chart; a screenshot taken with animations running matches the one at 2.5 s",
+    "compactKind": "line"
   },
   {
     "criterion": "I5",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I5 compact: an update shows the new data and settles within 200 ms of the call, on the page's clock; under reduced motion its first frame is already the final one, with no animation"
+    "title": "I5 compact: an update shows the new data and settles within 200 ms of the call, on the page's clock; under reduced motion its first frame is already the final one, with no animation",
+    "compactKind": "line"
   },
   {
     "criterion": "I5",
@@ -2559,13 +2844,15 @@
     "criterion": "L2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L2 compact: in the light scheme every text is at least 12 CSS px and 4.5:1 on what is painted behind it (legend entries of hidden series included); marks are painted at least 3:1"
+    "title": "L2 compact: in the light scheme every text is at least 12 CSS px and 4.5:1 on what is painted behind it (legend entries of hidden series included); marks are painted at least 3:1",
+    "compactKind": "line"
   },
   {
     "criterion": "L2",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L2 compact: in the dark scheme every text is at least 12 CSS px and 4.5:1 on what is painted behind it (legend entries of hidden series included); marks are painted at least 3:1"
+    "title": "L2 compact: in the dark scheme every text is at least 12 CSS px and 4.5:1 on what is painted behind it (legend entries of hidden series included); marks are painted at least 3:1",
+    "compactKind": "line"
   },
   {
     "criterion": "L3",
@@ -2781,25 +3068,29 @@
     "criterion": "L4",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L4 compact: the scheme is the chart element's computed color-scheme, not the text colour: dark scheme with dark text gives the dark marks, light scheme with light text the light marks; with no color-scheme, light text gives dark marks"
+    "title": "L4 compact: the scheme is the chart element's computed color-scheme, not the text colour: dark scheme with dark text gives the dark marks, light scheme with light text the light marks; with no color-scheme, light text gives dark marks",
+    "compactKind": "line"
   },
   {
     "criterion": "L4",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L4 compact: the marks have their new colours in the first frame after each trigger: a class, style or data-theme change on <html> or <body>, a prefers-color-scheme change, and the painted pixels follow"
+    "title": "L4 compact: the marks have their new colours in the first frame after each trigger: a class, style or data-theme change on <html> or <body>, a prefers-color-scheme change, and the painted pixels follow",
+    "compactKind": "line"
   },
   {
     "criterion": "L4",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L4 compact: a light-only page on a dark device stays light, and --axylo-background overrides the detected scheme"
+    "title": "L4 compact: a light-only page on a dark device stays light, and --axylo-background overrides the detected scheme",
+    "compactKind": "line"
   },
   {
     "criterion": "L4",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L4 compact: in forced-colors mode the marks are painted in system colours, also when it is switched on at run time"
+    "title": "L4 compact: in forced-colors mode the marks are painted in system colours, also when it is switched on at run time",
+    "compactKind": "line"
   },
   {
     "criterion": "L5",
@@ -2931,13 +3222,43 @@
     "criterion": "L7",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L7 compact: empty data shows its message inside the plot and in the accessibility tree, with no tick labels and no invented axis"
+    "title": "L7 compact: empty data shows its message inside the plot and in the accessibility tree, with no tick labels and no invented axis",
+    "compactKind": "line"
   },
   {
     "criterion": "L7",
     "type": "compact",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L7 compact: loading, an author error and an internal failure each show their exact message inside the plot with no axes; each change of state is announced exactly once, politely, and nothing else is"
+    "title": "L7 compact: loading, an author error and an internal failure each show their exact message inside the plot with no axes; each change of state is announced exactly once, politely, and nothing else is",
+    "compactKind": "line"
+  },
+  {
+    "criterion": "L7",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+    "title": "L7 compact area: empty data shows its message inside the plot and in the accessibility tree, with no tick labels and no invented axis",
+    "compactKind": "area"
+  },
+  {
+    "criterion": "L7",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+    "title": "L7 compact area: loading, an author error and an internal failure each show their exact message inside the plot with no axes; each change of state is announced exactly once, politely, and nothing else is",
+    "compactKind": "area"
+  },
+  {
+    "criterion": "L7",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+    "title": "L7 compact bar: empty data shows its message inside the plot and in the accessibility tree, with no tick labels and no invented axis",
+    "compactKind": "bar"
+  },
+  {
+    "criterion": "L7",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+    "title": "L7 compact bar: loading, an author error and an internal failure each show their exact message inside the plot with no axes; each change of state is announced exactly once, politely, and nothing else is",
+    "compactKind": "bar"
   },
   {
     "criterion": "L8",
@@ -3070,6 +3391,25 @@
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
     "title": "T-dense-line: negative control: the spike-column check reports a spike moved five columns away"
+  },
+  {
+    "criterion": "L7",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
+    "title": "L7 line: negative control: the announcement count reports the same message put into a live region twice, in two updates, as two announcements"
+  },
+  {
+    "criterion": "C2",
+    "type": "compact",
+    "file": "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
+    "title": "C2 compact line: negative control: the gap check reports a stroke joined across the gap",
+    "compactKind": "line"
+  },
+  {
+    "criterion": "A1",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
+    "title": "A1 line: negative control: the hidden-title check counts the pixels of a title that a clip-path clipping nothing leaves visible"
   },
   {
     "criterion": "T-pointer-line",
@@ -3207,7 +3547,7 @@
     "criterion": "T-zoom-scatter",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
-    "title": "T-zoom-scatter: x only in 1.0: + narrows the x range, controls are offered, and the y axis keeps the full data range though the visible y extremes change"
+    "title": "T-zoom-scatter: x only in 1.0: + narrows the x range, controls are offered, the y axis is fitted again to the values in view (F7), and no control, key or drag zooms y on its own"
   },
   {
     "criterion": "T-zoom-bar",

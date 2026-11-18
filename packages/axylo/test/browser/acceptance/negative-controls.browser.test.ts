@@ -7,10 +7,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { start, stop } from '../harness';
 import {
-  axOf, box, center, closePage, compareTable, covered, create, createRaw, devPage, figureLayout, modeColor, readTable, screenshot, settle, shapes, valueText,
+  announced, axOf, box, paintedPixels, center, closePage, compareTable, covered, create, createRaw, devPage, figureLayout, modeColor, readTable, recordAnnouncements, screenshot, settle, shapes, valueText,
 } from './util';
 import { missingClauses, summaryClauses, tableOf } from './fixtures';
-import { controlCoverage, eight, markerClasses, paintedSeries, paletteProblems, referenceMarks, spikeColumn, strokeRuns, traceMotion } from './checks';
+import { bridges, controlCoverage, eight, markerClasses, paintedSeries, paletteProblems, referenceMarks, spikeColumn, strokeRuns, traceMotion } from './checks';
 import { overlaps, textBoxes } from './text';
 
 beforeAll(start);
@@ -246,6 +246,57 @@ describe('negative controls', () => {
     const result = spikeColumn(moved, spike, 1);
     expect(result.reached).toBe(false);
     expect(result.outside.length).toBeGreaterThan(0);
+    expect(await closePage(page)).toEqual([]);
+  });
+
+  it('L7 line: negative control: the announcement count reports the same message put into a live region twice, in two updates, as two announcements', async () => {
+    const page = await devPage();
+    await create(page, 'line');
+    await recordAnnouncements(page);
+    await page.evaluate(async () => {
+      const region = document.createElement('div');
+      region.setAttribute('role', 'status');
+      document.querySelector('#chart figure')!.appendChild(region);
+      const frame = () => new Promise(r => requestAnimationFrame(r));
+      region.textContent = 'Chart ready.';
+      await frame(); await frame();
+      region.textContent = '';
+      await frame(); await frame();
+      region.textContent = 'Chart ready.';
+    });
+    expect(await announced(page)).toEqual(['polite: Chart ready.', 'polite: Chart ready.']);
+    expect(await closePage(page)).toEqual([]);
+  });
+
+  it('C2 compact line: negative control: the gap check reports a stroke joined across the gap', async () => {
+    const page = await devPage({ css: '#chart { width: 240px; height: 60px; }' });
+    await createRaw(page, 'line', { compact: true, title: 'Gaps', data: [10, 20, null, 40, null, 60, 70].map((x, i) => ({ x: i, v: x })), x: 'x', y: 'v' });
+    const xs = (await strokeRuns(page, 1)).flat().map(p => p.x).sort((a, b) => a - b);
+    const at2 = xs[0]! + (2 * (xs.at(-1)! - xs[0]!)) / 6;
+    expect(bridges(await strokeRuns(page, 1), at2)).toBe(false);
+    // Every subpath of the line joined into one: the stroke now runs over the gaps.
+    await page.evaluate(() => {
+      for (const el of document.querySelectorAll<SVGPathElement>('#chart svg.axylo-svg .axylo-scene path')) {
+        if (/--axylo-series-color-1\b/.test(el.style.getPropertyValue('color')) && el.style.getPropertyValue('stroke') === 'currentcolor') {
+          const d = el.getAttribute('d') ?? '';
+          el.setAttribute('d', d.replace(/(?!^)M/g, 'L'));
+        }
+      }
+    });
+    expect(bridges(await strokeRuns(page, 1), at2)).toBe(true);
+    expect(await closePage(page)).toEqual([]);
+  });
+
+  it('A1 line: negative control: the hidden-title check counts the pixels of a title that a clip-path clipping nothing leaves visible', async () => {
+    const page = await devPage();
+    await create(page, 'line', { title: { text: 'Hidden five', level: 5, visible: false } });
+    expect(await paintedPixels(page, '#chart .axylo-title')).toBe(0);
+    // The same title brought into view, still with a clip-path, one that clips nothing.
+    await page.locator('#chart .axylo-title').evaluate(el => {
+      for (const [k, v] of [['position', 'static'], ['width', 'auto'], ['height', 'auto'], ['overflow', 'visible'], ['clip-path', 'inset(0)'], ['white-space', 'normal'], ['margin', '0']]) (el as HTMLElement).style.setProperty(k!, v!, 'important');
+    });
+    await settle(page);
+    expect(await paintedPixels(page, '#chart .axylo-title')).toBeGreaterThan(20);
     expect(await closePage(page)).toEqual([]);
   });
 });

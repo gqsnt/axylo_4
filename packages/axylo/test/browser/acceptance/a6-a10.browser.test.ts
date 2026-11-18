@@ -9,7 +9,7 @@ import { axe } from '../a11y/util';
 import { axOf, axWithin, box, call, closePage, create, createRaw, devPage, readRange, ring, settle, shapes, center, valueText } from './util';
 import type { Messages } from '../../../src/public';
 import { overlaps, textBoxes } from './text';
-import { FULL, TYPES, type ChartType } from './fixtures';
+import { FULL, share, SPEND, TYPES, type ChartType } from './fixtures';
 
 beforeAll(start);
 afterAll(stop);
@@ -95,7 +95,8 @@ async function watchLive(page: Page): Promise<void> {
       for (let e = el; e; e = e.parentElement) {
         const v = e.getAttribute('aria-live');
         if (v === 'off') return null;
-        if (v === 'polite' || v === 'assertive' || e.getAttribute('role') === 'alert' || (e.getAttribute('role') === 'status' && v === null)) return e;
+        // An explicit politeness, or a role whose implicit one is live: alert, status and log.
+        if (v === 'polite' || v === 'assertive' || ['alert', 'status', 'log'].includes(e.getAttribute('role') ?? '')) return e;
       }
       return null;
     };
@@ -155,15 +156,27 @@ describe('A7 data arriving does not speak', () => {
       const size = before.max + 1;
       await watchLive(page);
       const keep = { line: 5, area: 5, bar: 4, scatter: 5, donut: 4 }[type];
-      // Two appends: the first two x values leave, the reader's datum stays, now at position 0.
-      for (let k = 0; k < 2; k++) await call(page, 'append', [streamRow(type, k), { keep }]);
-      const during = await readRange(page);
-      expect(during.focused).toBe(true);
-      expect(during.role).toBe('slider');
-      if (type === 'donut') expect(own(during.text)).toBe(own(before.text));
-      else expect(during.text, 'not rewritten for an unchanged datum').toBe(before.text);
-      expect(during.value, 'the numeric position follows the datum').toBe(0);
-      expect(during.max + 1).toBe(size);
+      // Two appends, read after each: the first two x values leave, the reader's datum stays (position 1, then 0).
+      for (let k = 0; k < 2; k++) {
+        await call(page, 'append', [streamRow(type, k), { keep }]);
+        const during = await readRange(page);
+        const at = `after append ${k + 1}`;
+        expect(during.focused, at).toBe(true);
+        expect(during.role, at).toBe('slider');
+        expect(during.value, `${at}: the numeric position follows the datum`).toBe(1 - k);
+        expect(during.max + 1, at).toBe(size);
+        if (type !== 'donut') {
+          expect(during.text, `${at}: not rewritten for an unchanged datum`).toBe(before.text);
+          continue;
+        }
+        // A slice's share is part of how it reads: with the window's new total the same slice reads
+        // differently (decision 0004 part 2, rule 2), and a rewritten text is current throughout, its position too.
+        const window = [...SPEND.values, ...Array.from({ length: k + 1 }, (_, j) => (streamRow(type, j)[0] as { spend: number }).spend)].slice(-keep);
+        const total = window.reduce((a, b) => a + b, 0);
+        expect(own(during.text), `${at}: the same slice`).toBe(own(before.text));
+        expect(/\(([^)]*%)\)/.exec(during.text)?.[1], `${at}: its share of the current total`).toBe(share(SPEND.values[2]!, total));
+        expect(/Point (\d+) of (\d+)/.exec(during.text)?.slice(1).map(Number), `${at}: its position`).toEqual([during.value + 1, during.max + 1]);
+      }
       // A third append evicts it: the text is rewritten once and names the datum focus went to.
       await call(page, 'append', [streamRow(type, 2), { keep }]);
       const after = await readRange(page);
@@ -217,10 +230,37 @@ function states(type: Kind): State[] {
   if (type === 'line' || type === 'area' || type === 'bar' || type === 'scatter') {
     list.push({ name: 'a series hidden', enter: async page => { await page.locator('#chart .axylo-legend-entry').first().click(); await settle(page); }, holds: async page => (await page.locator('#chart .axylo-legend-entry').first().getAttribute('aria-pressed')) === 'false' });
   }
-  list.push({ name: 'loading', enter: async page => call(page, 'update', [{ state: 'loading' }]), holds: async page => visible(page, '#chart .axylo-message') });
-  list.push({ name: 'empty', enter: async page => call(page, 'update', [{ data: [] }]), holds: async page => visible(page, '#chart .axylo-message') });
-  list.push({ name: 'error', enter: async page => call(page, 'update', [{ state: { error: 'The query failed.' } }]), holds: async page => visible(page, '#chart .axylo-message') });
+  // Each message state holds only when its own message is the one shown (A8_TEXT: the built-in texts replaced).
+  list.push({ name: 'loading', enter: async page => call(page, 'update', [{ state: 'loading' }]), holds: async page => message(page, A8_TEXT.loading) });
+  list.push({ name: 'empty', enter: async page => call(page, 'update', [{ data: [] }]), holds: async page => message(page, A8_TEXT.empty) });
+  list.push({ name: 'error', enter: async page => call(page, 'update', [{ state: { error: 'The query failed.' } }]), holds: async page => message(page, 'The query failed.') });
   return list;
+}
+
+/** Built-in state texts replaced in every A8 chart, so each state's precondition can name its own message. */
+const A8_TEXT = { loading: 'Fetching the readings.', empty: 'Nothing was measured.' };
+const message = async (page: Page, text: string): Promise<boolean> =>
+  (await visible(page, '#chart .axylo-message')) && ((await page.locator('#chart .axylo-message').first().textContent()) ?? '').trim() === text;
+
+/** The values-left-out case holds when the reader is told (F12): the note on a full chart, the marker on a compact one. */
+async function leftOutShown(page: Page, type: Kind): Promise<boolean> {
+  if (type.startsWith('compact')) return /^Values not shown: \d+\.$/.test((await page.locator('#chart .axylo-corner').getAttribute('title')) ?? '') && visible(page, '#chart .axylo-corner');
+  return (await visible(page, '#chart .axylo-note')) && /^Values not shown: \d+\. See table\.$/.test(((await page.locator('#chart .axylo-note').textContent()) ?? '').trim());
+}
+
+/** States of full charts the first A8 test does not enter: a pinned tooltip, and the readout strip, hovered and pinned. */
+function moreStates(type: Full): State[] {
+  const pin = async (page: Page) => { const p = await onDatum(page, type); await page.mouse.move(p.x, p.y); await settle(page); await page.mouse.down(); await page.mouse.up(); await settle(page); };
+  // Readout mode: a plot narrower than 240 px (decision 0004 rule 5). A 260 px figure leaves a cartesian plot of
+  // about 200 px, where a pinned row fits the strip; a donut's plot is the figure's width, so it takes 200 px.
+  const narrow = async (page: Page) => { await page.evaluate(w => { (document.querySelector('#chart') as HTMLElement).style.width = `${w}px`; }, type === 'donut' ? 200 : 260); await settle(page); };
+  const inStrip = async (page: Page) => (await page.locator('#chart figure.axylo-readout-mode').count()) === 1 && (await visible(page, '#chart .axylo-readout'))
+    && ((await page.locator('#chart .axylo-readout').textContent()) ?? '').trim() !== '' && !(await visible(page, '#chart .axylo-tooltip'));
+  return [
+    { name: 'pinned tooltip', enter: pin, holds: async page => (await visible(page, '#chart .axylo-tooltip.axylo-tooltip-pinned')) && (await page.locator('#chart .axylo-tooltip button').count()) > 0 },
+    { name: 'readout strip', enter: async page => { await narrow(page); const p = await onDatum(page, type); await page.mouse.move(p.x, p.y); await settle(page); }, holds: inStrip },
+    { name: 'readout strip, pinned', enter: async page => { await narrow(page); await pin(page); }, holds: async page => (await inStrip(page)) && (await page.locator('#chart .axylo-readout button').count()) > 0 },
+  ];
 }
 
 /** A page with landmarks and a page heading, so a scan of the whole document judges the chart, not the test page. */
@@ -242,8 +282,8 @@ async function landmarkPage(): Promise<Page> {
 async function make(page: Page, type: Kind, variant: 'default' | 'dirty' = 'default'): Promise<void> {
   if (type === 'compact area' || type === 'compact bar') {
     const fn = type === 'compact area' ? 'area' : 'bar';
-    await createRaw(page, fn, { compact: true, title: 'Compact', data: variant === 'dirty' ? [{ d: 'a', v: 1 }, { d: 'b', v: '__NaN__' }, { d: 'c', v: 3 }] : [{ d: 'a', v: 1 }, { d: 'b', v: 2 }, { d: 'c', v: 3 }], x: 'd', y: 'v' });
-  } else await create(page, type, {}, '#chart', variant);
+    await createRaw(page, fn, { compact: true, title: 'Compact', messages: A8_TEXT, data: variant === 'dirty' ? [{ d: 'a', v: 1 }, { d: 'b', v: '__NaN__' }, { d: 'c', v: 3 }] : [{ d: 'a', v: 1 }, { d: 'b', v: 2 }, { d: 'c', v: 3 }], x: 'd', y: 'v' });
+  } else await create(page, type, { messages: A8_TEXT }, '#chart', variant);
 }
 
 describe('A8 axe-core', () => {
@@ -255,7 +295,7 @@ describe('A8 axe-core', () => {
         const page = await landmarkPage();
         await make(page, type, variant);
         await state.enter(page);
-        if (!(await state.holds(page))) failures.push(`${name}: the state was not entered`);
+        if (!(await (variant === 'dirty' ? leftOutShown(page, type) : state.holds(page)))) failures.push(`${name}: the state was not entered`);
         const result = await axe(page, 'body');
         for (const v of result.violations) failures.push(`${name}: ${v.id} (${v.nodes.join(', ')})`);
         // heading-order decided (passed or failed, not left incomplete) wherever the chart has a heading.
@@ -267,6 +307,21 @@ describe('A8 axe-core', () => {
   }
 
   for (const type of FULL as Full[]) {
+    it(`A8 ${type}: axe-core reports no violations on the whole landmarked page with a pinned tooltip, with the readout strip shown, and with the strip pinned, each state checked to hold before the scan`, async () => {
+      const failures: string[] = [];
+      for (const state of moreStates(type)) {
+        const page = await landmarkPage();
+        await make(page, type);
+        await state.enter(page);
+        if (!(await state.holds(page))) failures.push(`${state.name}: the state was not entered`);
+        const result = await axe(page, 'body');
+        for (const v of result.violations) failures.push(`${state.name}: ${v.id} (${v.nodes.join(', ')})`);
+        if (!result.ran.includes('heading-order')) failures.push(`${state.name}: heading-order did not complete`);
+        await closePage(page);
+      }
+      expect(failures).toEqual([]);
+    });
+
     it(`A8 ${type}: with a 250-row table open, its scroll region scrolls and axe-core decides scrollable-region-focusable with no violation`, async () => {
       const page = await landmarkPage();
       const day = (k: number) => new Date(Date.UTC(2026, 0, 1) + k * 864e5).toISOString().slice(0, 10);

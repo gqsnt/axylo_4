@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { start, stop } from '../harness';
-import { axWithin, closePage, create, devPage, distance, pixel, resolveColors, ring, screenshot, settle, type RGB } from './util';
+import { axWithin, closePage, create, devPage, distance, pixel, readTable, resolveColors, ring, screenshot, settle, type RGB } from './util';
 import { share, SPEND, withUnit } from './fixtures';
 
 beforeAll(start);
@@ -143,7 +143,25 @@ describe('F8 donut geometry and legend', () => {
     expect(built.diagnostics.map(d => d.code)).not.toContain('AX121');
     expect(await sliceCount(page)).toBe(8);
     expect((await legend(page)).map(e => e.split(' ')[0])).toEqual(['S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8']);
-    expect(await closePage(page)).toEqual([]);
+    await page.close();
+    // The ninth: nine slices with an arc. The seven largest (9, 8, 7, 6, 5, 4, 3) are drawn; the rest (S2 = 1,
+    // S4 = 2) are grouped as "Other (2)" with their sum, and AX121 is raised; the table lists every category.
+    const nine = [5, 1, 4, 2, 8, 3, 7, 6, 9].map((v, i) => ({ item: `S${i + 1}`, spend: v }));
+    const ninth = await devPage();
+    const grouped = await create(ninth, 'donut', { data: nine });
+    expect(grouped.diagnostics.map(d => d.code), 'the ninth slice raises AX121').toContain('AX121');
+    expect(await sliceCount(ninth), 'seven slices and Other').toBe(8);
+    const entries = await legend(ninth);
+    const names = entries.map(e => /^(Other \(\d+\)|S\d+)/.exec(e)?.[1]);
+    expect(names.filter(n => n !== undefined && !n.startsWith('Other')), 'the seven largest keep their order').toEqual(['S1', 'S3', 'S5', 'S6', 'S7', 'S8', 'S9']);
+    const other = entries.find(e => e.startsWith('Other (2)'));
+    expect(other, 'the grouped slices are listed as Other (2)').toBeDefined();
+    expect(other, 'with their sum').toContain(withUnit(3, 'EUR'));
+    await ninth.locator('#chart [role="toolbar"] button', { hasText: 'View as table' }).click();
+    await settle(ninth);
+    const table = await readTable(ninth);
+    expect(table.rows.map(r => r.header), 'the table lists every category').toEqual(nine.map(d => d.item));
+    expect(await closePage(ninth)).toEqual([]);
   });
 
   it('F8 donut: zero and null slices do not count toward the eight-slice limit and are never grouped: eight drawn slices plus a zero and a null raise no AX121 and list all ten, the zero and the null by name', async () => {

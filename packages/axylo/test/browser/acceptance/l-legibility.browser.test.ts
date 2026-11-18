@@ -8,9 +8,9 @@ import fs from 'node:fs';
 import type { Page } from 'playwright-core';
 import { start, stop } from '../harness';
 import {
-  axOf, axWithin, box, call, center, closePage, contrast, create, createRaw, devPage, frames, inside, modeColor, readTable, resolveColors, ring, screenshot, settle, shapes, type Box, type RGB,
+  announced, axOf, axWithin, box, call, center, closePage, contrast, create, createKind, createRaw, devPage, frames, inside, modeColor, readTable, recordAnnouncements, resolveColors, ring, screenshot, settle, shapes, type Box, type RGB,
 } from './util';
-import { FULL, optionsFor, TYPES, type ChartType } from './fixtures';
+import { FULL, optionsFor, TYPES, type ChartType, type Kind } from './fixtures';
 import { extent, overlaps, textBoxes, type TextBox } from './text';
 import { inkColor, strokeRuns } from './checks';
 
@@ -607,32 +607,6 @@ describe('L6 titles belong to the chart', () => {
 
 // ── L7 ────────────────────────────────────────────────────────────────────────────────────────────
 
-/** Records every text the chart puts into a live region (or inserts already populated), in order. */
-async function recordAnnouncements(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const w = window as unknown as { announced: string[] };
-    w.announced = [];
-    const politeness = (e: Element | null): string | null => {
-      for (let a = e; a; a = a.parentElement) {
-        const v = a.getAttribute('aria-live'), r = a.getAttribute('role');
-        if (v === 'off') return null;
-        if (v) return v;
-        if (r === 'alert') return 'assertive';
-        if (r === 'status' || r === 'log') return 'polite';
-      }
-      return null;
-    };
-    new MutationObserver(records => {
-      for (const r of records) {
-        const t = r.target.nodeType === Node.TEXT_NODE ? r.target.parentElement : (r.target as Element);
-        const p = politeness(t);
-        if (p && t?.closest('#chart') && (t.textContent ?? '').trim()) w.announced.push(`${p}: ${(t.closest('[aria-live],[role]') ?? t).textContent!.trim()}`);
-      }
-    }).observe(document.body, { subtree: true, childList: true, characterData: true });
-  });
-}
-const announced = (page: Page) => page.evaluate(() => [...new Set((window as unknown as { announced: string[] }).announced)]);
-
 /** The state message: visible, inside the plot, in the tree, and no tick labels or axis lines drawn. */
 async function stateShown(page: Page, text: string): Promise<string[]> {
   const out: string[] = [];
@@ -651,17 +625,18 @@ async function stateShown(page: Page, text: string): Promise<string[]> {
 const STATE_TEXT = { loading: 'Fetching the readings.', empty: 'Nothing was measured.', internalError: 'Drawing failed here.' };
 
 describe('L7 states inside the plot', () => {
-  for (const type of TYPES) {
+  // Every full type and every compact kind (compact line is "compact").
+  for (const type of [...TYPES, 'compact area', 'compact bar'] as Kind[]) {
     it(`L7 ${type}: empty data shows its message inside the plot and in the accessibility tree, with no tick labels and no invented axis`, async () => {
       const page = await devPage();
-      await create(page, type, { data: [], messages: STATE_TEXT });
+      await createKind(page, type, { data: [], messages: STATE_TEXT });
       expect(await stateShown(page, STATE_TEXT.empty)).toEqual([]);
       expect(await closePage(page)).toEqual([]);
     });
 
     it(`L7 ${type}: loading, an author error and an internal failure each show their exact message inside the plot with no axes; each change of state is announced exactly once, politely, and nothing else is`, async () => {
       const page = await devPage();
-      await create(page, type, { state: 'loading', messages: STATE_TEXT });
+      await createKind(page, type, { state: 'loading', messages: STATE_TEXT });
       expect(await stateShown(page, STATE_TEXT.loading)).toEqual([]);
       await recordAnnouncements(page);
       await call(page, 'update', [{ state: 'ready' }]);
@@ -675,7 +650,11 @@ describe('L7 states inside the plot', () => {
       const error = await announced(page);
       expect(error, 'ready → error').toHaveLength(1);
       expect(error[0]).toMatch(/^polite: .*The query failed\./);
+      await recordAnnouncements(page);
       await call(page, 'update', [{ state: 'ready' }]);
+      const recovered = await announced(page);
+      expect(recovered, 'error → ready').toHaveLength(1);
+      expect(recovered[0]!.startsWith('polite: ')).toBe(true);
       await recordAnnouncements(page);
       await page.evaluate(() => (window as unknown as { charts: { __dev: { fail(s: string | null): void } }[] }).charts[0]!.__dev.fail('reader'));
       await call(page, 'update', [{ title: 'Again' }]);

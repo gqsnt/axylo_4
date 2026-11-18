@@ -27,7 +27,7 @@ if (RENDERER === 'canvas') {
   throw new Error('The browser acceptance suite reads the SVG DOM and is evidence for the SVG renderer only; it does not run with AXYLO_RENDERER=canvas.');
 }
 import { decodePng, type Image } from '../render/png';
-import { type ChartType, optionsFor, type Variant } from './fixtures';
+import { type ChartType, type Kind, optionsFor, optionsForKind, type Variant } from './fixtures';
 
 export { closePage, at, diff, shot } from '../chart/util';
 export type { Image };
@@ -74,6 +74,12 @@ export async function prodPage(options: { css?: string; viewport?: { width: numb
  */
 export async function create(page: Page, type: ChartType, extra: Record<string, unknown> = {}, target = '#chart', variant: Variant = 'default'): Promise<Built> {
   const { fn, options } = optionsFor(type, variant);
+  return createRaw(page, fn, { ...options, ...extra }, target);
+}
+
+/** create, for any Kind: compact area and compact bar take the compact fixture. */
+export async function createKind(page: Page, kind: Kind, extra: Record<string, unknown> = {}, target = '#chart', variant: Variant = 'default'): Promise<Built> {
+  const { fn, options } = optionsForKind(kind, variant);
   return createRaw(page, fn, { ...options, ...extra }, target);
 }
 
@@ -327,6 +333,23 @@ export async function screenshot(page: Page, selector: string, clip?: Box): Prom
   const b = clip ?? await box(page, selector);
   const img = decodePng(await page.screenshot({ clip: b, animations: 'allow', caret: 'hide' }));
   return { img, box: b, scale: img.width / b.width };
+}
+
+/**
+ * How many device pixels of the figure change when the element at `selector` is made `visibility: hidden`: 0 for
+ * an element that paints nothing (visually hidden, as a hidden title must be), whatever technique hides it.
+ */
+export async function paintedPixels(page: Page, selector: string, figure = '#chart figure'): Promise<number> {
+  const b = await box(page, figure);
+  const before = await screenshot(page, figure, b);
+  await page.locator(selector).first().evaluate(el => { (el as HTMLElement).dataset.axyloTestVisibility = (el as HTMLElement).style.visibility; (el as HTMLElement).style.visibility = 'hidden'; });
+  const after = await screenshot(page, figure, b);
+  await page.locator(selector).first().evaluate(el => { (el as HTMLElement).style.visibility = (el as HTMLElement).dataset.axyloTestVisibility ?? ''; delete (el as HTMLElement).dataset.axyloTestVisibility; });
+  let changed = 0;
+  for (let i = 0; i < before.img.data.length; i += 4) {
+    if (before.img.data[i] !== after.img.data[i] || before.img.data[i + 1] !== after.img.data[i + 1] || before.img.data[i + 2] !== after.img.data[i + 2]) changed++;
+  }
+  return changed;
 }
 
 export type RGB = readonly [number, number, number];
@@ -660,3 +683,48 @@ export async function figureLayout(page: Page, selector = '#chart'): Promise<str
     .filter(e => !e.classList.contains('axylo-tooltip'))
     .map(e => { const r = e.getBoundingClientRect(); return `${e.className}:${r.x.toFixed(1)},${r.y.toFixed(1)},${r.width.toFixed(1)},${r.height.toFixed(1)}`; }).join('|'), selector);
 }
+
+// ── live regions ──────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Records every announcement the chart makes: each time a live region's content changes (or a populated one
+ * is inserted), one entry with its politeness and its text then. Changes delivered in one observer batch to
+ * the same region are one announcement; nothing is de-duplicated across batches, so the same text put into
+ * a region twice counts twice.
+ */
+export async function recordAnnouncements(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const w = window as unknown as { announced: string[]; announcer?: MutationObserver };
+    // One recorder at a time: starting again replaces the previous one, so nothing is recorded twice.
+    w.announcer?.disconnect();
+    w.announced = [];
+    const politeness = (e: Element | null): string | null => {
+      for (let a = e; a; a = a.parentElement) {
+        const v = a.getAttribute('aria-live'), r = a.getAttribute('role');
+        if (v === 'off') return null;
+        if (v) return v;
+        if (r === 'alert') return 'assertive';
+        if (r === 'status' || r === 'log') return 'polite';
+      }
+      return null;
+    };
+    w.announcer = new MutationObserver(records => {
+      const regions = new Map<Element, string>();
+      for (const r of records) {
+        const t = r.target.nodeType === Node.TEXT_NODE ? r.target.parentElement : (r.target as Element);
+        const p = politeness(t);
+        if (p && t?.closest('#chart')) regions.set(t.closest('[aria-live],[role]') ?? t, p);
+      }
+      for (const [region, p] of regions) {
+        const text = (region.textContent ?? '').trim();
+        if (text) w.announced.push(`${p}: ${text}`);
+      }
+    });
+    w.announcer.observe(document.body, { subtree: true, childList: true, characterData: true });
+  });
+}
+/** Every announcement since recording started, in order, without de-duplication; read after the page settles. */
+export const announced = async (page: Page) => {
+  await settle(page);
+  return page.evaluate(() => [...(window as unknown as { announced: string[] }).announced]);
+};

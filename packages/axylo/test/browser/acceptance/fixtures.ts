@@ -288,3 +288,29 @@ export function inOrder(text: string, group: readonly string[]): boolean {
   }
   return true;
 }
+
+// ── compact kinds ─────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * "compact" in ChartType is compact line. A Kind adds compact area and compact bar, for the criteria that
+ * apply to every compact kind: the same compact fixture (the North series of `energy`), drawn as area or bar.
+ */
+export type Kind = ChartType | 'compact area' | 'compact bar';
+export const COMPACT_KINDS = ['compact', 'compact area', 'compact bar'] as const;
+/** The compact kind a Kind draws (EVIDENCE.json's compactKind), or null for a full chart. */
+export const compactKind = (kind: Kind): 'line' | 'area' | 'bar' | null =>
+  kind === 'compact' ? 'line' : kind === 'compact area' ? 'area' : kind === 'compact bar' ? 'bar' : null;
+export const KIND_WORD: Record<Kind, string> = { ...TYPE_WORD, 'compact area': 'Area', 'compact bar': 'Bar' };
+
+/** optionsFor, for any Kind: a compact area or bar takes the compact fixture (and its variants) as they are. */
+export function optionsForKind(kind: Kind, variant: Variant = 'default'): { fn: string; options: Record<string, unknown> } {
+  if (kind !== 'compact area' && kind !== 'compact bar') return optionsFor(kind, variant);
+  const { options } = optionsFor('compact', variant);
+  return { fn: compactKind(kind)!, options };
+}
+
+/** summaryClauses, for any Kind: the compact fixture's statements, with the kind's own type word. */
+export function summaryClausesKind(kind: Kind): Clause[] {
+  if (kind !== 'compact area' && kind !== 'compact bar') return summaryClauses(kind);
+  return summaryClauses('compact').map(c => (c.name === 'type and series count' ? { ...c, fragments: [KIND_WORD[kind], ...c.fragments.slice(1)] } : c));
+}

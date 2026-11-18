@@ -153,6 +153,9 @@ describe('T-tooltip: tooltip content', () => {
       const left = await rows();
       expect(left[0]).toBe(want[0]);
       expect(left.join(' ')).not.toContain(second!.name);
+      // Exactly the visible series; on the stacked area the total is the stack of what is shown, the hidden
+      // series left out of it, not the total before it was hidden.
+      expect(left, 'rows after hiding a series').toEqual(type === 'area' ? [want[0], `Total${withUnit(first!.values[2]!, unit)}`] : [want[0]]);
       expect(await closePage(page)).toEqual([]);
     });
   }
@@ -272,22 +275,83 @@ describe('F10 mixed-sign stacks, rendered', () => {
 
 describe('T-zoom', () => {
   for (const type of ['line', 'area', 'scatter'] as const) {
-    it(`T-zoom-${type}: ${type === 'scatter' ? 'x only in 1.0: + narrows the x range, controls are offered, and the y axis keeps the full data range though the visible y extremes change' : 'zoom applies: controls are offered and + narrows the x range'}`, async () => {
+    if (type === 'scatter') continue;
+    it(`T-zoom-${type}: zoom applies: controls are offered and + narrows the x range`, async () => {
       const page = await devPage();
       await create(page, type);
       expect(await page.locator('#chart [role="toolbar"] button', { hasText: 'Zoom in' }).count()).toBe(1);
       const before = await xDomain(page);
-      if (type === 'scatter') await page.evaluate(() => (window as unknown as { charts: { zoom(d: unknown): void }[] }).charts[0]!.zoom([12, 22]));
-      else { await page.focus('#chart .axylo-proxy'); await page.keyboard.press('+'); }
+      await page.focus('#chart .axylo-proxy');
+      await page.keyboard.press('+');
       await settle(page);
       const after = await xDomain(page);
       expect(after.xDomain![1]! - after.xDomain![0]!).toBeLessThan(before.xDomain![1]! - before.xDomain![0]!);
-      // Scatter (spec 3.6): x only. In [12, 22] the visible y values are 90–140 too… so the window [12, 22]
-      // holds only 90, 100, 140 (y 90–140 of 90–140 overall); the y axis must keep the full domain.
-      if (type === 'scatter') expect(after.yDomain).toEqual(before.yDomain);
       expect(await closePage(page)).toEqual([]);
     });
   }
+
+  // Scatter zooms x only in 1.0 (spec 3.6), and after a zoom on x a y axis with no author domain is fitted
+  // again to the values in view (F7, as amended). The fixture keeps its y extremes (95 and 10) at x 90 and 100,
+  // and values 50–58 everywhere else, so any zoom that leaves the right end out shows the refit.
+  const ZOOM_POINTS: { x: number; y: number }[] = [
+    { x: 0, y: 52 }, { x: 10, y: 55 }, { x: 20, y: 50 }, { x: 30, y: 58 }, { x: 40, y: 54 }, { x: 50, y: 56 },
+    { x: 60, y: 53 }, { x: 70, y: 57 }, { x: 90, y: 95 }, { x: 100, y: 10 },
+  ];
+  it('T-zoom-scatter: x only in 1.0: + narrows the x range, controls are offered, the y axis is fitted again to the values in view (F7), and no control, key or drag zooms y on its own', async () => {
+    const page = await devPage();
+    await createRaw(page, 'scatter', { title: 'Zoom', data: ZOOM_POINTS, x: 'x', y: 'y' });
+    const full = await xDomain(page);
+    const toolbar = (await page.locator('#chart [role="toolbar"] button').allTextContents()).map(t => t.trim());
+    expect(toolbar).toContain('Zoom in');
+    // The controls are x controls: nothing that moves or zooms y.
+    for (const t of toolbar) expect(['Zoom in', 'Select range', 'Zoom out', 'Pan left', 'Pan right', 'Reset zoom', 'View as table'], `control ${t}`).toContain(t);
+    // In view: the points whose x is inside the x window. The y domain holds them, and only them (refit).
+    const inView = (d: { xDomain: number[] | null }) => ZOOM_POINTS.filter(p => p.x >= d.xDomain![0]! && p.x <= d.xDomain![1]!).map(p => p.y);
+    const fitted = (d: { xDomain: number[] | null; yDomain: number[] | null }, at: string) => {
+      const ys = inView(d);
+      expect(ys.length, `${at}: points in view`).toBeGreaterThan(0);
+      expect(d.yDomain![0]!, `${at}: the y domain holds the lowest value in view`).toBeLessThanOrEqual(Math.min(...ys));
+      expect(d.yDomain![1]!, `${at}: the y domain holds the highest value in view`).toBeGreaterThanOrEqual(Math.max(...ys));
+    };
+    fitted(full, 'full view');
+    await page.focus('#chart .axylo-proxy');
+    await page.keyboard.press('+');
+    await settle(page);
+    const zoomed = await xDomain(page);
+    expect(zoomed.xDomain![1]! - zoomed.xDomain![0]!, '+ narrows x').toBeLessThan(full.xDomain![1]! - full.xDomain![0]!);
+    fitted(zoomed, 'after +');
+    const ys = inView(zoomed);
+    // The fixture leaves the whole range's extremes out of view, so a refit is narrower than the full y domain.
+    expect(Math.min(...ys) > Math.min(...ZOOM_POINTS.map(p => p.y)) || Math.max(...ys) < Math.max(...ZOOM_POINTS.map(p => p.y)), 'the fixture changes the y extremes in view').toBe(true);
+    expect(zoomed.yDomain![1]! - zoomed.yDomain![0]!, 'y is fitted again to the values in view').toBeLessThan(full.yDomain![1]! - full.yDomain![0]!);
+    // Up and down, with or without Shift, never zoom or move y (nor x).
+    for (const key of ['Shift+ArrowUp', 'Shift+ArrowDown']) {
+      await page.keyboard.press(key);
+      await settle(page);
+      const now = await xDomain(page);
+      expect([now.xDomain, now.yDomain], key).toEqual([zoomed.xDomain, zoomed.yDomain]);
+    }
+    // A drag selects an x range: two drags over the same x span, one short in y and one tall, give the same view.
+    const viaDrag = async (fromY: number, toY: number) => {
+      await page.focus('#chart .axylo-proxy');
+      await page.keyboard.press('0');
+      await settle(page);
+      expect((await xDomain(page)).xDomain, '0 returns to the full view').toEqual(full.xDomain);
+      const g = await plotGeometry(page);
+      await page.mouse.move(g.plot.x + 0.3 * g.plot.width, g.plot.y + fromY * g.plot.height);
+      await page.mouse.down();
+      await page.mouse.move(g.plot.x + 0.7 * g.plot.width, g.plot.y + toY * g.plot.height, { steps: 6 });
+      await page.mouse.up();
+      await settle(page);
+      return xDomain(page);
+    };
+    const flat = await viaDrag(0.5, 0.52);
+    const tall = await viaDrag(0.05, 0.95);
+    expect(flat.xDomain![1]! - flat.xDomain![0]!, 'the drag zoomed x').toBeLessThan(full.xDomain![1]! - full.xDomain![0]!);
+    expect(tall.yDomain, 'the vertical extent of a drag does not zoom y').toEqual(flat.yDomain);
+    fitted(flat, 'after a drag');
+    expect(await closePage(page)).toEqual([]);
+  });
 
   it('T-zoom-bar: a category bar chart has no zoom (no controls; +, wheel and drag each leave the range alone); date and number bar charts zoom', async () => {
     const page = await devPage();

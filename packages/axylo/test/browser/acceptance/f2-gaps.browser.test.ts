@@ -43,11 +43,14 @@ async function inkIn(page: Page, x0: number, x1: number, y0: number, y1: number,
 }
 
 describe('F2 gaps in lines and areas', () => {
-  for (const type of ['line', 'area', 'compact'] as const) {
+  for (const type of ['line', 'area', 'compact', 'compact area'] as const) {
+    // compact is compact line; compact area takes the same data, drawn as an area.
+    const compact = type === 'compact' || type === 'compact area';
+    const fn = type === 'compact' ? 'line' : type === 'compact area' ? 'area' : type;
     it(`F2 ${type}: null values are gaps, never zero and never bridged, and the value isolated between two gaps is a visible point`, async () => {
-      const page = await devPage({ css: `${NO_GRID} ${type === 'compact' ? '#chart { width: 240px; height: 60px; }' : ''}` });
-      await createRaw(page, type === 'compact' ? 'line' : type, {
-        title: 'Gaps', data: VALUES.map((v, x) => ({ x, v })), x: 'x', y: 'v', ...(type === 'compact' ? { compact: true } : {}),
+      const page = await devPage({ css: `${NO_GRID} ${compact ? '#chart { width: 240px; height: 60px; }' : ''}` });
+      await createRaw(page, fn, {
+        title: 'Gaps', data: VALUES.map((v, x) => ({ x, v })), x: 'x', y: 'v', ...(compact ? { compact: true } : {}),
       });
       // x positions from the drawn runs: points 0, 1, 5 and 6 are on the stroke, evenly spaced.
       const v = await vertices(page);
@@ -57,7 +60,7 @@ describe('F2 gaps in lines and areas', () => {
       // No vertex at x = 2 or x = 4 (not drawn as zero), none bridging them.
       for (const k of [2, 4]) expect(v.some(p => Math.abs(p.x - xs[k]!) < 1), `vertex at ${k}`).toBe(false);
       const svg = await box(page, '#chart svg.axylo-svg');
-      const top = svg.y, bottom = type === 'compact' ? svg.y + svg.height : (await box(page, '#chart .axylo-proxy')).y + (await box(page, '#chart .axylo-proxy')).height - 3;
+      const top = svg.y, bottom = compact ? svg.y + svg.height : (await box(page, '#chart .axylo-proxy')).y + (await box(page, '#chart .axylo-proxy')).height - 3;
       const margin = 7;
       expect(await inkIn(page, xs[1]! + margin, xs[3]! - margin, top, bottom), 'between x = 1 and 3').toBe(0);
       expect(await inkIn(page, xs[3]! + margin, xs[5]! - margin, top, bottom), 'between x = 3 and 5').toBe(0);
@@ -67,14 +70,13 @@ describe('F2 gaps in lines and areas', () => {
     });
 
     it(`F2 ${type}: on a regular date axis, explicit nulls and the same rows deleted render the same gap, and the deleted rows raise AX105`, async () => {
-      const page = await devPage({ viewport: { width: 900, height: 1100 }, css: `${NO_GRID} #other { width: 720px; height: 400px; } ${type === 'compact' ? '#chart, #other { width: 240px; height: 60px; }' : ''}` });
+      const page = await devPage({ viewport: { width: 900, height: 1100 }, css: `${NO_GRID} #other { width: 720px; height: 400px; } ${compact ? '#chart, #other { width: 240px; height: 60px; }' : ''}` });
       await page.evaluate(() => { const el = document.createElement('div'); el.id = 'other'; document.querySelector('#after')!.after(el); });
       const day = (k: number) => new Date(Date.UTC(2026, 0, 1) + k * 864e5).toISOString().slice(0, 10);
       const full = Array.from({ length: 20 }, (_, k) => ({ day: day(k), v: 10 + ((k * 7) % 11) }));
       const withNulls = full.map((r, k) => (k >= 8 && k <= 10 ? { ...r, v: null } : r));
       const deleted = full.filter((_, k) => k < 8 || k > 10);
-      const common = { title: 'Same gap', x: { field: 'day', type: 'date' }, y: 'v', ...(type === 'compact' ? { compact: true } : {}) };
-      const fn = type === 'compact' ? 'line' : type;
+      const common = { title: 'Same gap', x: { field: 'day', type: 'date' }, y: 'v', ...(compact ? { compact: true } : {}) };
       const a = await createRaw(page, fn, { ...common, data: withNulls }, '#chart');
       const b = await createRaw(page, fn, { ...common, data: deleted }, '#other');
       expect(a.diagnostics.map(d => d.code)).not.toContain('AX105');
@@ -91,7 +93,7 @@ describe('F2 gaps in lines and areas', () => {
         const x0 = v[0]!.x, step = (v.at(-1)!.x - x0) / 19;
         for (const k of [8, 9, 10]) expect(v.some(p => Math.abs(p.x - (x0 + k * step)) < 1), `${sel}: vertex at day ${k}`).toBe(false);
         const svg = await box(page, `${sel} svg.axylo-svg`);
-        const top = svg.y, bottom = type === 'compact' ? svg.y + svg.height : (await box(page, `${sel} .axylo-proxy`)).y + (await box(page, `${sel} .axylo-proxy`)).height - 3;
+        const top = svg.y, bottom = compact ? svg.y + svg.height : (await box(page, `${sel} .axylo-proxy`)).y + (await box(page, `${sel} .axylo-proxy`)).height - 3;
         expect(await inkIn(page, x0 + 7 * step + 7, x0 + 11 * step - 7, top, bottom, sel), `${sel}: ink in the gap`).toBe(0);
       }
       expect(await closePage(page)).toEqual([]);
@@ -100,14 +102,16 @@ describe('F2 gaps in lines and areas', () => {
 });
 
 describe("F2 missing: 'zero'", () => {
-  for (const type of ['line', 'area', 'bar', 'compact'] as const) {
+  for (const type of ['line', 'area', 'bar', 'compact', 'compact area', 'compact bar'] as const) {
+    const compact = type.startsWith('compact');
+    const fn = type === 'compact' ? 'line' : type === 'compact area' ? 'area' : type === 'compact bar' ? 'bar' : type;
     it(`F2 ${type}: with missing: 'zero' on the field, an explicit null and an absent step are drawn at zero, on the zero baseline`, async () => {
-      const page = await devPage({ css: `${NO_GRID} ${type === 'compact' ? '#chart { width: 240px; height: 60px; }' : ''}` });
+      const page = await devPage({ css: `${NO_GRID} ${compact ? '#chart { width: 240px; height: 60px; }' : ''}` });
       const day = (k: number) => new Date(Date.UTC(2026, 0, 1) + k * 864e5).toISOString().slice(0, 10);
       // Daily counts; day 2 is null and day 4 has no row.
       const data = [5, 6, null, 7, undefined, 8, 9].flatMap((v, k) => (v === undefined ? [] : [{ day: day(k), v }]));
-      await createRaw(page, type === 'compact' ? 'line' : type, { title: 'Counts', data, x: { field: 'day', type: 'date' }, y: { field: 'v', missing: 'zero' }, ...(type === 'compact' ? { compact: true } : {}) });
-      if (type === 'bar') {
+      await createRaw(page, fn, { title: 'Counts', data, x: { field: 'day', type: 'date' }, y: { field: 'v', missing: 'zero' }, ...(compact ? { compact: true } : {}) });
+      if (fn === 'bar') {
         const rects = ((await shapes(page, '#chart', 100000))[1] ?? []).map(s => s.box).sort((a, b) => a.x - b.x);
         // Seven bands; at days 2 and 4 nothing rises above the baseline (a zero bar, not a gap mark).
         const tall = rects.filter(r => r.height > 1.5);
@@ -121,7 +125,7 @@ describe("F2 missing: 'zero'", () => {
         expect(Math.abs(sorted[0]!.y - zero)).toBeLessThan(0.01);
         expect(Math.abs(sorted[1]!.y - zero)).toBeLessThan(0.01);
         expect([sorted[0]!, sorted[1]!].map(p => v.indexOf(p)).sort()).toEqual([2, 4]);
-        if (type !== 'compact') {
+        if (!compact) {
           const plot = await box(page, '#chart .axylo-proxy');
           expect(Math.abs(zero - (plot.y + plot.height))).toBeLessThanOrEqual(1);
         }
@@ -132,9 +136,10 @@ describe("F2 missing: 'zero'", () => {
 });
 
 describe('F2 bars', () => {
-  it('F2 bar: a missing bar shows a "no data" mark at the baseline, distinct from a zero bar and from an empty band', async () => {
-    const page = await devPage({ css: NO_GRID });
-    await createRaw(page, 'bar', { title: 'Missing and zero', data: [{ q: 'Q1', v: 10 }, { q: 'Q2', v: null }, { q: 'Q3', v: 0 }, { q: 'Q4', v: 20 }], x: 'q', y: 'v' });
+  for (const compact of [false, true]) {
+  it(compact ? 'F2 compact bar: a missing bar shows a "no data" mark at the baseline, distinct from a zero bar (C2)' : 'F2 bar: a missing bar shows a "no data" mark at the baseline, distinct from a zero bar and from an empty band', async () => {
+    const page = await devPage({ css: `${NO_GRID} ${compact ? '#chart { width: 240px; height: 60px; }' : ''}` });
+    await createRaw(page, 'bar', { title: 'Missing and zero', data: [{ q: 'Q1', v: 10 }, { q: 'Q2', v: null }, { q: 'Q3', v: 0 }, { q: 'Q4', v: 20 }], x: 'q', y: 'v', ...(compact ? { compact: true } : {}) });
     const rects = ((await shapes(page, '#chart', 100000))[1] ?? []).map(s => s.box).filter(b => b.height > 2).sort((a, b) => a.x - b.x);
     expect(rects).toHaveLength(2);
     const c1 = rects[0]!.x + rects[0]!.width / 2, c4 = rects[1]!.x + rects[1]!.width / 2;
@@ -155,6 +160,7 @@ describe('F2 bars', () => {
     expect(differing, 'the missing and zero bars look different').toBeGreaterThan(4);
     expect(await closePage(page)).toEqual([]);
   });
+  }
 });
 
 describe('F2 readouts say "No data"', () => {

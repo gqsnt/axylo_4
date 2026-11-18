@@ -526,30 +526,77 @@ describe('I1 tooltip under the pointer', () => {
 
 // ── I2 ────────────────────────────────────────────────────────────────────────────────────────────
 
+describe('I1 below the L8 minimum for a strip', () => {
+  for (const type of FULL as Full[]) {
+    it(`I1 ${type}: where reserving the strip would leave the plot under 80 px, none is reserved and pointing shows no readout and no floating tooltip; the datum under the pointer is still highlighted (the overlay draws it, and clears when the pointer leaves) and its values are in the keyboard reading and the table`, async () => {
+      const page = await devPage();
+      await create(page, type);
+      // A plot about 100 px tall: under 140 it is in readout mode (decision 0004 rule 5); a strip of two lines
+      // would leave it under L8's 80 px, so none is reserved and the plot keeps its height.
+      const height = await plotTo(page, 'height', 100);
+      expect(height, 'the plot keeps at least L8\'s 80 px').toBeGreaterThanOrEqual(80);
+      expect(height, 'and is in readout mode by height').toBeLessThan(140);
+      expect(await page.locator('#chart .axylo-readout').isVisible(), 'no strip reserved').toBe(false);
+      const overlay = () => page.evaluate(() => [...document.querySelectorAll<SVGGraphicsElement>('#chart svg.axylo-svg .axylo-overlay *')]
+        .map(e => e.getBoundingClientRect()).filter(r => r.width > 0 || r.height > 0).map(r => ({ x: r.x, y: r.y, width: r.width, height: r.height })));
+      expect(await overlay(), 'nothing highlighted before pointing').toEqual([]);
+      const p = (await probes(page, type))[type === 'donut' ? 2 : 10]!;
+      await page.mouse.move(p.x, p.y);
+      await settle(page);
+      expect(await tooltip(page).isVisible(), 'no floating tooltip').toBe(false);
+      expect(await page.locator('#chart .axylo-readout').isVisible(), 'no readout').toBe(false);
+      // Highlighted: the overlay draws marks, and they are at the datum: over the pointer's x on an aligned
+      // chart (the active x's marks), around the point on a scatter, over the slice on a donut.
+      const marks = await overlay();
+      expect(marks.length, 'the datum is highlighted').toBeGreaterThan(0);
+      const union = marks.reduce((u, r) => ({ x0: Math.min(u.x0, r.x), y0: Math.min(u.y0, r.y), x1: Math.max(u.x1, r.x + r.width), y1: Math.max(u.y1, r.y + r.height) }), { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity });
+      const active = p.marks.reduce((u, r) => ({ x0: Math.min(u.x0, r.x), y0: Math.min(u.y0, r.y), x1: Math.max(u.x1, r.x + r.width), y1: Math.max(u.y1, r.y + r.height) }), { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity });
+      expect(union.x0 <= active.x1 + 2 && active.x0 - 2 <= union.x1 && union.y0 <= active.y1 + 2 && active.y0 - 2 <= union.y1, `the highlight ${JSON.stringify(union)} is at the active marks ${JSON.stringify(active)}`).toBe(true);
+      await page.mouse.move(1, 1);
+      await settle(page);
+      expect(await overlay(), 'the highlight clears when the pointer leaves').toEqual([]);
+      // The values: the keyboard reading and the table.
+      await page.focus('#chart .axylo-proxy');
+      await page.keyboard.press('ArrowRight');
+      const reading = await valueText(page);
+      expect(reading, 'the keyboard reading gives a datum with its values').toMatch(/\d/);
+      expect(reading).toMatch(/Point \d+ of \d+/);
+      expect(await page.locator('#chart [role="toolbar"] button', { hasText: 'View as table' }).count(), 'the table control').toBe(1);
+      expect(await closePage(page)).toEqual([]);
+    });
+  }
+});
+
 describe('I2 legend toggles', () => {
   for (const type of CARTESIAN as ('line' | 'area' | 'bar' | 'scatter')[]) {
     it(`I2 ${type}: legend entries are toggle buttons with a pressed state, operable by click, Enter and Space; after each, the marks follow`, async () => {
       const page = await devPage();
       await create(page, type);
-      const name = type === 'bar' ? 'Plan' : type === 'scatter' ? 'EU' : 'North';
-      const pressed = async () => (await axWithin(page, '#chart')).find(n => n.role === 'button' && n.name === name)?.props.pressed;
-      const marks = async () => (await shapes(page, '#chart', 100000))[1]?.length ?? 0;
-      expect(await pressed()).toBe('true');
-      const shown = await marks();
-      expect(shown).toBeGreaterThan(0);
-      await page.locator('#chart .axylo-legend-entry', { hasText: name }).click();
-      await settle(page);
-      expect(await pressed()).toBe('false');
-      expect(await marks()).toBe(0);
-      await page.locator('#chart .axylo-legend-entry', { hasText: name }).focus();
-      await page.keyboard.press('Enter');
-      await settle(page);
-      expect(await pressed()).toBe('true');
-      expect(await marks()).toBe(shown);
-      await page.keyboard.press(' ');
-      await settle(page);
-      expect(await pressed()).toBe('false');
-      expect(await marks()).toBe(0);
+      // Every entry, in series order (spec 3.3: the legend lists the series in order); slot k + 1 is series k.
+      const names = type === 'bar' ? SHIPPED.series.map(x => x.name) : type === 'scatter' ? [...new Set(LATENCY.points.map(q => q.region))] : ENERGY.series.map(x => x.name);
+      expect((await page.locator('#chart .axylo-legend-entry').allTextContents()).map(t => t.trim())).toEqual(names);
+      const pressed = async (name: string) => (await axWithin(page, '#chart')).find(n => n.role === 'button' && n.name === name)?.props.pressed;
+      const counts = async () => { const drawn = await shapes(page, '#chart', 100000); return names.map((_, k) => drawn[k + 1]?.length ?? 0); };
+      const shown = await counts();
+      for (const n of shown) expect(n, 'every series is drawn at first').toBeGreaterThan(0);
+      // Hidden: this series' marks are gone and every other series is drawn as before and still pressed.
+      const only = async (k: number, hidden: boolean, how: string) => {
+        await settle(page);
+        for (const [j, name] of names.entries()) expect(await pressed(name), `${how}: ${name} pressed`).toBe(j === k && hidden ? 'false' : 'true');
+        expect(await counts(), `${how}: marks per series`).toEqual(shown.map((n, j) => (j === k && hidden ? 0 : n)));
+      };
+      for (const [k, name] of names.entries()) {
+        const entry = page.locator('#chart .axylo-legend-entry', { hasText: name });
+        await entry.click();
+        await only(k, true, `${name} clicked`);
+        await entry.focus();
+        await page.keyboard.press('Enter');
+        await only(k, false, `${name} Enter`);
+        await page.keyboard.press(' ');
+        await only(k, true, `${name} Space`);
+        await page.keyboard.press(' ');
+        await only(k, false, `${name} Space again`);
+      }
       expect(await closePage(page)).toEqual([]);
     });
   }
@@ -1018,6 +1065,28 @@ describe('I6 pause', () => {
       expect(await pause.count()).toBe(1);
       await pause.click();
       await settle(page);
+      // The ordinary view first: the table closed and a tooltip shown under the pointer. Nothing of it moves
+      // while rows arrive paused: marks, summary, value text, the tooltip's text and its rectangle.
+      // The probes are written for the fixture alone (the appended row is not in them): on a cartesian chart the
+      // middle of the plot, on the donut a point inside the ring.
+      const plotBox = await box(page, '#chart .axylo-proxy');
+      const points = type === 'scatter' ? ((await shapes(page, '#chart', 14))[1] ?? []).map(m => center(m.box)).sort((a, b) => a.x - b.x) : [];
+      const p = type === 'donut' ? (await probes(page, type))[2]! : type === 'scatter' ? points[1]! : center(plotBox);
+      await page.mouse.move(p.x, p.y);
+      await settle(page);
+      const view = async () => ({
+        scene: await page.evaluate(() => document.querySelector('#chart svg.axylo-svg .axylo-scene')?.innerHTML ?? ''),
+        description: (await axWithin(page, '#chart')).find(n => n.role === 'group')?.description ?? '',
+        text: (await page.locator('#chart .axylo-proxy').getAttribute('aria-valuetext')) ?? '',
+        tooltip: (await tooltip(page).isVisible()) ? { text: (await tooltip(page).textContent()) ?? '', box: await box(page, '#chart .axylo-tooltip') } : null,
+      });
+      const shown = await view();
+      expect(shown.tooltip, 'a tooltip is shown for the paused view').not.toBeNull();
+      expect(shown.tooltip!.text.trim().length, 'the tooltip has content').toBeGreaterThan(0);
+      for (let k = 1; k <= 2; k++) await call(page, 'append', [more(type, k)]);
+      expect(await view(), 'paused, table closed, tooltip shown').toEqual(shown);
+      await page.mouse.move(0, 0);
+      await settle(page);
       await page.locator('#chart [role="toolbar"] button', { hasText: 'View as table' }).click();
       await settle(page);
       const snapshot = async () => ({
@@ -1028,15 +1097,15 @@ describe('I6 pause', () => {
         table: JSON.stringify(await readTable(page)),
       });
       const before = await snapshot();
-      for (let k = 1; k <= 3; k++) await call(page, 'append', [more(type, k)]);
-      expect(await snapshot()).toEqual(before);
+      for (let k = 3; k <= 4; k++) await call(page, 'append', [more(type, k)]);
+      expect(await snapshot(), 'paused, table open').toEqual(before);
       await page.locator('#chart [role="toolbar"] button', { hasText: 'Resume' }).click();
       await settle(page);
       const t = await readTable(page);
       const base = tableOf(type);
       // Donut shares change with every slice, so only names and values are compared there.
       const strip = (rows: string[][]) => (type === 'donut' ? rows.map(r => r.slice(0, 2)) : rows);
-      const want = strip([...base.rows, ...[0, 1, 2, 3].flatMap(k => moreRows(type, k))]);
+      const want = strip([...base.rows, ...[0, 1, 2, 3, 4].flatMap(k => moreRows(type, k))]);
       expect(compareTable({ ...t, rows: t.rows.map(r => ({ header: r.header, cells: type === 'donut' ? r.cells.slice(0, 1) : r.cells })) }, { headers: base.headers, rows: want })).toEqual([]);
       expect(await closePage(page)).toEqual([]);
     });
