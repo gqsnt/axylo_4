@@ -31,31 +31,46 @@ export function watchTheme(element: Element, onChange: () => void): () => void {
     if (!stopped) onChange();
   };
 
-  const lists = QUERIES.map(q => win.matchMedia(q));
-  for (const list of lists) list.addEventListener('change', schedule);
-
-  const observer = new win.MutationObserver(records => {
-    for (const r of records) {
-      if (!holds(r.target, element)) continue;
-      if (r.target === element && r.attributeName === 'style') {
-        const before = (r.oldValue ?? '').replace(OWN, '').trim();
-        const after = (element.getAttribute('style') ?? '').replace(OWN, '').trim();
-        if (before === after) continue;
-      }
-      schedule();
-      return;
+  // Every subscription's release is kept as it is made, so a failure part-way (an observe() that throws)
+  // leaves nothing registered (final review, finding 14).
+  const undo: (() => void)[] = [];
+  const release = (): void => {
+    stopped = true;
+    for (let fn = undo.pop(); fn; fn = undo.pop()) {
+      try { fn(); } catch { /* keep releasing */ }
     }
-  });
-  const options: MutationObserverInit = { attributes: true, attributeFilter: ATTRIBUTES, attributeOldValue: true, subtree: true };
-  observer.observe(doc.documentElement, options);
-  const root = element.getRootNode();
-  if (root !== doc && 'host' in root) observer.observe(root, options);
+  };
+  try {
+    for (const q of QUERIES) {
+      const list = win.matchMedia(q);
+      list.addEventListener('change', schedule);
+      undo.push(() => list.removeEventListener('change', schedule));
+    }
+    const observer = new win.MutationObserver(records => {
+      for (const r of records) {
+        if (!holds(r.target, element)) continue;
+        if (r.target === element && r.attributeName === 'style') {
+          const before = (r.oldValue ?? '').replace(OWN, '').trim();
+          const after = (element.getAttribute('style') ?? '').replace(OWN, '').trim();
+          if (before === after) continue;
+        }
+        schedule();
+        return;
+      }
+    });
+    undo.push(() => observer.disconnect());
+    const options: MutationObserverInit = { attributes: true, attributeFilter: ATTRIBUTES, attributeOldValue: true, subtree: true };
+    observer.observe(doc.documentElement, options);
+    const root = element.getRootNode();
+    if (root !== doc && 'host' in root) observer.observe(root, options);
+  } catch (error) {
+    release();
+    throw error;
+  }
 
   return () => {
     if (stopped) return;
-    stopped = true;
-    for (const list of lists) list.removeEventListener('change', schedule);
-    observer.disconnect();
+    release();
   };
 }
 

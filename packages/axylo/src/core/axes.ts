@@ -73,11 +73,44 @@ function continuousX(
   return { type: kind === 'number' ? 'linear' as const : 'time' as const, domain, candidates, mayThin: true };
 }
 
+/** What a view's axes are, apart from the size: domains, tick candidates with their labels, titles. */
+type AxisParts = Record<string, unknown>;
+
+/**
+ * Axis parts per view, with the fields whose author tick formatter threw while their labels were made. The
+ * labels are made once per view and options, so a frame can make them before it writes anything (no author
+ * code runs once publication has started; final review, finding 1), and every layout computed from them,
+ * cached or not, reports the same AX160 (finding 11).
+ */
+const axisMemo = new WeakMap<View, { key: readonly unknown[]; parts: AxisParts; failed: readonly string[] }>();
+
+function axisParts(view: View, ctx: AxisContext): { parts: AxisParts; failed: readonly string[] } {
+  const key = [ctx.resolved, ctx.locale, ctx.compact, ctx.xLabelGiven, ctx.valueTitle];
+  const hit = axisMemo.get(view);
+  if (hit && hit.key.length === key.length && hit.key.every((v, i) => v === key[i])) return hit;
+  const failed = new Set<string>();
+  const local: AxisContext = { ...ctx, onFormatterError: field => { failed.add(field); } };
+  const entry = { key, parts: view.kind === 'donut' ? {} : buildAxisParts(view, local), failed: [...failed] };
+  axisMemo.set(view, entry);
+  return entry;
+}
+
+/** The fields whose tick formatter threw while this view's tick labels were made (they are made if needed). */
+export function tickFormatFailures(view: View, ctx: AxisContext): readonly string[] {
+  if (view.kind === 'donut') return [];
+  return axisParts(view, ctx).failed;
+}
+
 export function layoutInput(
   view: View, size: { width: number; height: number }, text: { measurer: TextMeasurer; style: TextStyle }, ctx: AxisContext,
 ): LayoutInput {
   const { width, height } = size;
   if (view.kind === 'donut') return { width, height, kind: 'ring' };
+  const common = { width, height, compact: ctx.compact, measurer: text.measurer, style: text.style, scales };
+  return { ...common, ...axisParts(view, ctx).parts } as unknown as LayoutInput;
+}
+
+function buildAxisParts(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext): AxisParts {
   const value = ctx.resolved.values[0];
   const yOption = value?.tickFormat ?? null;
   const onYError = (e: unknown) => ctx.onFormatterError(value?.field ?? 'y', e);
@@ -100,11 +133,16 @@ export function layoutInput(
     })) : undefined,
     title: titles.y, mayThin: true,
   };
-  const common = { width, height, compact: ctx.compact, measurer: text.measurer, style: text.style, scales };
 
   if (view.kind === 'scatter') {
     const x = continuousX(view.frame.xKind, view.xDomain, view.frame.timeZone, null, ctx);
-    return { ...common, kind: 'xy', x: { ...x, title: titles.x }, y, references: view.references };
+    // Spec F7: both axes of scatter are value axes. An automatic number x domain (not the author's, not a
+    // zoomed window) ends at the first drawn tick at or beyond each extreme, like y.
+    const automatic = view.frame.xKind === 'number' && !ctx.resolved.x.domain &&
+      view.xDomain[0] === view.xFull[0] && view.xDomain[1] === view.xFull[1];
+    const xExtent = automatic ? scatterXExtent(view) : null;
+    const candidates = xExtent ? endingCandidates(x.candidates, view.xDomain, xExtent, null) : x.candidates;
+    return { kind: 'xy', x: { ...x, candidates, title: titles.x }, y, references: view.references };
   }
 
   const column = view.frame.x;
@@ -118,15 +156,28 @@ export function layoutInput(
       candidates: bandTickCandidates(labels), mayThin: column.ordered, title: xTitle,
     };
     return view.kind === 'bar'
-      ? { ...common, kind: 'bands', horizontal: view.horizontal, x, y, references }
-      : { ...common, kind: 'xy', x, y, references };
+      ? { kind: 'bands', horizontal: view.horizontal, x, y, references }
+      : { kind: 'xy', x, y, references };
   }
   // Bars on a continuous x: the view's domain already has room for the outer bars (view/bar-bands.ts), and
   // ticks, marks and lookup all use that one domain.
   const x = { ...continuousX(column.kind, view.xDomain, column.timeZone, column.dateUnit, ctx), title: xTitle };
   return view.kind === 'bar'
-    ? { ...common, kind: 'bands', horizontal: view.horizontal, x, y, references }
-    : { ...common, kind: 'xy', x, y, references };
+    ? { kind: 'bands', horizontal: view.horizontal, x, y, references }
+    : { kind: 'xy', x, y, references };
+}
+
+/** What scatter's automatic x domain was rounded from: the visible points' x and the x references. */
+function scatterXExtent(view: Extract<View, { kind: 'scatter' }>): Span | null {
+  let lo = Infinity;
+  let hi = -Infinity;
+  view.frame.series.forEach((s, i) => {
+    if (!view.visible[i]) return;
+    const { start, end } = view.visiblePoints[i]!;
+    if (end > start) { lo = Math.min(lo, s.x[start]!); hi = Math.max(hi, s.x[end - 1]!); }
+  });
+  for (const r of view.references) if (r.axis === 'x') { lo = Math.min(lo, r.from); hi = Math.max(hi, r.to); }
+  return lo <= hi ? [lo, hi] : null;
 }
 
 /**

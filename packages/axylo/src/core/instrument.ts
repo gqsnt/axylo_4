@@ -6,7 +6,9 @@
  * `globalThis.__AXYLO_BENCH__`), and absent from every shipped production file: the controller calls in only
  * under `instrumented`, which the build folds to false. What the harness reads next goes here, from `Probe`.
  */
-import type { Layout, View } from './contracts';
+import type { Layout, Scene, View } from './contracts';
+import type { Table } from '../data/table';
+import { ByteCount, CallerBuffers, type OwnedBytes } from '../data/store-bytes';
 import { SLOT_NO_ROW, SLOT_VALUE } from './contracts';
 import type { Chart } from '../public';
 import { drawing } from '../scene/lines';
@@ -32,10 +34,26 @@ export interface BenchHook {
        * F5), so drawn gaps and extremes can be checked index-exactly. Absent for other chart types.
        */
       kept?: number[];
+      /** Line charts: offsets into `kept` at which a new drawn run starts (after a gap), the first run excluded. */
+      breaks?: number[];
+      /** Line charts: the kept samples drawn as markers because they stand alone (no neighbour to join). */
+      isolatedMarkers?: boolean;
+      /**
+       * What `kept` indexes: 'rows' (the caller's row indexes, a static chart) or 'window' (positions in the
+       * displayed window, oldest first, for a streaming chart whose row indexes run on as rows arrive).
+       */
+      keptBasis?: 'rows' | 'window';
     }[];
+    /** The drawn plot rectangle in CSS px of the chart; null before a plot is drawn. */
+    plot?: { x: number; y: number; width: number; height: number } | null;
     /** The mark renderer drawing this chart. */
     renderer: 'canvas' | 'svg';
   };
+  /**
+   * Every typed array or ArrayBuffer the chart holds that is not one of the caller's columns: the store's own
+   * storage (streaming), the normalized frame (static) and the drawn scene.
+   */
+  memory(): { bytes: number; buffers: { name: string; bytes: number }[] };
 }
 
 export interface DevHook {
@@ -71,9 +89,14 @@ export interface Probe {
   /** Resolves once the page settled on the accepted revision (drawn, or its error shown), or the chart is gone. */
   ready(): Promise<void>;
   /** The committed frame: its view and layout, and the pixel ratio it was drawn at; null before the first. */
-  shown(): { readonly view: View; readonly layout: Layout; readonly pixelRatio: number } | null;
+  shown(): {
+    readonly view: View; readonly layout: Layout; readonly pixelRatio: number; readonly scene: Scene;
+    readonly streaming: boolean; readonly table: Table;
+  } | null;
   renderer(): 'canvas' | 'svg';
   retainedRows(): number;
+  /** The streaming store, when there is one. */
+  store(): { ownedBytes?: () => OwnedBytes } | null;
 }
 
 export function attachHooks(handle: ChartHandle, probe: Probe): void {
@@ -86,20 +109,56 @@ export function attachHooks(handle: ChartHandle, probe: Probe): void {
       describe() {
         const d = probe.shown();
         const renderer = probe.renderer();
-        if (!d) return { xDomain: null, yDomain: null, series: [], renderer };
-        const out = { ...describe(d.view), renderer };
+        if (!d) return { xDomain: null, yDomain: null, series: [], plot: null, renderer };
+        const out: ReturnType<BenchHook['describe']> = { ...describe(d.view), renderer, plot: null };
         const view = d.view;
-        if (view.kind === 'line' && d.layout.kind === 'plot' && d.layout.projection.kind === 'xy') {
+        const layout = d.layout;
+        if (layout.kind === 'plot' || layout.kind === 'compact') {
+          const p = layout.plot;
+          out.plot = { x: p.x, y: p.y, width: p.width, height: p.height };
+          // The domains the marks were drawn with: the layout may widen an automatic value domain to end at
+          // ticks a short plot can draw (F7), so the view's own domain is not always the one drawn.
+          const projection = layout.projection;
+          if (projection.kind === 'xy') {
+            out.yDomain = projection.y.domain;
+            if (projection.x.type !== 'band') out.xDomain = projection.x.domain;
+          } else if (projection.kind === 'bands') {
+            out.yDomain = projection.value.domain;
+          }
+        }
+        if (view.kind === 'line' && (layout.kind === 'plot' || layout.kind === 'compact') && layout.projection.kind === 'xy') {
           // The same selection the scene made (scene/index.ts): the frame's x, the plot, the pixel ratio.
-          const draw = drawing(view.frame.x.values, d.layout.projection, d.layout.plot, d.pixelRatio > 0 ? d.pixelRatio : 1);
+          const draw = drawing(view.frame.x.values, layout.projection, layout.plot, d.pixelRatio > 0 ? d.pixelRatio : 1);
+          const window = view.visibleSlots.start;
           out.series = out.series.map((s, i) => {
             const series = view.frame.series[i]!;
-            if (!view.visible[i]) return { ...s, kept: [] };
+            if (!view.visible[i]) return { ...s, kept: [], breaks: [], isolatedMarkers: false, keptBasis: d.streaming ? 'window' : 'rows' };
             const runs = simplifyLine({ ...draw, range: view.drawSlots[i]!, slot: series.slot, y: series.y });
-            return { ...s, kept: Array.from(runs.indexes, slot => series.row ? series.row[slot]! : slot) };
+            // A streaming chart's row indexes keep growing: its kept samples are given within the window shown.
+            const kept = d.streaming
+              ? Array.from(runs.indexes, slot => slot - window)
+              : Array.from(runs.indexes, slot => series.row ? series.row[slot]! : slot);
+            return {
+              ...s, kept, breaks: Array.from(runs.breaks), isolatedMarkers: runs.isolated.length > 0,
+              keptBasis: d.streaming ? 'window' : 'rows',
+            };
           });
         }
         return out;
+      },
+      memory() {
+        const d = probe.shown();
+        const own = probe.store()?.ownedBytes?.();
+        const caller = new CallerBuffers();
+        if (d) caller.add(d.table);
+        const count = new ByteCount(caller);
+        if (d && !own) count.frame(d.view.frame);
+        if (d) d.scene.marks.forEach((m, i) => {
+          for (const [key, value] of Object.entries(m)) if (ArrayBuffer.isView(value)) count.add(`scene mark ${i} ${key}`, value);
+        });
+        const extra = count.result();
+        const buffers = [...(own?.buffers ?? []), ...extra.buffers].map(b => ({ name: b.name, bytes: b.bytes }));
+        return { bytes: (own?.total ?? 0) + extra.total, buffers };
       },
     };
   }

@@ -225,7 +225,7 @@ describe('finding 6: author callbacks cannot repeat a delivery or continue work 
     expect(r.draws.length).toBe(0);
     expect(r.commits).toBe(0);
     expect(r.disposed).toBe(1);
-    expect(describeOf(r)).toEqual({ xDomain: null, yDomain: null, series: [], renderer: 'svg' });
+    expect(describeOf(r)).toEqual({ xDomain: null, yDomain: null, series: [], plot: null, renderer: 'svg' });
   });
 });
 

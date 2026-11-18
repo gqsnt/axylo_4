@@ -23,7 +23,7 @@ import {
 } from './contracts';
 import type { ChartEvents, Diagnostic, Messages, Point, Title, XValue } from '../public';
 import type { PreparedFrame } from '../data';
-import { resolveOptions, type ChartType, type ResolvedOptions } from '../data/options';
+import { resolveOptions, withoutTable, type ChartType, type ResolvedOptions } from '../data/options';
 import { createDiagnostic, DiagnosticCollector, readerDisclosure, type DiagnosticCode } from '../diagnostics';
 import { createFormatters, type FormatSpec } from '../format';
 import { dateUnitOf } from '../data/x';
@@ -34,7 +34,7 @@ import { fill, resolveMessages } from '../messages';
 import { lowContrastSeries, type ThemeResolution } from '../theme';
 import { OptionsStore, sameValue, type OptionRecord } from './options';
 import { Delivery, diagnosticKey, StrictError, strictViolations, type DeliveryConsole } from './delivery';
-import { layoutInput, layoutKey, sameKey, type AxisContext } from './axes';
+import { layoutInput, layoutKey, sameKey, tickFormatFailures, type AxisContext } from './axes';
 import { zoomApplies } from './focus';
 import { lowerBound } from '../lookup/search';
 import {
@@ -58,8 +58,10 @@ const KIND_NAMES: Record<ChartKind, string> = { line: 'Line', area: 'Area', bar:
 const KIND_MESSAGES = { line: 'typeLine', area: 'typeArea', bar: 'typeBar', scatter: 'typeScatter', donut: 'typeDonut' } as const;
 /** Option resolution reports these about the data; they belong to the call that set the data. */
 const DATA_CODES = new Set(['AX100', 'AX101']);
+/** Rows a store may hold beyond twice what was on screen before the frames that pin it copy their rows. */
+const RETENTION_SLACK = 8;
 /** Positions of the title, the labelledBy id and the caption in the reader's inputs: they name, they do not summarize. */
-const NAMING_INPUTS = new Set([3, 4, 13]);
+const NAMING_INPUTS = new Set([3, 4, 9, 13]);
 
 export interface Size {
   readonly width: number;
@@ -74,6 +76,8 @@ export interface Size {
 /** Decision 0004 revision 2, rule 5: a plot narrower or shorter than this is in readout mode. */
 const READOUT_WIDTH = 240;
 const READOUT_HEIGHT = 140;
+/** Where a pointed datum's values go: a floating tooltip, the reserved strip, or nowhere (rule 5). */
+type ReadoutMode = 'floating' | 'strip' | 'none';
 /** Spec L8: the smallest plot height drawn. */
 const MIN_PLOT_HEIGHT = 80;
 
@@ -191,8 +195,11 @@ type PresentationStage = 'theme' | 'layout' | 'fit' | 'format' | 'naming' | 'int
 export function positionValue(frame: Frame, position: number): XValue {
   if (frame.shape === 'donut') return position;
   const kind = frame.shape === 'points' ? frame.xKind : frame.x.kind;
-  if (kind === 'time') return new Date(position);
+  // A Date holds whole milliseconds: a position between them is given as the number zoom() reads the same
+  // way, so an event's window can be passed on unchanged (final review, finding 12).
+  if (kind === 'time') return Number.isInteger(position) ? new Date(position) : position;
   if ((kind === 'date' || kind === 'wall') && Number.isFinite(position)) {
+    if (!Number.isInteger(position)) return position;
     const iso = new Date(position).toISOString();
     // Only four-digit years read back as written; others stay positions.
     if (iso.length !== 24) return position;
@@ -294,6 +301,17 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   let onScreen: { frame: Frame; store: Store | null; frozen: Map<number, unknown> | null } | null = null;
   /** Frames a store produced (their rows live in that store's revisions). */
   const storeFrames = new WeakSet<Frame>();
+  /**
+   * Rows copied out of the store for a frame that still needs them after the store moved on: the displayed
+   * frame, the pending (accepted, not yet drawn) one and the one being published each own theirs, so none of
+   * them pins the store's history (final review, finding 2).
+   */
+  let frozenRows = new WeakMap<Frame, Map<number, unknown>>();
+  /** The rows of `frame` by source index: its copy when it has one, else its source. */
+  const rowOf = (frame: Frame, row: number): unknown => {
+    const own = frozenRows.get(frame);
+    return own ? own.get(row) ?? null : frame.source.rowAt(row);
+  };
   /** What the store held right after the last release with a frame on screen: the bound's baseline. */
   let retainedBaseline = 0;
   let epochs = 0;
@@ -302,6 +320,10 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   let listeners = new Map<keyof ChartEvents<unknown>, Set<(payload: never) => void>>();
   /** True while a frame runs: findings are delivered at its end, not from inside a stage. */
   let inFrame = false;
+  /** The call being prepared: what it found so far, for a failure before it is accepted (finding 7). */
+  let preparing: { sink: DiagnosticCollector; strict: boolean; name: string; handler: unknown } | null = null;
+  /** The accepted state a running frame publishes: its rows are kept until it is on screen. */
+  let inflight: Accepted | null = null;
 
   function chartName(o: OptionRecord): string {
     return titleOf(o)?.text ?? (host.targetId || host.id);
@@ -368,7 +390,14 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
 
   function enqueue(work: () => void): void {
     notifications.push(work);
-    if (draining) return;
+    // During a frame nothing reaches author code: hover, select and zoom that the interaction layer raises
+    // while it is being committed are delivered once the frame has finished publishing (final review, 1).
+    if (draining || inFrame) return;
+    drain();
+  }
+
+  function drain(): void {
+    if (draining || notifications.length === 0) return;
     draining = true;
     try {
       while (notifications.length && !destroyed) notifications.shift()!();
@@ -502,9 +531,21 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     if (destroyed) return;
     try {
       run();
+      preparing = null;
     } catch (error) {
+      const call = preparing;
+      preparing = null;
       if (error instanceof StrictError) throw error;
-      raiseInternal(error);
+      // A failure while a call was prepared (a row getter that throws): what the call had found until then is
+      // kept, with AX199 after it, as validate() reports it; under strict that is a rejection, before the
+      // accepted chart changes (final review, finding 7).
+      const before = call?.sink.inputs() ?? [];
+      if (call?.strict) {
+        const found = [...before, createDiagnostic('AX199', 'chart-error', {}, 'presentation')];
+        deliverRejected(found, call.name, call.handler);
+        throw new StrictError(call.name, toPublic(found, call.name));
+      }
+      raiseInternal(error, before);
       // A create that failed has nothing to draw from: show the error state now (never a blank box).
       if (accepted === null) showInternal(resolveMessages(object(options.current.messages)), chartName(options.current), options.current);
       schedule();
@@ -522,6 +563,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       const previous = accepted;
       const supplied = patch !== null && typeof patch === 'object' && Object.hasOwn(patch, 'data');
       const optionSink = new DiagnosticCollector();
+      preparing = { sink: optionSink, strict: next.strict === true, name: chartName(next), handler: next.onDiagnostic };
       const messages = messagesFor(next, previous);
       let c: Candidate;
       let commit: (() => void) | null = null;
@@ -599,6 +641,9 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       }
       const viewed = viewFor(c, previous);
       const found = [...c.optionDiagnostics, ...c.dataDiagnostics, ...viewed.viewDiagnostics, ...namingDiagnostics(next)];
+      // While paused the held window is part of the chart: its findings count for strict too (finding 6).
+      const keptHeld = heldAfter ?? (c.frame === previous?.frame ? held : null);
+      if (paused && keptHeld) found.push(...keptHeld.dataDiagnostics, ...keptHeld.viewDiagnostics);
       rejectIfStrict(next.strict === true, found, chartName(next), next.onDiagnostic);
       // Data replaced or bounds changed: a window that no longer ends at the latest x stops following.
       const follow = followsLatest(viewed.view, c.zoom);
@@ -631,7 +676,9 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       let zoom = previous.zoom;
       if (!paused && previous.follow && zoom) zoom = followLatest(prepared.frame, previous.view) ?? zoom;
       let c: Candidate = {
-        options: previous.options, resolved: previous.resolved, source: previous.source, store, frame: prepared.frame,
+        // Once the stream has its store the caller's opening data is no longer read: options and source keep no
+        // reference to it, so it can be collected once no displayed frame needs it (data agent's report).
+        options: streamOptions(previous.options), resolved: withoutTable(previous.resolved), source: withoutTable(previous.source), store, frame: prepared.frame,
         dataDiagnostics: prepared.diagnostics, dataOptions: previous.dataOptions,
         optionDiagnostics: previous.optionDiagnostics, zoom, hidden: previous.hidden, messages: previous.messages,
       };
@@ -662,7 +709,11 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         storeFrames.add(prepared.frame);
         frameRevision = Math.max(frameRevision, prepared.frame.revision);
         // The store is the accepted state's now; rows no displayed or pending frame needs go (finding 4).
-        accepted = { ...previous, store };
+        accepted = {
+          ...previous, store, options: streamOptions(previous.options),
+          resolved: withoutTable(previous.resolved), source: withoutTable(previous.source),
+        };
+        options.commit(accepted.options);
         release();
         // The held state: complete findings for the data accepted so far, kept apart from what is drawn, so a
         // display effect (an error state) never reaches the ring on screen before Resume (finding 6).
@@ -673,6 +724,9 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         return;
       }
       streaming = true;
+      // The new frame is made from the store's head, which already has every held arrival: a revision held by
+      // a Resume that failed is superseded here, in the same step (final review, finding 3).
+      held = null;
       accept(c, viewed, previous.follow && zoom !== null, commitAppend);
     });
   }
@@ -682,7 +736,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
    * they can be normalized again on their own (re-encoding what is on screen while paused).
    */
   function displayedTable(frame: Frame): Table {
-    const own = onScreen && onScreen.frame === frame && onScreen.frozen ? onScreen.frozen : freeze(frame).rows;
+    const own = frozenRows.get(frame) ?? freeze(frame).rows;
     const indexes = [...own.keys()].sort((p, q) => p - q);
     const rows = indexes.map(i => own.get(i));
     // Positions read the rows in order; provenance and events read them by their own source index.
@@ -741,7 +795,19 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         }
         return;
       }
-      const pair = Array.isArray(domain) && domain.length === 2 ? [domain[0], domain[1]] as unknown as Span<XValue> : null;
+      if (isCompact(kind, previous.options)) {
+        // A compact chart has no zoom (spec 3.7): a window is reported and nothing is kept for later, so turning
+        // compact off does not apply it (final review, finding 13).
+        if (domain !== null && domain !== undefined) {
+          deliverRejected([createDiagnostic('AX150', 'none', {
+            field: 'zoom', detail: 'A compact chart does not zoom.',
+          }, 'call')], previous.name, previous.options.onDiagnostic);
+        }
+        return;
+      }
+      // The window is kept as given at the call: a Date the caller mutates later does not move it (finding 12).
+      const own = (v: unknown) => v instanceof Date ? new Date(v.getTime()) : v;
+      const pair = Array.isArray(domain) && domain.length === 2 ? [own(domain[0]), own(domain[1])] as unknown as Span<XValue> : null;
       const c = viewCandidate(previous, { zoom: pair });
       const viewed = viewFor(c, previous);
       // A window that cannot be read is reported and ignored; zoom never throws (spec 3.5).
@@ -812,7 +878,9 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   /** The readout strip is reserved under the plot (decision 0004 revision 2, rule 5). */
   let readoutMode = false;
   /** The strip's height as last measured (two 24 px lines until then). */
-  let stripHeight = 48;
+  let stripHeight = 0;
+  /** Decision 0004 revision 3, rule 5: how a datum's values are shown when pointed at. */
+  let readoutKind: ReadoutMode = 'floating';
   /** L8 fallback: what the fallback's own DOM adds to the plot size, measured when it was entered. */
   let fallback: { width: number; height: number } | null = null;
   let textStyle: TextStyle | null = null;
@@ -914,17 +982,18 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   }
 
   /** AX199 (spec 3.5): Axylo itself failed. Given to onDiagnostic and printed, beside the error state. */
-  function raiseInternal(error: unknown): void {
+  function raiseInternal(error: unknown, before: readonly DiagnosticInput[] = []): void {
     const first = internalError === null;
     internalError = error;
     if (first) delivery.internal(accepted?.name ?? (host.targetId || host.id), error);
-    setPresentationQuiet('internal', [createDiagnostic('AX199', 'chart-error', {}, 'presentation')]);
+    setPresentationQuiet('internal', [...before, createDiagnostic('AX199', 'chart-error', {}, 'presentation')]);
     if (!inFrame) deliverChanges();
   }
 
   function formatSpec(a: Accepted): FormatSpec {
     const { frame, resolved } = a;
-    const onFormatterError = (field: string) => formatterFailed(field);
+    // `onFormatterError` is made once, outside: a closure made here would share this scope with `valueFor`,
+    // and so keep `resolved` and its borrowed table alive as long as the formatters are reused (data agent).
     const valueFor = (field: string) => resolved.values.find(v => v.field === field) ?? resolved.values[0];
     const locale = host.locale(a.options.locale);
     const messages = { noData: a.messages.noData, noObservation: a.messages.noObservation };
@@ -948,6 +1017,9 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     };
   }
 
+  /** What a formatter's failure reaches: the chart, not the options it was made from. */
+  const onFormatterError = (field: string): void => formatterFailed(field);
+
   function formattersKey(spec: FormatSpec, valueCount: number): unknown[] {
     return [spec.locale, spec.x.kind, spec.x.timeZone, spec.x.dateUnit, spec.x.categories, spec.x.format, spec.x.unit,
       spec.messages.noData, spec.messages.noObservation, timeZone,
@@ -961,17 +1033,25 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     const a = accepted;
     if (destroyed || !a) return;
     inFrame = true;
+    // The frame's own rows are kept while it publishes, whatever its author code accepts meanwhile (an append
+    // with keep from a callback can no longer retire them; final review, finding 1).
+    inflight = a;
     try {
       frame(a);
     } catch (error) {
-      if (error !== ABORT) failSafe(a, error);
+      // A frame that a newer call superseded, or a destroyed chart, does not publish an error state: the newer
+      // state is drawn by the next frame (final review, finding 1).
+      if (error !== ABORT && !destroyed && accepted === a) failSafe(a, error);
     } finally {
       inFrame = false;
+      inflight = null;
+      if (!destroyed) release();
     }
     // A call made by author code during the frame is drawn by the next one.
     if (!destroyed && accepted !== a) schedule();
     // Author code last: the frame is complete before any handler runs.
     deliverChanges();
+    drain();
   }
 
   /** Whether a frame may go on after author code ran (a formatter): the chart is alive and on the same state. */
@@ -1129,7 +1209,26 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         (reader.table?.rowCount ?? 0) > 0,
       empty: shown.kind === 'empty', message: shown.kind === 'ready' ? null : shown.text,
       zoom: zoomOn, zoomed, streaming, paused, epoch: a.frame.epoch, english, pageLang: lang, readout: readoutMode,
-    });
+      // Decision 0004 revision 3, rule 5, for the interaction layer: 'floating', 'strip' or 'none'. Not in its
+      // ControlsState type yet (the interaction layer's file): asked for in the eighth-pass report.
+      readoutMode: readoutKind,
+    } as ControlsState);
+
+    // Tick labels are made now, before anything is written: an author tick formatter runs here, never during
+    // publication (final review, finding 1), and what it reported belongs to every layout made from them,
+    // cached ones included (finding 11).
+    const axisContext: AxisContext = {
+      resolved: a.resolved, locale, compact,
+      onFormatterError: () => {},
+      xLabelGiven: typeof object(a.options.x).label === 'string',
+      valueTitle: a.messages.value,
+    };
+    if (shown.kind === 'ready' && !compact) {
+      setPresentation('layout', tickFormatFailures(view, axisContext).map(field => createDiagnostic('AX160', 'changed', { field }, 'presentation')));
+    } else {
+      setPresentation('layout', []);
+    }
+    if (!current(a)) throw ABORT;
 
     let { reader, inputs: readerInputs } = settleReader(hiddenIn(drawn?.layout));
     // The lazy parts of the reader model run author formatters: materialized here, before anything is written.
@@ -1167,12 +1266,6 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     }
 
     // Layout.
-    const axisContext: AxisContext = {
-      resolved: a.resolved, locale, compact,
-      onFormatterError: field => addPresentation('layout', createDiagnostic('AX160', 'changed', { field }, 'presentation')),
-      xLabelGiven: typeof object(a.options.x).label === 'string',
-      valueTitle: a.messages.value,
-    };
     let layout: Layout;
     let lKey: readonly unknown[] | null = null;
     const plotLayout = (at: Size, strip = 0): { layout: Layout; key: readonly unknown[] } => {
@@ -1184,7 +1277,6 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       if (drawn && drawn.layoutKey && sameKey(drawn.layoutKey, key) && drawn.layout.kind !== 'unmeasured') return { layout: drawn.layout, key: drawn.layoutKey };
       if (lastLayout && sameKey(lastLayout.key, key)) return lastLayout;
       stage('layout');
-      setPresentation('layout', []);
       const input = layoutInput(view, at, { measurer: host.measurer, style }, axisContext);
       const result = { layout: computeLayout(input), key };
       lastLayout = result;
@@ -1196,23 +1288,32 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     // while the plot is too small (L8): that state has no strip.
     if (size !== null && size.width > 0 && shown.kind === 'ready' && !compact && !tooSmall) {
       const room = size.room ?? size;
+      // The strip is two line heights of its own font: measured once it is reserved, estimated before.
       if (readoutMode && size.room) stripHeight = Math.max(0, size.room.height - size.height) || stripHeight;
+      else if (stripHeight <= 0) stripHeight = 2 * style.lineHeight;
       const without = plotLayout({ width: room.width, height: room.height }).layout;
-      // The strip is reserved only where the plot keeps the L8 minimum beside it: a plot that the strip would
-      // make too small is drawn without one (the tooltip then floats, rule 6), and L8 itself is judged on the
-      // plot as drawn.
-      const wantStrip = a.options.tooltip !== false && without.kind === 'plot' &&
-        (without.plot.width < READOUT_WIDTH || without.plot.height < READOUT_HEIGHT) && without.plot.height - stripHeight >= MIN_PLOT_HEIGHT;
-      if (wantStrip !== readoutMode) {
-        readoutMode = wantStrip;
-        if (arrange(tooSmall)) size = host.measure() ?? size;
+      // Decision 0004 revision 3, rule 5: a plot that, laid out without a strip, is under 240 × 140 has the
+      // strip; if the strip would leave it under the L8 minimum of 80 px, there is no strip and no floating
+      // tooltip either ('none': pointing highlights the datum; its values are in the keyboard reading and the
+      // table). Never floating below the limit (final review, finding 9).
+      const small = without.kind === 'plot' && (without.plot.width < READOUT_WIDTH || without.plot.height < READOUT_HEIGHT);
+      const next: ReadoutMode = a.options.tooltip === false || !small ? 'floating'
+        : without.kind === 'plot' && without.plot.height - stripHeight >= MIN_PLOT_HEIGHT ? 'strip' : 'none';
+      if (next !== readoutKind) {
+        readoutKind = next;
+        const wantStrip = next === 'strip';
+        if (wantStrip !== readoutMode) {
+          readoutMode = wantStrip;
+          if (arrange(tooSmall)) size = host.measure() ?? size;
+        } else {
+          arranged = null;
+          arrange(tooSmall);
+        }
       }
     }
     if (size === null || size.width <= 0) {
       layout = { kind: 'unmeasured', width: size?.width ?? 0, height: size?.height ?? 0 };
     } else if (shown.kind !== 'ready') {
-      // No axes drawn: what the tick formatters reported belongs to no output any more.
-      setPresentation('layout', []);
       const h = Math.max(0, size.height);
       layout = { kind: 'unmeasured', width: size.width, height: h };
       lKey = ['message', size.width, h];
@@ -1354,13 +1455,22 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     const store = accepted?.store;
     if (!store) return;
     const needed: Frame[] = [];
-    const shown = onScreen && onScreen.store === store && !onScreen.frozen && storeFrames.has(onScreen.frame) ? onScreen : null;
-    if (shown) needed.push(shown.frame);
-    const pending = accepted!.frame;
-    if (storeFrames.has(pending) && pending !== store.frame && pending !== onScreen?.frame) needed.push(pending);
-    if (shown && store.retainedRowCount > 2 * retainedBaseline + 64) {
-      shown.frozen = freeze(shown.frame).rows;
-      needed.splice(needed.indexOf(shown.frame), 1);
+    const owners = new Set<Frame>();
+    if (onScreen && onScreen.store === store) owners.add(onScreen.frame);
+    // The pending frame (accepted, not drawn yet) and the frame being published keep their rows too.
+    owners.add(accepted!.frame);
+    if (inflight && inflight.store === store) owners.add(inflight.frame);
+    if (held) owners.add(held.frame);
+    for (const f of owners) {
+      if (f === store.frame || !storeFrames.has(f) || frozenRows.has(f)) continue;
+      needed.push(f);
+    }
+    // Once the store holds more than twice what was on screen (plus a few rows), every frame that still pins
+    // its history takes a copy of its own rows instead: one copy per frame, so the cost is amortized over the
+    // rows that arrived, and `keep` bounds retention while paused too.
+    if (needed.length && store.retainedRowCount > 2 * retainedBaseline + RETENTION_SLACK) {
+      for (const f of needed) frozenRows.set(f, freeze(f).rows);
+      needed.length = 0;
     }
     const floor = needed.length ? Math.min(...needed.map(f => f.revision)) : store.frame.revision;
     if (floor > 0) store.retire(floor - 1);
@@ -1368,10 +1478,14 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
 
   /** The displayed snapshot is now `frame` (or nothing): its rows are owned until the next one is drawn. */
   function showing(a: Accepted | null): void {
+    if (destroyed) return;
     const frame = a?.frame ?? null;
-    onScreen = frame === null ? null : { frame, store: a!.store, frozen: onScreen?.frame === frame ? onScreen.frozen : null };
+    const changed = onScreen?.frame !== frame;
+    onScreen = frame === null ? null : { frame, store: a!.store, frozen: null };
     release();
-    retainedBaseline = accepted?.store?.retainedRowCount ?? 0;
+    // The baseline moves only when the data on screen changes: redrawing the same paused frame does not let
+    // the store grow further (final review, finding 2).
+    if (changed) retainedBaseline = accepted?.store?.retainedRowCount ?? 0;
   }
 
   function readyText(a: Accepted, reader: ReaderModel, byText: string | null): string {
@@ -1462,18 +1576,19 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       x = positionValue(frame, ref.x);
       const series = frame.series[text.seriesIndex];
       if (series) {
+        // Points are in x order: the datum is found by its x, then by its row among points at that x, with no
+        // walk over the series (final review, finding 8).
         const rows = series.row;
-        for (let i = 0; i < series.x.length; i++) {
-          if ((rows ? rows[i] : i) === ref.row) { y = series.y[i]!; break; }
-        }
+        let i = rows ? lowerBound(series.x, ref.x) : ref.row;
+        if (rows) while (i < series.x.length && series.x[i] === ref.x && rows[i] !== ref.row) i++;
+        if (i >= 0 && i < series.x.length && (rows ? rows[i] === ref.row : true)) y = series.y[i]!;
       }
     } else if (ref.kind === 'slice' && frame.shape === 'donut') {
       x = text.seriesLabel;
       const i = frame.labels.indexOf(text.seriesLabel);
       if (i >= 0 && frame.slot[i] === SLOT_VALUE) y = frame.values[i]!;
     }
-    const own = onScreen && onScreen.frame === frame ? onScreen.frozen : null;
-    const rowAt = own ? (row: number) => own.get(row) ?? null : (row: number) => frame.source.rowAt(row);
+    const rowAt = (row: number) => rowOf(frame, row);
     return { series: ref.kind === 'slice' ? ref.sliceKey : ref.seriesKey, x, y, row: text.row >= 0 ? rowAt(text.row) : null, index: text.row };
   }
 
@@ -1511,6 +1626,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     hover(ref) {
       const d = drawn;
       if (destroyed) return;
+      // Nothing is built for a pointer move nobody listens to.
+      if (!listeners.get('hover')?.size) return;
       emit('hover', d && ref ? pointFor(d, ref) : null);
     },
   };
@@ -1591,6 +1708,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     held = null;
     lastLayout = null;
     onScreen = null;
+    frozenRows = new WeakMap();
     theme = null;
     listeners = new Map();
     presentation.clear();
@@ -1643,12 +1761,24 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         if (destroyed || (settledRevision >= revision && !frameScheduled)) return Promise.resolve();
         return new Promise<void>(resolve => waiters.push({ revision, resolve }));
       },
-      shown: () => drawn && { view: drawn.accepted.view, layout: drawn.layout, pixelRatio },
+      shown: () => drawn && {
+        view: drawn.accepted.view, layout: drawn.layout, pixelRatio, scene: drawn.scene,
+        streaming: drawn.accepted.store !== null, table: drawn.accepted.source.table,
+      },
       renderer: () => host.renderer.kind,
       retainedRows: () => accepted?.store?.retainedRowCount ?? 0,
+      store: () => accepted?.store ?? null,
     });
   }
   return { handle, actions, invalidate, flush };
+}
+
+/** Options of a chart that streams from its own store: without the caller's opening data. */
+function streamOptions(o: OptionRecord): OptionRecord {
+  if (o.data === undefined) return o;
+  const { data: _data, ...rest } = o;
+  void _data;
+  return rest;
 }
 
 /** The same frame with the names and units the resolved fields now give (no value is read again). */

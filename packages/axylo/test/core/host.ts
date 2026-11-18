@@ -50,6 +50,8 @@ export interface HostOptions {
   readonly pageLang?: string;
   /** The target element's own id (an untitled chart's name in diagnostics). */
   readonly targetId?: string;
+  /** Called inside the interaction layer's commit, as the DOM layer calls hover while it presents. */
+  readonly onCommit?: (state: Committed, controller: Controller) => void;
 }
 
 export function record(kind: ChartKind, options: Record<string, unknown>, settings: HostOptions = {}): Recording {
@@ -125,6 +127,7 @@ export function record(kind: ChartKind, options: Record<string, unknown>, settin
         if (rec.disposed) rec.writesAfterDispose++;
         rec.committed = state;
         rec.commits++;
+        if (state) settings.onCommit?.(state, controller);
       },
       clear() {
         rec.committed = null;

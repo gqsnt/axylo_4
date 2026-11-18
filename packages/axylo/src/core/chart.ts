@@ -91,10 +91,23 @@ export function createChart(composition: Composition, target: unknown, input: un
     const watch = (): void => {
       if (watching || controller === null) return;
       const c = controller;
-      if (watchedBefore) c.invalidate.page();
+      if (watchedBefore) {
+        // Back in the document: fonts may have changed while it was out, and measurements made with the old
+        // ones must not be reused (final review, finding 14).
+        noteFontLoad(doc);
+        c.invalidate.page();
+      }
       watchedBefore = true;
-      const stopTheme = watchTheme(root, () => c.invalidate.theme());
-      const stopEnvironment = watchEnvironment(win, {
+      // Each watcher's release is registered as soon as it exists, so one that fails part-way leaves no
+      // other behind (final review, finding 14).
+      const stops: (() => void)[] = [];
+      watching = () => {
+        for (let stop = stops.pop(); stop; stop = stops.pop()) {
+          try { stop(); } catch { /* keep releasing */ }
+        }
+      };
+      stops.push(watchTheme(root, () => c.invalidate.theme()));
+      stops.push(watchEnvironment(win, {
         pixelRatio: () => c.invalidate.pixelRatio(),
         motion() {
           // Nothing is animated yet (spec I5), so there is nothing to change.
@@ -103,15 +116,10 @@ export function createChart(composition: Composition, target: unknown, input: un
           noteFontLoad(doc);
           c.invalidate.fonts();
         },
-      });
-      const stopLanguage = watchLanguage(root, () => c.invalidate.language());
+      }));
+      stops.push(watchLanguage(root, () => c.invalidate.language()));
       interaction.attach();
-      watching = () => {
-        stopTheme();
-        stopEnvironment();
-        stopLanguage();
-        interaction.detach();
-      };
+      stops.push(() => interaction.detach());
     };
     const unwatch = (): void => {
       watching?.();

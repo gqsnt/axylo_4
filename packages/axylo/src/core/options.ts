@@ -42,6 +42,8 @@ export function applyPatch(current: OptionRecord, patch: unknown): Patched {
 
 /** A copy of plain objects and arrays (functions, dates, typed arrays and other objects as they are). */
 function snapshot(value: unknown): unknown {
+  // A Date is mutable: the accepted options keep its time, not the caller's object (final review, 12).
+  if (value instanceof Date) return new Date(value.getTime());
   if (Array.isArray(value)) return value.map(snapshot);
   if (isPlain(value)) {
     const out: Record<string, unknown> = {};
