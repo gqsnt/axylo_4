@@ -1,6 +1,19 @@
-# Decision 0002: SVG paths draw the marks by default
+# Decision 0002: SVG paths draw the marks by default (provisional)
 
-Status: decided from the M1 measurements, by the coordinator, on 2026-11-18. The owner asked for this to be settled by measurement. It reverses the working assumption in the plan (Canvas 2D) and can be reversed again by one internal switch if the measurements still missing say otherwise.
+Status: **provisional working default**, set by the coordinator on 2026-11-18 from the M1 measurements and weakened the same day after an independent review of the benchmark harness (`reviews/2026-11-18/impl/wp/bench.review.md`, Codex gpt-6.2-sol at effort max). The owner asked for this to be settled by measurement. It is not settled: the measurements support using SVG while the line-chart slice is built and keeping canvas behind the internal switch. They do not establish a shipping winner or a reason to remove either renderer.
+
+## What the review changed
+
+The table below is kept as measured. These statements made from it in the first version are withdrawn or narrowed:
+
+- **Withdrawn: "nothing measured favours canvas except all-thread CPU during resize."** The recorded heap, DOM-node and layout counts also favour canvas.
+- **Withdrawn: the resize CPU gap is raster work.** The number is CPU for the whole renderer process; no stage was traced.
+- **Withdrawn: simplification bounds every chart by its width.** It was shown for line series only; point marks and many-series charts were not measured.
+- **Withdrawn: an SVG theme change needs no run-time work.** Both renderers recorded six DOM mutations per toggle; "no canvas drawing call" is all that was observed.
+- **Withdrawn: normalization and garbage collection explain the gap to uPlot.** About 71–73% of busy time in the production profiles is unmapped; the normalization share comes from development builds. It is a hypothesis to test, not a finding.
+- **Narrowed: "half the renderer memory."** The halving is of the increase above a data-only page at pixel ratio 2 (34.2 → 17.7 MiB). Absolute renderer memory was 74.7 → 56.2 MiB, and at pixel ratio 1 the increase was 23.1 → 18.4 MiB.
+- **Narrowed: "no frame later than 25 ms."** True of the recorded animation-frame callbacks; the window can miss an interval that spans its boundary, and a callback is not a presented frame.
+- **Narrowed: verdicts.** 149 metric comparisons were judged without adjustment for choosing among them, on six pairs or fewer per workload, with noise bands from one session and two workload shapes. Two "SVG lower" rows allow a gain as small as 0.16 ms (10,000 points) and 6.3 ms (dashboard at pixel ratio 2).
 
 Evidence: [bench/results/m1-renderer-comparison.md](../../bench/results/m1-renderer-comparison.md). One session of 39 runs, production build, headless Chrome 157, machine under load from other work, A-versus-A noise bands for two workloads only.
 
@@ -24,23 +37,23 @@ Canvas → SVG, medians of main-thread task time unless stated. "Lower" means th
 
 No frame was later than 25 ms in any configuration, so frame pacing does not separate the two.
 
-## Why SVG
+## Why SVG for now
 
-1. Where the two differ on the main thread, SVG is ahead; where they do not differ, the measurements cannot tell them apart. Nothing measured favours canvas except CPU summed over all threads during a continuous resize of a 100,000-point chart.
-2. The drawing is simplified to a few vertices per pixel column before either renderer sees it, so a path's size is bounded by the plot width, not by the data. That removes the usual reason to prefer canvas for large series.
-3. SVG follows the page without code: a theme change restyles the marks with no call, forced colors and print work through CSS, browser zoom stays sharp, and there is no backing store to size, cap or lose.
-4. It uses roughly half the renderer memory on a dashboard page.
+1. On the line workloads measured, main-thread task time was lower with SVG or the two could not be told apart.
+2. Line series are simplified to a few vertices per pixel column before either renderer sees them, so for line charts the path size follows the plot width, not the data.
+3. SVG follows the page with less code: forced colors and print work through CSS, browser zoom stays sharp, and there is no backing store to size, cap or lose. This is a design argument, not a measurement.
 
 ## What this does not establish
 
-- **GPU rasterization was not measured.** Headless Chrome rasterizes in software here. The one result against SVG (all-thread CPU while resizing) is raster work; on a GPU it may shrink or grow.
+- **GPU rasterization was not measured.** Headless Chrome here does not use a GPU. The resize, pixel-ratio-2 and process-memory results need a headed, GPU-backed rerun before they transfer.
 - **Dense point marks were not measured.** A scatter chart with tens of thousands of markers is the case most likely to favour canvas.
 - **One browser, one machine, one session.** Firefox and Safari may order the two differently.
-- Both renderers are far from uPlot (about 80 ms against 12 ms at 100,000 points). The profiles put that in data normalization and garbage collection, not in drawing (2–3%), so the renderer choice does not decide the performance budgets.
+- **Many series, pan and zoom, and the budget workloads P4, P7 and P8 were not measured**, and the million-point comparison has four pairs.
+- Both renderers are far from uPlot in the configurations measured (about 80 ms against 12 ms at 100,000 points; uPlot draws no tooltip or accessibility layer). Where that time goes is not established.
 
 ## Consequences
 
-- The default mark renderer is SVG. The canvas renderer stays in the code behind the same internal switch, with the pixel-agreement tests between the two kept.
-- Before 1.0: measure scatter at 10,000, 50,000 and 200,000 points with both renderers and decide whether scatter above some size should use canvas automatically. If it never should, the canvas renderer is removed from the 1.0 bundle to save bytes.
+- The working default is SVG. The canvas renderer stays in the code behind the same internal switch, with the pixel-agreement tests between the two kept.
+- Before the choice is final: fix the harness defects the review found (renderer identity in the readback, noise bands on replay, failed runs excluded from speed verdicts, gap-aware admission, the frame window), declare the primary endpoints and thresholds in advance, then rerun on a quiet machine with scatter at 10,000, 50,000 and 200,000 points, ten series of 100,000 points, pan and zoom, and the byte cost of keeping both renderers. Removing canvas from the bundle needs that evidence too.
 - When a real GPU and a second browser are available: rerun the resize and million-point workloads headed. If canvas wins there by more than the shipping thresholds in the performance plan, flip the switch back.
 - The plan's sections 2.2 and 2.3 are read with SVG in the "marks" position: a theme change no longer needs a redraw, and device pixel ratio matters only to simplification.
