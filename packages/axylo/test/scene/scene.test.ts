@@ -155,6 +155,19 @@ describe('line and area geometry', () => {
     const isolatedScene = buildScene(isolated, layout(isolated, clip, true), dpr);
     expect(marksOf(isolatedScene.marks, 'points')[0]!.xy).toEqual(Float32Array.of(80, 80));
   });
+
+  it('builds an empty clipped scene for an all-null compact line in a 1 × 1 px plot', () => {
+    const plot = { x: 12.25, y: 16.5, width: 1, height: 1 };
+    const data = Array.from({ length: 8 }, (_, x) => ({ x, a: null, b: null }));
+    const { view } = aligned({ x: 'x', y: ['a', 'b'], data }, {
+      kind: 'line', compact: true, references: [{ x: [-2, 8], label: 'Period' }, { y: 17, label: 'Goal' }],
+    });
+    const scene = buildScene(view, layout(view, plot, true), dpr);
+    expect(view.xFull).toEqual([0, 7]);
+    expect(view.yDomain.every(Number.isFinite)).toBe(true);
+    expect(scene.clip).toBe(plot);
+    expect(scene.marks).toEqual([]);
+  });
 });
 
 describe('bar geometry', () => {
@@ -480,8 +493,17 @@ it('keeps generated geometry finite and clipped across independent chart states'
       const a = rows.flatMap(([y], i) => i === 3 ? [] : [{ x: xAt(i), y: config.dense ? y ?? 0 : y, s: 'a' }]);
       const b = rows.flatMap(([, y], i) => i % 2 ? [] : [{ x: xAt(i), y, s: 'b' }]);
       const data = config.long ? [...a, ...b] : rows.map(([a, b], i) => ({ x: xAt(i), a: config.dense ? a ?? 0 : a, b }));
-      view = aligned(config.long ? { x: 'x', y: 'y', series: 's', data } : { x: 'x', y: ['a', 'b'], data },
-        { ...state, kind, stacked, horizontal, compact }).view;
+      const viewState = { ...state, kind, stacked, horizontal, compact };
+      const generated = aligned(
+        config.long ? { x: 'x', y: 'y', series: 's', data } : { x: 'x', y: ['a', 'b'], data }, viewState,
+      );
+      view = generated.view;
+      if (view.compact) {
+        // Product spec F7 says `reference` has no effect in compact charts, which draw only data marks (§3.7).
+        const withoutReferences = buildView(generated.frame, { ...viewState, references: [] }, new DiagnosticCollector());
+        expect(view.xFull).toEqual(withoutReferences.xFull);
+        expect(view.yDomain).toEqual(withoutReferences.yDomain);
+      }
       if (config.long && !category) {
         expect(view.frame.series[0]!.slot.includes(SLOT_GAP)).toBe(true);
         expect(view.frame.series[1]!.slot.includes(SLOT_NO_ROW)).toBe(true);
@@ -495,7 +517,7 @@ it('keeps generated geometry finite and clipped across independent chart states'
       if (xDomain) {
         expect(view.xFull).toEqual(xDomain);
         exercised.add('author x domain');
-      } else if (!category) {
+      } else if (!category && !view.compact) {
         expect(view.xFull[0]).toBeLessThanOrEqual(-2);
         expect(view.xFull[1]).toBeGreaterThanOrEqual(last + 1);
         exercised.add('automatic x references');
