@@ -9,3 +9,8 @@ describe('render examples', () => {
   // it('title in a comment', () => {});
   const example = "it('title in a string', () => {})";
 });
+
+describe('generated cases', () => {
+  const sample = { label: 'sample' };
+  it(`generated ${sample.label} case`, () => {});
+});

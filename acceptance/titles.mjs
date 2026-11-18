@@ -2,12 +2,13 @@
 // calls, literal titles, scalar it.each lists with %s/%d/%i/%# titles, and simple template
 // substitutions from for-of literal lists (including named relative imports of such lists).
 // It does not resolve renamed test APIs, arbitrary expressions, shared registration functions,
-// tagged tables, template expressions more complex than a variable, or generated test files.
+// tagged tables, complex template expressions, or generated files. Unexpanded test templates can
+// still anchor exact reported titles without evaluating the expression.
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
 const tokens = source => [...source.matchAll(
-  /\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|\/(?:\\.|\[(?:\\.|[^\]\\\r\n])*\]|[^/\\\r\n])+\/[dgimsuvy]*|'(?:\\[\s\S]|[^'\\])*'|"(?:\\[\s\S]|[^"\\])*"|`(?:\\[\s\S]|[^`\\])*`|[\w$]+|[^\s]/g,
+  /\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|\/(?:\\.|\[(?:\\.|[^\]\\\r\n])*\]|[^/\\\r\n])+\/[dgimsuvy]*|'(?:\\[\s\S]|[^'\\\r\n])*'|"(?:\\[\s\S]|[^"\\\r\n])*"|`(?:\\[\s\S]|[^`\\])*`|[\w$]+|[^\s]/g,
 )].map(match => match[0]).filter(token => !token.startsWith('//') && !token.startsWith('/*'));
 
 function unescape(text) {
@@ -108,6 +109,7 @@ export function readTitles(source, file) {
   const parts = tokens(source);
   const suites = [];
   const tests = [];
+  const templates = [];
   const loops = [];
   for (let index = 0; index < parts.length; index++) {
     const token = parts[index];
@@ -140,9 +142,19 @@ export function readTitles(source, file) {
       if (start !== -1 && start < end) for (const title of titles) suites.push({ title, start, end: closing(parts, start) });
     } else {
       const ancestors = suites.filter(suite => suite.start < index && index < suite.end).map(suite => suite.title);
+      if (!titles.length && parts[call + 1]?.startsWith('`') && parts[call + 2] === ',') {
+        templates.push({ template: parts[call + 1].slice(1, -1), ancestors });
+      }
       // An unresolved case must stop a partially reported suite from appearing to pass.
       for (const title of titles.length ? titles : [null]) tests.push({ title, ancestors });
     }
   }
-  return { suites: suites.map(suite => suite.title), tests };
+  return { suites: suites.map(suite => suite.title), tests, templates };
+}
+
+export function matchesTemplate(title, template) {
+  const literals = template.split(/\$\{[^}]+\}/g).map(unescape);
+  if (literals.length < 2) return false;
+  const pattern = literals.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('.*?');
+  return new RegExp('^' + pattern + '$').test(title);
 }
