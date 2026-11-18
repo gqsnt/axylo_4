@@ -1,11 +1,10 @@
-import { type Formatters, type SlotState, type TableModel, type View, type XKind } from '../core/contracts';
+import { SLOT_VALUE, type Formatters, type SlotState, type TableModel, type View, type XKind } from '../core/contracts';
 import { Reports } from '../data/reports';
 import { XParser } from '../data/x';
 import { pointOrder } from '../lookup/point-order';
 import { lowerBound } from '../lookup/search';
 import { donutPercent, incomplete, slotText } from '../lookup/text';
 import type { Messages, XValue } from '../public';
-import { SLOT_VALUE } from '../core/contracts';
 
 const PAGE_SIZE = 100;
 

@@ -37,6 +37,7 @@ export function scatterLookup(view: ScatterView, layout: PlotLayout | null, form
   const { series } = view.frame;
   const keys = new Map(series.map((entry, i) => [entry.key, i]));
   const rowIndexes = new Map<number, (row: number) => number>();
+  const locations = new WeakMap<DatumRef, PointIndex>();
   const ranges = view.visiblePoints.map((range, s) => view.visible[s] && series[s]!.drawable ? range : { start: 0, end: 0 });
   const order = pointOrder(series, ranges);
   const active = ranges.flatMap((range, s) => range.end > range.start ? [s] : []);
@@ -45,11 +46,16 @@ export function scatterLookup(view: ScatterView, layout: PlotLayout | null, form
 
   function ref(s: number, i: number): DatumRef {
     const entry = series[s]!;
-    return { kind: 'point', seriesKey: entry.key, row: entry.row?.[i] ?? i };
+    const datum = { kind: 'point', seriesKey: entry.key, row: entry.row?.[i] ?? i } as const;
+    // A pick already knows the point's position. A ref rebuilt by the caller still resolves by source row.
+    locations.set(datum, { series: s, index: i });
+    return datum;
   }
 
   function locate(datum: DatumRef): PointIndex | null {
     if (datum.kind !== 'point') return null;
+    const known = locations.get(datum);
+    if (known) return known;
     const s = keys.get(datum.seriesKey);
     if (s === undefined) return null;
     let locateRow = rowIndexes.get(s);

@@ -560,7 +560,7 @@ export interface MarkRenderer {
  */
 export type DatumRef =
   | { readonly kind: 'aligned'; readonly seriesKey: string; /** x position (category: its index at the time; categories do not slide). */ readonly x: number }
-  | { readonly kind: 'point'; readonly seriesKey: string; /** source row index */ readonly row: number }
+  | { readonly kind: 'point'; readonly seriesKey: string; /** source row index */ readonly row: number; /** x position, so a ref to an evicted point can resolve to its nearest surviving neighbour */ readonly x: number }
   | { readonly kind: 'slice'; readonly sliceKey: string };
 
 /** What the pointer is over, by the picking rule of the chart type (spec 3.6). */

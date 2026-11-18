@@ -8,6 +8,10 @@ import { incomplete, slotText } from './text';
 const RANK_BLOCK = 256;
 const TOOLTIP_LIMIT = 8;
 
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, n));
+}
+
 export function alignedLookup(view: AlignedView, layout: PlotLayout | null, formatters: Formatters, messages: Messages): Lookup {
   const { frame, visibleSlots: { start, end }, stack } = view;
   const positions = frame.x.values;
@@ -136,22 +140,49 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
         const y = projection.y.map(top);
         return contains(layout.plot, x, y) ? pointBox(x, y) : null;
       }
-      if (projection.kind !== 'bands' || (!present && stack)) return null;
+      if (projection.kind !== 'bands') return null;
       const horizontal = projection.horizontal;
-      const center = xScale.map(datum.x);
-      const adjacent = i > start ? Math.abs(center - xScale.map(positions[i - 1]!)) : Infinity;
-      const following = i + 1 < end ? Math.abs(center - xScale.map(positions[i + 1]!)) : Infinity;
-      const width = xScale.type === 'band' ? xScale.bandwidth
-        : Math.min(adjacent, following, horizontal ? layout.plot.height : layout.plot.width);
-      const size = stack ? width : width / visible.length;
-      const band = (xScale.type === 'band' ? center : center - width / 2) + (stack ? 0 : size * lane);
+      const { plot } = layout;
+      const low = horizontal ? plot.y : plot.x;
+      const high = low + (horizontal ? plot.height : plot.width);
+      const center = xScale.type === 'band' ? xScale.center(datum.x) : xScale.map(datum.x);
+      let half: number;
+      if (xScale.type === 'band') {
+        half = xScale.bandwidth / 2;
+      } else {
+        const adjacent = i > 0 ? Math.abs(center - xScale.map(positions[i - 1]!)) : Infinity;
+        const following = i + 1 < positions.length ? Math.abs(xScale.map(positions[i + 1]!) - center) : Infinity;
+        const spacing = Math.min(adjacent, following);
+        // Continuous bars use their closest neighbour to leave a gap on both sides of a mark.
+        half = 0.4 * (Number.isFinite(spacing) && spacing > 0 ? spacing : high - low);
+      }
+      const bandStart = clamp(center - half, low, high);
+      const part = (clamp(center + half, low, high) - bandStart) / (stack ? 1 : visible.length);
+      const size = Math.max(1, part);
+      const middle = bandStart + part * ((stack ? 0 : lane) + 0.5);
+      const band = clamp(middle - size / 2, low, Math.max(low, high - size));
       const base = accumulated > 0 ? side![accumulated - 1]![i]! : 0;
-      const a = projection.value.map(base);
-      const b = projection.value.map(present ? top : 0);
-      const length = present ? Math.abs(a - b) : 6;
-      const edge = present || horizontal ? Math.min(a, b) : a - length;
-      return clipBox(horizontal ? { x: edge, y: band, width: length, height: size }
-        : { x: band, y: edge, width: size, height: length }, layout.plot);
+      const valueLow = horizontal ? plot.x : plot.y;
+      const valueHigh = valueLow + (horizontal ? plot.width : plot.height);
+      const baseline = projection.value.map(base);
+      const tip = present ? projection.value.map(top) : baseline;
+      let a = clamp(baseline, valueLow, valueHigh);
+      const b = clamp(tip, valueLow, valueHigh);
+      const mixedSign = value < 0 && (stack?.positive.at(-1)?.[i] ?? 0) > 0;
+      if (stack && (base !== 0 || mixedSign) && Math.abs(b - a) > 1 && baseline === a) {
+        a += Math.sign(b - a);
+      }
+      const length = Math.abs(a - b);
+      const edge = Math.min(a, b);
+      const box = horizontal ? { x: edge, y: band, width: length, height: size }
+        : { x: band, y: edge, width: size, height: length };
+      if (!present) {
+        // The renderer grows missing markers from a zero-length baseline rectangle.
+        const height = Math.max(6, box.height);
+        return clipBox({ ...box, y: box.y + box.height - height, height, width: Math.max(6, box.width) }, plot);
+      }
+      if (length === 0 && (baseline < valueLow && tip < valueLow || baseline > valueHigh && tip > valueHigh)) return null;
+      return clipBox(box, plot);
     },
     get count() {
       const blocks = rankBlocks();
@@ -189,12 +220,14 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
         case 'next': to = seek(s, at + 1, 1); break;
         case 'previous': to = seek(s, at - 1, -1); break;
         case 'page-next': {
+          if (at === end - 1) return null;
           const target = Math.min(end - 1, at + pageDistance(end - start));
           to = seek(s, target, 1);
           if (to < 0) to = seek(s, target - 1, -1, at + 1);
           break;
         }
         case 'page-previous': {
+          if (at === start) return null;
           const target = Math.max(start, at - pageDistance(end - start));
           to = seek(s, target, -1);
           if (to < 0) to = seek(s, target + 1, 1, start, at);

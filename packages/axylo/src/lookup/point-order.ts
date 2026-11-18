@@ -22,6 +22,10 @@ export function pointOrder(series: readonly PointSeries[], ranges: readonly Inde
 
   function at(ordinal: number): PointIndex | null {
     if (!Number.isInteger(ordinal) || ordinal < 0 || ordinal >= count) return null;
+    if (active.length === 1) {
+      const s = active[0]!;
+      return { series: s, index: ranges[s]!.start + ordinal };
+    }
     const remaining = active.slice();
     const starts = remaining.map(s => ranges[s]!.start);
     while (remaining.length > 1) {

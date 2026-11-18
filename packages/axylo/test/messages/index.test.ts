@@ -1,0 +1,29 @@
+import { expect, it } from 'vitest';
+import type { Messages } from '../../src/public';
+import { defaultMessages, fill, resolveMessages } from '../../src/messages';
+
+it('gives every public message a non-empty default', () => {
+  const keys: Record<keyof Messages, true> = {
+    viewAsTable: true, hideTable: true, noData: true, noObservation: true, incompleteStack: true,
+    moreRows: true, otherSlices: true, valuesNotShown: true, valuesChanged: true, labelsHidden: true,
+    loading: true, empty: true, error: true, internalError: true,
+    chartName: true, chartSummary: true, seriesSummary: true, referenceSummary: true, timeZoneNote: true,
+    plotLabel: true, controlsLabel: true, pointOf: true,
+    zoomIn: true, zoomOut: true, resetZoom: true, pause: true, resume: true,
+    previousPage: true, nextPage: true, pageOf: true, jumpToX: true, showSeries: true, hideSeries: true,
+  };
+  expect(Object.keys(defaultMessages).sort()).toEqual(Object.keys(keys).sort());
+  for (const text of Object.values(defaultMessages)) expect(text.trim()).not.toBe('');
+});
+
+it('fills templates once, preserving unknown names and literal braces and dollar signs in values', () => {
+  expect(fill('{series} at {index} ({series}) {missing} {toString}', { series: '{index} $&', index: 2 }))
+    .toBe('{index} $& at 2 ({index} $&) {missing} {toString}');
+});
+
+it('replaces individual messages without changing defaults or copying undefined', () => {
+  const messages = resolveMessages({ noData: 'Keine Daten', loading: undefined });
+  expect(messages).toEqual({ ...defaultMessages, noData: 'Keine Daten' });
+  expect(defaultMessages.noData).toBe('No data');
+  expect(fill(messages.moreRows, { count: 3 })).toBe('+3 more');
+});

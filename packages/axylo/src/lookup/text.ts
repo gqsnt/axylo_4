@@ -26,7 +26,8 @@ export function sliceText(view: DonutView, slice: DonutSlice, formatters: Format
   return {
     label: single ? frame.labels[member]! : slice.label,
     value: slotText(formatters, 0, value, state),
-    percent: state === SLOT_VALUE ? donutPercent(value, view.total, locale) : null,
+    percent: state === SLOT_VALUE ? Number.isFinite(view.total) ? donutPercent(value, view.total, locale)
+      : defaultReadoutNumber(slice.ratio ?? 0, locale, 'ratio') : null,
     state,
     row: single ? frame.row?.[member] ?? member : -1,
   };

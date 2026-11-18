@@ -9,7 +9,7 @@ export const defaultMessages: Messages = {
   moreRows: '+{count} more',
   otherSlices: 'Other ({count})',
   valuesNotShown: '{count} values not shown. See table.',
-  valuesChanged: 'Values changed: {count}. See table.',
+  valuesChanged: 'Changed values ({count}). See table.',
   labelsHidden: 'Some labels hidden. See table.',
   loading: 'Loading chart.',
   empty: 'No data to show.',

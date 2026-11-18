@@ -121,7 +121,7 @@ export function buildReader(input: ReaderInput): ReaderModel {
   const omission = omitted + changed > 0 ? fill(messages.valuesNotShown, { count: omitted + changed, omitted, changed }) : '';
   const hidden = input.labelsHidden ?? 0;
   const note = [omission, hidden > 0 ? fill(messages.labelsHidden, { count: hidden }) : ''].filter(Boolean).join(' ') || null;
-  const compact = input.compact ?? (view.kind !== 'donut' && view.compact);
+  const compact = input.compact === true || (view.kind !== 'donut' && view.compact);
   const locale = input.locale ?? (view.kind === 'donut' ? new Intl.NumberFormat().resolvedOptions().locale : '');
   let summary: string | undefined;
   return {
