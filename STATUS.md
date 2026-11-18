@@ -28,21 +28,21 @@ Observed model and effort are read from harness metadata (Codex session rollouts
 
 Finished and committed, each written by one provider and reviewed by the other: scales and formatting; layout and simplification; data layer, diagnostics and stores; renderers, text layer and theme; view and scene; lookup, reader and messages; chart core part 1 (review findings not yet fixed, see below); chart core part 2 (review running); benchmark harness and the M1 renderer measurements (not reviewed).
 
-| Running now (2026-11-18, after commit 13b2f63) | Who | Files |
+| Running now (2026-11-18, after commit bf8fabf) | Who | Files |
 |---|---|---|
-| Chart core, third fix pass (agent a1d73b9f46c46814f, resumed): both reviews of 4809516 (`wp/core3.controller.review.md`, `wp/core3.interaction.review.md`), decision 0004, displayed-snapshot design, category zoom, canvas separators, acceptance failures in its files, x unit to the reader, missingX in the scatter domain | Claude Opus 5.5 high | `src/core`, `src/dom`, narrow edits in `src/layout`, `src/scale`, `src/format`, `src/view`, `src/scene/bars.ts`, `src/render/canvas.ts`, `src/theme/watch.ts` |
-| Scatter picking at the plot edge and dense coincident points | Codex gpt-6.2-sol xhigh | `src/lookup` → `wp/lookup-fix-2.report.md` |
-| Packed-distribution tests, first-chart snippets, size on packed files, CSP (agent a6f0d7846bf125638) | Claude Opus 5.5 high | `tests/dist`, `examples/first-chart`, `scripts/pack.mjs`, `scripts/size.mjs`, package metadata |
+| Chart core, fourth fix pass (agent a1d73b9f46c46814f, resumed): the items its third pass left (listed in commit 77213c0 and `wp/core3.fix.report.md`), the theme watcher regression, L1 at 240 px | Claude Opus 5.5 high | `src/core`, `src/dom`, narrow edits elsewhere |
 | Documentation site with runnable examples (agent a04bfe28413f07034) | Claude Opus 5.5 xhigh | `apps/docs` |
+| Size analysis: why 98 KiB, tree-shaking design, ranked reductions, realistic targets | Codex gpt-6.2-sol max, read-only | → `wp/size.analysis.md` |
+| Merge of both EVIDENCE.json files and the distribution tests into the acceptance matrix | Codex gpt-6.2-sol xhigh | `acceptance/` → `wp/acceptance-merge.report.md` |
+| Review of the browser acceptance suite and distribution tests (Opus code) | Codex gpt-6.2-astra xhigh, read-only | → `wp/tests-opus.review.md` |
+| Review of the Node acceptance suite, matrix and checker (Codex code) (agent a2a18f27e1659b924) | Claude Opus 5.5 xhigh, read-only | hand-back → `wp/tests-codex.review.md` |
+| Review of zero-copy stores, scatter missing values, reader fixes, scatter picking (Codex code) (agent in this session: "Review Codex module fixes") | Claude Opus 5.5 xhigh, read-only | hand-back → `wp/modules-codex.review.md` |
 
-Committed since the last checkpoint:
-- Both reviews of the core at 4809516 (controller: 4 blocking, 15 major; interaction: 2 new blocking, 9 major, 13 earlier findings partly fixed). Decision 0004 (tooltip across the reading axis; focused text rewritten for four reasons only).
-- Acceptance suites: Node, 494 tests (689102e; 494 pass on the working tree in the coordinator’s last run, which includes the core author’s uncommitted changes); browser, 457 tests (13b2f63; author’s run 443 pass, 14 fail; not rerun by the coordinator while the core is mid-edit).
-- Reader, messages, diagnostics fixes (7c46ec9); zero-copy appends in the data stores (7831371; one assertion narrowed by the coordinator and marked in the test); scatter observations with no y (c655ad5 contract, d4cbedb).
-- Palette refit (52bbdf0): limits hold on 8-bit pixels; owner to judge the light scheme’s uneven lightness and the near-white dark focus ring.
-- Contract additions: message keys panLeft, panRight, jumpNotFound, plotInstructions, seeTable; `PointSeries.missingX`.
+State at bf8fabf (coordinator runs): type check clean; unit suite 1,216 of 1,216 (includes 494 Node acceptance tests); browser, root config: 735 tests, 729 pass, 5 fail, 1 skipped (the five: C4 compact bar; L1 at 200% text for line, area, scatter, donut); distribution: 83 Node and 18 browser tests pass. Sizes from the packed files: everything 97.75 KiB (target 40), line only 97.61 (target 25), React adapter 1.17 (target 2); chart types do not tree-shake.
 
-Not yet cross-reviewed: acceptance matrix and both acceptance suites, data-store zero-copy work, reader fixes, scatter missing values, palette refit, benchmark harness fixes, React adapter fixes, everything in the third core pass.
+Committed since the last checkpoint: third core fix pass (77213c0, partly done: its commit message lists what is left); lookup fixes (43fc75d); distribution tests and packed-size report (bf8fabf). Result files for the checker are in `acceptance/results/` (git-ignored; regenerate before the final report).
+
+Open decisions for the owner: the palette’s light scheme (keep or try a louder, more even one) and the near-white dark focus ring; the licence holder wording ("The Axylo authors" in both LICENSE files); the size targets, once the analysis is in.
 
 Decisions recorded: `docs/decisions/0001-plot-interaction-pattern.md` (unrehearsed), `docs/decisions/0002-mark-renderer.md` (SVG by default, from `bench/results/m1-renderer-comparison.md`).
 
@@ -54,10 +54,12 @@ Known open items carried forward:
 
 ## Next action
 
-1. When the third core pass returns: verify (type check, unit suite, Node acceptance, browser suite and browser acceptance on both renderers), commit, then merge the two `EVIDENCE.json` files into `acceptance/matrix.json` (matrix author, Codex gpt-6.2-sol xhigh) and run the checker with both Vitest reports.
-2. One cross-provider review round of everything listed as not yet reviewed (Codex reviews Opus code and the reverse), then fixes.
-3. When the machine is quiet: renderer comparison under performance plan 5.1, then performance work against the budgets.
-4. Verify and commit the distribution tests and the documentation; then the agent rehearsal (DX12), the Phase 1 comparison rerun with Axylo included, the conformance table (A9) from the acceptance evidence, and the final independent review.
+1. As each review returns: record it with the observed model, send findings to the original authors (tests first), verify, commit.
+2. When the size analysis returns: decide targets with the owner if they cannot be met; run the tree-shaking restructuring as its own pass after the fourth core pass has landed (same files).
+3. When the fourth core pass and the matrix merge are in: one Codex review of the third and fourth passes together; regenerate all four result files; rerun the checker.
+4. When the machine is quiet: renderer comparison under performance plan 5.1, then performance work against the budgets.
+5. Verify and commit the documentation; then the agent rehearsal (DX12), the Phase 1 comparison rerun with Axylo included, the conformance table (A9) from the acceptance evidence, and the final independent review.
+6. Still unreviewed after the running reviews: palette refit, benchmark harness fixes, React adapter fixes (small; one Codex review for the three).
 
 ## Known limits that no agent can close
 
