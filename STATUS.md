@@ -48,7 +48,7 @@ Reviews of the fix passes (both of commit bbd7564, both "not ready"): interactio
 
 Engines: `AXYLO_ENGINE=chromium|firefox|webkit` (e18c149); the runner and checker name the engine of every result (efa67d8). Author's acceptance runs on an isolated build of 7208470: Chrome 157 555 passed; Firefox 159 (Playwright) 385 passed, 9 failed, 161 not run; WebKit 27.2 (Playwright, not Safari) 384 passed, 10 failed, 161 not run (results in `acceptance/results/engines-7208470/`). The causes of those failures are fixed since (plot-edge slack, corridor slack, late-font measurement, size measured in the page), but the full suite has not been rerun on Firefox or WebKit at the current commit. The chart, a11y and render suites are not yet ported to the other engines (CDP uses listed in `wp/engines2.report.md`).
 
-Owner decisions on 2026-11-18: palette candidate B adopted (9861f54); size targets 96 KiB everything and 80 KiB line only (spec DX7); licence stays MIT with holder "The Axylo authors"; Playwright browser downloads allowed; no screen-reader rehearsal for 1.0 (state it as not done, do not block on it); the React adapter is removed from 1.0 (bf93e1a); Anthropic models build and fix, Codex reviews; memory budget P7 is 1.1× the caller's two columns (4a1db68).
+Owner decisions on 2026-11-18: palette candidate B adopted (9861f54); size targets 96 KiB everything and 80 KiB line only (spec DX7); licence stays MIT with holder "The Axylo authors"; Playwright browser downloads allowed; no screen-reader rehearsal for 1.0 (state it as not done, do not block on it); the React adapter is removed from 1.0 (bf93e1a); Anthropic models build and fix, Codex reviews; memory budget P7 is 1.1× the caller's two columns (4a1db68); review rounds on the controller and interaction layers stop after round 3 with one last narrow check, leftovers become documented limits.
 
 State (coordinator runs; not recorded runs):
 - e90d8db: type check clean; whole Node suite 1701 passed (before the restart). Browser verification running.
@@ -68,7 +68,7 @@ Known open items carried forward:
 ## Next action
 
 1. As round 3 reports come in: lookup first (type check must be clean again), then controller, interaction, acceptance; verify each (type check, Node suite), commit with targeted paths, then `npm run build` and every browser suite on SVG and `chart` + `a11y` on canvas.
-2. One last narrow Codex check limited to the blocking list (C2, I4, I5, R1, R2) and the round 3 diff. The owner has been asked where to stop the review rounds; exotic remainders are to be recorded as limits rather than chased.
+2. One last narrow Codex check limited to the blocking list (C2, I4, I5, R1, R2) and the round 3 diff. Owner's decision (2026-11-18, "Yes, stop there"): this is the last review round on these layers. After it, whatever is not one of the five blocking items is recorded as a known limit in the docs and here, not fixed in another round. A blocking item the check finds still open is fixed and re-verified by its test, without a new full review.
 3. Size: read `wp/size2.analysis.md`; apply the behaviour-neutral cuts; bring the options that cost a feature to the owner. Docs: pass the checker's exports to the docs author.
 4. Full acceptance suite on Firefox and WebKit at the current commit (engine author, isolated or shared build with nothing else rebuilding); port the chart, a11y and render suites to the engines.
 5. Distribution configurations (`tests/dist`, Node and browser).
