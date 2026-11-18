@@ -12,6 +12,7 @@ it('gives every public message a non-empty default', () => {
     zoomIn: true, zoomOut: true, resetZoom: true, pause: true, resume: true,
     category: true, percentage: true, series: true, value: true,
     typeLine: true, typeArea: true, typeBar: true, typeScatter: true, typeDonut: true,
+    plotRole: true, pointAll: true, seriesValue: true, position: true, total: true,
     donutSummary: true, seriesNoData: true, seriesNotDrawn: true, referenceLine: true, referenceBand: true,
     previousPage: true, nextPage: true, pageOf: true, jumpToX: true, showSeries: true, hideSeries: true,
   };
