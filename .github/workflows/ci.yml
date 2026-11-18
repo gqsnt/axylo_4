@@ -27,8 +27,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
-      - run: npm test
+      # Build first: the React adapter's distribution test needs the core's declarations.
       - run: npm run build
+      - run: npm test
       # The browser tests launch the runner's installed Chrome
       # (playwright-core, channel "chrome"); no browser download.
       # Called directly, not through the npm script: that script sets the
