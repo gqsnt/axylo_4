@@ -52,6 +52,14 @@ export function donutLookup(view: DonutView, layout: PlotLayout | null, formatte
   }
 
   const lookup: Lookup = {
+    members(target, from, count) {
+      return target.kind === 'slice' && keys.has(target.sliceKey) && from <= 0 && count > 0 ? [target] : [];
+    },
+    has(target, datum) {
+      return target.kind === 'slice' && datum.kind === 'slice' && datum.sliceKey === target.sliceKey && keys.has(target.sliceKey);
+    },
+    /** The slice's index in the view's slices (an "Other" slice stands for several frame categories). */
+    slot: index,
     pick(pointerX, pointerY) {
       const at = layout ? pointerOnPlot(layout.plot, pointerX, pointerY) : null;
       if (!geometry || !ring || !at || !(ring.r1 > ring.r0)) return null;

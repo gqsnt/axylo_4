@@ -2,6 +2,7 @@ import type { DiagnosticSink } from '../core/contracts';
 import type { ValueFieldOptions, XFieldOptions } from '../public';
 import { report } from '../diagnostics';
 import { defaultMessages } from '../messages';
+import { borrowColumns } from './store-bytes';
 import { columnsTable, rowsTable, type Columns, type Table } from './table';
 
 export type AlignedChartType = 'line' | 'area' | 'bar';
@@ -137,6 +138,7 @@ export function resolveTable(data: unknown, sink: DiagnosticSink): { table: Tabl
       field: differing, count: 1, examples: keys.map(key => JSON.stringify(key) + ': ' + columns[key]?.length),
     });
   }
+  borrowColumns(columns);
   return { table: columnsTable(columns, differing === undefined ? length : 0), valid: differing === undefined };
 }
 

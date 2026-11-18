@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import type { DatumRef, PointFrame, Rect } from '../../src/core/contracts';
+import type { DatumRef, PickTarget, PointFrame, Rect } from '../../src/core/contracts';
 import { buildLookup } from '../../src/lookup';
 import { scatterLookup } from '../../src/lookup/scatter';
 import { defaultMessages } from '../../src/messages';
@@ -641,4 +641,140 @@ describe('a pointer move does no data-sized work (final review, finding 8; verif
     expect(target).not.toBeNull();
     expect(model.lastPickLattice).toBe(true);
   });
+});
+
+describe('the lookup answers what a point group is: members, has and slot (round 3)', () => {
+  const settings = [[1, undefined], [2, undefined], [1, 0], [2, 0], [exactRatio, undefined]] as const;
+  type Model = ReturnType<typeof scatterLookup>;
+  const key = (ref: DatumRef) => JSON.stringify(ref);
+
+  function checkGroup(model: Model, target: Extract<PickTarget, { kind: 'point' }>, candidates: readonly DatumRef[]) {
+    const all = model.members(target, 0, target.count);
+    // Every member once, the first ref first, `count` of them; the tooltip's eight are the first eight.
+    expect(all).toHaveLength(target.count);
+    expect(new Set(all.map(key)).size).toBe(all.length);
+    expect(all[0]).toEqual(target.refs[0]);
+    expect(model.members(target, 0, 8)).toEqual(target.refs);
+    expect(model.tooltip(target).rows.map(row => row.ref)).toEqual(model.members(target, 0, 8));
+    // Paging in threes gives the same list; past the end gives nothing.
+    const paged = Array.from({ length: Math.ceil(target.count / 3) }, (_, page) => model.members(target, 3 * page, 3)).flat();
+    expect(paged).toEqual(all);
+    expect(model.members(target, target.count, 8)).toEqual([]);
+    // has agrees with members for every ref, a member rebuilt by the caller included.
+    const members = new Set(all.map(key));
+    for (const ref of candidates) expect(model.has(target, ref), key(ref)).toBe(members.has(key(ref)));
+    for (const ref of all) expect(model.has(target, { ...ref })).toBe(true);
+  }
+
+  it('for interleaved near-coincident points of two series, exact and on the lattice', () => {
+    const near = fc.tuple(fc.integer({ min: 0, max: 12 }), fc.integer({ min: 0, max: 12 })).map(([x, y]) => [40 + x / 16, 40 + y / 16] as const);
+    fc.assert(fc.property(fc.array(near, { minLength: 1, maxLength: 30 }), fc.array(near, { maxLength: 30 }), fc.nat(),
+      fc.constantFrom(...settings), fc.tuple(fc.integer({ min: -8, max: 8 }), fc.integer({ min: -8, max: 8 })),
+      (a, b, seed, [ratio, exactBudget], [dx, dy]) => {
+        const length = a.length + b.length;
+        const rows = Array.from({ length }, (_, i) => i);
+        let random = seed;
+        for (let i = length - 1; i > 0; i--) {
+          random = (Math.imul(1664525, random) + 1013904223) >>> 0;
+          const j = random % (i + 1);
+          [rows[i], rows[j]] = [rows[j]!, rows[i]!];
+        }
+        const data = points([a, b], rows);
+        const model = scatterLookup(scatter(data), layout, formatter(data), undefined, ratio, { exactBudget });
+        const target = model.pick(40.4 + dx / 16, 40.4 + dy / 16);
+        if (target?.kind !== 'point') throw new Error('Expected a point target');
+        expect(target.rule ?? 'exact').toBe(model.lastPickLattice ? 'lattice' : 'exact');
+        const candidates = data.series.flatMap(series => Array.from(series.x, (x, i) => point(series.key, series.row![i]!, x)));
+        checkGroup(model, target, candidates);
+        for (const ref of candidates) {
+          const s = data.series.findIndex(series => series.key === (ref as { seriesKey: string }).seriesKey);
+          expect(model.slot(ref)).toBe(Array.from(data.series[s]!.row!).indexOf((ref as { row: number }).row));
+        }
+      }), { numRuns: 800 });
+  });
+
+  it('a point clipped by the y domain beside drawn ones is not a member (I8)', () => {
+    // y 100 is drawn on the plot's edge at 100 px; y 100.004 is outside the domain, a fraction of a pixel past it.
+    const data = points([[[50, 100], [50, 100.004]], [[50, 100]]]);
+    for (const [ratio, exactBudget] of settings) {
+      const model = scatterLookup(scatter(data, { yDomain: [0, 100] }), layout, formatter(data), undefined, ratio, { exactBudget });
+      const target = model.pick(50, 100);
+      if (target?.kind !== 'point') throw new Error('Expected a point target');
+      expect(target.count).toBe(2);
+      const clipped = point('S0', 1, 50);
+      expect(model.has(target, clipped)).toBe(false);
+      expect(model.members(target, 0, 8)).not.toContainEqual(clipped);
+      checkGroup(model, target, [point('S0', 0, 50), clipped, point('S1', 2, 50)]);
+      expect(model.slot(clipped)).toBe(1);
+    }
+  });
+
+  it('the 32,000-point ring at ratio 1: the winning lattice group\'s page two is its other members (R3)', () => {
+    const size = 32_000;
+    const axis = linearScale([0, 200], [0, 200]);
+    const ring = points([Array.from({ length: size }, (_, i) =>
+      [100 + 20 * Math.cos(2 * Math.PI * i / size), 100 + 20 * Math.sin(2 * Math.PI * i / size)] as const)]);
+    const model = scatterLookup(scatter(ring), plot({ kind: 'xy', x: axis, y: axis }, 200, 200), formatter(ring), undefined, 1);
+    const target = model.pick(100, 100);
+    if (target?.kind !== 'point') throw new Error('Expected a point target');
+    expect(target.rule).toBe('lattice');
+    expect(target.count).toBe(14);
+    const two = model.members(target, 8, 8);
+    expect(two).toHaveLength(6);
+    const one = new Set(target.refs.map(key));
+    expect(two.some(ref => one.has(key(ref)))).toBe(false);
+    for (const ref of two) expect(model.has(target, ref)).toBe(true);
+    checkGroup(model, target, model.members(target, 0, 14));
+  });
+
+  it('has does not walk a group of 50,000 coincident points; a second page reads about 16 entries (R5)', () => {
+    const size = 50_000;
+    const base = points([[]]);
+    const data = { ...base, series: [{
+      ...base.series[0]!, x: new Float64Array(size).fill(30), y: new Float64Array(size).fill(30),
+      row: Int32Array.from({ length: size }, (_, i) => size - 1 - i),
+    }] };
+    const work = { locations: 0, seriesCandidates: 0, orderComparisons: 0 };
+    const model = scatterLookup(scatter(data), layout, formatter(data), work);
+    const target = model.pick(30, 30);
+    if (target?.kind !== 'point') throw new Error('Expected a point target');
+    expect(target.count).toBe(size);
+    work.locations = 0;
+    // Refs rebuilt by the caller, as a held selection would be.
+    expect(model.has(target, point('S0', 12_345, 30))).toBe(true);
+    expect(model.has(target, point('S0', size, 30))).toBe(false);
+    expect(model.has({ ...target, refs: [point('S0', 7, 30)] }, point('S0', 49_000, 30))).toBe(true);
+    expect(work.locations).toBe(0);
+    const page = model.members(target, 8, 8);
+    expect(page).toHaveLength(8);
+    expect(model.lastMembersRead).toBeLessThanOrEqual(2 * 16);
+    expect(model.members(target, 49_992, 8)).toHaveLength(8);
+  });
+});
+
+it('aligned and donut lookups answer members, has and slot from the tooltip\'s own rows', async () => {
+  const { aligned: alignedView, donut: donutView, frame: frameOf } = await import('./fixtures');
+  const data = frameOf('line', { data: [0, 1, 2].map(x => ({ x, a: x, b: x + 1, c: null })), x: 'x', y: ['a', 'b', 'c'] });
+  const view = alignedView(data, { visible: [true, false, true] });
+  const model = buildLookup(view, plot({ kind: 'xy', x: linearScale([0, 2], [0, 100]), y: linearScale([0, 3], [100, 0]) }), formatter(data), defaultMessages);
+  const target = { kind: 'x', x: 1 } as const;
+  expect(model.members(target, 0, 8)).toEqual(model.tooltip(target).rows.map(row => row.ref));
+  expect(model.members(target, 0, 8)).toEqual([{ kind: 'aligned', seriesKey: 'a', x: 1 }, { kind: 'aligned', seriesKey: 'c', x: 1 }]);
+  expect(model.members(target, 1, 8)).toEqual([{ kind: 'aligned', seriesKey: 'c', x: 1 }]);
+  expect(model.has(target, { kind: 'aligned', seriesKey: 'a', x: 1 })).toBe(true);
+  expect(model.has(target, { kind: 'aligned', seriesKey: 'b', x: 1 })).toBe(false);
+  expect(model.has(target, { kind: 'aligned', seriesKey: 'a', x: 2 })).toBe(false);
+  expect(model.slot({ kind: 'aligned', seriesKey: 'b', x: 2 })).toBe(2);
+  expect(model.slot({ kind: 'aligned', seriesKey: 'b', x: 7 })).toBe(-1);
+  expect(model.slot({ kind: 'aligned', seriesKey: 'z', x: 2 })).toBe(-1);
+
+  const slices = frameOf('donut', { data: [{ k: 'A', v: 2 }, { k: 'B', v: 3 }], label: 'k', value: 'v' });
+  const ring = buildLookup(donutView(slices), plot({ kind: 'ring', cx: 50, cy: 50, r0: 20, r1: 40 }), formatter(slices), defaultMessages);
+  const slice = { kind: 'slice', sliceKey: 'B' } as const;
+  expect(ring.members(slice, 0, 8)).toEqual(ring.tooltip(slice).rows.map(row => row.ref));
+  expect(ring.members(slice, 1, 8)).toEqual([]);
+  expect(ring.has(slice, slice)).toBe(true);
+  expect(ring.has(slice, { kind: 'slice', sliceKey: 'A' })).toBe(false);
+  expect(ring.slot(slice)).toBe(1);
+  expect(ring.slot({ kind: 'slice', sliceKey: 'Z' })).toBe(-1);
 });

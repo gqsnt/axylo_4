@@ -2,7 +2,8 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 import { SLOT_VALUE, type Frame } from '../../src/core/contracts';
 import { AlignedStore, DonutStore, PointStore, normalize, resolveOptions } from '../../src/data';
-import { contents, utc, version } from './helpers';
+import { check, contents, utc, version } from './helpers';
+import { ByteCount, CallerBuffers } from '../../src/data/store-bytes';
 
 const quiet = { add() {} };
 const types = ['line', 'scatter', 'donut'] as const;
@@ -853,4 +854,20 @@ it('counts the buffers of other frames still held, each buffer once', () => {
   expect(held.x.values.buffer).not.toBe((s.frame as typeof held).x.values.buffer);
   expect(s.ownedBytes([held]).total - s.ownedBytes().total).toBe(extra);
   expect(s.ownedBytes([held, held, s.frame]).total).toBe(s.ownedBytes([held]).total);
+});
+
+it('never counts the caller\'s columns as owned, whatever frames are counted (R13)', async () => {
+  const { record } = await import('../core/host');
+  const x = Float64Array.from({ length: 10 }, (_, i) => i);
+  const y = Float64Array.from({ length: 10 }, (_, i) => i * 2);
+  const r = record('line', { title: 'T', data: { columns: { x, y } }, x: { field: 'x', type: 'number' }, y: 'y' });
+  // Before the first frame, the chart holds its normalized frame over the borrowed columns: of it, only the
+  // ten slot states are the library's (contract: y may be a view on the caller's typed column).
+  const bench = (r.controller.handle as unknown as { __bench: { memory(): { bytes: number } } }).__bench;
+  expect(bench.memory().bytes).toBe(10);
+  // The same frame counted by itself, with no table registered.
+  const frame = check('line', { data: { columns: { x, y } }, x: { field: 'x', type: 'number' }, y: 'y' }).frame;
+  const count = new ByteCount(new CallerBuffers());
+  count.frame(frame);
+  expect(count.result().total).toBe(10);
 });

@@ -1,5 +1,5 @@
 import { SLOT_NULL, SLOT_VALUE } from '../core/contracts';
-import type { AlignedView, DatumRef, DatumText, Formatters, Lookup, SlotState } from '../core/contracts';
+import type { AlignedView, DatumRef, DatumText, Formatters, Lookup, PickTarget, SlotState } from '../core/contracts';
 import type { Messages } from '../public';
 import { fill } from '../messages';
 import { clipBox, contains, pointBox, pointerOnPlot, type PlotLayout } from './geometry';
@@ -100,7 +100,21 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
     return (leftPixel <= rightPixel ? pixel >= midpoint : pixel <= midpoint) ? right : right - 1;
   }
 
+  const shown = new Set(visible);
+  const slotOf = (datum: DatumRef) => datum.kind === 'aligned' && keys.has(datum.seriesKey) ? index(datum.x) : -1;
+  const at = (target: PickTarget) => target.kind === 'x' ? index(target.x) : -1;
+
   return {
+    members(target, from, count) {
+      const i = at(target);
+      // The tooltip's rows, in its order: the visible series at that x.
+      return i < start || i >= end ? [] : visible.slice(Math.max(0, from), Math.max(0, from) + Math.max(0, count)).map(s => ref(s, i));
+    },
+    has(target, datum) {
+      const i = at(target);
+      return i >= start && i < end && datum.kind === 'aligned' && datum.x === positions[i] && shown.has(keys.get(datum.seriesKey) ?? -1);
+    },
+    slot: slotOf,
     pick(pointerX, pointerY) {
       const at = layout && visible.length ? pointerOnPlot(layout.plot, pointerX, pointerY) : null;
       if (!at) return null;

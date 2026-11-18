@@ -160,3 +160,29 @@ export const alignedTable: TableBuilder = (view, caption, formatters, messages, 
     },
   };
 };
+
+/**
+ * The smallest x among the rows the table prints whose x, as the table writes it, `matches` (the jump field's
+ * last resort for text the parsers do not read): scatter points of every series in view and, inside the view,
+ * the rows with no y; the slots in view on aligned charts. null when no printed row matches.
+ */
+export function printedX(view: View, formatters: Formatters, matches: (printed: string) => boolean): number | null {
+  let found = Infinity;
+  const scan = (xs: Float64Array, start: number, end: number) => {
+    for (let i = start; i < end; i++) if (xs[i]! < found && matches(formatters.x(xs[i]!))) found = xs[i]!;
+  };
+  if (view.kind === 'scatter') {
+    const [min, max] = view.xDomain;
+    view.frame.series.forEach((series, s) => {
+      scan(series.x, view.visiblePoints[s]!.start, view.visiblePoints[s]!.end);
+      const missing = series.missingX;
+      if (missing) {
+        const start = lowerBound(missing, min);
+        scan(missing, start, upperBound(missing, max, start));
+      }
+    });
+  } else if (view.kind !== 'donut') {
+    scan(view.frame.x.values, view.visibleSlots.start, view.visibleSlots.end);
+  }
+  return Number.isFinite(found) ? found : null;
+}

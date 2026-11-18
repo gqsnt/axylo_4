@@ -38,6 +38,9 @@ export interface ScatterPick {
   readonly count: number;
 }
 
+/** Which index answered: exact positions or the device-pixel lattice (`PickTarget.rule`). */
+export type GroupRule = 'exact' | 'lattice';
+
 export interface GridOptions {
   /**
    * Distance checks an exact pick may make before it is redone on the device-pixel lattice. Defaults to the
@@ -68,6 +71,10 @@ export function scatterGrid(
   const rows = Math.floor(plot.height / CELL) + 1;
   const series = new Uint32Array(count);
   const points = new Uint32Array(count);
+  // Grid index of point i of series s at atOf[first[s] + i], -1 when it is not on the plot.
+  const first = new Int32Array(view.frame.series.length + 1);
+  view.frame.series.forEach((data, s) => { first[s + 1] = first[s]! + data.x.length; });
+  const atOf = new Int32Array(first[view.frame.series.length]!).fill(-1);
   const xs = new Float64Array(count);
   const ys = new Float64Array(count);
   const ratio = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
@@ -77,6 +84,7 @@ export function scatterGrid(
   let examined = 0;
   let cellsExamined = 0;
   let usedLattice = false;
+  let membersRead = 0;
 
   function cellIndex(pixel: number, origin: number, size: number): number {
     // Subtracting the origin from a rounded plot edge can place that edge one cell past the grid.
@@ -104,6 +112,7 @@ export function scatterGrid(
       ys[at] = y;
       series[at] = s;
       points[at] = i;
+      atOf[first[s]! + i] = at;
     }
   });
 
@@ -130,7 +139,12 @@ export function scatterGrid(
     return densest;
   }
 
-  type Index = (x: number, y: number, limit: number) => ScatterPick | null;
+  interface Index {
+    pick(x: number, y: number, limit: number): ScatterPick | null;
+    /** The group of point `at`: it first, then the rest of its position, then the others within 0.5 px. */
+    members(at: number, from: number, take: number): number[];
+    has(at: number, other: number): boolean;
+  }
 
   function index(px: Float64Array, py: Float64Array): Index {
     const cellFor = (x: number, y: number) => column(x) + columns * row(y);
@@ -151,6 +165,9 @@ export function scatterGrid(
 
     const order = new Uint32Array(length);
     const multiplicity = new Uint32Array(length);
+    // The representative of each point's position, and where each representative sits in `order`.
+    const repOf = new Int32Array(length);
+    const placed = new Int32Array(length);
     const buckets = new Map<number, Bucket>();
     function build(start: number, end: number, allowSkew = true): Bucket {
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -231,13 +248,16 @@ export function scatterGrid(
           next[winner] = first;
         }
         multiplicity[winner] = i - groupStart;
+        for (let at = winner; at >= 0; at = next[at]!) repOf[at] = winner;
         order[write++] = winner;
       }
       end = write;
       buckets.set(cell, build(start, end));
     }
+    // After the trees have arranged `order`: a bucket holds a representative iff its range holds its place.
+    for (let i = 0; i < end; i++) placed[order[i]!] = i;
 
-    return (x, y, limit) => {
+    function pick(x: number, y: number, limit: number): ScatterPick | null {
       // The window covers every compared position within the radius, and every 0.5 px neighbourhood of one.
       const radius = CELL + COINCIDENT;
       const left = column(x - radius);
@@ -310,39 +330,94 @@ export function scatterGrid(
       }
       for (const bucket of nearby) searchTies(bucket);
 
-      const cx = px[nearest]!;
-      const cy = py[nearest]!;
-      const hits = [nearest];
-      let count = 0;
-      function sample(head: number): void {
-        for (let at = head; at >= 0 && hits.length < POINT_LIMIT; at = next[at]!) {
-          examined++;
-          if (at !== nearest) hits.push(at);
+      return { hits: members(nearest, 0, POINT_LIMIT), count: groupSize(nearest, visit) };
+    }
+
+    const near = (at: number, cx: number, cy: number) => (px[at]! - cx) ** 2 + (py[at]! - cy) ** 2 <= COINCIDENT2;
+
+    /** The cells' trees that can hold a position within 0.5 px of (cx, cy), in cell order. */
+    function around(cx: number, cy: number): Bucket[] {
+      const found: Bucket[] = [];
+      for (let r = row(cy - COINCIDENT); r <= row(cy + COINCIDENT); r++) {
+        for (let c = column(cx - COINCIDENT); c <= column(cx + COINCIDENT); c++) {
+          const bucket = buckets.get(c + r * columns);
+          if (bucket) found.push(bucket);
         }
       }
-      function collect(bucket: Bucket): void {
+      return found;
+    }
+
+    // Members of a group, counted from a representative's whole position at a time where possible.
+    function groupSize(at: number, visit: () => void = () => {}): number {
+      const own = repOf[at]!;
+      const cx = px[at]!;
+      const cy = py[at]!;
+      let size = multiplicity[own]!;
+      function add(bucket: Bucket): void {
         if (distanceTo(bucket, cx, cy) > COINCIDENT2) return;
-        if (distanceAcross(bucket, cx, cy) <= COINCIDENT2) {
-          count += bucket.count;
-          for (let i = bucket.start; i < bucket.end && hits.length < POINT_LIMIT; i++) sample(order[i]!);
-        } else if (bucket.left && bucket.right) {
-          collect(bucket.left);
-          collect(bucket.right);
+        const inside = placed[own]! >= bucket.start && placed[own]! < bucket.end;
+        if (distanceAcross(bucket, cx, cy) <= COINCIDENT2) size += bucket.count - (inside ? multiplicity[own]! : 0);
+        else if (bucket.left && bucket.right) {
+          add(bucket.left);
+          add(bucket.right);
         } else {
           for (let i = bucket.start; i < bucket.end; i++) {
-            const at = order[i]!;
+            const entry = order[i]!;
             visit();
-            if ((px[at]! - cx) ** 2 + (py[at]! - cy) ** 2 <= COINCIDENT2) {
-              count += multiplicity[at]!;
-              sample(at);
-            }
+            if (entry !== own && near(entry, cx, cy)) size += multiplicity[entry]!;
           }
         }
       }
-      // The same cell set covers every possible 0.5 px neighbourhood of the nearest point.
-      for (const bucket of nearby) collect(bucket);
-      return { hits, count };
-    };
+      for (const bucket of around(cx, cy)) add(bucket);
+      return size;
+    }
+
+    function members(at: number, from: number, take: number): number[] {
+      const out: number[] = [];
+      if (take <= 0) return out;
+      const own = repOf[at]!;
+      const cx = px[at]!;
+      const cy = py[at]!;
+      let skip = from;
+      const emit = (member: number): boolean => {
+        membersRead++;
+        if (skip > 0) skip--;
+        else out.push(member);
+        return out.length < take;
+      };
+      function position(entry: number, first = -1): boolean {
+        if (skip >= multiplicity[entry]!) {
+          skip -= multiplicity[entry]!;
+          return true;
+        }
+        if (first >= 0 && !emit(first)) return false;
+        for (let member = entry; member >= 0; member = next[member]!) if (member !== first && !emit(member)) return false;
+        return true;
+      }
+      if (!position(own, at)) return out;
+      function walk(bucket: Bucket): boolean {
+        if (distanceTo(bucket, cx, cy) > COINCIDENT2) return true;
+        if (distanceAcross(bucket, cx, cy) <= COINCIDENT2) {
+          const inside = placed[own]! >= bucket.start && placed[own]! < bucket.end;
+          const size = bucket.count - (inside ? multiplicity[own]! : 0);
+          if (skip >= size) {
+            skip -= size;
+            return true;
+          }
+        }
+        if (bucket.left && bucket.right) return walk(bucket.left) && walk(bucket.right);
+        for (let i = bucket.start; i < bucket.end; i++) {
+          const entry = order[i]!;
+          membersRead++;
+          if (entry !== own && near(entry, cx, cy) && !position(entry)) return false;
+        }
+        return true;
+      }
+      for (const bucket of around(cx, cy)) if (!walk(bucket)) break;
+      return out;
+    }
+
+    return { pick, members, has: (at, other) => near(other, px[at]!, py[at]!) };
   }
 
   const exact = budget > 0 ? index(xs, ys) : null;
@@ -361,6 +436,8 @@ export function scatterGrid(
     return index(lx, ly);
   }
   let lattice: Index | null = canFallBack ? latticeIndex() : null;
+  // Built with the lookup whenever a pick can need it; built later only if that bound were ever wrong.
+  const indexFor = (rule: GroupRule): Index => (rule === 'exact' && exact) || (lattice ??= latticeIndex());
 
   return {
     series, points,
@@ -378,15 +455,26 @@ export function scatterGrid(
       const { x, y } = at;
       if (exact) {
         try {
-          return exact(x, y, budget);
+          return exact.pick(x, y, budget);
         } catch (error) {
           if (error !== OVER_BUDGET) throw error;
         }
       }
       usedLattice = true;
-      // Built with the lookup whenever a pick can need it; built here only if that bound were ever wrong.
-      lattice ??= latticeIndex();
-      return lattice(x, y, Infinity);
+      return indexFor('lattice').pick(x, y, Infinity);
+    },
+    /** The grid index of point i of series s, or -1 when it is not on the plot. */
+    at(s: number, i: number): number {
+      return i >= 0 && s >= 0 && s < view.frame.series.length && i < first[s + 1]! - first[s]! ? atOf[first[s]! + i]! : -1;
+    },
+    members(rule: GroupRule, at: number, from: number, take: number): number[] {
+      membersRead = 0;
+      return indexFor(rule).members(at, from, take);
+    },
+    /** Entries the last `members` call read: group members walked and positions checked. */
+    get membersRead() { return membersRead; },
+    has(rule: GroupRule, at: number, other: number): boolean {
+      return indexFor(rule).has(at, other);
     },
   };
 }

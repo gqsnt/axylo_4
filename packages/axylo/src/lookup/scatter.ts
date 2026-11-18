@@ -14,7 +14,9 @@ interface ScatterWork {
 export function scatterLookup(
   view: ScatterView, layout: PlotLayout | null, formatters: Formatters, work?: ScatterWork, devicePixelRatio = 1,
   gridOptions?: GridOptions,
-): Lookup & { readonly lastPickCandidates: number; readonly lastPickCells?: number; readonly lastPickLattice: boolean } {
+): Lookup & {
+  readonly lastPickCandidates: number; readonly lastPickCells?: number; readonly lastPickLattice: boolean; readonly lastMembersRead: number;
+} {
   const { series } = view.frame;
   const keys = new Map(series.map((entry, i) => [entry.key, i]));
   const locations = new WeakMap<DatumRef, PointIndex>();
@@ -35,6 +37,20 @@ export function scatterLookup(
     return datum;
   }
 
+  // A ref rebuilt by the caller is found by its x, then by its row among the points at that x. Where many
+  // points share an x, a row index built with the lookup keeps that from walking them all.
+  const RUN = 32;
+  const byRow = series.map(({ x, row }) => {
+    if (!row) return null;
+    let run = 1;
+    let longest = 1;
+    for (let i = 1; i < x.length; i++) longest = Math.max(longest, run = x[i] === x[i - 1] ? run + 1 : 1);
+    if (longest <= RUN) return null;
+    const index = new Map<number, number>();
+    for (let i = 0; i < row.length; i++) index.set(row[i]!, i);
+    return index;
+  });
+
   function locate(datum: DatumRef): PointIndex | null {
     if (datum.kind !== 'point') return null;
     const known = locations.get(datum);
@@ -42,6 +58,14 @@ export function scatterLookup(
     const s = keys.get(datum.seriesKey);
     if (s === undefined) return null;
     const { x, row } = series[s]!;
+    const rows = byRow[s];
+    if (!row || rows) {
+      const direct = rows ? rows.get(datum.row) : datum.row;
+      if (direct === undefined || x[direct] !== datum.x) return null;
+      const point = { series: s, index: direct };
+      locations.set(datum, point);
+      return point;
+    }
     for (let i = lowerBound(x, datum.x); x[i] === datum.x; i++) {
       if (work) work.locations++;
       if ((row?.[i] ?? i) !== datum.row) continue;
@@ -146,6 +170,14 @@ export function scatterLookup(
     return ref(s, nearest);
   }
 
+  /** A datum's place in the pointer index, -1 when it is not drawn on the plot (hidden, outside the view). */
+  function gridAt(datum: DatumRef | undefined): number {
+    const point = datum && locate(datum);
+    if (!grid || !point) return -1;
+    const { start, end } = ranges[point.series]!;
+    return point.index >= start && point.index < end ? grid.at(point.series, point.index) : -1;
+  }
+
   function toRef(point: PointIndex | null): DatumRef | null {
     return point ? ref(point.series, point.index) : null;
   }
@@ -155,7 +187,24 @@ export function scatterLookup(
       const picked = grid?.pick(px, py);
       return grid && picked ? {
         kind: 'point', refs: picked.hits.map(i => ref(grid.series[i]!, grid.points[i]!)), count: picked.count,
+        // The contract's default when absent is the exact rule.
+        ...grid.usedLattice && { rule: 'lattice' as const },
       } : null;
+    },
+    members(target, from, count) {
+      const at = target.kind === 'point' ? gridAt(target.refs[0]) : -1;
+      if (!grid || at < 0) return [];
+      return grid.members(target.kind === 'point' && target.rule === 'lattice' ? 'lattice' : 'exact', at, Math.max(0, from), count)
+        .map(i => ref(grid.series[i]!, grid.points[i]!));
+    },
+    has(target, datum) {
+      const at = target.kind === 'point' ? gridAt(target.refs[0]) : -1;
+      const other = gridAt(datum);
+      return grid !== null && at >= 0 && other >= 0 &&
+        grid.has(target.kind === 'point' && target.rule === 'lattice' ? 'lattice' : 'exact', at, other);
+    },
+    slot(datum) {
+      return locate(datum)?.index ?? -1;
     },
     tooltip(target) {
       if (target.kind !== 'point') return { title: '', rows: [], count: 0, total: null };
@@ -213,5 +262,6 @@ export function scatterLookup(
     get lastPickCandidates() { return grid?.examined ?? 0; },
     get lastPickCells() { return grid?.cellsExamined ?? 0; },
     get lastPickLattice() { return grid?.usedLattice ?? false; },
+    get lastMembersRead() { return grid?.membersRead ?? 0; },
   };
 }

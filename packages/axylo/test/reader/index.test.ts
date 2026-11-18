@@ -456,3 +456,27 @@ it('names a long-form range by its value field and gives both ends its unit (spe
       + 'A: minimum 1 visits, maximum 3 visits, last 3 visits. B: minimum 2 visits, maximum 2.5 visits, last 2.5 visits.',
   });
 });
+
+it('finds every x the table prints, rows without a y included, so the jump field can reach it (I13)', async () => {
+  const { printedX } = await import('../../src/reader/table');
+  const data = frame('scatter', { x: { field: 'day', type: 'date' }, y: 'v', series: 's', data: [
+    { day: '2026-01-02', v: 1, s: 'A' }, { day: '2026-01-05', v: null, s: 'A' }, { day: '2026-01-09', v: 3, s: 'B' },
+    { day: '2026-01-12', v: null, s: 'B' }, { day: '2026-01-20', v: 5, s: 'A' }, { day: '2026-01-31', v: null, s: 'A' },
+  ] });
+  const view = scatter(data, { xDomain: [Date.UTC(2026, 0, 1), Date.UTC(2026, 0, 25)] });
+  const formatters = formatter(data);
+  const table = read(view, { formatters }).table!;
+  const printed = Array.from({ length: table.rowCount }, (_, i) => table.row(i)![0]!);
+  // The table lists the points and the rows without a y inside the view: Jan 5 and Jan 12, not Jan 31.
+  expect(printed).toHaveLength(5);
+  for (const text of printed) {
+    const x = printedX(view, formatters, written => written === text);
+    expect(x, text).not.toBeNull();
+    const page = table.pageForX(x!);
+    expect(page).toBe(0);
+    expect(printed).toContain(formatters.x(x!));
+  }
+  // An x the table does not print (outside the view) is not found.
+  expect(printedX(view, formatters, written => written === formatters.x(Date.UTC(2026, 0, 31)))).toBeNull();
+  expect(printedX(view, formatters, () => false)).toBeNull();
+});

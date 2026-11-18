@@ -20,20 +20,27 @@ export interface OwnedBytes {
   readonly buffers: readonly OwnedBuffer[];
 }
 
-/** The buffers behind a table's typed columns. Weak, so remembering them never keeps them alive. */
-export class CallerBuffers {
-  private readonly buffers = new WeakSet<ArrayBufferLike>();
+/**
+ * Every buffer behind a typed column a caller has given any chart. A buffer the caller gave is never the
+ * library's, whichever frame or store is counted. Weak, so remembering one never keeps it alive.
+ */
+const given = new WeakSet<ArrayBufferLike>();
 
+/** Records the buffers of the caller's typed columns (called where the caller's data is read). */
+export function borrowColumns(columns: Readonly<Record<string, unknown>>): void {
+  for (const key of Object.keys(columns)) {
+    const column = columns[key];
+    if (ArrayBuffer.isView(column)) given.add(column.buffer);
+  }
+}
+
+/** The buffers behind a table's typed columns, and every buffer a caller has given. */
+export class CallerBuffers {
   add(table: Table): void {
-    const columns = table.columns;
-    if (!columns) return;
-    for (const key of Object.keys(columns)) {
-      const column = columns[key];
-      if (ArrayBuffer.isView(column)) this.buffers.add(column.buffer);
-    }
+    if (table.columns) borrowColumns(table.columns);
   }
 
-  has(buffer: ArrayBufferLike): boolean { return this.buffers.has(buffer); }
+  has(buffer: ArrayBufferLike): boolean { return given.has(buffer); }
 }
 
 /**
