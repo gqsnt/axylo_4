@@ -30,11 +30,14 @@ Observed model and effort are read from harness metadata (Codex session rollouts
 
 Finished and committed, each written by one provider and reviewed by the other: scales and formatting; layout and simplification; data layer, diagnostics and stores; renderers, text layer and theme; view and scene; lookup, reader and messages; chart core part 1 (review findings not yet fixed, see below); chart core part 2 (review running); benchmark harness and the M1 renderer measurements (not reviewed).
 
-| Running now (2026-11-18 night, after commit 9611392) | Who | Files |
+| Running now (2026-11-18 night, after commit 90f9b60) | Who | Files |
 |---|---|---|
-| Coordinator's full verification of 9611392 on the shared build built from it: browser suites on SVG and canvas, Node suite, `tests/dist`, docs browser; logs `acceptance/results/verify-9611392/` | coordinator | reads `packages/axylo/dist` |
-| Matrix: applying the cross-provider review (downgrades with named gaps, P6 and DX10 no longer reading as passes, statements re-synced with the spec), agent a7e48ddd0321b1b1e; returns its report as text for `wp/matrix-merge2.report.md` | Claude Opus 5.5 | `acceptance/matrix.json`, `acceptance/report.md` |
-| Checker defects confirmed by the reviews (size provenance, wrong-revision results shown as statuses, uncitable looped tests, unreachable titles, kind against file), agent a61d95e46b3f0f3aa; after the verification run it strengthens the tests the reviews found weaker than their titles | Claude Opus 5.5 high | `acceptance/*.mjs` and their tests |
+| Browser acceptance tests strengthened where two reviews found them weaker than their titles (L7 announcement count, I6 paused view, I2 every entry, C5, A7, T-zoom-scatter, C2 null gap, F8 ninth, A8 states, A1), then compact area and bar in the browser and I1 below the L8 minimum; agent a61d95e46b3f0f3aa | Claude Opus 5.5 high | `packages/axylo/test/browser/acceptance/**` |
+| Node acceptance tests strengthened (F3 delivery per type, F7, F1 horizontal, F4, F2, F10, F12, F8 and the named weak tests); the simplify test's 30 ms bound moved from wall time to CPU time; agent a5e106319fe97c022 | Claude Opus 5.5 high | `packages/axylo/test/acceptance/**`, `test/simplify` |
+
+Coordinator's verification of 9611392 on the shared build built from it (logs `acceptance/results/verify-9611392/`): core browser suites on SVG 962 passed, 1 skipped; `chart` + `a11y` on canvas 312 passed, 4 skipped; `tests/dist` Node 90, browser 26; docs browser 172; whole Node suite 1766 of 1767, the one failure the load-dependent wall-time bound in `simplify.test.ts` (38.8 ms against 30 while other work ran; passes alone, three of three).
+
+Matrix (efacab1): reachable when every cited result passes: 65 pass, 211 weak, 32 pending, 11 cannot be verified here (5 are A3, waived by the owner), 257 not applicable. Checker (3cbf903): size records bound to the pack; results from another tree read "not recorded for this revision"; `atLeast` citations; unreachable titles refused; kind checked against the file. Conformance page reads all of it (90f9b60). Reports: `wp/matrix-merge2.report.md`, `wp/checker-defects.report.md`.
 
 Engines (author's runs on the shared build of d33df71, `acceptance/results/engines-d33df71/`): acceptance 560 passed on Chrome 158; 399 passed and 161 not run on Playwright Firefox 159 and on Playwright WebKit 27.2 (not Safari); `chart` + `a11y` + `render` 402 passed on Chrome, 388 passed and 15 not run on each other engine; no failure on any engine. The not-run tests need Chrome-only tooling (the accessibility tree through CDP: 151 + 5; multi-touch, pen, heap and listener inspection: the rest) and say so.
 
@@ -83,13 +86,12 @@ Owner's answers on 2026-11-18 night: "Yes, settle them" (spec questions that res
 
 ## Next action
 
-1. When the engine agent reports: commit the port; `npm run build`; every core browser suite on SVG and `chart` + `a11y` on canvas at HEAD.
-2. When the matrix review arrives: record observed model and effort; fixes to the matrix by the merge's author (a7e48ddd0321b1b1e), to the spec's WCAG citations by the coordinator.
-3. The matrix report's twelve questions: settle those that only restate implemented behaviour in the spec; bring the rest to the owner.
-4. Record every configuration with provenance on a quiet tree (`node acceptance/run.mjs unit|dist|dist-browser|browser`, plus `AXYLO_ENGINE=firefox|webkit … browser`), run the checker in release mode, rebuild the docs site so the conformance page shows recorded results.
-5. Close the most important evidence gaps of `wp/matrix-merge.report.md` (compact area and bar in a browser; I1 below the L8 minimum; F3 delivery rules per type), by the acceptance author, as time allows; the rest stays listed as gaps.
-6. On a quiet machine with no agents: `node bench/decision.mjs plan` (software family about 3.2 h, gpu family about 2.2 h); then budgets P1 to P8 and the large-series path.
-7. Agent rehearsal (DX12: no script exists yet); Phase 1 comparison rerun with Axylo included. Optional size margin: property mangling (about −2.4 kB), only with the browser suites on the production bundle.
+1. When the two test-strengthening passes report: verify (type check, Node suite, the acceptance suite on Chrome), commit; any strengthened test that fails on a product defect goes to that module's author as a finding, fixed with the test unchanged.
+2. Matrix author (a7e48ddd0321b1b1e): cite the new titles, lift the gaps the stronger tests close.
+3. Record every configuration with provenance on a quiet tree with no agent running: `node acceptance/run.mjs unit`, `browser`, `dist`, `dist-browser`, then `AXYLO_ENGINE=firefox node acceptance/run.mjs browser` and `AXYLO_ENGINE=webkit …`; run `node acceptance/check.mjs --release` and read what still blocks; rebuild the docs site so the conformance page shows recorded results.
+4. On a quiet machine with no agents: `node bench/decision.mjs plan` (software family about 3.2 h, gpu family about 2.2 h); then budgets P1 to P8 and the large-series path (first render at 100,000 points was about 7× uPlot in the only measurement, early and weak).
+5. Agent rehearsal (DX12: no script, prompts or trap fixtures exist yet); Phase 1 comparison rerun with Axylo included. Optional size margin: property mangling (about −2.4 kB), only with the browser suites on the production bundle.
+6. Nothing has been pushed, tagged or published; no remote exists; CI has never run. Each of those needs the owner's explicit grant.
 
 ## Known limits that no agent can close
 
