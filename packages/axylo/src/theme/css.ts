@@ -214,6 +214,11 @@ ${forced}
   .axylo .axylo-tooltip-row { display: flex; gap: 1em; justify-content: space-between; }
   .axylo .axylo-tooltip-series { display: inline-flex; align-items: center; gap: 0.375em; min-width: 0; overflow-wrap: anywhere; }
   .axylo .axylo-tooltip-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  /* A value that cannot fit on one line wraps, anywhere if it must (rule 6); short ones keep number and unit together. */
+  .axylo .axylo-tooltip-wrap .axylo-tooltip-value, .axylo .axylo-readout-wrap .axylo-tooltip-value { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
+  /* A strip row that still cannot fit is cut to one line with an ellipsis. */
+  .axylo .axylo-readout-cut .axylo-readout-entry { display: inline-flex; max-width: 100%; overflow: hidden; vertical-align: bottom; }
+  .axylo .axylo-readout-cut .axylo-readout-entry > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .axylo .axylo-tooltip-total {
     margin-top: 2px; padding-top: 2px; border-top: 1px solid var(--axylo-axis, var(--axylo-default-axis));
     text-align: end; font-weight: 600; font-variant-numeric: tabular-nums;

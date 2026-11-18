@@ -64,6 +64,7 @@ export interface TooltipView {
 }
 
 interface RowEntry {
+  readonly key: string;
   readonly element: HTMLElement;
   readonly name: HTMLElement;
   readonly value: HTMLElement;
@@ -118,10 +119,13 @@ function setLang(el: HTMLElement, lang: string | null | undefined): void {
  */
 export function createTooltip(element: HTMLElement, readoutElement: HTMLElement, figure: HTMLElement, lost: () => void): TooltipView {
   const doc = element.ownerDocument;
-  /** A press on a row: it completes against the row it began on, wherever a redraw moved the rows meanwhile. */
-  let press: { entry: RowEntry; pointer: number } | null = null;
-  /** The click that follows a completed press is not a second choice. */
-  let pressedAt = -Infinity;
+  /**
+   * A press on a row, by the row's identity: it completes against that row in whatever presentation shows it
+   * at release, wherever a redraw moved or replaced its element meanwhile (review R1, final check 3).
+   */
+  let press: { key: string; pointer: number } | null = null;
+  /** The pointer click that follows a completed press, on that row, is not a second choice. */
+  let pressed: { key: string; at: number } | null = null;
   /** A row that had focus when its presentation was hidden: the next presentation focuses it again. */
   let pendingFocus: string | null = null;
   let where: Presentation | null = null;
@@ -133,13 +137,13 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
   /** One set of row elements per presentation, keyed by row identity and by being buttons or text. */
   const entries = { floating: new Map<string, RowEntry>(), strip: new Map<string, RowEntry>() };
 
-  function makeEntry(r: DatumText, pinned: boolean, strip: boolean): RowEntry {
+  function makeEntry(r: DatumText, pinned: boolean, strip: boolean, key: string): RowEntry {
     const button = pinned && current?.select !== undefined;
     const element = doc.createElement(button ? 'button' : strip ? 'span' : 'div');
     element.className = strip ? 'axylo-readout-entry' : 'axylo-tooltip-row';
     const listening = button ? new AbortController() : null;
     const entry: RowEntry = {
-      element, name: doc.createElement('span'), value: doc.createElement('span'),
+      key, element, name: doc.createElement('span'), value: doc.createElement('span'),
       separator: strip ? doc.createTextNode('; ') : null, row: r, swatch: '', listening,
     };
     if (element instanceof HTMLButtonElement && listening) {
@@ -148,11 +152,11 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       element.classList.add('axylo-tooltip-choice');
       // A press does not take focus from the plot, whose keyboard reading goes on from the chosen datum.
       element.addEventListener('mousedown', event => event.preventDefault(), { signal: listening.signal });
-      element.addEventListener('pointerdown', event => { press = { entry, pointer: event.pointerId }; }, { signal: listening.signal });
+      element.addEventListener('pointerdown', event => { press = { key, pointer: event.pointerId }; }, { signal: listening.signal });
       // A click without a press of its own (Enter, Space, an assistive action: detail 0) chooses this row; the
       // pointer click that follows a completed press does not choose again (review R1).
       element.addEventListener('click', event => {
-        if (event.detail > 0 && event.timeStamp - pressedAt < 1000) return;
+        if (event.detail > 0 && pressed?.key === key && event.timeStamp - pressed.at < 1000) return;
         current?.select?.(entry.row);
       }, { signal: listening.signal });
     }
@@ -187,7 +191,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       keep.add(key);
       let entry = map.get(key);
       if (!entry) {
-        entry = makeEntry(r, pinned, strip);
+        entry = makeEntry(r, pinned, strip, key);
         map.set(key, entry);
       }
       updateEntry(entry, r, content);
@@ -220,11 +224,11 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     const was = press;
     press = null;
     if (!was || was.pointer !== event.pointerId) return;
-    pressedAt = event.timeStamp;
-    // The row as it is now: the same series' row of what is pinned now (its x remapped with a sliding
-    // category window, review R1); a row that went with a redraw chooses nothing.
-    if (![...entries.floating.values(), ...entries.strip.values()].includes(was.entry)) return;
-    current?.select?.(was.entry.row);
+    pressed = { key: was.key, at: event.timeStamp };
+    // The row as it is now, in the presentation on show: the same series' row of what is pinned now (its x
+    // remapped with a sliding category window); a row no longer shown chooses nothing.
+    const now = entries.floating.get(was.key) ?? entries.strip.get(was.key);
+    if (now) current?.select?.(now.row);
   };
 
   function dropEntries(presentation: Presentation): void {
@@ -380,10 +384,15 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       element.style.transform = 'translate(0px, 0px)';
       const total = content.model.rows.length;
       let size = { width: 0, height: 0 };
+      // A value keeps its number and unit on one line while it fits; one that does not fit wraps (rule 6).
+      element.classList.remove('axylo-tooltip-wrap');
+      const overflows = () => element.scrollHeight > element.clientHeight + 1 || element.scrollWidth > element.clientWidth + 1;
       for (let shown = total; shown >= Math.min(1, total); shown--) {
         fillFloating(content, rows, pinned, shown);
-        // Fit is judged on what can be seen: content cut by the size limit does not fit (review finding 4).
-        if (element.scrollHeight > element.clientHeight + 1 || element.scrollWidth > element.clientWidth + 1) continue;
+        if (overflows() && !element.classList.contains('axylo-tooltip-wrap')) element.classList.add('axylo-tooltip-wrap');
+        // Fit is judged on what can be seen: content cut by the size limit does not fit (review finding 4),
+        // except one row, which is shown, cut if it must be, title and row first (spec I1, rule 6).
+        if (overflows() && shown > 1) continue;
         const b = element.getBoundingClientRect();
         size = { width: b.width, height: b.height };
         const spot = placeTooltip(p, size.width, size.height);
@@ -432,12 +441,9 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
         }
         place(readoutElement, parts);
       };
-      for (let shown = rows.length; shown >= Math.min(1, rows.length); shown--) {
-        build(shown);
-        if (readoutElement.scrollHeight <= readoutElement.clientHeight + 1) break;
-      }
-      // Judged as the floating tooltip is: the title, one value and any paging control lie wholly inside the
-      // strip's own box and inside what its ancestors leave visible, or the strip is not shown (review I4).
+      // Judged as the floating tooltip is: the title, every row shown and any paging control lie wholly inside
+      // the strip's own box and inside what its ancestors leave visible; rows are dropped until they do, or
+      // the strip is not shown (review I4, final check 1).
       const r = rectOf(readoutElement);
       const box = { x: Math.max(r.x, visible.x), y: Math.max(r.y, visible.y), right: Math.min(r.x + r.width, visible.x + visible.width), bottom: Math.min(r.y + r.height, visible.y + visible.height) };
       const within = (el: Element | undefined) => {
@@ -447,8 +453,19 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
         }
         return el.getClientRects().length > 0;
       };
-      const more = pinned && current?.more ? mores.get('strip\u0000true') : undefined;
-      const seen = within(stripTitle) && within(rows[0]?.element) && (!more?.isConnected || within(more));
+      let seen = false;
+      // Passes: as written; with long values wrapping; then one row cut to one line with an ellipsis. The
+      // "+N more" (a control when pinned) is shown whole or the strip is not shown.
+      readoutElement.classList.remove('axylo-readout-wrap', 'axylo-readout-cut');
+      for (let pass = 0; pass < 3 && !seen; pass++) {
+        if (pass === 1) readoutElement.classList.add('axylo-readout-wrap');
+        if (pass === 2) readoutElement.classList.replace('axylo-readout-wrap', 'axylo-readout-cut');
+        for (let shown = pass === 2 ? Math.min(1, rows.length) : rows.length; shown >= Math.min(1, rows.length) && !seen; shown--) {
+          build(shown);
+          const pager = mores.get(`strip\u0000${pinned && current?.more !== undefined}`);
+          seen = within(stripTitle) && rows.slice(0, shown).every(e => within(e.element)) && (!pager?.isConnected || within(pager));
+        }
+      }
       if (!seen) {
         hideStrip();
         where = null;

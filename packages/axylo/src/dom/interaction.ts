@@ -678,12 +678,9 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     if (ref.kind === 'point' && d.view.kind === 'scatter') {
       const box = d.lookup.anchor(ref);
       const picked = box ? d.lookup.pick(box.x + box.width / 2, box.y + box.height / 2) : null;
-      if (picked?.kind === 'point' && picked.refs.some(r => sameRef(r, ref))) return picked;
-      // The focused point is one of more coincident points than the eight shown: it is shown first, and the
-      // full count stays (review 2 item 7); focus and selection keep the ref itself (`focus`).
-      if (picked?.kind === 'point' && picked.count > picked.refs.length) {
-        return { kind: 'point', refs: [ref, ...picked.refs.slice(0, picked.refs.length - 1)], count: picked.count, ...(picked.rule ? { rule: picked.rule } : {}) };
-      }
+      // The lookup's group as it picked it (its anchor, sample and count stay together, so paging and
+      // dismissal ask about the same group); focus and selection keep the ref itself (`focus`).
+      if (picked?.kind === 'point' && d.lookup.has(picked, ref)) return picked;
     }
     return targetOf(ref);
   }
@@ -722,7 +719,10 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     if (d.layout.kind !== 'plot') return toLocal(m, at);
     const r = rectToViewport(m, d.layout.plot);
     const near = (v: number, lo: number, hi: number) => v >= lo - 1 && v <= hi + 1 ? Math.max(lo, Math.min(hi, v)) : v;
-    return toLocal(m, { x: near(at.x, r.x, r.x + r.width), y: near(at.y, r.y, r.y + r.height) });
+    const p = toLocal(m, { x: near(at.x, r.x, r.x + r.width), y: near(at.y, r.y, r.y + r.height) });
+    // A snapped point lands exactly on the edge in layout pixels too, whatever the roundoff of the conversion.
+    const b = d.layout.plot, inX = at.x >= r.x - 1 && at.x <= r.x + r.width + 1, inY = at.y >= r.y - 1 && at.y <= r.y + r.height + 1;
+    return { x: inX ? Math.max(b.x, Math.min(b.x + b.width, p.x)) : p.x, y: inY ? Math.max(b.y, Math.min(b.y + b.height, p.y)) : p.y };
   }
 
   function pick(d: Committed, at: Point): PickTarget | null {
@@ -880,8 +880,12 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     for (const el of figure.figure.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], [tabindex], .axylo-legend-list > li')) {
       if (el === proxy || el === figure.figure || tooltip.contains(el)) continue;
       const r = el.getBoundingClientRect();
-      // With the focus outline it paints (2 px at 1 px offset, in its own pixels, scaled as the chart is).
-      const ox = FOCUS_OUTLINE * m.kx, oy = FOCUS_OUTLINE * m.ky;
+      // With the outline it paints (its own width and offset, scaled as the chart is), or the stylesheet's focus
+      // outline that it will paint when focused, whichever reaches further.
+      const style = doc.defaultView?.getComputedStyle(el);
+      const painted = style && style.outlineStyle !== 'none' ? (parseFloat(style.outlineWidth) || 0) + Math.max(0, parseFloat(style.outlineOffset) || 0) : 0;
+      const reach = Math.max(FOCUS_OUTLINE, painted);
+      const ox = reach * m.kx, oy = reach * m.ky;
       if (r.width > 0 && r.height > 0) controls.push({ x: r.left - ox, y: r.top - oy, width: r.width + 2 * ox, height: r.height + 2 * oy });
     }
     const rings: Rect[] = [];
@@ -1945,9 +1949,9 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       const box = next.lookup.anchor(ref);
       if (!box) return null;
       const picked = next.lookup.pick(box.x + box.width / 2, box.y + box.height / 2);
-      if (picked?.kind !== 'point') return { ref, target: { kind: 'point', refs: [ref], count: 1 } };
-      if (picked.refs.some(r => sameRef(r, ref))) return { ref, target: picked };
-      return { ref, target: { kind: 'point', refs: [ref, ...picked.refs.slice(0, Math.max(0, picked.refs.length - 1))], count: Math.max(picked.count, 1), ...(picked.rule ? { rule: picked.rule } : {}) } };
+      // The pinned ref is tracked apart; the rows shown are the lookup's own group for it, never a sample of
+      // one group with another's count (final check, item 2).
+      return { ref, target: picked?.kind === 'point' && next.lookup.has(picked, ref) ? picked : targetOf(ref) };
     }
     if (target.kind === 'slice') return ref.kind === 'slice' && next.lookup.ordinal(ref) >= 0 ? { ref, target } : null;
     // The exact datum chosen, never the primary in its place: it must still be displayed and its series visible.

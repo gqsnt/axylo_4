@@ -178,7 +178,8 @@ export function datumReading(view: View, lookup: Lookup, ref: DatumRef, mode: Mo
   if (view.kind !== 'scatter' && view.kind !== 'donut' && mode === 'all' && ref.kind === 'aligned') {
     const model = lookup.tooltip({ kind: 'x', x: ref.x });
     const rows = alignedRows(view, formatters, ref.x, model).map(r => [r.seriesIndex, r.seriesLabel, r.value]);
-    return JSON.stringify(['all', ref.seriesKey, x, rows, model.total, words]);
+    // Both the raw x (its identity) and the x as read (a changed x format rewrites the text, final check 5).
+    return JSON.stringify(['all', ref.seriesKey, x, formatters.x(ref.x), rows, model.total, words]);
   }
   const datum = lookup.datum(ref);
   if (!datum) return null;
