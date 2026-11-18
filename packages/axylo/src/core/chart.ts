@@ -18,6 +18,7 @@ import { createTextLayer, type TextLayer } from '../render/text';
 import { ensureStyles, resolveTheme, watchTheme } from '../theme';
 import { createFigure, type Figure } from '../dom/figure';
 import { createInteraction, type Interaction } from '../dom/interaction';
+import { mappingOf } from '../dom/mapping';
 import type { DeliveryConsole } from './delivery';
 import { createMeasurer, noteFontLoad, readTextStyle, resolveLocale, viewerTimeZone, watchEnvironment, watchLanguage } from './environment';
 import { controllerFor, type ChartHandle, type Controller, type ControllerActions } from './controller';
@@ -191,19 +192,32 @@ export function createChart(composition: Composition, target: unknown, input: un
         if (box.width <= 0 && box.height <= 0) return null;
         const plot = figure.plot.getBoundingClientRect();
         // Layout pixels, which the marks, the text and picking use: a CSS transform on an ancestor scales the
-        // bounding rect, not the layout (interaction review, part 1 item 12). Below 2% the ratio is the
-        // integer rounding of offsetWidth, and the fractional rect is kept.
-        const scaleOf = (rect: number, layout: number) => {
-          const k = layout > 0 && rect > 0 ? rect / layout : 1;
-          return Math.abs(k - 1) < 0.02 ? 1 : k;
-        };
-        const sx = scaleOf(plot.width, figure.plot.offsetWidth);
-        const sy = scaleOf(plot.height, figure.plot.offsetHeight);
+        // bounding rect, not the layout. The scale is the interaction layer's own mapping (decision 0004
+        // revision 3, rule 10): bounding rect over the fractional computed size, exactly 1 only within the
+        // computed size's serialization (1e-5), so a scale of 1.015 or 0.99 is not taken for 1 (it laid the
+        // scene out 9 px too wide on a 600 px plot), and an unscaled sub-pixel width stays exactly 1.
+        const mapping = mappingOf(figure.plot);
+        const sx = mapping.kx;
+        const sy = mapping.ky;
         // When the plot is squeezed to nothing, how far the rest overflows the figure is how much room is
         // missing; that keeps the L8 decision continuous below zero.
         const overflow = plot.height < 1 ? Math.max(0, figure.figure.scrollHeight - figure.figure.clientHeight) : 0;
         const stage = figure.stage.getBoundingClientRect();
         return { width: plot.width / sx, height: plot.height / sy - overflow, room: { width: stage.width / sx, height: stage.height / sy } };
+      },
+      stripHeight() {
+        // The strip as the stylesheet would reserve it, in this figure's own font: a hidden copy is measured
+        // (decision 0004 rule 5: two line heights of the strip's own text, whatever the page's size).
+        const holder = doc.createElement('div');
+        holder.className = 'axylo-readout-mode';
+        holder.style.cssText = 'position: absolute; left: 0; top: 0; width: 100px; visibility: hidden; pointer-events: none;';
+        const strip = doc.createElement('div');
+        strip.className = 'axylo-readout';
+        holder.appendChild(strip);
+        figure.figure.appendChild(holder);
+        const height = parseFloat(win.getComputedStyle(strip).height);
+        holder.remove();
+        return Number.isFinite(height) ? height : NaN;
       },
       devicePixelRatio: () => win.devicePixelRatio || 1,
       // Scoped to this chart's own figure: properties and the scheme go with it (finding 10).

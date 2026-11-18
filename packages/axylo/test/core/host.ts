@@ -50,6 +50,13 @@ export interface HostOptions {
   readonly pageLang?: string;
   /** The target element's own id (an untitled chart's name in diagnostics). */
   readonly targetId?: string;
+  /**
+   * The readout strip's real height (two line heights of its own font). When given, a reserved strip takes
+   * that much from the plot's column, as the DOM does, and the host reports the strip's height to the chart.
+   */
+  readonly strip?: number;
+  /** The host does not report the strip's height: the chart estimates it from its text style. */
+  readonly stripUnknown?: boolean;
   /** Called inside the interaction layer's commit, as the DOM layer calls hover while it presents. */
   readonly onCommit?: (state: Committed, controller: Controller) => void;
 }
@@ -87,7 +94,11 @@ export function record(kind: ChartKind, options: Record<string, unknown>, settin
       // but shorter (no legend).
       used += controls.tooSmall ? rec.lineHeight : 1.5 * rec.lineHeight;
     }
-    return { width: box.width, height: box.height - used };
+    const column = { width: box.width, height: box.height - used };
+    if (settings.strip === undefined) return column;
+    // The strip is in the plot's column: the column (room) stays, the plot gets what the strip leaves.
+    const reserved = controls && (controls as { readout?: boolean }).readout === true ? settings.strip : 0;
+    return { width: column.width, height: column.height - reserved, room: column };
   }
 
   const host: Host = {
@@ -148,6 +159,7 @@ export function record(kind: ChartKind, options: Record<string, unknown>, settin
     labelText: id => Object.hasOwn(rec.ids, id) ? rec.ids[id]! : null,
     textStyle: () => style,
     measure: plotSize,
+    ...(settings.strip === undefined || settings.stripUnknown ? {} : { stripHeight: () => settings.strip! }),
     devicePixelRatio: () => 1,
     theme(keys, colors) {
       rec.themeCalls.push({ keys: [...keys], colors });

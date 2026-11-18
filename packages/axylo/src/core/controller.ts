@@ -110,6 +110,11 @@ export interface Host {
    * or detached), which is not the same as a visible figure whose caption left no room.
    */
   measure(): Size | null;
+  /**
+   * The readout strip's height as it would be reserved: two line heights of the strip's own text, measured
+   * in the page (decision 0004 rule 5). Absent: estimated from the chart's text style.
+   */
+  stripHeight?(): number;
   devicePixelRatio(): number;
   theme(seriesKeys: readonly string[], colors: Record<string, string>): ThemeResolution;
   /** Shows or hides the mark and text surfaces without drawing (the error revision hides them). */
@@ -904,6 +909,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   let readoutMode = false;
   /** The strip's height as last measured (two 24 px lines until then). */
   let stripHeight = 0;
+  /** The text style the strip's height was measured for. */
+  let stripStyle: TextStyle | null = null;
   /** Decision 0004 revision 3, rule 5: how a datum's values are shown when pointed at. */
   let readoutKind: ReadoutMode = 'floating';
   /** L8 fallback: what the fallback's own DOM adds to the plot size, measured when it was entered. */
@@ -1310,12 +1317,19 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     // the plot's whole column, is narrower than 240 or shorter than 140 CSS px. The strip is then reserved and
     // the plot measured again; the decision does not depend on the strip, so it cannot flip with it. Held
     // while the plot is too small (L8): that state has no strip.
+    let withoutStrip: Layout['kind'] | null = null;
     if (size !== null && size.width > 0 && shown.kind === 'ready' && !compact && !tooSmall) {
       const room = size.room ?? size;
-      // The strip is two line heights of its own font: measured once it is reserved, estimated before.
-      if (readoutMode && size.room) stripHeight = Math.max(0, size.room.height - size.height) || stripHeight;
-      else if (stripHeight <= 0) stripHeight = 2 * style.lineHeight;
+      // The strip is two line heights of its own text, measured by the host the way other text is (its own
+      // font, whatever the page's size), once per text style; when reserved, what it really took.
+      if (stripStyle !== style) {
+        stripStyle = style;
+        const measured = host.stripHeight?.();
+        stripHeight = measured !== undefined && Number.isFinite(measured) && measured > 0 ? measured : 2 * Math.max(24, style.lineHeight);
+      }
+      if (readoutMode && size.room && size.room.height - size.height > 0) stripHeight = size.room.height - size.height;
       const without = plotLayout({ width: room.width, height: room.height }).layout;
+      withoutStrip = without.kind;
       // Decision 0004 revision 3, rule 5: a plot that, laid out without a strip, is under 240 × 140 has the
       // strip; if the strip would leave it under the L8 minimum of 80 px, there is no strip and no floating
       // tooltip either ('none': pointing highlights the datum; its values are in the keyboard reading and the
@@ -1328,7 +1342,9 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         const wantStrip = next === 'strip';
         if (wantStrip !== readoutMode) {
           readoutMode = wantStrip;
-          if (arrange(tooSmall)) size = host.measure() ?? size;
+          // Reserving or giving back the strip always changes the plot: it is measured again.
+          arrange(tooSmall);
+          size = host.measure() ?? size;
         } else {
           arranged = null;
           arrange(tooSmall);
@@ -1354,6 +1370,17 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       let result = plotLayout(fallback ? { width: size.width - fallback.width, height: size.height - fallback.height } : size, strip);
       for (let pass = 0; pass < 4; pass++) {
         const small = result.layout.kind === 'too-small';
+        if (small && readoutMode && withoutStrip === 'plot') {
+          // Too small only because of the strip (its real height was more than expected): no strip and no
+          // tooltip, and the readable plot stays (rule 5). The measured height keeps the next frame there.
+          if (size.room) stripHeight = Math.max(stripHeight, size.room.height - size.height);
+          readoutMode = false;
+          readoutKind = 'none';
+          arrange(tooSmall);
+          size = host.measure() ?? size;
+          result = plotLayout(size);
+          continue;
+        }
         if (small && !tooSmall) {
           const normal = size;
           tooSmall = true;

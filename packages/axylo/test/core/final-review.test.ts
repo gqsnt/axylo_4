@@ -674,3 +674,88 @@ describe('final review, displayed snapshots: two series on line, bar and scatter
     });
   }
 });
+
+describe('verification review: reserving a strip never removes a readable plot (decision 0004 rule 5)', () => {
+  // The plot's column is the container less the caption (20 px title) and the controls (30 px): the layout's plot
+  // is that column less its axes. The container heights below are found from the layout itself.
+  const plotHeightAt = (height: number) => {
+    const r = record('line', { title: 'S', data: rowsOf([0, 1, 2, 3]), x: 'x', y: 'y' }, { container: { width: 600, height } });
+    r.frames();
+    const l = r.layout!;
+    return l.kind === 'plot' ? l.plot.height : -1;
+  };
+  const containerFor = (plot: number) => {
+    for (let h = 120; h < 400; h += 0.5) if (plotHeightAt(h) >= plot) return h;
+    throw new Error('no container');
+  };
+  const run = (height: number, strip: number) => {
+    const r = record('line', { title: 'S', data: rowsOf([0, 1, 2, 3]), x: 'x', y: 'y' }, { container: { width: 600, height }, strip });
+    r.frames();
+    return { layout: r.layout!, mode: (r.prepared.at(-1) as unknown as { readoutMode?: string }).readoutMode, readout: r.prepared.at(-1)!.readout };
+  };
+
+  it('a 112 px plot and a real strip of 98 px: no strip and no tooltip ("none"), and the plot stays readable', () => {
+    const h = containerFor(112);
+    const got = run(h, 98);
+    expect(got.layout.kind).toBe('plot');
+    expect(got.mode).toBe('none');
+    expect(got.readout).toBe(false);
+  });
+
+  it('boundary: exactly 80 px left beside the strip keeps the strip; 79.9 px does not', () => {
+    const h = containerFor(112);
+    const unstripped = plotHeightAt(h);
+    const keep = run(h, unstripped - 80);
+    expect(keep.mode).toBe('strip');
+    expect(keep.layout.kind).toBe('plot');
+    if (keep.layout.kind === 'plot') expect(keep.layout.plot.height).toBeCloseTo(80, 6);
+    const drop = run(h, unstripped - 79.9);
+    expect(drop.mode).toBe('none');
+    expect(drop.layout.kind).toBe('plot');
+  });
+
+  it('an estimate that is too low (no measured height): the strip that made the plot too small is retried as "none"', () => {
+    // 135 px unstripped: the estimate (two 24 px lines) would leave 87 px, the real strip of 98 px leaves 37.
+    const h = containerFor(135);
+    const r = record('line', { title: 'S', data: rowsOf([0, 1, 2, 3]), x: 'x', y: 'y' }, { container: { width: 600, height: h }, strip: 98, stripUnknown: true });
+    r.frames();
+    expect(r.layout!.kind).toBe('plot');
+    expect((r.prepared.at(-1) as unknown as { readoutMode?: string }).readoutMode).toBe('none');
+    // And it stays there on later frames.
+    r.controller.invalidate.resize();
+    r.frames();
+    expect(r.layout!.kind).toBe('plot');
+    expect((r.prepared.at(-1) as unknown as { readoutMode?: string }).readoutMode).toBe('none');
+  });
+
+  it('a chart too small even without a strip stays too small', () => {
+    const got = run(150, 40);
+    expect(got.layout.kind).toBe('too-small');
+  });
+});
+
+describe('verification review, C3-5 (controller half): what the interaction layer is handed after a full replacement', () => {
+  it('a replacement gives a new epoch, and prepare and commit of that frame agree on it, the view and the lookup', () => {
+    const r = record('line', { title: 'E', data: rowsOf([0, 1, 2]), x: 'x', y: 'y' });
+    r.frames();
+    const before = r.committed!;
+    r.controller.handle.update({ data: rowsOf([10, 11, 12, 13]) });
+    r.frames();
+    const after = r.committed!;
+    expect(after.epoch).not.toBe(before.epoch);
+    // The controls prepared for that frame and the committed state are the same revision.
+    expect(r.prepared.at(-1)!.epoch).toBe(after.epoch);
+    expect(r.prepared.at(-1)!.view).toBe(after.view);
+    expect(xsOf(r)).toEqual([10, 11, 12, 13]);
+    // The lookup is the new frame's: an old datum does not resolve, a new one reads its own value.
+    expect(after.lookup.count).toBe(4);
+    expect(after.lookup.datum(ref(1))).toBeNull();
+    expect(after.lookup.datum(ref(11))?.value).toBe('110');
+    // Enter (select) on the new datum reports the new row.
+    let selected: unknown = null;
+    r.controller.handle.on('select', p => { selected = p.row; });
+    r.controller.actions.select(ref(11));
+    r.frames(1);
+    expect(selected).toEqual({ x: 11, y: 110 });
+  });
+});
