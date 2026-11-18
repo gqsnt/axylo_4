@@ -240,11 +240,11 @@ These numbers are provisional. They are design targets taken from Phase 1's orde
 |---|---|---|---|---|---|
 | P1 | `trend` (3×120), default options, reference desktop | Main-thread task time from the call until the chart is complete | Median of 20 runs | 10 ms | Not comparable across libraries below about 35 ms with the Phase 1 method |
 | P2 | One series, 100,000 and 1,000,000 points, typed columns | Same | Median of 20 | 60 ms and 250 ms | See 01, section 5.3: uPlot and tuned Chart.js are the fastest measured |
-| P3 | 600-point window, one appended point per display frame at 60 Hz, driven by an independent clock | Main-thread task time per update; and frames later than 25 ms | Median; count per 300 frames | 2 ms; 0 | See 01, section 5.3 |
+| P3 | 600-point window, one appended point per display frame at 60 Hz, driven by an independent clock | Main-thread task time per update (per run: task time in the window divided by the number of updates); and frames later than 25 ms | Median over runs; count per 300 frames | 2 ms; 0 | See 01, section 5.3 |
 | P4 | Pointer moved across a 100,000-point chart | Time from input to the frame showing the matching readout | 95th percentile | One frame (16.7 ms at 60 Hz) | Not measured in Phase 1 |
-| P5 | 24 `trend` charts created on one page | Total main-thread task time | Median of 20 | 200 ms | Not measured in Phase 1 |
+| P5 | 24 `trend` charts created on one page, each tile 340 × 200 px | Total main-thread task time | Median of 20 | 200 ms | Not measured in Phase 1 |
 | P6 | Download | Minified and gzipped bytes, CSS included | Exact | DX7 | 01, section 1.4 |
-| P8 | 40 compact charts created on one page | Total main-thread task time | Median of 20 | 80 ms | Not measured in Phase 1 |
+| P8 | 40 compact charts created on one page, each 160 × 48 px with one series | Total main-thread task time | Median of 20 | 80 ms | Not measured in Phase 1 |
 | P7 | Memory | Bytes owned by Axylo beyond the caller's columns for 1,000,000 points; heap trend over 1,000 create–destroy cycles | Measured after forced collection | At most 1× the size of the caller's two columns; no upward slope | Not measured in Phase 1 |
 
 Three rules hold whatever the numbers become:

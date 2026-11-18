@@ -75,7 +75,7 @@ The reference machine restarts often and has no permanent temporary storage, so 
 - **Unit of analysis:** the run. Frames inside one run share a browser, a thermal state and a history, so they are summarized per run before any interval is computed.
 - **Summary:** median of per-run values with a paired bootstrap 95% interval for the difference; tail and count metrics get their own intervals from the same per-run values.
 - **Noise:** an A-versus-A distribution, built from repeated blocks across at least three sessions, gives the noise band for each workload. A single A–A difference is not a noise floor; it can be near zero by chance.
-- **Sample sizes** are set from a pilot in M0 that measures each workload's variance and run time. Until then: 20 runs for full comparisons.
+- **Sample sizes** are set from a pilot in M0 that measures each workload's variance and run time. Until then: 20 complete pairs for a verdict, that is 20 runs of each configuration. With fewer, the result is reported as exploratory, with no verdict. (The first harness used six pairs; a reviewer showed that six can give a confident answer in the wrong direction about one time in ten on a skewed metric.)
 - **Three outcomes:** better, worse, or inconclusive. "No significant difference" is reported as inconclusive, never as "no regression".
 - **Scope of a number:** a result holds for its commit, browser version and machine. Comparisons against stored history are valid only on the same machine and browser version; otherwise both sides are rebuilt and rerun together.
 
@@ -135,6 +135,34 @@ Each tracked workload has, written down before any candidate is measured: its pr
 | Complexity is paid for | A new code path, mode or public option needs a workload crossing a budget or a gain at least four times the smallest worthwhile improvement. Otherwise the simpler code stays. |
 
 Thresholds a reader can perceive rank above percentages: one frame for interaction and animation, 100 ms for a response to input, 1 s for a chart to appear.
+
+### 5.1 Declared endpoints (provisional until the pilot)
+
+Written on 2026-11-18, before any candidate was measured with the corrected harness, so that results cannot choose their own thresholds.
+
+**Per workload.** The primary metric is the one its budget names (spec section 5). The smallest worthwhile improvement is 10% of the budget's limit; the largest tolerated regression is 5% of it. Neither may be smaller than the upper edge of that workload's A-versus-A noise band: where the band is wider, the band is the threshold and the workload is listed as too noisy to gate at its nominal tolerance.
+
+| Budget | Workload in the harness | Primary metric | Smallest worthwhile | Tolerated regression |
+|---|---|---|---|---|
+| P1 | `first`, fixture `trend` | Task time, median over runs | 1 ms | 0.5 ms |
+| P2 | `first`, 1 × 100,000 | Same | 6 ms | 3 ms |
+| P2 | `first`, 1 × 1,000,000 | Same | 25 ms | 12.5 ms |
+| P3 | `stream`, window 600 | Task time per update: one value per run (task time in the window divided by updates), median over runs | 0.2 ms | 0.1 ms |
+| P3 | Same | Runs with any interval later than 25 ms | Fewer runs with late intervals | No more runs with late intervals than the baseline |
+| P4 | `hover`, 1 × 100,000 | Input to the frame showing the matching readout, 95th percentile per run, median over runs | 1.7 ms | 0.8 ms |
+| P5 | `page`, 24 tiles of 340 × 200 px, fixture `trend` | Total task time, median over runs | 20 ms | 10 ms |
+| P8 | `compact`, 40 tiles of 160 × 48 px, one series each | Same | 8 ms | 4 ms |
+| P7 | `mem`, 1 × 1,000,000 | Bytes owned beyond the caller's columns | 10% of the two columns | 5% of the two columns |
+| P7 | `lifecycle` | Heap after forced collection, cycles 1,500–2,000 against 2,000–2,500 | n/a | Growth above 1% between the two windows |
+
+**For the mark renderer (decision 0002).** Primary endpoints: P1, P2 at 100,000, P3 (both metrics), P5, P8, and three workloads that could reverse the choice: `scatter` at 50,000 points (first draw), `first` at 10 × 100,000, and `zoom` (task time per step at 1 × 100,000). The scatter, ten-series and zoom endpoints have no budget; their thresholds are 10% and 5% of the slower renderer's median in the pilot, fixed before the comparison runs. Because nine endpoints are judged together, each interval is computed at 99.4% (Bonferroni), not 95%.
+
+The rule, in order:
+1. A renderer that is worse beyond tolerance on any primary endpoint, and better beyond the smallest worthwhile improvement on none, loses.
+2. If each renderer wins somewhere, the default goes to the one that wins on more of P1, P3, P5 and P8 (the everyday cases), and the other is kept for the chart type where it wins only if its gain there is at least four times the smallest worthwhile improvement (section 5, "complexity is paid for").
+3. If nothing separates them, SVG stays and canvas is removed from the 1.0 bundle only if the size report shows it costs more than 0.5 KiB gzipped; otherwise both stay behind the switch.
+
+A session counts only if the machine was otherwise idle (one-minute load average under 1.0 at the start of every block) and Chrome's version did not change during it. The GPU-dependent workloads (resize, pixel ratio 2, process memory) are not endpoints here because this machine cannot measure them; they stay listed as open in the decision.
 
 ## 6. Catching regressions
 
