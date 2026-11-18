@@ -627,7 +627,12 @@ export type StepDirection = 'next' | 'previous' | 'first' | 'last' | 'series-nex
  * Built once per (view, layout); cheap to build: binary search over x for aligned frames, a grid index for scatter.
  */
 export interface Lookup {
-  /** What is under a pixel of the plot container, or null. */
+  /**
+   * What is under a pixel of the plot container, or null. Scatter: among the points within 24 CSS px of the
+   * pointer, the closest; points whose distance differs from the closest one's by less than half a device
+   * pixel are tied with it, and a tie goes to the latest source row. A donut slice too thin to see is drawn,
+   * and picked, at a minimum of 1 CSS px of arc; its value and share are reported unchanged.
+   */
   pick(px: number, py: number): PickTarget | null;
   tooltip(target: PickTarget): TooltipModel;
   /** The datum to focus when the keyboard takes over from a pointer target. */

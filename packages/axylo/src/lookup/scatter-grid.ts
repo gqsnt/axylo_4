@@ -12,6 +12,7 @@ interface Bucket {
   readonly start: number;
   readonly end: number;
   readonly count: number;
+  readonly latest: number;
   readonly minX: number;
   readonly maxX: number;
   readonly minY: number;
@@ -30,7 +31,10 @@ function distanceAcross(bucket: Bucket, x: number, y: number): number {
     + Math.max(Math.abs(bucket.minY - y), Math.abs(bucket.maxY - y)) ** 2;
 }
 
-export function scatterGrid(view: ScatterView, layout: PlotLayout & { projection: Extract<PlotLayout['projection'], { kind: 'xy' }> }, count: number) {
+export function scatterGrid(
+  view: ScatterView, layout: PlotLayout & { projection: Extract<PlotLayout['projection'], { kind: 'xy' }> },
+  count: number, devicePixelRatio: number,
+) {
   const { plot, projection } = layout;
   const columns = Math.floor(plot.width / CELL) + 1;
   const rows = Math.floor(plot.height / CELL) + 1;
@@ -40,6 +44,7 @@ export function scatterGrid(view: ScatterView, layout: PlotLayout & { projection
   const points = new Uint32Array(count);
   const xs = new Float64Array(count);
   const ys = new Float64Array(count);
+  const tieDistance = 0.5 / (Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1);
   let length = 0;
   let examined = 0;
   let cellsExamined = 0;
@@ -98,7 +103,14 @@ export function scatterGrid(view: ScatterView, layout: PlotLayout & { projection
       count += multiplicity[p]!;
     }
     const bounds = { start, end, count, minX, maxX, minY, maxY };
-    if (end - start <= LEAF_SIZE) return bounds;
+    if (end - start <= LEAF_SIZE) {
+      let latest = order[start]!;
+      for (let i = start + 1; i < end; i++) {
+        const at = order[i]!;
+        if (later(at, latest)) latest = at;
+      }
+      return { ...bounds, latest };
+    }
 
     const byX = maxX - minX >= maxY - minY;
     const positions = byX ? xs : ys;
@@ -118,7 +130,9 @@ export function scatterGrid(view: ScatterView, layout: PlotLayout & { projection
       order.subarray(start, end).sort((a, b) => positions[a]! - positions[b]!);
       mid = start + Math.floor((end - start) / 2);
     }
-    return { ...bounds, left: build(start, mid, !useSkew), right: build(mid, end, !useSkew) };
+    const left = build(start, mid, !useSkew);
+    const right = build(mid, end, !useSkew);
+    return { ...bounds, left, right, latest: later(left.latest, right.latest) ? left.latest : right.latest };
   }
 
   let end = 0;
@@ -215,6 +229,29 @@ export function scatterGrid(view: ScatterView, layout: PlotLayout & { projection
       nearby.sort((a, b) => distanceTo(a, x, y) - distanceTo(b, x, y));
       for (const bucket of nearby) search(bucket, distanceTo(bucket, x, y));
       if (nearest < 0) return null;
+
+      // Measuring from the closest point keeps a chain of near ties from extending the tie window.
+      const closest = Math.sqrt(best);
+      function inTie(distance: number): boolean {
+        return distance <= RADIUS2 && Math.sqrt(distance) - closest < tieDistance;
+      }
+      function searchTies(bucket: Bucket): void {
+        if (!later(bucket.latest, nearest) || !inTie(distanceTo(bucket, x, y))) return;
+        if (inTie(distanceAcross(bucket, x, y))) {
+          nearest = bucket.latest;
+        } else if (bucket.left && bucket.right) {
+          searchTies(bucket.left);
+          searchTies(bucket.right);
+        } else {
+          for (let i = bucket.start; i < bucket.end; i++) {
+            const at = order[i]!;
+            if (!later(at, nearest)) continue;
+            examined++;
+            if (inTie((xs[at]! - x) ** 2 + (ys[at]! - y) ** 2)) nearest = at;
+          }
+        }
+      }
+      for (const bucket of nearby) searchTies(bucket);
 
       const px = xs[nearest]!;
       const py = ys[nearest]!;

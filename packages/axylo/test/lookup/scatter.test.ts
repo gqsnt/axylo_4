@@ -29,6 +29,8 @@ function points(lists: readonly (readonly (readonly [number, number])[])[], sour
   };
 }
 const layout = plot({ kind: 'xy', x: linearScale([0, 100], [0, 100]), y: linearScale([0, 100], [0, 100]) });
+// For these fixtures, half a device pixel at this ratio is below the smallest nonzero distance difference.
+const exactRatio = 2 ** 52;
 
 function scatterLayout(rect: Rect, xDomain: readonly [number, number], yDomain: readonly [number, number]) {
   const projection = {
@@ -53,6 +55,43 @@ it('picks the nearest point within 24 px and breaks a tie by later source row', 
   expect(model.pick(16, 50)).toEqual({ kind: 'point', refs: [point('y', 1, 40)], count: 1 });
   expect(model.pick(15.99, 50)).toBeNull();
   expect(model.pick(58, 50)).toEqual({ kind: 'point', refs: [point('y', 0, 60)], count: 1 });
+});
+
+it('breaks the rounded SVG midpoint tie in both orders of the browser long-form fixture', () => {
+  // Node layout of the 720 × 400 host with the caption, toolbar and axis lanes reserved.
+  const rect = { x: 46.814453125, y: 11.5, width: 669.185546875, height: 278.53125 };
+  const layout = scatterLayout(rect, [0, 40], [0, 10]);
+  const { x, y } = layout.projection;
+  const svg = (pixel: number) => Math.round(Math.fround(pixel) * 100) / 100;
+  const px = (svg(x.map(20)) + svg(x.map(21))) / 2;
+  const py = svg(y.map(5));
+  const first = { x: 20, y: 5, s: 'first' };
+  const second = { x: 21, y: 5, s: 'second' };
+  expect(Math.abs(x.map(21) - px)).toBeLessThan(Math.abs(x.map(20) - px));
+  for (const [a, b] of [[first, second], [second, first]] as const) {
+    const data = frame('scatter', {
+      data: [{ x: 0, y: 0, s: 'far' }, a, b, { x: 40, y: 9, s: 'far' }], x: 'x', y: 'y', series: 's',
+    });
+    expect(data.series.find(s => s.key === a.s)?.row).toEqual(Int32Array.of(1));
+    expect(data.series.find(s => s.key === b.s)?.row).toEqual(Int32Array.of(2));
+    const model = buildLookup(scatter(data), layout, formatter(data), defaultMessages);
+    for (const at of [px, Math.round(px)]) {
+      expect(model.pick(at, py)).toEqual({ kind: 'point', refs: [point(b.s, 2, b.x)], count: 1 });
+    }
+  }
+});
+
+it('limits scatter ties to half a device pixel from the closest point and to the pick radius', () => {
+  const data = points([[[10, 50]], [[30.375, 50]], [[30.75, 50]], [[30.5, 50]]]);
+  const view = scatter(data);
+  for (const [ratio, winner] of [[1, point('S1', 1, 30.375)], [2, point('S0', 0, 10)]] as const) {
+    const model = buildLookup(view, layout, formatter(data), defaultMessages, undefined, ratio);
+    expect(model.primary(model.pick(20, 50)!)).toEqual(winner);
+  }
+
+  const edge = points([[[23.875, 50]], [[24, 50]], [[24.125, 50]]]);
+  const model = buildLookup(scatter(edge), layout, formatter(edge), defaultMessages);
+  expect(model.primary(model.pick(0, 50)!)).toEqual(point('S1', 1, 24));
 });
 
 it.each([
@@ -112,8 +151,8 @@ it('agrees with a brute-force scatter pick anywhere within radius of a drawn poi
     .filter(([x, y]) => x * x + y * y <= 24 ** 2);
   fc.assert(fc.property(
     fc.tuple(fc.integer({ min: -120, max: 128 }), fc.integer({ min: -120, max: 128 }), extent, extent),
-    fractions, fractions, fc.nat(), offset,
-    ([left, top, width, height], a, b, seed, [dx, dy]) => {
+    fractions, fractions, fc.nat(), offset, fc.constantFrom(1, 1.25, 2, 3),
+    ([left, top, width, height], a, b, seed, [dx, dy], ratio) => {
       const right = left + width;
       const bottom = top + height;
       const rect = { x: left, y: top, width, height };
@@ -142,15 +181,19 @@ it('agrees with a brute-force scatter pick anywhere within radius of a drawn poi
         .sort((a, b) => a.distance - b.distance || b.ref.row - a.ref.row);
       const nearest = ranked[0]!;
       fc.pre(nearest.distance <= 24 ** 2);
-      const coincident = drawn.filter(d => (d.x - nearest.x) ** 2 + (d.y - nearest.y) ** 2 <= 0.5 ** 2);
-      const model = buildLookup(scatter(data), layout, formatter(data), defaultMessages);
-      const target = model.pick(px, py);
-      if (target?.kind !== 'point') throw new Error('Expected scatter target within 24 px');
-      expect(target.refs[0]).toEqual(nearest.ref);
-      expect(target.count).toBe(coincident.length);
-      expect(target.refs).toHaveLength(Math.min(8, coincident.length));
-      expect(new Set(target.refs.map(ref => ref.kind === 'point' && ref.row)).size).toBe(target.refs.length);
-      expect(coincident.map(d => d.ref)).toEqual(expect.arrayContaining([...target.refs]));
+      const tied = ranked.filter(d => d.distance <= 24 ** 2 && Math.sqrt(d.distance) - Math.sqrt(nearest.distance) < 0.5 / ratio)
+        .reduce((latest, d) => d.ref.row > latest.ref.row ? d : latest, nearest);
+      for (const [dpr, winner] of [[exactRatio, nearest], [ratio, tied]] as const) {
+        const coincident = drawn.filter(d => (d.x - winner.x) ** 2 + (d.y - winner.y) ** 2 <= 0.5 ** 2);
+        const model = buildLookup(scatter(data), layout, formatter(data), defaultMessages, undefined, dpr);
+        const target = model.pick(px, py);
+        if (target?.kind !== 'point') throw new Error('Expected scatter target within 24 px');
+        expect(target.refs[0]).toEqual(winner.ref);
+        expect(target.count).toBe(coincident.length);
+        expect(target.refs).toHaveLength(Math.min(8, coincident.length));
+        expect(new Set(target.refs.map(ref => ref.kind === 'point' && ref.row)).size).toBe(target.refs.length);
+        expect(coincident.map(d => d.ref)).toEqual(expect.arrayContaining([...target.refs]));
+      }
     },
   ), { numRuns: 1_500 });
 });
@@ -364,18 +407,25 @@ it('uses one set of grid cells for a dense noncoincident pick and its neighbours
     row: null,
   }] };
   const scale = linearScale([0, 128], [0, 128]);
-  const model = scatterLookup(scatter(data), plot({ kind: 'xy', x: scale, y: scale }), formatter(data));
+  const layout = plot({ kind: 'xy', x: scale, y: scale });
   const x = 24, y = 50;
   const { x: xs, y: ys } = data.series[0]!;
-  let expected = 0;
+  let latestTie = 400 * 400 + 200;
   for (let i = 0; i < size; i++) {
-    if ((xs[i]! - x) ** 2 + (ys[i]! - y) ** 2 <= 0.5 ** 2) expected++;
+    if (Math.hypot(xs[i]! - x, ys[i]! - y) < 0.5) latestTie = i;
   }
-  const target = model.pick(x, y);
-  expect(target).toMatchObject({ kind: 'point', count: expected });
-  expect(model.primary(target!)).toEqual(point('S0', 400 * 400 + 200, x));
-  expect(model.lastPickCells).toBeLessThanOrEqual(16);
-  expect(model.lastPickCandidates).toBeLessThan(3_000);
+  for (const [ratio, row] of [[exactRatio, 400 * 400 + 200], [1, latestTie]] as const) {
+    const model = scatterLookup(scatter(data), layout, formatter(data), undefined, ratio);
+    let expected = 0;
+    for (let i = 0; i < size; i++) {
+      if ((xs[i]! - xs[row]!) ** 2 + (ys[i]! - ys[row]!) ** 2 <= 0.5 ** 2) expected++;
+    }
+    const target = model.pick(x, y);
+    expect(target).toMatchObject({ kind: 'point', count: expected });
+    expect(model.primary(target!)).toEqual(point('S0', row, xs[row]!));
+    expect(model.lastPickCells).toBeLessThanOrEqual(16);
+    expect(model.lastPickCandidates).toBeLessThan(3_000);
+  }
 });
 
 it('finds next and previous by one binary successor search per series', () => {

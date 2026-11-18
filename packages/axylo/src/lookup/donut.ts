@@ -1,4 +1,5 @@
 import type { DatumRef, DonutView, Formatters, Lookup, Rect } from '../core/contracts';
+import { donutGeometry } from '../view/donut-geometry';
 import { contains, type PlotLayout } from './geometry';
 import { pageDistance } from './search';
 import { sliceText } from './text';
@@ -31,6 +32,7 @@ export function donutLookup(view: DonutView, layout: PlotLayout | null, formatte
   const { slices } = view;
   const keys = new Map(slices.map((slice, i) => [slice.key, i]));
   const ring = layout?.projection.kind === 'ring' ? layout.projection : null;
+  const geometry = ring && donutGeometry(slices, ring);
   const index = (datum: DatumRef) => datum.kind === 'slice' ? keys.get(datum.sliceKey) ?? -1 : -1;
 
   function ref(i: number): DatumRef | null {
@@ -51,14 +53,16 @@ export function donutLookup(view: DonutView, layout: PlotLayout | null, formatte
 
   const lookup: Lookup = {
     pick(px, py) {
-      if (!ring || !layout || !contains(layout.plot, px, py) || !(ring.r1 > ring.r0)) return null;
+      if (!geometry || !ring || !layout || !contains(layout.plot, px, py) || !(ring.r1 > ring.r0)) return null;
       const dx = px - ring.cx;
       const dy = py - ring.cy;
       const radius = Math.hypot(dx, dy);
       if (radius < ring.r0 || radius > ring.r1) return null;
       const raw = Math.atan2(dx, -dy);
       const angle = raw < 0 ? raw + TURN : raw;
-      const slice = slices.find(slice => slice.angles && angle >= slice.angles[0] && angle < slice.angles[1]);
+      // Assign the narrow separators to their adjoining slices just as for proportional angles.
+      const slice = geometry.drawn.find((_, i) => angle >= geometry.angles[2 * i]! &&
+        (i + 1 === geometry.drawn.length || angle < geometry.angles[2 * i + 1]!));
       return slice ? { kind: 'slice', sliceKey: slice.key } : null;
     },
     tooltip(target) {
@@ -73,9 +77,9 @@ export function donutLookup(view: DonutView, layout: PlotLayout | null, formatte
       return { ref: datum, seriesIndex: i, seriesLabel: label, x: label, value, percent, state, row };
     },
     anchor(datum) {
-      const angles = slices[index(datum)]?.angles;
-      return ring && ring.r1 > ring.r0 && angles && angles[1] > angles[0]
-        ? sectorBox(ring.cx, ring.cy, ring.r0, ring.r1, ...angles) : null;
+      if (datum.kind !== 'slice' || !geometry || !ring || !(ring.r1 > ring.r0)) return null;
+      const i = geometry.drawn.findIndex(slice => slice.key === datum.sliceKey);
+      return i < 0 ? null : sectorBox(ring.cx, ring.cy, ring.r0, ring.r1, geometry.angles[2 * i]!, geometry.angles[2 * i + 1]!);
     },
     count: slices.length,
     ordinal: index,

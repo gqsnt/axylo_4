@@ -12,7 +12,7 @@ interface ScatterWork {
 }
 
 export function scatterLookup(
-  view: ScatterView, layout: PlotLayout | null, formatters: Formatters, work?: ScatterWork,
+  view: ScatterView, layout: PlotLayout | null, formatters: Formatters, work?: ScatterWork, devicePixelRatio = 1,
 ): Lookup & { readonly lastPickCandidates: number; readonly lastPickCells?: number } {
   const { series } = view.frame;
   const keys = new Map(series.map((entry, i) => [entry.key, i]));
@@ -24,7 +24,7 @@ export function scatterLookup(
   });
   const active = ranges.flatMap((range, s) => range.end > range.start ? [s] : []);
   const projection = layout?.projection.kind === 'xy' ? layout.projection : null;
-  const grid = layout && projection ? scatterGrid(view, { ...layout, projection }, order.count) : null;
+  const grid = layout && projection ? scatterGrid(view, { ...layout, projection }, order.count, devicePixelRatio) : null;
 
   function ref(s: number, i: number): DatumRef {
     const entry = series[s]!;

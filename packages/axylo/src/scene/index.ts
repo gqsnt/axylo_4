@@ -1,6 +1,7 @@
 import type {
-  AreaMark, BandMark, DonutView, Layout, Mark, Paint, PathMark, PointMark, Projection, Rect, RuleMark, Scene, View,
+  AreaMark, BandMark, DonutView, Layout, Mark, PathMark, PointMark, Projection, Rect, RuleMark, Scene, View,
 } from '../core/contracts';
+import { DONUT_GAP, donutGeometry } from '../view/donut-geometry';
 import { addArea, addStackedAreas } from './areas';
 import { barMarks } from './bars';
 import { position, projectReference, rule, seriesPaint, token } from './geometry';
@@ -70,16 +71,11 @@ function references(view: Exclude<View, DonutView>, projection: Cartesian, plot:
 }
 
 function arcMarks(view: DonutView, projection: Extract<Projection, { kind: 'ring' }>): Mark[] {
-  const angles: number[] = [];
-  const fills: Paint[] = [];
-  for (const slice of view.slices) {
-    if (slice.angles === null) continue;
-    angles.push(...slice.angles);
-    fills.push(slice.colorIndex === null ? token('muted') : seriesPaint(slice.colorIndex));
-  }
-  if (!angles.length) return [];
+  const { drawn, angles } = donutGeometry(view.slices, projection);
+  if (!drawn.length) return [];
+  const fills = drawn.map(slice => slice.colorIndex === null ? token('muted') : seriesPaint(slice.colorIndex));
   const { cx, cy, r0, r1 } = projection;
-  return [{ type: 'arcs', cx, cy, r0, r1, angles: Float32Array.from(angles), fills, gap: 1 }];
+  return [{ type: 'arcs', cx, cy, r0, r1, angles, fills, gap: DONUT_GAP }];
 }
 
 export function buildScene(view: View, layout: Layout, devicePixelRatio: number): Scene {

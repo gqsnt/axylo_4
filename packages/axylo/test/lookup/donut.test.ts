@@ -41,6 +41,23 @@ it('includes zero and missing slices in keyboard order, with no drawn anchor', (
   expect(model.datum(missing)).toMatchObject({ value: 'No data', percent: null });
 });
 
+it('picks a small slice in the space it gained while still reading its exact share', () => {
+  const data = frame('donut', {
+    data: [{ label: 'Large', value: 999 }, { label: 'Zero', value: 0 }, { label: 'Small', value: 1 }],
+    label: 'label', value: 'value',
+  });
+  const layout = plot({ kind: 'ring', cx: 50, cy: 50, r0: 24, r1: 40 });
+  const model = buildLookup(donut(data), layout, formatter(data), defaultMessages);
+  // One pixel before twelve o'clock at mid-radius is beyond the small slice's proportional angle.
+  const x = 50 - 32 * Math.sin(1 / 32);
+  const y = 50 - 32 * Math.cos(1 / 32);
+  const target = model.pick(x, y);
+  const small = { kind: 'slice', sliceKey: 'Small' } as const;
+  expect(target).toEqual(small);
+  expect(model.tooltip(small).rows).toMatchObject([{ row: 2, value: '1', percent: '0.1%' }]);
+  expect(model.anchor(small)?.x).toBeLessThan(x);
+});
+
 it('resolves a folded category through Other and returns null for a step that cannot move', () => {
   const original = donut(data);
   const grouped = buildLookup({
