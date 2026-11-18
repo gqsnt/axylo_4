@@ -189,4 +189,10 @@ export interface Messages {
   zoomIn: string; zoomOut: string; resetZoom: string; pause: string; resume: string;
   previousPage: string; nextPage: string; pageOf: string; jumpToX: string;
   showSeries: string; hideSeries: string;
+  /** Column headers and nouns. */
+  category: string; percentage: string; series: string; value: string;
+  /** Chart type names used in generated names and summaries. */
+  typeLine: string; typeArea: string; typeBar: string; typeScatter: string; typeDonut: string;
+  /** Summary sentences that have no cartesian form. */
+  donutSummary: string; seriesNoData: string; seriesNotDrawn: string; referenceLine: string; referenceBand: string;
 }

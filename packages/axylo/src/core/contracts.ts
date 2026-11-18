@@ -181,6 +181,10 @@ export interface Formatters {
   x(position: number): string;
   /** Text for a slot that is not a value: "No data", "No observation". */
   missing(state: SlotState): string;
+  /** A share of a whole (0–1) as a percentage in the chart's locale, for donut slices and stack shares. */
+  percent(ratio: number): string;
+  /** A count (of values, rows, series) in the chart's locale. */
+  count(n: number): string;
 }
 
 // ───────────────────────────── scales and ticks ─────────────────────────────
@@ -611,12 +615,23 @@ export interface Lookup {
   datum(ref: DatumRef): DatumText | null;
   /** Where the datum is drawn, for the cursor and focus ring; null if it is not visible. */
   anchor(ref: DatumRef): Rect | null;
-  /** Number of data the keyboard can reach in the current view, and a datum's place among them (zero based, -1 if absent). */
+  /**
+   * Position for "point 4 of 120" (spec A3). Aligned charts: `count` is the number of visible x slots and
+   * `ordinal` the zero-based place of the datum's x among them, whatever its series and whether or not it
+   * holds a value (a "No data" slot has a place too). Scatter: place among all visible points in x then y
+   * order. Donut: slice order. -1 only when the datum is not in the current view.
+   */
   readonly count: number;
   ordinal(ref: DatumRef): number;
   /** Keyboard order per chart type (spec 3.6). `from` null starts at the first datum. Skips hidden series. */
   step(from: DatumRef | null, direction: StepDirection): DatumRef | null;
-  /** After the data moved on: the same datum if it is still there, else the next one that is, else the previous, else null. */
+  /**
+   * Where focus should be after the data or the view changed. A datum is "there" only if its series is
+   * visible and drawable and its x (or point) is inside the current view. If it is: itself. If its series is
+   * hidden but its x is in view: the primary datum at that x. Otherwise the nearest datum of its series in
+   * view after it, else before it; for a donut slice folded into "Other", the "Other" slice. Else null.
+   * `step` always starts from the resolved datum, so focus can never get stuck on something out of reach.
+   */
   resolve(ref: DatumRef): DatumRef | null;
 }
 

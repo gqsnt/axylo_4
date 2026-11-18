@@ -63,6 +63,12 @@ export function createFormatters(spec: FormatSpec, env: Pick<Environment, 'local
       return f ? f(v) : defaultReadoutNumber(v, locale);
     },
     x,
+    percent(ratio: number): string {
+      return defaultReadoutNumber(ratio, locale, 'ratio');
+    },
+    count(n: number): string {
+      return defaultReadoutNumber(n, locale, null);
+    },
     missing(state: SlotState): string {
       if (state === SLOT_VALUE) return '';
       // No row at this x for this series is "No observation"; every other non-value (null, invalid, gap,
