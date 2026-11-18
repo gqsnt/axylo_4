@@ -28,21 +28,27 @@ Observed model and effort are read from harness metadata (Codex session rollouts
 
 Finished and committed, each written by one provider and reviewed by the other: scales and formatting; layout and simplification; data layer, diagnostics and stores; renderers, text layer and theme; view and scene; lookup, reader and messages; chart core part 1 (review findings not yet fixed, see below); chart core part 2 (review running); benchmark harness and the M1 renderer measurements (not reviewed).
 
-| Running now (2026-11-18, after commit bf8fabf) | Who | Files |
+| Running now (2026-11-18, after commit 3d547c4) | Who | Files |
 |---|---|---|
-| Chart core, fourth fix pass (agent a1d73b9f46c46814f, resumed): the items its third pass left (listed in commit 77213c0 and `wp/core3.fix.report.md`), the theme watcher regression, L1 at 240 px | Claude Opus 5.5 high | `src/core`, `src/dom`, narrow edits elsewhere |
-| Documentation site with runnable examples (agent a04bfe28413f07034) | Claude Opus 5.5 xhigh | `apps/docs` |
-| Size analysis: why 98 KiB, tree-shaking design, ranked reductions, realistic targets | Codex gpt-6.2-sol max, read-only | → `wp/size.analysis.md` |
-| Merge of both EVIDENCE.json files and the distribution tests into the acceptance matrix | Codex gpt-6.2-sol xhigh | `acceptance/` → `wp/acceptance-merge.report.md` |
-| Review of the browser acceptance suite and distribution tests (Opus code) | Codex gpt-6.2-astra xhigh, read-only | → `wp/tests-opus.review.md` |
-| Review of the Node acceptance suite, matrix and checker (Codex code) (agent a2a18f27e1659b924) | Claude Opus 5.5 xhigh, read-only | hand-back → `wp/tests-codex.review.md` |
-| Review of zero-copy stores, scatter missing values, reader fixes, scatter picking (Codex code) (agent in this session: "Review Codex module fixes") | Claude Opus 5.5 xhigh, read-only | hand-back → `wp/modules-codex.review.md` |
+| Chart core, sixth pass (agent a1d73b9f46c46814f, resumed): tooltip per decision 0004 revision 2, focus rings inside the figure, theme change painted in the first frame, relayout on a late font, short summary in the too-small state, category remap keeps focused text, note runs leaking as JSON | Claude Opus 5.5 high | `src/core`, `src/dom`, narrow edits elsewhere |
+| Browser acceptance suite, alignment to decision 0004 revision 2, readout mode, L8, A10 applicability (agent a61d95e46b3f0f3aa, resumed) | Claude Opus 5.5 high | `packages/axylo/test/browser/acceptance` |
+| Donut slice under 0.2% not drawn; scatter tie not decided by source row | Codex gpt-6.2-sol xhigh | `src/scene`, `src/lookup`, `src/view` → `wp/scene-lookup-fix-3.report.md` |
+| Matrix re-merge after both suites were rewritten | Codex gpt-6.2-sol xhigh | `acceptance/` → `wp/acceptance-merge-2.report.md` |
 
-State at bf8fabf (coordinator runs): type check clean; unit suite 1,216 of 1,216 (includes 494 Node acceptance tests); browser, root config: 735 tests, 729 pass, 5 fail, 1 skipped (the five: C4 compact bar; L1 at 200% text for line, area, scatter, donut); distribution: 83 Node and 18 browser tests pass. Sizes from the packed files: everything 97.75 KiB (target 40), line only 97.61 (target 25), React adapter 1.17 (target 2); chart types do not tree-shake.
+Recorded state (all four configurations with provenance, quiet tree, commit d8b4150; files in `acceptance/results/`, git-ignored):
+- Node (root config): 1,450 tests, 1,449 pass, 1 fail (memory bound after opening a store on a million points; kept).
+- Browser (root config): 937 tests, 899 pass, 37 fail, 1 skipped. All 37 are in the strengthened browser acceptance suite: tooltip not hoverable (5), tooltip or readout over controls (5), tooltip rows under 24 px (5), focus indicators covered or cut (5), theme change one frame late (6), late font (3), short summary wraps (2), bar tooltip at the top edge (1), focused text rewritten on a sliding category axis (1), scatter tie (1), thin donut slice (1), A10 applicability (2).
+- Distribution: 106 Node pass; browser 28 pass, 2 fail (note runs leaking into the page as JSON).
+- Sizes: everything 99.47 KiB, line only 99.38, React adapter 1.17.
+- Checker: exits 1; the matrix cites the browser suite’s old titles until the re-merge lands.
 
-Committed since the last checkpoint: third core fix pass (77213c0, partly done: its commit message lists what is left); lookup fixes (43fc75d); distribution tests and packed-size report (bf8fabf). Result files for the checker are in `acceptance/results/` (git-ignored; regenerate before the final report).
+Reviews recorded since the last checkpoint: browser acceptance and distribution tests (Codex astra xhigh, `wp/tests-opus.review.md`), Node acceptance suite and checker (Opus xhigh, `wp/tests-codex.review.md`), stores, reader, lookup (Opus xhigh, `wp/modules-codex.review.md`), size analysis (Codex sol max, `wp/size.analysis.md`). All four have fix runs committed. Decisions: 0004 revision 2 (tooltip anchored to the datum, pointer-transparent while hovered; readout mode by layout); spec amendments to F8, F9, F10, I1, L8 and the zoom row of the type matrix.
 
-Open decisions for the owner: the palette’s light scheme (keep or try a louder, more even one) and the near-white dark focus ring; the licence holder wording ("The Axylo authors" in both LICENSE files); the size targets, once the analysis is in.
+Open decisions for the owner: size targets (analysis proposes 96 / 80 / 2 KiB; spec still says 40 / 25 / 2); palette (keep the refit or try a louder, more even light scheme; near-white dark focus ring); licence holder wording.
+
+Deferred to the performance work: P7 when a store is opened on a large static chart (24.8 MB beyond the caller’s 16 MB; needs segmented columns); the scatter pick when all points are equidistant (needs a contract sentence allowing a device-pixel lattice); the renderer comparison rerun under performance plan 5.1.
+
+Not yet reviewed: core passes three to five (one Codex review after the sixth), docs site, palette refit, benchmark harness fixes, React adapter fixes, the strengthened suites themselves.
 
 Decisions recorded: `docs/decisions/0001-plot-interaction-pattern.md` (unrehearsed), `docs/decisions/0002-mark-renderer.md` (SVG by default, from `bench/results/m1-renderer-comparison.md`).
 
@@ -54,12 +60,11 @@ Known open items carried forward:
 
 ## Next action
 
-1. As each review returns: record it with the observed model, send findings to the original authors (tests first), verify, commit.
-2. When the size analysis returns: decide targets with the owner if they cannot be met; run the tree-shaking restructuring as its own pass after the fourth core pass has landed (same files).
-3. When the fourth core pass and the matrix merge are in: one Codex review of the third and fourth passes together; regenerate all four result files; rerun the checker.
-4. When the machine is quiet: renderer comparison under performance plan 5.1, then performance work against the budgets.
-5. Verify and commit the documentation; then the agent rehearsal (DX12), the Phase 1 comparison rerun with Axylo included, the conformance table (A9) from the acceptance evidence, and the final independent review.
-6. Still unreviewed after the running reviews: palette refit, benchmark harness fixes, React adapter fixes (small; one Codex review for the three).
+1. As the four running packages return: verify, commit; then record all four configurations again on a quiet tree (`node acceptance/run.mjs unit|dist|dist-browser|browser`, about 20 minutes, touch nothing meanwhile) and run the checker.
+2. Then the per-chart composition for tree-shaking and the three cheap size cuts from `wp/size.analysis.md` (a fresh Opus 5.5 high agent with cross-module rights), with the acceptance suites as the safety net.
+3. One Codex review round: core passes three to six (sol max), docs site and React fixes (astra xhigh), palette refit and benchmark fixes (astra xhigh). Fixes by the authors.
+4. When the machine is quiet: benchmarks under performance plan 5.1 (renderer comparison, budgets P1 to P8), then performance work, including the two deferred items.
+5. Conformance table (A9) from the acceptance evidence; agent rehearsal (DX12); Phase 1 comparison rerun with Axylo included; final independent review of the acceptance evidence.
 
 ## Known limits that no agent can close
 
