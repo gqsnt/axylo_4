@@ -1,7 +1,8 @@
 /**
- * Spec DX11 (MIT for everything, third-party notices) and the zero-runtime-dependency half of DX7, checked
- * mechanically on the packed files and on the source they are built from. THIRD-PARTY-NOTICES.md lists
- * the same checks.
+ * Spec DX11 (MIT for everything, third-party notices verified at release) and the zero-runtime-dependency
+ * half of DX7, on the packed files and the source they are built from. The release inventory in
+ * THIRD-PARTY-NOTICES.md must list exactly the files of each tarball, and each origin it claims is checked;
+ * a licence or copyright header anywhere in what ships, or in the source, must be quoted in its notices.
  */
 import { describe, expect, it } from 'vitest';
 import { build } from 'esbuild';
@@ -65,20 +66,67 @@ describe.each(NAMES)('%s', name => {
     expect(inputs.filter(p => !p.startsWith(src + path.sep))).toEqual([]);
   });
 
-  it('has no copied licence or copyright header in its source or its shipped files', () => {
+  it('every licence or copyright header in its source or shipped files is quoted in the notices', () => {
     const src = path.join(repo, SOURCE[name]);
     const sources = fs.readdirSync(src, { recursive: true, encoding: 'utf8' }).filter(f => /\.[cm]?[jt]sx?$/.test(f)).map(f => path.join(src, f));
     const shipped = manifest().packages[name].files.filter(f => !/^(LICENSE|README\.md|package\.json)$/.test(f)).map(f => installed(name, f));
-    const hits = [...sources, ...shipped].filter(f => HEADER.test(fs.readFileSync(f, 'utf8')));
-    expect(hits.map(f => path.relative(repo, f))).toEqual([]);
+    const notices = notice();
+    const unquoted = [...sources, ...shipped].flatMap(f => fs.readFileSync(f, 'utf8').split('\n').filter(l => HEADER.test(l))
+      .map(l => l.replace(/^[\s/*#!]+/, '').trim()).filter(l => !notices.includes(l)).map(l => `${path.relative(repo, f)}: ${l}`));
+    expect(unquoted).toEqual([]);
   });
 });
 
-describe('THIRD-PARTY-NOTICES.md', () => {
-  const text = fs.readFileSync(path.join(repo, 'THIRD-PARTY-NOTICES.md'), 'utf8');
+/** The release inventory table of THIRD-PARTY-NOTICES.md: package, file, origin, license. */
+const notices = (): string => fs.readFileSync(path.join(repo, 'THIRD-PARTY-NOTICES.md'), 'utf8');
+const notice = (): string => notices().split(/^## Notices$/m)[1] ?? '';
+function inventory(): { pkg: string; file: string; origin: string; license: string }[] {
+  const section = notices().split(/^## Release inventory$/m)[1]?.split(/^## /m)[0] ?? '';
+  return section.split('\n').filter(l => /^\| `/.test(l)).map(l => {
+    const [pkg, file, origin, license] = l.split('|').slice(1, 5).map(c => c.trim().replace(/^`|`$/g, ''));
+    return { pkg: pkg!, file: file!, origin: origin!, license: license! };
+  });
+}
 
-  it('covers both published packages and states that they ship no third-party code', () => {
-    for (const name of NAMES) expect(text).toContain(`\`${name}\``);
-    expect(text).toMatch(/contain no third-party code/);
+describe('THIRD-PARTY-NOTICES.md', () => {
+  it('covers both published packages', () => {
+    for (const name of NAMES) expect(notices()).toContain(`\`${name}\``);
+  });
+
+  it('lists exactly the files of each packed tarball in its release inventory', () => {
+    const listed = inventory().map(r => `${r.pkg}/${r.file}`).sort();
+    const packed = NAMES.flatMap(n => manifest().packages[n].files.map(f => `${n}/${f}`)).sort();
+    expect(listed).toEqual(packed);
+  });
+
+  it('gives each file an origin that holds, and a license', async () => {
+    for (const row of inventory()) {
+      const where = `${row.pkg}/${row.file}`;
+      expect(row.license, where).toBe('MIT');
+      const name = row.pkg as Name;
+      const own = /^built from `?(packages\/[\w-]+\/src)`?$/.exec(row.origin);
+      const generated = /^generated from `?(packages\/[\w/.-]+\.ts)`?$/.exec(row.origin);
+      const emitted = /^emitted from `?(packages\/[\w/.-]+\.ts)`?$/.exec(row.origin);
+      if (row.origin === 'package metadata') {
+        expect(['package.json', 'README.md', 'LICENSE'], where).toContain(row.file);
+      } else if (own) {
+        expect(own[1], where).toBe(SOURCE[name]);
+        expect(row.file, where).toMatch(/\.js$/);
+        // The bundle-input check above covers every built JavaScript file of the package.
+      } else if (generated) {
+        const r = await build({ entryPoints: [path.join(repo, generated[1]!)], bundle: true, format: 'esm', write: false, logLevel: 'silent' });
+        const mod = await import(`data:text/javascript;base64,${Buffer.from(r.outputFiles[0]!.contents).toString('base64')}`) as Record<string, unknown>;
+        const shipped = fs.readFileSync(installed(name, row.file), 'utf8');
+        expect(Object.values(mod).some(v => v === shipped), `${where} is a string ${generated[1]} exports`).toBe(true);
+      } else if (emitted) {
+        expect(fs.existsSync(path.join(repo, emitted[1]!)), where).toBe(true);
+        expect(row.file, where).toMatch(/\.d\.ts$/);
+      } else {
+        // A third-party file: named with its version, and its notice quoted below the inventory.
+        const third = /^third-party: (\S+) (\S+)$/.exec(row.origin);
+        expect(third, `${where}: unknown origin "${row.origin}"`).not.toBeNull();
+        expect(notice(), where).toContain(third![1]!);
+      }
+    }
   });
 });

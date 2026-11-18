@@ -10,12 +10,12 @@ import { describe, expect, it } from 'vitest';
 import { build } from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fixture, out, packedJson } from './paths';
+import { fixture, fixtureGuard, out, packedJson } from './paths';
 
 const bundle = async (contents: string, cwd: string, extra: Parameters<typeof build>[0] = {}) => {
   const r = await build({
     stdin: { contents, resolveDir: cwd, loader: 'ts' }, absWorkingDir: cwd, bundle: true, minify: true, format: 'esm',
-    write: false, conditions: ['production'], logLevel: 'silent', outdir: path.join(out, 'side-effects'), ...extra,
+    write: false, conditions: ['production'], logLevel: 'silent', outdir: path.join(out, 'side-effects'), plugins: [fixtureGuard([cwd])], ...extra,
   });
   return r.outputFiles ?? [];
 };

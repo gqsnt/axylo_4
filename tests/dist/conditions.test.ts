@@ -1,20 +1,20 @@
 /**
  * Development and production flavours (plan 1.6): the `development` export condition and the default
- * resolve to different files, in Node and in esbuild, and the production file carries none of the code the
- * source reserves for development.
+ * resolve to different files, in Node and in esbuild, and neither refers to the build-time __DEV__ constant.
  *
- * Which code is development-only is read from the source, not from the builds: every `if (__DEV__) …`
- * statement (exactly that condition) in packages/<pkg>/src, plus the bodies of same-file functions that only
- * such a statement calls. From those regions the test takes string-literal text and property names that
- * appear nowhere else in the package's source; each must be in the packed development file (so the check
- * has teeth) and absent from the packed production file. Hint *messages* are not development-only: hints
- * still reach `diagnostics` and `onDiagnostic` in production (spec 3.5); only their printing is.
+ * The behaviour that must differ between the flavours is pinned in flavours.browser.test.ts, from a list
+ * written by hand from the spec and the plan. The last test here is supplementary only: it derives
+ * development-only text from the current source (every `if (__DEV__) …` statement in packages/<pkg>/src,
+ * found by a small scanner, cut out of a second bundle of the source; text only the first bundle has is
+ * development-only) and checks it is in the packed development file and absent from the production one. It
+ * follows the guard syntax, so a guard removed from the source also leaves this check; it is not evidence on
+ * its own that development-only behaviour is absent from production.
  */
 import { describe, expect, it } from 'vitest';
 import { build } from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fixture, installed, nodeJson, packedJson, repo } from './paths';
+import { fixture, fixtureGuard, installed, nodeJson, packedJson, repo } from './paths';
 
 type Name = 'axylo' | '@axylo/react';
 const SOURCE: Record<Name, string> = { axylo: 'packages/axylo/src', '@axylo/react': 'packages/react/src' };
@@ -184,7 +184,7 @@ describe.each(['axylo', '@axylo/react'] as const)('%s', name => {
     const entry = async (conditions: string[]) => {
       const r = await build({
         stdin: { contents: `export * from ${JSON.stringify(name)};`, resolveDir: fixture(FIXTURE[name]) }, bundle: true, write: false,
-        metafile: true, format: 'esm', conditions, absWorkingDir: fixture(FIXTURE[name]), external: ['react', 'react/*', ...(name === 'axylo' ? [] : ['axylo'])], logLevel: 'silent',
+        metafile: true, format: 'esm', conditions, absWorkingDir: fixture(FIXTURE[name]), plugins: [fixtureGuard([fixture(FIXTURE[name])])], external: ['react', 'react/*', ...(name === 'axylo' ? [] : ['axylo'])], logLevel: 'silent',
       });
       return Object.keys(r.metafile.inputs).map(p => path.resolve(fixture(FIXTURE[name]), p)).filter(p => p === dev || p === prod);
     };

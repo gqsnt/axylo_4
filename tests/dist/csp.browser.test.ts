@@ -1,23 +1,26 @@
 /**
  * Spec DX8, the browser half: the packed files under a strict Content Security Policy sent as a real
- * response header, with no 'unsafe-inline' and no 'unsafe-eval' for scripts or styles:
+ * response header, with no 'unsafe-inline' and no 'unsafe-eval' for scripts or styles (browser.ts, cspPolicy):
  *
- *   default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; report-uri /csp-report
+ *   default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; report-uri /csp-report/<page>
  *
  * `script-src 'self'` is all that both the script-tag files and a bundled module need; `style-src 'self'`
  * admits the linked axylo.css and the page's own stylesheet. Every page draws all five chart types and the
  * compact variant, opens a tooltip and each table, and must produce no `securitypolicyviolation` event, no
- * report to the report URI and no console error. Both ways of getting the stylesheet are run: the library
- * applying it at run time, and the page linking axylo.css. The same pages check that label and formatter
- * text that looks like markup is inserted as text, and that a target matching nothing throws with the
- * selector in the message.
+ * report and no console error. Each page reports to a URL of its own, and the last test checks every page's
+ * reports again after the others ran, so a late report is still caught and attributed. Both ways of getting
+ * the stylesheet are run, the library applying it at run time and the page linking axylo.css, and each must
+ * take effect: rules of the stylesheet show in computed styles, and the series colour it declares is what is
+ * painted (so an adopted but empty sheet fails). A target matching nothing throws naming the selector.
+ * Text insertion is tested per source and per surface in text.browser.test.ts.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import path from 'node:path';
-import { bundle, closeBrowser, drawn, figureName, launch, open, startServer, type Server } from './browser';
+import fs from 'node:fs';
+import { bundle, closeBrowser, cspPolicy, drawn, figureName, launch, open, startServer, type Server } from './browser';
+import { countNear, decodePng, hexRgb } from './png';
 import { fixture, here } from './paths';
 
-export const POLICY = "default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; report-uri /csp-report";
 const IMG = '<img src=x onerror="window.__xss=(window.__xss||0)+1">';
 const SCRIPT = '<script>window.__xss=(window.__xss||0)+1</script>';
 const CHARTS = ['line', 'area', 'bar', 'scatter', 'donut', 'compact'] as const;
@@ -35,12 +38,22 @@ beforeAll(async () => {
   scripts.classic = (await bundle({ name: 'csp-charts-classic', cwd: pages, contents: `import { makeCharts, type Library } from './charts';\nmakeCharts((window as unknown as { Axylo: Library }).Axylo);` })).url;
   for (const condition of ['production', 'development']) {
     scripts[`module-${condition}`] = (await bundle({
-      name: `csp-charts-module-${condition}`, cwd: fixture('npm'), format: 'esm', conditions: [condition],
+      name: `csp-charts-module-${condition}`, cwd: fixture('npm'), format: 'esm', conditions: [condition], allow: [pages],
       contents: `import * as A from 'axylo';\nimport { makeCharts } from ${JSON.stringify(path.join(pages, 'charts'))};\nmakeCharts(A);`,
     })).url;
   }
 });
 afterAll(async () => { await closeBrowser(); await server?.close(); });
+
+/** The light-scheme default for the first series, as the packed stylesheet declares it (`.axylo { … }`). */
+const declaredSeries1 = (): string => {
+  const css = fs.readFileSync(fixture('npm', 'node_modules/axylo/dist/axylo.css'), 'utf8');
+  const light = /\.axylo\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+  const hex = /--axylo-default-series-1:\s*(#[0-9a-fA-F]{6})/.exec(light)?.[1];
+  if (!hex) throw new Error('axylo.css declares no light --axylo-default-series-1');
+  return hex;
+};
+const PAGES: string[] = [];
 
 const LOADERS = {
   'script tag, production (axylo.iife.min.js)': () => `<script src="/script/node_modules/axylo/dist/axylo.iife.min.js"></script><script src="${scripts.classic}"></script>`,
@@ -77,12 +90,13 @@ let counter = 0;
 describe.each(Object.entries(LOADERS))('%s', (_label, loader) => {
   describe.each([['applied at run time', false], ['linked by the page', true]] as const)('stylesheet %s', (_how, linked) => {
     it('draws every chart type, opens a tooltip and the tables, with no violation, no console error and no markup created', async () => {
-      const at = `/csp/page-${++counter}.html`;
-      server.pages.set(at, { html: html(loader(), linked), headers: { 'content-security-policy': POLICY } });
-      server.reports.length = 0;
+      const id = `page-${++counter}`;
+      const at = `/csp/${id}.html`;
+      PAGES.push(id);
+      server.pages.set(at, { html: html(loader(), linked), headers: { 'content-security-policy': cspPolicy(id) } });
       const w = await open(server);
       const response = await w.page.goto(`${server.origin}${at}`);
-      expect(response?.headers()['content-security-policy']).toBe(POLICY);
+      expect(response?.headers()['content-security-policy']).toBe(cspPolicy(id));
 
       for (const id of CHARTS) {
         const state = await drawn(w.page, `#${id}`);
@@ -124,7 +138,30 @@ describe.each(Object.entries(LOADERS))('%s', (_label, loader) => {
         if (id !== 'area') expect(text, `#${id} table text`).toMatch(/<img src=x onerror=|<script>/);
       }
 
-      await w.page.waitForTimeout(300); // reports are sent asynchronously
+      // The stylesheet took effect: its rules are in the computed styles, its series colour is the one painted.
+      const hex = declaredSeries1();
+      const style = await w.page.evaluate(() => {
+        const figure = document.querySelector('#line figure')!;
+        // The renderer paints through `color` on the shape or its group (render/svg.ts).
+        const painted = (el: Element | null): string => { for (let e = el; e && !e.classList.contains('axylo-scene'); e = e.parentElement) { const c = (e as SVGElement).style?.getPropertyValue('color') ?? ''; if (c) return c; } return ''; };
+        const mark = Array.from(document.querySelectorAll<SVGElement>('#line .axylo-scene path')).find(p => /--axylo-series(-color)?-1\b/.test(painted(p)));
+        return {
+          display: getComputedStyle(figure).display, titleWeight: getComputedStyle(document.querySelector('#line .axylo-title')!).fontWeight,
+          series1: getComputedStyle(figure).getPropertyValue('--axylo-default-series-1').trim(), mark: mark ? getComputedStyle(mark).color : null,
+        };
+      });
+      expect(style.display, '.axylo-figure { display: flex }').toBe('flex');
+      expect(style.titleWeight, '.axylo-title { font-weight: 600 }').toBe('600');
+      expect(style.series1.toLowerCase()).toBe(hex.toLowerCase());
+      const [r, g, b] = hexRgb(hex);
+      expect(style.mark).toBe(`rgb(${r}, ${g}, ${b})`);
+      await w.page.locator('#line .axylo-plot').scrollIntoViewIfNeeded();
+      await w.page.mouse.move(2, 2);
+      const painted = countNear(decodePng(await w.page.locator('#line .axylo-plot').screenshot({ animations: 'allow' })), [r, g, b]);
+      console.info(`#line pixels painted in ${hex}: ${painted}`);
+      expect(painted, `pixels of the first series in ${hex}`).toBeGreaterThan(50);
+
+      await w.page.waitForTimeout(300); // reports are sent asynchronously; the last test looks again
       const seen: Seen = await w.page.evaluate(() => {
         const g = window as unknown as Record<string, unknown>;
         const charts = (g.__charts as { diagnostics: { code: string; level: string }[] }[] | undefined) ?? [];
@@ -142,7 +179,7 @@ describe.each(Object.entries(LOADERS))('%s', (_label, loader) => {
       console.info(`stylesheets: adopted ${seen.adopted}, <style> ${seen.styleElements}, linked axylo.css active ${seen.linkedActive}`);
 
       expect(seen.violations, 'securitypolicyviolation events').toEqual([]);
-      expect(server.reports, 'reports sent to the report URI').toEqual([]);
+      expect(server.reports.get(id) ?? [], 'reports sent to this page\'s report URI').toEqual([]);
       expect(errors, 'console errors and page errors').toEqual([]);
       expect(seen.created, 'elements created from markup in text').toEqual([]);
       expect(seen.xss, 'payload ran').toBeNull();
@@ -155,6 +192,13 @@ describe.each(Object.entries(LOADERS))('%s', (_label, loader) => {
       } else {
         expect(seen.adopted, 'the stylesheet adopted at run time').toBe(1);
       }
+      // The computed rules came from that sheet: without it they are gone.
+      const without = await w.page.evaluate(linkedPage => {
+        if (linkedPage) Array.from(document.styleSheets).find(x => x.href?.endsWith('/axylo.css'))!.disabled = true;
+        else document.adoptedStyleSheets = [];
+        return getComputedStyle(document.querySelector('#line figure')!).display;
+      }, linked);
+      expect(without).not.toBe('flex');
       expect(w.external).toEqual([]);
       await w.context.close();
     });
@@ -162,24 +206,33 @@ describe.each(Object.entries(LOADERS))('%s', (_label, loader) => {
 });
 
 describe('the instruments themselves', () => {
-  it('catch text inserted as HTML: the observer records the element and the policy reports the inline handler and style', async () => {
-    const at = '/csp/negative-control.html';
+  it('catch text inserted as HTML: the observer records the element, and each report names its directive and page', async () => {
+    const id = 'negative-control';
+    const at = `/csp/${id}.html`;
     server.pages.set(at, {
       html: '<!doctype html>\n<html lang="en"><head><meta charset="utf-8"><title>control</title><script src="/pages/observe.js"></script></head><body><script src="/pages/inject.js"></script></body></html>',
-      headers: { 'content-security-policy': POLICY },
+      headers: { 'content-security-policy': cspPolicy(id) },
     });
-    server.reports.length = 0;
     const w = await open(server);
     await w.page.goto(`${server.origin}${at}`);
-    await w.page.waitForTimeout(500);
+    await expect.poll(() => (server.reports.get(id) ?? []).length, { timeout: 5000 }).toBe(2);
     const seen = await w.page.evaluate(() => {
       const g = window as unknown as Record<string, unknown>;
       return { created: g.__created as string[], violations: (g.__violations as { effective: string }[]).map(v => v.effective).sort(), xss: g.__xss ?? null };
     });
+    const reports = (server.reports.get(id) as { 'csp-report': Record<string, string> }[]).map(r => r['csp-report']);
+    expect(reports.map(r => r['effective-directive'] ?? r['violated-directive']).sort()).toEqual(['script-src-attr', 'style-src-attr']);
+    for (const r of reports) expect(r['document-uri']).toBe(`${server.origin}${at}`);
+    expect(seen.violations).toEqual(['script-src-attr', 'style-src-attr']);
     expect(seen.created.some(e => e.startsWith('<img'))).toBe(true);
-    expect(seen.violations).toEqual(expect.arrayContaining(['script-src-attr', 'style-src-attr']));
     expect(seen.xss).toBeNull();
-    expect(server.reports.length).toBeGreaterThan(0);
     await w.context.close();
+  });
+
+  it('no page has received a report since its test ended', async () => {
+    await new Promise(r => setTimeout(r, 1000));
+    expect(PAGES.length).toBe(8);
+    expect(Object.fromEntries(PAGES.map(p => [p, server.reports.get(p) ?? []]))).toEqual(Object.fromEntries(PAGES.map(p => [p, []])));
+    expect([...server.reports.keys()].filter(k => !PAGES.includes(k) && k !== 'negative-control')).toEqual([]);
   });
 });

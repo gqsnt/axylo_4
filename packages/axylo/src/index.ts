@@ -4,12 +4,12 @@
  */
 import type {
   AreaOptions, BarOptions, Chart, Diagnostic, DonutOptions, LineOptions, ScatterOptions, Target,
-} from './public';
+} from './public.js';
 import { createChart } from './core/chart';
 import { staticDiagnostics } from './core/stages';
 import { viewerTimeZone } from './core/environment';
 
-export type * from './public';
+export type * from './public.js';
 
 export function line<Row>(target: Target, options: LineOptions<Row>): Chart<Row, LineOptions<Row>> {
   return createChart('line', target, options) as unknown as Chart<Row, LineOptions<Row>>;

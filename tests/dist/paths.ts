@@ -1,7 +1,11 @@
 /** Locations and small helpers shared by the distribution tests. */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import type { Plugin } from 'esbuild';
+// @ts-expect-error scripts/pack.mjs is plain JavaScript without declarations
+import { fixtureGuard as untypedGuard } from '../../scripts/pack.mjs';
 
 export const repo = path.resolve(import.meta.dirname, '../..');
 export const here = import.meta.dirname;
@@ -61,9 +65,48 @@ export const inside = (parent: string, child: string): boolean => {
   return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative);
 };
 
-/** Runs Node on a script, from `cwd`, and parses the one JSON line it prints. */
-export function nodeJson<T>(cwd: string, args: string[]): T {
-  const stdout = execFileSync(process.execPath, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+/** The fixture directory (tests/dist/fixtures/<name>) that contains `p`, or null. */
+export function fixtureOf(p: string): string | null {
+  const base = path.join(here, 'fixtures');
+  const rel = path.relative(base, p);
+  if (rel.startsWith('..') || path.isAbsolute(rel) || rel === '') return null;
+  return path.join(base, rel.split(path.sep)[0]!);
+}
+
+export const nodeGuard = path.join(here, 'guard/node-guard.mjs');
+
+/**
+ * Runs Node on a script, from `cwd`, and parses the one JSON line it prints. Resolution is guarded
+ * (guard/node-guard.mjs): an import that resolves outside `roots` (by default the fixture containing `cwd`)
+ * throws instead of falling back to the repository's node_modules.
+ */
+export function nodeJson<T>(cwd: string, args: string[], roots: string[] = [fixtureOf(cwd) ?? cwd]): T {
+  const stdout = execFileSync(process.execPath, ['--import', pathToFileURL(nodeGuard).href, ...args], {
+    cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], env: { ...process.env, AXYLO_FIXTURE_ROOTS: JSON.stringify(roots) },
+  });
   const line = stdout.trim().split('\n').pop() ?? '';
   return JSON.parse(line) as T;
 }
+
+/**
+ * Files a `tsc --listFiles` run read that lie outside `root`, other than the compiler's own lib files: what
+ * TypeScript found by walking up from a fixture into the repository's node_modules. TypeScript has no
+ * option that stops that walk, so the file list is the guard.
+ */
+export function outsideFixture(files: string[], root: string): string[] {
+  return files.filter(f => !inside(root, f) && !/[\\/]node_modules[\\/](@typescript[\\/][^\\/]+|typescript)[\\/]lib[\\/]lib\.[^\\/]+\.d\.ts$/.test(f));
+}
+
+/** esbuild plugin (scripts/pack.mjs): any import that resolves outside `roots` fails the build. */
+export const fixtureGuard = untypedGuard as (roots: string[]) => Plugin;
+
+export const tsc = path.join(repo, 'node_modules/typescript/bin/tsc');
+
+/** Runs `tsc -p <project>/<config> --listFiles`: errors, exit status and the files the compiler read. */
+export function check(project: string, config: string): { status: number | null; errors: string[]; files: string[] } {
+  const r = spawnSync(process.execPath, [tsc, '-p', path.join(project, config), '--listFiles'], { cwd: project, encoding: 'utf8' });
+  const output = `${r.stdout}${r.stderr}`;
+  const files = output.split('\n').map(l => l.trim()).filter(l => /\.(d\.)?tsx?$/.test(l)).map(l => path.resolve(project, l));
+  return { status: r.status, errors: output.split('\n').filter(l => /error TS\d+/.test(l)), files };
+}
+

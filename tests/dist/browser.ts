@@ -5,11 +5,11 @@
  * fixtures only.
  */
 import { chromium, type Browser, type BrowserContext, type ConsoleMessage, type Page } from 'playwright-core';
-import { build } from 'esbuild';
+import { build, type Plugin } from 'esbuild';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { fixture, here, out } from './paths';
+import { fixture, fixtureGuard, here, out } from './paths';
 
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
@@ -25,20 +25,29 @@ export interface Server {
   origin: string;
   /** Generated documents: path → body and response headers. */
   pages: Map<string, { html: string; headers?: Record<string, string> }>;
-  /** Bodies POSTed to /csp-report. */
-  reports: unknown[];
+  /**
+   * Bodies POSTed to /csp-report/<page>, by page: each page's policy names its own report URL, so a report
+   * that arrives late is still counted against the page that caused it, never against the next one.
+   */
+  reports: Map<string, unknown[]>;
   close(): Promise<void>;
 }
 
 export async function startServer(): Promise<Server> {
   const pages = new Map<string, { html: string; headers?: Record<string, string> }>();
-  const reports: unknown[] = [];
+  const reports = new Map<string, unknown[]>();
   const server = http.createServer((req, res) => {
     const pathname = decodeURIComponent(new URL(req.url ?? '/', 'http://x').pathname);
-    if (req.method === 'POST' && pathname === '/csp-report') {
+    if (req.method === 'POST' && pathname.startsWith('/csp-report/')) {
+      const key = pathname.slice('/csp-report/'.length);
       let body = '';
       req.on('data', chunk => { body += chunk; });
-      req.on('end', () => { try { reports.push(JSON.parse(body)); } catch { reports.push(body); } res.writeHead(204).end(); });
+      req.on('end', () => {
+        const list = reports.get(key) ?? [];
+        try { list.push(JSON.parse(body)); } catch { list.push(body); }
+        reports.set(key, list);
+        res.writeHead(204).end();
+      });
       return;
     }
     const page = pages.get(pathname);
@@ -54,6 +63,14 @@ export async function startServer(): Promise<Server> {
   const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
   return { origin, pages, reports, close: () => new Promise<void>(resolve => server.close(() => resolve())) };
 }
+
+/**
+ * The strict policy of the CSP and text tests (spec DX8): no 'unsafe-inline' and no 'unsafe-eval' for scripts
+ * or styles. `script-src 'self'` is all the script-tag files and a bundled module need; `style-src 'self'`
+ * admits a linked axylo.css and the page's own stylesheet. Reports go to a URL of the page's own.
+ */
+export const cspPolicy = (page: string): string =>
+  `default-src 'self'; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; report-uri /csp-report/${page}`;
 
 let browser: Browser | undefined;
 export async function launch(): Promise<Browser> {
@@ -96,12 +113,15 @@ export const problems = (w: Watched): string[] => [
 /** Bundles an entry for the browser, as an application's bundler would, from inside a fixture. */
 export async function bundle(options: {
   name: string; cwd: string; entry?: string; contents?: string; format?: 'iife' | 'esm'; conditions?: string[]; nodeEnv?: 'development' | 'production';
+  /** Directories besides `cwd` that imports may resolve into (test pages). Anything else fails the build. */
+  allow?: string[]; plugins?: Plugin[];
 }): Promise<{ url: string; inputs: string[] }> {
   const outfile = path.join(out, `${options.name}.js`);
   const r = await build({
     ...(options.entry ? { entryPoints: [options.entry] } : { stdin: { contents: options.contents!, resolveDir: options.cwd, loader: 'tsx' as const } }),
     absWorkingDir: options.cwd, bundle: true, format: options.format ?? 'iife', target: 'es2022', jsx: 'automatic', outfile,
     conditions: options.conditions ?? [], metafile: true, logLevel: 'silent',
+    plugins: [...(options.plugins ?? []), fixtureGuard([options.cwd, ...(options.allow ?? [])])],
     define: { 'process.env.NODE_ENV': JSON.stringify(options.nodeEnv ?? 'production') },
   });
   return { url: `/out/${options.name}.js`, inputs: Object.keys(r.metafile.inputs).map(p => path.resolve(options.cwd, p)) };
