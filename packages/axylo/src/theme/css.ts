@@ -85,4 +85,50 @@ ${forced}
 }
 
 /* structure: added by the figure module (inside "@layer axylo { … }") */
+@layer axylo {
+  .axylo [hidden] { display: none !important; }
+  .axylo-visually-hidden {
+    position: absolute !important; width: 1px !important; height: 1px !important; margin: -1px !important;
+    padding: 0 !important; border: 0 !important; overflow: hidden !important; clip-path: inset(50%) !important;
+    white-space: nowrap !important;
+  }
+  /* The figure fills a container that has a definite height; otherwise it is as tall as its content. */
+  .axylo-figure {
+    position: relative; display: flex; flex-direction: column; box-sizing: border-box;
+    margin: 0; padding: 0; height: 100%; min-width: 0; min-height: 0;
+  }
+  .axylo-caption { flex: none; margin: 0 0 0.5em; min-width: 0; }
+  .axylo-caption:has(> :not([hidden]):not(.axylo-visually-hidden)) { margin-bottom: 0.5em; }
+  .axylo-caption:not(:has(> :not([hidden]):not(.axylo-visually-hidden))) { margin: 0; }
+  .axylo-title { font-weight: 600; font-size: 1.125em; line-height: 1.3; overflow-wrap: anywhere; }
+  .axylo-subtitle { margin: 0.125em 0 0; font-size: max(12px, 0.875em); color: var(--axylo-muted); overflow-wrap: anywhere; }
+  .axylo-summary { margin: 0.25em 0 0; font-size: max(12px, 0.875em); }
+  /*
+   * The plot takes what the caption and note leave. Its content is a spacer that is 16:9 of its width,
+   * clamped to 160–480 px (spec L3): that is its height when the container has none of its own, and only
+   * its starting size when it does (flex then grows or shrinks it to fit).
+   */
+  .axylo-plot { position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; overflow: hidden; }
+  .axylo-plot::before { content: ""; display: block; width: 100%; aspect-ratio: 16 / 9; min-height: 160px; max-height: 480px; }
+  .axylo-compact .axylo-plot::before { aspect-ratio: auto; min-height: 0; max-height: none; height: 32px; }
+  .axylo-message {
+    position: absolute; inset: 0; margin: 0; padding: 8px; box-sizing: border-box;
+    display: flex; align-items: center; justify-content: center; text-align: center;
+    font-size: max(12px, 1em); color: var(--axylo-muted); overflow-wrap: anywhere;
+  }
+  .axylo-corner {
+    position: absolute; top: 0; right: 0; padding: 0 2px; font-size: 12px; line-height: 1;
+    color: var(--axylo-text, currentColor); pointer-events: none;
+  }
+  .axylo-note { flex: none; margin: 0.5em 0 0; font-size: max(12px, 0.875em); }
+  .axylo-tooltip {
+    position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; box-sizing: border-box;
+    max-width: min(320px, 100%); padding: 4px 8px; border: 1px solid var(--axylo-axis); border-radius: 4px;
+    background: var(--axylo-background, var(--axylo-default-background)); color: var(--axylo-text, currentColor);
+    font-size: max(12px, 0.875em); line-height: 1.4;
+  }
+  .axylo-tooltip-title { font-weight: 600; }
+  .axylo-tooltip-row { display: flex; gap: 1em; justify-content: space-between; }
+  .axylo-tooltip-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
+}
 `;

@@ -1,0 +1,172 @@
+/**
+ * The chart's document structure (plan 2.4; spec A1, C1, F12, L7). The author's target is the root; inside
+ * it the figure holds the caption (title, subtitle, summary), the plot container (marks, text layer, state
+ * message), the reader's note, a polite live region and the tooltip. Only text is ever set, never HTML.
+ *
+ * The keyboard layer, toolbar, legend and table come later; each is a sibling of the plot and gets its own
+ * slot here without changing what exists.
+ */
+
+export interface TitleModel {
+  readonly text: string;
+  readonly level: number;
+  readonly visible: boolean;
+}
+
+export interface FigureModel {
+  readonly compact: boolean;
+  /** The heading, or null when there is none (only `labelledBy`, or no title at all). */
+  readonly title: TitleModel | null;
+  /** Id of a heading the page already has. */
+  readonly labelledBy: string | null;
+  /** Accessible name when neither a title nor `labelledBy` names the chart (generated, AX140). */
+  readonly name: string;
+  readonly subtitle: string | null;
+  readonly summary: string;
+  /** The plot is too small to draw (spec L8): the summary is shown instead. */
+  readonly summaryVisible: boolean;
+  readonly note: string | null;
+  /** Loading, empty, error or internal-error text shown inside the plot (spec L7); null when marks are shown. */
+  readonly message: string | null;
+}
+
+export interface Figure {
+  readonly figure: HTMLElement;
+  readonly plot: HTMLElement;
+  readonly tooltip: HTMLElement;
+  update(model: FigureModel): void;
+  /** Puts text in the polite live region (state changes only, spec L7, A7). */
+  announce(text: string): void;
+  /** Removes everything the figure added to the root, and the root's added class. */
+  destroy(): void;
+}
+
+const HIDDEN = 'axylo-visually-hidden';
+
+function setText(el: HTMLElement, text: string): void {
+  if (el.textContent !== text) el.textContent = text;
+}
+
+function setAttr(el: Element, name: string, value: string | null): void {
+  if (value === null) {
+    if (el.hasAttribute(name)) el.removeAttribute(name);
+  } else if (el.getAttribute(name) !== value) {
+    el.setAttribute(name, value);
+  }
+}
+
+function show(el: HTMLElement, visible: boolean): void {
+  if (el.hidden === visible) el.hidden = !visible;
+}
+
+export function createFigure(root: HTMLElement, id: string, parts: { marks: Element; text: Element }): Figure {
+  const doc = root.ownerDocument;
+  const addedClass = !root.classList.contains('axylo');
+  const hadClassAttribute = root.hasAttribute('class');
+  if (addedClass) root.classList.add('axylo');
+
+  const make = <K extends keyof HTMLElementTagNameMap>(tag: K, className: string): HTMLElementTagNameMap[K] => {
+    const el = doc.createElement(tag);
+    el.className = className;
+    return el;
+  };
+  const figure = make('figure', 'axylo-figure');
+  figure.id = id;
+  const caption = make('figcaption', 'axylo-caption');
+  const title = make('div', 'axylo-title');
+  title.id = `${id}-t`;
+  title.setAttribute('role', 'heading');
+  const subtitle = make('p', 'axylo-subtitle');
+  subtitle.id = `${id}-st`;
+  // Hidden until the first update says otherwise, so nothing is measured with an empty caption.
+  title.hidden = true;
+  subtitle.hidden = true;
+  const summary = make('p', `axylo-summary ${HIDDEN}`);
+  summary.id = `${id}-s`;
+  const plot = make('div', 'axylo-plot');
+  const message = make('p', 'axylo-message');
+  message.id = `${id}-m`;
+  message.hidden = true;
+  const corner = make('span', 'axylo-corner');
+  corner.setAttribute('aria-hidden', 'true');
+  corner.textContent = '*';
+  corner.hidden = true;
+  plot.append(parts.marks, parts.text, message, corner);
+  const note = make('p', 'axylo-note');
+  note.id = `${id}-n`;
+  note.setAttribute('role', 'status');
+  note.hidden = true;
+  const live = make('div', `axylo-live ${HIDDEN}`);
+  live.setAttribute('aria-live', 'polite');
+  const tooltip = make('div', 'axylo-tooltip');
+  tooltip.hidden = true;
+  tooltip.setAttribute('aria-hidden', 'true');
+  caption.append(title, subtitle, summary);
+  figure.append(caption, plot, note, live, tooltip);
+  root.appendChild(figure);
+
+  let last: FigureModel | null = null;
+
+  return {
+    figure,
+    plot,
+    tooltip,
+    update(model: FigureModel): void {
+      if (last !== null && same(last, model)) return;
+      last = model;
+      const { compact } = model;
+      figure.classList.toggle('axylo-compact', compact);
+      setAttr(figure, 'role', compact ? 'img' : 'group');
+
+      // Name: the title, else the page's own heading, else the generated name.
+      const heading = !compact && model.title !== null;
+      if (heading) {
+        setText(title, model.title!.text);
+        setAttr(title, 'aria-level', String(model.title!.level));
+        title.classList.toggle(HIDDEN, !model.title!.visible);
+      }
+      show(title, heading);
+      if (model.labelledBy) {
+        setAttr(figure, 'aria-labelledby', model.labelledBy);
+        setAttr(figure, 'aria-label', null);
+      } else if (heading) {
+        setAttr(figure, 'aria-labelledby', title.id);
+        setAttr(figure, 'aria-label', null);
+      } else {
+        setAttr(figure, 'aria-labelledby', null);
+        setAttr(figure, 'aria-label', model.name);
+      }
+
+      setText(subtitle, model.subtitle ?? '');
+      show(subtitle, !compact && !!model.subtitle);
+      setText(summary, model.summary);
+      summary.classList.toggle(HIDDEN, compact || !model.summaryVisible);
+      setAttr(figure, 'aria-describedby', summary.id);
+
+      // The compact variant has no note element: the summary says what was left out, and a corner marker
+      // shows it (spec C5); the marker's text equivalent is that description.
+      setText(note, compact ? '' : model.note ?? '');
+      show(note, !compact && model.note !== null);
+      show(corner, compact && model.note !== null);
+      setAttr(corner, 'title', compact ? model.note : null);
+
+      setText(message, model.message ?? '');
+      show(message, model.message !== null);
+    },
+    announce(text: string): void {
+      setText(live, text);
+    },
+    destroy(): void {
+      figure.remove();
+      if (addedClass) root.classList.remove('axylo');
+      if (!hadClassAttribute && root.classList.length === 0) root.removeAttribute('class');
+    },
+  };
+}
+
+function same(a: FigureModel, b: FigureModel): boolean {
+  return a.compact === b.compact && a.labelledBy === b.labelledBy && a.name === b.name && a.subtitle === b.subtitle &&
+    a.summary === b.summary && a.summaryVisible === b.summaryVisible && a.note === b.note && a.message === b.message &&
+    (a.title === b.title || (a.title !== null && b.title !== null && a.title.text === b.title.text &&
+      a.title.level === b.title.level && a.title.visible === b.title.visible));
+}
