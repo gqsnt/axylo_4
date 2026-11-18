@@ -303,7 +303,7 @@
     "criterion": "A2",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/a2-keyboard.browser.test.ts",
-    "title": "A2 line: the toolbar holds North, South, Zoom in, Zoom out, View as table with roving focus: one tab stop, arrows, Home and End move within it"
+    "title": "A2 line: the toolbar holds North, South, Zoom in, Select range, Zoom out, View as table with roving focus: one tab stop, arrows, Home and End move within it"
   },
   {
     "criterion": "A2",
@@ -333,7 +333,7 @@
     "criterion": "A2",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/a2-keyboard.browser.test.ts",
-    "title": "A2 area: the toolbar holds North, South, Zoom in, Zoom out, View as table with roving focus: one tab stop, arrows, Home and End move within it"
+    "title": "A2 area: the toolbar holds North, South, Zoom in, Select range, Zoom out, View as table with roving focus: one tab stop, arrows, Home and End move within it"
   },
   {
     "criterion": "A2",
@@ -387,7 +387,7 @@
     "criterion": "A2",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/a2-keyboard.browser.test.ts",
-    "title": "A2 scatter: the toolbar holds EU, US, Zoom in, Zoom out, View as table with roving focus: one tab stop, arrows, Home and End move within it"
+    "title": "A2 scatter: the toolbar holds EU, US, Zoom in, Select range, Zoom out, View as table with roving focus: one tab stop, arrows, Home and End move within it"
   },
   {
     "criterion": "A2",
@@ -2110,6 +2110,36 @@
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
     "title": "I3 scatter: the wheel over an unfocused plot scrolls the page; over the focused plot it zooms; with Ctrl or Meta held it never zooms and is not cancelled"
+  },
+  {
+    "criterion": "I4",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I4 line: Select range is a toggle of at least 24 × 24 CSS px after Zoom in in the roving order; Enter and Space toggle aria-pressed, Escape releases it; pressed, two clicks without a drag set the x range they span, and the same clicks unpressed leave the range alone"
+  },
+  {
+    "criterion": "I4",
+    "type": "area",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I4 area: Select range is a toggle of at least 24 × 24 CSS px after Zoom in in the roving order; Enter and Space toggle aria-pressed, Escape releases it; pressed, two clicks without a drag set the x range they span, and the same clicks unpressed leave the range alone"
+  },
+  {
+    "criterion": "I4",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I4 bar (number axis): Select range is a toggle of at least 24 × 24 CSS px after Zoom in in the roving order; Enter and Space toggle aria-pressed, Escape releases it; pressed, two clicks without a drag set the x range they span, and the same clicks unpressed leave the range alone"
+  },
+  {
+    "criterion": "I4",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I4 bar (date axis): Select range is a toggle of at least 24 × 24 CSS px after Zoom in in the roving order; Enter and Space toggle aria-pressed, Escape releases it; pressed, two clicks without a drag set the x range they span, and the same clicks unpressed leave the range alone"
+  },
+  {
+    "criterion": "I4",
+    "type": "scatter",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I4 scatter: Select range is a toggle of at least 24 × 24 CSS px after Zoom in in the roving order; Enter and Space toggle aria-pressed, Escape releases it; pressed, two clicks without a drag set the x range they span, and the same clicks unpressed leave the range alone"
   },
   {
     "criterion": "I4",

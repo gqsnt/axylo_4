@@ -717,6 +717,80 @@ describe('I3 zoom four ways', () => {
 
 // ── I4 ────────────────────────────────────────────────────────────────────────────────────────────
 
+describe('I4 and A2 Select range: the two-click range', () => {
+  // Wherever a drag selects a range (spec I3: time, date and numeric x), the toolbar has a Select range toggle
+  // right after Zoom in (spec I4: every interaction without dragging; apps/docs/pages/accessibility.md's
+  // toolbar list; decision 0004, revision 3 addendum). Its name is messages.selectRange.
+  for (const type of ['line', 'area', 'bar', 'bar (date)', 'scatter'] as Zoomable[]) {
+    it(`I4 ${cell(type)}${type === 'bar (date)' ? ' (date axis)' : type === 'bar' ? ' (number axis)' : ''}: Select range is a toggle of at least 24 × 24 CSS px after Zoom in in the roving order; Enter and Space toggle aria-pressed, Escape releases it; pressed, two clicks without a drag set the x range they span, and the same clicks unpressed leave the range alone`, async () => {
+      const page = await devPage();
+      await zoomable(page, type);
+      const g = await plotGeometry(page);
+      const full = g.xDomain!;
+      const toggle = page.locator('#chart [role="toolbar"] button', { hasText: 'Select range' });
+      expect(await toggle.count()).toBe(1);
+      // Named by its text (messages.selectRange): no aria-label or aria-labelledby overrides it.
+      expect(((await toggle.textContent()) ?? '').trim()).toBe('Select range');
+      expect([await toggle.getAttribute('aria-label'), await toggle.getAttribute('aria-labelledby')]).toEqual([null, null]);
+      expect(await toggle.getAttribute('aria-pressed')).toBe('false');
+      const size = await cssSize(toggle);
+      expect(size.width, 'width').toBeGreaterThanOrEqual(24);
+      expect(size.height, 'height').toBeGreaterThanOrEqual(24);
+      const names = (await page.locator('#chart [role="toolbar"] button').allTextContents()).map(t => t.trim());
+      expect(names[names.indexOf('Zoom in') + 1]).toBe('Select range');
+
+      // Negative control: the same two clicks with the toggle not pressed do not zoom.
+      const y = g.plot.y + g.plot.height / 2;
+      const clicks = async () => {
+        for (const f of [0.25, 0.5]) { await page.mouse.click(g.plot.x + f * g.plot.width, y); await settle(page); }
+      };
+      await clicks();
+      expect(await xDomain(page), 'two clicks without Select range').toEqual(full);
+      await page.keyboard.press('Escape');
+      await settle(page);
+
+      // By keyboard: the toolbar is the second tab stop; arrows rove to the toggle; Enter and Space toggle it.
+      await page.focus('#before');
+      await page.keyboard.press('Tab');
+      await page.keyboard.press('Tab');
+      for (let i = 0; i < names.indexOf('Select range'); i++) await page.keyboard.press('ArrowRight');
+      expect(await page.evaluate(() => document.activeElement?.textContent?.trim())).toBe('Select range');
+      const pressed = async () => toggle.getAttribute('aria-pressed');
+      await page.keyboard.press('Enter');
+      await settle(page);
+      expect(await pressed(), 'after Enter').toBe('true');
+      await page.keyboard.press('Space');
+      await settle(page);
+      expect(await pressed(), 'after Space').toBe('false');
+      await page.keyboard.press('Space');
+      await settle(page);
+      expect(await pressed(), 'after Space again').toBe('true');
+      await page.keyboard.press('Escape');
+      await settle(page);
+      expect(await pressed(), 'after Escape').toBe('false');
+      expect(await xDomain(page)).toEqual(full);
+
+      // Pressed, two clicks (no movement while a button is down) set the range from the first to the second.
+      await page.keyboard.press('Enter');
+      await settle(page);
+      expect(await pressed()).toBe('true');
+      await page.mouse.click(g.plot.x + 0.25 * g.plot.width, y);
+      await settle(page);
+      expect(await xDomain(page), 'one end chosen, nothing zoomed yet').toEqual(full);
+      await page.mouse.click(g.plot.x + 0.5 * g.plot.width, y);
+      await settle(page);
+      const d = await xDomain(page);
+      const want = [full[0]! + 0.25 * width(full), full[0]! + 0.5 * width(full)];
+      // The same tolerance as the drag (I3): a fortieth of the range.
+      expect(Math.abs(d[0]! - want[0]!)).toBeLessThanOrEqual(width(full) / 40);
+      expect(Math.abs(d[1]! - want[1]!)).toBeLessThanOrEqual(width(full) / 40);
+      expect(await pressed(), 'the range is chosen: the toggle is released').toBe('false');
+      expect(await closePage(page)).toEqual([]);
+    });
+  }
+});
+
+
 describe('I4 single pointer, touch and target size', () => {
   for (const type of FULL as Full[]) {
     it(`I4 ${type}: every control is at least 24 × 24 CSS px: toolbar, legend, table pager, jump field, the rows of a pinned tooltip and the readout strip's entries for a pinned datum (hovered rows are text, decision 0004)`, async () => {

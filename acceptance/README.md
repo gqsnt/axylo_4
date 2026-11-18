@@ -43,6 +43,10 @@ AXYLO_ENGINE=webkit node acceptance/run.mjs browser    # acceptance/results/brow
 
 The harness records `meta.engine` and `meta.engineVersion` on every test, and the sidecar records the engine asked for and the version the results declare. The checker refuses a result file that mixes engines or disagrees with its sidecar. A browser citation takes an optional `engine` (default `chromium`) and is answered only by results of that engine; a pass on one engine never stands for another. A test that reported itself not run on an engine (`meta.notRun`) is `not run` with that reason. Results without engine records predate the switch and count as Chrome; in a run on another engine, a test without a record (the docs and distribution suites launch Chrome themselves) counts for no engine.
 
+## Reading the checker from code
+
+`check()` (acceptance/check.mjs) returns the Markdown `report` and `table`, and the same content as data: `rows` (per criterion its `id`, `statement` and, per chart type, `status`, `reasons` and `reports`, each with `file`, `label`, `source`, `results`, `engine`, `engineVersion` and `provenanceError`) and `runs`. `STATUSES` and `CHART_TYPES` are exported beside it. acceptance/provenance.mjs exports the configurations (`CONFIGS`, `CONFIGURATIONS`), `ENGINES`, `engineLabel()`, `defaultResultFile()` and `resultFiles()`, the default result file of every configuration and engine.
+
 ## Review and cite evidence
 
 Use the spec ID and short wording. Section 3.6 cells use `T-<rule>-<chart type>`. Give every excluded chart type a `notApplicable` reason. Compact covers line, area and bar variants where the rule applies.

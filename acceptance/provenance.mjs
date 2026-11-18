@@ -30,9 +30,31 @@ export function declaredEngines(results) {
   return { engines: [...engines].sort(), versions: [...versions].sort() };
 }
 
+/**
+ * The Vitest configurations acceptance/run.mjs records, each with its Vitest arguments. `browser` runs on the
+ * engine AXYLO_ENGINE names; `dist-browser` launches system Chrome itself; `unit` and `dist` run in Node.
+ */
+export const CONFIGURATIONS = Object.freeze({
+  unit: Object.freeze([]),
+  browser: Object.freeze([]),
+  dist: Object.freeze(['--config', 'tests/dist/vitest.config.ts']),
+  'dist-browser': Object.freeze(['--config', 'tests/dist/vitest.config.ts']),
+});
+export const CONFIGS = Object.freeze(Object.keys(CONFIGURATIONS));
+
 /** Where a configuration's results go by default: the browser configuration gets one file per engine. */
 export const defaultResultFile = (name, engine = 'chromium') =>
   `acceptance/results/${name === 'browser' && engine !== 'chromium' ? `${name}-${engine}` : name}.json`;
+
+/**
+ * Every default result file run.mjs can write, repository-relative, with its configuration and the engine
+ * its tests run on (null: Node).
+ */
+export function resultFiles() {
+  return CONFIGS.flatMap(config => config === 'browser'
+    ? ENGINES.map(engine => ({ config, engine, file: defaultResultFile(config, engine) }))
+    : [{ config, engine: config === 'dist-browser' ? 'chromium' : null, file: defaultResultFile(config) }]);
+}
 
 export function citedTestFiles(matrix) {
   const files = new Set();

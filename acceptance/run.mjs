@@ -2,15 +2,9 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { citedTestFiles, declaredEngines, defaultResultFile, ENGINES, hashFile, snapshot } from './provenance.mjs';
+import { citedTestFiles, CONFIGURATIONS as configs, declaredEngines, defaultResultFile, ENGINES, hashFile, snapshot } from './provenance.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const configs = {
-  unit: [],
-  browser: [],
-  dist: ['--config', 'tests/dist/vitest.config.ts'],
-  'dist-browser': ['--config', 'tests/dist/vitest.config.ts'],
-};
 const [name, ...args] = process.argv.slice(2);
 // The browser harness (packages/axylo/test/browser/harness.ts) reads AXYLO_ENGINE; the distribution suite's
 // own harness always launches system Chrome, so another engine there would be recorded but not used.

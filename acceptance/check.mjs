@@ -6,6 +6,9 @@ import { matchesTemplate, readTitles } from './titles.mjs';
 
 const chartTypes = ['line', 'area', 'bar', 'scatter', 'donut', 'compact'];
 const statuses = ['pass', 'fail', 'weak', 'no evidence', 'not run', 'cannot be verified here', 'not applicable'];
+/** The matrix's chart types, in column order, and every status a cell can have (README's table). */
+export const CHART_TYPES = Object.freeze([...chartTypes]);
+export const STATUSES = Object.freeze([...statuses]);
 const testKinds = ['unit', 'property', 'browser'];
 const otherKinds = ['benchmark', 'size', 'document', 'manual rehearsal'];
 const isText = value => typeof value === 'string' && value.trim() !== '';
@@ -229,7 +232,7 @@ function readMatrix(root, file, { entries: expected, diagnosticCodes }) {
 
 function readSize(file) {
   const { packed, rows } = json(file);
-  if (!isText(packed?.axylo) || !isText(packed?.react) || !Array.isArray(rows)) {
+  if (!isText(packed?.axylo) || !Array.isArray(rows)) {
     throw new Error(`${file}: expected packed size measurements`);
   }
   const entries = new Map();
@@ -630,7 +633,40 @@ export function check({ root, matrixFile = resolve(root, 'acceptance/matrix.json
   const blocked = rows.some(({ row, cells }) => cells.some(({ status }, i) =>
     !['pass', 'not applicable'].includes(status)
     && (!['not run', 'cannot be verified here'].includes(status) || !row.waivers?.[chartTypes[i]])));
-  return { table, summary, report, counts, runs, exitCode: release && (blocked || runs.some(run => run.provenanceError)) ? 1 : 0 };
+  return {
+    table, summary, report, counts, runs, rows: structuredRows(rows, runs, reportFiles, root),
+    exitCode: release && (blocked || runs.some(run => run.provenanceError)) ? 1 : 0,
+  };
+}
+
+/**
+ * The table's content as data, for readers that must not parse the Markdown (the docs' conformance page).
+ * Per cell: its status, why it was not run, and each report that answered it, named as the table names it,
+ * with what it recorded: the run's engine (null for Node runs and for results that predate the engine record)
+ * and the provenance error that keeps a release from counting it (null when none).
+ */
+function structuredRows(rows, runs, reportFiles, root) {
+  const byFile = new Map(runs.map(run => [run.file, run]));
+  return rows.map(({ row, cells }) => ({
+    id: row.id,
+    statement: row.statement,
+    cells: Object.fromEntries(chartTypes.map((type, i) => [type, {
+      status: cells[i].status,
+      reasons: [...cells[i].reasons].sort(),
+      reports: [...cells[i].reports].map(([file, results]) => {
+        const run = byFile.get(file);
+        return {
+          file: relative(root, file).split(sep).join('/'),
+          label: uniqueReportLabel(file, reportFiles, root),
+          source: run ? 'run' : 'size',
+          results: [...results].sort(),
+          engine: run?.engine ?? null,
+          engineVersion: run?.engineVersion ?? null,
+          provenanceError: run?.provenanceError ?? null,
+        };
+      }),
+    }])),
+  }));
 }
 
 function main(args) {

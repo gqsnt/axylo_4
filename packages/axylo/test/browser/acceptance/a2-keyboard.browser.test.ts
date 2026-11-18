@@ -44,13 +44,17 @@ function walk(type: Full): string[][] {
   }
 }
 
-/** The toolbar's controls in order, from the spec: legend toggles (two or more series), zoom where it applies, the table. */
+/**
+ * The toolbar's controls in order at full view, from the spec and the accessibility page's toolbar list
+ * (apps/docs/pages/accessibility.md): legend toggles (two or more series), Zoom in, Select range (the
+ * two-click range wherever a drag selects one, spec I4), Zoom out where zoom applies, the table.
+ */
 const TOOLBAR: Record<Full, string[]> = {
-  line: ['North', 'South', 'Zoom in', 'Zoom out', 'View as table'],
-  area: ['North', 'South', 'Zoom in', 'Zoom out', 'View as table'],
-  // Category x: no zoom (spec 3.6).
+  line: ['North', 'South', 'Zoom in', 'Select range', 'Zoom out', 'View as table'],
+  area: ['North', 'South', 'Zoom in', 'Select range', 'Zoom out', 'View as table'],
+  // Category x: no zoom (spec 3.6), so no range to select either.
   bar: ['Plan', 'Actual', 'View as table'],
-  scatter: ['EU', 'US', 'Zoom in', 'Zoom out', 'View as table'],
+  scatter: ['EU', 'US', 'Zoom in', 'Select range', 'Zoom out', 'View as table'],
   // No legend toggles (the slice list is not a set of buttons) and no zoom (spec 3.6).
   donut: ['View as table'],
 };

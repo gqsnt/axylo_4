@@ -3,10 +3,10 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import test from 'node:test';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { check } from '../check.mjs';
-import { citedTestFiles, declaredEngines, defaultResultFile, hashFile, snapshot } from '../provenance.mjs';
+import { CHART_TYPES, check, STATUSES } from '../check.mjs';
+import { citedTestFiles, CONFIGS, CONFIGURATIONS, declaredEngines, defaultResultFile, hashFile, resultFiles, snapshot } from '../provenance.mjs';
 
 const root = fileURLToPath(new URL('./fixtures/', import.meta.url));
 const matrixFile = resolve(root, 'matrix.json');
@@ -199,7 +199,8 @@ test('packed size verdict uses exact bytes and names the measurement file', t =>
   const write = workspace(t);
   const matrix = read(matrixFile).map(row => ({ ...row, evidence: {}, weak: {} }));
   matrix[0].evidence = { line: [{ kind: 'size', file: 'size.json', entries: ['line only'] }] };
-  const packed = { axylo: 'sha512-axylo', react: 'sha512-react' };
+  // The React adapter is gone (owner's decision, 2026-11-18): the artifact names the core's tarball only.
+  const packed = { axylo: 'sha512-axylo' };
   const bytes = totalGzipBytes => ({
     packed, rows: [{ entry: 'line only', minBytes: 2000, totalGzipBytes, targetKiB: 1 }],
   });
@@ -209,6 +210,9 @@ test('packed size verdict uses exact bytes and names the measurement file', t =>
   assert.match(check(options).table, /\bpass \(size\.json pass\)/);
   write('size.json', bytes(1025));
   assert.match(check(options).table, /\bfail \(size\.json fail\)/);
+  // A measurement that does not say which packed core it measured is refused.
+  write('size.json', { ...bytes(1024), packed: {} });
+  assert.throws(() => check(options), /size\.json: expected packed size measurements/);
 });
 
 test('a suite that aborts before any assertion fails every cell citing its file', t => {
@@ -441,4 +445,56 @@ test('run.mjs names a results file per engine and reads the engine the results d
   assert.equal(defaultResultFile('unit', 'webkit'), 'acceptance/results/unit.json');
   assert.deepEqual(declaredEngines(engineReport('webkit')), { engines: ['webkit'], versions: ['webkit 27.2'] });
   assert.deepEqual(declaredEngines(read(passed)), { engines: [], versions: [] });
+});
+
+// ── structured output (the docs' conformance page) ─────────────────────────────────────────────────
+
+test('check() returns the table as data: per cell its status, reasons and reports with engine and provenance error', t => {
+  const write = workspace(t);
+  const files = [write('browser.json', engineReport('chromium')), write('browser-webkit.json', engineReport('webkit', 'skipped', '27.2', { notRun: 'webkit: no CDP' }))];
+  const result = run({ matrixFile: write('matrix.json', browserMatrix(null, 'webkit')), resultFiles: files, release: true });
+  // Every row and cell of the Markdown table, and nothing else, with the same status.
+  const tableRows = result.table.split('\n').slice(2).map(line => line.slice(2, -2).split(' | '));
+  assert.deepEqual(result.rows.map(row => row.id), tableRows.map(cells => cells[0]));
+  for (const [i, row] of result.rows.entries()) {
+    assert.deepEqual(Object.keys(row.cells), [...CHART_TYPES]);
+    for (const [j, type] of CHART_TYPES.entries()) {
+      const text = tableRows[i][j + 2];
+      assert.ok(text === row.cells[type].status || text.startsWith(`${row.cells[type].status} (`), `${row.id}/${type}: ${text}`);
+    }
+  }
+  const line = result.rows.find(row => row.id === 'F1').cells.line;
+  assert.equal(line.status, 'not run');
+  assert.deepEqual(line.reasons, ['Not run on webkit: no CDP']);
+  assert.deepEqual(line.reports, [
+    { file: relative(root, files[0]), label: 'browser.json', source: 'run', results: ['pass'], engine: 'chromium', engineVersion: '157.0.8103.78', provenanceError: 'release requires recorded provenance' },
+    { file: relative(root, files[1]), label: 'browser-webkit.json', source: 'run', results: ['skipped'], engine: 'webkit', engineVersion: '27.2', provenanceError: 'release requires recorded provenance' },
+  ]);
+  // Outside release mode nothing is refused for provenance; archived Node results have no engine.
+  const plain = run({ resultFiles: [passed] }).rows.find(row => row.id === 'F1').cells.line.reports;
+  assert.deepEqual(plain, [{ file: 'results.json', label: 'results.json', source: 'run', results: ['pass'], engine: null, engineVersion: null, provenanceError: null }]);
+  assert.equal(result.rows.find(row => row.id === 'F1').cells.scatter.status, 'not applicable');
+});
+
+test('the status list is exported and is the README\'s table', () => {
+  const readme = readFileSync(fileURLToPath(new URL('../README.md', import.meta.url)), 'utf8');
+  const documented = [...readme.matchAll(/^\| ([a-z ]+) \| .+ \|$/gm)].map(m => m[1]).filter(s => s !== 'status');
+  assert.deepEqual([...STATUSES], documented);
+  assert.ok(Object.isFrozen(STATUSES) && Object.isFrozen(CHART_TYPES));
+});
+
+test('the configurations and their default result files come from provenance.mjs, which run.mjs uses', () => {
+  assert.deepEqual([...CONFIGS], ['unit', 'browser', 'dist', 'dist-browser']);
+  assert.deepEqual(resultFiles(), [
+    { config: 'unit', engine: null, file: 'acceptance/results/unit.json' },
+    { config: 'browser', engine: 'chromium', file: 'acceptance/results/browser.json' },
+    { config: 'browser', engine: 'firefox', file: 'acceptance/results/browser-firefox.json' },
+    { config: 'browser', engine: 'webkit', file: 'acceptance/results/browser-webkit.json' },
+    { config: 'dist', engine: null, file: 'acceptance/results/dist.json' },
+    { config: 'dist-browser', engine: 'chromium', file: 'acceptance/results/dist-browser.json' },
+  ]);
+  assert.deepEqual([...CONFIGURATIONS.dist], ['--config', 'tests/dist/vitest.config.ts']);
+  const runner = readFileSync(fileURLToPath(new URL('../run.mjs', import.meta.url)), 'utf8');
+  assert.match(runner, /CONFIGURATIONS as configs/);
+  assert.doesNotMatch(runner, /'dist-browser':/);
 });
