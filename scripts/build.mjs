@@ -11,6 +11,12 @@ await Promise.all([
   build({ ...common, format: 'iife', globalName: 'Axylo', define: { __DEV__: 'true' }, outfile: `${pkg}/dist/axylo.iife.js` }),
   build({ ...common, format: 'iife', globalName: 'Axylo', minify: true, define: { __DEV__: 'false' }, outfile: `${pkg}/dist/axylo.iife.min.js` }),
 ]);
-if (fs.existsSync(`${pkg}/src/axylo.css`)) fs.copyFileSync(`${pkg}/src/axylo.css`, `${pkg}/dist/axylo.css`);
+// The stylesheet's source of truth is a string in the library (it is also applied at run time without a <style> element);
+// the standalone file is for pages that prefer to load it themselves, for example under a strict Content Security Policy.
+{
+  const r = await build({ entryPoints: [`${pkg}/src/theme/css.ts`], bundle: true, format: 'esm', write: false, logLevel: 'silent' });
+  const mod = await import('data:text/javascript;base64,' + Buffer.from(r.outputFiles[0].contents).toString('base64'));
+  fs.writeFileSync(`${pkg}/dist/axylo.css`, mod.AXYLO_CSS);
+}
 execFileSync('npx', ['tsc', '-p', `${pkg}/tsconfig.build.json`], { stdio: 'inherit' });
 console.log('built', fs.readdirSync(`${pkg}/dist`).filter(f => !fs.statSync(`${pkg}/dist/${f}`).isDirectory()).join(', '));
