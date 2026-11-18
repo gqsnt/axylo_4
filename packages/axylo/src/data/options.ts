@@ -61,6 +61,7 @@ const messageKeys = {
   category: true, percentage: true, series: true, value: true, typeLine: true, typeArea: true, typeBar: true, typeScatter: true,
   typeDonut: true, donutSummary: true, seriesNoData: true, seriesNotDrawn: true, referenceLine: true, referenceBand: true,
   plotRole: true, pointAll: true, seriesValue: true, position: true, total: true,
+  panLeft: true, panRight: true, jumpNotFound: true, plotInstructions: true,
 } satisfies Record<keyof Messages, true>;
 
 function distance(a: string, b: string): number {

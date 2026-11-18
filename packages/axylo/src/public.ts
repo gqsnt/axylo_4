@@ -199,4 +199,6 @@ export interface Messages {
   plotRole: string; pointAll: string; seriesValue: string; position: string;
   /** Label of the stack total in tooltips. */
   total: string;
+  /** Single-click panning (WCAG 2.5.7), the table's "Jump to" when nothing matches, and how to move in the plot. */
+  panLeft: string; panRight: string; jumpNotFound: string; plotInstructions: string;
 }
