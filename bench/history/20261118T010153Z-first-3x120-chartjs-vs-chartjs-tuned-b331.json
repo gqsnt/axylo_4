@@ -1,0 +1,1763 @@
+{
+ "schema": "axylo-bench/1",
+ "runId": "20261118T010153Z-first-3x120-chartjs-vs-chartjs-tuned-b331",
+ "status": "complete",
+ "startedAt": "2026-11-18T01:01:53.489Z",
+ "command": [
+  "--no-build",
+  "--baseline",
+  "chartjs",
+  "--candidate",
+  "chartjs-tuned",
+  "--workload",
+  "first",
+  "--size",
+  "3x120",
+  "--blocks",
+  "6"
+ ],
+ "design": {
+  "mode": "compare",
+  "baseline": "chartjs",
+  "candidate": "chartjs-tuned",
+  "labels": {
+   "A": "chartjs",
+   "B": "chartjs-tuned"
+  },
+  "workload": "first",
+  "params": {
+   "size": "3x120",
+   "gaps": false
+  },
+  "blocks": 6,
+  "order": [
+   "AB",
+   "AB",
+   "AB",
+   "BA",
+   "BA",
+   "BA"
+  ],
+  "seed": 928845805,
+  "settleMs": 500,
+  "timeoutMs": 120000,
+  "dpr": 1,
+  "viewport": [
+   1440,
+   900
+  ],
+  "noiseFrom": null
+ },
+ "environment": {
+  "browser": {
+   "name": "Google Chrome (system, via Playwright channel \"chrome\")",
+   "version": "157.0.8103.78",
+   "headless": true
+  },
+  "playwright": "1.65.1",
+  "node": "v24.21.0",
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13600K",
+   "logicalCores": 20,
+   "governor": "powersave"
+  },
+  "memoryGiB": 30.4,
+  "os": {
+   "type": "Linux",
+   "release": "7.0.0-43-generic",
+   "name": "Ubuntu 26.04.1 LTS",
+   "arch": "x64"
+  },
+  "loadAverageAtStart": [
+   4.14,
+   3.24,
+   2.48
+  ],
+  "hostIdle": "not controlled: other processes (including other agents) may run on this machine during the session",
+  "power": "not available: power settings are not read by this harness",
+  "commit": "fec5701b07bc82688f9815ed39293e8de2d0e095",
+  "lockfiles": {
+   "bench/package-lock.json": "87ad92c82a0a5d9e66bf9b8b2b40cb453a79e350a5bdcc80c5718adcd6a1156f",
+   "package-lock.json": "e98151ca9f4f8d9aa1b6dd7e828f8e5024fbbf43a752a754d1a469a5850af392"
+  },
+  "axyloBundle": {
+   "file": "packages/axylo/dist/axylo.iife.js",
+   "sha256": "a1d84832bff9a055a8e657d7787eca00538af60d5e1d688c92c6e178ea5f3e2f",
+   "note": "scripts/build.mjs builds this file with __DEV__=true; the production script-tag build is axylo.iife.min.js"
+  },
+  "libraries": {
+   "uplot": "1.6.32",
+   "chart.js": "4.6.1",
+   "chartjs-adapter-date-fns": "3.0.0",
+   "date-fns": "4.4.0",
+   "axylo": "0.0.0"
+  },
+  "page": {
+   "devicePixelRatio": 1,
+   "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+   "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+   "viewport": [
+    1440,
+    900
+   ],
+   "hardwareConcurrency": 20,
+   "refresh": {
+    "medianIntervalMs": 16.7,
+    "hz": 59.88,
+    "minMs": 16.6,
+    "maxMs": 16.8
+   }
+  },
+  "loadAverageAtEnd": [
+   3.06,
+   3.07,
+   2.45
+  ]
+ },
+ "hashes": {
+  "fixtureChecksum": "7f8ee32c",
+  "page": {
+   "page.js": "62184ab8e61e8198ce89746bd4d167a16369b21faa500acafd99d73f6bff2072",
+   "index.html": "f178dfe33924dbd4488e5ba35b85bacb513f5a0b0bf7942719743954ce76c08a"
+  },
+  "adapters": {
+   "chartjs": {
+    "sha256": "c4bcaebb8ca3af080b2d10432c22e43ae02359553b42752bf8f49a48a25aa260",
+    "test": false
+   },
+   "chartjs-tuned": {
+    "sha256": "80f4edfc8f9aa9947d25c7f0ad3cf1b9b7b76dcc0d7c3506573d87c93e83ad68",
+    "test": false
+   }
+  }
+ },
+ "admission": {
+  "chartjs": {
+   "outcome": "ok",
+   "reason": null,
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "describe": [
+    {
+     "reads": "Chart.js chart.scales.x/y.{min,max}; held points per dataset; meta.data.length",
+     "x": [
+      1767225600000,
+      1777507200000
+     ],
+     "y": [
+      90,
+      190
+     ],
+     "series": [
+      {
+       "points": 120,
+       "oldestX": 1767225600000,
+       "newestX": 1777507200000,
+       "missing": 0,
+       "drawnPoints": 120
+      },
+      {
+       "points": 120,
+       "oldestX": 1767225600000,
+       "newestX": 1777507200000,
+       "missing": 0,
+       "drawnPoints": 120
+      },
+      {
+       "points": 120,
+       "oldestX": 1767225600000,
+       "newestX": 1777507200000,
+       "missing": 0,
+       "drawnPoints": 120
+      }
+     ]
+    }
+   ],
+   "adapter": {
+    "id": "chartjs",
+    "library": "Chart.js",
+    "version": "4.6.1",
+    "config": "starter default",
+    "floor": false
+   }
+  },
+  "chartjs-tuned": {
+   "outcome": "ok",
+   "reason": null,
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "describe": [
+    {
+     "reads": "Chart.js chart.scales.x/y.{min,max}; held points per dataset; meta.data.length",
+     "x": [
+      1767225600000,
+      1777507200000
+     ],
+     "y": [
+      90,
+      190
+     ],
+     "series": [
+      {
+       "points": 120,
+       "oldestX": 1767225600000,
+       "newestX": 1777507200000,
+       "missing": 0,
+       "drawnPoints": 120
+      },
+      {
+       "points": 120,
+       "oldestX": 1767225600000,
+       "newestX": 1777507200000,
+       "missing": 0,
+       "drawnPoints": 120
+      },
+      {
+       "points": 120,
+       "oldestX": 1767225600000,
+       "newestX": 1777507200000,
+       "missing": 0,
+       "drawnPoints": 120
+      }
+     ]
+    }
+   ],
+   "adapter": {
+    "id": "chartjs-tuned",
+    "library": "Chart.js",
+    "version": "4.6.1",
+    "config": "tuned, same visible features",
+    "floor": false
+   }
+  }
+ },
+ "runs": [
+  {
+   "index": 0,
+   "phase": "admission",
+   "adapter": "chartjs",
+   "outcome": "ok",
+   "reason": null,
+   "durationMs": 2694,
+   "logs": [],
+   "pageErrors": []
+  },
+  {
+   "index": 1,
+   "phase": "admission",
+   "adapter": "chartjs-tuned",
+   "outcome": "ok",
+   "reason": null,
+   "durationMs": 1652,
+   "logs": [],
+   "pageErrors": []
+  },
+  {
+   "index": 2,
+   "phase": "timed",
+   "block": 0,
+   "position": 0,
+   "config": "A",
+   "adapter": "chartjs",
+   "startedAt": "2026-11-18T01:01:57.945Z",
+   "durationMs": 2685,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "chartjs",
+     "library": "Chart.js",
+     "version": "4.6.1",
+     "config": "starter default",
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "7f8ee32c",
+    "timing": {
+     "syncMs": 29.2,
+     "readyMs": 1046.9,
+     "readyFrameMs": 1063.5,
+     "windowMs": 1565.4,
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Chart.js chart.scales.x/y.{min,max}; held points per dataset; meta.data.length",
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       90,
+       190
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.148896,
+     "ScriptDuration": 0.062150000000000004,
+     "LayoutDuration": 0.000075,
+     "RecalcStyleDuration": 0.000144,
+     "DevToolsCommandDuration": 0.000827,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0857,
+     "ThreadTime": 0.14881,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 1,
+     "JSEventListeners": 7,
+     "JSHeapUsedSize": 1805584,
+     "JSHeapTotalSize": 4980736,
+     "endNodes": 41,
+     "endJSHeapUsedSize": 3902104
+    }
+   },
+   "summary": {
+    "taskMs": 148.896,
+    "scriptMs": 62.150000000000006,
+    "layoutStyleMs": 0.21900000000000003,
+    "devtoolsMs": 0.8270000000000001,
+    "readyMs": 1046.9,
+    "readyFrameMs": 1063.5
+   }
+  },
+  {
+   "index": 3,
+   "phase": "timed",
+   "block": 0,
+   "position": 1,
+   "config": "B",
+   "adapter": "chartjs-tuned",
+   "startedAt": "2026-11-18T01:02:00.634Z",
+   "durationMs": 1637,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "chartjs-tuned",
+     "library": "Chart.js",
+     "version": "4.6.1",
+     "config": "tuned, same visible features",
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "7f8ee32c",
+    "timing": {
+     "syncMs": 19.7,
+     "readyMs": 19.7,
+     "readyFrameMs": 21,
+     "windowMs": 523.3,
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Chart.js chart.scales.x/y.{min,max}; held points per dataset; meta.data.length",
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       90,
+       190
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.022173,
+     "ScriptDuration": 0.019712,
+     "LayoutDuration": 0.000042999999999999995,
+     "RecalcStyleDuration": 0.00011499999999999998,
+     "DevToolsCommandDuration": 0.0005740000000000001,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0017289999999999996,
+     "ThreadTime": 0.022385,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 1,
+     "JSEventListeners": 7,
+     "JSHeapUsedSize": 1271368,
+     "JSHeapTotalSize": 1835008,
+     "endNodes": 41,
+     "endJSHeapUsedSize": 3397488
+    }
+   },
+   "summary": {
+    "taskMs": 22.173,
+    "scriptMs": 19.712,
+    "layoutStyleMs": 0.15799999999999997,
+    "devtoolsMs": 0.5740000000000001,
+    "readyMs": 19.7,
+    "readyFrameMs": 21
+   }
+  },
+  {
+   "index": 4,
+   "phase": "timed",
+   "block": 1,
+   "position": 0,
+   "config": "A",
+   "adapter": "chartjs",
+   "startedAt": "2026-11-18T01:02:02.276Z",
+   "durationMs": 2686,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "chartjs",
+     "library": "Chart.js",
+     "version": "4.6.1",
+     "config": "starter default",
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "7f8ee32c",
+    "timing": {
+     "syncMs": 29.6,
+     "readyMs": 1047.7,
+     "readyFrameMs": 1064.2,
+     "windowMs": 1566.2,
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Chart.js chart.scales.x/y.{min,max}; held points per dataset; meta.data.length",
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       90,
+       190
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.155098,
+     "ScriptDuration": 0.064766,
+     "LayoutDuration": 0.00004599999999999999,
+     "RecalcStyleDuration": 0.000141,
+     "DevToolsCommandDuration": 0.000555,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.08959,
+     "ThreadTime": 0.151912,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 1,
+     "JSEventListeners": 7,
+     "JSHeapUsedSize": 1850472,
+     "JSHeapTotalSize": 4980736,
+     "endNodes": 41,
+     "endJSHeapUsedSize": 3955376
+    }
+   },
+   "summary": {
+    "taskMs": 155.098,
+    "scriptMs": 64.766,
+    "layoutStyleMs": 0.187,
+    "devtoolsMs": 0.555,
+    "readyMs": 1047.7,
+    "readyFrameMs": 1064.2
+   }
+  },
+  {
+   "index": 5,
+   "phase": "timed",
+   "block": 1,
+   "position": 1,
+   "config": "B",
+   "adapter": "chartjs-tuned",
+   "startedAt": "2026-11-18T01:02:04.967Z",
+   "durationMs": 1652,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "chartjs-tuned",
+     "library": "Chart.js",
+     "version": "4.6.1",
+     "config": "tuned, same visible features",
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "7f8ee32c",
+    "timing": {
+     "syncMs": 19.8,
+     "readyMs": 19.8,
+     "readyFrameMs": 21.2,
+     "windowMs": 523.1,
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Chart.js chart.scales.x/y.{min,max}; held points per dataset; meta.data.length",
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       90,
+       190
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.022468,
+     "ScriptDuration": 0.01994,
+     "LayoutDuration": 0.00004599999999999999,
+     "RecalcStyleDuration": 0.00011500000000000003,
+     "DevToolsCommandDuration": 0.000563,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0018039999999999983,
+     "ThreadTime": 0.022722999999999997,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 1,
+     "JSEventListeners": 7,
+     "JSHeapUsedSize": 1287824,
+     "JSHeapTotalSize": 1835008,
+     "endNodes": 41,
+     "endJSHeapUsedSize": 3390364
+    }
+   },
+   "summary": {
+    "taskMs": 22.468,
+    "scriptMs": 19.939999999999998,
+    "layoutStyleMs": 0.16100000000000003,
+    "devtoolsMs": 0.5630000000000001,
+    "readyMs": 19.8,
+    "readyFrameMs": 21.2
+   }
+  },
+  {
+   "index": 6,
+   "phase": "timed",
+   "block": 2,
+   "position": 0,
+   "config": "A",
+   "adapter": "chartjs",
+   "startedAt": "2026-11-18T01:02:06.625Z",
+   "durationMs": 2688,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "chartjs",
+     "library": "Chart.js",
+     "version": "4.6.1",
+     "config": "starter default",
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "7f8ee32c",
+    "timing": {
+     "syncMs": 22.8,
+     "readyMs": 1047.5,
+     "readyFrameMs": 1064.1,
+     "windowMs": 1566.5,
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Chart.js chart.scales.x/y.{min,max}; held points per dataset; meta.data.length",
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       90,
+       190
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.146503,
+     "ScriptDuration": 0.056219,
+     "LayoutDuration": 0.000047000000000000004,
+     "RecalcStyleDuration": 0.00013000000000000002,
+     "DevToolsCommandDuration": 0.00054,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.089567,
+     "ThreadTime": 0.147617,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 1,
+     "JSEventListeners": 7,
+     "JSHeapUsedSize": 1851168,
+     "JSHeapTotalSize": 4980736,
+     "endNodes": 41,
+     "endJSHeapUsedSize": 3956000
+    }
+   },
+   "summary": {
+    "taskMs": 146.503,
+    "scriptMs": 56.219,
+    "layoutStyleMs": 0.17700000000000002,
+    "devtoolsMs": 0.54,
+    "readyMs": 1047.5,
+    "readyFrameMs": 1064.1
+   }
+  },
+  {
+   "index": 7,
+   "phase": "timed",
+   "block": 2,
+   "position": 1,
+   "config": "B",
+   "adapter": "chartjs-tuned",
+   "startedAt": "2026-11-18T01:02:09.318Z",
+   "durationMs": 1643,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "chartjs-tuned",
+     "library": "Chart.js",
+     "version": "4.6.1",
+     "config": "tuned, same visible features",
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "7f8ee32c",
+    "timing": {
+     "syncMs": 28.2,
+     "readyMs": 28.2,
+     "readyFrameMs": 29.5,
+     "windowMs": 531.3,
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Chart.js chart.scales.x/y.{min,max}; held points per dataset; meta.data.length",
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       90,
+       190
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.031122000000000004,
+     "ScriptDuration": 0.028244000000000002,
+     "LayoutDuration": 0.000086,
+     "RecalcStyleDuration": 0.000156,
+     "DevToolsCommandDuration": 0.000837,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0017990000000000003,
+     "ThreadTime": 0.03108,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 1,
+     "JSEventListeners": 7,
+     "JSHeapUsedSize": 1273196,
+     "JSHeapTotalSize": 1835008,
+     "endNodes": 41,
+     "endJSHeapUsedSize": 3418080
+    }
+   },
+   "summary": {
+    "taskMs": 31.122000000000003,
+    "scriptMs": 28.244000000000003,
+    "layoutStyleMs": 0.242,
+    "devtoolsMs": 0.837,
+    "readyMs": 28.2,
+    "readyFrameMs": 29.5
+   }
+  },
+  {
+   "index": 8,
+   "phase": "timed",
+   "block": 3,
+   "position": 0,
+   "config": "B",
+   "adapter": "chartjs-tuned",
+   "startedAt": "2026-11-18T01:02:10.965Z",
+   "durationMs": 1635,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "chartjs-tuned",
+     "library": "Chart.js",
+     "version": "4.6.1",
+     "config": "tuned, same visible features",
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "7f8ee32c",
+    "timing": {
+     "syncMs": 18.9,
+     "readyMs": 18.9,
+     "readyFrameMs": 20.2,
+     "windowMs": 521.5,
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Chart.js chart.scales.x/y.{min,max}; held points per dataset; meta.data.length",
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       90,
+       190
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.021223,
+     "ScriptDuration": 0.019019,
+     "LayoutDuration": 0.000044,
+     "RecalcStyleDuration": 0.000114,
+     "DevToolsCommandDuration": 0.000567,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0014790000000000011,
+     "ThreadTime": 0.021796999999999997,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 1,
+     "JSEventListeners": 7,
+     "JSHeapUsedSize": 1324728,
+     "JSHeapTotalSize": 2097152,
+     "endNodes": 41,
+     "endJSHeapUsedSize": 3427172
+    }
+   },
+   "summary": {
+    "taskMs": 21.223,
+    "scriptMs": 19.019000000000002,
+    "layoutStyleMs": 0.158,
+    "devtoolsMs": 0.5670000000000001,
+    "readyMs": 18.9,
+    "readyFrameMs": 20.2
+   }
+  },
+  {
+   "index": 9,
+   "phase": "timed",
+   "block": 3,
+   "position": 1,
+   "config": "A",
+   "adapter": "chartjs",
+   "startedAt": "2026-11-18T01:02:12.604Z",
+   "durationMs": 2674,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "chartjs",
+     "library": "Chart.js",
+     "version": "4.6.1",
+     "config": "starter default",
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "7f8ee32c",
+    "timing": {
+     "syncMs": 22.7,
+     "readyMs": 1051.7,
+     "readyFrameMs": 1064,
+     "windowMs": 1566,
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Chart.js chart.scales.x/y.{min,max}; held points per dataset; meta.data.length",
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       90,
+       190
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.142441,
+     "ScriptDuration": 0.051160000000000004,
+     "LayoutDuration": 0.000042,
+     "RecalcStyleDuration": 0.00011399999999999998,
+     "DevToolsCommandDuration": 0.000535,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.09059,
+     "ThreadTime": 0.134674,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 1,
+     "JSEventListeners": 7,
+     "JSHeapUsedSize": 1884352,
+     "JSHeapTotalSize": 5242880,
+     "endNodes": 41,
+     "endJSHeapUsedSize": 3960592
+    }
+   },
+   "summary": {
+    "taskMs": 142.441,
+    "scriptMs": 51.160000000000004,
+    "layoutStyleMs": 0.15599999999999997,
+    "devtoolsMs": 0.535,
+    "readyMs": 1051.7,
+    "readyFrameMs": 1064
+   }
+  },
+  {
+   "index": 10,
+   "phase": "timed",
+   "block": 4,
+   "position": 0,
+   "config": "B",
+   "adapter": "chartjs-tuned",
+   "startedAt": "2026-11-18T01:02:15.282Z",
+   "durationMs": 1633,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "chartjs-tuned",
+     "library": "Chart.js",
+     "version": "4.6.1",
+     "config": "tuned, same visible features",
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "7f8ee32c",
+    "timing": {
+     "syncMs": 19.4,
+     "readyMs": 19.4,
+     "readyFrameMs": 20.7,
+     "windowMs": 521.9,
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Chart.js chart.scales.x/y.{min,max}; held points per dataset; meta.data.length",
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       90,
+       190
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.021596999999999998,
+     "ScriptDuration": 0.019347,
+     "LayoutDuration": 0.000043,
+     "RecalcStyleDuration": 0.000126,
+     "DevToolsCommandDuration": 0.000561,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0015199999999999988,
+     "ThreadTime": 0.022112999999999997,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 1,
+     "JSEventListeners": 7,
+     "JSHeapUsedSize": 1316884,
+     "JSHeapTotalSize": 1835008,
+     "endNodes": 41,
+     "endJSHeapUsedSize": 3422028
+    }
+   },
+   "summary": {
+    "taskMs": 21.596999999999998,
+    "scriptMs": 19.347,
+    "layoutStyleMs": 0.169,
+    "devtoolsMs": 0.5609999999999999,
+    "readyMs": 19.4,
+    "readyFrameMs": 20.7
+   }
+  },
+  {
+   "index": 11,
+   "phase": "timed",
+   "block": 4,
+   "position": 1,
+   "config": "A",
+   "adapter": "chartjs",
+   "startedAt": "2026-11-18T01:02:16.919Z",
+   "durationMs": 2675,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "chartjs",
+     "library": "Chart.js",
+     "version": "4.6.1",
+     "config": "starter default",
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "7f8ee32c",
+    "timing": {
+     "syncMs": 30.5,
+     "readyMs": 1047.2,
+     "readyFrameMs": 1063.7,
+     "windowMs": 1565.2,
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Chart.js chart.scales.x/y.{min,max}; held points per dataset; meta.data.length",
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       90,
+       190
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.135096,
+     "ScriptDuration": 0.05695600000000001,
+     "LayoutDuration": 0.00007300000000000001,
+     "RecalcStyleDuration": 0.00018800000000000002,
+     "DevToolsCommandDuration": 0.000856,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.077023,
+     "ThreadTime": 0.134903,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 1,
+     "JSEventListeners": 7,
+     "JSHeapUsedSize": 1836420,
+     "JSHeapTotalSize": 4980736,
+     "endNodes": 41,
+     "endJSHeapUsedSize": 3955148
+    }
+   },
+   "summary": {
+    "taskMs": 135.096,
+    "scriptMs": 56.956,
+    "layoutStyleMs": 0.261,
+    "devtoolsMs": 0.856,
+    "readyMs": 1047.2,
+    "readyFrameMs": 1063.7
+   }
+  },
+  {
+   "index": 12,
+   "phase": "timed",
+   "block": 5,
+   "position": 0,
+   "config": "B",
+   "adapter": "chartjs-tuned",
+   "startedAt": "2026-11-18T01:02:19.598Z",
+   "durationMs": 1636,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "chartjs-tuned",
+     "library": "Chart.js",
+     "version": "4.6.1",
+     "config": "tuned, same visible features",
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "7f8ee32c",
+    "timing": {
+     "syncMs": 19.3,
+     "readyMs": 19.3,
+     "readyFrameMs": 20.5,
+     "windowMs": 522.1,
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Chart.js chart.scales.x/y.{min,max}; held points per dataset; meta.data.length",
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       90,
+       190
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.021623999999999997,
+     "ScriptDuration": 0.01935,
+     "LayoutDuration": 0.00004600000000000001,
+     "RecalcStyleDuration": 0.00011599999999999997,
+     "DevToolsCommandDuration": 0.000536,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0015759999999999993,
+     "ThreadTime": 0.022035000000000003,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 1,
+     "JSEventListeners": 7,
+     "JSHeapUsedSize": 1308124,
+     "JSHeapTotalSize": 2097152,
+     "endNodes": 41,
+     "endJSHeapUsedSize": 3424756
+    }
+   },
+   "summary": {
+    "taskMs": 21.624,
+    "scriptMs": 19.349999999999998,
+    "layoutStyleMs": 0.16199999999999998,
+    "devtoolsMs": 0.536,
+    "readyMs": 19.3,
+    "readyFrameMs": 20.5
+   }
+  },
+  {
+   "index": 13,
+   "phase": "timed",
+   "block": 5,
+   "position": 1,
+   "config": "A",
+   "adapter": "chartjs",
+   "startedAt": "2026-11-18T01:02:21.238Z",
+   "durationMs": 2689,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "chartjs",
+     "library": "Chart.js",
+     "version": "4.6.1",
+     "config": "starter default",
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "7f8ee32c",
+    "timing": {
+     "syncMs": 26,
+     "readyMs": 1046.9,
+     "readyFrameMs": 1063.4,
+     "windowMs": 1565.3,
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Chart.js chart.scales.x/y.{min,max}; held points per dataset; meta.data.length",
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       90,
+       190
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawnPoints": 120
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.13889900000000002,
+     "ScriptDuration": 0.058655,
+     "LayoutDuration": 0.00007500000000000001,
+     "RecalcStyleDuration": 0.000123,
+     "DevToolsCommandDuration": 0.000794,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.079252,
+     "ThreadTime": 0.13891,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 1,
+     "JSEventListeners": 7,
+     "JSHeapUsedSize": 1856224,
+     "JSHeapTotalSize": 4980736,
+     "endNodes": 41,
+     "endJSHeapUsedSize": 3960028
+    }
+   },
+   "summary": {
+    "taskMs": 138.89900000000003,
+    "scriptMs": 58.655,
+    "layoutStyleMs": 0.198,
+    "devtoolsMs": 0.794,
+    "readyMs": 1046.9,
+    "readyFrameMs": 1063.4
+   }
+  }
+ ],
+ "analysis": {
+  "completePairs": 6,
+  "blocks": 6,
+  "outcomes": {
+   "A:ok": 6,
+   "B:ok": 6
+  },
+  "metrics": {
+   "taskMs": {
+    "key": "taskMs",
+    "unit": "ms",
+    "primary": true,
+    "what": "main-thread TaskDuration from the create call to settle window end",
+    "pairs": 6,
+    "medianA": 144.47199999999998,
+    "medianB": 21.8985,
+    "diff": -122.57349999999998,
+    "lo": -129.5326875,
+    "hi": -115.387,
+    "relative": -0.8484239160529375,
+    "blockDiffs": [
+     -126.72299999999998,
+     -132.63000000000002,
+     -115.38099999999999,
+     -121.218,
+     -113.49900000000001,
+     -117.27500000000003
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "better"
+   },
+   "scriptMs": {
+    "key": "scriptMs",
+    "unit": "ms",
+    "what": "ScriptDuration in the same window",
+    "pairs": 6,
+    "medianA": 57.8055,
+    "medianB": 19.531,
+    "diff": -38.2745,
+    "lo": -43.52085,
+    "hi": -32.141000000000005,
+    "relative": -0.6621255762859936,
+    "blockDiffs": [
+     -42.438,
+     -44.82600000000001,
+     -27.974999999999998,
+     -32.141000000000005,
+     -37.609,
+     -39.30500000000001
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "better"
+   },
+   "layoutStyleMs": {
+    "key": "layoutStyleMs",
+    "unit": "ms",
+    "what": "LayoutDuration + RecalcStyleDuration in the same window",
+    "pairs": 6,
+    "medianA": 0.1925,
+    "medianB": 0.1615,
+    "diff": -0.031,
+    "lo": -0.07100000000000001,
+    "hi": 0.024999999999999967,
+    "relative": -0.16103896103896104,
+    "blockDiffs": [
+     -0.061000000000000054,
+     -0.025999999999999968,
+     0.06499999999999997,
+     0.0020000000000000295,
+     -0.092,
+     -0.03600000000000003
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive"
+   },
+   "readyMs": {
+    "key": "readyMs",
+    "unit": "ms",
+    "what": "wall clock from create call to the adapter's ready signal",
+    "pairs": 6,
+    "medianA": 1047.35,
+    "medianB": 19.549999999999997,
+    "diff": -1027.8,
+    "lo": -1030.55,
+    "hi": -1023.5,
+    "relative": -0.9813338425550199,
+    "blockDiffs": [
+     -1027.2,
+     -1027.9,
+     -1019.3,
+     -1032.8,
+     -1027.8,
+     -1027.6000000000001
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "better"
+   },
+   "readyFrameMs": {
+    "key": "readyFrameMs",
+    "unit": "ms",
+    "what": "wall clock to the first animation frame after ready",
+    "pairs": 6,
+    "medianA": 1063.85,
+    "medianB": 20.85,
+    "diff": -1043,
+    "lo": -1043.65,
+    "hi": -1038.75,
+    "relative": -0.980401372373925,
+    "blockDiffs": [
+     -1042.5,
+     -1043,
+     -1034.6,
+     -1043.8,
+     -1043,
+     -1042.9
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "better"
+   }
+  }
+ },
+ "endedBecause": "all blocks run",
+ "finishedAt": "2026-11-18T01:02:23.957Z"
+}

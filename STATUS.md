@@ -27,10 +27,11 @@ Observed model and effort are read from harness metadata when a package finishes
 | Package | Owner (requested → observed) | Files | State |
 |---|---|---|---|
 | Contracts review | Codex gpt-6.2-sol max → gpt-6.2-sol, max | read-only | Done; 14 findings, most accepted in simplified form (see commit 2047383) |
-| Scales, ticks, time zones, formatting | Claude Opus 5.5 high → pending | `src/scale`, `src/format`, tests | Running |
-| Benchmark harness, first version | Claude Opus 5.5 high → pending | `bench/` | Running |
+| Scales, ticks, time zones, formatting | Claude Opus 5.5 high → claude-opus-5-5, high | `src/scale`, `src/format`, tests | Done and committed (93 tests pass, verified by coordinator). Cross-review by Codex gpt-6.2-astra xhigh running: `wp/scale.review.md` |
+| Benchmark harness, first version | Claude Opus 5.5 high → claude-opus-5-5 (effort to confirm from transcript) | `bench/` | Done and committed (17 harness tests pass, verified by coordinator). Reproduces uPlot and Chart.js with a noise band. Not yet cross-reviewed. Needs a readiness and readback hook in Axylo benchmark builds before Axylo can be admitted |
 | Data layer and diagnostics | Codex gpt-6.2-sol xhigh → pending | `src/data`, `src/diagnostics`, tests | Running |
 | Layout and drawing simplification | Codex gpt-6.2-sol xhigh → pending | `src/layout`, `src/simplify`, tests | Running |
+| Canvas and SVG renderers, text layer, theme | Claude Opus 5.5 high → pending | `src/render`, `src/theme`, tests | Running |
 
 Briefs and reports: `reviews/2026-11-18/impl/wp/`.
 

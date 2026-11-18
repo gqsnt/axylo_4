@@ -1,0 +1,737 @@
+{
+ "schema": "axylo-bench/1",
+ "runId": "20261118T010734Z-first-1x1000000-uplot-vs-chartjs-tuned-14b1",
+ "status": "complete",
+ "startedAt": "2026-11-18T01:07:34.212Z",
+ "command": [
+  "--no-build",
+  "--baseline",
+  "uplot",
+  "--candidate",
+  "chartjs-tuned",
+  "--workload",
+  "first",
+  "--size",
+  "1x1000000",
+  "--blocks",
+  "2"
+ ],
+ "design": {
+  "mode": "compare",
+  "baseline": "uplot",
+  "candidate": "chartjs-tuned",
+  "labels": {
+   "A": "uplot",
+   "B": "chartjs-tuned"
+  },
+  "workload": "first",
+  "params": {
+   "size": "1x1000000",
+   "gaps": false
+  },
+  "blocks": 2,
+  "order": [
+   "AB",
+   "BA"
+  ],
+  "seed": 2066244701,
+  "settleMs": 500,
+  "timeoutMs": 120000,
+  "dpr": 1,
+  "viewport": [
+   1440,
+   900
+  ],
+  "noiseFrom": null
+ },
+ "environment": {
+  "browser": {
+   "name": "Google Chrome (system, via Playwright channel \"chrome\")",
+   "version": "157.0.8103.78",
+   "headless": true
+  },
+  "playwright": "1.65.1",
+  "node": "v24.21.0",
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13600K",
+   "logicalCores": 20,
+   "governor": "powersave"
+  },
+  "memoryGiB": 30.4,
+  "os": {
+   "type": "Linux",
+   "release": "7.0.0-43-generic",
+   "name": "Ubuntu 26.04.1 LTS",
+   "arch": "x64"
+  },
+  "loadAverageAtStart": [
+   4.33,
+   4.43,
+   3.25
+  ],
+  "hostIdle": "not controlled: other processes (including other agents) may run on this machine during the session",
+  "power": "not available: power settings are not read by this harness",
+  "commit": "3e61e01ebf43c721d1663954d2ba51d512982464",
+  "lockfiles": {
+   "bench/package-lock.json": "87ad92c82a0a5d9e66bf9b8b2b40cb453a79e350a5bdcc80c5718adcd6a1156f",
+   "package-lock.json": "e98151ca9f4f8d9aa1b6dd7e828f8e5024fbbf43a752a754d1a469a5850af392"
+  },
+  "axyloBundle": {
+   "file": "packages/axylo/dist/axylo.iife.js",
+   "sha256": "a1d84832bff9a055a8e657d7787eca00538af60d5e1d688c92c6e178ea5f3e2f",
+   "note": "scripts/build.mjs builds this file with __DEV__=true; the production script-tag build is axylo.iife.min.js"
+  },
+  "libraries": {
+   "uplot": "1.6.32",
+   "chart.js": "4.6.1",
+   "chartjs-adapter-date-fns": "3.0.0",
+   "date-fns": "4.4.0",
+   "axylo": "0.0.0"
+  },
+  "page": {
+   "devicePixelRatio": 1,
+   "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+   "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+   "viewport": [
+    1440,
+    900
+   ],
+   "hardwareConcurrency": 20,
+   "refresh": {
+    "medianIntervalMs": 16.7,
+    "hz": 59.88,
+    "minMs": 16.6,
+    "maxMs": 216.7
+   }
+  },
+  "loadAverageAtEnd": [
+   3.97,
+   4.34,
+   3.24
+  ]
+ },
+ "hashes": {
+  "fixtureChecksum": "03457f44",
+  "page": {
+   "page.js": "62184ab8e61e8198ce89746bd4d167a16369b21faa500acafd99d73f6bff2072",
+   "index.html": "f178dfe33924dbd4488e5ba35b85bacb513f5a0b0bf7942719743954ce76c08a"
+  },
+  "adapters": {
+   "uplot": {
+    "sha256": "fff2d15906bb0a06df360dbd6b5cc3dd8828b0ab9758964c1094bbd27b48cf76",
+    "test": false
+   },
+   "chartjs-tuned": {
+    "sha256": "80f4edfc8f9aa9947d25c7f0ad3cf1b9b7b76dcc0d7c3506573d87c93e83ad68",
+    "test": false
+   }
+  }
+ },
+ "admission": {
+  "uplot": {
+   "outcome": "ok",
+   "reason": null,
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "describe": [
+    {
+     "reads": "uPlot u.scales.x/y.{min,max}; u.data[0] length and ends; null count in u.data[s]",
+     "x": [
+      1767225600000,
+      1827225540000
+     ],
+     "y": [
+      -600,
+      1000
+     ],
+     "series": [
+      {
+       "points": 1000000,
+       "oldestX": 1767225600000,
+       "newestX": 1827225540000,
+       "missing": 0
+      }
+     ]
+    }
+   ],
+   "adapter": {
+    "id": "uplot",
+    "library": "uPlot",
+    "version": "1.6.32",
+    "config": "default",
+    "floor": false
+   }
+  },
+  "chartjs-tuned": {
+   "outcome": "ok",
+   "reason": null,
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "describe": [
+    {
+     "reads": "Chart.js chart.scales.x/y.{min,max}; held points per dataset; meta.data.length",
+     "x": [
+      1767225600000,
+      1827225540000
+     ],
+     "y": [
+      -600,
+      800
+     ],
+     "series": [
+      {
+       "points": 1000000,
+       "oldestX": 1767225600000,
+       "newestX": 1827225540000,
+       "missing": 0,
+       "drawnPoints": 3153
+      }
+     ]
+    }
+   ],
+   "adapter": {
+    "id": "chartjs-tuned",
+    "library": "Chart.js",
+    "version": "4.6.1",
+    "config": "tuned, same visible features",
+    "floor": false
+   }
+  }
+ },
+ "runs": [
+  {
+   "index": 0,
+   "phase": "admission",
+   "adapter": "uplot",
+   "outcome": "ok",
+   "reason": null,
+   "durationMs": 1851,
+   "logs": [],
+   "pageErrors": []
+  },
+  {
+   "index": 1,
+   "phase": "admission",
+   "adapter": "chartjs-tuned",
+   "outcome": "ok",
+   "reason": null,
+   "durationMs": 1947,
+   "logs": [],
+   "pageErrors": []
+  },
+  {
+   "index": 2,
+   "phase": "timed",
+   "block": 0,
+   "position": 0,
+   "config": "A",
+   "adapter": "uplot",
+   "startedAt": "2026-11-18T01:07:38.165Z",
+   "durationMs": 1920,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "uplot",
+     "library": "uPlot",
+     "version": "1.6.32",
+     "config": "default",
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 266.7
+     }
+    },
+    "checksum": "03457f44",
+    "timing": {
+     "syncMs": 3.6,
+     "readyMs": 16.5,
+     "readyFrameMs": 17.1,
+     "windowMs": 519,
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "uPlot u.scales.x/y.{min,max}; u.data[0] length and ends; null count in u.data[s]",
+      "x": [
+       1767225600000,
+       1827225540000
+      ],
+      "y": [
+       -600,
+       1000
+      ],
+      "series": [
+       {
+        "points": 1000000,
+        "oldestX": 1767225600000,
+        "newestX": 1827225540000,
+        "missing": 0
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.01932900000000004,
+     "ScriptDuration": 0.016319999999999998,
+     "LayoutDuration": 0.000702,
+     "RecalcStyleDuration": 0.00023899999999999995,
+     "DevToolsCommandDuration": 0.0007779999999999999,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0012900000000000134,
+     "ThreadTime": 0.019255999999999995,
+     "LayoutCount": 2,
+     "RecalcStyleCount": 2,
+     "Nodes": 29,
+     "JSEventListeners": 9,
+     "JSHeapUsedSize": 747348,
+     "JSHeapTotalSize": 786432,
+     "endNodes": 71,
+     "endJSHeapUsedSize": 2519464
+    }
+   },
+   "summary": {
+    "taskMs": 19.32900000000004,
+    "scriptMs": 16.319999999999997,
+    "layoutStyleMs": 0.9410000000000001,
+    "devtoolsMs": 0.7779999999999999,
+    "readyMs": 16.5,
+    "readyFrameMs": 17.1
+   }
+  },
+  {
+   "index": 3,
+   "phase": "timed",
+   "block": 0,
+   "position": 1,
+   "config": "B",
+   "adapter": "chartjs-tuned",
+   "startedAt": "2026-11-18T01:07:40.090Z",
+   "durationMs": 1898,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "chartjs-tuned",
+     "library": "Chart.js",
+     "version": "4.6.1",
+     "config": "tuned, same visible features",
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 0,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "03457f44",
+    "timing": {
+     "syncMs": 61.7,
+     "readyMs": 61.7,
+     "readyFrameMs": 65.7,
+     "windowMs": 567.5,
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Chart.js chart.scales.x/y.{min,max}; held points per dataset; meta.data.length",
+      "x": [
+       1767225600000,
+       1827225540000
+      ],
+      "y": [
+       -600,
+       800
+      ],
+      "series": [
+       {
+        "points": 1000000,
+        "oldestX": 1767225600000,
+        "newestX": 1827225540000,
+        "missing": 0,
+        "drawnPoints": 3153
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.06467900000000001,
+     "ScriptDuration": 0.061798000000000006,
+     "LayoutDuration": 0.000049,
+     "RecalcStyleDuration": 0.00008299999999999998,
+     "DevToolsCommandDuration": 0.000862,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0018869999999999998,
+     "ThreadTime": 0.05614299999999997,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 1,
+     "JSEventListeners": 7,
+     "JSHeapUsedSize": 59226372,
+     "JSHeapTotalSize": 66129920,
+     "endNodes": 41,
+     "endJSHeapUsedSize": 61605704
+    }
+   },
+   "summary": {
+    "taskMs": 64.67900000000002,
+    "scriptMs": 61.79800000000001,
+    "layoutStyleMs": 0.132,
+    "devtoolsMs": 0.862,
+    "readyMs": 61.7,
+    "readyFrameMs": 65.7
+   }
+  },
+  {
+   "index": 4,
+   "phase": "timed",
+   "block": 1,
+   "position": 0,
+   "config": "B",
+   "adapter": "chartjs-tuned",
+   "startedAt": "2026-11-18T01:07:41.993Z",
+   "durationMs": 1895,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "chartjs-tuned",
+     "library": "Chart.js",
+     "version": "4.6.1",
+     "config": "tuned, same visible features",
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 0,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "03457f44",
+    "timing": {
+     "syncMs": 62.5,
+     "readyMs": 62.5,
+     "readyFrameMs": 66.5,
+     "windowMs": 567.9,
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Chart.js chart.scales.x/y.{min,max}; held points per dataset; meta.data.length",
+      "x": [
+       1767225600000,
+       1827225540000
+      ],
+      "y": [
+       -600,
+       800
+      ],
+      "series": [
+       {
+        "points": 1000000,
+        "oldestX": 1767225600000,
+        "newestX": 1827225540000,
+        "missing": 0,
+        "drawnPoints": 3153
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.06506900000000002,
+     "ScriptDuration": 0.06261900000000001,
+     "LayoutDuration": 0.00004699999999999999,
+     "RecalcStyleDuration": 0.00008399999999999998,
+     "DevToolsCommandDuration": 0.00056,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0017590000000000106,
+     "ThreadTime": 0.053873000000000004,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 1,
+     "JSEventListeners": 7,
+     "JSHeapUsedSize": 59694196,
+     "JSHeapTotalSize": 66392064,
+     "endNodes": 41,
+     "endJSHeapUsedSize": 62085684
+    }
+   },
+   "summary": {
+    "taskMs": 65.06900000000002,
+    "scriptMs": 62.61900000000001,
+    "layoutStyleMs": 0.13099999999999998,
+    "devtoolsMs": 0.5599999999999999,
+    "readyMs": 62.5,
+    "readyFrameMs": 66.5
+   }
+  },
+  {
+   "index": 5,
+   "phase": "timed",
+   "block": 1,
+   "position": 1,
+   "config": "A",
+   "adapter": "uplot",
+   "startedAt": "2026-11-18T01:07:43.894Z",
+   "durationMs": 1826,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "uplot",
+     "library": "uPlot",
+     "version": "1.6.32",
+     "config": "default",
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 199.9
+     }
+    },
+    "checksum": "03457f44",
+    "timing": {
+     "syncMs": 3.7,
+     "readyMs": 16.4,
+     "readyFrameMs": 17.1,
+     "windowMs": 519,
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "uPlot u.scales.x/y.{min,max}; u.data[0] length and ends; null count in u.data[s]",
+      "x": [
+       1767225600000,
+       1827225540000
+      ],
+      "y": [
+       -600,
+       1000
+      ],
+      "series": [
+       {
+        "points": 1000000,
+        "oldestX": 1767225600000,
+        "newestX": 1827225540000,
+        "missing": 0
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.01934099999999997,
+     "ScriptDuration": 0.016257,
+     "LayoutDuration": 0.000692,
+     "RecalcStyleDuration": 0.000205,
+     "DevToolsCommandDuration": 0.000834,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0013530000000000209,
+     "ThreadTime": 0.019430000000000003,
+     "LayoutCount": 2,
+     "RecalcStyleCount": 2,
+     "Nodes": 29,
+     "JSEventListeners": 9,
+     "JSHeapUsedSize": 810244,
+     "JSHeapTotalSize": 1048576,
+     "endNodes": 71,
+     "endJSHeapUsedSize": 2695804
+    }
+   },
+   "summary": {
+    "taskMs": 19.34099999999997,
+    "scriptMs": 16.257,
+    "layoutStyleMs": 0.897,
+    "devtoolsMs": 0.834,
+    "readyMs": 16.4,
+    "readyFrameMs": 17.1
+   }
+  }
+ ],
+ "analysis": {
+  "completePairs": 2,
+  "blocks": 2,
+  "outcomes": {
+   "A:ok": 2,
+   "B:ok": 2
+  },
+  "metrics": {
+   "taskMs": {
+    "key": "taskMs",
+    "unit": "ms",
+    "primary": true,
+    "what": "main-thread TaskDuration from the create call to settle window end",
+    "pairs": 2,
+    "medianA": 19.335000000000004,
+    "medianB": 64.87400000000002,
+    "diff": 45.539000000000016,
+    "lo": 45.34999999999998,
+    "hi": 45.72800000000005,
+    "relative": 2.3552624773726407,
+    "blockDiffs": [
+     45.34999999999998,
+     45.72800000000005
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 2 complete pairs, fewer than 6"
+   },
+   "scriptMs": {
+    "key": "scriptMs",
+    "unit": "ms",
+    "what": "ScriptDuration in the same window",
+    "pairs": 2,
+    "medianA": 16.2885,
+    "medianB": 62.20850000000001,
+    "diff": 45.92000000000001,
+    "lo": 45.47800000000001,
+    "hi": 46.36200000000001,
+    "relative": 2.819166896890445,
+    "blockDiffs": [
+     45.47800000000001,
+     46.36200000000001
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 2 complete pairs, fewer than 6"
+   },
+   "layoutStyleMs": {
+    "key": "layoutStyleMs",
+    "unit": "ms",
+    "what": "LayoutDuration + RecalcStyleDuration in the same window",
+    "pairs": 2,
+    "medianA": 0.919,
+    "medianB": 0.1315,
+    "diff": -0.7875000000000001,
+    "lo": -0.809,
+    "hi": -0.766,
+    "relative": -0.8569096844396084,
+    "blockDiffs": [
+     -0.809,
+     -0.766
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 2 complete pairs, fewer than 6"
+   },
+   "readyMs": {
+    "key": "readyMs",
+    "unit": "ms",
+    "what": "wall clock from create call to the adapter's ready signal",
+    "pairs": 2,
+    "medianA": 16.45,
+    "medianB": 62.1,
+    "diff": 45.650000000000006,
+    "lo": 45.2,
+    "hi": 46.1,
+    "relative": 2.7750759878419458,
+    "blockDiffs": [
+     45.2,
+     46.1
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 2 complete pairs, fewer than 6"
+   },
+   "readyFrameMs": {
+    "key": "readyFrameMs",
+    "unit": "ms",
+    "what": "wall clock to the first animation frame after ready",
+    "pairs": 2,
+    "medianA": 17.1,
+    "medianB": 66.1,
+    "diff": 48.99999999999999,
+    "lo": 48.6,
+    "hi": 49.4,
+    "relative": 2.865497076023391,
+    "blockDiffs": [
+     48.6,
+     49.4
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 2 complete pairs, fewer than 6"
+   }
+  }
+ },
+ "endedBecause": "all blocks run",
+ "finishedAt": "2026-11-18T01:07:45.736Z"
+}
