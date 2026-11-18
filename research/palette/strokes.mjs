@@ -7,23 +7,34 @@
 //   core      the most covered pixel (the darkest one on white);
 //   weighted  the coverage-weighted mean of the pixels the stroke touches, bg + (Σc² / Σc)(ink − bg), which is
 //             what the eye averages when the line is too thin to resolve its edge.
-// For each, the 10th percentile and the median contrast over all columns.
+// For each, the 10th percentile and the median contrast over all columns, and how many columns have no fully covered
+// pixel. The raw channel bytes go to strokes-raw.json.gz, from which the unit test recomputes every statistic.
 //
-//   node research/palette/strokes.mjs [--out=research/palette/strokes.json]
+//   node research/palette/strokes.mjs [--out=research/palette/strokes.json] [--raw=research/palette/strokes-raw.json.gz]
+//   node research/palette/strokes.mjs --palette=research/palette/candidates/candidate-b.json \
+//     --out=research/palette/strokes-b.json --raw=research/palette/strokes-b-raw.json.gz
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { gzipSync } from 'node:zlib';
 import { chromium } from 'playwright-core';
-import { contrast, srgb, toHex } from './color.mjs';
+import { contrast, strokeStats } from './color.mjs';
 import { readThemeFile } from './theme-file.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const args = Object.fromEntries(process.argv.slice(2).map(a => a.replace(/^--/, '').split('=')).map(([k, v]) => [k, v ?? 'true']));
 const theme = readThemeFile();
+// --palette= measures a candidate's series ({ light: [8 hex], dark: [8 hex] }) on the shipped backgrounds.
+if (args.palette) {
+  if (!args.out || !args.raw) throw new Error('--palette needs --out and --raw (the defaults are the shipped record)');
+  const p = JSON.parse(fs.readFileSync(args.palette, 'utf8'));
+  for (const s of ['light', 'dark']) theme[s].series = p[s];
+}
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const page = await browser.newPage();
 await page.setContent('<!doctype html><html><body></body></html>');
+const raw = { method: 'per renderer, base64 of [count, channel bytes…] per pixel column; channel = the one with the largest ink–background difference', schemes: {} };
 const result = {
   method: 'random-walk polyline (120 points over 600 CSS px, steps up to ±9 px), stroke width 2, round joins; per pixel column, '
     + 'core = most covered pixel, weighted = coverage-weighted mean of touched pixels (coverage > 0.02); p10 and median over columns',
@@ -31,7 +42,7 @@ const result = {
 };
 
 for (const scheme of ['light', 'dark']) {
-  const t = theme[scheme], rows = [];
+  const t = theme[scheme], rows = [], rawRows = [];
   for (const color of t.series) {
     const columns = await page.evaluate(async ({ color, bg }) => {
       const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
@@ -57,29 +68,28 @@ for (const scheme of ['light', 'dark']) {
         }
         const px = g.getImageData(0, 0, c.width, c.height).data, cols = [];
         for (let x = 12 * dpr; x < (Wd - 12) * dpr; x++) {
-          const cov = [];
-          for (let yy = 0; yy < c.height; yy++) { const v = (px[(yy * c.width + x) * 4 + ch] - back[ch]) / (ink[ch] - back[ch]); if (v > 0.02) cov.push(Math.min(1, v)); }
-          cols.push(cov);
+          // Raw bytes of the deciding channel for every pixel of the column the stroke touched (coverage > 0.02).
+          const vs = [];
+          for (let yy = 0; yy < c.height; yy++) { const v = px[(yy * c.width + x) * 4 + ch]; if ((v - back[ch]) / (ink[ch] - back[ch]) > 0.02) vs.push(v); }
+          cols.push(vs);
         }
         out[via + '@' + dpr] = cols;
       }
-      return out;
+      return { ch, out };
     }, { color, bg: t.background });
-    const ink = srgb(color), bg = srgb(t.background);
-    const at = k => contrast(toHex(ink.map((v, i) => bg[i] + k * (v - bg[i]))), t.background);
-    const stats = xs => { xs.sort((a, b) => a - b); return { p10: +xs[Math.floor(xs.length * 0.1)].toFixed(2), median: +xs[Math.floor(xs.length / 2)].toFixed(2) }; };
-    const row = { color, swatch: +contrast(color, t.background).toFixed(2) };
-    for (const [k, cols] of Object.entries(columns)) {
-      const used = cols.filter(cv => cv.length);
-      row[k] = {
-        core: stats(used.map(cv => at(Math.max(...cv)))),
-        weighted: stats(used.map(cv => at(cv.reduce((a, x) => a + x * x, 0) / cv.reduce((a, x) => a + x, 0)))),
-      };
+    const row = { color, swatch: +contrast(color, t.background).toFixed(2), channel: columns.ch };
+    const rawRow = { color, channel: columns.ch };
+    for (const [k, cols] of Object.entries(columns.out)) {
+      row[k] = strokeStats(color, t.background, columns.ch, cols);
+      // Column by column: a count byte, then that many channel bytes.
+      rawRow[k] = Buffer.from(cols.flatMap(vs => [vs.length, ...vs])).toString('base64');
     }
-    rows.push(row);
+    rows.push(row); rawRows.push(rawRow);
     console.log(scheme, color, JSON.stringify(row));
   }
   result.schemes[scheme] = { background: t.background, rows };
+  raw.schemes[scheme] = { background: t.background, rows: rawRows };
 }
 await browser.close();
 fs.writeFileSync(args.out ?? path.join(here, 'strokes.json'), JSON.stringify(result, null, 1) + '\n');
+fs.writeFileSync(args.raw ?? path.join(here, 'strokes-raw.json.gz'), gzipSync(JSON.stringify(raw) + '\n', { level: 9 }));

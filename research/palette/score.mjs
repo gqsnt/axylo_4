@@ -3,11 +3,19 @@
 // (packages/axylo/test/theme/palette.test.ts) recomputes the measured fields with its own code and compares them at
 // the precision written here.
 //
-// Two browser measurements are folded in when they describe exactly the shipped colors and backgrounds, and are
-// refused otherwise: strokes.json (strokes.mjs, 2 px lines) and raster.json (raster.mjs, translucent fills).
+// Browser measurements are folded in when they describe exactly the scored colors and backgrounds, and are refused
+// otherwise: strokes.json and strokes-raw.json.gz (strokes.mjs, 2 px lines), raster.json (raster.mjs, translucent
+// fills) and preview-pixels.json (preview.mjs, the preview PNG read back).
 //
 //   node research/palette/score.mjs [--md]     (--md also prints the tables of the decision record)
+//
+// A candidate that does not ship is scored the same way from its own files, without touching palette.ts:
+//   node research/palette/score.mjs --palette=research/palette/candidates/candidate-b.json \
+//     --raster=research/palette/raster-b.json --preview=research/palette/preview-b-pixels.json \
+//     --strokes=research/palette/strokes-b.json --strokes-raw=research/palette/strokes-b-raw.json.gz \
+//     --out=research/palette/palette-b.json
 import fs from 'node:fs';
+import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { THRESHOLDS as T, TOKEN_NAMES, VISIONS, bytes, bytesToHex, checkScheme, dist, labOfBytes, lch, neighbourPairs } from './color.mjs';
@@ -15,11 +23,21 @@ import { readThemeFile } from './theme-file.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const md = process.argv.includes('--md');
+const args = Object.fromEntries(process.argv.slice(2).filter(a => a.includes('=')).map(a => a.replace(/^--/, '').split('=')));
 const theme = readThemeFile();
+// --palette: score a candidate's series against the shipped backgrounds and tokens; its browser records must then be
+// named explicitly (the defaults describe the shipped colors).
+if (args.palette) {
+  // palette.json is the shipped record the unit test reads; a candidate must never land there.
+  if (!args.out) throw new Error('--palette needs --out (palette.json is the record of the shipped palette)');
+  const p = JSON.parse(fs.readFileSync(args.palette, 'utf8'));
+  for (const s of ['light', 'dark']) theme[s].series = p[s];
+}
+const input = (key, file) => (args[key] ? path.resolve(args[key]) : args.palette ? null : path.join(here, file));
 const r3 = x => +x.toFixed(3);
 const pair1 = p => p.map(i => i + 1);
 
-/** Why a browser record does not describe the shipped palette, or null when it does. */
+/** Why a browser record does not describe the scored palette, or null when it does. */
 function mismatch(rec, name) {
   if (!rec?.schemes) return `${name}: no schemes`;
   for (const s of ['light', 'dark']) {
@@ -27,19 +45,24 @@ function mismatch(rec, name) {
     if (!r) return `${name}: no ${s} scheme`;
     if (r.background !== t.background) return `${name}: ${s} background ${r.background} is not ${t.background}`;
     const colors = r.series ?? r.rows?.map(x => x.color);
-    if (JSON.stringify(colors) !== JSON.stringify(t.series)) return `${name}: ${s} colors ${JSON.stringify(colors)} are not the shipped ${JSON.stringify(t.series)}`;
+    if (JSON.stringify(colors) !== JSON.stringify(t.series)) return `${name}: ${s} colors ${JSON.stringify(colors)} are not the scored ${JSON.stringify(t.series)}`;
   }
   return null;
 }
-const load = file => { const p = path.join(here, file); return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null; };
-const strokes = load('strokes.json'), raster = load('raster.json');
+const load = p => { if (!p || !fs.existsSync(p)) return null; const b = fs.readFileSync(p); return JSON.parse(p.endsWith('.gz') ? gunzipSync(b).toString('utf8') : b.toString('utf8')); };
+const strokes = load(input('strokes', 'strokes.json')), strokesRaw = load(input('strokes-raw', 'strokes-raw.json.gz'));
+const raster = load(input('raster', 'raster.json')), preview = load(input('preview', 'preview-pixels.json'));
 const refused = [];
-for (const [rec, name] of [[strokes, 'strokes.json'], [raster, 'raster.json']]) {
+for (const [rec, name] of [[strokes, 'strokes.json'], [strokesRaw, 'strokes-raw.json.gz'], [raster, 'raster.json'], [preview, 'preview-pixels.json']]) {
   const why = rec ? mismatch(rec, name) : `${name} missing`;
   if (why) refused.push(why);
 }
+// The preview's normal row must be the scored colors themselves, or the image is of another palette.
+if (preview && !mismatch(preview, 'preview-pixels.json')) for (const s of ['light', 'dark']) {
+  if (JSON.stringify(preview.schemes[s].normal) !== JSON.stringify(theme[s].series)) refused.push(`preview-pixels.json: ${s} normal row is not the scored colors`);
+}
 
-const record = { thresholds: T, schemes: {} };
+const record = { ...(args.palette ? { candidate: path.relative(path.resolve(here, '../..'), path.resolve(args.palette)) } : {}), thresholds: T, schemes: {} };
 for (const [name, other] of [['light', 'dark'], ['dark', 'light']]) {
   const s = theme[name], { checks, measured: m } = checkScheme(s, theme[other]);
   const pairsOf = (map, n) => Object.fromEntries(VISIONS.map(v => [v, { min: r3(map[v].min), pair: pair1(map[v].pair) }]));
@@ -70,9 +93,22 @@ for (const [name, other] of [['light', 'dark'], ['dark', 'light']]) {
       const nb = neighbourPairs(px.length).map(([i, j]) => dist(labOfBytes(bytes(px[i])), labOfBytes(bytes(px[j]))));
       return [a, { pixels: px, neighbours: nb.map(r3), min: r3(Math.min(...nb)) }];
     }))]));
-    for (const [via, byAlpha] of Object.entries(scheme.chromeRaster)) for (const [a, x] of Object.entries(byAlpha)) {
-      scheme.checks.push({ constraint: '6b', check: `min neighbour ΔE at ${+a * 100}%, Chrome ${via} pixels`, value: x.min, limit: T.composite, ok: x.min >= T.composite });
+    for (const [via, byAlpha] of Object.entries(raster.schemes[name].pixels)) for (const [a, px] of Object.entries(byAlpha)) {
+      // The limit is applied to the unrounded distance; the record keeps 3 decimals.
+      const min = Math.min(...neighbourPairs(px.length).map(([i, j]) => dist(labOfBytes(bytes(px[i])), labOfBytes(bytes(px[j])))));
+      scheme.checks.push({ constraint: '6b', check: `min neighbour ΔE at ${+a * 100}%, Chrome ${via} pixels`, value: r3(min), limit: T.composite, ok: min >= T.composite });
     }
+  }
+  if (preview && !refused.some(x => x.startsWith('preview-pixels.json'))) {
+    // The preview PNG itself: pairwise differences of the donut slices as read back from each simulated row.
+    const rows = { normal: 'normal', protanopia: 'protan', deuteranopia: 'deutan', tritanopia: 'tritan' };
+    scheme.previewImage = Object.fromEntries(Object.entries(rows).map(([row, v]) => {
+      const px = preview.schemes[name][row], labs = px.map(h => labOfBytes(bytes(h)));
+      let min = Infinity, pair = null;
+      for (let i = 0; i < 8; i++) for (let j = i + 1; j < 8; j++) { const d = dist(labs[i], labs[j]); if (d < min) { min = d; pair = [i + 1, j + 1]; } }
+      scheme.checks.push({ constraint: '2i', check: `min pairwise ΔE in the preview PNG, ${row} row`, value: r3(min), limit: T.minDelta, ok: min >= T.minDelta });
+      return [row, { pixels: px, min: r3(min), pair }];
+    }));
   }
   // Evenness of weight: OKLab lightness range of the eight and of the first three, and the largest chroma.
   const Ls = s.series.map(h => lch(h)[0]), Cs = s.series.map(h => lch(h)[1]);
@@ -98,9 +134,9 @@ for (const [name, other] of [['light', 'dark'], ['dark', 'light']]) {
   record.oneByteEdits[name] = { edits: total, stillMeetEveryCheck: pass };
 }
 
-if (strokes && !mismatch(strokes, 'strokes.json')) record.strokes = strokes;
+if (strokes && !mismatch(strokes, 'strokes.json') && strokesRaw && !mismatch(strokesRaw, 'strokes-raw.json.gz')) record.strokes = strokes;
 record.refused = refused;
-fs.writeFileSync(path.join(here, 'palette.json'), JSON.stringify(record, null, 1) + '\n');
+fs.writeFileSync(args.out ? path.resolve(args.out) : path.join(here, 'palette.json'), JSON.stringify(record, null, 1) + '\n');
 
 for (const why of refused) console.log(`not folded in: ${why}`);
 const failed = Object.values(record.schemes).flatMap(s => s.checks.filter(c => !c.ok));

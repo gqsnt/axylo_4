@@ -3,9 +3,11 @@
 // background, the way Axylo's renderers do it (2D canvas: globalAlpha; SVG: fill-opacity, rasterized by drawing
 // the SVG into a canvas), reads one interior pixel back, and records the bytes. score.mjs folds the record into
 // palette.json; the unit test checks the recorded bytes against the palette and the 0.06 neighbour limit, and
-// checks that the byte model in color.mjs (rasterFill) predicts every recorded pixel.
+// checks that the byte model in color.mjs (rasterFill) predicts every recorded pixel. --palette= measures a
+// candidate's series instead ({ light: [8 hex], dark: [8 hex] }, backgrounds from palette.ts), so a candidate can be
+// checked in Chrome without editing palette.ts.
 //
-//   node research/palette/raster.mjs [--out=research/palette/raster.json]
+//   node research/palette/raster.mjs [--out=research/palette/raster.json] [--palette=candidates/x.json]
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +17,11 @@ import { readThemeFile } from './theme-file.mjs';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const args = Object.fromEntries(process.argv.slice(2).map(a => a.replace(/^--/, '').split('=')).map(([k, v]) => [k, v ?? 'true']));
 const theme = readThemeFile();
+if (args.palette) {
+  if (!args.out) throw new Error('--palette needs --out (raster.json is the record of the shipped palette)');
+  const p = JSON.parse(fs.readFileSync(args.palette, 'utf8'));
+  for (const s of ['light', 'dark']) theme[s].series = p[s];
+}
 const ALPHAS = [0.25, 0.8];
 
 const browser = await chromium.launch({ channel: 'chrome', headless: true });

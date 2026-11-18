@@ -5,6 +5,10 @@
 // No library build needed. Writes the HTML and, with --shot, a PNG per scheme via playwright-core and system Chrome.
 //
 //   node research/palette/preview.mjs [--palette=file.json] [--out=dir] [--name=preview] [--shot]
+//   node research/palette/preview.mjs --compare=b.json --name=compare --shot     (two palettes, normal vision)
+//
+// With --shot and one palette it also writes <name>-pixels.json: the donut slice colors read back from each row of
+// the PNG, which score.mjs folds into the record.
 //
 // The palette file is { light: [8 hex], dark: [8 hex] } (a solver candidate works); without one, the colors are
 // read from packages/axylo/src/theme/palette.ts.
@@ -18,11 +22,15 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const args = Object.fromEntries(process.argv.slice(2).map(a => a.replace(/^--/, '').split('=')).map(([k, v]) => [k, v ?? 'true']));
 
 const theme = readThemeFile();
+const load = file => { const p = JSON.parse(fs.readFileSync(file, 'utf8')); return { light: p.light, dark: p.dark }; };
 let palette = { light: theme.light.series, dark: theme.dark.series };
-if (args.palette) { const p = JSON.parse(fs.readFileSync(args.palette, 'utf8')); palette = { light: p.light, dark: p.dark }; }
+if (args.palette) palette = load(args.palette);
+// --compare=b.json renders this palette and b.json one above the other, normal vision only, for a side-by-side look.
+const labels = (args.labels ?? 'shipped,candidate B').split(',');
+const sets = args.compare ? [{ label: labels[0], palette }, { label: labels[1], palette: load(args.compare) }] : [{ label: null, palette }];
 const outDir = path.resolve(args.out ?? here), name = args.name ?? 'preview';
 
-function stats(scheme) {
+function stats(scheme, palette) {
   const t = theme[scheme], cols = palette[scheme];
   return cols.map((c, i) => {
     const near = Object.fromEntries(VISIONS.map(v => {
@@ -63,10 +71,10 @@ const html = `<!doctype html>
 ${filterDefs()}
 <div id="root"></div>
 <script>
-const PALETTE = ${JSON.stringify(palette)};
+const SETS = ${JSON.stringify(sets.map(x => ({ label: x.label, palette: x.palette, stats: { light: stats('light', x.palette), dark: stats('dark', x.palette) } })))};
 const THEME = ${JSON.stringify(theme)};
-const STATS = ${JSON.stringify({ light: stats('light'), dark: stats('dark') })};
-const VISION_ROWS = [['normal', ''], ['protanopia', 'url(#f-protan)'], ['deuteranopia', 'url(#f-deutan)'], ['tritanopia', 'url(#f-tritan)'], ['grayscale', 'url(#f-gray)']];
+const ALL_ROWS = [['normal', ''], ['protanopia', 'url(#f-protan)'], ['deuteranopia', 'url(#f-deutan)'], ['tritanopia', 'url(#f-tritan)'], ['grayscale', 'url(#f-gray)']];
+const VISION_ROWS = SETS.length > 1 ? ALL_ROWS.slice(0, 1) : ALL_ROWS;
 function rng(seed) { let s = seed >>> 0; return () => { s = (s + 0x6D2B79F5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
 const W = 190, H = 120, P = 8;
 const svg = (body, t) => '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '" xmlns="http://www.w3.org/2000/svg">'
@@ -136,19 +144,23 @@ function bars(t, cols) {
 const fmt = x => x.toFixed(3);
 const root = document.getElementById('root');
 for (const scheme of (new URLSearchParams(location.search).get('scheme') || 'light,dark').split(',')) {
-  const t = THEME[scheme], cols = PALETTE[scheme], st = STATS[scheme];
+  const t = THEME[scheme];
   const ink = scheme === 'light' ? '#1d2129' : '#e6e8ec';
   const el = document.createElement('section'); el.className = 'scheme'; el.id = scheme;
   el.style.background = t.background; el.style.color = ink;
-  el.innerHTML = '<h1>' + scheme + ' scheme, background ' + t.background + '</h1>'
-    + '<div class="swatches">' + st.map((s, i) => '<div class="sw"><div class="chip" style="background:' + s.hex + '"></div><code>' + (i + 1) + ' ' + s.hex + '</code>'
-      + '<span class="meta">' + s.contrast.toFixed(2) + ':1 · nearest ' + fmt(s.near.normal.d) + ' (' + (s.near.normal.k + 1) + ')</span>'
-      + '<span class="meta">worst CVD ' + fmt(Math.min(s.near.protan.d, s.near.deutan.d, s.near.tritan.d)) + '</span></div>').join('') + '</div>'
-    + '<div class="heads"><span></span><span>3 lines, 2 px</span><span>5 lines</span><span>8 lines</span><span>3 areas, 25%</span><span>8 stacked, 80%</span><span>donut, 8 slices</span><span>grouped bars, 6</span></div>';
-  for (const [label, filter] of VISION_ROWS) {
-    const row = document.createElement('div'); row.className = 'row';
-    row.innerHTML = '<span class="label">' + label + '</span>' + [lines(3, t, cols), lines(5, t, cols), lines(8, t, cols), overlap(t, cols), stacked(t, cols), donut(t, cols), bars(t, cols)].map(s => '<div class="cell" style="filter:' + (filter || 'none') + '">' + s + '</div>').join('');
-    el.appendChild(row);
+  el.innerHTML = '<h1>' + scheme + ' scheme, background ' + t.background + '</h1>';
+  for (const set of SETS) {
+    const cols = set.palette[scheme], st = set.stats[scheme];
+    el.insertAdjacentHTML('beforeend', (set.label ? '<h1 style="font-size:13px;margin:12px 0 6px">' + set.label + '</h1>' : '')
+      + '<div class="swatches">' + st.map((s, i) => '<div class="sw"><div class="chip" style="background:' + s.hex + '"></div><code>' + (i + 1) + ' ' + s.hex + '</code>'
+        + '<span class="meta">' + s.contrast.toFixed(2) + ':1 · nearest ' + fmt(s.near.normal.d) + ' (' + (s.near.normal.k + 1) + ')</span>'
+        + '<span class="meta">worst CVD ' + fmt(Math.min(s.near.protan.d, s.near.deutan.d, s.near.tritan.d)) + '</span></div>').join('') + '</div>'
+      + '<div class="heads"><span></span><span>3 lines, 2 px</span><span>5 lines</span><span>8 lines</span><span>3 areas, 25%</span><span>8 stacked, 80%</span><span>donut, 8 slices</span><span>grouped bars, 6</span></div>');
+    for (const [label, filter] of VISION_ROWS) {
+      const row = document.createElement('div'); row.className = 'row'; row.dataset.vision = label;
+      row.innerHTML = '<span class="label">' + label + '</span>' + [lines(3, t, cols), lines(5, t, cols), lines(8, t, cols), overlap(t, cols), stacked(t, cols), donut(t, cols), bars(t, cols)].map(s => '<div class="cell" style="filter:' + (filter || 'none') + '">' + s + '</div>').join('');
+      el.appendChild(row);
+    }
   }
   root.appendChild(el);
 }
@@ -161,6 +173,7 @@ fs.writeFileSync(htmlPath, html);
 console.log('wrote', htmlPath);
 
 if (args.shot) {
+  const pixels = { method: 'one pixel at the middle of each donut slice (radius 41.5 of the 190×120 cell), per vision row, read from the PNG', schemes: {} };
   const { chromium } = await import('playwright-core');
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   for (const scheme of ['light', 'dark']) {
@@ -168,9 +181,38 @@ if (args.shot) {
     await page.goto('file://' + htmlPath + '?scheme=' + scheme);
     const box = await page.locator('#' + scheme).boundingBox();
     const png = path.join(outDir, `${name}-${scheme}.png`);
-    await page.screenshot({ path: png, clip: box });
+    const buffer = await page.screenshot({ path: png, clip: box });
     console.log('wrote', png);
+    if (sets.length === 1) {
+      // Read back the middle of every donut slice in every row of the PNG just written, so the record can score
+      // the image itself (simulated rows included), not only the rounding model of it.
+      pixels.schemes[scheme] = await page.evaluate(async ({ b64, box }) => {
+        const values = [30, 22, 16, 12, 9, 7, 6, 5], total = values.reduce((a, v) => a + v, 0);
+        const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+        const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
+        const g = c.getContext('2d'); g.drawImage(img, 0, 0);
+        const rows = {};
+        for (const row of document.querySelectorAll('#' + box.id + ' .row')) {
+          const svg = row.querySelectorAll('.cell svg')[5], r = svg.getBoundingClientRect(), k = r.width / 190;
+          let a = -Math.PI / 2;
+          rows[row.dataset.vision] = values.map(v => {
+            const b = a + 2 * Math.PI * v / total, m = (a + b) / 2; a = b;
+            const x = Math.round(r.left - box.x + (95 + 41.5 * Math.cos(m)) * k), y = Math.round(r.top - box.y + (60 + 41.5 * Math.sin(m)) * k);
+            const d = g.getImageData(x, y, 1, 1).data;
+            return '#' + [d[0], d[1], d[2]].map(n => n.toString(16).padStart(2, '0')).join('');
+          });
+        }
+        return rows;
+      }, { b64: buffer.toString('base64'), box: { ...box, id: scheme } });
+      pixels.schemes[scheme].background = theme[scheme].background;
+      pixels.schemes[scheme].series = palette[scheme];
+    }
     await page.close();
   }
   await browser.close();
+  if (sets.length === 1) {
+    const file = path.join(outDir, `${name}-pixels.json`);
+    fs.writeFileSync(file, JSON.stringify(pixels, null, 1) + '\n');
+    console.log('wrote', file);
+  }
 }

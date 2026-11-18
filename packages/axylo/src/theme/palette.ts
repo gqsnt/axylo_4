@@ -9,7 +9,10 @@
  * research/palette/palette.json.
  *
  * The dark focus token is a near-white rather than a blue so that the first dark series can be an ordinary
- * dark-mode blue: a blue focus at that lightness left no room for one (decision 0003).
+ * dark-mode blue: with the blue focus #79a8ff kept, the bounded searches recorded in decision 0003 found no dark
+ * set whose first blue was lighter than OKLab L 0.55 (a search limit, not a proof). Under the two-tone focus ring,
+ * the focus color must reach 3:1 against the background and the background-colored surround carries the contrast
+ * against marks (decision 0003, "Focus token under a two-tone ring").
  *
  * Token colors meet spec L2 on their scheme's background: axis and focus at least 3:1, muted and reference at
  * least 4.5:1 because they are also used for text (hidden legend entries, reference labels). Grid is exempt.

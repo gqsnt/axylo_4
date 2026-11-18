@@ -20,7 +20,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const args = Object.fromEntries(process.argv.slice(2).map(a => a.replace(/^--/, '').split('=')).map(([k, v]) => [k, v ?? 'true']));
 const cfg = JSON.parse(fs.readFileSync(args.config, 'utf8'));
 const scheme = args.scheme ?? 'light';
-if (args.box !== undefined) OPTIONS.box = +args.box;   // --box=0: fills on the byte model only (what-if)
+if (args.box !== undefined) OPTIONS.box = +args.box;   // --box=1: also require fills within one byte (what-if)
+for (const [k, v] of Object.entries(cfg.solverLimits ?? {})) T[k] = v;   // the same solver margins as fit.mjs
 const tokens = { ...SCHEME_TOKENS[scheme], ...(cfg.tokens?.[scheme] ?? {}) };
 const hueClip = +(args.hueClip ?? cfg.hueClip ?? T.hueMatch - 2);
 const lightSet = args.light ? args.light.split(',') : null;

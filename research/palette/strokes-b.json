@@ -1,0 +1,864 @@
+{
+ "method": "random-walk polyline (120 points over 600 CSS px, steps up to ±9 px), stroke width 2, round joins; per pixel column, core = most covered pixel, weighted = coverage-weighted mean of touched pixels (coverage > 0.02); p10 and median over columns",
+ "chrome": "157.0.8103.78",
+ "schemes": {
+  "light": {
+   "background": "#ffffff",
+   "rows": [
+    {
+     "color": "#2b97ee",
+     "swatch": 3.1,
+     "channel": 0,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 3.1,
+       "median": 3.1
+      },
+      "weighted": {
+       "p10": 2.5,
+       "median": 2.59
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 3.1,
+       "median": 3.1
+      },
+      "weighted": {
+       "p10": 2.48,
+       "median": 2.59
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 3.1,
+       "median": 3.1
+      },
+      "weighted": {
+       "p10": 2.77,
+       "median": 2.84
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 3.1,
+       "median": 3.1
+      },
+      "weighted": {
+       "p10": 2.77,
+       "median": 2.84
+      }
+     }
+    },
+    {
+     "color": "#cf8020",
+     "swatch": 3.11,
+     "channel": 2,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 3.11,
+       "median": 3.11
+      },
+      "weighted": {
+       "p10": 2.47,
+       "median": 2.56
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 3.11,
+       "median": 3.11
+      },
+      "weighted": {
+       "p10": 2.47,
+       "median": 2.56
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 3.11,
+       "median": 3.11
+      },
+      "weighted": {
+       "p10": 2.74,
+       "median": 2.82
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 3.11,
+       "median": 3.11
+      },
+      "weighted": {
+       "p10": 2.74,
+       "median": 2.82
+      }
+     }
+    },
+    {
+     "color": "#0b6c49",
+     "swatch": 6.45,
+     "channel": 0,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 6.45,
+       "median": 6.45
+      },
+      "weighted": {
+       "p10": 4.33,
+       "median": 4.6
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 6.45,
+       "median": 6.45
+      },
+      "weighted": {
+       "p10": 4.28,
+       "median": 4.6
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 6.45,
+       "median": 6.45
+      },
+      "weighted": {
+       "p10": 5.18,
+       "median": 5.41
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 6.45,
+       "median": 6.45
+      },
+      "weighted": {
+       "p10": 5.18,
+       "median": 5.41
+      }
+     }
+    },
+    {
+     "color": "#812cc4",
+     "swatch": 6.79,
+     "channel": 1,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 6.79,
+       "median": 6.79
+      },
+      "weighted": {
+       "p10": 4.64,
+       "median": 4.98
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 6.79,
+       "median": 6.79
+      },
+      "weighted": {
+       "p10": 4.64,
+       "median": 4.98
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 6.79,
+       "median": 6.79
+      },
+      "weighted": {
+       "p10": 5.59,
+       "median": 5.82
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 6.79,
+       "median": 6.79
+      },
+      "weighted": {
+       "p10": 5.59,
+       "median": 5.82
+      }
+     }
+    },
+    {
+     "color": "#be1506",
+     "swatch": 6.36,
+     "channel": 2,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 6.36,
+       "median": 6.36
+      },
+      "weighted": {
+       "p10": 4.86,
+       "median": 5.12
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 6.36,
+       "median": 6.36
+      },
+      "weighted": {
+       "p10": 4.86,
+       "median": 5.12
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 6.36,
+       "median": 6.36
+      },
+      "weighted": {
+       "p10": 5.63,
+       "median": 5.77
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 6.36,
+       "median": 6.36
+      },
+      "weighted": {
+       "p10": 5.59,
+       "median": 5.77
+      }
+     }
+    },
+    {
+     "color": "#0380a8",
+     "swatch": 4.51,
+     "channel": 0,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 4.51,
+       "median": 4.51
+      },
+      "weighted": {
+       "p10": 3.32,
+       "median": 3.49
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 4.51,
+       "median": 4.51
+      },
+      "weighted": {
+       "p10": 3.32,
+       "median": 3.49
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 4.51,
+       "median": 4.51
+      },
+      "weighted": {
+       "p10": 3.82,
+       "median": 3.97
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 4.51,
+       "median": 4.51
+      },
+      "weighted": {
+       "p10": 3.82,
+       "median": 3.97
+      }
+     }
+    },
+    {
+     "color": "#8c1382",
+     "swatch": 8.3,
+     "channel": 1,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 8.3,
+       "median": 8.3
+      },
+      "weighted": {
+       "p10": 5.7,
+       "median": 6.07
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 8.3,
+       "median": 8.3
+      },
+      "weighted": {
+       "p10": 5.62,
+       "median": 6.07
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 8.3,
+       "median": 8.3
+      },
+      "weighted": {
+       "p10": 6.88,
+       "median": 7.16
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 8.3,
+       "median": 8.3
+      },
+      "weighted": {
+       "p10": 6.82,
+       "median": 7.16
+      }
+     }
+    },
+    {
+     "color": "#8e948f",
+     "swatch": 3.1,
+     "channel": 0,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 3.1,
+       "median": 3.1
+      },
+      "weighted": {
+       "p10": 2.42,
+       "median": 2.5
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 3.1,
+       "median": 3.1
+      },
+      "weighted": {
+       "p10": 2.42,
+       "median": 2.5
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 3.1,
+       "median": 3.1
+      },
+      "weighted": {
+       "p10": 2.7,
+       "median": 2.79
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 3.1,
+       "median": 3.1
+      },
+      "weighted": {
+       "p10": 2.7,
+       "median": 2.79
+      }
+     }
+    }
+   ]
+  },
+  "dark": {
+   "background": "#16181d",
+   "rows": [
+    {
+     "color": "#5d9afd",
+     "swatch": 6.35,
+     "channel": 2,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 6.35,
+       "median": 6.35
+      },
+      "weighted": {
+       "p10": 4.59,
+       "median": 4.84
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 6.35,
+       "median": 6.35
+      },
+      "weighted": {
+       "p10": 4.57,
+       "median": 4.83
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 6.35,
+       "median": 6.35
+      },
+      "weighted": {
+       "p10": 5.38,
+       "median": 5.58
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 6.35,
+       "median": 6.35
+      },
+      "weighted": {
+       "p10": 5.37,
+       "median": 5.58
+      }
+     }
+    },
+    {
+     "color": "#dc772f",
+     "swatch": 5.69,
+     "channel": 0,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 5.69,
+       "median": 5.69
+      },
+      "weighted": {
+       "p10": 4.13,
+       "median": 4.38
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 5.69,
+       "median": 5.69
+      },
+      "weighted": {
+       "p10": 4.13,
+       "median": 4.38
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 5.69,
+       "median": 5.69
+      },
+      "weighted": {
+       "p10": 4.8,
+       "median": 4.97
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 5.69,
+       "median": 5.69
+      },
+      "weighted": {
+       "p10": 4.8,
+       "median": 4.97
+      }
+     }
+    },
+    {
+     "color": "#ade4ba",
+     "swatch": 12.33,
+     "channel": 1,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 12.33,
+       "median": 12.33
+      },
+      "weighted": {
+       "p10": 8.5,
+       "median": 9.04
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 12.33,
+       "median": 12.33
+      },
+      "weighted": {
+       "p10": 8.41,
+       "median": 9.04
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 12.33,
+       "median": 12.33
+      },
+      "weighted": {
+       "p10": 10.2,
+       "median": 10.6
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 12.33,
+       "median": 12.33
+      },
+      "weighted": {
+       "p10": 10.2,
+       "median": 10.6
+      }
+     }
+    },
+    {
+     "color": "#9443a9",
+     "swatch": 3.07,
+     "channel": 2,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 3.07,
+       "median": 3.07
+      },
+      "weighted": {
+       "p10": 2.43,
+       "median": 2.52
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 3.07,
+       "median": 3.07
+      },
+      "weighted": {
+       "p10": 2.43,
+       "median": 2.52
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 3.07,
+       "median": 3.07
+      },
+      "weighted": {
+       "p10": 2.72,
+       "median": 2.8
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 3.07,
+       "median": 3.07
+      },
+      "weighted": {
+       "p10": 2.72,
+       "median": 2.8
+      }
+     }
+    },
+    {
+     "color": "#ba4f1f",
+     "swatch": 3.57,
+     "channel": 0,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 3.57,
+       "median": 3.57
+      },
+      "weighted": {
+       "p10": 2.76,
+       "median": 2.87
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 3.57,
+       "median": 3.57
+      },
+      "weighted": {
+       "p10": 2.74,
+       "median": 2.87
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 3.57,
+       "median": 3.57
+      },
+      "weighted": {
+       "p10": 3.11,
+       "median": 3.22
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 3.57,
+       "median": 3.57
+      },
+      "weighted": {
+       "p10": 3.09,
+       "median": 3.22
+      }
+     }
+    },
+    {
+     "color": "#38c7fe",
+     "swatch": 9.11,
+     "channel": 2,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 9.11,
+       "median": 9.11
+      },
+      "weighted": {
+       "p10": 6.37,
+       "median": 6.75
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 9.11,
+       "median": 9.11
+      },
+      "weighted": {
+       "p10": 6.37,
+       "median": 6.75
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 9.11,
+       "median": 9.11
+      },
+      "weighted": {
+       "p10": 7.54,
+       "median": 7.87
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 9.11,
+       "median": 9.11
+      },
+      "weighted": {
+       "p10": 7.54,
+       "median": 7.87
+      }
+     }
+    },
+    {
+     "color": "#d991b8",
+     "swatch": 7.35,
+     "channel": 0,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 7.35,
+       "median": 7.35
+      },
+      "weighted": {
+       "p10": 5.24,
+       "median": 5.56
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 7.35,
+       "median": 7.35
+      },
+      "weighted": {
+       "p10": 5.24,
+       "median": 5.56
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 7.35,
+       "median": 7.35
+      },
+      "weighted": {
+       "p10": 6.17,
+       "median": 6.38
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 7.35,
+       "median": 7.35
+      },
+      "weighted": {
+       "p10": 6.17,
+       "median": 6.38
+      }
+     }
+    },
+    {
+     "color": "#6d736e",
+     "swatch": 3.66,
+     "channel": 1,
+     "canvas@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 3.66,
+       "median": 3.66
+      },
+      "weighted": {
+       "p10": 2.85,
+       "median": 2.94
+      }
+     },
+     "svg@1": {
+      "columns": 576,
+      "columnsWithoutFullCoverage": 1,
+      "core": {
+       "p10": 3.66,
+       "median": 3.66
+      },
+      "weighted": {
+       "p10": 2.81,
+       "median": 2.94
+      }
+     },
+     "canvas@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 3.66,
+       "median": 3.66
+      },
+      "weighted": {
+       "p10": 3.21,
+       "median": 3.31
+      }
+     },
+     "svg@2": {
+      "columns": 1152,
+      "columnsWithoutFullCoverage": 0,
+      "core": {
+       "p10": 3.66,
+       "median": 3.66
+      },
+      "weighted": {
+       "p10": 3.21,
+       "median": 3.31
+      }
+     }
+    }
+   ]
+  }
+ }
+}

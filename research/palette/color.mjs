@@ -217,3 +217,24 @@ export function checkScheme(scheme, other) {
   for (const c of out) c.ok = c.upper ? c.value <= c.limit : c.value >= c.limit;
   return { checks: out, measured: m };
 }
+
+/**
+ * Statistics of a 2 px stroke from the raw bytes of one channel per pixel column (strokes.mjs). Coverage of a pixel
+ * is how far that channel moved from the background toward the ink, capped at 1. Per column: core = the most
+ * covered pixel, weighted = Σc² / Σc. Each is turned into a color (background + coverage × (ink − background),
+ * rounded to bytes) and its contrast; reported as the 10th percentile and the median over columns, to 2 decimals,
+ * with the number of columns and of columns without a fully covered pixel.
+ */
+export function strokeStats(inkHex, bgHex, ch, columns) {
+  const ink = srgb(inkHex), bg = srgb(bgHex), inkB = bytes(inkHex)[ch], bgB = bytes(bgHex)[ch];
+  const at = k => contrast(toHex(ink.map((v, i) => bg[i] + k * (v - bg[i]))), bgHex);
+  const used = columns.filter(vs => vs.length);
+  const cov = vs => vs.map(v => Math.min(1, (v - bgB) / (inkB - bgB)));
+  const pct = xs => { xs.sort((a, b) => a - b); return { p10: +xs[Math.floor(xs.length * 0.1)].toFixed(2), median: +xs[Math.floor(xs.length / 2)].toFixed(2) }; };
+  return {
+    columns: used.length,
+    columnsWithoutFullCoverage: used.filter(vs => !vs.some(v => v === inkB)).length,
+    core: pct(used.map(vs => at(Math.max(...cov(vs))))),
+    weighted: pct(used.map(vs => { const c = cov(vs); return at(c.reduce((a, x) => a + x * x, 0) / c.reduce((a, x) => a + x, 0)); })),
+  };
+}
