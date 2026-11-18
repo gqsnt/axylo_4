@@ -91,12 +91,17 @@ describe('tab order (spec A2): the plot, then the toolbar, then out', () => {
     expect(await closePage(page)).toEqual([]);
   });
 
-  it('the table, once open, adds its scroll region after the toolbar; focus still leaves the chart', async () => {
+  // Changed by review 2, finding 15: the open table takes the plot's place (so opening it moves nothing on the
+  // page) and the plot under it is inert, so no focus lands on something covered (WCAG 2.4.11).
+  it('the table, once open, takes the plot\'s place: the toolbar, then its scroll region; focus still leaves the chart', async () => {
     const page = await fixturePage({ css: SHOW_BUTTONS });
     await make(page, 'trend');
     await page.locator('#chart button', { hasText: 'View as table' }).click();
     const stops = await tabStops(page);
-    expect(stops.slice(0, 3)).toEqual(['proxy', expect.stringMatching(/^toolbar:/), 'table']);
+    // In document order: the table's scroll region (and its pager) where the plot was, then the toolbar.
+    expect(stops[0]).toBe('table');
+    expect(stops).toContainEqual(expect.stringMatching(/^toolbar:/));
+    expect(stops).not.toContain('proxy');
     expect(stops.at(-1)).toBe('after');
     expect(await closePage(page)).toEqual([]);
   });
@@ -214,6 +219,20 @@ describe('keyboard walk on the trend fixture (decision 0001)', () => {
     // The tooltip sits beside the mark and never over the whole ring.
     const [tip, box] = await Promise.all([page.locator('#chart .axylo-tooltip').first().boundingBox(), ring.boundingBox()]);
     expect(tip!.width * tip!.height).toBeLessThan(box!.width * box!.height / 2);
+    // And it covers none of the focused marks (review 2, finding 21: an intersection, not an area): the
+    // first day of each series, at its value, as the drawn domains place it.
+    const marks = await page.evaluate(() => {
+      const { xDomain, yDomain } = window.charts[0]!.__bench.describe();
+      const p = document.querySelector('#chart .axylo-proxy')!.getBoundingClientRect();
+      return window.fx.trend.series.map(s => ({
+        x: p.left + (window.fx.trend.t[0]! - xDomain![0]!) / (xDomain![1]! - xDomain![0]!) * p.width,
+        y: p.bottom - (s.values[0]! - yDomain![0]!) / (yDomain![1]! - yDomain![0]!) * p.height,
+      }));
+    });
+    for (const m of marks) {
+      const inside = m.x >= tip!.x - 4 && m.x <= tip!.x + tip!.width + 4 && m.y >= tip!.y - 4 && m.y <= tip!.y + tip!.height + 4;
+      expect(inside, JSON.stringify(m)).toBe(false);
+    }
     expect(await closePage(page)).toEqual([]);
   });
 });

@@ -23,12 +23,16 @@ export interface ToolbarItem {
   /** `lang` of the button ('en' for built-in text on a page in another language), or null. */
   readonly lang: string | null;
   readonly className: string;
+  /** The control can do nothing now (Zoom in at the smallest window): aria-disabled, activation ignored. */
+  readonly disabled?: boolean;
   activate(): void;
 }
 
 export interface Toolbar {
   readonly element: HTMLElement;
   render(items: readonly ToolbarItem[], label: string, lang: string | null): void;
+  /** Moves focus to the control with this key; false when there is none. */
+  focus(key: string): boolean;
   destroy(): void;
 }
 
@@ -44,6 +48,9 @@ export function createToolbar(doc: Document): Toolbar {
   const element = doc.createElement('div');
   element.className = 'axylo-toolbar';
   element.setAttribute('role', 'toolbar');
+  // Every listener of the toolbar and its buttons goes with destroy (review 2: none left on removed elements).
+  const listening = new AbortController();
+  const signal = listening.signal;
   const buttons = new Map<string, { button: HTMLButtonElement; item: ToolbarItem; signature: string }>();
   let current: string | null = null;
   let order: string[] = [];
@@ -71,10 +78,10 @@ export function createToolbar(doc: Document): Toolbar {
       default: return;
     }
     event.preventDefault();
-  });
+  }, { signal });
   element.addEventListener('focusin', (event: FocusEvent) => {
     for (const [key, { button }] of buttons) if (button === event.target) setCurrent(key);
-  });
+  }, { signal });
 
   function fill(button: HTMLButtonElement, item: ToolbarItem): void {
     const children: Node[] = [];
@@ -115,7 +122,10 @@ export function createToolbar(doc: Document): Toolbar {
         if (!entry) {
           const button = doc.createElement('button');
           button.type = 'button';
-          button.addEventListener('click', () => buttons.get(item.key)?.item.activate());
+          button.addEventListener('click', () => {
+            const current = buttons.get(item.key)?.item;
+            if (current && !current.disabled) current.activate();
+          }, { signal });
           entry = { button, item, signature: '' };
           buttons.set(item.key, entry);
         }
@@ -132,6 +142,7 @@ export function createToolbar(doc: Document): Toolbar {
         setAttr(button, 'aria-expanded', item.expanded === undefined ? null : String(item.expanded));
         setAttr(button, 'aria-controls', item.expanded ? item.controls ?? null : null);
         setAttr(button, 'lang', item.lang);
+        setAttr(button, 'aria-disabled', item.disabled ? 'true' : null);
         const place: ChildNode | null = previous ? previous.nextSibling : element.firstChild;
         if (place !== button) element.insertBefore(button, place);
         previous = button;
@@ -140,8 +151,17 @@ export function createToolbar(doc: Document): Toolbar {
       const keep = heir ?? (current !== null && keys.includes(current) ? current : keys[0] ?? null);
       setCurrent(keep);
       if (heir !== null) buttons.get(heir)!.button.focus();
+      // A reorder moves the focused button, which can drop focus: it is given back (review 2, finding 17).
+      else if (focusedKey !== null && doc.activeElement !== buttons.get(focusedKey)?.button) buttons.get(focusedKey)?.button.focus();
+    },
+    focus(key) {
+      const entry = buttons.get(key);
+      if (!entry) return false;
+      entry.button.focus();
+      return doc.activeElement === entry.button;
     },
     destroy() {
+      listening.abort();
       element.remove();
       buttons.clear();
     },

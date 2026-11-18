@@ -31,6 +31,8 @@ import { createFormatters, type FormatSpec } from '../format';
 import { buildView } from '../view';
 import { computeLayout } from '../layout';
 import { buildScene } from '../scene';
+import { drawing } from '../scene/lines';
+import { simplifyLine } from '../simplify';
 import { buildLookup } from '../lookup';
 import { buildReader } from '../reader';
 import { resolveMessages } from '../messages';
@@ -64,7 +66,16 @@ export interface BenchHook {
   describe(): {
     xDomain: Span | null;
     yDomain: Span | null;
-    series: { key: string; points: number; oldestX: number; newestX: number; missing: number }[];
+    series: {
+      key: string; points: number; oldestX: number; newestX: number; missing: number;
+      /**
+       * Line charts: the caller's row indexes of the samples the simplified drawing kept, in drawing order (spec
+       * F5), so drawn gaps and extremes can be checked index-exactly. Absent for other chart types.
+       */
+      kept?: number[];
+    }[];
+    /** The mark renderer drawing this chart. */
+    renderer: 'canvas' | 'svg';
   };
 }
 
@@ -90,7 +101,7 @@ export interface Host {
   readonly timeZone: string;
   readonly renderer: Pick<MarkRenderer, 'kind' | 'draw'>;
   readonly text: { render(texts: readonly PlacedText[]): void };
-  readonly figure: { update(model: FigureModel): boolean; announce(text: string): void };
+  readonly figure: { update(model: FigureModel): boolean; announce(text: string, lang?: string | null): void };
   readonly interaction: { prepare(state: ControlsState): boolean; commit(state: Committed | null): void; clear(): void };
   readonly measurer: TextMeasurer;
   requestFrame(callback: () => void): number;
@@ -251,6 +262,11 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
   let paused = false;
   /** While paused: the store's newest frame and its findings, accepted but not shown. */
   let held: { frame: Frame; dataDiagnostics: readonly DiagnosticInput[] } | null = null;
+  /**
+   * While paused: the caller's rows of the frame on screen, kept here so the store can retire every revision
+   * older than its newest as rows arrive; `keep` then bounds what a paused stream holds (review 2, finding 5).
+   */
+  let frozen: { frame: Frame; rows: Map<number, unknown> } | null = null;
   let epochs = 0;
   let frameRevision = 0;
   let commits = 0;
@@ -387,6 +403,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
   function accept(c: Candidate, viewed: Viewed, follow: boolean, commit: (() => void) | null): void {
     commit?.();
     options.commit(c.options);
+    if (frozen && frozen.frame !== c.frame) frozen = null;
     frameRevision = Math.max(frameRevision, c.frame.revision);
     accepted = {
       options: c.options, resolved: c.resolved, source: c.source, store: c.store, frame: c.frame,
@@ -531,7 +548,9 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       const found = [...prepared.callDiagnostics, ...viewed.found];
       rejectIfStrict(previous.options.strict === true, found, previous.name, previous.options.onDiagnostic);
       if (paused) {
+        if (!frozen || frozen.frame !== previous.frame) frozen = freeze(previous.frame);
         prepared.commit();
+        store.retire(prepared.frame.revision - 1);
         frameRevision = Math.max(frameRevision, prepared.frame.revision);
         held = { frame: prepared.frame, dataDiagnostics: prepared.diagnostics };
         accepted = { ...previous, store, dataDiagnostics: prepared.diagnostics };
@@ -540,6 +559,19 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       }
       accept(c, viewed, previous.follow && zoom !== null, prepared.commit);
     });
+  }
+
+  /** The caller's rows every slot of `frame` refers to, read once, so the frame stays addressable on its own. */
+  function freeze(frame: Frame): { frame: Frame; rows: Map<number, unknown> } {
+    const rows = new Map<number, unknown>();
+    const keep = (row: number) => { if (row >= 0 && !rows.has(row)) rows.set(row, frame.source.rowAt(row)); };
+    const each = (index: Int32Array | null, length: number) => {
+      for (let i = 0; i < length; i++) keep(index ? index[i]! : i);
+    };
+    if (frame.shape === 'aligned') for (const s of frame.series) each(s.row, frame.length);
+    else if (frame.shape === 'points') for (const s of frame.series) each(s.row, s.x.length);
+    else each(frame.row, frame.labels.length);
+    return { frame, rows };
   }
 
   /** The window moved to end at the new latest x, keeping its width; null when it cannot follow. */
@@ -835,7 +867,12 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     const caption = named ? byText.trim() || undefined : undefined;
 
     const english = englishFor(a, lang);
-    const noteLang = english('valuesNotShown') && english('valuesChanged') && english('labelsHidden');
+    // The note is English only when every sentence it shows is the built-in one (spec A10).
+    const noteLangFor = (labelsHidden: number, disclosure: { omitted: number; changed: number }): string | null => {
+      const shownKeys = [disclosure.omitted > 0 ? 'valuesNotShown' : null, disclosure.changed > 0 ? 'valuesChanged' : null,
+        labelsHidden > 0 ? 'labelsHidden' : null].filter((k): k is 'valuesNotShown' | 'valuesChanged' | 'labelsHidden' => k !== null);
+      return shownKeys.length > 0 && shownKeys.every(k => english(k)) ? 'en' : null;
+    };
     const hiddenIn = (l: Layout | undefined) => l?.kind === 'plot' ? l.fit.x.hidden + l.fit.y.hidden : 0;
     const disclosureNow = () => readerDisclosure([...stateDiagnostics(a), ...presentationList()]);
     let lastReader: { reader: ReaderModel; inputs: readonly unknown[] } | null = null;
@@ -857,7 +894,9 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       return lastReader = { reader, inputs };
     };
     /** Builds the reader; when building it found new omissions (a formatter threw), once more with them. */
+    let currentHidden = 0;
     const settleReader = (labelsHidden: number) => {
+      currentHidden = labelsHidden;
       let disclosure = disclosureNow();
       let built = readerFor(labelsHidden, disclosure);
       const after = disclosureNow();
@@ -879,7 +918,8 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
         compact, title: named ? null : title, labelledBy: named ? by : null, name: reader.name || a.name,
         subtitle: stringOption(a.options, 'subtitle'), summary,
         summaryVisible: tooSmall, note: noteShown ? reader.note : null, message,
-        messageLang: message !== null && shown.kind !== 'ready' && shown.message ? english(shown.message) : null, noteLang,
+        messageLang: message !== null && shown.kind !== 'ready' && shown.message ? english(shown.message) : null,
+        noteLang: noteLangFor(currentHidden, disclosureNow()),
       };
     };
     const zoomOn = zoomApplies(view, a.options.zoom) ? (a.options.zoom === 'touch' ? 'touch' as const : true) : false;
@@ -888,6 +928,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     const controlsFor = (reader: ReaderModel, tooSmall: boolean): ControlsState => ({
       kind, view, formatters: formatters!, messages: a.messages, reader, tooSmall,
       ready: shown.kind === 'ready', interactive: !compact, tooltip: a.options.tooltip !== false, legend,
+      inspectable: shown.kind === 'empty' && (reader.table?.rowCount ?? 0) > 0,
       zoom: zoomOn, zoomed, streaming, paused, epoch: a.frame.epoch, english, pageLang: lang,
     });
 
@@ -1027,7 +1068,8 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     // A change of state is said once, politely (spec L7). The first state is not announced: it is what
     // the page shows on load, and 24 charts saying "Loading" at once is noise.
     if (announced !== null && announced !== shown.kind) {
-      host.figure.announce(shown.kind === 'ready' ? readyText(a, reader, byText) : shown.text);
+      host.figure.announce(shown.kind === 'ready' ? readyText(a, reader, byText) : shown.text,
+        shown.kind !== 'ready' && shown.message ? english(shown.message) : null);
     }
     if (measured || announced !== null) announced = shown.kind;
 
@@ -1125,7 +1167,8 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       const i = frame.labels.indexOf(text.seriesLabel);
       if (i >= 0 && frame.slot[i] === SLOT_VALUE) y = frame.values[i]!;
     }
-    return { series: ref.kind === 'slice' ? ref.sliceKey : ref.seriesKey, x, y, row: text.row >= 0 ? frame.source.rowAt(text.row) : null, index: text.row };
+    const rowAt = frozen && frozen.frame === frame ? (row: number) => frozen!.rows.get(row) ?? null : (row: number) => frame.source.rowAt(row);
+    return { series: ref.kind === 'slice' ? ref.sliceKey : ref.seriesKey, x, y, row: text.row >= 0 ? rowAt(text.row) : null, index: text.row };
   }
 
   /** Calls the listeners with a snapshot taken before any runs; stops when one destroys or changes the chart. */
@@ -1214,6 +1257,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     held = null;
     lastLayout = null;
     retiredFor = null;
+    frozen = null;
     theme = null;
     listeners = new Map();
     presentation.clear();
@@ -1270,8 +1314,21 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       },
       describe() {
         const d = drawn;
-        if (!d) return { xDomain: null, yDomain: null, series: [] };
-        return describe(d.accepted.view);
+        const renderer = host.renderer.kind;
+        if (!d) return { xDomain: null, yDomain: null, series: [], renderer };
+        const out = { ...describe(d.accepted.view), renderer };
+        const view = d.accepted.view;
+        if (view.kind === 'line' && d.layout.kind === 'plot' && d.layout.projection.kind === 'xy') {
+          // The same selection the scene made (scene/index.ts): the frame's x, the plot, the pixel ratio.
+          const draw = drawing(view.frame.x.values, d.layout.projection, d.layout.plot, pixelRatio > 0 ? pixelRatio : 1);
+          out.series = out.series.map((s, i) => {
+            const series = view.frame.series[i]!;
+            if (!view.visible[i]) return { ...s, kept: [] };
+            const runs = simplifyLine({ ...draw, range: view.drawSlots[i]!, slot: series.slot, y: series.y });
+            return { ...s, kept: Array.from(runs.indexes, slot => series.row ? series.row[slot]! : slot) };
+          });
+        }
+        return out;
       },
     };
   }
@@ -1322,7 +1379,7 @@ export function hasData(view: View, hidden = false): boolean {
   });
 }
 
-function describe(view: View): ReturnType<BenchHook['describe']> {
+function describe(view: View): Omit<ReturnType<BenchHook['describe']>, 'renderer'> {
   if (view.kind === 'donut') {
     return { xDomain: null, yDomain: null, series: [] };
   }

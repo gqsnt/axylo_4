@@ -79,6 +79,41 @@ describe('axe-core reports no violations (spec A8)', () => {
   }
 });
 
+describe('axe-core in the states the fixture loop does not reach (review 2, finding 21)', () => {
+  it('trend paused, zoomed, in the narrow readout and in the internal-error state: no violations; undecided rules listed apart', async () => {
+    const page = await structuredPage({ css: '#narrow { width: 260px; height: 300px; }' });
+    await make(page, 'trend');
+    const results: Record<string, { violations: string[]; incomplete: string[] }> = {};
+    const check = async (state: string) => {
+      const { violations, ran, incomplete } = await axe(page);
+      results[state] = { violations: violations.map(v => v.id), incomplete };
+      expect(ran, state).toContain('heading-order');
+    };
+    await page.evaluate(async () => { window.charts[0]!.append([{ day: Date.UTC(2026, 4, 1), channel: 'Direct', sessions: 1 }]); await window.charts[0]!.__bench.ready(); });
+    await page.locator('#chart .axylo-toolbar button', { hasText: 'Pause' }).click();
+    await settle(page);
+    await check('paused');
+    await page.locator('#chart .axylo-toolbar button', { hasText: 'Zoom in' }).click();
+    await settle(page);
+    await check('zoomed');
+    await page.evaluate(async () => {
+      const el = document.querySelector('main')!.appendChild(Object.assign(document.createElement('div'), { id: 'narrow' }));
+      const c = window.make('trend', el);
+      window.charts.push(c);
+      await c.__bench.ready();
+    });
+    const box = (await page.locator('#narrow .axylo-proxy').boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    expect(await page.locator('#narrow .axylo-readout').isVisible()).toBe(true);
+    await check('narrow readout');
+    await page.evaluate(async () => { const c = window.charts[0]!; c.__dev.fail('reader'); c.update({ subtitle: 'x' }); await c.__bench.ready(); });
+    expect(await page.locator('#chart .axylo-message').textContent()).toBe('Something went wrong while drawing the chart.');
+    await check('internal error');
+    for (const [state, r] of Object.entries(results)) expect(r.violations, state).toEqual([]);
+    expect(await closePage(page)).toEqual([]);
+  });
+});
+
 describe('forced colors and reduced motion (spec L4, I5, A2)', () => {
   it('every control and the focus indicator are visible in forced colors; nothing animates under reduced motion', async () => {
     const page = await structuredPage({ forcedColors: 'active', reducedMotion: 'reduce' });

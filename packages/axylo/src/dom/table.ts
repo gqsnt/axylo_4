@@ -39,6 +39,8 @@ function setAttr(el: Element, name: string, value: string | null): void {
 export function createTableView(doc: Document, id: string, toValue: (text: string) => XValue | null): TableView {
   const element = doc.createElement('div');
   element.className = 'axylo-table';
+  const listening = new AbortController();
+  const signal = listening.signal;
   element.id = `${id}-table`;
   const scroll = doc.createElement('div');
   scroll.className = 'axylo-table-scroll';
@@ -87,7 +89,11 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
 
   const pages = () => model ? Math.max(1, Math.ceil(model.rowCount / model.pageSize)) : 1;
 
-  function render(): void {
+  /**
+   * `reader`: the reader paged or jumped, so the new page is spoken. A render for new data keeps the status
+   * region quiet while its count changes (spec A7; review 2, finding 16).
+   */
+  function render(reader = false): void {
     if (!model || !texts) return;
     const count = pages();
     page = Math.max(0, Math.min(page, count - 1));
@@ -120,6 +126,8 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
       rows.push(tr);
     }
     body.replaceChildren(...rows);
+    // A pager the reader is on does not vanish under them: focus goes to the table first (finding 17).
+    if (count <= 1 && pager.contains(doc.activeElement)) scroll.focus({ preventScroll: true });
     pager.hidden = count <= 1;
     previous.textContent = texts.previousPage;
     next.textContent = texts.nextPage;
@@ -130,17 +138,19 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
     setAttr(previous, 'aria-disabled', page === 0 ? 'true' : null);
     setAttr(next, 'aria-disabled', page >= count - 1 ? 'true' : null);
     const pageText = texts.pageOf(page + 1, count);
-    // Only a change of page is spoken; a refreshed page (streaming data) keeps its text.
-    if (status.textContent !== pageText) status.textContent = pageText;
+    if (status.textContent !== pageText) {
+      setAttr(status, 'aria-live', reader ? 'polite' : 'off');
+      status.textContent = pageText;
+    }
     labelText.textContent = texts.jump;
   }
 
   previous.addEventListener('click', () => {
-    if (page > 0) { page--; render(); scroll.scrollTop = 0; }
-  });
+    if (page > 0) { page--; render(true); scroll.scrollTop = 0; }
+  }, { signal });
   next.addEventListener('click', () => {
-    if (page < pages() - 1) { page++; render(); scroll.scrollTop = 0; }
-  });
+    if (page < pages() - 1) { page++; render(true); scroll.scrollTop = 0; }
+  }, { signal });
   form.addEventListener('submit', event => {
     event.preventDefault();
     const value = toValue(field.value.trim());
@@ -151,9 +161,9 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
     }
     field.removeAttribute('aria-invalid');
     page = target;
-    render();
+    render(true);
     scroll.scrollTop = 0;
-  });
+  }, { signal });
 
   return {
     element,
@@ -164,8 +174,9 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
       const signature = `${maxHeight}`;
       model = nextModel;
       texts = nextTexts;
+      // The table fills the plot's place (its stylesheet); the height is only a ceiling for the scroll region.
       if (signature !== shownSignature) {
-        scroll.style.maxHeight = `${Math.floor(maxHeight)}px`;
+        scroll.style.maxHeight = maxHeight > 0 ? `${Math.floor(maxHeight)}px` : '';
         shownSignature = signature;
       }
       render();
@@ -176,6 +187,7 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
       render();
     },
     destroy() {
+      listening.abort();
       element.remove();
       model = null;
     },

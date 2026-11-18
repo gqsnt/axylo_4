@@ -2,25 +2,30 @@
  * Everything a reader uses to explore a full chart (decision 0001; spec I1–I6, A2–A4, A7): one piece of
  * state, "what the reader is on", driven by pointer, touch and keyboard alike, and what is derived from it:
  * the tooltip, the overlay (drawn with `renderer.drawOverlay`, never by redrawing the scene), the keyboard
- * proxy's value text and the `hover` event. Plus the toolbar (legend, zoom, pause, table), the table view and
- * the zoom gestures.
+ * proxy's range and value text and the `hover` event. Plus the toolbar (legend, zoom, pause, table), the
+ * table view and the zoom gestures.
  *
  * The controller calls `commit` after every frame it draws, with the state that frame shows; this module
  * never reads a newer state than the marks show. It changes the chart only through `actions`, which go
  * through the public paths (zoom, the view's hidden set, pause), so every change follows the commit contract.
  *
- * Nothing here speaks when data arrives (spec A7): the proxy's value text is rewritten only when the reader
- * moved or when the datum it described is gone, and no live region is touched by a commit.
+ * The proxy's range always matches the frame on screen: its bounds, value and text are compared with what
+ * the lookup says now and rewritten where they differ (review 2, finding 4). A datum keeps its identity across
+ * commits: on a sliding category axis a reference is moved to the same category's new place, and a datum
+ * that left the window resolves by the lookup's rule (finding 2). No live region is touched by a commit.
+ *
+ * Every listener on the chart's own elements is registered with one abort signal per build, so clearing the
+ * layer or destroying the chart removes them all.
  */
 import type {
   DatumRef, DatumText, Formatters, Layout, Lookup, MarkRenderer, Overlay, PaintBindings, PickTarget, ReaderModel,
-  ResolvedTheme, StepDirection, View,
+  Rect, ResolvedTheme, StepDirection, View, XValue,
 } from '../core/contracts';
 import type { Messages } from '../public';
 import { fill } from '../messages';
 import {
-  buildOverlay, minimumWidth, panWindow, positionAt, refsAt, sameRef, scaleWindow, stepAcross, targetBox, targetOf,
-  valueText, PAN_SHARE, ZOOM_FACTOR, type Mode,
+  buildOverlay, canZoomIn, minimumWidth, panWindow, positionAt, refsAt, sameRef, scaleWindow, stepAcross, stepInSeries,
+  targetBox, targetOf, valueText, PAN_SHARE, ZOOM_FACTOR, type Mode,
 } from '../core/focus';
 import type { Figure } from './figure';
 import { sameTarget } from './pointer';
@@ -46,6 +51,11 @@ export interface ControlsState {
   readonly tooSmall: boolean;
   /** The chart shows data (not loading, empty or error). */
   readonly ready: boolean;
+  /**
+   * The data can be inspected although nothing is drawn (an empty window, an all-zero donut): the table and
+   * the donut's slice list stay (spec F8, A4, L7).
+   */
+  readonly inspectable?: boolean;
   /** A full chart; false for the compact variant, which is a static image (spec C1). */
   readonly interactive: boolean;
   readonly tooltip: boolean;
@@ -93,7 +103,7 @@ export interface Interaction {
   clear(): void;
   /**
    * The chart is in the document: listeners on the document itself (Escape, a tap outside a pinned
-   * tooltip) may be held. `detach` lets go of them while the chart is out of the document.
+   * tooltip, scrolling) may be held. `detach` lets go of them while the chart is out of the document.
    */
   attach(): void;
   detach(): void;
@@ -109,9 +119,8 @@ export function seriesPattern(index: number): SwatchSpec['pattern'] {
 
 /** How a series is drawn, repeated in its legend and tooltip swatch (spec A5). */
 export function seriesSwatch(kind: ControlsState['kind'], index: number, cue: SwatchSpec['cue'], hollow: boolean): SwatchSpec {
-  if (kind === 'bar' || kind === 'area') {
-    return { color: index, cue, line: false, hollow, fill: true, pattern: kind === 'bar' ? seriesPattern(index) : null };
-  }
+  if (kind === 'bar') return { color: index, cue, line: false, hollow, fill: true, pattern: seriesPattern(index) };
+  if (kind === 'area') return { color: index, cue, line: false, hollow, fill: true, marker: true, pattern: null };
   return { color: index, cue, line: kind === 'line', hollow };
 }
 
@@ -132,6 +141,10 @@ function setAttr(el: Element, name: string, value: string | null): void {
 
 function sameWindow(a: Span | null, b: Span | null): boolean {
   return a === b || (a !== null && b !== null && a[0] === b[0] && a[1] === b[1]);
+}
+
+function categoriesOf(view: View): readonly string[] | null {
+  return view.kind !== 'donut' && view.kind !== 'scatter' && view.frame.x.kind === 'category' ? view.frame.x.categories : null;
 }
 
 export function createInteraction(figure: Figure, renderer: MarkRenderer, actions: Actions): Interaction {
@@ -155,10 +168,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   let clickFocus = false;
   /** The proxy got focus from a click and no key has been pressed since: the pointer still leads. */
   let fromClick = false;
-  let intent: StepDirection | null = null;
   let shownOrdinal = 0;
-  let shownRef: DatumRef | null = null;
-  let shownMode: Mode = 'all';
   let lastHover: DatumRef | null = null;
   let presented = '';
   let dirty = true;
@@ -166,14 +176,19 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   let pendingWindow: Span | null | undefined;
   let tableView: TableView | null = null;
   let tableModel: unknown = null;
+  /** The one pointer that owns a press or drag (review 2, finding 10); others are ignored until it ends. */
   let down: { id: number; x: number; y: number; dragging: boolean } | null = null;
   const touches = new Map<number, { x: number; y: number; x0: number; y0: number; t0: number }>();
   let pinch: { distance: number; window: Span; center: number } | null = null;
+  /** A pinch happened since the last time no finger was down: the lifting fingers are not a tap. */
+  let pinched = false;
   let pinchFrame = 0;
   let pinchWindow: Span | null | undefined;
   let destroyed = false;
   /** The chart is in the document, so the document's own listeners may be held. */
   let attached = true;
+  let built: AbortController | null = null;
+  let documentListeners: AbortController | null = null;
 
   // ── elements (built for full charts only) ──────────────────────────────────────────────────────
 
@@ -183,18 +198,37 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   let legendList: HTMLUListElement | null = null;
   let toolbar: Toolbar | null = null;
 
+  function listenDocument(): void {
+    if (documentListeners || !attached || !proxy) return;
+    documentListeners = new AbortController();
+    const signal = documentListeners.signal;
+    // Capture: a drag cancelled with Escape consumes the key before a containing dialog sees it.
+    doc.addEventListener('keydown', onDocumentKey, { capture: true, signal });
+    doc.addEventListener('scroll', onScroll, { capture: true, passive: true, signal });
+    doc.defaultView?.addEventListener('blur', onWindowBlur, { signal });
+    if (pinned) doc.addEventListener('pointerdown', onDocumentDown, { capture: true, signal });
+  }
+
+  function unlistenDocument(): void {
+    documentListeners?.abort();
+    documentListeners = null;
+  }
+
   function build(): void {
     if (proxy) return;
+    built = new AbortController();
+    const signal = built.signal;
     proxy = doc.createElement('input');
     proxy.type = 'range';
     proxy.className = 'axylo-proxy';
     proxy.id = `${figure.id}-proxy`;
     proxy.min = '0';
     proxy.step = '1';
-    proxy.addEventListener('keydown', onProxyKey);
-    proxy.addEventListener('input', onProxyInput);
-    proxy.addEventListener('focus', onProxyFocus);
-    proxy.addEventListener('blur', onProxyBlur);
+    proxy.addEventListener('keydown', onProxyKey, { signal });
+    proxy.addEventListener('input', onProxyInput, { signal });
+    proxy.addEventListener('change', onProxyInput, { signal });
+    proxy.addEventListener('focus', onProxyFocus, { signal });
+    proxy.addEventListener('blur', onProxyBlur, { signal });
     ring = doc.createElement('div');
     ring.className = 'axylo-focus-ring';
     ring.setAttribute('aria-hidden', 'true');
@@ -204,19 +238,24 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     selection.hidden = true;
     plot.append(proxy, ring, selection);
     toolbar = createToolbar(doc);
-    plot.addEventListener('pointermove', onPointerMove);
-    plot.addEventListener('pointerleave', onPointerLeave);
-    plot.addEventListener('pointerdown', onPointerDown);
-    plot.addEventListener('pointerup', onPointerUp);
-    plot.addEventListener('pointercancel', onPointerCancel);
-    plot.addEventListener('wheel', onWheel, { passive: false });
-    figure.tooltip.addEventListener('pointerleave', onTooltipLeave);
-    if (attached) doc.addEventListener('keydown', onDocumentKey);
+    plot.addEventListener('pointermove', onPointerMove, { signal });
+    plot.addEventListener('pointerleave', onPointerLeave, { signal });
+    plot.addEventListener('pointerdown', onPointerDown, { signal });
+    plot.addEventListener('pointerup', onPointerUp, { signal });
+    plot.addEventListener('pointercancel', onPointerCancel, { signal });
+    plot.addEventListener('lostpointercapture', onLostCapture, { signal });
+    plot.addEventListener('wheel', onWheel, { passive: false, signal });
+    figure.tooltip.addEventListener('pointerleave', onTooltipLeave, { signal });
+    figure.readout.addEventListener('pointerleave', onTooltipLeave, { signal });
+    listenDocument();
   }
 
   function unbuild(): void {
     if (!proxy) return;
     closeTable();
+    unlistenDocument();
+    built?.abort();
+    built = null;
     proxy.remove();
     ring?.remove();
     selection?.remove();
@@ -224,15 +263,6 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     toolbar?.destroy();
     proxy = ring = selection = legendList = null;
     toolbar = null;
-    plot.removeEventListener('pointermove', onPointerMove);
-    plot.removeEventListener('pointerleave', onPointerLeave);
-    plot.removeEventListener('pointerdown', onPointerDown);
-    plot.removeEventListener('pointerup', onPointerUp);
-    plot.removeEventListener('pointercancel', onPointerCancel);
-    plot.removeEventListener('wheel', onWheel);
-    figure.tooltip.removeEventListener('pointerleave', onTooltipLeave);
-    doc.removeEventListener('keydown', onDocumentKey);
-    doc.removeEventListener('pointerdown', onDocumentDown, true);
     for (const host of [figure.controls, figure.top, figure.side]) {
       host.hidden = true;
       host.replaceChildren();
@@ -246,8 +276,14 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     return view.kind === 'line' || view.kind === 'area' || view.kind === 'bar';
   }
 
-  function plotReady(d: Committed | null): d is Committed {
+  // The guards name a subtype, so a failed check narrows only away from null, never to `never`.
+  function plotReady(d: Committed | null): d is Committed & { readonly ready: true } {
     return d !== null && d.ready && d.layout.kind === 'plot';
+  }
+
+  /** A zoomed window with nothing in it: the plot keeps its focus and its zoom keys, so the reader can go back. */
+  function recoverable(d: Committed | null): d is Committed & { readonly zoomed: true } {
+    return d !== null && !d.ready && d.zoom !== false && d.zoomed && !d.tooSmall;
   }
 
   /** The datum to start from when the keyboard arrives: the pointer's, else the first. */
@@ -276,8 +312,18 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     }
   }
 
+  /** What the keyboard's datum shows, as a pointer would see it there: coincident scatter points included. */
+  function keyboardTarget(d: Committed, ref: DatumRef): PickTarget {
+    if (ref.kind === 'point' && d.view.kind === 'scatter') {
+      const box = d.lookup.anchor(ref);
+      const picked = box ? d.lookup.pick(box.x + box.width / 2, box.y + box.height / 2) : null;
+      if (picked?.kind === 'point' && picked.refs.some(r => sameRef(r, ref))) return picked;
+    }
+    return targetOf(ref);
+  }
+
   function current(): PickTarget | null {
-    if (source === 'keyboard') return proxyFocused && focus ? targetOf(focus) : null;
+    if (source === 'keyboard') return proxyFocused && focus && c ? keyboardTarget(c, focus) : null;
     return pointerTarget;
   }
 
@@ -299,13 +345,15 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
         presented = '';
       }
       hover(null);
+      markLegend(null);
       return;
     }
     const target = current();
     const visibleRing = proxyFocused && proxy.matches(':focus-visible') ? focus : null;
     const only = mode === 'single' && source === 'keyboard' ? focus : null;
     const showTip = d.tooltip && target !== null && !(dismissed !== null && sameTarget(dismissed, target));
-    const key = JSON.stringify([target, visibleRing, only, showTip, source === 'pointer' && pointer ? Math.round(pointer.y / 24) : null]);
+    const key = JSON.stringify([target, visibleRing, only, showTip, source === 'pointer' && pointer ? [Math.round(pointer.x / 8), Math.round(pointer.y / 8)] : null, pinned]);
+    markLegend(proxyFocused && focus?.kind === 'slice' ? focus.sliceKey : null);
     if (!dirty && key === presented) return;
     presented = key;
     dirty = false;
@@ -321,14 +369,20 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
         const content: TooltipContent = {
           model, swatch: swatchFor(d), moreRows: count => fill(d.messages.moreRows, { count: d.formatters.count(count) }),
           totalLabel: d.messages.total,
+          // A row is selectable by pointer and touch too, so a series that is not the primary one can be
+          // chosen without a keyboard (WCAG 2.5.1).
+          select: row => actions.select(row.ref),
         };
         const box = plot.getBoundingClientRect();
         const local = targetBox(d.view, d.lookup, target, only) ??
           (pointer ? { x: pointer.x, y: pointer.y, width: 0, height: 0 } : null);
         const anchor = local ? { x: box.left + local.x, y: box.top + local.y, width: local.width, height: local.height }
           : { x: box.left + box.width / 2, y: box.top + box.height / 2, width: 0, height: 0 };
-        const focusY = source === 'pointer' && pointer ? box.top + pointer.y : null;
-        if (!tooltip.show(content, anchor, focusY)) tooltip.readout(content);
+        // The tooltip keeps clear of the pointer as well as of the marks, so the next click reaches the plot.
+        const at = source === 'pointer' && pointer ? { x: box.left + pointer.x, y: box.top + pointer.y } : null;
+        const ringBox = visibleRing ? d.lookup.anchor(visibleRing) : null;
+        const avoid: Rect[] = ringBox ? [{ x: box.left + ringBox.x - 6, y: box.top + ringBox.y - 6, width: ringBox.width + 12, height: ringBox.height + 12 }] : [];
+        if (!tooltip.show(content, anchor, at, avoid)) tooltip.readout(content, pinned && source === 'pointer' && touches.size === 0);
       }
     }
     hover(target === null ? null : source === 'keyboard' ? focus : d.lookup.primary(target));
@@ -340,36 +394,51 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     actions.hover(ref);
   }
 
+  /** The donut slice the keyboard is on is marked in the slice list too, which shows arcless slices (review 2, finding 14). */
+  function markLegend(sliceKey: string | null): void {
+    if (!legendList) return;
+    for (const li of legendList.children) li.classList.toggle('axylo-legend-current', sliceKey !== null && (li as HTMLElement).dataset.key === sliceKey);
+  }
+
   // ── the keyboard proxy ─────────────────────────────────────────────────────────────────────────
 
   /**
-   * Writes the proxy's value and value text. While the reader is on it, only a move of theirs (`force`) or
-   * the loss of the datum it describes rewrites it, so streaming data never makes a screen reader speak.
+   * Makes the range match the frame on screen: bounds, value and text are compared with the lookup's and
+   * written where they differ (review 2, finding 4). A datum that did not change keeps the same text, so a
+   * commit alone never changes what a reader hears unless what it describes changed.
    */
-  function writeProxy(force: boolean): void {
+  function writeProxy(): void {
     const d = c;
     if (!proxy || !d) return;
-    const ref = focus ?? (plotReady(d) ? initialFocus(d) : null);
-    if (!force && proxyFocused && sameRef(ref, shownRef) && shownMode === mode) return;
-    const max = Math.max(0, d.lookup.count - 1);
+    if (!plotReady(d)) {
+      if (proxy.max !== '0') proxy.max = '0';
+      if (proxy.value !== '0') proxy.value = '0';
+      shownOrdinal = 0;
+      setAttr(proxy, 'aria-valuetext', recoverable(d) ? d.messages.empty : d.messages.noData);
+      return;
+    }
+    const ref = focus ?? initialFocus(d);
+    const max = String(Math.max(0, d.lookup.count - 1));
     const ordinal = ref ? Math.max(0, d.lookup.ordinal(ref)) : 0;
     const text = ref ? valueText(d.view, d.lookup, ref, mode, d.formatters, d.messages) : null;
-    proxy.max = String(max);
-    proxy.value = String(ordinal);
+    if (proxy.max !== max) proxy.max = max;
+    if (proxy.value !== String(ordinal)) proxy.value = String(ordinal);
     setAttr(proxy, 'aria-valuetext', text ?? d.messages.noData);
     shownOrdinal = ordinal;
-    shownRef = ref;
-    shownMode = mode;
   }
 
-  /** Before a native key moves the range, its value and bounds match the datum the reader is on. */
-  function syncNative(d: Committed): void {
-    if (!proxy) return;
-    const max = String(Math.max(0, d.lookup.count - 1));
-    if (proxy.max !== max) proxy.max = max;
-    const ordinal = focus ? Math.max(0, d.lookup.ordinal(focus)) : 0;
-    if (proxy.value !== String(ordinal)) proxy.value = String(ordinal);
-    shownOrdinal = ordinal;
+  function stepFrom(d: Committed, from: DatumRef, direction: StepDirection): DatumRef | null {
+    if (mode === 'all' && from.kind === 'aligned' && aligned(d.view)) {
+      const x = stepAcross(d.view, from.x, direction);
+      return x === null ? null : d.lookup.primary({ kind: 'x', x });
+    }
+    if (mode === 'single' && from.kind === 'point' && d.view.kind === 'scatter') return stepInSeries(d.view, from, direction);
+    return d.lookup.step(from, direction);
+  }
+
+  /** A keyboard move changed what is shown: a tooltip closed with Escape for another datum may show again. */
+  function keyboardMoved(d: Committed): void {
+    if (dismissed !== null && focus && !sameTarget(dismissed, keyboardTarget(d, focus))) dismissed = null;
   }
 
   function move(direction: StepDirection): void {
@@ -377,17 +446,12 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     if (!plotReady(d)) return;
     takeover(d);
     if (focus) {
-      let next: DatumRef | null;
-      if (mode === 'all' && focus.kind === 'aligned' && aligned(d.view)) {
-        const x = stepAcross(d.view, focus.x, direction);
-        next = x === null ? null : d.lookup.primary({ kind: 'x', x });
-      } else {
-        next = d.lookup.step(focus, direction);
-      }
+      const next = stepFrom(d, focus, direction);
       if (next) focus = next;
     }
     source = 'keyboard';
-    writeProxy(true);
+    keyboardMoved(d);
+    writeProxy();
     present();
   }
 
@@ -409,23 +473,56 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       }
     } else if (focus.kind === 'point') {
       focus = d.lookup.step(focus, delta > 0 ? 'series-next' : 'series-previous') ?? focus;
+      // Right and Left now stay in the series the reader chose (review 2, finding 7).
+      mode = 'single';
     }
     source = 'keyboard';
-    writeProxy(true);
+    keyboardMoved(d);
+    writeProxy();
     present();
+  }
+
+  /** The datum at a place in the range, for an assistive technology that sets the value directly. */
+  function atOrdinal(d: Committed, ordinal: number): DatumRef | null {
+    if (aligned(d.view)) {
+      const { start, end } = d.view.visibleSlots;
+      const i = start + Math.max(0, Math.min(end - start - 1, ordinal));
+      const x = d.view.frame.x.values[i];
+      if (x === undefined) return null;
+      if (mode === 'single' && focus?.kind === 'aligned') return d.lookup.resolve({ kind: 'aligned', seriesKey: focus.seriesKey, x });
+      return d.lookup.primary({ kind: 'x', x });
+    }
+    // Scatter and donut: walk the lookup's own order from where the reader is.
+    let ref = focus ?? d.lookup.step(null, 'first');
+    let at = ref ? d.lookup.ordinal(ref) : 0;
+    while (ref && at !== ordinal) {
+      const next = stepFrom(d, ref, at < ordinal ? 'next' : 'previous');
+      if (!next) break;
+      ref = next;
+      at = d.lookup.ordinal(ref);
+    }
+    return ref;
   }
 
   function onProxyKey(event: KeyboardEvent): void {
     const d = c;
-    if (!plotReady(d) || event.altKey || event.ctrlKey || event.metaKey) return;
-    fromClick = false;
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
     const { key } = event;
     const consume = () => { event.preventDefault(); event.stopPropagation(); };
+    if (recoverable(d)) {
+      // Nothing is drawn in this window: the zoom keys still work, so the reader can go back (finding 3).
+      if (key === '-' || key === '_') { consume(); zoomBy(ZOOM_FACTOR); }
+      else if (key === '0') { consume(); requestZoom(null); }
+      else if (event.shiftKey && (key === 'ArrowLeft' || key === 'ArrowRight')) { consume(); pan(key === 'ArrowRight' ? PAN_SHARE : -PAN_SHARE); }
+      else if (key in NAVIGATION || key === 'ArrowUp' || key === 'ArrowDown') event.preventDefault();
+      return;
+    }
+    if (!plotReady(d)) return;
+    fromClick = false;
     if (d.zoom && (key === '+' || key === '=')) { consume(); zoomBy(1 / ZOOM_FACTOR); return; }
     if (d.zoom && (key === '-' || key === '_')) { consume(); zoomBy(ZOOM_FACTOR); return; }
     if (d.zoom && key === '0') { consume(); requestZoom(null); return; }
     if (event.shiftKey && (key === 'ArrowLeft' || key === 'ArrowRight')) {
-      // Shift+arrows pan; they never move the range natively in Chrome, but other engines might.
       event.preventDefault();
       if (d.zoom) pan(key === 'ArrowRight' ? PAN_SHARE : -PAN_SHARE);
       return;
@@ -453,45 +550,46 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
         consume();
         mode = 'all';
         if (focus?.kind === 'aligned') focus = d.lookup.primary({ kind: 'x', x: focus.x }) ?? focus;
-        writeProxy(true);
+        writeProxy();
         present();
       }
       return;
     }
     const direction = NAVIGATION[key] ?? (d.view.kind === 'donut' ? ({ ArrowUp: 'next', ArrowDown: 'previous' } as Record<string, StepDirection>)[key] : undefined);
     if (direction) {
-      // Native behaviour is kept: the range moves itself, and `input` maps the move through lookup.step.
-      takeover(d);
-      source = 'keyboard';
-      intent = direction;
-      syncNative(d);
+      // The keys move by the lookup's rule, not the range's own arithmetic, so no key leaves an intent behind
+      // for a later assistive action to misread (review 2, finding 6).
+      event.preventDefault();
+      move(direction);
     }
   }
 
+  /** An assistive technology set the range's value: go to that place, once, whichever event said so. */
   function onProxyInput(): void {
     const d = c;
-    if (!proxy || !d) return;
-    const value = Number(proxy.value);
-    const max = Number(proxy.max);
-    let direction = intent;
-    intent = null;
-    if (direction === null) {
-      // A move without a key (a touch screen reader's swipe, an assistive increment).
-      const delta = value - shownOrdinal;
-      direction = value === 0 ? 'first' : value === max ? 'last' : delta === 1 ? 'next' : delta === -1 ? 'previous'
-        : delta > 0 ? 'page-next' : 'page-previous';
-    }
-    move(direction);
+    if (!proxy || !plotReady(d)) return;
+    const ordinal = Number(proxy.value);
+    if (!Number.isFinite(ordinal) || ordinal === shownOrdinal) return;
+    takeover(d);
+    focus = atOrdinal(d, ordinal) ?? focus;
+    source = 'keyboard';
+    keyboardMoved(d);
+    writeProxy();
+    present();
   }
 
   function onProxyFocus(): void {
     const d = c;
     proxyFocused = true;
-    if (!plotReady(d)) return;
+    if (!plotReady(d)) {
+      writeProxy();
+      return;
+    }
     fromClick = clickFocus;
-    if (!clickFocus) source = 'keyboard';
+    // The pointer's datum is taken over before the keyboard leads (review 2, finding 6).
     takeover(d);
-    writeProxy(true);
+    if (!clickFocus) source = 'keyboard';
+    writeProxy();
     dirty = true;
     present();
   }
@@ -499,7 +597,6 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   function onProxyBlur(): void {
     proxyFocused = false;
     fromClick = false;
-    intent = null;
     if (source === 'keyboard') source = pointer ? 'pointer' : null;
     dirty = true;
     present();
@@ -522,14 +619,30 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     actions.zoom(window);
   }
 
-  function zoomBy(factor: number, center?: number): void {
-    const d = c;
-    if (!d || d.view.kind === 'donut' || !d.zoom) return;
+  /** Where a zoom button scales around: the datum the reader is on when it is in the window, else the middle. */
+  function zoomCenter(d: Committed, now: Span): number {
+    const x = focus?.kind === 'aligned' || focus?.kind === 'point' ? focus.x : NaN;
+    return Number.isFinite(x) && x >= now[0] && x <= now[1] ? x : (now[0] + now[1]) / 2;
+  }
+
+  /** The window one scaling step would give, or undefined when it would not change. */
+  function scaled(d: Committed, factor: number, center?: number): Span | null | undefined {
+    if (d.view.kind === 'donut' || !d.zoom) return undefined;
     const now = currentWindow(d)!;
-    const at = center ?? (now[0] + now[1]) / 2;
+    const at = center ?? zoomCenter(d, now);
     const next = scaleWindow(d.view.xFull, now, factor, at, minimumWidth(d.view));
-    if (next && Math.abs(next[1] - next[0] - (now[1] - now[0])) < 1e-9 * Math.abs(now[1] - now[0]) && next[0] === now[0]) return;
+    const nowFull = now[0] <= d.view.xFull[0] && now[1] >= d.view.xFull[1];
+    if (next === null ? nowFull : sameWindow(next, now)) return undefined;
+    return next;
+  }
+
+  function zoomBy(factor: number, center?: number): boolean {
+    const d = c;
+    if (!d) return false;
+    const next = scaled(d, factor, center);
+    if (next === undefined) return false;
     requestZoom(next);
+    return true;
   }
 
   function pan(share: number): void {
@@ -545,12 +658,12 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     // Spec I3: only while the plot has focus, and never with Ctrl or Meta (browser zoom, page scroll).
     if (!plotReady(d) || !d.zoom || !proxy || doc.activeElement !== proxy || event.ctrlKey || event.metaKey) return;
     if (event.deltaY === 0) return;
-    event.preventDefault();
     const box = plot.getBoundingClientRect();
     const at = positionAt(d.layout, event.clientX - box.left, event.clientY - box.top);
     const unit = event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 400 : 1;
     const factor = Math.min(4, Math.max(0.25, Math.exp(event.deltaY * unit * 0.002)));
-    zoomBy(factor, at ?? undefined);
+    // The page keeps the wheel when the chart cannot zoom any further that way (review 2, finding 9).
+    if (zoomBy(factor, at ?? undefined)) event.preventDefault();
   }
 
   // ── pointer, touch, drag ───────────────────────────────────────────────────────────────────────
@@ -564,7 +677,11 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     const d = c;
     if (!plotReady(d)) return;
     pointer = at;
-    const target = d.lookup.pick(at.x, at.y);
+    let target = d.lookup.pick(at.x, at.y);
+    // On the way down to the readout under the plot (past the axis labels) the datum stays, so the readout
+    // can be reached and hovered (WCAG 1.4.13; review 2, finding 13).
+    if (target === null && pointerTarget !== null && tooltip.where === 'readout' && d.layout.kind === 'plot' &&
+      at.y > d.layout.plot.y + d.layout.plot.height) target = pointerTarget;
     if (!sameTarget(target, pointerTarget)) {
       pointerTarget = target;
       if (target !== null && dismissed !== null && !sameTarget(dismissed, target)) dismissed = null;
@@ -584,8 +701,9 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       }
       return;
     }
+    if (down && down.id !== event.pointerId) return;
     const at = local(event);
-    if (down && down.id === event.pointerId) {
+    if (down) {
       if (!down.dragging && c?.zoom && Math.hypot(at.x - down.x, at.y - down.y) > DRAG_THRESHOLD) {
         down.dragging = true;
         tooltip.hide();
@@ -606,15 +724,19 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     present();
   }
 
+  /** The tooltip and the readout can be hovered without closing (spec I1, WCAG 1.4.13). */
+  function intoTip(related: EventTarget | null): boolean {
+    return related instanceof Node && (figure.tooltip.contains(related) || figure.readout.contains(related));
+  }
+
   function onPointerLeave(event: PointerEvent): void {
     if (event.pointerType === 'touch' || down?.dragging) return;
-    // The tooltip can be hovered without closing (spec I1).
-    if (event.relatedTarget instanceof Node && figure.tooltip.contains(event.relatedTarget)) return;
+    if (intoTip(event.relatedTarget)) return;
     leave();
   }
 
   function onTooltipLeave(event: PointerEvent): void {
-    if (event.relatedTarget instanceof Node && plot.contains(event.relatedTarget)) return;
+    if (event.relatedTarget instanceof Node && (plot.contains(event.relatedTarget) || intoTip(event.relatedTarget))) return;
     leave();
   }
 
@@ -635,9 +757,14 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     selection.hidden = false;
   }
 
+  /** Ends a press or drag on every way out: release, cancel, lost capture, Escape, the window losing focus. */
   function endDrag(): void {
     if (selection) selection.hidden = true;
+    const was = down;
     down = null;
+    if (was && plot.hasPointerCapture?.(was.id)) {
+      try { plot.releasePointerCapture(was.id); } catch { /* already released */ }
+    }
   }
 
   function onPointerDown(event: PointerEvent): void {
@@ -647,9 +774,11 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     if (event.pointerType === 'touch') {
       touches.set(event.pointerId, { ...at, x0: at.x, y0: at.y, t0: event.timeStamp });
       if (touches.size === 2 && d.zoom === 'touch' && d.view.kind !== 'donut') startPinch(d);
+      if (touches.size > 1) pinched = true;
       return;
     }
-    if (event.button !== 0) return;
+    // One pointer owns a press at a time; a second one does not take the drag over.
+    if (event.button !== 0 || down) return;
     down = { id: event.pointerId, x: at.x, y: at.y, dragging: false };
     if (d.zoom) {
       try { plot.setPointerCapture(event.pointerId); } catch { /* the pointer is already gone */ }
@@ -661,30 +790,28 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     if (event.pointerType === 'touch') {
       const t = touches.get(event.pointerId);
       touches.delete(event.pointerId);
-      if (pinch) {
-        if (touches.size < 2) pinch = null;
-        return;
-      }
+      if (pinch && touches.size < 2) pinch = null;
+      const wasPinch = pinched;
+      if (touches.size === 0) pinched = false;
+      // The fingers lifting after a pinch are not a tap.
+      if (wasPinch) return;
       if (t && plotReady(d) && Math.hypot(t.x - t.x0, t.y - t.y0) < TAP_DISTANCE && event.timeStamp - t.t0 < TAP_TIME) tap(d, t);
       return;
     }
     if (!down || down.id !== event.pointerId) return;
     const was = down;
     endDrag();
-    if (plot.hasPointerCapture?.(event.pointerId)) plot.releasePointerCapture(event.pointerId);
     if (!plotReady(d)) return;
     const at = local(event);
     if (was.dragging) {
-      const horizontal = horizontalBars(d);
       const a = positionAt(d.layout, was.x, was.y);
       const b = positionAt(d.layout, at.x, at.y);
       if (a === null || b === null || d.view.kind === 'donut') return;
       const full = d.view.xFull;
       const lo = Math.max(full[0], Math.min(a, b));
       const hi = Math.min(full[1], Math.max(a, b));
-      if (hi - lo >= minimumWidth(d.view) / 2 && Math.abs(horizontal ? at.y - was.y : at.x - was.x) > DRAG_THRESHOLD) {
-        requestZoom(hi - lo >= full[1] - full[0] ? null : [lo, hi]);
-      }
+      // The same smallest window as the buttons and keys (review 2, finding 9).
+      if (hi - lo >= minimumWidth(d.view) && hi > lo) requestZoom(hi - lo >= full[1] - full[0] ? null : [lo, hi]);
       pointAt(at);
       return;
     }
@@ -701,7 +828,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     if (ref) {
       focus = mode === 'single' && focus?.kind === 'aligned' && pointerTarget.kind === 'x'
         ? d.lookup.resolve({ kind: 'aligned', seriesKey: focus.seriesKey, x: pointerTarget.x }) ?? ref : ref;
-      writeProxy(true);
+      writeProxy();
       actions.select(focus);
     }
   }
@@ -711,10 +838,23 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       // The page took the gesture (a one-finger drag scrolls, spec I4).
       touches.delete(event.pointerId);
       if (touches.size < 2) pinch = null;
+      if (touches.size === 0) pinched = false;
       return;
     }
+    if (down && down.id !== event.pointerId) return;
     endDrag();
     leave();
+  }
+
+  function onLostCapture(event: PointerEvent): void {
+    if (down && down.id === event.pointerId) endDrag();
+  }
+
+  function onWindowBlur(): void {
+    endDrag();
+    touches.clear();
+    pinch = null;
+    pinched = false;
   }
 
   function tap(d: Committed, at: { x: number; y: number }): void {
@@ -728,9 +868,12 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     pinned = true;
     dismissed = null;
     source = 'pointer';
-    if (attached) doc.addEventListener('pointerdown', onDocumentDown, true);
+    if (attached && documentListeners) doc.addEventListener('pointerdown', onDocumentDown, { capture: true, signal: documentListeners.signal });
     dirty = true;
     present();
+    // A tap selects, as a click and Enter do (WCAG 2.5.1).
+    const ref = d.lookup.primary(target);
+    if (ref) actions.select(ref);
   }
 
   function unpin(): void {
@@ -765,8 +908,9 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     const { window, center } = pinch;
     const width = Math.max(minimumWidth(d.view), (window[1] - window[0]) * pinch.distance / distance);
     const p = d.layout.plot;
-    const horizontal = horizontalBars(d);
-    const share = horizontal ? ((a.y + b.y) / 2 - p.y) / p.height : ((a.x + b.x) / 2 - p.x) / p.width;
+    // The share of the window below the fingers, in the direction the scale increases: rightwards, or upwards
+    // on horizontal bars, whose positions grow from the bottom (review 2, finding 10).
+    const share = horizontalBars(d) ? (p.y + p.height - (a.y + b.y) / 2) / p.height : ((a.x + b.x) / 2 - p.x) / p.width;
     // The position that was under the fingers stays under them: zoom and two-finger pan in one.
     const full = d.view.xFull;
     const start = Math.max(full[0], Math.min(center - share * width, full[1] - width));
@@ -783,6 +927,9 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   function onDocumentKey(event: KeyboardEvent): void {
     if (event.key !== 'Escape' || event.defaultPrevented) return;
     if (down?.dragging) {
+      // Escape cancels the drag and is spent on it: a containing dialog does not close as well.
+      event.preventDefault();
+      event.stopPropagation();
       endDrag();
       return;
     }
@@ -794,41 +941,81 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     }
   }
 
+  /** A tooltip that stays put (pinned, or the keyboard's) is placed again when the page scrolls under it. */
+  function onScroll(): void {
+    if (!tooltip.visible || !(pinned || source === 'keyboard')) return;
+    dirty = true;
+    present();
+  }
+
   // ── controls ───────────────────────────────────────────────────────────────────────────────────
 
   function tableOpen(): boolean {
     return tableView !== null;
   }
 
+  function parseJump(text: string): string | number | null {
+    const d = cs;
+    if (!d || text === '') return null;
+    const xKind = d.view.kind === 'donut' ? 'category' : d.view.kind === 'scatter' ? d.view.frame.xKind : d.view.frame.x.kind;
+    if (xKind === 'number') {
+      // The page's own grouping and decimal marks, as the table writes them ("900,000" in en-US).
+      const group = d.formatters.count(1000).replace(/\d/g, '');
+      const decimal = group === '.' ? ',' : '.';
+      const plain = (group ? text.split(group).join('') : text).replace(decimal, '.');
+      return /^-?\d+(?:\.\d+)?$/.test(plain) ? Number(plain) : null;
+    }
+    return text;
+  }
+
+  function jumpTarget(text: string): XValue | null {
+    const value = parseJump(text);
+    const d = cs;
+    if (value === null || !d?.reader.table) return null;
+    if (d.reader.table.pageForX(value) !== null || typeof value === 'number') return value;
+    const xKind = d.view.kind === 'donut' ? 'category' : d.view.kind === 'scatter' ? d.view.frame.xKind : d.view.frame.x.kind;
+    if (xKind === 'date' || xKind === 'time' || xKind === 'wall') {
+      // The dates the table shows ("May 31, 2026", "May 31, 2026, 12:00 AM UTC") are accepted as well.
+      const parsed = Date.parse(text.replace(/,?\s*(?:UTC|GMT)$/, ' UTC'));
+      if (Number.isFinite(parsed)) {
+        if (xKind === 'time') return new Date(parsed);
+        const day = new Date(parsed);
+        const local = Date.parse(text);
+        const date = Number.isFinite(local) ? new Date(local) : day;
+        const pad = (n: number) => String(n).padStart(2, '0');
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+      }
+    }
+    return value;
+  }
+
   function openTable(): void {
     const d = cs;
     if (!d?.reader.table || tableView) return;
-    const xKind = d.view.kind === 'donut' ? 'category' : d.view.kind === 'scatter' ? d.view.frame.xKind : d.view.frame.x.kind;
-    tableView = createTableView(doc, figure.id, text => {
-      if (text === '') return null;
-      if (xKind === 'number') {
-        const n = Number(text.replace(/\s/g, ''));
-        return Number.isFinite(n) ? n : null;
-      }
-      return text;
-    });
-    // The plot keeps its size while the table is open, so the table never squeezes it.
+    tableView = createTableView(doc, figure.id, text => jumpTarget(text));
+    // The table takes the plot's place, at the plot's size: opening it moves nothing else on the page, in a
+    // card that clips or in a stack of charts (spec A4; review 2, finding 15).
     const height = figure.body.getBoundingClientRect().height;
     figure.body.style.flex = 'none';
     figure.body.style.height = `${height}px`;
     figure.figure.classList.add('axylo-table-open');
+    plot.inert = true;
     tableModel = null;
     renderTable(d);
   }
 
   function closeTable(): void {
     if (!tableView) return;
+    // Focus inside the table goes to its disclosure before the table goes (review 2, finding 17).
+    const focusInside = tableView.element.contains(doc.activeElement);
     tableView.destroy();
     tableView = null;
     tableModel = null;
     figure.body.style.flex = '';
     figure.body.style.height = '';
     figure.figure.classList.remove('axylo-table-open');
+    plot.inert = false;
+    if (focusInside) toolbar?.focus('table') || proxy?.focus({ preventScroll: true });
   }
 
   function renderTable(d: ControlsState): void {
@@ -842,9 +1029,9 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
         pageOf: (page, count) => fill(m.pageOf, { page: d.formatters.count(page), count: d.formatters.count(count) }),
         jump: fill(m.jumpToX, { x: model.headers[0] ?? '' }),
         lang: key => d.english(key),
-      }, Math.max(160, plot.getBoundingClientRect().height));
+      }, figure.body.getBoundingClientRect().height);
     }
-    if (!tableView.element.isConnected) figure.controls.appendChild(tableView.element);
+    if (tableView.element.parentNode !== figure.body) figure.body.appendChild(tableView.element);
   }
 
   function legendItems(d: ControlsState): ToolbarItem[] {
@@ -863,26 +1050,27 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     });
   }
 
+  /** Each control is offered for the action it can perform, whatever the display state (review 2, finding 3). */
   function controlItems(d: ControlsState): ToolbarItem[] {
     const m = d.messages;
     const items: ToolbarItem[] = [];
     if (d.ready) items.push(...legendItems(d));
     // Inside a toolbar marked English, a replaced label is marked with the page's language again.
     const inherited = d.english('controlsLabel') ? d.pageLang : null;
-    const button = (key: keyof Messages, activate: () => void): ToolbarItem =>
-      ({ key, label: m[key], lang: d.english(key) ?? inherited, className: 'axylo-control', activate });
-    if (d.ready && d.zoom && !d.tooSmall) {
-      items.push(button('zoomIn', () => zoomBy(1 / ZOOM_FACTOR)), button('zoomOut', () => zoomBy(ZOOM_FACTOR)));
+    const button = (key: keyof Messages, activate: () => void, disabled = false): ToolbarItem =>
+      ({ key, label: m[key], lang: d.english(key) ?? inherited, className: 'axylo-control', activate, disabled });
+    if (d.zoom && !d.tooSmall && d.view.kind !== 'donut') {
+      const window = d.zoomed ? d.view.xDomain : d.view.xFull;
+      if (d.ready) items.push(button('zoomIn', () => zoomBy(1 / ZOOM_FACTOR), !canZoomIn(d.view, window)));
+      // Zoom out stays in place at full view, marked as unable to act, so the toolbar does not reflow.
+      if (d.ready || d.zoomed) items.push(button('zoomOut', () => zoomBy(ZOOM_FACTOR), !d.zoomed));
       if (d.zoomed) items.push(button('resetZoom', () => requestZoom(null)));
-    } else if (d.zoom && d.zoomed && !d.tooSmall) {
-      // A window with nothing in it shows the empty state; the way back to everything stays.
-      items.push(button('resetZoom', () => requestZoom(null)));
     }
-    if (d.streaming && d.ready) {
+    if (d.streaming) {
       const key = d.paused ? 'resume' : 'pause';
       items.push({ ...button(key, () => actions.pause(!d.paused)), key: 'pause' });
     }
-    if (d.reader.table && d.ready) {
+    if (d.reader.table && (d.ready || d.inspectable)) {
       const open = tableOpen();
       const key = open ? 'hideTable' : 'viewAsTable';
       items.push({
@@ -900,7 +1088,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
 
   function renderDonutLegend(d: ControlsState): void {
     const view = d.view;
-    if (view.kind !== 'donut' || !d.legend || !d.ready) {
+    if (view.kind !== 'donut' || !d.legend || !(d.ready || d.inspectable)) {
       legendList?.remove();
       legendList = null;
       return;
@@ -910,6 +1098,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     const entries = view.slices.map(slice => {
       const datum = sliceText(view, slice, d.formatters);
       const li = doc.createElement('li');
+      li.dataset.key = slice.key;
       li.appendChild(createSwatch(doc, { color: slice.colorIndex, cue: null, line: false, hollow: slice.angles === null }));
       const name = doc.createElement('span');
       name.className = 'axylo-legend-name';
@@ -928,7 +1117,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     }
   }
 
-  /** Puts exactly `wanted`, in order, into `host`, moving rather than rebuilding (focus stays). */
+  /** Puts exactly `wanted`, in order, into `host`, moving rather than rebuilding. */
   function place(host: HTMLElement, wanted: readonly Element[]): void {
     let at: ChildNode | null = host.firstChild;
     for (const el of wanted) {
@@ -948,34 +1137,31 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     cs = d;
     renderDonutLegend(d);
     const items = controlItems(d);
+    const active = doc.activeElement;
     toolbar.render(items, d.messages.controlsLabel, d.english('controlsLabel'));
-    // The legend, and the toolbar it is part of (one tab stop, spec A2), go where `legend` says; the table
-    // always opens under the plot.
+    // The legend, and the toolbar it is part of (one tab stop, spec A2), go where `legend` says.
     const legend: Element[] = [];
     if (legendList) legend.push(legendList);
     if (items.length) legend.push(toolbar.element);
     const where = d.legend === 'top' ? figure.top : d.legend === 'right' ? figure.side : figure.controls;
-    const bottom: Element[] = where === figure.controls ? [...legend] : [];
-    if (tableView && d.reader.table && d.ready) {
-      renderTable(d);
-      bottom.push(tableView.element);
-    } else if (tableView) {
-      closeTable();
-    }
-    if (where !== figure.controls) place(where, legend);
-    for (const other of [figure.top, figure.side]) if (other !== where) place(other, []);
-    place(figure.controls, bottom);
+    if (tableView && !(d.reader.table && (d.ready || d.inspectable))) closeTable();
+    else if (tableView) renderTable(d);
+    place(where, legend);
+    for (const other of [figure.top, figure.side, figure.controls]) if (other !== where) place(other, []);
+    // Moving an element can take focus with it; the control the reader was on keeps it (review 2, finding 17).
+    if (active instanceof HTMLElement && active !== doc.activeElement && active.isConnected) active.focus({ preventScroll: true });
   }
 
   // ── commit ─────────────────────────────────────────────────────────────────────────────────────
 
   function placeProxy(d: Committed): void {
     if (!proxy || !ring) return;
-    const usable = plotReady(d);
+    const ready = plotReady(d);
+    const usable = ready || recoverable(d);
     proxy.hidden = !usable;
     ring.hidden = !usable;
-    if (!usable || d.layout.kind !== 'plot') return;
-    const p = d.layout.plot;
+    if (!usable) return;
+    const p = d.layout.kind === 'plot' ? d.layout.plot : { x: 0, y: 0, width: d.layout.width, height: d.layout.height };
     const style = `left: ${p.x}px; top: ${p.y}px; width: ${p.width}px; height: ${p.height}px;`;
     if (proxy.style.cssText !== style) {
       proxy.style.cssText = style;
@@ -984,8 +1170,53 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     setAttr(proxy, 'aria-label', d.messages.plotLabel);
     const type = { line: 'typeLine', area: 'typeArea', bar: 'typeBar', scatter: 'typeScatter', donut: 'typeDonut' } as const;
     setAttr(proxy, 'aria-roledescription', fill(d.messages.plotRole, { type: d.messages[type[d.kind]] }));
+    // Built-in English on a page in another language is marked as English (spec A10).
+    setAttr(proxy, 'lang', d.english('plotLabel') && d.english('plotRole') ? 'en' : null);
     plot.classList.toggle('axylo-touch-zoom', d.zoom === 'touch');
     plot.classList.toggle('axylo-zoomable', d.zoom !== false);
+  }
+
+  /**
+   * A reference to an aligned datum holds its x position. On a category axis a position is an index, and a
+   * sliding window renumbers them, so a reference is moved to its category's new index; a category the window
+   * dropped maps to the next one that is still there (the lookup's "after it" rule), else to none.
+   */
+  function remapper(before: View, after: View): ((ref: DatumRef | null) => DatumRef | null) | null {
+    const from = categoriesOf(before);
+    const to = categoriesOf(after);
+    if (!from || !to || (from.length === to.length && from.every((name, i) => to[i] === name))) return null;
+    const index = new Map(to.map((name, i) => [name, i]));
+    const move = (x: number): number | null => {
+      for (let i = x; i < from.length; i++) {
+        const at = index.get(from[i]!);
+        if (at !== undefined) return at;
+      }
+      return null;
+    };
+    return ref => {
+      if (ref === null || ref.kind !== 'aligned') return ref;
+      const x = move(ref.x);
+      return x === null ? null : { ...ref, x };
+    };
+  }
+
+  function remapTarget(target: PickTarget | null, map: (ref: DatumRef | null) => DatumRef | null): PickTarget | null {
+    if (target === null || target.kind !== 'x') return target;
+    const moved = map({ kind: 'aligned', seriesKey: '', x: target.x });
+    return moved && moved.kind === 'aligned' ? { kind: 'x', x: moved.x } : null;
+  }
+
+  /** A pinned target is kept only while it is still in the displayed revision, rebuilt for it (finding 11). */
+  function stillPinned(next: Committed, target: PickTarget): PickTarget | null {
+    if (target.kind === 'point') {
+      const refs = target.refs.filter(r => next.lookup.ordinal(r) >= 0);
+      if (!refs.length) return null;
+      const box = next.lookup.anchor(refs[0]!);
+      const picked = box ? next.lookup.pick(box.x + box.width / 2, box.y + box.height / 2) : null;
+      if (picked?.kind === 'point' && picked.refs.some(r => sameRef(r, refs[0]!))) return picked;
+      return { kind: 'point', refs, count: refs.length };
+    }
+    return next.lookup.tooltip(target).rows.length ? target : null;
   }
 
   function commit(next: Committed | null): void {
@@ -1005,6 +1236,16 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       mode = 'all';
       dismissed = null;
       unpin();
+    } else if (previous) {
+      const map = remapper(previous.view, next.view);
+      if (map) {
+        focus = map(focus);
+        if (focus === null) mode = 'all';
+        lastHover = map(lastHover);
+        dismissed = remapTarget(dismissed, map);
+        pointerTarget = remapTarget(pointerTarget, map);
+        if (pinned && pointerTarget === null) unpin();
+      }
     }
     if (focus) {
       // Spec A7: focus follows its datum, and never points at something that is gone.
@@ -1016,13 +1257,15 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     if (!plotReady(next)) {
       pointerTarget = null;
       if (pinned) unpin();
-    } else if (pointer && !down?.dragging) {
+    } else if (pointer && !down?.dragging && !pinned) {
       pointerTarget = next.lookup.pick(pointer.x, pointer.y);
-    } else if (pinned && pointerTarget && next.lookup.tooltip(pointerTarget).rows.length === 0) {
-      unpin();
+    } else if (pinned && pointerTarget) {
+      const kept = stillPinned(next, pointerTarget);
+      if (kept === null) unpin();
+      else pointerTarget = kept;
     }
     placeProxy(next);
-    writeProxy(false);
+    writeProxy();
     renderControls(next);
     present();
   }
@@ -1069,18 +1312,18 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     attach() {
       if (attached || destroyed) return;
       attached = true;
-      if (proxy) doc.addEventListener('keydown', onDocumentKey);
+      listenDocument();
     },
     detach() {
       if (!attached) return;
       attached = false;
-      doc.removeEventListener('keydown', onDocumentKey);
       unpin();
-      doc.removeEventListener('pointerdown', onDocumentDown, true);
+      unlistenDocument();
     },
     destroy() {
       if (destroyed) return;
       clear();
+      tooltip.destroy();
       destroyed = true;
       if (pinchFrame !== 0) doc.defaultView?.cancelAnimationFrame(pinchFrame);
     },

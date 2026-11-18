@@ -194,6 +194,18 @@ describe('legend (spec I2, A5, L2, F8)', () => {
       expect(texts[i]).toContain(label);
       expect(texts[i]).toContain(`${fx.values[i]}%`);
     });
+    // Each field on its own (acceptance gap: the value and the share have the same text here, so one could be
+    // missing): the name, then the value with its unit ('percent' scale), then the share of the total, which
+    // for shares summing to 100 is the same number. Expected from the fixture, in slice order.
+    const total = fx.values.reduce((a, b) => a + b, 0);
+    const fields = await items.evaluateAll(lis => lis.map(li => ({
+      name: li.querySelector('.axylo-legend-name')?.textContent, value: li.querySelector('.axylo-legend-value')?.textContent,
+    })));
+    fx.labels.forEach((label, i) => {
+      const share = new Intl.NumberFormat('en-US', { style: 'percent', maximumFractionDigits: 1 }).format(fx.values[i]! / total);
+      expect(fields[i]!.name).toBe(label);
+      expect(fields[i]!.value === `${fx.values[i]}%` || fields[i]!.value === `${fx.values[i]}% (${share})`, `${fields[i]!.value}`).toBe(true);
+    });
     expect(await page.locator('#chart ul.axylo-legend-list button').count()).toBe(0);
     expect(await page.locator('#chart .axylo-toolbar button').allTextContents()).toEqual(['View as table']);
     expect(await closePage(page)).toEqual([]);
@@ -210,6 +222,20 @@ describe('legend (spec I2, A5, L2, F8)', () => {
     });
     const texts = await page.locator('#chart ul.axylo-legend-list > li').allTextContents();
     expect(texts.some(t => t.startsWith('Other ('))).toBe(true);
+    // Spec F8: nine slices have a value, so the seven largest are drawn (A–G) and the other two (I, J: 3 + 3)
+    // are "Other (2)", 6 in all; the zero slice H "is listed without an arc", by name, hollow. Every category
+    // is in the table (A4).
+    const entries = await page.locator('#chart ul.axylo-legend-list > li').evaluateAll(lis => lis.map(li => ({
+      name: li.querySelector('.axylo-legend-name')?.textContent, value: li.querySelector('.axylo-legend-value')?.textContent,
+      hollow: li.querySelector('svg path')?.getAttribute('stroke') === 'currentColor',
+    })));
+    expect(entries.map(e => e.name)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'Other (2)']);
+    expect(entries.at(-1)!.value).toMatch(/^6\b/);
+    expect(entries[7]!.value).toMatch(/^0\b/);
+    expect(entries.map(e => e.hollow)).toEqual([false, false, false, false, false, false, false, true, false]);
+    await page.locator('#chart button', { hasText: 'View as table' }).click();
+    const rows = await page.locator('#chart table tbody th[scope="row"]').allTextContents();
+    expect(rows).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J']);
     expect(await closePage(page)).toEqual([]);
   });
 });

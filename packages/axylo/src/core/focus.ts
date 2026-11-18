@@ -8,9 +8,8 @@
  * ("single" mode) and moves with `lookup.step`, which skips that series' missing values as the contract says.
  */
 import {
-  SLOT_NO_ROW,
   type AlignedView, type DatumRef, type Formatters, type Layout, type Lookup, type Mark, type Overlay,
-  type PickTarget, type Rect, type RuleMark, type StepDirection, type View,
+  type PickTarget, type Rect, type RuleMark, type ScatterView, type StepDirection, type View,
 } from './contracts';
 import type { Messages } from '../public';
 import { fill, pointOf } from '../messages';
@@ -56,13 +55,12 @@ export function readableSeries(view: AlignedView): number[] {
 }
 
 /**
- * In "all" mode the reader moves over x slots. A slot is skipped only when no readable series has an
- * observation there (the x exists for a hidden series alone); a slot where a series has no data has a place
- * and is read as "No data" (spec F2), so an outage can be reached.
+ * In "all" mode the reader moves over x slots, every visible slot a place of its own, as the lookup counts
+ * them ("point 2 of 3") and as the pointer reaches them: a slot where a series has no data reads "No data"
+ * (spec F2), one only a hidden series observes reads "No observation" (review 2, finding 7).
  */
-function occupied(view: AlignedView, series: readonly number[], i: number): boolean {
-  for (const s of series) if (view.frame.series[s]!.slot[i] !== SLOT_NO_ROW) return true;
-  return false;
+function occupied(_view: AlignedView, _series: readonly number[], _i: number): boolean {
+  return true;
 }
 
 /** The x position "all" mode moves to, or null when there is nowhere to go in that direction. */
@@ -135,10 +133,18 @@ export function valueText(
     });
   }
   if (view.kind !== 'scatter' && mode === 'all' && focus.kind === 'aligned') {
-    const rows = refsAt(view, focus.x).flatMap(ref => {
+    // What the tooltip shows at this x, the stack total included, said once (spec I1, F10).
+    const model = lookup.tooltip({ kind: 'x', x: focus.x });
+    const shown = new Set(model.rows.map(r => r.seriesIndex));
+    const rows = model.rows.map(r => fill(messages.seriesValue, { series: r.seriesLabel, value: r.value }));
+    for (const ref of refsAt(view, focus.x)) {
+      if (ref.kind !== 'aligned') continue;
+      const index = view.frame.series.findIndex(s => s.key === ref.seriesKey);
+      if (shown.has(index)) continue;
       const datum = lookup.datum(ref);
-      return datum ? [fill(messages.seriesValue, { series: datum.seriesLabel, value: datum.value })] : [];
-    });
+      if (datum) rows.push(fill(messages.seriesValue, { series: datum.seriesLabel, value: datum.value }));
+    }
+    if (model.total !== null) rows.push(fill(messages.seriesValue, { series: messages.total, value: model.total }));
     if (!rows.length) return null;
     return fill(messages.pointAll, { x: formatters.x(focus.x), values: rows.join('; '), position });
   }
@@ -273,14 +279,24 @@ function inside(full: Span, start: number, width: number): Span {
 
 /**
  * The window after scaling `current` by `factor` around `center` (a position), clamped to `full` and to a
- * smallest width. null means the whole range (no zoom), so the reset control can disappear.
+ * smallest width. null means the whole range (no zoom), so the reset control can disappear. A window that
+ * cannot get narrower comes back unchanged; a result is always finite and strictly ordered.
  */
 export function scaleWindow(full: Span, current: Span, factor: number, center: number, minWidth: number): Span | null {
   const fullWidth = full[1] - full[0];
   const width = Math.max(minWidth, (current[1] - current[0]) * factor);
   if (!(fullWidth > 0) || width >= fullWidth) return null;
   const share = current[1] > current[0] ? (center - current[0]) / (current[1] - current[0]) : 0.5;
-  return inside(full, center - share * width, width);
+  const next = inside(full, center - share * width, width);
+  if (!(Number.isFinite(next[0]) && Number.isFinite(next[1]) && next[1] > next[0])) return current;
+  return next;
+}
+
+/** Whether one Zoom in step from `window` would show a narrower window (else the control is not offered as working). */
+export function canZoomIn(view: View, window: Span): boolean {
+  if (view.kind === 'donut') return false;
+  const next = scaleWindow(view.xFull, window, 1 / ZOOM_FACTOR, (window[0] + window[1]) / 2, minimumWidth(view));
+  return next !== null && next[1] - next[0] < window[1] - window[0];
 }
 
 /** The window moved by `share` of its width (negative: towards the start); null when it would not move. */
@@ -294,7 +310,9 @@ export function panWindow(full: Span, current: Span, share: number): Span | null
 export function minimumWidth(view: View): number {
   if (view.kind === 'donut') return 0;
   const full = view.xFull[1] - view.xFull[0];
-  if (view.kind === 'scatter') return full / 1e4;
+  // Never below what doubles can tell apart at these positions, so a window keeps two distinct ends.
+  const representable = 64 * Number.EPSILON * Math.max(Math.abs(view.xFull[0]), Math.abs(view.xFull[1]), 1);
+  if (view.kind === 'scatter') return Math.max(full / 1e4, representable);
   const n = view.frame.x.values.length;
   return n > 1 ? 2 * full / (n - 1) : full;
 }
@@ -304,6 +322,28 @@ export function zoomApplies(view: View, option: unknown): boolean {
   if (option === false || view.kind === 'donut' || view.compact) return false;
   if (view.kind === 'scatter') return true;
   return view.frame.x.kind !== 'category';
+}
+
+/**
+ * Narrowed mode on scatter (review 2, finding 7): the next or previous point of the same series in x order
+ * among its visible points; null at an end.
+ */
+export function stepInSeries(view: ScatterView, ref: DatumRef, direction: StepDirection): DatumRef | null {
+  if (ref.kind !== 'point') return null;
+  const s = view.frame.series.findIndex(series => series.key === ref.seriesKey);
+  const series = view.frame.series[s];
+  const range = view.visiblePoints[s];
+  if (!series || !range || range.end <= range.start) return null;
+  const rows = series.row;
+  let at = -1;
+  for (let i = range.start; i < range.end; i++) if ((rows ? rows[i]! : i) === ref.row) { at = i; break; }
+  if (at < 0) return null;
+  const page = pageDistance(range.end - range.start);
+  const to = direction === 'next' ? at + 1 : direction === 'previous' ? at - 1 : direction === 'first' ? range.start
+    : direction === 'last' ? range.end - 1 : direction === 'page-next' ? Math.min(range.end - 1, at + page)
+      : direction === 'page-previous' ? Math.max(range.start, at - page) : -1;
+  if (to < range.start || to >= range.end || to === at) return null;
+  return { kind: 'point', seriesKey: series.key, row: rows ? rows[to]! : to, x: series.x[to]! };
 }
 
 /** The x position under a plot pixel, from the layout's projection; null on a band (category) axis. */

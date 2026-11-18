@@ -217,7 +217,7 @@ describe('finding 6: author callbacks cannot repeat a delivery or continue work 
     expect(r.draws.length).toBe(0);
     expect(r.commits).toBe(0);
     expect(r.disposed).toBe(1);
-    expect(describeOf(r)).toEqual({ xDomain: null, yDomain: null, series: [] });
+    expect(describeOf(r)).toEqual({ xDomain: null, yDomain: null, series: [], renderer: 'svg' });
   });
 });
 
@@ -534,5 +534,62 @@ describe('finding 14: typography is read again when a size change or a font load
     r.controller.invalidate.fonts();
     r.frames();
     expect(stages(r).layout).toBe(layouts + 1);
+  });
+});
+
+describe('review 2, finding 5: keep bounds what the store holds, paused or not', () => {
+  it('1,000 appends with keep 3 while paused hold at most the displayed rows plus 3 (scatter and line)', () => {
+    for (const kind of ['scatter', 'line'] as const) {
+      const r = record(kind, { title: 'K', data: rowsOf([0, 1, 2]), x: 'x', y: 'y' });
+      r.frames();
+      r.controller.handle.append([{ x: 3, y: 3 }], { keep: 3 });
+      r.frames();
+      r.controller.actions.pause(true);
+      for (let i = 4; i < 1004; i++) r.controller.handle.append([{ x: i, y: i }], { keep: 3 });
+      r.frames();
+      // The displayed frame (3 rows) stays addressable; the held store keeps 3 more.
+      expect(r.controller.handle.__dev!.retainedRows(), kind).toBeLessThanOrEqual(6);
+      r.controller.actions.pause(false);
+      r.frames();
+      expect(r.controller.handle.__dev!.retainedRows(), kind).toBeLessThanOrEqual(3);
+    }
+  });
+});
+
+describe('review 2, finding 1: paused calls validate at the call and apply in call order', () => {
+  it('a strict paused append that is invalid throws at once; the valid ones around it are shown on resume', () => {
+    const r = record('line', { title: 'P', strict: true, data: rowsOf([1]), x: 'x', y: 'y' });
+    r.frames();
+    r.controller.handle.append([{ x: 2, y: 20 }]);
+    r.controller.actions.pause(true);
+    r.controller.handle.append([{ x: 3, y: 30 }]);
+    expect(String(catching(() => r.controller.handle.append([{ x: 4, y: NaN }])))).toMatch(/AX103/);
+    r.controller.handle.append([{ x: 5, y: 50 }]);
+    r.frames();
+    expect(xs(r)).toEqual([1, 2]);
+    r.controller.actions.pause(false);
+    r.frames();
+    // x = 4 is an absent step of the regular axis (a gap slot, spec F2), not the rejected value.
+    const view = r.committed!.view as AlignedView;
+    const values = Array.from(view.frame.x.values).filter((_, i) => view.frame.series[0]!.slot[i] === 0);
+    expect(values).toEqual([1, 2, 3, 5]);
+  });
+});
+
+describe('the bench describe names the kept samples and the renderer', () => {
+  it('a dense line keeps its outlier and both ends, never a missing row, and says which renderer draws it', () => {
+    const n = 10_000;
+    const y = Float64Array.from({ length: n }, (_, i) => (i === 5000 ? 1000 : i % 3));
+    y[7000] = NaN;
+    const r = record('line', { title: 'Dense', data: { columns: { x: Float64Array.from({ length: n }, (_, i) => i), y } }, x: 'x', y: 'y' });
+    r.frames();
+    const d = describeOf(r);
+    expect(d.renderer).toBe('svg');
+    const kept = d.series[0]!.kept!;
+    expect(kept.length).toBeLessThan(n / 4);
+    expect(kept).toContain(5000);
+    expect(kept[0]).toBe(0);
+    expect(kept.at(-1)).toBe(n - 1);
+    expect(kept).not.toContain(7000);
   });
 });

@@ -150,6 +150,10 @@ ${forced}
   /* The fixed readout under the plot of a narrow tile (spec I1): it overlays what is below, so showing it
      never changes the figure's size. */
   .axylo .axylo-readout { right: 0; max-width: none; }
+  /* A readout pinned by touch over the controls lets taps through to them (review 2, finding 13). */
+  .axylo .axylo-readout.axylo-passive { pointer-events: none; }
+  /* A tooltip row can be chosen with a click or a tap (WCAG 2.5.1). */
+  .axylo .axylo-tooltip-choice { cursor: pointer; }
   .axylo .axylo-tooltip-title { font-weight: 600; }
   .axylo .axylo-tooltip-row { display: flex; gap: 1em; justify-content: space-between; }
   .axylo .axylo-tooltip-series { display: inline-flex; align-items: center; gap: 0.375em; min-width: 0; overflow-wrap: anywhere; }
@@ -159,6 +163,11 @@ ${forced}
     text-align: end; font-weight: 600; font-variant-numeric: tabular-nums;
   }
   .axylo .axylo-swatch { flex: none; display: inline-block; overflow: visible; }
+  /* The swatch repeats the dash the marks use, normal or contrast (spec A5; review 2, finding 22). */
+  .axylo .axylo-swatch-line { stroke-dasharray: var(--axylo-swatch-dash, none); }
+  @media (prefers-contrast: more), (forced-colors: active) {
+    .axylo .axylo-swatch-line { stroke-dasharray: var(--axylo-swatch-dash-contrast, none); }
+  }
   /* A reference label sits on a plate of the backdrop color, so it stays readable over marks (spec L6). */
   .axylo .axylo-label[data-role="reference"] {
     background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)));
@@ -180,9 +189,12 @@ ${forced}
   /* The plot's focus indicator (spec A2): 2 px in the focus token, at least 3:1 in both schemes. */
   .axylo .axylo-focus-ring {
     position: absolute; z-index: 2; display: none; box-sizing: border-box; pointer-events: none;
-    outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px;
+    /* Inside the plot's box: the plot clips, and a ring outside it would not be seen (review 2, finding 14). */
+    outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: -3px;
   }
   .axylo .axylo-proxy:focus-visible + .axylo-focus-ring { display: block; }
+  /* The donut slice the keyboard is on, also when it has no arc. */
+  .axylo .axylo-legend-list > li.axylo-legend-current { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
   .axylo .axylo-selection {
     position: absolute; z-index: 1; box-sizing: border-box; pointer-events: none;
     border: 1px solid var(--axylo-focus, var(--axylo-default-focus));
@@ -219,6 +231,13 @@ ${forced}
   .axylo .axylo-legend-list > li { display: inline-flex; align-items: center; gap: 0.375em; min-width: 0; }
   .axylo .axylo-legend-value { font-variant-numeric: tabular-nums; }
   .axylo .axylo-table { display: flex; flex-direction: column; gap: 0.5em; min-width: 0; }
+  /* The open table takes the plot's place at the plot's size, so nothing else moves (spec A4; review 2, finding 15). */
+  .axylo .axylo-table-open .axylo-body { position: relative; }
+  .axylo .axylo-body > .axylo-table {
+    position: absolute; inset: 0; z-index: 4; box-sizing: border-box;
+    background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)));
+  }
+  .axylo .axylo-body > .axylo-table > .axylo-table-scroll { flex: 1 1 auto; }
   .axylo .axylo-table-scroll { overflow: auto; box-sizing: border-box; min-height: 0; border: 1px solid var(--axylo-grid, var(--axylo-default-grid)); }
   .axylo .axylo-table-scroll:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
   .axylo .axylo-table table { border-collapse: collapse; width: max-content; min-width: 100%; font-size: max(12px, 0.875em); font-variant-numeric: tabular-nums; }

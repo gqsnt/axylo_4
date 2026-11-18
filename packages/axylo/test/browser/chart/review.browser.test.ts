@@ -269,7 +269,11 @@ describe('lifecycle (finding 12)', () => {
       EventTarget.prototype.addEventListener = function (this: EventTarget, type: string, fn: EventListenerOrEventListenerObject | null, o?: boolean | AddEventListenerOptions) {
         if (fn && (this === document || this === document.fonts || this instanceof MediaQueryList)) {
           if (!ids.has(fn as object)) ids.set(fn as object, ++n);
-          live.add(name(this, type, fn));
+          const entry = name(this, type, fn);
+          live.add(entry);
+          // A listener removed by aborting its signal is removed as well.
+          const signal = typeof o === 'object' ? o.signal : undefined;
+          signal?.addEventListener('abort', () => live.delete(entry));
         }
         return add.call(this, type, fn, o);
       } as typeof EventTarget.prototype.addEventListener;

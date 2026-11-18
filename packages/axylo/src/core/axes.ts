@@ -88,23 +88,20 @@ export function layoutInput(
   const firstScale = 'valueScale' in (visibleSeries[0] ?? {}) ? (visibleSeries[0] as { valueScale: 'percent' | 'ratio' | null }).valueScale : null;
   const valueScale = view.kind === 'scatter' ? value?.scale ?? null
     : visibleSeries.every(s => (s as { valueScale: unknown }).valueScale === firstScale) ? firstScale : null;
-  const yTitle = view.kind === 'scatter'
-    ? withUnit(view.frame.yLabel, view.frame.yUnit)
-    : withUnit(view.frame.yLabel ?? alignedValueTitle(view.frame.series, ctx.valueTitle), sharedUnit(view.frame.series));
+  const titles = axisTitles(view, ctx);
   const y = {
     domain: view.yDomain, candidates: numberTicks(view.yDomain, ctx.locale, yOption, valueScale, onYError),
-    title: ctx.compact ? undefined : yTitle, mayThin: true,
+    title: titles.y, mayThin: true,
   };
   const common = { width, height, compact: ctx.compact, measurer: text.measurer, style: text.style, scales };
 
   if (view.kind === 'scatter') {
     const x = continuousX(view.frame.xKind, view.xDomain, view.frame.timeZone, null, ctx);
-    const title = ctx.compact || !xTitled(view.frame.xKind, ctx) ? undefined : withUnit(view.frame.xLabel, view.frame.xUnit);
-    return { ...common, kind: 'xy', x: { ...x, title }, y, references: view.references };
+    return { ...common, kind: 'xy', x: { ...x, title: titles.x }, y, references: view.references };
   }
 
   const column = view.frame.x;
-  const xTitle = ctx.compact || !xTitled(column.kind, ctx) ? undefined : withUnit(view.frame.xLabel, ctx.resolved.x.unit);
+  const xTitle = titles.x;
   const references = view.references;
   const onXError = (e: unknown) => ctx.onFormatterError(ctx.resolved.x.field, e);
   if (column.kind === 'category') {
@@ -123,6 +120,21 @@ export function layoutInput(
   return view.kind === 'bar'
     ? { ...common, kind: 'bands', horizontal: view.horizontal, x, y, references }
     : { ...common, kind: 'xy', x, y, references };
+}
+
+/** The axis titles layout draws (spec L6), with their units; undefined where an axis is untitled. */
+function axisTitles(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext): { x: string | undefined; y: string | undefined } {
+  if (ctx.compact) return { x: undefined, y: undefined };
+  if (view.kind === 'scatter') {
+    return {
+      x: xTitled(view.frame.xKind, ctx) ? withUnit(view.frame.xLabel, view.frame.xUnit) : undefined,
+      y: withUnit(view.frame.yLabel, view.frame.yUnit),
+    };
+  }
+  return {
+    x: xTitled(view.frame.x.kind, ctx) ? withUnit(view.frame.xLabel, ctx.resolved.x.unit) : undefined,
+    y: withUnit(view.frame.yLabel ?? alignedValueTitle(view.frame.series, ctx.valueTitle), sharedUnit(view.frame.series)),
+  };
 }
 
 /** Spec L6: a number x is a measure and is titled; time, date and category ticks already say what they are. */
@@ -156,6 +168,9 @@ export function layoutKey(
     ctx.resolved.x.label, ctx.resolved.x.unit, value?.tickFormat, value?.label, value?.unit, value?.scale,
     ctx.xLabelGiven, ctx.valueTitle, view.references);
   base.push(...view.visible);
+  // The titles as drawn: a unit can change on one series only and change the shared unit (review 2, finding 20).
+  const titles = axisTitles(view, ctx);
+  base.push(titles.x, titles.y);
   if (view.kind === 'scatter') {
     base.push(view.frame.xKind, view.frame.timeZone, view.frame.xLabel, view.frame.yLabel);
     return base;

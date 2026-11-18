@@ -43,11 +43,13 @@ describe('all-series navigation (decision 0001)', () => {
     expect(valueText(view, lookup, ref('A', 7), 'all', formatters, defaultMessages)).toBe('7. A 17 ms; B 27 ms; C No data. Point 8 of 10');
   });
 
-  it('skips an x that only a hidden series observes', () => {
+  // Reversed by review 2, finding 7: the lookup counts every visible slot ("point 2 of 3") and the pointer
+  // reaches it ("No observation"), so the keyboard does too; see focus2.test.ts.
+  it('reaches an x that only a hidden series observes, as the lookup counts it', () => {
     const only = frame('line', { data: [{ x: 0, s: 'A', y: 1 }, { x: 1, s: 'B', y: 2 }, { x: 2, s: 'A', y: 3 }], x: 'x', y: 'y', series: 's' });
     const view = aligned(only, { visible: [true, false] });
-    expect(stepAcross(view, 0, 'next')).toBe(2);
-    expect(stepAcross(view, 2, 'previous')).toBe(0);
+    expect(stepAcross(view, 0, 'next')).toBe(1);
+    expect(stepAcross(view, 2, 'previous')).toBe(1);
   });
 
   it('Home, End and the page keys; nothing to do at an end', () => {

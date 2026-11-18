@@ -55,7 +55,8 @@ export interface Figure {
   /** Returns true when something that can change the figure's layout was written. */
   update(model: FigureModel): boolean;
   /** Puts text in the polite live region (state changes only, spec L7, A7). */
-  announce(text: string): void;
+  /** `lang` marks built-in English on a page in another language (spec A10). */
+  announce(text: string, lang?: string | null): void;
   /** Removes everything the figure added to the root, and the root's added class. */
   destroy(): void;
 }
@@ -198,7 +199,8 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
       show(message, model.message !== null);
       return moved;
     },
-    announce(text: string): void {
+    announce(text: string, lang: string | null = null): void {
+      setAttr(live, 'lang', lang);
       setText(live, text);
     },
     destroy(): void {

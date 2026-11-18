@@ -115,15 +115,17 @@ const axeSource = fs.readFileSync(path.resolve(import.meta.dirname, '../../../..
 export interface AxeViolation { id: string; impact: string | null; nodes: string[]; help: string }
 
 /** axe-core over `selector` (every rule axe enables by default, best practices such as heading-order included). */
-export async function axe(page: Page, selector = 'body'): Promise<{ violations: AxeViolation[]; ran: string[] }> {
+export async function axe(page: Page, selector = 'body'): Promise<{ violations: AxeViolation[]; ran: string[]; incomplete: string[] }> {
   if (!(await page.evaluate(() => 'axe' in window))) await page.addScriptTag({ content: axeSource });
   return page.evaluate(async selector => {
     type Rule = { id: string; impact: string | null; help: string; nodes: { target: string[] }[] };
     const run = (window as unknown as { axe: { run(context: unknown, options: unknown): Promise<{ violations: Rule[]; passes: Rule[]; incomplete: Rule[] }> } }).axe;
-    const result = await run.run(selector, { resultTypes: ['violations', 'passes'] });
+    const result = await run.run(selector, { resultTypes: ['violations', 'passes', 'incomplete'] });
     return {
       violations: result.violations.map(v => ({ id: v.id, impact: v.impact, help: v.help, nodes: v.nodes.map(n => n.target.join(' ')) })),
-      ran: [...result.passes, ...result.violations, ...result.incomplete].map(r => r.id),
+      // A rule axe could not decide is not a rule that ran (review 2, finding 21): it is reported apart.
+      ran: [...result.passes, ...result.violations].map(r => r.id),
+      incomplete: result.incomplete.map(r => r.id),
     };
   }, selector);
 }
