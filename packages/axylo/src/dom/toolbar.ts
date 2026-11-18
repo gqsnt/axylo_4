@@ -24,6 +24,11 @@ export interface ToolbarItem {
   /** `lang` of the button ('en' for built-in text on a page in another language), or null. */
   readonly lang: string | null;
   readonly className: string;
+  /**
+   * Drawn as a 24 × 24 symbol, named by `label` (also its `title`): a toggle added to a toolbar that must not
+   * gain a row for it (Select range).
+   */
+  readonly symbol?: 'range';
   /** The control can do nothing now (Zoom in at the smallest window): aria-disabled, activation ignored. */
   readonly disabled?: boolean;
   activate(): void;
@@ -36,6 +41,8 @@ export interface Toolbar {
   focus(key: string): boolean;
   destroy(): void;
 }
+
+const SVG = 'http://www.w3.org/2000/svg';
 
 export function createToolbar(doc: Document): Toolbar {
   const element = doc.createElement('div');
@@ -79,11 +86,28 @@ export function createToolbar(doc: Document): Toolbar {
   function fill(button: HTMLButtonElement, item: ToolbarItem): void {
     const children: Node[] = [];
     if (item.swatch) children.push(createSwatch(doc, item.swatch));
+    if (item.symbol) children.push(rangeSymbol());
     const text = doc.createElement('span');
-    text.className = 'axylo-control-label';
+    // A symbol button keeps its text as its accessible name, visually hidden.
+    text.className = item.symbol ? 'axylo-control-label axylo-visually-hidden' : 'axylo-control-label';
     text.textContent = item.label;
     children.push(text);
     button.replaceChildren(...children);
+    setAttr(button, 'title', item.symbol ? item.label : null);
+  }
+
+  /** Two bounds and a double arrow between them, in the text colour (so forced colours restyle it). */
+  function rangeSymbol(): SVGSVGElement {
+    const svg = doc.createElementNS(SVG, 'svg');
+    svg.setAttribute('viewBox', '0 0 16 16');
+    svg.setAttribute('width', '16');
+    svg.setAttribute('height', '16');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('class', 'axylo-symbol');
+    const path = doc.createElementNS(SVG, 'path');
+    path.setAttribute('d', 'M2 2v12M14 2v12M4.5 8h7M4.5 8l2.5-2.5M4.5 8l2.5 2.5M11.5 8l-2.5-2.5M11.5 8l-2.5 2.5');
+    svg.append(path);
+    return svg;
   }
 
   return {
@@ -124,7 +148,7 @@ export function createToolbar(doc: Document): Toolbar {
         }
         entry.item = item;
         const { button } = entry;
-        const signature = JSON.stringify([item.label, item.swatch, item.struck]);
+        const signature = JSON.stringify([item.label, item.swatch, item.struck, item.symbol]);
         if (signature !== entry.signature) {
           fill(button, item);
           entry.signature = signature;

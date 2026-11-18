@@ -169,17 +169,31 @@ export function placeTooltip(p: PlacementInput, width: number, height: number): 
 export function fallbackPlacement(p: PlacementInput, width: number, height: number): Spot | null {
   if (width > p.visible.width + EPSILON || height > p.visible.height + EPSILON) return null;
   const obstacles = [...p.controls, ...p.rings];
-  let best: { spot: Spot; cost: number } | null = null;
+  let best: { spot: Spot; cost: number; off: number } | null = null;
   for (const side of sides(p.order)) {
     const { fixed, preferred } = anchorOf(side, p.box, width, height);
     const vertical = side === 'above' || side === 'below';
     const pushed = vertical
       ? Math.max(p.visible.y, Math.min(fixed, p.visible.y + p.visible.height - height))
       : Math.max(p.visible.x, Math.min(fixed, p.visible.x + p.visible.width - width));
-    const spot = along(side, pushed, preferred, width, height, p.visible, obstacles);
-    if (!spot) continue;
-    const cost = overlapArea({ x: spot.x, y: spot.y, width, height }, p.box);
-    if (!best || cost < best.cost - EPSILON) best = { spot, cost };
+    // Every legal position along the free axis where the overlap with the box can be least: the centred
+    // one, the bounds, each obstacle's edges, and where the tooltip just clears the box (review finding 11).
+    const lo = vertical ? p.visible.x : p.visible.y;
+    const hi = vertical ? p.visible.x + p.visible.width - width : p.visible.y + p.visible.height - height;
+    const size = vertical ? width : height;
+    const edges = [preferred, lo, hi, vertical ? p.box.x - size : p.box.y - size, vertical ? p.box.x + p.box.width : p.box.y + p.box.height];
+    for (const o of obstacles) edges.push(vertical ? o.x - size : o.y - size, vertical ? o.x + o.width : o.y + o.height);
+    for (const e of edges) {
+      const at = Math.max(lo, Math.min(hi, e));
+      const spot: Spot = vertical ? { x: at, y: pushed, side } : { x: pushed, y: at, side };
+      const r = { x: spot.x, y: spot.y, width, height };
+      if (obstacles.some(o => overlapArea(r, o) > 0)) continue;
+      const cost = overlapArea(r, p.box);
+      const off = Math.abs(at - preferred);
+      if (!best || cost < best.cost - EPSILON || (Math.abs(cost - best.cost) <= EPSILON && spot.side === best.spot.side && off < best.off - EPSILON)) best = { spot, cost, off };
+    }
+    // Candidates of later sides win only by covering less (the side order is kept on ties).
+    if (best && best.cost <= EPSILON) break;
   }
   return best?.spot ?? null;
 }
@@ -206,10 +220,17 @@ export function intersect(a: Rect, b: Rect): Rect {
 export interface Point { readonly x: number; readonly y: number }
 
 /**
+ * Pointer positions are known to one CSS pixel (Firefox and WebKit give whole pixels): the corridor is taken
+ * with that much slack (decision 0004, clarifications).
+ */
+export const CORRIDOR_SLACK = 1;
+
+/**
  * Whether `p` is inside the corridor of rule 3b: the convex hull of the resting position `from` and the
- * rectangle `r`, the rectangle itself included (all in viewport pixels).
+ * rectangle `r`, the rectangle itself included, widened by `CORRIDOR_SLACK` (all in viewport pixels).
  */
 export function insideCorridor(from: Point, r: Rect, p: Point): boolean {
+  const slack = CORRIDOR_SLACK + EPSILON;
   if (p.x >= r.x - EPSILON && p.x <= r.x + r.width + EPSILON && p.y >= r.y - EPSILON && p.y <= r.y + r.height + EPSILON) return true;
   const points: Point[] = [from, { x: r.x, y: r.y }, { x: r.x + r.width, y: r.y }, { x: r.x + r.width, y: r.y + r.height }, { x: r.x, y: r.y + r.height }]
     .sort((a, b) => a.x - b.x || a.y - b.y);
@@ -227,6 +248,16 @@ export function insideCorridor(from: Point, r: Rect, p: Point): boolean {
   }
   const hull = [...lower.slice(0, -1), ...upper.slice(0, -1)];
   if (hull.length < 3) return false;
-  for (let i = 0; i < hull.length; i++) if (cross(hull[i]!, hull[(i + 1) % hull.length]!, p) < -EPSILON) return false;
-  return true;
+  let outside = false;
+  for (let i = 0; i < hull.length && !outside; i++) outside = cross(hull[i]!, hull[(i + 1) % hull.length]!, p) < -EPSILON;
+  if (!outside) return true;
+  // Outside: within the slack of the hull's boundary (the distance to its nearest edge).
+  let nearest = Infinity;
+  for (let i = 0; i < hull.length; i++) {
+    const a = hull[i]!, b = hull[(i + 1) % hull.length]!;
+    const dx = b.x - a.x, dy = b.y - a.y;
+    const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy || 1)));
+    nearest = Math.min(nearest, Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy)));
+  }
+  return nearest <= slack;
 }

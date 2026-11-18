@@ -16,6 +16,8 @@ export interface TableTexts {
   readonly jump: string;
   /** The error shown when nothing matches what was typed, with an example (the jumpNotFound message). */
   readonly notFound?: (text: string) => string;
+  /** `lang` of that error's template ('en' where it is the built-in one on a page in another language). */
+  readonly notFoundLang?: string | null;
   /** `lang` for each built-in string, or null. */
   readonly lang: (key: 'previousPage' | 'nextPage' | 'pageOf' | 'jumpToX') => string | null;
   /**
@@ -182,6 +184,7 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
       field.setAttribute('aria-invalid', 'true');
       if (texts?.notFound) {
         error.textContent = texts.notFound(field.value.trim());
+        setAttr(error, 'lang', texts.notFoundLang ?? null);
         error.hidden = false;
         field.setAttribute('aria-describedby', error.id);
       }

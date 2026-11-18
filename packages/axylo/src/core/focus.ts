@@ -165,25 +165,36 @@ export function alignedRows(view: AlignedView, formatters: Formatters, x: number
 
 /**
  * Every point shown with a scatter target: its refs, then the rest of its coincident group (the pick lists
- * at most eight). The group's further members are its neighbours in the lookup's x-then-y order whose
- * anchors coincide with the first's; exactly coincident points are adjacent in that order.
+ * at most eight; `count` is the group). Members are found by the lookup's own predicate: the points that the
+ * pick at the first point's place returns, i.e. those nearest that place, `count` of them. Candidates are the
+ * points whose anchors lie within a few pixels of it, walked in the lookup's x-then-y order until their x is
+ * farther than that, so points of other heights interleaved in that order are passed over, not stopped at
+ * (review finding 8).
  */
 export function groupRefs(lookup: Lookup, target: Extract<PickTarget, { kind: 'point' }>): DatumRef[] {
   const refs = [...target.refs];
   const first = refs[0];
   const box = first ? lookup.anchor(first) : null;
   if (!first || !box || target.count <= refs.length) return refs;
-  const same = (ref: DatumRef) => {
-    const b = lookup.anchor(ref);
-    return b !== null && Math.abs(b.x - box.x) < 0.5 && Math.abs(b.y - box.y) < 0.5;
-  };
+  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+  const REACH = 2;
+  const candidates: { ref: DatumRef; d: number }[] = [];
   for (const direction of ['next', 'previous'] as const) {
     let at: DatumRef | null = first;
-    for (let k = 0; at && refs.length < target.count && k < target.count + 8; k++) {
+    for (let k = 0; at && k < lookup.count; k++) {
       at = lookup.step(at, direction);
-      if (!at || !same(at)) break;
-      if (!refs.some(r => sameRef(r, at))) refs.push(at);
+      const b = at ? lookup.anchor(at) : null;
+      if (!at || !b) break;
+      const x = b.x + b.width / 2, y = b.y + b.height / 2;
+      if (Math.abs(x - cx) > REACH) break;
+      const d = Math.hypot(x - cx, y - cy);
+      if (d <= REACH && !refs.some(r => sameRef(r, at))) candidates.push({ ref: at, d });
     }
+  }
+  candidates.sort((p, q) => p.d - q.d);
+  for (const c of candidates) {
+    if (refs.length >= target.count) break;
+    refs.push(c.ref);
   }
   return refs;
 }
@@ -203,7 +214,10 @@ export function datumReading(view: View, lookup: Lookup, ref: DatumRef, mode: Mo
   }
   const datum = lookup.datum(ref);
   if (!datum) return null;
-  return JSON.stringify(['one', ref, datum.seriesLabel, datum.x, datum.value, datum.percent, words]);
+  // The datum's identity without its place: an aligned datum by series and x as read (a category's name,
+  // not its index, which a sliding window renumbers; review finding 10), a point by series and source row.
+  const id = ref.kind === 'point' ? [ref.seriesKey, ref.row] : ref.kind === 'aligned' ? [ref.seriesKey] : [ref.sliceKey];
+  return JSON.stringify(['one', ref.kind, id, datum.seriesLabel, datum.x, datum.value, datum.percent, words]);
 }
 
 // ── overlay ─────────────────────────────────────────────────────────────────────────────────────────
@@ -509,6 +523,26 @@ export function stepInSeries(view: ScatterView, ref: DatumRef, direction: StepDi
       : direction === 'page-previous' ? Math.max(range.start, at - page) : -1;
   if (to < range.start || to >= range.end || to === at) return null;
   return { kind: 'point', seriesKey: series.key, row: rows ? rows[to]! : to, x: series.x[to]! };
+}
+
+/**
+ * The window between two x positions picked on the plot (a drag's two ends, or the two clicks of "Select
+ * range", spec I4): ordered, clamped to `full`; null for the whole range; undefined when it is narrower than
+ * the smallest window (nothing happens then, as for the buttons and keys; review 2, finding 9).
+ */
+export function rangeWindow(full: Span, a: number, b: number, minWidth: number): Span | null | undefined {
+  const lo = Math.max(full[0], Math.min(a, b));
+  const hi = Math.min(full[1], Math.max(a, b));
+  if (!(hi > lo) || hi - lo < minWidth) return undefined;
+  return hi - lo >= full[1] - full[0] ? null : [lo, hi];
+}
+
+/** The plot pixel along the position axis of an x position (the inverse of positionAt); null on a band axis. */
+export function pixelOf(layout: Layout, position: number): number | null {
+  if (layout.kind !== 'plot') return null;
+  const p = layout.projection;
+  const scale = p.kind === 'xy' ? p.x : p.kind === 'bands' ? p.band : null;
+  return scale && scale.type !== 'band' ? scale.map(position) : null;
 }
 
 /** The x position under a plot pixel, from the layout's projection; null on a band (category) axis. */

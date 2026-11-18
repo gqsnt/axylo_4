@@ -131,8 +131,9 @@ describe('forced colors and reduced motion (spec L4, I5, A2)', () => {
         swatch: swatch ? getComputedStyle(swatch).color : null,
       };
     }));
-    // Zoomed: the single-click pan controls (panLeft, panRight; WCAG 2.5.7) sit before Reset.
-    expect(controls.map(c => c.text)).toEqual(['Direct', 'Organic search', 'Referral', 'Zoom in', 'Zoom out', 'Pan left', 'Pan right', 'Reset zoom', 'Pause', 'View as table']);
+    // Zoomed: the single-click pan controls (panLeft, panRight; WCAG 2.5.7) sit before Reset; the two-click
+    // range toggle (selectRange, spec I4) after Zoom in.
+    expect(controls.map(c => c.text)).toEqual(['Direct', 'Organic search', 'Referral', 'Zoom in', 'Select range', 'Zoom out', 'Pan left', 'Pan right', 'Reset zoom', 'Pause', 'View as table']);
     for (const c of controls) {
       expect(c.width).toBeGreaterThanOrEqual(24);
       expect(c.height).toBeGreaterThanOrEqual(24);

@@ -27,11 +27,15 @@ export type Identity =
   | { readonly kind: 'point'; readonly ref: DatumRef }
   | { readonly kind: 'slice'; readonly sliceKey: string };
 
-export function identityOf(target: PickTarget): Identity {
+/** The identity of what `target` shows; for a point, the datum the reader chose (`chosen`), else the first. */
+export function identityOf(target: PickTarget, chosen: DatumRef | null = null): Identity {
   switch (target.kind) {
     case 'x': return { kind: 'x', x: target.x };
     case 'slice': return { kind: 'slice', sliceKey: target.sliceKey };
-    case 'point': return target.refs[0] ? { kind: 'point', ref: target.refs[0] } : { kind: 'x', x: NaN };
+    case 'point': {
+      const ref = chosen?.kind === 'point' ? chosen : target.refs[0];
+      return ref ? { kind: 'point', ref } : { kind: 'x', x: NaN };
+    }
   }
 }
 

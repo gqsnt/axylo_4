@@ -322,9 +322,8 @@ const WHERE: Record<keyof Messages, readonly ChartType[] | string> = {
   // area and bar charts an incomplete stack is marked through incompleteStack in tooltip, table and value text.
   // The compact scenario below exercises compact area and compact bar for them.
   totalMixed: ['area', 'bar'], incompleteAt: ['compact'], incompleteCount: ['compact'],
-  // selectRange: the key is in the contract; its toolbar toggle is being built. The interaction author replaces
-  // this reason with the chart types that show it once the toggle exists.
-  selectRange: 'toolbar toggle not built yet',
+  // selectRange: the toolbar toggle for two-click range selection, shown wherever drag-to-zoom is (as Zoom in).
+  selectRange: ['line', 'area', 'scatter'],
   jumpNotFound: ['line', 'area', 'bar', 'scatter', 'donut'], plotInstructions: ['line', 'area', 'bar', 'scatter', 'donut'], seeTable: ['line', 'area', 'bar', 'scatter', 'donut'],
 };
 const KEYS = Object.keys(WHERE) as (keyof Messages)[];

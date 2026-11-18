@@ -206,16 +206,20 @@ describe('finding 8 and mutation 5: a hold belongs to one datum, one geometry an
   it('a resize into readout mode while the pointer is in the corridor: the hold ends, the strip shows the datum under the pointer', async () => {
     const page = await chartPage({ css: '#chart { width: 640px; height: 360px; }' });
     const { over } = await intoCorridor(page);
-    await page.evaluate(() => { document.getElementById('chart')!.style.width = '230px'; });
+    // Shorter, not narrower: the plot stays under the still pointer, and is now under 140 px high.
+    await page.evaluate(() => { document.getElementById('chart')!.style.height = '250px'; });
     await settle(page);
     await frames(page, 3);
     expect((await tip(page)).title).toBeNull();
-    const shown = (await strip(page)).text;
-    // The pointer is now where the narrower plot has some other band, or nothing: never the held Q3.
     const p = await plotBox(page);
-    const expected = inside(over, p) ? `Q${Math.floor(((over.y - p.y) / p.height) * 6) + 1}` : null;
-    void expected;
-    expect(shown === null || !/^Q3:/.test(shown)).toBe(true);
+    expect(p.height).toBeLessThan(140);
+    // What the still pointer is over in the new layout: a band (by the six bands' equal shares of the
+    // plot's width), or, below the shorter plot, nothing; never the held Q3.
+    const expected = inside(over, p) ? `Q${Math.floor(((over.x - p.x) / p.width) * 6) + 1}` : null;
+    expect(expected).not.toBe('Q3');
+    const text = (await strip(page)).text;
+    if (expected === null) expect(text).toBeNull();
+    else expect(text).toMatch(new RegExp(`^${expected}: `));
     expect(await closePage(page)).toEqual([]);
   });
 
@@ -349,7 +353,7 @@ describe('finding 16: tooltip: false pins nothing', () => {
 });
 
 describe('mutation 7: a dense line\'s visible text follows every move, at several strides, both ways', () => {
-  it('the tooltip names the x nearest the pointer after each of 40 moves, strides 1, 7 and 23 positions, rightwards and leftwards', async () => {
+  it('the tooltip names the x nearest the pointer (within one of 2,000) and that x\'s own value after each of 40 moves, strides 1, 7 and 23 positions, rightwards and leftwards', async () => {
     const page = await chartPage({ css: '#chart { width: 720px; height: 360px; }' });
     const n = 2000;
     await create(page, 'line', { title: 'Many', data: Array.from({ length: n }, (_, i) => ({ x: i, y: (i * 37) % 101 })), x: { field: 'x', domain: [0, n - 1] }, y: 'y' });
@@ -360,14 +364,18 @@ describe('mutation 7: a dense line\'s visible text follows every move, at severa
         await page.mouse.move(5, 5);
         await frames(page);
         for (let k = 0; k < 40; k++) {
-          const i = direction > 0 ? 100 + k * stride : n - 100 - k * stride;
-          const x = p.x + (i / (n - 1)) * p.width;
-          await page.mouse.move(x, p.y + p.height / 2);
+          const aim = direction > 0 ? 100 + k * stride : n - 100 - k * stride;
+          // Whole CSS pixels, as Firefox and WebKit deliver them: the expected x is the one nearest that pixel.
+          const x = Math.round(p.x + (aim / (n - 1)) * p.width);
+          const i = Math.round(((x - p.x) / p.width) * (n - 1));
+          await page.mouse.move(x, Math.round(p.y + p.height / 2));
           await frames(page);
-          const title = (await tip(page)).title;
-          const shown = Number((title ?? '').replace(/[^\d]/g, ''));
-          // The nearest x to a pointer at the position of x = i, within the half device pixel the pick rounds to.
-          if (Math.abs(shown - i) > Math.ceil((n - 1) / p.width)) failures.push(`stride ${stride} dir ${direction} move ${k}: expected about ${i}, shown ${title}`);
+          const t = await tip(page);
+          const shown = Number((t.title ?? '').replace(/[^\d]/g, ''));
+          // The nearest x to the pointer at x = i: i itself, or a neighbour where the pointer's pixel falls on
+          // the midpoint between two (an x every 0.35 px here); and the value read is that x's own.
+          if (Math.abs(shown - i) > 1) failures.push(`stride ${stride} dir ${direction} move ${k}: expected ${i}, shown ${t.title}`);
+          else if (!t.rows[0]?.endsWith(String((shown * 37) % 101))) failures.push(`stride ${stride} dir ${direction} move ${k}: x ${shown} reads ${t.rows[0]}`);
         }
       }
     }

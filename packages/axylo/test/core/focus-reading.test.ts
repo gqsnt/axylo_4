@@ -84,3 +84,40 @@ describe('rule 8 and finding 6: a coincident group past eight points is listed i
     expect(new Set(refs.map(ref => ref.kind === 'point' ? ref.row : -1)).size).toBe(10);
   });
 });
+
+describe('review verification, item 8: the group is enumerated by the lookup\'s own coincidence, not by adjacency', () => {
+  it('twelve near-coincident points interleaved in x order with distant ones: all twelve, and only they', () => {
+    // A_i at x = 5 + i·1e-6, y = 5; between each two, a distant point at y = 95 (a slightly larger x, so it
+    // comes between them in the lookup's x-then-y order).
+    const data = Array.from({ length: 12 }, (_, i) => [{ x: 5 + i * 1e-6, y: 5, s: 'A', id: i }, { x: 5 + i * 1e-6 + 5e-7, y: 95, s: 'A', id: 100 + i }]).flat();
+    const r = record('scatter', { title: 'T', data: [...data, { x: 0, y: 0, s: 'A', id: 200 }, { x: 10, y: 100, s: 'A', id: 201 }], x: 'x', y: 'y', series: 's' });
+    r.frames();
+    const { lookup } = r.committed!;
+    const first: DatumRef = { kind: 'point', seriesKey: 'A', row: 0, x: 5 };
+    const box = lookup.anchor(first)!;
+    const picked = lookup.pick(box.x + box.width / 2, box.y + box.height / 2);
+    expect(picked?.kind).toBe('point');
+    if (picked?.kind !== 'point') return;
+    expect(picked.count).toBe(12);
+    const refs = groupRefs(lookup, picked);
+    expect(refs).toHaveLength(12);
+    const rows = new Set(refs.map(ref => ref.kind === 'point' ? ref.row : -1));
+    // Source rows of the A_i are the even ones (0, 2, …, 22).
+    expect([...rows].sort((a, b) => a - b)).toEqual(Array.from({ length: 12 }, (_, i) => 2 * i));
+  });
+});
+
+describe('review verification, item 10: a narrowed category that slides keeps its reading', () => {
+  it('narrowed to Q3 in Q1–Q4, Q5 appended with keep 4: the single-series reading of Q3 is the same', () => {
+    const r = record('bar', { title: 'T', data: ['Q1', 'Q2', 'Q3', 'Q4'].map((x, i) => ({ x, y: i + 1 })), x: 'x', y: 'y' });
+    r.frames();
+    const a = r.committed!;
+    const key = a.view.kind === 'bar' ? a.view.frame.series[0]!.key : '';
+    const before = datumReading(a.view, a.lookup, { kind: 'aligned', seriesKey: key, x: 2 }, 'single', a.formatters, defaultMessages);
+    r.controller.handle.append([{ x: 'Q5', y: 5 }], { keep: 4 });
+    r.frames();
+    const b = r.committed!;
+    // Q3 is now at index 1.
+    expect(datumReading(b.view, b.lookup, { kind: 'aligned', seriesKey: key, x: 1 }, 'single', b.formatters, defaultMessages)).toBe(before);
+  });
+});

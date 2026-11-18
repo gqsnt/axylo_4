@@ -76,7 +76,8 @@ export function rectToViewport(m: Mapping, r: Rect): Rect {
 
 /**
  * The part of the viewport that content inside `from`'s parent can be seen in: the viewport cut by each
- * ancestor's real clipping edge (its padding box less any scrollbar), on each axis it clips.
+ * ancestor's real clipping edge (its padding box less any scrollbar), on each axis it clips, across shadow
+ * roots.
  */
 export function visibleRegion(from: Element): Rect {
   const doc = from.ownerDocument;
@@ -86,7 +87,9 @@ export function visibleRegion(from: Element): Rect {
   let top = 0;
   let right = root.clientWidth;
   let bottom = root.clientHeight;
-  for (let el: Element | null = from.parentElement; el && el !== root && win; el = el.parentElement) {
+  // The composed chain: past a shadow root to its host, whose ancestors clip what is inside it too.
+  const up = (el: Element): Element | null => el.parentElement ?? ((el.getRootNode() as ShadowRoot).host ?? null);
+  for (let el: Element | null = up(from); el && el !== root && win; el = up(el)) {
     const style = win.getComputedStyle(el);
     const clipsX = style.overflowX !== 'visible';
     const clipsY = style.overflowY !== 'visible';

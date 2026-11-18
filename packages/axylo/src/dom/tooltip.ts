@@ -32,6 +32,8 @@ export interface TooltipContent {
   readonly totalLang?: string | null;
   /** A row of a pinned tooltip was chosen (a click or a tap on it). */
   readonly select?: (row: DatumText) => void;
+  /** `lang` of a row's value text (a built-in "No data" on a page in another language), or null. */
+  readonly valueLang?: (text: string) => string | null;
   /** The pinned "+N more" was chosen: show the rows after the `shown` ones on show now. */
   readonly more?: (shown: number) => void;
 }
@@ -44,8 +46,11 @@ export interface TooltipView {
    * its rows are buttons. Returns false when nothing could be placed (nothing is shown then).
    */
   show(content: TooltipContent, placement: PlacementInput, pinned: boolean): boolean;
-  /** Readout mode: the content as running text in the strip under the plot, at most two lines. */
-  strip(content: TooltipContent, pinned: boolean): void;
+  /**
+   * Readout mode: the content as running text in the strip under the plot, at most two lines. Returns false
+   * when nothing of the strip can be seen (`visible`, viewport pixels: what its clipping ancestors leave).
+   */
+  strip(content: TooltipContent, pinned: boolean, visible: Rect): boolean;
   hide(): void;
   readonly visible: boolean;
   /** Where the content is shown now. */
@@ -68,12 +73,16 @@ interface RowEntry {
   readonly listening: AbortController | null;
 }
 
-/** A row's identity across redraws: its series and its datum, not its place. */
-function rowKey(r: DatumText, title: string): string {
+/**
+ * A row's identity across redraws, from its datum, never its formatted text (review: a reformatted x title
+ * replaced a pressed button): an aligned row by its series (every row of one tooltip shares its x), a point by
+ * its series and source row, a slice by its key.
+ */
+function rowKey(r: DatumText): string {
   const ref = r.ref;
   switch (ref.kind) {
-    case 'aligned': return `a\u0000${ref.seriesKey}\u0000${title}`;
-    case 'point': return `p\u0000${ref.seriesKey}\u0000${ref.row}\u0000${ref.x}`;
+    case 'aligned': return `a\u0000${ref.seriesKey}`;
+    case 'point': return `p\u0000${ref.seriesKey}\u0000${ref.row}`;
     case 'slice': return `s\u0000${ref.sliceKey}`;
   }
 }
@@ -102,8 +111,18 @@ function setLang(el: HTMLElement, lang: string | null | undefined): void {
   } else if (el.hasAttribute('lang')) el.removeAttribute('lang');
 }
 
-export function createTooltip(element: HTMLElement, readoutElement: HTMLElement, figure: HTMLElement): TooltipView {
+/**
+ * `lost`: a row that had focus went with a redraw and has no counterpart in the new presentation; the caller
+ * puts focus back in the chart.
+ */
+export function createTooltip(element: HTMLElement, readoutElement: HTMLElement, figure: HTMLElement, lost: () => void): TooltipView {
   const doc = element.ownerDocument;
+  /** A press on a row: it completes against the row it began on, wherever a redraw moved the rows meanwhile. */
+  let press: { row: DatumText; pointer: number } | null = null;
+  /** The click that follows a completed press is not a second choice. */
+  let pressedAt = -Infinity;
+  /** A row that had focus when its presentation was hidden: the next presentation focuses it again. */
+  let pendingFocus: string | null = null;
   let where: Presentation | null = null;
   /** The content on show: row buttons read it when chosen, so a redraw never strands a pressed button. */
   let current: TooltipContent | null = null;
@@ -128,7 +147,12 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       element.classList.add('axylo-tooltip-choice');
       // A press does not take focus from the plot, whose keyboard reading goes on from the chosen datum.
       element.addEventListener('mousedown', event => event.preventDefault(), { signal: listening.signal });
-      element.addEventListener('click', () => current?.select?.(entry.row), { signal: listening.signal });
+      element.addEventListener('pointerdown', event => { press = { row: entry.row, pointer: event.pointerId }; }, { signal: listening.signal });
+      // A click without a press of its own (Enter, Space, an assistive action) chooses this row.
+      element.addEventListener('click', event => {
+        if (event.timeStamp - pressedAt < 1000) return;
+        current?.select?.(entry.row);
+      }, { signal: listening.signal });
     }
     entry.name.className = 'axylo-tooltip-series';
     entry.value.className = 'axylo-tooltip-value';
@@ -147,6 +171,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       entry.swatch = signature;
     }
     setText(entry.value, r.percent === null || r.percent === r.value ? r.value : `${r.value} (${r.percent})`);
+    setLang(entry.value, content.valueLang?.(r.value));
   }
 
   /** The row entries for `rows`, reused by identity; entries of rows no longer in the model are dropped. */
@@ -156,7 +181,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     const keep = new Set<string>();
     const out: RowEntry[] = [];
     for (const r of content.model.rows) {
-      const key = `${pinned && content.select ? 'b' : 't'}\u0000${rowKey(r, content.model.title)}`;
+      const key = `${pinned && content.select ? 'b' : 't'}\u0000${rowKey(r)}`;
       keep.add(key);
       let entry = map.get(key);
       if (!entry) {
@@ -173,6 +198,29 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     }
     return out;
   }
+
+  /** The key of the row that has focus in `presentation`, if one has. */
+  function focusedKey(presentation: Presentation): string | null {
+    for (const [key, entry] of entries[presentation]) if (entry.element === doc.activeElement) return key;
+    return null;
+  }
+
+  /** Focus that was on a row of the presentation just left goes to the same row in the new one (review finding 9). */
+  function carryFocus(key: string | null, to: Presentation): void {
+    if (key === null) return;
+    const entry = entries[to].get(key);
+    if (entry?.element.isConnected) entry.element.focus({ preventScroll: true });
+    else lost();
+  }
+
+  // Completes a press on the row it began on, wherever the pointer is released inside the content.
+  const releasing = (event: PointerEvent) => {
+    const was = press;
+    press = null;
+    if (!was || was.pointer !== event.pointerId) return;
+    pressedAt = event.timeStamp;
+    current?.select?.(was.row);
+  };
 
   function dropEntries(presentation: Presentation): void {
     for (const entry of entries[presentation].values()) entry.listening?.abort();
@@ -194,6 +242,10 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
   const stripTotal = doc.createElement('span');
   stripTotal.className = 'axylo-readout-total';
   const listening = new AbortController();
+  for (const host of [element, readoutElement]) {
+    host.addEventListener('pointerup', releasing, { signal: listening.signal });
+    host.addEventListener('pointercancel', () => { press = null; }, { signal: listening.signal });
+  }
   /** "+N more": text while hovered, a button that shows the next rows while pinned. */
   function moreElement(presentation: Presentation, pinned: boolean): HTMLElement {
     const button = pinned && current?.more !== undefined;
@@ -245,8 +297,22 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     place(element, children);
   }
 
+  /** Remembers a focused row of `presentation` before it goes, for the next show or strip to restore. */
+  function keepFocus(presentation: Presentation): void {
+    const key = focusedKey(presentation);
+    if (key === null) return;
+    pendingFocus = key;
+    // When nothing is shown again in this task, focus goes back to the chart rather than the page.
+    queueMicrotask(() => {
+      if (pendingFocus === null) return;
+      pendingFocus = null;
+      if (!element.contains(doc.activeElement) && !readoutElement.contains(doc.activeElement)) lost();
+    });
+  }
+
   function hideFloating(): void {
     if (element.hidden && !element.firstChild) return;
+    keepFocus('floating');
     element.hidden = true;
     element.classList.remove('axylo-tooltip-pinned');
     expose(element, false);
@@ -256,6 +322,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
 
   function hideStrip(): void {
     if (readoutElement.hidden && !readoutElement.firstChild) return;
+    keepFocus('strip');
     readoutElement.hidden = true;
     readoutElement.classList.remove('axylo-readout-pinned');
     expose(readoutElement, false);
@@ -285,6 +352,8 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     },
     show(content, p, pinned) {
       current = content;
+      const had = focusedKey('strip') ?? focusedKey('floating') ?? pendingFocus;
+      pendingFocus = null;
       hideStrip();
       element.hidden = false;
       element.classList.toggle('axylo-tooltip-pinned', pinned);
@@ -308,20 +377,25 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       let size = { width: 0, height: 0 };
       for (let shown = total; shown >= Math.min(1, total); shown--) {
         fillFloating(content, rows, pinned, shown);
+        // Fit is judged on what can be seen: content cut by the size limit does not fit (review finding 4).
+        if (element.scrollHeight > element.clientHeight + 1 || element.scrollWidth > element.clientWidth + 1) continue;
         const b = element.getBoundingClientRect();
         size = { width: b.width, height: b.height };
         const spot = placeTooltip(p, size.width, size.height);
-        if (spot) { position(spot.x, spot.y); return true; }
+        if (spot) { position(spot.x, spot.y); carryFocus(had, 'floating'); return true; }
       }
-      const last = fallbackPlacement(p, size.width, size.height);
-      if (last) { position(last.x, last.y); return true; }
-      // Nowhere clear of the controls and focus rings: nothing floats (rule 6).
+      const last = size.width > 0 ? fallbackPlacement(p, size.width, size.height) : null;
+      if (last) { position(last.x, last.y); carryFocus(had, 'floating'); return true; }
+      // Nowhere clear of the controls and focus rings, or not even one row visible: nothing floats (rule 6).
       hideFloating();
       where = null;
+      if (had !== null) lost();
       return false;
     },
-    strip(content, pinned) {
+    strip(content, pinned, visible) {
       current = content;
+      const had = focusedKey('floating') ?? focusedKey('strip') ?? pendingFocus;
+      pendingFocus = null;
       hideFloating();
       readoutElement.hidden = false;
       readoutElement.classList.toggle('axylo-readout-pinned', pinned);
@@ -357,7 +431,19 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
         build(shown);
         if (readoutElement.scrollHeight <= readoutElement.clientHeight + 1) break;
       }
+      // A strip its ancestors clip away entirely is not shown (review finding 4).
+      const r = rectOf(readoutElement);
+      const seen = Math.min(r.x + r.width, visible.x + visible.width) - Math.max(r.x, visible.x) > 0 &&
+        Math.min(r.y + r.height, visible.y + visible.height) - Math.max(r.y, visible.y) > 0;
+      if (!seen) {
+        hideStrip();
+        where = null;
+        if (had !== null) lost();
+        return false;
+      }
       where = 'strip';
+      carryFocus(had, 'strip');
+      return true;
     },
     hide() {
       hideFloating();

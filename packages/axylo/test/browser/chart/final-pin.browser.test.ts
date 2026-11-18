@@ -6,7 +6,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
-import { start, stop } from '../harness';
+import { requireEngineFeature, start, stop } from '../harness';
 import { RENDERER, chartPage, closePage } from './util';
 import { axButtons, create, drawnShapes, frames, inside, overlaps, plotBox, recordEvents, selected, settle, strip, tip, type Box, type DrawnShape, type Pt } from './final-util';
 
@@ -113,6 +113,7 @@ async function pinnedTwo(page: Page): Promise<void> {
 
 describe('findings 6 and 7, mutation 6: pinned content is real and stable', () => {
   it('a pinned tooltip\'s rows are buttons named by their text in Chrome\'s tree; hovered, none', async () => {
+    requireEngineFeature(['chromium'], "the computed accessibility tree is read through the Chrome DevTools protocol");
     const page = await chartPage();
     const data = [0, 1, 2].flatMap(x => ['North', 'South'].map((s, i) => ({ x, s, y: x + i * 3 })));
     await create(page, 'line', { title: 'Two', data, x: 'x', y: 'y', series: 's' });
@@ -130,7 +131,7 @@ describe('findings 6 and 7, mutation 6: pinned content is real and stable', () =
     expect(await closePage(page)).toEqual([]);
   });
 
-  it('a press on the secondary row held across an append that commits still selects that row, once', async () => {
+  it('a press on the secondary row held across an unrelated append that commits (fixed domains, nothing moves) still selects that row, once', async () => {
     const page = await chartPage();
     await pinnedTwo(page);
     await recordEvents(page);
@@ -198,7 +199,7 @@ describe('findings 6 and 7, mutation 6: pinned content is real and stable', () =
     expect(await closePage(page)).toEqual([]);
   });
 
-  it('a narrow strip always keeps the x and one row', async () => {
+  it('a narrow strip always keeps the x and one row, both inside the strip\'s box', async () => {
     const page = await chartPage({ css: '#chart { width: 200px; height: 420px; }' });
     const names = ['A very long series name indeed', 'Another very long series name', 'Third long name'];
     await create(page, 'line', { title: 'N', data: [0, 1].flatMap(x => names.map((s, i) => ({ x, s, y: i + x }))), x: 'x', y: 'y', series: 's' });
@@ -207,7 +208,17 @@ describe('findings 6 and 7, mutation 6: pinned content is real and stable', () =
     await settle(page);
     const text = (await strip(page)).text ?? '';
     expect(text).toMatch(/^\d: /);
-    expect(await page.locator('#chart .axylo-readout .axylo-readout-entry').count()).toBeGreaterThanOrEqual(1);
+    // Shown is seen: the title and the first row lie inside the strip's own box, not cut off by it.
+    const seen = await page.evaluate(() => {
+      const strip = document.querySelector('#chart .axylo-readout')!.getBoundingClientRect();
+      const within = (el: Element | null) => {
+        if (!el) return false;
+        const r = el.getBoundingClientRect();
+        return r.width > 0 && r.left >= strip.left - 0.5 && r.right <= strip.right + 0.5 && r.top >= strip.top - 0.5 && r.bottom <= strip.bottom + 0.5;
+      };
+      return { title: within(document.querySelector('#chart .axylo-readout .axylo-tooltip-title')), row: within(document.querySelector('#chart .axylo-readout .axylo-readout-entry')) };
+    });
+    expect(seen).toEqual({ title: true, row: true });
     expect(await closePage(page)).toEqual([]);
   });
 });
@@ -313,8 +324,8 @@ describe('finding 4 and mutation 4: placement inside the part of the plot that i
 
 describe('finding 13: one mapping from fractional sizes under a transformed ancestor', () => {
   for (const transform of ['scale(1.015)', 'translate(13.3px, 7.7px) scale(1.25, 0.8)']) {
-    it(`under ${transform}, pointing at each of the last bars' painted centres shows that bar`, async () => {
-      if (RENDERER === 'canvas') return; // the painted centres are read from the SVG marks
+    // The painted centres are read from the SVG marks: on the canvas renderer the test is skipped, not passed.
+    it.skipIf(RENDERER === 'canvas')(`under ${transform}, pointing at each of the last bars' painted centres (SVG) shows that bar`, async () => {
       const page = await chartPage({ css: `#wrap { transform: ${transform}; transform-origin: 0 0; width: 640px; } #chart { width: 620px; height: 360px; }` });
       await page.evaluate(() => {
         const wrap = Object.assign(document.createElement('div'), { id: 'wrap' });
@@ -373,8 +384,8 @@ describe('mutation 9: narrowed scatter driven by input and by change alone, then
 });
 
 describe('mutation 10: every plotted area marker matches its legend and tooltip swatch', () => {
-  it('eight area series: the shape drawn for each series is the shape in its legend entry and its tooltip row', async () => {
-    if (RENDERER === 'canvas') return; // plotted shapes are read from the SVG marks
+  // Plotted shapes are read from the SVG marks: on the canvas renderer the test is skipped, not passed.
+  it.skipIf(RENDERER === 'canvas')('eight area series (SVG): the shape drawn for each series is the shape in its legend entry and its tooltip row', async () => {
     const page = await chartPage({ css: '#chart { width: 900px; height: 480px; }' });
     const eight = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
     const day = (k: number) => new Date(Date.UTC(2026, 0, 1) + k * 864e5).toISOString().slice(0, 10);

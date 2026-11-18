@@ -108,6 +108,33 @@ describe('rule 6: the last resort covers the box least and never a control or a 
     for (const c of controls) expect(overlapArea(rect(spot, 100, 40), c)).toBe(0);
   });
 
+  it('the reviewer\'s case: a 55 × 55 tooltip in 100 × 100 around box (28, 28, 44, 44) takes a legal position covering 729 px², not the centred 1,188', () => {
+    // Above: y pushed to 0; along x the overlap is 27 × 27 at either end (x 0 or 45), 44 × 27 centred.
+    const p = input({ x: 28, y: 28, width: 44, height: 44 }, { visible: { x: 0, y: 0, width: 100, height: 100 } });
+    expect(placeTooltip(p, 55, 55)).toBeNull();
+    const spot = fallbackPlacement(p, 55, 55)!;
+    expect(overlapArea(rect(spot, 55, 55), { x: 28, y: 28, width: 44, height: 44 })).toBeCloseTo(729, 6);
+  });
+
+  it('for any box and controls, no legal position of any side (each whole pixel along its free axis) covers less of the box than the one chosen', () => {
+    const r = fc.record({ x: fc.integer({ min: 0, max: 200 }), y: fc.integer({ min: 0, max: 150 }), width: fc.integer({ min: 1, max: 150 }), height: fc.integer({ min: 1, max: 150 }) });
+    fc.assert(fc.property(r, fc.array(r, { maxLength: 2 }), fc.integer({ min: 20, max: 150 }), fc.integer({ min: 20, max: 150 }), (box, controls, w, h) => {
+      const p = input(box, { controls });
+      const spot = fallbackPlacement(p, w, h);
+      const v = VISIBLE;
+      const clampY = (y: number) => Math.max(v.y, Math.min(y, v.y + v.height - h));
+      const clampX = (x: number) => Math.max(v.x, Math.min(x, v.x + v.width - w));
+      // The fixed coordinate of each side (rule 2's offset of 8 px), pushed inside, then every free position.
+      const legal: Rect[] = [];
+      for (const y of [clampY(box.y - OFFSET - h), clampY(box.y + box.height + OFFSET)]) for (let x = v.x; x <= v.x + v.width - w; x++) legal.push({ x, y, width: w, height: h });
+      for (const x of [clampX(box.x + box.width + OFFSET), clampX(box.x - OFFSET - w)]) for (let y = v.y; y <= v.y + v.height - h; y++) legal.push({ x, y, width: w, height: h });
+      const clear = legal.filter(t => controls.every(c => overlapArea(t, c) === 0));
+      if (!spot) { expect(clear).toEqual([]); return; }
+      const least = Math.min(...clear.map(t => overlapArea(t, box)));
+      expect(overlapArea(rect(spot, w, h), box)).toBeLessThanOrEqual(least + 1e-6);
+    }), { numRuns: 200 });
+  });
+
   it('when no position is clear of the controls, nothing is placed', () => {
     const box: Rect = { x: -10, y: -10, width: 320, height: 220 };
     const controls = [{ x: 0, y: 0, width: 300, height: 200 }];
@@ -148,6 +175,23 @@ describe('rule 3b: the corridor is the convex hull of the resting point and the 
     expect(insideCorridor(from, r, { x: 240, y: 70 })).toBe(true);
     expect(insideCorridor(from, r, { x: 100, y: 60 })).toBe(false);
     expect(insideCorridor(from, r, { x: 99, y: 151 })).toBe(false);
+  });
+
+  it('with one CSS px of slack for whole-pixel pointer positions: 0.5 and 1 px outside an edge are in, 1.01 px out', () => {
+    // The hull of (100, 150) and r: its lower-right edge runs from (100, 150) to (280, 90); its unit normal
+    // outwards (down and right) is (60, 180) / |(60, 180)|. Points beside the middle of that edge, and beside
+    // the rectangle's right side, at the stated distances.
+    const from = { x: 100, y: 150 };
+    const a = { x: 100, y: 150 }, b = { x: 280, y: 90 };
+    const len = Math.hypot(60, 180);
+    const n = { x: 60 / len, y: 180 / len };
+    const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const beside = (d: number) => ({ x: mid.x + n.x * d, y: mid.y + n.y * d });
+    expect(insideCorridor(from, r, beside(0.5))).toBe(true);
+    expect(insideCorridor(from, r, beside(1.0))).toBe(true);
+    expect(insideCorridor(from, r, beside(1.01))).toBe(false);
+    expect(insideCorridor(from, r, { x: 281, y: 60 })).toBe(true);
+    expect(insideCorridor(from, r, { x: 281.01, y: 60 })).toBe(false);
   });
 
   it('for any rectangle and resting point, every point on the segment to any point of the rectangle is inside', () => {

@@ -250,7 +250,7 @@ ${forced}
     /* Kept in forced colours, where both tokens are system colours already (Highlight on Canvas). */
     forced-color-adjust: none;
   }
-  .axylo .axylo-proxy:focus-visible + .axylo-focus-ring { display: block; }
+  .axylo .axylo-proxy:focus-visible + .axylo-focus-ring, .axylo .axylo-proxy.axylo-keyed:focus + .axylo-focus-ring { display: block; }
   /* The donut slice the keyboard is on, also when it has no arc. */
   .axylo .axylo-legend-list > li.axylo-legend-current { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
   .axylo .axylo-selection {
@@ -268,10 +268,11 @@ ${forced}
   .axylo .axylo-controls-side .axylo-toolbar { flex-direction: column; align-items: stretch; flex-wrap: nowrap; }
   .axylo .axylo-controls-side .axylo-legend-list { flex-direction: column; flex-wrap: nowrap; }
   .axylo .axylo-controls-side .axylo-legend-entry + .axylo-control:not(.axylo-legend-entry) { margin-inline-start: 0; margin-block-start: 0.5em; }
-  .axylo .axylo-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; }
+  /* Tight: the Select range toggle may not cost a wrapped toolbar a row (its 26 px are won back here). */
+  .axylo .axylo-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 2px; min-width: 0; }
   .axylo .axylo-control {
     display: inline-flex; align-items: center; gap: 0.375em; box-sizing: border-box; min-width: 24px; min-height: 24px;
-    margin: 0; padding: 2px 8px; border: 1px solid var(--axylo-axis, var(--axylo-default-axis)); border-radius: 4px;
+    margin: 0; padding: 2px 5px; border: 1px solid var(--axylo-axis, var(--axylo-default-axis)); border-radius: 4px;
     background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background))); color: var(--axylo-text, currentColor);
     font: inherit; font-size: max(12px, 0.875em); line-height: 1.25; text-align: start; cursor: pointer;
   }
@@ -279,6 +280,11 @@ ${forced}
   .axylo .axylo-legend-entry + .axylo-control:not(.axylo-legend-entry) { margin-inline-start: auto; }
   .axylo .axylo-control:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
   .axylo .axylo-control[aria-disabled="true"] { cursor: default; border-style: dashed; }
+  /* A symbol button (Select range): 24 × 24, so it adds no toolbar row; its name stays as hidden text. */
+  .axylo .axylo-control.axylo-control-symbol { width: 24px; height: 24px; padding: 0; justify-content: center; }
+  .axylo .axylo-symbol { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+  /* A pressed toggle (not a legend entry): a heavier border, which forced colours keep. */
+  .axylo .axylo-control[aria-pressed="true"]:not(.axylo-legend-entry) { border-width: 2px; }
   /* Legend toggles read as legend entries; a hidden series keeps full-contrast text, struck through (spec L2). */
   .axylo .axylo-legend-entry { border-color: transparent; padding-inline: 4px; }
   .axylo .axylo-legend-entry:hover { border-color: var(--axylo-axis, var(--axylo-default-axis)); }
