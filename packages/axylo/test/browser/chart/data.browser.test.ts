@@ -22,9 +22,9 @@ describe('dirty input (spec 3.5, F12)', () => {
       });
       const warnings = result.codes.filter(c => ['AX102', 'AX103', 'AX106'].includes(c)).sort();
       expect(warnings).toEqual(['AX102', 'AX103', 'AX106']);
-      expect(result.note).toBe('3 values not shown. See table.');
+      expect(result.note).toBe('Values not shown: 3. See table.');
       expect(result.role).toBe('status');
-      expect(await aria(page)).toContain('status: 3 values not shown. See table.');
+      expect(await aria(page)).toMatch(/status: "?Values not shown: 3\. See table\."?/);
       expect(await closePage(page)).toEqual([]);
     });
   }

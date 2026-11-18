@@ -102,7 +102,7 @@ Every criterion maps to at least one test in the acceptance matrix kept in the r
 | F9 | Up to eight series, no two share a color. Beyond eight, each series still has a unique combination of color and dash or marker, and AX130 is raised. | Tests with 6, 8 and 12 series | R7 |
 | F10 | Stacks place positive and negative values on their own sides of zero, and the axis covers both totals. A missing component is drawn with zero height and the stack is marked "incomplete" in tooltip, table and announcements. | Property test on stacked geometry; mixed-sign and incomplete fixtures | R5 |
 | F11 | Line, area and scatter are drawn in x order whatever the input order. On line, area and bar, two rows with the same x in one series are AX108 and that series is not drawn. On scatter, points sharing an x (or both coordinates) are ordinary data. | Shuffled `trend` renders identically; duplicate fixture | R5 |
-| F12 | When a warning means values were left out or changed, the chart says so to the reader: a short note ("2 values not shown. See table.") inside the figure and in the accessibility tree, in every build. | Production build given `dirty` shows the note | R5, R6 |
+| F12 | When a warning means values were left out or changed, the chart says so to the reader: a short note ("Values not shown: 2. See table.", worded so it reads correctly for any count) inside the figure and in the accessibility tree, in every build. | Production build given `dirty` shows the note | R5, R6 |
 
 ### 3.2 Legibility
 

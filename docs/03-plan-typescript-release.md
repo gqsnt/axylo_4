@@ -140,7 +140,7 @@ The registry, with each code's level and outcome, is in the spec (section 3.5). 
   Send null if the value is known to be missing.
 ```
 
-The reader of that chart sees "3 values not shown. See table." (F12).
+The reader of that chart sees "Values not shown: 3. See table." (F12).
 
 `validate(type, options)` runs the same normalization without a DOM and returns the diagnostics, so a server, a test or a coding agent can check a chart before rendering it.
 
@@ -225,7 +225,7 @@ M1 builds both mark renderers behind the same scene and compares them on: P1, P2
   <div class="axylo-toolbar" role="toolbar" aria-label="Chart controls">   <!-- one tab stop, roving focus -->
     legend toggles · zoom in · zoom out · reset · pause · view as table
   </div>
-  <p class="axylo-note" role="status">2 values not shown. See table.</p>
+  <p class="axylo-note" role="status">Values not shown: 2. See table.</p>
   <div class="axylo-live" aria-live="polite"></div>
   <div class="axylo-tooltip" hidden></div>
   <div class="axylo-table" hidden><!-- built when opened: caption, headers, pager --></div>

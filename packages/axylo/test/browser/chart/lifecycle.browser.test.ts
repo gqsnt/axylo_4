@@ -293,13 +293,18 @@ describe('commit contract (plan 1.5, spec DX5)', () => {
 });
 
 describe('memory (spec P7, DX5)', () => {
-  it('1,000 create–destroy cycles show no upward heap trend after forced collection', async () => {
+  // Method corrected by the coordinator on 2026-11-18. The first version compared cycles 200–400 with 800–1000
+  // and allowed 5%; it measured 5.3%, and heap snapshots put that growth in the engine's compiled code, which
+  // keeps growing until about 1,500 cycles and then stops. A leak is growth that does not stop, so the trend is
+  // now judged after that warm-up, with a tighter allowance (1%). The snapshot test below checks retained
+  // objects directly.
+  it('create–destroy cycles show no upward heap trend once the engine has warmed up', async () => {
     const page = await chartPage();
     const cdp = await page.context().newCDPSession(page);
     await cdp.send('HeapProfiler.enable');
     const samples: { cycle: number; used: number }[] = [];
     const STEP = 25;
-    for (let cycle = 0; cycle < 1000; cycle += STEP) {
+    for (let cycle = 0; cycle < 2500; cycle += STEP) {
       await page.evaluate(async n => {
         const el = document.getElementById('chart')!;
         const rows = window.fx.trendRows();
@@ -318,13 +323,13 @@ describe('memory (spec P7, DX5)', () => {
       const s = samples.filter(x => x.cycle > from && x.cycle <= to);
       return s.reduce((a, b) => a + b.used, 0) / s.length;
     };
-    const early = mean(200, 400);
-    const late = mean(800, 1000);
-    expect(late / early, `heap mean cycles 200–400: ${Math.round(early)} B, 800–1000: ${Math.round(late)} B`).toBeLessThanOrEqual(1.05);
+    const early = mean(1500, 2000);
+    const late = mean(2000, 2500);
+    expect(late / early, `heap mean cycles 1500–2000: ${Math.round(early)} B, 2000–2500: ${Math.round(late)} B`).toBeLessThanOrEqual(1.01);
     const leftovers = await page.evaluate(() => document.getElementById('chart')!.childElementCount);
     expect(leftovers).toBe(0);
     expect(await closePage(page)).toEqual([]);
-  }, 300_000);
+  }, 600_000);
 
   // Supplementary to the test above. On this machine the heap measured that way grows by about 6% between
   // cycles 200–400 and 800–1000 and levels off after about 1,500 cycles; heap snapshots attribute the growth
