@@ -308,6 +308,12 @@ export interface DonutSlice {
   readonly ratio: number | null;
   /** Start and end angle in radians, clockwise from 12 o'clock; null when nothing is drawn (zero or no data). */
   readonly angles: readonly [number, number] | null;
+  /**
+   * Palette slot for this slice: its ordinal among the entries that are not "Other", so eight slices never
+   * share a color whatever arcless entries sit between them. null for "Other" (the muted token). The legend
+   * uses the same index.
+   */
+  readonly colorIndex: number | null;
 }
 
 export interface DonutView {
@@ -456,6 +462,11 @@ export interface RectMark {
   readonly fill: Paint;
   /** 'missing' draws the "no data" mark of spec F2 instead of a filled bar. */
   readonly variant: 'bar' | 'missing';
+  /**
+   * A second cue on top of the fill, for charts with more than eight series (spec F9): a pattern drawn in the
+   * background color over the fill. Absent or 'none' for the first eight.
+   */
+  readonly pattern?: 'none' | 'diagonal' | 'cross' | 'dots';
 }
 
 /** Markers: x,y pairs in CSS px. */
