@@ -1,5 +1,5 @@
 import fc from 'fast-check';
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { SLOT_VALUE, type Frame } from '../../src/core/contracts';
 import { AlignedStore, DonutStore, PointStore, normalize, resolveOptions } from '../../src/data';
 import { contents, utc, version } from './helpers';
@@ -281,8 +281,12 @@ function checkFrame({ frame, rows, field, next, zero = false }: Snapshot, live: 
     const missing = zero ? [] : rows.filter(entry => entry.row[field] === null);
     expect([...frame.series[0]!.x]).toEqual(points.map(entry => entry.row.x));
     expect([...frame.series[0]!.y]).toEqual(points.map(entry => entry.row[field] ?? 0));
-    expect([...frame.series[0]!.row!]).toEqual(points.map(entry => entry.index));
+    // A null row index means "point i came from row i" (contract).
+    expect([...frame.series[0]!.row ?? frame.series[0]!.x.keys()]).toEqual(points.map(entry => entry.index));
     expect([...(frame.series[0]!.missingX ?? [])]).toEqual(missing.map(entry => entry.row.x));
+    // The contract: present whenever missingX and row are, one source row per entry of missingX.
+    expect(frame.series[0]!.missingRow === undefined).toBe(frame.series[0]!.missingX === undefined);
+    expect([...(frame.series[0]!.missingRow ?? [])]).toEqual(missing.map(entry => entry.index));
   } else {
     expect([...frame.labels]).toEqual(rows.map(entry => entry.row.label));
     expect([...frame.values]).toEqual(values);
@@ -403,8 +407,8 @@ function frameValues(frame: Frame): unknown {
   if (frame.shape === 'donut') return {
     labels: [...frame.labels], values: [...frame.values], slot: [...frame.slot], row: [...frame.row ?? []],
   };
-  return frame.series.map(({ x, y, row, missingX, ...description }) => ({
-    ...description, x: [...x], y: [...y], row: [...row ?? []], missingX: [...missingX ?? []],
+  return frame.series.map(({ x, y, row, missingX, missingRow, ...description }) => ({
+    ...description, x: [...x], y: [...y], row: [...row ?? []], missingX: [...missingX ?? []], missingRow: [...missingRow ?? []],
   }));
 }
 
@@ -539,11 +543,16 @@ it('shares scatter missing positions through append and offset keep, then retire
     expect(current).toEqual(Float64Array.of(3, 3, 4));
     expect(current.buffer).toBe(missing.buffer);
     expect(current.byteOffset).toBe(missing.byteOffset + Float64Array.BYTES_PER_ELEMENT);
+    expect(old.series[0]!.missingRow).toEqual(Int32Array.of(0, 2));
+    expect(accepted.frame.series[0]!.missingRow).toEqual(Int32Array.of(2, 3, 4));
+    expect(accepted.frame.series[0]!.missingRow!.buffer).toBe(old.series[0]!.missingRow!.buffer);
     const competing = s.prepareAppend([{ x: 5, y: null }], { keep: 3 });
     expect(competing.frame.series[0]!.missingX).toEqual(Float64Array.of(3, 5));
+    expect(competing.frame.series[0]!.missingRow).toEqual(Int32Array.of(2, 3));
     accepted.commit();
     expect(() => competing.commit()).toThrow('Cannot commit a superseded data revision.');
     expect(current).toEqual(Float64Array.of(3, 3, 4));
+    expect(accepted.frame.series[0]!.missingRow).toEqual(Int32Array.of(2, 3, 4));
     expect(old.source.rowAt(0)).toBe(dropped);
     s.retire(old.revision);
     expect(old.source.rowAt(0)).toBeNull();
@@ -650,4 +659,88 @@ it('keeps AX103 and AX106 positions in the scatter table column through append a
   expect(last.series[0]!.x).toEqual(Float64Array.of(5, 6));
   expect(s.diagnostics).toMatchObject([{ code: 'AX106', effect: 'omitted', rows: [3], count: 1 }]);
   expect(first.series[0]!.missingX).toEqual(Float64Array.of(2, 3, 4));
+});
+
+it('re-encodes a scatter row whose y was missing from the retained rows, as a point when the new field has a value', () => {
+  // Final controller review, finding 6: { x: 1, y: null, z: 11 } must survive a change of y to z.
+  const data = [{ x: 0, y: 5, z: 10 }, { x: 1, y: null, z: 11 }, { x: 2, y: 7, z: null }];
+  const s = new PointStore(options('scatter', data), utc, version);
+  s.prepareAppend([{ x: 3, y: null, z: 13 }], { keep: 3 }).commit();
+  const before = s.frame.series[0]!;
+  expect([...before.x]).toEqual([2]);
+  expect([...before.missingX!]).toEqual([1, 3]);
+  expect([...before.missingRow!]).toEqual([1, 3]);
+  // What the rows behind the missing observations are, through the frame's own source.
+  expect([...before.missingRow!].map(row => s.frame.source.rowAt(row))).toEqual([data[1], { x: 3, y: null, z: 13 }]);
+
+  const encoding = s.resolveEncoding({ x: { field: 'x', type: 'number' }, y: 'z' }, quiet);
+  const reencoded = s.prepareReencode(encoding, { revision: s.frame.revision + 1, epoch: s.frame.epoch + 1 });
+  reencoded.commit();
+  const after = s.frame.series[0]!;
+  expect([...after.x]).toEqual([1, 3]);
+  expect([...after.y]).toEqual([11, 13]);
+  expect([...after.row!]).toEqual([1, 3]);
+  expect([...after.missingX!]).toEqual([2]);
+  expect([...after.missingRow!]).toEqual([2]);
+  expect(s.frame.source.rowAt(1)).toBe(data[1]);
+});
+
+describe('owned bytes stay near what the contract needs for each retained window', () => {
+  const size = 200_000;
+  // A retained slot or point the frame hands out needs, under the contract: exact x and y (8 + 8 bytes); an
+  // aligned slot state (1); a row index (4) once the window has slid, since slot i no longer came from row i.
+  // The caller's row behind it is kept for events and the table once the caller's columns are released: its
+  // x and y (8 + 8). Buffers may keep one eighth spare (plus 16 slots), as the stores allocate.
+  const spare = (n: number) => n + Math.max(16, Math.ceil(n / 8));
+  const columns = () => ({ columns: { x: Float64Array.from({ length: size }, (_, i) => i), y: Float64Array.from({ length: size }, (_, i) => i / 3) } });
+  const xCopies = (owned: ReturnType<AlignedStore['ownedBytes']>) =>
+    owned.buffers.filter(entry => /x history|x positions/.test(entry.name)).reduce((sum, entry) => sum + entry.bytes, 0);
+
+  it.each([80_000, 150_000])('a line that keeps %i of its first rows holds one copy of x and lets the caller\'s columns go', async keep => {
+    function setup() {
+      const data = columns();
+      const refs = [new WeakRef(data.columns.x), new WeakRef(data.columns.y)];
+      const s = store('line', data) as AlignedStore;
+      const old = s.frame.revision;
+      s.prepareAppend([row(size)], { keep }).commit();
+      s.retire(old);
+      return { s, refs };
+    }
+    const { s, refs } = setup();
+    await expectCollected(...refs);
+    const owned = s.ownedBytes();
+    const frame = s.frame;
+    if (frame.shape !== 'aligned') throw new Error('Expected an aligned frame.');
+    expect(frame.length).toBe(keep);
+    expect(frame.source.rowAt(size)).toEqual(row(size));
+    // History and the eviction seed read x from the window's own buffer.
+    expect(xCopies(owned)).toBeLessThanOrEqual(1_024);
+    expect(owned.total).toBeLessThanOrEqual(spare(keep) * (8 + 8 + 1 + 4) + keep * (8 + 8) + 64 * 1_024);
+  });
+
+  it('a scatter store over typed columns keeps no position or row index that repeats its points', () => {
+    const s = store('scatter', columns()) as PointStore;
+    s.prepareAppend([{ x: size, y: 1 }]).commit();
+    const owned = s.ownedBytes();
+    expect(owned.buffers.map(entry => entry.name).filter(name => /^(x positions|row)$/.test(name))).toEqual([]);
+    expect(s.frame.shape === 'points' && s.frame.series[0]!.row).toBeNull();
+    // Exact x and y of every point, with the stores' opening tail (at most 4,096 slots).
+    expect(owned.total).toBeLessThanOrEqual((size + 1 + 4_096 + 16) * (8 + 8) + 1_024);
+  });
+
+  it('a scatter store that keeps part of its points holds x and y, the row index, and the kept rows', () => {
+    const keep = 80_000;
+    const s = store('scatter', columns()) as PointStore;
+    const old = s.frame.revision;
+    s.prepareAppend([{ x: size, y: 1 }], { keep }).commit();
+    // Rows evicted while an earlier frame still showed them are kept for it until it retires.
+    expect(s.ownedBytes().buffers.some(entry => entry.name === 'rows kept for earlier frames')).toBe(true);
+    s.retire(old);
+    const frame = s.frame;
+    if (frame.shape !== 'points') throw new Error('Expected a point frame.');
+    expect(frame.series[0]!.x.length).toBe(keep);
+    expect(frame.series[0]!.row![0]).toBe(size + 1 - keep);
+    expect(frame.source.rowAt(frame.series[0]!.row![0]!)).toEqual({ x: size + 1 - keep, y: (size + 1 - keep) / 3 });
+    expect(s.ownedBytes().total).toBeLessThanOrEqual(spare(keep) * (8 + 8 + 4) + keep * (8 + 8) + 64 * 1_024);
+  });
 });

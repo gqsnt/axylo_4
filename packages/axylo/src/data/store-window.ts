@@ -23,9 +23,15 @@ export class BufferWindow {
     return 0;
   }
 
+  /**
+   * After eviction, a buffer more than 2.25 times its window is cut to the window and an eighth. Growth
+   * doubles (2 × (window + appended)), so a window that slides by small appends stays below the threshold and
+   * is never cut and regrown in turn; a cut costs one copy of the window, paid for by the evictions that
+   * shrank it below 1/2.25 of the buffer.
+   */
   compact(capacity: number): number {
     const length = this.end - this.start;
-    return capacity > Math.max(32, 4 * length) ? Math.max(16, 2 * length) : 0;
+    return capacity > Math.max(32, 2.25 * length) ? length + Math.max(16, Math.ceil(length / 8)) : 0;
   }
 
   rebase(extra: number): void {

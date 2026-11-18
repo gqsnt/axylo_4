@@ -64,7 +64,7 @@ export class ByteCount {
       this.add('frame x', frame.x.values);
       for (const series of frame.series) this.plain(`frame series ${series.key}`, series, ['y', 'slot', 'row']);
     } else if (frame.shape === 'points') {
-      for (const series of frame.series) this.plain(`frame series ${series.key}`, series, ['x', 'y', 'row', 'missingX']);
+      for (const series of frame.series) this.plain(`frame series ${series.key}`, series, ['x', 'y', 'row', 'missingX', 'missingRow']);
     } else {
       this.plain('frame', frame, ['values', 'slot', 'row']);
     }

@@ -117,9 +117,8 @@ class Observations {
   evict(): void {
     if (this.prefix) {
       this.prefixStart++;
-      if (this.prefixStart === this.prefix.length) this.prefix = null;
-      else if (this.prefixStart * 2 >= this.prefix.length) {
-        this.prefix = this.prefix.slice(this.prefixStart);
+      if (this.prefixStart === this.prefix.length) {
+        this.prefix = null;
         this.prefixStart = 0;
       }
       return;
@@ -127,6 +126,21 @@ class Observations {
     this.range.start++;
     const capacity = this.range.compact(this.positions.length);
     if (capacity) this.resize(capacity, 0);
+  }
+
+  /**
+   * Points the prefix at the store's own window, whose first slots hold the same positions (a wide frame over
+   * one sorted x column, no gap slots): one copy of x per window, and the caller's column is not pinned.
+   * Falls back to a copy of the remainder once half of it is gone, as before, if the window does not match.
+   */
+  share(window: Float64Array): void {
+    const prefix = this.prefix;
+    if (!prefix) return;
+    const remaining = prefix.length - this.prefixStart;
+    if (sameRemainder(prefix, this.prefixStart, window)) this.prefix = window.subarray(0, remaining);
+    else if (this.prefixStart * 2 >= prefix.length) this.prefix = prefix.slice(this.prefixStart);
+    else return;
+    this.prefixStart = 0;
   }
 
   count(bytes: ByteCount, name: string): void {
@@ -140,6 +154,13 @@ class Observations {
     this.positions.set(retained);
     this.range.rebase(extra);
   }
+}
+
+/** Whether the first slots of `window` hold `prefix` from `start` on (checked at both ends). */
+function sameRemainder(prefix: Float64Array, start: number, window: Float64Array): boolean {
+  const remaining = prefix.length - start;
+  return remaining > 0 && remaining <= window.length &&
+    window[0] === prefix[start] && window[remaining - 1] === prefix[prefix.length - 1];
 }
 
 function readCadence(axis: XColumn, observations: Observations): Cadence {
@@ -894,6 +915,14 @@ export class AlignedStore {
       (previousStep !== currentStep || oldSparse !== newSparse || !newSparse && multiple > 1 && next > first);
   }
 
+  /** History that reads x positions reads them from the window, never from a copy of its own. */
+  private sharePositions(): void {
+    const { buffers, observations } = this.state;
+    const window = buffers.x.subarray(buffers.start, buffers.end);
+    for (const history of observations.values()) history.share(window);
+    this.rows.shareSeed(window);
+  }
+
   private trim(keep: number): boolean {
     const { buffers, diagnostics, calendar, observations, modes, votes, parser, dateUnits } = this.state;
     let update = false;
@@ -930,6 +959,7 @@ export class AlignedStore {
     });
     buffers.shrink();
     if (buffers.distinct === 0) buffers.series.clear();
+    this.sharePositions();
     this.rows.trimUnplacedRead(keep, firstX, buffers.distinct, (row, column) => discard(row, column, false));
     this.rows.compactColumns();
     if (categories) parser.evictCategories(categories);
@@ -1052,6 +1082,8 @@ export class AlignedStore {
       }
       this.state = { ...this.state, axis: this.state.parser.column(new Float64Array(), true) };
     }
+    // Growth may have moved the window to a new buffer: history must not pin the old one.
+    this.sharePositions();
     this.current = this.snapshot(this.current);
     this.latest = [...this.currentDiagnostics(), ...ordering.inputs()];
     return this.current;

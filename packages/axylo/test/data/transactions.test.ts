@@ -356,8 +356,12 @@ describe('scatter and donut stores', () => {
         retained = retained.filter(i => keys.has(input[i]!.x));
         const normalized = check('scatter', { data: retained.map(i => input[i]), ...scatterOptions }).frame;
         if (normalized.shape !== 'points') throw new Error('Expected a point frame');
-        expect(f.series).toEqual(normalized.series.map(s => ({
+        // A null row index means "point i came from row i" (contract): compare indexes, not representations.
+        const explicit = f.series.map(s => ({ ...s, row: s.row ?? Int32Array.from(s.x.keys()) }));
+        expect(explicit).toEqual(normalized.series.map(s => ({
           ...s, row: Int32Array.from(s.row ?? s.x.keys(), index => retained[index]!),
+          // missingRow holds source rows too: the same remapping as row.
+          ...s.missingRow && { missingRow: Int32Array.from(s.missingRow, index => retained[index]!) },
         })));
         for (const i of retained) expect(f.source.rowAt(i)).toBe(input[i]);
       });

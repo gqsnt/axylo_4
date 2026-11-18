@@ -373,18 +373,22 @@ export function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticS
       else missing++;
     }
     // The reader still needs each valid x when a diagnostic kept its y out of the plot.
+    // Their source rows too, so a re-encode can read them again (another field may have a value there).
     const missingX = missing ? new Float64Array(missing) : undefined;
-    if (missingX) {
+    const missingRow = missing ? new Int32Array(missing) : undefined;
+    if (missingX && missingRow) {
       let index = 0;
       for (let i = 0; i < length; i++) {
         const row = group.order?.[i] ?? i;
-        if (values.slot[row] !== SLOT_VALUE) missingX[index++] = x.positions[row]!;
+        if (values.slot[row] === SLOT_VALUE) continue;
+        missingX[index] = x.positions[row]!;
+        missingRow[index++] = table.rowIndex(row);
       }
     }
     const kept = rows.subarray(0, next);
     kept.sort((a, b) => x.positions[a]! - x.positions[b]! || values.y[a]! - values.y[b]!);
     return {
-      key: group.key, label: group.label, drawable: true, missingX,
+      key: group.key, label: group.label, drawable: true, missingX, missingRow,
       x: Float64Array.from(kept, row => x.positions[row]!), y: Float64Array.from(kept, row => values.y[row]!), row: Int32Array.from(kept, table.rowIndex),
     };
   });

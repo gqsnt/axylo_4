@@ -1,5 +1,12 @@
 import type { RowSource } from '../core/contracts';
 import type { ByteCount } from './store-bytes';
+
+/** Whether the first slots of `window` hold `prefix` from `start` on (checked at both ends). */
+function sameRemainder(prefix: Float64Array, start: number, window: Float64Array): boolean {
+  const remaining = prefix.length - start;
+  return remaining > 0 && remaining <= window.length &&
+    window[0] === prefix[start] && window[remaining - 1] === prefix[prefix.length - 1];
+}
 import { StoreMap } from './store-map';
 import { columnsTable, rowValue, type Columns, type Table } from './table';
 
@@ -284,6 +291,15 @@ export class StreamRows {
       discard?.(index, true);
       this.forget(index);
     }
+  }
+
+  /** As `Observations.share`: the seed's remaining positions read from the store's window (see store.ts). */
+  shareSeed(window: Float64Array): void {
+    const seed = this.seedPositions;
+    if (!seed || !sameRemainder(seed, this.seedStart, window)) return;
+    this.seedPositions = window.subarray(0, seed.length - this.seedStart);
+    this.seedOffset += this.seedStart;
+    this.seedStart = 0;
   }
 
   compactColumns(): void {
