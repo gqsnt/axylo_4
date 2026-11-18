@@ -1,5 +1,5 @@
 import type { ScatterView } from '../core/contracts';
-import { contains, type PlotLayout } from './geometry';
+import { contains, scatterPosition, type PlotLayout } from './geometry';
 
 const CELL = 24;
 const RADIUS2 = CELL * CELL;
@@ -11,13 +11,13 @@ export const POINT_LIMIT = 8;
 interface Bucket {
   readonly start: number;
   readonly end: number;
+  readonly count: number;
   readonly minX: number;
   readonly maxX: number;
   readonly minY: number;
   readonly maxY: number;
   readonly left?: Bucket;
   readonly right?: Bucket;
-  readonly coincident?: number;
 }
 
 function distanceTo(bucket: Bucket, x: number, y: number): number {
@@ -44,8 +44,13 @@ export function scatterGrid(view: ScatterView, layout: PlotLayout & { projection
   let examined = 0;
   let cellsExamined = 0;
 
-  const column = (x: number) => Math.floor((x - plot.x) / CELL);
-  const row = (y: number) => Math.floor((y - plot.y) / CELL);
+  function cellIndex(pixel: number, origin: number, size: number): number {
+    // Subtracting the origin from a rounded plot edge can place that edge one cell past the grid.
+    return Math.max(0, Math.min(size - 1, Math.floor((pixel - origin) / CELL)));
+  }
+
+  const column = (x: number) => cellIndex(x, plot.x, columns);
+  const row = (y: number) => cellIndex(y, plot.y, rows);
   const cellFor = (x: number, y: number) => column(x) + columns * row(y);
 
   function sourceRow(at: number): number {
@@ -64,8 +69,8 @@ export function scatterGrid(view: ScatterView, layout: PlotLayout & { projection
     if (!view.visible[s] || !data.drawable) return;
     const { start, end } = view.visiblePoints[s]!;
     for (let i = start; i < end; i++) {
-      const x = projection.x.map(data.x[i]!);
-      const y = projection.y.map(data.y[i]!);
+      const x = scatterPosition(projection.x, data.x[i]!);
+      const y = scatterPosition(projection.y, data.y[i]!);
       if (!contains(plot, x, y)) continue;
       const cell = cellFor(x, y);
       const at = length++;
@@ -79,22 +84,20 @@ export function scatterGrid(view: ScatterView, layout: PlotLayout & { projection
   });
 
   const order = new Uint32Array(length);
+  const multiplicity = new Uint32Array(length);
   const buckets = new Map<number, Bucket>();
-  function build(start: number, end: number): Bucket {
+  function build(start: number, end: number, allowSkew = true): Bucket {
     let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+    let count = 0;
     for (let i = start; i < end; i++) {
       const p = order[i]!;
       minX = Math.min(minX, xs[p]!);
       maxX = Math.max(maxX, xs[p]!);
       minY = Math.min(minY, ys[p]!);
       maxY = Math.max(maxY, ys[p]!);
+      count += multiplicity[p]!;
     }
-    const bounds = { start, end, minX, maxX, minY, maxY };
-    if (minX === maxX && minY === maxY) {
-      let coincident = order[start]!;
-      for (let i = start + 1; i < end; i++) if (later(order[i]!, coincident)) coincident = order[i]!;
-      return { ...bounds, coincident };
-    }
+    const bounds = { start, end, count, minX, maxX, minY, maxY };
     if (end - start <= LEAF_SIZE) return bounds;
 
     const byX = maxX - minX >= maxY - minY;
@@ -107,23 +110,61 @@ export function scatterGrid(view: ScatterView, layout: PlotLayout & { projection
       order[i] = order[mid]!;
       order[mid++] = p;
     }
-    // Split the indexes, never the borrowed columns. Use a median for skewed cells to contain tree depth.
-    if (Math.min(mid - start, end - mid) < (end - start) / 8) {
+    const smaller = Math.min(mid - start, end - mid);
+    const skewed = smaller < (end - start) / 8;
+    // Keep spatially separated groups together. Consecutive skewed splits need a median to bound depth.
+    const useSkew = skewed && allowSkew && smaller > 0;
+    if (skewed && !useSkew) {
       order.subarray(start, end).sort((a, b) => positions[a]! - positions[b]!);
       mid = start + Math.floor((end - start) / 2);
     }
-    return { ...bounds, left: build(start, mid), right: build(mid, end) };
+    return { ...bounds, left: build(start, mid, !useSkew), right: build(mid, end, !useSkew) };
   }
 
   let end = 0;
   for (const [cell, head] of heads) {
     const start = end;
-    for (let at = head; at >= 0; at = next[at]!) order[end++] = at;
+    let uniform = true;
+    for (let at = head; at >= 0; at = next[at]!) {
+      order[end++] = at;
+      uniform &&= xs[at] === xs[head] && ys[at] === ys[head];
+    }
+    if (!uniform) order.subarray(start, end).sort((a, b) => xs[a]! - xs[b]! || ys[a]! - ys[b]!);
+
+    // Group identical positions before splitting the cell, so a median cannot spread them across leaves.
+    // Keep the latest row as the representative and link the others for the capped tooltip.
+    let write = start;
+    for (let i = start; i < end;) {
+      const first = order[i]!;
+      const groupStart = i++;
+      let last = first;
+      let winner = first;
+      let beforeWinner = -1;
+      for (; i < end; i++) {
+        const at = order[i]!;
+        if (xs[at] !== xs[first] || ys[at] !== ys[first]) break;
+        next[last] = at;
+        if (later(at, winner)) {
+          winner = at;
+          beforeWinner = last;
+        }
+        last = at;
+      }
+      next[last] = -1;
+      if (beforeWinner >= 0) {
+        next[beforeWinner] = next[winner]!;
+        next[winner] = first;
+      }
+      multiplicity[winner] = i - groupStart;
+      order[write++] = winner;
+    }
+    end = write;
     buckets.set(cell, build(start, end));
   }
 
   return {
     series, points,
+    // Count individual distance checks and rows visited while sampling tooltip refs.
     get examined() { return examined; },
     get cellsExamined() { return cellsExamined; },
     pick(x: number, y: number) {
@@ -131,10 +172,10 @@ export function scatterGrid(view: ScatterView, layout: PlotLayout & { projection
       cellsExamined = 0;
       if (!contains(plot, x, y)) return null;
       const radius = CELL + COINCIDENT;
-      const left = Math.max(0, column(x - radius));
-      const right = Math.min(columns - 1, column(x + radius));
-      const top = Math.max(0, row(y - radius));
-      const bottom = Math.min(rows - 1, row(y + radius));
+      const left = column(x - radius);
+      const right = column(x + radius);
+      const top = row(y - radius);
+      const bottom = row(y + radius);
       const nearby: Bucket[] = [];
       for (let cy = top; cy <= bottom; cy++) {
         for (let cx = left; cx <= right; cx++) {
@@ -156,9 +197,7 @@ export function scatterGrid(view: ScatterView, layout: PlotLayout & { projection
       }
       function search(bucket: Bucket, distance: number): void {
         if (distance > best) return;
-        if (bucket.coincident !== undefined) {
-          consider(bucket.coincident);
-        } else if (bucket.left && bucket.right) {
+        if (bucket.left && bucket.right) {
           const left = distanceTo(bucket.left, x, y);
           const right = distanceTo(bucket.right, x, y);
           if (left <= right) {
@@ -181,14 +220,17 @@ export function scatterGrid(view: ScatterView, layout: PlotLayout & { projection
       const py = ys[nearest]!;
       const hits = [nearest];
       let count = 0;
-      function add(at: number): void {
-        if (hits.length < POINT_LIMIT && at !== nearest) hits.push(at);
+      function sample(head: number): void {
+        for (let at = head; at >= 0 && hits.length < POINT_LIMIT; at = next[at]!) {
+          examined++;
+          if (at !== nearest) hits.push(at);
+        }
       }
       function collect(bucket: Bucket): void {
         if (distanceTo(bucket, px, py) > COINCIDENT2) return;
         if (distanceAcross(bucket, px, py) <= COINCIDENT2) {
-          count += bucket.end - bucket.start;
-          for (let i = bucket.start; i < bucket.end && hits.length < POINT_LIMIT; i++) add(order[i]!);
+          count += bucket.count;
+          for (let i = bucket.start; i < bucket.end && hits.length < POINT_LIMIT; i++) sample(order[i]!);
         } else if (bucket.left && bucket.right) {
           collect(bucket.left);
           collect(bucket.right);
@@ -197,8 +239,8 @@ export function scatterGrid(view: ScatterView, layout: PlotLayout & { projection
             const at = order[i]!;
             examined++;
             if ((xs[at]! - px) ** 2 + (ys[at]! - py) ** 2 <= COINCIDENT2) {
-              count++;
-              add(at);
+              count += multiplicity[at]!;
+              sample(at);
             }
           }
         }

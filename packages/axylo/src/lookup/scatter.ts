@@ -1,6 +1,6 @@
 import { SLOT_VALUE } from '../core/contracts';
 import type { DatumRef, DatumText, Formatters, Lookup, ScatterView } from '../core/contracts';
-import { contains, pointBox, type PlotLayout } from './geometry';
+import { contains, pointBox, scatterPosition, type PlotLayout } from './geometry';
 import { pointOrder, type PointIndex } from './point-order';
 import { POINT_LIMIT, scatterGrid } from './scatter-grid';
 import { lowerBound, upperBound, pageDistance } from './search';
@@ -172,8 +172,8 @@ export function scatterLookup(
       const { start, end } = ranges[point.series]!;
       if (point.index < start || point.index >= end) return null;
       const entry = series[point.series]!;
-      const x = projection.x.map(entry.x[point.index]!);
-      const y = projection.y.map(entry.y[point.index]!);
+      const x = scatterPosition(projection.x, entry.x[point.index]!);
+      const y = scatterPosition(projection.y, entry.y[point.index]!);
       return contains(layout.plot, x, y) ? pointBox(x, y) : null;
     },
     count: order.count,

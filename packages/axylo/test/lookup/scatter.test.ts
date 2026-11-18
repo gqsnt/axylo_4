@@ -1,13 +1,15 @@
 import fc from 'fast-check';
 import { expect, it } from 'vitest';
-import type { DatumRef, PointFrame } from '../../src/core/contracts';
+import type { DatumRef, PointFrame, Rect } from '../../src/core/contracts';
 import { buildLookup } from '../../src/lookup';
 import { scatterLookup } from '../../src/lookup/scatter';
 import { defaultMessages } from '../../src/messages';
 import { linearScale } from '../../src/scale';
+import { LATENCY } from '../browser/acceptance/fixtures';
 import { formatter, frame, plot, scatter } from './fixtures';
 
-const point = (seriesKey: string, row: number, x: number): DatumRef => ({ kind: 'point', seriesKey, row, x });
+const point = (seriesKey: string, row: number, x: number): Extract<DatumRef, { kind: 'point' }> =>
+  ({ kind: 'point', seriesKey, row, x });
 
 function points(lists: readonly (readonly (readonly [number, number])[])[]): PointFrame {
   let row = 0;
@@ -25,6 +27,21 @@ function points(lists: readonly (readonly (readonly [number, number])[])[]): Poi
 }
 const layout = plot({ kind: 'xy', x: linearScale([0, 100], [0, 100]), y: linearScale([0, 100], [0, 100]) });
 
+function scatterLayout(rect: Rect, xDomain: readonly [number, number], yDomain: readonly [number, number]) {
+  return {
+    ...plot({
+      kind: 'xy',
+      x: linearScale(xDomain, [rect.x, rect.x + rect.width]),
+      y: linearScale(yDomain, [rect.y + rect.height, rect.y]),
+    }, rect.x + rect.width + 4, rect.y + rect.height + 4),
+    plot: rect,
+  };
+}
+
+function clamp(value: number, low: number, high: number): number {
+  return Math.max(low, Math.min(high, value));
+}
+
 it('picks the nearest point within 24 px and breaks a tie by later source row', () => {
   const data = frame('scatter', { data: [{ x: 60, y: 50 }, { x: 40, y: 50 }], x: 'x', y: 'y' });
   const model = buildLookup(scatter(data), layout, formatter(data), defaultMessages);
@@ -36,6 +53,95 @@ it('picks the nearest point within 24 px and breaks a tie by later source row', 
   expect(model.pick(16, 50)).toEqual({ kind: 'point', refs: [point('y', 1, 40)], count: 1 });
   expect(model.pick(15.99, 50)).toBeNull();
   expect(model.pick(58, 50)).toEqual({ kind: 'point', refs: [point('y', 0, 60)], count: 1 });
+});
+
+it.each([
+  { x: 68.4, y: 12.4, width: 827.6, height: 674.35 },
+  { x: 68.375, y: 12.375, width: 647.625, height: 340 },
+])('picks the latency fixture on each edge and corner of a $width × $height plot', rect => {
+  const corners = [
+    { size: 10, latency: 140, region: 'NW' }, { size: 35, latency: 140, region: 'NE' },
+    { size: 10, latency: 90, region: 'SW' }, { size: 35, latency: 90, region: 'SE' },
+  ];
+  const data = frame('scatter', { data: [...LATENCY.points, ...corners], x: 'size', y: 'latency', series: 'region' });
+  const view = scatter(data, { xDomain: [10, 35], yDomain: [90, 140] });
+  const model = buildLookup(view, scatterLayout(rect, view.xDomain, view.yDomain), formatter(data), defaultMessages);
+  const { x: left, y: top, width, height } = rect;
+  const right = left + width;
+  const bottom = top + height;
+  const probes = [
+    [point('EU', 1, 20), left + (10 / 25) * width, top],
+    [point('US', 3, 15), left + (5 / 25) * width, bottom],
+    [point('EU', 0, 10), left, top + (20 / 50) * height],
+    [point('US', 5, 35), right, top + (45 / 50) * height],
+    [point('NW', 6, 10), left, top], [point('NE', 7, 35), right, top],
+    [point('SW', 8, 10), left, bottom], [point('SE', 9, 35), right, bottom],
+  ] as const;
+  for (const [ref, x, y] of probes) {
+    for (const [dx, dy] of [[0, 0], [10, 0], [-10, 0], [0, 12], [0, -12], [10, 12], [-10, -12]] as const) {
+      const target = model.pick(clamp(x + dx, left, right), clamp(y + dy, top, bottom));
+      expect(target, JSON.stringify({ ref, dx, dy })).toEqual({ kind: 'point', refs: [ref], count: 1 });
+    }
+    expect(model.anchor(ref)).toMatchObject({ x: expect.closeTo(x, 10), y: expect.closeTo(y, 10) });
+  }
+  expect(model.pick(left - 1, top)).toBeNull();
+});
+
+it('indexes the rounded right and bottom edges in the same cells it searches', () => {
+  const extent = 192 - 2 ** -45;
+  const rect = { x: 72, y: 72, width: extent, height: extent };
+  const data = points([[[0, 0], [1, 0.5], [0.5, 0.5], [0.5, 0]]]);
+  const model = buildLookup(scatter(data), scatterLayout(rect, [0, 1], [0, 1]), formatter(data), defaultMessages);
+  const right = rect.x + rect.width;
+  const bottom = rect.y + rect.height;
+  for (const [x, y, ref] of [
+    [right, rect.y + 96, point('S0', 1, 1)],
+    [rect.x + 96, bottom, point('S0', 3, 0.5)],
+    [right - 10, rect.y + 96, point('S0', 1, 1)],
+    [rect.x + 96, bottom - 10, point('S0', 3, 0.5)],
+  ] as const) {
+    expect(model.pick(x, y)).toEqual({ kind: 'point', refs: [ref], count: 1 });
+  }
+});
+
+it('agrees with a brute-force scatter pick anywhere within radius of a drawn point', () => {
+  const fraction = fc.oneof(fc.constant(0), fc.constant(1), fc.integer({ min: 0, max: 1024 }).map(n => n / 1024));
+  const fractions = fc.array(fc.tuple(fraction, fraction), { minLength: 1, maxLength: 42 });
+  const extent = fc.oneof(fc.constant(192 - 2 ** -45), fc.integer({ min: 80, max: 1200 }).map(n => n / 2));
+  const offset = fc.tuple(fc.integer({ min: -24, max: 24 }), fc.integer({ min: -24, max: 24 }))
+    .filter(([x, y]) => x * x + y * y <= 24 ** 2);
+  fc.assert(fc.property(
+    fc.tuple(fc.integer({ min: -120, max: 128 }), fc.integer({ min: -120, max: 128 }), extent, extent),
+    fractions, fractions, fc.nat(), offset,
+    ([left, top, width, height], a, b, seed, [dx, dy]) => {
+      const right = left + width;
+      const bottom = top + height;
+      const toPixels = ([x, y]: readonly [number, number]) => [left + x * width, top + y * height] as const;
+      const series = [a.map(toPixels), b.map(toPixels)];
+      let row = 0;
+      const drawn = series.flatMap((list, s) => list.map(([x, y]) => ({ x, y, ref: point(`S${s}`, row++, x) })));
+      const witness = drawn[seed % drawn.length]!;
+      const px = clamp(witness.x + dx, left, right);
+      const py = clamp(witness.y + dy, top, bottom);
+      const ranked = drawn.map(d => ({ ...d, distance: (d.x - px) ** 2 + (d.y - py) ** 2 }))
+        .sort((a, b) => a.distance - b.distance || b.ref.row - a.ref.row);
+      const nearest = ranked[0]!;
+      fc.pre(nearest.distance <= 24 ** 2);
+      const coincident = drawn.filter(d => (d.x - nearest.x) ** 2 + (d.y - nearest.y) ** 2 <= 0.5 ** 2);
+      const x = { ...linearScale([left, right], [left, right]), map: (p: number) => p };
+      const y = { ...linearScale([top, bottom], [top, bottom]), map: (p: number) => p };
+      const data = points(series);
+      const layout = { ...plot({ kind: 'xy', x, y }), plot: { x: left, y: top, width, height } };
+      const model = buildLookup(scatter(data), layout, formatter(data), defaultMessages);
+      const target = model.pick(px, py);
+      if (target?.kind !== 'point') throw new Error('Expected scatter target within 24 px');
+      expect(target.refs[0]).toEqual(nearest.ref);
+      expect(target.count).toBe(coincident.length);
+      expect(target.refs).toHaveLength(Math.min(8, coincident.length));
+      expect(new Set(target.refs.map(ref => ref.kind === 'point' && ref.row)).size).toBe(target.refs.length);
+      expect(coincident.map(d => d.ref)).toEqual(expect.arrayContaining([...target.refs]));
+    },
+  ), { numRuns: 1_500 });
 });
 
 it('finds coincident points across a cell boundary and retains the full count after truncation', () => {
@@ -57,6 +163,25 @@ it('finds coincident points across a cell boundary and retains the full count af
   expect(model.tooltip(target).rows).toHaveLength(8);
   expect(model.tooltip(target).count).toBe(10);
   expect(model.tooltip(target).rows.some(row => row.seriesLabel === 'Different')).toBe(false);
+});
+
+it('keeps the earliest of ten coincident rows addressable when a pointer pick omits it', () => {
+  const data = frame('scatter', { x: 'x', y: 'y', series: 's',
+    data: Array.from({ length: 10 }, (_, i) => ({ x: 20, y: 40, s: `S${i}` })),
+  });
+  const model = buildLookup(scatter(data), layout, formatter(data), defaultMessages);
+  const earliest = point('S0', 0, 20);
+  expect(model.step(null, 'first')).toEqual(earliest);
+  expect(model.resolve(earliest)).toBe(earliest);
+  expect(model.ordinal(earliest)).toBe(0);
+  expect(model.datum(earliest)).toMatchObject({ ref: earliest, seriesLabel: 'S0', x: '20', value: '40', row: 0 });
+  expect(model.anchor(earliest)).toEqual({ x: 20, y: 40, width: 0, height: 0 });
+  const picked = model.pick(20, 40);
+  if (picked?.kind !== 'point') throw new Error('Expected scatter target');
+  expect(picked.count).toBe(10);
+  expect(picked.refs).toHaveLength(8);
+  expect(picked.refs).not.toContainEqual(earliest);
+  expect(model.tooltip(picked)).toMatchObject({ count: 10 });
 });
 
 it('uses screen distance when moving to the neighbouring visible series', () => {
@@ -114,6 +239,35 @@ it('bounds a pick in a cell of 200,000 coincident points and reports the full co
   expect(model.primary(target!)).toEqual(point('S0', size - 1, 23.9));
   expect(model.tooltip(target!).rows).toHaveLength(8);
   expect(model.lastPickCandidates).toBeLessThan(3_000);
+});
+
+it('bounds the points visited for 10,000 identical marks mixed with 190,000 other points in one cell', () => {
+  const size = 200_000;
+  const copies = 10_000;
+  const base = points([[]]);
+  const data = { ...base, series: [{
+    ...base.series[0]!,
+    x: new Float64Array(size).fill(50, 0, copies),
+    y: new Float64Array(size).fill(50, 0, copies + 1),
+    row: null,
+  }] };
+  const { x: xs, y: ys } = data.series[0]!;
+  // The boundary point is exactly 0.5 px away and the rest fill the same cell beyond its own radius.
+  xs[copies] = 50.5;
+  for (let i = copies + 1; i < size; i++) {
+    const j = i - copies - 1;
+    xs[i] = 51.01 + Math.floor(j / 400) / 1000;
+    ys[i] = 50.01 + (j % 400) / 1000;
+  }
+  const axis = linearScale([0, 128], [0, 128]);
+  const model = scatterLookup(scatter(data), plot({ kind: 'xy', x: axis, y: axis }, 128, 128), formatter(data));
+  for (const [x, row] of [[50, copies - 1], [50.5, copies]] as const) {
+    const target = model.pick(x, 50);
+    expect(target).toMatchObject({ kind: 'point', count: copies + 1 });
+    expect(model.primary(target!)).toEqual(point('S0', row, x));
+    expect(model.tooltip(target!).rows).toHaveLength(8);
+    expect(model.lastPickCandidates).toBeLessThanOrEqual(12);
+  }
 });
 
 it('visits the binary-search window when switching series and locates recreated refs by x', () => {
