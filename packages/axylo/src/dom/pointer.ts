@@ -39,8 +39,8 @@ export function identityOf(target: PickTarget, chosen: DatumRef | null = null): 
   }
 }
 
+/** Whether `target` shows the x or slice of `id`; a point identity is asked of the lookup (`Lookup.has`). */
 export function matchesIdentity(id: Identity, target: PickTarget): boolean {
   if (id.kind === 'x') return target.kind === 'x' && target.x === id.x;
-  if (id.kind === 'slice') return target.kind === 'slice' && target.sliceKey === id.sliceKey;
-  return target.kind === 'point' && target.refs.some(r => sameRef(r, id.ref));
+  return id.kind === 'slice' && target.kind === 'slice' && target.sliceKey === id.sliceKey;
 }

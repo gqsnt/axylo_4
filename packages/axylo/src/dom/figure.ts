@@ -7,7 +7,7 @@
  * slots (`top` above the plot, `side` beside it, `controls` under it: legend, toolbar, table) and `readout`;
  * the figure only provides those slots. The plot and `side` share the `body` row.
  */
-import { setAttr } from './attributes';
+import { make, setAttr, setText, hideFromAT } from './attributes';
 
 export interface TitleModel {
   readonly text: string;
@@ -78,10 +78,6 @@ export interface Figure {
 
 const HIDDEN = 'axylo-visually-hidden';
 
-function setText(el: HTMLElement, text: string): void {
-  if (el.textContent !== text) el.textContent = text;
-}
-
 function show(el: HTMLElement, visible: boolean): void {
   if (el.hidden === visible) el.hidden = !visible;
 }
@@ -92,22 +88,17 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
   const hadClassAttribute = root.hasAttribute('class');
   if (addedClass) root.classList.add('axylo');
 
-  const make = <K extends keyof HTMLElementTagNameMap>(tag: K, className: string): HTMLElementTagNameMap[K] => {
-    const el = doc.createElement(tag);
-    el.className = className;
-    return el;
-  };
   // The figure carries the `axylo` class too: the theme writes its custom properties and scheme attribute on
   // the figure, so two charts on one target never share them (review 3, finding 10).
-  const figure = make('figure', 'axylo axylo-figure');
+  const figure = make(doc, 'figure', 'axylo axylo-figure');
   figure.id = id;
   // A div, not figcaption: a figure with a figcaption may not take the group or img role (ARIA in HTML), and
   // the figure is named and described through aria-labelledby and aria-describedby anyway.
-  const caption = make('div', 'axylo-caption');
-  const title = make('div', 'axylo-title');
+  const caption = make(doc, 'div', 'axylo-caption');
+  const title = make(doc, 'div', 'axylo-title');
   title.id = `${id}-t`;
   title.setAttribute('role', 'heading');
-  const subtitle = make('p', 'axylo-subtitle');
+  const subtitle = make(doc, 'p', 'axylo-subtitle');
   subtitle.id = `${id}-st`;
   // Hidden until the first update says otherwise, so nothing is measured with an empty caption.
   title.hidden = true;
@@ -115,43 +106,43 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
   // The whole generated summary is the figure's description, always (visually hidden). What the too-small
   // state shows (spec L8) is `summary`: the first sentence, one line (type, series count), aria-hidden since
   // the description already says it.
-  const description = make('p', `axylo-description ${HIDDEN}`);
+  const description = make(doc, 'p', `axylo-description ${HIDDEN}`);
   description.id = `${id}-s`;
-  const summary = make('p', `axylo-summary ${HIDDEN}`);
-  summary.setAttribute('aria-hidden', 'true');
+  const summary = make(doc, 'p', `axylo-summary ${HIDDEN}`);
+  hideFromAT(summary);
 
-  const plot = make('div', 'axylo-plot');
-  const message = make('p', 'axylo-message');
+  const plot = make(doc, 'div', 'axylo-plot');
+  const message = make(doc, 'p', 'axylo-message');
   message.id = `${id}-m`;
   message.hidden = true;
-  const corner = make('span', 'axylo-corner');
-  corner.setAttribute('aria-hidden', 'true');
+  const corner = make(doc, 'span', 'axylo-corner');
+  hideFromAT(corner);
   corner.textContent = '*';
   corner.hidden = true;
   plot.append(parts.marks, parts.text, message, corner);
-  const note = make('p', 'axylo-note');
+  const note = make(doc, 'p', 'axylo-note');
   note.id = `${id}-n`;
   note.setAttribute('role', 'status');
   // A status that is not live: the note can change as streamed data arrives (labels thinned, values left
   // out), and data arriving must not speak (spec A7). The summary carries the same statements.
   note.setAttribute('aria-live', 'off');
   note.hidden = true;
-  const live = make('div', `axylo-live ${HIDDEN}`);
+  const live = make(doc, 'div', `axylo-live ${HIDDEN}`);
   live.setAttribute('aria-live', 'polite');
-  const tooltip = make('div', 'axylo-tooltip');
+  const tooltip = make(doc, 'div', 'axylo-tooltip');
   tooltip.hidden = true;
-  tooltip.setAttribute('aria-hidden', 'true');
-  const readout = make('div', 'axylo-readout');
+  hideFromAT(tooltip);
+  const readout = make(doc, 'div', 'axylo-readout');
   readout.hidden = true;
-  readout.setAttribute('aria-hidden', 'true');
-  const controls = make('div', 'axylo-controls');
+  hideFromAT(readout);
+  const controls = make(doc, 'div', 'axylo-controls');
   controls.hidden = true;
-  const top = make('div', 'axylo-controls-top');
+  const top = make(doc, 'div', 'axylo-controls-top');
   top.hidden = true;
-  const side = make('div', 'axylo-controls-side');
+  const side = make(doc, 'div', 'axylo-controls-side');
   side.hidden = true;
-  const body = make('div', 'axylo-body');
-  const stage = make('div', 'axylo-stage');
+  const body = make(doc, 'div', 'axylo-body');
+  const stage = make(doc, 'div', 'axylo-stage');
   // The readout strip sits under the plot in the plot's column: in readout mode it is in the flow there, so it
   // covers nothing and nothing covers it (decision 0004 revision 2, rule 5).
   stage.append(plot, readout);

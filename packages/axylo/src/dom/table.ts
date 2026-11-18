@@ -5,7 +5,7 @@
  * jumps to the page holding an x value. Text only, never HTML.
  */
 import type { TableModel, XValue } from '../core/contracts';
-import { activeElementOf, setAttr } from './attributes';
+import { activeElementOf, setAttr, make } from './attributes';
 
 export interface TableTexts {
   readonly previousPage: string;
@@ -31,11 +31,8 @@ export interface TableView {
   readonly element: HTMLElement;
   /** A new model (the data or the view changed): the current page is shown again from it. */
   update(model: TableModel, texts: TableTexts, maxHeight: number): void;
-  /** Shows the page holding row `ordinal`. */
-  showRow(ordinal: number): void;
   /** Moves focus to the table's scroll region. */
   focus(): void;
-  readonly page: number;
   destroy(): void;
 }
 
@@ -44,13 +41,11 @@ export interface TableView {
  * the text otherwise).
  */
 export function createTableView(doc: Document, id: string, toValue: (text: string) => XValue | null): TableView {
-  const element = doc.createElement('div');
-  element.className = 'axylo-table';
+  const element = make(doc, 'div', 'axylo-table');
   const listening = new AbortController();
   const signal = listening.signal;
   element.id = `${id}-table`;
-  const scroll = doc.createElement('div');
-  scroll.className = 'axylo-table-scroll';
+  const scroll = make(doc, 'div', 'axylo-table-scroll');
   scroll.setAttribute('role', 'region');
   scroll.tabIndex = 0;
   const table = doc.createElement('table');
@@ -62,31 +57,24 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
   table.append(caption, head, body);
   scroll.appendChild(table);
 
-  const pager = doc.createElement('div');
-  pager.className = 'axylo-pager';
-  const previous = doc.createElement('button');
+  const pager = make(doc, 'div', 'axylo-pager');
+  const previous = make(doc, 'button', 'axylo-control');
   previous.type = 'button';
-  previous.className = 'axylo-control';
-  const status = doc.createElement('span');
-  status.className = 'axylo-page';
+  const status = make(doc, 'span', 'axylo-page');
   // The reader moved: saying the new page is an answer to their own action (spec A7).
   status.setAttribute('aria-live', 'polite');
-  const next = doc.createElement('button');
+  const next = make(doc, 'button', 'axylo-control');
   next.type = 'button';
-  next.className = 'axylo-control';
-  const form = doc.createElement('form');
-  form.className = 'axylo-jump';
+  const form = make(doc, 'form', 'axylo-jump');
   const label = doc.createElement('label');
   const labelText = doc.createElement('span');
-  const field = doc.createElement('input');
+  const field = make(doc, 'input', 'axylo-jump-field');
   field.type = 'text';
   field.id = `${id}-table-jump`;
-  field.className = 'axylo-jump-field';
   field.autocomplete = 'off';
   label.htmlFor = field.id;
   label.appendChild(labelText);
-  const error = doc.createElement('p');
-  error.className = 'axylo-jump-error';
+  const error = make(doc, 'p', 'axylo-jump-error');
   error.id = `${id}-table-jump-error`;
   error.hidden = true;
   form.append(label, field, error);
@@ -200,9 +188,6 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
 
   return {
     element,
-    get page() {
-      return page;
-    },
     update(nextModel, nextTexts, maxHeight) {
       const signature = `${maxHeight}`;
       model = nextModel;
@@ -216,11 +201,6 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
     },
     focus() {
       scroll.focus({ preventScroll: true });
-    },
-    showRow(ordinal) {
-      if (!model) return;
-      page = Math.floor(ordinal / model.pageSize);
-      render();
     },
     destroy() {
       listening.abort();

@@ -6,6 +6,7 @@
  *
  * A hidden series is drawn as an outline of the same shape (spec I2: marked by shape, not by dimming).
  */
+import { hideFromAT } from './attributes';
 import type { MarkerShape, SeriesCue } from '../core/contracts';
 import { MARKER_POLYGONS } from '../render/geometry';
 
@@ -88,7 +89,7 @@ export function createSwatch(doc: Document, spec: SwatchSpec): SVGSVGElement {
   svg.setAttribute('viewBox', '0 0 20 12');
   svg.setAttribute('width', '20');
   svg.setAttribute('height', '12');
-  svg.setAttribute('aria-hidden', 'true');
+  hideFromAT(svg);
   svg.setAttribute('focusable', 'false');
   const color = colorOf(spec.color);
   svg.style.color = color;

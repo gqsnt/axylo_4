@@ -14,7 +14,10 @@ import {
 import { donutGeometry } from '../view/donut-geometry';
 import type { Messages } from '../public';
 import { fill, pointOf } from '../messages';
-import { lowerBound } from '../lookup/search';
+import { lowerBound, pageDistance } from '../lookup/search';
+
+/** Matches lookup's page size (spec A2 "Page keys"): one definition, the lookup's. */
+export { pageDistance };
 import { slotText } from '../lookup/text';
 
 export type Mode = 'all' | 'single';
@@ -38,10 +41,6 @@ export function sameRef(a: DatumRef | null, b: DatumRef | null): boolean {
   return false;
 }
 
-/** Matches lookup's page size (spec A2 "Page keys"): a tenth of the visible positions, at least one. */
-export function pageDistance(count: number): number {
-  return Math.max(1, Math.floor(count / 10));
-}
 
 /** Series a reader can land on: visible and drawable. */
 export function readableSeries(view: AlignedView): number[] {

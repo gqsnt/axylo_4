@@ -8,7 +8,7 @@
  * its neighbour instead of falling back to the page.
  */
 import { createSwatch, type SwatchSpec } from './swatch';
-import { activeElementOf, setAttr } from './attributes';
+import { activeElementOf, setAttr, make, hideFromAT } from './attributes';
 
 export interface ToolbarItem {
   readonly key: string;
@@ -45,8 +45,7 @@ export interface Toolbar {
 const SVG = 'http://www.w3.org/2000/svg';
 
 export function createToolbar(doc: Document): Toolbar {
-  const element = doc.createElement('div');
-  element.className = 'axylo-toolbar';
+  const element = make(doc, 'div', 'axylo-toolbar');
   element.setAttribute('role', 'toolbar');
   // Every listener of the toolbar and its buttons goes with destroy (review 2: none left on removed elements).
   const listening = new AbortController();
@@ -102,7 +101,7 @@ export function createToolbar(doc: Document): Toolbar {
     svg.setAttribute('viewBox', '0 0 16 16');
     svg.setAttribute('width', '16');
     svg.setAttribute('height', '16');
-    svg.setAttribute('aria-hidden', 'true');
+    hideFromAT(svg);
     svg.setAttribute('class', 'axylo-symbol');
     const path = doc.createElementNS(SVG, 'path');
     path.setAttribute('d', 'M2 2v12M14 2v12M4.5 8h7M4.5 8l2.5-2.5M4.5 8l2.5 2.5M11.5 8l-2.5-2.5M11.5 8l-2.5 2.5');

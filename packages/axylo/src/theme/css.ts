@@ -206,10 +206,9 @@ ${forced}
     cursor: pointer; box-sizing: border-box; margin: 0; padding: 0; border: 0; background: none;
     font: inherit; color: inherit; text-align: inherit; align-items: center; min-height: 24px; min-width: 24px;
   }
-  .axylo .axylo-legend-choice { display: inline-flex; gap: 0.375em; }
   .axylo .axylo-tooltip .axylo-tooltip-choice { width: 100%; }
   .axylo .axylo-readout .axylo-tooltip-choice { display: inline-flex; vertical-align: middle; }
-  .axylo .axylo-legend-choice { display: inline-flex; gap: 0.375em; min-width: 24px; }
+  .axylo .axylo-legend-choice { display: inline-flex; gap: 0.375em; }
   .axylo .axylo-tooltip-title { font-weight: 600; }
   .axylo .axylo-tooltip-row { display: flex; gap: 1em; justify-content: space-between; }
   .axylo .axylo-tooltip-series { display: inline-flex; align-items: center; gap: 0.375em; min-width: 0; overflow-wrap: anywhere; }
@@ -319,13 +318,12 @@ ${forced}
   .axylo .axylo-table th[scope="row"], .axylo .axylo-table thead th:first-child { text-align: start; }
   .axylo .axylo-table thead th { position: sticky; top: 0; background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background))); }
   .axylo .axylo-pager { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: max(12px, 0.875em); }
-  .axylo .axylo-jump { display: inline-flex; align-items: center; gap: 0.375em; margin: 0; }
+  .axylo .axylo-jump { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.375em; margin: 0; }
   .axylo .axylo-jump-field {
     box-sizing: border-box; min-height: 24px; width: 12em; padding: 2px 4px; font: inherit;
     border: 1px solid var(--axylo-axis, var(--axylo-default-axis)); border-radius: 2px;
     background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background))); color: var(--axylo-text, currentColor);
   }
-  .axylo .axylo-jump { flex-wrap: wrap; }
   .axylo .axylo-jump-error { flex-basis: 100%; margin: 0; font-size: max(12px, 0.875em); }
   .axylo .axylo-jump-field:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
 }

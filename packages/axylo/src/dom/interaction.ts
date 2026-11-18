@@ -46,7 +46,7 @@ import { sliceText } from '../lookup/text';
 import { barPattern } from '../scene/bars';
 import { readPosition } from '../reader/x';
 import { printedX } from '../reader/table';
-import { activeElementOf, setAttr } from './attributes';
+import { activeElementOf, placeChildren, setAttr, make, keepFocusOnPress, hideFromAT } from './attributes';
 import { mappingOf, rectToViewport, toLocal, toViewport, visibleRegion, type Point } from './mapping';
 import { insideCorridor, intersect, type PlacementInput } from './placement';
 import { identityOf, matchesIdentity, sameTarget, type Identity } from './pointer';
@@ -149,8 +149,7 @@ export interface Interaction {
  */
 export function readoutOf(state: ControlsState): ReadoutMode {
   const r = state.readoutMode ?? state.readout;
-  if (r === 'floating' || r === 'strip' || r === 'none') return r;
-  return r === true ? 'strip' : 'floating';
+  return r === 'floating' || r === 'strip' || r === 'none' ? r : r === true ? 'strip' : 'floating';
 }
 
 /** How the content is presented for this state: never, by `tooltip: false`, in the too-small state or without a readout. */
@@ -164,8 +163,8 @@ function presentationFor(state: ControlsState): Presentation | 'none' {
  * A bar series' pattern (spec F9), from the scene's own rule, so a swatch never disagrees with the marks.
  * Swatches exist on full charts only (the compact variant has no legend or tooltip).
  */
-export function seriesPattern(index: number, compact = false): SwatchPattern['kind'] | null {
-  const pattern = barPattern(index, compact);
+export function seriesPattern(index: number): SwatchPattern['kind'] | null {
+  const pattern = barPattern(index, false);
   return pattern === 'none' ? null : pattern;
 }
 
@@ -247,18 +246,15 @@ export const donutSliceList: SliceList = (doc, d, actions, list) => {
     if (!entry) {
       const li = doc.createElement('li');
       li.dataset.key = slice.key;
-      const name = doc.createElement('span');
-      name.className = 'axylo-legend-name';
-      const value = doc.createElement('span');
-      value.className = 'axylo-legend-value';
+      const name = make(doc, 'span', 'axylo-legend-name');
+      const value = make(doc, 'span', 'axylo-legend-value');
       // Every slice, a zero or null one included, can be chosen by pointer as by keyboard: a button named by
       // the entry's text, 24 px tall.
-      const choose = doc.createElement('button');
+      const choose = make(doc, 'button', 'axylo-legend-choice');
       choose.type = 'button';
       choose.tabIndex = -1;
-      choose.className = 'axylo-legend-choice';
       const key = slice.key;
-      choose.addEventListener('mousedown', event => event.preventDefault());
+      choose.addEventListener('mousedown', keepFocusOnPress);
       choose.addEventListener('click', () => actions.select({ kind: 'slice', sliceKey: key }));
       li.append(choose);
       entry = { li, choose, name, value, swatch: '' };
@@ -284,16 +280,7 @@ export const donutSliceList: SliceList = (doc, d, actions, list) => {
   // Moving a focused entry blurs it: it gets focus back after a reorder (review I13).
   const had = activeElementOf(doc);
   const hadInList = had instanceof HTMLElement && list.contains(had);
-  let at: ChildNode | null = list.firstChild;
-  for (const li of wanted) {
-    if (at !== li) list.insertBefore(li, at);
-    at = li.nextSibling;
-  }
-  while (at) {
-    const next: ChildNode | null = at.nextSibling;
-    at.remove();
-    at = next;
-  }
+  placeChildren(list, wanted);
   if (hadInList && had.isConnected && activeElementOf(doc) !== had) had.focus({ preventScroll: true });
   const roving = !d.ready;
   list.dataset.roving = String(roving);
@@ -342,6 +329,8 @@ interface Content {
 }
 
 const NONE: Shown = { kind: 'none' };
+/** The pointer over the plot's column, on no datum. */
+const NO_HOVER: Shown = { kind: 'hover', target: null };
 
 function sameWindow(a: Span | null, b: Span | null): boolean {
   return a === b || (a !== null && b !== null && a[0] === b[0] && a[1] === b[1]);
@@ -510,9 +499,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     if (proxy) return;
     built = new AbortController();
     const signal = built.signal;
-    proxy = doc.createElement('input');
+    proxy = make(doc, 'input', 'axylo-proxy');
     proxy.type = 'range';
-    proxy.className = 'axylo-proxy';
     proxy.id = `${figure.id}-proxy`;
     proxy.min = '0';
     proxy.step = '1';
@@ -526,15 +514,12 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     proxy.addEventListener('change', onProxyInput, { signal });
     proxy.addEventListener('focus', onProxyFocus, { signal });
     proxy.addEventListener('blur', onProxyBlur, { signal });
-    ring = doc.createElement('div');
-    ring.className = 'axylo-focus-ring';
-    ring.setAttribute('aria-hidden', 'true');
-    instructions = doc.createElement('span');
-    instructions.className = 'axylo-visually-hidden';
+    ring = make(doc, 'div', 'axylo-focus-ring');
+    hideFromAT(ring);
+    instructions = make(doc, 'span', 'axylo-visually-hidden');
     instructions.id = `${figure.id}-i`;
-    selection = doc.createElement('div');
-    selection.className = 'axylo-selection';
-    selection.setAttribute('aria-hidden', 'true');
+    selection = make(doc, 'div', 'axylo-selection');
+    hideFromAT(selection);
     selection.hidden = true;
     plot.append(proxy, ring, selection, instructions);
     toolbar = createToolbar(doc);
@@ -562,9 +547,9 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
    * the table control when there is one, else to the figure itself, which takes focus from script only, so no
    * tab stop is added (WCAG 2.4.3; interaction review, new item 6).
    */
-  function handOff(toolbarStays = true): void {
+  function handOff(): void {
     if (!proxy || activeElementOf(doc) !== proxy) return;
-    if (toolbarStays && toolbar?.focus('table')) return;
+    if (toolbar?.focus('table')) return;
     focusFigure();
   }
 
@@ -784,6 +769,15 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     return model;
   }
 
+  /** The clock event timestamps are on. */
+  const clock = (): number => doc.defaultView?.performance.now() ?? 0;
+
+  /** Presents again, whatever was presented. */
+  function redraw(): void {
+    dirty = true;
+    present();
+  }
+
   /** Draws the overlay and the tooltip for what is shown, and fires `hover` when the datum changes. */
   function present(): void {
     const d = c;
@@ -832,8 +826,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
             if (shown.kind !== 'pinned') return;
             const next = pinPage + Math.max(1, shownRows);
             pinPage = next >= model.count ? 0 : next;
-            dirty = true;
-            present();
+            redraw();
           },
         };
         const placed = presentation === 'strip'
@@ -850,8 +843,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     // clarifications); what is under the pointer is shown instead.
     if (pinned && content === null) {
       endPin();
-      dirty = true;
-      present();
+      redraw();
       return;
     }
     hover(target === null ? null : shown.kind === 'keyboard' ? focus : shown.kind === 'pinned' ? shown.ref : d.lookup.primary(target));
@@ -1130,16 +1122,14 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     takeover(d);
     if (!clickFocus) keyboardLeads(d);
     writeProxy(true);
-    dirty = true;
-    present();
+    redraw();
   }
 
   /** The chart's last input was a key the plot handled (true), or a pointer or a blur (false). */
   function setKeyed(on: boolean): void {
     keyed = on;
     proxy?.classList.toggle('axylo-keyed', on);
-    dirty = true;
-    present();
+    redraw();
   }
 
   function onProxyBlur(): void {
@@ -1148,8 +1138,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     keyed = false;
     proxy?.classList.remove('axylo-keyed');
     if (shown.kind === 'keyboard') shown = pointer && c ? { kind: 'hover', target: plotReady(c) ? pick(c, pointer) : null } : NONE;
-    dirty = true;
-    present();
+    redraw();
   }
 
   // ── zoom ───────────────────────────────────────────────────────────────────────────────────────
@@ -1266,7 +1255,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
         return;
       }
       // Leaving the corridor resumes picking on this same move.
-      shown = { kind: 'hover', target: null };
+      shown = NO_HOVER;
     }
     const target = pick(d, at);
     pointTo(target);
@@ -1294,7 +1283,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       if (!down.dragging && c?.zoom && Math.hypot(at.x - down.x, at.y - down.y) > DRAG_THRESHOLD) {
         down.dragging = true;
         // A gesture ends a pin: no state holds a pin with nothing shown (decision 0004, clarifications).
-        if (shown.kind === 'pinned') { shown = { kind: 'hover', target: null }; pinPage = 0; }
+        if (shown.kind === 'pinned') { shown = NO_HOVER; pinPage = 0; }
         tooltip.hide();
         content = null;
         presented = '';
@@ -1451,9 +1440,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     rest = null;
     pinPage = 0;
     if (target === null) {
-      shown = mouse ? { kind: 'hover', target: null } : idle();
-      dirty = true;
-      present();
+      shown = mouse ? NO_HOVER : idle();
+      redraw();
       return;
     }
     let ref = d.lookup.primary(target);
@@ -1475,8 +1463,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       writeProxy(true);
       actions.select(ref);
     }
-    dirty = true;
-    present();
+    redraw();
   }
 
   function onPointerCancel(event: PointerEvent): void {
@@ -1519,8 +1506,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     const inside = path.includes(plot) || path.includes(figure.tooltip) || path.includes(figure.readout);
     if (inside) return;
     endPin();
-    dirty = true;
-    present();
+    redraw();
   }
 
   function startPinch(d: Committed): void {
@@ -1610,8 +1596,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       shown = pointer ? { kind: 'hover', target } : idle();
     }
     rest = null;
-    dirty = true;
-    present();
+    redraw();
   }
 
   /**
@@ -1627,8 +1612,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     } else if (!tooltip.visible) {
       return;
     }
-    dirty = true;
-    present();
+    redraw();
   }
 
   // ── controls ───────────────────────────────────────────────────────────────────────────────────
@@ -1828,16 +1812,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   /** Puts exactly `wanted`, in order, into `host`, moving rather than rebuilding. */
   function place(host: HTMLElement, wanted: readonly Element[]): void {
-    let at: ChildNode | null = host.firstChild;
-    for (const el of wanted) {
-      if (at !== el) host.insertBefore(el, at);
-      at = el.nextSibling;
-    }
-    while (at) {
-      const next: ChildNode | null = at.nextSibling;
-      at.remove();
-      at = next;
-    }
+    placeChildren(host, wanted);
     host.hidden = wanted.length === 0;
   }
 
@@ -1925,16 +1900,11 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     };
   }
 
-  function remapTarget(target: PickTarget | null, map: (ref: DatumRef | null) => DatumRef | null): PickTarget | null {
+  /** An x target or identity moved by `map` (both are `{ kind: 'x', x }`); others unchanged. */
+  function remapTarget<T extends PickTarget | Identity>(target: T | null, map: (ref: DatumRef | null) => DatumRef | null): T | null {
     if (target === null || target.kind !== 'x') return target;
     const moved = map({ kind: 'aligned', seriesKey: '', x: target.x });
-    return moved && moved.kind === 'aligned' ? { kind: 'x', x: moved.x } : null;
-  }
-
-  function remapIdentity(id: Identity | null, map: (ref: DatumRef | null) => DatumRef | null): Identity | null {
-    if (id === null || id.kind !== 'x') return id;
-    const moved = map({ kind: 'aligned', seriesKey: '', x: id.x });
-    return moved && moved.kind === 'aligned' ? { kind: 'x', x: moved.x } : null;
+    return moved && moved.kind === 'aligned' ? { kind: 'x', x: moved.x } as T : null;
   }
 
   /**
@@ -1972,7 +1942,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       focus = null;
       pinPage = 0;
       rest = null;
-      shown = shown.kind === 'keyboard' ? shown : pointer ? { kind: 'hover', target: null } : idle();
+      shown = shown.kind === 'keyboard' ? shown : pointer ? NO_HOVER : idle();
     } else if (previous) {
       const map = remapper(previous.view, next.view);
       if (map) {
@@ -1987,15 +1957,15 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
         }
         if (focus === null) mode = 'all';
         lastHover = map(lastHover);
-        dismissed = dismissed.flatMap(id => remapIdentity(id, same) ?? []);
+        dismissed = dismissed.flatMap(id => remapTarget(id, same) ?? []);
         if (shown.kind === 'pinned') {
           const target = remapTarget(shown.target, same);
           const ref = same(shown.ref);
-          shown = target && ref ? { ...shown, target, ref } : { kind: 'hover', target: null };
+          shown = target && ref ? { ...shown, target, ref } : NO_HOVER;
         } else if (shown.kind === 'held') {
           // A held category that moved has a new anchor anyway: the hold ends below.
           const target = remapTarget(shown.target, same);
-          shown = target ? { ...shown, target } : { kind: 'hover', target: null };
+          shown = target ? { ...shown, target } : NO_HOVER;
         }
       }
     }
@@ -2011,7 +1981,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
     const presentation = presentationFor(next);
     if (!plotReady(next)) {
-      if (shown.kind !== 'keyboard') shown = pointer ? { kind: 'hover', target: null } : idle();
+      if (shown.kind !== 'keyboard') shown = pointer ? NO_HOVER : idle();
       pinPage = 0;
       return;
     }
@@ -2045,7 +2015,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
           const now = (shown as Shown).kind === 'hover' ? (shown as Extract<Shown, { kind: 'hover' }>).target : null;
           // A committed change of the datum, or of where its marks are, starts the rest afresh (review I6).
           const moved = now !== null && content !== null && sameTarget(content.target, now) && !sameRect(anchorOf(next, now), content.anchor);
-          if (!sameTarget(before, now) || moved) rest = { at: pointer, time: doc.defaultView?.performance.now() ?? 0, target: now };
+          if (!sameTarget(before, now) || moved) rest = { at: pointer, time: clock(), target: now };
         }
         break;
       default:
@@ -2079,8 +2049,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       rest = null;
       if (pointer) pointTo(pick(next, pointer));
       else shown = idle();
-      dirty = true;
-      present();
+      redraw();
     }
   }
 
@@ -2104,9 +2073,9 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       tooltip.hide();
       content = null;
       presented = '';
-      if (shown.kind === 'held') shown = pointer ? { kind: 'hover', target: null } : idle();
+      if (shown.kind === 'held') shown = pointer ? NO_HOVER : idle();
       // The rest starts again in the new presentation, for whatever the still pointer is on (review I6).
-      rest = pointer ? { at: pointer, time: doc.defaultView?.performance.now() ?? 0, target: pointerTarget() } : null;
+      rest = pointer ? { at: pointer, time: clock(), target: pointerTarget() } : null;
     }
     return layoutSignature() !== before;
   }

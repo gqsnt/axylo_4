@@ -16,7 +16,7 @@
  *   of rule 6 is used, and when even that would cover a control or a focus ring nothing floats.
  * - Strip: at least the x and one row are always shown.
  */
-import { activeElementOf } from './attributes';
+import { activeElementOf, placeChildren, setAttr, setText, make, keepFocusOnPress } from './attributes';
 import type { DatumText, Rect, TooltipModel } from '../core/contracts';
 import { createSwatch, type SwatchSpec } from './swatch';
 import { fallbackPlacement, placeTooltip, type PlacementInput } from './placement';
@@ -54,8 +54,6 @@ export interface TooltipView {
   strip(content: TooltipContent, pinned: boolean, visible: Rect): boolean;
   hide(): void;
   readonly visible: boolean;
-  /** Where the content is shown now. */
-  readonly where: Presentation | null;
   /** The content's rectangle in viewport pixels (the floating tooltip or the strip), or null. */
   rect(): Rect | null;
   /** Whether a node belongs to the shown content. */
@@ -89,29 +87,8 @@ function rowKey(r: DatumText): string {
   }
 }
 
-/** Puts exactly `wanted`, in order, into `host`, moving a node only when it is out of place. */
-function place(host: HTMLElement, wanted: readonly Node[]): void {
-  let at: ChildNode | null = host.firstChild;
-  for (const node of wanted) {
-    if (at !== node) host.insertBefore(node, at);
-    at = (node as ChildNode).nextSibling;
-  }
-  while (at) {
-    const next: ChildNode | null = at.nextSibling;
-    at.remove();
-    at = next;
-  }
-}
-
-function setText(node: Node, text: string): void {
-  if (node.textContent !== text) node.textContent = text;
-}
-
-function setLang(el: HTMLElement, lang: string | null | undefined): void {
-  if (lang) {
-    if (el.getAttribute('lang') !== lang) el.setAttribute('lang', lang);
-  } else if (el.hasAttribute('lang')) el.removeAttribute('lang');
-}
+const place = placeChildren;
+const setLang = (el: HTMLElement, lang: string | null | undefined): void => setAttr(el, 'lang', lang || null);
 
 /**
  * `lost`: a row that had focus went with a redraw and has no counterpart in the new presentation; the caller
@@ -151,7 +128,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       element.tabIndex = -1;
       element.classList.add('axylo-tooltip-choice');
       // A press does not take focus from the plot, whose keyboard reading goes on from the chosen datum.
-      element.addEventListener('mousedown', event => event.preventDefault(), { signal: listening.signal });
+      element.addEventListener('mousedown', keepFocusOnPress, { signal: listening.signal });
       element.addEventListener('pointerdown', event => { press = { key, pointer: event.pointerId }; }, { signal: listening.signal });
       // A click without a press of its own (Enter, Space, an assistive action: detail 0) chooses this row; the
       // pointer click that follows a completed press does not choose again (review R1).
@@ -237,19 +214,13 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
   }
 
   // The fixed parts of each presentation, made once.
-  const floatTitle = doc.createElement('div');
-  floatTitle.className = 'axylo-tooltip-title';
-  const floatTotal = doc.createElement('div');
-  floatTotal.className = 'axylo-tooltip-row axylo-tooltip-total';
-  const floatTotalName = doc.createElement('span');
-  floatTotalName.className = 'axylo-tooltip-series';
-  const floatTotalValue = doc.createElement('span');
-  floatTotalValue.className = 'axylo-tooltip-value';
+  const floatTitle = make(doc, 'div', 'axylo-tooltip-title');
+  const floatTotal = make(doc, 'div', 'axylo-tooltip-row axylo-tooltip-total');
+  const floatTotalName = make(doc, 'span', 'axylo-tooltip-series');
+  const floatTotalValue = make(doc, 'span', 'axylo-tooltip-value');
   floatTotal.append(floatTotalName, floatTotalValue);
-  const stripTitle = doc.createElement('span');
-  stripTitle.className = 'axylo-tooltip-title';
-  const stripTotal = doc.createElement('span');
-  stripTotal.className = 'axylo-readout-total';
+  const stripTitle = make(doc, 'span', 'axylo-tooltip-title');
+  const stripTotal = make(doc, 'span', 'axylo-readout-total');
   const listening = new AbortController();
   for (const host of [element, readoutElement]) {
     host.addEventListener('pointerup', releasing, { signal: listening.signal });
@@ -267,7 +238,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
         el.type = 'button';
         el.tabIndex = -1;
         el.classList.add('axylo-tooltip-choice');
-        el.addEventListener('mousedown', event => event.preventDefault(), { signal: listening.signal });
+        el.addEventListener('mousedown', keepFocusOnPress, { signal: listening.signal });
         el.addEventListener('click', () => current?.more?.(displayed), { signal: listening.signal });
       }
       mores.set(key, el);
@@ -339,21 +310,13 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     dropEntries('strip');
   }
 
-  function rectOf(el: HTMLElement): Rect {
-    const b = el.getBoundingClientRect();
-    return { x: b.left, y: b.top, width: b.width, height: b.height };
-  }
-
   return {
     get visible() {
       return where !== null;
     },
-    get where() {
-      return where;
-    },
     rect() {
-      if (where === 'floating') return rectOf(element);
-      if (where === 'strip') return rectOf(readoutElement);
+      if (where === 'floating') return element.getBoundingClientRect();
+      if (where === 'strip') return readoutElement.getBoundingClientRect();
       return null;
     },
     contains(node) {
@@ -444,7 +407,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       // Judged as the floating tooltip is: the title, every row shown and any paging control lie wholly inside
       // the strip's own box and inside what its ancestors leave visible; rows are dropped until they do, or
       // the strip is not shown (review I4, final check 1).
-      const r = rectOf(readoutElement);
+      const r = readoutElement.getBoundingClientRect();
       const box = { x: Math.max(r.x, visible.x), y: Math.max(r.y, visible.y), right: Math.min(r.x + r.width, visible.x + visible.width), bottom: Math.min(r.y + r.height, visible.y + visible.height) };
       const within = (el: Element | undefined) => {
         if (!el?.isConnected) return true;
