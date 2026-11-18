@@ -160,7 +160,11 @@ describe('joining and drawing lines', () => {
         const median = (clock: 'cpu' | 'wall') => times.map(time => time[clock]).sort((a, b) => a - b)[3]!;
         console.info(`Simplified ${count} slots at ${width}px and DPR ${devicePixelRatio}: ` +
           `${median('cpu').toFixed(1)} ms CPU, ${median('wall').toFixed(1)} ms wall (medians)`);
-        expect(median('wall')).toBeLessThan(30);
+        // No spec row gives this number: P2 budgets a whole 1,000,000-point chart at 250 ms, and the plan
+        // (section "Simplified drawing") asks for the simplification pass to be measured on its own. The 30 ms
+        // is a regression guard on that pass, kept from the layout and simplification review (01c3e19), and is
+        // asserted on the pass's own CPU time: wall time on a busy machine measures the machine (it is printed).
+        expect(median('cpu')).toBeLessThan(30);
         expect(kept.indexes).toContain(outlier);
         expect(kept.indexes.length).toBe(2 * width * devicePixelRatio + 1);
       }

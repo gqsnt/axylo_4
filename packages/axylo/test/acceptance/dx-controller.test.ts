@@ -37,6 +37,18 @@ for (const type of types) {
         checkValues(r, type, expected);
       }
       for (const r of data.slice(1)) expect(scene(r)).toEqual(scene(data[0]!));
+      // The bad value at another caller index in each form: the diagnostic names the caller's row, not a slot.
+      const shuffled = [{ x: xs[2], y: 8 }, { x: xs[0], y: 6 }, { x: xs[1], y: Infinity }];
+      const moved = [chart(type, shuffled, {}, undefined, kind),
+        chart(type, { columns: { x: donut ? [xs[2], xs[0], xs[1]] : Float64Array.from([xs[2], xs[0], xs[1]] as number[]), y: new Float32Array([8, 6, Infinity]) } }, {}, undefined, kind)];
+      if (!donut) moved.push(chart(type, [
+        { x: xs[0], s: 'y', y: 6 }, { x: xs[0], s: 'z', y: 1 }, { x: xs[1], s: 'z', y: 2 }, { x: xs[1], s: 'y', y: Infinity }, { x: xs[2], s: 'y', y: 8 },
+      ], { series: 's' }, undefined, kind));
+      for (const [i, r] of moved.entries()) {
+        r.frames();
+        // (A compact chart with two series also gives hint AX131.)
+        expect(r.controller.handle.diagnostics.find(d => d.code === 'AX103'), `form ${i}`).toMatchObject({ field: 'y', count: 1, rows: [i === 2 ? 3 : 2] });
+      }
     }
   });
 
@@ -87,6 +99,8 @@ for (const type of types) {
       const oldScene = scene(r);
       const oldText = r.texts.at(-1);
       const count = r.commits;
+      const models = r.models.length;
+      const oldLookup = before.lookup;
       const handle = r.controller.handle;
       handle.update({ data: [{ x: donut ? 'C' : 10, y: 21 }, { x: donut ? 'D' : 20, y: 35 }] });
       handle.append([{ x: donut ? 'E' : 30, y: 72 }]);
@@ -102,6 +116,13 @@ for (const type of types) {
       checkValues(r, type, donut || type === 'compact' ? ['21', '35', '72'] : ['35', '72']);
       if (type !== 'compact') expect(committed(r).lookup.count).toBe(donut ? 3 : 2);
       if (!donut && type !== 'compact') expect(r.texts.at(-1)).not.toEqual(oldText);
+      // One frame switches everything: every figure model written in it already reads the new data (no
+      // intermediate text), the lookup is new, and for compact (no zoom: the window is ignored) it has all three values.
+      expect(r.models.length).toBeGreaterThan(models);
+      for (const model of r.models.slice(models)) expect(model.summary).toContain('72');
+      expect(committed(r).lookup).not.toBe(oldLookup);
+      if (type === 'compact') expect(committed(r).lookup.count).toBe(3);
+      if (donut) expect(committed(r).lookup.datum({ kind: 'slice', sliceKey: 'E' })?.value).toBe('72');
     }
   });
 

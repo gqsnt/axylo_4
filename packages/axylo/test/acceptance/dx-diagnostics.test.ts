@@ -157,6 +157,14 @@ for (const type of ['line', 'area', 'bar', 'scatter', 'compact'] as const) {
       expect(lastModel(r).summary).toContain('9 series');
       const mark = (type === 'bar' || type === 'compact' && kind === 'bar') ? 'rects' : type === 'scatter' ? 'points' : 'path';
       expect(marks(r, mark)).toHaveLength(9);
+      // The secondary cue (F9): the ninth series takes the first one's palette colour again, so its marks must
+      // differ from the first's by something other than colour (a dash, a marker shape or a fill pattern).
+      const cue = (series: number) => scene(r).marks.filter(m => 'series' in m && m.series === series).map(m =>
+        m.type === 'path' ? `dash ${JSON.stringify(m.dash.normal)}` : m.type === 'points' ? `marker ${m.shape}` : m.type === 'rects' ? `pattern ${m.pattern ?? 'none'}` : m.type).sort().join(' ');
+      const colour = (series: number) => new Set(scene(r).marks.flatMap(m => 'series' in m && m.series === series
+        ? [('stroke' in m ? m.stroke : 'fill' in m ? m.fill : null)].flatMap(p => p && typeof p === 'object' && 'kind' in p && p.kind === 'series' ? [p.index % 8] : []) : []));
+      expect([...colour(8)]).toEqual([...colour(0)]);
+      expect(cue(8)).not.toBe(cue(0));
     });
 
   diagnostic(type, { code: 'AX151', level: 'warning', effect: 'none', name: 'accepts the out-of-order append through a full update', fix: /append rows in x order/i },
@@ -329,4 +337,69 @@ for (const kind of ['number', 'wall-clock'] as const) {
       expect(pathRuns(marks(r, 'path')[0]!.xy).map(run => run.length)).toEqual(gaps === 1_000 ? [3, 3] : [6]);
     });
   }
+}
+
+// Spec 3.5 and F3, per chart type (matrix gap 4).
+for (const type of types) {
+  const label = (i: number) => type === 'donut' ? ['A', 'B', 'C'][i]! : i + 1;
+  it(`F3 ${type}: a hint does not throw under strict (it is reported and the chart draws)`, () => {
+    for (const kind of compactKinds(type)) {
+      const received: string[] = [];
+      const r = chart(type, [0, 1, 2].map(i => ({ x: label(i), y: String(i + 2) })), { strict: true, onDiagnostic: (d: Diagnostic) => received.push(d.code) }, undefined, kind);
+      r.frames();
+      expect(codes(r)).toEqual(['AX104']);
+      expect(received).toEqual(['AX104']);
+      expect(scene(r).marks.length).toBeGreaterThan(0);
+    }
+  });
+
+  it(`F3 ${type}: a row getter that throws while the chart reads its data is AX199, an error delivered once, and the chart shows its error state`, () => {
+    for (const kind of compactKinds(type)) {
+      const received: Diagnostic[] = [];
+      const throwing = { x: label(1), get y(): number { throw new Error('fixture getter'); } };
+      const r = chart(type, [{ x: label(0), y: 2 }, throwing, { x: label(2), y: 4 }], { onDiagnostic: (d: Diagnostic) => received.push(d) }, undefined, kind);
+      r.frames();
+      r.controller.invalidate.resize();
+      r.frames();
+      expect(r.controller.handle.diagnostics).toMatchObject([{ code: 'AX199', level: 'error' }]);
+      expect(received.map(d => [d.code, d.level])).toEqual([['AX199', 'error']]);
+      expect(r.printed.filter(printed => printed.startsWith('[axylo AX199]'))).toHaveLength(1);
+      // The error state: no marks drawn (nothing was drawn at all) and the generic message of an internal failure.
+      expect(r.draws.at(-1)?.marks ?? []).toEqual([]);
+      expect(lastModel(r).message).toBe(defaultMessages.internalError);
+    }
+  });
+
+  it(`F3 ${type}: field and row indexes of an unreadable x and of a duplicate x name the caller's rows`, () => {
+    for (const kind of compactKinds(type)) {
+      // Row 1's x cannot be read on this axis (AX107: a stray string on a number axis, a missing donut label).
+      const unreadable = type === 'donut'
+        ? [{ x: 'A', y: 2 }, { x: null, y: 3 }, { x: 'C', y: 4 }]
+        : [{ x: 1, y: 2 }, { x: 'soon', y: 3 }, { x: 3, y: 4 }];
+      const r = chart(type, unreadable, type === 'donut' ? {} : { x: { field: 'x', type: 'number' } }, { console: false }, kind);
+      r.frames();
+      expect(r.controller.handle.diagnostics).toMatchObject([{ code: 'AX107', field: 'x', count: 1, rows: [1] }]);
+      if (type === 'scatter') continue; // points sharing an x are ordinary data on scatter (F11)
+      // Row 2 repeats row 0's x in the only series (AX108).
+      const repeated = [{ x: label(0), y: 2 }, { x: label(1), y: 3 }, { x: label(0), y: 4 }];
+      const d = chart(type, repeated, {}, { console: false }, kind);
+      d.frames();
+      const found = d.controller.handle.diagnostics.find(diagnostic => diagnostic.code === 'AX108');
+      expect(found).toMatchObject({ field: type === 'donut' ? 'x' : 'x', count: 1 });
+      expect(found?.rows).toContain(2);
+      expect(found?.rows).not.toContain(1);
+    }
+  });
+}
+
+for (const type of ['line', 'area', 'bar', 'scatter', 'donut'] as const) {
+  it(`F3 ${type}: a finding made after the call (AX142, a plot too small) does not throw under strict`, () => {
+    let r: Recording | undefined;
+    expect(() => {
+      r = chart(type, dataFor(type), { strict: true }, { container: { width: 90, height: 60 } });
+      r.frames();
+    }).not.toThrow();
+    expect(codes(r!)).toContain('AX142');
+    expect(r!.controller.handle.diagnostics.find(d => d.code === 'AX142')?.level).toBe('hint');
+  });
 }

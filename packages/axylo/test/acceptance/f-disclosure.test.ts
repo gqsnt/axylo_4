@@ -53,5 +53,32 @@ for (const type of ['line', 'area', 'bar', 'scatter', 'donut'] as const) {
     expect(lastModel(r).note).toBe(note);
     expect(lastModel(r).summary).toContain(note);
     expect(rows(r).map(row => row[type === 'scatter' ? 2 : 1])).toEqual(['1', '2']);
+    // The value whose text fell back is still drawn: both observations have their mark.
+    const scene = r.draws.at(-1)!;
+    if (type === 'donut') {
+      const arcs = marks(r, 'arcs')[0]!.angles;
+      expect(arcs).toHaveLength(4);
+      expect(arcs[3]! - arcs[2]!).toBeCloseTo((2 / 3) * 2 * Math.PI, 3);
+    } else if (type === 'bar') {
+      expect(marks(r, 'rects').filter(m => m.variant === 'bar').reduce((n, m) => n + m.xywh.length / 4, 0)).toBe(2);
+    } else if (type === 'scatter') {
+      expect(marks(r, 'points').reduce((n, m) => n + m.xy.length / 2, 0)).toBe(2);
+    } else {
+      const { x, y } = axes(r);
+      const vertices = points(marks(r, 'path').find(m => m.series === 0)!.xy);
+      expectGeometry(vertices[1]!, [pixel(x, 2), y.map(2)]);
+    }
+    expect(scene.marks.length).toBeGreaterThan(0);
+  });
+}
+
+for (const type of ['line', 'area', 'bar', 'scatter'] as const) {
+  it(`F12 ${type}: an x that cannot be read (AX107) leaves the note and the summary statement`, () => {
+    const r = chart(type, [{ x: 1, y: 2 }, { x: 'soon', y: 3 }, { x: 3, y: 4 }], { x: { field: 'x', type: 'number' } }, { console: false });
+    r.frames();
+    expect(codes(r)).toEqual(['AX107']);
+    const note = message('valuesNotShown', { count: 1, seeTable: defaultMessages.seeTable });
+    expect(lastModel(r).note).toBe(note);
+    expect(lastModel(r).summary).toContain(note);
   });
 }

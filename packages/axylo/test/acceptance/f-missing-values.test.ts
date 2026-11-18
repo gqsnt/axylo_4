@@ -239,3 +239,50 @@ it('F2 line: a generated absent daily step and the same explicit null produce th
     expect(rows(absent)).toEqual(rows(explicit));
   }), { numRuns: 1_000 });
 });
+
+// Matrix gap 12.
+const hours = [0, 1, 2, 4, 5, 6].map(h => Date.UTC(2026, 0, 1, h));
+for (const kind of aligned) {
+  for (const compact of [false, true]) {
+    const type = compact ? 'compact' : kind;
+    it(`F2 ${type}: ${kind} draws an absent step on a regular instant axis as a gap, through the controller`, () => {
+      // Hourly instants with 03:00 absent: a regular step, so the absent step is a gap and AX105 is raised.
+      const r = chart(type, hours.map((x, i) => ({ x, y: 10 + i })), { x: { field: 'x', type: 'time', timeZone: 'UTC' } }, { console: false }, kind);
+      r.frames();
+      expect(codes(r)).toEqual(['AX105']);
+      if (kind === 'bar') {
+        // Seven bands: six bars and, at 03:00, the "no data" mark of a missing bar.
+        expect(marks(r, 'rects').filter(m => m.variant === 'bar').reduce((n, m) => n + m.xywh.length / 4, 0)).toBe(6);
+        expect(marks(r, 'rects').filter(m => m.variant === 'missing').reduce((n, m) => n + m.xywh.length / 4, 0)).toBe(1);
+      } else {
+        const line = marks(r, 'path').find(path => path.series === 0)!;
+        expect(pathRuns(line.xy).map(run => run.length)).toEqual([3, 3]);
+      }
+      if (!compact) {
+        expect(rows(r)).toHaveLength(7);
+        expect(rows(r)[3]![1]).toBe(defaultMessages.noData);
+        expect(at(r, Date.UTC(2026, 0, 1, 3)).rows[0]?.value).toBe(defaultMessages.noData);
+      }
+    });
+  }
+}
+
+it('F2 scatter: an explicit null is a silent gap: no diagnostic, no note, and the table says No data', () => {
+  const r = chart('scatter', [{ x: 1, y: 2 }, { x: 2, y: null }, { x: 3, y: 4 }], { onDiagnostic: () => { throw new Error('no diagnostic expected'); } });
+  r.frames();
+  expect(r.controller.handle.diagnostics).toEqual([]);
+  expect(lastModel(r).note).toBeNull();
+  expect(marks(r, 'points').reduce((n, m) => n + m.xy.length / 2, 0)).toBe(2);
+  expect(rows(r).map(row => [row[0], row[2]])).toEqual([['1', '2'], ['2', defaultMessages.noData], ['3', '4']]);
+});
+
+it('F2 donut: a null slice reads No data in the tooltip and to the keyboard', () => {
+  const r = chart('donut', [{ x: 'A', y: 3 }, { x: 'B', y: null }, { x: 'C', y: 5 }]);
+  r.frames();
+  const { lookup } = committed(r);
+  const slice = { kind: 'slice', sliceKey: 'B' } as const;
+  const tooltip = lookup.tooltip(slice);
+  expect(tooltip.title).toBe('B');
+  expect(tooltip.rows.map(row => row.value)).toEqual([defaultMessages.noData]);
+  expect(reading(r, slice)).toBe(message('pointAll', { x: 'B', values: defaultMessages.noData, position: message('position', { index: 2, count: 3 }) }));
+});

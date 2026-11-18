@@ -1,6 +1,6 @@
 import fc from 'fast-check';
 import { expect, it } from 'vitest';
-import { at, axes, chart, expectCompact, expectGeometry, lastModel, marks, pixel, points, reading, refAt, rows, defaultMessages } from './model';
+import { at, axes, chart, expectCompact, expectGeometry, lastModel, marks, message, pixel, points, reading, refAt, rows, defaultMessages } from './model';
 
 const stacks = [['area', 'area'], ['bar', 'bar'], ['compact', 'area'], ['compact', 'bar']] as const;
 const options = (kind: 'area' | 'bar') => ({ y: ['a', 'b', 'c', 'd'], ...(kind === 'area' ? { stacked: true } : { layout: 'stacked' }) });
@@ -90,9 +90,15 @@ for (const [type, kind] of stacks) {
     }
     if (type === 'compact') {
       expectCompact(r);
-      expect(lastModel(r).summary).toContain('incomplete');
+      // The summary names the incomplete stack by its position (one stack: incompleteAt).
+      expect(lastModel(r).summary).toContain(message('incompleteAt', { label: 'x', positions: '2' }));
+      expect(lastModel(r).summary).not.toContain(message('incompleteAt', { label: 'x', positions: '1' }));
     } else {
       expect(at(r, 2).rows.map(row => row.value)).toEqual(['5', '-3', 'No data', '-2']);
+      // The tooltip's total is marked incomplete where a component is missing, and only there.
+      const mixed = (positive: number, negative: number) => message('totalMixed', { positive, negative });
+      expect(at(r, 2).total).toBe(`${mixed(5, -5)} (${defaultMessages.incompleteStack})`);
+      expect(at(r, 1).total).toBe(mixed(9, -5));
       expect(rows(r)[1]).toEqual(['2 (incomplete)', '5', '-3', 'No data', '-2']);
       const announced = reading(r, refAt(r, 2));
       expect(announced).toContain(defaultMessages.incompleteStack);
@@ -105,5 +111,16 @@ for (const [type, kind] of stacks) {
       }
       expect(lastModel(r).note).toBeNull();
     }
+  });
+}
+
+for (const kind of ['area', 'bar'] as const) {
+  it(`F10 ${kind}: the readout's total of an all-negative stack is its sum`, () => {
+    const r = chart(kind, [{ x: 1, a: -3, b: -5 }, { x: 2, a: -1, b: -2 }], { y: ['a', 'b'], ...(kind === 'area' ? { stacked: true } : { layout: 'stacked' }) });
+    r.frames();
+    // Every component has the same sign: the total is the sum, -8 and -3 (F10).
+    expect(at(r, 1).total).toBe('-8');
+    expect(at(r, 2).total).toBe('-3');
+    expect(reading(r, refAt(r, 1))).toContain(message('seriesValue', { series: defaultMessages.total, value: '-8' }));
   });
 }

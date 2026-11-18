@@ -1,5 +1,5 @@
 import { expect, it, vi } from 'vitest';
-import { aligned, at, axes, chart, codes, committed, message, expectCompact, lastModel, marks, pathRuns, plot, scene } from './model';
+import { aligned, at, axes, chart, codes, committed, message, expectCompact, expectGeometry, lastModel, marks, pathRuns, pixel, plot, points, scene } from './model';
 
 it('C1 compact line: a reference has no effect on the domain or the description and is reported as not applicable', () => {
   const onDiagnostic = vi.fn();
@@ -72,6 +72,17 @@ for (const kind of aligned) {
     expect(r.frames()).toBe(1);
     expect(scene(r)).not.toEqual(initial);
     expect(lastModel(r).summary).toContain(message('seriesSummary', { series: 'y', min: 5, max: 20, last: 20 }));
+    // Sorted: the rows came as x 3, 1, 2; the geometry runs in x order, 1, 2, 3, with the values 5, 9, 20.
+    const { x, y } = axes(r);
+    if (kind === 'bar') {
+      const bars = marks(r, 'rects').find(mark => mark.variant === 'bar')!.xywh;
+      const tops = [0, 4, 8].map(i => [bars[i]! + bars[i + 2]! / 2, Math.min(bars[i + 1]!, bars[i + 1]! + bars[i + 3]!)] as const);
+      expect(tops.map(top => top[0])).toEqual([...tops.map(top => top[0])].sort((a, b) => a - b));
+      expectGeometry(tops.map(top => top[1]), [y.map(5), y.map(9), y.map(20)]);
+    } else {
+      const vertices = points(marks(r, 'path')[0]!.xy);
+      expectGeometry(vertices.flat(), [1, 2, 3].flatMap((at, i) => [pixel(x, at), y.map([5, 9, 20][i]!)]));
+    }
     expectCompact(r);
   });
 

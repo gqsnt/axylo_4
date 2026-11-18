@@ -134,6 +134,23 @@ for (const type of ['line', 'area', 'bar', 'scatter', 'compact'] as const) {
     }
   });
 
+  it(`F4 ${type}: mixing wall-clock times and instants with no calendar date is never silent: the minority rows are reported and not drawn`, () => {
+    for (const kind of compactKinds(type)) {
+      // Three wall-clock times (no offset) and two instants (with an offset), no calendar date: the majority
+      // fixes the axis as wall-clock (AX112), and the two instants cannot be combined with it silently.
+      const r = chart(type, [
+        { x: '2024-03-01T02:30', y: 1 }, { x: '2024-03-01T04:00', y: 2 }, { x: '2024-03-01T03:00Z', y: 30 },
+        { x: '2024-03-01T06:00', y: 3 }, { x: '2024-03-01T05:00+01:00', y: 40 },
+      ], {}, { console: false }, kind);
+      r.frames();
+      const found = r.controller.handle.diagnostics;
+      expect(found.map(d => d.code).sort()).toEqual(['AX107', 'AX112']);
+      expect(found.find(d => d.code === 'AX107')).toMatchObject({ field: 'x', rows: [2, 4] });
+      expect(lastModel(r).summary).toContain(message('seriesSummary', { series: 'y', min: 1, max: 3, last: 3 }));
+      expect(lastModel(r).summary).toContain('Values not shown: 2.');
+    }
+  });
+
   it(`F4 ${type}: mixing calendar dates with a wall time and an instant reports both incompatible rows (reading: a clear majority fixes the axis type)`, () => {
     for (const kind of compactKinds(type)) {
       const r = chart(type, [

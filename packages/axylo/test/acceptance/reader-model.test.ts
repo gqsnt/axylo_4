@@ -128,6 +128,10 @@ for (const type of full) {
     if (type !== 'donut') expect(text).toContain('Mass');
     expect(text).toContain('6 kg');
     expect(text).toContain('Point 2 of 2');
+    // The identity is said apart from the position: with "Point 2 of 2" removed, the x (or the slice) remains.
+    const rest = (text ?? '').replace(message('position', { index: 2, count: 2 }), '');
+    expect(rest).toMatch(type === 'donut' ? /\bB\b/ : /(^|[^\d])2([^\d]|$)/);
+    expect(rest).not.toMatch(/(^|[^\d])1([^\d]|$)/);
   });
 
   it(`A4 ${type}: the lazy table uses the heading and units and reaches rows on the current range’s second page`, () => {
@@ -228,12 +232,19 @@ for (const type of ['line', 'area', 'bar', 'scatter'] as const) {
   });
 
   it(`I3 ${type}: touch is opt-in and disabling zoom hides controls (reading: the author can still call zoom explicitly)`, () => {
+    // Touch is opt-in: without the option the controls state the toolbar is built from does not capture touch.
+    const plain = chart(type, fixture(type));
+    plain.frames();
+    expect(plain.prepared.at(-1)?.zoom).toBe(true);
     const r = chart(type, fixture(type), { zoom: 'touch' });
     r.frames();
     expect(committed(r).zoom).toBe('touch');
+    expect(r.prepared.at(-1)?.zoom).toBe('touch');
     r.controller.handle.update({ zoom: false });
     r.frames();
     expect(committed(r)).toMatchObject({ zoom: false, zoomed: false });
+    // What the toolbar is given has no zoom: the Node host cannot look at the buttons themselves (a browser test can).
+    expect(r.prepared.at(-1)).toMatchObject({ zoom: false, zoomed: false });
     expect(rows(r)).toHaveLength(2);
     r.controller.handle.zoom([1, 1.5]);
     r.frames();
@@ -265,7 +276,9 @@ for (const type of ['line', 'area', 'bar', 'scatter'] as const) {
 
 for (const type of ['line', 'area', 'bar'] as const) {
   it(`I1 ${type}: a pointer readout has eight rows, a remaining count and distinct missing text`, () => {
-    const r = chart(type, seriesRows(10).map(row => row.x === 1 && row.s === 'Series 2' ? { ...row, y: null } : row), { series: 's' });
+    // Series 2 has an explicit null at x = 1 and Series 3 no row there at all: two different missing texts.
+    const r = chart(type, seriesRows(10).filter(row => !(row.x === 1 && row.s === 'Series 3'))
+      .map(row => row.x === 1 && row.s === 'Series 2' ? { ...row, y: null } : row), { series: 's' });
     r.frames();
     const { x } = axes(r);
     const { plot: box } = plot(r);
@@ -274,6 +287,8 @@ for (const type of ['line', 'area', 'bar'] as const) {
     expect(tooltip.rows).toHaveLength(8);
     expect(tooltip.count - tooltip.rows.length).toBe(2);
     expect(tooltip.rows[2]?.value).toBe('No data');
+    expect(tooltip.rows[3]).toMatchObject({ seriesLabel: 'Series 3', value: defaultMessages.noObservation });
+    expect(defaultMessages.noObservation).not.toBe(defaultMessages.noData);
     const view = committed(r).view;
     if (view.kind === 'scatter' || view.kind === 'donut') throw new Error('Expected an aligned view');
     expect(stepAcross(view, null, 'first')).toBe(1);

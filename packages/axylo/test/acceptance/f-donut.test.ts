@@ -110,3 +110,25 @@ it('F8 donut: zero and null slices stay separate and only positive slices count 
   expect(labels).toEqual([...positives.slice(2).map(row => row.x), 'Zero', message('otherSlices', { count: 2 })]);
   expect(rows(grouped).map(row => row.slice(0, 2))).toEqual([...positives, zero].map(row => [row.x, String(row.y)]));
 });
+
+it('F8 donut: a null slice while grouping happens stays listed on its own as No data, outside "Other" and the limit', () => {
+  // Nine positive slices group (AX121): the seven largest are drawn and two become "Other (2)". The null slice
+  // never counts toward the limit and is never grouped (F8).
+  const positives = Array.from({ length: 9 }, (_, i) => ({ x: 'Slice ' + i, y: i + 1 }));
+  const missing = { x: 'Unknown', y: null };
+  const r = chart('donut', [...positives.slice(0, 4), missing, ...positives.slice(4)]);
+  r.frames();
+  expect(codes(r)).toEqual(['AX121']);
+  expect(r.controller.handle.diagnostics[0]?.count).toBe(2);
+  // Eight arcs: the seven largest and "Other (2)"; none for the null slice.
+  expect(marks(r, 'arcs')[0]?.angles).toHaveLength(16);
+  const { lookup } = committed(r);
+  const labels = walk(r).map(ref => lookup.datum(ref)?.seriesLabel);
+  expect(labels).toContain('Unknown');
+  expect(labels).toContain(message('otherSlices', { count: 2 }));
+  expect(labels.filter(label => label?.startsWith('Slice'))).toEqual(positives.slice(2).map(row => row.x));
+  expect(lookup.datum({ kind: 'slice', sliceKey: 'Unknown' })?.value).toBe(defaultMessages.noData);
+  // The table lists every category, the null one included, in the given order.
+  expect(rows(r).map(row => row.slice(0, 2))).toEqual([...positives.slice(0, 4), missing, ...positives.slice(4)]
+    .map(row => [row.x, row.y === null ? defaultMessages.noData : String(row.y)]));
+});

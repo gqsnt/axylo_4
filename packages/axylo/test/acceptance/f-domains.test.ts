@@ -148,3 +148,100 @@ it('F7 line: finite data spanning extreme magnitudes remains in the finite value
     expectGeometry(points(marks(r, 'path')[0]!.xy).map(point => point[1]), [y.map(a), y.map(b)]);
   }), { numRuns: 1_000 });
 });
+
+for (const type of ['bar', 'compact'] as const) {
+  it(`F1 ${type}: horizontal bars include zero and every bar starts at the zero baseline`, () => {
+    for (const values of [[3, 8], [-6, -2]]) {
+      const r = chart(type, [{ x: 'North', y: values[0] }, { x: 'South', y: values[1] }], { horizontal: true }, undefined, 'bar');
+      r.frames();
+      const { y: value } = axes(r);
+      expect(value.domain[0]).toBeLessThanOrEqual(0);
+      expect(value.domain[1]).toBeGreaterThanOrEqual(0);
+      const baseline = value.map(0);
+      const { xywh } = marks(r, 'rects').find(mark => mark.variant === 'bar')!;
+      expect(xywh).toHaveLength(8);
+      // Horizontal: x and width run along the value axis; one end of every bar is the baseline.
+      for (const i of [0, 4]) expect(Math.min(Math.abs(xywh[i]! - baseline), Math.abs(xywh[i]! + xywh[i + 2]! - baseline))).toBeLessThan(0.001);
+    }
+  });
+}
+
+for (const type of ['line', 'area', 'bar'] as const) {
+  it(`F7 ${type}: after a zoom on x, a y axis with no author domain is fitted to the values in view`, () => {
+    // Values 10 to 19 at x 0 to 9, with one far outlier at x 9: zooming to [0, 4] leaves 10 to 14 in view.
+    const data = Array.from({ length: 10 }, (_, x) => ({ x, y: x === 9 ? 1_000 : 10 + x }));
+    const r = chart(type, data, { x: { field: 'x', type: 'number' } });
+    r.frames();
+    expect(axes(r).y.domain[1]).toBeGreaterThanOrEqual(1_000);
+    r.controller.handle.zoom([0, 4]);
+    r.frames();
+    const zero = type !== 'line';
+    const lo = zero ? 0 : 10;
+    const hi = 14;
+    const { y } = axes(r);
+    expect(y.domain[0]).toBeLessThanOrEqual(lo);
+    expect(y.domain[1]).toBeGreaterThanOrEqual(hi);
+    expect(y.domain[1]).toBeLessThan(1_000);
+    firstTicks(r, lo, hi);
+  });
+}
+
+for (const kind of ['area', 'bar'] as const) {
+  for (const type of [kind, 'compact'] as const) {
+    it(`F7 ${type}: a stacked ${kind}'s automatic domain ends at the first tick at or beyond the stack totals${type === 'compact' ? ' (no ticks drawn: the same domain as the full chart)' : ''}`, () => {
+      // Totals 30, 75 and 52: the domain must reach 75, the largest stack, not 45, the largest value.
+      const data = [{ x: 1, a: 10, b: 20 }, { x: 2, a: 30, b: 45 }, { x: 3, a: 40, b: 12 }];
+      const stacked = { y: ['a', 'b'], ...(kind === 'area' ? { stacked: true } : { layout: 'stacked' }) };
+      const r = chart(type, data, stacked, undefined, kind);
+      r.frames();
+      const { y } = axes(r);
+      expect(y.domain[0]).toBe(0);
+      expect(y.domain[1]).toBeGreaterThanOrEqual(75);
+      if (type === 'compact') {
+        const full = chart(kind, data, stacked);
+        full.frames();
+        expect(y.domain).toEqual(axes(full).y.domain);
+      } else firstTicks(r, 0, 75);
+    });
+  }
+}
+
+for (const type of ['line', 'area'] as const) {
+  it(`F7 ${type}: a continuous x spans exactly its data and the x references it draws`, () => {
+    const data = [{ x: 2.3, y: 4 }, { x: 3.1, y: 6 }, { x: 5.7, y: 5 }];
+    const plain = chart(type, data);
+    plain.frames();
+    expect(axes(plain).x.type === 'band' ? null : (axes(plain).x as { domain: readonly number[] }).domain).toEqual([2.3, 5.7]);
+    const referenced = chart(type, data, { reference: [{ x: 8.2, label: 'Deadline' }, { x: [1.4, 1.9], label: 'Window' }] });
+    referenced.frames();
+    expect((axes(referenced).x as { domain: readonly number[] }).domain).toEqual([1.4, 8.2]);
+  });
+}
+
+it('F7 scatter: a date x spans exactly its data while a numeric x ends on drawn ticks', () => {
+  const dates = chart('scatter', [{ x: '2024-03-04', y: 1 }, { x: '2024-03-09', y: 3 }, { x: '2024-03-17', y: 2 }]);
+  dates.frames();
+  expect((axes(dates).x as { domain: readonly number[] }).domain).toEqual([Date.UTC(2024, 2, 4), Date.UTC(2024, 2, 17)]);
+  const numbers = chart('scatter', [{ x: 1.1, y: 1 }, { x: 4, y: 3 }, { x: 8.9, y: 2 }]);
+  numbers.frames();
+  const { domain } = axes(numbers).x as { domain: readonly number[] };
+  const ticks = plot(numbers).kind === 'plot' ? (plot(numbers) as { xTicks: readonly { value: number }[] }).xTicks.map(tick => tick.value) : [];
+  expect(domain[0]).toBeLessThanOrEqual(1.1);
+  expect(domain[1]).toBeGreaterThanOrEqual(8.9);
+  expect(ticks[0]).toBe(domain[0]);
+  expect(ticks.at(-1)).toBe(domain[1]);
+  // The first tick at or beyond each extreme: no drawn tick lies between an extreme and the domain's end.
+  expect(ticks.filter(tick => tick < 1.1 && tick > domain[0]!)).toEqual([]);
+  expect(ticks.filter(tick => tick > 8.9 && tick < domain[1]!)).toEqual([]);
+});
+
+for (const kind of ['line', 'area', 'bar'] as const) {
+  it(`F7 compact: a compact ${kind} has the same value domain as the full chart, though it draws no ticks`, () => {
+    const data = [{ x: 1, y: 3.2 }, { x: 2, y: 17.5 }, { x: 3, y: 9 }];
+    const compact = chart('compact', data, {}, undefined, kind);
+    compact.frames();
+    const full = chart(kind, data);
+    full.frames();
+    expect(axes(compact).y.domain).toEqual(axes(full).y.domain);
+  });
+}
