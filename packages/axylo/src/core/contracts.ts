@@ -117,11 +117,12 @@ export interface PointSeries {
   readonly y: Float64Array;
   readonly row: Int32Array | null;
   /**
-   * Observations that have a valid x and no y (null or an absent field), sorted by x, duplicates kept. They are
-   * not points: nothing is drawn or picked for them. They exist so the table can list them as "No data" (spec F2:
-   * the note sends the reader to the table, so the table must show what was left out). Absent or empty when there
-   * are none. With `missing: 'zero'` on the y field such observations are points with y = 0 instead, and do not
-   * appear here.
+   * Observations that have a valid x and no plottable y: null, an absent field, or a value that cannot be
+   * plotted (the rows AX103 and AX106 report). Sorted by x, duplicates kept. They are not points: nothing is
+   * drawn or picked for them. They exist so the table can list them as "No data" (spec F2 and F12: the note
+   * sends the reader to the table, so the table must show every row that was left out). Absent or empty when
+   * there are none. With `missing: 'zero'` on the y field, null and absent values are points with y = 0 instead
+   * and do not appear here; a value that cannot be plotted is never imputed.
    */
   readonly missingX?: Float64Array;
 }
