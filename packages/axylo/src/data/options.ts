@@ -149,7 +149,13 @@ function fieldName(input: unknown): string | null {
   return typeof field === 'string' ? field : null;
 }
 
-function resolveX(input: unknown, type: ChartType, sink: DiagnosticSink): ResolvedXField {
+function resolveTickFormat<T>(format: T | undefined, path: string, compact: boolean, sink: DiagnosticSink): T | null {
+  if (!compact || format == null) return format ?? null;
+  report(sink, 'AX150', 'none', { field: path + 'tickFormat', count: 1, detail: 'Compact charts draw no axis ticks.' });
+  return null;
+}
+
+function resolveX(input: unknown, type: ChartType, compact: boolean, sink: DiagnosticSink): ResolvedXField {
   const options = object(input) as XFieldOptions;
   if (type !== 'donut') unknownKeys(object(input), type === 'scatter' ? scatterXKeys : xKeys, sink, 'x.');
   const field = fieldName(input) ?? '';
@@ -164,11 +170,12 @@ function resolveX(input: unknown, type: ChartType, sink: DiagnosticSink): Resolv
     field, label: options.label ?? field, unit: options.unit ?? null,
     type: type === 'donut' ? 'category' : declared ?? null,
     timeZone: zone ?? 'local', ordered: type !== 'scatter' && (options.ordered ?? false),
-    format: options.format ?? null, tickFormat: options.tickFormat ?? null, domain: options.domain ?? null,
+    format: options.format ?? null, tickFormat: resolveTickFormat(options.tickFormat, 'x.', compact, sink),
+    domain: options.domain ?? null,
   };
 }
 
-function resolveValue(input: unknown, path: string, sink: DiagnosticSink): ResolvedValueField {
+function resolveValue(input: unknown, path: string, compact: boolean, sink: DiagnosticSink): ResolvedValueField {
   const options = object(input) as ValueFieldOptions & { parse?: 'number' };
   unknownKeys(object(input), valueKeys, sink, path);
   const field = fieldName(input) ?? '';
@@ -177,7 +184,7 @@ function resolveValue(input: unknown, path: string, sink: DiagnosticSink): Resol
     scale: literal(options.scale, ['percent', 'ratio'], path + 'scale', sink) ?? null,
     missing: literal(options.missing, ['gap', 'zero'], path + 'missing', sink) ?? 'gap',
     parse: literal(options.parse, ['number'], path + 'parse', sink) ?? null, format: options.format ?? null,
-    tickFormat: options.tickFormat ?? null, domain: options.domain ?? null,
+    tickFormat: resolveTickFormat(options.tickFormat, path, compact, sink), domain: options.domain ?? null,
   };
 }
 
@@ -208,25 +215,29 @@ export function retargetOptions(options: ResolvedOptions, table: Table, sink: Di
 
 export function resolveOptions(type: ChartType, input: unknown, sink: DiagnosticSink, retained?: Table): ResolvedOptions {
   const options = object(input);
+  const donut = type === 'donut';
+  const compact = !donut && type !== 'scatter' && options.compact === true;
   unknownKeys(options, keysForChart[type], sink);
   unknownKeys(object(options.title), ['text', 'visible', 'level'], sink, 'title.');
   unknownKeys(object(options.state), ['error', 'empty'], sink, 'state.');
   unknownKeys(object(options.messages), Object.keys(messageKeys), sink, 'messages.');
-  if (type !== 'donut' && Array.isArray(options.reference)) {
+  if (compact && options.reference !== undefined) {
+    report(sink, 'AX150', 'none', { field: 'reference', count: 1, detail: 'Compact charts draw no references.' });
+  } else if (!donut && Array.isArray(options.reference)) {
     options.reference.forEach((reference, row) => {
       unknownKeys(object(reference), ['x', 'y', 'label'], sink, 'reference[' + row + '].');
     });
   }
 
   const { table, valid: validTable } = retained ? { table: retained, valid: true } : resolveTable(options.data, sink);
-  const donut = type === 'donut';
   const xInput = donut ? options.label : options.x;
-  const x = resolveX(xInput, type, sink);
+  const x = resolveX(xInput, type, compact, sink);
   const wide = !donut && Array.isArray(options.y);
   const supportsWide = type !== 'scatter' && !donut;
   const valueInputs = wide ? options.y as readonly unknown[] : [donut ? options.value : options.y];
+  // Only the first value field supplies the shared axis's tick formatter.
   const values = valueInputs.map((field, index) =>
-    resolveValue(field, wide ? 'y[' + index + '].' : donut ? 'value.' : 'y.', sink));
+    resolveValue(field, wide ? 'y[' + index + '].' : donut ? 'value.' : 'y.', compact && index === 0, sink));
   const series = !wide && !donut && typeof options.series === 'string' ? options.series : null;
   if (wide && options.series !== undefined) {
     report(sink, 'AX150', 'none', { field: 'series', count: 1, detail: 'Use a single y field when naming a series field.' });

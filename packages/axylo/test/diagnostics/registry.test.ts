@@ -133,6 +133,21 @@ describe('diagnostic registry', () => {
       'AX150', 'warning', 'none', 'series', 1, undefined, 'Use a single y field');
   });
 
+  it.each(['line', 'area', 'bar'] as const)('AX150 reports the reference option once on compact %s', kind => {
+    const options = {
+      data: [{ day: 1, value: 2 }, { day: 2, value: 4 }], x: { field: 'day' }, y: { field: 'value' },
+      reference: [{ y: 1_000, label: 'Target', typo: true }, { x: 20, label: 'Deadline' }],
+    };
+    const inputs = check(kind, { ...options, compact: true }).diagnostics.inputs();
+    expect(inputs).toHaveLength(1);
+    expectDiagnostic(inputs[0], 'AX150', 'warning', 'none', 'reference', 1, undefined, 'Compact charts draw no references.');
+    expect(readerDisclosure(inputs)).toEqual({ omitted: 0, changed: 0 });
+    expect(check(kind, { ...options, compact: false }).diagnostics.inputs()).toMatchObject([
+      { code: 'AX150', field: 'reference[0].typo' },
+    ]);
+    expect(check(kind, { ...options, reference: [] }).diagnostics.inputs()).toEqual([]);
+  });
+
   it('AX151 gives source indexes for out-of-order appends', () => {
     const { resolved } = aligned({ data: [{ day: 2, value: 3 }], x: 'day', y: 'value' });
     const store = new AlignedStore('line', resolved, utc, version);

@@ -1,5 +1,43 @@
-import { expect, it } from 'vitest';
-import { aligned, axes, chart, codes, committed, message, expectCompact, lastModel, marks, pathRuns, plot, scene } from './model';
+import { expect, it, vi } from 'vitest';
+import { aligned, at, axes, chart, codes, committed, message, expectCompact, lastModel, marks, pathRuns, plot, scene } from './model';
+
+it('C1 compact line: a reference has no effect on the domain or the description and is reported as not applicable', () => {
+  const onDiagnostic = vi.fn();
+  const r = chart('compact', [{ x: 1, y: 2 }, { x: 2, y: 3 }, { x: 3, y: 4 }], {
+    x: { field: 'x', label: 'Day' }, y: { field: 'y', label: 'Energy' },
+    reference: [{ y: 1_000, label: 'Target' }], description: 'Collected outdoors.', onDiagnostic,
+  });
+
+  const checkCompact = () => {
+    r.frames();
+    expect(axes(r).y.domain).toEqual([2, 4]);
+    expect(lastModel(r).summary).toBe('Line chart with 1 series. Day from 1 to 3. Energy from 2 to 4. '
+      + 'Energy: minimum 2, maximum 4, last 4. Collected outdoors.');
+    expect(at(r, 1).rows.map(row => row.value)).toEqual(['2']);
+    expect(r.controller.handle.diagnostics).toMatchObject([{
+      code: 'AX150', level: 'warning', field: 'reference', chart: 'Measurements',
+      message: expect.stringContaining('Compact charts draw no references.'),
+    }]);
+    expectCompact(r);
+  };
+
+  checkCompact();
+  expect(onDiagnostic).toHaveBeenCalledTimes(1);
+  r.controller.handle.update({ description: 'Collected outdoors.' });
+  checkCompact();
+  expect(onDiagnostic).toHaveBeenCalledTimes(1);
+
+  r.controller.handle.update({ compact: false });
+  r.frames();
+  expect(axes(r).y.domain).toEqual([0, 1_000]);
+  expect(lastModel(r).summary).toContain('Reference line Target at 1,000.');
+  expect(committed(r).reader.table?.caption).toContain('Reference line Target at 1,000.');
+  expect(codes(r)).toEqual([]);
+
+  r.controller.handle.update({ compact: true });
+  checkCompact();
+  expect(onDiagnostic).toHaveBeenCalledTimes(2);
+});
 
 for (const kind of aligned) {
   it(`C1 compact: ${kind} has a name and full summary, and the committed model is static`, () => {

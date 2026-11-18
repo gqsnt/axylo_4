@@ -98,6 +98,21 @@ describe('view domains and visibility', () => {
     expect(diagnostics.inputs()).toEqual([expect.objectContaining({ code: 'AX107', field: 'reference[2].x' })]);
   });
 
+  it.each(['line', 'area', 'bar'] as const)('keeps compact %s domains independent of references', kind => {
+    const { frame, view } = aligned({ x: 'x', y: 'y', data: [{ x: 1, y: 2 }, { x: 2, y: 4 }] }, { kind });
+    expect(view.yDomain).toEqual(kind === 'line' ? [2, 4] : [0, 4]);
+    const value = fc.integer({ min: 100, max: 10_000 });
+    fc.assert(fc.property(value, value, (x, y) => {
+      const sink = new DiagnosticCollector();
+      const references = [{ x: [x, x + 1] as const, y, label: 'Target' }, { y: Infinity, label: 'Invalid' }];
+      const compact = buildView(frame, { kind, compact: true, references, previous: view }, sink);
+      expect(compact.xDomain).toEqual(view.xDomain);
+      expect(compact.yDomain).toEqual(view.yDomain);
+      expect(compact.references).toEqual([]);
+      expect(sink.inputs()).toEqual([]);
+    }));
+  });
+
   it('matches the normalization rules for instants, wall times and category names', () => {
     const instant = aligned({
       x: { field: 'x', type: 'time' }, y: 'y', data: [{ x: '2026-02-24T05:00:00-05:00', y: 3 }],

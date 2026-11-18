@@ -71,14 +71,18 @@ for (const type of ['line', 'area', 'bar', 'scatter', 'compact'] as const) {
         r.frames();
         const initial = axes(r);
         const zero = type === 'bar' || type === 'area' || type === 'compact' && kind !== 'line';
-        const lo = Math.min(a, b, reference, ...(zero ? [0] : []));
-        const hi = Math.max(a, b, reference, ...(zero ? [0] : []));
+        // Changed by the coordinator on 2026-11-18 with the spec (F7 and section 3.7): a compact chart draws no
+        // references, so a reference has no effect on its domains; it is reported as AX150 instead (asserted in
+        // compact.test.ts, "C1 compact line: a reference has no effect…"). For every other type nothing changed.
+        const drawn = type === 'compact' ? [] : [reference];
+        const lo = Math.min(a, b, ...drawn, ...(zero ? [0] : []));
+        const hi = Math.max(a, b, ...drawn, ...(zero ? [0] : []));
         expect(initial.y.domain[0]).toBeLessThanOrEqual(lo);
         expect(initial.y.domain[1]).toBeGreaterThanOrEqual(hi);
         firstTicks(r, lo, hi);
         if (initial.x.type === 'band') throw new Error('Expected a continuous x axis');
         if (authored) expect(initial.x.domain).toEqual([0, 10]);
-        else expect(initial.x.domain[1]).toBeGreaterThanOrEqual(8);
+        else if (type !== 'compact') expect(initial.x.domain[1]).toBeGreaterThanOrEqual(8);
         r.controller.handle.zoom([-20, -17]);
         r.frames();
         const view = committed(r).view;

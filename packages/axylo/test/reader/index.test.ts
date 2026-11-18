@@ -4,6 +4,7 @@ import { DiagnosticCollector } from '../../src/diagnostics';
 import { defaultMessages, resolveMessages } from '../../src/messages';
 import { buildReader, seriesNotDrawnSentence, tableSentence, type ReaderInput } from '../../src/reader';
 import { buildStack } from '../../src/view/stack';
+import { lastModel, record } from '../core/host';
 import { aligned, donut, formatter, frame, scatter } from '../lookup/fixtures';
 
 function read(view: ReaderInput['view'], input: Partial<ReaderInput> = {}) {
@@ -27,6 +28,44 @@ it('summarizes three visible series within the shown range and includes the refe
     + 'Referral: minimum 5, maximum 8, last 8. Reference line Target at 20. Acquisition channels');
   expect(model.note).toBeNull();
   expect(model.table?.caption).toBe('Daily sessions Reference line Target at 20.');
+});
+
+it.each(['line', 'area', 'bar'] as const)('omits reference text from the compact %s summary', kind => {
+  const data = frame(kind, {
+    data: [{ day: 1, energy: 2 }, { day: 2, energy: 4 }],
+    x: { field: 'day', label: 'Day' }, y: { field: 'energy', label: 'Energy' },
+  });
+  const view = aligned(data, { kind, references: [{ axis: 'y', from: 1_000, to: 1_000, label: 'Target' }] });
+  const description = 'Collected outdoors.';
+  const summary = `${kind[0]!.toUpperCase()}${kind.slice(1)} chart with 1 series. Day from 1 to 2. Energy from 2 to 4. `
+    + 'Energy: minimum 2, maximum 4, last 4. Collected outdoors.';
+
+  expect(read({ ...view, compact: true }, { description })).toMatchObject({ summary, table: null, note: null });
+  expect(read(view, { compact: true, description })).toMatchObject({ summary, table: null, note: null });
+});
+
+it('keeps unused tick formatters out of the compact reader disclosure', () => {
+  const tickFormat = vi.fn(() => { throw new Error('Cannot format tick'); });
+  const r = record('line', {
+    compact: true, title: 'Measurements', data: [{ day: 1, energy: 2 }, { day: 2, energy: 4 }],
+    x: { field: 'day', label: 'Day', tickFormat }, y: { field: 'energy', label: 'Energy', tickFormat },
+    legend: 'right', zoom: 'touch', tooltip: true, table: true,
+  });
+  r.frames();
+  expect(tickFormat).not.toHaveBeenCalled();
+  expect(r.controller.handle.diagnostics).toMatchObject([
+    { code: 'AX150', level: 'warning', field: 'x.tickFormat', message: expect.stringContaining('Compact charts draw no axis ticks.') },
+    { code: 'AX150', level: 'warning', field: 'y.tickFormat', message: expect.stringContaining('Compact charts draw no axis ticks.') },
+  ]);
+  expect(lastModel(r).note).toBeNull();
+  expect(lastModel(r).summary).toContain('Day from 1 to 2. Energy from 2 to 4.');
+  expect(lastModel(r).summary).not.toContain('Values changed');
+  expect(r.committed?.reader.table).toBeNull();
+
+  r.controller.handle.update({ compact: false });
+  r.frames();
+  expect(tickFormat).toHaveBeenCalled();
+  expect(r.controller.handle.diagnostics.map(d => d.code)).toEqual(['AX160', 'AX160']);
 });
 
 it('adds the zone for instants and leaves it out for calendar dates', () => {

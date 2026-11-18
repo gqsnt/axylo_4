@@ -218,7 +218,7 @@ export function buildReader(input: ReaderInput): ReaderModel & { readonly noteSe
   const name = labelledBy ? '' : titleText || generated;
   const compact = input.compact === true || (view.kind !== 'donut' && view.compact);
   let references: string[] | undefined;
-  const referencesForView = () => references ??= referenceText(view, formatters, messages);
+  const referencesForView = () => references ??= compact ? [] : referenceText(view, formatters, messages);
   const caption = [input.caption, name, generated, messages.plotLabel].find(text => text?.trim()) ?? defaultMessages.plotLabel;
   const table = input.table === false || compact ? null : buildTable(
     view, [caption, ...referencesForView()].join(' '), formatters, messages, labels, input.locale,

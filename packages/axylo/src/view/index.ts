@@ -317,7 +317,7 @@ export function buildView(frame: Frame, state: ViewState, sink: DiagnosticSink):
   const seriesCues = cues(frame.series.length, compact, prior, sink);
   const column = frame.shape === 'aligned' ? frame.x : { kind: frame.xKind, timeZone: frame.timeZone, categories: null };
   const readX = positionReader(column, state.xField);
-  const references = reuse(resolveReferences(state.references ?? [], readX, column.kind, sink), prior?.references,
+  const references = reuse(compact ? [] : resolveReferences(state.references ?? [], readX, column.kind, sink), prior?.references,
     (a, b) => a.axis === b.axis && a.from === b.from && a.to === b.to && a.label === b.label);
   const category = column.kind === 'category';
   const continuousBars = state.kind === 'bar' && !category;
