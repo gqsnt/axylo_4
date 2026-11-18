@@ -1,0 +1,29 @@
+<style>
+  /* Public tokens can be set on any ancestor of the chart, :root included. */
+  .brand {
+    --axylo-series-1: #0b6e4f;
+    --axylo-series-2: #c84c09;
+    --axylo-grid: transparent;
+    font-family: Georgia, "Times New Roman", serif;
+  }
+  /* Pick colours with at least 3:1 against each background the chart can sit on. */
+  @media (prefers-color-scheme: dark) {
+    .brand { --axylo-series-1: #4fd1a5; --axylo-series-2: #ff9a62; }
+  }
+</style>
+
+<div class="brand">
+  <div id="chart"></div>
+</div>
+
+<script type="module">
+  import { line } from 'axylo';
+
+  const rows = Array.from({ length: 12 }, (_, m) => [
+    { month: `2025-${String(m + 1).padStart(2, '0')}`, kind: 'Signups', accounts: Math.round(820 + 40 * m + 90 * Math.sin(m)) },
+    { month: `2025-${String(m + 1).padStart(2, '0')}`, kind: 'Churned', accounts: Math.round(310 + 12 * m + 50 * Math.cos(m)) },
+  ]).flat();
+
+  // The chart inherits the font of .brand; no option is needed.
+  line('#chart', { title: 'Signups and churn', data: rows, x: 'month', y: 'accounts', series: 'kind' });
+</script>

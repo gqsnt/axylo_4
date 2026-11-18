@@ -1,0 +1,30 @@
+<!-- Raises AX102, AX103 and AX106 on purpose: the rows are the "dirty" fixture. -->
+<div id="chart"></div>
+<p>Delivered to <code>onDiagnostic</code>:</p>
+<ul id="log"></ul>
+
+<script type="module">
+  import { line } from 'axylo';
+
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const values = [10, 20, null, NaN, '40', undefined, 70];
+  // Untyped, as rows from an API response are.
+  const rows = /** @type {any[]} */ (days.map((day, i) => ({ day, value: values[i] })));
+  const log = document.querySelector('#log');
+
+  const chart = line('#chart', {
+    title: 'Dirty input',
+    data: rows,
+    x: 'day',
+    y: 'value',
+    // Called once for each diagnostic the chart newly finds, in every build.
+    onDiagnostic(d) {
+      const item = document.createElement('li');
+      item.textContent = `${d.code} (${d.level}), field ${d.field}, rows ${d.rows?.join(', ')}`;
+      log.append(item);
+    },
+  });
+
+  // The same list, current as soon as the call returns.
+  console.log(chart.diagnostics.map(d => d.code).join(' '));
+</script>

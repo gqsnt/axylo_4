@@ -1,0 +1,21 @@
+<!-- Raises AX103 on purpose: one value is NaN. -->
+<style>
+  .tile { max-width: 220px; padding: 12px; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 8px; }
+  .tile h3 { margin: 0 0 8px; font-size: 0.875rem; font-weight: 500; }
+</style>
+
+<section class="tile">
+  <h3 id="rate-heading">Error rate, last 14 days</h3>
+  <div id="rate-spark" style="height: 48px"></div>
+</section>
+
+<script type="module">
+  import { line } from 'axylo';
+
+  const rates = [1.2, 1.4, 1.1, 0.9, 1.3, Number.NaN, 1.6, 1.8, 1.5, 1.2, 1.1, 1.0, 0.9, 1.1];
+  const rows = rates.map((rate, i) => ({ day: `2026-03-${String(i + 1).padStart(2, '0')}`, rate }));
+
+  // A value was left out, so the chart's description says so and a small marker with a text
+  // equivalent appears in its corner. With a definite height (48 px here) the chart fills it.
+  line('#rate-spark', { labelledBy: 'rate-heading', compact: true, data: rows, x: 'day', y: 'rate' });
+</script>

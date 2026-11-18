@@ -1,0 +1,26 @@
+<div id="chart"></div>
+
+<script type="module">
+  import { line } from 'axylo';
+
+  // One reading per second. `keep: 60` keeps the latest 60 distinct x values; older ones go.
+  let at = Date.UTC(2026, 2, 10, 9, 0, 0);
+  let i = 0;
+  const next = () => {
+    at += 1000;
+    i += 1;
+    return { at, rps: Math.round(240 + 40 * Math.sin(i / 6) + 15 * Math.sin(i * 1.9)) };
+  };
+  const rows = Array.from({ length: 60 }, next);
+
+  const chart = line('#chart', {
+    title: 'Requests per second',
+    data: rows,
+    x: { field: 'at', type: 'time', timeZone: 'UTC' },
+    y: { field: 'rps', label: 'Requests', unit: 'req/s' },
+  });
+
+  // After the first append the chart shows a Pause control: while paused, rows are kept and the
+  // view stands still; Resume shows everything that arrived.
+  setInterval(() => chart.append([next()], { keep: 60 }), 1000);
+</script>

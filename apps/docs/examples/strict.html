@@ -1,0 +1,26 @@
+<div id="chart"></div>
+<p><button type="button" id="bad">Update with a bad row</button></p>
+<p><output id="result"></output></p>
+
+<script type="module">
+  import { line } from 'axylo';
+
+  const good = [
+    { day: '2026-03-02', sessions: 3120 },
+    { day: '2026-03-03', sessions: 3380 },
+    { day: '2026-03-04', sessions: 3290 },
+  ];
+  // A strict chart throws on any error or warning found while validating a call.
+  const chart = line('#chart', { title: 'Sessions', data: good, x: 'day', y: 'sessions', strict: true });
+
+  document.querySelector('#bad').addEventListener('click', () => {
+    // Untyped, as rows from an API response are.
+    const bad = /** @type {any[]} */ ([...good, { day: '2026-03-05', sessions: 'n/a' }]);
+    try {
+      chart.update({ data: bad });
+    } catch (error) {
+      // The update was rejected as a whole: the chart still shows the last valid data.
+      document.querySelector('#result').textContent = `Rejected: ${error instanceof Error ? error.message : error}`;
+    }
+  });
+</script>

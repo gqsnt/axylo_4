@@ -1,0 +1,33 @@
+<style>
+  .card { padding: 16px; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 8px; }
+  .card h3 { margin: 0 0 4px; }
+  .card p { margin: 0 0 12px; }
+</style>
+
+<section class="card" aria-labelledby="latency-heading">
+  <h3 id="latency-heading">Checkout latency by region</h3>
+  <p>95th percentile response time per day, in milliseconds.</p>
+  <div id="chart"></div>
+</section>
+
+<script type="module">
+  import { line } from 'axylo';
+
+  const regions = ['Europe', 'North America'];
+  const rows = Array.from({ length: 21 }, (_, i) => regions.map((region, r) => ({
+    day: `2026-03-${String(i + 1).padStart(2, '0')}`,
+    region,
+    p95: Math.round((r ? 380 : 310) + 30 * Math.sin(i / 2 + r) + (i === 11 ? 520 : 0)),
+  }))).flat();
+
+  line('#chart', {
+    // The card's heading names the chart; the chart does not repeat it.
+    labelledBy: 'latency-heading',
+    // Added to the generated summary, which already gives the range, minimum, maximum and last value.
+    description: 'The spike on 12 March was the payment provider outage.',
+    data: rows,
+    x: 'day',
+    y: { field: 'p95', label: 'Latency (p95)', unit: 'ms' },
+    series: 'region',
+  });
+</script>

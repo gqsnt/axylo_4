@@ -1,0 +1,45 @@
+<div id="chart"></div>
+<p>
+  <button type="button" id="metric">Show revenue</button>
+  <button type="button" id="subtitle">Add a subtitle</button>
+  <button type="button" id="next">Next week's data</button>
+</p>
+
+<script type="module">
+  import { line } from 'axylo';
+
+  /** @param {number} start the first day of the week in March */
+  const week = start => Array.from({ length: 7 }, (_, i) => ({
+    day: `2026-03-${String(start + i).padStart(2, '0')}`,
+    orders: Math.round(180 + 25 * Math.sin(start + i)),
+    revenue: Math.round(9000 + 1400 * Math.cos(start + i)),
+  }));
+
+  const chart = line('#chart', { title: 'Orders', data: week(2), x: 'day', y: 'orders' });
+
+  const metric = document.querySelector('#metric');
+  let revenue = false;
+  metric.addEventListener('click', () => {
+    revenue = !revenue;
+    // A present key replaces its old value whole: `y` is a new field spec, `title` a new title.
+    chart.update(revenue
+      ? { title: 'Revenue', y: { field: 'revenue', label: 'Revenue', unit: 'USD' } }
+      : { title: 'Orders', y: 'orders' });
+    metric.textContent = revenue ? 'Show orders' : 'Show revenue';
+  });
+
+  const toggle = document.querySelector('#subtitle');
+  let subtitle = false;
+  toggle.addEventListener('click', () => {
+    subtitle = !subtitle;
+    // `undefined` returns the option to its default (no subtitle). Absent keys stay as they are.
+    chart.update({ subtitle: subtitle ? 'Week of 2 March' : undefined });
+    toggle.textContent = subtitle ? 'Remove the subtitle' : 'Add a subtitle';
+  });
+
+  let start = 2;
+  document.querySelector('#next').addEventListener('click', () => {
+    start = start === 2 ? 9 : 2;
+    chart.update({ data: week(start), subtitle: subtitle ? `Week of ${start} March` : undefined });
+  });
+</script>

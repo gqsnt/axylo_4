@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // The scripts of the .html examples are plain JavaScript, written as a page would write them, so
+    // they are checked with checkJs. Everything is strict except null checks: `querySelector` on an
+    // element the example's own markup contains is not written with a guard.
+    "allowJs": true,
+    "checkJs": true,
+    "strictNullChecks": false
+  },
+  "include": ["../.cache/html-scripts/*.js", "../.cache/html-scripts/*.d.ts"]
+}

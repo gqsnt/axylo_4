@@ -1,0 +1,126 @@
+/*
+ * The documentation site. The chart tokens above this line are generated from the library's stylesheet, so
+ * the pages share the charts' background, rules and focus colour. Fonts and text colour are the page's own,
+ * and the charts inherit them, as they would in any application.
+ */
+:root {
+  color-scheme: light dark;
+  --site-text: #1c1e23;
+  --site-code: color-mix(in srgb, var(--site-grid) 40%, var(--site-background));
+  --site-rule: var(--site-grid);
+  --site-link: var(--site-focus);
+  --site-font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --site-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --site-text: #e3e5e9;
+    --site-code: color-mix(in srgb, var(--site-grid) 55%, var(--site-background));
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--site-background);
+  color: var(--site-text);
+  font: 16px/1.6 var(--site-font);
+}
+a { color: var(--site-link); text-decoration-thickness: 1px; text-underline-offset: 0.15em; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--site-focus); outline-offset: 2px; }
+code, pre { font-family: var(--site-mono); font-size: 0.875em; }
+code { overflow-wrap: anywhere; }
+pre {
+  margin: 0 0 1.25em; padding: 0.75em 1em; overflow-x: auto; line-height: 1.5;
+  background: var(--site-code); border-radius: 6px; font-size: 0.8125rem; tab-size: 2;
+}
+pre code { font-size: inherit; overflow-wrap: normal; }
+:not(pre) > code { padding: 0.05em 0.3em; border-radius: 3px; background: var(--site-code); }
+
+.skip { position: absolute; left: 8px; top: -48px; padding: 6px 10px; background: var(--site-background); z-index: 10; }
+.skip:focus { top: 8px; }
+
+.site-header {
+  display: flex; align-items: baseline; gap: 0.75em; padding: 0.75rem 16px;
+  border-bottom: 1px solid var(--site-rule);
+}
+.brand { font-weight: 700; font-size: 1.125rem; color: inherit; text-decoration: none; }
+.tagline { color: var(--site-muted); font-size: 0.875rem; }
+
+.layout { display: block; }
+.nav-side { display: none; }
+.nav-mobile { border-bottom: 1px solid var(--site-rule); padding: 0 16px; }
+.nav-mobile > summary { padding: 0.5rem 0; cursor: pointer; font-weight: 600; min-height: 24px; }
+.nav-list, .nav-list ul { list-style: none; margin: 0; padding: 0; }
+.nav-list > li { margin: 0 0 0.75em; }
+.nav-section { display: block; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--site-muted); margin-bottom: 0.25em; }
+.nav-list a { display: block; padding: 0.2em 0.5em; margin-left: -0.5em; border-radius: 4px; color: inherit; text-decoration: none; min-height: 24px; }
+.nav-list a:hover { text-decoration: underline; }
+.nav-list a[aria-current="page"] { font-weight: 600; box-shadow: inset 3px 0 0 var(--site-focus); }
+
+main { padding: 1rem 16px 3rem; min-width: 0; }
+article { max-width: 46rem; }
+@media (min-width: 900px) {
+  .nav-mobile { display: none; }
+  .layout { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 2rem; max-width: 72rem; }
+  .nav-side { display: block; position: sticky; top: 0; align-self: start; max-height: 100vh; overflow-y: auto; padding: 1.25rem 0 2rem 16px; }
+  main { padding-top: 1.25rem; }
+}
+
+h1, h2, h3, h4 { line-height: 1.25; margin: 1.75em 0 0.5em; }
+h1 { font-size: 1.875rem; margin-top: 0.5em; }
+h2 { font-size: 1.375rem; padding-top: 0.75em; border-top: 1px solid var(--site-rule); }
+h3 { font-size: 1.125rem; }
+h4 { font-size: 1rem; }
+p, ul, ol, blockquote { margin: 0 0 1em; }
+ul, ol { padding-left: 1.5em; }
+li + li { margin-top: 0.25em; }
+blockquote { margin-left: 0; padding: 0.5em 1em; border-left: 3px solid var(--site-focus); background: var(--site-code); border-radius: 0 6px 6px 0; }
+blockquote > :last-child { margin-bottom: 0; }
+.lead { font-size: 1.125rem; }
+.small, .crumb { font-size: 0.875rem; color: var(--site-muted); }
+
+.table-scroll { overflow-x: auto; margin: 0 0 1.25em; }
+table { border-collapse: collapse; font-size: 0.9375rem; line-height: 1.45; min-width: 100%; }
+/* A table of three or more columns keeps readable columns on a phone and scrolls inside its region instead. */
+table:has(thead th:nth-child(3)) { min-width: max(100%, 34rem); }
+th, td { text-align: left; vertical-align: top; padding: 0.4em 0.75em 0.4em 0; border-bottom: 1px solid var(--site-rule); }
+thead th { border-bottom-width: 2px; font-weight: 600; }
+tbody th { font-weight: 400; }
+td code, th code { white-space: nowrap; }
+td code { white-space: normal; }
+td.wide { min-width: 14rem; }
+
+.swatch { display: inline-block; width: 0.9em; height: 0.9em; margin-right: 0.4em; vertical-align: -0.1em; border-radius: 2px; box-shadow: 0 0 0 1px var(--site-axis); }
+
+.level { display: inline-block; padding: 0 0.45em; border: 1px solid var(--site-axis); border-radius: 4px; font-size: 0.8125rem; font-weight: 600; }
+.level-error { border-width: 2px; }
+.level-hint { border-style: dashed; }
+
+figure { margin: 0 0 1.5em; }
+.example { border: 1px solid var(--site-rule); border-radius: 8px; overflow: hidden; }
+.example-live { padding: 12px 12px 4px; }
+.example iframe { display: block; width: 100%; border: 0; background: transparent; }
+.example-note { margin: 0; padding: 0.25em 12px 0.5em; font-size: 0.875rem; color: var(--site-muted); }
+.example figcaption, .source figcaption { padding: 0.4em 12px; font-size: 0.8125rem; color: var(--site-muted); border-top: 1px solid var(--site-rule); }
+.example figcaption span { font-weight: 600; }
+.example pre { margin: 0; border-radius: 0; }
+.source { border: 1px solid var(--site-rule); border-radius: 8px; overflow: hidden; }
+.source figcaption { border-top: 0; border-bottom: 1px solid var(--site-rule); }
+.source pre { margin: 0; border-radius: 0; }
+.source-missing p { margin: 0; padding: 0.75em 12px; }
+
+.pager { display: flex; justify-content: space-between; gap: 1em; margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--site-rule); }
+.page-footer { max-width: 46rem; margin-top: 2rem; font-size: 0.8125rem; color: var(--site-muted); }
+
+/* Example pages: one per runnable example, shown in a frame on the documentation pages. */
+body.example-page { margin: 0; padding: 4px 4px 8px; }
+body.example-page > .example-target + .example-target { margin-top: 32px; }
+body.example-page button {
+  font: inherit; font-size: 0.875rem; min-height: 28px; padding: 2px 10px; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--site-axis); background: var(--site-background); color: inherit;
+}
+/* Console output and messages wrap, so a long diagnostic can be read without scrolling. */
+pre code.language-text { white-space: pre-wrap; overflow-wrap: anywhere; }

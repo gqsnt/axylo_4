@@ -1,0 +1,42 @@
+<style>
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+  .tile { padding: 12px; border: 1px solid color-mix(in srgb, currentColor 25%, transparent); border-radius: 8px; }
+  .tile h3 { margin: 0; font-size: 0.875rem; font-weight: 500; }
+  .tile p { margin: 2px 0 8px; font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+</style>
+
+<div class="tiles">
+  <section class="tile">
+    <h3 id="sessions-heading">Sessions, last 30 days</h3>
+    <p>48,210</p>
+    <div id="sessions-spark"></div>
+  </section>
+  <section class="tile">
+    <h3 id="revenue-heading">Revenue, last 30 days</h3>
+    <p>$182,400</p>
+    <div id="revenue-spark"></div>
+  </section>
+  <section class="tile">
+    <h3 id="errors-heading">Errors per day</h3>
+    <p>37</p>
+    <div id="errors-spark"></div>
+  </section>
+</div>
+
+<script type="module">
+  import { line, area, bar } from 'axylo';
+
+  const days = Array.from({ length: 30 }, (_, i) => `2026-03-${String(i + 1).padStart(2, '0')}`);
+  const rows = days.map((day, i) => ({
+    day,
+    sessions: Math.round(1500 + 12 * i + 180 * Math.sin(i / 2)),
+    revenue: Math.round(5600 + 40 * i + 700 * Math.cos(i / 3)),
+    errors: Math.max(0, Math.round(30 + 10 * Math.sin(i * 1.3))),
+  }));
+
+  // Marks only. Each tile's heading names its chart; the chart describes itself to assistive
+  // technology with its generated summary (range, minimum, maximum, last value).
+  line('#sessions-spark', { labelledBy: 'sessions-heading', compact: true, data: rows, x: 'day', y: 'sessions' });
+  area('#revenue-spark', { labelledBy: 'revenue-heading', compact: true, data: rows, x: 'day', y: 'revenue' });
+  bar('#errors-spark', { labelledBy: 'errors-heading', compact: true, data: rows, x: 'day', y: 'errors' });
+</script>

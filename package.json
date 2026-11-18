@@ -10,6 +10,8 @@
     "test": "vitest run",
     "build": "node scripts/build.mjs",
     "size": "node scripts/size.mjs",
+    "docs:build": "node apps/docs/build.mjs",
+    "docs:screenshots": "node apps/docs/screenshots.mjs",
     "test:browser": "AXYLO_BROWSER=1 vitest run",
     "test:dist": "vitest run --config tests/dist/vitest.config.ts",
     "test:dist:browser": "AXYLO_BROWSER=1 vitest run --config tests/dist/vitest.config.ts",

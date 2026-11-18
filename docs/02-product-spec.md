@@ -192,7 +192,7 @@ The split between AX104 and AX106 answers a reviewer's objection that common bac
 | Picking by pointer | Nearest x | Nearest x | The band under the pointer | The slice under the pointer | Nearest point within 24 px; ties go to the later row |
 | Tooltip content | Every visible series at that x | Same, plus the stack total | Every series in that category | Label, value, percentage | The point's series, x and y; coincident points listed, up to eight |
 | Keyboard order | By x, then series | By x, then series | By category, then series | By slice order | By x, then y |
-| Zoom | Yes | Yes | On time, date and numeric x only | No | Yes, both axes later; x only in 1.0 |
+| Zoom | On time, date and numeric x only | On time, date and numeric x only | On time, date and numeric x only | No | Yes, both axes later; x only in 1.0 |
 | Simplified drawing when dense | F5 | F5 on cumulative sums | No; more bars than pixels raises a hint | No | No in 1.0; above 50,000 points a hint says drawing may be slow |
 | Limit that raises a diagnostic | Eight series | Eight series | Eight series | Eight slices | Eight series |
 | Reference lines and bands | Yes; included in the domain; listed in the summary and table caption | Yes | Yes | No | Yes |

@@ -1,0 +1,29 @@
+<style>
+  /* The page's own theme switch: a data attribute on <html>, as many design systems do it. */
+  html[data-theme="light"] { color-scheme: light; }
+  html[data-theme="light"] body { background: #ffffff; color: #1c1e23; }
+  html[data-theme="dark"] { color-scheme: dark; }
+  html[data-theme="dark"] body { background: #101216; color: #e3e5e9; }
+</style>
+
+<p><button type="button" id="theme">Switch theme</button></p>
+<div id="chart"></div>
+
+<script type="module">
+  import { bar } from 'axylo';
+
+  const rows = [
+    { region: 'Europe', quarter: 'Q1', orders: 420 }, { region: 'Europe', quarter: 'Q2', orders: 465 },
+    { region: 'North America', quarter: 'Q1', orders: 610 }, { region: 'North America', quarter: 'Q2', orders: 590 },
+    { region: 'Asia Pacific', quarter: 'Q1', orders: 300 }, { region: 'Asia Pacific', quarter: 'Q2', orders: 355 },
+  ];
+  bar('#chart', { title: 'Orders by region', data: rows, x: 'region', y: 'orders', series: 'quarter' });
+
+  // The chart repaints by itself when <html> or <body> changes its class, style or data-theme.
+  const root = document.documentElement;
+  const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+  root.dataset.theme = dark ? 'dark' : 'light';
+  document.querySelector('#theme').addEventListener('click', () => {
+    root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark';
+  });
+</script>

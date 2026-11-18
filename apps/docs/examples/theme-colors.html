@@ -1,0 +1,43 @@
+<style>
+  :root {
+    --brand-direct: #1f6fb2;
+    --brand-organic: #2e7d32;
+    --brand-referral: #b4530f;
+    --brand-email: #7b3fa0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --brand-direct: #6cb4ee; --brand-organic: #81c784; --brand-referral: #f0a060; --brand-email: #c39be0; }
+  }
+</style>
+
+<div id="all-channels"></div>
+<div id="two-channels" style="margin-top: 24px"></div>
+
+<script type="module">
+  import { line } from 'axylo';
+
+  // One colour per series name, for every chart on the page. Without it, "Referral" would take
+  // the third palette colour on the first chart and the first on the second.
+  const colors = {
+    Direct: 'var(--brand-direct)',
+    'Organic search': 'var(--brand-organic)',
+    Referral: 'var(--brand-referral)',
+    Email: 'var(--brand-email)',
+  };
+
+  /** @param {string[]} channels */
+  const rows = channels => Array.from({ length: 10 }, (_, i) => channels.map((channel, c) => ({
+    day: `2026-03-${String(i + 1).padStart(2, '0')}`,
+    channel,
+    sessions: Math.round(1000 + 600 * c + 150 * Math.sin(i / 2 + c)),
+  }))).flat();
+
+  line('#all-channels', {
+    title: 'Sessions, all channels', data: rows(['Direct', 'Organic search', 'Referral']),
+    x: 'day', y: 'sessions', series: 'channel', colors,
+  });
+  line('#two-channels', {
+    title: 'Sessions, campaigns', data: rows(['Referral', 'Email']),
+    x: 'day', y: 'sessions', series: 'channel', colors,
+  });
+</script>
