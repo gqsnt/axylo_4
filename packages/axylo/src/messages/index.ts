@@ -64,6 +64,9 @@ export const defaultMessages: Messages = {
   jumpNotFound: 'No row matches {x}. Example: {example}',
   plotInstructions: 'Left and right arrows move between points, up and down between series, and Enter selects. Plus and minus zoom; 0 resets.',
   seeTable: 'See table.',
+  totalMixed: '{positive} and {negative}',
+  incompleteAt: '{label}: incomplete at {positions}.',
+  incompleteCount: '{label}: {count} incomplete stacks.',
 };
 
 export function fill(template: string, values: Readonly<Record<string, string | number>>): string {

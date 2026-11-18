@@ -206,6 +206,10 @@ export interface Messages {
   total: string;
   /** Single-click panning (WCAG 2.5.7), the table's "Jump to" when nothing matches, and how to move in the plot. */
   panLeft: string; panRight: string; jumpNotFound: string; plotInstructions: string;
+  /** A stack whose components have mixed signs: both ends, in place of one total ('{positive} and {negative}'). */
+  totalMixed: string;
+  /** Incomplete stacks in a summary: named when few ('{label}: incomplete at {positions}.'), counted when many ('{label}: {count} incomplete stacks.'). */
+  incompleteAt: string; incompleteCount: string;
   /** Fills `{seeTable}` in `valuesNotShown`, `valuesChanged`, `labelsHidden` and `seriesNotDrawn` when the chart has a table; without one the placeholder is removed. An override without the placeholder is used as written. */
   seeTable: string;
 }
