@@ -1,4 +1,5 @@
 import type { RowSource } from '../core/contracts';
+import type { ByteCount } from './store-bytes';
 import { StoreMap } from './store-map';
 import { columnsTable, rowValue, type Columns, type Table } from './table';
 
@@ -143,6 +144,16 @@ class RawRows {
 
   isColumn(row: number): boolean {
     return this.column(row) !== undefined;
+  }
+
+  count(bytes: ByteCount, name: string): void {
+    for (const [, block] of this.columns) {
+      const columns = block.table.columns!;
+      for (const key of Object.keys(columns)) {
+        const column = columns[key];
+        if (ArrayBuffer.isView(column)) bytes.add(name, column);
+      }
+    }
   }
 
   keysAt(row: number): readonly string[] {
@@ -311,6 +322,11 @@ export class StreamRows {
     return this.retained.copy(row, target);
   }
 
+  count(bytes: ByteCount): void {
+    bytes.add('x positions of the first rows', this.seedPositions);
+    this.retained.count(bytes, 'rows');
+  }
+
   table(incoming: readonly unknown[] = []): Table {
     const retained = this.retained;
     const first = this.next;
@@ -402,6 +418,11 @@ export class RowWindow {
     });
   }
 
+  count(bytes: ByteCount): void {
+    this.rows?.count(bytes);
+    this.archived.count(bytes, 'rows kept for earlier frames');
+  }
+
   close(): void {
     this.closed = true;
     if (this.sources.size === 0) this.rows = null;
@@ -437,6 +458,10 @@ export class RowRevisions {
     let size = 0;
     for (const window of this.windows) size += window.size;
     return size;
+  }
+
+  count(bytes: ByteCount): void {
+    for (const window of this.windows) window.count(bytes);
   }
 
   replace(rows: StreamRows): void {

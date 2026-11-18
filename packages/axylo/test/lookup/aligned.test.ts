@@ -206,3 +206,28 @@ it('reads a stack total with no components as missing', () => {
   } }));
   expect(model.tooltip({ kind: 'x', x: 0 }).total).toBe('No data');
 });
+
+describe('an incomplete stack is qualified once (spec F10, review C2-7)', () => {
+  const keys = Array.from({ length: 10 }, (_, i) => `S${i}`);
+  // S9, past the tooltip's eight rows, has no value at x = 0.
+  const data = [0, 1].flatMap(x => keys.map((s, i) => ({ x, s, y: x === 0 && i === 9 ? null : i + 1 })));
+  const stacked = frame('area', { x: 'x', y: 'y', series: 's', data });
+  const model = lookup(aligned(stacked, { kind: 'area', stack: buildStack(stacked, keys.map(() => true)) }));
+  const qualified = (text: string | null | undefined) => (text ?? '').split('(incomplete)').length - 1;
+
+  it('on the total of the tooltip model, never on its rows', () => {
+    const tooltip = model.tooltip({ kind: 'x', x: 0 });
+    expect(tooltip.rows).toHaveLength(8);
+    expect(tooltip.count).toBe(10);
+    expect(tooltip.rows.map(row => qualified(row.value))).toEqual(new Array(8).fill(0));
+    expect(tooltip.total).toBe('45 (incomplete)');
+    expect(qualified(model.tooltip({ kind: 'x', x: 1 }).total)).toBe(0);
+  });
+
+  it('on a datum read alone only where the stack has no value', () => {
+    expect(model.datum(datum('S8', 0))?.value).toBe('9');
+    expect(model.datum(datum('S0', 0))?.value).toBe('1');
+    expect(model.datum(datum('S9', 0))?.value).toBe('No data (incomplete)');
+    expect(model.datum(datum('S9', 1))?.value).toBe('10');
+  });
+});

@@ -145,13 +145,21 @@ function fieldName(input: unknown): string | null {
   return typeof field === 'string' ? field : null;
 }
 
-function resolveTickFormat<T>(format: T | undefined, path: string, compact: boolean, sink: DiagnosticSink): T | null {
-  if (!compact || format == null) return format ?? null;
-  report(sink, 'AX150', 'none', { field: path + 'tickFormat', count: 1, detail: 'Compact charts draw no axis ticks.' });
+/**
+ * A tick format that labels nothing is reported, never dropped silently: a compact chart draws no ticks, and
+ * the value axis that y fields share takes its labels from the first field (`unused` says why, or null).
+ */
+function resolveTickFormat<T>(format: T | undefined, path: string, unused: string | null, sink: DiagnosticSink): T | null {
+  if (unused === null || format == null) return format ?? null;
+  report(sink, 'AX150', 'none', { field: path + 'tickFormat', count: 1, detail: unused });
   return null;
 }
 
+const COMPACT_TICKS = 'Compact charts draw no axis ticks.';
+const DONUT_TICKS = 'Donut charts draw no axis ticks.';
+
 function resolveX(input: unknown, type: ChartType, compact: boolean, sink: DiagnosticSink): ResolvedXField {
+  const unusedTicks = compact ? COMPACT_TICKS : type === 'donut' ? DONUT_TICKS : null;
   const options = object(input) as XFieldOptions;
   if (type !== 'donut') unknownKeys(object(input), type === 'scatter' ? scatterXKeys : xKeys, sink, 'x.');
   const field = fieldName(input) ?? '';
@@ -166,12 +174,12 @@ function resolveX(input: unknown, type: ChartType, compact: boolean, sink: Diagn
     field, label: options.label ?? field, unit: options.unit ?? null,
     type: type === 'donut' ? 'category' : declared ?? null,
     timeZone: zone ?? 'local', ordered: type !== 'scatter' && (options.ordered ?? false),
-    format: options.format ?? null, tickFormat: resolveTickFormat(options.tickFormat, 'x.', compact, sink),
+    format: options.format ?? null, tickFormat: resolveTickFormat(options.tickFormat, 'x.', unusedTicks, sink),
     domain: options.domain ?? null,
   };
 }
 
-function resolveValue(input: unknown, path: string, compact: boolean, sink: DiagnosticSink): ResolvedValueField {
+function resolveValue(input: unknown, path: string, unusedTicks: string | null, sink: DiagnosticSink): ResolvedValueField {
   const options = object(input) as ValueFieldOptions & { parse?: 'number' };
   unknownKeys(object(input), valueKeys, sink, path);
   const field = fieldName(input) ?? '';
@@ -180,7 +188,7 @@ function resolveValue(input: unknown, path: string, compact: boolean, sink: Diag
     scale: literal(options.scale, ['percent', 'ratio'], path + 'scale', sink) ?? null,
     missing: literal(options.missing, ['gap', 'zero'], path + 'missing', sink) ?? 'gap',
     parse: literal(options.parse, ['number'], path + 'parse', sink) ?? null, format: options.format ?? null,
-    tickFormat: resolveTickFormat(options.tickFormat, path, compact, sink), domain: options.domain ?? null,
+    tickFormat: resolveTickFormat(options.tickFormat, path, unusedTicks, sink), domain: options.domain ?? null,
   };
 }
 
@@ -234,7 +242,8 @@ export function resolveOptions(type: ChartType, input: unknown, sink: Diagnostic
   const valueInputs = wide ? options.y as readonly unknown[] : [donut ? options.value : options.y];
   // Only the first value field supplies the shared axis's tick formatter.
   const values = valueInputs.map((field, index) =>
-    resolveValue(field, wide ? 'y[' + index + '].' : donut ? 'value.' : 'y.', compact && index === 0, sink));
+    resolveValue(field, wide ? 'y[' + index + '].' : donut ? 'value.' : 'y.', compact ? COMPACT_TICKS : donut ? DONUT_TICKS
+      : index > 0 ? 'The y fields share one value axis, labelled by y[0].tickFormat.' : null, sink));
   const series = !wide && !donut && typeof options.series === 'string' ? options.series : null;
   if (wide && options.series !== undefined) {
     report(sink, 'AX150', 'none', { field: 'series', count: 1, detail: 'Use a single y field when naming a series field.' });

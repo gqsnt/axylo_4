@@ -48,13 +48,19 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
     return series < 0 ? null : ref(series, earliest);
   }
 
+  /**
+   * One series' row at a slot. Rows are plain: an incomplete stack is said once, on the tooltip's total
+   * (spec F10, review C2-7). A single datum read on its own (`announce`) has no total beside it, so the
+   * component that makes its stack incomplete says so; the values that are there are not qualified.
+   */
   function write(s: number, i: number, announce = false): DatumText {
     const series = frame.series[s]!;
     const state = series.slot[i] as SlotState;
     const value = slotText(formatters, s, series.y[i]!, state);
+    const missingComponent = state !== SLOT_VALUE && stack?.incomplete?.[i] && stack.order.includes(s) && visible.includes(s);
     return {
       ref: ref(s, i), seriesIndex: s, seriesLabel: series.label, x: formatters.x(positions[i]!),
-      value: announce && stack?.incomplete?.[i] && visible.includes(s) ? incomplete(value, messages) : value,
+      value: announce && missingComponent ? incomplete(value, messages) : value,
       state, percent: null, row: series.row?.[i] ?? i,
     };
   }

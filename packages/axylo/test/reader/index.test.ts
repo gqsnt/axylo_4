@@ -429,3 +429,30 @@ it('jumps to wall-clock and calendar values using the data parser', () => {
   expect(dateTable.pageForX('2026-02-28')).toBe(0);
   expect(dateTable.pageForX('2026-02-29')).toBeNull();
 });
+
+it('names a wide range by its series labels and gives both ends the unit they share (spec A1)', () => {
+  const rows = [{ x: 1, a: 1, b: 2 }, { x: 2, a: 3, b: 2.5 }];
+  const shared = aligned(frame('line', { data: rows, x: 'x', y: [
+    { field: 'a', label: 'Visits', unit: 'visits' }, { field: 'b', label: 'Signups', unit: 'visits' },
+  ] }));
+  expect(read(shared)).toMatchObject({
+    name: 'Line chart of Visits and Signups by x',
+    summary: 'Line chart with 2 series. x from 1 to 2. Visits and Signups from 1 visits to 3 visits. '
+      + 'Visits: minimum 1 visits, maximum 3 visits, last 3 visits. Signups: minimum 2 visits, maximum 2.5 visits, last 2.5 visits.',
+  });
+  // Different units have no common range: each series' sentence gives its own, in its own unit.
+  const mixed = aligned(frame('line', { data: rows, x: 'x', y: [{ field: 'a', label: 'Visits', unit: 'visits' }, 'b'] }));
+  expect(read(mixed).summary).toBe('Line chart with 2 series. x from 1 to 2. '
+    + 'Visits: minimum 1 visits, maximum 3 visits, last 3 visits. b: minimum 2, maximum 2.5, last 2.5.');
+});
+
+it('names a long-form range by its value field and gives both ends its unit (spec A1)', () => {
+  const long = aligned(frame('line', { x: 'x', series: 's', y: { field: 'v', label: 'Visits', unit: 'visits' }, data: [
+    { x: 1, s: 'A', v: 1 }, { x: 1, s: 'B', v: 2 }, { x: 2, s: 'A', v: 3 }, { x: 2, s: 'B', v: 2.5 },
+  ] }));
+  expect(read(long)).toMatchObject({
+    name: 'Line chart of Visits by x',
+    summary: 'Line chart with 2 series. x from 1 to 2. Visits from 1 visits to 3 visits. '
+      + 'A: minimum 1 visits, maximum 3 visits, last 3 visits. B: minimum 2 visits, maximum 2.5 visits, last 2.5 visits.',
+  });
+});

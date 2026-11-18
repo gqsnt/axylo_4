@@ -7,6 +7,7 @@ import { FrameSource, RowRevisions, StreamRows } from './store-rows';
 import { CalendarWindow } from './store-calendar';
 import { StoreMap } from './store-map';
 import { Column, Labels } from './store-window';
+import { ByteCount, CallerBuffers, type OwnedBytes } from './store-bytes';
 import { rowsTable, type Table } from './table';
 import { once, retention, type PreparedFrame, type StoreAppendOptions } from './transaction';
 import { nameOf } from './x';
@@ -35,6 +36,7 @@ type Build<F> = (options: ResolvedOptions, environment: DataEnvironment, sink: D
 
 interface Storage<F> {
   frame(frame: F): F;
+  count(bytes: ByteCount): void;
   extend(next: Result<F>, rows: StreamRows, firstRow: number, keep: number | undefined): Storage<F> | null;
   commit(): void;
 }
@@ -174,6 +176,14 @@ class Points implements Storage<PointFrame> {
 
   commit(): void { this.calendar?.commit(); }
 
+  count(bytes: ByteCount): void {
+    this.positions.count(bytes, 'x positions');
+    this.x.count(bytes, 'x');
+    this.y.count(bytes, 'y');
+    this.row.count(bytes, 'row');
+    this.missingX.count(bytes, 'missing x');
+  }
+
   frame(frame: PointFrame): PointFrame {
     const missingX = this.missingX.view();
     return { ...frame, series: [{
@@ -197,6 +207,12 @@ class Slices implements Storage<DonutFrame> {
   }
 
   commit(): void { this.positions.commit(); }
+
+  count(bytes: ByteCount): void {
+    this.values.count(bytes, 'values');
+    this.slot.count(bytes, 'slot');
+    this.row.count(bytes, 'row');
+  }
 
   extend(next: Result<DonutFrame>, rows: StreamRows, firstRow: number, keep: number | undefined): Slices | null {
     const frame = next.frame;
@@ -259,6 +275,7 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
   private current: F;
   private latest: readonly DiagnosticInput[];
   private storage: Storage<F> | null;
+  private readonly caller = new CallerBuffers();
 
   constructor(
     private readonly type: 'scatter' | 'donut',
@@ -269,6 +286,7 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
     version: FrameVersion,
     private readonly sink: DiagnosticSink,
   ) {
+    this.caller.add(options.table);
     this.rows = new StreamRows(options.table);
     this.revisions = new RowRevisions(this.rows);
     this.encoding = withoutTable(options);
@@ -288,6 +306,18 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
   get frame(): F { return this.current; }
   get diagnostics(): readonly DiagnosticInput[] { return this.latest; }
   get retainedRowCount(): number { return this.revisions.size; }
+
+  /**
+   * The typed storage this store holds beyond the caller's columns (spec P7), with a breakdown. Walks the
+   * store's own buffers, not the data: cost grows with the number of retained row blocks.
+   */
+  ownedBytes(): OwnedBytes {
+    const bytes = new ByteCount(this.caller);
+    this.storage?.count(bytes);
+    this.revisions.count(bytes);
+    bytes.frame(this.current);
+    return bytes.result();
+  }
 
   /** Releases source rows through this revision. Held frame views keep their normalized values. */
   retire(revision: number): void { this.revisions.retire(Math.min(revision, this.current.revision)); }
@@ -391,6 +421,7 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
   prepareReplace(data: unknown, options: ResolvedOptions, version: FrameVersion): PreparedFrame<F> {
     const call = new DiagnosticCollector();
     const replacement = resolveTable(data, call);
+    this.caller.add(replacement.table);
     return this.prepareEncoding(new StreamRows(replacement.table), options, version, call, replacement);
   }
 

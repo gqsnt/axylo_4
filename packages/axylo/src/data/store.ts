@@ -16,6 +16,7 @@ import { gapPosition, snapGap, stepDelta, stepMultiple, supportsSteps, tooSparse
 import { BufferWindow } from './store-window';
 import { StoreMap } from './store-map';
 import { FrameBuffers, type SeriesBuffers } from './store-buffers';
+import { ByteCount, CallerBuffers, type OwnedBytes } from './store-bytes';
 import { CalendarWindow } from './store-calendar';
 import { StreamDiagnostics } from './store-diagnostics';
 import { FrameSource, RowRevisions, StreamRows } from './store-rows';
@@ -128,6 +129,11 @@ class Observations {
     if (capacity) this.resize(capacity, 0);
   }
 
+  count(bytes: ByteCount, name: string): void {
+    bytes.add(name, this.prefix);
+    if (this.positions.length) bytes.add(name, this.positions);
+  }
+
   private resize(capacity: number, extra: number): void {
     const retained = this.positions.subarray(this.range.start, this.range.end);
     this.positions = new Float64Array(capacity);
@@ -180,11 +186,19 @@ function eachObservation(
   }
 }
 
+/**
+ * The x positions of the first frame's slots, for history that outlives the store's first buffer. A view on the
+ * caller's own column costs nothing and, unlike a view on the store's buffer, never pins a superseded copy.
+ */
+function prefixPositions(table: Table, field: string, x: XData, buffers: FrameBuffers): Float64Array {
+  return table.columns?.[field] === x.positions && x.positions.length === buffers.end ? x.positions : buffers.x.subarray(0, buffers.end);
+}
+
 function cadences(options: Fields, table: Table, x: XData, axis: XColumn, buffers: FrameBuffers) {
   if (table.columns && options.series === null && x.order === null && x.positions.length > 0 && buffers.end === x.positions.length) {
     // Each wide series observes the same sorted x column. Keep appended history
     // separate so it cannot overwrite the prefix of a competing frame.
-    const prefix = buffers.x.subarray(0, buffers.end);
+    const prefix = prefixPositions(table, options.x.field, x, buffers);
     const window = new Observations(prefix);
     const initial = readCadence(axis, window);
     return {
@@ -418,13 +432,13 @@ function keptTable(table: Table, x: XData, keep: number): {
 }
 
 function writeObservation(
-  series: SeriesBuffers, target: number, values: Values, row: number, base: number, zero: boolean,
+  buffers: FrameBuffers, series: SeriesBuffers, target: number, values: Values, row: number, base: number, zero: boolean,
 ): void {
   const state = values.slot[row]!;
   const imputed = zero && (state === SLOT_NULL || state === SLOT_ABSENT_FIELD);
   series.y[target] = values.y[row]!;
   series.slot[target] = imputed ? SLOT_VALUE : state;
-  series.row[target] = imputed ? -1 : base + row;
+  buffers.setRow(series, target, imputed ? -1 : base + row);
 }
 
 export class AlignedStore {
@@ -435,6 +449,7 @@ export class AlignedStore {
   private current: AlignedFrame;
   private latest: readonly DiagnosticInput[];
   private writing = false;
+  private readonly caller = new CallerBuffers();
 
   constructor(
     private readonly type: AlignedChartType,
@@ -445,6 +460,7 @@ export class AlignedStore {
     normalized?: AlignedFrame,
   ) {
     const { table, ...fields } = options;
+    this.caller.add(table);
     this.rows = new StreamRows(table);
     this.revisions = new RowRevisions(this.rows);
     this.fields = fields;
@@ -453,7 +469,7 @@ export class AlignedStore {
       ? this.adoptNormalized(normalized, seed)
       : this.build(table, version);
     this.state = state;
-    this.rows.resetPositions(table, x.positions, state.buffers.x.subarray(0, frame.length));
+    this.rows.resetPositions(table, x.positions, prefixPositions(table, fields.x.field, x, state.buffers));
     this.current = this.snapshot(frame);
     this.latest = this.currentDiagnostics();
     this.publish(this.current);
@@ -483,6 +499,19 @@ export class AlignedStore {
   }
 
   get retainedRowCount(): number { return this.revisions.size; }
+
+  /**
+   * The typed storage this store holds beyond the caller's columns (spec P7), with a breakdown. Walks the
+   * store's own buffers, not the data: cost grows with the number of series and retained row blocks.
+   */
+  ownedBytes(): OwnedBytes {
+    const bytes = new ByteCount(this.caller);
+    this.state.buffers.count(bytes);
+    for (const [key, window] of this.state.observations) window.count(bytes, `series ${key} x history`);
+    this.revisions.count(bytes);
+    bytes.frame(this.current);
+    return bytes.result();
+  }
 
   /** Releases source rows through this revision. Held frame views keep their normalized values. */
   retire(revision: number): void { this.revisions.retire(Math.min(revision, this.current.revision)); }
@@ -557,6 +586,7 @@ export class AlignedStore {
   prepareReplace(data: unknown, options: ResolvedOptions, version: FrameVersion): PreparedFrame<AlignedFrame> {
     const call = new DiagnosticCollector();
     const { table, valid } = resolveTable(data, call);
+    this.caller.add(table);
     const draft = new StreamRows(table);
     return this.prepareEncoding(draft, options, version, call, { table, valid });
   }
@@ -733,7 +763,7 @@ export class AlignedStore {
     const { end } = buffers;
     const lastX = end > buffers.start ? buffers.x[end - 1] : undefined;
     buffers.x.set(batch.x, end);
-    buffers.observed.set(batch.observed, end);
+    buffers.markObserved(batch.observed, end);
     for (const observed of batch.observed) buffers.distinct += observed;
     const updates = new Map(batch.series.map(item => [item.key, item]));
     const priorWrites = new Set<string>();
@@ -756,7 +786,7 @@ export class AlignedStore {
         if (series.description.drawable) series.description = { ...series.description, drawable: false };
       }
       if (replacingLast) {
-        writeObservation(series, end - 1, item.values, first, base, zero);
+        writeObservation(buffers, series, end - 1, item.values, first, base, zero);
         priorWrites.add(item.key);
       }
       this.state.history.set(item.key, item.cadence);
@@ -775,12 +805,12 @@ export class AlignedStore {
         const row = item?.rows[next];
         const target = end + i;
         if (item && row !== undefined && batch.positions[row] === position) {
-          writeObservation(series, target, item.values, row, base, zero);
+          writeObservation(buffers, series, target, item.values, row, base, zero);
           next++;
         } else {
           const missing = item?.gaps?.[gap] === position;
           if (missing) gap++;
-          series.row[target] = -1;
+          buffers.setRow(series, target, -1);
           series.y[target] = zero ? 0 : NaN;
           series.slot[target] = zero ? SLOT_VALUE : missing ? SLOT_GAP : SLOT_NO_ROW;
         }
@@ -871,8 +901,8 @@ export class AlignedStore {
     let categories = 0;
     let remove = buffers.distinct - keep;
     let first = buffers.start;
-    while (remove > 0 && first < buffers.end) remove -= buffers.observed[first++]!;
-    while (first < buffers.end && !buffers.observed[first]) first++;
+    while (remove > 0 && first < buffers.end) remove -= Number(buffers.observed(first++));
+    while (first < buffers.end && !buffers.observed(first)) first++;
     const firstX = buffers.x[first] ?? Infinity;
     const discard = (row: number, column: boolean, placed = true) => {
       diagnostics.evict(row, false);

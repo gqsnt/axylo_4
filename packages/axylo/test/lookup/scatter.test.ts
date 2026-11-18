@@ -1,5 +1,5 @@
 import fc from 'fast-check';
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import type { DatumRef, PointFrame, Rect } from '../../src/core/contracts';
 import { buildLookup } from '../../src/lookup';
 import { scatterLookup } from '../../src/lookup/scatter';
@@ -446,4 +446,106 @@ it('finds next and previous by one binary successor search per series', () => {
   expect(model.step(from, 'previous')).toEqual(point('S249', 398, 398));
   expect(work.orderComparisons).toBeGreaterThan(0);
   expect(work.orderComparisons).toBeLessThanOrEqual(seriesCount * 10);
+});
+
+// The lattice rule of `Lookup.pick`: every drawn point is compared at its position rounded to the nearest
+// device pixel; the closest within 24 px wins, compared points within half a device pixel of that distance
+// tie and the latest source row wins, and the count is every point whose rounded position is within 0.5 px
+// of the winner's.
+interface Drawn { readonly x: number; readonly y: number; readonly ref: Extract<DatumRef, { kind: 'point' }> }
+function latticeOracle(drawn: readonly Drawn[], px: number, py: number, ratio: number) {
+  const snapped = drawn.map(d => ({ ...d, x: Math.round(d.x * ratio) / ratio, y: Math.round(d.y * ratio) / ratio }))
+    .map(d => ({ ...d, distance: (d.x - px) ** 2 + (d.y - py) ** 2 }));
+  let nearest = snapped[0]!;
+  for (const d of snapped) if (d.distance < nearest.distance) nearest = d;
+  if (nearest.distance > 24 ** 2) return null;
+  let winner = nearest;
+  for (const d of snapped) {
+    const tied = d.distance <= 24 ** 2 && Math.sqrt(d.distance) - Math.sqrt(nearest.distance) < 0.5 / ratio;
+    if (tied && d.ref.row > winner.ref.row) winner = d;
+  }
+  const coincident = snapped.filter(d => (d.x - winner.x) ** 2 + (d.y - winner.y) ** 2 <= 0.5 ** 2);
+  return { winner: winner.ref, coincident: coincident.map(d => d.ref) };
+}
+
+function cloud(positions: readonly (readonly [number, number])[], sourceRows?: readonly number[]): { data: PointFrame; drawn: Drawn[] } {
+  const data = points([positions], sourceRows);
+  const s = data.series[0]!;
+  const drawn = Array.from(s.x, (x, i) => ({ x, y: s.y[i]!, ref: point('S0', s.row![i]!, x) }));
+  return { data, drawn };
+}
+
+function expectLattice(target: ReturnType<ReturnType<typeof scatterLookup>['pick']>, expected: ReturnType<typeof latticeOracle>) {
+  if (!expected) return expect(target).toBeNull();
+  if (target?.kind !== 'point') throw new Error('Expected a scatter target');
+  expect(target.refs[0]).toEqual(expected.winner);
+  expect(target.count).toBe(expected.coincident.length);
+  expect(target.refs).toHaveLength(Math.min(8, expected.coincident.length));
+  expect(new Set(target.refs.map(ref => ref.kind === 'point' && ref.row)).size).toBe(target.refs.length);
+  expect(expected.coincident).toEqual(expect.arrayContaining([...target.refs]));
+}
+
+it('agrees with a brute-force pick under the device-pixel lattice rule', () => {
+  const axis = linearScale([0, 64], [0, 64]);
+  const layout = plot({ kind: 'xy', x: axis, y: axis }, 64, 64);
+  // Positions on a 1/16 px grid in a 12 px square crowd several points into each device pixel.
+  const position = fc.tuple(fc.integer({ min: 0, max: 192 }), fc.integer({ min: 0, max: 192 }))
+    .map(([x, y]) => [26 + x / 16, 26 + y / 16] as const);
+  fc.assert(fc.property(
+    fc.array(position, { minLength: 1, maxLength: 120 }), fc.nat(), fc.constantFrom(1, 1.25, 1.5, 2, 3),
+    fc.tuple(fc.integer({ min: -400, max: 400 }), fc.integer({ min: -400, max: 400 })),
+    (positions, seed, ratio, [dx, dy]) => {
+      const rows = Array.from(positions, (_, i) => i);
+      let random = seed;
+      for (let i = rows.length - 1; i > 0; i--) {
+        random = (Math.imul(1664525, random) + 1013904223) >>> 0;
+        const j = random % (i + 1);
+        [rows[i], rows[j]] = [rows[j]!, rows[i]!];
+      }
+      const { data, drawn } = cloud(positions, rows);
+      const witness = drawn[seed % drawn.length]!;
+      const px = clamp(witness.x + dx / 16, 0, 64);
+      const py = clamp(witness.y + dy / 16, 0, 64);
+      const model = scatterLookup(scatter(data), layout, formatter(data), undefined, ratio, { exactBudget: 0 });
+      expectLattice(model.pick(px, py), latticeOracle(drawn, px, py, ratio));
+      expect(model.lastPickLattice).toBe(true);
+    },
+  ), { numRuns: 1_500 });
+});
+
+describe('a pick visits a number of index entries bounded by the radius and the pixel ratio', () => {
+  const axis = linearScale([0, 200], [0, 200]);
+  const layout = plot({ kind: 'xy', x: axis, y: axis }, 200, 200);
+  // The exact attempt may spend the lattice points of the 49 px pick square; the lattice pick visits at most
+  // the occupied lattice points near the pointer.
+  const bound = (ratio: number) => 2 * (Math.ceil(49 * ratio) + 1) ** 2;
+
+  it.each([[32_000, 1], [32_000, 2], [200_000, 1], [200_000, 2]])('%i points on a 20 px ring around the pointer at ratio %i', (size, ratio) => {
+    const positions = Array.from({ length: size }, (_, i) =>
+      [100 + 20 * Math.cos(2 * Math.PI * i / size), 100 + 20 * Math.sin(2 * Math.PI * i / size)] as const);
+    const { data, drawn } = cloud(positions);
+    const model = scatterLookup(scatter(data), layout, formatter(data), undefined, ratio);
+    const target = model.pick(100, 100);
+    expect(model.lastPickLattice).toBe(true);
+    expect(model.lastPickCandidates).toBeLessThanOrEqual(bound(ratio));
+    expectLattice(target, latticeOracle(drawn, 100, 100, ratio));
+    // A second pick reuses the lattice index and does the same bounded work.
+    const visits = model.lastPickCandidates;
+    model.pick(100, 100);
+    expect(model.lastPickCandidates).toBe(visits);
+  });
+
+  it.each([1, 2, 3])('200,000 points in a dense 40 px cluster at ratio %i, exact and on the lattice', ratio => {
+    let random = 7;
+    const next = () => (random = (Math.imul(1664525, random) + 1013904223) >>> 0) / 2 ** 32;
+    const positions = Array.from({ length: 200_000 }, () => [80 + 40 * next(), 80 + 40 * next()] as const);
+    const { data, drawn } = cloud(positions);
+    for (const exactBudget of [undefined, 0]) {
+      const model = scatterLookup(scatter(data), layout, formatter(data), undefined, ratio, { exactBudget });
+      const target = model.pick(100.3, 100.2);
+      expect(target).not.toBeNull();
+      expect(model.lastPickCandidates).toBeLessThanOrEqual(exactBudget === 0 ? bound(ratio) / 2 : bound(ratio));
+      if (model.lastPickLattice) expectLattice(target, latticeOracle(drawn, 100.3, 100.2, ratio));
+    }
+  });
 });

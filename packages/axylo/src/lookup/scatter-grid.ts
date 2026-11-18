@@ -32,23 +32,51 @@ function distanceAcross(bucket: Bucket, x: number, y: number): number {
     + Math.max(Math.abs(bucket.minY - y), Math.abs(bucket.maxY - y)) ** 2;
 }
 
+export interface ScatterPick {
+  /** Point indexes (into `series` and `points`), the picked one first, at most POINT_LIMIT. */
+  readonly hits: readonly number[];
+  readonly count: number;
+}
+
+export interface GridOptions {
+  /**
+   * Distance checks an exact pick may make before it is redone on the device-pixel lattice. Defaults to the
+   * number of lattice points in the pick square, (ceil(49 × ratio) + 1)². Tests pass 0 to force the lattice.
+   */
+  readonly exactBudget?: number;
+}
+
+/** Thrown inside an exact pick that ran out of budget; never escapes `pick`. */
+const OVER_BUDGET = Symbol('over budget');
+
+/**
+ * The pointer index of a scatter view (contract: `Lookup.pick`).
+ *
+ * A pick first compares exact positions. When the points near the pointer make that expensive (all of them
+ * at nearly the same distance, as on a ring around the pointer, or a dense cluster), the pick is redone on a
+ * second index where every point is rounded to the device-pixel lattice and the points of one lattice point
+ * are merged, keeping their count and their latest source row. A lattice pick examines at most the occupied
+ * lattice points near the pointer, so its cost depends on the radius and the pixel ratio, not on the number
+ * of points; a rounded position is off by at most 0.71 device px, and the datum's values stay exact.
+ */
 export function scatterGrid(
   view: ScatterView, layout: PlotLayout & { projection: Extract<PlotLayout['projection'], { kind: 'xy' }> },
-  count: number, devicePixelRatio: number,
+  count: number, devicePixelRatio: number, options: GridOptions = {},
 ) {
   const { plot, projection } = layout;
   const columns = Math.floor(plot.width / CELL) + 1;
   const rows = Math.floor(plot.height / CELL) + 1;
-  const heads = new Map<number, number>();
-  const next = new Int32Array(count);
   const series = new Uint32Array(count);
   const points = new Uint32Array(count);
   const xs = new Float64Array(count);
   const ys = new Float64Array(count);
-  const tieDistance = 0.5 / (Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1);
+  const ratio = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
+  const tieDistance = 0.5 / ratio;
+  const budget = options.exactBudget ?? (Math.ceil(49 * ratio) + 1) ** 2;
   let length = 0;
   let examined = 0;
   let cellsExamined = 0;
+  let usedLattice = false;
 
   function cellIndex(pixel: number, origin: number, size: number): number {
     // Subtracting the origin from a rounded plot edge can place that edge one cell past the grid.
@@ -57,18 +85,10 @@ export function scatterGrid(
 
   const column = (x: number) => cellIndex(x, plot.x, columns);
   const row = (y: number) => cellIndex(y, plot.y, rows);
-  const cellFor = (x: number, y: number) => column(x) + columns * row(y);
 
   function sourceRow(at: number): number {
     const i = points[at]!;
     return view.frame.series[series[at]!]!.row?.[i] ?? i;
-  }
-
-  function later(at: number, other: number): boolean {
-    const difference = sourceRow(at) - sourceRow(other);
-    if (difference !== 0) return difference > 0;
-    const cellDifference = cellFor(xs[at]!, ys[at]!) - cellFor(xs[other]!, ys[other]!);
-    return cellDifference < 0 || cellDifference === 0 && at > other;
   }
 
   view.frame.series.forEach((data, s) => {
@@ -77,11 +97,9 @@ export function scatterGrid(
     for (let i = start; i < end; i++) {
       const x = scatterPosition(projection.x, data.x[i]!);
       const y = scatterPosition(projection.y, data.y[i]!);
+      // Exact positions decide what is in the plot, on both indexes.
       if (!contains(plot, x, y)) continue;
-      const cell = cellFor(x, y);
       const at = length++;
-      next[at] = heads.get(cell) ?? -1;
-      heads.set(cell, at);
       xs[at] = x;
       ys[at] = y;
       series[at] = s;
@@ -89,103 +107,115 @@ export function scatterGrid(
     }
   });
 
-  const order = new Uint32Array(length);
-  const multiplicity = new Uint32Array(length);
-  const buckets = new Map<number, Bucket>();
-  function build(start: number, end: number, allowSkew = true): Bucket {
-    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-    let count = 0;
-    for (let i = start; i < end; i++) {
-      const p = order[i]!;
-      minX = Math.min(minX, xs[p]!);
-      maxX = Math.max(maxX, xs[p]!);
-      minY = Math.min(minY, ys[p]!);
-      maxY = Math.max(maxY, ys[p]!);
-      count += multiplicity[p]!;
+  type Index = (x: number, y: number, limit: number) => ScatterPick | null;
+
+  function index(px: Float64Array, py: Float64Array): Index {
+    const cellFor = (x: number, y: number) => column(x) + columns * row(y);
+    const heads = new Map<number, number>();
+    const next = new Int32Array(length);
+    for (let at = 0; at < length; at++) {
+      const cell = cellFor(px[at]!, py[at]!);
+      next[at] = heads.get(cell) ?? -1;
+      heads.set(cell, at);
     }
-    const bounds = { start, end, count, minX, maxX, minY, maxY };
-    if (end - start <= LEAF_SIZE) {
-      let latest = order[start]!;
-      for (let i = start + 1; i < end; i++) {
-        const at = order[i]!;
-        if (later(at, latest)) latest = at;
+
+    function later(at: number, other: number): boolean {
+      const difference = sourceRow(at) - sourceRow(other);
+      if (difference !== 0) return difference > 0;
+      const cellDifference = cellFor(px[at]!, py[at]!) - cellFor(px[other]!, py[other]!);
+      return cellDifference < 0 || cellDifference === 0 && at > other;
+    }
+
+    const order = new Uint32Array(length);
+    const multiplicity = new Uint32Array(length);
+    const buckets = new Map<number, Bucket>();
+    function build(start: number, end: number, allowSkew = true): Bucket {
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      let count = 0;
+      for (let i = start; i < end; i++) {
+        const p = order[i]!;
+        minX = Math.min(minX, px[p]!);
+        maxX = Math.max(maxX, px[p]!);
+        minY = Math.min(minY, py[p]!);
+        maxY = Math.max(maxY, py[p]!);
+        count += multiplicity[p]!;
       }
-      return { ...bounds, latest };
-    }
-
-    const byX = maxX - minX >= maxY - minY;
-    const positions = byX ? xs : ys;
-    const pivot = byX ? minX / 2 + maxX / 2 : minY / 2 + maxY / 2;
-    let mid = start;
-    for (let i = start; i < end; i++) {
-      const p = order[i]!;
-      if (positions[p]! >= pivot) continue;
-      order[i] = order[mid]!;
-      order[mid++] = p;
-    }
-    const smaller = Math.min(mid - start, end - mid);
-    const skewed = smaller < (end - start) / 8;
-    // Keep spatially separated groups together. Consecutive skewed splits need a median to bound depth.
-    const useSkew = skewed && allowSkew && smaller > 0;
-    if (skewed && !useSkew) {
-      order.subarray(start, end).sort((a, b) => positions[a]! - positions[b]!);
-      mid = start + Math.floor((end - start) / 2);
-    }
-    const left = build(start, mid, !useSkew);
-    const right = build(mid, end, !useSkew);
-    return { ...bounds, left, right, latest: later(left.latest, right.latest) ? left.latest : right.latest };
-  }
-
-  let end = 0;
-  for (const [cell, head] of heads) {
-    const start = end;
-    let uniform = true;
-    for (let at = head; at >= 0; at = next[at]!) {
-      order[end++] = at;
-      uniform &&= xs[at] === xs[head] && ys[at] === ys[head];
-    }
-    if (!uniform) order.subarray(start, end).sort((a, b) => xs[a]! - xs[b]! || ys[a]! - ys[b]!);
-
-    // Group identical positions before splitting the cell, so a median cannot spread them across leaves.
-    // Keep the latest row as the representative and link the others for the capped tooltip.
-    let write = start;
-    for (let i = start; i < end;) {
-      const first = order[i]!;
-      const groupStart = i++;
-      let last = first;
-      let winner = first;
-      let beforeWinner = -1;
-      for (; i < end; i++) {
-        const at = order[i]!;
-        if (xs[at] !== xs[first] || ys[at] !== ys[first]) break;
-        next[last] = at;
-        if (later(at, winner)) {
-          winner = at;
-          beforeWinner = last;
+      const bounds = { start, end, count, minX, maxX, minY, maxY };
+      if (end - start <= LEAF_SIZE) {
+        let latest = order[start]!;
+        for (let i = start + 1; i < end; i++) {
+          const at = order[i]!;
+          if (later(at, latest)) latest = at;
         }
-        last = at;
+        return { ...bounds, latest };
       }
-      next[last] = -1;
-      if (beforeWinner >= 0) {
-        next[beforeWinner] = next[winner]!;
-        next[winner] = first;
-      }
-      multiplicity[winner] = i - groupStart;
-      order[write++] = winner;
-    }
-    end = write;
-    buckets.set(cell, build(start, end));
-  }
 
-  return {
-    series, points,
-    // Count individual distance checks and rows visited while sampling tooltip refs.
-    get examined() { return examined; },
-    get cellsExamined() { return cellsExamined; },
-    pick(x: number, y: number) {
-      examined = 0;
-      cellsExamined = 0;
-      if (!contains(plot, x, y)) return null;
+      const byX = maxX - minX >= maxY - minY;
+      const positions = byX ? px : py;
+      const pivot = byX ? minX / 2 + maxX / 2 : minY / 2 + maxY / 2;
+      let mid = start;
+      for (let i = start; i < end; i++) {
+        const p = order[i]!;
+        if (positions[p]! >= pivot) continue;
+        order[i] = order[mid]!;
+        order[mid++] = p;
+      }
+      const smaller = Math.min(mid - start, end - mid);
+      const skewed = smaller < (end - start) / 8;
+      // Keep spatially separated groups together. Consecutive skewed splits need a median to bound depth.
+      const useSkew = skewed && allowSkew && smaller > 0;
+      if (skewed && !useSkew) {
+        order.subarray(start, end).sort((a, b) => positions[a]! - positions[b]!);
+        mid = start + Math.floor((end - start) / 2);
+      }
+      const left = build(start, mid, !useSkew);
+      const right = build(mid, end, !useSkew);
+      return { ...bounds, left, right, latest: later(left.latest, right.latest) ? left.latest : right.latest };
+    }
+
+    let end = 0;
+    for (const [cell, head] of heads) {
+      const start = end;
+      let uniform = true;
+      for (let at = head; at >= 0; at = next[at]!) {
+        order[end++] = at;
+        uniform &&= px[at] === px[head] && py[at] === py[head];
+      }
+      if (!uniform) order.subarray(start, end).sort((a, b) => px[a]! - px[b]! || py[a]! - py[b]!);
+
+      // Group identical positions before splitting the cell, so a median cannot spread them across leaves.
+      // Keep the latest row as the representative and link the others for the capped tooltip.
+      let write = start;
+      for (let i = start; i < end;) {
+        const first = order[i]!;
+        const groupStart = i++;
+        let last = first;
+        let winner = first;
+        let beforeWinner = -1;
+        for (; i < end; i++) {
+          const at = order[i]!;
+          if (px[at] !== px[first] || py[at] !== py[first]) break;
+          next[last] = at;
+          if (later(at, winner)) {
+            winner = at;
+            beforeWinner = last;
+          }
+          last = at;
+        }
+        next[last] = -1;
+        if (beforeWinner >= 0) {
+          next[beforeWinner] = next[winner]!;
+          next[winner] = first;
+        }
+        multiplicity[winner] = i - groupStart;
+        order[write++] = winner;
+      }
+      end = write;
+      buckets.set(cell, build(start, end));
+    }
+
+    return (x, y, limit) => {
+      // The window covers every compared position within the radius, and every 0.5 px neighbourhood of one.
       const radius = CELL + COINCIDENT;
       const left = column(x - radius);
       const right = column(x + radius);
@@ -199,12 +229,15 @@ export function scatterGrid(
           if (bucket) nearby.push(bucket);
         }
       }
+      const visit = () => {
+        if (++examined > limit) throw OVER_BUDGET;
+      };
 
       let nearest = -1;
       let best = RADIUS2;
       function consider(at: number): void {
-        examined++;
-        const distance = (xs[at]! - x) ** 2 + (ys[at]! - y) ** 2;
+        visit();
+        const distance = (px[at]! - x) ** 2 + (py[at]! - y) ** 2;
         if (distance < best || distance === best && (nearest < 0 || later(at, nearest))) {
           nearest = at;
           best = distance;
@@ -247,15 +280,15 @@ export function scatterGrid(
           for (let i = bucket.start; i < bucket.end; i++) {
             const at = order[i]!;
             if (!later(at, nearest)) continue;
-            examined++;
-            if (inTie((xs[at]! - x) ** 2 + (ys[at]! - y) ** 2)) nearest = at;
+            visit();
+            if (inTie((px[at]! - x) ** 2 + (py[at]! - y) ** 2)) nearest = at;
           }
         }
       }
       for (const bucket of nearby) searchTies(bucket);
 
-      const px = xs[nearest]!;
-      const py = ys[nearest]!;
+      const cx = px[nearest]!;
+      const cy = py[nearest]!;
       const hits = [nearest];
       let count = 0;
       function sample(head: number): void {
@@ -265,8 +298,8 @@ export function scatterGrid(
         }
       }
       function collect(bucket: Bucket): void {
-        if (distanceTo(bucket, px, py) > COINCIDENT2) return;
-        if (distanceAcross(bucket, px, py) <= COINCIDENT2) {
+        if (distanceTo(bucket, cx, cy) > COINCIDENT2) return;
+        if (distanceAcross(bucket, cx, cy) <= COINCIDENT2) {
           count += bucket.count;
           for (let i = bucket.start; i < bucket.end && hits.length < POINT_LIMIT; i++) sample(order[i]!);
         } else if (bucket.left && bucket.right) {
@@ -275,8 +308,8 @@ export function scatterGrid(
         } else {
           for (let i = bucket.start; i < bucket.end; i++) {
             const at = order[i]!;
-            examined++;
-            if ((xs[at]! - px) ** 2 + (ys[at]! - py) ** 2 <= COINCIDENT2) {
+            visit();
+            if ((px[at]! - cx) ** 2 + (py[at]! - cy) ** 2 <= COINCIDENT2) {
               count += multiplicity[at]!;
               sample(at);
             }
@@ -286,6 +319,43 @@ export function scatterGrid(
       // The same cell set covers every possible 0.5 px neighbourhood of the nearest point.
       for (const bucket of nearby) collect(bucket);
       return { hits, count };
+    };
+  }
+
+  const exact = budget > 0 ? index(xs, ys) : null;
+  let lattice: Index | null = null;
+  function latticeIndex(): Index {
+    if (lattice) return lattice;
+    const lx = new Float64Array(length);
+    const ly = new Float64Array(length);
+    for (let at = 0; at < length; at++) {
+      lx[at] = Math.round(xs[at]! * ratio) / ratio;
+      ly[at] = Math.round(ys[at]! * ratio) / ratio;
+    }
+    return lattice = index(lx, ly);
+  }
+
+  return {
+    series, points,
+    // Count individual distance checks and rows visited while sampling tooltip refs, on both indexes.
+    get examined() { return examined; },
+    get cellsExamined() { return cellsExamined; },
+    /** Whether the last pick was answered on the device-pixel lattice. */
+    get usedLattice() { return usedLattice; },
+    pick(x: number, y: number): ScatterPick | null {
+      examined = 0;
+      cellsExamined = 0;
+      usedLattice = false;
+      if (!contains(plot, x, y)) return null;
+      if (exact) {
+        try {
+          return exact(x, y, budget);
+        } catch (error) {
+          if (error !== OVER_BUDGET) throw error;
+        }
+      }
+      usedLattice = true;
+      return latticeIndex()(x, y, Infinity);
     },
   };
 }

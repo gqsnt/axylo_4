@@ -112,6 +112,51 @@ it('bounds the retained typed-array backing after opening a million typed observ
   expect(bytes).toBeLessThanOrEqual(data.columns.x.byteLength + data.columns.y.byteLength);
 });
 
+it('keeps typed-column rows implicit through in-order appends and gives exact rows once the window slides', () => {
+  const size = 1_000;
+  const data = { columns: { x: Float64Array.from({ length: size }, (_, i) => i), y: Float64Array.from({ length: size }, (_, i) => i / 3) } };
+  const s = store('line', data);
+  for (let i = 0; i < 3; i++) s.prepareAppend([{ x: size + i, y: i }]).commit();
+  const frame = s.frame;
+  if (frame.shape !== 'aligned') throw new Error('Expected an aligned frame.');
+  // The contract's null row index means "slot i came from row i" (spec P7: no dense identity index).
+  expect(frame.series[0]!.row).toBeNull();
+  expect(frame.source.rowAt(size + 2)).toEqual({ x: size + 2, y: 2 });
+  s.prepareAppend([{ x: size + 3, y: 3 }], { keep: 4 }).commit();
+  const slid = s.frame;
+  if (slid.shape !== 'aligned') throw new Error('Expected an aligned frame.');
+  expect([...slid.x.values]).toEqual([size, size + 1, size + 2, size + 3]);
+  expect([...slid.series[0]!.row!]).toEqual([size, size + 1, size + 2, size + 3]);
+  for (let i = 0; i < 4; i++) expect(slid.source.rowAt(slid.series[0]!.row![i]!)).toEqual({ x: size + i, y: i });
+});
+
+it('reports owned bytes that match the retained buffers and leave out the caller\'s columns', async () => {
+  const size = 200_000;
+  const x = Float64Array.from({ length: size }, (_, i) => i);
+  const y = Float64Array.from({ length: size }, (_, i) => i / 3);
+  const collect = requireCollection();
+  async function arrayBuffers() {
+    await new Promise<void>(resolve => setImmediate(resolve));
+    collect();
+    collect();
+    return process.memoryUsage().arrayBuffers;
+  }
+  const baseline = await arrayBuffers();
+  for (const kind of types) {
+    const data = { columns: { x, y, label: Array.from(x, String) } };
+    const s = store(kind, data);
+    s.prepareAppend([row(size)]).commit();
+    const retained = await arrayBuffers() - baseline;
+    const owned = s.ownedBytes();
+    expect(owned.total).toBe(owned.buffers.reduce((sum, entry) => sum + entry.bytes, 0));
+    expect(owned.buffers.every(entry => entry.bytes > 0 && entry.buffers > 0 && entry.name.length > 0)).toBe(true);
+    // Everything the store keeps alive beyond the caller's columns is counted, and nothing else
+    // (the caller's x and y are 3.2 MB, so counting them would miss by far more than the slack).
+    expect(Math.abs(retained - owned.total)).toBeLessThan(64 * 1024);
+    void s.frame;
+  }
+});
+
 for (const kind of types) {
   it(`${kind} releases abandoned preview rows when their source first finds them dead`, async () => {
     function setup() {

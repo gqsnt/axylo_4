@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { DiagnosticInput } from '../../src/core/contracts';
-import { AlignedStore, validateOptions } from '../../src/data';
+import { AlignedStore, resolveOptions, validateOptions } from '../../src/data';
 import { createDiagnostic, DiagnosticCollector, diagnosticRegistry, readerDisclosure, type DiagnosticCode } from '../../src/diagnostics';
 import { aligned, check, utc, version } from '../data/helpers';
+import { record } from '../core/host';
 
 function expectDiagnostic(
   diagnostic: DiagnosticInput | undefined,
@@ -205,4 +206,75 @@ it('does not suggest far-off names or a field name already present in the data',
   const diagnostics = line([{ day: 1, value: 2, x: 1 }], { x: { field: 9 }, qqqqqqqqqqqq: true });
   expect(diagnostics).toHaveLength(2);
   expect(diagnostics.every(diagnostic => !diagnostic.message.includes('Did you mean'))).toBe(true);
+});
+
+describe('AX199 is true both for a defect and for author code that throws while the chart is built', () => {
+  it('names both causes and keeps its level and outcome', () => {
+    const diagnostic = createDiagnostic('AX199', 'chart-error', {}, 'presentation');
+    expect(diagnostic.level).toBe('error');
+    expect(diagnostic.message).toMatch(/^Axylo failed while building this chart/);
+    expect(diagnostic.message).toMatch(/your code \(a row getter, a callback\), fix it there/);
+    expect(diagnostic.message).toMatch(/otherwise it is a defect in Axylo: please report it/);
+    expect(diagnostic.message).not.toMatch(/not in your data/);
+    expect(diagnostic.message).toMatch(/The chart shows its error state\.$/);
+  });
+
+  it('is what a row getter that throws during reading produces', () => {
+    const rows = [{ x: 1, y: 1 }, { x: 2, get y(): number { throw new Error('getter failed'); } }];
+    const r = record('line', { title: 'T', data: rows, x: 'x', y: 'y' }, { console: false });
+    r.frames();
+    const ax199 = r.controller.handle.diagnostics.find(d => d.code === 'AX199');
+    expect(ax199?.message).toMatch(/fix it there/);
+  });
+});
+
+describe('AX143 suggests horizontal bars only for vertical bars with category labels, end to end', () => {
+  const labels = Array.from({ length: 40 }, (_, i) => `A long category label ${i}`);
+  function ax143(kind: 'bar' | 'line' | 'area', data: readonly object[], extra: Record<string, unknown> = {}) {
+    const r = record(kind, { title: 'L', data, x: 'x', y: 'y', ...extra }, { container: { width: 300, height: 240 } });
+    r.frames();
+    return r.controller.handle.diagnostics.find(d => d.code === 'AX143')?.message ?? null;
+  }
+  const categories = labels.map((x, y) => ({ x, y }));
+  it('vertical category bars: suggested', () => {
+    expect(ax143('bar', categories)).toMatch(/try horizontal bars \(horizontal: true\)/);
+  });
+  it.each([
+    ['horizontal category bars', 'bar', categories, { horizontal: true }],
+    ['category line', 'line', categories, {}],
+    ['category area', 'area', categories, {}],
+  ] as const)('%s: the general advice without the suggestion', (_, kind, data, extra) => {
+    expect(ax143(kind, data, extra)).toMatch(/could not fit\. Give the plot more room or shorten the labels\. The chart/);
+    expect(ax143(kind, data, extra)).not.toMatch(/horizontal/);
+  });
+  it('date bars: never the suggestion (their labels thin instead of hiding)', () => {
+    const days = Array.from({ length: 400 }, (_, i) => ({ x: new Date(Date.UTC(2020, 0, 1 + i)).toISOString().slice(0, 10), y: i }));
+    const message = ax143('bar', days);
+    if (message !== null) expect(message).not.toMatch(/horizontal/);
+  });
+});
+
+describe('AX150 for every supplied tick format that labels nothing (finding 13)', () => {
+  const data = [{ day: 1, a: 2, b: 3 }];
+  const tickFormat = () => 'tick';
+  function reported(type: 'line' | 'area' | 'bar' | 'donut', options: Record<string, unknown>) {
+    const sink = new DiagnosticCollector();
+    resolveOptions(type, { data, ...options }, sink);
+    return sink.inputs().filter(d => d.code === 'AX150').map(d => [d.field, d.message]);
+  }
+  const compactly = expect.stringContaining('Compact charts draw no axis ticks.');
+  it.each(['line', 'area', 'bar'] as const)('compact %s: x and every y field', type => {
+    expect(reported(type, {
+      compact: true, x: { field: 'day', tickFormat }, y: [{ field: 'a', tickFormat }, { field: 'b', tickFormat }],
+    })).toEqual([['x.tickFormat', compactly], ['y[0].tickFormat', compactly], ['y[1].tickFormat', compactly]]);
+  });
+  it('a full wide chart: only the fields past the first, whose axis is labelled by y[0]', () => {
+    expect(reported('line', { x: { field: 'day', tickFormat }, y: [{ field: 'a', tickFormat }, { field: 'b', tickFormat }] }))
+      .toEqual([['y[1].tickFormat', expect.stringContaining('labelled by y[0].tickFormat')]]);
+    expect(reported('line', { x: 'day', y: [{ field: 'a', tickFormat }, 'b'] })).toEqual([]);
+  });
+  it('a donut, which has no axis', () => {
+    expect(reported('donut', { label: 'day', value: { field: 'a', tickFormat } }))
+      .toEqual([['value.tickFormat', expect.stringContaining('Donut charts draw no axis ticks.')]]);
+  });
 });

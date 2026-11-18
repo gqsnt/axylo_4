@@ -2,7 +2,7 @@ import { SLOT_VALUE } from '../core/contracts';
 import type { DatumRef, DatumText, Formatters, Lookup, ScatterView } from '../core/contracts';
 import { contains, pointBox, scatterPosition, type PlotLayout } from './geometry';
 import { pointOrder, type PointIndex } from './point-order';
-import { POINT_LIMIT, scatterGrid } from './scatter-grid';
+import { POINT_LIMIT, scatterGrid, type GridOptions } from './scatter-grid';
 import { lowerBound, upperBound, pageDistance } from './search';
 
 interface ScatterWork {
@@ -13,7 +13,8 @@ interface ScatterWork {
 
 export function scatterLookup(
   view: ScatterView, layout: PlotLayout | null, formatters: Formatters, work?: ScatterWork, devicePixelRatio = 1,
-): Lookup & { readonly lastPickCandidates: number; readonly lastPickCells?: number } {
+  gridOptions?: GridOptions,
+): Lookup & { readonly lastPickCandidates: number; readonly lastPickCells?: number; readonly lastPickLattice: boolean } {
   const { series } = view.frame;
   const keys = new Map(series.map((entry, i) => [entry.key, i]));
   const locations = new WeakMap<DatumRef, PointIndex>();
@@ -24,7 +25,7 @@ export function scatterLookup(
   });
   const active = ranges.flatMap((range, s) => range.end > range.start ? [s] : []);
   const projection = layout?.projection.kind === 'xy' ? layout.projection : null;
-  const grid = layout && projection ? scatterGrid(view, { ...layout, projection }, order.count, devicePixelRatio) : null;
+  const grid = layout && projection ? scatterGrid(view, { ...layout, projection }, order.count, devicePixelRatio, gridOptions) : null;
 
   function ref(s: number, i: number): DatumRef {
     const entry = series[s]!;
@@ -211,5 +212,6 @@ export function scatterLookup(
     resolve,
     get lastPickCandidates() { return grid?.examined ?? 0; },
     get lastPickCells() { return grid?.cellsExamined ?? 0; },
+    get lastPickLattice() { return grid?.usedLattice ?? false; },
   };
 }

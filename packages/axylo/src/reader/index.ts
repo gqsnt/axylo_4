@@ -106,6 +106,26 @@ function joinSentences(sentences: readonly (readonly TextRun[])[]): TextRun[] {
 
 type ChartText = (input: ReaderInput, type: string, xLabel: string, yLabel: string, table: boolean) => string[];
 
+/** Names joined as a list in the chart's locale ("Visits and Signups"). */
+function listOf(names: readonly string[], locale: string | undefined): string {
+  if (names.length < 2) return names[0] ?? '';
+  try {
+    return new Intl.ListFormat(locale, { type: 'conjunction' }).format(names);
+  } catch {
+    return names.join(', ');
+  }
+}
+
+/**
+ * The value axis's name for a wide frame, which has no single y label: its series' labels (spec A1 names the
+ * chart and its y range by what is drawn, not by the first field's key).
+ */
+function wideLabel(view: View, locale: string | undefined, include: (s: number) => boolean): string | null {
+  if (view.kind === 'donut' || view.kind === 'scatter' || view.frame.yLabel) return null;
+  const labels = view.frame.series.flatMap((series, s) => series.drawable && include(s) ? [series.label] : []);
+  return labels.length ? listOf(labels, locale) : null;
+}
+
 /** What differs between frame shapes in the reader: the table and the summary's data sentences. */
 export interface ReaderParts {
   readonly table: TableBuilder;
@@ -137,6 +157,7 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table) => {
   let minSeries = 0;
   let maxSeries = 0;
   let seriesCount = 0;
+  const ranged: number[] = [];
   const entries: string[] = [];
   const undrawn: string[] = [];
   const { frame } = view;
@@ -163,6 +184,7 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table) => {
       xMax = Math.max(xMax, series.x[range.end - 1]!);
     }
     const stats = statistics(series.y, range, 'slot' in series ? series.slot : undefined);
+    if (Number.isFinite(stats.last)) ranged.push(s);
     if (stats.min < min) { min = stats.min; minSeries = s; }
     if (stats.max > max) { max = stats.max; maxSeries = s; }
     seriesCount++;
@@ -174,11 +196,19 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table) => {
 
   const zoneText = zone ? [fill(messages.timeZoneNote, { zone })] : [];
   if (!seriesCount || !Number.isFinite(xMin) || !Number.isFinite(xMax)) return [...undrawn, messages.empty, ...zoneText];
-  const range = Number.isFinite(min) && Number.isFinite(max)
+  // One range over series in different units would put one unit on one end and another on the other end:
+  // then each series' own sentence gives its range in its unit, and the chart's sentence has none.
+  const unitOf = (s: number) => {
+    const series = frame.series[s]!;
+    return 'unit' in series ? `${series.unit}\u0001${series.valueScale}` : '';
+  };
+  const oneUnit = ranged.every(s => unitOf(s) === unitOf(ranged[0]!));
+  const range = Number.isFinite(min) && Number.isFinite(max) && oneUnit
     ? { yMin: formatters.value(minSeries, min), yMax: formatters.value(maxSeries, max) } : null;
+  const rangeLabel = wideLabel(view, input.locale, s => ranged.includes(s)) ?? yLabel;
   return [
     fillChartSummary(messages.chartSummary, {
-      type, seriesCount: formatters.count(seriesCount), xLabel, xMin: formatters.x(xMin), xMax: formatters.x(xMax), yLabel,
+      type, seriesCount: formatters.count(seriesCount), xLabel, xMin: formatters.x(xMin), xMax: formatters.x(xMax), yLabel: rangeLabel,
     }, range),
     ...zoneText, ...entries, ...undrawn,
   ];
@@ -235,7 +265,7 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
   const type = messages[TYPE_MESSAGE[view.kind]];
   const xLabel = view.kind === 'donut' ? labels.category : view.frame.xLabel;
   const yLabel = view.kind === 'donut' ? view.frame.valueLabel
-    : view.kind === 'scatter' ? view.frame.yLabel : view.frame.yLabel || view.frame.series[0]?.field || labels.value;
+    : view.kind === 'scatter' ? view.frame.yLabel : view.frame.yLabel || wideLabel(view, input.locale, () => true) || labels.value;
   const titleText = typeof title === 'string' ? title : title?.text;
   if (!labelledBy && !titleText && input.diagnostics) report(input.diagnostics, 'AX140', 'none');
   const generated = fill(messages.chartName, { type, x: xLabel, y: yLabel });

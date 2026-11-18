@@ -1,3 +1,5 @@
+import type { ByteCount } from './store-bytes';
+
 // An inspected preparation can outlive the next one. It owns the spare slots it
 // wrote, so a competing writer must open a new buffer before reusing those indexes.
 export class BufferWindow {
@@ -120,13 +122,17 @@ export class Column<T extends NumericArray> {
 
   constructor(private readonly allocate: (size: number) => T, input: T) {
     this.range = new BufferWindow(0, input.length);
-    this.data = allocate(Math.max(16, 2 * input.length));
+    // The store opens on the first append to a static chart (spec P7 measures that copy): a large
+    // column gets a small tail. Later growth doubles the window.
+    this.data = allocate(input.length + Math.max(16, Math.min(Math.ceil(input.length / 8), 4096)));
     this.data.set(input);
   }
 
   view(): T {
     return this.data.subarray(this.range.start, this.range.end) as T;
   }
+
+  count(bytes: ByteCount, name: string): void { bytes.add(name, this.data); }
 
   fork(): Column<T> {
     return Object.assign(Object.create(Column.prototype) as Column<T>, this, { range: this.range.fork() });

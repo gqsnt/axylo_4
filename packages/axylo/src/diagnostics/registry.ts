@@ -151,7 +151,7 @@ export const diagnosticRegistry = {
     field(d) + ' has a custom formatter that threw' + rows(d) + '. Make the formatter handle every value of this field.',
   outcome: 'The default format is used for the affected value.' },
   AX199: { level: 'error', text: () =>
-    'Axylo failed while building this chart. This is a defect in Axylo, not in your data: please report it with the error printed above.',
+    'Axylo failed while building this chart: an error was thrown, printed above. If it comes from your code (a row getter, a callback), fix it there; otherwise it is a defect in Axylo: please report it with that error.',
   outcome: 'The chart shows its error state.' },
 } as const satisfies Record<Diagnostic['code'], Entry>;
 

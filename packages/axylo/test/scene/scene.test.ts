@@ -698,3 +698,48 @@ it('pads irregular bar endpoints by their own neighbour spacing and skips non-ov
   expect(zoomed.drawSlots[0]).toEqual({ start: 2, end: 2 });
   expect(marksOf(buildScene(zoomed, layout(zoomed), dpr).marks, 'rects')[0]!.xywh).toHaveLength(0);
 });
+
+describe('spec F9: at least 32 distinct combinations of colour and a non-colour cue before any repeats', () => {
+  const count = 32;
+  const keys = Array.from({ length: count }, (_, s) => `S${String(s).padStart(2, '0')}`);
+  // Every series has values at three x positions (one category for bars), so each draws every mark it has.
+  function rows(xs: readonly unknown[]) {
+    return keys.flatMap((s, i) => xs.map((x, j) => ({ x, y: 1 + ((i + j) % 5), s })));
+  }
+
+  // What tells one series from another in the scene: its palette colour (eight, spec A5) and whatever else
+  // its marks carry: a dash, a marker shape, a fill pattern.
+  function cueOf(marks: readonly Mark[], series: number): string {
+    const own = marks.filter(mark => 'series' in mark && mark.series === series && !(mark.type === 'rects' && mark.variant === 'missing'));
+    const colours = new Set<number>();
+    const parts: string[] = [];
+    for (const mark of own) {
+      const paint = mark.type === 'path' ? mark.stroke : 'fill' in mark ? mark.fill : null;
+      if (paint && typeof paint === 'object' && 'kind' in paint && paint.kind === 'series') colours.add(paint.index % 8);
+      if (mark.type === 'path') parts.push(`dash ${JSON.stringify(mark.dash.normal)}`);
+      if (mark.type === 'points') parts.push(`marker ${mark.shape}`);
+      if (mark.type === 'rects') parts.push(`pattern ${mark.pattern ?? 'none'}`);
+    }
+    expect(colours.size, `series ${series} has one colour`).toBe(1);
+    expect(parts.length, `series ${series} has marks`).toBeGreaterThan(0);
+    return [...colours, ...new Set(parts)].join(' ');
+  }
+
+  const cases = [
+    ['line', false], ['area', false], ['bar', false], ['line', true], ['area', true], ['bar', true],
+  ] as const;
+  it.each(cases)('%s (compact: %s)', (kind, compact) => {
+    const xs = kind === 'bar' ? ['only'] : [0, 1, 2];
+    const { view } = aligned({ x: 'x', y: 'y', series: 's', data: rows(xs) }, { kind, compact, valueDomain: [0, 10] });
+    const { marks } = buildScene(view, layout(view, clip, compact), dpr);
+    const cues = keys.map((_, s) => cueOf(marks, s));
+    expect(new Set(cues).size).toBe(count);
+  });
+
+  it('scatter', () => {
+    const { view } = scatter({ x: 'x', y: 'y', series: 's', data: rows([0, 1, 2]) }, { valueDomain: [0, 10] });
+    const { marks } = buildScene(view, layout(view), dpr);
+    const cues = keys.map((_, s) => cueOf(marks, s));
+    expect(new Set(cues).size).toBe(count);
+  });
+});
