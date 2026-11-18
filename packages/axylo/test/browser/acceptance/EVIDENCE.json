@@ -1683,19 +1683,43 @@
     "criterion": "I1",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 line: moving slowly from the datum straight onto the tooltip (across the reading axis, decision 0004) keeps the same datum on show all the way, and the pointer then rests on the tooltip; Escape closes it until another datum"
+    "title": "I1 line: the tooltip can itself be hovered (decision 0004 revision 2): moving straight from the datum onto the tooltip's rectangle, it stays for the same datum (same rows) and does not move; with the pointer inside it, it is still shown; Escape closes it until another datum"
   },
   {
     "criterion": "I1",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 line: neither the tooltip nor the readout ever covers a control, whether shown for the pointer or for the keyboard (decision 0004: the readout has reserved space)"
+    "title": "I1 line: a hovered tooltip is text, not controls (no button in Chrome's tree); a click on the plot pins it for that datum, its rows become buttons of at least 24 × 24 CSS px that select their series, and Escape dismisses it"
   },
   {
     "criterion": "I1",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 line: with ten series at one x the tooltip lists eight of the series by name and \"+2 more\"; in a narrow tile the fixed readout under the plot lists the same eight rows and \"+2 more\""
+    "title": "I1 line: a hovered tooltip never stalls picking: a fast sweep along the reading axis through the tooltip's rectangle shows a new datum at every step, and a click with the pointer over the tooltip selects the datum under the pointer"
+  },
+  {
+    "criterion": "I1",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 line: outside readout mode a tooltip never overlaps a control, shown for the pointer or for the keyboard"
+  },
+  {
+    "criterion": "I1",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 line: readout mode is decided by layout: with the plot 239 px wide (241 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+  },
+  {
+    "criterion": "I1",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 line: readout mode is decided by layout: with the plot 139 px high (141 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+  },
+  {
+    "criterion": "I1",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 line: with ten series at one x the tooltip lists eight of the series by name and \"+2 more\"; in readout mode the strip, on at most two lines, names the same series in the same order up to where it is cut and counts the rest in \"+N more\""
   },
   {
     "criterion": "I1",
@@ -1707,19 +1731,43 @@
     "criterion": "I1",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 area: moving slowly from the datum straight onto the tooltip (across the reading axis, decision 0004) keeps the same datum on show all the way, and the pointer then rests on the tooltip; Escape closes it until another datum"
+    "title": "I1 area: the tooltip can itself be hovered (decision 0004 revision 2): moving straight from the datum onto the tooltip's rectangle, it stays for the same datum (same rows) and does not move; with the pointer inside it, it is still shown; Escape closes it until another datum"
   },
   {
     "criterion": "I1",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 area: neither the tooltip nor the readout ever covers a control, whether shown for the pointer or for the keyboard (decision 0004: the readout has reserved space)"
+    "title": "I1 area: a hovered tooltip is text, not controls (no button in Chrome's tree); a click on the plot pins it for that datum, its rows become buttons of at least 24 × 24 CSS px that select their series, and Escape dismisses it"
   },
   {
     "criterion": "I1",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 area: with ten series at one x the tooltip lists eight of the series by name and \"+2 more\"; in a narrow tile the fixed readout under the plot lists the same eight rows and \"+2 more\""
+    "title": "I1 area: a hovered tooltip never stalls picking: a fast sweep along the reading axis through the tooltip's rectangle shows a new datum at every step, and a click with the pointer over the tooltip selects the datum under the pointer"
+  },
+  {
+    "criterion": "I1",
+    "type": "area",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 area: outside readout mode a tooltip never overlaps a control, shown for the pointer or for the keyboard"
+  },
+  {
+    "criterion": "I1",
+    "type": "area",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 area: readout mode is decided by layout: with the plot 239 px wide (241 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+  },
+  {
+    "criterion": "I1",
+    "type": "area",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 area: readout mode is decided by layout: with the plot 139 px high (141 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+  },
+  {
+    "criterion": "I1",
+    "type": "area",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 area: with ten series at one x the tooltip lists eight of the series by name and \"+2 more\"; in readout mode the strip, on at most two lines, names the same series in the same order up to where it is cut and counts the rest in \"+N more\""
   },
   {
     "criterion": "I1",
@@ -1731,19 +1779,43 @@
     "criterion": "I1",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 bar: moving slowly from the datum straight onto the tooltip (across the reading axis, decision 0004) keeps the same datum on show all the way, and the pointer then rests on the tooltip; Escape closes it until another datum"
+    "title": "I1 bar: the tooltip can itself be hovered (decision 0004 revision 2): moving straight from the datum onto the tooltip's rectangle, it stays for the same datum (same rows) and does not move; with the pointer inside it, it is still shown; Escape closes it until another datum"
   },
   {
     "criterion": "I1",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 bar: neither the tooltip nor the readout ever covers a control, whether shown for the pointer or for the keyboard (decision 0004: the readout has reserved space)"
+    "title": "I1 bar: a hovered tooltip is text, not controls (no button in Chrome's tree); a click on the plot pins it for that datum, its rows become buttons of at least 24 × 24 CSS px that select their series, and Escape dismisses it"
   },
   {
     "criterion": "I1",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 bar: with ten series at one x the tooltip lists eight of the series by name and \"+2 more\"; in a narrow tile the fixed readout under the plot lists the same eight rows and \"+2 more\""
+    "title": "I1 bar: a hovered tooltip never stalls picking: a fast sweep along the reading axis through the tooltip's rectangle shows a new datum at every step, and a click with the pointer over the tooltip selects the datum under the pointer"
+  },
+  {
+    "criterion": "I1",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 bar: outside readout mode a tooltip never overlaps a control, shown for the pointer or for the keyboard"
+  },
+  {
+    "criterion": "I1",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 bar: readout mode is decided by layout: with the plot 239 px wide (241 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+  },
+  {
+    "criterion": "I1",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 bar: readout mode is decided by layout: with the plot 139 px high (141 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+  },
+  {
+    "criterion": "I1",
+    "type": "bar",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 bar: with ten series at one x the tooltip lists eight of the series by name and \"+2 more\"; in readout mode the strip, on at most two lines, names the same series in the same order up to where it is cut and counts the rest in \"+N more\""
   },
   {
     "criterion": "I1",
@@ -1755,19 +1827,37 @@
     "criterion": "I1",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 scatter: moving slowly from the datum straight onto the tooltip (across the reading axis, decision 0004) keeps the same datum on show all the way, and the pointer then rests on the tooltip; Escape closes it until another datum"
+    "title": "I1 scatter: the tooltip can itself be hovered (decision 0004 revision 2): moving straight from the datum onto the tooltip's rectangle, it stays for the same datum (same rows) and does not move; with the pointer inside it, it is still shown; Escape closes it until another datum"
   },
   {
     "criterion": "I1",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 scatter: neither the tooltip nor the readout ever covers a control, whether shown for the pointer or for the keyboard (decision 0004: the readout has reserved space)"
+    "title": "I1 scatter: a hovered tooltip is text, not controls (no button in Chrome's tree); a click on the plot pins it for that datum, its rows become buttons of at least 24 × 24 CSS px that select their series, and Escape dismisses it"
   },
   {
     "criterion": "I1",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 scatter: with ten series on one coincident point the tooltip lists eight of the series by name and \"+2 more\"; in a narrow tile the fixed readout under the plot lists the same eight rows and \"+2 more\""
+    "title": "I1 scatter: outside readout mode a tooltip never overlaps a control, shown for the pointer or for the keyboard"
+  },
+  {
+    "criterion": "I1",
+    "type": "scatter",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 scatter: readout mode is decided by layout: with the plot 239 px wide (241 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+  },
+  {
+    "criterion": "I1",
+    "type": "scatter",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 scatter: readout mode is decided by layout: with the plot 139 px high (141 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+  },
+  {
+    "criterion": "I1",
+    "type": "scatter",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 scatter: with ten series on one coincident point the tooltip lists eight of the series by name and \"+2 more\"; in readout mode the strip, on at most two lines, names the same series in the same order up to where it is cut and counts the rest in \"+N more\""
   },
   {
     "criterion": "I1",
@@ -1779,13 +1869,31 @@
     "criterion": "I1",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 donut: moving slowly from the datum straight onto the tooltip (across the reading axis, decision 0004) keeps the same datum on show all the way, and the pointer then rests on the tooltip; Escape closes it until another datum"
+    "title": "I1 donut: the tooltip can itself be hovered (decision 0004 revision 2): moving straight from the datum onto the tooltip's rectangle, it stays for the same datum (same rows) and does not move; with the pointer inside it, it is still shown; Escape closes it until another datum"
   },
   {
     "criterion": "I1",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I1 donut: neither the tooltip nor the readout ever covers a control, whether shown for the pointer or for the keyboard (decision 0004: the readout has reserved space)"
+    "title": "I1 donut: a hovered tooltip is text, not controls (no button in Chrome's tree); a click on the plot pins it for that datum, its rows become buttons of at least 24 × 24 CSS px that select their series, and Escape dismisses it"
+  },
+  {
+    "criterion": "I1",
+    "type": "donut",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 donut: outside readout mode a tooltip never overlaps a control, shown for the pointer or for the keyboard"
+  },
+  {
+    "criterion": "I1",
+    "type": "donut",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 donut: readout mode is decided by layout: with the plot 239 px wide (241 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
+  },
+  {
+    "criterion": "I1",
+    "type": "donut",
+    "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+    "title": "I1 donut: readout mode is decided by layout: with the plot 139 px high (141 px: not), the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it"
   },
   {
     "criterion": "I1",
@@ -1983,7 +2091,7 @@
     "criterion": "I4",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I4 line: every control is at least 24 × 24 CSS px: toolbar, legend, table pager, jump field, and the selectable rows of a shown tooltip"
+    "title": "I4 line: every control is at least 24 × 24 CSS px: toolbar, legend, table pager, jump field, the rows of a pinned tooltip and the readout strip's entries for a pinned datum (hovered rows are text, decision 0004)"
   },
   {
     "criterion": "I4",
@@ -1995,7 +2103,7 @@
     "criterion": "I4",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I4 area: every control is at least 24 × 24 CSS px: toolbar, legend, table pager, jump field, and the selectable rows of a shown tooltip"
+    "title": "I4 area: every control is at least 24 × 24 CSS px: toolbar, legend, table pager, jump field, the rows of a pinned tooltip and the readout strip's entries for a pinned datum (hovered rows are text, decision 0004)"
   },
   {
     "criterion": "I4",
@@ -2007,7 +2115,7 @@
     "criterion": "I4",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I4 bar: every control is at least 24 × 24 CSS px: toolbar, legend, table pager, jump field, and the selectable rows of a shown tooltip"
+    "title": "I4 bar: every control is at least 24 × 24 CSS px: toolbar, legend, table pager, jump field, the rows of a pinned tooltip and the readout strip's entries for a pinned datum (hovered rows are text, decision 0004)"
   },
   {
     "criterion": "I4",
@@ -2019,7 +2127,7 @@
     "criterion": "I4",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I4 scatter: every control is at least 24 × 24 CSS px: toolbar, legend, table pager, jump field, and the selectable rows of a shown tooltip"
+    "title": "I4 scatter: every control is at least 24 × 24 CSS px: toolbar, legend, table pager, jump field, the rows of a pinned tooltip and the readout strip's entries for a pinned datum (hovered rows are text, decision 0004)"
   },
   {
     "criterion": "I4",
@@ -2031,7 +2139,7 @@
     "criterion": "I4",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-    "title": "I4 donut: every control is at least 24 × 24 CSS px: toolbar, legend, table pager, jump field, and the selectable rows of a shown tooltip"
+    "title": "I4 donut: every control is at least 24 × 24 CSS px: toolbar, legend, table pager, jump field, the rows of a pinned tooltip and the readout strip's entries for a pinned datum (hovered rows are text, decision 0004)"
   },
   {
     "criterion": "I4",
@@ -2781,61 +2889,61 @@
     "criterion": "L8",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 line: shrinking the container's width 1 px at a time, the plot is drawn while it is at least 120 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
+    "title": "L8 line: shrinking the container's width 1 px at a time, the plot is drawn while it is at least 120 px and the fallback starts when it would be less: the title, the summary's first sentence on at most two lines (cut only with an ellipsis), the full summary as the description, the table control, and AX142"
   },
   {
     "criterion": "L8",
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 line: shrinking the container's height 1 px at a time, the plot is drawn while it is at least 80 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
+    "title": "L8 line: shrinking the container's height 1 px at a time, the plot is drawn while it is at least 80 px and the fallback starts when it would be less: the title, the summary's first sentence on at most two lines (cut only with an ellipsis), the full summary as the description, the table control, and AX142"
   },
   {
     "criterion": "L8",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 area: shrinking the container's width 1 px at a time, the plot is drawn while it is at least 120 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
+    "title": "L8 area: shrinking the container's width 1 px at a time, the plot is drawn while it is at least 120 px and the fallback starts when it would be less: the title, the summary's first sentence on at most two lines (cut only with an ellipsis), the full summary as the description, the table control, and AX142"
   },
   {
     "criterion": "L8",
     "type": "area",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 area: shrinking the container's height 1 px at a time, the plot is drawn while it is at least 80 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
+    "title": "L8 area: shrinking the container's height 1 px at a time, the plot is drawn while it is at least 80 px and the fallback starts when it would be less: the title, the summary's first sentence on at most two lines (cut only with an ellipsis), the full summary as the description, the table control, and AX142"
   },
   {
     "criterion": "L8",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 bar: shrinking the container's width 1 px at a time, the plot is drawn while it is at least 120 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
+    "title": "L8 bar: shrinking the container's width 1 px at a time, the plot is drawn while it is at least 120 px and the fallback starts when it would be less: the title, the summary's first sentence on at most two lines (cut only with an ellipsis), the full summary as the description, the table control, and AX142"
   },
   {
     "criterion": "L8",
     "type": "bar",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 bar: shrinking the container's height 1 px at a time, the plot is drawn while it is at least 80 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
+    "title": "L8 bar: shrinking the container's height 1 px at a time, the plot is drawn while it is at least 80 px and the fallback starts when it would be less: the title, the summary's first sentence on at most two lines (cut only with an ellipsis), the full summary as the description, the table control, and AX142"
   },
   {
     "criterion": "L8",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 scatter: shrinking the container's width 1 px at a time, the plot is drawn while it is at least 120 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
+    "title": "L8 scatter: shrinking the container's width 1 px at a time, the plot is drawn while it is at least 120 px and the fallback starts when it would be less: the title, the summary's first sentence on at most two lines (cut only with an ellipsis), the full summary as the description, the table control, and AX142"
   },
   {
     "criterion": "L8",
     "type": "scatter",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 scatter: shrinking the container's height 1 px at a time, the plot is drawn while it is at least 80 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
+    "title": "L8 scatter: shrinking the container's height 1 px at a time, the plot is drawn while it is at least 80 px and the fallback starts when it would be less: the title, the summary's first sentence on at most two lines (cut only with an ellipsis), the full summary as the description, the table control, and AX142"
   },
   {
     "criterion": "L8",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 donut: shrinking the container's width 1 px at a time, the plot is drawn while it is at least 120 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
+    "title": "L8 donut: shrinking the container's width 1 px at a time, the plot is drawn while it is at least 120 px and the fallback starts when it would be less: the title, the summary's first sentence on at most two lines (cut only with an ellipsis), the full summary as the description, the table control, and AX142"
   },
   {
     "criterion": "L8",
     "type": "donut",
     "file": "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
-    "title": "L8 donut: shrinking the container's height 1 px at a time, the plot is drawn while it is at least 80 px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142"
+    "title": "L8 donut: shrinking the container's height 1 px at a time, the plot is drawn while it is at least 80 px and the fallback starts when it would be less: the title, the summary's first sentence on at most two lines (cut only with an ellipsis), the full summary as the description, the table control, and AX142"
   },
   {
     "criterion": "A5",
@@ -2896,6 +3004,12 @@
     "type": "line",
     "file": "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
     "title": "T-reference-line: negative control: the reference check finds nothing once the line is removed, and a wrong colour once it is repainted"
+  },
+  {
+    "criterion": "I1",
+    "type": "line",
+    "file": "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
+    "title": "I1 line: negative control: the layout comparison flags a strip that takes room in the flow only while a datum is shown"
   },
   {
     "criterion": "T-dense-line",

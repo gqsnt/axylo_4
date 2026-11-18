@@ -317,8 +317,11 @@ const WHERE: Record<keyof Messages, readonly ChartType[] | string> = {
   referenceLine: ['line', 'area', 'bar', 'scatter'], referenceBand: ['line', 'area', 'bar', 'scatter'],
   plotRole: ['line', 'area', 'bar', 'scatter', 'donut'], pointAll: ['line', 'area', 'bar'], seriesValue: ['line', 'area', 'bar'],
   position: ['line', 'area', 'bar', 'donut'], total: ['area', 'bar'], panLeft: ['line', 'area', 'scatter'], panRight: ['line', 'area', 'scatter'],
-  // Added to the contract in 93666f4 and not yet used by the library (pending on the core's implementation).
-  totalMixed: ['area', 'bar'], incompleteAt: ['area', 'bar'], incompleteCount: ['area', 'bar'],
+  // totalMixed: a mixed-sign stack's readout (spec F10). incompleteAt and incompleteCount are summary templates
+  // for charts that have no tooltip or table, the compact kinds (src/reader/index.ts uses them there); on full
+  // area and bar charts an incomplete stack is marked through incompleteStack in tooltip, table and value text.
+  // The compact scenario below exercises compact area and compact bar for them.
+  totalMixed: ['area', 'bar'], incompleteAt: ['compact'], incompleteCount: ['compact'],
   jumpNotFound: ['line', 'area', 'bar', 'scatter', 'donut'], plotInstructions: ['line', 'area', 'bar', 'scatter', 'donut'], seeTable: ['line', 'area', 'bar', 'scatter', 'donut'],
 };
 const KEYS = Object.keys(WHERE) as (keyof Messages)[];
@@ -363,6 +366,19 @@ async function exercise(page: Page, type: ChartType): Promise<string> {
     await fresh(fn, { data: type === 'compact' ? rows.filter(r => r.s === 'A') : rows, x: { field: 'x', type: 'time', timeZone: 'UTC' }, y: 'y', ...(type === 'compact' ? {} : { series: 's' }), ...compact, ...(type === 'compact' ? {} : { reference: [{ y: 1.5, label: 'Mid' }, { x: [T0 + DAY, T0 + 2 * DAY], label: 'Window' }] }), ...((type === 'area' || type === 'bar') ? (type === 'area' ? { stacked: true } : { layout: 'stacked' }) : {}) });
   }
   await take();
+  if (type === 'compact') {
+    // Compact area and compact bar, stacked with a missing component: the summary says the stacks are incomplete.
+    // One incomplete stack is named by position (incompleteAt); many are counted (incompleteCount,
+    // src/reader/index.ts: more than MAX_STACK_POSITIONS).
+    for (const kind of ['area', 'bar'] as const) {
+      for (const incomplete of [1, 12]) {
+        const xs = Array.from({ length: 14 }, (_, k) => `c${k}`);
+        const data = xs.flatMap((x, k) => [{ x, s: 'P', y: 1 + k }, ...(k > 0 && k <= incomplete ? [] : [{ x, s: 'Q', y: 2 }])]);
+        await fresh(kind, { compact: true, data, x: 'x', y: 'y', series: 's', ...(kind === 'area' ? { stacked: true } : { layout: 'stacked' }) });
+        await take();
+      }
+    }
+  }
   if (type !== 'compact') {
     // 2. Keyboard over the null and the missing row, tooltip on them, the table with a failed jump.
     await page.focus('#chart .axylo-proxy');
@@ -439,7 +455,8 @@ async function exercise(page: Page, type: ChartType): Promise<string> {
 describe('A10 built-in text', () => {
   for (const type of TYPES) {
     it(`A10 ${type}: every built-in string that a ${type} chart shows is replaced through messages: each applicable key's own sentinel reaches a reader surface, and no built-in English is left`, async () => {
-      const page = await devPage({ css: '#chart { height: 480px; }' });
+      // Room enough that the sentinel texts (each a key plus every placeholder) leave a plot to read.
+      const page = await devPage({ viewport: { width: 1200, height: 1100 }, css: '#chart { width: 1100px; height: 900px; }' });
       const text = await exercise(page, type);
       const missing = KEYS.filter(k => Array.isArray(WHERE[k]) && (WHERE[k] as readonly ChartType[]).includes(type) && !text.includes(sentinel(k)));
       expect(missing, 'keys whose replacement never reached a surface').toEqual([]);

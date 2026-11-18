@@ -7,7 +7,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { start, stop } from '../harness';
 import {
-  axOf, box, center, closePage, compareTable, covered, create, createRaw, devPage, modeColor, readTable, screenshot, settle, shapes, valueText,
+  axOf, box, center, closePage, compareTable, covered, create, createRaw, devPage, figureLayout, modeColor, readTable, screenshot, settle, shapes, valueText,
 } from './util';
 import { missingClauses, summaryClauses, tableOf } from './fixtures';
 import { controlCoverage, eight, markerClasses, paintedSeries, paletteProblems, referenceMarks, spikeColumn, strokeRuns, traceMotion } from './checks';
@@ -206,6 +206,24 @@ describe('negative controls', () => {
     expect(at).toEqual(modeColor(img, { x0: 0, y0: 0, x1: img.width, y1: img.height }).color);
     await page.evaluate(() => { for (const el of document.querySelectorAll('#chart svg.axylo-svg .axylo-scene *')) if (/--axylo-reference/.test((el as SVGElement).style.getPropertyValue('color'))) el.remove(); });
     expect(await referenceMarks(page)).toEqual([]);
+    expect(await closePage(page)).toEqual([]);
+  });
+
+  it('I1 line: negative control: the layout comparison flags a strip that takes room in the flow only while a datum is shown', async () => {
+    const page = await devPage();
+    await create(page, 'line');
+    const before = await figureLayout(page);
+    expect(await figureLayout(page)).toBe(before);
+    // A strip that appears in the flow with text, as an unreserved readout would.
+    await page.evaluate(() => {
+      const strip = document.createElement('div');
+      strip.className = 'unreserved-strip';
+      strip.style.cssText = 'height: 34px;';
+      strip.textContent = 'Mar 2, 2026: North 12 kWh; South 7 kWh';
+      const fig = document.querySelector('#chart figure')!;
+      fig.insertBefore(strip, fig.querySelector('.axylo-controls'));
+    });
+    expect(await figureLayout(page)).not.toBe(before);
     expect(await closePage(page)).toEqual([]);
   });
 

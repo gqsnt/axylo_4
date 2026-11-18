@@ -695,7 +695,7 @@ const plotDrawn = (page: Page) => page.evaluate(() => [...document.querySelector
 describe('L8 too small for a plot', () => {
   for (const type of FULL as Full[]) {
     for (const axis of ['width', 'height'] as const) {
-      it(`L8 ${type}: shrinking the container's ${axis} 1 px at a time, the plot is drawn while it is at least ${axis === 'width' ? 120 : 80} px and the fallback starts when it would be less: the title, a one-line summary that fits uncut, the table control, and AX142`, async () => {
+      it(`L8 ${type}: shrinking the container's ${axis} 1 px at a time, the plot is drawn while it is at least ${axis === 'width' ? 120 : 80} px and the fallback starts when it would be less: the title, the summary's first sentence on at most two lines (cut only with an ellipsis), the full summary as the description, the table control, and AX142`, async () => {
         const page = await devPage({ css: '#chart { width: 600px; height: 400px; }' });
         await create(page, type);
         // From a size with a plot, 1 px steps down until it gives way.
@@ -717,12 +717,25 @@ describe('L8 too small for a plot', () => {
         expect(codes).toEqual(['hint']);
         expect(await page.locator('#chart .axylo-title').isVisible()).toBe(true);
         expect(await page.locator('#chart button', { hasText: 'View as table' }).isVisible()).toBe(true);
+        // Spec L8 (as amended): a short summary, the first sentence of the generated summary, on at most two
+        // lines, cut with an ellipsis beyond that (never clipped by overflow); the full summary stays the
+        // figure's description.
         const summary = page.locator('#chart .axylo-summary');
         expect(await summary.isVisible()).toBe(true);
-        const s = await summary.evaluate(el => { const c = getComputedStyle(el); return { text: el.textContent ?? '', lines: Math.round(el.getBoundingClientRect().height / parseFloat(c.lineHeight)), cut: el.scrollWidth > el.clientWidth + 0.5 }; });
-        expect(s.lines, `"${s.text}"`).toBeLessThanOrEqual(1);
-        expect(s.cut, `"${s.text}" does not fit its line`).toBe(false);
+        const s = await summary.evaluate(el => {
+          const c = getComputedStyle(el);
+          const cut = el.scrollHeight > el.clientHeight + 0.5 || el.scrollWidth > el.clientWidth + 0.5;
+          const ellipsis = c.textOverflow === 'ellipsis' || (c.webkitLineClamp !== 'none' && c.webkitLineClamp !== '' && c.webkitLineClamp !== undefined);
+          return { text: el.textContent ?? '', lines: Math.round(el.getBoundingClientRect().height / parseFloat(c.lineHeight)), cut, ellipsis };
+        });
+        expect(s.lines, `"${s.text}"`).toBeLessThanOrEqual(2);
+        if (s.cut) expect(s.ellipsis, `"${s.text}" is cut, so with an ellipsis`).toBe(true);
         expect(s.text).toMatch(new RegExp(`^${{ line: 'Line', area: 'Area', bar: 'Bar', scatter: 'Scatter', donut: 'Donut' }[type]} chart`));
+        // Its first sentence only, and the full summary is what the figure's description carries.
+        const description = (await axOf(page, '#chart figure')).description;
+        const first = description.split(/(?<=\.)\s+/)[0]!;
+        expect(s.text.trim()).toBe(first);
+        expect(description.split(/(?<=\.)\s+/).length, 'the description holds the full summary').toBeGreaterThan(1);
         expect((await axOf(page, '#chart figure')).name).not.toBe('');
         expect(await closePage(page)).toEqual([]);
       });

@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
 import { start, stop } from '../harness';
 import {
-  axWithin, box, call, center, closePage, compareTable, covered, create, createRaw, devPage, inside, plotGeometry, readRange, readTable, ring, screenshot, settle, shapes, valueText, type Box,
+  axWithin, box, call, center, closePage, compareTable, covered, create, createRaw, devPage, figureLayout, inside, plotGeometry, readRange, readTable, ring, screenshot, settle, shapes, valueText, type Box,
 } from './util';
 import { calendar, CARTESIAN, ENERGY, FULL, inOrder, LATENCY, share, SHIPPED, SPEND, tableOf, TYPES, withUnit, type ChartType } from './fixtures';
 import { traceMotion } from './checks';
@@ -83,6 +83,29 @@ async function frameClock(page: Page): Promise<void> {
   });
 }
 
+/**
+ * Resizes the chart's container along `axis` until its plot (the keyboard proxy's box) is `target` CSS px,
+ * ±0.5, by bisection between 40 and 1100 px (a container too small for a plot counts as too small); returns
+ * the plot size reached.
+ */
+async function plotTo(page: Page, axis: 'width' | 'height', target: number): Promise<number> {
+  const measure = async (size: number) => {
+    await page.evaluate(([a, s]) => { (document.querySelector('#chart') as HTMLElement).style[a as 'width' | 'height'] = `${s}px`; }, [axis, size] as const);
+    await settle(page);
+    const b = await page.locator('#chart .axylo-proxy').boundingBox();
+    return b && (await page.locator('#chart .axylo-proxy').isVisible()) ? b[axis] : 0;
+  };
+  let lo = 40, hi = 1100, got = 0;
+  for (let i = 0; i < 24; i++) {
+    const mid = Math.round(((lo + hi) / 2) * 4) / 4;
+    got = await measure(mid);
+    if (Math.abs(got - target) <= 0.5) return got;
+    if (got < target) lo = mid; else hi = mid;
+    if (hi - lo < 0.25) break;
+  }
+  return got;
+}
+
 describe('I1 tooltip under the pointer', () => {
   for (const type of FULL as Full[]) {
     it(`I1 ${type}: at 20 positions, the four edges included, what is there is shown by the type's picking rule within one frame of the move (95th percentile, counted in animation frames), inside the viewport, without covering the active mark`, async () => {
@@ -117,7 +140,7 @@ describe('I1 tooltip under the pointer', () => {
       expect(await closePage(page)).toEqual([]);
     });
 
-    it(`I1 ${type}: moving slowly from the datum straight onto the tooltip (across the reading axis, decision 0004) keeps the same datum on show all the way, and the pointer then rests on the tooltip; Escape closes it until another datum`, async () => {
+    it(`I1 ${type}: the tooltip can itself be hovered (decision 0004 revision 2): moving straight from the datum onto the tooltip's rectangle, it stays for the same datum (same rows) and does not move; with the pointer inside it, it is still shown; Escape closes it until another datum`, async () => {
       const page = await devPage();
       await create(page, type);
       const all = await probes(page, type);
@@ -126,22 +149,31 @@ describe('I1 tooltip under the pointer', () => {
       await page.mouse.move(first.x, first.y);
       await settle(page);
       expect(await tooltip(page).isVisible()).toBe(true);
-      const content = (await tooltip(page).textContent()) ?? '';
-      expect(says(content, first)).toBe(true);
-      const t = await box(page, '#chart .axylo-tooltip');
-      const target = center(t);
+      const rows = () => page.locator('#chart .axylo-tooltip .axylo-tooltip-row').allTextContents();
+      const startRows = await rows();
+      expect(says(startRows.join(' ') + ((await page.locator('#chart .axylo-tooltip .axylo-tooltip-title').textContent()) ?? ''), first) || says((await tooltip(page).textContent()) ?? '', first)).toBe(true);
+      const startBox = await box(page, '#chart .axylo-tooltip');
+      // Straight onto the rectangle: to its point nearest the datum, 2 px inside. On line, area and bar that is
+      // across the reading axis when the tooltip is above or below, so the datum cannot change on the way and
+      // every step is checked; on scatter and donut the datum is held only inside the rectangle (decision 0004,
+      // rule 3), so the tooltip is checked once the pointer is in it.
+      const target = { x: Math.min(startBox.x + startBox.width - 2, Math.max(startBox.x + 2, first.x)), y: Math.min(startBox.y + startBox.height - 2, Math.max(startBox.y + 2, first.y)) };
+      const everyStep = type !== 'scatter' && type !== 'donut';
       const failures: string[] = [];
       for (let k = 1; k <= 24; k++) {
         await page.mouse.move(first.x + ((target.x - first.x) * k) / 24, first.y + ((target.y - first.y) * k) / 24);
         await settle(page);
+        const inRect = inside({ x: first.x + ((target.x - first.x) * k) / 24, y: first.y + ((target.y - first.y) * k) / 24, width: 0, height: 0 }, startBox, 0);
+        if (!everyStep && !inRect) continue;
         if (!(await tooltip(page).isVisible())) { failures.push(`step ${k}: the tooltip closed`); break; }
-        const now = (await tooltip(page).textContent()) ?? '';
-        if (now !== content) { failures.push(`step ${k}: content changed to "${now}"`); break; }
+        const now = await rows();
+        if (JSON.stringify(now) !== JSON.stringify(startRows)) { failures.push(`step ${k}: rows changed to ${JSON.stringify(now)}`); break; }
+        const b = await box(page, '#chart .axylo-tooltip');
+        if (Math.abs(b.x - startBox.x) > 0.5 || Math.abs(b.y - startBox.y) > 0.5 || Math.abs(b.width - startBox.width) > 0.5 || Math.abs(b.height - startBox.height) > 0.5) { failures.push(`step ${k}: the tooltip moved from ${JSON.stringify(startBox)} to ${JSON.stringify(b)}`); break; }
       }
       expect(failures).toEqual([]);
-      // Hit-testing at the pointer: the tooltip itself is under it (a pointer-transparent tooltip is not hoverable).
-      const hit = await page.evaluate(({ x, y }) => { const e = document.elementFromPoint(x, y); return { on: !!e?.closest('.axylo-tooltip'), what: e?.className ?? '', events: getComputedStyle(document.querySelector('#chart .axylo-tooltip')!).pointerEvents }; }, target);
-      expect(hit.on, `the pointer is on the tooltip (hit: ${hit.what}; pointer-events: ${hit.events})`).toBe(true);
+      const end = await box(page, '#chart .axylo-tooltip');
+      expect(inside({ ...target, width: 0, height: 0 }, end, 0), 'the pointer is inside the tooltip\'s rectangle').toBe(true);
       await page.keyboard.press('Escape');
       await settle(page);
       expect(await tooltip(page).isVisible()).toBe(false);
@@ -155,23 +187,105 @@ describe('I1 tooltip under the pointer', () => {
       expect(await closePage(page)).toEqual([]);
     });
 
-    it(`I1 ${type}: neither the tooltip nor the readout ever covers a control, whether shown for the pointer or for the keyboard (decision 0004: the readout has reserved space)`, async () => {
+    it(`I1 ${type}: a hovered tooltip is text, not controls (no button in Chrome's tree); a click on the plot pins it for that datum, its rows become buttons of at least 24 × 24 CSS px that select their series, and Escape dismisses it`, async () => {
+      const page = await devPage();
+      await create(page, type);
+      await page.evaluate(() => {
+        const w = window as unknown as { selected: string[]; charts: { on(e: string, f: (p: unknown) => void): void }[] };
+        w.selected = [];
+        w.charts[0]!.on('select', p => w.selected.push((p as { series: string }).series));
+      });
+      const probe = (await probes(page, type))[type === 'donut' ? 2 : type === 'scatter' ? 4 : 10]!;
+      await page.mouse.move(probe.x, probe.y);
+      await settle(page);
+      const buttonsIn = async () => (await axWithin(page, '#chart .axylo-tooltip').catch(() => [])).filter(n => n.role === 'button');
+      expect(await buttonsIn(), 'a hovered tooltip holds no buttons').toEqual([]);
+      await page.mouse.down();
+      await page.mouse.up();
+      await settle(page);
+      const pinned = page.locator('#chart .axylo-tooltip button, #chart .axylo-tooltip [role="button"]');
+      const n = await pinned.count();
+      expect(n, 'the pinned tooltip has a button per row').toBeGreaterThan(0);
+      const small: string[] = [];
+      for (const b of await pinned.all()) { const r = (await b.boundingBox())!; if (r.width < 24 || r.height < 24) small.push(`${await b.textContent()}: ${r.width.toFixed(1)}×${r.height.toFixed(1)}`); }
+      expect(small).toEqual([]);
+      const before = await page.evaluate(() => (window as unknown as { selected: string[] }).selected.length);
+      const last = pinned.nth(n - 1);
+      const name = ((await last.textContent()) ?? '').trim();
+      await last.click();
+      await settle(page);
+      const selected = await page.evaluate(() => (window as unknown as { selected: string[] }).selected);
+      expect(selected.length).toBe(before + 1);
+      expect(name.startsWith(selected.at(-1)!), `"${name}" selects "${selected.at(-1)}"`).toBe(true);
+      await page.keyboard.press('Escape');
+      await settle(page);
+      expect(await tooltip(page).isVisible()).toBe(false);
+      expect(await closePage(page)).toEqual([]);
+    });
+
+    if (type !== 'scatter' && type !== 'donut') {
+      it(`I1 ${type}: a hovered tooltip never stalls picking: a fast sweep along the reading axis through the tooltip's rectangle shows a new datum at every step, and a click with the pointer over the tooltip selects the datum under the pointer`, async () => {
+        const page = await devPage();
+        await create(page, type);
+        await page.evaluate(() => {
+          const w = window as unknown as { picked: unknown[]; charts: { on(e: string, f: (p: unknown) => void): void }[] };
+          w.picked = [];
+          w.charts[0]!.on('select', p => w.picked.push((p as { x: unknown }).x));
+        });
+        const xs = ((await shapes(page, '#chart', type === 'bar' ? 100000 : 14))[1] ?? []).map(s => center(s.box).x).sort((a, b) => a - b);
+        const labels = type === 'bar' ? SHIPPED.quarters : ENERGY.days.map(calendar);
+        await page.mouse.move(xs[2]!, (await box(page, '#chart .axylo-proxy')).y + 20);
+        await settle(page);
+        const t = await box(page, '#chart .axylo-tooltip');
+        const y = t.y + t.height / 2;
+        // One move per datum, at the tooltip's height, without intermediate moves: each lands on a new nearest x.
+        const shown: string[] = [];
+        for (const x of xs) {
+          await page.mouse.move(x, y, { steps: 1 });
+          await settle(page);
+          shown.push((await page.locator('#chart .axylo-tooltip .axylo-tooltip-title').textContent()) ?? '');
+        }
+        expect(shown).toEqual(labels);
+        // Back to the third datum, then a click at a point inside its tooltip: the click selects the datum under
+        // the pointer, the nearest x to the click point (which is the third one when the tooltip spans its x).
+        await page.mouse.move(0, 0);
+        await page.mouse.move(xs[2]!, (await box(page, '#chart .axylo-proxy')).y + 20);
+        await settle(page);
+        const over = await box(page, '#chart .axylo-tooltip');
+        const click = { x: Math.min(over.x + over.width - 2, Math.max(over.x + 2, xs[2]!)), y: over.y + over.height / 2 };
+        const nearest = xs.map(x => Math.abs(x - click.x)).indexOf(Math.min(...xs.map(x => Math.abs(x - click.x))));
+        await page.mouse.move(click.x, click.y);
+        await settle(page);
+        if (nearest === 2) expect(inside({ ...click, width: 0, height: 0 }, await box(page, '#chart .axylo-tooltip'), 0), 'the pointer is over the tooltip').toBe(true);
+        await page.mouse.down();
+        await page.mouse.up();
+        await settle(page);
+        const picked = await page.evaluate(() => (window as unknown as { picked: unknown[] }).picked);
+        expect(picked).toHaveLength(1);
+        expect(picked[0]).toBe(type === 'bar' ? SHIPPED.quarters[nearest] : ENERGY.days[nearest]);
+        expect(await closePage(page)).toEqual([]);
+      });
+    }
+
+    it(`I1 ${type}: outside readout mode a tooltip never overlaps a control, shown for the pointer or for the keyboard`, async () => {
       const failures: string[] = [];
-      for (const css of ['', '#chart { width: 300px; height: 260px; }']) {
+      for (const css of ['', '#chart { width: 420px; height: 320px; }']) {
         const page = await devPage({ css });
         await create(page, type);
+        const plot = await box(page, '#chart .axylo-proxy');
+        expect(plot.width >= 240 && plot.height >= 140, `${css || 'default'}: not in readout mode`).toBe(true);
         const controls = async () => {
           const out: Box[] = [];
-          for (const b of await page.locator('#chart button, #chart .axylo-legend-list li').all()) if (await b.isVisible()) out.push((await b.boundingBox())!);
+          for (const b of await page.locator('#chart button, #chart .axylo-legend-list li, #chart input:not(.axylo-proxy)').all()) if (await b.isVisible()) out.push((await b.boundingBox())!);
           return out;
         };
         const check = async (how: string) => {
-          for (const sel of ['#chart .axylo-tooltip', '#chart .axylo-readout']) {
-            if (!(await page.locator(sel).isVisible())) continue;
-            for (const c of covered(await box(page, sel), await controls())) failures.push(`${css || 'default'} ${how}: ${sel} covers a control at ${Math.round(c.x)},${Math.round(c.y)}`);
-          }
+          if (!(await tooltip(page).isVisible())) return;
+          for (const c of covered(await box(page, '#chart .axylo-tooltip'), await controls())) failures.push(`${css || 'default'} ${how}: the tooltip covers a control at ${Math.round(c.x)},${Math.round(c.y)}`);
         };
-        for (const probe of (await probes(page, type)).filter((_, i) => i % 4 === 0)) {
+        for (const probe of (await probes(page, type)).filter((_, i) => i % 2 === 0)) {
+          await page.mouse.move(0, 0);
+          await settle(page);
           await page.mouse.move(probe.x, probe.y);
           await settle(page);
           await check('pointer');
@@ -185,42 +299,91 @@ describe('I1 tooltip under the pointer', () => {
       expect(failures).toEqual([]);
     });
 
+    for (const axis of ['width', 'height'] as const) {
+      it(`I1 ${type}: readout mode is decided by layout: with the plot ${axis === 'width' ? '239 px wide (241 px: not)' : '139 px high (141 px: not)'}, the content is written into a strip reserved under the plot instead of a floating tooltip; showing or hiding a datum moves nothing; the strip covers nothing and nothing covers it`, async () => {
+        const page = await devPage({ viewport: { width: 1000, height: 900 } });
+        await create(page, type);
+        const limit = axis === 'width' ? 240 : 140;
+        for (const [target, readout] of [[limit + 1, false], [limit - 1, true]] as const) {
+          const got = await plotTo(page, axis, target);
+          // On the intended side of the limit: above it within 1.5 px; below it as close as the layout allows
+          // (the reserved strip itself takes height, so a plot just under 140 px may not exist).
+          expect(readout ? got > 0 && got < limit : got >= limit && got <= limit + 1.5, `plot ${axis} reached ${got}`).toBe(true);
+          const layout = () => figureLayout(page);
+          await page.mouse.move(0, 0);
+          await settle(page);
+          const hidden = await layout();
+          const p = (await probes(page, type))[type === 'donut' ? 2 : type === 'scatter' ? 4 : 10]!;
+          await page.mouse.move(p.x, p.y);
+          await settle(page);
+          const strip = page.locator('#chart .axylo-readout');
+          if (readout) {
+            expect(await tooltip(page).isVisible(), `${target} px: no floating tooltip in readout mode`).toBe(false);
+            expect(await strip.isVisible(), `${target} px: the strip shows the datum`).toBe(true);
+            expect(says((await strip.textContent()) ?? '', p), `${target} px: strip text`).toBe(true);
+            const s = await box(page, '#chart .axylo-readout');
+            const plotBox = await box(page, '#chart .axylo-plot');
+            expect(s.y, 'under the plot').toBeGreaterThanOrEqual(plotBox.y + plotBox.height - 0.5);
+            const lines = await strip.evaluate(el => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)));
+            expect(lines).toBeLessThanOrEqual(2);
+            // Covers nothing and is covered by nothing: no other visible element of the figure intersects it, and
+            // what is at its centre is the strip.
+            const others: Box[] = [];
+            for (const e of await page.locator('#chart button, #chart .axylo-legend-list li, #chart .axylo-note, #chart .axylo-plot').all()) if (await e.isVisible()) others.push((await e.boundingBox())!);
+            expect(covered(s, others).map(o => `${Math.round(o.x)},${Math.round(o.y)}`)).toEqual([]);
+            const atCentre = await page.evaluate(({ x, y }) => !!document.elementFromPoint(x, y)?.closest('.axylo-readout'), center(s));
+            expect(atCentre).toBe(true);
+          } else {
+            expect(await tooltip(page).isVisible(), `${target} px: a floating tooltip`).toBe(true);
+          }
+          expect(await layout(), `${target} px: showing a datum moved the layout`).toBe(hidden);
+          await page.mouse.move(0, 0);
+          await settle(page);
+          expect(await layout(), `${target} px: hiding it moved the layout`).toBe(hidden);
+        }
+        expect(await closePage(page)).toEqual([]);
+      });
+    }
+
     if (type !== 'donut') {
-      it(`I1 ${type}: with ten series ${type === 'scatter' ? 'on one coincident point' : 'at one x'} the tooltip lists eight of the series by name and "+2 more"; in a narrow tile the fixed readout under the plot lists the same eight rows and "+2 more"`, async () => {
-        const page = await devPage();
-        // Long names, so eight rows make a tooltip wider than the room on either side of a narrow plot.
+      it(`I1 ${type}: with ten series ${type === 'scatter' ? 'on one coincident point' : 'at one x'} the tooltip lists eight of the series by name and "+2 more"; in readout mode the strip, on at most two lines, names the same series in the same order up to where it is cut and counts the rest in "+N more"`, async () => {
+        const page = await devPage({ viewport: { width: 1000, height: 1000 } });
         const names = Array.from({ length: 10 }, (_, i) => `Region number ${i + 1}`);
         const data = type === 'scatter'
           ? names.map(s => ({ x: 5, y: 5, s })).concat([{ x: 1, y: 1, s: names[0]! }, { x: 9, y: 9, s: names[0]! }])
           : names.flatMap((s, i) => ['A', 'B', 'C'].map((x, k) => ({ x, s, y: 10 + i + k })));
         await createRaw(page, type, { title: 'Ten', data, x: 'x', y: 'y', series: 's' });
-        const rows = async (surface: string) => page.locator(`${surface} .axylo-tooltip-row:not(.axylo-tooltip-total) .axylo-tooltip-series`).allTextContents();
         const p = await box(page, '#chart .axylo-proxy');
         await page.mouse.move(p.x + p.width / 2, p.y + p.height / 2);
         await settle(page);
         expect(await tooltip(page).isVisible()).toBe(true);
-        // Eight distinct series of the ten (spec I1 sets no order for the rows; I6 below compares both surfaces).
-        const shown = await rows('#chart .axylo-tooltip');
+        const shown = await page.locator('#chart .axylo-tooltip .axylo-tooltip-row:not(.axylo-tooltip-total) .axylo-tooltip-series').allTextContents();
         expect(shown).toHaveLength(8);
         expect(new Set(shown).size).toBe(8);
         expect(shown.every(n => names.includes(n))).toBe(true);
-        expect(((await tooltip(page).textContent()) ?? '')).toContain('+2 more');
-        // A 260 px tile in a 280 px viewport: no room beside the marks for these rows. Tall, so the ten legend
-        // entries still leave a readable plot (spec L8).
+        expect((await tooltip(page).textContent()) ?? '').toContain('+2 more');
         await page.mouse.move(0, 0);
-        await page.setViewportSize({ width: 280, height: 1000 });
-        await page.evaluate(() => Object.assign((document.querySelector('#chart') as HTMLElement).style, { width: '260px', height: '760px' }));
-        await settle(page);
+        // Tall, so the ten legend entries still leave a readable plot at that width (spec L8).
+        await page.evaluate(() => { (document.querySelector('#chart') as HTMLElement).style.height = '760px'; });
+        const got = await plotTo(page, 'width', 200);
+        expect(got).toBeLessThan(240);
+        expect(got).toBeGreaterThan(120);
         const q = await box(page, '#chart .axylo-proxy');
         await page.mouse.move(q.x + q.width / 2, q.y + q.height / 2);
         await settle(page);
-        const readout = page.locator('#chart .axylo-readout');
-        expect(await readout.isVisible()).toBe(true);
+        const strip = page.locator('#chart .axylo-readout');
+        expect(await strip.isVisible()).toBe(true);
         expect(await tooltip(page).isVisible()).toBe(false);
-        const plot = await box(page, '#chart .axylo-plot');
-        expect((await box(page, '#chart .axylo-readout')).y).toBeGreaterThanOrEqual(plot.y + plot.height - 1);
-        expect(await rows('#chart .axylo-readout'), 'the readout lists the same eight rows').toEqual(shown);
-        expect((await readout.textContent()) ?? '').toContain('+2 more');
+        const text = (await strip.textContent()) ?? '';
+        const inStrip = names.filter(n => new RegExp(`${n}(?!\\d)`).test(text)).sort((a, b) => text.indexOf(a) - text.indexOf(b));
+        expect(inStrip.length).toBeGreaterThan(0);
+        // In the tooltip's order, from its start.
+        expect(inStrip).toEqual(shown.slice(0, inStrip.length));
+        const more = /\+(\d+) more/.exec(text);
+        expect(more, 'the strip counts the rest').not.toBeNull();
+        expect(Number(more![1])).toBe(10 - inStrip.length);
+        const lines = await strip.evaluate(el => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)));
+        expect(lines).toBeLessThanOrEqual(2);
         expect(await closePage(page)).toEqual([]);
       });
     }
@@ -448,7 +611,7 @@ describe('I3 zoom four ways', () => {
 
 describe('I4 single pointer, touch and target size', () => {
   for (const type of FULL as Full[]) {
-    it(`I4 ${type}: every control is at least 24 × 24 CSS px: toolbar, legend, table pager, jump field, and the selectable rows of a shown tooltip`, async () => {
+    it(`I4 ${type}: every control is at least 24 × 24 CSS px: toolbar, legend, table pager, jump field, the rows of a pinned tooltip and the readout strip's entries for a pinned datum (hovered rows are text, decision 0004)`, async () => {
       const page = await devPage();
       await create(page, type);
       const small: string[] = [];
@@ -459,12 +622,30 @@ describe('I4 single pointer, touch and target size', () => {
           if (b.width < 24 || b.height < 24) small.push(`${(await el.textContent()) || (await el.getAttribute('class'))}: ${b.width.toFixed(1)}×${b.height.toFixed(1)}`);
         }
       };
+      // Hovered rows are text (decision 0004 revision 2); pinned rows are buttons, and so are the readout strip's
+      // entries for a pinned datum: those are measured.
       const p = (await probes(page, type))[type === 'donut' ? 2 : 10]!;
       await page.mouse.move(p.x, p.y);
       await settle(page);
-      expect(await page.locator('#chart .axylo-tooltip .axylo-tooltip-row, #chart .axylo-readout .axylo-tooltip-row').count()).toBeGreaterThan(0);
-      // The rows a pointer can select (src/dom/tooltip.ts marks them as choices) are controls too.
-      await measure('#chart .axylo-tooltip .axylo-tooltip-choice, #chart .axylo-readout .axylo-tooltip-choice');
+      await page.mouse.down();
+      await page.mouse.up();
+      await settle(page);
+      expect(await page.locator('#chart .axylo-tooltip button, #chart .axylo-tooltip [role="button"]').count(), 'pinned rows are buttons').toBeGreaterThan(0);
+      await measure('#chart .axylo-tooltip button, #chart .axylo-tooltip [role="button"]');
+      await page.keyboard.press('Escape');
+      await settle(page);
+      // Readout mode (plot narrower than 240 px): the strip's entries for a pinned datum.
+      await plotTo(page, 'width', 200);
+      const q = (await probes(page, type))[type === 'donut' ? 2 : 4]!;
+      await page.mouse.move(q.x, q.y);
+      await page.mouse.down();
+      await page.mouse.up();
+      await settle(page);
+      expect(await page.locator('#chart .axylo-readout button, #chart .axylo-readout [role="button"]').count(), 'pinned strip entries are buttons').toBeGreaterThan(0);
+      await measure('#chart .axylo-readout button, #chart .axylo-readout [role="button"]');
+      await page.keyboard.press('Escape');
+      await page.evaluate(() => { (document.querySelector('#chart') as HTMLElement).style.width = ''; });
+      await settle(page);
       await page.mouse.move(0, 0);
       // Streaming, so the Pause control is there too.
       await call(page, 'append', [more(type, 0)]);

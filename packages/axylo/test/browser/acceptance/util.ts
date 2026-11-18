@@ -601,3 +601,13 @@ export async function frames(page: Page, n = 1): Promise<void> {
 export function inkColorAt(img: Image, x: number, y: number): RGB {
   return modeColor(img, { x0: x - 1, y0: y - 1, x1: x + 2, y1: y + 2 }).color;
 }
+
+/**
+ * Where every part of the figure sits (caption, body, plot, controls, note, readout strip), the floating
+ * tooltip left out: equal strings mean nothing in the figure's flow moved.
+ */
+export async function figureLayout(page: Page, selector = '#chart'): Promise<string> {
+  return page.evaluate(selector => [...document.querySelectorAll(`${selector} figure > *, ${selector} .axylo-body > *`)]
+    .filter(e => !e.classList.contains('axylo-tooltip'))
+    .map(e => { const r = e.getBoundingClientRect(); return `${e.className}:${r.x.toFixed(1)},${r.y.toFixed(1)},${r.width.toFixed(1)},${r.height.toFixed(1)}`; }).join('|'), selector);
+}
