@@ -46,6 +46,14 @@ export const checks: Record<string, Check> = {
     await valueText(t, 0, ['Home'], 'Europe 310 ms', 'North America 405 ms');
   } },
   'area-incomplete': { charts: 1, run: t => valueText(t, 0, ['Home', 'ArrowRight', 'ArrowRight'], 'Mobile No data', 'incomplete') },
+  // Spec F10: a series with no row at an x is a missing part of the stack there. 2 March has both rows
+  // (120 + 300); 3 March has only the web row (120 + 5), so its total is incomplete.
+  'area-uneven': { charts: 1, run: async t => {
+    const first = await t.value(0, ['Home']);
+    has(first, 'Mar 2, 2026', 'Web 120', 'Call centre 300', 'Total 420');
+    expect(first).not.toContain('incomplete');
+    await valueText(t, 0, ['Home', 'ArrowRight'], 'Mar 3, 2026', 'Web 125', 'Total 125 (incomplete)');
+  } },
   'area-mixed': { charts: 1, run: t => valueText(t, 0, ['Home', 'ArrowRight'], 'Mar 9, 2026', 'Total 12 k USD and -7 k USD') },
   'area-stacked': { charts: 1, run: t => valueText(t, 0, ['Home'], `Direct ${n(45000)}`, `Organic search ${n(28621)}`, `Referral ${n(4752)}`, `Total ${n(78373)}`) },
   'bar-horizontal': { charts: 1, run: async t => {

@@ -422,7 +422,7 @@ function conformanceTables(ctx) {
     `<td><ul class="evidence">${c.verdict.map(v => `<li>Checker, ${escapeHtml(v.id)}: ${escapeHtml(v.text)}</li>`).join('')}${engines.map(engine =>
       `<li>${escapeHtml(engineName(engine))}: ${escapeHtml(c.engines[String(engine)])}</li>`).join('')}</ul>${tests(c)}</td>`,
   ]);
-  const table = htmlTable(['Success criterion', 'What Axylo does (the specification\'s rows that cite it)', 'Evidence at this revision'], rows, 'WCAG criteria the specification cites');
+  const table = `<p>Evidence is recorded per row of the specification, not per criterion: the results and the tests listed under a criterion are those of the specification rows that cite it, and not every one of them bears on that criterion.</p>${htmlTable(['Success criterion', 'What Axylo does (the specification\'s rows that cite it)', 'Evidence at this revision'], rows, 'WCAG criteria the specification cites')}`;
   const files = checker.files.length
     ? htmlTable(['Result file', 'Engine', 'Recorded at commit', 'Counted'], checker.files.map(f => [
       `<th scope="row"><code>${escapeHtml(f.file)}</code></th>`, `<td>${escapeHtml(engineName(f.engine))}</td>`,

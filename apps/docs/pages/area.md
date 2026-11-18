@@ -35,7 +35,7 @@ Not on an area chart: `layout` and `horizontal` (bars only), `label` and `value`
 | Keyboard | By x, then series, as on a line. |
 | Zoom | As on a line: date, time and number x; a category axis does not zoom. |
 | Baseline | The value axis always includes zero. |
-| Stacking | Positive values stack upwards from zero and negative values downwards, each on its own side, and the axis covers both. When every part at an x has the same sign, the total is their sum. When signs are mixed, the top edge is the sum of the positive parts and the bottom edge the sum of the negative parts, and the readout names both ("Total 12 k USD and -7 k USD" in the example below), not their difference. Adjacent bands are separated by at least 1 px of background, so they can be told apart without colour. |
+| Stacking | Positive values stack upwards from zero and negative values downwards, each on its own side, and the axis covers both. When every part at an x has the same sign, the total is their sum. When signs are mixed, the top edge is the sum of the positive parts and the bottom edge the sum of the negative parts, and the readout names both ("Total 12 k USD and -7 k USD" in the example below), not their difference. Adjacent bands are separated by at least 1 px of background, so they can be told apart without colour. A series with no value at an x makes that stack incomplete (below). |
 | Many points | Simplified as a line is, on the cumulative sums, so the drawn edges keep every column's extremes. Values come from the data. |
 | Many series | As on a line: from the ninth series, warning [AX130](diagnostics.md#ax130). |
 | Reference lines and bands | As on a line. |
@@ -46,6 +46,10 @@ Not on an area chart: `layout` and `horizontal` (bars only), `label` and `value`
 
 ## Edge case: a missing part of a stack
 
-When one series has no value at an x, its band there has zero height, so the bands above it do not fall into the gap. The total at that x is marked "incomplete" in the tooltip, the table and announcements, because it is not the whole.
+When one series has no value at an x, its band there has zero height, so the bands above it do not fall into the gap, and its line follows its band. The total at that x is marked "incomplete" in the tooltip, the table and announcements, because it is not the whole.
 
 [example: area-incomplete](../examples/area-incomplete.ts)
+
+"No value" means any reason: a `null`, a missing step Axylo infers, or a series that simply has no row at that x. A weekly series stacked with a daily one is therefore incomplete on the days between its rows, and its band and line drop to the band below there instead of being joined across: a stack never shows a total made of values the data does not contain. Outside a stack, the same weekly line is joined from row to row. To stack series with different steps, aggregate them to one step first.
+
+[example: area-uneven](../examples/area-uneven.ts)

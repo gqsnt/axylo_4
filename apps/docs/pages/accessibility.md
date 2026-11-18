@@ -69,6 +69,7 @@ Axylo can describe the data; only you know what it means.
 - **Units.** Set `unit` (and `label`) on value fields, so that "412" is "412 ms".
 - **Context.** `description` adds what the data cannot say ("The spike on 12 March was the payment provider outage.") to the generated summary. It never removes the time zone or the statement of values left out.
 - **The page's structure.** Headings, landmarks and the order of content around the chart are yours.
+- **A pause for streaming compact tiles.** A full chart fed by `append` has its own Pause control. A compact chart has no toolbar, so it has none: if your tiles stream, give the reader a control of your own that stops appending, and append what arrived meanwhile on resume (WCAG 2.2.2).
 - **Text in other languages.** Every message the chart shows the reader can be replaced through `messages`; see the [translated example](options.md#messages). Diagnostics for developers keep their English wording. When the page's language is not English, the built-in English text is marked `lang="en"`.
 
 [example: a11y-card](../examples/a11y-card.html)

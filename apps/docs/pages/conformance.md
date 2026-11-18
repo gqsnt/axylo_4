@@ -15,7 +15,7 @@ This page is generated each time the site is built, from the specification's cri
 
 ## What you must supply
 
-Axylo can only describe what it is given. A chart needs a meaningful name (`title`, or `labelledBy` pointing at your heading), series names, units on value fields, and the page's own structure around it. [Accessibility](accessibility.md#what-you-must-supply) has the details.
+Axylo can only describe what it is given. A chart needs a meaningful name (`title`, or `labelledBy` pointing at your heading), series names, units on value fields, and the page's own structure around it. A compact chart fed by `append` has no Pause control, since it has no toolbar: a page that streams into compact tiles must give the reader its own way to pause them (WCAG 2.2.2). [Accessibility](accessibility.md#what-you-must-supply) has the details.
 
 ## The criteria the specification cites
 
