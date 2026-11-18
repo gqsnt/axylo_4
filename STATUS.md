@@ -28,21 +28,24 @@ Observed model and effort are read from harness metadata (Codex session rollouts
 
 Finished and committed, each written by one provider and reviewed by the other: scales and formatting; layout and simplification; data layer, diagnostics and stores; renderers, text layer and theme; view and scene; lookup, reader and messages; chart core part 1 (review findings not yet fixed, see below); chart core part 2 (review running); benchmark harness and the M1 renderer measurements (not reviewed).
 
-| Running now | Who | Files |
+| Running now (2026-11-18, after commit 5064114) | Who | Files |
 |---|---|---|
-| Chart core fix pass: the 20 findings of `wp/core1.review.md`, on the new store API; SVG as default renderer; presentation fixes | Claude Opus 5.5 high | `src/core`, `src/dom`, `src/index.ts`, css structure section, `docs/api/examples.ts` |
-| Review of chart core part 2 | Codex gpt-6.2-astra xhigh, read-only | → `wp/core2.review.md` |
-| Infinite loop reached from the format tests (about 1 run in 3 hangs) | Claude Opus 5.5 high (the scales author, resumed) | `src/format`, `src/scale` |
-| React adapter | Claude Opus 5.5 high | `packages/react` |
-| Default palette, both schemes, to the A5 thresholds | Claude Opus 5.5 xhigh | `src/theme/palette.ts`, `research/palette`, `docs/decisions/0003-default-palette.md` |
+| Chart core fix pass: the 20 findings of `wp/core1.review.md`, on the new store API; SVG as default renderer; presentation fixes (agent a1d73b9f46c46814f) | Claude Opus 5.5 high | `src/core`, `src/dom`, `src/index.ts`, css structure section, `docs/api/examples.ts` |
+| Default palette, both schemes, to the A5 thresholds (agent abc842fd0288bc675) | Claude Opus 5.5 xhigh | `src/theme/palette.ts`, `research/palette`, `docs/decisions/0003-default-palette.md` |
+| Review of the React adapter (commit be123ee) | Codex gpt-6.2-astra xhigh, read-only | → `wp/react.review.md` |
+| Acceptance matrix as data plus checker | Codex gpt-6.2-sol xhigh | `acceptance/` → `wp/acceptance.report.md` |
+| Review of the benchmark harness and decision 0002 | Codex gpt-6.2-sol max, read-only | → `wp/bench.review.md` |
+
+Waiting for the fix pass: the 22 findings of `wp/core2.review.md` (4 blocking: paused appends break call order and validation; category eviction changes the focused datum; an empty zoom removes its own Reset; a focused slider keeps stale bounds). Same files, so not dispatched yet.
+
+Committed since the last checkpoint: React adapter (`packages/react`, Opus 5.5 high, 25 unit and 16 browser tests pass in the coordinator’s runs, not yet reviewed; React 18 untested); CI workflow `.github/workflows/ci.yml` (never run: no remote). The root type check fails while the core is mid-edit.
 
 Decisions recorded: `docs/decisions/0001-plot-interaction-pattern.md` (unrehearsed), `docs/decisions/0002-mark-renderer.md` (SVG by default, from `bench/results/m1-renderer-comparison.md`).
 
 Known open items carried forward:
-- `npm test` can hang in `packages/axylo/test/format` until the loop is fixed; run directories separately under `timeout`.
 - View/scene review finding 10 (stack rebuilt over the whole frame per revision) and lookup review finding 12 (dense coincident scatter pick) are deferred to performance work.
 - Performance: about 80 ms for 100,000 points against about 12 ms for uPlot; profiles put it in normalization through the streaming store and in garbage collection. The fix pass moves static charts to the borrowed path.
-- Not started: acceptance matrix as data, CI workflow files, documentation site, packed-distribution tests, size check against targets, scatter renderer measurement, React adapter review, benchmark harness review.
+- Not started: documentation site, packed-distribution tests, size check against targets, scatter renderer measurement, a dist build for `@axylo/react` (must define `__DEV__` and keep the `use client` banner).
 - `docs/api/axylo.d.ts` is superseded by the real package and is to be deleted once the examples point at it.
 
 ## Next action
