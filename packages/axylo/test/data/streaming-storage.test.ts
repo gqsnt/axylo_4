@@ -106,10 +106,11 @@ it('bounds the retained typed-array backing after opening a million typed observ
   expect(frame.series[0]!.y.at(-1)).toBe(size / 3);
   expect(frame.series[0]!.y.at(-2)).toBe((size - 1) / 3);
   expect(frame.source.rowAt(size - 1)).toEqual({ x: size - 1, y: (size - 1) / 3 });
-  // P7 permits one extra copy of the caller’s two columns (2 × 8 × 1,000,000).
-  // A fully materialized post-append frame already needs 17 × 1,000,001 bytes for
-  // exact x, exact y and slot states before counting any spare capacity or row indexes.
-  expect(bytes).toBeLessThanOrEqual(data.columns.x.byteLength + data.columns.y.byteLength);
+  // Spec P7: at most 1.1 × the caller’s two columns (2 × 8 × 1,000,000 bytes), so 17,600,000 here.
+  // The bound was 1 × until 2026-11-18. This test failed against it (17,069,760 bytes: exact x, exact y
+  // and one state byte per point are 17 bytes per point) and was kept failing until the owner chose
+  // between segmented columns and a 1.1 × budget; the owner chose 1.1 ×, and the spec changed with it.
+  expect(bytes).toBeLessThanOrEqual(1.1 * (data.columns.x.byteLength + data.columns.y.byteLength));
 });
 
 it('keeps typed-column rows implicit through in-order appends and gives exact rows once the window slides', () => {

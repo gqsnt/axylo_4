@@ -245,7 +245,7 @@ These numbers are provisional. They are design targets taken from Phase 1's orde
 | P5 | 24 `trend` charts created on one page, each tile 340 × 200 px | Total main-thread task time | Median of 20 | 200 ms | Not measured in Phase 1 |
 | P6 | Download | Minified and gzipped bytes, CSS included | Exact | DX7 | 01, section 1.4 |
 | P8 | 40 compact charts created on one page, each 160 × 48 px with one series | Total main-thread task time | Median of 20 | 80 ms | Not measured in Phase 1 |
-| P7 | Memory | Bytes owned by Axylo beyond the caller's columns for 1,000,000 points; heap trend over 1,000 create–destroy cycles | Measured after forced collection | At most 1× the size of the caller's two columns; no upward slope | Not measured in Phase 1 |
+| P7 | Memory | Bytes owned by Axylo beyond the caller's columns for 1,000,000 points; heap trend over 1,000 create–destroy cycles | Measured after forced collection | At most 1.1× the size of the caller's two columns; no upward slope. (1.1× since 2026-11-18, the owner's decision: once a chart opened on typed columns is appended to, exact x, exact y and one state byte per point are 17 bytes per point against the caller's 16, measured 17,069,760 bytes for 1,000,000 points. Staying under 1× would need segmented columns, a contract change that was not judged worth it for 1.0.) | Not measured in Phase 1 |
 
 Three rules hold whatever the numbers become:
 
