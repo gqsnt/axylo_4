@@ -1,0 +1,7 @@
+{
+  "name": "axylo-fixture-npm",
+  "private": true,
+  "type": "module",
+  "description": "A bundler application that installed the packed axylo tarball. scripts/pack.mjs unpacks it into node_modules; with a registry this would be `npm install ../../.packed/axylo-0.0.0.tgz`.",
+  "dependencies": { "axylo": "file:../../.packed/axylo-0.0.0.tgz" }
+}

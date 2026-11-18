@@ -36,6 +36,12 @@ jobs:
       - run: npx vitest run
         env:
           AXYLO_BROWSER: 1
+      # The packed tarballs, unpacked into clean fixtures.
+      - run: npx vitest run --config tests/dist/vitest.config.ts
+      - run: npx vitest run --config tests/dist/vitest.config.ts
+        env:
+          AXYLO_BROWSER: 1
+      # Reports sizes of the packed files. Add "-- --check" once the size targets gate CI.
       - run: npm run size
       - run: node --test bench/test/*.test.mjs
         shell: bash

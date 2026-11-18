@@ -1,0 +1,6 @@
+{
+  "name": "axylo-fixture-script",
+  "private": true,
+  "description": "A page that loads the script-tag files. The test serves node_modules/axylo/dist as the CDN would serve the published package; scripts/pack.mjs unpacks the tarball there.",
+  "dependencies": { "axylo": "file:../../.packed/axylo-0.0.0.tgz" }
+}

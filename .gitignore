@@ -1,5 +1,11 @@
 node_modules/
 dist/
+!/tests/dist/
+/tests/dist/.packed/
+/tests/dist/.out/
+/tests/dist/fixtures/*/node_modules/
+/tests/dist/fixtures/*/example/
+/tests/dist/fixtures/*/.out/
 *.tsbuildinfo
 .vite/
 coverage/

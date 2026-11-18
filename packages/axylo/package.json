@@ -4,8 +4,16 @@
   "description": "Everyday charts that are faithful to the data, readable everywhere and accessible by default.",
   "license": "MIT",
   "type": "module",
-  "sideEffects": false,
-  "files": ["dist"],
+  "sideEffects": ["*.css"],
+  "files": [
+    "dist/axylo.js",
+    "dist/axylo.dev.js",
+    "dist/axylo.iife.js",
+    "dist/axylo.iife.min.js",
+    "dist/axylo.css",
+    "dist/index.d.ts",
+    "dist/public.d.ts"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",

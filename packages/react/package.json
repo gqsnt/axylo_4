@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "sideEffects": false,
-  "files": ["dist"],
+  "files": ["dist/index.js", "dist/index.dev.js", "dist/index.d.ts"],
   "exports": { ".": { "types": "./dist/index.d.ts", "development": "./dist/index.dev.js", "default": "./dist/index.js" } },
   "peerDependencies": { "axylo": "0.0.0", "react": "^18.0.0 || ^19.0.0" }
 }

@@ -6,12 +6,14 @@
     "packages/*"
   ],
   "scripts": {
-    "typecheck": "tsc -p packages/axylo --noEmit && tsc -p docs/api && tsc -p packages/react",
+    "typecheck": "tsc -p packages/axylo --noEmit && tsc -p docs/api && tsc -p packages/react && tsc -p tests/dist",
     "test": "vitest run",
     "build": "node scripts/build.mjs",
     "size": "node scripts/size.mjs",
     "test:browser": "AXYLO_BROWSER=1 vitest run",
-    "check": "npm run typecheck && npm test && npm run build && npm run test:browser && npm run size"
+    "test:dist": "vitest run --config tests/dist/vitest.config.ts",
+    "test:dist:browser": "AXYLO_BROWSER=1 vitest run --config tests/dist/vitest.config.ts",
+    "check": "npm run typecheck && npm test && npm run build && npm run test:browser && npm run test:dist && npm run test:dist:browser && npm run size"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
