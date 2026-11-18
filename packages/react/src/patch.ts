@@ -19,6 +19,11 @@ const isContainerProp = (key: string): boolean => OWN.has(key) || key.startsWith
 
 const has = (o: object, key: PropertyKey): boolean => Object.hasOwn(o, key);
 
+/** Sets an own property without going through setters, so a key named `__proto__` stays a key. */
+const put = (o: Options, key: string, value: unknown): void => {
+  Object.defineProperty(o, key, { value, enumerable: true, writable: true, configurable: true });
+};
+
 /**
  * The options a set of props stands for. A given `onDiagnostic` is replaced by the component's own stable
  * forwarder, so a new handler function is not a change the chart needs to hear about.
@@ -26,7 +31,7 @@ const has = (o: object, key: PropertyKey): boolean => Object.hasOwn(o, key);
 export function optionsOf(props: Options, onDiagnostic: (diagnostic: Diagnostic) => void): Options {
   const options: Options = {};
   for (const key of Object.keys(props)) {
-    if (!isContainerProp(key)) options[key] = key === 'onDiagnostic' && props[key] ? onDiagnostic : props[key];
+    if (!isContainerProp(key)) put(options, key, key === 'onDiagnostic' && props[key] ? onDiagnostic : props[key]);
   }
   return options;
 }
@@ -44,57 +49,84 @@ export function diff(previous: Options, next: Options): Options | null {
     const a = has(previous, key) ? previous[key] : undefined;
     const b = has(next, key) ? next[key] : undefined;
     const same = has(previous, key) === has(next, key) && (key === 'data' ? a === b : equal(a, b));
-    if (!same) (patch ??= {})[key] = b;
+    if (!same) put(patch ??= {}, key, b);
   }
   return patch;
 }
 
 /**
  * Structural equality over plain objects (own keys, enumerable or not), arrays (holes count) and dates.
- * Functions, React elements, class instances and anything else by identity. Never throws: a cycle is
- * cut by the pairs already being compared, and a getter that throws makes the values unequal.
+ * Functions, React elements, class instances and anything else by identity. Never throws. A cycle is not an
+ * option shape: once one is found (an object met again inside itself) it is compared by identity, so two
+ * distinct cyclic values are a change. A getter that throws makes the values unequal.
  */
 export function equal(a: unknown, b: unknown): boolean {
   try {
-    return same(a, b, new Map());
+    return same(a, b, new Set(), new Set());
   } catch {
     return false;
   }
 }
 
-function same(a: unknown, b: unknown, open: Map<object, Set<object>>): boolean {
+function same(a: unknown, b: unknown, insideA: Set<object>, insideB: Set<object>): boolean {
   if (Object.is(a, b)) return true;
   if (!isObject(a) || !isObject(b)) return false;
   if (a instanceof Date || b instanceof Date) return a instanceof Date && b instanceof Date && Object.is(a.getTime(), b.getTime());
   const arrays = Array.isArray(a);
   if (arrays !== Array.isArray(b) || (!arrays && (!plain(a) || !plain(b)))) return false;
-  // A pair already under comparison further up: equal unless something else differs.
-  let seen = open.get(a);
-  if (seen?.has(b)) return true;
-  if (!seen) open.set(a, seen = new Set());
-  seen.add(b);
+  // Already being compared further up: a cycle, and these are not the same object.
+  if (insideA.has(a) || insideB.has(b)) return false;
+  insideA.add(a);
+  insideB.add(b);
+  let result: boolean;
   if (arrays) {
     const x = a as unknown as unknown[];
     const y = b as unknown as unknown[];
-    if (x.length !== y.length) return false;
-    for (let i = 0; i < x.length; i++) if ((i in x) !== (i in y) || !same(x[i], y[i], open)) return false;
-    return true;
+    result = x.length === y.length;
+    for (let i = 0; result && i < x.length; i++) result = has(x, i) === has(y, i) && same(x[i], y[i], insideA, insideB);
+  } else {
+    const keys = Reflect.ownKeys(a);
+    result = keys.length === Reflect.ownKeys(b).length && keys.every(k => has(b, k) && same(a[k as string], b[k as string], insideA, insideB));
   }
-  const keys = Reflect.ownKeys(a);
-  if (keys.length !== Reflect.ownKeys(b).length) return false;
-  return keys.every(k => has(b, k) && same(a[k as string], b[k as string], open));
+  insideA.delete(a);
+  insideB.delete(b);
+  return result;
+}
+
+/** The fields the options plot: what the memoization hint samples. */
+export function fieldsOf(options: Options): string[] {
+  const names: string[] = [];
+  const add = (spec: unknown): void => {
+    if (typeof spec === 'string') names.push(spec);
+    else if (Array.isArray(spec)) spec.forEach(add);
+    else if (isObject(spec) && typeof spec.field === 'string') names.push(spec.field);
+  };
+  for (const key of ['x', 'y', 'series', 'label', 'value']) if (has(options, key)) add(options[key]);
+  return names;
 }
 
 /**
- * Whether new data is probably the old data rebuilt, judged from a sample: same length and the same first
- * and last rows (or columns with the same length and endpoints). A cheap guess for a development hint,
- * never for behavior; the hint says that is all it checked.
+ * Whether new data is probably the old data rebuilt, judged from a sample of the plotted fields: same
+ * length and the same first and last values. A cheap guess for a development hint, never for behavior; the
+ * hint says that is all it checked. Best effort: a value that cannot be read means "not the same".
  */
-export function looksSame(a: unknown, b: unknown): boolean {
-  if (Array.isArray(a) && Array.isArray(b)) {
-    return a.length === b.length && shallow(a[0], b[0], scalar) && shallow(a[a.length - 1], b[b.length - 1], scalar);
+export function looksSame(a: unknown, b: unknown, fields: readonly string[]): boolean {
+  try {
+    if (Array.isArray(a) && Array.isArray(b)) {
+      const n = a.length;
+      return n === b.length && (n === 0 || fields.every(f => endpointsMatch(a[0], b[0], f) && endpointsMatch(a[n - 1], b[n - 1], f)));
+    }
+    if (!isObject(a) || !isObject(b) || !isObject(a.columns) || !isObject(b.columns)) return false;
+    const x = a.columns;
+    const y = b.columns;
+    return fields.every(f => column(x[f], y[f]));
+  } catch {
+    return false;
   }
-  return isObject(a) && isObject(b) && isObject(a.columns) && isObject(b.columns) && shallow(a.columns, b.columns, column);
+}
+
+function endpointsMatch(a: unknown, b: unknown, field: string): boolean {
+  return isObject(a) && isObject(b) && scalar(a[field], b[field]);
 }
 
 function scalar(a: unknown, b: unknown): boolean {
@@ -106,13 +138,6 @@ function column(a: unknown, b: unknown): boolean {
   const x = a as ArrayLike<unknown> | null;
   const y = b as ArrayLike<unknown> | null;
   return !!x && !!y && x.length === y.length && scalar(x[0], y[0]) && scalar(x[x.length - 1], y[y.length - 1]);
-}
-
-function shallow(a: unknown, b: unknown, eq: (x: unknown, y: unknown) => boolean): boolean {
-  if (Object.is(a, b)) return true;
-  if (!isObject(a) || !isObject(b)) return false;
-  const keys = Object.keys(a);
-  return keys.length === Object.keys(b).length && keys.every(k => has(b, k) && eq(a[k], b[k]));
 }
 
 function isObject(value: unknown): value is Options {

@@ -3,10 +3,11 @@
  * an application would: the directive, no bare __DEV__, the size budget, server rendering in Node, a
  * consumer bundle that imports only Line, and the declarations.
  */
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { build, type Plugin } from 'esbuild';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
 import { createElement, type ReactElement } from 'react';
@@ -16,9 +17,32 @@ const pkg = path.resolve(import.meta.dirname, '..');
 const repo = path.resolve(pkg, '../..');
 const read = (file: string) => fs.readFileSync(path.join(pkg, 'dist', file), 'utf8');
 
+// At run time the shipped adapter imports `axylo`; it is given the core from source, so these tests need no
+// core build (on a clean checkout there is none) and do not see another build rewriting it.
+vi.mock('axylo', () => import('../../axylo/src/index'));
+
+/**
+ * The adapter's declaration build needs the core's declarations. They come from packages/axylo/dist when a
+ * root build made them; otherwise (a clean checkout, or AXYLO_REACT_PRIVATE_CORE_TYPES=1) they are built
+ * from the core's source into a temporary directory, leaving packages/axylo untouched. A failure says which
+ * prerequisite is missing; nothing is skipped.
+ */
+let coreTypes: string | null = null;
 beforeAll(() => {
-  execFileSync('node', [path.join(pkg, 'build.mjs')], { cwd: repo, stdio: 'pipe' });
-}, 120000);
+  const env = { ...process.env };
+  if (process.env.AXYLO_REACT_PRIVATE_CORE_TYPES === '1' || !fs.existsSync(path.join(repo, 'packages/axylo/dist/index.d.ts'))) {
+    coreTypes = fs.mkdtempSync(path.join(os.tmpdir(), 'axylo-core-types-'));
+    const tsc = spawnSync('npx', ['tsc', '-p', 'packages/axylo/tsconfig.build.json', '--outDir', coreTypes], { cwd: repo, encoding: 'utf8' });
+    if (!fs.existsSync(path.join(coreTypes, 'index.d.ts'))) {
+      throw new Error(`@axylo/react dist tests: packages/axylo/dist/index.d.ts is missing and building the core's declarations from source failed. Run \`npm run build\` first.\n${tsc.stdout}${tsc.stderr}`);
+    }
+    env.AXYLO_CORE_TYPES = coreTypes;
+  }
+  const result = spawnSync('node', [path.join(pkg, 'build.mjs')], { cwd: repo, encoding: 'utf8', env });
+  if (result.status !== 0) throw new Error(`@axylo/react build failed:\n${result.stdout}${result.stderr}`);
+}, 180000);
+
+afterAll(() => { if (coreTypes) fs.rmSync(coreTypes, { recursive: true, force: true }); });
 
 describe('shipped files', () => {
   for (const file of ['index.js', 'index.dev.js']) {
@@ -32,8 +56,8 @@ describe('shipped files', () => {
   }
 
   it('the production file drops the development hint, the development file keeps it', () => {
-    expect(read('index.js')).not.toContain('[axylo/react]');
-    expect(read('index.dev.js')).toContain('[axylo/react]');
+    expect(read('index.js')).not.toContain('memoize it');
+    expect(read('index.dev.js')).toContain('memoize it');
   });
 
   it('the production file is at most 2 KiB gzipped', () => {
@@ -46,7 +70,12 @@ describe('shipped files', () => {
   it('the declarations are what a consumer type-checks against', () => {
     expect(read('index.d.ts')).toContain('export declare const Line: <Row>(props: LineProps<Row>) => ReactElement | null;');
     // test/consumer imports '@axylo/react' with no path mapping, so it reaches dist/index.d.ts.
-    execFileSync('npx', ['tsc', '-p', path.join(pkg, 'test/consumer')], { cwd: repo, stdio: 'pipe' });
+    let project = path.join(pkg, 'test/consumer');
+    if (coreTypes) {
+      project = path.join(coreTypes, 'tsconfig.consumer.json');
+      fs.writeFileSync(project, JSON.stringify({ extends: path.join(pkg, 'test/consumer/tsconfig.json'), compilerOptions: { paths: { axylo: [path.join(coreTypes, 'index.d.ts')] } } }));
+    }
+    execFileSync('npx', ['tsc', '-p', project], { cwd: repo, stdio: 'pipe' });
   });
 });
 

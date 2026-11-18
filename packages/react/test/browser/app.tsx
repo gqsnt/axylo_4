@@ -118,16 +118,52 @@ function countedColors(name: string, colors: Record<string, string>) {
 const never = new Promise<never>(() => {});
 function Never(): ReactNode { use(never); return null; }
 
+/**
+ * Rendered before the charts, outside their Suspense boundary: its layout effect runs in every commit after
+ * the mutation phase (ref detachment, deletion) and before the charts' own layout effects.
+ */
+function Watcher(): null {
+  useLayoutEffect(() => {
+    unreadable.armed = true;
+    if (app.duringLayout) seen.push({ effect: 'watcher', result: app.duringLayout() });
+  });
+  return null;
+}
+
+/**
+ * Rendered after the charts. Between the watcher's layout effect and this one, only the charts' own layout
+ * effects run, so the unreadable column throws there and nowhere else (React's development build reads props
+ * deeply in its own passive-phase logging, which is not what the test is about).
+ */
+function Trailer(): null {
+  useLayoutEffect(() => { unreadable.armed = false; });
+  return null;
+}
+const unreadable = { armed: false };
+
 function tree(specs: Spec[], options: { strict?: boolean; suspend?: boolean }) {
   const charts = specs.map((spec, i) => <Boundary key={spec.key ?? i} reset={spec.data}><Slot spec={spec} index={i} /></Boundary>);
-  const body = <Suspense fallback={<p className="fallback">loading</p>}>{charts}{options.suspend ? <Never /> : null}</Suspense>;
+  const body = <><Watcher /><Suspense fallback={<p className="fallback">loading</p>}>{charts}{options.suspend ? <Never /> : null}</Suspense><Trailer /></>;
   return options.strict ? <StrictMode>{body}</StrictMode> : body;
 }
 
 const app = {
   spy, probe, events, seen, caught, hydrationErrors, nextFrames, counted,
   setData(name: string, rows: unknown[]) { datasets[name] = rows; },
+  /** The public handle, as the ref exposes it. */
   chart(i: number): Handle | null { return (refs[i]?.current?.chart ?? null) as Handle | null; },
+  /** The core's own handle (with its development hooks) of the i-th chart not yet destroyed. */
+  raw(i: number): Handle | null { return (spy.charts.filter(c => c.destroys === 0)[i]?.chart.deref() ?? null) as Handle | null; },
+  /** When set, the watcher calls it in each commit's layout phase and records what it returns. */
+  duringLayout: null as null | (() => unknown),
+  /** Typed columns with an extra column the chart does not plot, whose endpoints throw when read. */
+  setColumns(name: string, n: number) {
+    const extra = {
+      length: n,
+      get 0(): number { if (unreadable.armed) throw new Error('unplotted column read'); return 0; },
+    } as ArrayLike<number>;
+    datasets[name] = { columns: { t: Float64Array.from({ length: n }, (_, i) => i), v: Float64Array.from({ length: n }, (_, i) => 10 + i), extra } } as unknown as unknown[];
+  },
   handle(i: number) { return refs[i]?.current ?? null; },
   /** Renders and commits synchronously, then lets the page settle. */
   async render(specs: Spec[], options: { strict?: boolean } = {}) {
@@ -147,7 +183,7 @@ const app = {
   },
   /** Waits until every mounted chart has drawn its accepted state. */
   async ready() {
-    await Promise.all(refs.map(r => (r.current?.chart as Handle | null)?.__bench.ready()));
+    await Promise.all(spy.charts.filter(c => c.destroys === 0).map(c => (c.chart.deref() as Handle | undefined)?.__bench.ready()));
     await nextFrames(2);
   },
   async hydrate() {

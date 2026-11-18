@@ -28,7 +28,9 @@ export function MonthlyVisitors() {
 
 The chart is created on mount and destroyed on unmount (correct under StrictMode). On the server a
 component renders its empty container only. A `ref` exposes the chart handle for `append`, `zoom` and
-`diagnostics`.
+`diagnostics`. `ref.current.chart` is null while the chart is not attached (before mount, while Suspense
+hides it, after unmount). A call made through a handle you kept while the chart is hidden, or before the
+current render's props reach it, waits and is applied right after them; a call after unmount throws.
 
 ## License
 

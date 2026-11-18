@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { diff, equal, looksSame, optionsOf } from '../src/patch';
+import { diff, equal, fieldsOf, looksSame, optionsOf } from '../src/patch';
 
 const forward = () => {};
 const rows = [{ day: '2026-01-01', sessions: 1 }, { day: '2026-01-02', sessions: 2 }];
@@ -173,6 +173,46 @@ describe('diff', () => {
     expect(diff({ y: new Spec() }, { y: new Spec() })).not.toBeNull();
   });
 
+  // Review C4: once a cycle is found it is compared by identity, so distinct cyclic graphs are a change.
+  it('treats a cycle as opaque: a one-object cycle and a two-object cycle differ', () => {
+    const one: Record<string, unknown> = { field: 'v' };
+    one.next = one;
+    const first: Record<string, unknown> = { field: 'v' };
+    const second: Record<string, unknown> = { field: 'v', next: first };
+    first.next = second;
+    expect(equal(one, first)).toBe(false);
+    expect(diff({ y: one }, { y: first })).toEqual({ y: first });
+    const again: Record<string, unknown> = { field: 'v' };
+    again.next = again;
+    expect(equal(one, again)).toBe(false);
+    expect(equal(one, one)).toBe(true);
+    // A value shared twice without a cycle is still compared structurally.
+    const shared = { label: 'L' };
+    expect(equal({ a: shared, b: shared }, { a: { label: 'L' }, b: { label: 'L' } })).toBe(true);
+  });
+
+  it('counts only own array indices', () => {
+    const proto = Object.assign(Object.create(Array.prototype) as unknown[], { 0: 'v' });
+    // eslint-disable-next-line no-sparse-arrays
+    const inherited = Object.setPrototypeOf([, 1], proto) as unknown[];
+    expect(inherited[0]).toBe('v');
+    expect(equal(inherited, ['v', 1])).toBe(false);
+    expect(diff({ y: ['v', 1] }, { y: inherited })).not.toBeNull();
+  });
+
+  it('keeps an own __proto__ key as an option and in the patch, so the core can report it', () => {
+    const props = JSON.parse('{"data": [], "__proto__": { "polluted": true }}') as Record<string, unknown>;
+    const options = optionsOf(props, forward);
+    expect(Object.hasOwn(options, '__proto__')).toBe(true);
+    expect(Object.getPrototypeOf(options)).toBe(Object.prototype);
+    expect((options as { polluted?: unknown }).polluted).toBeUndefined();
+    const patch = diff({ data: props.data }, options);
+    expect(patch && Object.hasOwn(patch, '__proto__')).toBe(true);
+    expect(patch && Object.getPrototypeOf(patch)).toBe(Object.prototype);
+    const removed = diff(options, { data: props.data });
+    expect(removed && Object.hasOwn(removed, '__proto__') && removed.__proto__ === undefined).toBe(true);
+  });
+
   it('compares own properties, enumerable or not, and never reads inherited ones', () => {
     const hidden = (field: string) => Object.defineProperty({}, 'field', { value: field, enumerable: false });
     expect(diff({ x: hidden('a') }, { x: hidden('b') })).not.toBeNull();
@@ -196,20 +236,45 @@ describe('equal', () => {
 });
 
 describe('looksSame', () => {
+  const named = ['day', 'sessions'];
   it('matches rebuilt rows and rewrapped columns, and nothing else', () => {
-    expect(looksSame(rows, rows.map(r => ({ ...r })))).toBe(true);
-    expect(looksSame(rows, [...rows, { day: '2026-01-03', sessions: 3 }])).toBe(false);
-    expect(looksSame(rows, [rows[0], { day: '2026-01-02', sessions: 9 }])).toBe(false);
+    expect(looksSame(rows, rows.map(r => ({ ...r })), named)).toBe(true);
+    expect(looksSame(rows, [...rows, { day: '2026-01-03', sessions: 3 }], named)).toBe(false);
+    expect(looksSame(rows, [rows[0], { day: '2026-01-02', sessions: 9 }], named)).toBe(false);
     const t = new Float64Array(3);
-    expect(looksSame({ columns: { t } }, { columns: { t } })).toBe(true);
-    expect(looksSame({ columns: { t } }, { columns: { t: new Float64Array([1, 0, 0]) } })).toBe(false);
+    expect(looksSame({ columns: { t } }, { columns: { t } }, ['t'])).toBe(true);
+    expect(looksSame({ columns: { t } }, { columns: { t: new Float64Array([1, 0, 0]) } }, ['t'])).toBe(false);
   });
 
   it('is a sample of the endpoints: dates rebuilt in endpoint rows and fresh equal columns match', () => {
     const at = (d: number) => ({ t: new Date(Date.UTC(2026, 0, d)), v: d });
-    expect(looksSame([at(1), at(2)], [at(1), at(2)])).toBe(true);
-    expect(looksSame({ columns: { t: new Float64Array([1, 2, 3]) } }, { columns: { t: new Float64Array([1, 2, 3]) } })).toBe(true);
+    expect(looksSame([at(1), at(2)], [at(1), at(2)], ['t', 'v'])).toBe(true);
+    expect(looksSame({ columns: { t: new Float64Array([1, 2, 3]) } }, { columns: { t: new Float64Array([1, 2, 3]) } }, ['t'])).toBe(true);
     // Only the endpoints are sampled: a changed middle row still matches. The hint says so.
-    expect(looksSame([at(1), at(2), at(3)], [at(1), { t: at(2).t, v: 99 }, at(3)])).toBe(true);
+    expect(looksSame([at(1), at(2), at(3)], [at(1), { t: at(2).t, v: 99 }, at(3)], ['t', 'v'])).toBe(true);
+  });
+
+  // Review C5: the sample reads only what the chart plots, and a value it cannot read skips the hint.
+  it('samples only the named fields, and an unreadable sample is "not the same", never a throw', () => {
+    const x = new Float64Array([1, 2, 3]);
+    const y = new Float64Array([4, 5, 6]);
+    const unreadable = () => ({ length: 3, get 0(): number { throw new Error('getter'); }, 1: 0, get 2(): number { throw new Error('getter'); } });
+    const a = { columns: { x, y, extra: unreadable() } };
+    const b = { columns: { x, y, extra: unreadable() } };
+    expect(looksSame(a, b, ['x', 'y'])).toBe(true);
+    expect(() => looksSame(a, b, ['x', 'y', 'extra'])).not.toThrow();
+    expect(looksSame(a, b, ['x', 'y', 'extra'])).toBe(false);
+    const row = () => ({ day: 'd', get sessions(): number { throw new Error('getter'); } });
+    expect(looksSame([row()], [row()], ['day'])).toBe(true);
+    expect(looksSame([row()], [row()], ['day', 'sessions'])).toBe(false);
+  });
+});
+
+describe('fieldsOf', () => {
+  it('names the fields the options plot, in every form a field takes', () => {
+    expect(fieldsOf({ x: 'day', y: 'sessions', series: 'channel' }).sort()).toEqual(['channel', 'day', 'sessions']);
+    expect(fieldsOf({ x: { field: 't', type: 'time' }, y: ['a', { field: 'b', label: 'B' }] }).sort()).toEqual(['a', 'b', 't']);
+    expect(fieldsOf({ label: 'channel', value: { field: 'n', parse: 'number' } }).sort()).toEqual(['channel', 'n']);
+    expect(fieldsOf({ title: 'x', colors: { a: 'b' } })).toEqual([]);
   });
 });

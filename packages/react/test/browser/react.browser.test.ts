@@ -18,7 +18,7 @@ beforeAll(start);
 afterAll(stop);
 
 type Handle = {
-  append(rows: unknown[]): void; zoom(d: unknown): void; update(p: Record<string, unknown>): void; diagnostics: { code: string }[];
+  append(rows: unknown[]): void; zoom(d: unknown): void; update(p: Record<string, unknown>): void; diagnostics: { code: string; chart: string }[];
   __bench: { describe(): { series: { points: number; newestX: number }[] } };
   __dev: { stages(): Record<string, number> };
 };
@@ -29,8 +29,11 @@ type App = {
   ready(): Promise<void>;
   setData(name: string, rows: unknown[]): void;
   chart(i: number): Handle | null;
+  raw(i: number): Handle | null;
+  duringLayout: null | (() => unknown);
+  setColumns(name: string, n: number): void;
   handle(i: number): { chart: Handle | null } | null;
-  spy: { attempts: number; failOn: boolean; errors: unknown[]; charts: { kind: string; element: WeakRef<HTMLElement>; chart: WeakRef<Handle>; updates: Record<string, unknown>[]; destroys: number }[] };
+  spy: { attempts: number; failOn: boolean; failDestroy: boolean; errors: unknown[]; charts: { kind: string; element: WeakRef<HTMLElement>; chart: WeakRef<Handle>; updates: Record<string, unknown>[]; appends: number; destroys: number }[] };
   probe: { resizeCallbacks: number; observers: number; pendingFrames: number; mark(): number; leakedSince(mark: number): string[]; detachedSince(mark: number): string[]; detachedTargets(mark: number): Element[] };
   events: [string, unknown][];
   seen: Record<string, unknown>[];
@@ -79,7 +82,7 @@ const spyState = (page: Page) => page.evaluate(() => ({
   charts: window.app.spy.charts.map(c => ({ kind: c.kind, destroys: c.destroys, updates: c.updates.map(p => Object.keys(p)) })),
 }));
 
-const points = (page: Page) => page.evaluate(() => window.app.chart(0)!.__bench.describe().series[0]!.points);
+const points = (page: Page) => page.evaluate(() => window.app.raw(0)!.__bench.describe().series[0]!.points);
 const eventsSince = (page: Page, n: number) => page.evaluate(k => window.app.events.slice(k), n);
 const eventCount = (page: Page) => page.evaluate(() => window.app.events.length);
 
@@ -290,6 +293,148 @@ describe('commit phase (findings 2 and 3)', () => {
   });
 });
 
+describe('detached handle (review C2)', () => {
+  const props = { x: 'day', y: 'sessions', title: 'Detached' };
+  const later = { day: '2026-01-12', sessions: 22 };
+
+  it('while Suspense hides the chart a saved handle reads null; a call made then waits and applies after the revealing props', async () => {
+    const page = await open();
+    await render(page, [{ type: 'Line', data: 'single', props }]);
+    await page.evaluate(() => { window.saved = window.app.handle(0); (window as unknown as { facade: unknown }).facade = window.app.chart(0); });
+    await commit(page, [{ type: 'Line', data: 'single', props }], { suspend: true });
+    expect(await page.locator('#chart .fallback').count()).toBe(1);
+    const hidden = await page.evaluate(n => {
+      const facade = (window as unknown as { facade: { append(r: unknown[]): void } }).facade;
+      let call = 'accepted';
+      try { facade.append([n]); } catch (error) { call = String(error); }
+      return { chart: (window.saved as { chart: unknown }).chart, call, appends: window.app.spy.charts[0]!.appends };
+    }, next);
+    expect(hidden).toEqual({ chart: null, call: 'accepted', appends: 0 });
+    // Revealed with new data: the waiting append lands after it, so it is not erased.
+    await commit(page, [{ type: 'Line', data: 'single again', props }]);
+    expect(await page.evaluate(() => ({
+      same: (window.saved as { chart: unknown }).chart === (window as unknown as { facade: unknown }).facade,
+      appends: window.app.spy.charts[0]!.appends,
+    }))).toEqual({ same: true, appends: 1 });
+    await page.evaluate(() => window.app.ready());
+    expect(await points(page)).toBe(11);
+    expect(await spyState(page)).toEqual({ attempts: 1, charts: [{ kind: 'line', destroys: 0, updates: [['data']] }] });
+    expect(await closeApp(page)).toEqual([]);
+  });
+
+  it('appended rows and the zoom survive a Suspense hide', async () => {
+    const page = await open();
+    await render(page, [{ type: 'Line', data: 'single', props }]);
+    await page.evaluate(async n => { window.app.chart(0)!.append([n]); window.app.chart(0)!.zoom(['2026-01-03', '2026-01-07']); await window.app.ready(); }, next);
+    const before = await page.evaluate(() => window.app.raw(0)!.__bench.describe() as unknown);
+    await commit(page, [{ type: 'Line', data: 'single', props }], { suspend: true });
+    await commit(page, [{ type: 'Line', data: 'single', props }]);
+    await page.evaluate(() => window.app.ready());
+    expect(await page.evaluate(() => window.app.raw(0)!.__bench.describe() as unknown)).toEqual(before);
+    expect(await points(page)).toBe(11);
+    expect((await spyState(page)).charts.map(c => c.destroys)).toEqual([0]);
+    expect(await closeApp(page)).toEqual([]);
+  });
+
+  it('in the commit that unmounts the chart, a saved handle reads null before passive teardown; calls are then reported, and rejected after', async () => {
+    const page = await open();
+    const errors: string[] = [];
+    page.on('console', m => { if (m.type() === 'error' && m.text().includes('[axylo/react]')) errors.push(m.text()); });
+    await render(page, [{ type: 'Line', data: 'single', props }]);
+    await page.evaluate(n => {
+      const saved = window.app.handle(0)!;
+      const facade = window.app.chart(0)!;
+      (window as unknown as { facade: unknown }).facade = facade;
+      window.app.duringLayout = () => {
+        let call = 'accepted';
+        try { facade.append([n]); } catch (error) { call = String(error); }
+        return { chart: saved.chart, call };
+      };
+    }, next);
+    const seen = await commit(page, []);
+    await page.evaluate(() => { window.app.duringLayout = null; });
+    expect(seen).toEqual([{ effect: 'watcher', result: { chart: null, call: 'accepted' } }]);
+    await page.evaluate(() => window.app.nextFrames(2));
+    expect(errors.some(e => /not applied/.test(e))).toBe(true);
+    expect(await page.evaluate(() => window.app.spy.charts[0]!.appends)).toBe(0);
+    const after = await page.evaluate(n => {
+      try { (window as unknown as { facade: { append(r: unknown[]): void } }).facade.append([n]); return 'accepted'; } catch (error) { return String(error); }
+    }, later);
+    expect(after).toMatch(/unmounted/);
+    expect(await closeApp(page)).toEqual([]);
+  });
+
+  it('a call from an earlier sibling\'s layout effect in the same commit applies after this commit\'s props', async () => {
+    const page = await open();
+    await render(page, [{ type: 'Line', data: 'single', props }]);
+    await page.evaluate(n => { const facade = window.app.chart(0)!; window.app.duringLayout = () => { facade.append([n]); return 'called'; }; }, next);
+    await commit(page, [{ type: 'Line', data: 'single again', props }]);
+    await page.evaluate(() => { window.app.duringLayout = null; });
+    await page.evaluate(() => window.app.ready());
+    expect(await points(page)).toBe(11);
+    expect(await closeApp(page)).toEqual([]);
+  });
+});
+
+describe('disposal failures (review C3)', () => {
+  const props = { x: 'day', y: 'sessions', title: 'Disposal' };
+
+  it('when on() throws A and destroy() then throws B, the boundary receives A and B is reported', async () => {
+    const page = await open();
+    const errors: string[] = [];
+    page.on('console', m => { if (m.type() === 'error' && m.text().includes('[axylo/react]')) errors.push(m.text()); });
+    await page.evaluate(() => { window.app.spy.failOn = true; window.app.spy.failDestroy = true; });
+    await render(page, [{ type: 'Line', data: 'single', props }]);
+    expect(await page.evaluate(() => (window.app.caught.at(-1) as Error).message)).toBe('listener registration failed');
+    expect((await spyState(page)).charts.map(c => c.destroys)).toEqual([1]);
+    expect(errors.some(e => e.includes('destroy'))).toBe(true);
+    expect(await closeApp(page)).toEqual([]);
+  });
+
+  it('a destroy() that throws during unmount is reported and does not reach the boundary', async () => {
+    const page = await open();
+    const errors: string[] = [];
+    page.on('console', m => { if (m.type() === 'error' && m.text().includes('[axylo/react]')) errors.push(m.text()); });
+    await page.evaluate(() => { window.app.spy.failDestroy = true; });
+    await render(page, [{ type: 'Line', data: 'single', props }]);
+    await page.evaluate(() => { window.saved = window.app.handle(0); });
+    // The parent removes the chart in a passive effect; its boundary stays mounted.
+    await render(page, [{ type: 'Line', data: 'single', props, removeAfterCommit: true }]);
+    expect(await page.evaluate(() => window.app.caught.length)).toBe(0);
+    expect((await spyState(page)).charts.map(c => c.destroys)).toEqual([1]);
+    expect(errors.some(e => e.includes('destroy'))).toBe(true);
+    expect(await page.evaluate(() => (window.saved as { chart: unknown }).chart)).toBeNull();
+    expect(await closeApp(page)).toEqual([]);
+  });
+});
+
+describe('memoization hint sampler (review C5)', () => {
+  it('a data replacement with an unreadable column the chart does not plot still reaches the core', async () => {
+    const page = await open();
+    const props = { x: 't', y: 'v', title: 'Columns' };
+    await page.evaluate(() => window.app.setColumns('cols', 10));
+    await render(page, [{ type: 'Line', data: 'cols', props }]);
+    for (let i = 0; i < 4; i++) {
+      await page.evaluate(() => window.app.setColumns('cols', 10));
+      await render(page, [{ type: 'Line', data: 'cols', props }]);
+    }
+    expect(await page.evaluate(() => window.app.caught.map(e => String(e)))).toEqual([]);
+    expect((await spyState(page)).charts.map(c => c.updates)).toEqual([[['data'], ['data'], ['data'], ['data']]]);
+    expect(await closeApp(page)).toEqual([]);
+  });
+});
+
+describe('diagnostic name (review C6, pending a core change)', () => {
+  it('a chart without a title, in a div with id="sessions", names its diagnostics "sessions"', async () => {
+    const page = await open();
+    await render(page, [{ type: 'Line', data: 'single', props: { x: 'day', y: 'sessions', id: 'sessions' } }]);
+    const names = await page.evaluate(() => window.app.raw(0)!.diagnostics.map(d => [d.code, d.chart]));
+    expect(names.map(n => n[0])).toContain('AX140');
+    expect(new Set(names.map(n => n[1]))).toEqual(new Set(['sessions']));
+    expect(await closeApp(page)).toEqual([]);
+  });
+});
+
 describe('props to options', () => {
   it('an inline field object re-rendered ten times causes zero update calls', async () => {
     const page = await open();
@@ -406,7 +551,7 @@ describe('props to options', () => {
     }
     // Render 1 mounts; renders 2, 3 and 4 are the three replacements; one hint per chart.
     expect(counts).toEqual([0, 0, 0, 2, 2, 2]);
-    expect(warnings[0]).toContain('first and last rows');
+    expect(warnings[0]).toContain('first and last values in the plotted fields');
     expect(warnings[0]).not.toMatch(/same data/);
     expect(warnings.some(w => w.includes('Line'))).toBe(true);
     // Identity is all that counts for the update itself.
@@ -462,18 +607,18 @@ describe('ref', () => {
     const page = await open();
     const props = { x: 'day', y: 'sessions', title: 'Stream' };
     await render(page, [{ type: 'Line', data: 'single', props }]);
-    const first = await page.evaluate(() => ({ s: window.app.chart(0)!.__bench.describe().series[0]!, diagnostics: Array.isArray(window.app.chart(0)!.diagnostics) }));
+    const first = await page.evaluate(() => ({ s: window.app.raw(0)!.__bench.describe().series[0]!, diagnostics: Array.isArray(window.app.chart(0)!.diagnostics) }));
     expect(first.s.points).toBe(10);
     expect(first.diagnostics).toBe(true);
 
     await page.evaluate(async n => { window.app.chart(0)!.append([n]); await window.app.ready(); }, next);
-    const appended = await page.evaluate(() => window.app.chart(0)!.__bench.describe().series[0]!);
+    const appended = await page.evaluate(() => window.app.raw(0)!.__bench.describe().series[0]!);
     expect(appended.points).toBe(11);
     expect(appended.newestX).toBeGreaterThan(first.s.newestX);
 
     await render(page, [{ type: 'Line', data: 'single again', props }]);
     expect((await spyState(page)).charts[0]!.updates).toEqual([['data']]);
-    const replaced = await page.evaluate(() => window.app.chart(0)!.__bench.describe().series[0]!);
+    const replaced = await page.evaluate(() => window.app.raw(0)!.__bench.describe().series[0]!);
     expect(replaced).toEqual(first.s);
     expect(await closeApp(page)).toEqual([]);
   });

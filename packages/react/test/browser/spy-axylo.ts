@@ -7,17 +7,18 @@ import * as core from '../../../axylo/src/index';
 
 export * from '../../../axylo/src/index';
 
-type Handle = { update(patch: Record<string, unknown>): void; destroy(): void };
+type Handle = { update(patch: Record<string, unknown>): void; append(rows: unknown, options?: unknown): void; destroy(): void };
 
 export interface Recorded {
   kind: string;
   element: WeakRef<HTMLElement>;
   chart: WeakRef<Handle>;
   updates: Record<string, unknown>[];
+  appends: number;
   destroys: number;
 }
 
-export const spy = { attempts: 0, charts: [] as Recorded[], errors: [] as unknown[], failOn: false };
+export const spy = { attempts: 0, charts: [] as Recorded[], errors: [] as unknown[], failOn: false, failDestroy: false };
 
 function wrap<F>(kind: string, create: F): F {
   return ((target: HTMLElement, options: unknown) => {
@@ -29,9 +30,10 @@ function wrap<F>(kind: string, create: F): F {
       spy.errors.push(error);
       throw error;
     }
-    const record: Recorded = { kind, element: new WeakRef(target), chart: new WeakRef(chart), updates: [], destroys: 0 };
+    const record: Recorded = { kind, element: new WeakRef(target), chart: new WeakRef(chart), updates: [], appends: 0, destroys: 0 };
     spy.charts.push(record);
-    const { update, destroy } = chart;
+    const { update, append, destroy } = chart;
+    chart.append = function (rows, options) { record.appends++; append.call(this, rows, options); };
     // Called with the handle as receiver: plan 1.5 allows an implementation that uses `this`.
     chart.update = function (patch) {
       record.updates.push(patch);
@@ -42,7 +44,13 @@ function wrap<F>(kind: string, create: F): F {
         throw error;
       }
     };
-    chart.destroy = function () { record.destroys++; destroy.call(this); };
+    const failDestroy = spy.failDestroy;
+    spy.failDestroy = false;
+    chart.destroy = function () {
+      record.destroys++;
+      destroy.call(this);
+      if (failDestroy) throw new Error('destroy failed');
+    };
     // For the adapter's own setup failure (finding 13): the chart exists, then listener registration throws.
     if (spy.failOn) {
       spy.failOn = false;

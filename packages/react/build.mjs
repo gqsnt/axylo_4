@@ -2,7 +2,8 @@
 // flavours, chosen through the `development` export condition):
 //   index.js      production: identifiers and syntax minified, the development hint removed
 //   index.dev.js  development: with the memoization hint
-//   index.d.ts    declarations (needs packages/axylo/dist/index.d.ts, so the core is built first)
+//   index.d.ts    declarations. They need the core's declarations: packages/axylo/dist/index.d.ts (the root
+//                 build makes it first), or the directory named by AXYLO_CORE_TYPES (the tests build one).
 // Neither file contains a bare __DEV__, and both start with the 'use client' directive.
 import { build } from 'esbuild';
 import { execFileSync } from 'node:child_process';
@@ -35,5 +36,18 @@ for (const file of ['index.js', 'index.dev.js']) {
   fs.writeFileSync(at, code);
 }
 
-execFileSync('npx', ['tsc', '-p', path.join(pkg, 'tsconfig.build.json')], { stdio: 'inherit', cwd: pkg });
+const coreTypes = process.env.AXYLO_CORE_TYPES;
+let project = path.join(pkg, 'tsconfig.build.json');
+if (coreTypes) {
+  // The same project, with `axylo` resolved to the given declarations; the emitted files still import 'axylo'.
+  project = path.join(coreTypes, 'tsconfig.react-build.json');
+  fs.writeFileSync(project, JSON.stringify({ extends: path.join(pkg, 'tsconfig.build.json'), compilerOptions: {
+    paths: { axylo: [path.join(coreTypes, 'index.d.ts')] },
+    // Type packages are looked up next to the config by default; this one lives outside the repository.
+    typeRoots: [path.join(pkg, '../../node_modules/@types')],
+  } }));
+} else if (!fs.existsSync(path.join(pkg, '../axylo/dist/index.d.ts'))) {
+  throw new Error('@axylo/react build: packages/axylo/dist/index.d.ts is missing. Build the core first (`npm run build` builds the core, then this package), or set AXYLO_CORE_TYPES to a directory holding its declarations.');
+}
+execFileSync('npx', ['tsc', '-p', project], { stdio: 'inherit', cwd: pkg });
 console.log('built', fs.readdirSync(dist).join(', '));
