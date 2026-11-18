@@ -62,6 +62,8 @@ const contexts = new WeakMap<Document, CanvasRenderingContext2D | null>();
 /** Measured widths per document, for every style together, so the bound holds for the whole page. */
 const caches = new WeakMap<Document, Map<string, number>>();
 const fontEpochs = new WeakMap<Document, number>();
+/** The font epoch each document's context last resolved its font in. */
+const contextEpochs = new WeakMap<Document, number>();
 export const MEASUREMENT_CACHE_LIMIT = 8192;
 
 /**
@@ -103,6 +105,15 @@ export function createMeasurer(doc: Document): TextMeasurer {
       let spaced = false;
       if (ctx) {
         const c = ctx as SpacingContext;
+        const epoch = fontEpochs.get(doc) ?? 0;
+        if (contextEpochs.get(doc) !== epoch) {
+          // WebKit keeps the font it resolved when `font` was assigned and does not resolve it again when the
+          // same string is assigned: after a font load, a different font is assigned first, so the wanted one
+          // is resolved anew (the engines report, WebKit section). Once per load; Chrome and Firefox measure the
+          // same either way.
+          c.font = c.font === '10px serif' ? '10px sans-serif' : '10px serif';
+          contextEpochs.set(doc, epoch);
+        }
         if (c.font !== style.font) c.font = style.font;
         if (typeof c.letterSpacing === 'string' && typeof c.wordSpacing === 'string') {
           const letter = `${style.letterSpacing}px`;
