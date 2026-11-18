@@ -630,7 +630,9 @@ export interface Lookup {
   /**
    * What is under a pixel of the plot container, or null. Scatter: among the points within 24 CSS px of the
    * pointer, the closest; points whose distance differs from the closest one's by less than half a device
-   * pixel are tied with it, and a tie goes to the latest source row. A donut slice too thin to see is drawn,
+   * pixel are tied with it, and a tie goes to the latest source row. To keep a pick's cost independent of the
+   * number of points, positions may be compared after rounding to the device-pixel lattice (an error of at most
+   * 0.71 device px); the datum's reported values are always exact. A donut slice too thin to see is drawn,
    * and picked, at a minimum of 1 CSS px of arc; its value and share are reported unchanged.
    */
   pick(px: number, py: number): PickTarget | null;
