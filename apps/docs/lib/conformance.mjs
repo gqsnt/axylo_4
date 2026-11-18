@@ -22,7 +22,11 @@ import { check, CHART_TYPES, STATUSES } from '../../../acceptance/check.mjs';
 import { ENGINES, engineLabel, resultFiles as defaultResultFiles } from '../../../acceptance/provenance.mjs';
 
 const SC = /\d\.\d{1,2}\.\d{1,2}\b/g;
-const RESULTS = ['pass', 'fail', 'skipped'];
+/**
+ * What a report can say of the tests it answered: their results, or 'not recorded' when its provenance is
+ * another tree or pack, which the checker gives only with a `provenanceError` (README, "Reading the checker").
+ */
+const RESULTS = ['pass', 'fail', 'skipped', 'not recorded'];
 
 const bySc = (a, b) => {
   const x = a.split('.').map(Number);
@@ -77,13 +81,15 @@ export function readRows(rows, { engineOf = () => null, commitOf = () => null } 
         status: cell.status,
         reports: cell.reports.map(report => {
           if (typeof report?.file !== 'string' || !['run', 'size'].includes(report.source) || !Array.isArray(report.results)
-            || report.results.some(r => !RESULTS.includes(r)) || !(report.engine === null || ENGINES.includes(report.engine))) {
-            unreadable(`${row.id}/${type}: report ${JSON.stringify(report)?.slice(0, 120)}`);
+            || report.results.some(r => !RESULTS.includes(r)) || !(report.engine === null || ENGINES.includes(report.engine))
+            || !(report.provenanceError === null || typeof report.provenanceError === 'string')
+            || (report.results.includes('not recorded') && report.provenanceError === null)) {
+            unreadable(`${row.id}/${type}: report ${JSON.stringify(report)?.slice(0, 160)}`);
           }
           return {
             file: report.file, source: report.source, results: report.results,
             engine: report.source === 'size' ? null : report.engine ?? engineOf(report.file),
-            counted: report.provenanceError === null, commit: commitOf(report.file),
+            counted: report.provenanceError === null, why: report.provenanceError, commit: commitOf(report.file),
           };
         }),
       };
@@ -101,7 +107,7 @@ const json = file => JSON.parse(fs.readFileSync(file, 'utf8'));
  * result files given, with what their sidecars record. By default the result files are acceptance/run.mjs's
  * default ones that exist under `root`.
  */
-export async function readChecker({ root, matrixFile = path.join(root, 'acceptance/matrix.json'), resultFiles } = {}) {
+export async function readChecker({ root, matrixFile = path.join(root, 'acceptance/matrix.json'), resultFiles, packIntegrity, sizeTargets } = {}) {
   const defaults = defaultResultFiles();
   const engineOf = file => defaults.find(d => d.file === file)?.engine ?? null;
   const given = resultFiles ?? defaults.map(d => path.join(root, d.file));
@@ -114,12 +120,16 @@ export async function readChecker({ root, matrixFile = path.join(root, 'acceptan
   const label = engine => engine === null ? 'Node' : engineLabel(engine);
   let result;
   try {
-    result = check({ root, matrixFile, resultFiles: present.map(file => path.join(root, file)), release: true });
+    // The checker packs the tree once (npm pack --dry-run) when the matrix cites a size record; a test names the
+    // pack and the targets itself (check()'s `packIntegrity` and `sizeTargets`).
+    const extra = { ...(packIntegrity === undefined ? {} : { packIntegrity }), ...(sizeTargets === undefined ? {} : { sizeTargets }) };
+    result = check({ root, matrixFile, resultFiles: present.map(file => path.join(root, file)), release: true, ...extra });
   } catch (error) {
-    return { refused: String(error.message).split('\n').filter(Boolean), rows: new Map(), citations: new Map(), files, label };
+    return { refused: String(error.message).split('\n').filter(Boolean), rows: new Map(), citations: new Map(), files, label, warnings: [] };
   }
   const commitOf = file => files.find(f => f.file === file)?.provenance?.commit ?? null;
   const rows = readRows(result.rows, { engineOf, commitOf });
+  if (!Array.isArray(result.warnings) || result.warnings.some(w => typeof w !== 'string')) unreadable('warnings is not a list of text');
   for (const run of result.runs) {
     const file = path.relative(root, run.file).split(path.sep).join('/');
     const known = files.find(f => f.file === file);
@@ -130,13 +140,13 @@ export async function readChecker({ root, matrixFile = path.join(root, 'acceptan
   for (const row of json(matrixFile)) {
     const seen = new Map();
     for (const refs of Object.values(row.evidence ?? {})) for (const ref of refs) {
-      const test = ref.title ?? (ref.prefix ? `${ref.prefix}…` : null);
+      const test = ref.title ?? (ref.prefix ? `${ref.prefix}…${ref.atLeast ? ` (at least ${ref.atLeast} cases)` : ''}` : null);
       const entry = { kind: ref.kind, file: ref.file, test, engine: ref.kind === 'browser' ? ref.engine ?? 'chromium' : null };
       seen.set(JSON.stringify(entry), entry);
     }
     citations.set(row.id, [...seen.values()]);
   }
-  return { refused: null, rows, citations, files, label };
+  return { refused: null, rows, citations, files, label, warnings: result.warnings };
 }
 
 /**

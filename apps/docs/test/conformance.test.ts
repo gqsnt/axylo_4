@@ -7,15 +7,16 @@
  * - The checker's structured rows are read as its README documents them, and output outside that shape stops
  *   the build.
  * - Against the checker's own fixtures (acceptance/test/fixtures, whose expected cells its own tests state):
- *   a result without recorded provenance is not counted for this revision, and a refused matrix leaves
- *   every criterion "not recorded".
+ *   a result without recorded provenance, and a size record of another pack, are "not recorded for this
+ *   revision" (the checker's status, with 'not recorded' as the report's result), and a refused matrix
+ *   leaves every criterion "not recorded".
  */
 import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { citedCriteria, evidenceFor, readChecker, readRows, uncited } from '../lib/conformance.mjs';
 import { wcag } from '../data/wcag.mjs';
-import { repoRoot } from '../lib/examples.mjs';
+import { cacheDir, repoRoot } from '../lib/examples.mjs';
 import { check } from '../../../acceptance/check.mjs';
 
 const fixtures = path.join(repoRoot, 'acceptance/test/fixtures');
@@ -67,7 +68,7 @@ describe('reading the checker', () => {
     const rows = readRows(fixtureRun().rows);
     const f1 = rows.get('F1')!.cells;
     expect(Object.keys(f1)).toEqual(['line', 'area', 'bar', 'scatter', 'donut', 'compact']);
-    expect(f1.line).toEqual({ status: 'pass', reports: [{ file: 'results.json', source: 'run', results: ['pass'], engine: null, counted: true, commit: null }] });
+    expect(f1.line).toEqual({ status: 'pass', reports: [{ file: 'results.json', source: 'run', results: ['pass'], engine: null, counted: true, why: null, commit: null }] });
     expect(f1.area!.status).toBe('weak');
     expect(f1.area!.reports.map(r => r.results)).toEqual([['skipped']]);
     expect(f1.scatter).toEqual({ status: 'not applicable', reports: [] });
@@ -91,6 +92,10 @@ describe('reading the checker', () => {
     expect(change(row => { row.cells.line.reports = [{ file: 'x.json', source: 'run', results: ['green'], engine: null, provenanceError: null }]; })).toThrow(/cannot read/);
     expect(change(row => { row.cells.line.reports = [{ file: 'x.json', source: 'run', results: ['pass'], engine: 'safari', provenanceError: null }]; })).toThrow(/cannot read/);
     expect(() => readRows(undefined)).toThrow(/cannot read/);
+    // 'not recorded' is a result only with the provenance error that explains it.
+    expect(change(row => { row.cells.line.reports = [{ file: 'x.json', source: 'run', results: ['not recorded'], engine: null, provenanceError: null }]; })).toThrow(/cannot read/);
+    expect(change(row => { row.cells.line.reports = [{ file: 'x.json', source: 'run', results: ['not recorded'], engine: null, provenanceError: 'provenance does not match the working tree' }]; })).not.toThrow();
+    expect(change(row => { row.cells.line.status = 'not recorded for this revision'; })).not.toThrow();
   });
 
   it('a result without recorded provenance is not counted for this revision', async () => {
@@ -100,6 +105,40 @@ describe('reading the checker', () => {
     expect(verdict).toEqual([{ id: 'F1', text: 'not recorded for this revision' }]);
     expect(engines.null).toBe('not recorded for this revision (results from unknown)');
     expect(engines.chromium).toBe('not recorded');
+  });
+
+  it('the checker\'s own "not recorded for this revision": a run without provenance in a release', async () => {
+    const checker = await readChecker({ root: fixtures, matrixFile: path.join(fixtures, 'matrix.json'), resultFiles: [path.join(fixtures, 'results.json')] });
+    const line = checker.rows.get('F1')!.cells.line!;
+    expect(line.status).toBe('not recorded for this revision');
+    expect(line.reports).toEqual([{ file: 'results.json', source: 'run', results: ['not recorded'], engine: null, counted: false, why: 'release requires recorded provenance', commit: null }]);
+    expect(checker.files).toEqual([expect.objectContaining({ file: 'results.json', counted: false, why: 'release requires recorded provenance' })]);
+  });
+
+  it('a size record of another pack is not recorded for this revision, and no engine\'s', async () => {
+    // As the checker's own test of size records builds it (acceptance/test/check.test.mjs, defect 5).
+    const dir = fs.mkdtempSync(path.join(cacheDir, 'conformance-'));
+    try {
+      fs.mkdirSync(path.join(dir, 'docs'));
+      fs.copyFileSync(path.join(fixtures, 'docs/02-product-spec.md'), path.join(dir, 'docs/02-product-spec.md'));
+      const matrix = JSON.parse(fs.readFileSync(path.join(fixtures, 'matrix.json'), 'utf8')).map((row: object) => ({ ...row, evidence: {}, weak: {} }));
+      matrix[0].evidence = { line: [{ kind: 'size', file: 'size.json', entries: ['line only'] }] };
+      fs.writeFileSync(path.join(dir, 'matrix.json'), JSON.stringify(matrix));
+      fs.writeFileSync(path.join(dir, 'size.json'), JSON.stringify({ packed: { axylo: 'sha512-measured' }, rows: [{ entry: 'line only', minBytes: 2000, totalGzipBytes: 1000, targetKiB: 1 }] }));
+      const options = { root: dir, matrixFile: path.join(dir, 'matrix.json'), resultFiles: [], sizeTargets: { 'line only': 1 } };
+      const same = await readChecker({ ...options, packIntegrity: 'sha512-measured' });
+      expect(same.rows.get('F1')!.cells.line!.status).toBe('pass');
+      const other = await readChecker({ ...options, packIntegrity: 'sha512-current' });
+      const line = other.rows.get('F1')!.cells.line!;
+      expect(line.status).toBe('not recorded for this revision');
+      expect(line.reports).toEqual([{ file: 'size.json', source: 'size', results: ['not recorded'], engine: null, counted: false, why: 'the size record measured another pack (sha512-measured)', commit: null }]);
+      expect(evidenceFor([{ id: 'F1', criterion: '' }], other)).toEqual({
+        verdict: [{ id: 'F1', text: 'not recorded for this revision' }],
+        engines: { chromium: 'not recorded', firefox: 'not recorded', webkit: 'not recorded', null: 'not recorded' },
+      });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('a refused matrix leaves every criterion not recorded', async () => {

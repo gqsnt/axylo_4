@@ -414,6 +414,7 @@ function conformanceTables(ctx) {
   const state = checker.refused
     ? `<p><strong>Nothing is counted on this page.</strong> When this site was built, <a href="${checkerPage}">the acceptance checker</a> refused its matrix (${checker.refused.length} ${checker.refused.length === 1 ? 'problem' : 'problems'}), so every result below reads “not recorded” and no cited test is listed. The first problem it gave: <code>${escapeHtml(checker.refused[0])}</code></p>`
     : `<p>Each entry is <a href="${checkerPage}">the acceptance checker</a>’s, run in release mode when this site was built: a result counts only when its recorded provenance matches the revision the site was built from.</p>`;
+  const warned = checker.warnings.length ? `<details><summary>The checker's warnings: ${checker.warnings.length}</summary><ul>${checker.warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}</ul></details>` : '';
   const tests = c => c.tests.length ? `<details><summary>Tests the matrix cites: ${c.tests.length}</summary><ul>${c.tests.map(t =>
     `<li>${escapeHtml(t.kind)}${t.engine ? `, ${escapeHtml(checker.label(t.engine))}` : ''}: <code>${escapeHtml(t.file)}</code>${t.test ? `, “${escapeHtml(t.test)}”` : ''}</li>`).join('')}</ul></details>` : '';
   const rows = criteria.map(c => [
@@ -435,7 +436,7 @@ function conformanceTables(ctx) {
     `<td>${escapeHtml(c.kind[0].toUpperCase() + c.kind.slice(1))}</td>`, `<td>${escapeHtml(c.why)}</td>`,
   ]), 'Criteria the specification does not cite')}`;
   ctx.published.add('apps/docs/data/wcag.mjs');
-  return `${state}${table}<h3>Result files</h3>${files}<h3>Criteria the specification does not cite</h3>${rest}<p class="small">Generated from <a href="${specPage}">docs/02-product-spec.md</a>, <a href="${checkerPage}">acceptance/check.mjs</a> and, for the criteria no row cites, <a href="${sourcePath('apps/docs/data/wcag.mjs')}">apps/docs/data/wcag.mjs</a>.</p>`;
+  return `${state}${warned}${table}<h3>Result files</h3>${files}<h3>Criteria the specification does not cite</h3>${rest}<p class="small">Generated from <a href="${specPage}">docs/02-product-spec.md</a>, <a href="${checkerPage}">acceptance/check.mjs</a> and, for the criteria no row cites, <a href="${sourcePath('apps/docs/data/wcag.mjs')}">apps/docs/data/wcag.mjs</a>.</p>`;
 }
 
 /**
