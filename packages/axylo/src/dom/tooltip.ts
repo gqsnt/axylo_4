@@ -16,6 +16,7 @@
  *   of rule 6 is used, and when even that would cover a control or a focus ring nothing floats.
  * - Strip: at least the x and one row are always shown.
  */
+import { activeElementOf } from './attributes';
 import type { DatumText, Rect, TooltipModel } from '../core/contracts';
 import { createSwatch, type SwatchSpec } from './swatch';
 import { fallbackPlacement, placeTooltip, type PlacementInput } from './placement';
@@ -118,7 +119,7 @@ function setLang(el: HTMLElement, lang: string | null | undefined): void {
 export function createTooltip(element: HTMLElement, readoutElement: HTMLElement, figure: HTMLElement, lost: () => void): TooltipView {
   const doc = element.ownerDocument;
   /** A press on a row: it completes against the row it began on, wherever a redraw moved the rows meanwhile. */
-  let press: { row: DatumText; pointer: number } | null = null;
+  let press: { entry: RowEntry; pointer: number } | null = null;
   /** The click that follows a completed press is not a second choice. */
   let pressedAt = -Infinity;
   /** A row that had focus when its presentation was hidden: the next presentation focuses it again. */
@@ -147,10 +148,11 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       element.classList.add('axylo-tooltip-choice');
       // A press does not take focus from the plot, whose keyboard reading goes on from the chosen datum.
       element.addEventListener('mousedown', event => event.preventDefault(), { signal: listening.signal });
-      element.addEventListener('pointerdown', event => { press = { row: entry.row, pointer: event.pointerId }; }, { signal: listening.signal });
-      // A click without a press of its own (Enter, Space, an assistive action) chooses this row.
+      element.addEventListener('pointerdown', event => { press = { entry, pointer: event.pointerId }; }, { signal: listening.signal });
+      // A click without a press of its own (Enter, Space, an assistive action: detail 0) chooses this row; the
+      // pointer click that follows a completed press does not choose again (review R1).
       element.addEventListener('click', event => {
-        if (event.timeStamp - pressedAt < 1000) return;
+        if (event.detail > 0 && event.timeStamp - pressedAt < 1000) return;
         current?.select?.(entry.row);
       }, { signal: listening.signal });
     }
@@ -201,7 +203,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
 
   /** The key of the row that has focus in `presentation`, if one has. */
   function focusedKey(presentation: Presentation): string | null {
-    for (const [key, entry] of entries[presentation]) if (entry.element === doc.activeElement) return key;
+    for (const [key, entry] of entries[presentation]) if (entry.element === activeElementOf(doc)) return key;
     return null;
   }
 
@@ -219,7 +221,10 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     press = null;
     if (!was || was.pointer !== event.pointerId) return;
     pressedAt = event.timeStamp;
-    current?.select?.(was.row);
+    // The row as it is now: the same series' row of what is pinned now (its x remapped with a sliding
+    // category window, review R1); a row that went with a redraw chooses nothing.
+    if (![...entries.floating.values(), ...entries.strip.values()].includes(was.entry)) return;
+    current?.select?.(was.entry.row);
   };
 
   function dropEntries(presentation: Presentation): void {
@@ -306,7 +311,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     queueMicrotask(() => {
       if (pendingFocus === null) return;
       pendingFocus = null;
-      if (!element.contains(doc.activeElement) && !readoutElement.contains(doc.activeElement)) lost();
+      if (!element.contains(activeElementOf(doc)) && !readoutElement.contains(activeElementOf(doc))) lost();
     });
   }
 
@@ -431,10 +436,19 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
         build(shown);
         if (readoutElement.scrollHeight <= readoutElement.clientHeight + 1) break;
       }
-      // A strip its ancestors clip away entirely is not shown (review finding 4).
+      // Judged as the floating tooltip is: the title, one value and any paging control lie wholly inside the
+      // strip's own box and inside what its ancestors leave visible, or the strip is not shown (review I4).
       const r = rectOf(readoutElement);
-      const seen = Math.min(r.x + r.width, visible.x + visible.width) - Math.max(r.x, visible.x) > 0 &&
-        Math.min(r.y + r.height, visible.y + visible.height) - Math.max(r.y, visible.y) > 0;
+      const box = { x: Math.max(r.x, visible.x), y: Math.max(r.y, visible.y), right: Math.min(r.x + r.width, visible.x + visible.width), bottom: Math.min(r.y + r.height, visible.y + visible.height) };
+      const within = (el: Element | undefined) => {
+        if (!el?.isConnected) return true;
+        for (const part of el.getClientRects()) {
+          if (part.left < box.x - 0.5 || part.top < box.y - 0.5 || part.right > box.right + 0.5 || part.bottom > box.bottom + 0.5) return false;
+        }
+        return el.getClientRects().length > 0;
+      };
+      const more = pinned && current?.more ? mores.get('strip\u0000true') : undefined;
+      const seen = within(stripTitle) && within(rows[0]?.element) && (!more?.isConnected || within(more));
       if (!seen) {
         hideStrip();
         where = null;

@@ -77,18 +77,22 @@ export function rectToViewport(m: Mapping, r: Rect): Rect {
 /**
  * The part of the viewport that content inside `from`'s parent can be seen in: the viewport cut by each
  * ancestor's real clipping edge (its padding box less any scrollbar), on each axis it clips, across shadow
- * roots.
+ * roots. Without `viewport`, only the ancestors cut it: content in the page's flow (the strip) can be
+ * scrolled into view, a floating tooltip cannot.
  */
-export function visibleRegion(from: Element): Rect {
+export function visibleRegion(from: Element, viewport = true): Rect {
   const doc = from.ownerDocument;
   const win = doc.defaultView;
   const root = doc.documentElement;
-  let left = 0;
-  let top = 0;
-  let right = root.clientWidth;
-  let bottom = root.clientHeight;
-  // The composed chain: past a shadow root to its host, whose ancestors clip what is inside it too.
-  const up = (el: Element): Element | null => el.parentElement ?? ((el.getRootNode() as ShadowRoot).host ?? null);
+  // Far beyond any page, finite: x + width stays a number.
+  const FAR = 1e9;
+  let left = viewport ? 0 : -FAR;
+  let top = viewport ? 0 : -FAR;
+  let right = viewport ? root.clientWidth : FAR;
+  let bottom = viewport ? root.clientHeight : FAR;
+  // The composed chain: a slotted element's parent is its slot (whose shadow wrappers can clip it, review I5),
+  // and past a shadow root comes its host, whose ancestors clip what is inside it too.
+  const up = (el: Element): Element | null => el.assignedSlot ?? el.parentElement ?? ((el.getRootNode() as ShadowRoot).host ?? null);
   for (let el: Element | null = up(from); el && el !== root && win; el = up(el)) {
     const style = win.getComputedStyle(el);
     const clipsX = style.overflowX !== 'visible';

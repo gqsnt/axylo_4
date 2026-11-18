@@ -164,42 +164,6 @@ export function alignedRows(view: AlignedView, formatters: Formatters, x: number
 }
 
 /**
- * Every point shown with a scatter target: its refs, then the rest of its coincident group (the pick lists
- * at most eight; `count` is the group). Members are found by the lookup's own predicate: the points that the
- * pick at the first point's place returns, i.e. those nearest that place, `count` of them. Candidates are the
- * points whose anchors lie within a few pixels of it, walked in the lookup's x-then-y order until their x is
- * farther than that, so points of other heights interleaved in that order are passed over, not stopped at
- * (review finding 8).
- */
-export function groupRefs(lookup: Lookup, target: Extract<PickTarget, { kind: 'point' }>): DatumRef[] {
-  const refs = [...target.refs];
-  const first = refs[0];
-  const box = first ? lookup.anchor(first) : null;
-  if (!first || !box || target.count <= refs.length) return refs;
-  const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
-  const REACH = 2;
-  const candidates: { ref: DatumRef; d: number }[] = [];
-  for (const direction of ['next', 'previous'] as const) {
-    let at: DatumRef | null = first;
-    for (let k = 0; at && k < lookup.count; k++) {
-      at = lookup.step(at, direction);
-      const b = at ? lookup.anchor(at) : null;
-      if (!at || !b) break;
-      const x = b.x + b.width / 2, y = b.y + b.height / 2;
-      if (Math.abs(x - cx) > REACH) break;
-      const d = Math.hypot(x - cx, y - cy);
-      if (d <= REACH && !refs.some(r => sameRef(r, at))) candidates.push({ ref: at, d });
-    }
-  }
-  candidates.sort((p, q) => p.d - q.d);
-  for (const c of candidates) {
-    if (refs.length >= target.count) break;
-    refs.push(c.ref);
-  }
-  return refs;
-}
-
-/**
  * What a reading says about the datum itself, for deciding whether the focused text must be rewritten
  * (decision 0004 part 2): its identity, its values and the templates that word them, never its place in
  * the range. Compared as data, not by taking one translated sentence out of another (review finding 14).
@@ -207,16 +171,20 @@ export function groupRefs(lookup: Lookup, target: Extract<PickTarget, { kind: 'p
 export function datumReading(view: View, lookup: Lookup, ref: DatumRef, mode: Mode, formatters: Formatters, messages: Messages): string | null {
   if (lookup.ordinal(ref) < 0) return null;
   const words = [messages.pointAll, messages.pointOf, messages.seriesValue, messages.total];
+  // An aligned datum's x by its raw key: a category's name (not its index, which a sliding window renumbers;
+  // review finding 10), and not its formatted text, which two categories can share (review R10).
+  const x = ref.kind === 'aligned' && view.kind !== 'scatter' && view.kind !== 'donut'
+    ? view.frame.x.categories?.[ref.x] ?? ref.x : null;
   if (view.kind !== 'scatter' && view.kind !== 'donut' && mode === 'all' && ref.kind === 'aligned') {
     const model = lookup.tooltip({ kind: 'x', x: ref.x });
     const rows = alignedRows(view, formatters, ref.x, model).map(r => [r.seriesIndex, r.seriesLabel, r.value]);
-    return JSON.stringify(['all', ref.seriesKey, formatters.x(ref.x), rows, model.total, words]);
+    return JSON.stringify(['all', ref.seriesKey, x, rows, model.total, words]);
   }
   const datum = lookup.datum(ref);
   if (!datum) return null;
-  // The datum's identity without its place: an aligned datum by series and x as read (a category's name,
-  // not its index, which a sliding window renumbers; review finding 10), a point by series and source row.
-  const id = ref.kind === 'point' ? [ref.seriesKey, ref.row] : ref.kind === 'aligned' ? [ref.seriesKey] : [ref.sliceKey];
+  // The datum's identity without its place: an aligned datum by series and raw x, a point by series and
+  // source row.
+  const id = ref.kind === 'point' ? [ref.seriesKey, ref.row] : ref.kind === 'aligned' ? [ref.seriesKey, x] : [ref.sliceKey];
   return JSON.stringify(['one', ref.kind, id, datum.seriesLabel, datum.x, datum.value, datum.percent, words]);
 }
 

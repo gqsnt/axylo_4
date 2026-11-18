@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
-import { start, stop } from '../harness';
+import { requireEngineFeature, start, stop } from '../harness';
 import { chartPage, closePage } from './util';
 import { create, plotBox, settle } from './final-util';
 
@@ -132,6 +132,7 @@ describe('C2-19: language carried per string', () => {
 
 describe('C3-7: a pinch never zooms the wrong way', () => {
   it('on a public window below the gesture minimum, spreading the fingers leaves it as it is', async () => {
+    requireEngineFeature(['chromium'], 'multi-point touch input is dispatched through the Chrome DevTools protocol');
     const page = await chartPage({ hasTouch: true });
     await create(page, 'line', { title: 'Z', zoom: 'touch', data: Array.from({ length: 11 }, (_, i) => ({ x: i * 10, y: i })), x: 'x', y: 'y' });
     await page.evaluate(() => {

@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { AlignedView, DatumRef } from '../../src/core/contracts';
-import { alignedRows, datumReading, groupRefs, valueText } from '../../src/core/focus';
+import { alignedRows, datumReading, valueText } from '../../src/core/focus';
 import { defaultMessages } from '../../src/messages';
 import { record } from './host';
 
@@ -60,7 +60,7 @@ describe('review finding 14: the reading changes with the datum, not with its pl
 });
 
 describe('rule 8 and finding 6: a coincident group past eight points is listed in full', () => {
-  it('groupRefs lists every one of ten coincident points, the pick\'s eight first', () => {
+  it('the lookup\'s members list every one of ten coincident points, the pick\'s eight first', () => {
     const data = Array.from({ length: 10 }, (_, i) => ({ x: 5, y: 5, s: 'A', id: i }));
     const r = record('scatter', { title: 'T', data: [...data, { x: 1, y: 1, s: 'A' }, { x: 9, y: 9, s: 'A' }], x: 'x', y: 'y', series: 's' });
     r.frames();
@@ -78,7 +78,7 @@ describe('rule 8 and finding 6: a coincident group past eight points is listed i
       return null;
     })();
     expect(someRef).not.toBeNull();
-    const refs = groupRefs(lookup, someRef!);
+    const refs = lookup.members(someRef!, 0, 100);
     expect(refs).toHaveLength(10);
     expect(refs.slice(0, someRef!.refs.length)).toEqual(someRef!.refs);
     expect(new Set(refs.map(ref => ref.kind === 'point' ? ref.row : -1)).size).toBe(10);
@@ -99,7 +99,7 @@ describe('review verification, item 8: the group is enumerated by the lookup\'s 
     expect(picked?.kind).toBe('point');
     if (picked?.kind !== 'point') return;
     expect(picked.count).toBe(12);
-    const refs = groupRefs(lookup, picked);
+    const refs = lookup.members(picked, 0, 100);
     expect(refs).toHaveLength(12);
     const rows = new Set(refs.map(ref => ref.kind === 'point' ? ref.row : -1));
     // Source rows of the A_i are the even ones (0, 2, …, 22).
@@ -119,5 +119,19 @@ describe('review verification, item 10: a narrowed category that slides keeps it
     const b = r.committed!;
     // Q3 is now at index 1.
     expect(datumReading(b.view, b.lookup, { kind: 'aligned', seriesKey: key, x: 1 }, 'single', b.formatters, defaultMessages)).toBe(before);
+  });
+});
+
+describe('round 3, R10: two categories that read alike are still two data', () => {
+  it('Q3 and Q4 formatted alike with equal values: their single-series readings differ, so an eviction from Q3 to Q4 rewrites the text', () => {
+    const format = (v: unknown) => (v === 'Q3' || v === 'Q4' ? 'Same' : String(v));
+    const r = record('bar', { title: 'T', data: ['Q1', 'Q2', 'Q3', 'Q4'].map((x, i) => ({ x, y: i < 2 ? i + 1 : 3 })), x: { field: 'x', format }, y: 'y' });
+    r.frames();
+    const a = r.committed!;
+    const key = a.view.kind === 'bar' ? a.view.frame.series[0]!.key : '';
+    const q3 = datumReading(a.view, a.lookup, { kind: 'aligned', seriesKey: key, x: 2 }, 'single', a.formatters, defaultMessages);
+    const q4 = datumReading(a.view, a.lookup, { kind: 'aligned', seriesKey: key, x: 3 }, 'single', a.formatters, defaultMessages);
+    expect(a.lookup.datum({ kind: 'aligned', seriesKey: key, x: 2 })?.x).toBe(a.lookup.datum({ kind: 'aligned', seriesKey: key, x: 3 })?.x);
+    expect(q3).not.toBe(q4);
   });
 });

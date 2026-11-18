@@ -8,7 +8,7 @@
  * its neighbour instead of falling back to the page.
  */
 import { createSwatch, type SwatchSpec } from './swatch';
-import { setAttr } from './attributes';
+import { activeElementOf, setAttr } from './attributes';
 
 export interface ToolbarItem {
   readonly key: string;
@@ -115,7 +115,7 @@ export function createToolbar(doc: Document): Toolbar {
     render(items, label, lang) {
       setAttr(element, 'aria-label', label);
       setAttr(element, 'lang', lang);
-      const focused = doc.activeElement;
+      const focused = activeElementOf(doc);
       let focusedKey: string | null = null;
       for (const [key, { button }] of buttons) if (button === focused) focusedKey = key;
       const keys = items.map(i => i.key);
@@ -169,13 +169,13 @@ export function createToolbar(doc: Document): Toolbar {
       setCurrent(keep);
       if (heir !== null) buttons.get(heir)!.button.focus();
       // A reorder moves the focused button, which can drop focus: it is given back (review 2, finding 17).
-      else if (focusedKey !== null && doc.activeElement !== buttons.get(focusedKey)?.button) buttons.get(focusedKey)?.button.focus();
+      else if (focusedKey !== null && activeElementOf(doc) !== buttons.get(focusedKey)?.button) buttons.get(focusedKey)?.button.focus();
     },
     focus(key) {
       const entry = buttons.get(key);
       if (!entry) return false;
       entry.button.focus();
-      return doc.activeElement === entry.button;
+      return activeElementOf(doc) === entry.button;
     },
     destroy() {
       listening.abort();

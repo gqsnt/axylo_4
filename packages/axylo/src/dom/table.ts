@@ -5,7 +5,7 @@
  * jumps to the page holding an x value. Text only, never HTML.
  */
 import type { TableModel, XValue } from '../core/contracts';
-import { setAttr } from './attributes';
+import { activeElementOf, setAttr } from './attributes';
 
 export interface TableTexts {
   readonly previousPage: string;
@@ -151,7 +151,7 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
     }
     body.replaceChildren(...rows);
     // A pager the reader is on does not vanish under them: focus goes to the table first (finding 17).
-    if (count <= 1 && pager.contains(doc.activeElement)) scroll.focus({ preventScroll: true });
+    if (count <= 1 && pager.contains(activeElementOf(doc))) scroll.focus({ preventScroll: true });
     pager.hidden = count <= 1;
     previous.textContent = texts.previousPage;
     next.textContent = texts.nextPage;

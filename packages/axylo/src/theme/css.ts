@@ -194,7 +194,10 @@ ${forced}
     color: var(--axylo-text, currentColor); overflow-wrap: anywhere;
   }
   .axylo .axylo-readout-mode .axylo-readout[hidden] { display: block !important; visibility: hidden; }
-  .axylo .axylo-readout .axylo-tooltip-title { display: inline; }
+  /* The x on one line at most, cut with an ellipsis, so a long title never crowds out the first value. */
+  .axylo .axylo-readout .axylo-tooltip-title {
+    display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom;
+  }
   .axylo .axylo-readout .axylo-readout-entry, .axylo .axylo-readout .axylo-tooltip-series { display: inline; }
   .axylo .axylo-readout .axylo-swatch { vertical-align: middle; margin-inline-end: 0.25em; }
   /* A pinned row or a slice-list entry can be chosen with a click or a tap (WCAG 2.5.1): real buttons, at

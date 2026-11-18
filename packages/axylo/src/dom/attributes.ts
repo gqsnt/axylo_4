@@ -6,3 +6,13 @@ export function setAttr(el: Element, name: string, value: string | null): void {
     el.setAttribute(name, value);
   }
 }
+
+/**
+ * The element that has focus, through open shadow roots (`document.activeElement` is only the outermost
+ * host): where focus is, for Escape's owner, for handing focus on, and for teardown (review R2).
+ */
+export function activeElementOf(doc: Document): Element | null {
+  let at: Element | null = doc.activeElement;
+  while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+  return at;
+}
