@@ -139,8 +139,17 @@ function hiddenCategories(axis: Axes['x'], fit: FittedLabels): number {
   return hidden;
 }
 
+/** Whether a fitted axis kept no whole candidate set (spec F7: an automatic value domain ends at drawn ticks). */
+interface AxisFit {
+  /** The value axis (y; the bottom axis of horizontal bars). */
+  partial: boolean;
+  /** The continuous independent axis (a scatter's x is a value axis too). */
+  xPartial: boolean;
+}
+
 function layoutAxes(
-  input: PlotInput & Cartesian & TextInput, size: Size, text: Metrics, showTicks: boolean, valueFit = { partial: false },
+  input: PlotInput & Cartesian & TextInput, size: Size, text: Metrics, showTicks: boolean,
+  valueFit: AxisFit = { partial: false, xPartial: false },
 ): Layout {
   const { width, height } = size;
   const horizontal = input.kind === 'bands' && input.horizontal;
@@ -209,6 +218,7 @@ function layoutAxes(
       const xFit = horizontal ? leftFit : bottomFit;
       const yFit = horizontal ? bottomFit : leftFit;
       valueFit.partial = yFit.partial === true;
+      valueFit.xPartial = input.x.type !== 'band' && xFit.partial === true;
       placeReferences(input.references ?? [], projection, plot, texts, text, input.referenceXDomain);
       return {
         ...size, kind: 'plot', plot, projection, xTicks: xFit.ticks, yTicks: yFit.ticks, texts,
@@ -248,16 +258,31 @@ export function computeLayout(input: LayoutInput): Layout {
   }
   if (width < MIN_WIDTH + 2 * INSET || height < MIN_HEIGHT + 2 * INSET) return tooSmall(size);
   const text = metrics(input);
-  const fit = { partial: false };
-  const layout = layoutAxes(input, size, text, true, fit);
+  const fit: AxisFit = { partial: false, xPartial: false };
+  let layout = layoutAxes(input, size, text, true, fit);
   // A title may need the space otherwise reserved for ticks at the ends of the left axis.
   if (layout.kind === 'too-small') return layoutAxes(input, size, text, false);
   // Too short for any whole tick set of the domain: a wider domain whose sparser set fits ends at its ticks.
+  let chosen = input;
   if (fit.partial) {
     for (const coarser of input.y.coarser ?? []) {
-      const next = { partial: false };
-      const wider = layoutAxes({ ...input, y: { ...input.y, ...coarser, coarser: undefined } } as typeof input, size, text, true, next);
-      if (wider.kind === 'plot' && !next.partial) return wider;
+      const next: AxisFit = { partial: false, xPartial: false };
+      const candidate = { ...input, y: { ...input.y, ...coarser, coarser: undefined } } as typeof input;
+      const wider = layoutAxes(candidate, size, text, true, next);
+      if (wider.kind === 'plot' && !next.partial) {
+        [layout, chosen] = [wider, candidate];
+        fit.xPartial = next.xPartial;
+        break;
+      }
+    }
+  }
+  // The same for a continuous x that is a value axis (a scatter's): only such an axis has wider domains.
+  const x = chosen.x;
+  if (fit.xPartial && x.type !== 'band') {
+    for (const coarser of x.coarser ?? []) {
+      const next: AxisFit = { partial: false, xPartial: false };
+      const wider = layoutAxes({ ...chosen, x: { ...x, ...coarser, coarser: undefined } } as typeof input, size, text, true, next);
+      if (wider.kind === 'plot' && !next.xPartial && (!next.partial || fit.partial)) return wider;
     }
   }
   return layout;

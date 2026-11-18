@@ -7,6 +7,7 @@ import { createNumberTickLabeler, type NumberTickSpec } from '../../src/format';
 import { computeLayout } from '../../src/layout';
 import type { BandAxis, ContinuousAxis, LayoutInput, ScaleConstructors, ValueAxis } from '../../src/layout';
 import { linearTickCandidates, timeTickCandidates, valueDomain, type TimeTickOptions } from '../../src/scale';
+import { record } from '../core/host';
 
 type Span = readonly [number, number];
 type Plot = Extract<Layout, { kind: 'plot' }>;
@@ -737,5 +738,43 @@ describe('a value axis too short for any whole tick set of its domain (F7, contr
     const tall = plot(computeLayout({ ...input(['a', 'b'], 720, 400), y }));
     expect(tall.projection.kind === 'xy' ? tall.projection.y.domain : null).toEqual([0, 250]);
     expect(tall.yTicks.map(t => t.value)).toEqual([0, 50, 100, 150, 200, 250]);
+  });
+});
+
+describe('spec F7: a scatter\'s automatic x domain ends at drawn ticks however narrow the plot (verification, defect 10)', () => {
+  // F7: "This rule is for value axes: the y axis of line, area and bar, and both axes of scatter", and the
+  // automatic domain "ends at the first tick at or beyond each extreme".
+  function scatterX(xs: readonly number[], width: number, height = 400) {
+    const r = record('scatter', { title: 'T', data: xs.map((x, i) => ({ x, y: i })), x: 'x', y: 'y' }, { container: { width, height } });
+    r.frames();
+    const layout = r.layout;
+    if (layout?.kind !== 'plot' || layout.projection.kind !== 'xy' || layout.projection.x.type === 'band') return null;
+    return { domain: layout.projection.x.domain, ticks: layout.xTicks.map(tick => tick.value), plot: layout.plot };
+  }
+
+  it.each([195, 205, 215])('x −3.3, 7.7 and 1001.5 at %i px wide', width => {
+    const drawn = scatterX([-3.3, 7.7, 1001.5], width)!;
+    // The domain contains the data and ends on drawn ticks; [−500, 1500] needs its end tick 1500, which does
+    // not fit at this width, so the next domain on a coarser step is drawn, whole.
+    expect(drawn.domain[0]).toBeLessThanOrEqual(-3.3);
+    expect(drawn.domain[1]).toBeGreaterThanOrEqual(1001.5);
+    expect(drawn.ticks[0]).toBe(drawn.domain[0]);
+    expect(drawn.ticks.at(-1)).toBe(drawn.domain[1]);
+    expect(drawn.domain).toEqual([-1000, 2000]);
+    expect(drawn.ticks).toEqual([-1000, 0, 1000, 2000]);
+  });
+
+  it('keeps the data\'s own domain where its ticks fit', () => {
+    expect(scatterX([-3.3, 7.7, 1001.5], 600)).toMatchObject({ domain: [-500, 1500], ticks: [-500, 0, 500, 1000, 1500] });
+  });
+
+  it('for any automatic numeric x domain and any width at which the plot is drawn, both ends are drawn ticks', () => {
+    const value = fc.integer({ min: -100_000_000, max: 100_000_000 }).map(n => n / 100);
+    fc.assert(fc.property(fc.array(value, { minLength: 2, maxLength: 6 }), fc.integer({ min: 130, max: 700 }), (xs, width) => {
+      const drawn = scatterX(xs, width, 300);
+      fc.pre(drawn !== null && drawn.domain[0] < drawn.domain[1]);
+      expect(drawn!.ticks[0]).toBe(drawn!.domain[0]);
+      expect(drawn!.ticks.at(-1)).toBe(drawn!.domain[1]);
+    }), { numRuns: 300 });
   });
 });

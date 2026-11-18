@@ -18,7 +18,7 @@ export interface FittedLabels {
   readonly texts: readonly PlacedText[];
   readonly depth: number;
   readonly remedies: readonly LabelRemedy[];
-  /** No candidate set fitted whole: labels were dropped from the sparsest one (value axes). */
+  /** No candidate set fitted whole: labels were dropped from the sparsest one (value axes, continuous x). */
   readonly partial?: boolean;
 }
 
@@ -347,7 +347,9 @@ function truncateBottom(
     edge = anchor + DIAGONAL * metrics.lineHeight;
   }
   if ([...kept.values()].some(label => label.text.lines[0] !== label.tick.label)) remedies.push('truncated');
-  return result(inSourceOrder(ticks, kept), 'bottom', remedies);
+  const fitted = result(inSourceOrder(ticks, kept), 'bottom', remedies);
+  // A continuous axis that drops ticks keeps no whole candidate set: a value axis may then take a wider domain.
+  return scale.type !== 'band' && kept.size < ticks.length ? { ...fitted, partial: true } : fitted;
 }
 
 export function fitBottom(
