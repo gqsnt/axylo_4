@@ -1,9 +1,9 @@
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
-// The documentation's tests, with the same split as the root vitest.config.ts: unit tests in Node, and
-// browser tests (*.browser.test.ts) against the built library and site when AXYLO_BROWSER is set. The root
-// config does not include apps/docs yet; until it does, run these with `--config apps/docs/vitest.config.ts`.
+// The documentation's tests alone, with the same split as the root vitest.config.ts (which includes them
+// too): unit tests in Node, and browser tests (*.browser.test.ts) against the packed library and the built
+// site when AXYLO_BROWSER is set.
 export default defineConfig({
   define: { __DEV__: 'true' },
   test: {

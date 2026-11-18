@@ -18,11 +18,21 @@
  *
  * The package ships one prebundled file per condition; that it can be shaken at all rests on its doing no work
  * at import time, which the first test proves.
+ *
+ * The markers can only see the code they name. The last group closes that gap a level up: the library's source,
+ * bundled with the release build's production settings (scripts/build.mjs), one kind at a time, must not
+ * include a module that belongs to another kind. Which module belongs to which kind is listed by hand from the
+ * restructuring's map (reviews/2026-11-18/impl/wp/tree-shake.report.md): shared code that starts importing
+ * another kind's composition, scene, lookup, view or store again brings in that kind's module, and fails there
+ * even when the module's own text carries no marker. `validate` alone must carry no drawing, DOM, lookup or
+ * reader module, since it runs only the synchronous stages (plan 1.6).
  */
 import { describe, expect, it } from 'vitest';
 import { build } from 'esbuild';
 import path from 'node:path';
-import { fixture, fixtureGuard, out } from './paths';
+import { fixture, fixtureGuard, out, repo } from './paths';
+// @ts-expect-error scripts/build.mjs is plain JavaScript without declarations
+import { PRODUCTION, stylesheetPlugin, stylesheets } from '../../scripts/build.mjs';
 
 const KINDS = ['line', 'area', 'bar', 'scatter', 'donut'] as const;
 type Kind = typeof KINDS[number];
@@ -87,4 +97,48 @@ describe('a consumer that imports one chart kind', () => {
       expect(found).toEqual([]);
     });
   }
+});
+
+/** Source modules that belong to some kinds only (paths under packages/axylo/src), and the kinds they belong to. */
+const OWNED: Record<string, readonly Kind[]> = {
+  'kinds/line.ts': ['line'], 'kinds/area.ts': ['area'], 'kinds/bar.ts': ['bar'], 'kinds/scatter.ts': ['scatter'], 'kinds/donut.ts': ['donut'],
+  'scene/areas.ts': ['area'], 'scene/bars.ts': ['bar'],
+  'lookup/scatter.ts': ['scatter'], 'lookup/scatter-grid.ts': ['scatter'], 'lookup/point-order.ts': ['scatter'],
+  'lookup/donut.ts': ['donut'], 'view/donut.ts': ['donut'], 'view/donut-geometry.ts': ['donut'],
+  // Aligned data (one x shared by every series): line, area and bar.
+  'data/store.ts': ['line', 'area', 'bar'], 'data/store-buffers.ts': ['line', 'area', 'bar'], 'lookup/aligned.ts': ['line', 'area', 'bar'],
+  'view/stack.ts': ['line', 'area', 'bar'],
+  // Unaligned data: scatter points and donut slices.
+  'data/store-unaligned.ts': ['scatter', 'donut'],
+};
+
+const src = path.join(repo, 'packages/axylo/src');
+/** Source modules that contribute bytes when `name` alone is imported from the source, built as the release build builds. */
+async function sourceModules(name: Kind | 'validate'): Promise<Set<string>> {
+  const { minified } = await (stylesheets as () => Promise<{ minified: string }>)();
+  const r = await build({
+    stdin: { contents: `export { ${name} } from ${JSON.stringify(path.join(src, 'index.ts'))};`, resolveDir: repo, loader: 'ts' }, absWorkingDir: repo,
+    bundle: true, minify: true, format: 'esm', target: 'es2022', write: false, metafile: true, logLevel: 'silent', legalComments: 'none',
+    define: PRODUCTION as Record<string, string>, plugins: [(stylesheetPlugin as (text: string) => import('esbuild').Plugin)(minified)],
+  });
+  const output = Object.values(r.metafile.outputs)[0]!;
+  return new Set(Object.entries(output.inputs).filter(([, v]) => v.bytesInOutput > 0).map(([f]) => path.relative(src, path.resolve(repo, f)).split(path.sep).join('/')));
+}
+
+describe('the source, bundled one kind at a time with the release settings', () => {
+  for (const kind of KINDS) {
+    it(`${kind}: includes the modules that belong to it and none that belong only to other kinds`, async () => {
+      const modules = await sourceModules(kind);
+      const mine = Object.entries(OWNED).filter(([, kinds]) => kinds.includes(kind)).map(([m]) => m);
+      expect(mine.filter(m => !modules.has(m)), `${kind} lacks its own modules (a renamed module would leave this list stale)`).toEqual([]);
+      const foreign = Object.entries(OWNED).filter(([m, kinds]) => !kinds.includes(kind) && modules.has(m)).map(([m, kinds]) => `${m} (${kinds.join(', ')})`);
+      expect(foreign).toEqual([]);
+    });
+  }
+
+  it('validate: includes no composition and no drawing, DOM, lookup or reader module', async () => {
+    const modules = await sourceModules('validate');
+    expect(modules.has('data/normalize.ts'), 'validate normalizes').toBe(true);
+    expect([...modules].filter(m => /^(kinds|render|dom|scene|lookup|reader|theme)\//.test(m))).toEqual([]);
+  });
 });

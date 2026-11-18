@@ -60,7 +60,9 @@ Eight colours, in the order blue, orange, green, purple, red, cyan, magenta, sla
 - each stays at least 0.10 from the focus, reference and muted colours;
 - neighbouring colours stay at least 0.06 apart as 25% and 80% fills, as computed and as Chrome painted them.
 
-The dark scheme's focus colour is a near-white, so that the first dark series could be an ordinary dark-mode blue. Colour is never the only cue: lines and areas also carry marker shapes, bars past the eighth series fill patterns, adjacent fills are separated by background, and the legend and tooltip repeat the cues. The palette is a proposal that meets those limits; whether it is pleasant to look at is still open, and the refit has not been reviewed. The reasoning, the measurements and what was tried are in [decision 0003](../../../docs/decisions/0003-default-palette.md).
+The dark scheme's focus colour is a near-white, so that the first dark series could be an ordinary dark-mode blue. Colour is never the only cue: lines and areas also carry marker shapes, bars past the eighth series fill patterns, adjacent fills are separated by background, and the legend and tooltip repeat the cues.
+
+The owner adopted this palette on 2026-11-18, out of the candidates [decision 0003](../../../docs/decisions/0003-default-palette.md) measured, for a more even light scheme, a calmer first three colours and a neutral eighth. The record states what it costs: a louder light red and purple, a dimmer dark purple, tighter dark margins to the focus and muted colours, and a deeper dark first blue. The palette it replaced is kept there under "Superseded", with its measurements. An independent recomputation found all sixteen colours within the limits above ([review](../../../reviews/2026-11-18/impl/wp/palette-b.review.md)).
 
 ## Internal properties
 

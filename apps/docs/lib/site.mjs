@@ -40,9 +40,10 @@ const SOURCE_ROOTS = ['examples/first-chart/', 'research/harness/src/libs/', 'ap
 
 /** Bundles a TypeScript source of the library and imports it, to read data the built bundle does not export. */
 export async function importSource(relative) {
+  const { DEVELOPMENT } = await import(pathToFileURL(path.join(repoRoot, 'scripts/build.mjs')).href);
   const result = await build({
     entryPoints: [path.join(repoRoot, relative)], bundle: true, format: 'esm', write: false, platform: 'neutral',
-    define: { __DEV__: 'true' }, logLevel: 'silent',
+    define: DEVELOPMENT, logLevel: 'silent',
   });
   return import('data:text/javascript;base64,' + Buffer.from(result.outputFiles[0].contents).toString('base64'));
 }
@@ -61,18 +62,21 @@ function gitRevision() {
 
 /**
  * The installed files and the source the build also reads (the built-in messages and the registry's
- * templates, which the bundle does not export) must be one revision. The check rebuilds the development
- * bundle from packages/axylo/src in memory, with the options scripts/build.mjs uses for axylo.dev.js, and
- * requires it to equal the installed file byte for byte; the stylesheet must equal the source's string.
- * Anything else means packages/axylo/dist is older or newer than its source.
+ * templates, which the bundle does not export) must be one revision. The check takes what it compares from
+ * scripts/build.mjs itself, so it follows the library's build by construction: the stylesheet must equal
+ * `stylesheets().minified` (dist/axylo.css is that text), and the development bundle, rebuilt from
+ * packages/axylo/src in memory with the build's DEVELOPMENT constants and the options it uses for
+ * axylo.dev.js, must equal the installed file byte for byte. Anything else means packages/axylo/dist is older
+ * or newer than its source.
  */
 async function checkSameRevision(css, bundle) {
   const problems = [];
-  const sourceCss = (await importSource('packages/axylo/src/theme/css.ts')).AXYLO_CSS;
-  if (sourceCss !== css) problems.push('the installed axylo.css differs from packages/axylo/src/theme/css.ts');
+  const { stylesheets, DEVELOPMENT } = await import(pathToFileURL(path.join(repoRoot, 'scripts/build.mjs')).href);
+  const { minified } = await stylesheets();
+  if (minified !== css) problems.push('the installed axylo.css differs from the minified packages/axylo/src/theme/css.ts');
   const rebuilt = await build({
     entryPoints: [path.join(repoRoot, 'packages/axylo/src/index.ts')], bundle: true, target: 'es2022', legalComments: 'none',
-    logLevel: 'silent', format: 'esm', define: { __DEV__: 'true' }, write: false, outfile: path.join(repoRoot, 'packages/axylo/dist/axylo.dev.js'),
+    logLevel: 'silent', format: 'esm', define: DEVELOPMENT, write: false, outfile: path.join(repoRoot, 'packages/axylo/dist/axylo.dev.js'),
     absWorkingDir: repoRoot,
   });
   if (Buffer.from(rebuilt.outputFiles[0].contents).toString('utf8') !== bundle) {

@@ -2,7 +2,7 @@
 //
 //   node scripts/size.mjs           pack packages/*/dist (scripts/pack.mjs --no-build), measure, print, write bench/size-latest.json
 //   node scripts/size.mjs --check   the same, and exit 1 when a row exceeds its target: total gzip bytes
-//                                   compared as integers against targetKiB * 1024 (40 KiB means 40,960 B)
+//                                   compared as integers against targetKiB * 1024 (96 KiB means 98,304 B)
 //   node scripts/size.mjs --no-pack measure the fixtures already in tests/dist/fixtures
 //
 // Every row is built the way a consumer's bundler would build it: esbuild, from inside a fixture that installed
@@ -11,16 +11,22 @@
 //
 // Stylesheet: the JavaScript carries the stylesheet as a string and applies it at run time, so a bundler page
 // downloads it inside its JavaScript and needs no axylo.css; the script-tag snippet also links axylo.css, so
-// that row adds the file. "total" is what each page downloads. The targets are provisional (spec DX7) and are
-// under review, so CI runs this script without --check for now: the flag is correct, but it is not a gate.
+// that row adds the file. "total" is what each page downloads.
+//
+// Targets (spec DX7, set by the owner on 2026-11-18): 96 KiB everything, 80 KiB a page that uses only `line`,
+// 2 KiB the React adapter. CI runs this script without --check until the targets are met: the flag is correct,
+// but it is not a gate yet. The rows for each other chart kind alone and for `validate` alone have no target;
+// they show what tree-shaking leaves.
 //
 // The per-module breakdown cannot come from the packed files, which are one pre-bundled file each: it rebuilds
-// packages/axylo/src with the release build's production settings (scripts/build.mjs) and reads esbuild's
-// metafile, then states how far that rebuild is from the packed axylo.js.
+// packages/axylo/src with the release build's production settings, imported from scripts/build.mjs (the
+// minified stylesheet, PRODUCTION constants), reads esbuild's metafile, and states how far that rebuild is from
+// the packed axylo.js.
 import { build } from 'esbuild';
 import fs from 'node:fs';
 import path from 'node:path';
 import { gzipSync } from 'node:zlib';
+import { PRODUCTION, stylesheetPlugin, stylesheets } from './build.mjs';
 import { fixtureGuard, pack } from './pack.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
@@ -53,10 +59,14 @@ async function main() {
 
   const cases = [
     {
-      entry: 'line only (examples/first-chart/npm.ts)', targetKiB: 25,
+      entry: 'line only (examples/first-chart/npm.ts)', targetKiB: 80,
       build: () => consumer({ cwd: npm, contents: fs.readFileSync(path.join(npm, 'example/npm.ts'), 'utf8') }), cssFile: false,
     },
-    { entry: 'everything (export * from axylo)', targetKiB: 40, build: () => consumer({ cwd: npm, contents: "export * from 'axylo';" }), cssFile: false },
+    { entry: 'everything (export * from axylo)', targetKiB: 96, build: () => consumer({ cwd: npm, contents: "export * from 'axylo';" }), cssFile: false },
+    ...['area', 'bar', 'scatter', 'donut', 'validate'].map(name => ({
+      entry: `${name} only (export { ${name} } from axylo)`, targetKiB: null, cssFile: false,
+      build: () => consumer({ cwd: npm, contents: `export { ${name} } from 'axylo';` }),
+    })),
     { entry: 'script tag (axylo.iife.min.js + axylo.css)', targetKiB: null, build: async () => ({ bytes: axyloFile('axylo.iife.min.js') }), cssFile: true },
     {
       entry: 'React adapter alone (react, axylo external)', targetKiB: 2, cssFile: false,
@@ -86,9 +96,10 @@ async function main() {
 
   // Where the bytes of "everything" are: the source rebuilt as scripts/build.mjs builds dist/axylo.js.
   const src = path.join(root, 'packages/axylo/src');
+  const { minified } = await stylesheets();
   const rebuilt = await build({
     entryPoints: [path.join(src, 'index.ts')], bundle: true, target: 'es2022', legalComments: 'none', format: 'esm', minify: true,
-    define: { __DEV__: 'false' }, write: false, metafile: true, logLevel: 'silent', absWorkingDir: root,
+    define: PRODUCTION, plugins: [stylesheetPlugin(minified)], write: false, metafile: true, logLevel: 'silent', absWorkingDir: root,
   });
   const packedProd = axyloFile('axylo.js').length;
   const out = Object.values(rebuilt.metafile.outputs)[0];

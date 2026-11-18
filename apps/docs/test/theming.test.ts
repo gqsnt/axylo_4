@@ -14,6 +14,7 @@
 import { describe, expect, it } from 'vitest';
 import { AXYLO_CSS } from '../../../packages/axylo/src/theme/css';
 import { TOKEN_BINDINGS, seriesBinding } from '../../../packages/axylo/src/theme/resolve';
+import { minifyCss } from '../../../packages/axylo/src/theme/minify';
 import { readThemeDefaults } from '../lib/theme.mjs';
 import { internalTokens, tokens } from '../data/tokens.mjs';
 
@@ -66,6 +67,10 @@ describe('theme custom properties', () => {
       expect(light[t.default!], `${t.default} (light)`).toMatch(/^#[0-9a-f]{6}$/i);
       expect(dark[t.default!], `${t.default} (dark)`).toMatch(/^#[0-9a-f]{6}$/i);
     }
+  });
+  it('the defaults read the same from the stylesheet as written and as the build minifies it', () => {
+    // dist/axylo.css is the minified text (scripts/build.mjs), and the site reads its table from it.
+    expect(readThemeDefaults(minifyCss(AXYLO_CSS))).toEqual(readThemeDefaults(AXYLO_CSS));
   });
   it('every private default in the stylesheet belongs to a documented property', () => {
     const { light, dark } = readThemeDefaults(AXYLO_CSS);

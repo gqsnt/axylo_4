@@ -1,127 +1,182 @@
 {
- "date": "2026-11-18T06:44:33.230Z",
+ "date": "2026-11-18T10:34:23.622Z",
  "method": "esbuild consumer bundles from tests/dist/fixtures (packed tarballs), minify, production condition; gzip level 9",
  "packed": {
-  "at": "2026-11-18T06:44:32.022Z",
-  "axylo": "sha512-ZF7C/fzZmxJv3D9saiaBvzSYEWQy4JOw3RU5/8aplUH0g9459KO0N+WJWeJAu99gvHhakuoG4dJuQp3WoBe+8Q==",
-  "react": "sha512-BuJ8uvljMUoRSsdnHMhHCQ8LLGZA96JUp2hzBGoi7RPRo7mnfvZ+Q67COjiRM3p3S/uiBuENKHelHAa+8cr5bA=="
+  "at": "2026-11-18T10:34:22.033Z",
+  "axylo": "sha512-8epevZvs5wbrp+gycPro7XvoDxSzko5ie/yKfrxMyyeyf+8AlHxfnnQI4708YG8uU6m4p0jPW8LDtmNJhykqFg==",
+  "react": "sha512-aEum7Y2hBa2Bq58TQkzo/YlACpBHJee4u8M9JFjf3CbkgD0LgrUJHssSql5usO+XxE/g0V3A3jcikdzygCBePA=="
  },
- "cssFileBytes": 16109,
- "cssFileGzipBytes": 4113,
+ "cssFileBytes": 13917,
+ "cssFileGzipBytes": 2886,
  "rows": [
   {
    "entry": "line only (examples/first-chart/npm.ts)",
-   "minBytes": 288819,
-   "jsGzipBytes": 101760,
+   "minBytes": 255120,
+   "jsGzipBytes": 89605,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 101760,
-   "totalKiB": 99.38,
-   "targetKiB": 25,
-   "targetBytes": 25600,
+   "totalGzipBytes": 89605,
+   "totalKiB": 87.5,
+   "targetKiB": 80,
+   "targetBytes": 81920,
    "over": true
   },
   {
    "entry": "everything (export * from axylo)",
-   "minBytes": 289261,
-   "jsGzipBytes": 101858,
+   "minBytes": 303856,
+   "jsGzipBytes": 106738,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 101858,
-   "totalKiB": 99.47,
-   "targetKiB": 40,
-   "targetBytes": 40960,
+   "totalGzipBytes": 106738,
+   "totalKiB": 104.24,
+   "targetKiB": 96,
+   "targetBytes": 98304,
    "over": true
   },
   {
+   "entry": "area only (export { area } from axylo)",
+   "minBytes": 260476,
+   "jsGzipBytes": 91514,
+   "cssFileGzipBytes": 0,
+   "totalGzipBytes": 91514,
+   "totalKiB": 89.37,
+   "targetKiB": null,
+   "targetBytes": null,
+   "over": false
+  },
+  {
+   "entry": "bar only (export { bar } from axylo)",
+   "minBytes": 256092,
+   "jsGzipBytes": 89997,
+   "cssFileGzipBytes": 0,
+   "totalGzipBytes": 89997,
+   "totalKiB": 87.89,
+   "targetKiB": null,
+   "targetBytes": null,
+   "over": false
+  },
+  {
+   "entry": "scatter only (export { scatter } from axylo)",
+   "minBytes": 238968,
+   "jsGzipBytes": 83830,
+   "cssFileGzipBytes": 0,
+   "totalGzipBytes": 83830,
+   "totalKiB": 81.87,
+   "targetKiB": null,
+   "targetBytes": null,
+   "over": false
+  },
+  {
+   "entry": "donut only (export { donut } from axylo)",
+   "minBytes": 221734,
+   "jsGzipBytes": 77125,
+   "cssFileGzipBytes": 0,
+   "totalGzipBytes": 77125,
+   "totalKiB": 75.32,
+   "targetKiB": null,
+   "targetBytes": null,
+   "over": false
+  },
+  {
+   "entry": "validate only (export { validate } from axylo)",
+   "minBytes": 58215,
+   "jsGzipBytes": 20887,
+   "cssFileGzipBytes": 0,
+   "totalGzipBytes": 20887,
+   "totalKiB": 20.4,
+   "targetKiB": null,
+   "targetBytes": null,
+   "over": false
+  },
+  {
    "entry": "script tag (axylo.iife.min.js + axylo.css)",
-   "minBytes": 289757,
-   "jsGzipBytes": 101898,
-   "cssFileGzipBytes": 4113,
-   "totalGzipBytes": 106011,
-   "totalKiB": 103.53,
+   "minBytes": 304394,
+   "jsGzipBytes": 106833,
+   "cssFileGzipBytes": 2886,
+   "totalGzipBytes": 109719,
+   "totalKiB": 107.15,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
   },
   {
    "entry": "React adapter alone (react, axylo external)",
-   "minBytes": 2375,
-   "jsGzipBytes": 1197,
+   "minBytes": 3499,
+   "jsGzipBytes": 1671,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 1197,
-   "totalKiB": 1.17,
+   "totalGzipBytes": 1671,
+   "totalKiB": 1.63,
    "targetKiB": 2,
    "targetBytes": 2048,
    "over": false
   }
  ],
  "breakdown": {
-  "rebuiltMinBytes": 290052,
-  "packedMinBytes": 289266,
+  "rebuiltMinBytes": 303903,
+  "packedMinBytes": 303903,
   "directories": [
    {
     "directory": "data",
-    "min B": 68732,
-    "share": "23.7%"
+    "min B": 72608,
+    "share": "23.9%"
    },
    {
     "directory": "core",
-    "min B": 50294,
-    "share": "17.3%"
+    "min B": 50786,
+    "share": "16.7%"
    },
    {
     "directory": "dom",
-    "min B": 39515,
-    "share": "13.6%"
+    "min B": 43953,
+    "share": "14.5%"
    },
    {
     "directory": "theme",
-    "min B": 25067,
-    "share": "8.6%"
+    "min B": 23750,
+    "share": "7.8%"
    },
    {
     "directory": "render",
-    "min B": 18865,
-    "share": "6.5%"
+    "min B": 19451,
+    "share": "6.4%"
    },
    {
     "directory": "lookup",
-    "min B": 16573,
+    "min B": 17355,
     "share": "5.7%"
    },
    {
+    "directory": "view",
+    "min B": 12055,
+    "share": "4.0%"
+   },
+   {
     "directory": "layout",
-    "min B": 11845,
-    "share": "4.1%"
+    "min B": 11860,
+    "share": "3.9%"
    },
    {
     "directory": "scale",
-    "min B": 11809,
-    "share": "4.1%"
-   },
-   {
-    "directory": "view",
-    "min B": 10993,
-    "share": "3.8%"
+    "min B": 11781,
+    "share": "3.9%"
    },
    {
     "directory": "scene",
-    "min B": 9495,
+    "min B": 10077,
     "share": "3.3%"
    },
    {
     "directory": "diagnostics",
-    "min B": 8093,
+    "min B": 8650,
     "share": "2.8%"
    },
    {
     "directory": "reader",
-    "min B": 6744,
-    "share": "2.3%"
+    "min B": 7918,
+    "share": "2.6%"
    },
    {
     "directory": "format",
-    "min B": 5764,
-    "share": "2.0%"
+    "min B": 5912,
+    "share": "1.9%"
    },
    {
     "directory": "simplify",
@@ -130,115 +185,128 @@
    },
    {
     "directory": "messages",
-    "min B": 2685,
-    "share": "0.9%"
+    "min B": 3028,
+    "share": "1.0%"
+   },
+   {
+    "directory": "kinds",
+    "min B": 1164,
+    "share": "0.4%"
    },
    {
     "directory": "(root)",
-    "min B": 235,
+    "min B": 212,
     "share": "0.1%"
    }
   ],
   "modules": [
    {
     "file": "core/controller.ts",
-    "bytes": 27640
+    "bytes": 26978
    },
    {
     "file": "dom/interaction.ts",
-    "bytes": 23227
+    "bytes": 26517
    },
    {
     "file": "data/store.ts",
-    "bytes": 18633
+    "bytes": 19501
    },
    {
     "file": "theme/css.ts",
-    "bytes": 15179
+    "bytes": 13927
    },
    {
     "file": "render/svg.ts",
-    "bytes": 9084
+    "bytes": 9240
    },
    {
     "file": "data/normalize.ts",
-    "bytes": 8689
+    "bytes": 8854
    },
    {
     "file": "data/store-unaligned.ts",
-    "bytes": 7806
-   },
-   {
-    "file": "layout/labels.ts",
-    "bytes": 6956
-   },
-   {
-    "file": "diagnostics/registry.ts",
-    "bytes": 6849
-   },
-   {
-    "file": "view/index.ts",
-    "bytes": 6717
-   },
-   {
-    "file": "core/focus.ts",
-    "bytes": 6680
-   },
-   {
-    "file": "render/canvas.ts",
-    "bytes": 6307
+    "bytes": 8083
    },
    {
     "file": "data/store-rows.ts",
-    "bytes": 5944
+    "bytes": 7871
+   },
+   {
+    "file": "diagnostics/registry.ts",
+    "bytes": 7406
+   },
+   {
+    "file": "view/index.ts",
+    "bytes": 7190
+   },
+   {
+    "file": "core/focus.ts",
+    "bytes": 7185
+   },
+   {
+    "file": "layout/labels.ts",
+    "bytes": 6964
+   },
+   {
+    "file": "render/canvas.ts",
+    "bytes": 6444
+   },
+   {
+    "file": "data/options.ts",
+    "bytes": 5893
    },
    {
     "file": "data/x.ts",
     "bytes": 5715
    },
    {
-    "file": "data/options.ts",
-    "bytes": 5598
-   },
-   {
     "file": "scale/time.ts",
-    "bytes": 5107
-   },
-   {
-    "file": "core/axes.ts",
-    "bytes": 5015
+    "bytes": 5119
    },
    {
     "file": "theme/resolve.ts",
-    "bytes": 4975
+    "bytes": 5103
    },
    {
-    "file": "lookup/aligned.ts",
-    "bytes": 4341
-   },
-   {
-    "file": "dom/figure.ts",
-    "bytes": 4008
-   },
-   {
-    "file": "layout/index.ts",
-    "bytes": 3768
+    "file": "core/axes.ts",
+    "bytes": 5080
    },
    {
     "file": "reader/index.ts",
-    "bytes": 3729
-   },
-   {
-    "file": "lookup/scatter.ts",
-    "bytes": 3641
+    "bytes": 4925
    },
    {
     "file": "dom/tooltip.ts",
-    "bytes": 3493
+    "bytes": 4834
+   },
+   {
+    "file": "lookup/aligned.ts",
+    "bytes": 4395
+   },
+   {
+    "file": "dom/figure.ts",
+    "bytes": 3862
+   },
+   {
+    "file": "layout/index.ts",
+    "bytes": 3775
+   },
+   {
+    "file": "lookup/scatter-grid.ts",
+    "bytes": 3676
+   },
+   {
+    "file": "lookup/scatter.ts",
+    "bytes": 3668
    },
    {
     "file": "data/store-buffers.ts",
-    "bytes": 3307
+    "bytes": 3595
+   },
+   {
+    "file": "core/chart.ts",
+    "bytes": 3466
    },
    {
     "file": "simplify/index.ts",
@@ -246,19 +314,19 @@
    },
    {
     "file": "dom/table.ts",
-    "bytes": 3232
-   },
-   {
-    "file": "lookup/scatter-grid.ts",
-    "bytes": 3176
+    "bytes": 3144
    },
    {
     "file": "scene/areas.ts",
     "bytes": 3088
    },
    {
-    "file": "core/chart.ts",
-    "bytes": 2907
+    "file": "messages/index.ts",
+    "bytes": 3028
+   },
+   {
+    "file": "scene/index.ts",
+    "bytes": 3003
    },
    {
     "file": "core/environment.ts",
@@ -266,43 +334,39 @@
    },
    {
     "file": "core/stages.ts",
-    "bytes": 2802
+    "bytes": 2827
    },
    {
     "file": "dom/swatch.ts",
-    "bytes": 2732
-   },
-   {
-    "file": "messages/index.ts",
-    "bytes": 2685
-   },
-   {
-    "file": "reader/table.ts",
-    "bytes": 2581
+    "bytes": 2773
    },
    {
     "file": "format/number.ts",
-    "bytes": 2564
+    "bytes": 2720
    },
    {
-    "file": "dom/toolbar.ts",
-    "bytes": 2456
-   },
-   {
-    "file": "scene/index.ts",
-    "bytes": 2417
+    "file": "reader/table.ts",
+    "bytes": 2559
    },
    {
     "file": "data/store-window.ts",
-    "bytes": 2388
+    "bytes": 2444
+   },
+   {
+    "file": "render/geometry.ts",
+    "bytes": 2373
    },
    {
     "file": "data/store-diagnostics.ts",
     "bytes": 2356
    },
    {
-    "file": "render/geometry.ts",
-    "bytes": 2080
+    "file": "dom/toolbar.ts",
+    "bytes": 2345
+   },
+   {
+    "file": "lookup/donut.ts",
+    "bytes": 2125
    },
    {
     "file": "data/steps.ts",
@@ -313,16 +377,8 @@
     "bytes": 2052
    },
    {
-    "file": "lookup/donut.ts",
-    "bytes": 1989
-   },
-   {
     "file": "scene/bars.ts",
-    "bytes": 1839
-   },
-   {
-    "file": "scale/zone.ts",
-    "bytes": 1794
+    "bytes": 1835
    },
    {
     "file": "scale/domain.ts",
@@ -335,6 +391,10 @@
    {
     "file": "theme/styles.ts",
     "bytes": 1770
+   },
+   {
+    "file": "scale/zone.ts",
+    "bytes": 1754
    },
    {
     "file": "format/time.ts",
@@ -362,7 +422,7 @@
    },
    {
     "file": "view/donut.ts",
-    "bytes": 1303
+    "bytes": 1311
    },
    {
     "file": "scene/lines.ts",
@@ -378,7 +438,7 @@
    },
    {
     "file": "format/index.ts",
-    "bytes": 1189
+    "bytes": 1181
    },
    {
     "file": "data/store-map.ts",
@@ -421,6 +481,14 @@
     "bytes": 703
    },
    {
+    "file": "view/donut-geometry.ts",
+    "bytes": 581
+   },
+   {
+    "file": "lookup/geometry.ts",
+    "bytes": 535
+   },
+   {
     "file": "view/bar-bands.ts",
     "bytes": 530
    },
@@ -429,16 +497,8 @@
     "bytes": 484
    },
    {
-    "file": "lookup/geometry.ts",
-    "bytes": 467
-   },
-   {
     "file": "reader/x.ts",
     "bytes": 434
-   },
-   {
-    "file": "theme/palette.ts",
-    "bytes": 403
    },
    {
     "file": "dom/pointer.ts",
@@ -453,20 +513,44 @@
     "bytes": 280
    },
    {
+    "file": "kinds/area.ts",
+    "bytes": 251
+   },
+   {
     "file": "lookup/search.ts",
     "bytes": 246
    },
    {
-    "file": "index.ts",
+    "file": "kinds/scatter.ts",
+    "bytes": 242
+   },
+   {
+    "file": "kinds/line.ts",
     "bytes": 235
    },
    {
-    "file": "lookup/index.ts",
-    "bytes": 177
+    "file": "kinds/donut.ts",
+    "bytes": 220
    },
    {
-    "file": "render/index.ts",
-    "bytes": 0
+    "file": "kinds/bar.ts",
+    "bytes": 216
+   },
+   {
+    "file": "index.ts",
+    "bytes": 212
+   },
+   {
+    "file": "theme/palette.ts",
+    "bytes": 210
+   },
+   {
+    "file": "lookup/index.ts",
+    "bytes": 174
+   },
+   {
+    "file": "dom/attributes.ts",
+    "bytes": 111
    },
    {
     "file": "theme/index.ts",
@@ -477,11 +561,11 @@
     "bytes": 0
    },
    {
-    "file": "data/index.ts",
+    "file": "scale/index.ts",
     "bytes": 0
    },
    {
-    "file": "scale/index.ts",
+    "file": "data/index.ts",
     "bytes": 0
    }
   ]

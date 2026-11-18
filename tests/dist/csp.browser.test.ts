@@ -45,13 +45,27 @@ beforeAll(async () => {
 });
 afterAll(async () => { await closeBrowser(); await server?.close(); });
 
-/** The light-scheme default for the first series, as the packed stylesheet declares it (`.axylo { … }`). */
+/**
+ * The light-scheme default for the first series, as the packed stylesheet declares it. Read whatever form the
+ * sheet uses (readable or minified): a fixed `[data-axylo-scheme="light"]` block if there is one, otherwise the
+ * `.axylo` defaults, where the value is a plain colour or the first argument of `light-dark(light, dark)`.
+ * Every form the sheet gives must agree.
+ */
 const declaredSeries1 = (): string => {
   const css = fs.readFileSync(fixture('npm', 'node_modules/axylo/dist/axylo.css'), 'utf8');
-  const light = /\.axylo\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
-  const hex = /--axylo-default-series-1:\s*(#[0-9a-fA-F]{6})/.exec(light)?.[1];
-  if (!hex) throw new Error('axylo.css declares no light --axylo-default-series-1');
-  return hex;
+  const blocks = [
+    ...[...css.matchAll(/\[data-axylo-scheme="light"\]\s*\{([^}]*)\}/g)].map(m => m[1]!),
+    ...[...css.matchAll(/(?:^|[}\s,{])\.axylo\s*\{([^}]*)\}/g)].map(m => m[1]!),
+  ];
+  const values = blocks.flatMap(b => {
+    const v = /--axylo-default-series-1\s*:\s*([^;}]+)/.exec(b)?.[1]?.trim();
+    if (!v) return [];
+    const pair = /^light-dark\(\s*(#[0-9a-fA-F]{6})\s*,/.exec(v);
+    return [pair ? pair[1]! : v];
+  });
+  const hexes = [...new Set(values.map(v => v.toLowerCase()))];
+  if (hexes.length !== 1 || !/^#[0-9a-f]{6}$/.test(hexes[0]!)) throw new Error(`axylo.css: no single light --axylo-default-series-1 (found ${JSON.stringify(values)})`);
+  return hexes[0]!;
 };
 const PAGES: string[] = [];
 
@@ -109,6 +123,31 @@ describe.each(Object.entries(LOADERS))('%s', (_label, loader) => {
         if (id !== 'compact') expect(await w.page.locator(`#${id} .axylo-title`).first().textContent()).toBe(TITLES[id]);
       }
 
+      // The stylesheet took effect: its rules are in the computed styles, its series colour is the one painted.
+      // Checked before any table opens, since an open table takes the plot's place.
+      const hex = declaredSeries1();
+      const style = await w.page.evaluate(() => {
+        const figure = document.querySelector('#line figure')!;
+        // The renderer paints through `color` on the shape or its group (render/svg.ts).
+        const painted = (el: Element | null): string => { for (let e = el; e && !e.classList.contains('axylo-scene'); e = e.parentElement) { const c = (e as SVGElement).style?.getPropertyValue('color') ?? ''; if (c) return c; } return ''; };
+        const mark = Array.from(document.querySelectorAll<SVGElement>('#line .axylo-scene path')).find(p => /--axylo-series(-color)?-1\b/.test(painted(p)));
+        return {
+          display: getComputedStyle(figure).display, titleWeight: getComputedStyle(document.querySelector('#line .axylo-title')!).fontWeight,
+          series1: getComputedStyle(figure).getPropertyValue('--axylo-default-series-1').trim(), mark: mark ? getComputedStyle(mark).color : null,
+        };
+      });
+      expect(style.display, '.axylo-figure { display: flex }').toBe('flex');
+      expect(style.titleWeight, '.axylo-title { font-weight: 600 }').toBe('600');
+      // A custom property computes to its declared text: the fixed light value, or the light-dark() pair led by it.
+      expect(style.series1.toLowerCase()).toMatch(new RegExp(`^(${hex}|light-dark\\(\\s*${hex}\\s*,.*\\))$`));
+      const [r, g, b] = hexRgb(hex);
+      expect(style.mark).toBe(`rgb(${r}, ${g}, ${b})`);
+      await w.page.locator('#line .axylo-plot').scrollIntoViewIfNeeded();
+      await w.page.mouse.move(2, 2);
+      const painted = countNear(decodePng(await w.page.locator('#line .axylo-plot').screenshot({ animations: 'allow' })), [r, g, b]);
+      console.info(`#line pixels painted in ${hex}: ${painted}`);
+      expect(painted, `pixels of the first series in ${hex}`).toBeGreaterThan(50);
+
       // Tooltips: the series or category name and the formatter output are shown as text. The pointer
       // sweeps the plot left to right until the tooltip shows the datum carrying the payload.
       for (const [id, expected] of [['line', IMG], ['bar', SCRIPT]] as const) {
@@ -137,29 +176,6 @@ describe.each(Object.entries(LOADERS))('%s', (_label, loader) => {
         const text = (await table.first().textContent()) ?? '';
         if (id !== 'area') expect(text, `#${id} table text`).toMatch(/<img src=x onerror=|<script>/);
       }
-
-      // The stylesheet took effect: its rules are in the computed styles, its series colour is the one painted.
-      const hex = declaredSeries1();
-      const style = await w.page.evaluate(() => {
-        const figure = document.querySelector('#line figure')!;
-        // The renderer paints through `color` on the shape or its group (render/svg.ts).
-        const painted = (el: Element | null): string => { for (let e = el; e && !e.classList.contains('axylo-scene'); e = e.parentElement) { const c = (e as SVGElement).style?.getPropertyValue('color') ?? ''; if (c) return c; } return ''; };
-        const mark = Array.from(document.querySelectorAll<SVGElement>('#line .axylo-scene path')).find(p => /--axylo-series(-color)?-1\b/.test(painted(p)));
-        return {
-          display: getComputedStyle(figure).display, titleWeight: getComputedStyle(document.querySelector('#line .axylo-title')!).fontWeight,
-          series1: getComputedStyle(figure).getPropertyValue('--axylo-default-series-1').trim(), mark: mark ? getComputedStyle(mark).color : null,
-        };
-      });
-      expect(style.display, '.axylo-figure { display: flex }').toBe('flex');
-      expect(style.titleWeight, '.axylo-title { font-weight: 600 }').toBe('600');
-      expect(style.series1.toLowerCase()).toBe(hex.toLowerCase());
-      const [r, g, b] = hexRgb(hex);
-      expect(style.mark).toBe(`rgb(${r}, ${g}, ${b})`);
-      await w.page.locator('#line .axylo-plot').scrollIntoViewIfNeeded();
-      await w.page.mouse.move(2, 2);
-      const painted = countNear(decodePng(await w.page.locator('#line .axylo-plot').screenshot({ animations: 'allow' })), [r, g, b]);
-      console.info(`#line pixels painted in ${hex}: ${painted}`);
-      expect(painted, `pixels of the first series in ${hex}`).toBeGreaterThan(50);
 
       await w.page.waitForTimeout(300); // reports are sent asynchronously; the last test looks again
       const seen: Seen = await w.page.evaluate(() => {

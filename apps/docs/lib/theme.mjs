@@ -1,5 +1,6 @@
 /**
- * The default colours of Axylo's stylesheet, per scheme, from whichever form the sheet uses: fixed blocks
+ * The default colours of Axylo's stylesheet, per scheme, from whichever form the sheet uses (as written in
+ * src/theme/css.ts, or minified as the build ships it in dist/axylo.css): fixed blocks
  * selected by `.axylo[data-axylo-scheme="light"|"dark"]`, and/or one `.axylo` block whose values are
  * `light-dark(light, dark)` pairs. When both forms are present they must agree. Every value must be a hex
  * colour, and both schemes must define the same names; anything else throws, so a changed stylesheet stops
@@ -8,13 +9,20 @@
 const HEX = /^#[0-9a-f]{3,8}$/i;
 const PAIR = /^light-dark\(\s*([^,()]+?)\s*,\s*([^,()]+?)\s*\)$/i;
 
+const escape = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 function block(css, selector) {
-  // The selector followed directly by its declaration block; the first occurrence is the token block.
-  const at = css.indexOf(selector + ' {');
-  if (at === -1) return null;
-  const start = at + selector.length + 2;
+  // The selector followed by its declaration block, with or without a space before the brace (the minified
+  // form has none); the first occurrence is the token block. The last declaration of a minified block has
+  // no semicolon, so declarations are split on semicolons rather than matched up to one.
+  const open = new RegExp(`${escape(selector)}\\s*\\{`).exec(css);
+  if (!open) return null;
+  const start = open.index + open[0].length;
   const body = css.slice(start, css.indexOf('}', start));
-  return Object.fromEntries([...body.matchAll(/(--axylo-default-[\w-]+):\s*([^;]+);/g)].map(m => [m[1], m[2].trim()]));
+  return Object.fromEntries(body.split(';')
+    .map(part => /^\s*(--axylo-default-[\w-]+)\s*:\s*([\s\S]+?)\s*$/.exec(part))
+    .filter(Boolean)
+    .map(m => [m[1], m[2]]));
 }
 
 export function readThemeDefaults(css) {
