@@ -13,6 +13,8 @@ export interface TableTexts {
   pageOf(page: number, count: number): string;
   /** Label of the "go to" field. */
   readonly jump: string;
+  /** The error shown when nothing matches what was typed, with an example (the jumpNotFound message). */
+  readonly notFound?: (text: string) => string;
   /** `lang` for each built-in string, or null. */
   readonly lang: (key: 'previousPage' | 'nextPage' | 'pageOf' | 'jumpToX') => string | null;
 }
@@ -23,6 +25,8 @@ export interface TableView {
   update(model: TableModel, texts: TableTexts, maxHeight: number): void;
   /** Shows the page holding row `ordinal`. */
   showRow(ordinal: number): void;
+  /** Moves focus to the table's scroll region. */
+  focus(): void;
   readonly page: number;
   destroy(): void;
 }
@@ -78,7 +82,11 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
   field.autocomplete = 'off';
   label.htmlFor = field.id;
   label.appendChild(labelText);
-  form.append(label, field);
+  const error = doc.createElement('p');
+  error.className = 'axylo-jump-error';
+  error.id = `${id}-table-jump-error`;
+  error.hidden = true;
+  form.append(label, field, error);
   pager.append(previous, status, next, form);
   element.append(scroll, pager);
 
@@ -153,13 +161,21 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
   }, { signal });
   form.addEventListener('submit', event => {
     event.preventDefault();
-    const value = toValue(field.value.trim());
+    // As typed: a category is matched exactly; numbers and dates are trimmed by the parser (finding 18).
+    const value = toValue(field.value);
     const target = value === null || !model ? null : model.pageForX(value);
     if (target === null) {
       field.setAttribute('aria-invalid', 'true');
+      if (texts?.notFound) {
+        error.textContent = texts.notFound(field.value.trim());
+        error.hidden = false;
+        field.setAttribute('aria-describedby', error.id);
+      }
       return;
     }
     field.removeAttribute('aria-invalid');
+    field.removeAttribute('aria-describedby');
+    error.hidden = true;
     page = target;
     render(true);
     scroll.scrollTop = 0;
@@ -180,6 +196,9 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
         shownSignature = signature;
       }
       render();
+    },
+    focus() {
+      scroll.focus({ preventScroll: true });
     },
     showRow(ordinal) {
       if (!model) return;

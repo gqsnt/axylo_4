@@ -70,7 +70,8 @@ export function barMarks(view: AlignedView, projection: Bands, plot: Rect): Rect
     for (let j = start, k = 0; j < end; j++, k += 2) {
       const bandStart = extents[k]!;
       const part = (extents[k + 1]! - bandStart) / divisor;
-      const width = Math.max(1, part);
+      // Grouped bars side by side keep 1 px of background between them (spec A5); a stack shares its band.
+      const width = Math.max(1, !stack && divisor > 1 ? part - 1 : part);
       const mid = bandStart + part * ((stack ? 0 : i) + 0.5);
       const across = band.type === 'band' ? clamp(mid - width / 2, low, Math.max(low, high - width)) : mid - width / 2;
       const isValue = slot[j] === SLOT_VALUE;
@@ -102,7 +103,9 @@ export function barMarks(view: AlignedView, projection: Bands, plot: Rect): Rect
       else missingOffset = offset;
     }
 
-    const group = Math.floor(series / 8);
+    // A compact chart has no legend: past its first series, bars carry a pattern from the start, so two
+    // series never differ by colour alone (spec A5, C4). Otherwise patterns start past eight series (F9).
+    const group = view.compact && order.length > 1 ? i : Math.floor(series / 8);
     const bar: RectMark = { type: 'rects', series, xywh: values, fill: seriesPaint(series), variant: 'bar' };
     bars.push(group ? { ...bar, pattern: PATTERNS[(group - 1) % PATTERNS.length]! } : bar);
     if (absent.length) missing.push({ type: 'rects', series, xywh: absent, fill: token('muted'), variant: 'missing' });

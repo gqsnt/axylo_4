@@ -582,7 +582,7 @@ export interface MarkRenderer {
  * Valid within one frame epoch.
  */
 export type DatumRef =
-  | { readonly kind: 'aligned'; readonly seriesKey: string; /** x position (category: its index at the time; categories do not slide). */ readonly x: number }
+  | { readonly kind: 'aligned'; readonly seriesKey: string; /** x position (category: its index in the frame that produced the ref; categories can slide when a streaming window evicts them, so a holder remaps by category name across frames of one epoch). */ readonly x: number }
   | { readonly kind: 'point'; readonly seriesKey: string; /** source row index */ readonly row: number; /** x position, so a ref to an evicted point can resolve to its nearest surviving neighbour */ readonly x: number }
   | { readonly kind: 'slice'; readonly sliceKey: string };
 

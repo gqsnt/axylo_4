@@ -24,7 +24,7 @@ import type {
 import type { Messages } from '../public';
 import { fill } from '../messages';
 import {
-  buildOverlay, canZoomIn, minimumWidth, panWindow, positionAt, refsAt, sameRef, scaleWindow, stepAcross, stepInSeries,
+  buildOverlay, canZoomIn, minimumWidth, panWindow, positionAt, positionText, refsAt, sameRef, scaleWindow, stepAcross, stepInSeries,
   targetBox, targetOf, valueText, PAN_SHARE, ZOOM_FACTOR, type Mode,
 } from '../core/focus';
 import type { Figure } from './figure';
@@ -169,6 +169,8 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   /** The proxy got focus from a click and no key has been pressed since: the pointer still leads. */
   let fromClick = false;
   let shownOrdinal = 0;
+  /** What the value text was last written about (decision 0004, part 2). */
+  let shownText: { ref: DatumRef | null; mode: Mode; reading: string | null } | null = null;
   let lastHover: DatumRef | null = null;
   let presented = '';
   let dirty = true;
@@ -194,6 +196,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
 
   let proxy: HTMLInputElement | null = null;
   let ring: HTMLElement | null = null;
+  let instructions: HTMLElement | null = null;
   let selection: HTMLElement | null = null;
   let legendList: HTMLUListElement | null = null;
   let toolbar: Toolbar | null = null;
@@ -232,11 +235,14 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     ring = doc.createElement('div');
     ring.className = 'axylo-focus-ring';
     ring.setAttribute('aria-hidden', 'true');
+    instructions = doc.createElement('span');
+    instructions.className = 'axylo-visually-hidden';
+    instructions.id = `${figure.id}-i`;
     selection = doc.createElement('div');
     selection.className = 'axylo-selection';
     selection.setAttribute('aria-hidden', 'true');
     selection.hidden = true;
-    plot.append(proxy, ring, selection);
+    plot.append(proxy, ring, selection, instructions);
     toolbar = createToolbar(doc);
     plot.addEventListener('pointermove', onPointerMove, { signal });
     plot.addEventListener('pointerleave', onPointerLeave, { signal });
@@ -257,6 +263,8 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     built?.abort();
     built = null;
     proxy.remove();
+    instructions?.remove();
+    instructions = null;
     ring?.remove();
     selection?.remove();
     legendList?.remove();
@@ -284,6 +292,14 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   /** A zoomed window with nothing in it: the plot keeps its focus and its zoom keys, so the reader can go back. */
   function recoverable(d: Committed | null): d is Committed & { readonly zoomed: true } {
     return d !== null && !d.ready && d.zoom !== false && d.zoomed && !d.tooSmall;
+  }
+
+  function initialFocusFor(d: Committed): DatumRef | null {
+    if (aligned(d.view)) {
+      const x = stepAcross(d.view, null, 'first');
+      return x === null ? null : d.lookup.primary({ kind: 'x', x });
+    }
+    return d.lookup.step(null, 'first');
   }
 
   /** The datum to start from when the keyboard arrives: the pointer's, else the first. */
@@ -318,6 +334,11 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       const box = d.lookup.anchor(ref);
       const picked = box ? d.lookup.pick(box.x + box.width / 2, box.y + box.height / 2) : null;
       if (picked?.kind === 'point' && picked.refs.some(r => sameRef(r, ref))) return picked;
+      // The focused point is one of more coincident points than the eight shown: it is shown first, and the
+      // full count stays (review 2 item 7); focus and selection keep the ref itself (`focus`).
+      if (picked?.kind === 'point' && picked.count > picked.refs.length) {
+        return { kind: 'point', refs: [ref, ...picked.refs.slice(0, picked.refs.length - 1)], count: picked.count };
+      }
     }
     return targetOf(ref);
   }
@@ -382,7 +403,9 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
         const at = source === 'pointer' && pointer ? { x: box.left + pointer.x, y: box.top + pointer.y } : null;
         const ringBox = visibleRing ? d.lookup.anchor(visibleRing) : null;
         const avoid: Rect[] = ringBox ? [{ x: box.left + ringBox.x - 6, y: box.top + ringBox.y - 6, width: ringBox.width + 12, height: ringBox.height + 12 }] : [];
-        if (!tooltip.show(content, anchor, at, avoid)) tooltip.readout(content, pinned && source === 'pointer' && touches.size === 0);
+        // The reading axis: x, or y for horizontal bars; none for a donut (decision 0004).
+        const axis = d.view.kind === 'donut' ? null : horizontalBars(d) ? 'y' : 'x';
+        if (!tooltip.show(content, anchor, at, avoid, axis)) tooltip.readout(content);
       }
     }
     hover(target === null ? null : source === 'keyboard' ? focus : d.lookup.primary(target));
@@ -407,7 +430,13 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
    * written where they differ (review 2, finding 4). A datum that did not change keeps the same text, so a
    * commit alone never changes what a reader hears unless what it describes changed.
    */
-  function writeProxy(): void {
+  /**
+   * Decision 0004, part 2: bounds and the numeric value always match the displayed frame, silently. The value
+   * text is rewritten when the reader acted (`acted`), when the focused datum is another one than the text
+   * describes (it left the frame and focus moved by the lookup's rule), or when that datum's own reading
+   * changed; never because only the count or its place changed.
+   */
+  function writeProxy(acted: boolean): void {
     const d = c;
     if (!proxy || !d) return;
     if (!plotReady(d)) {
@@ -423,7 +452,13 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     const text = ref ? valueText(d.view, d.lookup, ref, mode, d.formatters, d.messages) : null;
     if (proxy.max !== max) proxy.max = max;
     if (proxy.value !== String(ordinal)) proxy.value = String(ordinal);
-    setAttr(proxy, 'aria-valuetext', text ?? d.messages.noData);
+    // What the text says about the datum itself, without its place in the range.
+    const reading = text === null ? null : text.replace(positionText(d.messages, d.formatters, ordinal, d.lookup.count), '');
+    const same = shownText !== null && sameRef(ref, shownText.ref) && mode === shownText.mode && reading === shownText.reading;
+    if (acted || !same || !proxy.hasAttribute('aria-valuetext')) {
+      setAttr(proxy, 'aria-valuetext', text ?? d.messages.noData);
+      shownText = { ref, mode, reading };
+    }
     shownOrdinal = ordinal;
   }
 
@@ -451,7 +486,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     }
     source = 'keyboard';
     keyboardMoved(d);
-    writeProxy();
+    writeProxy(true);
     present();
   }
 
@@ -478,7 +513,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     }
     source = 'keyboard';
     keyboardMoved(d);
-    writeProxy();
+    writeProxy(true);
     present();
   }
 
@@ -492,15 +527,16 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       if (mode === 'single' && focus?.kind === 'aligned') return d.lookup.resolve({ kind: 'aligned', seriesKey: focus.seriesKey, x });
       return d.lookup.primary({ kind: 'x', x });
     }
-    // Scatter and donut: walk the lookup's own order from where the reader is.
-    let ref = focus ?? d.lookup.step(null, 'first');
-    let at = ref ? d.lookup.ordinal(ref) : 0;
-    while (ref && at !== ordinal) {
-      const next = stepFrom(d, ref, at < ordinal ? 'next' : 'previous');
+    // Scatter and donut: the place is resolved in the range's own (global) order, with the lookup's global
+    // steps only, never series-local ones, and at most `count` steps, so it always ends (review 3, blocker 1).
+    let ref = d.lookup.step(null, 'first');
+    for (let i = 0; ref && i < ordinal && i < d.lookup.count; i++) {
+      const next = d.lookup.step(ref, 'next');
       if (!next) break;
       ref = next;
-      at = d.lookup.ordinal(ref);
     }
+    // Narrowed mode holds while the place is in the chosen series; another series' point leaves it.
+    if (ref && mode === 'single' && focus && 'seriesKey' in focus && 'seriesKey' in ref && ref.seriesKey !== focus.seriesKey) mode = 'all';
     return ref;
   }
 
@@ -550,7 +586,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
         consume();
         mode = 'all';
         if (focus?.kind === 'aligned') focus = d.lookup.primary({ kind: 'x', x: focus.x }) ?? focus;
-        writeProxy();
+        writeProxy(true);
         present();
       }
       return;
@@ -574,7 +610,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     focus = atOrdinal(d, ordinal) ?? focus;
     source = 'keyboard';
     keyboardMoved(d);
-    writeProxy();
+    writeProxy(true);
     present();
   }
 
@@ -582,14 +618,14 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     const d = c;
     proxyFocused = true;
     if (!plotReady(d)) {
-      writeProxy();
+      writeProxy(true);
       return;
     }
     fromClick = clickFocus;
     // The pointer's datum is taken over before the keyboard leads (review 2, finding 6).
     takeover(d);
     if (!clickFocus) source = 'keyboard';
-    writeProxy();
+    writeProxy(true);
     dirty = true;
     present();
   }
@@ -828,7 +864,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     if (ref) {
       focus = mode === 'single' && focus?.kind === 'aligned' && pointerTarget.kind === 'x'
         ? d.lookup.resolve({ kind: 'aligned', seriesKey: focus.seriesKey, x: pointerTarget.x }) ?? ref : ref;
-      writeProxy();
+      writeProxy(true);
       actions.select(focus);
     }
   }
@@ -954,18 +990,30 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     return tableView !== null;
   }
 
-  function parseJump(text: string): string | number | null {
+  /**
+   * What the reader typed as an x value: numbers as the table writes them in its locale (grouping, decimal
+   * mark, a trailing unit), with well-formed grouping only ("1,,2" is not 12); categories exactly as typed.
+   */
+  function parseJump(raw: string): string | number | null {
     const d = cs;
-    if (!d || text === '') return null;
+    if (!d || raw.trim() === '') return null;
     const xKind = d.view.kind === 'donut' ? 'category' : d.view.kind === 'scatter' ? d.view.frame.xKind : d.view.frame.x.kind;
-    if (xKind === 'number') {
-      // The page's own grouping and decimal marks, as the table writes them ("900,000" in en-US).
-      const group = d.formatters.count(1000).replace(/\d/g, '');
-      const decimal = group === '.' ? ',' : '.';
-      const plain = (group ? text.split(group).join('') : text).replace(decimal, '.');
-      return /^-?\d+(?:\.\d+)?$/.test(plain) ? Number(plain) : null;
-    }
-    return text;
+    if (xKind === 'category') return raw;
+    const text = raw.trim();
+    if (xKind !== 'number') return text;
+    const sample = d.formatters.count(1234.5);
+    const group = d.formatters.count(1000).replace(/\d/g, '');
+    const decimal = sample.replace(/\d/g, '').replace(group, '').charAt(0) || '.';
+    const spaces = /^\s$/u.test(group) || group === '\u202f' || group === '\u00a0';
+    // Without its unit ("1 234,5 ms"): the number is what comes before the first letter after a digit.
+    const number = text.replace(/(\d)\s*[^\d\s.,'\u00a0\u202f-].*$/u, '$1');
+    const g = spaces ? '[\\s\\u00a0\\u202f]' : group.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const d0 = decimal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const pattern = new RegExp(`^-?(?:\\d{1,3}(?:${g || 'x'}\\d{3})+|\\d+)(?:${d0}\\d+)?$`, 'u');
+    if (!pattern.test(number)) return null;
+    const plain = number.replace(new RegExp(g || 'x', 'gu'), '').replace(decimal, '.');
+    const value = Number(plain);
+    return Number.isFinite(value) ? value : null;
   }
 
   function jumpTarget(text: string): XValue | null {
@@ -993,15 +1041,18 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     const d = cs;
     if (!d?.reader.table || tableView) return;
     tableView = createTableView(doc, figure.id, text => jumpTarget(text));
-    // The table takes the plot's place, at the plot's size: opening it moves nothing else on the page, in a
-    // card that clips or in a stack of charts (spec A4; review 2, finding 15).
-    const height = figure.body.getBoundingClientRect().height;
-    figure.body.style.flex = 'none';
-    figure.body.style.height = `${height}px`;
+    // The table covers the plot's column only, at whatever size the plot has (it stays in the flow, inert,
+    // under the table): opening it moves nothing on the page, and the controls beside or under the plot stay
+    // reachable (spec A4; review 3, interaction blocker 2). A pinned tooltip belongs to the covered plot.
     figure.figure.classList.add('axylo-table-open');
     plot.inert = true;
+    if (pinned) unpin();
+    tooltip.hide();
+    presented = '';
     tableModel = null;
     renderTable(d);
+    // Focus goes into the region that opened, so the next Tab does not leave the chart.
+    tableView.focus();
   }
 
   function closeTable(): void {
@@ -1011,8 +1062,6 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     tableView.destroy();
     tableView = null;
     tableModel = null;
-    figure.body.style.flex = '';
-    figure.body.style.height = '';
     figure.figure.classList.remove('axylo-table-open');
     plot.inert = false;
     if (focusInside) toolbar?.focus('table') || proxy?.focus({ preventScroll: true });
@@ -1028,10 +1077,12 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
         previousPage: m.previousPage, nextPage: m.nextPage,
         pageOf: (page, count) => fill(m.pageOf, { page: d.formatters.count(page), count: d.formatters.count(count) }),
         jump: fill(m.jumpToX, { x: model.headers[0] ?? '' }),
+        // Shown under the field when nothing matches, with a value the table really has (WCAG 3.3.1, 3.3.3).
+        notFound: (text: string) => fill(m.jumpNotFound, { x: text, example: model.row(0)?.[0] ?? '' }),
         lang: key => d.english(key),
-      }, figure.body.getBoundingClientRect().height);
+      }, 0);
     }
-    if (tableView.element.parentNode !== figure.body) figure.body.appendChild(tableView.element);
+    if (tableView.element.parentNode !== figure.stage) figure.stage.appendChild(tableView.element);
   }
 
   function legendItems(d: ControlsState): ToolbarItem[] {
@@ -1064,7 +1115,16 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       if (d.ready) items.push(button('zoomIn', () => zoomBy(1 / ZOOM_FACTOR), !canZoomIn(d.view, window)));
       // Zoom out stays in place at full view, marked as unable to act, so the toolbar does not reflow.
       if (d.ready || d.zoomed) items.push(button('zoomOut', () => zoomBy(ZOOM_FACTOR), !d.zoomed));
-      if (d.zoomed) items.push(button('resetZoom', () => requestZoom(null)));
+      if (d.zoomed) {
+        // Single-click pan (WCAG 2.5.7): half a window each way, unavailable at an end.
+        const now = d.view.xDomain;
+        const full = d.view.xFull;
+        items.push(
+          button('panLeft', () => pan(-0.5), !(now[0] > full[0])),
+          button('panRight', () => pan(0.5), !(now[1] < full[1])),
+          button('resetZoom', () => requestZoom(null)),
+        );
+      }
     }
     if (d.streaming) {
       const key = d.paused ? 'resume' : 'pause';
@@ -1088,7 +1148,8 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
 
   function renderDonutLegend(d: ControlsState): void {
     const view = d.view;
-    if (view.kind !== 'donut' || !d.legend || !(d.ready || d.inspectable)) {
+    // The slice list is part of the full chart; the too-small state shows only title, summary and table (L8).
+    if (view.kind !== 'donut' || !d.legend || d.tooSmall || !(d.ready || d.inspectable || (view.slices.length > 0 && view.total === 0))) {
       legendList?.remove();
       legendList = null;
       return;
@@ -1135,6 +1196,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
   function renderControls(d: ControlsState): void {
     if (!toolbar) return;
     cs = d;
+
     renderDonutLegend(d);
     const items = controlItems(d);
     const active = doc.activeElement;
@@ -1168,6 +1230,12 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       ring.style.cssText = style;
     }
     setAttr(proxy, 'aria-label', d.messages.plotLabel);
+    // How to move in the plot, as its description (the plotInstructions message).
+    if (instructions) {
+      if (instructions.textContent !== d.messages.plotInstructions) instructions.textContent = d.messages.plotInstructions;
+      setAttr(instructions, 'lang', d.english('plotInstructions'));
+      setAttr(proxy, 'aria-describedby', instructions.id);
+    }
     const type = { line: 'typeLine', area: 'typeArea', bar: 'typeBar', scatter: 'typeScatter', donut: 'typeDonut' } as const;
     setAttr(proxy, 'aria-roledescription', fill(d.messages.plotRole, { type: d.messages[type[d.kind]] }));
     // Built-in English on a page in another language is marked as English (spec A10).
@@ -1231,11 +1299,15 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
     }
     build();
     if (previous && previous.epoch !== next.epoch) {
-      // A DatumRef means nothing across a data replacement.
-      focus = null;
+      // A DatumRef means nothing across a data replacement: one effective focus for the new data is chosen
+      // before anything is written, so the text, the ring and the tooltip agree, and the next hover is new
+      // (review 3, interaction finding 5).
       mode = 'all';
       dismissed = null;
       unpin();
+      lastHover = null;
+      shownText = null;
+      focus = proxyFocused && plotReady(next) ? initialFocusFor(next) : null;
     } else if (previous) {
       const map = remapper(previous.view, next.view);
       if (map) {
@@ -1265,7 +1337,7 @@ export function createInteraction(figure: Figure, renderer: MarkRenderer, action
       else pointerTarget = kept;
     }
     placeProxy(next);
-    writeProxy();
+    writeProxy(false);
     renderControls(next);
     present();
   }

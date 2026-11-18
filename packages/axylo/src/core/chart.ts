@@ -28,7 +28,7 @@ export interface ChartEnvironmentOverrides {
 }
 
 /** Suffixes of the ids a chart gives its elements (figure, interaction, table). */
-const ID_SUFFIXES = ['', '-t', '-st', '-s', '-m', '-n', '-proxy', '-table', '-table-caption', '-table-jump'];
+const ID_SUFFIXES = ['', '-t', '-st', '-s', '-m', '-n', '-i', '-proxy', '-table', '-table-caption', '-table-jump', '-table-jump-error'];
 let instances = 0;
 
 /** An id prefix none of whose element ids exist in the page yet (spec A1: ids unique per chart). */
@@ -37,18 +37,6 @@ function allocateId(doc: Document): string {
     const id = `axylo-${++instances}`;
     if (ID_SUFFIXES.every(suffix => doc.getElementById(id + suffix) === null)) return id;
   }
-}
-
-/** Custom properties the theme writes on the root, so destroy can take back exactly those. */
-const OWN_PROPERTY = /^--axylo-(?:backdrop|series-color-\d+)$/;
-
-function ownProperties(root: HTMLElement): Map<string, string> {
-  const found = new Map<string, string>();
-  for (let i = 0; i < root.style.length; i++) {
-    const name = root.style.item(i);
-    if (OWN_PROPERTY.test(name)) found.set(name, root.style.getPropertyValue(name));
-  }
-  return found;
 }
 
 export function createChart(kind: ChartKind, target: unknown, input: unknown, overrides: ChartEnvironmentOverrides = {}): ChartHandle {
@@ -73,18 +61,6 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
   try {
     const requested = object(input).__renderer === 'canvas' ? 'canvas' : 'svg';
     const id = allocateId(doc);
-
-    const hadScheme = root.hasAttribute('data-axylo-scheme');
-    const before = ownProperties(root);
-    cleanup.push(() => {
-      if (!hadScheme) root.removeAttribute('data-axylo-scheme');
-      for (const [name] of ownProperties(root)) {
-        const was = before.get(name);
-        if (was === undefined) root.style.removeProperty(name);
-        else root.style.setProperty(name, was);
-      }
-      if (root.getAttribute('style') === '') root.removeAttribute('style');
-    });
 
     const renderer: MarkRenderer = requested === 'canvas' ? createCanvasRenderer(doc) : createSvgRenderer(doc);
     cleanup.push(() => renderer.destroy());
@@ -187,7 +163,12 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
         return { width: plot.width, height: plot.height - overflow };
       },
       devicePixelRatio: () => win.devicePixelRatio || 1,
-      theme: (keys, colors) => resolveTheme(root, keys, colors),
+      // Scoped to this chart's own figure: properties and the scheme go with it (finding 10).
+      theme: (keys, colors) => resolveTheme(figure.figure, keys, colors),
+      surfaces(visible) {
+        // Hidden without drawing: the error revision does not depend on the methods that may have failed.
+        for (const el of [renderer.element, textLayer.element]) (el as HTMLElement).style.visibility = visible ? '' : 'hidden';
+      },
       dispose: release,
     });
     resizeObserver.observe(figure.plot);
@@ -195,8 +176,11 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
     if (root.isConnected) watch();
     return controller.handle;
   } catch (error) {
-    // A rejected strict create, or a failure part-way through: nothing stays behind.
+    // A rejected strict create, or a failure part-way through: nothing stays behind, a controller that was
+    // already created (its first frame queued) included (review 3, finding 9).
+    const created = controller as Controller | null;
     controller = null;
+    try { created?.handle.destroy(); } catch { /* releasing the rest matters more */ }
     release();
     throw error;
   }

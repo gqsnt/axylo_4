@@ -27,6 +27,10 @@ export interface Recording {
   themeCalls: { keys: readonly string[]; colors: Record<string, string> }[];
   printed: string[];
   disposed: number;
+  /** Host writes (figure, renderer, text, interaction) made after `dispose`. */
+  writesAfterDispose: number;
+  /** The last surfaces(visible) call: false while the error revision hides marks and text. */
+  surfaces: boolean;
   /** The container (CSS px). The plot's height is what the caption and the controls leave. */
   container: { width: number; height: number } | null;
   /** Height of one caption line and of the controls row in the model of the figure. */
@@ -41,12 +45,15 @@ export interface HostOptions {
 }
 
 export function record(kind: ChartKind, options: Record<string, unknown>, settings: HostOptions = {}): Recording {
-  const queue = new Map<number, () => void>();
+  const queue = new Map<number, (time?: number) => void>();
+  /** Animation frame time: one value per batch of callbacks, as a browser gives it. */
+  let clock = 0;
   let handles = 0;
   const rec = {
     draws: [] as Scene[], texts: [] as (readonly PlacedText[])[], models: [] as FigureModel[], announcements: [] as string[],
     prepared: [] as ControlsState[], committed: null as Committed | null, commits: 0, clears: 0,
     themeCalls: [] as { keys: readonly string[]; colors: Record<string, string> }[], printed: [] as string[], disposed: 0,
+    writesAfterDispose: 0, surfaces: true,
     container: settings.container === undefined ? { width: 720, height: 400 } : settings.container,
     lineHeight: 20, ids: {} as Record<string, string>,
   };
@@ -82,10 +89,14 @@ export function record(kind: ChartKind, options: Record<string, unknown>, settin
     },
     page: {},
     timeZone: 'UTC',
-    renderer: { kind: 'svg', draw: scene => { rec.draws.push(scene); } },
-    text: { render: texts => { rec.texts.push(texts); } },
+    renderer: { kind: 'svg', draw: scene => { if (rec.disposed) rec.writesAfterDispose++; rec.draws.push(scene); } },
+    text: { render: texts => { if (rec.disposed) rec.writesAfterDispose++; rec.texts.push(texts); } },
+    surfaces(visible) {
+      rec.surfaces = visible;
+    },
     figure: {
       update(next) {
+        if (rec.disposed) rec.writesAfterDispose++;
         const before = model;
         model = next;
         rec.models.push(next);
@@ -102,6 +113,7 @@ export function record(kind: ChartKind, options: Record<string, unknown>, settin
         return before === null || before.tooSmall !== state.tooSmall || before.interactive !== state.interactive;
       },
       commit(state) {
+        if (rec.disposed) rec.writesAfterDispose++;
         rec.committed = state;
         rec.commits++;
       },
@@ -141,7 +153,8 @@ export function record(kind: ChartKind, options: Record<string, unknown>, settin
   };
 
   const controller = createController(kind, options, host);
-  return Object.assign(rec, {
+  // Accessors stay accessors: `pending` and `layout` are read when asked (review 3, finding 20).
+  return Object.defineProperties(Object.assign(rec, {
     host, controller,
     frames(limit = 10): number {
       let rounds = 0;
@@ -149,17 +162,15 @@ export function record(kind: ChartKind, options: Record<string, unknown>, settin
         rounds++;
         const callbacks = [...queue.values()];
         queue.clear();
-        for (const cb of callbacks) cb();
+        clock += 16;
+        for (const cb of callbacks) cb(clock);
       }
       return rounds;
     },
-    get pending() {
-      return queue.size;
-    },
-    get layout() {
-      return rec.committed?.layout ?? null;
-    },
-  }) as Recording;
+  }), {
+    pending: { get: () => queue.size, enumerable: true },
+    layout: { get: () => rec.committed?.layout ?? null, enumerable: true },
+  }) as unknown as Recording;
 }
 
 export const lastModel = (r: Recording): FigureModel => r.models[r.models.length - 1]!;

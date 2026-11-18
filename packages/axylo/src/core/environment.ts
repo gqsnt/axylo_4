@@ -141,29 +141,41 @@ export function sameTextStyle(a: TextStyle | null, b: TextStyle): boolean {
  */
 export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; motion(): void; fonts(): void }): () => void {
   let stopped = false;
-  let ratioQuery: MediaQueryList | null = null;
-  const onRatio = (): void => {
-    if (stopped) return;
-    arm();
-    handlers.pixelRatio();
-  };
-  // A resolution query matches one ratio only, so it is re-armed for the new ratio after each change.
-  function arm(): void {
-    ratioQuery?.removeEventListener('change', onRatio);
-    ratioQuery = win.matchMedia(`(resolution: ${win.devicePixelRatio}dppx)`);
-    ratioQuery.addEventListener('change', onRatio);
-  }
-  arm();
-  const motion = win.matchMedia('(prefers-reduced-motion: reduce)');
-  const onMotion = (): void => { if (!stopped) handlers.motion(); };
-  motion.addEventListener('change', onMotion);
-  const fonts = win.document.fonts as FontFaceSet | undefined;
-  const onFonts = (): void => { if (!stopped) handlers.fonts(); };
-  fonts?.addEventListener('loadingdone', onFonts);
-  return () => {
+  // Each subscription registers its removal as soon as it exists, so a failure part-way (a matchMedia that
+  // throws) leaves none behind (review 3, finding 9).
+  const undo: (() => void)[] = [];
+  const stop = (): void => {
     stopped = true;
-    ratioQuery?.removeEventListener('change', onRatio);
-    motion.removeEventListener('change', onMotion);
-    fonts?.removeEventListener('loadingdone', onFonts);
+    for (let fn = undo.pop(); fn; fn = undo.pop()) {
+      try { fn(); } catch { /* keep releasing */ }
+    }
   };
+  try {
+    let ratioQuery: MediaQueryList | null = null;
+    const onRatio = (): void => {
+      if (stopped) return;
+      arm();
+      handlers.pixelRatio();
+    };
+    // A resolution query matches one ratio only, so it is re-armed for the new ratio after each change.
+    const arm = (): void => {
+      ratioQuery?.removeEventListener('change', onRatio);
+      ratioQuery = win.matchMedia(`(resolution: ${win.devicePixelRatio}dppx)`);
+      ratioQuery.addEventListener('change', onRatio);
+    };
+    arm();
+    undo.push(() => ratioQuery?.removeEventListener('change', onRatio));
+    const motion = win.matchMedia('(prefers-reduced-motion: reduce)');
+    const onMotion = (): void => { if (!stopped) handlers.motion(); };
+    motion.addEventListener('change', onMotion);
+    undo.push(() => motion.removeEventListener('change', onMotion));
+    const fonts = win.document.fonts as FontFaceSet | undefined;
+    const onFonts = (): void => { if (!stopped) handlers.fonts(); };
+    fonts?.addEventListener('loadingdone', onFonts);
+    undo.push(() => fonts?.removeEventListener('loadingdone', onFonts));
+  } catch (error) {
+    stop();
+    throw error;
+  }
+  return stop;
 }

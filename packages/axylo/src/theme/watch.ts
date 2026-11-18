@@ -1,7 +1,7 @@
 /**
  * Notices the page changes that can change a chart's theme (spec L4): the three media features, and the
  * `class`, `style` or `data-theme` attribute of the chart or any of its ancestors (a class-toggled dark
- * theme may sit on `<html>`, `<body>` or a card in between). Bursts are folded into one call per frame.
+ * theme may sit on `<html>`, `<body>` or a card in between). Bursts are folded into one call.
  *
  * One MutationObserver covers the whole document (`subtree`), and a record counts only when its target is
  * the chart or one of its ancestors at that moment, so the watch keeps working when the chart is moved to
@@ -9,25 +9,28 @@
  */
 
 const QUERIES = ['(prefers-color-scheme: dark)', '(forced-colors: active)', '(prefers-contrast: more)'];
-const ATTRIBUTES = ['class', 'style', 'data-theme'];
+// `lang` too: the page's language decides the formatting locale and which built-in text is marked English
+// (review 3, finding 19).
+const ATTRIBUTES = ['class', 'style', 'data-theme', 'lang'];
 
 /** Declarations resolveTheme itself writes on the chart root; changes to them alone are not theme changes. */
 const OWN = /--axylo-(?:series-color-\d+|backdrop)\s*:[^;]*;?\s*/g;
 
-/** Calls `onChange` at most once per animation frame after a relevant change. Returns `stop`. */
+/**
+ * Calls `onChange` for a burst of relevant changes (once per observer batch), so the caller can feed it to its own
+ * frame scheduler: the repaint lands in the next animation frame with any other pending work, drawn once
+ * (review 3, finding 19). Returns `stop`.
+ */
 export function watchTheme(element: Element, onChange: () => void): () => void {
   const doc = element.ownerDocument;
   const win = doc.defaultView;
   if (win === null) return () => {};
-  let frame = 0;
   let stopped = false;
 
+  // At once: the observer already delivers a burst as one batch, and the caller only marks itself dirty and
+  // schedules its frame, so the repaint is in the very next animation frame.
   const schedule = (): void => {
-    if (stopped || frame !== 0) return;
-    frame = win.requestAnimationFrame(() => {
-      frame = 0;
-      if (!stopped) onChange();
-    });
+    if (!stopped) onChange();
   };
 
   const lists = QUERIES.map(q => win.matchMedia(q));
@@ -55,8 +58,6 @@ export function watchTheme(element: Element, onChange: () => void): () => void {
     stopped = true;
     for (const list of lists) list.removeEventListener('change', schedule);
     observer.disconnect();
-    if (frame !== 0) win.cancelAnimationFrame(frame);
-    frame = 0;
   };
 }
 

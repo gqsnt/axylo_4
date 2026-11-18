@@ -120,6 +120,8 @@ ${forced}
   .axylo-title { font-weight: 600; font-size: 1.125em; line-height: 1.3; overflow-wrap: anywhere; }
   .axylo-subtitle { margin: 0.125em 0 0; font-size: max(12px, 0.875em); color: var(--axylo-muted, var(--axylo-default-muted)); overflow-wrap: anywhere; }
   .axylo-summary { margin: 0.25em 0 0; font-size: max(12px, 0.875em); }
+  /* Shown in the too-small state (spec L8): one line, so it never pushes the table control out of the figure. */
+  .axylo-summary:not(.axylo-visually-hidden) { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /*
    * The plot takes what the caption and note leave. Its content is a spacer that is 16:9 of its width,
    * clamped to 160–480 px (spec L3): that is its height when the container has none of its own, and only
@@ -127,6 +129,8 @@ ${forced}
    */
   /* The plot and a legend beside it share one row, which takes what the caption and the controls leave. */
   .axylo-body { flex: 1 1 auto; display: flex; flex-direction: row; min-height: 0; min-width: 0; }
+  /* The plot's column: the plot, and the open table over it. */
+  .axylo-stage { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
   .axylo-plot { position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; overflow: hidden; }
   .axylo-plot::before { content: ""; display: block; width: 100%; aspect-ratio: 16 / 9; min-height: 160px; max-height: 480px; }
   .axylo-compact .axylo-plot::before { aspect-ratio: auto; min-height: 0; max-height: none; height: 32px; }
@@ -150,8 +154,6 @@ ${forced}
   /* The fixed readout under the plot of a narrow tile (spec I1): it overlays what is below, so showing it
      never changes the figure's size. */
   .axylo .axylo-readout { right: 0; max-width: none; }
-  /* A readout pinned by touch over the controls lets taps through to them (review 2, finding 13). */
-  .axylo .axylo-readout.axylo-passive { pointer-events: none; }
   /* A tooltip row can be chosen with a click or a tap (WCAG 2.5.1). */
   .axylo .axylo-tooltip-choice { cursor: pointer; }
   .axylo .axylo-tooltip-title { font-weight: 600; }
@@ -232,12 +234,11 @@ ${forced}
   .axylo .axylo-legend-value { font-variant-numeric: tabular-nums; }
   .axylo .axylo-table { display: flex; flex-direction: column; gap: 0.5em; min-width: 0; }
   /* The open table takes the plot's place at the plot's size, so nothing else moves (spec A4; review 2, finding 15). */
-  .axylo .axylo-table-open .axylo-body { position: relative; }
-  .axylo .axylo-body > .axylo-table {
+  .axylo .axylo-stage > .axylo-table {
     position: absolute; inset: 0; z-index: 4; box-sizing: border-box;
     background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)));
   }
-  .axylo .axylo-body > .axylo-table > .axylo-table-scroll { flex: 1 1 auto; }
+  .axylo .axylo-stage > .axylo-table > .axylo-table-scroll { flex: 1 1 auto; }
   .axylo .axylo-table-scroll { overflow: auto; box-sizing: border-box; min-height: 0; border: 1px solid var(--axylo-grid, var(--axylo-default-grid)); }
   .axylo .axylo-table-scroll:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
   .axylo .axylo-table table { border-collapse: collapse; width: max-content; min-width: 100%; font-size: max(12px, 0.875em); font-variant-numeric: tabular-nums; }
@@ -254,6 +255,8 @@ ${forced}
     border: 1px solid var(--axylo-axis, var(--axylo-default-axis)); border-radius: 2px;
     background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background))); color: var(--axylo-text, currentColor);
   }
+  .axylo .axylo-jump { flex-wrap: wrap; }
+  .axylo .axylo-jump-error { flex-basis: 100%; margin: 0; font-size: max(12px, 0.875em); }
   .axylo .axylo-jump-field:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
 }
 `;

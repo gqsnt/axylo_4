@@ -247,10 +247,13 @@ describe('lifecycle (finding 12)', () => {
       const chart = window.Axylo.line!(el, { title: 'P', data: [{ x: 1, s: 'a', y: 1 }, { x: 1, s: 'b', y: 2 }], x: 'x', y: 'y', series: 's' });
       await chart.__bench.ready();
       const during = el.getAttribute('style');
+      const figure = el.querySelector('figure')!.getAttribute('style');
       chart.destroy();
-      return { during, after: el.getAttribute('style') };
+      return { during, figure, after: el.getAttribute('style') };
     });
-    expect(style.during).toMatch(/--axylo-series-color-1/);
+    // Review 3, finding 10: the chart writes its properties on its own figure, never on the target.
+    expect(style.during).toBe('--brand: red;');
+    expect(style.figure).toMatch(/--axylo-series-color-1/);
     expect(style.after).toBe('--brand: red;');
     expect(await closePage(page)).toEqual([]);
   });

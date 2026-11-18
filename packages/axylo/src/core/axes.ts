@@ -89,8 +89,12 @@ export function layoutInput(
   const valueScale = view.kind === 'scatter' ? value?.scale ?? null
     : visibleSeries.every(s => (s as { valueScale: unknown }).valueScale === firstScale) ? firstScale : null;
   const titles = axisTitles(view, ctx);
+  const all = numberTicks(view.yDomain, ctx.locale, yOption, valueScale, onYError);
   const y = {
-    domain: view.yDomain, candidates: numberTicks(view.yDomain, ctx.locale, yOption, valueScale, onYError),
+    domain: view.yDomain,
+    // An automatic domain ends at the first drawn tick at or beyond each extreme (F7): layout may only choose
+    // among the tick sets for which that holds. An author's domain is drawn as given.
+    candidates: value?.domain ? all : endingCandidates(all, view.yDomain, valueExtent(view), valueScale),
     title: titles.y, mayThin: true,
   };
   const common = { width, height, compact: ctx.compact, measurer: text.measurer, style: text.style, scales };
@@ -120,6 +124,62 @@ export function layoutInput(
   return view.kind === 'bar'
     ? { ...common, kind: 'bands', horizontal: view.horizontal, x, y, references }
     : { ...common, kind: 'xy', x, y, references };
+}
+
+/**
+ * What an automatic value domain was rounded from: the visible values (stack totals for a stack), the
+ * reference lines and bands, and zero on bar and area (spec F1, F7).
+ */
+export function valueExtent(view: Exclude<View, { kind: 'donut' }>): Span | null {
+  let lo = Infinity;
+  let hi = -Infinity;
+  const take = (v: number) => { if (Number.isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; } };
+  if (view.kind === 'scatter') {
+    view.frame.series.forEach((s, i) => {
+      if (!view.visible[i]) return;
+      const { start, end } = view.visiblePoints[i]!;
+      for (let j = start; j < end; j++) take(s.y[j]!);
+    });
+  } else if (view.stack) {
+    const top = view.stack.positive.at(-1);
+    const bottom = view.stack.negative.at(-1);
+    const { start, end } = view.kind === 'bar' ? view.drawSlots[0] ?? view.visibleSlots : view.visibleSlots;
+    for (let j = start; j < end; j++) { if (top) take(top[j]!); if (bottom) take(bottom[j]!); }
+  } else {
+    view.frame.series.forEach((s, i) => {
+      if (!view.visible[i]) return;
+      const { start, end } = view.kind === 'bar' ? view.drawSlots[i] ?? view.visibleSlots : view.visibleSlots;
+      for (let j = start; j < end; j++) if (s.slot[j] === 0) take(s.y[j]!);
+    });
+  }
+  for (const r of view.references) if (r.axis === 'y') { take(r.from); take(r.to); }
+  if (view.kind === 'bar' || view.kind === 'area') take(0);
+  return lo <= hi ? [lo, hi] : null;
+}
+
+/**
+ * The candidate tick sets whose first and last ticks are the domain's ends and whose step leaves no tick
+ * between an extreme and its end: then the drawn ticks and the domain come from one step (F7). A full-scale
+ * end (percent, ratio) is fixed and need not be the first tick past the data. When no set qualifies (a very
+ * short plot), every set is offered, so the axis still has ticks.
+ */
+export function endingCandidates(sets: TickCandidates, domain: Span, extent: Span | null, scale: 'percent' | 'ratio' | null): TickCandidates {
+  if (!extent) return sets;
+  const [a, b] = domain;
+  const [lo, hi] = extent;
+  const full = scale === 'percent' ? 100 : scale === 'ratio' ? 1 : null;
+  const near = (p: number, q: number) => Math.abs(p - q) <= 1e-9 * Math.max(1, Math.abs(p), Math.abs(q));
+  const fits = sets.filter(set => {
+    if (set.length < 2) return false;
+    const first = set[0]!.value;
+    const last = set[set.length - 1]!.value;
+    const step = set[1]!.value - first;
+    if (!near(first, a) || !near(last, b) || !(step > 0)) return false;
+    const upper = (full !== null && near(b, full)) || near(b, hi) || b - step < hi;
+    const lower = near(a, lo) || a + step > lo;
+    return upper && lower;
+  });
+  return fits.length ? fits : sets;
 }
 
 /** The axis titles layout draws (spec L6), with their units; undefined where an axis is untitled. */

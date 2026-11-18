@@ -175,7 +175,7 @@ function paintMarks(ctx: Ctx, marks: readonly Mark[], clip: Rect | null, byRole:
     switch (mark.type) {
       case 'path': paintPath(ctx, mark, paints, contrast); break;
       case 'area': paintArea(ctx, mark, paints); break;
-      case 'rects': paintRects(ctx, mark, paints, clip, scratch); break;
+      case 'rects': paintRects(ctx, mark, paints, clip, scratch, sx, sy); break;
       case 'points': paintPoints(ctx, mark, paints); break;
       case 'arcs': paintArcs(ctx, mark, paints, scratch); break;
       case 'rule': paintRule(ctx, mark, paints, sx, sy, scratch); break;
@@ -242,18 +242,24 @@ function paintArea(ctx: Ctx, mark: AreaMark, paints: PaintBindings): void {
   ctx.globalAlpha = 1;
 }
 
-function paintRects(ctx: Ctx, mark: RectMark, paints: PaintBindings, clip: Rect | null, box: Float64Array): void {
+function paintRects(ctx: Ctx, mark: RectMark, paints: PaintBindings, clip: Rect | null, box: Float64Array, sx = 1, sy = 1): void {
   const color = paintOf(mark.fill, paints);
   if (color === null) return;
   const q = mark.xywh;
   if (mark.variant === 'bar') {
     // Each rectangle on its own, like the SVG renderer's one <rect> each: overlaps composite, and opposite
-    // windings cannot cancel.
+    // windings cannot cancel. Edges are snapped to device pixels, so the 1 CSS px seam the scene leaves
+    // between stacked segments is whole background pixels, not two half-tones (spec A5).
     ctx.fillStyle = color;
+    const snapX = (v: number) => Math.round(v * sx) / sx;
+    const snapY = (v: number) => Math.round(v * sy) / sy;
     for (let i = 0; i + 3 < q.length; i += 4) {
       const x = q[i]!, y = q[i + 1]!, w = q[i + 2]!, h = q[i + 3]!;
       if (lifted(x) || lifted(y) || lifted(w) || lifted(h)) continue;
-      ctx.fillRect(w < 0 ? x + w : x, h < 0 ? y + h : y, Math.abs(w), Math.abs(h));
+      const x0 = snapX(w < 0 ? x + w : x), y0 = snapY(h < 0 ? y + h : y);
+      const x1 = snapX((w < 0 ? x + w : x) + Math.abs(w)), y1 = snapY((h < 0 ? y + h : y) + Math.abs(h));
+      // A bar thinner than a device pixel keeps one pixel rather than vanishing.
+      ctx.fillRect(x0, y0, Math.max(x1 - x0, Math.abs(w) > 0 ? 1 / sx : 0), Math.max(y1 - y0, Math.abs(h) > 0 ? 1 / sy : 0));
     }
     const pattern = mark.pattern;
     const ink = paints.tokens.background;

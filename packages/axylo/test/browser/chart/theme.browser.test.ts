@@ -18,11 +18,22 @@ async function create(page: Page, renderer: 'canvas' | 'svg', extra: Record<stri
     });
     window.charts.push(chart);
     await chart.__bench.ready();
-    return { scheme: document.getElementById('chart')!.getAttribute('data-axylo-scheme'), codes: chart.diagnostics.map(d => d.code) };
+    return { scheme: document.querySelector('#chart figure')!.getAttribute('data-axylo-scheme'), codes: chart.diagnostics.map(d => d.code) };
   }, [renderer, extra] as const);
 }
 
 const seriesPixels = async (page: Page, color: string): Promise<number> => count((await shot(page, '#chart .axylo-plot')).img, hex(color), 40);
+
+/** The first series' color as the page resolves it now (through the chart's own custom properties). */
+async function resolvedSeries(page: Page): Promise<readonly [number, number, number]> {
+  return page.evaluate(() => {
+    const probe = document.querySelector('#chart figure')!.appendChild(document.createElement('span'));
+    probe.style.color = 'var(--axylo-series-color-1)';
+    const [r, g, b] = getComputedStyle(probe).color.match(/\d+/g)!.map(Number);
+    probe.remove();
+    return [r!, g!, b!] as const;
+  });
+}
 
 describe('scheme from the page (spec L4)', () => {
   it('a page with color-scheme: dark draws the dark palette', async () => {
@@ -51,6 +62,7 @@ describe('scheme from the page (spec L4)', () => {
     it(`toggling a dark class repaints within a frame, without rebuilding the scene (${renderer})`, async () => {
       const page = await chartPage({ css: 'html.dark body { background: #16181d; color: #e8eaee; }' });
       expect((await create(page, renderer)).scheme).toBe('light');
+      const light = await resolvedSeries(page);
       const result = await page.evaluate(async () => {
         const chart = window.charts[0]!;
         const before = chart.__dev.stages();
@@ -58,7 +70,7 @@ describe('scheme from the page (spec L4)', () => {
         // Let the attribute observer run, then read in the first frame after the toggle.
         await Promise.resolve();
         await new Promise(r => requestAnimationFrame(r));
-        return { before, after: chart.__dev.stages(), scheme: document.getElementById('chart')!.getAttribute('data-axylo-scheme') };
+        return { before, after: chart.__dev.stages(), scheme: document.querySelector('#chart figure')!.getAttribute('data-axylo-scheme') };
       });
       expect(result.scheme).toBe('dark');
       expect(result.after.theme).toBe(result.before.theme! + 1);
@@ -66,8 +78,14 @@ describe('scheme from the page (spec L4)', () => {
       // The same call for both renderers: canvas needs it to repaint, SVG restyles through CSS anyway.
       expect(result.after.draw).toBe(result.before.draw + 1);
       expect(result.after.layout).toBe(result.before.layout);
-      expect(await seriesPixels(page, DARK.series[0]!)).toBeGreaterThan(200);
-      expect(await seriesPixels(page, LIGHT.series[0]!)).toBeLessThan(20);
+      // Against each scheme's resolved color (not the palette file and a wide tolerance): the drawn pixels
+      // are the dark one's and not the light one's. The two must differ beyond the tolerance for this to mean
+      // anything, which is asserted too.
+      const dark = await resolvedSeries(page);
+      const pixels = (await shot(page, '#chart .axylo-plot')).img;
+      expect(Math.max(...dark.map((v, i) => Math.abs(v - light[i]!)))).toBeGreaterThan(16);
+      expect(count(pixels, dark, 6)).toBeGreaterThan(200);
+      expect(count(pixels, light, 6)).toBeLessThan(20);
       expect(await closePage(page)).toEqual([]);
     });
   }

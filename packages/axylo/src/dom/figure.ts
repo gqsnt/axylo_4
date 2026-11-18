@@ -35,6 +35,8 @@ export interface FigureModel {
    */
   readonly messageLang?: string | null;
   readonly noteLang?: string | null;
+  /** `lang` of the generated summary: 'en' when its built-in sentences are English on another page (A10). */
+  readonly summaryLang?: string | null;
 }
 
 export interface Figure {
@@ -49,8 +51,10 @@ export interface Figure {
   readonly top: HTMLElement;
   /** Beside the plot, in the same row (`legend: 'right'`). */
   readonly side: HTMLElement;
-  /** The row holding the plot and `side`; it takes the height the caption and controls leave. */
+  /** The row holding the plot's column and `side`; it takes the height the caption and controls leave. */
   readonly body: HTMLElement;
+  /** The plot's column inside `body`: the open table covers this, never the controls beside it. */
+  readonly stage: HTMLElement;
   readonly id: string;
   /** Returns true when something that can change the figure's layout was written. */
   update(model: FigureModel): boolean;
@@ -90,7 +94,9 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
     el.className = className;
     return el;
   };
-  const figure = make('figure', 'axylo-figure');
+  // The figure carries the `axylo` class too: the theme writes its custom properties and scheme attribute on
+  // the figure, so two charts on one target never share them (review 3, finding 10).
+  const figure = make('figure', 'axylo axylo-figure');
   figure.id = id;
   // A div, not figcaption: a figure with a figcaption may not take the group or img role (ARIA in HTML), and
   // the figure is named and described through aria-labelledby and aria-describedby anyway.
@@ -103,8 +109,14 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
   // Hidden until the first update says otherwise, so nothing is measured with an empty caption.
   title.hidden = true;
   subtitle.hidden = true;
+  // The whole generated summary is the figure's description, always (visually hidden). What the too-small
+  // state shows (spec L8) is `summary`: the first sentence, one line (type, series count), aria-hidden since
+  // the description already says it.
+  const description = make('p', `axylo-description ${HIDDEN}`);
+  description.id = `${id}-s`;
   const summary = make('p', `axylo-summary ${HIDDEN}`);
-  summary.id = `${id}-s`;
+  summary.setAttribute('aria-hidden', 'true');
+
   const plot = make('div', 'axylo-plot');
   const message = make('p', 'axylo-message');
   message.id = `${id}-m`;
@@ -136,8 +148,10 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
   const side = make('div', 'axylo-controls-side');
   side.hidden = true;
   const body = make('div', 'axylo-body');
-  body.append(plot, side);
-  caption.append(title, subtitle, summary);
+  const stage = make('div', 'axylo-stage');
+  stage.append(plot);
+  body.append(stage, side);
+  caption.append(title, subtitle, description, summary);
   figure.append(caption, top, body, controls, note, live, tooltip, readout);
   root.appendChild(figure);
 
@@ -152,6 +166,7 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
     top,
     side,
     body,
+    stage,
     id,
     update(model: FigureModel): boolean {
       if (last !== null && same(last, model)) return false;
@@ -182,9 +197,14 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
 
       setText(subtitle, model.subtitle ?? '');
       show(subtitle, !compact && !!model.subtitle);
-      setText(summary, model.summary);
+      setText(description, model.summary);
+      setAttr(description, 'lang', model.summaryLang ?? null);
+      setText(summary, /^.*?[.!?。！？](?=\s|$)/u.exec(model.summary)?.[0] ?? model.summary);
+      setAttr(summary, 'lang', model.summaryLang ?? null);
       summary.classList.toggle(HIDDEN, compact || !model.summaryVisible);
-      setAttr(figure, 'aria-describedby', summary.id);
+      // Shown in the too-small state (spec L8) as one line (the stylesheet clips it after its first line), the
+      // whole text staying the figure's description for assistive technology.
+      setAttr(figure, 'aria-describedby', description.id);
 
       // The compact variant has no note element: the summary says what was left out, and a corner marker
       // shows it (spec C5); the marker's text equivalent is that description.
@@ -221,7 +241,7 @@ function movesLayout(a: FigureModel, b: FigureModel): boolean {
 
 function same(a: FigureModel, b: FigureModel): boolean {
   return a.compact === b.compact && a.messageLang === b.messageLang && a.noteLang === b.noteLang && a.labelledBy === b.labelledBy && a.name === b.name && a.subtitle === b.subtitle &&
-    a.summary === b.summary && a.summaryVisible === b.summaryVisible && a.note === b.note && a.message === b.message &&
+    a.summary === b.summary && a.summaryLang === b.summaryLang && a.summaryVisible === b.summaryVisible && a.note === b.note && a.message === b.message &&
     (a.title === b.title || (a.title !== null && b.title !== null && a.title.text === b.title.text &&
       a.title.level === b.title.level && a.title.visible === b.title.visible));
 }

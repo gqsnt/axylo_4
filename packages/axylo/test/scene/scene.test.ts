@@ -215,12 +215,16 @@ describe('bar geometry', () => {
     const step = dimension / 2.25;
     const band = 0.75 * step;
     const axis = horizontal ? 1 : 0;
+    // Each bar is 1 px narrower than its half of the band, centred on it: 1 px of background between the two
+    // (spec A5, adjacent filled marks).
     for (let i = 0; i < 2; i++) {
       const start = (horizontal ? clip.y : clip.x) + (i + 0.25) * step;
-      expect(a!.xywh[4 * i + axis]).toBeCloseTo(start, 4);
-      expect(a!.xywh[4 * i + axis + 2]).toBeCloseTo(band / 2, 4);
-      expect(b!.xywh[4 * i + axis]).toBeCloseTo(start + band / 2, 4);
-      expect(b!.xywh[4 * i + axis + 2]).toBeCloseTo(band / 2, 4);
+      expect(a!.xywh[4 * i + axis]).toBeCloseTo(start + 0.5, 4);
+      expect(a!.xywh[4 * i + axis + 2]).toBeCloseTo(band / 2 - 1, 4);
+      expect(b!.xywh[4 * i + axis]).toBeCloseTo(start + band / 2 + 0.5, 4);
+      expect(b!.xywh[4 * i + axis + 2]).toBeCloseTo(band / 2 - 1, 4);
+      const gap = b!.xywh[4 * i + axis]! - (a!.xywh[4 * i + axis]! + a!.xywh[4 * i + axis + 2]!);
+      expect(gap).toBeCloseTo(1, 4);
     }
   });
 
@@ -593,10 +597,11 @@ it.each([false, true])('centers whole continuous bars and retains bands crossing
     const offset = 4 * i + axis;
     const fraction = (i + 0.5) / 4;
     const center = horizontal ? clip.y + clip.height * (1 - fraction) : clip.x + clip.width * fraction;
-    expect(a!.xywh[offset]).toBeCloseTo(center - part, 4);
-    expect(b!.xywh[offset]).toBeCloseTo(center, 4);
-    expect(a!.xywh[offset + 2]).toBeCloseTo(part, 4);
-    expect(b!.xywh[offset + 2]).toBeCloseTo(part, 4);
+    // 1 px of background between the two bars of a group (spec A5): each 1 px narrower, centred on its slot.
+    expect(a!.xywh[offset]).toBeCloseTo(center - part + 0.5, 4);
+    expect(b!.xywh[offset]).toBeCloseTo(center + 0.5, 4);
+    expect(a!.xywh[offset + 2]).toBeCloseTo(part - 1, 4);
+    expect(b!.xywh[offset + 2]).toBeCloseTo(part - 1, 4);
   }
   const zoomed = buildView(frame, { kind: 'bar', horizontal, zoom: [0.2, 0.8], previous: view }, new DiagnosticCollector());
   expect(zoomed.visibleSlots).toEqual({ start: 1, end: 1 });

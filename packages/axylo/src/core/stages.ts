@@ -40,7 +40,11 @@ export function isCompact(kind: ChartType, options: OptionRecord): boolean {
 export function publicOptions(input: unknown): OptionRecord {
   if (input === null || typeof input !== 'object') return {};
   const out: Record<string, unknown> = {};
-  for (const key of Object.keys(input)) if (!INTERNAL_KEYS.includes(key)) out[key] = (input as Record<string, unknown>)[key];
+  for (const key of Object.keys(input)) {
+    const value = (input as Record<string, unknown>)[key];
+    // A key set to undefined is a default, as the patch rule reads it on create (finding 14: one path).
+    if (!INTERNAL_KEYS.includes(key) && value !== undefined) out[key] = value;
+  }
   return out;
 }
 
@@ -74,7 +78,8 @@ export function viewStateFor(
     hidden, zoom, xField: resolved.x, xDomain: resolved.x.domain, valueDomain: value?.domain ?? null,
     valueField: value?.field, references: Array.isArray(options.reference) ? options.reference as never : [], previous,
   };
-  if (kind === 'scatter') return { ...common, kind };
+  // Scatter has no frame-level value scale to infer from: the declared one reaches the domain (F7).
+  if (kind === 'scatter') return { ...common, kind, valueScale: value?.scale ?? null };
   return {
     ...common, kind,
     stacked: kind === 'area' ? options.stacked === true : kind === 'bar' ? options.layout === 'stacked' : false,
@@ -153,10 +158,8 @@ export function staticDiagnostics(kind: ChartType, input: unknown, timeZone: str
     const data = dataSink.inputs();
     return toPublic([...dedupe(optionSink.inputs(), data), ...data, ...viewSink.inputs(), ...namingDiagnostics(options)], name);
   } catch {
-    // Options so malformed that resolution itself fails: say so rather than throw from validate.
-    const fallback = new DiagnosticCollector();
-    report(fallback, 'AX150', 'chart-error', { detail: 'Supply readable options and data.' });
-    return toPublic([...optionSink.inputs(), ...fallback.inputs(), ...namingDiagnostics(options)], name);
+    // A failure inside the stages (an x getter that throws): AX199, as a created chart reports it (finding 14).
+    return toPublic([...optionSink.inputs(), createDiagnostic('AX199', 'chart-error', {}, 'presentation'), ...namingDiagnostics(options)], name);
   }
 }
 

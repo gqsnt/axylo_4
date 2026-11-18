@@ -28,6 +28,7 @@ import {
 } from '../data';
 import { createDiagnostic, DiagnosticCollector, readerDisclosure, type DiagnosticCode } from '../diagnostics';
 import { createFormatters, type FormatSpec } from '../format';
+import { dateUnitOf } from '../data/x';
 import { buildView } from '../view';
 import { computeLayout } from '../layout';
 import { buildScene } from '../scene';
@@ -49,6 +50,9 @@ import type { FigureModel } from '../dom/figure';
 import type { Committed, ControlsState } from '../dom/interaction';
 
 export type ChartKind = ChartType;
+
+/** Thrown inside a frame to stop it before anything was written (see `frame`). */
+const ABORT = Symbol('axylo frame superseded');
 
 const STAGES = ['options', 'normalize', 'append', 'view', 'frame', 'theme', 'formatters', 'layout', 'scene', 'lookup',
   'reader', 'draw', 'text', 'figure'] as const;
@@ -104,7 +108,8 @@ export interface Host {
   readonly figure: { update(model: FigureModel): boolean; announce(text: string, lang?: string | null): void };
   readonly interaction: { prepare(state: ControlsState): boolean; commit(state: Committed | null): void; clear(): void };
   readonly measurer: TextMeasurer;
-  requestFrame(callback: () => void): number;
+  /** The callback gets the animation frame's time when the host has one. */
+  requestFrame(callback: (time?: number) => void): number;
   cancelFrame(handle: number): void;
   locale(option: unknown): string;
   pageLang(): string | null;
@@ -119,6 +124,8 @@ export interface Host {
   measure(): Size | null;
   devicePixelRatio(): number;
   theme(seriesKeys: readonly string[], colors: Record<string, string>): ThemeResolution;
+  /** Shows or hides the mark and text surfaces without drawing (the error revision hides them). */
+  surfaces?(visible: boolean): void;
   /** Called once by destroy, after the controller released its own state. */
   dispose(): void;
 }
@@ -206,7 +213,11 @@ function latestX(frame: Frame): number {
   if (frame.shape === 'aligned') return frame.x.values.length ? frame.x.values[frame.x.values.length - 1]! : NaN;
   if (frame.shape === 'points') {
     let latest = -Infinity;
-    for (const s of frame.series) if (s.x.length) latest = Math.max(latest, s.x[s.x.length - 1]!);
+    for (const s of frame.series) {
+      if (s.x.length) latest = Math.max(latest, s.x[s.x.length - 1]!);
+      // An observation with no y still marks how far the data reaches.
+      if (s.missingX) for (let i = 0; i < s.missingX.length; i++) if (Number.isFinite(s.missingX[i]!)) latest = Math.max(latest, s.missingX[i]!);
+    }
     return latest;
   }
   return NaN;
@@ -215,7 +226,9 @@ function latestX(frame: Frame): number {
 /** A window that ends at the latest x and does not show everything follows the data (plan 1.5). */
 function followsLatest(view: View, zoom: Span<XValue> | null): boolean {
   if (zoom === null || view.kind === 'donut') return false;
-  return view.xDomain[1] >= view.xFull[1] && view.xDomain[0] > view.xFull[0];
+  // The data's own latest position, not the niced or padded edge of the axis (finding 16).
+  const latest = latestX(view.frame);
+  return Number.isFinite(latest) && view.xDomain[1] >= latest && view.xDomain[0] > view.xFull[0];
 }
 
 /** What a destroyed controller holds instead of its host, so a handle kept by the page retains no DOM. */
@@ -254,19 +267,22 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
   /** Keys of the current diagnostics already printed and handed to `onDiagnostic`. */
   let deliveredKeys = new Set<string>();
   /** Increases with every delivery pass; a pass started inside author code supersedes the outer one. */
-  let deliveryPass = 0;
   let destroyed = false;
   let internalError: unknown = null;
   /** `append` was called at least once: the pause control is offered (spec I6). */
   let streaming = false;
   let paused = false;
   /** While paused: the store's newest frame and its findings, accepted but not shown. */
-  let held: { frame: Frame; dataDiagnostics: readonly DiagnosticInput[] } | null = null;
+  let held: { frame: Frame; dataDiagnostics: readonly DiagnosticInput[]; viewDiagnostics: readonly DiagnosticInput[] } | null = null;
   /**
-   * While paused: the caller's rows of the frame on screen, kept here so the store can retire every revision
-   * older than its newest as rows arrive; `keep` then bounds what a paused stream holds (review 2, finding 5).
+   * The displayed snapshot's row ownership: what the marks on screen came from (see the invariants at the top
+   * of this file). `frozen` holds the caller's rows of that frame once the store had to let go of its revision.
    */
-  let frozen: { frame: Frame; rows: Map<number, unknown> } | null = null;
+  let onScreen: { frame: Frame; store: Store | null; frozen: Map<number, unknown> | null } | null = null;
+  /** Frames a store produced (their rows live in that store's revisions). */
+  const storeFrames = new WeakSet<Frame>();
+  /** What the store held right after the last release with a frame on screen: the bound's baseline. */
+  let retainedBaseline = 0;
   let epochs = 0;
   let frameRevision = 0;
   let commits = 0;
@@ -289,8 +305,11 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
   }
 
   function currentDiagnostics(): Diagnostic[] {
-    if (!accepted) return [];
-    return toPublic([...stateDiagnostics(accepted), ...presentationList()], accepted.name);
+    // Before anything was accepted (a create that failed): what the failure raised (finding 14).
+    if (!accepted) return toPublic(presentationList(), chartName(options.current));
+    // While paused, `diagnostics` describes everything accepted, the held rows included (finding 6).
+    const a = held ? { ...accepted, dataDiagnostics: held.dataDiagnostics, viewDiagnostics: held.viewDiagnostics } : accepted;
+    return toPublic([...stateDiagnostics(a), ...presentationList()], accepted.name);
   }
 
   /** Replaces what a presentation stage found; outside a frame the change is delivered at once. */
@@ -317,41 +336,59 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     addPresentation('format', createDiagnostic('AX160', 'changed', { field }, 'presentation'));
   }
 
-  function alive(pass: number): boolean {
-    return !destroyed && pass === deliveryPass;
+  /**
+   * Notifications to author code (onDiagnostic, the console, event listeners) in call order: each delivery
+   * is a snapshot taken when it is made and is drained in full, and one made by author code during a drain
+   * waits behind it. Only destruction stops a drain (review 3, finding 7).
+   */
+  const notifications: (() => void)[] = [];
+  let draining = false;
+
+  function enqueue(work: () => void): void {
+    notifications.push(work);
+    if (draining) return;
+    draining = true;
+    try {
+      while (notifications.length && !destroyed) notifications.shift()!();
+    } finally {
+      draining = false;
+      if (destroyed) notifications.length = 0;
+    }
   }
 
   /**
-   * Prints and hands to `onDiagnostic` what is new. Each finding is marked delivered before the author's
-   * handler runs, so a handler that calls `update` cannot be given it twice; a handler that destroys the
-   * chart or starts a newer pass ends this one.
+   * Prints and hands to `onDiagnostic` what is new. The set to deliver is fixed and marked delivered when the
+   * delivery is made, so a handler that updates the chart cannot be given a finding twice.
    */
   function deliverChanges(): void {
     if (destroyed) return;
-    const pass = ++deliveryPass;
     const now = currentDiagnostics();
     const keys = new Set(now.map(diagnosticKey));
     for (const k of [...deliveredKeys]) if (!keys.has(k)) deliveredKeys.delete(k);
-    const handler = accepted?.options.onDiagnostic;
-    for (const d of now) {
-      if (!alive(pass)) return;
-      const key = diagnosticKey(d);
-      if (deliveredKeys.has(key)) continue;
-      deliveredKeys.add(key);
-      delivery.print(d);
-      if (typeof handler === 'function') delivery.notify(handler as (d: Diagnostic) => void, d);
-    }
+    const fresh = now.filter(d => !deliveredKeys.has(diagnosticKey(d)));
+    if (!fresh.length) return;
+    for (const d of fresh) deliveredKeys.add(diagnosticKey(d));
+    const handler = (accepted?.options ?? options.current).onDiagnostic;
+    enqueue(() => {
+      for (const d of fresh) {
+        if (destroyed) return;
+        delivery.print(d);
+        if (typeof handler === 'function') delivery.notify(handler as (d: Diagnostic) => void, d);
+      }
+    });
   }
 
   /** A rejected or ignored call's findings: printed and given to `onDiagnostic`, never part of `diagnostics`. */
   function deliverRejected(found: readonly DiagnosticInput[], name: string, handler: unknown): void {
-    const pass = ++deliveryPass;
-    for (const d of toPublic(found, name)) {
-      if (!alive(pass)) return;
-      if (deliveredKeys.has(diagnosticKey(d))) continue;
-      delivery.print(d);
-      if (typeof handler === 'function') delivery.notify(handler as (d: Diagnostic) => void, d);
-    }
+    const list = toPublic(found, name).filter(d => !deliveredKeys.has(diagnosticKey(d)));
+    if (!list.length) return;
+    enqueue(() => {
+      for (const d of list) {
+        if (destroyed) return;
+        delivery.print(d);
+        if (typeof handler === 'function') delivery.notify(handler as (d: Diagnostic) => void, d);
+      }
+    });
   }
 
   interface Candidate {
@@ -402,8 +439,9 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
    */
   function accept(c: Candidate, viewed: Viewed, follow: boolean, commit: (() => void) | null): void {
     commit?.();
+    if (commit) storeFrames.add(c.frame);
+    if (held && c.frame === held.frame) held = null;
     options.commit(c.options);
-    if (frozen && frozen.frame !== c.frame) frozen = null;
     frameRevision = Math.max(frameRevision, c.frame.revision);
     accepted = {
       options: c.options, resolved: c.resolved, source: c.source, store: c.store, frame: c.frame,
@@ -416,6 +454,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       internalError = null;
       setPresentationQuiet('internal', []);
     }
+    release();
     deliverChanges();
     schedule();
   }
@@ -490,8 +529,9 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
           zoom: previous!.zoom, hidden: previous!.hidden, messages,
         };
       } else {
-        // Presentation only (title, domains, references, colors, …): the frame stays.
-        const p = previous!;
+        // Presentation only (title, domains, references, colors, …): the frame stays. Rows held by a Resume
+        // that failed are shown by the next accepted call (finding 5).
+        const p = resumable(previous!);
         const resolved = p.store
           ? p.store.resolveEncoding(publicOptions(next), optionSink)
           : resolveOptions(kind, publicOptions(next), optionSink, p.source.table);
@@ -524,12 +564,11 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     guarded(() => {
       const previous = accepted;
       if (!previous) return;
-      if (!streaming) {
-        streaming = true;
-        // The pause control appears (spec I6).
-        schedule();
+      // The pause control appears (spec I6) once an append was accepted, not before it validated.
+      if (!Array.isArray(rows) || rows.length === 0) {
+        if (!streaming) { streaming = true; schedule(); }
+        return;
       }
-      if (!Array.isArray(rows) || rows.length === 0) return;
       stage('append');
       const keep = appendOptions?.keep;
       const store = previous.store ?? openStore(previous);
@@ -548,15 +587,21 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       const found = [...prepared.callDiagnostics, ...viewed.found];
       rejectIfStrict(previous.options.strict === true, found, previous.name, previous.options.onDiagnostic);
       if (paused) {
-        if (!frozen || frozen.frame !== previous.frame) frozen = freeze(previous.frame);
         prepared.commit();
-        store.retire(prepared.frame.revision - 1);
+        storeFrames.add(prepared.frame);
         frameRevision = Math.max(frameRevision, prepared.frame.revision);
-        held = { frame: prepared.frame, dataDiagnostics: prepared.diagnostics };
-        accepted = { ...previous, store, dataDiagnostics: prepared.diagnostics };
+        // The store is the accepted state's now; rows no displayed or pending frame needs go (finding 4).
+        accepted = { ...previous, store };
+        release();
+        // The held state: complete findings for the data accepted so far, kept apart from what is drawn, so a
+        // display effect (an error state) never reaches the ring on screen before Resume (finding 6).
+        held = { frame: prepared.frame, dataDiagnostics: prepared.diagnostics, viewDiagnostics: viewed.viewDiagnostics };
+        streaming = true;
         deliverChanges();
+        schedule();
         return;
       }
+      streaming = true;
       accept(c, viewed, previous.follow && zoom !== null, prepared.commit);
     });
   }
@@ -585,7 +630,13 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
   }
 
   /** Candidate for a call that changes only the view (zoom, legend, resume): same options, same data. */
-  function viewCandidate(a: Accepted, change: Partial<Pick<Candidate, 'zoom' | 'hidden' | 'frame' | 'dataDiagnostics'>>): Candidate {
+  /** The accepted state with the held frame in it, when Resume was asked for but did not complete. */
+  function resumable(a: Accepted): Accepted {
+    return !paused && held ? { ...a, frame: held.frame, dataDiagnostics: held.dataDiagnostics } : a;
+  }
+
+  function viewCandidate(given: Accepted, change: Partial<Pick<Candidate, 'zoom' | 'hidden' | 'frame' | 'dataDiagnostics'>>): Candidate {
+    const a = resumable(given);
     return {
       options: a.options, resolved: a.resolved, source: a.source, store: a.store, frame: a.frame,
       dataDiagnostics: a.dataDiagnostics, dataOptions: a.dataOptions, optionDiagnostics: a.optionDiagnostics,
@@ -643,14 +694,16 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     paused = next;
     if (!next && held) {
       const frame = held;
-      held = null;
       guarded(() => {
         const previous = accepted;
         if (!previous) return;
         let zoomed = previous.zoom;
         if (previous.follow && zoomed) zoomed = followLatest(frame.frame, previous.view) ?? zoomed;
         const c = viewCandidate(previous, { frame: frame.frame, dataDiagnostics: frame.dataDiagnostics, zoom: zoomed });
-        accept(c, viewFor(c, previous), previous.follow && zoomed !== null, null);
+        const viewed = viewFor(c, previous);
+        // The held frame is let go only once its replacement is accepted (review 3, finding 5).
+        held = null;
+        accept(c, viewed, previous.follow && zoomed !== null, null);
       });
     }
     schedule();
@@ -696,15 +749,19 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
   let drawn: Drawn | null = null;
   /** The last layout computed, also at a size that was only an estimate (the L8 fallback). */
   let lastLayout: { layout: Layout; key: readonly unknown[] } | null = null;
-  let retiredFor: Frame | null = null;
+  /** Marks were drawn at some point (cleared marks after a failure count): a later empty frame must clear them. */
+  let hadMarks = false;
+  /** The host hid the mark and text surfaces for an error revision; the next drawn frame shows them again. */
+  let surfacesHidden = false;
   let waiters: { revision: number; resolve: () => void }[] = [];
 
   function schedule(): void {
     if (destroyed || frameScheduled) return;
     frameScheduled = true;
-    frameRequest = host.requestFrame(() => {
+    frameRequest = host.requestFrame(time => {
       frameRequest = 0;
       frameScheduled = false;
+      void time;
       flush();
     });
   }
@@ -775,7 +832,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     }
     const x = frame.shape === 'aligned'
       ? { kind: frame.x.kind, timeZone: frame.x.timeZone, dateUnit: frame.x.dateUnit, categories: frame.x.categories }
-      : { kind: frame.xKind, timeZone: frame.timeZone, dateUnit: null, categories: null };
+      : { kind: frame.xKind, timeZone: frame.timeZone, dateUnit: pointDateUnit(frame, resolved.x.field), categories: null };
     const series = frame.shape === 'aligned'
       ? frame.series.map(s => ({ field: s.field, unit: s.unit, scale: s.valueScale, format: valueFor(s.field)?.format ?? null }))
       : frame.series.map(() => ({ field: resolved.values[0]?.field ?? 'y', unit: frame.yUnit, scale: resolved.values[0]?.scale ?? null, format: resolved.values[0]?.format ?? null }));
@@ -801,10 +858,12 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     try {
       frame(a);
     } catch (error) {
-      failSafe(a, error);
+      if (error !== ABORT) failSafe(a, error);
     } finally {
       inFrame = false;
     }
+    // A call made by author code during the frame is drawn by the next one.
+    if (!destroyed && accepted !== a) schedule();
     // Author code last: the frame is complete before any handler runs.
     deliverChanges();
   }
@@ -816,6 +875,20 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
 
   function frame(a: Accepted): void {
     stage('frame');
+    /**
+     * Every host mutation of this frame comes from `a`. Author code (formatters, the lazy summary) runs
+     * before the first one; if it changed or destroyed the chart, the frame stops with nothing written and
+     * the next frame draws the newer state. Once writing has started the frame completes for `a`, so no layer
+     * is left on another revision (invariant 3; review 3, controller blocker 1).
+     */
+    let mutated = false;
+    const mutate = (): void => {
+      if (destroyed) throw ABORT;
+      if (!mutated) {
+        if (accepted !== a) throw ABORT;
+        mutated = true;
+      }
+    };
     if (textStyleDirty) {
       const next = host.textStyle();
       if (!textStyle || !sameStyle(textStyle, next)) textStyle = next;
@@ -827,22 +900,6 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     const locale = host.locale(a.options.locale);
     const shown = display(a);
     const lang = host.pageLang();
-
-    // Theme: resolved when the page may have changed, or the series or their colors did.
-    const keys = themeKeys(view);
-    const nextThemeKey = [keys.join('\u0000'), a.options.colors];
-    if (themeDirty || !theme || !sameKey(themeKey, nextThemeKey)) {
-      stage('theme');
-      const resolution = host.theme(keys, object(a.options.colors) as Record<string, string>);
-      theme = resolution;
-      themeKey = nextThemeKey;
-      // A detached chart gets the light defaults; it resolves again in the next frame that draws.
-      themeDirty = resolution.resolved === false;
-      themeRevision++;
-      // When the backdrop could not be determined the background is a guess, so contrast is not judged.
-      const low = resolution.backdropKnown === false ? [] : lowContrastSeries(resolution.theme).filter(i => i < keys.length);
-      setPresentation('theme', low.length ? [createDiagnostic('AX141', 'none', { count: low.length }, 'presentation')] : []);
-    }
 
     // Formatters. What a formatter threw on belongs to the formatters and the revision it formatted.
     const spec = formatSpec(a);
@@ -887,6 +944,8 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
         view, formatters: formatters!, messages: a.messages, type: a.messages[KIND_MESSAGES[kind]] || KIND_NAMES[kind],
         title: typeof t === 'string' || (t && typeof t === 'object') ? t as string | Title : undefined,
         labelledBy: named ? by! : undefined, caption,
+        // The x column header carries the x unit (spec A4).
+        labels: { xUnit: a.resolved.x.unit ?? undefined },
         subtitle: stringOption(a.options, 'subtitle') ?? undefined,
         description: stringOption(a.options, 'description') ?? undefined,
         disclosure, labelsHidden, table: a.options.table !== false, compact, locale,
@@ -920,6 +979,8 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
         summaryVisible: tooSmall, note: noteShown ? reader.note : null, message,
         messageLang: message !== null && shown.kind !== 'ready' && shown.message ? english(shown.message) : null,
         noteLang: noteLangFor(currentHidden, disclosureNow()),
+        // The generated summary's sentences are the built-in templates; the names in them do not change that.
+        summaryLang: english('chartSummary') && english('seriesSummary') ? 'en' : null,
       };
     };
     const zoomOn = zoomApplies(view, a.options.zoom) ? (a.options.zoom === 'touch' ? 'touch' as const : true) : false;
@@ -933,7 +994,29 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     });
 
     let { reader, inputs: readerInputs } = settleReader(hiddenIn(drawn?.layout));
-    if (!current(a)) return;
+    // The lazy parts of the reader model run author formatters: materialized here, before anything is written.
+    void reader.summary;
+    void reader.note;
+    if (!current(a)) throw ABORT;
+
+    // Theme: resolved when the page may have changed, or the series or their colors did.
+    const keys = themeKeys(view);
+    const nextThemeKey = [keys.join('\u0000'), a.options.colors];
+    if (themeDirty || !theme || !sameKey(themeKey, nextThemeKey)) {
+      stage('theme');
+      mutate();
+      const resolution = host.theme(keys, object(a.options.colors) as Record<string, string>);
+      theme = resolution;
+      themeKey = nextThemeKey;
+      // A detached chart gets the light defaults; it resolves again in the next frame that draws.
+      themeDirty = resolution.resolved === false;
+      themeRevision++;
+      // When the backdrop could not be determined the background is a guess, so contrast is not judged.
+      const low = resolution.backdropKnown === false ? [] : lowContrastSeries(resolution.theme).filter(i => i < keys.length);
+      setPresentation('theme', low.length ? [createDiagnostic('AX141', 'none', { count: low.length }, 'presentation')] : []);
+    }
+
+
     // The fallback is only for a plot; a state message is shown in whatever room there is.
     if (shown.kind !== 'ready' || compact) fallback = null;
     let tooSmall = fallback !== null;
@@ -943,7 +1026,9 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       if (arranged && arranged.reader === reader && arranged.small === small) return false;
       arranged = { reader, small };
       stage('figure');
-      const moved = host.figure.update(modelFor(reader, small));
+      const model = modelFor(reader, small);
+      mutate();
+      const moved = host.figure.update(model);
       // The legend and toolbar are in place before the plot is measured: they take their share now.
       return host.interaction.prepare(controlsFor(reader, small)) || moved;
     };
@@ -1017,7 +1102,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       }
       layout = result.layout;
       lKey = result.key;
-      if (!current(a)) return;
+      if (destroyed) throw ABORT;
     }
 
     // Findings that follow from the layout shown, recomputed every frame (cheap): L8, L1, the bar hint.
@@ -1033,7 +1118,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     setPresentation('fit', fit);
     const measured = layout.kind !== 'unmeasured' || (shown.kind !== 'ready' && size !== null && size.width > 0 && size.height > 0);
     ({ reader, inputs: readerInputs } = settleReader(hidden));
-    if (!current(a)) return;
+    if (destroyed) throw ABORT;
 
     // Scene.
     const sceneInputs = [view, layout, pixelRatio];
@@ -1052,10 +1137,19 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     }
 
     // Marks: drawn again for a new scene, a new theme or a new pixel ratio, never rebuilt for a theme alone.
-    const paintInputs = [scene, themeRevision, pixelRatio];
-    if (measured && (!drawn || !sameKey(drawn.paintInputs, paintInputs))) {
+    // A frame that cannot draw (no size) clears what an earlier frame drew, so no marks outlive their rows.
+    mutate();
+    if (surfacesHidden) {
+      host.surfaces?.(true);
+      surfacesHidden = false;
+    }
+    const paintInputs = measured ? [scene, themeRevision, pixelRatio] : [];
+    // Nothing drawn yet and nothing to draw: no call at all (a hidden container stays untouched, L3).
+    const drewBefore = drawn !== null && drawn.paintInputs.length > 0;
+    if (measured ? !drawn || !sameKey(drawn.paintInputs, paintInputs) : drewBefore || (drawn === null && hadMarks)) {
       stage('draw');
-      host.renderer.draw(scene, theme!.bindings, theme!.theme, pixelRatio);
+      host.renderer.draw(measured ? scene : emptyScene(), theme!.bindings, theme!.theme, pixelRatio);
+      hadMarks = measured;
     }
     if (!drawn || drawn.layout !== layout || (drawn.layout.kind === 'plot') !== (layout.kind === 'plot')) {
       stage('text');
@@ -1077,21 +1171,49 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       accepted: a, formatters, formattersKey: fKey, layout, layoutKey: lKey, scene, sceneInputs,
       lookup, lookupInputs, reader, readerInputs, paintInputs,
     };
-    // The frame on screen is now this revision: rows only older revisions could address can go.
-    retire(a);
     host.interaction.commit({
       ...controlsFor(reader, tooSmall), layout, lookup, bindings: theme!.bindings, theme: theme!.theme, pixelRatio,
     });
-    if (!current(a)) return;
+    // The displayed snapshot is now this revision (or nothing, when nothing could be drawn): older rows go.
+    showing(measured ? a : null);
     if (measured) settle(a.revision);
   }
 
-  /** Retires, in the store, every revision older than the frame now on screen. */
-  function retire(a: Accepted): void {
-    if (retiredFor === a.frame) return;
-    retiredFor = a.frame;
-    const store = a.store;
-    if (store && a.frame.revision > 0) store.retire(a.frame.revision - 1);
+  function emptyScene(): Scene {
+    const width = Math.max(0, size?.width ?? 0);
+    const height = Math.max(0, size?.height ?? 0);
+    return { width, height, clip: { x: 0, y: 0, width, height }, marks: [] };
+  }
+
+  /**
+   * Lets the store release every revision no frame needs: the displayed snapshot keeps its own (a store can
+   * only retire "everything up to a revision", so a displayed frame older than revisions that were accepted
+   * since takes a copy of its rows once the store has grown past twice its last size), and a pending frame
+   * that has not been drawn yet keeps its own. Runs after every accepted call and every published frame,
+   * whether or not frames run (review 3, controller blockers 2 and 4).
+   */
+  function release(): void {
+    const store = accepted?.store;
+    if (!store) return;
+    const needed: Frame[] = [];
+    const shown = onScreen && onScreen.store === store && !onScreen.frozen && storeFrames.has(onScreen.frame) ? onScreen : null;
+    if (shown) needed.push(shown.frame);
+    const pending = accepted!.frame;
+    if (storeFrames.has(pending) && pending !== store.frame && pending !== onScreen?.frame) needed.push(pending);
+    if (shown && store.retainedRowCount > 2 * retainedBaseline + 64) {
+      shown.frozen = freeze(shown.frame).rows;
+      needed.splice(needed.indexOf(shown.frame), 1);
+    }
+    const floor = needed.length ? Math.min(...needed.map(f => f.revision)) : store.frame.revision;
+    if (floor > 0) store.retire(floor - 1);
+  }
+
+  /** The displayed snapshot is now `frame` (or nothing): its rows are owned until the next one is drawn. */
+  function showing(a: Accepted | null): void {
+    const frame = a?.frame ?? null;
+    onScreen = frame === null ? null : { frame, store: a!.store, frozen: onScreen?.frame === frame ? onScreen.frozen : null };
+    release();
+    retainedBaseline = accepted?.store?.retainedRowCount ?? 0;
   }
 
   function readyText(a: Accepted, reader: ReaderModel, byText: string | null): string {
@@ -1108,28 +1230,39 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     raiseInternal(error);
     showInternal(a.messages, a.name, a.options);
     drawn = null;
+    // Nothing on screen needs rows any more: the error revision has none.
+    showing(null);
     lastLayout = null;
     themeDirty = true;
     sizeDirty = true;
     settle(a.revision);
   }
 
+  /**
+   * The error revision on every layer, each step on its own (one that throws does not stop the others):
+   * interaction off first, so no old lookup answers the pointer; then the message; then the mark and text
+   * surfaces hidden by the host independently of their draw methods, which may be what failed; then their
+   * contents cleared (review 3, controller blocker 3).
+   */
   function showInternal(m: Messages, name: string, o: OptionRecord): void {
-    try {
-      host.text.render([]);
-      host.interaction.clear();
-      host.figure.update({
-        compact: isCompact(kind, o), title: titleOf(o), labelledBy: null, name,
-        subtitle: null, summary: m.internalError, summaryVisible: false, note: null, message: m.internalError,
-      });
+    const attempt = (step: () => void) => {
+      try { step(); } catch { /* the next step still runs */ }
+    };
+    attempt(() => host.interaction.clear());
+    attempt(() => host.figure.update({
+      compact: isCompact(kind, o), title: titleOf(o), labelledBy: null, name,
+      subtitle: null, summary: m.internalError, summaryVisible: false, note: null, message: m.internalError,
+    }));
+    attempt(() => {
       if (announced !== null && announced !== 'internal') host.figure.announce(m.internalError);
       announced = 'internal';
-      if (size && size.width > 0 && size.height > 0 && theme) {
-        host.renderer.draw({ width: size.width, height: size.height, clip: { x: 0, y: 0, width: size.width, height: size.height }, marks: [] }, theme.bindings, theme.theme, pixelRatio);
-      }
-    } catch {
-      // Nothing more can be shown safely.
-    }
+    });
+    attempt(() => {
+      host.surfaces?.(false);
+      surfacesHidden = true;
+    });
+    attempt(() => host.text.render([]));
+    attempt(() => { if (theme) host.renderer.draw(emptyScene(), theme.bindings, theme.theme, pixelRatio); hadMarks = false; });
   }
 
   function settle(revision: number): void {
@@ -1167,23 +1300,27 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       const i = frame.labels.indexOf(text.seriesLabel);
       if (i >= 0 && frame.slot[i] === SLOT_VALUE) y = frame.values[i]!;
     }
-    const rowAt = frozen && frozen.frame === frame ? (row: number) => frozen!.rows.get(row) ?? null : (row: number) => frame.source.rowAt(row);
+    const own = onScreen && onScreen.frame === frame ? onScreen.frozen : null;
+    const rowAt = own ? (row: number) => own.get(row) ?? null : (row: number) => frame.source.rowAt(row);
     return { series: ref.kind === 'slice' ? ref.sliceKey : ref.seriesKey, x, y, row: text.row >= 0 ? rowAt(text.row) : null, index: text.row };
   }
 
   /** Calls the listeners with a snapshot taken before any runs; stops when one destroys or changes the chart. */
+  /** Every listener subscribed when the event happened gets it, in order; nested events follow (finding 7). */
   function emit<E extends keyof ChartEvents<unknown>>(event: E, payload: ChartEvents<unknown>[E] | null): void {
     const set = listeners.get(event);
     if (!set || set.size === 0) return;
-    const state = accepted;
-    for (const listener of [...set]) {
-      if (destroyed || accepted !== state) return;
-      try {
-        (listener as (p: unknown) => void)(payload);
-      } catch (error) {
-        host.console?.error('[axylo] event listener threw:', error);
+    const snapshot = [...set];
+    enqueue(() => {
+      for (const listener of snapshot) {
+        if (destroyed) return;
+        try {
+          (listener as (p: unknown) => void)(payload);
+        } catch (error) {
+          host.console?.error('[axylo] event listener threw:', error);
+        }
       }
-    }
+    });
   }
 
   const actions: ControllerActions = {
@@ -1218,17 +1355,22 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     },
     page() {
       if (destroyed) return;
+      // Back in the document: anything the page could have changed meanwhile is read again, the pixel ratio
+      // and web fonts included (review 3, finding 19).
       themeDirty = true;
       textStyleDirty = true;
       sizeDirty = true;
+      pixelRatio = host.devicePixelRatio();
+      fontEpoch++;
       schedule();
     },
     theme() {
       if (destroyed) return;
       themeDirty = true;
       textStyleDirty = true;
-      // The theme watcher calls back inside an animation frame: draw now, so the repaint lands in this frame.
-      flush();
+      // Through the frame scheduler: the repaint is the next frame's, drawn once with whatever else is
+      // pending (one draw per animation frame; review 3, finding 19).
+      schedule();
     },
     fonts() {
       if (destroyed) return;
@@ -1256,8 +1398,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
     drawn = null;
     held = null;
     lastLayout = null;
-    retiredFor = null;
-    frozen = null;
+    onScreen = null;
     theme = null;
     listeners = new Map();
     presentation.clear();
@@ -1291,9 +1432,9 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
       if (destroyed) return () => {};
       let set = listeners.get(event);
       if (!set) listeners.set(event, set = new Set());
-      const own = set;
-      own.add(listener as (payload: never) => void);
-      return () => { own.delete(listener as (payload: never) => void); };
+      set.add(listener as (payload: never) => void);
+      // Resolved through the chart's map, which destroy empties: a kept unsubscribe holds no one else.
+      return () => { listeners.get(event)?.delete(listener as (payload: never) => void); };
     },
     get diagnostics() {
       return currentDiagnostics();
@@ -1345,6 +1486,31 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
   return { handle, actions, invalidate, flush };
 }
 
+const pointDateUnits = new WeakMap<Frame, 'day' | 'month' | 'year'>();
+
+/**
+ * The precision calendar dates were written in on a scatter frame, the finest if mixed ("2024-02" is a month;
+ * spec F4). The point frame has no field for it (contracts: only the aligned x column does), so it is read
+ * from the caller's rows of the frame, once per frame.
+ */
+function pointDateUnit(frame: Extract<Frame, { shape: 'points' }>, field: string): 'day' | 'month' | 'year' | null {
+  if (frame.xKind !== 'date') return null;
+  const known = pointDateUnits.get(frame);
+  if (known) return known;
+  let unit: 'day' | 'month' | 'year' = 'year';
+  outer: for (const s of frame.series) {
+    for (let i = 0; i < s.x.length; i++) {
+      const row = frame.source.rowAt(s.row ? s.row[i]! : i);
+      const raw = row !== null && typeof row === 'object' ? (row as Record<string, unknown>)[field] : undefined;
+      const u = dateUnitOf(raw);
+      if (u === 'day') { unit = 'day'; break outer; }
+      if (u === 'month') unit = 'month';
+    }
+  }
+  pointDateUnits.set(frame, unit);
+  return unit;
+}
+
 function sameStyle(a: TextStyle, b: TextStyle): boolean {
   return a.font === b.font && a.letterSpacing === b.letterSpacing && a.wordSpacing === b.wordSpacing && a.lineHeight === b.lineHeight;
 }
@@ -1371,10 +1537,12 @@ export function hasData(view: View, hidden = false): boolean {
   if (view.kind === 'scatter') {
     return view.frame.series.some((_, i) => shown(i) && view.visiblePoints[i]!.end > view.visiblePoints[i]!.start);
   }
+  // A bar with no value is still drawn: its "no data" glyph at the baseline (spec F2; finding 18).
+  const drawable = (state: number) => state === SLOT_VALUE || (view.kind === 'bar' && state !== SLOT_NO_ROW);
   return view.frame.series.some((s, i) => {
     if (!shown(i)) return false;
     const { start, end } = view.drawSlots[i] ?? view.visibleSlots;
-    for (let j = start; j < end; j++) if (s.slot[j] === SLOT_VALUE) return true;
+    for (let j = start; j < end; j++) if (drawable(s.slot[j]!)) return true;
     return false;
   });
 }

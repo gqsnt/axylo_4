@@ -63,16 +63,20 @@ describe('tooltip (spec I1)', () => {
     const cy = g.plot.y + g.plot.height / 2;
     const cx = g.plot.x + g.plot.width / 2;
     for (const [px, py] of [[g.plot.x + 1, cy], [g.plot.x + g.plot.width - 1, cy], [cx, g.plot.y + 1], [cx, g.plot.y + g.plot.height - 1]] as const) {
+      // Each edge reached from outside the chart: a jump across the reading axis onto a shown tooltip is a
+      // hover of the tooltip, which holds its datum (decision 0004, rule 3), not a new placement.
+      await page.mouse.move(0, 0);
       await page.mouse.move(px, py);
       const box = (await floating(page).boundingBox())!;
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.y).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(viewport.width);
       expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);
-      // The active marks all sit on the rule at the picked x; the tooltip is beside it, not over it.
+      // Decision 0004: the tooltip is across the reading axis (above or below the pointer), centred on the
+      // active x along it, so it never contains the pointer and reading along x never enters it.
       const at = await page.evaluate(() => window.charts[0]!.__bench.describe().xDomain);
       expect(at).toBeTruthy();
-      expect(px < box.x || px > box.x + box.width).toBe(true);
+      expect(py < box.y || py > box.y + box.height, JSON.stringify({ px, py, box })).toBe(true);
     }
     expect(await closePage(page)).toEqual([]);
   });

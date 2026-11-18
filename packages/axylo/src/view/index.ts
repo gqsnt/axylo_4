@@ -221,11 +221,17 @@ function scatterX(frame: PointFrame, sink: DiagnosticSink): Span {
   let min = Infinity;
   let max = -Infinity;
   let count = 0;
-  for (const { x, drawable } of frame.series) {
-    if (!x.length) continue;
-    min = Math.min(min, x[0]!);
-    max = Math.max(max, x[x.length - 1]!);
-    if (drawable) count += x.length;
+  for (const { x, drawable, missingX } of frame.series) {
+    if (x.length) {
+      min = Math.min(min, x[0]!);
+      max = Math.max(max, x[x.length - 1]!);
+      if (drawable) count += x.length;
+    }
+    // Observations with an x and no y belong to the default range too, so the table reaches them (F2).
+    if (missingX) for (let i = 0; i < missingX.length; i++) {
+      const v = missingX[i]!;
+      if (Number.isFinite(v)) { min = Math.min(min, v); max = Math.max(max, v); }
+    }
   }
   if (count > 50_000) report(sink, 'AX133', 'none');
   return [min, max];

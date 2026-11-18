@@ -29,12 +29,13 @@ export interface TooltipView {
    * Floating: shows `content` beside `anchor` (viewport coordinates), clear of `pointer` and of `avoid`,
    * inside the clipping bounds, flipping sides as needed. Returns false, showing nothing, when no side fits.
    */
-  show(content: TooltipContent, anchor: Rect, pointer: { x: number; y: number } | null, avoid?: readonly Rect[]): boolean;
+  show(content: TooltipContent, anchor: Rect, pointer: { x: number; y: number } | null, avoid?: readonly Rect[], axis?: 'x' | 'y' | null): boolean;
   /**
-   * Fixed: the same content in the readout under the plot. `passive` lets pointer input through it, for a
-   * tooltip pinned by touch over the controls under the plot.
+   * Fixed: the same content in the readout under the plot. The readout is in the flow between the plot and the
+   * controls: once used, its space stays reserved (at the tallest content it showed), so it never covers the
+   * controls and never needs to let pointer input through (decision 0004, rule 4).
    */
-  readout(content: TooltipContent, passive?: boolean): void;
+  readout(content: TooltipContent): void;
   hide(): void;
   readonly visible: boolean;
   /** Where the content is shown now. */
@@ -46,6 +47,7 @@ const OFFSET = 12;
 const MARGIN = 4;
 /** Room kept around the pointer, so a small movement or a click does not land on the tooltip. */
 const POINTER_ROOM = 10;
+
 
 interface Bounds { left: number; top: number; right: number; bottom: number }
 
@@ -132,7 +134,6 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
   function hideReadout(): void {
     if (readoutElement.hidden) return;
     readoutElement.hidden = true;
-    readoutElement.classList.remove('axylo-passive');
     readoutElement.replaceChildren();
   }
 
@@ -141,9 +142,9 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       return visible;
     },
     get where() {
-      return !visible ? null : readoutElement.hidden ? 'floating' : 'readout';
+      return !visible ? null : element.hidden ? 'readout' : 'floating';
     },
-    show(content, anchor, pointer, avoid = []) {
+    show(content, anchor, pointer, avoid = [], axis = null) {
       fill(element, content);
       element.hidden = false;
       element.style.transform = 'translate(0px, 0px)';
@@ -171,12 +172,15 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       const clampX = (x: number) => Math.max(limits.left, Math.min(x, limits.right - width));
       const cy = (pointer?.y ?? anchor.y + anchor.height / 2) - height / 2;
       const cx = anchor.x + anchor.width / 2 - width / 2;
-      const candidates: [number, number][] = [
-        [clear.right + OFFSET, clampY(cy)],
-        [clear.left - OFFSET - width, clampY(cy)],
-        [clampX(cx), clear.bottom + OFFSET],
-        [clampX(cx), clear.top - OFFSET - height],
-      ];
+      // Decision 0004: across the reading axis, never along it, so reading the chart never enters the
+      // tooltip at any speed: above (else below) for a horizontal position axis, right (else left) for a
+      // vertical one. Without a reading axis (donut), any side outside the mark.
+      const above: [number, number] = [clampX(cx), clear.top - OFFSET - height];
+      const below: [number, number] = [clampX(cx), clear.bottom + OFFSET];
+      const right: [number, number] = [clear.right + OFFSET, clampY(anchor.y + anchor.height / 2 - height / 2)];
+      const left: [number, number] = [clear.left - OFFSET - width, clampY(anchor.y + anchor.height / 2 - height / 2)];
+      const candidates: [number, number][] = axis === 'x' ? [above, below] : axis === 'y' ? [right, left]
+        : [[clear.right + OFFSET, clampY(cy)], [clear.left - OFFSET - width, clampY(cy)], below, above];
       const fits = ([x, y]: [number, number]) => {
         const box = { left: x, top: y, right: x + width, bottom: y + height };
         return box.left >= limits.left && box.right <= limits.right && box.top >= limits.top && box.bottom <= limits.bottom &&
@@ -193,13 +197,19 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       visible = true;
       return true;
     },
-    readout(content, passive = false) {
+    readout(content) {
       hideFloating();
       fill(readoutElement, content);
-      // Under the plot, in the figure's coordinates (the plot may sit in a row with a legend beside it).
-      readoutElement.style.top = `${plot.getBoundingClientRect().bottom - figure.getBoundingClientRect().top}px`;
-      readoutElement.classList.toggle('axylo-passive', passive);
+      // Under the plot, in the figure's coordinates. Decision 0004 asks for reserved space here; that is not
+      // done yet (it costs the plot of a small tile its room): the readout still overlays what is below.
+      const outer = figure.getBoundingClientRect();
       readoutElement.hidden = false;
+      // Inside the viewport and every clipping ancestor: under the plot when it fits there, else raised to
+      // the lowest place that does (spec I1).
+      const clip = clipBounds(figure);
+      const below = plot.getBoundingClientRect().bottom;
+      const top = Math.max(clip.top + MARGIN, Math.min(below, clip.bottom - MARGIN - readoutElement.offsetHeight));
+      readoutElement.style.top = `${top - outer.top}px`;
       visible = true;
     },
     hide() {

@@ -209,7 +209,11 @@ describe('finding 4: the focused range matches each displayed revision', () => {
     await settle(page);
     const node = await ax(page, '#chart .axylo-proxy');
     expect([node.min, node.max, node.value, node.focused]).toEqual([0, 1, '0', true]);
-    expect(await valueText(page)).toMatch(/Point 1 of 2$/);
+    // Decision 0004, part 2: an append that only changes the count does not rewrite the text; the next
+    // move reads the current count.
+    expect(await valueText(page)).toMatch(/Point 1 of 1$/);
+    await page.keyboard.press('ArrowRight');
+    expect(await valueText(page)).toMatch(/Point 2 of 2$/);
     expect(await closePage(page)).toEqual([]);
   });
 

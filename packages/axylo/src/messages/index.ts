@@ -62,7 +62,7 @@ export const defaultMessages: Messages = {
   panLeft: 'Pan left',
   panRight: 'Pan right',
   jumpNotFound: 'No row matches {x}. Example: {example}',
-  plotInstructions: 'Arrow keys move between points. Enter shows one series at a time. Plus and minus zoom.',
+  plotInstructions: 'Left and right arrows move between points, up and down between series, and Enter selects. Plus and minus zoom; 0 resets.',
   seeTable: 'See table.',
 };
 
