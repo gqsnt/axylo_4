@@ -46,7 +46,7 @@ export function scatterLookup(view: ScatterView, layout: PlotLayout | null, form
 
   function ref(s: number, i: number): DatumRef {
     const entry = series[s]!;
-    const datum = { kind: 'point', seriesKey: entry.key, row: entry.row?.[i] ?? i } as const;
+    const datum = { kind: 'point', seriesKey: entry.key, row: entry.row?.[i] ?? i, x: entry.x[i]! } as const;
     // A pick already knows the point's position. A ref rebuilt by the caller still resolves by source row.
     locations.set(datum, { series: s, index: i });
     return datum;
