@@ -40,7 +40,7 @@ Tested so far, on Linux: the library's acceptance tests in Chrome and in Playwri
 
 ## Size and memory
 
-The size targets of 1.0, set by the owner after measuring the built library: 96 KiB gzipped for a page that uses everything, and 80 KiB for a page that uses only `line`, the stylesheet included. They are not a release gate yet. The last measurement (`npm run size`, which measures the packed files the way a bundler would):
+The size targets of 1.0, set by the owner after measuring the built library: 116 KiB gzipped for a page that uses everything, and 98 KiB for a page that uses only `line`, the stylesheet included. They are not a release gate yet. The last measurement (`npm run size`, which measures the packed files the way a bundler would):
 
 [table: sizes](../../../bench/size-latest.json)
 
