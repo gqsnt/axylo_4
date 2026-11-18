@@ -30,14 +30,30 @@ Observed model and effort are read from harness metadata (Codex session rollouts
 
 Finished and committed, each written by one provider and reviewed by the other: scales and formatting; layout and simplification; data layer, diagnostics and stores; renderers, text layer and theme; view and scene; lookup, reader and messages; chart core part 1 (review findings not yet fixed, see below); chart core part 2 (review running); benchmark harness and the M1 renderer measurements (not reviewed).
 
-| Running now (2026-11-18 night, after commit 90f9b60) | Who | Files |
-|---|---|---|
-| Browser acceptance tests strengthened where two reviews found them weaker than their titles (L7 announcement count, I6 paused view, I2 every entry, C5, A7, T-zoom-scatter, C2 null gap, F8 ninth, A8 states, A1), then compact area and bar in the browser and I1 below the L8 minimum; agent a61d95e46b3f0f3aa | Claude Opus 5.5 high | `packages/axylo/test/browser/acceptance/**` |
-| Node acceptance tests strengthened (F3 delivery per type, F7, F1 horizontal, F4, F2, F10, F12, F8 and the named weak tests); the simplify test's 30 ms bound moved from wall time to CPU time; agent a5e106319fe97c022 | Claude Opus 5.5 high | `packages/axylo/test/acceptance/**`, `test/simplify` |
+**Stopped here on the owner's instruction (2026-11-18, about 23:10): "ok stop when you reach Finish recording, release check, docs rebuild". Nothing is running. No agent is working. Do not start the benchmarks or any new work without the owner's word (rule 9).**
 
-Coordinator's verification of 9611392 on the shared build built from it (logs `acceptance/results/verify-9611392/`): core browser suites on SVG 962 passed, 1 skipped; `chart` + `a11y` on canvas 312 passed, 4 skipped; `tests/dist` Node 90, browser 26; docs browser 172; whole Node suite 1766 of 1767, the one failure the load-dependent wall-time bound in `simplify.test.ts` (38.8 ms against 30 while other work ran; passes alone, three of three).
+Recorded with provenance at commit 1e38333 on a clean, quiet tree, shared build rebuilt from it (result files and sidecars in `acceptance/results/`, log `record-1e38333.log`; not in git):
 
-Matrix (efacab1): reachable when every cited result passes: 65 pass, 211 weak, 32 pending, 11 cannot be verified here (5 are A3, waived by the owner), 257 not applicable. Checker (3cbf903): size records bound to the pack; results from another tree read "not recorded for this revision"; `atLeast` citations; unreachable titles refused; kind checked against the file. Conformance page reads all of it (90f9b60). Reports: `wp/matrix-merge2.report.md`, `wp/checker-defects.report.md`.
+| Configuration | Passed | Failed | Not run |
+|---|---|---|---|
+| `unit` (Node) | 1849 | 0 | 0 |
+| `dist` | 90 | 0 | 0 |
+| `dist-browser` | 26 | 0 | 0 |
+| `browser`, Chrome 158.0.8127.36 | 1175 | 0 | 1 |
+| `browser`, Playwright Firefox 159.0 | 982 | 0 | 194 |
+| `browser`, Playwright WebKit 27.2 (not Safari) | 982 | 0 | 194 |
+
+Any commit after 1e38333, this one included, changes the tree, so these recordings answer for 1e38333 only and must be repeated at the release commit.
+
+Release check at 1e38333 (`node acceptance/check.mjs --release --results` with the six files; output kept in `acceptance/results/release-check-1e38333.txt`): exit 1, as expected while weak cells exist. Cells: pass 94, fail 0, weak 164, not run 50, not recorded 0, cannot be verified here 11 (5 are A3, waived by the owner), not applicable 257. The matrix (208c56b) would reach 112 passes; the other 18 are a checker defect, below.
+
+Two defects found at this step, not fixed (the owner said stop):
+1. **The checker's title scanner nests a top-level describe under the one before it.** In `packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts` it gives "I2 legend toggles" the ancestors `["I1 tooltip under the pointer", "I2 legend toggles"]`, so every citation of a test after that point in the file (I1's new below-minimum test, I2, I5, I6: 18 cells) reads "not run" with no reason although `browser.json` passes them. Probably brace or template-literal tracking in `acceptance/titles.mjs` since the strengthening pass added code to that file. For the checker's author (a61d95e46b3f0f3aa): a failing scanner test from that file first; also make a "not run" with every report passing carry a reason.
+2. **The docs conformance page does not count the recorded results.** `node apps/docs/build.mjs` at 1e38333 built the site, but the page lists all six result files as "No: provenance does not match the working tree" and every verdict as "not recorded for this revision", while the command-line checker accepts the same files in release mode from the same tree. The docs build probably changes the tree's fingerprint while it runs (it packs and installs the library) before `apps/docs/lib/conformance.mjs` calls `check()`. For the docs author (a04bfe28413f07034) with the checker's author: reproduce, then either call the checker before the build touches anything or fingerprint what the recordings fingerprint.
+
+Other notes for whoever resumes: the recordings' sidecars say `dirty true` because of the two untracked `bench/history/20261118T03503*` files (left uncommitted on purpose); the release check accepted them. In a strip readout on a plot under about 170 px a click on a line chart does not pin (the pinned row with its buttons does not fit two lines; decision 0004 allows it): candidate for the known-limits page.
+
+Matrix (208c56b): reachable when every cited result passes: 112 pass, 164 weak, 32 pending, 11 cannot be verified here, 257 not applicable; gap list in `wp/matrix-merge3.report.md`. Tests strengthened: Node acceptance (91d649e), browser acceptance with compact area and bar (d936ec3), Node evidence list regenerated (8e73b9f). Checker (3cbf903). Sizes on the packed files: everything 115.74 KiB (target 116), line only 96.81 (target 98).
 
 Engines (author's runs on the shared build of d33df71, `acceptance/results/engines-d33df71/`): acceptance 560 passed on Chrome 158; 399 passed and 161 not run on Playwright Firefox 159 and on Playwright WebKit 27.2 (not Safari); `chart` + `a11y` + `render` 402 passed on Chrome, 388 passed and 15 not run on each other engine; no failure on any engine. The not-run tests need Chrome-only tooling (the accessibility tree through CDP: 151 + 5; multi-touch, pen, heap and listener inspection: the rest) and say so.
 
@@ -86,12 +102,14 @@ Owner's answers on 2026-11-18 night: "Yes, settle them" (spec questions that res
 
 ## Next action
 
-1. When the two test-strengthening passes report: verify (type check, Node suite, the acceptance suite on Chrome), commit; any strengthened test that fails on a product defect goes to that module's author as a finding, fixed with the test unchanged.
-2. Matrix author (a7e48ddd0321b1b1e): cite the new titles, lift the gaps the stronger tests close.
-3. Record every configuration with provenance on a quiet tree with no agent running: `node acceptance/run.mjs unit`, `browser`, `dist`, `dist-browser`, then `AXYLO_ENGINE=firefox node acceptance/run.mjs browser` and `AXYLO_ENGINE=webkit …`; run `node acceptance/check.mjs --release` and read what still blocks; rebuild the docs site so the conformance page shows recorded results.
-4. On a quiet machine with no agents: `node bench/decision.mjs plan` (software family about 3.2 h, gpu family about 2.2 h); then budgets P1 to P8 and the large-series path (first render at 100,000 points was about 7× uPlot in the only measurement, early and weak).
-5. Agent rehearsal (DX12: no script, prompts or trap fixtures exist yet); Phase 1 comparison rerun with Axylo included. Optional size margin: property mangling (about −2.4 kB), only with the browser suites on the production bundle.
-6. Nothing has been pushed, tagged or published; no remote exists; CI has never run. Each of those needs the owner's explicit grant.
+Only on the owner's instruction. In order:
+
+1. Fix the two defects above (scanner ancestors; the docs page's provenance), each with a failing test first; then repeat the six recordings at that commit on a quiet tree (`node acceptance/run.mjs unit|dist|dist-browser|browser`, `AXYLO_ENGINE=firefox|webkit node acceptance/run.mjs browser`; about 50 minutes), the release check, and `node apps/docs/build.mjs`.
+2. The owner has been asked which gate 1.0 uses (release with documented gaps, or the spec's full gate where every cell passes); not answered yet. Time estimates given to the owner: with documented gaps 3 to 5 working days (7 to 9 if the large-series path needs restructuring); full gate 6 to 10 days (about two weeks in the bad case).
+3. Benchmarks, with the machine left alone and no agents: `node bench/decision.mjs plan` (software family about 3.2 h, gpu family about 2.2 h); then budgets P1 to P8, the renderer decision (0002 is provisional), and the large-series path (first render at 100,000 points was about 7× uPlot in the only measurement, early and weak; the scatter lookup build got slower on 2026-11-18).
+4. Agent rehearsal (DX12: no script, prompts or trap fixtures exist yet), 3 to 4 hours; Phase 1 comparison rerun with Axylo included, 2 to 3 hours.
+5. Evidence gaps, most important first, in `wp/matrix-merge3.report.md` (164 weak cells).
+6. CI has never run and no remote exists. Nothing has been pushed, tagged or published. Creating a remote, pushing, tagging and publishing each need the owner's explicit grant.
 
 ## Known limits that no agent can close
 
