@@ -208,6 +208,8 @@ export interface Messages {
   total: string;
   /** Single-click panning (WCAG 2.5.7), the table's "Jump to" when nothing matches, and how to move in the plot. */
   panLeft: string; panRight: string; jumpNotFound: string; plotInstructions: string;
+  /** Toolbar toggle: while it is on, two clicks in the plot set the two ends of the zoom range (the non-dragging way to select a range, WCAG 2.5.7). */
+  selectRange: string;
   /** A stack whose components have mixed signs: both ends, in place of one total ('{positive} and {negative}'). */
   totalMixed: string;
   /** Incomplete stacks in a summary: named when few ('{label}: incomplete at {positions}.'), counted when many ('{label}: {count} incomplete stacks.'). */

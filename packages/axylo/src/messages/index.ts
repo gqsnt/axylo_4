@@ -64,6 +64,7 @@ export const defaultMessages: Messages = {
   panRight: 'Pan right',
   jumpNotFound: 'No row matches {x}. Example: {example}',
   plotInstructions: 'Left and right arrows move between points, up and down between series, and Enter selects. Plus and minus zoom; 0 resets.',
+  selectRange: 'Select range',
   seeTable: 'See table.',
   totalMixed: '{positive} and {negative}',
   incompleteAt: '{label}: incomplete at {positions}.',
