@@ -18,12 +18,13 @@ function bytes(frame: AlignedFrame) {
   );
 }
 
-function backingBytes(frame: AlignedFrame) {
-  return [frame.x.values, ...frame.series.flatMap(s => [s.y, s.slot, s.row!])].map(a => [...new Uint8Array(a.buffer)]);
-}
 
 describe('prepared appends', () => {
-  it('leaves the store and backing bytes unchanged when the transaction is abandoned', () => {
+  // Changed by the coordinator on 2026-11-18. This test used to compare whole backing buffers, spare capacity
+  // included. Appends now share storage (plan 2.2: cost proportional to the rows appended), so a prepared
+  // append writes into capacity beyond every live frame's length. What a frame's holder may rely on is its
+  // own view, and that an abandoned transaction changes no later result; both are still asserted below.
+  it('leaves the store and every byte of the displayed frame unchanged when the transaction is abandoned', () => {
     const rows = fc.array(fc.record({
       x: fc.integer({ min: -10, max: 10 }),
       y: fc.oneof(fc.integer(), fc.constant(NaN), fc.constant('2'), fc.constant(null)),
@@ -32,13 +33,13 @@ describe('prepared appends', () => {
       const a = stream(initial);
       const b = stream(initial);
       const previous = a.frame;
-      const before = backingBytes(previous);
+      const before = bytes(previous);
       const discarded = a.prepareAppend(rejected, { keep });
       const expectedCandidate = stream(initial);
       expect(contents(discarded.frame)).toEqual(contents(expectedCandidate.append(rejected, { keep })));
       expect(discarded.diagnostics).toEqual(expectedCandidate.diagnostics);
       expect(a.frame).toBe(previous);
-      expect(backingBytes(previous)).toEqual(before);
+      expect(bytes(previous)).toEqual(before);
       expect(a.diagnostics).toEqual(b.diagnostics);
       const actual = a.append(accepted, { keep });
       const expected = b.append(accepted, { keep });

@@ -1,6 +1,7 @@
 import type { DiagnosticEffect, DiagnosticInput, DiagnosticSink, XColumn } from '../core/contracts';
 import { DiagnosticCollector, createDiagnostic, report, type DiagnosticCode, type DiagnosticDetails } from '../diagnostics';
 import { diagnosticContext } from '../diagnostics/registry';
+import { StoreMap } from './store-map';
 import { positionName } from './x';
 
 export interface DiagnosticTrace extends DiagnosticSink {
@@ -42,7 +43,7 @@ interface Sample {
 }
 
 interface Occurrences {
-  readonly coordinates: Map<number, Sample>;
+  readonly coordinates: StoreMap<number, Sample>;
   readonly gaps: boolean;
   readonly axis?: XColumn;
   count: number;
@@ -61,16 +62,31 @@ export class StreamDiagnostics extends DiagnosticCollector implements Diagnostic
 
   fork(): StreamDiagnostics {
     const draft = new StreamDiagnostics();
-    draft.merge(this);
+    for (const [key, occurrence] of this.occurrences) {
+      draft.occurrences.set(key, { ...occurrence, coordinates: occurrence.coordinates.fork() });
+    }
+    for (const [key, diagnostic] of this.entries) draft.entries.set(key, diagnostic);
+    for (const [key, diagnostic] of this.sparse) draft.sparse.set(key, diagnostic);
     return draft;
+  }
+
+  copy(): StreamDiagnostics {
+    const copy = new StreamDiagnostics();
+    copy.merge(this);
+    return copy;
+  }
+
+  commit(): void {
+    for (const occurrence of this.occurrences.values()) occurrence.coordinates.commit();
   }
 
   private trace(key: string, coordinate: number, gaps: boolean, amount: number,
     examples: Iterable<string>, series: Iterable<string>, axis?: XColumn): void {
     let entry = this.occurrences.get(key);
-    if (!entry) this.occurrences.set(key, entry = { coordinates: new Map(), count: 0, gaps, axis });
-    let sample = entry.coordinates.get(coordinate);
-    if (!sample) entry.coordinates.set(coordinate, sample = { count: 0, examples: new Set(), series: new Set() });
+    if (!entry) this.occurrences.set(key, entry = { coordinates: new StoreMap(), count: 0, gaps, axis });
+    const previous = entry.coordinates.get(coordinate);
+    const sample = { count: previous?.count ?? 0, examples: new Set(previous?.examples), series: new Set(previous?.series) };
+    entry.coordinates.set(coordinate, sample);
     sample.count += amount;
     addSamples(sample.examples, examples);
     addSamples(sample.series, series);

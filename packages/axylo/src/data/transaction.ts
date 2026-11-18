@@ -1,6 +1,7 @@
 import type { DiagnosticInput, Frame } from '../core/contracts';
 
 export interface PreparedFrame<F extends Frame> {
+  /** The preview's source rows are available until this change commits or another change supersedes it. */
   readonly frame: F;
   /** Findings for the resulting frame, including append ordering. */
   readonly diagnostics: readonly DiagnosticInput[];

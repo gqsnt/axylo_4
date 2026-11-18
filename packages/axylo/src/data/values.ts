@@ -39,14 +39,29 @@ export function readValues(
   outcome?: string,
   counts?: ValueCounts,
 ): Values {
-  mode ??= inspectValues(table, field.field, included);
   const column = table.columns?.[field.field];
+  const borrowed = column instanceof Float64Array || column instanceof Float32Array;
   const zero = impute && field.missing === 'zero';
-  const reports = new Reports(field.field, sink);
   const slot = new Uint8Array(table.length);
-  let y = column instanceof Float64Array || column instanceof Float32Array ? column : new Float64Array(table.length);
+  let y = borrowed ? column : new Float64Array(table.length);
+  let i = 0;
+  if (borrowed && !included) {
+    // Values and typed NaNs can stay in the caller's storage without generic row validation.
+    let missing = 0;
+    for (; i < table.length; i++) {
+      const value = column[i]!;
+      if (Number.isFinite(value)) continue;
+      if (zero || !Number.isNaN(value)) break;
+      slot[i] = SLOT_NULL;
+      missing++;
+    }
+    if (counts) counts.other += i - missing;
+    if (i === table.length) return { y, slot };
+  }
+  const reports = new Reports(field.field, sink);
+  mode ??= borrowed ? 'other' : inspectValues(table, field.field, included);
 
-  for (let i = 0; i < table.length; i++) {
+  for (; i < table.length; i++) {
     if (included && !included(i)) continue;
     const raw = column === undefined ? table.read(i, field.field) : column[i];
     if (counts) {

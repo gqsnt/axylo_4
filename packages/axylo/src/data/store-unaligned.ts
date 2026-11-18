@@ -4,6 +4,9 @@ import { normalize, pointFrame, readX, reportCalendarDates, type DataEnvironment
 import { resolveOptions, resolveTable, retargetOptions, withoutTable, type ResolvedOptions } from './options';
 import { Reports } from './reports';
 import { FrameSource, RowRevisions, StreamRows } from './store-rows';
+import { CalendarWindow } from './store-calendar';
+import { StoreMap } from './store-map';
+import { Column, Labels } from './store-window';
 import { rowsTable, type Table } from './table';
 import { once, retention, type PreparedFrame, type StoreAppendOptions } from './transaction';
 import { nameOf } from './x';
@@ -18,13 +21,17 @@ interface Result<F> {
 
 type Build<F> = (options: ResolvedOptions, environment: DataEnvironment, sink: DiagnosticSink, version: FrameVersion) => Result<F>;
 
-interface Extension<F> {
-  readonly frame: F;
-  readonly positions: Float64Array;
-  readonly dropped: number;
+interface Storage<F> {
+  frame(frame: F): F;
+  extend(next: Result<F>, rows: StreamRows, firstRow: number, keep: number | undefined): Storage<F> | null;
+  commit(): void;
 }
 
-type Extend<F> = (frame: F, positions: Float64Array, next: Result<F>, keep: number | undefined) => Extension<F> | null;
+type Open<F> = (result: Result<F>) => Storage<F> | null;
+
+const doubles = (length: number) => new Float64Array(length);
+const indexes = (length: number) => new Int32Array(length);
+const states = (length: number) => new Uint8Array(length);
 
 function buildPoints(options: ResolvedOptions, environment: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): Result<PointFrame> {
   if (!options.valid) {
@@ -67,17 +74,6 @@ function firstPosition(result: Result<PointFrame | DonutFrame>, keep: number): n
   return -Infinity;
 }
 
-function firstAtOrAfter(positions: Float64Array, first: number): number {
-  let low = 0;
-  let high = positions.length;
-  while (low < high) {
-    const middle = low + Math.floor((high - low) / 2);
-    if (positions[middle]! < first) low = middle + 1;
-    else high = middle;
-  }
-  return low;
-}
-
 function ordered(positions: Float64Array, last: number = -Infinity): boolean {
   for (const position of positions) {
     if (!Number.isFinite(position) || position < last) return false;
@@ -86,65 +82,140 @@ function ordered(positions: Float64Array, last: number = -Infinity): boolean {
   return true;
 }
 
-function extendPoints(frame: PointFrame, positions: Float64Array, next: Result<PointFrame>, keep: number | undefined): Extension<PointFrame> | null {
-  const before = frame.series[0];
-  const after = next.frame.series[0];
-  if (frame.xKind !== 'number' || next.frame.xKind !== 'number' || !before || !after ||
-    frame.series.length !== 1 || next.frame.series.length !== 1 || !ordered(positions) ||
-    !ordered(next.positions, positions.at(-1))) return null;
+class Points implements Storage<PointFrame> {
+  private constructor(
+    private readonly kind: PointFrame['xKind'],
+    private readonly positions: Column<Float64Array>, private distinct: number,
+    private readonly x: Column<Float64Array>, private readonly y: Column<Float64Array>, private readonly row: Column<Int32Array>,
+    private readonly calendar: CalendarWindow | null,
+  ) {}
 
-  const all = new Float64Array(positions.length + next.positions.length);
-  all.set(positions);
-  all.set(next.positions, positions.length);
-  const first = keep === undefined ? -Infinity : firstPosition({ frame, positions: all, order: null }, keep);
-  const dropped = firstAtOrAfter(all, first);
-  let a = firstAtOrAfter(before.x, first);
-  let b = firstAtOrAfter(after.x, first);
-  const length = before.x.length + after.x.length - a - b;
-  const x = new Float64Array(length);
-  const y = new Float64Array(length);
-  const row = new Int32Array(length);
-  // The adjacent batches can share an x. Merge ties by y and preserve the source order of coincident points.
-  for (let i = 0; i < length; i++) {
-    const fromBefore = b === after.x.length || a < before.x.length &&
-      (before.x[a]! < after.x[b]! || before.x[a] === after.x[b] && before.y[a]! <= after.y[b]!);
-    const group = fromBefore ? before : after;
-    const index = fromBefore ? a++ : b++;
-    x[i] = group.x[index]!;
-    y[i] = group.y[index]!;
-    row[i] = group.row?.[index] ?? index;
+  static open({ frame, positions }: Result<PointFrame>): Points | null {
+    const series = frame.series[0];
+    if (frame.series.length !== 1 || !series?.row || !ordered(positions)) return null;
+    const calendar = frame.xKind === 'time' ? new CalendarWindow(frame.timeZone ?? 'UTC') : null;
+    let distinct = 0;
+    let last = -Infinity;
+    for (const position of positions) {
+      if (position !== last) distinct++;
+      last = position;
+      calendar?.observe(position);
+    }
+    return new Points(frame.xKind, new Column(doubles, positions), distinct,
+      new Column(doubles, series.x), new Column(doubles, series.y), new Column(indexes, series.row), calendar);
   }
-  return {
-    frame: { ...next.frame, series: [{ ...before, x, y, row }] },
-    positions: dropped ? all.slice(dropped) : all, dropped,
-  };
+
+  extend(next: Result<PointFrame>, rows: StreamRows, firstRow: number, keep: number | undefined): Points | null {
+    const series = next.frame.series[0];
+    const last = this.positions.view().at(-1);
+    if (next.frame.xKind !== this.kind || !series?.row || !ordered(next.positions, last)) return null;
+    // A tie can append if its y also sorts after the old tail. Otherwise the old snapshot
+    // and the new sort order need different storage.
+    const lastX = this.x.view().at(-1);
+    const lastY = this.y.view().at(-1);
+    if (lastX !== undefined && lastY !== undefined && series.x[0] === lastX && series.y[0]! < lastY) return null;
+
+    const calendar = this.calendar?.fork() ?? null;
+    if (calendar) {
+      for (const position of next.positions) calendar.observe(position);
+      if (calendar.daily()) return null;
+    }
+    const draft = new Points(this.kind, this.positions.fork(), this.distinct,
+      this.x.fork(), this.y.fork(), this.row.fork(), calendar);
+    draft.positions.append(next.positions);
+    draft.x.append(series.x);
+    draft.y.append(series.y);
+    draft.row.append(series.row);
+    let previous = last;
+    for (let i = 0; i < next.positions.length; i++) {
+      const position = next.positions[i]!;
+      if (position !== previous) draft.distinct++;
+      previous = position;
+      rows.record(position, firstRow + i);
+    }
+
+    if (keep !== undefined && draft.distinct > keep) {
+      const positions = draft.positions.view();
+      let removed = 0;
+      while (draft.distinct > keep) {
+        const x = positions[removed]!;
+        rows.evictRead(x);
+        calendar?.evictPosition(x);
+        do removed++; while (positions[removed] === x);
+        draft.distinct--;
+      }
+      if (calendar?.daily()) return null;
+      const first = positions[removed] ?? Infinity;
+      const x = draft.x.view();
+      let points = 0;
+      while (points < x.length && x[points]! < first) points++;
+      draft.positions.drop(removed);
+      draft.x.drop(points);
+      draft.y.drop(points);
+      draft.row.drop(points);
+    }
+
+    return draft;
+  }
+
+  commit(): void { this.calendar?.commit(); }
+
+  frame(frame: PointFrame): PointFrame {
+    return { ...frame, series: [{ ...frame.series[0]!, x: this.x.view(), y: this.y.view(), row: this.row.view() }] };
+  }
 }
 
-function extendDonut(frame: DonutFrame, positions: Float64Array, next: Result<DonutFrame>, keep: number | undefined): Extension<DonutFrame> | null {
-  if (frame.labels.length !== positions.length || next.frame.labels.length !== next.positions.length) return null;
-  const names = new Set(frame.labels);
-  const after = next.frame;
-  if (after.labels.some(label => names.has(label))) return null;
-  const count = frame.labels.length + after.labels.length;
-  const dropped = keep === undefined ? 0 : Math.max(0, count - keep);
-  const length = count - dropped;
-  const labels = new Array<string>(length);
-  const values = new Float64Array(length);
-  const slot = new Uint8Array(length);
-  const row = new Int32Array(length);
-  for (let i = 0; i < length; i++) {
-    const index = dropped + i;
-    const source = index < frame.labels.length ? frame : after;
-    const offset = source === frame ? index : index - frame.labels.length;
-    labels[i] = source.labels[offset]!;
-    values[i] = source.values[offset]!;
-    slot[i] = source.slot[offset]!;
-    row[i] = source.row?.[offset] ?? offset;
+class Slices implements Storage<DonutFrame> {
+  private constructor(
+    private readonly labels: Labels, private readonly positions: StoreMap<string, number>, private next: number,
+    private readonly values: Column<Float64Array>, private readonly slot: Column<Uint8Array>, private readonly row: Column<Int32Array>,
+  ) {}
+
+  static open({ frame, positions }: Result<DonutFrame>): Slices | null {
+    if (frame.labels.length !== positions.length || !frame.row) return null;
+    const labels = new Map(frame.labels.map((label, index) => [label, index]));
+    if (labels.size !== frame.labels.length) return null;
+    return new Slices(new Labels(frame.labels), new StoreMap(labels), labels.size,
+      new Column(doubles, frame.values), new Column(states, frame.slot), new Column(indexes, frame.row));
   }
-  return {
-    frame: { ...after, labels, values, slot, row },
-    positions: Float64Array.from({ length }, (_, i) => i), dropped,
-  };
+
+  commit(): void { this.positions.commit(); }
+
+  extend(next: Result<DonutFrame>, rows: StreamRows, firstRow: number, keep: number | undefined): Slices | null {
+    const frame = next.frame;
+    if (frame.labels.length !== next.positions.length || !frame.row || frame.labels.some(label => this.positions.has(label))) return null;
+    const draft = new Slices(this.labels.fork(), this.positions.fork(), this.next,
+      this.values.fork(), this.slot.fork(), this.row.fork());
+    for (let i = 0; i < frame.labels.length; i++) {
+      const label = frame.labels[i]!;
+      draft.labels.push(label);
+      const position = draft.next++;
+      draft.positions.set(label, position);
+      rows.record(position, firstRow + i);
+    }
+    draft.values.append(frame.values);
+    draft.slot.append(frame.slot);
+    draft.row.append(frame.row);
+
+    if (keep !== undefined && draft.labels.length > keep) {
+      const dropped = draft.labels.length - keep;
+      for (let i = 0; i < dropped; i++) {
+        const label = draft.labels.at(i);
+        rows.evictRead(draft.positions.get(label)!);
+        draft.positions.delete(label);
+      }
+      draft.labels.drop(dropped);
+      draft.values.drop(dropped);
+      draft.slot.drop(dropped);
+      draft.row.drop(dropped);
+    }
+
+    return draft;
+  }
+
+  frame(frame: DonutFrame): DonutFrame {
+    return { ...frame, labels: this.labels.view(), values: this.values.view(), slot: this.slot.view(), row: this.row.view() };
+  }
 }
 
 function removeRows(table: Table, positions: Float64Array, keep: number, first: number, rows: StreamRows): number[] {
@@ -170,12 +241,12 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
   private encoding: ResolvedOptions;
   private current: F;
   private latest: readonly DiagnosticInput[];
-  private positions: Float64Array;
+  private storage: Storage<F> | null;
 
   constructor(
     private readonly type: 'scatter' | 'donut',
     private readonly build: Build<F>,
-    private readonly extend: Extend<F>,
+    private readonly open: Open<F>,
     options: ResolvedOptions,
     private readonly environment: DataEnvironment,
     version: FrameVersion,
@@ -185,12 +256,15 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
     this.revisions = new RowRevisions(this.rows);
     this.encoding = withoutTable(options);
     const diagnostics = new DiagnosticCollector();
-    const { frame, positions } = build({ ...options, table: this.rows.table() }, environment, diagnostics, version);
-    this.positions = positions;
-    const source = new FrameSource(this.rows.next, this.rows);
-    this.current = { ...frame, source };
-    this.revisions.current.publish(frame.revision, source, this.rows);
+    const table = this.rows.table();
+    const result = build({ ...options, table }, environment, diagnostics, version);
+    const { frame, positions } = result;
+    this.rows.resetPositions(table, positions);
     this.latest = diagnostics.inputs();
+    this.storage = this.latest.length ? null : this.open(result);
+    const source = new FrameSource(this.rows.next, this.rows);
+    this.current = { ...(this.storage?.frame(frame) ?? frame), source };
+    this.revisions.current.publish(frame.revision, source, this.rows);
     for (const diagnostic of this.latest) sink.add(diagnostic);
   }
 
@@ -198,6 +272,7 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
   get diagnostics(): readonly DiagnosticInput[] { return this.latest; }
   get retainedRowCount(): number { return this.revisions.size; }
 
+  /** Releases source rows through this revision. Held frame views keep their normalized values. */
   retire(revision: number): void { this.revisions.retire(revision); }
 
   /** Validates encoding against the retained rows and returns options for re-encoding this store. */
@@ -252,34 +327,30 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
       }
     }
     const ordered = ordering.inputs();
-    return this.prepare(base, result.frame, retained, result.positions, [...current.inputs(), ...ordered], [...call.inputs(), ...ordered], evicted);
+    const diagnostics = [...current.inputs(), ...ordered];
+    retained.resetPositions(table, result.positions);
+    return this.prepare(base, result.frame, retained, diagnostics.length ? null : this.open(result),
+      diagnostics, [...call.inputs(), ...ordered], evicted);
   }
 
   private extendAppend(base: F, rows: readonly unknown[], version: FrameVersion, keep: number | undefined): PreparedFrame<F> | null {
     // Implicit string parsing and diagnostics can change when old rows leave. Reuse old values only when
     // both partitions have unambiguous clean values and the same x interpretation.
-    if (this.latest.length || this.encoding.values[0]?.parse || this.encoding.series !== null ||
-      this.positions.length !== this.rows.size) return null;
+    if (!this.storage || this.encoding.values[0]?.parse || this.encoding.series !== null) return null;
     const table = { ...rowsTable(rows), rowIndex: (row: number) => this.rows.next + row };
     const diagnostics = new DiagnosticCollector();
     const resolved = retargetOptions(this.encoding, table, diagnostics);
     if (!resolved.valid) return null;
     const result = this.build(resolved, this.environment, diagnostics, version);
     if (diagnostics.inputs().length) return null;
-    const extension = this.extend(base, this.positions, result, keep);
-    if (!extension) return null;
     const retained = this.rows.fork();
-    retained.append(rows);
     const evicted: number[] = [];
-    if (extension.dropped > 0) {
-      const combined = retained.table();
-      for (let i = 0; i < extension.dropped; i++) {
-        const row = combined.rowIndex(i);
-        retained.forget(row);
-        evicted.push(row);
-      }
-    }
-    return this.prepare(base, extension.frame, retained, extension.positions, [], [], evicted);
+    retained.onForget = row => evicted.push(row);
+    retained.append(rows);
+    const extension = this.storage.extend(result, retained, this.rows.next, keep);
+    retained.onForget = undefined;
+    if (!extension) return null;
+    return this.prepare(base, result.frame, retained, extension, [], [], evicted);
   }
 
   reencode(options: ResolvedOptions, version: FrameVersion): F {
@@ -289,7 +360,7 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
   }
 
   prepareReencode(options: ResolvedOptions, version: FrameVersion): PreparedFrame<F> {
-    return this.prepareEncoding(this.rows, options, version, new DiagnosticCollector());
+    return this.prepareEncoding(this.rows.fork(), options, version, new DiagnosticCollector());
   }
 
   replace(data: unknown, options: ResolvedOptions, version: FrameVersion): F {
@@ -314,25 +385,28 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
     }
     const table = rows.table();
     const resolved = retargetOptions(options, replacement?.table ?? table, call, replacement?.valid);
-    const { frame, positions } = this.build({ ...resolved, table }, this.environment, call, version);
+    const result = this.build({ ...resolved, table }, this.environment, call, version);
+    rows.resetPositions(table, result.positions);
     const diagnostics = call.inputs();
-    return this.prepare(base, frame, rows, positions, diagnostics, diagnostics, [], options, replacement !== undefined);
+    return this.prepare(base, result.frame, rows, diagnostics.length ? null : this.open(result), diagnostics, diagnostics, [], options, replacement !== undefined);
   }
 
   private prepare(
-    base: F, frame: F, rows: StreamRows, positions: Float64Array,
+    base: F, frame: F, rows: StreamRows, storage: Storage<F> | null,
     diagnostics: readonly DiagnosticInput[], callDiagnostics: readonly DiagnosticInput[],
     evicted: readonly number[], options = this.encoding, replacement = false,
   ): PreparedFrame<F> {
-    const source = new FrameSource(rows.next, rows);
-    const candidate = { ...frame, source };
+    const source = new FrameSource(rows.next, rows, () => this.current === base);
+    const candidate = { ...(storage?.frame(frame) ?? frame), source };
     const commit = once(() => this.current, () => {
       if (replacement) this.revisions.replace(rows);
       for (const row of evicted) this.revisions.current.archive(row);
+      rows.commit();
+      storage?.commit();
       this.rows = rows;
       this.current = candidate;
       this.latest = diagnostics;
-      this.positions = positions;
+      this.storage = storage;
       if (options !== this.encoding) this.encoding = withoutTable(options);
       this.revisions.current.publish(candidate.revision, source, rows);
     }, base);
@@ -342,12 +416,12 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
 
 export class PointStore extends UnalignedStore<PointFrame> {
   constructor(options: ResolvedOptions, environment: DataEnvironment, version: FrameVersion, sink: DiagnosticSink = quiet) {
-    super('scatter', buildPoints, extendPoints, options, environment, version, sink);
+    super('scatter', buildPoints, Points.open, options, environment, version, sink);
   }
 }
 
 export class DonutStore extends UnalignedStore<DonutFrame> {
   constructor(options: ResolvedOptions, environment: DataEnvironment, version: FrameVersion, sink: DiagnosticSink = quiet) {
-    super('donut', buildDonut, extendDonut, options, environment, version, sink);
+    super('donut', buildDonut, Slices.open, options, environment, version, sink);
   }
 }

@@ -1,11 +1,12 @@
 import type { DiagnosticInput } from '../core/contracts';
 import { createDiagnostic } from '../diagnostics';
+import { StoreMap } from './store-map';
 import { calendarIntervals } from './steps';
 
 export class CalendarWindow {
-  private readonly rows = new Set<number>();
-  private readonly utcBreaks = new Set<number>();
-  private readonly localBreaks = new Set<number>();
+  private rows = new StoreMap<number, true>();
+  private utcBreaks = new StoreMap<number, true>();
+  private localBreaks = new StoreMap<number, true>();
   private last = -Infinity;
   private distinct = 0;
 
@@ -13,27 +14,33 @@ export class CalendarWindow {
 
   fork(): CalendarWindow {
     const draft = new CalendarWindow(this.zone);
-    for (const row of this.rows) draft.rows.add(row);
-    for (const position of this.utcBreaks) draft.utcBreaks.add(position);
-    for (const position of this.localBreaks) draft.localBreaks.add(position);
+    draft.rows = this.rows.fork();
+    draft.utcBreaks = this.utcBreaks.fork();
+    draft.localBreaks = this.localBreaks.fork();
     draft.last = this.last;
     draft.distinct = this.distinct;
     return draft;
+  }
+
+  commit(): void {
+    this.rows.commit();
+    this.utcBreaks.commit();
+    this.localBreaks.commit();
   }
 
   observe(position: number): void {
     if (position === this.last) return;
     if (this.distinct) {
       const interval = calendarIntervals(this.last, position, this.zone);
-      if (!(interval & 1)) this.utcBreaks.add(this.last);
-      if (!(interval & 2)) this.localBreaks.add(this.last);
+      if (!(interval & 1)) this.utcBreaks.set(this.last, true);
+      if (!(interval & 2)) this.localBreaks.set(this.last, true);
     }
     this.last = position;
     this.distinct++;
   }
 
   record(row: number): void {
-    this.rows.add(row);
+    this.rows.set(row, true);
   }
 
   evictPosition(position: number): void {
@@ -52,15 +59,19 @@ export class CalendarWindow {
 
   private firstRows(): number[] {
     const rows: number[] = [];
-    for (const row of this.rows) {
+    for (const row of this.rows.keys()) {
       if (rows.length === 10) break;
       rows.push(row);
     }
     return rows;
   }
 
+  daily(): boolean {
+    return this.distinct >= 2 && this.matches() !== 0;
+  }
+
   diagnostic(field: string, first: number): DiagnosticInput | null {
-    return Number.isFinite(first) && this.distinct >= 2 && this.matches()
+    return Number.isFinite(first) && this.daily()
       ? createDiagnostic('AX111', 'none', { field, count: this.rows.size, rows: this.firstRows() })
       : null;
   }

@@ -13,6 +13,8 @@ import {
 } from './options';
 import { Reports } from './reports';
 import { gapPosition, snapGap, stepDelta, stepMultiple, supportsSteps, tooSparse } from './steps';
+import { BufferWindow } from './store-window';
+import { StoreMap } from './store-map';
 import { FrameBuffers, type SeriesBuffers } from './store-buffers';
 import { CalendarWindow } from './store-calendar';
 import { StreamDiagnostics } from './store-diagnostics';
@@ -80,39 +82,39 @@ function absent(c: Cadence, size: number): number {
 
 class Observations {
   private positions = new Float64Array();
-  private start = 0;
-  private end = 0;
+  private range = new BufferWindow();
 
   get first(): number | undefined { return this.at(0); }
 
   fork(): Observations {
     const draft = new Observations();
-    draft.positions = this.positions.slice();
-    draft.start = this.start;
-    draft.end = this.end;
+    draft.positions = this.positions;
+    draft.range = this.range.fork();
     return draft;
   }
 
   at(index: number): number | undefined {
-    return this.start + index < this.end ? this.positions[this.start + index] : undefined;
+    const { start, end } = this.range;
+    return start + index < end ? this.positions[start + index] : undefined;
   }
 
   add(position: number): void {
-    if (this.end === this.positions.length) this.resize(1);
-    this.positions[this.end++] = position;
+    const capacity = this.range.reserve(1, this.positions.length);
+    if (capacity) this.resize(capacity, 1);
+    this.positions[this.range.end++] = position;
   }
 
   evict(): void {
-    this.start++;
-    if (this.positions.length > Math.max(8, 4 * (this.end - this.start))) this.resize(0);
+    this.range.start++;
+    const capacity = this.range.compact(this.positions.length);
+    if (capacity) this.resize(capacity, 0);
   }
 
-  private resize(extra: number): void {
-    const retained = this.positions.subarray(this.start, this.end);
-    this.positions = new Float64Array(Math.max(4, 2 * (retained.length + extra)));
+  private resize(capacity: number, extra: number): void {
+    const retained = this.positions.subarray(this.range.start, this.range.end);
+    this.positions = new Float64Array(capacity);
     this.positions.set(retained);
-    this.start = 0;
-    this.end = retained.length;
+    this.range.rebase(extra);
   }
 }
 
@@ -163,15 +165,15 @@ function eachObservation(
 function cadences(options: Fields, table: Table, x: XData, axis: XColumn) {
   const keys = seriesKeys(table, options.series);
   const observations = new Map<string, Observations>();
-  const duplicates = new Map<string, Set<number>>();
+  const duplicates = new Map<string, StoreMap<number, true>>();
   const last = new Map<string, number>();
   eachObservation(options, x, keys, (key, position) => {
     let window = observations.get(key);
     if (!window) observations.set(key, window = new Observations());
     if (position === last.get(key)) {
       let positions = duplicates.get(key);
-      if (!positions) duplicates.set(key, positions = new Set());
-      positions.add(position);
+      if (!positions) duplicates.set(key, positions = new StoreMap());
+      positions.set(position, true);
     } else {
       window.add(position);
       last.set(key, position);
@@ -213,7 +215,7 @@ interface State {
   readonly buffers: FrameBuffers;
   readonly history: Map<string, Cadence>;
   readonly observations: Map<string, Observations>;
-  readonly duplicates: Map<string, Set<number>>;
+  readonly duplicates: Map<string, StoreMap<number, true>>;
   readonly modes: Map<string, ValueCounts>;
   readonly calendar: CalendarWindow | null;
   readonly votes: KindVotes | null;
@@ -452,6 +454,7 @@ export class AlignedStore {
 
   get retainedRowCount(): number { return this.revisions.size; }
 
+  /** Releases source rows through this revision. Held frame views keep their normalized values. */
   retire(revision: number): void { this.revisions.retire(revision); }
 
   /** Validates encoding against the retained rows and returns options for re-encoding this store. */
@@ -494,13 +497,13 @@ export class AlignedStore {
       ...state, parser: state.parser.fork(), buffers: state.buffers.fork(),
       history: new Map(state.history),
       observations: new Map(Array.from(state.observations, ([key, value]) => [key, value.fork()])),
-      duplicates: new Map(Array.from(state.duplicates, ([key, value]) => [key, new Set(value)])),
+      duplicates: new Map(Array.from(state.duplicates, ([key, value]) => [key, value.fork()])),
       modes: new Map(Array.from(state.modes, ([key, value]) => [key, { ...value }])),
       calendar: state.calendar?.fork() ?? null, diagnostics: state.diagnostics.fork(),
       votes: state.votes && { ...state.votes }, dateUnits: state.dateUnits && { ...state.dateUnits },
     };
     const call = new DiagnosticCollector();
-    draft.appendInPlace(rows, options, call);
+    draft.appendInPlace(rows, options, call, true);
     rowsDraft.onForget = undefined;
     return this.transaction(base, draft, call, evicted);
   }
@@ -557,13 +560,18 @@ export class AlignedStore {
   private transaction(
     base: AlignedFrame, draft: AlignedStore, call: DiagnosticCollector, evicted: readonly number[], replacement = false,
   ): PreparedFrame<AlignedFrame> {
-    const source = new FrameSource(draft.rows.next, draft.rows);
+    const source = new FrameSource(draft.rows.next, draft.rows, () => this.current === base);
     const frame = { ...draft.current, source };
     const diagnostics = draft.latest;
     const commit = once(() => this.current, () => {
       if (this.writing) throw new Error('Cannot commit a data change during an append.');
       if (replacement) this.revisions.replace(draft.rows);
       for (const row of evicted) this.revisions.current.archive(row);
+      draft.rows.commit();
+      draft.state.parser.commit();
+      draft.state.calendar?.commit();
+      draft.state.diagnostics.commit();
+      for (const positions of draft.state.duplicates.values()) positions.commit();
       this.rows = draft.rows;
       this.fields = draft.fields;
       this.state = draft.state;
@@ -580,7 +588,7 @@ export class AlignedStore {
 
   private adoptNormalized(frame: AlignedFrame, seed: NonNullable<ReturnType<typeof alignedSeed>>) {
     const { options, counts } = seed;
-    const x = { ...seed.x, parser: seed.x.parser.fork() };
+    const x = { ...seed.x, parser: seed.x.parser.copy() };
     const axis = x.parser.column(new Float64Array(), true);
     const votes = options.x.type === null ? { date: 0, wall: 0, number: 0, time: 0, category: 0, [axis.kind]: x.positions.length } : null;
     const state: State = {
@@ -588,7 +596,7 @@ export class AlignedStore {
       ...cadences(this.fields, options.table, x, frame.x),
       modes: new Map(Array.from(counts, ([field, count]) => [field, { ...count }])),
       calendar: calendarFor(x, options.table), votes, dateUnits: x.dateUnits && { ...x.dateUnits },
-      overBudget: false, diagnostics: seed.diagnostics.fork(),
+      overBudget: false, diagnostics: seed.diagnostics.copy(),
     };
     return { frame, state, x };
   }
@@ -673,7 +681,9 @@ export class AlignedStore {
     return { positions, axis, series, ...tail(positions, series, lastX), modes, diagnostics };
   }
 
-  private commitBatch(batch: Batch, rows: readonly unknown[], version: FrameVersion, dateUnits: State['dateUnits']): void {
+  private commitBatch(
+    batch: Batch, rows: readonly unknown[], version: FrameVersion, dateUnits: State['dateUnits'], prepared: boolean,
+  ): void {
     const base = this.rows.next;
     this.rows.append(rows);
     for (let i = 0; i < batch.positions.length; i++) {
@@ -686,7 +696,7 @@ export class AlignedStore {
     }
 
     const { buffers } = this.state;
-    buffers.reserve(batch.x.length);
+    const resized = buffers.reserve(batch.x.length);
     const { end } = buffers;
     const lastX = end > buffers.start ? buffers.x[end - 1] : undefined;
     buffers.x.set(batch.x, end);
@@ -699,6 +709,7 @@ export class AlignedStore {
       const zero = item.value.missing === 'zero';
       const first = item.rows[0];
       const replacingLast = first !== undefined && batch.positions[first] === lastX;
+      if (series && replacingLast && !resized) series = buffers.writeTail(series, prepared);
       if (!series) {
         series = buffers.addSeries({
           ...seriesDescription(item.key, this.fields.series === null ? item.value.label : item.key, item.value),
@@ -707,8 +718,8 @@ export class AlignedStore {
       }
       if (item.duplicates.length) {
         let positions = this.state.duplicates.get(item.key);
-        if (!positions) this.state.duplicates.set(item.key, positions = new Set());
-        for (const position of item.duplicates) positions.add(position);
+        if (!positions) this.state.duplicates.set(item.key, positions = new StoreMap());
+        for (const position of item.duplicates) positions.set(position, true);
         if (series.description.drawable) series.description = { ...series.description, drawable: false };
       }
       if (replacingLast) {
@@ -881,7 +892,7 @@ export class AlignedStore {
     return this.current;
   }
 
-  private appendInPlace(rows: readonly unknown[], options: StoreAppendOptions, sink: DiagnosticSink): AlignedFrame {
+  private appendInPlace(rows: readonly unknown[], options: StoreAppendOptions, sink: DiagnosticSink, preview = false): AlignedFrame {
     const { parser, buffers } = this.state;
     const categoryCount = parser.categoryCount;
     const dateUnit = parser.dateUnit;
@@ -943,7 +954,7 @@ export class AlignedStore {
         parser.restore(categoryCount, dateUnit);
         throw error;
       }
-      this.commitBatch(batch, rows, version, dateUnits);
+      this.commitBatch(batch, rows, version, dateUnits, preview);
       this.state = { ...this.state, votes };
     } else {
       parser.restore(categoryCount, dateUnit);

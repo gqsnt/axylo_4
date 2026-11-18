@@ -1,4 +1,11 @@
+import { BufferWindow } from './store-window';
 import { SLOT_NO_ROW, type AlignedFrame, type RowSource, type Series, type XColumn } from '../core/contracts';
+
+interface OpenSlot {
+  readonly index: number;
+  exposed: boolean;
+  changed: boolean;
+}
 
 type SeriesDescription = Omit<Series, 'y' | 'slot' | 'row'>;
 export interface SeriesBuffers {
@@ -6,6 +13,7 @@ export interface SeriesBuffers {
   y: Float64Array;
   slot: Uint8Array;
   row: Int32Array;
+  tail?: OpenSlot;
 }
 
 function buffers(description: SeriesDescription, capacity: number): SeriesBuffers {
@@ -17,12 +25,15 @@ export class FrameBuffers {
   observed: Uint8Array;
   private categoryPositions = new Float64Array();
   readonly series = new Map<string, SeriesBuffers>();
-  start = 0;
-  end: number;
+  private range: BufferWindow;
+
+  get start(): number { return this.range.start; }
+  get end(): number { return this.range.end; }
+  set end(end: number) { this.range.end = end; }
   distinct: number;
 
   constructor(frame?: AlignedFrame, positions?: Float64Array, order: Int32Array | null = null) {
-    this.end = frame?.length ?? 0;
+    this.range = new BufferWindow(0, frame?.length ?? 0);
     this.distinct = 0;
     const capacity = Math.max(16, this.end * 2);
     this.x = new Float64Array(capacity);
@@ -50,32 +61,26 @@ export class FrameBuffers {
   }
 
   fork(): FrameBuffers {
-    const draft = new FrameBuffers();
-    draft.x = this.x.slice();
-    draft.observed = this.observed.slice();
-    draft.start = this.start;
-    draft.end = this.end;
-    draft.distinct = this.distinct;
-    for (const [key, { description, y, slot, row }] of this.series) {
-      draft.series.set(key, { description, y: y.slice(), slot: slot.slice(), row: row.slice() });
-    }
+    const draft = Object.assign(Object.create(FrameBuffers.prototype) as FrameBuffers, this, {
+      range: this.range.fork(),
+      series: new Map(Array.from(this.series, ([key, series]) => [key, { ...series }])),
+    });
     return draft;
   }
 
   reserve(extra: number): boolean {
-    if (this.end + extra <= this.x.length) return false;
-    this.resize(extra);
-    return true;
+    const capacity = this.range.reserve(extra, this.x.length);
+    if (capacity) this.resize(capacity, extra);
+    return capacity !== 0;
   }
 
   shrink(): void {
-    if (this.x.length > Math.max(32, 4 * (this.end - this.start))) this.resize(0);
+    const capacity = this.range.compact(this.x.length);
+    if (capacity) this.resize(capacity, 0);
   }
 
-  private resize(extra: number): void {
+  private resize(capacity: number, extra: number): void {
     const { start, end } = this;
-    const count = end - start;
-    const capacity = Math.max(16, 2 * (count + extra));
     const x = new Float64Array(capacity);
     const observed = new Uint8Array(capacity);
     x.set(this.x.subarray(start, end));
@@ -90,8 +95,7 @@ export class FrameBuffers {
       series.row.set(previous.row.subarray(start, end));
       this.series.set(key, series);
     }
-    this.start = 0;
-    this.end = count;
+    this.range.rebase(extra);
   }
 
   copySeries(series: SeriesBuffers): SeriesBuffers {
@@ -102,6 +106,13 @@ export class FrameBuffers {
     copy.row.set(series.row.subarray(start, end), start);
     this.series.set(series.description.key, copy);
     return copy;
+  }
+
+  writeTail(series: SeriesBuffers, prepared: boolean): SeriesBuffers {
+    if (prepared || series.tail?.exposed) return this.copySeries(series);
+    if (series.tail) series.tail.changed = true;
+    series.tail = undefined;
+    return series;
   }
 
   addSeries(description: SeriesDescription, zero: boolean): SeriesBuffers {
@@ -121,11 +132,11 @@ export class FrameBuffers {
       const observed = this.observed[this.start] === 1;
       if (observed) this.distinct--;
       evict(this.x[this.start]!, observed);
-      this.start++;
+      this.range.start++;
     }
   }
 
-  frame(previous: AlignedFrame, axis: XColumn, source: RowSource, open?: (key: string) => boolean): AlignedFrame {
+  frame(previous: AlignedFrame, axis: XColumn, source: RowSource, open: (key: string) => boolean): AlignedFrame {
     const { start, end } = this;
     let positions = this.x.subarray(start, end);
     if (axis.kind === 'category' && positions[0]) {
@@ -142,42 +153,41 @@ export class FrameBuffers {
         timeZone: axis.timeZone, ordered: axis.ordered,
         get categories() { return axis.kind === 'category' && end === start ? [] : axis.categories; },
       },
-      series: Array.from(this.series.values(), ({ description, y, slot, row }) => {
-        if (end === start || !open?.(description.key)) {
+      series: Array.from(this.series.values(), series => {
+        const { description, y, slot, row } = series;
+        if (start === end || !open(description.key)) {
           return { ...description, y: y.subarray(start, end), slot: slot.subarray(start, end), row: row.subarray(start, end) };
         }
-        // The last x may still receive an observation. Copy its older view only if a reader asks for it.
-        const tailY = y[end - 1]!;
-        const tailSlot = slot[end - 1]!;
-        const tailRow = row[end - 1]!;
+        const index = end - 1;
+        if (series.tail?.index !== index) series.tail = { index, exposed: false, changed: false };
+        const tail = series.tail;
+        // Keep open slots cheap to read. A writer can reuse an unexposed slot, and the
+        // older frame then reconstructs that column only if someone opens it later.
+        const tailY = y[index]!;
+        const tailSlot = slot[index]!;
+        const tailRow = row[index]!;
         let values: Float64Array | undefined;
         let states: Uint8Array | undefined;
         let rows: Int32Array | undefined;
         return {
           ...description,
-          get y() {
-            if (!values) {
-              values = y.slice(start, end);
-              values[values.length - 1] = tailY;
-            }
-            return values;
-          },
-          get slot() {
-            if (!states) {
-              states = slot.slice(start, end);
-              states[states.length - 1] = tailSlot;
-            }
-            return states;
-          },
-          get row() {
-            if (!rows) {
-              rows = row.slice(start, end);
-              rows[rows.length - 1] = tailRow;
-            }
-            return rows;
-          },
+          get y() { return values ??= readColumn(y, tail, start, end, tailY); },
+          get slot() { return states ??= readColumn(slot, tail, start, end, tailSlot); },
+          get row() { return rows ??= readColumn(row, tail, start, end, tailRow); },
         };
       }),
     };
   }
+}
+
+function readColumn<T extends Float64Array | Uint8Array | Int32Array>(
+  data: T, tail: OpenSlot, start: number, end: number, value: number,
+): T {
+  if (!tail.changed) {
+    tail.exposed = true;
+    return data.subarray(start, end) as T;
+  }
+  const snapshot = data.slice(start, end) as T;
+  snapshot[snapshot.length - 1] = value;
+  return snapshot;
 }

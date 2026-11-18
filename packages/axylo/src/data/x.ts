@@ -1,3 +1,5 @@
+import { StoreMap } from './store-map';
+import { Labels } from './store-window';
 import type { DiagnosticInput, Environment, XColumn, XKind } from '../core/contracts';
 import { DiagnosticCollector, report, type DiagnosticCode } from '../diagnostics';
 import { diagnosticContext } from '../diagnostics/registry';
@@ -101,7 +103,8 @@ export function countKinds(table: Table, field: string, series: string | null = 
   const votes: KindVotes = { date: 0, time: 0, wall: 0, number: 0, category: 0 };
   const column = table.columns?.[field];
   if (series === null && (column instanceof Float64Array || column instanceof Float32Array)) {
-    for (const value of column) {
+    for (let i = 0; i < column.length; i++) {
+      const value = column[i]!;
       if (Number.isFinite(value)) votes.number++;
       else if (!Number.isNaN(value)) votes.category++;
     }
@@ -137,10 +140,9 @@ export function nameOf(value: unknown): string | null {
 
 export class XParser {
   readonly timeZone: string | null;
-  private names: string[] | null;
-  private firstCategory = 0;
+  private names: Labels | null;
   private firstIndex = 0;
-  private readonly indexes: Map<string, number> | null;
+  private indexes: StoreMap<string, number> | null;
   dateUnit: DateUnit | null = null;
 
   constructor(
@@ -154,42 +156,42 @@ export class XParser {
       ? (field.timeZone === 'local' ? undefined : canonicalZone(field.timeZone)) ??
         canonicalZone(env.timeZone) ?? Intl.DateTimeFormat().resolvedOptions().timeZone
       : null;
-    this.names = kind === 'category' ? [...(categories ?? [])] : null;
-    this.indexes = this.names ? new Map(this.names.map((name, index) => [name, index])) : null;
+    this.names = kind === 'category' ? new Labels(categories) : null;
+    this.indexes = this.names ? new StoreMap(new Map(categories?.map((name, index) => [name, index]))) : null;
   }
 
-  get categories(): string[] | null {
-    return this.names && (this.firstCategory === 0 ? this.names : this.names.slice(this.firstCategory));
+  get categories(): readonly string[] | null {
+    return this.names?.view() ?? null;
   }
 
   get categoryCount(): number {
-    return (this.names?.length ?? 0) - this.firstCategory;
+    return this.names?.length ?? 0;
   }
 
   categoryName(position: number): string | undefined {
-    return this.names?.[position - this.firstIndex + this.firstCategory];
+    return this.names?.at(position - this.firstIndex);
   }
 
   fork(): XParser {
-    const draft = new XParser(this.field, this.kind, { timeZone: this.timeZone ?? 'UTC' }, this.scatter, this.categories ?? undefined);
-    draft.dateUnit = this.dateUnit;
-    draft.firstIndex = this.firstIndex;
-    if (draft.indexes && this.firstIndex !== 0) {
-      for (const [name, index] of draft.indexes) draft.indexes.set(name, index + this.firstIndex);
-    }
-    return draft;
+    return Object.assign(Object.create(XParser.prototype) as XParser, this, {
+      names: this.names?.fork() ?? null,
+      indexes: this.indexes?.fork() ?? null,
+    });
   }
+
+  copy(): XParser {
+    const copy = new XParser(this.field, this.kind, { timeZone: this.timeZone ?? 'UTC' }, this.scatter, this.names?.snapshot());
+    copy.dateUnit = this.dateUnit;
+    return copy;
+  }
+
+  commit(): void { this.indexes?.commit(); }
 
   evictCategories(count: number): void {
     if (!this.names) return;
-    for (let i = 0; i < count; i++) {
-      this.indexes!.delete(this.names[this.firstCategory++]!);
-      this.firstIndex++;
-    }
-    if (2 * this.firstCategory >= this.names.length) {
-      this.names = this.names.slice(this.firstCategory);
-      this.firstCategory = 0;
-    }
+    for (let i = 0; i < count; i++) this.indexes!.delete(this.names.at(i));
+    this.firstIndex += count;
+    this.names.drop(count);
   }
 
   private parse(raw: unknown, row: number, reports: Reports): number {
@@ -258,16 +260,9 @@ export class XParser {
     while (this.categoryCount > categoryCount) this.indexes!.delete(this.names.pop()!);
   }
 
-  column(values: Float64Array, snapshotCategories = false): XColumn {
-    const names = this.names;
-    const start = this.firstCategory;
-    const length = names?.length;
-    let snapshot: readonly string[] | undefined;
+  column(values: Float64Array, shareCategories = false): XColumn {
     return {
-      kind: this.kind, values,
-      get categories() {
-        return names === null || !snapshotCategories && start === 0 ? names : (snapshot ??= names.slice(start, length));
-      },
+      kind: this.kind, values, categories: shareCategories ? this.categories : this.names?.snapshot() ?? null,
       timeZone: this.timeZone, dateUnit: this.kind === 'date' ? this.dateUnit ?? 'day' : null,
       ordered: this.kind === 'category' && this.field.ordered,
     };

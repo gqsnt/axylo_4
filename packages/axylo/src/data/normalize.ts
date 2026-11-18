@@ -43,8 +43,18 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
     ? input : new Float64Array(table.length);
   let ascending = true;
   let last = -Infinity;
-  let valid = 0;
-  for (let i = 0; i < table.length; i++) {
+  let i = 0;
+  if (options.series === null && input instanceof Float64Array && kind === 'number') {
+    // Skip parsing the strictly ascending numeric prefix, stopping before any row that can report a hint.
+    const inferred = x.type === null;
+    for (; i < table.length; i++) {
+      const value = input[i]!;
+      if (!(value > last && value < Infinity) || inferred && Math.abs(value) >= 1e11 && Math.abs(value) < 1e14) break;
+      last = value;
+    }
+  }
+  let valid = i;
+  for (; i < table.length; i++) {
     const usableSeries = options.series === null || nameOf(table.read(i, options.series)) !== null;
     const raw = usableSeries ? input === undefined ? table.read(i, x.field) : input[i] : undefined;
     const value = usableSeries && !(Number.isNaN(raw) && table.isColumnRow(i))
