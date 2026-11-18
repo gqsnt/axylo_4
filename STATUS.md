@@ -28,20 +28,22 @@ Observed model and effort are read from harness metadata (Codex session rollouts
 
 Finished and committed, each written by one provider and reviewed by the other: scales and formatting; layout and simplification; data layer, diagnostics and stores; renderers, text layer and theme; view and scene; lookup, reader and messages; chart core part 1 (review findings not yet fixed, see below); chart core part 2 (review running); benchmark harness and the M1 renderer measurements (not reviewed).
 
-| Running now (2026-11-18, after commit 156f414) | Who | Files |
+| Running now (2026-11-18, after commit a8ed211) | Who | Files |
 |---|---|---|
-| Chart core, second fix pass: the 22 findings of `wp/core2.review.md` plus teardown listeners, tooltip placement, single-pointer pan, accessibility-tree assertions (agent a1d73b9f46c46814f, resumed) | Claude Opus 5.5 high | `src/core`, `src/dom`, `src/index.ts`, css structure section, their tests |
-| Default palette, both schemes, to the A5 thresholds (agent abc842fd0288bc675) | Claude Opus 5.5 xhigh | `src/theme/palette.ts`, `test/theme`, `research/palette`, `docs/decisions/0003-default-palette.md` |
-| Benchmark harness fix pass: the 18 findings of `wp/bench.review.md`, missing budget workloads (agent a6075efd5cba2d5e5). No new measurements while the machine is busy | Claude Opus 5.5 high | `bench/` |
+| Palette refit after review `wp/palette.review.md` (agent abc842fd0288bc675, resumed): more even lightness, margin for 8-bit rasterisation, corrected decision record | Claude Opus 5.5 xhigh | `src/theme/palette.ts`, `test/theme`, `research/palette`, `docs/decisions/0003-default-palette.md` |
+| Review of the rewritten controller at 4809516 | Codex gpt-6.2-sol max, read-only | → `wp/core3.controller.review.md` |
+| Review of the interaction layer after its fix pass at 4809516 | Codex gpt-6.2-astra xhigh, read-only | → `wp/core3.interaction.review.md` |
+| Acceptance suite, model level in Node, through the DOM-free controller | Codex gpt-6.2-sol xhigh | `packages/axylo/test/acceptance/` → `wp/acceptance-node.report.md` |
+| Acceptance suite, browser level (agent a61d95e46b3f0f3aa) | Claude Opus 5.5 high | `packages/axylo/test/browser/acceptance/` |
 
 Committed since the last checkpoint:
-- Chart core first fix pass (156f414): 20 findings of `wp/core1.review.md`; DOM-free controller on the store API; SVG default. Coordinator runs: type check clean, 76 core unit tests, 237 browser tests pass. Not re-reviewed: one Codex review of the controller is due after the second fix pass lands.
-- React adapter (be123ee), reviewed by Codex gpt-6.2-astra xhigh (`wp/react.review.md`), fixed (a63bbee): 34 unit and 31 browser tests pass; production file 1,436 B gzipped. React 18 and Fast Refresh untested; `package-lock.json` still lists the react-dom peer.
-- Acceptance matrix and checker (6bd5f9c, Codex gpt-6.2-sol xhigh, not cross-reviewed): 251 of 310 applicable cells have no qualifying evidence; see `acceptance/report.md`.
-- Benchmark review by Codex gpt-6.2-sol max (`wp/bench.review.md`: 5 blocking, 12 major, 1 minor). Decision 0002 is now provisional.
-- CI workflow (never run: no remote).
+- Chart core second fix pass (4809516): 22 interaction findings plus teardown listeners, tooltip clearance (the cause of the 4-of-40 hover readouts), area swatch markers. Coordinator runs: type check clean, 86 core unit tests, browser 271 pass / 2 fail (dark-toggle test cannot tell the candidate palette’s two first blues apart; revisit after the refit).
+- Benchmark harness fixes (d83dee1): 67 pure and 14 browser harness tests pass. Every 24-chart page result of the M1 session is void (no marks were drawn); decision 0002 says so.
+- Performance plan section 5.1 (31f2a01): endpoints, thresholds and the renderer decision rule, declared before measurement.
+- Palette candidate (51e1be5) and its review (cff0d1a).
+- Contract: message keys panLeft, panRight, jumpNotFound, plotInstructions (a8ed211), not yet used.
 
-Unit suite at 156f414: 620 pass, 7 fail (six palette tests waiting for the palette; `normalize.test.ts` "one million ascending typed values under 100 ms" measured 125 ms on a loaded machine: rerun when quiet before judging).
+Open items for the next core/render fix round (after the two reviews return): canvas renderer does not leave a background-colour pixel between stacked bars (pixel snapping in `render/canvas.ts` or `scene/bars.ts`); pan buttons, Jump-to error text and plot instructions using the new message keys; category-axis zoom is off (needs a band scale with an offset); the dark-toggle test should compare against each scheme’s resolved colour instead of a 40-per-channel tolerance; A7 risk that rewriting the focused range’s text after an append is spoken by a screen reader (needs rehearsal). Two aborted benchmark records (`bench/history/20261118T03503*`) from a run against the harness mid-edit are left untracked.
 
 Decisions recorded: `docs/decisions/0001-plot-interaction-pattern.md` (unrehearsed), `docs/decisions/0002-mark-renderer.md` (SVG by default, from `bench/results/m1-renderer-comparison.md`).
 
@@ -53,10 +55,10 @@ Known open items carried forward:
 
 ## Next action
 
-1. As each running package returns: verify (type check, its tests, browser tests where relevant), commit with targeted paths.
-2. After the second core fix pass: one cross-provider review of the rewritten controller and interaction layer (Codex gpt-6.2-astra xhigh), then fixes.
-3. End-to-end acceptance suite: one test per criterion and chart type for the cells `acceptance/report.md` lists as no evidence, in reader priority order (data fidelity, accessible reading, legibility and interaction). Browser tests by Opus 5.5 high; Node pipeline tests can go to Codex gpt-6.2-sol xhigh. Then a cross-review of the matrix itself.
-4. When the machine is quiet and the harness fixes are in: declare endpoints and thresholds, rerun the renderer comparison with scatter, many series, pan and zoom; then performance work against the budgets.
+1. As each running package returns: verify, commit with targeted paths.
+2. When both core reviews are in: one fix run on `src/core`/`src/dom` by the core’s author (Opus 5.5 high) including the open items above; a separate small run for the canvas separator by the renderer or scene author.
+3. When the acceptance suites return: every failing test is a suspected product defect; triage, send fixes to the module owners, then have the matrix author merge the two `EVIDENCE.json` files into `acceptance/matrix.json` and rerun the checker with both Vitest reports.
+4. When the machine is quiet: rerun the renderer comparison under plan 5.1 (20 pairs, declared endpoints), then performance work against the budgets.
 5. Documentation site and examples; packed-distribution tests (npm, script tag, React), CSP test, size check; Phase 1 comparison rerun with Axylo included; conformance table (A9); final independent review of the acceptance evidence.
 
 ## Known limits that no agent can close
