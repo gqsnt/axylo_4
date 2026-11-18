@@ -1,0 +1,88 @@
+import { expect, it } from 'vitest';
+import { sliceText } from '../../src/lookup/text';
+import { chart, codes, committed, expectGeometry, lastModel, marks, reading, rows, walk } from './model';
+
+it('F8 donut: slices start at twelve and run clockwise in input order; zero and null are listed without arcs', () => {
+  const r = chart('donut', [{ x: 'Retail', y: 3 }, { x: 'None', y: 0 }, { x: 'Unknown', y: null }, { x: 'Trade', y: 1 }]);
+  r.frames();
+  expect(codes(r)).toEqual([]);
+  const arc = marks(r, 'arcs')[0]!;
+  expectGeometry(Array.from(arc.angles), [0, 1.5 * Math.PI, 1.5 * Math.PI, 2 * Math.PI]);
+  expect(arc.fills.every(paint => paint.kind === 'series')).toBe(true);
+  expect(new Set(arc.fills.map(paint => JSON.stringify(paint))).size).toBe(2);
+  const { lookup, view, formatters } = committed(r);
+  if (view.kind !== 'donut') throw new Error('Expected a donut view');
+  expect(view.slices.map(slice => {
+    const { label, value, percent } = sliceText(view, slice, formatters);
+    return [label, value, percent];
+  })).toEqual([['Retail', '3', '75%'], ['None', '0', '0%'], ['Unknown', 'No data', null], ['Trade', '1', '25%']]);
+  const legendReadouts = walk(r).map(ref => {
+    if (ref.kind !== 'slice') throw new Error('Expected a donut slice');
+    const tooltip = lookup.tooltip(ref);
+    return [tooltip.title, tooltip.rows[0]?.value, tooltip.rows[0]?.percent];
+  });
+  expect(legendReadouts).toEqual([
+    ['Retail', '3', '75%'], ['None', '0', '0%'], ['Unknown', 'No data', null], ['Trade', '1', '25%'],
+  ]);
+  expect(rows(r).map(row => row.slice(0, 2))).toEqual([['Retail', '3'], ['None', '0'], ['Unknown', 'No data'], ['Trade', '1']]);
+  expect(reading(r, walk(r)[0]!)).toContain('3 (75%)');
+  expect(lastModel(r).summary).toContain('Retail: 3 (75%).');
+  expect(lastModel(r).summary).toContain('Trade: 1 (25%).');
+  expect(lastModel(r).note).toBeNull();
+});
+
+it('F8 donut: seven largest categories and Other (3) are drawn; all ten categories remain individually readable in the table', () => {
+  const data = [
+    { x: 'A', y: 2 }, { x: 'B', y: 13 }, { x: 'C', y: 1 }, { x: 'D', y: 12 }, { x: 'E', y: 11 },
+    { x: 'F', y: 10 }, { x: 'G', y: 9 }, { x: 'H', y: 8 }, { x: 'I', y: 7 }, { x: 'J', y: 3 },
+  ];
+  const r = chart('donut', data);
+  r.frames();
+  expect(codes(r)).toEqual(['AX121']);
+  const { lookup } = committed(r);
+  const labelAndValue = walk(r).map(ref => {
+    const datum = lookup.datum(ref)!;
+    return [datum.seriesLabel, datum.value];
+  });
+  expect(labelAndValue).toEqual([['B', '13'], ['D', '12'], ['E', '11'], ['F', '10'], ['G', '9'], ['H', '8'], ['I', '7'], ['Other (3)', '6']]);
+  const fractions = [0, 13, 25, 36, 46, 55, 63, 70, 76].map(value => value / 76 * 2 * Math.PI);
+  const arc = marks(r, 'arcs')[0]!;
+  expectGeometry(Array.from(arc.angles), fractions.slice(0, -1).flatMap((start, i) => [start, fractions[i + 1]!]));
+  expect(arc.fills.at(-1)).toEqual({ kind: 'token', name: 'muted' });
+  expect(rows(r).map(row => row.slice(0, 2))).toEqual(data.map(row => [row.x, String(row.y)]));
+  expect(reading(r, walk(r).at(-1)!)).toContain('Other (3)');
+  expect(lastModel(r).summary).toContain('Other (3): 6');
+});
+
+it('F8 donut: a negative value shows the error state and clears all arcs', () => {
+  const r = chart('donut', [{ x: 'A', y: 2 }, { x: 'B', y: 1 }]);
+  r.frames();
+  r.controller.handle.update({ data: [{ x: 'A', y: 2 }, { x: 'B', y: -1 }] });
+  r.frames();
+  expect(codes(r)).toEqual(['AX120']);
+  expect(marks(r, 'arcs')).toEqual([]);
+  expect(lastModel(r).message).toBe('The chart could not be drawn.');
+  expect(r.announcements).toEqual(['The chart could not be drawn.']);
+});
+
+it('F8 donut: all-zero values show the empty state while the table retains both zero values', () => {
+  const r = chart('donut', [{ x: 'A', y: 0 }, { x: 'B', y: 0 }]);
+  r.frames();
+  expect(codes(r)).toEqual([]);
+  expect(marks(r, 'arcs')).toEqual([]);
+  expect(lastModel(r).message).toBe('No data to show.');
+  expect(lastModel(r).summary).toContain('No data to show.');
+  expect(rows(r).map(row => row.slice(0, 2))).toEqual([['A', '0'], ['B', '0']]);
+});
+
+it('F8 donut: the eight-arc limit keeps zero and missing categories separately readable (reading: only drawn arcs use the limit)', () => {
+  const r = chart('donut', [
+    ...Array.from({ length: 8 }, (_, i) => ({ x: 'Positive ' + i, y: i + 1 })),
+    { x: 'Zero', y: 0 }, { x: 'Missing', y: null },
+  ]);
+  r.frames();
+  expect(codes(r)).toEqual([]);
+  expect(marks(r, 'arcs')[0]?.angles).toHaveLength(16);
+  expect(rows(r).slice(-2).map(row => row.slice(0, 2))).toEqual([['Zero', '0'], ['Missing', 'No data']]);
+  expect(walk(r).slice(-2).map(ref => committed(r).lookup.datum(ref)?.seriesLabel)).toEqual(['Zero', 'Missing']);
+});
