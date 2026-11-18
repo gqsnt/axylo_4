@@ -26,7 +26,7 @@ describe('diagnostic registry', () => {
       AX106: 'warning', AX107: 'warning', AX108: 'error', AX109: 'hint', AX110: 'warning',
       AX111: 'hint', AX112: 'hint', AX120: 'error', AX121: 'warning', AX130: 'warning', AX131: 'hint',
       AX132: 'hint', AX133: 'hint', AX134: 'error', AX140: 'warning', AX141: 'warning', AX142: 'hint', AX143: 'hint',
-      AX150: 'warning', AX151: 'warning', AX152: 'warning', AX160: 'warning',
+      AX150: 'warning', AX151: 'warning', AX152: 'warning', AX160: 'warning', AX199: 'error',
     });
   });
 
