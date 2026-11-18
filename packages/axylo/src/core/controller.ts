@@ -648,8 +648,10 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       // Data replaced or bounds changed: a window that no longer ends at the latest x stops following.
       const follow = followsLatest(viewed.view, c.zoom);
       if (c.frame !== previous?.frame) held = null;
-      accept(c, viewed, follow, commit);
+      // The held arrivals are in place before anything is delivered: a handler that resumes from inside
+      // this call finds them, and no arrival stays held on a running chart (final review, finding 6).
       if (heldAfter) held = heldAfter;
+      accept(c, viewed, follow, commit);
     });
   }
 
@@ -751,7 +753,14 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       for (let i = 0; i < length; i++) keep(index ? index[i]! : i);
     };
     if (frame.shape === 'aligned') for (const s of frame.series) each(s.row, frame.length);
-    else if (frame.shape === 'points') for (const s of frame.series) each(s.row, s.x.length);
+    else if (frame.shape === 'points') {
+      for (const s of frame.series) {
+        each(s.row, s.x.length);
+        // Observations with no plottable y are rows too: re-encoding to another field can make them points
+        // (final review, finding 6).
+        if (s.missingRow) for (const row of s.missingRow) keep(row);
+      }
+    }
     else each(frame.row, frame.labels.length);
     return { frame, rows };
   }
@@ -859,11 +868,27 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         if (!previous) return;
         let zoomed = previous.zoom;
         if (previous.follow && zoomed) zoomed = followLatest(frame.frame, previous.view) ?? zoomed;
-        const c = viewCandidate(previous, { frame: frame.frame, dataDiagnostics: frame.dataDiagnostics, zoom: zoomed });
+        let c = viewCandidate(previous, { frame: frame.frame, dataDiagnostics: frame.dataDiagnostics, zoom: zoomed });
+        let commit: (() => void) | null = null;
+        const store = previous.store;
+        if (store && previous.dataOptions.some(d => d.code === 'AX101') && previous.options.strict !== true) {
+          // A field the earlier data did not have, which the held arrivals bring: the frame is read again with
+          // the fields as given, and AX101 goes, as for a running append (final review, finding 6).
+          const check = new DiagnosticCollector();
+          const resolved = store.resolveEncoding(publicOptions(previous.options), check);
+          if (!check.inputs().some(d => d.code === 'AX101')) {
+            const again: PreparedFrame<Frame> = store.prepareReencode(resolved, nextVersion());
+            commit = again.commit;
+            c = {
+              ...c, resolved, source: resolved, frame: again.frame, dataDiagnostics: again.diagnostics, dataOptions: [],
+              optionDiagnostics: previous.optionDiagnostics.filter(d => !DATA_CODES.has(d.code)),
+            };
+          }
+        }
         const viewed = viewFor(c, previous);
         // The held frame is let go only once its replacement is accepted (review 3, finding 5).
         held = null;
-        accept(c, viewed, previous.follow && zoomed !== null, null);
+        accept(c, viewed, previous.follow && zoomed !== null, commit);
       });
     }
     schedule();
@@ -1209,10 +1234,9 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         (reader.table?.rowCount ?? 0) > 0,
       empty: shown.kind === 'empty', message: shown.kind === 'ready' ? null : shown.text,
       zoom: zoomOn, zoomed, streaming, paused, epoch: a.frame.epoch, english, pageLang: lang, readout: readoutMode,
-      // Decision 0004 revision 3, rule 5, for the interaction layer: 'floating', 'strip' or 'none'. Not in its
-      // ControlsState type yet (the interaction layer's file): asked for in the eighth-pass report.
+      // Decision 0004 revision 3, rule 5, for the interaction layer: 'floating', 'strip' or 'none'.
       readoutMode: readoutKind,
-    } as ControlsState);
+    });
 
     // Tick labels are made now, before anything is written: an author tick formatter runs here, never during
     // publication (final review, finding 1), and what it reported belongs to every layout made from them,

@@ -505,3 +505,172 @@ describe('data agent, item 1: the caller\'s columns become collectible', () => {
     expect(ref.deref()).toBeUndefined();
   });
 });
+
+describe('final review, finding 6 (rest): paused re-encoding and recovery', () => {
+  it('scatter, paused: re-encoding y to z keeps the row { x: 1, y: null, z: 11 }, now a point', () => {
+    const data = [{ x: 0, y: 5, z: 10 }, { x: 1, y: null, z: 11 }, { x: 2, y: 6, z: 12 }];
+    const r = record('scatter', { title: 'S', data, x: 'x', y: 'y' });
+    r.frames();
+    r.controller.handle.append([{ x: 3, y: 7, z: 13 }]);
+    r.frames();
+    r.controller.actions.pause(true);
+    r.controller.handle.append([{ x: 4, y: 8, z: 14 }]);
+    r.controller.handle.update({ y: 'z' });
+    r.frames();
+    const view = r.committed!.view as unknown as { frame: { series: { x: Float64Array; y: Float64Array }[] } };
+    const points = view.frame.series.flatMap(s => Array.from(s.x, (x, i) => [x, s.y[i]]));
+    expect(points).toContainEqual([1, 11]);
+    // Paused: the arrival (x 4) is still held.
+    expect(points.map(p => p[0])).not.toContain(4);
+    r.controller.actions.pause(false);
+    r.frames();
+    const after = (r.committed!.view as unknown as { frame: { series: { x: Float64Array }[] } }).frame.series.flatMap(s => Array.from(s.x));
+    expect(after).toContain(4);
+  });
+
+  it('a Resume from an AX103 handler during a paused re-encoding: running, and the arrivals are shown', () => {
+    let resume = false;
+    const r = record('line', {
+      title: 'R', data: [{ x: 0, y: 1, w: 1 }, { x: 1, y: 2, w: 2 }], x: 'x', y: 'y',
+      onDiagnostic: (d: Diagnostic) => { if (resume && d.code === 'AX103') { resume = false; r.controller.actions.pause(false); } },
+    });
+    r.frames();
+    r.controller.handle.append([{ x: 2, y: 3, w: 3 }]);
+    r.frames();
+    r.controller.actions.pause(true);
+    r.controller.handle.append([{ x: 3, y: 4, w: Number.NaN }]);
+    resume = true;
+    r.controller.handle.update({ y: 'w' });
+    r.frames();
+    expect(resume).toBe(false);
+    // Running again, so nothing may stay held: the arrival at x 3 is on screen.
+    expect(xsOf(r)).toContain(3);
+    r.controller.handle.append([{ x: 4, y: 5, w: 5 }]);
+    r.frames();
+    expect(xsOf(r)).toContain(4);
+  });
+
+  it('a missing-field AX101 goes once a valid held append is resumed', () => {
+    const r = record('line', { title: 'A', data: [{ x: 0 }, { x: 1 }], x: 'x', y: 'y' });
+    r.frames();
+    expect(r.controller.handle.diagnostics.map(d => d.code)).toContain('AX101');
+    r.controller.actions.pause(true);
+    r.controller.handle.append([{ x: 2, y: 3 }]);
+    r.controller.actions.pause(false);
+    r.frames();
+    expect(r.controller.handle.diagnostics.map(d => d.code)).not.toContain('AX101');
+    expect(xsOf(r)).toContain(2);
+  });
+});
+
+describe('final review, displayed snapshots: two series on line, bar and scatter, with re-entry from event handlers', () => {
+  type Op =
+    | { op: 'append'; n: number; keep: number | null } | { op: 'title' } | { op: 'data' } | { op: 'reencode' }
+    | { op: 'pause' } | { op: 'resume' } | { op: 'zoom'; from: number; width: number } | { op: 'unzoom' } | { op: 'frame' }
+    | { op: 'fail'; stage: 'view' | 'layout' | 'scene' | 'lookup' | 'reader' | 'draw' | 'figure' } | { op: 'heal' }
+    | { op: 'collapse' } | { op: 'restore' } | { op: 'hoverHook' } | { op: 'zoomHook' } | { op: 'hover' };
+  const ops = fc.oneof(
+    fc.record({ op: fc.constant('append' as const), n: fc.integer({ min: 1, max: 3 }), keep: fc.option(fc.integer({ min: 2, max: 6 }), { nil: null }) }),
+    fc.record({ op: fc.constant('zoom' as const), from: fc.integer({ min: 0, max: 30 }), width: fc.integer({ min: 2, max: 10 }) }),
+    fc.record({ op: fc.constant('fail' as const), stage: fc.constantFrom('view', 'layout', 'scene', 'lookup', 'reader', 'draw', 'figure') }),
+    ...(['title', 'data', 'reencode', 'pause', 'resume', 'unzoom', 'frame', 'frame', 'frame', 'heal', 'collapse', 'restore', 'hoverHook', 'zoomHook', 'hover'] as const)
+      .map(op => fc.constant({ op })),
+  ) as fc.Arbitrary<Op>;
+
+  for (const kind of ['line', 'bar', 'scatter'] as const) {
+    it(`${kind}: the drawn window is the model's after each clean frame; listeners may call back into the chart`, () => {
+      fc.assert(fc.property(fc.array(ops, { maxLength: 30 }), sequence => {
+        const rows = new Map<number, Record<string, unknown>>();
+        // Two series, alternating, one row per x: the frame's x positions are the model's x values.
+        const add = (xs: number[]) => xs.map(x => { const row = { x, s: x % 2 ? 'q' : 'p', a: x % 7, b: -(x % 5) }; rows.set(x, row); return row; });
+        const r = record(kind, { title: 'M0', data: add([0, 1, 2, 3]), x: 'x', y: 'a', series: 's' });
+        const chart = r.controller.handle;
+        let data = [0, 1, 2, 3];
+        let visible = [...data];
+        let title = 'M0';
+        let field: 'a' | 'b' = 'a';
+        let paused = false;
+        let failing = false;
+        let failedSinceHeal = false;
+        let collapsed = false;
+        let next = 4;
+        let tick = 1;
+        let keepUsed = Infinity;
+        const appendModel = (xs: number[], keep: number | null) => {
+          data = [...data, ...xs];
+          if (keep !== null) { data = data.slice(-keep); keepUsed = keep; }
+          if (!paused) visible = data;
+        };
+        for (const step of sequence) {
+          switch (step.op) {
+            case 'append': {
+              const xs = Array.from({ length: step.n }, () => next++);
+              chart.append(add(xs), step.keep === null ? undefined : { keep: step.keep });
+              appendModel(xs, step.keep);
+              break;
+            }
+            case 'title': title = `M${tick++}`; chart.update({ title }); break;
+            case 'data': data = [next, next + 1, next + 2]; next += 3; add(data); chart.update({ data: data.map(x => rows.get(x)) }); visible = data; keepUsed = Infinity; break;
+            case 'reencode': field = field === 'a' ? 'b' : 'a'; chart.update({ y: field }); break;
+            case 'pause': r.controller.actions.pause(true); paused = true; break;
+            case 'resume': r.controller.actions.pause(false); paused = false; if (!failing) visible = data; break;
+            case 'zoom': chart.zoom([step.from, step.from + step.width]); break;
+            case 'unzoom': chart.zoom(null); break;
+            case 'frame': r.frames(); break;
+            case 'fail': chart.__dev!.fail(step.stage); failing = true; failedSinceHeal = true; break;
+            case 'heal': chart.__dev!.fail(null); failing = false; break;
+            case 'collapse': r.container = { width: 0, height: 0 }; r.controller.invalidate.resize(); collapsed = true; break;
+            case 'restore': r.container = { width: 720, height: 400 }; r.controller.invalidate.resize(); collapsed = false; break;
+            case 'hoverHook': {
+              // A hover listener that updates the chart and changes its zoom, once.
+              const off = chart.on('hover', () => { off(); chart.update({ subtitle: `h${tick++}` }); chart.zoom(null); });
+              break;
+            }
+            case 'zoomHook': {
+              // A zoom listener that appends, once: the model takes the row when the listener runs.
+              const off = chart.on('zoom', () => {
+                off();
+                const x = next++;
+                chart.append(add([x]));
+                appendModel([x], null);
+              });
+              break;
+            }
+            case 'hover': {
+              const committed = r.committed;
+              if (committed && committed.view.kind !== 'donut' && committed.view.kind !== 'scatter') {
+                const v = committed.view as AlignedView;
+                const x = v.frame.x.values[0];
+                if (x !== undefined) r.controller.actions.hover(ref(x, String(rows.get(x)?.s ?? 'p')));
+              }
+              break;
+            }
+          }
+          if (step.op !== 'frame' || failing || failedSinceHeal || collapsed) {
+            if (!failing && step.op === 'frame') failedSinceHeal = false;
+            continue;
+          }
+          const committed = r.committed;
+          if (!committed) continue;
+          const view = committed.view;
+          const xs = view.kind === 'scatter'
+            ? [...new Set(view.frame.series.flatMap(s => Array.from(s.x)))].sort((p, q) => p - q)
+            : view.kind === 'donut' ? [] : Array.from((view as AlignedView).frame.x.values);
+          if (!paused) expect(xs).toEqual(visible);
+          else expect(visible.slice(-xs.length)).toEqual(xs);
+          expect(lastModel(r).title?.text).toBe(title);
+          if (view.kind !== 'scatter') {
+            for (const x of xs) {
+              const row = rows.get(x)!;
+              expect(hoverRow(r, x, String(row.s))?.row).toBe(row);
+            }
+          }
+          if (Number.isFinite(keepUsed)) expect(chart.__dev!.retainedRows()).toBeLessThanOrEqual(2 * Math.max(xs.length, keepUsed) + 8 + 3);
+        }
+        chart.destroy();
+        expect(chart.__dev!.retainedRows()).toBe(0);
+        expect(r.writesAfterDispose).toBe(0);
+      }), { numRuns: 200 });
+    });
+  }
+});
