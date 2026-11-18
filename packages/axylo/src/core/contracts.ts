@@ -116,6 +116,14 @@ export interface PointSeries {
   readonly x: Float64Array;
   readonly y: Float64Array;
   readonly row: Int32Array | null;
+  /**
+   * Observations that have a valid x and no y (null or an absent field), sorted by x, duplicates kept. They are
+   * not points: nothing is drawn or picked for them. They exist so the table can list them as "No data" (spec F2:
+   * the note sends the reader to the table, so the table must show what was left out). Absent or empty when there
+   * are none. With `missing: 'zero'` on the y field such observations are points with y = 0 instead, and do not
+   * appear here.
+   */
+  readonly missingX?: Float64Array;
 }
 
 /**
