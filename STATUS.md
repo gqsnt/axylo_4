@@ -76,7 +76,7 @@ Known open items carried forward:
 - Not tested: the control focus-outline margin in tooltip placement; the 0.01 px held-geometry comparison (interaction author's "not done").
 - `bench/history/20261118T03503*` (two files) are left uncommitted on purpose.
 
-**Waiting on the owner (asked 2026-11-18 night):** (1) whether to record a waiver for A3 (no screen-reader rehearsal) so the release check does not block on it; (2) stacked charts where one series has no row at an x (weekly beside daily): today that x is "incomplete" and the sparse band pinches to zero while its stroke stays joined; `wp/stack-no-row.report.md`. The author's test for the other reading, `packages/axylo/test/view/stack-no-row.test.ts`, is uncommitted and has three failing cases on purpose; commit it only in the form the owner chooses.
+Owner's answers on 2026-11-18 night: "Yes, settle them" (spec questions that restate behaviour: eb2de43); "Keep incomplete" (a stacked series with no row at an x is a missing component: spec af21368; the data author makes the stroke follow the band and drops the no-row bar mark, rewriting `test/view/stack-no-row.test.ts` first); "Yes, waive it" (A3: waivers recorded on the matrix row, shown in `acceptance/report.md`).
 
 ## Next action
 

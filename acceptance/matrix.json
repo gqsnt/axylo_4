@@ -3969,7 +3969,7 @@
   },
   {
     "id": "A3",
-    "statement": "Moving focus to a point conveys its text (series, x, value with unit, position) through the focused element's accessible name or a polite live region. On touch screen readers, every point is reachable by swiping, or the table is reachable within two gestures.",
+    "statement": "Moving focus to a point conveys its text (series, x, value with unit, position) through the focused element's value text: the plot is a native range control whose `aria-valuetext` describes the focused point (decision 0001; earlier drafts said \"accessible name or a polite live region\", which the chosen pattern does not use, and A7 forbids announcements for navigation other than this). On touch screen readers, every point is reachable by swiping, or the table is reachable within two gestures.",
     "appliesTo": [
       "line",
       "area",
@@ -4067,6 +4067,28 @@
       "bar": "Not done by the owner's decision (2026-11-18): no screen-reader rehearsal is part of 1.0. What NVDA, VoiceOver or TalkBack speak, and whether every point or the table is reachable by swiping with a touch screen reader, have not been checked.",
       "scatter": "Not done by the owner's decision (2026-11-18): no screen-reader rehearsal is part of 1.0. What NVDA, VoiceOver or TalkBack speak, and whether every point or the table is reachable by swiping with a touch screen reader, have not been checked.",
       "donut": "Not done by the owner's decision (2026-11-18): no screen-reader rehearsal is part of 1.0. What NVDA, VoiceOver or TalkBack speak, and whether every point or the table is reachable by swiping with a touch screen reader, have not been checked."
+    },
+    "waivers": {
+      "line": {
+        "reason": "No screen-reader rehearsal is part of 1.0: what NVDA, VoiceOver or TalkBack speak, and reaching points by swiping, have not been checked and are stated as not checked in the documentation and the conformance table. The structure the criterion rests on (value text of the native range after each key) is tested.",
+        "grantedBy": "the owner, 2026-11-18: \"dont care about rehearsal/ orca\" and \"Yes, waive it\""
+      },
+      "area": {
+        "reason": "No screen-reader rehearsal is part of 1.0: what NVDA, VoiceOver or TalkBack speak, and reaching points by swiping, have not been checked and are stated as not checked in the documentation and the conformance table. The structure the criterion rests on (value text of the native range after each key) is tested.",
+        "grantedBy": "the owner, 2026-11-18: \"dont care about rehearsal/ orca\" and \"Yes, waive it\""
+      },
+      "bar": {
+        "reason": "No screen-reader rehearsal is part of 1.0: what NVDA, VoiceOver or TalkBack speak, and reaching points by swiping, have not been checked and are stated as not checked in the documentation and the conformance table. The structure the criterion rests on (value text of the native range after each key) is tested.",
+        "grantedBy": "the owner, 2026-11-18: \"dont care about rehearsal/ orca\" and \"Yes, waive it\""
+      },
+      "scatter": {
+        "reason": "No screen-reader rehearsal is part of 1.0: what NVDA, VoiceOver or TalkBack speak, and reaching points by swiping, have not been checked and are stated as not checked in the documentation and the conformance table. The structure the criterion rests on (value text of the native range after each key) is tested.",
+        "grantedBy": "the owner, 2026-11-18: \"dont care about rehearsal/ orca\" and \"Yes, waive it\""
+      },
+      "donut": {
+        "reason": "No screen-reader rehearsal is part of 1.0: what NVDA, VoiceOver or TalkBack speak, and reaching points by swiping, have not been checked and are stated as not checked in the documentation and the conformance table. The structure the criterion rests on (value text of the native range after each key) is tested.",
+        "grantedBy": "the owner, 2026-11-18: \"dont care about rehearsal/ orca\" and \"Yes, waive it\""
+      }
     }
   },
   {
