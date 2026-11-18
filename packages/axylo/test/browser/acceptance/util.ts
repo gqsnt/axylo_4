@@ -15,7 +15,12 @@
  * checker to report it.
  */
 import type { Page } from 'playwright-core';
-import { openPage, url } from '../harness';
+import { ENGINE, openPage, requireEngineFeature, url } from '../harness';
+
+export { ENGINE, requireEngineFeature };
+
+/** Why a test that reads Chrome's computed accessibility tree is not run on another engine. */
+export const AX_TREE_REASON = "the browser's own computed accessibility tree (roles, names, descriptions, states) is read through the Chrome DevTools protocol; Playwright offers no engine-neutral equivalent (its aria snapshot is its own computation and carries no descriptions)";
 import { chartPage, RENDERER } from '../chart/util';
 
 if (RENDERER === 'canvas') {
@@ -28,6 +33,8 @@ export { closePage, at, diff, shot } from '../chart/util';
 export type { Image };
 
 /** The two elements around every chart, so the tab order can be walked from and to the page. */
+/** Why a test that drives the screen with more than one touch point, or drags a finger, is not run off Chromium. */
+export const TOUCH_INPUT_REASON = "multi-point and moving touch input is dispatched through the Chrome DevTools protocol (Input.dispatchTouchEvent); Playwright's engine-neutral touchscreen only taps";
 export const SHOW_BUTTONS = '#before, #after { display: inline-block !important; }';
 
 export interface Built {
@@ -137,6 +144,7 @@ function toAX(n: RawAX): AX {
 }
 
 async function backendOf(page: Page, selector: string): Promise<number> {
+  requireEngineFeature(['chromium'], AX_TREE_REASON);
   const client = await page.context().newCDPSession(page);
   try {
     const { root } = await client.send('DOM.getDocument', { depth: 0 });
@@ -214,6 +222,18 @@ export interface FocusedRange {
 export async function readRange(page: Page, selector = '#chart'): Promise<FocusedRange> {
   const proxy = `${selector} .axylo-proxy`;
   const focused = await page.evaluate(sel => document.activeElement === document.querySelector(sel), proxy);
+  if (ENGINE !== 'chromium') {
+    // DOM, not a computed tree (other engines have no DevTools access to theirs): an <input type="range">
+    // has the implicit role slider, it is exposed unless hidden or aria-hidden, and its value and bounds are
+    // the element's own.
+    const dom = await page.locator(proxy).evaluate(el => {
+      const input = el as HTMLInputElement;
+      const role = el.getAttribute('role') ?? (input.type === 'range' ? 'slider' : input.type === 'text' ? 'textbox' : input.type);
+      const ignored = !!el.closest('[aria-hidden="true"], [hidden], [inert]') || getComputedStyle(el).display === 'none';
+      return { role, ignored, value: Number(input.value), max: Number(input.max) };
+    });
+    return { focused, ...dom, text: (await page.locator(proxy).getAttribute('aria-valuetext')) ?? '' };
+  }
   const ax = await axOf(page, proxy);
   return {
     focused, role: ax.role, ignored: ax.ignored, value: Number(ax.value), max: Number(ax.props.valuemax),
@@ -575,6 +595,19 @@ export function compareTable(actual: TableRead, expected: { headers: string[][];
 
 /** The table inside `selector` as Chrome exposes it: its name (the caption), column headers, and rows. */
 export async function readTable(page: Page, selector = '#chart'): Promise<TableRead> {
+  if (ENGINE !== 'chromium') {
+    // DOM: the HTML table's own caption, header and body cells (another engine's computed table roles are
+    // not reachable; the table's content is what A4 compares).
+    return page.evaluate(sel => {
+      const t = document.querySelector(`${sel} table`);
+      if (!t) return { name: '', headers: [], rows: [] };
+      return {
+        name: t.querySelector('caption')?.textContent ?? '',
+        headers: [...t.querySelectorAll('thead th')].map(h => h.textContent ?? ''),
+        rows: [...t.querySelectorAll('tbody tr')].map(r => ({ header: r.querySelector('th')?.textContent ?? '', cells: [...r.querySelectorAll('td')].map(c => c.textContent ?? '') })),
+      };
+    }, selector);
+  }
   const all = await axWithin(page, `${selector} table`).catch(() => [] as AX[]);
   const table = all.find(n => n.role === 'table');
   if (!table) return { name: '', headers: [], rows: [] };

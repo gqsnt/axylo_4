@@ -7,6 +7,7 @@ import type { Page } from 'playwright-core';
 import path from 'node:path';
 import fs from 'node:fs';
 import { chartPage } from '../chart/util';
+import { requireEngineFeature } from '../harness';
 
 export type FixtureName = 'trend' | 'bars' | 'parts' | 'scatter' | 'stacked' | 'dirty' | 'empty' | 'loading' | 'error' | 'compact';
 export const FIXTURES: readonly FixtureName[] = ['trend', 'bars', 'parts', 'scatter', 'stacked', 'dirty', 'empty', 'loading', 'error', 'compact'];
@@ -88,6 +89,8 @@ export interface AxNode {
 
 /** Chrome's accessibility node for the first element matching `selector`. */
 export async function axNode(page: Page, selector: string): Promise<AxNode> {
+  // Off Chromium the test reports itself as not run rather than failing on a missing protocol.
+  requireEngineFeature(['chromium'], "the browser's computed accessibility node is read through the Chrome DevTools protocol, which only Chromium offers");
   const client = await page.context().newCDPSession(page);
   try {
     const { root } = await client.send('DOM.getDocument', { depth: 0 });

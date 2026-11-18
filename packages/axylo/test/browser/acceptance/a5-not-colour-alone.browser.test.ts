@@ -9,7 +9,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
-import { start, stop } from '../harness';
+import { ENGINE, start, stop } from '../harness';
 import {
   box, center, closePage, createRaw, create, devPage, interiorColor, modeColor, ring, screenshot, settle, shapes, signature,
   type Box, type Image, type RGB, type Shape,
@@ -137,8 +137,13 @@ describe('A5 dash under more contrast and forced colours', () => {
   for (const type of ['line', 'area', 'compact'] as const) {
     for (const mode of ['prefers-contrast: more', 'forced-colors: active'] as const) {
       it(`A5 ${type}: under ${mode} three lines differ by dash, pairwise`, async () => {
-        const page = await devPage(type === 'compact' ? { css: '#chart { width: 240px; height: 48px; }' } : {});
-        await page.emulateMedia(mode === 'prefers-contrast: more' ? { contrast: 'more' } : { forcedColors: 'active' });
+        const media = mode === 'prefers-contrast: more' ? { contrast: 'more' as const } : { forcedColors: 'active' as const };
+        // Playwright's Firefox flips matchMedia for an emulated contrast but leaves the media rules of a sheet
+        // already loaded unevaluated (observed with a plain <style> page too), so on Firefox the preference is
+        // set on the context, before the page loads. The chart is created after it either way.
+        const early = ENGINE === 'firefox' && 'contrast' in media;
+        const page = await devPage({ ...(type === 'compact' ? { css: '#chart { width: 240px; height: 48px; }' } : {}), ...(early ? media : {}) });
+        if (!early) await page.emulateMedia(media);
         await createRaw(page, 'line' === type || type === 'compact' ? 'line' : 'area', {
           title: 'Three', data: denseRows(), x: { field: 'day', type: 'date' }, y: 'v', series: 's', ...(type === 'compact' ? { compact: true } : {}),
         });

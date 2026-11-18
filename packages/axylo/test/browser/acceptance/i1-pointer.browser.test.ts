@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
 import { start, stop } from '../harness';
 import {
-  axWithin, box, call, center, closePage, compareTable, covered, create, createRaw, devPage, figureLayout, inside, plotGeometry, readRange, readTable, ring, screenshot, settle, shapes, valueText, type Box,
+  axWithin, box, call, center, closePage, compareTable, covered, create, createRaw, devPage, figureLayout, inside, plotGeometry, readRange, readTable, requireEngineFeature, ring, ENGINE, screenshot, settle, shapes, TOUCH_INPUT_REASON, valueText, type Box,
 } from './util';
 import { calendar, CARTESIAN, ENERGY, FULL, inOrder, LATENCY, share, SHIPPED, SPEND, SPEND_TOTAL, tableOf, TYPES, withUnit, type ChartType } from './fixtures';
 import { traceMotion } from './checks';
@@ -219,7 +219,11 @@ describe('I1 tooltip under the pointer', () => {
       const probe = (await probes(page, type))[type === 'donut' ? 2 : type === 'scatter' ? 4 : 10]!;
       await page.mouse.move(probe.x, probe.y);
       await settle(page);
-      const buttonsIn = async () => (await axWithin(page, '#chart .axylo-tooltip').catch(() => [])).filter(n => n.role === 'button');
+      // Off Chromium the accessibility tree is not readable; the DOM gives the same evidence for buttons, which have no
+      // other source of the role than the element or its role attribute.
+      const buttonsIn = async () => ENGINE === 'chromium'
+        ? (await axWithin(page, '#chart .axylo-tooltip').catch(() => [])).filter(n => n.role === 'button')
+        : await page.locator('#chart .axylo-tooltip button:visible, #chart .axylo-tooltip [role="button"]:visible').allTextContents();
       expect(await buttonsIn(), 'a hovered tooltip holds no buttons').toEqual([]);
       await page.mouse.down();
       await page.mouse.up();
@@ -651,6 +655,7 @@ describe('I3 zoom four ways', () => {
           // Registered on the window after the chart's own listeners: sees whether they cancelled the gesture.
           for (const t of ['touchstart', 'touchmove']) window.addEventListener(t, e => { if (e.defaultPrevented) w.prevented++; }, { passive: true });
         });
+        requireEngineFeature(['chromium'], TOUCH_INPUT_REASON);
         const client = await page.context().newCDPSession(page);
         const at = (d: number) => [{ x: cx - d, y: cy, id: 0 }, { x: cx + d, y: cy, id: 1 }];
         await client.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: at(40) });
@@ -785,6 +790,8 @@ describe('I4 single pointer, touch and target size', () => {
       await tapOn('#chart [role="toolbar"] button', 'View as table');
       expect(await page.locator('#chart table').count()).toBe(1);
       await tapOn('#chart [role="toolbar"] button', 'Hide table');
+      // The taps above have run on every engine; the drag needs moving touch input.
+      requireEngineFeature(['chromium'], TOUCH_INPUT_REASON);
       const client = await page.context().newCDPSession(page);
       const p = await box(page, '#chart .axylo-proxy');
       const x = p.x + p.width / 2, y0 = p.y + p.height - 20;
