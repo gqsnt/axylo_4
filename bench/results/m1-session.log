@@ -1,0 +1,1621 @@
+built bench/dist: page + 11 adapters (axylo-canvas, axylo-svg, axylo, chartjs-tuned, chartjs, noop, uplot, broken-never-ready, broken-throws, uplot-no-trim, uplot-pinned-y)
+run 20261118T022750Z-first-1x100000-aa-axylo-canvas-4161
+  A-versus-A: axylo-canvas  first {"size":"1x100000","gaps":false}  8 blocks  order BA AB BA BA AB BA AB AB  seed 1734255488
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T022750Z-first-1x100000-aa-axylo-canvas-4161.json
+  admission axylo-canvas: ok
+  block 1/8 BA B=axylo-canvas: ok taskMs=114.962
+  block 1/8 BA A=axylo-canvas: ok taskMs=79.245
+  block 2/8 AB A=axylo-canvas: ok taskMs=133.129
+  block 2/8 AB B=axylo-canvas: ok taskMs=81.549
+  block 3/8 BA B=axylo-canvas: ok taskMs=79.876
+  block 3/8 BA A=axylo-canvas: ok taskMs=78.290
+  block 4/8 BA B=axylo-canvas: ok taskMs=78.864
+  block 4/8 BA A=axylo-canvas: ok taskMs=77.690
+  block 5/8 AB A=axylo-canvas: ok taskMs=86.993
+  block 5/8 AB B=axylo-canvas: ok taskMs=110.092
+  block 6/8 BA B=axylo-canvas: ok taskMs=126.397
+  block 6/8 BA A=axylo-canvas: ok taskMs=75.225
+  block 7/8 AB A=axylo-canvas: ok taskMs=81.376
+  block 7/8 AB B=axylo-canvas: ok taskMs=80.180
+  block 8/8 AB A=axylo-canvas: ok taskMs=84.182
+  block 8/8 AB B=axylo-canvas: ok taskMs=78.807
+
+20261118T022750Z-first-1x100000-aa-axylo-canvas-4161  [complete]
+A-versus-A: A=axylo-canvas (A)  B=axylo-canvas (A')  workload first {"size":"1x100000","gaps":false}
+complete pairs 8/8; run outcomes {"B:ok":8,"A:ok":8}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                   B/A-1  outcome     
+taskMs *               80.31      80.86      0.554      [-5.32, 35.72]           0.7%   inconclusive
+scriptMs               66.55      67.63      1.08       [-4.21, 33.28]           1.6%   inconclusive
+layoutStyleMs          2.04       2.18       0.142      [-0.120, 1.08]           7.0%   inconclusive
+readyMs                68.65      69.80      1.15       [-4.25, 34.20]           1.7%   inconclusive
+readyFrameMs           73.90      74.90      1.00       [-4.15, 34.70]           1.4%   inconclusive
+rendererCpuMs          140.0      155.0      15.00      [-20.00, 50.00]          10.7%  inconclusive
+gpuCpuMs               0.000      0.000      0.000      [0.000, 0.000]           n/a    inconclusive
+heapChartBytes         9.57 MiB   9.57 MiB   0.1 KiB    [-0.2 KiB, 0.4 KiB]      0.0%   inconclusive
+heapUsedBytes          10.63 MiB  10.63 MiB  0.0 KiB    [-0.2 KiB, 0.2 KiB]      0.0%   inconclusive
+rendererPssBytes       81.70 MiB  81.86 MiB  161.0 KiB  [-239.0 KiB, 469.0 KiB]  0.2%   inconclusive
+rendererPssChartBytes  25.94 MiB  26.01 MiB  70.0 KiB   [-450.0 KiB, 516.0 KiB]  0.3%   inconclusive
+gpuPssBytes            39.62 MiB  39.59 MiB  -30.5 KiB  [-141.0 KiB, 20.0 KiB]   -0.1%  inconclusive
+gpuPssChartBytes       810.5 KiB  815.5 KiB  5.0 KiB    [-8.5 KiB, 31.0 KiB]     0.6%   inconclusive
+canvasBackingBytes     1.15 MiB   1.15 MiB   0.0 KiB    [0.0 KiB, 0.0 KiB]       0.0%   inconclusive
+domNodes               58.00      58.00      0.000      [0.000, 0.000]           0.0%   inconclusive
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+A-versus-A: the 95% CI column is this session's noise band for each metric (one session; the plan asks for three).
+run 20261118T022821Z-first-1x100000-aa-axylo-svg-54f2
+  A-versus-A: axylo-svg  first {"size":"1x100000","gaps":false}  8 blocks  order AB AB AB BA BA BA BA AB  seed 207471504
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T022821Z-first-1x100000-aa-axylo-svg-54f2.json
+  admission axylo-svg: ok
+  block 1/8 AB A=axylo-svg: ok taskMs=78.521
+  block 1/8 AB B=axylo-svg: ok taskMs=88.931
+  block 2/8 AB A=axylo-svg: ok taskMs=74.916
+  block 2/8 AB B=axylo-svg: ok taskMs=109.498
+  block 3/8 AB A=axylo-svg: ok taskMs=95.007
+  block 3/8 AB B=axylo-svg: ok taskMs=81.236
+  block 4/8 BA B=axylo-svg: ok taskMs=73.759
+  block 4/8 BA A=axylo-svg: ok taskMs=96.758
+  block 5/8 BA B=axylo-svg: ok taskMs=77.472
+  block 5/8 BA A=axylo-svg: ok taskMs=80.763
+  block 6/8 BA B=axylo-svg: ok taskMs=76.161
+  block 6/8 BA A=axylo-svg: ok taskMs=105.925
+  block 7/8 BA B=axylo-svg: ok taskMs=100.305
+  block 7/8 BA A=axylo-svg: ok taskMs=115.803
+  block 8/8 AB A=axylo-svg: ok taskMs=74.855
+  block 8/8 AB B=axylo-svg: ok taskMs=126.549
+
+20261118T022821Z-first-1x100000-aa-axylo-svg-54f2  [complete]
+A-versus-A: A=axylo-svg (A)  B=axylo-svg (A')  workload first {"size":"1x100000","gaps":false}
+complete pairs 8/8; run outcomes {"A:ok":8,"B:ok":8}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                   B/A-1  outcome     
+taskMs *               87.89      85.08      -2.80      [-23.00, 34.58]          -3.2%  inconclusive
+scriptMs               77.07      74.52      -2.55      [-21.40, 31.13]          -3.3%  inconclusive
+layoutStyleMs          2.58       2.47       -0.111     [-0.776, 0.335]          -4.3%  inconclusive
+readyMs                79.60      77.00      -2.60      [-22.35, 31.60]          -3.3%  inconclusive
+readyFrameMs           80.80      78.20      -2.60      [-22.50, 31.70]          -3.2%  inconclusive
+rendererCpuMs          175.0      170.0      -5.00      [-30.00, 50.00]          -2.9%  inconclusive
+gpuCpuMs               0.000      0.000      0.000      [-5.00, 10.00]           n/a    inconclusive
+heapChartBytes         9.67 MiB   9.67 MiB   0.8 KiB    [-0.2 KiB, 1.6 KiB]      0.0%   inconclusive
+heapUsedBytes          10.73 MiB  10.73 MiB  0.8 KiB    [-0.5 KiB, 1.1 KiB]      0.0%   inconclusive
+rendererPssBytes       79.49 MiB  79.63 MiB  149.5 KiB  [-403.0 KiB, 440.0 KiB]  0.2%   inconclusive
+rendererPssChartBytes  23.77 MiB  23.81 MiB  31.0 KiB   [-128.0 KiB, 426.0 KiB]  0.1%   inconclusive
+gpuPssBytes            39.19 MiB  39.22 MiB  29.0 KiB   [-246.5 KiB, 109.5 KiB]  0.1%   inconclusive
+gpuPssChartBytes       367.5 KiB  369.0 KiB  1.5 KiB    [-15.0 KiB, 11.0 KiB]    0.4%   inconclusive
+canvasBackingBytes     0.0 KiB    0.0 KiB    0.0 KiB    [0.0 KiB, 0.0 KiB]       n/a    inconclusive
+domNodes               96.00      96.00      0.000      [0.000, 0.000]           0.0%   inconclusive
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+A-versus-A: the 95% CI column is this session's noise band for each metric (one session; the plan asks for three).
+run 20261118T022851Z-page-3x120-x24-aa-axylo-canvas-567b
+  A-versus-A: axylo-canvas  page {"size":"3x120","charts":24,"gaps":false}  8 blocks  order AB BA BA BA BA AB AB AB  seed 1254222688
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T022851Z-page-3x120-x24-aa-axylo-canvas-567b.json
+  admission axylo-canvas: ok
+  block 1/8 AB A=axylo-canvas: ok taskMs=151.959
+  block 1/8 AB B=axylo-canvas: ok taskMs=143.398
+  block 2/8 BA B=axylo-canvas: ok taskMs=141.648
+  block 2/8 BA A=axylo-canvas: ok taskMs=190.041
+  block 3/8 BA B=axylo-canvas: ok taskMs=149.949
+  block 3/8 BA A=axylo-canvas: ok taskMs=213.916
+  block 4/8 BA B=axylo-canvas: ok taskMs=145.811
+  block 4/8 BA A=axylo-canvas: ok taskMs=248.333
+  block 5/8 BA B=axylo-canvas: ok taskMs=178.219
+  block 5/8 BA A=axylo-canvas: ok taskMs=143.834
+  block 6/8 AB A=axylo-canvas: ok taskMs=143.999
+  block 6/8 AB B=axylo-canvas: ok taskMs=143.967
+  block 7/8 AB A=axylo-canvas: ok taskMs=146.074
+  block 7/8 AB B=axylo-canvas: ok taskMs=156.482
+  block 8/8 AB A=axylo-canvas: ok taskMs=143.118
+  block 8/8 AB B=axylo-canvas: ok taskMs=150.994
+
+20261118T022851Z-page-3x120-x24-aa-axylo-canvas-567b  [complete]
+A-versus-A: A=axylo-canvas (A)  B=axylo-canvas (A')  workload page {"size":"3x120","charts":24,"gaps":false}
+complete pairs 8/8; run outcomes {"A:ok":8,"B:ok":8}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A         95% CI                   B/A-1   outcome     
+taskMs *               149.0      147.9      -1.14       [-63.97, 10.41]          -0.8%   inconclusive
+scriptMs               75.53      75.65      0.115       [-31.61, 5.84]           0.2%    inconclusive
+layoutStyleMs          31.25      31.21      -0.033      [-11.68, 1.90]           -0.1%   inconclusive
+readyMs                42.95      43.85      0.900       [-22.20, 4.80]           2.1%    inconclusive
+readyFrameMs           44.45      45.30      0.850       [-22.60, 4.70]           1.9%    inconclusive
+rendererCpuMs          275.0      265.0      -10.00      [-100.0, 10.00]          -3.6%   inconclusive
+gpuCpuMs               45.00      30.00      -15.00      [-30.00, 5.00]           -33.3%  inconclusive
+heapChartBytes         1.83 MiB   1.83 MiB   -0.2 KiB    [-325.4 KiB, 341.1 KiB]  -0.0%   inconclusive
+heapUsedBytes          2.92 MiB   2.92 MiB   -0.2 KiB    [-324.3 KiB, 341.1 KiB]  -0.0%   inconclusive
+rendererPssBytes       76.33 MiB  76.10 MiB  -230.5 KiB  [-1.02 MiB, 1.11 MiB]    -0.3%   inconclusive
+rendererPssChartBytes  22.02 MiB  21.57 MiB  -464.0 KiB  [-1.09 MiB, 1018.5 KiB]  -2.1%   inconclusive
+gpuPssBytes            42.77 MiB  42.60 MiB  -182.5 KiB  [-315.0 KiB, 71.0 KiB]   -0.4%   inconclusive
+gpuPssChartBytes       3.78 MiB   3.80 MiB   17.5 KiB    [-41.0 KiB, 39.5 KiB]    0.5%    inconclusive
+canvasBackingBytes     1.92 MiB   1.92 MiB   0.0 KiB     [0.0 KiB, 0.0 KiB]       0.0%    inconclusive
+domNodes               385.0      385.0      0.000       [0.000, 0.000]           0.0%    inconclusive
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+A-versus-A: the 95% CI column is this session's noise band for each metric (one session; the plan asks for three).
+run 20261118T022921Z-page-3x120-x24-aa-axylo-svg-ef71
+  A-versus-A: axylo-svg  page {"size":"3x120","charts":24,"gaps":false}  8 blocks  order BA AB BA BA AB AB AB BA  seed 502205609
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T022921Z-page-3x120-x24-aa-axylo-svg-ef71.json
+  admission axylo-svg: ok
+  block 1/8 BA B=axylo-svg: ok taskMs=220.592
+  block 1/8 BA A=axylo-svg: ok taskMs=225.912
+  block 2/8 AB A=axylo-svg: ok taskMs=132.453
+  block 2/8 AB B=axylo-svg: ok taskMs=201.064
+  block 3/8 BA B=axylo-svg: ok taskMs=138.018
+  block 3/8 BA A=axylo-svg: ok taskMs=130.361
+  block 4/8 BA B=axylo-svg: ok taskMs=132.157
+  block 4/8 BA A=axylo-svg: ok taskMs=130.204
+  block 5/8 AB A=axylo-svg: ok taskMs=154.190
+  block 5/8 AB B=axylo-svg: ok taskMs=145.772
+  block 6/8 AB A=axylo-svg: ok taskMs=171.032
+  block 6/8 AB B=axylo-svg: ok taskMs=186.559
+  block 7/8 AB A=axylo-svg: ok taskMs=143.210
+  block 7/8 AB B=axylo-svg: ok taskMs=141.884
+  block 8/8 BA B=axylo-svg: ok taskMs=162.526
+  block 8/8 BA A=axylo-svg: ok taskMs=155.834
+
+20261118T022921Z-page-3x120-x24-aa-axylo-svg-ef71  [complete]
+A-versus-A: A=axylo-svg (A)  B=axylo-svg (A')  workload page {"size":"3x120","charts":24,"gaps":false}
+complete pairs 8/8; run outcomes {"B:ok":8,"A:ok":8}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                   B/A-1   outcome     
+taskMs *               148.7      154.1      5.45       [-8.42, 51.54]           3.7%    inconclusive
+scriptMs               82.55      84.66      2.12       [-3.05, 30.43]           2.6%    inconclusive
+layoutStyleMs          34.38      35.48      1.09       [-3.07, 11.26]           3.2%    inconclusive
+readyMs                44.10      42.45      -1.65      [-4.40, 20.00]           -3.7%   inconclusive
+readyFrameMs           45.25      43.65      -1.60      [-4.40, 20.70]           -3.5%   inconclusive
+rendererCpuMs          250.0      270.0      20.00      [-15.00, 85.00]          8.0%    inconclusive
+gpuCpuMs               35.00      30.00      -5.00      [-10.00, 10.00]          -14.3%  inconclusive
+heapChartBytes         1.87 MiB   1.87 MiB   -0.0 KiB   [-166.4 KiB, 198.2 KiB]  -0.0%   inconclusive
+heapUsedBytes          2.96 MiB   2.96 MiB   0.0 KiB    [-166.9 KiB, 197.7 KiB]  0.0%    inconclusive
+rendererPssBytes       71.70 MiB  71.74 MiB  43.5 KiB   [-444.5 KiB, 969.0 KiB]  0.1%    inconclusive
+rendererPssChartBytes  17.59 MiB  17.64 MiB  50.0 KiB   [-488.0 KiB, 982.0 KiB]  0.3%    inconclusive
+gpuPssBytes            40.72 MiB  40.87 MiB  151.5 KiB  [-27.0 KiB, 460.0 KiB]   0.4%    inconclusive
+gpuPssChartBytes       2.01 MiB   2.01 MiB   0.5 KiB    [-5.5 KiB, 34.5 KiB]     0.0%    inconclusive
+canvasBackingBytes     0.0 KiB    0.0 KiB    0.0 KiB    [0.0 KiB, 0.0 KiB]       n/a     inconclusive
+domNodes               529.0      529.0      0.000      [0.000, 0.000]           0.0%    inconclusive
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+A-versus-A: the 95% CI column is this session's noise band for each metric (one session; the plan asks for three).
+run 20261118T022951Z-first-3x120-axylo-canvas-vs-axylo-svg-e741
+  A=axylo-canvas  B=axylo-svg  first {"size":"3x120","gaps":false}  8 blocks  order BA BA AB BA AB AB AB BA  seed 554075877
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T022951Z-first-3x120-axylo-canvas-vs-axylo-svg-e741.json
+  admission axylo-canvas: ok
+  admission axylo-svg: ok
+  block 1/8 BA B=axylo-svg: ok taskMs=25.387
+  block 1/8 BA A=axylo-canvas: ok taskMs=19.773
+  block 2/8 BA B=axylo-svg: ok taskMs=20.146
+  block 2/8 BA A=axylo-canvas: ok taskMs=30.828
+  block 3/8 AB A=axylo-canvas: ok taskMs=29.057
+  block 3/8 AB B=axylo-svg: ok taskMs=19.496
+  block 4/8 BA B=axylo-svg: ok taskMs=23.409
+  block 4/8 BA A=axylo-canvas: ok taskMs=20.344
+  block 5/8 AB A=axylo-canvas: ok taskMs=19.350
+  block 5/8 AB B=axylo-svg: ok taskMs=22.037
+  block 6/8 AB A=axylo-canvas: ok taskMs=22.097
+  block 6/8 AB B=axylo-svg: ok taskMs=18.427
+  block 7/8 AB A=axylo-canvas: ok taskMs=29.989
+  block 7/8 AB B=axylo-svg: ok taskMs=17.722
+  block 8/8 BA B=axylo-svg: ok taskMs=17.070
+  block 8/8 BA A=axylo-canvas: ok taskMs=25.015
+
+20261118T022951Z-first-3x120-axylo-canvas-vs-axylo-svg-e741  [complete]
+comparison: A=axylo-canvas  B=axylo-svg  workload first {"size":"3x120","gaps":false}
+complete pairs 8/8; run outcomes {"B:ok":8,"A:ok":8}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A         95% CI                    B/A-1    outcome     
+taskMs *               23.56      19.82      -3.73       [-10.91, 3.06]            -15.9%   inconclusive
+scriptMs               17.33      15.52      -1.80       [-7.46, 3.54]             -10.4%   inconclusive
+layoutStyleMs          2.26       2.37       0.111       [-0.506, 1.00]            4.9%     inconclusive
+readyMs                19.55      17.75      -1.80       [-7.50, 4.20]             -9.2%    inconclusive
+readyFrameMs           23.30      21.30      -2.00       [-7.85, 2.90]             -8.6%    inconclusive
+rendererCpuMs          30.00      30.00      0.000       [-10.00, 10.00]           0.0%     inconclusive
+gpuCpuMs               0.000      0.000      0.000       [-5.00, 5.00]             n/a      inconclusive
+heapChartBytes         645.4 KiB  739.7 KiB  94.4 KiB    [94.4 KiB, 94.4 KiB]      14.6%    worse       
+heapUsedBytes          1.69 MiB   1.78 MiB   94.4 KiB    [94.4 KiB, 94.4 KiB]      5.5%     worse       
+rendererPssBytes       61.83 MiB  59.20 MiB  -2.63 MiB   [-2.73 MiB, -2.55 MiB]    -4.3%    better      
+rendererPssChartBytes  12.11 MiB  9.35 MiB   -2.76 MiB   [-2.78 MiB, -2.70 MiB]    -22.8%   better      
+gpuPssBytes            38.92 MiB  38.65 MiB  -277.0 KiB  [-409.0 KiB, -241.0 KiB]  -0.7%    better      
+gpuPssChartBytes       729.0 KiB  390.0 KiB  -339.0 KiB  [-362.0 KiB, -336.5 KiB]  -46.5%   better      
+canvasBackingBytes     1.15 MiB   0.0 KiB    -1.15 MiB   [-1.15 MiB, -1.15 MiB]    -100.0%  better      
+domNodes               40.00      72.00      32.00       [32.00, 32.00]            80.0%    worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T023022Z-first-3x120-uplot-vs-axylo-canvas-e472
+  A=uplot  B=axylo-canvas  first {"size":"3x120","gaps":false}  8 blocks  order BA BA AB AB BA AB BA AB  seed 1566577027
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T023022Z-first-3x120-uplot-vs-axylo-canvas-e472.json
+  admission uplot: ok
+  admission axylo-canvas: ok
+  block 1/8 BA B=axylo-canvas: ok taskMs=18.546
+  block 1/8 BA A=uplot: ok taskMs=7.460
+  block 2/8 BA B=axylo-canvas: ok taskMs=21.016
+  block 2/8 BA A=uplot: ok taskMs=7.548
+  block 3/8 AB A=uplot: ok taskMs=7.390
+  block 3/8 AB B=axylo-canvas: ok taskMs=25.718
+  block 4/8 AB A=uplot: ok taskMs=7.996
+  block 4/8 AB B=axylo-canvas: ok taskMs=18.645
+  block 5/8 BA B=axylo-canvas: ok taskMs=21.512
+  block 5/8 BA A=uplot: ok taskMs=11.889
+  block 6/8 AB A=uplot: ok taskMs=11.788
+  block 6/8 AB B=axylo-canvas: ok taskMs=22.744
+  block 7/8 BA B=axylo-canvas: ok taskMs=26.144
+  block 7/8 BA A=uplot: ok taskMs=7.575
+  block 8/8 AB A=uplot: ok taskMs=7.312
+  block 8/8 AB B=axylo-canvas: ok taskMs=21.829
+
+20261118T023022Z-first-3x120-uplot-vs-axylo-canvas-e472  [complete]
+comparison: A=uplot  B=axylo-canvas  workload first {"size":"3x120","gaps":false}
+complete pairs 8/8; run outcomes {"B:ok":8,"A:ok":8}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                  B/A-1   outcome     
+taskMs *               7.56       21.67      14.11      [10.65, 18.14]          186.6%  worse       
+scriptMs               5.25       16.64      11.39      [8.36, 14.47]           216.8%  worse       
+layoutStyleMs          0.813      1.92       1.11       [0.816, 1.64]           136.7%  worse       
+readyMs                5.40       18.50      13.10      [9.90, 16.90]           242.6%  worse       
+readyFrameMs           6.25       21.25      15.00      [11.80, 18.50]          240.0%  worse       
+rendererCpuMs          10.00      20.00      10.00      [5.00, 25.00]           100.0%  worse       
+gpuCpuMs               0.000      0.000      0.000      [0.000, 0.000]          n/a     inconclusive
+heapChartBytes         298.8 KiB  645.3 KiB  346.6 KiB  [346.6 KiB, 346.6 KiB]  116.0%  worse       
+heapUsedBytes          1.29 MiB   1.69 MiB   403.0 KiB  [403.0 KiB, 403.0 KiB]  30.4%   worse       
+rendererPssBytes       56.46 MiB  61.88 MiB  5.42 MiB   [5.33 MiB, 5.46 MiB]    9.6%    worse       
+rendererPssChartBytes  4.95 MiB   11.92 MiB  6.97 MiB   [6.89 MiB, 7.02 MiB]    140.9%  worse       
+gpuPssBytes            38.92 MiB  39.17 MiB  254.5 KiB  [232.0 KiB, 447.0 KiB]  0.6%    worse       
+gpuPssChartBytes       472.0 KiB  732.0 KiB  260.0 KiB  [245.0 KiB, 283.0 KiB]  55.1%   worse       
+canvasBackingBytes     1.13 MiB   1.15 MiB   18.8 KiB   [18.8 KiB, 18.8 KiB]    1.6%    worse       
+domNodes               36.00      40.00      4.00       [4.00, 4.00]            11.1%   worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T023053Z-first-3x120-uplot-vs-axylo-svg-7ee1
+  A=uplot  B=axylo-svg  first {"size":"3x120","gaps":false}  8 blocks  order AB BA BA AB BA BA AB AB  seed 1996558513
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T023053Z-first-3x120-uplot-vs-axylo-svg-7ee1.json
+  admission uplot: ok
+  admission axylo-svg: ok
+  block 1/8 AB A=uplot: ok taskMs=8.267
+  block 1/8 AB B=axylo-svg: ok taskMs=19.888
+  block 2/8 BA B=axylo-svg: ok taskMs=16.781
+  block 2/8 BA A=uplot: ok taskMs=9.745
+  block 3/8 BA B=axylo-svg: ok taskMs=17.353
+  block 3/8 BA A=uplot: ok taskMs=19.574
+  block 4/8 AB A=uplot: ok taskMs=13.159
+  block 4/8 AB B=axylo-svg: ok taskMs=17.371
+  block 5/8 BA B=axylo-svg: ok taskMs=30.963
+  block 5/8 BA A=uplot: ok taskMs=8.424
+  block 6/8 BA B=axylo-svg: ok taskMs=16.742
+  block 6/8 BA A=uplot: ok taskMs=7.381
+  block 7/8 AB A=uplot: ok taskMs=8.836
+  block 7/8 AB B=axylo-svg: ok taskMs=17.179
+  block 8/8 AB A=uplot: ok taskMs=7.979
+  block 8/8 AB B=axylo-svg: ok taskMs=25.310
+
+20261118T023053Z-first-3x120-uplot-vs-axylo-svg-7ee1  [complete]
+comparison: A=uplot  B=axylo-svg  workload first {"size":"3x120","gaps":false}
+complete pairs 8/8; run outcomes {"A:ok":8,"B:ok":8}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A         95% CI                   B/A-1    outcome     
+taskMs *               8.63       17.36      8.73        [4.21, 16.89]            101.2%   worse       
+scriptMs               6.33       13.92      7.58        [4.31, 14.30]            119.8%   worse       
+layoutStyleMs          0.821      2.12       1.30        [0.944, 2.46]            157.9%   worse       
+readyMs                6.50       15.80      9.30        [6.20, 17.20]            143.1%   worse       
+readyFrameMs           7.10       22.70      15.60       [12.20, 17.70]           219.7%   worse       
+rendererCpuMs          20.00      25.00      5.00        [0.000, 20.00]           25.0%    inconclusive
+gpuCpuMs               0.000      0.000      0.000       [0.000, 10.00]           n/a      inconclusive
+heapChartBytes         298.8 KiB  739.7 KiB  441.0 KiB   [440.9 KiB, 441.0 KiB]   147.6%   worse       
+heapUsedBytes          1.29 MiB   1.78 MiB   497.4 KiB   [497.3 KiB, 497.4 KiB]   37.6%    worse       
+rendererPssBytes       56.53 MiB  58.99 MiB  2.46 MiB    [2.37 MiB, 2.54 MiB]     4.3%     worse       
+rendererPssChartBytes  5.08 MiB   9.26 MiB   4.18 MiB    [4.15 MiB, 4.20 MiB]     82.4%    worse       
+gpuPssBytes            39.13 MiB  39.03 MiB  -102.0 KiB  [-137.0 KiB, -67.0 KiB]  -0.3%    better      
+gpuPssChartBytes       470.0 KiB  385.0 KiB  -85.0 KiB   [-88.0 KiB, -71.0 KiB]   -18.1%   better      
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB   [-1.13 MiB, -1.13 MiB]   -100.0%  better      
+domNodes               36.00      72.00      36.00       [36.00, 36.00]           100.0%   worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T023123Z-first-1x10000-axylo-canvas-vs-axylo-svg-5eaa
+  A=axylo-canvas  B=axylo-svg  first {"size":"1x10000","gaps":false}  8 blocks  order BA AB BA AB AB BA AB BA  seed 1058873847
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T023123Z-first-1x10000-axylo-canvas-vs-axylo-svg-5eaa.json
+  admission axylo-canvas: ok
+  admission axylo-svg: ok
+  block 1/8 BA B=axylo-svg: ok taskMs=30.603
+  block 1/8 BA A=axylo-canvas: ok taskMs=50.889
+  block 2/8 AB A=axylo-canvas: ok taskMs=47.406
+  block 2/8 AB B=axylo-svg: ok taskMs=26.868
+  block 3/8 BA B=axylo-svg: ok taskMs=27.023
+  block 3/8 BA A=axylo-canvas: ok taskMs=30.175
+  block 4/8 AB A=axylo-canvas: ok taskMs=30.407
+  block 4/8 AB B=axylo-svg: ok taskMs=28.443
+  block 5/8 AB A=axylo-canvas: ok taskMs=36.088
+  block 5/8 AB B=axylo-svg: ok taskMs=32.855
+  block 6/8 BA B=axylo-svg: ok taskMs=41.501
+  block 6/8 BA A=axylo-canvas: ok taskMs=30.824
+  block 7/8 AB A=axylo-canvas: ok taskMs=40.258
+  block 7/8 AB B=axylo-svg: ok taskMs=27.368
+  block 8/8 BA B=axylo-svg: ok taskMs=28.303
+  block 8/8 BA A=axylo-canvas: ok taskMs=31.889
+
+20261118T023123Z-first-1x10000-axylo-canvas-vs-axylo-svg-5eaa  [complete]
+comparison: A=axylo-canvas  B=axylo-svg  workload first {"size":"1x10000","gaps":false}
+complete pairs 8/8; run outcomes {"B:ok":8,"A:ok":8}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A         95% CI                    B/A-1    outcome     
+taskMs *               33.99      28.37      -5.62       [-16.80, -0.160]          -16.5%   better      
+scriptMs               26.06      24.65      -1.41       [-10.32, 3.68]            -5.4%    inconclusive
+layoutStyleMs          2.15       2.19       0.046       [-0.510, 0.344]           2.1%     inconclusive
+readyMs                28.15      26.70      -1.45       [-10.85, 3.85]            -5.2%    inconclusive
+readyFrameMs           32.45      27.55      -4.90       [-16.00, 0.550]           -15.1%   inconclusive
+rendererCpuMs          70.00      60.00      -10.00      [-20.00, 5.00]            -14.3%   inconclusive
+gpuCpuMs               0.000      0.000      0.000       [-5.00, 5.00]             n/a      inconclusive
+heapChartBytes         1.67 MiB   1.76 MiB   97.3 KiB    [96.9 KiB, 97.8 KiB]      5.7%     worse       
+heapUsedBytes          2.73 MiB   2.83 MiB   97.2 KiB    [97.0 KiB, 97.7 KiB]      3.5%     worse       
+rendererPssBytes       69.60 MiB  67.26 MiB  -2.34 MiB   [-2.50 MiB, -1.96 MiB]    -3.4%    better      
+rendererPssChartBytes  15.34 MiB  12.98 MiB  -2.36 MiB   [-2.54 MiB, -1.98 MiB]    -15.4%   better      
+gpuPssBytes            38.89 MiB  38.58 MiB  -310.0 KiB  [-417.0 KiB, -238.0 KiB]  -0.8%    better      
+gpuPssChartBytes       728.5 KiB  395.5 KiB  -333.0 KiB  [-341.5 KiB, -315.5 KiB]  -45.7%   better      
+canvasBackingBytes     1.15 MiB   0.0 KiB    -1.15 MiB   [-1.15 MiB, -1.15 MiB]    -100.0%  better      
+domNodes               46.00      75.00      29.00       [29.00, 29.00]            63.0%    worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T023155Z-first-1x10000-uplot-vs-axylo-canvas-f92c
+  A=uplot  B=axylo-canvas  first {"size":"1x10000","gaps":false}  8 blocks  order AB BA AB BA AB BA AB BA  seed 675271420
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T023155Z-first-1x10000-uplot-vs-axylo-canvas-f92c.json
+  admission uplot: ok
+  admission axylo-canvas: ok
+  block 1/8 AB A=uplot: ok taskMs=9.542
+  block 1/8 AB B=axylo-canvas: ok taskMs=29.290
+  block 2/8 BA B=axylo-canvas: ok taskMs=31.903
+  block 2/8 BA A=uplot: ok taskMs=10.123
+  block 3/8 AB A=uplot: ok taskMs=8.751
+  block 3/8 AB B=axylo-canvas: ok taskMs=29.446
+  block 4/8 BA B=axylo-canvas: ok taskMs=32.398
+  block 4/8 BA A=uplot: ok taskMs=13.283
+  block 5/8 AB A=uplot: ok taskMs=8.474
+  block 5/8 AB B=axylo-canvas: ok taskMs=30.635
+  block 6/8 BA B=axylo-canvas: ok taskMs=104.364
+  block 6/8 BA A=uplot: ok taskMs=9.625
+  block 7/8 AB A=uplot: ok taskMs=8.259
+  block 7/8 AB B=axylo-canvas: ok taskMs=29.511
+  block 8/8 BA B=axylo-canvas: ok taskMs=29.508
+  block 8/8 BA A=uplot: ok taskMs=8.299
+
+20261118T023155Z-first-1x10000-uplot-vs-axylo-canvas-f92c  [complete]
+comparison: A=uplot  B=axylo-canvas  workload first {"size":"1x10000","gaps":false}
+complete pairs 8/8; run outcomes {"A:ok":8,"B:ok":8}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                  B/A-1   outcome     
+taskMs *               9.15       30.07      20.93      [19.94, 22.53]          228.8%  worse       
+scriptMs               6.66       22.67      16.00      [15.09, 17.38]          240.1%  worse       
+layoutStyleMs          0.742      1.86       1.11       [1.03, 1.17]            150.4%  worse       
+readyMs                6.80       24.50      17.70      [16.80, 19.25]          260.3%  worse       
+readyFrameMs           7.70       28.50      20.80      [20.20, 22.80]          270.1%  worse       
+rendererCpuMs          10.00      60.00      50.00      [35.00, 50.00]          500.0%  worse       
+gpuCpuMs               0.000      0.000      0.000      [0.000, 0.000]          n/a     inconclusive
+heapChartBytes         262.7 KiB  1.67 MiB   1.41 MiB   [1.41 MiB, 1.41 MiB]    550.3%  worse       
+heapUsedBytes          1.26 MiB   2.73 MiB   1.47 MiB   [1.47 MiB, 1.47 MiB]    116.0%  worse       
+rendererPssBytes       61.04 MiB  69.52 MiB  8.49 MiB   [8.37 MiB, 8.63 MiB]    13.9%   worse       
+rendererPssChartBytes  5.17 MiB   15.30 MiB  10.13 MiB  [10.03 MiB, 10.28 MiB]  196.1%  worse       
+gpuPssBytes            38.81 MiB  39.15 MiB  346.0 KiB  [285.0 KiB, 637.0 KiB]  0.9%    worse       
+gpuPssChartBytes       494.0 KiB  795.5 KiB  301.5 KiB  [293.5 KiB, 303.5 KiB]  61.0%   worse       
+canvasBackingBytes     1.13 MiB   1.15 MiB   18.8 KiB   [18.8 KiB, 18.8 KiB]    1.6%    worse       
+domNodes               24.00      46.00      22.00      [22.00, 22.00]          91.7%   worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T023225Z-first-1x10000-uplot-vs-axylo-svg-a264
+  A=uplot  B=axylo-svg  first {"size":"1x10000","gaps":false}  8 blocks  order AB BA AB BA AB BA AB BA  seed 181336070
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T023225Z-first-1x10000-uplot-vs-axylo-svg-a264.json
+  admission uplot: ok
+  admission axylo-svg: ok
+  block 1/8 AB A=uplot: ok taskMs=8.164
+  block 1/8 AB B=axylo-svg: ok taskMs=26.734
+  block 2/8 BA B=axylo-svg: ok taskMs=27.365
+  block 2/8 BA A=uplot: ok taskMs=8.503
+  block 3/8 AB A=uplot: ok taskMs=13.750
+  block 3/8 AB B=axylo-svg: ok taskMs=29.521
+  block 4/8 BA B=axylo-svg: ok taskMs=32.158
+  block 4/8 BA A=uplot: ok taskMs=12.867
+  block 5/8 AB A=uplot: ok taskMs=8.665
+  block 5/8 AB B=axylo-svg: ok taskMs=26.960
+  block 6/8 BA B=axylo-svg: ok taskMs=31.101
+  block 6/8 BA A=uplot: ok taskMs=10.437
+  block 7/8 AB A=uplot: ok taskMs=8.940
+  block 7/8 AB B=axylo-svg: ok taskMs=27.838
+  block 8/8 BA B=axylo-svg: ok taskMs=26.621
+  block 8/8 BA A=uplot: ok taskMs=9.322
+
+20261118T023225Z-first-1x10000-uplot-vs-axylo-svg-a264  [complete]
+comparison: A=uplot  B=axylo-svg  workload first {"size":"1x10000","gaps":false}
+complete pairs 8/8; run outcomes {"A:ok":8,"B:ok":8}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                   B/A-1    outcome     
+taskMs *               9.13       27.60      18.47      [17.35, 19.87]           202.3%   worse       
+scriptMs               6.26       23.77      17.51      [16.27, 18.54]           279.8%   worse       
+layoutStyleMs          0.764      2.25       1.48       [1.14, 1.61]             194.2%   worse       
+readyMs                6.35       25.95      19.60      [18.50, 20.45]           308.7%   worse       
+readyFrameMs           7.25       26.85      19.60      [18.50, 20.80]           270.3%   worse       
+rendererCpuMs          10.00      70.00      60.00      [50.00, 60.00]           600.0%   worse       
+gpuCpuMs               0.000      0.000      0.000      [-10.00, 10.00]          n/a      inconclusive
+heapChartBytes         262.7 KiB  1.76 MiB   1.51 MiB   [1.51 MiB, 1.51 MiB]     587.4%   worse       
+heapUsedBytes          1.26 MiB   2.83 MiB   1.56 MiB   [1.56 MiB, 1.56 MiB]     123.6%   worse       
+rendererPssBytes       61.41 MiB  67.65 MiB  6.24 MiB   [6.13 MiB, 6.57 MiB]     10.2%    worse       
+rendererPssChartBytes  5.05 MiB   13.03 MiB  7.98 MiB   [7.85 MiB, 8.35 MiB]     158.2%   worse       
+gpuPssBytes            38.48 MiB  38.41 MiB  -66.0 KiB  [-156.0 KiB, 165.5 KiB]  -0.2%    inconclusive
+gpuPssChartBytes       492.5 KiB  420.5 KiB  -72.0 KiB  [-78.0 KiB, -65.0 KiB]   -14.6%   better      
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB  [-1.13 MiB, -1.13 MiB]   -100.0%  better      
+domNodes               24.00      75.00      51.00      [51.00, 51.00]           212.5%   worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T023256Z-first-1x100000-axylo-canvas-vs-axylo-svg-7ca9
+  A=axylo-canvas  B=axylo-svg  first {"size":"1x100000","gaps":false}  8 blocks  order AB BA AB BA BA AB BA AB  seed 912200072
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T023256Z-first-1x100000-axylo-canvas-vs-axylo-svg-7ca9.json
+  admission axylo-canvas: ok
+  admission axylo-svg: ok
+  block 1/8 AB A=axylo-canvas: ok taskMs=85.734
+  block 1/8 AB B=axylo-svg: ok taskMs=86.435
+  block 2/8 BA B=axylo-svg: ok taskMs=81.650
+  block 2/8 BA A=axylo-canvas: ok taskMs=81.990
+  block 3/8 AB A=axylo-canvas: ok taskMs=82.206
+  block 3/8 AB B=axylo-svg: ok taskMs=85.324
+  block 4/8 BA B=axylo-svg: ok taskMs=89.272
+  block 4/8 BA A=axylo-canvas: ok taskMs=79.187
+  block 5/8 BA B=axylo-svg: ok taskMs=88.281
+  block 5/8 BA A=axylo-canvas: ok taskMs=82.839
+  block 6/8 AB A=axylo-canvas: ok taskMs=81.689
+  block 6/8 AB B=axylo-svg: ok taskMs=78.147
+  block 7/8 BA B=axylo-svg: ok taskMs=79.224
+  block 7/8 BA A=axylo-canvas: ok taskMs=79.218
+  block 8/8 AB A=axylo-canvas: ok taskMs=78.963
+  block 8/8 AB B=axylo-svg: ok taskMs=73.022
+
+20261118T023256Z-first-1x100000-axylo-canvas-vs-axylo-svg-7ca9  [complete]
+comparison: A=axylo-canvas  B=axylo-svg  workload first {"size":"1x100000","gaps":false}
+complete pairs 8/8; run outcomes {"A:ok":8,"B:ok":8}
+noise band: from 20261118T022750Z-first-1x100000-aa-axylo-canvas-4161 + 20261118T022821Z-first-1x100000-aa-axylo-svg-54f2
+
+metric                 median A   median B   B-A         95% CI                    B/A-1    outcome     
+taskMs *               81.84      83.49      1.65        [-3.00, 7.22]             2.0%     inconclusive
+scriptMs               68.76      71.00      2.24        [-1.44, 8.98]             3.3%     inconclusive
+layoutStyleMs          2.15       2.49       0.343       [0.030, 0.601]            15.9%    inconclusive
+readyMs                70.85      73.95      3.10        [-1.10, 9.10]             4.4%     inconclusive
+readyFrameMs           75.80      75.25      -0.550      [-4.70, 5.80]             -0.7%    inconclusive
+rendererCpuMs          150.0      160.0      10.00       [0.000, 20.00]            6.7%     inconclusive
+gpuCpuMs               0.000      0.000      0.000       [-10.00, 0.000]           n/a      inconclusive
+heapChartBytes         9.57 MiB   9.67 MiB   101.8 KiB   [101.0 KiB, 102.3 KiB]    1.0%     worse       
+heapUsedBytes          10.63 MiB  10.73 MiB  101.5 KiB   [100.7 KiB, 102.3 KiB]    0.9%     worse       
+rendererPssBytes       81.77 MiB  79.54 MiB  -2.23 MiB   [-2.44 MiB, -1.99 MiB]    -2.7%    better      
+rendererPssChartBytes  26.08 MiB  23.78 MiB  -2.30 MiB   [-2.54 MiB, -2.03 MiB]    -8.8%    better      
+gpuPssBytes            39.19 MiB  38.77 MiB  -428.5 KiB  [-539.5 KiB, -308.0 KiB]  -1.1%    better      
+gpuPssChartBytes       832.0 KiB  430.0 KiB  -402.0 KiB  [-426.0 KiB, -360.0 KiB]  -48.3%   better      
+canvasBackingBytes     1.15 MiB   0.0 KiB    -1.15 MiB   [-1.15 MiB, -1.15 MiB]    -100.0%  better      
+domNodes               58.00      96.00      38.00       [38.00, 38.00]            65.5%    worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T023328Z-first-1x100000-uplot-vs-axylo-canvas-6583
+  A=uplot  B=axylo-canvas  first {"size":"1x100000","gaps":false}  8 blocks  order AB BA AB AB AB BA BA BA  seed 434365809
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T023328Z-first-1x100000-uplot-vs-axylo-canvas-6583.json
+  admission uplot: ok
+  admission axylo-canvas: ok
+  block 1/8 AB A=uplot: ok taskMs=16.169
+  block 1/8 AB B=axylo-canvas: ok taskMs=86.688
+  block 2/8 BA B=axylo-canvas: ok taskMs=81.970
+  block 2/8 BA A=uplot: ok taskMs=10.247
+  block 3/8 AB A=uplot: ok taskMs=11.044
+  block 3/8 AB B=axylo-canvas: ok taskMs=81.745
+  block 4/8 AB A=uplot: ok taskMs=10.324
+  block 4/8 AB B=axylo-canvas: ok taskMs=81.386
+  block 5/8 AB A=uplot: ok taskMs=13.115
+  block 5/8 AB B=axylo-canvas: ok taskMs=87.814
+  block 6/8 BA B=axylo-canvas: ok taskMs=79.573
+  block 6/8 BA A=uplot: ok taskMs=10.730
+  block 7/8 BA B=axylo-canvas: ok taskMs=78.614
+  block 7/8 BA A=uplot: ok taskMs=15.103
+  block 8/8 BA B=axylo-canvas: ok taskMs=84.024
+  block 8/8 BA A=uplot: ok taskMs=13.876
+
+20261118T023328Z-first-1x100000-uplot-vs-axylo-canvas-6583  [complete]
+comparison: A=uplot  B=axylo-canvas  workload first {"size":"1x100000","gaps":false}
+complete pairs 8/8; run outcomes {"A:ok":8,"B:ok":8}
+noise band: from 20261118T022750Z-first-1x100000-aa-axylo-canvas-4161 + 20261118T022821Z-first-1x100000-aa-axylo-svg-54f2
+
+metric                 median A   median B   B-A        95% CI                  B/A-1    outcome     
+taskMs *               12.08      81.86      69.78      [66.46, 72.58]          577.7%   worse       
+scriptMs               9.72       69.12      59.40      [56.53, 61.73]          611.4%   worse       
+layoutStyleMs          0.849      2.03       1.18       [1.02, 1.33]            139.3%   inconclusive
+readyMs                9.80       71.50      61.70      [58.55, 63.85]          629.6%   worse       
+readyFrameMs           10.30      76.45      66.15      [62.75, 68.30]          642.2%   worse       
+rendererCpuMs          25.00      150.0      125.0      [120.0, 140.0]          500.0%   worse       
+gpuCpuMs               0.000      0.000      0.000      [0.000, 10.00]          n/a      inconclusive
+heapChartBytes         259.5 KiB  9.57 MiB   9.31 MiB   [9.31 MiB, 9.32 MiB]    3675.8%  worse       
+heapUsedBytes          1.26 MiB   10.63 MiB  9.37 MiB   [9.37 MiB, 9.37 MiB]    743.0%   worse       
+rendererPssBytes       62.65 MiB  81.87 MiB  19.21 MiB  [19.05 MiB, 19.57 MiB]  30.7%    worse       
+rendererPssChartBytes  5.06 MiB   25.86 MiB  20.80 MiB  [20.67 MiB, 20.94 MiB]  411.2%   worse       
+gpuPssBytes            38.98 MiB  39.25 MiB  274.5 KiB  [17.0 KiB, 345.0 KiB]   0.7%     inconclusive
+gpuPssChartBytes       493.0 KiB  832.5 KiB  339.5 KiB  [304.0 KiB, 356.5 KiB]  68.9%    worse       
+canvasBackingBytes     1.13 MiB   1.15 MiB   18.8 KiB   [18.8 KiB, 18.8 KiB]    1.6%     worse       
+domNodes               24.00      58.00      34.00      [34.00, 34.00]          141.7%   worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T023400Z-first-1x100000-uplot-vs-axylo-svg-e9b6
+  A=uplot  B=axylo-svg  first {"size":"1x100000","gaps":false}  8 blocks  order AB AB BA AB AB BA BA BA  seed 291570489
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T023400Z-first-1x100000-uplot-vs-axylo-svg-e9b6.json
+  admission uplot: ok
+  admission axylo-svg: ok
+  block 1/8 AB A=uplot: ok taskMs=11.016
+  block 1/8 AB B=axylo-svg: ok taskMs=75.554
+  block 2/8 AB A=uplot: ok taskMs=13.362
+  block 2/8 AB B=axylo-svg: ok taskMs=78.210
+  block 3/8 BA B=axylo-svg: ok taskMs=77.530
+  block 3/8 BA A=uplot: ok taskMs=10.475
+  block 4/8 AB A=uplot: ok taskMs=10.288
+  block 4/8 AB B=axylo-svg: ok taskMs=79.436
+  block 5/8 AB A=uplot: ok taskMs=10.187
+  block 5/8 AB B=axylo-svg: ok taskMs=82.122
+  block 6/8 BA B=axylo-svg: ok taskMs=73.556
+  block 6/8 BA A=uplot: ok taskMs=11.376
+  block 7/8 BA B=axylo-svg: ok taskMs=80.024
+  block 7/8 BA A=uplot: ok taskMs=11.229
+  block 8/8 BA B=axylo-svg: ok taskMs=83.093
+  block 8/8 BA A=uplot: ok taskMs=9.983
+
+20261118T023400Z-first-1x100000-uplot-vs-axylo-svg-e9b6  [complete]
+comparison: A=uplot  B=axylo-svg  workload first {"size":"1x100000","gaps":false}
+complete pairs 8/8; run outcomes {"A:ok":8,"B:ok":8}
+noise band: from 20261118T022750Z-first-1x100000-aa-axylo-canvas-4161 + 20261118T022821Z-first-1x100000-aa-axylo-svg-54f2
+
+metric                 median A   median B   B-A        95% CI                   B/A-1    outcome     
+taskMs *               10.75      78.82      68.08      [64.54, 71.94]           633.5%   worse       
+scriptMs               8.17       69.52      61.35      [58.51, 63.92]           751.2%   worse       
+layoutStyleMs          0.863      2.40       1.53       [1.44, 1.69]             177.8%   worse       
+readyMs                8.25       71.80      63.55      [60.60, 66.50]           770.3%   worse       
+readyFrameMs           8.80       73.00      64.20      [61.40, 67.10]           729.5%   worse       
+rendererCpuMs          20.00      160.0      140.0      [130.0, 155.0]           700.0%   worse       
+gpuCpuMs               0.000      0.000      0.000      [-10.00, 0.000]          n/a      inconclusive
+heapChartBytes         259.2 KiB  9.67 MiB   9.41 MiB   [9.41 MiB, 9.41 MiB]     3718.4%  worse       
+heapUsedBytes          1.26 MiB   10.73 MiB  9.47 MiB   [9.47 MiB, 9.47 MiB]     751.3%   worse       
+rendererPssBytes       62.69 MiB  79.34 MiB  16.65 MiB  [16.50 MiB, 16.76 MiB]   26.6%    worse       
+rendererPssChartBytes  5.10 MiB   23.37 MiB  18.27 MiB  [18.13 MiB, 18.51 MiB]   357.9%   worse       
+gpuPssBytes            38.43 MiB  38.44 MiB  11.0 KiB   [-226.0 KiB, 236.0 KiB]  0.0%     inconclusive
+gpuPssChartBytes       441.0 KiB  408.5 KiB  -32.5 KiB  [-33.0 KiB, -1.0 KiB]    -7.4%    inconclusive
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB  [-1.13 MiB, -1.13 MiB]   -100.0%  better      
+domNodes               24.00      96.00      72.00      [72.00, 72.00]           300.0%   worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T023431Z-first-1x100000-gaps-axylo-canvas-vs-axylo-svg-0fe2
+  A=axylo-canvas  B=axylo-svg  first {"size":"1x100000","gaps":true}  8 blocks  order AB AB AB AB BA BA BA BA  seed 839960695
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T023431Z-first-1x100000-gaps-axylo-canvas-vs-axylo-svg-0fe2.json
+  admission axylo-canvas: ok
+  admission axylo-svg: ok
+  block 1/8 AB A=axylo-canvas: ok taskMs=81.026
+  block 1/8 AB B=axylo-svg: ok taskMs=79.923
+  block 2/8 AB A=axylo-canvas: ok taskMs=76.596
+  block 2/8 AB B=axylo-svg: ok taskMs=71.267
+  block 3/8 AB A=axylo-canvas: ok taskMs=75.264
+  block 3/8 AB B=axylo-svg: ok taskMs=76.951
+  block 4/8 AB A=axylo-canvas: ok taskMs=79.395
+  block 4/8 AB B=axylo-svg: ok taskMs=73.871
+  block 5/8 BA B=axylo-svg: ok taskMs=75.856
+  block 5/8 BA A=axylo-canvas: ok taskMs=79.740
+  block 6/8 BA B=axylo-svg: ok taskMs=77.162
+  block 6/8 BA A=axylo-canvas: ok taskMs=84.812
+  block 7/8 BA B=axylo-svg: ok taskMs=89.862
+  block 7/8 BA A=axylo-canvas: ok taskMs=77.351
+  block 8/8 BA B=axylo-svg: ok taskMs=76.908
+  block 8/8 BA A=axylo-canvas: ok taskMs=80.994
+
+20261118T023431Z-first-1x100000-gaps-axylo-canvas-vs-axylo-svg-0fe2  [complete]
+comparison: A=axylo-canvas  B=axylo-svg  workload first {"size":"1x100000","gaps":true}
+complete pairs 8/8; run outcomes {"A:ok":8,"B:ok":8}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A         95% CI                    B/A-1    outcome     
+taskMs *               79.57      76.93      -2.64       [-5.05, 1.09]             -3.3%    inconclusive
+scriptMs               64.52      66.30      1.78        [-0.397, 3.86]            2.8%     inconclusive
+layoutStyleMs          2.04       2.31       0.276       [0.079, 0.459]            13.5%    worse       
+readyMs                66.75      68.60      1.85        [-0.750, 3.70]            2.8%     inconclusive
+readyFrameMs           71.50      69.85      -1.65       [-4.30, 0.200]            -2.3%    inconclusive
+rendererCpuMs          140.0      155.0      15.00       [10.00, 30.00]            10.7%    worse       
+gpuCpuMs               0.000      0.000      0.000       [-10.00, 0.000]           n/a      inconclusive
+heapChartBytes         9.57 MiB   9.67 MiB   108.1 KiB   [107.7 KiB, 109.0 KiB]    1.1%     worse       
+heapUsedBytes          10.63 MiB  10.74 MiB  108.1 KiB   [107.7 KiB, 108.9 KiB]    1.0%     worse       
+rendererPssBytes       81.85 MiB  79.53 MiB  -2.33 MiB   [-2.62 MiB, -2.14 MiB]    -2.8%    better      
+rendererPssChartBytes  25.92 MiB  23.71 MiB  -2.22 MiB   [-2.52 MiB, -2.10 MiB]    -8.6%    better      
+gpuPssBytes            38.75 MiB  38.34 MiB  -428.0 KiB  [-542.5 KiB, -311.0 KiB]  -1.1%    better      
+gpuPssChartBytes       808.5 KiB  388.0 KiB  -420.5 KiB  [-437.5 KiB, -375.0 KiB]  -52.0%   better      
+canvasBackingBytes     1.15 MiB   0.0 KiB    -1.15 MiB   [-1.15 MiB, -1.15 MiB]    -100.0%  better      
+domNodes               58.00      96.00      38.00       [38.00, 38.00]            65.5%    worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T023503Z-first-1x100000-gaps-uplot-vs-axylo-canvas-63ae
+  A=uplot  B=axylo-canvas  first {"size":"1x100000","gaps":true}  8 blocks  order BA AB AB AB BA BA AB BA  seed 2022581774
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T023503Z-first-1x100000-gaps-uplot-vs-axylo-canvas-63ae.json
+  admission uplot: ok
+  admission axylo-canvas: ok
+  block 1/8 BA B=axylo-canvas: ok taskMs=79.244
+  block 1/8 BA A=uplot: ok taskMs=19.626
+  block 2/8 AB A=uplot: ok taskMs=15.500
+  block 2/8 AB B=axylo-canvas: ok taskMs=109.312
+  block 3/8 AB A=uplot: ok taskMs=18.110
+  block 3/8 AB B=axylo-canvas: ok taskMs=86.094
+  block 4/8 AB A=uplot: ok taskMs=13.974
+  block 4/8 AB B=axylo-canvas: ok taskMs=92.600
+  block 5/8 BA B=axylo-canvas: ok taskMs=84.844
+  block 5/8 BA A=uplot: ok taskMs=15.163
+  block 6/8 BA B=axylo-canvas: ok taskMs=86.445
+  block 6/8 BA A=uplot: ok taskMs=19.800
+  block 7/8 AB A=uplot: ok taskMs=17.576
+  block 7/8 AB B=axylo-canvas: ok taskMs=94.762
+  block 8/8 BA B=axylo-canvas: ok taskMs=89.699
+  block 8/8 BA A=uplot: ok taskMs=16.230
+
+20261118T023503Z-first-1x100000-gaps-uplot-vs-axylo-canvas-63ae  [complete]
+comparison: A=uplot  B=axylo-canvas  workload first {"size":"1x100000","gaps":true}
+complete pairs 8/8; run outcomes {"B:ok":8,"A:ok":8}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                  B/A-1   outcome     
+taskMs *               16.90      88.07      71.17      [66.60, 78.18]          421.0%  worse       
+scriptMs               12.95      74.68      61.73      [59.51, 66.96]          476.5%  worse       
+layoutStyleMs          0.948      2.17       1.22       [0.984, 1.53]           128.9%  worse       
+readyMs                13.00      76.95      63.95      [61.75, 69.40]          491.9%  worse       
+readyFrameMs           14.20      81.75      67.55      [64.85, 73.90]          475.7%  worse       
+rendererCpuMs          30.00      170.0      140.0      [140.0, 140.0]          466.7%  worse       
+gpuCpuMs               0.000      0.000      0.000      [0.000, 5.00]           n/a     inconclusive
+heapChartBytes         1.72 MiB   9.57 MiB   7.84 MiB   [7.84 MiB, 7.84 MiB]    455.1%  worse       
+heapUsedBytes          2.73 MiB   10.63 MiB  7.90 MiB   [7.90 MiB, 7.90 MiB]    289.2%  worse       
+rendererPssBytes       65.23 MiB  82.51 MiB  17.29 MiB  [17.18 MiB, 17.35 MiB]  26.5%   worse       
+rendererPssChartBytes  7.21 MiB   25.92 MiB  18.72 MiB  [18.63 MiB, 18.93 MiB]  259.8%  worse       
+gpuPssBytes            38.71 MiB  39.06 MiB  364.0 KiB  [348.0 KiB, 404.0 KiB]  0.9%    worse       
+gpuPssChartBytes       494.5 KiB  848.0 KiB  353.5 KiB  [341.5 KiB, 380.5 KiB]  71.5%   worse       
+canvasBackingBytes     1.13 MiB   1.15 MiB   18.8 KiB   [18.8 KiB, 18.8 KiB]    1.6%    worse       
+domNodes               24.00      58.00      34.00      [34.00, 34.00]          141.7%  worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T023535Z-first-1x100000-gaps-uplot-vs-axylo-svg-2505
+  A=uplot  B=axylo-svg  first {"size":"1x100000","gaps":true}  8 blocks  order AB BA AB BA AB BA AB BA  seed 647057977
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T023535Z-first-1x100000-gaps-uplot-vs-axylo-svg-2505.json
+  admission uplot: ok
+  admission axylo-svg: ok
+  block 1/8 AB A=uplot: ok taskMs=13.647
+  block 1/8 AB B=axylo-svg: ok taskMs=85.521
+  block 2/8 BA B=axylo-svg: ok taskMs=83.143
+  block 2/8 BA A=uplot: ok taskMs=20.270
+  block 3/8 AB A=uplot: ok taskMs=15.528
+  block 3/8 AB B=axylo-svg: ok taskMs=79.489
+  block 4/8 BA B=axylo-svg: ok taskMs=78.693
+  block 4/8 BA A=uplot: ok taskMs=15.910
+  block 5/8 AB A=uplot: ok taskMs=18.190
+  block 5/8 AB B=axylo-svg: ok taskMs=88.571
+  block 6/8 BA B=axylo-svg: ok taskMs=86.277
+  block 6/8 BA A=uplot: ok taskMs=15.142
+  block 7/8 AB A=uplot: ok taskMs=13.671
+  block 7/8 AB B=axylo-svg: ok taskMs=76.457
+  block 8/8 BA B=axylo-svg: ok taskMs=80.066
+  block 8/8 BA A=uplot: ok taskMs=13.377
+
+20261118T023535Z-first-1x100000-gaps-uplot-vs-axylo-svg-2505  [complete]
+comparison: A=uplot  B=axylo-svg  workload first {"size":"1x100000","gaps":true}
+complete pairs 8/8; run outcomes {"A:ok":8,"B:ok":8}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A         95% CI                   B/A-1    outcome     
+taskMs *               15.34      81.60      66.27       [63.37, 71.13]           432.1%   worse       
+scriptMs               12.28      71.86      59.58       [55.67, 62.47]           485.1%   worse       
+layoutStyleMs          0.940      2.64       1.70        [1.41, 2.01]             180.7%   worse       
+readyMs                12.30      74.60      62.30       [57.95, 65.30]           506.5%   worse       
+readyFrameMs           13.60      76.25      62.65       [58.10, 65.85]           460.7%   worse       
+rendererCpuMs          30.00      170.0      140.0       [130.0, 145.0]           466.7%   worse       
+gpuCpuMs               0.000      0.000      0.000       [0.000, 0.000]           n/a      inconclusive
+heapChartBytes         1.72 MiB   9.67 MiB   7.95 MiB    [7.95 MiB, 7.95 MiB]     461.4%   worse       
+heapUsedBytes          2.73 MiB   10.74 MiB  8.01 MiB    [8.01 MiB, 8.01 MiB]     293.2%   worse       
+rendererPssBytes       64.59 MiB  80.03 MiB  15.45 MiB   [14.92 MiB, 15.93 MiB]   23.9%    worse       
+rendererPssChartBytes  6.60 MiB   23.82 MiB  17.22 MiB   [16.59 MiB, 17.51 MiB]   261.0%   worse       
+gpuPssBytes            38.93 MiB  38.80 MiB  -137.5 KiB  [-316.0 KiB, -88.5 KiB]  -0.3%    better      
+gpuPssChartBytes       498.0 KiB  394.0 KiB  -104.0 KiB  [-132.0 KiB, -94.0 KiB]  -20.9%   better      
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB   [-1.13 MiB, -1.13 MiB]   -100.0%  better      
+domNodes               24.00      96.00      72.00       [72.00, 72.00]           300.0%   worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T023607Z-first-1x1000000-axylo-canvas-vs-axylo-svg-f230
+  A=axylo-canvas  B=axylo-svg  first {"size":"1x1000000","gaps":false}  4 blocks  order AB BA AB BA  seed 507697589
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T023607Z-first-1x1000000-axylo-canvas-vs-axylo-svg-f230.json
+  admission axylo-canvas: ok
+  admission axylo-svg: ok
+  block 1/4 AB A=axylo-canvas: ok taskMs=714.241
+  block 1/4 AB B=axylo-svg: ok taskMs=600.599
+  block 2/4 BA B=axylo-svg: ok taskMs=724.921
+  block 2/4 BA A=axylo-canvas: ok taskMs=586.773
+  block 3/4 AB A=axylo-canvas: ok taskMs=588.645
+  block 3/4 AB B=axylo-svg: ok taskMs=633.143
+  block 4/4 BA B=axylo-svg: ok taskMs=670.447
+  block 4/4 BA A=axylo-canvas: ok taskMs=655.497
+
+20261118T023607Z-first-1x1000000-axylo-canvas-vs-axylo-svg-f230  [complete]
+comparison: A=axylo-canvas  B=axylo-svg  workload first {"size":"1x1000000","gaps":false}
+complete pairs 4/4; run outcomes {"A:ok":4,"B:ok":4}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A    median B    B-A         95% CI                    B/A-1    outcome                 
+taskMs *               622.1       651.8       29.72       [-113.6, 138.1]           4.8%     inconclusive (few pairs)
+scriptMs               574.0       609.3       35.28       [-107.2, 114.1]           6.1%     inconclusive (few pairs)
+layoutStyleMs          2.26        2.33        0.076       [-0.627, 0.341]           3.4%     inconclusive (few pairs)
+readyMs                578.0       613.4       35.30       [-107.9, 114.2]           6.1%     inconclusive (few pairs)
+readyFrameMs           583.0       614.5       31.45       [-112.7, 110.5]           5.4%     inconclusive (few pairs)
+rendererCpuMs          1000.0      1065.0      65.00       [-120.0, 180.0]           6.5%     inconclusive (few pairs)
+gpuCpuMs               5.00        0.000       -5.00       [-10.00, 10.00]           -100.0%  inconclusive (few pairs)
+heapChartBytes         78.96 MiB   79.06 MiB   98.2 KiB    [96.7 KiB, 99.5 KiB]      0.1%     inconclusive (few pairs)
+heapUsedBytes          80.03 MiB   80.12 MiB   98.2 KiB    [96.7 KiB, 99.5 KiB]      0.1%     inconclusive (few pairs)
+rendererPssBytes       194.02 MiB  191.43 MiB  -2.60 MiB   [-3.01 MiB, -2.29 MiB]    -1.3%    inconclusive (few pairs)
+rendererPssChartBytes  124.40 MiB  121.73 MiB  -2.67 MiB   [-2.83 MiB, -2.48 MiB]    -2.1%    inconclusive (few pairs)
+gpuPssBytes            38.74 MiB   38.37 MiB   -381.0 KiB  [-746.0 KiB, -306.0 KiB]  -1.0%    inconclusive (few pairs)
+gpuPssChartBytes       748.5 KiB   404.5 KiB   -344.0 KiB  [-357.0 KiB, -316.0 KiB]  -46.0%   inconclusive (few pairs)
+canvasBackingBytes     1.15 MiB    0.0 KiB     -1.15 MiB   [-1.15 MiB, -1.15 MiB]    -100.0%  inconclusive (few pairs)
+domNodes               44.00       74.00       30.00       [30.00, 30.00]            68.2%    inconclusive (few pairs)
+(few pairs): fewer complete pairs than the minimum for a verdict; the interval is shown, the outcome is inconclusive by rule.
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T023633Z-first-1x1000000-uplot-vs-axylo-canvas-9f6a
+  A=uplot  B=axylo-canvas  first {"size":"1x1000000","gaps":false}  4 blocks  order AB BA BA AB  seed 1364612887
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T023633Z-first-1x1000000-uplot-vs-axylo-canvas-9f6a.json
+  admission uplot: ok
+  admission axylo-canvas: ok
+  block 1/4 AB A=uplot: ok taskMs=22.124
+  block 1/4 AB B=axylo-canvas: ok taskMs=589.639
+  block 2/4 BA B=axylo-canvas: ok taskMs=737.665
+  block 2/4 BA A=uplot: ok taskMs=23.347
+  block 3/4 BA B=axylo-canvas: ok taskMs=646.445
+  block 3/4 BA A=uplot: ok taskMs=23.468
+  block 4/4 AB A=uplot: ok taskMs=20.690
+  block 4/4 AB B=axylo-canvas: ok taskMs=567.439
+
+20261118T023633Z-first-1x1000000-uplot-vs-axylo-canvas-9f6a  [complete]
+comparison: A=uplot  B=axylo-canvas  workload first {"size":"1x1000000","gaps":false}
+complete pairs 4/4; run outcomes {"A:ok":4,"B:ok":4}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B    B-A         95% CI                    B/A-1     outcome                 
+taskMs *               22.74      618.0       595.3       [546.7, 714.3]            2618.4%   inconclusive (few pairs)
+scriptMs               20.08      574.8       554.7       [521.3, 686.4]            2763.0%   inconclusive (few pairs)
+layoutStyleMs          0.933      2.21        1.28        [1.10, 1.55]              137.1%    inconclusive (few pairs)
+readyMs                20.25      578.8       558.5       [524.8, 690.5]            2758.3%   inconclusive (few pairs)
+readyFrameMs           20.85      583.7       562.8       [529.0, 694.8]            2699.3%   inconclusive (few pairs)
+rendererCpuMs          30.00      985.0       955.0       [890.0, 1090.0]           3183.3%   inconclusive (few pairs)
+gpuCpuMs               0.000      0.000       0.000       [0.000, 10.00]            n/a       inconclusive (few pairs)
+heapChartBytes         244.5 KiB  78.96 MiB   78.73 MiB   [78.72 MiB, 78.73 MiB]    32965.1%  inconclusive (few pairs)
+heapUsedBytes          1.25 MiB   80.03 MiB   78.78 MiB   [78.78 MiB, 78.78 MiB]    6319.5%   inconclusive (few pairs)
+rendererPssBytes       76.40 MiB  194.25 MiB  117.85 MiB  [117.65 MiB, 118.27 MiB]  154.3%    inconclusive (few pairs)
+rendererPssChartBytes  4.93 MiB   124.54 MiB  119.61 MiB  [119.48 MiB, 119.85 MiB]  2424.7%   inconclusive (few pairs)
+gpuPssBytes            38.54 MiB  38.80 MiB   266.0 KiB   [194.0 KiB, 533.0 KiB]    0.7%      inconclusive (few pairs)
+gpuPssChartBytes       492.5 KiB  757.0 KiB   264.5 KiB   [260.0 KiB, 269.0 KiB]    53.7%     inconclusive (few pairs)
+canvasBackingBytes     1.13 MiB   1.15 MiB    18.8 KiB    [18.8 KiB, 18.8 KiB]      1.6%      inconclusive (few pairs)
+domNodes               24.00      44.00       20.00       [20.00, 20.00]            83.3%     inconclusive (few pairs)
+(few pairs): fewer complete pairs than the minimum for a verdict; the interval is shown, the outcome is inconclusive by rule.
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T023656Z-first-1x1000000-uplot-vs-axylo-svg-50d6
+  A=uplot  B=axylo-svg  first {"size":"1x1000000","gaps":false}  4 blocks  order BA BA AB AB  seed 1528576200
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T023656Z-first-1x1000000-uplot-vs-axylo-svg-50d6.json
+  admission uplot: ok
+  admission axylo-svg: ok
+  block 1/4 BA B=axylo-svg: ok taskMs=585.305
+  block 1/4 BA A=uplot: ok taskMs=22.363
+  block 2/4 BA B=axylo-svg: ok taskMs=589.620
+  block 2/4 BA A=uplot: ok taskMs=24.201
+  block 3/4 AB A=uplot: ok taskMs=19.079
+  block 3/4 AB B=axylo-svg: ok taskMs=675.524
+  block 4/4 AB A=uplot: ok taskMs=22.104
+  block 4/4 AB B=axylo-svg: ok taskMs=615.031
+
+20261118T023656Z-first-1x1000000-uplot-vs-axylo-svg-50d6  [complete]
+comparison: A=uplot  B=axylo-svg  workload first {"size":"1x1000000","gaps":false}
+complete pairs 4/4; run outcomes {"B:ok":4,"A:ok":4}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B    B-A         95% CI                    B/A-1     outcome                 
+taskMs *               22.23      602.3       580.1       [562.9, 656.4]            2609.1%   inconclusive (few pairs)
+scriptMs               19.30      574.1       554.8       [513.4, 632.6]            2873.9%   inconclusive (few pairs)
+layoutStyleMs          0.896      2.77        1.87        [1.62, 2.22]              209.1%    inconclusive (few pairs)
+readyMs                19.50      578.4       558.9       [517.8, 636.6]            2865.9%   inconclusive (few pairs)
+readyFrameMs           20.15      579.5       559.4       [518.3, 637.4]            2776.2%   inconclusive (few pairs)
+rendererCpuMs          30.00      995.0       965.0       [930.0, 1030.0]           3216.7%   inconclusive (few pairs)
+gpuCpuMs               0.000      5.00        5.00        [-10.00, 10.00]           n/a       inconclusive (few pairs)
+heapChartBytes         250.2 KiB  79.06 MiB   78.82 MiB   [78.82 MiB, 78.82 MiB]    32252.6%  inconclusive (few pairs)
+heapUsedBytes          1.25 MiB   80.12 MiB   78.87 MiB   [78.87 MiB, 78.88 MiB]    6298.6%   inconclusive (few pairs)
+rendererPssBytes       76.42 MiB  191.93 MiB  115.52 MiB  [115.27 MiB, 115.57 MiB]  151.2%    inconclusive (few pairs)
+rendererPssChartBytes  5.06 MiB   122.23 MiB  117.17 MiB  [117.04 MiB, 117.22 MiB]  2314.3%   inconclusive (few pairs)
+gpuPssBytes            39.16 MiB  39.24 MiB   86.5 KiB    [-73.0 KiB, 190.0 KiB]    0.2%      inconclusive (few pairs)
+gpuPssChartBytes       490.5 KiB  382.5 KiB   -108.0 KiB  [-109.0 KiB, -96.0 KiB]   -22.0%    inconclusive (few pairs)
+canvasBackingBytes     1.13 MiB   0.0 KiB     -1.13 MiB   [-1.13 MiB, -1.13 MiB]    -100.0%   inconclusive (few pairs)
+domNodes               24.00      74.00       50.00       [50.00, 50.00]            208.3%    inconclusive (few pairs)
+(few pairs): fewer complete pairs than the minimum for a verdict; the interval is shown, the outcome is inconclusive by rule.
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T023718Z-page-3x120-x24-axylo-canvas-vs-axylo-svg-41e7
+  A=axylo-canvas  B=axylo-svg  page {"size":"3x120","charts":24,"gaps":false}  8 blocks  order AB BA AB BA BA AB AB BA  seed 1803608403
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T023718Z-page-3x120-x24-axylo-canvas-vs-axylo-svg-41e7.json
+  admission axylo-canvas: ok
+  admission axylo-svg: ok
+  block 1/8 AB A=axylo-canvas: ok taskMs=154.618
+  block 1/8 AB B=axylo-svg: ok taskMs=134.727
+  block 2/8 BA B=axylo-svg: ok taskMs=131.798
+  block 2/8 BA A=axylo-canvas: ok taskMs=146.974
+  block 3/8 AB A=axylo-canvas: ok taskMs=149.733
+  block 3/8 AB B=axylo-svg: ok taskMs=127.903
+  block 4/8 BA B=axylo-svg: ok taskMs=132.036
+  block 4/8 BA A=axylo-canvas: ok taskMs=153.990
+  block 5/8 BA B=axylo-svg: ok taskMs=127.690
+  block 5/8 BA A=axylo-canvas: ok taskMs=161.951
+  block 6/8 AB A=axylo-canvas: ok taskMs=165.968
+  block 6/8 AB B=axylo-svg: ok taskMs=143.192
+  block 7/8 AB A=axylo-canvas: ok taskMs=181.423
+  block 7/8 AB B=axylo-svg: ok taskMs=165.590
+  block 8/8 BA B=axylo-svg: ok taskMs=132.543
+  block 8/8 BA A=axylo-canvas: ok taskMs=140.840
+
+20261118T023718Z-page-3x120-x24-axylo-canvas-vs-axylo-svg-41e7  [complete]
+comparison: A=axylo-canvas  B=axylo-svg  workload page {"size":"3x120","charts":24,"gaps":false}
+complete pairs 8/8; run outcomes {"A:ok":8,"B:ok":8}
+noise band: from 20261118T022851Z-page-3x120-x24-aa-axylo-canvas-567b + 20261118T022921Z-page-3x120-x24-aa-axylo-svg-ef71
+
+metric                 median A   median B   B-A        95% CI                   B/A-1    outcome     
+taskMs *               154.3      132.3      -22.01     [-30.49, -15.06]         -14.3%   inconclusive
+scriptMs               78.81      73.02      -5.79      [-11.06, -0.919]         -7.3%    inconclusive
+layoutStyleMs          32.19      31.01      -1.18      [-3.92, 0.537]           -3.7%    inconclusive
+readyMs                43.85      42.65      -1.20      [-7.25, 0.100]           -2.7%    inconclusive
+readyFrameMs           45.25      43.90      -1.35      [-7.60, -0.250]          -3.0%    inconclusive
+rendererCpuMs          285.0      235.0      -50.00     [-60.00, -30.00]         -17.5%   inconclusive
+gpuCpuMs               50.00      40.00      -10.00     [-25.00, 5.00]           -20.0%   inconclusive
+heapChartBytes         1.99 MiB   2.03 MiB   36.7 KiB   [-289.5 KiB, 398.2 KiB]  1.8%     inconclusive
+heapUsedBytes          3.08 MiB   3.12 MiB   36.2 KiB   [-289.4 KiB, 399.3 KiB]  1.1%     inconclusive
+rendererPssBytes       77.14 MiB  72.37 MiB  -4.77 MiB  [-5.99 MiB, -3.70 MiB]   -6.2%    better      
+rendererPssChartBytes  23.11 MiB  18.38 MiB  -4.72 MiB  [-6.08 MiB, -3.79 MiB]   -20.4%   better      
+gpuPssBytes            42.38 MiB  40.69 MiB  -1.70 MiB  [-1.80 MiB, -1.63 MiB]   -4.0%    better      
+gpuPssChartBytes       3.77 MiB   2.01 MiB   -1.76 MiB  [-1.80 MiB, -1.72 MiB]   -46.8%   better      
+canvasBackingBytes     1.92 MiB   0.0 KiB    -1.92 MiB  [-1.92 MiB, -1.92 MiB]   -100.0%  better      
+domNodes               385.0      529.0      144.0      [144.0, 144.0]           37.4%    worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T023750Z-page-3x120-x24-uplot-vs-axylo-canvas-c286
+  A=uplot  B=axylo-canvas  page {"size":"3x120","charts":24,"gaps":false}  8 blocks  order BA AB BA BA AB AB AB BA  seed 377301165
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T023750Z-page-3x120-x24-uplot-vs-axylo-canvas-c286.json
+  admission uplot: ok
+  admission axylo-canvas: ok
+  block 1/8 BA B=axylo-canvas: ok taskMs=171.118
+  block 1/8 BA A=uplot: ok taskMs=25.724
+  block 2/8 AB A=uplot: ok taskMs=26.822
+  block 2/8 AB B=axylo-canvas: ok taskMs=356.374
+  block 3/8 BA B=axylo-canvas: ok taskMs=141.699
+  block 3/8 BA A=uplot: ok taskMs=25.643
+  block 4/8 BA B=axylo-canvas: ok taskMs=146.231
+  block 4/8 BA A=uplot: ok taskMs=24.512
+  block 5/8 AB A=uplot: ok taskMs=27.057
+  block 5/8 AB B=axylo-canvas: ok taskMs=146.790
+  block 6/8 AB A=uplot: ok taskMs=26.563
+  block 6/8 AB B=axylo-canvas: ok taskMs=166.430
+  block 7/8 AB A=uplot: ok taskMs=28.940
+  block 7/8 AB B=axylo-canvas: ok taskMs=147.098
+  block 8/8 BA B=axylo-canvas: ok taskMs=170.985
+  block 8/8 BA A=uplot: ok taskMs=26.266
+
+20261118T023750Z-page-3x120-x24-uplot-vs-axylo-canvas-c286  [complete]
+comparison: A=uplot  B=axylo-canvas  workload page {"size":"3x120","charts":24,"gaps":false}
+complete pairs 8/8; run outcomes {"B:ok":8,"A:ok":8}
+noise band: from 20261118T022851Z-page-3x120-x24-aa-axylo-canvas-567b + 20261118T022921Z-page-3x120-x24-aa-axylo-svg-ef71
+
+metric                 median A   median B   B-A        95% CI                  B/A-1   outcome
+taskMs *               26.41      156.8      130.3      [119.7, 145.3]          493.5%  worse  
+scriptMs               13.67      80.26      66.60      [60.11, 76.87]          487.3%  worse  
+layoutStyleMs          6.41       32.13      25.72      [23.84, 29.98]          400.9%  worse  
+readyMs                19.45      42.05      22.60      [21.95, 38.60]          116.2%  worse  
+readyFrameMs           20.25      43.35      23.10      [22.60, 39.50]          114.1%  worse  
+rendererCpuMs          40.00      275.0      235.0      [210.0, 270.0]          587.5%  worse  
+gpuCpuMs               0.000      35.00      35.00      [30.00, 50.00]          n/a     worse  
+heapChartBytes         1.02 MiB   1.86 MiB   867.9 KiB  [834.1 KiB, 1.14 MiB]   83.3%   worse  
+heapUsedBytes          2.05 MiB   2.95 MiB   924.4 KiB  [890.1 KiB, 1.20 MiB]   44.0%   worse  
+rendererPssBytes       68.60 MiB  76.06 MiB  7.46 MiB   [6.59 MiB, 9.05 MiB]    10.9%   worse  
+rendererPssChartBytes  12.81 MiB  21.78 MiB  8.97 MiB   [7.86 MiB, 10.38 MiB]   70.0%   worse  
+gpuPssBytes            40.63 MiB  42.30 MiB  1.67 MiB   [1.55 MiB, 1.91 MiB]    4.1%    worse  
+gpuPssChartBytes       2.03 MiB   3.79 MiB   1.76 MiB   [1.73 MiB, 1.83 MiB]    87.1%   worse  
+canvasBackingBytes     1.79 MiB   1.92 MiB   129.4 KiB  [129.4 KiB, 129.4 KiB]  7.1%    worse  
+domNodes               865.0      385.0      -480.0     [-480.0, -480.0]        -55.5%  better 
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T023821Z-page-3x120-x24-uplot-vs-axylo-svg-2fe5
+  A=uplot  B=axylo-svg  page {"size":"3x120","charts":24,"gaps":false}  8 blocks  order BA BA BA AB AB AB BA AB  seed 37682253
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T023821Z-page-3x120-x24-uplot-vs-axylo-svg-2fe5.json
+  admission uplot: ok
+  admission axylo-svg: ok
+  block 1/8 BA B=axylo-svg: ok taskMs=155.775
+  block 1/8 BA A=uplot: ok taskMs=31.417
+  block 2/8 BA B=axylo-svg: ok taskMs=170.698
+  block 2/8 BA A=uplot: ok taskMs=32.202
+  block 3/8 BA B=axylo-svg: ok taskMs=136.084
+  block 3/8 BA A=uplot: ok taskMs=35.968
+  block 4/8 AB A=uplot: ok taskMs=35.438
+  block 4/8 AB B=axylo-svg: ok taskMs=173.788
+  block 5/8 AB A=uplot: ok taskMs=31.875
+  block 5/8 AB B=axylo-svg: ok taskMs=223.765
+  block 6/8 AB A=uplot: ok taskMs=31.257
+  block 6/8 AB B=axylo-svg: ok taskMs=218.919
+  block 7/8 BA B=axylo-svg: ok taskMs=185.068
+  block 7/8 BA A=uplot: ok taskMs=35.979
+  block 8/8 AB A=uplot: ok taskMs=25.433
+  block 8/8 AB B=axylo-svg: ok taskMs=201.820
+
+20261118T023821Z-page-3x120-x24-uplot-vs-axylo-svg-2fe5  [complete]
+comparison: A=uplot  B=axylo-svg  workload page {"size":"3x120","charts":24,"gaps":false}
+complete pairs 8/8; run outcomes {"B:ok":8,"A:ok":8}
+noise band: from 20261118T022851Z-page-3x120-x24-aa-axylo-canvas-567b + 20261118T022921Z-page-3x120-x24-aa-axylo-svg-ef71
+
+metric                 median A   median B   B-A        95% CI                   B/A-1    outcome     
+taskMs *               32.04      179.4      147.4      [124.1, 187.0]           460.0%   worse       
+scriptMs               17.18      94.02      76.84      [69.55, 105.1]           447.4%   worse       
+layoutStyleMs          8.01       42.80      34.80      [27.25, 42.58]           434.4%   worse       
+readyMs                24.25      50.00      25.75      [19.10, 45.50]           106.2%   inconclusive
+readyFrameMs           25.20      52.15      26.95      [19.30, 46.10]           106.9%   inconclusive
+rendererCpuMs          50.00      305.0      255.0      [225.0, 300.0]           510.0%   worse       
+gpuCpuMs               0.000      40.00      40.00      [30.00, 50.00]           n/a      worse       
+heapChartBytes         1.02 MiB   2.19 MiB   1.17 MiB   [1.16 MiB, 1.19 MiB]     115.2%   worse       
+heapUsedBytes          2.05 MiB   3.28 MiB   1.23 MiB   [1.22 MiB, 1.24 MiB]     59.9%    worse       
+rendererPssBytes       68.52 MiB  72.94 MiB  4.42 MiB   [3.76 MiB, 5.25 MiB]     6.5%     worse       
+rendererPssChartBytes  12.98 MiB  19.13 MiB  6.15 MiB   [5.46 MiB, 7.07 MiB]     47.4%    worse       
+gpuPssBytes            41.06 MiB  41.04 MiB  -24.5 KiB  [-253.0 KiB, 339.0 KiB]  -0.1%    inconclusive
+gpuPssChartBytes       2.03 MiB   1.99 MiB   -48.5 KiB  [-77.0 KiB, 558.0 KiB]   -2.3%    inconclusive
+canvasBackingBytes     1.79 MiB   0.0 KiB    -1.79 MiB  [-1.79 MiB, -1.79 MiB]   -100.0%  better      
+domNodes               865.0      529.0      -336.0     [-336.0, -336.0]         -38.8%   better      
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T023853Z-stream-w600-axylo-canvas-vs-axylo-svg-5dcc
+  A=axylo-canvas  B=axylo-svg  stream {"window":600,"samples":300}  8 blocks  order AB AB BA BA BA AB BA AB  seed 12227741
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T023853Z-stream-w600-axylo-canvas-vs-axylo-svg-5dcc.json
+  admission axylo-canvas: ok
+  admission axylo-svg: ok
+  block 1/8 AB A=axylo-canvas: ok taskMsPerUpdate=2.243
+  block 1/8 AB B=axylo-svg: ok taskMsPerUpdate=1.658
+  block 2/8 AB A=axylo-canvas: ok taskMsPerUpdate=2.879
+  block 2/8 AB B=axylo-svg: ok taskMsPerUpdate=1.327
+  block 3/8 BA B=axylo-svg: ok taskMsPerUpdate=1.828
+  block 3/8 BA A=axylo-canvas: ok taskMsPerUpdate=2.105
+  block 4/8 BA B=axylo-svg: ok taskMsPerUpdate=1.340
+  block 4/8 BA A=axylo-canvas: ok taskMsPerUpdate=2.176
+  block 5/8 BA B=axylo-svg: ok taskMsPerUpdate=1.472
+  block 5/8 BA A=axylo-canvas: ok taskMsPerUpdate=2.268
+  block 6/8 AB A=axylo-canvas: ok taskMsPerUpdate=2.254
+  block 6/8 AB B=axylo-svg: ok taskMsPerUpdate=1.483
+  block 7/8 BA B=axylo-svg: ok taskMsPerUpdate=1.370
+  block 7/8 BA A=axylo-canvas: ok taskMsPerUpdate=2.325
+  block 8/8 AB A=axylo-canvas: ok taskMsPerUpdate=2.430
+  block 8/8 AB B=axylo-svg: ok taskMsPerUpdate=1.419
+
+20261118T023853Z-stream-w600-axylo-canvas-vs-axylo-svg-5dcc  [complete]
+comparison: A=axylo-canvas  B=axylo-svg  workload stream {"window":600,"samples":300}
+complete pairs 8/8; run outcomes {"A:ok":8,"B:ok":8}
+noise band: none given (outcomes test against zero only)
+
+metric               median A  median B  B-A     95% CI           B/A-1   outcome     
+taskMsPerUpdate *    2.26      1.45      -0.816  [-1.02, -0.585]  -36.1%  better      
+delayP50Ms           19.07     19.22     0.150   [-1.73, 3.78]    0.8%    inconclusive
+delayP95Ms           19.42     19.78     0.367   [-1.33, 4.05]    1.9%    inconclusive
+delayMaxMs           19.90     20.62     0.716   [-0.567, 4.20]   3.6%    inconclusive
+maxBacklog           1.00      1.00      0.000   [0.000, 1.00]    0.0%    inconclusive
+coalesced            15.00     26.00     11.00   [-8.50, 32.00]   73.3%   inconclusive
+frameP95Ms           16.70     16.70     0.002   [-0.100, 0.005]  0.0%    inconclusive
+frameP99Ms           16.80     16.80     0.000   [0.000, 0.000]   0.0%    inconclusive
+framesOverThreshold  0.000     0.000     0.000   [0.000, 0.000]   n/a     inconclusive
+createTaskMs         21.18     19.77     -1.41   [-8.22, 0.404]   -6.7%   inconclusive
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T024054Z-stream-w600-uplot-vs-axylo-canvas-fcdf
+  A=uplot  B=axylo-canvas  stream {"window":600,"samples":300}  6 blocks  order AB BA AB BA AB BA  seed 1226072311
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T024054Z-stream-w600-uplot-vs-axylo-canvas-fcdf.json
+  admission uplot: ok
+  admission axylo-canvas: ok
+  block 1/6 AB A=uplot: ok taskMsPerUpdate=0.507
+  block 1/6 AB B=axylo-canvas: ok taskMsPerUpdate=2.288
+  block 2/6 BA B=axylo-canvas: ok taskMsPerUpdate=2.205
+  block 2/6 BA A=uplot: ok taskMsPerUpdate=0.489
+  block 3/6 AB A=uplot: ok taskMsPerUpdate=0.461
+  block 3/6 AB B=axylo-canvas: ok taskMsPerUpdate=2.202
+  block 4/6 BA B=axylo-canvas: ok taskMsPerUpdate=2.161
+  block 4/6 BA A=uplot: ok taskMsPerUpdate=0.436
+  block 5/6 AB A=uplot: ok taskMsPerUpdate=0.541
+  block 5/6 AB B=axylo-canvas: ok taskMsPerUpdate=2.388
+  block 6/6 BA B=axylo-canvas: ok taskMsPerUpdate=2.124
+  block 6/6 BA A=uplot: ok taskMsPerUpdate=0.447
+
+20261118T024054Z-stream-w600-uplot-vs-axylo-canvas-fcdf  [complete]
+comparison: A=uplot  B=axylo-canvas  workload stream {"window":600,"samples":300}
+complete pairs 6/6; run outcomes {"A:ok":6,"B:ok":6}
+noise band: none given (outcomes test against zero only)
+
+metric               median A  median B  B-A     95% CI           B/A-1   outcome     
+taskMsPerUpdate *    0.475     2.20      1.73    [1.70, 1.81]     364.1%  worse       
+delayP50Ms           15.93     18.92     2.98    [0.750, 4.83]    18.7%   worse       
+delayP95Ms           16.07     19.22     3.15    [0.850, 5.00]    19.6%   worse       
+delayMaxMs           17.42     19.70     2.28    [0.534, 4.87]    13.1%   worse       
+maxBacklog           1.00      1.00      0.000   [0.000, 1.00]    0.0%    inconclusive
+coalesced            2.00      20.50     18.50   [-48.50, 34.00]  925.0%  inconclusive
+frameP95Ms           16.75     16.70     -0.050  [-0.100, 0.097]  -0.3%   inconclusive
+frameP99Ms           16.80     16.80     0.000   [0.000, 0.000]   0.0%    inconclusive
+framesOverThreshold  0.000     0.000     0.000   [0.000, 0.000]   n/a     inconclusive
+createTaskMs         11.69     20.24     8.55    [7.63, 16.11]    73.1%   worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T024228Z-stream-w600-uplot-vs-axylo-svg-9b50
+  A=uplot  B=axylo-svg  stream {"window":600,"samples":300}  6 blocks  order BA AB BA AB AB BA  seed 1913568739
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T024228Z-stream-w600-uplot-vs-axylo-svg-9b50.json
+  admission uplot: ok
+  admission axylo-svg: ok
+  block 1/6 BA B=axylo-svg: ok taskMsPerUpdate=1.364
+  block 1/6 BA A=uplot: ok taskMsPerUpdate=0.436
+  block 2/6 AB A=uplot: ok taskMsPerUpdate=0.449
+  block 2/6 AB B=axylo-svg: ok taskMsPerUpdate=1.571
+  block 3/6 BA B=axylo-svg: ok taskMsPerUpdate=1.818
+  block 3/6 BA A=uplot: ok taskMsPerUpdate=0.804
+  block 4/6 AB A=uplot: ok taskMsPerUpdate=0.746
+  block 4/6 AB B=axylo-svg: ok taskMsPerUpdate=1.450
+  block 5/6 AB A=uplot: ok taskMsPerUpdate=0.642
+  block 5/6 AB B=axylo-svg: ok taskMsPerUpdate=1.873
+  block 6/6 BA B=axylo-svg: ok taskMsPerUpdate=1.693
+  block 6/6 BA A=uplot: ok taskMsPerUpdate=0.692
+
+20261118T024228Z-stream-w600-uplot-vs-axylo-svg-9b50  [complete]
+comparison: A=uplot  B=axylo-svg  workload stream {"window":600,"samples":300}
+complete pairs 6/6; run outcomes {"B:ok":6,"A:ok":6}
+noise band: none given (outcomes test against zero only)
+
+metric               median A  median B  B-A     95% CI           B/A-1   outcome     
+taskMsPerUpdate *    0.667     1.63      0.965   [0.731, 1.20]    144.8%  worse       
+delayP50Ms           18.32     18.02     -0.300  [-3.12, 3.47]    -1.6%   inconclusive
+delayP95Ms           18.45     18.63     0.184   [-2.41, 3.88]    1.0%    inconclusive
+delayMaxMs           19.52     20.23     0.716   [-2.08, 5.25]    3.7%    inconclusive
+maxBacklog           1.00      1.00      0.000   [0.000, 1.00]    0.0%    inconclusive
+coalesced            30.00     25.50     -4.50   [-39.00, 28.00]  -15.0%  inconclusive
+frameP95Ms           16.70     16.75     0.052   [-0.000, 0.100]  0.3%    inconclusive
+frameP99Ms           16.80     16.80     0.000   [0.000, 0.000]   0.0%    inconclusive
+framesOverThreshold  0.000     0.000     0.000   [0.000, 0.000]   n/a     inconclusive
+createTaskMs         8.54      22.75     14.21   [7.41, 16.51]    166.4%  worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T024403Z-theme-3x120-axylo-canvas-vs-axylo-svg-b139
+  A=axylo-canvas  B=axylo-svg  theme {"size":"3x120","toggles":20}  8 blocks  order BA AB BA AB AB BA AB BA  seed 815562804
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T024403Z-theme-3x120-axylo-canvas-vs-axylo-svg-b139.json
+  admission axylo-canvas: ok
+  admission axylo-svg: ok
+  block 1/8 BA B=axylo-svg: ok taskMsPerToggle=2.117
+  block 1/8 BA A=axylo-canvas: ok taskMsPerToggle=2.976
+  block 2/8 AB A=axylo-canvas: ok taskMsPerToggle=3.335
+  block 2/8 AB B=axylo-svg: ok taskMsPerToggle=2.396
+  block 3/8 BA B=axylo-svg: ok taskMsPerToggle=2.149
+  block 3/8 BA A=axylo-canvas: ok taskMsPerToggle=3.609
+  block 4/8 AB A=axylo-canvas: ok taskMsPerToggle=2.221
+  block 4/8 AB B=axylo-svg: ok taskMsPerToggle=1.898
+  block 5/8 AB A=axylo-canvas: ok taskMsPerToggle=3.245
+  block 5/8 AB B=axylo-svg: ok taskMsPerToggle=2.336
+  block 6/8 BA B=axylo-svg: ok taskMsPerToggle=1.832
+  block 6/8 BA A=axylo-canvas: ok taskMsPerToggle=2.386
+  block 7/8 AB A=axylo-canvas: ok taskMsPerToggle=2.271
+  block 7/8 AB B=axylo-svg: ok taskMsPerToggle=1.409
+  block 8/8 BA B=axylo-svg: ok taskMsPerToggle=1.392
+  block 8/8 BA A=axylo-canvas: ok taskMsPerToggle=2.286
+
+20261118T024403Z-theme-3x120-axylo-canvas-vs-axylo-svg-b139  [complete]
+comparison: A=axylo-canvas  B=axylo-svg  workload theme {"size":"3x120","toggles":20}
+complete pairs 8/8; run outcomes {"B:ok":8,"A:ok":8}
+noise band: none given (outcomes test against zero only)
+
+metric                median A  median B  B-A     95% CI            B/A-1    outcome     
+taskMsPerToggle *     2.68      2.01      -0.674  [-1.14, -0.380]   -25.1%   better      
+taskMsToggleMax       4.24      2.91      -1.33   [-1.80, -0.132]   -31.3%   better      
+canvasCallsPerToggle  27.00     0.000     -27.00  [-27.00, -27.00]  -100.0%  better      
+mutationsPerToggle    6.00      6.00      0.000   [0.000, 0.000]    0.0%     inconclusive
+framesToNewColor      1.00      1.00      0.000   [0.000, 0.000]    0.0%     inconclusive
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T024504Z-theme-3x120-uplot-vs-axylo-canvas-0f67
+  A=uplot  B=axylo-canvas  theme {"size":"3x120","toggles":20}  2 blocks  order AB BA  seed 877129155
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T024504Z-theme-3x120-uplot-vs-axylo-canvas-0f67.json
+  admission uplot: not-admitted (theme: marks did not change color on the first toggle (canvas:#000000|#1f77b4|#2ca02c|#d62728))
+  admission axylo-canvas: ok
+  not timed: uplot: not-admitted (theme: marks did not change color on the first toggle (canvas:#000000|#1f77b4|#2ca02c|#d62728))
+run 20261118T024512Z-resize-1x100000-axylo-canvas-vs-axylo-svg-c11f
+  A=axylo-canvas  B=axylo-svg  resize {"size":"1x100000","charts":1}  8 blocks  order BA BA BA AB AB AB AB BA  seed 301099497
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T024512Z-resize-1x100000-axylo-canvas-vs-axylo-svg-c11f.json
+  admission axylo-canvas: ok
+  admission axylo-svg: ok
+  block 1/8 BA B=axylo-svg: ok taskMs=468.696
+  block 1/8 BA A=axylo-canvas: ok taskMs=917.219
+  block 2/8 BA B=axylo-svg: ok taskMs=562.895
+  block 2/8 BA A=axylo-canvas: ok taskMs=899.663
+  block 3/8 BA B=axylo-svg: ok taskMs=465.338
+  block 3/8 BA A=axylo-canvas: ok taskMs=978.934
+  block 4/8 AB A=axylo-canvas: ok taskMs=931.013
+  block 4/8 AB B=axylo-svg: ok taskMs=524.905
+  block 5/8 AB A=axylo-canvas: ok taskMs=940.923
+  block 5/8 AB B=axylo-svg: ok taskMs=465.872
+  block 6/8 AB A=axylo-canvas: ok taskMs=878.209
+  block 6/8 AB B=axylo-svg: ok taskMs=475.904
+  block 7/8 AB A=axylo-canvas: ok taskMs=912.847
+  block 7/8 AB B=axylo-svg: ok taskMs=479.758
+  block 8/8 BA B=axylo-svg: ok taskMs=456.057
+  block 8/8 BA A=axylo-canvas: ok taskMs=888.488
+
+20261118T024512Z-resize-1x100000-axylo-canvas-vs-axylo-svg-c11f  [complete]
+comparison: A=axylo-canvas  B=axylo-svg  workload resize {"size":"1x100000","charts":1}
+complete pairs 8/8; run outcomes {"B:ok":8,"A:ok":8}
+noise band: none given (outcomes test against zero only)
+
+metric               median A  median B  B-A     95% CI            B/A-1   outcome     
+taskMs *             915.0     472.3     -442.7  [-475.1, -397.3]  -48.4%  better      
+frameP95Ms           16.79     16.70     -0.095  [-0.100, 0.047]   -0.6%   inconclusive
+frameP99Ms           16.80     16.80     0.000   [-0.000, 0.000]   0.0%    inconclusive
+framesOverThreshold  0.000     0.000     0.000   [0.000, 0.000]    n/a     inconclusive
+frameMaxMs           16.80     16.80     0.000   [0.000, 0.000]    0.0%    inconclusive
+rendererCpuMs        1035.0    1770.0    735.0   [690.0, 840.0]    71.0%   worse       
+gpuCpuMs             120.0     80.00     -40.00  [-65.00, -30.00]  -33.3%  better      
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T024629Z-resize-1x100000-uplot-vs-axylo-canvas-0931
+  A=uplot  B=axylo-canvas  resize {"size":"1x100000","charts":1}  6 blocks  order AB BA AB BA AB BA  seed 2024312910
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T024629Z-resize-1x100000-uplot-vs-axylo-canvas-0931.json
+  admission uplot: ok
+  admission axylo-canvas: ok
+  block 1/6 AB A=uplot: ok taskMs=354.087
+  block 1/6 AB B=axylo-canvas: ok taskMs=909.453
+  block 2/6 BA B=axylo-canvas: ok taskMs=893.887
+  block 2/6 BA A=uplot: ok taskMs=402.028
+  block 3/6 AB A=uplot: ok taskMs=371.505
+  block 3/6 AB B=axylo-canvas: ok taskMs=1023.263
+  block 4/6 BA B=axylo-canvas: ok taskMs=1017.724
+  block 4/6 BA A=uplot: ok taskMs=425.133
+  block 5/6 AB A=uplot: ok taskMs=381.892
+  block 5/6 AB B=axylo-canvas: ok taskMs=920.553
+  block 6/6 BA B=axylo-canvas: ok taskMs=960.023
+  block 6/6 BA A=uplot: ok taskMs=356.905
+
+20261118T024629Z-resize-1x100000-uplot-vs-axylo-canvas-0931  [complete]
+comparison: A=uplot  B=axylo-canvas  workload resize {"size":"1x100000","charts":1}
+complete pairs 6/6; run outcomes {"A:ok":6,"B:ok":6}
+noise band: none given (outcomes test against zero only)
+
+metric               median A  median B  B-A     95% CI           B/A-1   outcome     
+taskMs *             376.7     940.3     563.6   [505.2, 649.0]   149.6%  worse       
+frameP95Ms           16.75     16.70     -0.047  [-0.100, 0.000]  -0.3%   inconclusive
+frameP99Ms           16.80     16.80     0.000   [-0.000, 0.000]  0.0%    inconclusive
+framesOverThreshold  0.000     0.000     0.000   [0.000, 0.000]   n/a     inconclusive
+frameMaxMs           16.80     16.80     0.000   [-0.000, 0.000]  0.0%    inconclusive
+rendererCpuMs        450.0     1075.0    625.0   [555.0, 720.0]   138.9%  worse       
+gpuCpuMs             105.0     130.0     25.00   [0.000, 65.00]   23.8%   worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T024729Z-resize-1x100000-uplot-vs-axylo-svg-a9cd
+  A=uplot  B=axylo-svg  resize {"size":"1x100000","charts":1}  6 blocks  order AB AB BA AB BA BA  seed 1630981880
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T024729Z-resize-1x100000-uplot-vs-axylo-svg-a9cd.json
+  admission uplot: ok
+  admission axylo-svg: ok
+  block 1/6 AB A=uplot: ok taskMs=366.629
+  block 1/6 AB B=axylo-svg: ok taskMs=468.122
+  block 2/6 AB A=uplot: ok taskMs=334.763
+  block 2/6 AB B=axylo-svg: ok taskMs=454.115
+  block 3/6 BA B=axylo-svg: ok taskMs=461.712
+  block 3/6 BA A=uplot: ok taskMs=337.311
+  block 4/6 AB A=uplot: ok taskMs=367.896
+  block 4/6 AB B=axylo-svg: ok taskMs=480.711
+  block 5/6 BA B=axylo-svg: ok taskMs=547.336
+  block 5/6 BA A=uplot: ok taskMs=354.489
+  block 6/6 BA B=axylo-svg: ok taskMs=493.607
+  block 6/6 BA A=uplot: ok taskMs=442.042
+
+20261118T024729Z-resize-1x100000-uplot-vs-axylo-svg-a9cd  [complete]
+comparison: A=uplot  B=axylo-svg  workload resize {"size":"1x100000","charts":1}
+complete pairs 6/6; run outcomes {"A:ok":6,"B:ok":6}
+noise band: none given (outcomes test against zero only)
+
+metric               median A  median B  B-A     95% CI            B/A-1   outcome     
+taskMs *             360.6     474.4     113.9   [82.19, 166.0]    31.6%   worse       
+frameP95Ms           16.70     16.80     0.100   [0.047, 0.100]    0.6%    worse       
+frameP99Ms           16.80     16.80     0.000   [0.000, 0.000]    0.0%    inconclusive
+framesOverThreshold  0.000     0.000     0.000   [0.000, 0.000]    n/a     inconclusive
+frameMaxMs           16.80     16.80     0.000   [0.000, 0.000]    0.0%    inconclusive
+rendererCpuMs        425.0     1835.0    1410.0  [1335.0, 1560.0]  331.8%  worse       
+gpuCpuMs             90.00     75.00     -15.00  [-50.00, 5.00]    -16.7%  inconclusive
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T024828Z-resize-3x120-x24-axylo-canvas-vs-axylo-svg-2888
+  A=axylo-canvas  B=axylo-svg  resize {"size":"3x120","charts":24}  8 blocks  order BA AB BA AB BA AB BA AB  seed 1412208459
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T024828Z-resize-3x120-x24-axylo-canvas-vs-axylo-svg-2888.json
+  admission axylo-canvas: ok
+  admission axylo-svg: ok
+  block 1/8 BA B=axylo-svg: ok taskMs=629.194
+  block 1/8 BA A=axylo-canvas: ok taskMs=720.930
+  block 2/8 AB A=axylo-canvas: ok taskMs=776.136
+  block 2/8 AB B=axylo-svg: ok taskMs=728.501
+  block 3/8 BA B=axylo-svg: ok taskMs=525.628
+  block 3/8 BA A=axylo-canvas: ok taskMs=808.586
+  block 4/8 AB A=axylo-canvas: ok taskMs=739.811
+  block 4/8 AB B=axylo-svg: ok taskMs=523.677
+  block 5/8 BA B=axylo-svg: ok taskMs=505.027
+  block 5/8 BA A=axylo-canvas: ok taskMs=692.675
+  block 6/8 AB A=axylo-canvas: ok taskMs=739.777
+  block 6/8 AB B=axylo-svg: ok taskMs=490.296
+  block 7/8 BA B=axylo-svg: ok taskMs=514.202
+  block 7/8 BA A=axylo-canvas: ok taskMs=707.508
+  block 8/8 AB A=axylo-canvas: ok taskMs=684.434
+  block 8/8 AB B=axylo-svg: ok taskMs=569.601
+
+20261118T024828Z-resize-3x120-x24-axylo-canvas-vs-axylo-svg-2888  [complete]
+comparison: A=axylo-canvas  B=axylo-svg  workload resize {"size":"3x120","charts":24}
+complete pairs 8/8; run outcomes {"B:ok":8,"A:ok":8}
+noise band: none given (outcomes test against zero only)
+
+metric               median A  median B  B-A     95% CI            B/A-1   outcome     
+taskMs *             730.4     524.7     -205.7  [-238.2, -110.6]  -28.2%  better      
+frameP95Ms           16.70     16.70     0.000   [-0.100, 0.000]   0.0%    inconclusive
+frameP99Ms           16.80     16.80     0.000   [-0.000, 0.000]   0.0%    inconclusive
+framesOverThreshold  0.000     0.000     0.000   [0.000, 0.000]    n/a     inconclusive
+frameMaxMs           16.80     16.80     0.000   [0.000, 0.000]    0.0%    inconclusive
+rendererCpuMs        1080.0    780.0     -300.0  [-360.0, -205.0]  -27.8%  better      
+gpuCpuMs             280.0     100.0     -180.0  [-205.0, -160.0]  -64.3%  better      
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T024945Z-resize-3x120-x24-uplot-vs-axylo-canvas-d863
+  A=uplot  B=axylo-canvas  resize {"size":"3x120","charts":24}  6 blocks  order BA BA AB AB BA AB  seed 1059661226
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T024945Z-resize-3x120-x24-uplot-vs-axylo-canvas-d863.json
+  admission uplot: ok
+  admission axylo-canvas: ok
+  block 1/6 BA B=axylo-canvas: ok taskMs=817.626
+  block 1/6 BA A=uplot: ok taskMs=981.009
+  block 2/6 BA B=axylo-canvas: ok taskMs=796.456
+  block 2/6 BA A=uplot: ok taskMs=853.516
+  block 3/6 AB A=uplot: ok taskMs=873.535
+  block 3/6 AB B=axylo-canvas: ok taskMs=671.342
+  block 4/6 AB A=uplot: ok taskMs=821.129
+  block 4/6 AB B=axylo-canvas: ok taskMs=680.019
+  block 5/6 BA B=axylo-canvas: ok taskMs=809.096
+  block 5/6 BA A=uplot: ok taskMs=859.153
+  block 6/6 AB A=uplot: ok taskMs=910.718
+  block 6/6 AB B=axylo-canvas: ok taskMs=683.909
+
+20261118T024945Z-resize-3x120-x24-uplot-vs-axylo-canvas-d863  [complete]
+comparison: A=uplot  B=axylo-canvas  workload resize {"size":"3x120","charts":24}
+complete pairs 6/6; run outcomes {"B:ok":6,"A:ok":6}
+noise band: none given (outcomes test against zero only)
+
+metric               median A  median B  B-A     95% CI            B/A-1   outcome     
+taskMs *             866.3     740.2     -126.2  [-226.8, -50.06]  -14.6%  better      
+frameP95Ms           16.70     16.75     0.047   [0.000, 0.097]    0.3%    inconclusive
+frameP99Ms           16.80     16.80     0.000   [-0.000, 0.000]   0.0%    inconclusive
+framesOverThreshold  0.000     0.000     0.000   [0.000, 0.000]    n/a     inconclusive
+frameMaxMs           16.80     16.80     0.000   [0.000, 0.000]    0.0%    inconclusive
+rendererCpuMs        1065.0    1095.0    30.00   [-110.0, 120.0]   2.8%    inconclusive
+gpuCpuMs             290.0     260.0     -30.00  [-85.00, -10.00]  -10.3%  better      
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T025045Z-resize-3x120-x24-uplot-vs-axylo-svg-0221
+  A=uplot  B=axylo-svg  resize {"size":"3x120","charts":24}  6 blocks  order BA BA AB AB AB BA  seed 749330256
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T025045Z-resize-3x120-x24-uplot-vs-axylo-svg-0221.json
+  admission uplot: ok
+  admission axylo-svg: ok
+  block 1/6 BA B=axylo-svg: ok taskMs=534.694
+  block 1/6 BA A=uplot: ok taskMs=855.922
+  block 2/6 BA B=axylo-svg: ok taskMs=614.235
+  block 2/6 BA A=uplot: ok taskMs=924.419
+  block 3/6 AB A=uplot: ok taskMs=949.198
+  block 3/6 AB B=axylo-svg: ok taskMs=503.395
+  block 4/6 AB A=uplot: ok taskMs=841.394
+  block 4/6 AB B=axylo-svg: ok taskMs=491.665
+  block 5/6 AB A=uplot: ok taskMs=858.631
+  block 5/6 AB B=axylo-svg: ok taskMs=651.140
+  block 6/6 BA B=axylo-svg: ok taskMs=589.311
+  block 6/6 BA A=uplot: ok taskMs=1040.559
+
+20261118T025045Z-resize-3x120-x24-uplot-vs-axylo-svg-0221  [complete]
+comparison: A=uplot  B=axylo-svg  workload resize {"size":"3x120","charts":24}
+complete pairs 6/6; run outcomes {"B:ok":6,"A:ok":6}
+noise band: none given (outcomes test against zero only)
+
+metric               median A  median B  B-A     95% CI            B/A-1   outcome     
+taskMs *             891.5     562.0     -329.5  [-445.8, -225.9]  -37.0%  better      
+frameP95Ms           16.70     16.70     0.000   [-0.095, 0.097]   0.0%    inconclusive
+frameP99Ms           16.80     16.80     -0.000  [-0.000, 0.000]   -0.0%   inconclusive
+framesOverThreshold  0.000     0.000     0.000   [0.000, 0.000]    n/a     inconclusive
+frameMaxMs           16.80     16.80     0.000   [0.000, 0.000]    0.0%    inconclusive
+rendererCpuMs        1100.0    835.0     -265.0  [-400.0, -155.0]  -24.1%  better      
+gpuCpuMs             300.0     110.0     -190.0  [-220.0, -175.0]  -63.3%  better      
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T025144Z-first-1x100000-dpr2-axylo-canvas-vs-axylo-svg-f780
+  A=axylo-canvas  B=axylo-svg  first {"size":"1x100000","gaps":false}  6 blocks  order BA AB AB AB BA BA  seed 300350053
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T025144Z-first-1x100000-dpr2-axylo-canvas-vs-axylo-svg-f780.json
+  admission axylo-canvas: ok
+  admission axylo-svg: ok
+  block 1/6 BA B=axylo-svg: ok taskMs=74.862
+  block 1/6 BA A=axylo-canvas: ok taskMs=86.962
+  block 2/6 AB A=axylo-canvas: ok taskMs=100.499
+  block 2/6 AB B=axylo-svg: ok taskMs=323.993
+  block 3/6 AB A=axylo-canvas: ok taskMs=89.524
+  block 3/6 AB B=axylo-svg: ok taskMs=82.860
+  block 4/6 AB A=axylo-canvas: ok taskMs=88.592
+  block 4/6 AB B=axylo-svg: ok taskMs=76.679
+  block 5/6 BA B=axylo-svg: ok taskMs=77.105
+  block 5/6 BA A=axylo-canvas: ok taskMs=84.847
+  block 6/6 BA B=axylo-svg: ok taskMs=80.458
+  block 6/6 BA A=axylo-canvas: ok taskMs=90.888
+
+20261118T025144Z-first-1x100000-dpr2-axylo-canvas-vs-axylo-svg-f780  [complete]
+comparison: A=axylo-canvas  B=axylo-svg  workload first {"size":"1x100000","gaps":false}
+complete pairs 6/6; run outcomes {"B:ok":6,"A:ok":6}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A         95% CI                    B/A-1    outcome     
+taskMs *               89.06      78.78      -10.28      [-12.01, 107.7]           -11.5%   inconclusive
+scriptMs               69.46      67.30      -2.16       [-5.37, 101.1]            -3.1%    inconclusive
+layoutStyleMs          1.72       2.10       0.382       [0.096, 1.61]             22.3%    worse       
+readyMs                71.45      69.40      -2.05       [-5.10, 103.1]            -2.9%    inconclusive
+readyFrameMs           81.40      70.65      -10.75      [-13.60, 99.40]           -13.2%   inconclusive
+rendererCpuMs          160.0      170.0      10.00       [0.000, 70.00]            6.3%     inconclusive
+gpuCpuMs               0.000      0.000      0.000       [-10.00, 5.00]            n/a      inconclusive
+heapChartBytes         9.57 MiB   9.70 MiB   136.6 KiB   [135.9 KiB, 138.2 KiB]    1.4%     worse       
+heapUsedBytes          10.63 MiB  10.76 MiB  136.6 KiB   [135.9 KiB, 138.2 KiB]    1.3%     worse       
+rendererPssBytes       75.67 MiB  60.53 MiB  -15.15 MiB  [-19.05 MiB, -10.46 MiB]  -20.0%   better      
+rendererPssChartBytes  33.65 MiB  21.25 MiB  -12.40 MiB  [-16.90 MiB, -10.53 MiB]  -36.9%   better      
+gpuPssBytes            33.90 MiB  31.38 MiB  -2.52 MiB   [-3.35 MiB, -1.83 MiB]    -7.4%    better      
+gpuPssChartBytes       2.61 MiB   441.5 KiB  -2.18 MiB   [-2.84 MiB, -2.12 MiB]    -83.5%   better      
+canvasBackingBytes     4.60 MiB   0.0 KiB    -4.60 MiB   [-4.60 MiB, -4.60 MiB]    -100.0%  better      
+domNodes               58.00      96.00      38.00       [38.00, 38.00]            65.5%    worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T025210Z-first-1x100000-dpr2-uplot-vs-axylo-canvas-7d7a
+  A=uplot  B=axylo-canvas  first {"size":"1x100000","gaps":false}  6 blocks  order BA AB BA AB AB BA  seed 791285713
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T025210Z-first-1x100000-dpr2-uplot-vs-axylo-canvas-7d7a.json
+  admission uplot: ok
+  admission axylo-canvas: ok
+  block 1/6 BA B=axylo-canvas: ok taskMs=90.232
+  block 1/6 BA A=uplot: ok taskMs=12.231
+  block 2/6 AB A=uplot: ok taskMs=12.249
+  block 2/6 AB B=axylo-canvas: ok taskMs=88.201
+  block 3/6 BA B=axylo-canvas: ok taskMs=91.358
+  block 3/6 BA A=uplot: ok taskMs=13.494
+  block 4/6 AB A=uplot: ok taskMs=12.213
+  block 4/6 AB B=axylo-canvas: ok taskMs=88.473
+  block 5/6 AB A=uplot: ok taskMs=17.820
+  block 5/6 AB B=axylo-canvas: ok taskMs=93.242
+  block 6/6 BA B=axylo-canvas: ok taskMs=93.765
+  block 6/6 BA A=uplot: ok taskMs=12.890
+
+20261118T025210Z-first-1x100000-dpr2-uplot-vs-axylo-canvas-7d7a  [complete]
+comparison: A=uplot  B=axylo-canvas  workload first {"size":"1x100000","gaps":false}
+complete pairs 6/6; run outcomes {"B:ok":6,"A:ok":6}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                  B/A-1    outcome     
+taskMs *               12.57      90.80      78.23      [76.09, 80.61]          622.3%   worse       
+scriptMs               9.34       71.29      61.95      [59.35, 62.75]          663.2%   worse       
+layoutStyleMs          0.659      1.81       1.15       [1.01, 1.20]            174.7%   worse       
+readyMs                9.50       73.20      63.70      [61.20, 64.70]          670.5%   worse       
+readyFrameMs           14.40      83.30      68.90      [66.15, 69.75]          478.5%   worse       
+rendererCpuMs          30.00      160.0      130.0      [120.0, 140.0]          433.3%   worse       
+gpuCpuMs               10.00      10.00      0.000      [-5.00, 15.00]          0.0%     inconclusive
+heapChartBytes         260.3 KiB  9.57 MiB   9.31 MiB   [9.31 MiB, 9.31 MiB]    3663.9%  worse       
+heapUsedBytes          1.26 MiB   10.63 MiB  9.37 MiB   [9.37 MiB, 9.37 MiB]    742.4%   worse       
+rendererPssBytes       48.69 MiB  70.37 MiB  21.68 MiB  [21.41 MiB, 21.89 MiB]  44.5%    worse       
+rendererPssChartBytes  9.65 MiB   32.13 MiB  22.47 MiB  [22.32 MiB, 22.70 MiB]  232.8%   worse       
+gpuPssBytes            33.35 MiB  33.73 MiB  394.0 KiB  [244.5 KiB, 640.0 KiB]  1.2%     worse       
+gpuPssChartBytes       2.23 MiB   2.61 MiB   385.0 KiB  [360.5 KiB, 409.0 KiB]  16.9%    worse       
+canvasBackingBytes     4.52 MiB   4.60 MiB   81.3 KiB   [81.3 KiB, 81.3 KiB]    1.8%     worse       
+domNodes               24.00      58.00      34.00      [34.00, 34.00]          141.7%   worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T025235Z-first-1x100000-dpr2-uplot-vs-axylo-svg-cb75
+  A=uplot  B=axylo-svg  first {"size":"1x100000","gaps":false}  6 blocks  order BA AB BA AB AB BA  seed 464547908
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T025235Z-first-1x100000-dpr2-uplot-vs-axylo-svg-cb75.json
+  admission uplot: ok
+  admission axylo-svg: ok
+  block 1/6 BA B=axylo-svg: ok taskMs=79.917
+  block 1/6 BA A=uplot: ok taskMs=12.559
+  block 2/6 AB A=uplot: ok taskMs=13.232
+  block 2/6 AB B=axylo-svg: ok taskMs=84.201
+  block 3/6 BA B=axylo-svg: ok taskMs=80.046
+  block 3/6 BA A=uplot: ok taskMs=12.204
+  block 4/6 AB A=uplot: ok taskMs=15.792
+  block 4/6 AB B=axylo-svg: ok taskMs=81.796
+  block 5/6 AB A=uplot: ok taskMs=12.984
+  block 5/6 AB B=axylo-svg: ok taskMs=74.929
+  block 6/6 BA B=axylo-svg: ok taskMs=83.278
+  block 6/6 BA A=uplot: ok taskMs=12.928
+
+20261118T025235Z-first-1x100000-dpr2-uplot-vs-axylo-svg-cb75  [complete]
+comparison: A=uplot  B=axylo-svg  workload first {"size":"1x100000","gaps":false}
+complete pairs 6/6; run outcomes {"B:ok":6,"A:ok":6}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                  B/A-1    outcome     
+taskMs *               12.96      80.92      67.97      [64.44, 70.63]          524.6%   worse       
+scriptMs               9.43       71.70      62.27      [58.67, 64.90]          660.3%   worse       
+layoutStyleMs          0.711      2.02       1.31       [1.22, 1.38]            184.5%   worse       
+readyMs                9.55       73.70      64.15      [60.50, 66.85]          671.7%   worse       
+readyFrameMs           14.60      74.90      60.30      [56.90, 63.15]          413.0%   worse       
+rendererCpuMs          30.00      170.0      140.0      [130.0, 150.0]          466.7%   worse       
+gpuCpuMs               0.000      0.000      0.000      [-5.00, 10.00]          n/a      inconclusive
+heapChartBytes         260.3 KiB  9.70 MiB   9.45 MiB   [9.45 MiB, 9.45 MiB]    3717.1%  worse       
+heapUsedBytes          1.26 MiB   10.77 MiB  9.50 MiB   [9.50 MiB, 9.50 MiB]    753.1%   worse       
+rendererPssBytes       49.80 MiB  60.77 MiB  10.97 MiB  [10.59 MiB, 22.57 MiB]  22.0%    worse       
+rendererPssChartBytes  9.75 MiB   21.52 MiB  11.76 MiB  [11.19 MiB, 26.06 MiB]  120.6%   worse       
+gpuPssBytes            33.24 MiB  31.55 MiB  -1.69 MiB  [-2.10 MiB, 2.63 MiB]   -5.1%    inconclusive
+gpuPssChartBytes       2.24 MiB   487.5 KiB  -1.76 MiB  [-1.78 MiB, 2.89 MiB]   -78.7%   inconclusive
+canvasBackingBytes     4.52 MiB   0.0 KiB    -4.52 MiB  [-4.52 MiB, -4.52 MiB]  -100.0%  better      
+domNodes               24.00      96.00      72.00      [72.00, 72.00]          300.0%   worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T025300Z-page-3x120-x24-dpr2-axylo-canvas-vs-axylo-svg-1121
+  A=axylo-canvas  B=axylo-svg  page {"size":"3x120","charts":24,"gaps":false}  6 blocks  order AB BA AB BA BA AB  seed 1145204448
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T025300Z-page-3x120-x24-dpr2-axylo-canvas-vs-axylo-svg-1121.json
+  admission axylo-canvas: ok
+  admission axylo-svg: ok
+  block 1/6 AB A=axylo-canvas: ok taskMs=168.501
+  block 1/6 AB B=axylo-svg: ok taskMs=171.140
+  block 2/6 BA B=axylo-svg: ok taskMs=155.516
+  block 2/6 BA A=axylo-canvas: ok taskMs=199.105
+  block 3/6 AB A=axylo-canvas: ok taskMs=208.462
+  block 3/6 AB B=axylo-svg: ok taskMs=159.448
+  block 4/6 BA B=axylo-svg: ok taskMs=146.864
+  block 4/6 BA A=axylo-canvas: ok taskMs=242.960
+  block 5/6 BA B=axylo-svg: ok taskMs=147.009
+  block 5/6 BA A=axylo-canvas: ok taskMs=174.650
+  block 6/6 AB A=axylo-canvas: ok taskMs=199.428
+  block 6/6 AB B=axylo-svg: ok taskMs=162.957
+
+20261118T025300Z-page-3x120-x24-dpr2-axylo-canvas-vs-axylo-svg-1121  [complete]
+comparison: A=axylo-canvas  B=axylo-svg  workload page {"size":"3x120","charts":24,"gaps":false}
+complete pairs 6/6; run outcomes {"A:ok":6,"B:ok":6}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A         95% CI                   B/A-1    outcome     
+taskMs *               199.3      157.5      -41.78      [-74.52, -6.28]          -21.0%   better      
+scriptMs               99.57      87.37      -12.20      [-34.65, 9.65]           -12.3%   inconclusive
+layoutStyleMs          36.77      36.51      -0.264      [-8.07, 4.71]            -0.7%    inconclusive
+readyMs                53.65      46.70      -6.95       [-28.40, 1.20]           -13.0%   inconclusive
+readyFrameMs           56.25      47.95      -8.30       [-30.65, 0.250]          -14.8%   inconclusive
+rendererCpuMs          350.0      255.0      -95.00      [-130.0, -40.00]         -27.1%   better      
+gpuCpuMs               60.00      30.00      -30.00      [-45.00, -20.00]         -50.0%   better      
+heapChartBytes         1.86 MiB   2.18 MiB   324.5 KiB   [8.4 KiB, 366.3 KiB]     17.0%    worse       
+heapUsedBytes          2.95 MiB   3.27 MiB   324.5 KiB   [7.9 KiB, 366.3 KiB]     10.7%    worse       
+rendererPssBytes       74.65 MiB  56.21 MiB  -18.44 MiB  [-33.01 MiB, -9.74 MiB]  -24.7%   better      
+rendererPssChartBytes  34.23 MiB  17.71 MiB  -16.52 MiB  [-22.88 MiB, -9.97 MiB]  -48.3%   better      
+gpuPssBytes            42.83 MiB  33.42 MiB  -9.41 MiB   [-15.89 MiB, -8.46 MiB]  -22.0%   better      
+gpuPssChartBytes       11.53 MiB  2.17 MiB   -9.36 MiB   [-15.42 MiB, -8.59 MiB]  -81.2%   better      
+canvasBackingBytes     7.71 MiB   0.0 KiB    -7.71 MiB   [-7.71 MiB, -7.71 MiB]   -100.0%  better      
+domNodes               385.0      529.0      144.0       [144.0, 144.0]           37.4%    worse       
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T025324Z-page-3x120-x24-dpr2-uplot-vs-axylo-canvas-29a0
+  A=uplot  B=axylo-canvas  page {"size":"3x120","charts":24,"gaps":false}  6 blocks  order BA AB BA AB AB BA  seed 595424989
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T025324Z-page-3x120-x24-dpr2-uplot-vs-axylo-canvas-29a0.json
+  admission uplot: ok
+  admission axylo-canvas: ok
+  block 1/6 BA B=axylo-canvas: ok taskMs=163.530
+  block 1/6 BA A=uplot: ok taskMs=30.432
+  block 2/6 AB A=uplot: ok taskMs=30.095
+  block 2/6 AB B=axylo-canvas: ok taskMs=160.810
+  block 3/6 BA B=axylo-canvas: ok taskMs=182.086
+  block 3/6 BA A=uplot: ok taskMs=33.006
+  block 4/6 AB A=uplot: ok taskMs=30.338
+  block 4/6 AB B=axylo-canvas: ok taskMs=166.805
+  block 5/6 AB A=uplot: ok taskMs=33.228
+  block 5/6 AB B=axylo-canvas: ok taskMs=155.061
+  block 6/6 BA B=axylo-canvas: ok taskMs=163.832
+  block 6/6 BA A=uplot: ok taskMs=37.456
+
+20261118T025324Z-page-3x120-x24-dpr2-uplot-vs-axylo-canvas-29a0  [complete]
+comparison: A=uplot  B=axylo-canvas  workload page {"size":"3x120","charts":24,"gaps":false}
+complete pairs 6/6; run outcomes {"B:ok":6,"A:ok":6}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                  B/A-1   outcome
+taskMs *               31.72      163.7      132.0      [124.8, 141.4]          416.0%  worse  
+scriptMs               17.05      80.89      63.84      [58.01, 67.49]          374.4%  worse  
+layoutStyleMs          6.21       31.23      25.01      [23.93, 26.95]          402.5%  worse  
+readyMs                22.35      46.35      24.00      [20.10, 25.20]          107.4%  worse  
+readyFrameMs           24.70      48.40      23.70      [19.80, 24.80]          96.0%   worse  
+rendererCpuMs          50.00      300.0      250.0      [235.0, 270.0]          500.0%  worse  
+gpuCpuMs               10.00      55.00      45.00      [40.00, 60.00]          450.0%  worse  
+heapChartBytes         1.02 MiB   2.17 MiB   1.16 MiB   [868.4 KiB, 1.17 MiB]   113.7%  worse  
+heapUsedBytes          2.05 MiB   3.26 MiB   1.21 MiB   [923.9 KiB, 1.23 MiB]   59.1%   worse  
+rendererPssBytes       78.30 MiB  91.41 MiB  13.11 MiB  [5.45 MiB, 21.09 MiB]   16.7%   worse  
+rendererPssChartBytes  22.28 MiB  37.09 MiB  14.81 MiB  [7.01 MiB, 22.55 MiB]   66.5%   worse  
+gpuPssBytes            44.42 MiB  49.76 MiB  5.34 MiB   [2.17 MiB, 8.30 MiB]    12.0%   worse  
+gpuPssChartBytes       5.88 MiB   11.24 MiB  5.35 MiB   [2.11 MiB, 8.24 MiB]    91.0%   worse  
+canvasBackingBytes     7.16 MiB   7.71 MiB   560.6 KiB  [560.6 KiB, 560.6 KiB]  7.6%    worse  
+domNodes               865.0      385.0      -480.0     [-480.0, -480.0]        -55.5%  better 
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+run 20261118T025349Z-page-3x120-x24-dpr2-uplot-vs-axylo-svg-2b25
+  A=uplot  B=axylo-svg  page {"size":"3x120","charts":24,"gaps":false}  6 blocks  order AB BA BA BA AB AB  seed 1760344517
+  Chrome 157.0.8103.78 headless, history -> bench/history/20261118T025349Z-page-3x120-x24-dpr2-uplot-vs-axylo-svg-2b25.json
+  admission uplot: ok
+  admission axylo-svg: ok
+  block 1/6 AB A=uplot: ok taskMs=28.882
+  block 1/6 AB B=axylo-svg: ok taskMs=173.318
+  block 2/6 BA B=axylo-svg: ok taskMs=165.491
+  block 2/6 BA A=uplot: ok taskMs=37.318
+  block 3/6 BA B=axylo-svg: ok taskMs=184.873
+  block 3/6 BA A=uplot: ok taskMs=28.402
+  block 4/6 BA B=axylo-svg: ok taskMs=126.328
+  block 4/6 BA A=uplot: ok taskMs=33.057
+  block 5/6 AB A=uplot: ok taskMs=29.382
+  block 5/6 AB B=axylo-svg: ok taskMs=136.975
+  block 6/6 AB A=uplot: ok taskMs=32.624
+  block 6/6 AB B=axylo-svg: ok taskMs=140.860
+
+20261118T025349Z-page-3x120-x24-dpr2-uplot-vs-axylo-svg-2b25  [complete]
+comparison: A=uplot  B=axylo-svg  workload page {"size":"3x120","charts":24,"gaps":false}
+complete pairs 6/6; run outcomes {"A:ok":6,"B:ok":6}
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                  B/A-1    outcome
+taskMs *               31.00      153.2      122.2      [98.81, 150.5]          394.1%   worse  
+scriptMs               15.66      82.99      67.33      [54.79, 84.84]          429.9%   worse  
+layoutStyleMs          6.32       36.13      29.82      [24.34, 35.48]          472.0%   worse  
+readyMs                21.00      42.95      21.95      [16.80, 30.15]          104.5%   worse  
+readyFrameMs           23.45      44.10      20.65      [15.50, 29.00]          88.1%    worse  
+rendererCpuMs          40.00      265.0      225.0      [170.0, 255.0]          562.5%   worse  
+gpuCpuMs               5.00       35.00      30.00      [20.00, 40.00]          600.0%   worse  
+heapChartBytes         1.02 MiB   2.18 MiB   1.16 MiB   [875.4 KiB, 1.19 MiB]   114.5%   worse  
+heapUsedBytes          2.05 MiB   3.27 MiB   1.22 MiB   [932.0 KiB, 1.25 MiB]   59.5%    worse  
+rendererPssBytes       78.20 MiB  72.60 MiB  -5.59 MiB  [-7.03 MiB, -5.46 MiB]  -7.2%    better 
+rendererPssChartBytes  22.07 MiB  18.14 MiB  -3.93 MiB  [-5.42 MiB, -3.72 MiB]  -17.8%   better 
+gpuPssBytes            44.63 MiB  40.90 MiB  -3.73 MiB  [-4.03 MiB, -3.47 MiB]  -8.4%    better 
+gpuPssChartBytes       5.89 MiB   2.04 MiB   -3.85 MiB  [-3.89 MiB, -3.83 MiB]  -65.4%   better 
+canvasBackingBytes     7.16 MiB   0.0 KiB    -7.16 MiB  [-7.16 MiB, -7.16 MiB]  -100.0%  better 
+domNodes               865.0      529.0      -336.0     [-336.0, -336.0]        -38.8%   better 
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+20261118T025413Z-first-3x120-axylo_renderer_canvas_build_prod: 27.14 ms busy of 528.32 ms (not available: rebuilding packages/axylo/src now does not reproduce the measured production bundle byte for byte (the sources changed after it was built), so its minified positions cannot be mapped; see the development-build profile)
+       %    501.18 ms  (idle)
+   72.2%     19.59 ms  axylo (unmapped)
+   24.4%      6.62 ms  (program): native main-thread work outside JS
+    3.4%      0.93 ms  other JavaScript (harness, page)
+20261118T025415Z-first-3x120-axylo_renderer_canvas_build_dev: 27.33 ms busy of 528.61 ms (development build, module comments)
+       %    501.27 ms  (idle)
+   28.1%      7.69 ms  orchestration: core/ (chart.ts, options, delivery)
+   24.6%      6.72 ms  (program): native main-thread work outside JS
+   11.3%      3.08 ms  normalize
+   11.3%      3.08 ms  layout
+    7.3%      1.98 ms  view
+    5.6%      1.52 ms  theme (not one of the eight)
+    5.1%       1.4 ms  draw
+    2.3%      0.62 ms  scene
+    1.1%      0.31 ms  reader
+    1.1%      0.31 ms  DOM
+    0.6%      0.16 ms  other JavaScript (harness, page)
+    0.6%      0.15 ms  lookup
+    0.6%      0.15 ms  orchestration: index.ts
+    0.6%      0.15 ms  orchestration: diagnostics/
+20261118T025417Z-first-3x120-axylo_renderer_svg_build_prod: 28.3 ms busy of 529.99 ms (not available: rebuilding packages/axylo/src now does not reproduce the measured production bundle byte for byte (the sources changed after it was built), so its minified positions cannot be mapped; see the development-build profile)
+       %    501.68 ms  (idle)
+   77.9%     22.04 ms  axylo (unmapped)
+   19.6%      5.54 ms  (program): native main-thread work outside JS
+    2.6%      0.73 ms  other JavaScript (harness, page)
+20261118T025419Z-first-3x120-axylo_renderer_svg_build_dev: 24.46 ms busy of 525.97 ms (development build, module comments)
+       %    501.51 ms  (idle)
+   36.3%      8.88 ms  orchestration: core/ (chart.ts, options, delivery)
+     18%      4.41 ms  (program): native main-thread work outside JS
+     13%      3.19 ms  normalize
+    8.8%      2.16 ms  layout
+    5.7%       1.4 ms  theme (not one of the eight)
+    5.7%      1.39 ms  draw
+    4.9%       1.2 ms  view
+    3.1%      0.75 ms  scene
+    1.9%      0.46 ms  reader
+    1.3%      0.31 ms  other JavaScript (harness, page)
+    0.6%      0.16 ms  orchestration: index.ts
+    0.6%      0.15 ms  orchestration: messages/
+20261118T025421Z-first-1x100000-axylo_renderer_canvas_build_prod: 111.23 ms busy of 607.73 ms (not available: rebuilding packages/axylo/src now does not reproduce the measured production bundle byte for byte (the sources changed after it was built), so its minified positions cannot be mapped; see the development-build profile)
+       %     496.5 ms  (idle)
+   73.1%      81.3 ms  axylo (unmapped)
+   16.8%     18.74 ms  (garbage collector)
+    9.8%     10.87 ms  (program): native main-thread work outside JS
+    0.3%      0.32 ms  other JavaScript (harness, page)
+20261118T025423Z-first-1x100000-axylo_renderer_canvas_build_dev: 97.71 ms busy of 591.9 ms (development build, module comments)
+       %    494.19 ms  (idle)
+   37.4%     36.55 ms  normalize
+   24.9%     24.38 ms  (garbage collector)
+    9.6%      9.37 ms  (program): native main-thread work outside JS
+    9.2%      9.03 ms  orchestration: core/ (chart.ts, options, delivery)
+    6.4%      6.28 ms  scene
+    3.3%      3.24 ms  view
+    3.2%      3.12 ms  layout
+    1.9%      1.86 ms  theme (not one of the eight)
+    1.7%      1.63 ms  draw
+    1.2%      1.19 ms  reader
+    0.5%      0.46 ms  other JavaScript (harness, page)
+    0.3%      0.31 ms  orchestration: index.ts
+    0.2%      0.16 ms  DOM
+    0.1%      0.13 ms  lookup
+20261118T025426Z-first-1x100000-axylo_renderer_svg_build_prod: 91.11 ms busy of 587.02 ms (not available: rebuilding packages/axylo/src now does not reproduce the measured production bundle byte for byte (the sources changed after it was built), so its minified positions cannot be mapped; see the development-build profile)
+       %    495.91 ms  (idle)
+     71%     64.67 ms  axylo (unmapped)
+   22.7%     20.69 ms  (garbage collector)
+      6%      5.44 ms  (program): native main-thread work outside JS
+    0.3%      0.31 ms  other JavaScript (harness, page)
+20261118T025428Z-first-1x100000-axylo_renderer_svg_build_dev: 93.58 ms busy of 588.76 ms (development build, module comments)
+       %    495.18 ms  (idle)
+   43.2%     40.45 ms  normalize
+   20.3%     18.96 ms  (garbage collector)
+   10.2%       9.5 ms  orchestration: core/ (chart.ts, options, delivery)
+    7.1%      6.61 ms  (program): native main-thread work outside JS
+    6.6%      6.22 ms  scene
+    3.4%      3.16 ms  layout
+    2.6%      2.41 ms  draw
+    2.5%      2.34 ms  view
+      2%      1.84 ms  theme (not one of the eight)
+    1.4%       1.3 ms  reader
+    0.5%      0.48 ms  other JavaScript (harness, page)
+    0.2%      0.16 ms  orchestration: index.ts
+    0.2%      0.15 ms  DOM
+SESSION-DONE

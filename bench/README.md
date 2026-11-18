@@ -22,15 +22,33 @@ node bench/run.mjs --aa uplot --workload first --size 1x100000 --blocks 8
 node bench/run.mjs --baseline uplot --candidate chartjs-tuned --workload first --size 1x100000 --blocks 6 --noise <aa run id>
 
 node bench/analyze.mjs <run id> [--noise <aa run id>]    # re-print or re-classify a history record
+
+# adapter parameters: id:key=value,key=value (here: Axylo's SVG mark renderer, development build)
+node bench/run.mjs --baseline axylo-canvas --candidate axylo:renderer=svg --workload page --blocks 8
+# several A-versus-A runs: the band is their union
+node bench/run.mjs ... --noise <aa run id>,<aa run id>
+
+# other workloads
+node bench/run.mjs --baseline axylo-canvas --candidate axylo-svg --workload theme --blocks 8
+node bench/run.mjs --baseline axylo-canvas --candidate axylo-svg --workload resize --size 3x120 --charts 24 --blocks 8
+node bench/run.mjs --baseline axylo-canvas --candidate axylo-svg --workload first --size 1x100000 --dpr 2 --blocks 6
+
+# one CPU profile of a create workload, attributed to Axylo's pipeline stages
+node bench/profile.mjs --adapter axylo:renderer=svg,build=dev --size 1x100000
 ```
 
+`bench/results/m1-session.sh` is the M1 renderer-comparison session; `bench/results/make-m1-report.mjs` turns its
+records into `bench/results/m1-renderer-comparison.md`.
+
 `run.mjs` rebuilds `bench/dist` first unless `--no-build` is given. Options: `--size SxN` (first, page), `--gaps`
-(5% missing in runs), `--charts` (page, default 24), `--window`/`--samples` (stream, default 600/300),
+(5% missing in runs), `--charts` (page, default 24; resize, default 1), `--toggles` (theme, default 20), `--window`/`--samples` (stream, default 600/300),
 `--blocks` (even, default 6), `--settle` ms (default 500), `--timeout` ms per run (default 120000), `--seed`
 (block order), `--dpr` (1 or 2), `--headed`, `--history-dir`. Scripts in `bench/package.json` wrap the same commands.
 
-The runner serves `bench/dist` and `packages/axylo/dist` from an HTTP server on 127.0.0.1 that lives only for the
-runner process. It uses `playwright-core` and `esbuild` from the repository root and system Chrome
+The runner serves `bench/dist` from an HTTP server on 127.0.0.1 that lives only for the runner process. The build
+copies `packages/axylo/dist/axylo.iife.min.js` and `axylo.iife.js` into `bench/dist/axylo/` and records their hashes:
+other work rebuilds the library while sessions run, so a session builds once and runs everything with `--no-build`,
+and every run measures the same bytes. It uses `playwright-core` and `esbuild` from the repository root and system Chrome
 (`channel: 'chrome'`). Nothing is downloaded.
 
 ## Pieces
@@ -76,9 +94,15 @@ inside `create`, so it is part of the timed work for every library: the input is
   with its reason and documentation page, is listed at the top of the file, including the visible differences
   (no entry animation, no point markers) and one fidelity risk (min-max decimation skips `NaN`, so above its
   threshold a gap can be drawn across; the admission check reads the held data and does not catch this).
-- `axylo`: loads `packages/axylo/dist/axylo.iife.js` as a classic script. While it does not export `line()`, the run is
-  recorded as `not-available` with that reason. When `line()` exists the adapter still reports `not-admitted` until
-  the benchmark readiness/readback hook (plan 3.1) exists, rather than guessing readiness.
+- `axylo-canvas`, `axylo-svg`, and `axylo` (parameters `renderer=canvas|svg`, `build=prod|dev`): load the production
+  script-tag build `axylo.iife.min.js` (or, with `build=dev`, the development build, for profiles only) as a classic
+  script with `globalThis.__AXYLO_BENCH__ = true`, and read readiness and the admission readback from
+  `chart.__bench`. The renderer is selected through Axylo's internal `__renderer` option. Streaming uses
+  `chart.append(rows, { keep: 600 })`. Without the hook the adapter reports `not-admitted`.
+
+Adapter parameters: `--baseline id:key=value,...` passes `{ key: value }` to the adapter's `load`, `setup` and
+`create` (`opts.params`), and is recorded with every run. An adapter may also implement `load(params)` (async, before
+anything else, for example to load a script) and `configFor(params)` (the configuration label in the record).
 
 ## Workloads
 
@@ -87,6 +111,8 @@ inside `create`, so it is part of the timed work for every library: the input is
 | `first` | Create one line chart from typed columns. Sizes `3x120`, `1x10000`, `1x100000`, `1x1000000` (any `SxN` works). `--gaps`: 5% of each series missing, in runs | one 800×400 |
 | `page` | Create 24 charts of 3×120 at once (each its own seed) | 24 of 230×115 in a 6×4 grid |
 | `stream` | A 600-point window; then 300 samples from a producer on an independent 60 Hz clock | one 800×400 |
+| `theme` | One chart (default 3×120); then 20 toggles of a class-based dark theme on `<html>` (`html.bench-dark` sets `color-scheme: dark` and dark page colors) | one 800×400 |
+| `resize` | One chart of 1×100,000 (or `--charts 24 --size 3x120`); then the box holding it is animated 1,200 → 400 → 1,200 px over 2 s, one width per frame | 1,200×400, or a 6-column grid of 115 px rows |
 
 Containers are 2:1 because that is Chart.js's default aspect ratio, so its starter config fills them like the others.
 The viewport is 1,440×900, device pixel ratio 1 unless `--dpr 2`. Points are a day apart up to 1,000 points and a
@@ -160,6 +186,40 @@ which the last sample became visible, divided by the number of samples. Also per
 - `createTaskMs`: task time to create the initial window and settle.
 - `neverVisible` (recorded, not compared): samples never shown within 5 s of the last one.
 
+**Theme** (primary: `taskMsPerToggle`): per toggle, `TaskDuration` from the class toggle to a fixed window end
+(three animation frames plus 50 ms), median over 20 toggles. After each window the marks' colors are read: the
+computed `stroke` of every SVG path, and the four most frequent fully opaque colors of every canvas, read from a copy
+so the chart's canvas is never read back. They must alternate between two different sets; otherwise the run is not
+admitted (uPlot, which has no theme mechanism, fails this). `canvasCallsPerToggle` counts Canvas 2D drawing calls
+(stroke, fill, fillRect, strokeRect, fillText, strokeText, clearRect, drawImage, putImageData) in the window, and
+`mutationsPerToggle` the DOM mutation records inside the chart: an SVG renderer that repaints through CSS shows zero
+canvas calls. `framesToNewColor` is the largest number of frames until the colors changed, from four separate
+untimed toggles sampled every frame.
+
+**Resize** (primary: `taskMs` over the animation until the charts report ready): plus frame intervals during the
+animation (p95, p99, maximum, count over 1.5× the refresh interval), and the renderer and GPU process CPU time. After
+the animation every chart must fill its container (widest canvas or svg within 90–100% of its width), or the run is
+not admitted. uPlot does not follow its container by itself; its adapter adds a ResizeObserver that calls `setSize`.
+
+**Memory** (W-first and W-page; sampled outside the timed window, after `HeapProfiler.collectGarbage`), four
+figures that are never added together:
+- `heapChartBytes`: JS heap used with the chart minus with only the input data on the page (`heapUsedBytes`: absolute);
+- `rendererPssChartBytes` / `rendererPssBytes`: proportional set size of the page's renderer process (Linux
+  `/proc/<pid>/smaps_rollup`; CDP has no per-process memory). The page's renderer is the renderer that used the most
+  CPU time during the run (`SystemInfo.getProcessInfo`); Chrome's other renderers are recorded separately;
+- `gpuPssChartBytes` / `gpuPssBytes`: the same for the GPU process;
+- `canvasBackingBytes`: **calculated**, not measured: width × height × 4 over the chart canvases in device pixels.
+`domNodes` counts the elements in the chart containers. Run with `--dpr 2` for pixel ratio 2.
+
+**Process CPU** (`rendererCpuMs`, `gpuCpuMs`): CPU time of the whole renderer and GPU processes over the window, from
+`SystemInfo.getProcessInfo`. The resolution observed here is 10 ms, so it only means something over long windows.
+
+**CPU profiles** (`profile.mjs`): one CDP `Profiler` profile (100 µs sampling) from the create call to the end of the
+settle window. Each sample goes to the deepest Axylo frame on its stack and that frame's source module gives the
+stage. For the development build the module comes from esbuild's module comments; for the production build only
+when rebuilding the current sources reproduces the measured bundle byte for byte (then through a source map), and
+otherwise the summary says it is not available. Profiled runs are never timings.
+
 **Environment record**, in every history file: Chrome version and whether it was headless, Playwright and Node
 versions, CPU model and logical core count, cpufreq governor, memory, OS, load average at start and end, the WebGL
 renderer string, device pixel ratio and the refresh rate the page observed (per run), library versions, lockfile and
@@ -197,10 +257,9 @@ sent, received, visible, append time) and every frame timestamp. Admission runs 
   but has not been used for the recorded runs.
 - One machine, one browser (Chrome stable). No Firefox, WebKit, Edge, throttled profile or phone yet (plan 3.2).
 - The machine was not idle: other agents and builds run on it. The load average is recorded.
-- Task time is main-thread only; no GPU or raster time, no traces, no Long Animation Frames, no memory metrics yet.
+- Task time is main-thread only; no GPU raster time, no traces, no Long Animation Frames. Memory is Linux PSS plus a
+  calculated canvas figure, not Chrome's own accounting; no leak (create–destroy cycle) measurement yet.
 - Readiness comes from each library's own hooks; screenshot validation of readiness is not implemented.
 - Noise bands come from one session.
 - Not built yet from the plan: rows vs typed columns, irregular x, 10×100k, the mixed page, W-replace, W-hover, W-keys,
-  W-zoom, W-resize, W-busy, W-types, W-load, W-mem, bytes, the CI smoke job, and the documentation history page.
-- The Axylo adapter reads `axylo.iife.js`, which `scripts/build.mjs` builds with `__DEV__ = true`; the plan asks for
-  production builds, which is `axylo.iife.min.js`. Switch it when Axylo can be measured.
+  W-zoom, W-busy, W-types, W-load, the leak part of W-mem, bytes, the CI smoke job, and the documentation history page.

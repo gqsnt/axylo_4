@@ -119,6 +119,12 @@ export function workloadData(workload, params) {
     return Array.from({ length: count }, (_, i) => lineFixture({ series, points, gaps: !!params.gaps, seed: (params.seed ?? 1) * 1000 + i }));
   }
   if (workload === 'stream') return [streamFixture({ window: params.window ?? 600, samples: params.samples ?? 300, seed: params.seed ?? 2 })];
+  if (workload === 'theme') return [lineFixture({ ...parseSize(params.size ?? '3x120'), seed: params.seed ?? 1 })];
+  if (workload === 'resize') {
+    const { series, points } = parseSize(params.size ?? '1x100000');
+    const count = params.charts ?? 1;
+    return Array.from({ length: count }, (_, i) => lineFixture({ series, points, seed: count === 1 ? (params.seed ?? 1) : (params.seed ?? 1) * 1000 + i }));
+  }
   throw new Error(`unknown workload ${workload}`);
 }
 

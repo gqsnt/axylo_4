@@ -50,9 +50,20 @@ export async function build() {
   ]);
   fs.copyFileSync(path.join(BENCH, 'src/page.html'), path.join(DIST, 'index.html'));
   const hash = p => sha256(fs.readFileSync(p));
+  // Snapshot of the Axylo build. Other work rebuilds packages/axylo/dist while sessions run; every run of a session
+  // (run.mjs --no-build after one build) loads this copy, so all of them measure the same bytes.
+  const axylo = {};
+  fs.mkdirSync(path.join(DIST, 'axylo'), { recursive: true });
+  for (const f of ['axylo.iife.min.js', 'axylo.iife.js', 'axylo.css']) {
+    const from = path.join(REPO, 'packages/axylo/dist', f);
+    if (!fs.existsSync(from)) { axylo[f] = 'not available: not built'; continue; }
+    fs.copyFileSync(from, path.join(DIST, 'axylo', f));
+    axylo[f] = { sha256: hash(from), builtAt: fs.statSync(from).mtime.toISOString() };
+  }
   const manifest = {
     versions,
     page: { 'page.js': hash(path.join(DIST, 'page.js')), 'index.html': hash(path.join(DIST, 'index.html')) },
+    axylo,
     adapters: Object.fromEntries(adapters.map(a => [a.id, { sha256: hash(path.join(DIST, 'adapters', `${a.id}.js`)), test: a.test }])),
   };
   fs.writeFileSync(path.join(DIST, 'manifest.json'), JSON.stringify(manifest, null, 1));

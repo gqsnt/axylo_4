@@ -112,3 +112,12 @@ test('admission rejects a pinned y range, a clipped extreme, a wrong count and a
   assert.equal(checkView(expectedView(s), stale).admitted, false);
   assert.equal(checkView(e, null).admitted, false);
 });
+
+import { parseAdapterRef } from '../lib/refs.mjs';
+test('adapter references carry parameters', () => {
+  assert.deepEqual(parseAdapterRef('uplot'), { id: 'uplot', params: {} });
+  assert.deepEqual(parseAdapterRef('axylo:renderer=svg,build=dev'), { id: 'axylo', params: { renderer: 'svg', build: 'dev' } });
+  assert.deepEqual(parseAdapterRef('x:n=3,on=true'), { id: 'x', params: { n: 3, on: true } });
+  assert.throws(() => parseAdapterRef('axylo:renderer'));
+  assert.throws(() => parseAdapterRef('Bad Id'));
+});

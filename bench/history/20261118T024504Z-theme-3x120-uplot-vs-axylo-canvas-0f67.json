@@ -1,0 +1,283 @@
+{
+ "schema": "axylo-bench/1",
+ "runId": "20261118T024504Z-theme-3x120-uplot-vs-axylo-canvas-0f67",
+ "status": "complete",
+ "startedAt": "2026-11-18T02:45:04.441Z",
+ "command": [
+  "--no-build",
+  "--baseline",
+  "uplot",
+  "--candidate",
+  "axylo-canvas",
+  "--workload",
+  "theme",
+  "--blocks",
+  "2"
+ ],
+ "design": {
+  "mode": "compare",
+  "baseline": "uplot",
+  "candidate": "axylo-canvas",
+  "labels": {
+   "A": "uplot",
+   "B": "axylo-canvas"
+  },
+  "adapters": {
+   "A": {
+    "id": "uplot",
+    "params": {}
+   },
+   "B": {
+    "id": "axylo-canvas",
+    "params": {}
+   }
+  },
+  "workload": "theme",
+  "params": {
+   "size": "3x120",
+   "toggles": 20
+  },
+  "blocks": 2,
+  "order": [
+   "AB",
+   "BA"
+  ],
+  "seed": 877129155,
+  "settleMs": 500,
+  "timeoutMs": 120000,
+  "dpr": 1,
+  "viewport": [
+   1440,
+   900
+  ],
+  "noiseFrom": null
+ },
+ "environment": {
+  "browser": {
+   "name": "Google Chrome (system, via Playwright channel \"chrome\")",
+   "version": "157.0.8103.78",
+   "headless": true
+  },
+  "playwright": "1.65.1",
+  "node": "v24.21.0",
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13600K",
+   "logicalCores": 20,
+   "governor": "powersave"
+  },
+  "memoryGiB": 30.4,
+  "os": {
+   "type": "Linux",
+   "release": "7.0.0-43-generic",
+   "name": "Ubuntu 26.04.1 LTS",
+   "arch": "x64"
+  },
+  "loadAverageAtStart": [
+   6.27,
+   4.88,
+   4.5
+  ],
+  "hostIdle": "not controlled: other processes (including other agents) may run on this machine during the session",
+  "power": "not available: power settings are not read by this harness",
+  "commit": "b3c1a4fa5905daadc7398a174dcdfdfd894670fd",
+  "lockfiles": {
+   "bench/package-lock.json": "87ad92c82a0a5d9e66bf9b8b2b40cb453a79e350a5bdcc80c5718adcd6a1156f",
+   "package-lock.json": "e98151ca9f4f8d9aa1b6dd7e828f8e5024fbbf43a752a754d1a469a5850af392"
+  },
+  "axyloBundles": {
+   "axylo.iife.min.js": {
+    "sha256": "01f2d3271feea13dfb0d76b8ed2c83b2248586cb0e03954a38f5199327e7049d",
+    "role": "production build (__DEV__ = false), snapshot of packages/axylo/dist taken by bench/build.mjs; used by the axylo adapters by default"
+   },
+   "axylo.iife.js": {
+    "sha256": "47dd43d02cea8ff81d53201fd65a220e006c5bc3082e537ecb054d6f9f268f09",
+    "role": "development build (__DEV__ = true), same snapshot; used only with build=dev"
+   },
+   "gitStatusOfLibrarySources": "M packages/axylo/src/core/axes.ts\n M packages/axylo/src/core/chart.ts\n M packages/axylo/src/dom/figure.ts\n M packages/axylo/src/dom/pointer.ts\n M packages/axylo/src/dom/tooltip.ts\n M packages/axylo/src/theme/css.ts\n?? packages/axylo/src/core/focus.ts\n?? packages/axylo/src/dom/interaction.ts\n?? packages/axylo/src/dom/swatch.ts\n?? packages/axylo/src/dom/table.ts\n?? packages/axylo/src/dom/toolbar.ts"
+  },
+  "libraries": {
+   "uplot": "1.6.32",
+   "chart.js": "4.6.1",
+   "chartjs-adapter-date-fns": "3.0.0",
+   "date-fns": "4.4.0",
+   "axylo": "0.0.0"
+  },
+  "page": {
+   "devicePixelRatio": 1,
+   "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+   "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+   "viewport": [
+    1440,
+    900
+   ],
+   "hardwareConcurrency": 20,
+   "refresh": {
+    "medianIntervalMs": 16.7,
+    "hz": 59.88,
+    "minMs": 16.5,
+    "maxMs": 16.8
+   }
+  }
+ },
+ "hashes": {
+  "fixtureChecksum": "7f8ee32c",
+  "page": {
+   "page.js": "58956594dbe5db963996515f18690f8090ac2f19fa9bef7b5b8ad68027116758",
+   "index.html": "23927f274d7378316a0dc7f7a8b54cdccb5c54cee8d12dad6a599a179c175061"
+  },
+  "adapters": {
+   "uplot": {
+    "sha256": "fce8be52d9ba99bfd742c747e1b0df66d9a0c3a4fd84ef08ae99ba7a9f302017",
+    "test": false
+   },
+   "axylo-canvas": {
+    "sha256": "4d0526cae20349334dbaeab87cbad640d983777938d71cb42ca15d34973af7b3",
+    "test": false
+   }
+  }
+ },
+ "admission": {
+  "uplot": {
+   "outcome": "not-admitted",
+   "reason": "theme: marks did not change color on the first toggle (canvas:#000000|#1f77b4|#2ca02c|#d62728)",
+   "admission": {
+    "admitted": false,
+    "reasons": [
+     "theme: marks did not change color on the first toggle (canvas:#000000|#1f77b4|#2ca02c|#d62728)"
+    ]
+   },
+   "describe": [
+    {
+     "reads": "uPlot u.scales.x/y.{min,max}; u.data[0] length and ends; null count in u.data[s]",
+     "x": [
+      1767225600000,
+      1777507200000
+     ],
+     "y": [
+      86,
+      194
+     ],
+     "series": [
+      {
+       "points": 120,
+       "oldestX": 1767225600000,
+       "newestX": 1777507200000,
+       "missing": 0
+      },
+      {
+       "points": 120,
+       "oldestX": 1767225600000,
+       "newestX": 1777507200000,
+       "missing": 0
+      },
+      {
+       "points": 120,
+       "oldestX": 1767225600000,
+       "newestX": 1777507200000,
+       "missing": 0
+      }
+     ]
+    }
+   ],
+   "adapter": {
+    "id": "uplot",
+    "library": "uPlot",
+    "version": "1.6.32",
+    "config": "default",
+    "params": {},
+    "floor": false
+   },
+   "themeCheck": {
+    "ok": false,
+    "reasons": [
+     "marks did not change color on the first toggle (canvas:#000000|#1f77b4|#2ca02c|#d62728)"
+    ]
+   }
+  },
+  "axylo-canvas": {
+   "outcome": "ok",
+   "reason": null,
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "describe": [
+    {
+     "reads": "Axylo chart.__bench.describe(): committed view xDomain/yDomain; per series slots held, first and last x, non-value slots",
+     "x": [
+      1767225600000,
+      1777507200000
+     ],
+     "y": [
+      80,
+      200
+     ],
+     "series": [
+      {
+       "points": 120,
+       "oldestX": 1767225600000,
+       "newestX": 1777507200000,
+       "missing": 0
+      },
+      {
+       "points": 120,
+       "oldestX": 1767225600000,
+       "newestX": 1777507200000,
+       "missing": 0
+      },
+      {
+       "points": 120,
+       "oldestX": 1767225600000,
+       "newestX": 1777507200000,
+       "missing": 0
+      }
+     ]
+    }
+   ],
+   "adapter": {
+    "id": "axylo-canvas",
+    "library": "Axylo",
+    "version": "0.0.0",
+    "config": "default options, canvas mark renderer, production build (axylo.iife.min.js)",
+    "params": {
+     "renderer": "canvas",
+     "build": "prod"
+    },
+    "floor": false
+   },
+   "themeCheck": {
+    "ok": true,
+    "reasons": []
+   }
+  }
+ },
+ "runs": [
+  {
+   "index": 0,
+   "phase": "admission",
+   "adapter": "uplot",
+   "outcome": "not-admitted",
+   "reason": "theme: marks did not change color on the first toggle (canvas:#000000|#1f77b4|#2ca02c|#d62728)",
+   "durationMs": 3978,
+   "logs": [],
+   "pageErrors": []
+  },
+  {
+   "index": 1,
+   "phase": "admission",
+   "adapter": "axylo-canvas",
+   "outcome": "ok",
+   "reason": null,
+   "durationMs": 3378,
+   "logs": [],
+   "pageErrors": []
+  }
+ ],
+ "analysis": {
+  "notCompared": [
+   "uplot: not-admitted (theme: marks did not change color on the first toggle (canvas:#000000|#1f77b4|#2ca02c|#d62728))"
+  ]
+ },
+ "endedBecause": "admission failed or adapter not available; nothing was timed",
+ "finishedAt": "2026-11-18T02:45:11.887Z"
+}

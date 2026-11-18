@@ -7,6 +7,7 @@ import { parseArgs } from 'node:util';
 import { BENCH } from './build.mjs';
 import { analyze } from './src/stats.js';
 import { formatAnalysis } from './lib/report.mjs';
+import { loadNoise } from './lib/refs.mjs';
 
 const { values, positionals } = parseArgs({ allowPositionals: true, options: { noise: { type: 'string' } } });
 const load = ref => JSON.parse(fs.readFileSync(fs.existsSync(ref) ? ref : path.join(BENCH, 'history', `${ref}.json`), 'utf8'));
@@ -15,12 +16,9 @@ const rec = load(positionals[0]);
 if (rec.status !== 'complete') console.log(`note: this record's status is "${rec.status}"${rec.endedBecause ? ` (${rec.endedBecause})` : ''}; analysing the runs it holds`);
 let noise = null;
 if (values.noise) {
-  const n = load(values.noise);
-  if (n.design.mode !== 'aa') { console.error('the --noise record is not an A-versus-A run'); process.exit(2); }
-  if (n.design.workload !== rec.design.workload || JSON.stringify(n.design.params) !== JSON.stringify(rec.design.params)) { console.error('the --noise record is for another workload'); process.exit(2); }
-  if (n.environment.browser.version !== rec.environment.browser.version) console.log(`warning: noise run used Chrome ${n.environment.browser.version}, this run ${rec.environment.browser.version}`);
-  noise = { metrics: Object.fromEntries(Object.entries(n.analysis.metrics).map(([k, m]) => [k, { lo: m.lo, hi: m.hi }])) };
-  rec.design.noiseFrom = { runId: n.runId };
+  noise = loadNoise(values.noise.split(','), path.join(BENCH, 'history'), rec.design.workload, rec.design.params);
+  for (const src of noise.sources) if (src.chrome !== rec.environment.browser.version) console.log(`warning: noise run ${src.runId} used Chrome ${src.chrome}, this run ${rec.environment.browser.version}`);
+  rec.design.noiseFrom = noise.sources;
 }
 if (rec.runs.some(r => r.phase === 'timed')) rec.analysis = analyze(rec.design.workload, rec.runs, { noise });
 console.log(formatAnalysis(rec));

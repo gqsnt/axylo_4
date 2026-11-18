@@ -1,0 +1,235 @@
+{
+ "name": "20261118T025413Z-first-3x120-axylo_renderer_canvas_build_prod",
+ "adapter": "axylo:renderer=canvas,build=prod",
+ "config": "default options, canvas mark renderer, production build (axylo.iife.min.js)",
+ "workload": "first",
+ "params": {
+  "size": "3x120",
+  "gaps": false
+ },
+ "profileFile": "results/profiles/20261118T025413Z-first-3x120-axylo_renderer_canvas_build_prod.cpuprofile",
+ "environment": {
+  "browser": {
+   "name": "Google Chrome (system, via Playwright channel \"chrome\")",
+   "version": "157.0.8103.78",
+   "headless": true
+  },
+  "playwright": "1.65.1",
+  "node": "v24.21.0",
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13600K",
+   "logicalCores": 20,
+   "governor": "powersave"
+  },
+  "memoryGiB": 30.4,
+  "os": {
+   "type": "Linux",
+   "release": "7.0.0-43-generic",
+   "name": "Ubuntu 26.04.1 LTS",
+   "arch": "x64"
+  },
+  "loadAverageAtStart": [
+   4.44,
+   4.01,
+   4.16
+  ],
+  "hostIdle": "not controlled: other processes (including other agents) may run on this machine during the session",
+  "power": "not available: power settings are not read by this harness",
+  "commit": "b3c1a4fa5905daadc7398a174dcdfdfd894670fd",
+  "lockfiles": {
+   "bench/package-lock.json": "87ad92c82a0a5d9e66bf9b8b2b40cb453a79e350a5bdcc80c5718adcd6a1156f",
+   "package-lock.json": "e98151ca9f4f8d9aa1b6dd7e828f8e5024fbbf43a752a754d1a469a5850af392"
+  },
+  "axyloBundles": {
+   "axylo.iife.min.js": {
+    "sha256": "01f2d3271feea13dfb0d76b8ed2c83b2248586cb0e03954a38f5199327e7049d",
+    "role": "production build (__DEV__ = false), snapshot of packages/axylo/dist taken by bench/build.mjs; used by the axylo adapters by default"
+   },
+   "axylo.iife.js": {
+    "sha256": "47dd43d02cea8ff81d53201fd65a220e006c5bc3082e537ecb054d6f9f268f09",
+    "role": "development build (__DEV__ = true), same snapshot; used only with build=dev"
+   },
+   "gitStatusOfLibrarySources": "M packages/axylo/src/core/axes.ts\n M packages/axylo/src/core/chart.ts\n M packages/axylo/src/dom/figure.ts\n M packages/axylo/src/dom/pointer.ts\n M packages/axylo/src/dom/tooltip.ts\n M packages/axylo/src/theme/css.ts\n?? packages/axylo/src/core/focus.ts\n?? packages/axylo/src/dom/interaction.ts\n?? packages/axylo/src/dom/swatch.ts\n?? packages/axylo/src/dom/table.ts\n?? packages/axylo/src/dom/toolbar.ts"
+  }
+ },
+ "page": {
+  "devicePixelRatio": 1,
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+  "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+  "viewport": [
+   1440,
+   900
+  ],
+  "hardwareConcurrency": 20,
+  "refresh": {
+   "medianIntervalMs": 16.7,
+   "hz": 59.88,
+   "minMs": 16.5,
+   "maxMs": 16.8
+  }
+ },
+ "note": "profiled run: timings are slowed by the profiler and are not comparable with timed runs",
+ "summary": {
+  "build": "prod",
+  "mapping": "not available: rebuilding packages/axylo/src now does not reproduce the measured production bundle byte for byte (the sources changed after it was built), so its minified positions cannot be mapped; see the development-build profile",
+  "samples": 3483,
+  "totalMs": 528.32,
+  "busyMs": 27.14,
+  "stages": [
+   {
+    "k": "(idle)",
+    "ms": 501.18,
+    "ofBusy": null
+   },
+   {
+    "k": "axylo (unmapped)",
+    "ms": 19.59,
+    "ofBusy": 72.2
+   },
+   {
+    "k": "(program): native main-thread work outside JS",
+    "ms": 6.62,
+    "ofBusy": 24.4
+   },
+   {
+    "k": "other JavaScript (harness, page)",
+    "ms": 0.93,
+    "ofBusy": 3.4
+   }
+  ],
+  "modules": [
+   {
+    "k": "(unmapped)",
+    "ms": 19.59,
+    "ofBusy": 72.2
+   }
+  ],
+  "functions": [
+   {
+    "k": "Xl @ ?:114",
+    "ms": 3.05,
+    "ofBusy": 11.2
+   },
+   {
+    "k": "xl @ ?:114",
+    "ms": 2.3,
+    "ofBusy": 8.5
+   },
+   {
+    "k": "(anonymous) @ ?:1",
+    "ms": 1.23,
+    "ofBusy": 4.5
+   },
+   {
+    "k": "Oi @ ?:114",
+    "ms": 1.22,
+    "ofBusy": 4.5
+   },
+   {
+    "k": "sn @ ?:114",
+    "ms": 0.77,
+    "ofBusy": 2.8
+   },
+   {
+    "k": "Un @ ?:1",
+    "ms": 0.62,
+    "ofBusy": 2.3
+   },
+   {
+    "k": "(anonymous) @ ?:114",
+    "ms": 0.46,
+    "ofBusy": 1.7
+   },
+   {
+    "k": "h @ ?:3",
+    "ms": 0.41,
+    "ofBusy": 1.5
+   },
+   {
+    "k": "yn @ ?:1",
+    "ms": 0.3,
+    "ofBusy": 1.1
+   },
+   {
+    "k": "wl @ ?:114",
+    "ms": 0.3,
+    "ofBusy": 1.1
+   },
+   {
+    "k": "(anonymous) @ ?:3",
+    "ms": 0.3,
+    "ofBusy": 1.1
+   },
+   {
+    "k": "o @ ?:1",
+    "ms": 0.27,
+    "ofBusy": 1
+   },
+   {
+    "k": "ad @ ?:114",
+    "ms": 0.16,
+    "ofBusy": 0.6
+   },
+   {
+    "k": "di @ ?:3",
+    "ms": 0.16,
+    "ofBusy": 0.6
+   },
+   {
+    "k": "X @ ?:114",
+    "ms": 0.16,
+    "ofBusy": 0.6
+   },
+   {
+    "k": "iu @ ?:1",
+    "ms": 0.16,
+    "ofBusy": 0.6
+   },
+   {
+    "k": "Do @ ?:1",
+    "ms": 0.16,
+    "ofBusy": 0.6
+   },
+   {
+    "k": "Ed @ ?:114",
+    "ms": 0.15,
+    "ofBusy": 0.6
+   },
+   {
+    "k": "Ai @ ?:114",
+    "ms": 0.15,
+    "ofBusy": 0.6
+   },
+   {
+    "k": "Fl @ ?:114",
+    "ms": 0.15,
+    "ofBusy": 0.6
+   },
+   {
+    "k": "dt @ ?:1",
+    "ms": 0.15,
+    "ofBusy": 0.6
+   },
+   {
+    "k": "Ii @ ?:114",
+    "ms": 0.15,
+    "ofBusy": 0.6
+   },
+   {
+    "k": "r @ ?:1",
+    "ms": 0.15,
+    "ofBusy": 0.6
+   },
+   {
+    "k": "Kc @ ?:3",
+    "ms": 0.15,
+    "ofBusy": 0.6
+   },
+   {
+    "k": "Mo @ ?:1",
+    "ms": 0.15,
+    "ofBusy": 0.6
+   }
+  ]
+ }
+}

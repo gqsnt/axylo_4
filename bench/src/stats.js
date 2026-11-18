@@ -62,6 +62,32 @@ export const METRICS = {
     { key: 'layoutStyleMs', unit: 'ms', what: 'LayoutDuration + RecalcStyleDuration in the same window' },
     { key: 'readyMs', unit: 'ms', what: 'wall clock from create call to the adapter\'s ready signal' },
     { key: 'readyFrameMs', unit: 'ms', what: 'wall clock to the first animation frame after ready' },
+    { key: 'rendererCpuMs', unit: 'ms', what: 'CPU time of the page renderer process, all threads, same window (SystemInfo.getProcessInfo)' },
+    { key: 'gpuCpuMs', unit: 'ms', what: 'CPU time of the GPU process, same window' },
+    { key: 'heapChartBytes', unit: 'bytes', what: 'JS heap after forced GC with the chart, minus the same with only the input data' },
+    { key: 'heapUsedBytes', unit: 'bytes', what: 'JS heap after forced GC with the chart (absolute)' },
+    { key: 'rendererPssBytes', unit: 'bytes', what: 'page renderer process PSS with the chart (Linux /proc, after GC)' },
+    { key: 'rendererPssChartBytes', unit: 'bytes', what: 'page renderer PSS with the chart minus with only the input data' },
+    { key: 'gpuPssBytes', unit: 'bytes', what: 'GPU process PSS with the chart' },
+    { key: 'gpuPssChartBytes', unit: 'bytes', what: 'GPU process PSS with the chart minus with only the input data' },
+    { key: 'canvasBackingBytes', unit: 'bytes', what: 'CALCULATED: sum of canvas.width x canvas.height x 4 over the chart canvases' },
+    { key: 'domNodes', unit: 'nodes', what: 'elements inside the chart containers' },
+  ],
+  theme: [
+    { key: 'taskMsPerToggle', unit: 'ms', primary: true, what: 'median over toggles of TaskDuration from the class toggle to 3 frames + 50 ms later' },
+    { key: 'taskMsToggleMax', unit: 'ms', what: 'largest per-toggle TaskDuration' },
+    { key: 'canvasCallsPerToggle', unit: 'calls', what: 'median Canvas 2D drawing calls per toggle window' },
+    { key: 'mutationsPerToggle', unit: 'records', what: 'median DOM mutation records inside the chart per toggle window' },
+    { key: 'framesToNewColor', unit: 'frames', what: 'largest number of frames until the marks changed color (untimed toggles)' },
+  ],
+  resize: [
+    { key: 'taskMs', unit: 'ms', primary: true, what: 'TaskDuration over the 2 s width animation and until the charts report ready' },
+    { key: 'frameP95Ms', unit: 'ms', what: '95th percentile animation-frame interval during the animation' },
+    { key: 'frameP99Ms', unit: 'ms', what: '99th percentile animation-frame interval' },
+    { key: 'framesOverThreshold', unit: 'frames', what: 'frame intervals over 1.5x the observed refresh interval' },
+    { key: 'frameMaxMs', unit: 'ms', what: 'largest frame interval' },
+    { key: 'rendererCpuMs', unit: 'ms', what: 'page renderer process CPU time, all threads, same window' },
+    { key: 'gpuCpuMs', unit: 'ms', what: 'GPU process CPU time, same window' },
   ],
   stream: [
     { key: 'taskMsPerUpdate', unit: 'ms', primary: true, what: 'main-thread TaskDuration from stream start to last sample visible, / samples' },
@@ -83,9 +109,64 @@ const ms = (deltas, from, to, name) => {
   return d && Number.isFinite(d[name]) ? d[name] * 1000 : NaN;
 };
 
+const cpuMs = (deltas, from, to, name) => {
+  const d = deltas?.[`${from}->${to}`];
+  return d && Number.isFinite(d[name]) ? d[name] * 1000 : NA(`${name} not sampled (process not identified)`);
+};
+
+function frameStats(out, frames, from, to, refresh) {
+  const f = frames.filter(t => t >= from && t <= to);
+  const iv = f.slice(1).map((t, i) => t - f[i]);
+  if (iv.length < 10) { out.frameP95Ms = out.frameP99Ms = out.framesOverThreshold = out.frameMaxMs = NA(`only ${iv.length} frame intervals in the window`); return; }
+  out.frameP95Ms = quantile(iv, 0.95);
+  out.frameP99Ms = quantile(iv, 0.99);
+  out.frameMaxMs = Math.max(...iv);
+  out.framesOverThreshold = Number.isFinite(refresh) ? iv.filter(v => v > 1.5 * refresh).length : NA('refresh rate not observed');
+  out.frameThresholdMs = Number.isFinite(refresh) ? 1.5 * refresh : null;
+  out.frameCount = iv.length;
+}
+
+function memorySummary(out, run) {
+  const m = run.memory?.samples;
+  const na = NA('memory not sampled');
+  if (!m?.chart || !m?.data) { for (const k of ['heapChartBytes', 'heapUsedBytes', 'rendererPssBytes', 'rendererPssChartBytes', 'gpuPssBytes', 'gpuPssChartBytes']) out[k] = na; }
+  else {
+    out.heapChartBytes = m.chart.heapUsed - m.data.heapUsed;
+    out.heapUsedBytes = m.chart.heapUsed;
+    out.rendererPssBytes = Number.isFinite(m.chart.renderer.pss) ? m.chart.renderer.pss : NA(m.chart.renderer.na ?? 'renderer PSS missing');
+    out.rendererPssChartBytes = Number.isFinite(m.chart.renderer.pss) && Number.isFinite(m.data.renderer.pss) ? m.chart.renderer.pss - m.data.renderer.pss : NA('renderer PSS missing');
+    out.gpuPssBytes = Number.isFinite(m.chart.gpu.pss) ? m.chart.gpu.pss : NA(m.chart.gpu.na ?? 'GPU PSS missing');
+    out.gpuPssChartBytes = Number.isFinite(m.chart.gpu.pss) && Number.isFinite(m.data.gpu.pss) ? m.chart.gpu.pss - m.data.gpu.pss : NA('GPU PSS missing');
+  }
+  const cb = run.result.canvasBacking;
+  out.canvasBackingBytes = cb ? cb.chartCanvasBytes : NA('not recorded');
+  out.domNodes = cb ? cb.domNodes : NA('not recorded');
+}
+
 /** One run's raw record -> one number per metric (or a "not available" reason). */
 export function summarizeRun(workload, run) {
   const out = {};
+  const refresh = run.result.env?.refresh?.medianIntervalMs;
+  if (workload === 'theme') {
+    const t = run.result.theme;
+    const per = [];
+    for (let i = 0; i < t.toggles; i++) { const v = ms(run.deltas, `toggle${i}:start`, `toggle${i}:end`, 'TaskDuration'); if (Number.isFinite(v)) per.push(v); }
+    out.taskMsPerToggle = per.length ? median(per) : NA('TaskDuration missing');
+    out.taskMsToggleMax = per.length ? Math.max(...per) : NA('TaskDuration missing');
+    out.canvasCallsPerToggle = median(t.work.map(w => w.canvasCalls));
+    out.mutationsPerToggle = median(t.work.map(w => w.mutations));
+    out.framesToNewColor = t.framesToChange.every(v => v !== null) ? Math.max(...t.framesToChange) : NA('the marks did not change within 10 frames in an untimed toggle');
+    return out;
+  }
+  if (workload === 'resize') {
+    const r = run.result.resize;
+    const t = ms(run.deltas, 'resize:start', 'resize:end', 'TaskDuration');
+    out.taskMs = Number.isFinite(t) ? t : NA('TaskDuration missing');
+    frameStats(out, r.frames, r.startAt, r.endAt, refresh);
+    out.rendererCpuMs = cpuMs(run.deltas, 'resize:start', 'resize:end', 'rendererCpu');
+    out.gpuCpuMs = cpuMs(run.deltas, 'resize:start', 'resize:end', 'gpuCpu');
+    return out;
+  }
   if (workload === 'stream') {
     const s = run.result.stream;
     const task = ms(run.deltas, 'stream:start', 'stream:end', 'TaskDuration');
@@ -120,6 +201,9 @@ export function summarizeRun(workload, run) {
   out.devtoolsMs = g('DevToolsCommandDuration');
   out.readyMs = run.result.timing.readyMs;
   out.readyFrameMs = run.result.timing.readyFrameMs;
+  out.rendererCpuMs = cpuMs(run.deltas, 'create:start', 'create:end', 'rendererCpu');
+  out.gpuCpuMs = cpuMs(run.deltas, 'create:start', 'create:end', 'gpuCpu');
+  memorySummary(out, run);
   return out;
 }
 

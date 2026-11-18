@@ -75,3 +75,17 @@ test('a runner killed mid-session (as by a restart) leaves its record marked int
     assert.equal(rec.analysis, null);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test('the theme workload does not admit a chart whose marks keep their colors (uPlot has no theme mechanism)', async () => {
+  const r = await runOnce(browser, server.base, spec('uplot', 'theme', { size: '3x120', toggles: 2 }));
+  assert.equal(r.outcome, 'not-admitted');
+  assert.match(r.reason, /marks did not change color/);
+});
+
+test('Axylo production build, both renderers, are admitted through adapter parameters', async () => {
+  for (const renderer of ['canvas', 'svg']) {
+    const r = await runOnce(browser, server.base, { ...spec('axylo', 'first', { size: '3x120', gaps: false }), adapterParams: { renderer } });
+    assert.equal(r.outcome, 'ok', r.reason ?? r.error);
+    assert.match(r.result.adapter.config, new RegExp(`${renderer} mark renderer, production build`));
+  }
+});

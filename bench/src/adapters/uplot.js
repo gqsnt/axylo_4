@@ -2,6 +2,7 @@
 //
 // Options set, and why (none of them is a performance option):
 //   width, height   uPlot has no automatic sizing; the container's size, minus room for its legend row below the plot.
+//                   In the resize workload a ResizeObserver calls setSize (see below).
 //   ms: 1           the fixture's x is epoch milliseconds; uPlot's default unit is seconds. The documented
 //                   alternative to dividing every timestamp by 1,000.
 //   series[].stroke uPlot has no default palette; without a stroke a series is not drawn.
@@ -45,6 +46,16 @@ export function createUplot(el, fix, opts = {}, tweak = {}) {
   };
   tweak.options?.(options);
   const u = new uPlot(options, data, el);
+  // Resize workload only: uPlot does not follow its container; its demos use a resize listener and setSize. A
+  // ResizeObserver on the container is the same pattern for a container that changes without a window resize.
+  let observer = null;
+  if (opts.resize) {
+    observer = new ResizeObserver(() => {
+      const w = el.clientWidth, h = el.clientHeight - LEGEND_ROOM;
+      if (w !== u.width || h !== u.height) u.setSize({ width: w, height: h });
+    });
+    observer.observe(el);
+  }
   return {
     u,
     ready,
@@ -75,7 +86,7 @@ export function createUplot(el, fix, opts = {}, tweak = {}) {
         }),
       };
     },
-    destroy: () => u.destroy(),
+    destroy: () => { observer?.disconnect(); u.destroy(); },
   };
 }
 

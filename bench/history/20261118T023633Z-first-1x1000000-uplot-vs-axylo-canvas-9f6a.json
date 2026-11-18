@@ -1,0 +1,2341 @@
+{
+ "schema": "axylo-bench/1",
+ "runId": "20261118T023633Z-first-1x1000000-uplot-vs-axylo-canvas-9f6a",
+ "status": "complete",
+ "startedAt": "2026-11-18T02:36:33.452Z",
+ "command": [
+  "--no-build",
+  "--baseline",
+  "uplot",
+  "--candidate",
+  "axylo-canvas",
+  "--workload",
+  "first",
+  "--size",
+  "1x1000000",
+  "--blocks",
+  "4"
+ ],
+ "design": {
+  "mode": "compare",
+  "baseline": "uplot",
+  "candidate": "axylo-canvas",
+  "labels": {
+   "A": "uplot",
+   "B": "axylo-canvas"
+  },
+  "adapters": {
+   "A": {
+    "id": "uplot",
+    "params": {}
+   },
+   "B": {
+    "id": "axylo-canvas",
+    "params": {}
+   }
+  },
+  "workload": "first",
+  "params": {
+   "size": "1x1000000",
+   "gaps": false
+  },
+  "blocks": 4,
+  "order": [
+   "AB",
+   "BA",
+   "BA",
+   "AB"
+  ],
+  "seed": 1364612887,
+  "settleMs": 500,
+  "timeoutMs": 120000,
+  "dpr": 1,
+  "viewport": [
+   1440,
+   900
+  ],
+  "noiseFrom": null
+ },
+ "environment": {
+  "browser": {
+   "name": "Google Chrome (system, via Playwright channel \"chrome\")",
+   "version": "157.0.8103.78",
+   "headless": true
+  },
+  "playwright": "1.65.1",
+  "node": "v24.21.0",
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13600K",
+   "logicalCores": 20,
+   "governor": "powersave"
+  },
+  "memoryGiB": 30.4,
+  "os": {
+   "type": "Linux",
+   "release": "7.0.0-43-generic",
+   "name": "Ubuntu 26.04.1 LTS",
+   "arch": "x64"
+  },
+  "loadAverageAtStart": [
+   4.25,
+   3.99,
+   4.23
+  ],
+  "hostIdle": "not controlled: other processes (including other agents) may run on this machine during the session",
+  "power": "not available: power settings are not read by this harness",
+  "commit": "e6e0e195c1a878ac235044efd5c1258e84e8b360",
+  "lockfiles": {
+   "bench/package-lock.json": "87ad92c82a0a5d9e66bf9b8b2b40cb453a79e350a5bdcc80c5718adcd6a1156f",
+   "package-lock.json": "e98151ca9f4f8d9aa1b6dd7e828f8e5024fbbf43a752a754d1a469a5850af392"
+  },
+  "axyloBundles": {
+   "axylo.iife.min.js": {
+    "sha256": "01f2d3271feea13dfb0d76b8ed2c83b2248586cb0e03954a38f5199327e7049d",
+    "role": "production build (__DEV__ = false), snapshot of packages/axylo/dist taken by bench/build.mjs; used by the axylo adapters by default"
+   },
+   "axylo.iife.js": {
+    "sha256": "47dd43d02cea8ff81d53201fd65a220e006c5bc3082e537ecb054d6f9f268f09",
+    "role": "development build (__DEV__ = true), same snapshot; used only with build=dev"
+   },
+   "gitStatusOfLibrarySources": "M packages/axylo/src/core/axes.ts\n M packages/axylo/src/core/chart.ts\n M packages/axylo/src/data/index.ts\n M packages/axylo/src/data/normalize.ts\n M packages/axylo/src/data/options.ts\n M packages/axylo/src/data/store-buffers.ts\n M packages/axylo/src/data/store-calendar.ts\n M packages/axylo/src/data/store-diagnostics.ts\n M packages/axylo/src/data/store-rows.ts\n M packages/axylo/src/data/store.ts\n M packages/axylo/src/data/values.ts\n M packages/axylo/src/data/x.ts\n M packages/axylo/src/dom/figure.ts\n M packages/axylo/src/dom/pointer.ts\n M packages/axylo/src/dom/tooltip.ts\n M packages/axylo/src/theme/css.ts\n?? packages/axylo/src/core/focus.ts\n?? packages/axylo/src/data/store-unaligned.ts\n?? packages/axylo/src/data/transaction.ts\n?? packages/axylo/src/dom/interaction.ts\n?? packages/axylo/src/dom/swatch.ts\n?? packages/axylo/src/dom/table.ts\n?? packages/axylo/src/dom/toolbar.ts"
+  },
+  "libraries": {
+   "uplot": "1.6.32",
+   "chart.js": "4.6.1",
+   "chartjs-adapter-date-fns": "3.0.0",
+   "date-fns": "4.4.0",
+   "axylo": "0.0.0"
+  },
+  "page": {
+   "devicePixelRatio": 1,
+   "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+   "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+   "viewport": [
+    1440,
+    900
+   ],
+   "hardwareConcurrency": 20,
+   "refresh": {
+    "medianIntervalMs": 16.7,
+    "hz": 59.88,
+    "minMs": 16.5,
+    "maxMs": 16.8
+   }
+  },
+  "loadAverageAtEnd": [
+   4.47,
+   4.05,
+   4.25
+  ]
+ },
+ "hashes": {
+  "fixtureChecksum": "03457f44",
+  "page": {
+   "page.js": "58956594dbe5db963996515f18690f8090ac2f19fa9bef7b5b8ad68027116758",
+   "index.html": "23927f274d7378316a0dc7f7a8b54cdccb5c54cee8d12dad6a599a179c175061"
+  },
+  "adapters": {
+   "uplot": {
+    "sha256": "fce8be52d9ba99bfd742c747e1b0df66d9a0c3a4fd84ef08ae99ba7a9f302017",
+    "test": false
+   },
+   "axylo-canvas": {
+    "sha256": "4d0526cae20349334dbaeab87cbad640d983777938d71cb42ca15d34973af7b3",
+    "test": false
+   }
+  }
+ },
+ "admission": {
+  "uplot": {
+   "outcome": "ok",
+   "reason": null,
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "describe": [
+    {
+     "reads": "uPlot u.scales.x/y.{min,max}; u.data[0] length and ends; null count in u.data[s]",
+     "x": [
+      1767225600000,
+      1827225540000
+     ],
+     "y": [
+      -600,
+      1000
+     ],
+     "series": [
+      {
+       "points": 1000000,
+       "oldestX": 1767225600000,
+       "newestX": 1827225540000,
+       "missing": 0
+      }
+     ]
+    }
+   ],
+   "adapter": {
+    "id": "uplot",
+    "library": "uPlot",
+    "version": "1.6.32",
+    "config": "default",
+    "params": {},
+    "floor": false
+   }
+  },
+  "axylo-canvas": {
+   "outcome": "ok",
+   "reason": null,
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "describe": [
+    {
+     "reads": "Axylo chart.__bench.describe(): committed view xDomain/yDomain; per series slots held, first and last x, non-value slots",
+     "x": [
+      1767225600000,
+      1827225540000
+     ],
+     "y": [
+      -500,
+      1000
+     ],
+     "series": [
+      {
+       "points": 1000000,
+       "oldestX": 1767225600000,
+       "newestX": 1827225540000,
+       "missing": 0
+      }
+     ]
+    }
+   ],
+   "adapter": {
+    "id": "axylo-canvas",
+    "library": "Axylo",
+    "version": "0.0.0",
+    "config": "default options, canvas mark renderer, production build (axylo.iife.min.js)",
+    "params": {
+     "renderer": "canvas",
+     "build": "prod"
+    },
+    "floor": false
+   }
+  }
+ },
+ "runs": [
+  {
+   "index": 0,
+   "phase": "admission",
+   "adapter": "uplot",
+   "outcome": "ok",
+   "reason": null,
+   "durationMs": 1908,
+   "logs": [],
+   "pageErrors": []
+  },
+  {
+   "index": 1,
+   "phase": "admission",
+   "adapter": "axylo-canvas",
+   "outcome": "ok",
+   "reason": null,
+   "durationMs": 2556,
+   "logs": [],
+   "pageErrors": []
+  },
+  {
+   "index": 2,
+   "phase": "timed",
+   "block": 0,
+   "position": 0,
+   "config": "A",
+   "adapter": "uplot",
+   "startedAt": "2026-11-18T02:36:38.084Z",
+   "adapterParams": {},
+   "durationMs": 1885,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "uplot",
+     "library": "uPlot",
+     "version": "1.6.32",
+     "config": "default",
+     "params": {},
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "03457f44",
+    "timing": {
+     "syncMs": 3.9,
+     "readyMs": 19.5,
+     "readyFrameMs": 20.1,
+     "windowMs": 522.3,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 1184000,
+     "chartCanvasCount": 1,
+     "otherCanvasBytes": 0,
+     "svgElements": 0,
+     "svgPaths": 0,
+     "domNodes": 24
+    },
+    "describe": [
+     {
+      "reads": "uPlot u.scales.x/y.{min,max}; u.data[0] length and ends; null count in u.data[s]",
+      "x": [
+       1767225600000,
+       1827225540000
+      ],
+      "y": [
+       -600,
+       1000
+      ],
+      "series": [
+       {
+        "points": 1000000,
+        "oldestX": 1767225600000,
+        "newestX": 1827225540000,
+        "missing": 0
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.022124000000000005,
+     "ScriptDuration": 0.019337999999999998,
+     "LayoutDuration": 0.000713,
+     "RecalcStyleDuration": 0.00020400000000000003,
+     "DevToolsCommandDuration": 0.0003750000000000142,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0014940000000000023,
+     "ThreadTime": 0.02179600000000001,
+     "LayoutCount": 2,
+     "RecalcStyleCount": 2,
+     "Nodes": 29,
+     "JSEventListeners": 9,
+     "JSHeapUsedSize": 359800,
+     "JSHeapTotalSize": 2883584,
+     "endNodes": 56,
+     "endJSHeapUsedSize": 1443776,
+     "rendererCpu": 0.030000000000000027,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 2329205,
+    "gpuPid": 2328980,
+    "samples": {
+     "blank": {
+      "heapUsed": 982172,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 335896,
+      "backingStorage": 70323,
+      "renderer": {
+       "pid": 2329205,
+       "type": "renderer",
+       "cpuTime": 0.06,
+       "pss": 50970624,
+       "rss": 138764288
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.07,
+       "pss": 39441408,
+       "rss": 98959360
+      },
+      "otherRenderers": [
+       {
+        "pid": 2329204,
+        "pss": 17879040
+       },
+       {
+        "pid": 2329195,
+        "pss": 51261440
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1056780,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 337832,
+      "backingStorage": 16070344,
+      "renderer": {
+       "pid": 2329205,
+       "type": "renderer",
+       "cpuTime": 0.31,
+       "pss": 75044864,
+       "rss": 164986880
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.08,
+       "pss": 39834624,
+       "rss": 99938304
+      },
+      "otherRenderers": [
+       {
+        "pid": 2329204,
+        "pss": 17875968
+       },
+       {
+        "pid": 2329195,
+        "pss": 50420736
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 1306992,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 457936,
+      "backingStorage": 16070684,
+      "renderer": {
+       "pid": 2329205,
+       "type": "renderer",
+       "cpuTime": 0.34,
+       "pss": 80278528,
+       "rss": 173166592
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.08,
+       "pss": 40338432,
+       "rss": 101126144
+      },
+      "otherRenderers": [
+       {
+        "pid": 2329204,
+        "pss": 17871872
+       },
+       {
+        "pid": 2329195,
+        "pss": 49849344
+       }
+      ]
+     }
+    }
+   },
+   "ref": "uplot",
+   "summary": {
+    "taskMs": 22.124000000000006,
+    "scriptMs": 19.337999999999997,
+    "layoutStyleMs": 0.917,
+    "devtoolsMs": 0.3750000000000142,
+    "readyMs": 19.5,
+    "readyFrameMs": 20.1,
+    "rendererCpuMs": 30.00000000000003,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 250212,
+    "heapUsedBytes": 1306992,
+    "rendererPssBytes": 80278528,
+    "rendererPssChartBytes": 5233664,
+    "gpuPssBytes": 40338432,
+    "gpuPssChartBytes": 503808,
+    "canvasBackingBytes": 1184000,
+    "domNodes": 24
+   }
+  },
+  {
+   "index": 3,
+   "phase": "timed",
+   "block": 0,
+   "position": 1,
+   "config": "B",
+   "adapter": "axylo-canvas",
+   "startedAt": "2026-11-18T02:36:39.974Z",
+   "adapterParams": {},
+   "durationMs": 2459,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo-canvas",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, canvas mark renderer, production build (axylo.iife.min.js)",
+     "params": {
+      "renderer": "canvas",
+      "build": "prod"
+     },
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "03457f44",
+    "timing": {
+     "syncMs": 530.2,
+     "readyMs": 565.9,
+     "readyFrameMs": 570.7,
+     "windowMs": 1073.6,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 1203200,
+     "chartCanvasCount": 2,
+     "otherCanvasBytes": 0,
+     "svgElements": 0,
+     "svgPaths": 0,
+     "domNodes": 44
+    },
+    "describe": [
+     {
+      "reads": "Axylo chart.__bench.describe(): committed view xDomain/yDomain; per series slots held, first and last x, non-value slots",
+      "x": [
+       1767225600000,
+       1827225540000
+      ],
+      "y": [
+       -500,
+       1000
+      ],
+      "series": [
+       {
+        "points": 1000000,
+        "oldestX": 1767225600000,
+        "newestX": 1827225540000,
+        "missing": 0
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.589639,
+     "ScriptDuration": 0.561682,
+     "LayoutDuration": 0.001797,
+     "RecalcStyleDuration": 0.000666,
+     "DevToolsCommandDuration": 0.00024000000000001798,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.025254,
+     "ThreadTime": 0.554973,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 62,
+     "JSEventListeners": 9,
+     "JSHeapUsedSize": 82783584,
+     "JSHeapTotalSize": 120602624,
+     "endNodes": 88,
+     "endJSHeapUsedSize": 83925328,
+     "rendererCpu": 0.9199999999999999,
+     "gpuCpu": 0.009999999999999995
+    }
+   },
+   "memory": {
+    "pagePid": 2329636,
+    "gpuPid": 2328980,
+    "samples": {
+     "blank": {
+      "heapUsed": 1039604,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 327312,
+      "backingStorage": 210739,
+      "renderer": {
+       "pid": 2329636,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 49100800,
+       "rss": 136622080
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.1,
+       "pss": 39465984,
+       "rss": 98996224
+      },
+      "otherRenderers": [
+       {
+        "pid": 2329634,
+        "pss": 18052096
+       },
+       {
+        "pid": 2329625,
+        "pss": 50949120
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1114540,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 329248,
+      "backingStorage": 16210760,
+      "renderer": {
+       "pid": 2329636,
+       "type": "renderer",
+       "cpuTime": 0.29,
+       "pss": 73138176,
+       "rss": 162881536
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.11,
+       "pss": 39879680,
+       "rss": 99999744
+      },
+      "otherRenderers": [
+       {
+        "pid": 2329634,
+        "pss": 18052096
+       },
+       {
+        "pid": 2329625,
+        "pss": 50028544
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 83913616,
+      "heapTotal": 84426752,
+      "embedderHeapUsed": 582456,
+      "backingStorage": 72825721,
+      "renderer": {
+       "pid": 2329636,
+       "type": "renderer",
+       "cpuTime": 1.4,
+       "pss": 203660288,
+       "rss": 297836544
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.12,
+       "pss": 40658944,
+       "rss": 101789696
+      },
+      "otherRenderers": [
+       {
+        "pid": 2329634,
+        "pss": 18052096
+       },
+       {
+        "pid": 2329625,
+        "pss": 49421312
+       }
+      ]
+     }
+    }
+   },
+   "ref": "axylo-canvas",
+   "summary": {
+    "taskMs": 589.639,
+    "scriptMs": 561.682,
+    "layoutStyleMs": 2.463,
+    "devtoolsMs": 0.24000000000001798,
+    "readyMs": 565.9,
+    "readyFrameMs": 570.7,
+    "rendererCpuMs": 919.9999999999999,
+    "gpuCpuMs": 9.999999999999995,
+    "heapChartBytes": 82799076,
+    "heapUsedBytes": 83913616,
+    "rendererPssBytes": 203660288,
+    "rendererPssChartBytes": 130522112,
+    "gpuPssBytes": 40658944,
+    "gpuPssChartBytes": 779264,
+    "canvasBackingBytes": 1203200,
+    "domNodes": 44
+   }
+  },
+  {
+   "index": 4,
+   "phase": "timed",
+   "block": 1,
+   "position": 0,
+   "config": "B",
+   "adapter": "axylo-canvas",
+   "startedAt": "2026-11-18T02:36:42.440Z",
+   "adapterParams": {},
+   "durationMs": 2648,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo-canvas",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, canvas mark renderer, production build (axylo.iife.min.js)",
+     "params": {
+      "renderer": "canvas",
+      "build": "prod"
+     },
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "03457f44",
+    "timing": {
+     "syncMs": 674.9,
+     "readyMs": 711.5,
+     "readyFrameMs": 716.4,
+     "windowMs": 1221.3,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 1203200,
+     "chartCanvasCount": 2,
+     "otherCanvasBytes": 0,
+     "svgElements": 0,
+     "svgPaths": 0,
+     "domNodes": 44
+    },
+    "describe": [
+     {
+      "reads": "Axylo chart.__bench.describe(): committed view xDomain/yDomain; per series slots held, first and last x, non-value slots",
+      "x": [
+       1767225600000,
+       1827225540000
+      ],
+      "y": [
+       -500,
+       1000
+      ],
+      "series": [
+       {
+        "points": 1000000,
+        "oldestX": 1767225600000,
+        "newestX": 1827225540000,
+        "missing": 0
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.737665,
+     "ScriptDuration": 0.7072120000000001,
+     "LayoutDuration": 0.001634,
+     "RecalcStyleDuration": 0.000717,
+     "DevToolsCommandDuration": 0.00022600000000000398,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.027876,
+     "ThreadTime": 0.6779120000000001,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 62,
+     "JSEventListeners": 9,
+     "JSHeapUsedSize": 82783604,
+     "JSHeapTotalSize": 120864768,
+     "endNodes": 88,
+     "endJSHeapUsedSize": 83925348,
+     "rendererCpu": 1.1199999999999999,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 2329922,
+    "gpuPid": 2328980,
+    "samples": {
+     "blank": {
+      "heapUsed": 1039604,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 327200,
+      "backingStorage": 210739,
+      "renderer": {
+       "pid": 2329922,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 49185792,
+       "rss": 136691712
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.13,
+       "pss": 39499776,
+       "rss": 99037184
+      },
+      "otherRenderers": [
+       {
+        "pid": 2329921,
+        "pss": 18052096
+       },
+       {
+        "pid": 2329912,
+        "pss": 50920448
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1114540,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 329248,
+      "backingStorage": 16210760,
+      "renderer": {
+       "pid": 2329922,
+       "type": "renderer",
+       "cpuTime": 0.3,
+       "pss": 73246720,
+       "rss": 162996224
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.14,
+       "pss": 39863296,
+       "rss": 99991552
+      },
+      "otherRenderers": [
+       {
+        "pid": 2329921,
+        "pss": 18048000
+       },
+       {
+        "pid": 2329912,
+        "pss": 49997824
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 83914192,
+      "heapTotal": 84164608,
+      "embedderHeapUsed": 582456,
+      "backingStorage": 72825721,
+      "renderer": {
+       "pid": 2329922,
+       "type": "renderer",
+       "cpuTime": 1.68,
+       "pss": 204123136,
+       "rss": 298287104
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.14,
+       "pss": 40643584,
+       "rss": 101777408
+      },
+      "otherRenderers": [
+       {
+        "pid": 2329921,
+        "pss": 18048000
+       },
+       {
+        "pid": 2329912,
+        "pss": 49431552
+       }
+      ]
+     }
+    }
+   },
+   "ref": "axylo-canvas",
+   "summary": {
+    "taskMs": 737.665,
+    "scriptMs": 707.2120000000001,
+    "layoutStyleMs": 2.351,
+    "devtoolsMs": 0.22600000000000398,
+    "readyMs": 711.5,
+    "readyFrameMs": 716.4,
+    "rendererCpuMs": 1119.9999999999998,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 82799652,
+    "heapUsedBytes": 83914192,
+    "rendererPssBytes": 204123136,
+    "rendererPssChartBytes": 130876416,
+    "gpuPssBytes": 40643584,
+    "gpuPssChartBytes": 780288,
+    "canvasBackingBytes": 1203200,
+    "domNodes": 44
+   }
+  },
+  {
+   "index": 5,
+   "phase": "timed",
+   "block": 1,
+   "position": 1,
+   "config": "A",
+   "adapter": "uplot",
+   "startedAt": "2026-11-18T02:36:45.094Z",
+   "adapterParams": {},
+   "durationMs": 1941,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "uplot",
+     "library": "uPlot",
+     "version": "1.6.32",
+     "config": "default",
+     "params": {},
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "03457f44",
+    "timing": {
+     "syncMs": 4.1,
+     "readyMs": 21,
+     "readyFrameMs": 21.6,
+     "windowMs": 523.8,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 1184000,
+     "chartCanvasCount": 1,
+     "otherCanvasBytes": 0,
+     "svgElements": 0,
+     "svgPaths": 0,
+     "domNodes": 24
+    },
+    "describe": [
+     {
+      "reads": "uPlot u.scales.x/y.{min,max}; u.data[0] length and ends; null count in u.data[s]",
+      "x": [
+       1767225600000,
+       1827225540000
+      ],
+      "y": [
+       -600,
+       1000
+      ],
+      "series": [
+       {
+        "points": 1000000,
+        "oldestX": 1767225600000,
+        "newestX": 1827225540000,
+        "missing": 0
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.023347000000000007,
+     "ScriptDuration": 0.020814999999999997,
+     "LayoutDuration": 0.000713,
+     "RecalcStyleDuration": 0.00021299999999999997,
+     "DevToolsCommandDuration": 0.00021599999999999397,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0013900000000000006,
+     "ThreadTime": 0.023168999999999995,
+     "LayoutCount": 2,
+     "RecalcStyleCount": 2,
+     "Nodes": 29,
+     "JSEventListeners": 9,
+     "JSHeapUsedSize": 350372,
+     "JSHeapTotalSize": 2883584,
+     "endNodes": 56,
+     "endJSHeapUsedSize": 1434348,
+     "rendererCpu": 0.02999999999999997,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 2330171,
+    "gpuPid": 2328980,
+    "samples": {
+     "blank": {
+      "heapUsed": 982172,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 335896,
+      "backingStorage": 70323,
+      "renderer": {
+       "pid": 2330171,
+       "type": "renderer",
+       "cpuTime": 0.06,
+       "pss": 50877440,
+       "rss": 138940416
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.16,
+       "pss": 39497728,
+       "rss": 99094528
+      },
+      "otherRenderers": [
+       {
+        "pid": 2330170,
+        "pss": 18053120
+       },
+       {
+        "pid": 2330159,
+        "pss": 50843648
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1056780,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 337832,
+      "backingStorage": 16070344,
+      "renderer": {
+       "pid": 2330171,
+       "type": "renderer",
+       "cpuTime": 0.32,
+       "pss": 74897408,
+       "rss": 165109760
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.17,
+       "pss": 39872512,
+       "rss": 100052992
+      },
+      "otherRenderers": [
+       {
+        "pid": 2330170,
+        "pss": 18054144
+       },
+       {
+        "pid": 2330159,
+        "pss": 49978368
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 1307400,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 457936,
+      "backingStorage": 16070684,
+      "renderer": {
+       "pid": 2330171,
+       "type": "renderer",
+       "cpuTime": 0.36,
+       "pss": 80103424,
+       "rss": 173207552
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.17,
+       "pss": 40378368,
+       "rss": 101240832
+      },
+      "otherRenderers": [
+       {
+        "pid": 2330170,
+        "pss": 18054144
+       },
+       {
+        "pid": 2330159,
+        "pss": 49441792
+       }
+      ]
+     }
+    }
+   },
+   "ref": "uplot",
+   "summary": {
+    "taskMs": 23.34700000000001,
+    "scriptMs": 20.814999999999998,
+    "layoutStyleMs": 0.9259999999999999,
+    "devtoolsMs": 0.21599999999999397,
+    "readyMs": 21,
+    "readyFrameMs": 21.6,
+    "rendererCpuMs": 29.99999999999997,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 250620,
+    "heapUsedBytes": 1307400,
+    "rendererPssBytes": 80103424,
+    "rendererPssChartBytes": 5206016,
+    "gpuPssBytes": 40378368,
+    "gpuPssChartBytes": 505856,
+    "canvasBackingBytes": 1184000,
+    "domNodes": 24
+   }
+  },
+  {
+   "index": 6,
+   "phase": "timed",
+   "block": 2,
+   "position": 0,
+   "config": "B",
+   "adapter": "axylo-canvas",
+   "startedAt": "2026-11-18T02:36:47.042Z",
+   "adapterParams": {},
+   "durationMs": 2523,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo-canvas",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, canvas mark renderer, production build (axylo.iife.min.js)",
+     "params": {
+      "renderer": "canvas",
+      "build": "prod"
+     },
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "03457f44",
+    "timing": {
+     "syncMs": 546,
+     "readyMs": 591.7,
+     "readyFrameMs": 596.6,
+     "windowMs": 1100,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 1203200,
+     "chartCanvasCount": 2,
+     "otherCanvasBytes": 0,
+     "svgElements": 0,
+     "svgPaths": 0,
+     "domNodes": 44
+    },
+    "describe": [
+     {
+      "reads": "Axylo chart.__bench.describe(): committed view xDomain/yDomain; per series slots held, first and last x, non-value slots",
+      "x": [
+       1767225600000,
+       1827225540000
+      ],
+      "y": [
+       -500,
+       1000
+      ],
+      "series": [
+       {
+        "points": 1000000,
+        "oldestX": 1767225600000,
+        "newestX": 1827225540000,
+        "missing": 0
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.6464449999999999,
+     "ScriptDuration": 0.587888,
+     "LayoutDuration": 0.001402,
+     "RecalcStyleDuration": 0.000673,
+     "DevToolsCommandDuration": 0.0002530000000000032,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.056229,
+     "ThreadTime": 0.589201,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 62,
+     "JSEventListeners": 9,
+     "JSHeapUsedSize": 82785644,
+     "JSHeapTotalSize": 124796928,
+     "endNodes": 88,
+     "endJSHeapUsedSize": 83927388,
+     "rendererCpu": 1.03,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 2330718,
+    "gpuPid": 2328980,
+    "samples": {
+     "blank": {
+      "heapUsed": 1039604,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 327200,
+      "backingStorage": 210739,
+      "renderer": {
+       "pid": 2330718,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 49009664,
+       "rss": 136523776
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.18,
+       "pss": 39779328,
+       "rss": 99627008
+      },
+      "otherRenderers": [
+       {
+        "pid": 2330717,
+        "pss": 18054144
+       },
+       {
+        "pid": 2330708,
+        "pss": 51002368
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1114540,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 329248,
+      "backingStorage": 16210760,
+      "renderer": {
+       "pid": 2330718,
+       "type": "renderer",
+       "cpuTime": 0.3,
+       "pss": 73043968,
+       "rss": 162795520
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.19,
+       "pss": 40222720,
+       "rss": 100675584
+      },
+      "otherRenderers": [
+       {
+        "pid": 2330717,
+        "pss": 18054144
+       },
+       {
+        "pid": 2330708,
+        "pss": 50085888
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 83915612,
+      "heapTotal": 84164608,
+      "embedderHeapUsed": 582704,
+      "backingStorage": 72825721,
+      "renderer": {
+       "pid": 2330718,
+       "type": "renderer",
+       "cpuTime": 1.56,
+       "pss": 203709440,
+       "rss": 297893888
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.19,
+       "pss": 40993792,
+       "rss": 102457344
+      },
+      "otherRenderers": [
+       {
+        "pid": 2330717,
+        "pss": 18054144
+       },
+       {
+        "pid": 2330708,
+        "pss": 49478656
+       }
+      ]
+     }
+    }
+   },
+   "ref": "axylo-canvas",
+   "summary": {
+    "taskMs": 646.4449999999999,
+    "scriptMs": 587.8879999999999,
+    "layoutStyleMs": 2.075,
+    "devtoolsMs": 0.2530000000000032,
+    "readyMs": 591.7,
+    "readyFrameMs": 596.6,
+    "rendererCpuMs": 1030,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 82801072,
+    "heapUsedBytes": 83915612,
+    "rendererPssBytes": 203709440,
+    "rendererPssChartBytes": 130665472,
+    "gpuPssBytes": 40993792,
+    "gpuPssChartBytes": 771072,
+    "canvasBackingBytes": 1203200,
+    "domNodes": 44
+   }
+  },
+  {
+   "index": 7,
+   "phase": "timed",
+   "block": 2,
+   "position": 1,
+   "config": "A",
+   "adapter": "uplot",
+   "startedAt": "2026-11-18T02:36:49.570Z",
+   "adapterParams": {},
+   "durationMs": 1880,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "uplot",
+     "library": "uPlot",
+     "version": "1.6.32",
+     "config": "default",
+     "params": {},
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "03457f44",
+    "timing": {
+     "syncMs": 5.2,
+     "readyMs": 21.1,
+     "readyFrameMs": 21.8,
+     "windowMs": 525,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 1184000,
+     "chartCanvasCount": 1,
+     "otherCanvasBytes": 0,
+     "svgElements": 0,
+     "svgPaths": 0,
+     "domNodes": 24
+    },
+    "describe": [
+     {
+      "reads": "uPlot u.scales.x/y.{min,max}; u.data[0] length and ends; null count in u.data[s]",
+      "x": [
+       1767225600000,
+       1827225540000
+      ],
+      "y": [
+       -600,
+       1000
+      ],
+      "series": [
+       {
+        "points": 1000000,
+        "oldestX": 1767225600000,
+        "newestX": 1827225540000,
+        "missing": 0
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.02346799999999999,
+     "ScriptDuration": 0.020939,
+     "LayoutDuration": 0.000644,
+     "RecalcStyleDuration": 0.00029699999999999996,
+     "DevToolsCommandDuration": 0.00035000000000001696,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0012379999999999995,
+     "ThreadTime": 0.023392999999999997,
+     "LayoutCount": 2,
+     "RecalcStyleCount": 2,
+     "Nodes": 29,
+     "JSEventListeners": 9,
+     "JSHeapUsedSize": 994488,
+     "JSHeapTotalSize": 2883584,
+     "endNodes": 56,
+     "endJSHeapUsedSize": 2078464,
+     "rendererCpu": 0.030000000000000027,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 2330776,
+    "gpuPid": 2328980,
+    "samples": {
+     "blank": {
+      "heapUsed": 982172,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 335896,
+      "backingStorage": 70323,
+      "renderer": {
+       "pid": 2330776,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 50809856,
+       "rss": 138854400
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.21,
+       "pss": 39530496,
+       "rss": 99069952
+      },
+      "otherRenderers": [
+       {
+        "pid": 2330775,
+        "pss": 18057216
+       },
+       {
+        "pid": 2330766,
+        "pss": 50827264
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1056780,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 337832,
+      "backingStorage": 16070344,
+      "renderer": {
+       "pid": 2330776,
+       "type": "renderer",
+       "cpuTime": 0.29,
+       "pss": 75031552,
+       "rss": 165224448
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.22,
+       "pss": 39943168,
+       "rss": 100065280
+      },
+      "otherRenderers": [
+       {
+        "pid": 2330775,
+        "pss": 18058240
+       },
+       {
+        "pid": 2330766,
+        "pss": 49965056
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 1313100,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 457936,
+      "backingStorage": 16070684,
+      "renderer": {
+       "pid": 2330776,
+       "type": "renderer",
+       "cpuTime": 0.33,
+       "pss": 80102400,
+       "rss": 173187072
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.22,
+       "pss": 40448000,
+       "rss": 101253120
+      },
+      "otherRenderers": [
+       {
+        "pid": 2330775,
+        "pss": 18058240
+       },
+       {
+        "pid": 2330766,
+        "pss": 49429504
+       }
+      ]
+     }
+    }
+   },
+   "ref": "uplot",
+   "summary": {
+    "taskMs": 23.46799999999999,
+    "scriptMs": 20.939,
+    "layoutStyleMs": 0.941,
+    "devtoolsMs": 0.35000000000001696,
+    "readyMs": 21.1,
+    "readyFrameMs": 21.8,
+    "rendererCpuMs": 30.00000000000003,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 256320,
+    "heapUsedBytes": 1313100,
+    "rendererPssBytes": 80102400,
+    "rendererPssChartBytes": 5070848,
+    "gpuPssBytes": 40448000,
+    "gpuPssChartBytes": 504832,
+    "canvasBackingBytes": 1184000,
+    "domNodes": 24
+   }
+  },
+  {
+   "index": 8,
+   "phase": "timed",
+   "block": 3,
+   "position": 0,
+   "config": "A",
+   "adapter": "uplot",
+   "startedAt": "2026-11-18T02:36:51.456Z",
+   "adapterParams": {},
+   "durationMs": 1892,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "uplot",
+     "library": "uPlot",
+     "version": "1.6.32",
+     "config": "default",
+     "params": {},
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "03457f44",
+    "timing": {
+     "syncMs": 4.3,
+     "readyMs": 18,
+     "readyFrameMs": 18.6,
+     "windowMs": 521.6,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 1184000,
+     "chartCanvasCount": 1,
+     "otherCanvasBytes": 0,
+     "svgElements": 0,
+     "svgPaths": 0,
+     "domNodes": 24
+    },
+    "describe": [
+     {
+      "reads": "uPlot u.scales.x/y.{min,max}; u.data[0] length and ends; null count in u.data[s]",
+      "x": [
+       1767225600000,
+       1827225540000
+      ],
+      "y": [
+       -600,
+       1000
+      ],
+      "series": [
+       {
+        "points": 1000000,
+        "oldestX": 1767225600000,
+        "newestX": 1827225540000,
+        "missing": 0
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.020689999999999986,
+     "ScriptDuration": 0.017838000000000003,
+     "LayoutDuration": 0.000732,
+     "RecalcStyleDuration": 0.00021300000000000003,
+     "DevToolsCommandDuration": 0.00039400000000000546,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0015130000000000005,
+     "ThreadTime": 0.020512999999999976,
+     "LayoutCount": 2,
+     "RecalcStyleCount": 2,
+     "Nodes": 29,
+     "JSEventListeners": 9,
+     "JSHeapUsedSize": 361520,
+     "JSHeapTotalSize": 2883584,
+     "endNodes": 56,
+     "endJSHeapUsedSize": 1445496,
+     "rendererCpu": 0.040000000000000036,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 2330835,
+    "gpuPid": 2328980,
+    "samples": {
+     "blank": {
+      "heapUsed": 982172,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 335896,
+      "backingStorage": 70323,
+      "renderer": {
+       "pid": 2330835,
+       "type": "renderer",
+       "cpuTime": 0.06,
+       "pss": 50722816,
+       "rss": 137756672
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.24,
+       "pss": 39610368,
+       "rss": 99123200
+      },
+      "otherRenderers": [
+       {
+        "pid": 2330834,
+        "pss": 17622016
+       },
+       {
+        "pid": 2330825,
+        "pss": 51319808
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1056780,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 337832,
+      "backingStorage": 16070344,
+      "renderer": {
+       "pid": 2330835,
+       "type": "renderer",
+       "cpuTime": 0.29,
+       "pss": 74974208,
+       "rss": 164286464
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.25,
+       "pss": 40009728,
+       "rss": 100106240
+      },
+      "otherRenderers": [
+       {
+        "pid": 2330834,
+        "pss": 17603584
+       },
+       {
+        "pid": 2330825,
+        "pss": 50434048
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 1306812,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 457936,
+      "backingStorage": 16070684,
+      "renderer": {
+       "pid": 2330835,
+       "type": "renderer",
+       "cpuTime": 0.34,
+       "pss": 80113664,
+       "rss": 172343296
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.25,
+       "pss": 40513536,
+       "rss": 101294080
+      },
+      "otherRenderers": [
+       {
+        "pid": 2330834,
+        "pss": 17600512
+       },
+       {
+        "pid": 2330825,
+        "pss": 49896448
+       }
+      ]
+     }
+    }
+   },
+   "ref": "uplot",
+   "summary": {
+    "taskMs": 20.689999999999987,
+    "scriptMs": 17.838000000000005,
+    "layoutStyleMs": 0.9450000000000001,
+    "devtoolsMs": 0.39400000000000546,
+    "readyMs": 18,
+    "readyFrameMs": 18.6,
+    "rendererCpuMs": 40.000000000000036,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 250032,
+    "heapUsedBytes": 1306812,
+    "rendererPssBytes": 80113664,
+    "rendererPssChartBytes": 5139456,
+    "gpuPssBytes": 40513536,
+    "gpuPssChartBytes": 503808,
+    "canvasBackingBytes": 1184000,
+    "domNodes": 24
+   }
+  },
+  {
+   "index": 9,
+   "phase": "timed",
+   "block": 3,
+   "position": 1,
+   "config": "B",
+   "adapter": "axylo-canvas",
+   "startedAt": "2026-11-18T02:36:53.353Z",
+   "adapterParams": {},
+   "durationMs": 2481,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo-canvas",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, canvas mark renderer, production build (axylo.iife.min.js)",
+     "params": {
+      "renderer": "canvas",
+      "build": "prod"
+     },
+     "floor": false
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/157.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 15.244,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "03457f44",
+    "timing": {
+     "syncMs": 507,
+     "readyMs": 542.8,
+     "readyFrameMs": 547.6,
+     "windowMs": 1049.6,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 1203200,
+     "chartCanvasCount": 2,
+     "otherCanvasBytes": 0,
+     "svgElements": 0,
+     "svgPaths": 0,
+     "domNodes": 44
+    },
+    "describe": [
+     {
+      "reads": "Axylo chart.__bench.describe(): committed view xDomain/yDomain; per series slots held, first and last x, non-value slots",
+      "x": [
+       1767225600000,
+       1827225540000
+      ],
+      "y": [
+       -500,
+       1000
+      ],
+      "series": [
+       {
+        "points": 1000000,
+        "oldestX": 1767225600000,
+        "newestX": 1827225540000,
+        "missing": 0
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.567439,
+     "ScriptDuration": 0.539154,
+     "LayoutDuration": 0.0013139999999999998,
+     "RecalcStyleDuration": 0.000729,
+     "DevToolsCommandDuration": 0.00031499999999998196,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.025927,
+     "ThreadTime": 0.51607,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 62,
+     "JSEventListeners": 9,
+     "JSHeapUsedSize": 82786424,
+     "JSHeapTotalSize": 117456896,
+     "endNodes": 88,
+     "endJSHeapUsedSize": 83928168,
+     "rendererCpu": 0.94,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 2331410,
+    "gpuPid": 2328980,
+    "samples": {
+     "blank": {
+      "heapUsed": 1039604,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 327312,
+      "backingStorage": 210739,
+      "renderer": {
+       "pid": 2331410,
+       "type": "renderer",
+       "cpuTime": 0.06,
+       "pss": 48971776,
+       "rss": 136499200
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.27,
+       "pss": 39539712,
+       "rss": 99078144
+      },
+      "otherRenderers": [
+       {
+        "pid": 2331409,
+        "pss": 18048000
+       },
+       {
+        "pid": 2331400,
+        "pss": 50941952
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1114540,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 329248,
+      "backingStorage": 16210760,
+      "renderer": {
+       "pid": 2331410,
+       "type": "renderer",
+       "cpuTime": 0.31,
+       "pss": 73057280,
+       "rss": 162807808
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.28,
+       "pss": 39941120,
+       "rss": 100061184
+      },
+      "otherRenderers": [
+       {
+        "pid": 2331409,
+        "pss": 18048000
+       },
+       {
+        "pid": 2331400,
+        "pss": 50016256
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 83916568,
+      "heapTotal": 84164608,
+      "embedderHeapUsed": 582456,
+      "backingStorage": 72825721,
+      "renderer": {
+       "pid": 2331410,
+       "type": "renderer",
+       "cpuTime": 1.47,
+       "pss": 203482112,
+       "rss": 297684992
+      },
+      "gpu": {
+       "pid": 2328980,
+       "type": "GPU",
+       "cpuTime": 0.28,
+       "pss": 40712192,
+       "rss": 101842944
+      },
+      "otherRenderers": [
+       {
+        "pid": 2331409,
+        "pss": 18048000
+       },
+       {
+        "pid": 2331400,
+        "pss": 49408000
+       }
+      ]
+     }
+    }
+   },
+   "ref": "axylo-canvas",
+   "summary": {
+    "taskMs": 567.4390000000001,
+    "scriptMs": 539.154,
+    "layoutStyleMs": 2.043,
+    "devtoolsMs": 0.31499999999998196,
+    "readyMs": 542.8,
+    "readyFrameMs": 547.6,
+    "rendererCpuMs": 940,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 82802028,
+    "heapUsedBytes": 83916568,
+    "rendererPssBytes": 203482112,
+    "rendererPssChartBytes": 130424832,
+    "gpuPssBytes": 40712192,
+    "gpuPssChartBytes": 771072,
+    "canvasBackingBytes": 1203200,
+    "domNodes": 44
+   }
+  }
+ ],
+ "analysis": {
+  "completePairs": 4,
+  "blocks": 4,
+  "outcomes": {
+   "A:ok": 4,
+   "B:ok": 4
+  },
+  "metrics": {
+   "taskMs": {
+    "key": "taskMs",
+    "unit": "ms",
+    "primary": true,
+    "what": "main-thread TaskDuration from the create call to settle window end",
+    "pairs": 4,
+    "medianA": 22.73550000000001,
+    "medianB": 618.0419999999999,
+    "diff": 595.3064999999999,
+    "lo": 546.7490000000001,
+    "hi": 714.318,
+    "relative": 26.18400738932505,
+    "blockDiffs": [
+     567.515,
+     714.318,
+     622.977,
+     546.7490000000001
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 6"
+   },
+   "scriptMs": {
+    "key": "scriptMs",
+    "unit": "ms",
+    "what": "ScriptDuration in the same window",
+    "pairs": 4,
+    "medianA": 20.076499999999996,
+    "medianB": 574.785,
+    "diff": 554.7085,
+    "lo": 521.316,
+    "hi": 686.3970000000002,
+    "relative": 27.62974123975793,
+    "blockDiffs": [
+     542.344,
+     686.3970000000002,
+     566.949,
+     521.316
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 6"
+   },
+   "layoutStyleMs": {
+    "key": "layoutStyleMs",
+    "unit": "ms",
+    "what": "LayoutDuration + RecalcStyleDuration in the same window",
+    "pairs": 4,
+    "medianA": 0.9335,
+    "medianB": 2.213,
+    "diff": 1.2795,
+    "lo": 1.098,
+    "hi": 1.546,
+    "relative": 1.3706480985538299,
+    "blockDiffs": [
+     1.546,
+     1.425,
+     1.1340000000000003,
+     1.098
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 6"
+   },
+   "readyMs": {
+    "key": "readyMs",
+    "unit": "ms",
+    "what": "wall clock from create call to the adapter's ready signal",
+    "pairs": 4,
+    "medianA": 20.25,
+    "medianB": 578.8,
+    "diff": 558.55,
+    "lo": 524.8,
+    "hi": 690.5,
+    "relative": 27.582716049382714,
+    "blockDiffs": [
+     546.4,
+     690.5,
+     570.6,
+     524.8
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 6"
+   },
+   "readyFrameMs": {
+    "key": "readyFrameMs",
+    "unit": "ms",
+    "what": "wall clock to the first animation frame after ready",
+    "pairs": 4,
+    "medianA": 20.85,
+    "medianB": 583.6500000000001,
+    "diff": 562.8000000000001,
+    "lo": 529,
+    "hi": 694.8,
+    "relative": 26.992805755395686,
+    "blockDiffs": [
+     550.6,
+     694.8,
+     574.8000000000001,
+     529
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 6"
+   },
+   "rendererCpuMs": {
+    "key": "rendererCpuMs",
+    "unit": "ms",
+    "what": "CPU time of the page renderer process, all threads, same window (SystemInfo.getProcessInfo)",
+    "pairs": 4,
+    "medianA": 30.00000000000003,
+    "medianB": 985,
+    "diff": 955,
+    "lo": 889.9999999999999,
+    "hi": 1089.9999999999998,
+    "relative": 31.833333333333304,
+    "blockDiffs": [
+     889.9999999999999,
+     1089.9999999999998,
+     1000,
+     900
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 6"
+   },
+   "gpuCpuMs": {
+    "key": "gpuCpuMs",
+    "unit": "ms",
+    "what": "CPU time of the GPU process, same window",
+    "pairs": 4,
+    "medianA": 0,
+    "medianB": 0,
+    "diff": 0,
+    "lo": 0,
+    "hi": 9.999999999999995,
+    "relative": null,
+    "blockDiffs": [
+     9.999999999999995,
+     0,
+     0,
+     0
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 6"
+   },
+   "heapChartBytes": {
+    "key": "heapChartBytes",
+    "unit": "bytes",
+    "what": "JS heap after forced GC with the chart, minus the same with only the input data",
+    "pairs": 4,
+    "medianA": 250416,
+    "medianB": 82800362,
+    "diff": 82549946,
+    "lo": 82544752,
+    "hi": 82551996,
+    "relative": 329.6512443294358,
+    "blockDiffs": [
+     82548864,
+     82549032,
+     82544752,
+     82551996
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 6"
+   },
+   "heapUsedBytes": {
+    "key": "heapUsedBytes",
+    "unit": "bytes",
+    "what": "JS heap after forced GC with the chart (absolute)",
+    "pairs": 4,
+    "medianA": 1307196,
+    "medianB": 83914902,
+    "diff": 82607706,
+    "lo": 82602512,
+    "hi": 82609756,
+    "relative": 63.19458290876043,
+    "blockDiffs": [
+     82606624,
+     82606792,
+     82602512,
+     82609756
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 6"
+   },
+   "rendererPssBytes": {
+    "key": "rendererPssBytes",
+    "unit": "bytes",
+    "what": "page renderer process PSS with the chart (Linux /proc, after GC)",
+    "pairs": 4,
+    "medianA": 80108544,
+    "medianB": 203684864,
+    "diff": 123576320,
+    "lo": 123368448,
+    "hi": 124019712,
+    "relative": 1.542610985414989,
+    "blockDiffs": [
+     123381760,
+     124019712,
+     123607040,
+     123368448
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 6"
+   },
+   "rendererPssChartBytes": {
+    "key": "rendererPssChartBytes",
+    "unit": "bytes",
+    "what": "page renderer PSS with the chart minus with only the input data",
+    "pairs": 4,
+    "medianA": 5172736,
+    "medianB": 130593792,
+    "diff": 125421056,
+    "lo": 125285376,
+    "hi": 125670400,
+    "relative": 24.246560427595764,
+    "blockDiffs": [
+     125288448,
+     125670400,
+     125594624,
+     125285376
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 6"
+   },
+   "gpuPssBytes": {
+    "key": "gpuPssBytes",
+    "unit": "bytes",
+    "what": "GPU process PSS with the chart",
+    "pairs": 4,
+    "medianA": 40413184,
+    "medianB": 40685568,
+    "diff": 272384,
+    "lo": 198656,
+    "hi": 545792,
+    "relative": 0.006739978715856687,
+    "blockDiffs": [
+     320512,
+     265216,
+     545792,
+     198656
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 6"
+   },
+   "gpuPssChartBytes": {
+    "key": "gpuPssChartBytes",
+    "unit": "bytes",
+    "what": "GPU process PSS with the chart minus with only the input data",
+    "pairs": 4,
+    "medianA": 504320,
+    "medianB": 775168,
+    "diff": 270848,
+    "lo": 266240,
+    "hi": 275456,
+    "relative": 0.5370558375634518,
+    "blockDiffs": [
+     275456,
+     274432,
+     266240,
+     267264
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 6"
+   },
+   "canvasBackingBytes": {
+    "key": "canvasBackingBytes",
+    "unit": "bytes",
+    "what": "CALCULATED: sum of canvas.width x canvas.height x 4 over the chart canvases",
+    "pairs": 4,
+    "medianA": 1184000,
+    "medianB": 1203200,
+    "diff": 19200,
+    "lo": 19200,
+    "hi": 19200,
+    "relative": 0.016216216216216217,
+    "blockDiffs": [
+     19200,
+     19200,
+     19200,
+     19200
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 6"
+   },
+   "domNodes": {
+    "key": "domNodes",
+    "unit": "nodes",
+    "what": "elements inside the chart containers",
+    "pairs": 4,
+    "medianA": 24,
+    "medianB": 44,
+    "diff": 20,
+    "lo": 20,
+    "hi": 20,
+    "relative": 0.8333333333333334,
+    "blockDiffs": [
+     20,
+     20,
+     20,
+     20
+    ],
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 6"
+   }
+  }
+ },
+ "endedBecause": "all blocks run",
+ "finishedAt": "2026-11-18T02:36:55.880Z"
+}
