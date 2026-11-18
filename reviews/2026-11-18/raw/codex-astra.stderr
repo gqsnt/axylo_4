@@ -1,0 +1,1 @@
+2026-11-17T23:22:28.414593Z ERROR codex_core::tools::router: error=unable to locate image at `/home/canarit/projects/axylo/research/harness/shots/parts-uplot.png`: No such file or directory (os error 2)

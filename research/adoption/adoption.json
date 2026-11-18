@@ -1,0 +1,1313 @@
+{
+ "fetchedAt": "2026-11-17T22:17:57.163Z",
+ "packages": {
+  "chart.js": {
+   "weekly": 16950775,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 538793276,
+   "latest": "4.6.1",
+   "latestPublished": "2026-10-22T17:23:24.755Z",
+   "created": "2014-07-08T22:30:18.422Z",
+   "stableReleasesLast12mo": 1,
+   "license": "MIT",
+   "types": true,
+   "deps": 1,
+   "peerDeps": [],
+   "unpackedSize": 6227928,
+   "jsdelivrMonthHits": 870429326,
+   "jsdelivrRank": 67,
+   "repo": "chartjs/Chart.js",
+   "gh": {
+    "stars": 67802,
+    "openIssues": 640,
+    "pushedAt": "2026-11-17T14:25:16Z",
+    "archived": false,
+    "license": "MIT"
+   }
+  },
+  "recharts": {
+   "weekly": 68266715,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 2020055701,
+   "latest": "3.11.0",
+   "latestPublished": "2026-11-17T16:54:56.373Z",
+   "created": "2015-08-07T07:04:41.432Z",
+   "stableReleasesLast12mo": 12,
+   "license": "MIT",
+   "types": true,
+   "deps": 11,
+   "peerDeps": [
+    "react",
+    "react-is",
+    "react-dom",
+    "@types/react"
+   ],
+   "unpackedSize": 8887650,
+   "jsdelivrMonthHits": 6242038,
+   "jsdelivrRank": 2111,
+   "repo": "recharts/recharts",
+   "gh": {
+    "stars": 27718,
+    "openIssues": 472,
+    "pushedAt": "2026-11-17T21:59:07Z",
+    "archived": false,
+    "license": "MIT"
+   }
+  },
+  "d3": {
+   "weekly": 34138227,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 716668443,
+   "latest": "7.9.2",
+   "latestPublished": "2026-11-03T19:46:07.379Z",
+   "created": "2011-08-18T17:05:26.410Z",
+   "stableReleasesLast12mo": 2,
+   "license": "ISC",
+   "types": false,
+   "deps": 30,
+   "peerDeps": [],
+   "unpackedSize": 881539,
+   "jsdelivrMonthHits": 64934368,
+   "jsdelivrRank": 470,
+   "repo": "d3/d3",
+   "gh": {
+    "stars": 113952,
+    "openIssues": 26,
+    "pushedAt": "2026-11-03T19:44:29Z",
+    "archived": false,
+    "license": "ISC"
+   }
+  },
+  "echarts": {
+   "weekly": 10667951,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 187394279,
+   "latest": "6.1.0",
+   "latestPublished": "2026-05-19T17:52:11.076Z",
+   "created": "2015-07-08T06:33:08.851Z",
+   "stableReleasesLast12mo": 1,
+   "license": "Apache-2.0",
+   "types": true,
+   "deps": 2,
+   "peerDeps": [],
+   "unpackedSize": 60297703,
+   "jsdelivrMonthHits": 126277540,
+   "jsdelivrRank": 266,
+   "repo": "apache/echarts",
+   "gh": {
+    "stars": 67744,
+    "openIssues": 1476,
+    "pushedAt": "2026-10-13T09:27:20Z",
+    "archived": false,
+    "license": "Apache-2.0"
+   }
+  },
+  "highcharts": {
+   "weekly": 3558145,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 116475773,
+   "latest": "13.1.1",
+   "latestPublished": "2026-09-20T12:53:02.677Z",
+   "created": "2014-08-06T09:14:38.688Z",
+   "stableReleasesLast12mo": 10,
+   "license": "https://www.highcharts.com/license",
+   "types": true,
+   "deps": 0,
+   "peerDeps": [
+    "jspdf",
+    "svg2pdf.js"
+   ],
+   "unpackedSize": 72735373,
+   "jsdelivrMonthHits": 55412945,
+   "jsdelivrRank": 525,
+   "repo": "highcharts/highcharts",
+   "gh": {
+    "stars": 12503,
+    "openIssues": 713,
+    "pushedAt": "2026-11-17T10:40:00Z",
+    "archived": false,
+    "license": "NOASSERTION"
+   }
+  },
+  "apexcharts": {
+   "weekly": 2806096,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 94373116,
+   "latest": "8.9.0",
+   "latestPublished": "2026-11-17T07:49:14.817Z",
+   "created": "2018-07-24T15:00:41.925Z",
+   "stableReleasesLast12mo": 65,
+   "license": "SEE LICENSE IN LICENSE.md",
+   "types": true,
+   "deps": 1,
+   "peerDeps": [],
+   "unpackedSize": 30594262,
+   "jsdelivrMonthHits": 110663589,
+   "jsdelivrRank": 303,
+   "repo": "apexcharts/apexcharts.js",
+   "gh": {
+    "stars": 15191,
+    "openIssues": 280,
+    "pushedAt": "2026-11-17T07:38:10Z",
+    "archived": false,
+    "license": "NOASSERTION"
+   }
+  },
+  "plotly.js": {
+   "weekly": 931125,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 35745623,
+   "latest": "4.3.0",
+   "latestPublished": "2026-11-10T21:54:01.626Z",
+   "created": "2015-11-17T16:26:30.427Z",
+   "stableReleasesLast12mo": 12,
+   "license": "MIT",
+   "types": true,
+   "deps": 42,
+   "peerDeps": [],
+   "unpackedSize": 98684236,
+   "jsdelivrMonthHits": 3563386,
+   "jsdelivrRank": 2937,
+   "repo": "plotly/plotly.js",
+   "gh": {
+    "stars": 18383,
+    "openIssues": 809,
+    "pushedAt": "2026-11-16T21:53:58Z",
+    "archived": false,
+    "license": "MIT"
+   }
+  },
+  "plotly.js-dist-min": {
+   "weekly": 712555,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 16425466,
+   "latest": "4.3.0",
+   "latestPublished": "2026-11-10T21:45:57.026Z",
+   "created": "2019-10-07T17:39:02.713Z",
+   "stableReleasesLast12mo": 12,
+   "license": "MIT",
+   "types": true,
+   "deps": 0,
+   "peerDeps": [],
+   "unpackedSize": 6197199,
+   "jsdelivrMonthHits": 1420572,
+   "jsdelivrRank": 4722,
+   "repo": null,
+   "gh": null
+  },
+  "uplot": {
+   "weekly": 1038093,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 25743229,
+   "latest": "1.6.32",
+   "latestPublished": "2025-03-14T02:51:47.242Z",
+   "created": "2020-03-10T06:01:51.537Z",
+   "stableReleasesLast12mo": 0,
+   "license": "MIT",
+   "types": true,
+   "deps": 0,
+   "peerDeps": [],
+   "unpackedSize": 545468,
+   "jsdelivrMonthHits": 5446358,
+   "jsdelivrRank": 2300,
+   "repo": "leeoniya/uPlot",
+   "gh": {
+    "stars": 10651,
+    "openIssues": 132,
+    "pushedAt": "2026-11-17T04:18:50Z",
+    "archived": false,
+    "license": "MIT"
+   }
+  },
+  "victory": {
+   "weekly": 763344,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 21990119,
+   "latest": "38.1.0",
+   "latestPublished": "2026-11-12T20:27:07.628Z",
+   "created": "2015-07-02T23:08:54.819Z",
+   "stableReleasesLast12mo": 5,
+   "license": "MIT",
+   "types": true,
+   "deps": 27,
+   "peerDeps": [
+    "react"
+   ],
+   "unpackedSize": 29877,
+   "jsdelivrMonthHits": 7107,
+   "jsdelivrRank": 51486,
+   "repo": "FormidableLabs/victory",
+   "gh": {
+    "stars": 11247,
+    "openIssues": 95,
+    "pushedAt": "2026-11-17T06:35:11Z",
+    "archived": false,
+    "license": "NOASSERTION"
+   }
+  },
+  "@nivo/core": {
+   "weekly": 1998722,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 74909166,
+   "latest": "0.99.0",
+   "latestPublished": "2025-05-23T14:57:56.178Z",
+   "created": "2017-12-05T15:02:27.951Z",
+   "stableReleasesLast12mo": 0,
+   "license": "MIT",
+   "types": true,
+   "deps": 14,
+   "peerDeps": [
+    "react"
+   ],
+   "unpackedSize": 254394,
+   "jsdelivrMonthHits": 3988,
+   "jsdelivrRank": 69826,
+   "repo": "plouc/nivo",
+   "gh": {
+    "stars": 14145,
+    "openIssues": 75,
+    "pushedAt": "2026-07-21T02:46:40Z",
+    "archived": false,
+    "license": "MIT"
+   }
+  },
+  "@visx/shape": {
+   "weekly": 11492383,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 146562829,
+   "latest": "4.0.0",
+   "latestPublished": "2026-06-11T21:39:08.829Z",
+   "created": "2020-09-16T22:50:27.793Z",
+   "stableReleasesLast12mo": 1,
+   "license": "MIT",
+   "types": true,
+   "deps": 5,
+   "peerDeps": [
+    "@types/react",
+    "react"
+   ],
+   "unpackedSize": 226827,
+   "jsdelivrMonthHits": 45319,
+   "jsdelivrRank": 22275,
+   "repo": "airbnb/visx",
+   "gh": {
+    "stars": 21115,
+    "openIssues": 162,
+    "pushedAt": "2026-06-22T14:25:22Z",
+    "archived": false,
+    "license": "MIT"
+   }
+  },
+  "@mui/x-charts": {
+   "weekly": 1620809,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 44525678,
+   "latest": "9.18.1",
+   "latestPublished": "2026-11-16T12:37:50.424Z",
+   "created": "2023-06-22T13:41:57.254Z",
+   "stableReleasesLast12mo": 43,
+   "license": "MIT",
+   "types": true,
+   "deps": 10,
+   "peerDeps": [
+    "react",
+    "react-dom",
+    "@mui/system",
+    "@mui/material",
+    "@emotion/react",
+    "@emotion/styled"
+   ],
+   "unpackedSize": 5995616,
+   "jsdelivrMonthHits": 85350,
+   "jsdelivrRank": 17077,
+   "repo": "mui/mui-x",
+   "gh": {
+    "stars": 5880,
+    "openIssues": 1196,
+    "pushedAt": "2026-11-17T16:19:05Z",
+    "archived": false
+   }
+  },
+  "lightweight-charts": {
+   "weekly": 1804680,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 36399761,
+   "latest": "5.3.0",
+   "latestPublished": "2026-11-10T14:41:17.177Z",
+   "created": "2019-05-28T17:50:03.403Z",
+   "stableReleasesLast12mo": 4,
+   "license": "Apache-2.0",
+   "types": true,
+   "deps": 1,
+   "peerDeps": [],
+   "unpackedSize": 3125077,
+   "jsdelivrMonthHits": 3315891,
+   "jsdelivrRank": 3073,
+   "repo": "tradingview/lightweight-charts",
+   "gh": {
+    "stars": 17889,
+    "openIssues": 113,
+    "pushedAt": "2026-11-16T09:24:12Z",
+    "archived": false,
+    "license": "Apache-2.0"
+   }
+  },
+  "vega-lite": {
+   "weekly": 2268018,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 34628449,
+   "latest": "6.5.0",
+   "latestPublished": "2026-10-08T14:30:35.728Z",
+   "created": "2015-05-13T18:51:17.962Z",
+   "stableReleasesLast12mo": 3,
+   "license": "BSD-3-Clause",
+   "types": false,
+   "deps": 6,
+   "peerDeps": [
+    "vega"
+   ],
+   "unpackedSize": 5940557,
+   "jsdelivrMonthHits": 4513848,
+   "jsdelivrRank": 2562,
+   "repo": "vega/vega-lite",
+   "gh": {
+    "stars": 5560,
+    "openIssues": 832,
+    "pushedAt": "2026-11-13T08:51:50Z",
+    "archived": false,
+    "license": "BSD-3-Clause"
+   }
+  },
+  "vega": {
+   "weekly": 2289062,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 35388360,
+   "latest": "6.4.0",
+   "latestPublished": "2026-08-14T17:16:29.973Z",
+   "created": "2013-04-02T21:24:22.484Z",
+   "stableReleasesLast12mo": 4,
+   "license": "BSD-3-Clause",
+   "types": true,
+   "deps": 27,
+   "peerDeps": [],
+   "unpackedSize": 3727817,
+   "jsdelivrMonthHits": 4659159,
+   "jsdelivrRank": 2502,
+   "repo": "vega/vega",
+   "gh": {
+    "stars": 12048,
+    "openIssues": 497,
+    "pushedAt": "2026-11-17T04:47:09Z",
+    "archived": false,
+    "license": "BSD-3-Clause"
+   }
+  },
+  "@observablehq/plot": {
+   "weekly": 1568642,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 22464097,
+   "latest": "0.6.19",
+   "latestPublished": "2026-11-05T22:31:33.204Z",
+   "created": "2021-05-04T05:02:16.797Z",
+   "stableReleasesLast12mo": 2,
+   "license": "ISC",
+   "types": true,
+   "deps": 3,
+   "peerDeps": [],
+   "unpackedSize": 1740448,
+   "jsdelivrMonthHits": 4572742,
+   "jsdelivrRank": 2538,
+   "repo": "observablehq/plot",
+   "gh": {
+    "stars": 5429,
+    "openIssues": 355,
+    "pushedAt": "2026-11-05T22:31:26Z",
+    "archived": false,
+    "license": "ISC"
+   }
+  },
+  "@amcharts/amcharts5": {
+   "weekly": 467802,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 15179706,
+   "latest": "5.22.0",
+   "latestPublished": "2026-11-16T10:24:08.469Z",
+   "created": "2021-08-13T08:35:52.200Z",
+   "stableReleasesLast12mo": 33,
+   "license": "SEE LICENSE IN LICENSE",
+   "types": true,
+   "deps": 24,
+   "peerDeps": [],
+   "unpackedSize": 47492219,
+   "jsdelivrMonthHits": 69961,
+   "jsdelivrRank": 18523,
+   "repo": "amcharts/amcharts5",
+   "gh": {
+    "stars": 451,
+    "openIssues": 21,
+    "pushedAt": "2026-11-16T11:10:35Z",
+    "archived": false,
+    "license": "NOASSERTION"
+   }
+  },
+  "ag-charts-community": {
+   "weekly": 2573475,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 69236330,
+   "latest": "14.3.0",
+   "latestPublished": "2026-11-04T08:40:51.581Z",
+   "created": "2020-01-27T09:52:32.667Z",
+   "stableReleasesLast12mo": 13,
+   "license": "MIT",
+   "types": true,
+   "deps": 3,
+   "peerDeps": [],
+   "unpackedSize": 11848759,
+   "jsdelivrMonthHits": 1114760,
+   "jsdelivrRank": 5308,
+   "repo": "ag-grid/ag-charts",
+   "gh": {
+    "stars": 491,
+    "openIssues": 24,
+    "pushedAt": "2026-11-17T18:06:31Z",
+    "archived": false,
+    "license": "NOASSERTION"
+   }
+  },
+  "chartist": {
+   "weekly": 137671,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 5189122,
+   "latest": "2.2.1",
+   "latestPublished": "2026-11-17T09:49:29.703Z",
+   "created": "2014-08-10T13:31:38.156Z",
+   "stableReleasesLast12mo": 4,
+   "license": "MIT OR WTFPL",
+   "types": true,
+   "deps": 0,
+   "peerDeps": [],
+   "unpackedSize": 4475948,
+   "jsdelivrMonthHits": 159040347,
+   "jsdelivrRank": 225,
+   "repo": "chartist-js/chartist",
+   "gh": {
+    "stars": 13468,
+    "openIssues": 54,
+    "pushedAt": "2026-11-17T09:47:07Z",
+    "archived": false,
+    "license": "MIT"
+   }
+  },
+  "c3": {
+   "weekly": 208490,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 5633683,
+   "latest": "0.7.20",
+   "latestPublished": "2020-08-08T09:14:18.005Z",
+   "created": "2012-04-28T18:44:45.171Z",
+   "stableReleasesLast12mo": 0,
+   "license": "MIT",
+   "types": false,
+   "deps": 1,
+   "peerDeps": [],
+   "unpackedSize": 1455257,
+   "jsdelivrMonthHits": 409038,
+   "jsdelivrRank": 8690,
+   "repo": "c3js/c3",
+   "gh": {
+    "stars": 9352,
+    "openIssues": 774,
+    "pushedAt": "2026-11-13T17:27:14Z",
+    "archived": false,
+    "license": "MIT"
+   }
+  },
+  "billboard.js": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "4.1.4",
+   "latestPublished": "2026-11-11T10:22:46.898Z",
+   "created": "2017-05-15T09:42:31.459Z",
+   "stableReleasesLast12mo": 12,
+   "license": "MIT",
+   "types": true,
+   "deps": 13,
+   "peerDeps": [
+    "react"
+   ],
+   "unpackedSize": 13738441,
+   "jsdelivrMonthHits": 1055327,
+   "jsdelivrRank": 5476,
+   "repo": "naver/billboard.js",
+   "gh": {
+    "stars": 6028,
+    "openIssues": 78,
+    "pushedAt": "2026-11-17T07:53:16Z",
+    "archived": false,
+    "license": "MIT"
+   },
+   "weekly": 69509,
+   "yearly": 2072386
+  },
+  "react-chartjs-2": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "5.3.1",
+   "latestPublished": "2025-10-27T16:41:52.213Z",
+   "created": "2016-05-06T22:05:27.639Z",
+   "stableReleasesLast12mo": 0,
+   "license": "MIT",
+   "types": true,
+   "deps": 0,
+   "peerDeps": [
+    "chart.js",
+    "react"
+   ],
+   "unpackedSize": 55103,
+   "jsdelivrMonthHits": 77101,
+   "jsdelivrRank": 17754,
+   "repo": "reactchartjs/react-chartjs-2",
+   "gh": {
+    "stars": 6939,
+    "openIssues": 111,
+    "pushedAt": "2026-11-17T02:15:34Z",
+    "archived": false,
+    "license": "MIT"
+   },
+   "weekly": 5904595,
+   "yearly": 191372767
+  },
+  "echarts-for-react": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "3.1.0",
+   "latestPublished": "2026-11-17T11:25:42.928Z",
+   "created": "2016-06-03T05:53:36.311Z",
+   "stableReleasesLast12mo": 5,
+   "license": "MIT",
+   "types": true,
+   "deps": 3,
+   "peerDeps": [
+    "react",
+    "echarts"
+   ],
+   "unpackedSize": 98810,
+   "jsdelivrMonthHits": 6949,
+   "jsdelivrRank": 52068,
+   "repo": null,
+   "gh": null,
+   "weekly": 2111502,
+   "yearly": 53214341
+  },
+  "highcharts-react-official": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "3.2.3",
+   "latestPublished": "2025-10-01T07:42:14.838Z",
+   "created": "2018-01-18T12:35:35.700Z",
+   "stableReleasesLast12mo": 0,
+   "license": "MIT",
+   "types": true,
+   "deps": 0,
+   "peerDeps": [
+    "react",
+    "highcharts"
+   ],
+   "unpackedSize": 240645,
+   "jsdelivrMonthHits": 2205,
+   "jsdelivrRank": 97681,
+   "repo": null,
+   "gh": null,
+   "weekly": 1345998,
+   "yearly": 55350585
+  },
+  "react-apexcharts": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "2.2.1",
+   "latestPublished": "2026-11-13T07:45:08.686Z",
+   "created": "2018-08-11T18:36:52.491Z",
+   "stableReleasesLast12mo": 8,
+   "license": "SEE LICENSE IN LICENSE.md",
+   "types": true,
+   "deps": 1,
+   "peerDeps": [
+    "react",
+    "apexcharts"
+   ],
+   "unpackedSize": 68939,
+   "jsdelivrMonthHits": 165345,
+   "jsdelivrRank": 12885,
+   "repo": null,
+   "gh": null,
+   "weekly": 1473320,
+   "yearly": 46670664
+  },
+  "vue-chartjs": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "5.3.4",
+   "latestPublished": "2026-07-07T13:29:53.475Z",
+   "created": "2016-07-27T19:57:50.762Z",
+   "stableReleasesLast12mo": 1,
+   "license": "MIT",
+   "types": true,
+   "deps": 0,
+   "peerDeps": [
+    "chart.js",
+    "vue"
+   ],
+   "unpackedSize": 77650,
+   "jsdelivrMonthHits": 284381,
+   "jsdelivrRank": 10194,
+   "repo": null,
+   "gh": null,
+   "weekly": 1318026,
+   "yearly": 43873016
+  },
+  "ng2-charts": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "11.0.0",
+   "latestPublished": "2026-09-29T12:07:20.427Z",
+   "created": "2015-08-27T11:35:04.845Z",
+   "stableReleasesLast12mo": 3,
+   "license": "MIT",
+   "types": true,
+   "deps": 2,
+   "peerDeps": [
+    "rxjs",
+    "chart.js",
+    "@angular/cdk",
+    "@angular/core",
+    "@angular/common",
+    "@angular/platform-browser"
+   ],
+   "unpackedSize": 57109,
+   "jsdelivrMonthHits": 3425,
+   "jsdelivrRank": 75916,
+   "repo": null,
+   "gh": null,
+   "weekly": 591419,
+   "yearly": 21799444
+  },
+  "react-plotly.js": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "4.1.0",
+   "latestPublished": "2026-07-29T22:19:01.071Z",
+   "created": "2017-10-19T18:29:54.643Z",
+   "stableReleasesLast12mo": 3,
+   "license": "MIT",
+   "types": true,
+   "deps": 0,
+   "peerDeps": [
+    "react",
+    "plotly.js"
+   ],
+   "unpackedSize": 126066,
+   "jsdelivrMonthHits": 2044,
+   "jsdelivrRank": 102330,
+   "repo": null,
+   "gh": null,
+   "weekly": 942739,
+   "yearly": 34261540
+  },
+  "@tremor/react": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "3.18.7",
+   "latestPublished": "2025-01-13T13:06:12.787Z",
+   "created": "2022-04-19T22:05:11.485Z",
+   "stableReleasesLast12mo": 0,
+   "license": "Apache 2.0",
+   "types": true,
+   "deps": 7,
+   "peerDeps": [
+    "react",
+    "react-dom"
+   ],
+   "unpackedSize": 494433,
+   "jsdelivrMonthHits": 4403,
+   "jsdelivrRank": 66161,
+   "repo": "tremorlabs/tremor",
+   "gh": {
+    "stars": 3702,
+    "openIssues": 27,
+    "pushedAt": "2025-10-10T13:08:24Z",
+    "archived": false,
+    "license": "Apache-2.0"
+   },
+   "weekly": 562301,
+   "yearly": 15828677
+  },
+  "frappe-charts": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "1.6.2",
+   "latestPublished": "2021-06-16T11:00:29.296Z",
+   "created": "2017-10-31T19:16:29.953Z",
+   "stableReleasesLast12mo": 0,
+   "license": "MIT",
+   "types": false,
+   "deps": 0,
+   "peerDeps": [],
+   "unpackedSize": 1029188,
+   "jsdelivrMonthHits": 421371,
+   "jsdelivrRank": 8517,
+   "repo": "frappe/charts",
+   "gh": {
+    "stars": 15100,
+    "openIssues": 146,
+    "pushedAt": "2026-10-19T11:44:05Z",
+    "archived": false,
+    "license": "MIT"
+   },
+   "weekly": 304101,
+   "yearly": 3531507
+  },
+  "fusioncharts": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "4.2.3",
+   "latestPublished": "2026-09-30T13:23:42.956Z",
+   "created": "2016-02-17T19:48:47.613Z",
+   "stableReleasesLast12mo": 3,
+   "license": "http://www.fusioncharts.com/buy/",
+   "types": false,
+   "deps": 14,
+   "peerDeps": [],
+   "unpackedSize": 5727651,
+   "jsdelivrMonthHits": 409539,
+   "jsdelivrRank": 8685,
+   "repo": null,
+   "gh": null,
+   "weekly": 46177,
+   "yearly": 1892594
+  },
+  "@antv/g2": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "5.4.8",
+   "latestPublished": "2026-01-06T09:24:31.497Z",
+   "created": "2017-10-18T06:23:19.782Z",
+   "stableReleasesLast12mo": 6,
+   "license": "MIT",
+   "types": true,
+   "deps": 12,
+   "peerDeps": [],
+   "unpackedSize": 8829972,
+   "jsdelivrMonthHits": 19404032,
+   "jsdelivrRank": 1083,
+   "repo": "antvis/G2",
+   "gh": {
+    "stars": 12666,
+    "openIssues": 186,
+    "pushedAt": "2026-11-14T01:49:28Z",
+    "archived": false,
+    "license": "MIT"
+   },
+   "weekly": 451853,
+   "yearly": 15492721
+  },
+  "@antv/g2plot": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "2.4.35",
+   "latestPublished": "2025-09-19T02:42:14.654Z",
+   "created": "2019-09-26T07:24:26.896Z",
+   "stableReleasesLast12mo": 2,
+   "license": "MIT",
+   "types": true,
+   "deps": 14,
+   "peerDeps": [],
+   "unpackedSize": 9541020,
+   "jsdelivrMonthHits": 83371,
+   "jsdelivrRank": 17228,
+   "repo": null,
+   "gh": null,
+   "weekly": 124201,
+   "yearly": 5330623
+  },
+  "d3-scale": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "4.0.3",
+   "latestPublished": "2026-11-03T06:52:58.884Z",
+   "created": "2014-03-29T22:21:16.311Z",
+   "stableReleasesLast12mo": 1,
+   "license": "ISC",
+   "types": false,
+   "deps": 5,
+   "peerDeps": [],
+   "unpackedSize": 95384,
+   "jsdelivrMonthHits": 3888979,
+   "jsdelivrRank": 2792,
+   "repo": null,
+   "gh": null,
+   "weekly": 102695298,
+   "yearly": 2668250281
+  },
+  "d3-shape": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "3.2.1",
+   "latestPublished": "2026-11-03T04:29:45.265Z",
+   "created": "2015-11-11T19:35:32.768Z",
+   "stableReleasesLast12mo": 1,
+   "license": "ISC",
+   "types": false,
+   "deps": 1,
+   "peerDeps": [],
+   "unpackedSize": 177772,
+   "jsdelivrMonthHits": 4480656,
+   "jsdelivrRank": 2587,
+   "repo": null,
+   "gh": null,
+   "weekly": 132031033,
+   "yearly": 3229128356
+  },
+  "canvasjs": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "1.8.3",
+   "latestPublished": "2019-12-05T20:50:18.104Z",
+   "created": "2015-11-20T10:28:19.813Z",
+   "stableReleasesLast12mo": 0,
+   "license": "CC",
+   "types": false,
+   "deps": 0,
+   "peerDeps": [],
+   "unpackedSize": 3718610,
+   "jsdelivrMonthHits": 1084,
+   "jsdelivrRank": 157886,
+   "repo": null,
+   "gh": null,
+   "weekly": 3749,
+   "yearly": 163922
+  },
+  "@syncfusion/ej2-charts": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "35.1.46",
+   "latestPublished": "2026-11-12T03:53:39.028Z",
+   "created": "2017-05-10T10:25:25.991Z",
+   "stableReleasesLast12mo": 41,
+   "license": "SEE LICENSE IN license",
+   "types": true,
+   "deps": 7,
+   "peerDeps": [],
+   "unpackedSize": 57545571,
+   "jsdelivrMonthHits": 48496,
+   "jsdelivrRank": 21674,
+   "repo": null,
+   "gh": null,
+   "weekly": 140699,
+   "yearly": 4973886
+  },
+  "@kendo/kendo-charts": {
+   "weekRange": [
+    null,
+    null
+   ],
+   "stableReleasesLast12mo": 0,
+   "types": false,
+   "deps": 0,
+   "peerDeps": [],
+   "jsdelivrMonthHits": 0,
+   "jsdelivrRank": null,
+   "repo": null,
+   "gh": null
+  },
+  "@progress/kendo-charts": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "2.14.2",
+   "latestPublished": "2026-11-16T09:27:44.101Z",
+   "created": "2017-06-28T11:21:49.749Z",
+   "stableReleasesLast12mo": 14,
+   "license": "SEE LICENSE IN license.txt",
+   "types": true,
+   "deps": 0,
+   "peerDeps": [
+    "@progress/kendo-common",
+    "@progress/kendo-drawing"
+   ],
+   "unpackedSize": 12282255,
+   "jsdelivrMonthHits": 39642,
+   "jsdelivrRank": 23527,
+   "repo": null,
+   "gh": null,
+   "weekly": 127083,
+   "yearly": 4881178
+  },
+  "devextreme": {
+   "weekly": 340868,
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "yearly": 12942529,
+   "latest": "26.1.6",
+   "latestPublished": "2026-10-23T09:04:35.114Z",
+   "created": "2016-06-22T17:48:22.121Z",
+   "stableReleasesLast12mo": 32,
+   "license": "SEE LICENSE IN README.md",
+   "types": true,
+   "deps": 10,
+   "peerDeps": [],
+   "unpackedSize": 73041010,
+   "jsdelivrMonthHits": 9179488,
+   "jsdelivrRank": 1704,
+   "repo": null,
+   "gh": null
+  },
+  "zingchart": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "2.9.16-1",
+   "latestPublished": "2025-01-16T18:08:05.077Z",
+   "created": "2015-01-09T19:12:43.126Z",
+   "stableReleasesLast12mo": 0,
+   "types": false,
+   "deps": 0,
+   "peerDeps": [],
+   "unpackedSize": 65859260,
+   "jsdelivrMonthHits": 236335,
+   "jsdelivrRank": 11053,
+   "repo": null,
+   "gh": null,
+   "weekly": 6306,
+   "yearly": 286655
+  },
+  "@carbon/charts": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "1.27.27",
+   "latestPublished": "2026-11-05T10:26:12.102Z",
+   "created": "2018-08-30T21:28:37.637Z",
+   "stableReleasesLast12mo": 21,
+   "license": "Apache-2.0",
+   "types": true,
+   "deps": 14,
+   "peerDeps": [],
+   "unpackedSize": 8638736,
+   "jsdelivrMonthHits": 52466,
+   "jsdelivrRank": 20964,
+   "repo": "carbon-design-system/carbon-charts",
+   "gh": {
+    "stars": 1054,
+    "openIssues": 276,
+    "pushedAt": "2026-11-05T10:19:08Z",
+    "archived": false,
+    "license": "Apache-2.0"
+   },
+   "weekly": 84995,
+   "yearly": 3457557
+  },
+  "roughviz": {
+   "weekRange": [
+    null,
+    null
+   ],
+   "stableReleasesLast12mo": 0,
+   "types": false,
+   "deps": 0,
+   "peerDeps": [],
+   "jsdelivrMonthHits": 0,
+   "jsdelivrRank": null,
+   "repo": null,
+   "gh": null
+  },
+  "chart.xkcd": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "2.0.12",
+   "latestPublished": "2026-06-16T04:17:52.202Z",
+   "created": "2019-08-05T03:02:55.055Z",
+   "stableReleasesLast12mo": 12,
+   "license": "MIT",
+   "types": false,
+   "deps": 0,
+   "peerDeps": [],
+   "unpackedSize": 316068,
+   "jsdelivrMonthHits": 110908,
+   "jsdelivrRank": 15311,
+   "repo": null,
+   "gh": null,
+   "weekly": 606,
+   "yearly": 35789
+  },
+  "react-google-charts": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "5.2.1",
+   "latestPublished": "2024-10-26T15:48:02.634Z",
+   "created": "2015-06-07T08:07:54.203Z",
+   "stableReleasesLast12mo": 0,
+   "license": "MIT",
+   "types": true,
+   "deps": 0,
+   "peerDeps": [
+    "react",
+    "react-dom"
+   ],
+   "unpackedSize": 270014,
+   "jsdelivrMonthHits": 6062,
+   "jsdelivrRank": 55792,
+   "repo": null,
+   "gh": null,
+   "weekly": 206787,
+   "yearly": 10122824
+  },
+  "@unovis/ts": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "1.8.1",
+   "latestPublished": "2026-11-10T18:47:57.033Z",
+   "created": "2022-09-07T21:32:21.467Z",
+   "stableReleasesLast12mo": 9,
+   "license": "Apache-2.0",
+   "types": true,
+   "deps": 61,
+   "peerDeps": [],
+   "unpackedSize": 10945684,
+   "jsdelivrMonthHits": 20387,
+   "jsdelivrRank": 31145,
+   "repo": "f5/unovis",
+   "gh": {
+    "stars": 2872,
+    "openIssues": 108,
+    "pushedAt": "2026-11-17T21:24:56Z",
+    "archived": false,
+    "license": "Apache-2.0"
+   },
+   "weekly": 392344,
+   "yearly": 8048599
+  },
+  "lightningchart": {
+   "weekRange": [
+    null,
+    null
+   ],
+   "created": "2023-03-01T09:23:12.673Z",
+   "stableReleasesLast12mo": 0,
+   "types": false,
+   "deps": 0,
+   "peerDeps": [],
+   "jsdelivrMonthHits": 0,
+   "jsdelivrRank": null,
+   "repo": null,
+   "gh": null
+  },
+  "@lcjs/core": {
+   "weekRange": [
+    null,
+    null
+   ],
+   "stableReleasesLast12mo": 0,
+   "types": false,
+   "deps": 0,
+   "peerDeps": [],
+   "jsdelivrMonthHits": 0,
+   "jsdelivrRank": null,
+   "repo": null,
+   "gh": null
+  },
+  "scichart": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "6.0.17",
+   "latestPublished": "2026-11-16T06:09:02.307Z",
+   "created": "2020-02-06T11:13:22.828Z",
+   "stableReleasesLast12mo": 27,
+   "license": "https://www.scichart.com/scichart-eula",
+   "types": true,
+   "deps": 0,
+   "peerDeps": [],
+   "unpackedSize": 31665100,
+   "jsdelivrMonthHits": 282326,
+   "jsdelivrRank": 10224,
+   "repo": null,
+   "gh": null,
+   "weekly": 128770,
+   "yearly": 1403604
+  },
+  "layerchart": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "2.11.0",
+   "latestPublished": "2026-11-17T05:59:52.322Z",
+   "created": "2021-08-12T02:39:29.600Z",
+   "stableReleasesLast12mo": 27,
+   "license": "MIT",
+   "types": true,
+   "deps": 29,
+   "peerDeps": [
+    "svelte"
+   ],
+   "unpackedSize": 2335642,
+   "jsdelivrMonthHits": 5133,
+   "jsdelivrRank": 60807,
+   "repo": "techniq/layerchart",
+   "gh": {
+    "stars": 1374,
+    "openIssues": 70,
+    "pushedAt": "2026-11-17T21:51:34Z",
+    "archived": false,
+    "license": "MIT"
+   },
+   "weekly": 461973,
+   "yearly": 7203630
+  },
+  "@swimlane/ngx-charts": {
+   "weekRange": [
+    "2026-11-10",
+    "2026-11-16"
+   ],
+   "latest": "25.0.3",
+   "latestPublished": "2026-10-05T18:13:25.719Z",
+   "created": "2016-12-22T18:18:56.698Z",
+   "stableReleasesLast12mo": 7,
+   "license": "MIT",
+   "types": true,
+   "deps": 15,
+   "peerDeps": [
+    "rxjs",
+    "@angular/cdk",
+    "@angular/core",
+    "@angular/forms",
+    "@angular/common",
+    "@angular/animations",
+    "@angular/platform-browser",
+    "@angular/platform-browser-dynamic"
+   ],
+   "unpackedSize": 2369782,
+   "jsdelivrMonthHits": 2636,
+   "jsdelivrRank": 87820,
+   "repo": "swimlane/ngx-charts",
+   "gh": {
+    "stars": 4357,
+    "openIssues": 894,
+    "pushedAt": "2026-10-29T05:56:37Z",
+    "archived": false,
+    "license": "MIT"
+   },
+   "weekly": 212818,
+   "yearly": 9416962
+  }
+ }
+}

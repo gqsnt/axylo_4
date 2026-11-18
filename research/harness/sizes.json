@@ -1,0 +1,62 @@
+{
+ "chartjs": {
+  "minKB": 249.6,
+  "gzipKB": 81,
+  "brotliKB": 69.9,
+  "harnessLoc": 54
+ },
+ "recharts": {
+  "minKB": 491.6,
+  "gzipKB": 140.4,
+  "brotliKB": 116.2,
+  "harnessLoc": 83
+ },
+ "d3": {
+  "minKB": 103.1,
+  "gzipKB": 34.7,
+  "brotliKB": 29.2,
+  "harnessLoc": 91
+ },
+ "echarts": {
+  "minKB": 1108.7,
+  "gzipKB": 372.6,
+  "brotliKB": 302.4,
+  "harnessLoc": 63
+ },
+ "highcharts": {
+  "minKB": 412.8,
+  "gzipKB": 142.8,
+  "brotliKB": 122.4,
+  "harnessLoc": 51
+ },
+ "apexcharts": {
+  "minKB": 958.6,
+  "gzipKB": 289.3,
+  "brotliKB": 232.3,
+  "harnessLoc": 60
+ },
+ "plotly": {
+  "minKB": 4709.8,
+  "gzipKB": 1450,
+  "brotliKB": 1087.7,
+  "harnessLoc": 30
+ },
+ "nivo": {
+  "minKB": 392.6,
+  "gzipKB": 128.6,
+  "brotliKB": 102.5,
+  "harnessLoc": 54
+ },
+ "mui": {
+  "minKB": 498.4,
+  "gzipKB": 160.1,
+  "brotliKB": 135.4,
+  "harnessLoc": 44
+ },
+ "uplot": {
+  "minKB": 52.1,
+  "gzipKB": 23.1,
+  "brotliKB": 20.8,
+  "harnessLoc": 45
+ }
+}

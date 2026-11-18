@@ -1,0 +1,112 @@
+{
+ "ALL": {
+  "date": "2026-10-01",
+  "desktop": 5502849,
+  "mobile": 8466939
+ },
+ "Chart.js": {
+  "date": "2026-10-01",
+  "desktop": 82859,
+  "mobile": 104208
+ },
+ "Highcharts": {
+  "date": "2026-10-01",
+  "desktop": 12534,
+  "mobile": 10988
+ },
+ "D3": {
+  "date": "2026-10-01",
+  "desktop": 17138,
+  "mobile": 15028
+ },
+ "ECharts": {
+  "date": "2026-10-01",
+  "desktop": 3345,
+  "mobile": 2339
+ },
+ "ApexCharts.js": {
+  "date": "2026-10-01",
+  "desktop": 12846,
+  "mobile": 13318
+ },
+ "Google Charts": {
+  "date": "2026-10-01",
+  "desktop": 4291,
+  "mobile": 5151
+ },
+ "amCharts": {
+  "date": "2026-10-01",
+  "desktop": 4686,
+  "mobile": 4475
+ },
+ "Plotly": {
+  "date": "2026-10-01",
+  "desktop": 942,
+  "mobile": 676
+ },
+ "Recharts": {
+  "date": "2026-10-01",
+  "desktop": 2706,
+  "mobile": 2618
+ },
+ "TradingView": {
+  "date": "2026-10-01",
+  "desktop": 238,
+  "mobile": 353
+ },
+ "uPlot": {
+  "date": "2026-10-01",
+  "desktop": 32,
+  "mobile": 29
+ },
+ "FusionCharts": {
+  "date": "2026-10-01",
+  "desktop": 1233,
+  "mobile": 1071
+ },
+ "CanvasJS": {
+  "date": "2026-10-01",
+  "desktop": 2360,
+  "mobile": 3240
+ },
+ "ZingChart": {
+  "date": "2026-10-01",
+  "desktop": 166,
+  "mobile": 148
+ },
+ "jqPlot": {
+  "date": "2026-10-01",
+  "desktop": 537,
+  "mobile": 438
+ },
+ "NVD3": {
+  "date": "2026-10-01",
+  "desktop": 1366,
+  "mobile": 925
+ },
+ "Rickshaw": {
+  "date": "2026-10-01",
+  "desktop": 119,
+  "mobile": 93
+ },
+ "AntV G2": {
+  "date": "2026-10-01",
+  "desktop": 250,
+  "mobile": 89
+ },
+ "MUI": {
+  "date": "2026-10-01",
+  "desktop": 49678,
+  "mobile": 63187
+ },
+ "Kendo UI": {
+  "date": "2026-10-01",
+  "desktop": 13731,
+  "mobile": 13415
+ },
+ "Infogram": {
+  "date": "2026-10-01",
+  "desktop": 366,
+  "mobile": 339
+ }
+}

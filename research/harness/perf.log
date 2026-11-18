@@ -1,0 +1,40 @@
+chartjs scale 10000 {"toPaintMs":152.1,"runs":[148,152.1,156.4]}
+chartjs scale 100000 {"toPaintMs":1816.9,"runs":[1366.4,1816.9,1863.9]}
+chartjs scale 1000000 {"toPaintMs":13687,"runs":[13493.2,13687,13870.8]}
+chartjs stream {"createMs":36.3,"toPaintMs":50.9,"pushP50":5.5,"pushP95":11.9,"frameP50":16.7,"frameP95":18.4,"framesOver20ms":3,"frames":300,"logs":[]}
+recharts scale 10000 {"toPaintMs":899.6,"runs":[686.2,899.6,934.3]}
+recharts scale 100000 {"toPaintMs":7118.7,"runs":[6947.5,7118.7,7478.6]}
+recharts scale 1000000 {"timeout":true}
+recharts stream {"createMs":4.6,"toPaintMs":86.6,"pushP50":15.1,"pushP95":26.2,"frameP50":17,"frameP95":28.8,"framesOver20ms":89,"frames":300,"logs":[]}
+d3 scale 10000 {"toPaintMs":30.9,"runs":[27.7,30.9,33.3]}
+d3 scale 100000 {"toPaintMs":75.2,"runs":[62.9,75.2,86.1]}
+d3 scale 1000000 {"toPaintMs":558.5,"runs":[383.3,558.5,650.4]}
+d3 stream {"createMs":4.1,"toPaintMs":22.9,"pushP50":0.2,"pushP95":0.4,"frameP50":16.7,"frameP95":16.8,"framesOver20ms":0,"frames":300,"logs":[]}
+echarts scale 10000 {"toPaintMs":189.2,"runs":[159.8,189.2,227.1]}
+echarts scale 100000 {"toPaintMs":1463.7,"runs":[1312.3,1463.7,1615]}
+echarts scale 1000000 {"toPaintMs":12906.9,"runs":[12581.4,12906.9,13133.8]}
+echarts stream {"createMs":67.2,"toPaintMs":78.8,"pushP50":5.3,"pushP95":11.2,"frameP50":16.7,"frameP95":20.8,"framesOver20ms":21,"frames":300,"logs":[]}
+highcharts scale 10000 {"toPaintMs":95.6,"runs":[78.9,95.6,108.7]}
+highcharts scale 100000 {"toPaintMs":318.6,"runs":[275.3,318.6,319.3]}
+highcharts scale 1000000 {"toPaintMs":1938.6,"runs":[1803.6,1938.6,2311.9]}
+highcharts stream {"createMs":35.5,"toPaintMs":43.6,"pushP50":2.8,"pushP95":5.8,"frameP50":16.7,"frameP95":17.3,"framesOver20ms":1,"frames":300,"logs":[]}
+apexcharts scale 10000 {"toPaintMs":36.3,"runs":[34.4,36.3,39.1]}
+apexcharts scale 100000 {"toPaintMs":120.1,"runs":[115.8,120.1,125.1]}
+apexcharts scale 1000000 {"toPaintMs":844,"runs":[822.2,844,868.2]}
+apexcharts stream {"createMs":26.4,"toPaintMs":32.3,"pushP50":3.9,"pushP95":6.7,"frameP50":16.7,"frameP95":17.6,"framesOver20ms":1,"frames":300,"logs":[]}
+plotly scale 10000 {"toPaintMs":46.5,"runs":[45.6,46.5,48.8]}
+plotly scale 100000 {"toPaintMs":74,"runs":[72.7,74,75.2]}
+plotly scale 1000000 {"toPaintMs":425.2,"runs":[343.6,425.2,452.9]}
+plotly stream {"createMs":26.6,"toPaintMs":34.6,"pushP50":3.9,"pushP95":8.8,"frameP50":16.7,"frameP95":16.8,"framesOver20ms":0,"frames":300,"logs":[]}
+nivo scale 10000 {"toPaintMs":478.5,"runs":[475.2,478.5,494.5]}
+nivo scale 100000 {"toPaintMs":3967.3,"runs":[3583.2,3967.3,4936.9]}
+nivo scale 1000000 {"timeout":true}
+nivo stream {"createMs":51.8,"toPaintMs":67.5,"pushP50":17.6,"pushP95":32.2,"frameP50":23.3,"frameP95":42.2,"framesOver20ms":222,"frames":300,"logs":[]}
+mui scale 10000 {"toPaintMs":58.3,"runs":[56.5,58.3,59.4]}
+mui scale 100000 {"toPaintMs":321,"runs":[287.8,321,326]}
+mui scale 1000000 {"toPaintMs":2490.2,"runs":[2357.8,2490.2,3264.6]}
+mui stream {"createMs":26.4,"toPaintMs":31.9,"pushP50":4.3,"pushP95":7,"frameP50":16.7,"frameP95":17.5,"framesOver20ms":0,"frames":300,"logs":[]}
+uplot scale 10000 {"toPaintMs":31.2,"runs":[26,31.2,34.9]}
+uplot scale 100000 {"toPaintMs":23.5,"runs":[17.7,23.5,26.8]}
+uplot scale 1000000 {"toPaintMs":61.8,"runs":[58.3,61.8,68.8]}
+uplot stream {"createMs":4.7,"toPaintMs":33.2,"pushP50":0,"pushP95":0.1,"frameP50":16.7,"frameP95":16.9,"framesOver20ms":0,"frames":300,"logs":[]}

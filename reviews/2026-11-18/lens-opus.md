@@ -1,0 +1,4 @@
+
+## Your deep dive
+
+The reader's experience and accessibility, and the developer's experience: the sections of `01-landscape.md` on how charts communicate and how readers interact, the reader and accessibility criteria in `02-product-spec.md` (F, L, I, A), the developer criteria (DX), and the accessibility and API parts of `03-plan-typescript-release.md`. Whether the accessibility conclusions are justified by what was actually probed; whether the criteria match WCAG 2.2 AA and established practice for accessible charts; whether the defaults chosen (no first-render animation, label-fitting order, calendar dates versus instants, missing values, zero baselines, diagnostics) are right for real dashboards; and whether a developer or a coding agent would actually get the first chart right with the proposed API.

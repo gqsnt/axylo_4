@@ -1,0 +1,83 @@
+{
+ "fetchedAt": "2026-11-17T22:39:53.560Z",
+ "packages": {
+  "chart.js": {
+   "latest": "4.6.1",
+   "latestDate": "2026-10-22",
+   "stableLast12mo": 1,
+   "majorsLast24mo": []
+  },
+  "recharts": {
+   "latest": "3.11.0",
+   "latestDate": "2026-11-17",
+   "stableLast12mo": 12,
+   "majorsLast24mo": [
+    "v3 2025-06-23"
+   ]
+  },
+  "d3": {
+   "latest": "7.9.2",
+   "latestDate": "2026-11-03",
+   "stableLast12mo": 2,
+   "majorsLast24mo": []
+  },
+  "echarts": {
+   "latest": "6.1.0",
+   "latestDate": "2026-05-19",
+   "stableLast12mo": 1,
+   "majorsLast24mo": [
+    "v6 2025-07-30"
+   ]
+  },
+  "highcharts": {
+   "latest": "13.1.1",
+   "latestDate": "2026-09-20",
+   "stableLast12mo": 10,
+   "majorsLast24mo": [
+    "v12 2024-11-27",
+    "v13 2026-06-11"
+   ]
+  },
+  "apexcharts": {
+   "latest": "8.9.0",
+   "latestDate": "2026-11-17",
+   "stableLast12mo": 65,
+   "majorsLast24mo": [
+    "v5 2025-07-09",
+    "v6 2026-07-17",
+    "v7 2026-08-25",
+    "v8 2026-10-09"
+   ]
+  },
+  "plotly.js": {
+   "latest": "4.3.0",
+   "latestDate": "2026-11-10",
+   "stableLast12mo": 12,
+   "majorsLast24mo": [
+    "v3 2025-01-27",
+    "v4 2026-08-24"
+   ]
+  },
+  "@nivo/core": {
+   "latest": "0.99.0",
+   "latestDate": "2025-05-23",
+   "stableLast12mo": 0,
+   "majorsLast24mo": []
+  },
+  "@mui/x-charts": {
+   "latest": "9.18.1",
+   "latestDate": "2026-11-16",
+   "stableLast12mo": 43,
+   "majorsLast24mo": [
+    "v8 2025-04-17",
+    "v9 2026-04-08"
+   ]
+  },
+  "uplot": {
+   "latest": "1.6.32",
+   "latestDate": "2025-03-14",
+   "stableLast12mo": 0,
+   "majorsLast24mo": []
+  }
+ }
+}

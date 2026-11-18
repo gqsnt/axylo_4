@@ -1,0 +1,5540 @@
+{
+ "_env": {
+  "chrome": "157.0.8103.78",
+  "date": "2026-11-18T00:04:04.678Z",
+  "headless": true
+ },
+ "chartjs": {
+  "trend": {
+   "res": {
+    "createMs": 31.5,
+    "toPaintMs": 41.30000000074506
+   },
+   "logs": [
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "dom": {
+    "nodes": 1,
+    "svg": 0,
+    "canvas": 1,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 0,
+    "marked": [],
+    "canvasFallback": [
+     ""
+    ],
+    "svgTextSizes": {},
+    "svgTextFills": {},
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": ""
+  },
+  "bars": {
+   "res": {
+    "createMs": 22.799999998882413,
+    "toPaintMs": 33.899999998509884
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 1,
+    "svg": 0,
+    "canvas": 1,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 0,
+    "marked": [],
+    "canvasFallback": [
+     ""
+    ],
+    "svgTextSizes": {},
+    "svgTextFills": {},
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": ""
+  },
+  "parts": {
+   "res": {
+    "createMs": 8.099999999627471,
+    "toPaintMs": 32.69999999925494
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 1,
+    "svg": 0,
+    "canvas": 1,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 0,
+    "marked": [],
+    "canvasFallback": [
+     ""
+    ],
+    "svgTextSizes": {},
+    "svgTextFills": {},
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": ""
+  },
+  "dirty": {
+   "res": {
+    "createMs": 17.59999999962747,
+    "toPaintMs": 33.69999999925494
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 1,
+    "svg": 0,
+    "canvas": 1,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 0,
+    "marked": [],
+    "canvasFallback": [
+     ""
+    ],
+    "svgTextSizes": {},
+    "svgTextFills": {},
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": ""
+  },
+  "keyboard": {
+   "stops": [],
+   "arrows": [
+    {
+     "key": "ArrowRight",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "ArrowRight",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "ArrowDown",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "Enter",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    }
+   ],
+   "newTextAfterKeys": []
+  },
+  "hover_utc": {
+   "newText": []
+  },
+  "hover_la": {
+   "newText": []
+  },
+  "resize": {
+   "widestGraphic": 360,
+   "scrollWidth": 360
+  },
+  "motion_no-preference": {
+   "earlyVsSettledDiff": 0.2407
+  },
+  "motion_reduce": {
+   "earlyVsSettledDiff": 0.2625
+  },
+  "scale": {
+   "10000": {
+    "toPaintMs": 239.6,
+    "runs": [
+     178.1,
+     239.6,
+     255.5
+    ],
+    "taskMs": 1222.6,
+    "taskRuns": [
+     1201.3,
+     1222.6,
+     1251.7
+    ],
+    "failedRuns": 0
+   },
+   "100000": {
+    "toPaintMs": 1503.1,
+    "runs": [
+     1281.5,
+     1503.1,
+     1542.8
+    ],
+    "taskMs": 2336,
+    "taskRuns": [
+     2315.4,
+     2336,
+     2431.2
+    ],
+    "failedRuns": 0
+   },
+   "1000000": {
+    "toPaintMs": 13658.6,
+    "runs": [
+     13440.2,
+     13658.6,
+     14548.9
+    ],
+    "taskMs": 13708.8,
+    "taskRuns": [
+     13482.7,
+     13708.8,
+     14609.8
+    ],
+    "failedRuns": 0
+   }
+  },
+  "stream": {
+   "createMs": 19.4,
+   "toPaintMs": 28.1,
+   "pushP50": 5.9,
+   "pushP95": 12.6,
+   "frameP50": 16.7,
+   "frameP95": 18.4,
+   "framesOver20ms": 2,
+   "frames": 300,
+   "taskMsPerUpdate": 10.71,
+   "scriptMsPerUpdate": 0.75,
+   "layoutStyleMsPerUpdate": 0,
+   "logs": []
+  },
+  "empty": {
+   "res": {
+    "createMs": 21.5,
+    "toPaintMs": 33.40000000037253
+   },
+   "logs": [
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "text": [],
+   "aria": ""
+  },
+  "dates": {
+   "trend": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [],
+     "tooltipForIndex54": {
+      "title": [
+       "Feb 24, 2026, 12:00:00 a.m."
+      ],
+      "body": [
+       "Direct: 36,207"
+      ]
+     }
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [],
+     "tooltipForIndex54": {
+      "title": [
+       "Feb 23, 2026, 4:00:00 p.m."
+      ],
+      "body": [
+       "Direct: 36,207"
+      ]
+     }
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [],
+     "tooltipForIndex54": {
+      "title": [
+       "Feb 24, 2026, 5:30:00 a.m."
+      ],
+      "body": [
+       "Direct: 36,207"
+      ]
+     }
+    }
+   },
+   "dates": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [],
+     "tooltipForIndex54": {
+      "title": [
+       "Feb 24, 2026, 12:00:00 a.m."
+      ],
+      "body": [
+       "Direct: 36,207"
+      ]
+     }
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [],
+     "tooltipForIndex54": {
+      "title": [
+       "Feb 24, 2026, 12:00:00 a.m."
+      ],
+      "body": [
+       "Direct: 36,207"
+      ]
+     }
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [],
+     "tooltipForIndex54": {
+      "title": [
+       "Feb 24, 2026, 12:00:00 a.m."
+      ],
+      "body": [
+       "Direct: 36,207"
+      ]
+     }
+    }
+   }
+  },
+  "sentinels": {
+   "null": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "nan": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "string": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "undefined": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   }
+  }
+ },
+ "recharts": {
+  "trend": {
+   "res": {
+    "createMs": 5.700000002980232,
+    "toPaintMs": 103.80000000074506
+   },
+   "logs": [
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "dom": {
+    "nodes": 504,
+    "svg": 4,
+    "canvas": 0,
+    "svgTitle": 4,
+    "svgDesc": 4,
+    "tables": 0,
+    "markedCount": 6,
+    "marked": [
+     {
+      "tag": "div",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "div",
+      "role": "status",
+      "aria-live": "assertive"
+     },
+     {
+      "tag": "svg",
+      "aria-label": "Direct legend icon"
+     },
+     {
+      "tag": "svg",
+      "aria-label": "Organic search legend icon"
+     },
+     {
+      "tag": "svg",
+      "aria-label": "Referral legend icon"
+     },
+     {
+      "tag": "svg",
+      "role": "application",
+      "tabindex": "0"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "16px": 14
+    },
+    "svgTextFills": {
+     "rgb(102, 102, 102)": 13,
+     "rgb(128, 128, 128)": 1
+    },
+    "mainWidth": 14,
+    "mainHeight": 14
+   },
+   "aria": "- list:\n  - listitem:\n    - img \"Direct legend icon\"\n    - text: Direct\n  - listitem:\n    - img \"Organic search legend icon\"\n    - text: Organic search\n  - listitem:\n    - img \"Referral legend icon\"\n    - text: Referral\n- application: 1/11/2026 1/26/2026 2/9/2026 2/24/2026 3/11/2026 3/26/2026 4/9/2026 4/30/2026 0 15000 30000 45000 60000 Sessions"
+  },
+  "bars": {
+   "res": {
+    "createMs": 4.5,
+    "toPaintMs": 36.30000000074506
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 132,
+    "svg": 1,
+    "canvas": 0,
+    "svgTitle": 1,
+    "svgDesc": 1,
+    "tables": 0,
+    "markedCount": 3,
+    "marked": [
+     {
+      "tag": "div",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "div",
+      "role": "status",
+      "aria-live": "assertive"
+     },
+     {
+      "tag": "svg",
+      "role": "application",
+      "tabindex": "0"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "16px": 12
+    },
+    "svgTextFills": {
+     "rgb(102, 102, 102)": 11,
+     "rgb(128, 128, 128)": 1
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- application: Billing Platform Mobile Data Security Sales Eng. 0 25 50 75 100 Satisfied (%)"
+  },
+  "parts": {
+   "res": {
+    "createMs": 3.7999999970197678,
+    "toPaintMs": 28.299999997019768
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 108,
+    "svg": 7,
+    "canvas": 0,
+    "svgTitle": 7,
+    "svgDesc": 7,
+    "tables": 0,
+    "markedCount": 22,
+    "marked": [
+     {
+      "tag": "div",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "div",
+      "role": "status",
+      "aria-live": "assertive"
+     },
+     {
+      "tag": "svg",
+      "aria-label": "Chrome legend icon"
+     },
+     {
+      "tag": "svg",
+      "aria-label": "Edge legend icon"
+     },
+     {
+      "tag": "svg",
+      "aria-label": "Firefox legend icon"
+     },
+     {
+      "tag": "svg",
+      "aria-label": "Other legend icon"
+     },
+     {
+      "tag": "svg",
+      "aria-label": "Safari legend icon"
+     },
+     {
+      "tag": "svg",
+      "aria-label": "Samsung Internet legend icon"
+     },
+     {
+      "tag": "svg",
+      "role": "application",
+      "tabindex": "0"
+     },
+     {
+      "tag": "g",
+      "tabindex": "0"
+     },
+     {
+      "tag": "g",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "g",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "g",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "g",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "g",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "g",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "tabindex": "-1"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "16px": 6
+    },
+    "svgTextFills": {
+     "rgb(0, 136, 254)": 2,
+     "rgb(0, 196, 159)": 2,
+     "rgb(255, 187, 40)": 1,
+     "rgb(255, 128, 66)": 1
+    },
+    "mainWidth": 14,
+    "mainHeight": 14
+   },
+   "aria": "- list:\n  - listitem:\n    - img \"Chrome legend icon\"\n    - text: Chrome\n  - listitem:\n    - img \"Edge legend icon\"\n    - text: Edge\n  - listitem:\n    - img \"Firefox legend icon\"\n    - text: Firefox\n  - listitem:\n    - img \"Other legend icon\"\n    - text: Other\n  - listitem:\n    - img \"Safari legend icon\"\n    - text: Safari\n  - listitem:\n    - img \"Samsung Internet legend icon\"\n    - text: Samsung Internet\n- application: 46.2 27.5 14.1 8.9 2.1 1.2"
+  },
+  "dirty": {
+   "res": {
+    "createMs": 5,
+    "toPaintMs": 45.69999999925494
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 103,
+    "svg": 1,
+    "canvas": 0,
+    "svgTitle": 1,
+    "svgDesc": 1,
+    "tables": 0,
+    "markedCount": 3,
+    "marked": [
+     {
+      "tag": "div",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "div",
+      "role": "status",
+      "aria-live": "assertive"
+     },
+     {
+      "tag": "svg",
+      "role": "application",
+      "tabindex": "0"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "16px": 12
+    },
+    "svgTextFills": {
+     "rgb(102, 102, 102)": 12
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- application: Mon Tue Wed Thu Fri Sat Sun 0 20 40 60 80"
+  },
+  "keyboard": {
+   "stops": [
+    {
+     "tag": "svg",
+     "role": "application",
+     "label": "1/11/20261/26/20262/9/20262/24/20263/11/20263/26/20264/9/20264/30/2026015000300004500060000Sessions",
+     "cls": "recharts-surface",
+     "box": [
+      720,
+      400
+     ],
+     "outline": "auto 5px"
+    },
+    {
+     "tag": "g",
+     "role": null,
+     "label": "",
+     "cls": "recharts-zIndex-layer_-100",
+     "box": [
+      650,
+      338
+     ],
+     "outline": "auto 5px"
+    },
+    {
+     "tag": "g",
+     "role": null,
+     "label": "",
+     "cls": "recharts-zIndex-layer_400",
+     "box": [
+      650,
+      255
+     ],
+     "outline": "auto 5px"
+    },
+    {
+     "tag": "g",
+     "role": null,
+     "label": "",
+     "cls": "recharts-zIndex-layer_500",
+     "box": [
+      656,
+      344
+     ],
+     "outline": "auto 5px"
+    },
+    {
+     "tag": "g",
+     "role": null,
+     "label": "",
+     "cls": "recharts-zIndex-layer_600",
+     "box": [
+      656,
+      261
+     ],
+     "outline": "auto 5px"
+    },
+    {
+     "tag": "g",
+     "role": null,
+     "label": "",
+     "cls": "recharts-zIndex-layer_1100",
+     "box": [
+      0,
+      0
+     ],
+     "outline": "auto 5px"
+    },
+    {
+     "tag": "g",
+     "role": null,
+     "label": "",
+     "cls": "recharts-zIndex-layer_1200",
+     "box": [
+      0,
+      0
+     ],
+     "outline": "auto 5px"
+    },
+    {
+     "tag": "g",
+     "role": null,
+     "label": "1/11/20261/26/20262/9/20262/24/20263/11/20263/26/20264/9/20264/30/2026015000300004500060000Sessions",
+     "cls": "recharts-zIndex-layer_2000",
+     "box": [
+      721,
+      368
+     ],
+     "outline": "auto 5px"
+    }
+   ],
+   "arrows": [
+    {
+     "key": "ArrowRight",
+     "active": "1/11/20261/26/20262/9/20262/24/20263/11/20263/26/20264/9/20264/30/2026015000300004500060000Sessions",
+     "tag": "svg",
+     "live": [
+      "1/2/2026Direct : 31713Organic search : 20724Referral : 4716"
+     ]
+    },
+    {
+     "key": "ArrowRight",
+     "active": "1/11/20261/26/20262/9/20262/24/20263/11/20263/26/20264/9/20264/30/2026015000300004500060000Sessions",
+     "tag": "svg",
+     "live": [
+      "1/3/2026Direct : 36072Organic search : 21923Referral : 4929"
+     ]
+    },
+    {
+     "key": "ArrowDown",
+     "active": "1/11/20261/26/20262/9/20262/24/20263/11/20263/26/20264/9/20264/30/2026015000300004500060000Sessions",
+     "tag": "svg",
+     "live": [
+      "1/3/2026Direct : 36072Organic search : 21923Referral : 4929"
+     ]
+    },
+    {
+     "key": "Enter",
+     "active": "1/11/20261/26/20262/9/20262/24/20263/11/20263/26/20264/9/20264/30/2026015000300004500060000Sessions",
+     "tag": "svg",
+     "live": []
+    }
+   ],
+   "newTextAfterKeys": []
+  },
+  "hover_utc": {
+   "newText": [
+    "Direct : 36207",
+    "Organic search : 18957",
+    "Referral : 3713"
+   ]
+  },
+  "hover_la": {
+   "newText": [
+    "Direct : 36207",
+    "Organic search : 18957",
+    "Referral : 3713"
+   ]
+  },
+  "resize": {
+   "widestGraphic": 360,
+   "scrollWidth": 360
+  },
+  "motion_no-preference": {
+   "earlyVsSettledDiff": 0.4584
+  },
+  "motion_reduce": {
+   "earlyVsSettledDiff": 0
+  },
+  "scale": {
+   "10000": {
+    "toPaintMs": 903.7,
+    "runs": [
+     707.6,
+     903.7,
+     935.5
+    ],
+    "taskMs": 2549.3,
+    "taskRuns": [
+     2414.3,
+     2549.3,
+     2560.1
+    ],
+    "failedRuns": 0
+   },
+   "100000": {
+    "toPaintMs": 6629,
+    "runs": [
+     5863.9,
+     6629,
+     6735.9
+    ],
+    "taskMs": 9353.2,
+    "taskRuns": [
+     8870.3,
+     9353.2,
+     9390
+    ],
+    "failedRuns": 0
+   },
+   "1000000": {
+    "noResultWithinMs": 45000
+   }
+  },
+  "stream": {
+   "createMs": 6.7,
+   "toPaintMs": 138.5,
+   "pushP50": 12.5,
+   "pushP95": 18.8,
+   "frameP50": 16.7,
+   "frameP95": 21.1,
+   "framesOver20ms": 17,
+   "frames": 300,
+   "taskMsPerUpdate": 15.16,
+   "scriptMsPerUpdate": 0.03,
+   "layoutStyleMsPerUpdate": 0.76,
+   "logs": []
+  },
+  "empty": {
+   "res": {
+    "createMs": 4.099999999627471,
+    "toPaintMs": 37
+   },
+   "logs": [],
+   "text": [
+    "DirectOrganic searchReferral",
+    "Sessions"
+   ],
+   "aria": "- list:\n  - listitem:\n    - img \"Direct legend icon\"\n    - text: Direct\n  - listitem:\n    - img \"Organic search legend icon\"\n    - text: Organic search\n  - listitem:\n    - img \"Referral legend icon\"\n    - text: Referral\n- application: Sessions"
+  },
+  "dates": {
+   "trend": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "Direct : 36207",
+      "Organic search : 18957",
+      "Referral : 3713"
+     ]
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "Direct : 36207",
+      "Organic search : 18957",
+      "Referral : 3713"
+     ]
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "Direct : 36207",
+      "Organic search : 18957",
+      "Referral : 3713"
+     ]
+    }
+   },
+   "dates": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "2026-02-24",
+      "Direct : 36207",
+      "Organic search : 18957",
+      "Referral : 3713"
+     ]
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "2026-02-24",
+      "Direct : 36207",
+      "Organic search : 18957",
+      "Referral : 3713"
+     ]
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "2026-02-24",
+      "Direct : 36207",
+      "Organic search : 18957",
+      "Referral : 3713"
+     ]
+    }
+   }
+  },
+  "sentinels": {
+   "null": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "nan": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "string": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "undefined": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   }
+  }
+ },
+ "d3": {
+  "trend": {
+   "res": {
+    "createMs": 3.599999999627471,
+    "toPaintMs": 33.19999999925494
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 117,
+    "svg": 1,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 0,
+    "marked": [],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "14px": 1,
+     "10px": 32
+    },
+    "svgTextFills": {
+     "rgb(0, 0, 0)": 33
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- img: Daily sessions by channel Jan 04 Jan 11 Jan 18 Jan 25 February Feb 08 Feb 15 Feb 22 March Mar 08 Mar 15 Mar 22 Mar 29 Apr 05 Apr 12 Apr 19 Apr 26 0 5,000 10,000 15,000 20,000 25,000 30,000 35,000 40,000 45,000 50,000 ↑ Sessions Direct Organic search Referral"
+  },
+  "bars": {
+   "res": {
+    "createMs": 2.5,
+    "toPaintMs": 33.5
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 82,
+    "svg": 1,
+    "canvas": 0,
+    "svgTitle": 7,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 0,
+    "marked": [],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "14px": 1,
+     "10px": 18
+    },
+    "svgTextFills": {
+     "rgb(0, 0, 0)": 19
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- img: Customer satisfaction by team Billing Customer Success & Onboarding Platform Mobile Data Security Sales Eng. 0 10 20 30 40 50 60 70 80 90 ↑ Satisfied (%)"
+  },
+  "parts": {
+   "res": {
+    "createMs": 2.899999998509884,
+    "toPaintMs": 32.899999998509884
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 32,
+    "svg": 1,
+    "canvas": 0,
+    "svgTitle": 6,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 0,
+    "marked": [],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "14px": 1,
+     "12px": 6
+    },
+    "svgTextFills": {
+     "rgb(0, 0, 0)": 7
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- img: Sessions by browser Chrome46.2 Safari27.5 Edge14.1 Firefox8.9 Samsung Internet Other"
+  },
+  "dirty": {
+   "res": {
+    "createMs": 4.899999998509884,
+    "toPaintMs": 30.899999998509884
+   },
+   "logs": [
+    "error: Error: <path> attribute d: Expected number, \"…276.857L269.333,NaNL376,NaNL482.…\"."
+   ],
+   "dom": {
+    "nodes": 87,
+    "svg": 1,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 0,
+    "marked": [],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "14px": 1,
+     "10px": 22
+    },
+    "svgTextFills": {
+     "rgb(0, 0, 0)": 23
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- img: Dirty input Mon Tue Wed Thu Fri Sat Sun 0 5 10 15 20 25 30 35 40 45 50 55 60 65 70"
+  },
+  "keyboard": {
+   "stops": [],
+   "arrows": [
+    {
+     "key": "ArrowRight",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "ArrowRight",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "ArrowDown",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "Enter",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    }
+   ],
+   "newTextAfterKeys": []
+  },
+  "hover_utc": {
+   "newText": [
+    "Feb 27, 2026 — Direct: 40,714 · Organic search: 23,486 · Referral: 3,661"
+   ]
+  },
+  "hover_la": {
+   "newText": [
+    "Feb 27, 2026 — Direct: 40,714 · Organic search: 23,486 · Referral: 3,661"
+   ]
+  },
+  "resize": {
+   "widestGraphic": 360,
+   "scrollWidth": 360
+  },
+  "motion_no-preference": {
+   "earlyVsSettledDiff": 0
+  },
+  "motion_reduce": {
+   "earlyVsSettledDiff": 0
+  },
+  "scale": {
+   "10000": {
+    "toPaintMs": 23.7,
+    "runs": [
+     19.9,
+     23.7,
+     30.1
+    ],
+    "taskMs": 26.6,
+    "taskRuns": [
+     25.9,
+     26.6,
+     27.8
+    ],
+    "failedRuns": 0
+   },
+   "100000": {
+    "toPaintMs": 60.2,
+    "runs": [
+     58.8,
+     60.2,
+     73.6
+    ],
+    "taskMs": 86.5,
+    "taskRuns": [
+     79.2,
+     86.5,
+     89.2
+    ],
+    "failedRuns": 0
+   },
+   "1000000": {
+    "toPaintMs": 394.4,
+    "runs": [
+     341.4,
+     394.4,
+     510.8
+    ],
+    "taskMs": 520.7,
+    "taskRuns": [
+     465.1,
+     520.7,
+     659.6
+    ],
+    "failedRuns": 0
+   }
+  },
+  "stream": {
+   "createMs": 3.7,
+   "toPaintMs": 26.2,
+   "pushP50": 0.4,
+   "pushP95": 0.8,
+   "frameP50": 16.7,
+   "frameP95": 17.1,
+   "framesOver20ms": 0,
+   "frames": 300,
+   "taskMsPerUpdate": 1.13,
+   "scriptMsPerUpdate": 0.02,
+   "layoutStyleMsPerUpdate": 0.22,
+   "logs": []
+  },
+  "empty": {
+   "res": {
+    "createMs": 2.400000000372529,
+    "toPaintMs": 33.20000000111759
+   },
+   "logs": [],
+   "text": [
+    "Daily sessions by channel",
+    "↑ Sessions",
+    "Direct",
+    "Organic search",
+    "Referral"
+   ],
+   "aria": "- img: Daily sessions by channel ↑ Sessions Direct Organic search Referral"
+  },
+  "dates": {
+   "trend": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "Feb 27, 2026 — Direct: 40,714 · Organic search: 23,486 · Referral: 3,661"
+     ]
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "Feb 27, 2026 — Direct: 40,714 · Organic search: 23,486 · Referral: 3,661"
+     ]
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "Feb 27, 2026 — Direct: 40,714 · Organic search: 23,486 · Referral: 3,661"
+     ]
+    }
+   },
+   "dates": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "Feb 27, 2026 — Direct: 40,714 · Organic search: 23,486 · Referral: 3,661"
+     ]
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "Feb 27, 2026 — Direct: 40,714 · Organic search: 23,486 · Referral: 3,661"
+     ]
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "Feb 27, 2026 — Direct: 40,714 · Organic search: 23,486 · Referral: 3,661"
+     ]
+    }
+   }
+  },
+  "sentinels": {
+   "null": {
+    "error": null,
+    "logCount": 1,
+    "firstLog": "error: Error: <path> attribute d: Expected number, \"…333,230.286L376,NaNL482.667,137.…\"."
+   },
+   "nan": {
+    "error": null,
+    "logCount": 1,
+    "firstLog": "error: Error: <path> attribute d: Expected number, \"…333,230.286L376,NaNL482.667,137.…\"."
+   },
+   "string": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "undefined": {
+    "error": null,
+    "logCount": 1,
+    "firstLog": "error: Error: <path> attribute d: Expected number, \"…333,230.286L376,NaNL482.667,137.…\"."
+   }
+  }
+ },
+ "echarts": {
+  "trend": {
+   "res": {
+    "createMs": 43.09999999962747,
+    "toPaintMs": 51.69999999925494
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 3,
+    "svg": 0,
+    "canvas": 1,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 0,
+    "marked": [],
+    "canvasFallback": [
+     ""
+    ],
+    "svgTextSizes": {},
+    "svgTextFills": {},
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": ""
+  },
+  "bars": {
+   "res": {
+    "createMs": 28.300000000745058,
+    "toPaintMs": 33.40000000037253
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 3,
+    "svg": 0,
+    "canvas": 1,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 0,
+    "marked": [],
+    "canvasFallback": [
+     ""
+    ],
+    "svgTextSizes": {},
+    "svgTextFills": {},
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": ""
+  },
+  "parts": {
+   "res": {
+    "createMs": 19.800000000745058,
+    "toPaintMs": 33.600000001490116
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 3,
+    "svg": 0,
+    "canvas": 1,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 0,
+    "marked": [],
+    "canvasFallback": [
+     ""
+    ],
+    "svgTextSizes": {},
+    "svgTextFills": {},
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": ""
+  },
+  "dirty": {
+   "res": {
+    "createMs": 40.90000000037253,
+    "toPaintMs": 50.59999999962747
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 3,
+    "svg": 0,
+    "canvas": 1,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 0,
+    "marked": [],
+    "canvasFallback": [
+     ""
+    ],
+    "svgTextSizes": {},
+    "svgTextFills": {},
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": ""
+  },
+  "keyboard": {
+   "stops": [],
+   "arrows": [
+    {
+     "key": "ArrowRight",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "ArrowRight",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "ArrowDown",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "Enter",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    }
+   ],
+   "newTextAfterKeys": []
+  },
+  "hover_utc": {
+   "newText": [
+    "2026-02-26 00:00:00",
+    "Direct",
+    "36,482",
+    "Organic search",
+    "20,876",
+    "Referral",
+    "4,041"
+   ]
+  },
+  "hover_la": {
+   "newText": [
+    "2026-02-25 16:00:00",
+    "Direct",
+    "36,482",
+    "Organic search",
+    "20,876",
+    "Referral",
+    "4,041"
+   ]
+  },
+  "resize": {
+   "widestGraphic": 720,
+   "scrollWidth": 720
+  },
+  "motion_no-preference": {
+   "earlyVsSettledDiff": 0.2989
+  },
+  "motion_reduce": {
+   "earlyVsSettledDiff": 0.2989
+  },
+  "scale": {
+   "10000": {
+    "toPaintMs": 131.1,
+    "runs": [
+     130,
+     131.1,
+     137.8
+    ],
+    "taskMs": 1358.1,
+    "taskRuns": [
+     1336.2,
+     1358.1,
+     1362.6
+    ],
+    "failedRuns": 0
+   },
+   "100000": {
+    "toPaintMs": 1584,
+    "runs": [
+     1333.3,
+     1584,
+     1694.4
+    ],
+    "taskMs": 2770.3,
+    "taskRuns": [
+     2644.9,
+     2770.3,
+     2815.4
+    ],
+    "failedRuns": 0
+   },
+   "1000000": {
+    "toPaintMs": 12914.5,
+    "runs": [
+     12143.4,
+     12914.5,
+     14899.9
+    ],
+    "taskMs": 12948.5,
+    "taskRuns": [
+     12177.2,
+     12948.5,
+     14927.3
+    ],
+    "failedRuns": 0
+   }
+  },
+  "stream": {
+   "createMs": 45.8,
+   "toPaintMs": 52.1,
+   "pushP50": 8.9,
+   "pushP95": 11.5,
+   "frameP50": 17.7,
+   "frameP95": 20.9,
+   "framesOver20ms": 30,
+   "frames": 300,
+   "taskMsPerUpdate": 15.66,
+   "scriptMsPerUpdate": 3.18,
+   "layoutStyleMsPerUpdate": 0,
+   "logs": []
+  },
+  "empty": {
+   "res": {
+    "createMs": 25.5,
+    "toPaintMs": 28.40000000037253
+   },
+   "logs": [],
+   "text": [],
+   "aria": ""
+  },
+  "dates": {
+   "trend": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "2026-02-26 00:00:00",
+      "Direct",
+      "36,482",
+      "Organic search",
+      "20,876",
+      "Referral",
+      "4,041"
+     ]
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "2026-02-25 16:00:00",
+      "Direct",
+      "36,482",
+      "Organic search",
+      "20,876",
+      "Referral",
+      "4,041"
+     ]
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "2026-02-26 05:30:00",
+      "Direct",
+      "36,482",
+      "Organic search",
+      "20,876",
+      "Referral",
+      "4,041"
+     ]
+    }
+   },
+   "dates": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "2026-02-26 00:00:00",
+      "Direct",
+      "36,482",
+      "Organic search",
+      "20,876",
+      "Referral",
+      "4,041"
+     ]
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "2026-02-26 00:00:00",
+      "Direct",
+      "36,482",
+      "Organic search",
+      "20,876",
+      "Referral",
+      "4,041"
+     ]
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "2026-02-26 00:00:00",
+      "Direct",
+      "36,482",
+      "Organic search",
+      "20,876",
+      "Referral",
+      "4,041"
+     ]
+    }
+   }
+  },
+  "sentinels": {
+   "null": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "nan": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "string": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "undefined": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   }
+  }
+ },
+ "highcharts": {
+  "trend": {
+   "res": {
+    "createMs": 32.40000000037253,
+    "toPaintMs": 49.69999999925494
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 125,
+    "svg": 1,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 1,
+    "tables": 0,
+    "markedCount": 55,
+    "marked": [
+     {
+      "tag": "div",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false",
+      "aria-live": "assertive"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "svg",
+      "aria-label": "Interactive chart",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "desc",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "defs",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "rect",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "rect",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "rect",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "path",
+      "role": "region",
+      "aria-label": "Direct, line 1 of 3 with 120 data points.",
+      "aria-hidden": "false",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "path",
+      "role": "region",
+      "aria-label": "Organic search, line 2 of 3 with 120 data points.",
+      "aria-hidden": "false",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "path",
+      "role": "region",
+      "aria-label": "Referral, line 3 of 3 with 120 data points.",
+      "aria-hidden": "false",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "rect",
+      "role": "img",
+      "aria-label": "Monday, Mar 2, 2026, No value. Referral.",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "rect",
+      "role": "img",
+      "aria-label": "Tuesday, Mar 3, 2026, No value. Referral.",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "rect",
+      "role": "img",
+      "aria-label": "Wednesday, Mar 4, 2026, No value. Referral.",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "rect",
+      "role": "img",
+      "aria-label": "Thursday, Mar 5, 2026, No value. Referral.",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "rect",
+      "role": "img",
+      "aria-label": "Friday, Mar 6, 2026, No value. Referral.",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "rect",
+      "role": "img",
+      "aria-label": "Saturday, Mar 7, 2026, No value. Referral.",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "rect",
+      "role": "img",
+      "aria-label": "Sunday, Mar 8, 2026, No value. Referral.",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "text",
+      "aria-hidden": "true"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "12.8px": 19,
+     "19.2px": 1,
+     "9.6px": 1
+    },
+    "svgTextFills": {
+     "rgb(102, 102, 102)": 1,
+     "rgb(51, 51, 51)": 19,
+     "rgb(153, 153, 153)": 1
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- region \"Daily sessions by channel. Highcharts interactive chart.\":\n  - heading \"Daily sessions by channel\" [level=6]\n  - text: Line chart with 3 lines. The chart has 1 X axis displaying Time. Data ranges from 2026-01-01 00:00:00 to 2026-04-30 00:00:00. The chart has 1 Y axis displaying Sessions. Data ranges from 2732 to 48085.\n  - img \"Interactive chart\":\n    - region \"Direct, line 1 of 3 with 120 data points.\"\n    - region \"Organic search, line 2 of 3 with 120 data points.\"\n    - region \"Referral, line 3 of 3 with 120 data points.\"\n    - text: Highcharts.com\n  - region \"Toggle series visibility, Daily sessions by channel\":\n    - list:\n      - listitem:\n        - button \"Show Direct\" [pressed]\n      - listitem:\n        - button \"Show Organic search\" [pressed]\n      - listitem:\n        - button \"Show Referral\" [pressed]\n  - text: End of interactive chart."
+  },
+  "bars": {
+   "res": {
+    "createMs": 24.800000000745058,
+    "toPaintMs": 33.5
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 93,
+    "svg": 1,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 1,
+    "tables": 0,
+    "markedCount": 43,
+    "marked": [
+     {
+      "tag": "div",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false",
+      "aria-live": "assertive"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "svg",
+      "aria-label": "Interactive chart",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "desc",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "defs",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "rect",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "rect",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "rect",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "path",
+      "role": "img",
+      "aria-label": "Billing, 94. Satisfied (%).",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "role": "img",
+      "aria-label": "Customer Success & Onboarding, 88. Satisfied (%).",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "role": "img",
+      "aria-label": "Platform, 97. Satisfied (%).",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "role": "img",
+      "aria-label": "Mobile, 82. Satisfied (%).",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "role": "img",
+      "aria-label": "Data, 91. Satisfied (%).",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "role": "img",
+      "aria-label": "Security, 85. Satisfied (%).",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "role": "img",
+      "aria-label": "Sales Eng., 90. Satisfied (%).",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "text",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "text",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "text",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "text",
+      "aria-label": "Chart credits: Highcharts.com",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "div",
+      "role": "region",
+      "aria-label": "Toggle series visibility, Customer satisfaction by team"
+     },
+     {
+      "tag": "ul",
+      "role": "list"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Show Satisfied (%)",
+      "tabindex": "-1"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "12.8px": 15,
+     "19.2px": 1,
+     "9.6px": 1
+    },
+    "svgTextFills": {
+     "rgb(102, 102, 102)": 1,
+     "rgb(51, 51, 51)": 15,
+     "rgb(153, 153, 153)": 1
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- region \"Customer satisfaction by team. Highcharts interactive chart.\":\n  - heading \"Customer satisfaction by team\" [level=6]\n  - text: Bar chart with 7 bars. The chart has 1 X axis displaying categories. The chart has 1 Y axis displaying Satisfied (%). Data ranges from 82 to 97.\n  - img \"Interactive chart\":\n    - img \"Billing, 94. Satisfied (%).\"\n    - img \"Customer Success & Onboarding, 88. Satisfied (%).\"\n    - img \"Platform, 97. Satisfied (%).\"\n    - img \"Mobile, 82. Satisfied (%).\"\n    - img \"Data, 91. Satisfied (%).\"\n    - img \"Security, 85. Satisfied (%).\"\n    - img \"Sales Eng., 90. Satisfied (%).\"\n    - text: Highcharts.com\n  - region \"Toggle series visibility, Customer satisfaction by team\":\n    - list:\n      - listitem:\n        - button \"Show Satisfied (%)\" [pressed]\n  - text: End of interactive chart."
+  },
+  "parts": {
+   "res": {
+    "createMs": 25.09999999962747,
+    "toPaintMs": 32.5
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 74,
+    "svg": 1,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 1,
+    "tables": 0,
+    "markedCount": 34,
+    "marked": [
+     {
+      "tag": "div",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false",
+      "aria-live": "assertive"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "svg",
+      "aria-label": "Interactive chart",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "desc",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "defs",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "rect",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "rect",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "rect",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "path",
+      "role": "img",
+      "aria-label": "Chrome, 46.2. Share (%).",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "role": "img",
+      "aria-label": "Safari, 27.5. Share (%).",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "role": "img",
+      "aria-label": "Edge, 14.1. Share (%).",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "role": "img",
+      "aria-label": "Firefox, 8.9. Share (%).",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "role": "img",
+      "aria-label": "Samsung Internet, 2.1. Share (%).",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "path",
+      "role": "img",
+      "aria-label": "Other, 1.2. Share (%).",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "text",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "text",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "text",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "g",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "text",
+      "aria-label": "Chart credits: Highcharts.com",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "false",
+      "tabindex": "0"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "19.2px": 1,
+     "11.2px": 6,
+     "9.6px": 1
+    },
+    "svgTextFills": {
+     "rgb(51, 51, 51)": 1,
+     "color(srgb 0 0 0)": 6,
+     "rgb(153, 153, 153)": 1
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- region \"Sessions by browser. Highcharts interactive chart.\":\n  - heading \"Sessions by browser\" [level=6]\n  - text: Pie chart with 6 slices.\n  - img \"Interactive chart\":\n    - img \"Chrome, 46.2. Share (%).\"\n    - img \"Safari, 27.5. Share (%).\"\n    - img \"Edge, 14.1. Share (%).\"\n    - img \"Firefox, 8.9. Share (%).\"\n    - img \"Samsung Internet, 2.1. Share (%).\"\n    - img \"Other, 1.2. Share (%).\"\n    - text: Highcharts.com\n  - text: End of interactive chart."
+  },
+  "dirty": {
+   "res": {
+    "error": "TypeError: Cannot read properties of undefined (reading 'x')\n    at Pr.translate (http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:119749)\n    at http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:167127\n    at Array.forEach (<anonymous>)\n    at hr.renderSeries (http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:167105)\n    at hr.render (http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:168455)\n    at hr.firstRender (http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:169991)\n    at hr.<anonymous> (http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:153690)\n    at D (http://localhost:4173/assets/highcharts-DXhiMiC0.js:1:4648)\n    at hr.init (http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:152829)\n    at new hr (http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:152551)"
+   },
+   "logs": [
+    "error: TypeError: Cannot read properties of undefined (reading 'x')\n    at Pr.translate (http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:119749)\n    at http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:167127\n    at Array.forEach (<anonymous>)\n    at hr.renderSeries (http://localhost:4173/asset"
+   ],
+   "dom": {
+    "nodes": 56,
+    "svg": 1,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 1,
+    "tables": 0,
+    "markedCount": 0,
+    "marked": [],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "12.8px": 14,
+     "19.2px": 1
+    },
+    "svgTextFills": {
+     "rgb(102, 102, 102)": 1,
+     "rgb(51, 51, 51)": 14
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- img: Values Dirty input Value Mon Tue Wed Thu Fri Sat Sun 0 20 40 60 80"
+  },
+  "keyboard": {
+   "stops": [
+    {
+     "tag": "div",
+     "role": null,
+     "label": "Created with Highcharts 13.1.1:root {\n  --highcharts-color-0: #2caffe;\n  --highcharts-color-1: #544fc5;\n  --highcharts-c",
+     "cls": "highcharts-container ",
+     "box": [
+      720,
+      400
+     ],
+     "outline": "none 3px"
+    },
+    {
+     "tag": "button",
+     "role": null,
+     "label": "Show Direct",
+     "cls": "highcharts-a11y-proxy-element",
+     "box": [
+      54,
+      15
+     ],
+     "outline": "none 3px"
+    }
+   ],
+   "arrows": [
+    {
+     "key": "ArrowRight",
+     "active": "Created with Highcharts 13.1.1:root {\n  --highcharts-color-0: #2caffe;\n  --highcharts-color-1: #544fc5;\n  --highcharts-color-2: #00e272;\n  --highcharts-color-3:",
+     "tag": "div",
+     "live": []
+    },
+    {
+     "key": "ArrowRight",
+     "active": "Created with Highcharts 13.1.1:root {\n  --highcharts-color-0: #2caffe;\n  --highcharts-color-1: #544fc5;\n  --highcharts-color-2: #00e272;\n  --highcharts-color-3:",
+     "tag": "div",
+     "live": []
+    },
+    {
+     "key": "ArrowDown",
+     "active": "Created with Highcharts 13.1.1:root {\n  --highcharts-color-0: #2caffe;\n  --highcharts-color-1: #544fc5;\n  --highcharts-color-2: #00e272;\n  --highcharts-color-3:",
+     "tag": "div",
+     "live": []
+    },
+    {
+     "key": "Enter",
+     "active": "Created with Highcharts 13.1.1:root {\n  --highcharts-color-0: #2caffe;\n  --highcharts-color-1: #544fc5;\n  --highcharts-color-2: #00e272;\n  --highcharts-color-3:",
+     "tag": "div",
+     "live": []
+    }
+   ],
+   "newTextAfterKeys": [
+    "Sunday, Jan 4, 2026​● Direct: 33,458​"
+   ]
+  },
+  "hover_utc": {
+   "newText": [
+    "Tuesday, Feb 24, 2026​● Direct: 36,207​"
+   ]
+  },
+  "hover_la": {
+   "newText": [
+    "Tuesday, Feb 24, 2026​● Direct: 36,207​"
+   ]
+  },
+  "resize": {
+   "widestGraphic": 360,
+   "scrollWidth": 360
+  },
+  "motion_no-preference": {
+   "earlyVsSettledDiff": 0.1754
+  },
+  "motion_reduce": {
+   "earlyVsSettledDiff": 0.1764
+  },
+  "scale": {
+   "10000": {
+    "toPaintMs": 69.5,
+    "runs": [
+     55.3,
+     69.5,
+     85.6
+    ],
+    "taskMs": 113.6,
+    "taskRuns": [
+     97.1,
+     113.6,
+     130.4
+    ],
+    "failedRuns": 0
+   },
+   "100000": {
+    "toPaintMs": 285.5,
+    "runs": [
+     246.6,
+     285.5,
+     351.6
+    ],
+    "taskMs": 399.4,
+    "taskRuns": [
+     329.7,
+     399.4,
+     454.7
+    ],
+    "failedRuns": 0
+   },
+   "1000000": {
+    "toPaintMs": 2200.2,
+    "runs": [
+     2109.3,
+     2200.2,
+     2579.3
+    ],
+    "taskMs": 2663.7,
+    "taskRuns": [
+     2637.3,
+     2663.7,
+     3091
+    ],
+    "failedRuns": 0
+   }
+  },
+  "stream": {
+   "createMs": 32.9,
+   "toPaintMs": 34.6,
+   "pushP50": 2.2,
+   "pushP95": 4.6,
+   "frameP50": 16.7,
+   "frameP95": 17,
+   "framesOver20ms": 0,
+   "frames": 300,
+   "taskMsPerUpdate": 3.54,
+   "scriptMsPerUpdate": 0.4,
+   "layoutStyleMsPerUpdate": 0.47,
+   "logs": []
+  },
+  "empty": {
+   "res": {
+    "createMs": 35.19999999925494,
+    "toPaintMs": 55.40000000037253
+   },
+   "logs": [],
+   "text": [
+    "Daily sessions by channel",
+    "Line chart with 3 lines.",
+    "The chart has 1 X axis displaying Time. Data ranges from 1970-01-01 00:00:00 to 1970-01-01 00:00:00.",
+    "The chart has 1 Y axis displaying Sessions. Data ranges from 0 to 0.",
+    "Sessions",
+    "Daily sessions by channel",
+    "Direct",
+    "Organic search",
+    "Referral",
+    "Highcharts.com",
+    "End of interactive chart."
+   ],
+   "aria": "- region \"Daily sessions by channel. Highcharts interactive chart.\":\n  - heading \"Daily sessions by channel\" [level=6]\n  - text: Line chart with 3 lines. The chart has 1 X axis displaying Time. Data ranges from 1970-01-01 00:00:00 to 1970-01-01 00:00:00. The chart has 1 Y axis displaying Sessions. Data ranges from 0 to 0.\n  - img \"Interactive chart\": Highcharts.com\n  - region \"Toggle series visibility, Daily sessions by channel\":\n    - list:\n      - listitem:\n        - button \"Show Direct\" [pressed]\n      - listitem:\n        - button \"Show Organic search\" [pressed]\n      - listitem:\n        - "
+  },
+  "dates": {
+   "trend": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "Tuesday, Feb 24, 2026​● Direct: 36,207​"
+     ]
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "Tuesday, Feb 24, 2026​● Direct: 36,207​"
+     ]
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "Tuesday, Feb 24, 2026​● Direct: 36,207​"
+     ]
+    }
+   },
+   "dates": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "Tuesday, Feb 24, 2026​● Direct: 36,207​"
+     ]
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "Tuesday, Feb 24, 2026​● Direct: 36,207​"
+     ]
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "Tuesday, Feb 24, 2026​● Direct: 36,207​"
+     ]
+    }
+   }
+  },
+  "sentinels": {
+   "null": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "nan": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "string": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "undefined": {
+    "error": "TypeError: Cannot read properties of undefined (reading 'x')",
+    "logCount": 1,
+    "firstLog": "error: TypeError: Cannot read properties of undefined (reading 'x')\n    at Pr.translate (http://localhost:4173/assets/highcharts-BI7vb9AT.js"
+   }
+  }
+ },
+ "apexcharts": {
+  "trend": {
+   "res": {
+    "createMs": 43.20000000111759,
+    "toPaintMs": 50.40000000037253
+   },
+   "logs": [
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "dom": {
+    "nodes": 197,
+    "svg": 13,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 19,
+    "marked": [
+     {
+      "tag": "svg",
+      "role": "application",
+      "aria-label": "Daily sessions by channel. line chart",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "role": "button",
+      "aria-label": "Direct, visible. Press Enter or Space to toggle.",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "role": "button",
+      "aria-label": "Organic search, visible. Press Enter or Space to toggle.",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "role": "button",
+      "aria-label": "Referral, visible. Press Enter or Space to toggle.",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "role": "status",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "div",
+      "role": "tooltip",
+      "aria-hidden": "true",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Zoom In"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Zoom Out"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Selection Zoom"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Panning"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Reset Zoom"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Menu"
+     },
+     {
+      "tag": "div",
+      "role": "menu"
+     },
+     {
+      "tag": "div",
+      "role": "menuitem",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "div",
+      "role": "menuitem",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "div",
+      "role": "menuitem",
+      "tabindex": "-1"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "14px": 1,
+     "11px": 7,
+     "12px": 9
+    },
+    "svgTextFills": {
+     "rgb(55, 61, 63)": 17
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- application \"Daily sessions by channel. line chart\": Daily sessions by channel 50000 40000 30000 20000 10000 0 Sessions 05 Jan 19 Jan 02 Feb 16 Feb 02 Mar 16 Mar 30 Mar 13 Apr 27 Apr\n- button \"Direct, visible. Press Enter or Space to toggle.\":\n  - img\n  - text: Direct\n- button \"Organic search, visible. Press Enter or Space to toggle.\":\n  - img\n  - text: Organic search\n- button \"Referral, visible. Press Enter or Space to toggle.\":\n  - img\n  - text: Referral\n- status\n- button \"Zoom In\":\n  - img\n- button \"Zoom Out\":\n  - img\n- button \"Selection Zoom\" [pressed]:\n  - img\n- button \"Panning\":\n  - img\n- button \"Reset Zoom\":\n  - img\n- button \"Menu\":\n  - img\n- menu:\n  - menuitem \"Download SVG\"\n  - menuitem \"Download PNG\"\n  - menuitem \"Download CSV\""
+  },
+  "bars": {
+   "res": {
+    "createMs": 24.700000001117587,
+    "toPaintMs": 33.30000000074506
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 131,
+    "svg": 3,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 9,
+    "marked": [
+     {
+      "tag": "svg",
+      "role": "application",
+      "aria-label": "Customer satisfaction by team. bar chart",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "role": "status",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "div",
+      "role": "tooltip",
+      "aria-hidden": "true",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Menu"
+     },
+     {
+      "tag": "div",
+      "role": "menu"
+     },
+     {
+      "tag": "div",
+      "role": "menuitem",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "div",
+      "role": "menuitem",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "div",
+      "role": "menuitem",
+      "tabindex": "-1"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "14px": 1,
+     "11px": 7,
+     "12px": 14
+    },
+    "svgTextFills": {
+     "rgb(55, 61, 63)": 15,
+     "rgb(255, 255, 255)": 7
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- application \"Customer satisfaction by team. bar chart\": Customer satisfaction by team 100 80 60 40 20 0 Satisfied (%) 94 88 97 82 91 85 90 Billing Customer Success & Onboarding Platform Mobile Data Security Sales Eng.\n- status\n- button \"Menu\":\n  - img\n- menu:\n  - menuitem \"Download SVG\"\n  - menuitem \"Download PNG\"\n  - menuitem \"Download CSV\""
+  },
+  "parts": {
+   "res": {
+    "createMs": 14.300000000745058,
+    "toPaintMs": 34.59999999962747
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 168,
+    "svg": 13,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 15,
+    "marked": [
+     {
+      "tag": "svg",
+      "role": "application",
+      "aria-label": "Sessions by browser. donut chart",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "role": "button",
+      "aria-label": "Chrome, visible. Press Enter or Space to toggle.",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "role": "button",
+      "aria-label": "Safari, visible. Press Enter or Space to toggle.",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "role": "button",
+      "aria-label": "Edge, visible. Press Enter or Space to toggle.",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "role": "button",
+      "aria-label": "Firefox, visible. Press Enter or Space to toggle.",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "role": "button",
+      "aria-label": "Samsung Internet, visible. Press Enter or Space to toggle.",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "role": "button",
+      "aria-label": "Other, visible. Press Enter or Space to toggle.",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "role": "status",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "div",
+      "role": "tooltip",
+      "aria-hidden": "true",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "12px": 4,
+     "14px": 1
+    },
+    "svgTextFills": {
+     "rgb(255, 255, 255)": 4,
+     "rgb(55, 61, 63)": 1
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- application \"Sessions by browser. donut chart\": 46.2% 27.5% 14.1% 8.9% Sessions by browser\n- button \"Chrome, visible. Press Enter or Space to toggle.\":\n  - img\n  - text: Chrome\n- button \"Safari, visible. Press Enter or Space to toggle.\":\n  - img\n  - text: Safari\n- button \"Edge, visible. Press Enter or Space to toggle.\":\n  - img\n  - text: Edge\n- button \"Firefox, visible. Press Enter or Space to toggle.\":\n  - img\n  - text: Firefox\n- button \"Samsung Internet, visible. Press Enter or Space to toggle.\":\n  - img\n  - text: Samsung Internet\n- button \"Other, visible. Press Enter or Space to toggle.\":\n  - img\n  - text: Other\n- status"
+  },
+  "dirty": {
+   "res": {
+    "createMs": 20.09999999962747,
+    "toPaintMs": 33.19999999925494
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 134,
+    "svg": 8,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 14,
+    "marked": [
+     {
+      "tag": "svg",
+      "role": "application",
+      "aria-label": "Dirty input. line chart",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "role": "status",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "div",
+      "role": "tooltip",
+      "aria-hidden": "true",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Zoom In"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Zoom Out"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Selection Zoom"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Panning"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Reset Zoom"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Menu"
+     },
+     {
+      "tag": "div",
+      "role": "menu"
+     },
+     {
+      "tag": "div",
+      "role": "menuitem",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "div",
+      "role": "menuitem",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "div",
+      "role": "menuitem",
+      "tabindex": "-1"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "14px": 1,
+     "11px": 7,
+     "12px": 7
+    },
+    "svgTextFills": {
+     "rgb(55, 61, 63)": 15
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- application \"Dirty input. line chart\": Dirty input 70 60 50 40 30 20 10 Mon Tue Wed Thu Fri Sat Sun\n- status\n- button \"Zoom In\":\n  - img\n- button \"Zoom Out\":\n  - img\n- button \"Selection Zoom\" [pressed]:\n  - img\n- button \"Panning\":\n  - img\n- button \"Reset Zoom\":\n  - img\n- button \"Menu\":\n  - img\n- menu:\n  - menuitem \"Download SVG\"\n  - menuitem \"Download PNG\"\n  - menuitem \"Download CSV\""
+  },
+  "keyboard": {
+   "stops": [
+    {
+     "tag": "svg",
+     "role": "application",
+     "label": "Daily sessions by channel. line chart",
+     "cls": "apexcharts-svg apexcharts-zoomable",
+     "box": [
+      720,
+      400
+     ],
+     "outline": "auto 5px"
+    },
+    {
+     "tag": "div",
+     "role": "button",
+     "label": "Direct, visible. Press Enter or Space to toggle.",
+     "cls": "apexcharts-legend-series",
+     "box": [
+      48,
+      16
+     ],
+     "outline": "solid 2px"
+    },
+    {
+     "tag": "div",
+     "role": "button",
+     "label": "Organic search, visible. Press Enter or Space to toggle.",
+     "cls": "apexcharts-legend-series",
+     "box": [
+      98,
+      16
+     ],
+     "outline": "solid 2px"
+    },
+    {
+     "tag": "div",
+     "role": "button",
+     "label": "Referral, visible. Press Enter or Space to toggle.",
+     "cls": "apexcharts-legend-series",
+     "box": [
+      60,
+      16
+     ],
+     "outline": "solid 2px"
+    },
+    {
+     "tag": "button",
+     "role": null,
+     "label": "Zoom In",
+     "cls": "apexcharts-zoomin-icon",
+     "box": [
+      26,
+      24
+     ],
+     "outline": "solid 2px"
+    },
+    {
+     "tag": "button",
+     "role": null,
+     "label": "Zoom Out",
+     "cls": "apexcharts-zoomout-icon",
+     "box": [
+      26,
+      24
+     ],
+     "outline": "solid 2px"
+    },
+    {
+     "tag": "button",
+     "role": null,
+     "label": "Selection Zoom",
+     "cls": "apexcharts-zoom-icon apexcharts-selected",
+     "box": [
+      26,
+      24
+     ],
+     "outline": "solid 2px"
+    },
+    {
+     "tag": "button",
+     "role": null,
+     "label": "Panning",
+     "cls": "apexcharts-pan-icon",
+     "box": [
+      26,
+      24
+     ],
+     "outline": "solid 2px"
+    },
+    {
+     "tag": "button",
+     "role": null,
+     "label": "Reset Zoom",
+     "cls": "apexcharts-reset-icon",
+     "box": [
+      26,
+      24
+     ],
+     "outline": "solid 2px"
+    },
+    {
+     "tag": "button",
+     "role": null,
+     "label": "Menu",
+     "cls": "apexcharts-menu-icon",
+     "box": [
+      26,
+      24
+     ],
+     "outline": "solid 2px"
+    }
+   ],
+   "arrows": [
+    {
+     "key": "ArrowRight",
+     "active": "Daily sessions by channel. line chart",
+     "tag": "svg",
+     "live": [
+      "02 JanDirect: 31713Organic search: 20724Referral: 4716"
+     ]
+    },
+    {
+     "key": "ArrowRight",
+     "active": "Daily sessions by channel. line chart",
+     "tag": "svg",
+     "live": [
+      "03 JanDirect: 36072Organic search: 21923Referral: 4929"
+     ]
+    },
+    {
+     "key": "ArrowDown",
+     "active": "Daily sessions by channel. line chart",
+     "tag": "svg",
+     "live": [
+      "03 JanDirect: 36072Organic search: 21923Referral: 4929"
+     ]
+    },
+    {
+     "key": "Enter",
+     "active": "Daily sessions by channel. line chart",
+     "tag": "svg",
+     "live": [
+      "03 JanDirect: 36072Organic search: 21923Referral: 4929"
+     ]
+    }
+   ],
+   "newTextAfterKeys": [
+    "03 Jan",
+    "Direct: 36072",
+    "Organic search: 21923",
+    "Referral: 4929"
+   ]
+  },
+  "hover_utc": {
+   "newText": [
+    "24 Feb",
+    "Direct: 36207",
+    "Organic search: 18957",
+    "Referral: 3713"
+   ]
+  },
+  "hover_la": {
+   "newText": [
+    "24 Feb",
+    "Direct: 36207",
+    "Organic search: 18957",
+    "Referral: 3713"
+   ]
+  },
+  "resize": {
+   "widestGraphic": 360,
+   "scrollWidth": 360
+  },
+  "motion_no-preference": {
+   "earlyVsSettledDiff": 0.3293
+  },
+  "motion_reduce": {
+   "earlyVsSettledDiff": 0
+  },
+  "scale": {
+   "10000": {
+    "toPaintMs": 38.9,
+    "runs": [
+     36.8,
+     38.9,
+     42.2
+    ],
+    "taskMs": 82.7,
+    "taskRuns": [
+     69.1,
+     82.7,
+     85.6
+    ],
+    "failedRuns": 0
+   },
+   "100000": {
+    "toPaintMs": 100.5,
+    "runs": [
+     100,
+     100.5,
+     114.4
+    ],
+    "taskMs": 133.9,
+    "taskRuns": [
+     133.5,
+     133.9,
+     148.9
+    ],
+    "failedRuns": 0
+   },
+   "1000000": {
+    "toPaintMs": 628,
+    "runs": [
+     551.8,
+     628,
+     704.6
+    ],
+    "taskMs": 635.6,
+    "taskRuns": [
+     558.8,
+     635.6,
+     712.9
+    ],
+    "failedRuns": 0
+   }
+  },
+  "stream": {
+   "createMs": 24.2,
+   "toPaintMs": 31.5,
+   "pushP50": 4.3,
+   "pushP95": 7.5,
+   "frameP50": 16.7,
+   "frameP95": 17.8,
+   "framesOver20ms": 3,
+   "frames": 300,
+   "taskMsPerUpdate": 9.68,
+   "scriptMsPerUpdate": 3.61,
+   "layoutStyleMsPerUpdate": 1.51,
+   "logs": []
+  },
+  "empty": {
+   "res": {
+    "createMs": 42.5,
+    "toPaintMs": 50.5
+   },
+   "logs": [],
+   "text": [
+    "Daily sessions by channel",
+    "6",
+    "5",
+    "4",
+    "3",
+    "2",
+    "1",
+    "0",
+    "Sessions"
+   ],
+   "aria": "- application \"Daily sessions by channel. line chart\": Daily sessions by channel 6 5 4 3 2 1 0 Sessions\n- status"
+  },
+  "dates": {
+   "trend": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "24 Feb",
+      "Direct: 36207",
+      "Organic search: 18957",
+      "Referral: 3713"
+     ]
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "24 Feb",
+      "Direct: 36207",
+      "Organic search: 18957",
+      "Referral: 3713"
+     ]
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "24 Feb",
+      "Direct: 36207",
+      "Organic search: 18957",
+      "Referral: 3713"
+     ]
+    }
+   },
+   "dates": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "25 Feb",
+      "Direct: 34544",
+      "Organic search: 19154",
+      "Referral: 3042"
+     ]
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "25 Feb",
+      "Direct: 34544",
+      "Organic search: 19154",
+      "Referral: 3042"
+     ]
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "25 Feb",
+      "Direct: 34544",
+      "Organic search: 19154",
+      "Referral: 3042"
+     ]
+    }
+   }
+  },
+  "sentinels": {
+   "null": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "nan": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "string": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "undefined": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   }
+  }
+ },
+ "plotly": {
+  "trend": {
+   "res": {
+    "createMs": 36.5,
+    "toPaintMs": 40.20000000111759
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 219,
+    "svg": 12,
+    "canvas": 0,
+    "svgTitle": 1,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 9,
+    "marked": [
+     {
+      "tag": "div",
+      "role": "toolbar"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Download plot as a PNG"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Share chart..."
+     },
+     {
+      "tag": "button",
+      "aria-label": "Zoom"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Pan"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Zoom in"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Zoom out"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Autoscale"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Reset axes"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "12px": 12,
+     "17px": 1,
+     "14px": 1
+    },
+    "svgTextFills": {
+     "rgb(68, 68, 68)": 14
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- img: Jan 2026 Feb 2026 Mar 2026 Apr 2026 10k 20k 30k 40k 50k\n- img: Direct Organic search Referral Daily sessions by channel Sessions\n- toolbar:\n  - button \"Download plot as a PNG\":\n    - img\n  - button \"Share chart...\":\n    - img\n  - button \"Zoom\":\n    - img\n  - button \"Pan\":\n    - img\n  - button \"Zoom in\":\n    - img\n  - button \"Zoom out\":\n    - img\n  - button \"Autoscale\":\n    - img\n  - button \"Reset axes\":\n    - img\n  - link \"plotly-logomark\":\n    - /url: https://plotly.com/\n    - img \"plotly-logomark\"\n- img"
+  },
+  "bars": {
+   "res": {
+    "createMs": 23.199999999254942,
+    "toPaintMs": 29.09999999962747
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 191,
+    "svg": 14,
+    "canvas": 0,
+    "svgTitle": 1,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 11,
+    "marked": [
+     {
+      "tag": "div",
+      "role": "toolbar"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Download plot as a PNG"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Share chart..."
+     },
+     {
+      "tag": "button",
+      "aria-label": "Zoom"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Pan"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Box Select"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Lasso Select"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Zoom in"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Zoom out"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Autoscale"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Reset axes"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "12px": 13,
+     "17px": 1,
+     "14px": 1
+    },
+    "svgTextFills": {
+     "rgb(68, 68, 68)": 15
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- img: Billing Customer Success & Onboarding Platform Mobile Data Security Sales Eng. 0 20 40 60 80 100\n- img: Customer satisfaction by team Satisfied (%)\n- toolbar:\n  - button \"Download plot as a PNG\":\n    - img\n  - button \"Share chart...\":\n    - img\n  - button \"Zoom\":\n    - img\n  - button \"Pan\":\n    - img\n  - button \"Box Select\":\n    - img\n  - button \"Lasso Select\":\n    - img\n  - button \"Zoom in\":\n    - img\n  - button \"Zoom out\":\n    - img\n  - button \"Autoscale\":\n    - img\n  - button \"Reset axes\":\n    - img\n  - link \"plotly-logomark\":\n    - /url: https://plotly.com/\n    - img \"plotly-logomark\"\n- img"
+  },
+  "parts": {
+   "res": {
+    "createMs": 20.90000000037253,
+    "toPaintMs": 32.80000000074506
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 151,
+    "svg": 6,
+    "canvas": 0,
+    "svgTitle": 1,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 3,
+    "marked": [
+     {
+      "tag": "div",
+      "role": "toolbar"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Download plot as a PNG"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Share chart..."
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "12px": 12,
+     "17px": 1
+    },
+    "svgTextFills": {
+     "rgb(255, 255, 255)": 3,
+     "rgb(68, 68, 68)": 10
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- img: 46.2% 27.5% 14.1% 8.9% 2.1% 1.2%\n- img: Chrome Safari Edge Firefox Samsung Internet Other Sessions by browser\n- toolbar:\n  - button \"Download plot as a PNG\":\n    - img\n  - button \"Share chart...\":\n    - img\n  - link \"plotly-logomark\":\n    - /url: https://plotly.com/\n    - img \"plotly-logomark\"\n- img"
+  },
+  "dirty": {
+   "res": {
+    "createMs": 23.5,
+    "toPaintMs": 31.59999999962747
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 185,
+    "svg": 14,
+    "canvas": 0,
+    "svgTitle": 1,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 11,
+    "marked": [
+     {
+      "tag": "div",
+      "role": "toolbar"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Download plot as a PNG"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Share chart..."
+     },
+     {
+      "tag": "button",
+      "aria-label": "Zoom"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Pan"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Box Select"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Lasso Select"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Zoom in"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Zoom out"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Autoscale"
+     },
+     {
+      "tag": "button",
+      "aria-label": "Reset axes"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "12px": 10,
+     "17px": 1
+    },
+    "svgTextFills": {
+     "rgb(68, 68, 68)": 11
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- img: Mon Tue Wed Thu Fri Sat Sun 20 40 60\n- img: Dirty input\n- toolbar:\n  - button \"Download plot as a PNG\":\n    - img\n  - button \"Share chart...\":\n    - img\n  - button \"Zoom\":\n    - img\n  - button \"Pan\":\n    - img\n  - button \"Box Select\":\n    - img\n  - button \"Lasso Select\":\n    - img\n  - button \"Zoom in\":\n    - img\n  - button \"Zoom out\":\n    - img\n  - button \"Autoscale\":\n    - img\n  - button \"Reset axes\":\n    - img\n  - link \"plotly-logomark\":\n    - /url: https://plotly.com/\n    - img \"plotly-logomark\"\n- img"
+  },
+  "keyboard": {
+   "stops": [
+    {
+     "tag": "button",
+     "role": null,
+     "label": "Download plot as a PNG",
+     "cls": "modebar-btn",
+     "box": [
+      24,
+      22
+     ],
+     "outline": "solid 1px"
+    },
+    {
+     "tag": "button",
+     "role": null,
+     "label": "Share chart...",
+     "cls": "modebar-btn",
+     "box": [
+      24,
+      22
+     ],
+     "outline": "solid 1px"
+    },
+    {
+     "tag": "button",
+     "role": null,
+     "label": "Zoom",
+     "cls": "modebar-btn active",
+     "box": [
+      24,
+      22
+     ],
+     "outline": "solid 1px"
+    },
+    {
+     "tag": "button",
+     "role": null,
+     "label": "Pan",
+     "cls": "modebar-btn",
+     "box": [
+      24,
+      22
+     ],
+     "outline": "solid 1px"
+    },
+    {
+     "tag": "button",
+     "role": null,
+     "label": "Zoom in",
+     "cls": "modebar-btn",
+     "box": [
+      24,
+      22
+     ],
+     "outline": "solid 1px"
+    },
+    {
+     "tag": "button",
+     "role": null,
+     "label": "Zoom out",
+     "cls": "modebar-btn",
+     "box": [
+      24,
+      22
+     ],
+     "outline": "solid 1px"
+    },
+    {
+     "tag": "button",
+     "role": null,
+     "label": "Autoscale",
+     "cls": "modebar-btn",
+     "box": [
+      24,
+      22
+     ],
+     "outline": "solid 1px"
+    },
+    {
+     "tag": "button",
+     "role": null,
+     "label": "Reset axes",
+     "cls": "modebar-btn",
+     "box": [
+      24,
+      22
+     ],
+     "outline": "solid 1px"
+    },
+    {
+     "tag": "a",
+     "role": null,
+     "label": "plotly-logomark",
+     "cls": "modebar-btn plotlyjsicon modebar-btn--logo",
+     "box": [
+      24,
+      22
+     ],
+     "outline": "solid 1px"
+    }
+   ],
+   "arrows": [
+    {
+     "key": "ArrowRight",
+     "active": "Download plot as a PNG",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "ArrowRight",
+     "active": "Download plot as a PNG",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "ArrowDown",
+     "active": "Download plot as a PNG",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "Enter",
+     "active": "Download plot as a PNG",
+     "tag": "button",
+     "live": []
+    }
+   ],
+   "newTextAfterKeys": [
+    "×",
+    "Preparing image - this may take a few seconds",
+    "×",
+    "Image download succeeded - daily-sessions-by-channel.png"
+   ]
+  },
+  "hover_utc": {
+   "newText": [
+    "(Mar 10, 2026, 36.832k)"
+   ]
+  },
+  "hover_la": {
+   "newText": [
+    "(Mar 9, 2026, 36.832k)"
+   ]
+  },
+  "resize": {
+   "widestGraphic": 720,
+   "scrollWidth": 720
+  },
+  "motion_no-preference": {
+   "earlyVsSettledDiff": 0
+  },
+  "motion_reduce": {
+   "earlyVsSettledDiff": 0
+  },
+  "scale": {
+   "10000": {
+    "toPaintMs": 38.8,
+    "runs": [
+     38.1,
+     38.8,
+     80.2
+    ],
+    "taskMs": 51.3,
+    "taskRuns": [
+     50.1,
+     51.3,
+     93.8
+    ],
+    "failedRuns": 0
+   },
+   "100000": {
+    "toPaintMs": 87.9,
+    "runs": [
+     64.6,
+     87.9,
+     100.4
+    ],
+    "taskMs": 118.9,
+    "taskRuns": [
+     80.8,
+     118.9,
+     128.6
+    ],
+    "failedRuns": 0
+   },
+   "1000000": {
+    "toPaintMs": 355,
+    "runs": [
+     329.6,
+     355,
+     466.9
+    ],
+    "taskMs": 365.1,
+    "taskRuns": [
+     340,
+     365.1,
+     483
+    ],
+    "failedRuns": 0
+   }
+  },
+  "stream": {
+   "createMs": 42,
+   "toPaintMs": 43.3,
+   "pushP50": 4.6,
+   "pushP95": 8.1,
+   "frameP50": 16.7,
+   "frameP95": 16.8,
+   "framesOver20ms": 0,
+   "frames": 300,
+   "taskMsPerUpdate": 6.13,
+   "scriptMsPerUpdate": 0.03,
+   "layoutStyleMsPerUpdate": 0.95,
+   "logs": []
+  },
+  "empty": {
+   "res": {
+    "createMs": 28.300000000745058,
+    "toPaintMs": 43.59999999962747
+   },
+   "logs": [],
+   "text": [
+    "−1",
+    "0",
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "−1",
+    "0",
+    "1",
+    "2"
+   ],
+   "aria": "- img: −1 0 1 2 3 4 5 6 −1 0 1 2 3 4\n- img: Daily sessions by channel Sessions\n- toolbar:\n  - button \"Download plot as a PNG\":\n    - img\n  - button \"Share chart...\":\n    - img\n  - button \"Zoom\":\n    - img\n  - button \"Pan\":\n    - img\n  - button \"Zoom in\":\n    - img\n  - button \"Zoom out\":\n    - img\n  - button \"Autoscale\":\n    - img\n  - button \"Reset axes\":\n    - img\n  - link \"plotly-logomark\":\n    - /url: https://plotly.com/\n    - img \"plotly-logomark\"\n- img"
+  },
+  "dates": {
+   "trend": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "(Mar 10, 2026, 36.832k)"
+     ]
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "(Mar 9, 2026, 36.832k)"
+     ]
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "(Mar 10, 2026, 36.832k)"
+     ]
+    }
+   },
+   "dates": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "(Mar 10, 2026, 36.832k)"
+     ]
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "(Mar 10, 2026, 36.832k)"
+     ]
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "(Mar 10, 2026, 36.832k)"
+     ]
+    }
+   }
+  },
+  "sentinels": {
+   "null": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "nan": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "string": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "undefined": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   }
+  }
+ },
+ "nivo": {
+  "trend": {
+   "res": {
+    "createMs": 40.40000000037253,
+    "toPaintMs": 48
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 849,
+    "svg": 1,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 1,
+    "marked": [
+     {
+      "tag": "svg",
+      "role": "img"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "11px": 31,
+     "12px": 1
+    },
+    "svgTextFills": {
+     "rgb(51, 51, 51)": 32
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- img: Jan 04 Jan 11 Jan 18 Jan 25 Feb 01 Feb 08 Feb 15 Feb 22 Mar 01 Mar 08 Mar 15 Mar 22 Mar 29 Apr 05 Apr 12 Apr 19 Apr 26 0 5000 10000 15000 20000 25000 30000 35000 40000 45000 50000 Sessions Referral Organic search Direct"
+  },
+  "bars": {
+   "res": {
+    "createMs": 18.199999999254942,
+    "toPaintMs": 26.59999999962747
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 97,
+    "svg": 1,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 1,
+    "marked": [
+     {
+      "tag": "svg",
+      "role": "img"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "11px": 25,
+     "12px": 1
+    },
+    "svgTextFills": {
+     "rgb(51, 51, 51)": 26
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- img: Billing Customer Success & Onboarding Platform Mobile Data Security Sales Eng. 0 10 20 30 40 50 60 70 80 90 100 Satisfied (%) 94 88 97 82 91 85 90"
+  },
+  "parts": {
+   "res": {
+    "createMs": 21.300000000745058,
+    "toPaintMs": 32.600000001490116
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 44,
+    "svg": 1,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 1,
+    "marked": [
+     {
+      "tag": "svg",
+      "role": "img"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "11px": 12
+    },
+    "svgTextFills": {
+     "rgb(51, 51, 51)": 12
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- img: Chrome Safari Edge Firefox Samsung Internet Other 46.2 27.5 14.1 8.9 2.1 1.2"
+  },
+  "dirty": {
+   "res": {
+    "createMs": 15.399999998509884,
+    "toPaintMs": 31.09999999962747
+   },
+   "logs": [
+    "error: Error: <path> attribute d: Expected number, \"M0,NaNL105,NaNM420,…\".",
+    "error: Error: <g> attribute transform: Trailing garbage, \"translate(0, NaN)\".",
+    "error: Error: <g> attribute transform: Trailing garbage, \"translate(105, NaN)\".",
+    "error: Error: <g> attribute transform: Trailing garbage, \"translate(420, NaN)\".",
+    "error: Error: <g> attribute transform: Trailing garbage, \"translate(630, NaN)\".",
+    "error: Error: <path> attribute d: Expected number, \"M0,NaNL105,NaNM420,…\".",
+    "error: Error: <g> attribute transform: Trailing garbage, \"translate(0, NaN)\".",
+    "error: Error: <g> attribute transform: Trailing garbage, \"translate(105, NaN)\".",
+    "error: Error: <g> attribute transform: Trailing garbage, \"translate(420, NaN)\".",
+    "error: Error: <g> attribute transform: Trailing garbage, \"translate(630, NaN)\"."
+   ],
+   "dom": {
+    "nodes": 51,
+    "svg": 1,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 1,
+    "marked": [
+     {
+      "tag": "svg",
+      "role": "img"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "11px": 7
+    },
+    "svgTextFills": {
+     "rgb(51, 51, 51)": 7
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- img: Mon Tue Wed Thu Fri Sat Sun"
+  },
+  "keyboard": {
+   "stops": [],
+   "arrows": [
+    {
+     "key": "ArrowRight",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "ArrowRight",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "ArrowDown",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "Enter",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    }
+   ],
+   "newTextAfterKeys": []
+  },
+  "hover_utc": {
+   "newText": [
+    "x: Sat Mar 07 2026 00:00:00 GMT+0000 (Coordinated Universal Time), y: 24930"
+   ]
+  },
+  "hover_la": {
+   "newText": [
+    "x: Fri Mar 06 2026 16:00:00 GMT-0800 (Pacific Standard Time), y: 24930"
+   ]
+  },
+  "resize": {
+   "widestGraphic": 360,
+   "scrollWidth": 360
+  },
+  "motion_no-preference": {
+   "earlyVsSettledDiff": 0.3129
+  },
+  "motion_reduce": {
+   "earlyVsSettledDiff": 0.3274
+  },
+  "scale": {
+   "10000": {
+    "toPaintMs": 713.2,
+    "runs": [
+     638.8,
+     713.2,
+     954.3
+    ],
+    "taskMs": 733.4,
+    "taskRuns": [
+     658.5,
+     733.4,
+     977
+    ],
+    "failedRuns": 0
+   },
+   "100000": {
+    "toPaintMs": 4953.2,
+    "runs": [
+     4213.5,
+     4953.2,
+     5245.4
+    ],
+    "taskMs": 4972.6,
+    "taskRuns": [
+     4232.6,
+     4972.6,
+     5264.7
+    ],
+    "failedRuns": 0
+   },
+   "1000000": {
+    "noResultWithinMs": 45000
+   }
+  },
+  "stream": {
+   "createMs": 53.3,
+   "toPaintMs": 59.4,
+   "pushP50": 18,
+   "pushP95": 35.4,
+   "frameP50": 23.6,
+   "frameP95": 44.8,
+   "framesOver20ms": 247,
+   "frames": 300,
+   "taskMsPerUpdate": 27.14,
+   "scriptMsPerUpdate": 4.09,
+   "layoutStyleMsPerUpdate": 0.66,
+   "logs": []
+  },
+  "empty": {
+   "res": {
+    "createMs": 17.199999999254942,
+    "toPaintMs": 19.799999998882413
+   },
+   "logs": [
+    "error: Error: <path> attribute d: Expected moveto path command ('M' or 'm'), \"null\".",
+    "error: Error: <path> attribute d: Expected moveto path command ('M' or 'm'), \"null\".",
+    "error: Error: <path> attribute d: Expected moveto path command ('M' or 'm'), \"null\".",
+    "error: Error: <path> attribute d: Expected moveto path command ('M' or 'm'), \"null\"."
+   ],
+   "text": [
+    "Jan 01",
+    "Jan 01",
+    "Jan 01",
+    "Jan 01",
+    "Jan 01",
+    "Jan 01",
+    "Jan 01",
+    "Jan 01",
+    "Jan 02",
+    "Sessions",
+    "Referral",
+    "Organic search"
+   ],
+   "aria": "- img: Jan 01 Jan 01 Jan 01 Jan 01 Jan 01 Jan 01 Jan 01 Jan 01 Jan 02 Sessions Referral Organic search Direct"
+  },
+  "dates": {
+   "trend": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "x: Sat Mar 07 2026 00:00:00 GMT+0000 (Coordinated Universal Time), y: 24930"
+     ]
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "x: Fri Mar 06 2026 16:00:00 GMT-0800 (Pacific Standard Time), y: 24930"
+     ]
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "x: Sat Mar 07 2026 05:30:00 GMT+0530 (India Standard Time), y: 24930"
+     ]
+    }
+   },
+   "dates": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "x: Sat Mar 07 2026 00:00:00 GMT+0000 (Coordinated Universal Time), y: 24930"
+     ]
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "x: Fri Mar 06 2026 16:00:00 GMT-0800 (Pacific Standard Time), y: 24930"
+     ]
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "x: Sat Mar 07 2026 05:30:00 GMT+0530 (India Standard Time), y: 24930"
+     ]
+    }
+   }
+  },
+  "sentinels": {
+   "null": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "nan": {
+    "error": null,
+    "logCount": 14,
+    "firstLog": "error: Error: <path> attribute d: Expected number, \"M0,NaNL105,NaNL210,…\"."
+   },
+   "string": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "undefined": {
+    "error": null,
+    "logCount": 14,
+    "firstLog": "error: Error: <path> attribute d: Expected number, \"M0,NaNL105,NaNL210,…\"."
+   }
+  }
+ },
+ "mui": {
+  "trend": {
+   "res": {
+    "createMs": 32.400000002235174,
+    "toPaintMs": 49.600000001490116
+   },
+   "logs": [
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
+   ],
+   "dom": {
+    "nodes": 131,
+    "svg": 4,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 9,
+    "marked": [
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "role": "none",
+      "aria-label": "Daily sessions by channel"
+     },
+     {
+      "tag": "div",
+      "role": "none",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "role": "img",
+      "aria-labelledby": "voiceover-_r_1_-1",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "role": "img",
+      "aria-labelledby": "voiceover-_r_1_-2",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "role": "status",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "12px": 15,
+     "14px": 1
+    },
+    "svgTextFills": {
+     "rgba(0, 0, 0, 0.87)": 16
+    },
+    "mainWidth": 14,
+    "mainHeight": 14
+   },
+   "aria": "- list:\n  - listitem: Direct\n  - listitem: Organic search\n  - listitem: Referral\n- status"
+  },
+  "bars": {
+   "res": {
+    "createMs": 29,
+    "toPaintMs": 40.69999999925494
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 88,
+    "svg": 2,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 7,
+    "marked": [
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "role": "none",
+      "aria-label": "Customer satisfaction by team"
+     },
+     {
+      "tag": "div",
+      "role": "none",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "role": "img",
+      "aria-labelledby": "voiceover-_r_1_-1",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "role": "img",
+      "aria-labelledby": "voiceover-_r_1_-2",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "role": "status",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "12px": 12,
+     "14px": 1
+    },
+    "svgTextFills": {
+     "rgba(0, 0, 0, 0.87)": 13
+    },
+    "mainWidth": 13,
+    "mainHeight": 13
+   },
+   "aria": "- list:\n  - listitem: Satisfied (%)\n- status"
+  },
+  "parts": {
+   "res": {
+    "createMs": 17.100000001490116,
+    "toPaintMs": 25.699999999254942
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 63,
+    "svg": 7,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 12,
+    "marked": [
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "role": "none",
+      "aria-label": "Sessions by browser"
+     },
+     {
+      "tag": "div",
+      "role": "none",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "role": "img",
+      "aria-labelledby": "voiceover-_r_0_-1",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "role": "img",
+      "aria-labelledby": "voiceover-_r_0_-2",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "role": "status",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {},
+    "svgTextFills": {},
+    "mainWidth": 15,
+    "mainHeight": 15
+   },
+   "aria": "- list:\n  - listitem: Chrome\n  - listitem: Safari\n  - listitem: Edge\n  - listitem: Firefox\n  - listitem: Samsung Internet\n  - listitem: Other\n- status"
+  },
+  "dirty": {
+   "res": {
+    "createMs": 21.899999998509884,
+    "toPaintMs": 38.69999999925494
+   },
+   "logs": [
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\"."
+   ],
+   "dom": {
+    "nodes": 60,
+    "svg": 2,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 7,
+    "marked": [
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "role": "none"
+     },
+     {
+      "tag": "div",
+      "role": "none",
+      "tabindex": "0"
+     },
+     {
+      "tag": "div",
+      "role": "img",
+      "aria-labelledby": "voiceover-_r_1_-1",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "role": "img",
+      "aria-labelledby": "voiceover-_r_1_-2",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "role": "status",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "12px": 7
+    },
+    "svgTextFills": {
+     "rgba(0, 0, 0, 0.87)": 7
+    },
+    "mainWidth": 14,
+    "mainHeight": 14
+   },
+   "aria": "- list:\n  - listitem: Value\n- status"
+  },
+  "keyboard": {
+   "stops": [
+    {
+     "tag": "div",
+     "role": "none",
+     "label": "",
+     "cls": "",
+     "box": [
+      720,
+      370
+     ],
+     "outline": "none 3px"
+    }
+   ],
+   "arrows": [
+    {
+     "key": "ArrowRight",
+     "active": "",
+     "tag": "div",
+     "live": []
+    },
+    {
+     "key": "ArrowRight",
+     "active": "",
+     "tag": "div",
+     "live": []
+    },
+    {
+     "key": "ArrowDown",
+     "active": "",
+     "tag": "div",
+     "live": []
+    },
+    {
+     "key": "Enter",
+     "active": "",
+     "tag": "div",
+     "live": []
+    }
+   ],
+   "newTextAfterKeys": [
+    "Fri Jan 02 2026 00:00:00 GMT+0000 (Coordinated Universal Time)",
+    "Direct\t31,713",
+    "Organic search\t20,724",
+    "Referral\t4,716"
+   ]
+  },
+  "hover_utc": {
+   "newText": [
+    "Mon Feb 23 2026 00:00:00 GMT+0000 (Coordinated Universal Time)",
+    "Direct\t34,592",
+    "Organic search\t21,519",
+    "Referral\t3,514"
+   ]
+  },
+  "hover_la": {
+   "newText": [
+    "Sun Feb 22 2026 16:00:00 GMT-0800 (Pacific Standard Time)",
+    "Direct\t34,592",
+    "Organic search\t21,519",
+    "Referral\t3,514"
+   ]
+  },
+  "resize": {
+   "widestGraphic": 360,
+   "scrollWidth": 360
+  },
+  "motion_no-preference": {
+   "earlyVsSettledDiff": 0.4253
+  },
+  "motion_reduce": {
+   "earlyVsSettledDiff": 0
+  },
+  "scale": {
+   "10000": {
+    "toPaintMs": 70.1,
+    "runs": [
+     62.8,
+     70.1,
+     83.5
+    ],
+    "taskMs": 98.8,
+    "taskRuns": [
+     94,
+     98.8,
+     116.4
+    ],
+    "failedRuns": 0
+   },
+   "100000": {
+    "toPaintMs": 287.5,
+    "runs": [
+     265.4,
+     287.5,
+     289.6
+    ],
+    "taskMs": 365.6,
+    "taskRuns": [
+     342,
+     365.6,
+     374
+    ],
+    "failedRuns": 0
+   },
+   "1000000": {
+    "toPaintMs": 2574.2,
+    "runs": [
+     2497.5,
+     2574.2,
+     2946.8
+    ],
+    "taskMs": 3048,
+    "taskRuns": [
+     2914.1,
+     3048,
+     3434.5
+    ],
+    "failedRuns": 0
+   }
+  },
+  "stream": {
+   "createMs": 25.1,
+   "toPaintMs": 30.5,
+   "pushP50": 2.7,
+   "pushP95": 4,
+   "frameP50": 16.7,
+   "frameP95": 16.8,
+   "framesOver20ms": 0,
+   "frames": 300,
+   "taskMsPerUpdate": 4.02,
+   "scriptMsPerUpdate": 0.27,
+   "layoutStyleMsPerUpdate": 0.41,
+   "logs": []
+  },
+  "empty": {
+   "res": {
+    "createMs": 21.700000001117587,
+    "toPaintMs": 39.30000000074506
+   },
+   "logs": [],
+   "text": [
+    "Direct",
+    "Organic search",
+    "Referral",
+    "No data to display",
+    "Sessions"
+   ],
+   "aria": "- list:\n  - listitem: Direct\n  - listitem: Organic search\n  - listitem: Referral\n- status"
+  },
+  "dates": {
+   "trend": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "Mon Feb 23 2026 00:00:00 GMT+0000 (Coordinated Universal Time)",
+      "Direct\t34,592",
+      "Organic search\t21,519",
+      "Referral\t3,514"
+     ]
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "Sun Feb 22 2026 16:00:00 GMT-0800 (Pacific Standard Time)",
+      "Direct\t34,592",
+      "Organic search\t21,519",
+      "Referral\t3,514"
+     ]
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "Mon Feb 23 2026 05:30:00 GMT+0530 (India Standard Time)",
+      "Direct\t34,592",
+      "Organic search\t21,519",
+      "Referral\t3,514"
+     ]
+    }
+   },
+   "dates": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "Wed Feb 25 2026 00:00:00 GMT+0000 (Coordinated Universal Time)",
+      "Direct\t34,544",
+      "Organic search\t19,154",
+      "Referral\t3,042"
+     ]
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "Tue Feb 24 2026 16:00:00 GMT-0800 (Pacific Standard Time)",
+      "Direct\t34,544",
+      "Organic search\t19,154",
+      "Referral\t3,042"
+     ]
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "Wed Feb 25 2026 05:30:00 GMT+0530 (India Standard Time)",
+      "Direct\t34,544",
+      "Organic search\t19,154",
+      "Referral\t3,042"
+     ]
+    }
+   }
+  },
+  "sentinels": {
+   "null": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "nan": {
+    "error": null,
+    "logCount": 21,
+    "firstLog": "error: Error: <path> attribute d: Expected number, \"M65,NaNC100.278,NaN,…\"."
+   },
+   "string": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "undefined": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   }
+  }
+ },
+ "uplot": {
+  "trend": {
+   "res": {
+    "createMs": 9.5,
+    "toPaintMs": 32.899999998509884
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 36,
+    "svg": 0,
+    "canvas": 1,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 1,
+    "markedCount": 0,
+    "marked": [],
+    "canvasFallback": [
+     ""
+    ],
+    "svgTextSizes": {},
+    "svgTextFills": {},
+    "mainWidth": 720,
+    "mainHeight": 320
+   },
+   "aria": "- text: Daily sessions by channel\n- table:\n  - rowgroup:\n    - 'row \"Time : --\"':\n      - rowheader \"Time :\"\n      - cell \"--\"\n    - 'row \"Direct : --\"':\n      - rowheader \"Direct :\"\n      - cell \"--\"\n    - 'row \"Organic search : --\"':\n      - rowheader \"Organic search :\"\n      - cell \"--\"\n    - 'row \"Referral : --\"':\n      - rowheader \"Referral :\"\n      - cell \"--\""
+  },
+  "bars": {
+   "res": {
+    "createMs": 5.099999999627471,
+    "toPaintMs": 27.09999999962747
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 24,
+    "svg": 0,
+    "canvas": 1,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 1,
+    "markedCount": 0,
+    "marked": [],
+    "canvasFallback": [
+     ""
+    ],
+    "svgTextSizes": {},
+    "svgTextFills": {},
+    "mainWidth": 720,
+    "mainHeight": 320
+   },
+   "aria": "- text: Customer satisfaction by team\n- table:\n  - rowgroup:\n    - 'row \"Value : --\"':\n      - rowheader \"Value :\"\n      - cell \"--\"\n    - 'row \"Satisfied (%) : --\"':\n      - rowheader \"Satisfied (%) :\"\n      - cell \"--\""
+  },
+  "parts": {
+   "res": {
+    "unsupported": true
+   },
+   "logs": []
+  },
+  "dirty": {
+   "res": {
+    "createMs": 8.199999999254942,
+    "toPaintMs": 22.09999999962747
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 24,
+    "svg": 0,
+    "canvas": 1,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 1,
+    "markedCount": 0,
+    "marked": [],
+    "canvasFallback": [
+     ""
+    ],
+    "svgTextSizes": {},
+    "svgTextFills": {},
+    "mainWidth": 720,
+    "mainHeight": 320
+   },
+   "aria": "- text: Dirty input\n- table:\n  - rowgroup:\n    - 'row \"Value : --\"':\n      - rowheader \"Value :\"\n      - cell \"--\"\n    - 'row \"Value : --\"':\n      - rowheader \"Value :\"\n      - cell \"--\""
+  },
+  "keyboard": {
+   "stops": [],
+   "arrows": [
+    {
+     "key": "ArrowRight",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "ArrowRight",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "ArrowDown",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "Enter",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    }
+   ],
+   "newTextAfterKeys": []
+  },
+  "hover_utc": {
+   "newText": [
+    "Time2026-02-24 12:00amDirect36,207Organic search18,957Referral3,713"
+   ]
+  },
+  "hover_la": {
+   "newText": [
+    "Time2026-02-23 4:00pmDirect36,207Organic search18,957Referral3,713"
+   ]
+  },
+  "resize": {
+   "widestGraphic": 720,
+   "scrollWidth": 720
+  },
+  "motion_no-preference": {
+   "earlyVsSettledDiff": 0
+  },
+  "motion_reduce": {
+   "earlyVsSettledDiff": 0
+  },
+  "scale": {
+   "10000": {
+    "toPaintMs": 26.9,
+    "runs": [
+     18.9,
+     26.9,
+     27.2
+    ],
+    "taskMs": 41,
+    "taskRuns": [
+     36.8,
+     41,
+     56.1
+    ],
+    "failedRuns": 0
+   },
+   "100000": {
+    "toPaintMs": 29.1,
+    "runs": [
+     25.8,
+     29.1,
+     32.3
+    ],
+    "taskMs": 52,
+    "taskRuns": [
+     48.4,
+     52,
+     63.2
+    ],
+    "failedRuns": 0
+   },
+   "1000000": {
+    "toPaintMs": 60.9,
+    "runs": [
+     60.5,
+     60.9,
+     65.7
+    ],
+    "taskMs": 96.6,
+    "taskRuns": [
+     94.8,
+     96.6,
+     99
+    ],
+    "failedRuns": 0
+   }
+  },
+  "stream": {
+   "createMs": 8.8,
+   "toPaintMs": 30.3,
+   "pushP50": 0,
+   "pushP95": 0.1,
+   "frameP50": 16.7,
+   "frameP95": 16.9,
+   "framesOver20ms": 0,
+   "frames": 300,
+   "taskMsPerUpdate": 1.01,
+   "scriptMsPerUpdate": 0.3,
+   "layoutStyleMsPerUpdate": 0,
+   "logs": []
+  },
+  "empty": {
+   "res": {
+    "createMs": 5.300000000745058,
+    "toPaintMs": 27.700000001117587
+   },
+   "logs": [],
+   "text": [
+    "Daily sessions by channel",
+    "Time--Direct--Organic search--Referral--"
+   ],
+   "aria": "- text: Daily sessions by channel\n- table:\n  - rowgroup:\n    - 'row \"Time : --\"':\n      - rowheader \"Time :\"\n      - cell \"--\"\n    - 'row \"Direct : --\"':\n      - rowheader \"Direct :\"\n      - cell \"--\"\n    - 'row \"Organic search : --\"':\n      - rowheader \"Organic search :\"\n      - cell \"--\"\n    - 'row \"Referral : --\"':\n      - rowheader \"Referral :\"\n      - cell \"--\""
+  },
+  "dates": {
+   "trend": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "Time2026-02-24 12:00amDirect36,207Organic search18,957Referral3,713"
+     ]
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "Time2026-02-23 4:00pmDirect36,207Organic search18,957Referral3,713"
+     ]
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "Time2026-02-24 5:30amDirect36,207Organic search18,957Referral3,713"
+     ]
+    }
+   },
+   "dates": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "Time2026-02-27 12:00amDirect40,714Organic search23,486Referral3,661"
+     ]
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "Time2026-02-26 4:00pmDirect40,714Organic search23,486Referral3,661"
+     ]
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "Time2026-02-27 5:30amDirect40,714Organic search23,486Referral3,661"
+     ]
+    }
+   }
+  },
+  "sentinels": {
+   "null": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "nan": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "string": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "undefined": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   }
+  }
+ },
+ "chartjs-tuned": {
+  "scale": {
+   "10000": {
+    "toPaintMs": 27.7,
+    "runs": [
+     24.2,
+     27.7,
+     33.5
+    ],
+    "taskMs": 75.1,
+    "taskRuns": [
+     74.2,
+     75.1,
+     76.8
+    ],
+    "failedRuns": 0
+   },
+   "100000": {
+    "toPaintMs": 37.9,
+    "runs": [
+     29.9,
+     37.9,
+     73
+    ],
+    "taskMs": 73.1,
+    "taskRuns": [
+     63.1,
+     73.1,
+     124.7
+    ],
+    "failedRuns": 0
+   },
+   "1000000": {
+    "toPaintMs": 102.9,
+    "runs": [
+     97.9,
+     102.9,
+     128.5
+    ],
+    "taskMs": 164.5,
+    "taskRuns": [
+     157.6,
+     164.5,
+     182.3
+    ],
+    "failedRuns": 0
+   }
+  },
+  "stream": {
+   "createMs": 13.8,
+   "toPaintMs": 26.3,
+   "pushP50": 1.2,
+   "pushP95": 2,
+   "frameP50": 16.7,
+   "frameP95": 16.8,
+   "framesOver20ms": 0,
+   "frames": 300,
+   "taskMsPerUpdate": 2.04,
+   "scriptMsPerUpdate": 0.03,
+   "layoutStyleMsPerUpdate": 0,
+   "logs": []
+  }
+ },
+ "echarts-tuned": {
+  "scale": {
+   "10000": {
+    "toPaintMs": 31.3,
+    "runs": [
+     30.5,
+     31.3,
+     36.9
+    ],
+    "taskMs": 65.2,
+    "taskRuns": [
+     59.2,
+     65.2,
+     73.7
+    ],
+    "failedRuns": 0
+   },
+   "100000": {
+    "toPaintMs": 73.2,
+    "runs": [
+     66.5,
+     73.2,
+     83.2
+    ],
+    "taskMs": 119.4,
+    "taskRuns": [
+     116,
+     119.4,
+     135.2
+    ],
+    "failedRuns": 0
+   },
+   "1000000": {
+    "toPaintMs": 445.8,
+    "runs": [
+     408.7,
+     445.8,
+     447.2
+    ],
+    "taskMs": 512.1,
+    "taskRuns": [
+     474.2,
+     512.1,
+     513.2
+    ],
+    "failedRuns": 0
+   }
+  },
+  "stream": {
+   "createMs": 22.7,
+   "toPaintMs": 26.1,
+   "pushP50": 1.4,
+   "pushP95": 2.7,
+   "frameP50": 16.7,
+   "frameP95": 16.8,
+   "framesOver20ms": 0,
+   "frames": 300,
+   "taskMsPerUpdate": 2.18,
+   "scriptMsPerUpdate": 0.04,
+   "layoutStyleMsPerUpdate": 0,
+   "logs": []
+  }
+ },
+ "highcharts-tuned": {
+  "scale": {
+   "10000": {
+    "toPaintMs": 94,
+    "runs": [
+     92.9,
+     94,
+     94.8
+    ],
+    "taskMs": 102.9,
+    "taskRuns": [
+     101.4,
+     102.9,
+     105.6
+    ],
+    "failedRuns": 0
+   },
+   "100000": {
+    "toPaintMs": 125.9,
+    "runs": [
+     118.7,
+     125.9,
+     128.2
+    ],
+    "taskMs": 153.1,
+    "taskRuns": [
+     146,
+     153.1,
+     154.7
+    ],
+    "failedRuns": 0
+   },
+   "1000000": {
+    "toPaintMs": 438.4,
+    "runs": [
+     430.9,
+     438.4,
+     451.6
+    ],
+    "taskMs": 513.1,
+    "taskRuns": [
+     505.7,
+     513.1,
+     541.4
+    ],
+    "failedRuns": 0
+   }
+  },
+  "stream": {
+   "createMs": 28.7,
+   "toPaintMs": 30,
+   "pushP50": 2.1,
+   "pushP95": 3.4,
+   "frameP50": 16.7,
+   "frameP95": 16.8,
+   "framesOver20ms": 0,
+   "frames": 300,
+   "taskMsPerUpdate": 2.76,
+   "scriptMsPerUpdate": 0.02,
+   "layoutStyleMsPerUpdate": 0.41,
+   "logs": []
+  }
+ },
+ "plotly-tuned": {
+  "scale": {
+   "10000": {
+    "toPaintMs": 207.8,
+    "runs": [
+     205.3,
+     207.8,
+     209
+    ],
+    "taskMs": 215.2,
+    "taskRuns": [
+     211.4,
+     215.2,
+     216.7
+    ],
+    "failedRuns": 0
+   },
+   "100000": {
+    "toPaintMs": 926.4,
+    "runs": [
+     893.9,
+     926.4,
+     959.1
+    ],
+    "taskMs": 934.7,
+    "taskRuns": [
+     900.8,
+     934.7,
+     967.9
+    ],
+    "failedRuns": 0
+   },
+   "1000000": {
+    "toPaintMs": 8172.5,
+    "runs": [
+     8067.2,
+     8172.5,
+     8228.5
+    ],
+    "taskMs": 8200.1,
+    "taskRuns": [
+     8094.2,
+     8200.1,
+     8259.6
+    ],
+    "failedRuns": 0
+   }
+  },
+  "stream": {
+   "createMs": 66.2,
+   "toPaintMs": 128.1,
+   "pushP50": 3.7,
+   "pushP95": 5.4,
+   "frameP50": 16.6,
+   "frameP95": 21.2,
+   "framesOver20ms": 23,
+   "frames": 300,
+   "taskMsPerUpdate": 17.33,
+   "scriptMsPerUpdate": 0.02,
+   "layoutStyleMsPerUpdate": 0.68,
+   "logs": []
+  }
+ },
+ "recharts-tuned": {
+  "scale": {
+   "10000": {
+    "toPaintMs": 91.2,
+    "runs": [
+     88.4,
+     91.2,
+     92
+    ],
+    "taskMs": 103.8,
+    "taskRuns": [
+     101.6,
+     103.8,
+     104.1
+    ],
+    "failedRuns": 0
+   },
+   "100000": {
+    "toPaintMs": 546.8,
+    "runs": [
+     539.5,
+     546.8,
+     547.3
+    ],
+    "taskMs": 563.1,
+    "taskRuns": [
+     558.3,
+     563.1,
+     567.2
+    ],
+    "failedRuns": 0
+   },
+   "1000000": {
+    "toPaintMs": 5594.2,
+    "runs": [
+     5573.7,
+     5594.2,
+     5613.5
+    ],
+    "taskMs": 5927.7,
+    "taskRuns": [
+     5864.4,
+     5927.7,
+     6015.3
+    ],
+    "failedRuns": 0
+   }
+  },
+  "stream": {
+   "createMs": 3.7,
+   "toPaintMs": 36.4,
+   "pushP50": 3.9,
+   "pushP95": 4.8,
+   "frameP50": 16.7,
+   "frameP95": 16.8,
+   "framesOver20ms": 0,
+   "frames": 300,
+   "taskMsPerUpdate": 4.72,
+   "scriptMsPerUpdate": 0.02,
+   "layoutStyleMsPerUpdate": 0.19,
+   "logs": []
+  }
+ },
+ "_runs": [
+  {
+   "date": "2026-11-17T23:43:21.766Z",
+   "chrome": "157.0.8103.78",
+   "phases": [
+    "dates"
+   ],
+   "libs": [
+    "chartjs",
+    "uplot"
+   ],
+   "settleMs": 1800
+  },
+  {
+   "date": "2026-11-17T23:44:22.520Z",
+   "chrome": "157.0.8103.78",
+   "phases": [
+    "dates",
+    "sentinels",
+    "lightonly"
+   ],
+   "libs": [
+    "chartjs",
+    "recharts",
+    "d3",
+    "echarts",
+    "highcharts",
+    "apexcharts",
+    "plotly",
+    "nivo",
+    "mui",
+    "uplot"
+   ],
+   "settleMs": 1800
+  },
+  {
+   "date": "2026-11-17T23:48:54.565Z",
+   "chrome": "157.0.8103.78",
+   "phases": [
+    "look",
+    "a11y"
+   ],
+   "libs": [
+    "mui"
+   ],
+   "settleMs": 1800
+  },
+  {
+   "date": "2026-11-17T23:49:11.504Z",
+   "chrome": "157.0.8103.78",
+   "phases": [
+    "look",
+    "a11y"
+   ],
+   "libs": [
+    "highcharts-plain",
+    "echarts-aria"
+   ],
+   "settleMs": 1800
+  },
+  {
+   "date": "2026-11-17T23:49:44.450Z",
+   "chrome": "157.0.8103.78",
+   "phases": [
+    "look"
+   ],
+   "libs": [
+    "recharts"
+   ],
+   "settleMs": 4000
+  },
+  {
+   "date": "2026-11-17T23:50:02.036Z",
+   "chrome": "157.0.8103.78",
+   "phases": [
+    "env"
+   ],
+   "libs": [
+    "chartjs",
+    "recharts",
+    "d3",
+    "echarts",
+    "highcharts",
+    "apexcharts",
+    "plotly",
+    "nivo",
+    "mui",
+    "uplot"
+   ],
+   "settleMs": 1800
+  },
+  {
+   "date": "2026-11-17T23:52:13.354Z",
+   "chrome": "157.0.8103.78",
+   "phases": [
+    "perf"
+   ],
+   "libs": [
+    "chartjs",
+    "recharts",
+    "d3",
+    "echarts",
+    "highcharts",
+    "apexcharts",
+    "plotly",
+    "nivo",
+    "mui",
+    "uplot",
+    "chartjs-tuned",
+    "echarts-tuned",
+    "highcharts-tuned",
+    "plotly-tuned",
+    "recharts-tuned"
+   ],
+   "settleMs": 1800
+  },
+  {
+   "date": "2026-11-18T00:04:04.678Z",
+   "chrome": "157.0.8103.78",
+   "phases": [
+    "perf"
+   ],
+   "libs": [
+    "noop"
+   ],
+   "settleMs": 1800
+  }
+ ],
+ "highcharts-plain": {
+  "trend": {
+   "res": {
+    "createMs": 32.100000001490116,
+    "toPaintMs": 45.100000001490116
+   },
+   "logs": [
+    "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "warning: Highcharts warning: Consider including the \"accessibility.js\" module to make your chart more usable for people with disabilities. Set the \"accessibility.enabled\" option to false to remove this warning. See https://www.highcharts.com/docs/accessibility/accessibility-module."
+   ],
+   "dom": {
+    "nodes": 92,
+    "svg": 1,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 1,
+    "tables": 0,
+    "markedCount": 1,
+    "marked": [
+     {
+      "tag": "svg",
+      "role": "img",
+      "aria-label": "Daily sessions by channel"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {
+     "12.8px": 19,
+     "19.2px": 1,
+     "9.6px": 1
+    },
+    "svgTextFills": {
+     "rgb(102, 102, 102)": 1,
+     "rgb(51, 51, 51)": 19,
+     "rgb(153, 153, 153)": 1
+    },
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- img \"Daily sessions by channel\": Sessions Daily sessions by channel Direct Organic search Referral Jan 12 Jan 26 Feb 9 Feb 23 Mar 9 Mar 23 Apr 6 Apr 20 0 10k 20k 30k 40k 50k 60k Highcharts.com"
+  },
+  "bars": {
+   "res": {
+    "unsupported": true
+   },
+   "logs": []
+  },
+  "parts": {
+   "res": {
+    "unsupported": true
+   },
+   "logs": []
+  },
+  "dirty": {
+   "res": {
+    "unsupported": true
+   },
+   "logs": []
+  },
+  "keyboard": {
+   "stops": [],
+   "arrows": [
+    {
+     "key": "ArrowRight",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "ArrowRight",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "ArrowDown",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "Enter",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    }
+   ],
+   "newTextAfterKeys": []
+  },
+  "hover_utc": {
+   "newText": [
+    "Tuesday, Feb 24, 2026​● Direct: 36,207​"
+   ]
+  },
+  "hover_la": {
+   "newText": [
+    "Tuesday, Feb 24, 2026​● Direct: 36,207​"
+   ]
+  }
+ },
+ "echarts-aria": {
+  "trend": {
+   "res": {
+    "createMs": 54.600000001490116,
+    "toPaintMs": 65.80000000074506
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 3,
+    "svg": 0,
+    "canvas": 1,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 0,
+    "marked": [],
+    "canvasFallback": [
+     ""
+    ],
+    "svgTextSizes": {},
+    "svgTextFills": {},
+    "mainWidth": 720,
+    "mainHeight": 400
+   },
+   "aria": "- img"
+  },
+  "bars": {
+   "res": {
+    "unsupported": true
+   },
+   "logs": []
+  },
+  "parts": {
+   "res": {
+    "unsupported": true
+   },
+   "logs": []
+  },
+  "dirty": {
+   "res": {
+    "unsupported": true
+   },
+   "logs": []
+  },
+  "keyboard": {
+   "stops": [],
+   "arrows": [
+    {
+     "key": "ArrowRight",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "ArrowRight",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "ArrowDown",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    },
+    {
+     "key": "Enter",
+     "active": "after",
+     "tag": "button",
+     "live": []
+    }
+   ],
+   "newTextAfterKeys": []
+  },
+  "hover_utc": {
+   "newText": [
+    "2026-02-26 00:00:00",
+    "Direct",
+    "36,482",
+    "Organic search",
+    "20,876",
+    "Referral",
+    "4,041"
+   ]
+  },
+  "hover_la": {
+   "newText": [
+    "2026-02-25 16:00:00",
+    "Direct",
+    "36,482",
+    "Organic search",
+    "20,876",
+    "Referral",
+    "4,041"
+   ]
+  }
+ },
+ "noop": {
+  "scale": {
+   "10000": {
+    "toPaintMs": 19.5,
+    "runs": [
+     18.7,
+     19.5,
+     30.8
+    ],
+    "taskMs": 7.5,
+    "taskRuns": [
+     7,
+     7.5,
+     8.7
+    ],
+    "failedRuns": 0
+   },
+   "100000": {
+    "toPaintMs": 29.7,
+    "runs": [
+     19.8,
+     29.7,
+     32.3
+    ],
+    "taskMs": 8.2,
+    "taskRuns": [
+     7.1,
+     8.2,
+     9.1
+    ],
+    "failedRuns": 0
+   },
+   "1000000": {
+    "toPaintMs": 23.5,
+    "runs": [
+     17.1,
+     23.5,
+     31.1
+    ],
+    "taskMs": 9,
+    "taskRuns": [
+     8.7,
+     9,
+     12.3
+    ],
+    "failedRuns": 0
+   }
+  },
+  "stream": {
+   "createMs": 0,
+   "toPaintMs": 27.8,
+   "pushP50": 0,
+   "pushP95": 0,
+   "frameP50": 16.7,
+   "frameP95": 16.8,
+   "framesOver20ms": 0,
+   "frames": 300,
+   "taskMsPerUpdate": 0.06,
+   "scriptMsPerUpdate": 0.01,
+   "layoutStyleMsPerUpdate": 0,
+   "logs": []
+  }
+ }
+}

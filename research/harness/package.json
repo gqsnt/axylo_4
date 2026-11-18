@@ -1,0 +1,42 @@
+{
+  "name": "axylo-landscape-harness",
+  "private": true,
+  "type": "module",
+  "description": "Runs the same chart tasks through ten charting libraries for the Axylo landscape study.",
+  "scripts": {
+    "build": "vite build",
+    "preview": "vite preview --port 4173 --strictPort",
+    "probe": "node probe.mjs"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/material": "^9.5.0",
+    "@mui/system": "^9.5.0",
+    "@mui/x-charts": "^9.18.1",
+    "@nivo/bar": "^0.99.0",
+    "@nivo/core": "^0.99.0",
+    "@nivo/line": "^0.99.0",
+    "@nivo/pie": "^0.99.0",
+    "apexcharts": "^8.9.0",
+    "chart.js": "^4.6.1",
+    "chartjs-adapter-date-fns": "^3.0.0",
+    "d3": "^7.9.2",
+    "date-fns": "^4.4.0",
+    "echarts": "^6.1.0",
+    "highcharts": "^13.1.1",
+    "plotly.js-dist-min": "^4.3.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "react-is": "^19.3.1",
+    "recharts": "^3.11.0",
+    "uplot": "^1.6.32"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.3.0",
+    "esbuild": "^0.28.2",
+    "playwright-core": "^1.65.1",
+    "pngjs": "^7.0.0",
+    "vite": "^8.3.8"
+  }
+}

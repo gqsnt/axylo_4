@@ -1,0 +1,110 @@
+chartjs dates {"trend":{"utc":{"res":"ok","hoverText":[],"tooltipForIndex54":{"title":["Feb 24, 2026, 12:00:00 a.m."],"body":["Direct: 36,207"]}},"la":{"res":"ok","hoverText":[],"tooltipForIndex54":{"title":["Feb 23, 2026, 4:00:00 p.m."],"body":["Direct: 36,207"]}},"kolkata":{"res":"ok","hoverText":[],"tooltipForIndex54":{"title":["Feb 24, 2026, 5:30:00 a.m."],"body":["Direct: 36,207"]}}},"dates":{"utc":{"res":
+chartjs sentinels {"null":{"error":null,"logCount":0,"firstLog":null},"nan":{"error":null,"logCount":0,"firstLog":null},"string":{"error":null,"logCount":0,"firstLog":null},"undefined":{"error":null,"logCount":0,"firstLog":null}}
+recharts dates {"trend":{"utc":{"res":"ok","hoverText":["Direct : 36207","Organic search : 18957","Referral : 3713"]},"la":{"res":"ok","hoverText":["Direct : 36207","Organic search : 18957","Referral : 3713"]},"kolkata":{"res":"ok","hoverText":["Direct : 36207","Organic search : 18957","Referral : 3713"]}},"dates":{"utc":{"res":"ok","hoverText":["2026-02-24","Direct : 36207","Organic search : 18957","Referral : 
+recharts sentinels {"null":{"error":null,"logCount":0,"firstLog":null},"nan":{"error":null,"logCount":0,"firstLog":null},"string":{"error":null,"logCount":0,"firstLog":null},"undefined":{"error":null,"logCount":0,"firstLog":null}}
+d3 dates {"trend":{"utc":{"res":"ok","hoverText":["Feb 27, 2026 — Direct: 40,714 · Organic search: 23,486 · Referral: 3,661"]},"la":{"res":"ok","hoverText":["Feb 27, 2026 — Direct: 40,714 · Organic search: 23,486 · Referral: 3,661"]},"kolkata":{"res":"ok","hoverText":["Feb 27, 2026 — Direct: 40,714 · Organic search: 23,486 · Referral: 3,661"]}},"dates":{"utc":{"res":"ok","hoverText":["Feb 27, 2026 — Direct
+d3 sentinels {"null":{"error":null,"logCount":1,"firstLog":"error: Error: <path> attribute d: Expected number, \"…333,230.286L376,NaNL482.667,137.…\"."},"nan":{"error":null,"logCount":1,"firstLog":"error: Error: <path> attribute d: Expected number, \"…333,230.286L376,NaNL482.667,137.…\"."},"string":{"error":null
+echarts dates {"trend":{"utc":{"res":"ok","hoverText":["2026-02-26 00:00:00","Direct","36,482","Organic search","20,876","Referral","4,041"]},"la":{"res":"ok","hoverText":["2026-02-25 16:00:00","Direct","36,482","Organic search","20,876","Referral","4,041"]},"kolkata":{"res":"ok","hoverText":["2026-02-26 05:30:00","Direct","36,482","Organic search","20,876","Referral","4,041"]}},"dates":{"utc":{"res":"ok","hove
+echarts sentinels {"null":{"error":null,"logCount":0,"firstLog":null},"nan":{"error":null,"logCount":0,"firstLog":null},"string":{"error":null,"logCount":0,"firstLog":null},"undefined":{"error":null,"logCount":0,"firstLog":null}}
+highcharts dates {"trend":{"utc":{"res":"ok","hoverText":["Tuesday, Feb 24, 2026​● Direct: 36,207​"]},"la":{"res":"ok","hoverText":["Tuesday, Feb 24, 2026​● Direct: 36,207​"]},"kolkata":{"res":"ok","hoverText":["Tuesday, Feb 24, 2026​● Direct: 36,207​"]}},"dates":{"utc":{"res":"ok","hoverText":["Tuesday, Feb 24, 2026​● Direct: 36,207​"]},"la":{"res":"ok","hoverText":["Tuesday, Feb 24, 2026​● Direct: 36,207​"]},"ko
+highcharts sentinels {"null":{"error":null,"logCount":0,"firstLog":null},"nan":{"error":null,"logCount":0,"firstLog":null},"string":{"error":null,"logCount":0,"firstLog":null},"undefined":{"error":"TypeError: Cannot read properties of undefined (reading 'x')","logCount":1,"firstLog":"error: TypeError: Cannot read proper
+apexcharts dates {"trend":{"utc":{"res":"ok","hoverText":["24 Feb","Direct: 36207","Organic search: 18957","Referral: 3713"]},"la":{"res":"ok","hoverText":["24 Feb","Direct: 36207","Organic search: 18957","Referral: 3713"]},"kolkata":{"res":"ok","hoverText":["24 Feb","Direct: 36207","Organic search: 18957","Referral: 3713"]}},"dates":{"utc":{"res":"ok","hoverText":["25 Feb","Direct: 34544","Organic search: 19154",
+apexcharts sentinels {"null":{"error":null,"logCount":0,"firstLog":null},"nan":{"error":null,"logCount":0,"firstLog":null},"string":{"error":null,"logCount":0,"firstLog":null},"undefined":{"error":null,"logCount":0,"firstLog":null}}
+plotly dates {"trend":{"utc":{"res":"ok","hoverText":["(Mar 10, 2026, 36.832k)"]},"la":{"res":"ok","hoverText":["(Mar 9, 2026, 36.832k)"]},"kolkata":{"res":"ok","hoverText":["(Mar 10, 2026, 36.832k)"]}},"dates":{"utc":{"res":"ok","hoverText":["(Mar 10, 2026, 36.832k)"]},"la":{"res":"ok","hoverText":["(Mar 10, 2026, 36.832k)"]},"kolkata":{"res":"ok","hoverText":["(Mar 10, 2026, 36.832k)"]}}}
+plotly sentinels {"null":{"error":null,"logCount":0,"firstLog":null},"nan":{"error":null,"logCount":0,"firstLog":null},"string":{"error":null,"logCount":0,"firstLog":null},"undefined":{"error":null,"logCount":0,"firstLog":null}}
+nivo dates {"trend":{"utc":{"res":"ok","hoverText":["x: Sat Mar 07 2026 00:00:00 GMT+0000 (Coordinated Universal Time), y: 24930"]},"la":{"res":"ok","hoverText":["x: Fri Mar 06 2026 16:00:00 GMT-0800 (Pacific Standard Time), y: 24930"]},"kolkata":{"res":"ok","hoverText":["x: Sat Mar 07 2026 05:30:00 GMT+0530 (India Standard Time), y: 24930"]}},"dates":{"utc":{"res":"ok","hoverText":["x: Sat Mar 07 2026 00:00
+nivo sentinels {"null":{"error":null,"logCount":0,"firstLog":null},"nan":{"error":null,"logCount":14,"firstLog":"error: Error: <path> attribute d: Expected number, \"M0,NaNL105,NaNL210,…\"."},"string":{"error":null,"logCount":0,"firstLog":null},"undefined":{"error":null,"logCount":14,"firstLog":"error: Error: <pat
+mui dates {"trend":{"utc":{"res":"ok","hoverText":["Mon Feb 23 2026 00:00:00 GMT+0000 (Coordinated Universal Time)","Direct\t34,592","Organic search\t21,519","Referral\t3,514"]},"la":{"res":"ok","hoverText":["Sun Feb 22 2026 16:00:00 GMT-0800 (Pacific Standard Time)","Direct\t34,592","Organic search\t21,519","Referral\t3,514"]},"kolkata":{"res":"ok","hoverText":["Mon Feb 23 2026 05:30:00 GMT+0530 (India Sta
+mui sentinels {"null":{"error":null,"logCount":0,"firstLog":null},"nan":{"error":null,"logCount":21,"firstLog":"error: Error: <path> attribute d: Expected number, \"M65,NaNC100.278,NaN,…\"."},"string":{"error":null,"logCount":0,"firstLog":null},"undefined":{"error":null,"logCount":0,"firstLog":null}}
+uplot dates {"trend":{"utc":{"res":"ok","hoverText":["Time2026-02-24 12:00amDirect36,207Organic search18,957Referral3,713"]},"la":{"res":"ok","hoverText":["Time2026-02-23 4:00pmDirect36,207Organic search18,957Referral3,713"]},"kolkata":{"res":"ok","hoverText":["Time2026-02-24 5:30amDirect36,207Organic search18,957Referral3,713"]}},"dates":{"utc":{"res":"ok","hoverText":["Time2026-02-27 12:00amDirect40,714Orga
+uplot sentinels {"null":{"error":null,"logCount":0,"firstLog":null},"nan":{"error":null,"logCount":0,"firstLog":null},"string":{"error":null,"logCount":0,"firstLog":null},"undefined":{"error":null,"logCount":0,"firstLog":null}}
+mui trend {"createMs":32.400000002235174,"toPaintMs":49.600000001490116} logs:1
+mui bars {"createMs":29,"toPaintMs":40.69999999925494} 
+mui parts {"createMs":17.100000001490116,"toPaintMs":25.699999999254942} 
+mui dirty {"createMs":21.899999998509884,"toPaintMs":38.69999999925494} logs:20
+mui a11y 1 tab stops
+highcharts-plain trend {"createMs":32.100000001490116,"toPaintMs":45.100000001490116} logs:2
+highcharts-plain bars {"unsupported":true} 
+highcharts-plain parts {"unsupported":true} 
+highcharts-plain dirty {"unsupported":true} 
+highcharts-plain a11y 0 tab stops
+echarts-aria trend {"createMs":54.600000001490116,"toPaintMs":65.80000000074506} 
+echarts-aria bars {"unsupported":true} 
+echarts-aria parts {"unsupported":true} 
+echarts-aria dirty {"unsupported":true} 
+echarts-aria a11y 0 tab stops
+recharts trend {"createMs":5.700000002980232,"toPaintMs":103.80000000074506} logs:1
+recharts bars {"createMs":4.5,"toPaintMs":36.30000000074506} 
+recharts parts {"createMs":3.7999999970197678,"toPaintMs":28.299999997019768} 
+recharts dirty {"createMs":5,"toPaintMs":45.69999999925494} 
+chartjs env { widestGraphic: 360, scrollWidth: 360 } { earlyVsSettledDiff: 0.2407 } { earlyVsSettledDiff: 0.2625 }
+recharts env { widestGraphic: 360, scrollWidth: 360 } { earlyVsSettledDiff: 0.4584 } { earlyVsSettledDiff: 0 }
+d3 env { widestGraphic: 360, scrollWidth: 360 } { earlyVsSettledDiff: 0 } { earlyVsSettledDiff: 0 }
+echarts env { widestGraphic: 720, scrollWidth: 720 } { earlyVsSettledDiff: 0.2989 } { earlyVsSettledDiff: 0.2989 }
+highcharts env { widestGraphic: 360, scrollWidth: 360 } { earlyVsSettledDiff: 0.1754 } { earlyVsSettledDiff: 0.1764 }
+apexcharts env { widestGraphic: 360, scrollWidth: 360 } { earlyVsSettledDiff: 0.3293 } { earlyVsSettledDiff: 0 }
+plotly env { widestGraphic: 720, scrollWidth: 720 } { earlyVsSettledDiff: 0 } { earlyVsSettledDiff: 0 }
+nivo env { widestGraphic: 360, scrollWidth: 360 } { earlyVsSettledDiff: 0.3129 } { earlyVsSettledDiff: 0.3274 }
+mui env { widestGraphic: 360, scrollWidth: 360 } { earlyVsSettledDiff: 0.4253 } { earlyVsSettledDiff: 0 }
+uplot env { widestGraphic: 720, scrollWidth: 720 } { earlyVsSettledDiff: 0 } { earlyVsSettledDiff: 0 }
+=== PERF START 2026-11-18T00:52:13+01:00
+chartjs scale 10000 {"toPaintMs":239.6,"runs":[178.1,239.6,255.5],"taskMs":1222.6,"taskRuns":[1201.3,1222.6,1251.7],"failedRuns":0}
+chartjs scale 100000 {"toPaintMs":1503.1,"runs":[1281.5,1503.1,1542.8],"taskMs":2336,"taskRuns":[2315.4,2336,2431.2],"failedRuns":0}
+chartjs scale 1000000 {"toPaintMs":13658.6,"runs":[13440.2,13658.6,14548.9],"taskMs":13708.8,"taskRuns":[13482.7,13708.8,14609.8],"failedRuns":0}
+chartjs stream {"createMs":19.4,"toPaintMs":28.1,"pushP50":5.9,"pushP95":12.6,"frameP50":16.7,"frameP95":18.4,"framesOver20ms":2,"frames":300,"taskMsPerUpdate":10.71,"scriptMsPerUpdate":0.75,"layoutStyleMsPerUpdate"
+recharts scale 10000 {"toPaintMs":903.7,"runs":[707.6,903.7,935.5],"taskMs":2549.3,"taskRuns":[2414.3,2549.3,2560.1],"failedRuns":0}
+recharts scale 100000 {"toPaintMs":6629,"runs":[5863.9,6629,6735.9],"taskMs":9353.2,"taskRuns":[8870.3,9353.2,9390],"failedRuns":0}
+recharts scale 1000000 {"noResultWithinMs":45000}
+recharts stream {"createMs":6.7,"toPaintMs":138.5,"pushP50":12.5,"pushP95":18.8,"frameP50":16.7,"frameP95":21.1,"framesOver20ms":17,"frames":300,"taskMsPerUpdate":15.16,"scriptMsPerUpdate":0.03,"layoutStyleMsPerUpdat
+d3 scale 10000 {"toPaintMs":23.7,"runs":[19.9,23.7,30.1],"taskMs":26.6,"taskRuns":[25.9,26.6,27.8],"failedRuns":0}
+d3 scale 100000 {"toPaintMs":60.2,"runs":[58.8,60.2,73.6],"taskMs":86.5,"taskRuns":[79.2,86.5,89.2],"failedRuns":0}
+d3 scale 1000000 {"toPaintMs":394.4,"runs":[341.4,394.4,510.8],"taskMs":520.7,"taskRuns":[465.1,520.7,659.6],"failedRuns":0}
+d3 stream {"createMs":3.7,"toPaintMs":26.2,"pushP50":0.4,"pushP95":0.8,"frameP50":16.7,"frameP95":17.1,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":1.13,"scriptMsPerUpdate":0.02,"layoutStyleMsPerUpdate":0.
+echarts scale 10000 {"toPaintMs":131.1,"runs":[130,131.1,137.8],"taskMs":1358.1,"taskRuns":[1336.2,1358.1,1362.6],"failedRuns":0}
+echarts scale 100000 {"toPaintMs":1584,"runs":[1333.3,1584,1694.4],"taskMs":2770.3,"taskRuns":[2644.9,2770.3,2815.4],"failedRuns":0}
+echarts scale 1000000 {"toPaintMs":12914.5,"runs":[12143.4,12914.5,14899.9],"taskMs":12948.5,"taskRuns":[12177.2,12948.5,14927.3],"failedRuns":0}
+echarts stream {"createMs":45.8,"toPaintMs":52.1,"pushP50":8.9,"pushP95":11.5,"frameP50":17.7,"frameP95":20.9,"framesOver20ms":30,"frames":300,"taskMsPerUpdate":15.66,"scriptMsPerUpdate":3.18,"layoutStyleMsPerUpdate
+highcharts scale 10000 {"toPaintMs":69.5,"runs":[55.3,69.5,85.6],"taskMs":113.6,"taskRuns":[97.1,113.6,130.4],"failedRuns":0}
+highcharts scale 100000 {"toPaintMs":285.5,"runs":[246.6,285.5,351.6],"taskMs":399.4,"taskRuns":[329.7,399.4,454.7],"failedRuns":0}
+highcharts scale 1000000 {"toPaintMs":2200.2,"runs":[2109.3,2200.2,2579.3],"taskMs":2663.7,"taskRuns":[2637.3,2663.7,3091],"failedRuns":0}
+highcharts stream {"createMs":32.9,"toPaintMs":34.6,"pushP50":2.2,"pushP95":4.6,"frameP50":16.7,"frameP95":17,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":3.54,"scriptMsPerUpdate":0.4,"layoutStyleMsPerUpdate":0.47
+apexcharts scale 10000 {"toPaintMs":38.9,"runs":[36.8,38.9,42.2],"taskMs":82.7,"taskRuns":[69.1,82.7,85.6],"failedRuns":0}
+apexcharts scale 100000 {"toPaintMs":100.5,"runs":[100,100.5,114.4],"taskMs":133.9,"taskRuns":[133.5,133.9,148.9],"failedRuns":0}
+apexcharts scale 1000000 {"toPaintMs":628,"runs":[551.8,628,704.6],"taskMs":635.6,"taskRuns":[558.8,635.6,712.9],"failedRuns":0}
+apexcharts stream {"createMs":24.2,"toPaintMs":31.5,"pushP50":4.3,"pushP95":7.5,"frameP50":16.7,"frameP95":17.8,"framesOver20ms":3,"frames":300,"taskMsPerUpdate":9.68,"scriptMsPerUpdate":3.61,"layoutStyleMsPerUpdate":1
+plotly scale 10000 {"toPaintMs":38.8,"runs":[38.1,38.8,80.2],"taskMs":51.3,"taskRuns":[50.1,51.3,93.8],"failedRuns":0}
+plotly scale 100000 {"toPaintMs":87.9,"runs":[64.6,87.9,100.4],"taskMs":118.9,"taskRuns":[80.8,118.9,128.6],"failedRuns":0}
+plotly scale 1000000 {"toPaintMs":355,"runs":[329.6,355,466.9],"taskMs":365.1,"taskRuns":[340,365.1,483],"failedRuns":0}
+plotly stream {"createMs":42,"toPaintMs":43.3,"pushP50":4.6,"pushP95":8.1,"frameP50":16.7,"frameP95":16.8,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":6.13,"scriptMsPerUpdate":0.03,"layoutStyleMsPerUpdate":0.9
+nivo scale 10000 {"toPaintMs":713.2,"runs":[638.8,713.2,954.3],"taskMs":733.4,"taskRuns":[658.5,733.4,977],"failedRuns":0}
+nivo scale 100000 {"toPaintMs":4953.2,"runs":[4213.5,4953.2,5245.4],"taskMs":4972.6,"taskRuns":[4232.6,4972.6,5264.7],"failedRuns":0}
+nivo scale 1000000 {"noResultWithinMs":45000}
+nivo stream {"createMs":53.3,"toPaintMs":59.4,"pushP50":18,"pushP95":35.4,"frameP50":23.6,"frameP95":44.8,"framesOver20ms":247,"frames":300,"taskMsPerUpdate":27.14,"scriptMsPerUpdate":4.09,"layoutStyleMsPerUpdate
+mui scale 10000 {"toPaintMs":70.1,"runs":[62.8,70.1,83.5],"taskMs":98.8,"taskRuns":[94,98.8,116.4],"failedRuns":0}
+mui scale 100000 {"toPaintMs":287.5,"runs":[265.4,287.5,289.6],"taskMs":365.6,"taskRuns":[342,365.6,374],"failedRuns":0}
+mui scale 1000000 {"toPaintMs":2574.2,"runs":[2497.5,2574.2,2946.8],"taskMs":3048,"taskRuns":[2914.1,3048,3434.5],"failedRuns":0}
+mui stream {"createMs":25.1,"toPaintMs":30.5,"pushP50":2.7,"pushP95":4,"frameP50":16.7,"frameP95":16.8,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":4.02,"scriptMsPerUpdate":0.27,"layoutStyleMsPerUpdate":0.4
+uplot scale 10000 {"toPaintMs":26.9,"runs":[18.9,26.9,27.2],"taskMs":41,"taskRuns":[36.8,41,56.1],"failedRuns":0}
+uplot scale 100000 {"toPaintMs":29.1,"runs":[25.8,29.1,32.3],"taskMs":52,"taskRuns":[48.4,52,63.2],"failedRuns":0}
+uplot scale 1000000 {"toPaintMs":60.9,"runs":[60.5,60.9,65.7],"taskMs":96.6,"taskRuns":[94.8,96.6,99],"failedRuns":0}
+uplot stream {"createMs":8.8,"toPaintMs":30.3,"pushP50":0,"pushP95":0.1,"frameP50":16.7,"frameP95":16.9,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":1.01,"scriptMsPerUpdate":0.3,"layoutStyleMsPerUpdate":0,"lo
+chartjs-tuned scale 10000 {"toPaintMs":27.7,"runs":[24.2,27.7,33.5],"taskMs":75.1,"taskRuns":[74.2,75.1,76.8],"failedRuns":0}
+chartjs-tuned scale 100000 {"toPaintMs":37.9,"runs":[29.9,37.9,73],"taskMs":73.1,"taskRuns":[63.1,73.1,124.7],"failedRuns":0}
+chartjs-tuned scale 1000000 {"toPaintMs":102.9,"runs":[97.9,102.9,128.5],"taskMs":164.5,"taskRuns":[157.6,164.5,182.3],"failedRuns":0}
+chartjs-tuned stream {"createMs":13.8,"toPaintMs":26.3,"pushP50":1.2,"pushP95":2,"frameP50":16.7,"frameP95":16.8,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":2.04,"scriptMsPerUpdate":0.03,"layoutStyleMsPerUpdate":0,"
+echarts-tuned scale 10000 {"toPaintMs":31.3,"runs":[30.5,31.3,36.9],"taskMs":65.2,"taskRuns":[59.2,65.2,73.7],"failedRuns":0}
+echarts-tuned scale 100000 {"toPaintMs":73.2,"runs":[66.5,73.2,83.2],"taskMs":119.4,"taskRuns":[116,119.4,135.2],"failedRuns":0}
+echarts-tuned scale 1000000 {"toPaintMs":445.8,"runs":[408.7,445.8,447.2],"taskMs":512.1,"taskRuns":[474.2,512.1,513.2],"failedRuns":0}
+echarts-tuned stream {"createMs":22.7,"toPaintMs":26.1,"pushP50":1.4,"pushP95":2.7,"frameP50":16.7,"frameP95":16.8,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":2.18,"scriptMsPerUpdate":0.04,"layoutStyleMsPerUpdate":0
+highcharts-tuned scale 10000 {"toPaintMs":94,"runs":[92.9,94,94.8],"taskMs":102.9,"taskRuns":[101.4,102.9,105.6],"failedRuns":0}
+highcharts-tuned scale 100000 {"toPaintMs":125.9,"runs":[118.7,125.9,128.2],"taskMs":153.1,"taskRuns":[146,153.1,154.7],"failedRuns":0}
+highcharts-tuned scale 1000000 {"toPaintMs":438.4,"runs":[430.9,438.4,451.6],"taskMs":513.1,"taskRuns":[505.7,513.1,541.4],"failedRuns":0}
+highcharts-tuned stream {"createMs":28.7,"toPaintMs":30,"pushP50":2.1,"pushP95":3.4,"frameP50":16.7,"frameP95":16.8,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":2.76,"scriptMsPerUpdate":0.02,"layoutStyleMsPerUpdate":0.4
+plotly-tuned scale 10000 {"toPaintMs":207.8,"runs":[205.3,207.8,209],"taskMs":215.2,"taskRuns":[211.4,215.2,216.7],"failedRuns":0}
+plotly-tuned scale 100000 {"toPaintMs":926.4,"runs":[893.9,926.4,959.1],"taskMs":934.7,"taskRuns":[900.8,934.7,967.9],"failedRuns":0}
+plotly-tuned scale 1000000 {"toPaintMs":8172.5,"runs":[8067.2,8172.5,8228.5],"taskMs":8200.1,"taskRuns":[8094.2,8200.1,8259.6],"failedRuns":0}
+plotly-tuned stream {"createMs":66.2,"toPaintMs":128.1,"pushP50":3.7,"pushP95":5.4,"frameP50":16.6,"frameP95":21.2,"framesOver20ms":23,"frames":300,"taskMsPerUpdate":17.33,"scriptMsPerUpdate":0.02,"layoutStyleMsPerUpdate
+recharts-tuned scale 10000 {"toPaintMs":91.2,"runs":[88.4,91.2,92],"taskMs":103.8,"taskRuns":[101.6,103.8,104.1],"failedRuns":0}
+recharts-tuned scale 100000 {"toPaintMs":546.8,"runs":[539.5,546.8,547.3],"taskMs":563.1,"taskRuns":[558.3,563.1,567.2],"failedRuns":0}
+recharts-tuned scale 1000000 {"toPaintMs":5594.2,"runs":[5573.7,5594.2,5613.5],"taskMs":5927.7,"taskRuns":[5864.4,5927.7,6015.3],"failedRuns":0}
+recharts-tuned stream {"createMs":3.7,"toPaintMs":36.4,"pushP50":3.9,"pushP95":4.8,"frameP50":16.7,"frameP95":16.8,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":4.72,"scriptMsPerUpdate":0.02,"layoutStyleMsPerUpdate":0.
