@@ -65,7 +65,8 @@ export function createFormatters(spec: FormatSpec, env: Pick<Environment, 'local
     x,
     missing(state: SlotState): string {
       if (state === SLOT_VALUE) return '';
-      // No row at this x for this series is "No observation"; every other non-value is "No data" (spec F2, I1).
+      // No row at this x for this series is "No observation"; every other non-value (null, invalid, gap,
+      // absent field) is "No data" (spec F2, I1).
       return state === SLOT_NO_ROW ? noObservation : noData;
     },
   };

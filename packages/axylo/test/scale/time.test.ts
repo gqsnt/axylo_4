@@ -26,9 +26,15 @@ function withCount(sets: TickCandidates, n: number) {
 }
 
 /** Local fields of an instant, read with Intl directly (independent of the code under test). */
+const oracles = new Map<string, Intl.DateTimeFormat>();
 function local(timeZone: string, t: number): { ymd: string; hm: string } {
+  let dtf = oracles.get(timeZone);
+  if (!dtf) {
+    dtf = new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    oracles.set(timeZone, dtf);
+  }
   const parts = Object.fromEntries(
-    new Intl.DateTimeFormat('en-US', { timeZone, hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    dtf
       .formatToParts(t)
       .map(p => [p.type, p.value]),
   );
@@ -201,7 +207,7 @@ describe('timeTickCandidates properties', () => {
           }
         }
       }),
-      { numRuns: 300 },
+      { numRuns: 1000 },
     );
   });
 
@@ -224,7 +230,7 @@ describe('timeTickCandidates properties', () => {
           expect(b).toBe(next);
         }
       }),
-      { numRuns: 200 },
+      { numRuns: 1000 },
     );
   });
 });

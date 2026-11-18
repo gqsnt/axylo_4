@@ -64,14 +64,17 @@ describe('bandTickCandidates', () => {
         const labels = Array.from({ length: n }, (_, i) => `c${i}`);
         const sets = bandTickCandidates(labels);
         expect(sets[0]!.length).toBe(n);
+        // Collected and asserted once: an expect per tick makes 1,000 runs too slow.
+        const problems: string[] = [];
         for (let s = 0; s < sets.length; s++) {
-          expect(sets[s]![0]!.value).toBe(0);
-          if (s > 0) expect(sets[s]!.length).toBeLessThan(sets[s - 1]!.length);
-          for (const t of sets[s]!) expect(t.label).toBe(labels[t.value]);
+          if (sets[s]![0]!.value !== 0) problems.push(`set ${s} does not start at the first category`);
+          if (s > 0 && sets[s]!.length >= sets[s - 1]!.length) problems.push(`set ${s} is not smaller`);
+          for (const t of sets[s]!) if (t.label !== labels[t.value]) problems.push(`set ${s} mislabels ${t.value}`);
         }
+        expect(problems).toEqual([]);
         expect(sets[sets.length - 1]!.length).toBe(1);
       }),
-      { numRuns: 200 },
+      { numRuns: 1000 },
     );
   });
 });

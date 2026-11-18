@@ -43,3 +43,23 @@ export async function openPage(options: BrowserContextOptions & { query?: string
 }
 
 export const url = (p: string): string => `${base}/${p}`;
+
+/**
+ * Bundles a TypeScript entry for the browser and opens a page that has run it. The entry talks to the test
+ * through globals it sets on `window`. Use this to test a module in a real browser before the public bundle
+ * exposes it.
+ */
+export async function openEntry(entry: string, options: BrowserContextOptions & { query?: string; html?: string } = {}): Promise<Page> {
+  const { build } = await import('esbuild');
+  const out = path.join(root, 'packages/axylo/test/browser/.out', path.basename(entry).replace(/\.tsx?$/, '.js'));
+  await build({ entryPoints: [path.resolve(root, entry)], bundle: true, format: 'iife', target: 'es2022', define: { __DEV__: 'true' }, outfile: out, logLevel: 'silent' });
+  const { query = '', html, ...ctx } = options;
+  const context = await browser!.newContext({ viewport: { width: 900, height: 700 }, locale: 'en-US', timezoneId: 'UTC', ...ctx });
+  const page = await context.newPage();
+  const errors: string[] = [];
+  page.on('pageerror', e => errors.push(String(e)));
+  (page as Page & { errors: string[] }).errors = errors;
+  await page.goto(`${base}/packages/axylo/test/browser/${html ?? 'blank.html'}${query}`);
+  await page.addScriptTag({ url: `${base}/${path.relative(root, out)}` });
+  return page;
+}
