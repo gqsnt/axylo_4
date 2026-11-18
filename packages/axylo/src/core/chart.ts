@@ -12,7 +12,7 @@
  */
 import {
   SLOT_NO_ROW, SLOT_VALUE,
-  type DiagnosticInput, type Formatters, type Frame, type Layout, type Lookup, type MarkRenderer, type PickTarget,
+  type DatumRef, type DiagnosticInput, type Formatters, type Frame, type Layout, type Lookup, type MarkRenderer,
   type ReaderModel, type ResolvedTheme, type PaintBindings, type Scene, type TextStyle, type View,
 } from './contracts';
 import type { Chart, ChartEvents, Diagnostic, Messages, Point, Title, XValue } from '../public';
@@ -32,8 +32,8 @@ import { Delivery, StrictError, strictViolations, type DeliveryConsole } from '.
 import { createMeasurer, readTextStyle, resolveLocale, sameTextStyle, viewerTimeZone, watchEnvironment } from './environment';
 import { layoutInput, layoutKey, sameKey, type AxisContext } from './axes';
 import { createFigure, type Figure, type FigureModel } from '../dom/figure';
-import { createTooltip, type TooltipView } from '../dom/tooltip';
-import { sameTarget, watchPointer } from '../dom/pointer';
+import { createInteraction, type ControlsState, type Interaction } from '../dom/interaction';
+import { zoomApplies } from './focus';
 
 export type ChartKind = ChartType;
 
@@ -88,11 +88,17 @@ interface Accepted {
   readonly revision: number;
   readonly messages: Messages;
   readonly name: string;
+  /** Series the reader hid with the legend, by key (the view's hidden set). */
+  readonly hidden: ReadonlySet<string>;
 }
 
 type Display =
   | { readonly kind: 'ready' }
-  | { readonly kind: 'loading' | 'error' | 'empty' | 'internal'; readonly text: string };
+  | {
+    readonly kind: 'loading' | 'error' | 'empty' | 'internal'; readonly text: string;
+    /** The built-in message shown, or null when the author wrote the text. */
+    readonly message: keyof Messages | null;
+  };
 
 function object(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' ? value as Record<string, unknown> : {};
@@ -166,6 +172,13 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
   let delivered: readonly Diagnostic[] = [];
   let destroyed = false;
   let internalError: unknown = null;
+  /** `append` was called at least once: the pause control is offered (spec I6). */
+  let streaming = false;
+  let paused = false;
+  /** While paused: the store's newest frame, accepted but not shown. */
+  let held: Frame | null = null;
+  /** While paused, for scatter and donut: rows to apply on resume. */
+  let buffered: { rows: unknown[]; keep: number | undefined }[] = [];
   let epochs = 0;
   let commits = 0;
   const listeners = new Map<keyof ChartEvents<unknown>, Set<(payload: never) => void>>();
@@ -180,14 +193,14 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
     return toPublic(all, accepted.name);
   }
 
-  function viewStateFor(options: OptionRecord, resolved: ResolvedOptions, zoom: Span<XValue> | null, previous: View | null): ViewState {
+  function viewStateFor(options: OptionRecord, resolved: ResolvedOptions, zoom: Span<XValue> | null, previous: View | null, hidden: ReadonlySet<string>): ViewState {
     if (kind === 'donut') {
       const messages = resolveMessages(object(options.messages));
       return { kind, otherLabel: count => fill(messages.otherSlices, { count }), previous };
     }
     const value = resolved.values[0];
     const common = {
-      zoom, xField: resolved.x, xDomain: resolved.x.domain, valueDomain: value?.domain ?? null,
+      hidden, zoom, xField: resolved.x, xDomain: resolved.x.domain, valueDomain: value?.domain ?? null,
       valueField: value?.field, references: Array.isArray(options.reference) ? options.reference as never : [], previous,
     };
     if (kind === 'scatter') return { ...common, kind };
@@ -199,8 +212,8 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
     };
   }
 
-  function viewKeyFor(options: OptionRecord, resolved: ResolvedOptions, frame: Frame, zoom: Span<XValue> | null): unknown[] {
-    return [frame, zoom, resolved.x.domain, resolved.values[0]?.domain, options.reference, options.stacked, options.layout,
+  function viewKeyFor(options: OptionRecord, resolved: ResolvedOptions, frame: Frame, zoom: Span<XValue> | null, hidden: ReadonlySet<string>): unknown[] {
+    return [frame, zoom, [...hidden].sort().join('\u0000'), resolved.x.domain, resolved.values[0]?.domain, options.reference, options.stacked, options.layout,
       options.horizontal, options.compact, kind === 'donut' ? object(options.messages).otherSlices : null];
   }
 
@@ -215,16 +228,17 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
     epoch: number;
     zoom: Span<XValue> | null;
     follow: boolean;
+    hidden: ReadonlySet<string>;
   }
 
   function buildViewFor(draft: Draft, previous: Accepted | null): Pick<Accepted, 'view' | 'viewKey' | 'viewDiagnostics'> {
-    const key = viewKeyFor(draft.options, draft.resolved, draft.frame, draft.zoom);
+    const key = viewKeyFor(draft.options, draft.resolved, draft.frame, draft.zoom, draft.hidden);
     if (previous && sameValue(previous.viewKey, key)) {
       return { view: previous.view, viewKey: previous.viewKey, viewDiagnostics: previous.viewDiagnostics };
     }
     stage('view');
     const sink = new DiagnosticCollector();
-    const view = buildView(draft.frame as never, viewStateFor(draft.options, draft.resolved, draft.zoom, previous?.view ?? null) as never, sink) as View;
+    const view = buildView(draft.frame as never, viewStateFor(draft.options, draft.resolved, draft.zoom, previous?.view ?? null, draft.hidden) as never, sink) as View;
     const viewDiagnostics = sink.inputs();
     draft.found.push(...viewDiagnostics);
     return { view, viewKey: key, viewDiagnostics };
@@ -239,6 +253,8 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
 
   function normalizeInto(draft: Draft): void {
     stage('normalize');
+    // Rows held back while paused belonged to the store this replaces.
+    held = null;
     const sink = new DiagnosticCollector();
     const version = { epoch: draft.epoch, revision: (accepted?.frame.revision ?? 0) + 1 };
     if (kind === 'line' || kind === 'area' || kind === 'bar') {
@@ -270,9 +286,10 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
       options: draft.options, resolved: draft.resolved, store: draft.store, frame: draft.frame,
       dataDiagnostics: draft.dataDiagnostics, optionDiagnostics: [...dedupe(draft.optionDiagnostics, draft.dataDiagnostics), ...naming],
       ...viewed, zoom: draft.zoom, follow: draft.follow, epoch: draft.epoch, revision: ++commits,
-      messages: resolveMessages(object(draft.options.messages)), name,
+      messages: resolveMessages(object(draft.options.messages)), name, hidden: draft.hidden,
     };
     internalError = null;
+    clearInternal();
     deliverChanges();
     schedule();
   }
@@ -298,6 +315,7 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
       if (error instanceof StrictError) throw error;
       internalError = error;
       delivery.internal(accepted?.name ?? id, error);
+      raiseInternal(error);
       schedule();
     }
   }
@@ -313,7 +331,7 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
       const draft: Draft = {
         options: next, resolved, found, optionDiagnostics: sink.inputs(), store: previous?.store ?? null, frame: previous?.frame as Frame,
         dataDiagnostics: previous?.dataDiagnostics ?? [], epoch: previous?.epoch ?? 0,
-        zoom: previous?.zoom ?? null, follow: previous?.follow ?? false,
+        zoom: previous?.zoom ?? null, follow: previous?.follow ?? false, hidden: previous?.hidden ?? new Set(),
       };
       const encodingChanged = !previous || changed.has('data') ||
         ENCODING_KEYS.some(key => changed.has(key) && !sameValue(previous.options[key], next[key]));
@@ -328,13 +346,25 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
   function append(rows: unknown, options?: { keep?: number }): void {
     guarded(() => {
       const previous = accepted;
-      if (!previous || !Array.isArray(rows) || rows.length === 0) return;
+      if (!previous) return;
+      if (!streaming) {
+        streaming = true;
+        // The pause control appears (spec I6).
+        schedule();
+      }
+      if (!Array.isArray(rows) || rows.length === 0) return;
       stage('append');
       const keep = options?.keep;
+      if (paused && !previous.store) {
+        // Scatter and donut rebuild their frame from the rows; they are kept until resume.
+        buffered.push({ rows: [...rows], keep });
+        return;
+      }
       const draft: Draft = {
         options: previous.options, resolved: previous.resolved, found: [], optionDiagnostics: withoutNaming(previous),
         store: previous.store, frame: previous.frame,
         dataDiagnostics: previous.dataDiagnostics, epoch: previous.epoch, zoom: previous.zoom, follow: previous.follow,
+        hidden: previous.hidden,
       };
       if (previous.store) {
         const strict = previous.options.strict === true;
@@ -350,6 +380,14 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
         draft.frame = previous.store.append(rows, keep === undefined ? {} : { keep }, sink);
         draft.dataDiagnostics = previous.store.diagnostics;
         draft.found.push(...collected.inputs());
+        if (paused) {
+          // Spec I6: the rows are accepted (diagnostics are current, strict has judged them) but the view does
+          // not move. Frames are immutable snapshots, so the one on screen stays valid; resume shows the newest.
+          held = draft.frame;
+          accepted = { ...previous, dataDiagnostics: draft.dataDiagnostics };
+          deliverChanges();
+          return;
+        }
       } else {
         // Scatter and donut have no streaming store: the rows join the data and the frame is rebuilt.
         const data = appendRows(previous.options.data, rows, previous.resolved.x.field, keep);
@@ -390,7 +428,7 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
       const draft: Draft = {
         options: previous.options, resolved: previous.resolved, found: [], optionDiagnostics: withoutNaming(previous),
         store: previous.store, frame: previous.frame,
-        dataDiagnostics: previous.dataDiagnostics, epoch: previous.epoch, zoom: pair, follow: false,
+        dataDiagnostics: previous.dataDiagnostics, epoch: previous.epoch, zoom: pair, follow: false, hidden: previous.hidden,
       };
       finish(draft);
       const view = accepted!.view;
@@ -398,7 +436,66 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
       if (pair && view.kind !== 'donut') {
         accepted = { ...accepted!, follow: view.xDomain[1] >= view.xFull[1] && view.xDomain[0] > view.xFull[0] };
       }
+      const before = previous.view;
+      if (view.kind !== 'donut' && before.kind !== 'donut' &&
+        (view.xDomain[0] !== before.xDomain[0] || view.xDomain[1] !== before.xDomain[1] || (previous.zoom === null) !== (pair === null))) {
+        emit('zoom', zoomPayload(accepted!));
+      }
     });
+  }
+
+  /** The window shown, as the author would write it; null when the whole range is shown. */
+  function zoomPayload(a: Accepted): readonly [XValue, XValue] | null {
+    const view = a.view;
+    if (a.zoom === null || view.kind === 'donut') return null;
+    return [positionValue(a.frame, view.xDomain[0]), positionValue(a.frame, view.xDomain[1])];
+  }
+
+  /** A legend toggle: the series joins or leaves the view's hidden set (spec I2). */
+  function toggleSeries(key: string): void {
+    guarded(() => {
+      const previous = accepted;
+      if (!previous) return;
+      const hidden = new Set(previous.hidden);
+      if (!hidden.delete(key)) hidden.add(key);
+      const draft: Draft = {
+        options: previous.options, resolved: previous.resolved, found: [], optionDiagnostics: withoutNaming(previous),
+        store: previous.store, frame: previous.frame, dataDiagnostics: previous.dataDiagnostics, epoch: previous.epoch,
+        zoom: previous.zoom, follow: previous.follow, hidden,
+      };
+      finish(draft);
+    });
+  }
+
+  /** Pause and resume (spec I6). Resume shows the newest held frame and applies buffered rows in order. */
+  function setPaused(next: boolean): void {
+    if (destroyed || next === paused) return;
+    paused = next;
+    if (!next) {
+      const frame = held;
+      held = null;
+      const rows = buffered;
+      buffered = [];
+      try {
+        guarded(() => {
+          const previous = accepted;
+          if (!previous || frame === null) return;
+          const draft: Draft = {
+            options: previous.options, resolved: previous.resolved, found: [], optionDiagnostics: withoutNaming(previous),
+            store: previous.store, frame, dataDiagnostics: previous.dataDiagnostics, epoch: previous.epoch,
+            zoom: previous.zoom, follow: previous.follow, hidden: previous.hidden,
+          };
+          if (draft.follow && draft.zoom) followLatest(draft);
+          finish(draft);
+        });
+        for (const entry of rows) append(entry.rows, entry.keep === undefined ? {} : { keep: entry.keep });
+      } catch (error) {
+        // A strict chart rejects buffered rows here; there is no caller to throw to, so it is said instead.
+        if (!(error instanceof StrictError)) throw error;
+        win!.console.warn(error.message);
+      }
+    }
+    schedule();
   }
 
   // ── frame phase ────────────────────────────────────────────────────────────────────────────────
@@ -406,7 +503,24 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
   const renderer: MarkRenderer = requestedRenderer === 'svg' ? createSvgRenderer(doc) : createCanvasRenderer(doc);
   const textLayer: TextLayer = createTextLayer(doc);
   const figure: Figure = createFigure(root, id, { marks: renderer.element, text: textLayer.element });
-  const tooltip: TooltipView = createTooltip(figure.tooltip, figure.figure);
+  const interaction: Interaction = createInteraction(figure, renderer, {
+    zoom(window) {
+      const a = accepted;
+      if (!a) return;
+      zoom(window === null ? null : [positionValue(a.frame, window[0]), positionValue(a.frame, window[1])]);
+    },
+    toggle: key => toggleSeries(key),
+    pause: next => setPaused(next),
+    select(ref) {
+      const d = drawn;
+      const point = d ? pointFor(d, ref) : null;
+      if (point) emit('select', point);
+    },
+    hover(ref) {
+      const d = drawn;
+      emit('hover', d && ref ? pointFor(d, ref) : null);
+    },
+  });
   const measurer = createMeasurer(doc);
   ensureStyles(doc);
   const hadScheme = root.hasAttribute('data-axylo-scheme');
@@ -472,18 +586,63 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
 
   function display(a: Accepted): Display {
     const m = a.messages;
-    if (internalError !== null) return { kind: 'internal', text: m.internalError };
+    if (internalError !== null) return { kind: 'internal', text: m.internalError, message: 'internalError' };
     const state = a.options.state;
-    if (state === 'loading') return { kind: 'loading', text: m.loading };
+    if (state === 'loading') return { kind: 'loading', text: m.loading, message: 'loading' };
     if (state && typeof state === 'object') {
       const s = state as { error?: unknown; empty?: unknown };
-      if ('error' in s) return { kind: 'error', text: typeof s.error === 'string' && s.error ? s.error : m.error };
-      if ('empty' in s) return { kind: 'empty', text: typeof s.empty === 'string' && s.empty ? s.empty : m.empty };
+      if ('error' in s) {
+        const own = typeof s.error === 'string' && s.error !== '';
+        return { kind: 'error', text: own ? s.error as string : m.error, message: own ? null : 'error' };
+      }
+      if ('empty' in s) {
+        const own = typeof s.empty === 'string' && s.empty !== '';
+        return { kind: 'empty', text: own ? s.empty as string : m.empty, message: own ? null : 'empty' };
+      }
     }
     const all = [...a.optionDiagnostics, ...a.dataDiagnostics, ...a.viewDiagnostics];
-    if (all.some(d => d.effect === 'chart-error')) return { kind: 'error', text: m.error };
-    if (!hasData(a.view)) return { kind: 'empty', text: m.empty };
+    if (all.some(d => d.effect === 'chart-error')) return { kind: 'error', text: m.error, message: 'error' };
+    // Series the reader hid are still data: the chart stays ready, so the legend can show them again.
+    if (!hasData(a.view, true)) return { kind: 'empty', text: m.empty, message: 'empty' };
     return { kind: 'ready' };
+  }
+
+  /** The page's language, from the nearest `lang` (spec A10). */
+  function pageLang(): string | null {
+    const lang = root.closest('[lang]')?.getAttribute('lang')?.trim();
+    return lang ? lang : null;
+  }
+
+  /**
+   * `lang` for an element showing the built-in text of `key`: 'en' when the page is in another language and
+   * the author has not replaced that text (spec A10), else null.
+   */
+  function englishFor(a: Accepted): (key: keyof Messages) => string | null {
+    const lang = pageLang();
+    const foreign = lang !== null && !/^en(?:-|$)/i.test(lang);
+    const overrides = object(a.options.messages);
+    return key => foreign && typeof overrides[key] !== 'string' ? 'en' : null;
+  }
+
+  /** AX199 (spec 3.5): Axylo itself failed. Given to onDiagnostic and printed, beside the error state. */
+  function raiseInternal(error: unknown): void {
+    if (presentation.has('AX199:')) return;
+    const next = new Map(presentation);
+    const reason = error instanceof Error ? error.message : String(error);
+    // Built here because the registry has no entry for AX199 yet (see the report of chart core part 2).
+    next.set('AX199:', {
+      code: 'AX199', level: 'error', effect: 'chart-error', origin: 'presentation',
+      message: `Axylo failed while building the chart (${reason}). The chart shows its error state. This is a defect in Axylo; please report it with the data and options that cause it.`,
+    });
+    presentation = next;
+    deliverChanges();
+  }
+
+  function clearInternal(): void {
+    if (!presentation.has('AX199:')) return;
+    const next = new Map(presentation);
+    next.delete('AX199:');
+    presentation = next;
   }
 
   function formatSpec(a: Accepted): FormatSpec {
@@ -575,37 +734,56 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
       const all = [...a.optionDiagnostics, ...a.dataDiagnostics, ...a.viewDiagnostics, ...presentation.values()];
       const disclosure = readerDisclosure(all);
       const hiddenIn = (l: Layout | undefined) => l?.kind === 'plot' ? l.fit.x.hidden + l.fit.y.hidden : 0;
+      // With labelledBy the chart's name is the page's heading; the table caption repeats its text.
+      const by = stringOption(a.options, 'labelledBy');
+      const caption = by ? doc.getElementById(by)?.textContent?.trim() || undefined : undefined;
       const readerFor = (labelsHidden: number): { reader: ReaderModel; inputs: readonly unknown[] } => {
         const inputs = [view, formatters, a.messages, a.options.title, a.options.labelledBy, a.options.subtitle,
-          a.options.description, disclosure.omitted, disclosure.changed, labelsHidden, a.options.table, compact, locale];
+          a.options.description, disclosure.omitted, disclosure.changed, labelsHidden, a.options.table, compact, locale, caption];
         if (drawn && sameKey(drawn.readerInputs, inputs)) return { reader: drawn.reader, inputs: drawn.readerInputs };
         stage('reader');
         const title = a.options.title;
         const reader = buildReader({
           view, formatters: formatters!, messages: a.messages, type: a.messages[KIND_MESSAGES[kind]] || KIND_NAMES[kind],
           title: typeof title === 'string' || (title && typeof title === 'object') ? title as string | Title : undefined,
-          labelledBy: stringOption(a.options, 'labelledBy') ?? undefined,
+          labelledBy: by ?? undefined, caption,
           subtitle: stringOption(a.options, 'subtitle') ?? undefined,
           description: stringOption(a.options, 'description') ?? undefined,
           disclosure, labelsHidden, table: a.options.table !== false, compact, locale,
         });
         return { reader, inputs };
       };
+      const english = englishFor(a);
+      const noteLang = english('valuesNotShown') && english('valuesChanged') && english('labelsHidden');
       const modelFor = (reader: ReaderModel, tooSmall: boolean): FigureModel => ({
         compact, title: titleOf(a.options), labelledBy: stringOption(a.options, 'labelledBy'), name: reader.name || a.name,
         subtitle: stringOption(a.options, 'subtitle'), summary: reader.summary,
         summaryVisible: tooSmall, note: shown.kind === 'ready' ? reader.note : null,
         message: shown.kind === 'ready' ? null : shown.text,
+        messageLang: shown.kind !== 'ready' && shown.message ? english(shown.message) : null, noteLang,
       });
       let { reader, inputs: readerInputs } = readerFor(hiddenIn(drawn?.layout));
       stage('figure');
       figure.update(modelFor(reader, drawn?.layout.kind === 'too-small'));
+      // The legend and toolbar are in place before the plot is measured: they take their share of the
+      // container now, not after the first draw.
+      const controls: ControlsState = {
+        kind, view, formatters, messages: a.messages, reader, tooSmall: drawn?.layout.kind === 'too-small',
+        ready: shown.kind === 'ready', interactive: !compact, tooltip: a.options.tooltip !== false, legend: a.options.legend !== false,
+        zoom: zoomApplies(view, a.options.zoom) ? (a.options.zoom === 'touch' ? 'touch' : true) : false,
+        zoomed: view.kind !== 'donut' && a.zoom !== null && (view.xDomain[0] > view.xFull[0] || view.xDomain[1] < view.xFull[1]),
+        streaming, paused, epoch: a.epoch, english, pageLang: pageLang(),
+      };
+      // A control that came or went changes the plot's height now; measure it now rather than after a draw.
+      if (interaction.prepare(controls) && size) size = measure();
       size ??= measure();
 
       // Layout.
       const axisContext: AxisContext = {
         resolved: a.resolved, locale, compact,
         onFormatterError: field => addPresentation('AX160', field, { field }, 'changed'),
+        xLabelGiven: typeof object(a.options.x).label === 'string',
+        valueTitle: a.messages.value,
       };
       let layout: Layout;
       let lKey: readonly unknown[] | null = null;
@@ -680,10 +858,11 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
         drawnRevision: measured ? a.revision : drawn?.drawnRevision ?? 0,
       };
       deliverChanges();
-      if (measured) {
-        refreshTooltip();
-        settle(a.revision);
-      }
+      interaction.commit({
+        ...controls, reader, layout, lookup, bindings: theme!.bindings, theme: theme!.theme, pixelRatio,
+        tooSmall: layout.kind === 'too-small',
+      });
+      if (measured) settle(a.revision);
     } catch (error) {
       failSafe(error);
     }
@@ -700,9 +879,10 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
     const first = internalError === null;
     internalError = error;
     if (first) delivery.internal(accepted?.name ?? id, error);
+    raiseInternal(error);
     try {
       textLayer.render([]);
-      tooltip.hide();
+      interaction.clear();
       const m = accepted?.messages ?? resolveMessages(null);
       figure.update({
         compact: accepted ? isCompact(kind, accepted.options) : false, title: accepted ? titleOf(accepted.options) : null,
@@ -726,47 +906,10 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
     }
   }
 
-  // ── pointer and tooltip ────────────────────────────────────────────────────────────────────────
+  // ── events ─────────────────────────────────────────────────────────────────────────────────────
 
-  let pointer: { x: number; y: number } | null = null;
-  let active: PickTarget | null = null;
-
-  function present(): void {
-    const d = drawn;
-    if (!d || !pointer || d.display.kind !== 'ready' || isCompact(kind, d.accepted.options) || d.accepted.options.tooltip === false) {
-      if (active !== null) emit('hover', null);
-      active = null;
-      tooltip.hide();
-      return;
-    }
-    const target = d.lookup.pick(pointer.x, pointer.y);
-    if (target === null) {
-      if (active !== null) emit('hover', null);
-      active = null;
-      tooltip.hide();
-      return;
-    }
-    const changed = !sameTarget(active, target);
-    active = target;
-    const model = d.lookup.tooltip(target);
-    if (model.rows.length === 0) {
-      tooltip.hide();
-      return;
-    }
-    const box = figure.plot.getBoundingClientRect();
-    const outer = figure.figure.getBoundingClientRect();
-    tooltip.show(model, pointer.x + box.left - outer.left, pointer.y + box.top - outer.top,
-      count => fill(d.accepted.messages.moreRows, { count }));
-    if (changed) emit('hover', pointOf(d, target));
-  }
-
-  function refreshTooltip(): void {
-    if (pointer) present();
-  }
-
-  function pointOf(d: Drawn, target: PickTarget): Point<unknown> | null {
-    const ref = d.lookup.primary(target);
-    if (!ref) return null;
+  /** The public description of a datum, for `hover` and `select`. */
+  function pointFor(d: Drawn, ref: DatumRef): Point<unknown> | null {
     const text = d.lookup.datum(ref);
     if (!text) return null;
     const frame = d.accepted.frame;
@@ -840,17 +983,6 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
       schedule();
     },
   });
-  const stopPointer = watchPointer(figure.plot, {
-    move(x, y) {
-      pointer = { x, y };
-      present();
-    },
-    leave() {
-      pointer = null;
-      present();
-    },
-  });
-
   function destroy(): void {
     if (destroyed) return;
     destroyed = true;
@@ -859,8 +991,7 @@ export function createChart(kind: ChartKind, target: unknown, input: unknown, ov
     resizeObserver.disconnect();
     stopTheme();
     stopEnvironment();
-    stopPointer();
-    tooltip.hide();
+    interaction.destroy();
     renderer.destroy();
     textLayer.destroy();
     figure.destroy();
@@ -938,12 +1069,14 @@ function indexOf(values: Float64Array, x: number): number {
   return values[lo] === x ? lo : -1;
 }
 
-function hasData(view: View): boolean {
+/** Whether the view has something to draw; with `hidden`, series the reader hid count too. */
+function hasData(view: View, hidden = false): boolean {
   if (view.kind === 'donut') return view.slices.some(s => s.angles !== null);
-  if (view.kind === 'scatter') return view.frame.series.some((s, i) => view.visible[i] && s.x.length > 0);
+  const shown = (i: number) => view.visible[i] || (hidden && view.frame.series[i]!.drawable);
+  if (view.kind === 'scatter') return view.frame.series.some((s, i) => shown(i) && s.x.length > 0);
   const { start, end } = view.visibleSlots;
   return view.frame.series.some((s, i) => {
-    if (!view.visible[i]) return false;
+    if (!shown(i)) return false;
     for (let j = start; j < end; j++) if (s.slot[j] === SLOT_VALUE) return true;
     return false;
   });

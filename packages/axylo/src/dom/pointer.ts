@@ -1,29 +1,8 @@
 /**
- * Pointer input over the plot, as plot-container coordinates. Deciding what is under the pointer and
- * showing it are the caller's; this only reports where the pointer is and when it left.
+ * Comparing pick targets. Pointer, touch and drag input are handled by the interaction layer
+ * (dom/interaction.ts); this only says whether two targets name the same thing.
  */
 import type { PickTarget } from '../core/contracts';
-
-export interface PointerHandlers {
-  move(x: number, y: number): void;
-  leave(): void;
-}
-
-export function watchPointer(plot: HTMLElement, handlers: PointerHandlers): () => void {
-  const onMove = (event: PointerEvent): void => {
-    const box = plot.getBoundingClientRect();
-    handlers.move(event.clientX - box.left, event.clientY - box.top);
-  };
-  const onLeave = (): void => handlers.leave();
-  plot.addEventListener('pointermove', onMove);
-  plot.addEventListener('pointerleave', onLeave);
-  plot.addEventListener('pointercancel', onLeave);
-  return () => {
-    plot.removeEventListener('pointermove', onMove);
-    plot.removeEventListener('pointerleave', onLeave);
-    plot.removeEventListener('pointercancel', onLeave);
-  };
-}
 
 /** Two pick results name the same thing, so the tooltip need not be rebuilt. */
 export function sameTarget(a: PickTarget | null, b: PickTarget | null): boolean {

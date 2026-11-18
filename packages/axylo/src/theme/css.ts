@@ -138,14 +138,89 @@ ${forced}
     color: var(--axylo-text, currentColor); pointer-events: none;
   }
   .axylo-note { flex: none; margin: 0.5em 0 0; font-size: max(12px, 0.875em); }
-  .axylo-tooltip {
-    position: absolute; left: 0; top: 0; z-index: 1; pointer-events: none; box-sizing: border-box;
+  /* The tooltip can itself be hovered (spec I1, WCAG 1.4.13), so it takes pointer events. */
+  .axylo .axylo-tooltip, .axylo .axylo-readout {
+    position: absolute; left: 0; top: 0; z-index: 3; box-sizing: border-box;
     max-width: min(320px, 100%); padding: 4px 8px; border: 1px solid var(--axylo-axis, var(--axylo-default-axis)); border-radius: 4px;
     background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background))); color: var(--axylo-text, currentColor);
     font-size: max(12px, 0.875em); line-height: 1.4;
   }
-  .axylo-tooltip-title { font-weight: 600; }
-  .axylo-tooltip-row { display: flex; gap: 1em; justify-content: space-between; }
-  .axylo-tooltip-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  /* The fixed readout under the plot of a narrow tile (spec I1): it overlays what is below, so showing it
+     never changes the figure's size. */
+  .axylo .axylo-readout { right: 0; max-width: none; }
+  .axylo .axylo-tooltip-title { font-weight: 600; }
+  .axylo .axylo-tooltip-row { display: flex; gap: 1em; justify-content: space-between; }
+  .axylo .axylo-tooltip-series { display: inline-flex; align-items: center; gap: 0.375em; min-width: 0; overflow-wrap: anywhere; }
+  .axylo .axylo-tooltip-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .axylo .axylo-tooltip-total {
+    margin-top: 2px; padding-top: 2px; border-top: 1px solid var(--axylo-axis, var(--axylo-default-axis));
+    text-align: end; font-weight: 600; font-variant-numeric: tabular-nums;
+  }
+  .axylo .axylo-swatch { flex: none; display: inline-block; overflow: visible; }
+
+  /*
+   * Interaction. The plot keeps a one-finger drag for the page (spec I4); with zoom: 'touch' pinch and
+   * two-finger pan come to the chart. Tick text is not selectable, so a drag selects a range, not text.
+   */
+  .axylo .axylo-plot { user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+  .axylo .axylo-plot.axylo-touch-zoom { touch-action: pan-x pan-y; }
+  .axylo .axylo-plot.axylo-zoomable { cursor: crosshair; }
+  /* The keyboard proxy (decision 0001): a native range over the plot, transparent, never in the pointer's way. */
+  .axylo .axylo-proxy {
+    position: absolute; z-index: 2; margin: 0; padding: 0; border: 0; box-sizing: border-box;
+    opacity: 0; pointer-events: none; appearance: none; -webkit-appearance: none; background: transparent;
+  }
+  /* The plot's focus indicator (spec A2): 2 px in the focus token, at least 3:1 in both schemes. */
+  .axylo .axylo-focus-ring {
+    position: absolute; z-index: 2; display: none; box-sizing: border-box; pointer-events: none;
+    outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px;
+  }
+  .axylo .axylo-proxy:focus-visible + .axylo-focus-ring { display: block; }
+  .axylo .axylo-selection {
+    position: absolute; z-index: 1; box-sizing: border-box; pointer-events: none;
+    border: 1px solid var(--axylo-focus, var(--axylo-default-focus));
+    background: color-mix(in srgb, var(--axylo-focus, var(--axylo-default-focus)) 16%, transparent);
+  }
+
+  /* Legend, toolbar and table, under the plot. */
+  .axylo .axylo-controls { flex: none; display: flex; flex-direction: column; gap: 0.5em; margin: 0.5em 0 0; min-width: 0; }
+  .axylo .axylo-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-width: 0; }
+  .axylo .axylo-control {
+    display: inline-flex; align-items: center; gap: 0.375em; box-sizing: border-box; min-width: 24px; min-height: 24px;
+    margin: 0; padding: 2px 8px; border: 1px solid var(--axylo-axis, var(--axylo-default-axis)); border-radius: 4px;
+    background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background))); color: var(--axylo-text, currentColor);
+    font: inherit; font-size: max(12px, 0.875em); line-height: 1.25; text-align: start; cursor: pointer;
+  }
+  /* Legend entries first; the other controls start on the right. */
+  .axylo .axylo-legend-entry + .axylo-control:not(.axylo-legend-entry) { margin-inline-start: auto; }
+  .axylo .axylo-control:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
+  .axylo .axylo-control[aria-disabled="true"] { cursor: default; border-style: dashed; }
+  /* Legend toggles read as legend entries; a hidden series keeps full-contrast text, struck through (spec L2). */
+  .axylo .axylo-legend-entry { border-color: transparent; padding-inline: 4px; }
+  .axylo .axylo-legend-entry:hover { border-color: var(--axylo-axis, var(--axylo-default-axis)); }
+  .axylo .axylo-legend-entry.axylo-struck .axylo-control-label { text-decoration: line-through; text-decoration-thickness: 1px; }
+  .axylo .axylo-legend-list {
+    display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; list-style: none; font-size: max(12px, 0.875em);
+  }
+  .axylo .axylo-legend-list > li { display: inline-flex; align-items: center; gap: 0.375em; min-width: 0; }
+  .axylo .axylo-legend-value { font-variant-numeric: tabular-nums; }
+  .axylo .axylo-table { display: flex; flex-direction: column; gap: 0.5em; min-width: 0; }
+  .axylo .axylo-table-scroll { overflow: auto; box-sizing: border-box; min-height: 0; border: 1px solid var(--axylo-grid, var(--axylo-default-grid)); }
+  .axylo .axylo-table-scroll:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
+  .axylo .axylo-table table { border-collapse: collapse; width: max-content; min-width: 100%; font-size: max(12px, 0.875em); font-variant-numeric: tabular-nums; }
+  .axylo .axylo-table caption { padding: 4px 8px; text-align: start; font-weight: 600; caption-side: top; }
+  .axylo .axylo-table th, .axylo .axylo-table td {
+    padding: 2px 8px; border-bottom: 1px solid var(--axylo-grid, var(--axylo-default-grid)); text-align: end; white-space: nowrap;
+  }
+  .axylo .axylo-table th[scope="row"], .axylo .axylo-table thead th:first-child { text-align: start; }
+  .axylo .axylo-table thead th { position: sticky; top: 0; background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background))); }
+  .axylo .axylo-pager { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: max(12px, 0.875em); }
+  .axylo .axylo-jump { display: inline-flex; align-items: center; gap: 0.375em; margin: 0; }
+  .axylo .axylo-jump-field {
+    box-sizing: border-box; min-height: 24px; width: 12em; padding: 2px 4px; font: inherit;
+    border: 1px solid var(--axylo-axis, var(--axylo-default-axis)); border-radius: 2px;
+    background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background))); color: var(--axylo-text, currentColor);
+  }
+  .axylo .axylo-jump-field:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
 }
 `;

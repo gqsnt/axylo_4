@@ -89,19 +89,29 @@ describe('resize (spec L3)', () => {
     expect(await closePage(page)).toEqual([]);
   });
 
-  it('a definite container height is filled: the plot takes what the caption leaves', async () => {
-    const page = await chartPage({ css: '#chart { height: 300px; }' });
+  // Part 2 put the legend and toolbar under the plot (spec A2), so the plot now takes what the caption and
+  // the controls leave; with no controls (legend, zoom and table off) it reaches the bottom as before.
+  it('a definite container height is filled: the plot takes what the caption and the controls leave', async () => {
+    const page = await chartPage({ css: '#chart { height: 300px; } #bare { height: 300px; width: 720px; }' });
     const result = await page.evaluate(async () => {
-      const chart = window.Axylo.line!('#chart', { title: 'Fixed', subtitle: 'Subtitle', data: window.fx.trendRows(), x: 'day', y: 'sessions', series: 'channel' });
-      await chart.__bench.ready();
-      const root = document.getElementById('chart')!.getBoundingClientRect();
-      const fig = document.querySelector('#chart figure')!.getBoundingClientRect();
-      const plot = document.querySelector('#chart .axylo-plot')!.getBoundingClientRect();
-      return { root: root.bottom, fig: fig.bottom, plot: plot.bottom, plotHeight: plot.height };
+      const options = { title: 'Fixed', subtitle: 'Subtitle', data: window.fx.trendRows(), x: 'day', y: 'sessions', series: 'channel' };
+      const chart = window.Axylo.line!('#chart', options);
+      const el = document.body.appendChild(Object.assign(document.createElement('div'), { id: 'bare' }));
+      const bare = window.Axylo.line!(el, { ...options, legend: false, zoom: false, table: false });
+      await Promise.all([chart.__bench.ready(), bare.__bench.ready()]);
+      const box = (selector: string) => document.querySelector(selector)!.getBoundingClientRect();
+      return {
+        root: box('#chart').bottom, fig: box('#chart figure').bottom, plot: box('#chart .axylo-plot').bottom,
+        plotHeight: box('#chart .axylo-plot').height, controls: box('#chart .axylo-controls'),
+        bare: { root: box('#bare').bottom, plot: box('#bare .axylo-plot').bottom, controls: (document.querySelector('#bare .axylo-controls') as HTMLElement).hidden },
+      };
     });
     expect(result.fig).toBeCloseTo(result.root, 0);
-    expect(result.plot).toBeCloseTo(result.root, 0);
+    expect(result.controls.bottom).toBeCloseTo(result.root, 0);
+    expect(result.plot).toBeLessThanOrEqual(result.controls.top);
     expect(result.plotHeight).toBeLessThan(300);
+    expect(result.bare.controls).toBe(true);
+    expect(result.bare.plot).toBeCloseTo(result.bare.root, 0);
     expect(await closePage(page)).toEqual([]);
   });
 });

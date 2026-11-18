@@ -3,8 +3,8 @@
  * it the figure holds the caption (title, subtitle, summary), the plot container (marks, text layer, state
  * message), the reader's note, a polite live region and the tooltip. Only text is ever set, never HTML.
  *
- * The keyboard layer, toolbar, legend and table come later; each is a sibling of the plot and gets its own
- * slot here without changing what exists.
+ * The interaction layer (dom/interaction.ts) adds the keyboard proxy inside the plot and fills `controls`
+ * (legend, toolbar, table) and `readout`; the figure only provides those slots.
  */
 
 export interface TitleModel {
@@ -28,12 +28,23 @@ export interface FigureModel {
   readonly note: string | null;
   /** Loading, empty, error or internal-error text shown inside the plot (spec L7); null when marks are shown. */
   readonly message: string | null;
+  /**
+   * `lang` for the message and the note: 'en' when they show built-in English on a page in another
+   * language (spec A10), else null.
+   */
+  readonly messageLang?: string | null;
+  readonly noteLang?: string | null;
 }
 
 export interface Figure {
   readonly figure: HTMLElement;
   readonly plot: HTMLElement;
   readonly tooltip: HTMLElement;
+  /** Fixed readout under the plot, used instead of the tooltip when it cannot fit beside the mark. */
+  readonly readout: HTMLElement;
+  /** Legend, toolbar and table, in that order, between the plot and the note. */
+  readonly controls: HTMLElement;
+  readonly id: string;
   update(model: FigureModel): void;
   /** Puts text in the polite live region (state changes only, spec L7, A7). */
   announce(text: string): void;
@@ -72,7 +83,9 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
   };
   const figure = make('figure', 'axylo-figure');
   figure.id = id;
-  const caption = make('figcaption', 'axylo-caption');
+  // A div, not figcaption: a figure with a figcaption may not take the group or img role (ARIA in HTML), and
+  // the figure is named and described through aria-labelledby and aria-describedby anyway.
+  const caption = make('div', 'axylo-caption');
   const title = make('div', 'axylo-title');
   title.id = `${id}-t`;
   title.setAttribute('role', 'heading');
@@ -95,14 +108,22 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
   const note = make('p', 'axylo-note');
   note.id = `${id}-n`;
   note.setAttribute('role', 'status');
+  // A status that is not live: the note can change as streamed data arrives (labels thinned, values left
+  // out), and data arriving must not speak (spec A7). The summary carries the same statements.
+  note.setAttribute('aria-live', 'off');
   note.hidden = true;
   const live = make('div', `axylo-live ${HIDDEN}`);
   live.setAttribute('aria-live', 'polite');
   const tooltip = make('div', 'axylo-tooltip');
   tooltip.hidden = true;
   tooltip.setAttribute('aria-hidden', 'true');
+  const readout = make('div', 'axylo-readout');
+  readout.hidden = true;
+  readout.setAttribute('aria-hidden', 'true');
+  const controls = make('div', 'axylo-controls');
+  controls.hidden = true;
   caption.append(title, subtitle, summary);
-  figure.append(caption, plot, note, live, tooltip);
+  figure.append(caption, plot, controls, note, live, tooltip, readout);
   root.appendChild(figure);
 
   let last: FigureModel | null = null;
@@ -111,6 +132,9 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
     figure,
     plot,
     tooltip,
+    readout,
+    controls,
+    id,
     update(model: FigureModel): void {
       if (last !== null && same(last, model)) return;
       last = model;
@@ -146,6 +170,8 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
       // The compact variant has no note element: the summary says what was left out, and a corner marker
       // shows it (spec C5); the marker's text equivalent is that description.
       setText(note, compact ? '' : model.note ?? '');
+      setAttr(note, 'lang', model.noteLang ?? null);
+      setAttr(message, 'lang', model.messageLang ?? null);
       show(note, !compact && model.note !== null);
       show(corner, compact && model.note !== null);
       setAttr(corner, 'title', compact ? model.note : null);
@@ -165,7 +191,7 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
 }
 
 function same(a: FigureModel, b: FigureModel): boolean {
-  return a.compact === b.compact && a.labelledBy === b.labelledBy && a.name === b.name && a.subtitle === b.subtitle &&
+  return a.compact === b.compact && a.messageLang === b.messageLang && a.noteLang === b.noteLang && a.labelledBy === b.labelledBy && a.name === b.name && a.subtitle === b.subtitle &&
     a.summary === b.summary && a.summaryVisible === b.summaryVisible && a.note === b.note && a.message === b.message &&
     (a.title === b.title || (a.title !== null && b.title !== null && a.title.text === b.title.text &&
       a.title.level === b.title.level && a.title.visible === b.title.visible));

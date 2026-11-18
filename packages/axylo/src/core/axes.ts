@@ -18,6 +18,10 @@ export interface AxisContext {
   readonly compact: boolean;
   /** Called once per field when an author tick formatter throws (the chart raises AX160). */
   readonly onFormatterError: (field: string, error: unknown) => void;
+  /** The author gave the x field a `label` (spec L6: only then is a time, date or category axis titled). */
+  readonly xLabelGiven: boolean;
+  /** Title of a value axis that shows several fields with no shared label (the `value` message). */
+  readonly valueTitle: string;
 }
 
 const scales = {
@@ -95,7 +99,7 @@ export function layoutInput(
     : visibleSeries.every(s => (s as { valueScale: unknown }).valueScale === firstScale) ? firstScale : null;
   const yTitle = view.kind === 'scatter'
     ? withUnit(view.frame.yLabel, view.frame.yUnit)
-    : view.frame.yLabel === null ? undefined : withUnit(view.frame.yLabel, value?.unit ?? null);
+    : withUnit(view.frame.yLabel ?? alignedValueTitle(view.frame.series, ctx.valueTitle), sharedUnit(view.frame.series));
   const y = {
     domain: view.yDomain, candidates: numberTicks(view.yDomain, ctx.locale, yOption, valueScale, onYError),
     title: ctx.compact ? undefined : yTitle, mayThin: true,
@@ -104,11 +108,13 @@ export function layoutInput(
 
   if (view.kind === 'scatter') {
     const x = continuousX(view.frame.xKind, view.xDomain, view.frame.timeZone, null, ctx);
-    return { ...common, kind: 'xy', x: { ...x, title: ctx.compact ? undefined : withUnit(view.frame.xLabel, view.frame.xUnit) }, y };
+    const title = ctx.compact || !xTitled(view.frame.xKind, ctx) ? undefined : withUnit(view.frame.xLabel, view.frame.xUnit);
+    return { ...common, kind: 'xy', x: { ...x, title }, y, references: view.references };
   }
 
   const column = view.frame.x;
-  const xTitle = ctx.compact ? undefined : withUnit(view.frame.xLabel, ctx.resolved.x.unit);
+  const xTitle = ctx.compact || !xTitled(column.kind, ctx) ? undefined : withUnit(view.frame.xLabel, ctx.resolved.x.unit);
+  const references = view.references;
   const onXError = (e: unknown) => ctx.onFormatterError(ctx.resolved.x.field, e);
   if (column.kind === 'category') {
     const labels = categoryLabels(column.categories ?? [], ctx.resolved.x.tickFormat, onXError);
@@ -117,16 +123,33 @@ export function layoutInput(
       candidates: bandTickCandidates(labels), mayThin: column.ordered, title: xTitle,
     };
     return view.kind === 'bar'
-      ? { ...common, kind: 'bands', horizontal: view.horizontal, x, y }
-      : { ...common, kind: 'xy', x, y };
+      ? { ...common, kind: 'bands', horizontal: view.horizontal, x, y, references }
+      : { ...common, kind: 'xy', x, y, references };
   }
   const domain = view.kind === 'bar'
     ? barDomain(column.values, view.visibleSlots.start, view.visibleSlots.end, view.xDomain)
     : view.xDomain;
   const x = { ...continuousX(column.kind, domain, column.timeZone, column.dateUnit, ctx), title: xTitle };
+  // A bar axis is padded by half a step; reference labels are placed against the domain actually shown.
   return view.kind === 'bar'
-    ? { ...common, kind: 'bands', horizontal: view.horizontal, x, y }
-    : { ...common, kind: 'xy', x, y };
+    ? { ...common, kind: 'bands', horizontal: view.horizontal, x, y, references, referenceXDomain: view.xDomain }
+    : { ...common, kind: 'xy', x, y, references };
+}
+
+/** Spec L6: a number x is a measure and is titled; time, date and category ticks already say what they are. */
+function xTitled(kind: XKind, ctx: AxisContext): boolean {
+  return kind === 'number' || ctx.xLabelGiven;
+}
+
+/** A value axis is always titled (spec L6): its label, else its one field, else the generic noun. */
+function alignedValueTitle(series: readonly { readonly field: string }[], generic: string): string {
+  const first = series[0]?.field;
+  return first !== undefined && series.every(s => s.field === first) ? first : generic;
+}
+
+function sharedUnit(series: readonly { readonly unit: string | null }[]): string | null {
+  const first = series[0]?.unit ?? null;
+  return series.every(s => s.unit === first) ? first : null;
 }
 
 /**
@@ -141,7 +164,8 @@ export function layoutKey(
   if (view.kind === 'donut') return base;
   const value = ctx.resolved.values[0];
   base.push(view.xDomain[0], view.xDomain[1], view.yDomain[0], view.yDomain[1], ctx.resolved.x.tickFormat,
-    ctx.resolved.x.label, ctx.resolved.x.unit, value?.tickFormat, value?.label, value?.unit, value?.scale);
+    ctx.resolved.x.label, ctx.resolved.x.unit, value?.tickFormat, value?.label, value?.unit, value?.scale,
+    ctx.xLabelGiven, ctx.valueTitle, view.references);
   base.push(...view.visible);
   if (view.kind === 'scatter') {
     base.push(view.frame.xKind, view.frame.timeZone, view.frame.xLabel, view.frame.yLabel);
