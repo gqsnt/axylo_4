@@ -179,6 +179,7 @@ Level decides delivery. **Error**: the chart or a series cannot be drawn; the ch
 | AX134 | Error | Series × x positions exceeds 20,000,000 (long rows with many series and little shared x) | Error state; the message gives both counts and suggests fewer series or a scatter chart |
 | AX152 | Warning | `timeZone` is not a zone the browser knows | The viewer's zone is used |
 | AX160 | Warning | A custom formatter threw | The default format is used for that value |
+| AX199 | Error | Axylo itself failed while building the chart | Error state with a generic message; the error is passed to `onDiagnostic` and printed |
 
 Expected results for the Phase 1 fixtures: the combined `dirty` fixture (`[10, 20, null, NaN, '40', undefined, 70]`) yields AX102, AX103 and AX106 once each, draws Mon–Tue as a segment and Sun as a point, and shows the F12 note. `dirty-string` (one `'40'` among numbers) yields AX106. A column made only of numeric strings yields AX104 and is drawn in full. `dirty-null` yields nothing.
 
