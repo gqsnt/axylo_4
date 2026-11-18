@@ -637,7 +637,7 @@ async function main() {
   const adapterUrl = new URL(`./adapters/${encodeURIComponent(adapterId)}.js`, location.href).href;
   const adapter = (await import(adapterUrl)).default;
   await adapter.load?.(adapterParams);
-  const meta = { id: adapter.id, library: adapter.library, version: adapter.version, config: adapter.configFor?.(adapterParams) ?? adapter.config, params: adapter.resolvedParams?.(adapterParams) ?? adapterParams, floor: !!adapter.floor, expectRenderer: adapter.expectRendererFor?.(adapterParams) ?? null };
+  const meta = { id: adapter.id, library: adapter.library, version: adapter.version, config: adapter.configFor?.(adapterParams) ?? adapter.config, params: adapter.resolvedParams?.(adapterParams) ?? adapterParams, floor: !!adapter.floor, expectRenderer: adapter.expectRendererFor?.(adapterParams) ?? null, bundle: adapter.bundleFor?.(adapterParams) ?? null };
   const avail = adapter.available(workload);
   if (!avail.ok) return done({ outcome: 'not-available', reason: avail.reason, adapter: meta, env });
   adapter.setup?.(adapterParams);

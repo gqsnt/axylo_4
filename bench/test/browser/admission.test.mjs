@@ -113,7 +113,7 @@ test('Axylo production build, both renderers, are admitted through adapter param
   for (const renderer of ['canvas', 'svg']) {
     const r = await runOnce(browser, server, { ...spec('axylo', 'first', { size: '3x120', gaps: false }), adapterParams: { renderer } });
     assert.equal(r.outcome, 'ok', r.reason ?? r.error);
-    assert.match(r.result.adapter.config, new RegExp(`${renderer} mark renderer \\(__renderer: '${renderer}'\\), production build`));
+    assert.match(r.result.adapter.config, new RegExp(`${renderer} mark renderer \\(__renderer: '${renderer}'\\), instrumented production build`));
   }
 });
 
@@ -182,4 +182,31 @@ test('P4 counts a stale or wrong readout as a missed deadline (Chart.js tuned co
   const r = await runOnce(browser, server, probe('chartjs-tuned', 'hover', { size: '1x10000', gaps: false, moves: 40 }));
   assert.equal(r.outcome, 'not-admitted');
   assert.match(r.reason, /committed a datum other than the one under the pointer/);
+});
+
+test('GPU mode: a software browser is refused the "gpu" label; with the GPU flags this machine reports a hardware renderer', async () => {
+  const { rasterInfo, rasterLabel } = await import('../../lib/driver.mjs');
+  const sw = rasterLabel(await rasterInfo(browser), true);
+  assert.equal(sw.mode, 'software');
+  assert.match(sw.refused, /SwiftShader/);
+  const gpuBrowser = await launchBrowser({ gpu: true });
+  try {
+    const g = rasterLabel(await rasterInfo(gpuBrowser), true);
+    // Machine-dependent: on a machine without a usable GPU this is refused, which is the point of the label.
+    if (g.refused) return;
+    assert.equal(g.mode, 'gpu');
+    assert.doesNotMatch(g.webglRenderer, /SwiftShader/);
+    const r = await runOnce(gpuBrowser, server, probe('axylo-svg', 'first', { fixture: 'trend' }));
+    assert.equal(r.outcome, 'ok', r.reason ?? r.error);
+    assert.doesNotMatch(r.result.env.webglRenderer, /SwiftShader/);
+  } finally { await gpuBrowser.close(); }
+});
+
+test('the release build (shipped bytes, no hook) gives sanity runs only; workloads use the instrumented build', async () => {
+  const rel = await runOnce(browser, server, { ...spec('axylo-svg', 'first', { fixture: 'trend' }), adapterParams: { build: 'release' } });
+  assert.equal(rel.outcome, 'ok', rel.reason ?? rel.error);
+  assert.equal(rel.result.adapter.bundle, 'axylo/axylo.iife.min.js');
+  assert.match(rel.admission.limits[0], /release build \(shipped bytes, no hook\): a sanity run/);
+  const ins = await runOnce(browser, server, spec('axylo-svg', 'first', { fixture: 'trend' }));
+  assert.equal(ins.result.adapter.bundle, 'axylo/axylo.bench.iife.min.js');
 });

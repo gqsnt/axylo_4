@@ -34,13 +34,13 @@ try {
   const r = await runOnce(browser, server, { adapter: ref.id, adapterParams: ref.params, workload: a.workload, params, settleMs: Number(a.settle), timeoutMs: 120000, profile: { file } });
   if (r.outcome !== 'ok') { console.error(`run outcome ${r.outcome}: ${r.reason ?? r.error}`); process.exitCode = 1; }
   else {
-    const buildKind = r.result.adapter.params?.build === 'dev' ? 'dev' : 'prod';
+    const buildKind = r.result.adapter.params?.build ?? 'prod';
     const map = artifactMap(artifact.dir, buildKind);
     const active = summarizeProfile(JSON.parse(fs.readFileSync(file, 'utf8')), { map, build: buildKind });
     const settleFile = file.replace(/\.cpuprofile$/, '.settle.cpuprofile');
     const settle = fs.existsSync(settleFile) ? summarizeProfile(JSON.parse(fs.readFileSync(settleFile, 'utf8')), { map, build: buildKind }) : null;
     const served = server.served().A;
-    const bundle = buildKind === 'dev' ? 'axylo/axylo.iife.js' : 'axylo/axylo.iife.min.js';
+    const bundle = `axylo/${r.result.adapter.bundle?.replace(/^axylo\//, '') ?? (buildKind === 'dev' ? 'axylo.iife.js' : 'axylo.bench.iife.min.js')}`;
     const record = {
       name, adapter: a.adapter, config: r.result.adapter.config, workload: a.workload, params,
       artifact: { id: artifact.id, dir: artifact.dir, source: artifact.source.head, axyloSourceHash: artifact.source.axyloSourceHash, bundle, bundleSha256: served[bundle] ?? 'not served', mapSha256: artifact.files[`${bundle}.map`]?.sha256 ?? 'not available' },

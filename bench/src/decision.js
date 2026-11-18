@@ -32,12 +32,31 @@ export const ENDPOINTS = Object.freeze([
   { id: 'P4', budget: 'P4', family: 'budget', workload: 'hover', params: { size: '1x100000', gaps: false, moves: 200 }, metric: 'inputToReadoutP95Ms', unit: 'ms', swi: 1.7, tol: 0.8 },
   { id: 'P7-mem', budget: 'P7', family: 'budget', workload: 'mem', params: { size: '1x1000000', gaps: false }, metric: 'ownedBytes', unit: 'bytes', swi: 0.10 * P7_COLUMNS, tol: 0.05 * P7_COLUMNS },
   { id: 'P7-lifecycle', budget: 'P7', family: 'budget', workload: 'lifecycle', params: { fixture: 'trend', cycles: 2500 }, metric: 'heapGrowth', unit: 'x', kind: 'gate', gate: 0.01 },
-].map(e => Object.freeze(e)));
+  // The "gpu" family (owner, 2026-11-18): the workloads decision 0002 left open because they depend on raster
+  // (resize, pixel ratio 2, process memory), measured with GPU rasterization (run.mjs --gpu) and judged by the same
+  // rules. Budgeted metrics keep their budget's thresholds; the others are frozen from this family's pilot.
+  { id: 'gpu-resize-100k', family: 'gpu', everyday: 'resize', chartType: 'line (resize)', workload: 'resize', params: { size: '1x100000', charts: 1 }, metric: 'taskMs', unit: 'ms', pilot: { swi: 0.10, tol: 0.05 } },
+  { id: 'gpu-resize-100k-late', family: 'gpu', everyday: 'resize', chartType: 'line (resize)', workload: 'resize', params: { size: '1x100000', charts: 1 }, metric: 'framesOverThreshold', unit: 'runs', kind: 'late-runs', lateMetric: 'framesOverThreshold' },
+  { id: 'gpu-resize-24', family: 'gpu', everyday: 'resize-24', chartType: 'line (dashboard resize)', workload: 'resize', params: { size: '3x120', charts: 24 }, metric: 'taskMs', unit: 'ms', pilot: { swi: 0.10, tol: 0.05 } },
+  { id: 'gpu-dpr2-P1', budget: 'P1', family: 'gpu', everyday: 'dpr2-P1', chartType: 'line', workload: 'first', params: { fixture: 'trend' }, dpr: 2, metric: 'taskMs', unit: 'ms', swi: 1, tol: 0.5 },
+  { id: 'gpu-dpr2-P2-100k', budget: 'P2', family: 'gpu', chartType: 'line', workload: 'first', params: { size: '1x100000', gaps: false }, dpr: 2, metric: 'taskMs', unit: 'ms', swi: 6, tol: 3 },
+  { id: 'gpu-dpr2-P5', budget: 'P5', family: 'gpu', everyday: 'dpr2-P5', chartType: 'line', workload: 'page', params: { fixture: 'trend', charts: 24 }, dpr: 2, metric: 'taskMs', unit: 'ms', swi: 20, tol: 10 },
+  { id: 'gpu-dpr2-P5-renderer-memory', family: 'gpu', chartType: 'line', workload: 'page', params: { fixture: 'trend', charts: 24 }, dpr: 2, metric: 'rendererPssChartBytes', unit: 'bytes', pilot: { swi: 0.10, tol: 0.05 } },
+  { id: 'gpu-dpr2-P5-gpu-memory', family: 'gpu', chartType: 'line', workload: 'page', params: { fixture: 'trend', charts: 24 }, dpr: 2, metric: 'gpuPssChartBytes', unit: 'bytes', pilot: { swi: 0.10, tol: 0.05 } },
+].map(e => Object.freeze({ raster: e.family === 'gpu' ? 'gpu' : 'software', ...e })));
 
-export const FAMILY = ENDPOINTS.filter(e => e.family === 'renderer');
+/** Decision families: endpoints judged together, each with its own Bonferroni level and everyday workloads. */
+export const FAMILIES = {
+  renderer: { endpoints: ENDPOINTS.filter(e => e.family === 'renderer'), everyday: ['P1', 'P3', 'P5', 'P8'], raster: 'software' },
+  // Interpretation: the gpu family's "everyday" cases are the dashboard and first-chart ones at pixel ratio 2 and
+  // the two resizes (each resize counted once, its task time with its late runs, like P3).
+  gpu: { endpoints: ENDPOINTS.filter(e => e.family === 'gpu'), everyday: ['dpr2-P1', 'dpr2-P5', 'resize', 'resize-24'], raster: 'gpu' },
+};
+export const levelOf = family => 1 - 0.05 / FAMILIES[family].endpoints.length;
+export const FAMILY = FAMILIES.renderer.endpoints;
 /** Nine endpoints judged together: Bonferroni, 1 − 0.05 / 9 = 99.44%. */
-export const FAMILY_LEVEL = 1 - 0.05 / FAMILY.length;
-export const EVERYDAY = ['P1', 'P3', 'P5', 'P8'];
+export const FAMILY_LEVEL = levelOf('renderer');
+export const EVERYDAY = FAMILIES.renderer.everyday;
 export const LOAD_LIMIT = 1.0;
 export const MIN_CONTROL_SESSIONS = 3;
 /** Section 5, "complexity is paid for": a kept second renderer needs a gain of at least four times the threshold. */
@@ -66,7 +85,9 @@ export function environmentKey(record) {
   const e = record.environment ?? {}, h = e.host ?? {};
   // Refresh rate as the page observed it, to the nearest hertz (a 60 Hz and a 120 Hz session are different conditions).
   const hz = Number.isFinite(e.page?.refresh?.hz) ? Math.round(e.page.refresh.hz) : null;
-  return JSON.stringify({ host: [h.hostname, h.cpuModel, h.logicalCores], chrome: e.browser?.version, headless: e.browser?.headless, dpr: record.design?.dpr ?? 1, refreshHz: hz, artifact: record.hashes?.slots?.A?.artifact, artifactB: record.hashes?.slots?.B?.artifact, settleMs: record.design?.settleMs });
+  // Raster mode (GPU or software, as observed) is part of the environment: the two are never mixed in one family.
+  // The pixel ratio is not: it belongs to the endpoint (checked there), and the gpu family has DPR 1 and 2 endpoints.
+  return JSON.stringify({ host: [h.hostname, h.cpuModel, h.logicalCores], chrome: e.browser?.version, headless: e.browser?.headless, raster: e.raster?.mode ?? 'software (not recorded)', refreshHz: hz, artifact: record.hashes?.slots?.A?.artifact, artifactB: record.hashes?.slots?.B?.artifact, settleMs: record.design?.settleMs });
 }
 
 const sameParams = (a, b) => JSON.stringify(Object.entries(a ?? {}).sort()) === JSON.stringify(Object.entries(b ?? {}).sort());
@@ -82,13 +103,14 @@ const filesOf = (record, adapter) => {
  * analysed at the family's interval level. Counted per metric: a session that lacks pairs for this metric does not
  * count. Returns the band edge (largest |end| over the qualifying sessions) or why there is none.
  */
-export function controlBand(endpoint, adapter, controls, env, level = FAMILY_LEVEL) {
+export function controlBand(endpoint, adapter, controls, env, level = levelOf(endpoint.family === 'gpu' ? 'gpu' : 'renderer')) {
   const used = [], rejected = [];
   for (const c of controls) {
     const why = [];
     if (c.design?.mode !== 'aa') why.push('not A-versus-A');
     if (c.design?.baseline !== adapter) why.push(`adapter ${c.design?.baseline}`);
     if (c.design?.workload !== endpoint.workload || !sameParams(c.design?.params, endpoint.params)) why.push('another workload or parameters');
+    if ((c.design?.dpr ?? 1) !== (endpoint.dpr ?? 1)) why.push(`pixel ratio ${c.design?.dpr ?? 1}`);
     if (environmentKey(c) !== env) why.push('another environment');
     const el = sessionEligibility(c);
     if (!el.eligible) why.push(...el.reasons);
@@ -128,8 +150,14 @@ export function assessEndpoint(endpoint, { record, controls = [], frozen = null,
   const el = sessionEligibility(record);
   if (!el.eligible) return { ...out, status: 'ineligible', runId: record.runId, why: el.reasons.join('; ') };
   if (environmentKey(record) !== e) return { ...out, status: 'ineligible', runId: record.runId, why: 'environment differs from the decision family\'s' };
-  if (record.design?.baseline !== RENDERERS.A.adapter || record.design?.candidate !== RENDERERS.B.adapter || record.design?.workload !== endpoint.workload || !sameParams(record.design?.params, endpoint.params))
-    return { ...out, status: 'ineligible', runId: record.runId, why: 'the record is not this endpoint\'s comparison (adapters, workload or parameters)' };
+  if (record.design?.baseline !== RENDERERS.A.adapter || record.design?.candidate !== RENDERERS.B.adapter || record.design?.workload !== endpoint.workload || !sameParams(record.design?.params, endpoint.params) || (record.design?.dpr ?? 1) !== (endpoint.dpr ?? 1))
+    return { ...out, status: 'ineligible', runId: record.runId, why: 'the record is not this endpoint\'s comparison (adapters, workload, parameters or pixel ratio)' };
+  const mode = record.environment?.raster?.mode ?? 'software (not recorded)';
+  if (record.environment?.raster && mode !== endpoint.raster) return { ...out, status: 'ineligible', runId: record.runId, why: `raster ${mode}; the ${endpoint.family} family is measured with ${endpoint.raster} rasterization` };
+  if (endpoint.raster === 'gpu' && !record.environment?.raster) return { ...out, status: 'ineligible', runId: record.runId, why: 'no raster record: not a GPU session' };
+  // Endpoint timings come from the instrumented production build only (its hook is the readiness signal).
+  const builds = new Set((record.runs ?? []).filter(r => r.phase === 'timed' && r.result?.adapter?.params).map(r => r.result.adapter.params.build ?? 'prod'));
+  for (const b of builds) if (b !== 'prod') return { ...out, status: 'ineligible', runId: record.runId, why: `timed runs used the ${b} build; endpoints need the instrumented production build` };
   // Not admitted at all: the side that failed admission failed the endpoint.
   if (record.analysis?.notCompared) {
     const failedA = record.analysis.notCompared.some(s => s.includes(RENDERERS.A.adapter)), failedB = record.analysis.notCompared.some(s => s.includes(RENDERERS.B.adapter));
@@ -141,11 +169,13 @@ export function assessEndpoint(endpoint, { record, controls = [], frozen = null,
   const uncalibrated = bands.filter(b => !b.calibrated);
   if (uncalibrated.length && !endpoint.kind) return { ...out, status: 'no-control', runId: record.runId, why: uncalibrated.map(b => b.why).join('; ') };
   const edge = endpoint.kind ? null : Math.max(bands[0].edge, bands[1].edge);
-  const a = analyze(endpoint.workload, record.runs, { level: FAMILY_LEVEL, bootstrapSeed: record.design?.bootstrapSeed ?? 12345, ...(endpoint.kind ? {} : { endpoint: { metric: endpoint.metric, swi: th.swi, tol: th.tol }, noise: { metrics: { [endpoint.metric]: { lo: -edge, hi: edge } } } }) });
+  const level = levelOf(endpoint.family === 'gpu' ? 'gpu' : 'renderer');
+  const a = analyze(endpoint.workload, record.runs, { level, bootstrapSeed: record.design?.bootstrapSeed ?? 12345, ...(endpoint.kind ? {} : { endpoint: { metric: endpoint.metric, swi: th.swi, tol: th.tol }, noise: { metrics: { [endpoint.metric]: { lo: -edge, hi: edge } } } }) });
   const failed = { A: a.reliability.failed.A, B: a.reliability.failed.B };
   if (endpoint.kind === 'late-runs') {
     const late = { A: 0, B: 0 };
-    for (const r of record.runs) if (r.phase === 'timed' && r.outcome === 'ok' && r.summary?.lateRun) late[r.config]++;
+    const key = endpoint.lateMetric ?? 'lateRun';
+    for (const r of record.runs) if (r.phase === 'timed' && r.outcome === 'ok' && r.summary?.[key] > 0) late[r.config]++;
     return { ...out, status: 'measured', runId: record.runId, failed, late, pairs: a.completePairs };
   }
   const m = a.metrics[endpoint.metric];
@@ -153,7 +183,7 @@ export function assessEndpoint(endpoint, { record, controls = [], frozen = null,
   if (m.pairs < MIN_PAIRS) return { ...out, status: 'exploratory', runId: record.runId, failed, why: `${m.pairs} complete pairs, fewer than ${MIN_PAIRS}` };
   const gap = Math.abs(m.byOrder.AB.diff - m.byOrder.BA.diff);
   if (Number.isFinite(gap) && gap > edge) return { ...out, status: 'carry-over', runId: record.runId, failed, why: `AB estimate ${m.byOrder.AB.diff}, BA estimate ${m.byOrder.BA.diff}: they differ by ${gap}, more than the noise edge ${edge}; rerun with a fresh browser process per run (--isolate)`, isolated: !!record.design?.isolate };
-  return { ...out, status: 'measured', runId: record.runId, failed, ci: { lo: m.lo, hi: m.hi, estimate: m.diff, level: FAMILY_LEVEL }, thresholds: m.endpoint.thresholds, classification: m.endpoint, medians: { A: m.medianA, B: m.medianB } };
+  return { ...out, status: 'measured', runId: record.runId, failed, ci: { lo: m.lo, hi: m.hi, estimate: m.diff, level }, thresholds: m.endpoint.thresholds, classification: m.endpoint, medians: { A: m.medianA, B: m.medianB } };
 }
 
 /** The pilot for one endpoint: frozen thresholds (budget-less endpoints) and whether AB and BA agree within the noise edge. */
@@ -200,21 +230,23 @@ const nameOf = side => RENDERERS[side].name;
  * opts.canvasBytesGzip: the measured marginal gzip size of the Canvas renderer (null when not measured).
  * Returns { kind: 'renderer' | 'renderer-with-kept' | 'none', default?, kept?, rule, missing, perEndpoint, open }.
  */
-export function decideRenderer(results, { canvasBytesGzip = null } = {}) {
+export function decideRenderer(results, { canvasBytesGzip = null, family = 'renderer' } = {}) {
+  const FAM = FAMILIES[family].endpoints, EVERY = FAMILIES[family].everyday;
   const byId = new Map(results.map(r => [r.id, r]));
   const missing = [];
-  for (const e of FAMILY) {
+  for (const e of FAM) {
     const r = byId.get(e.id);
     if (!r) missing.push({ endpoint: e.id, why: 'not assessed' });
     else if (r.status !== 'measured') missing.push({ endpoint: e.id, status: r.status, why: r.why });
     else if (!r.endpoint.kind && !r.classification && !(r.failed?.A || r.failed?.B)) missing.push({ endpoint: e.id, status: 'no-interval', why: r.why ?? 'no interval' });
   }
   const per = {};
-  for (const e of FAMILY) { const r = byId.get(e.id); if (r?.status === 'measured') per[e.id] = standing(r); }
+  for (const e of FAM) { const r = byId.get(e.id); if (r?.status === 'measured') per[e.id] = standing(r); }
   // Interpretation: an inconclusive interval (straddling a threshold) on a primary endpoint is rerun (section 5,
   // "inconclusive ... triggers a rerun, not a pass") before any branch applies.
   for (const [id, s] of Object.entries(per)) if (s.inconclusive && !s.A.failed && !s.B.failed) missing.push({ endpoint: id, status: 'inconclusive', why: 'the interval straddles a threshold: rerun' });
   const base = { perEndpoint: per, missing };
+  base.family = family;
   if (missing.length) return { ...base, kind: 'none', rule: 'no decision yet', open: missing.map(m => `${m.endpoint}: ${m.status ?? ''} ${m.why ?? ''}`.trim()) };
 
   const wins = { A: [], B: [] }, regress = { A: [], B: [] };
@@ -226,14 +258,15 @@ export function decideRenderer(results, { canvasBytesGzip = null } = {}) {
   // Rule 2: both win somewhere: count the everyday workloads, P3 as one.
   if (wins.A.length && wins.B.length) {
     const everyday = { A: [], B: [] };
-    for (const w of EVERYDAY) {
-      if (w === 'P3') {
-        const t = per['P3-task'], l = per['P3-late'];
-        for (const side of ['A', 'B']) {
-          const moreLate = l?.[side].beyondTol;
-          if (t?.[side].win && !moreLate) everyday[side].push('P3');
-        }
-      } else for (const side of ['A', 'B']) if (per[w]?.[side].win) everyday[side].push(w);
+    // An everyday workload is the endpoints that share its `everyday` name: a task-time endpoint with a late-runs
+    // endpoint (P3, a resize) is won only with the task-time win and no more late runs; more late runs lose it.
+    for (const w of EVERY) {
+      const members = FAM.filter(e => e.everyday === w);
+      const task = members.find(e => !e.kind), late = members.find(e => e.kind === 'late-runs');
+      for (const side of ['A', 'B']) {
+        const t = task && per[task.id], l = late && per[late.id];
+        if (t?.[side].win && !l?.[side].beyondTol) everyday[side].push(w);
+      }
     }
     if (everyday.A.length !== everyday.B.length) {
       const def = everyday.A.length > everyday.B.length ? 'A' : 'B', o = other(def);

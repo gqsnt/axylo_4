@@ -17,7 +17,11 @@ after(() => { removeArtifact(path.join(dir, 'a')); fs.rmSync(dir, { recursive: t
 test('an artifact is sealed: its own directory, read-only, every file hashed, the source recorded at build time', () => {
   const m = readArtifact(art.dir);
   assert.equal(m.id, 'a');
-  for (const f of ['index.html', 'page.js', 'adapters/axylo-svg.js', 'adapters/axylo-canvas.js', 'axylo/axylo.iife.min.js', 'axylo/axylo.iife.min.js.map', 'axylo/axylo.iife.js.map']) assert.ok(m.files[f]?.sha256, f);
+  for (const f of ['index.html', 'page.js', 'adapters/axylo-svg.js', 'adapters/axylo-canvas.js', 'axylo/axylo.iife.min.js', 'axylo/axylo.iife.min.js.map', 'axylo/axylo.bench.iife.min.js', 'axylo/axylo.bench.iife.min.js.map', 'axylo/axylo.iife.js.map']) assert.ok(m.files[f]?.sha256, f);
+  // Two production builds: the shipped recipe (no hook) and the instrumented one (__BENCH__ true); they differ.
+  assert.equal(m.source.recipe.release.__BENCH__, 'false');
+  assert.equal(m.source.recipe.instrumented.__BENCH__, 'true');
+  assert.notEqual(m.files['axylo/axylo.iife.min.js'].sha256, m.files['axylo/axylo.bench.iife.min.js'].sha256);
   assert.throws(() => fs.writeFileSync(path.join(art.dir, 'page.js'), 'x'), /EACCES|EPERM/);
   assert.match(m.source.head, /^[0-9a-f]{40}$|not available/);
   assert.ok(Object.keys(m.source.axyloInputs).some(p => p.endsWith('core/chart.ts')));

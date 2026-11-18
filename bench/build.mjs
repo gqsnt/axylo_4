@@ -19,6 +19,7 @@ import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
+import { pathToFileURL } from 'node:url';
 
 export const BENCH = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(BENCH, '..');
@@ -108,13 +109,38 @@ export async function build({ source = REPO, out = null } = {}) {
     define: { __VERSIONS__: JSON.stringify(versions), 'process.env.NODE_ENV': '"production"' },
   };
   const adapters = adapterSources();
-  // Same options as scripts/build.mjs for the two script-tag files, plus an external source map, which leaves the
-  // JavaScript byte-identical (checked below).
+  // The library's own build recipe (scripts/build.mjs of the source checkout): the production defines and the
+  // stylesheet plugin that inlines the minified stylesheet. Three script-tag files, each with an external source map
+  // (which leaves the JavaScript byte-identical, checked below):
+  //   axylo.iife.min.js        RELEASE: exactly the shipped recipe (PRODUCTION, no instrumentation), for the byte
+  //                            check, size and sanity runs (build=release); it has no __bench hook;
+  //   axylo.bench.iife.min.js  INSTRUMENTED production: the same with __BENCH__ = true, so the hook is attached when
+  //                            globalThis.__AXYLO_BENCH__ is true; every workload that reads the hook (build=prod);
+  //   axylo.iife.js            DEVELOPMENT (build=dev): hooks through __DEV__; profiles only.
+  // An older checkout without that recipe is built the old way and says so (recipe: 'legacy').
   const axyloCommon = { entryPoints: [path.join(srcDir, 'index.ts')], bundle: true, target: 'es2022', legalComments: 'none', logLevel: 'warning', format: 'iife', globalName: 'Axylo', absWorkingDir: source };
   const used = new Map();
+  let recipe = { kind: 'legacy', release: { __DEV__: 'false' }, bench: { __DEV__: 'false' }, dev: { __DEV__: 'true' }, plugins: () => [] };
+  const script = path.join(source, 'scripts/build.mjs');
+  if (snapshot.size && fs.existsSync(script)) {
+    const lib = await import(pathToFileURL(script).href);
+    if (lib.PRODUCTION && lib.DEVELOPMENT && lib.stylesheetPlugin) {
+      // The stylesheet text from the snapshot, through the library's own minifier, as scripts/build.mjs does.
+      const evaluate = async rel => {
+        const r = await esbuild({ entryPoints: [path.join(srcDir, rel)], bundle: true, format: 'esm', write: false, logLevel: 'silent', absWorkingDir: source, plugins: [snapshotPlugin(snapshot, srcDir, used)] });
+        return import('data:text/javascript;base64,' + Buffer.from(r.outputFiles[0].contents).toString('base64'));
+      };
+      const { AXYLO_CSS } = await evaluate('theme/css.ts');
+      const { minifyCss } = await evaluate('theme/minify.ts');
+      const minified = minifyCss(AXYLO_CSS);
+      recipe = { kind: 'scripts/build.mjs', release: lib.PRODUCTION, bench: { ...lib.PRODUCTION, __BENCH__: 'true' }, dev: lib.DEVELOPMENT, plugins: () => [lib.stylesheetPlugin(minified)], stylesheetSha256: sha256(minified) };
+    }
+  }
+  const prodPlugins = () => [...recipe.plugins(), snapshotPlugin(snapshot, srcDir, used)];
   const axyloBuilds = snapshot.size ? [
-    esbuild({ ...axyloCommon, minify: true, define: { __DEV__: 'false' }, sourcemap: 'external', outfile: path.join(dir, 'axylo/axylo.iife.min.js'), plugins: [snapshotPlugin(snapshot, srcDir, used)] }),
-    esbuild({ ...axyloCommon, define: { __DEV__: 'true' }, sourcemap: 'external', outfile: path.join(dir, 'axylo/axylo.iife.js'), plugins: [snapshotPlugin(snapshot, srcDir, used)] }),
+    esbuild({ ...axyloCommon, minify: true, define: recipe.release, sourcemap: 'external', outfile: path.join(dir, 'axylo/axylo.iife.min.js'), plugins: prodPlugins() }),
+    esbuild({ ...axyloCommon, minify: true, define: recipe.bench, sourcemap: 'external', outfile: path.join(dir, 'axylo/axylo.bench.iife.min.js'), plugins: prodPlugins() }),
+    esbuild({ ...axyloCommon, define: recipe.dev, sourcemap: 'external', outfile: path.join(dir, 'axylo/axylo.iife.js'), plugins: [snapshotPlugin(snapshot, srcDir, used)] }),
   ] : [];
   await Promise.all([
     esbuild({ ...common, entryPoints: [path.join(BENCH, 'src/page.js')], outfile: path.join(dir, 'page.js') }),
@@ -126,11 +152,12 @@ export async function build({ source = REPO, out = null } = {}) {
   let shippedOptions = 'not available: no Axylo sources';
   let distComparison = 'not available: no packages/axylo/dist/axylo.iife.min.js in the source checkout';
   if (snapshot.size) {
-    const plain = await esbuild({ ...axyloCommon, minify: true, define: { __DEV__: 'false' }, write: false, outfile: path.join(dir, 'axylo/axylo.iife.min.js'), plugins: [snapshotPlugin(snapshot, srcDir, new Map())] });
+    const plain = await esbuild({ ...axyloCommon, minify: true, define: recipe.release, write: false, outfile: path.join(dir, 'axylo/axylo.iife.min.js'), plugins: [...recipe.plugins(), snapshotPlugin(snapshot, srcDir, new Map())] });
     const built = fs.readFileSync(path.join(dir, 'axylo/axylo.iife.min.js'));
+    // Holds for the uninstrumented release copy only; the instrumented one differs by design (__BENCH__).
     shippedOptions = Buffer.compare(Buffer.from(plain.outputFiles[0].contents), built) === 0
-      ? 'identical: the measured bundle is byte-for-byte what scripts/build.mjs options produce from this snapshot'
-      : 'DIFFERENT: the source-mapped build differs from a plain build; the source map may not describe the measured bytes';
+      ? `identical: axylo.iife.min.js (release copy) is byte-for-byte what the ${recipe.kind} recipe produces from this snapshot`
+      : 'DIFFERENT: the source-mapped release build differs from a plain build; the source map may not describe the measured bytes';
     const dist = path.join(source, 'packages/axylo/dist/axylo.iife.min.js');
     if (fs.existsSync(dist)) distComparison = Buffer.compare(fs.readFileSync(dist), built) === 0 ? 'identical to packages/axylo/dist/axylo.iife.min.js at build time' : 'differs from packages/axylo/dist/axylo.iife.min.js at build time (that file was built from another source state)';
   }
@@ -149,6 +176,8 @@ export async function build({ source = REPO, out = null } = {}) {
       axyloInputs: inputs,
       axyloSourceHash: sha256(Object.entries(inputs).map(([p, h]) => `${p} ${h}\n`).join('')),
       shippedOptions, distComparison,
+      recipe: { kind: recipe.kind, release: recipe.release, instrumented: recipe.bench, development: recipe.dev, stylesheetSha256: recipe.stylesheetSha256 ?? 'not available: legacy recipe' },
+      bundles: { 'axylo/axylo.iife.min.js': 'release (shipped recipe, no hook)', 'axylo/axylo.bench.iife.min.js': 'instrumented production (__BENCH__ true)', 'axylo/axylo.iife.js': 'development' },
     },
     bench: { head: git(BENCH, ['rev-parse', 'HEAD']) ?? 'not available', uncommitted: (git(BENCH, ['status', '--short', '--', '.']) ?? 'not available') || 'clean' },
     esbuild: esbuildVersion,

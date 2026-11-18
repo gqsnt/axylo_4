@@ -27,6 +27,8 @@ node bench/build.mjs                                  # one sealed artifact in b
 node bench/run.mjs --endpoint P1            # also P2-100k, P2-1M, P3-task, P5, P8, scatter-50k, line-10x100k, zoom-100k
 node bench/run.mjs --endpoint P4 --baseline uplot --candidate axylo        # budget paths: `axylo` = the public default
 node bench/run.mjs --endpoint P7-lifecycle --aa axylo
+node bench/run.mjs --endpoint gpu-dpr2-P1 --gpu            # GPU rasterization (headless, --enable-gpu --use-angle=gl --ignore-gpu-blocklist)
+node bench/run.mjs --endpoint gpu-resize-24 --gpu --headed # GPU on the desktop (DISPLAY :0)
 # any workload by hand; 20 blocks by default (10 AB + 10 BA); --isolate = a fresh browser process per run
 node bench/run.mjs --baseline axylo-canvas --candidate axylo-svg --workload first --size 1x100000
 
@@ -52,7 +54,16 @@ Other options of `run.mjs`: `--size SxN`, `--fixture trend`, `--gaps` (5% missin
 `--charts`, `--toggles`, `--window`/`--samples`, `--moves`, `--cycles`, `--blocks` (even), `--settle` ms (default
 500), `--timeout` ms per run, `--seed` (block order) and `--bootstrap-seed` (both integers 0…2³²−1; anything else
 is an error, and both are recorded), `--dpr 1|2`, `--headed`, `--history-dir`, `--artifact <dir>` (reuse a sealed
-artifact), `--source <checkout>` (build the library from another checkout), `--endpoint <id>`, `--isolate`. `bench/results/m1-session.sh` is the
+artifact), `--source <checkout>` (build the library from another checkout), `--endpoint <id>`, `--isolate`, `--gpu`.
+
+**GPU mode** (`--gpu`): headless Chrome with `--enable-gpu --use-angle=gl --ignore-gpu-blocklist`, or with
+`--headed` the desktop browser. Every session records `environment.raster`: the WebGL unmasked renderer, Chrome's
+feature status for 2D canvas, rasterization and GPU compositing (CDP `SystemInfo.getInfo`, the data behind
+`chrome://gpu`), the GPU devices and GL strings, and the flags. The label is "gpu" only with a hardware WebGL renderer
+and accelerated 2D canvas and rasterization; a `--gpu` session that comes out software (SwiftShader) is refused, and a
+run whose own page reports SwiftShader is an error. The raster mode is part of the environment key: GPU and software
+sessions never serve the same decision family. On this machine: software (default) reports SwiftShader; `--gpu`
+reports "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060 SUPER/PCIe/SSE2, OpenGL ES 3.2)". `bench/results/m1-session.sh` is the
 historical M1 session script; it uses options this runner no longer has.
 
 ## Renderer decision (plan 5.1)
@@ -72,7 +83,14 @@ jobs and applies them. Endpoints (B − A = SVG − Canvas, lower is better):
 | line-10x100k | `first`, 10×100,000 | task time | same | |
 | zoom-100k | `zoom`, 1×100,000 | task time per step | same | |
 
-Budget endpoints outside the renderer family: P2-1M (25 / 12.5 ms), P4 (1.7 / 0.8 ms, nearest-rank p95), P7-mem
+Second family, **gpu** (`--family gpu`; GPU sessions only; eight endpoints at 99.375%; same rules): the workloads
+decision 0002 left open because they depend on raster. gpu-resize-100k (task time, pilot thresholds) with
+gpu-resize-100k-late (runs with a frame interval over the threshold), gpu-resize-24 (24 stacked charts), gpu-dpr2-P1
+(1 / 0.5 ms), gpu-dpr2-P2-100k (6 / 3 ms), gpu-dpr2-P5 (20 / 10 ms), and the DPR 2 dashboard's renderer and GPU
+process memory (PSS, chart minus data; pilot thresholds). Interpretation: its everyday workloads are DPR 2 P1, DPR 2
+P5 and the two resizes (a resize won only with its task-time win and no more late runs).
+
+Budget endpoints outside both families: P2-1M (25 / 12.5 ms), P4 (1.7 / 0.8 ms, nearest-rank p95), P7-mem
 (10% / 5% of two 1,000,000-value columns), P7-lifecycle (heap growth over 1% between cycles 1,500–2,000 and
 2,000–2,500 fails).
 
@@ -107,7 +125,8 @@ decision (the plan has no rule); P3-late compares counts of late runs directly, 
 renderer needs the 4× gain on a measured interval, not on a count; the control sessions are separate A-versus-A
 jobs in the same environment, not part of the comparison job.
 
-Command sequence on a quiet machine (`node bench/decision.mjs plan` prints it with the estimated durations):
+Command sequence on a quiet machine, per family (`node bench/decision.mjs plan` prints both with estimated
+durations: about 3.2 h for "renderer" and 2.2 h for "gpu"; the gpu family adds `--family gpu` to every step):
 
 ```bash
 node bench/build.mjs                                     # artifact <A>; the whole family uses it
@@ -121,10 +140,16 @@ node bench/decision.mjs decide --artifact <A>            # writes bench/decision
 
 `build.mjs` writes one artifact per session into its own directory and never rebuilds one in place:
 
-- the page and one ESM bundle per adapter (esbuild), and Axylo's two script-tag builds compiled **from source**
-  with the options of `scripts/build.mjs`, plus an external source map for each. The build checks that the map does
-  not change the JavaScript (`source.shippedOptions`) and compares the production bundle with the checkout's
-  `packages/axylo/dist` (`source.distComparison`);
+- the page and one ESM bundle per adapter (esbuild), and Axylo's script-tag builds compiled **from source** with the
+  library's own recipe (`PRODUCTION`/`DEVELOPMENT` defines and `stylesheetPlugin` from the checkout's
+  `scripts/build.mjs`, the stylesheet evaluated and minified from the snapshot), each with an external source map:
+  `axylo/axylo.iife.min.js`, the **release** copy (shipped recipe, `__BENCH__` false, no hook) for the byte check,
+  size and sanity runs (adapter `build=release`); `axylo/axylo.bench.iife.min.js`, the **instrumented** production
+  build (`__BENCH__` true, hook attached when `globalThis.__AXYLO_BENCH__` is true) for every workload (default
+  `build=prod`); `axylo/axylo.iife.js`, development (`build=dev`, profiles). The build checks that the release copy
+  is byte-identical to the recipe without a map (`source.shippedOptions`) and compares it with the checkout's
+  `packages/axylo/dist` (`source.distComparison`); `source.recipe` records the defines. Each run records the bundle it
+  loaded (`result.adapter.bundle`), and endpoint results accept only the instrumented build;
 - it reads every Axylo source file once into memory and compiles both builds from that snapshot, recording each
   file's sha256 (`source.axyloInputs`, `source.axyloSourceHash`), the git HEAD and the uncommitted changes of the
   source checkout, all at build time;
@@ -407,7 +432,11 @@ hashes; `probes` the untimed probe summaries (theme counters, frames to new colo
   simplification and lookup buffers), counted when called, with canvas backing stores excluded (they are reported
   separately).
 - **Stream rows**: the kept indexes of a streaming chart refer to rows of individual `append` calls; a window-relative
-  index (or the x of each kept slot) would let the stream be checked like a static chart.
+  index (or the x of each kept slot) would let the stream be checked like a static chart. The adapter will use
+  `series[i].keptBasis === 'window'` when present (until then the stream's kept list is not used).
+
+These land in `Probe` / `attachHooks` (`packages/axylo/src/core/instrument.ts`). The adapter uses each when present
+(`breaks`, `plot`, `memory()`, `keptBasis`) and reports "not available" otherwise.
 
 ## Observed in this revision (smoke runs, machine under load; not evidence)
 

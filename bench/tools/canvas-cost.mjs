@@ -11,7 +11,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { parseArgs } from 'node:util';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { REPO } from '../build.mjs';
 
 /** A module with the same export names as `source`, which does nothing. */
@@ -26,12 +26,19 @@ export function stubOf(source) {
 export async function canvasCost(source = REPO) {
   const srcDir = path.join(source, 'packages/axylo/src');
   const target = path.join(srcDir, 'render/canvas.ts');
-  const common = { entryPoints: [path.join(srcDir, 'index.ts')], bundle: true, target: 'es2022', legalComments: 'none', logLevel: 'silent', format: 'iife', globalName: 'Axylo', minify: true, define: { __DEV__: 'false' }, write: false, absWorkingDir: source };
+  // The shipped recipe (scripts/build.mjs): PRODUCTION defines and the stylesheet plugin, when the checkout has them.
+  let define = { __DEV__: 'false' }, base = [], recipe = 'legacy';
+  const script = path.join(source, 'scripts/build.mjs');
+  if (fs.existsSync(script)) {
+    const lib = await import(pathToFileURL(script).href);
+    if (lib.PRODUCTION && lib.stylesheetPlugin && lib.stylesheets) { define = lib.PRODUCTION; base = [lib.stylesheetPlugin((await lib.stylesheets()).minified)]; recipe = 'scripts/build.mjs'; }
+  }
+  const common = { entryPoints: [path.join(srcDir, 'index.ts')], bundle: true, target: 'es2022', legalComments: 'none', logLevel: 'silent', format: 'iife', globalName: 'Axylo', minify: true, define, write: false, absWorkingDir: source };
   const stub = { name: 'stub-canvas', setup(b) { b.onLoad({ filter: /render[\\/]canvas\.ts$/ }, args => (args.path === target ? { contents: stubOf(fs.readFileSync(target, 'utf8')), loader: 'ts' } : undefined)); } };
-  const [full, without] = await Promise.all([build(common), build({ ...common, plugins: [stub] })]);
+  const [full, without] = await Promise.all([build({ ...common, plugins: base }), build({ ...common, plugins: [...base, stub] })]);
   const size = b => { const buf = Buffer.from(b.outputFiles[0].contents); return { min: buf.length, gzip: zlib.gzipSync(buf, { level: 9 }).length, brotli: zlib.brotliCompressSync(buf).length }; };
   const a = size(full), w = size(without);
-  return { full: a, withoutCanvas: w, canvasBytesMin: a.min - w.min, canvasBytesGzip: a.gzip - w.gzip, canvasBytesBrotli: a.brotli - w.brotli, measuredAt: new Date().toISOString(), method: 'matched iife production builds, render/canvas.ts stubbed in one' };
+  return { full: a, withoutCanvas: w, canvasBytesMin: a.min - w.min, canvasBytesGzip: a.gzip - w.gzip, canvasBytesBrotli: a.brotli - w.brotli, measuredAt: new Date().toISOString(), method: `matched iife production builds (${recipe} recipe), render/canvas.ts stubbed in one` };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

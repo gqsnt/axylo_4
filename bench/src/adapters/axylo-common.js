@@ -32,12 +32,15 @@
 // Streaming uses chart.append(rows, { keep: window }), the spec's API for a moving window.
 
 const NO_HOOK = 'this Axylo build has no benchmark hook (chart.__bench); use a development build or set __AXYLO_BENCH__';
-const FILES = { prod: './axylo/axylo.iife.min.js', dev: './axylo/axylo.iife.js' };
+// prod = the instrumented production build (shipped recipe with __BENCH__ true: the hook exists); release = the
+// shipped bytes exactly (no hook: sanity runs only, see `sanity` below); dev = the development build.
+const FILES = { prod: './axylo/axylo.bench.iife.min.js', release: './axylo/axylo.iife.min.js', dev: './axylo/axylo.iife.js' };
+const BUILD_LABEL = { prod: 'instrumented production build (axylo.bench.iife.min.js)', release: 'RELEASE build, shipped bytes (axylo.iife.min.js), no hook', dev: 'DEVELOPMENT build (axylo.iife.js)' };
 
 const resolve = (fixed, params) => {
   const p = { build: 'prod', ...params, ...fixed };
   if (p.renderer !== undefined && !['canvas', 'svg'].includes(p.renderer)) throw new Error(`axylo: renderer must be canvas or svg, got ${p.renderer}`);
-  if (!FILES[p.build]) throw new Error(`axylo: build must be prod or dev, got ${p.build}`);
+  if (!FILES[p.build]) throw new Error(`axylo: build must be prod, release or dev, got ${p.build}`);
   return p;
 };
 
@@ -163,7 +166,8 @@ export function axyloAdapter(id, fixed = {}) {
     library: 'Axylo',
     version: __VERSIONS__.axylo,
     config: 'default',
-    configFor: params => { const p = resolve(fixed, params); return `default options, ${p.renderer ? `${p.renderer} mark renderer (__renderer: '${p.renderer}')` : 'the public default mark renderer (no __renderer)'}, ${p.build === 'prod' ? 'production build (axylo.iife.min.js)' : 'DEVELOPMENT build (axylo.iife.js)'}`; },
+    configFor: params => { const p = resolve(fixed, params); return `default options, ${p.renderer ? `${p.renderer} mark renderer (__renderer: '${p.renderer}')` : 'the public default mark renderer (no __renderer)'}, ${BUILD_LABEL[p.build]}`; },
+    bundleFor: params => FILES[resolve(fixed, params).build].slice(2),
     resolvedParams: params => resolve(fixed, params),
     expectRendererFor: params => resolve(fixed, params).renderer ?? null,
     async load(params) {
@@ -194,8 +198,13 @@ export function axyloAdapter(id, fixed = {}) {
       }
       const hook = chart.__bench;
       let ready;
+      const sanity = p.build === 'release';
       if (hook) ready = hook.ready();
-      else {
+      else if (sanity) {
+        // The shipped bytes have no hook: readiness is two animation frames, a guess, so a release run is a sanity
+        // run (does the shipped bundle draw a chart without errors), never a timing for an endpoint.
+        ready = new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+      } else {
         ready = Promise.reject(Object.assign(new Error(NO_HOOK), { benchNotAdmitted: true }));
         ready.catch(() => {}); // the page reads the reason; avoid an unhandled-rejection report
       }
@@ -268,6 +277,11 @@ export function axyloAdapter(id, fixed = {}) {
           return { expected, marks };
         },
         describe({ capture, probe } = {}) {
+          if (!hook && sanity) {
+            const r = rendererIn(el);
+            const marks = r.kind === 'svg' ? (svgStrokes(el)?.strokes.length ?? 0) : (el.querySelector('.axylo-canvas canvas')?.width ?? 0);
+            return { sanity: true, reads: 'release build: no hook; renderer elements and whether marks exist', renderer: r, hasMarks: marks > 0 };
+          }
           if (!hook) return null;
           const d = hook.describe();
           const renderer = rendererIn(el, d.renderer ?? null);
@@ -281,7 +295,7 @@ export function axyloAdapter(id, fixed = {}) {
           // are rows of the individual append calls, which this readback does not map, so they are not used there.
           const drawnOf = s => {
             if (opts.kind === 'scatter') return { kind: 'points' };
-            if (Array.isArray(s.kept) && !opts.window) return Array.isArray(s.breaks) ? { kind: 'indices', paths: keptPaths(s.kept, s.breaks), source: 'kept + breaks' } : { kind: 'kept', kept: s.kept };
+            if (Array.isArray(s.kept) && (!opts.window || s.keptBasis === 'window')) return Array.isArray(s.breaks) ? { kind: 'indices', paths: keptPaths(s.kept, s.breaks), source: 'kept + breaks' } : { kind: 'kept', kept: s.kept };
             if (drawnPixels) return { kind: 'pixels' };
             return { kind: 'not-captured', reason: opts.window ? 'stream: kept indexes refer to append calls; strokes captured only in the probe run' : 'this Axylo build reports no kept indexes; strokes are captured only in the probe run' };
           };

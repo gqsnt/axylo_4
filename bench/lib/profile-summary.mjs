@@ -73,7 +73,7 @@ export function positionMap(map) {
   };
 }
 
-const isAxylo = cf => /\/axylo\/axylo\.iife(\.min)?\.js/.test(cf.url);
+const isAxylo = cf => /\/axylo\/axylo(\.bench)?\.iife(\.min)?\.js/.test(cf.url);
 
 /**
  * @param profile  a CDP Profiler profile
@@ -122,6 +122,6 @@ export function summarizeProfile(profile, { map, build }) {
 
 /** The source map of the bundle a run loaded, from its artifact directory; null when absent. */
 export function artifactMap(artifactDir, build) {
-  const p = path.join(artifactDir, 'axylo', build === 'dev' ? 'axylo.iife.js.map' : 'axylo.iife.min.js.map');
+  const p = path.join(artifactDir, 'axylo', build === 'dev' ? 'axylo.iife.js.map' : build === 'release' ? 'axylo.iife.min.js.map' : 'axylo.bench.iife.min.js.map');
   return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null;
 }

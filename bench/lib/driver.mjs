@@ -45,8 +45,60 @@ export function startServer(slots) {
   })));
 }
 
-export async function launchBrowser({ headed = false } = {}) {
-  return chromium.launch({ channel: 'chrome', headless: !headed });
+/** Flags that let headless Chrome rasterize on this machine's GPU (owner, 2026-11-18). Headed uses the desktop's. */
+export const GPU_FLAGS = ['--enable-gpu', '--use-angle=gl', '--ignore-gpu-blocklist'];
+
+export async function launchBrowser({ headed = false, gpu = false } = {}) {
+  const args = gpu ? (headed ? ['--ignore-gpu-blocklist'] : GPU_FLAGS) : [];
+  // A headed browser needs the desktop session; DISPLAY :0 unless the caller has one.
+  const env = headed ? { ...process.env, DISPLAY: process.env.DISPLAY ?? ':0' } : undefined;
+  return chromium.launch({ channel: 'chrome', headless: !headed, args, ...(env ? { env } : {}) });
+}
+
+/**
+ * What the browser says about rasterization, from a throwaway page and the browser's own report (the data behind
+ * chrome://gpu, CDP SystemInfo.getInfo): the WebGL unmasked renderer string, the feature status of 2D canvas,
+ * rasterization and compositing, the GPU device. `rasterLabel` turns it into the label a run may carry.
+ */
+export async function rasterInfo(browser) {
+  const info = { webglRenderer: 'not available', featureStatus: null, devices: null, gl: null };
+  let ctx;
+  try {
+    const cdp = await browser.newBrowserCDPSession();
+    const { gpu } = await cdp.send('SystemInfo.getInfo');
+    info.featureStatus = gpu?.featureStatus ?? null;
+    info.devices = (gpu?.devices ?? []).map(d => ({ vendor: d.vendorString || d.vendorId, device: d.deviceString || d.deviceId, driver: d.driverVersion }));
+    const aux = gpu?.auxAttributes ?? {};
+    info.gl = Object.fromEntries(Object.entries(aux).filter(([k]) => /^(gl|angle|skia|displayType|passthrough)/i.test(k)).map(([k, v]) => [k, String(v).slice(0, 200)]));
+    await cdp.detach().catch(() => {});
+    ctx = await browser.newContext();
+    const page = await ctx.newPage();
+    info.webglRenderer = await page.evaluate(() => {
+      const c = document.createElement('canvas');
+      const gl = c.getContext('webgl2') || c.getContext('webgl');
+      if (!gl) return 'not available: no WebGL context';
+      const ext = gl.getExtension('WEBGL_debug_renderer_info');
+      return ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : `not available: ${gl.getParameter(gl.RENDERER)}`;
+    });
+  } catch (e) { info.error = String(e?.message ?? e); }
+  finally { await ctx?.close().catch(() => {}); }
+  return info;
+}
+
+/**
+ * The raster label of a run or session: "gpu" only when the WebGL renderer is not SwiftShader (or another software
+ * rasterizer) and Chrome reports 2D canvas and rasterization hardware-accelerated; else "software". A run asked
+ * for GPU that comes out software is refused, never labelled "gpu".
+ */
+export function rasterLabel(info, requestedGpu) {
+  const r = String(info?.webglRenderer ?? '');
+  const software = /swiftshader|llvmpipe|software|softpipe/i.test(r) || /^not available/.test(r);
+  const fs = info?.featureStatus ?? {};
+  const accel = k => typeof fs[k] === 'string' && fs[k].startsWith('enabled');
+  const canvas2d = fs['2d_canvas'] ?? 'not reported', rasterization = fs.rasterization ?? 'not reported';
+  const mode = !software && accel('2d_canvas') && accel('rasterization') ? 'gpu' : 'software';
+  const refused = requestedGpu && mode !== 'gpu' ? `GPU mode requested, but the browser reports WebGL "${r}", 2D canvas "${canvas2d}", rasterization "${rasterization}": not a GPU run` : null;
+  return { mode, requested: requestedGpu ? 'gpu' : 'default (software here)', webglRenderer: r, canvas2d, rasterization, gpuCompositing: fs.gpu_compositing ?? 'not reported', refused };
 }
 
 const tryRead = (p, fallback) => { try { return fs.readFileSync(p, 'utf8').trim(); } catch { return fallback; } };
@@ -95,6 +147,16 @@ export function expectedFor(workload, params) {
 export function admit(spec, result, floor, { requireDrawn = false } = {}) {
   if (floor) return { admitted: true, reasons: ['not applicable: measurement floor, draws nothing'], limits: [] };
   if (!Array.isArray(result.describe)) return { admitted: false, reasons: ['no readback'], limits: [] };
+  // Release-build sanity runs: the shipped bytes, no hook. Admitted only as a sanity run: the renderer named, marks
+  // present, no page error; the limit says it is no timing for an endpoint.
+  if (result.describe.length && result.describe.every(d => d?.sanity)) {
+    const reasons = [];
+    result.describe.forEach((d, i) => {
+      if (result.adapter?.expectRenderer && d.renderer.kind !== result.adapter.expectRenderer) reasons.push(`chart ${i}: renderer ${d.renderer.kind}, asked for ${result.adapter.expectRenderer}`);
+      if (!d.hasMarks) reasons.push(`chart ${i}: no marks drawn`);
+    });
+    return { admitted: !reasons.length, reasons, limits: ['release build (shipped bytes, no hook): a sanity run, readiness guessed from two frames; not a timing for any endpoint'], sanity: true };
+  }
   const exp = expectedFor(spec.workload, spec.params);
   if (result.checksum !== exp.checksum) return { admitted: false, reasons: [`page fixture checksum ${result.checksum} differs from the runner's ${exp.checksum}`], limits: [] };
   const expectRenderer = result.adapter?.expectRenderer;

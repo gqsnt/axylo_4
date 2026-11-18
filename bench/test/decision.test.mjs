@@ -197,3 +197,47 @@ test('the pilot freezes budget-less thresholds at 10% and 5% of the slower media
   assert.equal(p.isolate, false);
   assert.equal(assessPilot(e, rec, null).isolate, 'unknown: no calibrated control yet');
 });
+
+test('raster label: "gpu" only for a hardware WebGL renderer with accelerated 2D canvas and rasterization', async () => {
+  const { rasterLabel } = await import('../lib/driver.mjs');
+  const gpu = { webglRenderer: 'ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060 SUPER/PCIe/SSE2, OpenGL ES 3.2)', featureStatus: { '2d_canvas': 'enabled', rasterization: 'enabled', gpu_compositing: 'enabled' } };
+  const sw = { webglRenderer: 'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)', featureStatus: { '2d_canvas': 'unavailable_software', rasterization: 'disabled_software' } };
+  assert.equal(rasterLabel(gpu, true).mode, 'gpu');
+  assert.equal(rasterLabel(gpu, true).refused, null);
+  assert.equal(rasterLabel(sw, false).mode, 'software');
+  assert.match(rasterLabel(sw, true).refused, /GPU mode requested, but the browser reports WebGL "ANGLE \(Google, Vulkan 1\.3\.0 \(SwiftShader/);
+  // A hardware renderer string with software canvas is not a GPU run either.
+  assert.equal(rasterLabel({ ...gpu, featureStatus: { '2d_canvas': 'unavailable_software', rasterization: 'enabled' } }, true).mode, 'software');
+});
+
+test('GPU and software sessions are different environments; each family takes only its own', () => {
+  const runs = timedRuns(20, () => 10, () => 10);
+  const sw = comparison(runs);
+  const gpuRec = { ...sw, environment: { ...sw.environment, raster: { mode: 'gpu' } } };
+  assert.notEqual(environmentKey(sw), environmentKey(gpuRec));
+  // A GPU session offered to the software family's P1 is refused.
+  assert.match(assessEndpoint(P1, { record: { ...gpuRec, environment: { ...gpuRec.environment } }, controls: controlsFor(['axylo-canvas', 'axylo-svg']) }).why, /raster gpu; the renderer family is measured with software rasterization/);
+  // The gpu family refuses a record without a raster record.
+  const e = endpointById('gpu-dpr2-P1');
+  assert.match(assessEndpoint(e, { record: { ...sw, design: { ...sw.design, dpr: 2 } } }).why, /no raster record/);
+});
+
+test('the gpu family: eight endpoints at 99.375%, same rule; a resize is won only without more late runs', async () => {
+  const { FAMILIES, levelOf } = await import('../src/decision.js');
+  assert.equal(FAMILIES.gpu.endpoints.length, 8);
+  assert.ok(Math.abs(levelOf('gpu') - 0.99375) < 1e-9);
+  const gres = (id, d, extra = {}) => res(id, d, extra);
+  const equal = over => FAMILIES.gpu.endpoints.map(e => over[e.id] ?? gres(e.id, [-0.01 * (e.swi ?? 1), 0.01 * (e.swi ?? 1)], { swi: e.swi ?? 1, tol: e.tol ?? 0.5 }));
+  // SVG is 3 ms slower at DPR 2 on P1 (tolerance 0.5) and better nowhere: canvas, rule 1.
+  const r1 = decideRenderer(equal({ 'gpu-dpr2-P1': gres('gpu-dpr2-P1', [2, 4]) }), { family: 'gpu' });
+  assert.equal(r1.default, 'canvas');
+  assert.equal(r1.family, 'gpu');
+  // Canvas wins the 100k resize task time but had more late runs; SVG wins DPR 2 P5: SVG 1 everyday, canvas 0.
+  const r2 = decideRenderer(equal({
+    'gpu-resize-100k': gres('gpu-resize-100k', [30, 60], { swi: 10, tol: 5 }),
+    'gpu-resize-100k-late': gres('gpu-resize-100k-late', null, { late: { A: 3, B: 0 } }),
+    'gpu-dpr2-P5': gres('gpu-dpr2-P5', [-40, -25]),
+  }), { family: 'gpu', canvasBytesGzip: 2276 });
+  assert.equal(r2.default, 'svg');
+  assert.deepEqual(r2.everyday, { A: [], B: ['dpr2-P5'] });
+});

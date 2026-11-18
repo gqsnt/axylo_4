@@ -17,7 +17,7 @@ import crypto from 'node:crypto';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { build, readArtifact, BENCH } from './build.mjs';
-import { startServer, launchBrowser, runOnce, machineRecord, expectedFor } from './lib/driver.mjs';
+import { startServer, launchBrowser, runOnce, machineRecord, expectedFor, rasterInfo, rasterLabel } from './lib/driver.mjs';
 import { balancedOrder, summarizeRun, analyze, parseSeed, median, DEFAULT_BOOTSTRAP_SEED } from './src/stats.js';
 import { formatAnalysis } from './lib/report.mjs';
 import { parseAdapterRef, loadNoise, controlsOf, WORKLOADS } from './lib/refs.mjs';
@@ -75,6 +75,7 @@ export async function runSession(cfg) {
     startedAt: new Date().toISOString(),
     command: cfg.command ?? null,
     design: {
+      raster: cfg.gpu ? 'gpu' : 'software',
       mode: cfg.mode, baseline: cfg.A.ref, candidate: cfg.B.ref, labels: { A: cfg.A.ref, B: cfg.B.ref }, adapters: { A: refA, B: refB },
       ...(cfg.mode === 'builds' ? { builds: { A: cfg.artifacts.A.dir, B: cfg.artifacts.B.dir } } : {}),
       workload: cfg.workload, params: cfg.params, blocks: cfg.blocks, order, seed: cfg.seed, bootstrapSeed: cfg.bootstrapSeed,
@@ -122,8 +123,12 @@ export async function runSession(cfg) {
       const m = slots[cfg[side].slot];
       if (!m.adapters[ref.id]) throw new Error(`no adapter "${ref.id}" in artifact ${m.id} (have: ${Object.keys(m.adapters).join(', ')})`);
     }
-    browser = await launchBrowser({ headed: cfg.headed });
+    browser = await launchBrowser({ headed: cfg.headed, gpu: cfg.gpu });
     record.environment = { ...machineRecord(browser, { headed: cfg.headed }), libraries: cfg.artifacts.A.versions };
+    // Raster: what this browser actually does. A GPU session whose browser rasterizes in software is refused.
+    const raster = await rasterInfo(browser);
+    record.environment.raster = { ...rasterLabel(raster, !!cfg.gpu), detail: raster, flags: cfg.gpu ? (cfg.headed ? 'headed, --ignore-gpu-blocklist' : 'headless, --enable-gpu --use-angle=gl --ignore-gpu-blocklist') : 'Playwright defaults' };
+    if (record.environment.raster.refused) throw new Error(`refusing to label this session "gpu": ${record.environment.raster.refused}`);
     server = await startServer(slots);
     if (cfg.noiseIds) {
       const noise = loadNoise(cfg.noiseIds, cfg.historyDir, controlsOf(record));
@@ -138,10 +143,13 @@ export async function runSession(cfg) {
     // Every run goes through here: in isolated sessions each run gets its own browser process, and every run
     // records the Chrome version it ran in (a session counts only with one version).
     const execute = async s => {
-      if (!cfg.isolate) return { ...(await runOnce(browser, server, s)), chromeVersion: browser.version() };
-      const own = await launchBrowser({ headed: cfg.headed });
-      try { return { ...(await runOnce(own, server, s)), chromeVersion: own.version() }; } finally { await own.close().catch(() => {}); }
+      if (!cfg.isolate) return checkRaster({ ...(await runOnce(browser, server, s)), chromeVersion: browser.version() });
+      const own = await launchBrowser({ headed: cfg.headed, gpu: cfg.gpu });
+      try { return checkRaster({ ...(await runOnce(own, server, s)), chromeVersion: own.version() }); } finally { await own.close().catch(() => {}); }
     };
+    // Every GPU run's own page must report a hardware WebGL renderer; a run that fell back to SwiftShader is an
+    // environment error, not a GPU timing.
+    const checkRaster = r => (cfg.gpu && /swiftshader/i.test(String(r.result?.env?.webglRenderer ?? '')) ? { ...r, outcome: 'error', error: `GPU mode, but this run's page reports WebGL "${r.result.env.webglRenderer}"`, deltas: undefined } : r);
     const spec = (side, extra = {}) => ({ adapter: (side === 'A' ? refA : refB).id, adapterParams: (side === 'A' ? refA : refB).params, slot: cfg[side].slot, workload: cfg.workload, params: cfg.params, settleMs: cfg.settleMs, timeoutMs: cfg.timeoutMs, dpr: cfg.dpr, ...extra });
     const sides = cfg.mode === 'aa' ? ['A'] : ['A', 'B'];
     const keyOf = side => `${cfg[side].slot}:${cfg[side].ref}`;
@@ -253,7 +261,7 @@ async function main() {
         seed: { type: 'string' }, 'bootstrap-seed': { type: 'string' }, dpr: { type: 'string', default: '1' }, headed: { type: 'boolean', default: false },
         noise: { type: 'string' }, 'history-dir': { type: 'string' }, artifact: { type: 'string' }, source: { type: 'string' },
         screen: { type: 'boolean', default: false }, tolerance: { type: 'string' }, 'allow-harness-difference': { type: 'boolean', default: false },
-        quiet: { type: 'boolean', default: false }, isolate: { type: 'boolean', default: false }, endpoint: { type: 'string' },
+        quiet: { type: 'boolean', default: false }, isolate: { type: 'boolean', default: false }, endpoint: { type: 'string' }, gpu: { type: 'boolean', default: false },
       },
     }));
   } catch (e) { die(e.message); }
@@ -267,7 +275,7 @@ async function main() {
   if (a.fixture && a.fixture !== 'trend') die(`unknown fixture ${a.fixture} (trend)`);
   let params;
   try { params = ep ? { ...ep.params } : workloadParams(workload, a); } catch (e) { die(e.message); }
-  if (ep?.family === 'renderer' && !a.aa && !a.base) { a.baseline ??= RENDERERS.A.adapter; a.candidate ??= RENDERERS.B.adapter; }
+  if ((ep?.family === 'renderer' || ep?.family === 'gpu') && !a.aa && !a.base) { a.baseline ??= RENDERERS.A.adapter; a.candidate ??= RENDERERS.B.adapter; }
   const blocks = a.blocks === undefined ? DEFAULT_BLOCKS : Number(a.blocks);
   let seed, bootstrapSeed;
   try {
@@ -275,7 +283,8 @@ async function main() {
     bootstrapSeed = a['bootstrap-seed'] !== undefined ? parseSeed(a['bootstrap-seed'], '--bootstrap-seed') : DEFAULT_BOOTSTRAP_SEED;
     balancedOrder(blocks, seed);
   } catch (e) { die(e.message); }
-  const settleMs = Number(a.settle), timeoutMs = Number(a.timeout), dpr = Number(a.dpr);
+  const settleMs = Number(a.settle), timeoutMs = Number(a.timeout), dpr = ep?.dpr ?? Number(a.dpr);
+  if (ep?.raster === 'gpu' && !a.gpu) die(`endpoint ${ep.id} belongs to the gpu family: add --gpu`);
   if (!(dpr === 1 || dpr === 2)) die(`--dpr must be 1 or 2, got ${a.dpr}`);
   const historyDir = path.resolve(a['history-dir'] ?? path.join(BENCH, 'history'));
 
@@ -306,7 +315,7 @@ async function main() {
   let tolerance = null;
   if (a.screen) { tolerance = Number(a.tolerance); if (a.tolerance === undefined || !Number.isFinite(tolerance)) die('--screen needs --tolerance <largest regression tolerated, in the primary metric\'s unit>; the plan has it declared per workload before measuring'); }
 
-  const cfg = { mode, A, B, artifacts, workload, params, blocks, isolate: a.isolate, endpoint: ep?.id, seed, bootstrapSeed, settleMs, timeoutMs, dpr, headed: a.headed, noiseIds: a.noise ? a.noise.split(',') : null, historyDir, quiet: a.quiet, command: process.argv.slice(2) };
+  const cfg = { mode, A, B, artifacts, workload, params, blocks, isolate: a.isolate, gpu: a.gpu, endpoint: ep?.id, seed, bootstrapSeed, settleMs, timeoutMs, dpr, headed: a.headed, noiseIds: a.noise ? a.noise.split(',') : null, historyDir, quiet: a.quiet, command: process.argv.slice(2) };
   try {
     const first = await runSession(cfg);
     if (!a.screen) return;
