@@ -30,13 +30,17 @@ Observed model and effort are read from harness metadata (Codex session rollouts
 
 Finished and committed, each written by one provider and reviewed by the other: scales and formatting; layout and simplification; data layer, diagnostics and stores; renderers, text layer and theme; view and scene; lookup, reader and messages; chart core part 1 (review findings not yet fixed, see below); chart core part 2 (review running); benchmark harness and the M1 renderer measurements (not reviewed).
 
-| Running now (2026-11-18, after commit e90d8db; the machine restarted at about 17:43 and everything below was restarted after it) | Who | Files |
+| Running now (2026-11-18 evening, after commit 735e098; round 3) | Who | Files |
 |---|---|---|
-| Coordinator's verification of e90d8db on the shared build: every core browser suite on SVG, then `chart` + `a11y` on canvas; logs in `acceptance/results/verify-e90d8db/{svg,canvas}.txt` (not in git) | coordinator | reads `packages/axylo/dist` |
-| Narrow read-only re-check of the two verification reviews' defects at HEAD, brief `wp/blockers-recheck.prompt.md` | Codex gpt-6.2-sol max | writes `wp/blockers-recheck.review.md` |
-| Docs follow-up for today's spec and behaviour changes, and a conformance page generated from the acceptance checker (agent a04bfe28413f07034, resumed after the restart; uncommitted work in `apps/docs`) | Claude Opus 5.5 | `apps/docs/**` |
+| Lookup contract methods `members`, `has`, `slot` first (others wait on them; `tsc` red in `src/lookup` until then), then R13 and the reader half of I13; brief `wp/round3.lookup.md` (agent a5e106319fe97c022) | Claude Opus 5.5 high | `src/{data,lookup,scene,view,reader,layout}` |
+| Controller: C2 (blocking), C4/R7, C6, C7/R6, R8, R11, R12; brief `wp/round3.controller.md` (agent a1d73b9f46c46814f) | Claude Opus 5.5 high | `src/core` except `focus.ts` |
+| Interaction: R1, R2, I4, I5 (blocking), groups from the lookup, the Escape clarification (fixes acceptance I1 donut), R8 to R10, R14; brief `wp/round3.interaction.md` (agent aa0e6fca8e4a6224b) | Claude Opus 5.5 high | `src/dom`, `src/core/focus.ts` |
+| Acceptance: A2 toolbar tests learn the Select range button; structured exports from the checker for the docs conformance page (agent a61d95e46b3f0f3aa) | Claude Opus 5.5 high | `acceptance/**`, `test/browser/acceptance` |
+| Size analysis, measurements only, writes `wp/size2.analysis.md` (agent a3143bec106025ef7; scratch in `.scratch-size/`) | Claude Opus 5.5 xhigh | none in the product |
 
-The shared `packages/axylo/dist` is built from e90d8db (rebuilt 17:45 after the restart). Only the coordinator rebuilds it; agents use private builds through `AXYLO_BUNDLE`.
+Coordinator's verification of e90d8db on the shared build (logs `acceptance/results/verify-e90d8db/`): SVG 920 passed, 4 failed, 1 skipped (925); canvas `chart` + `a11y` 280 passed, 3 skipped. The failures: three A2 toolbar tests (new button), one I1 donut hold test (real, settled by the rewritten Escape clarification). Narrow re-check, Codex gpt-6.2-sol max (observed), `wp/blockers-recheck.review.md`: hold; blocking C2, I4, I5, R1, R2; fourteen regressions R1 to R14. Round 3 answers it; common brief `wp/round3.common.md` records the coordinator's decisions (groups come from the lookup; C13 and mixed proxy languages accepted as they are; pointer tolerance in viewport pixels).
+
+The shared `packages/axylo/dist` is built from 22a0b52 (the message-key removal). Only the coordinator rebuilds it; agents use private builds through `AXYLO_BUNDLE`.
 
 Idle agents that can be resumed with SendMessage: controller a1d73b9f46c46814f; interaction aa0e6fca8e4a6224b; data, lookup, scene, layout a5e106319fe97c022; engines and acceptance suite a61d95e46b3f0f3aa; palette abc842fd0288bc675.
 
@@ -63,9 +67,9 @@ Known open items carried forward:
 
 ## Next action
 
-1. Read `acceptance/results/verify-e90d8db/svg.txt` and `canvas.txt` (if the run was interrupted, rerun: `AXYLO_BROWSER=1 npx vitest run packages/axylo/test/browser`, then `AXYLO_RENDERER=canvas` for `chart` and `a11y`). Triage failures to their authors.
-2. Read `wp/blockers-recheck.review.md` (if missing or empty, rerun the Codex command from `wp/blockers-recheck.prompt.md` with gpt-6.2-sol max, read-only); record observed model and effort; route findings to the Anthropic authors.
-3. Docs author's report: verify (`npm run docs:build`, docs tests), commit `apps/docs`.
+1. As round 3 reports come in: lookup first (type check must be clean again), then controller, interaction, acceptance; verify each (type check, Node suite), commit with targeted paths, then `npm run build` and every browser suite on SVG and `chart` + `a11y` on canvas.
+2. One last narrow Codex check limited to the blocking list (C2, I4, I5, R1, R2) and the round 3 diff. The owner has been asked where to stop the review rounds; exotic remainders are to be recorded as limits rather than chased.
+3. Size: read `wp/size2.analysis.md`; apply the behaviour-neutral cuts; bring the options that cost a feature to the owner. Docs: pass the checker's exports to the docs author.
 4. Full acceptance suite on Firefox and WebKit at the current commit (engine author, isolated or shared build with nothing else rebuilding); port the chart, a11y and render suites to the engines.
 5. Distribution configurations (`tests/dist`, Node and browser).
 6. Record every configuration with provenance (`node acceptance/run.mjs unit|dist|dist-browser|browser`, plus `AXYLO_ENGINE=firefox|webkit … browser`), re-merge the matrix (Anthropic model), Codex reviews it, run the checker.
