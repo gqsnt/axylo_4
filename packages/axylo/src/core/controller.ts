@@ -333,7 +333,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     if (end !== undefined) rowEnds.set(frame, end + added);
   };
   /** The wider x domain the layout drew a scatter's automatic domain on, with the domain it widened. */
-  let widenedX: { full: readonly [number, number]; drawn: readonly [number, number] } | null = null;
+  let widenedX: { epoch: number; drawn: readonly [number, number] } | null = null;
   /** What the store held right after the last release with a frame on screen: the bound's baseline. */
   let retainedBaseline = 0;
   /** The revision on screen when the baseline was taken (a number: a hidden chart keeps no frame alive). */
@@ -351,16 +351,19 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     return titleOf(o)?.text ?? (host.targetId || host.id);
   }
 
-  /** Every presentation finding once: the same code and field found by two stages (ticks and readouts) is one. */
+  /**
+   * Every presentation finding once: the same code and field found by two stages (ticks and readouts) is one,
+   * the one with an effect on the figure if either has one (a value shown differently keeps its note).
+   */
   function presentationList(): DiagnosticInput[] {
     const out: DiagnosticInput[] = [];
-    const seen = new Set<string>();
+    const seen = new Map<string, number>();
     for (const list of presentation.values()) {
       for (const d of list) {
         const key = `${d.code}\u0000${d.field ?? ''}`;
-        if (seen.has(key)) continue;
-        seen.add(key);
-        out.push(d);
+        const at = seen.get(key);
+        if (at === undefined) seen.set(key, out.push(d) - 1);
+        else if (out[at]!.effect === 'none') out[at] = d;
       }
     }
     return out;
@@ -503,9 +506,12 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     // domain (a narrow scatter's coarser one, F7), that domain is the full range a window may take, for
     // zoom() and for the gestures reading `xFull` (re-check, R8).
     const wide = widenedX;
-    if (zoom && view.kind === 'scatter' && wide && !c.resolved.x.domain && sameKey(wide.full, view.xFull)) {
+    // The drawn bounds stay for the zoom on the same data, appends included, and grow with the data
+    // (closing pass, item 3).
+    if (zoom && view.kind === 'scatter' && wide && !c.resolved.x.domain && wide.epoch === c.frame.epoch) {
+      const full = view.xFull;
       sink = new DiagnosticCollector();
-      state = { ...state as Exclude<typeof state, { kind: 'donut' }>, xDomain: wide.drawn };
+      state = { ...state as Exclude<typeof state, { kind: 'donut' }>, xDomain: [Math.min(wide.drawn[0], full[0]), Math.max(wide.drawn[1], full[1])] };
       view = composition.view(c.frame, state, sink);
     }
     // A wall-clock window on a wall-clock axis is what the axis reads: the column's own AX112 already says
@@ -1528,7 +1534,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       lKey = result.key;
       if (view.kind === 'scatter' && a.zoom === null) {
         const x = layout.kind === 'plot' && layout.projection.kind === 'xy' ? layout.projection.x : null;
-        widenedX = x && x.type !== 'band' && !sameKey(x.domain, view.xFull) ? { full: view.xFull, drawn: x.domain } : null;
+        widenedX = x && x.type !== 'band' && !sameKey(x.domain, view.xFull) ? { epoch: view.frame.epoch, drawn: x.domain } : null;
       }
       if (destroyed) throw ABORT;
     }
@@ -1550,8 +1556,11 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       if (bars > along) fit.push(createDiagnostic('AX132', 'none', { field: a.resolved.x.field }, 'presentation'));
     }
     setPresentation('fit', fit);
+    // A tick label in the default format is not a value shown differently (F12): its AX160 has no effect on
+    // the figure, so the note it would add cannot take room from the ticks and bring the label back (closing
+    // pass, item 2).
     setPresentation('layout', shown.kind === 'ready' && !compact
-      ? tickFormatFailures(view, axisContext, layout).map(field => createDiagnostic('AX160', 'changed', { field }, 'presentation')) : []);
+      ? tickFormatFailures(view, axisContext, layout).map(field => createDiagnostic('AX160', 'none', { field }, 'presentation')) : []);
     const measured = layout.kind !== 'unmeasured' || (shown.kind !== 'ready' && size !== null && size.width > 0 && size.height > 0);
     ({ reader, inputs: readerInputs } = settleReader(hidden));
     if (destroyed) throw ABORT;
@@ -1646,11 +1655,14 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     // Once the store holds more than twice what was on screen (plus a few rows), every frame that still pins
     // its history takes a copy of its own rows instead: one copy per frame, so the cost is amortized over the
     // rows that arrived, and `keep` bounds retention while paused too.
-    if (needed.length && store.retainedRowCount > 2 * retainedBaseline + RETENTION_SLACK) {
+    // The same bound holds for the revisions kept: late rows that are evicted at once add a revision each but
+    // no row (closing pass, C2).
+    const bound = 2 * retainedBaseline + RETENTION_SLACK;
+    let floor = needed.length ? Math.min(...needed.map(f => f.revision)) : store.frame.revision;
+    if (needed.length && (store.retainedRowCount > bound || store.frame.revision - floor > bound)) {
       for (const f of needed) frozenRows.set(f, freeze(f).rows);
-      needed.length = 0;
+      floor = store.frame.revision;
     }
-    const floor = needed.length ? Math.min(...needed.map(f => f.revision)) : store.frame.revision;
     if (floor > 0) store.retire(floor - 1);
   }
 

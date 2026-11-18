@@ -233,7 +233,7 @@ describe('state (findings 8, 9, 10, 11)', () => {
     expect(await closePage(page)).toEqual([]);
   });
 
-  it('a throwing tick formatter shows its note on the frame that found it; a working one removes AX160 and the note', async () => {
+  it('a throwing tick formatter gives AX160 and no note (a tick label is not a value); a working one removes AX160', async () => {
     const page = await chartPage();
     const result = await page.evaluate(async () => {
       const chart = window.Axylo.line!('#chart', { title: 'T', data: [{ x: 1, y: 1 }, { x: 2, y: 2 }], x: 'x', y: { field: 'y', tickFormat: () => { throw new Error('t'); } } });
@@ -248,7 +248,8 @@ describe('state (findings 8, 9, 10, 11)', () => {
       return { first, second: { codes: chart.diagnostics.map(d => d.code), note: note() } };
     });
     expect(result.first.codes).toEqual(['AX160']);
-    expect(result.first.note).toMatch(/shown differently/);
+    // Closing pass, item 2 (coordinator's decision): a tick-only AX160 has no effect on the figure.
+    expect(result.first.note).toBeNull();
     expect(result.second).toEqual({ codes: [], note: null });
     expect(await closePage(page)).toEqual([]);
   });

@@ -353,12 +353,14 @@ describe('finding 10: one set of call-origin diagnostics, whatever the entry poi
 });
 
 describe('finding 11: presentation diagnostics belong to the stage and revision that found them', () => {
-  it('a tick formatter that throws gives AX160 and the reader note on that frame; a working one retires both', () => {
+  it('a tick formatter that throws gives AX160 on that frame and no note (a tick label is not a value); a working one retires it', () => {
     const throwing = { field: 'y', tickFormat: () => { throw new Error('tick'); } };
     const r = record('line', { title: 'T', data: rowsOf([1, 2, 3]), x: 'x', y: throwing });
     r.frames();
     expect(codes(r.controller.handle.diagnostics)).toEqual(['AX160']);
-    expect(lastModel(r).note).toMatch(/shown differently/);
+    // Closing pass, item 2 (coordinator's decision): a tick-only AX160 has no effect on the figure (F12 is
+    // about values left out or changed), so it adds no note.
+    expect(lastModel(r).note).toBeNull();
     r.controller.handle.update({ y: { field: 'y', tickFormat: (v: number) => `${v}!` } });
     r.frames();
     expect(r.controller.handle.diagnostics).toEqual([]);

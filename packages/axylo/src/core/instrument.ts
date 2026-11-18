@@ -63,6 +63,8 @@ export interface DevHook {
   readonly renderer: 'canvas' | 'svg';
   /** Rows the streaming store still holds for revisions not yet retired (0 for a static chart). */
   retainedRows(): number;
+  /** Revisions whose rows the streaming store can still answer for (its row sources), 0 for a static chart. */
+  retainedSources(): number;
 }
 
 export type ChartHandle = Chart<unknown, Record<string, unknown>> & { __bench?: BenchHook; __dev?: DevHook };
@@ -175,6 +177,13 @@ export function attachHooks(handle: ChartHandle, probe: Probe): void {
       },
       renderer: probe.renderer(),
       retainedRows: () => probe.retainedRows(),
+      retainedSources() {
+        // The store's private bookkeeping, read here only (development builds): its windows' row sources.
+        const store = probe.store() as { revisions?: { windows?: Set<{ sources?: Map<number, unknown> }> } } | null;
+        let count = 0;
+        for (const window of store?.revisions?.windows ?? []) count += window.sources?.size ?? 0;
+        return count;
+      },
     };
   }
 }

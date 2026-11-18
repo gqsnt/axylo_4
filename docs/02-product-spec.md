@@ -179,7 +179,7 @@ Level decides delivery. **Error**: the chart or a series cannot be drawn; the ch
 | AX133 | Hint | A scatter chart has more than 50,000 points | Drawn; the message says drawing may be slow |
 | AX134 | Error | Series × x positions exceeds 20,000,000 (long rows with many series and little shared x) | Error state; the message gives both counts and suggests fewer series or a scatter chart |
 | AX152 | Warning | `timeZone` is not a zone the browser knows | The viewer's zone is used |
-| AX160 | Warning | A custom formatter threw | The default format is used for that value |
+| AX160 | Warning | A custom formatter threw | The default format is used for that value. A value formatter that throws changes how a value reads, so the reader's note (F12) is shown; a tick formatter that throws only changes an axis label, which is not a value left out or changed, so it is reported without a note (and so the note can never change which ticks fit) |
 | AX199 | Error | An error was thrown while Axylo was building the chart: by Axylo itself, or by code the author supplied that Axylo was running (a row getter, a callback; a formatter that throws is AX160, and the default format is used) | Error state with a generic message; the error is passed to `onDiagnostic` and printed |
 
 Expected results for the Phase 1 fixtures: the combined `dirty` fixture (`[10, 20, null, NaN, '40', undefined, 70]`) yields AX102, AX103 and AX106 once each, draws Mon–Tue as a segment and Sun as a point, and shows the F12 note. `dirty-string` (one `'40'` among numbers) yields AX106. A column made only of numeric strings yields AX104 and is drawn in full. `dirty-null` yields nothing.

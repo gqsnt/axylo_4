@@ -156,7 +156,7 @@ describe('final review, finding 3: an append after a failed Resume supersedes th
 });
 
 describe('final review, finding 11: a cached layout keeps its findings', () => {
-  it('a throwing y tick formatter: AX160 and the note survive a loading state and its end at the same size', () => {
+  it('a throwing y tick formatter: AX160 survives a loading state and its end at the same size, with no note', () => {
     const tickFormat = () => { throw new Error('tick'); };
     const r = record('line', { title: 'C', data: rowsOf([0, 1, 2]), x: 'x', y: { field: 'y', tickFormat } });
     r.frames();
@@ -166,7 +166,8 @@ describe('final review, finding 11: a cached layout keeps its findings', () => {
     r.controller.handle.update({ state: undefined });
     r.frames();
     expect(r.controller.handle.diagnostics.map(d => d.code)).toContain('AX160');
-    expect(lastModel(r).note).toMatch(/shown differently|changed/i);
+    // Closing pass, item 2 (coordinator's decision): a tick-only AX160 adds no note.
+    expect(lastModel(r).note).toBeNull();
   });
 });
 
