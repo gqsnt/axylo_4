@@ -2,6 +2,7 @@ import { SLOT_VALUE, type DiagnosticSink, type DonutFrame, type DonutSlice, type
 import { report } from '../diagnostics';
 
 const TURN = 2 * Math.PI;
+const OTHER = '__other__';
 
 export function buildDonut(
   frame: DonutFrame, otherLabel: (count: number) => string, previous: DonutView | undefined, sink: DiagnosticSink,
@@ -71,9 +72,10 @@ export function buildDonut(
       otherValue += value;
       otherWeight += weight;
     } else {
-      add(name, name, [i], value, weight);
+      const key = name.startsWith(OTHER) ? OTHER + name : name;
+      add(key, name, [i], value, weight);
     }
   }
-  if (grouped) add('__other__', label, others, otherValue, otherWeight);
+  if (grouped) add(OTHER, label, others, otherValue, otherWeight);
   return { ...result, slices, total };
 }

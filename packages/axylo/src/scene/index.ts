@@ -103,11 +103,11 @@ export function buildScene(view: View, layout: Layout, devicePixelRatio: number)
   const compact = layout.kind === 'compact' || view.compact;
   const { grid, edges } = layout.kind === 'plot' && !compact ? gridAndAxes(layout, projection) : { grid: [], edges: [] };
   const { bands, lines } = compact ? { bands: [], lines: [] } : references(view, projection, clip);
-  const marks: Mark[] = [...bands, ...grid];
+  const layers: (readonly Mark[])[] = [bands, grid];
   if (view.kind === 'bar' && projection.kind === 'bands') {
-    marks.push(...barMarks(view, projection, clip));
+    layers.push(barMarks(view, projection, clip));
   } else if (view.kind === 'scatter' && projection.kind === 'xy') {
-    marks.push(...scatterPoints(view, projection));
+    layers.push(scatterPoints(view, projection));
   } else if ((view.kind === 'line' || view.kind === 'area') && projection.kind === 'xy') {
     const areas: AreaMark[] = [];
     const seams: PathMark[] = [];
@@ -126,8 +126,8 @@ export function buildScene(view: View, layout: Layout, devicePixelRatio: number)
         else addLine(input, view, i, view.visibleSlots, compact, paths, points);
       }
     }
-    marks.push(...areas, ...seams, ...paths, ...points);
+    layers.push(areas, seams, paths, points);
   }
-  marks.push(...edges, ...lines);
-  return { width, height, clip, marks };
+  layers.push(edges, lines);
+  return { width, height, clip, marks: layers.flat() };
 }

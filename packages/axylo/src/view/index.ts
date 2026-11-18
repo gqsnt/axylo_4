@@ -47,9 +47,14 @@ export type ViewState = AlignedViewState | ScatterViewState | DonutViewState;
 const SHAPES: readonly MarkerShape[] = ['circle', 'square', 'triangle', 'diamond', 'cross', 'plus', 'triangle-down', 'star'];
 const extrema = new WeakMap<AlignedView | ScatterView, Span>();
 
-function reuse<T>(values: readonly T[], previous: readonly T[] | undefined, same: (a: T, b: T) => boolean): readonly T[] {
-  if (!previous || previous.length !== values.length) return values;
-  return values.every((value, i) => same(value, previous[i]!)) ? previous : values;
+function reuse<T>(values: T[], previous: readonly T[] | undefined, same: (a: T, b: T) => boolean): readonly T[] {
+  if (!previous) return values;
+  let unchanged = previous.length === values.length;
+  for (let i = 0, end = Math.min(values.length, previous.length); i < end; i++) {
+    if (same(values[i]!, previous[i]!)) values[i] = previous[i]!;
+    else unchanged = false;
+  }
+  return unchanged ? previous : values;
 }
 
 function sameSpan(a: Span, b: Span): boolean {
@@ -63,8 +68,10 @@ function sameRange(a: IndexRange, b: IndexRange): boolean {
 function cues(count: number, compact: boolean, previous: AlignedView | ScatterView | undefined, sink: DiagnosticSink): readonly SeriesCue[] {
   if (count > SHAPES.length) report(sink, 'AX130', 'none');
   if (compact && count > 1) report(sink, 'AX131', 'none');
-  if (previous?.compact === compact && previous.cues.length === count) return previous.cues;
+  const existing = previous?.compact === compact ? previous.cues : undefined;
+  if (existing?.length === count) return existing;
   return Array.from({ length: count }, (_, i) => {
+    if (existing && i < existing.length) return existing[i]!;
     const contrast = i === 0 ? null : [2 + i, 3];
     return {
       marker: SHAPES[i % SHAPES.length]!,
@@ -174,7 +181,8 @@ function xExtents(
   state: AlignedViewState | ScatterViewState, compact: boolean, sink: DiagnosticSink,
 ): { xFull: Span; xDomain: Span } {
   const category = column.kind === 'category';
-  const author = category ? null : readSpan(state.xDomain ?? state.xField?.domain, readX, 'x.domain', sink);
+  const authorInput = state.xDomain === undefined ? state.xField?.domain : state.xDomain;
+  const author = category ? null : readSpan(authorInput, readX, 'x.domain', sink);
   const min = Math.min(data[0], author?.[0] ?? Infinity);
   const max = Math.max(data[1], author?.[1] ?? -Infinity);
   const xFull: Span = min <= max ? [min, max] : category ? [0, 0] : [0, 1];

@@ -49,11 +49,22 @@ export function resolveReferences(
   const references: ResolvedReference[] = [];
   for (let i = 0; i < input.length; i++) {
     const { x, y, label } = input[i]!;
+    const add = (axis: 'x' | 'y', from: number, to: number, pair: boolean) => {
+      // Equal resolved bounds identify a line in the view contract.
+      if (pair && from === to) {
+        report(sink, 'AX150', 'none', {
+          field: 'reference[' + i + '].' + axis, detail: 'Supply different bounds for a reference band.',
+        });
+      } else {
+        references.push({ axis, from: Math.min(from, to), to: Math.max(from, to), label });
+      }
+    };
     if (x !== undefined) {
-      const from = readX(isPair(x) ? x[0] : x);
-      const to = isPair(x) ? readX(x[1]) : from;
+      const pair = isPair(x);
+      const from = readX(pair ? x[0] : x);
+      const to = pair ? readX(x[1]) : from;
       if (Number.isFinite(from) && Number.isFinite(to)) {
-        references.push({ axis: 'x', from: Math.min(from, to), to: Math.max(from, to), label });
+        add('x', from, to, pair);
       } else {
         report(sink, 'AX107', 'none', {
           field: 'reference[' + i + '].x',
@@ -62,10 +73,11 @@ export function resolveReferences(
       }
     }
     if (y !== undefined) {
-      const from = isPair(y) ? y[0] : y;
-      const to = isPair(y) ? y[1] : from;
+      const pair = isPair(y);
+      const from = pair ? y[0] : y;
+      const to = pair ? y[1] : from;
       if (Number.isFinite(from) && Number.isFinite(to)) {
-        references.push({ axis: 'y', from: Math.min(from, to), to: Math.max(from, to), label });
+        add('y', from, to, pair);
       } else {
         report(sink, 'AX103', 'none', { field: 'reference[' + i + '].y' });
       }

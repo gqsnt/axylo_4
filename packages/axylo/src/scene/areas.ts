@@ -1,7 +1,7 @@
 import {
   type AlignedView, type AreaMark, type IndexRange, type PathMark, type PointMark, type StackView,
 } from '../core/contracts';
-import { buildPoints, simplifyArea, simplifyLine, type AreaBoundary, type LineInput } from '../simplify';
+import { buildPoints, simplifyArea, simplifyLine, type AreaBoundary, type JoinedRuns, type LineInput } from '../simplify';
 import { seriesPaint, token } from './geometry';
 import { addLine, type Drawing } from './lines';
 
@@ -10,7 +10,7 @@ export function addArea(
   areas: AreaMark[], paths: PathMark[], points: PointMark[],
 ): void {
   let geometry: Pick<AreaMark, 'upper' | 'lower' | 'runs'>;
-  let selection;
+  let selection: JoinedRuns;
   if (input.y instanceof Float64Array) {
     const area = simplifyArea({ ...input, upper: input.y, lower: 0 });
     const { upper, lower, runs } = area;
@@ -25,7 +25,8 @@ export function addArea(
     let start = 0;
     for (let i = 0; i < runs.length; i += 4) {
       const end = breaks[i / 4] ?? indexes.length;
-      runs.set([start, end - start, start, end - start], i);
+      runs[i] = runs[i + 2] = start;
+      runs[i + 1] = runs[i + 3] = end - start;
       start = end;
     }
     geometry = { upper: buildPoints(indexes, input), lower: buildPoints(indexes, { ...input, y: 0 }), runs };
@@ -76,8 +77,10 @@ function addSeam(
 ): void {
   const start = boundaryIndex(edge, range.start);
   const end = boundaryIndex(edge, range.end);
+  if (end - start < 2) return;
   const { indexes } = edge.selection;
-  const xy: number[] = [];
+  let xy: Float32Array | undefined;
+  let count = 0;
   let continuing = false;
   for (let i = start + 1; i < end; i++) {
     const a = indexes[i - 1]!;
@@ -86,15 +89,21 @@ function addSeam(
       continuing = false;
       continue;
     }
+    xy ??= new Float32Array(4 * (end - start));
     if (!continuing) {
-      if (xy.length) xy.push(NaN, NaN);
-      xy.push(edge.xy[2 * i - 2]!, edge.xy[2 * i - 1]!);
+      if (count) {
+        xy[count++] = NaN;
+        xy[count++] = NaN;
+      }
+      xy[count++] = edge.xy[2 * i - 2]!;
+      xy[count++] = edge.xy[2 * i - 1]!;
     }
-    xy.push(edge.xy[2 * i]!, edge.xy[2 * i + 1]!);
+    xy[count++] = edge.xy[2 * i]!;
+    xy[count++] = edge.xy[2 * i + 1]!;
     continuing = true;
   }
-  if (xy.length) paths.push({
-    type: 'path', series, xy: Float32Array.from(xy), stroke: token('background'), strokeWidth: width,
+  if (xy) paths.push({
+    type: 'path', series, xy: xy.subarray(0, count), stroke: token('background'), strokeWidth: width,
     dash: { normal: null, contrast: null },
   });
 }
