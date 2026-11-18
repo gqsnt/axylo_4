@@ -308,7 +308,7 @@ describe('the tooltip stays clear of the pointer and the click meant for the plo
     expect(await closePage(page)).toEqual([]);
   });
 
-  it('in a card that clips its content, a tooltip that would be cut off is shown in the readout instead', async () => {
+  it('in a card that clips its content, a floating tooltip stays inside the card; otherwise the readout mode the layout decided applies (strip, or none)', async () => {
     const page = await chartPage({ css: '#card { width: 360px; height: 260px; overflow: hidden; margin-top: 300px; } #card #chart { width: 360px; height: 260px; }' });
     await page.evaluate(() => {
       const card = Object.assign(document.createElement('div'), { id: 'card' });
@@ -327,8 +327,13 @@ describe('the tooltip stays clear of the pointer and the click meant for the plo
       expect(tip.y).toBeGreaterThanOrEqual(card.y);
       expect(tip.x + tip.width).toBeLessThanOrEqual(card.x + card.width + 0.5);
       expect(tip.y + tip.height).toBeLessThanOrEqual(card.y + card.height + 0.5);
-    } else {
+    } else if (await page.evaluate(() => document.querySelector('#chart figure')!.classList.contains('axylo-readout-mode'))) {
       expect(await page.locator('#chart .axylo-readout').isVisible()).toBe(true);
+    } else {
+      // Decision 0004 revision 3, rule 5: a plot under 140 px that the strip would leave under L8's 80 px has
+      // no readout at all (the controller's layout decides; this plot is about 97 px high) and never floats.
+      expect(box.height).toBeLessThan(140);
+      expect(await page.locator('#chart .axylo-readout').isVisible()).toBe(false);
     }
     expect(await closePage(page)).toEqual([]);
   });
@@ -437,7 +442,7 @@ describe('a drag cancelled with Escape (finding 10)', () => {
 
 describe('tooltip persistence and dismissal (finding 13)', () => {
   it('in readout mode (a 220 px tile) the strip can be hovered without closing', async () => {
-    // Decision 0004 revision 2, rule 5: a plot narrower than 240 px has the readout strip under it.
+    // Decision 0004 rule 5: a plot narrower than 240 px has the readout strip under it.
     const page = await chartPage({ css: '#chart { width: 220px; height: 380px; }' });
     const data = ['Organic search', 'Direct traffic', 'Referral partners'].flatMap(s => [0, 1, 2].map(x => ({ x, s, y: x * 1000 })));
     await create(page, 'line', { title: 'Narrow', data, x: 'x', y: 'y', series: 's' });
@@ -448,6 +453,8 @@ describe('tooltip persistence and dismissal (finding 13)', () => {
     const r = (await readout.boundingBox())!;
     const before = await readout.textContent();
     expect(before).toMatch(/Organic search/);
+    // Decision 0004 revision 3, rule 3b: after a rest of 250 ms the datum is held along the way to the strip.
+    await page.waitForTimeout(300);
     await page.mouse.move(r.x + r.width / 2, r.y + r.height / 2, { steps: 5 });
     expect(await readout.isVisible()).toBe(true);
     expect(await readout.textContent()).toBe(before);

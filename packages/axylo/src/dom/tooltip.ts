@@ -1,24 +1,25 @@
 /**
- * Renders a tooltip model as text (spec I1, DX8: textContent only), placed by decision 0004 revision 2:
+ * Renders a tooltip model as text (spec I1, DX8: textContent only), in one of two presentations decided by
+ * the controller's layout (decision 0004 revision 3, rule 5): floating, placed by `placement.ts`, or as
+ * running text in the strip reserved under the plot.
  *
- * - The position is a function of the datum only: the box of its active marks, enlarged by the focus ring.
- *   The pointer never enters the computation, so an approaching pointer cannot push the tooltip away.
- * - Candidates above, below, right and left of that box (horizontal bars: right, left, above, below; a donut
- *   tries its hole first), each valid only wholly inside the plot, the viewport and every clipping ancestor,
- *   and overlapping neither the box nor any control.
- * - A hovered tooltip is text and takes no pointer events; a pinned one takes events and its rows are buttons
- *   of at least 24 × 24 CSS px.
- * - When nothing fits, rows are dropped into "+N more"; with one row left and still nothing valid, the
- *   candidate that overlaps the box least is used, inside the plot (rule 6).
- *
- * In readout mode (decided by layout, rule 5) the same content is written as running text into a strip of
- * two lines reserved under the plot; there is no floating tooltip then.
- *
- * Both elements are aria-hidden: the keyboard proxy carries the same text as its value text, so a screen
- * reader is not told twice and nothing here behaves as a live region (spec A7).
+ * - A hovered tooltip is text, takes no pointer events and is hidden from assistive technology: the plot's
+ *   keyboard proxy carries the same reading, so nothing is said twice and nothing here is a live region (A7).
+ * - A pinned tooltip or strip takes events and is exposed (rule 9): its rows are buttons named by their text,
+ *   at least 24 × 24 CSS px, outside the tab order (the closed chart keeps its two tab stops; the keyboard
+ *   reaches the same series through the plot's own Up and Down). Its "+N more" is a button too, showing the
+ *   next rows, so every row can be chosen by pointer.
+ * - Rows keep their element across redraws while their identity (series, datum) is unchanged, and nodes
+ *   are only moved when their order changes, so a press that spans a data update still completes.
+ * - Floating: rows are dropped from the end into "+N more" until a candidate is valid (rule 6); the tooltip
+ *   is never larger than the visible part of the plot; with one row and still nothing valid, the last resort
+ *   of rule 6 is used, and when even that would cover a control or a focus ring nothing floats.
+ * - Strip: at least the x and one row are always shown.
  */
 import type { DatumText, Rect, TooltipModel } from '../core/contracts';
 import { createSwatch, type SwatchSpec } from './swatch';
+import { fallbackPlacement, placeTooltip, type PlacementInput } from './placement';
+import { mappingOf } from './mapping';
 
 export interface TooltipContent {
   readonly model: TooltipModel;
@@ -26,180 +27,245 @@ export interface TooltipContent {
   readonly moreRows: (count: number) => string;
   /** Label of the stack total row (the `total` message). */
   readonly totalLabel?: string;
+  /** `lang` for the built-in "+N more" and total label, or null. */
+  readonly moreLang?: string | null;
+  readonly totalLang?: string | null;
   /** A row of a pinned tooltip was chosen (a click or a tap on it). */
   readonly select?: (row: DatumText) => void;
+  /** The pinned "+N more" was chosen: show the rows after the `shown` ones on show now. */
+  readonly more?: (shown: number) => void;
 }
 
-/** Where a floating tooltip may go, all in viewport pixels. */
-export interface Placement {
-  /** The datum's active marks, enlarged by the focus ring: never covered. */
-  readonly box: Rect;
-  /** The plot rectangle the tooltip must stay inside. */
-  readonly plot: Rect;
-  /** 'vertical': above, below, right, left. 'horizontal' (horizontal bars): right, left, above, below. */
-  readonly order: 'vertical' | 'horizontal';
-  /** A donut's hole, tried first when the tooltip fits inside it. */
-  readonly hole?: Rect | null;
-  /** Controls the tooltip must not cover. */
-  readonly controls: readonly Rect[];
-}
+export type Presentation = 'floating' | 'strip';
 
 export interface TooltipView {
-  /** Floating, by the placement above. `pinned`: the tooltip takes events and its rows are buttons. */
-  show(content: TooltipContent, placement: Placement, pinned: boolean): void;
+  /**
+   * Floating, placed by rules 2 and 6 against `placement` (viewport pixels). `pinned`: it takes events and
+   * its rows are buttons. Returns false when nothing could be placed (nothing is shown then).
+   */
+  show(content: TooltipContent, placement: PlacementInput, pinned: boolean): boolean;
   /** Readout mode: the content as running text in the strip under the plot, at most two lines. */
   strip(content: TooltipContent, pinned: boolean): void;
   hide(): void;
   readonly visible: boolean;
   /** Where the content is shown now. */
-  readonly where: 'floating' | 'readout' | null;
-  /** The floating tooltip's rectangle in viewport pixels, or null when it is not shown. */
+  readonly where: Presentation | null;
+  /** The content's rectangle in viewport pixels (the floating tooltip or the strip), or null. */
   rect(): Rect | null;
+  /** Whether a node belongs to the shown content. */
+  contains(node: Node | null): boolean;
   destroy(): void;
 }
 
-const OFFSET = 8;
-
-interface Bounds { left: number; top: number; right: number; bottom: number }
-
-function overlap(a: Bounds, b: Bounds): number {
-  const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
-  const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
-  return w > 0 && h > 0 ? w * h : 0;
+interface RowEntry {
+  readonly element: HTMLElement;
+  readonly name: HTMLElement;
+  readonly value: HTMLElement;
+  /** The strip's "; " before the entry. */
+  readonly separator: Text | null;
+  row: DatumText;
+  swatch: string;
+  readonly listening: AbortController | null;
 }
 
-const bounds = (r: Rect): Bounds => ({ left: r.x, top: r.y, right: r.x + r.width, bottom: r.y + r.height });
-
-/**
- * Viewport pixels per layout pixel of `el`: 1 unless an ancestor scales it with a CSS transform. Bounding
- * rects are in viewport pixels, sizes and translations in layout pixels (part 1 item 12).
- */
-export function cssScale(el: HTMLElement): { x: number; y: number } {
-  const box = el.getBoundingClientRect();
-  // offsetWidth is rounded to an integer: within 2% the ratio is that rounding, not a transform.
-  const ratio = (rect: number, layout: number) => {
-    const k = layout > 0 && rect > 0 ? rect / layout : 1;
-    return Number.isFinite(k) && Math.abs(k - 1) >= 0.02 ? k : 1;
-  };
-  return { x: ratio(box.width, el.offsetWidth), y: ratio(box.height, el.offsetHeight) };
-}
-
-/** The viewport, cut down by every ancestor that clips its content. */
-function clipBounds(from: Element): Bounds {
-  const doc = from.ownerDocument;
-  const win = doc.defaultView;
-  const view = doc.documentElement;
-  const out: Bounds = { left: 0, top: 0, right: view.clientWidth, bottom: view.clientHeight };
-  for (let el: Element | null = from.parentElement; el && el !== view && win; el = el.parentElement) {
-    const style = win.getComputedStyle(el);
-    if (style.overflowX === 'visible' && style.overflowY === 'visible') continue;
-    const box = el.getBoundingClientRect();
-    out.left = Math.max(out.left, box.left);
-    out.top = Math.max(out.top, box.top);
-    out.right = Math.min(out.right, box.right);
-    out.bottom = Math.min(out.bottom, box.bottom);
+/** A row's identity across redraws: its series and its datum, not its place. */
+function rowKey(r: DatumText, title: string): string {
+  const ref = r.ref;
+  switch (ref.kind) {
+    case 'aligned': return `a\u0000${ref.seriesKey}\u0000${title}`;
+    case 'point': return `p\u0000${ref.seriesKey}\u0000${ref.row}\u0000${ref.x}`;
+    case 'slice': return `s\u0000${ref.sliceKey}`;
   }
-  return out;
+}
+
+/** Puts exactly `wanted`, in order, into `host`, moving a node only when it is out of place. */
+function place(host: HTMLElement, wanted: readonly Node[]): void {
+  let at: ChildNode | null = host.firstChild;
+  for (const node of wanted) {
+    if (at !== node) host.insertBefore(node, at);
+    at = (node as ChildNode).nextSibling;
+  }
+  while (at) {
+    const next: ChildNode | null = at.nextSibling;
+    at.remove();
+    at = next;
+  }
+}
+
+function setText(node: Node, text: string): void {
+  if (node.textContent !== text) node.textContent = text;
+}
+
+function setLang(el: HTMLElement, lang: string | null | undefined): void {
+  if (lang) {
+    if (el.getAttribute('lang') !== lang) el.setAttribute('lang', lang);
+  } else if (el.hasAttribute('lang')) el.removeAttribute('lang');
 }
 
 export function createTooltip(element: HTMLElement, readoutElement: HTMLElement, figure: HTMLElement): TooltipView {
   const doc = element.ownerDocument;
-  let where: 'floating' | 'readout' | null = null;
-  /** Row listeners belong to the rows of one fill; the next fill or hide removes them. */
-  let rows: AbortController | null = null;
+  let where: Presentation | null = null;
+  /** The content on show: row buttons read it when chosen, so a redraw never strands a pressed button. */
+  let current: TooltipContent | null = null;
+  /** How many rows the content on show lists (the rest are in "+N more"). */
+  let displayed = 0;
 
-  function row(r: DatumText, content: TooltipContent, pinned: boolean, className: string): HTMLElement {
-    // A pinned row is a real control: a button named by its text, 24 px, outside the tab order (the closed
-    // chart keeps its two tab stops). A hovered row is text.
-    const select = pinned ? content.select : undefined;
-    const line = doc.createElement(select ? 'button' : 'div');
-    line.className = className;
-    if (line instanceof HTMLButtonElement && select) {
-      line.type = 'button';
-      line.tabIndex = -1;
-      line.classList.add('axylo-tooltip-choice');
+  /** One set of row elements per presentation, keyed by row identity and by being buttons or text. */
+  const entries = { floating: new Map<string, RowEntry>(), strip: new Map<string, RowEntry>() };
+
+  function makeEntry(r: DatumText, pinned: boolean, strip: boolean): RowEntry {
+    const button = pinned && current?.select !== undefined;
+    const element = doc.createElement(button ? 'button' : strip ? 'span' : 'div');
+    element.className = strip ? 'axylo-readout-entry' : 'axylo-tooltip-row';
+    const listening = button ? new AbortController() : null;
+    const entry: RowEntry = {
+      element, name: doc.createElement('span'), value: doc.createElement('span'),
+      separator: strip ? doc.createTextNode('; ') : null, row: r, swatch: '', listening,
+    };
+    if (element instanceof HTMLButtonElement && listening) {
+      element.type = 'button';
+      element.tabIndex = -1;
+      element.classList.add('axylo-tooltip-choice');
       // A press does not take focus from the plot, whose keyboard reading goes on from the chosen datum.
-      line.addEventListener('mousedown', event => event.preventDefault(), { signal: rows!.signal });
-      line.addEventListener('click', () => select(r), { signal: rows!.signal });
+      element.addEventListener('mousedown', event => event.preventDefault(), { signal: listening.signal });
+      element.addEventListener('click', () => current?.select?.(entry.row), { signal: listening.signal });
     }
-    const name = doc.createElement('span');
-    name.className = 'axylo-tooltip-series';
-    const spec = content.swatch(r);
-    if (spec) name.appendChild(createSwatch(doc, spec));
-    name.appendChild(doc.createTextNode(r.seriesLabel));
-    const value = doc.createElement('span');
-    value.className = 'axylo-tooltip-value';
-    value.textContent = r.percent === null || r.percent === r.value ? r.value : `${r.value} (${r.percent})`;
+    entry.name.className = 'axylo-tooltip-series';
+    entry.value.className = 'axylo-tooltip-value';
     // As running text in the strip, the name and the value are words of one sentence.
-    if (className === 'axylo-readout-entry') line.append(name, doc.createTextNode(' '), value);
-    else line.append(name, value);
-    return line;
+    if (strip) element.append(entry.name, doc.createTextNode(' '), entry.value);
+    else element.append(entry.name, entry.value);
+    return entry;
+  }
+
+  function updateEntry(entry: RowEntry, r: DatumText, content: TooltipContent): void {
+    entry.row = r;
+    const spec = content.swatch(r);
+    const signature = JSON.stringify(spec);
+    if (signature !== entry.swatch || entry.name.lastChild?.textContent !== r.seriesLabel) {
+      entry.name.replaceChildren(...(spec ? [createSwatch(doc, spec)] : []), doc.createTextNode(r.seriesLabel));
+      entry.swatch = signature;
+    }
+    setText(entry.value, r.percent === null || r.percent === r.value ? r.value : `${r.value} (${r.percent})`);
+  }
+
+  /** The row entries for `rows`, reused by identity; entries of rows no longer in the model are dropped. */
+  function rowEntries(presentation: Presentation, content: TooltipContent, pinned: boolean): RowEntry[] {
+    const map = entries[presentation];
+    const strip = presentation === 'strip';
+    const keep = new Set<string>();
+    const out: RowEntry[] = [];
+    for (const r of content.model.rows) {
+      const key = `${pinned && content.select ? 'b' : 't'}\u0000${rowKey(r, content.model.title)}`;
+      keep.add(key);
+      let entry = map.get(key);
+      if (!entry) {
+        entry = makeEntry(r, pinned, strip);
+        map.set(key, entry);
+      }
+      updateEntry(entry, r, content);
+      out.push(entry);
+    }
+    for (const [key, entry] of map) {
+      if (keep.has(key)) continue;
+      entry.listening?.abort();
+      map.delete(key);
+    }
+    return out;
+  }
+
+  function dropEntries(presentation: Presentation): void {
+    for (const entry of entries[presentation].values()) entry.listening?.abort();
+    entries[presentation].clear();
+  }
+
+  // The fixed parts of each presentation, made once.
+  const floatTitle = doc.createElement('div');
+  floatTitle.className = 'axylo-tooltip-title';
+  const floatTotal = doc.createElement('div');
+  floatTotal.className = 'axylo-tooltip-row axylo-tooltip-total';
+  const floatTotalName = doc.createElement('span');
+  floatTotalName.className = 'axylo-tooltip-series';
+  const floatTotalValue = doc.createElement('span');
+  floatTotalValue.className = 'axylo-tooltip-value';
+  floatTotal.append(floatTotalName, floatTotalValue);
+  const stripTitle = doc.createElement('span');
+  stripTitle.className = 'axylo-tooltip-title';
+  const stripTotal = doc.createElement('span');
+  stripTotal.className = 'axylo-readout-total';
+  const listening = new AbortController();
+  /** "+N more": text while hovered, a button that shows the next rows while pinned. */
+  function moreElement(presentation: Presentation, pinned: boolean): HTMLElement {
+    const button = pinned && current?.more !== undefined;
+    const key = `${presentation}\u0000${button}`;
+    let el = mores.get(key);
+    if (!el) {
+      el = doc.createElement(button ? 'button' : presentation === 'strip' ? 'span' : 'div');
+      el.className = 'axylo-tooltip-more';
+      if (el instanceof HTMLButtonElement) {
+        el.type = 'button';
+        el.tabIndex = -1;
+        el.classList.add('axylo-tooltip-choice');
+        el.addEventListener('mousedown', event => event.preventDefault(), { signal: listening.signal });
+        el.addEventListener('click', () => current?.more?.(displayed), { signal: listening.signal });
+      }
+      mores.set(key, el);
+    }
+    return el;
+  }
+  const mores = new Map<string, HTMLElement>();
+  const moreSeparator = doc.createTextNode('; ');
+  const totalSeparator = doc.createTextNode('; ');
+
+  function expose(host: HTMLElement, pinned: boolean): void {
+    // Pinned content is real (rule 9); hovered content is the proxy's reading again, so it stays hidden.
+    if (pinned) host.removeAttribute('aria-hidden');
+    else if (host.getAttribute('aria-hidden') !== 'true') host.setAttribute('aria-hidden', 'true');
   }
 
   /** The floating tooltip's content with the first `shown` rows; the rest are counted in "+N more". */
-  function fill(content: TooltipContent, pinned: boolean, shown: number): void {
-    rows?.abort();
-    rows = new AbortController();
+  function fillFloating(content: TooltipContent, rows: readonly RowEntry[], pinned: boolean, shown: number): void {
     const { model } = content;
-    const heading = doc.createElement('div');
-    heading.className = 'axylo-tooltip-title';
-    heading.textContent = model.title;
-    const children: HTMLElement[] = [heading];
-    for (const r of model.rows.slice(0, shown)) children.push(row(r, content, pinned, 'axylo-tooltip-row'));
+    setText(floatTitle, model.title);
+    const children: Node[] = [floatTitle, ...rows.slice(0, shown).map(e => e.element)];
+    displayed = Math.min(shown, rows.length);
     const more = model.count - Math.min(shown, model.rows.length);
     if (more > 0) {
-      const el = doc.createElement('div');
-      el.className = 'axylo-tooltip-more';
-      el.textContent = content.moreRows(more);
+      const el = moreElement('floating', pinned);
+      setText(el, content.moreRows(more));
+      setLang(el, content.moreLang);
       children.push(el);
     }
     if (model.total !== null) {
-      const total = doc.createElement('div');
-      total.className = 'axylo-tooltip-row axylo-tooltip-total';
-      const name = doc.createElement('span');
-      name.className = 'axylo-tooltip-series';
-      name.textContent = content.totalLabel ?? '';
-      const value = doc.createElement('span');
-      value.className = 'axylo-tooltip-value';
-      value.textContent = model.total;
-      total.append(name, value);
-      children.push(total);
+      setText(floatTotalName, content.totalLabel ?? '');
+      setLang(floatTotalName, content.totalLang);
+      setText(floatTotalValue, model.total);
+      children.push(floatTotal);
     }
-    element.replaceChildren(...children);
+    place(element, children);
   }
 
   function hideFloating(): void {
-    if (element.hidden) return;
+    if (element.hidden && !element.firstChild) return;
     element.hidden = true;
     element.classList.remove('axylo-tooltip-pinned');
-    element.replaceChildren();
+    expose(element, false);
+    place(element, []);
+    dropEntries('floating');
   }
 
   function hideStrip(): void {
-    if (readoutElement.hidden) return;
+    if (readoutElement.hidden && !readoutElement.firstChild) return;
     readoutElement.hidden = true;
-    readoutElement.replaceChildren();
+    readoutElement.classList.remove('axylo-readout-pinned');
+    expose(readoutElement, false);
+    place(readoutElement, []);
+    dropEntries('strip');
   }
 
-  /** The candidates of rule 2 for a tooltip of this size, in order. */
-  function candidates(p: Placement, width: number, height: number): [number, number][] {
-    const box = bounds(p.box);
-    const cx = (box.left + box.right) / 2 - width / 2;
-    const cy = (box.top + box.bottom) / 2 - height / 2;
-    const plot = bounds(p.plot);
-    // Along the other axis: centred on the box, shifted only as far as the plot needs.
-    const alongX = Math.max(plot.left, Math.min(cx, plot.right - width));
-    const alongY = Math.max(plot.top, Math.min(cy, plot.bottom - height));
-    const above: [number, number] = [alongX, box.top - OFFSET - height];
-    const below: [number, number] = [alongX, box.bottom + OFFSET];
-    const right: [number, number] = [box.right + OFFSET, alongY];
-    const left: [number, number] = [box.left - OFFSET - width, alongY];
-    const list: [number, number][] = p.order === 'horizontal' ? [right, left, above, below] : [above, below, right, left];
-    if (p.hole) {
-      const hole = bounds(p.hole);
-      list.unshift([(hole.left + hole.right) / 2 - width / 2, (hole.top + hole.bottom) / 2 - height / 2]);
-    }
-    return list;
+  function rectOf(el: HTMLElement): Rect {
+    const b = el.getBoundingClientRect();
+    return { x: b.left, y: b.top, width: b.width, height: b.height };
   }
 
   return {
@@ -210,96 +276,102 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       return where;
     },
     rect() {
-      if (where !== 'floating') return null;
-      const b = element.getBoundingClientRect();
-      return { x: b.left, y: b.top, width: b.width, height: b.height };
+      if (where === 'floating') return rectOf(element);
+      if (where === 'strip') return rectOf(readoutElement);
+      return null;
+    },
+    contains(node) {
+      return node !== null && (element.contains(node) || readoutElement.contains(node));
     },
     show(content, p, pinned) {
+      current = content;
       hideStrip();
       element.hidden = false;
       element.classList.toggle('axylo-tooltip-pinned', pinned);
-      const scale = cssScale(figure);
-      const outer = figure.getBoundingClientRect();
-      const clip = clipBounds(figure);
-      const plot = bounds(p.plot);
-      const limits: Bounds = {
-        left: Math.max(plot.left, clip.left), top: Math.max(plot.top, clip.top),
-        right: Math.min(plot.right, clip.right), bottom: Math.min(plot.bottom, clip.bottom),
-      };
-      const box = bounds(p.box);
-      const controls = p.controls.map(bounds);
-      const valid = ([x, y]: [number, number], width: number, height: number): boolean => {
-        const b = { left: x, top: y, right: x + width, bottom: y + height };
-        return b.left >= limits.left - 0.5 && b.right <= limits.right + 0.5 && b.top >= limits.top - 0.5 && b.bottom <= limits.bottom + 0.5 &&
-          overlap(b, box) === 0 && controls.every(c => overlap(b, c) === 0);
-      };
-      const place = ([x, y]: [number, number]) => {
-        element.style.transform = `translate(${Math.round((x - outer.left) / scale.x)}px, ${Math.round((y - outer.top) / scale.y)}px)`;
+      expose(element, pinned);
+      // The tooltip lives in the figure's layout pixels; placement is in viewport pixels.
+      const m = mappingOf(figure);
+      // Never larger than the visible part of the plot (rule 6): it wraps within that.
+      const maxWidth = `${Math.max(0, Math.min(320, p.visible.width / m.kx))}px`;
+      const maxHeight = `${Math.max(0, p.visible.height / m.ky)}px`;
+      if (element.style.maxWidth !== maxWidth) element.style.maxWidth = maxWidth;
+      if (element.style.maxHeight !== maxHeight) element.style.maxHeight = maxHeight;
+      const rows = rowEntries('floating', content, pinned);
+      const position = (x: number, y: number) => {
+        const transform = `translate(${(x - m.left) / m.kx}px, ${(y - m.top) / m.ky}px)`;
+        if (element.style.transform !== transform) element.style.transform = transform;
         where = 'floating';
       };
-      // Rule 6: rows are dropped from the end, into "+N more", until a candidate is valid.
-      const rowsShown = content.model.rows.length;
-      let last: { width: number; height: number } | null = null;
-      for (let shown = rowsShown; shown >= Math.min(1, rowsShown); shown--) {
-        element.style.transform = 'translate(0px, 0px)';
-        fill(content, pinned, shown);
-        const width = element.offsetWidth * scale.x;
-        const height = element.offsetHeight * scale.y;
-        last = { width, height };
-        const spot = candidates(p, width, height).find(c => valid(c, width, height));
-        if (spot) { place(spot); return; }
+      // Measured where it cannot be squeezed by the figure's edge.
+      element.style.transform = 'translate(0px, 0px)';
+      const total = content.model.rows.length;
+      let size = { width: 0, height: 0 };
+      for (let shown = total; shown >= Math.min(1, total); shown--) {
+        fillFloating(content, rows, pinned, shown);
+        const b = element.getBoundingClientRect();
+        size = { width: b.width, height: b.height };
+        const spot = placeTooltip(p, size.width, size.height);
+        if (spot) { position(spot.x, spot.y); return true; }
       }
-      // With one row and still nothing valid: inside the plot, at the candidate that covers the box least.
-      const { width, height } = last!;
-      const inside = ([x, y]: [number, number]): [number, number] => [
-        Math.max(limits.left, Math.min(x, limits.right - width)), Math.max(limits.top, Math.min(y, limits.bottom - height)),
-      ];
-      const ranked = candidates(p, width, height).map(inside)
-        .map(c => ({ c, cost: overlap({ left: c[0], top: c[1], right: c[0] + width, bottom: c[1] + height }, box) }))
-        .sort((a, b) => a.cost - b.cost);
-      place(ranked[0]!.c);
+      const last = fallbackPlacement(p, size.width, size.height);
+      if (last) { position(last.x, last.y); return true; }
+      // Nowhere clear of the controls and focus rings: nothing floats (rule 6).
+      hideFloating();
+      where = null;
+      return false;
     },
     strip(content, pinned) {
+      current = content;
       hideFloating();
-      rows?.abort();
-      rows = new AbortController();
       readoutElement.hidden = false;
+      readoutElement.classList.toggle('axylo-readout-pinned', pinned);
+      expose(readoutElement, pinned);
       const { model } = content;
-      // Running text: "x: series value; series value; +N more", within the strip's two lines.
+      const rows = rowEntries('strip', content, pinned);
+      setText(stripTitle, `${model.title}: `);
+      // Running text: "x: series value; series value; +N more", within the strip's two lines; at least the
+      // x and one row are always shown (rule 5).
       const build = (shown: number): void => {
-        const parts: Node[] = [];
-        const title = doc.createElement('span');
-        title.className = 'axylo-tooltip-title';
-        title.textContent = `${model.title}: `;
-        parts.push(title);
-        model.rows.slice(0, shown).forEach((r, i) => {
-          if (i > 0) parts.push(doc.createTextNode('; '));
-          parts.push(row(r, content, pinned, 'axylo-readout-entry'));
+        const parts: Node[] = [stripTitle];
+        displayed = Math.min(shown, rows.length);
+        rows.slice(0, shown).forEach((entry, i) => {
+          if (i > 0 && entry.separator) parts.push(entry.separator);
+          parts.push(entry.element);
         });
-        if (model.total !== null) parts.push(doc.createTextNode(`; ${content.totalLabel ?? ''} ${model.total}`));
+        if (model.total !== null) {
+          setText(stripTotal, `${content.totalLabel ?? ''} ${model.total}`);
+          setLang(stripTotal, content.totalLang);
+          parts.push(totalSeparator, stripTotal);
+        }
         const more = model.count - Math.min(shown, model.rows.length);
-        if (more > 0) parts.push(doc.createTextNode(`${shown > 0 ? '; ' : ''}${content.moreRows(more)}`));
-        readoutElement.replaceChildren(...parts);
+        if (more > 0) {
+          const el = moreElement('strip', pinned);
+          setText(el, content.moreRows(more));
+          setLang(el, content.moreLang);
+          if (shown > 0) parts.push(moreSeparator);
+          parts.push(el);
+        }
+        place(readoutElement, parts);
       };
-      for (let shown = model.rows.length; shown >= 0; shown--) {
+      for (let shown = rows.length; shown >= Math.min(1, rows.length); shown--) {
         build(shown);
         if (readoutElement.scrollHeight <= readoutElement.clientHeight + 1) break;
       }
-      where = 'readout';
+      where = 'strip';
     },
     hide() {
-      rows?.abort();
-      rows = null;
       hideFloating();
       hideStrip();
       where = null;
+      current = null;
     },
     destroy() {
-      rows?.abort();
-      rows = null;
       hideFloating();
       hideStrip();
+      listening.abort();
+      mores.clear();
       where = null;
+      current = null;
     },
   };
 }

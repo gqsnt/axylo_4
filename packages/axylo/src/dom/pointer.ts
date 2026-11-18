@@ -1,8 +1,10 @@
 /**
- * Comparing pick targets. Pointer, touch and drag input are handled by the interaction layer
- * (dom/interaction.ts); this only says whether two targets name the same thing.
+ * Comparing pick targets, and the identity a dismissal is remembered by. Pointer, touch and drag input are
+ * handled by the interaction layer (dom/interaction.ts); this only says whether two targets name the same
+ * thing.
  */
-import type { PickTarget } from '../core/contracts';
+import type { DatumRef, PickTarget } from '../core/contracts';
+import { sameRef } from '../core/focus';
 
 /** Two pick results name the same thing, so the tooltip need not be rebuilt. */
 export function sameTarget(a: PickTarget | null, b: PickTarget | null): boolean {
@@ -10,10 +12,31 @@ export function sameTarget(a: PickTarget | null, b: PickTarget | null): boolean 
   if (a.kind === 'x' && b.kind === 'x') return a.x === b.x;
   if (a.kind === 'slice' && b.kind === 'slice') return a.sliceKey === b.sliceKey;
   if (a.kind === 'point' && b.kind === 'point') {
-    return a.count === b.count && a.refs.length === b.refs.length && a.refs.every((r, i) => {
-      const o = b.refs[i]!;
-      return r.kind === 'point' && o.kind === 'point' && r.seriesKey === o.seriesKey && r.row === o.row && r.x === o.x;
-    });
+    return a.count === b.count && a.refs.length === b.refs.length && a.refs.every((r, i) => sameRef(r, b.refs[i]!));
   }
   return false;
+}
+
+/**
+ * The datum a dismissal belongs to (decision 0004 rule 8): the x of an aligned target, the slice, or the
+ * first point of a scatter group. Points that come to share that point's position do not make it another
+ * datum, and the dismissal ends only when the datum shown no longer includes it.
+ */
+export type Identity =
+  | { readonly kind: 'x'; readonly x: number }
+  | { readonly kind: 'point'; readonly ref: DatumRef }
+  | { readonly kind: 'slice'; readonly sliceKey: string };
+
+export function identityOf(target: PickTarget): Identity {
+  switch (target.kind) {
+    case 'x': return { kind: 'x', x: target.x };
+    case 'slice': return { kind: 'slice', sliceKey: target.sliceKey };
+    case 'point': return target.refs[0] ? { kind: 'point', ref: target.refs[0] } : { kind: 'x', x: NaN };
+  }
+}
+
+export function matchesIdentity(id: Identity, target: PickTarget): boolean {
+  if (id.kind === 'x') return target.kind === 'x' && target.x === id.x;
+  if (id.kind === 'slice') return target.kind === 'slice' && target.sliceKey === id.sliceKey;
+  return target.kind === 'point' && target.refs.some(r => sameRef(r, id.ref));
 }

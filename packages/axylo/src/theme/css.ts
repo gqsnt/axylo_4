@@ -173,20 +173,23 @@ ${forced}
   /* Measures nothing on screen: it has the labels' font, and its size changes when that font arrives. */
   .axylo .axylo-text > .axylo-font-probe { position: absolute; left: 0; top: 0; white-space: pre; visibility: hidden; pointer-events: none; }
   .axylo .axylo-text > .axylo-font-probe::before { content: "Mg 0123456789"; }
-  /* Decision 0004 revision 2: a hovered tooltip is text that never takes the pointer (rule 3); a pinned one
+  /* Decision 0004 revision 3: a hovered tooltip is text that never takes the pointer (rule 3); a pinned one
      takes events and its rows are buttons of at least 24 px (rule 4). */
   .axylo .axylo-tooltip {
     position: absolute; left: 0; top: 0; z-index: 3; box-sizing: border-box; pointer-events: none;
     max-width: min(320px, 100%); padding: 4px 8px; border: 1px solid var(--axylo-axis, var(--axylo-default-axis)); border-radius: 4px;
     background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background))); color: var(--axylo-text, currentColor);
     font-size: max(12px, 0.875em); line-height: 1.4;
+    /* Never larger than the visible part of the plot (rule 6): the layer sets both maxima; content wraps. */
+    overflow: hidden; overflow-wrap: anywhere;
   }
   .axylo .axylo-tooltip.axylo-tooltip-pinned { pointer-events: auto; }
   /* Readout mode (rule 5): a strip of two lines reserved under the plot, in the plot's column, as running
      text. Outside readout mode it does not exist. */
   .axylo .axylo-readout { display: none; }
   .axylo .axylo-readout-mode .axylo-readout {
-    display: block; flex: none; box-sizing: border-box; height: calc(2 * max(24px, 1.4 * max(12px, 0.875em)));
+    /* Two actual line heights of the strip's own font: em here is that font, whatever the page's size. */
+    display: block; flex: none; box-sizing: border-box; height: calc(2 * max(24px, 1.4em));
     margin: 0; padding: 0 4px; overflow: hidden; font-size: max(12px, 0.875em); line-height: max(24px, 1.4em);
     color: var(--axylo-text, currentColor); overflow-wrap: anywhere;
   }

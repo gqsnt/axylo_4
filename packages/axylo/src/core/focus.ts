@@ -8,13 +8,14 @@
  * ("single" mode) and moves with `lookup.step`, which skips that series' missing values as the contract says.
  */
 import {
-  type AlignedView, type DatumRef, type Formatters, type Layout, type Lookup, type Mark, type Overlay,
-  type PickTarget, type Rect, type RuleMark, type ScatterView, type StepDirection, type View,
+  type AlignedView, type DatumRef, type DatumText, type Formatters, type Layout, type Lookup, type Mark, type Overlay,
+  type PickTarget, type Rect, type RuleMark, type ScatterView, type SlotState, type StepDirection, type TooltipModel, type View,
 } from './contracts';
 import { donutGeometry } from '../view/donut-geometry';
 import type { Messages } from '../public';
 import { fill, pointOf } from '../messages';
 import { lowerBound } from '../lookup/search';
+import { slotText } from '../lookup/text';
 
 export type Mode = 'all' | 'single';
 type Span = readonly [number, number];
@@ -127,21 +128,82 @@ export function valueText(
   }
   if (view.kind !== 'scatter' && mode === 'all' && focus.kind === 'aligned') {
     // What the tooltip shows at this x, the stack total included, said once (spec I1, F10).
+    // Every series at x, the ones past the tooltip's eight included, as the tooltip writes its rows: an
+    // incomplete stack is said once, on the total, not again on each series (review C2-7).
     const model = lookup.tooltip({ kind: 'x', x: focus.x });
-    const shown = new Set(model.rows.map(r => r.seriesIndex));
-    const rows = model.rows.map(r => fill(messages.seriesValue, { series: r.seriesLabel, value: r.value }));
-    for (const ref of refsAt(view, focus.x)) {
-      if (ref.kind !== 'aligned') continue;
-      const index = view.frame.series.findIndex(s => s.key === ref.seriesKey);
-      if (shown.has(index)) continue;
-      const datum = lookup.datum(ref);
-      if (datum) rows.push(fill(messages.seriesValue, { series: datum.seriesLabel, value: datum.value }));
-    }
+    const rows = alignedRows(view, formatters, focus.x, model).map(r => fill(messages.seriesValue, { series: r.seriesLabel, value: r.value }));
     if (model.total !== null) rows.push(fill(messages.seriesValue, { series: messages.total, value: model.total }));
     if (!rows.length) return null;
     return fill(messages.pointAll, { x: formatters.x(focus.x), values: rows.join('; '), position });
   }
   return pointOf(lookup, focus, formatters, messages);
+}
+
+/**
+ * Every readable series' row at x, in series order: the tooltip's own rows first (they are the first of
+ * them), then the rest written the same way, unqualified, as the tooltip writes a row. Used where every
+ * series is read (the keyboard's "all" reading, a pinned tooltip's further rows).
+ */
+export function alignedRows(view: AlignedView, formatters: Formatters, x: number, model: TooltipModel): DatumText[] {
+  const rows: DatumText[] = [...model.rows];
+  const shown = new Set(model.rows.map(r => r.seriesIndex));
+  const positions = view.frame.x.values;
+  const i = lowerBound(positions, x);
+  if (i >= positions.length || positions[i] !== x) return rows;
+  const title = formatters.x(x);
+  for (const s of readableSeries(view)) {
+    if (shown.has(s)) continue;
+    const series = view.frame.series[s]!;
+    const state = series.slot[i] as SlotState;
+    rows.push({
+      ref: { kind: 'aligned', seriesKey: series.key, x }, seriesIndex: s, seriesLabel: series.label, x: title,
+      value: slotText(formatters, s, series.y[i]!, state), state, percent: null, row: series.row?.[i] ?? i,
+    });
+  }
+  return rows;
+}
+
+/**
+ * Every point shown with a scatter target: its refs, then the rest of its coincident group (the pick lists
+ * at most eight). The group's further members are its neighbours in the lookup's x-then-y order whose
+ * anchors coincide with the first's; exactly coincident points are adjacent in that order.
+ */
+export function groupRefs(lookup: Lookup, target: Extract<PickTarget, { kind: 'point' }>): DatumRef[] {
+  const refs = [...target.refs];
+  const first = refs[0];
+  const box = first ? lookup.anchor(first) : null;
+  if (!first || !box || target.count <= refs.length) return refs;
+  const same = (ref: DatumRef) => {
+    const b = lookup.anchor(ref);
+    return b !== null && Math.abs(b.x - box.x) < 0.5 && Math.abs(b.y - box.y) < 0.5;
+  };
+  for (const direction of ['next', 'previous'] as const) {
+    let at: DatumRef | null = first;
+    for (let k = 0; at && refs.length < target.count && k < target.count + 8; k++) {
+      at = lookup.step(at, direction);
+      if (!at || !same(at)) break;
+      if (!refs.some(r => sameRef(r, at))) refs.push(at);
+    }
+  }
+  return refs;
+}
+
+/**
+ * What a reading says about the datum itself, for deciding whether the focused text must be rewritten
+ * (decision 0004 part 2): its identity, its values and the templates that word them, never its place in
+ * the range. Compared as data, not by taking one translated sentence out of another (review finding 14).
+ */
+export function datumReading(view: View, lookup: Lookup, ref: DatumRef, mode: Mode, formatters: Formatters, messages: Messages): string | null {
+  if (lookup.ordinal(ref) < 0) return null;
+  const words = [messages.pointAll, messages.pointOf, messages.seriesValue, messages.total];
+  if (view.kind !== 'scatter' && view.kind !== 'donut' && mode === 'all' && ref.kind === 'aligned') {
+    const model = lookup.tooltip({ kind: 'x', x: ref.x });
+    const rows = alignedRows(view, formatters, ref.x, model).map(r => [r.seriesIndex, r.seriesLabel, r.value]);
+    return JSON.stringify(['all', ref.seriesKey, formatters.x(ref.x), rows, model.total, words]);
+  }
+  const datum = lookup.datum(ref);
+  if (!datum) return null;
+  return JSON.stringify(['one', ref, datum.seriesLabel, datum.x, datum.value, datum.percent, words]);
 }
 
 // ── overlay ─────────────────────────────────────────────────────────────────────────────────────────
@@ -279,23 +341,41 @@ export function overlayWith(targetMarks: TargetMarks, input: OverlayInput): Over
   targetMarks(input, plot, clipped, unclipped);
 
   if (ring) {
-    const box = lookup.anchor(ring);
-    if (box) {
-      // Drawn inside the plot's box, so it is painted at the last point and at the top of a donut too (A2):
-      // the ring's lines, surround included, are kept inside the plot. Two tones: the focus colour on a
-      // surround of the background colour (WCAG 1.4.11 against whatever mark the ring crosses).
-      const gap = box.width === 0 && box.height === 0 ? 8 : RING_GAP;
-      const inset = SURROUND_WIDTH / 2;
-      const x0 = Math.max(plot.x + inset, box.x - gap), y0 = Math.max(plot.y + inset, box.y - gap);
-      const x1 = Math.min(plot.x + plot.width - inset, box.x + box.width + gap), y1 = Math.min(plot.y + plot.height - inset, box.y + box.height + gap);
-      if (x1 > x0 && y1 > y0) {
-        const ringBox = { x: x0, y: y0, width: x1 - x0, height: y1 - y0 };
-        unclipped.push(...outline(ringBox, 0, 'background', SURROUND_WIDTH), ...outline(ringBox, 0, 'focus', RING_WIDTH));
-      }
-    }
+    const ringBox = ringLine(layout, lookup, ring);
+    // Two tones: the focus colour on a surround of the background colour (WCAG 1.4.11 against whatever
+    // mark the ring crosses).
+    if (ringBox) unclipped.push(...outline(ringBox, 0, 'background', SURROUND_WIDTH), ...outline(ringBox, 0, 'focus', RING_WIDTH));
   }
   return clipped.length || unclipped.length ? { clip: plot, clipped, unclipped } : null;
 }
+
+/**
+ * The centre line of the keyboard's datum ring, in plot pixels, or null when it is not drawn. Kept inside
+ * the plot's box, so it is painted at the last point and at the top of a donut too (A2): the ring's lines,
+ * surround included, stay inside the plot.
+ */
+function ringLine(layout: Layout, lookup: Lookup, ref: DatumRef): Rect | null {
+  if (layout.kind !== 'plot') return null;
+  const box = lookup.anchor(ref);
+  if (!box) return null;
+  const plot = layout.plot;
+  const gap = box.width === 0 && box.height === 0 ? 8 : RING_GAP;
+  const inset = SURROUND_WIDTH / 2;
+  const x0 = Math.max(plot.x + inset, box.x - gap), y0 = Math.max(plot.y + inset, box.y - gap);
+  const x1 = Math.min(plot.x + plot.width - inset, box.x + box.width + gap), y1 = Math.min(plot.y + plot.height - inset, box.y + box.height + gap);
+  return x1 > x0 && y1 > y0 ? { x: x0, y: y0, width: x1 - x0, height: y1 - y0 } : null;
+}
+
+/** The keyboard ring's painted extent (surround included), in plot pixels: what a tooltip must not cover. */
+export function ringRect(layout: Layout, lookup: Lookup, ref: DatumRef): Rect | null {
+  const line = ringLine(layout, lookup, ref);
+  if (!line) return null;
+  const h = SURROUND_WIDTH / 2;
+  return { x: line.x - h, y: line.y - h, width: line.width + 2 * h, height: line.height + 2 * h };
+}
+
+/** Width of the ring's painted stroke, surround included. */
+export const RING_STROKE = SURROUND_WIDTH;
 
 /** The union of the anchors a tooltip must not cover, in plot coordinates; null when nothing is drawn. */
 export function targetBox(view: View, lookup: Lookup, target: PickTarget, only: DatumRef | null): Rect | null {
@@ -365,6 +445,19 @@ export function zoomStep(full: Span, current: Span, factor: number, center: numb
 export function canZoomIn(view: View, window: Span): boolean {
   if (view.kind === 'donut') return false;
   return zoomStep(view.xFull, window, 1 / ZOOM_FACTOR, (window[0] + window[1]) / 2, minimumWidth(view)) !== undefined;
+}
+
+/**
+ * The window width a pinch asks for: the start width scaled by `factor` (start distance over current
+ * distance), held at the smallest width, and never the wrong way: spreading the fingers never widens and
+ * pinching them never narrows (the same guard as zoomStep; review C3-7). A window already below the
+ * smallest width (a public zoom can set one) stays as it is while the fingers spread.
+ */
+export function pinchWidth(start: number, factor: number, minWidth: number): number {
+  const width = Math.max(minWidth, start * factor);
+  if (factor < 1) return width < start ? width : start;
+  if (factor > 1) return width > start ? width : start;
+  return start;
 }
 
 /** The window moved by `share` of its width (negative: towards the start); null when it would not move. */

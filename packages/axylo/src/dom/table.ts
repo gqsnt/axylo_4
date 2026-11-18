@@ -18,6 +18,11 @@ export interface TableTexts {
   readonly notFound?: (text: string) => string;
   /** `lang` for each built-in string, or null. */
   readonly lang: (key: 'previousPage' | 'nextPage' | 'pageOf' | 'jumpToX') => string | null;
+  /**
+   * A cell's text as runs with their own `lang` (built-in "No data" or "incomplete" marked English on a page
+   * in another language, spec A10); absent, a cell is one run in the page's language.
+   */
+  readonly cell?: (text: string) => readonly { readonly text: string; readonly lang: string | null }[];
 }
 
 export interface TableView {
@@ -99,6 +104,7 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
    */
   function render(reader = false): void {
     if (!model || !texts) return;
+    const own = texts;
     const count = pages();
     page = Math.max(0, Math.min(page, count - 1));
     const headers = model.headers.join('\u0000');
@@ -124,7 +130,19 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
       cells.forEach((text, k) => {
         const cell = doc.createElement(k === 0 ? 'th' : 'td');
         if (k === 0) (cell as HTMLTableCellElement).scope = 'row';
-        cell.textContent = text;
+        const runs = own.cell?.(text) ?? [{ text, lang: null }];
+        if (runs.length === 1) {
+          cell.textContent = runs[0]!.text;
+          if (runs[0]!.lang) cell.setAttribute('lang', runs[0]!.lang);
+        } else {
+          for (const run of runs) {
+            if (!run.lang) { cell.append(run.text); continue; }
+            const span = doc.createElement('span');
+            span.lang = run.lang;
+            span.textContent = run.text;
+            cell.append(span);
+          }
+        }
         tr.appendChild(cell);
       });
       rows.push(tr);
