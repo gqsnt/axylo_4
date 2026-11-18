@@ -30,17 +30,17 @@ Observed model and effort are read from harness metadata (Codex session rollouts
 
 Finished and committed, each written by one provider and reviewed by the other: scales and formatting; layout and simplification; data layer, diagnostics and stores; renderers, text layer and theme; view and scene; lookup, reader and messages; chart core part 1 (review findings not yet fixed, see below); chart core part 2 (review running); benchmark harness and the M1 renderer measurements (not reviewed).
 
-| Running now (2026-11-18 evening, after commit 735e098; round 3) | Who | Files |
+| Running now (2026-11-18 evening, after commit 9f9eeef; round 3 is committed) | Who | Files |
 |---|---|---|
-| Lookup contract methods `members`, `has`, `slot` first (others wait on them; `tsc` red in `src/lookup` until then), then R13 and the reader half of I13; brief `wp/round3.lookup.md` (agent a5e106319fe97c022) | Claude Opus 5.5 high | `src/{data,lookup,scene,view,reader,layout}` |
-| Controller: C2 (blocking), C4/R7, C6, C7/R6, R8, R11, R12; brief `wp/round3.controller.md` (agent a1d73b9f46c46814f) | Claude Opus 5.5 high | `src/core` except `focus.ts` |
-| Interaction: R1, R2, I4, I5 (blocking), groups from the lookup, the Escape clarification (fixes acceptance I1 donut), R8 to R10, R14; brief `wp/round3.interaction.md` (agent aa0e6fca8e4a6224b) | Claude Opus 5.5 high | `src/dom`, `src/core/focus.ts` |
-| Acceptance: A2 toolbar tests learn the Select range button; structured exports from the checker for the docs conformance page (agent a61d95e46b3f0f3aa) | Claude Opus 5.5 high | `acceptance/**`, `test/browser/acceptance` |
-| Size analysis, measurements only, writes `wp/size2.analysis.md` (agent a3143bec106025ef7; scratch in `.scratch-size/`) | Claude Opus 5.5 xhigh | none in the product |
+| Coordinator's verification of 9f9eeef on the shared build: every core browser suite on SVG, then `chart` + `a11y` on canvas; logs `acceptance/results/verify-9f9eeef/{svg,canvas}.txt` | coordinator | reads `packages/axylo/dist` |
+| The last narrow check (owner's stop rule): five blocking items and round 3's diff, brief `wp/final-check.prompt.md` | Codex gpt-6.2-sol max | writes `wp/final-check.review.md` |
+| Behaviour-neutral size cuts outside `src/dom` (test-only members out of production, duplicate helpers, CSS minifier), from `wp/size2.analysis.md` (agent a5e106319fe97c022) | Claude Opus 5.5 high | `packages/axylo/src` outside `src/dom`, `scripts/build.mjs`, `tests/dist` |
+
+Round 3 commits: lookup `members` / `has` / `slot` (91adfe7), acceptance toolbar and Select range tests with checker exports (7f9965e), docs on the checker's rows (c4689bb), controller (c29e566), stores `retainedRows` (03ff5b1), interaction (9f9eeef); reports `wp/round3.*.report.md`. Sizes at 9f9eeef: everything 116.95 KiB (target 116: over), line only 97.71 (target 98: ok).
 
 Coordinator's verification of e90d8db on the shared build (logs `acceptance/results/verify-e90d8db/`): SVG 920 passed, 4 failed, 1 skipped (925); canvas `chart` + `a11y` 280 passed, 3 skipped. The failures: three A2 toolbar tests (new button), one I1 donut hold test (real, settled by the rewritten Escape clarification). Narrow re-check, Codex gpt-6.2-sol max (observed), `wp/blockers-recheck.review.md`: hold; blocking C2, I4, I5, R1, R2; fourteen regressions R1 to R14. Round 3 answers it; common brief `wp/round3.common.md` records the coordinator's decisions (groups come from the lookup; C13 and mixed proxy languages accepted as they are; pointer tolerance in viewport pixels).
 
-The shared `packages/axylo/dist` is built from 22a0b52 (the message-key removal). Only the coordinator rebuilds it; agents use private builds through `AXYLO_BUNDLE`.
+The shared `packages/axylo/dist` is built from 9f9eeef. Only the coordinator rebuilds it; agents use private builds through `AXYLO_BUNDLE`.
 
 Idle agents that can be resumed with SendMessage: controller a1d73b9f46c46814f; interaction aa0e6fca8e4a6224b; data, lookup, scene, layout a5e106319fe97c022; engines and acceptance suite a61d95e46b3f0f3aa; palette abc842fd0288bc675.
 
