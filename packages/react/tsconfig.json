@@ -1,1 +1,1 @@
-{ "extends": "../../tsconfig.base.json", "compilerOptions": { "rootDir": "../..", "noEmit": true, "jsx": "react-jsx", "paths": { "axylo": ["../axylo/src/index.ts"] } }, "include": ["src", "test"] }
+{ "extends": "../../tsconfig.base.json", "compilerOptions": { "rootDir": "../..", "noEmit": true, "jsx": "react-jsx", "paths": { "axylo": ["../axylo/src/index.ts"] } }, "include": ["src", "test", "../axylo/src/core/globals.d.ts"] }

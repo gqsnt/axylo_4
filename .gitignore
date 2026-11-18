@@ -8,3 +8,4 @@ test-results/
 preview.log
 packages/axylo/test/browser/.out/
 .gallery/
+packages/react/test/browser/.out/
