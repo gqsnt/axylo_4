@@ -32,9 +32,7 @@ Finished and committed, each written by one provider and reviewed by the other: 
 
 **Resumed 2026-11-19 07:55 on the owner's instruction** ("continue your plan" for benchmarks, agent rehearsal, Phase 1 comparison rerun, CI, release steps; "use mostly codex, 6.2 sol xhigh for coding and 6.2 astra xhigh and yourself for high level analyze / review"). The coordinator is now Claude Opus 5.5 at effort high (switched by the owner).
 
-| Running now (2026-11-19, from about 10:20 local) | Who | Files |
-|---|---|---|
-| Benchmarks, both families, unattended: `bench/results/run-2026-11-19.sh` on artifact `bench/artifacts/20261119T091624Z-b643862f-b78698` (sources b643862, clean); before every session it waits until the one-minute load has been under 1.0 for ten consecutive minutes; log `bench/results/run-2026-11-19.log` | coordinator (no agent) | `bench/` |
+**Stopped on the owner's instruction (2026-11-19, about 10:45): "stop for now we will do perf ben later". Nothing is running. Resume only on the owner's word (rule 9).** The benchmark script `bench/results/run-2026-11-19.sh` was stopped while still waiting for an idle machine: no benchmark session ran (the load stayed between 8 and 31 from other work on the machine). Its artifact `bench/artifacts/20261119T091624Z-b643862f-b78698` was built from b643862; the library sources have not changed since (later commits touch acceptance, docs, rehearsal and status files only), but rebuild the artifact if any source changes before the run.
 
 At its start the machine was busy with another project's work (a `cargo check` and a `find` for AGENTS.md files, not this session's processes; load 8), so the first session waits. If the run is interrupted (restart): read the log, rerun only the missing steps (`node bench/decision.mjs <step> [--family gpu] --artifact <A>`, or `--only <ids>` for ineligible endpoints), then `decide`.
 
@@ -126,14 +124,11 @@ Owner's answers on 2026-11-18 night: "Yes, settle them" (spec questions that res
 
 ## Next action
 
-Only on the owner's instruction. In order:
+Only on the owner's instruction. Remaining for 1.0, in order:
 
-1. Fix the two defects above (scanner ancestors; the docs page's provenance), each with a failing test first; then repeat the six recordings at that commit on a quiet tree (`node acceptance/run.mjs unit|dist|dist-browser|browser`, `AXYLO_ENGINE=firefox|webkit node acceptance/run.mjs browser`; about 50 minutes), the release check, and `node apps/docs/build.mjs`.
-2. The owner has been asked which gate 1.0 uses (release with documented gaps, or the spec's full gate where every cell passes); not answered yet. Time estimates given to the owner: with documented gaps 3 to 5 working days (7 to 9 if the large-series path needs restructuring); full gate 6 to 10 days (about two weeks in the bad case).
-3. Benchmarks, with the machine left alone and no agents: `node bench/decision.mjs plan` (software family about 3.2 h, gpu family about 2.2 h); then budgets P1 to P8, the renderer decision (0002 is provisional), and the large-series path (first render at 100,000 points was about 7× uPlot in the only measurement, early and weak; the scatter lookup build got slower on 2026-11-18).
-4. Agent rehearsal (DX12: no script, prompts or trap fixtures exist yet), 3 to 4 hours; Phase 1 comparison rerun with Axylo included, 2 to 3 hours.
-5. Evidence gaps, most important first, in `wp/matrix-merge3.report.md` (164 weak cells).
-6. CI has never run and no remote exists. Nothing has been pushed, tagged or published. Creating a remote, pushing, tagging and publishing each need the owner's explicit grant.
+1. Performance (owner: "we will do perf ben later"): on an idle machine, `bench/results/run-2026-11-19.sh` (rebuild the artifact with `node bench/build.mjs` first if library sources changed, and update `A=` in the script), then Phase 1 `perf` with the harness server (`research/README.md`), then gpt-6.2-astra analyses budgets P1 to P8, the renderer decision and the comparison's timing table; gpt-6.2-sol makes any performance fixes.
+2. The release commit: freeze it, then record every configuration again (`node acceptance/run.mjs unit|dist|dist-browser|browser`, `AXYLO_ENGINE=firefox|webkit node acceptance/run.mjs browser`), repeat the agent rehearsal at that commit (`node rehearsal/run.mjs --attempts 3 --parallel 2 --records rehearsal/records/release-<commit>`), run `node acceptance/check.mjs --release --results <six files>` (must exit 0 under the owner's gate), rebuild the docs.
+3. Version number, changelog date (`CHANGELOG.md` is drafted), tag and publish: each only on the owner's explicit word. Pushing to `origin` (github.com/gqsnt/axylo_4) also needs the owner's word each time; CI is not to be checked (owner).
 
 ## Known limits that no agent can close
 
