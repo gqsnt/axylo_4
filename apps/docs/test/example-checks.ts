@@ -148,6 +148,15 @@ export const checks: Record<string, Check> = {
     const zeros = await t.table(1);
     expect(zeros).toEqual(expect.arrayContaining(['Mar 3, 2026 | 0', 'Mar 4, 2026 | 0']));
   } },
+  'mixed-numbers': { charts: 2, run: async t => {
+    for (const i of [0, 1]) expect(await t.note(i)).toBe('Values not shown: 1. See table.');
+    expect(await t.table(0)).toEqual([
+      'Mar 2, 2026 | 1,250', 'Mar 3, 2026 | No data', 'Mar 4, 2026 | 980',
+    ]);
+    expect(await t.table(1)).toEqual([
+      'Mar 2, 2026 | 1,250', 'Mar 3, 2026 | 1,340.5', 'Mar 4, 2026 | 980', 'Mar 5, 2026 | No data',
+    ]);
+  } },
   'numeric-strings': { charts: 1, run: async t => {
     await valueText(t, 0, ['Home'], 'Orders 182');
     has(await t.desc(0), 'maximum 231');

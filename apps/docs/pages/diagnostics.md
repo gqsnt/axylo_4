@@ -58,9 +58,13 @@ Most diagnostics are found while a call checks its input: the create, `update` o
 
 ## validate() in Node and in tests
 
-`validate(type, options)` runs the same reading and checking as creating a chart (options, data, view, name) without a DOM, and returns the diagnostics a created chart would report from its call. It takes the same options as the chart type, so it type-checks the same way. Importing `axylo` in Node does not touch the DOM.
+`validate(type, options)` runs the same input checks as creating a chart (options, data, view, name) without a DOM. It returns every finding from those checks, including hints, in every build. It takes the same options as the chart type, so it type-checks the same way. Importing `axylo` in Node does not touch the DOM.
 
-Use it on a server, in a build step, or in a coding agent's loop:
+In a project with `axylo` installed, save this plain JavaScript as `check.mjs` and run `node check.mjs`. It prints hint AX105 for the missing day.
+
+[source: examples/node/check.mjs](../examples/node/check.mjs)
+
+Here is a TypeScript check for a build step or server.
 
 [source: examples/node/validate.ts](../examples/node/validate.ts)
 
@@ -68,7 +72,7 @@ Or in a unit test, so that a change in the data a query returns fails the build 
 
 [source: examples/node/chart-data.test.ts](../examples/node/chart-data.test.ts)
 
-Both files are type-checked and run by this documentation's own tests, against the packed package. The package's declarations refer to DOM types, so a TypeScript configuration for Node code needs `"lib": ["ES2022", "DOM"]` (or `skipLibCheck`). `validate()` cannot find what only a page can show: the diagnostics listed under "When they are found" need a browser. It can tell that a chart has neither `title` nor `labelledBy`, but not whether a `labelledBy` id exists.
+The documentation tests type-check and run these examples against the packed package. The package's declarations refer to DOM types, so a TypeScript configuration for Node code needs `"lib": ["ES2022", "DOM"]` (or `skipLibCheck`). Findings that depend on drawing require a browser. `validate()` can check whether you supplied a `title` or `labelledBy`. Checking whether the id exists requires a page.
 
 ## Every code
 

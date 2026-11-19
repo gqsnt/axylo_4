@@ -1,8 +1,8 @@
 /**
  * Runs in Node, after `npm run build`, with the browser suite (it needs the packed packages, not a browser).
  * The Node examples quoted on the Diagnostics page (apps/docs/examples/node, copied into the packed consumer)
- * run against the installed tarball: validate.ts as a script, chart-data.test.ts as a Vitest test in a run of
- * its own rooted in the consumer.
+ * run against the installed tarball: check.mjs and validate.ts as scripts, chart-data.test.ts as a Vitest test
+ * in a run of its own rooted in the consumer.
  */
 import { beforeAll, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
@@ -16,6 +16,14 @@ import { consumerDir, installed } from '../lib/consumer.mjs';
 beforeAll(async () => { await buildSite(); }, 180_000);
 
 describe('Node examples, against the packed package', () => {
+  it.each([
+    { build: 'production', flags: [] },
+    { build: 'development', flags: ['--conditions=development'] },
+  ])('check.mjs reports hints in the $build build', ({ flags }) => {
+    const out = execFileSync(process.execPath, [...flags, 'check.mjs'], { cwd: path.join(consumerDir, 'src/node'), encoding: 'utf8' });
+    expect(out.trim()).toMatch(/^AX105 hint: .*2026-03-04/);
+  });
+
   it('validate.ts runs and finds nothing blocking', () => {
     const out = execFileSync(process.execPath, ['--experimental-strip-types', '--no-warnings', path.join(consumerDir, 'src/node/validate.ts')], { cwd: consumerDir, encoding: 'utf8' });
     expect(out.trim()).toBe('Checked "Orders per day": 0 diagnostics, none blocking.');

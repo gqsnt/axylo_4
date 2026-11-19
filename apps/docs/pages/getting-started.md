@@ -74,7 +74,11 @@ The four states, each a chart with no rows:
 
 **2. Check which kind of x Axylo read.** A date off by one day almost always means instants where calendar dates were meant (item 1 above). If the tooltip heading names a time zone, Axylo read instants. If the x labels are your strings in input order, it read categories.
 
-**3. Check the values without drawing.** `validate()` runs the same checks as creating the chart, in Node or in a test, with the same options as the chart:
+**3. Check the values without drawing.** `validate()` runs the chart's input checks in Node or in a test, with the same options as the chart. It returns every finding from those checks, including hints, in every build. In a project with `axylo` installed, save this plain JavaScript as `check.mjs` and run `node check.mjs`.
+
+[source: examples/node/check.mjs](../examples/node/check.mjs)
+
+To check the monthly visitors chart above in TypeScript, pass its rows and options to `validate()`.
 
 ```ts
 import { validate } from 'axylo';

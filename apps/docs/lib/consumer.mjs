@@ -131,7 +131,10 @@ export function writeConsumerTsconfigs() {
     compilerOptions: { ...STRICT, lib: ['ES2022', 'DOM', 'DOM.Iterable'], allowJs: true, checkJs: true },
     include: ['src/*.ts', 'src/*.js'],
   };
-  const node = { compilerOptions: { ...STRICT, lib: ['ES2022', 'DOM'] }, include: ['src/node/*.ts'] };
+  const node = {
+    compilerOptions: { ...STRICT, lib: ['ES2022', 'DOM'], allowJs: true, checkJs: true },
+    include: ['src/node/*.ts', 'src/node/*.mjs'],
+  };
   fs.writeFileSync(path.join(consumerDir, 'tsconfig.json'), JSON.stringify(browser, null, 2));
   fs.writeFileSync(path.join(consumerDir, 'tsconfig.node.json'), JSON.stringify(node, null, 2));
   return { browser: path.join(consumerDir, 'tsconfig.json'), node: path.join(consumerDir, 'tsconfig.node.json') };

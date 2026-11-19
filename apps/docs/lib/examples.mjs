@@ -125,7 +125,7 @@ export function writeConsumerSources(consumerDir) {
       scripts[script.file] = { example: example.file, line: script.line, kind: script.kind };
     }
   }
-  for (const file of fs.readdirSync(path.join(examplesDir, 'node')).filter(f => f.endsWith('.ts'))) {
+  for (const file of fs.readdirSync(path.join(examplesDir, 'node')).filter(f => /\.(ts|mjs)$/.test(f))) {
     fs.copyFileSync(path.join(examplesDir, 'node', file), path.join(src, 'node', file));
   }
   return { src, scripts };

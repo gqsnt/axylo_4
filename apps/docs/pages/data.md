@@ -117,14 +117,24 @@ Here are the values an application sends by mistake, all at once. The note under
 
 ## Numbers sent as strings
 
-Some database drivers return counts and decimals as strings (Postgres `bigint` and `numeric`, BigQuery). Axylo looks at the whole field:
+Some database drivers return counts and decimals as strings (Postgres `bigint` and `numeric`, BigQuery). Axylo checks the whole value field and skips missing values such as `null` and `""` when deciding whether to convert it.
 
-- When every value is a plain decimal string (`'40'`, `'-1.5'`, and exponent notation such as `'1e3'`), the field is converted and drawn, and hint [AX104](diagnostics.md#ax104) asks you to say so with `parse: 'number'`. With that, there is no hint, and TypeScript accepts the string field on a value axis.
-- When the field also holds a number, or any string that is not a plain decimal (`'1,234'`, `'n/a'`), or another kind of value (`true`), every string in it is rejected, plain decimals included. They are not drawn, and they are warning [AX106](diagnostics.md#ax106).
+A decimal string has an optional `+` or `-`, then one or more digits from `0` to `9`. A decimal point is optional and must be followed by one or more digits. An optional exponent starts with `e` or `E`, followed by an optional sign and one or more digits. The whole string must fit this grammar, with no whitespace. Axylo accepts `"40"`, `"-1.5"`, `"+2"`, `"1e3"` and `"2.5E-2"`. It rejects `".5"`, `"5."`, `"0x10"`, `"1,234"`, `" 40 "` and `"1e"`.
 
-The conversion is to JavaScript numbers. Integers are exact up to 9,007,199,254,740,991 (`Number.MAX_SAFE_INTEGER`); a larger one is rounded to the nearest number JavaScript can hold, without a diagnostic: `'9007199254740993'` reads 9,007,199,254,740,992. A string too large for a number (`'1e999'`) becomes infinite and is [AX103](diagnostics.md#ax103). When exact counts could exceed that limit, check them with `Number.isSafeInteger(Number(value))` before charting.
+- When every non-missing value matches, Axylo converts the strings to JavaScript numbers. Hint [AX104](diagnostics.md#ax104) asks you to declare `parse: 'number'`. The declaration suppresses that hint and lets TypeScript accept the string field on a value axis.
+- A number, a string outside the grammar, or another kind of value such as `true` prevents string conversion for the whole field, even with `parse: 'number'`. Axylo draws the finite numbers and reports the non-missing strings it leaves out with warning [AX106](diagnostics.md#ax106).
+
+JavaScript represents integers exactly up to 9,007,199,254,740,991 (`Number.MAX_SAFE_INTEGER`). Larger integers can round without a diagnostic. For example, `"9007199254740993"` reads as 9,007,199,254,740,992. When a matching string such as `"1e999"` converts to infinity, Axylo leaves it out with warning [AX103](diagnostics.md#ax103). When exact counts could exceed the safe integer limit, check accepted strings with `Number.isSafeInteger(Number(value))` before charting.
 
 [example: numeric-strings](../examples/numeric-strings.ts)
+
+### A field that mixes numbers and strings
+
+With `[1250, "1340.5", 980]` as given, the middle value leaves a break in the line. Its table cell reads “No data”. Axylo reports AX106 and the chart shows “Values not shown: 1. See table.” in the figure and in the accessibility tree.
+
+Before charting, convert only strings that match the grammar. Leave other values as they came in so Axylo can report them. The second chart draws all three valid values and adds a fourth row with `"0x10"` to show how AX106 and the reader's note still report the omission.
+
+[example: mixed-numbers](../examples/mixed-numbers.html)
 
 ## Order and duplicates
 
@@ -161,4 +171,4 @@ Value axes (y, and both axes of a scatter chart) end on a drawn tick at or beyon
 
 ## Checking data before you draw
 
-`validate(type, options)` runs the same reading and checking as a chart, without a page, and returns the diagnostics. Use it in Node, in a unit test, or in a coding agent's loop before rendering. See [Diagnostics](diagnostics.md#validate-in-node-and-in-tests).
+`validate(type, options)` runs the chart's input checks without a page. It returns every finding from those checks, including hints, in every build. For a check you can run with `node check.mjs`, see [Diagnostics](diagnostics.md#validate-in-node-and-in-tests).

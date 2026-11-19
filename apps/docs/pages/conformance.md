@@ -6,6 +6,8 @@ This page is generated each time the site is built, from the specification's cri
 
 ## What the evidence can and cannot show
 
+On release candidate `1e93128`, Codex CLI `gpt-6.2-sol` and Claude Code `claude-opus-5-5` each passed three uncoached attempts on each of four fixed line and bar tasks. All 24 attempts passed after the transcript re-audit. In Chrome 158, each saved answer passed the reader checks without error diagnostics on both inputs in the Los Angeles and Tokyo time zones. This agent rehearsal gives no estimate of general success and provides no evidence of human or screen-reader usability or WCAG conformance. The prompt restricted agents to the published docs for guidance, and the audit checked recorded access. The filesystem did not enforce docs-only access.
+
 - **Automated checks only.** The acceptance tests check structure: names, roles, focus order, contrast, sizes and text. They do not show that a person using a screen reader understands a chart.
 - **No screen-reader rehearsal was done for 1.0.** No screen reader has been run against these charts, so nothing in this documentation says what a screen reader speaks.
 - **No usability testing with disabled people.** Axylo is built by one person with no access to study participants, and no claim of usability testing with disabled users is made.

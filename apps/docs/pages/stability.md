@@ -31,7 +31,7 @@ These are the targets of 1.0 (spec section 2.3). What has been verified so far i
 | Browsers | The current and previous major versions of Chrome, Edge and Firefox, and of Safari on macOS and iOS. |
 | TypeScript | 5.4 and later. Plain JavaScript is fully supported; types are an aid, not a requirement. |
 | Frameworks | None needed. No adapter ships in 1.0; the library is called from any framework's mount and unmount hooks. |
-| Node | Importing `axylo` touches no DOM, and `validate()` runs there. Charts themselves need a browser. |
+| Node | Importing `axylo` touches no DOM. `validate()` returns every finding from the input checks, including hints, in every build. For a check you can run with `node check.mjs`, see [Diagnostics](diagnostics.md#validate-in-node-and-in-tests). Charts themselves need a browser. |
 | Text direction | Left-to-right pages. Right-to-left text renders, but the layout is not mirrored. |
 | Transformed ancestors | A chart inside a translated or scaled element (any positive scale, uniform or not) is exact. Inside a rotated, skewed or mirrored element it draws, but pointing and tooltip placement are wrong: not supported in 1.0. |
 | Built-in text | English. Reader-facing messages are replaceable through `messages`; diagnostics keep their English wording. |
@@ -51,6 +51,10 @@ These are known in 1.0 and not fixed in it. Each says what you would see.
 - **Patterns in compact bar charts.** Neighbouring series always differ by fill pattern, but series further apart can share one, since there are four, and then differ by colour only.
 - **Very small numbers.** On an axis of values around 1e-43 or smaller, ticks can be missing or not match their labels.
 - **The end labels of a scatter chart's x axis.** That axis ends on a drawn tick at each end (spec F7) and reserves no extra room for the labels there, so long tick labels are wrapped or rotated to fit rather than left out. On a narrow plot the axis can take a coarser, wider range so that its ends are ticks.
+
+## Agent rehearsal
+
+On release candidate `1e93128`, Codex CLI `gpt-6.2-sol` and Claude Code `claude-opus-5-5` each passed three uncoached attempts on each of four fixed line and bar tasks. All 24 attempts passed after the transcript re-audit. In Chrome 158, each saved answer passed the reader checks without error diagnostics on both inputs in the Los Angeles and Tokyo time zones. This agent rehearsal gives no estimate of general success and provides no evidence of human or screen-reader usability or WCAG conformance. The prompt restricted agents to the published docs for guidance, and the audit checked recorded access. The filesystem did not enforce docs-only access.
 
 ## Size and memory
 

@@ -15,6 +15,19 @@ function quarterOrdinal(label) {
   return Number(year) * 4 + Number(quarter);
 }
 
+// Check each part against the documented grammar before using JavaScript's wider number conversion.
+function decimalValue(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+  const unsigned = part => part.startsWith('+') || part.startsWith('-') ? part.slice(1) : part;
+  const digits = part => part.length > 0 && [...part].every(char => char >= '0' && char <= '9');
+  const [mantissa, exponent, ...extra] = value.toLowerCase().split('e');
+  if (extra.length || (exponent !== undefined && !digits(unsigned(exponent)))) return null;
+  const parts = unsigned(mantissa).split('.');
+  if (parts.length > 2 || !parts.every(digits)) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 describe('fixture expectations', () => {
   it.each(specs)('%s follows the calendar or quarters and preserves the source values in both inputs', async (task, period, keys, missing) => {
     const files = taskFiles(task);
@@ -56,6 +69,24 @@ describe('fixture expectations', () => {
         expect(data.every(row => row.day.endsWith('T00:00:00Z'))).toBe(true);
       }
     }
+  });
+
+  it('daily-revenue grammar input distinguishes valid decimals, omitted values and a missing day', async () => {
+    const fixture = new URL('../fixtures/daily-revenue.grammar.json', import.meta.url);
+    const answer = new URL('../fixtures/daily-revenue.grammar.expected.json', import.meta.url);
+    const [data, expected, primary] = await Promise.all([fixture, answer, taskFiles('daily-revenue').expected].map(readJson));
+    const days = Array.from({ length: 8 }, (_, index) => new Date(Date.UTC(2026, 4, index + 1)).toISOString().slice(0, 10));
+    const dates = data.map(row => row.day.slice(0, 10));
+    expect(data.every(row => row.day.endsWith('T00:00:00Z'))).toBe(true);
+    expect(dates).not.toEqual(dates.toSorted());
+    expect(dates.toSorted()).toEqual(days.filter(day => day !== '2026-05-04'));
+    expect(data.map(row => row.revenue)).toEqual(expect.arrayContaining(['+2', '.5', '0x10']));
+    const observations = new Map(data.map(row => [row.day.slice(0, 10), decimalValue(row.revenue)]));
+    expect(expected).toEqual({
+      ...primary,
+      rows: days.map(day => [day, observations.get(day) ?? null]),
+      valuesNotShown: [...observations.values()].filter(value => value === null).length,
+    });
   });
 
   it('accepts formatted numbers and omitted gaps, and rejects a zero substituted for any gap', () => {

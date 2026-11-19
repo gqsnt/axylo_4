@@ -191,9 +191,9 @@ export function splitRow(line) {
 function table(header, rows, align, inline, name = 'Table') {
   const style = index => align[index] ? ` style="text-align: ${align[index]}"` : '';
   const head = header.map((cell, index) => `<th scope="col"${style(index)}>${inline(cell)}</th>`).join('');
-  const body = rows.map(row => `<tr>${header.map((_, index) => `<td${style(index)}>${inline(row[index] ?? '')}</td>`).join('')}</tr>`).join('');
+  const body = rows.map(row => `<tr>${header.map((_, index) => `<td${style(index)}>${inline(row[index] ?? '')}</td>`).join('')}</tr>`).join('\n');
   // The wrapper scrolls a wide table on a narrow screen, so the page itself never scrolls sideways.
-  return `<div class="table-scroll" tabindex="0" role="region" aria-label="${escapeHtml(name)}"><table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  return `<div class="table-scroll" tabindex="0" role="region" aria-label="${escapeHtml(name)}"><table><thead><tr>${head}</tr></thead><tbody>\n${body}\n</tbody></table></div>`;
 }
 
 export function codeBlock(code, language = '') {

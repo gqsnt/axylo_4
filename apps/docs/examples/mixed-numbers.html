@@ -1,0 +1,38 @@
+<div id="raw"></div>
+<div id="normalized"></div>
+<script type="module">
+  import { line } from 'axylo';
+
+  // Raises AX106 on purpose.
+  const rows = [
+    { day: '2026-03-02', revenue: 1250 },
+    { day: '2026-03-03', revenue: '1340.5' },
+    { day: '2026-03-04', revenue: 980 },
+  ];
+
+  line('#raw', {
+    title: 'Revenue as received',
+    data: rows,
+    x: 'day',
+    // @ts-expect-error The mixed field fails type checking. This shows what happens in JavaScript.
+    y: { field: 'revenue', label: 'Revenue', parse: 'number' },
+  });
+
+  const decimal = /^[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
+  const input = [...rows, { day: '2026-03-05', revenue: '0x10' }];
+  const normalized = input.map(row => {
+    if (typeof row.revenue === 'string' && decimal.test(row.revenue)) {
+      return { ...row, revenue: Number(row.revenue) };
+    }
+    // Keep the original value so a bad string is reported.
+    return row;
+  });
+
+  line('#normalized', {
+    title: 'Revenue after normalization',
+    data: normalized,
+    x: 'day',
+    // @ts-expect-error The original invalid string is still in the data for this JavaScript example.
+    y: { field: 'revenue', label: 'Revenue' },
+  });
+</script>

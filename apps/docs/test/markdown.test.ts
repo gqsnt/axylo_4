@@ -81,9 +81,12 @@ describe('blocks', () => {
     expect(markdownToHtml('<!-- options: Title -->\ntext')).toBe('<p>text</p>');
   });
   it('renders pipe tables with headers, alignment and escaped pipes', () => {
-    const html = markdownToHtml('| Key | Type |\n|---|---:|\n| `a` | `1 \\| 2` |');
+    const html = markdownToHtml('| Key | Type |\n|---|---:|\n| `a` | `1 \\| 2` |\n| `b` | A choice |');
     expect(html).toContain('<th scope="col">Key</th><th scope="col" style="text-align: right">Type</th>');
-    expect(html).toContain('<td><code>a</code></td><td style="text-align: right"><code>1 | 2</code></td>');
+    expect(html.split('\n').filter(line => line.startsWith('<tr>'))).toEqual([
+      '<tr><td><code>a</code></td><td style="text-align: right"><code>1 | 2</code></td></tr>',
+      '<tr><td><code>b</code></td><td style="text-align: right">A choice</td></tr>',
+    ]);
     expect(html).toMatch(/^<div class="table-scroll" tabindex="0" role="region" aria-label="Table"><table>/);
   });
   it('names each table region after its heading, uniquely', () => {

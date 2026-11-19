@@ -475,7 +475,8 @@ function sizesTable(ctx) {
 
 function htmlTable(head, rows, caption) {
   const th = head.map(h => `<th scope="col">${escapeHtml(h)}</th>`).join('');
-  return `<div class="table-scroll" tabindex="0" role="region" aria-label="${escapeHtml(caption)}"><table><thead><tr>${th}</tr></thead><tbody>${rows.map(r => `<tr>${r.join('')}</tr>`).join('')}</tbody></table></div>`;
+  const body = rows.map(row => `<tr>${row.join('')}</tr>`).join('\n');
+  return `<div class="table-scroll" tabindex="0" role="region" aria-label="${escapeHtml(caption)}"><table><thead><tr>${th}</tr></thead><tbody>\n${body}\n</tbody></table></div>`;
 }
 
 function diagnosticsTable(ctx, link) {

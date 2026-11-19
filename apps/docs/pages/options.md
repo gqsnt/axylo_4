@@ -133,7 +133,7 @@ A value field is a key of `Row` whose values are numbers (or `null`), or an obje
 | Key | Type | Default | Meaning |
 |---|---|---|---|
 | `field` | `NumberKey<Row> \| StringKey<Row>` | required | The key of the row: a number field, or a string field with `parse`. |
-| `parse` | `'number'` | none | The field holds numbers as strings; convert them to JavaScript numbers (exact for integers up to 9,007,199,254,740,991). |
+| `parse` | `'number'` | none | Declares a field of decimal strings and suppresses hint AX104. Axylo converts strings only when every non-missing value matches the [decimal grammar](data.md#numbers-sent-as-strings). |
 | `label` | `string` | the field name | Axis title, and the series name in tooltip, table and announcements. |
 | `unit` | `string` | none | Follows values in tooltip, table and announcements: `'ms'`, `'USD'`. |
 | `scale` | `'percent' \| 'ratio'` | none | Percentage data: `'percent'` is 0–100, `'ratio'` is 0–1. Never inferred. |
@@ -141,6 +141,10 @@ A value field is a key of `Row` whose values are numbers (or `null`), or an obje
 | `tickFormat` | `Intl.NumberFormatOptions \| ((value: number) => string)` | the locale's grouping, with the step's fraction digits; compact from a largest tick of one million, scientific from 10¹⁵ | How axis ticks are written. |
 | `missing` | `'gap' \| 'zero'` | `'gap'` | What a missing value means. `'zero'` is for counts where absence means none. |
 | `domain` | `readonly [number, number]` | from the data | Author bounds. On bar and area, widened to include zero (AX110). In a wide chart only the first field's applies. |
+
+A decimal string starts with an optional `+` or `-` and one or more digits from `0` to `9`. It may then have a decimal point followed by one or more digits, and an exponent (`e` or `E`, an optional sign and one or more digits). The whole string must match, with no whitespace. Examples that match are `"40"`, `"-1.5"`, `"+2"` and `"1e3"`. Examples that fail are `".5"`, `"5."`, `"0x10"` and `"1,234"`. A matching string that converts to infinity is omitted with [AX103](diagnostics.md#ax103).
+
+In `[1250, "1340.5", 980]`, the middle value is left out with [AX106](diagnostics.md#ax106) even with `parse: 'number'`. It makes a gap and the reader sees an omission note. The [runnable normalization example](data.md#a-field-that-mixes-numbers-and-strings) converts the valid strings before passing the rows to Axylo and keeps invalid values so they are reported.
 
 ## X fields
 
@@ -227,7 +231,7 @@ Every chart function returns a `Chart<Row, Options>`.
 
 ## validate
 
-`validate(type, options)` takes `'line'`, `'area'`, `'bar'`, `'scatter'` or `'donut'` and that type's options, runs the checks a created chart runs from its call without a DOM, and returns `Diagnostic[]`. It cannot find what needs a page: contrast, sizes, label fitting, formatters, or whether a `labelledBy` id exists. See [Diagnostics](diagnostics.md#validate-in-node-and-in-tests).
+`validate(type, options)` takes `'line'`, `'area'`, `'bar'`, `'scatter'` or `'donut'` and that type's options. It runs the chart's input checks without a DOM and returns every finding in a `Diagnostic[]`, including hints, in every build. Checks for contrast, sizes, label fitting, formatters and matching a `labelledBy` id need a page. For a check you can run with `node check.mjs`, see [Diagnostics](diagnostics.md#validate-in-node-and-in-tests).
 
 ## Messages
 
