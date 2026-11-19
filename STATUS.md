@@ -30,7 +30,16 @@ Observed model and effort are read from harness metadata (Codex session rollouts
 
 Finished and committed, each written by one provider and reviewed by the other: scales and formatting; layout and simplification; data layer, diagnostics and stores; renderers, text layer and theme; view and scene; lookup, reader and messages; chart core part 1 (review findings not yet fixed, see below); chart core part 2 (review running); benchmark harness and the M1 renderer measurements (not reviewed).
 
-**Stopped here on the owner's instruction (2026-11-18, about 23:10): "ok stop when you reach Finish recording, release check, docs rebuild". Nothing is running. No agent is working. Do not start the benchmarks or any new work without the owner's word (rule 9).**
+**Resumed 2026-11-19 07:55 on the owner's instruction** ("continue your plan" for benchmarks, agent rehearsal, Phase 1 comparison rerun, CI, release steps; "use mostly codex, 6.2 sol xhigh for coding and 6.2 astra xhigh and yourself for high level analyze / review"). The coordinator is now Claude Opus 5.5 at effort high (switched by the owner).
+
+| Running now (2026-11-19 morning) | Who | Files |
+|---|---|---|
+| Checker title scanner nests a top-level describe under the previous one (18 cells read "not run"), brief `reviews/2026-11-19/wp/fix-scanner.prompt.md` | Codex gpt-6.2-sol xhigh, workspace-write | `acceptance/titles.mjs`, `check.mjs`, `acceptance/test/**` |
+| Docs conformance page refuses recordings the checker accepts, brief `wp/fix-docs-provenance.prompt.md` | Codex gpt-6.2-sol xhigh | `apps/docs/**` |
+| Agent rehearsal harness (DX12): fixtures with the five traps, prompts, runner for Codex and Claude Code, grader in Chrome in two time zones, records, brief `wp/rehearsal-harness.prompt.md` | Codex gpt-6.2-sol xhigh | new `rehearsal/` |
+| Axylo added to the Phase 1 harness, brief `wp/phase1-axylo.prompt.md` | Codex gpt-6.2-sol xhigh | `research/harness/**`, `research/tables.mjs` |
+
+Codex workers cannot commit; the coordinator verifies (including the browser runs their sandbox cannot do) and commits, and reviews their code (cross-provider). Benchmarks wait until no worker runs (the decision procedure requires a one-minute load under 1.0 at every block).
 
 Recorded with provenance at commit 1e38333 on a clean, quiet tree, shared build rebuilt from it (result files and sidecars in `acceptance/results/`, log `record-1e38333.log`; not in git):
 
