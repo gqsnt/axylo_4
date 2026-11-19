@@ -15,6 +15,7 @@ export function formatSummary(records) {
   ].map(row => row.map(String));
   const widths = headings.map((heading, i) => Math.max(heading.length, ...rows.map(row => row[i].length)));
   for (const row of [headings, ...rows]) lines.push(row.map((value, i) => value.padEnd(widths[i])).join('  ').trimEnd());
+  lines.push(`Re-audited records: ${records.filter(run => run.history?.length).length}.`);
   for (const [agent, requested] of Object.entries(models)) {
     const observed = [...new Set(records.filter(run => run.agent === agent).map(run => run.observed?.model).filter(Boolean))];
     lines.push(`${agent} requested ${requested}; observed ${observed.join(', ') || 'none'}.`);

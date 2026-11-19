@@ -1,9 +1,13 @@
 import { constants } from 'node:fs';
-import { access, readlink } from 'node:fs/promises';
+import { access, readlink, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { inside, repository } from './files.mjs';
+import { commandPaths } from './shell.mjs';
+
+export const auditVersion = 2;
+const fileTools = { Read: 'file_path', Write: 'file_path', Edit: 'file_path', Glob: 'path', Grep: 'path' };
 
 export function transcriptEvents(transcript) {
   const events = [];
@@ -21,50 +25,18 @@ export function transcriptEvents(transcript) {
   return { events, malformedLines };
 }
 
-function * toolInputs(event) {
-  const item = event.item;
-  if (item?.type === 'command_execution') yield { command: item.command, cwd: item.cwd ?? item.workdir };
-  if (item?.type === 'file_change') yield { changes: item.changes };
-  if (item?.type === 'mcp_tool_call') yield item.arguments ?? item.input;
-  if (event.type === 'tool_use') yield event.input;
-  if (event.type === 'assistant' && Array.isArray(event.message?.content)) {
-    for (const part of event.message.content) {
-      if (part?.type === 'tool_use') yield part.input;
-    }
+function localPath(text, base, directories, bare) {
+  if (typeof text !== 'string' || !text || text === '/' || text === '-' || /[\0\n\r<>]/.test(text)) return;
+  if (text.startsWith('file:')) {
+    try { return fileURLToPath(new URL(text, pathToFileURL(base + '/'))); } catch { return; }
   }
-}
-
-function * unquotedPaths(command) {
-  const paths = /(?<![\w./:-])(?:file:\/\/\/|~\/|\$(?:[A-Z_]+|\{[A-Z_]+\})\/|\.\.?\/|\/)[^\s"'\x60;&|<>()[\]{}*,]*|(?<!\S)(?:~|\$(?:[A-Z_]+|\{[A-Z_]+\}))(?=$|[\s;&|])/g;
-  for (const match of command.matchAll(paths)) yield match[0];
-  for (const match of command.matchAll(/(?<![\w./:-])[\w.-]+(?:\/[\w.-]+)*(?![\w./:-])/g)) yield match[0];
-}
-
-function * commandPaths(command) {
-  if (typeof command !== 'string') return;
-  let offset = 0;
-  // Keep spaces in literal paths, and inspect commands quoted for a shell or Node's -e.
-  for (const match of command.matchAll(/"([^"\n]+)"|'([^'\n]+)'/g)) {
-    yield * unquotedPaths(command.slice(offset, match.index));
-    const quoted = match[1] ?? match[2];
-    if (/^(?:file:\/\/|[~/]|\.\.?\/|\$(?:[A-Z_]+|\{[A-Z_]+\})(?=\/|$))[^;&|<>()[\]{}"'\n]*$/.test(quoted) && !/\s[-/]/.test(quoted)) {
-      yield quoted;
-    } else {
-      yield * commandPaths(quoted);
-    }
-    offset = match.index + match[0].length;
-  }
-  yield * unquotedPaths(command.slice(offset));
-}
-
-function localPath(text, base, directories) {
-  if (text.startsWith('file://')) {
-    try { return fileURLToPath(text); } catch { return undefined; }
-  }
-  if (/^[\w+.-]+:\/\//.test(text)) return undefined;
+  if (/^[\w+.-]+:/.test(text) || /^\/[\\^]/.test(text)) return;
+  if (/^\/(?:\\.|[^/\\])+\/[dgimsuvy]*$/.test(text) && /[\\^$*+?()[\]{}|]/.test(text)) return;
   const path = text.replace(/^(?:~|\$(?:\{([A-Z_]+)\}|([A-Z_]+)))(?=\/|$)/,
-    (prefix, braced, bare) => directories[braced ?? bare ?? 'HOME'] ?? prefix);
-  return isAbsolute(path) ? path : `${base}/${path}`;
+    (prefix, braced, plain) => directories[braced ?? plain ?? 'HOME'] ?? prefix);
+  if (path.startsWith('$') || (!bare && !path.includes('/'))) return;
+  // Preserve ".." until symlinks have been resolved in filesystem order.
+  return isAbsolute(path) ? path : base + '/' + path;
 }
 
 async function resolveLinks(file, loginLink) {
@@ -106,9 +78,6 @@ async function systemTool(file) {
   }
 }
 
-const pathKeys = /^(?:(?:file|target|source|destination|absolute|relative)[_-]?)?(?:path|paths|file|files|uri|uris)$|^(?:dir|directory|cwd|workdir|working_directory)$/i;
-const commandKeys = /^(?:cmd|command|command_line|argv)$/i;
-
 function complete(events, agent) {
   const last = events.at(-1);
   if (agent === 'claude') {
@@ -126,92 +95,122 @@ function complete(events, agent) {
   return openItems.size === 0;
 }
 
+export function auditHasPathViolation(audit) {
+  return Boolean(audit.linkedLogin ||
+    audit.paths.some(path => !audit.outsidePaths?.some(look => look.path === path && !look.exists)));
+}
+
+export function auditAllowsGrade(audit) {
+  return audit.status === 'no findings' || audit.status === 'looked outside the workspace';
+}
+
 export async function auditTranscript(transcript, { workspace, runDirectory, home = workspace, codexHome, claudeConfigDir,
-  temporary, loginLink }, agent) {
-  const directories = { HOME: home, CODEX_HOME: codexHome, CLAUDE_CONFIG_DIR: claudeConfigDir, TMPDIR: temporary };
-  const realHome = homedir();
-  const paths = new Set();
+  temporary, loginLink, realHome = homedir(), repo = repository, pathEvidence = {} }, agent) {
+  const forbidden = new Set();
+  const looks = new Map();
   const checked = new Set();
   const { events, malformedLines } = transcriptEvents(transcript);
   const completeTranscript = complete(events, agent);
   const unavailable = events.length === 0 ? 'No transcript events.' : malformedLines
     ? `${malformedLines} malformed transcript line(s).` : !completeTranscript ? 'Incomplete transcript lifecycle.' : null;
+  const denied = new Set(events.filter(event => event.type === 'system' && event.subtype === 'permission_denied')
+    .map(event => event.tool_use_id).filter(Boolean));
+  const finalDenials = events.at(-1)?.permission_denials;
+  for (const denial of Array.isArray(finalDenials) ? finalDenials : []) {
+    if (denial?.tool_use_id) denied.add(denial.tool_use_id);
+  }
   const externalTools = new Set();
   let unparseableInput = false;
   let linkedLogin;
 
-  async function check(text, base) {
-    if (!text || text === '-') return;
-    const path = localPath(text, base, directories);
-    if (!path || checked.has(path)) return;
-    checked.add(path);
-    const directTool = await systemTool(path);
-    if (!inside(runDirectory, path) && !directTool) {
-      paths.add(resolve(path));
-      return;
-    }
-    const { path: actual, readLogin } = await resolveLinks(path, loginLink);
-    if (readLogin) {
-      linkedLogin = actual;
-      return;
-    }
-    if (inside(runDirectory, actual)) return;
-    if ((directTool || await systemTool(actual)) && !inside(repository, actual) && !inside(realHome, actual)) return;
-    paths.add(actual);
+  function toPath(text, base, bare) {
+    return localPath(text, base, { HOME: home, CODEX_HOME: codexHome, CLAUDE_CONFIG_DIR: claudeConfigDir,
+      TMPDIR: temporary, PWD: resolve(base) }, bare);
   }
 
-  async function scan(value, base, key = '') {
-    if (typeof value === 'string') {
-      if (commandKeys.test(key)) {
-        for (const path of commandPaths(value)) await check(path, base);
-      } else if (pathKeys.test(key)) {
-        await check(value, base);
-      } else if (key === 'arguments') {
-        try { value = JSON.parse(value); } catch { unparseableInput = true; return; }
-        await scan(value, base);
-      }
+  function forbiddenZone(path) {
+    return !inside(runDirectory, path) && (inside(repo, path) || inside(realHome, path) ||
+      /(?:^|\/)axylo-rehearsal-[A-Za-z0-9]{6}(?:\/|$)/.test(path));
+  }
+
+  async function check(path) {
+    if (!path || checked.has(path)) return;
+    checked.add(path);
+    const direct = resolve(path);
+    if (forbiddenZone(direct)) forbidden.add(direct);
+    // Saved observations let replay classify links from the removed workspace and preserve the outside existence check.
+    const info = pathEvidence[path] ??= await resolveLinks(path, loginLink);
+    if (info.readLogin) {
+      linkedLogin = info.path;
+    } else if (forbiddenZone(info.path)) {
+      forbidden.add(info.path);
+    } else if ((!inside(runDirectory, info.path) || !inside(runDirectory, direct)) && !forbidden.has(direct)) {
+      info.systemTool ??= await systemTool(direct) || await systemTool(info.path);
+      if (info.systemTool) return;
+      info.exists ??= await stat(info.path).then(() => true, error => {
+        if (['ENOENT', 'ENOTDIR'].includes(error.code)) return false;
+        throw error;
+      });
+      const outside = inside(runDirectory, direct) ? info.path : direct;
+      looks.set(outside, (looks.get(outside) ?? false) || info.exists);
+    }
+  }
+
+  async function shell(command, cwd) {
+    if (typeof command !== 'string') {
+      unparseableInput = true;
       return;
     }
-    if (Array.isArray(value)) {
-      for (const part of value) await scan(part, base, key);
-      return;
-    }
-    if (!value || typeof value !== 'object') return;
-    const cwd = value.cwd ?? value.workdir ?? value.working_directory;
-    if (typeof cwd === 'string') await check(cwd, base);
-    const directory = typeof cwd === 'string' ? localPath(cwd, base, directories) ?? base : base;
-    // One recorded external working directory is enough, without treating every shell word as a path there.
-    if (!inside(runDirectory, directory)) return;
-    for (const [name, part] of Object.entries(value)) {
-      if (part !== cwd || (name !== 'cwd' && name !== 'workdir' && name !== 'working_directory')) {
-        await scan(part, directory, name);
-      }
+    const directory = toPath(cwd, workspace, true);
+    await check(directory);
+    try {
+      for (const path of commandPaths(command, directory ?? (cwd === '/' ? cwd : workspace), toPath)) await check(path);
+    } catch (error) {
+      if (error.message !== 'Unterminated shell word.') throw error;
+      unparseableInput = true;
     }
   }
 
   for (const event of events) {
-    if (['web_search', 'mcp_tool_call'].includes(event.item?.type)) externalTools.add(event.item.type);
+    const item = event.item;
+    if (['web_search', 'mcp_tool_call'].includes(item?.type)) externalTools.add(item.type);
+    if (item?.type === 'command_execution') await shell(item.command, item.cwd ?? item.workdir);
+    if (item?.type === 'file_change') {
+      if (!Array.isArray(item.changes)) unparseableInput = true;
+      else for (const change of item.changes) await check(toPath(change?.path, workspace, true));
+    }
     const content = event.type === 'assistant' ? event.message?.content : undefined;
     if (content !== undefined && !Array.isArray(content)) unparseableInput = true;
     const tools = event.type === 'tool_use' ? [event] : Array.isArray(content)
       ? content.filter(part => part?.type === 'tool_use') : [];
     for (const tool of tools) {
-      if (!['Read', 'Write', 'Edit', 'Glob', 'Grep', 'Bash'].includes(tool.name)) externalTools.add(tool.name ?? '(unknown)');
-      if (!tool.input || typeof tool.input !== 'object' || Array.isArray(tool.input)) unparseableInput = true;
-    }
-    if (event.item?.type === 'command_execution' && typeof event.item.command !== 'string') unparseableInput = true;
-    for (const input of toolInputs(event)) {
-      if (typeof input === 'string') await scan(input, workspace, 'arguments');
-      else await scan(input, workspace);
+      if (!Object.hasOwn(fileTools, tool.name) && tool.name !== 'Bash') {
+        externalTools.add(tool.name ?? '(unknown)');
+        continue;
+      }
+      if (denied.has(tool.id)) continue;
+      const { input } = tool;
+      if (!input || typeof input !== 'object' || Array.isArray(input)) {
+        unparseableInput = true;
+      } else if (tool.name === 'Bash') {
+        await shell(input.command, input.cwd ?? input.workdir);
+      } else {
+        await check(toPath(input[fileTools[tool.name]], workspace, true));
+      }
     }
   }
+  const outsidePaths = [...looks].filter(([path]) => !forbidden.has(path)).sort(([a], [b]) => a.localeCompare(b))
+    .map(([path, exists]) => ({ path, exists }));
   const problems = [
     unavailable ?? (unparseableInput ? 'Unparseable tool input.' : null),
-    paths.size && 'Recorded forbidden paths outside the attempt run directory.',
+    forbidden.size && 'Recorded forbidden paths outside the attempt run directory.',
+    outsidePaths.length && 'Looked outside the workspace.',
     linkedLogin && 'Recorded attempt to read the linked login.',
     externalTools.size && 'Recorded excluded tool use.',
   ].filter(Boolean);
-  const status = unavailable || unparseableInput ? 'unverifiable' : problems.length ? 'outside policy' : 'no findings';
-  return { status, paths: [...paths].sort(), ...(linkedLogin ? { linkedLogin } : {}),
-    tools: [...externalTools].sort(), malformedLines, problems };
+  const status = unavailable || unparseableInput ? 'unverifiable' :
+    forbidden.size || outsidePaths.some(look => look.exists) || linkedLogin || externalTools.size ? 'outside policy' :
+      outsidePaths.length ? 'looked outside the workspace' : 'no findings';
+  return { status, paths: [...forbidden, ...outsidePaths.map(look => look.path)].sort(), ...(outsidePaths.length ? { outsidePaths } : {}),
+    ...(linkedLogin ? { linkedLogin } : {}), tools: [...externalTools].sort(), malformedLines, problems };
 }

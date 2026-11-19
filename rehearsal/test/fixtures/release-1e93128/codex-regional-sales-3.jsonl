@@ -1,0 +1,4 @@
+{"type":"thread.started","thread_id":"01a1f2e5-e724-78f3-b142-123c12e4c6ba"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item_14","type":"command_execution","command":"/bin/bash -lc \"rg -n -o '.{0,70}<code>value</code></th>.{0,210}' docs/options.html\"","aggregated_output":"101:n header of a scatter chart&#39;s table.</td></tr><tr><th scope=\"row\"><code>value</code></th><td>Value</td><td>The value axis title when several y fields share the axis and no name fits them all; the value part of a generated name when nothing else names it.</td></tr><tr><th scope=\"row\"><code>typeLine<\n","exit_code":0,"status":"completed"}}
+{"type":"turn.completed"}

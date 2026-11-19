@@ -1,10 +1,12 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { readJson, taskFiles } from '../files.mjs';
+import { readJson, taskFiles, writeJson } from '../files.mjs';
 import { grade } from '../grade.mjs';
+import { effort, inputHashes, models, protocol } from '../protocol.mjs';
+import { reauditRecords } from '../reaudit.mjs';
 import { prepareWorkspace, removeWorkspace } from '../workspace.mjs';
 
 const visits = `import { line } from 'axylo';
@@ -60,6 +62,34 @@ async function answer(task, source) {
     await removeWorkspace(runDirectory);
   }
 }
+
+it('re-audits a copied void and grades the restored answer in Chrome', async () => {
+  const task = 'regional-sales';
+  const records = await mkdtemp(join(scratch, 'records-'));
+  const saved = join(records, 'regional-sales-2');
+  await mkdir(join(saved, 'answer'), { recursive: true });
+  const transcript = new URL('./fixtures/release-1e93128/codex-regional-sales-2.jsonl', import.meta.url);
+  await cp(transcript, join(saved, 'transcript.jsonl'));
+  await writeFile(join(saved, 'answer', 'chart.js'), 'export { default } from "./render.js";');
+  await writeFile(join(saved, 'answer', 'render.js'), sales);
+  const { hashes, runDirectory } = await prepareWorkspace(scratch, task, { inputHashes: workspace => inputHashes(workspace, task) });
+  await removeWorkspace(runDirectory);
+  await writeJson(join(saved, 'run.json'), { agent: 'codex', task, protocol, hashes, status: 'void', slot: 2,
+    reason: 'Recorded forbidden paths outside the attempt run directory.', audit: { status: 'outside policy', paths: ['/code'] },
+    cli: { args: ['-C', '/tmp/axylo-rehearsal-iS75px/workspace'] }, observed: { model: models.codex, effort },
+    exit: { code: 0, signal: null, timedOut: false, error: null }, endedAt: '2026-11-19T08:27:09.968Z' });
+
+  expect(await reauditRecords(records, { workdir: scratch })).toEqual([{ name: 'regional-sales-2', status: 'pass', reason: null }]);
+  const grade = await readJson(join(saved, 'grade.json'));
+  expect(grade).toMatchObject({ pass: true, browserVersion: browser.version() });
+  expect(grade.timezones.map(zone => [zone.input, zone.timezoneId])).toEqual([
+    ['primary', LA], ['primary', Tokyo], ['alternate', LA], ['alternate', Tokyo],
+  ]);
+  expect(await readJson(join(saved, 'run.json'))).toMatchObject({ status: 'pass', slot: 2,
+    history: [{ status: 'void', auditVersion: 1 }], browserVersion: grade.browserVersion });
+  expect(await readFile(join(saved, 'transcript.jsonl'), 'utf8')).toBe(await readFile(transcript, 'utf8'));
+  expect(await readFile(join(saved, 'answer', 'render.js'), 'utf8')).toBe(sales);
+});
 
 function criterion(result, name) {
   return result.criteria.find(item => item.name === name);

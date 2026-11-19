@@ -1,0 +1,20 @@
+# Rehearsal: the audit reads code as paths; fix it and re-audit the saved batch
+
+You built `rehearsal/` (latest commit 1e93128). Same rules: you own `rehearsal/` only; no network; do not run real agents; you cannot commit. Chrome cannot launch in your sandbox: write browser tests, the coordinator runs them.
+
+## What happened
+
+The counted batch at release candidate 1e93128 (`rehearsal/records/release-1e93128/`, read `batch.log` and the records) gave 8 passes, 0 fails, 16 voids. The coordinator looked at every void's `run.json` `audit.paths`:
+
+- All 12 Claude voids flag strings from code the agent wrote or read, not file accesses: `/`, `/\`, `/\s+/g`, `/g`, `/div`, `/script`, `/main`, `/article`, `/code`, `/style`, `/dd`, `/^-?`, `/ arity`, `/\n\s` (regular-expression literals, HTML closing tags, fragments).
+- Codex `regional-sales-2` (`/code`), `regional-sales-3` (`/code`, `/th`) and `daily-visits-1` (`/`, `/tmp`) are the same kind. In `daily-visits-1` every command the agent ran stays inside its run directory.
+- Codex `daily-revenue-3` really ran `rg -n --glob 'AGENTS.md' . /tmp/axylo-rehearsal-6SKmnr/workspace/AGENTS.md /tmp/axylo-rehearsal-6SKmnr/AGENTS.md /tmp/AGENTS.md /AGENTS.md`: a search for instruction files above its workspace; all four "No such file or directory"; nothing read.
+
+## What to do
+
+1. **Extract accesses, not strings.** A path counts only when it is an argument of a tool call that accesses the filesystem: the file path of a read, write, edit, glob or grep tool; the arguments of a shell command (tokenized as a shell would, after expanding obvious `cd` sequences; relative paths resolved against the command's working directory). Never scan the content of a file the agent writes, the text the model says, or a command's output. A token that is not a plausible path (contains no path separator other than a leading one with nothing after it, is a regular-expression literal, an HTML tag, a URL that is not `file:`) is not a path. Tests from the records above (copy the relevant transcript lines into fixtures): each of the 15 false positives becomes "no findings", and the existing forbidden-path tests still void.
+2. **The rule for a look outside**, decided by the coordinator: an access to a path outside the run directory that is not a system tool and not in a forbidden zone (the repository, the real home, another attempt, a linked login) is a finding recorded as "looked outside the workspace" with the paths, and **voids the attempt only if the path exists** (the agent could have read something); a path that does not exist is recorded and does not void. Any path in a forbidden zone voids whether it exists or not, as now. Test with the `daily-revenue-3` command above (recorded, not void) and with an existing outside path such as `/etc/hostname` (void).
+3. **Re-audit and regrade the saved batch**: a command `node rehearsal/reaudit.mjs --records <dir>` that re-audits every record's saved transcript with the current audit and, for a record that was void and is no longer, grades its saved answer exactly as the runner would have (restore the saved answer into a workspace prepared with the same inputs, verified by the hashes in `run.json`; refuse a record whose inputs no longer hash the same). It writes the new verdict into the record while keeping the original verdict, the audit version and the date as history (`run.json` `history: [...]`), and never deletes or rewrites the transcript or answer. `summary.mjs` uses the latest verdict and says how many records were re-audited. Document it in the README: re-auditing is allowed because the audit is a deterministic function of the saved transcript; a record re-audited into a counted slot keeps its original attempt number.
+4. Do not run `reaudit.mjs` on the real records yourself (grading needs Chrome); run it in tests on copies.
+
+Run `npx --no-install vitest run --root rehearsal --exclude '**/*.browser.test.mjs'` and `npm run typecheck`. Report (final message): the changes, the tests, the last lines of the runs, the exact command for the coordinator.

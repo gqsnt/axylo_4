@@ -79,7 +79,8 @@ export async function readRecords(root) {
     try {
       const directory = join(root, name);
       const record = { ...await readJson(join(directory, 'run.json')), name };
-      if (record.protocol === protocol && record.status === 'fail' && record.exit && Object.hasOwn(models, record.agent)) {
+      if (!record.history?.length && record.protocol === protocol && record.status === 'fail' && record.exit &&
+          Object.hasOwn(models, record.agent)) {
         // Reopen older slots when the saved CLI evidence identifies an infrastructure failure.
         const transcript = await readFile(join(directory, 'transcript.jsonl'), 'utf8').catch(error => {
           if (error.code === 'ENOENT') return null;

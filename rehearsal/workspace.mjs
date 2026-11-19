@@ -6,7 +6,20 @@ import { inside, repository, taskFiles } from './files.mjs';
 
 const exec = promisify(execFile);
 const sealedTrees = ['docs', 'node_modules'];
+const reserved = new Set([...sealedTrees, 'data.json', 'PROMPT.md', 'package.json', 'grade.json']);
 export const packedPackage = join(repository, 'tests/dist/.packed/axylo-0.0.0.tgz');
+
+export async function copyAnswer(from, to) {
+  if (!(await lstat(from)).isDirectory()) throw new Error('Expected an answer directory: ' + from);
+  await cp(from, to, {
+    recursive: true,
+    async filter(path) {
+      if (reserved.has(relative(from, path).split('/')[0])) return false;
+      const info = await lstat(path);
+      return info.isDirectory() || info.isFile();
+    },
+  });
+}
 
 export async function removeWorkspace(runDirectory) {
   // Unseal only our copy so an ordinary user can remove its directories.
