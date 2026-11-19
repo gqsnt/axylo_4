@@ -365,7 +365,9 @@ Outcomes:
 - Real Safari on macOS and iOS checked by hand.
 - Independent review of the acceptance evidence before 1.0 is tagged, by a reviewer who did not write the code under review.
 
-Outcomes: every acceptance-matrix row is pass or not applicable with a reason; changelog, upgrade policy and third-party notices published.
+The owner’s “Documented gaps” decision of 2026-11-19 sets the release gate. Each acceptance-matrix cell must pass, be not applicable with a reason, be weak with a documented gap and current passing results for all its result citations, or have an owner’s waiver for `not run` or `cannot be verified here`. Pending measurements, failures and stale evidence block release. The report lists qualifying weak cells with their gap text. See the [acceptance checker’s release gate](../acceptance/README.md#release-gate-and-statuses).
+
+Outcomes include publication of the changelog, upgrade policy and third-party notices.
 
 Publishing to npm, tagging and pushing are separate, explicit decisions by the owner at this point; the plan does not assume them.
 

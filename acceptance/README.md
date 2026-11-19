@@ -1,15 +1,18 @@
 # Release acceptance
 
-From the repository root, run the checker tests and record the four Vitest configurations.
+From the repository root, run the checker tests and record the four Vitest configurations, including results for all three browser engines.
 
 ```sh
 node --test acceptance/test/*.test.mjs
 node acceptance/run.mjs unit
 node acceptance/run.mjs browser
+AXYLO_ENGINE=firefox node acceptance/run.mjs browser
+AXYLO_ENGINE=webkit node acceptance/run.mjs browser
 node acceptance/run.mjs dist
 node acceptance/run.mjs dist-browser
 node acceptance/check.mjs --release --write --results \
   acceptance/results/unit.json acceptance/results/browser.json \
+  acceptance/results/browser-firefox.json acceptance/results/browser-webkit.json \
   acceptance/results/dist.json acceptance/results/dist-browser.json
 ```
 
@@ -19,13 +22,19 @@ The checker prints provenance, the matrix and the sources of each result. It wri
 
 Use `--roots <directory>…` for result paths relative to additional roots such as `tests/dist` or `packages/react`. Paths that match more than one cited file are structural errors.
 
-Structural errors exit 1. In `--release` mode, results must have provenance that matches the working tree. Every cell must be `pass` or `not applicable`. An owner can explicitly waive a `not run` or `cannot be verified here` cell by adding `"waivers": { "<chart type>": { "reason": "…", "grantedBy": "…" } }` to its criterion. The waiver appears in the report and leaves the original status visible.
+Structural errors exit 1. In `--release` mode, results must have provenance that matches the working tree.
+
+## Release gate and statuses
+
+**Owner’s decision, 2026-11-19, “Documented gaps”.** Each cell must pass, be `not applicable`, qualify as weak with a documented gap, or carry the owner’s waiver for `not run` or `cannot be verified here`. A weak cell qualifies only if its `gaps` entry names what remains unverified and every cited result passes for this revision. The checker verifies that cited documents exist. The report lists qualifying weak cells under “Released with documented gaps” and gives each gap in full.
+
+A failure, stale result, pending measurement, or weak cell missing the gap or a passing result blocks release. The owner can explicitly waive a `not run` or `cannot be verified here` cell by adding `"waivers": { "<chart type>": { "reason": "…", "grantedBy": "…" } }` to its criterion. Pending measurements always block. The waiver appears in the report and leaves the original status visible.
 
 | Status | Meaning |
 |---|---|
 | pass | All cited assertions passed and measured targets were met. |
 | fail | A cited assertion or suite failed, or a measured target was exceeded. |
-| weak | Partial evidence leaves a documented gap. |
+| weak | Partial evidence leaves a gap. Release requires a non-empty `gaps` entry and current passing results for all result citations. |
 | no evidence | The criterion applies and has no relevant evidence. |
 | not run | A cited assertion is missing or skipped, or the cell awaits a valid measurement. |
 | not recorded for this revision | Its only answers come from runs or a size record whose provenance is another tree or pack. |
@@ -46,7 +55,7 @@ The harness records `meta.engine` and `meta.engineVersion` on every test, and th
 
 ## Reading the checker from code
 
-`check()` (acceptance/check.mjs) returns the Markdown `report` and `table`, and the same content as data: `rows` (per criterion its `id`, `statement` and, per chart type, `status`, `reasons` and `reports`, each with `file`, `label`, `source`, `results`, `engine`, `engineVersion` and `provenanceError`) and `runs`. `STATUSES` and `CHART_TYPES` are exported beside it. acceptance/provenance.mjs exports the configurations (`CONFIGS`, `CONFIGURATIONS`), `ENGINES`, `engineLabel()`, `defaultResultFile()` and `resultFiles()`, the default result file of every configuration and engine.
+`check()` (acceptance/check.mjs) returns the Markdown `report` and `table`, and the same content as data: `rows` (per criterion its `id`, `statement` and, per chart type, `status`, `releasedGap`, `reasons` and `reports`, each with `file`, `label`, `source`, `results`, `engine`, `engineVersion` and `provenanceError`) and `runs`. `releasedGap` is the gap text for a weak cell that qualifies under the release gate in release mode, and `null` otherwise. `STATUSES` and `CHART_TYPES` are exported beside `check()`. acceptance/provenance.mjs exports the configurations (`CONFIGS`, `CONFIGURATIONS`), `ENGINES`, `engineLabel()`, `defaultResultFile()` and `resultFiles()`, the default result file of every configuration and engine.
 
 ## Review and cite evidence
 

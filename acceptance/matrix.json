@@ -14096,13 +14096,87 @@
       "compact"
     ],
     "notApplicable": {},
-    "pending": {
-      "line": "Not done yet: the scripted agent rehearsal has not been run (STATUS.md, next actions, 2026-11-18), and the repository holds no rehearsal script, prompt set or trap fixtures for the rehearsal (the documentation's examples cover dates, missing data, numeric strings and unsorted input, but they are not the rehearsal's traps). When it is run, it is recorded as agent rehearsal, not as user evidence.",
-      "area": "Not done yet: the scripted agent rehearsal has not been run (STATUS.md, next actions, 2026-11-18), and the repository holds no rehearsal script, prompt set or trap fixtures for the rehearsal (the documentation's examples cover dates, missing data, numeric strings and unsorted input, but they are not the rehearsal's traps). When it is run, it is recorded as agent rehearsal, not as user evidence.",
-      "bar": "Not done yet: the scripted agent rehearsal has not been run (STATUS.md, next actions, 2026-11-18), and the repository holds no rehearsal script, prompt set or trap fixtures for the rehearsal (the documentation's examples cover dates, missing data, numeric strings and unsorted input, but they are not the rehearsal's traps). When it is run, it is recorded as agent rehearsal, not as user evidence.",
-      "scatter": "Not done yet: the scripted agent rehearsal has not been run (STATUS.md, next actions, 2026-11-18), and the repository holds no rehearsal script, prompt set or trap fixtures for the rehearsal (the documentation's examples cover dates, missing data, numeric strings and unsorted input, but they are not the rehearsal's traps). When it is run, it is recorded as agent rehearsal, not as user evidence.",
-      "donut": "Not done yet: the scripted agent rehearsal has not been run (STATUS.md, next actions, 2026-11-18), and the repository holds no rehearsal script, prompt set or trap fixtures for the rehearsal (the documentation's examples cover dates, missing data, numeric strings and unsorted input, but they are not the rehearsal's traps). When it is run, it is recorded as agent rehearsal, not as user evidence.",
-      "compact": "Not done yet: the scripted agent rehearsal has not been run (STATUS.md, next actions, 2026-11-18), and the repository holds no rehearsal script, prompt set or trap fixtures for the rehearsal (the documentation's examples cover dates, missing data, numeric strings and unsorted input, but they are not the rehearsal's traps). When it is run, it is recorded as agent rehearsal, not as user evidence."
+    "weak": {
+      "line": [
+        {
+          "kind": "document",
+          "file": "reviews/2026-11-19/wp/rehearsal-analysis.md",
+          "reason": "Accepted analysis of 24 passing attempts on four fixed line and bar tasks for release candidate 1e93128 after transcript re-audit."
+        },
+        {
+          "kind": "document",
+          "file": "apps/docs/pages/stability.md",
+          "reason": "Published record of the release candidate rehearsal, its conditions and its limits."
+        }
+      ],
+      "area": [
+        {
+          "kind": "document",
+          "file": "reviews/2026-11-19/wp/rehearsal-analysis.md",
+          "reason": "Accepted analysis of 24 passing attempts on four fixed line and bar tasks for release candidate 1e93128 after transcript re-audit."
+        },
+        {
+          "kind": "document",
+          "file": "apps/docs/pages/stability.md",
+          "reason": "Published record of the release candidate rehearsal, its conditions and its limits."
+        }
+      ],
+      "bar": [
+        {
+          "kind": "document",
+          "file": "reviews/2026-11-19/wp/rehearsal-analysis.md",
+          "reason": "Accepted analysis of 24 passing attempts on four fixed line and bar tasks for release candidate 1e93128 after transcript re-audit."
+        },
+        {
+          "kind": "document",
+          "file": "apps/docs/pages/stability.md",
+          "reason": "Published record of the release candidate rehearsal, its conditions and its limits."
+        }
+      ],
+      "scatter": [
+        {
+          "kind": "document",
+          "file": "reviews/2026-11-19/wp/rehearsal-analysis.md",
+          "reason": "Accepted analysis of 24 passing attempts on four fixed line and bar tasks for release candidate 1e93128 after transcript re-audit."
+        },
+        {
+          "kind": "document",
+          "file": "apps/docs/pages/stability.md",
+          "reason": "Published record of the release candidate rehearsal, its conditions and its limits."
+        }
+      ],
+      "donut": [
+        {
+          "kind": "document",
+          "file": "reviews/2026-11-19/wp/rehearsal-analysis.md",
+          "reason": "Accepted analysis of 24 passing attempts on four fixed line and bar tasks for release candidate 1e93128 after transcript re-audit."
+        },
+        {
+          "kind": "document",
+          "file": "apps/docs/pages/stability.md",
+          "reason": "Published record of the release candidate rehearsal, its conditions and its limits."
+        }
+      ],
+      "compact": [
+        {
+          "kind": "document",
+          "file": "reviews/2026-11-19/wp/rehearsal-analysis.md",
+          "reason": "Accepted analysis of 24 passing attempts on four fixed line and bar tasks for release candidate 1e93128 after transcript re-audit."
+        },
+        {
+          "kind": "document",
+          "file": "apps/docs/pages/stability.md",
+          "reason": "Published record of the release candidate rehearsal, its conditions and its limits."
+        }
+      ]
+    },
+    "gaps": {
+      "line": "An external run recorded the accepted agent rehearsal for 1e93128. The rehearsal must be repeated on the release commit. The record covers two models, four fixed line and bar tasks, two inputs per task and two time zones in Chrome 158. The graded inputs missed decimal grammar errors found in a separate probe. One attempt's eligibility changed after the run, and docs-only access was not enforced by the filesystem. General agent success, model rankings, human and screen-reader usability, and WCAG conformance remain unestablished.",
+      "area": "An external run recorded the accepted agent rehearsal for 1e93128. The rehearsal must be repeated on the release commit. The record covers two models, four fixed line and bar tasks, two inputs per task and two time zones in Chrome 158. Area, scatter, donut and compact charts were outside those tasks. The graded inputs missed decimal grammar errors found in a separate probe. One attempt's eligibility changed after the run, and docs-only access was not enforced by the filesystem. General agent success, model rankings, human and screen-reader usability, and WCAG conformance remain unestablished.",
+      "bar": "An external run recorded the accepted agent rehearsal for 1e93128. The rehearsal must be repeated on the release commit. The record covers two models, four fixed line and bar tasks, two inputs per task and two time zones in Chrome 158. The graded inputs missed decimal grammar errors found in a separate probe. One attempt's eligibility changed after the run, and docs-only access was not enforced by the filesystem. General agent success, model rankings, human and screen-reader usability, and WCAG conformance remain unestablished.",
+      "scatter": "An external run recorded the accepted agent rehearsal for 1e93128. The rehearsal must be repeated on the release commit. The record covers two models, four fixed line and bar tasks, two inputs per task and two time zones in Chrome 158. Area, scatter, donut and compact charts were outside those tasks. The graded inputs missed decimal grammar errors found in a separate probe. One attempt's eligibility changed after the run, and docs-only access was not enforced by the filesystem. General agent success, model rankings, human and screen-reader usability, and WCAG conformance remain unestablished.",
+      "donut": "An external run recorded the accepted agent rehearsal for 1e93128. The rehearsal must be repeated on the release commit. The record covers two models, four fixed line and bar tasks, two inputs per task and two time zones in Chrome 158. Area, scatter, donut and compact charts were outside those tasks. The graded inputs missed decimal grammar errors found in a separate probe. One attempt's eligibility changed after the run, and docs-only access was not enforced by the filesystem. General agent success, model rankings, human and screen-reader usability, and WCAG conformance remain unestablished.",
+      "compact": "An external run recorded the accepted agent rehearsal for 1e93128. The rehearsal must be repeated on the release commit. The record covers two models, four fixed line and bar tasks, two inputs per task and two time zones in Chrome 158. Area, scatter, donut and compact charts were outside those tasks. The graded inputs missed decimal grammar errors found in a separate probe. One attempt's eligibility changed after the run, and docs-only access was not enforced by the filesystem. General agent success, model rankings, human and screen-reader usability, and WCAG conformance remain unestablished."
     }
   },
   {

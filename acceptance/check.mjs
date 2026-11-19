@@ -487,31 +487,42 @@ function resultFor(source, ref, context) {
 }
 
 function cellFor(row, type, root, sources, context) {
-  if (!row.appliesTo.includes(type)) return { status: 'not applicable', reports: new Map(), unrun: [], reasons: new Set() };
+  if (!row.appliesTo.includes(type)) {
+    return { status: 'not applicable', reports: new Map(), unrun: [], reasons: new Set(), releasedGap: null, blocksRelease: false };
+  }
   const required = row.evidence?.[type] ?? [];
   const weak = row.weak?.[type] ?? [];
-  const outcome = ref => resultFor(sources.get(resolve(root, ref.file)), ref, context);
+  const outcome = ref => ({ ...resultFor(sources.get(resolve(root, ref.file)), ref, context), kind: ref.kind });
   const outcomes = required.map(outcome);
   const supporting = weak.map(outcome);
+  const results = [...outcomes, ...supporting];
+  const gap = row.gaps?.[type];
+  const pending = row.pending?.[type];
   let status;
-  if ([...outcomes, ...supporting].some(result => result.status === 'fail')) status = 'fail';
+  if (results.some(result => result.status === 'fail')) status = 'fail';
   else if (row.cannotVerify?.[type]) status = 'cannot be verified here';
-  else if (row.pending?.[type]) status = 'not run';
-  else if (row.gaps?.[type] || (!required.length && weak.length)) status = 'weak';
+  else if (pending) status = 'not run';
+  else if (gap || (!required.length && weak.length)) status = 'weak';
   else if (!required.length) status = 'no evidence';
-  else if ([...outcomes, ...supporting].every(result => result.status === 'pass')) status = 'pass';
-  else status = [...outcomes, ...supporting].some(result => result.status === STALE) ? STALE : 'not run';
+  else if (results.every(result => result.status === 'pass')) status = 'pass';
+  else status = results.some(result => result.status === STALE) ? STALE : 'not run';
 
   const reports = new Map();
-  for (const { reports: matches } of [...outcomes, ...supporting]) for (const [file, values] of matches) {
+  for (const { reports: matches } of results) for (const [file, values] of matches) {
     if (!reports.has(file)) reports.set(file, new Set());
     for (const value of values) reports.get(file).add(value);
   }
   const unrun = [...required.filter((ref, i) => testKinds.includes(ref.kind) && outcomes[i].status === 'not run'),
     ...weak.filter((_, i) => testKinds.includes(weak[i].kind) && supporting[i].status === 'not run')];
-  const reasons = new Set([...outcomes, ...supporting].filter(result => result.status === 'not run' || result.status === STALE).flatMap(result => [...result.reasons]));
-  if (status === 'not run' && row.pending?.[type]) reasons.add(row.pending[type]);
-  return { status, reports, unrun, reasons };
+  const reasons = new Set(results.filter(result => result.status === 'not run' || result.status === STALE).flatMap(result => [...result.reasons]));
+  if (status === 'not run' && pending) reasons.add(pending);
+  const stale = [...reports.values()].some(values => values.has('not recorded'));
+  // Document citations have already been checked for existence and supply no run result.
+  const releasedGap = context.release && status === 'weak' && isText(gap) && !stale
+    && results.every(result => result.kind === 'document' || result.status === 'pass') ? gap : null;
+  const waived = !pending && row.waivers?.[type] && ['not run', 'cannot be verified here'].includes(status);
+  const blocksRelease = stale || !(status === 'pass' || releasedGap || waived);
+  return { status, reports, unrun, reasons, releasedGap, blocksRelease };
 }
 
 const escapeCell = value => value.replaceAll('|', '\\|').replace(/\r?\n/g, ' ');
@@ -530,6 +541,7 @@ function groupTypes(entries) {
 function readerDetails(rows, root, from, review) {
   const failures = new Map();
   const weak = [];
+  const released = [];
   const missing = [];
   const pending = [];
   const stale = [];
@@ -541,8 +553,12 @@ function readerDetails(rows, root, from, review) {
     const cellsOf = status => chartTypes.filter((_, i) => cells[i].status === status);
     const failed = cellsOf('fail');
     if (failed.length) failures.set(row.id, new Set(failed));
-    const gaps = cellsOf('weak').flatMap(type => row.gaps?.[type]
-      ? [[type, row.gaps[type]]] : (row.weak?.[type] ?? []).map(ref => [type, ref.reason]));
+    const releasedGaps = groupTypes(chartTypes.flatMap((type, i) => cells[i].releasedGap ? [[type, cells[i].releasedGap]] : []));
+    if (releasedGaps.length) released.push(`- **${row.id}** · ${releasedGaps.join('\n  - ')}`);
+    const gaps = chartTypes.flatMap((type, i) => {
+      if (cells[i].status !== 'weak' || cells[i].releasedGap) return [];
+      return row.gaps?.[type] ? [[type, row.gaps[type]]] : (row.weak?.[type] ?? []).map(ref => [type, ref.reason]);
+    });
     if (gaps.length) weak.push(`- **${row.id}** · ${groupTypes(gaps).map(note => `Weak · ${note}`).join('\n  - ')}`);
     const absent = cellsOf('no evidence');
     if (absent.length) missing.push(`- **${row.id}** · ${absent.join(', ')} · ${row.statement}`);
@@ -590,6 +606,7 @@ function readerDetails(rows, root, from, review) {
     if (types.size) failedGroups.push(`- **${id}** · ${[...types].join(', ')}`);
   }
   return [
+    ...(released.length ? ['## Released with documented gaps', '', ...released, ''] : []),
     '## What stands between this tree and a release', '',
     '### Failing cells', '', ...(failedGroups.length ? failedGroups : ['No failing cells recorded.']), '',
     '### Weak cells', '', ...(weak.length ? weak : ['No weak cells recorded.']), '',
@@ -722,7 +739,7 @@ export function check({ root, matrixFile = resolve(root, 'acceptance/matrix.json
   const stale = new Map(runs.filter(run => run.provenanceError).map(run => [run.file, run.provenanceError]));
   let packed;
   const pack = () => (packed ??= typeof currentPack === 'function' ? currentPack() : currentPack !== undefined ? currentPack : packIntegrity(root));
-  const context = { results: index, suiteFailures, stale, pack, sizeTargets };
+  const context = { results: index, suiteFailures, stale, pack, sizeTargets, release };
   const reportFiles = [...runs.map(run => run.file), ...[...sources.values()].filter(source => source.size).map(source => source.path)];
   const counts = Object.fromEntries(statuses.map(status => [status, 0]));
   const rows = matrix.map(row => ({
@@ -748,9 +765,7 @@ export function check({ root, matrixFile = resolve(root, 'acceptance/matrix.json
     '', '## Status by chart type', '', summary, '',
     'The matrix contains individual test citations and applicability reasons. ' + fileLink(from, root, relative(root, matrixFile)), '',
     table, '', readerDetails(rows, root, from, review), ...describeReview(review, rows, counts)].join('\n') + '\n';
-  const blocked = rows.some(({ row, cells }) => cells.some(({ status }, i) =>
-    !['pass', 'not applicable'].includes(status)
-    && (!['not run', 'cannot be verified here'].includes(status) || !row.waivers?.[chartTypes[i]])));
+  const blocked = rows.some(({ cells }) => cells.some(cell => cell.blocksRelease));
   return {
     table, summary, report, counts, runs, warnings, rows: structuredRows(rows, runs, reportFiles, root, sources),
     exitCode: release && (blocked || runs.some(run => run.provenanceError)) ? 1 : 0,
@@ -759,9 +774,8 @@ export function check({ root, matrixFile = resolve(root, 'acceptance/matrix.json
 
 /**
  * The table's content as data, for readers that must not parse the Markdown (the docs' conformance page).
- * Per cell: its status, why it was not run, and each report that answered it, named as the table names it,
- * with what it recorded: the run's engine (null for Node runs and for results that predate the engine record)
- * and the provenance error that keeps a release from counting it (null when none).
+ * Per cell: its status, any gap accepted by the release gate, why it was not run, and each report that
+ * answered it, named as the table names it. Each report carries the run's engine and any provenance error.
  */
 function structuredRows(rows, runs, reportFiles, root, sources) {
   const byFile = new Map(runs.map(run => [run.file, run]));
@@ -770,6 +784,7 @@ function structuredRows(rows, runs, reportFiles, root, sources) {
     statement: row.statement,
     cells: Object.fromEntries(chartTypes.map((type, i) => [type, {
       status: cells[i].status,
+      releasedGap: cells[i].releasedGap,
       reasons: [...cells[i].reasons].sort(),
       reports: [...cells[i].reports].map(([file, results]) => {
         const run = byFile.get(file);

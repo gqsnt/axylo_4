@@ -71,10 +71,11 @@ describe('reading the checker', () => {
     const rows = readRows(fixtureRun().rows);
     const f1 = rows.get('F1')!.cells;
     expect(Object.keys(f1)).toEqual(['line', 'area', 'bar', 'scatter', 'donut', 'compact']);
-    expect(f1.line).toEqual({ status: 'pass', reports: [{ file: 'results.json', source: 'run', results: ['pass'], engine: null, counted: true, why: null, commit: null }] });
+    expect(f1.line).toEqual({ status: 'pass', releasedGap: null, reports: [{ file: 'results.json', source: 'run', results: ['pass'], engine: null, counted: true, why: null, commit: null }] });
     expect(f1.area!.status).toBe('weak');
+    expect(f1.area!.releasedGap).toBeNull();
     expect(f1.area!.reports.map(r => r.results)).toEqual([['skipped']]);
-    expect(f1.scatter).toEqual({ status: 'not applicable', reports: [] });
+    expect(f1.scatter).toEqual({ status: 'not applicable', releasedGap: null, reports: [] });
     expect(rows.get('F2')!.cells.line!.status).toBe('cannot be verified here');
   });
 
@@ -92,6 +93,10 @@ describe('reading the checker', () => {
     };
     expect(change(row => { row.cells.line.status = 'passed'; })).toThrow(/cannot read/);
     expect(change(row => { delete row.cells.compact; })).toThrow(/cannot read/);
+    expect(change(row => { delete row.cells.line.releasedGap; })).toThrow(/invalid released gap/);
+    expect(change(row => { row.cells.line.releasedGap = 'A gap on a passing cell.'; })).toThrow(/invalid released gap/);
+    expect(change(row => { row.cells.area.releasedGap = '  '; })).toThrow(/invalid released gap/);
+    expect(change(row => { row.cells.area.releasedGap = 'Geometry remains unverified.'; })).toThrow(/released gap needs passing results/);
     expect(change(row => { row.cells.line.reports = [{ file: 'x.json', source: 'run', results: ['green'], engine: null, provenanceError: null }]; })).toThrow(/cannot read/);
     expect(change(row => { row.cells.line.reports = [{ file: 'x.json', source: 'run', results: ['pass'], engine: 'safari', provenanceError: null }]; })).toThrow(/cannot read/);
     expect(() => readRows(undefined)).toThrow(/cannot read/);
@@ -134,11 +139,14 @@ describe('reading the checker', () => {
       const specFile = write('docs/02-product-spec.md', `### 3.1 Faithful representation\n| F1 | ${statement} | WCAG ${citations} |\n`);
       const file = 'chart.test.ts';
       const title = 'line renders';
-      write(file, `it('${title}', () => {});\n`);
+      const areaTitle = 'area renders';
+      const gap = 'The area test leaves its geometry unverified.';
+      write(file, `it('${title}', () => {});\nit('${areaTitle}', () => {});\n`);
       const matrix = [{
-        id: 'F1', statement, appliesTo: ['line'],
-        notApplicable: Object.fromEntries(CHART_TYPES.filter(type => type !== 'line').map(type => [type, 'Only a line fixture.'])),
-        evidence: { line: [{ kind: 'unit', file, title }] },
+        id: 'F1', statement, appliesTo: ['line', 'area'],
+        notApplicable: Object.fromEntries(CHART_TYPES.filter(type => type !== 'line' && type !== 'area').map(type => [type, 'Only line and area fixtures.'])),
+        evidence: { line: [{ kind: 'unit', file, title }], area: [{ kind: 'unit', file, title: areaTitle }] },
+        gaps: { area: gap },
       }];
       write('acceptance/matrix.json', JSON.stringify(matrix));
       const git = (...args: string[]) => execFileSync('git', args, { cwd: root, stdio: ['ignore', 'pipe', 'inherit'] });
@@ -148,7 +156,7 @@ describe('reading the checker', () => {
 
       const relative = defaultResultFile('unit');
       const result = write(relative, JSON.stringify({
-        testResults: [{ name: file, assertionResults: [{ title, status: 'passed', ancestorTitles: [] }] }],
+        testResults: [{ name: file, assertionResults: [title, areaTitle].map(title => ({ title, status: 'passed', ancestorTitles: [] })) }],
       }));
       const recorded = { ...snapshot(root, citedTestFiles(matrix)), resultSha256: hashFile(result) };
       write(relative.replace(/\.json$/, '.provenance.json'), JSON.stringify(recorded));
@@ -159,10 +167,12 @@ describe('reading the checker', () => {
       await stageSite(path.join(root, 'apps/docs/dist'), async tmp => {
         fs.mkdirSync(path.join(tmp, 'assets'), { recursive: true });
         fs.writeFileSync(path.join(tmp, 'assets/site.css'), 'body {}\n');
-        const { checker } = await readConformance({ root });
+        const { checker, criteria } = await readConformance({ root });
         expect(checker.refused).toBeNull();
         expect(checker.files).toMatchObject([{ file: relative, counted: true, why: null }]);
         expect(checker.rows.get('F1')!.cells.line!.status).toBe(direct.rows[0]!.cells.line.status);
+        expect(checker.rows.get('F1')!.cells.area).toMatchObject({ status: 'weak', releasedGap: gap });
+        expect(criteria[0]!.verdict).toEqual([{ id: 'F1', text: `Released with documented gaps (area) · ${gap} · pass (line); not applicable (bar, scatter, donut, compact)` }]);
 
         fs.appendFileSync(specFile, '\nA source edit made after recording.\n');
         const stale = await readConformance({ root });
@@ -234,6 +244,17 @@ describe('what is counted', () => {
       verdict: [{ id: 'I4', text: 'not recorded for this revision' }],
       engines: { chromium: 'not recorded', firefox: 'not recorded for this revision (results from bbbbbbb)', webkit: 'not recorded', null: 'not recorded' },
     });
+  });
+
+  it('shows a documented gap that qualifies even when another chart type has stale results', () => {
+    const gap = 'The compact chart has no pause control.';
+    const mixed = { ...checker, rows: new Map([['I6', { statement: '', cells: {
+      line: { status: 'weak', releasedGap: null, reports: [report('browser.json', 'chromium', ['not recorded'], false)] },
+      compact: { status: 'weak', releasedGap: gap, reports: [] },
+    } }]]) };
+    expect(evidenceFor([{ id: 'I6', criterion: '' }], mixed).verdict).toEqual([
+      { id: 'I6', text: `Released with documented gaps (compact) · ${gap} · not recorded for this revision` },
+    ]);
   });
 
   it('a row the checker does not have is not recorded', () => {

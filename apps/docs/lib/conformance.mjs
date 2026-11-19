@@ -61,7 +61,7 @@ export function citedCriteria(spec) {
 const unreadable = what => { throw new Error(`acceptance checker: output this page cannot read: ${what}`); };
 
 /**
- * The checker's `rows` → row id → { statement, cells: { chartType: { status, reports } } }, each report with
+ * The checker's `rows` → row id → { statement, cells: { chartType: { status, releasedGap, reports } } }, each report with
  * the engine it ran on (`engineOf` names it for a report the checker could not: results older than the engine
  * record), whether it counts for this revision, and the commit it was recorded at. Anything outside the
  * checker's documented shape stops the build.
@@ -77,14 +77,21 @@ export function readRows(rows, { engineOf = () => null, commitOf = () => null } 
     for (const type of types) {
       const cell = row.cells[type];
       if (!STATUSES.includes(cell?.status) || !Array.isArray(cell.reports)) unreadable(`${row.id}/${type}: status ${cell?.status}`);
+      if (cell.releasedGap !== null && (cell.status !== 'weak' || typeof cell.releasedGap !== 'string' || !cell.releasedGap.trim())) {
+        unreadable(`${row.id}/${type}: invalid released gap`);
+      }
       cells[type] = {
         status: cell.status,
+        releasedGap: cell.releasedGap,
         reports: cell.reports.map(report => {
           if (typeof report?.file !== 'string' || !['run', 'size'].includes(report.source) || !Array.isArray(report.results)
             || report.results.some(r => !RESULTS.includes(r)) || !(report.engine === null || ENGINES.includes(report.engine))
             || !(report.provenanceError === null || typeof report.provenanceError === 'string')
             || (report.results.includes('not recorded') && report.provenanceError === null)) {
             unreadable(`${row.id}/${type}: report ${JSON.stringify(report)?.slice(0, 160)}`);
+          }
+          if (cell.releasedGap !== null && (report.provenanceError !== null || report.results.length !== 1 || report.results[0] !== 'pass')) {
+            unreadable(`${row.id}/${type}: released gap needs passing results for this revision`);
           }
           return {
             file: report.file, source: report.source, results: report.results,
@@ -166,10 +173,13 @@ export function evidenceFor(rows, checker) {
       continue;
     }
     const groups = new Map();
+    const gaps = new Map();
     let stale = false;
     for (const [type, cell] of Object.entries(row.cells)) {
-      if (!groups.has(cell.status)) groups.set(cell.status, []);
-      groups.get(cell.status).push(type);
+      const group = cell.releasedGap ? gaps : groups;
+      const key = cell.releasedGap ?? cell.status;
+      if (!group.has(key)) group.set(key, []);
+      group.get(key).push(type);
       if (cell.status === 'not applicable') continue;
       for (const report of cell.reports) {
         if (!report.counted) stale = true;
@@ -180,10 +190,10 @@ export function evidenceFor(rows, checker) {
         else bucket.stale.add(report.commit ? report.commit.slice(0, 7) : 'unknown');
       }
     }
-    verdict.push({
-      id,
-      text: stale ? 'not recorded for this revision' : [...groups].map(([status, types]) => `${status} (${types.join(', ')})`).join('; '),
-    });
+    const status = stale ? 'not recorded for this revision'
+      : [...groups].map(([status, types]) => `${status} (${types.join(', ')})`).join('; ');
+    const gapVerdicts = [...gaps].map(([gap, types]) => `Released with documented gaps (${types.join(', ')}) · ${gap}`);
+    verdict.push({ id, text: [...gapVerdicts, status].filter(Boolean).join(' · ') });
   }
   const say = ({ results, stale }) => results.size ? [...results].sort().join('/')
     : stale.size ? `not recorded for this revision (results from ${[...stale].join(', ')})` : 'not recorded';

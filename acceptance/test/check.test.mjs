@@ -294,15 +294,10 @@ test('release requires an explicit waiver per missing run or environment and can
   const write = workspace(t);
   const matrix = read(matrixFile);
   const waive = { reason: 'Fixture exercise', grantedBy: 'Test owner' };
+  matrix[0].evidence.area = matrix[0].weak.area;
+  delete matrix[0].weak;
   for (const row of matrix) {
-    row.evidence = {};
-    row.weak = {};
-    for (const type of row.appliesTo) {
-      row.pending ??= {};
-      if (!row.cannotVerify?.[type]) row.pending[type] = 'Awaiting a test run.';
-      row.waivers ??= {};
-      row.waivers[type] = waive;
-    }
+    row.waivers = Object.fromEntries(row.appliesTo.map(type => [type, waive]));
   }
   assert.equal(run({ release: true, matrixFile: write('waivers.json', matrix) }).exitCode, 0);
   assert.match(run({ matrixFile: write('waivers.json', matrix) }).report, /Waiver granted by Test owner/);
@@ -311,7 +306,6 @@ test('release requires an explicit waiver per missing run or environment and can
   matrix[0].waivers.line = { reason: 'Missing owner' };
   assert.throws(() => run({ matrixFile: write('waivers.json', matrix) }), /waiver needs a reason and who granted it/);
   matrix[0].waivers.line = waive;
-  matrix[0].evidence.line = read(matrixFile)[0].evidence.line;
   assert.match(run({ matrixFile: write('waivers.json', matrix), resultFiles: [failed] }).table, /\| F1 \|[^|]+\| fail/);
 });
 
@@ -529,14 +523,91 @@ test('the configurations and their default result files come from provenance.mjs
 // ── the reviewed checker defects (reviews/2026-11-18/impl/wp/matrix-merge.report.md) ──────────────────────
 
 /** A fixture tree under Git, so provenance can be recorded and compared. */
-function gitFixture(t, sourceTransform) {
-  const fixture = fixtureWith(t, undefined, sourceTransform);
+function gitFixture(t, specTransform) {
+  const fixture = fixtureWith(t, specTransform);
   const git = (...args) => execFileSync('git', args, { cwd: fixture.root, stdio: ['ignore', 'pipe', 'inherit'] });
   git('init', '-q');
   git('add', '.');
   git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', 'commit', '-qm', 'Fixture');
   return fixture;
 }
+
+test('release accepts a documented weak cell only with passing current results and never while pending', t => {
+  const { write, root: fixtureRoot } = gitFixture(t, spec => spec.split('| F2 |')[0]);
+  const output = workspace(t);
+  const [fixture] = read(matrixFile);
+  const gap = 'The assertion checks the chart exists. Its geometry remains unverified.';
+  const row = {
+    ...fixture,
+    appliesTo: ['line'],
+    notApplicable: { ...fixture.notApplicable, area: 'Only line is scoped.', bar: 'Only line is scoped.' },
+    evidence: { line: fixture.evidence.line },
+    weak: { line: [{ ...fixture.evidence.bar[0], reason: 'Supplementary baseline check.' }] },
+    gaps: { line: gap },
+  };
+  const evaluate = ({ criterion = row, supporting = 'passed', release = true, stale = false } = {}) => {
+    const matrix = [criterion];
+    const matrixFile = write('matrix.json', matrix);
+    const data = read(passed);
+    const suite = data.testResults[0];
+    const [line, , bar] = suite.assertionResults;
+    suite.assertionResults = supporting === null ? [line] : [line, { ...bar, status: supporting }];
+    const report = output('run.json', data);
+    const recorded = { ...snapshot(fixtureRoot, citedTestFiles(matrix)), resultSha256: hashFile(report) };
+    output('run.provenance.json', stale ? { ...recorded, commit: 'older' } : recorded);
+    return check({ root: fixtureRoot, matrixFile, resultFiles: [report], release });
+  };
+  const released = evaluate();
+  assert.equal(released.exitCode, 0);
+  assert.equal(released.rows[0].cells.line.status, 'weak');
+  assert.equal(released.rows[0].cells.line.releasedGap, gap);
+  assert.match(released.report, /## Released with documented gaps\n\n- \*\*F1\*\* · line · The assertion checks the chart exists\. Its geometry remains unverified\./);
+  const ordinary = evaluate({ release: false });
+  assert.equal(ordinary.table, released.table);
+  assert.equal(ordinary.rows[0].cells.line.releasedGap, null);
+  assert.doesNotMatch(ordinary.report, /Released with documented gaps/);
+
+  assert.throws(() => evaluate({ criterion: { ...row, gaps: { line: '  ' } } }), /gaps needs a reason/);
+  const noGap = evaluate({ criterion: { ...row, evidence: {}, gaps: {} } });
+  assert.equal(noGap.rows[0].cells.line.status, 'weak');
+  assert.equal(noGap.exitCode, 1);
+  const waiver = { line: { reason: 'Fixture exercise', grantedBy: 'Test owner' } };
+  const blocked = [
+    [evaluate({ supporting: 'failed', criterion: { ...row, waivers: waiver } }), 'fail'],
+    [evaluate({ supporting: 'skipped' }), 'weak'],
+    [evaluate({ supporting: null }), 'weak'],
+    [evaluate({ stale: true }), 'weak'],
+    [evaluate({ criterion: { ...row, pending: { line: 'Awaiting measurement.' }, waivers: waiver } }), 'not run'],
+  ];
+  for (const [result, status] of blocked) {
+    assert.equal(result.exitCode, 1);
+    assert.equal(result.rows[0].cells.line.status, status);
+    assert.equal(result.rows[0].cells.line.releasedGap, null);
+    assert.doesNotMatch(result.report, /Released with documented gaps/);
+  }
+});
+
+test('a weak document citation supports a gap without asserting a rehearsal ran in the checker', t => {
+  const { write, root: fixtureRoot } = fixtureWith(t, spec => spec.split('| F2 |')[0]);
+  const [fixture] = read(matrixFile);
+  const gap = 'The review records an earlier rehearsal. The release revision still requires a rehearsal.';
+  const citation = { kind: 'document', file: 'docs/02-product-spec.md', reason: 'Records the scope of the rehearsal.' };
+  const row = {
+    ...fixture,
+    appliesTo: ['line'],
+    notApplicable: { ...fixture.notApplicable, area: 'Only line is scoped.', bar: 'Only line is scoped.' },
+    evidence: {},
+    weak: { line: [citation] },
+    gaps: { line: gap },
+  };
+  const evaluate = () => check({ root: fixtureRoot, matrixFile: write('matrix.json', [row]), release: true });
+  const documented = evaluate();
+  assert.equal(documented.exitCode, 0);
+  assert.equal(documented.rows[0].cells.line.releasedGap, gap);
+  assert.deepEqual(documented.rows[0].cells.line.reports, []);
+  citation.kind = 'manual rehearsal';
+  assert.equal(evaluate().exitCode, 1);
+});
 
 test('defect 5: a size record counts only for the pack this tree makes, against the targets of scripts/size.mjs', t => {
   const write = workspace(t);
