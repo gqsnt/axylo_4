@@ -95,13 +95,39 @@ export async function runAgent(agent, options) {
   return { transcript, stderr, exit, args };
 }
 
-export function reportedError(transcript) {
-  const last = transcriptEvents(transcript).events.at(-1);
-  if (last?.type === 'turn.failed') return last.error?.message ?? 'Codex reported a failed turn.';
-  if (last?.type === 'result' && last.is_error) {
-    return (Array.isArray(last.errors) ? last.errors.join(' | ') : last.result) || last.subtype || 'Claude reported a failed turn.';
+const authenticationError = /\b(?:authenticat\w*|auth[ _-](?:error|failed)|unauthori[sz]ed|sign[ -]in|not logged in|api[ _-]key|invalid token|token (?:has )?expired|(?:http|status(?: code)?)[: ]+(?:401|403))\b/i;
+const providerError = /\b(?:network(?:_error)?|dns|econnrefused|econnreset|etimedout|enotfound|connection (?:refused|reset|timed out)|stream disconnected|(?:failed|unable) to connect|error sending request|rate[ _-]limit|overloaded_error|service unavailable)\b/i;
+
+export function agentErrors(agent, transcript, exit) {
+  let started = false;
+  let cliError = null;
+  let infrastructure = null;
+  for (const event of transcriptEvents(transcript).events) {
+    if (agent === 'claude') {
+      if (event.type === 'assistant' && event.message && event.message.model !== '<synthetic>') started = true;
+      if (event.type === 'result' && event.is_error) {
+        cliError = (Array.isArray(event.errors) && event.errors.join(' | ')) ||
+          event.result || event.subtype || 'Claude reported a failed turn.';
+      }
+      continue;
+    }
+    if (event.type === 'turn.started' || event.type.startsWith('item.')) started = true;
+    if (event.type === 'turn.completed') {
+      // A successful retry can follow an error in the stream.
+      cliError = infrastructure = null;
+    }
+    if (event.type !== 'error' && event.type !== 'turn.failed') continue;
+    cliError = event.error?.message || event.message || 'Codex reported a failed turn.';
+    if (!started || authenticationError.test(cliError) || providerError.test(cliError)) infrastructure = cliError;
   }
-  return null;
+  if (infrastructure || exit.error) return { infrastructure: infrastructure ?? exit.error };
+  const exitStatus = exit.signal ?? `code ${exit.code}`;
+  if (!started && (!exit.timedOut || cliError)) {
+    return { infrastructure: cliError ?? `Agent exited with ${exitStatus} before a model turn.` };
+  }
+  if (exit.timedOut) return {};
+  if (exit.signal || exit.code !== 0) cliError ??= `Agent exited with ${exitStatus}.`;
+  return { cliError };
 }
 
 export async function observeAgent(agent, transcript, codexHome) {

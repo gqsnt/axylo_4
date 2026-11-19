@@ -2,7 +2,7 @@ import { copyFile, cp, lstat, mkdir, mkdtemp, readFile } from 'node:fs/promises'
 import { homedir, tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { agentArgs, agentVersion, observeAgent, reportedError, runAgent } from './agent.mjs';
+import { agentArgs, agentErrors, agentVersion, observeAgent, runAgent } from './agent.mjs';
 import { auditTranscript } from './audit.mjs';
 import { isMain, tasks, writeJson } from './files.mjs';
 import { grade } from './grade.mjs';
@@ -13,13 +13,11 @@ import { prepareWorkspace, removeWorkspace } from './workspace.mjs';
 const inputs = new Set(['docs', 'node_modules', 'data.json', 'PROMPT.md', 'package.json', 'grade.json']);
 
 function classify({ agent, exit, audit, observed, result, infrastructure, cliError, changed }) {
+  if (infrastructure) return ['infrastructure', infrastructure];
   // A timeout is a counted outcome even when killing the process interrupts the transcript.
   if (exit?.timedOut) return ['timeout', 'Agent exceeded the 20-minute limit.'];
-  if (infrastructure) return ['infrastructure', infrastructure];
-  if (exit?.error) return ['infrastructure', exit.error];
   if (audit.status !== 'no findings') return ['void', audit.problems.join(' ')];
   if (cliError) return ['fail', cliError];
-  if (exit.code !== 0 || exit.signal) return ['fail', `Agent exited with ${exit.signal ?? exit.code}.`];
   if (!observedMatches(agent, observed)) {
     return ['void', agent === 'claude' ? 'Could not verify the requested model.' : 'Could not verify the requested model and effort.'];
   }
@@ -64,12 +62,8 @@ export async function attempt(job, { records, workdir, login = join(homedir(), '
     ]);
     const log = await readFile(transcript, 'utf8');
     [audit, observed] = await Promise.all([auditTranscript(log, workspace, agent, home), observeAgent(agent, log, codexHome)]);
-    cliError = reportedError(log);
-    if (cliError && !observed.model &&
-        /authentication failed|not logged in|api key is (?:missing|invalid)|rate.limit|connection refused|overloaded_error/i.test(cliError)) {
-      infrastructure = cliError;
-    }
-    if (!exit.timedOut && !exit.error && !cliError && exit.code === 0 && !exit.signal &&
+    ({ infrastructure, cliError } = agentErrors(agent, log, exit));
+    if (!exit.timedOut && !infrastructure && !cliError &&
         audit.status === 'no findings' && observedMatches(agent, observed)) {
       changed = await inputChanges(workspace, prepared.hashes);
       if (!changed) result = await gradeAnswer(workspace, task);

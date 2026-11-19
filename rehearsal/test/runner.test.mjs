@@ -2,12 +2,13 @@ import { access, chmod, copyFile, cp, lstat, mkdir, mkdtemp, open, readFile, rea
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { agentArgs, agentVersion, observeAgent, runAgent } from '../agent.mjs';
+import { agentArgs, agentErrors, agentVersion, observeAgent, runAgent } from '../agent.mjs';
 import { auditTranscript } from '../audit.mjs';
 import { readJson, repository } from '../files.mjs';
 import { grade } from '../grade.mjs';
-import { cells, effort, models, nextAttempts, protocol, summarize, timeoutMs } from '../protocol.mjs';
+import { cells, effort, models, nextAttempts, protocol, readRecords, summarize, timeoutMs } from '../protocol.mjs';
 import { attempt, runBatch } from '../run.mjs';
+import { formatSummary } from '../summary.mjs';
 import { prepareWorkspace, removeWorkspace } from '../workspace.mjs';
 
 vi.mock('node:fs/promises', async importOriginal => {
@@ -24,6 +25,10 @@ const command = (text, cwd) => ({ type: 'item.completed', item: { type: 'command
 const claude = (name, input, model = models.claude) => ({
   type: 'assistant', message: { model, content: [{ type: 'tool_use', name, input }] },
 });
+const expiredLogin = 'Failed to authenticate: this login reached its time limit and cannot be renewed. Run `claude auth login` to sign in again…';
+const expiredLoginLog = jsonl(claudeInit,
+  { type: 'assistant', message: { model: '<synthetic>', content: [{ type: 'text', text: expiredLogin }] } },
+  { type: 'result', subtype: 'success', is_error: true, result: expiredLogin });
 
 let scratch;
 const workspaces = [];
@@ -283,7 +288,7 @@ it.each([
   ['pass', claudeLog(claude('Write', { file_path: 'chart.js' })), false, { pass: true, criteria: [] }],
   ['fail', claudeLog(claude('Write', { file_path: 'chart.js' })), false, { pass: false, criteria: [{ name: 'table rows' }] }],
   ['timeout', jsonl(claudeInit), true],
-  ['void', jsonl(claudeInit), false],
+  ['void', jsonl(claudeInit, claude('Write', { file_path: 'chart.js' })), false],
   ['void', claudeLog(claude('Write', { file_path: 'data.json' })), false, undefined, true],
   ['infrastructure', claudeLog(claude('Write', { file_path: 'chart.js' })), false, { pass: false, criteria: [{ name: 'browser', detail: 'Chrome unavailable' }] }],
 ])('saves a %s attempt before cleaning up the workspace and home', async (status, log, timedOut, gradeResult, tamper) => {
@@ -319,6 +324,76 @@ it.each([
   await expect(access(temporary)).rejects.toHaveProperty('code', 'ENOENT');
 });
 
+it.each([
+  ['claude', 'expired login', expiredLoginLog, 1, 'infrastructure', expiredLogin],
+  ['claude', 'API error without an assistant message', jsonl(claudeInit,
+    { type: 'result', subtype: 'error_during_execution', is_error: true, errors: ['API Error: 503 Service Unavailable'] }),
+  0, 'infrastructure', 'API Error: 503 Service Unavailable'],
+  ['claude', 'zero exit before a model turn', jsonl(claudeInit), 0, 'infrastructure',
+    'Agent exited with code 0 before a model turn.'],
+  ['codex', 'startup error', jsonl(codexStart, { type: 'error', message: 'Failed to initialize the session.' }),
+    1, 'infrastructure', 'Failed to initialize the session.'],
+  ['codex', 'exit without an error event', jsonl(codexStart), 1, 'infrastructure',
+    'Agent exited with code 1 before a model turn.'],
+  ['codex', 'provider disconnect after starting a turn', jsonl(codexStart, { type: 'turn.started' },
+    { type: 'error', message: 'Reconnecting... 5/5' },
+    { type: 'turn.failed', error: { message: 'stream disconnected before completion' } }),
+  1, 'infrastructure', 'stream disconnected before completion'],
+  ['codex', 'authentication error after starting a turn', jsonl(codexStart, { type: 'turn.started' },
+    { type: 'error', message: 'Unexpected status 401 Unauthorized' },
+    { type: 'turn.failed', error: { message: 'Request failed.' } }),
+  1, 'infrastructure', 'Unexpected status 401 Unauthorized'],
+  ['codex', 'failed turn after model work', jsonl(codexStart, { type: 'turn.started' },
+    { type: 'item.completed', item: { type: 'agent_message', text: 'I read the inputs.' } },
+    { type: 'turn.failed', error: { message: 'Turn failed.' } }),
+  1, 'fail', 'Turn failed.'],
+])('classifies %s %s from the transcript and exit', async (agent, _, log, code, status, reason) => {
+  const records = join(scratch, 'records');
+  await mkdir(records);
+  const login = join(scratch, 'auth.json');
+  await writeFile(login, '{}');
+  const gradeAnswer = vi.fn();
+  const result = await attempt({ agent, task: 'signups', slot: 1, replaces: null }, {
+    records, workdir: scratch, login, claudeLogin: join(scratch, '.credentials.json'),
+    version: async () => 'fixture-version', gradeAnswer,
+    launch: async (_, { runDirectory }) => {
+      const transcript = join(runDirectory, 'transcript.jsonl');
+      const stderr = join(runDirectory, 'stderr.log');
+      await Promise.all([writeFile(transcript, log), writeFile(stderr, '')]);
+      return { transcript, stderr, exit: { code, signal: null, timedOut: false, error: null } };
+    },
+  });
+  expect(result).toMatchObject({ status, reason });
+  expect(gradeAnswer).not.toHaveBeenCalled();
+  const [record] = await readRecords(records);
+  expect(record).toMatchObject({ status, reason, exit: { code } });
+  const cell = { agent, task: 'signups' };
+  expect(nextAttempts([record], cell, 1)).toEqual(
+    status === 'infrastructure' ? [{ ...cell, slot: 1, replaces: record.name }] : []);
+});
+
+it('accepts a Codex turn that completed after a provider retry', () => {
+  const transcript = codexLog({ type: 'error', message: 'Reconnecting: connection reset' },
+    { type: 'item.completed', item: { type: 'agent_message', text: 'I wrote the chart.' } });
+  expect(agentErrors('codex', transcript, { code: 0, signal: null, timedOut: false, error: null }))
+    .toEqual({ cliError: null });
+});
+
+it('reopens an older failed Claude slot using its recorded authentication error', async () => {
+  const cell = { agent: 'claude', task: 'signups' };
+  const name = 'expired-login-trial';
+  const directory = join(scratch, name);
+  await mkdir(directory);
+  const original = { ...cell, protocol, slot: 1, status: 'fail', reason: expiredLogin,
+    exit: { code: 1, signal: null, timedOut: false, error: null } };
+  const file = join(directory, 'run.json');
+  await Promise.all([writeFile(file, JSON.stringify(original)), writeFile(join(directory, 'transcript.jsonl'), expiredLoginLog)]);
+  const records = await readRecords(scratch);
+  expect(records).toEqual([{ ...original, name, status: 'infrastructure' }]);
+  expect(nextAttempts(records, cell, 1)).toEqual([{ ...cell, slot: 1, replaces: name }]);
+  expect(await readJson(file)).toEqual(original);
+});
+
 it('fills only unused, void and infrastructure slots while keeping failed and timed-out attempts', () => {
   const [cell] = cells;
   const records = ['void', 'fail', 'infrastructure', 'timeout'].map((status, i) =>
@@ -345,19 +420,43 @@ it('limits batch concurrency and preserves job order', async () => {
   expect(highWater).toBe(2);
 });
 
-it('requires all eight cells to be exactly 3 of 3 on matching inputs, graders and observed models', () => {
-  const records = cells.flatMap(cell => [1, 2, 3].map(slot => ({
+function passingRecords() {
+  return cells.flatMap(cell => [1, 2, 3].map(slot => ({
     ...cell, protocol, slot, status: 'pass', timeoutMs, requested: { model: models[cell.agent], effort },
     observed: { model: models[cell.agent], models: [models[cell.agent]], effort },
     hashes: { docs: 'docs', grader: 'grader', package: 'package' }, cli: { version: cell.agent }, browserVersion: 'fixture Chrome',
   })));
+}
+
+it('requires three distinct counted slots per cell and comparable records', () => {
+  const records = passingRecords();
   expect(summarize([]).pass).toBe(false);
   expect(summarize(records).pass).toBe(true);
   expect(summarize([...records, { ...records[0], status: 'void' }]).pass).toBe(true);
   expect(summarize([...records, records[0]]).pass).toBe(false);
-  const timedOut = [{ ...records[0], status: 'timeout' }, ...records.slice(1)];
-  expect(summarize(timedOut).rows[0]).toMatchObject({ pass: 2, attempts: 3, timeout: 1, complete: false });
-  expect(summarize(timedOut).pass).toBe(false);
+  expect(summarize([records[1], ...records.slice(1)]).rows[0].meetsRule).toBe(false);
+  expect(summarize(records.slice(1)).rows[0].meetsRule).toBe(false);
   const changed = [{ ...records[0], hashes: { ...records[0].hashes, grader: 'different' } }, ...records.slice(1)];
   expect(summarize(changed)).toMatchObject({ comparable: false, pass: false });
+});
+
+it.each([
+  [false, ['fail', 'timeout'], 1, 22, 1],
+  [true, ['fail', 'pass'], 2, 23, 0],
+])('prints the batch verdict %s, cell counts, totals and failure reasons', (pass, statuses, cellPasses, totalPasses, timeouts) => {
+  const records = passingRecords().map((record, index) => {
+    const status = statuses[index] ?? 'pass';
+    return { ...record, name: `record-${index}`, status,
+      reason: status === 'fail' ? 'table rows' : status === 'timeout' ? 'deadline' : null };
+  });
+  const summary = summarize(records);
+  expect(summary.pass).toBe(pass);
+  expect(summary.rows[0]).toMatchObject({ pass: cellPasses, attempts: 3, fail: 1, timeout: timeouts, meetsRule: pass });
+  const output = formatSummary(records);
+  const lines = output.split('\n');
+  expect(lines.at(-1)).toBe(pass ? 'rehearsal rule met' : 'rehearsal rule not met');
+  expect(output).toMatch(new RegExp(`^codex +daily-visits +${cellPasses} +3 +1 +${timeouts} +0 +0 +${pass ? 'yes' : 'no'}$`, 'm'));
+  expect(output).toMatch(new RegExp(`^Total +${totalPasses} +24 +1 +${timeouts} +0 +0$`, 'm'));
+  expect(lines).toContain('record-0: fail — table rows');
+  if (timeouts) expect(lines).toContain('record-1: timeout — deadline');
 });

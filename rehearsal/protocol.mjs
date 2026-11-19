@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { lstat, readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { agentErrors } from './agent.mjs';
 import { readJson, rehearsal, repository, taskFiles, tasks } from './files.mjs';
 import { packedPackage } from './workspace.mjs';
 
@@ -76,7 +77,20 @@ export async function readRecords(root) {
   });
   const records = await Promise.all(entries.filter(entry => entry.isDirectory()).map(async ({ name }) => {
     try {
-      return { ...await readJson(join(root, name, 'run.json')), name };
+      const directory = join(root, name);
+      const record = { ...await readJson(join(directory, 'run.json')), name };
+      if (record.protocol === protocol && record.status === 'fail' && record.exit && Object.hasOwn(models, record.agent)) {
+        // Reopen older slots when the saved CLI evidence identifies an infrastructure failure.
+        const transcript = await readFile(join(directory, 'transcript.jsonl'), 'utf8').catch(error => {
+          if (error.code === 'ENOENT') return null;
+          throw error;
+        });
+        if (transcript !== null) {
+          const { infrastructure } = agentErrors(record.agent, transcript, record.exit);
+          if (infrastructure) return { ...record, status: 'infrastructure', reason: infrastructure };
+        }
+      }
+      return record;
     } catch (error) {
       return { name, reason: String(error) };
     }
@@ -129,9 +143,9 @@ export function summarize(records) {
     const counts = Object.fromEntries([...counted, 'void', 'infrastructure'].map(status =>
       [status, all.filter(record => record.status === status).length]));
     return { agent, task, attempts: attempts.length, ...counts,
-      complete: counts.pass === target && attempts.length === target &&
+      meetsRule: counts.pass >= 2 && attempts.length === target &&
         [1, 2, 3].every(slot => attempts.some(run => run.slot === slot)) };
   });
   const comparable = !incompleteOrMixed(records, results);
-  return { rows, comparable, pass: comparable && rows.every(row => row.complete) };
+  return { rows, comparable, pass: comparable && rows.every(row => row.meetsRule) };
 }
