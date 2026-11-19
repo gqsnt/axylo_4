@@ -14,7 +14,8 @@ const inputs = new Set(['docs', 'node_modules', 'data.json', 'PROMPT.md', 'packa
 
 function classify({ agent, exit, audit, observed, result, infrastructure, cliError, changed }) {
   if (infrastructure) return ['infrastructure', infrastructure];
-  // A timeout is a counted outcome even when killing the process interrupts the transcript.
+  if (audit.paths.length || audit.linkedLogin) return ['void', audit.problems.join(' ')];
+  // A timeout still counts when the only audit problem is an interrupted transcript.
   if (exit?.timedOut) return ['timeout', 'Agent exceeded the 20-minute limit.'];
   if (audit.status !== 'no findings') return ['void', audit.problems.join(' ')];
   if (cliError) return ['fail', cliError];
@@ -42,7 +43,7 @@ export async function attempt(job, { records, workdir, login = join(homedir(), '
     prepared = await prepare(workdir, task, { agent, codexLogin: agent === 'codex' ? login : undefined,
       claudeLogin: claudeMode === 'fresh-config' ? claudeLogin : undefined,
       inputHashes: workspace => inputHashes(workspace, task) });
-    const { workspace, codexHome, home } = prepared;
+    const { workspace, codexHome } = prepared;
     const options = { ...prepared, ...requested, timeoutMs, anthropicApiKey };
     cli.args = agentArgs(agent, options);
     cli.version = await version(agent, options);
@@ -61,7 +62,7 @@ export async function attempt(job, { records, workdir, login = join(homedir(), '
       }),
     ]);
     const log = await readFile(transcript, 'utf8');
-    [audit, observed] = await Promise.all([auditTranscript(log, workspace, agent, home), observeAgent(agent, log, codexHome)]);
+    [audit, observed] = await Promise.all([auditTranscript(log, prepared, agent), observeAgent(agent, log, codexHome)]);
     ({ infrastructure, cliError } = agentErrors(agent, log, exit));
     if (!exit.timedOut && !infrastructure && !cliError &&
         audit.status === 'no findings' && observedMatches(agent, observed)) {

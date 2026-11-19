@@ -1,6 +1,6 @@
 import { access, chmod, copyFile, cp, lstat, mkdir, mkdtemp, open, readFile, readdir, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { agentArgs, agentErrors, agentVersion, observeAgent, runAgent } from '../agent.mjs';
 import { auditTranscript } from '../audit.mjs';
@@ -31,6 +31,7 @@ const expiredLoginLog = jsonl(claudeInit,
   { type: 'result', subtype: 'success', is_error: true, result: expiredLogin });
 
 let scratch;
+const audit = (log, workspace, agent) => auditTranscript(log, { workspace, runDirectory: scratch }, agent);
 const workspaces = [];
 beforeEach(async () => { scratch = await mkdtemp(join(tmpdir(), 'axylo-rehearsal-test-')); });
 afterEach(async () => {
@@ -48,31 +49,55 @@ async function workspaceFor(task, options) {
 it('audits complete Codex and Claude logs while allowing the copied docs and system tools', async () => {
   const codex = codexLog(command("/bin/bash -lc 'cat docs/getting-started.html; node ./chart.js'", scratch),
     { type: 'item.completed', item: { type: 'agent_message', text: 'I did not read /home/user/notes.txt.' } });
-  expect(await auditTranscript(codex, scratch, 'codex')).toEqual({
+  expect(await audit(codex, scratch, 'codex')).toEqual({
     status: 'no findings', paths: [], tools: [], malformedLines: 0, problems: [],
   });
   const log = claudeLog(claude('Read', { file_path: join(scratch, 'data.json') }));
-  expect(await auditTranscript(log, scratch, 'claude')).toMatchObject({ status: 'no findings' });
+  expect(await audit(log, scratch, 'claude')).toMatchObject({ status: 'no findings' });
+});
+
+it('accepts the recorded Claude trial command after the run directory is gone', async () => {
+  const log = await readFile(new URL('./fixtures/claude-daily-visits-trial.jsonl', import.meta.url), 'utf8');
+  const { cwd: workspace } = JSON.parse(log.split('\n')[0]);
+  const runDirectory = dirname(workspace);
+  expect(await auditTranscript(log, { workspace, runDirectory }, 'claude')).toEqual({
+    status: 'no findings', paths: [], tools: [], malformedLines: 0, problems: [],
+  });
+});
+
+it('allows existing and missing paths throughout the attempt run directory', async () => {
+  const prepared = await workspaceFor('daily-visits', { agent: 'claude' });
+  const { workspace, runDirectory, home, claudeConfigDir, temporary } = prepared;
+  const log = claudeLog(
+    claude('Read', { file_path: 'node_modules/axylo/README.md' }),
+    claude('Read', { file_path: '../node_modules/axylo/README.md' }),
+    claude('Read', { file_path: join(runDirectory, 'missing.txt') }),
+    claude('Read', { file_path: join(home, 'missing.txt') }),
+    claude('Read', { file_path: join(claudeConfigDir, '.credentials.json') }),
+    claude('Bash', { cwd: home, command: 'cat "$CLAUDE_CONFIG_DIR/notes.txt" "${TMPDIR}/missing.txt"' }),
+    claude('Read', { file_path: temporary }),
+  );
+  expect(await auditTranscript(log, prepared, 'claude')).toMatchObject({ status: 'no findings' });
 });
 
 it('voids recorded reads of Axylo source, even in otherwise complete transcripts', async () => {
   const source = join(repository, 'packages/axylo/src/index.ts');
-  expect(await auditTranscript(codexLog(command(`/bin/bash -lc 'cat "${source}"'`, scratch)), scratch, 'codex'))
+  expect(await audit(codexLog(command(`/bin/bash -lc 'cat "${source}"'`, scratch)), scratch, 'codex'))
     .toMatchObject({ status: 'outside policy', paths: [source] });
-  expect(await auditTranscript(claudeLog(claude('Read', { file_path: source })), scratch, 'claude'))
+  expect(await audit(claudeLog(claude('Read', { file_path: source })), scratch, 'claude'))
     .toMatchObject({ status: 'outside policy', paths: [source] });
 });
 
-it('follows recorded relative paths and symlinks out of the workspace', async () => {
+it('follows symlinks out of the run directory, including dangling links and parent traversal', async () => {
   const workspace = join(scratch, 'workspace');
-  const outside = join(scratch, 'other.txt');
+  const packages = join(repository, 'packages');
+  const missing = join(repository, 'missing.txt');
   await mkdir(workspace);
-  await writeFile(outside, '');
-  await symlink(outside, join(workspace, 'linked.txt'));
-  expect(await auditTranscript(codexLog(command('cat linked.txt', workspace)), workspace, 'codex'))
-    .toMatchObject({ status: 'outside policy', paths: [outside] });
-  expect(await auditTranscript(claudeLog(claude('Read', { file_path: '../other.txt' })), workspace, 'claude'))
-    .toMatchObject({ status: 'outside policy', paths: [outside] });
+  await symlink(packages, join(workspace, 'linked'));
+  await symlink(missing, join(workspace, 'dangling.txt'));
+  const log = codexLog(command('cat linked/../AGENTS.md dangling.txt', workspace));
+  expect(await audit(log, workspace, 'codex'))
+    .toMatchObject({ status: 'outside policy', paths: [join(repository, 'AGENTS.md'), missing] });
 });
 
 it('preserves literal paths with spaces and ignores paths mentioned in tool output', async () => {
@@ -80,7 +105,7 @@ it('preserves literal paths with spaces and ignores paths mentioned in tool outp
   await mkdir(workspace);
   const event = command(`/bin/bash -lc 'cat "${join(workspace, 'data.json')}"'`, workspace);
   event.item.aggregated_output = '/another/path';
-  expect(await auditTranscript(codexLog(event), workspace, 'codex')).toMatchObject({ status: 'no findings' });
+  expect(await audit(codexLog(event), workspace, 'codex')).toMatchObject({ status: 'no findings' });
 });
 
 it.each([
@@ -92,14 +117,14 @@ it.each([
   ['claude', jsonl(claudeInit, claude('Read', { file_path: 'data.json' })), 0],
   ['claude', claudeLog({ type: 'assistant', message: { content: 'unexpected' } }), 0],
 ])('marks %s transcript %j unverifiable', async (agent, log, malformedLines) => {
-  expect(await auditTranscript(log, scratch, agent)).toMatchObject({ status: 'unverifiable', malformedLines });
+  expect(await audit(log, scratch, agent)).toMatchObject({ status: 'unverifiable', malformedLines });
 });
 
 it('flags excluded web tools in either transcript', async () => {
   const codex = codexLog({ type: 'item.completed', item: { type: 'web_search', query: 'Axylo' } });
   const log = claudeLog(claude('WebFetch', { url: 'https://example.com' }));
-  expect(await auditTranscript(codex, scratch, 'codex')).toMatchObject({ status: 'outside policy', tools: ['web_search'] });
-  expect(await auditTranscript(log, scratch, 'claude')).toMatchObject({ status: 'outside policy', tools: ['WebFetch'] });
+  expect(await audit(codex, scratch, 'codex')).toMatchObject({ status: 'outside policy', tools: ['web_search'] });
+  expect(await audit(log, scratch, 'claude')).toMatchObject({ status: 'outside policy', tools: ['WebFetch'] });
 });
 
 it('reads observed metadata from the isolated Codex rollout and the Claude stream', async () => {
@@ -282,6 +307,62 @@ it('bundles the packed browser entry and reports a Chrome launch failure', async
     launch: () => { throw new Error('Chrome unavailable in this test.'); },
   });
   expect(result.criteria).toEqual([{ name: 'browser', pass: false, detail: 'Error: Chrome unavailable in this test.' }]);
+});
+
+it.each([
+  ['the repository', () => join(repository, 'AGENTS.md'), false],
+  ['the real home', ({ login }) => login, false],
+  ['another attempt', ({ other }) => join(other, 'workspace', 'chart.js'), false],
+  ['the Claude login link', ({ prepared }) => prepared.loginLink, true],
+])('voids an attempt for a recorded read of %s', async (_, target, linked) => {
+  const records = join(scratch, 'records');
+  const realHome = join(scratch, 'real-home');
+  const login = join(realHome, '.credentials.json');
+  const other = await mkdtemp(join(scratch, 'axylo-rehearsal-'));
+  await Promise.all([mkdir(records), mkdir(realHome)]);
+  await writeFile(login, 'fixture credential');
+  vi.stubEnv('HOME', realHome);
+  vi.stubEnv('ANTHROPIC_API_KEY', undefined);
+  const gradeAnswer = vi.fn();
+  let requestedPath;
+  const result = await attempt({ agent: 'claude', task: 'daily-visits', slot: 1 }, {
+    records, workdir: scratch, claudeLogin: login, version: async () => 'fixture-version', gradeAnswer,
+    launch: async (_, prepared) => {
+      const { runDirectory } = prepared;
+      requestedPath = target({ prepared, login, other });
+      const log = claudeLog(claude('Read', { file_path: requestedPath }));
+      const transcript = join(runDirectory, 'transcript.jsonl');
+      const stderr = join(runDirectory, 'stderr.log');
+      await Promise.all([writeFile(transcript, log), writeFile(stderr, '')]);
+      return { transcript, stderr, exit: { code: 0, timedOut: false } };
+    },
+  });
+  const run = await readJson(join(result.record, 'run.json'));
+  const reason = linked ? 'Recorded attempt to read the linked login.' : 'Recorded forbidden paths outside the attempt run directory.';
+  expect(result).toMatchObject({ status: 'void', reason });
+  expect(run.audit).toMatchObject({ status: 'outside policy', paths: linked ? [] : [requestedPath], problems: [reason] });
+  if (linked) expect(run.audit.linkedLogin).toBe(requestedPath);
+  expect(gradeAnswer).not.toHaveBeenCalled();
+});
+
+it('voids a timed-out Codex attempt when its command names the login link', async () => {
+  const records = join(scratch, 'records');
+  const login = join(scratch, 'auth.json');
+  await Promise.all([mkdir(records), writeFile(login, 'fixture credential')]);
+  const gradeAnswer = vi.fn();
+  const result = await attempt({ agent: 'codex', task: 'daily-visits', slot: 1 }, {
+    records, workdir: scratch, login, version: async () => 'fixture-version', gradeAnswer,
+    launch: async (_, { workspace, runDirectory }) => {
+      const log = jsonl(codexStart, { type: 'turn.started' }, command('cat "${CODEX_HOME}/auth.json"', workspace));
+      const transcript = join(runDirectory, 'transcript.jsonl');
+      const stderr = join(runDirectory, 'stderr.log');
+      await Promise.all([writeFile(transcript, log), writeFile(stderr, '')]);
+      return { transcript, stderr, exit: { code: null, signal: 'SIGTERM', timedOut: true } };
+    },
+  });
+  expect(result.status).toBe('void');
+  expect(result.reason).toContain('read the linked login');
+  expect(gradeAnswer).not.toHaveBeenCalled();
 });
 
 it.each([

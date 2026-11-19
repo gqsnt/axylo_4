@@ -1,8 +1,9 @@
 import { constants } from 'node:fs';
-import { access, realpath } from 'node:fs/promises';
-import { dirname, resolve } from 'node:path';
+import { access, readlink } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { inside } from './files.mjs';
+import { inside, repository } from './files.mjs';
 
 export function transcriptEvents(transcript) {
   const events = [];
@@ -34,7 +35,7 @@ function * toolInputs(event) {
 }
 
 function * unquotedPaths(command) {
-  const paths = /(?<![\w./:-])(?:file:\/\/\/|~\/|\$(?:HOME|\{HOME\})\/|\.\.?\/|\/)[^\s"'\x60;&|<>()[\]{}*,]*|(?<!\S)(?:~|\$(?:HOME|\{HOME\}))(?=$|[\s;&|])/g;
+  const paths = /(?<![\w./:-])(?:file:\/\/\/|~\/|\$(?:[A-Z_]+|\{[A-Z_]+\})\/|\.\.?\/|\/)[^\s"'\x60;&|<>()[\]{}*,]*|(?<!\S)(?:~|\$(?:[A-Z_]+|\{[A-Z_]+\}))(?=$|[\s;&|])/g;
   for (const match of command.matchAll(paths)) yield match[0];
   for (const match of command.matchAll(/(?<![\w./:-])[\w.-]+(?:\/[\w.-]+)*(?![\w./:-])/g)) yield match[0];
 }
@@ -46,7 +47,7 @@ function * commandPaths(command) {
   for (const match of command.matchAll(/"([^"\n]+)"|'([^'\n]+)'/g)) {
     yield * unquotedPaths(command.slice(offset, match.index));
     const quoted = match[1] ?? match[2];
-    if (/^(?:file:\/\/|[~/]|\.\.?\/)[^;&|<>()[\]{}"'\n]*$/.test(quoted) && !/\s[-/]/.test(quoted)) {
+    if (/^(?:file:\/\/|[~/]|\.\.?\/|\$(?:[A-Z_]+|\{[A-Z_]+\})(?=\/|$))[^;&|<>()[\]{}"'\n]*$/.test(quoted) && !/\s[-/]/.test(quoted)) {
       yield quoted;
     } else {
       yield * commandPaths(quoted);
@@ -56,22 +57,42 @@ function * commandPaths(command) {
   yield * unquotedPaths(command.slice(offset));
 }
 
-function localPath(text, base, home) {
+function localPath(text, base, directories) {
   if (text.startsWith('file://')) {
     try { return fileURLToPath(text); } catch { return undefined; }
   }
   if (/^[\w+.-]+:\/\//.test(text)) return undefined;
-  return resolve(base, text.replace(/^(?:~|\$HOME|\$\{HOME\})(?=\/|$)/, () => home));
+  const path = text.replace(/^(?:~|\$(?:\{([A-Z_]+)\}|([A-Z_]+)))(?=\/|$)/,
+    (prefix, braced, bare) => directories[braced ?? bare ?? 'HOME'] ?? prefix);
+  return isAbsolute(path) ? path : `${base}/${path}`;
 }
 
-async function resolveLinks(file) {
-  try {
-    return await realpath(file);
-  } catch (error) {
-    if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error;
-    const parent = dirname(file);
-    return parent === file ? file : resolve(await resolveLinks(parent), file.slice(parent === '/' ? 1 : parent.length + 1));
+async function resolveLinks(file, loginLink) {
+  const parts = file.split('/').reverse();
+  let path = '/';
+  let links = 0;
+  // Walk in filesystem order so a dangling link or a link followed by ".." still counts.
+  while (parts.length) {
+    const part = parts.pop();
+    if (!part || part === '.') continue;
+    if (part === '..') {
+      path = dirname(path);
+      continue;
+    }
+    const next = join(path, part);
+    if (next === loginLink) return { path: next, readLogin: true };
+    const target = await readlink(next).catch(error => {
+      if (!['EINVAL', 'ENOENT', 'ENOTDIR'].includes(error.code)) throw error;
+    });
+    if (target === undefined) {
+      path = next;
+    } else {
+      if (++links > 40) throw new Error('Too many symbolic links: ' + file);
+      if (isAbsolute(target)) path = '/';
+      parts.push(...target.split('/').reverse());
+    }
   }
+  return { path, readLogin: false };
 }
 
 async function systemTool(file) {
@@ -105,8 +126,10 @@ function complete(events, agent) {
   return openItems.size === 0;
 }
 
-export async function auditTranscript(transcript, workspace, agent, home = workspace) {
-  workspace = await realpath(workspace);
+export async function auditTranscript(transcript, { workspace, runDirectory, home = workspace, codexHome, claudeConfigDir,
+  temporary, loginLink }, agent) {
+  const directories = { HOME: home, CODEX_HOME: codexHome, CLAUDE_CONFIG_DIR: claudeConfigDir, TMPDIR: temporary };
+  const realHome = homedir();
   const paths = new Set();
   const checked = new Set();
   const { events, malformedLines } = transcriptEvents(transcript);
@@ -115,19 +138,26 @@ export async function auditTranscript(transcript, workspace, agent, home = works
     ? `${malformedLines} malformed transcript line(s).` : !completeTranscript ? 'Incomplete transcript lifecycle.' : null;
   const externalTools = new Set();
   let unparseableInput = false;
+  let linkedLogin;
 
   async function check(text, base) {
     if (!text || text === '-') return;
-    const path = localPath(text, base, home);
+    const path = localPath(text, base, directories);
     if (!path || checked.has(path)) return;
     checked.add(path);
-    if (await systemTool(path)) return;
-    if (!inside(workspace, path)) {
-      paths.add(path);
+    const directTool = await systemTool(path);
+    if (!inside(runDirectory, path) && !directTool) {
+      paths.add(resolve(path));
       return;
     }
-    const actual = await resolveLinks(path);
-    if (!inside(workspace, actual) && !await systemTool(actual)) paths.add(actual);
+    const { path: actual, readLogin } = await resolveLinks(path, loginLink);
+    if (readLogin) {
+      linkedLogin = actual;
+      return;
+    }
+    if (inside(runDirectory, actual)) return;
+    if ((directTool || await systemTool(actual)) && !inside(repository, actual) && !inside(realHome, actual)) return;
+    paths.add(actual);
   }
 
   async function scan(value, base, key = '') {
@@ -149,9 +179,9 @@ export async function auditTranscript(transcript, workspace, agent, home = works
     if (!value || typeof value !== 'object') return;
     const cwd = value.cwd ?? value.workdir ?? value.working_directory;
     if (typeof cwd === 'string') await check(cwd, base);
-    const directory = typeof cwd === 'string' ? localPath(cwd, base, home) ?? base : base;
+    const directory = typeof cwd === 'string' ? localPath(cwd, base, directories) ?? base : base;
     // One recorded external working directory is enough, without treating every shell word as a path there.
-    if (!inside(workspace, directory)) return;
+    if (!inside(runDirectory, directory)) return;
     for (const [name, part] of Object.entries(value)) {
       if (part !== cwd || (name !== 'cwd' && name !== 'workdir' && name !== 'working_directory')) {
         await scan(part, directory, name);
@@ -177,9 +207,11 @@ export async function auditTranscript(transcript, workspace, agent, home = works
   }
   const problems = [
     unavailable ?? (unparseableInput ? 'Unparseable tool input.' : null),
-    paths.size && 'Recorded paths outside the workspace.',
+    paths.size && 'Recorded forbidden paths outside the attempt run directory.',
+    linkedLogin && 'Recorded attempt to read the linked login.',
     externalTools.size && 'Recorded excluded tool use.',
   ].filter(Boolean);
   const status = unavailable || unparseableInput ? 'unverifiable' : problems.length ? 'outside policy' : 'no findings';
-  return { status, paths: [...paths].sort(), tools: [...externalTools].sort(), malformedLines, problems };
+  return { status, paths: [...paths].sort(), ...(linkedLogin ? { linkedLogin } : {}),
+    tools: [...externalTools].sort(), malformedLines, problems };
 }
