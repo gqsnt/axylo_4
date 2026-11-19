@@ -1,6 +1,6 @@
 {
- "date": "2026-11-18T00:04:47.073Z",
- "chrome": "157.0.8103.78",
+ "date": "2026-11-19T07:22:35.446Z",
+ "chrome": "158.0.8127.36",
  "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
  "echartsAria": [
   {
@@ -36,6 +36,11 @@
   "2.1",
   "1.2"
  ],
+ "axyloTable": {
+  "closedCount": 0,
+  "rows": 100,
+  "aria": "- table \"Daily sessions by channel\":\n  - caption: Daily sessions by channel\n  - rowgroup:\n    - row \"day Direct Organic search Referral\":\n      - columnheader \"day\"\n      - columnheader \"Direct\"\n      - columnheader \"Organic search\"\n      - columnheader \"Referral\"\n  - rowgroup:\n    - row \"Jan 1, 2026, 1:00 AM GMT+1 29,047 18,328 4,711\":\n      - rowheader \"Jan 1, 2026, 1:00 AM GMT+1\"\n      - cell \"29,047\"\n      - cell \"18,328\"\n      - cell \"4,711\"\n    - row \"Jan 2, 2026, 1:00 AM GMT+1 31,713 20,724 4,716\":\n      - rowheader \"Jan 2, 2026, 1:00 AM GMT+1\"\n      - cell \"31,713\"\n      - cell \"20,724\"\n      - cell \"4,716\"\n    - row \"Jan 3, 2026, 1:00 AM GMT+1 36,072 21,923 4,929\":\n      - rowheader \"Jan 3, 2026, 1:00 AM GMT+1\"\n      - cell \"36,072\"\n      - cell \"21,923\"\n      - cell \"4,929\"\n    - row \"Jan 4, 2026, 1:00 AM GMT+1 33,458 19,232 4,150\":\n      - rowheader \"Jan 4, 2026, 1:00 AM GMT+1\"\n      - cell \"33,458\"\n      - cell \"19,232\"\n      - cell \"4,150\"\n    - row \"Jan 5, 2026, 1:00 AM GMT+1 30,264 16,345 4,486\":\n      - rowheader \"Jan 5, 2026, 1:00 AM GMT+1\"\n      - cell \"30,264\"\n      - cell \"16,345\"\n      - cell \"4,486\"\n    - row \"Jan 6, 2026, 1:00 AM GMT+1 28,297 16,115 4,334\":\n "
+ },
  "reducedMotionMentions": {
   "chart.js": 0,
   "recharts": 15,
@@ -48,6 +53,7 @@
   "@nivo/line": 0,
   "@react-spring/shared": 8,
   "@mui/x-charts": 24,
-  "uplot": 0
+  "uplot": 0,
+  "axylo": 4
  }
 }

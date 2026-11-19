@@ -1,14 +1,14 @@
 {
  "_env": {
-  "chrome": "157.0.8103.78",
-  "date": "2026-11-18T00:04:04.678Z",
+  "chrome": "158.0.8127.36",
+  "date": "2026-11-19T07:21:39.399Z",
   "headless": true
  },
  "chartjs": {
   "trend": {
    "res": {
-    "createMs": 31.5,
-    "toPaintMs": 41.30000000074506
+    "createMs": 82.39999999850988,
+    "toPaintMs": 108.5
    },
    "logs": [
     "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
@@ -34,8 +34,8 @@
   },
   "bars": {
    "res": {
-    "createMs": 22.799999998882413,
-    "toPaintMs": 33.899999998509884
+    "createMs": 21.799999997019768,
+    "toPaintMs": 34
    },
    "logs": [],
    "dom": {
@@ -59,8 +59,8 @@
   },
   "parts": {
    "res": {
-    "createMs": 8.099999999627471,
-    "toPaintMs": 32.69999999925494
+    "createMs": 14.5,
+    "toPaintMs": 33.900000005960464
    },
    "logs": [],
    "dom": {
@@ -84,8 +84,8 @@
   },
   "dirty": {
    "res": {
-    "createMs": 17.59999999962747,
-    "toPaintMs": 33.69999999925494
+    "createMs": 27.80000000447035,
+    "toPaintMs": 34.70000000298023
    },
    "logs": [],
    "dom": {
@@ -148,10 +148,10 @@
    "scrollWidth": 360
   },
   "motion_no-preference": {
-   "earlyVsSettledDiff": 0.2407
+   "earlyVsSettledDiff": 0.2802
   },
   "motion_reduce": {
-   "earlyVsSettledDiff": 0.2625
+   "earlyVsSettledDiff": 0.2792
   },
   "scale": {
    "10000": {
@@ -216,12 +216,10 @@
   },
   "empty": {
    "res": {
-    "createMs": 21.5,
-    "toPaintMs": 33.40000000037253
+    "createMs": 19.200000002980232,
+    "toPaintMs": 33.400000005960464
    },
-   "logs": [
-    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-   ],
+   "logs": [],
    "text": [],
    "aria": ""
   },
@@ -329,12 +327,10 @@
  "recharts": {
   "trend": {
    "res": {
-    "createMs": 5.700000002980232,
-    "toPaintMs": 103.80000000074506
+    "createMs": 3.6999999955296516,
+    "toPaintMs": 77
    },
-   "logs": [
-    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-   ],
+   "logs": [],
    "dom": {
     "nodes": 504,
     "svg": 4,
@@ -386,8 +382,8 @@
   },
   "bars": {
    "res": {
-    "createMs": 4.5,
-    "toPaintMs": 36.30000000074506
+    "createMs": 3.5,
+    "toPaintMs": 44.29999999701977
    },
    "logs": [],
    "dom": {
@@ -429,12 +425,12 @@
   },
   "parts": {
    "res": {
-    "createMs": 3.7999999970197678,
-    "toPaintMs": 28.299999997019768
+    "createMs": 3.5,
+    "toPaintMs": 26.100000001490116
    },
    "logs": [],
    "dom": {
-    "nodes": 108,
+    "nodes": 83,
     "svg": 7,
     "canvas": 0,
     "svgTitle": 7,
@@ -534,24 +530,17 @@
      }
     ],
     "canvasFallback": [],
-    "svgTextSizes": {
-     "16px": 6
-    },
-    "svgTextFills": {
-     "rgb(0, 136, 254)": 2,
-     "rgb(0, 196, 159)": 2,
-     "rgb(255, 187, 40)": 1,
-     "rgb(255, 128, 66)": 1
-    },
+    "svgTextSizes": {},
+    "svgTextFills": {},
     "mainWidth": 14,
     "mainHeight": 14
    },
-   "aria": "- list:\n  - listitem:\n    - img \"Chrome legend icon\"\n    - text: Chrome\n  - listitem:\n    - img \"Edge legend icon\"\n    - text: Edge\n  - listitem:\n    - img \"Firefox legend icon\"\n    - text: Firefox\n  - listitem:\n    - img \"Other legend icon\"\n    - text: Other\n  - listitem:\n    - img \"Safari legend icon\"\n    - text: Safari\n  - listitem:\n    - img \"Samsung Internet legend icon\"\n    - text: Samsung Internet\n- application: 46.2 27.5 14.1 8.9 2.1 1.2"
+   "aria": "- list:\n  - listitem:\n    - img \"Chrome legend icon\"\n    - text: Chrome\n  - listitem:\n    - img \"Edge legend icon\"\n    - text: Edge\n  - listitem:\n    - img \"Firefox legend icon\"\n    - text: Firefox\n  - listitem:\n    - img \"Other legend icon\"\n    - text: Other\n  - listitem:\n    - img \"Safari legend icon\"\n    - text: Safari\n  - listitem:\n    - img \"Samsung Internet legend icon\"\n    - text: Samsung Internet\n- application"
   },
   "dirty": {
    "res": {
-    "createMs": 5,
-    "toPaintMs": 45.69999999925494
+    "createMs": 3.7000000029802322,
+    "toPaintMs": 29.200000002980232
    },
    "logs": [],
    "dom": {
@@ -734,7 +723,7 @@
    "scrollWidth": 360
   },
   "motion_no-preference": {
-   "earlyVsSettledDiff": 0.4584
+   "earlyVsSettledDiff": 0.5465
   },
   "motion_reduce": {
    "earlyVsSettledDiff": 0
@@ -790,8 +779,8 @@
   },
   "empty": {
    "res": {
-    "createMs": 4.099999999627471,
-    "toPaintMs": 37
+    "createMs": 3.5999999940395355,
+    "toPaintMs": 25.899999998509884
    },
    "logs": [],
    "text": [
@@ -883,8 +872,8 @@
  "d3": {
   "trend": {
    "res": {
-    "createMs": 3.599999999627471,
-    "toPaintMs": 33.19999999925494
+    "createMs": 3.5,
+    "toPaintMs": 33.30000000447035
    },
    "logs": [],
    "dom": {
@@ -911,8 +900,8 @@
   },
   "bars": {
    "res": {
-    "createMs": 2.5,
-    "toPaintMs": 33.5
+    "createMs": 2.2999999970197678,
+    "toPaintMs": 33.399999998509884
    },
    "logs": [],
    "dom": {
@@ -939,8 +928,8 @@
   },
   "parts": {
    "res": {
-    "createMs": 2.899999998509884,
-    "toPaintMs": 32.899999998509884
+    "createMs": 4.300000004470348,
+    "toPaintMs": 33.399999998509884
    },
    "logs": [],
    "dom": {
@@ -967,8 +956,8 @@
   },
   "dirty": {
    "res": {
-    "createMs": 4.899999998509884,
-    "toPaintMs": 30.899999998509884
+    "createMs": 5.299999997019768,
+    "toPaintMs": 33.399999998509884
    },
    "logs": [
     "error: Error: <path> attribute d: Expected number, \"…276.857L269.333,NaNL376,NaNL482.…\"."
@@ -1108,8 +1097,8 @@
   },
   "empty": {
    "res": {
-    "createMs": 2.400000000372529,
-    "toPaintMs": 33.20000000111759
+    "createMs": 2.2000000029802322,
+    "toPaintMs": 33.30000000447035
    },
    "logs": [],
    "text": [
@@ -1189,8 +1178,8 @@
  "echarts": {
   "trend": {
    "res": {
-    "createMs": 43.09999999962747,
-    "toPaintMs": 51.69999999925494
+    "createMs": 75.89999999850988,
+    "toPaintMs": 91.39999999850988
    },
    "logs": [],
    "dom": {
@@ -1214,8 +1203,8 @@
   },
   "bars": {
    "res": {
-    "createMs": 28.300000000745058,
-    "toPaintMs": 33.40000000037253
+    "createMs": 30.69999999552965,
+    "toPaintMs": 48.899999998509884
    },
    "logs": [],
    "dom": {
@@ -1239,8 +1228,8 @@
   },
   "parts": {
    "res": {
-    "createMs": 19.800000000745058,
-    "toPaintMs": 33.600000001490116
+    "createMs": 26.5,
+    "toPaintMs": 29.899999998509884
    },
    "logs": [],
    "dom": {
@@ -1264,8 +1253,8 @@
   },
   "dirty": {
    "res": {
-    "createMs": 40.90000000037253,
-    "toPaintMs": 50.59999999962747
+    "createMs": 20.700000002980232,
+    "toPaintMs": 26.80000000447035
    },
    "logs": [],
    "dom": {
@@ -1347,7 +1336,7 @@
    "earlyVsSettledDiff": 0.2989
   },
   "motion_reduce": {
-   "earlyVsSettledDiff": 0.2989
+   "earlyVsSettledDiff": 0.3002
   },
   "scale": {
    "10000": {
@@ -1412,8 +1401,8 @@
   },
   "empty": {
    "res": {
-    "createMs": 25.5,
-    "toPaintMs": 28.40000000037253
+    "createMs": 20.099999994039536,
+    "toPaintMs": 28.19999999552965
    },
    "logs": [],
    "text": [],
@@ -1523,8 +1512,8 @@
  "highcharts": {
   "trend": {
    "res": {
-    "createMs": 32.40000000037253,
-    "toPaintMs": 49.69999999925494
+    "createMs": 37.79999999701977,
+    "toPaintMs": 41.5
    },
    "logs": [],
    "dom": {
@@ -1744,8 +1733,8 @@
   },
   "bars": {
    "res": {
-    "createMs": 24.800000000745058,
-    "toPaintMs": 33.5
+    "createMs": 24.700000002980232,
+    "toPaintMs": 33.20000000298023
    },
    "logs": [],
    "dom": {
@@ -1959,8 +1948,8 @@
   },
   "parts": {
    "res": {
-    "createMs": 25.09999999962747,
-    "toPaintMs": 32.5
+    "createMs": 24.80000000447035,
+    "toPaintMs": 40.600000001490116
    },
    "logs": [],
    "dom": {
@@ -2147,10 +2136,10 @@
   },
   "dirty": {
    "res": {
-    "error": "TypeError: Cannot read properties of undefined (reading 'x')\n    at Pr.translate (http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:119749)\n    at http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:167127\n    at Array.forEach (<anonymous>)\n    at hr.renderSeries (http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:167105)\n    at hr.render (http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:168455)\n    at hr.firstRender (http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:169991)\n    at hr.<anonymous> (http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:153690)\n    at D (http://localhost:4173/assets/highcharts-DXhiMiC0.js:1:4648)\n    at hr.init (http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:152829)\n    at new hr (http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:152551)"
+    "error": "TypeError: Cannot read properties of undefined (reading 'x')\n    at Pr.translate (http://localhost:4173/assets/highcharts-CSAzjFZI.js:20:119744)\n    at http://localhost:4173/assets/highcharts-CSAzjFZI.js:20:167121\n    at Array.forEach (<anonymous>)\n    at hr.renderSeries (http://localhost:4173/assets/highcharts-CSAzjFZI.js:20:167099)\n    at hr.render (http://localhost:4173/assets/highcharts-CSAzjFZI.js:20:168449)\n    at hr.firstRender (http://localhost:4173/assets/highcharts-CSAzjFZI.js:20:169985)\n    at hr.<anonymous> (http://localhost:4173/assets/highcharts-CSAzjFZI.js:20:153684)\n    at D (http://localhost:4173/assets/highcharts-CSAzjFZI.js:1:4646)\n    at hr.init (http://localhost:4173/assets/highcharts-CSAzjFZI.js:20:152823)\n    at new hr (http://localhost:4173/assets/highcharts-CSAzjFZI.js:20:152545)"
    },
    "logs": [
-    "error: TypeError: Cannot read properties of undefined (reading 'x')\n    at Pr.translate (http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:119749)\n    at http://localhost:4173/assets/highcharts-DXhiMiC0.js:20:167127\n    at Array.forEach (<anonymous>)\n    at hr.renderSeries (http://localhost:4173/asset"
+    "error: TypeError: Cannot read properties of undefined (reading 'x')\n    at Pr.translate (http://localhost:4173/assets/highcharts-CSAzjFZI.js:20:119744)\n    at http://localhost:4173/assets/highcharts-CSAzjFZI.js:20:167121\n    at Array.forEach (<anonymous>)\n    at hr.renderSeries (http://localhost:4173/asset"
    ],
    "dom": {
     "nodes": 56,
@@ -2245,10 +2234,10 @@
    "scrollWidth": 360
   },
   "motion_no-preference": {
-   "earlyVsSettledDiff": 0.1754
+   "earlyVsSettledDiff": 0.1774
   },
   "motion_reduce": {
-   "earlyVsSettledDiff": 0.1764
+   "earlyVsSettledDiff": 0.1767
   },
   "scale": {
    "10000": {
@@ -2313,8 +2302,8 @@
   },
   "empty": {
    "res": {
-    "createMs": 35.19999999925494,
-    "toPaintMs": 55.40000000037253
+    "createMs": 19.899999998509884,
+    "toPaintMs": 24.600000001490116
    },
    "logs": [],
    "text": [
@@ -2393,19 +2382,17 @@
    "undefined": {
     "error": "TypeError: Cannot read properties of undefined (reading 'x')",
     "logCount": 1,
-    "firstLog": "error: TypeError: Cannot read properties of undefined (reading 'x')\n    at Pr.translate (http://localhost:4173/assets/highcharts-BI7vb9AT.js"
+    "firstLog": "error: TypeError: Cannot read properties of undefined (reading 'x')\n    at Pr.translate (http://localhost:4173/assets/highcharts-CSAzjFZI.js"
    }
   }
  },
  "apexcharts": {
   "trend": {
    "res": {
-    "createMs": 43.20000000111759,
-    "toPaintMs": 50.40000000037253
+    "createMs": 23.80000000447035,
+    "toPaintMs": 33.399999998509884
    },
-   "logs": [
-    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-   ],
+   "logs": [],
    "dom": {
     "nodes": 197,
     "svg": 13,
@@ -2522,8 +2509,8 @@
   },
   "bars": {
    "res": {
-    "createMs": 24.700000001117587,
-    "toPaintMs": 33.30000000074506
+    "createMs": 23.899999998509884,
+    "toPaintMs": 33.19999999552965
    },
    "logs": [],
    "dom": {
@@ -2597,8 +2584,8 @@
   },
   "parts": {
    "res": {
-    "createMs": 14.300000000745058,
-    "toPaintMs": 34.59999999962747
+    "createMs": 15.200000002980232,
+    "toPaintMs": 32.900000005960464
    },
    "logs": [],
    "dom": {
@@ -2704,8 +2691,8 @@
   },
   "dirty": {
    "res": {
-    "createMs": 20.09999999962747,
-    "toPaintMs": 33.19999999925494
+    "createMs": 18.899999998509884,
+    "toPaintMs": 33.29999999701977
    },
    "logs": [],
    "dom": {
@@ -3039,8 +3026,8 @@
   },
   "empty": {
    "res": {
-    "createMs": 42.5,
-    "toPaintMs": 50.5
+    "createMs": 16.30000000447035,
+    "toPaintMs": 33.30000000447035
    },
    "logs": [],
    "text": [
@@ -3142,8 +3129,8 @@
  "plotly": {
   "trend": {
    "res": {
-    "createMs": 36.5,
-    "toPaintMs": 40.20000000111759
+    "createMs": 39.900000005960464,
+    "toPaintMs": 56.5
    },
    "logs": [],
    "dom": {
@@ -3208,8 +3195,8 @@
   },
   "bars": {
    "res": {
-    "createMs": 23.199999999254942,
-    "toPaintMs": 29.09999999962747
+    "createMs": 27.399999998509884,
+    "toPaintMs": 34.899999998509884
    },
    "logs": [],
    "dom": {
@@ -3282,8 +3269,8 @@
   },
   "parts": {
    "res": {
-    "createMs": 20.90000000037253,
-    "toPaintMs": 32.80000000074506
+    "createMs": 20.899999998509884,
+    "toPaintMs": 31.100000001490116
    },
    "logs": [],
    "dom": {
@@ -3324,8 +3311,8 @@
   },
   "dirty": {
    "res": {
-    "createMs": 23.5,
-    "toPaintMs": 31.59999999962747
+    "createMs": 22.69999999552965,
+    "toPaintMs": 38
    },
    "logs": [],
    "dom": {
@@ -3613,8 +3600,8 @@
   },
   "empty": {
    "res": {
-    "createMs": 28.300000000745058,
-    "toPaintMs": 43.59999999962747
+    "createMs": 22.69999999552965,
+    "toPaintMs": 32.399999998509884
    },
    "logs": [],
    "text": [
@@ -3701,8 +3688,8 @@
  "nivo": {
   "trend": {
    "res": {
-    "createMs": 40.40000000037253,
-    "toPaintMs": 48
+    "createMs": 37.900000005960464,
+    "toPaintMs": 43.5
    },
    "logs": [],
    "dom": {
@@ -3734,8 +3721,8 @@
   },
   "bars": {
    "res": {
-    "createMs": 18.199999999254942,
-    "toPaintMs": 26.59999999962747
+    "createMs": 33.79999999701977,
+    "toPaintMs": 42.600000001490116
    },
    "logs": [],
    "dom": {
@@ -3767,8 +3754,8 @@
   },
   "parts": {
    "res": {
-    "createMs": 21.300000000745058,
-    "toPaintMs": 32.600000001490116
+    "createMs": 17.299999997019768,
+    "toPaintMs": 34.70000000298023
    },
    "logs": [],
    "dom": {
@@ -3799,8 +3786,8 @@
   },
   "dirty": {
    "res": {
-    "createMs": 15.399999998509884,
-    "toPaintMs": 31.09999999962747
+    "createMs": 18.799999997019768,
+    "toPaintMs": 33.399999998509884
    },
    "logs": [
     "error: Error: <path> attribute d: Expected number, \"M0,NaNL105,NaNM420,…\".",
@@ -3885,10 +3872,10 @@
    "scrollWidth": 360
   },
   "motion_no-preference": {
-   "earlyVsSettledDiff": 0.3129
+   "earlyVsSettledDiff": 0.3274
   },
   "motion_reduce": {
-   "earlyVsSettledDiff": 0.3274
+   "earlyVsSettledDiff": 0.3252
   },
   "scale": {
    "10000": {
@@ -3941,8 +3928,8 @@
   },
   "empty": {
    "res": {
-    "createMs": 17.199999999254942,
-    "toPaintMs": 19.799999998882413
+    "createMs": 19,
+    "toPaintMs": 24.69999999552965
    },
    "logs": [
     "error: Error: <path> attribute d: Expected moveto path command ('M' or 'm'), \"null\".",
@@ -4034,12 +4021,10 @@
  "mui": {
   "trend": {
    "res": {
-    "createMs": 32.400000002235174,
-    "toPaintMs": 49.600000001490116
+    "createMs": 25.19999999552965,
+    "toPaintMs": 27.599999994039536
    },
-   "logs": [
-    "error: Failed to load resource: the server responded with a status of 404 (Not Found)"
-   ],
+   "logs": [],
    "dom": {
     "nodes": 131,
     "svg": 4,
@@ -4108,8 +4093,8 @@
   },
   "bars": {
    "res": {
-    "createMs": 29,
-    "toPaintMs": 40.69999999925494
+    "createMs": 22.30000000447035,
+    "toPaintMs": 34.900000005960464
    },
    "logs": [],
    "dom": {
@@ -4172,8 +4157,8 @@
   },
   "parts": {
    "res": {
-    "createMs": 17.100000001490116,
-    "toPaintMs": 25.699999999254942
+    "createMs": 19.80000000447035,
+    "toPaintMs": 25.200000002980232
    },
    "logs": [],
    "dom": {
@@ -4251,10 +4236,11 @@
   },
   "dirty": {
    "res": {
-    "createMs": 21.899999998509884,
-    "toPaintMs": 38.69999999925494
+    "createMs": 20.5,
+    "toPaintMs": 24
    },
    "logs": [
+    "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
     "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
     "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
     "error: Error: <path> attribute d: Expected number, \"M65,NaNL170.833,NaNM…\".",
@@ -4400,7 +4386,7 @@
    "scrollWidth": 360
   },
   "motion_no-preference": {
-   "earlyVsSettledDiff": 0.4253
+   "earlyVsSettledDiff": 0.4213
   },
   "motion_reduce": {
    "earlyVsSettledDiff": 0
@@ -4468,8 +4454,8 @@
   },
   "empty": {
    "res": {
-    "createMs": 21.700000001117587,
-    "toPaintMs": 39.30000000074506
+    "createMs": 23,
+    "toPaintMs": 39.19999999552965
    },
    "logs": [],
    "text": [
@@ -4567,8 +4553,8 @@
  "uplot": {
   "trend": {
    "res": {
-    "createMs": 9.5,
-    "toPaintMs": 32.899999998509884
+    "createMs": 7,
+    "toPaintMs": 28
    },
    "logs": [],
    "dom": {
@@ -4592,8 +4578,8 @@
   },
   "bars": {
    "res": {
-    "createMs": 5.099999999627471,
-    "toPaintMs": 27.09999999962747
+    "createMs": 5.5999999940395355,
+    "toPaintMs": 26.799999997019768
    },
    "logs": [],
    "dom": {
@@ -4623,8 +4609,8 @@
   },
   "dirty": {
    "res": {
-    "createMs": 8.199999999254942,
-    "toPaintMs": 22.09999999962747
+    "createMs": 4.5,
+    "toPaintMs": 23.399999998509884
    },
    "logs": [],
    "dom": {
@@ -4759,8 +4745,8 @@
   },
   "empty": {
    "res": {
-    "createMs": 5.300000000745058,
-    "toPaintMs": 27.700000001117587
+    "createMs": 3,
+    "toPaintMs": 33.20000000298023
    },
    "logs": [],
    "text": [
@@ -5275,13 +5261,73 @@
     "noop"
    ],
    "settleMs": 1800
+  },
+  {
+   "date": "2026-11-19T07:10:58.469Z",
+   "chrome": "158.0.8127.36",
+   "phases": [
+    "look",
+    "empty",
+    "a11y",
+    "env"
+   ],
+   "libs": [
+    "chartjs",
+    "recharts",
+    "d3",
+    "echarts",
+    "highcharts",
+    "apexcharts",
+    "plotly",
+    "nivo",
+    "mui",
+    "uplot",
+    "axylo"
+   ],
+   "settleMs": 1800
+  },
+  {
+   "date": "2026-11-19T07:16:47.577Z",
+   "chrome": "158.0.8127.36",
+   "phases": [
+    "dates",
+    "sentinels",
+    "lightonly"
+   ],
+   "libs": [
+    "chartjs",
+    "recharts",
+    "d3",
+    "echarts",
+    "highcharts",
+    "apexcharts",
+    "plotly",
+    "nivo",
+    "mui",
+    "uplot",
+    "axylo"
+   ],
+   "settleMs": 1800
+  },
+  {
+   "date": "2026-11-19T07:21:39.399Z",
+   "chrome": "158.0.8127.36",
+   "phases": [
+    "look",
+    "a11y"
+   ],
+   "libs": [
+    "highcharts-plain",
+    "echarts-aria"
+   ],
+   "settleMs": 1800
   }
  ],
  "highcharts-plain": {
   "trend": {
    "res": {
-    "createMs": 32.100000001490116,
-    "toPaintMs": 45.100000001490116
+    "createMs": 35,
+    "toPaintMs": 47.79999999701977
    },
    "logs": [
     "error: Failed to load resource: the server responded with a status of 404 (Not Found)",
@@ -5380,8 +5426,8 @@
  "echarts-aria": {
   "trend": {
    "res": {
-    "createMs": 54.600000001490116,
-    "toPaintMs": 65.80000000074506
+    "createMs": 74.60000000149012,
+    "toPaintMs": 88
    },
    "logs": [],
    "dom": {
@@ -5535,6 +5581,670 @@
    "scriptMsPerUpdate": 0.01,
    "layoutStyleMsPerUpdate": 0,
    "logs": []
+  }
+ },
+ "axylo": {
+  "trend": {
+   "res": {
+    "createMs": 12.700000002980232,
+    "toPaintMs": 33.399999998509884
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 105,
+    "svg": 5,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 25,
+    "marked": [
+     {
+      "tag": "figure",
+      "role": "group",
+      "aria-labelledby": "axylo-1-t",
+      "aria-describedby": "axylo-1-s"
+     },
+     {
+      "tag": "div",
+      "role": "heading"
+     },
+     {
+      "tag": "p",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "span",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "input",
+      "aria-label": "Chart plot",
+      "aria-describedby": "axylo-1-i",
+      "aria-roledescription": "Line chart"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "role": "toolbar",
+      "aria-label": "Chart controls"
+     },
+     {
+      "tag": "button",
+      "tabindex": "0"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "button",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "button",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "button",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "button",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "button",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "button",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "p",
+      "role": "status",
+      "aria-live": "off"
+     },
+     {
+      "tag": "div",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {},
+    "svgTextFills": {},
+    "mainWidth": 720,
+    "mainHeight": 333,
+    "htmlTextSizes": {
+     "16px": 11
+    },
+    "htmlTextColors": {
+     "rgb(0, 0, 0)": 11
+    }
+   },
+   "aria": "- group \"Daily sessions by channel\":\n  - heading \"Daily sessions by channel\" [level=3]\n  - paragraph: \"Line chart with 3 series. day from Jan 1, 2026, 12:00 AM UTC to Apr 30, 2026, 12:00 AM UTC. Sessions from 2,732 to 48,085. Times are shown in UTC. Direct: minimum 28,297, maximum 48,085, last 47,241. Organic search: minimum 15,275, maximum 28,507, last 25,119. Referral: minimum 2,732, maximum 4,929, last 3,028.\"\n  - slider \"Chart plot\": \"0\"\n  - text: Left and right arrows move between points, up and down between series, and Enter selects. Plus and minus zoom; 0 resets.\n  - toolbar \"Chart controls\":\n    - button \"Direct\" [pressed]\n    - button \"Organic search\" [pressed]\n    - button \"Referral\" [pressed]\n    - button \"Zoom in\"\n    - button \"Select range\"\n    - button \"Zoom out\" [disabled]\n    - button \"View as table\""
+  },
+  "bars": {
+   "res": {
+    "createMs": 12.699999995529652,
+    "toPaintMs": 34
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 95,
+    "svg": 1,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 15,
+    "marked": [
+     {
+      "tag": "figure",
+      "role": "group",
+      "aria-labelledby": "axylo-1-t",
+      "aria-describedby": "axylo-1-s"
+     },
+     {
+      "tag": "div",
+      "role": "heading"
+     },
+     {
+      "tag": "p",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "span",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "input",
+      "aria-label": "Chart plot",
+      "aria-describedby": "axylo-1-i",
+      "aria-roledescription": "Bar chart"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "role": "toolbar",
+      "aria-label": "Chart controls"
+     },
+     {
+      "tag": "button",
+      "tabindex": "0"
+     },
+     {
+      "tag": "p",
+      "role": "status",
+      "aria-live": "off"
+     },
+     {
+      "tag": "div",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {},
+    "svgTextFills": {},
+    "mainWidth": 720,
+    "mainHeight": 333,
+    "htmlTextSizes": {
+     "16px": 14
+    },
+    "htmlTextColors": {
+     "rgb(0, 0, 0)": 14
+    }
+   },
+   "aria": "- group \"Customer satisfaction by team\":\n  - heading \"Customer satisfaction by team\" [level=3]\n  - paragraph: \"Bar chart with 1 series. team from Billing to Sales Eng.. Satisfied (%) from 82 to 97. Satisfied (%): minimum 82, maximum 97, last 90.\"\n  - slider \"Chart plot\": \"0\"\n  - text: Left and right arrows move between points, up and down between series, and Enter selects. Plus and minus zoom; 0 resets.\n  - toolbar \"Chart controls\":\n    - button \"View as table\""
+  },
+  "parts": {
+   "res": {
+    "createMs": 11.5,
+    "toPaintMs": 33.20000000298023
+   },
+   "logs": [],
+   "dom": {
+    "nodes": 80,
+    "svg": 7,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 27,
+    "marked": [
+     {
+      "tag": "figure",
+      "role": "group",
+      "aria-labelledby": "axylo-1-t",
+      "aria-describedby": "axylo-1-s"
+     },
+     {
+      "tag": "div",
+      "role": "heading"
+     },
+     {
+      "tag": "p",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "span",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "input",
+      "aria-label": "Chart plot",
+      "aria-describedby": "axylo-1-i",
+      "aria-roledescription": "Donut chart"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "button",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "button",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "button",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "button",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "button",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "button",
+      "tabindex": "-1"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "role": "toolbar",
+      "aria-label": "Chart controls"
+     },
+     {
+      "tag": "button",
+      "tabindex": "0"
+     },
+     {
+      "tag": "p",
+      "role": "status",
+      "aria-live": "off"
+     },
+     {
+      "tag": "div",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {},
+    "svgTextFills": {},
+    "mainWidth": 720,
+    "mainHeight": 273,
+    "htmlTextSizes": {},
+    "htmlTextColors": {}
+   },
+   "aria": "- group \"Sessions by browser\":\n  - heading \"Sessions by browser\" [level=3]\n  - paragraph: \"Donut chart with 6 slices. Total 100. Chrome: 46.2 (46.2%). Safari: 27.5 (27.5%). Edge: 14.1 (14.1%). Firefox: 8.9 (8.9%). Samsung Internet: 2.1 (2.1%). Other: 1.2 (1.2%).\"\n  - slider \"Chart plot\": \"0\"\n  - text: Left and right arrows move between points, up and down between series, and Enter selects. Plus and minus zoom; 0 resets.\n  - list:\n    - listitem:\n      - button \"Chrome 46.2 (46.2%)\"\n    - listitem:\n      - button \"Safari 27.5 (27.5%)\"\n    - listitem:\n      - button \"Edge 14.1 (14.1%)\"\n    - listitem:\n      - button \"Firefox 8.9 (8.9%)\"\n    - listitem:\n      - button \"Samsung Internet 2.1 (2.1%)\"\n    - listitem:\n      - button \"Other 1.2 (1.2%)\"\n  - toolbar \"Chart controls\":\n    - button \"View as table\""
+  },
+  "dirty": {
+   "res": {
+    "createMs": 12.5,
+    "toPaintMs": 33.70000000298023
+   },
+   "logs": [
+    "warning: [axylo AX103] \"Dirty input\": Field \"value\" has 1 non-finite value at row 3 (NaN). Check the calculation that produced it or send null for no data. Shown as gaps.",
+    "warning: [axylo AX106] \"Dirty input\": Field \"value\" has 1 value that cannot be plotted as a number at row 4 (\"40\"). Convert values to numbers where the data is produced. The affected values are not drawn.",
+    "warning: [axylo AX102] \"Dirty input\": Field \"value\" is absent in 1 record at row 5. Supply the field and send null if the value is known to be missing. Shown as gaps."
+   ],
+   "dom": {
+    "nodes": 83,
+    "svg": 1,
+    "canvas": 0,
+    "svgTitle": 0,
+    "svgDesc": 0,
+    "tables": 0,
+    "markedCount": 15,
+    "marked": [
+     {
+      "tag": "figure",
+      "role": "group",
+      "aria-labelledby": "axylo-1-t",
+      "aria-describedby": "axylo-1-s"
+     },
+     {
+      "tag": "div",
+      "role": "heading"
+     },
+     {
+      "tag": "p",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "svg",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "span",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "input",
+      "aria-label": "Chart plot",
+      "aria-describedby": "axylo-1-i",
+      "aria-roledescription": "Line chart"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     },
+     {
+      "tag": "div",
+      "role": "toolbar",
+      "aria-label": "Chart controls"
+     },
+     {
+      "tag": "button",
+      "tabindex": "0"
+     },
+     {
+      "tag": "p",
+      "role": "status",
+      "aria-live": "off"
+     },
+     {
+      "tag": "div",
+      "aria-live": "polite"
+     },
+     {
+      "tag": "div",
+      "aria-hidden": "true"
+     }
+    ],
+    "canvasFallback": [],
+    "svgTextSizes": {},
+    "svgTextFills": {},
+    "mainWidth": 720,
+    "mainHeight": 307,
+    "htmlTextSizes": {
+     "16px": 13
+    },
+    "htmlTextColors": {
+     "rgb(0, 0, 0)": 13
+    }
+   },
+   "aria": "- group \"Dirty input\":\n  - heading \"Dirty input\" [level=3]\n  - paragraph: \"Line chart with 1 series. day from Mon to Sun. Value from 10 to 70. Value: minimum 10, maximum 70, last 70. Values not shown: 3. See table.\"\n  - slider \"Chart plot\": \"0\"\n  - text: Left and right arrows move between points, up and down between series, and Enter selects. Plus and minus zoom; 0 resets.\n  - toolbar \"Chart controls\":\n    - button \"View as table\"\n  - status: \"Values not shown: 3. See table.\""
+  },
+  "empty": {
+   "res": {
+    "createMs": 10.099999994039536,
+    "toPaintMs": 33.29999999701977
+   },
+   "logs": [],
+   "text": [
+    "Daily sessions by channel",
+    "No data to show. Times are shown in UTC.",
+    "No data to show.",
+    "No data to show."
+   ],
+   "aria": "- group \"Daily sessions by channel\":\n  - heading \"Daily sessions by channel\" [level=3]\n  - paragraph: No data to show. Times are shown in UTC.\n  - paragraph: No data to show."
+  },
+  "keyboard": {
+   "stops": [
+    {
+     "tag": "input",
+     "role": null,
+     "label": "Chart plot",
+     "cls": "axylo-proxy",
+     "box": [
+      632,
+      279
+     ],
+     "outline": "auto 1px"
+    },
+    {
+     "tag": "button",
+     "role": null,
+     "label": "Direct",
+     "cls": "axylo-control axylo-legend-entry",
+     "box": [
+      81,
+      28
+     ],
+     "outline": "solid 2px"
+    }
+   ],
+   "arrows": [
+    {
+     "key": "ArrowRight",
+     "active": "Chart plot",
+     "tag": "input",
+     "live": [],
+     "valueText": "Jan 2, 2026, 12:00 AM UTC. Direct 31,713; Organic search 20,724; Referral 4,716. Point 2 of 120"
+    },
+    {
+     "key": "ArrowRight",
+     "active": "Chart plot",
+     "tag": "input",
+     "live": [],
+     "valueText": "Jan 3, 2026, 12:00 AM UTC. Direct 36,072; Organic search 21,923; Referral 4,929. Point 3 of 120"
+    },
+    {
+     "key": "ArrowDown",
+     "active": "Chart plot",
+     "tag": "input",
+     "live": [],
+     "valueText": "Direct, Jan 3, 2026, 12:00 AM UTC, 36,072. Point 3 of 120."
+    },
+    {
+     "key": "Enter",
+     "active": "Chart plot",
+     "tag": "input",
+     "live": [],
+     "valueText": "Direct, Jan 3, 2026, 12:00 AM UTC, 36,072. Point 3 of 120."
+    }
+   ],
+   "newTextAfterKeys": [
+    "Jan 3, 2026, 12:00 AM UTC",
+    "36,072",
+    "21,923",
+    "4,929"
+   ]
+  },
+  "hover_utc": {
+   "newText": [
+    "Feb 22, 2026, 12:00 AM UTC",
+    "37,097",
+    "21,917",
+    "3,977"
+   ]
+  },
+  "hover_la": {
+   "newText": [
+    "Feb 21, 2026, 4:00 PM PST",
+    "37,097",
+    "21,917",
+    "3,977"
+   ]
+  },
+  "resize": {
+   "widestGraphic": 360,
+   "scrollWidth": 360
+  },
+  "motion_no-preference": {
+   "earlyVsSettledDiff": 0
+  },
+  "motion_reduce": {
+   "earlyVsSettledDiff": 0
+  },
+  "dates": {
+   "trend": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "Feb 22, 2026, 12:00 AM UTC",
+      "37,097",
+      "21,917",
+      "3,977"
+     ],
+     "readoutTitle": "Feb 22, 2026, 12:00 AM UTC"
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "Feb 21, 2026, 4:00 PM PST",
+      "37,097",
+      "21,917",
+      "3,977"
+     ],
+     "readoutTitle": "Feb 21, 2026, 4:00 PM PST"
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "Feb 22, 2026, 5:30 AM GMT+5:30",
+      "37,097",
+      "21,917",
+      "3,977"
+     ],
+     "readoutTitle": "Feb 22, 2026, 5:30 AM GMT+5:30"
+    }
+   },
+   "dates": {
+    "utc": {
+     "res": "ok",
+     "hoverText": [
+      "Feb 22, 2026",
+      "37,097",
+      "21,917",
+      "3,977"
+     ],
+     "readoutTitle": "Feb 22, 2026"
+    },
+    "la": {
+     "res": "ok",
+     "hoverText": [
+      "Feb 22, 2026",
+      "37,097",
+      "21,917",
+      "3,977"
+     ],
+     "readoutTitle": "Feb 22, 2026"
+    },
+    "kolkata": {
+     "res": "ok",
+     "hoverText": [
+      "Feb 22, 2026",
+      "37,097",
+      "21,917",
+      "3,977"
+     ],
+     "readoutTitle": "Feb 22, 2026"
+    }
+   }
+  },
+  "sentinels": {
+   "null": {
+    "error": null,
+    "logCount": 0,
+    "firstLog": null
+   },
+   "nan": {
+    "error": null,
+    "logCount": 1,
+    "firstLog": "warning: [axylo AX103] \"One bad value: nan\": Field \"value\" has 1 non-finite value at row 3 (NaN). Check the calculation that produced it or "
+   },
+   "string": {
+    "error": null,
+    "logCount": 1,
+    "firstLog": "warning: [axylo AX106] \"One bad value: string\": Field \"value\" has 1 value that cannot be plotted as a number at row 3 (\"40\"). Convert values"
+   },
+   "undefined": {
+    "error": null,
+    "logCount": 1,
+    "firstLog": "warning: [axylo AX102] \"One bad value: undefined\": Field \"value\" is absent in 1 record at row 3. Supply the field and send null if the value"
+   }
   }
  }
 }

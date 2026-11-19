@@ -479,5 +479,58 @@
  "uplot": {
   "donut6": [],
   "score": null
+ },
+ "axylo": {
+  "donut6": [
+   "#2b97ee",
+   "#cf8020",
+   "#0b6c49",
+   "#812cc4",
+   "#be1506",
+   "#0380a8"
+  ],
+  "score": {
+   "slices": 6,
+   "distinct": 6,
+   "contrastOnWhite": [
+    3.1,
+    3.11,
+    6.45,
+    6.79,
+    6.36,
+    4.51
+   ],
+   "below3to1": 0,
+   "minDeltaOK": {
+    "normal": {
+     "min": 0.1185,
+     "pair": [
+      "#2b97ee",
+      "#0380a8"
+     ]
+    },
+    "protan": {
+     "min": 0.1063,
+     "pair": [
+      "#0b6c49",
+      "#be1506"
+     ]
+    },
+    "deutan": {
+     "min": 0.1022,
+     "pair": [
+      "#0b6c49",
+      "#be1506"
+     ]
+    },
+    "tritan": {
+     "min": 0.1024,
+     "pair": [
+      "#2b97ee",
+      "#0380a8"
+     ]
+    }
+   }
+  }
  }
 }
