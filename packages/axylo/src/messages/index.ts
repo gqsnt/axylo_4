@@ -6,7 +6,7 @@ const chartSummary = '{type} chart with {seriesCount} series. {xLabel} from {xMi
 const fullChartSummary = '{type} chart with {seriesCount} series. {xLabel} from {xMin} to {xMax}. {yLabel} from {yMin} to {yMax}.';
 const donutSlice = '{label}: {value} ({percent}).';
 
-export const defaultMessages: Messages = {
+export const defaultMessages: Required<Messages> = {
   viewAsTable: 'View as table',
   hideTable: 'Hide table',
   noData: 'No data',
@@ -59,7 +59,10 @@ export const defaultMessages: Messages = {
   panLeft: 'Pan left',
   panRight: 'Pan right',
   jumpNotFound: 'No row matches {x}. Example: {example}',
-  plotInstructions: 'Left and right arrows move between points, up and down between series, and Enter selects. Plus and minus zoom; 0 resets.',
+  plotInstructions: 'Left and right arrows move between points along x. Enter selects.',
+  donutInstructions: 'Arrow keys move between slices. Enter selects.',
+  seriesInstructions: 'Up and down arrows move between series.',
+  zoomInstructions: 'Plus and minus zoom. Press 0 to reset. Hold Shift with left or right to pan the zoomed view.',
   selectRange: 'Select range',
   seeTable: 'See table.',
   totalMixed: '{positive} and {negative}',
@@ -89,7 +92,7 @@ export function resolveMessages(overrides?: Partial<Messages> | null): Messages 
 }
 
 export function messageLanguage(messages: Messages, key: keyof Messages): 'en' | null {
-  return messages[key] === defaultMessages[key] && !authoredMessages.get(messages)?.has(key) ? 'en' : null;
+  return (messages[key] ?? defaultMessages[key]) === defaultMessages[key] && !authoredMessages.get(messages)?.has(key) ? 'en' : null;
 }
 
 export function fillChartSummary(

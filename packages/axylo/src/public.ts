@@ -205,8 +205,16 @@ export interface Messages {
   plotRole: string; pointAll: string; seriesValue: string; position: string;
   /** Label of the stack total in tooltips. */
   total: string;
-  /** Single-click panning (WCAG 2.5.7), the table's "Jump to" when nothing matches, and how to move in the plot. */
-  panLeft: string; panRight: string; jumpNotFound: string; plotInstructions: string;
+  /** Single-click panning (WCAG 2.5.7) and the table's "Jump to" when nothing matches. */
+  panLeft: string; panRight: string; jumpNotFound: string;
+  /** Point navigation and selection. An override is also the fallback for donuts and receives only explicitly overridden additions. */
+  plotInstructions: string;
+  /** Slice navigation and selection, in place of `plotInstructions` on a donut. */
+  donutInstructions?: string;
+  /** Added when the arrow keys can move between visible series. */
+  seriesInstructions?: string;
+  /** Added when the plot offers Zoom in. */
+  zoomInstructions?: string;
   /** Toolbar toggle: while it is on, two clicks in the plot set the two ends of the zoom range (the non-dragging way to select a range, WCAG 2.5.7). */
   selectRange: string;
   /** A stack whose components have mixed signs: both ends, in place of one total ('{positive} and {negative}'). */

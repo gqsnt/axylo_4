@@ -31,7 +31,7 @@ import type {
   Rect, ResolvedTheme, StepDirection, TooltipModel, View, XValue,
 } from '../core/contracts';
 import type { Messages } from '../public';
-import { fill } from '../messages';
+import { defaultMessages, fill, messageLanguage } from '../messages';
 import {
   overlayWith, OUTLINE_REACH, RING_REACH, RING_STROKE, alignedRows, canZoomIn, datumReading, minimumWidth, panWindow,
   pinchWidth, pixelOf, positionAt, rangeWindow, refsAt, ringRect, sameRef, stepAcross, zoomStep, targetBox, targetOf, valueText, PAN_SHARE, ZOOM_FACTOR,
@@ -46,7 +46,7 @@ import { sliceText } from '../lookup/text';
 import { barPattern } from '../scene/bars';
 import { readPosition } from '../reader/x';
 import { printedX } from '../reader/table';
-import { activeElementOf, placeChildren, setAttr, make, keepFocusOnPress, hideFromAT } from './attributes';
+import { activeElementOf, placeChildren, setAttr, setText, make, keepFocusOnPress, hideFromAT } from './attributes';
 import { mappingOf, rectToViewport, toLocal, toViewport, visibleRegion, type Point } from './mapping';
 import { insideCorridor, intersect, type PlacementInput } from './placement';
 import { identityOf, matchesIdentity, sameTarget, type Identity } from './pointer';
@@ -114,6 +114,51 @@ export interface Committed extends ControlsState {
   readonly bindings: PaintBindings;
   readonly theme: ResolvedTheme;
   readonly pixelRatio: number;
+}
+
+type InstructionKey = 'plotInstructions' | 'donutInstructions' | 'seriesInstructions' | 'zoomInstructions';
+
+function offersZoom(d: ControlsState): d is ControlsState & {
+  readonly zoom: true | 'touch'; readonly tooSmall: false; readonly view: Exclude<View, { kind: 'donut' }>;
+} {
+  return d.zoom !== false && !d.tooSmall && d.view.kind !== 'donut';
+}
+
+// The guard names a subtype, so a failed check narrows only away from null, never to `never`.
+function plotReady(d: Committed | null): d is Committed & { readonly ready: true } {
+  return d !== null && d.ready && d.layout.kind === 'plot';
+}
+
+/** Some series is shown: with every one hidden by the legend there is nothing to read (new item 8). */
+function readable(d: Committed): boolean {
+  return d.view.kind === 'donut' || d.view.visible.some(Boolean);
+}
+
+/** The instructions for the committed plot, with a language for each sentence (spec A2, A10, I3). */
+export function plotDescription(d: Committed): { text: string; lang: string | null }[] {
+  if (!d.interactive || !plotReady(d)) return [];
+  const { messages, view } = d;
+  const overridden = (key: InstructionKey) => messageLanguage(messages, key) === null;
+  // A plotInstructions override could already be a complete translation of the old description.
+  const legacy = overridden('plotInstructions');
+  const parts: { text: string; lang: string | null }[] = [];
+  const add = (key: InstructionKey) => {
+    const text = messages[key] ?? defaultMessages[key];
+    if (text !== '') parts.push({ text, lang: d.english(key) });
+  };
+  if (readable(d) && d.lookup.count > 0) {
+    if (view.kind === 'donut') {
+      add(!legacy || overridden('donutInstructions') ? 'donutInstructions' : 'plotInstructions');
+    } else {
+      add('plotInstructions');
+      // Scatter's series keys skip a series with no points in the current window.
+      const shown = view.visible.filter((on, i) =>
+        on && (view.kind !== 'scatter' || view.visiblePoints[i]!.end > view.visiblePoints[i]!.start));
+      if (shown.length > 1 && (!legacy || overridden('seriesInstructions'))) add('seriesInstructions');
+    }
+  }
+  if (offersZoom(d) && (!legacy || overridden('zoomInstructions'))) add('zoomInstructions');
+  return parts;
 }
 
 export interface Actions {
@@ -613,20 +658,10 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     return view.kind === 'line' || view.kind === 'area' || view.kind === 'bar';
   }
 
-  // The guards name a subtype, so a failed check narrows only away from null, never to `never`.
-  function plotReady(d: Committed | null): d is Committed & { readonly ready: true } {
-    return d !== null && d.ready && d.layout.kind === 'plot';
-  }
-
   /** A zoomed window with nothing in it: the plot keeps its focus and its zoom keys, so the reader can go back. */
   function recoverable<T extends ControlsState>(d: T | null): d is T & { readonly zoomed: true } {
     // Loading and error are not an empty window: zooming out would not bring anything back (new item 8).
     return d !== null && !d.ready && d.empty === true && d.zoom !== false && d.zoomed && !d.tooSmall;
-  }
-
-  /** Some series is shown: with every one hidden by the legend there is nothing to read (new item 8). */
-  function readable(d: Committed): boolean {
-    return d.view.kind === 'donut' || d.view.visible.some(Boolean);
   }
 
   function firstDatum(d: Committed): DatumRef | null {
@@ -1748,9 +1783,9 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     if (d.ready) items.push(...legendItems(d));
     // Inside a toolbar marked English, a replaced label is marked with the page's language again.
     const inherited = d.english('controlsLabel') ? d.pageLang : null;
-    const button = (key: keyof Messages, activate: () => void, disabled = false): ToolbarItem =>
+    const button = (key: Exclude<keyof Messages, InstructionKey>, activate: () => void, disabled = false): ToolbarItem =>
       ({ key, label: m[key], lang: d.english(key) ?? inherited, className: 'axylo-control', activate, disabled });
-    if (d.zoom && !d.tooSmall && d.view.kind !== 'donut' && (d.ready || recoverable(d))) {
+    if (offersZoom(d) && (d.ready || recoverable(d))) {
       const window = d.zoomed ? d.view.xDomain : d.view.xFull;
       if (d.ready) items.push(button('zoomIn', () => zoomBy(1 / ZOOM_FACTOR), !canZoomIn(d.view, window)));
       // Where a drag selects a range, two clicks can too (spec I4, WCAG 2.5.7): a toggle.
@@ -1849,6 +1884,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     if (!usable) handOff();
     proxy.hidden = !usable;
     ring.hidden = !usable;
+    if (instructions) instructions.hidden = !usable;
     if (!usable) return;
     const p = d.layout.kind === 'plot' ? d.layout.plot : { x: 0, y: 0, width: d.layout.width, height: d.layout.height };
     const style = `left: ${p.x}px; top: ${p.y}px; width: ${p.width}px; height: ${p.height}px;`;
@@ -1863,11 +1899,15 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     // language, but a form control named only by hidden text fails axe's label-title-only.)
     const proxyLang = readingLang(d);
     setAttr(proxy, 'aria-label', d.messages.plotLabel);
-    // How to move in the plot, as its description (the plotInstructions message).
     if (instructions) {
-      if (instructions.textContent !== d.messages.plotInstructions) instructions.textContent = d.messages.plotInstructions;
-      setAttr(instructions, 'lang', d.english('plotInstructions') ?? (proxyLang ? d.pageLang : null));
-      setAttr(proxy, 'aria-describedby', instructions.id);
+      const parts = plotDescription(d);
+      for (const [i, { text, lang }] of parts.entries()) {
+        const span = instructions.children[i] ?? instructions.appendChild(doc.createElement('span'));
+        setText(span, i === 0 ? text : ` ${text}`);
+        setAttr(span, 'lang', lang ?? (proxyLang ? d.pageLang : null));
+      }
+      while (instructions.children.length > parts.length) instructions.lastElementChild!.remove();
+      setAttr(proxy, 'aria-describedby', parts.length ? instructions.id : null);
     }
     const type = { line: 'typeLine', area: 'typeArea', bar: 'typeBar', scatter: 'typeScatter', donut: 'typeDonut' } as const;
     setAttr(proxy, 'aria-roledescription', fill(d.messages.plotRole, { type: d.messages[type[d.kind]] }));

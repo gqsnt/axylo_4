@@ -379,7 +379,10 @@ const WHERE: Record<keyof Messages, readonly ChartType[] | string> = {
   totalMixed: ['area', 'bar'], incompleteAt: ['compact'], incompleteCount: ['compact'],
   // selectRange: the toolbar toggle for two-click range selection, shown wherever drag-to-zoom is (as Zoom in).
   selectRange: ['line', 'area', 'scatter'],
-  jumpNotFound: ['line', 'area', 'bar', 'scatter', 'donut'], plotInstructions: ['line', 'area', 'bar', 'scatter', 'donut'], seeTable: ['line', 'area', 'bar', 'scatter', 'donut'],
+  jumpNotFound: ['line', 'area', 'bar', 'scatter', 'donut'], seeTable: ['line', 'area', 'bar', 'scatter', 'donut'],
+  plotInstructions: ['line', 'area', 'bar', 'scatter'], donutInstructions: ['donut'],
+  seriesInstructions: ['line', 'area', 'bar', 'scatter'],
+  zoomInstructions: ['line', 'area', 'bar', 'scatter'], // The first bar scenario has a time axis.
 };
 const KEYS = Object.keys(WHERE) as (keyof Messages)[];
 /** Each key's own sentinel, with every placeholder the templates use, so filled templates stay recognisable. */

@@ -20,21 +20,23 @@ The legend entries of a line, area, bar or scatter chart are toggle buttons with
 
 ## The keyboard map
 
-The plot is a single native range input laid over the chart. Its keys:
+The plot is a single native range input laid over the chart. The table shows which keys apply.
 
 | Key | In the plot |
 |---|---|
 | Left, Right | Previous or next x, with every visible series there. Scatter: the previous or next point in x, then y order. Donut: the previous or next slice. |
 | Home, End | The first or last point. |
 | Page Up, Page Down | Forward or back by one tenth of the number of points, rounded down, and at least one. |
-| Up, Down | Narrow to one series and move to the previous or next series. Donut: the next or previous slice. |
+| Up, Down | With multiple visible series, narrow to one and move to the previous or next series. On a donut, move to the next or previous slice. |
 | Escape | One thing per press, in this order: end a drag; release Select range; close the tooltip or end a pin: the datum on show stays closed until the pointer has reached a different datum, and nothing else opens at once (after Escape from a held tooltip, the datum under the pointer stays closed too); return from one series to all. When none of these applies, the key is left to the page, so a dialog around the chart closes only on an Escape the chart did not use. |
 | Enter, Space | Select the point: the chart fires its `select` event. |
-| `+`, `-`, `0` | Zoom in, zoom out, show everything (date, time and number x). |
-| Shift with Left or Right | Pan the zoomed view. |
-| Wheel | Zoom, only while the plot has focus and never with Ctrl or Meta held. |
+| `+`, `-`, `0` | Zoom in, zoom out, show everything when zoom is enabled on a date, time or numeric x axis. |
+| Shift with Left or Right | Pan when the plot is zoomed. |
+| Wheel | Zoom when enabled, only while the plot has focus and never with Ctrl or Meta held. |
 
-The toolbar holds the controls that apply to the chart: legend toggles, Zoom in, Select range, Zoom out, Pan left, Pan right, Reset zoom, Pause, View as table. It is one tab stop. Inside it the arrow keys move between controls, Home and End go to the first and last, and Enter or Space presses the control. The open table adds the table's scroll region to the tab order, and, when there are more than 100 rows, its pager (previous page, next page and a "Jump to" field). The plot's accessible description gives a short version of this map.
+The plot's accessible description follows the chart. It describes moving between points or slices and selecting with Enter. It adds series navigation when several series are available to the arrow keys and zoom shortcuts when the toolbar offers Zoom in. The description updates after changes to series visibility or the `zoom` option.
+
+The toolbar holds the controls that apply to the chart: legend toggles, Zoom in, Select range, Zoom out, Pan left, Pan right, Reset zoom, Pause, View as table. It is one tab stop. Inside it the arrow keys move between controls, Home and End go to the first and last, and Enter or Space presses the control. The open table adds the table's scroll region to the tab order, and, when there are more than 100 rows, its pager (previous page, next page and a "Jump to" field).
 
 With several charts on a page, an Escape belongs to the chart that has focus or, when focus is in none of them, to the one that showed something last; one press is used by one chart at most.
 
