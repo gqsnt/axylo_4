@@ -13546,6 +13546,32 @@
       "scatter": "No release exists (the package is 0.0.0 and has never been published), so there is no previous release whose documented examples an upgrade test could compile and run, no API report to diff, and no release history to hold to the deprecation and major-version rules.",
       "donut": "No release exists (the package is 0.0.0 and has never been published), so there is no previous release whose documented examples an upgrade test could compile and run, no API report to diff, and no release history to hold to the deprecation and major-version rules.",
       "compact": "No release exists (the package is 0.0.0 and has never been published), so there is no previous release whose documented examples an upgrade test could compile and run, no API report to diff, and no release history to hold to the deprecation and major-version rules."
+    },
+    "waivers": {
+      "line": {
+        "reason": "First release: there is no previous release whose documented examples could be run against this candidate, no API report to diff and no release history for the deprecation and major-version rules. The versioning policy is stated on apps/docs/pages/stability.md. The waiver covers 1.0 only; from the second release the upgrade test and the API report diff apply.",
+        "grantedBy": "the owner, 2026-11-19: \"Yes, waive DX9\""
+      },
+      "area": {
+        "reason": "First release: there is no previous release whose documented examples could be run against this candidate, no API report to diff and no release history for the deprecation and major-version rules. The versioning policy is stated on apps/docs/pages/stability.md. The waiver covers 1.0 only; from the second release the upgrade test and the API report diff apply.",
+        "grantedBy": "the owner, 2026-11-19: \"Yes, waive DX9\""
+      },
+      "bar": {
+        "reason": "First release: there is no previous release whose documented examples could be run against this candidate, no API report to diff and no release history for the deprecation and major-version rules. The versioning policy is stated on apps/docs/pages/stability.md. The waiver covers 1.0 only; from the second release the upgrade test and the API report diff apply.",
+        "grantedBy": "the owner, 2026-11-19: \"Yes, waive DX9\""
+      },
+      "scatter": {
+        "reason": "First release: there is no previous release whose documented examples could be run against this candidate, no API report to diff and no release history for the deprecation and major-version rules. The versioning policy is stated on apps/docs/pages/stability.md. The waiver covers 1.0 only; from the second release the upgrade test and the API report diff apply.",
+        "grantedBy": "the owner, 2026-11-19: \"Yes, waive DX9\""
+      },
+      "donut": {
+        "reason": "First release: there is no previous release whose documented examples could be run against this candidate, no API report to diff and no release history for the deprecation and major-version rules. The versioning policy is stated on apps/docs/pages/stability.md. The waiver covers 1.0 only; from the second release the upgrade test and the API report diff apply.",
+        "grantedBy": "the owner, 2026-11-19: \"Yes, waive DX9\""
+      },
+      "compact": {
+        "reason": "First release: there is no previous release whose documented examples could be run against this candidate, no API report to diff and no release history for the deprecation and major-version rules. The versioning policy is stated on apps/docs/pages/stability.md. The waiver covers 1.0 only; from the second release the upgrade test and the API report diff apply.",
+        "grantedBy": "the owner, 2026-11-19: \"Yes, waive DX9\""
+      }
     }
   },
   {
