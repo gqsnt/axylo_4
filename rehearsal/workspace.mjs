@@ -20,7 +20,7 @@ export async function removeWorkspace(runDirectory) {
   await rm(runDirectory, { recursive: true, force: true });
 }
 
-export async function prepareWorkspace(directory, task, { codexLogin, inputHashes } = {}) {
+export async function prepareWorkspace(directory, task, { agent = 'codex', codexLogin, claudeLogin, inputHashes } = {}) {
   const { prompt, fixture, expected } = taskFiles(task);
   await stat(expected);
 
@@ -43,15 +43,21 @@ export async function prepareWorkspace(directory, task, { codexLogin, inputHashe
   const home = join(runDirectory, 'home');
   const temporary = join(runDirectory, 'tmp');
   const codexHome = join(home, '.codex');
+  const claudeConfigDir = join(home, '.claude');
   const docs = join(repository, 'apps/docs/dist');
   const installed = join(workspace, 'node_modules/axylo');
   try {
     await mkdir(installed, { recursive: true });
     await mkdir(temporary);
-    await mkdir(codexHome, { recursive: true });
-    if (codexLogin) {
-      if (!(await stat(codexLogin)).isFile()) throw new Error('Codex login must be a file.');
-      await symlink(codexLogin, join(codexHome, 'auth.json'));
+    if (agent === 'claude') {
+      await mkdir(claudeConfigDir, { recursive: true });
+      if (claudeLogin) await symlink(resolve(claudeLogin), join(claudeConfigDir, '.credentials.json'));
+    } else {
+      await mkdir(codexHome, { recursive: true });
+      if (codexLogin) {
+        if (!(await stat(codexLogin)).isFile()) throw new Error('Codex login must be a file.');
+        await symlink(codexLogin, join(codexHome, 'auth.json'));
+      }
     }
     await cp(docs, join(workspace, 'docs'), {
       recursive: true,
@@ -70,7 +76,7 @@ export async function prepareWorkspace(directory, task, { codexLogin, inputHashe
     const hashes = await inputHashes?.(workspace);
     await exec('chmod', ['-R', 'a-w', ...sealedTrees.map(name => join(workspace, name))]);
     await exec('chmod', ['a-w', ...['data.json', 'PROMPT.md', 'package.json'].map(name => join(workspace, name))]);
-    return { workspace, runDirectory, home, codexHome, temporary, hashes };
+    return { workspace, runDirectory, home, codexHome, claudeConfigDir, temporary, hashes };
   } catch (error) {
     await removeWorkspace(runDirectory);
     throw error;

@@ -20,7 +20,9 @@ function classify({ agent, exit, audit, observed, result, infrastructure, cliErr
   if (audit.status !== 'no findings') return ['void', audit.problems.join(' ')];
   if (cliError) return ['fail', cliError];
   if (exit.code !== 0 || exit.signal) return ['fail', `Agent exited with ${exit.signal ?? exit.code}.`];
-  if (!observedMatches(agent, observed)) return ['void', 'Could not verify the requested model and effort.'];
+  if (!observedMatches(agent, observed)) {
+    return ['void', agent === 'claude' ? 'Could not verify the requested model.' : 'Could not verify the requested model and effort.'];
+  }
   if (changed) return ['void', 'Staged inputs changed: ' + changed];
   const browserError = result.criteria.find(item => item.name === 'browser');
   if (browserError) return ['infrastructure', browserError.detail];
@@ -28,18 +30,22 @@ function classify({ agent, exit, audit, observed, result, infrastructure, cliErr
 }
 
 export async function attempt(job, { records, workdir, login = join(homedir(), '.codex', 'auth.json'),
+  claudeLogin = join(homedir(), '.claude', '.credentials.json'),
   prepare = prepareWorkspace, version = agentVersion, launch = runAgent, gradeAnswer = grade } = {}) {
   const { agent, task, slot, replaces } = job;
   const start = new Date();
   const record = await mkdtemp(join(records, `${start.toISOString().slice(0, 10)}-${agent}-${task}-${slot}-`));
   const requested = { model: models[agent], effort };
+  const anthropicApiKey = agent === 'claude' ? process.env.ANTHROPIC_API_KEY : undefined;
+  const claudeMode = agent === 'claude' ? (anthropicApiKey ? 'bare' : 'fresh-config') : undefined;
   const cli = { version: null, versionArgs: ['--version'], args: null };
   let prepared, exit, audit, observed, result, infrastructure, cliError, changed;
   try {
-    prepared = await prepare(workdir, task, { codexLogin: agent === 'codex' ? login : undefined,
+    prepared = await prepare(workdir, task, { agent, codexLogin: agent === 'codex' ? login : undefined,
+      claudeLogin: claudeMode === 'fresh-config' ? claudeLogin : undefined,
       inputHashes: workspace => inputHashes(workspace, task) });
     const { workspace, codexHome, home } = prepared;
-    const options = { ...prepared, ...requested, timeoutMs };
+    const options = { ...prepared, ...requested, timeoutMs, anthropicApiKey };
     cli.args = agentArgs(agent, options);
     cli.version = await version(agent, options);
     const { transcript, stderr, exit: agentExit } = await launch(agent, options);
@@ -76,8 +82,8 @@ export async function attempt(job, { records, workdir, login = join(homedir(), '
   try {
     if (result) await writeJson(join(record, 'grade.json'), result);
     await writeJson(join(record, 'run.json'), {
-      kind: 'agent rehearsal', protocol, agent, task, slot, replaces, status, reason, requested, observed, cli,
-      effectiveEffort: observed?.effort ?? (agent === 'claude' && cli.version ? effort : null),
+      kind: 'agent rehearsal', protocol, agent, claudeMode, task, slot, replaces, status, reason, requested, observed, cli,
+      effectiveEffort: observed?.effort ?? null,
       effortEvidence: agent === 'claude' ? '--effort flag; stream does not expose effective effort' : 'turn_context',
       hashes: prepared?.hashes, browserVersion: result?.browserVersion,
       startedAt: start.toISOString(), endedAt: end.toISOString(), durationMs: end - start,

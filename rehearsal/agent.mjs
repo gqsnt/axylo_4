@@ -7,7 +7,7 @@ import { transcriptEvents } from './audit.mjs';
 const exec = promisify(execFile);
 const fileTools = ['Read', 'Write', 'Edit', 'Glob', 'Grep'];
 
-export function agentArgs(agent, { model, effort, workspace }) {
+export function agentArgs(agent, { model, effort, workspace, anthropicApiKey }) {
   if (agent === 'codex') {
     return ['-a', 'never', 'exec', '-m', model, '-c', 'model_reasoning_effort=' + JSON.stringify(effort),
       '-s', 'workspace-write', '-c', 'sandbox_workspace_write.network_access=false',
@@ -17,19 +17,20 @@ export function agentArgs(agent, { model, effort, workspace }) {
       '--skip-git-repo-check', '-C', workspace, '--json', '-'];
   }
   return ['-p', '--model', model, '--effort', effort, '--output-format', 'stream-json', '--verbose',
-    '--bare', '--restricted', '--safe-mode', '--no-chrome', '--disable-slash-commands',
+    ...(anthropicApiKey ? ['--bare'] : []), '--restricted', '--safe-mode', '--no-chrome', '--disable-slash-commands',
     '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--no-session-persistence',
     '--tools', [...fileTools, 'Bash'].join(','), '--allowedTools', [...fileTools, 'Bash(node *)'].join(','),
     '--permission-mode', 'dontAsk', '--permission-prompts', 'none'];
 }
 
-function agentEnvironment(agent, { home, codexHome, temporary }) {
+function agentEnvironment(agent, { home, codexHome, claudeConfigDir, temporary, anthropicApiKey }) {
   const path = process.env.PATH?.split(delimiter).filter(isAbsolute).join(delimiter);
   const env = { PATH: path, LANG: process.env.LANG, HOME: home, TMPDIR: temporary };
   if (agent === 'codex') env.CODEX_HOME = codexHome;
   if (agent === 'claude') {
-    env.CLAUDE_CONFIG_DIR = join(home, '.claude');
-    if (process.env.ANTHROPIC_API_KEY) env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+    env.CLAUDE_CONFIG_DIR = claudeConfigDir;
+    if (anthropicApiKey) env.ANTHROPIC_API_KEY = anthropicApiKey;
+    else env.CLAUDE_CODE_DISABLE_AUTO_MEMORY = '1';
   }
   return env;
 }

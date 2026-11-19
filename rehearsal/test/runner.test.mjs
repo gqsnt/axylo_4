@@ -1,4 +1,4 @@
-import { access, chmod, lstat, mkdir, mkdtemp, readFile, readdir, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises';
+import { access, chmod, copyFile, cp, lstat, mkdir, mkdtemp, open, readFile, readdir, readlink, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
@@ -9,6 +9,11 @@ import { grade } from '../grade.mjs';
 import { cells, effort, models, nextAttempts, protocol, summarize, timeoutMs } from '../protocol.mjs';
 import { attempt, runBatch } from '../run.mjs';
 import { prepareWorkspace, removeWorkspace } from '../workspace.mjs';
+
+vi.mock('node:fs/promises', async importOriginal => {
+  const fs = await importOriginal();
+  return { ...fs, open: vi.fn(fs.open), readFile: vi.fn(fs.readFile), copyFile: vi.fn(fs.copyFile), cp: vi.fn(fs.cp) };
+});
 
 const jsonl = (...events) => events.map(event => JSON.stringify(event)).join('\n');
 const codexStart = { type: 'thread.started', thread_id: 'thread-id' };
@@ -105,15 +110,102 @@ it('reads observed metadata from the isolated Codex rollout and the Claude strea
 });
 
 it('uses the same effort, restricts tools, and disables workspace reuse and web access where the flags allow', () => {
-  const args = agent => agentArgs(agent, { workspace: scratch, model: models[agent], effort });
+  const args = (agent, anthropicApiKey) => agentArgs(agent, { workspace: scratch, model: models[agent], effort, anthropicApiKey });
   expect(args('codex')).toEqual(expect.arrayContaining(['-a', 'never', '-s', 'workspace-write',
     'model_reasoning_effort="xhigh"', 'sandbox_workspace_write.network_access=false', 'web_search="disabled"',
     '--disable', 'apps', 'memories', '--ignore-user-config', '--skip-git-repo-check', '-C', scratch, '--json']));
-  const flags = args('claude');
+  const flags = args('claude', 'fixture-key');
   expect(flags).toEqual(expect.arrayContaining(['--bare', '--restricted', '--strict-mcp-config',
     '--no-session-persistence', '--effort', 'xhigh', '--permission-mode', 'dontAsk', '--permission-prompts', 'none']));
   expect(flags[flags.indexOf('--tools') + 1]).toBe('Read,Write,Edit,Glob,Grep,Bash');
   expect(flags[flags.indexOf('--allowedTools') + 1]).toBe('Read,Write,Edit,Glob,Grep,Bash(node *)');
+});
+
+it.each([
+  ['bare', 'fixture-key'],
+  ['fresh-config', undefined],
+])('runs Claude in %s mode with isolated config and records the audit', async (claudeMode, key) => {
+  const realHome = join(scratch, 'login-home');
+  const realConfig = join(realHome, '.claude');
+  const login = join(realConfig, '.credentials.json');
+  const bin = join(scratch, 'bin');
+  const records = join(scratch, 'records');
+  await Promise.all([mkdir(realConfig, { recursive: true }), mkdir(bin), mkdir(records)]);
+  await writeFile(login, 'fixture credential', { mode: 0o600 });
+  await writeFile(join(realConfig, 'settings.json'), '{}');
+
+  const assistantModel = `${models.claude}-20261119`;
+  const log = jsonl({ ...claudeInit, model: 'advertised-in-init' },
+    claude('Read', { file_path: 'data.json' }, assistantModel), { type: 'result', is_error: false });
+  await writeFile(join(bin, 'claude'), `#!/bin/sh
+set -e
+export LC_ALL=C
+link="$CLAUDE_CONFIG_DIR/.credentials.json"
+target=
+if [ -L "$link" ]; then target=$(readlink "$link"); fi
+if [ "$1" = '--version' ]; then
+  [ "\${ANTHROPIC_API_KEY+key}\${target:+link}" = '${key ? 'key' : 'link'}' ]
+  echo fixture-version
+  exit 0
+fi
+case "\${ANTHROPIC_API_KEY-unset}" in
+  fixture-key) key_state=fixture ;;
+  unset) key_state=unset ;;
+  *) key_state=unexpected ;;
+esac
+{
+  printf '%s\\n' "$HOME" "$CLAUDE_CONFIG_DIR" "$key_state" "\${CLAUDE_CODE_DISABLE_AUTO_MEMORY-unset}" "$target"
+  ls -A "$CLAUDE_CONFIG_DIR" | paste -sd ' '
+  ls -A . | paste -sd ' '
+  printf '%s\\n' "$@"
+} >&2
+cat <<'TRANSCRIPT'
+${log}
+TRANSCRIPT
+`, { mode: 0o700 });
+  vi.stubEnv('HOME', realHome);
+  vi.stubEnv('CLAUDE_CONFIG_DIR', join(realHome, 'ignored-config'));
+  vi.stubEnv('PATH', `${bin}:/usr/bin:/bin`);
+  vi.stubEnv('ANTHROPIC_API_KEY', key);
+  const fileOperations = [open, readFile, copyFile, cp];
+  for (const operation of fileOperations) operation.mockClear();
+  const result = await attempt({ agent: 'claude', task: 'signups', slot: 1, replaces: null }, {
+    records, workdir: scratch, gradeAnswer: async () => ({ pass: true, criteria: [] }),
+  });
+  expect(result).toMatchObject({ status: 'pass', reason: null });
+  const run = await readJson(join(result.record, 'run.json'));
+  const stderr = await readFile(join(result.record, 'stderr.log'), 'utf8');
+  const [home, config, childKey, autoMemory, target, configEntries, workspaceEntries, ...args] = stderr.split('\n').slice(0, -1);
+  expect(run).toMatchObject({ claudeMode, audit: { status: 'no findings' },
+    cli: { version: 'fixture-version', args }, requested: { effort },
+    observed: { model: assistantModel, models: [assistantModel], effort: null }, effectiveEffort: null,
+    effortEvidence: '--effort flag; stream does not expose effective effort' });
+  expect(home).not.toBe(realHome);
+  expect(config).toBe(join(home, '.claude'));
+  expect(childKey).toBe(key ? 'fixture' : 'unset');
+  expect(autoMemory).toBe(key ? 'unset' : '1');
+  expect(target).toBe(key ? '' : login);
+  expect(configEntries).toBe(key ? '' : '.credentials.json');
+  expect(workspaceEntries).toBe('PROMPT.md data.json docs node_modules package.json');
+  expect(args.includes('--bare')).toBe(Boolean(key));
+  expect(args).toEqual(expect.arrayContaining(['--restricted', '--safe-mode', '--no-chrome', '--disable-slash-commands',
+    '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}', '--no-session-persistence',
+    '--tools', 'Read,Write,Edit,Glob,Grep,Bash', '--allowedTools', 'Read,Write,Edit,Glob,Grep,Bash(node *)',
+    '--permission-mode', 'dontAsk', '--permission-prompts', 'none', '--effort', effort]));
+  const workspace = join(home, '..', 'workspace');
+  const transcript = join(home, '..', 'transcript.jsonl');
+  const link = join(config, '.credentials.json');
+  for (const [operation, expectedSource] of [[open, join(workspace, 'PROMPT.md')], [readFile, transcript],
+    [copyFile, transcript], [cp, workspace]]) {
+    expect(operation.mock.calls.map(([source]) => source)).toContain(expectedSource);
+    const paths = operation.mock.calls.flat();
+    expect(paths).not.toContain(login);
+    expect(paths).not.toContain(link);
+  }
+  await expect(lstat(link)).rejects.toHaveProperty('code', 'ENOENT');
+  await expect(access(home)).rejects.toHaveProperty('code', 'ENOENT');
+  expect(await readFile(login, 'utf8')).toBe('fixture credential');
+  expect((await stat(login)).mode & 0o777).toBe(0o600);
 });
 
 it('runs a local stub with fresh environment, captures both streams, and stops on timeout', async () => {
@@ -199,7 +291,7 @@ it.each([
   await mkdir(records);
   let temporary;
   const result = await attempt({ agent: 'claude', task: 'signups', slot: 1, replaces: null }, {
-    records, workdir: scratch, version: async () => 'fixture-version',
+    records, workdir: scratch, claudeLogin: join(scratch, '.credentials.json'), version: async () => 'fixture-version',
     launch: async (_, { workspace, runDirectory }) => {
       temporary = runDirectory;
       const transcript = join(runDirectory, 'transcript.jsonl');
