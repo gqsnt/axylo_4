@@ -32,9 +32,13 @@ Finished and committed, each written by one provider and reviewed by the other: 
 
 **Resumed 2026-11-19 07:55 on the owner's instruction** ("continue your plan" for benchmarks, agent rehearsal, Phase 1 comparison rerun, CI, release steps; "use mostly codex, 6.2 sol xhigh for coding and 6.2 astra xhigh and yourself for high level analyze / review"). The coordinator is now Claude Opus 5.5 at effort high (switched by the owner).
 
-| Running now (2026-11-19, about 10:40) | Who | Files |
+| Running now (2026-11-19, from about 10:20 local) | Who | Files |
 |---|---|---|
-| Docs: number grammar with a mixed-field example, Options searchable as text, a plain-JavaScript `validate()` check, the rehearsal's record on stability and conformance; a harder revenue input for the next rehearsal; brief `reviews/2026-11-19/wp/docs-rehearsal.prompt.md` | Codex gpt-6.2-sol xhigh | `apps/docs/**`, `rehearsal/fixtures/**` |
+| Benchmarks, both families, unattended: `bench/results/run-2026-11-19.sh` on artifact `bench/artifacts/20261119T091624Z-b643862f-b78698` (sources b643862, clean); before every session it waits until the one-minute load has been under 1.0 for ten consecutive minutes; log `bench/results/run-2026-11-19.log` | coordinator (no agent) | `bench/` |
+
+At its start the machine was busy with another project's work (a `cargo check` and a `find` for AGENTS.md files, not this session's processes; load 8), so the first session waits. If the run is interrupted (restart): read the log, rerun only the missing steps (`node bench/decision.mjs <step> [--family gpu] --artifact <A>`, or `--only <ids>` for ineligible endpoints), then `decide`.
+
+After it: Phase 1 `perf` with the harness server (`cd research/harness && node probe.mjs perf` and the tuned set from `research/README.md`), then gpt-6.2-astra analyses the budgets P1 to P8, the renderer decision and the comparison's timing table.
 
 **DX12 done for 1.0's candidate 1e93128:** 24 of 24 after re-audit (every cell 3 of 3; the owner's rule is 2 of 3), accepted as the release record by gpt-6.2-astra (`wp/rehearsal-analysis.md`). Records in `rehearsal/records/release-1e93128/` (on disk, not in git). Limits: agents' number converters are looser than Axylo's grammar on inputs the fixtures lack; not user evidence; no model ranking; docs-only access not filesystem-enforced.
 
