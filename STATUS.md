@@ -32,11 +32,13 @@ Finished and committed, each written by one provider and reviewed by the other: 
 
 **Resumed 2026-11-19 07:55 on the owner's instruction** ("continue your plan" for benchmarks, agent rehearsal, Phase 1 comparison rerun, CI, release steps; "use mostly codex, 6.2 sol xhigh for coding and 6.2 astra xhigh and yourself for high level analyze / review"). The coordinator is now Claude Opus 5.5 at effort high (switched by the owner).
 
-| Running now (2026-11-19, about 09:40) | Who | Files |
+| Running now (2026-11-19, about 10:40) | Who | Files |
 |---|---|---|
-| Rehearsal audit reads code as paths (15 of 16 voids are regex literals and HTML tags); fix extraction, the "looked outside" rule, and `reaudit.mjs` to re-audit and regrade saved records, brief `reviews/2026-11-19/wp/rehearsal-reaudit.prompt.md` | Codex gpt-6.2-sol xhigh | `rehearsal/` |
+| Docs: number grammar with a mixed-field example, Options searchable as text, a plain-JavaScript `validate()` check, the rehearsal's record on stability and conformance; a harder revenue input for the next rehearsal; brief `reviews/2026-11-19/wp/docs-rehearsal.prompt.md` | Codex gpt-6.2-sol xhigh | `apps/docs/**`, `rehearsal/fixtures/**` |
 
-Counted rehearsal batch at release candidate 1e93128 (records `rehearsal/records/release-1e93128/`, ignored by git): 8 passes, 0 fails, 16 voids; Codex signups 3/3. The voids are an audit defect (all 12 Claude, 3 of 4 Codex); one Codex attempt (daily-revenue-3) did search for `/tmp/AGENTS.md` and `/AGENTS.md`, which do not exist. After the fix: `node rehearsal/reaudit.mjs --records rehearsal/records/release-1e93128`, then `node rehearsal/summary.mjs --records …`, then gpt-6.2-astra analyses the batch.
+**DX12 done for 1.0's candidate 1e93128:** 24 of 24 after re-audit (every cell 3 of 3; the owner's rule is 2 of 3), accepted as the release record by gpt-6.2-astra (`wp/rehearsal-analysis.md`). Records in `rehearsal/records/release-1e93128/` (on disk, not in git). Limits: agents' number converters are looser than Axylo's grammar on inputs the fixtures lack; not user evidence; no model ranking; docs-only access not filesystem-enforced.
+
+Next: when the docs worker is done and committed, nothing else runs: Phase 1 `perf` and `node bench/decision.mjs plan` on the idle machine (about 5.5 h; the procedure refuses any block with a one-minute load at or above 1.0), then gpt-6.2-astra analyses the budgets.
 
 Also done: size trim (1ceaba9, 115.48 / 96.32 KiB; most of the saving is an import-order effect); the owner's rehearsal rule 2 of 3 per cell (80a3112); Claude Code attempts on a linked login (a1b1bec; the owner re-signed in); audit scope (1e93128).
 
