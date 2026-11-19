@@ -32,12 +32,18 @@ Finished and committed, each written by one provider and reviewed by the other: 
 
 **Resumed 2026-11-19 07:55 on the owner's instruction** ("continue your plan" for benchmarks, agent rehearsal, Phase 1 comparison rerun, CI, release steps; "use mostly codex, 6.2 sol xhigh for coding and 6.2 astra xhigh and yourself for high level analyze / review"). The coordinator is now Claude Opus 5.5 at effort high (switched by the owner).
 
-| Running now (2026-11-19 morning) | Who | Files |
+| Running now (2026-11-19, late morning) | Who | Files |
 |---|---|---|
-| Checker title scanner nests a top-level describe under the previous one (18 cells read "not run"), brief `reviews/2026-11-19/wp/fix-scanner.prompt.md` | Codex gpt-6.2-sol xhigh, workspace-write | `acceptance/titles.mjs`, `check.mjs`, `acceptance/test/**` |
-| Docs conformance page refuses recordings the checker accepts, brief `wp/fix-docs-provenance.prompt.md` | Codex gpt-6.2-sol xhigh | `apps/docs/**` |
-| Agent rehearsal harness (DX12): fixtures with the five traps, prompts, runner for Codex and Claude Code, grader in Chrome in two time zones, records, brief `wp/rehearsal-harness.prompt.md` | Codex gpt-6.2-sol xhigh | new `rehearsal/` |
-| Axylo added to the Phase 1 harness, brief `wp/phase1-axylo.prompt.md` | Codex gpt-6.2-sol xhigh | `research/harness/**`, `research/tables.mjs` |
+| Size trim: everything is 116.12 KiB, 118 bytes over the 116 KiB target since 4295681; recover at least 400 bytes, brief `reviews/2026-11-19/wp/size-trim.prompt.md` | Codex gpt-6.2-sol xhigh | `packages/axylo/src` |
+| Rehearsal: Claude Code attempts on the machine's login (`--bare` accepts only an API key; a fresh config folder with a symlinked login instead), brief `wp/rehearsal-claude-login.prompt.md` | Codex gpt-6.2-sol xhigh | `rehearsal/` |
+
+Done this morning: checker scanner fix (e871911); docs provenance fix (34ce116); first push to `https://github.com/gqsnt/axylo_4` (private, owner's grant, `main` only; the remote is `origin`); CI cannot start: GitHub reports a billing problem on the owner's account (owner's to fix, or make the repository public); Phase 1 harness with Axylo (f891171), probes rerun except timing (2bb830d), comparison `docs/05-comparison.md` by gpt-6.2-astra (b494566); the comparison found the plot's keyboard instructions wrong on bars and donuts, fixed (4295681); rehearsal harness (ae174bd), its design review by gpt-6.2-astra, its fixes (027281a); one trial attempt, not counted: Codex gpt-6.2-sol xhigh, daily-visits, pass on all 12 criteria (record in `rehearsal/records/trial-2026-11-19/`, ignored by git).
+
+Model assignment (owner, 2026-11-19): Codex gpt-6.2-sol xhigh codes; gpt-6.2-astra xhigh designs and analyses; the coordinator (Opus 5.5 high) briefs, runs what the Codex sandbox cannot (Chrome, servers), checks Codex's code and commits.
+
+Asked of the owner, not answered: the rehearsal's pass rule for 1.0 (proposed: 3 of 3 attempts in every agent-and-task cell, 24 attempts); which gate 1.0 uses; CI billing.
+
+Next, in order: (1) commit the size trim after the browser suites pass on it; (2) commit the Claude login change after its tests pass; (3) the release candidate: `npm run build`, `node scripts/pack.mjs`, `node apps/docs/build.mjs`, then the counted rehearsal batch `node rehearsal/run.mjs --attempts 3 --parallel 2 --records rehearsal/records/release-<commit>` and `node rehearsal/summary.mjs --records …`; (4) with no worker running and the machine idle: Phase 1 `perf` (`cd research/harness && node probe.mjs perf` with the preview server) and `node bench/decision.mjs plan` (both families, about 5.5 h); (5) astra analyses the benchmarks and the rehearsal; sol fixes; (6) record every configuration again at the release commit.
 
 Codex workers cannot commit; the coordinator verifies (including the browser runs their sandbox cannot do) and commits, and reviews their code (cross-provider). Benchmarks wait until no worker runs (the decision procedure requires a one-minute load under 1.0 at every block).
 
