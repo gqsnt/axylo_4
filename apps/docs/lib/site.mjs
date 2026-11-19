@@ -102,6 +102,18 @@ const DIST = path.join(docsRoot, 'dist');
 /** Where a build that skipped the revision check goes: never the site's own output. */
 export const UNCHECKED_DIR = path.join(docsRoot, '.cache/unchecked-site');
 
+/** Keeps staging on the output filesystem so the finished site can be renamed into place. */
+export async function stageSite(outDir, writeSite) {
+  const staging = `${outDir}.tmp-${process.pid}`;
+  fs.rmSync(staging, { recursive: true, force: true });
+  try {
+    // Git ignores dist/ directories, so these files cannot invalidate the results the site reads.
+    return await writeSite(path.join(staging, 'dist'));
+  } finally {
+    fs.rmSync(staging, { recursive: true, force: true });
+  }
+}
+
 /**
  * `uncheckedLibrary`: build even when the packed library is not the build of its current source (while
  * someone else's rebuild is pending), to check the pages, links and generated tables. Such a build goes to
@@ -118,9 +130,7 @@ export async function buildSite({ outDir, log = () => {}, uncheckedLibrary = fal
   const { messages, problems: unchecked } = await checkSameRevision(css, bundle, { unchecked: uncheckedLibrary, log });
   const theme = readThemeDefaults(css);
 
-  const tmp = `${outDir}.tmp-${process.pid}`;
-  fs.rmSync(tmp, { recursive: true, force: true });
-  try {
+  return stageSite(outDir, async tmp => {
     for (const dir of ['assets', 'examples/js', 'diagnostics', 'source']) fs.mkdirSync(path.join(tmp, dir), { recursive: true });
     const warnings = [];
     writeAssets(tmp, theme);
@@ -161,10 +171,7 @@ export async function buildSite({ outDir, log = () => {}, uncheckedLibrary = fal
     fs.rmSync(old, { recursive: true, force: true });
     for (const w of warnings) log('warning: ' + w);
     return { pages: report, examples, warnings, diagnostics: diagnostics.length, published: ctx.published.size, revision, unchecked, outDir };
-  } catch (error) {
-    fs.rmSync(tmp, { recursive: true, force: true });
-    throw error;
-  }
+  });
 }
 
 // ---------- assets ----------

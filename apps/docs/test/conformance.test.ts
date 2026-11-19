@@ -12,12 +12,15 @@
  *   leaves every criterion "not recorded".
  */
 import { describe, expect, it } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { citedCriteria, evidenceFor, readChecker, readRows, uncited } from '../lib/conformance.mjs';
+import { citedCriteria, evidenceFor, readChecker, readConformance, readRows, uncited } from '../lib/conformance.mjs';
 import { wcag } from '../data/wcag.mjs';
 import { cacheDir, repoRoot } from '../lib/examples.mjs';
-import { check } from '../../../acceptance/check.mjs';
+import { stageSite } from '../lib/site.mjs';
+import { check, CHART_TYPES } from '../../../acceptance/check.mjs';
+import { citedTestFiles, defaultResultFile, hashFile, snapshot } from '../../../acceptance/provenance.mjs';
 
 const fixtures = path.join(repoRoot, 'acceptance/test/fixtures');
 const spec = fs.readFileSync(path.join(repoRoot, 'docs/02-product-spec.md'), 'utf8');
@@ -113,6 +116,62 @@ describe('reading the checker', () => {
     expect(line.status).toBe('not recorded for this revision');
     expect(line.reports).toEqual([{ file: 'results.json', source: 'run', results: ['not recorded'], engine: null, counted: false, why: 'release requires recorded provenance', commit: null }]);
     expect(checker.files).toEqual([expect.objectContaining({ file: 'results.json', counted: false, why: 'release requires recorded provenance' })]);
+  });
+
+  it('counts matching provenance while the docs build stages its output', async () => {
+    fs.mkdirSync(cacheDir, { recursive: true });
+    const root = fs.mkdtempSync(path.join(cacheDir, 'conformance-'));
+    try {
+      const write = (relative: string, contents: string | Buffer) => {
+        const file = path.join(root, relative);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        fs.writeFileSync(file, contents);
+        return file;
+      };
+      write('.gitignore', fs.readFileSync(path.join(repoRoot, '.gitignore')));
+      const statement = 'Show the fixture faithfully.';
+      const citations = [...citedCriteria(spec).keys()].join(', ');
+      const specFile = write('docs/02-product-spec.md', `### 3.1 Faithful representation\n| F1 | ${statement} | WCAG ${citations} |\n`);
+      const file = 'chart.test.ts';
+      const title = 'line renders';
+      write(file, `it('${title}', () => {});\n`);
+      const matrix = [{
+        id: 'F1', statement, appliesTo: ['line'],
+        notApplicable: Object.fromEntries(CHART_TYPES.filter(type => type !== 'line').map(type => [type, 'Only a line fixture.'])),
+        evidence: { line: [{ kind: 'unit', file, title }] },
+      }];
+      write('acceptance/matrix.json', JSON.stringify(matrix));
+      const git = (...args: string[]) => execFileSync('git', args, { cwd: root, stdio: ['ignore', 'pipe', 'inherit'] });
+      git('init', '-q');
+      git('add', '.');
+      git('-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', '-c', 'commit.gpgsign=false', 'commit', '-qm', 'Fixture');
+
+      const relative = defaultResultFile('unit');
+      const result = write(relative, JSON.stringify({
+        testResults: [{ name: file, assertionResults: [{ title, status: 'passed', ancestorTitles: [] }] }],
+      }));
+      const recorded = { ...snapshot(root, citedTestFiles(matrix)), resultSha256: hashFile(result) };
+      write(relative.replace(/\.json$/, '.provenance.json'), JSON.stringify(recorded));
+      const direct = check({ root, release: true, resultFiles: [result] });
+      expect(direct.exitCode).toBe(0);
+      expect(direct.rows[0]!.cells.line.status).toBe('pass');
+
+      await stageSite(path.join(root, 'apps/docs/dist'), async tmp => {
+        fs.mkdirSync(path.join(tmp, 'assets'), { recursive: true });
+        fs.writeFileSync(path.join(tmp, 'assets/site.css'), 'body {}\n');
+        const { checker } = await readConformance({ root });
+        expect(checker.refused).toBeNull();
+        expect(checker.files).toMatchObject([{ file: relative, counted: true, why: null }]);
+        expect(checker.rows.get('F1')!.cells.line!.status).toBe(direct.rows[0]!.cells.line.status);
+
+        fs.appendFileSync(specFile, '\nA source edit made after recording.\n');
+        const stale = await readConformance({ root });
+        expect(stale.checker.files).toMatchObject([{ file: relative, counted: false, why: 'provenance does not match the working tree' }]);
+        expect(stale.criteria[0]!.verdict).toEqual([{ id: 'F1', text: 'not recorded for this revision' }]);
+      });
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('a size record of another pack is not recorded for this revision, and no engine\'s', async () => {
