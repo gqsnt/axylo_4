@@ -32,10 +32,13 @@ Finished and committed, each written by one provider and reviewed by the other: 
 
 **Resumed 2026-11-19 07:55 on the owner's instruction** ("continue your plan" for benchmarks, agent rehearsal, Phase 1 comparison rerun, CI, release steps; "use mostly codex, 6.2 sol xhigh for coding and 6.2 astra xhigh and yourself for high level analyze / review"). The coordinator is now Claude Opus 5.5 at effort high (switched by the owner).
 
-| Running now (2026-11-19, late morning) | Who | Files |
+| Running now (2026-11-19, about 09:40) | Who | Files |
 |---|---|---|
-| Size trim: everything is 116.12 KiB, 118 bytes over the 116 KiB target since 4295681; recover at least 400 bytes, brief `reviews/2026-11-19/wp/size-trim.prompt.md` | Codex gpt-6.2-sol xhigh | `packages/axylo/src` |
-| Rehearsal: Claude Code attempts on the machine's login (`--bare` accepts only an API key; a fresh config folder with a symlinked login instead), brief `wp/rehearsal-claude-login.prompt.md` | Codex gpt-6.2-sol xhigh | `rehearsal/` |
+| Rehearsal audit reads code as paths (15 of 16 voids are regex literals and HTML tags); fix extraction, the "looked outside" rule, and `reaudit.mjs` to re-audit and regrade saved records, brief `reviews/2026-11-19/wp/rehearsal-reaudit.prompt.md` | Codex gpt-6.2-sol xhigh | `rehearsal/` |
+
+Counted rehearsal batch at release candidate 1e93128 (records `rehearsal/records/release-1e93128/`, ignored by git): 8 passes, 0 fails, 16 voids; Codex signups 3/3. The voids are an audit defect (all 12 Claude, 3 of 4 Codex); one Codex attempt (daily-revenue-3) did search for `/tmp/AGENTS.md` and `/AGENTS.md`, which do not exist. After the fix: `node rehearsal/reaudit.mjs --records rehearsal/records/release-1e93128`, then `node rehearsal/summary.mjs --records …`, then gpt-6.2-astra analyses the batch.
+
+Also done: size trim (1ceaba9, 115.48 / 96.32 KiB; most of the saving is an import-order effect); the owner's rehearsal rule 2 of 3 per cell (80a3112); Claude Code attempts on a linked login (a1b1bec; the owner re-signed in); audit scope (1e93128).
 
 Done this morning: checker scanner fix (e871911); docs provenance fix (34ce116); first push to `https://github.com/gqsnt/axylo_4` (private, owner's grant, `main` only; the remote is `origin`); CI cannot start: GitHub reports a billing problem on the owner's account (owner's to fix, or make the repository public); Phase 1 harness with Axylo (f891171), probes rerun except timing (2bb830d), comparison `docs/05-comparison.md` by gpt-6.2-astra (b494566); the comparison found the plot's keyboard instructions wrong on bars and donuts, fixed (4295681); rehearsal harness (ae174bd), its design review by gpt-6.2-astra, its fixes (027281a); one trial attempt, not counted: Codex gpt-6.2-sol xhigh, daily-visits, pass on all 12 criteria (record in `rehearsal/records/trial-2026-11-19/`, ignored by git).
 
