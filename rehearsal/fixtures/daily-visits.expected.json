@@ -2,7 +2,11 @@
   "title": "Daily visits",
   "type": "line",
   "x": "date",
-  "series": ["visits"],
+  "series": [
+    {
+      "label": "Visits"
+    }
+  ],
   "rows": [
     ["2026-03-01", 1234],
     ["2026-03-02", 1461],

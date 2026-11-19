@@ -4,12 +4,14 @@ import { parseArgs } from 'node:util';
 import { build } from 'esbuild';
 import { chromium } from 'playwright-core';
 import { inside, isMain, readJson, repository, taskFiles, writeJson } from './files.mjs';
-import { compareRows } from './table.mjs';
+import { dateCheck, noteCheck, plotCheck, titleCheck } from './reader.mjs';
+import { compareHeaders, compareRows, normalizedText } from './table.mjs';
 
 const zones = ['America/Los_Angeles', 'Asia/Tokyo'];
 const timeout = 5000;
 const origin = 'https://axylo-rehearsal.invalid';
-const criteriaNames = ['render', 'no error diagnostics', 'accessible name', 'table rows', 'reader note', 'chart type'];
+const criteriaNames = ['render', 'no error diagnostics', 'accessible name', 'visible title', 'table caption',
+  'table headers', 'table rows', 'plotted x order', 'drawn gaps', 'reader date', 'reader note', 'chart type'];
 const criterion = (name, pass, detail) => ({ name, pass, detail });
 
 async function registryLevels() {
@@ -68,7 +70,7 @@ const html = `<!doctype html><html lang="en-US"><meta charset="utf-8">
 <title>Axylo rehearsal</title><link rel="stylesheet" href="/chart-bundle.css">
 <div id="chart" style="width:720px;height:400px"></div><script src="/chart-bundle.js"></script></html>`;
 
-async function inspect(browser, files, expected, levels, timezoneId) {
+async function inspect(browser, files, expected, levels, timezoneId, input) {
   const context = await browser.newContext({ timezoneId, locale: 'en-US', serviceWorkers: 'block' });
   const criteria = [];
   const diagnostics = new Map();
@@ -126,6 +128,7 @@ async function inspect(browser, files, expected, levels, timezoneId) {
         const titlePass = await figure.and(byName).count() === 1;
         const name = titlePass ? expected.title : (await figure.ariaSnapshot()).split('\n')[0];
         criteria.push(criterion('accessible name', titlePass, name || 'No accessible figure name.'));
+        criteria.push({ name: 'visible title', ...await titleCheck(figure) });
         state = (await figure.locator('.axylo-message:visible').allTextContents()).join(' ');
         const description = (await figure.locator('.axylo-description').allTextContents())[0] ?? '';
         const types = await figure.locator('[aria-roledescription]').evaluateAll(nodes =>
@@ -135,10 +138,10 @@ async function inspect(browser, files, expected, levels, timezoneId) {
         criteria.push(criterion('chart type', observedType === expected.type,
           `Expected ${expected.type}, saw ${observedType ?? 'no chart type'}.`));
 
-        const note = (await figure.locator('.axylo-note:visible').allTextContents()).join(' ');
-        const omission = /\bValues not shown\b/i.test(note);
-        const notePass = omission === (expected.valuesNotShown ?? false);
-        criteria.push(criterion('reader note', notePass, note || 'No values-omitted note.'));
+        const plot = await plotCheck(figure, expected);
+        criteria.push({ name: 'plotted x order', ...plot.order }, { name: 'drawn gaps', ...plot.gaps });
+        criteria.push({ name: 'reader date', ...await dateCheck(figure, expected) });
+        criteria.push({ name: 'reader note', ...await noteCheck(page, figure, expected.valuesNotShown) });
         try {
           const button = figure.getByRole('button', { name: 'View as table', exact: true });
           if (await button.count() === 1) {
@@ -146,10 +149,20 @@ async function inspect(browser, files, expected, levels, timezoneId) {
             const view = figure.getByRole('table');
             if (await view.count() === 1 && await view.isVisible()) {
               table = await view.evaluate(element => ({
+                caption: element.caption?.textContent ?? '',
                 headers: Array.from(element.tHead?.rows[0]?.cells ?? [], cell => cell.textContent.trim()),
                 rows: Array.from(element.tBodies[0]?.rows ?? [], row =>
                   Array.from(row.cells, cell => cell.textContent.trim())),
               }));
+              const named = await view.and(figure.getByRole('table', { name: expected.title, exact: true })).count() === 1;
+              criteria.push(criterion('table caption', named && normalizedText(table.caption) === expected.title,
+                table.caption || 'No table caption.'));
+              const header = compareHeaders(expected, table.headers);
+              const semantic = await view.getByRole('columnheader').count() === table.headers.length &&
+                await view.getByRole('rowheader').count() === table.rows.length;
+              criteria.push(criterion('table headers', header.pass && semantic,
+                header.detail + (semantic ? '' : ' Missing semantic row or column headers.')));
+              table.order = header.pass ? header.order : undefined;
             }
           }
           if (!table) {
@@ -157,7 +170,7 @@ async function inspect(browser, files, expected, levels, timezoneId) {
           } else if (await figure.getByRole('button', { name: 'Next page', exact: true }).count()) {
             criteria.push(criterion('table rows', false, 'Unexpected additional table pages.'));
           } else {
-            const compared = compareRows(expected, table.headers, table.rows);
+            const compared = compareRows(expected, table.rows, table.order);
             criteria.push(criterion('table rows', compared.pass, compared.detail));
           }
         } catch (error) {
@@ -190,6 +203,7 @@ async function inspect(browser, files, expected, levels, timezoneId) {
   }
 
   return {
+    input,
     timezoneId,
     criteria: criteriaNames.map(name => criteria.find(item => item.name === name) ??
       criterion(name, false, 'Unavailable after render failure.')),
@@ -201,21 +215,23 @@ async function inspect(browser, files, expected, levels, timezoneId) {
 export async function grade(workspace, task, { launch = () => chromium.launch({ channel: 'chrome', headless: true, timeout: 15000 }) } = {}) {
   workspace = await realpath(workspace);
   const taskPaths = taskFiles(task);
-  const expected = await readJson(taskPaths.expected);
+  const inputs = await Promise.all([
+    ['primary', taskPaths.fixture, taskPaths.expected],
+    ['alternate', taskPaths.alternate, taskPaths.alternateExpected],
+  ].map(async ([name, fixture, expected]) => ({ name, data: await readJson(fixture), expected: await readJson(expected) })));
   const save = async result => {
     await writeJson(join(workspace, 'grade.json'), result);
     return result;
   };
   const fail = (name, detail) => save({ pass: false, criteria: [criterion(name, false, detail)], diagnostics: [], timezones: [] });
 
-  let files;
+  let bundles;
   try {
     if (!(await lstat(join(workspace, 'chart.js'))).isFile()) {
       return fail('render', 'chart.js must be a regular file.');
     }
     // Grade the original fixture even if the agent changed its local copy while experimenting.
-    const data = await readJson(taskPaths.fixture);
-    files = await bundle(workspace, data);
+    bundles = await Promise.all(inputs.map(async input => ({ ...input, files: await bundle(workspace, input.data) })));
   } catch (error) {
     return fail('render', error.code === 'ENOENT' ? 'chart.js is missing.' : String(error));
   }
@@ -229,18 +245,24 @@ export async function grade(workspace, task, { launch = () => chromium.launch({ 
   }
   try {
     const timezones = [];
-    for (const timezoneId of zones) timezones.push(await inspect(browser, files, expected, levels, timezoneId));
+    for (const { name, files, expected } of bundles) {
+      for (const timezoneId of zones) timezones.push(await inspect(browser, files, expected, levels, timezoneId, name));
+    }
     const criteria = criteriaNames.map(name => {
       const results = timezones.map(zone => zone.criteria.find(item => item.name === name));
       return criterion(name, results.every(item => item.pass),
-        results.map((item, index) => `${zones[index]}: ${item.detail}`).join(' | '));
+        results.map((item, index) => `${timezones[index].input} / ${timezones[index].timezoneId}: ${item.detail}`).join(' | '));
     });
     return await save({
       pass: criteria.every(item => item.pass),
+      browserVersion: browser.version(),
       criteria,
       diagnostics: timezones.flatMap(zone => zone.diagnostics),
       timezones,
     });
+  } catch (error) {
+    if (!browser.isConnected()) return fail('browser', String(error));
+    throw error;
   } finally {
     await browser.close();
   }

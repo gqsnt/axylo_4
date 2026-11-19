@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const rehearsal = fileURLToPath(new URL('.', import.meta.url));
 export const repository = fileURLToPath(new URL('..', import.meta.url));
+export const tasks = ['daily-visits', 'regional-sales', 'signups', 'daily-revenue'];
 
 export function inside(root, file) {
   const path = relative(root, file);
@@ -17,6 +18,8 @@ export function taskFiles(task) {
     prompt: join(rehearsal, 'prompts', task + '.md'),
     fixture: join(rehearsal, 'fixtures', task + '.json'),
     expected: join(rehearsal, 'fixtures', task + '.expected.json'),
+    alternate: join(rehearsal, 'fixtures', task + '.alternate.json'),
+    alternateExpected: join(rehearsal, 'fixtures', task + '.alternate.expected.json'),
   };
 }
 

@@ -1,6 +1,6 @@
 [
-  { "quarter": "2025 Q1", "north": "1250.5", "central": "975.25", "west": "1220.75" },
-  { "quarter": "2025 Q2", "north": "1499.25", "central": "1102.5", "west": "1365.5" },
-  { "quarter": "2025 Q3", "north": "1580.75", "central": "1010.5", "west": "1745.25" },
-  { "quarter": "2025 Q4", "north": "1832.5", "central": "1464.75", "west": "1680.25" }
+  {"quarter": "2025 Q3", "north": "1580.75", "central": "1010.5", "west": "1745.25"},
+  {"quarter": "2025 Q1", "north": "1250.5", "central": "975.25", "west": "1220.75"},
+  {"quarter": "2025 Q4", "north": "1832.5", "central": "1464.75", "west": "1680.25"},
+  {"quarter": "2025 Q2", "north": "1499.25", "central": "1102.5", "west": "1365.5"}
 ]

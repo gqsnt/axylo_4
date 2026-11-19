@@ -3,8 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { chromium } from 'playwright-core';
 import { afterAll, beforeAll, expect, it } from 'vitest';
+import { readJson, taskFiles } from '../files.mjs';
 import { grade } from '../grade.mjs';
-import { prepareWorkspace } from '../workspace.mjs';
+import { prepareWorkspace, removeWorkspace } from '../workspace.mjs';
 
 const visits = `import { line } from 'axylo';
 export default function render(element, data) {
@@ -14,7 +15,7 @@ export default function render(element, data) {
 const sales = `import { bar } from 'axylo';
 export default function render(element, data) {
   return bar(element, {
-    data, x: 'quarter', y: [
+    data: data.toSorted((a, b) => a.quarter.localeCompare(b.quarter)), x: 'quarter', y: [
       { field: 'north', parse: 'number' },
       { field: 'central', parse: 'number' },
       { field: 'west', parse: 'number' },
@@ -24,7 +25,7 @@ export default function render(element, data) {
 
 const signups = `import { line } from 'axylo';
 export default function render(element, data) {
-  return line(element, { data, x: 'day', y: 'signpus', title: 'Daily signups' });
+  return line(element, { data, x: 'day', y: { field: 'signpus', label: 'Signups' }, title: 'Daily signups' });
 }`;
 
 const revenue = `import { line } from 'axylo';
@@ -47,35 +48,148 @@ afterAll(async () => {
 });
 
 async function answer(task, source) {
-  const { workspace } = await prepareWorkspace(scratch, task);
-  await writeFile(join(workspace, 'chart.js'), source);
-  // The tests reuse a Chrome process, while each grade still creates two clean contexts.
-  return grade(workspace, task, { launch: async () => ({ newContext: options => browser.newContext(options), close: async () => {} }) });
+  const { workspace, runDirectory } = await prepareWorkspace(scratch, task);
+  try {
+    await writeFile(join(workspace, 'chart.js'), source);
+    // Reuse Chrome while keeping a clean context for every input and time zone.
+    return await grade(workspace, task, { launch: async () => ({
+      newContext: options => browser.newContext(options), version: () => browser.version(),
+      isConnected: () => browser.isConnected(), close: async () => {},
+    }) });
+  } finally {
+    await removeWorkspace(runDirectory);
+  }
 }
 
 function criterion(result, name) {
   return result.criteria.find(item => item.name === name);
 }
 
-it.each([
+const answers = [
   ['daily-visits', visits],
   ['regional-sales', sales],
   ['signups', signups],
   ['daily-revenue', revenue],
-])('passes a hand-written %s answer in both time zones', async (task, source) => {
+];
+
+it.each(answers)('passes a hand-written %s answer on both inputs in both time zones', async (task, source) => {
   const result = await answer(task, source);
   expect(result.criteria.filter(item => !item.pass)).toEqual([]);
   expect(result.pass).toBe(true);
-  expect(result.timezones.map(zone => zone.timezoneId)).toEqual([LA, Tokyo]);
+  expect(result.timezones.map(zone => [zone.input, zone.timezoneId])).toEqual([
+    ['primary', LA], ['primary', Tokyo], ['alternate', LA], ['alternate', Tokyo],
+  ]);
+  if (task === 'signups') {
+    expect(result.diagnostics.filter(d => d.code === 'AX102')).toHaveLength(2);
+    expect(criterion(result.timezones[2], 'reader note').detail).toContain('Accessible counts: 1');
+  }
 });
 
-it('fails the calendar-day check in Los Angeles when midnight is treated as an instant', async () => {
+it('fails both the table and reader date when midnight is treated as an instant', async () => {
   const result = await answer('daily-visits', visits.replace("{ field: 'day', type: 'date' }", "'day'"));
   expect(result.pass).toBe(false);
   expect(criterion(result.timezones[0], 'table rows')).toMatchObject({ pass: false, detail: expect.stringContaining('Feb 28, 2026') });
-  expect(criterion(result.timezones[1], 'table rows').pass).toBe(true);
+  expect(criterion(result.timezones[0], 'reader date')).toMatchObject({ pass: false, detail: expect.stringContaining('Feb 28, 2026') });
+  expect(criterion(result.timezones[1], 'reader date')).toMatchObject({ pass: false, detail: expect.stringContaining('Mar 1, 2026') });
   expect(criterion(result, 'no error diagnostics').pass).toBe(true);
   expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: 'AX111', level: 'hint', sources: ['handle'] }));
+});
+
+it('accepts a day-first calendar format in the table and point reading', async () => {
+  const format = `x: { field: 'day', type: 'date', format: { day: '2-digit', month: 'long', year: 'numeric' } },
+    locale: 'en-GB'`;
+  const result = await answer('signups', signups.replace("x: 'day'", format));
+  expect(result.criteria.filter(item => !item.pass)).toEqual([]);
+  expect(criterion(result, 'reader date').detail).toContain('06 April 2026');
+});
+
+it('fails a sorted categorical line that bridges missing days even when its table matches', async () => {
+  const source = visits.replace("data, x: { field: 'day', type: 'date' }", `data: data
+    .map(row => ({ ...row, day: row.day.slice(0, 10) }))
+    .sort((a, b) => a.day.localeCompare(b.day)), x: { field: 'day', type: 'category' }`);
+  const result = await answer('daily-visits', source);
+  expect(criterion(result, 'table rows').pass).toBe(true);
+  expect(criterion(result, 'drawn gaps')).toMatchObject({ pass: false, detail: expect.stringContaining('2026-03-06, 2026-03-12, 2026-03-26') });
+});
+
+it('fails the plotted quarter order when categories stay in encounter order', async () => {
+  const result = await answer('regional-sales', sales.replace('data: data.toSorted((a, b) => a.quarter.localeCompare(b.quarter))', 'data'));
+  expect(criterion(result, 'plotted x order').pass).toBe(false);
+  expect(criterion(result, 'table rows').pass).toBe(false);
+});
+
+it('fails when agent code filters out a valid revenue row', async () => {
+  const source = revenue.replace('const rows = data.map', "const rows = data.filter(row => !row.day.startsWith('2026-05-05')).map");
+  const result = await answer('daily-revenue', source);
+  expect(criterion(result, 'no error diagnostics').pass).toBe(true);
+  expect(criterion(result, 'reader note').pass).toBe(true);
+  expect(criterion(result, 'table rows')).toMatchObject({ pass: false, detail: expect.stringContaining('2026-05-05') });
+});
+
+it('fails a wrong unit label on one series of a multi-series chart', async () => {
+  const result = await answer('regional-sales', sales.replace("field: 'central',", "field: 'central', unit: 'kg',"));
+  expect(criterion(result, 'table headers')).toMatchObject({ pass: false, detail: expect.stringMatching(/central \(kg\)/i) });
+});
+
+it.each(answers)('fails when the %s answer hard-codes the primary values', async (task, source) => {
+  const primary = await readJson(taskFiles(task).fixture);
+  const result = await answer(task, source.replace('render(element, data) {',
+    `render(element, ignored) { const data = ${JSON.stringify(primary)};`));
+  expect(result.timezones.filter(zone => zone.input === 'primary').every(zone => criterion(zone, 'table rows').pass)).toBe(true);
+  expect(result.timezones.filter(zone => zone.input === 'alternate').every(zone => !criterion(zone, 'table rows').pass)).toBe(true);
+  expect(result.pass).toBe(false);
+});
+
+function changeFigure(source, code) {
+  return source.replace('return line(element,', 'const handle = line(element,').replace(/\n}$/, `
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      ${code}
+    }));
+    return handle;
+  }`);
+}
+
+it('fails a clipped visible title with an intact accessible name', async () => {
+  const result = await answer('signups', changeFigure(signups, `
+    element.querySelector('.axylo-title').style.cssText = 'height: 4px; overflow: hidden';
+  `));
+  expect(criterion(result, 'accessible name').pass).toBe(true);
+  expect(criterion(result, 'visible title').pass).toBe(false);
+});
+
+it('accepts a title intentionally hidden with the documented option', async () => {
+  const result = await answer('signups', signups.replace("title: 'Daily signups'", "title: { text: 'Daily signups', visible: false }"));
+  expect(result.criteria.filter(item => !item.pass)).toEqual([]);
+});
+
+it('fails a table with the wrong caption despite a correct figure name', async () => {
+  const result = await answer('signups', changeFigure(signups, `
+    new MutationObserver(() => {
+      const caption = element.querySelector('table caption');
+      if (caption && caption.textContent !== 'Other title') caption.textContent = 'Other title';
+    }).observe(element, { childList: true, subtree: true });
+  `));
+  expect(criterion(result, 'accessible name').pass).toBe(true);
+  expect(criterion(result, 'table caption')).toMatchObject({ pass: false, detail: expect.stringContaining('Other title') });
+});
+
+it.each([
+  'note.textContent = "Values not shown: 9. See table."; ',
+  'note.style.opacity = "0";',
+  'note.setAttribute("aria-hidden", "true");',
+])('fails a genuine omission when the note is changed with %s', async change => {
+  const result = await answer('signups', changeFigure(signups, `
+    const note = element.querySelector('.axylo-note');
+    if (!note.hidden) { ${change} }
+  `));
+  expect(criterion(result, 'reader note').pass).toBe(false);
+  expect(criterion(result, 'table rows').pass).toBe(true);
+});
+
+it('accepts a differently worded omission note with the right count', async () => {
+  const result = await answer('signups', signups.replace("title: 'Daily signups'",
+    "title: 'Daily signups', messages: { valuesNotShown: 'Omitted {count} value. {seeTable}' }"));
+  expect(result.criteria.filter(item => !item.pass)).toEqual([]);
 });
 
 it('accepts the documented automatic conversion of an all-decimal-string field', async () => {
@@ -99,7 +213,7 @@ it('fails the rows when absent days are filled with zero', async () => {
 });
 
 it('fails the diagnostics check when the missing field raises AX101', async () => {
-  const result = await answer('signups', signups.replace("y: 'signpus'", "y: 'signups'"));
+  const result = await answer('signups', signups.replace("field: 'signpus'", "field: 'signups'"));
   expect(criterion(result, 'no error diagnostics')).toMatchObject({ pass: false, detail: expect.stringContaining('AX101') });
   expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: 'AX101', level: 'error', sources: ['console', 'handle'] }));
 });
@@ -115,13 +229,14 @@ it('fails an explicit chart error state even when Axylo emits no error code', as
 
 it('fails the accessible name when Axylo uses a fallback', async () => {
   const result = await answer('signups', signups.replace(", title: 'Daily signups'", ''));
-  expect(result.criteria.filter(item => !item.pass).map(item => item.name)).toEqual(['accessible name']);
+  expect(criterion(result, 'accessible name').pass).toBe(false);
+  expect(criterion(result, 'table caption').pass).toBe(false);
   expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: 'AX140', level: 'warning' }));
 });
 
 it('fails the chart type when a bar is used for the signups line', async () => {
   const result = await answer('signups', signups.replaceAll(/\bline\b/g, 'bar'));
-  expect(result.criteria.filter(item => !item.pass).map(item => item.name)).toEqual(['chart type']);
+  expect(criterion(result, 'chart type').pass).toBe(false);
 });
 
 it.each([

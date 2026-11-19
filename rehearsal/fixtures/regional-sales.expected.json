@@ -2,7 +2,17 @@
   "title": "Quarterly sales by region",
   "type": "bar",
   "x": "category",
-  "series": ["north", "central", "west"],
+  "series": [
+    {
+      "label": "North"
+    },
+    {
+      "label": "Central"
+    },
+    {
+      "label": "West"
+    }
+  ],
   "rows": [
     ["2025 Q1", 1250.5, 975.25, 1220.75],
     ["2025 Q2", 1499.25, 1102.5, 1365.5],

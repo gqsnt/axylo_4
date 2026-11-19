@@ -2,7 +2,11 @@
   "title": "Daily signups",
   "type": "line",
   "x": "date",
-  "series": ["signups"],
+  "series": [
+    {
+      "label": "Signups"
+    }
+  ],
   "rows": [
     ["2026-04-06", 207],
     ["2026-04-07", 234],

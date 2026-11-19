@@ -2,7 +2,11 @@
   "title": "Daily store revenue",
   "type": "line",
   "x": "date",
-  "series": ["revenue"],
+  "series": [
+    {
+      "label": "Revenue"
+    }
+  ],
   "rows": [
     ["2026-05-01", 1302.25],
     ["2026-05-02", 984.5],
