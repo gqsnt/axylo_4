@@ -6,6 +6,10 @@ const chartSummary = '{type} chart with {seriesCount} series. {xLabel} from {xMi
 const fullChartSummary = '{type} chart with {seriesCount} series. {xLabel} from {xMin} to {xMax}. {yLabel} from {yMin} to {yMax}.';
 const donutSlice = '{label}: {value} ({percent}).';
 
+export const CHART_TYPE_MESSAGE = {
+  line: 'typeLine', area: 'typeArea', bar: 'typeBar', scatter: 'typeScatter', donut: 'typeDonut',
+} as const;
+
 export const defaultMessages: Required<Messages> = {
   viewAsTable: 'View as table',
   hideTable: 'Hide table',

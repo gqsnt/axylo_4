@@ -1,7 +1,7 @@
 import { SLOT_VALUE, type DiagnosticSink, type Formatters, type IndexRange, type ReaderModel, type View } from '../core/contracts';
 import { report } from '../diagnostics';
 import { sliceText } from '../lookup/text';
-import { defaultMessages, fill, fillChartSummary, fillDonutSlice, messageLanguage } from '../messages';
+import { CHART_TYPE_MESSAGE, defaultMessages, fill, fillChartSummary, fillDonutSlice, messageLanguage } from '../messages';
 import type { Messages, Title } from '../public';
 import { alignedTable, donutTable, scatterTable, type ReaderLabels, type TableBuilder } from './table';
 
@@ -26,9 +26,6 @@ export interface ReaderInput {
   readonly diagnostics?: DiagnosticSink;
 }
 
-const TYPE_MESSAGE = {
-  line: 'typeLine', area: 'typeArea', bar: 'typeBar', scatter: 'typeScatter', donut: 'typeDonut',
-} as const;
 const MAX_STACK_POSITIONS = 3;
 
 function statistics(y: Float64Array | Float32Array, { start, end }: IndexRange, slot?: Uint8Array) {
@@ -262,7 +259,7 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
     value: input.labels?.value ?? messages.value,
     xUnit: input.labels?.xUnit,
   };
-  const type = messages[TYPE_MESSAGE[view.kind]];
+  const type = messages[CHART_TYPE_MESSAGE[view.kind]];
   const xLabel = view.kind === 'donut' ? labels.category : view.frame.xLabel;
   const yLabel = view.kind === 'donut' ? view.frame.valueLabel
     : view.kind === 'scatter' ? view.frame.yLabel : view.frame.yLabel || wideLabel(view, input.locale, () => true) || labels.value;

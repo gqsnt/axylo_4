@@ -5,14 +5,14 @@
 import type {
   AreaOptions, BarOptions, Chart, Diagnostic, DonutOptions, LineOptions, ScatterOptions, Target,
 } from './public.js';
+import { staticDiagnostics } from './core/stages';
+import { viewerTimeZone } from './core/environment';
 import { createChart } from './core/chart';
 import { AREA } from './kinds/area';
 import { BAR } from './kinds/bar';
 import { DONUT } from './kinds/donut';
 import { LINE } from './kinds/line';
 import { SCATTER } from './kinds/scatter';
-import { staticDiagnostics } from './core/stages';
-import { viewerTimeZone } from './core/environment';
 
 export type * from './public.js';
 

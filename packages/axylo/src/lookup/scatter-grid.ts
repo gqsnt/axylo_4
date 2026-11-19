@@ -83,6 +83,7 @@ export function scatterGrid(
   const tieDistance = 0.5 / ratio;
   const budget = options.exactBudget ?? (Math.ceil(49 * ratio) + 1) ** 2;
   let length = 0;
+  const trackWork = __DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__);
   let examined = 0;
   let cellsExamined = 0;
   let usedLattice = false;
@@ -268,7 +269,7 @@ export function scatterGrid(
       const nearby: Bucket[] = [];
       for (let cy = top; cy <= bottom; cy++) {
         for (let cx = left; cx <= right; cx++) {
-          cellsExamined++;
+          if (trackWork) cellsExamined++;
           const bucket = buckets.get(cx + cy * columns);
           if (bucket) nearby.push(bucket);
         }
@@ -381,7 +382,7 @@ export function scatterGrid(
       const cy = py[at]!;
       let skip = from;
       const emit = (member: number): boolean => {
-        membersRead++;
+        if (trackWork) membersRead++;
         if (skip > 0) skip--;
         else out.push(member);
         return out.length < take;
@@ -409,7 +410,7 @@ export function scatterGrid(
         if (bucket.left && bucket.right) return walk(bucket.left) && walk(bucket.right);
         for (let i = bucket.start; i < bucket.end; i++) {
           const entry = order[i]!;
-          membersRead++;
+          if (trackWork) membersRead++;
           if (entry !== own && near(entry, cx, cy) && !position(entry)) return false;
         }
         return true;
@@ -446,7 +447,7 @@ export function scatterGrid(
     get usedLattice() { return usedLattice; },
     pick(pointerX: number, pointerY: number): ScatterPick | null {
       examined = 0;
-      cellsExamined = 0;
+      if (trackWork) cellsExamined = 0;
       usedLattice = false;
       const at = pointerOnPlot(plot, pointerX, pointerY);
       if (!at) return null;
@@ -467,7 +468,7 @@ export function scatterGrid(
       return range && i >= range.start && i < range.end ? atOf[first[s]! + i - range.start]! : -1;
     },
     members(rule: GroupRule, at: number, from: number, take: number): number[] {
-      membersRead = 0;
+      if (trackWork) membersRead = 0;
       return indexFor(rule).members(at, from, take);
     },
     has(rule: GroupRule, at: number, other: number): boolean {
@@ -476,7 +477,7 @@ export function scatterGrid(
   };
   // Work counters, for tests (development and benchmark builds): distance checks and rows sampled by the last
   // pick on both indexes, the cells it opened, and the entries the last `members` call read.
-  if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) {
+  if (trackWork) {
     Object.defineProperties(grid, {
       examined: { get: () => examined }, cellsExamined: { get: () => cellsExamined }, membersRead: { get: () => membersRead },
     });

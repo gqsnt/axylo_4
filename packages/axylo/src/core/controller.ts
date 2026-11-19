@@ -30,7 +30,7 @@ import { dateUnitOf } from '../data/x';
 import { rowsTable, type Table } from '../data/table';
 import { computeLayout } from '../layout';
 import { readerWith, seriesNotDrawnSentence } from '../reader';
-import { fill, resolveMessages } from '../messages';
+import { CHART_TYPE_MESSAGE, fill, resolveMessages } from '../messages';
 import { lowContrastSeries, type ThemeResolution } from '../theme';
 import { OptionsStore, sameValue, type OptionRecord } from './options';
 import { Delivery, diagnosticKey, StrictError, strictViolations, type DeliveryConsole } from './delivery';
@@ -55,7 +55,6 @@ const ABORT = Symbol('axylo frame superseded');
 export type { BenchHook, ChartHandle, DevHook, Stage } from './instrument';
 
 const KIND_NAMES: Record<ChartKind, string> = { line: 'Line', area: 'Area', bar: 'Bar', scatter: 'Scatter', donut: 'Donut' };
-const KIND_MESSAGES = { line: 'typeLine', area: 'typeArea', bar: 'typeBar', scatter: 'typeScatter', donut: 'typeDonut' } as const;
 /** Option resolution reports these about the data; they belong to the call that set the data. */
 const DATA_CODES = new Set(['AX100', 'AX101']);
 /** Rows a store may hold beyond twice what was on screen before the frames that pin it copy their rows. */
@@ -1300,7 +1299,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         ? before.reader : null;
       const t = a.options.title;
       const reader = readerWith(composition.reader, {
-        view, formatters: formatters!, messages: a.messages, type: a.messages[KIND_MESSAGES[kind]] || KIND_NAMES[kind],
+        view, formatters: formatters!, messages: a.messages, type: a.messages[CHART_TYPE_MESSAGE[kind]] || KIND_NAMES[kind],
         title: typeof t === 'string' || (t && typeof t === 'object') ? t as string | Title : undefined,
         labelledBy: named ? by! : undefined, caption,
         // The x column header carries the x unit (spec A4).

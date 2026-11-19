@@ -31,7 +31,7 @@ import type {
   Rect, ResolvedTheme, StepDirection, TooltipModel, View, XValue,
 } from '../core/contracts';
 import type { Messages } from '../public';
-import { defaultMessages, fill, messageLanguage } from '../messages';
+import { CHART_TYPE_MESSAGE, defaultMessages, fill, messageLanguage } from '../messages';
 import {
   overlayWith, OUTLINE_REACH, RING_REACH, RING_STROKE, alignedRows, canZoomIn, datumReading, minimumWidth, panWindow,
   pinchWidth, pixelOf, positionAt, rangeWindow, refsAt, ringRect, sameRef, stepAcross, zoomStep, targetBox, targetOf, valueText, PAN_SHARE, ZOOM_FACTOR,
@@ -138,26 +138,29 @@ function readable(d: Committed): boolean {
 export function plotDescription(d: Committed): { text: string; lang: string | null }[] {
   if (!d.interactive || !plotReady(d)) return [];
   const { messages, view } = d;
-  const overridden = (key: InstructionKey) => messageLanguage(messages, key) === null;
-  // A plotInstructions override could already be a complete translation of the old description.
-  const legacy = overridden('plotInstructions');
+  const legacy = messageLanguage(messages, 'plotInstructions') === null;
   const parts: { text: string; lang: string | null }[] = [];
-  const add = (key: InstructionKey) => {
+  const add = (key: InstructionKey, fallback?: 'plotInstructions') => {
+    // A legacy override may already include all the default instructions.
+    if (legacy && messageLanguage(messages, key) !== null) {
+      if (!fallback) return;
+      key = fallback;
+    }
     const text = messages[key] ?? defaultMessages[key];
     if (text !== '') parts.push({ text, lang: d.english(key) });
   };
   if (readable(d) && d.lookup.count > 0) {
     if (view.kind === 'donut') {
-      add(!legacy || overridden('donutInstructions') ? 'donutInstructions' : 'plotInstructions');
+      add('donutInstructions', 'plotInstructions');
     } else {
       add('plotInstructions');
       // Scatter's series keys skip a series with no points in the current window.
       const shown = view.visible.filter((on, i) =>
         on && (view.kind !== 'scatter' || view.visiblePoints[i]!.end > view.visiblePoints[i]!.start));
-      if (shown.length > 1 && (!legacy || overridden('seriesInstructions'))) add('seriesInstructions');
+      if (shown.length > 1) add('seriesInstructions');
     }
   }
-  if (offersZoom(d) && (!legacy || overridden('zoomInstructions'))) add('zoomInstructions');
+  if (offersZoom(d)) add('zoomInstructions');
   return parts;
 }
 
@@ -1909,8 +1912,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       while (instructions.children.length > parts.length) instructions.lastElementChild!.remove();
       setAttr(proxy, 'aria-describedby', parts.length ? instructions.id : null);
     }
-    const type = { line: 'typeLine', area: 'typeArea', bar: 'typeBar', scatter: 'typeScatter', donut: 'typeDonut' } as const;
-    setAttr(proxy, 'aria-roledescription', fill(d.messages.plotRole, { type: d.messages[type[d.kind]] }));
+    setAttr(proxy, 'aria-roledescription', fill(d.messages.plotRole, { type: d.messages[CHART_TYPE_MESSAGE[d.kind]] }));
     plot.classList.toggle('axylo-touch-zoom', d.zoom === 'touch');
     plot.classList.toggle('axylo-zoomable', d.zoom !== false);
   }

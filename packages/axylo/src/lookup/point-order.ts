@@ -14,6 +14,7 @@ export interface PointOrderWork {
 
 /** A sorted view of several already sorted columns, without a merged array of points. */
 export function pointOrder(series: readonly PointSeries[], ranges: readonly IndexRange[], work?: PointOrderWork) {
+  const trackWork = __DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__);
   const active: number[] = [];
   let count = 0;
   ranges.forEach(({ start, end }, s) => {
@@ -22,7 +23,7 @@ export function pointOrder(series: readonly PointSeries[], ranges: readonly Inde
   });
 
   function compare(s: number, i: number, t: number, j: number): number {
-    if (work) work.comparisons++;
+    if (trackWork && work) work.comparisons++;
     return series[s]!.x[i]! - series[t]!.x[j]!
       || series[s]!.y[i]! - series[t]!.y[j]! || s - t || i - j;
   }
@@ -130,7 +131,7 @@ export function pointOrder(series: readonly PointSeries[], ranges: readonly Inde
 
   function cursor(ordinal: number): (() => PointIndex | null) | null {
     if (!valid(ordinal)) return null;
-    if (work?.seeks !== undefined) work.seeks++;
+    if (trackWork && work?.seeks !== undefined) work.seeks++;
     const { starts } = seek(ordinal);
     const heap = active.filter(s => starts[s]! < ranges[s]!.end);
     const precedes = (s: number, t: number) => compare(s, starts[s]!, t, starts[t]!) < 0;
@@ -151,7 +152,7 @@ export function pointOrder(series: readonly PointSeries[], ranges: readonly Inde
     return () => {
       const series = heap[0];
       if (series === undefined) return null;
-      if (work?.steps !== undefined) work.steps++;
+      if (trackWork && work?.steps !== undefined) work.steps++;
       const index = starts[series]!;
       starts[series] = index + 1;
       if (starts[series] === ranges[series]!.end) {

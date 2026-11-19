@@ -42,14 +42,15 @@ export function scatterLookup(
 ): Lookup & {
   readonly lastPickCandidates: number; readonly lastPickCells?: number; readonly lastPickLattice: boolean; readonly lastMembersRead: number;
 } {
+  const trackWork = __DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__);
   const { series } = view.frame;
   const keys = new Map(series.map((entry, i) => [entry.key, i]));
   const locations = new WeakMap<DatumRef, PointIndex>();
   const ranges = view.visiblePoints.map((range, s) => view.visible[s] && series[s]!.drawable ? range : { start: 0, end: 0 });
-  const order = pointOrder(series, ranges, work && {
+  const order = pointOrder(series, ranges, trackWork && work ? {
     get comparisons() { return work.orderComparisons; },
     set comparisons(value) { work.orderComparisons = value; },
-  });
+  } : undefined);
   const active = ranges.flatMap((range, s) => range.end > range.start ? [s] : []);
   const projection = layout?.projection.kind === 'xy' ? layout.projection : null;
   const grid = layout && projection ? scatterGrid(view, { ...layout, projection }, order.count, devicePixelRatio, gridOptions) : null;
@@ -80,7 +81,7 @@ export function scatterLookup(
       return point;
     }
     for (let i = lowerBound(x, datum.x); x[i] === datum.x; i++) {
-      if (work) work.locations++;
+      if (trackWork && work) work.locations++;
       if ((row?.[i] ?? i) !== datum.row) continue;
       const point = { series: s, index: i };
       locations.set(datum, point);
@@ -140,7 +141,7 @@ export function scatterLookup(
     let best = Infinity;
 
     function consider(i: number, dx: number): void {
-      if (work) work.seriesCandidates++;
+      if (trackWork && work) work.seriesCandidates++;
       const py = projection?.y.map(entry.y[i]!) ?? entry.y[i]!;
       const distance = Math.hypot(dx, py - y);
       if (distance < best || distance === best && i < nearest) {
@@ -274,7 +275,7 @@ export function scatterLookup(
     resolve,
   } satisfies Lookup;
   // The last pick's and the last `members` call's work, for tests (development and benchmark builds only).
-  if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) {
+  if (trackWork) {
     Object.defineProperties(lookup, {
       lastPickCandidates: { get: () => grid?.examined ?? 0 }, lastPickCells: { get: () => grid?.cellsExamined ?? 0 },
       lastPickLattice: { get: () => grid?.usedLattice ?? false }, lastMembersRead: { get: () => grid?.membersRead ?? 0 },
