@@ -473,8 +473,16 @@ function resultFor(source, ref, context) {
     : distinct && (!ref.cases || distinct === ref.cases) && (!ref.atLeast || distinct >= ref.atLeast)
       && expected.every(k => passed.some(test => sameTest(k, test))) && current.every(values => !values.has('skipped')) ? 'pass'
       : [...reports.values()].some(values => values.has('not recorded')) ? STALE : 'not run';
-  if (status === 'not run' && ref.atLeast && distinct < ref.atLeast && current.length) reasons.add(`${distinct} of at least ${ref.atLeast} cases passed under ${ref.prefix}`);
-  if (status === 'not run' && engine !== null && !reports.size && !reasons.size) reasons.add(`No ${engineLabel(engine)} result`);
+  if (status === 'not run') {
+    const citation = `${ref.file}: ${ref.title ?? ref.prefix}${ref.casePrefix ? ` (${ref.casePrefix})` : ''}`;
+    if (ref.atLeast && distinct < ref.atLeast && current.length) {
+      reasons.add(`${distinct} of at least ${ref.atLeast} cases passed for ${citation}`);
+    } else if ((current.length || !reasons.size) && current.every(values => !values.has('skipped'))) {
+      if (engine !== null && !reports.size) reasons.add(`No ${engineLabel(engine)} result for ${citation}`);
+      else if (ref.cases && distinct && distinct !== ref.cases) reasons.add(`Expected ${ref.cases} passing cases for ${citation}, found ${distinct}`);
+      else reasons.add(`No matching passing test for ${citation}`);
+    }
+  }
   return { status, reports, reasons };
 }
 
@@ -502,6 +510,7 @@ function cellFor(row, type, root, sources, context) {
   const unrun = [...required.filter((ref, i) => testKinds.includes(ref.kind) && outcomes[i].status === 'not run'),
     ...weak.filter((_, i) => testKinds.includes(weak[i].kind) && supporting[i].status === 'not run')];
   const reasons = new Set([...outcomes, ...supporting].filter(result => result.status === 'not run' || result.status === STALE).flatMap(result => [...result.reasons]));
+  if (status === 'not run' && row.pending?.[type]) reasons.add(row.pending[type]);
   return { status, reports, unrun, reasons };
 }
 

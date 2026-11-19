@@ -69,6 +69,30 @@ test('a describe prefix needs all its cases, and a failure in either report rema
   assert.equal(combined.counts.pass, 1);
 });
 
+test('a citation missing a matching test explains why a passing report leaves the cell not run', t => {
+  const write = workspace(t);
+  const report = write('wrong-suite.json', { testResults: [{
+    name: 'chart.test.ts',
+    assertionResults: [{ title: 'line renders', status: 'passed', ancestorTitles: ['unexpected suite', 'render examples'] }],
+  }] });
+  const result = run({ resultFiles: [report] });
+  const { status, reports, reasons } = result.rows.find(row => row.id === 'F1').cells.line;
+  assert.equal(status, 'not run');
+  assert.deepEqual(reports.map(({ results }) => results), [['pass']]);
+  assert.deepEqual(reasons, ['No matching passing test for chart.test.ts: line renders']);
+});
+
+test('a pending measurement explains why passing evidence leaves the cell not run', t => {
+  const write = workspace(t);
+  const matrix = read(matrixFile);
+  matrix[0].pending = { line: 'Waiting for the measurement' };
+  const result = run({ matrixFile: write('matrix.json', matrix), resultFiles: [passed] });
+  const { status, reports, reasons } = result.rows.find(row => row.id === 'F1').cells.line;
+  assert.equal(status, 'not run');
+  assert.deepEqual(reports.map(({ results }) => results), [['pass']]);
+  assert.deepEqual(reasons, ['Waiting for the measurement']);
+});
+
 test('a scoped describe requires current cases for its chart and retains archived failures', t => {
   const { write, root } = fixtureWith(t, undefined, source => source + `
 describe('I1 probes', () => {
@@ -361,7 +385,7 @@ test('a browser citation is answered only by results of its own engine, Chrome w
   // A Firefox pass is no evidence for a citation that needs Chrome.
   const unanswered = cell(browserMatrix(), firefox);
   assert.equal(unanswered.cell, 'not run');
-  assert.match(unanswered.report, /line · Required assertions have no matching passing result\. No Chrome result\./);
+  assert.match(unanswered.report, /line · Required assertions have no matching passing result\. No Chrome result for chart\.browser\.test\.ts: line renders\./);
   assert.equal(cell(browserMatrix('firefox'), firefox).cell, 'pass (browser-firefox.json pass)');
   assert.equal(cell(browserMatrix(), chrome, firefox).cell, 'pass (browser.json pass)');
   // Results that predate the engine record were all Chrome.

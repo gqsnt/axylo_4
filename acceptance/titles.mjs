@@ -17,6 +17,14 @@ import { dirname, resolve } from 'node:path';
 const ordinary = /\s+|\/\*[\s\S]*?\*\/|\/\/[^\r\n]*|'(?:\\[\s\S]|[^'\\])*'|"(?:\\[\s\S]|[^"\\])*"|=>|[\w$]+|[^\s]/y;
 const regexLiteral = /\/(?:\\.|\[(?:\\.|[^\]\\\r\n])*\]|[^/\\\r\n])+\/[dgimsuvy]*/y;
 const expressionStarts = new Set(['=', '(', '[', '{', ',', ':', '?', '!', '&', '|', ';', '=>', 'return']);
+const beforeNegation = new Set(['+', '-', '*', '/', '%', '^', '~', '<', '>', 'await', 'case', 'delete',
+  'do', 'else', 'in', 'instanceof', 'of', 'throw', 'typeof', 'void', 'yield']);
+
+function regexContextAfter(token, previous) {
+  // A TypeScript non-null assertion keeps the preceding expression's division context.
+  if (token === '!' && previous && !expressionStarts.has(previous) && !beforeNegation.has(previous)) return previous;
+  return token;
+}
 
 function tokenAt(source, start, previous) {
   if (source[start] === '`') return source.slice(start, scanTemplate(source, start).end);
@@ -50,7 +58,7 @@ function scanTemplate(source, start) {
         if (trivia(token)) continue;
         if (token === '{') braces++;
         if (token === '}') braces--;
-        previous = token;
+        previous = regexContextAfter(token, previous);
       }
       spans.push({ from, to: end });
     }
@@ -60,10 +68,13 @@ function scanTemplate(source, start) {
 
 function tokens(source) {
   const parts = [];
+  let previous;
   for (let start = 0; start < source.length;) {
-    const token = tokenAt(source, start, parts.at(-1));
+    const token = tokenAt(source, start, previous);
     start += token.length;
-    if (!trivia(token)) parts.push(token);
+    if (trivia(token)) continue;
+    parts.push(token);
+    previous = regexContextAfter(token, previous);
   }
   return parts;
 }
