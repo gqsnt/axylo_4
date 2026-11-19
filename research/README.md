@@ -15,13 +15,21 @@ The npm downloads API rate-limits bursts; `refill.mjs` retries the packages that
 
 ## harness/
 
-One page that runs the same tasks through ten libraries, and a probe that drives system Chrome through all of them.
+One page runs the same tasks through the original ten libraries and Axylo. A probe drives system Chrome through all eleven.
+
+Axylo uses the production ES module from [`tests/dist/.packed/axylo-0.0.0.tgz`](../tests/dist/.packed/axylo-0.0.0.tgz), packed on 2026-11-18 at 21:10:31 UTC. The packing manifest records `sha512-LCn3nSF7J5rmBJmwBZbcAx6J2alUgEDGg6BQ44OmkziEpuzrFCX1qQ3CG9KMqgOAaPvKzh1LtfpRPM/FC2IfFQ==`. `node packed-axylo.mjs` checks that integrity and extracts the package into `vendor/axylo/`. Vite and the size script both resolve `axylo` to that copy.
+
+To refresh from a new tarball, rerun `node packed-axylo.mjs` and record its filename, packing date and integrity here. A coordinator can repack an already-built distribution with `node scripts/pack.mjs --no-build` from the repository root. The harness needs its locked dependencies already installed. Preparing Axylo requires only the local archive.
 
 ```bash
-cd harness
-npm ci
+cd research/harness
+node packed-axylo.mjs
 npx vite build
-npx vite preview --port 4173 --strictPort   # leave running
+npx vite preview --port 4173 --strictPort   # leave running, then run below in another terminal
+```
+
+```bash
+cd research/harness
 node probe.mjs                              # look, empty, a11y, env, perf
 node probe.mjs dates sentinels lightonly    # added after review
 LIBS=highcharts-plain,echarts-aria node probe.mjs look a11y
@@ -30,6 +38,8 @@ node montage.mjs trend bars parts dirty empty kbd dark resize lightonly
 node palette.mjs
 node spot-checks.mjs
 node sizes.mjs
+cd ../..
+node research/tables.mjs
 ```
 
 | Path | Contents |
@@ -37,16 +47,17 @@ node sizes.mjs
 | `src/data.js` | The shared datasets. Every library receives exactly these values. |
 | `src/libs/<library>.js(x)` | The least configuration each library needs for each task. Comments mark what was required beyond data. |
 | `src/libs/<library>-tuned.js(x)` | The same large-data task in a tuned configuration. These change several options at once, some of them visible to the reader. |
+| `packed-axylo.mjs` | Verifies and unpacks the Axylo tarball for both bundle builds. |
 | `src/libs/highcharts-plain.js`, `echarts-aria.js` | Each library's accessibility switch in the other position. |
 | `src/libs/noop.js` | Draws nothing: the measurement floor. |
 | `probe.mjs` | DOM and accessibility-tree capture, keyboard walk, pointer hover in three time zones for instants and for date strings, one bad value at a time, resize, dark scheme, a light-only page on a dark device, motion with and without reduced-motion, timings and browser-reported main-thread time. |
 | `results.json` | Probe output, merged across runs. `_runs` lists every invocation since the log was added; results from the first pass predate it. |
-| `spot-checks.json` | Small checks the report quotes: the WebGL renderer in headless Chrome, which packages mention the reduced-motion media query, the ECharts and MUI X accessibility switches. |
+| `spot-checks.json` | Small checks the report quotes, including the WebGL renderer, reduced-motion mentions, accessibility switches, and what Axylo exposes after opening its table. |
 | `perf.log`, `rerun.log` | Console output of the first and second performance passes. The report uses the second. |
 | `shots/` | Screenshots; `_sheet-*.png` are the side-by-side sheets. |
 | `palette.json`, `sizes.json` | Default palette scores and bundle sizes. |
 
-Open one case by hand at `http://localhost:4173/?lib=highcharts&task=trend`. Tasks: `trend`, `dates`, `bars`, `parts`, `dirty`, `dirty-null`, `dirty-nan`, `dirty-string`, `dirty-undefined`, `empty`, `scale&n=100000`, `stream`. Add `&scheme=light` for a light-only page.
+Open one case by hand at `http://localhost:4173/?lib=axylo&task=trend`. Tasks are `trend`, `dates`, `bars`, `parts`, `dirty`, `dirty-null`, `dirty-nan`, `dirty-string`, `dirty-undefined`, `empty`, `scale&n=100000`, `stream`. Add `&scheme=light` for a light-only page. Axylo simplifies dense lines by default and has no public rendering option for a tuned run. Its adapter uses the fixture's existing arrays in the documented column format.
 
 ## palette/
 

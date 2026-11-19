@@ -2,7 +2,7 @@
   "name": "axylo-landscape-harness",
   "private": true,
   "type": "module",
-  "description": "Runs the same chart tasks through ten charting libraries for the Axylo landscape study.",
+  "description": "Runs the same chart tasks through Axylo and ten comparison libraries.",
   "scripts": {
     "build": "vite build",
     "preview": "vite preview --port 4173 --strictPort",

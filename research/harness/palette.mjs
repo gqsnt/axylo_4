@@ -3,18 +3,20 @@
 // the smallest pairwise color difference under normal vision and simulated color-vision deficiencies.
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
-const LIBS = ['chartjs', 'recharts', 'd3', 'echarts', 'highcharts', 'apexcharts', 'plotly', 'nivo', 'mui', 'uplot'];
+const LIBS = ['chartjs', 'recharts', 'd3', 'echarts', 'highcharts', 'apexcharts', 'plotly', 'nivo', 'mui', 'uplot', 'axylo'];
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const grab = async (lib, task) => {
   const page = await browser.newPage({ viewport: { width: 800, height: 520 } });
   await page.goto(`http://localhost:4173/?lib=${lib}&task=${task}`);
   await page.waitForFunction(() => window.__result); await page.waitForTimeout(1800);
-  const colors = await page.evaluate(task => {
+  const colors = await page.evaluate(({ lib, task }) => {
     const h = window.__handle, el = document.getElementById('chart');
     const norm = c => { const x = document.createElement('canvas').getContext('2d'); x.fillStyle = c; return x.fillStyle; };
     if (h?.chart?.data?.datasets) { const d = h.chart.data.datasets; return (task === 'parts' ? d[0].backgroundColor : d.map(s => s.borderColor)).map(norm); }
     if (h?.chart?.getOption) return h.chart.getOption().color.slice(0, task === 'parts' ? 6 : 3).map(norm); // ECharts draws on canvas: its option palette, in slice order
     if (h?.u) return h.u.series.slice(1).map(s => norm(s._stroke ?? s.stroke(h.u)));
+    // Read rendered slices in order, including any narrow slices the generic SVG size filter would skip.
+    if (lib === 'axylo' && task === 'parts') return [...el.querySelectorAll('.axylo-svg .axylo-scene path[d]:not([d=""])')].map(p => norm(getComputedStyle(p).fill));
     // SVG: big filled shapes for the donut, long stroked paths for lines; keep first-seen order
     const seen = [];
     for (const p of el.querySelectorAll('svg path, svg circle')) {
@@ -27,7 +29,7 @@ const grab = async (lib, task) => {
       seen.push(norm(c)); // keep repeats: two slices with the same fill are a pair with zero difference
     }
     return seen;
-  }, task);
+  }, { lib, task });
   await page.close();
   return colors;
 };

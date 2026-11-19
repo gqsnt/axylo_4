@@ -19,11 +19,18 @@ if (!which || which === 'adoption') {
   console.log('\nALL origins', ha.ALL, '\nfetched', J('adoption/adoption.json').fetchedAt);
   console.log('wrappers', ['react-chartjs-2', 'echarts-for-react', 'highcharts-react-official', 'react-apexcharts', 'vue-chartjs', 'react-plotly.js', 'ng2-charts', 'd3-shape', 'd3-scale', 'Google Charts'].map(p => `${p} ${M(ad[p]?.weekly)}`).join(', '), 'Google Charts origins', ha['Google Charts']);
 }
-const LIBS = [['chartjs', 'Chart.js', 'chart.js'], ['recharts', 'Recharts', 'recharts'], ['d3', 'D3', 'd3'], ['echarts', 'ECharts', 'echarts'], ['highcharts', 'Highcharts', 'highcharts'], ['apexcharts', 'ApexCharts', 'apexcharts'], ['plotly', 'Plotly.js', 'plotly.js'], ['nivo', 'Nivo', '@nivo/core'], ['mui', 'MUI X Charts', '@mui/x-charts'], ['uplot', 'uPlot', 'uplot']];
+const LIBS = [['chartjs', 'Chart.js', 'chart.js'], ['recharts', 'Recharts', 'recharts'], ['d3', 'D3', 'd3'], ['echarts', 'ECharts', 'echarts'], ['highcharts', 'Highcharts', 'highcharts'], ['apexcharts', 'ApexCharts', 'apexcharts'], ['plotly', 'Plotly.js', 'plotly.js'], ['nivo', 'Nivo', '@nivo/core'], ['mui', 'MUI X Charts', '@mui/x-charts'], ['uplot', 'uPlot', 'uplot'], ['axylo', 'Axylo', 'axylo']];
 if (!which || which === 'meta') {
   console.log(row(['Library', 'Version tested', 'Published', 'Stable releases, 12 months', 'Major versions since Nov 2024', 'License', 'Min + gzip for the three tasks', 'Harness lines']));
   console.log(row(Array(8).fill('---')));
-  for (const [k, name, p] of LIBS) console.log(row([name, cad[p].latest, cad[p].latestDate, cad[p].stableLast12mo, cad[p].majorsLast24mo.join(', ') || 'none', String(ad[p].license).replace(/^https?:.*|SEE LICENSE.*/, 'commercial terms'), sizes[k].gzipKB + ' kB', sizes[k].harnessLoc]));
+  for (const [k, name, p] of LIBS) {
+    if (k === 'axylo') {
+      const s = sizes[k];
+      if (s) console.log(row([name, s.version, '–', '–', '–', s.license, s.gzipKB + ' kB', s.harnessLoc]));
+      continue;
+    }
+    console.log(row([name, cad[p].latest, cad[p].latestDate, cad[p].stableLast12mo, cad[p].majorsLast24mo.join(', ') || 'none', String(ad[p].license).replace(/^https?:.*|SEE LICENSE.*/, 'commercial terms'), sizes[k].gzipKB + ' kB', sizes[k].harnessLoc]));
+  }
 }
 if (!which || which === 'perf') {
   const ms = v => v == null ? '–' : v >= 1000 ? (v / 1000).toFixed(1) + ' s' : Math.round(v) + ' ms';
@@ -37,14 +44,24 @@ if (!which || which === 'perf') {
 if (!which || which === 'palette') {
   console.log(row(['Library', 'Colors of the six slices, in order', 'Distinct', 'Below 3:1 on white', 'Closest pair: normal vision', 'protanopia', 'deuteranopia', 'tritanopia']));
   console.log(row(Array(8).fill('---')));
-  for (const [k, name] of LIBS) { const p = pal[k]; if (!p.score) { console.log(row([name, 'no palette, no donut', '–', '–', '–', '–', '–', '–'])); continue; } const s = p.score;
+  for (const [k, name] of LIBS) { const p = pal[k]; if (!p) continue; if (!p.score) { console.log(row([name, k === 'axylo' ? '–' : 'no palette, no donut', '–', '–', '–', '–', '–', '–'])); continue; } const s = p.score;
     console.log(row([name, p.donut6.map(c => '`' + c + '`').join(' '), s.distinct, s.below3to1, ...['normal', 'protan', 'deutan', 'tritan'].map(m => s.minDeltaOK[m].min.toFixed(3))])); }
-  console.log('closest pairs:', LIBS.filter(([k]) => pal[k].score).map(([k, n]) => `${n} protan ${pal[k].score.minDeltaOK.protan.pair.join('/')} deutan ${pal[k].score.minDeltaOK.deutan.pair.join('/')}`).join('; '));
+  console.log('closest pairs:', LIBS.filter(([k]) => pal[k]?.score).map(([k, n]) => `${n} protan ${pal[k].score.minDeltaOK.protan.pair.join('/')} deutan ${pal[k].score.minDeltaOK.deutan.pair.join('/')}`).join('; '));
 }
 if (!which || which === 'dates') {
-  const txt = (l, task, z) => { const x = res[l].dates?.[task]?.[z]; if (!x || x.res !== 'ok') return '–'; return (x.tooltipForIndex54?.title?.[0] ?? x.hoverText?.find(s => /20\d\d|Feb|Mar|\d\/\d/.test(s)) ?? '(no date in readout)').replace(/ GMT.*/, '').replace(/—.*/, '').replace(/​●.*/, '').replace(/^x: /, '').replace(/^Time/, '').replace(/(am|pm)Direct.*/, '$1').trim(); };
+  const txt = (l, task, z) => { const x = res[l]?.dates?.[task]?.[z]; if (!x || x.res !== 'ok') return '–'; if (l === 'axylo') return x.readoutTitle ?? '(no date in readout)'; return (x.tooltipForIndex54?.title?.[0] ?? x.hoverText?.find(s => /20\d\d|Feb|Mar|\d\/\d/.test(s)) ?? '(no date in readout)').replace(/ GMT.*/, '').replace(/—.*/, '').replace(/​●.*/, '').replace(/^x: /, '').replace(/^Time/, '').replace(/(am|pm)Direct.*/, '$1').trim(); };
   for (const task of ['trend', 'dates']) { console.log('\n' + (task === 'trend' ? 'Given instants (epoch ms at UTC midnight)' : 'Given date strings'));
     console.log(row(['Library', 'Reader in UTC', 'Los Angeles', 'Kolkata', 'Same day everywhere'])); console.log(row(Array(5).fill('---')));
-    for (const [k, name] of LIBS) { const v = ['utc', 'la', 'kolkata'].map(z => txt(k, task, z)); const day = t => (t.match(/(Feb|Mar) ?\d+|\d+ (Feb|Mar)|\d{4}-\d\d-\d\d|\d+\/\d+\/\d+/) ?? [t])[0]; console.log(row([name, ...v, new Set(v.map(day)).size === 1 ? 'yes' : '**no**'])); } }
+    for (const [k, name] of LIBS) {
+      if (k === 'axylo' && !res[k]?.dates?.[task]) continue;
+      const v = ['utc', 'la', 'kolkata'].map(z => txt(k, task, z));
+      const day = t => (t.match(/(Feb|Mar) ?\d+|\d+ (Feb|Mar)|\d{4}-\d\d-\d\d|\d+\/\d+\/\d+/) ?? [t])[0];
+      const missing = k === 'axylo' && v.some(t => t === '–' || t === '(no date in readout)');
+      console.log(row([name, ...v, missing ? '–' : new Set(v.map(day)).size === 1 ? 'yes' : '**no**']));
+    } }
 }
-if (!which || which === 'motion') for (const [k, name] of LIBS) console.log(name, res[k]['motion_no-preference'], res[k].motion_reduce, 'widest graphic after resize', res[k].resize.widestGraphic, 'tab stops', res[k].keyboard.stops.length);
+if (!which || which === 'motion') for (const [k, name] of LIBS) {
+  const r = res[k];
+  if (k === 'axylo' && !r?.resize && !r?.keyboard) continue;
+  console.log(name, r['motion_no-preference'], r.motion_reduce, 'widest graphic after resize', r.resize?.widestGraphic ?? '–', 'tab stops', r.keyboard?.stops.length ?? '–');
+}

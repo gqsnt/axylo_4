@@ -6,7 +6,7 @@ import { PNG } from 'pngjs';
 import fs from 'node:fs';
 
 const BASE = 'http://localhost:4173/';
-const LIBS = ['chartjs', 'recharts', 'd3', 'echarts', 'highcharts', 'apexcharts', 'plotly', 'nivo', 'mui', 'uplot'];
+const LIBS = ['chartjs', 'recharts', 'd3', 'echarts', 'highcharts', 'apexcharts', 'plotly', 'nivo', 'mui', 'uplot', 'axylo'];
 const only = process.env.LIBS?.split(',') ?? LIBS;
 const phases = process.argv.slice(2).length ? process.argv.slice(2) : ['look', 'empty', 'a11y', 'env', 'perf'];
 fs.mkdirSync('shots', { recursive: true });
@@ -39,7 +39,7 @@ async function open(ctxOpts, lib, task, extra = '', settle = SETTLE, timeout = 6
   return { ctx, page, logs, res };
 }
 
-const domStats = () => {
+const domStats = lib => {
   const el = document.getElementById('chart');
   const all = [...el.querySelectorAll('*')];
   const attrs = ['role', 'aria-label', 'aria-labelledby', 'aria-describedby', 'aria-hidden', 'aria-live', 'tabindex', 'aria-roledescription'];
@@ -51,6 +51,18 @@ const domStats = () => {
   const texts = [...el.querySelectorAll('svg text')].filter(t => t.textContent.trim());
   const sizes = {}, fills = {};
   for (const t of texts) { const cs = getComputedStyle(t); sizes[cs.fontSize] = (sizes[cs.fontSize] ?? 0) + 1; fills[cs.fill] = (fills[cs.fill] ?? 0) + 1; }
+  const htmlText = {};
+  if (lib === 'axylo') {
+    // Axylo draws the marks in SVG and lays out the plot labels in HTML.
+    htmlText.htmlTextSizes = {};
+    htmlText.htmlTextColors = {};
+    for (const t of el.querySelectorAll('.axylo-text > .axylo-label')) {
+      if (!t.textContent.trim() || !t.getClientRects().length) continue;
+      const { fontSize, color } = getComputedStyle(t);
+      htmlText.htmlTextSizes[fontSize] = (htmlText.htmlTextSizes[fontSize] ?? 0) + 1;
+      htmlText.htmlTextColors[color] = (htmlText.htmlTextColors[color] ?? 0) + 1;
+    }
+  }
   const big = el.querySelector('svg, canvas');
   return {
     nodes: all.length, svg: el.querySelectorAll('svg').length, canvas: el.querySelectorAll('canvas').length,
@@ -58,7 +70,7 @@ const domStats = () => {
     tables: el.querySelectorAll('table').length, markedCount: all.filter(n => attrs.some(a => n.hasAttribute(a))).length, marked,
     canvasFallback: [...el.querySelectorAll('canvas')].map(c => c.textContent.trim().slice(0, 120)),
     svgTextSizes: sizes, svgTextFills: fills, mainWidth: big ? Math.round(big.getBoundingClientRect().width) : null,
-    mainHeight: big ? Math.round(big.getBoundingClientRect().height) : null,
+    mainHeight: big ? Math.round(big.getBoundingClientRect().height) : null, ...htmlText,
   };
 };
 
@@ -79,7 +91,7 @@ for (const lib of only) {
     const { ctx, page, logs, res } = await open({}, lib, task);
     const out = { res, logs };
     if (!res.unsupported) {
-      out.dom = await page.evaluate(domStats);
+      out.dom = await page.evaluate(domStats, lib);
       out.aria = (await page.locator('#chart').ariaSnapshot().catch(e => 'ERR ' + e)).slice(0, 2500);
       await shot(page, `${task}-${lib}`);
     }
@@ -111,6 +123,8 @@ for (const lib of only) {
         rec.hoverText = (await bodyLines(o.page)).filter(l => !b0.includes(l)).slice(0, 8);
         // canvas tooltips are invisible to text capture: ask Chart.js for the tooltip it would show for one known datum (index 54 = 2026-02-24)
         if (lib === 'chartjs') rec.tooltipForIndex54 = await o.page.evaluate(() => { const c = window.__handle.chart; c.tooltip.setActiveElements([{ datasetIndex: 0, index: 54 }], { x: 0, y: 0 }); c.update(); return { title: c.tooltip.title, body: c.tooltip.body.map(b => b.lines).flat() }; });
+        // Read the visible Axylo heading separately so the table can retain its time zone.
+        if (lib === 'axylo') rec.readoutTitle = (await o.page.locator('#chart .axylo-tooltip-title:visible').allTextContents())[0] ?? null;
         await shot(o.page, `${task === 'dates' ? 'datestr' : 'instant'}-${tag}-${lib}`);
       }
       (R.dates[task] ??= {})[tag] = rec; await o.ctx.close();
@@ -153,11 +167,12 @@ for (const lib of only) {
     // arrow-key exploration from the first stop inside the chart
     await page.focus('#before'); await page.keyboard.press('Tab');
     const before = await bodyLines(page);
-    const describe = () => page.evaluate(() => {
+    const describe = () => page.evaluate(lib => {
       const e = document.activeElement;
       const live = [...document.querySelectorAll('[aria-live]')].map(n => n.textContent.trim().slice(0, 200)).filter(Boolean);
-      return { active: (e.getAttribute?.('aria-label') ?? e.textContent ?? '').trim().slice(0, 160), tag: e.tagName.toLowerCase(), live };
-    });
+      const value = lib === 'axylo' ? { valueText: e.getAttribute('aria-valuetext') } : {};
+      return { active: (e.getAttribute?.('aria-label') ?? e.textContent ?? '').trim().slice(0, 160), tag: e.tagName.toLowerCase(), live, ...value };
+    }, lib);
     k.arrows = [];
     for (const key of ['ArrowRight', 'ArrowRight', 'ArrowDown', 'Enter']) { await page.keyboard.press(key); await sleep(250); k.arrows.push({ key, ...(await describe()) }); }
     const after = await bodyLines(page);

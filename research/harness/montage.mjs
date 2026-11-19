@@ -1,7 +1,7 @@
 // Builds one side-by-side sheet per screenshot prefix: node montage.mjs trend bars ...
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
-const LIBS = ['chartjs', 'recharts', 'd3', 'echarts', 'highcharts', 'apexcharts', 'plotly', 'nivo', 'mui', 'uplot'];
+const LIBS = ['chartjs', 'recharts', 'd3', 'echarts', 'highcharts', 'apexcharts', 'plotly', 'nivo', 'mui', 'uplot', 'axylo'];
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const cols = Number(process.env.COLS ?? 2), w = Number(process.env.W ?? 720);
 for (const prefix of process.argv.slice(2)) {

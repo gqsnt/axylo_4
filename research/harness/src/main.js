@@ -10,7 +10,7 @@ const raf = () => new Promise(r => requestAnimationFrame(() => r()));
 window.__result = null;
 (async () => {
   const key = Object.keys(mods).find(k => k.startsWith(`./libs/${lib}.`));
-  if (!key) { el.textContent = 'usage: ?lib=<name>&task=<trend|bars|parts|dirty|scale|stream>'; return; }
+  if (!key) { el.textContent = 'Choose a library and task, for example ?lib=axylo&task=trend'; return; }
   try {
     const m = await mods[key]();
     const one = task.startsWith('dirty-') ? task.slice(6) : null;
