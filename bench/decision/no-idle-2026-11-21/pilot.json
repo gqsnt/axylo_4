@@ -1,0 +1,123 @@
+{
+ "schema": "axylo-bench-pilot/1",
+ "artifact": "20261119T091624Z-b643862f-b78698",
+ "endpoints": {
+  "P1": {
+   "id": "P1",
+   "pilotRunId": "20261121T055159Z-first-trend-axylo-canvas-vs-axylo-svg-aef2",
+   "order": {
+    "AB": -1.872999999999987,
+    "BA": 5.843000000000011,
+    "gap": 7.7159999999999975,
+    "edge": null
+   },
+   "isolate": "unknown: no calibrated control yet",
+   "ok": true
+  },
+  "P2-100k": {
+   "id": "P2-100k",
+   "pilotRunId": "20261121T055241Z-first-1x100000-axylo-canvas-vs-axylo-svg-5b61",
+   "order": {
+    "AB": -5.799999999999997,
+    "BA": -10.097000000000008,
+    "gap": 4.297000000000011,
+    "edge": null
+   },
+   "isolate": "unknown: no calibrated control yet",
+   "ok": true
+  },
+  "P3-task": {
+   "id": "P3-task",
+   "pilotRunId": "20261121T055325Z-stream-w600-axylo-canvas-vs-axylo-svg-a7d2",
+   "order": {
+    "AB": -1.1360033333333333,
+    "BA": -1.0182433333333334,
+    "gap": 0.11775999999999986,
+    "edge": null
+   },
+   "isolate": "unknown: no calibrated control yet",
+   "ok": true
+  },
+  "P5": {
+   "id": "P5",
+   "pilotRunId": "20261121T055607Z-page-trend-x24-axylo-canvas-vs-axylo-svg-05c5",
+   "order": {
+    "AB": -15.382999999999981,
+    "BA": -4.780000000000001,
+    "gap": 10.60299999999998,
+    "edge": null
+   },
+   "isolate": "unknown: no calibrated control yet",
+   "ok": true
+  },
+  "P8": {
+   "id": "P8",
+   "pilotRunId": "20261121T055651Z-compact-trend-x40-axylo-canvas-vs-axylo-svg-a382",
+   "order": {
+    "AB": -5.926000000000002,
+    "BA": -10.257999999999996,
+    "gap": 4.331999999999994,
+    "edge": null
+   },
+   "isolate": "unknown: no calibrated control yet",
+   "ok": true
+  },
+  "scatter-50k": {
+   "id": "scatter-50k",
+   "pilotRunId": "20261121T055734Z-scatter-1x50000-axylo-canvas-vs-axylo-svg-74b0",
+   "frozen": {
+    "swi": 16.195,
+    "tol": 8.0975,
+    "slowerMedian": 161.95,
+    "frozenAt": "2026-11-21T05:58:18.547Z",
+    "pilotRunId": "20261121T055734Z-scatter-1x50000-axylo-canvas-vs-axylo-svg-74b0"
+   },
+   "order": {
+    "AB": -50.5,
+    "BA": -54.89999999999999,
+    "gap": 4.3999999999999915,
+    "edge": null
+   },
+   "isolate": "unknown: no calibrated control yet",
+   "ok": true
+  },
+  "line-10x100k": {
+   "id": "line-10x100k",
+   "pilotRunId": "20261121T055818Z-first-10x100000-axylo-canvas-vs-axylo-svg-a5c2",
+   "frozen": {
+    "swi": 10.495750000000001,
+    "tol": 5.2478750000000005,
+    "slowerMedian": 104.9575,
+    "frozenAt": "2026-11-21T05:59:08.299Z",
+    "pilotRunId": "20261121T055818Z-first-10x100000-axylo-canvas-vs-axylo-svg-a5c2"
+   },
+   "order": {
+    "AB": -23.515000000000015,
+    "BA": -32.55799999999998,
+    "gap": 9.042999999999964,
+    "edge": null
+   },
+   "isolate": "unknown: no calibrated control yet",
+   "ok": true
+  },
+  "zoom-100k": {
+   "id": "zoom-100k",
+   "pilotRunId": "20261121T055908Z-zoom-1x100000-axylo-canvas-vs-axylo-svg-c39f",
+   "frozen": {
+    "swi": 0.6340516666666667,
+    "tol": 0.31702583333333334,
+    "slowerMedian": 6.340516666666666,
+    "frozenAt": "2026-11-21T06:00:38.414Z",
+    "pilotRunId": "20261121T055908Z-zoom-1x100000-axylo-canvas-vs-axylo-svg-c39f"
+   },
+   "order": {
+    "AB": -2.692833333333333,
+    "BA": -2.835516666666667,
+    "gap": 0.14268333333333372,
+    "edge": null
+   },
+   "isolate": "unknown: no calibrated control yet",
+   "ok": true
+  }
+ }
+}

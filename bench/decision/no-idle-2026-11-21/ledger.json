@@ -1,0 +1,1246 @@
+{
+ "schema": "axylo-bench-decision-ledger/1",
+ "jobs": [
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P1"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T042102Z-first-trend-aa-axylo-canvas-d180",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:22:14.540Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P1"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T042214Z-first-trend-aa-axylo-svg-02ef",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:23:26.703Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P2-100k"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T042326Z-first-1x100000-aa-axylo-canvas-c126",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:24:41.952Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P2-100k"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T042442Z-first-1x100000-aa-axylo-svg-5a1e",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:25:57.998Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P3-task",
+    "P3-late"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T042557Z-stream-w600-aa-axylo-canvas-4f06",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:30:42.587Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P3-task",
+    "P3-late"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T043042Z-stream-w600-aa-axylo-svg-5fad",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:35:27.868Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P5"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T043527Z-page-trend-x24-aa-axylo-canvas-dfaf",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:36:45.830Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P5"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T043645Z-page-trend-x24-aa-axylo-svg-cd8c",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:38:02.179Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P8"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T043802Z-compact-trend-x40-aa-axylo-canvas-ca07",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:39:18.506Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P8"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T043918Z-compact-trend-x40-aa-axylo-svg-6cd6",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:40:33.389Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "scatter-50k"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T044033Z-scatter-1x50000-aa-axylo-canvas-6c65",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:41:51.455Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "scatter-50k"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T044151Z-scatter-1x50000-aa-axylo-svg-950c",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:43:06.719Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "line-10x100k"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T044306Z-first-10x100000-aa-axylo-canvas-12ad",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:44:35.542Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "line-10x100k"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T044435Z-first-10x100000-aa-axylo-svg-aa25",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:46:02.918Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "zoom-100k"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T044602Z-zoom-1x100000-aa-axylo-canvas-ba60",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:48:40.890Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "zoom-100k"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T044840Z-zoom-1x100000-aa-axylo-svg-38bc",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:51:19.419Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P1"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T045119Z-first-trend-aa-axylo-canvas-2a07",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:52:33.203Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P1"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T045233Z-first-trend-aa-axylo-svg-e056",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:53:47.768Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P2-100k"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T045347Z-first-1x100000-aa-axylo-canvas-0087",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:55:03.945Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P2-100k"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T045504Z-first-1x100000-aa-axylo-svg-aac7",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T04:56:19.273Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P3-task",
+    "P3-late"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T045619Z-stream-w600-aa-axylo-canvas-a89b",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:01:03.653Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P3-task",
+    "P3-late"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T050103Z-stream-w600-aa-axylo-svg-33cc",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:05:48.106Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P5"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T050548Z-page-trend-x24-aa-axylo-canvas-6532",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:07:03.128Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P5"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T050703Z-page-trend-x24-aa-axylo-svg-c727",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:08:18.568Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P8"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T050818Z-compact-trend-x40-aa-axylo-canvas-550f",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:09:33.189Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P8"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T050933Z-compact-trend-x40-aa-axylo-svg-36da",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:10:47.804Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "scatter-50k"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T051047Z-scatter-1x50000-aa-axylo-canvas-a0ca",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:12:04.913Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "scatter-50k"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T051204Z-scatter-1x50000-aa-axylo-svg-4493",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:13:19.208Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "line-10x100k"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T051319Z-first-10x100000-aa-axylo-canvas-92c3",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:14:46.200Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "line-10x100k"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T051446Z-first-10x100000-aa-axylo-svg-5b2a",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:16:13.187Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "zoom-100k"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T051613Z-zoom-1x100000-aa-axylo-canvas-e304",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:18:50.759Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "zoom-100k"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T051850Z-zoom-1x100000-aa-axylo-svg-ca97",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:21:28.401Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P1"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T052128Z-first-trend-aa-axylo-canvas-e434",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:22:41.764Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P1"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T052241Z-first-trend-aa-axylo-svg-5edb",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:23:54.843Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P2-100k"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T052354Z-first-1x100000-aa-axylo-canvas-a415",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:25:09.516Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P2-100k"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T052509Z-first-1x100000-aa-axylo-svg-1ea1",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:26:23.680Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P3-task",
+    "P3-late"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T052623Z-stream-w600-aa-axylo-canvas-bc33",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:31:07.512Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P3-task",
+    "P3-late"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T053107Z-stream-w600-aa-axylo-svg-6b7b",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:35:52.347Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P5"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T053552Z-page-trend-x24-aa-axylo-canvas-cb0a",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:37:11.971Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P5"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T053712Z-page-trend-x24-aa-axylo-svg-f29b",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:38:31.028Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P8"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T053831Z-compact-trend-x40-aa-axylo-canvas-0145",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:39:48.217Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "P8"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T053948Z-compact-trend-x40-aa-axylo-svg-ff9a",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:41:04.609Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "scatter-50k"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T054104Z-scatter-1x50000-aa-axylo-canvas-402e",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:42:22.748Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "scatter-50k"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T054222Z-scatter-1x50000-aa-axylo-svg-f41d",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:43:38.712Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "line-10x100k"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T054338Z-first-10x100000-aa-axylo-canvas-992a",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:45:11.695Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "line-10x100k"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T054511Z-first-10x100000-aa-axylo-svg-25e7",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:46:40.235Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "zoom-100k"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T054640Z-zoom-1x100000-aa-axylo-canvas-7b93",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:49:19.596Z"
+  },
+  {
+   "kind": "control",
+   "family": "renderer",
+   "endpoints": [
+    "zoom-100k"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T054919Z-zoom-1x100000-aa-axylo-svg-8229",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T05:51:58.696Z"
+  },
+  {
+   "kind": "pilot",
+   "family": "renderer",
+   "endpoints": [
+    "P1"
+   ],
+   "runId": "20261121T055159Z-first-trend-axylo-canvas-vs-axylo-svg-aef2",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "at": "2026-11-21T05:52:41.494Z"
+  },
+  {
+   "kind": "pilot",
+   "family": "renderer",
+   "endpoints": [
+    "P2-100k"
+   ],
+   "runId": "20261121T055241Z-first-1x100000-axylo-canvas-vs-axylo-svg-5b61",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "at": "2026-11-21T05:53:25.090Z"
+  },
+  {
+   "kind": "pilot",
+   "family": "renderer",
+   "endpoints": [
+    "P3-task",
+    "P3-late"
+   ],
+   "runId": "20261121T055325Z-stream-w600-axylo-canvas-vs-axylo-svg-a7d2",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "at": "2026-11-21T05:56:07.525Z"
+  },
+  {
+   "kind": "pilot",
+   "family": "renderer",
+   "endpoints": [
+    "P5"
+   ],
+   "runId": "20261121T055607Z-page-trend-x24-axylo-canvas-vs-axylo-svg-05c5",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "at": "2026-11-21T05:56:50.988Z"
+  },
+  {
+   "kind": "pilot",
+   "family": "renderer",
+   "endpoints": [
+    "P8"
+   ],
+   "runId": "20261121T055651Z-compact-trend-x40-axylo-canvas-vs-axylo-svg-a382",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "at": "2026-11-21T05:57:34.106Z"
+  },
+  {
+   "kind": "pilot",
+   "family": "renderer",
+   "endpoints": [
+    "scatter-50k"
+   ],
+   "runId": "20261121T055734Z-scatter-1x50000-axylo-canvas-vs-axylo-svg-74b0",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "at": "2026-11-21T05:58:18.481Z"
+  },
+  {
+   "kind": "pilot",
+   "family": "renderer",
+   "endpoints": [
+    "line-10x100k"
+   ],
+   "runId": "20261121T055818Z-first-10x100000-axylo-canvas-vs-axylo-svg-a5c2",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "at": "2026-11-21T05:59:08.019Z"
+  },
+  {
+   "kind": "pilot",
+   "family": "renderer",
+   "endpoints": [
+    "zoom-100k"
+   ],
+   "runId": "20261121T055908Z-zoom-1x100000-axylo-canvas-vs-axylo-svg-c39f",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "at": "2026-11-21T06:00:38.374Z"
+  },
+  {
+   "kind": "endpoint",
+   "family": "renderer",
+   "endpoints": [
+    "P1"
+   ],
+   "runId": "20261121T060038Z-first-trend-axylo-canvas-vs-axylo-svg-d933",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "isolate": false,
+   "at": "2026-11-21T06:01:54.547Z"
+  },
+  {
+   "kind": "endpoint",
+   "family": "renderer",
+   "endpoints": [
+    "P2-100k"
+   ],
+   "runId": "20261121T060154Z-first-1x100000-axylo-canvas-vs-axylo-svg-96bf",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "isolate": false,
+   "at": "2026-11-21T06:03:16.154Z"
+  },
+  {
+   "kind": "endpoint",
+   "family": "renderer",
+   "endpoints": [
+    "P3-task",
+    "P3-late"
+   ],
+   "runId": "20261121T060316Z-stream-w600-axylo-canvas-vs-axylo-svg-2dc2",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "isolate": false,
+   "at": "2026-11-21T06:08:14.148Z"
+  },
+  {
+   "kind": "endpoint",
+   "family": "renderer",
+   "endpoints": [
+    "P5"
+   ],
+   "runId": "20261121T060814Z-page-trend-x24-axylo-canvas-vs-axylo-svg-d9d4",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "isolate": false,
+   "at": "2026-11-21T06:09:33.700Z"
+  },
+  {
+   "kind": "endpoint",
+   "family": "renderer",
+   "endpoints": [
+    "P8"
+   ],
+   "runId": "20261121T060933Z-compact-trend-x40-axylo-canvas-vs-axylo-svg-fb53",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "isolate": false,
+   "at": "2026-11-21T06:10:52.687Z"
+  },
+  {
+   "kind": "endpoint",
+   "family": "renderer",
+   "endpoints": [
+    "scatter-50k"
+   ],
+   "runId": "20261121T061052Z-scatter-1x50000-axylo-canvas-vs-axylo-svg-bf55",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "isolate": false,
+   "at": "2026-11-21T06:12:12.996Z"
+  },
+  {
+   "kind": "endpoint",
+   "family": "renderer",
+   "endpoints": [
+    "line-10x100k"
+   ],
+   "runId": "20261121T061212Z-first-10x100000-axylo-canvas-vs-axylo-svg-48c7",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "isolate": false,
+   "at": "2026-11-21T06:13:43.956Z"
+  },
+  {
+   "kind": "endpoint",
+   "family": "renderer",
+   "endpoints": [
+    "zoom-100k"
+   ],
+   "runId": "20261121T061343Z-zoom-1x100000-axylo-canvas-vs-axylo-svg-7da9",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "isolate": false,
+   "at": "2026-11-21T06:16:28.180Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-resize-100k",
+    "gpu-resize-100k-late"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T061629Z-resize-1x100000-aa-axylo-canvas-b4f9",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:19:32.566Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-resize-100k",
+    "gpu-resize-100k-late"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T061932Z-resize-1x100000-aa-axylo-svg-7815",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:22:35.282Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-resize-24"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T062235Z-resize-3x120-x24-aa-axylo-canvas-5bbc",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:25:41.278Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-resize-24"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T062541Z-resize-3x120-x24-aa-axylo-svg-a7aa",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:28:55.943Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P1"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T062855Z-first-trend-dpr2-aa-axylo-canvas-2a50",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:30:08.224Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P1"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T063008Z-first-trend-dpr2-aa-axylo-svg-0311",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:31:20.093Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P2-100k"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T063120Z-first-1x100000-dpr2-aa-axylo-canvas-0208",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:32:34.903Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P2-100k"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T063234Z-first-1x100000-dpr2-aa-axylo-svg-3f4d",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:33:49.827Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P5",
+    "gpu-dpr2-P5-renderer-memory",
+    "gpu-dpr2-P5-gpu-memory"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T063349Z-page-trend-x24-dpr2-aa-axylo-canvas-9241",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:35:04.989Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P5",
+    "gpu-dpr2-P5-renderer-memory",
+    "gpu-dpr2-P5-gpu-memory"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T063504Z-page-trend-x24-dpr2-aa-axylo-svg-d43a",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:36:20.411Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-resize-100k",
+    "gpu-resize-100k-late"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T063620Z-resize-1x100000-aa-axylo-canvas-c3d7",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:39:23.438Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-resize-100k",
+    "gpu-resize-100k-late"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T063923Z-resize-1x100000-aa-axylo-svg-3dd6",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:42:26.134Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-resize-24"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T064226Z-resize-3x120-x24-aa-axylo-canvas-72a1",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:45:31.822Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-resize-24"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T064531Z-resize-3x120-x24-aa-axylo-svg-3b35",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:48:46.642Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P1"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T064846Z-first-trend-dpr2-aa-axylo-canvas-90b0",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:49:58.719Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P1"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T064958Z-first-trend-dpr2-aa-axylo-svg-e6ac",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:51:10.876Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P2-100k"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T065110Z-first-1x100000-dpr2-aa-axylo-canvas-f710",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:52:25.485Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P2-100k"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T065225Z-first-1x100000-dpr2-aa-axylo-svg-a134",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:53:40.348Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P5",
+    "gpu-dpr2-P5-renderer-memory",
+    "gpu-dpr2-P5-gpu-memory"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T065340Z-page-trend-x24-dpr2-aa-axylo-canvas-1aa7",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:54:55.752Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P5",
+    "gpu-dpr2-P5-renderer-memory",
+    "gpu-dpr2-P5-gpu-memory"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T065455Z-page-trend-x24-dpr2-aa-axylo-svg-5d69",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:56:11.530Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-resize-100k",
+    "gpu-resize-100k-late"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T065611Z-resize-1x100000-aa-axylo-canvas-e4d2",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T06:59:14.574Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-resize-100k",
+    "gpu-resize-100k-late"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T065914Z-resize-1x100000-aa-axylo-svg-dd1c",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T07:02:17.049Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-resize-24"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T070217Z-resize-3x120-x24-aa-axylo-canvas-656a",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T07:05:23.768Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-resize-24"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T070523Z-resize-3x120-x24-aa-axylo-svg-4d48",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T07:08:39.227Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P1"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T070839Z-first-trend-dpr2-aa-axylo-canvas-0df1",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T07:09:51.819Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P1"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T070951Z-first-trend-dpr2-aa-axylo-svg-9545",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T07:11:04.205Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P2-100k"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T071104Z-first-1x100000-dpr2-aa-axylo-canvas-a3c2",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T07:12:19.088Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P2-100k"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T071219Z-first-1x100000-dpr2-aa-axylo-svg-b45a",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T07:13:33.725Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P5",
+    "gpu-dpr2-P5-renderer-memory",
+    "gpu-dpr2-P5-gpu-memory"
+   ],
+   "adapter": "axylo-canvas",
+   "runId": "20261121T071333Z-page-trend-x24-dpr2-aa-axylo-canvas-c21b",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T07:14:49.154Z"
+  },
+  {
+   "kind": "control",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P5",
+    "gpu-dpr2-P5-renderer-memory",
+    "gpu-dpr2-P5-gpu-memory"
+   ],
+   "adapter": "axylo-svg",
+   "runId": "20261121T071449Z-page-trend-x24-dpr2-aa-axylo-svg-38bc",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "eligible": false,
+   "at": "2026-11-21T07:16:04.389Z"
+  },
+  {
+   "kind": "pilot",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-resize-100k",
+    "gpu-resize-100k-late"
+   ],
+   "runId": "20261121T071605Z-resize-1x100000-axylo-canvas-vs-axylo-svg-5117",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "at": "2026-11-21T07:17:50.081Z"
+  },
+  {
+   "kind": "pilot",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-resize-24"
+   ],
+   "runId": "20261121T071750Z-resize-3x120-x24-axylo-canvas-vs-axylo-svg-239a",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "at": "2026-11-21T07:19:39.866Z"
+  },
+  {
+   "kind": "pilot",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P1"
+   ],
+   "runId": "20261121T071939Z-first-trend-dpr2-axylo-canvas-vs-axylo-svg-9afc",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "at": "2026-11-21T07:20:21.551Z"
+  },
+  {
+   "kind": "pilot",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P2-100k"
+   ],
+   "runId": "20261121T072021Z-first-1x100000-dpr2-axylo-canvas-vs-axylo-svg-2bfe",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "at": "2026-11-21T07:21:05.166Z"
+  },
+  {
+   "kind": "pilot",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P5",
+    "gpu-dpr2-P5-renderer-memory",
+    "gpu-dpr2-P5-gpu-memory"
+   ],
+   "runId": "20261121T072105Z-page-trend-x24-dpr2-axylo-canvas-vs-axylo-svg-0dc6",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "at": "2026-11-21T07:21:49.281Z"
+  },
+  {
+   "kind": "endpoint",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-resize-100k",
+    "gpu-resize-100k-late"
+   ],
+   "runId": "20261121T072150Z-resize-1x100000-axylo-canvas-vs-axylo-svg-1886",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "isolate": false,
+   "at": "2026-11-21T07:25:01.744Z"
+  },
+  {
+   "kind": "endpoint",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-resize-24"
+   ],
+   "runId": "20261121T072501Z-resize-3x120-x24-axylo-canvas-vs-axylo-svg-bb7c",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "isolate": false,
+   "at": "2026-11-21T07:28:22.270Z"
+  },
+  {
+   "kind": "endpoint",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P1"
+   ],
+   "runId": "20261121T072822Z-first-trend-dpr2-axylo-canvas-vs-axylo-svg-767d",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "isolate": false,
+   "at": "2026-11-21T07:29:38.094Z"
+  },
+  {
+   "kind": "endpoint",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P2-100k"
+   ],
+   "runId": "20261121T072938Z-first-1x100000-dpr2-axylo-canvas-vs-axylo-svg-d739",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "isolate": false,
+   "at": "2026-11-21T07:30:57.211Z"
+  },
+  {
+   "kind": "endpoint",
+   "family": "gpu",
+   "endpoints": [
+    "gpu-dpr2-P5",
+    "gpu-dpr2-P5-renderer-memory",
+    "gpu-dpr2-P5-gpu-memory"
+   ],
+   "runId": "20261121T073057Z-page-trend-x24-dpr2-axylo-canvas-vs-axylo-svg-05f0",
+   "artifact": "20261119T091624Z-b643862f-b78698",
+   "isolate": false,
+   "at": "2026-11-21T07:32:16.386Z"
+  }
+ ]
+}

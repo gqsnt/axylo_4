@@ -1,0 +1,118 @@
+{
+ "schema": "axylo-bench-pilot/1",
+ "artifact": "20261119T091624Z-b643862f-b78698",
+ "endpoints": {
+  "gpu-resize-100k": {
+   "id": "gpu-resize-100k",
+   "pilotRunId": "20261121T071605Z-resize-1x100000-axylo-canvas-vs-axylo-svg-5117",
+   "frozen": {
+    "swi": 46.8248,
+    "tol": 23.4124,
+    "slowerMedian": 468.248,
+    "frozenAt": "2026-11-21T07:17:50.150Z",
+    "pilotRunId": "20261121T071605Z-resize-1x100000-axylo-canvas-vs-axylo-svg-5117"
+   },
+   "order": {
+    "AB": 48.45100000000008,
+    "BA": 44.41499999999991,
+    "gap": 4.036000000000172,
+    "edge": null
+   },
+   "isolate": "unknown: no calibrated control yet",
+   "ok": true
+  },
+  "gpu-resize-24": {
+   "id": "gpu-resize-24",
+   "pilotRunId": "20261121T071750Z-resize-3x120-x24-axylo-canvas-vs-axylo-svg-239a",
+   "frozen": {
+    "swi": 229.4636,
+    "tol": 114.7318,
+    "slowerMedian": 2294.636,
+    "frozenAt": "2026-11-21T07:19:39.915Z",
+    "pilotRunId": "20261121T071750Z-resize-3x120-x24-axylo-canvas-vs-axylo-svg-239a"
+   },
+   "order": {
+    "AB": 191.4369999999999,
+    "BA": 220.63400000000001,
+    "gap": 29.197000000000116,
+    "edge": null
+   },
+   "isolate": "unknown: no calibrated control yet",
+   "ok": true
+  },
+  "gpu-dpr2-P1": {
+   "id": "gpu-dpr2-P1",
+   "pilotRunId": "20261121T071939Z-first-trend-dpr2-axylo-canvas-vs-axylo-svg-9afc",
+   "order": {
+    "AB": 3.100000000000005,
+    "BA": -0.14100000000000534,
+    "gap": 3.2410000000000103,
+    "edge": null
+   },
+   "isolate": "unknown: no calibrated control yet",
+   "ok": true
+  },
+  "gpu-dpr2-P2-100k": {
+   "id": "gpu-dpr2-P2-100k",
+   "pilotRunId": "20261121T072021Z-first-1x100000-dpr2-axylo-canvas-vs-axylo-svg-2bfe",
+   "order": {
+    "AB": -2.7469999999999857,
+    "BA": 1.8320000000000078,
+    "gap": 4.5789999999999935,
+    "edge": null
+   },
+   "isolate": "unknown: no calibrated control yet",
+   "ok": true
+  },
+  "gpu-dpr2-P5": {
+   "id": "gpu-dpr2-P5",
+   "pilotRunId": "20261121T072105Z-page-trend-x24-dpr2-axylo-canvas-vs-axylo-svg-0dc6",
+   "order": {
+    "AB": 6.02300000000001,
+    "BA": 6.199000000000012,
+    "gap": 0.17600000000000193,
+    "edge": null
+   },
+   "isolate": "unknown: no calibrated control yet",
+   "ok": true
+  },
+  "gpu-dpr2-P5-renderer-memory": {
+   "id": "gpu-dpr2-P5-renderer-memory",
+   "pilotRunId": "20261121T072105Z-page-trend-x24-dpr2-axylo-canvas-vs-axylo-svg-0dc6",
+   "frozen": {
+    "swi": 2374553.6,
+    "tol": 1187276.8,
+    "slowerMedian": 23745536,
+    "frozenAt": "2026-11-21T07:21:49.667Z",
+    "pilotRunId": "20261121T072105Z-page-trend-x24-dpr2-axylo-canvas-vs-axylo-svg-0dc6"
+   },
+   "order": {
+    "AB": 1130496,
+    "BA": 1437696,
+    "gap": 307200,
+    "edge": null
+   },
+   "isolate": "unknown: no calibrated control yet",
+   "ok": true
+  },
+  "gpu-dpr2-P5-gpu-memory": {
+   "id": "gpu-dpr2-P5-gpu-memory",
+   "pilotRunId": "20261121T072105Z-page-trend-x24-dpr2-axylo-canvas-vs-axylo-svg-0dc6",
+   "frozen": {
+    "swi": 69068.8,
+    "tol": 34534.4,
+    "slowerMedian": 690688,
+    "frozenAt": "2026-11-21T07:21:49.923Z",
+    "pilotRunId": "20261121T072105Z-page-trend-x24-dpr2-axylo-canvas-vs-axylo-svg-0dc6"
+   },
+   "order": {
+    "AB": 673792,
+    "BA": 84992,
+    "gap": 588800,
+    "edge": null
+   },
+   "isolate": "unknown: no calibrated control yet",
+   "ok": true
+  }
+ }
+}
