@@ -1,0 +1,1478 @@
+{
+ "schema": "axylo-bench-decision/1",
+ "family": "renderer",
+ "at": "2026-11-21T14:33:50.441Z",
+ "artifact": "20261119T091624Z-b643862f-b78698",
+ "environment": "{\"host\":[\"canarit-Z690-AORUS-ELITE-DDR4\",\"13th Gen Intel(R) Core(TM) i5-13600K\",20],\"chrome\":\"158.0.8127.36\",\"headless\":true,\"raster\":\"software\",\"refreshHz\":60,\"artifact\":\"20261119T091624Z-b643862f-b78698\",\"artifactB\":\"20261119T091624Z-b643862f-b78698\",\"settleMs\":500}",
+ "level": 0.9944444444444445,
+ "canvasBytesGzip": 2269,
+ "canvasNote": "given on the command line",
+ "results": [
+  {
+   "id": "P1",
+   "blocks": [
+    {
+     "block": 0,
+     "load1": 2.8,
+     "at": "2026-11-21T06:00:45.635Z"
+    },
+    {
+     "block": 1,
+     "load1": 2.73,
+     "at": "2026-11-21T06:00:49.051Z"
+    },
+    {
+     "block": 2,
+     "load1": 3.23,
+     "at": "2026-11-21T06:00:52.536Z"
+    },
+    {
+     "block": 3,
+     "load1": 3.23,
+     "at": "2026-11-21T06:00:56.029Z"
+    },
+    {
+     "block": 4,
+     "load1": 3.13,
+     "at": "2026-11-21T06:00:59.395Z"
+    },
+    {
+     "block": 5,
+     "load1": 2.96,
+     "at": "2026-11-21T06:01:02.758Z"
+    },
+    {
+     "block": 6,
+     "load1": 2.96,
+     "at": "2026-11-21T06:01:06.212Z"
+    },
+    {
+     "block": 7,
+     "load1": 3.21,
+     "at": "2026-11-21T06:01:09.694Z"
+    },
+    {
+     "block": 8,
+     "load1": 3.35,
+     "at": "2026-11-21T06:01:13.101Z"
+    },
+    {
+     "block": 9,
+     "load1": 3.35,
+     "at": "2026-11-21T06:01:16.475Z"
+    },
+    {
+     "block": 10,
+     "load1": 3.24,
+     "at": "2026-11-21T06:01:19.817Z"
+    },
+    {
+     "block": 11,
+     "load1": 3.46,
+     "at": "2026-11-21T06:01:23.278Z"
+    },
+    {
+     "block": 12,
+     "load1": 3.46,
+     "at": "2026-11-21T06:01:26.649Z"
+    },
+    {
+     "block": 13,
+     "load1": 3.75,
+     "at": "2026-11-21T06:01:30.143Z"
+    },
+    {
+     "block": 14,
+     "load1": 5.13,
+     "at": "2026-11-21T06:01:33.603Z"
+    },
+    {
+     "block": 15,
+     "load1": 4.88,
+     "at": "2026-11-21T06:01:36.968Z"
+    },
+    {
+     "block": 16,
+     "load1": 4.88,
+     "at": "2026-11-21T06:01:40.314Z"
+    },
+    {
+     "block": 17,
+     "load1": 5.05,
+     "at": "2026-11-21T06:01:43.782Z"
+    },
+    {
+     "block": 18,
+     "load1": 5.04,
+     "at": "2026-11-21T06:01:47.368Z"
+    },
+    {
+     "block": 19,
+     "load1": 5.04,
+     "at": "2026-11-21T06:01:50.869Z"
+    }
+   ],
+   "status": "measured",
+   "runId": "20261121T060038Z-first-trend-axylo-canvas-vs-axylo-svg-d933",
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "ci": {
+    "lo": -6.258662500000009,
+    "hi": 0.6265000000000107,
+    "estimate": -2.1049999999999898,
+    "level": 0.9944444444444445
+   },
+   "thresholds": {
+    "swi": 9.906362500000014,
+    "tol": 9.906362500000014,
+    "declared": {
+     "swi": 1,
+     "tol": 0.5
+    },
+    "noiseEdge": 9.906362500000014
+   },
+   "classification": {
+    "thresholds": {
+     "swi": 9.906362500000014,
+     "tol": 9.906362500000014,
+     "declared": {
+      "swi": 1,
+      "tol": 0.5
+     },
+     "noiseEdge": 9.906362500000014
+    },
+    "label": "too noisy to gate",
+    "tooNoisy": true,
+    "bWins": false,
+    "aWins": false,
+    "bBeyondTol": false,
+    "aBeyondTol": false,
+    "equivalent": false,
+    "metric": "taskMs"
+   },
+   "medians": {
+    "A": 31.5265,
+    "B": 29.42150000000001
+   }
+  },
+  {
+   "id": "P2-100k",
+   "blocks": [
+    {
+     "block": 0,
+     "load1": 4.74,
+     "at": "2026-11-21T06:02:01.816Z"
+    },
+    {
+     "block": 1,
+     "load1": 4.84,
+     "at": "2026-11-21T06:02:05.431Z"
+    },
+    {
+     "block": 2,
+     "load1": 4.94,
+     "at": "2026-11-21T06:02:09.182Z"
+    },
+    {
+     "block": 3,
+     "load1": 5.34,
+     "at": "2026-11-21T06:02:12.758Z"
+    },
+    {
+     "block": 4,
+     "load1": 5.34,
+     "at": "2026-11-21T06:02:16.449Z"
+    },
+    {
+     "block": 5,
+     "load1": 5.64,
+     "at": "2026-11-21T06:02:20.114Z"
+    },
+    {
+     "block": 6,
+     "load1": 5.82,
+     "at": "2026-11-21T06:02:23.732Z"
+    },
+    {
+     "block": 7,
+     "load1": 5.6,
+     "at": "2026-11-21T06:02:27.447Z"
+    },
+    {
+     "block": 8,
+     "load1": 5.6,
+     "at": "2026-11-21T06:02:31.249Z"
+    },
+    {
+     "block": 9,
+     "load1": 5.63,
+     "at": "2026-11-21T06:02:34.897Z"
+    },
+    {
+     "block": 10,
+     "load1": 6.86,
+     "at": "2026-11-21T06:02:38.514Z"
+    },
+    {
+     "block": 11,
+     "load1": 6.55,
+     "at": "2026-11-21T06:02:42.128Z"
+    },
+    {
+     "block": 12,
+     "load1": 6.55,
+     "at": "2026-11-21T06:02:45.678Z"
+    },
+    {
+     "block": 13,
+     "load1": 6.51,
+     "at": "2026-11-21T06:02:49.458Z"
+    },
+    {
+     "block": 14,
+     "load1": 6.55,
+     "at": "2026-11-21T06:02:53.417Z"
+    },
+    {
+     "block": 15,
+     "load1": 7.94,
+     "at": "2026-11-21T06:02:57.433Z"
+    },
+    {
+     "block": 16,
+     "load1": 7.94,
+     "at": "2026-11-21T06:03:01.027Z"
+    },
+    {
+     "block": 17,
+     "load1": 7.87,
+     "at": "2026-11-21T06:03:04.536Z"
+    },
+    {
+     "block": 18,
+     "load1": 9,
+     "at": "2026-11-21T06:03:08.227Z"
+    },
+    {
+     "block": 19,
+     "load1": 9.08,
+     "at": "2026-11-21T06:03:11.995Z"
+    }
+   ],
+   "status": "measured",
+   "runId": "20261121T060154Z-first-1x100000-axylo-canvas-vs-axylo-svg-96bf",
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "ci": {
+    "lo": -22.23873750000002,
+    "hi": 7.2290375000000155,
+    "estimate": -5.0565,
+    "level": 0.9944444444444445
+   },
+   "thresholds": {
+    "swi": 21.470062500000065,
+    "tol": 21.470062500000065,
+    "declared": {
+     "swi": 6,
+     "tol": 3
+    },
+    "noiseEdge": 21.470062500000065
+   },
+   "classification": {
+    "thresholds": {
+     "swi": 21.470062500000065,
+     "tol": 21.470062500000065,
+     "declared": {
+      "swi": 6,
+      "tol": 3
+     },
+     "noiseEdge": 21.470062500000065
+    },
+    "label": "too noisy to gate",
+    "tooNoisy": true,
+    "bWins": false,
+    "aWins": false,
+    "bBeyondTol": false,
+    "aBeyondTol": false,
+    "equivalent": false,
+    "metric": "taskMs"
+   },
+   "medians": {
+    "A": 48.957499999999996,
+    "B": 43.900999999999996
+   }
+  },
+  {
+   "id": "P3-task",
+   "blocks": [
+    {
+     "block": 0,
+     "load1": 7.13,
+     "at": "2026-11-21T06:03:43.529Z"
+    },
+    {
+     "block": 1,
+     "load1": 7.64,
+     "at": "2026-11-21T06:03:57.022Z"
+    },
+    {
+     "block": 2,
+     "load1": 7.07,
+     "at": "2026-11-21T06:04:10.555Z"
+    },
+    {
+     "block": 3,
+     "load1": 7.83,
+     "at": "2026-11-21T06:04:24.109Z"
+    },
+    {
+     "block": 4,
+     "load1": 6.39,
+     "at": "2026-11-21T06:04:37.578Z"
+    },
+    {
+     "block": 5,
+     "load1": 8.8,
+     "at": "2026-11-21T06:04:51.227Z"
+    },
+    {
+     "block": 6,
+     "load1": 7.07,
+     "at": "2026-11-21T06:05:04.699Z"
+    },
+    {
+     "block": 7,
+     "load1": 6.29,
+     "at": "2026-11-21T06:05:18.228Z"
+    },
+    {
+     "block": 8,
+     "load1": 5.63,
+     "at": "2026-11-21T06:05:31.710Z"
+    },
+    {
+     "block": 9,
+     "load1": 5.21,
+     "at": "2026-11-21T06:05:45.241Z"
+    },
+    {
+     "block": 10,
+     "load1": 4.5,
+     "at": "2026-11-21T06:05:58.678Z"
+    },
+    {
+     "block": 11,
+     "load1": 4.16,
+     "at": "2026-11-21T06:06:12.147Z"
+    },
+    {
+     "block": 12,
+     "load1": 4.07,
+     "at": "2026-11-21T06:06:25.646Z"
+    },
+    {
+     "block": 13,
+     "load1": 3.97,
+     "at": "2026-11-21T06:06:39.143Z"
+    },
+    {
+     "block": 14,
+     "load1": 3.59,
+     "at": "2026-11-21T06:06:52.710Z"
+    },
+    {
+     "block": 15,
+     "load1": 3.27,
+     "at": "2026-11-21T06:07:06.178Z"
+    },
+    {
+     "block": 16,
+     "load1": 4.54,
+     "at": "2026-11-21T06:07:19.691Z"
+    },
+    {
+     "block": 17,
+     "load1": 5.48,
+     "at": "2026-11-21T06:07:33.292Z"
+    },
+    {
+     "block": 18,
+     "load1": 5.59,
+     "at": "2026-11-21T06:07:46.875Z"
+    },
+    {
+     "block": 19,
+     "load1": 5.41,
+     "at": "2026-11-21T06:08:00.429Z"
+    }
+   ],
+   "status": "measured",
+   "runId": "20261121T060316Z-stream-w600-axylo-canvas-vs-axylo-svg-2dc2",
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "ci": {
+    "lo": -1.5787628750000002,
+    "hi": -0.06563833333333324,
+    "estimate": -0.7325483333333338,
+    "level": 0.9944444444444445
+   },
+   "thresholds": {
+    "swi": 0.8977533333333327,
+    "tol": 0.8977533333333327,
+    "declared": {
+     "swi": 0.2,
+     "tol": 0.1
+    },
+    "noiseEdge": 0.8977533333333327
+   },
+   "classification": {
+    "thresholds": {
+     "swi": 0.8977533333333327,
+     "tol": 0.8977533333333327,
+     "declared": {
+      "swi": 0.2,
+      "tol": 0.1
+     },
+     "noiseEdge": 0.8977533333333327
+    },
+    "label": "too noisy to gate",
+    "tooNoisy": true,
+    "bWins": false,
+    "aWins": false,
+    "bBeyondTol": false,
+    "aBeyondTol": false,
+    "equivalent": false,
+    "metric": "taskMsPerUpdate"
+   },
+   "medians": {
+    "A": 2.550456666666667,
+    "B": 1.817908333333333
+   }
+  },
+  {
+   "id": "P3-late",
+   "blocks": [
+    {
+     "block": 0,
+     "load1": 7.13,
+     "at": "2026-11-21T06:03:43.529Z"
+    },
+    {
+     "block": 1,
+     "load1": 7.64,
+     "at": "2026-11-21T06:03:57.022Z"
+    },
+    {
+     "block": 2,
+     "load1": 7.07,
+     "at": "2026-11-21T06:04:10.555Z"
+    },
+    {
+     "block": 3,
+     "load1": 7.83,
+     "at": "2026-11-21T06:04:24.109Z"
+    },
+    {
+     "block": 4,
+     "load1": 6.39,
+     "at": "2026-11-21T06:04:37.578Z"
+    },
+    {
+     "block": 5,
+     "load1": 8.8,
+     "at": "2026-11-21T06:04:51.227Z"
+    },
+    {
+     "block": 6,
+     "load1": 7.07,
+     "at": "2026-11-21T06:05:04.699Z"
+    },
+    {
+     "block": 7,
+     "load1": 6.29,
+     "at": "2026-11-21T06:05:18.228Z"
+    },
+    {
+     "block": 8,
+     "load1": 5.63,
+     "at": "2026-11-21T06:05:31.710Z"
+    },
+    {
+     "block": 9,
+     "load1": 5.21,
+     "at": "2026-11-21T06:05:45.241Z"
+    },
+    {
+     "block": 10,
+     "load1": 4.5,
+     "at": "2026-11-21T06:05:58.678Z"
+    },
+    {
+     "block": 11,
+     "load1": 4.16,
+     "at": "2026-11-21T06:06:12.147Z"
+    },
+    {
+     "block": 12,
+     "load1": 4.07,
+     "at": "2026-11-21T06:06:25.646Z"
+    },
+    {
+     "block": 13,
+     "load1": 3.97,
+     "at": "2026-11-21T06:06:39.143Z"
+    },
+    {
+     "block": 14,
+     "load1": 3.59,
+     "at": "2026-11-21T06:06:52.710Z"
+    },
+    {
+     "block": 15,
+     "load1": 3.27,
+     "at": "2026-11-21T06:07:06.178Z"
+    },
+    {
+     "block": 16,
+     "load1": 4.54,
+     "at": "2026-11-21T06:07:19.691Z"
+    },
+    {
+     "block": 17,
+     "load1": 5.48,
+     "at": "2026-11-21T06:07:33.292Z"
+    },
+    {
+     "block": 18,
+     "load1": 5.59,
+     "at": "2026-11-21T06:07:46.875Z"
+    },
+    {
+     "block": 19,
+     "load1": 5.41,
+     "at": "2026-11-21T06:08:00.429Z"
+    }
+   ],
+   "status": "measured",
+   "runId": "20261121T060316Z-stream-w600-axylo-canvas-vs-axylo-svg-2dc2",
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "late": {
+    "A": 0,
+    "B": 0
+   },
+   "pairs": 20
+  },
+  {
+   "id": "P5",
+   "blocks": [
+    {
+     "block": 0,
+     "load1": 4.77,
+     "at": "2026-11-21T06:08:21.696Z"
+    },
+    {
+     "block": 1,
+     "load1": 4.63,
+     "at": "2026-11-21T06:08:25.245Z"
+    },
+    {
+     "block": 2,
+     "load1": 4.9,
+     "at": "2026-11-21T06:08:28.773Z"
+    },
+    {
+     "block": 3,
+     "load1": 4.67,
+     "at": "2026-11-21T06:08:32.285Z"
+    },
+    {
+     "block": 4,
+     "load1": 4.67,
+     "at": "2026-11-21T06:08:35.818Z"
+    },
+    {
+     "block": 5,
+     "load1": 4.53,
+     "at": "2026-11-21T06:08:39.356Z"
+    },
+    {
+     "block": 6,
+     "load1": 4.73,
+     "at": "2026-11-21T06:08:43.072Z"
+    },
+    {
+     "block": 7,
+     "load1": 4.73,
+     "at": "2026-11-21T06:08:46.671Z"
+    },
+    {
+     "block": 8,
+     "load1": 5.71,
+     "at": "2026-11-21T06:08:50.313Z"
+    },
+    {
+     "block": 9,
+     "load1": 5.98,
+     "at": "2026-11-21T06:08:54.006Z"
+    },
+    {
+     "block": 10,
+     "load1": 5.98,
+     "at": "2026-11-21T06:08:57.553Z"
+    },
+    {
+     "block": 11,
+     "load1": 5.98,
+     "at": "2026-11-21T06:09:01.036Z"
+    },
+    {
+     "block": 12,
+     "load1": 5.82,
+     "at": "2026-11-21T06:09:04.569Z"
+    },
+    {
+     "block": 13,
+     "load1": 5.75,
+     "at": "2026-11-21T06:09:08.088Z"
+    },
+    {
+     "block": 14,
+     "load1": 5.75,
+     "at": "2026-11-21T06:09:11.610Z"
+    },
+    {
+     "block": 15,
+     "load1": 5.53,
+     "at": "2026-11-21T06:09:15.349Z"
+    },
+    {
+     "block": 16,
+     "load1": 5.65,
+     "at": "2026-11-21T06:09:19.058Z"
+    },
+    {
+     "block": 17,
+     "load1": 7.04,
+     "at": "2026-11-21T06:09:22.824Z"
+    },
+    {
+     "block": 18,
+     "load1": 7.04,
+     "at": "2026-11-21T06:09:26.398Z"
+    },
+    {
+     "block": 19,
+     "load1": 6.72,
+     "at": "2026-11-21T06:09:29.931Z"
+    }
+   ],
+   "status": "measured",
+   "runId": "20261121T060814Z-page-trend-x24-axylo-canvas-vs-axylo-svg-d9d4",
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "ci": {
+    "lo": -25.00463750000001,
+    "hi": 10.313000000000017,
+    "estimate": -10.630999999999986,
+    "level": 0.9944444444444445
+   },
+   "thresholds": {
+    "swi": 56.7225,
+    "tol": 56.7225,
+    "declared": {
+     "swi": 20,
+     "tol": 10
+    },
+    "noiseEdge": 56.7225
+   },
+   "classification": {
+    "thresholds": {
+     "swi": 56.7225,
+     "tol": 56.7225,
+     "declared": {
+      "swi": 20,
+      "tol": 10
+     },
+     "noiseEdge": 56.7225
+    },
+    "label": "too noisy to gate",
+    "tooNoisy": true,
+    "bWins": false,
+    "aWins": false,
+    "bBeyondTol": false,
+    "aBeyondTol": false,
+    "equivalent": false,
+    "metric": "taskMs"
+   },
+   "medians": {
+    "A": 108.24799999999999,
+    "B": 97.617
+   }
+  },
+  {
+   "id": "P8",
+   "blocks": [
+    {
+     "block": 0,
+     "load1": 5.99,
+     "at": "2026-11-21T06:09:40.853Z"
+    },
+    {
+     "block": 1,
+     "load1": 6.07,
+     "at": "2026-11-21T06:09:44.426Z"
+    },
+    {
+     "block": 2,
+     "load1": 5.75,
+     "at": "2026-11-21T06:09:48.048Z"
+    },
+    {
+     "block": 3,
+     "load1": 5.75,
+     "at": "2026-11-21T06:09:51.780Z"
+    },
+    {
+     "block": 4,
+     "load1": 5.77,
+     "at": "2026-11-21T06:09:55.356Z"
+    },
+    {
+     "block": 5,
+     "load1": 5.79,
+     "at": "2026-11-21T06:09:58.912Z"
+    },
+    {
+     "block": 6,
+     "load1": 5.48,
+     "at": "2026-11-21T06:10:02.494Z"
+    },
+    {
+     "block": 7,
+     "load1": 5.48,
+     "at": "2026-11-21T06:10:05.962Z"
+    },
+    {
+     "block": 8,
+     "load1": 5.12,
+     "at": "2026-11-21T06:10:09.452Z"
+    },
+    {
+     "block": 9,
+     "load1": 4.95,
+     "at": "2026-11-21T06:10:12.958Z"
+    },
+    {
+     "block": 10,
+     "load1": 4.95,
+     "at": "2026-11-21T06:10:16.442Z"
+    },
+    {
+     "block": 11,
+     "load1": 4.8,
+     "at": "2026-11-21T06:10:19.897Z"
+    },
+    {
+     "block": 12,
+     "load1": 4.89,
+     "at": "2026-11-21T06:10:23.530Z"
+    },
+    {
+     "block": 13,
+     "load1": 5.14,
+     "at": "2026-11-21T06:10:27.342Z"
+    },
+    {
+     "block": 14,
+     "load1": 5.14,
+     "at": "2026-11-21T06:10:31.355Z"
+    },
+    {
+     "block": 15,
+     "load1": 6.41,
+     "at": "2026-11-21T06:10:34.986Z"
+    },
+    {
+     "block": 16,
+     "load1": 6.14,
+     "at": "2026-11-21T06:10:38.445Z"
+    },
+    {
+     "block": 17,
+     "load1": 6.14,
+     "at": "2026-11-21T06:10:41.930Z"
+    },
+    {
+     "block": 18,
+     "load1": 5.73,
+     "at": "2026-11-21T06:10:45.419Z"
+    },
+    {
+     "block": 19,
+     "load1": 5.43,
+     "at": "2026-11-21T06:10:48.896Z"
+    }
+   ],
+   "status": "measured",
+   "runId": "20261121T060933Z-compact-trend-x40-axylo-canvas-vs-axylo-svg-fb53",
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "ci": {
+    "lo": -26.269999999999982,
+    "hi": 5.78435,
+    "estimate": -8.343999999999994,
+    "level": 0.9944444444444445
+   },
+   "thresholds": {
+    "swi": 65.107,
+    "tol": 65.107,
+    "declared": {
+     "swi": 8,
+     "tol": 4
+    },
+    "noiseEdge": 65.107
+   },
+   "classification": {
+    "thresholds": {
+     "swi": 65.107,
+     "tol": 65.107,
+     "declared": {
+      "swi": 8,
+      "tol": 4
+     },
+     "noiseEdge": 65.107
+    },
+    "label": "too noisy to gate",
+    "tooNoisy": true,
+    "bWins": false,
+    "aWins": false,
+    "bBeyondTol": false,
+    "aBeyondTol": false,
+    "equivalent": false,
+    "metric": "taskMs"
+   },
+   "medians": {
+    "A": 89.78649999999999,
+    "B": 81.4425
+   }
+  },
+  {
+   "id": "scatter-50k",
+   "blocks": [
+    {
+     "block": 0,
+     "load1": 5.22,
+     "at": "2026-11-21T06:11:00.886Z"
+    },
+    {
+     "block": 1,
+     "load1": 5.76,
+     "at": "2026-11-21T06:11:04.534Z"
+    },
+    {
+     "block": 2,
+     "load1": 5.78,
+     "at": "2026-11-21T06:11:08.158Z"
+    },
+    {
+     "block": 3,
+     "load1": 5.78,
+     "at": "2026-11-21T06:11:11.755Z"
+    },
+    {
+     "block": 4,
+     "load1": 5.56,
+     "at": "2026-11-21T06:11:15.317Z"
+    },
+    {
+     "block": 5,
+     "load1": 5.43,
+     "at": "2026-11-21T06:11:18.874Z"
+    },
+    {
+     "block": 6,
+     "load1": 5.16,
+     "at": "2026-11-21T06:11:22.464Z"
+    },
+    {
+     "block": 7,
+     "load1": 5.16,
+     "at": "2026-11-21T06:11:26.039Z"
+    },
+    {
+     "block": 8,
+     "load1": 4.83,
+     "at": "2026-11-21T06:11:29.606Z"
+    },
+    {
+     "block": 9,
+     "load1": 4.92,
+     "at": "2026-11-21T06:11:33.182Z"
+    },
+    {
+     "block": 10,
+     "load1": 4.92,
+     "at": "2026-11-21T06:11:36.758Z"
+    },
+    {
+     "block": 11,
+     "load1": 4.77,
+     "at": "2026-11-21T06:11:40.359Z"
+    },
+    {
+     "block": 12,
+     "load1": 4.79,
+     "at": "2026-11-21T06:11:43.987Z"
+    },
+    {
+     "block": 13,
+     "load1": 4.64,
+     "at": "2026-11-21T06:11:47.590Z"
+    },
+    {
+     "block": 14,
+     "load1": 4.64,
+     "at": "2026-11-21T06:11:51.193Z"
+    },
+    {
+     "block": 15,
+     "load1": 4.43,
+     "at": "2026-11-21T06:11:54.779Z"
+    },
+    {
+     "block": 16,
+     "load1": 4.32,
+     "at": "2026-11-21T06:11:58.365Z"
+    },
+    {
+     "block": 17,
+     "load1": 4.32,
+     "at": "2026-11-21T06:12:01.985Z"
+    },
+    {
+     "block": 18,
+     "load1": 4.45,
+     "at": "2026-11-21T06:12:05.592Z"
+    },
+    {
+     "block": 19,
+     "load1": 4.25,
+     "at": "2026-11-21T06:12:09.187Z"
+    }
+   ],
+   "status": "measured",
+   "runId": "20261121T061052Z-scatter-1x50000-axylo-canvas-vs-axylo-svg-bf55",
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "ci": {
+    "lo": -58.749999999999986,
+    "hi": -45.499999999999986,
+    "estimate": -52.8,
+    "level": 0.9944444444444445
+   },
+   "thresholds": {
+    "swi": 34.94999999999999,
+    "tol": 34.94999999999999,
+    "declared": {
+     "swi": 16.195,
+     "tol": 8.0975
+    },
+    "noiseEdge": 34.94999999999999
+   },
+   "classification": {
+    "thresholds": {
+     "swi": 34.94999999999999,
+     "tol": 34.94999999999999,
+     "declared": {
+      "swi": 16.195,
+      "tol": 8.0975
+     },
+     "noiseEdge": 34.94999999999999
+    },
+    "label": "too noisy to gate",
+    "tooNoisy": true,
+    "bWins": false,
+    "aWins": false,
+    "bBeyondTol": false,
+    "aBeyondTol": false,
+    "equivalent": false,
+    "metric": "readyFrameMs"
+   },
+   "medians": {
+    "A": 163.5,
+    "B": 110.7
+   }
+  },
+  {
+   "id": "line-10x100k",
+   "blocks": [
+    {
+     "block": 0,
+     "load1": 3.99,
+     "at": "2026-11-21T06:12:21.449Z"
+    },
+    {
+     "block": 1,
+     "load1": 3.83,
+     "at": "2026-11-21T06:12:25.520Z"
+    },
+    {
+     "block": 2,
+     "load1": 3.92,
+     "at": "2026-11-21T06:12:29.707Z"
+    },
+    {
+     "block": 3,
+     "load1": 4.01,
+     "at": "2026-11-21T06:12:33.793Z"
+    },
+    {
+     "block": 4,
+     "load1": 3.85,
+     "at": "2026-11-21T06:12:37.923Z"
+    },
+    {
+     "block": 5,
+     "load1": 3.85,
+     "at": "2026-11-21T06:12:41.987Z"
+    },
+    {
+     "block": 6,
+     "load1": 3.86,
+     "at": "2026-11-21T06:12:45.992Z"
+    },
+    {
+     "block": 7,
+     "load1": 3.63,
+     "at": "2026-11-21T06:12:50.046Z"
+    },
+    {
+     "block": 8,
+     "load1": 3.5,
+     "at": "2026-11-21T06:12:54.053Z"
+    },
+    {
+     "block": 9,
+     "load1": 3.3,
+     "at": "2026-11-21T06:12:58.119Z"
+    },
+    {
+     "block": 10,
+     "load1": 3.36,
+     "at": "2026-11-21T06:13:02.228Z"
+    },
+    {
+     "block": 11,
+     "load1": 3.36,
+     "at": "2026-11-21T06:13:06.332Z"
+    },
+    {
+     "block": 12,
+     "load1": 3.17,
+     "at": "2026-11-21T06:13:10.384Z"
+    },
+    {
+     "block": 13,
+     "load1": 2.99,
+     "at": "2026-11-21T06:13:14.623Z"
+    },
+    {
+     "block": 14,
+     "load1": 2.91,
+     "at": "2026-11-21T06:13:18.774Z"
+    },
+    {
+     "block": 15,
+     "load1": 2.84,
+     "at": "2026-11-21T06:13:22.917Z"
+    },
+    {
+     "block": 16,
+     "load1": 2.84,
+     "at": "2026-11-21T06:13:27.033Z"
+    },
+    {
+     "block": 17,
+     "load1": 2.93,
+     "at": "2026-11-21T06:13:31.186Z"
+    },
+    {
+     "block": 18,
+     "load1": 2.78,
+     "at": "2026-11-21T06:13:35.321Z"
+    },
+    {
+     "block": 19,
+     "load1": 2.64,
+     "at": "2026-11-21T06:13:39.446Z"
+    }
+   ],
+   "status": "measured",
+   "runId": "20261121T061212Z-first-10x100000-axylo-canvas-vs-axylo-svg-48c7",
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "ci": {
+    "lo": -25.159999999999982,
+    "hi": -13.341837499999993,
+    "estimate": -21.224499999999992,
+    "level": 0.9944444444444445
+   },
+   "thresholds": {
+    "swi": 24.453962500000056,
+    "tol": 24.453962500000056,
+    "declared": {
+     "swi": 10.495750000000001,
+     "tol": 5.2478750000000005
+    },
+    "noiseEdge": 24.453962500000056
+   },
+   "classification": {
+    "thresholds": {
+     "swi": 24.453962500000056,
+     "tol": 24.453962500000056,
+     "declared": {
+      "swi": 10.495750000000001,
+      "tol": 5.2478750000000005
+     },
+     "noiseEdge": 24.453962500000056
+    },
+    "label": "too noisy to gate",
+    "tooNoisy": true,
+    "bWins": false,
+    "aWins": false,
+    "bBeyondTol": false,
+    "aBeyondTol": false,
+    "equivalent": false,
+    "metric": "taskMs"
+   },
+   "medians": {
+    "A": 97.40599999999999,
+    "B": 76.1815
+   }
+  },
+  {
+   "id": "zoom-100k",
+   "blocks": [
+    {
+     "block": 0,
+     "load1": 2.26,
+     "at": "2026-11-21T06:13:59.052Z"
+    },
+    {
+     "block": 1,
+     "load1": 2.16,
+     "at": "2026-11-21T06:14:06.540Z"
+    },
+    {
+     "block": 2,
+     "load1": 2.06,
+     "at": "2026-11-21T06:14:13.971Z"
+    },
+    {
+     "block": 3,
+     "load1": 1.89,
+     "at": "2026-11-21T06:14:21.421Z"
+    },
+    {
+     "block": 4,
+     "load1": 1.75,
+     "at": "2026-11-21T06:14:28.896Z"
+    },
+    {
+     "block": 5,
+     "load1": 1.61,
+     "at": "2026-11-21T06:14:36.377Z"
+    },
+    {
+     "block": 6,
+     "load1": 1.52,
+     "at": "2026-11-21T06:14:43.839Z"
+    },
+    {
+     "block": 7,
+     "load1": 1.4,
+     "at": "2026-11-21T06:14:51.310Z"
+    },
+    {
+     "block": 8,
+     "load1": 1.35,
+     "at": "2026-11-21T06:14:58.724Z"
+    },
+    {
+     "block": 9,
+     "load1": 1.24,
+     "at": "2026-11-21T06:15:06.158Z"
+    },
+    {
+     "block": 10,
+     "load1": 1.52,
+     "at": "2026-11-21T06:15:13.587Z"
+    },
+    {
+     "block": 11,
+     "load1": 1.4,
+     "at": "2026-11-21T06:15:21.039Z"
+    },
+    {
+     "block": 12,
+     "load1": 1.26,
+     "at": "2026-11-21T06:15:28.458Z"
+    },
+    {
+     "block": 13,
+     "load1": 1.16,
+     "at": "2026-11-21T06:15:35.897Z"
+    },
+    {
+     "block": 14,
+     "load1": 1.21,
+     "at": "2026-11-21T06:15:43.390Z"
+    },
+    {
+     "block": 15,
+     "load1": 1.28,
+     "at": "2026-11-21T06:15:50.908Z"
+    },
+    {
+     "block": 16,
+     "load1": 1.39,
+     "at": "2026-11-21T06:15:58.344Z"
+    },
+    {
+     "block": 17,
+     "load1": 1.6,
+     "at": "2026-11-21T06:16:05.789Z"
+    },
+    {
+     "block": 18,
+     "load1": 1.82,
+     "at": "2026-11-21T06:16:13.221Z"
+    },
+    {
+     "block": 19,
+     "load1": 1.75,
+     "at": "2026-11-21T06:16:20.644Z"
+    }
+   ],
+   "status": "measured",
+   "runId": "20261121T061343Z-zoom-1x100000-axylo-canvas-vs-axylo-svg-7da9",
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "ci": {
+    "lo": -2.548866666666667,
+    "hi": -2.3056750000000004,
+    "estimate": -2.454025,
+    "level": 0.9944444444444445
+   },
+   "thresholds": {
+    "swi": 1.9883970833333338,
+    "tol": 1.9883970833333338,
+    "declared": {
+     "swi": 0.6340516666666667,
+     "tol": 0.31702583333333334
+    },
+    "noiseEdge": 1.9883970833333338
+   },
+   "classification": {
+    "thresholds": {
+     "swi": 1.9883970833333338,
+     "tol": 1.9883970833333338,
+     "declared": {
+      "swi": 0.6340516666666667,
+      "tol": 0.31702583333333334
+     },
+     "noiseEdge": 1.9883970833333338
+    },
+    "label": "too noisy to gate",
+    "tooNoisy": true,
+    "bWins": false,
+    "aWins": false,
+    "bBeyondTol": false,
+    "aBeyondTol": false,
+    "equivalent": false,
+    "metric": "taskMsPerStep"
+   },
+   "medians": {
+    "A": 5.6618916666666665,
+    "B": 3.2078666666666664
+   }
+  }
+ ],
+ "decision": {
+  "perEndpoint": {
+   "P1": {
+    "A": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": -6.258662500000009
+    },
+    "B": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": -0.6265000000000107
+    },
+    "tooNoisy": true,
+    "inconclusive": false
+   },
+   "P2-100k": {
+    "A": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": -22.23873750000002
+    },
+    "B": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": -7.2290375000000155
+    },
+    "tooNoisy": true,
+    "inconclusive": false
+   },
+   "P3-task": {
+    "A": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": -1.5787628750000002
+    },
+    "B": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": 0.06563833333333324
+    },
+    "tooNoisy": true,
+    "inconclusive": false
+   },
+   "P3-late": {
+    "A": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false
+    },
+    "B": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false
+    }
+   },
+   "P5": {
+    "A": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": -25.00463750000001
+    },
+    "B": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": -10.313000000000017
+    },
+    "tooNoisy": true,
+    "inconclusive": false
+   },
+   "P8": {
+    "A": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": -26.269999999999982
+    },
+    "B": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": -5.78435
+    },
+    "tooNoisy": true,
+    "inconclusive": false
+   },
+   "scatter-50k": {
+    "A": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": -58.749999999999986
+    },
+    "B": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": 45.499999999999986
+    },
+    "tooNoisy": true,
+    "inconclusive": false
+   },
+   "line-10x100k": {
+    "A": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": -25.159999999999982
+    },
+    "B": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": 13.341837499999993
+    },
+    "tooNoisy": true,
+    "inconclusive": false
+   },
+   "zoom-100k": {
+    "A": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": -2.548866666666667
+    },
+    "B": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": 2.3056750000000004
+    },
+    "tooNoisy": true,
+    "inconclusive": false
+   }
+  },
+  "missing": [],
+  "family": "renderer",
+  "kind": "renderer",
+  "default": "svg",
+  "rule": "rule 3: nothing separates the renderers; SVG stays",
+  "wins": {
+   "A": [],
+   "B": []
+  },
+  "regress": {
+   "A": [],
+   "B": []
+  },
+  "canvas": "removed from the 1.0 bundle: it costs 2269 B gzipped, more than 512"
+ }
+}

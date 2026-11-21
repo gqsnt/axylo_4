@@ -1,0 +1,178 @@
+library sources unchanged since b643862
+=== decide renderer 2026-11-21T14:33:36Z
+decision (rule 3: nothing separates the renderers; SVG stays): svg; canvas removed from the 1.0 bundle: it costs 2269 B gzipped, more than 512
+  P1            measured: too noisy to gate [-6.259, 0.627]
+  P2-100k       measured: too noisy to gate [-22.239, 7.229]
+  P3-task       measured: too noisy to gate [-1.579, -0.066]
+  P3-late       measured: late runs canvas 0, svg 0
+  P5            measured: too noisy to gate [-25.005, 10.313]
+  P8            measured: too noisy to gate [-26.270, 5.784]
+  scatter-50k   measured: too noisy to gate [-58.750, -45.500]
+  line-10x100k  measured: too noisy to gate [-25.160, -13.342]
+  zoom-100k     measured: too noisy to gate [-2.549, -2.306]
+written bench/decision/no-idle-2026-11-21/decision-renderer-20261121T143350Z.json
+exit 0 decide renderer
+=== decide gpu 2026-11-21T14:33:50Z
+decision (no decision yet): NO DECISION YET
+  gpu-resize-100k measured: worse beyond tolerance, not by the worthwhile margin [43.200, 58.491]
+  gpu-resize-100k-late measured: late runs canvas 0, svg 0
+  gpu-resize-24 measured: worse beyond tolerance, not by the worthwhile margin [194.225, 225.294]
+  gpu-dpr2-P1   measured: too noisy to gate [-2.721, 1.715]
+  gpu-dpr2-P2-100k measured: too noisy to gate [0.143, 1.734]
+  gpu-dpr2-P5   measured: no worthwhile difference [4.390, 8.817]
+  gpu-dpr2-P5-renderer-memory measured: no worthwhile difference [1123328.000, 1331712.000]
+  gpu-dpr2-P5-gpu-memory carry-over (AB estimate 558592, BA estimate 798720: they differ by 240128, more than the noise edge 138240; rerun with a fresh browser process per run (--isolate))
+  open: gpu-dpr2-P5-gpu-memory: carry-over AB estimate 558592, BA estimate 798720: they differ by 240128, more than the noise edge 138240; rerun with a fresh browser process per run (--isolate)
+written bench/decision/no-idle-2026-11-21/decision-gpu-20261121T143402Z.json
+exit 0 decide gpu
+=== endpoint P2-1M --baseline uplot --candidate axylo 2026-11-21T14:34:02Z load 5.12 3.21 2.04
+run 20261121T143403Z-first-1x1000000-uplot-vs-axylo-efcc
+  A=uplot  B=axylo  first {"size":"1x1000000","gaps":false}  20 blocks  order seed 1851024592, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261121T143403Z-first-1x1000000-uplot-vs-axylo-efcc.json
+  admission A:uplot: ok
+  admission A:axylo: ok
+  block 1: one-minute load 4.64 at its start
+  block 1/20 AB A=uplot: ok taskMs=19.575
+  block 1/20 AB B=axylo: ok taskMs=79.150
+  block 2: one-minute load 4.50 at its start
+  block 2/20 BA B=axylo: ok taskMs=80.527
+  block 2/20 BA A=uplot: ok taskMs=24.657
+  block 3: one-minute load 4.38 at its start
+  block 3/20 AB A=uplot: ok taskMs=21.410
+  block 3/20 AB B=axylo: ok taskMs=81.263
+  block 4: one-minute load 4.38 at its start
+  block 4/20 AB A=uplot: ok taskMs=20.873
+  block 4/20 AB B=axylo: ok taskMs=81.241
+  block 5: one-minute load 4.11 at its start
+  block 5/20 AB A=uplot: ok taskMs=22.311
+  block 5/20 AB B=axylo: ok taskMs=82.164
+  block 6: one-minute load 3.94 at its start
+  block 6/20 AB A=uplot: ok taskMs=18.412
+  block 6/20 AB B=axylo: ok taskMs=85.611
+  block 7: one-minute load 3.79 at its start
+  block 7/20 AB A=uplot: ok taskMs=20.534
+  block 7/20 AB B=axylo: ok taskMs=90.268
+  block 8: one-minute load 3.64 at its start
+  block 8/20 AB A=uplot: ok taskMs=18.058
+  block 8/20 AB B=axylo: ok taskMs=78.784
+  block 9: one-minute load 3.64 at its start
+  block 9/20 BA B=axylo: ok taskMs=81.110
+  block 9/20 BA A=uplot: ok taskMs=20.062
+  block 10: one-minute load 3.43 at its start
+  block 10/20 BA B=axylo: ok taskMs=78.970
+  block 10/20 BA A=uplot: ok taskMs=19.563
+  block 11: one-minute load 3.32 at its start
+  block 11/20 BA B=axylo: ok taskMs=84.044
+  block 11/20 BA A=uplot: ok taskMs=31.977
+  block 12: one-minute load 3.29 at its start
+  block 12/20 BA B=axylo: ok taskMs=78.819
+  block 12/20 BA A=uplot: ok taskMs=17.939
+  block 13: one-minute load 3.29 at its start
+  block 13/20 BA B=axylo: ok taskMs=86.112
+  block 13/20 BA A=uplot: ok taskMs=18.332
+  block 14: one-minute load 6.63 at its start
+  block 14/20 AB A=uplot: ok taskMs=19.265
+  block 14/20 AB B=axylo: ok taskMs=89.755
+  block 15: one-minute load 6.26 at its start
+  block 15/20 AB A=uplot: ok taskMs=25.122
+  block 15/20 AB B=axylo: ok taskMs=86.929
+  block 16: one-minute load 6.24 at its start
+  block 16/20 AB A=uplot: ok taskMs=24.122
+  block 16/20 AB B=axylo: ok taskMs=82.478
+  block 17: one-minute load 6.14 at its start
+  block 17/20 BA B=axylo: ok taskMs=83.426
+  block 17/20 BA A=uplot: ok taskMs=19.349
+  block 18: one-minute load 5.97 at its start
+  block 18/20 BA B=axylo: ok taskMs=84.385
+  block 18/20 BA A=uplot: ok taskMs=20.153
+  block 19: one-minute load 5.97 at its start
+  block 19/20 BA B=axylo: ok taskMs=79.926
+  block 19/20 BA A=uplot: ok taskMs=20.861
+  block 20: one-minute load 5.65 at its start
+  block 20/20 BA B=axylo: ok taskMs=83.156
+  block 20/20 BA A=uplot: ok taskMs=18.354
+
+20261121T143403Z-first-1x1000000-uplot-vs-axylo-efcc  [complete]  analysis: stored in the record
+comparison: A=uplot  B=axylo  workload first {"size":"1x1000000","gaps":false}
+complete pairs 20/20; run outcomes {"A:ok":20,"B:ok":20}; order seed 1851024592, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A         95% CI                    AB | BA                  B/A-1    band used            outcome     
+taskMs *               20.11      82.32      62.21       [60.35, 64.39]            61.62 | 62.32            309.4%   zero only (no band)  worse (rule)
+scriptMs               17.53      77.14      59.61       [57.59, 61.52]            59.14 | 59.49            340.1%   zero only (no band)  worse       
+layoutStyleMs          0.933      3.36       2.43        [2.23, 2.58]              2.35 | 2.48              260.3%   zero only (no band)  worse       
+readyMs                17.70      79.20      61.50       [59.55, 63.60]            61.05 | 61.40            347.5%   zero only (no band)  worse       
+readyFrameMs           18.35      80.65      62.30       [60.35, 64.40]            61.85 | 62.25            339.5%   zero only (no band)  worse       
+rendererCpuMs          30.00      120.0      90.00       [90.00, 95.00]            90.00 | 90.00            300.0%   zero only (no band)  worse       
+gpuCpuMs               0.000      0.000      0.000       [0.000, 5.00]             0.000 | 5.00             n/a      zero only (no band)  inconclusive
+heapChartBytes         228.8 KiB  890.1 KiB  661.3 KiB   [661.1 KiB, 661.7 KiB]    661.2 KiB | 661.3 KiB    289.0%   zero only (no band)  worse       
+heapUsedBytes          1.45 MiB   2.23 MiB   802.0 KiB   [801.8 KiB, 802.4 KiB]    801.9 KiB | 802.0 KiB    54.0%    zero only (no band)  worse       
+rendererPssBytes       77.91 MiB  82.84 MiB  4.93 MiB    [4.81 MiB, 5.08 MiB]      4.87 MiB | 5.03 MiB      6.3%     zero only (no band)  worse       
+rendererPssChartBytes  5.20 MiB   12.97 MiB  7.78 MiB    [7.70 MiB, 7.86 MiB]      7.77 MiB | 7.78 MiB      149.6%   zero only (no band)  worse       
+gpuPssBytes            37.98 MiB  37.90 MiB  -80.0 KiB   [-115.0 KiB, 10.0 KiB]    -58.5 KiB | -91.0 KiB    -0.2%    zero only (no band)  inconclusive
+gpuPssChartBytes       511.0 KiB  399.0 KiB  -112.0 KiB  [-115.0 KiB, -109.0 KiB]  -111.0 KiB | -115.0 KiB  -21.9%   zero only (no band)  better      
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB   [-1.13 MiB, -1.13 MiB]    -1.13 MiB | -1.13 MiB    -100.0%  zero only (no band)  better      
+domNodes               24.00      90.00      66.00       [66.00, 66.00]            66.00 | 66.00            275.0%   zero only (no band)  worse       
+(rule): not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+exit 0 P2-1M --baseline uplot --candidate axylo
+=== endpoint P4 --baseline uplot --candidate axylo 2026-11-21T14:35:30Z load 5.68 3.76 2.33
+run 20261121T143530Z-hover-1x100000-uplot-vs-axylo-8100
+  A=uplot  B=axylo  hover {"size":"1x100000","gaps":false,"moves":200}  20 blocks  order seed 969796930, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261121T143530Z-hover-1x100000-uplot-vs-axylo-8100.json
+  admission A:uplot: ok
+  admission A:axylo: ok
+  block 1: one-minute load 5.44 at its start
+  block 1/20 BA B=axylo: ok inputToReadoutP95Ms=15.700
+  block 1/20 BA A=uplot: ok inputToReadoutP95Ms=15.900
+  block 2: one-minute load 5.37 at its start
+  block 2/20 AB A=uplot: ok inputToReadoutP95Ms=15.600
+  block 2/20 AB B=axylo: ok inputToReadoutP95Ms=15.700
+  block 3: one-minute load 5.75 at its start
+  block 3/20 AB A=uplot: ok inputToReadoutP95Ms=15.900
+  block 3/20 AB B=axylo: ok inputToReadoutP95Ms=15.800
+  block 4: one-minute load 5.41 at its start
+  block 4/20 BA B=axylo: ok inputToReadoutP95Ms=15.800
+  block 4/20 BA A=uplot: ok inputToReadoutP95Ms=15.700
+  block 5: one-minute load 5.28 at its start
+  block 5/20 BA B=axylo: ok inputToReadoutP95Ms=15.700
+  block 5/20 BA A=uplot: ok inputToReadoutP95Ms=15.700
+  block 6: one-minute load 5.52 at its start
+  block 6/20 BA B=axylo: ok inputToReadoutP95Ms=15.800
+  block 6/20 BA A=uplot: ok inputToReadoutP95Ms=15.600
+  block 7: one-minute load 5.52 at its start
+  block 7/20 BA B=axylo: ok inputToReadoutP95Ms=15.800
+  block 7/20 BA A=uplot: ok inputToReadoutP95Ms=15.900
+  block 8: one-minute load 5.50 at its start
+  block 8/20 AB A=uplot: ok inputToReadoutP95Ms=15.900
+  block 8/20 AB B=axylo: ok inputToReadoutP95Ms=15.900
+  block 9: one-minute load 4.97 at its start
+  block 9/20 AB A=uplot: ok inputToReadoutP95Ms=15.900
+  block 9/20 AB B=axylo: ok inputToReadoutP95Ms=16.000
+  block 10: one-minute load 4.88 at its start
+  block 10/20 BA B=axylo: ok inputToReadoutP95Ms=15.900
+  block 10/20 BA A=uplot: ok inputToReadoutP95Ms=15.800
+  block 11: one-minute load 5.38 at its start
+  block 11/20 BA B=axylo: ok inputToReadoutP95Ms=16.100
+  block 11/20 BA A=uplot: ok inputToReadoutP95Ms=15.900
+  block 12: one-minute load 5.17 at its start
+  block 12/20 BA B=axylo: ok inputToReadoutP95Ms=16.000
+  block 12/20 BA A=uplot: ok inputToReadoutP95Ms=15.900
+  block 13: one-minute load 4.91 at its start
+  block 13/20 AB A=uplot: ok inputToReadoutP95Ms=15.900
+  block 13/20 AB B=axylo: ok inputToReadoutP95Ms=15.900
+  block 14: one-minute load 4.31 at its start
+  block 14/20 BA B=axylo: ok inputToReadoutP95Ms=16.000
+  block 14/20 BA A=uplot: ok inputToReadoutP95Ms=15.800
+  block 15: one-minute load 4.11 at its start
+  block 15/20 AB A=uplot: ok inputToReadoutP95Ms=15.800
+  block 15/20 AB B=axylo: ok inputToReadoutP95Ms=16.000
+  block 16: one-minute load 3.86 at its start
+  block 16/20 AB A=uplot: ok inputToReadoutP95Ms=15.700
+  block 16/20 AB B=axylo: ok inputToReadoutP95Ms=15.800
+  block 17: one-minute load 3.96 at its start
+  block 17/20 BA B=axylo: ok inputToReadoutP95Ms=15.900
+
+interrupted; partial record kept in /home/canarit/projects/axylo/bench/history/20261121T143530Z-hover-1x100000-uplot-vs-axylo-8100.json

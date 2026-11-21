@@ -29,6 +29,17 @@ No renderer benchmark is running. The log is `bench/results/run-2026-11-19.log`.
 | 2026-11-20 | The project is handled by Codex only from now on (`HANDOFF-CODEX.md`). |
 | 2026-11-21 | The benchmark run of 2026-11-21 (both families, artifact b643862, started without the idle wait, every block at a one-minute load above 1.0) **counts as release evidence** ("count it as release evvidence"). The plan's idle rule (`docs/04-plan-performance.md` 5.1) is set aside for this run by the owner; its numbers become the renderer and budget evidence for 1.0. See "Next steps after the 2026-11-21 run". |
 
+## Checkpoint 2026-11-21 15:40 local (owner restarting; resume later on their word)
+
+The idle-machine rule is dropped (4664bd1, the owner's decision). Done since, in `bench/results/budgets-2026-11-21.log`:
+- **Renderer, software family, decided:** rule 3, nothing separates the renderers within the noise; **SVG stays the default and canvas is removed from the 1.0 bundle** (it costs 2,269 B gzipped, more than 512 B). Decision file `bench/decision/no-idle-2026-11-21/decision-renderer-20261121T143350Z.json`. Removing canvas is a library change still to make (it frees about 2.2 KiB of size margin); update decision 0002 from provisional.
+- **Renderer, GPU family:** no decision yet (an order effect on the GPU memory endpoint; canvas faster on both resizes beyond tolerance but not by the worthwhile margin). `decision-gpu-20261121T143402Z.json`.
+- **P2 at 1,000,000 points: met.** Axylo 82.3 ms median of 20 (budget 250 ms); uPlot 20.1 ms. Record `bench/history/20261121T143403Z-first-1x1000000-uplot-vs-axylo-efcc.json`.
+- **P4: interrupted** at block 11 of 20 by the owner's restart (partial record `20261121T143530Z-hover-1x100000-uplot-vs-axylo-8100.json`, not a result; the finished blocks read about 15.9 ms for Axylo against a 16.7 ms budget).
+- **Not run yet:** P7-mem, P7-lifecycle.
+
+Next command (from the repository root): `A=bench/artifacts/20261119T091624Z-b643862f-b78698; for e in "P4 --baseline uplot --candidate axylo" "P7-mem --aa axylo" "P7-lifecycle --aa axylo"; do node bench/run.mjs --endpoint $e --artifact "$A"; done` (P7-lifecycle is the long one, probably 30 to 60 minutes). Then the P1 to P8 table in `bench/results/budgets-2026-11-21.md`.
+
 ## Next steps after the 2026-11-21 run
 
 Written by the Claude coordinator at the owner's request ("reflect on next steps"), for the Codex coordinator to carry out. Medians of 20 runs per renderer, SVG being the default; budget targets from the spec's P rows.

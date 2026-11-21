@@ -1,0 +1,1256 @@
+{
+ "schema": "axylo-bench-decision/1",
+ "family": "gpu",
+ "at": "2026-11-21T14:34:02.869Z",
+ "artifact": "20261119T091624Z-b643862f-b78698",
+ "environment": "{\"host\":[\"canarit-Z690-AORUS-ELITE-DDR4\",\"13th Gen Intel(R) Core(TM) i5-13600K\",20],\"chrome\":\"158.0.8127.36\",\"headless\":true,\"raster\":\"gpu\",\"refreshHz\":60,\"artifact\":\"20261119T091624Z-b643862f-b78698\",\"artifactB\":\"20261119T091624Z-b643862f-b78698\",\"settleMs\":500}",
+ "level": 0.99375,
+ "canvasBytesGzip": 2269,
+ "canvasNote": "given on the command line",
+ "results": [
+  {
+   "id": "gpu-resize-100k",
+   "blocks": [
+    {
+     "block": 0,
+     "load1": 2.68,
+     "at": "2026-11-21T07:22:08.493Z"
+    },
+    {
+     "block": 1,
+     "load1": 2.54,
+     "at": "2026-11-21T07:22:17.126Z"
+    },
+    {
+     "block": 2,
+     "load1": 2.45,
+     "at": "2026-11-21T07:22:25.786Z"
+    },
+    {
+     "block": 3,
+     "load1": 2.38,
+     "at": "2026-11-21T07:22:34.416Z"
+    },
+    {
+     "block": 4,
+     "load1": 2.4,
+     "at": "2026-11-21T07:22:43.076Z"
+    },
+    {
+     "block": 5,
+     "load1": 2.29,
+     "at": "2026-11-21T07:22:51.684Z"
+    },
+    {
+     "block": 6,
+     "load1": 2.17,
+     "at": "2026-11-21T07:23:00.328Z"
+    },
+    {
+     "block": 7,
+     "load1": 2.15,
+     "at": "2026-11-21T07:23:08.948Z"
+    },
+    {
+     "block": 8,
+     "load1": 2.05,
+     "at": "2026-11-21T07:23:17.613Z"
+    },
+    {
+     "block": 9,
+     "load1": 1.97,
+     "at": "2026-11-21T07:23:26.262Z"
+    },
+    {
+     "block": 10,
+     "load1": 2.06,
+     "at": "2026-11-21T07:23:34.942Z"
+    },
+    {
+     "block": 11,
+     "load1": 2.22,
+     "at": "2026-11-21T07:23:43.563Z"
+    },
+    {
+     "block": 12,
+     "load1": 2.36,
+     "at": "2026-11-21T07:23:52.233Z"
+    },
+    {
+     "block": 13,
+     "load1": 2.24,
+     "at": "2026-11-21T07:24:00.855Z"
+    },
+    {
+     "block": 14,
+     "load1": 2.13,
+     "at": "2026-11-21T07:24:09.458Z"
+    },
+    {
+     "block": 15,
+     "load1": 1.95,
+     "at": "2026-11-21T07:24:18.141Z"
+    },
+    {
+     "block": 16,
+     "load1": 1.79,
+     "at": "2026-11-21T07:24:26.794Z"
+    },
+    {
+     "block": 17,
+     "load1": 1.83,
+     "at": "2026-11-21T07:24:35.464Z"
+    },
+    {
+     "block": 18,
+     "load1": 1.94,
+     "at": "2026-11-21T07:24:44.128Z"
+    },
+    {
+     "block": 19,
+     "load1": 1.78,
+     "at": "2026-11-21T07:24:52.878Z"
+    }
+   ],
+   "status": "measured",
+   "runId": "20261121T072150Z-resize-1x100000-axylo-canvas-vs-axylo-svg-1886",
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "ci": {
+    "lo": 43.1995,
+    "hi": 58.49100000000004,
+    "estimate": 50.57549999999992,
+    "level": 0.99375
+   },
+   "thresholds": {
+    "swi": 46.8248,
+    "tol": 23.4124,
+    "declared": {
+     "swi": 46.8248,
+     "tol": 23.4124
+    },
+    "noiseEdge": 13.196500000000015
+   },
+   "classification": {
+    "thresholds": {
+     "swi": 46.8248,
+     "tol": 23.4124,
+     "declared": {
+      "swi": 46.8248,
+      "tol": 23.4124
+     },
+     "noiseEdge": 13.196500000000015
+    },
+    "label": "worse beyond tolerance, not by the worthwhile margin",
+    "bWins": false,
+    "aWins": false,
+    "bBeyondTol": true,
+    "aBeyondTol": false,
+    "equivalent": false,
+    "metric": "taskMs"
+   },
+   "medians": {
+    "A": 424.19500000000005,
+    "B": 474.77049999999997
+   }
+  },
+  {
+   "id": "gpu-resize-100k-late",
+   "blocks": [
+    {
+     "block": 0,
+     "load1": 2.68,
+     "at": "2026-11-21T07:22:08.493Z"
+    },
+    {
+     "block": 1,
+     "load1": 2.54,
+     "at": "2026-11-21T07:22:17.126Z"
+    },
+    {
+     "block": 2,
+     "load1": 2.45,
+     "at": "2026-11-21T07:22:25.786Z"
+    },
+    {
+     "block": 3,
+     "load1": 2.38,
+     "at": "2026-11-21T07:22:34.416Z"
+    },
+    {
+     "block": 4,
+     "load1": 2.4,
+     "at": "2026-11-21T07:22:43.076Z"
+    },
+    {
+     "block": 5,
+     "load1": 2.29,
+     "at": "2026-11-21T07:22:51.684Z"
+    },
+    {
+     "block": 6,
+     "load1": 2.17,
+     "at": "2026-11-21T07:23:00.328Z"
+    },
+    {
+     "block": 7,
+     "load1": 2.15,
+     "at": "2026-11-21T07:23:08.948Z"
+    },
+    {
+     "block": 8,
+     "load1": 2.05,
+     "at": "2026-11-21T07:23:17.613Z"
+    },
+    {
+     "block": 9,
+     "load1": 1.97,
+     "at": "2026-11-21T07:23:26.262Z"
+    },
+    {
+     "block": 10,
+     "load1": 2.06,
+     "at": "2026-11-21T07:23:34.942Z"
+    },
+    {
+     "block": 11,
+     "load1": 2.22,
+     "at": "2026-11-21T07:23:43.563Z"
+    },
+    {
+     "block": 12,
+     "load1": 2.36,
+     "at": "2026-11-21T07:23:52.233Z"
+    },
+    {
+     "block": 13,
+     "load1": 2.24,
+     "at": "2026-11-21T07:24:00.855Z"
+    },
+    {
+     "block": 14,
+     "load1": 2.13,
+     "at": "2026-11-21T07:24:09.458Z"
+    },
+    {
+     "block": 15,
+     "load1": 1.95,
+     "at": "2026-11-21T07:24:18.141Z"
+    },
+    {
+     "block": 16,
+     "load1": 1.79,
+     "at": "2026-11-21T07:24:26.794Z"
+    },
+    {
+     "block": 17,
+     "load1": 1.83,
+     "at": "2026-11-21T07:24:35.464Z"
+    },
+    {
+     "block": 18,
+     "load1": 1.94,
+     "at": "2026-11-21T07:24:44.128Z"
+    },
+    {
+     "block": 19,
+     "load1": 1.78,
+     "at": "2026-11-21T07:24:52.878Z"
+    }
+   ],
+   "status": "measured",
+   "runId": "20261121T072150Z-resize-1x100000-axylo-canvas-vs-axylo-svg-1886",
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "late": {
+    "A": 0,
+    "B": 0
+   },
+   "pairs": 20
+  },
+  {
+   "id": "gpu-resize-24",
+   "blocks": [
+    {
+     "block": 0,
+     "load1": 1.74,
+     "at": "2026-11-21T07:25:21.222Z"
+    },
+    {
+     "block": 1,
+     "load1": 1.95,
+     "at": "2026-11-21T07:25:30.213Z"
+    },
+    {
+     "block": 2,
+     "load1": 2.27,
+     "at": "2026-11-21T07:25:39.236Z"
+    },
+    {
+     "block": 3,
+     "load1": 2.07,
+     "at": "2026-11-21T07:25:48.296Z"
+    },
+    {
+     "block": 4,
+     "load1": 1.9,
+     "at": "2026-11-21T07:25:57.357Z"
+    },
+    {
+     "block": 5,
+     "load1": 1.84,
+     "at": "2026-11-21T07:26:06.461Z"
+    },
+    {
+     "block": 6,
+     "load1": 1.87,
+     "at": "2026-11-21T07:26:15.464Z"
+    },
+    {
+     "block": 7,
+     "load1": 1.97,
+     "at": "2026-11-21T07:26:24.465Z"
+    },
+    {
+     "block": 8,
+     "load1": 1.9,
+     "at": "2026-11-21T07:26:33.497Z"
+    },
+    {
+     "block": 9,
+     "load1": 2.15,
+     "at": "2026-11-21T07:26:42.475Z"
+    },
+    {
+     "block": 10,
+     "load1": 1.89,
+     "at": "2026-11-21T07:26:51.535Z"
+    },
+    {
+     "block": 11,
+     "load1": 1.83,
+     "at": "2026-11-21T07:27:00.578Z"
+    },
+    {
+     "block": 12,
+     "load1": 1.93,
+     "at": "2026-11-21T07:27:09.607Z"
+    },
+    {
+     "block": 13,
+     "load1": 2.01,
+     "at": "2026-11-21T07:27:18.659Z"
+    },
+    {
+     "block": 14,
+     "load1": 1.85,
+     "at": "2026-11-21T07:27:27.757Z"
+    },
+    {
+     "block": 15,
+     "load1": 1.56,
+     "at": "2026-11-21T07:27:36.793Z"
+    },
+    {
+     "block": 16,
+     "load1": 1.71,
+     "at": "2026-11-21T07:27:45.820Z"
+    },
+    {
+     "block": 17,
+     "load1": 1.91,
+     "at": "2026-11-21T07:27:54.966Z"
+    },
+    {
+     "block": 18,
+     "load1": 2.15,
+     "at": "2026-11-21T07:28:04.032Z"
+    },
+    {
+     "block": 19,
+     "load1": 1.97,
+     "at": "2026-11-21T07:28:13.061Z"
+    }
+   ],
+   "status": "measured",
+   "runId": "20261121T072501Z-resize-3x120-x24-axylo-canvas-vs-axylo-svg-bb7c",
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "ci": {
+    "lo": 194.22450000000026,
+    "hi": 225.2936421875,
+    "estimate": 207.54550000000017,
+    "level": 0.99375
+   },
+   "thresholds": {
+    "swi": 229.4636,
+    "tol": 114.7318,
+    "declared": {
+     "swi": 229.4636,
+     "tol": 114.7318
+    },
+    "noiseEdge": 26.286960937500197
+   },
+   "classification": {
+    "thresholds": {
+     "swi": 229.4636,
+     "tol": 114.7318,
+     "declared": {
+      "swi": 229.4636,
+      "tol": 114.7318
+     },
+     "noiseEdge": 26.286960937500197
+    },
+    "label": "worse beyond tolerance, not by the worthwhile margin",
+    "bWins": false,
+    "aWins": false,
+    "bBeyondTol": true,
+    "aBeyondTol": false,
+    "equivalent": false,
+    "metric": "taskMs"
+   },
+   "medians": {
+    "A": 2081.991,
+    "B": 2289.5365
+   }
+  },
+  {
+   "id": "gpu-dpr2-P1",
+   "blocks": [
+    {
+     "block": 0,
+     "load1": 1.76,
+     "at": "2026-11-21T07:28:30.103Z"
+    },
+    {
+     "block": 1,
+     "load1": 1.7,
+     "at": "2026-11-21T07:28:33.524Z"
+    },
+    {
+     "block": 2,
+     "load1": 1.7,
+     "at": "2026-11-21T07:28:36.905Z"
+    },
+    {
+     "block": 3,
+     "load1": 1.56,
+     "at": "2026-11-21T07:28:40.259Z"
+    },
+    {
+     "block": 4,
+     "load1": 1.44,
+     "at": "2026-11-21T07:28:43.665Z"
+    },
+    {
+     "block": 5,
+     "load1": 1.44,
+     "at": "2026-11-21T07:28:47.046Z"
+    },
+    {
+     "block": 6,
+     "load1": 1.56,
+     "at": "2026-11-21T07:28:50.425Z"
+    },
+    {
+     "block": 7,
+     "load1": 1.52,
+     "at": "2026-11-21T07:28:53.834Z"
+    },
+    {
+     "block": 8,
+     "load1": 1.52,
+     "at": "2026-11-21T07:28:57.199Z"
+    },
+    {
+     "block": 9,
+     "load1": 1.48,
+     "at": "2026-11-21T07:29:00.613Z"
+    },
+    {
+     "block": 10,
+     "load1": 1.44,
+     "at": "2026-11-21T07:29:03.962Z"
+    },
+    {
+     "block": 11,
+     "load1": 1.44,
+     "at": "2026-11-21T07:29:07.335Z"
+    },
+    {
+     "block": 12,
+     "load1": 1.4,
+     "at": "2026-11-21T07:29:10.715Z"
+    },
+    {
+     "block": 13,
+     "load1": 1.37,
+     "at": "2026-11-21T07:29:14.104Z"
+    },
+    {
+     "block": 14,
+     "load1": 1.37,
+     "at": "2026-11-21T07:29:17.464Z"
+    },
+    {
+     "block": 15,
+     "load1": 1.42,
+     "at": "2026-11-21T07:29:20.860Z"
+    },
+    {
+     "block": 16,
+     "load1": 1.39,
+     "at": "2026-11-21T07:29:24.251Z"
+    },
+    {
+     "block": 17,
+     "load1": 1.39,
+     "at": "2026-11-21T07:29:27.653Z"
+    },
+    {
+     "block": 18,
+     "load1": 1.36,
+     "at": "2026-11-21T07:29:31.053Z"
+    },
+    {
+     "block": 19,
+     "load1": 1.33,
+     "at": "2026-11-21T07:29:34.417Z"
+    }
+   ],
+   "status": "measured",
+   "runId": "20261121T072822Z-first-trend-dpr2-axylo-canvas-vs-axylo-svg-767d",
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "ci": {
+    "lo": -2.7205000000000013,
+    "hi": 1.7149999999999999,
+    "estimate": 0.1075000000000017,
+    "level": 0.99375
+   },
+   "thresholds": {
+    "swi": 2.9610000000000056,
+    "tol": 2.9610000000000056,
+    "declared": {
+     "swi": 1,
+     "tol": 0.5
+    },
+    "noiseEdge": 2.9610000000000056
+   },
+   "classification": {
+    "thresholds": {
+     "swi": 2.9610000000000056,
+     "tol": 2.9610000000000056,
+     "declared": {
+      "swi": 1,
+      "tol": 0.5
+     },
+     "noiseEdge": 2.9610000000000056
+    },
+    "label": "too noisy to gate",
+    "tooNoisy": true,
+    "bWins": false,
+    "aWins": false,
+    "bBeyondTol": false,
+    "aBeyondTol": false,
+    "equivalent": false,
+    "metric": "taskMs"
+   },
+   "medians": {
+    "A": 26.604,
+    "B": 26.7115
+   }
+  },
+  {
+   "id": "gpu-dpr2-P2-100k",
+   "blocks": [
+    {
+     "block": 0,
+     "load1": 1.35,
+     "at": "2026-11-21T07:29:46.288Z"
+    },
+    {
+     "block": 1,
+     "load1": 1.4,
+     "at": "2026-11-21T07:29:49.798Z"
+    },
+    {
+     "block": 2,
+     "load1": 1.37,
+     "at": "2026-11-21T07:29:53.306Z"
+    },
+    {
+     "block": 3,
+     "load1": 1.37,
+     "at": "2026-11-21T07:29:56.999Z"
+    },
+    {
+     "block": 4,
+     "load1": 1.34,
+     "at": "2026-11-21T07:30:00.474Z"
+    },
+    {
+     "block": 5,
+     "load1": 1.31,
+     "at": "2026-11-21T07:30:04.042Z"
+    },
+    {
+     "block": 6,
+     "load1": 1.31,
+     "at": "2026-11-21T07:30:07.534Z"
+    },
+    {
+     "block": 7,
+     "load1": 1.37,
+     "at": "2026-11-21T07:30:11.030Z"
+    },
+    {
+     "block": 8,
+     "load1": 1.34,
+     "at": "2026-11-21T07:30:14.555Z"
+    },
+    {
+     "block": 9,
+     "load1": 1.39,
+     "at": "2026-11-21T07:30:18.056Z"
+    },
+    {
+     "block": 10,
+     "load1": 1.39,
+     "at": "2026-11-21T07:30:21.578Z"
+    },
+    {
+     "block": 11,
+     "load1": 1.52,
+     "at": "2026-11-21T07:30:25.091Z"
+    },
+    {
+     "block": 12,
+     "load1": 1.48,
+     "at": "2026-11-21T07:30:28.626Z"
+    },
+    {
+     "block": 13,
+     "load1": 1.48,
+     "at": "2026-11-21T07:30:32.152Z"
+    },
+    {
+     "block": 14,
+     "load1": 1.44,
+     "at": "2026-11-21T07:30:35.711Z"
+    },
+    {
+     "block": 15,
+     "load1": 1.4,
+     "at": "2026-11-21T07:30:39.242Z"
+    },
+    {
+     "block": 16,
+     "load1": 1.4,
+     "at": "2026-11-21T07:30:42.789Z"
+    },
+    {
+     "block": 17,
+     "load1": 1.37,
+     "at": "2026-11-21T07:30:46.319Z"
+    },
+    {
+     "block": 18,
+     "load1": 1.42,
+     "at": "2026-11-21T07:30:49.856Z"
+    },
+    {
+     "block": 19,
+     "load1": 1.47,
+     "at": "2026-11-21T07:30:53.382Z"
+    }
+   ],
+   "status": "measured",
+   "runId": "20261121T072938Z-first-1x100000-dpr2-axylo-canvas-vs-axylo-svg-d739",
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "ci": {
+    "lo": 0.14274062499999912,
+    "hi": 1.7341296874999959,
+    "estimate": 1.1735000000000042,
+    "level": 0.99375
+   },
+   "thresholds": {
+    "swi": 6,
+    "tol": 3.7304999999999993,
+    "declared": {
+     "swi": 6,
+     "tol": 3
+    },
+    "noiseEdge": 3.7304999999999993
+   },
+   "classification": {
+    "thresholds": {
+     "swi": 6,
+     "tol": 3.7304999999999993,
+     "declared": {
+      "swi": 6,
+      "tol": 3
+     },
+     "noiseEdge": 3.7304999999999993
+    },
+    "label": "too noisy to gate",
+    "tooNoisy": true,
+    "bWins": false,
+    "aWins": false,
+    "bBeyondTol": false,
+    "aBeyondTol": false,
+    "equivalent": false,
+    "metric": "taskMs"
+   },
+   "medians": {
+    "A": 38.071,
+    "B": 39.2445
+   }
+  },
+  {
+   "id": "gpu-dpr2-P5",
+   "blocks": [
+    {
+     "block": 0,
+     "load1": 1.4,
+     "at": "2026-11-21T07:31:05.256Z"
+    },
+    {
+     "block": 1,
+     "load1": 1.69,
+     "at": "2026-11-21T07:31:08.789Z"
+    },
+    {
+     "block": 2,
+     "load1": 1.69,
+     "at": "2026-11-21T07:31:12.323Z"
+    },
+    {
+     "block": 3,
+     "load1": 1.64,
+     "at": "2026-11-21T07:31:15.855Z"
+    },
+    {
+     "block": 4,
+     "load1": 1.66,
+     "at": "2026-11-21T07:31:19.403Z"
+    },
+    {
+     "block": 5,
+     "load1": 1.69,
+     "at": "2026-11-21T07:31:23.103Z"
+    },
+    {
+     "block": 6,
+     "load1": 1.69,
+     "at": "2026-11-21T07:31:26.593Z"
+    },
+    {
+     "block": 7,
+     "load1": 1.64,
+     "at": "2026-11-21T07:31:30.133Z"
+    },
+    {
+     "block": 8,
+     "load1": 1.5,
+     "at": "2026-11-21T07:31:33.684Z"
+    },
+    {
+     "block": 9,
+     "load1": 1.5,
+     "at": "2026-11-21T07:31:37.244Z"
+    },
+    {
+     "block": 10,
+     "load1": 1.46,
+     "at": "2026-11-21T07:31:40.736Z"
+    },
+    {
+     "block": 11,
+     "load1": 1.43,
+     "at": "2026-11-21T07:31:44.284Z"
+    },
+    {
+     "block": 12,
+     "load1": 1.43,
+     "at": "2026-11-21T07:31:47.759Z"
+    },
+    {
+     "block": 13,
+     "load1": 1.39,
+     "at": "2026-11-21T07:31:51.275Z"
+    },
+    {
+     "block": 14,
+     "load1": 1.44,
+     "at": "2026-11-21T07:31:54.817Z"
+    },
+    {
+     "block": 15,
+     "load1": 1.49,
+     "at": "2026-11-21T07:31:58.379Z"
+    },
+    {
+     "block": 16,
+     "load1": 1.49,
+     "at": "2026-11-21T07:32:01.922Z"
+    },
+    {
+     "block": 17,
+     "load1": 1.37,
+     "at": "2026-11-21T07:32:05.487Z"
+    },
+    {
+     "block": 18,
+     "load1": 1.34,
+     "at": "2026-11-21T07:32:09.001Z"
+    },
+    {
+     "block": 19,
+     "load1": 1.34,
+     "at": "2026-11-21T07:32:12.553Z"
+    }
+   ],
+   "status": "measured",
+   "runId": "20261121T073057Z-page-trend-x24-dpr2-axylo-canvas-vs-axylo-svg-05f0",
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "ci": {
+    "lo": 4.389712500000004,
+    "hi": 8.817000000000007,
+    "estimate": 7.020000000000039,
+    "level": 0.99375
+   },
+   "thresholds": {
+    "swi": 20,
+    "tol": 10,
+    "declared": {
+     "swi": 20,
+     "tol": 10
+    },
+    "noiseEdge": 5.63641093749993
+   },
+   "classification": {
+    "thresholds": {
+     "swi": 20,
+     "tol": 10,
+     "declared": {
+      "swi": 20,
+      "tol": 10
+     },
+     "noiseEdge": 5.63641093749993
+    },
+    "label": "no worthwhile difference",
+    "bWins": false,
+    "aWins": false,
+    "bBeyondTol": false,
+    "aBeyondTol": false,
+    "equivalent": true,
+    "metric": "taskMs"
+   },
+   "medians": {
+    "A": 88.56299999999999,
+    "B": 95.58300000000003
+   }
+  },
+  {
+   "id": "gpu-dpr2-P5-renderer-memory",
+   "blocks": [
+    {
+     "block": 0,
+     "load1": 1.4,
+     "at": "2026-11-21T07:31:05.256Z"
+    },
+    {
+     "block": 1,
+     "load1": 1.69,
+     "at": "2026-11-21T07:31:08.789Z"
+    },
+    {
+     "block": 2,
+     "load1": 1.69,
+     "at": "2026-11-21T07:31:12.323Z"
+    },
+    {
+     "block": 3,
+     "load1": 1.64,
+     "at": "2026-11-21T07:31:15.855Z"
+    },
+    {
+     "block": 4,
+     "load1": 1.66,
+     "at": "2026-11-21T07:31:19.403Z"
+    },
+    {
+     "block": 5,
+     "load1": 1.69,
+     "at": "2026-11-21T07:31:23.103Z"
+    },
+    {
+     "block": 6,
+     "load1": 1.69,
+     "at": "2026-11-21T07:31:26.593Z"
+    },
+    {
+     "block": 7,
+     "load1": 1.64,
+     "at": "2026-11-21T07:31:30.133Z"
+    },
+    {
+     "block": 8,
+     "load1": 1.5,
+     "at": "2026-11-21T07:31:33.684Z"
+    },
+    {
+     "block": 9,
+     "load1": 1.5,
+     "at": "2026-11-21T07:31:37.244Z"
+    },
+    {
+     "block": 10,
+     "load1": 1.46,
+     "at": "2026-11-21T07:31:40.736Z"
+    },
+    {
+     "block": 11,
+     "load1": 1.43,
+     "at": "2026-11-21T07:31:44.284Z"
+    },
+    {
+     "block": 12,
+     "load1": 1.43,
+     "at": "2026-11-21T07:31:47.759Z"
+    },
+    {
+     "block": 13,
+     "load1": 1.39,
+     "at": "2026-11-21T07:31:51.275Z"
+    },
+    {
+     "block": 14,
+     "load1": 1.44,
+     "at": "2026-11-21T07:31:54.817Z"
+    },
+    {
+     "block": 15,
+     "load1": 1.49,
+     "at": "2026-11-21T07:31:58.379Z"
+    },
+    {
+     "block": 16,
+     "load1": 1.49,
+     "at": "2026-11-21T07:32:01.922Z"
+    },
+    {
+     "block": 17,
+     "load1": 1.37,
+     "at": "2026-11-21T07:32:05.487Z"
+    },
+    {
+     "block": 18,
+     "load1": 1.34,
+     "at": "2026-11-21T07:32:09.001Z"
+    },
+    {
+     "block": 19,
+     "load1": 1.34,
+     "at": "2026-11-21T07:32:12.553Z"
+    }
+   ],
+   "status": "measured",
+   "runId": "20261121T073057Z-page-trend-x24-dpr2-axylo-canvas-vs-axylo-svg-05f0",
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "ci": {
+    "lo": 1123328,
+    "hi": 1331712,
+    "estimate": 1239552,
+    "level": 0.99375
+   },
+   "thresholds": {
+    "swi": 2374553.6,
+    "tol": 1187276.8,
+    "declared": {
+     "swi": 2374553.6,
+     "tol": 1187276.8
+    },
+    "noiseEdge": 242820.80000000016
+   },
+   "classification": {
+    "thresholds": {
+     "swi": 2374553.6,
+     "tol": 1187276.8,
+     "declared": {
+      "swi": 2374553.6,
+      "tol": 1187276.8
+     },
+     "noiseEdge": 242820.80000000016
+    },
+    "label": "no worthwhile difference",
+    "bWins": false,
+    "aWins": false,
+    "bBeyondTol": false,
+    "aBeyondTol": false,
+    "equivalent": true,
+    "metric": "rendererPssChartBytes"
+   },
+   "medians": {
+    "A": 22403072,
+    "B": 23642624
+   }
+  },
+  {
+   "id": "gpu-dpr2-P5-gpu-memory",
+   "blocks": [
+    {
+     "block": 0,
+     "load1": 1.4,
+     "at": "2026-11-21T07:31:05.256Z"
+    },
+    {
+     "block": 1,
+     "load1": 1.69,
+     "at": "2026-11-21T07:31:08.789Z"
+    },
+    {
+     "block": 2,
+     "load1": 1.69,
+     "at": "2026-11-21T07:31:12.323Z"
+    },
+    {
+     "block": 3,
+     "load1": 1.64,
+     "at": "2026-11-21T07:31:15.855Z"
+    },
+    {
+     "block": 4,
+     "load1": 1.66,
+     "at": "2026-11-21T07:31:19.403Z"
+    },
+    {
+     "block": 5,
+     "load1": 1.69,
+     "at": "2026-11-21T07:31:23.103Z"
+    },
+    {
+     "block": 6,
+     "load1": 1.69,
+     "at": "2026-11-21T07:31:26.593Z"
+    },
+    {
+     "block": 7,
+     "load1": 1.64,
+     "at": "2026-11-21T07:31:30.133Z"
+    },
+    {
+     "block": 8,
+     "load1": 1.5,
+     "at": "2026-11-21T07:31:33.684Z"
+    },
+    {
+     "block": 9,
+     "load1": 1.5,
+     "at": "2026-11-21T07:31:37.244Z"
+    },
+    {
+     "block": 10,
+     "load1": 1.46,
+     "at": "2026-11-21T07:31:40.736Z"
+    },
+    {
+     "block": 11,
+     "load1": 1.43,
+     "at": "2026-11-21T07:31:44.284Z"
+    },
+    {
+     "block": 12,
+     "load1": 1.43,
+     "at": "2026-11-21T07:31:47.759Z"
+    },
+    {
+     "block": 13,
+     "load1": 1.39,
+     "at": "2026-11-21T07:31:51.275Z"
+    },
+    {
+     "block": 14,
+     "load1": 1.44,
+     "at": "2026-11-21T07:31:54.817Z"
+    },
+    {
+     "block": 15,
+     "load1": 1.49,
+     "at": "2026-11-21T07:31:58.379Z"
+    },
+    {
+     "block": 16,
+     "load1": 1.49,
+     "at": "2026-11-21T07:32:01.922Z"
+    },
+    {
+     "block": 17,
+     "load1": 1.37,
+     "at": "2026-11-21T07:32:05.487Z"
+    },
+    {
+     "block": 18,
+     "load1": 1.34,
+     "at": "2026-11-21T07:32:09.001Z"
+    },
+    {
+     "block": 19,
+     "load1": 1.34,
+     "at": "2026-11-21T07:32:12.553Z"
+    }
+   ],
+   "status": "carry-over",
+   "runId": "20261121T073057Z-page-trend-x24-dpr2-axylo-canvas-vs-axylo-svg-05f0",
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "why": "AB estimate 558592, BA estimate 798720: they differ by 240128, more than the noise edge 138240; rerun with a fresh browser process per run (--isolate)",
+   "isolated": false
+  }
+ ],
+ "decision": {
+  "perEndpoint": {
+   "gpu-resize-100k": {
+    "A": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": 43.1995
+    },
+    "B": {
+     "win": false,
+     "beyondTol": true,
+     "failed": false,
+     "gain": -58.49100000000004
+    },
+    "tooNoisy": false,
+    "inconclusive": false
+   },
+   "gpu-resize-100k-late": {
+    "A": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false
+    },
+    "B": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false
+    }
+   },
+   "gpu-resize-24": {
+    "A": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": 194.22450000000026
+    },
+    "B": {
+     "win": false,
+     "beyondTol": true,
+     "failed": false,
+     "gain": -225.2936421875
+    },
+    "tooNoisy": false,
+    "inconclusive": false
+   },
+   "gpu-dpr2-P1": {
+    "A": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": -2.7205000000000013
+    },
+    "B": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": -1.7149999999999999
+    },
+    "tooNoisy": true,
+    "inconclusive": false
+   },
+   "gpu-dpr2-P2-100k": {
+    "A": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": 0.14274062499999912
+    },
+    "B": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": -1.7341296874999959
+    },
+    "tooNoisy": true,
+    "inconclusive": false
+   },
+   "gpu-dpr2-P5": {
+    "A": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": 4.389712500000004
+    },
+    "B": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": -8.817000000000007
+    },
+    "tooNoisy": false,
+    "inconclusive": false
+   },
+   "gpu-dpr2-P5-renderer-memory": {
+    "A": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": 1123328
+    },
+    "B": {
+     "win": false,
+     "beyondTol": false,
+     "failed": false,
+     "gain": -1331712
+    },
+    "tooNoisy": false,
+    "inconclusive": false
+   }
+  },
+  "missing": [
+   {
+    "endpoint": "gpu-dpr2-P5-gpu-memory",
+    "status": "carry-over",
+    "why": "AB estimate 558592, BA estimate 798720: they differ by 240128, more than the noise edge 138240; rerun with a fresh browser process per run (--isolate)"
+   }
+  ],
+  "family": "gpu",
+  "kind": "none",
+  "rule": "no decision yet",
+  "open": [
+   "gpu-dpr2-P5-gpu-memory: carry-over AB estimate 558592, BA estimate 798720: they differ by 240128, more than the noise edge 138240; rerun with a fresh browser process per run (--isolate)"
+  ]
+ }
+}
