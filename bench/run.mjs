@@ -21,7 +21,7 @@ import { startServer, launchBrowser, runOnce, machineRecord, expectedFor, raster
 import { balancedOrder, summarizeRun, analyze, parseSeed, median, DEFAULT_BOOTSTRAP_SEED } from './src/stats.js';
 import { formatAnalysis } from './lib/report.mjs';
 import { parseAdapterRef, loadNoise, controlsOf, WORKLOADS } from './lib/refs.mjs';
-import { endpointById, sessionEligibility, RENDERERS, LOAD_LIMIT } from './src/decision.js';
+import { endpointById, sessionEligibility, RENDERERS } from './src/decision.js';
 
 /** Workloads that a budget in spec section 5 names; they default to the plan's 20 runs per configuration. */
 export const DEFAULT_BLOCKS = 20;
@@ -90,7 +90,7 @@ export async function runSession(cfg) {
     hashes: { fixtureChecksum: expectedFor(cfg.workload, cfg.params).checksum, slots: { A: artifactSlot(cfg.artifacts.A), B: artifactSlot(cfg.artifacts.B ?? cfg.artifacts.A) } },
     admission: {},
     probes: {},
-    // One-minute load at the start of every block (plan 5.1: a session counts only if it is under 1.0 at each).
+    // One-minute load at the start of each block documents the measurement conditions.
     blocks: [],
     runs: [],
     analysis: null,
@@ -197,7 +197,7 @@ export async function runSession(cfg) {
     for (let b = 0; b < order.length; b++) {
       const load1 = os.loadavg()[0];
       record.blocks.push({ block: b, load1, at: new Date().toISOString() });
-      if (!(load1 < LOAD_LIMIT)) log(`  block ${b + 1}: one-minute load ${load1.toFixed(2)} at its start (limit ${LOAD_LIMIT}): this session will not count`);
+      log(`  block ${b + 1}: one-minute load ${load1.toFixed(2)} at its start`);
       for (let pos = 0; pos < 2; pos++) {
         const side = order[b][pos];
         const r = await execute(spec(side));

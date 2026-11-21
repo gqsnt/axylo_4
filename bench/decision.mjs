@@ -143,7 +143,7 @@ function plan() {
   for (const family of Object.keys(FAMILIES)) {
     const jobs = jobsOf(family), f = family === 'gpu' ? ' --family gpu' : '';
     const controls = 2 * t(jobs, 20, false), pilot = t(jobs, 10, false), endpoints = t(jobs, 20, false), isolated = t(jobs, 20, true);
-    console.log(`Family "${family}" (plan 5.1${family === 'gpu' ? '; GPU rasterization: headless with --enable-gpu --use-angle=gl --ignore-gpu-blocklist, or --headed on the desktop' : '; software rasterization, the headless default here'}), ${FAMILIES[family].endpoints.length} endpoints at ${(100 * levelOf(family)).toFixed(2)}%, on one sealed artifact, on a quiet machine (one-minute load under 1.0 at every block).
+    console.log(`Family "${family}" (plan 5.1${family === 'gpu' ? '; GPU rasterization: headless with --enable-gpu --use-angle=gl --ignore-gpu-blocklist, or --headed on the desktop' : '; software rasterization, the headless default here'}), ${FAMILIES[family].endpoints.length} endpoints at ${(100 * levelOf(family)).toFixed(2)}%, on one sealed artifact. One-minute load is recorded at every block start for context.
 ${jobs.length} jobs: ${jobs.map(j => j.endpoints.join('+')).join(', ')}.
 
   node bench/build.mjs                                               # note the artifact directory, <A> (one artifact for both families)
@@ -157,7 +157,7 @@ ${jobs.length} jobs: ${jobs.map(j => j.endpoints.join('+')).join(', ')}.
 Total ~${((3 * controls + pilot + endpoints) / 60).toFixed(1)} h of runs (estimates from smoke runs under load).
 `);
   }
-  console.log('A job whose session is not eligible (load, Chrome version, raster mode) is recorded and does not count: rerun that step for those endpoints with --only <ids>. The families are never mixed: a GPU session cannot serve the software family, or the reverse.');
+  console.log('A job whose session is ineligible (status, Chrome version, raster mode) is recorded. Rerun that step for those endpoints with --only <ids>. GPU and software sessions serve separate families.');
 }
 
 await main();

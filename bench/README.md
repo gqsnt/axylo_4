@@ -8,7 +8,7 @@ right data and to have drawn it, and it compares two configurations (or two buil
 Revised twice on 2026-11-18 after cross-provider reviews (`reviews/2026-11-18/impl/wp/bench.review.md`, then
 `misc-opus.review.md` part A). The second pass implements plan section 5.1 as the decision procedure
 (`src/decision.js`, `decision.mjs`). Records written before (schema `axylo-bench/1`, the M1 session) keep their
-stored analysis; they cannot serve as noise bands or endpoint results (no served files, host or per-block load).
+stored analysis; they cannot serve as noise bands or endpoint results (no served files or host).
 
 ## Commands
 
@@ -94,10 +94,14 @@ Budget endpoints outside both families: P2-1M (25 / 12.5 ms), P4 (1.7 / 0.8 ms, 
 (10% / 5% of two 1,000,000-value columns), P7-lifecycle (heap growth over 1% between cycles 1,500–2,000 and
 2,000–2,500 fails).
 
+On 2026-11-21 the owner dropped the idle-machine rule, saying “pc under 10% usage is like not really used. stop
+with your crazy rules.” One-minute load is recorded at every block start and carried into the decision results for
+context only. The owner accepted the 2026-11-21 run as release evidence, saying “count it as release evvidence”.
+
 How one endpoint becomes a result (`assessEndpoint`), in order; anything but "measured" leaves the decision open:
-1. **missing**: no comparison record. **ineligible**: the session's one-minute load was not under 1.0 at the start
-   of every block, Chrome changed, or its environment (host, Chrome, headless, DPR, settle, artifact) differs from the
-   family's (pinned to the first endpoint record).
+1. **missing**: no comparison record. **ineligible**: the session is incomplete, it recorded anything other than one
+   Chrome version, or its environment (host, Chrome, headless, DPR, settle, artifact) differs from the family's
+   (pinned to the first endpoint record).
 2. Not admitted, or any timed run not finished or not admitted: a **failure of that renderer** on that endpoint,
    which counts as worse beyond tolerance (a result, not a missing value).
 3. **thresholds**: a budget-less endpoint whose thresholds were not frozen by the pilot before the comparison started.
@@ -125,7 +129,7 @@ decision (the plan has no rule); P3-late compares counts of late runs directly, 
 renderer needs the 4× gain on a measured interval, not on a count; the control sessions are separate A-versus-A
 jobs in the same environment, not part of the comparison job.
 
-Command sequence on a quiet machine, per family (`node bench/decision.mjs plan` prints both with estimated
+Command sequence per family (`node bench/decision.mjs plan` prints both with estimated
 durations: about 3.2 h for "renderer" and 2.2 h for "gpu"; the gpu family adds `--family gpu` to every step):
 
 ```bash
@@ -135,6 +139,41 @@ node bench/decision.mjs pilot --artifact <A>             # ~14 min: freezes thre
 node bench/decision.mjs endpoints --artifact <A>         # ~25-31 min: --isolate where the pilot found order effects
 node bench/decision.mjs decide --artifact <A>            # writes bench/decision/decision-<time>.json
 ```
+
+### Replay the 2026-11-21 decisions
+
+Run from the repository root. `--dir` selects the saved `ledger.json`, `pilot.json` for `renderer`, and
+`pilot-gpu.json` for `gpu`. Replay reads raw jobs from `bench/history`, recomputes their eligibility, and writes new
+decision files beside the old ones. The earlier decisions record a 2,269-byte gzip cost for Canvas on this artifact.
+
+```bash
+A=bench/artifacts/20261119T091624Z-b643862f-b78698
+D=bench/decision/no-idle-2026-11-21
+node bench/decision.mjs decide --family renderer --artifact "$A" --dir "$D" --history-dir bench/history --canvas-bytes 2269
+node bench/decision.mjs decide --family gpu --artifact "$A" --dir "$D" --history-dir bench/history --canvas-bytes 2269
+```
+
+### Measure the remaining budgets on the same artifact
+
+Run from the repository root. `axylo` uses the artifact's public default options. The runner defaults to 20 blocks.
+
+```bash
+A=bench/artifacts/20261119T091624Z-b643862f-b78698
+node bench/run.mjs --endpoint P2-1M --artifact "$A" --baseline uplot --candidate axylo
+node bench/run.mjs --endpoint P4 --artifact "$A" --baseline uplot --candidate axylo
+node bench/run.mjs --endpoint P7-mem --artifact "$A" --aa axylo
+node bench/run.mjs --endpoint P7-lifecycle --artifact "$A" --aa axylo
+```
+
+Use the Axylo candidate numbers for P2-1M and P4. Judge Axylo's absolute results against the product budgets.
+[Product spec §5](../docs/02-product-spec.md#5-performance-budgets)
+
+| Endpoint | Budget check |
+|---|---|
+| P2-1M | Axylo's median `taskMs` over 20 runs must be at most 250 ms. |
+| P4 | Take the median of Axylo's per-run `inputToReadoutP95Ms` and compare to one frame (16.7 ms at 60 Hz). Each run uses the nearest-rank p95 over 200 moves, with misses counted as infinite. |
+| P7-mem | Compare `ownedBytes` to 1.1 × the two caller columns. Two million Float64 values take 16,000,000 bytes, so the cap is 17,600,000 bytes (`ownedRatio` ≤ 1.1). |
+| P7-lifecycle | The spec requires no upward heap trend after forced collection over 1,000 create–destroy cycles. The plan's per-run `heapGate` fails if median heap at cycles 2,000–2,500 is more than 1% above cycles 1,500–2,000. Review the checkpoints through 1,000 cycles, `heapSlopeBytesPerCycle`, and listener, node and observer deltas alongside that gate. |
 
 ## Provenance: sealed artifacts
 
@@ -324,8 +363,10 @@ its value exactly; the **nearest-rank** 95th percentile over the 200 moves, with
 (`inputToReadoutP95Ms`); `missedMoves`. Each move has its own waiter, so a callback left over after a timeout cannot
 release the next move. Frame callback, not presentation (no trace).
 
-**P7** (`mem`): `ownedBytes` = bytes in buffers the library holds beyond the caller's columns, **counted by the library**
-(`__bench.memory()`); this build has no such hook, so it is `not available` and P7-mem cannot be measured yet.
+**P7** (`mem`): the instrumented production build's `__bench.memory()` returns `{ bytes, buffers: [{ name, bytes }] }`.
+It counts Axylo-owned typed-buffer storage in the store, retained frames and displayed scene marks, with a breakdown
+by name. The count excludes the caller's typed columns and canvas backing stores. The harness records the total as
+`ownedBytes`.
 Reported separately and never added: isolate JS heap after forced GC (chart minus data), isolate backing storage
 (ArrayBuffers and external strings), renderer PSS, calculated canvas bytes. (`lifecycle`): `heapGrowth` = median heap
 after forced GC over checkpoints at cycles 2,000–2,500 divided by the median over 1,500–2,000, minus 1; above 1% the
@@ -347,8 +388,8 @@ frames, allocation sites behind GC, and other threads are not attributed. Profil
 
 - Blocks of two (AB or BA), as many AB as BA, in an order shuffled with the recorded order seed. Before timing:
   probe runs A then B, then one untimed warm-up run per side B then A, in the same browser; with `--isolate`, every
-  run in a fresh browser process. The one-minute load at the start of every block is recorded (`blocks`), and the
-  session's `eligibility` (load under 1.0 at every block start, one Chrome version) is stored with the record.
+  run in a fresh browser process. The one-minute load at the start of every block is recorded for context (`blocks`).
+  The record also stores the session's `eligibility` (complete, with one Chrome version).
 - For each metric: the median per configuration and the difference of medians (B − A) with a paired bootstrap
   percentile interval (10,000 resamples, recorded bootstrap seed, 95% by default, 99.44% in the decision family),
   keeping the order strata. Per-order estimates (`AB | BA`) are printed; the decision withholds an endpoint whose two
@@ -410,8 +451,6 @@ hashes; `probes` the untimed probe summaries (theme counters, frames to new colo
 
 - Headless Chrome on this machine uses SwiftShader for WebGL; Canvas 2D and SVG raster differ from a headed browser
   with a GPU. `--headed` exists. One machine, one browser; no Firefox, WebKit, Edge, throttled or phone profile.
-- The machine is not idle (other agents and builds run): the load at every block start is recorded, and a session with
-  load at or above 1.0 does not count for the decision.
 - No traces: presentation time, GPU and raster time, Long Animation Frames are not measured; P3 and P4 are frame
   callback times.
 - Readiness comes from each library's hooks; screenshot validation is not implemented.
@@ -427,20 +466,16 @@ hashes; `probes` the untimed probe summaries (theme counters, frames to new colo
 - **Plot rectangle**: `__bench.describe().plot`, `{ x, y, width, height }` in CSS px of the plot container, so W-hover
   can place the pointer on the Canvas renderer too (today only the SVG clip rectangle gives it; Canvas reports "not
   available" for W-hover).
-- **Owned bytes** (P7): `__bench.memory()` returning `{ bytes, buffers: [{ name, bytes }] }`, the byte length of every
-  typed array or ArrayBuffer the chart holds that is not one of the caller's columns (store copies, frame, scene,
-  simplification and lookup buffers), counted when called, with canvas backing stores excluded (they are reported
-  separately).
 - **Stream rows**: the kept indexes of a streaming chart refer to rows of individual `append` calls; a window-relative
   index (or the x of each kept slot) would let the stream be checked like a static chart. The adapter will use
   `series[i].keptBasis === 'window'` when present (until then the stream's kept list is not used).
 
 These land in `Probe` / `attachHooks` (`packages/axylo/src/core/instrument.ts`). The adapter uses each when present
-(`breaks`, `plot`, `memory()`, `keptBasis`) and reports "not available" otherwise.
+(`breaks`, `plot`, `keptBasis`) and reports "not available" otherwise.
 
 ## Observed in this revision (smoke runs, machine under load; not evidence)
 
-- Load average 5–10 during this pass: every session was recorded as ineligible, as it should be.
+- Load average was 5–10 during these smoke runs.
 - P4 at the current source, public default (SVG): admitted with exact datum and readout on 1×100,000 (the earlier
   4-distinct-readouts behaviour is gone). uPlot admitted. Chart.js tuned committed a neighbour of the datum under the
   pointer on 1–2 of 40 moves (decimated tooltip): not admitted.

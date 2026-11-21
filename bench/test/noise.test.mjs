@@ -49,10 +49,12 @@ test('a record that does not say which files it served cannot be a band (older r
   assert.match(bandMismatches(old, controlsOf(target)).join('|'), /does not say which files it served/);
 });
 
-test('an ineligible session (load at a block start) cannot be a band', () => {
+test('a matching A-versus-A session at high load can contribute to a band', () => {
+  // The owner's 2026-11-21 decision removed load from eligibility for noise controls as well.
   const busy = record({ runId: 'aa-busy', mode: 'aa', baseline: 'uplot', candidate: 'uplot', runs: aaRuns });
   busy.blocks[4].load1 = 3.2;
-  assert.match(bandMismatches(busy, controlsOf(target)).join('|'), /session not eligible: block 4: one-minute load 3\.2/);
+  write(dir, busy);
+  assert.equal(loadNoise(['aa-busy'], dir, controlsOf(target)).metrics.taskMs.sessions, 1);
 });
 
 test('three matching sessions, only one with 20 pairs for the metric: exploratory, not "band from 3 sessions"', () => {

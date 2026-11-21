@@ -2,7 +2,7 @@
 //
 //   ENDPOINTS          the declared endpoints: workload, parameters, primary metric, thresholds (declared, or frozen
 //                      from the pilot at 10% and 5% of the slower median), the everyday ones, the chart type;
-//   sessionEligibility whether one balanced job counts (load under 1.0 at the start of every block, one Chrome);
+//   sessionEligibility whether one balanced job completed with a single Chrome version;
 //   assessEndpoint     one endpoint's result from its comparison record, its A-versus-A controls and the thresholds;
 //   assessPilot        the pilot: frozen thresholds and the per-order (carry-over) check;
 //   decideRenderer     the three-branch rule: canvas, svg, one with the other kept for a chart type, or no
@@ -57,7 +57,6 @@ export const FAMILY = FAMILIES.renderer.endpoints;
 /** Nine endpoints judged together: Bonferroni, 1 − 0.05 / 9 = 99.44%. */
 export const FAMILY_LEVEL = levelOf('renderer');
 export const EVERYDAY = FAMILIES.renderer.everyday;
-export const LOAD_LIMIT = 1.0;
 export const MIN_CONTROL_SESSIONS = 3;
 /** Section 5, "complexity is paid for": a kept second renderer needs a gain of at least four times the threshold. */
 export const KEEP_FACTOR = 4;
@@ -66,14 +65,11 @@ export const CANVAS_BYTES_LIMIT = 512;
 
 export const endpointById = id => ENDPOINTS.find(e => e.id === id);
 
-/** One balanced job counts only with one-minute load under 1.0 at the start of every block and one Chrome version. */
+/** A session must be complete and use one Chrome version. Load is recorded for context. */
 export function sessionEligibility(record) {
   const reasons = [];
   if (!record) return { eligible: false, reasons: ['no record'] };
   if (record.status !== 'complete') reasons.push(`status ${record.status}`);
-  const blocks = record.blocks ?? [];
-  if (!blocks.length) reasons.push('no per-block load recorded (records before the per-block gate)');
-  for (const b of blocks) if (!(b.load1 < LOAD_LIMIT)) reasons.push(`block ${b.block}: one-minute load ${b.load1} at its start (limit ${LOAD_LIMIT})`);
   const versions = new Set([record.environment?.browser?.version, ...(record.runs ?? []).map(r => r.chromeVersion).filter(Boolean)]);
   versions.delete(undefined);
   if (versions.size !== 1) reasons.push(`Chrome versions in the session: ${[...versions].join(', ') || 'none recorded'}`);
@@ -144,8 +140,8 @@ export function thresholdsOf(endpoint, frozen, recordStartedAt) {
  * result, worse beyond tolerance, not a missing value.
  */
 export function assessEndpoint(endpoint, { record, controls = [], frozen = null, env = null } = {}) {
-  const out = { id: endpoint.id, endpoint };
-  if (!record) return { ...out, status: 'missing', why: 'no comparison record' };
+  if (!record) return { id: endpoint.id, endpoint, status: 'missing', why: 'no comparison record' };
+  const out = { id: endpoint.id, endpoint, blocks: record.blocks };
   const e = env ?? environmentKey(record);
   const el = sessionEligibility(record);
   if (!el.eligible) return { ...out, status: 'ineligible', runId: record.runId, why: el.reasons.join('; ') };

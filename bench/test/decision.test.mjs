@@ -133,18 +133,26 @@ const quietAA = k => timedRuns(20, i => 10 + ((i + k) % 3) * 0.05, i => 10 + ((i
 const controlsFor = adapters => adapters.flatMap(a => [0, 1, 2].map(k => control(`aa-${a}-${k}`, a, quietAA(k))));
 const P1 = endpointById('P1');
 
-test('a session counts only with load under 1.0 at the start of every block and one Chrome version', () => {
+test('a session must be complete and use one Chrome version', () => {
+  // The owner's 2026-11-21 decision makes load informational, including for records without load data.
   const ok = comparison(timedRuns(20, () => 10, () => 10));
   assert.equal(sessionEligibility(ok).eligible, true);
-  const busy = { ...ok, blocks: ok.blocks.map(b => (b.block === 7 ? { ...b, load1: 6.8 } : b)) };
-  assert.match(sessionEligibility(busy).reasons[0], /block 7: one-minute load 6\.8/);
+  assert.match(sessionEligibility({ ...ok, status: 'interrupted' }).reasons.join(), /status interrupted/);
   const twoChromes = { ...ok, runs: ok.runs.map((r, i) => ({ ...r, chromeVersion: i ? '157.0' : '158.0' })) };
   assert.match(sessionEligibility(twoChromes).reasons.join(), /Chrome versions in the session: 157\.0, 158\.0/);
-  assert.match(sessionEligibility({ ...ok, blocks: undefined }).reasons[0], /no per-block load/);
+  assert.equal(sessionEligibility({ ...ok, blocks: undefined }).eligible, true);
   const at = hz => ({ ...ok, environment: { ...ok.environment, page: { refresh: { hz } } } });
   assert.notEqual(environmentKey(at(59.94)), environmentKey(at(120)), 'a 120 Hz session is another environment');
   assert.equal(environmentKey(at(59.94)), environmentKey(at(60.02)));
-  assert.equal(assessEndpoint(P1, { record: busy, controls: controlsFor(['axylo-canvas', 'axylo-svg']) }).status, 'ineligible');
+});
+
+test('a session at one-minute load 8 is eligible and its endpoint result records that load', () => {
+  // The owner's 2026-11-21 decision also applies when replaying sessions saved under the old rule.
+  const busy = { ...comparison(timedRuns(20, () => 10, () => 10)), blocks: blocksOf(20, 8), eligibility: { eligible: false } };
+  assert.deepEqual(sessionEligibility(busy), { eligible: true, reasons: [] });
+  const result = assessEndpoint(P1, { record: busy, controls: controlsFor(['axylo-canvas', 'axylo-svg']) });
+  assert.equal(result.status, 'measured');
+  assert.deepEqual(result.blocks, blocksOf(20, 8));
 });
 
 test('controls: matched by adapter and counted per metric; the reviewer\'s three uPlot sessions do not calibrate Canvas-SVG', () => {
