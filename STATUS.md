@@ -6,7 +6,7 @@ Checkpoint for the Axylo 1.0 build: what is true now and what is left. Rewritten
 
 **The 2026-11-21 renderer run counts as release evidence.** On the sealed b643862 artifact and Chrome 158.0.8127.36, software completed 2,400 timed runs and the RTX 2060 SUPER GPU completed 1,500. The owner dropped the idle-machine rule (4664bd1). Load is recorded for context.
 
-**SVG is the sole renderer for 1.0.** The software family selected SVG under rule 3. The GPU family returned no decision. The owner confirmed SVG only on 2026-11-22. The current source still contains the internal canvas renderer, which is scheduled for removal. No benchmark process is running. See the checkpoint below for the budget evidence and the immediate command.
+**SVG is the sole renderer for 1.0.** The software family selected SVG under rule 3. The GPU family returned no decision. The owner confirmed SVG only on 2026-11-22. The current source still contains the internal canvas renderer, which is scheduled for removal. The baseline budget runs finished and the final canvas browser run is underway. See the current checkpoint below.
 
 - **Product:** feature-complete for 1.0 against `docs/02-product-spec.md`: line, area, bar, scatter, donut and a compact variant (line, area, bar); rows, wide rows and typed columns; calendar dates, instants and wall-clock times; `update`, `append` with a window and Pause, zoom and pan on continuous x axes, the Select range toggle (two clicks); 29 diagnostics (`AX1xx`); name, summary, table, keyboard navigation, tooltip, strip readout; theming from the page; SVG marks by default (canvas internal); no runtime dependencies.
 - **Size** (spec DX7, packed files, `node scripts/size.mjs --no-build`): everything 115.48 KiB (target 116), line only 96.32 KiB (target 98) at 1ceaba9. 573 of the last 650 bytes saved come from import order in `packages/axylo/src/index.ts`, which can shift with later edits: re-measure after every source change.
@@ -41,9 +41,15 @@ The idle-machine rule is dropped (4664bd1, the owner's decision). Done since, in
 
 Next command (from the repository root): `A=bench/artifacts/20261119T091624Z-b643862f-b78698; for e in "P4 --baseline uplot --candidate axylo" "P7-mem --aa axylo" "P7-lifecycle --aa axylo"; do node bench/run.mjs --endpoint $e --artifact "$A"; done` (P7-lifecycle is the long one, probably 30 to 60 minutes). Then the P1 to P8 table in `bench/results/budgets-2026-11-21.md`.
 
+## Current checkpoint
+
+Baseline P1–P8 are recorded in `bench/results/budgets-2026-11-21.md`. P4 passed at 16.10 ms. P7 owned buffers passed at 1,023,304 bytes. The P7 create–destroy benchmark exceeded the 1% heap-growth gate in 40 of 40 runs, with median growth of about 1.146% and no median listener, observer or node growth. P1 and P8 also missed their baseline budgets.
+
+The final canvas chart and accessibility test is running against a build of ddb712f. Next command: `tail -n 15 acceptance/results/verify-ddb712f/canvas-browser.log`. Once it finishes, record its exact counts and remove the canvas mark renderer as specified in the owner's 1.0 brief.
+
 ## What is left for 1.0, in order
 
-1. **Performance.** Finish P4, P7-mem and P7-lifecycle with the exact command in the checkpoint above and write the P1–P8 baseline table. Record load for context. Run the last canvas browser suite, remove canvas from the library and build, measure the packed size, and finalize decision 0002. Profile and address P1, then P8 and P4 if it misses. Rebuild a sealed artifact after source changes. Re-measure P1–P8, compare P1/P3/P5 against the original artifact, and rerun the Phase 1 timing comparison. Update the acceptance matrix, docs and changelog from the recorded evidence.
+1. **Performance.** Record the last canvas browser suite, remove canvas from the library and build, measure the packed size, and finalize decision 0002. Profile and address P1, then P8 and P4 if it misses. Rebuild a sealed artifact after source changes. Re-measure P1–P8, compare P1/P3/P5 against the original artifact, and rerun the Phase 1 timing comparison. Update the acceptance matrix, docs and changelog from the recorded evidence.
 2. **The release commit.** Freeze it; `npm run build`, `node scripts/pack.mjs`, `node apps/docs/build.mjs`; record the six configurations on a quiet tree; repeat the agent rehearsal there; the release check must exit 0; rebuild the docs so the conformance page shows the recorded results.
 3. **Version, changelog date, tag, publish**: each only on the owner's explicit word. So is every push.
 

@@ -1,0 +1,251 @@
+
+=== P4 2026-11-22T03:39:50Z
+run 20261122T033950Z-hover-1x100000-uplot-vs-axylo-0122
+  A=uplot  B=axylo  hover {"size":"1x100000","gaps":false,"moves":200}  20 blocks  order seed 1252391827, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261122T033950Z-hover-1x100000-uplot-vs-axylo-0122.json
+  admission A:uplot: ok
+  admission A:axylo: ok
+  block 1: one-minute load 0.53 at its start
+  block 1/20 BA B=axylo: ok inputToReadoutP95Ms=16.100
+  block 1/20 BA A=uplot: ok inputToReadoutP95Ms=16.000
+  block 2: one-minute load 0.45 at its start
+  block 2/20 AB A=uplot: ok inputToReadoutP95Ms=16.000
+  block 2/20 AB B=axylo: ok inputToReadoutP95Ms=16.100
+  block 3: one-minute load 0.45 at its start
+  block 3/20 AB A=uplot: ok inputToReadoutP95Ms=16.000
+  block 3/20 AB B=axylo: ok inputToReadoutP95Ms=16.000
+  block 4: one-minute load 0.61 at its start
+  block 4/20 AB A=uplot: ok inputToReadoutP95Ms=16.000
+  block 4/20 AB B=axylo: ok inputToReadoutP95Ms=16.000
+  block 5: one-minute load 1.06 at its start
+  block 5/20 BA B=axylo: ok inputToReadoutP95Ms=16.000
+  block 5/20 BA A=uplot: ok inputToReadoutP95Ms=16.100
+  block 6: one-minute load 1.12 at its start
+  block 6/20 BA B=axylo: ok inputToReadoutP95Ms=16.100
+  block 6/20 BA A=uplot: ok inputToReadoutP95Ms=16.000
+  block 7: one-minute load 0.95 at its start
+  block 7/20 AB A=uplot: ok inputToReadoutP95Ms=16.100
+  block 7/20 AB B=axylo: ok inputToReadoutP95Ms=16.000
+  block 8: one-minute load 0.80 at its start
+  block 8/20 BA B=axylo: ok inputToReadoutP95Ms=16.000
+  block 8/20 BA A=uplot: ok inputToReadoutP95Ms=16.000
+  block 9: one-minute load 0.76 at its start
+  block 9/20 BA B=axylo: ok inputToReadoutP95Ms=16.100
+  block 9/20 BA A=uplot: ok inputToReadoutP95Ms=16.000
+  block 10: one-minute load 0.72 at its start
+  block 10/20 AB A=uplot: ok inputToReadoutP95Ms=16.100
+  block 10/20 AB B=axylo: ok inputToReadoutP95Ms=16.100
+  block 11: one-minute load 0.61 at its start
+  block 11/20 BA B=axylo: ok inputToReadoutP95Ms=16.100
+  block 11/20 BA A=uplot: ok inputToReadoutP95Ms=16.100
+  block 12: one-minute load 0.81 at its start
+  block 12/20 BA B=axylo: ok inputToReadoutP95Ms=16.200
+  block 12/20 BA A=uplot: ok inputToReadoutP95Ms=16.100
+  block 13: one-minute load 0.76 at its start
+  block 13/20 BA B=axylo: ok inputToReadoutP95Ms=16.000
+  block 13/20 BA A=uplot: ok inputToReadoutP95Ms=16.100
+  block 14: one-minute load 1.01 at its start
+  block 14/20 AB A=uplot: ok inputToReadoutP95Ms=16.000
+  block 14/20 AB B=axylo: ok inputToReadoutP95Ms=16.100
+  block 15: one-minute load 1.02 at its start
+  block 15/20 AB A=uplot: ok inputToReadoutP95Ms=16.100
+  block 15/20 AB B=axylo: ok inputToReadoutP95Ms=16.100
+  block 16: one-minute load 0.86 at its start
+  block 16/20 AB A=uplot: ok inputToReadoutP95Ms=16.100
+  block 16/20 AB B=axylo: ok inputToReadoutP95Ms=16.200
+  block 17: one-minute load 0.88 at its start
+  block 17/20 BA B=axylo: ok inputToReadoutP95Ms=16.100
+  block 17/20 BA A=uplot: ok inputToReadoutP95Ms=16.100
+  block 18: one-minute load 1.19 at its start
+  block 18/20 AB A=uplot: ok inputToReadoutP95Ms=16.100
+  block 18/20 AB B=axylo: ok inputToReadoutP95Ms=16.100
+  block 19: one-minute load 1.55 at its start
+  block 19/20 AB A=uplot: ok inputToReadoutP95Ms=16.100
+  block 19/20 AB B=axylo: ok inputToReadoutP95Ms=16.200
+  block 20: one-minute load 1.39 at its start
+  block 20/20 BA B=axylo: ok inputToReadoutP95Ms=16.000
+  block 20/20 BA A=uplot: ok inputToReadoutP95Ms=16.100
+
+20261122T033950Z-hover-1x100000-uplot-vs-axylo-0122  [complete]  analysis: stored in the record
+comparison: A=uplot  B=axylo  workload hover {"size":"1x100000","gaps":false,"moves":200}
+complete pairs 20/20; run outcomes {"B:ok":20,"A:ok":20}; order seed 1252391827, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                 median A  median B  B-A     95% CI           AB | BA          B/A-1  band used            outcome                        
+inputToReadoutP95Ms *  16.10     16.10     0.000   [-0.100, 0.100]  0.000 | 0.000    0.0%   zero only (no band)  no worthwhile difference (rule)
+inputToReadoutP50Ms    15.80     15.70     -0.100  [-0.100, 0.000]  -0.050 | -0.100  -0.6%  zero only (no band)  inconclusive                   
+missedMoves            0.000     0.000     0.000   [0.000, 0.000]   0.000 | 0.000    n/a    zero only (no band)  inconclusive                   
+taskMsPerMove          0.892     1.30      0.413   [0.384, 0.467]   0.397 | 0.445    46.3%  zero only (no band)  worse                          
+(rule): not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+exit 0 P4
+
+=== P7-mem 2026-11-22T03:43:33Z
+run 20261122T034333Z-mem-1x1000000-aa-axylo-1031
+  A-versus-A: axylo  mem {"size":"1x1000000","gaps":false}  20 blocks  order seed 456174552, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261122T034333Z-mem-1x1000000-aa-axylo-1031.json
+  admission A:axylo: ok
+  block 1: one-minute load 1.30 at its start
+  block 1/20 AB A=axylo: ok ownedBytes=1023304.000
+  block 1/20 AB B=axylo: ok ownedBytes=1023304.000
+  block 2: one-minute load 1.20 at its start
+  block 2/20 BA B=axylo: ok ownedBytes=1023304.000
+  block 2/20 BA A=axylo: ok ownedBytes=1023304.000
+  block 3: one-minute load 1.20 at its start
+  block 3/20 BA B=axylo: ok ownedBytes=1023304.000
+  block 3/20 BA A=axylo: ok ownedBytes=1023304.000
+  block 4: one-minute load 1.42 at its start
+  block 4/20 BA B=axylo: ok ownedBytes=1023304.000
+  block 4/20 BA A=axylo: ok ownedBytes=1023304.000
+  block 5: one-minute load 1.31 at its start
+  block 5/20 BA B=axylo: ok ownedBytes=1023304.000
+  block 5/20 BA A=axylo: ok ownedBytes=1023304.000
+  block 6: one-minute load 1.52 at its start
+  block 6/20 BA B=axylo: ok ownedBytes=1023304.000
+  block 6/20 BA A=axylo: ok ownedBytes=1023304.000
+  block 7: one-minute load 1.48 at its start
+  block 7/20 AB A=axylo: ok ownedBytes=1023304.000
+  block 7/20 AB B=axylo: ok ownedBytes=1023304.000
+  block 8: one-minute load 1.48 at its start
+  block 8/20 AB A=axylo: ok ownedBytes=1023304.000
+  block 8/20 AB B=axylo: ok ownedBytes=1023304.000
+  block 9: one-minute load 1.52 at its start
+  block 9/20 AB A=axylo: ok ownedBytes=1023304.000
+  block 9/20 AB B=axylo: ok ownedBytes=1023304.000
+  block 10: one-minute load 1.48 at its start
+  block 10/20 BA B=axylo: ok ownedBytes=1023304.000
+  block 10/20 BA A=axylo: ok ownedBytes=1023304.000
+  block 11: one-minute load 1.36 at its start
+  block 11/20 AB A=axylo: ok ownedBytes=1023304.000
+  block 11/20 AB B=axylo: ok ownedBytes=1023304.000
+  block 12: one-minute load 1.33 at its start
+  block 12/20 BA B=axylo: ok ownedBytes=1023304.000
+  block 12/20 BA A=axylo: ok ownedBytes=1023304.000
+  block 13: one-minute load 1.33 at its start
+  block 13/20 AB A=axylo: ok ownedBytes=1023304.000
+  block 13/20 AB B=axylo: ok ownedBytes=1023304.000
+  block 14: one-minute load 1.39 at its start
+  block 14/20 BA B=axylo: ok ownedBytes=1023304.000
+  block 14/20 BA A=axylo: ok ownedBytes=1023304.000
+  block 15: one-minute load 1.36 at its start
+  block 15/20 AB A=axylo: ok ownedBytes=1023304.000
+  block 15/20 AB B=axylo: ok ownedBytes=1023304.000
+  block 16: one-minute load 1.25 at its start
+  block 16/20 BA B=axylo: ok ownedBytes=1023304.000
+  block 16/20 BA A=axylo: ok ownedBytes=1023304.000
+  block 17: one-minute load 1.23 at its start
+  block 17/20 AB A=axylo: ok ownedBytes=1023304.000
+  block 17/20 AB B=axylo: ok ownedBytes=1023304.000
+  block 18: one-minute load 1.23 at its start
+  block 18/20 BA B=axylo: ok ownedBytes=1023304.000
+  block 18/20 BA A=axylo: ok ownedBytes=1023304.000
+  block 19: one-minute load 1.13 at its start
+  block 19/20 AB A=axylo: ok ownedBytes=1023304.000
+  block 19/20 AB B=axylo: ok ownedBytes=1023304.000
+  block 20: one-minute load 1.12 at its start
+  block 20/20 AB A=axylo: ok ownedBytes=1023304.000
+  block 20/20 AB B=axylo: ok ownedBytes=1023304.000
+
+20261122T034333Z-mem-1x1000000-aa-axylo-1031  [complete]  analysis: stored in the record
+A-versus-A: A=axylo (A)  B=axylo (A')  workload mem {"size":"1x1000000","gaps":false}
+complete pairs 20/20; run outcomes {"A:ok":20,"B:ok":20}; order seed 456174552, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                    median A    median B    B-A       95% CI                   AB | BA              B/A-1  band used            outcome                        
+ownedBytes *              999.3 KiB   999.3 KiB   0.0 KiB   [0.0 KiB, 0.0 KiB]       0.0 KiB | 0.0 KiB    0.0%   zero only (no band)  no worthwhile difference (rule)
+ownedRatio                0.064       0.064       0.000     [0.000, 0.000]           0.000 | 0.000        0.0%   zero only (no band)  inconclusive                   
+heapChartBytes            890.0 KiB   889.9 KiB   -0.1 KiB  [-0.4 KiB, 0.5 KiB]      -0.2 KiB | 0.1 KiB   -0.0%  zero only (no band)  inconclusive                   
+backingStorageChartBytes  1016.4 KiB  1016.4 KiB  0.0 KiB   [0.0 KiB, 0.0 KiB]       0.0 KiB | 0.0 KiB    0.0%   zero only (no band)  inconclusive                   
+canvasBackingBytes        0.0 KiB     0.0 KiB     0.0 KiB   [0.0 KiB, 0.0 KiB]       0.0 KiB | 0.0 KiB    n/a    zero only (no band)  inconclusive                   
+rendererPssChartBytes     12.87 MiB   12.92 MiB   54.0 KiB  [-246.0 KiB, 351.5 KiB]  25.5 KiB | 62.5 KiB  0.4%   zero only (no band)  inconclusive                   
+(rule): not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+A-versus-A: the 95% CI column is this session's noise band for each metric (one session; the plan asks for three).
+exit 0 P7-mem
+
+=== P7-lifecycle 2026-11-22T03:44:56Z
+run 20261122T034457Z-lifecycle-trend-c2500-aa-axylo-89b2
+  A-versus-A: axylo  lifecycle {"fixture":"trend","cycles":2500}  20 blocks  order seed 1642317260, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261122T034457Z-lifecycle-trend-c2500-aa-axylo-89b2.json
+  admission A:axylo: ok
+  block 1: one-minute load 1.01 at its start
+  block 1/20 AB A=axylo: ok heapSlopeBytesPerCycle=252.338
+  block 1/20 AB B=axylo: ok heapSlopeBytesPerCycle=252.391
+  block 2: one-minute load 1.42 at its start
+  block 2/20 AB A=axylo: ok heapSlopeBytesPerCycle=252.332
+  block 2/20 AB B=axylo: ok heapSlopeBytesPerCycle=252.183
+  block 3: one-minute load 1.27 at its start
+  block 3/20 AB A=axylo: ok heapSlopeBytesPerCycle=252.341
+  block 3/20 AB B=axylo: ok heapSlopeBytesPerCycle=252.388
+  block 4: one-minute load 1.24 at its start
+  block 4/20 AB A=axylo: ok heapSlopeBytesPerCycle=251.822
+  block 4/20 AB B=axylo: ok heapSlopeBytesPerCycle=252.232
+  block 5: one-minute load 1.23 at its start
+  block 5/20 AB A=axylo: ok heapSlopeBytesPerCycle=252.849
+  block 5/20 AB B=axylo: ok heapSlopeBytesPerCycle=252.479
+  block 6: one-minute load 1.66 at its start
+  block 6/20 BA B=axylo: ok heapSlopeBytesPerCycle=252.348
+  block 6/20 BA A=axylo: ok heapSlopeBytesPerCycle=252.889
+  block 7: one-minute load 1.27 at its start
+  block 7/20 BA B=axylo: ok heapSlopeBytesPerCycle=253.082
+  block 7/20 BA A=axylo: ok heapSlopeBytesPerCycle=252.435
+  block 8: one-minute load 1.62 at its start
+  block 8/20 BA B=axylo: ok heapSlopeBytesPerCycle=252.347
+  block 8/20 BA A=axylo: ok heapSlopeBytesPerCycle=252.357
+  block 9: one-minute load 1.65 at its start
+  block 9/20 BA B=axylo: ok heapSlopeBytesPerCycle=252.896
+  block 9/20 BA A=axylo: ok heapSlopeBytesPerCycle=252.193
+  block 10: one-minute load 1.95 at its start
+  block 10/20 AB A=axylo: ok heapSlopeBytesPerCycle=252.754
+  block 10/20 AB B=axylo: ok heapSlopeBytesPerCycle=253.140
+  block 11: one-minute load 5.14 at its start
+  block 11/20 BA B=axylo: ok heapSlopeBytesPerCycle=253.146
+  block 11/20 BA A=axylo: ok heapSlopeBytesPerCycle=252.353
+  block 12: one-minute load 3.64 at its start
+  block 12/20 BA B=axylo: ok heapSlopeBytesPerCycle=253.037
+  block 12/20 BA A=axylo: ok heapSlopeBytesPerCycle=260.683
+  block 13: one-minute load 5.40 at its start
+  block 13/20 BA B=axylo: ok heapSlopeBytesPerCycle=252.442
+  block 13/20 BA A=axylo: ok heapSlopeBytesPerCycle=252.618
+  block 14: one-minute load 5.66 at its start
+  block 14/20 BA B=axylo: ok heapSlopeBytesPerCycle=252.758
+  block 14/20 BA A=axylo: ok heapSlopeBytesPerCycle=252.595
+  block 15: one-minute load 4.18 at its start
+  block 15/20 AB A=axylo: ok heapSlopeBytesPerCycle=253.438
+  block 15/20 AB B=axylo: ok heapSlopeBytesPerCycle=252.944
+  block 16: one-minute load 3.80 at its start
+  block 16/20 AB A=axylo: ok heapSlopeBytesPerCycle=252.918
+  block 16/20 AB B=axylo: ok heapSlopeBytesPerCycle=252.827
+  block 17: one-minute load 3.13 at its start
+  block 17/20 BA B=axylo: ok heapSlopeBytesPerCycle=252.949
+  block 17/20 BA A=axylo: ok heapSlopeBytesPerCycle=252.918
+  block 18: one-minute load 3.24 at its start
+  block 18/20 AB A=axylo: ok heapSlopeBytesPerCycle=252.998
+  block 18/20 AB B=axylo: ok heapSlopeBytesPerCycle=253.100
+  block 19: one-minute load 4.75 at its start
+  block 19/20 BA B=axylo: ok heapSlopeBytesPerCycle=253.147
+  block 19/20 BA A=axylo: ok heapSlopeBytesPerCycle=252.865
+  block 20: one-minute load 1.92 at its start
+  block 20/20 AB A=axylo: ok heapSlopeBytesPerCycle=252.956
+  block 20/20 AB B=axylo: ok heapSlopeBytesPerCycle=252.755
+
+20261122T034457Z-lifecycle-trend-c2500-aa-axylo-89b2  [complete]  analysis: stored in the record
+A-versus-A: A=axylo (A)  B=axylo (A')  workload lifecycle {"fixture":"trend","cycles":2500}
+complete pairs 20/20; run outcomes {"A:ok":20,"B:ok":20}; order seed 1642317260, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                  median A  median B  B-A      95% CI               AB | BA             B/A-1  band used            outcome     
+heapGrowth *            0.011     0.011     -0.000   [-0.000, 0.000]      -0.000 | -0.000     -0.1%  zero only (no band)  inconclusive
+heapSlopeBytesPerCycle  0.2 KiB   0.2 KiB   0.0 KiB  [-0.0 KiB, 0.0 KiB]  -0.0 KiB | 0.0 KiB  0.0%   zero only (no band)  inconclusive
+listenersAfter          0.000     0.000     0.000    [0.000, 0.000]       0.000 | 0.000       n/a    zero only (no band)  inconclusive
+observersAfter          0.000     0.000     0.000    [0.000, 0.000]       0.000 | 0.000       n/a    zero only (no band)  inconclusive
+nodesAfter              0.000     0.000     0.000    [0.000, 0.000]       0.000 | 0.000       n/a    zero only (no band)  inconclusive
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+A-versus-A: the 95% CI column is this session's noise band for each metric (one session; the plan asks for three).
+exit 0 P7-lifecycle
