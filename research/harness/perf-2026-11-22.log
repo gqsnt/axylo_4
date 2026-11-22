@@ -1,0 +1,71 @@
+Default configurations, 2026-11-22
+chartjs scale 10000 {"toPaintMs":137.1,"runs":[132.1,137.1,141.5],"taskMs":1137.4,"taskRuns":[1136.1,1137.4,1144.1],"failedRuns":0,"load1":[0.82,0.82,1]}
+chartjs scale 100000 {"toPaintMs":1247.7,"runs":[1219.5,1247.7,1256.8],"taskMs":2166.9,"taskRuns":[2139.3,2166.9,2169.3],"failedRuns":0,"load1":[1,1.16,1.16]}
+chartjs scale 1000000 {"toPaintMs":11857.6,"runs":[11827.5,11857.6,11944.5],"taskMs":11890.2,"taskRuns":[11859.9,11890.2,11976.8],"failedRuns":0,"load1":[1.23,1.71,1.98]}
+chartjs stream {"createMs":18.9,"toPaintMs":32,"pushP50":5,"pushP95":6.1,"frameP50":16.7,"frameP95":16.9,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":7.68,"scriptMsPerUpdate":0.46,"layoutStyleMsPerUpdate":0,"lo
+recharts scale 10000 {"toPaintMs":630,"runs":[626.5,630,638.1],"taskMs":2246.8,"taskRuns":[2221.6,2246.8,2280.5],"failedRuns":0,"load1":[1.84,1.84,2.09]}
+recharts scale 100000 {"toPaintMs":5792.6,"runs":[5678.8,5792.6,5794],"taskMs":8263.7,"taskRuns":[8188,8263.7,8320.1],"failedRuns":0,"load1":[2.09,2.08,1.91]}
+recharts scale 1000000 {"noResultWithinMs":45000,"load1":[1.85]}
+recharts stream {"createMs":3.7,"toPaintMs":82.5,"pushP50":12.2,"pushP95":14.8,"frameP50":16.7,"frameP95":19,"framesOver20ms":7,"frames":300,"taskMsPerUpdate":14.39,"scriptMsPerUpdate":0.03,"layoutStyleMsPerUpdate":0
+d3 scale 10000 {"toPaintMs":26.2,"runs":[24.5,26.2,29.6],"taskMs":18.1,"taskRuns":[17.3,18.1,19],"failedRuns":0,"load1":[2.7,2.7,2.8]}
+d3 scale 100000 {"toPaintMs":45.7,"runs":[38.7,45.7,49.5],"taskMs":58.2,"taskRuns":[58.1,58.2,59.1],"failedRuns":0,"load1":[2.8,2.8,2.66]}
+d3 scale 1000000 {"toPaintMs":353.9,"runs":[342,353.9,423.9],"taskMs":444.2,"taskRuns":[432.1,444.2,458.4],"failedRuns":0,"load1":[2.66,2.66,2.76]}
+d3 stream {"createMs":4.5,"toPaintMs":32.1,"pushP50":0.3,"pushP95":0.5,"frameP50":16.7,"frameP95":16.8,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":0.65,"scriptMsPerUpdate":0.01,"layoutStyleMsPerUpdate":0.
+echarts scale 10000 {"toPaintMs":130.5,"runs":[125.9,130.5,139],"taskMs":1311.5,"taskRuns":[1310.3,1311.5,1333.8],"failedRuns":0,"load1":[2.41,2.41,2.3]}
+echarts scale 100000 {"toPaintMs":1014.7,"runs":[1013.4,1014.7,1024.4],"taskMs":2208.8,"taskRuns":[2201.7,2208.8,2222.2],"failedRuns":0,"load1":[2.3,2.35,2.35]}
+echarts scale 1000000 {"toPaintMs":10691.8,"runs":[10671.6,10691.8,10730.5],"taskMs":10704,"taskRuns":[10684.4,10704,10749.2],"failedRuns":0,"load1":[2.25,2.05,2.48]}
+echarts stream {"createMs":42.9,"toPaintMs":48,"pushP50":3.8,"pushP95":4.9,"frameP50":16.7,"frameP95":17,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":7.86,"scriptMsPerUpdate":1.36,"layoutStyleMsPerUpdate":0,"lo
+highcharts scale 10000 {"toPaintMs":45.8,"runs":[44.5,45.8,49.8],"taskMs":73.7,"taskRuns":[73.7,73.7,78.2],"failedRuns":0,"load1":[2.41,2.41,2.3]}
+highcharts scale 100000 {"toPaintMs":199.5,"runs":[190.2,199.5,201],"taskMs":278.6,"taskRuns":[266.8,278.6,292.8],"failedRuns":0,"load1":[2.3,2.3,2.43]}
+highcharts scale 1000000 {"toPaintMs":1712.8,"runs":[1677.9,1712.8,1714.9],"taskMs":2099.7,"taskRuns":[2086.7,2099.7,2103.6],"failedRuns":0,"load1":[2.43,2.48,2.48]}
+highcharts stream {"createMs":26,"toPaintMs":27.4,"pushP50":2,"pushP95":3,"frameP50":16.7,"frameP95":16.9,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":2.93,"scriptMsPerUpdate":0.32,"layoutStyleMsPerUpdate":0.37,"l
+apexcharts scale 10000 {"toPaintMs":30.9,"runs":[29.5,30.9,31.9],"taskMs":62,"taskRuns":[57,62,62.7],"failedRuns":0,"load1":[2.21,2.21,2.11]}
+apexcharts scale 100000 {"toPaintMs":73.2,"runs":[72.8,73.2,76.4],"taskMs":101.7,"taskRuns":[98.9,101.7,106.7],"failedRuns":0,"load1":[2.11,2.11,2.66]}
+apexcharts scale 1000000 {"toPaintMs":501.4,"runs":[487.3,501.4,502],"taskMs":524.8,"taskRuns":[521,524.8,528.8],"failedRuns":0,"load1":[2.66,2.66,2.61]}
+apexcharts stream {"createMs":20.8,"toPaintMs":31.5,"pushP50":2.3,"pushP95":2.9,"frameP50":16.7,"frameP95":16.8,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":5.66,"scriptMsPerUpdate":2.48,"layoutStyleMsPerUpdate":0
+plotly scale 10000 {"toPaintMs":34.3,"runs":[32.9,34.3,37.9],"taskMs":40.7,"taskRuns":[40.1,40.7,46.7],"failedRuns":0,"load1":[2.21,2.21,2.27]}
+plotly scale 100000 {"toPaintMs":62.1,"runs":[61,62.1,63.8],"taskMs":77.4,"taskRuns":[74.8,77.4,82.9],"failedRuns":0,"load1":[2.27,2.25,2.25]}
+plotly scale 1000000 {"toPaintMs":313.6,"runs":[306.8,313.6,328.2],"taskMs":322.9,"taskRuns":[313.6,322.9,334],"failedRuns":0,"load1":[2.23,2.23,2.21]}
+plotly stream {"createMs":27.1,"toPaintMs":27.8,"pushP50":3.4,"pushP95":4.7,"frameP50":16.7,"frameP95":16.8,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":4.1,"scriptMsPerUpdate":0.02,"layoutStyleMsPerUpdate":0.
+nivo scale 10000 {"toPaintMs":431.4,"runs":[426.8,431.4,447.1],"taskMs":441.2,"taskRuns":[437.7,441.2,458.1],"failedRuns":0,"load1":[1.94,1.94,1.95]}
+nivo scale 100000 {"toPaintMs":3341,"runs":[3300,3341,3362.4],"taskMs":3352.5,"taskRuns":[3328,3352.5,3374],"failedRuns":0,"load1":[1.95,1.95,1.96]}
+nivo scale 1000000 {"noResultWithinMs":45000,"load1":[2.2]}
+nivo stream {"createMs":53.1,"toPaintMs":58.8,"pushP50":14.7,"pushP95":18.5,"frameP50":19.3,"frameP95":25,"framesOver20ms":97,"frames":300,"taskMsPerUpdate":19.77,"scriptMsPerUpdate":2.96,"layoutStyleMsPerUpdate"
+mui scale 10000 {"toPaintMs":50.2,"runs":[46.5,50.2,54.5],"taskMs":78.1,"taskRuns":[70.1,78.1,79.9],"failedRuns":0,"load1":[2.19,2.19,2.19]}
+mui scale 100000 {"toPaintMs":260.8,"runs":[252.1,260.8,264.7],"taskMs":335.7,"taskRuns":[328.3,335.7,341.9],"failedRuns":0,"load1":[2.09,2.09,2.01]}
+mui scale 1000000 {"toPaintMs":2256.3,"runs":[2222.9,2256.3,2296.9],"taskMs":2626.9,"taskRuns":[2612.8,2626.9,2686.7],"failedRuns":0,"load1":[2.01,2.25,2.79]}
+mui stream {"createMs":24.2,"toPaintMs":30.2,"pushP50":2.6,"pushP95":4.2,"frameP50":16.7,"frameP95":16.9,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":3.9,"scriptMsPerUpdate":0.26,"layoutStyleMsPerUpdate":0.
+uplot scale 10000 {"toPaintMs":22.2,"runs":[18.4,22.2,30.1],"taskMs":31.3,"taskRuns":[29.6,31.3,32.7],"failedRuns":0,"load1":[2.89,2.98,2.98]}
+uplot scale 100000 {"toPaintMs":29,"runs":[27.4,29,29.7],"taskMs":30.8,"taskRuns":[29.5,30.8,33.6],"failedRuns":0,"load1":[2.98,2.82,2.82]}
+uplot scale 1000000 {"toPaintMs":57.6,"runs":[55.6,57.6,58.4],"taskMs":74.9,"taskRuns":[74.8,74.9,77.2],"failedRuns":0,"load1":[2.82,2.67,2.67]}
+uplot stream {"createMs":4.8,"toPaintMs":22.3,"pushP50":0,"pushP95":0.1,"frameP50":16.7,"frameP95":16.8,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":0.52,"scriptMsPerUpdate":0.16,"layoutStyleMsPerUpdate":0,"l
+axylo scale 10000 {"toPaintMs":32.1,"runs":[32.1,32.1,35.2],"taskMs":35.6,"taskRuns":[35.4,35.6,37.1],"failedRuns":0,"load1":[2.65,2.65,2.6]}
+axylo scale 100000 {"toPaintMs":32.7,"runs":[32,32.7,35],"taskMs":40,"taskRuns":[39.9,40,41.3],"failedRuns":0,"load1":[2.6,2.6,2.71]}
+axylo scale 1000000 {"toPaintMs":79.3,"runs":[78.5,79.3,79.6],"taskMs":91.7,"taskRuns":[88.9,91.7,92.3],"failedRuns":0,"load1":[2.71,2.71,2.73]}
+axylo stream {"createMs":5.4,"toPaintMs":31.7,"pushP50":0.1,"pushP95":0.2,"frameP50":16.7,"frameP95":17,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":1.4,"scriptMsPerUpdate":0.77,"layoutStyleMsPerUpdate":0.24,
+
+No-chart floor and the five tuned configurations, 2026-11-22
+noop scale 10000 {"toPaintMs":31.3,"runs":[24.2,31.3,31.9],"taskMs":7.2,"taskRuns":[6.7,7.2,9.6],"failedRuns":0,"load1":[2.69,2.69,2.56]}
+noop scale 100000 {"toPaintMs":21.8,"runs":[16.8,21.8,31.1],"taskMs":9.6,"taskRuns":[8.2,9.6,11.2],"failedRuns":0,"load1":[2.56,2.56,2.43]}
+noop scale 1000000 {"toPaintMs":23.7,"runs":[17.6,23.7,23.8],"taskMs":10.2,"taskRuns":[9.8,10.2,10.5],"failedRuns":0,"load1":[2.43,2.43,2.32]}
+noop stream {"createMs":0,"toPaintMs":24.3,"pushP50":0,"pushP95":0,"frameP50":16.7,"frameP95":16.8,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":0.09,"scriptMsPerUpdate":0.01,"layoutStyleMsPerUpdate":0,"load1
+chartjs-tuned scale 10000 {"toPaintMs":31.7,"runs":[29.9,31.7,32],"taskMs":44,"taskRuns":[36.7,44,44.2],"failedRuns":0,"load1":[2.51,2.51,2.51]}
+chartjs-tuned scale 100000 {"toPaintMs":26,"runs":[25.4,26,30.8],"taskMs":43.2,"taskRuns":[41.5,43.2,44.8],"failedRuns":0,"load1":[2.47,2.47,2.47]}
+chartjs-tuned scale 1000000 {"toPaintMs":96.4,"runs":[95.8,96.4,98.4],"taskMs":149,"taskRuns":[139.3,149,155.4],"failedRuns":0,"load1":[2.27,2.27,2.27]}
+chartjs-tuned stream {"createMs":12.7,"toPaintMs":31.6,"pushP50":0.9,"pushP95":1.5,"frameP50":16.7,"frameP95":16.8,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":1.48,"scriptMsPerUpdate":0.02,"layoutStyleMsPerUpdate":0
+echarts-tuned scale 10000 {"toPaintMs":30.5,"runs":[29.8,30.5,32.9],"taskMs":50.9,"taskRuns":[48,50.9,51.2],"failedRuns":0,"load1":[2.3,2.51,2.51]}
+echarts-tuned scale 100000 {"toPaintMs":67.9,"runs":[66,67.9,68],"taskMs":93,"taskRuns":[92.9,93,99.5],"failedRuns":0,"load1":[2.39,2.39,2.39]}
+echarts-tuned scale 1000000 {"toPaintMs":388.4,"runs":[357.8,388.4,394.4],"taskMs":448.4,"taskRuns":[406.2,448.4,457.1],"failedRuns":0,"load1":[2.28,2.28,2.28]}
+echarts-tuned stream {"createMs":22,"toPaintMs":30.3,"pushP50":1.4,"pushP95":2.4,"frameP50":16.7,"frameP95":16.8,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":1.99,"scriptMsPerUpdate":0.03,"layoutStyleMsPerUpdate":0,"
+recharts-tuned scale 10000 {"toPaintMs":95.3,"runs":[94.9,95.3,111.7],"taskMs":110.1,"taskRuns":[109.2,110.1,129.5],"failedRuns":0,"load1":[2.14,2.14,2.14]}
+recharts-tuned scale 100000 {"toPaintMs":535.7,"runs":[534.6,535.7,550.1],"taskMs":557.5,"taskRuns":[555.6,557.5,567.8],"failedRuns":0,"load1":[2.05,2.05,1.96]}
+recharts-tuned scale 1000000 {"toPaintMs":5410,"runs":[5384.9,5410,5901.2],"taskMs":5812.3,"taskRuns":[5667.8,5812.3,6258.1],"failedRuns":0,"load1":[1.96,1.81,1.74]}
+recharts-tuned stream {"createMs":3.5,"toPaintMs":33.5,"pushP50":3.8,"pushP95":4.8,"frameP50":16.7,"frameP95":16.8,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":4.55,"scriptMsPerUpdate":0.02,"layoutStyleMsPerUpdate":0.
+highcharts-tuned scale 10000 {"toPaintMs":88.4,"runs":[82.4,88.4,93.8],"taskMs":98.4,"taskRuns":[88.1,98.4,101.9],"failedRuns":0,"load1":[1.42,1.42,1.39]}
+highcharts-tuned scale 100000 {"toPaintMs":120.5,"runs":[118,120.5,131.2],"taskMs":151.8,"taskRuns":[146.6,151.8,164.1],"failedRuns":0,"load1":[1.39,1.39,1.68]}
+highcharts-tuned scale 1000000 {"toPaintMs":423.3,"runs":[414.4,423.3,434.2],"taskMs":494.4,"taskRuns":[477.1,494.4,513],"failedRuns":0,"load1":[1.68,1.62,1.62]}
+highcharts-tuned stream {"createMs":25.3,"toPaintMs":32.8,"pushP50":1.7,"pushP95":2.7,"frameP50":16.7,"frameP95":16.8,"framesOver20ms":0,"frames":300,"taskMsPerUpdate":2.23,"scriptMsPerUpdate":0.01,"layoutStyleMsPerUpdate":0
+plotly-tuned scale 10000 {"toPaintMs":211.7,"runs":[187.3,211.7,218.8],"taskMs":221,"taskRuns":[193.6,221,225.9],"failedRuns":0,"load1":[2.04,1.95,1.95]}
+plotly-tuned scale 100000 {"toPaintMs":957.7,"runs":[931.4,957.7,969.5],"taskMs":965.4,"taskRuns":[935.8,965.4,975.3],"failedRuns":0,"load1":[2.04,2.04,3.16]}
+plotly-tuned scale 1000000 {"toPaintMs":8269.4,"runs":[8110.7,8269.4,8369.1],"taskMs":8295.6,"taskRuns":[8142.1,8295.6,8393.4],"failedRuns":0,"load1":[3.06,4,4.89]}
+plotly-tuned stream {"createMs":62.5,"toPaintMs":122.9,"pushP50":3.6,"pushP95":5.9,"frameP50":17.2,"frameP95":22.4,"framesOver20ms":42,"frames":300,"taskMsPerUpdate":17.81,"scriptMsPerUpdate":0.02,"layoutStyleMsPerUpdate

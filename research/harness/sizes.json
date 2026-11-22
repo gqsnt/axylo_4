@@ -60,9 +60,9 @@
   "harnessLoc": 50
  },
  "axylo": {
-  "minKB": 300.3,
-  "gzipKB": 105.9,
-  "brotliKB": 91.8,
+  "minKB": 294.8,
+  "gzipKB": 103.3,
+  "brotliKB": 90,
   "harnessLoc": 32,
   "version": "0.0.0",
   "license": "MIT"

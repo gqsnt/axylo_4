@@ -4,6 +4,7 @@
 import { chromium } from 'playwright-core';
 import { PNG } from 'pngjs';
 import fs from 'node:fs';
+import { loadavg } from 'node:os';
 
 const BASE = 'http://localhost:4173/';
 const LIBS = ['chartjs', 'recharts', 'd3', 'echarts', 'highcharts', 'apexcharts', 'plotly', 'nivo', 'mui', 'uplot', 'axylo'];
@@ -225,16 +226,26 @@ for (const lib of only) {
       const prev = R.scale[n / 10];
       if (prev && (prev.noResultWithinMs || prev.error || prev.toPaintMs > 8000)) { R.scale[n] = { skipped: 'previous size too slow' }; continue; }
       const runs = [];
-      for (let i = 0; i < 3; i++) { const marks = {}; const { ctx, res } = await open({}, lib, 'scale', `&n=${n}`, 0, 45000, marks); if (marks['create:end']) res.taskMs = 1000 * (marks['create:end'].TaskDuration - marks['create:start'].TaskDuration); runs.push(res); await ctx.close(); if (res.noResultWithinMs || res.error) break; }
+      const load1 = [];
+      for (let i = 0; i < 3; i++) {
+        const marks = {};
+        load1.push(loadavg()[0]);
+        const { ctx, res } = await open({}, lib, 'scale', `&n=${n}`, 0, 45000, marks);
+        if (marks['create:end']) res.taskMs = 1000 * (marks['create:end'].TaskDuration - marks['create:start'].TaskDuration);
+        runs.push(res);
+        await ctx.close();
+        if (res.noResultWithinMs || res.error) break;
+      }
       const ok = runs.filter(r => r.toPaintMs).map(r => r.toPaintMs).sort((a, b) => a - b);
       const task = runs.filter(r => r.taskMs).map(r => r.taskMs).sort((a, b) => a - b);
       R.scale[n] = ok.length ? { toPaintMs: +ok[Math.floor(ok.length / 2)].toFixed(1), runs: ok.map(v => +v.toFixed(1)), taskMs: task.length ? +task[Math.floor(task.length / 2)].toFixed(1) : null, taskRuns: task.map(v => +v.toFixed(1)), failedRuns: runs.length - ok.length } : runs[runs.length - 1];
+      R.scale[n].load1 = load1;
       save(); console.log(lib, 'scale', n, JSON.stringify(R.scale[n]).slice(0, 160));
     }
-    { const marks = {}; const { ctx, res, logs } = await open({}, lib, 'stream', '', 0, 90000, marks);
+    { const marks = {}; const load1 = loadavg()[0]; const { ctx, res, logs } = await open({}, lib, 'stream', '', 0, 90000, marks);
       if (marks['stream:end']) { const d = k => 1000 * (marks['stream:end'][k] - marks['stream:start'][k]); res.taskMsPerUpdate = d('TaskDuration') / res.frames; res.scriptMsPerUpdate = d('ScriptDuration') / res.frames; res.layoutStyleMsPerUpdate = (d('LayoutDuration') + d('RecalcStyleDuration')) / res.frames; }
       for (const key in res) if (typeof res[key] === 'number') res[key] = +res[key].toFixed(2);
-      R.stream = { ...res, logs: logs.slice(0, 3) }; await ctx.close(); save(); console.log(lib, 'stream', JSON.stringify(R.stream).slice(0, 200)); }
+      R.stream = { ...res, load1, logs: logs.slice(0, 3) }; await ctx.close(); save(); console.log(lib, 'stream', JSON.stringify(R.stream).slice(0, 200)); }
   }
 }
 save();

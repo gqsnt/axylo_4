@@ -17,7 +17,7 @@ The npm downloads API rate-limits bursts; `refill.mjs` retries the packages that
 
 One page runs the same tasks through the original ten libraries and Axylo. A probe drives system Chrome through all eleven.
 
-Axylo uses the production ES module from [`tests/dist/.packed/axylo-0.0.0.tgz`](../tests/dist/.packed/axylo-0.0.0.tgz), packed on 2026-11-18 at 21:10:31 UTC. The packing manifest records `sha512-LCn3nSF7J5rmBJmwBZbcAx6J2alUgEDGg6BQ44OmkziEpuzrFCX1qQ3CG9KMqgOAaPvKzh1LtfpRPM/FC2IfFQ==`. `node packed-axylo.mjs` checks that integrity and extracts the package into `vendor/axylo/`. Vite and the size script both resolve `axylo` to that copy.
+Axylo uses the production ES module from [`tests/dist/.packed/axylo-0.0.0.tgz`](../tests/dist/.packed/axylo-0.0.0.tgz), packed at `2026-11-22T05:25:11.598Z`. The packing manifest records `sha512-VeHctR0XNnVoXRNO2t0EpOoZXGLgtUn7Fw44MRZQlsiPbJm0SjXJt+3oLqrQ+KKlK9PKzFfbf0CLFCVjX9IXiA==`. `node packed-axylo.mjs` checks that integrity and extracts the package into `vendor/axylo/`. Vite and the size script both resolve `axylo` to that copy.
 
 To refresh from a new tarball, rerun `node packed-axylo.mjs` and record its filename, packing date and integrity here. A coordinator can repack an already-built distribution with `node scripts/pack.mjs --no-build` from the repository root. The harness needs its locked dependencies already installed. Preparing Axylo requires only the local archive.
 
@@ -53,7 +53,8 @@ node research/tables.mjs
 | `probe.mjs` | DOM and accessibility-tree capture, keyboard walk, pointer hover in three time zones for instants and for date strings, one bad value at a time, resize, dark scheme, a light-only page on a dark device, motion with and without reduced-motion, timings and browser-reported main-thread time. |
 | `results.json` | Probe output, merged across runs. `_runs` lists every invocation since the log was added; results from the first pass predate it. |
 | `spot-checks.json` | Small checks the report quotes, including the WebGL renderer, reduced-motion mentions, accessibility switches, and what Axylo exposes after opening its table. |
-| `perf.log`, `rerun.log` | Console output of the first and second performance passes. The report uses the second. |
+| `perf.log`, `rerun.log` | Console output of the original Phase 1 performance passes. |
+| `perf-2026-11-22.log` | The 1.0 timing comparison, including the no-chart floor and tuned runs. |
 | `shots/` | Screenshots; `_sheet-*.png` are the side-by-side sheets. |
 | `palette.json`, `sizes.json` | Default palette scores and bundle sizes. |
 
@@ -69,4 +70,4 @@ Open one case by hand at `http://localhost:4173/?lib=axylo&task=trend`. Tasks ar
 
 ### Reading the timings
 
-Timings are from headless Chrome on one desktop machine, three runs each, and are for ranking by order of magnitude. The report uses main-thread task time as the browser reports it (through the DevTools protocol), which counts work however a library schedules it but not rasterization on other threads. The older "time to second frame" figure is still recorded as `toPaintMs`; it cannot resolve below about 35 ms and stops counting before entry animations finish. The streaming producer sends one update per animation frame, so it is not an independent 60 Hz feed. WebGL ran on a software rasterizer. The performance plan replaces all of this with a stricter method ([docs/04-plan-performance.md](../docs/04-plan-performance.md)).
+Timings are from headless Chrome on one desktop machine. The scale probe attempts three runs per size and stops that size after the first failure. The November 22 comparison logs one-minute load before each scale attempt and streaming run. The report uses main-thread task time as the browser reports it (through the DevTools protocol), which counts work however a library schedules it but not rasterization on other threads. The older "time to second frame" figure is still recorded as `toPaintMs`; it cannot resolve below about 35 ms and stops counting before entry animations finish. The streaming producer sends one update per animation frame, so it is not an independent 60 Hz feed. WebGL ran on a software rasterizer. The performance plan replaces all of this with a stricter method ([docs/04-plan-performance.md](../docs/04-plan-performance.md)).
