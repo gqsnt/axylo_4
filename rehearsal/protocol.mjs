@@ -52,12 +52,13 @@ export async function inputChanges(workspace, original) {
 }
 
 export async function inputHashes(workspace, task) {
-  const { alternate, expected, alternateExpected } = taskFiles(task);
+  const { alternate, expected, alternateExpected, grammar, grammarExpected } = taskFiles(task);
   const sources = {
     package: fileHash(packedPackage),
     alternate: fileHash(alternate),
     expected: fileHash(expected),
     alternateExpected: fileHash(alternateExpected),
+    ...(grammar ? { grammar: fileHash(grammar), grammarExpected: fileHash(grammarExpected) } : {}),
     grader: Promise.all([
       ...['grade.mjs', 'reader.mjs', 'table.mjs', 'files.mjs'].map(file => fileHash(join(rehearsal, file))),
       fileHash(join(repository, 'packages/axylo/src/diagnostics/registry.ts')),

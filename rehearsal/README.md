@@ -54,6 +54,6 @@ npx --no-install vitest run --root rehearsal
 
 The first Vitest command runs fixture, comparator, audit and local-runner tests without Chrome. The second also runs the browser references and negative controls. The runner exits 0 when all newly scheduled attempts pass or there are no open slots, 1 for any new failed, timed-out or void attempt, and 2 for setup or infrastructure errors. Use the summary to evaluate the whole release rehearsal.
 
-## For the next release
+## Daily revenue grammar input
 
-Grade `daily-revenue.grammar.json` as a third input in both time zones, and check that `"+2"` reads as `2` and that `".5"` and `"0x10"` each leave a gap and count toward the reader's omission note. It is not yet registered in `files.mjs`, `grade.mjs` and `protocol.mjs`, so the 1e93128 batch was graded without it (the agents' number converters accepted `"0x10"` or `".5"` there: `reviews/2026-11-19/wp/rehearsal-analysis.md`).
+The grader also runs `daily-revenue.grammar.json` in both time zones. `"+2"` reads as `2`. `".5"` and `"0x10"` each leave a gap and count toward the reader's omission note. Both the input and the expected results are hashed into each daily-revenue record. The 1e93128 batch covered the primary and alternate inputs. Its separate grammar probe found converters that accepted `"0x10"` or `".5"`. [Rehearsal analysis](../reviews/2026-11-19/wp/rehearsal-analysis.md)

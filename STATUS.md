@@ -47,6 +47,8 @@ Baseline P1–P8 are recorded in `bench/results/budgets-2026-11-21.md`. P4 passe
 
 The SVG-only verification is complete. The first full Chrome try hit browser launch errors with a long temporary path. A short path resolved them. The rehearsal harness uses persistent scratch outside the checkout, as required by its isolation check. The SVG-only artifact is `bench/artifacts/20261122T042403Z-bb2826ac-ec008a`. The read-only SVG review found no actionable issues (`reviews/2026-11-22/wp/svg-only.report.md`).
 
+The daily-revenue third input is now registered and hashed for the release rehearsal. All 121 rehearsal harness tests passed and the independent review found no actionable issues.
+
 Next: finish the P1 history and profile report, then implement the measured fixes for the time-zone lookup and unnecessary readout measurement. Verify each candidate with `npm run typecheck && node scripts/pack.mjs && node scripts/size.mjs --no-build && node bench/build.mjs`.
 
 ## What is left for 1.0, in order

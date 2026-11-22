@@ -32,7 +32,8 @@ export default function render(element, data) {
 
 const revenue = `import { line } from 'axylo';
 export default function render(element, data) {
-  const rows = data.map(row => ({ ...row, revenue: Number(row.revenue) }));
+  const decimal = /^[+-]?\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$/;
+  const rows = data.map(row => ({ ...row, revenue: decimal.test(row.revenue) ? Number(row.revenue) : row.revenue }));
   return line(element, { data: rows, x: { field: 'day', type: 'date' }, y: 'revenue', title: 'Daily store revenue' });
 }`;
 
@@ -102,12 +103,13 @@ const answers = [
   ['daily-revenue', revenue],
 ];
 
-it.each(answers)('passes a hand-written %s answer on both inputs in both time zones', async (task, source) => {
+it.each(answers)('passes a hand-written %s answer on all registered inputs in both time zones', async (task, source) => {
   const result = await answer(task, source);
   expect(result.criteria.filter(item => !item.pass)).toEqual([]);
   expect(result.pass).toBe(true);
   expect(result.timezones.map(zone => [zone.input, zone.timezoneId])).toEqual([
     ['primary', LA], ['primary', Tokyo], ['alternate', LA], ['alternate', Tokyo],
+    ...(task === 'daily-revenue' ? [['grammar', LA], ['grammar', Tokyo]] : []),
   ]);
   if (task === 'signups') {
     expect(result.diagnostics.filter(d => d.code === 'AX102')).toHaveLength(2);
@@ -152,8 +154,20 @@ it('fails when agent code filters out a valid revenue row', async () => {
   const source = revenue.replace('const rows = data.map', "const rows = data.filter(row => !row.day.startsWith('2026-05-05')).map");
   const result = await answer('daily-revenue', source);
   expect(criterion(result, 'no error diagnostics').pass).toBe(true);
-  expect(criterion(result, 'reader note').pass).toBe(true);
+  // The original cases omit nothing. The grammar input also loses one of two reportable omissions.
+  expect(result.timezones.filter(zone => zone.input !== 'grammar').every(zone => criterion(zone, 'reader note').pass)).toBe(true);
+  expect(result.timezones.filter(zone => zone.input === 'grammar').every(zone => !criterion(zone, 'reader note').pass)).toBe(true);
   expect(criterion(result, 'table rows')).toMatchObject({ pass: false, detail: expect.stringContaining('2026-05-05') });
+});
+
+it('fails the grammar rows and omission note when JavaScript Number accepts both malformed strings', async () => {
+  const result = await answer('daily-revenue', revenue.replace('decimal.test(row.revenue) ? Number(row.revenue) : row.revenue', 'Number(row.revenue)'));
+  const grammar = result.timezones.filter(zone => zone.input === 'grammar');
+  expect(grammar).toHaveLength(2);
+  for (const zone of grammar) {
+    expect(criterion(zone, 'table rows').pass).toBe(false);
+    expect(criterion(zone, 'reader note').pass).toBe(false);
+  }
 });
 
 it('fails a wrong unit label on one series of a multi-series chart', async () => {

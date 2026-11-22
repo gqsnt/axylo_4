@@ -20,6 +20,10 @@ export function taskFiles(task) {
     expected: join(rehearsal, 'fixtures', task + '.expected.json'),
     alternate: join(rehearsal, 'fixtures', task + '.alternate.json'),
     alternateExpected: join(rehearsal, 'fixtures', task + '.alternate.expected.json'),
+    ...(task === 'daily-revenue' ? {
+      grammar: join(rehearsal, 'fixtures', 'daily-revenue.grammar.json'),
+      grammarExpected: join(rehearsal, 'fixtures', 'daily-revenue.grammar.expected.json'),
+    } : {}),
   };
 }
 

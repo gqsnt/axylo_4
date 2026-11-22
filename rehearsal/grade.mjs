@@ -218,6 +218,7 @@ export async function grade(workspace, task, { launch = () => chromium.launch({ 
   const inputs = await Promise.all([
     ['primary', taskPaths.fixture, taskPaths.expected],
     ['alternate', taskPaths.alternate, taskPaths.alternateExpected],
+    ...(taskPaths.grammar ? [['grammar', taskPaths.grammar, taskPaths.grammarExpected]] : []),
   ].map(async ([name, fixture, expected]) => ({ name, data: await readJson(fixture), expected: await readJson(expected) })));
   const save = async result => {
     await writeJson(join(workspace, 'grade.json'), result);
