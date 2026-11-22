@@ -13,7 +13,7 @@ export { object };
 import { createDiagnostic, DiagnosticCollector, report } from '../diagnostics';
 import { buildView, type ViewState } from '../view';
 import { fill, resolveMessages } from '../messages';
-import { sameValue, INTERNAL_KEYS, type OptionRecord } from './options';
+import { sameValue, type OptionRecord } from './options';
 
 export type Span<T = number> = readonly [T, T];
 
@@ -42,7 +42,7 @@ export function publicOptions(input: unknown): OptionRecord {
   for (const key of Object.keys(input)) {
     const value = (input as Record<string, unknown>)[key];
     // A key set to undefined is a default, as the patch rule reads it on create (finding 14: one path).
-    if (!INTERNAL_KEYS.includes(key) && value !== undefined) out[key] = value;
+    if (value !== undefined) out[key] = value;
   }
   return out;
 }

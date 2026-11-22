@@ -47,7 +47,7 @@ So a page that sets `color-scheme`, a page whose theme switch only changes class
 
 In forced-colours mode (Windows High Contrast and similar) every paint becomes a system colour, the colours you set included, and they come back when the mode ends. Series are then told apart by their markers, dashes and patterns. Under `prefers-contrast: more`, and in forced colours, lines also differ by dash. No example on this site emulates forced colours; the library's own browser tests do.
 
-Marks are drawn as SVG paths, the provisional default of [decision 0002](../../../docs/decisions/0002-mark-renderer.md), which keeps them sharp at any zoom. There is no print stylesheet in 1.0, and printing has not been tested.
+SVG draws the marks, keeping them sharp at any zoom. See [renderer decision 0002](../../../docs/decisions/0002-mark-renderer.md). There is no print stylesheet in 1.0, and printing has not been tested.
 
 ## The default palette
 

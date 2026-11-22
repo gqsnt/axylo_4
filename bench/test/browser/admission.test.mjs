@@ -109,21 +109,23 @@ test('theme: one stale mark is caught by the per-mark color check', async () => 
   assert.match(r.reason, /theme: after toggle 1: series 1 /);
 });
 
-test('Axylo production build, both renderers, are admitted through adapter parameters', async () => {
-  for (const renderer of ['canvas', 'svg']) {
-    const r = await runOnce(browser, server, { ...spec('axylo', 'first', { size: '3x120', gaps: false }), adapterParams: { renderer } });
-    assert.equal(r.outcome, 'ok', r.reason ?? r.error);
-    assert.match(r.result.adapter.config, new RegExp(`${renderer} mark renderer \\(__renderer: '${renderer}'\\), instrumented production build`));
-  }
+test('Axylo’s production build admits SVG and rejects the old Canvas selector', async () => {
+  const setup = spec('axylo', 'first', { size: '3x120', gaps: false });
+  const r = await runOnce(browser, server, { ...setup, adapterParams: { renderer: 'svg' } });
+  assert.equal(r.outcome, 'ok', r.reason ?? r.error);
+  assert.match(r.result.adapter.config, /SVG marks, instrumented production build/);
+  const removed = await runOnce(browser, server, { ...setup, adapterParams: { renderer: 'canvas' } });
+  assert.notEqual(removed.outcome, 'ok');
+  assert.match(removed.reason ?? removed.error, /this artifact draws marks with SVG only/);
 });
 
-test('after a production rebuild, each Axylo adapter commits the renderer it names, in timed and probe runs', async () => {
-  for (const [id, kind] of [['axylo-canvas', 'canvas'], ['axylo-svg', 'svg']]) {
+test('after a production rebuild, both Axylo adapters commit SVG in timed and probe runs', async () => {
+  for (const id of ['axylo', 'axylo-svg']) {
     for (const s of [spec(id, 'first', { size: '3x120', gaps: false }), probe(id, 'first', { size: '3x120', gaps: false })]) {
       const r = await runOnce(browser, server, s);
-      assert.equal(r.outcome, 'ok', `${id} ${s.probe ?? 'timed'}: ${r.reason ?? r.error}`);
-      assert.equal(r.result.describe[0].renderer.kind, kind);
-      assert.equal(r.result.adapter.expectRenderer, kind);
+      assert.equal(r.outcome, 'ok', r.reason ?? r.error);
+      assert.equal(r.result.describe[0].renderer.kind, 'svg');
+      assert.equal(r.result.adapter.expectRenderer, 'svg');
     }
   }
   const wrong = await runOnce(browser, server, spec('axylo-wrong-renderer', 'first', { size: '3x120', gaps: false }));
@@ -136,7 +138,7 @@ test('admission reads what was drawn: tuned Chart.js decimation across gaps is r
   const cj = await runOnce(browser, server, probe('chartjs-tuned', 'first', params));
   assert.equal(cj.outcome, 'not-admitted');
   assert.match(cj.reason, /drawn segments join retained neighbours across missing source values/);
-  for (const id of ['uplot', 'axylo-canvas', 'axylo-svg']) {
+  for (const id of ['uplot', 'axylo-svg']) {
     const r = await runOnce(browser, server, probe(id, 'first', params));
     assert.equal(r.outcome, 'ok', `${id}: ${r.reason ?? r.error}`);
   }
@@ -161,10 +163,10 @@ test('new workloads run end to end: hover (P4), zoom, compact (P8), scatter, mem
     // P4 on the budget path: the public default renderer, exact datum and readout per move.
     ['axylo', 'hover', { size: '1x100000', gaps: false, moves: 30 }],
     ['axylo-svg', 'zoom', { size: '1x10000', gaps: false }],
-    ['axylo-canvas', 'compact', { fixture: 'trend', charts: 40 }],
+    ['axylo', 'compact', { fixture: 'trend', charts: 40 }],
     ['axylo-svg', 'scatter', { size: '1x10000', clustered: true }],
-    ['axylo-canvas', 'scatter', { size: '1x10000', clustered: false }],
-    ['axylo-canvas', 'mem', { size: '1x100000', gaps: false }],
+    ['axylo', 'scatter', { size: '1x10000', clustered: false }],
+    ['axylo', 'mem', { size: '1x100000', gaps: false }],
     ['axylo-svg', 'lifecycle', { fixture: 'trend', cycles: 20 }],
   ];
   for (const [id, workload, params] of cases) {
@@ -173,9 +175,10 @@ test('new workloads run end to end: hover (P4), zoom, compact (P8), scatter, mem
   }
   const na = await runOnce(browser, server, spec('uplot', 'compact', { fixture: 'trend', charts: 40 }));
   assert.equal(na.outcome, 'not-available');
-  // The library's owned-buffer count is not in this build: P7 owned bytes are "not available", never a heap delta.
-  const mem = await runOnce(browser, server, spec('axylo-canvas', 'mem', { size: '1x100000', gaps: false }));
-  assert.ok(mem.result.owned.na);
+  // P7 now measures the shipped SVG path. The exact byte count comes from the library's buffer hook.
+  const mem = await runOnce(browser, server, spec('axylo', 'mem', { size: '1x100000', gaps: false }));
+  assert.equal(mem.outcome, 'ok');
+  assert.ok(Number.isSafeInteger(mem.result.owned.bytes) && mem.result.owned.bytes < mem.result.callerColumnBytes);
 });
 
 test('P4 counts a stale or wrong readout as a missed deadline (Chart.js tuned commits decimated neighbours)', async () => {

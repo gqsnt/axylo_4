@@ -53,18 +53,23 @@ for (const type of types) {
       const r = chart(type, fixture(type), {}, undefined, kind);
       const resolve = r.host.theme;
       let scheme: 'light' | 'dark' = 'light';
+      const axis = { light: '#123456', dark: '#fedcba' };
       r.host.theme = (keys, colors) => {
         const result = resolve(keys, colors);
-        return { ...result, theme: { ...result.theme, scheme } };
+        return {
+          ...result, theme: { ...result.theme, scheme },
+          bindings: { ...result.bindings, tokens: { ...result.bindings.tokens, axis: axis[scheme] } },
+        };
       };
       r.frames();
-      expect(committed(r).theme.scheme).toBe('light');
+      // SVG receives paint bindings. The resolved Canvas paints are no longer passed to interaction.
+      expect(committed(r).bindings.tokens.axis).toBe(axis.light);
       const first = scene(r);
       const draws = r.draws.length;
       scheme = 'dark';
       r.controller.invalidate.theme();
       expect(r.frames()).toBeLessThanOrEqual(1);
-      expect(committed(r).theme.scheme).toBe('dark');
+      expect(committed(r).bindings.tokens.axis).toBe(axis.dark);
       expect(r.draws).toHaveLength(draws + 1);
       expect(scene(r)).toEqual(first);
     }

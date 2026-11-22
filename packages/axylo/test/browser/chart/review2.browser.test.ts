@@ -629,13 +629,8 @@ describe('swatches repeat the contrast dash (finding 22)', () => {
     // Against the plotted line itself (SVG marks): the swatch is the same pattern at half length.
     const plotted = await page.evaluate(() => [...document.querySelectorAll('#chart svg.axylo-svg path')]
       .map(p => getComputedStyle(p).strokeDasharray).filter(d => d !== 'none'));
-    // On SVG the plotted dash must be there (interaction review part 3: an all-solid plot skipped this check);
-    // on canvas the marks are pixels and the swatch's own pattern above is what is checked.
-    const svg = await page.locator('#chart svg.axylo-svg').count();
-    if (svg) {
-      expect(plotted.length).toBeGreaterThan(0);
-      expect(plotted[0]!.split(',').map(v => parseFloat(v) / 2)).toEqual(dashes[1]!.split(',').map(v => parseFloat(v)));
-    }
+    expect(plotted.length).toBeGreaterThan(0);
+    expect(plotted[0]!.split(',').map(v => parseFloat(v) / 2)).toEqual(dashes[1]!.split(',').map(v => parseFloat(v)));
     expect(await closePage(page)).toEqual([]);
   });
 });

@@ -92,8 +92,8 @@ describe('controller finding 10: two charts on one target keep their own colors'
     const result = await page.evaluate(async () => {
       const el = document.getElementById('chart')!;
       const data = [1, 2].flatMap(x => [{ x, s: 'a', y: x }, { x, s: 'b', y: -x }]);
-      const red = window.Axylo.line!(el, { title: 'Red', data, x: 'x', y: 'y', series: 's', colors: { a: 'rgb(255, 0, 0)' }, __renderer: 'svg' });
-      const blue = window.Axylo.line!(el, { title: 'Blue', data, x: 'x', y: 'y', series: 's', colors: { a: 'rgb(0, 0, 255)' }, __renderer: 'svg' });
+      const red = window.Axylo.line!(el, { title: 'Red', data, x: 'x', y: 'y', series: 's', colors: { a: 'rgb(255, 0, 0)' } });
+      const blue = window.Axylo.line!(el, { title: 'Blue', data, x: 'x', y: 'y', series: 's', colors: { a: 'rgb(0, 0, 255)' } });
       await Promise.all([red.__bench.ready(), blue.__bench.ready()]);
       const strokes = () => [...el.querySelectorAll('figure')].map(f => [...f.querySelectorAll('svg.axylo-svg path')].map(p => getComputedStyle(p).stroke).find(c => c === 'rgb(255, 0, 0)' || c === 'rgb(0, 0, 255)') ?? null);
       const both = strokes();

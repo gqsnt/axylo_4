@@ -3,8 +3,8 @@
 // Adapter parameters (runner: --baseline axylo:renderer=svg,build=dev; or the fixed axylo-canvas / axylo-svg):
 //   renderer  'canvas' | 'svg'             passed to Axylo as its internal `__renderer` option (which exists for the
 //                                           renderer comparison only). The fixed adapters axylo-canvas and axylo-svg
-//                                           always pass it. The generic `axylo` adapter without a renderer parameter
-//                                           passes nothing and measures the public default (SVG today), which is what
+//                                           pass it on older artifacts. SVG-only builds don't accept the switch.
+//                                           The generic `axylo` adapter measures the public default, which is what
 //                                           the budgets P1-P8 are about; the renderer it got is read back and recorded.
 //   build     'prod' (default) | 'dev'     prod = axylo/axylo.iife.min.js (__DEV__ = false); dev = axylo.iife.js
 //                                           (__DEV__ = true), used only to attribute profiles. Both are compiled by
@@ -37,9 +37,13 @@ const NO_HOOK = 'this Axylo build has no benchmark hook (chart.__bench); use a d
 const FILES = { prod: './axylo/axylo.bench.iife.min.js', release: './axylo/axylo.iife.min.js', dev: './axylo/axylo.iife.js' };
 const BUILD_LABEL = { prod: 'instrumented production build (axylo.bench.iife.min.js)', release: 'RELEASE build, shipped bytes (axylo.iife.min.js), no hook', dev: 'DEVELOPMENT build (axylo.iife.js)' };
 
+// Adapter unit tests also import this module without esbuild's defines to exercise the legacy path.
+const hasCanvasMarks = typeof __AXYLO_CANVAS_MARKS__ === 'undefined' || __AXYLO_CANVAS_MARKS__;
+
 const resolve = (fixed, params) => {
   const p = { build: 'prod', ...params, ...fixed };
   if (p.renderer !== undefined && !['canvas', 'svg'].includes(p.renderer)) throw new Error(`axylo: renderer must be canvas or svg, got ${p.renderer}`);
+  if (!hasCanvasMarks && p.renderer === 'canvas') throw new Error('axylo: this artifact draws marks with SVG only');
   if (!FILES[p.build]) throw new Error(`axylo: build must be prod, release or dev, got ${p.build}`);
   return p;
 };
@@ -166,10 +170,15 @@ export function axyloAdapter(id, fixed = {}) {
     library: 'Axylo',
     version: __VERSIONS__.axylo,
     config: 'default',
-    configFor: params => { const p = resolve(fixed, params); return `default options, ${p.renderer ? `${p.renderer} mark renderer (__renderer: '${p.renderer}')` : 'the public default mark renderer (no __renderer)'}, ${BUILD_LABEL[p.build]}`; },
+    configFor: params => {
+      const p = resolve(fixed, params);
+      const renderer = !hasCanvasMarks ? 'SVG marks' : p.renderer
+        ? `${p.renderer} mark renderer (__renderer: '${p.renderer}')` : 'the public default mark renderer (no __renderer)';
+      return `default options, ${renderer}, ${BUILD_LABEL[p.build]}`;
+    },
     bundleFor: params => FILES[resolve(fixed, params).build].slice(2),
     resolvedParams: params => resolve(fixed, params),
-    expectRendererFor: params => resolve(fixed, params).renderer ?? null,
+    expectRendererFor: params => resolve(fixed, params).renderer ?? (hasCanvasMarks ? null : 'svg'),
     async load(params) {
       const p = resolve(fixed, params);
       globalThis.__AXYLO_BENCH__ = true;
@@ -183,17 +192,18 @@ export function axyloAdapter(id, fixed = {}) {
     },
     create(el, fix, opts = {}) {
       const p = resolve(fixed, opts.params);
+      const renderer = hasCanvasMarks && p.renderer ? { __renderer: p.renderer } : {};
       const A = globalThis.Axylo;
       let chart;
       if (opts.kind === 'scatter') {
-        chart = A.scatter(el, { data: { columns: { x: fix.x, y: fix.ys[0] } }, x: { field: 'x', type: 'number' }, y: 'y', title: fix.title ?? 'Benchmark', ...(p.renderer ? { __renderer: p.renderer } : {}) });
+        chart = A.scatter(el, { data: { columns: { x: fix.x, y: fix.ys[0] } }, x: { field: 'x', type: 'number' }, y: 'y', title: fix.title ?? 'Benchmark', ...renderer });
       } else {
         const columns = { t: fix.x };
         fix.names.forEach((n, i) => { columns[n] = fix.ys[i]; });
         chart = A.line(el, {
           data: { columns }, x: { field: 't', type: 'time', timeZone: 'UTC' }, y: fix.names, title: fix.title ?? 'Benchmark',
           ...(opts.compact ? { compact: true } : {}),
-          ...(p.renderer ? { __renderer: p.renderer } : {}),
+          ...renderer,
         });
       }
       const hook = chart.__bench;

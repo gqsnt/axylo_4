@@ -9,7 +9,6 @@ import { alignedLookupFor } from '../lookup';
 import { alignedReader } from '../reader';
 import { barSwatch } from '../dom/interaction';
 import { svgBand, svgRects, svgRule } from '../render/svg';
-import { canvasBand, canvasRects, canvasRule } from '../render/canvas';
 
 export const BAR: Composition = {
   kind: 'bar',
@@ -22,5 +21,4 @@ export const BAR: Composition = {
   interaction: { overlay: alignedTargetMarks, swatch: barSwatch, stepInSeries: null, sliceList: null },
   // Bars and their patterns, "no data" boxes (rects), references, axes, the cursor and bar outlines (rules).
   svg: { rects: svgRects, rule: svgRule, band: svgBand },
-  canvas: { rects: canvasRects, rule: canvasRule, band: canvasBand },
 };

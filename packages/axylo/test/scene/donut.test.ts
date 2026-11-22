@@ -34,8 +34,7 @@ function svgPaths(scene: Scene): (string | undefined)[] {
     },
   };
   const bindings = { tokens: TOKEN_BINDINGS, series: Array.from({ length: 8 }, () => 'red') };
-  const theme = { scheme: 'light', forcedColors: false, moreContrast: false, paints: bindings } as const;
-  createSvgRenderer(doc as unknown as Document).draw(scene, bindings, theme, 1);
+  createSvgRenderer(doc as unknown as Document).draw(scene, bindings, 1);
   return paths.map(path => path.get('d'));
 }
 

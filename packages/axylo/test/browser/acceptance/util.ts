@@ -5,9 +5,7 @@
  * read from Chrome itself through the DevTools protocol (roles, names, descriptions, states), never from the
  * attributes the code sets, except where a comment says Chrome cannot report the property.
  *
- * THIS SUITE IS EVIDENCE FOR THE SVG RENDERER ONLY. It locates marks by reading the SVG DOM (paths, rects,
- * their colour slots) before sampling their pixels, so it says nothing about the canvas renderer, and it
- * refuses to run when `AXYLO_RENDERER=canvas` is set rather than report SVG results under a canvas run.
+ * Mark checks read the SVG DOM before sampling pixels.
  *
  * Every checker the suite leans on (separators, painted colour, text overlap, table comparison, the focused
  * range, tooltip occlusion, motion, reference marks, dense columns) has a negative control in
@@ -21,11 +19,8 @@ export { ENGINE, requireEngineFeature };
 
 /** Why a test that reads Chrome's computed accessibility tree is not run on another engine. */
 export const AX_TREE_REASON = "the browser's own computed accessibility tree (roles, names, descriptions, states) is read through the Chrome DevTools protocol; Playwright offers no engine-neutral equivalent (its aria snapshot is its own computation and carries no descriptions)";
-import { chartPage, RENDERER } from '../chart/util';
+import { chartPage } from '../chart/util';
 
-if (RENDERER === 'canvas') {
-  throw new Error('The browser acceptance suite reads the SVG DOM and is evidence for the SVG renderer only; it does not run with AXYLO_RENDERER=canvas.');
-}
 import { decodePng, type Image } from '../render/png';
 import { type ChartType, type Kind, optionsFor, optionsForKind, type Variant } from './fixtures';
 
@@ -46,22 +41,10 @@ export async function devPage(options: Parameters<typeof chartPage>[0] = {}): Pr
   return chartPage({ ...options, css: `${SHOW_BUTTONS} ${options.css ?? ''}` });
 }
 
-/** Runs in the page: the same renderer switch chart/util.ts applies, for the production page. */
-function selectRenderer(renderer: string): void {
-  const original = (window as unknown as { Axylo: Record<string, unknown> }).Axylo;
-  const wrapped: Record<string, unknown> = { ...original };
-  for (const name of ['line', 'area', 'bar', 'scatter', 'donut']) {
-    const make = original[name] as (target: unknown, options: Record<string, unknown>) => unknown;
-    wrapped[name] = (target: unknown, options: Record<string, unknown>) => make(target, { __renderer: renderer, ...options });
-  }
-  (window as unknown as { Axylo: unknown }).Axylo = wrapped;
-}
-
 /** Production bundle page (dist/axylo.iife.min.js, `__DEV__` false): no test hooks on the handle. */
 export async function prodPage(options: { css?: string; viewport?: { width: number; height: number } } = {}): Promise<Page> {
   const page = await openPage(options.viewport ? { viewport: options.viewport } : {});
   await page.goto(url('packages/axylo/test/browser/acceptance/prod.html'));
-  if (RENDERER) await page.evaluate(selectRenderer, RENDERER);
   await page.evaluate(() => { (window as unknown as { nextFrames(n?: number): Promise<void> }).nextFrames = (n = 1) => new Promise(r => { let k = n; const f = () => (--k <= 0 ? r() : requestAnimationFrame(f)); requestAnimationFrame(f); }); });
   await page.addStyleTag({ content: `${SHOW_BUTTONS} ${options.css ?? ''}` });
   return page;

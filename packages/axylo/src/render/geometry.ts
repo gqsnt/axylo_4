@@ -1,5 +1,5 @@
 /**
- * Geometry shared by the canvas and SVG renderers, so both draw the same picture. Pure: runs in Node.
+ * Geometry for SVG marks. Pure: runs in Node.
  * Every function writes into a caller-owned scratch array instead of returning objects, so drawing
  * allocates nothing per mark element.
  */
@@ -23,21 +23,19 @@ export const unclippedRule = (role: RuleMark['role']): boolean => role === 'axis
 /**
  * Snaps a horizontal or vertical rule to device pixels so a 1 px rule covers whole pixel rows and stays
  * crisp. Writes x1, y1, x2, y2 and the line width, all in CSS px, into `out`. Other rules pass through.
- * `dprY` is the vertical scale when it differs from the horizontal one (a canvas whose backing size was
- * rounded or capped).
  */
-export function snapRule(x1: number, y1: number, x2: number, y2: number, width: number, dpr: number, out: Float64Array, dprY: number = dpr): void {
+export function snapRule(x1: number, y1: number, x2: number, y2: number, width: number, dpr: number, out: Float64Array): void {
   if (y1 === y2) {
-    const device = Math.max(1, Math.round(width * dprY));
+    const device = Math.max(1, Math.round(width * dpr));
     const half = device / 2;
-    const y = (Math.round(y1 * dprY - half) + half) / dprY;
+    const y = (Math.round(y1 * dpr - half) + half) / dpr;
     out[0] = Math.round(x1 * dpr) / dpr; out[1] = y; out[2] = Math.round(x2 * dpr) / dpr; out[3] = y;
-    out[4] = device / dprY;
+    out[4] = device / dpr;
   } else if (x1 === x2) {
     const device = Math.max(1, Math.round(width * dpr));
     const half = device / 2;
     const x = (Math.round(x1 * dpr - half) + half) / dpr;
-    out[0] = x; out[1] = Math.round(y1 * dprY) / dprY; out[2] = x; out[3] = Math.round(y2 * dprY) / dprY;
+    out[0] = x; out[1] = Math.round(y1 * dpr) / dpr; out[2] = x; out[3] = Math.round(y2 * dpr) / dpr;
     out[4] = device / dpr;
   } else {
     out[0] = x1; out[1] = y1; out[2] = x2; out[3] = y2; out[4] = width;
@@ -58,7 +56,7 @@ interface Box { readonly x: number; readonly y: number; readonly width: number; 
  * thinner side is the value axis. Along it the marker grows to MISSING_MIN, away from the baseline toward
  * the inside of `clip` (upwards, or downwards when zero is at the top of the plot; rightwards, or leftwards
  * when zero is at the right), so the plot clip never removes it. Along the category axis it keeps the
- * slot's own extent and never covers a neighbour. The renderers draw it hollow, with a diagonal, inset by
+ * slot's own extent and never covers a neighbour. It is drawn hollow, with a diagonal, inset by
  * half the outline. Writes x, y, width, height of the outline path into `out`.
  */
 export function missingBox(x: number, y: number, w: number, h: number, out: Float64Array, clip?: Box | null): void {
@@ -87,7 +85,7 @@ export function missingBox(x: number, y: number, w: number, h: number, out: Floa
 
 /**
  * Bar patterns (RectMark.pattern, the second cue of spec F9), drawn in the background color over the fill.
- * Lattices are anchored at the scene origin, so both renderers draw the same lines: diagonals x + y = 8k
+ * Lattices are anchored at the scene origin: diagonals x + y = 8k
  * (and x − y = 8k for the cross hatch), 8 / √2 ≈ 5.7 px apart; dots of radius 1 on a 6 px grid at (3, 3).
  */
 export const PATTERN_TILE = 8;
@@ -112,8 +110,8 @@ const FULL_TURN_SLACK = 1e-4;
 /**
  * Annular sector with `gap` CSS px of background between it and its neighbours: each side is moved
  * gap/2 into the slice, parallel to its radius, so the gap has constant width (spec A5) rather than a
- * constant angle. Input angles are radians clockwise from 12 o'clock. Writes, in canvas angles (radians
- * clockwise from 3 o'clock): out[0], out[1] the outer arc; out[2], out[3] the inner arc (drawn from
+ * constant angle. Input angles are radians clockwise from 12 o'clock. Writes, in radians
+ * clockwise from 3 o'clock: out[0], out[1] the outer arc; out[2], out[3] the inner arc (drawn from
  * out[2] back to out[3]) and out[6] its radius; for SECTOR_APEX, out[4] the apex radius and out[5] its angle.
  *
  * The region at least gap/2 from both sides begins at radius d / sin(span/2) on the bisector for a slice of

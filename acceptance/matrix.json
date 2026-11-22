@@ -6956,12 +6956,6 @@
           "file": "packages/axylo/test/browser/render/theme.browser.test.ts",
           "title": "--axylo-background overrides color-scheme",
           "reason": "Renderer level, on a hand-built scene rather than a chart type: with color-scheme: light, --axylo-background: #101418 makes the resolved scheme dark."
-        },
-        {
-          "kind": "browser",
-          "file": "packages/axylo/test/browser/chart/theme.browser.test.ts",
-          "title": "toggling a dark class repaints within a frame, without rebuilding the scene (canvas)",
-          "reason": "Line, canvas renderer: a class on <html> that darkens the page gives the dark palette's pixels after the first frame, without a new scene; the acceptance suite runs the SVG renderer only."
         }
       ],
       "area": [

@@ -3,7 +3,6 @@
  * exposes small operations on `window.axr`; the tests take screenshots and sample pixels.
  */
 import type { Mark, MarkRenderer, MarkerShape, Overlay, Paint, PlacedText, Scene } from '../../../../src/core/contracts';
-import { createCanvasRenderer } from '../../../../src/render/canvas';
 import { createSvgRenderer } from '../../../../src/render/svg';
 import { createTextLayer, type TextLayer } from '../../../../src/render/text';
 import { AXYLO_CSS } from '../../../../src/theme/css';
@@ -11,7 +10,7 @@ import { lowContrastSeries } from '../../../../src/theme/color';
 import { resolveTheme, type ThemeResolution } from '../../../../src/theme/resolve';
 import { ensureStyles } from '../../../../src/theme/styles';
 import { watchTheme } from '../../../../src/theme/watch';
-import type { AxrApi, MountOptions, RendererKind, ResolveInfo, SceneName, TextProbe, TextSpec, WatchRecord } from './api';
+import type { AxrApi, MountOptions, ResolveInfo, SceneName, TextProbe, TextSpec } from './api';
 
 const S = (index: number): Paint => ({ kind: 'series', index });
 const T = (name: 'axis' | 'grid' | 'reference' | 'muted' | 'focus' | 'background' | 'text'): Paint => ({ kind: 'token', name });
@@ -124,7 +123,6 @@ function namedScene(name: SceneName, options: MountOptions): Scene {
 }
 
 interface Mounted {
-  readonly kind: RendererKind;
   readonly root: HTMLDivElement;
   readonly renderer: MarkRenderer;
   readonly keys: readonly string[];
@@ -145,18 +143,9 @@ function makeRoot(left: number, top: number, width = 400, height = 300, parent: 
 }
 
 function draw(m: Mounted): void {
-  const { bindings, theme } = resolveTheme(m.root, m.keys, m.colors);
-  m.renderer.draw(m.scene, bindings, theme, window.devicePixelRatio);
+  const { bindings } = resolveTheme(m.root, m.keys, m.colors);
+  m.renderer.draw(m.scene, bindings, window.devicePixelRatio);
   m.draws++;
-}
-
-function sceneCanvas(m: Mounted, layer: 'scene' | 'overlay' = 'scene'): HTMLCanvasElement {
-  return m.root.querySelectorAll('canvas')[layer === 'scene' ? 0 : 1]!;
-}
-
-function pixel(m: Mounted, x: number, y: number, layer: 'scene' | 'overlay' = 'scene'): number[] {
-  const ctx = sceneCanvas(m, layer).getContext('2d')!;
-  return Array.from(ctx.getImageData(x, y, 1, 1).data);
 }
 
 function info(r: ThemeResolution, root: Element | null): ResolveInfo {
@@ -168,7 +157,6 @@ function info(r: ThemeResolution, root: Element | null): ResolveInfo {
 
 let stopWatch: (() => void)[] = [];
 let fired = 0;
-const records: WatchRecord[] = [];
 
 let text: { layer: TextLayer; root: HTMLDivElement; specs: TextSpec[]; texts: PlacedText[] } | null = null;
 
@@ -236,15 +224,15 @@ const api: AxrApi = {
     ensureStyles(document);
     return document.adoptedStyleSheets.length;
   },
-  mount(kind: RendererKind, left: number, top: number, options: MountOptions = {}): number {
+  mount(left: number, top: number, options: MountOptions = {}): number {
     ensureStyles(document);
     const parent = options.parent ? document.querySelector(options.parent)! : document.body;
     const scene = namedScene(options.scene ?? 'fixed', options);
     const root = makeRoot(left, top, scene.width, scene.height, parent);
     for (const [k, v] of Object.entries(options.style ?? {})) root.style.setProperty(k, v);
-    const renderer = kind === 'canvas' ? createCanvasRenderer() : createSvgRenderer();
+    const renderer = createSvgRenderer();
     root.appendChild(renderer.element);
-    const m: Mounted = { kind, root, renderer, keys: options.keys ?? DEFAULT_KEYS, colors: options.colors, scene, draws: 0 };
+    const m: Mounted = { root, renderer, keys: options.keys ?? DEFAULT_KEYS, colors: options.colors, scene, draws: 0 };
     mounts.push(m);
     draw(m);
     return mounts.length - 1;
@@ -271,13 +259,6 @@ const api: AxrApi = {
     return info(resolveTheme(el, ['a', 'b'], { b: 'rgb(10, 20, 30)' }), el);
   },
   move(id: number, parent: string): void { document.querySelector(parent)!.appendChild(mounts[id]!.root); },
-  canvasInfo(id: number) {
-    const c = sceneCanvas(mounts[id]!);
-    const o = sceneCanvas(mounts[id]!, 'overlay');
-    const r = c.getBoundingClientRect();
-    return { width: c.width, height: c.height, cssWidth: r.width, cssHeight: r.height, overlayWidth: o.width, overlayHeight: o.height, overlayCssWidth: o.getBoundingClientRect().width };
-  },
-  canvasPixel: (id: number, x: number, y: number, layer: 'scene' | 'overlay' = 'scene'): number[] => pixel(mounts[id]!, x, y, layer),
   svgDash(id: number): string {
     const el = mounts[id]!.root.querySelector('.axylo-dashed');
     return el === null ? 'missing' : getComputedStyle(el).strokeDasharray;
@@ -309,7 +290,7 @@ const api: AxrApi = {
   },
   overlay(id: number, on: boolean): void {
     const m = mounts[id]!;
-    const { bindings, theme } = resolveTheme(m.root, m.keys, m.colors);
+    const { bindings } = resolveTheme(m.root, m.keys, m.colors);
     const overlay: Overlay = {
       clip: m.scene.clip,
       // A cursor rule at x = 330 running past the clip (must stop at 260), a focus square that is not
@@ -320,30 +301,19 @@ const api: AxrApi = {
       ],
       unclipped: [{ type: 'points', series: 0, shape: 'square', size: 8, fill: T('focus'), xy: Float32Array.of(20, 280) }],
     };
-    m.renderer.drawOverlay(on ? overlay : null, bindings, theme, window.devicePixelRatio);
+    m.renderer.drawOverlay(on ? overlay : null, bindings, window.devicePixelRatio);
   },
   svgOverlayCount: (id: number): number => mounts[id]!.root.querySelector('.axylo-overlay')!.childElementCount,
-  watch(probe: readonly [number, number]): void {
+  watch(): void {
     const first = mounts[0];
-    if (first === undefined) return;
-    // One watcher is enough for the page; more would only repeat the same calls.
+    if (!first) return;
     stopWatch.push(watchTheme(first.root, () => {
       fired++;
-      const dpr = window.devicePixelRatio;
-      for (const n of mounts) {
-        const { bindings, theme } = resolveTheme(n.root, n.keys, n.colors);
-        if (n.kind !== 'canvas') { records.push({ id: mounts.indexOf(n), before: null, after: null }); continue; }
-        const x = Math.round(probe[0] * dpr), y = Math.round(probe[1] * dpr);
-        const before = pixel(n, x, y);
-        n.renderer.draw(n.scene, bindings, theme, dpr);
-        n.draws++;
-        records.push({ id: mounts.indexOf(n), before, after: pixel(n, x, y) });
-      }
+      for (const mount of mounts) resolveTheme(mount.root, mount.keys, mount.colors);
     }));
   },
   stopWatch(): void { for (const s of stopWatch) s(); stopWatch = []; },
   fired: (): number => fired,
-  records: (): readonly WatchRecord[] => records,
   mountText(left: number, top: number): TextProbe[] {
     return mountTextSpecs(left, top, [
       { lines: ['Jan 2026'], x: 200, y: 100, anchor: 'end', baseline: 'middle', rotate: -45 },
@@ -380,34 +350,6 @@ const api: AxrApi = {
   },
   setRootStyle(id: number, name: string, value: string): void { mounts[id]!.root.style.setProperty(name, value); },
   frames,
-  async time(kind: RendererKind, vertices: number, repeats: number) {
-    const root = makeRoot(0, 0);
-    ensureStyles(document);
-    const renderer = kind === 'canvas' ? createCanvasRenderer() : createSvgRenderer();
-    root.appendChild(renderer.element);
-    const scene = lineScene(vertices);
-    const { bindings, theme } = resolveTheme(root, DEFAULT_KEYS, undefined);
-    const drawTimes: number[] = [], painted: number[] = [];
-    for (let i = 0; i < repeats; i++) {
-      // A fresh array each time: the SVG renderer skips rebuilding `d` for the same array object.
-      const xy = (scene.marks[0] as { xy: Float32Array }).xy.slice();
-      xy[1] = xy[1]! + (i % 2) * 0.5;
-      const s: Scene = { ...scene, marks: [{ ...(scene.marks[0] as Mark & { type: 'path' }), xy }] };
-      await frames(1);
-      const t0 = performance.now();
-      renderer.draw(s, bindings, theme, window.devicePixelRatio);
-      const t1 = performance.now();
-      // Force style and layout now, then wait for the frame to be produced.
-      void root.getBoundingClientRect();
-      await frames(2);
-      const t2 = performance.now();
-      drawTimes.push(t1 - t0);
-      painted.push(t2 - t0);
-    }
-    renderer.destroy();
-    root.remove();
-    return { draw: drawTimes, painted };
-  },
   shadowMount(left: number, top: number) {
     const host = document.createElement('div');
     document.body.appendChild(host);
@@ -417,7 +359,7 @@ const api: AxrApi = {
     const renderer = createSvgRenderer();
     root.appendChild(renderer.element);
     const keys = DEFAULT_KEYS;
-    const m: Mounted = { kind: 'svg', root, renderer, keys, colors: undefined, scene: fixedScene(), draws: 0 };
+    const m: Mounted = { root, renderer, keys, colors: undefined, scene: fixedScene(), draws: 0 };
     mounts.push(m);
     draw(m);
     return {

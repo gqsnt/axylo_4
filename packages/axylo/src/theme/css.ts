@@ -67,8 +67,7 @@ export const AXYLO_CSS = `/* Axylo default stylesheet */
    * tokens: private defaults that follow the chart's used colour scheme (spec L4). Where the page gives the
    * chart a color-scheme (light dark, dark, light, only …), resolveTheme writes no scheme attribute and these
    * apply: a prefers-color-scheme change switches every var(--axylo-default-…) in the same frame as the media
-   * query, with no script (the SVG marks reference them; the canvas renderer repaints when the change event
-   * arrives, one frame behind). light-dark() is supported by the current and previous major versions of the
+   * query. light-dark() is supported by the current and previous major versions of the
    * four browsers in spec 2.3.
    */
   .axylo {
@@ -90,9 +89,8 @@ ${forced}
   }
 
   /* marks */
-  .axylo .axylo-svg, .axylo .axylo-canvas { position: absolute; left: 0; top: 0; display: block; pointer-events: none; }
+  .axylo .axylo-svg { position: absolute; left: 0; top: 0; display: block; pointer-events: none; }
   .axylo .axylo-svg { overflow: hidden; }
-  .axylo .axylo-canvas > canvas { position: absolute; left: 0; top: 0; display: block; }
 
   /*
    * Dash patterns of the SVG renderer. Each dashed element carries its normal pattern inline and both

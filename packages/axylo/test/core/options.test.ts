@@ -36,11 +36,6 @@ describe('option patches (plan 1.5)', () => {
     expect(store.current.title).toBe('B');
   });
 
-  it('never stores the internal renderer switch', () => {
-    const store = new OptionsStore({ title: 'A', __renderer: 'svg' });
-    expect(Object.hasOwn(store.current, '__renderer')).toBe(false);
-  });
-
   it('for any patch: present keys equal the patch, undefined keys are gone, absent keys keep their value', () => {
     const key = fc.constantFrom('a', 'b', 'c', 'd', 'e');
     const value = fc.oneof(fc.integer(), fc.string(), fc.constant(undefined), fc.record({ n: fc.integer() }));

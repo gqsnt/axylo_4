@@ -1,29 +1,19 @@
 /**
  * Theme resolution (spec L4, DX6, A5): decides light or dark for a chart root, and turns paints into both
- * CSS expressions (for the SVG renderer, which stays live) and concrete colors (for canvas and contrast
- * checks). Concrete colors come from the browser itself through probe elements, never from parsing CSS.
+ * CSS expressions (for the SVG renderer, which stays live) and concrete colors (for contrast checks). Concrete colors come from the browser itself through probe elements, never from parsing CSS.
  *
  * The chart paints no background unless the author sets `--axylo-background`: marks sit on whatever is
  * behind the chart. So the background used for checks is the effective opaque backdrop, found by walking up
  * from the chart and compositing computed background colors; with `--axylo-background` it is that color
- * (composited over the backdrop), which the renderers then also paint. What is measured is what is drawn.
+ * (composited over the backdrop), which SVG then also paints. What is measured is what is drawn.
  */
 import type { PaintBindings, PaintToken, ResolvedTheme } from '../core/contracts';
 import { composite, isLightColor, parseColor, type Rgba } from './color';
 import { LIGHT, SERIES_COUNT } from './palette';
 
-/** A resolved theme with what the renderers need beyond the contract. */
-export interface ResolvedThemeDetails extends ResolvedTheme {
-  /**
-   * Concrete color to paint behind the whole scene, or null to paint nothing. Set when the author gives
-   * `--axylo-background`; the canvas renderer fills with it, the SVG renderer paints the live CSS value.
-   */
-  readonly plotBackground?: string | null;
-}
-
 export interface ThemeResolution {
   readonly bindings: PaintBindings;
-  readonly theme: ResolvedThemeDetails;
+  readonly theme: ResolvedTheme;
   /**
    * false when the element is not connected to a document: nothing could be computed, the paints are the
    * light defaults, and the caller should resolve again once the chart is attached.
@@ -145,7 +135,7 @@ export function resolveTheme(
 
   return {
     bindings,
-    theme: { scheme, forcedColors, moreContrast, paints, plotBackground: override ? overrideText! : null },
+    theme: { scheme, forcedColors, moreContrast, paints },
     resolved: true,
     backdropKnown: backdrop.known,
     invalidColors,
@@ -162,7 +152,7 @@ function unresolved(element: HTMLElement, bindings: PaintBindings, count: number
   const scheme = element.getAttribute('data-axylo-scheme') === 'dark' ? 'dark' : 'light';
   return {
     bindings,
-    theme: { scheme, forcedColors: false, moreContrast: false, paints: { tokens, series }, plotBackground: null },
+    theme: { scheme, forcedColors: false, moreContrast: false, paints: { tokens, series } },
     resolved: false,
     backdropKnown: false,
     invalidColors: [],

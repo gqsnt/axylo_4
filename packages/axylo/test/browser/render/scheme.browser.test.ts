@@ -15,7 +15,7 @@ describe('L4: the used colour scheme reaches the marks in the frame it changes',
   it('color-scheme: light dark, the device turns dark: the first frame paints the marks dark', async () => {
     const page = await chartPage({ css: ':root { color-scheme: light dark; }' });
     await page.evaluate(async () => {
-      const chart = window.Axylo.line!('#chart', { title: 'S', data: [0, 1, 2].map(x => ({ x, y: x })), x: 'x', y: 'y', __renderer: 'svg' });
+      const chart = window.Axylo.line!('#chart', { title: 'S', data: [0, 1, 2].map(x => ({ x, y: x })), x: 'x', y: 'y' });
       window.charts.push(chart);
       await chart.__bench.ready();
       await window.nextFrames(2);
@@ -45,7 +45,7 @@ describe('L4: the used colour scheme reaches the marks in the frame it changes',
   it('color-scheme normal keeps the scheme the chart resolved: light text on a dark page gives dark marks', async () => {
     const page = await chartPage({ css: 'body { background: #121212; color: #e8e8e8; }' });
     await page.evaluate(async () => {
-      const chart = window.Axylo.line!('#chart', { title: 'S', data: [0, 1, 2].map(x => ({ x, y: x })), x: 'x', y: 'y', __renderer: 'svg' });
+      const chart = window.Axylo.line!('#chart', { title: 'S', data: [0, 1, 2].map(x => ({ x, y: x })), x: 'x', y: 'y' });
       window.charts.push(chart);
       await chart.__bench.ready();
     });

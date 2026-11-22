@@ -10,6 +10,11 @@ Revised twice on 2026-11-18 after cross-provider reviews (`reviews/2026-11-18/im
 (`src/decision.js`, `decision.mjs`). Records written before (schema `axylo-bench/1`, the M1 session) keep their
 stored analysis; they cannot serve as noise bands or endpoint results (no served files or host).
 
+Axylo 1.0 draws marks only with SVG ([decision 0002](../docs/decisions/0002-mark-renderer.md)).
+Canvas comparisons below describe historical artifacts. Use the original sealed artifact when
+replaying the 2026-11-21 decision or running the Canvas adapter. New artifacts contain only
+the default Axylo and fixed SVG adapters.
+
 ## Commands
 
 ```bash

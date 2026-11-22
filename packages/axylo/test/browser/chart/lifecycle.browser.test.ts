@@ -19,8 +19,7 @@ describe('resize (spec L3)', () => {
       await chart.__bench.ready();
       const widths: number[] = [];
       const lastLabelRight = () => Math.max(...[...el.querySelectorAll('.axylo-label')].map(l => l.getBoundingClientRect().right)) - el.getBoundingClientRect().left;
-      // Either renderer: the canvas renderer's wrapper or the SVG element.
-      const marks = () => (el.querySelector('.axylo-canvas, .axylo-svg') as HTMLElement).getBoundingClientRect().width;
+      const marks = () => el.querySelector<SVGSVGElement>('.axylo-svg')!.getBoundingClientRect().width;
       const first = chart.__dev.stages();
       widths.push(marks());
       el.style.width = '360px';

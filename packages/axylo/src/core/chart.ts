@@ -11,8 +11,6 @@
  * Detachment is noticed by the observers the chart already has (the resize observer reports a zero box),
  * not by polling.
  */
-import type { MarkRenderer, Scene } from './contracts';
-import { canvasRendererWith } from '../render/canvas';
 import { svgRendererWith } from '../render/svg';
 import { createTextLayer, type TextLayer } from '../render/text';
 import { ensureStyles, resolveTheme, watchTheme } from '../theme';
@@ -23,7 +21,6 @@ import type { DeliveryConsole } from './delivery';
 import { createMeasurer, noteFontLoad, readTextStyle, resolveLocale, viewerTimeZone, watchEnvironment, watchLanguage } from './environment';
 import { controllerFor, type ChartHandle, type Controller, type ControllerActions } from './controller';
 import type { Composition } from './composition';
-import { object } from './stages';
 
 export type { BenchHook, ChartHandle, ChartKind, DevHook, Stage } from './controller';
 
@@ -63,10 +60,9 @@ export function createChart(composition: Composition, target: unknown, input: un
 
   let controller: Controller | null = null;
   try {
-    const requested = object(input).__renderer === 'canvas' ? 'canvas' : 'svg';
     const id = allocateId(doc);
 
-    const renderer: MarkRenderer = requested === 'canvas' ? canvasRendererWith(composition.canvas, doc) : svgRendererWith(composition.svg, doc);
+    const renderer = svgRendererWith(composition.svg, doc);
     cleanup.push(() => renderer.destroy());
     const textLayer: TextLayer = createTextLayer(doc);
     cleanup.push(() => textLayer.destroy());
@@ -174,10 +170,7 @@ export function createChart(composition: Composition, target: unknown, input: un
       console: overrides.console === undefined ? (win.console as DeliveryConsole) : overrides.console,
       page: doc,
       timeZone,
-      renderer: {
-        kind: renderer.kind,
-        draw: (scene: Scene, bindings, theme, ratio) => renderer.draw(scene, bindings, theme, ratio),
-      },
+      renderer,
       text: textLayer,
       figure,
       interaction,
@@ -232,7 +225,7 @@ export function createChart(composition: Composition, target: unknown, input: un
       theme: (keys, colors) => resolveTheme(figure.figure, keys, colors),
       surfaces(visible) {
         // Hidden without drawing: the error revision does not depend on the methods that may have failed.
-        for (const el of [renderer.element, textLayer.element]) (el as HTMLElement).style.visibility = visible ? '' : 'hidden';
+        for (const el of [renderer.element, textLayer.element]) el.style.visibility = visible ? '' : 'hidden';
       },
       dispose: release,
     });

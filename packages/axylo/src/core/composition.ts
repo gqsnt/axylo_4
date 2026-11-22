@@ -14,7 +14,6 @@ import type { LookupBuilder } from '../lookup';
 import type { ReaderParts } from '../reader';
 import type { InteractionParts } from '../dom/interaction';
 import type { SvgMarks } from '../render/svg';
-import type { CanvasMarks } from '../render/canvas';
 
 export type Store = AlignedStore | PointStore | DonutStore;
 
@@ -29,7 +28,6 @@ export interface Composition {
   readonly lookup: LookupBuilder;
   readonly reader: ReaderParts;
   readonly interaction: InteractionParts;
-  /** The mark handlers of each renderer, for the marks this kind's scenes and overlays can produce. */
+  /** The handlers for the marks this kind's scenes and overlays can produce. */
   readonly svg: SvgMarks;
-  readonly canvas: CanvasMarks;
 }

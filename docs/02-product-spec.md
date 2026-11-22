@@ -268,7 +268,7 @@ Three rules hold whatever the numbers become:
 | Label fitting is a tested invariant with a visible fallback | R2. | Changed. The absolute "everything always fits" was infeasible in a 240 px tile; it is now "nothing overlaps, and nothing disappears without the reader being told". Rotation comes before truncation. |
 | One logical table, three input forms | D2. | Changed from "one data shape": typed columns and wide rows are first-class. |
 | Three methods with a commit contract | D3. | Changed from "one update method": `append` and `zoom` were always there, and their ordering is now specified. |
-| Canvas marks with DOM text | D9: a canvas library is the speed reference. D10: one DOM node per point is slow. | **Reopened.** Phase 1 does not show that SVG is slow, only that one node per point is; a single SVG path per series was fast. M1 builds both mark renderers on the same scene and measures them (section 8). Canvas is the working assumption. |
+| SVG marks with DOM text | The two renderers were built on the same scene and measured. | The owner chose SVG as the only mark renderer for 1.0 on 2026-11-22. See [decision 0002](decisions/0002-mark-renderer.md). |
 | Simplified drawing that preserves extremes, on by default | D8. | Kept for lines and areas, with the guarantee restated per pixel column and per run of valid samples. "Every spike survives" was wrong as written. |
 | Palette held to measurable thresholds | R7. | Kept as a screen, marked provisional. Marks carry a non-color cue in every mode, which the first draft did not require. |
 | Colors and fonts from CSS | R10. | Kept. Repaint triggers specified; `palette` option replaced by `colors` keyed by series name. |
@@ -290,10 +290,9 @@ Three rules hold whatever the numbers become:
 
 ## 8. Decisions still open
 
-Settled by the owner on 2026-11-18: scatter is in 1.0; the compact variant is in 1.0; the mark renderer stays open until M1 measures both.
+The owner included scatter and the compact variant on 2026-11-18 and chose SVG as the only 1.0 mark renderer on 2026-11-22.
 
 | Question | Recommendation | Settled by |
 |---|---|---|
-| Canvas or SVG paths for marks? | Decide from the M1 comparison: P1, P2, P3, P5, bytes, memory, theme toggle, forced colors, print. | M1 record. |
 | Which keyboard and screen-reader pattern for the plot? | Decide from the M1 spike: three candidate patterns on the `trend` chart, rehearsed on the five pairs. | M1 record, confirmed in M4. |
 | Is the palette that meets A5 one people want to look at? | Hand-tune from the search output with the thresholds in CI. | M5. |

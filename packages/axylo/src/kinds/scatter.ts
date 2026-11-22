@@ -9,7 +9,6 @@ import { scatterLookupFor } from '../lookup';
 import { scatterReader } from '../reader';
 import { pointSwatch } from '../dom/interaction';
 import { svgBand, svgPoints, svgRule } from '../render/svg';
-import { canvasBand, canvasPoints, canvasRule } from '../render/canvas';
 
 export const SCATTER: Composition = {
   kind: 'scatter',
@@ -22,5 +21,4 @@ export const SCATTER: Composition = {
   interaction: { overlay: scatterTargetMarks, swatch: pointSwatch, stepInSeries, sliceList: null },
   // Points and highlighted points, references, axes and the focus ring (rules).
   svg: { points: svgPoints, rule: svgRule, band: svgBand },
-  canvas: { points: canvasPoints, rule: canvasRule, band: canvasBand },
 };

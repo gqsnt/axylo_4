@@ -6,7 +6,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
 import { requireEngineFeature, start, stop } from '../harness';
-import { RENDERER, chartPage, closePage } from './util';
+import { chartPage, closePage } from './util';
 import { create, frames, inside, lastHover, plotBox, recordEvents, selected, settle, strip, tip, walk, type Box, type Pt } from './final-util';
 
 beforeAll(start);
@@ -79,7 +79,7 @@ describe('item 1: groups come from the lookup (C8, I8)', () => {
 
 describe('item 2: Escape and dismissal by the rewritten clarification', () => {
   // The acceptance fixture: four slices of spend, the probe at 45° (Travel) and the next slice's at 63° (Rent).
-  it.skipIf(RENDERER === 'canvas')('donut: after a rest and the corridor into the tooltip, Escape, back to the first slice (closed), then to another: it opens', async () => {
+  it('donut: after a rest and the corridor into the tooltip, Escape, back to the first slice (closed), then to another: it opens', async () => {
     const page = await chartPage({ css: '#before, #after { display: inline-block !important; }' });
     const items = ['Travel', 'Rent', 'Books', 'Food'], values = [360, 1200, 240, 600];
     await create(page, 'donut', { title: 'Monthly spend', data: items.map((item, i) => ({ item, spend: values[i] })), label: 'item', value: { field: 'spend', label: 'Spend', unit: 'EUR' } });

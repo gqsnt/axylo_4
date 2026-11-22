@@ -438,7 +438,7 @@ describe('bars, donut colors, stages (findings 15, 16, 17, 18)', () => {
   it('a color pinned to Sales paints the Sales arc when a zero slice comes first', async () => {
     const page = await chartPage();
     const colors = await page.evaluate(async () => {
-      const chart = window.Axylo.donut!('#chart', { title: 'D', data: [{ l: 'Empty', v: 0 }, { l: 'Sales', v: 4 }], label: 'l', value: 'v', colors: { Sales: 'rgb(255, 0, 0)' }, __renderer: 'svg' });
+      const chart = window.Axylo.donut!('#chart', { title: 'D', data: [{ l: 'Empty', v: 0 }, { l: 'Sales', v: 4 }], label: 'l', value: 'v', colors: { Sales: 'rgb(255, 0, 0)' } });
       await chart.__bench.ready();
       return [...document.querySelectorAll('#chart svg path')].map(p => getComputedStyle(p).fill).filter(f => f.startsWith('rgb(255, 0, 0)'));
     });
@@ -525,17 +525,17 @@ describe('naming (finding 19)', () => {
 });
 
 describe('presentation (renderer default, messages, reference plate, legend)', () => {
-  it('the default mark renderer is SVG; canvas stays selectable', async () => {
+  it('SVG is the sole mark renderer and the removed switch reports an unknown option', async () => {
     const page = await chartPage();
-    const kinds = await page.evaluate(async () => {
+    const result = await page.evaluate(async () => {
       const a = window.Axylo.line!('#chart', { title: 'A', data: [{ x: 1, y: 1 }, { x: 2, y: 2 }], x: 'x', y: 'y' });
       const el = document.body.appendChild(document.createElement('div'));
       const b = window.Axylo.line!(el, { title: 'B', data: [{ x: 1, y: 1 }, { x: 2, y: 2 }], x: 'x', y: 'y', __renderer: 'canvas' });
-      return [a.__dev.renderer, b.__dev.renderer];
+      return { kinds: [a.__dev.renderer, b.__dev.renderer], codes: b.diagnostics.map(d => d.code) };
     });
-    // chartPage may select a renderer for the whole suite (AXYLO_RENDERER); without it the default shows.
-    expect(kinds[1]).toBe('canvas');
-    if (!process.env.AXYLO_RENDERER) expect(kinds[0]).toBe('svg');
+    // Decision 0002 removed the internal renderer switch for 1.0.
+    expect(result.kinds).toEqual(['svg', 'svg']);
+    expect(result.codes).toContain('AX150');
     expect(await closePage(page)).toEqual([]);
   });
 

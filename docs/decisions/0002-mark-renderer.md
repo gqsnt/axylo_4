@@ -1,8 +1,18 @@
-# Decision 0002: SVG paths draw the marks by default (provisional)
+# Decision 0002: SVG draws the marks in 1.0
 
-Status: **provisional working default**, set by the coordinator on 2026-11-18 from the M1 measurements and weakened the same day after an independent review of the benchmark harness (`reviews/2026-11-18/impl/wp/bench.review.md`, Codex gpt-6.2-sol at effort max). The owner asked for this to be settled by measurement. It is not settled: the measurements support using SVG while the line-chart slice is built and keeping canvas behind the internal switch. They do not establish a shipping winner or a reason to remove either renderer.
+Status: **final for 1.0**, confirmed by the owner on 2026-11-22. All shipped chart types draw marks with SVG. The benchmark harness retains the old Canvas records and can replay the renderer decision on the original sealed artifact.
 
-## What the review changed
+## Release evidence
+
+- The software family selected SVG under [rule 3](../04-plan-performance.md#51-declared-endpoints-provisional-until-the-pilot). Eight timing endpoints were too noisy to distinguish the renderers by the declared tolerances. Neither renderer had a late streaming run. The old Canvas implementation added 2,269 bytes gzipped in the matched script-tag measurement, above rule 3’s 512-byte cutoff. [Software decision](../../bench/decision/no-idle-2026-11-21/decision-renderer-20261121T143350Z.json)
+- The GPU family returned no decision because the dashboard GPU-memory result depended on run order. Canvas took less main-thread time on both GPU resize workloads beyond the tolerance, with neither difference reaching the worthwhile margin. [GPU decision](../../bench/decision/no-idle-2026-11-21/decision-gpu-20261121T143402Z.json)
+- Both families ran on Chrome 158.0.8127.36 on the same reference desktop, using artifact `20261119T091624Z-b643862f-b78698`. The owner accepted the 2026-11-21 measurements and dropped the idle-machine rule. Load is recorded with the results. [Benchmark method](../../bench/README.md)
+
+The SVG implementation uses CSS paint expressions for live theme changes and retains the plot's device-pixel geometry. 1.0 has no Canvas marks option. HTML text, accessibility, hit testing and streaming remain independent of the mark renderer.
+
+The packed consumer bundles shrank by 2,487 gzipped bytes for all chart types (118,252 to 115,765) and 1,646 for the line-only entry (98,627 to 96,981). These before-and-after pack measurements include the related removal of the switch and Canvas-only styles.
+
+## Historical M1 review and measurements
 
 The table below is kept as measured. These statements made from it in the first version are withdrawn or narrowed:
 
@@ -18,7 +28,7 @@ The table below is kept as measured. These statements made from it in the first 
 
 Evidence: [bench/results/m1-renderer-comparison.md](../../bench/results/m1-renderer-comparison.md). One session of 39 runs, production build, headless Chrome 157, machine under load from other work, A-versus-A noise bands for two workloads only.
 
-## What was measured
+### What M1 measured
 
 Canvas → SVG, medians of main-thread task time unless stated. "Lower" means the 95% interval cleared zero and the noise band where one existed.
 
@@ -38,23 +48,16 @@ Canvas → SVG, medians of main-thread task time unless stated. "Lower" means th
 
 No frame was later than 25 ms in any configuration, so frame pacing does not separate the two.
 
-## Why SVG for now
+### Why SVG was the working default
 
 1. On the line workloads measured, main-thread task time was lower with SVG or the two could not be told apart.
 2. Line series are simplified to a few vertices per pixel column before either renderer sees them, so for line charts the path size follows the plot width, not the data.
 3. SVG follows the page with less code: forced colors and print work through CSS, browser zoom stays sharp, and there is no backing store to size, cap or lose. This is a design argument, not a measurement.
 
-## What this does not establish
+### What M1 did not establish
 
 - **GPU rasterization was not measured.** Headless Chrome here does not use a GPU. The resize, pixel-ratio-2 and process-memory results need a headed, GPU-backed rerun before they transfer.
 - **Dense point marks were not measured.** A scatter chart with tens of thousands of markers is the case most likely to favour canvas.
 - **One browser, one machine, one session.** Firefox and Safari may order the two differently.
 - **Many series, pan and zoom, and the budget workloads P4, P7 and P8 were not measured**, and the million-point comparison has four pairs.
 - Both renderers are far from uPlot in the configurations measured (about 80 ms against 12 ms at 100,000 points; uPlot draws no tooltip or accessibility layer). Where that time goes is not established.
-
-## Consequences
-
-- The working default is SVG. The canvas renderer stays in the code behind the same internal switch, with the pixel-agreement tests between the two kept.
-- Before the choice is final: fix the harness defects the review found (renderer identity in the readback, noise bands on replay, failed runs excluded from speed verdicts, gap-aware admission, the frame window), declare the primary endpoints and thresholds in advance, then rerun on a quiet machine with scatter at 10,000, 50,000 and 200,000 points, ten series of 100,000 points, pan and zoom, and the byte cost of keeping both renderers. Removing canvas from the bundle needs that evidence too.
-- When a real GPU and a second browser are available: rerun the resize and million-point workloads headed. If canvas wins there by more than the shipping thresholds in the performance plan, flip the switch back.
-- The plan's sections 2.2 and 2.3 are read with SVG in the "marks" position: a theme change no longer needs a redraw, and device pixel ratio matters only to simplification.

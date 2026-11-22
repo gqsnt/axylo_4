@@ -115,18 +115,7 @@ describe('new item 6: too small and compact hand focus on and leave nothing behi
     await page.focus(proxy);
     await page.keyboard.press('ArrowRight');
     await settle(page);
-    const overlay = () => page.evaluate(() => {
-      const svg = document.querySelector('#chart .axylo-overlay');
-      if (svg) return svg.childElementCount;
-      // Canvas: the overlay layer's pixels.
-      const canvases = [...document.querySelectorAll('#chart canvas')] as HTMLCanvasElement[];
-      const top = canvases.at(-1);
-      if (!top || canvases.length < 2) return 0;
-      const data = top.getContext('2d')!.getImageData(0, 0, top.width, top.height).data;
-      let n = 0;
-      for (let i = 3; i < data.length; i += 4) if (data[i]! > 0) n++;
-      return n;
-    });
+    const overlay = () => page.evaluate(() => document.querySelector('#chart .axylo-overlay')?.childElementCount ?? 0);
     expect(await overlay()).toBeGreaterThan(0);
     await page.evaluate(() => { window.charts[0]!.update({ compact: true }); });
     await settle(page);

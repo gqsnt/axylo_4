@@ -1593,7 +1593,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     const drewBefore = drawn !== null && drawn.paintInputs.length > 0;
     if (measured ? !drawn || !sameKey(drawn.paintInputs, paintInputs) : drewBefore || (drawn === null && hadMarks)) {
       stage('draw');
-      host.renderer.draw(measured ? scene : emptyScene(), theme!.bindings, theme!.theme, pixelRatio);
+      host.renderer.draw(measured ? scene : emptyScene(), theme!.bindings, pixelRatio);
       hadMarks = measured;
     }
     if (!drawn || drawn.layout !== layout || (drawn.layout.kind === 'plot') !== (layout.kind === 'plot')) {
@@ -1617,7 +1617,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       lookup, lookupInputs, reader, readerInputs, paintInputs,
     };
     host.interaction.commit({
-      ...controlsFor(reader, tooSmall), layout, lookup, bindings: theme!.bindings, theme: theme!.theme, pixelRatio,
+      ...controlsFor(reader, tooSmall), layout, lookup, bindings: theme!.bindings, pixelRatio,
     });
     // The displayed snapshot is now this revision (or nothing, when nothing could be drawn): older rows go.
     showing(measured ? a : null);
@@ -1740,7 +1740,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       surfacesHidden = true;
     });
     attempt(() => host.text.render([]));
-    attempt(() => { if (theme) host.renderer.draw(emptyScene(), theme.bindings, theme.theme, pixelRatio); hadMarks = false; });
+    attempt(() => { if (theme) host.renderer.draw(emptyScene(), theme.bindings, pixelRatio); hadMarks = false; });
   }
 
   function settle(revision: number): void {
@@ -1852,11 +1852,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       textStyleDirty = true;
       // The colours are resolved and written now, in the observer's callback, so the marks show the new
       // scheme in the first frame after the change (L4): their paint refers to the custom properties written
-      // here. What is drawn as pixels (canvas) is repainted by the next frame, once, through the scheduler
-      // (one draw per animation frame; review 3, finding 19). On a prefers-color-scheme change the SVG marks
-      // switch in CSS in the frame of the change (light-dark() defaults), while the canvas renderer, which
-      // paints concrete colours, is one frame behind: it repaints when the media query's change event
-      // arrives, and AX141 is judged then. Only when what is on screen is also what is
+      // here. The light-dark() defaults follow prefers-color-scheme in CSS. Resolve AX141 when the
+      // media query's change event arrives. Only when what is on screen is also what is
       // accepted, so the colours written belong to the marks shown.
       const a = accepted;
       if (!inFrame && a && drawn && theme && drawn.accepted.view === a.view) {

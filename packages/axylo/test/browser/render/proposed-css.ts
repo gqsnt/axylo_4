@@ -67,9 +67,8 @@ ${forced}
   }
 
   /* marks */
-  .axylo .axylo-svg, .axylo .axylo-canvas { position: absolute; left: 0; top: 0; display: block; pointer-events: none; }
+  .axylo .axylo-svg { position: absolute; left: 0; top: 0; display: block; pointer-events: none; }
   .axylo .axylo-svg { overflow: hidden; }
-  .axylo .axylo-canvas > canvas { position: absolute; left: 0; top: 0; display: block; }
 
   /*
    * Dash patterns of the SVG renderer. Each dashed element carries its normal pattern inline and both

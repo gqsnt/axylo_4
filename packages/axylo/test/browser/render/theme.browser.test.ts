@@ -26,7 +26,7 @@ describe('scheme detection (spec L4)', () => {
   it('a page that sets color-scheme: dark is dark', async () => {
     const page = await open();
     await page.addStyleTag({ content: ':root { color-scheme: dark; }' });
-    await page.evaluate(() => window.axr.mount('svg', 20, 60));
+    await page.evaluate(() => window.axr.mount(20, 60));
     // The page sets color-scheme: the stylesheet's light-dark() defaults follow the used scheme and no attribute
     // fixes one (seventh pass, L4 on a media change); the resolved scheme and the pixels still say which.
     expect(await scheme(page)).toEqual({ scheme: 'dark', attribute: null });
@@ -38,7 +38,7 @@ describe('scheme detection (spec L4)', () => {
   it('a class-toggled dark theme without color-scheme is dark, from the inherited text color', async () => {
     const page = await open();
     await page.addStyleTag({ content: 'html.dark body { background: #16181d; color: #e8eaee; }' });
-    await page.evaluate(() => { document.documentElement.classList.add('dark'); window.axr.mount('canvas', 20, 60); });
+    await page.evaluate(() => { document.documentElement.classList.add('dark'); window.axr.mount(20, 60); });
     expect(await scheme(page)).toEqual({ scheme: 'dark', attribute: 'dark' });
     await close(page);
   });
@@ -46,7 +46,7 @@ describe('scheme detection (spec L4)', () => {
   it('a light-only page on a dark device stays light', async () => {
     const page = await open({ colorScheme: 'dark' });
     await page.addStyleTag({ content: ':root { color-scheme: light; }' });
-    await page.evaluate(() => window.axr.mount('svg', 20, 60));
+    await page.evaluate(() => window.axr.mount(20, 60));
     // The page sets color-scheme: the stylesheet's light-dark() defaults follow the used scheme and no attribute
     // fixes one (seventh pass, L4 on a media change); the resolved scheme and the pixels still say which.
     expect(await scheme(page)).toEqual({ scheme: 'light', attribute: null });
@@ -61,7 +61,7 @@ describe('scheme detection (spec L4)', () => {
     ] as const) {
       const page = await open();
       await page.addStyleTag({ content: css });
-      await page.evaluate(() => window.axr.mount('svg', 20, 60));
+      await page.evaluate(() => window.axr.mount(20, 60));
       expect((await scheme(page)).scheme, css).toBe(expected);
       await close(page);
     }
@@ -70,7 +70,7 @@ describe('scheme detection (spec L4)', () => {
   it('color-scheme naming both falls back to the text color, which then follows the device', async () => {
     const page = await open({ colorScheme: 'dark' });
     await page.addStyleTag({ content: ':root { color-scheme: light dark; }' });
-    await page.evaluate(() => window.axr.mount('svg', 20, 60));
+    await page.evaluate(() => window.axr.mount(20, 60));
     expect((await scheme(page)).scheme).toBe('dark');
     await close(page);
   });
@@ -78,7 +78,7 @@ describe('scheme detection (spec L4)', () => {
   it('--axylo-background overrides color-scheme', async () => {
     const page = await open();
     await page.addStyleTag({ content: ':root { color-scheme: light; --axylo-background: #101418; }' });
-    await page.evaluate(() => window.axr.mount('svg', 20, 60));
+    await page.evaluate(() => window.axr.mount(20, 60));
     const t = await page.evaluate(() => window.axr.theme(0));
     expect(t.theme.scheme).toBe('dark');
     expect(t.theme.paints.tokens.background).toBe('rgb(16, 20, 24)');
@@ -87,7 +87,7 @@ describe('scheme detection (spec L4)', () => {
 
   it('theme.paints are concrete colors resolved by the browser; bindings stay CSS expressions', async () => {
     const page = await open();
-    await page.evaluate(() => window.axr.mount('canvas', 20, 60));
+    await page.evaluate(() => window.axr.mount(20, 60));
     const t = await page.evaluate(() => window.axr.theme(0));
     // Marks reference a per-series property on the chart root, which holds the palette slot (review finding 6).
     expect(t.bindings.series[0]).toBe('var(--axylo-series-color-1)');
@@ -105,36 +105,29 @@ describe('scheme detection (spec L4)', () => {
 });
 
 describe('runtime toggle', () => {
-  it('a class toggled on <html> fires watchTheme; SVG restyles with no draw call, canvas changes on the draw the callback makes', async () => {
+  it('a class toggled on <html> fires watchTheme and SVG restyles with no draw call', async () => {
     const page = await open();
     await page.addStyleTag({ content: 'html.dark body { background: #16181d; color: #e8eaee; }' });
-    await page.evaluate(() => { window.axr.mount('canvas', 20, 60); window.axr.mount('svg', 460, 60); });
+    await page.evaluate(() => { window.axr.mount(460, 60); });
     const before = await shot(page, 460, 60, 400, 300);
     expect(diff(at(before, 85, 50), rgb(LIGHT.series[0]!))).toBeLessThanOrEqual(8);
-    await page.evaluate(() => window.axr.watch([85, 50]));
+    await page.evaluate(() => window.axr.watch());
     await page.evaluate(() => document.documentElement.classList.add('dark'));
     await page.waitForFunction(() => window.axr.fired() >= 1);
     await frames(page, 2);
-    const r = await page.evaluate(() => ({ fired: window.axr.fired(), records: window.axr.records(), svgDraws: window.axr.draws(1), canvasDraws: window.axr.draws(0) }));
+    const r = await page.evaluate(() => ({ fired: window.axr.fired(), svgDraws: window.axr.draws(0) }));
     expect(r.fired).toBe(1);
     expect(r.svgDraws).toBe(1);
-    expect(r.canvasDraws).toBe(2);
-    const canvas = r.records.find(x => x.id === 0)!;
-    // Before the draw the canvas still shows the light color; after it, the dark one.
-    expect(diff(canvas.before!, rgb(LIGHT.series[0]!))).toBeLessThanOrEqual(8);
-    expect(diff(canvas.after!, rgb(DARK.series[0]!))).toBeLessThanOrEqual(8);
     const after = await shot(page, 460, 60, 400, 300);
     expect(diff(at(after, 85, 50), rgb(DARK.series[0]!))).toBeLessThanOrEqual(8);
     expect(diff(at(after, 300, 260), rgb(DARK.axis))).toBeLessThanOrEqual(4);
-    const canvasShot = await shot(page, 20, 60, 400, 300);
-    expect(diff(at(canvasShot, 85, 50), rgb(DARK.series[0]!))).toBeLessThanOrEqual(8);
     await page.evaluate(() => window.axr.stopWatch());
     await close(page);
   });
 
   it('folds a burst into one call per frame, reports media changes, and stop() leaves nothing firing', async () => {
     const page = await open();
-    await page.evaluate(() => { window.axr.mount('svg', 20, 60); window.axr.watch([85, 50]); });
+    await page.evaluate(() => { window.axr.mount(20, 60); window.axr.watch(); });
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.waitForFunction(() => window.axr.fired() >= 1);
     await page.emulateMedia({ forcedColors: 'active' });
@@ -167,7 +160,7 @@ describe('forced colors (emulated)', () => {
   let page: Page;
   beforeAll(async () => {
     page = await open({ forcedColors: 'active' });
-    await page.evaluate(() => { window.axr.mount('canvas', 20, 60); window.axr.mount('svg', 460, 60); window.axr.mountText(20, 380); });
+    await page.evaluate(() => { window.axr.mount(460, 60); window.axr.mountText(20, 380); });
   });
   afterAll(async () => { await close(page); });
 
@@ -179,24 +172,22 @@ describe('forced colors (emulated)', () => {
     // An author color set aside for the system colors needs the stylesheet: pending-css.browser.test.ts.
   });
 
-  for (const [kind, x] of [['canvas', 20], ['svg', 460]] as const) {
-    it(`${kind}: marks are visible against the background and lines use the contrast dash`, async () => {
-      const img = await shot(page, x, 60, 400, 300);
-      const background = at(img, 130, 105);
-      expect(contrast(at(img, 85, 50), background)).toBeGreaterThanOrEqual(3);
-      expect(contrast(at(img, 210, 220), background)).toBeGreaterThanOrEqual(3);
-      expect(contrast(at(img, 300, 260), background)).toBeGreaterThanOrEqual(3);
-      // Dashes [6, 4] along the solid-in-normal-mode segment at y 120: gaps of background appear.
-      let gaps = 0;
-      for (let px = 165; px < 375; px++) if (diff(at(img, px, 120), background) <= 10) gaps++;
-      expect(gaps).toBeGreaterThan(50);
-      expect(gaps).toBeLessThan(130);
-    });
-  }
+  it('svg: marks are visible against the background and lines use the contrast dash', async () => {
+    const img = await shot(page, 460, 60, 400, 300);
+    const background = at(img, 130, 105);
+    expect(contrast(at(img, 85, 50), background)).toBeGreaterThanOrEqual(3);
+    expect(contrast(at(img, 210, 220), background)).toBeGreaterThanOrEqual(3);
+    expect(contrast(at(img, 300, 260), background)).toBeGreaterThanOrEqual(3);
+    // Dashes [6, 4] along the solid-in-normal-mode segment at y 120: gaps of background appear.
+    let gaps = 0;
+    for (let px = 165; px < 375; px++) if (diff(at(img, px, 120), background) <= 10) gaps++;
+    expect(gaps).toBeGreaterThan(50);
+    expect(gaps).toBeLessThan(130);
+  });
 
   it('svg: the contrast pattern comes from the stylesheet, not a redraw', async () => {
-    expect(await page.evaluate(() => window.axr.svgDash(1))).toBe('6px, 4px');
-    expect(await page.evaluate(() => window.axr.draws(1))).toBe(1);
+    expect(await page.evaluate(() => window.axr.svgDash(0))).toBe('6px, 4px');
+    expect(await page.evaluate(() => window.axr.draws(0))).toBe(1);
   });
 
   it('text is visible against the background', async () => {
@@ -211,17 +202,15 @@ describe('forced colors (emulated)', () => {
 });
 
 describe('prefers-contrast: more (emulated)', () => {
-  it('both renderers switch to the contrast dash; canvas through the resolved theme, svg through CSS', async () => {
+  it('SVG switches to the contrast dash through CSS', async () => {
     const page = await open({ contrast: 'more' });
-    await page.evaluate(() => { window.axr.mount('canvas', 20, 60); window.axr.mount('svg', 460, 60); });
+    await page.evaluate(() => { window.axr.mount(460, 60); });
     expect((await page.evaluate(() => window.axr.theme(0))).theme.moreContrast).toBe(true);
-    expect(await page.evaluate(() => window.axr.svgDash(1))).toBe('6px, 4px');
-    for (const x of [20, 460]) {
-      const img = await shot(page, x, 60, 400, 300);
-      let gaps = 0;
-      for (let px = 165; px < 375; px++) if (diff(at(img, px, 120), [255, 255, 255]) <= 10) gaps++;
-      expect(gaps, `at ${x}`).toBeGreaterThan(50);
-    }
+    expect(await page.evaluate(() => window.axr.svgDash(0))).toBe('6px, 4px');
+    const img = await shot(page, 460, 60, 400, 300);
+    let gaps = 0;
+    for (let px = 165; px < 375; px++) if (diff(at(img, px, 120), [255, 255, 255]) <= 10) gaps++;
+    expect(gaps).toBeGreaterThan(50);
     await close(page);
   });
 });
@@ -231,7 +220,7 @@ describe('author colors (spec DX6)', () => {
     const page = await open();
     await page.evaluate(() => {
       document.documentElement.style.setProperty('--brand', 'rgb(200, 0, 0)');
-      window.axr.mount('svg', 20, 60, { keys: ['Direct'], colors: { Direct: 'var(--brand)' } });
+      window.axr.mount(20, 60, { keys: ['Direct'], colors: { Direct: 'var(--brand)' } });
     });
     const t = await page.evaluate(() => window.axr.theme(0));
     expect(t.bindings.series).toEqual(['var(--axylo-series-color-1)']);
@@ -267,7 +256,7 @@ describe('ensureStyles', () => {
       document.head.appendChild(s);
     });
     expect(await page.evaluate(() => window.axr.ensureStyles())).toBe(0);
-    await page.evaluate(() => window.axr.mount('svg', 20, 60));
+    await page.evaluate(() => window.axr.mount(20, 60));
     expect(await page.evaluate(() => document.adoptedStyleSheets.length)).toBe(0);
     const img = await shot(page, 20, 60, 400, 300);
     expect(diff(at(img, 85, 50), rgb(LIGHT.series[0]!))).toBeLessThanOrEqual(8);

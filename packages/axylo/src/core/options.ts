@@ -6,9 +6,6 @@
 
 export type OptionRecord = Readonly<Record<string, unknown>>;
 
-/** Keys the controller reads itself and never passes to option resolution. */
-export const INTERNAL_KEYS: readonly string[] = ['__renderer'];
-
 export interface Patched {
   readonly next: OptionRecord;
   /** Keys whose value is no longer the same object or primitive. */
@@ -21,7 +18,6 @@ export function applyPatch(current: OptionRecord, patch: unknown): Patched {
   const changed = new Set<string>();
   if (patch === null || typeof patch !== 'object') return { next, changed };
   for (const key of Object.keys(patch)) {
-    if (INTERNAL_KEYS.includes(key)) continue;
     const value = (patch as Record<string, unknown>)[key];
     const had = Object.hasOwn(current, key);
     if (value === undefined) {

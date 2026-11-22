@@ -6,7 +6,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
 import { start, stop } from '../harness';
-import { RENDERER, chartPage, closePage } from './util';
+import { chartPage, closePage } from './util';
 import { TALL, create, frames, inside, lastHover, nearestInside, plotBox, recordEvents, selected, settle, tip, walk, type Box, type Pt } from './final-util';
 
 beforeAll(start);
@@ -447,10 +447,8 @@ describe('epoch replacement (the DOM half of C3-5)', () => {
     await settle(page);
     expect(await valueText(page)).toMatch(/^10\. y 20\. Point 1 of 4/);
     expect((await tip(page)).title).toBe('10');
-    if (RENDERER !== 'canvas') {
-      const ring = await page.evaluate(() => [...document.querySelectorAll('#chart .axylo-overlay *')].filter(e => /--axylo(?:-default)?-focus/.test(e.getAttribute('style') ?? '')).length);
-      expect(ring).toBeGreaterThan(0);
-    }
+    const ring = await page.evaluate(() => [...document.querySelectorAll('#chart .axylo-overlay *')].filter(e => /--axylo(?:-default)?-focus/.test(e.getAttribute('style') ?? '')).length);
+    expect(ring).toBeGreaterThan(0);
     await page.keyboard.press('Enter');
     await settle(page);
     expect((await selected(page)).at(-1)).toMatchObject({ x: 10, y: 20 });
@@ -483,11 +481,9 @@ describe('the focus ring after a click and a key, in every engine (spec A2, WCAG
     await settle(page);
     expect(await valueText(page)).toMatch(/^4\. /);
     expect(await outline()).toBe('block');
-    if (RENDERER !== 'canvas') {
-      const ring = await ringBox();
-      expect(ring).not.toBeNull();
-      expect(Math.abs(ring!.cx - (p.x + 0.4 * p.width))).toBeLessThanOrEqual(2);
-    }
+    const ring = await ringBox();
+    expect(ring).not.toBeNull();
+    expect(Math.abs(ring!.cx - (p.x + 0.4 * p.width))).toBeLessThanOrEqual(2);
     expect(await closePage(page)).toEqual([]);
   });
 });

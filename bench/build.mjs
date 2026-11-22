@@ -102,13 +102,18 @@ export async function build({ source = REPO, out = null } = {}) {
   const status = git(source, ['status', '--short', '--', 'packages/axylo']);
   const snapshot = fs.existsSync(srcDir) ? snapshotSources(srcDir) : new Map();
   const versions = libraryVersions(source);
+  const hasCanvasMarks = snapshot.has(path.join(srcDir, 'render/canvas.ts'));
   const common = {
     bundle: true, format: 'esm', target: 'es2022', minify: true, legalComments: 'none', logLevel: 'warning',
     loader: { '.css': 'text' },
     // Production builds of every library (Chart.js and uPlot have no separate dev mode; this pins NODE_ENV anyway).
-    define: { __VERSIONS__: JSON.stringify(versions), 'process.env.NODE_ENV': '"production"' },
+    define: {
+      __VERSIONS__: JSON.stringify(versions),
+      __AXYLO_CANVAS_MARKS__: JSON.stringify(hasCanvasMarks),
+      'process.env.NODE_ENV': '"production"',
+    },
   };
-  const adapters = adapterSources();
+  const adapters = adapterSources().filter(adapter => hasCanvasMarks || adapter.id !== 'axylo-canvas');
   // The library's own build recipe (scripts/build.mjs of the source checkout): the production defines and the
   // stylesheet plugin that inlines the minified stylesheet. Three script-tag files, each with an external source map
   // (which leaves the JavaScript byte-identical, checked below):

@@ -7,7 +7,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
 import { requireEngineFeature, start, stop } from '../harness';
-import { RENDERER, chartPage, closePage } from './util';
+import { chartPage, closePage } from './util';
 import { axButtons, create, drawnShapes, frames, inside, overlaps, plotBox, recordEvents, selected, settle, strip, tip, type Box, type DrawnShape, type Pt } from './final-util';
 
 beforeAll(start);
@@ -16,7 +16,7 @@ afterAll(stop);
 const proxy = '#chart .axylo-proxy';
 const valueText = (page: Page) => page.locator(proxy).getAttribute('aria-valuetext');
 const active = (page: Page) => page.evaluate(() => (document.activeElement as HTMLElement | null)?.className ?? '');
-/** Strokes in the focus colour in the SVG overlay: the datum ring (null on the canvas renderer). */
+/** Strokes in the focus colour in the SVG overlay: the datum ring. */
 const ringStrokes = (page: Page) => page.evaluate(() => {
   const overlay = document.querySelector('#chart .axylo-overlay');
   return overlay ? [...overlay.querySelectorAll('*')].filter(e => /--axylo(?:-default)?-focus/.test((e as SVGElement).getAttribute('style') ?? '')).length : null;
@@ -40,7 +40,7 @@ describe('finding 2 and mutation 3: one effective focus after recovering from an
     expect(await active(page)).toContain('axylo-proxy');
     expect(await valueText(page)).toMatch(/^0\. y 0\. Point 1 of /);
     expect((await tip(page)).title).toBe('0');
-    if (RENDERER !== 'canvas') expect(await ringStrokes(page)).toBeGreaterThan(0);
+    expect(await ringStrokes(page)).toBeGreaterThan(0);
     await page.keyboard.press('Enter');
     await settle(page);
     const s = await selected(page);
@@ -324,8 +324,8 @@ describe('finding 4 and mutation 4: placement inside the part of the plot that i
 
 describe('finding 13: one mapping from fractional sizes under a transformed ancestor', () => {
   for (const transform of ['scale(1.015)', 'translate(13.3px, 7.7px) scale(1.25, 0.8)']) {
-    // The painted centres are read from the SVG marks: on the canvas renderer the test is skipped, not passed.
-    it.skipIf(RENDERER === 'canvas')(`under ${transform}, pointing at each of the last bars' painted centres (SVG) shows that bar`, async () => {
+    // The painted centres are read from the SVG marks: SVG is the sole renderer in 1.0.
+    it(`under ${transform}, pointing at each of the last bars' painted centres (SVG) shows that bar`, async () => {
       const page = await chartPage({ css: `#wrap { transform: ${transform}; transform-origin: 0 0; width: 640px; } #chart { width: 620px; height: 360px; }` });
       await page.evaluate(() => {
         const wrap = Object.assign(document.createElement('div'), { id: 'wrap' });
@@ -384,8 +384,8 @@ describe('mutation 9: narrowed scatter driven by input and by change alone, then
 });
 
 describe('mutation 10: every plotted area marker matches its legend and tooltip swatch', () => {
-  // Plotted shapes are read from the SVG marks: on the canvas renderer the test is skipped, not passed.
-  it.skipIf(RENDERER === 'canvas')('eight area series (SVG): the shape drawn for each series is the shape in its legend entry and its tooltip row', async () => {
+  // Plotted shapes are read from the SVG marks: SVG is the sole renderer in 1.0.
+  it('eight area series (SVG): the shape drawn for each series is the shape in its legend entry and its tooltip row', async () => {
     const page = await chartPage({ css: '#chart { width: 900px; height: 480px; }' });
     const eight = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
     const day = (k: number) => new Date(Date.UTC(2026, 0, 1) + k * 864e5).toISOString().slice(0, 10);

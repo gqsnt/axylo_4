@@ -1,3 +1,3 @@
-// Axylo with adapter parameters (renderer, build); see axylo-common.js. Default: canvas, production build.
+// Axylo's default options on the instrumented production build. See axylo-common.js.
 import { axyloAdapter } from './axylo-common.js';
 export default axyloAdapter('axylo');

@@ -423,8 +423,7 @@ export type Layout =
 // ───────────────────────────── scene ─────────────────────────────
 
 /**
- * A color that is resolved late, so an SVG renderer can use CSS variables and a canvas renderer can look
- * the value up in the resolved theme.
+ * A color that is resolved late, so marks follow the page's live CSS paint values.
  */
 export type Paint =
   | { readonly kind: 'series'; readonly index: number }   // palette slot or the author's color for that series
@@ -560,21 +559,17 @@ export interface Overlay {
 }
 
 /**
- * Draws a scene's marks. Two implementations exist for the M1 comparison (canvas, svg); the rest of the
- * library does not know which one is in use.
- *
- * A canvas renderer paints with `theme.paints` (concrete colors) and must be told to draw again when the
- * theme changes. An SVG renderer paints with `bindings` (CSS expressions), so the browser restyles it on a
- * theme change without a call; it switches dash patterns with CSS media queries.
+ * Draws a scene's SVG marks using CSS paint bindings. The browser can restyle them and switch
+ * dash patterns through the stylesheet.
  */
 export interface MarkRenderer {
-  readonly kind: 'canvas' | 'svg';
+  readonly kind: 'svg';
   /** The element to insert into the plot container. It must be aria-hidden. */
-  readonly element: HTMLElement | SVGSVGElement;
+  readonly element: SVGSVGElement;
   /** Draws the scene, replacing the previous one. Called at most once per animation frame. */
-  draw(scene: Scene, bindings: PaintBindings, theme: ResolvedTheme, devicePixelRatio: number): void;
+  draw(scene: Scene, bindings: PaintBindings, devicePixelRatio: number): void;
   /** Draws or clears (null) the overlay without redrawing the scene. */
-  drawOverlay(overlay: Overlay | null, bindings: PaintBindings, theme: ResolvedTheme, devicePixelRatio: number): void;
+  drawOverlay(overlay: Overlay | null, bindings: PaintBindings, devicePixelRatio: number): void;
   destroy(): void;
 }
 

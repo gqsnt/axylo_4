@@ -98,13 +98,6 @@ function installFixtures(): void {
   });
 }
 
-/**
- * The mark renderer the suite runs with: `AXYLO_RENDERER=canvas npm run test:browser` runs every chart test
- * with the canvas renderer; unset, charts use the library's default (SVG, decision 0002). A test that passes
- * `__renderer` itself keeps its choice.
- */
-export const RENDERER = process.env.AXYLO_RENDERER === 'canvas' || process.env.AXYLO_RENDERER === 'svg' ? process.env.AXYLO_RENDERER : null;
-
 /** A directory holding another build's axylo.iife.js and axylo.css (see chartPage). */
 const BUNDLE = process.env.AXYLO_BUNDLE ?? null;
 
@@ -120,18 +113,6 @@ function bundleSuite(): boolean {
   return /\/test\/browser\/render\//.test(path);
 }
 
-/** Runs in the page: makes the chart functions pass `__renderer` unless the call gives one. */
-function selectRenderer(renderer: string): void {
-  const original = (window as unknown as { Axylo: Record<string, unknown> }).Axylo;
-  const wrapped: Record<string, unknown> = { ...original };
-  for (const name of ['line', 'area', 'bar', 'scatter', 'donut']) {
-    const make = original[name] as (target: unknown, options: Record<string, unknown>) => unknown;
-    wrapped[name] = (target: unknown, options: Record<string, unknown>) =>
-      make(target, options !== null && typeof options === 'object' && !('__renderer' in options) ? { ...options, __renderer: renderer } : options);
-  }
-  (window as unknown as { Axylo: unknown }).Axylo = wrapped;
-}
-
 export async function chartPage(options: BrowserContextOptions & { query?: string; css?: string; standaloneCss?: boolean } = {}): Promise<Page> {
   const { css, standaloneCss = true, ...rest } = options;
   const page = await openPage(rest);
@@ -145,8 +126,6 @@ export async function chartPage(options: BrowserContextOptions & { query?: strin
     await page.addScriptTag({ path: `${BUNDLE}/axylo.iife.js` });
     await page.addStyleTag({ path: `${BUNDLE}/axylo.css` });
   }
-  // Only for this directory's and a11y's tests: other suites (acceptance) read the SVG DOM and choose for themselves.
-  if (RENDERER && ownSuite()) await page.evaluate(selectRenderer, RENDERER);
   await page.evaluate(installFixtures);
   // The test page links dist/axylo.css; without it the library applies the same sheet through ensureStyles.
   if (!standaloneCss) await page.evaluate(() => document.querySelector('link[rel="stylesheet"]')?.remove());

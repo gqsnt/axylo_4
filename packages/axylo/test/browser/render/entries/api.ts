@@ -1,7 +1,6 @@
 /** What the render test entry exposes on `window.axr`. Shared by the entry and the tests (types only). */
 import type { PaintBindings, PlacedText, ResolvedTheme } from '../../../../src/core/contracts';
 
-export type RendererKind = 'canvas' | 'svg';
 
 /** Hand-built scenes, all in a 400 × 300 box unless `width`/`height` say otherwise. */
 export type SceneName = 'fixed' | 'line' | 'markers' | 'ring' | 'negative' | 'overlap' | 'dash' | 'mixed' | 'short' | 'pattern';
@@ -17,13 +16,6 @@ export interface MountOptions {
   readonly parent?: string;
   /** Custom properties or styles set on the chart root before the first draw. */
   readonly style?: Readonly<Record<string, string>>;
-}
-
-export interface WatchRecord {
-  readonly id: number;
-  /** Canvas only: pixel at the probe point before and after the draw the callback made. */
-  readonly before: readonly number[] | null;
-  readonly after: readonly number[] | null;
 }
 
 export interface TextProbe {
@@ -43,7 +35,7 @@ export interface TextSpec {
 }
 
 export interface ResolveInfo {
-  readonly theme: ResolvedTheme & { plotBackground?: string | null };
+  readonly theme: ResolvedTheme;
   readonly bindings: PaintBindings;
   readonly attribute: string | null;
   readonly resolved: boolean | undefined;
@@ -55,7 +47,7 @@ export interface ResolveInfo {
 export interface AxrApi {
   readonly css: string;
   ensureStyles(): number;
-  mount(kind: RendererKind, left: number, top: number, options?: MountOptions): number;
+  mount(left: number, top: number, options?: MountOptions): number;
   redraw(id: number): void;
   /** Replaces the mount's scene with a named one and draws. */
   drawScene(id: number, scene: SceneName): void;
@@ -65,9 +57,6 @@ export interface AxrApi {
   /** resolveTheme on an element that is not in the document. */
   detached(): ResolveInfo;
   move(id: number, parent: string): void;
-  canvasInfo(id: number): { width: number; height: number; cssWidth: number; cssHeight: number; overlayWidth: number; overlayHeight: number; overlayCssWidth: number };
-  /** RGBA of the scene canvas backing store at a device pixel. */
-  canvasPixel(id: number, x: number, y: number, layer?: 'scene' | 'overlay'): number[];
   /** Computed stroke-dasharray of the SVG renderer's dashed path. */
   svgDash(id: number): string;
   /** Redraws with the path moved; reports whether every scene element was reused. */
@@ -78,11 +67,10 @@ export interface AxrApi {
   mutationsOnRedraw(id: number): Promise<number>;
   overlay(id: number, on: boolean): void;
   svgOverlayCount(id: number): number;
-  /** watchTheme on the first mount; the callback re-resolves all and redraws only canvas mounts. */
-  watch(probe: readonly [number, number]): void;
+  /** Re-resolve mounted chart themes without calling draw. */
+  watch(): void;
   stopWatch(): void;
   fired(): number;
-  records(): readonly WatchRecord[];
   /** Text layer with three labels whose boxes are computed from canvas metrics of the layer's own font. */
   mountText(left: number, top: number): TextProbe[];
   /** Text layer with the given labels. */
@@ -95,7 +83,6 @@ export interface AxrApi {
   loadFont(family: string, base64: string): Promise<boolean>;
   setRootStyle(id: number, name: string, value: string): void;
   frames(n: number): Promise<void>;
-  time(kind: RendererKind, vertices: number, repeats: number): Promise<{ draw: number[]; painted: number[] }>;
   /** Mounts an SVG chart inside a shadow root, installing styles there. */
   shadowMount(left: number, top: number): { position: string; adoptedInShadow: number; adoptedInDocument: number };
   /** Calls ensureStyles after removing constructable-stylesheet support from this page. */

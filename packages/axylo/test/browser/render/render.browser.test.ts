@@ -1,5 +1,5 @@
 /**
- * Both mark renderers draw the same hand-built scene (entries/axylo-render.entry.ts, `fixedScene`), checked
+ * SVG draws the hand-built scene (entries/axylo-render.entry.ts, `fixedScene`), checked
  * by sampling screenshot pixels at points chosen from the scene's coordinates. Expected colors are the
  * default light palette (theme/palette.ts) on the page's white background.
  */
@@ -11,175 +11,127 @@ import type {} from './entries/api';
 import { at, blend, close, diff, ink, open, rgb, shot, WHITE, type RGB } from './util';
 import type { Image } from './png';
 
-const ORIGIN = { canvas: [20, 60], svg: [460, 60] } as const;
 const series = (i: number): RGB => rgb(LIGHT.series[i]!);
 
 beforeAll(start);
 afterAll(stop);
 
-describe('fixed scene, both renderers', () => {
+describe('fixed scene, SVG', () => {
   let page: Page;
-  const images: Record<'canvas' | 'svg', Image> = {} as Record<'canvas' | 'svg', Image>;
+  let image: Image;
 
   beforeAll(async () => {
     page = await open();
-    await page.evaluate(([c, s]) => {
-      window.axr.mount('canvas', c[0], c[1]);
-      window.axr.mount('svg', s[0], s[1]);
-    }, [ORIGIN.canvas, ORIGIN.svg] as const);
-    for (const kind of ['canvas', 'svg'] as const) images[kind] = await shot(page, ORIGIN[kind][0], ORIGIN[kind][1], 400, 300);
+    await page.evaluate(() => window.axr.mount(460, 60));
+    image = await shot(page, 460, 60, 400, 300);
   });
   afterAll(async () => { await close(page); });
 
-  for (const kind of ['canvas', 'svg'] as const) {
-    describe(kind, () => {
-      const px = (x: number, y: number): RGB => at(images[kind], x, y);
+  const px = (x: number, y: number): RGB => at(image, x, y);
 
-      it('path: stroke where it passes, background where the pen was lifted, nothing past the clip', () => {
-        expect(diff(px(85, 50), series(0))).toBeLessThanOrEqual(8);
-        expect(diff(px(120, 75), series(0))).toBeLessThanOrEqual(8);
-        expect(diff(px(300, 120), series(0))).toBeLessThanOrEqual(8);
-        // On the straight line between the last vertex before the lift (120,100) and the first after (160,120).
-        expect(diff(px(130, 105), WHITE)).toBeLessThanOrEqual(2);
-        expect(diff(px(140, 110), series(0))).toBeGreaterThan(60);
-        // x 388 is past the clip's right edge (380).
-        expect(diff(px(388, 120), WHITE)).toBeLessThanOrEqual(2);
-      });
-
-      it('path: solid in normal mode (the contrast dash is not used)', () => {
-        for (let x = 165; x < 375; x++) expect(diff(px(x, 120), series(0)), `x ${x}`).toBeLessThanOrEqual(30);
-      });
-
-      it('area: one translucent polygon per run, nothing between the runs', () => {
-        expect(diff(px(55, 180), blend(series(1), 0.5))).toBeLessThanOrEqual(6);
-        expect(diff(px(150, 180), blend(series(1), 0.5))).toBeLessThanOrEqual(6);
-        expect(diff(px(120, 180), WHITE)).toBeLessThanOrEqual(2);
-        // Above the upper boundary of run 1 (y 140 at x 80).
-        expect(diff(px(52, 138), WHITE)).toBeLessThanOrEqual(2);
-      });
-
-      it('bars are filled; the missing bar is a hollow mark at the baseline, unlike an empty slot', () => {
-        expect(diff(px(210, 220), series(2))).toBeLessThanOrEqual(4);
-        expect(diff(px(240, 150), series(2))).toBeLessThanOrEqual(4);
-        const img = images[kind];
-        const missing = ink(img, 256, 245, 284, 260);
-        const empty = ink(img, 288, 245, 312, 260);
-        expect(missing).toBeGreaterThanOrEqual(30);
-        expect(empty).toBe(0);
-        // Hollow: well inside the box but off the diagonal is background, so it cannot read as a short bar.
-        expect(diff(px(264, 254), WHITE)).toBeLessThanOrEqual(10);
-        // Its outline is the series color, and it stands on the baseline (nothing above y 245).
-        expect(diff(px(260, 256), series(2))).toBeLessThanOrEqual(30);
-        expect(ink(img, 256, 230, 284, 245)).toBe(0);
-      });
-
-      it('points: all eight marker shapes are drawn, filled, and differ', () => {
-        const counts: number[] = [];
-        for (let k = 0; k < 8; k++) {
-          const x = 50 + 20 * k;
-          expect(diff(px(x, 235), series(3)), `shape ${k}`).toBeLessThanOrEqual(8);
-          counts.push(ink(images[kind], x - 7, 228, x + 7, 242));
-        }
-        for (const n of counts) expect(n).toBeGreaterThan(15);
-        expect(new Set(counts).size).toBeGreaterThanOrEqual(5);
-      });
-
-      it('ring: four slices in their colors with background gaps between them', () => {
-        const mid = 32.5;
-        for (let k = 0; k < 4; k++) {
-          const a = Math.PI / 4 + (k * Math.PI) / 2;
-          expect(diff(px(300 + mid * Math.sin(a), 60 - mid * Math.cos(a)), series(4 + k)), `slice ${k}`).toBeLessThanOrEqual(8);
-        }
-        // Gap centres at 12, 3, 6 and 9 o'clock (4 px wide).
-        for (const [x, y] of [[299, 27], [300, 27], [332, 59], [332, 60], [299, 92], [300, 92], [267, 59], [267, 60]] as const) {
-          expect(diff(px(x, y), WHITE), `gap ${x},${y}`).toBeLessThanOrEqual(12);
-        }
-        // Inside the hole.
-        expect(diff(px(300, 60), WHITE)).toBeLessThanOrEqual(2);
-      });
-
-      it('clip: grid outside the clip is not drawn, axis and tick rules outside it are', () => {
-        expect(diff(px(25, 110), WHITE)).toBeLessThanOrEqual(2);
-        expect(diff(px(385, 110), WHITE)).toBeLessThanOrEqual(2);
-        expect(diff(px(370, 110), rgb(LIGHT.grid))).toBeLessThanOrEqual(3);
-        expect(diff(px(300, 260), rgb(LIGHT.axis))).toBeLessThanOrEqual(3);
-        expect(diff(px(200, 265), rgb(LIGHT.axis))).toBeLessThanOrEqual(3);
-        expect(diff(px(40, 200), rgb(LIGHT.axis))).toBeLessThanOrEqual(3);
-        // A crisp 1 px rule: the rows next to the x axis are background.
-        expect(diff(px(300, 259), WHITE)).toBeLessThanOrEqual(2);
-        expect(diff(px(300, 261), WHITE)).toBeLessThanOrEqual(2);
-      });
-
-      it('band: translucent fill', () => {
-        expect(diff(px(80, 90), blend(rgb(LIGHT.reference), 0.15))).toBeLessThanOrEqual(4);
-      });
-    });
-  }
-
-  it('the two renderers agree at a grid of points, within antialiasing tolerance', () => {
-    let total = 0, off = 0, sum = 0, worst = 0;
-    for (let y = 1; y < 300; y += 4) for (let x = 1; x < 400; x += 4) {
-      const d = diff(at(images.canvas, x, y), at(images.svg, x, y));
-      total++;
-      sum += d;
-      worst = Math.max(worst, d);
-      if (d > 40) off++;
-    }
-    console.log(`renderer agreement: ${total} points, ${off} differ by more than 40/255, mean difference ${(sum / total).toFixed(2)}, worst ${worst}`);
-    expect(off / total).toBeLessThanOrEqual(0.005);
-    expect(sum / total).toBeLessThan(1);
+  it('path: stroke where it passes, background where the pen was lifted, nothing past the clip', () => {
+    expect(diff(px(85, 50), series(0))).toBeLessThanOrEqual(8);
+    expect(diff(px(120, 75), series(0))).toBeLessThanOrEqual(8);
+    expect(diff(px(300, 120), series(0))).toBeLessThanOrEqual(8);
+    // On the straight line between the last vertex before the lift (120,100) and the first after (160,120).
+    expect(diff(px(130, 105), WHITE)).toBeLessThanOrEqual(2);
+    expect(diff(px(140, 110), series(0))).toBeGreaterThan(60);
+    // x 388 is past the clip's right edge (380).
+    expect(diff(px(388, 120), WHITE)).toBeLessThanOrEqual(2);
   });
 
-  it('marker ink agrees between the renderers', () => {
+  it('path: solid in normal mode (the contrast dash is not used)', () => {
+    for (let x = 165; x < 375; x++) expect(diff(px(x, 120), series(0)), `x ${x}`).toBeLessThanOrEqual(30);
+  });
+
+  it('area: one translucent polygon per run, nothing between the runs', () => {
+    expect(diff(px(55, 180), blend(series(1), 0.5))).toBeLessThanOrEqual(6);
+    expect(diff(px(150, 180), blend(series(1), 0.5))).toBeLessThanOrEqual(6);
+    expect(diff(px(120, 180), WHITE)).toBeLessThanOrEqual(2);
+    // Above the upper boundary of run 1 (y 140 at x 80).
+    expect(diff(px(52, 138), WHITE)).toBeLessThanOrEqual(2);
+  });
+
+  it('bars are filled; the missing bar is a hollow mark at the baseline, unlike an empty slot', () => {
+    expect(diff(px(210, 220), series(2))).toBeLessThanOrEqual(4);
+    expect(diff(px(240, 150), series(2))).toBeLessThanOrEqual(4);
+    const img = image;
+    const missing = ink(img, 256, 245, 284, 260);
+    const empty = ink(img, 288, 245, 312, 260);
+    expect(missing).toBeGreaterThanOrEqual(30);
+    expect(empty).toBe(0);
+    // Hollow: well inside the box but off the diagonal is background, so it cannot read as a short bar.
+    expect(diff(px(264, 254), WHITE)).toBeLessThanOrEqual(10);
+    // Its outline is the series color, and it stands on the baseline (nothing above y 245).
+    expect(diff(px(260, 256), series(2))).toBeLessThanOrEqual(30);
+    expect(ink(img, 256, 230, 284, 245)).toBe(0);
+  });
+
+  it('points: all eight marker shapes are drawn, filled, and differ', () => {
+    const counts: number[] = [];
     for (let k = 0; k < 8; k++) {
       const x = 50 + 20 * k;
-      const a = ink(images.canvas, x - 7, 228, x + 7, 242), b = ink(images.svg, x - 7, 228, x + 7, 242);
-      expect(Math.abs(a - b), `shape ${k}`).toBeLessThanOrEqual(Math.max(3, 0.12 * a));
+      expect(diff(px(x, 235), series(3)), `shape ${k}`).toBeLessThanOrEqual(8);
+      counts.push(ink(image, x - 7, 228, x + 7, 242));
     }
+    for (const n of counts) expect(n).toBeGreaterThan(15);
+    expect(new Set(counts).size).toBeGreaterThanOrEqual(5);
   });
+
+  it('ring: four slices in their colors with background gaps between them', () => {
+    const mid = 32.5;
+    for (let k = 0; k < 4; k++) {
+      const a = Math.PI / 4 + (k * Math.PI) / 2;
+      expect(diff(px(300 + mid * Math.sin(a), 60 - mid * Math.cos(a)), series(4 + k)), `slice ${k}`).toBeLessThanOrEqual(8);
+    }
+    // Gap centres at 12, 3, 6 and 9 o'clock (4 px wide).
+    for (const [x, y] of [[299, 27], [300, 27], [332, 59], [332, 60], [299, 92], [300, 92], [267, 59], [267, 60]] as const) {
+      expect(diff(px(x, y), WHITE), `gap ${x},${y}`).toBeLessThanOrEqual(12);
+    }
+    // Inside the hole.
+    expect(diff(px(300, 60), WHITE)).toBeLessThanOrEqual(2);
+  });
+
+  it('clip: grid outside the clip is not drawn, axis and tick rules outside it are', () => {
+    expect(diff(px(25, 110), WHITE)).toBeLessThanOrEqual(2);
+    expect(diff(px(385, 110), WHITE)).toBeLessThanOrEqual(2);
+    expect(diff(px(370, 110), rgb(LIGHT.grid))).toBeLessThanOrEqual(3);
+    expect(diff(px(300, 260), rgb(LIGHT.axis))).toBeLessThanOrEqual(3);
+    expect(diff(px(200, 265), rgb(LIGHT.axis))).toBeLessThanOrEqual(3);
+    expect(diff(px(40, 200), rgb(LIGHT.axis))).toBeLessThanOrEqual(3);
+    // A crisp 1 px rule: the rows next to the x axis are background.
+    expect(diff(px(300, 259), WHITE)).toBeLessThanOrEqual(2);
+    expect(diff(px(300, 261), WHITE)).toBeLessThanOrEqual(2);
+  });
+
+  it('band: translucent fill', () => {
+    expect(diff(px(80, 90), blend(rgb(LIGHT.reference), 0.15))).toBeLessThanOrEqual(4);
+  });
+
 });
 
 describe('overlay and reuse', () => {
   let page: Page;
   beforeAll(async () => {
     page = await open();
-    await page.evaluate(() => { window.axr.mount('canvas', 20, 60); window.axr.mount('svg', 460, 60); });
+    await page.evaluate(() => { window.axr.mount(460, 60); });
   });
   afterAll(async () => { await close(page); });
 
-  it('canvas: drawOverlay paints only the overlay canvas, clipped and unclipped lists honoured, null clears it', async () => {
-    await page.evaluate(() => window.axr.overlay(0, true));
-    const r = await page.evaluate(() => ({
-      cursor: window.axr.canvasPixel(0, 330, 100, 'overlay'),
-      cursorPastClip: window.axr.canvasPixel(0, 330, 280, 'overlay'),
-      focus: window.axr.canvasPixel(0, 20, 280, 'overlay'),
-      sceneAtCursor: window.axr.canvasPixel(0, 330, 100, 'scene'),
-      draws: window.axr.draws(0),
-    }));
-    expect(r.cursor[3]).toBe(255);
-    expect(r.cursorPastClip[3]).toBe(0);
-    expect(r.focus[3]).toBe(255);
-    expect(diff(r.focus, rgb(LIGHT.focus))).toBeLessThanOrEqual(2);
-    expect(r.sceneAtCursor[3]).toBe(0);
-    expect(r.draws).toBe(1);
-    await page.evaluate(() => window.axr.overlay(0, false));
-    expect((await page.evaluate(() => window.axr.canvasPixel(0, 330, 100, 'overlay')))[3]).toBe(0);
-  });
-
   it('svg: drawOverlay replaces its own group and leaves the scene alone', async () => {
-    await page.evaluate(() => window.axr.overlay(1, true));
-    expect(await page.evaluate(() => window.axr.svgOverlayCount(1))).toBe(3);
+    await page.evaluate(() => window.axr.overlay(0, true));
+    expect(await page.evaluate(() => window.axr.svgOverlayCount(0))).toBe(3);
     const img = await shot(page, 460, 60, 400, 300);
     expect(diff(at(img, 330, 100), rgb(LIGHT.focus))).toBeLessThanOrEqual(4);
     expect(diff(at(img, 330, 280), WHITE)).toBeLessThanOrEqual(2);
     expect(diff(at(img, 20, 280), rgb(LIGHT.focus))).toBeLessThanOrEqual(4);
-    expect(await page.evaluate(() => window.axr.draws(1))).toBe(1);
-    await page.evaluate(() => window.axr.overlay(1, false));
-    expect(await page.evaluate(() => window.axr.svgOverlayCount(1))).toBe(0);
+    expect(await page.evaluate(() => window.axr.draws(0))).toBe(1);
+    await page.evaluate(() => window.axr.overlay(0, false));
+    expect(await page.evaluate(() => window.axr.svgOverlayCount(0))).toBe(0);
   });
 
   it('svg: a draw with the same mark list reuses every element and only rewrites what changed', async () => {
-    const r = await page.evaluate(() => window.axr.svgReuse(1));
+    const r = await page.evaluate(() => window.axr.svgReuse(0));
     expect(r.count).toBe(18);
     expect(r.sameNodes).toBe(true);
     expect(r.dChanged).toBe(true);
@@ -190,7 +142,7 @@ describe('device pixel ratio 2', () => {
   let page: Page;
   beforeAll(async () => {
     page = await open({ deviceScaleFactor: 2 });
-    await page.evaluate(() => { window.axr.mount('canvas', 20, 60); window.axr.mount('svg', 460, 60); });
+    await page.evaluate(() => { window.axr.mount(460, 60); });
   });
   afterAll(async () => { await close(page); });
 
@@ -202,15 +154,6 @@ describe('device pixel ratio 2', () => {
     for (const i of hits) expect(full(values[i]!), `entry ${i}: ${values[i]!.join(',')}`).toBe(true);
     return hits.length;
   }
-
-  it('canvas: backing store is twice the CSS size, and a 1 px rule covers exactly two whole device rows', async () => {
-    const info = await page.evaluate(() => window.axr.canvasInfo(0));
-    expect([info.width, info.height, info.cssWidth, info.cssHeight]).toEqual([800, 600, 400, 300]);
-    const column = await page.evaluate(() => Array.from({ length: 21 }, (_, k) => window.axr.canvasPixel(0, 600, 510 + k)));
-    expect(crisp(column, v => v[3]! > 0, v => v[3] === 255 && diff(v, rgb(LIGHT.axis)) <= 1)).toBe(2);
-    const row = await page.evaluate(() => Array.from({ length: 21 }, (_, k) => window.axr.canvasPixel(0, 70 + k, 400)));
-    expect(crisp(row, v => v[3]! > 0, v => v[3] === 255 && diff(v, rgb(LIGHT.axis)) <= 1)).toBe(2);
-  });
 
   it('svg: the same rule is two whole device rows on screen', async () => {
     const img = await shot(page, 460, 60, 400, 300);

@@ -9,7 +9,6 @@ import { alignedLookupFor } from '../lookup';
 import { alignedReader } from '../reader';
 import { areaSwatch } from '../dom/interaction';
 import { svgArea, svgBand, svgPath, svgPoints, svgRule } from '../render/svg';
-import { canvasArea, canvasBand, canvasPath, canvasPoints, canvasRule } from '../render/canvas';
 
 export const AREA: Composition = {
   kind: 'area',
@@ -22,5 +21,4 @@ export const AREA: Composition = {
   interaction: { overlay: alignedTargetMarks, swatch: areaSwatch, stepInSeries: null, sliceList: null },
   // Fills, their edges and stack seams (paths), markers, references, axes and the cursor, focus points.
   svg: { area: svgArea, path: svgPath, points: svgPoints, rule: svgRule, band: svgBand },
-  canvas: { area: canvasArea, path: canvasPath, points: canvasPoints, rule: canvasRule, band: canvasBand },
 };

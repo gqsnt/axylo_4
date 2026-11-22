@@ -23,7 +23,7 @@ async function mount(page: Page, scale: number | null, width: string): Promise<v
       chart.replaceWith(wrap);
       wrap.append(chart);
     }
-    const c = window.Axylo.bar!('#chart', { title: 'S', data: Array.from({ length: 40 }, (_, i) => ({ x: `c${i}`, y: 10 + (i % 5) })), x: 'x', y: 'y', __renderer: 'svg' });
+    const c = window.Axylo.bar!('#chart', { title: 'S', data: Array.from({ length: 40 }, (_, i) => ({ x: `c${i}`, y: 10 + (i % 5) })), x: 'x', y: 'y' });
     window.charts.push(c);
     await c.__bench.ready();
     await window.nextFrames(2);
@@ -89,7 +89,7 @@ describe('readout mode with a large page font (decision 0004 rule 5)', () => {
       const chart = document.getElementById('chart')!;
       chart.style.width = '900px';
       chart.style.height = '340px';
-      const c = window.Axylo.line!('#chart', { title: 'F', data: Array.from({ length: 6 }, (_, i) => ({ x: i, y: i })), x: 'x', y: 'y', __renderer: 'svg' });
+      const c = window.Axylo.line!('#chart', { title: 'F', data: Array.from({ length: 6 }, (_, i) => ({ x: i, y: i })), x: 'x', y: 'y' });
       window.charts.push(c);
       await c.__bench.ready();
       await window.nextFrames(2);

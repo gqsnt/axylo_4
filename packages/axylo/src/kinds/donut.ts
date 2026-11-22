@@ -9,7 +9,6 @@ import { donutLookupFor } from '../lookup';
 import { donutReader } from '../reader';
 import { donutSliceList, pointSwatch } from '../dom/interaction';
 import { svgArcs, svgRule } from '../render/svg';
-import { canvasArcs, canvasRule } from '../render/canvas';
 
 export const DONUT: Composition = {
   kind: 'donut',
@@ -22,5 +21,4 @@ export const DONUT: Composition = {
   interaction: { overlay: donutTargetMarks, swatch: pointSwatch, stepInSeries: null, sliceList: donutSliceList },
   // Slices and slice outlines (arcs), the focus ring (rules).
   svg: { arcs: svgArcs, rule: svgRule },
-  canvas: { arcs: canvasArcs, rule: canvasRule },
 };
