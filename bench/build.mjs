@@ -107,11 +107,7 @@ export async function build({ source = REPO, out = null } = {}) {
     bundle: true, format: 'esm', target: 'es2022', minify: true, legalComments: 'none', logLevel: 'warning',
     loader: { '.css': 'text' },
     // Production builds of every library (Chart.js and uPlot have no separate dev mode; this pins NODE_ENV anyway).
-    define: {
-      __VERSIONS__: JSON.stringify(versions),
-      __AXYLO_CANVAS_MARKS__: JSON.stringify(hasCanvasMarks),
-      'process.env.NODE_ENV': '"production"',
-    },
+    define: { __VERSIONS__: JSON.stringify(versions), 'process.env.NODE_ENV': '"production"' },
   };
   const adapters = adapterSources().filter(adapter => hasCanvasMarks || adapter.id !== 'axylo-canvas');
   // The library's own build recipe (scripts/build.mjs of the source checkout): the production defines and the
@@ -153,6 +149,7 @@ export async function build({ source = REPO, out = null } = {}) {
     ...axyloBuilds,
   ]);
   fs.copyFileSync(path.join(BENCH, 'src/page.html'), path.join(dir, 'index.html'));
+  fs.writeFileSync(path.join(dir, 'axylo/capabilities.json'), JSON.stringify({ canvasMarks: hasCanvasMarks }));
 
   let shippedOptions = 'not available: no Axylo sources';
   let distComparison = 'not available: no packages/axylo/dist/axylo.iife.min.js in the source checkout';

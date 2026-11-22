@@ -14,6 +14,26 @@ const ref = (x: number, seriesKey = 'y'): DatumRef => ({ kind: 'aligned', series
 const xsOf = (r: Recording) => Array.from((r.committed!.view as AlignedView).frame.x.values);
 const codes = (r: Recording) => r.controller.handle.diagnostics.map(d => d.code);
 
+it('uses the viewer zone only when an instant axis needs local time', () => {
+  let zoneReads = 0;
+  const data = [{ x: '2026-02-24T06:15:00Z', y: 1 }, { x: '2026-02-24T06:20:00Z', y: 2 }];
+  const r = record('line', { data, x: { field: 'x', type: 'time', timeZone: 'UTC' }, y: 'y' }, {
+    get timeZone() {
+      zoneReads++;
+      return 'Europe/Paris';
+    },
+  });
+  r.frames();
+  expect((r.committed!.view as AlignedView).frame.x.timeZone).toBe('UTC');
+  expect(zoneReads).toBe(0);
+  r.controller.handle.update({ x: { field: 'x', type: 'time', timeZone: 'local' } });
+  r.frames();
+  expect((r.committed!.view as AlignedView).frame.x.timeZone).toBe('Europe/Paris');
+  expect(zoneReads).toBe(1);
+  r.controller.handle.destroy();
+  expect(zoneReads).toBe(1);
+});
+
 function hoverPoint(r: Recording, target: DatumRef): Point<unknown> | null | undefined {
   let seen: Point<unknown> | null | undefined;
   const off = r.controller.handle.on('hover', p => { seen = p; });
@@ -196,6 +216,21 @@ describe('R11: the strip\'s height follows the page after a resize', () => {
     throw new Error('no container');
   };
   const mode = (r: Recording) => (r.prepared.at(-1) as unknown as { readoutMode?: string }).readoutMode;
+
+  it('measures the strip only when the plot is small enough to use it', () => {
+    let reads = 0;
+    const r = record('line', { title: 'S', data: rowsOf([0, 1, 2, 3]), x: 'x', y: 'y' }, {
+      strip: () => { reads++; return 48; },
+    });
+    r.frames();
+    expect(mode(r)).toBe('floating');
+    expect(reads).toBe(0);
+    r.container = { width: 600, height: containerFor(135) };
+    r.controller.invalidate.resize();
+    r.frames();
+    expect(mode(r)).toBe('strip');
+    expect(reads).toBeGreaterThan(0);
+  });
 
   it('a 135 px plot with a 98 px strip, then 134 px while responsive CSS makes the strip 48 px: the strip is reserved', () => {
     let strip = 98;

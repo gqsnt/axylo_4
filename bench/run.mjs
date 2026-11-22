@@ -52,6 +52,17 @@ const tagOf = (workload, p) => workload === 'stream' ? `w${p.window}`
 const slug = ref => ref.replace(/[^a-zA-Z0-9.-]+/g, '_');
 const artifactSlot = m => ({ artifact: m.id, dir: m.dir, manifestSha256: m.manifestSha256, source: { head: m.source.head, uncommitted: m.source.uncommitted, axyloSourceHash: m.source.axyloSourceHash, shippedOptions: m.source.shippedOptions, distComparison: m.source.distComparison }, bench: m.bench, files: Object.fromEntries(Object.entries(m.files).map(([p, f]) => [p, f.sha256])), served: {} });
 const HARNESS = rel => rel === 'index.html' || rel === 'page.js' || rel.startsWith('adapters/');
+const CANVAS_ADAPTER = 'adapters/axylo-canvas.js';
+const CAPABILITIES = 'axylo/capabilities.json';
+
+export function harnessDifferences(a, b, adapterId) {
+  // The historical Canvas adapter may be absent from SVG-only artifacts made with this harness.
+  // Its absence is irrelevant when the comparison loads another adapter.
+  const optionalCanvas = adapterId !== 'axylo-canvas' && a[CAPABILITIES] && b[CAPABILITIES] &&
+    Boolean(a[CANVAS_ADAPTER]) !== Boolean(b[CANVAS_ADAPTER]);
+  return Object.keys({ ...a, ...b }).filter(rel => HARNESS(rel) &&
+    (rel !== CANVAS_ADAPTER || !optionalCanvas) && a[rel]?.sha256 !== b[rel]?.sha256);
+}
 
 /**
  * One balanced job. cfg: { mode: 'compare' | 'aa' | 'builds', A: { ref, slot }, B: { ref, slot }, artifacts: { A, B? },
@@ -293,12 +304,12 @@ async function main() {
     if (a.base) {
       if (!a.candidate || !a.adapter) die('two-build mode needs --adapter <ref> --base <artifact dir> --candidate <artifact dir>');
       mode = 'builds';
-      parseAdapterRef(a.adapter);
+      const ref = parseAdapterRef(a.adapter);
       A = { ref: a.adapter, slot: 'A' }; B = { ref: a.adapter, slot: 'B' };
       artifacts = { A: readArtifact(a.base), B: readArtifact(a.candidate) };
       if (artifacts.A.id === artifacts.B.id) die('--base and --candidate are the same artifact; use --aa for A-versus-A');
       // Only the library may differ: a different page or adapter would confound the comparison.
-      const diff = Object.keys({ ...artifacts.A.files, ...artifacts.B.files }).filter(HARNESS).filter(p => artifacts.A.files[p]?.sha256 !== artifacts.B.files[p]?.sha256);
+      const diff = harnessDifferences(artifacts.A.files, artifacts.B.files, ref.id);
       if (diff.length && !a['allow-harness-difference']) die(`the two artifacts differ in harness files, not only in the library: ${diff.join(', ')} (rebuild both with the same bench/, or pass --allow-harness-difference)`);
     } else {
       const aa = a.aa ?? null;

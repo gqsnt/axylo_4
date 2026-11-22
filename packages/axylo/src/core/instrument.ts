@@ -47,7 +47,7 @@ export interface BenchHook {
     /** The drawn plot rectangle in CSS px of the chart; null before a plot is drawn. */
     plot?: { x: number; y: number; width: number; height: number } | null;
     /** The mark renderer drawing this chart. */
-    renderer: 'svg';
+    renderer: 'canvas' | 'svg';
   };
   /**
    * Every typed array or ArrayBuffer the chart holds that is not one of the caller's columns: the store's own
@@ -60,7 +60,7 @@ export interface DevHook {
   stages(): Record<Stage, number>;
   /** Makes the named stage throw, to test the internal-error state; null stops it. */
   fail(stage: Stage | null): void;
-  readonly renderer: 'svg';
+  readonly renderer: 'canvas' | 'svg';
   /** Rows the streaming store still holds for revisions not yet retired (0 for a static chart). */
   retainedRows(): number;
   /** Revisions whose rows the streaming store can still answer for (its row sources), 0 for a static chart. */
@@ -95,7 +95,7 @@ export interface Probe {
     readonly view: View; readonly layout: Layout; readonly pixelRatio: number; readonly scene: Scene;
     readonly streaming: boolean; readonly table: Table;
   } | null;
-  renderer(): 'svg';
+  renderer(): 'canvas' | 'svg';
   retainedRows(): number;
   /** The streaming store, when there is one. */
   store(): { ownedBytes?: (frames?: readonly Frame[]) => OwnedBytes } | null;

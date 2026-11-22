@@ -37,17 +37,6 @@ const NO_HOOK = 'this Axylo build has no benchmark hook (chart.__bench); use a d
 const FILES = { prod: './axylo/axylo.bench.iife.min.js', release: './axylo/axylo.iife.min.js', dev: './axylo/axylo.iife.js' };
 const BUILD_LABEL = { prod: 'instrumented production build (axylo.bench.iife.min.js)', release: 'RELEASE build, shipped bytes (axylo.iife.min.js), no hook', dev: 'DEVELOPMENT build (axylo.iife.js)' };
 
-// Adapter unit tests also import this module without esbuild's defines to exercise the legacy path.
-const hasCanvasMarks = typeof __AXYLO_CANVAS_MARKS__ === 'undefined' || __AXYLO_CANVAS_MARKS__;
-
-const resolve = (fixed, params) => {
-  const p = { build: 'prod', ...params, ...fixed };
-  if (p.renderer !== undefined && !['canvas', 'svg'].includes(p.renderer)) throw new Error(`axylo: renderer must be canvas or svg, got ${p.renderer}`);
-  if (!hasCanvasMarks && p.renderer === 'canvas') throw new Error('axylo: this artifact draws marks with SVG only');
-  if (!FILES[p.build]) throw new Error(`axylo: build must be prod, release or dev, got ${p.build}`);
-  return p;
-};
-
 function loadScript(src) {
   return new Promise(res => {
     const s = document.createElement('script');
@@ -164,6 +153,14 @@ function canvasStrokes(el, capture) {
 }
 
 export function axyloAdapter(id, fixed = {}) {
+  let hasCanvasMarks = true;
+  const resolve = params => {
+    const p = { build: 'prod', ...params, ...fixed };
+    if (p.renderer !== undefined && !['canvas', 'svg'].includes(p.renderer)) throw new Error(`axylo: renderer must be canvas or svg, got ${p.renderer}`);
+    if (!hasCanvasMarks && p.renderer === 'canvas') throw new Error('axylo: this artifact draws marks with SVG only');
+    if (!FILES[p.build]) throw new Error(`axylo: build must be prod, release or dev, got ${p.build}`);
+    return p;
+  };
   let loadError = null;
   return {
     id,
@@ -171,16 +168,22 @@ export function axyloAdapter(id, fixed = {}) {
     version: __VERSIONS__.axylo,
     config: 'default',
     configFor: params => {
-      const p = resolve(fixed, params);
+      const p = resolve(params);
       const renderer = !hasCanvasMarks ? 'SVG marks' : p.renderer
         ? `${p.renderer} mark renderer (__renderer: '${p.renderer}')` : 'the public default mark renderer (no __renderer)';
       return `default options, ${renderer}, ${BUILD_LABEL[p.build]}`;
     },
-    bundleFor: params => FILES[resolve(fixed, params).build].slice(2),
-    resolvedParams: params => resolve(fixed, params),
-    expectRendererFor: params => resolve(fixed, params).renderer ?? (hasCanvasMarks ? null : 'svg'),
+    bundleFor: params => FILES[resolve(params).build].slice(2),
+    resolvedParams: resolve,
+    expectRendererFor: params => resolve(params).renderer ?? (hasCanvasMarks ? null : 'svg'),
     async load(params) {
-      const p = resolve(fixed, params);
+      // The selected adapter bytes stay identical across builds. Load capabilities before the timed window.
+      const response = await fetch(new URL('../axylo/capabilities.json', import.meta.url));
+      if (!response.ok) throw new Error('axylo: could not read the artifact capabilities');
+      const { canvasMarks } = await response.json();
+      if (typeof canvasMarks !== 'boolean') throw new Error('axylo: invalid artifact capabilities');
+      hasCanvasMarks = canvasMarks;
+      const p = resolve(params);
       globalThis.__AXYLO_BENCH__ = true;
       loadError = await loadScript(FILES[p.build]);
     },
@@ -191,7 +194,7 @@ export function axyloAdapter(id, fixed = {}) {
       return { ok: true };
     },
     create(el, fix, opts = {}) {
-      const p = resolve(fixed, opts.params);
+      const p = resolve(opts.params);
       const renderer = hasCanvasMarks && p.renderer ? { __renderer: p.renderer } : {};
       const A = globalThis.Axylo;
       let chart;

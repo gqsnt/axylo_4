@@ -1,6 +1,6 @@
 # First-chart and compact creation investigation
 
-The November 18 M1 result was 17.36 ms with Chrome 157, eight pairs, the synthetic 3 × 120 input and a dirty library snapshot recorded under `a63bbeea`. The following history sweep uses sealed snapshots of committed sources, the named P1 `trend` fixture, Chrome 158.0.8127.36 and 20 complete pairs per record. Each pair used one sealed artifact. uPlot was the contemporaneous control for interpreting different machine conditions. As specified by P1, the budget remains an absolute Axylo time.
+The November 18 M1 result was 17.36 ms with Chrome 157, eight pairs, the synthetic 3 × 120 input and a dirty library snapshot recorded under `a63bbeea`. The history sweep uses committed sources through `b643862`; the final SVG-only row uses the sealed working-tree artifact `20261122T042403Z-bb2826ac-ec008a` (library source hash `9597eef14ad21995`, matching the library at `298b29e`). Every record uses the named P1 `trend` fixture, Chrome 158.0.8127.36 and 20 complete pairs from one sealed artifact. uPlot was the contemporaneous control for interpreting different machine conditions. As specified by P1, the budget remains an absolute Axylo time.
 
 | Library source | uPlot | Axylo SVG | Load range | Record ID |
 |---|---:|---:|---:|---|
@@ -44,3 +44,25 @@ Three first-chart profiles per source use the artifact's production source map. 
 The P1 chart never opens the table or readout. Neither the table's DOM nor the tooltip module had separately attributable median self time. The forced strip-height measurement appeared in one of the SVG-only profiles at 0.46 ms. The largest named function was `viewerTimeZone`, about 6.24 ms in the original build and 6.06 ms in the SVG-only build. The trend fixture declares UTC and never needs the viewer's default zone. The reader also built an international list twice when every drawn series contributed the same names to the summary.
 
 The SVG-only compact profile attributed 9.55 ms to the browser environment, 5.97 ms to data options and 14.21 ms to theme resolution over 40 charts. Default-zone discovery and canonical zone resolution are both repeated for charts with the same data. See the [P1 profile](profiles/2026-11-22/20261122T045502Z-first-trend-axylo.summary.json), [P8 profile](profiles/2026-11-22/20261122T045507Z-compact-trend-axylo.summary.json) and the [history sweep log](p1-investigation-2026-11-22.log).
+
+## Measured startup changes
+
+The P1 column uses Axylo and the same-session uPlot control. P8 uses two 20-run sides of an Axylo A/A run. Separately sealed builds were measured in separate jobs. The medians and load ranges below give observed differences across jobs. Individual savings are approximate because the changes were not randomized across jobs.
+
+| Cumulative build | P1 Axylo / uPlot | P1 load | P1 record | P8 sides A / B | P8 load | P8 record |
+|---|---:|---:|---|---:|---:|---|
+| SVG-only baseline | 28.55 / 7.99 ms | 1.53–2.26 | `20261122T051331Z-first-trend-uplot-vs-axylo-5f76` | 80.64 / 77.73 ms | 1.08–1.41 | `20261122T051600Z-compact-trend-x40-aa-axylo-15d5` |
+| Resolve the viewer zone only when local time is needed | 27.97 / 7.59 ms | 1.47–1.82 | `20261122T051446Z-first-trend-uplot-vs-axylo-d470` | 76.19 / 76.13 ms | 1.09–2.55 | `20261122T051714Z-compact-trend-x40-aa-axylo-a445` |
+| Skip the unused strip measurement and resolve the locale once per frame | 27.05 / 7.55 ms | 1.81–2.25 | `20261122T051844Z-first-trend-uplot-vs-axylo-4ffb` | 74.95 / 77.21 ms | 1.92–2.74 | `20261122T051958Z-compact-trend-x40-aa-axylo-041b` |
+| Probe CSS colors only when needed and recognize the exact UTC name | 27.07 / 8.09 ms | 1.08–2.46 | `20261122T052112Z-first-trend-uplot-vs-axylo-7773` | 69.66 / 68.58 ms | 1.47–2.03 | `20261122T052226Z-compact-trend-x40-aa-axylo-9133` |
+| Retain the shared renderer interface and load the sealed capability before timing | 27.40 / 8.23 ms | 0.67–1.65 | `20261122T052521Z-first-trend-uplot-vs-axylo-82c9` | 70.74 / 68.38 ms | 1.49–1.94 | `20261122T052635Z-compact-trend-x40-aa-axylo-1d06` |
+
+P1 moved from 28.55 to 27.40 ms in this sequence. The timezone change and frame preparation changes were followed by decreases of 0.58 and 0.91 ms respectively. The theme and exact-UTC change moved the P1 median by 0.02 ms and lowered the compact medians by 5.29 and 8.63 ms. Compact charts ended at 70.74 and 68.38 ms, below 80 ms on both sides. The final candidate still needs 17.40 ms, about 64% of its measured task time, removed to meet P1’s 10 ms budget.
+
+## Remaining first-render cost
+
+Three production profiles of the final candidate put the median active browser time at 37.63 ms under the profiler. The median self time is 6.33 ms in core orchestration, 5.49 ms in native main-thread work, 3.36 ms in layout and formatting, 2.58 ms in DOM code (including 1.66 ms in the interaction module), 2.01 ms in theme resolution, 1.64 ms in scales and view, 1.22 ms in normalization, 1.20 ms in drawing, 1.02 ms in reader work and 0.76 ms in scene construction. Another 10.02 ms is unattributed JavaScript, including harness work. The browser's accessibility tree has no isolated time in these samples. The on-demand tooltip and table rendering have no distinct sampled cost. The active compact profile attributes 11.47 ms to theme work across 40 charts. [Final P1 profile](profiles/2026-11-22/final/20261122T052750Z-first-trend-axylo.summary.json) · [Final P8 profile](profiles/2026-11-22/final/20261122T052755Z-compact-trend-axylo.summary.json)
+
+The remaining work to reach 10 ms would include eliminating forced style and layout reads across chart creation, reducing first-use locale formatting, and deferring interaction setup that can safely wait for first focus or input. Those changes need separate prototypes and profiles. The generated description, synchronous diagnostics and first-frame drawing are required behaviors. The sampled costs do not establish that those changes alone could save 17.40 ms.
+
+Proposal for the owner: set the 1.0 P1 budget to 30 ms for the same workload and reference desktop. The candidate recorded 27.40 ms in 20 runs, giving 2.60 ms of margin. The owner-accepted baseline was 29.42 ms. Keep 10 ms as a target for the recurring improvement work. The product specification still requires 10 ms.

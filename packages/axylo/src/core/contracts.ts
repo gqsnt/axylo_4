@@ -563,13 +563,13 @@ export interface Overlay {
  * dash patterns through the stylesheet.
  */
 export interface MarkRenderer {
-  readonly kind: 'svg';
+  readonly kind: 'canvas' | 'svg';
   /** The element to insert into the plot container. It must be aria-hidden. */
-  readonly element: SVGSVGElement;
+  readonly element: HTMLElement | SVGSVGElement;
   /** Draws the scene, replacing the previous one. Called at most once per animation frame. */
-  draw(scene: Scene, bindings: PaintBindings, devicePixelRatio: number): void;
+  draw(scene: Scene, bindings: PaintBindings, theme: ResolvedTheme, devicePixelRatio: number): void;
   /** Draws or clears (null) the overlay without redrawing the scene. */
-  drawOverlay(overlay: Overlay | null, bindings: PaintBindings, devicePixelRatio: number): void;
+  drawOverlay(overlay: Overlay | null, bindings: PaintBindings, theme: ResolvedTheme, devicePixelRatio: number): void;
   destroy(): void;
 }
 

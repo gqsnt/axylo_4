@@ -54,7 +54,7 @@ export function createFormatters(spec: FormatSpec, env: Pick<Environment, 'local
   const values = spec.series.map(s =>
     createNumberReadout({ locale, scale: s.scale, unit: s.unit, format: s.format ?? null, onError: reporter(s.field) }),
   );
-  const x = createXReadout(spec.x, locale, env.timeZone, reporter(spec.x.field));
+  const x = createXReadout(spec.x, locale, env, reporter(spec.x.field));
   const { noData, noObservation } = spec.messages;
 
   return {
@@ -81,7 +81,7 @@ export function createFormatters(spec: FormatSpec, env: Pick<Environment, 'local
 function createXReadout(
   x: XFormatSpec,
   locale: string,
-  viewerZone: string,
+  env: Pick<Environment, 'timeZone'>,
   onError: ((error: unknown) => void) | null,
 ): (position: number) => string {
   switch (x.kind) {
@@ -110,7 +110,7 @@ function createXReadout(
       return createNumberReadout({ locale, scale: null, unit: x.unit, format: numberOption, onError });
     }
     default: {
-      const timeZone = x.kind === 'time' ? (x.timeZone == null || x.timeZone === 'local' ? viewerZone : x.timeZone) : null;
+      const timeZone = x.kind === 'time' ? (x.timeZone == null || x.timeZone === 'local' ? env.timeZone : x.timeZone) : null;
       return createTimeReadout({ kind: x.kind, timeZone, locale, dateUnit: x.dateUnit, format: x.format ?? null, onError });
     }
   }

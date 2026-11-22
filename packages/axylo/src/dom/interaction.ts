@@ -28,7 +28,7 @@
  */
 import type {
   DatumRef, DatumText, Formatters, Layout, Lookup, MarkRenderer, Overlay, PaintBindings, PickTarget, ReaderModel,
-  Rect, StepDirection, TooltipModel, View, XValue,
+  Rect, ResolvedTheme, StepDirection, TooltipModel, View, XValue,
 } from '../core/contracts';
 import type { Messages } from '../public';
 import { CHART_TYPE_MESSAGE, defaultMessages, fill, messageLanguage } from '../messages';
@@ -112,6 +112,7 @@ export interface Committed extends ControlsState {
   readonly layout: Layout;
   readonly lookup: Lookup;
   readonly bindings: PaintBindings;
+  readonly theme: ResolvedTheme;
   readonly pixelRatio: number;
 }
 
@@ -820,7 +821,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     const d = c;
     if (!plotReady(d) || !proxy) {
       if (presented !== '') {
-        if (d) renderer.drawOverlay(null, d.bindings, d.pixelRatio);
+        if (d) renderer.drawOverlay(null, d.bindings, d.theme, d.pixelRatio);
         tooltip.hide();
         presented = '';
       }
@@ -843,7 +844,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     presented = key;
     dirty = false;
     const overlay: Overlay | null = overlayWith(parts.overlay, { view: d.view, layout: d.layout, lookup: d.lookup, target, ring: visibleRing, only });
-    renderer.drawOverlay(overlay, d.bindings, d.pixelRatio);
+    renderer.drawOverlay(overlay, d.bindings, d.theme, d.pixelRatio);
     content = null;
     if (!showTip || target === null) {
       tooltip.hide();
@@ -2130,7 +2131,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   /** Everything goes; a later full build starts from no input at all (new item 6; review C3-6). */
   function clear(): void {
     const d = c;
-    if (presented !== '' && d) renderer.drawOverlay(null, d.bindings, d.pixelRatio);
+    if (presented !== '' && d) renderer.drawOverlay(null, d.bindings, d.theme, d.pixelRatio);
     presented = '';
     // Recorded before the tooltip goes: a focused pinned row goes with it (review C3-6).
     const owned = focusOwned();

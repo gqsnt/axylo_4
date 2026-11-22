@@ -111,12 +111,12 @@ export function resolveTheme(
 
   const style = win.getComputedStyle(element);
   const override = style.getPropertyValue('--axylo-background').trim() !== '';
-  const [overrideText, canvasText] = probeColors(element, ['var(--axylo-background)', 'Canvas']);
+  const [overrideText, canvasText] = override ? probeColors(element, ['var(--axylo-background)', 'Canvas']) : [];
   const overrideColor = override ? parseColor(overrideText!) : null;
   const background = overrideColor !== null && overrideColor.a > 0 ? composite(overrideColor, backdrop.color) : backdrop.color;
 
   const overridden = overrideColor !== null && overrideColor.a > 0;
-  const scheme = decideScheme(style, overridden ? background : null, canvasText!, doc);
+  const scheme = decideScheme(style, overridden ? background : null, element, canvasText);
   // Where the page sets the chart's color-scheme, the stylesheet's defaults follow the browser's used scheme
   // by themselves (light-dark()), media changes included, in the frame they happen: no attribute freezes one.
   // Otherwise (color-scheme normal, or the author's --axylo-background decides) the scheme found here is it.
@@ -165,17 +165,17 @@ function unresolved(element: HTMLElement, bindings: PaintBindings, count: number
  * the browser actually uses there (the luminance of the `Canvas` system color in the chart's context);
  * else (unset or normal) the inherited text color: light text means a dark scheme.
  */
-function decideScheme(style: CSSStyleDeclaration, background: Rgba | null, canvas: string, doc: Document): 'light' | 'dark' {
+function decideScheme(style: CSSStyleDeclaration, background: Rgba | null, element: HTMLElement, canvas?: string): 'light' | 'dark' {
   if (background !== null) return isLightColor(background) ? 'light' : 'dark';
   const words = style.colorScheme.split(/\s+/).filter(w => w === 'light' || w === 'dark');
   const light = words.includes('light');
   const dark = words.includes('dark');
   if (light !== dark) return light ? 'light' : 'dark';
   if (light && dark) {
-    const used = parseColor(normalizeColor(canvas, doc));
+    const used = parseColor(canvas ?? probeColors(element, ['Canvas'])[0]!);
     if (used !== null) return isLightColor(used) ? 'light' : 'dark';
   }
-  const text = parseColor(normalizeColor(style.color, doc));
+  const text = parseColor(normalizeColor(style.color, element.ownerDocument));
   return text !== null && isLightColor(text) ? 'dark' : 'light';
 }
 

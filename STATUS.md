@@ -51,7 +51,11 @@ The daily-revenue third input is now registered and hashed for the release rehea
 
 The P1 history sweep and production CPU profiles are in `bench/results/p1-investigation-2026-11-22.md`. The first-render increases cluster around the theme, controller and interaction changes. The largest named cost on the UTC trend was discovering the viewer's default time zone.
 
-Next: defer viewer-zone discovery until local time is used. Run `npm run typecheck && node scripts/pack.mjs && node scripts/size.mjs --no-build && node bench/build.mjs` before measuring P1 and P8 on the new artifact.
+The 06:32 restart on 2026-11-22 interrupted the P3 run and follow-up review. The partial P3 record `20261122T053039Z-stream-w600-aa-axylo-82fa` is archived. It has no budget verdict. The completed final-candidate endpoints are P1 27.40 ms (miss), P2 39.64 ms and 79.81 ms (met), and P8 70.74/68.38 ms (met). Final packed sizes are 115,793 B and 97,002 B (both met). The sealed artifact is `bench/artifacts/20261122T052512Z-de0f0ab3-d46057`. It survived the restart and its file hashes verify.
+
+The independent review found two compatibility issues and a provenance wording issue. The shared renderer interface is restored, the selected adapter bytes are built independently of library capabilities, and the dirty SVG-only snapshot is identified explicitly. Typecheck and all 99 benchmark Node tests passed. The follow-up's interrupted log is archived and gives no final review verdict.
+
+Next command: `bash acceptance/results/verify-perf/measure-final.sh bench/artifacts/20261122T052512Z-de0f0ab3-d46057`. It skips P1, P2, P8 and the profiles, reruns P3, and then records P4, P5, both P7 endpoints and the historical renderer spot checks. Repeat the interrupted read-only review using `reviews/2026-11-22/wp/first-render-followup.prompt.md`. Finish comparison timing, full verification, and all pre-check release evidence. Hold the release check under the owner's P1 stop rule.
 
 ## What is left for 1.0, in order
 

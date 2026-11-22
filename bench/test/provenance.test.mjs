@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { build, readArtifact, removeArtifact, REPO } from '../build.mjs';
 import { startServer } from '../lib/driver.mjs';
-import { workloadParams, screeningVerdict, DEFAULT_BLOCKS } from '../run.mjs';
+import { harnessDifferences, workloadParams, screeningVerdict, DEFAULT_BLOCKS } from '../run.mjs';
 import { trendFixture, trendSeries, zoomSteps, lineFixture, scatterFixture, expectedView, lowerBound } from '../src/fixtures.js';
 import { scratchDir } from './helpers.mjs';
 
@@ -42,6 +42,21 @@ test('a changed file is detected before a session serves it', () => {
   fs.writeFileSync(path.join(copy, 'extra.js'), '');
   assert.throws(() => readArtifact(copy), /extra\.js is not in the manifest/);
   removeArtifact(copy);
+});
+
+test('two builds may differ in Canvas adapter availability while comparing a different adapter', () => {
+  const canvas = 'adapters/axylo-canvas.js';
+  const adapter = 'adapters/axylo.js';
+  const svgOnly = {
+    'page.js': { sha256: 'page' },
+    [adapter]: { sha256: 'adapter' },
+    'axylo/capabilities.json': { sha256: 'svg only' },
+  };
+  const legacy = { ...svgOnly, [canvas]: { sha256: 'canvas adapter' }, 'axylo/capabilities.json': { sha256: 'both' } };
+  assert.deepEqual(harnessDifferences(legacy, svgOnly, 'axylo'), []);
+  assert.deepEqual(harnessDifferences(legacy, svgOnly, 'axylo-canvas'), [canvas]);
+  const changed = { ...svgOnly, [adapter]: { sha256: 'changed adapter' }, 'page.js': { sha256: 'changed page' } };
+  assert.deepEqual(harnessDifferences(legacy, changed, 'axylo'), ['page.js', adapter]);
 });
 
 test('the server sends only manifest files, records the hash of what it sent, and refuses changed bytes', async () => {

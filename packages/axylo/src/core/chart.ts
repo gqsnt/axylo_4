@@ -162,14 +162,13 @@ export function createChart(composition: Composition, target: unknown, input: un
     });
     cleanup.push(() => resizeObserver.disconnect());
 
-    const timeZone = viewerTimeZone();
     controller = controllerFor(composition, input, {
       id,
       // The author's own id names an untitled chart in diagnostics; the allocated one stays for the DOM.
       targetId: root.id || null,
       console: overrides.console === undefined ? (win.console as DeliveryConsole) : overrides.console,
       page: doc,
-      timeZone,
+      get timeZone() { return viewerTimeZone(); },
       renderer,
       text: textLayer,
       figure,

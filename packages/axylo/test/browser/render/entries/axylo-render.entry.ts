@@ -143,8 +143,8 @@ function makeRoot(left: number, top: number, width = 400, height = 300, parent: 
 }
 
 function draw(m: Mounted): void {
-  const { bindings } = resolveTheme(m.root, m.keys, m.colors);
-  m.renderer.draw(m.scene, bindings, window.devicePixelRatio);
+  const { bindings, theme } = resolveTheme(m.root, m.keys, m.colors);
+  m.renderer.draw(m.scene, bindings, theme, window.devicePixelRatio);
   m.draws++;
 }
 
@@ -290,7 +290,7 @@ const api: AxrApi = {
   },
   overlay(id: number, on: boolean): void {
     const m = mounts[id]!;
-    const { bindings } = resolveTheme(m.root, m.keys, m.colors);
+    const { bindings, theme } = resolveTheme(m.root, m.keys, m.colors);
     const overlay: Overlay = {
       clip: m.scene.clip,
       // A cursor rule at x = 330 running past the clip (must stop at 260), a focus square that is not
@@ -301,7 +301,7 @@ const api: AxrApi = {
       ],
       unclipped: [{ type: 'points', series: 0, shape: 'square', size: 8, fill: T('focus'), xy: Float32Array.of(20, 280) }],
     };
-    m.renderer.drawOverlay(on ? overlay : null, bindings, window.devicePixelRatio);
+    m.renderer.drawOverlay(on ? overlay : null, bindings, theme, window.devicePixelRatio);
   },
   svgOverlayCount: (id: number): number => mounts[id]!.root.querySelector('.axylo-overlay')!.childElementCount,
   watch(): void {

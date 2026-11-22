@@ -15,7 +15,7 @@
  * therefore never be mutated in place: a changed geometry is a new array.
  */
 import type {
-  AreaMark, ArcMark, BandMark, Mark, MarkRenderer, Overlay, PaintBindings, PathMark, PointMark, Rect, RectMark, RuleMark, Scene,
+  AreaMark, ArcMark, BandMark, Mark, MarkRenderer, Overlay, PaintBindings, PathMark, PointMark, Rect, RectMark, ResolvedTheme, RuleMark, Scene,
 } from '../core/contracts';
 import {
   DOT_RADIUS, DOT_TILE, dashText, lifted, MARKER_POLYGONS, PATTERN_LINE, PATTERN_TILE, MISSING_STROKE, missingBox, paintOf, sector, SECTOR_APEX, SECTOR_ARCS, SECTOR_NONE, SECTOR_RING, snapRule, unclippedRule,
@@ -353,7 +353,7 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
   return {
     kind: 'svg',
     element: svg,
-    draw(scene: Scene, bindings: PaintBindings, devicePixelRatio: number): void {
+    draw(scene: Scene, bindings: PaintBindings, _theme: ResolvedTheme, devicePixelRatio: number): void {
       const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
       if (scene.width !== width || scene.height !== height) {
         width = scene.width;
@@ -382,7 +382,7 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
       for (let i = scene.marks.length; i < slots.length; i++) slots[i]!.el.remove();
       slots = next;
     },
-    drawOverlay(overlay: Overlay | null, bindings: PaintBindings, devicePixelRatio: number): void {
+    drawOverlay(overlay: Overlay | null, bindings: PaintBindings, _theme: ResolvedTheme, devicePixelRatio: number): void {
       const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
       overlayGroup.replaceChildren();
       if (overlay === null) return;

@@ -112,7 +112,7 @@ export function record(kind: ChartKind, options: Record<string, unknown>, settin
       error: (...args: unknown[]) => { rec.printed.push(String(args[0])); },
     },
     page: {},
-    timeZone: settings.timeZone ?? 'UTC',
+    get timeZone() { return settings.timeZone ?? 'UTC'; },
     renderer: { kind: 'svg', draw: scene => { if (rec.disposed) rec.writesAfterDispose++; rec.draws.push(scene); } },
     text: { render: texts => { if (rec.disposed) rec.writesAfterDispose++; rec.texts.push(texts); } },
     surfaces(visible) {

@@ -102,6 +102,7 @@ function literal<const T extends string>(value: unknown, keys: readonly T[], fie
 }
 
 export function canonicalZone(zone: unknown): string | undefined {
+  if (zone === 'UTC') return zone;
   if (typeof zone !== 'string') return undefined;
   try {
     return Intl.DateTimeFormat('en', { timeZone: zone }).resolvedOptions().timeZone;

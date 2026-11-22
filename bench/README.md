@@ -21,28 +21,27 @@ the default Axylo and fixed SVG adapters.
 node --test bench/test/*.test.mjs                                   # pure tests (Node only, no browser; builds one artifact), seconds
 node --test --test-concurrency=1 bench/test/browser/*.test.mjs      # browser tests: fresh production rebuild, system Chrome, ~2 min
 node bench/tools/coverage.mjs [--level 0.99444]                     # coverage check of the verdict procedure
-node bench/tools/canvas-cost.mjs                                    # marginal gzip size of the Canvas renderer (rule 3)
 
 # the renderer decision (plan 5.1): see "Renderer decision" below
 node bench/decision.mjs plan
 
 node bench/build.mjs                                  # one sealed artifact in bench/artifacts/<id>/ (run.mjs does this itself)
 
-# a declared endpoint's pinned recipe (workload and parameters from src/decision.js; Canvas against SVG by default)
-node bench/run.mjs --endpoint P1            # also P2-100k, P2-1M, P3-task, P5, P8, scatter-50k, line-10x100k, zoom-100k
+# declared endpoints with SVG marks (workloads and parameters from src/decision.js)
+node bench/run.mjs --endpoint P1 --baseline uplot --candidate axylo
 node bench/run.mjs --endpoint P4 --baseline uplot --candidate axylo        # budget paths: `axylo` = the public default
 node bench/run.mjs --endpoint P7-lifecycle --aa axylo
-node bench/run.mjs --endpoint gpu-dpr2-P1 --gpu            # GPU rasterization (headless, --enable-gpu --use-angle=gl --ignore-gpu-blocklist)
-node bench/run.mjs --endpoint gpu-resize-24 --gpu --headed # GPU on the desktop (DISPLAY :0)
+node bench/run.mjs --endpoint gpu-dpr2-P1 --aa axylo --gpu            # GPU rasterization (headless)
+node bench/run.mjs --endpoint gpu-resize-24 --aa axylo --gpu --headed # GPU on the desktop (DISPLAY :0)
 # any workload by hand; 20 blocks by default (10 AB + 10 BA); --isolate = a fresh browser process per run
-node bench/run.mjs --baseline axylo-canvas --candidate axylo-svg --workload first --size 1x100000
+node bench/run.mjs --baseline uplot --candidate axylo --workload first --size 1x100000
 
 # smoke comparison (2 blocks: shows the harness works; never a verdict, never evidence)
-node bench/run.mjs --baseline axylo-canvas --candidate axylo-svg --workload first --size 3x120 --blocks 2 --settle 200
+node bench/run.mjs --baseline uplot --candidate axylo --workload first --size 3x120 --blocks 2 --settle 200
 
 # A-versus-A noise band, then a comparison classified against it (checked: same workload, bytes, dpr, Chrome, host)
 node bench/run.mjs --aa axylo-svg --workload first --size 1x100000 --artifact bench/artifacts/<id>
-node bench/run.mjs --baseline axylo-canvas --candidate axylo-svg --workload first --size 1x100000 --artifact bench/artifacts/<id> --noise <aa run id>[,<aa run id>...]
+node bench/run.mjs --baseline uplot --candidate axylo-svg --workload first --size 1x100000 --artifact bench/artifacts/<id> --noise <aa run id>[,<aa run id>...]
 
 # two immutable builds of the library in one balanced job; --screen applies the plan's rerun rule
 node bench/build.mjs --source <checkout of the merge base> --out bench/artifacts/base
@@ -72,6 +71,8 @@ reports "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060 SUPER/PCIe/SSE2, Ope
 historical M1 session script; it uses options this runner no longer has.
 
 ## Renderer decision (plan 5.1)
+
+This section reproduces the historical comparison. Use the sealed 2026-11-19 artifact in the replay instructions below for any Canvas run.
 
 `src/decision.js` holds the declared endpoints as data and the decision as pure functions; `decision.mjs` runs the
 jobs and applies them. Endpoints (B − A = SVG − Canvas, lower is better):
@@ -138,11 +139,11 @@ Command sequence per family (`node bench/decision.mjs plan` prints both with est
 durations: about 3.2 h for "renderer" and 2.2 h for "gpu"; the gpu family adds `--family gpu` to every step):
 
 ```bash
-node bench/build.mjs                                     # artifact <A>; the whole family uses it
-node bench/decision.mjs controls --artifact <A>          # three times, as separate sessions (~51 min each)
-node bench/decision.mjs pilot --artifact <A>             # ~14 min: freezes thresholds, checks AB/BA agreement
-node bench/decision.mjs endpoints --artifact <A>         # ~25-31 min: --isolate where the pilot found order effects
-node bench/decision.mjs decide --artifact <A>            # writes bench/decision/decision-<time>.json
+A=bench/artifacts/20261119T091624Z-b643862f-b78698         # the whole family uses this sealed artifact
+node bench/decision.mjs controls --artifact "$A"          # three times, as separate sessions (~51 min each)
+node bench/decision.mjs pilot --artifact "$A"             # ~14 min: freezes thresholds, checks AB/BA agreement
+node bench/decision.mjs endpoints --artifact "$A"         # ~25-31 min: --isolate where the pilot found order effects
+node bench/decision.mjs decide --artifact "$A"            # writes bench/decision/decision-<time>.json
 ```
 
 ### Replay the 2026-11-21 decisions
@@ -197,6 +198,9 @@ Use the Axylo candidate numbers for P2-1M and P4. Judge Axylo's absolute results
 - it reads every Axylo source file once into memory and compiles both builds from that snapshot, recording each
   file's sha256 (`source.axyloInputs`, `source.axyloSourceHash`), the git HEAD and the uncommitted changes of the
   source checkout, all at build time;
+- `axylo/capabilities.json` records whether the source has Canvas marks. The Axylo adapter reads it before timing.
+  Artifacts built with the same harness keep matching adapter bytes across the renderer change. The two-build
+  guard allows the absence of the optional legacy Canvas adapter when the selected adapter is another one;
 - `manifest.json` lists the sha256 and size of every file; then every file and directory is made read-only.
   `chmod -R u+w <dir> && rm -r <dir>` removes one.
 

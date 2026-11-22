@@ -256,7 +256,7 @@ function deadHost(from: Host): Host {
   const none = (): null => null;
   const empty = { width: 0, height: 0 };
   return {
-    id: from.id, console: null, page: {}, timeZone: from.timeZone,
+    id: from.id, console: null, page: {}, timeZone: 'UTC',
     renderer: { kind: from.renderer.kind, draw() {} }, text: { render() {} },
     figure: { update: () => false, announce() {} }, interaction: { prepare: () => false, commit() {}, clear() {} },
     measurer: { width: () => 0 }, requestFrame: () => 0, cancelFrame() {}, locale: () => 'en', pageLang: none,
@@ -283,8 +283,9 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) stages!.ran(name);
   };
   let delivery = new Delivery({ console: host.console, development: __DEV__, page: host.page });
-  const timeZone = host.timeZone;
-  const environment = { timeZone };
+  // Preserve a stable viewer zone once needed, without asking Intl for charts with an explicit zone.
+  let timeZone: string | undefined;
+  const environment = { get timeZone() { return timeZone ??= host.timeZone; } };
 
   // ── synchronous phase ──────────────────────────────────────────────────────────────────────────
 
@@ -1147,12 +1148,11 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     if (!inFrame) deliverChanges();
   }
 
-  function formatSpec(a: Accepted): FormatSpec {
+  function formatSpec(a: Accepted, locale: string): FormatSpec {
     const { frame, resolved } = a;
     // `onFormatterError` is made once, outside: a closure made here would share this scope with `valueFor`,
     // and so keep `resolved` and its borrowed table alive as long as the formatters are reused (data agent).
     const valueFor = (field: string) => resolved.values.find(v => v.field === field) ?? resolved.values[0];
-    const locale = host.locale(a.options.locale);
     const messages = { noData: a.messages.noData, noObservation: a.messages.noObservation };
     if (frame.shape === 'donut') {
       const v = resolved.values[0];
@@ -1179,7 +1179,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
 
   function formattersKey(spec: FormatSpec, valueCount: number): unknown[] {
     return [spec.locale, spec.x.kind, spec.x.timeZone, spec.x.dateUnit, spec.x.categories, spec.x.format, spec.x.unit,
-      spec.messages.noData, spec.messages.noObservation, timeZone,
+      spec.messages.noData, spec.messages.noObservation,
       spec.series.map(s => `${s.field}\u0001${s.unit}\u0001${s.scale}`).join('\u0002'), ...spec.series.map(s => s.format), valueCount];
   }
 
@@ -1245,7 +1245,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     const lang = host.pageLang();
 
     // Formatters. What a formatter threw on belongs to the formatters and the revision it formatted.
-    const spec = formatSpec(a);
+    const spec = formatSpec(a, locale);
     const fKey = formattersKey(spec, a.resolved.values.length);
     let formatters = drawn?.formatters;
     if (!formatters || !drawn || !sameKey(drawn.formattersKey, fKey)) {
@@ -1253,7 +1253,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       // The bucket belongs to the formatters: emptied before they are built, so what their construction
       // reports (an invalid Intl option) stays, and kept while they stay, as their fallback goes on (finding 13).
       setPresentation('format', []);
-      formatters = createFormatters(spec, { locale, timeZone });
+      formatters = createFormatters(spec, { locale, get timeZone() { return environment.timeZone; } });
     }
 
     // Naming (spec A1): a labelledBy that names nothing falls back to the title or a generated name.
@@ -1446,23 +1446,24 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     let withoutStrip: Layout['kind'] | null = null;
     if (size !== null && size.width > 0 && shown.kind === 'ready' && !compact && !tooSmall) {
       const room = size.room ?? size;
-      // The strip is two line heights of its own text, measured by the host the way other text is (its own
-      // font), once per text style and size; when reserved, what it really took.
-      if (stripStyle !== style) {
-        stripStyle = style;
-        const measured = host.stripHeight?.();
-        stripHeight = measured !== undefined && Number.isFinite(measured) && measured > 0 ? measured : 2 * Math.max(24, style.lineHeight);
-      }
-      if (readoutMode && size.room && size.room.height - size.height > 0) stripHeight = size.room.height - size.height;
       const without = plotLayout({ width: room.width, height: room.height }).layout;
       withoutStrip = without.kind;
       // Decision 0004 revision 3, rule 5: a plot that, laid out without a strip, is under 240 × 140 has the
       // strip; if the strip would leave it under the L8 minimum of 80 px, there is no strip and no floating
       // tooltip either ('none': pointing highlights the datum; its values are in the keyboard reading and the
       // table). Never floating below the limit (final review, finding 9).
-      const small = without.kind === 'plot' && (without.plot.width < READOUT_WIDTH || without.plot.height < READOUT_HEIGHT);
-      const next: ReadoutMode = a.options.tooltip === false || !small ? 'floating'
-        : without.kind === 'plot' && without.plot.height - stripHeight >= MIN_PLOT_HEIGHT ? 'strip' : 'none';
+      let next: ReadoutMode = 'floating';
+      if (a.options.tooltip !== false && without.kind === 'plot' &&
+          (without.plot.width < READOUT_WIDTH || without.plot.height < READOUT_HEIGHT)) {
+        // Measure the strip only when it might use space. When reserved, use what it really took.
+        if (stripStyle !== style) {
+          stripStyle = style;
+          const measured = host.stripHeight?.();
+          stripHeight = measured !== undefined && Number.isFinite(measured) && measured > 0 ? measured : 2 * Math.max(24, style.lineHeight);
+        }
+        if (readoutMode && size.room && size.room.height - size.height > 0) stripHeight = size.room.height - size.height;
+        next = without.plot.height - stripHeight >= MIN_PLOT_HEIGHT ? 'strip' : 'none';
+      }
       if (next !== readoutKind) {
         readoutKind = next;
         const wantStrip = next === 'strip';
@@ -1593,7 +1594,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     const drewBefore = drawn !== null && drawn.paintInputs.length > 0;
     if (measured ? !drawn || !sameKey(drawn.paintInputs, paintInputs) : drewBefore || (drawn === null && hadMarks)) {
       stage('draw');
-      host.renderer.draw(measured ? scene : emptyScene(), theme!.bindings, pixelRatio);
+      host.renderer.draw(measured ? scene : emptyScene(), theme!.bindings, theme!.theme, pixelRatio);
       hadMarks = measured;
     }
     if (!drawn || drawn.layout !== layout || (drawn.layout.kind === 'plot') !== (layout.kind === 'plot')) {
@@ -1617,7 +1618,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       lookup, lookupInputs, reader, readerInputs, paintInputs,
     };
     host.interaction.commit({
-      ...controlsFor(reader, tooSmall), layout, lookup, bindings: theme!.bindings, pixelRatio,
+      ...controlsFor(reader, tooSmall), layout, lookup, bindings: theme!.bindings, theme: theme!.theme, pixelRatio,
     });
     // The displayed snapshot is now this revision (or nothing, when nothing could be drawn): older rows go.
     showing(measured ? a : null);
@@ -1740,7 +1741,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       surfacesHidden = true;
     });
     attempt(() => host.text.render([]));
-    attempt(() => { if (theme) host.renderer.draw(emptyScene(), theme.bindings, pixelRatio); hadMarks = false; });
+    attempt(() => { if (theme) host.renderer.draw(emptyScene(), theme.bindings, theme.theme, pixelRatio); hadMarks = false; });
   }
 
   function settle(revision: number): void {
