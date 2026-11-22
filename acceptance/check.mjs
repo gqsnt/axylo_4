@@ -613,7 +613,7 @@ function readerDetails(rows, root, from, review) {
     '### No evidence', '', ...(missing.length ? missing : ['No cells without evidence.']), '',
     '### Not run', '',
     ...(rows.some(({ row }) => row.id === 'P1') && pending.length
-      ? [`P1–P8 have a harness in \`bench/\`. Acceptance measurements await a quiet machine. ${fileLink(from, root, 'bench/README.md')}`, ''] : []),
+      ? [`P1–P8 use the workloads in ${fileLink(from, root, 'bench/README.md')}. See the recorded ${fileLink(from, root, 'bench/results/budgets-2026-11-21.md')} for budget measurements.`, ''] : []),
     ...(pending.length ? pending : ['No cells awaiting a run.']), '',
     '### Not recorded for this revision', '', ...(stale.length ? stale : ['No cell rests on results from another revision.']), '',
     '### Cannot be verified here', '', ...(environment.length ? environment : ['No environment limits recorded.']), '',

@@ -69,6 +69,6 @@ A suite whose cases the source scan cannot list (an `it.each` over rows computed
 
 For a describe suite shared across chart types, add a chart-specific `casePrefix` and the expected number of distinct `cases`. The checker requires all statically known cases and the expected number of passing current registrations. A failed archived result within that scope still appears in the report. Release checks also require matching provenance.
 
-A `size` citation names the budgeted `entries` in the packed size artifact. Historical benchmarks carry a `workload` and optional `history`. Documents, manual rehearsals and provisional benchmark workloads need separate review.
+A `size` citation names the budgeted `entries` in the packed size artifact. A benchmark citation names the `workload` and can include a `history` array of raw records. The [budget report](../bench/results/budgets-2026-11-21.md) gives the numerical verdicts from those records. Benchmark citations, documents and manual rehearsals require separate review.
 
 The archived four-configuration review includes [review notes](review.json) with the prior status baseline, failure causes and the browser helpers checked by negative controls.

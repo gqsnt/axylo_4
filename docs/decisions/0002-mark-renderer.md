@@ -10,7 +10,7 @@ Status: **final for 1.0**, confirmed by the owner on 2026-11-22. All shipped cha
 
 The SVG implementation uses CSS paint expressions for live theme changes and retains the plot's device-pixel geometry. 1.0 has no Canvas marks option. HTML text, accessibility, hit testing and streaming remain independent of the mark renderer.
 
-The packed consumer bundles shrank by 2,487 gzipped bytes for all chart types (118,252 to 115,765) and 1,646 for the line-only entry (98,627 to 96,981). These before-and-after pack measurements include the related removal of the switch and Canvas-only styles.
+The matched packed consumer bundles shrank by 2,462 gzipped bytes for all chart types (118,252 to 115,790) and 1,628 for the line-only entry (98,627 to 96,999). The pair measures removal of the Canvas renderer, switch and Canvas-only styles with the shared renderer interface preserved. The SVG-only size snapshot uses artifact `20261122T055902Z-298b29e8-2e262a`, source hash `a57a243060881691`, before the startup optimizations. [Before removal](../../bench/results/size-before-svg-2026-11-22.json) · [After removal](../../bench/results/size-svg-contract-2026-11-22.json)
 
 ## Historical M1 review and measurements
 

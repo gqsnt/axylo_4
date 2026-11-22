@@ -11998,6 +11998,14 @@
           "kind": "browser",
           "file": "packages/axylo/test/browser/chart/lifecycle.browser.test.ts",
           "title": "a destroyed handle that the page keeps retains neither the data nor the figure"
+        },
+        {
+          "kind": "benchmark",
+          "file": "bench/src/decision.js",
+          "workload": "DX5 and P7: heap over 2,500 create–destroy cycles",
+          "history": [
+            "bench/history/20261122T055744Z-lifecycle-trend-c2500-aa-axylo-17cb.json"
+          ]
         }
       ],
       "area": [
@@ -12168,12 +12176,12 @@
       "compact": "The sequence, strict and destroy tests for this type run through the controller with a recording host in Node: \"switch together\" is asserted on the committed frame (scene, text layer, hit-testing lookup, reader model), not on the rendered page. A compact chart has no zoom, text layer or hit testing (spec 3.7), so its test checks the marks and the summary; it runs compact line, area and bar."
     },
     "pending": {
-      "line": "Not measured for this revision: the heap trend over 1,000 create–destroy cycles is P7's measurement (spec DX5, \"Verified by\"); the benchmark harness in bench/ exists, and the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). The cited Chrome heap test (line) allows 1% growth between two window means after warm-up, so a small positive slope passes it: it cannot show \"no heap growth trend\".",
-      "area": "Not measured for this revision: the heap trend over 1,000 create–destroy cycles is P7's measurement (spec DX5, \"Verified by\"); the benchmark harness in bench/ exists, and the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). The cited Chrome heap test (line) allows 1% growth between two window means after warm-up, so a small positive slope passes it: it cannot show \"no heap growth trend\".",
-      "bar": "Not measured for this revision: the heap trend over 1,000 create–destroy cycles is P7's measurement (spec DX5, \"Verified by\"); the benchmark harness in bench/ exists, and the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). The cited Chrome heap test (line) allows 1% growth between two window means after warm-up, so a small positive slope passes it: it cannot show \"no heap growth trend\".",
-      "scatter": "Not measured for this revision: the heap trend over 1,000 create–destroy cycles is P7's measurement (spec DX5, \"Verified by\"); the benchmark harness in bench/ exists, and the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). The cited Chrome heap test (line) allows 1% growth between two window means after warm-up, so a small positive slope passes it: it cannot show \"no heap growth trend\".",
-      "donut": "Not measured for this revision: the heap trend over 1,000 create–destroy cycles is P7's measurement (spec DX5, \"Verified by\"); the benchmark harness in bench/ exists, and the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). The cited Chrome heap test (line) allows 1% growth between two window means after warm-up, so a small positive slope passes it: it cannot show \"no heap growth trend\".",
-      "compact": "Not measured for this revision: the heap trend over 1,000 create–destroy cycles is P7's measurement (spec DX5, \"Verified by\"); the benchmark harness in bench/ exists, and the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). The cited Chrome heap test (line) allows 1% growth between two window means after warm-up, so a small positive slope passes it: it cannot show \"no heap growth trend\"."
+      "line": "Measured on the sealed SVG-only candidate. 1.169% and 1.168% median heap growth across the two sides. 40 of 40 runs crossed the 1% gate. The checker links the reviewed performance records in bench/results/budgets-2026-11-21.md.",
+      "area": "The recorded create–destroy workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
+      "bar": "The recorded create–destroy workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
+      "scatter": "The recorded create–destroy workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
+      "donut": "The recorded create–destroy workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
+      "compact": "The recorded create–destroy workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md."
     }
   },
   {
@@ -14213,7 +14221,19 @@
       "compact": "P1 times the full trend line chart; compact tiles are P8's workload."
     },
     "pending": {
-      "line": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). Its P1 endpoint (bench/src/decision.js) runs the first workload on trend; no test asserts the 10 ms limit."
+      "line": "Measured on the sealed SVG-only candidate. 27.40 ms against 10 ms. The checker links the reviewed performance records in bench/results/budgets-2026-11-21.md."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "benchmark",
+          "file": "bench/src/decision.js",
+          "workload": "P1: one trend chart",
+          "history": [
+            "bench/history/20261122T052521Z-first-trend-uplot-vs-axylo-82c9.json"
+          ]
+        }
+      ]
     }
   },
   {
@@ -14230,7 +14250,27 @@
       "compact": "P2 times a full line chart; compact tiles are P8's workload."
     },
     "pending": {
-      "line": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). Its endpoints P2-100k and P2-1M (bench/src/decision.js) run the first workload on one series; no test asserts the 60 ms or 250 ms limit."
+      "line": "Measured on the sealed SVG-only candidate. 39.64 ms against 60 ms and 79.81 ms against 250 ms. The checker links the reviewed performance records in bench/results/budgets-2026-11-21.md."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "benchmark",
+          "file": "bench/src/decision.js",
+          "workload": "P2: 100,000-point line",
+          "history": [
+            "bench/history/20261122T052757Z-first-1x100000-uplot-vs-axylo-a5e1.json"
+          ]
+        },
+        {
+          "kind": "benchmark",
+          "file": "bench/src/decision.js",
+          "workload": "P2: 1,000,000-point line",
+          "history": [
+            "bench/history/20261122T052913Z-first-1x1000000-uplot-vs-axylo-6ba2.json"
+          ]
+        }
+      ]
     }
   },
   {
@@ -14246,12 +14286,24 @@
     ],
     "notApplicable": {},
     "pending": {
-      "line": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). Its endpoints P3-task and P3-late (bench/src/decision.js) run the stream workload with a 600-point window; no test asserts the 2 ms limit or the late-frame count. P3-late counts runs that contain any interval later than 25 ms, while the spec counts late frames per 300 frames: both can answer a limit of 0, but they are different quantities.",
-      "area": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). P3's workload (spec section 5; plan W-stream) names a window and a clock, not a chart type, and the harness's P3 endpoints run it on a line only (bench/src/decision.js), so nothing measures this type.",
-      "bar": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). P3's workload (spec section 5; plan W-stream) names a window and a clock, not a chart type, and the harness's P3 endpoints run it on a line only (bench/src/decision.js), so nothing measures this type.",
-      "scatter": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). P3's workload (spec section 5; plan W-stream) names a window and a clock, not a chart type, and the harness's P3 endpoints run it on a line only (bench/src/decision.js), so nothing measures this type.",
-      "donut": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). P3's workload (spec section 5; plan W-stream) names a window and a clock, not a chart type, and the harness's P3 endpoints run it on a line only (bench/src/decision.js), so nothing measures this type.",
-      "compact": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). P3's workload (spec section 5; plan W-stream) names a window and a clock, not a chart type, and the harness's P3 endpoints run it on a line only (bench/src/decision.js), so nothing measures this type."
+      "line": "Measured on the sealed SVG-only candidate. 1.282 and 1.270 ms per update on the two sides against 2 ms. See the late-frame count in the budget report. The checker links the reviewed performance records in bench/results/budgets-2026-11-21.md.",
+      "area": "The recorded P3 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
+      "bar": "The recorded P3 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
+      "scatter": "The recorded P3 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
+      "donut": "The recorded P3 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
+      "compact": "The recorded P3 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "benchmark",
+          "file": "bench/src/decision.js",
+          "workload": "P3: 300 streaming updates, 600-point window",
+          "history": [
+            "bench/history/20261122T053911Z-stream-w600-aa-axylo-9d45.json"
+          ]
+        }
+      ]
     }
   },
   {
@@ -14268,10 +14320,22 @@
       "compact": "A compact chart has no tooltip or readout (spec 3.7), so there is no readout frame to time."
     },
     "pending": {
-      "line": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). Its P4 endpoint (bench/src/decision.js) runs the hover workload on a 100,000-point line; no test asserts the one-frame limit at that size.",
-      "area": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). The harness's hover workload draws a line; nothing measures the pointer on a 100,000-point area chart.",
-      "bar": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). The harness's hover workload draws a line; nothing measures the pointer on a 100,000-point bar chart.",
-      "scatter": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). The harness's hover workload draws a line; nothing measures the pointer on a 100,000-point scatter chart."
+      "line": "Measured on the sealed SVG-only candidate. 16.10 ms for the median of the per-run p95 values, against 16.7 ms. The checker links the reviewed performance records in bench/results/budgets-2026-11-21.md.",
+      "area": "The recorded P4 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
+      "bar": "The recorded P4 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
+      "scatter": "The recorded P4 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "benchmark",
+          "file": "bench/src/decision.js",
+          "workload": "P4: 200 moves across a 100,000-point line",
+          "history": [
+            "bench/history/20261122T054355Z-hover-1x100000-uplot-vs-axylo-fb2a.json"
+          ]
+        }
+      ]
     }
   },
   {
@@ -14288,7 +14352,19 @@
       "compact": "P5 times full trend line charts; 40 compact tiles are P8's workload."
     },
     "pending": {
-      "line": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). Its P5 endpoint (bench/src/decision.js) runs the page workload with 24 trend charts; no test asserts the 200 ms limit."
+      "line": "Measured on the sealed SVG-only candidate. 91.67 and 92.18 ms on the two sides against 200 ms. The checker links the reviewed performance records in bench/results/budgets-2026-11-21.md."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "benchmark",
+          "file": "bench/src/decision.js",
+          "workload": "P5: 24 trend charts",
+          "history": [
+            "bench/history/20261122T054737Z-page-trend-x24-aa-axylo-104a.json"
+          ]
+        }
+      ]
     }
   },
   {
@@ -14407,12 +14483,32 @@
       "line": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. The heap tests collect and measure through the Chrome DevTools protocol."
     },
     "pending": {
-      "line": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). Its endpoints P7-mem and P7-lifecycle (bench/src/decision.js) are not measured; the tests cited as weak each bound one part of the budget on line only. The harness's P7-lifecycle endpoint runs 2,500 cycles and gates on at most 1% heap growth, and the Chrome heap test compares two window means with a 1% allowance: neither shows the spec's \"no upward slope\" over 1,000 cycles, since a small positive slope passes both.",
-      "area": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). The harness's memory workloads draw a line; no test bounds this chart type's owned bytes or its heap over create–destroy cycles. The harness's P7-lifecycle endpoint runs 2,500 cycles and gates on at most 1% heap growth, and the Chrome heap test compares two window means with a 1% allowance: neither shows the spec's \"no upward slope\" over 1,000 cycles, since a small positive slope passes both.",
-      "bar": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). The harness's memory workloads draw a line; no test bounds this chart type's owned bytes or its heap over create–destroy cycles. The harness's P7-lifecycle endpoint runs 2,500 cycles and gates on at most 1% heap growth, and the Chrome heap test compares two window means with a 1% allowance: neither shows the spec's \"no upward slope\" over 1,000 cycles, since a small positive slope passes both.",
-      "scatter": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). The harness's memory workloads draw a line; no test bounds this chart type's owned bytes or its heap over create–destroy cycles. The harness's P7-lifecycle endpoint runs 2,500 cycles and gates on at most 1% heap growth, and the Chrome heap test compares two window means with a 1% allowance: neither shows the spec's \"no upward slope\" over 1,000 cycles, since a small positive slope passes both.",
-      "donut": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). The harness's memory workloads draw a line; no test bounds this chart type's owned bytes or its heap over create–destroy cycles. The harness's P7-lifecycle endpoint runs 2,500 cycles and gates on at most 1% heap growth, and the Chrome heap test compares two window means with a 1% allowance: neither shows the spec's \"no upward slope\" over 1,000 cycles, since a small positive slope passes both.",
-      "compact": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). The harness's memory workloads draw a line; no test bounds this chart type's owned bytes or its heap over create–destroy cycles. The harness's P7-lifecycle endpoint runs 2,500 cycles and gates on at most 1% heap growth, and the Chrome heap test compares two window means with a 1% allowance: neither shows the spec's \"no upward slope\" over 1,000 cycles, since a small positive slope passes both."
+      "line": "Measured on the sealed SVG-only candidate. 1,023,304 B of owned buffers against 17,600,000 B. 1.169% and 1.168% median heap growth across the two sides. 40 of 40 runs crossed the 1% gate. The checker links the reviewed performance records in bench/results/budgets-2026-11-21.md.",
+      "area": "The recorded P7 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
+      "bar": "The recorded P7 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
+      "scatter": "The recorded P7 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
+      "donut": "The recorded P7 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md.",
+      "compact": "The recorded P7 workload uses line charts. This chart type has no corresponding benchmark in bench/results/budgets-2026-11-21.md."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "benchmark",
+          "file": "bench/src/decision.js",
+          "workload": "P7: owned buffers for a 1,000,000-point line",
+          "history": [
+            "bench/history/20261122T054851Z-mem-1x1000000-aa-axylo-7012.json"
+          ]
+        },
+        {
+          "kind": "benchmark",
+          "file": "bench/src/decision.js",
+          "workload": "P7: heap over 2,500 create–destroy cycles",
+          "history": [
+            "bench/history/20261122T055744Z-lifecycle-trend-c2500-aa-axylo-17cb.json"
+          ]
+        }
+      ]
     }
   },
   {
@@ -14429,7 +14525,19 @@
       "donut": "Donut has no compact variant (spec 3.7)."
     },
     "pending": {
-      "compact": "Not measured for this revision: the benchmark harness in bench/ exists; the acceptance measurements wait for a quiet machine (STATUS.md, 2026-11-18). Its P8 endpoint (bench/src/decision.js) runs the compact workload with 40 compact line charts; no test asserts the 80 ms limit, and compact area and bar tiles have no workload."
+      "compact": "Measured on the sealed SVG-only candidate. 70.74 and 68.38 ms on the two sides against 80 ms. This workload uses compact line charts. The checker links the reviewed performance records in bench/results/budgets-2026-11-21.md."
+    },
+    "evidence": {
+      "compact": [
+        {
+          "kind": "benchmark",
+          "file": "bench/src/decision.js",
+          "workload": "P8: 40 compact line charts",
+          "history": [
+            "bench/history/20261122T052635Z-compact-trend-x40-aa-axylo-1d06.json"
+          ]
+        }
+      ]
     }
   }
 ]
