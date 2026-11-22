@@ -1,0 +1,519 @@
+{
+ "name": "20261122T045456Z-first-trend-axylo",
+ "adapter": "axylo",
+ "config": "default options, the public default mark renderer (no __renderer), instrumented production build (axylo.bench.iife.min.js)",
+ "workload": "first",
+ "params": {
+  "fixture": "trend"
+ },
+ "artifact": {
+  "id": "20261119T091624Z-b643862f-b78698",
+  "dir": "/home/canarit/projects/axylo/bench/artifacts/20261119T091624Z-b643862f-b78698",
+  "source": "b643862f68a661e46baad8dfb05747ab8c998157",
+  "axyloSourceHash": "c8a84783fe3467c8fbdbbb5f10f1b545bbbde3dce05a835b53d2b46c58db4025",
+  "bundle": "axylo/axylo.bench.iife.min.js",
+  "bundleSha256": "340202999c895e724f530e5effcdf0dc0147466df5ca260619fc5bf65a9b073e",
+  "mapSha256": "a7b9e74ee4f78ce7dca6d051035a07abd7491b9dfeb587c01393e81ea3a0bba0"
+ },
+ "profileFiles": {
+  "active": "results/profiles/2026-11-22/20261122T045456Z-first-trend-axylo.cpuprofile",
+  "settle": "results/profiles/2026-11-22/20261122T045456Z-first-trend-axylo.settle.cpuprofile"
+ },
+ "environment": {
+  "browser": {
+   "name": "Google Chrome (system, via Playwright channel \"chrome\")",
+   "version": "158.0.8127.36",
+   "headless": true
+  },
+  "playwright": "1.65.1",
+  "node": "v24.21.0",
+  "host": {
+   "hostname": "canarit-Z690-AORUS-ELITE-DDR4",
+   "cpuModel": "13th Gen Intel(R) Core(TM) i5-13600K",
+   "logicalCores": 20
+  },
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13600K",
+   "logicalCores": 20,
+   "governor": "powersave"
+  },
+  "memoryGiB": 30.4,
+  "os": {
+   "type": "Linux",
+   "release": "7.0.0-43-generic",
+   "name": "Ubuntu 26.04.1 LTS",
+   "arch": "x64"
+  },
+  "loadAverageAtStart": [
+   8.68,
+   6.08,
+   4.26
+  ],
+  "hostIdle": "not controlled: other processes (including other agents) may run on this machine during the session",
+  "power": "not available: power settings are not read by this harness",
+  "runnerCheckoutHead": "bb2826ac054e04d9e7152e2cba26afd2a5e080e3",
+  "lockfiles": {
+   "bench/package-lock.json": "87ad92c82a0a5d9e66bf9b8b2b40cb453a79e350a5bdcc80c5718adcd6a1156f",
+   "package-lock.json": "e98151ca9f4f8d9aa1b6dd7e828f8e5024fbbf43a752a754d1a469a5850af392"
+  }
+ },
+ "page": {
+  "devicePixelRatio": 1,
+  "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+  "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+  "viewport": [
+   1440,
+   900
+  ],
+  "hardwareConcurrency": 20,
+  "refresh": {
+   "medianIntervalMs": 16.7,
+   "hz": 59.88,
+   "minMs": 16.5,
+   "maxMs": 16.8
+  }
+ },
+ "note": "profiled run: timings are slowed by the profiler and are not comparable with timed runs. \"active\" = create call to the first frame after ready; \"settle\" = the settle period after it.",
+ "active": {
+  "build": "prod",
+  "mapping": "source map from the sealed artifact (describes the measured bytes)",
+  "samples": 226,
+  "totalMs": 38.41,
+  "busyMs": 37.72,
+  "self": [
+   {
+    "k": "orchestration: core/ (chart.ts, options, delivery)",
+    "ms": 12.35,
+    "ofBusy": 32.7
+   },
+   {
+    "k": "other JavaScript (harness, page, comparison library)",
+    "ms": 5.67,
+    "ofBusy": 15
+   },
+   {
+    "k": "(program): native main-thread work outside JS",
+    "ms": 5.5,
+    "ofBusy": 14.6
+   },
+   {
+    "k": "DOM",
+    "ms": 2.3,
+    "ofBusy": 6.1
+   },
+   {
+    "k": "layout",
+    "ms": 2.23,
+    "ofBusy": 5.9
+   },
+   {
+    "k": "theme (not one of the eight)",
+    "ms": 2.01,
+    "ofBusy": 5.3
+   },
+   {
+    "k": "normalize",
+    "ms": 1.99,
+    "ofBusy": 5.3
+   },
+   {
+    "k": "view",
+    "ms": 1.54,
+    "ofBusy": 4.1
+   },
+   {
+    "k": "draw",
+    "ms": 1.38,
+    "ofBusy": 3.7
+   },
+   {
+    "k": "reader",
+    "ms": 1.21,
+    "ofBusy": 3.2
+   },
+   {
+    "k": "scene",
+    "ms": 0.77,
+    "ofBusy": 2
+   },
+   {
+    "k": "(idle)",
+    "ms": 0.69,
+    "ofBusy": null
+   },
+   {
+    "k": "lookup",
+    "ms": 0.3,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "orchestration: index.ts",
+    "ms": 0.16,
+    "ofBusy": 0.4
+   },
+   {
+    "k": "orchestration: diagnostics/",
+    "ms": 0.15,
+    "ofBusy": 0.4
+   },
+   {
+    "k": "orchestration: messages/",
+    "ms": 0.15,
+    "ofBusy": 0.4
+   }
+  ],
+  "inclusive": [
+   {
+    "k": "Axylo (any frame)",
+    "ms": 30.98,
+    "ofBusy": 82.1
+   },
+   {
+    "k": "orchestration: core/ (chart.ts, options, delivery)",
+    "ms": 30.67,
+    "ofBusy": 81.3
+   },
+   {
+    "k": "orchestration: index.ts",
+    "ms": 12.07,
+    "ofBusy": 32
+   },
+   {
+    "k": "DOM",
+    "ms": 3.48,
+    "ofBusy": 9.2
+   },
+   {
+    "k": "view",
+    "ms": 2.7,
+    "ofBusy": 7.2
+   },
+   {
+    "k": "layout",
+    "ms": 2.54,
+    "ofBusy": 6.7
+   },
+   {
+    "k": "theme (not one of the eight)",
+    "ms": 2.33,
+    "ofBusy": 6.2
+   },
+   {
+    "k": "normalize",
+    "ms": 2.14,
+    "ofBusy": 5.7
+   },
+   {
+    "k": "reader",
+    "ms": 1.67,
+    "ofBusy": 4.4
+   },
+   {
+    "k": "draw",
+    "ms": 1.54,
+    "ofBusy": 4.1
+   },
+   {
+    "k": "scene",
+    "ms": 0.77,
+    "ofBusy": 2
+   },
+   {
+    "k": "lookup",
+    "ms": 0.46,
+    "ofBusy": 1.2
+   },
+   {
+    "k": "orchestration: diagnostics/",
+    "ms": 0.15,
+    "ofBusy": 0.4
+   },
+   {
+    "k": "orchestration: messages/",
+    "ms": 0.15,
+    "ofBusy": 0.4
+   }
+  ],
+  "selfModules": [
+   {
+    "k": "core/environment.ts",
+    "ms": 6.62,
+    "ofBusy": 17.6
+   },
+   {
+    "k": "core/controller.ts",
+    "ms": 3.24,
+    "ofBusy": 8.6
+   },
+   {
+    "k": "dom/interaction.ts",
+    "ms": 1.53,
+    "ofBusy": 4.1
+   },
+   {
+    "k": "core/chart.ts",
+    "ms": 1.28,
+    "ofBusy": 3.4
+   },
+   {
+    "k": "reader/index.ts",
+    "ms": 1.21,
+    "ofBusy": 3.2
+   },
+   {
+    "k": "render/svg.ts",
+    "ms": 1.07,
+    "ofBusy": 2.9
+   },
+   {
+    "k": "theme/resolve.ts",
+    "ms": 1.07,
+    "ofBusy": 2.8
+   },
+   {
+    "k": "data/options.ts",
+    "ms": 0.93,
+    "ofBusy": 2.5
+   },
+   {
+    "k": "data/normalize.ts",
+    "ms": 0.75,
+    "ofBusy": 2
+   },
+   {
+    "k": "core/axes.ts",
+    "ms": 0.75,
+    "ofBusy": 2
+   },
+   {
+    "k": "theme/styles.ts",
+    "ms": 0.63,
+    "ofBusy": 1.7
+   },
+   {
+    "k": "format/intl.ts",
+    "ms": 0.53,
+    "ofBusy": 1.4
+   },
+   {
+    "k": "format/number.ts",
+    "ms": 0.48,
+    "ofBusy": 1.3
+   },
+   {
+    "k": "view/index.ts",
+    "ms": 0.47,
+    "ofBusy": 1.2
+   },
+   {
+    "k": "layout/labels.ts",
+    "ms": 0.46,
+    "ofBusy": 1.2
+   },
+   {
+    "k": "layout/index.ts",
+    "ms": 0.46,
+    "ofBusy": 1.2
+   },
+   {
+    "k": "scale/time.ts",
+    "ms": 0.44,
+    "ofBusy": 1.2
+   },
+   {
+    "k": "scale/linear.ts",
+    "ms": 0.31,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "format/time.ts",
+    "ms": 0.31,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "dom/swatch.ts",
+    "ms": 0.31,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "scene/index.ts",
+    "ms": 0.31,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "core/focus.ts",
+    "ms": 0.31,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "scale/domain.ts",
+    "ms": 0.16,
+    "ofBusy": 0.4
+   },
+   {
+    "k": "index.ts",
+    "ms": 0.16,
+    "ofBusy": 0.4
+   },
+   {
+    "k": "scene/geometry.ts",
+    "ms": 0.16,
+    "ofBusy": 0.4
+   }
+  ],
+  "selfFunctions": [
+   {
+    "k": "Us @ core/environment.ts:1",
+    "ms": 6.16,
+    "ofBusy": 16.3
+   },
+   {
+    "k": "Ka @ core/controller.ts:3",
+    "ms": 1.23,
+    "ofBusy": 3.3
+   },
+   {
+    "k": "Py @ reader/index.ts:3",
+    "ms": 0.75,
+    "ofBusy": 2
+   },
+   {
+    "k": "us @ data/options.ts:1",
+    "ms": 0.62,
+    "ofBusy": 1.6
+   },
+   {
+    "k": "(anonymous) @ format/intl.ts:1",
+    "ms": 0.53,
+    "ofBusy": 1.4
+   },
+   {
+    "k": "Hr @ core/chart.ts:3",
+    "ms": 0.47,
+    "ofBusy": 1.2
+   },
+   {
+    "k": "In @ core/controller.ts:3",
+    "ms": 0.47,
+    "ofBusy": 1.2
+   },
+   {
+    "k": "(anonymous) @ core/chart.ts:3",
+    "ms": 0.35,
+    "ofBusy": 0.9
+   },
+   {
+    "k": "Ig @ theme/styles.ts:1",
+    "ms": 0.32,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "(anonymous) @ data/normalize.ts:1",
+    "ms": 0.32,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "vd @ core/environment.ts:1",
+    "ms": 0.31,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "Wl @ theme/styles.ts:1",
+    "ms": 0.31,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "Ao @ view/index.ts:1",
+    "ms": 0.31,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "(anonymous) @ core/controller.ts:3",
+    "ms": 0.31,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "nu @ theme/resolve.ts:1",
+    "ms": 0.31,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "Ng @ theme/resolve.ts:1",
+    "ms": 0.31,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "bt @ dom/interaction.ts:1",
+    "ms": 0.31,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "Rr @ dom/swatch.ts:1",
+    "ms": 0.31,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "Va @ scene/index.ts:3",
+    "ms": 0.31,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "xn @ dom/interaction.ts:1",
+    "ms": 0.31,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "At @ dom/interaction.ts:1",
+    "ms": 0.31,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "stripHeight @ core/chart.ts:3",
+    "ms": 0.3,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "Ra @ layout/index.ts:3",
+    "ms": 0.3,
+    "ofBusy": 0.8
+   },
+   {
+    "k": "get summary @ reader/index.ts:3",
+    "ms": 0.17,
+    "ofBusy": 0.5
+   },
+   {
+    "k": "Ci @ format/number.ts:1",
+    "ms": 0.17,
+    "ofBusy": 0.4
+   }
+  ]
+ },
+ "settle": {
+  "build": "prod",
+  "mapping": "source map from the sealed artifact (describes the measured bytes)",
+  "samples": 3262,
+  "totalMs": 509.19,
+  "busyMs": 7.24,
+  "self": [
+   {
+    "k": "(idle)",
+    "ms": 501.95,
+    "ofBusy": null
+   },
+   {
+    "k": "(program): native main-thread work outside JS",
+    "ms": 7.08,
+    "ofBusy": 97.8
+   },
+   {
+    "k": "other JavaScript (harness, page, comparison library)",
+    "ms": 0.16,
+    "ofBusy": 2.2
+   }
+  ],
+  "inclusive": [],
+  "selfModules": [],
+  "selfFunctions": []
+ }
+}

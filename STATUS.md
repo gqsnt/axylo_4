@@ -49,7 +49,9 @@ The SVG-only verification is complete. The first full Chrome try hit browser lau
 
 The daily-revenue third input is now registered and hashed for the release rehearsal. All 121 rehearsal harness tests passed and the independent review found no actionable issues.
 
-Next: finish the P1 history and profile report, then implement the measured fixes for the time-zone lookup and unnecessary readout measurement. Verify each candidate with `npm run typecheck && node scripts/pack.mjs && node scripts/size.mjs --no-build && node bench/build.mjs`.
+The P1 history sweep and production CPU profiles are in `bench/results/p1-investigation-2026-11-22.md`. The first-render increases cluster around the theme, controller and interaction changes. The largest named cost on the UTC trend was discovering the viewer's default time zone.
+
+Next: defer viewer-zone discovery until local time is used. Run `npm run typecheck && node scripts/pack.mjs && node scripts/size.mjs --no-build && node bench/build.mjs` before measuring P1 and P8 on the new artifact.
 
 ## What is left for 1.0, in order
 

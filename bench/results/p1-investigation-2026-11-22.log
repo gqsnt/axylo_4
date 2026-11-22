@@ -1,0 +1,1658 @@
+
+=== P1 source a63bbeea artifact /home/canarit/projects/axylo/bench/artifacts/20261122T041941Z-a63bbeea-cb1e7a
+run 20261122T044718Z-first-trend-uplot-vs-axylo-svg-0188
+  A=uplot  B=axylo-svg  first {"fixture":"trend"}  20 blocks  order seed 226155154, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261122T044718Z-first-trend-uplot-vs-axylo-svg-0188.json
+  admission A:uplot: ok
+  admission A:axylo-svg: ok
+  block 1: one-minute load 1.99 at its start
+  block 1/20 BA B=axylo-svg: ok taskMs=20.215
+  block 1/20 BA A=uplot: ok taskMs=7.844
+  block 2: one-minute load 1.99 at its start
+  block 2/20 BA B=axylo-svg: ok taskMs=20.740
+  block 2/20 BA A=uplot: ok taskMs=8.761
+  block 3: one-minute load 2.24 at its start
+  block 3/20 AB A=uplot: ok taskMs=12.030
+  block 3/20 AB B=axylo-svg: ok taskMs=23.767
+  block 4: one-minute load 2.24 at its start
+  block 4/20 BA B=axylo-svg: ok taskMs=26.300
+  block 4/20 BA A=uplot: ok taskMs=11.938
+  block 5: one-minute load 2.22 at its start
+  block 5/20 BA B=axylo-svg: ok taskMs=23.067
+  block 5/20 BA A=uplot: ok taskMs=9.076
+  block 6: one-minute load 2.44 at its start
+  block 6/20 AB A=uplot: ok taskMs=9.209
+  block 6/20 AB B=axylo-svg: ok taskMs=31.066
+  block 7: one-minute load 2.44 at its start
+  block 7/20 BA B=axylo-svg: ok taskMs=19.728
+  block 7/20 BA A=uplot: ok taskMs=7.724
+  block 8: one-minute load 2.72 at its start
+  block 8/20 AB A=uplot: ok taskMs=7.758
+  block 8/20 AB B=axylo-svg: ok taskMs=27.685
+  block 9: one-minute load 2.75 at its start
+  block 9/20 BA B=axylo-svg: ok taskMs=19.198
+  block 9/20 BA A=uplot: ok taskMs=10.301
+  block 10: one-minute load 2.75 at its start
+  block 10/20 AB A=uplot: ok taskMs=7.781
+  block 10/20 AB B=axylo-svg: ok taskMs=19.978
+  block 11: one-minute load 2.69 at its start
+  block 11/20 BA B=axylo-svg: ok taskMs=19.289
+  block 11/20 BA A=uplot: ok taskMs=12.571
+  block 12: one-minute load 2.71 at its start
+  block 12/20 BA B=axylo-svg: ok taskMs=19.495
+  block 12/20 BA A=uplot: ok taskMs=10.469
+  block 13: one-minute load 2.71 at its start
+  block 13/20 BA B=axylo-svg: ok taskMs=19.880
+  block 13/20 BA A=uplot: ok taskMs=11.329
+  block 14: one-minute load 2.66 at its start
+  block 14/20 BA B=axylo-svg: ok taskMs=20.562
+  block 14/20 BA A=uplot: ok taskMs=7.592
+  block 15: one-minute load 2.68 at its start
+  block 15/20 AB A=uplot: ok taskMs=12.191
+  block 15/20 AB B=axylo-svg: ok taskMs=19.980
+  block 16: one-minute load 2.68 at its start
+  block 16/20 AB A=uplot: ok taskMs=7.436
+  block 16/20 AB B=axylo-svg: ok taskMs=18.958
+  block 17: one-minute load 2.71 at its start
+  block 17/20 AB A=uplot: ok taskMs=8.442
+  block 17/20 AB B=axylo-svg: ok taskMs=19.230
+  block 18: one-minute load 2.73 at its start
+  block 18/20 AB A=uplot: ok taskMs=7.906
+  block 18/20 AB B=axylo-svg: ok taskMs=20.774
+  block 19: one-minute load 2.73 at its start
+  block 19/20 AB A=uplot: ok taskMs=7.749
+  block 19/20 AB B=axylo-svg: ok taskMs=20.132
+  block 20: one-minute load 2.83 at its start
+  block 20/20 AB A=uplot: ok taskMs=7.763
+  block 20/20 AB B=axylo-svg: ok taskMs=19.248
+
+20261122T044718Z-first-trend-uplot-vs-axylo-svg-0188  [complete]  analysis: stored in the record
+comparison: A=uplot  B=axylo-svg  workload first {"fixture":"trend"}
+complete pairs 20/20; run outcomes {"B:ok":20,"A:ok":20}; order seed 226155154, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                   AB | BA                B/A-1    band used            outcome
+taskMs *               8.60       20.06      11.45      [9.59, 12.72]            12.21 | 10.36          133.2%   zero only (no band)  worse (rule)
+scriptMs               5.77       15.87      10.10      [8.14, 10.99]            10.39 | 8.89           174.9%   zero only (no band)  worse
+layoutStyleMs          0.933      2.71       1.78       [1.68, 1.92]             1.82 | 1.78            190.8%   zero only (no band)  worse
+readyMs                5.90       18.15      12.25      [10.25, 12.95]           12.55 | 11.05          207.6%   zero only (no band)  worse
+readyFrameMs           7.15       22.25      15.10      [13.65, 17.10]           16.05 | 14.15          211.2%   zero only (no band)  worse
+rendererCpuMs          10.00      30.00      20.00      [10.00, 20.00]           20.00 | 10.00          200.0%   zero only (no band)  worse
+gpuCpuMs               0.000      0.000      0.000      [0.000, 0.000]           0.000 | 0.000          n/a      zero only (no band)  inconclusive
+heapChartBytes         240.0 KiB  804.7 KiB  564.7 KiB  [564.7 KiB, 564.7 KiB]   564.7 KiB | 564.7 KiB  235.3%   zero only (no band)  worse
+heapUsedBytes          1.46 MiB   2.10 MiB   654.7 KiB  [654.7 KiB, 654.7 KiB]   654.7 KiB | 654.7 KiB  43.9%    zero only (no band)  worse
+rendererPssBytes       58.30 MiB  61.78 MiB  3.47 MiB   [3.40 MiB, 3.53 MiB]     3.49 MiB | 3.44 MiB    6.0%     zero only (no band)  worse
+rendererPssChartBytes  4.77 MiB   9.89 MiB   5.12 MiB   [5.08 MiB, 5.16 MiB]     5.13 MiB | 5.11 MiB    107.3%   zero only (no band)  worse
+gpuPssBytes            39.08 MiB  39.01 MiB  -69.0 KiB  [-101.0 KiB, -40.0 KiB]  -50.5 KiB | -77.0 KiB  -0.2%    zero only (no band)  better
+gpuPssChartBytes       481.0 KiB  395.0 KiB  -86.0 KiB  [-87.0 KiB, -84.5 KiB]   -87.0 KiB | -85.5 KiB  -17.9%   zero only (no band)  better
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB  [-1.13 MiB, -1.13 MiB]   -1.13 MiB | -1.13 MiB  -100.0%  zero only (no band)  better
+domNodes               36.00      115.0      79.00      [79.00, 79.00]           79.00 | 79.00          219.4%   zero only (no band)  worse
+(rule): not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+exit 0 a63bbeea
+
+=== P1 source 37ed261 artifact /home/canarit/projects/axylo/bench/artifacts/20261122T041941Z-37ed2616-a8c3aa
+run 20261122T044833Z-first-trend-uplot-vs-axylo-svg-22c4
+  A=uplot  B=axylo-svg  first {"fixture":"trend"}  20 blocks  order seed 434210270, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261122T044833Z-first-trend-uplot-vs-axylo-svg-22c4.json
+  admission A:uplot: ok
+  admission A:axylo-svg: ok
+  block 1: one-minute load 2.95 at its start
+  block 1/20 AB A=uplot: ok taskMs=7.947
+  block 1/20 AB B=axylo-svg: ok taskMs=27.563
+  block 2: one-minute load 3.03 at its start
+  block 2/20 BA B=axylo-svg: ok taskMs=25.207
+  block 2/20 BA A=uplot: ok taskMs=11.783
+  block 3: one-minute load 3.19 at its start
+  block 3/20 AB A=uplot: ok taskMs=9.198
+  block 3/20 AB B=axylo-svg: ok taskMs=25.488
+  block 4: one-minute load 3.19 at its start
+  block 4/20 AB A=uplot: ok taskMs=12.686
+  block 4/20 AB B=axylo-svg: ok taskMs=36.951
+  block 5: one-minute load 3.25 at its start
+  block 5/20 BA B=axylo-svg: ok taskMs=27.025
+  block 5/20 BA A=uplot: ok taskMs=7.722
+  block 6: one-minute load 3.87 at its start
+  block 6/20 BA B=axylo-svg: ok taskMs=25.242
+  block 6/20 BA A=uplot: ok taskMs=8.659
+  block 7: one-minute load 3.87 at its start
+  block 7/20 BA B=axylo-svg: ok taskMs=27.488
+  block 7/20 BA A=uplot: ok taskMs=11.830
+  block 8: one-minute load 3.64 at its start
+  block 8/20 AB A=uplot: ok taskMs=10.878
+  block 8/20 AB B=axylo-svg: ok taskMs=25.276
+  block 9: one-minute load 3.67 at its start
+  block 9/20 AB A=uplot: ok taskMs=7.997
+  block 9/20 AB B=axylo-svg: ok taskMs=26.565
+  block 10: one-minute load 3.67 at its start
+  block 10/20 BA B=axylo-svg: ok taskMs=28.878
+  block 10/20 BA A=uplot: ok taskMs=7.729
+  block 11: one-minute load 3.54 at its start
+  block 11/20 AB A=uplot: ok taskMs=9.714
+  block 11/20 AB B=axylo-svg: ok taskMs=32.387
+  block 12: one-minute load 3.41 at its start
+  block 12/20 AB A=uplot: ok taskMs=7.559
+  block 12/20 AB B=axylo-svg: ok taskMs=25.706
+  block 13: one-minute load 3.41 at its start
+  block 13/20 AB A=uplot: ok taskMs=9.671
+  block 13/20 AB B=axylo-svg: ok taskMs=25.941
+  block 14: one-minute load 3.46 at its start
+  block 14/20 BA B=axylo-svg: ok taskMs=25.303
+  block 14/20 BA A=uplot: ok taskMs=8.197
+  block 15: one-minute load 3.34 at its start
+  block 15/20 BA B=axylo-svg: ok taskMs=38.876
+  block 15/20 BA A=uplot: ok taskMs=8.212
+  block 16: one-minute load 3.34 at its start
+  block 16/20 AB A=uplot: ok taskMs=8.423
+  block 16/20 AB B=axylo-svg: ok taskMs=27.135
+  block 17: one-minute load 3.32 at its start
+  block 17/20 BA B=axylo-svg: ok taskMs=27.560
+  block 17/20 BA A=uplot: ok taskMs=8.148
+  block 18: one-minute load 3.21 at its start
+  block 18/20 BA B=axylo-svg: ok taskMs=27.318
+  block 18/20 BA A=uplot: ok taskMs=7.865
+  block 19: one-minute load 3.21 at its start
+  block 19/20 AB A=uplot: ok taskMs=7.489
+  block 19/20 AB B=axylo-svg: ok taskMs=26.511
+  block 20: one-minute load 3.19 at its start
+  block 20/20 BA B=axylo-svg: ok taskMs=26.555
+  block 20/20 BA A=uplot: ok taskMs=7.694
+
+20261122T044833Z-first-trend-uplot-vs-axylo-svg-22c4  [complete]  analysis: stored in the record
+comparison: A=uplot  B=axylo-svg  workload first {"fixture":"trend"}
+complete pairs 20/20; run outcomes {"A:ok":20,"B:ok":20}; order seed 434210270, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                   AB | BA                 B/A-1    band used            outcome
+taskMs *               8.20       26.80      18.59      [17.03, 19.37]           17.73 | 19.00           226.6%   zero only (no band)  worse (rule)
+scriptMs               5.73       22.11      16.38      [15.01, 17.03]           15.61 | 16.62           286.1%   zero only (no band)  worse
+layoutStyleMs          0.875      3.12       2.24       [2.08, 2.36]             2.31 | 2.17             256.3%   zero only (no band)  worse
+readyMs                5.90       24.05      18.15      [16.70, 18.70]           17.25 | 18.30           307.6%   zero only (no band)  worse
+readyFrameMs           6.60       25.40      18.80      [17.10, 19.25]           18.05 | 18.90           284.8%   zero only (no band)  worse
+rendererCpuMs          10.00      30.00      20.00      [10.00, 30.00]           20.00 | 30.00           200.0%   zero only (no band)  worse
+gpuCpuMs               0.000      0.000      0.000      [0.000, 0.000]           0.000 | 0.000           n/a      zero only (no band)  inconclusive
+heapChartBytes         240.0 KiB  875.6 KiB  635.6 KiB  [635.6 KiB, 635.6 KiB]   635.6 KiB | 635.6 KiB   264.8%   zero only (no band)  worse
+heapUsedBytes          1.46 MiB   2.20 MiB   759.8 KiB  [759.8 KiB, 759.8 KiB]   759.8 KiB | 759.8 KiB   51.0%    zero only (no band)  worse
+rendererPssBytes       58.79 MiB  62.44 MiB  3.65 MiB   [3.59 MiB, 3.70 MiB]     3.67 MiB | 3.63 MiB     6.2%     zero only (no band)  worse
+rendererPssChartBytes  4.74 MiB   11.08 MiB  6.34 MiB   [6.30 MiB, 6.36 MiB]     6.33 MiB | 6.33 MiB     133.6%   zero only (no band)  worse
+gpuPssBytes            38.71 MiB  38.64 MiB  -81.0 KiB  [-131.5 KiB, -42.0 KiB]  -61.5 KiB | -102.5 KiB  -0.2%    zero only (no band)  better
+gpuPssChartBytes       510.0 KiB  426.0 KiB  -84.0 KiB  [-101.0 KiB, -82.0 KiB]  -85.0 KiB | -84.0 KiB   -16.5%   zero only (no band)  better
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB  [-1.13 MiB, -1.13 MiB]   -1.13 MiB | -1.13 MiB   -100.0%  zero only (no band)  better
+domNodes               36.00      122.0      86.00      [86.00, 86.00]           86.00 | 86.00           238.9%   zero only (no band)  worse
+(rule): not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+exit 0 37ed261
+
+=== P1 source 28174df artifact /home/canarit/projects/axylo/bench/artifacts/20261122T041941Z-28174df3-cdb017
+run 20261122T044947Z-first-trend-uplot-vs-axylo-svg-17d9
+  A=uplot  B=axylo-svg  first {"fixture":"trend"}  20 blocks  order seed 1247512855, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261122T044947Z-first-trend-uplot-vs-axylo-svg-17d9.json
+  admission A:uplot: ok
+  admission A:axylo-svg: ok
+  block 1: one-minute load 3.25 at its start
+  block 1/20 BA B=axylo-svg: ok taskMs=27.702
+  block 1/20 BA A=uplot: ok taskMs=7.995
+  block 2: one-minute load 3.79 at its start
+  block 2/20 BA B=axylo-svg: ok taskMs=34.022
+  block 2/20 BA A=uplot: ok taskMs=8.291
+  block 3: one-minute load 3.65 at its start
+  block 3/20 BA B=axylo-svg: ok taskMs=27.769
+  block 3/20 BA A=uplot: ok taskMs=7.820
+  block 4: one-minute load 3.65 at its start
+  block 4/20 AB A=uplot: ok taskMs=9.726
+  block 4/20 AB B=axylo-svg: ok taskMs=30.311
+  block 5: one-minute load 3.60 at its start
+  block 5/20 AB A=uplot: ok taskMs=12.425
+  block 5/20 AB B=axylo-svg: ok taskMs=27.012
+  block 6: one-minute load 3.71 at its start
+  block 6/20 AB A=uplot: ok taskMs=9.738
+  block 6/20 AB B=axylo-svg: ok taskMs=33.759
+  block 7: one-minute load 3.71 at its start
+  block 7/20 BA B=axylo-svg: ok taskMs=43.991
+  block 7/20 BA A=uplot: ok taskMs=11.693
+  block 8: one-minute load 3.81 at its start
+  block 8/20 AB A=uplot: ok taskMs=10.179
+  block 8/20 AB B=axylo-svg: ok taskMs=27.412
+  block 9: one-minute load 3.75 at its start
+  block 9/20 BA B=axylo-svg: ok taskMs=29.461
+  block 9/20 BA A=uplot: ok taskMs=9.221
+  block 10: one-minute load 3.75 at its start
+  block 10/20 AB A=uplot: ok taskMs=8.467
+  block 10/20 AB B=axylo-svg: ok taskMs=31.660
+  block 11: one-minute load 3.69 at its start
+  block 11/20 AB A=uplot: ok taskMs=8.480
+  block 11/20 AB B=axylo-svg: ok taskMs=27.854
+  block 12: one-minute load 3.63 at its start
+  block 12/20 BA B=axylo-svg: ok taskMs=27.161
+  block 12/20 BA A=uplot: ok taskMs=7.660
+  block 13: one-minute load 3.63 at its start
+  block 13/20 AB A=uplot: ok taskMs=8.028
+  block 13/20 AB B=axylo-svg: ok taskMs=25.979
+  block 14: one-minute load 3.50 at its start
+  block 14/20 BA B=axylo-svg: ok taskMs=29.815
+  block 14/20 BA A=uplot: ok taskMs=8.321
+  block 15: one-minute load 3.38 at its start
+  block 15/20 BA B=axylo-svg: ok taskMs=26.395
+  block 15/20 BA A=uplot: ok taskMs=11.600
+  block 16: one-minute load 3.38 at its start
+  block 16/20 AB A=uplot: ok taskMs=12.350
+  block 16/20 AB B=axylo-svg: ok taskMs=31.672
+  block 17: one-minute load 3.51 at its start
+  block 17/20 AB A=uplot: ok taskMs=8.090
+  block 17/20 AB B=axylo-svg: ok taskMs=29.558
+  block 18: one-minute load 3.55 at its start
+  block 18/20 BA B=axylo-svg: ok taskMs=26.456
+  block 18/20 BA A=uplot: ok taskMs=8.047
+  block 19: one-minute load 3.55 at its start
+  block 19/20 AB A=uplot: ok taskMs=7.774
+  block 19/20 AB B=axylo-svg: ok taskMs=27.106
+  block 20: one-minute load 3.59 at its start
+  block 20/20 BA B=axylo-svg: ok taskMs=28.753
+  block 20/20 BA A=uplot: ok taskMs=8.880
+
+20261122T044947Z-first-trend-uplot-vs-axylo-svg-17d9  [complete]  analysis: stored in the record
+comparison: A=uplot  B=axylo-svg  workload first {"fixture":"trend"}
+complete pairs 20/20; run outcomes {"B:ok":20,"A:ok":20}; order seed 1247512855, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                   AB | BA                B/A-1    band used            outcome
+taskMs *               8.47       28.30      19.83      [18.23, 21.46]           19.60 | 19.96          234.0%   zero only (no band)  worse (rule)
+scriptMs               5.88       23.35      17.47      [16.12, 18.92]           17.28 | 17.78          297.1%   zero only (no band)  worse
+layoutStyleMs          0.925      3.29       2.36       [2.21, 2.44]             2.38 | 2.30            255.3%   zero only (no band)  worse
+readyMs                6.05       25.25      19.20      [17.95, 21.30]           19.20 | 19.45          317.4%   zero only (no band)  worse
+readyFrameMs           7.35       26.60      19.25      [18.25, 21.30]           19.40 | 19.40          261.9%   zero only (no band)  worse
+rendererCpuMs          10.00      30.00      20.00      [10.00, 30.00]           20.00 | 20.00          200.0%   zero only (no band)  worse
+gpuCpuMs               0.000      0.000      0.000      [0.000, 0.000]           0.000 | 0.000          n/a      zero only (no band)  inconclusive
+heapChartBytes         240.0 KiB  900.9 KiB  660.9 KiB  [660.9 KiB, 660.9 KiB]   660.9 KiB | 660.9 KiB  275.4%   zero only (no band)  worse
+heapUsedBytes          1.46 MiB   2.23 MiB   797.9 KiB  [797.9 KiB, 797.9 KiB]   797.9 KiB | 797.9 KiB  53.5%    zero only (no band)  worse
+rendererPssBytes       57.91 MiB  62.34 MiB  4.44 MiB   [4.34 MiB, 4.47 MiB]     4.35 MiB | 4.47 MiB    7.7%     zero only (no band)  worse
+rendererPssChartBytes  4.95 MiB   11.88 MiB  6.94 MiB   [6.92 MiB, 6.99 MiB]     6.93 MiB | 6.98 MiB    140.2%   zero only (no band)  worse
+gpuPssBytes            38.53 MiB  38.43 MiB  -96.0 KiB  [-119.0 KiB, -14.0 KiB]  -86.0 KiB | -73.5 KiB  -0.2%    zero only (no band)  better
+gpuPssChartBytes       503.0 KiB  414.5 KiB  -88.5 KiB  [-90.0 KiB, -88.0 KiB]   -88.0 KiB | -89.0 KiB  -17.6%   zero only (no band)  better
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB  [-1.13 MiB, -1.13 MiB]   -1.13 MiB | -1.13 MiB  -100.0%  zero only (no band)  better
+domNodes               36.00      122.0      86.00      [86.00, 86.00]           86.00 | 86.00          238.9%   zero only (no band)  worse
+(rule): not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+exit 0 28174df
+
+=== P1 source 9f9eeef artifact /home/canarit/projects/axylo/bench/artifacts/20261122T041941Z-9f9eeefd-c5bfa0
+run 20261122T045102Z-first-trend-uplot-vs-axylo-svg-ec94
+  A=uplot  B=axylo-svg  first {"fixture":"trend"}  20 blocks  order seed 737131274, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261122T045102Z-first-trend-uplot-vs-axylo-svg-ec94.json
+  admission A:uplot: ok
+  admission A:axylo-svg: ok
+  block 1: one-minute load 3.49 at its start
+  block 1/20 AB A=uplot: ok taskMs=7.538
+  block 1/20 AB B=axylo-svg: ok taskMs=31.585
+  block 2: one-minute load 4.17 at its start
+  block 2/20 AB A=uplot: ok taskMs=7.650
+  block 2/20 AB B=axylo-svg: ok taskMs=30.488
+  block 3: one-minute load 4.08 at its start
+  block 3/20 BA B=axylo-svg: ok taskMs=29.264
+  block 3/20 BA A=uplot: ok taskMs=8.330
+  block 4: one-minute load 4.08 at its start
+  block 4/20 AB A=uplot: ok taskMs=7.907
+  block 4/20 AB B=axylo-svg: ok taskMs=49.205
+  block 5: one-minute load 4.15 at its start
+  block 5/20 BA B=axylo-svg: ok taskMs=29.712
+  block 5/20 BA A=uplot: ok taskMs=8.288
+  block 6: one-minute load 3.98 at its start
+  block 6/20 BA B=axylo-svg: ok taskMs=43.537
+  block 6/20 BA A=uplot: ok taskMs=7.826
+  block 7: one-minute load 3.98 at its start
+  block 7/20 AB A=uplot: ok taskMs=8.106
+  block 7/20 AB B=axylo-svg: ok taskMs=36.243
+  block 8: one-minute load 4.06 at its start
+  block 8/20 BA B=axylo-svg: ok taskMs=27.388
+  block 8/20 BA A=uplot: ok taskMs=12.473
+  block 9: one-minute load 4.06 at its start
+  block 9/20 AB A=uplot: ok taskMs=10.198
+  block 9/20 AB B=axylo-svg: ok taskMs=34.104
+  block 10: one-minute load 4.06 at its start
+  block 10/20 AB A=uplot: ok taskMs=13.397
+  block 10/20 AB B=axylo-svg: ok taskMs=29.610
+  block 11: one-minute load 4.21 at its start
+  block 11/20 BA B=axylo-svg: ok taskMs=45.787
+  block 11/20 BA A=uplot: ok taskMs=10.131
+  block 12: one-minute load 4.43 at its start
+  block 12/20 BA B=axylo-svg: ok taskMs=48.240
+  block 12/20 BA A=uplot: ok taskMs=13.446
+  block 13: one-minute load 4.43 at its start
+  block 13/20 AB A=uplot: ok taskMs=11.295
+  block 13/20 AB B=axylo-svg: ok taskMs=29.626
+  block 14: one-minute load 4.56 at its start
+  block 14/20 AB A=uplot: ok taskMs=12.570
+  block 14/20 AB B=axylo-svg: ok taskMs=43.465
+  block 15: one-minute load 4.76 at its start
+  block 15/20 AB A=uplot: ok taskMs=9.998
+  block 15/20 AB B=axylo-svg: ok taskMs=28.717
+  block 16: one-minute load 4.76 at its start
+  block 16/20 BA B=axylo-svg: ok taskMs=29.548
+  block 16/20 BA A=uplot: ok taskMs=8.830
+  block 17: one-minute load 4.78 at its start
+  block 17/20 BA B=axylo-svg: ok taskMs=48.704
+  block 17/20 BA A=uplot: ok taskMs=8.797
+  block 18: one-minute load 5.11 at its start
+  block 18/20 AB A=uplot: ok taskMs=13.343
+  block 18/20 AB B=axylo-svg: ok taskMs=53.468
+  block 19: one-minute load 5.11 at its start
+  block 19/20 BA B=axylo-svg: ok taskMs=32.064
+  block 19/20 BA A=uplot: ok taskMs=11.747
+  block 20: one-minute load 5.27 at its start
+  block 20/20 BA B=axylo-svg: ok taskMs=31.874
+  block 20/20 BA A=uplot: ok taskMs=9.148
+
+20261122T045102Z-first-trend-uplot-vs-axylo-svg-ec94  [complete]  analysis: stored in the record
+comparison: A=uplot  B=axylo-svg  workload first {"fixture":"trend"}
+complete pairs 20/20; run outcomes {"A:ok":20,"B:ok":20}; order seed 737131274, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                  AB | BA                B/A-1    band used            outcome
+taskMs *               9.57       31.97      22.40      [19.56, 34.09]          22.75 | 22.98          233.9%   zero only (no band)  worse (rule)
+scriptMs               6.07       26.54      20.47      [17.31, 30.55]          20.46 | 20.11          337.2%   zero only (no band)  worse
+layoutStyleMs          1.06       3.67       2.61       [2.44, 3.68]            2.59 | 2.87            246.8%   zero only (no band)  worse
+readyMs                6.30       28.65      22.35      [19.10, 32.90]          22.70 | 22.05          354.8%   zero only (no band)  worse
+readyFrameMs           7.70       30.00      22.30      [19.75, 33.70]          22.95 | 22.45          289.6%   zero only (no band)  worse
+rendererCpuMs          10.00      40.00      30.00      [20.00, 40.00]          30.00 | 35.00          300.0%   zero only (no band)  worse
+gpuCpuMs               0.000      0.000      0.000      [0.000, 0.000]          0.000 | 0.000          n/a      zero only (no band)  inconclusive
+heapChartBytes         240.0 KiB  922.4 KiB  682.4 KiB  [682.3 KiB, 682.4 KiB]  682.4 KiB | 682.4 KiB  284.3%   zero only (no band)  worse
+heapUsedBytes          1.46 MiB   2.26 MiB   824.0 KiB  [824.0 KiB, 824.1 KiB]  824.0 KiB | 824.0 KiB  55.3%    zero only (no band)  worse
+rendererPssBytes       58.23 MiB  62.55 MiB  4.31 MiB   [4.28 MiB, 4.38 MiB]    4.34 MiB | 4.29 MiB    7.4%     zero only (no band)  worse
+rendererPssChartBytes  4.81 MiB   11.71 MiB  6.90 MiB   [6.85 MiB, 6.95 MiB]    6.91 MiB | 6.89 MiB    143.5%   zero only (no band)  worse
+gpuPssBytes            38.38 MiB  38.31 MiB  -71.5 KiB  [-112.5 KiB, -9.5 KiB]  -67.5 KiB | -76.5 KiB  -0.2%    zero only (no band)  better
+gpuPssChartBytes       528.5 KiB  448.0 KiB  -80.5 KiB  [-87.5 KiB, -73.5 KiB]  -79.5 KiB | -83.0 KiB  -15.2%   zero only (no band)  better
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB  [-1.13 MiB, -1.13 MiB]  -1.13 MiB | -1.13 MiB  -100.0%  zero only (no band)  better
+domNodes               36.00      126.0      90.00      [90.00, 90.00]          90.00 | 90.00          250.0%   zero only (no band)  worse
+(rule): not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+exit 0 9f9eeef
+
+=== P1 source b643862 artifact bench/artifacts/20261119T091624Z-b643862f-b78698
+run 20261122T045219Z-first-trend-uplot-vs-axylo-svg-2a04
+  A=uplot  B=axylo-svg  first {"fixture":"trend"}  20 blocks  order seed 1882125634, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261122T045219Z-first-trend-uplot-vs-axylo-svg-2a04.json
+  admission A:uplot: ok
+  admission A:axylo-svg: ok
+  block 1: one-minute load 7.95 at its start
+  block 1/20 BA B=axylo-svg: ok taskMs=34.345
+  block 1/20 BA A=uplot: ok taskMs=8.061
+  block 2: one-minute load 7.95 at its start
+  block 2/20 AB A=uplot: ok taskMs=13.655
+  block 2/20 AB B=axylo-svg: ok taskMs=37.323
+  block 3: one-minute load 8.11 at its start
+  block 3/20 AB A=uplot: ok taskMs=7.831
+  block 3/20 AB B=axylo-svg: ok taskMs=30.122
+  block 4: one-minute load 7.70 at its start
+  block 4/20 BA B=axylo-svg: ok taskMs=27.284
+  block 4/20 BA A=uplot: ok taskMs=13.032
+  block 5: one-minute load 7.70 at its start
+  block 5/20 AB A=uplot: ok taskMs=10.041
+  block 5/20 AB B=axylo-svg: ok taskMs=29.805
+  block 6: one-minute load 7.57 at its start
+  block 6/20 AB A=uplot: ok taskMs=7.991
+  block 6/20 AB B=axylo-svg: ok taskMs=32.500
+  block 7: one-minute load 7.44 at its start
+  block 7/20 BA B=axylo-svg: ok taskMs=27.541
+  block 7/20 BA A=uplot: ok taskMs=7.751
+  block 8: one-minute load 7.44 at its start
+  block 8/20 BA B=axylo-svg: ok taskMs=27.596
+  block 8/20 BA A=uplot: ok taskMs=7.428
+  block 9: one-minute load 7.48 at its start
+  block 9/20 AB A=uplot: ok taskMs=7.435
+  block 9/20 AB B=axylo-svg: ok taskMs=33.196
+  block 10: one-minute load 8.09 at its start
+  block 10/20 AB A=uplot: ok taskMs=8.733
+  block 10/20 AB B=axylo-svg: ok taskMs=45.705
+  block 11: one-minute load 8.16 at its start
+  block 11/20 BA B=axylo-svg: ok taskMs=29.352
+  block 11/20 BA A=uplot: ok taskMs=14.004
+  block 12: one-minute load 8.16 at its start
+  block 12/20 BA B=axylo-svg: ok taskMs=35.430
+  block 12/20 BA A=uplot: ok taskMs=11.332
+  block 13: one-minute load 8.15 at its start
+  block 13/20 AB A=uplot: ok taskMs=10.643
+  block 13/20 AB B=axylo-svg: ok taskMs=40.990
+  block 14: one-minute load 8.05 at its start
+  block 14/20 AB A=uplot: ok taskMs=12.851
+  block 14/20 AB B=axylo-svg: ok taskMs=45.370
+  block 15: one-minute load 8.05 at its start
+  block 15/20 BA B=axylo-svg: ok taskMs=48.628
+  block 15/20 BA A=uplot: ok taskMs=12.105
+  block 16: one-minute load 8.13 at its start
+  block 16/20 AB A=uplot: ok taskMs=12.896
+  block 16/20 AB B=axylo-svg: ok taskMs=29.956
+  block 17: one-minute load 8.12 at its start
+  block 17/20 AB A=uplot: ok taskMs=10.601
+  block 17/20 AB B=axylo-svg: ok taskMs=30.125
+  block 18: one-minute load 8.12 at its start
+  block 18/20 BA B=axylo-svg: ok taskMs=45.757
+  block 18/20 BA A=uplot: ok taskMs=9.590
+  block 19: one-minute load 9.87 at its start
+  block 19/20 BA B=axylo-svg: ok taskMs=50.117
+  block 19/20 BA A=uplot: ok taskMs=12.254
+  block 20: one-minute load 9.56 at its start
+  block 20/20 BA B=axylo-svg: ok taskMs=43.462
+  block 20/20 BA A=uplot: ok taskMs=13.793
+
+20261122T045219Z-first-trend-uplot-vs-axylo-svg-2a04  [complete]  analysis: stored in the record
+comparison: A=uplot  B=axylo-svg  workload first {"fixture":"trend"}
+complete pairs 20/20; run outcomes {"B:ok":20,"A:ok":20}; order seed 1882125634, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                  AB | BA                B/A-1    band used            outcome
+taskMs *               10.62      33.77      23.15      [18.70, 31.24]          22.53 | 23.17          217.9%   zero only (no band)  worse (rule)
+scriptMs               7.45       27.53      20.08      [16.74, 27.82]          20.27 | 19.74          269.6%   zero only (no band)  worse
+layoutStyleMs          1.03       3.90       2.86       [2.25, 3.58]            2.74 | 3.11            277.0%   zero only (no band)  worse
+readyMs                7.65       29.70      22.05      [18.60, 30.35]          22.35 | 21.55          288.2%   zero only (no band)  worse
+readyFrameMs           8.20       31.40      23.20      [19.50, 31.20]          22.95 | 23.05          282.9%   zero only (no band)  worse
+rendererCpuMs          10.00      45.00      35.00      [20.00, 40.00]          40.00 | 30.00          350.0%   zero only (no band)  worse
+gpuCpuMs               0.000      0.000      0.000      [0.000, 5.00]           0.000 | 0.000          n/a      zero only (no band)  inconclusive
+heapChartBytes         240.0 KiB  925.5 KiB  685.5 KiB  [685.5 KiB, 685.6 KiB]  685.5 KiB | 685.5 KiB  285.6%   zero only (no band)  worse
+heapUsedBytes          1.46 MiB   2.26 MiB   826.6 KiB  [826.5 KiB, 826.6 KiB]  826.6 KiB | 826.6 KiB  55.4%    zero only (no band)  worse
+rendererPssBytes       58.42 MiB  62.76 MiB  4.34 MiB   [4.29 MiB, 4.39 MiB]    4.32 MiB | 4.35 MiB    7.4%     zero only (no band)  worse
+rendererPssChartBytes  4.82 MiB   11.69 MiB  6.88 MiB   [6.80 MiB, 6.92 MiB]    6.86 MiB | 6.89 MiB    142.8%   zero only (no band)  worse
+gpuPssBytes            38.50 MiB  38.46 MiB  -42.0 KiB  [-95.5 KiB, 5.5 KiB]    -62.0 KiB | -34.5 KiB  -0.1%    zero only (no band)  inconclusive
+gpuPssChartBytes       495.0 KiB  411.0 KiB  -84.0 KiB  [-84.5 KiB, -77.0 KiB]  -83.5 KiB | -83.5 KiB  -17.0%   zero only (no band)  better
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB  [-1.13 MiB, -1.13 MiB]  -1.13 MiB | -1.13 MiB  -100.0%  zero only (no band)  better
+domNodes               36.00      129.0      93.00      [93.00, 93.00]          93.00 | 93.00          258.3%   zero only (no band)  worse
+(rule): not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+exit 0 b643862
+
+=== P1 source svg-only artifact bench/artifacts/20261122T042403Z-bb2826ac-ec008a
+run 20261122T045336Z-first-trend-uplot-vs-axylo-svg-4aaa
+  A=uplot  B=axylo-svg  first {"fixture":"trend"}  20 blocks  order seed 1716805511, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261122T045336Z-first-trend-uplot-vs-axylo-svg-4aaa.json
+  admission A:uplot: ok
+  admission A:axylo-svg: ok
+  block 1: one-minute load 9.54 at its start
+  block 1/20 AB A=uplot: ok taskMs=10.930
+  block 1/20 AB B=axylo-svg: ok taskMs=43.000
+  block 2: one-minute load 9.58 at its start
+  block 2/20 AB A=uplot: ok taskMs=10.649
+  block 2/20 AB B=axylo-svg: ok taskMs=105.226
+  block 3: one-minute load 9.58 at its start
+  block 3/20 AB A=uplot: ok taskMs=7.874
+  block 3/20 AB B=axylo-svg: ok taskMs=35.661
+  block 4: one-minute load 9.21 at its start
+  block 4/20 AB A=uplot: ok taskMs=12.755
+  block 4/20 AB B=axylo-svg: ok taskMs=47.016
+  block 5: one-minute load 9.04 at its start
+  block 5/20 AB A=uplot: ok taskMs=8.358
+  block 5/20 AB B=axylo-svg: ok taskMs=28.550
+  block 6: one-minute load 9.04 at its start
+  block 6/20 AB A=uplot: ok taskMs=8.640
+  block 6/20 AB B=axylo-svg: ok taskMs=29.100
+  block 7: one-minute load 8.55 at its start
+  block 7/20 BA B=axylo-svg: ok taskMs=28.110
+  block 7/20 BA A=uplot: ok taskMs=8.056
+  block 8: one-minute load 8.43 at its start
+  block 8/20 BA B=axylo-svg: ok taskMs=29.626
+  block 8/20 BA A=uplot: ok taskMs=8.209
+  block 9: one-minute load 8.43 at its start
+  block 9/20 BA B=axylo-svg: ok taskMs=30.010
+  block 9/20 BA A=uplot: ok taskMs=11.054
+  block 10: one-minute load 8.47 at its start
+  block 10/20 BA B=axylo-svg: ok taskMs=34.492
+  block 10/20 BA A=uplot: ok taskMs=12.451
+  block 11: one-minute load 9.08 at its start
+  block 11/20 BA B=axylo-svg: ok taskMs=30.812
+  block 11/20 BA A=uplot: ok taskMs=13.825
+  block 12: one-minute load 9.08 at its start
+  block 12/20 BA B=axylo-svg: ok taskMs=30.421
+  block 12/20 BA A=uplot: ok taskMs=12.495
+  block 13: one-minute load 8.83 at its start
+  block 13/20 BA B=axylo-svg: ok taskMs=27.128
+  block 13/20 BA A=uplot: ok taskMs=11.945
+  block 14: one-minute load 8.76 at its start
+  block 14/20 AB A=uplot: ok taskMs=9.425
+  block 14/20 AB B=axylo-svg: ok taskMs=30.568
+  block 15: one-minute load 8.76 at its start
+  block 15/20 BA B=axylo-svg: ok taskMs=31.567
+  block 15/20 BA A=uplot: ok taskMs=10.646
+  block 16: one-minute load 8.46 at its start
+  block 16/20 AB A=uplot: ok taskMs=10.011
+  block 16/20 AB B=axylo-svg: ok taskMs=45.316
+  block 17: one-minute load 8.58 at its start
+  block 17/20 AB A=uplot: ok taskMs=11.715
+  block 17/20 AB B=axylo-svg: ok taskMs=35.544
+  block 18: one-minute load 8.58 at its start
+  block 18/20 AB A=uplot: ok taskMs=11.999
+  block 18/20 AB B=axylo-svg: ok taskMs=37.621
+  block 19: one-minute load 8.54 at its start
+  block 19/20 BA B=axylo-svg: ok taskMs=51.615
+  block 19/20 BA A=uplot: ok taskMs=11.673
+  block 20: one-minute load 8.65 at its start
+  block 20/20 BA B=axylo-svg: ok taskMs=49.327
+  block 20/20 BA A=uplot: ok taskMs=12.842
+
+20261122T045336Z-first-trend-uplot-vs-axylo-svg-4aaa  [complete]  analysis: stored in the record
+comparison: A=uplot  B=axylo-svg  workload first {"fixture":"trend"}
+complete pairs 20/20; run outcomes {"A:ok":20,"B:ok":20}; order seed 1716805511, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A         95% CI                   AB | BA                 B/A-1    band used            outcome
+taskMs *               10.99      33.03      22.04       [19.02, 29.01]           26.31 | 18.81           200.5%   zero only (no band)  worse (rule)
+scriptMs               7.94       27.01      19.07       [16.63, 26.05]           24.16 | 16.32           240.2%   zero only (no band)  worse
+layoutStyleMs          1.11       4.00       2.89        [2.48, 3.42]             2.97 | 2.85             260.0%   zero only (no band)  worse
+readyMs                8.20       28.95      20.75       [18.60, 28.25]           26.00 | 18.30           253.0%   zero only (no band)  worse
+readyFrameMs           8.80       30.75      21.95       [19.20, 28.95]           26.45 | 18.95           249.4%   zero only (no band)  worse
+rendererCpuMs          10.00      40.00      30.00       [20.00, 40.00]           35.00 | 25.00           300.0%   zero only (no band)  worse
+gpuCpuMs               0.000      0.000      0.000       [0.000, 0.000]           0.000 | 0.000           n/a      zero only (no band)  inconclusive
+heapChartBytes         240.0 KiB  924.1 KiB  684.1 KiB   [684.1 KiB, 684.1 KiB]   684.1 KiB | 684.1 KiB   285.0%   zero only (no band)  worse
+heapUsedBytes          1.46 MiB   2.26 MiB   822.1 KiB   [822.1 KiB, 822.2 KiB]   822.1 KiB | 822.2 KiB   55.2%    zero only (no band)  worse
+rendererPssBytes       58.38 MiB  62.71 MiB  4.33 MiB    [4.28 MiB, 4.36 MiB]     4.29 MiB | 4.32 MiB     7.4%     zero only (no band)  worse
+rendererPssChartBytes  4.81 MiB   11.71 MiB  6.90 MiB    [6.88 MiB, 6.93 MiB]     6.95 MiB | 6.91 MiB     143.6%   zero only (no band)  worse
+gpuPssBytes            38.53 MiB  38.42 MiB  -111.0 KiB  [-148.0 KiB, -74.5 KiB]  -150.5 KiB | -79.5 KiB  -0.3%    zero only (no band)  better
+gpuPssChartBytes       499.5 KiB  418.0 KiB  -81.5 KiB   [-83.0 KiB, -81.0 KiB]   -81.0 KiB | -82.0 KiB   -16.3%   zero only (no band)  better
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB   [-1.13 MiB, -1.13 MiB]   -1.13 MiB | -1.13 MiB   -100.0%  zero only (no band)  better
+domNodes               36.00      129.0      93.00       [93.00, 93.00]           93.00 | 93.00           258.3%   zero only (no band)  worse
+(rule): not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+exit 0 svg-only
+
+=== P1 profile bench/artifacts/20261119T091624Z-b643862f-b78698 #1
+20261122T045451Z-first-trend-axylo active: 37.32 ms busy of 38.32 ms (source map from the sealed artifact (describes the measured bytes))
+  self:
+     34.4%     12.85 ms  orchestration: core/ (chart.ts, options, delivery)
+     14.9%      5.57 ms  (program): native main-thread work outside JS
+     12.5%      4.65 ms  other JavaScript (harness, page, comparison library)
+        7%      2.61 ms  DOM
+      6.2%      2.32 ms  layout
+      5.3%      1.98 ms  theme (not one of the eight)
+      4.5%      1.69 ms  normalize
+        4%      1.49 ms  draw
+      3.3%      1.24 ms  view
+      3.3%      1.22 ms  reader
+  inclusive:
+     81.3%     30.34 ms  Axylo (any frame)
+     80.4%     30.02 ms  orchestration: core/ (chart.ts, options, delivery)
+     33.2%     12.39 ms  orchestration: index.ts
+      9.9%      3.69 ms  DOM
+      6.6%      2.48 ms  layout
+      5.7%      2.13 ms  theme (not one of the eight)
+        5%      1.86 ms  view
+      4.9%      1.84 ms  normalize
+      4.8%      1.81 ms  draw
+      4.1%      1.52 ms  reader
+20261122T045451Z-first-trend-axylo settle: 6.1 ms busy of 508.1 ms (source map from the sealed artifact (describes the measured bytes))
+  self:
+         %    502.01 ms  (idle)
+     94.8%      5.78 ms  (program): native main-thread work outside JS
+      5.2%      0.31 ms  other JavaScript (harness, page, comparison library)
+  inclusive:
+
+=== P1 profile bench/artifacts/20261119T091624Z-b643862f-b78698 #2
+20261122T045453Z-first-trend-axylo active: 38.73 ms busy of 39.41 ms (source map from the sealed artifact (describes the measured bytes))
+  self:
+       30%     11.61 ms  orchestration: core/ (chart.ts, options, delivery)
+     19.4%      7.52 ms  (program): native main-thread work outside JS
+     12.4%      4.79 ms  other JavaScript (harness, page, comparison library)
+      7.9%      3.08 ms  DOM
+      7.7%      2.98 ms  layout
+      4.8%      1.84 ms  theme (not one of the eight)
+      4.4%      1.69 ms  normalize
+        4%      1.54 ms  view
+      3.5%      1.37 ms  draw
+      2.7%      1.06 ms  reader
+  inclusive:
+     77.9%     30.16 ms  Axylo (any frame)
+     77.5%     30.01 ms  orchestration: core/ (chart.ts, options, delivery)
+     31.6%     12.25 ms  orchestration: index.ts
+      9.2%      3.55 ms  DOM
+      8.1%      3.14 ms  layout
+        6%      2.32 ms  view
+      4.8%      1.85 ms  normalize
+      4.8%      1.84 ms  theme (not one of the eight)
+      4.3%      1.68 ms  draw
+        4%      1.53 ms  reader
+20261122T045453Z-first-trend-axylo settle: 8.12 ms busy of 509.94 ms (source map from the sealed artifact (describes the measured bytes))
+  self:
+         %    501.82 ms  (idle)
+       98%      7.96 ms  (program): native main-thread work outside JS
+        2%      0.16 ms  other JavaScript (harness, page, comparison library)
+  inclusive:
+
+=== P1 profile bench/artifacts/20261119T091624Z-b643862f-b78698 #3
+20261122T045456Z-first-trend-axylo active: 37.72 ms busy of 38.41 ms (source map from the sealed artifact (describes the measured bytes))
+  self:
+     32.7%     12.35 ms  orchestration: core/ (chart.ts, options, delivery)
+       15%      5.67 ms  other JavaScript (harness, page, comparison library)
+     14.6%       5.5 ms  (program): native main-thread work outside JS
+      6.1%       2.3 ms  DOM
+      5.9%      2.23 ms  layout
+      5.3%      2.01 ms  theme (not one of the eight)
+      5.3%      1.99 ms  normalize
+      4.1%      1.54 ms  view
+      3.7%      1.38 ms  draw
+      3.2%      1.21 ms  reader
+  inclusive:
+     82.1%     30.98 ms  Axylo (any frame)
+     81.3%     30.67 ms  orchestration: core/ (chart.ts, options, delivery)
+       32%     12.07 ms  orchestration: index.ts
+      9.2%      3.48 ms  DOM
+      7.2%       2.7 ms  view
+      6.7%      2.54 ms  layout
+      6.2%      2.33 ms  theme (not one of the eight)
+      5.7%      2.14 ms  normalize
+      4.4%      1.67 ms  reader
+      4.1%      1.54 ms  draw
+20261122T045456Z-first-trend-axylo settle: 7.24 ms busy of 509.19 ms (source map from the sealed artifact (describes the measured bytes))
+  self:
+         %    501.95 ms  (idle)
+     97.8%      7.08 ms  (program): native main-thread work outside JS
+      2.2%      0.16 ms  other JavaScript (harness, page, comparison library)
+  inclusive:
+
+=== P8 profile bench/artifacts/20261119T091624Z-b643862f-b78698
+20261122T045458Z-compact-trend-axylo active: 94.54 ms busy of 95.51 ms (source map from the sealed artifact (describes the measured bytes))
+  self:
+     25.3%     23.88 ms  orchestration: core/ (chart.ts, options, delivery)
+     16.1%      15.2 ms  theme (not one of the eight)
+       16%     15.09 ms  other JavaScript (harness, page, comparison library)
+      8.6%      8.11 ms  normalize
+      8.4%      7.94 ms  (program): native main-thread work outside JS
+      7.2%      6.82 ms  layout
+      6.2%      5.89 ms  view
+      3.2%      2.99 ms  draw
+      3.1%      2.94 ms  (garbage collector)
+      2.8%      2.65 ms  DOM
+  inclusive:
+     86.3%     81.62 ms  Axylo (any frame)
+     84.8%     80.21 ms  orchestration: core/ (chart.ts, options, delivery)
+     30.2%     28.55 ms  orchestration: index.ts
+     17.1%     16.16 ms  theme (not one of the eight)
+     13.1%     12.43 ms  view
+      9.1%      8.58 ms  normalize
+      7.5%      7.12 ms  layout
+      4.3%       4.1 ms  draw
+      4.1%       3.9 ms  DOM
+      2.8%      2.65 ms  reader
+20261122T045458Z-compact-trend-axylo settle: 7.55 ms busy of 509.71 ms (source map from the sealed artifact (describes the measured bytes))
+  self:
+         %    502.17 ms  (idle)
+     97.9%      7.39 ms  (program): native main-thread work outside JS
+      2.1%      0.16 ms  other JavaScript (harness, page, comparison library)
+  inclusive:
+
+=== P1 profile bench/artifacts/20261122T042403Z-bb2826ac-ec008a #1
+20261122T045500Z-first-trend-axylo active: 61.35 ms busy of 62.42 ms (source map from the sealed artifact (describes the measured bytes))
+  self:
+       34%     20.83 ms  orchestration: core/ (chart.ts, options, delivery)
+     14.6%      8.96 ms  (program): native main-thread work outside JS
+       13%      7.98 ms  other JavaScript (harness, page, comparison library)
+      6.7%       4.1 ms  DOM
+      6.5%      4.01 ms  layout
+        6%      3.69 ms  theme (not one of the eight)
+      5.3%      3.26 ms  normalize
+      4.3%      2.62 ms  view
+      3.8%      2.33 ms  reader
+      2.9%       1.8 ms  draw
+  inclusive:
+     82.4%     50.53 ms  Axylo (any frame)
+     82.1%     50.37 ms  orchestration: core/ (chart.ts, options, delivery)
+       34%     20.83 ms  orchestration: index.ts
+      8.5%      5.21 ms  DOM
+      7.3%       4.5 ms  layout
+      6.5%         4 ms  view
+        6%      3.69 ms  theme (not one of the eight)
+      5.8%      3.57 ms  normalize
+      4.8%      2.96 ms  reader
+      3.4%      2.11 ms  draw
+20261122T045500Z-first-trend-axylo settle: 6.07 ms busy of 507.79 ms (source map from the sealed artifact (describes the measured bytes))
+  self:
+         %    501.73 ms  (idle)
+     94.8%      5.75 ms  (program): native main-thread work outside JS
+      5.2%      0.32 ms  other JavaScript (harness, page, comparison library)
+  inclusive:
+
+=== P1 profile bench/artifacts/20261122T042403Z-bb2826ac-ec008a #2
+20261122T045502Z-first-trend-axylo active: 37.51 ms busy of 38.5 ms (source map from the sealed artifact (describes the measured bytes))
+  self:
+     32.1%     12.04 ms  orchestration: core/ (chart.ts, options, delivery)
+     16.4%      6.14 ms  (program): native main-thread work outside JS
+     13.8%      5.16 ms  other JavaScript (harness, page, comparison library)
+      7.9%      2.95 ms  DOM
+      5.4%      2.01 ms  normalize
+        5%      1.86 ms  theme (not one of the eight)
+      4.4%      1.65 ms  view
+      4.1%      1.55 ms  layout
+      3.7%       1.4 ms  draw
+      3.2%      1.22 ms  reader
+  inclusive:
+       80%     30.01 ms  Axylo (any frame)
+     79.6%     29.85 ms  orchestration: core/ (chart.ts, options, delivery)
+     31.7%     11.89 ms  orchestration: index.ts
+      9.5%      3.57 ms  DOM
+      6.2%      2.32 ms  layout
+      6.1%      2.28 ms  view
+      5.4%      2.01 ms  normalize
+        5%      1.86 ms  theme (not one of the eight)
+      4.2%      1.56 ms  draw
+      4.1%      1.53 ms  reader
+20261122T045502Z-first-trend-axylo settle: 8.85 ms busy of 510.7 ms (source map from the sealed artifact (describes the measured bytes))
+  self:
+         %    501.84 ms  (idle)
+     96.5%      8.54 ms  (program): native main-thread work outside JS
+      3.5%      0.31 ms  other JavaScript (harness, page, comparison library)
+  inclusive:
+
+=== P1 profile bench/artifacts/20261122T042403Z-bb2826ac-ec008a #3
+20261122T045505Z-first-trend-axylo active: 43.06 ms busy of 44.03 ms (source map from the sealed artifact (describes the measured bytes))
+  self:
+     31.5%     13.58 ms  orchestration: core/ (chart.ts, options, delivery)
+     15.1%      6.52 ms  (program): native main-thread work outside JS
+     14.8%      6.36 ms  other JavaScript (harness, page, comparison library)
+      7.1%      3.06 ms  layout
+      6.7%      2.88 ms  DOM
+      5.1%       2.2 ms  draw
+      4.3%      1.84 ms  normalize
+      4.2%      1.81 ms  theme (not one of the eight)
+      3.5%      1.52 ms  view
+      3.4%      1.45 ms  scene
+  inclusive:
+     82.7%     35.62 ms  Axylo (any frame)
+     82.4%     35.46 ms  orchestration: core/ (chart.ts, options, delivery)
+     27.5%     11.84 ms  orchestration: index.ts
+      9.3%      3.99 ms  DOM
+      8.5%      3.68 ms  layout
+      6.9%      2.98 ms  draw
+        5%      2.14 ms  view
+      4.6%      1.99 ms  normalize
+      4.6%      1.97 ms  theme (not one of the eight)
+      3.5%      1.52 ms  reader
+20261122T045505Z-first-trend-axylo settle: 8.69 ms busy of 511.01 ms (source map from the sealed artifact (describes the measured bytes))
+  self:
+         %    502.32 ms  (idle)
+     98.1%      8.52 ms  (program): native main-thread work outside JS
+      1.9%      0.17 ms  other JavaScript (harness, page, comparison library)
+  inclusive:
+
+=== P8 profile bench/artifacts/20261122T042403Z-bb2826ac-ec008a
+20261122T045507Z-compact-trend-axylo active: 88.16 ms busy of 89.01 ms (source map from the sealed artifact (describes the measured bytes))
+  self:
+     25.1%      22.1 ms  orchestration: core/ (chart.ts, options, delivery)
+     16.1%     14.21 ms  theme (not one of the eight)
+     15.3%     13.51 ms  other JavaScript (harness, page, comparison library)
+      9.2%      8.15 ms  normalize
+      8.4%      7.37 ms  (program): native main-thread work outside JS
+      6.9%      6.05 ms  layout
+      6.2%      5.45 ms  view
+      3.7%      3.28 ms  draw
+      3.3%      2.88 ms  DOM
+      3.2%      2.81 ms  (garbage collector)
+  inclusive:
+       86%     75.85 ms  Axylo (any frame)
+     84.7%     74.63 ms  orchestration: core/ (chart.ts, options, delivery)
+     31.5%     27.75 ms  orchestration: index.ts
+     17.7%      15.6 ms  theme (not one of the eight)
+     12.4%     10.93 ms  view
+      9.9%      8.77 ms  normalize
+      7.2%      6.36 ms  layout
+      4.7%      4.16 ms  draw
+      3.8%      3.35 ms  DOM
+      2.1%      1.89 ms  reader
+20261122T045507Z-compact-trend-axylo settle: 6.84 ms busy of 508.28 ms (source map from the sealed artifact (describes the measured bytes))
+  self:
+         %    501.43 ms  (idle)
+     95.3%      6.52 ms  (program): native main-thread work outside JS
+      4.7%      0.32 ms  other JavaScript (harness, page, comparison library)
+  inclusive:
+
+=== P1 source 156f414 artifact /home/canarit/projects/axylo/bench/artifacts/20261122T045325Z-156f4141-72d98a
+run 20261122T045704Z-first-trend-uplot-vs-axylo-svg-070e
+  A=uplot  B=axylo-svg  first {"fixture":"trend"}  20 blocks  order seed 2113386301, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261122T045704Z-first-trend-uplot-vs-axylo-svg-070e.json
+  admission A:uplot: ok
+  admission A:axylo-svg: ok
+  block 1: one-minute load 3.37 at its start
+  block 1/20 AB A=uplot: ok taskMs=8.573
+  block 1/20 AB B=axylo-svg: ok taskMs=22.135
+  block 2: one-minute load 3.37 at its start
+  block 2/20 AB A=uplot: ok taskMs=8.537
+  block 2/20 AB B=axylo-svg: ok taskMs=20.016
+  block 3: one-minute load 3.26 at its start
+  block 3/20 BA B=axylo-svg: ok taskMs=21.139
+  block 3/20 BA A=uplot: ok taskMs=12.609
+  block 4: one-minute load 3.16 at its start
+  block 4/20 BA B=axylo-svg: ok taskMs=20.164
+  block 4/20 BA A=uplot: ok taskMs=7.745
+  block 5: one-minute load 3.16 at its start
+  block 5/20 AB A=uplot: ok taskMs=7.601
+  block 5/20 AB B=axylo-svg: ok taskMs=22.485
+  block 6: one-minute load 3.39 at its start
+  block 6/20 AB A=uplot: ok taskMs=9.171
+  block 6/20 AB B=axylo-svg: ok taskMs=21.957
+  block 7: one-minute load 4.00 at its start
+  block 7/20 AB A=uplot: ok taskMs=9.934
+  block 7/20 AB B=axylo-svg: ok taskMs=21.582
+  block 8: one-minute load 4.00 at its start
+  block 8/20 BA B=axylo-svg: ok taskMs=21.744
+  block 8/20 BA A=uplot: ok taskMs=12.267
+  block 9: one-minute load 3.84 at its start
+  block 9/20 BA B=axylo-svg: ok taskMs=20.499
+  block 9/20 BA A=uplot: ok taskMs=7.911
+  block 10: one-minute load 3.77 at its start
+  block 10/20 AB A=uplot: ok taskMs=10.403
+  block 10/20 AB B=axylo-svg: ok taskMs=19.910
+  block 11: one-minute load 3.77 at its start
+  block 11/20 AB A=uplot: ok taskMs=7.493
+  block 11/20 AB B=axylo-svg: ok taskMs=21.940
+  block 12: one-minute load 4.27 at its start
+  block 12/20 BA B=axylo-svg: ok taskMs=20.836
+  block 12/20 BA A=uplot: ok taskMs=8.035
+  block 13: one-minute load 4.09 at its start
+  block 13/20 AB A=uplot: ok taskMs=8.464
+  block 13/20 AB B=axylo-svg: ok taskMs=22.613
+  block 14: one-minute load 4.09 at its start
+  block 14/20 BA B=axylo-svg: ok taskMs=23.705
+  block 14/20 BA A=uplot: ok taskMs=11.775
+  block 15: one-minute load 3.92 at its start
+  block 15/20 BA B=axylo-svg: ok taskMs=20.407
+  block 15/20 BA A=uplot: ok taskMs=7.375
+  block 16: one-minute load 3.68 at its start
+  block 16/20 AB A=uplot: ok taskMs=11.626
+  block 16/20 AB B=axylo-svg: ok taskMs=20.377
+  block 17: one-minute load 3.68 at its start
+  block 17/20 AB A=uplot: ok taskMs=9.976
+  block 17/20 AB B=axylo-svg: ok taskMs=23.604
+  block 18: one-minute load 3.47 at its start
+  block 18/20 BA B=axylo-svg: ok taskMs=19.955
+  block 18/20 BA A=uplot: ok taskMs=9.662
+  block 19: one-minute load 3.83 at its start
+  block 19/20 BA B=axylo-svg: ok taskMs=21.449
+  block 19/20 BA A=uplot: ok taskMs=8.061
+  block 20: one-minute load 3.83 at its start
+  block 20/20 BA B=axylo-svg: ok taskMs=23.841
+  block 20/20 BA A=uplot: ok taskMs=9.577
+
+20261122T045704Z-first-trend-uplot-vs-axylo-svg-070e  [complete]  analysis: stored in the record
+comparison: A=uplot  B=axylo-svg  workload first {"fixture":"trend"}
+complete pairs 20/20; run outcomes {"A:ok":20,"B:ok":20}; order seed 2113386301, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A         95% CI                   AB | BA                 B/A-1    band used            outcome
+taskMs *               8.87       21.52      12.64       [11.02, 13.58]           13.08 | 12.17           142.5%   zero only (no band)  worse (rule)
+scriptMs               6.15       16.85      10.70       [9.16, 11.34]            10.74 | 9.98            174.0%   zero only (no band)  worse
+layoutStyleMs          0.930      2.91       1.98        [1.82, 2.15]             1.89 | 2.06             212.6%   zero only (no band)  worse
+readyMs                6.30       18.50      12.20       [10.80, 13.00]           12.35 | 11.60           193.7%   zero only (no band)  worse
+readyFrameMs           7.60       22.15      14.55       [13.50, 15.55]           14.65 | 14.65           191.4%   zero only (no band)  worse
+rendererCpuMs          10.00      30.00      20.00       [10.00, 20.00]           15.00 | 20.00           200.0%   zero only (no band)  worse
+gpuCpuMs               0.000      0.000      0.000       [0.000, 0.000]           0.000 | 0.000           n/a      zero only (no band)  inconclusive
+heapChartBytes         240.0 KiB  801.4 KiB  561.4 KiB   [561.4 KiB, 561.4 KiB]   561.4 KiB | 561.4 KiB   233.9%   zero only (no band)  worse
+heapUsedBytes          1.46 MiB   2.10 MiB   662.9 KiB   [662.9 KiB, 662.9 KiB]   662.9 KiB | 662.9 KiB   44.5%    zero only (no band)  worse
+rendererPssBytes       58.01 MiB  61.66 MiB  3.66 MiB    [3.63 MiB, 3.70 MiB]     3.64 MiB | 3.68 MiB     6.3%     zero only (no band)  worse
+rendererPssChartBytes  4.96 MiB   10.30 MiB  5.35 MiB    [5.31 MiB, 5.36 MiB]     5.32 MiB | 5.35 MiB     107.9%   zero only (no band)  worse
+gpuPssBytes            38.78 MiB  38.65 MiB  -124.0 KiB  [-192.0 KiB, -78.0 KiB]  -81.0 KiB | -150.5 KiB  -0.3%    zero only (no band)  better
+gpuPssChartBytes       483.0 KiB  397.0 KiB  -86.0 KiB   [-87.0 KiB, -84.5 KiB]   -86.0 KiB | -86.0 KiB   -17.8%   zero only (no band)  better
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB   [-1.13 MiB, -1.13 MiB]   -1.13 MiB | -1.13 MiB   -100.0%  zero only (no band)  better
+domNodes               36.00      118.0      82.00       [82.00, 82.00]           82.00 | 82.00           227.8%   zero only (no band)  worse
+(rule): not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+exit 0 156f414
+
+=== P1 source 4809516 artifact /home/canarit/projects/axylo/bench/artifacts/20261122T045325Z-48095163-8f0603
+run 20261122T045819Z-first-trend-uplot-vs-axylo-svg-ec98
+  A=uplot  B=axylo-svg  first {"fixture":"trend"}  20 blocks  order seed 661843918, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261122T045819Z-first-trend-uplot-vs-axylo-svg-ec98.json
+  admission A:uplot: ok
+  admission A:axylo-svg: ok
+  block 1: one-minute load 3.54 at its start
+  block 1/20 BA B=axylo-svg: ok taskMs=19.538
+  block 1/20 BA A=uplot: ok taskMs=7.887
+  block 2: one-minute load 3.34 at its start
+  block 2/20 BA B=axylo-svg: ok taskMs=21.808
+  block 2/20 BA A=uplot: ok taskMs=7.952
+  block 3: one-minute load 3.15 at its start
+  block 3/20 AB A=uplot: ok taskMs=7.817
+  block 3/20 AB B=axylo-svg: ok taskMs=20.569
+  block 4: one-minute load 3.15 at its start
+  block 4/20 BA B=axylo-svg: ok taskMs=22.452
+  block 4/20 BA A=uplot: ok taskMs=7.524
+  block 5: one-minute load 2.98 at its start
+  block 5/20 BA B=axylo-svg: ok taskMs=20.388
+  block 5/20 BA A=uplot: ok taskMs=9.938
+  block 6: one-minute load 2.82 at its start
+  block 6/20 AB A=uplot: ok taskMs=7.610
+  block 6/20 AB B=axylo-svg: ok taskMs=22.950
+  block 7: one-minute load 2.82 at its start
+  block 7/20 AB A=uplot: ok taskMs=7.572
+  block 7/20 AB B=axylo-svg: ok taskMs=21.752
+  block 8: one-minute load 2.84 at its start
+  block 8/20 AB A=uplot: ok taskMs=7.781
+  block 8/20 AB B=axylo-svg: ok taskMs=20.611
+  block 9: one-minute load 3.17 at its start
+  block 9/20 BA B=axylo-svg: ok taskMs=23.841
+  block 9/20 BA A=uplot: ok taskMs=8.736
+  block 10: one-minute load 3.17 at its start
+  block 10/20 BA B=axylo-svg: ok taskMs=22.309
+  block 10/20 BA A=uplot: ok taskMs=7.542
+  block 11: one-minute load 3.16 at its start
+  block 11/20 AB A=uplot: ok taskMs=7.609
+  block 11/20 AB B=axylo-svg: ok taskMs=20.563
+  block 12: one-minute load 2.98 at its start
+  block 12/20 AB A=uplot: ok taskMs=7.765
+  block 12/20 AB B=axylo-svg: ok taskMs=20.766
+  block 13: one-minute load 2.98 at its start
+  block 13/20 BA B=axylo-svg: ok taskMs=19.612
+  block 13/20 BA A=uplot: ok taskMs=8.064
+  block 14: one-minute load 2.90 at its start
+  block 14/20 BA B=axylo-svg: ok taskMs=20.382
+  block 14/20 BA A=uplot: ok taskMs=7.676
+  block 15: one-minute load 2.75 at its start
+  block 15/20 BA B=axylo-svg: ok taskMs=20.657
+  block 15/20 BA A=uplot: ok taskMs=8.286
+  block 16: one-minute load 2.75 at its start
+  block 16/20 AB A=uplot: ok taskMs=7.449
+  block 16/20 AB B=axylo-svg: ok taskMs=19.736
+  block 17: one-minute load 2.61 at its start
+  block 17/20 AB A=uplot: ok taskMs=8.399
+  block 17/20 AB B=axylo-svg: ok taskMs=23.943
+  block 18: one-minute load 2.48 at its start
+  block 18/20 BA B=axylo-svg: ok taskMs=20.707
+  block 18/20 BA A=uplot: ok taskMs=7.418
+  block 19: one-minute load 2.48 at its start
+  block 19/20 AB A=uplot: ok taskMs=7.570
+  block 19/20 AB B=axylo-svg: ok taskMs=20.635
+  block 20: one-minute load 2.44 at its start
+  block 20/20 AB A=uplot: ok taskMs=8.188
+  block 20/20 AB B=axylo-svg: ok taskMs=23.677
+
+20261122T045819Z-first-trend-uplot-vs-axylo-svg-ec98  [complete]  analysis: stored in the record
+comparison: A=uplot  B=axylo-svg  workload first {"fixture":"trend"}
+complete pairs 20/20; run outcomes {"B:ok":20,"A:ok":20}; order seed 661843918, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                   AB | BA                 B/A-1    band used            outcome
+taskMs *               7.77       20.68      12.91      [12.68, 14.34]           13.01 | 12.76           166.1%   zero only (no band)  worse (rule)
+scriptMs               5.31       16.49      11.18      [10.76, 12.43]           11.34 | 10.89           210.8%   zero only (no band)  worse
+layoutStyleMs          0.840      2.69       1.85       [1.79, 1.96]             1.88 | 1.85             220.4%   zero only (no band)  worse
+readyMs                5.50       18.45      12.95      [12.40, 13.95]           13.40 | 12.15           235.5%   zero only (no band)  worse
+readyFrameMs           7.15       22.55      15.40      [14.10, 17.55]           15.55 | 15.20           215.4%   zero only (no band)  worse
+rendererCpuMs          10.00      30.00      20.00      [20.00, 20.00]           20.00 | 20.00           200.0%   zero only (no band)  worse
+gpuCpuMs               0.000      0.000      0.000      [0.000, 0.000]           0.000 | 0.000           n/a      zero only (no band)  inconclusive
+heapChartBytes         240.0 KiB  814.4 KiB  574.4 KiB  [574.4 KiB, 574.4 KiB]   574.4 KiB | 574.4 KiB   239.3%   zero only (no band)  worse
+heapUsedBytes          1.46 MiB   2.12 MiB   679.8 KiB  [679.8 KiB, 679.8 KiB]   679.8 KiB | 679.8 KiB   45.6%    zero only (no band)  worse
+rendererPssBytes       58.06 MiB  61.90 MiB  3.83 MiB   [3.72 MiB, 3.89 MiB]     3.81 MiB | 3.84 MiB     6.6%     zero only (no band)  worse
+rendererPssChartBytes  4.80 MiB   10.10 MiB  5.29 MiB   [5.27 MiB, 5.33 MiB]     5.29 MiB | 5.31 MiB     110.2%   zero only (no band)  worse
+gpuPssBytes            38.93 MiB  38.84 MiB  -99.0 KiB  [-177.5 KiB, -49.0 KiB]  -84.0 KiB | -109.5 KiB  -0.2%    zero only (no band)  better
+gpuPssChartBytes       489.0 KiB  389.5 KiB  -99.5 KiB  [-105.0 KiB, -94.5 KiB]  -99.0 KiB | -99.5 KiB   -20.3%   zero only (no band)  better
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB  [-1.13 MiB, -1.13 MiB]   -1.13 MiB | -1.13 MiB   -100.0%  zero only (no band)  better
+domNodes               36.00      118.0      82.00      [82.00, 82.00]           82.00 | 82.00           227.8%   zero only (no band)  worse
+(rule): not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+exit 0 4809516
+
+=== P1 source 77213c0 artifact /home/canarit/projects/axylo/bench/artifacts/20261122T045325Z-77213c03-ee8614
+run 20261122T045933Z-first-trend-uplot-vs-axylo-svg-aab6
+  A=uplot  B=axylo-svg  first {"fixture":"trend"}  20 blocks  order seed 1055353105, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261122T045933Z-first-trend-uplot-vs-axylo-svg-aab6.json
+  admission A:uplot: ok
+  admission A:axylo-svg: ok
+  block 1: one-minute load 2.45 at its start
+  block 1/20 AB A=uplot: ok taskMs=8.179
+  block 1/20 AB B=axylo-svg: ok taskMs=21.061
+  block 2: one-minute load 2.49 at its start
+  block 2/20 AB A=uplot: ok taskMs=12.140
+  block 2/20 AB B=axylo-svg: ok taskMs=20.502
+  block 3: one-minute load 2.45 at its start
+  block 3/20 BA B=axylo-svg: ok taskMs=21.299
+  block 3/20 BA A=uplot: ok taskMs=9.734
+  block 4: one-minute load 2.45 at its start
+  block 4/20 BA B=axylo-svg: ok taskMs=20.180
+  block 4/20 BA A=uplot: ok taskMs=11.422
+  block 5: one-minute load 2.50 at its start
+  block 5/20 BA B=axylo-svg: ok taskMs=20.461
+  block 5/20 BA A=uplot: ok taskMs=7.684
+  block 6: one-minute load 2.70 at its start
+  block 6/20 BA B=axylo-svg: ok taskMs=29.850
+  block 6/20 BA A=uplot: ok taskMs=8.317
+  block 7: one-minute load 2.70 at its start
+  block 7/20 AB A=uplot: ok taskMs=9.692
+  block 7/20 AB B=axylo-svg: ok taskMs=21.844
+  block 8: one-minute load 2.72 at its start
+  block 8/20 BA B=axylo-svg: ok taskMs=22.192
+  block 8/20 BA A=uplot: ok taskMs=10.663
+  block 9: one-minute load 2.74 at its start
+  block 9/20 AB A=uplot: ok taskMs=8.566
+  block 9/20 AB B=axylo-svg: ok taskMs=21.667
+  block 10: one-minute load 2.74 at its start
+  block 10/20 BA B=axylo-svg: ok taskMs=21.642
+  block 10/20 BA A=uplot: ok taskMs=7.790
+  block 11: one-minute load 2.52 at its start
+  block 11/20 AB A=uplot: ok taskMs=7.816
+  block 11/20 AB B=axylo-svg: ok taskMs=19.862
+  block 12: one-minute load 2.40 at its start
+  block 12/20 AB A=uplot: ok taskMs=7.753
+  block 12/20 AB B=axylo-svg: ok taskMs=20.514
+  block 13: one-minute load 2.40 at its start
+  block 13/20 BA B=axylo-svg: ok taskMs=19.618
+  block 13/20 BA A=uplot: ok taskMs=8.348
+  block 14: one-minute load 2.29 at its start
+  block 14/20 AB A=uplot: ok taskMs=10.440
+  block 14/20 AB B=axylo-svg: ok taskMs=21.253
+  block 15: one-minute load 2.11 at its start
+  block 15/20 AB A=uplot: ok taskMs=11.479
+  block 15/20 AB B=axylo-svg: ok taskMs=26.053
+  block 16: one-minute load 2.11 at its start
+  block 16/20 BA B=axylo-svg: ok taskMs=20.558
+  block 16/20 BA A=uplot: ok taskMs=7.346
+  block 17: one-minute load 3.22 at its start
+  block 17/20 BA B=axylo-svg: ok taskMs=23.798
+  block 17/20 BA A=uplot: ok taskMs=7.648
+  block 18: one-minute load 3.12 at its start
+  block 18/20 AB A=uplot: ok taskMs=11.615
+  block 18/20 AB B=axylo-svg: ok taskMs=24.563
+  block 19: one-minute load 3.12 at its start
+  block 19/20 AB A=uplot: ok taskMs=9.461
+  block 19/20 AB B=axylo-svg: ok taskMs=28.776
+  block 20: one-minute load 3.19 at its start
+  block 20/20 BA B=axylo-svg: ok taskMs=23.837
+  block 20/20 BA A=uplot: ok taskMs=8.900
+
+20261122T045933Z-first-trend-uplot-vs-axylo-svg-aab6  [complete]  analysis: stored in the record
+comparison: A=uplot  B=axylo-svg  workload first {"fixture":"trend"}
+complete pairs 20/20; run outcomes {"A:ok":20,"B:ok":20}; order seed 1055353105, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A         95% CI                   AB | BA                 B/A-1    band used            outcome
+taskMs *               8.73       21.47      12.74       [11.19, 14.11]           11.88 | 13.14           145.9%   zero only (no band)  worse (rule)
+scriptMs               6.44       16.94      10.50       [9.55, 11.69]            10.20 | 11.14           162.9%   zero only (no band)  worse
+layoutStyleMs          0.872      2.99       2.11        [1.92, 2.28]             2.04 | 2.13             242.2%   zero only (no band)  worse
+readyMs                6.60       18.95      12.35       [11.35, 13.50]           12.10 | 12.90           187.1%   zero only (no band)  worse
+readyFrameMs           7.55       23.05      15.50       [14.05, 16.70]           16.10 | 15.00           205.3%   zero only (no band)  worse
+rendererCpuMs          10.00      30.00      20.00       [10.00, 20.00]           20.00 | 20.00           200.0%   zero only (no band)  worse
+gpuCpuMs               0.000      0.000      0.000       [0.000, 0.000]           0.000 | 0.000           n/a      zero only (no band)  inconclusive
+heapChartBytes         240.0 KiB  826.0 KiB  586.0 KiB   [586.0 KiB, 586.0 KiB]   586.0 KiB | 586.0 KiB   244.2%   zero only (no band)  worse
+heapUsedBytes          1.46 MiB   2.14 MiB   704.6 KiB   [704.6 KiB, 704.6 KiB]   704.6 KiB | 704.6 KiB   47.3%    zero only (no band)  worse
+rendererPssBytes       57.56 MiB  61.33 MiB  3.77 MiB    [3.72 MiB, 3.85 MiB]     3.79 MiB | 3.76 MiB     6.5%     zero only (no band)  worse
+rendererPssChartBytes  4.88 MiB   9.96 MiB   5.08 MiB    [5.07 MiB, 5.11 MiB]     5.10 MiB | 5.06 MiB     104.2%   zero only (no band)  worse
+gpuPssBytes            39.03 MiB  38.97 MiB  -62.5 KiB   [-111.5 KiB, -3.0 KiB]   -39.5 KiB | -85.5 KiB   -0.2%    zero only (no band)  better
+gpuPssChartBytes       493.5 KiB  393.0 KiB  -100.5 KiB  [-108.5 KiB, -98.0 KiB]  -102.0 KiB | -98.5 KiB  -20.4%   zero only (no band)  better
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB   [-1.13 MiB, -1.13 MiB]   -1.13 MiB | -1.13 MiB   -100.0%  zero only (no band)  better
+domNodes               36.00      121.0      85.00       [85.00, 85.00]           85.00 | 85.00           236.1%   zero only (no band)  worse
+(rule): not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+exit 0 77213c0
+
+=== P1 source 12492de artifact /home/canarit/projects/axylo/bench/artifacts/20261122T045326Z-12492de7-83b9ea
+run 20261122T050047Z-first-trend-uplot-vs-axylo-svg-4bd3
+  A=uplot  B=axylo-svg  first {"fixture":"trend"}  20 blocks  order seed 724776834, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261122T050047Z-first-trend-uplot-vs-axylo-svg-4bd3.json
+  admission A:uplot: ok
+  admission A:axylo-svg: ok
+  block 1: one-minute load 2.86 at its start
+  block 1/20 AB A=uplot: ok taskMs=8.572
+  block 1/20 AB B=axylo-svg: ok taskMs=27.191
+  block 2: one-minute load 2.79 at its start
+  block 2/20 AB A=uplot: ok taskMs=7.748
+  block 2/20 AB B=axylo-svg: ok taskMs=27.892
+  block 3: one-minute load 2.79 at its start
+  block 3/20 BA B=axylo-svg: ok taskMs=26.579
+  block 3/20 BA A=uplot: ok taskMs=8.554
+  block 4: one-minute load 2.65 at its start
+  block 4/20 AB A=uplot: ok taskMs=7.349
+  block 4/20 AB B=axylo-svg: ok taskMs=26.353
+  block 5: one-minute load 2.52 at its start
+  block 5/20 AB A=uplot: ok taskMs=8.674
+  block 5/20 AB B=axylo-svg: ok taskMs=26.361
+  block 6: one-minute load 2.52 at its start
+  block 6/20 BA B=axylo-svg: ok taskMs=26.206
+  block 6/20 BA A=uplot: ok taskMs=7.727
+  block 7: one-minute load 2.39 at its start
+  block 7/20 BA B=axylo-svg: ok taskMs=34.485
+  block 7/20 BA A=uplot: ok taskMs=11.798
+  block 8: one-minute load 2.60 at its start
+  block 8/20 AB A=uplot: ok taskMs=7.246
+  block 8/20 AB B=axylo-svg: ok taskMs=27.459
+  block 9: one-minute load 2.60 at its start
+  block 9/20 BA B=axylo-svg: ok taskMs=26.876
+  block 9/20 BA A=uplot: ok taskMs=10.163
+  block 10: one-minute load 2.47 at its start
+  block 10/20 BA B=axylo-svg: ok taskMs=31.998
+  block 10/20 BA A=uplot: ok taskMs=7.676
+  block 11: one-minute load 2.44 at its start
+  block 11/20 AB A=uplot: ok taskMs=9.912
+  block 11/20 AB B=axylo-svg: ok taskMs=26.597
+  block 12: one-minute load 2.44 at its start
+  block 12/20 BA B=axylo-svg: ok taskMs=27.675
+  block 12/20 BA A=uplot: ok taskMs=11.454
+  block 13: one-minute load 2.40 at its start
+  block 13/20 AB A=uplot: ok taskMs=9.824
+  block 13/20 AB B=axylo-svg: ok taskMs=27.567
+  block 14: one-minute load 2.29 at its start
+  block 14/20 BA B=axylo-svg: ok taskMs=27.374
+  block 14/20 BA A=uplot: ok taskMs=7.534
+  block 15: one-minute load 2.29 at its start
+  block 15/20 BA B=axylo-svg: ok taskMs=25.961
+  block 15/20 BA A=uplot: ok taskMs=9.825
+  block 16: one-minute load 2.35 at its start
+  block 16/20 BA B=axylo-svg: ok taskMs=32.018
+  block 16/20 BA A=uplot: ok taskMs=10.328
+  block 17: one-minute load 3.44 at its start
+  block 17/20 AB A=uplot: ok taskMs=7.298
+  block 17/20 AB B=axylo-svg: ok taskMs=27.212
+  block 18: one-minute load 3.44 at its start
+  block 18/20 BA B=axylo-svg: ok taskMs=29.596
+  block 18/20 BA A=uplot: ok taskMs=7.393
+  block 19: one-minute load 3.56 at its start
+  block 19/20 AB A=uplot: ok taskMs=12.765
+  block 19/20 AB B=axylo-svg: ok taskMs=27.679
+  block 20: one-minute load 3.84 at its start
+  block 20/20 AB A=uplot: ok taskMs=11.041
+  block 20/20 AB B=axylo-svg: ok taskMs=27.219
+
+20261122T050047Z-first-trend-uplot-vs-axylo-svg-4bd3  [complete]  analysis: stored in the record
+comparison: A=uplot  B=axylo-svg  workload first {"fixture":"trend"}
+complete pairs 20/20; run outcomes {"A:ok":20,"B:ok":20}; order seed 724776834, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                   AB | BA                B/A-1    band used            outcome
+taskMs *               8.62       27.30      18.67      [17.18, 19.78]           18.59 | 18.33          216.6%   zero only (no band)  worse (rule)
+scriptMs               6.30       22.70      16.40      [15.10, 17.49]           16.45 | 16.47          260.2%   zero only (no band)  worse
+layoutStyleMs          0.820      3.12       2.30       [2.21, 2.39]             2.33 | 2.23            280.0%   zero only (no band)  worse
+readyMs                6.45       24.75      18.30      [17.00, 19.35]           18.40 | 18.15          283.7%   zero only (no band)  worse
+readyFrameMs           7.80       25.95      18.15      [17.35, 19.70]           18.45 | 18.15          232.7%   zero only (no band)  worse
+rendererCpuMs          10.00      30.00      20.00      [20.00, 25.00]           20.00 | 20.00          200.0%   zero only (no band)  worse
+gpuCpuMs               0.000      0.000      0.000      [0.000, 0.000]           0.000 | 0.000          n/a      zero only (no band)  inconclusive
+heapChartBytes         240.0 KiB  903.6 KiB  663.6 KiB  [663.6 KiB, 663.6 KiB]   663.6 KiB | 663.6 KiB  276.5%   zero only (no band)  worse
+heapUsedBytes          1.46 MiB   2.24 MiB   800.9 KiB  [800.9 KiB, 800.9 KiB]   800.9 KiB | 800.9 KiB  53.7%    zero only (no band)  worse
+rendererPssBytes       57.55 MiB  61.98 MiB  4.43 MiB   [4.39 MiB, 4.45 MiB]     4.41 MiB | 4.45 MiB    7.7%     zero only (no band)  worse
+rendererPssChartBytes  4.96 MiB   12.00 MiB  7.03 MiB   [7.01 MiB, 7.06 MiB]     7.02 MiB | 7.05 MiB    141.7%   zero only (no band)  worse
+gpuPssBytes            38.30 MiB  38.23 MiB  -69.0 KiB  [-118.0 KiB, 146.0 KiB]  38.5 KiB | -107.0 KiB  -0.2%    zero only (no band)  inconclusive
+gpuPssChartBytes       528.0 KiB  431.0 KiB  -97.0 KiB  [-98.0 KiB, -94.5 KiB]   -96.0 KiB | -97.5 KiB  -18.4%   zero only (no band)  better
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB  [-1.13 MiB, -1.13 MiB]   -1.13 MiB | -1.13 MiB  -100.0%  zero only (no band)  better
+domNodes               36.00      122.0      86.00      [86.00, 86.00]           86.00 | 86.00          238.9%   zero only (no band)  worse
+(rule): not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+exit 0 12492de
+
+=== P1 source 03ff5b1 artifact /home/canarit/projects/axylo/bench/artifacts/20261122T045326Z-03ff5b19-805866
+run 20261122T050202Z-first-trend-uplot-vs-axylo-svg-f9c5
+  A=uplot  B=axylo-svg  first {"fixture":"trend"}  20 blocks  order seed 1651528407, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261122T050202Z-first-trend-uplot-vs-axylo-svg-f9c5.json
+  admission A:uplot: ok
+  admission A:axylo-svg: ok
+  block 1: one-minute load 3.62 at its start
+  block 1/20 AB A=uplot: ok taskMs=13.238
+  block 1/20 AB B=axylo-svg: ok taskMs=36.769
+  block 2: one-minute load 3.49 at its start
+  block 2/20 AB A=uplot: ok taskMs=9.580
+  block 2/20 AB B=axylo-svg: ok taskMs=30.011
+  block 3: one-minute load 3.49 at its start
+  block 3/20 AB A=uplot: ok taskMs=7.773
+  block 3/20 AB B=axylo-svg: ok taskMs=29.918
+  block 4: one-minute load 3.37 at its start
+  block 4/20 BA B=axylo-svg: ok taskMs=27.729
+  block 4/20 BA A=uplot: ok taskMs=7.582
+  block 5: one-minute load 3.26 at its start
+  block 5/20 AB A=uplot: ok taskMs=10.754
+  block 5/20 AB B=axylo-svg: ok taskMs=28.806
+  block 6: one-minute load 3.26 at its start
+  block 6/20 AB A=uplot: ok taskMs=8.360
+  block 6/20 AB B=axylo-svg: ok taskMs=36.599
+  block 7: one-minute load 3.00 at its start
+  block 7/20 BA B=axylo-svg: ok taskMs=27.052
+  block 7/20 BA A=uplot: ok taskMs=11.238
+  block 8: one-minute load 3.56 at its start
+  block 8/20 AB A=uplot: ok taskMs=8.362
+  block 8/20 AB B=axylo-svg: ok taskMs=38.852
+  block 9: one-minute load 3.56 at its start
+  block 9/20 AB A=uplot: ok taskMs=8.895
+  block 9/20 AB B=axylo-svg: ok taskMs=29.432
+  block 10: one-minute load 3.75 at its start
+  block 10/20 AB A=uplot: ok taskMs=7.730
+  block 10/20 AB B=axylo-svg: ok taskMs=42.558
+  block 11: one-minute load 3.69 at its start
+  block 11/20 BA B=axylo-svg: ok taskMs=32.884
+  block 11/20 BA A=uplot: ok taskMs=12.502
+  block 12: one-minute load 3.69 at its start
+  block 12/20 AB A=uplot: ok taskMs=7.476
+  block 12/20 AB B=axylo-svg: ok taskMs=27.669
+  block 13: one-minute load 3.48 at its start
+  block 13/20 BA B=axylo-svg: ok taskMs=34.389
+  block 13/20 BA A=uplot: ok taskMs=7.905
+  block 14: one-minute load 3.36 at its start
+  block 14/20 BA B=axylo-svg: ok taskMs=33.259
+  block 14/20 BA A=uplot: ok taskMs=9.100
+  block 15: one-minute load 3.36 at its start
+  block 15/20 BA B=axylo-svg: ok taskMs=27.378
+  block 15/20 BA A=uplot: ok taskMs=7.870
+  block 16: one-minute load 3.33 at its start
+  block 16/20 BA B=axylo-svg: ok taskMs=29.461
+  block 16/20 BA A=uplot: ok taskMs=7.585
+  block 17: one-minute load 3.38 at its start
+  block 17/20 AB A=uplot: ok taskMs=8.896
+  block 17/20 AB B=axylo-svg: ok taskMs=34.770
+  block 18: one-minute load 3.38 at its start
+  block 18/20 BA B=axylo-svg: ok taskMs=28.219
+  block 18/20 BA A=uplot: ok taskMs=9.173
+  block 19: one-minute load 3.43 at its start
+  block 19/20 BA B=axylo-svg: ok taskMs=29.783
+  block 19/20 BA A=uplot: ok taskMs=8.990
+  block 20: one-minute load 3.24 at its start
+  block 20/20 BA B=axylo-svg: ok taskMs=29.050
+  block 20/20 BA A=uplot: ok taskMs=8.603
+
+20261122T050202Z-first-trend-uplot-vs-axylo-svg-f9c5  [complete]  analysis: stored in the record
+comparison: A=uplot  B=axylo-svg  workload first {"fixture":"trend"}
+complete pairs 20/20; run outcomes {"A:ok":20,"B:ok":20}; order seed 1651528407, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                   AB | BA                 B/A-1    band used            outcome
+taskMs *               8.75       29.85      21.10      [20.15, 25.03]           23.76 | 20.46           241.2%   zero only (no band)  worse (rule)
+scriptMs               5.78       24.79      19.01      [17.97, 22.63]           21.51 | 18.42           329.0%   zero only (no band)  worse
+layoutStyleMs          0.946      3.44       2.49       [2.34, 2.61]             2.49 | 2.41             263.4%   zero only (no band)  worse
+readyMs                5.95       26.70      20.75      [19.80, 24.40]           23.60 | 20.40           348.7%   zero only (no band)  worse
+readyFrameMs           7.25       28.10      20.85      [19.45, 24.70]           23.50 | 20.10           287.6%   zero only (no band)  worse
+rendererCpuMs          10.00      40.00      30.00      [25.00, 30.00]           30.00 | 30.00           300.0%   zero only (no band)  worse
+gpuCpuMs               0.000      0.000      0.000      [0.000, 0.000]           0.000 | 0.000           n/a      zero only (no band)  inconclusive
+heapChartBytes         240.0 KiB  920.7 KiB  680.7 KiB  [680.7 KiB, 680.7 KiB]   680.7 KiB | 680.7 KiB   283.6%   zero only (no band)  worse
+heapUsedBytes          1.46 MiB   2.26 MiB   822.2 KiB  [822.2 KiB, 822.2 KiB]   822.2 KiB | 822.2 KiB   55.2%    zero only (no band)  worse
+rendererPssBytes       58.29 MiB  62.59 MiB  4.31 MiB   [4.27 MiB, 4.35 MiB]     4.29 MiB | 4.32 MiB     7.4%     zero only (no band)  worse
+rendererPssChartBytes  4.78 MiB   11.61 MiB  6.84 MiB   [6.79 MiB, 6.88 MiB]     6.85 MiB | 6.83 MiB     143.2%   zero only (no band)  worse
+gpuPssBytes            39.30 MiB  39.20 MiB  -96.5 KiB  [-168.0 KiB, -44.0 KiB]  -96.0 KiB | -101.0 KiB  -0.2%    zero only (no band)  better
+gpuPssChartBytes       467.0 KiB  370.0 KiB  -97.0 KiB  [-99.0 KiB, -96.5 KiB]   -97.0 KiB | -97.0 KiB   -20.8%   zero only (no band)  better
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB  [-1.13 MiB, -1.13 MiB]   -1.13 MiB | -1.13 MiB   -100.0%  zero only (no band)  better
+domNodes               36.00      126.0      90.00      [90.00, 90.00]           90.00 | 90.00           250.0%   zero only (no band)  worse
+(rule): not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+exit 0 03ff5b1
+
+=== P1 source 93311fa artifact /home/canarit/projects/axylo/bench/artifacts/20261122T050427Z-93311fac-7270d5
+run 20261122T050427Z-first-trend-uplot-vs-axylo-svg-822e
+  A=uplot  B=axylo-svg  first {"fixture":"trend"}  20 blocks  order seed 1523698034, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261122T050427Z-first-trend-uplot-vs-axylo-svg-822e.json
+  admission A:uplot: ok
+  admission A:axylo-svg: ok
+  block 1: one-minute load 2.83 at its start
+  block 1/20 AB A=uplot: ok taskMs=10.376
+  block 1/20 AB B=axylo-svg: ok taskMs=21.426
+  block 2: one-minute load 3.08 at its start
+  block 2/20 BA B=axylo-svg: ok taskMs=25.467
+  block 2/20 BA A=uplot: ok taskMs=7.769
+  block 3: one-minute load 3.08 at its start
+  block 3/20 AB A=uplot: ok taskMs=11.935
+  block 3/20 AB B=axylo-svg: ok taskMs=20.030
+  block 4: one-minute load 2.91 at its start
+  block 4/20 AB A=uplot: ok taskMs=7.798
+  block 4/20 AB B=axylo-svg: ok taskMs=22.652
+  block 5: one-minute load 3.00 at its start
+  block 5/20 AB A=uplot: ok taskMs=11.530
+  block 5/20 AB B=axylo-svg: ok taskMs=20.511
+  block 6: one-minute load 3.00 at its start
+  block 6/20 AB A=uplot: ok taskMs=10.292
+  block 6/20 AB B=axylo-svg: ok taskMs=24.033
+  block 7: one-minute load 2.92 at its start
+  block 7/20 BA B=axylo-svg: ok taskMs=20.839
+  block 7/20 BA A=uplot: ok taskMs=11.730
+  block 8: one-minute load 3.01 at its start
+  block 8/20 AB A=uplot: ok taskMs=7.914
+  block 8/20 AB B=axylo-svg: ok taskMs=23.869
+  block 9: one-minute load 3.01 at its start
+  block 9/20 BA B=axylo-svg: ok taskMs=21.222
+  block 9/20 BA A=uplot: ok taskMs=12.990
+  block 10: one-minute load 3.01 at its start
+  block 10/20 BA B=axylo-svg: ok taskMs=22.775
+  block 10/20 BA A=uplot: ok taskMs=7.572
+  block 11: one-minute load 2.93 at its start
+  block 11/20 BA B=axylo-svg: ok taskMs=21.520
+  block 11/20 BA A=uplot: ok taskMs=8.642
+  block 12: one-minute load 2.93 at its start
+  block 12/20 BA B=axylo-svg: ok taskMs=25.295
+  block 12/20 BA A=uplot: ok taskMs=8.116
+  block 13: one-minute load 2.93 at its start
+  block 13/20 AB A=uplot: ok taskMs=8.957
+  block 13/20 AB B=axylo-svg: ok taskMs=22.513
+  block 14: one-minute load 3.18 at its start
+  block 14/20 AB A=uplot: ok taskMs=8.562
+  block 14/20 AB B=axylo-svg: ok taskMs=28.757
+  block 15: one-minute load 3.18 at its start
+  block 15/20 AB A=uplot: ok taskMs=11.297
+  block 15/20 AB B=axylo-svg: ok taskMs=22.444
+  block 16: one-minute load 3.32 at its start
+  block 16/20 BA B=axylo-svg: ok taskMs=20.938
+  block 16/20 BA A=uplot: ok taskMs=8.440
+  block 17: one-minute load 3.38 at its start
+  block 17/20 BA B=axylo-svg: ok taskMs=22.844
+  block 17/20 BA A=uplot: ok taskMs=10.979
+  block 18: one-minute load 3.38 at its start
+  block 18/20 AB A=uplot: ok taskMs=7.712
+  block 18/20 AB B=axylo-svg: ok taskMs=23.958
+  block 19: one-minute load 3.51 at its start
+  block 19/20 BA B=axylo-svg: ok taskMs=21.834
+  block 19/20 BA A=uplot: ok taskMs=8.118
+  block 20: one-minute load 4.35 at its start
+  block 20/20 BA B=axylo-svg: ok taskMs=22.224
+  block 20/20 BA A=uplot: ok taskMs=7.717
+
+20261122T050427Z-first-trend-uplot-vs-axylo-svg-822e  [complete]  analysis: stored in the record
+comparison: A=uplot  B=axylo-svg  workload first {"fixture":"trend"}
+complete pairs 20/20; run outcomes {"A:ok":20,"B:ok":20}; order seed 1523698034, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                   AB | BA                B/A-1    band used            outcome
+taskMs *               8.60       22.48      13.88      [11.10, 15.14]           12.96 | 13.75          161.3%   zero only (no band)  worse (rule)
+scriptMs               5.91       17.75      11.84      [9.76, 12.78]            11.47 | 11.75          200.3%   zero only (no band)  worse
+layoutStyleMs          0.953      3.06       2.10       [1.98, 2.35]             2.10 | 2.11            220.9%   zero only (no band)  worse
+readyMs                6.05       19.50      13.45      [11.25, 14.35]           13.15 | 13.35          222.3%   zero only (no band)  worse
+readyFrameMs           7.55       22.90      15.35      [14.30, 17.05]           15.50 | 15.60          203.3%   zero only (no band)  worse
+rendererCpuMs          10.00      30.00      20.00      [20.00, 20.00]           20.00 | 20.00          200.0%   zero only (no band)  worse
+gpuCpuMs               0.000      0.000      0.000      [0.000, 0.000]           0.000 | 0.000          n/a      zero only (no band)  inconclusive
+heapChartBytes         240.0 KiB  856.7 KiB  616.7 KiB  [616.7 KiB, 616.7 KiB]   616.7 KiB | 616.7 KiB  257.0%   zero only (no band)  worse
+heapUsedBytes          1.46 MiB   2.19 MiB   751.0 KiB  [751.0 KiB, 751.0 KiB]   751.0 KiB | 751.0 KiB  50.4%    zero only (no band)  worse
+rendererPssBytes       58.34 MiB  62.39 MiB  4.05 MiB   [4.02 MiB, 4.11 MiB]     4.06 MiB | 4.07 MiB    6.9%     zero only (no band)  worse
+rendererPssChartBytes  4.82 MiB   10.16 MiB  5.34 MiB   [5.31 MiB, 5.38 MiB]     5.33 MiB | 5.37 MiB    110.9%   zero only (no band)  worse
+gpuPssBytes            38.42 MiB  38.35 MiB  -68.0 KiB  [-112.0 KiB, -29.5 KiB]  -80.5 KiB | -48.0 KiB  -0.2%    zero only (no band)  better
+gpuPssChartBytes       529.0 KiB  453.0 KiB  -76.0 KiB  [-82.0 KiB, -72.5 KiB]   -76.0 KiB | -78.0 KiB  -14.4%   zero only (no band)  better
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB  [-1.13 MiB, -1.13 MiB]   -1.13 MiB | -1.13 MiB  -100.0%  zero only (no band)  better
+domNodes               36.00      121.0      85.00      [85.00, 85.00]           85.00 | 85.00          236.1%   zero only (no band)  worse
+(rule): not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+exit 0 93311fa
+
+=== P1 source 4504ca4 artifact /home/canarit/projects/axylo/bench/artifacts/20261122T050542Z-4504ca4a-7e7839
+run 20261122T050542Z-first-trend-uplot-vs-axylo-svg-e9df
+  A=uplot  B=axylo-svg  first {"fixture":"trend"}  20 blocks  order seed 184285937, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261122T050542Z-first-trend-uplot-vs-axylo-svg-e9df.json
+  admission A:uplot: ok
+  admission A:axylo-svg: ok
+  block 1: one-minute load 5.74 at its start
+  block 1/20 BA B=axylo-svg: ok taskMs=31.983
+  block 1/20 BA A=uplot: ok taskMs=7.358
+  block 2: one-minute load 5.44 at its start
+  block 2/20 AB A=uplot: ok taskMs=13.329
+  block 2/20 AB B=axylo-svg: ok taskMs=28.472
+  block 3: one-minute load 5.44 at its start
+  block 3/20 BA B=axylo-svg: ok taskMs=23.288
+  block 3/20 BA A=uplot: ok taskMs=11.439
+  block 4: one-minute load 5.40 at its start
+  block 4/20 AB A=uplot: ok taskMs=8.191
+  block 4/20 AB B=axylo-svg: ok taskMs=24.947
+  block 5: one-minute load 5.29 at its start
+  block 5/20 BA B=axylo-svg: ok taskMs=25.917
+  block 5/20 BA A=uplot: ok taskMs=7.771
+  block 6: one-minute load 5.29 at its start
+  block 6/20 AB A=uplot: ok taskMs=8.207
+  block 6/20 AB B=axylo-svg: ok taskMs=21.911
+  block 7: one-minute load 5.11 at its start
+  block 7/20 BA B=axylo-svg: ok taskMs=21.307
+  block 7/20 BA A=uplot: ok taskMs=12.646
+  block 8: one-minute load 4.86 at its start
+  block 8/20 AB A=uplot: ok taskMs=7.539
+  block 8/20 AB B=axylo-svg: ok taskMs=28.926
+  block 9: one-minute load 4.86 at its start
+  block 9/20 AB A=uplot: ok taskMs=8.319
+  block 9/20 AB B=axylo-svg: ok taskMs=21.156
+  block 10: one-minute load 4.71 at its start
+  block 10/20 BA B=axylo-svg: ok taskMs=21.368
+  block 10/20 BA A=uplot: ok taskMs=11.971
+  block 11: one-minute load 4.49 at its start
+  block 11/20 BA B=axylo-svg: ok taskMs=22.578
+  block 11/20 BA A=uplot: ok taskMs=7.970
+  block 12: one-minute load 4.49 at its start
+  block 12/20 AB A=uplot: ok taskMs=7.691
+  block 12/20 AB B=axylo-svg: ok taskMs=21.288
+  block 13: one-minute load 4.53 at its start
+  block 13/20 AB A=uplot: ok taskMs=7.555
+  block 13/20 AB B=axylo-svg: ok taskMs=34.396
+  block 14: one-minute load 4.49 at its start
+  block 14/20 BA B=axylo-svg: ok taskMs=22.845
+  block 14/20 BA A=uplot: ok taskMs=9.625
+  block 15: one-minute load 4.49 at its start
+  block 15/20 BA B=axylo-svg: ok taskMs=25.204
+  block 15/20 BA A=uplot: ok taskMs=7.676
+  block 16: one-minute load 4.29 at its start
+  block 16/20 BA B=axylo-svg: ok taskMs=23.526
+  block 16/20 BA A=uplot: ok taskMs=8.711
+  block 17: one-minute load 4.03 at its start
+  block 17/20 AB A=uplot: ok taskMs=10.288
+  block 17/20 AB B=axylo-svg: ok taskMs=27.084
+  block 18: one-minute load 4.03 at its start
+  block 18/20 AB A=uplot: ok taskMs=8.015
+  block 18/20 AB B=axylo-svg: ok taskMs=20.929
+  block 19: one-minute load 3.86 at its start
+  block 19/20 BA B=axylo-svg: ok taskMs=20.746
+  block 19/20 BA A=uplot: ok taskMs=12.772
+  block 20: one-minute load 4.12 at its start
+  block 20/20 AB A=uplot: ok taskMs=7.336
+  block 20/20 AB B=axylo-svg: ok taskMs=25.741
+
+20261122T050542Z-first-trend-uplot-vs-axylo-svg-e9df  [complete]  analysis: stored in the record
+comparison: A=uplot  B=axylo-svg  workload first {"fixture":"trend"}
+complete pairs 20/20; run outcomes {"B:ok":20,"A:ok":20}; order seed 184285937, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A         95% CI                   AB | BA                 B/A-1    band used            outcome
+taskMs *               8.20       23.41      15.21       [13.00, 17.91]           17.24 | 13.90           185.5%   zero only (no band)  worse (rule)
+scriptMs               5.50       18.46      12.96       [11.11, 15.95]           15.34 | 12.24           235.5%   zero only (no band)  worse
+layoutStyleMs          0.940      3.00       2.06        [1.98, 2.35]             2.16 | 1.97             219.2%   zero only (no band)  worse
+readyMs                5.65       20.70      15.05       [12.80, 17.50]           17.05 | 13.40           266.4%   zero only (no band)  worse
+readyFrameMs           6.40       24.25      17.85       [16.25, 18.50]           18.40 | 16.25           278.9%   zero only (no band)  worse
+rendererCpuMs          10.00      30.00      20.00       [15.00, 25.00]           20.00 | 20.00           200.0%   zero only (no band)  worse
+gpuCpuMs               0.000      0.000      0.000       [0.000, 0.000]           0.000 | 0.000           n/a      zero only (no band)  inconclusive
+heapChartBytes         240.0 KiB  857.2 KiB  617.2 KiB   [617.2 KiB, 617.2 KiB]   617.2 KiB | 617.2 KiB   257.2%   zero only (no band)  worse
+heapUsedBytes          1.46 MiB   2.19 MiB   754.2 KiB   [754.2 KiB, 754.2 KiB]   754.2 KiB | 754.2 KiB   50.6%    zero only (no band)  worse
+rendererPssBytes       58.67 MiB  62.46 MiB  3.79 MiB    [-14.19 MiB, 3.86 MiB]   -5.14 MiB | 3.83 MiB    6.5%     zero only (no band)  inconclusive
+rendererPssChartBytes  4.74 MiB   9.96 MiB   5.23 MiB    [2.69 MiB, 5.25 MiB]     3.93 MiB | 5.21 MiB     110.3%   zero only (no band)  worse
+gpuPssBytes            38.02 MiB  37.92 MiB  -101.5 KiB  [-6.70 MiB, -26.5 KiB]   -3.37 MiB | -108.0 KiB  -0.3%    zero only (no band)  better
+gpuPssChartBytes       520.0 KiB  447.5 KiB  -72.5 KiB   [-102.0 KiB, -63.5 KiB]  -73.0 KiB | -67.0 KiB   -13.9%   zero only (no band)  better
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB   [-1.13 MiB, -1.13 MiB]   -1.13 MiB | -1.13 MiB   -100.0%  zero only (no band)  better
+domNodes               36.00      122.0      86.00       [86.00, 86.00]           86.00 | 86.00           238.9%   zero only (no band)  worse
+(rule): not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+exit 0 4504ca4
+
+=== P1 source 11fe315 artifact /home/canarit/projects/axylo/bench/artifacts/20261122T050657Z-11fe3151-669d6d
+run 20261122T050657Z-first-trend-uplot-vs-axylo-svg-28b9
+  A=uplot  B=axylo-svg  first {"fixture":"trend"}  20 blocks  order seed 639435304, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261122T050657Z-first-trend-uplot-vs-axylo-svg-28b9.json
+  admission A:uplot: ok
+  admission A:axylo-svg: ok
+  block 1: one-minute load 3.85 at its start
+  block 1/20 AB A=uplot: ok taskMs=12.210
+  block 1/20 AB B=axylo-svg: ok taskMs=22.840
+  block 2: one-minute load 3.62 at its start
+  block 2/20 AB A=uplot: ok taskMs=7.848
+  block 2/20 AB B=axylo-svg: ok taskMs=25.819
+  block 3: one-minute load 3.62 at its start
+  block 3/20 BA B=axylo-svg: ok taskMs=22.856
+  block 3/20 BA A=uplot: ok taskMs=7.396
+  block 4: one-minute load 3.41 at its start
+  block 4/20 BA B=axylo-svg: ok taskMs=21.094
+  block 4/20 BA A=uplot: ok taskMs=7.386
+  block 5: one-minute load 3.14 at its start
+  block 5/20 AB A=uplot: ok taskMs=9.320
+  block 5/20 AB B=axylo-svg: ok taskMs=21.142
+  block 6: one-minute load 3.14 at its start
+  block 6/20 BA B=axylo-svg: ok taskMs=21.855
+  block 6/20 BA A=uplot: ok taskMs=12.150
+  block 7: one-minute load 2.89 at its start
+  block 7/20 AB A=uplot: ok taskMs=12.349
+  block 7/20 AB B=axylo-svg: ok taskMs=20.407
+  block 8: one-minute load 2.98 at its start
+  block 8/20 AB A=uplot: ok taskMs=9.940
+  block 8/20 AB B=axylo-svg: ok taskMs=32.725
+  block 9: one-minute load 2.98 at its start
+  block 9/20 AB A=uplot: ok taskMs=8.497
+  block 9/20 AB B=axylo-svg: ok taskMs=21.803
+  block 10: one-minute load 3.14 at its start
+  block 10/20 BA B=axylo-svg: ok taskMs=23.021
+  block 10/20 BA A=uplot: ok taskMs=10.933
+  block 11: one-minute load 3.21 at its start
+  block 11/20 AB A=uplot: ok taskMs=9.155
+  block 11/20 AB B=axylo-svg: ok taskMs=28.927
+  block 12: one-minute load 3.21 at its start
+  block 12/20 AB A=uplot: ok taskMs=8.385
+  block 12/20 AB B=axylo-svg: ok taskMs=22.415
+  block 13: one-minute load 3.19 at its start
+  block 13/20 BA B=axylo-svg: ok taskMs=27.172
+  block 13/20 BA A=uplot: ok taskMs=12.545
+  block 14: one-minute load 3.02 at its start
+  block 14/20 BA B=axylo-svg: ok taskMs=20.777
+  block 14/20 BA A=uplot: ok taskMs=7.652
+  block 15: one-minute load 3.02 at its start
+  block 15/20 BA B=axylo-svg: ok taskMs=21.004
+  block 15/20 BA A=uplot: ok taskMs=7.352
+  block 16: one-minute load 2.93 at its start
+  block 16/20 BA B=axylo-svg: ok taskMs=22.103
+  block 16/20 BA A=uplot: ok taskMs=10.647
+  block 17: one-minute load 3.26 at its start
+  block 17/20 AB A=uplot: ok taskMs=9.473
+  block 17/20 AB B=axylo-svg: ok taskMs=22.156
+  block 18: one-minute load 3.26 at its start
+  block 18/20 AB A=uplot: ok taskMs=7.798
+  block 18/20 AB B=axylo-svg: ok taskMs=21.984
+  block 19: one-minute load 3.80 at its start
+  block 19/20 BA B=axylo-svg: ok taskMs=32.696
+  block 19/20 BA A=uplot: ok taskMs=8.711
+  block 20: one-minute load 3.66 at its start
+  block 20/20 BA B=axylo-svg: ok taskMs=21.652
+  block 20/20 BA A=uplot: ok taskMs=12.004
+
+20261122T050657Z-first-trend-uplot-vs-axylo-svg-28b9  [complete]  analysis: stored in the record
+comparison: A=uplot  B=axylo-svg  workload first {"fixture":"trend"}
+complete pairs 20/20; run outcomes {"A:ok":20,"B:ok":20}; order seed 639435304, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                   AB | BA                B/A-1    band used            outcome
+taskMs *               9.24       22.13      12.89      [11.37, 14.35]           13.05 | 12.30          139.6%   zero only (no band)  worse (rule)
+scriptMs               6.12       17.60      11.47      [9.36, 12.28]            11.58 | 10.22          187.4%   zero only (no band)  worse
+layoutStyleMs          0.919      3.04       2.12       [1.88, 2.24]             2.11 | 2.18            230.9%   zero only (no band)  worse
+readyMs                6.30       19.85      13.55      [11.25, 14.30]           13.70 | 11.95          215.1%   zero only (no band)  worse
+readyFrameMs           7.40       24.15      16.75      [14.30, 17.90]           17.90 | 14.40          226.4%   zero only (no band)  worse
+rendererCpuMs          10.00      30.00      20.00      [20.00, 25.00]           20.00 | 20.00          200.0%   zero only (no band)  worse
+gpuCpuMs               0.000      0.000      0.000      [0.000, 0.000]           0.000 | 0.000          n/a      zero only (no band)  inconclusive
+heapChartBytes         240.0 KiB  857.7 KiB  617.7 KiB  [617.7 KiB, 617.8 KiB]   617.7 KiB | 617.8 KiB  257.4%   zero only (no band)  worse
+heapUsedBytes          1.46 MiB   2.19 MiB   754.8 KiB  [754.8 KiB, 754.8 KiB]   754.8 KiB | 754.8 KiB  50.6%    zero only (no band)  worse
+rendererPssBytes       41.21 MiB  44.32 MiB  3.11 MiB   [2.23 MiB, 3.30 MiB]     3.01 MiB | 3.23 MiB    7.5%     zero only (no band)  worse
+rendererPssChartBytes  4.15 MiB   7.91 MiB   3.76 MiB   [3.64 MiB, 4.46 MiB]     4.43 MiB | 3.73 MiB    90.7%    zero only (no band)  worse
+gpuPssBytes            31.38 MiB  31.31 MiB  -71.5 KiB  [-156.0 KiB, -27.5 KiB]  -84.0 KiB | -58.0 KiB  -0.2%    zero only (no band)  better
+gpuPssChartBytes       565.0 KiB  497.5 KiB  -67.5 KiB  [-73.0 KiB, -15.5 KiB]   28.5 KiB | -70.0 KiB   -11.9%   zero only (no band)  better
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB  [-1.13 MiB, -1.13 MiB]   -1.13 MiB | -1.13 MiB  -100.0%  zero only (no band)  better
+domNodes               36.00      122.0      86.00      [86.00, 86.00]           86.00 | 86.00          238.9%   zero only (no band)  worse
+(rule): not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+exit 0 11fe315
+
+=== P1 source e9449a6 artifact /home/canarit/projects/axylo/bench/artifacts/20261122T050811Z-e9449a68-fff686
+run 20261122T050811Z-first-trend-uplot-vs-axylo-svg-8da7
+  A=uplot  B=axylo-svg  first {"fixture":"trend"}  20 blocks  order seed 1968777248, bootstrap seed 12345
+  Chrome 158.0.8127.36 headless, history -> bench/history/20261122T050811Z-first-trend-uplot-vs-axylo-svg-8da7.json
+  admission A:uplot: ok
+  admission A:axylo-svg: ok
+  block 1: one-minute load 5.10 at its start
+  block 1/20 AB A=uplot: ok taskMs=7.991
+  block 1/20 AB B=axylo-svg: ok taskMs=22.552
+  block 2: one-minute load 4.85 at its start
+  block 2/20 AB A=uplot: ok taskMs=11.795
+  block 2/20 AB B=axylo-svg: ok taskMs=32.759
+  block 3: one-minute load 4.85 at its start
+  block 3/20 BA B=axylo-svg: ok taskMs=21.862
+  block 3/20 BA A=uplot: ok taskMs=7.693
+  block 4: one-minute load 4.62 at its start
+  block 4/20 AB A=uplot: ok taskMs=8.176
+  block 4/20 AB B=axylo-svg: ok taskMs=24.424
+  block 5: one-minute load 4.81 at its start
+  block 5/20 AB A=uplot: ok taskMs=11.915
+  block 5/20 AB B=axylo-svg: ok taskMs=23.821
+  block 6: one-minute load 4.81 at its start
+  block 6/20 BA B=axylo-svg: ok taskMs=26.342
+  block 6/20 BA A=uplot: ok taskMs=8.184
+  block 7: one-minute load 5.07 at its start
+  block 7/20 BA B=axylo-svg: ok taskMs=21.377
+  block 7/20 BA A=uplot: ok taskMs=7.640
+  block 8: one-minute load 4.82 at its start
+  block 8/20 AB A=uplot: ok taskMs=7.218
+  block 8/20 AB B=axylo-svg: ok taskMs=22.656
+  block 9: one-minute load 4.82 at its start
+  block 9/20 BA B=axylo-svg: ok taskMs=22.096
+  block 9/20 BA A=uplot: ok taskMs=8.158
+  block 10: one-minute load 4.75 at its start
+  block 10/20 BA B=axylo-svg: ok taskMs=23.158
+  block 10/20 BA A=uplot: ok taskMs=9.307
+  block 11: one-minute load 4.53 at its start
+  block 11/20 BA B=axylo-svg: ok taskMs=28.356
+  block 11/20 BA A=uplot: ok taskMs=8.583
+  block 12: one-minute load 4.53 at its start
+  block 12/20 AB A=uplot: ok taskMs=8.996
+  block 12/20 AB B=axylo-svg: ok taskMs=26.411
+  block 13: one-minute load 4.49 at its start
+  block 13/20 BA B=axylo-svg: ok taskMs=36.671
+  block 13/20 BA A=uplot: ok taskMs=14.058
+  block 14: one-minute load 4.93 at its start
+  block 14/20 BA B=axylo-svg: ok taskMs=23.922
+  block 14/20 BA A=uplot: ok taskMs=9.467
+  block 15: one-minute load 4.93 at its start
+  block 15/20 AB A=uplot: ok taskMs=9.543
+  block 15/20 AB B=axylo-svg: ok taskMs=38.614
+  block 16: one-minute load 5.02 at its start
+  block 16/20 BA B=axylo-svg: ok taskMs=24.304
+  block 16/20 BA A=uplot: ok taskMs=12.355
+  block 17: one-minute load 5.50 at its start
+  block 17/20 AB A=uplot: ok taskMs=12.249
+  block 17/20 AB B=axylo-svg: ok taskMs=28.036
+  block 18: one-minute load 5.50 at its start
+  block 18/20 BA B=axylo-svg: ok taskMs=29.271
+  block 18/20 BA A=uplot: ok taskMs=7.829
+  block 19: one-minute load 6.10 at its start
+  block 19/20 AB A=uplot: ok taskMs=11.622
+  block 19/20 AB B=axylo-svg: ok taskMs=22.501
+  block 20: one-minute load 5.85 at its start
+  block 20/20 AB A=uplot: ok taskMs=7.718
+  block 20/20 AB B=axylo-svg: ok taskMs=23.604
+
+20261122T050811Z-first-trend-uplot-vs-axylo-svg-8da7  [complete]  analysis: stored in the record
+comparison: A=uplot  B=axylo-svg  workload first {"fixture":"trend"}
+complete pairs 20/20; run outcomes {"A:ok":20,"B:ok":20}; order seed 1968777248, bootstrap seed 12345
+reliability: failed runs A 0/20, B 0/20
+noise band: none given (outcomes test against zero only)
+
+metric                 median A   median B   B-A        95% CI                   AB | BA                 B/A-1    band used            outcome
+taskMs *               8.79       24.11      15.32      [13.72, 18.20]           14.85 | 15.73           174.3%   zero only (no band)  worse (rule)
+scriptMs               5.67       18.98      13.31      [11.60, 15.92]           13.00 | 13.09           234.8%   zero only (no band)  worse
+layoutStyleMs          1.02       3.46       2.43       [2.16, 2.65]             2.44 | 2.36             238.6%   zero only (no band)  worse
+readyMs                5.85       20.95      15.10      [13.40, 17.85]           14.70 | 14.95           258.1%   zero only (no band)  worse
+readyFrameMs           7.00       23.80      16.80      [14.95, 18.45]           16.60 | 17.15           240.0%   zero only (no band)  worse
+rendererCpuMs          10.00      30.00      20.00      [20.00, 30.00]           20.00 | 20.00           200.0%   zero only (no band)  worse
+gpuCpuMs               0.000      0.000      0.000      [0.000, 0.000]           0.000 | 0.000           n/a      zero only (no band)  inconclusive
+heapChartBytes         240.0 KiB  855.1 KiB  615.1 KiB  [615.1 KiB, 615.1 KiB]   615.1 KiB | 615.1 KiB   256.3%   zero only (no band)  worse
+heapUsedBytes          1.46 MiB   2.19 MiB   755.9 KiB  [755.9 KiB, 755.9 KiB]   755.9 KiB | 755.9 KiB   50.7%    zero only (no band)  worse
+rendererPssBytes       42.76 MiB  44.98 MiB  2.22 MiB   [-2.35 MiB, 4.81 MiB]    2.49 MiB | 2.18 MiB     5.2%     zero only (no band)  inconclusive
+rendererPssChartBytes  4.76 MiB   7.97 MiB   3.21 MiB   [2.54 MiB, 4.27 MiB]     3.23 MiB | 3.19 MiB     67.4%    zero only (no band)  worse
+gpuPssBytes            31.09 MiB  31.13 MiB  40.0 KiB   [-319.1 KiB, 163.5 KiB]  -61.0 KiB | -3.0 KiB    0.1%     zero only (no band)  inconclusive
+gpuPssChartBytes       570.0 KiB  486.5 KiB  -83.5 KiB  [-191.0 KiB, -68.5 KiB]  -281.5 KiB | -76.0 KiB  -14.6%   zero only (no band)  better
+canvasBackingBytes     1.13 MiB   0.0 KiB    -1.13 MiB  [-1.13 MiB, -1.13 MiB]   -1.13 MiB | -1.13 MiB   -100.0%  zero only (no band)  better
+domNodes               36.00      122.0      86.00      [86.00, 86.00]           86.00 | 86.00           238.9%   zero only (no band)  worse
+(rule): not a verdict: no calibrated A-versus-A control for this endpoint (plan 5.1)
+* primary metric. Lower is better for every metric. Units: ms unless the metric counts something (samples, frames, calls, nodes) or is memory (KiB/MiB).
+AB | BA: the difference of medians within blocks run in each order; a large gap between them is carry-over between the two configurations.
+exit 0 e9449a6
