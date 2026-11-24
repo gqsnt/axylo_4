@@ -7,7 +7,7 @@
  * slots (`top` above the plot, `side` beside it, `controls` under it: legend, toolbar, table) and `readout`;
  * the figure only provides those slots. The plot and `side` share the `body` row.
  */
-import { make, setAttr, setText, hideFromAT } from './attributes';
+import { activeElementOf, hideFromAT, isFocusable, make, placeChildren, setAttr, setText } from './attributes';
 
 export interface TitleModel {
   readonly text: string;
@@ -50,6 +50,10 @@ export interface FigureModel {
   readonly summaryLang?: string | null;
 }
 
+export interface FigureOptions {
+  readonly compact?: boolean;
+}
+
 export interface Figure {
   readonly figure: HTMLElement;
   readonly plot: HTMLElement;
@@ -67,6 +71,14 @@ export interface Figure {
   /** The plot's column inside `body`: the open table covers this, never the controls beside it. */
   readonly stage: HTMLElement;
   readonly id: string;
+  /** Whether a lazy control slot (`top` or `side`) is currently mounted in the figure. */
+  hasSlot(slot: 'top' | 'side'): boolean;
+  /** Places `wanted` into a control slot; detaches lazy `top`/`side` slots when emptied. */
+  placeControls(slot: 'top' | 'side' | 'controls', wanted: readonly Element[]): void;
+  /** Text signature of currently mounted, visible control slots without force-creating lazy slots. */
+  controlsSignature(): string;
+  /** Clears and hides `controls`, and detaches lazy `top`/`side` slots without creating them. */
+  clearControls(): void;
   /** Returns true when something that can change the figure's layout was written. */
   update(model: FigureModel): boolean;
   /** Puts text in the polite live region (state changes only, spec L7, A7). */
@@ -82,8 +94,23 @@ function show(el: HTMLElement, visible: boolean): void {
   if (el.hidden === visible) el.hidden = !visible;
 }
 
-export function createFigure(root: HTMLElement, id: string, parts: { marks: Element; text: Element }): Figure {
+function insertBefore(parent: HTMLElement, node: Node, ref: Node | null): void {
+  if (ref && typeof parent.insertBefore === 'function') parent.insertBefore(node, ref);
+  else parent.appendChild(node);
+}
+
+function containsNode(host: HTMLElement | null, node: Element | null): boolean {
+  return host !== null && node !== null && typeof host.contains === 'function' && host.contains(node);
+}
+
+export function createFigure(
+  root: HTMLElement,
+  id: string,
+  parts: { marks: Element; text?: Element | null },
+  options?: FigureOptions,
+): Figure {
   const doc = root.ownerDocument;
+  const initialCompact = Boolean(options?.compact);
   const addedClass = !root.classList.contains('axylo');
   const hadClassAttribute = root.hasAttribute('class');
   if (addedClass) root.classList.add('axylo');
@@ -92,34 +119,18 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
   // the figure, so two charts on one target never share them (review 3, finding 10).
   const figure = make(doc, 'figure', 'axylo axylo-figure');
   figure.id = id;
-  // A div, not figcaption: a figure with a figcaption may not take the group or img role (ARIA in HTML), and
-  // the figure is named and described through aria-labelledby and aria-describedby anyway.
-  const caption = make(doc, 'div', 'axylo-caption');
-  const title = make(doc, 'div', 'axylo-title');
-  title.id = `${id}-t`;
-  title.setAttribute('role', 'heading');
-  const subtitle = make(doc, 'p', 'axylo-subtitle');
-  subtitle.id = `${id}-st`;
-  // Hidden until the first update says otherwise, so nothing is measured with an empty caption.
-  title.hidden = true;
-  subtitle.hidden = true;
-  // The whole generated summary is the figure's description, always (visually hidden). What the too-small
-  // state shows (spec L8) is `summary`: the first sentence, one line (type, series count), aria-hidden since
-  // the description already says it.
+  // The whole generated summary is the figure's description, always (visually hidden). On compact charts it
+  // sits directly in `figure` before `body`; on full charts it lives inside `caption`.
   const description = make(doc, 'p', `axylo-description ${HIDDEN}`);
   description.id = `${id}-s`;
-  const summary = make(doc, 'p', `axylo-summary ${HIDDEN}`);
-  hideFromAT(summary);
 
   const plot = make(doc, 'div', 'axylo-plot');
   const message = make(doc, 'p', 'axylo-message');
   message.id = `${id}-m`;
   message.hidden = true;
-  const corner = make(doc, 'span', 'axylo-corner');
-  hideFromAT(corner);
-  corner.textContent = '*';
-  corner.hidden = true;
-  plot.append(parts.marks, parts.text, message, corner);
+  if (parts.text) plot.append(parts.marks, parts.text, message);
+  else plot.append(parts.marks, message);
+
   const note = make(doc, 'p', 'axylo-note');
   note.id = `${id}-n`;
   note.setAttribute('role', 'status');
@@ -127,29 +138,174 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
   // out), and data arriving must not speak (spec A7). The summary carries the same statements.
   note.setAttribute('aria-live', 'off');
   note.hidden = true;
-  const live = make(doc, 'div', `axylo-live ${HIDDEN}`);
-  live.setAttribute('aria-live', 'polite');
-  const tooltip = make(doc, 'div', 'axylo-tooltip');
-  tooltip.hidden = true;
-  hideFromAT(tooltip);
-  const readout = make(doc, 'div', 'axylo-readout');
-  readout.hidden = true;
-  hideFromAT(readout);
-  const controls = make(doc, 'div', 'axylo-controls');
-  controls.hidden = true;
-  const top = make(doc, 'div', 'axylo-controls-top');
-  top.hidden = true;
-  const side = make(doc, 'div', 'axylo-controls-side');
-  side.hidden = true;
+
   const body = make(doc, 'div', 'axylo-body');
   const stage = make(doc, 'div', 'axylo-stage');
-  // The readout strip sits under the plot in the plot's column: in readout mode it is in the flow there, so it
-  // covers nothing and nothing covers it (decision 0004 revision 2, rule 5).
-  stage.append(plot, readout);
-  body.append(stage, side);
-  caption.append(title, subtitle, description, summary);
-  figure.append(caption, top, body, controls, note, live, tooltip);
+
+  // Lazily created/mounted structural elements. Full charts mount caption/title/summary/readout/controls/
+  // live/tooltip initially; subtitle, corner, top and side are always lazy on every chart.
+  let caption: HTMLElement | null = null;
+  let title: HTMLElement | null = null;
+  let subtitle: HTMLElement | null = null;
+  let summary: HTMLElement | null = null;
+  let corner: HTMLElement | null = null;
+  let live: HTMLElement | null = null;
+  let tooltip: HTMLElement | null = null;
+  let readout: HTMLElement | null = null;
+  let controls: HTMLElement | null = null;
+  let top: HTMLElement | null = null;
+  let side: HTMLElement | null = null;
+
+  function makeCaptionParts(): void {
+    // A div, not figcaption: a figure with a figcaption may not take the group or img role (ARIA in HTML), and
+    // the figure is named and described through aria-labelledby and aria-describedby anyway.
+    caption = make(doc, 'div', 'axylo-caption');
+    title = make(doc, 'div', 'axylo-title');
+    title.id = `${id}-t`;
+    title.setAttribute('role', 'heading');
+    // Hidden until the first update says otherwise, so nothing is measured with an empty caption.
+    title.hidden = true;
+    // What the too-small state shows (spec L8) is `summary`: the first sentence, aria-hidden since the
+    // description already says it.
+    summary = make(doc, 'p', `axylo-summary ${HIDDEN}`);
+    hideFromAT(summary);
+    caption.append(title, description, summary);
+  }
+
+  function ensureCaption(): void {
+    if (!caption) makeCaptionParts();
+    else if (description.parentNode !== caption) insertBefore(caption, description, summary);
+    if (caption!.parentNode !== figure) {
+      insertBefore(figure, caption!, top && top.parentNode === figure ? top : body);
+    }
+  }
+
+  function ensureReadout(): HTMLElement {
+    if (!readout) {
+      readout = make(doc, 'div', 'axylo-readout');
+      readout.hidden = true;
+      hideFromAT(readout);
+    }
+    // The readout strip sits under the plot in the plot's column: in readout mode it is in the flow there, so
+    // it covers nothing and nothing covers it (decision 0004 revision 2, rule 5).
+    if (readout.parentNode !== stage) insertBefore(stage, readout, plot.nextSibling);
+    return readout;
+  }
+
+  function ensureControls(): HTMLElement {
+    if (!controls) {
+      controls = make(doc, 'div', 'axylo-controls');
+      controls.hidden = true;
+    }
+    if (controls.parentNode !== figure) insertBefore(figure, controls, note);
+    return controls;
+  }
+
+  function ensureLive(): HTMLElement {
+    if (!live) {
+      live = make(doc, 'div', `axylo-live ${HIDDEN}`);
+      live.setAttribute('aria-live', 'polite');
+    }
+    if (live.parentNode !== figure) insertBefore(figure, live, tooltip && tooltip.parentNode === figure ? tooltip : null);
+    return live;
+  }
+
+  function ensureTooltip(): HTMLElement {
+    if (!tooltip) {
+      tooltip = make(doc, 'div', 'axylo-tooltip');
+      tooltip.hidden = true;
+      hideFromAT(tooltip);
+    }
+    if (tooltip.parentNode !== figure) figure.appendChild(tooltip);
+    return tooltip;
+  }
+
+  function ensureTop(): HTMLElement {
+    if (!top) {
+      top = make(doc, 'div', 'axylo-controls-top');
+      top.hidden = true;
+    }
+    if (top.parentNode !== figure) insertBefore(figure, top, body);
+    return top;
+  }
+
+  function ensureSide(): HTMLElement {
+    if (!side) {
+      side = make(doc, 'div', 'axylo-controls-side');
+      side.hidden = true;
+    }
+    if (side.parentNode !== body) body.appendChild(side);
+    return side;
+  }
+
+  function ensureFull(): void {
+    ensureCaption();
+    ensureReadout();
+    ensureControls();
+    ensureLive();
+    ensureTooltip();
+  }
+
+  if (initialCompact) {
+    stage.append(plot);
+    body.append(stage);
+    figure.append(description, body, note);
+  } else {
+    makeCaptionParts();
+    readout = make(doc, 'div', 'axylo-readout');
+    readout.hidden = true;
+    hideFromAT(readout);
+    controls = make(doc, 'div', 'axylo-controls');
+    controls.hidden = true;
+    live = make(doc, 'div', `axylo-live ${HIDDEN}`);
+    live.setAttribute('aria-live', 'polite');
+    tooltip = make(doc, 'div', 'axylo-tooltip');
+    tooltip.hidden = true;
+    hideFromAT(tooltip);
+    stage.append(plot, readout);
+    body.append(stage);
+    figure.append(caption!, body, controls, note, live, tooltip);
+  }
   root.appendChild(figure);
+
+  function placeControls(slot: 'top' | 'side' | 'controls', wanted: readonly Element[]): void {
+    if (slot === 'controls') {
+      if (wanted.length === 0) {
+        if (controls) {
+          if (controls.firstChild) controls.replaceChildren();
+          if (!controls.hidden) controls.hidden = true;
+        }
+        return;
+      }
+      const host = ensureControls();
+      placeChildren(host, wanted);
+      if (host.hidden) host.hidden = false;
+      return;
+    }
+    if (wanted.length === 0) {
+      const host = slot === 'top' ? top : side;
+      if (host) {
+        if (host.firstChild) host.replaceChildren();
+        host.hidden = true;
+        if (host.parentNode !== null) host.remove();
+      }
+      return;
+    }
+    const host = slot === 'top' ? ensureTop() : ensureSide();
+    placeChildren(host, wanted);
+    if (host.hidden) host.hidden = false;
+  }
+
+  function clearControls(): void {
+    placeControls('top', []);
+    placeControls('side', []);
+    placeControls('controls', []);
+  }
+
+  function controlsSignature(): string {
+    const textOf = (el: HTMLElement | null) => el && el.parentNode !== null && !el.hidden ? el.textContent ?? '' : '';
+    return `${textOf(top)}\u0000${textOf(side)}\u0000${textOf(controls)}`;
+  }
 
   let last: FigureModel | null = null;
   /** The note's runs as last written, when it was written as runs. */
@@ -158,48 +314,98 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
   return {
     figure,
     plot,
-    tooltip,
-    readout,
-    controls,
-    top,
-    side,
+    get tooltip() { return ensureTooltip(); },
+    get readout() { return ensureReadout(); },
+    get controls() { return ensureControls(); },
+    get top() { return ensureTop(); },
+    get side() { return ensureSide(); },
     body,
     stage,
     id,
+    hasSlot(slot: 'top' | 'side'): boolean {
+      const host = slot === 'top' ? top : side;
+      return host !== null && host.parentNode !== null;
+    },
+    placeControls,
+    controlsSignature,
+    clearControls,
     update(model: FigureModel): boolean {
       if (last !== null && same(last, model)) return false;
-      const moved = last === null || movesLayout(last, model);
+      const previous = last;
+      const moved = previous === null || movesLayout(previous, model);
       last = model;
       const { compact } = model;
       figure.classList.toggle('axylo-compact', compact);
       setAttr(figure, 'role', compact ? 'img' : 'group');
 
+      if (compact) {
+        // Preserve focus on the figure when switching a full chart to compact before interaction.prepare runs.
+        const active = activeElementOf(doc, figure);
+        const hadFocus = containsNode(controls, active) || containsNode(readout, active) || containsNode(tooltip, active);
+        if (caption && caption.parentNode === figure) {
+          insertBefore(figure, description, top && top.parentNode === figure ? top : body);
+          caption.remove();
+        }
+        if (subtitle) {
+          if (subtitle.parentNode !== null) subtitle.remove();
+          setText(subtitle, '');
+          subtitle.hidden = true;
+        }
+        if (controls && controls.parentNode === figure) controls.remove();
+        if (readout && readout.parentNode === stage) readout.remove();
+        if (tooltip && tooltip.parentNode === figure) tooltip.remove();
+        if (live && live.parentNode === figure && (previous === null ? !initialCompact : !previous.compact)) live.remove();
+        if (hadFocus && isFocusable(figure)) {
+          if (!figure.hasAttribute('tabindex')) figure.setAttribute('tabindex', '-1');
+          figure.focus({ preventScroll: true });
+        }
+      } else {
+        ensureFull();
+      }
+
       // Name: the title, else the page's own heading, else the generated name.
       const heading = !compact && model.title !== null;
-      if (heading) {
-        setText(title, model.title!.text);
-        setAttr(title, 'aria-level', String(model.title!.level));
-        title.classList.toggle(HIDDEN, !model.title!.visible);
+      if (title) {
+        if (heading) {
+          setText(title, model.title!.text);
+          setAttr(title, 'aria-level', String(model.title!.level));
+          title.classList.toggle(HIDDEN, !model.title!.visible);
+        }
+        show(title, heading);
       }
-      show(title, heading);
       if (model.labelledBy) {
         setAttr(figure, 'aria-labelledby', model.labelledBy);
         setAttr(figure, 'aria-label', null);
       } else if (heading) {
-        setAttr(figure, 'aria-labelledby', title.id);
+        setAttr(figure, 'aria-labelledby', title!.id);
         setAttr(figure, 'aria-label', null);
       } else {
         setAttr(figure, 'aria-labelledby', null);
         setAttr(figure, 'aria-label', model.name);
       }
 
-      setText(subtitle, model.subtitle ?? '');
-      show(subtitle, !compact && !!model.subtitle);
+      const showSubtitle = !compact && !!model.subtitle;
+      if (showSubtitle) {
+        if (!subtitle) {
+          subtitle = make(doc, 'p', 'axylo-subtitle');
+          subtitle.id = `${id}-st`;
+        }
+        setText(subtitle, model.subtitle!);
+        subtitle.hidden = false;
+        if (subtitle.parentNode !== caption) insertBefore(caption!, subtitle, description);
+      } else if (subtitle) {
+        if (subtitle.parentNode !== null) subtitle.remove();
+        setText(subtitle, '');
+        subtitle.hidden = true;
+      }
+
       setText(description, model.summary);
       setAttr(description, 'lang', model.summaryLang ?? null);
-      setText(summary, /^.*?[.!?。！？](?=\s|$)/u.exec(model.summary)?.[0] ?? model.summary);
-      setAttr(summary, 'lang', model.summaryLang ?? null);
-      summary.classList.toggle(HIDDEN, compact || !model.summaryVisible);
+      if (summary && !compact) {
+        setText(summary, /^.*?[.!?。！？](?=\s|$)/u.exec(model.summary)?.[0] ?? model.summary);
+        setAttr(summary, 'lang', model.summaryLang ?? null);
+        summary.classList.toggle(HIDDEN, !model.summaryVisible);
+      }
       // Shown in the too-small state (spec L8) as one line (the stylesheet clips it after its first line), the
       // whole text staying the figure's description for assistive technology.
       setAttr(figure, 'aria-describedby', description.id);
@@ -231,20 +437,35 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
       }
       setAttr(message, 'lang', model.messageLang ?? null);
       show(note, !compact && model.note !== null);
-      show(corner, compact && model.note !== null);
-      setAttr(corner, 'title', compact ? model.note : null);
+
+      const showCorner = compact && model.note !== null;
+      if (showCorner) {
+        if (!corner) {
+          corner = make(doc, 'span', 'axylo-corner');
+          hideFromAT(corner);
+          corner.textContent = '*';
+        }
+        corner.hidden = false;
+        setAttr(corner, 'title', model.note);
+        if (corner.parentNode !== plot) plot.appendChild(corner);
+      } else if (corner) {
+        if (corner.parentNode !== null) corner.remove();
+        corner.hidden = true;
+        setAttr(corner, 'title', null);
+      }
 
       setText(message, model.message ?? '');
       show(message, model.message !== null);
       return moved;
     },
     announce(text: string, lang: string | null = null): void {
-      setAttr(live, 'lang', lang);
-      if (live.textContent === text) {
+      const region = ensureLive();
+      setAttr(region, 'lang', lang);
+      if (region.textContent === text) {
         // Replace the text node so an identical re-announcement is still observed by assistive technology.
-        if (text !== '') live.replaceChildren(doc.createTextNode(text));
+        if (text !== '') region.replaceChildren(doc.createTextNode(text));
       } else {
-        live.textContent = text;
+        region.textContent = text;
       }
     },
     destroy(): void {

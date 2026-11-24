@@ -79,6 +79,9 @@ const READOUT_WIDTH = 240;
 const READOUT_HEIGHT = 140;
 /** Where a pointed datum's values go: a floating tooltip, the reserved strip, or nowhere (rule 5). */
 type ReadoutMode = 'floating' | 'strip' | 'none';
+/** Shared neutral text style used for compact charts, which never lay out text labels. */
+const COMPACT_TEXT_STYLE: TextStyle = { font: '', letterSpacing: 0, wordSpacing: 0, lineHeight: 0 };
+
 /** Spec L8: the smallest plot height drawn. */
 const MIN_PLOT_HEIGHT = 80;
 
@@ -1473,12 +1476,18 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
           stage('frame');
           shown = display(a);
           noteShown = shown.kind === 'ready' || shown.kind === 'empty' || shown.kind === 'error';
-          if (textStyleDirty) {
-            const next = host.textStyle();
-            if (!sameTextStyle(textStyle, next)) textStyle = next;
-            textStyleDirty = false;
+          if (compact) {
+            style = COMPACT_TEXT_STYLE;
+            // Compact charts do not mount the text layer; keep dirty so an upgrade to full reads the real text style.
+            textStyleDirty = true;
+          } else {
+            if (textStyleDirty) {
+              const next = host.textStyle();
+              if (!sameTextStyle(textStyle, next)) textStyle = next;
+              textStyleDirty = false;
+            }
+            style = textStyle!;
           }
-          style = textStyle!;
           locale = host.locale(a.options.locale);
           lang = host.pageLang();
 

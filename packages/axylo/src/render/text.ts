@@ -24,8 +24,10 @@ interface Label {
   anchor: PlacedText['anchor'] | '';
   baseline: PlacedText['baseline'] | '';
   role: string;
-  readonly lines: HTMLDivElement[];
-  readonly text: string[];
+  line0: HTMLDivElement | null;
+  text0: string;
+  lines: HTMLDivElement[] | null;
+  text: string[] | null;
 }
 
 const ALIGN = { start: 'left', middle: 'center', end: 'right' } as const;
@@ -43,11 +45,54 @@ export function labelStyle(t: PlacedText): string {
     `transform:translate(${px(t.x)},${px(t.y)})${rotate} translate(${SHIFT_X[t.anchor]},${SHIFT_Y[t.baseline]})`;
 }
 
+function appendLine(doc: Document, label: HTMLDivElement): HTMLDivElement {
+  const line = doc.createElement('div');
+  // A blank line still takes one line height (in the reader's spacing), so anchors stay put.
+  line.style.setProperty('min-height', '1lh');
+  label.appendChild(line);
+  return line;
+}
+
+function renderLines(doc: Document, label: Label, text: readonly string[]): void {
+  if (text.length === 0) {
+    label.line0?.remove();
+    label.line0 = null;
+    label.text0 = '';
+  } else {
+    const line0 = label.line0 ??= appendLine(doc, label.el);
+    const text0 = text[0]!;
+    if (label.text0 !== text0) {
+      label.text0 = text0;
+      line0.textContent = text0;
+    }
+  }
+  if (text.length <= 1) {
+    if (label.lines !== null) {
+      for (const line of label.lines) line.remove();
+      label.lines = null;
+      label.text = null;
+    }
+    return;
+  }
+  const lines = label.lines ??= [];
+  const previous = label.text ??= [];
+  const count = text.length - 1;
+  while (lines.length > count) { lines.pop()!.remove(); previous.pop(); }
+  while (lines.length < count) {
+    lines.push(appendLine(doc, label.el));
+    previous.push('');
+  }
+  for (let i = 0; i < count; i++) {
+    const value = text[i + 1]!;
+    if (previous[i] !== value) { previous[i] = value; lines[i]!.textContent = value; }
+  }
+}
+
 export function createTextLayer(doc: Document = document): TextLayer {
   const element = doc.createElement('div');
   element.className = 'axylo-text';
   element.setAttribute('aria-hidden', 'true');
-  let labels: Label[] = [];
+  const labels: Label[] = [];
 
   return {
     element,
@@ -66,7 +111,10 @@ export function createTextLayer(doc: Document = document): TextLayer {
           st.top = '0';
           st.transformOrigin = '0 0';
           st.whiteSpace = 'pre';
-          label = { el, align: '', rx: NaN, ry: NaN, rotate: NaN, anchor: '', baseline: '', role: '', lines: [], text: [] };
+          label = {
+            el, align: '', rx: NaN, ry: NaN, rotate: NaN, anchor: '', baseline: '', role: '',
+            line0: null, text0: '', lines: null, text: null,
+          };
           labels.push(label);
           (fresh ??= doc.createDocumentFragment()).appendChild(el);
         }
@@ -84,28 +132,15 @@ export function createTextLayer(doc: Document = document): TextLayer {
           label.el.style.transform = `translate(${rx}px,${ry}px)${rotate} translate(${SHIFT_X[t.anchor]},${SHIFT_Y[t.baseline]})`;
         }
         if (label.role !== t.role) { label.role = t.role; label.el.setAttribute('data-role', t.role); }
-        const lines = label.lines;
-        while (lines.length > t.lines.length) { lines.pop()!.remove(); label.text.pop(); }
-        while (lines.length < t.lines.length) {
-          const line = doc.createElement('div');
-          // A blank line still takes one line height (in the reader's spacing), so anchors stay put.
-          line.style.setProperty('min-height', '1lh');
-          label.el.appendChild(line);
-          lines.push(line);
-          label.text.push('');
-        }
-        for (let k = 0; k < lines.length; k++) {
-          const s = t.lines[k]!;
-          if (label.text[k] !== s) { label.text[k] = s; lines[k]!.textContent = s; }
-        }
+        renderLines(doc, label, t.lines);
       }
       for (let i = texts.length; i < labels.length; i++) labels[i]!.el.remove();
-      if (labels.length > texts.length) labels = labels.slice(0, texts.length);
+      if (labels.length > texts.length) labels.length = texts.length;
       if (fresh !== null) element.appendChild(fresh);
     },
     destroy(): void {
       element.remove();
-      labels = [];
+      labels.length = 0;
     },
   };
 }

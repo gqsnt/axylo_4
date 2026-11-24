@@ -18,7 +18,7 @@ import {
   applyTheme, createThemeBatch, finalizeTheme, prepareTheme, probeTheme,
   type PreparedTheme, type ThemeBatch,
 } from '../theme/resolve';
-import { createFigure, type Figure } from '../dom/figure';
+import { createFigure, type Figure, type FigureModel } from '../dom/figure';
 import { shadowRootOf } from '../dom/attributes';
 import { createInteraction, type Interaction } from '../dom/interaction';
 import { mappingOf } from '../dom/mapping';
@@ -193,22 +193,66 @@ export function createChart(composition: Composition, target: unknown, input: un
     let tree = styleRoot();
     const id = allocateId(doc, tree);
 
+    const initialCompact = Boolean(input && typeof input === 'object' && (input as { compact?: unknown }).compact === true);
+    const isDonut = composition.kind === 'donut';
+    const eagerText = !initialCompact && !isDonut;
+
     const renderer = svgRendererWith(composition.svg, doc);
     cleanup.push(() => renderer.destroy());
-    const textLayer: TextLayer = createTextLayer(doc);
-    cleanup.push(() => textLayer.destroy());
-    const figure: Figure = createFigure(root, id, { marks: renderer.element, text: textLayer.element });
+    let textLayer: TextLayer | null = eagerText ? createTextLayer(doc) : null;
+    let textMounted = eagerText;
+    let textHidden = false;
+    cleanup.push(() => { textLayer?.destroy(); textLayer = null; });
+    const figure: Figure = createFigure(
+      root,
+      id,
+      { marks: renderer.element, text: textLayer?.element ?? null },
+      { compact: initialCompact },
+    );
     cleanup.push(() => figure.destroy());
 
-    // The interaction layer is built before the controller that answers it, so its actions forward late.
-    const actions: ControllerActions = {
+    // Compact charts never need the interaction layer unless updated to full mode; defer its closures and state.
+    let interactionAttached = false;
+    let realInteraction: Interaction | null = null;
+    const makeActions = (): ControllerActions => ({
       zoom: w => controller?.actions.zoom(w),
       toggle: k => controller?.actions.toggle(k),
       pause: p => controller?.actions.pause(p),
       select: r => controller?.actions.select(r),
       hover: r => controller?.actions.hover(r),
+    });
+    const ensureInteraction = (): Interaction => {
+      if (!realInteraction) {
+        realInteraction = createInteraction(composition.interaction, figure, renderer, makeActions());
+        if (!interactionAttached) realInteraction.detach();
+      }
+      return realInteraction;
     };
-    const interaction: Interaction = createInteraction(composition.interaction, figure, renderer, actions);
+    const interaction: Interaction = initialCompact ? {
+      prepare(state) {
+        if (!state.interactive && !realInteraction) return false;
+        return ensureInteraction().prepare(state);
+      },
+      commit(state) {
+        if ((!state || !state.interactive) && !realInteraction) return;
+        ensureInteraction().commit(state);
+      },
+      clear() {
+        realInteraction?.clear();
+      },
+      attach() {
+        interactionAttached = true;
+        realInteraction?.attach();
+      },
+      detach() {
+        interactionAttached = false;
+        realInteraction?.detach();
+      },
+      destroy() {
+        realInteraction?.destroy();
+        realInteraction = null;
+      },
+    } : createInteraction(composition.interaction, figure, renderer, makeActions());
     cleanup.push(() => interaction.destroy());
     const measurer = createMeasurer(doc);
     ensureStyles(tree);
@@ -271,21 +315,92 @@ export function createChart(composition: Composition, target: unknown, input: un
     // Per-chart ResizeObservers keep detached/abandoned charts free of any window-level strong references.
     // A font can arrive without a 'loadingdone' (a FontFace loaded first and then added to document.fonts):
     // a probe set like the labels changes size whenever their font does, and that is a font load (L1).
-    const fontProbe = doc.createElement('div');
-    fontProbe.className = 'axylo-font-probe';
-    textLayer.element.appendChild(fontProbe);
+    // Deferred until the first non-empty text render so compact and donut charts allocate neither a probe
+    // element nor a second ResizeObserver.
+    let fontProbe: HTMLDivElement | null = null;
+    let fontObserver: ResizeObserver | null = null;
     let probeSize: string | null = null;
-    const fontObserver = new win.ResizeObserver(entries => {
-      const box = entries?.[0]?.contentRect ?? fontProbe.getBoundingClientRect();
-      const size = `${box.width}x${box.height}`;
-      if (probeSize !== null && size !== probeSize && controller !== null && root.isConnected) {
-        noteFontLoad(doc);
-        controller.invalidate.fonts();
-      }
-      probeSize = size;
+    let disposed = false;
+    cleanup.push(() => {
+      disposed = true;
+      fontObserver?.disconnect();
+      fontObserver = null;
     });
-    fontObserver.observe(fontProbe);
-    cleanup.push(() => fontObserver.disconnect());
+
+    const ensureTextMounted = (): TextLayer => {
+      if (!textLayer) {
+        textLayer = createTextLayer(doc);
+        if (textHidden) textLayer.element.style.visibility = 'hidden';
+      }
+      if (!textMounted) {
+        textMounted = true;
+        const ref = renderer.element.nextSibling;
+        if (ref) figure.plot.insertBefore(textLayer.element, ref);
+        else figure.plot.appendChild(textLayer.element);
+      }
+      return textLayer;
+    };
+
+    const ensureFontProbe = (layer: TextLayer): void => {
+      if (fontProbe || disposed) return;
+      const probe = fontProbe = doc.createElement('div');
+      probe.className = 'axylo-font-probe';
+      layer.element.appendChild(probe);
+      const observer = fontObserver = new win.ResizeObserver(entries => {
+        const box = entries?.[0]?.contentRect ?? probe.getBoundingClientRect();
+        const size = `${box.width}x${box.height}`;
+        if (probeSize !== null && size !== probeSize && controller !== null && root.isConnected) {
+          noteFontLoad(doc);
+          controller.invalidate.fonts();
+        }
+        probeSize = size;
+      });
+      observer.observe(probe);
+    };
+
+    const unmountTextAndProbe = (): void => {
+      if (fontObserver) {
+        fontObserver.disconnect();
+        fontObserver = null;
+      }
+      if (fontProbe) {
+        fontProbe.remove();
+        fontProbe = null;
+      }
+      probeSize = null;
+      if (textMounted && textLayer) {
+        textLayer.destroy();
+        textLayer = null;
+        textMounted = false;
+      }
+    };
+
+    const textAdapter = {
+      render(texts: Parameters<TextLayer['render']>[0]): void {
+        if (texts.length === 0) {
+          textLayer?.render(texts);
+          return;
+        }
+        const layer = ensureTextMounted();
+        ensureFontProbe(layer);
+        layer.render(texts);
+      },
+    };
+
+    const hostFigure = !isDonut ? {
+      update(model: FigureModel): boolean {
+        if (model.compact) {
+          if (textMounted || fontProbe) unmountTextAndProbe();
+        } else {
+          const layer = ensureTextMounted();
+          ensureFontProbe(layer);
+        }
+        return figure.update(model);
+      },
+      announce(text: string, lang?: string | null): void {
+        figure.announce(text, lang);
+      },
+    } : figure;
 
     const resizeObserver = new win.ResizeObserver(() => {
       if (controller === null) return;
@@ -309,8 +424,8 @@ export function createChart(composition: Composition, target: unknown, input: un
       page: doc,
       get timeZone() { return viewerTimeZone(); },
       renderer,
-      text: textLayer,
-      figure,
+      text: textAdapter,
+      figure: hostFigure,
       interaction,
       measurer,
       requestFrame: callback => scheduleFrame(win, doc, getController, callback),
@@ -322,7 +437,10 @@ export function createChart(composition: Composition, target: unknown, input: un
         const el = styleRoot().getElementById(own);
         return el === null ? null : el.textContent ?? '';
       },
-      textStyle: () => readTextStyle(textLayer.element),
+      textStyle() {
+        if (!isDonut && !textMounted) ensureTextMounted();
+        return readTextStyle(textMounted && textLayer ? textLayer.element : figure.plot);
+      },
       measure() {
         if (!root.isConnected) return null;
         const box = figure.figure.getBoundingClientRect();
@@ -384,7 +502,9 @@ export function createChart(composition: Composition, target: unknown, input: un
       themeProbe: prepared => probeTheme(prepared as PreparedTheme),
       surfaces(visible) {
         // Hidden without drawing: the error revision does not depend on the methods that may have failed.
-        for (const el of [renderer.element, textLayer.element]) el.style.visibility = visible ? '' : 'hidden';
+        textHidden = !visible;
+        renderer.element.style.visibility = visible ? '' : 'hidden';
+        if (textLayer) textLayer.element.style.visibility = visible ? '' : 'hidden';
       },
       dispose: release,
     });

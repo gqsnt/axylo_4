@@ -537,7 +537,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   /** What the last presentation showed, for a hold to start from. */
   let content: Content | null = null;
   /** Escape closed the tooltip for this datum; it stays closed until another datum is shown. */
-  let dismissed: Identity[] = [];
+  let dismissed: Identity[] | null = null;
   /** The first of a pinned tooltip's rows on show ("+N more" goes on through them). */
   let pinPage = 0;
   /**
@@ -571,7 +571,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   let tableModel: unknown = null;
   /** The one pointer that owns a press or drag (review 2, finding 10); others are ignored until it ends. */
   let down: { id: number; x: number; y: number; dragging: boolean } | null = null;
-  const touches = new Map<number, { x: number; y: number; x0: number; y0: number; t0: number; client: Point }>();
+  /** Active touch pointers, allocated on the first touch event so idle charts hold no Map. */
+  let touches: Map<number, { x: number; y: number; x0: number; y0: number; t0: number; client: Point }> | null = null;
   /** The two fingers a pinch started with (`ids`): a third finger does not take it over (new item 10). */
   let pinch: { ids: readonly [number, number]; distance: number; window: Span; center: number } | null = null;
   /** A pinch happened since the last time no finger was down: the lifting fingers are not a tap. */
@@ -693,7 +694,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   /** Gesture work that has not reached the chart yet is dropped: cancel, blur, detach, rebuild (new item 10). */
   function cancelGestures(): void {
     endDrag();
-    touches.clear();
+    touches?.clear();
     pinch = null;
     pinched = false;
     if (pinchFrame !== 0) doc.defaultView?.cancelAnimationFrame(pinchFrame);
@@ -740,10 +741,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     lastControls = null;
     controlNodes = null;
     clearGeo();
-    for (const host of [figure.controls, figure.top, figure.side]) {
-      host.hidden = true;
-      host.replaceChildren();
-    }
+    figure.clearControls();
     plot.classList.remove('axylo-touch-zoom', 'axylo-zoomable');
     const after = activeElement();
     if (owned && (after === null || after === doc.body || !root.contains(after))) focusFigure();
@@ -1433,7 +1431,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
    * membership of the whole displayed group, not only the eight sampled rows (review finding 7).
    */
   function isDismissed(target: PickTarget): boolean {
-    return dismissed.some(id => dismissedBy(id, target));
+    return dismissed !== null && dismissed.some(id => dismissedBy(id, target));
   }
 
   /** Whether `target` shows the dismissed datum `id`. */
@@ -1443,7 +1441,10 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   /** A dismissed datum stays closed until the pointer (or the keyboard) reaches a datum other than itself. */
   function reached(target: PickTarget | null): void {
-    if (target !== null && dismissed.length) dismissed = dismissed.filter(id => dismissedBy(id, target));
+    if (target !== null && dismissed !== null) {
+      const kept = dismissed.filter(id => dismissedBy(id, target));
+      dismissed = kept.length > 0 ? kept : null;
+    }
   }
 
   function pointTo(target: PickTarget | null): void {
@@ -1482,7 +1483,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   function onPointerMove(event: PointerEvent): void {
     if (event.pointerType === 'touch') {
-      const t = touches.get(event.pointerId);
+      const t = touches?.get(event.pointerId);
       if (t) {
         const at = local(event);
         t.x = at.x;
@@ -1587,9 +1588,10 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     if (keyed) setKeyed(false);
     const at = local(event);
     if (event.pointerType === 'touch') {
-      touches.set(event.pointerId, { ...at, x0: at.x, y0: at.y, t0: event.timeStamp, client: clientPoint(event) });
-      if (touches.size === 2 && d.zoom === 'touch' && d.view.kind !== 'donut') startPinch(d);
-      if (touches.size > 1) pinched = true;
+      const map = touches ??= new Map();
+      map.set(event.pointerId, { ...at, x0: at.x, y0: at.y, t0: event.timeStamp, client: clientPoint(event) });
+      if (map.size === 2 && d.zoom === 'touch' && d.view.kind !== 'donut') startPinch(d);
+      if (map.size > 1) pinched = true;
       return;
     }
     // One pointer owns a press at a time; a second one does not take the drag over.
@@ -1602,12 +1604,12 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   function onPointerUp(event: PointerEvent): void {
     const d = c;
     if (event.pointerType === 'touch') {
-      const t = touches.get(event.pointerId);
-      touches.delete(event.pointerId);
+      const t = touches?.get(event.pointerId);
+      touches?.delete(event.pointerId);
       // A pinch belongs to its two fingers: either lifting ends it, with its last move kept.
       if (pinch && pinch.ids.includes(event.pointerId)) endPinch();
       const wasPinch = pinched;
-      if (touches.size === 0) pinched = false;
+      if (!touches || touches.size === 0) pinched = false;
       // The fingers lifting after a pinch are not a tap.
       if (wasPinch) return;
       // The release's own position decides the tap and what it picks, not the last move (review finding 1).
@@ -1672,7 +1674,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     if (ref && mode === 'single' && focus?.kind === 'aligned' && target.kind === 'x') {
       ref = d.lookup.resolve({ kind: 'aligned', seriesKey: focus.seriesKey, x: target.x }) ?? ref;
     }
-    dismissed = [];
+    dismissed = null;
     shown = ref && presentationFor(d) !== 'none' ? { kind: 'pinned', ref, target } : { kind: 'hover', target };
     if (mouse && proxy) {
       clickFocus = true;
@@ -1693,14 +1695,14 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   function onPointerCancel(event: PointerEvent): void {
     if (event.pointerType === 'touch') {
       // The page took the gesture (a one-finger drag scrolls, spec I4): what it had not applied is dropped.
-      touches.delete(event.pointerId);
+      touches?.delete(event.pointerId);
       if (pinch && pinch.ids.includes(event.pointerId)) {
         pinch = null;
         if (pinchFrame !== 0) doc.defaultView?.cancelAnimationFrame(pinchFrame);
         pinchFrame = 0;
         pinchWindow = undefined;
       }
-      if (touches.size === 0) pinched = false;
+      if (!touches || touches.size === 0) pinched = false;
       return;
     }
     if (down && down.id !== event.pointerId) return;
@@ -1724,6 +1726,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   }
 
   function startPinch(d: Committed): void {
+    if (!touches) return;
     const [ia, ib] = [...touches.keys()];
     const a = ia === undefined ? undefined : touches.get(ia);
     const b = ib === undefined ? undefined : touches.get(ib);
@@ -1739,8 +1742,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   function pinchMove(): void {
     const d = c;
-    const a = pinch ? touches.get(pinch.ids[0]) : undefined;
-    const b = pinch ? touches.get(pinch.ids[1]) : undefined;
+    const a = pinch ? touches?.get(pinch.ids[0]) : undefined;
+    const b = pinch ? touches?.get(pinch.ids[1]) : undefined;
     if (!pinch || !a || !b || !plotReady(d) || d.view.kind === 'donut' || d.layout.kind !== 'plot') return;
     const distance = Math.max(1, Math.hypot(a.x - b.x, a.y - b.y));
     const { window, center } = pinch;
@@ -2041,13 +2044,6 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     if (inside && (!legendList || !legendList.contains(activeElement()))) focusFigure();
   }
 
-  /** Puts exactly `wanted`, in order, into `host`, moving rather than rebuilding. */
-  function place(host: HTMLElement, wanted: readonly Element[]): void {
-    placeChildren(host, wanted);
-    const hidden = wanted.length === 0;
-    if (host.hidden !== hidden) host.hidden = hidden;
-  }
-
   function controlInputs(d: ControlsState): readonly unknown[] {
     // A new frame can keep the same controls. Compare what the user sees and can activate.
     const { view } = d;
@@ -2093,13 +2089,15 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     const legend: Element[] = [];
     if (legendList) legend.push(legendList);
     if (items.length) legend.push(toolbar.element);
-    const where = d.legend === 'top' ? figure.top : d.legend === 'right' ? figure.side : figure.controls;
+    const slot = d.legend === 'top' ? 'top' : d.legend === 'right' ? 'side' : 'controls';
     if (tableView && !(d.reader.table && (d.ready || d.inspectable))) closeTable();
     else if (tableView) renderTable(d);
     // Captured after toolbar.render and closeTable so an heir button they just focused keeps focus across a move.
     const active = activeElement();
-    place(where, legend);
-    for (const other of [figure.top, figure.side, figure.controls]) if (other !== where) place(other, []);
+    figure.placeControls(slot, legend);
+    if (slot !== 'top') figure.placeControls('top', []);
+    if (slot !== 'side') figure.placeControls('side', []);
+    if (slot !== 'controls') figure.placeControls('controls', []);
     // Moving an element can take focus with it; the control the reader was on keeps it (review 2, finding 17).
     if (isFocusable(active) && active !== activeElement() && active.isConnected) active.focus({ preventScroll: true });
     // A toolbar that emptied under the reader hands focus to the figure, not the page (C2-17).
@@ -2108,6 +2106,45 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   }
 
   // ── commit ─────────────────────────────────────────────────────────────────────────────────────
+
+  /** Writes instruction runs as plain text when all share one language, and child spans only for mixed languages. */
+  function renderInstructions(
+    el: HTMLElement,
+    parts: readonly { text: string; lang: string | null }[],
+    proxyLang: string | null,
+    pageLang: string | null,
+  ): void {
+    if (parts.length === 0) {
+      if (el.firstElementChild || el.textContent !== '') el.textContent = '';
+      setAttr(el, 'lang', null);
+      return;
+    }
+    const langOf = (lang: string | null) => lang ?? (proxyLang ? pageLang : null);
+    const commonLang = langOf(parts[0]!.lang);
+    let shared = true;
+    for (let i = 1; i < parts.length; i++) {
+      if (langOf(parts[i]!.lang) !== commonLang) {
+        shared = false;
+        break;
+      }
+    }
+    if (shared) {
+      const combined = parts.length === 1 ? parts[0]!.text : parts.map(part => part.text).join(' ');
+      if (el.firstElementChild) el.textContent = combined;
+      else setText(el, combined);
+      setAttr(el, 'lang', commonLang);
+      return;
+    }
+    setAttr(el, 'lang', null);
+    if (!el.firstElementChild && el.firstChild) el.textContent = '';
+    for (let i = 0; i < parts.length; i++) {
+      const { text, lang } = parts[i]!;
+      const span = el.children[i] ?? el.appendChild(doc.createElement('span'));
+      setText(span, i === 0 ? text : ` ${text}`);
+      setAttr(span, 'lang', langOf(lang));
+    }
+    while (el.children.length > parts.length) el.lastElementChild!.remove();
+  }
 
   function placeProxy(d: Committed): void {
     if (!proxy || !ring) return;
@@ -2134,12 +2171,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     setAttr(proxy, 'aria-label', d.messages.plotLabel);
     if (instructions) {
       const parts = plotDescription(d);
-      for (const [i, { text, lang }] of parts.entries()) {
-        const span = instructions.children[i] ?? instructions.appendChild(doc.createElement('span'));
-        setText(span, i === 0 ? text : ` ${text}`);
-        setAttr(span, 'lang', lang ?? (proxyLang ? d.pageLang : null));
-      }
-      while (instructions.children.length > parts.length) instructions.lastElementChild!.remove();
+      renderInstructions(instructions, parts, proxyLang, d.pageLang);
       setAttr(proxy, 'aria-describedby', parts.length ? instructions.id : null);
     }
     setAttr(proxy, 'aria-roledescription', fill(d.messages.plotRole, { type: chartTypeName(d.messages, d.kind) }));
@@ -2205,7 +2237,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       // before anything is written, so the text, the ring and the tooltip agree, and the next hover is new
       // (review 3, interaction finding 5).
       mode = 'all';
-      dismissed = [];
+      dismissed = null;
       lastHover = null;
       shownText = null;
       focus = null;
@@ -2226,7 +2258,10 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
         }
         if (focus === null) mode = 'all';
         lastHover = map(lastHover);
-        dismissed = dismissed.flatMap(id => remapTarget(id, same) ?? []);
+        if (dismissed !== null) {
+          const kept = dismissed.flatMap(id => remapTarget(id, same) ?? []);
+          dismissed = kept.length > 0 ? kept : null;
+        }
         if (shown.kind === 'pinned') {
           const target = remapTarget(shown.target, same);
           const ref = same(shown.ref);
@@ -2359,7 +2394,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   /** What around the plot can change its size: which controls exist, where, and their labels. */
   function layoutSignature(): string {
-    return [figure.top, figure.side, figure.controls].map(host => host.hidden ? '' : host.textContent ?? '').join('\u0000');
+    return figure.controlsSignature();
   }
 
   /** Everything goes; a later full build starts from no input at all (new item 6; review C3-6). */
@@ -2382,7 +2417,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     range = null;
     mode = 'all';
     pointer = null;
-    dismissed = [];
+    dismissed = null;
     shownText = null;
     proxyFocused = false;
     fromClick = false;

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { areaData, pathData } from '../../src/render/svg';
 
 const f = (v: number): number => Math.round(v * 100) / 100;
@@ -27,5 +27,27 @@ describe('svg byte-buffer path serializer edge cases', () => {
     expect(d).toBe(
       `M0 10L${f(upper[2]!)} 20L${f(lower[2]!)} ${f(lower[3]!)}L0 0Z`,
     );
+  });
+
+  it('releases scratch storage over 16 KiB and reuses the next small buffer', () => {
+    const decode = vi.spyOn(TextDecoder.prototype, 'decode');
+    try {
+      const large = new Float32Array(2 * 1024);
+      const small = Float32Array.of(1, 2, 3, 4);
+      pathData(large);
+      pathData(small);
+      pathData(small);
+
+      const [first, second, third] = decode.mock.calls.map(([bytes]) => {
+        if (!(bytes instanceof Uint8Array)) throw new Error('Expected a byte view');
+        return bytes.buffer;
+      });
+      expect(first!.byteLength).toBeGreaterThan(16 * 1024);
+      expect(second!.byteLength).toBeLessThanOrEqual(16 * 1024);
+      expect(second).not.toBe(first);
+      expect(third).toBe(second);
+    } finally {
+      decode.mockRestore();
+    }
   });
 });

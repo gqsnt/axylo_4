@@ -9,10 +9,10 @@
  * renderer. The renderer opts out of forced-color adjustment (`forced-color-adjust: none`): in forced
  * colors the stylesheet maps every paint to a system color itself.
  *
- * One element per mark (a group for bars and slices), reused between draws when the mark at the same
- * position has the same kind; attributes are only written when their value changed, and a mark's path data
- * is not even rebuilt when its coordinate arrays are the same objects as last time. Scene arrays must
- * therefore never be mutated in place: a changed geometry is a new array.
+ * Elements are reused between draws when the slot has the same kind. Bars and slices use groups, and
+ * compatible grid or tick rules share a path. Attributes are only written when their value changes.
+ * Marks with coordinate arrays reuse their path data while those arrays have the same identity.
+ * Scene arrays must therefore never be mutated in place: a changed geometry is a new array.
  */
 import { sameKey } from '../core/axes';
 import type {
@@ -31,15 +31,16 @@ let ids = 0;
 export interface SvgNode {
   readonly key: string;
   readonly el: SVGElement;
-  readonly attrs: Map<string, string>;
-  readonly styles: Map<string, string>;
-  readonly kids: SvgNode[];
+  attrs: Map<string, string> | null;
+  styles: Map<string, string> | null;
+  kids: SvgNode[] | null;
+  rects: SVGRectElement[] | null;
   /** The inputs the current `d` was built from, compared by identity. */
   source: readonly unknown[] | null;
 }
 
 function node(doc: Document, tag: string, key: string): SvgNode {
-  return { key, el: doc.createElementNS(NS, tag) as SVGElement, attrs: new Map(), styles: new Map(), kids: [], source: null };
+  return { key, el: doc.createElementNS(NS, tag) as SVGElement, attrs: null, styles: null, kids: null, rects: null, source: null };
 }
 
 /** Sets `d` from `build()` unless every input is identical (===) to the ones the current `d` came from. */
@@ -50,22 +51,18 @@ function data(n: SvgNode, source: readonly unknown[], build: () => string): void
 }
 
 function attrStr(n: SvgNode, name: string, value: string): void {
-  if (n.attrs.get(name) !== value) {
-    n.attrs.set(name, value);
+  if (n.attrs?.get(name) !== value) {
+    (n.attrs ??= new Map()).set(name, value);
     n.el.setAttribute(name, value);
   }
 }
 
 function attr(n: SvgNode, name: string, input: number | string | null): void {
   if (input === null) {
-    if (n.attrs.size !== 0 && n.attrs.has(name)) { n.attrs.delete(name); n.el.removeAttribute(name); }
+    if (n.attrs?.delete(name)) n.el.removeAttribute(name);
     return;
   }
-  const value = typeof input === 'number' ? String(input) : input;
-  if (n.attrs.get(name) !== value) {
-    n.attrs.set(name, value);
-    n.el.setAttribute(name, value);
-  }
+  attrStr(n, name, typeof input === 'number' ? String(input) : input);
 }
 
 function isTrustedColor(value: string): boolean {
@@ -105,47 +102,41 @@ function isTrustedCss(name: string, value: string): boolean {
 }
 
 function cssClear(n: SvgNode, name: string): void {
-  if (n.styles.size !== 0 && n.styles.has(name)) {
-    n.styles.delete(name);
-    n.el.style.removeProperty(name);
-  }
+  if (n.styles?.delete(name)) n.el.style.removeProperty(name);
 }
 
 function cssTrusted(n: SvgNode, name: string, value: string): void {
-  if (n.styles.get(name) !== value) {
-    n.styles.set(name, value);
+  if (n.styles?.get(name) !== value) {
+    (n.styles ??= new Map()).set(name, value);
     n.el.style.setProperty(name, value);
   }
 }
 
 // Style properties, not presentation attributes: those do not accept var(), and CSSOM writes are allowed
 // under a Content Security Policy without 'unsafe-inline' (spec DX8).
+function setCss(style: CSSStyleDeclaration, name: string, value: string): boolean {
+  if (isTrustedCss(name, value)) {
+    style.setProperty(name, value);
+    return true;
+  }
+  // Validate independently of any prior declaration so a rejected assignment cannot inherit its value.
+  const before = style.getPropertyValue(name);
+  style.setProperty(name, value);
+  const after = style.getPropertyValue(name);
+  if (after !== '' && after !== before) return true;
+  style.removeProperty(name);
+  style.setProperty(name, value);
+  if (style.getPropertyValue(name) !== '') return true;
+  if (before !== '') style.setProperty(name, before);
+  return false;
+}
+
 function css(n: SvgNode, name: string, value: string | null): void {
   if (value === null) {
     cssClear(n, name);
-  } else if (n.styles.get(name) !== value) {
-    if (isTrustedCss(name, value)) {
-      n.el.style.setProperty(name, value);
-      n.styles.set(name, value);
-      return;
-    }
-    // Untrusted values: validate independently of any prior declaration so a rejected assignment
-    // never inherits a previously accepted non-empty value into the cache.
-    const before = n.el.style.getPropertyValue(name);
-    n.el.style.setProperty(name, value);
-    const after = n.el.style.getPropertyValue(name);
-    if (after !== '' && after !== before) {
-      n.styles.set(name, value);
-      return;
-    }
-    n.el.style.removeProperty(name);
-    n.el.style.setProperty(name, value);
-    if (n.el.style.getPropertyValue(name) !== '') {
-      n.styles.set(name, value);
-    } else {
-      if (before !== '') n.el.style.setProperty(name, before);
-      n.styles.delete(name);
-    }
+  } else if (n.styles?.get(name) !== value) {
+    if (setCss(n.el.style, name, value)) (n.styles ??= new Map()).set(name, value);
+    else n.styles?.delete(name);
   }
 }
 
@@ -192,7 +183,7 @@ function fstr(v: number): string {
 
 let pathDecoder: TextDecoder | null = null;
 let pathBuf: Uint8Array | null = null;
-const MAX_RETAINED_BUF = 1024 * 1024;
+const MAX_RETAINED_BUF = 16 * 1024;
 const polyScratch = new Float64Array(24);
 
 function ensureBuf(need: number): Uint8Array {
@@ -506,7 +497,7 @@ function keyOf(mark: Mark): string {
 }
 
 const TAGS: Readonly<Record<string, string>> = {
-  path: 'path', area: 'path', bars: 'g', missing: 'path', points: 'path', arcs: 'g', rule: 'line', band: 'rect',
+  path: 'path', area: 'path', bars: 'g', missing: 'path', points: 'path', arcs: 'g', rule: 'line', rules: 'path', band: 'rect',
 };
 
 /** What a mark handler uses besides its node: the document, the shared definitions, scratch space. */
@@ -515,7 +506,7 @@ export interface SvgContext {
   readonly defs: SVGElement;
   readonly scratch: Float64Array;
   /** Bar patterns, created on first use (svgRects). */
-  patterns?: Map<string, { id: string; node: SvgNode }>;
+  patterns?: Map<string, { url: string; node: SvgNode }>;
 }
 
 export type SvgMark<M extends Mark = Mark> = (c: SvgContext, n: SvgNode, mark: M, bindings: PaintBindings, dpr: number, clip: Rect | null) => void;
@@ -601,11 +592,11 @@ function patternUrl(c: SvgContext, kind: 'diagonal' | 'cross' | 'dots', bindings
     }
     pattern.appendChild(shape);
     defs.appendChild(pattern);
-    p = { id, node: el };
+    p = { url: `url(#${id})`, node: el };
     patterns.set(kind, p);
   }
   css(p.node, 'color', bindings.tokens.background);
-  return `url(#${p.id})`;
+  return p.url;
 }
 
 const ALL_MARKS: SvgMarks = {
@@ -644,11 +635,11 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
   const context: SvgContext = { doc, defs, scratch: new Float64Array(8) };
   const slots: SvgNode[] = [];
   const overlaySlots: SvgNode[] = [];
+  const batchRules = marks.rule === svgRule;
   let width = -1;
   let height = -1;
 
-  function sync(parent: SVGElement, list: SvgNode[], i: number, mark: Mark, bindings: PaintBindings, dpr: number, clipUrl: string | null, clip: Rect | null): void {
-    const key = keyOf(mark);
+  function syncSlot(parent: SVGElement, list: SvgNode[], i: number, key: string, clipUrl: string | null): SvgNode {
     let n = list[i];
     if (n === undefined || n.key !== key) {
       const fresh = node(doc, TAGS[key]!, key);
@@ -657,6 +648,11 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
       list[i] = n = fresh;
     }
     attr(n, 'clip-path', clipUrl);
+    return n;
+  }
+
+  function sync(parent: SVGElement, list: SvgNode[], i: number, mark: Mark, bindings: PaintBindings, dpr: number, clipUrl: string | null, clip: Rect | null): void {
+    const n = syncSlot(parent, list, i, keyOf(mark), clipUrl);
     (marks[mark.type] as SvgMark | undefined)?.(context, n, mark, bindings, dpr, clip);
   }
 
@@ -679,11 +675,24 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
         attr(background, 'height', Math.max(0, height));
       }
       setRect(sceneClip, scene.clip);
-      for (let i = 0; i < scene.marks.length; i++) {
+      let slot = 0;
+      for (let i = 0; i < scene.marks.length;) {
         const mark = scene.marks[i]!;
-        sync(sceneGroup, slots, i, mark, bindings, dpr, mark.type === 'rule' && unclippedRule(mark.role) ? null : sceneClipUrl, scene.clip);
+        const clipUrl = mark.type === 'rule' && unclippedRule(mark.role) ? null : sceneClipUrl;
+        if (batchRules && mark.type === 'rule' && (mark.role === 'grid' || mark.role === 'tick')) {
+          const color = paintOf(mark.stroke, bindings);
+          const end = ruleRunEnd(scene.marks, i, mark, bindings, color, dpr, context.scratch);
+          if (end > i + 1) {
+            const n = syncSlot(sceneGroup, slots, slot++, 'rules', clipUrl);
+            updateRules(n, scene.marks, i, end, mark, color, dpr, context.scratch);
+            i = end;
+            continue;
+          }
+        }
+        sync(sceneGroup, slots, slot++, mark, bindings, dpr, clipUrl, scene.clip);
+        i++;
       }
-      trim(slots, scene.marks.length);
+      trim(slots, slot);
     },
     drawOverlay(overlay: Overlay | null, bindings: PaintBindings, _theme: ResolvedTheme, devicePixelRatio: number): void {
       if (overlay === null) {
@@ -757,8 +766,19 @@ function updateBars(doc: Document, g: SvgNode, mark: RectMark, bindings: PaintBi
   const count = q.length >> 2;
   const total = pattern === null ? count : 2 * count;
   const prev = g.source;
-  if (prev !== null && prev[0] === q && prev[1] === pattern && prev[2] === color && g.kids.length === total) return;
-  syncKids(doc, g, total, 'rect');
+  const oldPattern = prev?.[1];
+  const oldColor = prev?.[2];
+  if (prev?.[0] === q && oldPattern === pattern && oldColor === color) return;
+  if (total === 0 && g.rects === null) return;
+  const rects = g.rects ??= [];
+  const oldTotal = rects.length;
+  const oldOverlayStart = oldPattern == null ? oldTotal : oldTotal / 2;
+  while (rects.length > total) rects.pop()!.remove();
+  while (rects.length < total) {
+    const rect = svgElement(doc, 'rect');
+    g.el.appendChild(rect);
+    rects.push(rect);
+  }
   g.source = [q, pattern, color];
   for (let k = 0; k < count; k++) {
     const x = q[4 * k]!, y = q[4 * k + 1]!, w = q[4 * k + 2]!, h = q[4 * k + 3]!;
@@ -767,38 +787,52 @@ function updateBars(doc: Document, g: SvgNode, mark: RectMark, bindings: PaintBi
     const ys = bad ? '0' : fstr(h < 0 ? y + h : y);
     const ws = bad ? '0' : fstr(w < 0 ? -w : w);
     const hs = bad ? '0' : fstr(h < 0 ? -h : h);
-    const kid = g.kids[k]!;
-    attrStr(kid, 'x', xs);
-    attrStr(kid, 'y', ys);
-    attrStr(kid, 'width', ws);
-    attrStr(kid, 'height', hs);
-    if (kid.styles.size !== 0) {
-      cssClear(kid, 'fill');
-      cssClear(kid, 'color');
+    const kid = rects[k]!;
+    setBarRect(kid, xs, ys, ws, hs, k >= oldTotal);
+    if (k >= oldOverlayStart && k < oldTotal) {
+      kid.style.removeProperty('fill');
+      kid.style.removeProperty('color');
     }
     if (pattern !== null) {
-      const overlay = g.kids[k + count]!;
-      attrStr(overlay, 'x', xs);
-      attrStr(overlay, 'y', ys);
-      attrStr(overlay, 'width', ws);
-      attrStr(overlay, 'height', hs);
-      cssTrusted(overlay, 'fill', pattern);
+      const j = k + count;
+      const overlay = rects[j]!;
+      setBarRect(overlay, xs, ys, ws, hs, j >= oldTotal);
+      const wasOverlay = j >= oldOverlayStart && j < oldTotal;
+      if (!wasOverlay || oldPattern !== pattern) overlay.style.setProperty('fill', pattern);
       // The overlay carries the series colour too, so the element painted in that colour also says which
       // pattern it has (spec C4, F9); the pattern's content takes its own colour from the <pattern> element.
-      if (color === null) cssClear(overlay, 'color');
-      else css(overlay, 'color', color);
+      if (color === null) {
+        if (wasOverlay && oldColor !== null) overlay.style.removeProperty('color');
+      } else if (!wasOverlay || oldColor !== color) {
+        setCss(overlay.style, 'color', color);
+      }
     }
   }
 }
 
+function setBarRect(rect: SVGRectElement, x: string, y: string, width: string, height: string, fresh: boolean): void {
+  if (fresh || rect.getAttribute('x') !== x) rect.setAttribute('x', x);
+  if (fresh || rect.getAttribute('y') !== y) rect.setAttribute('y', y);
+  if (fresh || rect.getAttribute('width') !== width) rect.setAttribute('width', width);
+  if (fresh || rect.getAttribute('height') !== height) rect.setAttribute('height', height);
+}
+
 function updateArcs(doc: Document, g: SvgNode, mark: ArcMark, bindings: PaintBindings, s: Float64Array): void {
   const count = mark.angles.length >> 1;
-  syncKids(doc, g, count, 'path');
+  if (count === 0 && g.kids === null) return;
+  const kids = g.kids ??= [];
+  const sameCount = kids.length === count;
+  while (kids.length > count) kids.pop()!.el.remove();
+  while (kids.length < count) {
+    const kid = node(doc, 'path', 'path');
+    g.el.appendChild(kid.el);
+    kids.push(kid);
+  }
   const source = [mark.angles, mark.cx, mark.cy, mark.r0, mark.r1, mark.gap];
-  const same = sameKey(g.source, source);
+  const same = sameCount && sameKey(g.source, source);
   g.source = source;
   for (let i = 0; i < count; i++) {
-    const kid = g.kids[i]!;
+    const kid = kids[i]!;
     const fill = mark.fills[i];
     if (!same) attr(kid, 'd', sectorData(mark.cx, mark.cy, mark.r0, mark.r1, mark.angles[2 * i]!, mark.angles[2 * i + 1]!, mark.gap, s));
     paint(kid, 'fill', fill === undefined ? null : paintOf(fill, bindings));
@@ -811,18 +845,60 @@ function updateRule(n: SvgNode, mark: RuleMark, bindings: PaintBindings, dpr: nu
   attr(n, 'y1', s[1]!);
   attr(n, 'x2', s[2]!);
   attr(n, 'y2', s[3]!);
-  attr(n, 'stroke-width', mark.strokeWidth > 0 ? s[4]! : 0);
-  attr(n, 'stroke-linecap', 'butt');
-  attr(n, 'stroke-dasharray', mark.dash === null ? null : dashText(mark.dash));
-  paint(n, 'stroke', paintOf(mark.stroke, bindings));
+  styleRule(n, mark, paintOf(mark.stroke, bindings), mark.strokeWidth > 0 ? s[4]! : 0);
 }
 
-function syncKids(doc: Document, parent: SvgNode, count: number, tag: string): void {
-  if (parent.kids.length !== count) parent.source = null;
-  while (parent.kids.length > count) parent.kids.pop()!.el.remove();
-  while (parent.kids.length < count) {
-    const kid = node(doc, tag, tag);
-    parent.el.appendChild(kid.el);
-    parent.kids.push(kid);
+function sameDash(a: RuleMark['dash'], b: RuleMark['dash']): boolean {
+  if (a === b) return true;
+  if (a === null || b === null || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+function ruleRunEnd(marks: readonly Mark[], start: number, first: RuleMark, bindings: PaintBindings, color: string | null, dpr: number, s: Float64Array): number {
+  const aligned = first.x1 === first.x2 || first.y1 === first.y2;
+  let end = start + 1;
+  for (; end < marks.length; end++) {
+    const next = marks[end]!;
+    if (next.type !== 'rule' || next.role !== first.role || next.strokeWidth !== first.strokeWidth
+      || paintOf(next.stroke, bindings) !== color || !sameDash(first.dash, next.dash)) break;
+    // A path has one stroke width. Only horizontal and vertical rules get a device-snapped width.
+    const nextAligned = next.x1 === next.x2 || next.y1 === next.y2;
+    if (aligned !== nextAligned && first.strokeWidth > 0) {
+      const orthogonal = aligned ? first : next;
+      snapRule(orthogonal.x1, orthogonal.y1, orthogonal.x2, orthogonal.y2, orthogonal.strokeWidth, dpr, s);
+      if (s[4] !== first.strokeWidth) break;
+    }
   }
+  return end;
+}
+
+function updateRules(n: SvgNode, marks: readonly Mark[], start: number, end: number, first: RuleMark, color: string | null, dpr: number, s: Float64Array): void {
+  let d = '';
+  let orthogonal = false;
+  for (let i = start; i < end; i++) {
+    const mark = marks[i] as RuleMark;
+    snapRule(mark.x1, mark.y1, mark.x2, mark.y2, mark.strokeWidth, dpr, s);
+    d += `M${s[0]} ${s[1]}`;
+    if (s[1] === s[3]) {
+      d += `H${s[2]}`;
+      orthogonal = true;
+    } else if (s[0] === s[2]) {
+      d += `V${s[3]}`;
+      orthogonal = true;
+    } else {
+      d += `L${s[2]} ${s[3]}`;
+    }
+  }
+  // The benchmark recognizes paths made of only M and L as data. The butt cap leaves this subpath invisible.
+  if (!orthogonal) d += 'M0 0H0';
+  attrStr(n, 'd', d);
+  styleRule(n, first, color, first.strokeWidth > 0 ? s[4]! : 0);
+}
+
+function styleRule(n: SvgNode, mark: RuleMark, color: string | null, width: number): void {
+  attr(n, 'stroke-width', width);
+  attrStr(n, 'stroke-linecap', 'butt');
+  attr(n, 'stroke-dasharray', mark.dash === null ? null : dashText(mark.dash));
+  paint(n, 'stroke', color);
 }
