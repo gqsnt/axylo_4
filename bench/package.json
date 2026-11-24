@@ -15,6 +15,7 @@
     "chart.js": "^4.6.1",
     "chartjs-adapter-date-fns": "^3.0.0",
     "date-fns": "^4.4.0",
+    "echarts": "^6.1.0",
     "uplot": "^1.6.32"
   }
 }
