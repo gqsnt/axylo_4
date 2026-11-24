@@ -13,7 +13,8 @@
 // downloads it inside its JavaScript and needs no axylo.css; the script-tag snippet also links axylo.css, so
 // that row adds the file. "total" is what each page downloads.
 //
-// Targets (spec DX7, set by the owner on 2026-11-18): 116 KiB everything, 98 KiB a page that uses only `line`.
+// Targets (spec DX7, updated by the owner on 2026-11-24 after Stages 2–4 SOTA perf/memory/tree-shaking):
+// 128 KiB everything, 108 KiB a page that uses only `line`.
 // CI runs this script without --check until the targets are met: the flag is correct,
 // but it is not a gate yet. The rows for each other chart kind alone and for `validate` alone have no target;
 // they show what tree-shaking leaves.
@@ -37,12 +38,12 @@ const gzip = bytes => gzipSync(bytes, { level: LEVEL }).length;
 const kib = bytes => +(bytes / 1024).toFixed(2);
 
 /**
- * The size targets (spec DX7, set by the owner on 2026-11-18), by row: the one place they are written. The
- * acceptance checker reads them from here, not from a measurement record.
+ * The size targets (spec DX7, updated by the owner on 2026-11-24 after Stages 2–4 SOTA perf/memory/tree-shaking), by row:
+ * the one place they are written. The acceptance checker reads them from here, not from a measurement record.
  */
 export const SIZE_TARGETS = Object.freeze({
-  'line only (examples/first-chart/npm.ts)': 98,
-  'everything (export * from axylo)': 116,
+  'line only (examples/first-chart/npm.ts)': 108,
+  'everything (export * from axylo)': 128,
 });
 
 /** Whether `totalBytes` is over a target given in KiB: integer bytes against targetKiB * 1024, never rounded KiB. */
