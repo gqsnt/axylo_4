@@ -30,7 +30,7 @@ const readJson = p => JSON.parse(fs.readFileSync(p, 'utf8'));
 
 export function libraryVersions(source = REPO) {
   const v = {};
-  for (const name of ['uplot', 'chart.js', 'chartjs-adapter-date-fns', 'date-fns']) {
+  for (const name of ['uplot', 'chart.js', 'chartjs-adapter-date-fns', 'date-fns', 'echarts']) {
     try { v[name] = readJson(path.join(BENCH, 'node_modules', name, 'package.json')).version; } catch { v[name] = 'not available: not installed'; }
   }
   try { v.axylo = readJson(path.join(source, 'packages/axylo/package.json')).version; } catch { v.axylo = 'not available'; }
