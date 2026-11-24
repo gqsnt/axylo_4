@@ -58,10 +58,10 @@ export function linearTickCandidates(domain: readonly [number, number], format: 
   // A width that no nice step can resolve (subnormal, or below the precision of the values) gets one tick.
   // Divided before subtracting, so that [-1e308, 1e308] does not overflow.
   const width = hi / (MAX_TICKS - 1) - lo / (MAX_TICKS - 1);
+  const single = (value: number): Tick[] => [{ value, label: format(value, { step: 0, maxAbs: Math.abs(value) }) }];
   const tooNarrow = !(width > 0) || hi - lo <= 4 * Number.EPSILON * Math.max(Math.abs(lo), Math.abs(hi));
   if (lo === hi || tooNarrow) {
-    const v = lo === 0 ? 0 : lo;
-    return [[{ value: v, label: format(v, { step: 0, maxAbs: Math.abs(v) }) }]];
+    return [single(lo === 0 ? 0 : lo)];
   }
   const sets: Tick[][] = [];
   let step = niceStepAtLeast(width);
@@ -95,14 +95,13 @@ export function linearTickCandidates(domain: readonly [number, number], format: 
   }
   // Every step was below the resolution of the values: one tick, as for a domain too narrow to divide.
   if (sets.length === 0) {
-    const v = lo === 0 ? 0 : lo;
-    return [[{ value: v, label: format(v, { step: 0, maxAbs: Math.abs(v) }) }]];
+    return [single(lo === 0 ? 0 : lo)];
   }
   // A coarser step can jump from several multiples straight to none.
   const last = sets[sets.length - 1]!;
   if (last.length > 1) {
     const v = lo <= 0 && hi >= 0 ? 0 : last[0]!.value;
-    sets.push([{ value: v, label: format(v, { step: 0, maxAbs: Math.abs(v) }) }]);
+    sets.push(single(v));
   }
   return sets;
 }

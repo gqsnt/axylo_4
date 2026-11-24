@@ -54,18 +54,14 @@ function iv(unit: TimeUnit, n: number): Interval {
 let subYear: readonly Interval[] | null = null;
 
 /** Calendar intervals finer than a year, finest first. Multiples divide the next unit, so ticks stay aligned. */
-const subYearIntervals = (): readonly Interval[] => subYear ??= [
-  iv('millisecond', 1), iv('millisecond', 2), iv('millisecond', 5), iv('millisecond', 10), iv('millisecond', 20),
-  iv('millisecond', 50), iv('millisecond', 100), iv('millisecond', 200), iv('millisecond', 500),
-  iv('second', 1), iv('second', 2), iv('second', 5), iv('second', 10), iv('second', 15), iv('second', 30),
-  iv('minute', 1), iv('minute', 2), iv('minute', 5), iv('minute', 10), iv('minute', 15), iv('minute', 30),
-  iv('hour', 1), iv('hour', 2), iv('hour', 3), iv('hour', 6), iv('hour', 12),
-  iv('day', 1), iv('day', 2),
-  iv('week', 1),
-  iv('month', 1), iv('month', 2), iv('month', 3), iv('month', 6),
-];
-
 const UNIT_ORDER: readonly TimeUnit[] = ['millisecond', 'second', 'minute', 'hour', 'day', 'week', 'month', 'year'];
+const clockSteps = [1, 2, 5, 10, 15, 30];
+const subYearSteps = [
+  [1, 2, 5, 10, 20, 50, 100, 200, 500], clockSteps, clockSteps,
+  [1, 2, 3, 6, 12], [1, 2], [1], [1, 2, 3, 6],
+];
+const subYearIntervals = (): readonly Interval[] => subYear ??=
+  subYearSteps.flatMap((steps, i) => steps.map(n => iv(UNIT_ORDER[i]!, n)));
 
 export interface TimeTickOptions {
   readonly kind: 'time' | 'date' | 'wall';
@@ -141,8 +137,8 @@ function finish(sets: Tick[][], lo: number, zone: string, options: TimeTickOptio
 
 // ───────────────────────────── boundaries ─────────────────────────────
 
-function isFixed(unit: TimeUnit): boolean {
-  return unit === 'millisecond' || unit === 'second' || unit === 'minute' || unit === 'hour';
+function appendBoundaries(out: number[], first: number, last: number, step: number): void {
+  for (let t = first, k = 0; t <= last && k < MAX_BOUNDARIES; t += step, k++) out.push(t);
 }
 
 /** Instants in [lo, hi] on the interval's boundaries in `zone`, ascending, without duplicates. */
@@ -151,10 +147,10 @@ function boundaries(interval: Interval, lo: number, hi: number, zone: string, lo
     // Zone offsets are whole seconds, so millisecond boundaries are the same in every zone.
     const out: number[] = [];
     // Bounded: callers only ask for intervals with a few ticks in the domain.
-    for (let t = Math.ceil(lo / interval.n) * interval.n, k = 0; t <= hi && k < MAX_BOUNDARIES; t += interval.n, k++) out.push(t);
+    appendBoundaries(out, Math.ceil(lo / interval.n) * interval.n, hi, interval.n);
     return out;
   }
-  if (isFixed(interval.unit)) return clockBoundaries(interval.n * UNIT_MS[interval.unit], lo, hi, zone);
+  if (UNIT_MS[interval.unit] <= HOUR) return clockBoundaries(interval.n * UNIT_MS[interval.unit], lo, hi, zone);
   // Wall time of an instant moves back by at most the size of a fold (two hours in any zone in use), so a
   // three-hour margin covers every boundary whose instant lies in [lo, hi]. Day and coarser units have at
   // most one boundary in the margin, so it costs nothing.
@@ -178,7 +174,7 @@ function boundaries(interval: Interval, lo: number, hi: number, zone: string, lo
 function clockBoundaries(size: number, lo: number, hi: number, zone: string): number[] {
   const out: number[] = [];
   const push = (from: number, to: number, offset: number): void => {
-    for (let t = Math.ceil((from + offset) / size) * size - offset, k = 0; t <= to && k < MAX_BOUNDARIES; t += size, k++) out.push(t);
+    appendBoundaries(out, Math.ceil((from + offset) / size) * size - offset, to, size);
   };
   const offLo = zoneOffset(zone, lo);
   const offHi = zoneOffset(zone, hi);
@@ -201,7 +197,7 @@ function wallBoundaries(interval: Interval, wallLo: number, wallHi: number, loca
   if (unit === 'day') {
     // Days count from 1970-01-01, which keeps 2-day ticks evenly spaced across month ends.
     const size = n * UNIT_MS[unit];
-    for (let w = Math.ceil(wallLo / size) * size, k = 0; w <= wallHi && k < MAX_BOUNDARIES; w += size, k++) out.push(w);
+    appendBoundaries(out, Math.ceil(wallLo / size) * size, wallHi, size);
     return out;
   }
   if (unit === 'week') {
@@ -209,7 +205,7 @@ function wallBoundaries(interval: Interval, wallLo: number, wallHi: number, loca
     let day = Math.ceil(wallLo / DAY);
     // 1970-01-01 was a Thursday (weekday 4, Sunday = 0).
     for (let k = 0; k < 7 && (((day + 4) % 7) + 7) % 7 !== first; k++) day++;
-    for (let w = day * DAY, k = 0; w <= wallHi && k < MAX_BOUNDARIES; w += 7 * DAY, k++) out.push(w);
+    appendBoundaries(out, day * DAY, wallHi, 7 * DAY);
     return out;
   }
   // Month and year loops run over the years of the range, so they end even where a boundary is not
@@ -263,35 +259,19 @@ function customLabel(custom: ((position: number) => string) | null | undefined, 
 type Level = 'year' | 'month' | 'day' | 'minute' | 'second' | 'millisecond';
 
 function levelOf(unit: TimeUnit): Level {
-  switch (unit) {
-    case 'year': return 'year';
-    case 'month': return 'month';
-    case 'week':
-    case 'day': return 'day';
-    case 'hour':
-    case 'minute': return 'minute';
-    case 'second': return 'second';
-    default: return 'millisecond';
-  }
+  return unit === 'week' ? 'day' : unit === 'hour' ? 'minute' : unit;
 }
 
 /** Options for the short label, and for the label that adds the context (year, or date) it depends on. */
 function labelOptions(level: Level): { short: Intl.DateTimeFormatOptions; context: Intl.DateTimeFormatOptions | null } {
+  if (level === 'year') return { short: { year: 'numeric' }, context: null };
+  const date: Intl.DateTimeFormatOptions = { month: 'short' };
+  if (level !== 'month') date.day = 'numeric';
+  if (level === 'month' || level === 'day') return { short: date, context: { ...date, year: 'numeric' } };
   const clock: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' };
-  switch (level) {
-    case 'year': return { short: { year: 'numeric' }, context: null };
-    case 'month': return { short: { month: 'short' }, context: { month: 'short', year: 'numeric' } };
-    case 'day': return { short: { month: 'short', day: 'numeric' }, context: { month: 'short', day: 'numeric', year: 'numeric' } };
-    case 'minute': return { short: clock, context: { month: 'short', day: 'numeric', ...clock } };
-    case 'second': {
-      const o: Intl.DateTimeFormatOptions = { ...clock, second: '2-digit' };
-      return { short: o, context: { month: 'short', day: 'numeric', ...o } };
-    }
-    default: {
-      const o: Intl.DateTimeFormatOptions = { ...clock, second: '2-digit', fractionalSecondDigits: 3 };
-      return { short: o, context: { month: 'short', day: 'numeric', ...o } };
-    }
-  }
+  if (level !== 'minute') clock.second = '2-digit';
+  if (level === 'millisecond') clock.fractionalSecondDigits = 3;
+  return { short: clock, context: { ...date, ...clock } };
 }
 
 /**

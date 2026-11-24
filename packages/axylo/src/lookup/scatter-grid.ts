@@ -123,18 +123,15 @@ export function scatterGrid(
     const counts = new Int32Array((columns + 1) * (rows + 1));
     // Summed-area table, one row and column of zeros in front.
     for (let at = 0; at < length; at++) counts[(row(ys[at]!) + 1) * (columns + 1) + column(xs[at]!) + 1]!++;
-    for (let r = 1; r <= rows; r++) {
-      for (let c = 1; c <= columns; c++) {
-        const i = r * (columns + 1) + c;
-        counts[i] = counts[i]! + counts[i - 1]! + counts[i - columns - 1]! - counts[i - columns - 2]!;
-      }
-    }
     let densest = 0;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < columns; c++) {
-        const r1 = Math.min(rows, r + 4);
-        const c1 = Math.min(columns, c + 4);
-        const sum = counts[r1 * (columns + 1) + c1]! - counts[r * (columns + 1) + c1]! - counts[r1 * (columns + 1) + c]! + counts[r * (columns + 1) + c]!;
+    const stride = columns + 1;
+    for (let r = 1; r <= rows; r++) {
+      const above = Math.max(0, r - 4) * stride;
+      for (let c = 1; c <= columns; c++) {
+        const i = r * stride + c;
+        const left = Math.max(0, c - 4);
+        counts[i] = counts[i]! + counts[i - 1]! + counts[i - stride]! - counts[i - stride - 1]!;
+        const sum = counts[i]! - counts[above + c]! - counts[r * stride + left]! + counts[above + left]!;
         densest = Math.max(densest, sum);
       }
     }
@@ -259,21 +256,13 @@ export function scatterGrid(
     // After the trees have arranged `order`: a bucket holds a representative iff its range holds its place.
     for (let i = 0; i < end; i++) placed[order[i]!] = i;
 
+    const squaredDistance = (at: number, x: number, y: number) => (px[at]! - x) ** 2 + (py[at]! - y) ** 2;
+    const otherCount = (bucket: Bucket, own: number) =>
+      bucket.count - (placed[own]! >= bucket.start && placed[own]! < bucket.end ? multiplicity[own]! : 0);
+
     function pick(x: number, y: number, limit: number): ScatterPick | null {
       // The window covers every compared position within the radius, and every 0.5 px neighbourhood of one.
-      const radius = CELL + COINCIDENT;
-      const left = column(x - radius);
-      const right = column(x + radius);
-      const top = row(y - radius);
-      const bottom = row(y + radius);
-      const nearby: Bucket[] = [];
-      for (let cy = top; cy <= bottom; cy++) {
-        for (let cx = left; cx <= right; cx++) {
-          if (trackWork) cellsExamined++;
-          const bucket = buckets.get(cx + cy * columns);
-          if (bucket) nearby.push(bucket);
-        }
-      }
+      const nearby = around(x, y, CELL + COINCIDENT, true);
       const visit = () => {
         if (++examined > limit) throw OVER_BUDGET;
       };
@@ -282,7 +271,7 @@ export function scatterGrid(
       let best = RADIUS2;
       function consider(at: number): void {
         visit();
-        const distance = (px[at]! - x) ** 2 + (py[at]! - y) ** 2;
+        const distance = squaredDistance(at, x, y);
         if (distance < best || distance === best && (nearest < 0 || later(at, nearest))) {
           nearest = at;
           best = distance;
@@ -326,7 +315,7 @@ export function scatterGrid(
             const at = order[i]!;
             if (!later(at, nearest)) continue;
             visit();
-            if (inTie((px[at]! - x) ** 2 + (py[at]! - y) ** 2)) nearest = at;
+            if (inTie(squaredDistance(at, x, y))) nearest = at;
           }
         }
       }
@@ -335,13 +324,17 @@ export function scatterGrid(
       return { hits: members(nearest, 0, POINT_LIMIT), count: groupSize(nearest, visit) };
     }
 
-    const near = (at: number, cx: number, cy: number) => (px[at]! - cx) ** 2 + (py[at]! - cy) ** 2 <= COINCIDENT2;
+    const near = (at: number, cx: number, cy: number) => squaredDistance(at, cx, cy) <= COINCIDENT2;
 
-    /** The cells' trees that can hold a position within 0.5 px of (cx, cy), in cell order. */
-    function around(cx: number, cy: number): Bucket[] {
+    /** Trees intersecting the search square, in cell order. */
+    function around(cx: number, cy: number, radius = COINCIDENT, picking = false): Bucket[] {
       const found: Bucket[] = [];
-      for (let r = row(cy - COINCIDENT); r <= row(cy + COINCIDENT); r++) {
-        for (let c = column(cx - COINCIDENT); c <= column(cx + COINCIDENT); c++) {
+      const bottom = row(cy + radius);
+      const right = column(cx + radius);
+      const left = column(cx - radius);
+      for (let r = row(cy - radius); r <= bottom; r++) {
+        for (let c = left; c <= right; c++) {
+          if (trackWork && picking) cellsExamined++;
           const bucket = buckets.get(c + r * columns);
           if (bucket) found.push(bucket);
         }
@@ -349,28 +342,29 @@ export function scatterGrid(
       return found;
     }
 
-    // Members of a group, counted from a representative's whole position at a time where possible.
-    function groupSize(at: number, visit: () => void = () => {}): number {
+    // Counting can consume a whole bucket. Paging can skip one, or descend until its page is full.
+    function visitGroup(at: number, whole: (size: number) => boolean, position: (entry: number) => boolean, visit: () => void): void {
       const own = repOf[at]!;
       const cx = px[at]!;
       const cy = py[at]!;
-      let size = multiplicity[own]!;
-      function add(bucket: Bucket): void {
-        if (distanceTo(bucket, cx, cy) > COINCIDENT2) return;
-        const inside = placed[own]! >= bucket.start && placed[own]! < bucket.end;
-        if (distanceAcross(bucket, cx, cy) <= COINCIDENT2) size += bucket.count - (inside ? multiplicity[own]! : 0);
-        else if (bucket.left && bucket.right) {
-          add(bucket.left);
-          add(bucket.right);
-        } else {
-          for (let i = bucket.start; i < bucket.end; i++) {
-            const entry = order[i]!;
-            visit();
-            if (entry !== own && near(entry, cx, cy)) size += multiplicity[entry]!;
-          }
+      function walk(bucket: Bucket): boolean {
+        if (distanceTo(bucket, cx, cy) > COINCIDENT2) return true;
+        if (distanceAcross(bucket, cx, cy) <= COINCIDENT2 && whole(otherCount(bucket, own))) return true;
+        if (bucket.left && bucket.right) return walk(bucket.left) && walk(bucket.right);
+        for (let i = bucket.start; i < bucket.end; i++) {
+          const entry = order[i]!;
+          visit();
+          if (entry !== own && near(entry, cx, cy) && !position(entry)) return false;
         }
+        return true;
       }
-      for (const bucket of around(cx, cy)) add(bucket);
+      for (const bucket of around(cx, cy)) if (!walk(bucket)) break;
+    }
+
+    function groupSize(at: number, visit: () => void): number {
+      let size = multiplicity[repOf[at]!]!;
+      const add = (count: number) => { size += count; return true; };
+      visitGroup(at, add, entry => add(multiplicity[entry]!), visit);
       return size;
     }
 
@@ -378,8 +372,6 @@ export function scatterGrid(
       const out: number[] = [];
       if (take <= 0) return out;
       const own = repOf[at]!;
-      const cx = px[at]!;
-      const cy = py[at]!;
       let skip = from;
       const emit = (member: number): boolean => {
         if (trackWork) membersRead++;
@@ -397,25 +389,11 @@ export function scatterGrid(
         return true;
       }
       if (!position(own, at)) return out;
-      function walk(bucket: Bucket): boolean {
-        if (distanceTo(bucket, cx, cy) > COINCIDENT2) return true;
-        if (distanceAcross(bucket, cx, cy) <= COINCIDENT2) {
-          const inside = placed[own]! >= bucket.start && placed[own]! < bucket.end;
-          const size = bucket.count - (inside ? multiplicity[own]! : 0);
-          if (skip >= size) {
-            skip -= size;
-            return true;
-          }
-        }
-        if (bucket.left && bucket.right) return walk(bucket.left) && walk(bucket.right);
-        for (let i = bucket.start; i < bucket.end; i++) {
-          const entry = order[i]!;
-          if (trackWork) membersRead++;
-          if (entry !== own && near(entry, cx, cy) && !position(entry)) return false;
-        }
+      visitGroup(at, size => {
+        if (!(skip >= size)) return false;
+        skip -= size;
         return true;
-      }
-      for (const bucket of around(cx, cy)) if (!walk(bucket)) break;
+      }, position, () => { if (trackWork) membersRead++; });
       return out;
     }
 

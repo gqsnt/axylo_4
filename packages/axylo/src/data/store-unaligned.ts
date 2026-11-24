@@ -1,6 +1,6 @@
 import type { DiagnosticInput, DiagnosticSink, DonutFrame, Frame, PointFrame } from '../core/contracts';
 import { DiagnosticCollector } from '../diagnostics';
-import { normalizeDonut, normalizePoints, pointFrame, readX, reportCalendarDates, type DataEnvironment, type FrameVersion } from './normalize';
+import { normalizeDonut, buildPoints, type DataEnvironment, type FrameVersion } from './normalize';
 import { resolveFields, resolveTable, retargetOptions, withoutTable, type ResolvedOptions } from './options';
 import { Reports } from './reports';
 import { lowerBound } from './search';
@@ -30,6 +30,7 @@ export interface Storage<F> {
   frame(frame: F): F;
   extend(next: Result<F>, rows: StreamRows, firstRow: number, keep: number | undefined): Storage<F> | null;
   commit?(): void;
+  countBytes?(bytes: ByteCount): void;
 }
 
 type Open<F> = (result: Result<F>, options: ResolvedOptions) => Storage<F> | null;
@@ -37,15 +38,6 @@ type Open<F> = (result: Result<F>, options: ResolvedOptions) => Storage<F> | nul
 const doubles = (length: number) => new Float64Array(length);
 const indexes = (length: number) => new Int32Array(length);
 const states = (length: number) => new Uint8Array(length);
-
-function buildPoints(options: ResolvedOptions, environment: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): Result<PointFrame> {
-  if (!options.valid) {
-    return { frame: normalizePoints(options, environment, sink, version), positions: new Float64Array(), order: null };
-  }
-  const x = readX('scatter', options, environment, sink);
-  reportCalendarDates(x, options.table, sink);
-  return { ...x, frame: pointFrame(options, x, sink, version) };
-}
 
 function buildDonut(options: ResolvedOptions, environment: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): Result<DonutFrame> {
   const frame = normalizeDonut(options, environment, sink, version);
@@ -92,121 +84,136 @@ function identity(rows: Int32Array, first: number): boolean {
   return true;
 }
 
+function extended<T extends Float64Array | Int32Array | Uint8Array>(column: Column<T>, values?: T): Column<T> {
+  const draft = column.fork();
+  if (values) draft.append(values);
+  return draft;
+}
+
 /**
  * One scatter series' storage. Two columns stay implicit while they add nothing (spec P7): the x position of
  * every retained row (`positions`) is the points' own x while no row lacks a y, and the source row of point i
  * is i + rowShift while every row has a point in row order.
  */
-class Points implements Storage<PointFrame> {
-  private constructor(
-    private readonly kind: PointFrame['xKind'],
-    private positions: Column<Float64Array> | null, private distinct: number,
-    private readonly x: Column<Float64Array>, private readonly y: Column<Float64Array>,
-    private row: Column<Int32Array> | null, private rowShift: number,
-    private readonly missingX: Column<Float64Array>, private readonly missingRow: Column<Int32Array>,
-    private readonly calendar: CalendarWindow | null,
-  ) {}
+function openPoints({ frame, positions }: Result<PointFrame>): Storage<PointFrame> | null {
+  const series = frame.series[0];
+  if (frame.series.length !== 1 || !series?.row || !ordered(positions)) return null;
+  const calendar = frame.xKind === 'time' ? new CalendarWindow(frame.timeZone ?? 'UTC') : null;
+  let distinct = 0;
+  let last = -Infinity;
+  for (const position of positions) {
+    if (position !== last) distinct++;
+    last = position;
+    calendar?.observe(position);
+  }
+  const complete = !series.missingX?.length && positions.length === series.x.length;
+  return pointWindow(frame.xKind, complete ? null : new Column(doubles, positions), distinct,
+    new Column(doubles, series.x), new Column(doubles, series.y),
+    identity(series.row, 0) ? null : new Column(indexes, series.row), 0,
+    new Column(doubles, series.missingX ?? new Float64Array()), new Column(indexes, series.missingRow ?? new Int32Array()), calendar);
+}
 
-  static open({ frame, positions }: Result<PointFrame>): Points | null {
-    const series = frame.series[0];
-    if (frame.series.length !== 1 || !series?.row || !ordered(positions)) return null;
-    const calendar = frame.xKind === 'time' ? new CalendarWindow(frame.timeZone ?? 'UTC') : null;
-    let distinct = 0;
-    let last = -Infinity;
-    for (const position of positions) {
-      if (position !== last) distinct++;
-      last = position;
-      calendar?.observe(position);
-    }
-    const complete = !series.missingX?.length && positions.length === series.x.length;
-    return new Points(frame.xKind, complete ? null : new Column(doubles, positions), distinct,
-      new Column(doubles, series.x), new Column(doubles, series.y),
-      identity(series.row, 0) ? null : new Column(indexes, series.row), 0,
-      new Column(doubles, series.missingX ?? new Float64Array()), new Column(indexes, series.missingRow ?? new Int32Array()), calendar);
+function pointWindow(
+  kind: PointFrame['xKind'],
+  oldPositions: Column<Float64Array> | null, distinct: number,
+  oldX: Column<Float64Array>, oldY: Column<Float64Array>,
+  oldRow: Column<Int32Array> | null, rowShift: number,
+  oldMissingX: Column<Float64Array>, oldMissingRow: Column<Int32Array>,
+  oldCalendar: CalendarWindow | null,
+): Storage<PointFrame> {
+  function rowsOf(): Column<Int32Array> {
+    const length = oldX.view().length;
+    return new Column(indexes, Int32Array.from({ length }, (_, i) => i + rowShift));
   }
 
-  private rowsOf(): Column<Int32Array> {
-    const length = this.x.view().length;
-    return new Column(indexes, Int32Array.from({ length }, (_, i) => i + this.rowShift));
-  }
+  const storage: Storage<PointFrame> = {
+    extend(next: Result<PointFrame>, rows: StreamRows, firstRow: number, keep: number | undefined): Storage<PointFrame> | null {
+      const series = next.frame.series[0];
+      const last = (oldPositions ?? oldX).view().at(-1);
+      if (next.frame.xKind !== kind || !series?.row || !ordered(next.positions, last)) return null;
+      // A tie can append if its y also sorts after the old tail. Otherwise the old snapshot
+      // and the new sort order need different storage.
+      const lastX = oldX.view().at(-1);
+      const lastY = oldY.view().at(-1);
+      if (lastX !== undefined && lastY !== undefined && series.x[0] === lastX && series.y[0]! < lastY) return null;
 
-  extend(next: Result<PointFrame>, rows: StreamRows, firstRow: number, keep: number | undefined): Points | null {
-    const series = next.frame.series[0];
-    const last = (this.positions ?? this.x).view().at(-1);
-    if (next.frame.xKind !== this.kind || !series?.row || !ordered(next.positions, last)) return null;
-    // A tie can append if its y also sorts after the old tail. Otherwise the old snapshot
-    // and the new sort order need different storage.
-    const lastX = this.x.view().at(-1);
-    const lastY = this.y.view().at(-1);
-    if (lastX !== undefined && lastY !== undefined && series.x[0] === lastX && series.y[0]! < lastY) return null;
-
-    const calendar = this.calendar?.fork() ?? null;
-    if (calendar) {
-      for (const position of next.positions) calendar.observe(position);
-      if (calendar.daily()) return null;
-    }
-    const complete = !series.missingX?.length && next.positions.length === series.x.length;
-    const draft = new Points(this.kind,
-      this.positions?.fork() ?? (complete ? null : new Column(doubles, this.x.view())), this.distinct,
-      this.x.fork(), this.y.fork(), null, this.rowShift, this.missingX.fork(), this.missingRow.fork(), calendar);
-    const count = this.x.view().length;
-    draft.row = this.row?.fork() ?? (identity(series.row, count + this.rowShift) ? null : this.rowsOf());
-    draft.positions?.append(next.positions);
-    draft.x.append(series.x);
-    draft.y.append(series.y);
-    draft.row?.append(series.row);
-    if (series.missingX) draft.missingX.append(series.missingX);
-    if (series.missingRow) draft.missingRow.append(series.missingRow);
-    let previous = last;
-    for (let i = 0; i < next.positions.length; i++) {
-      const position = next.positions[i]!;
-      if (position !== previous) draft.distinct++;
-      previous = position;
-      rows.record(position, firstRow + i);
-    }
-
-    if (keep !== undefined && draft.distinct > keep) {
-      const positions = (draft.positions ?? draft.x).view();
-      let removed = 0;
-      while (draft.distinct > keep) {
-        const x = positions[removed]!;
-        rows.evictRead(x);
-        calendar?.evictPosition(x);
-        do removed++; while (positions[removed] === x);
-        draft.distinct--;
+      const calendar = oldCalendar?.fork() ?? null;
+      if (calendar) {
+        for (const position of next.positions) calendar.observe(position);
+        if (calendar.daily()) return null;
       }
-      if (calendar?.daily()) return null;
-      const first = positions[removed] ?? Infinity;
-      const points = lowerBound(draft.x.view(), first);
-      draft.positions?.drop(removed);
-      draft.x.drop(points);
-      draft.y.drop(points);
-      if (draft.row) draft.row.drop(points);
-      else draft.rowShift += points;
-      const missing = lowerBound(draft.missingX.view(), first);
-      draft.missingX.drop(missing);
-      draft.missingRow.drop(missing);
-      // Once the last row without a y has left, every retained row is a point again: positions repeat x.
-      if (draft.positions && !draft.missingX.view().length && draft.positions.view().length === draft.x.view().length) {
-        draft.positions = null;
+      const complete = !series.missingX?.length && next.positions.length === series.x.length;
+      let positions = oldPositions?.fork() ?? (complete ? null : new Column(doubles, oldX.view()));
+      positions?.append(next.positions);
+      const count = oldX.view().length;
+      const row = oldRow?.fork() ?? (identity(series.row, count + rowShift) ? null : rowsOf());
+      row?.append(series.row);
+      const x = extended(oldX, series.x);
+      const y = extended(oldY, series.y);
+      const missingX = extended(oldMissingX, series.missingX);
+      const missingRow = extended(oldMissingRow, series.missingRow);
+      let shift = rowShift;
+      let retained = distinct;
+      let previous = last;
+      for (let i = 0; i < next.positions.length; i++) {
+        const position = next.positions[i]!;
+        if (position !== previous) retained++;
+        previous = position;
+        rows.record(position, firstRow + i);
       }
-    }
 
-    return draft;
+      if (keep !== undefined && retained > keep) {
+        const axis = (positions ?? x).view();
+        let removed = 0;
+        while (retained > keep) {
+          const evicted = axis[removed]!;
+          rows.evictRead(evicted);
+          calendar?.evictPosition(evicted);
+          do removed++; while (axis[removed] === evicted);
+          retained--;
+        }
+        if (calendar?.daily()) return null;
+        const first = axis[removed] ?? Infinity;
+        const points = lowerBound(x.view(), first);
+        positions?.drop(removed);
+        x.drop(points);
+        y.drop(points);
+        if (row) row.drop(points);
+        else shift += points;
+        const missing = lowerBound(missingX.view(), first);
+        missingX.drop(missing);
+        missingRow.drop(missing);
+        // Once the last row without a y has left, every retained row is a point again: positions repeat x.
+        if (positions && !missingX.view().length && positions.view().length === x.view().length) {
+          positions = null;
+        }
+      }
+
+      return pointWindow(kind, positions, retained, x, y, row, shift, missingX, missingRow, calendar);
+    },
+    commit() { oldCalendar?.commit(); },
+    frame(frame: PointFrame): PointFrame {
+      // The frame's null row means "point i came from row i": once points have left the front, it needs the index.
+      if (!oldRow && rowShift !== 0) oldRow = rowsOf();
+      const missingX = oldMissingX.view();
+      const missing = missingX.length > 0;
+      return { ...frame, series: [{
+        ...frame.series[0]!, x: oldX.view(), y: oldY.view(), row: oldRow?.view() ?? null,
+        missingX: missing ? missingX : undefined, missingRow: missing ? oldMissingRow.view() : undefined,
+      }] };
+    },
+  };
+  if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) {
+    storage.countBytes = bytes => {
+      countColumn(oldPositions, bytes, 'x positions');
+      countColumn(oldX, bytes, 'x');
+      countColumn(oldY, bytes, 'y');
+      countColumn(oldRow, bytes, 'row');
+      countColumn(oldMissingX, bytes, 'missing x');
+      countColumn(oldMissingRow, bytes, 'missing row');
+    };
   }
-
-  commit(): void { this.calendar?.commit(); }
-
-  frame(frame: PointFrame): PointFrame {
-    // The frame's null row means "point i came from row i": once points have left the front, it needs the index.
-    if (!this.row && this.rowShift !== 0) this.row = this.rowsOf();
-    const missingX = this.missingX.view();
-    const missing = missingX.length > 0;
-    return { ...frame, series: [{
-      ...frame.series[0]!, x: this.x.view(), y: this.y.view(), row: this.row?.view() ?? null,
-      missingX: missing ? missingX : undefined, missingRow: missing ? this.missingRow.view() : undefined,
-    }] };
-  }
+  return storage;
 }
 
 class Slices implements Storage<DonutFrame> {
@@ -229,7 +236,7 @@ class Slices implements Storage<DonutFrame> {
     const frame = next.frame;
     if (frame.labels.length !== next.positions.length || !frame.row || frame.labels.some(label => this.positions.has(label))) return null;
     const draft = new Slices(this.labels.fork(), this.positions.fork(), this.next,
-      this.values.fork(), this.slot.fork(), this.row.fork());
+      extended(this.values, frame.values), extended(this.slot, frame.slot), extended(this.row, frame.row));
     for (let i = 0; i < frame.labels.length; i++) {
       const label = frame.labels[i]!;
       draft.labels.push(label);
@@ -237,9 +244,6 @@ class Slices implements Storage<DonutFrame> {
       draft.positions.set(label, position);
       rows.record(position, firstRow + i);
     }
-    draft.values.append(frame.values);
-    draft.slot.append(frame.slot);
-    draft.row.append(frame.row);
 
     if (keep !== undefined && draft.labels.length > keep) {
       const dropped = draft.labels.length - keep;
@@ -360,8 +364,8 @@ export class SampleStore<F extends Frame> {
     retained.append(rows);
     let table = retained.table();
     const call = new DiagnosticCollector();
-    const resolved = retargetOptions(this.encoding, table, call);
-    let result = this.build(resolved, this.environment, call, version);
+    const rebuild = (sink: DiagnosticSink) => this.build(retargetOptions(this.encoding, table, sink), this.environment, sink, version);
+    let result = rebuild(call);
     const ordering = new DiagnosticCollector();
     if (this.type === 'scatter') {
       const reports = new Reports(this.encoding.x.field, ordering);
@@ -385,8 +389,7 @@ export class SampleStore<F extends Frame> {
         for (const row of removed) evicted.push(row);
         current = new DiagnosticCollector();
         table = retained.table();
-        const encoded = retargetOptions(this.encoding, table, current);
-        result = this.build(encoded, this.environment, current, version);
+        result = rebuild(current);
       }
     }
     retained.compactColumns();
@@ -486,14 +489,8 @@ function installUnalignedExtras(): void {
   proto.ownedBytes = function (this: Store, frames: readonly Frame[] = []): OwnedBytes {
     const bytes = new ByteCount(new CallerBuffers());
     const storage = this['storage'];
-    if (storage instanceof Points) {
-      countColumn(storage['positions'], bytes, 'x positions');
-      countColumn(storage['x'], bytes, 'x');
-      countColumn(storage['y'], bytes, 'y');
-      countColumn(storage['row'], bytes, 'row');
-      countColumn(storage['missingX'], bytes, 'missing x');
-      countColumn(storage['missingRow'], bytes, 'missing row');
-    } else if (storage instanceof Slices) {
+    storage?.countBytes?.(bytes);
+    if (storage instanceof Slices) {
       countColumn(storage['values'], bytes, 'values');
       countColumn(storage['slot'], bytes, 'slot');
       countColumn(storage['row'], bytes, 'row');
@@ -528,7 +525,7 @@ function installUnalignedExtras(): void {
 
 export class PointStore extends SampleStore<PointFrame> {
   constructor(options: ResolvedOptions, environment: DataEnvironment, version: FrameVersion, sink: DiagnosticSink = quiet) {
-    super('scatter', buildPoints, Points.open, options, environment, version, sink);
+    super('scatter', buildPoints, openPoints, options, environment, version, sink);
   }
 }
 
@@ -540,6 +537,6 @@ export class DonutStore extends SampleStore<DonutFrame> {
 
 // The first append's storage for a static frame, in the form a chart kind's composition holds.
 export const openPointStore = (frame: PointFrame, source: ResolvedOptions, _data: unknown, environment: DataEnvironment): PointStore =>
-  new PointStore(source, environment, { epoch: frame.epoch, revision: frame.revision });
+  new PointStore(source, environment, frame);
 export const openDonutStore = (frame: DonutFrame, source: ResolvedOptions, _data: unknown, environment: DataEnvironment): DonutStore =>
-  new DonutStore(source, environment, { epoch: frame.epoch, revision: frame.revision });
+  new DonutStore(source, environment, frame);

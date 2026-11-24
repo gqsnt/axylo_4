@@ -86,26 +86,22 @@ export function resolveTheme(
   const win = doc.defaultView;
   const bindings: PaintBindings = { tokens: TOKEN_BINDINGS, series: seriesKeys.map((_, i) => `var(${seriesProperty(i)})`) };
   const authored = seriesKeys.map(key => {
-    const own = colors != null && Object.prototype.hasOwnProperty.call(colors, key) ? colors[key] : undefined;
+    const own = colors != null && Object.hasOwn(colors, key) ? colors[key] : undefined;
     return own !== undefined && own.trim() !== '' ? own.trim() : null;
   });
-
-  if (win === null || !element.isConnected) {
-    writeSeries(element, authored.map((own, i) => (own === null ? seriesBinding(i) : authorBinding(own))));
-    return unresolved(element, bindings, seriesKeys.length);
-  }
-
-  const forcedColors = win.matchMedia('(forced-colors: active)').matches;
-  const moreContrast = win.matchMedia('(prefers-contrast: more)').matches;
-
-  const valid = validColors(element, authored);
+  const connected = win !== null && element.isConnected;
+  const forcedColors = connected && win.matchMedia('(forced-colors: active)').matches;
+  const moreContrast = connected && win.matchMedia('(prefers-contrast: more)').matches;
+  const valid = connected ? validColors(element, authored) : null;
   const invalidColors: string[] = [];
   writeSeries(element, authored.map((own, i) => {
-    if (own === null) return seriesBinding(i);
-    if (valid[i]) return authorBinding(own);
-    invalidColors.push(seriesKeys[i]!);
+    if (own !== null) {
+      if (!valid || valid[i]) return authorBinding(own);
+      invalidColors.push(seriesKeys[i]!);
+    }
     return seriesBinding(i);
   }));
+  if (!connected) return unresolved(element, bindings, seriesKeys.length);
 
   const backdrop = findBackdrop(element, win);
   setProperty(element, '--axylo-backdrop', rgbText(backdrop.color));
@@ -147,10 +143,8 @@ export function resolveTheme(
 
 function unresolved(element: HTMLElement, bindings: PaintBindings, count: number): ThemeResolution {
   const hex = (h: string): string => rgbText(parseColor(h)!);
-  const tokens: Record<PaintToken, string> = {
-    axis: hex(LIGHT.axis), grid: hex(LIGHT.grid), reference: hex(LIGHT.reference), muted: hex(LIGHT.muted),
-    focus: hex(LIGHT.focus), background: hex(LIGHT.background), text: 'rgb(0, 0, 0)',
-  };
+  const tokens = {} as Record<PaintToken, string>;
+  for (const token of TOKENS) tokens[token] = token === 'text' ? 'rgb(0, 0, 0)' : hex(LIGHT[token]);
   const series = Array.from({ length: count }, (_, i) => hex(LIGHT.series[i % SERIES_COUNT]!));
   const scheme = element.getAttribute('data-axylo-scheme') === 'dark' ? 'dark' : 'light';
   return {
@@ -226,6 +220,20 @@ function writeSeries(element: HTMLElement, values: readonly string[]): void {
   written.set(element, values.length);
 }
 
+function probeBox(doc: Document): HTMLElement {
+  const box = doc.createElement('div');
+  box.style.setProperty('display', 'none');
+  return box;
+}
+
+function colorProbe(parent: HTMLElement, expression: string): HTMLElement {
+  const probe = parent.ownerDocument.createElement('span');
+  // Forced colors may replace an author color with CanvasText. Read the requested color.
+  probe.style.setProperty('forced-color-adjust', 'none');
+  probe.style.setProperty('color', expression);
+  return parent.appendChild(probe);
+}
+
 /**
  * Which author expressions the browser accepts as colors. Each is set as `color` on two probes whose parents
  * have different colors: an expression that is not a color is dropped at computed-value time, so `color`
@@ -235,18 +243,14 @@ function validColors(element: HTMLElement, expressions: readonly (string | null)
   if (!expressions.some(e => e !== null)) return expressions.map(() => true);
   const doc = element.ownerDocument;
   const win = doc.defaultView!;
-  const box = doc.createElement('div');
-  box.style.setProperty('display', 'none');
+  const box = probeBox(doc);
   const pairs = expressions.map(expression => {
     if (expression === null) return null;
     return (['rgb(1, 2, 3)', 'rgb(4, 5, 6)'] as const).map(parentColor => {
       const parent = doc.createElement('div');
       parent.style.setProperty('color', parentColor);
       parent.style.setProperty('forced-color-adjust', 'none');
-      const probe = doc.createElement('span');
-      probe.style.setProperty('forced-color-adjust', 'none');
-      probe.style.setProperty('color', expression);
-      parent.appendChild(probe);
+      const probe = colorProbe(parent, expression);
       box.appendChild(parent);
       return probe;
     });
@@ -268,17 +272,9 @@ function validColors(element: HTMLElement, expressions: readonly (string | null)
 function probeColors(element: Element, expressions: readonly string[]): string[] {
   const doc = element.ownerDocument;
   const win = doc.defaultView!;
-  const box = doc.createElement('div');
-  box.style.setProperty('display', 'none');
+  const box = probeBox(doc);
   box.style.setProperty('forced-color-adjust', 'none');
-  const probes = expressions.map(expression => {
-    const probe = doc.createElement('span');
-    // Forced colors may replace an author `color` with CanvasText; the probe must read what was asked.
-    probe.style.setProperty('forced-color-adjust', 'none');
-    probe.style.setProperty('color', expression);
-    box.appendChild(probe);
-    return probe;
-  });
+  const probes = expressions.map(expression => colorProbe(box, expression));
   element.appendChild(box);
   const values = probes.map(p => win.getComputedStyle(p).color);
   box.remove();

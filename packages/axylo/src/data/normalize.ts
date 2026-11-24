@@ -476,11 +476,15 @@ export function normalizeDonut(options: ResolvedOptions, _env: DataEnvironment, 
   return donutFrame(usable(options), sink, version);
 }
 
-export function normalizePoints(options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): PointFrame {
+export function buildPoints(options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion) {
   const valid = usable(options);
   const x = readX('scatter', valid, env, sink);
   reportCalendarDates(x, valid.table, sink);
-  return pointFrame(valid, x, sink, version);
+  return { frame: pointFrame(valid, x, sink, version), positions: x.positions, order: x.order };
+}
+
+export function normalizePoints(options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): PointFrame {
+  return buildPoints(options, env, sink, version).frame;
 }
 
 export function normalizeAligned(type: AlignedChartType, options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): AlignedFrame {

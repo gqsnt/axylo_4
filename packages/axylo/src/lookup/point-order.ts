@@ -13,7 +13,7 @@ export interface PointOrderWork {
 }
 
 /** A sorted view of several already sorted columns, without a merged array of points. */
-export function pointOrder(series: readonly PointSeries[], ranges: readonly IndexRange[], work?: PointOrderWork) {
+export function pointOrder(series: readonly { readonly x: PointSeries['x']; readonly y: PointSeries['y'] | null }[], ranges: readonly IndexRange[], work?: PointOrderWork) {
   const trackWork = __DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__);
   const active: number[] = [];
   let count = 0;
@@ -24,8 +24,10 @@ export function pointOrder(series: readonly PointSeries[], ranges: readonly Inde
 
   function compare(s: number, i: number, t: number, j: number): number {
     if (trackWork && work) work.comparisons++;
-    return series[s]!.x[i]! - series[t]!.x[j]!
-      || series[s]!.y[i]! - series[t]!.y[j]! || s - t || i - j;
+    const a = series[s]!;
+    const b = series[t]!;
+    // Missing rows follow every point at the same x. Tied rows then stay in series and source order.
+    return a.x[i]! - b.x[j]! || (a.y?.[i] ?? Infinity) - (b.y?.[j] ?? Infinity) || s - t || i - j;
   }
 
   function bound(s: number, t: number, j: number, start: number, end: number, after = false): number {
