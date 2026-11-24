@@ -18,7 +18,7 @@ import { createFigure, type Figure } from '../dom/figure';
 import { createInteraction, type Interaction } from '../dom/interaction';
 import { mappingOf } from '../dom/mapping';
 import type { DeliveryConsole } from './delivery';
-import { createMeasurer, noteFontLoad, readTextStyle, resolveLocale, viewerTimeZone, watchEnvironment, watchLanguage } from './environment';
+import { createMeasurer, noteFontLoad, pageLanguage, readTextStyle, resolveLocale, viewerTimeZone, watchEnvironment, watchLanguage } from './environment';
 import { controllerFor, type ChartHandle, type Controller, type ControllerActions } from './controller';
 import type { Composition } from './composition';
 
@@ -33,10 +33,10 @@ const ID_SUFFIXES = ['', '-t', '-st', '-s', '-m', '-n', '-i', '-proxy', '-table'
 let instances = 0;
 
 /** An id prefix none of whose element ids exist in the page yet (spec A1: ids unique per chart). */
-function allocateId(doc: Document): string {
+function allocateId(doc: Document, tree: Document | ShadowRoot): string {
   for (;;) {
     const id = `axylo-${++instances}`;
-    if (ID_SUFFIXES.every(suffix => doc.getElementById(id + suffix) === null)) return id;
+    if (ID_SUFFIXES.every(suffix => !tree.getElementById(id + suffix) && (doc === tree || !doc.getElementById(id + suffix)))) return id;
   }
 }
 
@@ -60,7 +60,12 @@ export function createChart(composition: Composition, target: unknown, input: un
 
   let controller: Controller | null = null;
   try {
-    const id = allocateId(doc);
+    const styleRoot = (): Document | ShadowRoot => {
+      const tree = root.getRootNode();
+      return 'host' in tree ? tree as ShadowRoot : doc;
+    };
+    let tree = styleRoot();
+    const id = allocateId(doc, tree);
 
     const renderer = svgRendererWith(composition.svg, doc);
     cleanup.push(() => renderer.destroy());
@@ -80,13 +85,18 @@ export function createChart(composition: Composition, target: unknown, input: un
     const interaction: Interaction = createInteraction(composition.interaction, figure, renderer, actions);
     cleanup.push(() => interaction.destroy());
     const measurer = createMeasurer(doc);
-    ensureStyles(doc);
+    ensureStyles(tree);
 
     // Watchers that the document holds; released while the target is out of the document.
     let watching: (() => void) | null = null;
     let watchedBefore = false;
     const watch = (): void => {
-      if (watching || controller === null) return;
+      if (controller === null) return;
+      const current = styleRoot();
+      if (watching && current === tree) return;
+      unwatch();
+      tree = current;
+      ensureStyles(tree);
       const c = controller;
       if (watchedBefore) {
         // Back in the document: fonts may have changed while it was out, and measurements made with the old
@@ -176,20 +186,17 @@ export function createChart(composition: Composition, target: unknown, input: un
       measurer,
       requestFrame: callback => win.requestAnimationFrame(callback),
       cancelFrame: handle => win.cancelAnimationFrame(handle),
-      locale: option => resolveLocale(option, doc),
-      pageLang() {
-        const lang = root.closest('[lang]')?.getAttribute('lang')?.trim();
-        return lang ? lang : null;
-      },
+      locale: option => resolveLocale(option, doc, pageLanguage(root) ?? doc.documentElement.lang),
+      pageLang: () => pageLanguage(root),
       labelText(own) {
-        const el = doc.getElementById(own);
+        const el = styleRoot().getElementById(own);
         return el === null ? null : el.textContent ?? '';
       },
       textStyle: () => readTextStyle(textLayer.element),
       measure() {
         if (!root.isConnected) return null;
         const box = figure.figure.getBoundingClientRect();
-        if (box.width <= 0 && box.height <= 0) return null;
+        if (box.width <= 0 || box.height <= 0) return null;
         const plot = figure.plot.getBoundingClientRect();
         // Layout pixels, which the marks, the text and picking use: a CSS transform on an ancestor scales the
         // bounding rect, not the layout. The scale is the interaction layer's own mapping (decision 0004

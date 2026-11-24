@@ -9,19 +9,27 @@
 export function minifyCss(css: string): string {
   let out = '';
   let space = false;
+  let comment = false;
   for (let i = 0; i < css.length; i++) {
     const c = css[i]!;
     if (c === '/' && css[i + 1] === '*') {
       const end = css.indexOf('*/', i + 2);
       if (end < 0) throw new Error('minifyCss: unterminated comment');
       i = end + 1;
-      space = true;
+      comment = true;
       continue;
     }
     if (c === ' ' || c === '\n' || c === '\t' || c === '\r' || c === '\f') {
       space = true;
       continue;
     }
+    // A comment is a token boundary, never a descendant combinator. Before a class selector
+    // it can vanish. At an ambiguous boundary keep an empty comment so tokens cannot fuse.
+    const classDot = c === '.' && !/[0-9]/.test(css[i + 1] ?? '');
+    if (comment && !space && out && !/[{};]$/.test(out) && !/[{};]/.test(c) && !classDot) {
+      out += '/**/';
+    }
+    comment = false;
     if (c === '"' || c === "'") {
       let j = i + 1;
       for (; j < css.length && css[j] !== c; j++) if (css[j] === '\\') j++;

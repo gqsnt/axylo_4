@@ -62,7 +62,9 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
   previous.type = 'button';
   const status = make(doc, 'span', 'axylo-page');
   // The reader moved: saying the new page is an answer to their own action (spec A7).
-  status.setAttribute('aria-live', 'polite');
+  status.setAttribute('aria-live', 'off');
+  const announcement = make(doc, 'span', 'axylo-visually-hidden');
+  announcement.setAttribute('aria-live', 'polite');
   const next = make(doc, 'button', 'axylo-control');
   next.type = 'button';
   const form = make(doc, 'form', 'axylo-jump');
@@ -75,10 +77,10 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
   label.htmlFor = field.id;
   label.appendChild(labelText);
   const error = make(doc, 'p', 'axylo-jump-error');
+  error.setAttribute('role', 'status');
   error.id = `${id}-table-jump-error`;
-  error.hidden = true;
   form.append(label, field, error);
-  pager.append(previous, status, next, form);
+  pager.append(previous, status, next, form, announcement);
   element.append(scroll, pager);
 
   let model: TableModel | null = null;
@@ -151,8 +153,11 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
     setAttr(next, 'aria-disabled', page >= count - 1 ? 'true' : null);
     const pageText = texts.pageOf(page + 1, count);
     if (status.textContent !== pageText) {
-      setAttr(status, 'aria-live', reader ? 'polite' : 'off');
       status.textContent = pageText;
+      if (reader) {
+        setAttr(announcement, 'lang', texts.lang('pageOf'));
+        announcement.textContent = pageText;
+      }
     }
     labelText.textContent = texts.jump;
   }
@@ -171,16 +176,15 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
     if (target === null) {
       field.setAttribute('aria-invalid', 'true');
       if (texts?.notFound) {
-        error.textContent = texts.notFound(field.value.trim());
         setAttr(error, 'lang', texts.notFoundLang ?? null);
-        error.hidden = false;
+        error.textContent = texts.notFound(field.value.trim());
         field.setAttribute('aria-describedby', error.id);
       }
       return;
     }
     field.removeAttribute('aria-invalid');
     field.removeAttribute('aria-describedby');
-    error.hidden = true;
+    error.textContent = '';
     page = target;
     render(true);
     scroll.scrollTop = 0;

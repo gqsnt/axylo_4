@@ -8,6 +8,7 @@
  * (composited over the backdrop), which SVG then also paints. What is measured is what is drawn.
  */
 import type { PaintBindings, PaintToken, ResolvedTheme } from '../core/contracts';
+import { composedParent } from '../core/environment';
 import { composite, isLightColor, parseColor, type Rgba } from './color';
 import { LIGHT, SERIES_COUNT } from './palette';
 
@@ -110,8 +111,10 @@ export function resolveTheme(
   setProperty(element, '--axylo-backdrop', rgbText(backdrop.color));
 
   const style = win.getComputedStyle(element);
-  const override = style.getPropertyValue('--axylo-background').trim() !== '';
-  const [overrideText, canvasText] = override ? probeColors(element, ['var(--axylo-background)', 'Canvas']) : [];
+  const expression = 'var(--axylo-background)';
+  const value = style.getPropertyValue('--axylo-background').trim();
+  const override = value !== '' && (/^currentcolor$/i.test(value) || validColors(element, [expression])[0]);
+  const [overrideText, canvasText] = override ? probeColors(element, [expression, 'Canvas']) : [];
   const overrideColor = override ? parseColor(overrideText!) : null;
   const background = overrideColor !== null && overrideColor.a > 0 ? composite(overrideColor, backdrop.color) : backdrop.color;
 
@@ -137,7 +140,7 @@ export function resolveTheme(
     bindings,
     theme: { scheme, forcedColors, moreContrast, paints },
     resolved: true,
-    backdropKnown: backdrop.known,
+    backdropKnown: backdrop.known || (overrideColor !== null && overrideColor.a >= 1),
     invalidColors,
   };
 }
@@ -189,7 +192,7 @@ function findBackdrop(element: HTMLElement, win: Window): Backdrop {
   const layers: Rgba[] = [];
   let known = true;
   let opaque = false;
-  for (let node: Element | null = element; node !== null; node = parentOf(node)) {
+  for (let node: Element | null = element; node !== null; node = composedParent(node)) {
     const cs = win.getComputedStyle(node);
     if (cs.backgroundImage !== 'none' && cs.backgroundImage !== '') { known = false; }
     const c = parseColor(normalizeColor(cs.backgroundColor, element.ownerDocument));
@@ -208,13 +211,6 @@ function findBackdrop(element: HTMLElement, win: Window): Backdrop {
   }
   while (layers.length > 0) color = composite(layers.pop()!, color);
   return { color, known };
-}
-
-/** Parent element, crossing out of a shadow root to its host. */
-function parentOf(node: Element): Element | null {
-  if (node.parentElement !== null) return node.parentElement;
-  const root = node.parentNode;
-  return root !== null && 'host' in root ? (root as ShadowRoot).host : null;
 }
 
 const rgbText = (c: Rgba): string => `rgb(${Math.round(c.r * 255)}, ${Math.round(c.g * 255)}, ${Math.round(c.b * 255)})`;

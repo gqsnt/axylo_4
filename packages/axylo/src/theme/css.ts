@@ -138,7 +138,7 @@ ${forced}
   .axylo-caption { flex: none; margin: 0 0 0.5em; min-width: 0; }
   .axylo-caption:has(> :not([hidden]):not(.axylo-visually-hidden)) { margin-bottom: 0.5em; }
   .axylo-caption:not(:has(> :not([hidden]):not(.axylo-visually-hidden))) { margin: 0; }
-  .axylo-title { font-weight: 600; font-size: 1.125em; line-height: 1.3; overflow-wrap: anywhere; }
+  .axylo-title { font-weight: 600; font-size: max(12px, 1.125em); line-height: 1.3; overflow-wrap: anywhere; }
   .axylo-subtitle { margin: 0.125em 0 0; font-size: max(12px, 0.875em); color: var(--axylo-muted, var(--axylo-default-muted)); overflow-wrap: anywhere; }
   .axylo-summary { margin: 0.25em 0 0; font-size: max(12px, 0.875em); }
   /* Shown in the too-small state (spec L8): the first sentence of the generated summary, on at most two lines,
@@ -206,7 +206,7 @@ ${forced}
   }
   .axylo .axylo-tooltip .axylo-tooltip-choice { width: 100%; }
   .axylo .axylo-readout .axylo-tooltip-choice { display: inline-flex; vertical-align: middle; }
-  .axylo .axylo-legend-choice { display: inline-flex; gap: 0.375em; }
+  .axylo .axylo-legend-choice { max-width: 100%; overflow-wrap: anywhere; display: inline-flex; gap: 0.375em; }
   .axylo .axylo-tooltip-title { font-weight: 600; }
   .axylo .axylo-tooltip-row { display: flex; gap: 1em; justify-content: space-between; }
   .axylo .axylo-tooltip-series { display: inline-flex; align-items: center; gap: 0.375em; min-width: 0; overflow-wrap: anywhere; }
@@ -283,7 +283,8 @@ ${forced}
   }
   /* Legend entries first; the other controls start on the right. */
   .axylo .axylo-legend-entry + .axylo-control:not(.axylo-legend-entry) { margin-inline-start: auto; }
-  .axylo .axylo-control:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
+  .axylo .axylo-control:focus-visible, .axylo .axylo-legend-choice:focus-visible, .axylo .axylo-tooltip-choice:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
+  .axylo .axylo-tooltip-choice:focus-visible { outline-offset: -2px; }
   .axylo .axylo-control[aria-disabled="true"] { cursor: default; border-style: dashed; }
   /* A symbol button (Select range): 24 × 24, so it adds no toolbar row; its name stays as hidden text. */
   .axylo .axylo-control.axylo-control-symbol { width: 24px; height: 24px; padding: 0; justify-content: center; }
@@ -291,7 +292,8 @@ ${forced}
   /* A pressed toggle (not a legend entry): a heavier border, which forced colours keep. */
   .axylo .axylo-control[aria-pressed="true"]:not(.axylo-legend-entry) { border-width: 2px; }
   /* Legend toggles read as legend entries; a hidden series keeps full-contrast text, struck through (spec L2). */
-  .axylo .axylo-legend-entry { border-color: transparent; padding-inline: 4px; }
+  .axylo .axylo-control-label { min-width: 0; overflow-wrap: anywhere; }
+  .axylo .axylo-legend-entry { max-width: 100%; border-color: transparent; padding-inline: 4px; }
   .axylo .axylo-legend-entry:hover { border-color: var(--axylo-axis, var(--axylo-default-axis)); }
   .axylo .axylo-legend-entry.axylo-struck .axylo-control-label { text-decoration: line-through; text-decoration-thickness: 1px; }
   .axylo .axylo-legend-list {
@@ -301,12 +303,15 @@ ${forced}
   .axylo .axylo-legend-value { font-variant-numeric: tabular-nums; }
   .axylo .axylo-table { display: flex; flex-direction: column; gap: 0.5em; min-width: 0; }
   /* The open table takes the plot's place at the plot's size, so nothing else moves (spec A4; review 2, finding 15). */
+  /* Keep the table and its pager reachable even when the caption leaves no plot height. */
+  .axylo-figure:has(.axylo-table), .axylo .axylo-stage > .axylo-table { overflow: auto; }
+  .axylo .axylo-body:has(.axylo-table) { min-height: 4.5em; }
   .axylo .axylo-stage > .axylo-table {
     position: absolute; inset: 0; z-index: 4; box-sizing: border-box;
     background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)));
   }
   .axylo .axylo-stage > .axylo-table > .axylo-table-scroll { flex: 1 1 auto; }
-  .axylo .axylo-table-scroll { overflow: auto; box-sizing: border-box; min-height: 0; border: 1px solid var(--axylo-grid, var(--axylo-default-grid)); }
+  .axylo .axylo-table-scroll { overflow: auto; box-sizing: border-box; min-height: 4.5em; border: 1px solid var(--axylo-grid, var(--axylo-default-grid)); }
   .axylo .axylo-table-scroll:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
   .axylo .axylo-table table { border-collapse: collapse; width: max-content; min-width: 100%; font-size: max(12px, 0.875em); font-variant-numeric: tabular-nums; }
   .axylo .axylo-table caption { padding: 4px 8px; text-align: start; font-weight: 600; caption-side: top; }
@@ -322,6 +327,7 @@ ${forced}
     border: 1px solid var(--axylo-axis, var(--axylo-default-axis)); border-radius: 2px;
     background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background))); color: var(--axylo-text, currentColor);
   }
+  .axylo .axylo-jump-error:empty { position: absolute; }
   .axylo .axylo-jump-error { flex-basis: 100%; margin: 0; font-size: max(12px, 0.875em); }
   .axylo .axylo-jump-field:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
 }

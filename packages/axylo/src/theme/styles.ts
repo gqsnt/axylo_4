@@ -65,7 +65,9 @@ function stillActive(root: StyleRoot, state: Installed): boolean {
     case 'standalone': {
       if (state.sheet === null) return false; // not identifiable: verify by effect again
       const owner = state.sheet.ownerNode;
-      return !state.sheet.disabled && owner !== null && owner.isConnected && Array.prototype.includes.call(root.styleSheets, state.sheet);
+      const media = state.sheet.media.mediaText;
+      return (!media || !!owner?.ownerDocument?.defaultView?.matchMedia(media).matches) &&
+        !state.sheet.disabled && owner !== null && owner.isConnected && Array.prototype.includes.call(root.styleSheets, state.sheet);
     }
   }
 }

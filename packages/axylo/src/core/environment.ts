@@ -14,8 +14,8 @@ export function viewerTimeZone(): string {
 }
 
 /** `options.locale`, else the document language, else the browser's, as a locale Intl accepts. */
-export function resolveLocale(option: unknown, doc: Document | null): string {
-  const candidates = [option, doc?.documentElement.lang, doc?.defaultView?.navigator.language];
+export function resolveLocale(option: unknown, doc: Document | null, lang = doc?.documentElement.lang): string {
+  const candidates = [option, lang, doc?.defaultView?.navigator.language];
   for (const candidate of candidates) {
     if (typeof candidate !== 'string' || candidate.trim() === '') continue;
     try {
@@ -198,6 +198,34 @@ export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; mo
   return stop;
 }
 
+/** The parent that supplies inherited styles and language, including through a slot. */
+export function composedParent(element: Element): Element | null {
+  const parent = element.parentNode;
+  return element.assignedSlot ?? element.parentElement ?? (parent && 'host' in parent ? (parent as ShadowRoot).host : null);
+}
+
+export function holds(target: Node, element: Element): boolean {
+  for (let el: Element | null = element; el; el = composedParent(el)) if (el === target) return true;
+  return false;
+}
+
+export function pageLanguage(element: Element): string | null {
+  for (let el: Element | null = element; el; el = composedParent(el)) {
+    const lang = el.getAttribute('lang');
+    if (lang !== null) return lang.trim() || null;
+  }
+  return null;
+}
+
+/** Subtree observation stops at shadow boundaries, including those entered through slots. */
+export function observeTrees(observer: MutationObserver, element: Element, options: MutationObserverInit): void {
+  observer.observe(element.ownerDocument.documentElement, options);
+  for (let el: Element | null = element; el; el = composedParent(el)) {
+    const parent = el.parentNode;
+    if (parent && 'host' in parent) observer.observe(parent, options);
+  }
+}
+
 /**
  * Calls `onChange` when a `lang` attribute changes on `element` or an ancestor: the page's language decides
  * the formatting locale and which built-in text is marked English (spec A10, F6). An environment change,
@@ -208,9 +236,14 @@ export function watchLanguage(element: Element, onChange: () => void): () => voi
   if (win === null) return () => {};
   const observer = new win.MutationObserver(records => {
     for (const r of records) {
-      if (r.target instanceof win.Node && r.target.contains(element)) { onChange(); return; }
+      if (holds(r.target, element)) { onChange(); return; }
     }
   });
-  observer.observe(element.ownerDocument.documentElement, { attributes: true, attributeFilter: ['lang'], subtree: true });
+  try {
+    observeTrees(observer, element, { attributes: true, attributeFilter: ['lang'], subtree: true });
+  } catch (error) {
+    observer.disconnect();
+    throw error;
+  }
   return () => observer.disconnect();
 }

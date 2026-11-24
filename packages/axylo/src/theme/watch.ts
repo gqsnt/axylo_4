@@ -8,6 +8,8 @@
  * another parent or `<body>` is replaced. Inside a shadow root, that root is observed as well.
  */
 
+import { holds, observeTrees } from '../core/environment';
+
 const QUERIES = ['(prefers-color-scheme: dark)', '(forced-colors: active)', '(prefers-contrast: more)'];
 const ATTRIBUTES = ['class', 'style', 'data-theme'];
 
@@ -60,9 +62,7 @@ export function watchTheme(element: Element, onChange: () => void): () => void {
     });
     undo.push(() => observer.disconnect());
     const options: MutationObserverInit = { attributes: true, attributeFilter: ATTRIBUTES, attributeOldValue: true, subtree: true };
-    observer.observe(doc.documentElement, options);
-    const root = element.getRootNode();
-    if (root !== doc && 'host' in root) observer.observe(root, options);
+    observeTrees(observer, element, options);
   } catch (error) {
     release();
     throw error;
@@ -72,12 +72,4 @@ export function watchTheme(element: Element, onChange: () => void): () => void {
     if (stopped) return;
     release();
   };
-}
-
-/** True when `target` is `element` or one of its ancestors, crossing shadow roots to their hosts. */
-function holds(target: Node, element: Node): boolean {
-  for (let n: Node | null = element; n !== null; n = n.parentNode ?? ('host' in n ? (n as ShadowRoot).host : null)) {
-    if (n === target) return true;
-  }
-  return false;
 }
