@@ -8,11 +8,10 @@
  * so the watch keeps working when the chart is moved to another parent or `<body>` is replaced.
  */
 
-import { subscribeTreeMutations, type SharedTreeSubscriber } from '../core/environment';
+import { dispatch, drainUndo, listen, register, release, subscribeTreeMutations, teardownHub, type SharedTreeSubscriber } from '../core/environment';
 
 const QUERIES = ['(prefers-color-scheme: dark)', '(forced-colors: active)', '(prefers-contrast: more)'];
-const ATTRIBUTES = ['class', 'style', 'data-theme'];
-const MUTATION_OPTIONS: MutationObserverInit = { attributes: true, attributeFilter: ATTRIBUTES, attributeOldValue: true, subtree: true };
+const MUTATION_OPTIONS: MutationObserverInit = { attributes: true, attributeFilter: ['class', 'style', 'data-theme'], attributeOldValue: true, subtree: true };
 
 /** Declarations resolveTheme itself writes on the chart root; changes to them alone are not theme changes. */
 const OWN = /--axylo-(?:series-color-\d+|backdrop)\s*:[^;]*;?\s*/g;
@@ -38,6 +37,8 @@ interface ThemeMediaHub {
 
 const mediaHubs = new WeakMap<Window, ThemeMediaHub>();
 
+const notify = (entry: MediaRegistration): void => entry.fn();
+
 function subscribeMedia(win: Window, onChange: () => void): () => void {
   let hub = mediaHubs.get(win);
   if (!hub) {
@@ -46,22 +47,13 @@ function subscribeMedia(win: Window, onChange: () => void): () => void {
     const undo: (() => void)[] = [];
     const teardown = (): void => {
       active = false;
-      for (let fn = undo.pop(); fn; fn = undo.pop()) {
-        try { fn(); } catch { /* keep releasing */ }
-      }
+      drainUndo(undo);
     };
-    const dispatch = (): void => {
-      if (!active) return;
-      for (const entry of [...subscribers]) {
-        if (subscribers.has(entry)) entry.fn();
-      }
+    const onMedia = (): void => {
+      if (active) dispatch(subscribers, notify);
     };
     try {
-      for (const q of QUERIES) {
-        const list = win.matchMedia(q);
-        list.addEventListener('change', dispatch);
-        undo.push(() => list.removeEventListener('change', dispatch));
-      }
+      for (const query of QUERIES) listen(undo, win.matchMedia(query), 'change', onMedia);
     } catch (error) {
       teardown();
       throw error;
@@ -69,18 +61,7 @@ function subscribeMedia(win: Window, onChange: () => void): () => void {
     hub = { subscribers, teardown };
     mediaHubs.set(win, hub);
   }
-  const entry: MediaRegistration = { fn: onChange };
-  hub.subscribers.add(entry);
-  let stopped = false;
-  return () => {
-    if (stopped) return;
-    stopped = true;
-    hub!.subscribers.delete(entry);
-    if (hub!.subscribers.size === 0) {
-      if (mediaHubs.get(win) === hub) mediaHubs.delete(win);
-      hub!.teardown();
-    }
-  };
+  return register(mediaHubs, win, hub, { fn: onChange }, teardownHub);
 }
 
 /**
@@ -93,27 +74,23 @@ export function watchTheme(element: Element, onChange: () => void): () => void {
   if (win === null) return noop;
   // Every subscription's release is kept as it is made, so a failure part-way (an observe() that throws)
   // leaves nothing registered (final review, finding 14).
-  let stopMedia: (() => void) | null = null;
-  let stopTree: (() => void) | null = null;
+  let stopMedia = subscribeMedia(win, onChange);
+  let stopTree: () => void;
   try {
-    stopMedia = subscribeMedia(win, onChange);
     stopTree = subscribeTreeMutations('theme', element, MUTATION_OPTIONS, {
       element,
       onChange,
       styleChanged: ownStyleChanged,
     });
   } catch (error) {
-    if (stopTree) { try { stopTree(); } catch { /* keep releasing */ } }
-    if (stopMedia) { try { stopMedia(); } catch { /* keep releasing */ } }
+    release(stopMedia);
     throw error;
   }
-
   return () => {
     const tree = stopTree;
     const media = stopMedia;
-    stopTree = null;
-    stopMedia = null;
-    if (tree) { try { tree(); } catch { /* keep releasing */ } }
-    if (media) { try { media(); } catch { /* keep releasing */ } }
+    stopTree = stopMedia = noop;
+    release(tree);
+    release(media);
   };
 }

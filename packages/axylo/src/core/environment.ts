@@ -158,13 +158,54 @@ interface EnvSubscriber {
   readonly fonts: () => void;
 }
 
-interface EnvRegistration {
-  readonly h: EnvSubscriber;
-}
-
+interface EnvRegistration { readonly h: EnvSubscriber }
 interface EnvHub {
   readonly subscribers: Set<EnvRegistration>;
   readonly teardown: () => void;
+}
+
+type Subscriptions<S> = { readonly subscribers: Set<S> };
+
+export function drainUndo(fns: (() => void)[]): void {
+  for (let fn = fns.pop(); fn; fn = fns.pop()) release(fn);
+}
+
+// Teardown continues even if a host listener throws while being removed.
+export function release(fn: () => void): void {
+  try { fn(); } catch { /* keep releasing */ }
+}
+
+export function register<K extends object, S, H extends Subscriptions<S>>(
+  hubs: WeakMap<K, H>, key: K, hub: H, entry: S, teardown: (hub: H) => void,
+): () => void {
+  const { subscribers } = hub;
+  subscribers.add(entry);
+  let stopped = false;
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    subscribers.delete(entry);
+    if (!subscribers.size) {
+      if (hubs.get(key) === hub) hubs.delete(key);
+      teardown(hub);
+    }
+  };
+}
+
+export function teardownHub(hub: { teardown(): void }): void {
+  hub.teardown();
+}
+
+export function listen(
+  undo: (() => void)[], target: EventTarget | undefined, type: string, listener: EventListener,
+): void {
+  target?.addEventListener(type, listener);
+  undo.push(() => target?.removeEventListener(type, listener));
+}
+
+export function dispatch<S>(subscribers: Set<S>, notify: (entry: S) => void): void {
+  // Changes to subscriptions during a notification apply to the rest of this batch.
+  for (const sub of [...subscribers]) if (subscribers.has(sub)) notify(sub);
 }
 
 const envHubs = new WeakMap<Window, EnvHub>();
@@ -184,18 +225,14 @@ export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; mo
     const undo: (() => void)[] = [];
     const teardown = (): void => {
       active = false;
-      for (let fn = undo.pop(); fn; fn = undo.pop()) {
-        try { fn(); } catch { /* keep releasing */ }
-      }
+      drainUndo(undo);
     };
     try {
       let ratioQuery: MediaQueryList | null = null;
       const onRatio = (): void => {
         if (!active) return;
         arm();
-        for (const sub of [...subscribers]) {
-          if (subscribers.has(sub)) sub.h.pixelRatio();
-        }
+        dispatch(subscribers, notifyPixelRatio);
       };
       // A resolution query matches one ratio only, so it is re-armed for the new ratio after each change.
       const arm = (): void => {
@@ -208,12 +245,9 @@ export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; mo
       const motion = win.matchMedia('(prefers-reduced-motion: reduce)');
       const onMotion = (): void => {
         if (!active) return;
-        for (const sub of [...subscribers]) {
-          if (subscribers.has(sub)) sub.h.motion();
-        }
+        dispatch(subscribers, notifyMotion);
       };
-      motion.addEventListener('change', onMotion);
-      undo.push(() => motion.removeEventListener('change', onMotion));
+      listen(undo, motion, 'change', onMotion);
       const fonts = win.document.fonts as FontFaceSet | undefined;
       // A load that brought no font faces changed nothing: Firefox fires an empty 'loadingdone' some 100 ms after
       // the page loads, and taking it for a font change ran layout again at the same sizes (spec L3; engines
@@ -221,12 +255,9 @@ export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; mo
       const onFonts = (event: Event): void => {
         const faces = (event as Event & { fontfaces?: ArrayLike<unknown> }).fontfaces;
         if (!active || (faces !== undefined && faces.length === 0)) return;
-        for (const sub of [...subscribers]) {
-          if (subscribers.has(sub)) sub.h.fonts();
-        }
+        dispatch(subscribers, notifyFonts);
       };
-      fonts?.addEventListener('loadingdone', onFonts);
-      undo.push(() => fonts?.removeEventListener('loadingdone', onFonts));
+      listen(undo, fonts, 'loadingdone', onFonts);
     } catch (error) {
       teardown();
       throw error;
@@ -234,19 +265,12 @@ export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; mo
     hub = { subscribers, teardown };
     envHubs.set(win, hub);
   }
-  const sub: EnvRegistration = { h: handlers };
-  hub.subscribers.add(sub);
-  let stopped = false;
-  return () => {
-    if (stopped) return;
-    stopped = true;
-    hub!.subscribers.delete(sub);
-    if (hub!.subscribers.size === 0) {
-      if (envHubs.get(win) === hub) envHubs.delete(win);
-      hub!.teardown();
-    }
-  };
+  return register(envHubs, win, hub, { h: handlers }, teardownHub);
 }
+
+const notifyPixelRatio = (sub: EnvRegistration): void => sub.h.pixelRatio();
+const notifyMotion = (sub: EnvRegistration): void => sub.h.motion();
+const notifyFonts = (sub: EnvRegistration): void => sub.h.fonts();
 
 /** The parent that supplies inherited styles and language, including through a slot. */
 export function composedParent(element: Element): Element | null {
@@ -269,11 +293,11 @@ export function pageLanguage(element: Element): string | null {
 
 /** Subtree observation stops at shadow boundaries, including those entered through slots. */
 export function observeTrees(observer: MutationObserver, element: Element, options: MutationObserverInit): void {
-  observer.observe(element.ownerDocument.documentElement, options);
-  for (let el: Element | null = element; el; el = composedParent(el)) {
-    const parent = el.parentNode;
-    if (parent && parent.nodeType === 11 && 'host' in parent) observer.observe(parent, options);
-  }
+  observeRoots(observer, treesOf(element), options);
+}
+
+function observeRoots(observer: MutationObserver, roots: readonly Node[], options: MutationObserverInit): void {
+  for (const root of roots) observer.observe(root, options);
 }
 
 function treesOf(element: Element): Node[] {
@@ -307,40 +331,32 @@ function dispatchMutations(
   records: readonly MutationRecord[],
 ): void {
   if (subscribers.size === 0 || records.length === 0) return;
-  if (kind === 'lang') {
-    const targets = new Set<Node>();
-    for (let i = 0; i < records.length; i++) targets.add(records[i]!.target);
-    for (const sub of [...subscribers]) {
-      if (!subscribers.has(sub)) continue;
-      for (let el: Element | null = sub.element; el; el = composedParent(el)) {
-        if (targets.has(el)) { sub.onChange(); break; }
-      }
-    }
-    return;
-  }
-  const nonStyle = new Set<Node>();
-  let styleMap: Map<Node, MutationRecord[]> | null = null;
-  for (let i = 0; i < records.length; i++) {
-    const r = records[i]!;
-    if (r.attributeName === 'style') {
-      if (styleMap === null) styleMap = new Map();
-      let list = styleMap.get(r.target);
-      if (!list) styleMap.set(r.target, list = []);
-      list.push(r);
-    } else {
-      nonStyle.add(r.target);
-    }
+  const targets = new Set<Node>();
+  let styles: Map<Node, MutationRecord[]> | undefined;
+  for (const record of records) {
+    const { target } = record;
+    if (kind === 'theme' && record.attributeName === 'style') {
+      styles ??= new Map();
+      let list = styles.get(target);
+      if (!list) styles.set(target, list = []);
+      list.push(record);
+    } else targets.add(target);
   }
   for (const sub of [...subscribers]) {
     if (!subscribers.has(sub)) continue;
     const own = sub.element;
-    if (nonStyle.has(own)) { sub.onChange(); continue; }
-    const ownStyles = styleMap?.get(own);
-    if (ownStyles && (!sub.styleChanged || sub.styleChanged(ownStyles))) { sub.onChange(); continue; }
-    for (let el = composedParent(own); el; el = composedParent(el)) {
-      if (nonStyle.has(el) || styleMap?.has(el)) { sub.onChange(); break; }
+    for (let el: Element | null = own; el; el = composedParent(el)) {
+      const records = styles?.get(el);
+      if (targets.has(el) || (records && (el !== own || !sub.styleChanged || sub.styleChanged(records)))) {
+        sub.onChange();
+        break;
+      }
     }
   }
+}
+
+function disconnect(hub: RootMutationHub): void {
+  hub.observer.disconnect();
 }
 
 function subscribeRoot(
@@ -364,17 +380,7 @@ function subscribeRoot(
     hub = { observer, subscribers };
     hubs.set(root, hub);
   }
-  hub.subscribers.add(subscriber);
-  let stopped = false;
-  return () => {
-    if (stopped) return;
-    stopped = true;
-    hub!.subscribers.delete(subscriber);
-    if (hub!.subscribers.size === 0) {
-      if (hubs.get(root) === hub) hubs.delete(root);
-      hub!.observer.disconnect();
-    }
-  };
+  return register(hubs, root, hub, subscriber, disconnect);
 }
 
 /**
@@ -398,23 +404,12 @@ export function subscribeTreeMutations(
   }
   const stops: (() => void)[] = [];
   try {
-    for (let i = 0; i < trees.length; i++) {
-      stops.push(subscribeRoot(hubs, kind, win, trees[i]!, options, subscriber));
-    }
+    for (const root of trees) stops.push(subscribeRoot(hubs, kind, win, root, options, subscriber));
   } catch (error) {
-    for (let fn = stops.pop(); fn; fn = stops.pop()) {
-      try { fn(); } catch { /* keep releasing */ }
-    }
+    drainUndo(stops);
     throw error;
   }
-  let stopped = false;
-  return () => {
-    if (stopped) return;
-    stopped = true;
-    for (let fn = stops.pop(); fn; fn = stops.pop()) {
-      try { fn(); } catch { /* keep releasing */ }
-    }
-  };
+  return () => drainUndo(stops);
 }
 
 const LANG_OPTIONS: MutationObserverInit = { attributes: true, attributeFilter: ['lang'], subtree: true };
@@ -439,7 +434,7 @@ export function watchLanguage(element: Element, onChange: () => void): () => voi
     }
   });
   try {
-    observeTrees(observer, element, LANG_OPTIONS);
+    observeRoots(observer, trees, LANG_OPTIONS);
   } catch (error) {
     observer.disconnect();
     throw error;
