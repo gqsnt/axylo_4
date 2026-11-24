@@ -10,7 +10,7 @@
 //   polylines the library stroked, the theme workload reads every mark's color after every toggle, the resize
 //   workload checks the chart's geometry at the narrowest width;
 //   'counters' for the untimed theme run that counts Canvas 2D calls and DOM mutations per toggle.
-import { workloadData, checksum, zoomSteps } from './fixtures.js';
+import { callerColumnBytes, lowerBound, workloadData, checksum, zoomSteps } from './fixtures.js';
 import { lateWindow } from './stats.js';
 import { themeMismatch } from './drawn.js';
 
@@ -99,22 +99,26 @@ function canvasBacking() {
 function installCapture() {
   const P = CanvasRenderingContext2D.prototype;
   const by = new WeakMap();
-  const st = ctx => { let s = by.get(ctx.canvas); if (!s) by.set(ctx.canvas, s = { strokes: [], arcs: [], clip: null, path: [], open: null, rect: null }); return s; };
+  const st = ctx => { let s = by.get(ctx.canvas); if (!s) by.set(ctx.canvas, s = { strokes: [], arcs: [], fills: [], arc: null, clip: null, path: [], open: null, rect: null }); return s; };
   const orig = {};
   const wrap = (name, fn) => { orig[name] = P[name]; P[name] = function (...a) { fn(this, a); return orig[name].apply(this, a); }; };
-  wrap('beginPath', ctx => { const s = st(ctx); s.path = []; s.open = null; s.rect = null; });
+  wrap('beginPath', ctx => { const s = st(ctx); s.path = []; s.open = null; s.rect = null; s.arc = null; });
   wrap('moveTo', (ctx, [x, y]) => { const s = st(ctx); s.open = [x, y]; s.path.push(s.open); });
   wrap('lineTo', (ctx, [x, y]) => { const s = st(ctx); if (!s.open) { s.open = [x, y]; s.path.push(s.open); } else s.open.push(x, y); });
   wrap('rect', (ctx, [x, y, w, h]) => { st(ctx).rect = { x, y, width: w, height: h }; });
-  wrap('arc', (ctx, [x, y]) => { st(ctx).arcs.push(x, y); });
+  wrap('arc', (ctx, [x, y, r]) => { const s = st(ctx); s.arcs.push(x, y); if (params.kind) s.arc = { x, y, r }; });
+  if (params.kind) wrap('fill', (ctx, [path]) => {
+    const s = st(ctx);
+    s.fills.push({ path, rect: s.rect, arc: s.arc, polygon: s.path.some(p => p.length >= 6) });
+  });
   wrap('clip', ctx => { const s = st(ctx); if (s.rect) s.clip = s.rect; });
   wrap('stroke', (ctx, a) => { const s = st(ctx); s.strokes.push(a[0] ? { color: String(ctx.strokeStyle), path2d: true, polylines: [] } : { color: String(ctx.strokeStyle), polylines: s.path.filter(p => p.length >= 4).map(p => p.slice()) }); });
   wrap('clearRect', (ctx, [x, y, w, h]) => {
     const m = ctx.getTransform();
     const X = m.a * x + m.e, Y = m.d * y + m.f, W = m.a * w, H = m.d * h;
-    if (X <= 0 && Y <= 0 && X + W >= ctx.canvas.width && Y + H >= ctx.canvas.height) { const s = st(ctx); s.strokes = []; s.arcs = []; }
+    if (X <= 0 && Y <= 0 && X + W >= ctx.canvas.width && Y + H >= ctx.canvas.height) { const s = st(ctx); s.strokes = []; s.arcs = []; s.fills = []; }
   });
-  return { of: canvas => { const s = by.get(canvas); return s ? { strokes: s.strokes, arcs: s.arcs, clip: s.clip } : { strokes: [], arcs: [], clip: null }; } };
+  return { fills: canvas => by.get(canvas)?.fills ?? [], of: canvas => { const s = by.get(canvas); return s ? { strokes: s.strokes, arcs: s.arcs, clip: s.clip } : { strokes: [], arcs: [], clip: null }; } };
 }
 const capture = probe === 'geometry' ? installCapture() : null;
 const describeAll = handles => handles.map(h => h.describe({ capture, probe }));
@@ -131,7 +135,7 @@ const ownedBytes = handles => {
 // From the create call until a fixed settle window after every chart reports ready. The readback (describe) is
 // taken after the end mark, so the admission check never runs inside the measured window.
 async function runCreate(adapter, fixtures, els) {
-  const opts = { params: adapterParams, compact: workload === 'compact', kind: workload === 'scatter' ? 'scatter' : 'line' };
+  const opts = { params: adapterParams, compact: workload === 'compact', dashboard: workload === 'page', kind: params.kind ?? (workload === 'scatter' ? 'scatter' : 'line'), capture };
   await metrics('create:start');
   const { t0, handles, tSync } = await inTask(() => {
     const t0 = performance.now();
@@ -151,7 +155,7 @@ async function runCreate(adapter, fixtures, els) {
   return {
     timing: { syncMs: r3(tSync - t0), readyMs: r3(tReady - t0), readyFrameMs: r3(tReadyFrame - t0), windowMs: r3(tEnd - t0), settleMs },
     canvasBacking: backing,
-    callerColumnBytes: fixtures.reduce((s, f) => s + f.x.byteLength + f.ys.reduce((t, c) => t + c.byteLength, 0), 0),
+    callerColumnBytes: callerColumnBytes(fixtures),
     // P7: bytes the library holds beyond the caller's columns, counted by the library itself (after the window).
     owned: workload === 'mem' ? ownedBytes(handles) : undefined,
     ...(workload === 'compact' ? { compactCheck: compactCheck(els) } : {}),
@@ -407,7 +411,7 @@ async function runResize(adapter, fixtures, els, box) {
   for (let i = 1; i <= up; i++) widths.push(narrow + (wide - narrow) * i / up);
   widths.push(wide, wide, wide);
   await metrics('create:start');
-  const handles = await inTask(() => fixtures.map((f, i) => adapter.create(els[i], f, { params: adapterParams, resize: true })));
+  const handles = await inTask(() => fixtures.map((f, i) => adapter.create(els[i], f, { params: adapterParams, resize: true, capture })));
   await Promise.all(handles.map(h => h.ready));
   await sleep(settleMs);
   await metrics('create:end');
@@ -464,20 +468,51 @@ async function runResize(adapter, fixtures, els, box) {
 // and its visible readout shows exactly that datum's value. A move that never matches within 10 frames is a missed
 // deadline (+Infinity in the nearest-rank percentile). The frame reader is registered from a window listener in the
 // bubbling phase, after the chart's own listener on the plot ran. This is the frame callback, not presentation.
+// Scatter needs a two-dimensional hit. Choose centres with no competing symbol within
+// the radius plus pixel rounding, so an overlapping point cannot make a valid pick look late.
+function scatterTargets(fix, { plot, xDomain, yDomain }) {
+  const [x0, x1] = xDomain, [y0, y1] = yDomain;
+  const xs = fix.x, ys = fix.ys[0];
+  const dx = plot.width / (x1 - x0), dy = plot.height / (y1 - y0);
+  const markAt = i => [plot.left + (xs[i] - x0) * dx, plot.top + (y1 - ys[i]) * dy];
+  const indices = new Uint32Array(xs.length);
+  let count = 0;
+  for (let i = 0; i < xs.length; i++) {
+    const cx = (xs[i] - x0) * dx, cy = (y1 - ys[i]) * dy;
+    if (cx <= 1 || cx >= plot.width - 1 || cy <= 1 || cy >= plot.height - 1) continue;
+    let clear = true;
+    // The fixture is ordered by x. Only neighbours within four screen pixels can obscure this centre.
+    for (let j = lowerBound(xs, xs[i] - 4 / dx); j < xs.length && (xs[j] - xs[i]) * dx <= 4; j++) {
+      if (j !== i && Math.hypot((xs[j] - xs[i]) * dx, (ys[j] - ys[i]) * dy) <= 4) { clear = false; break; }
+    }
+    if (clear) indices[count++] = i;
+  }
+  return { markAt, candidates: indices.subarray(0, count) };
+}
+
 async function runHover(adapter, fix, el) {
   const moves = params.moves ?? 200;
-  const handle = await inTask(() => adapter.create(el, fix, { params: adapterParams, hover: true }));
+  const handle = await inTask(() => adapter.create(el, fix, { params: adapterParams, hover: true, capture }));
   await handle.ready;
   await sleep(settleMs);
   const geo = handle.hoverGeometry?.();
   if (!geo) return { unsupported: handle.hoverGeometry ? 'the adapter cannot read the plot rectangle in this configuration' : 'the adapter has no hover readout' };
-  const { plot, xDomain: [X0, X1] } = geo;
-  const n = fix.x.length;
+  const { plot } = geo;
+  const [X0, X1] = geo.xDomain ?? [];
+  const n = fix.x?.length;
+  const scatter = fix.kind === 'scatter' ? scatterTargets(fix, geo) : null;
+  const markAt = scatter?.markAt ?? (geo.marks && (i => geo.marks[i]));
+  const candidates = scatter?.candidates ?? geo.marks?.map((_, i) => i);
+  if (candidates && candidates.length < Math.min(moves, 2)) {
+    return { hoverCheck: { ok: false, reasons: ['too few distinct hittable marks for the requested pointer moves'] }, describe: describeAll([handle]) };
+  }
   const toClient = v => plot.left + ((v - X0) / (X1 - X0)) * plot.width;
   const fromClient = cx => X0 + ((cx - plot.left) / plot.width) * (X1 - X0);
   const halfDevicePx = 0.5 / devicePixelRatio;
   const nearest = xv => { let lo = 0, hi = n - 1; while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (fix.x[mid] <= xv) lo = mid; else hi = mid; } return Math.abs(fix.x[hi] - xv) < Math.abs(fix.x[lo] - xv) ? hi : lo; };
-  const targets = Array.from({ length: moves }, (_, k) => Math.round((n - 1) * (0.05 + 0.9 * k / Math.max(1, moves - 1))));
+  const targets = Array.from({ length: moves }, (_, k) => candidates
+    ? candidates[Math.floor(k * Math.max(1, candidates.length / moves)) % candidates.length]
+    : Math.round((n - 1) * (0.05 + 0.9 * k / Math.max(1, moves - 1))));
   const y = plot.top + plot.height / 2;
   const log = targets.map(t => ({ target: t, event: null, clientX: null, expected: null, committed: null, shown: null, frames: 0 }));
   let current = null;
@@ -485,12 +520,12 @@ async function runHover(adapter, fix, el) {
     const mv = current;
     if (!mv || mv.event !== null) return;
     mv.event = e.timeStamp; mv.clientX = e.clientX;
-    mv.expected = nearest(fromClient(e.clientX));
+    mv.expected = markAt ? mv.target : nearest(fromClient(e.clientX));
     const read = () => {
       mv.frames++;
       const idx = handle.hoveredIndex();
       mv.committed = Number.isFinite(idx) ? idx : null;
-      const close = mv.committed !== null && Math.abs(toClient(fix.x[mv.committed]) - e.clientX) <= Math.abs(toClient(fix.x[mv.expected]) - e.clientX) + halfDevicePx;
+      const close = markAt ? mv.committed === mv.expected : mv.committed !== null && Math.abs(toClient(fix.x[mv.committed]) - e.clientX) <= Math.abs(toClient(fix.x[mv.expected]) - e.clientX) + halfDevicePx;
       if (close && handle.readoutShows(mv.committed)) { mv.shown = performance.now(); mv.done(); return; }
       if (mv.frames < 10) requestAnimationFrame(read); else mv.done();
     };
@@ -508,7 +543,8 @@ async function runHover(adapter, fix, el) {
     const finished = new Promise(r => { mv.done = r; });
     current = mv;
     // Whole client pixels: libraries read the pointer at pixel resolution, so a fractional position names no datum.
-    await window.__benchPointer?.(Math.round(toClient(fix.x[targets[k]])), Math.round(y));
+    const [cx, cy] = markAt ? markAt(targets[k]) : [toClient(fix.x[targets[k]]), y];
+    await window.__benchPointer?.(Math.round(cx), Math.round(cy));
     await Promise.race([finished, sleep(500)]);
     current = null;
   }
@@ -523,7 +559,7 @@ async function runHover(adapter, fix, el) {
   const noEvent = log.filter(m => m.event === null).length;
   if (noEvent) reasons.push(`${noEvent} moves produced no pointermove event`);
   return {
-    hover: { moves, latencies, missed, log: log.map(({ done, ...m }) => m), plot, xDomain: [X0, X1] },
+    hover: { moves, latencies, missed, log: log.map(({ done, ...m }) => m), plot, xDomain: geo.xDomain ?? null },
     hoverCheck: { ok: reasons.length === 0, reasons },
     timing: { settleMs },
     describe: describeAll([handle]),
@@ -537,7 +573,7 @@ async function runHover(adapter, fix, el) {
 // committed x range after steps 10, 30 and 50, which must be the requested window to the millisecond.
 async function runZoom(adapter, fix, el) {
   const steps = zoomSteps(fix);
-  const handle = await inTask(() => adapter.create(el, fix, { params: adapterParams }));
+  const handle = await inTask(() => adapter.create(el, fix, { params: adapterParams, capture }));
   await handle.ready;
   await sleep(settleMs);
   if (!handle.zoom) return { unsupported: 'the adapter has no zoom' };
@@ -599,14 +635,14 @@ async function runLifecycle(adapter, fix, el) {
   const at = new Set([0, 100, 300, 1000, cycles].filter(c => c <= cycles));
   for (let c = 1500; c <= Math.min(2500, cycles); c += 100) at.add(c);
   const checkpoints = [];
-  const once = async () => { const h = adapter.create(el, fix, { params: adapterParams }); await h.ready; h.destroy(); };
+  const once = async () => { const h = adapter.create(el, fix, { params: adapterParams, capture }); await h.ready; h.destroy(); };
   // Warm the same loop and call site before the heap-growth windows begin.
   for (let c = -warm; c <= cycles; c++) {
     if (c >= 0 && at.has(c)) { const label = `cycles${c}`; await raf(); await memory(label); checkpoints.push({ cycles: c, label, observers: liveObservers() }); }
     if (c < cycles) await once();
   }
   const leftover = el.childElementCount;
-  const handle = adapter.create(el, fix, { params: adapterParams });
+  const handle = adapter.create(el, fix, { params: adapterParams, capture });
   await handle.ready;
   const reasons = leftover ? [`${leftover} elements left in the container after the last destroy()`] : [];
   return { lifecycle: { cycles, warm, checkpoints, leftover }, lifecycleCheck: { ok: !reasons.length, reasons }, timing: { settleMs }, describe: describeAll([handle]) };
@@ -641,7 +677,7 @@ async function main() {
   const adapter = (await import(adapterUrl)).default;
   await adapter.load?.(adapterParams);
   const meta = { id: adapter.id, library: adapter.library, version: adapter.version, config: adapter.configFor?.(adapterParams) ?? adapter.config, params: adapter.resolvedParams?.(adapterParams) ?? adapterParams, floor: !!adapter.floor, expectRenderer: adapter.expectRendererFor?.(adapterParams) ?? null, bundle: adapter.bundleFor?.(adapterParams) ?? null };
-  const avail = adapter.available(workload);
+  const avail = adapter.available(workload, params);
   if (!avail.ok) return done({ outcome: 'not-available', reason: avail.reason, adapter: meta, env });
   adapter.setup?.(adapterParams);
   if (memoryWanted) await memory('blank');

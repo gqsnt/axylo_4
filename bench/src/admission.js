@@ -14,7 +14,10 @@
 //          a line across a gap the data has; one whose extremes are not the data's extremes in the visible window
 //          lost the spike that a reader would look for. Both are rejected.
 
+import { groupedDonut } from './fixtures.js';
+
 // Loose enough for axis padding and nice-number rounding, tight enough to catch a pinned or runaway range.
+
 const X_SLACK = 0.1;        // visible x range may exceed the expected x range by 10% of that range on each side
 const Y_LOOSENESS = 4;      // visible y span may be at most 4x the larger of the data's y span and its largest |y|
 const X_EXACT_MS = 1;       // oldest/newest x must match to the millisecond
@@ -174,7 +177,7 @@ export function checkKept(col, kept, { window, seriesY }, label) {
  * Every point is drawn (count), the drawn centres span where the data's extremes map (x and y), and a marker sits
  * where the injected extreme maps. An empty renderer shell has no markers and fails.
  */
-export function checkScatterPoints(x, col, points, xDomain, yDomain, extreme, label) {
+export function checkScatterPoints(x, col, points, xDomain, yDomain, extreme, label, window = [0, col.length - 1]) {
   const { plot, centers } = points;
   if (!Array.isArray(centers) || centers.length === 0) return [`${label}: the chart drew no point markers`];
   if (!plot || !(plot.width > 0) || !(plot.height > 0)) return [`${label}: no plot rectangle in the point readback`];
@@ -184,7 +187,7 @@ export function checkScatterPoints(x, col, points, xDomain, yDomain, extreme, la
   const py = v => plot.y + ((Y1 - v) / (Y1 - Y0)) * plot.height;
   const n = centers.length / 2;
   let finite = 0, xmin = Infinity, xmax = -Infinity, ymin = Infinity, ymax = -Infinity;
-  for (let i = 0; i < col.length; i++) if (col[i] === col[i]) { finite++; xmin = Math.min(xmin, x[i]); xmax = Math.max(xmax, x[i]); ymin = Math.min(ymin, col[i]); ymax = Math.max(ymax, col[i]); }
+  for (let i = window[0]; i <= window[1]; i++) if (col[i] === col[i]) { finite++; xmin = Math.min(xmin, x[i]); xmax = Math.max(xmax, x[i]); ymin = Math.min(ymin, col[i]); ymax = Math.max(ymax, col[i]); }
   if (n !== finite) reasons.push(`${label}: ${n} point markers drawn for ${finite} points`);
   let cx0 = Infinity, cx1 = -Infinity, cy0 = Infinity, cy1 = -Infinity, hit = false;
   const ex = px(extreme.x), ey = py(extreme.y);
@@ -200,6 +203,79 @@ export function checkScatterPoints(x, col, points, xDomain, yDomain, extreme, la
   return reasons;
 }
 
+// Rectangles are read from the committed SVG or the contender's painted elements.
+// Work in CSS pixels to allow SVG's two-decimal coordinate precision.
+function checkRectangles(expected, seen, columns) {
+  const histogram = expected.kind === 'histogram';
+  const values = histogram ? [expected.counts] : columns?.ys;
+  const { plot, rectangles, x, y } = seen;
+  if (!plot || ![plot.x, plot.y, plot.width, plot.height].every(num) || !(plot.width > 0 && plot.height > 0)
+    || !Array.isArray(y) || y.length !== 2 || !y.every(num) || !(y[0] <= 0 && y[1] > y[0])) return ['missing plot or invalid bar value domain'];
+  if (!values || !Array.isArray(rectangles) || rectangles.length !== values.length) return ['wrong number of rendered bar series'];
+  if (histogram && (!Array.isArray(x) || x.length !== 2 || !x.every(num) || !(x[0] <= expected.min && x[1] >= expected.max && x[1] > x[0]))) return ['sample extent is outside the histogram domain'];
+  const py = v => plot.y + (y[1] - v) / (y[1] - y[0]) * plot.height;
+  const px = v => plot.x + (v - x[0]) / (x[1] - x[0]) * plot.width;
+  if (histogram && seen.binCounts !== undefined && seen.binCounts?.length !== expected.counts.length) return ['missing histogram count readback'];
+  let observedTotal = 0;
+  for (let s = 0; s < values.length; s++) {
+    const bars = rectangles[s], col = values[s];
+    if (!Array.isArray(bars) || bars.length !== col.length || !bars.length) return [`series ${s}: expected ${col.length} rectangles`];
+    for (let i = 0; i < col.length; i++) {
+      const bar = bars[i], value = col[i];
+      if (!bar || ![bar.x, bar.y, bar.width, bar.height].every(num) || !(bar.width > 0)
+        || !(bar.height >= 0 && (value === 0 || bar.height > 0))) return [`invalid rendered rectangle ${s}/${i}`];
+      if (value > y[1] || bar.x < plot.x - 0.51 || bar.x + bar.width > plot.x + plot.width + 0.51
+        || Math.abs(bar.y - py(value)) > 0.51 || Math.abs(bar.y + bar.height - py(0)) > 0.51) return [`clipped or incorrect rectangle ${s}/${i} for value ${value}`];
+      if (histogram) {
+        const edge = k => expected.min + (expected.max - expected.min) * (k / col.length);
+        const rightGap = px(edge(i + 1)) - (bar.x + bar.width);
+        // Native histogram bars may reserve one CSS pixel between adjacent bins.
+        if (expected.max > expected.min && (Math.abs(bar.x - px(edge(i))) > 0.02
+          || Math.min(Math.abs(rightGap), Math.abs(rightGap - 1)) > 0.02)) return [`wrong histogram bin edges at ${i}`];
+        const count = seen.binCounts ? seen.binCounts[i] : Math.round(bar.height / plot.height * (y[1] - y[0]));
+        if (Math.abs(bar.height - (py(0) - py(value))) > 0.006) return [`incorrect drawn height for bin ${i}`];
+        if (count !== value) return [`bin ${i}: rendered count ${count}, expected ${value}`];
+        observedTotal += count;
+      } else {
+        if (s > 0) {
+          const previous = rectangles[s - 1][i];
+          if (bar.x < previous.x + previous.width - 0.02) return [`overlapping grouped bars in category ${i}`];
+        }
+        const center = (bar.x + bar.width / 2 - plot.x) / plot.width * col.length;
+        if (Math.floor(center) !== i) return [`bar ${s}/${i} is outside its category`];
+      }
+    }
+  }
+  if (histogram && observedTotal !== expected.points) return ['histogram bin total differs from observation count'];
+  return [];
+}
+
+function checkSlices(expected, seen, columns) {
+  const { slices, plot } = seen;
+  if (!plot || ![plot.x, plot.y, plot.width, plot.height].every(num) || plot.width <= 0 || plot.height <= 0) return ['missing donut plot'];
+  if (!columns || !Array.isArray(columns.labels) || columns.labels.length !== columns.values?.length) return ['missing donut columns'];
+  if (!Array.isArray(slices) || !slices.length || slices.length !== columns.labels.length)
+    return [`expected ${columns.labels.length} rendered donut slices, got ${slices?.length ?? 0}`];
+  let total = 0;
+  for (const [i, slice] of slices.entries()) {
+    if (!slice || ![slice.sweep, slice.innerRadius, slice.outerRadius, slice.cx, slice.cy, slice.startAngle].every(num) || !(slice.sweep > 0 && slice.sweep <= 2 * Math.PI + 0.001)
+      || !(slice.innerRadius > 0 && slice.outerRadius > slice.innerRadius)
+      || !num(slice.value) || slice.value <= 0 || slice.value !== columns?.values[i] || slice.label !== columns.labels[i]) return [`invalid donut slice ${i}`];
+    const r = slice.outerRadius;
+    if (slice.cx - r < plot.x - 0.02 || slice.cy - r < plot.y - 0.02 ||
+      slice.cx + r > plot.x + plot.width + 0.02 || slice.cy + r > plot.y + plot.height + 0.02) return [`clipped donut slice ${i}`];
+    if (i) {
+      const delta = slice.startAngle - slices[0].startAngle - 2 * Math.PI * total / expected.total;
+      if (Math.abs(Math.atan2(Math.sin(delta), Math.cos(delta))) > 2 / r + 0.001
+        || Math.abs(slice.cx - slices[0].cx) > 0.02 || Math.abs(slice.cy - slices[0].cy) > 0.02) return [`misplaced donut slice ${i}`];
+    }
+    // The SVG renderer leaves a one-pixel separator at the mid-radius.
+    if (Math.abs(slice.sweep - 2 * Math.PI * slice.value / expected.total) > 2 / slice.outerRadius + 0.001) return [`wrong angular extent for slice ${i}`];
+    total += slice.value;
+  }
+  return total === expected.total ? [] : ['drawn slice sum differs from fixture total'];
+}
+
 /**
  * @param {object} expected  from fixtures.expectedView
  * @param {object|null} seen from adapter.describe(): { x: [min, max], y: [min, max], renderer?, drawnPixels?,
@@ -211,6 +287,21 @@ export function checkScatterPoints(x, col, points, xDomain, yDomain, extreme, la
 export function checkView(expected, seen, opts = {}) {
   const reasons = [], limits = [];
   if (!seen) return { admitted: false, reasons: ['describe() returned nothing'], limits };
+  if (expected.kind && seen.kind !== expected.kind) return { admitted: false, reasons: ['wrong chart kind'], limits };
+  if (['bar', 'histogram', 'donut'].includes(expected.kind)) {
+    if (opts.expectRenderer && seen.renderer?.kind !== opts.expectRenderer) reasons.push('wrong mark renderer');
+    if (expected.kind === 'donut') {
+      if (opts.columns?.values?.length !== expected.points) reasons.push('wrong number of donut inputs');
+      const grouped = opts.library === 'Axylo' && expected.points > 8 && opts.columns?.values?.length === expected.points;
+      reasons.push(...checkSlices(expected, seen, grouped ? groupedDonut(opts.columns) : opts.columns));
+      if (grouped) limits.push(`Axylo groups ${expected.points} positive inputs into seven individual sectors and Other (F8)`);
+    } else reasons.push(...checkRectangles(expected, seen, opts.columns));
+    return { admitted: !reasons.length, reasons, limits };
+  }
+  if (expected.kind === 'area' && seen.areaFills !== expected.series && (opts.requireDrawn !== false || seen.areaFills !== undefined))
+    reasons.push('missing rendered area fills');
+  if (expected.kind && (!Array.isArray(seen.x) || !Array.isArray(seen.y)
+    || !Array.isArray(seen.series) || seen.series.some(s => !s))) return { admitted: false, reasons: ['incomplete chart readback'], limits };
   const [x0, x1] = seen.x ?? [];
   const [y0, y1] = seen.y ?? [];
   if (!num(x0) || !num(x1)) reasons.push(`visible x range is not two finite numbers: ${JSON.stringify(seen.x)}`);
@@ -234,6 +325,7 @@ export function checkView(expected, seen, opts = {}) {
   const scale = Math.max(expected.yMax - expected.yMin, Math.abs(expected.yMin), Math.abs(expected.yMax));
   if (y1 - y0 > Y_LOOSENESS * scale)
     reasons.push(`visible y span ${y1 - y0} is more than ${Y_LOOSENESS}x the data's scale ${scale}`);
+  if (expected.kind === 'area' && !(y0 <= 0 && y1 >= 0)) reasons.push('area domain excludes its zero baseline');
   const ex = expected.extreme;
   if (!(ex.y >= y0 && ex.y <= y1)) reasons.push(`${ex.injected === false ? 'extreme' : 'injected extreme'} y=${ex.y} at x=${ex.x} is outside visible y [${y0}, ${y1}]`);
   if (!(ex.x >= x0 && ex.x <= x1)) reasons.push(`${ex.injected === false ? 'extreme' : 'injected extreme'} x=${ex.x} is outside visible x [${x0}, ${x1}]`);
@@ -251,6 +343,10 @@ export function checkView(expected, seen, opts = {}) {
     const d = s.drawn;
     const ctx = { window: expected.window ?? [0, expected.points - 1], seriesY: expected.seriesY?.[i] ?? [expected.yMin, expected.yMax], scatter: expected.scatter };
     if (!d) { if (opts.requireDrawn !== false) reasons.push(`series ${i}: no drawn readback`); return; }
+    if (expected.kind && opts.requireDrawn !== false && (!opts.columns || d.kind === 'not-applicable')) {
+      reasons.push(`series ${i}: missing evidence for ${expected.kind} marks`);
+      return;
+    }
     if (d.kind === 'not-captured') {
       if (opts.requireDrawn) reasons.push(`series ${i}: drawn geometry not captured (${d.reason}) in a run that must capture it`);
       else limits.push(`series ${i}: drawn geometry not captured in this run (${d.reason}); it was checked in the untimed probe run`);
@@ -260,7 +356,7 @@ export function checkView(expected, seen, opts = {}) {
     if (d.kind === 'points') {
       if (!opts.columns) { limits.push(`series ${i}: point readback present but no columns given`); return; }
       if (!seen.drawnPoints) { if (opts.requireDrawn) reasons.push(`series ${i}: point geometry not captured in a run that must capture it`); else limits.push(`series ${i}: point geometry checked in the untimed probe run only`); return; }
-      for (const r of checkScatterPoints(opts.columns.x, opts.columns.ys[i], seen.drawnPoints, [x0, x1], [y0, y1], expected.extreme, `series ${i}`)) reasons.push(r);
+      for (const r of checkScatterPoints(opts.columns.x, opts.columns.ys[i], seen.drawnPoints, [x0, x1], [y0, y1], expected.extreme, `series ${i}`, expected.kind === 'scatter' ? expected.window : undefined)) reasons.push(r);
       return;
     }
     if (!opts.columns) { limits.push(`series ${i}: drawn readback present but no columns given to check it against`); return; }

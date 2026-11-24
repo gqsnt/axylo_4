@@ -10,6 +10,7 @@
 //
 // Every session serves one sealed artifact per side (bench/build.mjs). Without --artifact (or --base/--candidate
 // in two-build mode) the runner builds a fresh one for this session. See bench/README.md for what each metric means.
+import { multiParams } from './src/multichart.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -28,6 +29,8 @@ export const DEFAULT_BLOCKS = 20;
 
 /** Parameters of a workload from the command line; keys that are not given are left out (never undefined). */
 export function workloadParams(workload, a) {
+  if (a.bins !== undefined && a.kind !== 'histogram') throw new Error('--bins requires --kind histogram');
+  if (a.kind !== undefined && a.kind !== 'line') return multiParams(workload, a);
   const def = (o) => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
   const n = v => (v === undefined ? undefined : Number(v));
   const lineOrTrend = fallback => (a.fixture === 'trend' ? { fixture: 'trend' } : { size: a.size ?? fallback, gaps: !!a.gaps });
@@ -47,8 +50,8 @@ export function workloadParams(workload, a) {
   }
 }
 
-const tagOf = (workload, p) => workload === 'stream' ? `w${p.window}`
-  : `${p.fixture ?? p.size}${p.gaps ? '-gaps' : ''}${p.clustered ? '-clustered' : ''}${p.charts > 1 ? `-x${p.charts}` : ''}${p.cycles ? `-c${p.cycles}` : ''}`;
+export const tagOf = (workload, p) => workload === 'stream' ? `w${p.window}`
+  : `${p.kind ? p.kind + '-' : ''}${p.fixture ?? p.size}${p.bins ? '-b' + p.bins : ''}${p.gaps ? '-gaps' : ''}${p.clustered ? '-clustered' : ''}${p.charts > 1 ? `-x${p.charts}` : ''}${p.cycles ? `-c${p.cycles}` : ''}`;
 const slug = ref => ref.replace(/[^a-zA-Z0-9.-]+/g, '_');
 const artifactSlot = m => ({ artifact: m.id, dir: m.dir, manifestSha256: m.manifestSha256, source: { head: m.source.head, uncommitted: m.source.uncommitted, axyloSourceHash: m.source.axyloSourceHash, shippedOptions: m.source.shippedOptions, distComparison: m.source.distComparison }, bench: m.bench, files: Object.fromEntries(Object.entries(m.files).map(([p, f]) => [p, f.sha256])), served: {} });
 const HARNESS = rel => rel === 'index.html' || rel === 'page.js' || rel.startsWith('adapters/');
@@ -198,6 +201,16 @@ export async function runSession(cfg) {
       log(`  not timed: ${record.analysis.notCompared.join('; ')}`);
       return record;
     }
+    if (cfg.params.kind === 'donut' && sides.length === 2) {
+      const counts = sides.map(side => record.admission[keyOf(side)].describe?.[0]?.slices?.length);
+      if (counts.every(Number.isInteger) && counts[0] !== counts[1]) {
+        const reason = `native donut grouping differs: ${cfg.A.ref} drew ${counts[0]} sectors, ${cfg.B.ref} drew ${counts[1]}`;
+        record.analysis = { notCompared: [reason] };
+        await stop('complete', reason);
+        log(reason);
+        return record;
+      }
+    }
     // Symmetric warm-up: the admission runs went A then B; one more untimed run each, B then A.
     for (const side of [...sides].reverse()) {
       const r = await execute(spec(side));
@@ -266,7 +279,7 @@ async function main() {
     ({ values: a } = parseArgs({
       options: {
         baseline: { type: 'string' }, candidate: { type: 'string' }, aa: { type: 'string' }, adapter: { type: 'string' }, base: { type: 'string' },
-        workload: { type: 'string', default: 'first' }, size: { type: 'string' }, fixture: { type: 'string' }, gaps: { type: 'boolean', default: false }, clustered: { type: 'boolean', default: false },
+        workload: { type: 'string', default: 'first' }, size: { type: 'string' }, kind: { type: 'string' }, bins: { type: 'string' }, fixture: { type: 'string' }, gaps: { type: 'boolean', default: false }, clustered: { type: 'boolean', default: false },
         charts: { type: 'string' }, window: { type: 'string' }, samples: { type: 'string' }, toggles: { type: 'string' }, moves: { type: 'string' }, cycles: { type: 'string' },
         blocks: { type: 'string' }, settle: { type: 'string', default: '500' }, timeout: { type: 'string', default: '120000' },
         seed: { type: 'string' }, 'bootstrap-seed': { type: 'string' }, dpr: { type: 'string', default: '1' }, headed: { type: 'boolean', default: false },
@@ -280,7 +293,7 @@ async function main() {
   // and the renderer comparison's adapters are the default sides.
   const ep = a.endpoint ? endpointById(a.endpoint) : null;
   if (a.endpoint && !ep) die(`unknown endpoint ${a.endpoint}`);
-  if (ep && (a.size || a.fixture || a.charts || a.window || a.samples || a.moves || a.cycles || a.gaps || a.clustered)) die('--endpoint fixes the workload parameters; do not combine it with --size, --fixture and the like');
+  if (ep && (a.kind || a.bins || a.size || a.fixture || a.charts || a.window || a.samples || a.moves || a.cycles || a.gaps || a.clustered)) die('--endpoint fixes the workload parameters; do not combine it with --size, --fixture and the like');
   const workload = ep ? ep.workload : a.workload;
   if (!WORKLOADS.includes(workload)) die(`unknown workload ${workload} (${WORKLOADS.join(', ')})`);
   if (a.fixture && a.fixture !== 'trend') die(`unknown fixture ${a.fixture} (trend)`);

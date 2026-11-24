@@ -7,7 +7,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { chromium } from 'playwright-core';
 import { BENCH, REPO, sha256 } from '../build.mjs';
-import { workloadData, expectedView, heldColumns, checksum, zoomSteps } from '../src/fixtures.js';
+import { workloadData, expectedView, heldColumns, fixtureChecksum, zoomSteps } from '../src/fixtures.js';
 import { checkViews } from '../src/admission.js';
 import { streamCompletion } from '../src/stats.js';
 
@@ -135,7 +135,7 @@ export function expectedFor(workload, params) {
   if (!expectations.has(key)) {
     const fixtures = workloadData(workload, params);
     const visible = workload === 'zoom' ? zoomSteps(fixtures[0]).at(-1) : null;
-    expectations.set(key, { views: fixtures.map(f => expectedView(f, visible)), columns: fixtures.map(heldColumns), checksum: checksum(fixtures) });
+    expectations.set(key, { views: fixtures.map(f => expectedView(f, visible)), columns: fixtures.map(heldColumns), checksum: fixtureChecksum(fixtures) });
   }
   return expectations.get(key);
 }
@@ -160,13 +160,14 @@ export function admit(spec, result, floor, { requireDrawn = false } = {}) {
   const exp = expectedFor(spec.workload, spec.params);
   if (result.checksum !== exp.checksum) return { admitted: false, reasons: [`page fixture checksum ${result.checksum} differs from the runner's ${exp.checksum}`], limits: [] };
   const expectRenderer = result.adapter?.expectRenderer;
-  const view = checkViews(exp.views, result.describe, exp.columns.map(columns => ({ columns, requireDrawn, expectRenderer })));
+  const viewOptions = exp.columns.map(columns => ({ columns, requireDrawn, expectRenderer, library: result.adapter?.library }));
+  const view = checkViews(exp.views, result.describe, viewOptions);
   // Workload-specific end states, checked in the page: the marks changed color (theme), the charts follow their
   // container's width (resize), the readout followed the pointer (hover), the final zoom window (zoom).
   const extra = [];
   // Resize probe: the readback at the narrowest width is admitted like the final one (drawn geometry, renderer).
   if (result.intermediateDescribe) {
-    const mid = checkViews(exp.views, result.intermediateDescribe, exp.columns.map(columns => ({ columns, requireDrawn, expectRenderer })));
+    const mid = checkViews(exp.views, result.intermediateDescribe, viewOptions);
     for (const r of mid.reasons) extra.push(`at the narrowest width: ${r}`);
   }
   for (const [key, label] of [['themeCheck', 'theme'], ['resizeCheck', 'resize'], ['hoverCheck', 'hover'], ['zoomCheck', 'zoom'], ['lifecycleCheck', 'lifecycle'], ['compactCheck', 'compact']]) {

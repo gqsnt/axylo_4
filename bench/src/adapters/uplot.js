@@ -15,6 +15,7 @@
 //
 // Not configured here: scatter (uPlot's default configuration draws lines) and a compact variant; those workloads
 // report "not available" for uPlot.
+import { kindAvailability } from '../multichart.js';
 import uPlot from 'uplot';
 import css from 'uplot/dist/uPlot.min.css';
 import { uplotDrawnPaths } from '../drawn.js';
@@ -35,6 +36,7 @@ function column(col, mutable) {
 
 /** Shared by the default adapter and the deliberately broken test variants; `tweak` may change options or behaviour. */
 export function createUplot(el, fix, opts = {}, tweak = {}) {
+  const area = (fix.kind ?? opts.kind) === 'area';
   const stream = !!opts.window;
   // Streaming appends with push/shift on plain arrays, uPlot's own streaming pattern; typed arrays cannot grow.
   const data = [stream ? Array.from(fix.x) : fix.x, ...fix.ys.map(c => column(c, stream))];
@@ -43,7 +45,9 @@ export function createUplot(el, fix, opts = {}, tweak = {}) {
     width: el.clientWidth,
     height: el.clientHeight - LEGEND_ROOM,
     ms: 1,
-    series: [{}, ...fix.names.map((n, i) => ({ label: n, stroke: COLORS[i % COLORS.length] }))],
+    ...(area ? { scales: { y: { range: (_u, lo, hi) => uPlot.rangeNum(Math.min(lo, 0), Math.max(hi, 0), 0.1, true) } } } : {}),
+    series: [{}, ...fix.names.map((n, i) => ({ label: n, stroke: COLORS[i % COLORS.length],
+      ...(area ? { fill: COLORS[i % COLORS.length] + '40' } : {}) }))],
     hooks: {
       // Instrumentation, not configuration: record what the chart had when it last drew, and resolve readiness.
       draw: [u => { const xs = u.data[0]; drawnNewest = xs[xs.length - 1]; pending = false; const w = waiters; waiters = []; for (const r of w) r(); }],
@@ -94,9 +98,12 @@ export function createUplot(el, fix, opts = {}, tweak = {}) {
     //   y range  u.scales.y.min / max   (the one value scale every series uses by default)
     //   per series: u.data[0].length, u.data[0][0], u.data[0][last], the count of null in u.data[s], and the
     //   drawn index paths (uplotDrawnPaths over series.idxs and series.spanGaps)
-    describe() {
+    describe({ capture } = {}) {
+      const fills = area && capture ? new Set(capture.fills(u.ctx.canvas).map(f => f.path)) : null;
       const xs = u.data[0];
       return {
+        ...(area ? { kind: 'area' } : {}),
+        ...(fills ? { areaFills: u.series.slice(1).filter(s => s._paths?.fill && fills.has(s._paths.fill)).length } : {}),
         reads: 'uPlot u.scales.x/y.{min,max}; u.data[0] length and ends; null count in u.data[s]; drawn paths from u.series[s].idxs and null breaks',
         x: [u.scales.x.min, u.scales.x.max],
         y: [u.scales.y.min, u.scales.y.max],
@@ -117,7 +124,7 @@ export default {
   library: 'uPlot',
   version: __VERSIONS__.uplot,
   config: 'default',
-  available: workload => (workload === 'scatter' || workload === 'compact' ? { ok: false, reason: `no ${workload} configuration for uPlot in this harness` } : { ok: true }),
+  available: (workload, params) => kindAvailability('uPlot', workload, params) ?? (workload === 'scatter' || workload === 'compact' ? { ok: false, reason: `no ${workload} configuration for uPlot in this harness` } : { ok: true }),
   setup() {
     const s = document.createElement('style');
     s.textContent = css;

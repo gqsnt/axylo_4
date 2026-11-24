@@ -26,7 +26,9 @@
 // Input: one {x, y, i} object per point is built from the typed columns inside the timed work; Chart.js has no typed
 // column input. `i` (the source index) is instrumentation: Chart.js ignores it, its decimation copies keep it, and the
 // readback uses it because decimation rewrites the x of some points (one extra property per point, timed). Streaming pushes and shifts the same array and calls chart.update('none').
-import { Chart, benchPlugin, handleFor, newState, canvasIn, chartjsAvailable } from './chartjs-common.js';
+import { Chart, benchPlugin, handleFor, newState, canvasIn, chartjsAvailable, chartjsPaintProbe } from './chartjs-common.js';
+
+import { kindAvailability } from '../multichart.js';
 
 const held = (chart, i) => { const d = chart.data.datasets[i]; return d._data ?? d.data; };
 const newestHeld = chart => { const d = held(chart, 0); return d[d.length - 1]?.x; };
@@ -36,35 +38,47 @@ export default {
   library: 'Chart.js',
   version: __VERSIONS__['chart.js'],
   config: 'tuned, same visible features',
-  available: chartjsAvailable,
+  available: (workload, params) => kindAvailability('Chart.js', workload, params) ?? chartjsAvailable(workload),
   create(el, fix, opts = {}) {
     const state = newState();
-    const n = fix.x.length;
+    const kind = fix.kind ?? opts.kind ?? 'line';
+    const bar = kind === 'bar', donut = kind === 'donut', scatter = kind === 'scatter', area = kind === 'area';
+    const n = fix.x?.length ?? 0;
     let next = 0;
-    const arrays = fix.ys.map(col => {
+    const arrays = donut ? [Array.from(fix.values)] : fix.ys.map(col => {
+      if (bar) return Array.from(col);
       const pts = new Array(n);
       for (let k = 0; k < n; k++) pts[k] = { x: fix.x[k], y: col[k], i: k };
       return pts;
     });
     const chart = new Chart(canvasIn(el, state, opts), {
-      type: 'line',
-      data: { datasets: arrays.map((data, i) => ({ label: fix.names[i], data })) },
+      type: donut ? 'doughnut' : bar || scatter ? kind : 'line',
+      data: { ...(donut || bar ? { labels: fix.labels ?? fix.categories } : {}),
+        datasets: arrays.map((data, i) => ({ label: fix.names?.[i] ?? fix.title, data,
+          ...(area ? { fill: true } : {}) })) },
       options: {
         animation: false,
-        parsing: false,
+        ...(kind !== 'line' ? { maintainAspectRatio: false } : {}),
+        ...(!bar && !donut ? { parsing: false } : {}),
         normalized: true,
-        elements: { point: { radius: 0 } },
-        interaction: { mode: 'nearest', axis: 'x', intersect: false },
-        plugins: { decimation: { enabled: true, algorithm: 'min-max' } },
-        scales: { x: { type: 'time' } },
+        elements: { point: { radius: scatter ? 2 : 0 } },
+        interaction: { mode: 'nearest', axis: scatter || bar || donut ? 'xy' : 'x', intersect: bar || donut },
+        plugins: {
+          decimation: { enabled: kind === 'line' || (area && !opts.hover), algorithm: 'min-max' },
+          ...(opts.hover && kind !== 'line' ? { tooltip: { callbacks: { label: item => donut
+            ? item.label + ': ' + item.parsed : item.dataset.label + ': ' + item.parsed.y } } } : {}),
+        },
+        ...(!donut && { scales: { x: { type: bar ? 'category' : scatter ? 'linear' : 'time' },
+          ...(area ? { y: { beginAtZero: true } } : {}) } }),
       },
-      plugins: [benchPlugin(state, newestHeld)],
+      plugins: [benchPlugin(state, bar || donut ? () => NaN : newestHeld),
+        ...(fix.kind && opts.capture ? [chartjsPaintProbe(opts.capture, state)] : [])],
     });
     const append = (x, ys) => {
       next++;
       for (let s = 0; s < ys.length; s++) { arrays[s].push({ x, y: ys[s], i: n + next - 1 }); arrays[s].shift(); }
       chart.update('none');
     };
-    return handleFor(chart, state, append, held);
+    return handleFor(chart, state, append, held, kind, fix);
   },
 };

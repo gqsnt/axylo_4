@@ -31,6 +31,9 @@
 //              'not-captured'.
 // Streaming uses chart.append(rows, { keep: window }), the spec's API for a moving window.
 
+import { kindAvailability } from '../multichart.js';
+import { groupedDonut, histogramCounts } from '../fixtures.js';
+
 const NO_HOOK = 'this Axylo build has no benchmark hook (chart.__bench); use a development build or set __AXYLO_BENCH__';
 // prod = the instrumented production build (shipped recipe with __BENCH__ true: the hook exists); release = the
 // shipped bytes exactly (no hook: sanity runs only, see `sanity` below); dev = the development build.
@@ -116,7 +119,7 @@ function scatterPoints(el, capture) {
     for (const p of svg.querySelectorAll('.axylo-scene path')) {
       const d = p.getAttribute('d') ?? '';
       if (!d.includes('A')) continue;
-      centers.push(...circleCenters(d));
+      for (const coordinate of circleCenters(d)) centers.push(coordinate);
       plot ??= clipRectOf(svg, p);
     }
     return { plot, centers };
@@ -150,6 +153,51 @@ function canvasStrokes(el, capture) {
   if (!scene || !capture) return null;
   const { strokes, clip } = capture.of(scene);
   return { plot: clip, strokes: strokes.filter(s => !s.path2d && s.polylines.length) };
+}
+
+function svgRectangles(el) {
+  const groups = el.querySelectorAll('svg.axylo-svg .axylo-scene > g');
+  return Array.from(groups, group => Array.from(group.querySelectorAll('rect'))
+    .filter(rect => !rect.style.fill && getComputedStyle(rect).fill !== 'none')
+    .map(rect => ({ x: rect.x.baseVal.value, y: rect.y.baseVal.value,
+      width: rect.width.baseVal.value, height: rect.height.baseVal.value }))).filter(group => group.length);
+}
+
+// A two-decimal SVG height can represent several integers on a tall count scale.
+// The public table exposes exact counts (the options allow at most 100 bins, one page).
+function tableCounts(el) {
+  const toggle = el.querySelector('.axylo-control[aria-expanded="false"]');
+  if (!toggle) return [];
+  toggle.click();
+  try {
+    return Array.from(el.querySelectorAll('.axylo-table tbody tr'), row => {
+      const text = row.querySelector('td')?.textContent?.trim() ?? '';
+      return /^[\d,]+$/.test(text) ? Number(text.replaceAll(',', '')) : null;
+    });
+  } finally { toggle.click(); }
+}
+
+function donutSlices(el, plot) {
+  const entries = el.querySelectorAll('.axylo-legend-list > li');
+  return Array.from(el.querySelectorAll('svg.axylo-svg .axylo-scene > g > path'), (path, i) => {
+    const d = path.getAttribute('d') ?? '';
+    const start = /^M([-.\d]+) ([-.\d]+)/.exec(d);
+    const arcs = [...d.matchAll(/A([.\d]+) [\d.]+ 0 ([01]) ([01]) ([-.\d]+) ([-.\d]+)/g)];
+    const outer = arcs[0], inner = arcs.find(a => a[3] === '0');
+    if (!start || !outer || !inner || getComputedStyle(path).fill === 'none') return null;
+    const radius = Number(outer[1]);
+    const cx = plot.x + plot.width / 2, cy = plot.y + plot.height / 2;
+    if (Math.abs(Math.hypot(start[1] - cx, start[2] - cy) - radius) > 0.02
+      || Math.abs(Math.hypot(outer[4] - cx, outer[5] - cy) - radius) > 0.02) return null;
+    const startAngle = Math.atan2(start[2] - cy, start[1] - cx);
+    const chord = Math.hypot(start[1] - outer[4], start[2] - outer[5]);
+    const minor = 2 * Math.asin(Math.min(1, chord / (2 * radius)));
+    const sweep = arcs.length === 4 ? 2 * Math.PI : outer[2] === '1' ? 2 * Math.PI - minor : minor;
+    const entry = entries[i];
+    const text = entry?.querySelector('.axylo-legend-value')?.textContent ?? '';
+    return { label: entry?.querySelector('.axylo-legend-name')?.textContent, value: Number(text.split(' ')[0].replaceAll(',', '')),
+      cx, cy, startAngle, sweep, outerRadius: radius, innerRadius: Number(inner[1]) };
+  });
 }
 
 export function axyloAdapter(id, fixed = {}) {
@@ -187,10 +235,13 @@ export function axyloAdapter(id, fixed = {}) {
       globalThis.__AXYLO_BENCH__ = true;
       loadError = await loadScript(FILES[p.build]);
     },
-    available() {
+    available(workload, params = {}) {
+      const supported = kindAvailability('Axylo', workload, params);
+      if (supported && !supported.ok) return supported;
+      const kind = params.kind ?? (workload === 'scatter' ? 'scatter' : 'line');
       const A = globalThis.Axylo;
       if (!A) return { ok: false, reason: loadError ?? 'the Axylo script did not define the Axylo global' };
-      if (typeof A.line !== 'function') return { ok: false, reason: 'the Axylo build does not export line()' };
+      if (typeof A[kind] !== 'function') return { ok: false, reason: `the Axylo build does not export ${kind}()` };
       return { ok: true };
     },
     create(el, fix, opts = {}) {
@@ -198,15 +249,19 @@ export function axyloAdapter(id, fixed = {}) {
       const renderer = hasCanvasMarks && p.renderer ? { __renderer: p.renderer } : {};
       const A = globalThis.Axylo;
       let chart;
-      if (opts.kind === 'scatter') {
+      const kind = fix.kind ?? opts.kind ?? 'line';
+      const common = { title: fix.title ?? 'Benchmark', ...(opts.compact ? { compact: true } : {}), ...renderer };
+      if (kind === 'donut') {
+        chart = A.donut(el, { ...common, ...(opts.dashboard ? { legend: 'right' } : {}), data: { columns: { label: fix.labels, value: fix.values } }, label: 'label', value: 'value' });
+      } else if (kind === 'histogram') {
+        chart = A.histogram(el, { ...common, data: { columns: { latency: fix.values } }, x: 'latency', bins: fix.bins });
+      } else if (kind === 'scatter') {
         chart = A.scatter(el, { data: { columns: { x: fix.x, y: fix.ys[0] } }, x: { field: 'x', type: 'number' }, y: 'y', title: fix.title ?? 'Benchmark', ...renderer });
       } else {
-        const columns = { t: fix.x };
+        const columns = kind === 'bar' ? { category: fix.categories } : { t: fix.x };
         fix.names.forEach((n, i) => { columns[n] = fix.ys[i]; });
-        chart = A.line(el, {
-          data: { columns }, x: { field: 't', type: 'time', timeZone: 'UTC' }, y: fix.names, title: fix.title ?? 'Benchmark',
-          ...(opts.compact ? { compact: true } : {}),
-          ...renderer,
+        chart = A[kind](el, {
+          ...common, data: { columns }, x: kind === 'bar' ? { field: 'category', type: 'category' } : { field: 't', type: 'time', timeZone: 'UTC' }, y: fix.names,
         });
       }
       const hook = chart.__bench;
@@ -227,7 +282,13 @@ export function axyloAdapter(id, fixed = {}) {
       const drew = x => () => { if (!(drawnNewest >= x)) drawnNewest = x; };
       if (opts.window) void Promise.resolve(hook ? hook.ready() : ready).then(drew(fix.x[fix.x.length - 1]), () => {});
       let hovered = NaN;
-      if (opts.hover) chart.on('hover', pt => { hovered = pt ? pt.index : NaN; });
+      let counts, ring;
+      if (opts.hover) chart.on('hover', pt => {
+        if (!pt) hovered = NaN;
+        else if (kind === 'histogram') hovered = fix.max === fix.min ? 0 : Math.floor((pt.x - fix.min) / (fix.max - fix.min) * fix.bins);
+        else if (kind === 'donut' && ring) hovered = ring.labels.indexOf(pt.x);
+        else hovered = pt.index;
+      });
       let fmt;
       return {
         chart,
@@ -255,18 +316,42 @@ export function axyloAdapter(id, fixed = {}) {
             const path = svg?.querySelector('.axylo-scene path[clip-path]');
             if (path) { rect = clipRectOf(svg, path); origin = svg.getBoundingClientRect(); }
           }
-          if (!rect || !d.xDomain) return null;
-          return { plot: { left: origin.left + rect.x, top: origin.top + rect.y, width: rect.width, height: rect.height }, xDomain: d.xDomain };
+          if (!rect) return null;
+          const plot = { left: origin.left + rect.x, top: origin.top + rect.y, width: rect.width, height: rect.height };
+          if (kind === 'donut') {
+            ring = groupedDonut(fix);
+            let sum = 0;
+            const radius = Math.min(plot.width, plot.height) * 0.4;
+            const marks = Array.from(ring.values, value => {
+              const angle = (sum + value / 2) / fix.total * 2 * Math.PI;
+              sum += value;
+              return [plot.left + plot.width / 2 + radius * Math.sin(angle), plot.top + plot.height / 2 - radius * Math.cos(angle)];
+            });
+            return { plot, marks };
+          }
+          if (kind === 'bar' || kind === 'histogram') {
+            if (kind === 'histogram') counts = histogramCounts(fix);
+            const marks = (svgRectangles(el)[0] ?? []).map(r =>
+              [origin.left + r.x + r.width / 2, origin.top + r.y + (r.height || -2) / 2]);
+            return { plot, marks };
+          }
+          if (!d.xDomain) return null;
+          if (kind === 'scatter') return { plot, xDomain: d.xDomain, yDomain: d.yDomain };
+          return { plot, xDomain: d.xDomain };
         },
         hoveredIndex: () => hovered,
         // The readout shows datum i when the visible tooltip (or the readout strip) has a value row reading exactly
         // the datum's y in the spec's readout format (F6, en-US). Exact text: "10.24" does not show 1.
         readoutShows(i) {
           fmt ??= new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 });
-          const want = fmt.format(fix.ys[0][i]);
+          const value = kind === 'donut' ? (ring ?? fix).values[i] : kind === 'histogram' ? counts?.[i] : fix.ys[0][i];
+          const want = fmt.format(value);
           for (const box of [el.querySelector('.axylo-tooltip'), el.querySelector('.axylo-readout')]) {
             if (!box || box.hidden) continue;
-            for (const v of box.querySelectorAll('.axylo-tooltip-value')) if (v.textContent.trim() === want) return true;
+            for (const v of box.querySelectorAll('.axylo-tooltip-value')) {
+              const text = v.textContent.trim();
+              if (text === want || (kind === 'donut' && text.split(' (')[0] === want)) return true;
+            }
           }
           return false;
         },
@@ -292,29 +377,42 @@ export function axyloAdapter(id, fixed = {}) {
         describe({ capture, probe } = {}) {
           if (!hook && sanity) {
             const r = rendererIn(el);
-            const marks = r.kind === 'svg' ? (svgStrokes(el)?.strokes.length ?? 0) : (el.querySelector('.axylo-canvas canvas')?.width ?? 0);
+            const marks = kind === 'donut' ? el.querySelectorAll('.axylo-scene > g > path[d*="A"]').length
+              : kind === 'histogram' || kind === 'bar' ? svgRectangles(el).flat().filter(r => r.height > 0 && r.width > 0).length
+              : kind === 'scatter' && fix.kind ? scatterPoints(el, capture)?.centers.length
+              : r.kind === 'svg' ? (svgStrokes(el)?.strokes.length ?? 0) : (el.querySelector('.axylo-canvas canvas')?.width ?? 0);
             return { sanity: true, reads: 'release build: no hook; renderer elements and whether marks exist', renderer: r, hasMarks: marks > 0 };
           }
           if (!hook) return null;
           const d = hook.describe();
           const renderer = rendererIn(el, d.renderer ?? null);
+          if (kind === 'donut') return { kind, renderer, plot: d.plot, slices: d.plot ? donutSlices(el, d.plot) : [] };
+          if (kind === 'bar' || kind === 'histogram') {
+            const seen = { kind, renderer, x: d.xDomain, y: d.yDomain, plot: d.plot, rectangles: svgRectangles(el) };
+            if (kind === 'histogram' && d.plot && d.yDomain && (d.yDomain[1] - d.yDomain[0]) * 0.011 >= d.plot.height) {
+              seen.binCounts = tableCounts(el);
+            }
+            return seen;
+          }
           const dom = renderer.dom ?? renderer.kind;
           let drawnPixels = null, drawnPoints = null;
           if (probe === 'geometry') {
-            if (opts.kind === 'scatter') drawnPoints = scatterPoints(el, capture);
+            if (kind === 'scatter') drawnPoints = scatterPoints(el, capture);
             else drawnPixels = dom === 'svg' ? svgStrokes(el) : canvasStrokes(el, capture);
           }
           // Per series: the library's kept indexes (with run starts when it reports them); a stream's kept indexes
           // are rows of the individual append calls, which this readback does not map, so they are not used there.
           const drawnOf = s => {
-            if (opts.kind === 'scatter') return { kind: 'points' };
+            if (kind === 'scatter') return { kind: 'points' };
             if (Array.isArray(s.kept) && (!opts.window || s.keptBasis === 'window')) return Array.isArray(s.breaks) ? { kind: 'indices', paths: keptPaths(s.kept, s.breaks), source: 'kept + breaks' } : { kind: 'kept', kept: s.kept };
             if (drawnPixels) return { kind: 'pixels' };
             return { kind: 'not-captured', reason: opts.window ? 'stream: kept indexes refer to append calls; strokes captured only in the probe run' : 'this Axylo build reports no kept indexes; strokes are captured only in the probe run' };
           };
           return {
             reads: 'Axylo chart.__bench.describe(): committed view xDomain/yDomain; per series slots held, first and last x, non-value slots, kept indexes (and run starts when reported); renderer reported by the library and read from the mark elements; strokes or markers in probe runs',
-            renderer,
+            renderer, ...(fix.kind ? { kind } : {}),
+            ...(kind === 'area' ? { areaFills: [...el.querySelectorAll('.axylo-scene > path')].filter(p =>
+              p.style.fillOpacity === '0.25' && p.getAttribute('d')?.includes('Z') && getComputedStyle(p).fill !== 'none').length } : {}),
             x: d.xDomain, y: d.yDomain,
             series: d.series.map(s => ({ points: s.points, oldestX: s.oldestX, newestX: s.newestX, missing: s.missing, drawn: drawnOf(s) })),
             ...(drawnPixels ? { drawnPixels } : {}),

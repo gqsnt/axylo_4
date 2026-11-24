@@ -2,6 +2,8 @@
 // page (the adapters receive it). Only integer and basic float arithmetic is used, so both produce identical bits;
 // the runner compares a checksum of every column the page built with its own.
 
+import { multiParams } from './multichart.js';
+
 export const DAY = 86_400_000;
 export const MINUTE = 60_000;
 export const START = Date.UTC(2026, 0, 1);
@@ -162,6 +164,76 @@ export function scatterFixture({ points, clustered = false, seed = 3 }) {
   return { scatter: true, clustered, x, ys: [y], names: ['points'], step: null, extreme: { series: 0, index: extremeIndex, x: x[extremeIndex], y: y[extremeIndex], injected: true } };
 }
 
+const numbered = (prefix, i) => prefix + ' ' + String(i + 1).padStart(2, '0');
+
+export function barFixture({ series = 3, categories = 24, seed = 11 } = {}) {
+  const random = rng(seed);
+  const labels = Array.from({ length: categories }, (_, i) => numbered('Cat', i));
+  const ys = Array.from({ length: series }, () => Float64Array.from(labels, () => 100 + Math.floor(random() * 900)));
+  const index = Math.floor(categories * 0.37);
+  ys[0][index] = 1500;
+  return { kind: 'bar', title: 'Revenue by category', categories: labels, ys,
+    names: ys.map((_, s) => ['Direct', 'Organic', 'Referral'][s] ?? `s${s}`),
+    extreme: { series: 0, index, category: labels[index], y: ys[0][index] } };
+}
+
+export function donutFixture({ slices = 8, seed = 13 } = {}) {
+  const random = rng(seed);
+  const labels = slices === 8 ? ['Direct', 'Organic', 'Referral', 'Email', 'Paid search', 'Social', 'Partners', 'Events']
+    : Array.from({ length: slices }, (_, i) => numbered('Slice', i));
+  const values = Float64Array.from(labels, () => 50 + Math.floor(random() * 200));
+  const index = values.reduce((best, value, i) => value > values[best] ? i : best, 0);
+  return { kind: 'donut', title: 'Share by channel', labels, values, total: values.reduce((a, b) => a + b, 0),
+    extreme: { index, label: labels[index], value: values[index] } };
+}
+
+// Spec F8: retain the seven largest in input order, resolving ties by their original position.
+export function groupedDonut({ labels, values }) {
+  if (values.length <= 8) return { labels, values };
+  const indices = Array.from(values.keys());
+  const selected = new Set(indices.toSorted((a, b) => values[b] - values[a] || a - b).slice(0, 7));
+  const kept = indices.filter(i => selected.has(i));
+  const other = values.reduce((sum, value, i) => selected.has(i) ? sum : sum + value, 0);
+  return { labels: [...kept.map(i => labels[i]), `Other (${values.length - 7})`],
+    values: [...kept.map(i => values[i]), other] };
+}
+
+export function histogramFixture({ points = 10000, bins = 24, seed = 17 } = {}) {
+  const random = rng(seed);
+  const values = Float64Array.from({ length: points }, () =>
+    Math.round(10 + (random() < 0.7 ? 0 : 55) + 25 * (random() + random() + random())));
+  const { lo: min, hi: max } = extent(values);
+  return { kind: 'histogram', title: 'Response latency distribution', values, points, bins, min, max };
+}
+
+// Counts use half-open intervals, with the maximum included in the final bin.
+export function histogramCounts(fix) {
+  if (fix.min === fix.max) return [fix.points];
+  const counts = Array(fix.bins).fill(0);
+  const edges = Array.from({ length: fix.bins + 1 }, (_, i) => fix.min + (fix.max - fix.min) * (i / fix.bins));
+  for (const v of fix.values) {
+    const at = lowerBound(edges, v);
+    counts[Math.min(counts.length - 1, edges[at] === v ? at : at - 1)]++;
+  }
+  return counts;
+}
+
+function multiData(workload, params) {
+  const p = multiParams(workload, params);
+  const size = p.size && parseSize(p.size);
+  return Array.from({ length: p.charts ?? 1 }, (_, i) => {
+    const seed = (params.seed ?? { area: 1, bar: 11, donut: 13, histogram: 17, scatter: 3 }[p.kind]) + i;
+    switch (p.kind) {
+      case 'area': return { ...(p.fixture ? (workload === 'compact' ? trendSeries(i) : trendFixture())
+        : lineFixture({ ...size, seed, gaps: p.gaps })), kind: 'area' };
+      case 'bar': return barFixture({ series: size.series, categories: size.points, seed });
+      case 'donut': return donutFixture({ slices: size.points, seed });
+      case 'histogram': return histogramFixture({ points: size.points, bins: p.bins, seed });
+      case 'scatter': return { ...scatterFixture({ points: size.points, clustered: p.clustered, seed }), kind: 'scatter' };
+    }
+  });
+}
+
 /**
  * Streaming: an initial window, then `samples` appended points, one series.
  * The extreme is injected into a streamed sample that stays inside the final window.
@@ -208,6 +280,7 @@ export function zoomSteps(fix, { zoomIn = 20, zoomOut = 20, pan = 20 } = {}) {
 
 /** The data a workload feeds to the chart(s), as a list of fixtures (one per chart). */
 export function workloadData(workload, params) {
+  if (params.kind && params.kind !== 'line') return multiData(workload, params);
   const line = p => (p.fixture === 'trend' ? trendFixture() : lineFixture({ ...parseSize(p.size), gaps: !!p.gaps, seed: p.seed ?? 1 }));
   if (workload === 'first' || workload === 'hover' || workload === 'zoom' || workload === 'mem') return [line({ size: '3x120', ...params })];
   if (workload === 'page') {
@@ -231,6 +304,8 @@ export function workloadData(workload, params) {
 
 /** The columns a correct chart holds at the end of the workload: the final window for a stream, else the input. */
 export function heldColumns(fix) {
+  if (fix.categories) return { categories: fix.categories, ys: fix.ys };
+  if (fix.values) return { values: fix.values, labels: fix.labels };
   if (fix.initial) {
     const from = fix.all.x.length - fix.window;
     return { x: fix.all.x.subarray(from), ys: fix.all.ys.map(c => c.subarray(from)) };
@@ -254,6 +329,9 @@ export function lowerBound(x, v) {
  *   seriesY      the same per series ([min, max]), for the drawn-extreme check
  */
 export function expectedView(fix, visible = null) {
+  if (fix.kind === 'bar') return { kind: 'bar', series: fix.ys.length, points: fix.categories.length, extreme: fix.extreme };
+  if (fix.kind === 'donut') return { kind: 'donut', points: fix.values.length, total: fix.total, extreme: fix.extreme };
+  if (fix.kind === 'histogram') return { kind: 'histogram', points: fix.points, counts: histogramCounts(fix), min: fix.min, max: fix.max };
   const { x, ys } = heldColumns(fix);
   const visibleX = visible ? [visible[0], visible[1]] : [x[0], x[x.length - 1]];
   const i0 = visible ? lowerBound(x, visible[0]) : 0;
@@ -268,6 +346,7 @@ export function expectedView(fix, visible = null) {
     lo = Math.min(lo, e.lo); hi = Math.max(hi, e.hi);
   }
   return {
+    ...(fix.kind ? { kind: fix.kind } : {}),
     series: ys.length, points: x.length, oldestX: x[0], newestX: x[x.length - 1],
     visibleX, window: [i0, i1], yMin: lo, yMax: hi, seriesY, missing, extreme: fix.extreme, scatter: !!fix.scatter,
     // A scatter's x is a number axis, which a library may round out to nice tick values (0 to 60,000 for data
@@ -278,6 +357,18 @@ export function expectedView(fix, visible = null) {
   };
 }
 
+function numericColumns(fix) {
+  if (fix.values) return [fix.values];
+  if (fix.categories) return fix.ys;
+  const { x, ys } = fix.all ?? fix;
+  return [x, ...ys];
+}
+
+// Typed input storage only. Category labels are JS strings, with no portable heap byte count.
+export function callerColumnBytes(fixtures) {
+  return fixtures.reduce((total, fix) => numericColumns(fix).reduce((sum, col) => sum + col.byteLength, total), 0);
+}
+
 /** FNV-1a over the bytes of every column, so the runner can confirm the page built the same data it expects. */
 export function checksum(fixtures) {
   let h = 0x811c9dc5;
@@ -286,8 +377,13 @@ export function checksum(fixtures) {
     for (let i = 0; i < b.length; i++) { h ^= b[i]; h = Math.imul(h, 0x01000193); }
   };
   for (const f of fixtures) {
-    const cols = f.all ? [f.all.x, ...f.all.ys] : [f.x, ...f.ys];
-    for (const c of cols) feed(c);
+    if (f.kind) {
+      const text = JSON.stringify([f.kind, f.categories ?? f.labels ?? null, f.names ?? null, f.bins ?? null]);
+      feed(new TextEncoder().encode(text));
+    }
+    for (const c of numericColumns(f)) feed(c);
   }
   return (h >>> 0).toString(16).padStart(8, '0');
 }
+
+export const fixtureChecksum = fix => checksum(Array.isArray(fix) ? fix : [fix]);

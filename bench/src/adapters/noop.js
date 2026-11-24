@@ -9,7 +9,7 @@ export default {
   floor: true,
   available: () => ({ ok: true }),
   create(el, fix) {
-    let newest = fix.x[fix.x.length - 1];
+    let newest = fix.x?.at(-1);
     return {
       ready: Promise.resolve(),
       append(x) { newest = x; },

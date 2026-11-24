@@ -2,12 +2,13 @@
 // extremes at 800 px but loses the minimum at 400 px. Minmax keeps the extremes but
 // loses the endpoints. Full resolution also gives axis tooltips every hover candidate.
 // Explicit sampling applies even on hover and zoom, and goes through the same admission checks.
+import { kindAvailability } from '../multichart.js';
 import * as echarts from 'echarts/core';
-import { LineChart, ScatterChart } from 'echarts/charts';
+import { LineChart, ScatterChart, BarChart, PieChart } from 'echarts/charts';
 import { AriaComponent, GridComponent, LegendComponent, TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 
-echarts.use([LineChart, ScatterChart, GridComponent, LegendComponent, TooltipComponent, AriaComponent, CanvasRenderer]);
+echarts.use([LineChart, ScatterChart, BarChart, PieChart, GridComponent, LegendComponent, TooltipComponent, AriaComponent, CanvasRenderer]);
 
 const config = 'modular tree-shaken (Canvas, ARIA, tooltip, legend, animation: false)';
 function samplingFor(params) {
@@ -75,15 +76,25 @@ function scatterCenters(chart, data) {
 }
 
 function create(el, fix, opts = {}) {
-  const scatter = opts.kind === 'scatter';
+  const kind = fix.kind ?? opts.kind ?? 'line';
+  const scatter = kind === 'scatter', bar = kind === 'bar', donut = kind === 'donut', area = kind === 'area';
+  const itemHover = (scatter && !!fix.kind) || donut;
   const compact = !!opts.compact;
   const sampling = samplingFor(opts.params);
-  const series = fix.ys.map((y, i) => ({
-    name: fix.names[i], dimensions: ['x', 'y'], encode: { x: 'x', y: 'y', tooltip: 'y' },
-    data: seriesData(fix.x, y, opts.window),
-    ...(scatter ? { type: 'scatter', symbol: 'circle', symbolSize: 4, large: false }
-      : { type: 'line', sampling, showSymbol: false, connectNulls: false }),
-  }));
+  let series;
+  if (donut) {
+    series = [{ type: 'pie', radius: ['50%', '75%'],
+      data: Array.from(fix.values, (value, i) => ({ name: fix.labels[i], value })) }];
+  } else if (bar) {
+    series = fix.ys.map((y, i) => ({ type: 'bar', name: fix.names[i], data: Array.from(y) }));
+  } else {
+    const marks = scatter ? { type: 'scatter', symbol: 'circle', symbolSize: 4, large: false }
+      : { type: 'line', sampling, showSymbol: false, connectNulls: false, ...(area ? { areaStyle: { opacity: 0.25 } } : {}) };
+    series = fix.ys.map((y, i) => ({
+      ...marks, name: fix.names[i], dimensions: ['x', 'y'], encode: { x: 'x', y: 'y', tooltip: 'y' },
+      data: seriesData(fix.x, y, opts.window),
+    }));
+  }
   const host = el.appendChild(document.createElement('div'));
   host.style.cssText = 'width:100%;height:100%';
   const chart = echarts.init(host, null, { renderer: 'canvas', width: el.clientWidth || undefined, height: el.clientHeight || undefined });
@@ -96,19 +107,27 @@ function create(el, fix, opts = {}) {
     pending = false;
     for (const resolve of waiters.splice(0)) resolve();
   });
-  chart.getZr().on('rendered', () => {
+  if (!bar && !donut) chart.getZr().on('rendered', () => {
     const data = chart.getModel().getSeriesByIndex(0).getData();
     drawnNewest = data.get('x', data.count() - 1);
   });
-  if (opts.hover) chart.on('updateAxisPointer', event => { hovered = event.dataIndex ?? NaN; });
+  if (itemHover && opts.hover) {
+    chart.on('mousemove', 'series', event => { hovered = event.dataIndex; });
+    chart.on('mouseout', 'series', () => { hovered = NaN; });
+  } else if (opts.hover) chart.on('updateAxisPointer', event => { hovered = event.dataIndex ?? NaN; });
   chart.setOption({
     animation: false, useUTC: true, aria: { enabled: true },
-    grid: compact ? { left: 0, right: 0, top: 2, bottom: 2, containLabel: false }
-      : { left: 56, right: 16, top: 36, bottom: 32, containLabel: false },
-    xAxis: scatter ? { type: 'value', scale: true } : { type: 'time', min: 'dataMin', max: 'dataMax', show: !compact },
-    yAxis: { type: 'value', scale: true, show: !compact },
+    ...(!donut && {
+      grid: compact ? { left: 0, right: 0, top: 2, bottom: 2, containLabel: false }
+        : { left: 56, right: 16, top: 36, bottom: 32, containLabel: false },
+      xAxis: bar ? { type: 'category', data: fix.categories, show: !compact }
+        : scatter ? { type: 'value', scale: true } : { type: 'time', min: 'dataMin', max: 'dataMax', show: !compact },
+      yAxis: { type: 'value', scale: !bar && !area, show: !compact },
+    }),
     legend: { show: !compact },
-    tooltip: scatter ? { trigger: 'item', transitionDuration: 0 } : {
+    tooltip: itemHover ? { trigger: 'item', transitionDuration: 0, renderMode: 'html', className: 'bench-echarts-tooltip',
+      formatter: item => donut ? item.name + ': ' + item.value : item.seriesName + ': ' + item.value[1] }
+      : scatter ? { trigger: 'item', transitionDuration: 0 } : {
       show: !compact, trigger: 'axis', transitionDuration: 0, renderMode: 'html',
       className: 'bench-echarts-tooltip', valueFormatter: String,
     },
@@ -158,24 +177,65 @@ function create(el, fix, opts = {}) {
     },
     hoverTarget: () => host,
     hoverGeometry() {
+      const origin = host.getBoundingClientRect();
+      if (donut) {
+        const data = chart.getModel().getSeriesByIndex(0).getData();
+        const marks = Array.from({ length: data.count() }, (_, i) => {
+          const { cx, cy, r, r0, startAngle, endAngle } = data.getItemLayout(i);
+          const a = (startAngle + endAngle) / 2;
+          return [origin.left + cx + Math.cos(a) * (r + r0) / 2, origin.top + cy + Math.sin(a) * (r + r0) / 2];
+        });
+        return { plot: { left: origin.left, top: origin.top, width: chart.getWidth(), height: chart.getHeight() }, marks };
+      }
       const { x, y, width, height } = grid();
       const { left, top } = host.getBoundingClientRect();
-      return { plot: { left: left + x, top: top + y, width, height }, xDomain: extent('x') };
+      const plot = { left: left + x, top: top + y, width, height };
+      if (bar) {
+        const data = chart.getModel().getSeriesByIndex(0).getData();
+        return { plot, marks: Array.from({ length: data.count() }, (_, i) => {
+          const r = data.getItemLayout(i);
+          return [left + r.x + r.width / 2, top + r.y + r.height / 2];
+        }) };
+      }
+      return { plot, xDomain: extent('x'), ...(scatter ? { yDomain: extent('y') } : {}) };
     },
     hoveredIndex: () => hovered,
     readoutShows(i) {
       const tooltip = host.querySelector('.bench-echarts-tooltip');
-      if (!tooltip || !Number.isInteger(i) || i < 0 || i >= fix.x.length) return false;
+      if (!tooltip || !Number.isInteger(i) || i < 0 || i >= (fix.x ?? fix.categories ?? fix.labels).length) return false;
       const style = getComputedStyle(tooltip);
       if (style.opacity === '0' || style.display === 'none' || style.visibility === 'hidden') return false;
+      if (itemHover) {
+        const want = donut ? fix.labels[i] + ': ' + fix.values[i] : fix.names[0] + ': ' + fix.ys[0][i];
+        return tooltip.textContent.trim() === want;
+      }
       // ECharts emits sibling spans for the series name and its value in each tooltip row.
       return Array.from(tooltip.querySelectorAll('span')).some(span =>
         span.textContent === fix.names[0] && span.nextElementSibling?.textContent === String(fix.ys[0][i]));
     },
     describe({ probe } = {}) {
       const model = chart.getModel();
-      const seen = { reads: 'ECharts axis scales, raw SeriesData and processed line indices', x: extent('x'), y: extent('y'),
+      if (bar || donut) {
+        const displayed = new Set(chart.getZr().storage.getDisplayList());
+        const items = s => {
+          const data = s.getData();
+          return Array.from({ length: data.count() }, (_, i) => {
+            const mark = data.getItemGraphicEl(i);
+            if (!mark?.__isRendered || !displayed.has(mark)) return null;
+            const shape = mark.shape;
+            if (donut) return { label: data.getName(i), value: data.get('value', i), cx: shape.cx, cy: shape.cy, startAngle: shape.startAngle,
+              sweep: Math.abs(shape.endAngle - shape.startAngle), innerRadius: shape.r0, outerRadius: shape.r };
+            return { x: shape.x, y: Math.min(shape.y, shape.y + shape.height), width: shape.width, height: Math.abs(shape.height) };
+          });
+        };
+        if (donut) return { kind, plot: { x: 0, y: 0, width: chart.getWidth(), height: chart.getHeight() }, slices: items(model.getSeriesByIndex(0)) };
+        const { x, y, width, height } = grid();
+        return { kind, y: extent('y'), plot: { x, y, width, height }, rectangles: model.getSeries().map(items) };
+      }
+      const seen = { ...(fix.kind ? { kind } : {}), reads: 'ECharts axis scales, raw SeriesData and processed line indices', x: extent('x'), y: extent('y'),
         series: model.getSeries().map(heldSeries) };
+      if (area) seen.areaFills = chart.getZr().storage.getDisplayList().filter(p =>
+        p.type === 'ec-polygon' && p.__isRendered && p.shape.points.length >= 4 && p.style.fill && p.style.opacity > 0).length;
       if (scatter && probe === 'geometry') {
         const { x, y, width, height } = grid();
         seen.drawnPoints = { plot: { x, y, width, height }, centers: scatterCenters(chart, model.getSeriesByIndex(0).getData()) };
@@ -194,8 +254,8 @@ function create(el, fix, opts = {}) {
 export default {
   id: 'echarts', library: 'Apache ECharts', version: __VERSIONS__.echarts, config,
   configFor: params => `${config}; line sampling: ${samplingFor(params)} (default none preserves endpoints, gaps, visible extrema and exact hover candidates)`,
-  available: workload => workload === 'theme'
+  available: (workload, params) => kindAvailability('ECharts', workload, params) ?? (workload === 'theme'
     ? { ok: false, reason: 'no CSS-class dark-theme reactivity configured for ECharts in this harness' }
-    : { ok: true },
+    : { ok: true }),
   create,
 };

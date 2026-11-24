@@ -12,8 +12,8 @@ const settings = {
 const gzipBytes = bytes => gzipSync(bytes, { level: gzipLevel }).length;
 const versionOf = dir => JSON.parse(readFileSync(path.join(dir, 'package.json'), 'utf8')).version;
 
-function modularECharts(charts) {
-  const components = 'TooltipComponent, LegendComponent, GridComponent, AriaComponent';
+function modularECharts(charts, grid = true) {
+  const components = grid ? 'TooltipComponent, LegendComponent, GridComponent, AriaComponent' : 'TooltipComponent, LegendComponent, AriaComponent';
   return `import * as echarts from 'echarts/core';
     import { ${charts} } from 'echarts/charts';
     import { ${components} } from 'echarts/components';
@@ -21,6 +21,14 @@ function modularECharts(charts) {
     echarts.use([${charts}, ${components}, CanvasRenderer]);
     export { echarts };`;
 }
+
+const chartModules = {
+  area: { echarts: 'LineChart', chartjs: 'LineController, LineElement, PointElement, LinearScale, TimeScale, Tooltip, Legend, Decimation, Filler' },
+  bar: { echarts: 'BarChart', chartjs: 'BarController, BarElement, CategoryScale, LinearScale, Tooltip, Legend' },
+  scatter: { echarts: 'ScatterChart', chartjs: 'ScatterController, PointElement, LinearScale, Tooltip, Legend' },
+  donut: { echarts: 'PieChart', chartjs: 'DoughnutController, ArcElement, Tooltip, Legend' },
+  histogram: {},
+};
 
 // Build the shipped ESM first so the consumer tree-shakes the same module boundary as scripts/size.mjs.
 async function axyloPackage(repoRoot) {
@@ -40,7 +48,7 @@ async function axyloPackage(repoRoot) {
 }
 
 export async function measureAll({
-  repoRoot = path.resolve(import.meta.dirname, '../..'), benchDir = path.join(repoRoot, 'bench'),
+  repoRoot = path.resolve(import.meta.dirname, '../..'), benchDir = path.join(repoRoot, 'bench'), perChart = false,
 } = {}) {
   repoRoot = path.resolve(repoRoot);
   benchDir = path.resolve(benchDir);
@@ -74,6 +82,20 @@ export async function measureAll({
       contents: "export * from 'axylo';", plugins: [release], notes: inline },
   ];
 
+  if (perChart) {
+    for (const [kind, modules] of Object.entries(chartModules)) {
+      if (kind === 'area') cases.push({ ...cases[0], id: 'uplot-area', variant: 'Area' });
+      if (modules.chartjs) cases.push({ id: `chartjs-modular-${kind}`, library: 'Chart.js', version: chartjs, variant: `Modular ${kind}`,
+        contents: `import { Chart, ${modules.chartjs} } from 'chart.js'; ${kind === 'area' ? "import 'chartjs-adapter-date-fns';" : ''}
+          Chart.register(${modules.chartjs}); export { Chart };`, notes: kind === 'area' ? adapter : 'Includes tooltip and legend.' });
+      cases.push({ id: `axylo-${kind}`, library: 'Axylo', version: axylo, variant: `${kind} only`,
+        contents: `export { ${kind} } from 'axylo';`, plugins: [release],
+        notes: kind === 'histogram' ? inline + ' ECharts, Chart.js and uPlot: n/a (no native histogram binning).' : inline });
+      if (modules.echarts) cases.push({ id: `echarts-modular-${kind}`, library: 'Apache ECharts', version: echarts, variant: `Modular ${kind}`,
+        contents: modularECharts(modules.echarts, kind !== 'donut'), notes: 'Canvas with tooltip, legend and ARIA.' });
+    }
+  }
+
   const rows = [];
   for (const { contents, css, plugins, ...description } of cases) {
     const result = await build({
@@ -91,7 +113,7 @@ export async function measureAll({
 }
 
 if (path.resolve(process.argv[1] ?? '') === import.meta.filename) {
-  const rows = await measureAll();
+  const rows = await measureAll({ perChart: true });
   if (process.argv.includes('--json')) {
     console.log(JSON.stringify({ esbuildVersion, gzipLevel, rows }, null, 2));
   } else {
@@ -102,6 +124,7 @@ if (path.resolve(process.argv[1] ?? '') === import.meta.filename) {
       'Total gzip B': r.totalGzipBytes, 'Total KiB': r.totalKiB.toFixed(2),
     }));
     console.table(table);
+    console.log(rows.find(row => row.id === 'axylo-histogram').notes);
     const headers = Object.keys(table[0]);
     const markdownRow = values => '| ' + values.join(' | ') + ' |';
     console.log(markdownRow(headers));
