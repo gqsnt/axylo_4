@@ -13,7 +13,7 @@ import { buildSite } from '../lib/site.mjs';
 import { docsRoot } from '../lib/examples.mjs';
 import { serve } from '../lib/serve.mjs';
 
-type Kind = 'line' | 'area' | 'bar' | 'scatter' | 'donut';
+type Kind = 'line' | 'area' | 'bar' | 'histogram' | 'scatter' | 'donut';
 interface Probe {
   kind: Kind;
   /** Options the probe starts from; `at` is where the option goes (a key, or a key inside `x`, `y` or `title`). */
@@ -51,6 +51,7 @@ const PROBES: Record<string, Probe> = {
   'AreaOptions.stacked': { kind: 'area', base: line({ y: ['a', 'b'] }), other: true },
   'BarOptions.layout': { kind: 'bar', base: line({ y: ['a', 'b'] }), other: 'stacked' },
   'BarOptions.horizontal': { kind: 'bar', base: line(), other: true },
+  'HistogramOptions.normalize': { kind: 'histogram', base: { title: 'T', data: [1, 2, 3, 4].map(v => ({ v })), x: 'v', bins: [0, 2, 4] }, other: 'probability' },
   'ValueField.missing': { kind: 'line', base: line({ data: [...days(2), { day: '2026-03-03', a: null }, ...days(5).slice(3)], y: { field: 'a' } }), at: ['y', 'missing'], other: 'zero' },
   'ValueField.label': { kind: 'line', base: line({ y: { field: 'a' } }), at: ['y', 'label'], explicit: 'a', other: 'Sessions' },
   'XField.ordered': { kind: 'bar', base: { title: 'T', data: Array.from({ length: 60 }, (_, i) => ({ k: `Category number ${i + 1}`, v: i })), x: { field: 'k' }, y: 'v' }, at: ['x', 'ordered'], other: true },
@@ -75,6 +76,7 @@ const NOT_PROBED: Record<string, string> = {
   required: 'checked against the types by options.test.ts',
   inferred: 'depends on the data; the rule is on the data page and its examples',
   'from the data': 'depends on the data',
+  automatic: 'depends on the data (Freedman–Diaconis / Sturges binning)',
   'from the kind of x': 'depends on the kind of x',
 };
 /** Described defaults that are rules rather than values: checked by reading the text the chart writes. */

@@ -214,7 +214,7 @@ ${forced}
   .axylo .axylo-tooltip-title { font-weight: 600; }
   .axylo .axylo-tooltip-row { display: flex; gap: 1em; justify-content: space-between; }
   .axylo .axylo-tooltip-series { display: inline-flex; align-items: center; gap: 0.375em; min-width: 0; overflow-wrap: anywhere; }
-  .axylo .axylo-tooltip-value, .axylo .axylo-legend-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .axylo .axylo-tooltip-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
   /* A value that cannot fit on one line wraps, anywhere if it must (rule 6); short ones keep number and unit together. */
   .axylo .axylo-tooltip-wrap .axylo-tooltip-value, .axylo .axylo-readout-wrap .axylo-tooltip-value { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
   /* A strip row that still cannot fit is cut to one line with an ellipsis. */
@@ -274,7 +274,7 @@ ${forced}
   /* legend: 'top' puts the legend and its toolbar above the plot; 'right' beside it, entries stacked. */
   .axylo .axylo-controls-top, .axylo .axylo-controls-side { flex: none; display: flex; flex-direction: column; gap: 0.5em; min-width: 0; }
   .axylo .axylo-controls-top { margin: 0 0 0.5em; }
-  .axylo .axylo-controls-side { margin: 0; margin-inline-start: 0.75em; padding: 3px; max-width: 40%; overflow: auto; }
+  .axylo .axylo-controls-side { margin: 0; margin-inline-start: 0.75em; max-width: 40%; overflow: auto; }
   .axylo .axylo-controls-side .axylo-toolbar { flex-direction: column; align-items: stretch; flex-wrap: nowrap; }
   .axylo .axylo-controls-side .axylo-legend-list { flex-direction: column; flex-wrap: nowrap; }
   .axylo .axylo-controls-side .axylo-legend-entry + .axylo-control:not(.axylo-legend-entry) { margin-inline-start: 0; margin-block-start: 0.5em; }
@@ -289,7 +289,7 @@ ${forced}
   /* Legend entries first; the other controls start on the right. */
   .axylo .axylo-legend-entry + .axylo-control:not(.axylo-legend-entry) { margin-inline-start: auto; }
   .axylo .axylo-control:focus-visible, .axylo .axylo-legend-choice:focus-visible, .axylo .axylo-tooltip-choice:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
-  .axylo .axylo-tooltip-choice:focus-visible { outline-offset: -2px; }
+  .axylo .axylo-tooltip-choice:focus-visible, .axylo .axylo-controls-side .axylo-control:focus-visible, .axylo .axylo-controls-side .axylo-legend-choice:focus-visible { outline-offset: -2px; }
   .axylo .axylo-control[aria-disabled="true"] { cursor: default; border-style: dashed; color: var(--axylo-muted, var(--axylo-default-muted)); border-color: var(--axylo-muted, var(--axylo-default-muted)); }
   /* A symbol button (Select range): 24 × 24, so it adds no toolbar row; its name stays as hidden text. */
   .axylo .axylo-control.axylo-control-symbol { width: 24px; height: 24px; padding: 0; justify-content: center; }
@@ -305,6 +305,7 @@ ${forced}
     display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; list-style: none; font-size: max(12px, 0.875em);
   }
   .axylo .axylo-legend-list > li { display: inline-flex; align-items: center; gap: 0.375em; min-width: 0; }
+  .axylo .axylo-legend-value { font-variant-numeric: tabular-nums; }
   .axylo .axylo-table { display: flex; flex-direction: column; gap: 0.5em; min-width: 0; }
   /* The open table takes the plot's place at the plot's size, so nothing else moves (spec A4; review 2, finding 15). */
   /* Keep the table and its pager reachable even when the caption leaves no plot height. */

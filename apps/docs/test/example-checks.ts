@@ -110,6 +110,11 @@ export const checks: Record<string, Check> = {
     const table = (await t.table(0)).join(' / ');
     has(table, 'Spain', 'Norway', 'Iceland', 'Malta');
   } },
+  'histogram-basic': { charts: 1, run: async t => {
+    await valueText(t, 0, ['Home'], '0 ms–50 ms', 'Count 4', 'Point 1 of 5');
+    const rows = await t.table(0);
+    expect(rows).toContain('50 ms–100 ms | 3');
+  } },
   lifecycle: { charts: 1, run: async t => {
     // Mounted, unmounted and mounted again on one element: one chart, showing the data of the last refresh.
     expect(await t.page.evaluate(() => document.querySelectorAll('#chart figure').length)).toBe(1);

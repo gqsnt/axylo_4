@@ -16,7 +16,7 @@ describe('the built package in plain Node (spec DX8)', () => {
         const d = m.validate('line', { title: 'Dirty input', data: [{ day: 'Mon', value: 10 }, { day: 'Tue', value: NaN }], x: 'day', y: 'value' });
         console.log(JSON.stringify({ exports: Object.keys(m).sort(), codes: d.map(x => x.code), document: typeof document }));`;
       const out = JSON.parse(execFileSync(process.execPath, ['--input-type=module', '-e', script], { encoding: 'utf8' }).trim());
-      expect(out.exports).toEqual(['area', 'bar', 'donut', 'line', 'scatter', 'validate']);
+      expect(out.exports).toEqual(['area', 'bar', 'donut', 'histogram', 'line', 'scatter', 'validate']);
       expect(out.codes).toEqual(['AX103']);
       expect(out.document).toBe('undefined');
     });
