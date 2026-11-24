@@ -1,39 +1,18 @@
 import {
   SLOT_VALUE, type AlignedView, type AreaMark, type PathMark, type PointMark, type StackView,
 } from '../core/contracts';
-import { buildPath, buildPoints, simplifyArea, simplifyLine, stackIndexes, type JoinedRuns, type LineInput } from '../simplify';
+import { buildPath, buildPoints, simplifyArea, stackIndexes, type LineInput } from '../simplify';
 import { interpolated, stackAreaRange } from '../view';
-import { seriesPaint, token } from './geometry';
+import { affinePosition, seriesPaint, token } from './geometry';
 import { addLine, type Drawing } from './lines';
 
 export function addArea(
   input: LineInput & Drawing, view: AlignedView, series: number, compact: boolean,
   areas: AreaMark[], paths: PathMark[], points: PointMark[],
 ): void {
-  let geometry: Pick<AreaMark, 'upper' | 'lower' | 'runs'>;
-  let selection: JoinedRuns;
-  if (input.y instanceof Float64Array) {
-    const area = simplifyArea({ ...input, upper: input.y, lower: 0 });
-    const { upper, lower, runs } = area;
-    geometry = { upper, lower, runs };
-    selection = area.upperBoundary.selection;
-  } else {
-    // The area helper takes Float64Array. A constant lower edge can share the upper selection
-    // instead of widening a borrowed Float32Array of values.
-    selection = simplifyLine(input);
-    const { indexes, breaks } = selection;
-    const runs = new Uint32Array(indexes.length ? (breaks.length + 1) * 4 : 0);
-    let start = 0;
-    for (let i = 0; i < runs.length; i += 4) {
-      const end = breaks[i / 4] ?? indexes.length;
-      runs[i] = runs[i + 2] = start;
-      runs[i + 1] = runs[i + 3] = end - start;
-      start = end;
-    }
-    geometry = { upper: buildPoints(indexes, input), lower: buildPoints(indexes, { ...input, y: 0 }), runs };
-  }
-  areas.push({ type: 'area', series, ...geometry, fill: seriesPaint(series), opacity: 0.25 });
-  addLine(input, view, series, view.visibleSlots, compact, paths, points, selection);
+  const { upper, lower, runs, upperBoundary } = simplifyArea({ ...input, upper: input.y, lower: 0 });
+  areas.push({ type: 'area', series, upper, lower, runs, fill: seriesPaint(series), opacity: 0.25 });
+  addLine(input, view, series, view.visibleSlots, compact, paths, points, upperBoundary.selection, upper);
 }
 
 /** Each accepted interval belongs to this edge. A rejected interval lifts the pen. */
@@ -92,6 +71,7 @@ export function addStackedAreas(
   const { start, end } = range;
   const vertices = stackIndexes(input, view.frame, stack, range);
   const source = { ...input, x: input.x.subarray(start, end) };
+  const { affineX, affineY, mapX, mapY } = source;
   const positive = stack.positive.at(-1)!.subarray(start, end);
   const negative = stack.negative.at(-1)!.subarray(start, end);
   const hasPositive = positive.some(value => value > 0);
@@ -100,8 +80,9 @@ export function addStackedAreas(
   function clipEnds(xy: Float32Array, indexes: Uint32Array, y: Float64Array | 0) {
     const last = source.x.length - 1;
     const clip = (offset: number, edge: number, left: number) => {
-      xy[offset] = source.mapX(edge);
-      xy[offset + 1] = source.mapY(y === 0 ? 0 : interpolated(source.x, edge, left, left + 1, y));
+      xy[offset] = affineX ? affinePosition(affineX, edge) : mapX(edge);
+      const value = y === 0 ? 0 : interpolated(source.x, edge, left, left + 1, y);
+      xy[offset + 1] = affineY ? affinePosition(affineY, value) : mapY(value);
     };
     if (start < view.visibleSlots.start && indexes[0] === 0) clip(0, view.xDomain[0], 0);
     if (end > view.visibleSlots.end && indexes.at(-1) === last) clip(xy.length - 2, view.xDomain[1], last - 1);
@@ -140,7 +121,10 @@ export function addStackedAreas(
       if (!vertices.some(changed)) continue;
       const offset = below && hasPositive ? vertices.length : 0;
       if (upper === lower) upper = lower.slice();
-      for (let j = 0; j < vertices.length; j++) upper[2 * (offset + j) + 1] = source.mapY(values[vertices[j]!]!);
+      for (let j = 0; j < vertices.length; j++) {
+        const value = values[vertices[j]!]!;
+        upper[2 * (offset + j) + 1] = affineY ? affinePosition(affineY, value) : mapY(value);
+      }
       clipEnds(upper.subarray(offset * 2, (offset + vertices.length) * 2), vertices, values);
       runs.push(offset, vertices.length, offset, vertices.length);
       const total = below ? negative : positive;

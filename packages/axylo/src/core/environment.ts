@@ -146,56 +146,100 @@ export function sameTextStyle(a: TextStyle | null, b: TextStyle): boolean {
     a.wordSpacing === b.wordSpacing && a.lineHeight === b.lineHeight;
 }
 
+interface EnvSubscriber {
+  readonly pixelRatio: () => void;
+  readonly motion: () => void;
+  readonly fonts: () => void;
+}
+
+interface EnvHub {
+  readonly subscribers: Set<EnvSubscriber>;
+  readonly teardown: () => void;
+}
+
+const envHubs = new WeakMap<Window, EnvHub>();
+
 /**
  * Calls `onChange` when the device pixel ratio changes (browser zoom, moving to another screen), when
  * reduced motion is toggled, and when web fonts finish loading. Returns `stop`.
+ * Listeners are shared per window and released as soon as the last subscriber stops.
  */
 export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; motion(): void; fonts(): void }): () => void {
+  let hub = envHubs.get(win);
+  if (!hub) {
+    let active = true;
+    const subscribers = new Set<EnvSubscriber>();
+    // Each subscription registers its removal as soon as it exists, so a failure part-way (a matchMedia that
+    // throws) leaves none behind (review 3, finding 9).
+    const undo: (() => void)[] = [];
+    const teardown = (): void => {
+      active = false;
+      for (let fn = undo.pop(); fn; fn = undo.pop()) {
+        try { fn(); } catch { /* keep releasing */ }
+      }
+    };
+    try {
+      let ratioQuery: MediaQueryList | null = null;
+      const onRatio = (): void => {
+        if (!active) return;
+        arm();
+        for (const sub of [...subscribers]) {
+          if (subscribers.has(sub)) sub.pixelRatio();
+        }
+      };
+      // A resolution query matches one ratio only, so it is re-armed for the new ratio after each change.
+      const arm = (): void => {
+        ratioQuery?.removeEventListener('change', onRatio);
+        ratioQuery = win.matchMedia(`(resolution: ${win.devicePixelRatio}dppx)`);
+        ratioQuery.addEventListener('change', onRatio);
+      };
+      arm();
+      undo.push(() => ratioQuery?.removeEventListener('change', onRatio));
+      const motion = win.matchMedia('(prefers-reduced-motion: reduce)');
+      const onMotion = (): void => {
+        if (!active) return;
+        for (const sub of [...subscribers]) {
+          if (subscribers.has(sub)) sub.motion();
+        }
+      };
+      motion.addEventListener('change', onMotion);
+      undo.push(() => motion.removeEventListener('change', onMotion));
+      const fonts = win.document.fonts as FontFaceSet | undefined;
+      // A load that brought no font faces changed nothing: Firefox fires an empty 'loadingdone' some 100 ms after
+      // the page loads, and taking it for a font change ran layout again at the same sizes (spec L3; engines
+      // report 2, item 2).
+      const onFonts = (event: Event): void => {
+        const faces = (event as Event & { fontfaces?: ArrayLike<unknown> }).fontfaces;
+        if (!active || (faces !== undefined && faces.length === 0)) return;
+        for (const sub of [...subscribers]) {
+          if (subscribers.has(sub)) sub.fonts();
+        }
+      };
+      fonts?.addEventListener('loadingdone', onFonts);
+      undo.push(() => fonts?.removeEventListener('loadingdone', onFonts));
+    } catch (error) {
+      teardown();
+      throw error;
+    }
+    hub = { subscribers, teardown };
+    envHubs.set(win, hub);
+  }
+  const sub: EnvSubscriber = {
+    pixelRatio: () => handlers.pixelRatio(),
+    motion: () => handlers.motion(),
+    fonts: () => handlers.fonts(),
+  };
+  hub.subscribers.add(sub);
   let stopped = false;
-  // Each subscription registers its removal as soon as it exists, so a failure part-way (a matchMedia that
-  // throws) leaves none behind (review 3, finding 9).
-  const undo: (() => void)[] = [];
-  const stop = (): void => {
+  return () => {
+    if (stopped) return;
     stopped = true;
-    for (let fn = undo.pop(); fn; fn = undo.pop()) {
-      try { fn(); } catch { /* keep releasing */ }
+    hub!.subscribers.delete(sub);
+    if (hub!.subscribers.size === 0) {
+      if (envHubs.get(win) === hub) envHubs.delete(win);
+      hub!.teardown();
     }
   };
-  try {
-    let ratioQuery: MediaQueryList | null = null;
-    const onRatio = (): void => {
-      if (stopped) return;
-      arm();
-      handlers.pixelRatio();
-    };
-    // A resolution query matches one ratio only, so it is re-armed for the new ratio after each change.
-    const arm = (): void => {
-      ratioQuery?.removeEventListener('change', onRatio);
-      ratioQuery = win.matchMedia(`(resolution: ${win.devicePixelRatio}dppx)`);
-      ratioQuery.addEventListener('change', onRatio);
-    };
-    arm();
-    undo.push(() => ratioQuery?.removeEventListener('change', onRatio));
-    const motion = win.matchMedia('(prefers-reduced-motion: reduce)');
-    const onMotion = (): void => { if (!stopped) handlers.motion(); };
-    motion.addEventListener('change', onMotion);
-    undo.push(() => motion.removeEventListener('change', onMotion));
-    const fonts = win.document.fonts as FontFaceSet | undefined;
-    // A load that brought no font faces changed nothing: Firefox fires an empty 'loadingdone' some 100 ms after
-    // the page loads, and taking it for a font change ran layout again at the same sizes (spec L3; engines
-    // report 2, item 2).
-    const onFonts = (event: Event): void => {
-      const faces = (event as Event & { fontfaces?: ArrayLike<unknown> }).fontfaces;
-      if (stopped || (faces !== undefined && faces.length === 0)) return;
-      handlers.fonts();
-    };
-    fonts?.addEventListener('loadingdone', onFonts);
-    undo.push(() => fonts?.removeEventListener('loadingdone', onFonts));
-  } catch (error) {
-    stop();
-    throw error;
-  }
-  return stop;
 }
 
 /** The parent that supplies inherited styles and language, including through a slot. */
@@ -226,6 +270,149 @@ export function observeTrees(observer: MutationObserver, element: Element, optio
   }
 }
 
+function treesOf(element: Element): Node[] {
+  const trees: Node[] = [element.ownerDocument.documentElement];
+  for (let el: Element | null = element; el; el = composedParent(el)) {
+    const parent = el.parentNode;
+    if (parent && parent.nodeType === 11 && 'host' in parent && !trees.includes(parent)) trees.push(parent);
+  }
+  return trees;
+}
+
+export interface SharedTreeSubscriber {
+  readonly element: Element;
+  readonly onChange: () => void;
+  /** Optional filter for `style` attribute mutations directly on `element`. */
+  readonly styleChanged?: (records: readonly MutationRecord[]) => boolean;
+}
+
+interface RootMutationHub {
+  readonly observer: MutationObserver;
+  readonly subscribers: Set<SharedTreeSubscriber>;
+}
+
+/** Per-root ref-counted MutationObserver hubs: each documentElement or ShadowRoot owns its own observer. */
+const langRootHubs = new WeakMap<Node, RootMutationHub>();
+const themeRootHubs = new WeakMap<Node, RootMutationHub>();
+
+function dispatchMutations(
+  kind: 'lang' | 'theme',
+  subscribers: Set<SharedTreeSubscriber>,
+  records: readonly MutationRecord[],
+): void {
+  if (subscribers.size === 0 || records.length === 0) return;
+  if (kind === 'lang') {
+    const targets = new Set<Node>();
+    for (let i = 0; i < records.length; i++) targets.add(records[i]!.target);
+    for (const sub of [...subscribers]) {
+      if (!subscribers.has(sub)) continue;
+      for (let el: Element | null = sub.element; el; el = composedParent(el)) {
+        if (targets.has(el)) { sub.onChange(); break; }
+      }
+    }
+    return;
+  }
+  const nonStyle = new Set<Node>();
+  let styleMap: Map<Node, MutationRecord[]> | null = null;
+  for (let i = 0; i < records.length; i++) {
+    const r = records[i]!;
+    if (r.attributeName === 'style') {
+      if (styleMap === null) styleMap = new Map();
+      let list = styleMap.get(r.target);
+      if (!list) styleMap.set(r.target, list = []);
+      list.push(r);
+    } else {
+      nonStyle.add(r.target);
+    }
+  }
+  for (const sub of [...subscribers]) {
+    if (!subscribers.has(sub)) continue;
+    const own = sub.element;
+    if (nonStyle.has(own)) { sub.onChange(); continue; }
+    const ownStyles = styleMap?.get(own);
+    if (ownStyles && (!sub.styleChanged || sub.styleChanged(ownStyles))) { sub.onChange(); continue; }
+    for (let el = composedParent(own); el; el = composedParent(el)) {
+      if (nonStyle.has(el) || styleMap?.has(el)) { sub.onChange(); break; }
+    }
+  }
+}
+
+function subscribeRoot(
+  hubs: WeakMap<Node, RootMutationHub>,
+  kind: 'lang' | 'theme',
+  win: Window & typeof globalThis,
+  root: Node,
+  options: MutationObserverInit,
+  subscriber: SharedTreeSubscriber,
+): () => void {
+  let hub = hubs.get(root);
+  if (!hub) {
+    const subscribers = new Set<SharedTreeSubscriber>();
+    const observer = new win.MutationObserver(records => dispatchMutations(kind, subscribers, records));
+    try {
+      observer.observe(root, options);
+    } catch (error) {
+      try { observer.disconnect(); } catch { /* ignore */ }
+      throw error;
+    }
+    hub = { observer, subscribers };
+    hubs.set(root, hub);
+  }
+  hub.subscribers.add(subscriber);
+  let stopped = false;
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    hub!.subscribers.delete(subscriber);
+    if (hub!.subscribers.size === 0) {
+      if (hubs.get(root) === hub) hubs.delete(root);
+      hub!.observer.disconnect();
+    }
+  };
+}
+
+/**
+ * Shared per-root ref-counted subtree `MutationObserver` for `documentElement` and each `ShadowRoot`.
+ * Because every root owns its own observer, removing the last subscriber from a shadow root never
+ * disconnects `documentElement`'s observer or drops pending records for surviving charts.
+ */
+export function subscribeTreeMutations(
+  kind: 'lang' | 'theme',
+  element: Element,
+  options: MutationObserverInit,
+  subscriber: SharedTreeSubscriber,
+): () => void {
+  const doc = element.ownerDocument;
+  const win = doc.defaultView;
+  if (win === null) return () => {};
+  const hubs = kind === 'lang' ? langRootHubs : themeRootHubs;
+  const trees = treesOf(element);
+  if (trees.length === 1) {
+    return subscribeRoot(hubs, kind, win, trees[0]!, options, subscriber);
+  }
+  const stops: (() => void)[] = [];
+  try {
+    for (let i = 0; i < trees.length; i++) {
+      stops.push(subscribeRoot(hubs, kind, win, trees[i]!, options, subscriber));
+    }
+  } catch (error) {
+    for (let fn = stops.pop(); fn; fn = stops.pop()) {
+      try { fn(); } catch { /* keep releasing */ }
+    }
+    throw error;
+  }
+  let stopped = false;
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    for (let fn = stops.pop(); fn; fn = stops.pop()) {
+      try { fn(); } catch { /* keep releasing */ }
+    }
+  };
+}
+
+const LANG_OPTIONS: MutationObserverInit = { attributes: true, attributeFilter: ['lang'], subtree: true };
+
 /**
  * Calls `onChange` when a `lang` attribute changes on `element` or an ancestor: the page's language decides
  * the formatting locale and which built-in text is marked English (spec A10, F6). An environment change,
@@ -234,13 +421,19 @@ export function observeTrees(observer: MutationObserver, element: Element, optio
 export function watchLanguage(element: Element, onChange: () => void): () => void {
   const win = element.ownerDocument.defaultView;
   if (win === null) return () => {};
+  const trees = treesOf(element);
+  if (trees.length === 1) {
+    return subscribeRoot(langRootHubs, 'lang', win, trees[0]!, LANG_OPTIONS, { element, onChange });
+  }
+  // Inside shadow DOM, keep one dedicated observer across the composed trees so teardown disconnects once
+  // and never perturbs the shared documentElement hub used by light-DOM charts.
   const observer = new win.MutationObserver(records => {
     for (const r of records) {
       if (holds(r.target, element)) { onChange(); return; }
     }
   });
   try {
-    observeTrees(observer, element, { attributes: true, attributeFilter: ['lang'], subtree: true });
+    observeTrees(observer, element, LANG_OPTIONS);
   } catch (error) {
     observer.disconnect();
     throw error;

@@ -154,6 +154,90 @@ export function interpolated(x: Float64Array, edge: number, left: number, right:
   return Math.max(Math.min(a, b), Math.min(value, Math.max(a, b)));
 }
 
+const BLOCK = 256;
+const SUMMARY_THRESHOLD = 4 * BLOCK;
+type AlignedSeries = AlignedFrame['series'][number];
+interface BlockSummary {
+  readonly min: Float64Array;
+  readonly max: Float64Array;
+  readonly last: Int32Array;
+  readonly zeros: Uint8Array;
+}
+
+// Published series are immutable. Updates and appends publish new series, even when they share a buffer.
+const summaries = new WeakMap<AlignedSeries, BlockSummary>();
+
+function summarize(series: AlignedSeries): BlockSummary {
+  const cached = summaries.get(series);
+  if (cached) return cached;
+  const { slot, y } = series;
+  const blocks = Math.ceil(slot.length / BLOCK);
+  const min = new Float64Array(blocks);
+  const max = new Float64Array(blocks);
+  const last = new Int32Array(blocks);
+  const zeros = new Uint8Array(blocks);
+  for (let block = 0; block < blocks; block++) {
+    const end = Math.min(slot.length, (block + 1) * BLOCK);
+    let low = Infinity;
+    let high = -Infinity;
+    let final = -1;
+    let signs = 0;
+    for (let i = block * BLOCK; i < end; i++) {
+      if (slot[i] !== SLOT_VALUE) continue;
+      const value = y[i]!;
+      if (!Number.isFinite(value)) continue;
+      if (value < low) low = value;
+      if (value > high) high = value;
+      if (value === 0) signs |= Object.is(value, -0) ? 1 : 2;
+      final = i;
+    }
+    min[block] = low;
+    max[block] = high;
+    last[block] = final;
+    zeros[block] = signs;
+  }
+  const summary = { min, max, last, zeros };
+  summaries.set(series, summary);
+  return summary;
+}
+
+export function alignedStatistics(series: AlignedSeries, start: number, end: number, signedExtrema = false) {
+  const { slot, y } = series;
+  const summary = end - start >= SUMMARY_THRESHOLD ? summarize(series) : undefined;
+  let min = Infinity;
+  let max = -Infinity;
+  let last = NaN;
+  let zeros = 0;
+  for (let i = start; i < end;) {
+    if (summary && i % BLOCK === 0 && (end - i >= BLOCK || end === slot.length)) {
+      const block = i / BLOCK;
+      const low = summary.min[block]!;
+      const high = summary.max[block]!;
+      const final = summary.last[block]!;
+      if (low < min) min = low;
+      if (high > max) max = high;
+      if (final >= 0) last = y[final]!;
+      zeros |= summary.zeros[block]!;
+      i += BLOCK;
+    } else {
+      const index = i++;
+      if (slot[index] !== SLOT_VALUE) continue;
+      const value = y[index]!;
+      if (!Number.isFinite(value)) continue;
+      if (value < min) min = value;
+      if (value > max) max = value;
+      if (signedExtrema && value === 0) zeros |= Object.is(value, -0) ? 1 : 2;
+      last = value;
+    }
+  }
+  // The reader keeps the first value on ties, while Math.min/Math.max order signed zeros.
+  if (signedExtrema) {
+    if (min === 0 && (zeros & 1)) min = -0;
+    if (max === 0 && (zeros & 2)) max = 0;
+  }
+  return { min, max, last };
+}
+
 export function alignedExtrema(
   frame: AlignedFrame, visible: readonly boolean[], range: IndexRange, draws: readonly IndexRange[],
   domain: Span | null, stack: StackView | null, kind: AlignedView['kind'],
@@ -161,40 +245,47 @@ export function alignedExtrema(
   let min = Infinity;
   let max = -Infinity;
   const x = frame.x.values;
-  const { start, end } = kind === 'bar' ? draws[0] ?? range : range;
-  const include = (value: number) => {
-    if (!Number.isFinite(value)) return;
-    min = Math.min(min, value);
-    max = Math.max(max, value);
-  };
   if (stack) {
+    const { start, end } = kind === 'bar' ? draws[0] ?? range : range;
     // Every component stroke lies between the two cumulative totals on each adjacent interval.
     const fill = domain && kind === 'area' ? stackAreaRange(frame, range, domain) : range;
     for (const total of [stack.negative.at(-1), stack.positive.at(-1)]) {
       if (!total) continue;
-      for (let i = start; i < end; i++) include(total[i]!);
-      if (domain && fill.start < start) include(interpolated(x, domain[0], start - 1, start, total));
-      if (domain && end < fill.end) include(interpolated(x, domain[1], end - 1, end, total));
+      for (let i = start; i < end; i++) {
+        const value = total[i]!;
+        if (Number.isFinite(value)) { min = Math.min(min, value); max = Math.max(max, value); }
+      }
+      if (domain && fill.start < start) {
+        const value = interpolated(x, domain[0], start - 1, start, total);
+        if (Number.isFinite(value)) { min = Math.min(min, value); max = Math.max(max, value); }
+      }
+      if (domain && end < fill.end) {
+        const value = interpolated(x, domain[1], end - 1, end, total);
+        if (Number.isFinite(value)) { min = Math.min(min, value); max = Math.max(max, value); }
+      }
     }
     return [min, max];
   }
   for (let series = 0; series < frame.series.length; series++) {
     if (!visible[series]) continue;
-    const { y, slot } = frame.series[series]!;
+    const component = frame.series[series]!;
+    const { y, slot } = component;
     const { start, end } = kind === 'bar' ? draws[series] ?? range : range;
-    for (let j = start; j < end; j++) {
-      if (slot[j] === SLOT_VALUE) include(y[j]!);
-    }
+    const stats = alignedStatistics(component, start, end, true);
+    min = Math.min(min, stats.min);
+    max = Math.max(max, stats.max);
     if (!domain || kind === 'bar') continue;
     const draw = draws[series]!;
     if (draw.start < start) {
       const right = nextObservation(slot, start, draw.end, 1);
-      include(interpolated(x, domain[0], draw.start, right, y));
+      const value = interpolated(x, domain[0], draw.start, right, y);
+      if (Number.isFinite(value)) { min = Math.min(min, value); max = Math.max(max, value); }
     }
     if (draw.end > end) {
       const left = nextObservation(slot, end - 1, draw.start - 1, -1);
       const right = draw.end - 1;
-      include(interpolated(x, domain[1], left, right, y));
+      const value = interpolated(x, domain[1], left, right, y);
+      if (Number.isFinite(value)) { min = Math.min(min, value); max = Math.max(max, value); }
     }
   }
   return [min, max];

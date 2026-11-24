@@ -14,19 +14,147 @@
 import { svgRendererWith } from '../render/svg';
 import { createTextLayer, type TextLayer } from '../render/text';
 import { ensureStyles, resolveTheme, watchTheme } from '../theme';
+import {
+  applyTheme, createThemeBatch, finalizeTheme, prepareTheme, probeTheme,
+  type PreparedTheme, type ThemeBatch,
+} from '../theme/resolve';
 import { createFigure, type Figure } from '../dom/figure';
 import { shadowRootOf } from '../dom/attributes';
 import { createInteraction, type Interaction } from '../dom/interaction';
 import { mappingOf } from '../dom/mapping';
 import type { DeliveryConsole } from './delivery';
 import { createMeasurer, noteFontLoad, pageLanguage, readTextStyle, resolveLocale, viewerTimeZone, watchEnvironment, watchLanguage } from './environment';
-import { controllerFor, type ChartHandle, type Controller, type ControllerActions } from './controller';
+import { controllerFor, type ChartHandle, type Controller, type ControllerActions, type FrameRun } from './controller';
 import type { Composition } from './composition';
 
 export type { BenchHook, ChartHandle, ChartKind, DevHook, Stage } from './controller';
 
 export interface ChartEnvironmentOverrides {
   readonly console?: DeliveryConsole | null;
+}
+
+/** Per-document active theme batch during multi-chart rAF Phase 1. */
+const activeThemeBatches = new WeakMap<Document, ThemeBatch>();
+
+interface ScheduledEntry {
+  readonly getController: () => Controller | null;
+  readonly callback: (time?: number) => void;
+}
+
+interface FrameScheduler {
+  readonly pending: Map<number, ScheduledEntry>;
+  rafId: number;
+}
+
+/** Globally monotonic frame handle counter so handles never collide across successive rAF batches. */
+let nextFrameHandle = 0;
+
+/** Shared per-window rAF scheduler: runs single charts directly, and phases reads/writes across multi-chart batches. */
+const schedulers = new WeakMap<Window, FrameScheduler>();
+
+export function scheduleFrame(win: Window, doc: Document, getController: () => Controller | null, callback: (time?: number) => void): number {
+  let sched = schedulers.get(win);
+  if (!sched) {
+    sched = { pending: new Map(), rafId: 0 };
+    schedulers.set(win, sched);
+  }
+  const handle = ++nextFrameHandle;
+  sched.pending.set(handle, { getController, callback });
+  if (sched.rafId === 0) {
+    const active = sched;
+    active.rafId = win.requestAnimationFrame(time => {
+      active.rafId = 0;
+      const batch = [...active.pending.values()];
+      active.pending.clear();
+      if (schedulers.get(win) === active) schedulers.delete(win);
+      if (batch.length === 0) return;
+      if (batch.length === 1) {
+        batch[0]!.callback(time);
+        return;
+      }
+      runPhasedBatch(win, doc, batch, time);
+    });
+  }
+  return handle;
+}
+
+export function cancelScheduledFrame(win: Window, handle: number): void {
+  const sched = schedulers.get(win);
+  if (!sched) return;
+  sched.pending.delete(handle);
+  if (sched.pending.size === 0) {
+    if (sched.rafId !== 0) {
+      win.cancelAnimationFrame(sched.rafId);
+      sched.rafId = 0;
+    }
+    schedulers.delete(win);
+  }
+}
+
+function runPhasedBatch(win: Window, doc: Document, batch: readonly ScheduledEntry[], time: number): void {
+  let themeBatch: ThemeBatch;
+  try {
+    themeBatch = createThemeBatch(win);
+  } catch {
+    for (let i = 0; i < batch.length; i++) batch[i]!.callback(time);
+    return;
+  }
+  const runs: FrameRun[] = [];
+  activeThemeBatches.set(doc, themeBatch);
+  try {
+    // Phase 1: Initial reads & pure prep across all pending charts (zero DOM writes, zero probeColors).
+    for (let i = 0; i < batch.length; i++) {
+      const item = batch[i]!;
+      const c = item.getController();
+      if (c === null) {
+        item.callback(time);
+        continue;
+      }
+      const run = c.beginFrame();
+      if (run === null) continue;
+      runs.push(run);
+      run.phase1();
+    }
+  } finally {
+    if (activeThemeBatches.get(doc) === themeBatch) activeThemeBatches.delete(doc);
+  }
+  // Phase 2: Theme writes + initial figure/controls arrange.
+  for (let i = 0; i < runs.length; i++) runs[i]!.phase2();
+  // Phase 3a: Theme verification & late probes before batched plot measure (single browser layout for all charts).
+  for (let i = 0; i < runs.length; i++) runs[i]!.phase3Theme();
+  for (let i = 0; i < runs.length; i++) runs[i]!.phase3Probe();
+  for (let i = 0; i < runs.length; i++) runs[i]!.phase3Measure();
+  // Phase 3b: Pure layout check, then batched exact strip-height probes (mount -> 1 layout read -> remove), then mode decision.
+  let anyStripProbe = false;
+  for (let i = 0; i < runs.length; i++) {
+    if (runs[i]!.phase3LayoutCheck()) anyStripProbe = true;
+  }
+  if (anyStripProbe) {
+    for (let i = 0; i < runs.length; i++) runs[i]!.phase3StripMount();
+    try {
+      for (let i = 0; i < runs.length; i++) runs[i]!.phase3StripRead();
+    } finally {
+      for (let i = 0; i < runs.length; i++) runs[i]!.phase3StripRemove();
+    }
+  }
+  for (let i = 0; i < runs.length; i++) runs[i]!.phase3ReadoutDecide();
+  // Phase 4.0: Conditional strip arrange writes, then batched strip re-measure.
+  for (let i = 0; i < runs.length; i++) runs[i]!.phase4StripWrite();
+  for (let i = 0; i < runs.length; i++) runs[i]!.phase4StripMeasure();
+  // Phase 4.1: Layout & 4-pass L8 / hidden-label note convergence loop.
+  for (let i = 0; i < runs.length; i++) runs[i]!.phase4Init();
+  for (let pass = 0; pass < 4; pass++) {
+    let anyMoved = false;
+    for (let i = 0; i < runs.length; i++) {
+      if (runs[i]!.phase4PassWrite()) anyMoved = true;
+    }
+    if (!anyMoved) break;
+    for (let i = 0; i < runs.length; i++) runs[i]!.phase4PassMeasure();
+  }
+  // Phase 5: Final scene, lookup, draw, text, figure, commit & close out frames.
+  for (let i = 0; i < runs.length; i++) runs[i]!.phase5();
+  // Post-frame: re-schedule superseded charts, deliver diagnostics & drain notifications.
+  for (let i = 0; i < runs.length; i++) runs[i]!.after();
 }
 
 /** Suffixes of the ids a chart gives its elements (figure, interaction, table). */
@@ -140,14 +268,15 @@ export function createChart(composition: Composition, target: unknown, input: un
     };
     cleanup.push(unwatch);
 
+    // Per-chart ResizeObservers keep detached/abandoned charts free of any window-level strong references.
     // A font can arrive without a 'loadingdone' (a FontFace loaded first and then added to document.fonts):
     // a probe set like the labels changes size whenever their font does, and that is a font load (L1).
     const fontProbe = doc.createElement('div');
     fontProbe.className = 'axylo-font-probe';
     textLayer.element.appendChild(fontProbe);
     let probeSize: string | null = null;
-    const fontObserver = new win.ResizeObserver(() => {
-      const box = fontProbe.getBoundingClientRect();
+    const fontObserver = new win.ResizeObserver(entries => {
+      const box = entries?.[0]?.contentRect ?? fontProbe.getBoundingClientRect();
       const size = `${box.width}x${box.height}`;
       if (probeSize !== null && size !== probeSize && controller !== null && root.isConnected) {
         noteFontLoad(doc);
@@ -170,6 +299,8 @@ export function createChart(composition: Composition, target: unknown, input: un
     });
     cleanup.push(() => resizeObserver.disconnect());
 
+    const getController = (): Controller | null => controller;
+
     controller = controllerFor(composition, input, {
       id,
       // The author's own id names an untitled chart in diagnostics; the allocated one stays for the DOM.
@@ -182,8 +313,9 @@ export function createChart(composition: Composition, target: unknown, input: un
       figure,
       interaction,
       measurer,
-      requestFrame: callback => win.requestAnimationFrame(callback),
-      cancelFrame: handle => win.cancelAnimationFrame(handle),
+      requestFrame: callback => scheduleFrame(win, doc, getController, callback),
+      cancelFrame: handle => cancelScheduledFrame(win, handle),
+      scheduleMicrotask: callback => typeof win.queueMicrotask === 'function' ? win.queueMicrotask(callback) : queueMicrotask(callback),
       locale: option => resolveLocale(option, doc, pageLanguage(root) ?? doc.documentElement.lang),
       pageLang: () => pageLanguage(root),
       labelText(own) {
@@ -224,9 +356,32 @@ export function createChart(composition: Composition, target: unknown, input: un
         holder.remove();
         return Number.isFinite(height) ? height : NaN;
       },
+      stripProbeMount() {
+        const holder = doc.createElement('div');
+        holder.className = 'axylo-readout-mode';
+        holder.style.cssText = 'position: absolute; left: 0; top: 0; width: 100px; visibility: hidden; pointer-events: none;';
+        const strip = doc.createElement('div');
+        strip.className = 'axylo-readout';
+        holder.appendChild(strip);
+        figure.figure.appendChild(holder);
+        return { holder, strip };
+      },
+      stripProbeRead(probe) {
+        const { strip } = probe as { holder: HTMLDivElement; strip: HTMLDivElement };
+        const height = parseFloat(win.getComputedStyle(strip).height);
+        return Number.isFinite(height) ? height : NaN;
+      },
+      stripProbeRemove(probe) {
+        const { holder } = probe as { holder: HTMLDivElement; strip: HTMLDivElement };
+        holder.remove();
+      },
       devicePixelRatio: () => win.devicePixelRatio || 1,
       // Scoped to this chart's own figure: properties and the scheme go with it (finding 10).
       theme: (keys, colors) => resolveTheme(figure.figure, keys, colors),
+      themePrepare: (keys, colors) => prepareTheme(figure.figure, keys, colors, activeThemeBatches.get(doc)),
+      themeApply: prepared => applyTheme(prepared as PreparedTheme),
+      themeFinish: (prepared, deferProbe) => finalizeTheme(prepared as PreparedTheme, deferProbe),
+      themeProbe: prepared => probeTheme(prepared as PreparedTheme),
       surfaces(visible) {
         // Hidden without drawing: the error revision does not depend on the methods that may have failed.
         for (const el of [renderer.element, textLayer.element]) el.style.visibility = visible ? '' : 'hidden';

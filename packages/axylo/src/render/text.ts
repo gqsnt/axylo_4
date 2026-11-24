@@ -17,7 +17,12 @@ export interface TextLayer {
 
 interface Label {
   readonly el: HTMLDivElement;
-  css: string;
+  align: string;
+  rx: number;
+  ry: number;
+  rotate: number;
+  anchor: PlacedText['anchor'] | '';
+  baseline: PlacedText['baseline'] | '';
   role: string;
   readonly lines: HTMLDivElement[];
   readonly text: string[];
@@ -54,12 +59,30 @@ export function createTextLayer(doc: Document = document): TextLayer {
         if (label === undefined) {
           const el = doc.createElement('div');
           el.className = 'axylo-label';
-          label = { el, css: '', role: '', lines: [], text: [] };
+          // Invariant positioning styles are set once on creation rather than re-parsed via cssText on every frame.
+          const st = el.style;
+          st.position = 'absolute';
+          st.left = '0';
+          st.top = '0';
+          st.transformOrigin = '0 0';
+          st.whiteSpace = 'pre';
+          label = { el, align: '', rx: NaN, ry: NaN, rotate: NaN, anchor: '', baseline: '', role: '', lines: [], text: [] };
           labels.push(label);
           (fresh ??= doc.createDocumentFragment()).appendChild(el);
         }
-        const css = labelStyle(t);
-        if (label.css !== css) { label.css = css; label.el.style.cssText = css; }
+        const align = ALIGN[t.anchor];
+        if (label.align !== align) { label.align = align; label.el.style.textAlign = align; }
+        const rx = Math.round(t.x * 100) / 100;
+        const ry = Math.round(t.y * 100) / 100;
+        if (label.rx !== rx || label.ry !== ry || label.rotate !== t.rotate || label.anchor !== t.anchor || label.baseline !== t.baseline) {
+          label.rx = rx;
+          label.ry = ry;
+          label.rotate = t.rotate;
+          label.anchor = t.anchor;
+          label.baseline = t.baseline;
+          const rotate = t.rotate !== 0 ? ` rotate(${t.rotate}deg)` : '';
+          label.el.style.transform = `translate(${rx}px,${ry}px)${rotate} translate(${SHIFT_X[t.anchor]},${SHIFT_Y[t.baseline]})`;
+        }
         if (label.role !== t.role) { label.role = t.role; label.el.setAttribute('data-role', t.role); }
         const lines = label.lines;
         while (lines.length > t.lines.length) { lines.pop()!.remove(); label.text.pop(); }

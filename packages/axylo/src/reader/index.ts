@@ -1,8 +1,10 @@
-import { SLOT_VALUE, type DiagnosticSink, type Formatters, type IndexRange, type ReaderModel, type View } from '../core/contracts';
+import type { DiagnosticSink, Formatters, IndexRange, ReaderModel, View } from '../core/contracts';
 import { report } from '../diagnostics';
+import { isPlainEnglish } from '../format/intl';
 import { sliceText } from '../lookup/text';
 import { chartTypeName, defaultMessages, fill, fillChartSummary, fillDonutSlice, messageLanguage } from '../messages';
 import type { Messages, Title } from '../public';
+import { alignedStatistics } from '../view';
 import { alignedTable, donutTable, scatterTable, type ReaderLabels, type TableBuilder } from './table';
 
 export interface ReaderInput {
@@ -28,12 +30,11 @@ export interface ReaderInput {
 
 const MAX_STACK_POSITIONS = 3;
 
-function statistics(y: Float64Array | Float32Array, { start, end }: IndexRange, slot?: Uint8Array) {
+function statistics(y: Float64Array, { start, end }: IndexRange) {
   let min = Infinity;
   let max = -Infinity;
   let last = NaN;
   for (let i = start; i < end; i++) {
-    if (slot && slot[i] !== SLOT_VALUE) continue;
     const value = y[i]!;
     if (!Number.isFinite(value)) continue;
     last = value;
@@ -105,10 +106,14 @@ type ChartText = (input: ReaderInput, type: string, xLabel: string, yLabel: stri
 
 const listFormats = new Map<string | undefined, Intl.ListFormat>();
 
+function englishList(locale: string | undefined): boolean {
+  return locale === 'en';
+}
+
 /** Names joined as a list in the chart's locale ("Visits and Signups"). */
 function listOf(names: readonly string[], locale: string | undefined): string {
   if (names.length < 2) return names[0] ?? '';
-  if (locale === 'en') {
+  if (englishList(locale)) {
     return names.slice(0, -1).join(', ') + (names.length === 2 ? ' and ' : ', and ') + names.at(-1);
   }
   try {
@@ -182,7 +187,7 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table, listReady)
       xMin = Math.min(xMin, series.x[range.start]!);
       xMax = Math.max(xMax, series.x[range.end - 1]!);
     }
-    const stats = statistics(series.y, range, 'slot' in series ? series.slot : undefined);
+    const stats = 'slot' in series ? alignedStatistics(series, range.start, range.end) : statistics(series.y, range);
     if (Number.isFinite(stats.last)) ranged.push(s);
     if (stats.min < min) { min = stats.min; minSeries = s; }
     if (stats.max > max) { max = stats.max; maxSeries = s; }
@@ -272,7 +277,7 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
   const yLabel = view.kind === 'donut' ? view.frame.valueLabel
     : view.kind === 'scatter' ? view.frame.yLabel
     : view.frame.yLabel || listOf(view.frame.series.flatMap(s => s.drawable ? [s.label] : []), input.locale) || labels.value;
-  const listReady = input.locale === 'en' || listFormats.has(input.locale);
+  const listReady = englishList(input.locale) || listFormats.has(input.locale);
   const titleText = typeof title === 'string' ? title : title?.text;
   if (!labelledBy && !titleText && input.diagnostics) report(input.diagnostics, 'AX140', 'none');
   const generated = fill(messages.chartName, { type, x: xLabel, y: yLabel });

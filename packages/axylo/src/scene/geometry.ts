@@ -1,5 +1,5 @@
 import { barHalfWidth } from '../view/bar-bands';
-import type { AlignedFrame, Paint, PaintToken, Projection, Rect, ResolvedReference, RuleMark, XScale } from '../core/contracts';
+import type { AlignedFrame, ContinuousScale, Paint, PaintToken, Projection, Rect, ResolvedReference, RuleMark, XScale } from '../core/contracts';
 
 /** 2¹²⁰, as a literal so the module does no work at import time. */
 export const COORDINATE_LIMIT = 1.329227995784916e+36;
@@ -17,6 +17,54 @@ export function position(scale: XScale, value: number): number {
     return (value < scale.domain[0]) === (start < end) ? -COORDINATE_LIMIT : COORDINATE_LIMIT;
   }
   return clamp(pixel, -COORDINATE_LIMIT, COORDINATE_LIMIT);
+}
+
+export interface AffineProjection {
+  readonly slope: number;
+  readonly offset: number;
+  readonly exact?: {
+    readonly scale: ContinuousScale;
+    readonly start: number;
+    readonly end: number;
+    readonly origin: number;
+    readonly edge: number;
+    readonly span: number;
+    readonly extent: number;
+    readonly bounded: boolean;
+  };
+}
+
+export function affineProjection(scale: XScale, bounds?: readonly [number, number]): AffineProjection | undefined {
+  if (scale.type === 'band') return;
+  const [d0, d1] = scale.domain;
+  const [r0, r1] = scale.range;
+  const span = d1 - d0;
+  const extent = r1 - r0;
+  if (span === 0 || extent === 0 || !Number.isFinite(span) || !Number.isFinite(extent)) return;
+  const slope = extent / span;
+  const offset = r0 - d0 * slope;
+  if (!slope || !Number.isFinite(slope) || !Number.isFinite(offset) ||
+      Math.max(Math.abs(r0), Math.abs(r1)) > COORDINATE_LIMIT) return;
+  // The sorted x column's endpoints also bound any samples used to extend a run past the viewport.
+  for (const value of bounds ? [d0, d1, ...bounds] : [d0, d1]) {
+    const displaced = (value - d0) / span * extent;
+    if (!(Math.abs(displaced + r0) <= COORDINATE_LIMIT) ||
+        !(Math.abs(slope * value + offset) <= COORDINATE_LIMIT)) return;
+  }
+  return { slope, offset, exact: { scale, start: d0, end: d1, origin: r0, edge: r1, span, extent, bounded: bounds !== undefined } };
+}
+
+export function affinePosition(affine: AffineProjection, value: number): number {
+  const { exact } = affine;
+  if (!exact) return affine.slope * value + affine.offset;
+  const { start, end, origin, edge, span, extent, bounded } = exact;
+  if (value === start) return origin;
+  if (value === end) return edge;
+  if (!bounded && !(span > 0 ? start < value && value < end : end < value && value < start)) {
+    return position(exact.scale, value);
+  }
+  // Reassociation can move a sample across a device column or a marker spacing threshold.
+  return origin + (value - start) / span * extent;
 }
 
 /** The mark and its focus outline use the same projected band, including the inter-bin separator. */

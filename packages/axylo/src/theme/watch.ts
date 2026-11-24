@@ -3,18 +3,70 @@
  * `class`, `style` or `data-theme` attribute of the chart or any of its ancestors (a class-toggled dark
  * theme may sit on `<html>`, `<body>` or a card in between). Bursts are folded into one call.
  *
- * One MutationObserver covers the whole document (`subtree`), and a record counts only when its target is
- * the chart or one of its ancestors at that moment, so the watch keeps working when the chart is moved to
- * another parent or `<body>` is replaced. Inside a shadow root, that root is observed as well.
+ * One ref-counted MutationObserver per root (`documentElement` and each active `ShadowRoot`) watches its
+ * subtree, and a record counts only when its target is the chart or one of its ancestors at that moment,
+ * so the watch keeps working when the chart is moved to another parent or `<body>` is replaced.
  */
 
-import { holds, observeTrees } from '../core/environment';
+import { subscribeTreeMutations } from '../core/environment';
 
 const QUERIES = ['(prefers-color-scheme: dark)', '(forced-colors: active)', '(prefers-contrast: more)'];
 const ATTRIBUTES = ['class', 'style', 'data-theme'];
+const MUTATION_OPTIONS: MutationObserverInit = { attributes: true, attributeFilter: ATTRIBUTES, attributeOldValue: true, subtree: true };
 
 /** Declarations resolveTheme itself writes on the chart root; changes to them alone are not theme changes. */
 const OWN = /--axylo-(?:series-color-\d+|backdrop)\s*:[^;]*;?\s*/g;
+
+interface ThemeMediaHub {
+  readonly subscribers: Set<() => void>;
+  readonly teardown: () => void;
+}
+
+const mediaHubs = new WeakMap<Window, ThemeMediaHub>();
+
+function subscribeMedia(win: Window, onChange: () => void): () => void {
+  let hub = mediaHubs.get(win);
+  if (!hub) {
+    let active = true;
+    const subscribers = new Set<() => void>();
+    const undo: (() => void)[] = [];
+    const teardown = (): void => {
+      active = false;
+      for (let fn = undo.pop(); fn; fn = undo.pop()) {
+        try { fn(); } catch { /* keep releasing */ }
+      }
+    };
+    const dispatch = (): void => {
+      if (!active) return;
+      for (const fn of [...subscribers]) {
+        if (subscribers.has(fn)) fn();
+      }
+    };
+    try {
+      for (const q of QUERIES) {
+        const list = win.matchMedia(q);
+        list.addEventListener('change', dispatch);
+        undo.push(() => list.removeEventListener('change', dispatch));
+      }
+    } catch (error) {
+      teardown();
+      throw error;
+    }
+    hub = { subscribers, teardown };
+    mediaHubs.set(win, hub);
+  }
+  hub.subscribers.add(onChange);
+  let stopped = false;
+  return () => {
+    if (stopped) return;
+    stopped = true;
+    hub!.subscribers.delete(onChange);
+    if (hub!.subscribers.size === 0) {
+      if (mediaHubs.get(win) === hub) mediaHubs.delete(win);
+      hub!.teardown();
+    }
+  };
+}
 
 /**
  * Calls `onChange` for a burst of relevant changes (once per observer batch), so the caller can feed it to its own
@@ -43,26 +95,19 @@ export function watchTheme(element: Element, onChange: () => void): () => void {
     }
   };
   try {
-    for (const q of QUERIES) {
-      const list = win.matchMedia(q);
-      list.addEventListener('change', schedule);
-      undo.push(() => list.removeEventListener('change', schedule));
-    }
-    const observer = new win.MutationObserver(records => {
-      for (const r of records) {
-        if (!holds(r.target, element)) continue;
-        if (r.target === element && r.attributeName === 'style') {
-          const before = (r.oldValue ?? '').replace(OWN, '').trim();
-          const after = (element.getAttribute('style') ?? '').replace(OWN, '').trim();
-          if (before === after) continue;
+    undo.push(subscribeMedia(win, schedule));
+    undo.push(subscribeTreeMutations('theme', element, MUTATION_OPTIONS, {
+      element,
+      onChange: schedule,
+      styleChanged(records) {
+        const after = (element.getAttribute('style') ?? '').replace(OWN, '').trim();
+        for (let i = 0; i < records.length; i++) {
+          const before = (records[i]!.oldValue ?? '').replace(OWN, '').trim();
+          if (before !== after) return true;
         }
-        schedule();
-        return;
-      }
-    });
-    undo.push(() => observer.disconnect());
-    const options: MutationObserverInit = { attributes: true, attributeFilter: ATTRIBUTES, attributeOldValue: true, subtree: true };
-    observeTrees(observer, element, options);
+        return false;
+      },
+    }));
   } catch (error) {
     release();
     throw error;
