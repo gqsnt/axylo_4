@@ -49,15 +49,19 @@ export type ViewState = AlignedViewState | ScatterViewState | DonutViewState;
 const SHAPES: readonly MarkerShape[] = ['circle', 'square', 'triangle', 'diamond', 'cross', 'plus', 'triangle-down', 'star'];
 const CONTRAST_DASHES: readonly SeriesCue['dash']['contrast'][] = [
   null, [12, 5], [5, 4], [1, 5], [9, 4, 1, 4], [9, 4, 1, 4, 1, 4], [12, 4, 5, 4], [1, 2],
-].map(dash => Object.freeze(dash));
-const STANDARD_CUES = SHAPES.map((marker, i) => Object.freeze({
-  marker, dash: Object.freeze({ normal: null, contrast: CONTRAST_DASHES[i]! }),
-}));
-const COMPACT_CUES = SHAPES.map((marker, i) => Object.freeze({
-  marker, dash: Object.freeze({ normal: CONTRAST_DASHES[i]!, contrast: CONTRAST_DASHES[i]! }),
-}));
-const extrema = new WeakMap<AlignedView | ScatterView, Span>();
-const widenedDomains = new WeakMap<AlignedView, string | undefined>();
+];
+let standardCues: readonly SeriesCue[] | undefined;
+let compactCues: readonly SeriesCue[] | undefined;
+
+function cueTable(compact: boolean): readonly SeriesCue[] {
+  return SHAPES.map((marker, i) => {
+    const contrast = Object.freeze(CONTRAST_DASHES[i]!);
+    return Object.freeze({ marker, dash: Object.freeze({ normal: compact ? contrast : null, contrast }) });
+  });
+}
+
+const extrema = /* @__PURE__ */ new WeakMap<AlignedView | ScatterView, Span>();
+const widenedDomains = /* @__PURE__ */ new WeakMap<AlignedView, string | undefined>();
 
 function reuse<T>(values: T[], previous: readonly T[] | undefined, same: (a: T, b: T) => boolean): readonly T[] {
   if (!previous) return values;
@@ -82,7 +86,7 @@ function cues(count: number, compact: boolean, previous: AlignedView | ScatterVi
   if (compact && count > 1 && !(previous?.compact && previous.cues.length > 1)) report(sink, 'AX131', 'none');
   const existing = previous?.compact === compact ? previous.cues : undefined;
   if (existing?.length === count) return existing;
-  const shared = compact ? COMPACT_CUES : STANDARD_CUES;
+  const shared = compact ? (compactCues ??= cueTable(true)) : (standardCues ??= cueTable(false));
   return Array.from({ length: count }, (_, i) => {
     if (i < shared.length) return shared[i]!;
     if (existing && i < existing.length) return existing[i]!;
@@ -468,29 +472,50 @@ export function buildScatterView(frame: PointFrame, state: ScatterViewState, sin
   return view;
 }
 
+type AlignedExtras = Partial<
+  { buildStack: typeof buildStack; reportStack: typeof reportStack } &
+  { barExtent: typeof barExtent; barRange: typeof barRange }
+>;
+
+export function alignedViewWith(extras: AlignedExtras): typeof buildAlignedView {
+  return (frame, state, sink) => buildAligned(frame, state, sink, extras);
+}
+
+const noExtras = {};
+
+export function buildPlainAlignedView(frame: AlignedFrame, state: AlignedViewState, sink: DiagnosticSink): AlignedView {
+  return buildAligned(frame, state, sink, noExtras);
+}
+
+const fullExtras = { buildStack, reportStack, barExtent, barRange };
+
 export function buildAlignedView(frame: AlignedFrame, state: AlignedViewState, sink: DiagnosticSink): AlignedView {
+  return buildAligned(frame, state, sink, fullExtras);
+}
+
+function buildAligned(frame: AlignedFrame, state: AlignedViewState, sink: DiagnosticSink, extras: AlignedExtras): AlignedView {
   const edges = frame.binEdges;
   const { prior, sameFrame, visible, references, category, continuousBars, xDomain, shared, sameShared, oldExtrema } = cartesianBase(frame, state, sink,
-    bars => edges?.length ? [edges[0]!, edges[edges.length - 1]!] : bars ? barExtent(frame.x.values) : [frame.x.values[0] ?? Infinity, frame.x.values[frame.length - 1] ?? -Infinity]);
+    bars => edges?.length ? [edges[0]!, edges[edges.length - 1]!] : bars && extras.barExtent ? extras.barExtent(frame.x.values) : [frame.x.values[0] ?? Infinity, frame.x.values[frame.length - 1] ?? -Infinity]);
   const old = prior?.kind === state.kind ? prior : undefined;
   const horizontal = state.kind === 'bar' && (state.horizontal ?? false);
   const visibleSlots = sameFrame && old?.xDomain === xDomain ? old.visibleSlots : rangeOf(frame.x.values, xDomain, old?.visibleSlots, edges);
-  const stack = state.stacked && state.kind !== 'line'
-    ? sameFrame && old?.visible === visible && old.stack ? old.stack : buildStack(frame, visible)
+  const stack = extras.buildStack && state.stacked && state.kind !== 'line'
+    ? sameFrame && old?.visible === visible && old.stack ? old.stack : extras.buildStack(frame, visible)
     : null;
   const singlePosition = xDomain[0] === xDomain[1];
   const stackedArea = stack !== null && state.kind === 'area';
   const sameDrawWindow = sameFrame && old !== undefined && Boolean(old.stack) === Boolean(stack) &&
     (continuousBars || stackedArea ? old.xDomain === xDomain
       : old.visibleSlots === visibleSlots && (old.xDomain[0] === old.xDomain[1]) === singlePosition);
-  const barSlots = continuousBars ? barRange(frame.x.values, visibleSlots, xDomain) : visibleSlots;
+  const barSlots = continuousBars && extras.barRange ? extras.barRange(frame.x.values, visibleSlots, xDomain) : visibleSlots;
   const fill = stackedArea ? stackAreaRange(frame, visibleSlots, xDomain) : null;
   const drawSlots = sameDrawWindow ? old.drawSlots : reuse(
     frame.series.map(({ slot }) => fill ? adjacentDrawRange(slot, visibleSlots, fill)
       : state.kind === 'bar' || edges || category || singlePosition ? barSlots : drawRange(slot, visibleSlots)),
     old?.drawSlots, sameRange,
   );
-  if (stack) reportStack(stack, sink);
+  if (stack) extras.reportStack?.(stack, sink);
   const data = oldExtrema && old?.xDomain === xDomain && old.stack === stack
     ? oldExtrema : alignedExtrema(frame, visible, visibleSlots, drawSlots, xDomain, stack, state.kind);
   const scale = state.valueScale === undefined ? alignedScale(frame, visible) : state.valueScale;

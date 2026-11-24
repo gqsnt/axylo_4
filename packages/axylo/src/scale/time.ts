@@ -30,39 +30,30 @@ export function timeScale(domain: readonly [number, number], range: readonly [nu
 
 export type TimeUnit = 'millisecond' | 'second' | 'minute' | 'hour' | 'day' | 'week' | 'month' | 'year';
 
+const enum Unit {
+  Millisecond, Second, Minute, Hour, Day, Week, Month, Year,
+}
+
 interface Interval {
-  readonly unit: TimeUnit;
+  readonly unit: Unit;
   readonly n: number;
   /** Typical length in ms, for estimating tick counts before generating. */
   readonly approx: number;
 }
 
-const UNIT_MS: Record<TimeUnit, number> = {
-  millisecond: 1,
-  second: SECOND,
-  minute: MINUTE,
-  hour: HOUR,
-  day: DAY,
-  week: 604_800_000, // 7 days
-  month: 2_629_746_000, // 30.436875 days
-  year: 31_556_952_000, // 365.2425 days
-};
+const UNIT_MS = [1, SECOND, MINUTE, HOUR, DAY, 604_800_000, 2_629_746_000, 31_556_952_000];
 
-function iv(unit: TimeUnit, n: number): Interval {
-  return { unit, n, approx: n * UNIT_MS[unit] };
+function interval(unit: Unit, n: number): Interval {
+  return { unit, n, approx: n * UNIT_MS[unit]! };
 }
 
-let subYear: readonly Interval[] | null = null;
-
-/** Calendar intervals finer than a year, finest first. Multiples divide the next unit, so ticks stay aligned. */
-const UNIT_ORDER: readonly TimeUnit[] = ['millisecond', 'second', 'minute', 'hour', 'day', 'week', 'month', 'year'];
+let subYear: readonly Interval[] | undefined;
 const clockSteps = [1, 2, 5, 10, 15, 30];
+// Finest first. Multiples divide the next unit so that clock ticks stay aligned.
 const subYearSteps = [
   [1, 2, 5, 10, 20, 50, 100, 200, 500], clockSteps, clockSteps,
   [1, 2, 3, 6, 12], [1, 2], [1], [1, 2, 3, 6],
 ];
-const subYearIntervals = (): readonly Interval[] => subYear ??=
-  subYearSteps.flatMap((steps, i) => steps.map(n => iv(UNIT_ORDER[i]!, n)));
 
 export interface TimeTickOptions {
   readonly kind: 'time' | 'date' | 'wall';
@@ -81,11 +72,9 @@ interface Candidate {
 }
 
 /** The finest unit allowed on this axis. */
-function finestUnit(options: TimeTickOptions): TimeUnit {
-  if (options.kind !== 'date') return 'millisecond';
-  if (options.dateUnit === 'year') return 'year';
-  if (options.dateUnit === 'month') return 'month';
-  return 'day';
+function finestUnit(options: TimeTickOptions): Unit {
+  if (options.kind !== 'date') return Unit.Millisecond;
+  return options.dateUnit === 'year' ? Unit.Year : options.dateUnit === 'month' ? Unit.Month : Unit.Day;
 }
 
 /**
@@ -98,12 +87,12 @@ export function timeTickCandidates(domain: readonly [number, number], options: T
   const hi = Math.min(Math.max(domain[0], domain[1]), MAX_DATE);
   if (!Number.isFinite(lo) || !Number.isFinite(hi) || lo > hi) return [];
   const zone = zoneOf(options.kind, options.timeZone);
-  const finest = UNIT_ORDER.indexOf(finestUnit(options));
+  const finest = finestUnit(options);
   const span = hi - lo;
 
   const sets: Candidate[] = [];
   const consider = (interval: Interval): boolean => {
-    if (UNIT_ORDER.indexOf(interval.unit) < finest) return true;
+    if (interval.unit < finest) return true;
     // Skip intervals that would obviously give far too many ticks, before paying for generation.
     if (span / interval.approx > MAX_TICKS + 2) return true;
     const values = boundaries(interval, lo, hi, zone, options.locale);
@@ -118,11 +107,13 @@ export function timeTickCandidates(domain: readonly [number, number], options: T
     return values.length > 0;
   };
 
-  for (const interval of subYearIntervals()) if (!consider(interval)) return finish(sets, lo, zone, options);
-  // Years: 1, 2, 5, 10, 20, 50, … until a single tick or none remains.
-  for (let k = 0; k < 9; k++) {
-    for (const m of [1, 2, 5]) {
-      if (!consider(iv('year', m * 10 ** k))) return finish(sets, lo, zone, options);
+  subYear ??= subYearSteps.flatMap((steps, unit) => steps.map(n => interval(unit, n)));
+  // Years keep the 1, 2, 5 progression at each power of ten.
+  if (subYear.every(consider)) {
+    years: for (let power = 1; power <= 1e8; power *= 10) {
+      for (const step of [1, 2, 5]) {
+        if (!consider(interval(Unit.Year, step * power))) break years;
+      }
     }
   }
   return finish(sets, lo, zone, options);
@@ -132,11 +123,11 @@ export function timeTickCandidates(domain: readonly [number, number], options: T
 function finish(sets: Candidate[], lo: number, zone: string, options: TimeTickOptions): TickCandidates {
   if (sets.length > 0) return sets.map(set => set.ticks());
   let unit = finestUnit(options);
-  if (unit === 'millisecond') {
+  if (unit === Unit.Millisecond) {
     // Show the clock only as precisely as the instant needs.
     const wall = instantToWall(zone, lo);
-    const ms = ((wall % DAY) + DAY) % DAY;
-    unit = ms % SECOND !== 0 ? 'millisecond' : ms % MINUTE !== 0 ? 'second' : 'minute';
+    const ms = modulo(wall, DAY);
+    unit = ms % SECOND !== 0 ? Unit.Millisecond : ms % MINUTE !== 0 ? Unit.Second : Unit.Minute;
   }
   return [label([lo], unit, zone, options)];
 }
@@ -147,16 +138,16 @@ function appendBoundaries(out: number[], first: number, last: number, step: numb
   for (let t = first, k = 0; t <= last && k < MAX_BOUNDARIES; t += step, k++) out.push(t);
 }
 
+function regularBoundaries(lo: number, hi: number, step: number): number[] {
+  const out: number[] = [];
+  appendBoundaries(out, Math.ceil(lo / step) * step, hi, step);
+  return out;
+}
+
 /** Instants in [lo, hi] on the interval's boundaries in `zone`, ascending, without duplicates. */
 function boundaries(interval: Interval, lo: number, hi: number, zone: string, locale: string): number[] {
-  if (interval.unit === 'millisecond') {
-    // Zone offsets are whole seconds, so millisecond boundaries are the same in every zone.
-    const out: number[] = [];
-    // Bounded: callers only ask for intervals with a few ticks in the domain.
-    appendBoundaries(out, Math.ceil(lo / interval.n) * interval.n, hi, interval.n);
-    return out;
-  }
-  if (UNIT_MS[interval.unit] <= HOUR) return clockBoundaries(interval.n * UNIT_MS[interval.unit], lo, hi, zone);
+  if (interval.unit === Unit.Millisecond) return regularBoundaries(lo, hi, interval.n);
+  if (interval.unit <= Unit.Hour) return clockBoundaries(interval.approx, lo, hi, zone);
   // Wall time of an instant moves back by at most the size of a fold (two hours in any zone in use), so a
   // three-hour margin covers every boundary whose instant lies in [lo, hi]. Day and coarser units have at
   // most one boundary in the margin, so it costs nothing.
@@ -198,20 +189,15 @@ function clockBoundaries(size: number, lo: number, hi: number, zone: string): nu
 
 /** Wall values (local fields read as UTC) on the interval's boundaries in [wallLo, wallHi]. */
 function wallBoundaries(interval: Interval, wallLo: number, wallHi: number, locale: string): number[] {
-  const out: number[] = [];
   const { unit, n } = interval;
-  if (unit === 'day') {
-    // Days count from 1970-01-01, which keeps 2-day ticks evenly spaced across month ends.
-    const size = n * UNIT_MS[unit];
-    appendBoundaries(out, Math.ceil(wallLo / size) * size, wallHi, size);
-    return out;
-  }
-  if (unit === 'week') {
+  // Days count from 1970-01-01 so their spacing survives month ends.
+  if (unit === Unit.Day) return regularBoundaries(wallLo, wallHi, interval.approx);
+  const out: number[] = [];
+  if (unit === Unit.Week) {
     const first = weekStart(locale);
-    let day = Math.ceil(wallLo / DAY);
+    const day = Math.ceil(wallLo / DAY);
     // 1970-01-01 was a Thursday (weekday 4, Sunday = 0).
-    for (let k = 0; k < 7 && (((day + 4) % 7) + 7) % 7 !== first; k++) day++;
-    appendBoundaries(out, day * DAY, wallHi, 7 * DAY);
+    appendBoundaries(out, (day + modulo(first - day - 4, 7)) * DAY, wallHi, interval.approx);
     return out;
   }
   // Month and year loops run over the years of the range, so they end even where a boundary is not
@@ -219,21 +205,19 @@ function wallBoundaries(interval: Interval, wallLo: number, wallHi: number, loca
   const yLo = new Date(wallLo).getUTCFullYear();
   const yHi = new Date(wallHi).getUTCFullYear();
   if (!Number.isFinite(yLo) || !Number.isFinite(yHi)) return out;
-  if (unit === 'month') {
-    for (let y = yLo; y <= yHi && y - yLo < MAX_BOUNDARIES; y++) {
-      for (let m = 0; m < 12; m += n) {
-        const w = utcFields(y, m, 1);
-        if (Number.isFinite(w) && w >= wallLo && w <= wallHi) out.push(w);
-      }
+  const months = unit === Unit.Month ? n : 12;
+  const years = unit === Unit.Month ? 1 : n;
+  for (let y = yLo - modulo(yLo, years), k = 0; y <= yHi && k < MAX_BOUNDARIES; y += years, k++) {
+    for (let m = 0; m < 12; m += months) {
+      const wall = utcFields(y, m, 1);
+      if (wall >= wallLo && wall <= wallHi) out.push(wall);
     }
-    return out;
-  }
-  // year
-  for (let y = yLo - (((yLo % n) + n) % n), k = 0; y <= yHi && k < MAX_BOUNDARIES; y += n, k++) {
-    const w = utcFields(y, 0, 1);
-    if (Number.isFinite(w) && w >= wallLo && w <= wallHi) out.push(w);
   }
   return out;
+}
+
+function modulo(value: number, divisor: number): number {
+  return ((value % divisor) + divisor) % divisor;
 }
 
 interface WeekInfoLocale { getWeekInfo?: () => { firstDay: number }; weekInfo?: { firstDay: number } }
@@ -278,11 +262,10 @@ function customLabel(custom: ((position: number) => string) | null | undefined, 
   }
 }
 
-const tickParts: Record<TimeUnit, number> = {
-  year: DateParts.Year, month: DateParts.Month, week: DateParts.MonthDay, day: DateParts.MonthDay,
-  hour: DateParts.Clock, minute: DateParts.Clock, second: DateParts.Clock | DateParts.Seconds,
-  millisecond: DateParts.Clock | DateParts.Seconds | DateParts.Milliseconds,
-};
+const tickParts = [
+  DateParts.Clock | DateParts.Seconds | DateParts.Milliseconds, DateParts.Clock | DateParts.Seconds,
+  DateParts.Clock, DateParts.Clock, DateParts.MonthDay, DateParts.MonthDay, DateParts.Month, DateParts.Year,
+];
 
 // Try the zone abbreviation and offset first in a fold, then the era for labels such as 1 BC and AD 1.
 const disambiguators = [
@@ -295,8 +278,8 @@ const disambiguators = [
  * reaches before year 1 carries the era on every label, and labels that would still read the same are
  * told apart (see `disambiguators`).
  */
-function label(values: readonly number[], unit: TimeUnit, zone: string, options: TimeTickOptions): Tick[] {
-  const short = tickParts[unit];
+function label(values: readonly number[], unit: Unit, zone: string, options: TimeTickOptions): Tick[] {
+  const short = tickParts[unit]!;
   const context = short === DateParts.Year ? 0 : short & DateParts.Clock ? DateParts.MonthDay : DateParts.Year;
   const walls = values.map(v => instantToWall(zone, v));
   // An offset can move the local day beyond Date's limits, but never across a year at either limit.

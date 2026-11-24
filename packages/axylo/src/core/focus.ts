@@ -1,11 +1,5 @@
 /**
- * The pure part of the interaction layer: what the reader is on, how it moves, how it reads, and what is
- * drawn over the marks for it. Everything here reads the frame through the view and the lookup (never the
- * scene), and touches no DOM, so it is tested in Node.
- *
- * Decision 0001: the plot is one range input. Its value is the place of the current x among the visible x
- * slots. By default it reads every visible series at that x ("all" mode); after Up or Down it reads one series
- * ("single" mode) and moves with `lookup.step`, which skips that series' missing values as the contract says.
+ * Pure interaction logic: focus, stepping, reading, overlay marks, and zoom windows. Runs in Node with no DOM.
  */
 import {
   type AlignedView, type DatumRef, type DatumText, type Formatters, type Layout, type Lookup, type Mark, type Overlay,
@@ -15,473 +9,280 @@ import { donutGeometry } from '../view/donut-geometry';
 import type { Messages } from '../public';
 import { fill, pointOf } from '../messages';
 import { lowerBound, pageDistance, stepIndex } from '../lookup/search';
-
-/** Matches lookup's page size (spec A2 "Page keys"): one definition, the lookup's. */
-export { pageDistance };
 import { slotText } from '../lookup/text';
+
+export { pageDistance };
 
 export type Mode = 'all' | 'single';
 type Span = readonly [number, number];
 type PlotLayout = Extract<Layout, { kind: 'plot' }>;
 
-/** The pointer target that shows the same thing as a focused datum. */
-export function targetOf(ref: DatumRef): PickTarget {
-  switch (ref.kind) {
-    case 'aligned': return { kind: 'x', x: ref.x };
-    case 'point': return { kind: 'point', refs: [ref], count: 1 };
-    case 'slice': return { kind: 'slice', sliceKey: ref.sliceKey };
-  }
-}
+const isAligned = (v: View): v is AlignedView => v.kind !== 'donut' && v.kind !== 'scatter';
+const seriesOf = (v: Exclude<View, { kind: 'donut' }>, key: string) => v.frame.series.findIndex(s => s.key === key);
+
+export const targetOf = (ref: DatumRef): PickTarget =>
+  ref.kind === 'aligned' ? { kind: 'x', x: ref.x }
+    : ref.kind === 'point' ? { kind: 'point', refs: [ref], count: 1 }
+    : { kind: 'slice', sliceKey: ref.sliceKey };
 
 export function sameRef(a: DatumRef | null, b: DatumRef | null): boolean {
-  if (a === null || b === null) return a === b;
-  if (a.kind === 'aligned' && b.kind === 'aligned') return a.seriesKey === b.seriesKey && a.x === b.x;
-  if (a.kind === 'point' && b.kind === 'point') return a.seriesKey === b.seriesKey && a.row === b.row && a.x === b.x;
-  if (a.kind === 'slice' && b.kind === 'slice') return a.sliceKey === b.sliceKey;
-  return false;
+  if (a === b) return true;
+  if (!a || !b || a.kind !== b.kind) return false;
+  if (a.kind === 'slice') return a.sliceKey === (b as typeof a).sliceKey;
+  if (a.kind === 'aligned') return a.seriesKey === (b as typeof a).seriesKey && a.x === (b as typeof a).x;
+  return a.seriesKey === (b as typeof a).seriesKey && a.row === (b as typeof a).row && a.x === (b as typeof a).x;
 }
 
+export const readableSeries = (view: AlignedView): number[] =>
+  view.frame.series.flatMap((s, i) => view.visible[i] && s.drawable ? [i] : []);
 
-/** Series a reader can land on: visible and drawable. */
-export function readableSeries(view: AlignedView): number[] {
-  return view.frame.series.flatMap((s, i) => view.visible[i] && s.drawable ? [i] : []);
-}
-
-/**
- * In "all" mode the reader moves over x slots, every visible slot a place of its own, as the lookup counts
- * them ("point 2 of 3") and as the pointer reaches them: a slot where a series has no data reads "No data"
- * (spec F2), one only a hidden series observes reads "No observation" (review 2, finding 7).
- */
 export function stepAcross(view: AlignedView, x: number | null, direction: StepDirection): number | null {
   const { start, end } = view.visibleSlots;
-  if (start >= end || !view.frame.series.some((series, i) => view.visible[i] && series.drawable)) return null;
-  const positions = view.frame.x.values;
-  const at = x === null ? end : lowerBound(positions, x, start, end);
-  if (at >= end || positions[at] !== x) return positions[direction === 'last' ? end - 1 : start]!;
+  if (start >= end || !view.frame.series.some((s, i) => view.visible[i] && s.drawable)) return null;
+  const xs = view.frame.x.values, at = x === null ? end : lowerBound(xs, x, start, end);
+  if (at >= end || xs[at] !== x) return xs[direction === 'last' ? end - 1 : start]!;
   const to = stepIndex(direction, at, start, end);
-  return to === null ? null : positions[to]!;
+  return to === null ? null : xs[to]!;
 }
 
-/** The refs of every readable series at x, in series order. */
-export function refsAt(view: AlignedView, x: number): DatumRef[] {
-  return readableSeries(view).map(s => ({ kind: 'aligned', seriesKey: view.frame.series[s]!.key, x }) as const);
-}
+export const refsAt = (view: AlignedView, x: number): DatumRef[] =>
+  readableSeries(view).map(s => ({ kind: 'aligned', seriesKey: view.frame.series[s]!.key, x }) as const);
 
-/** The place of a datum among the visible ones, as the `position` message says it ("Point 4 of 10"). */
-export function positionText(messages: Messages, formatters: Formatters, ordinal: number, count: number): string {
-  return fill(messages.position, { index: formatters.count(ordinal + 1), count: formatters.count(count) });
-}
+export const positionText = (m: Messages, f: Formatters, ord: number, count: number): string =>
+  fill(m.position, { index: f.count(ord + 1), count: f.count(count) });
 
-/**
- * Value text of the proxy (decision 0001): what the reader is on, ending with its place. "All" mode reads
- * every series at the x with `pointAll` and `seriesValue`; one series (single mode, scatter) uses `pointOf`.
- */
-export function valueText(
-  view: View, lookup: Lookup, focus: DatumRef, mode: Mode, formatters: Formatters, messages: Messages,
-): string | null {
-  const ordinal = lookup.ordinal(focus);
-  if (ordinal < 0) return null;
-  const position = positionText(messages, formatters, ordinal, lookup.count);
+export function valueText(view: View, lookup: Lookup, focus: DatumRef, mode: Mode, formatters: Formatters, messages: Messages): string | null {
+  const ord = lookup.ordinal(focus);
+  if (ord < 0) return null;
+  const position = positionText(messages, formatters, ord, lookup.count);
   if (view.kind === 'donut') {
-    const datum = lookup.datum(focus);
-    if (!datum) return null;
-    const share = datum.percent === null || datum.percent === datum.value ? '' : ` (${datum.percent})`;
-    return fill(messages.pointAll, {
-      x: datum.seriesLabel, values: datum.value + share, position,
-    });
+    const d = lookup.datum(focus);
+    return d ? fill(messages.pointAll, { x: d.seriesLabel, values: d.value + (d.percent === null || d.percent === d.value ? '' : ` (${d.percent})`), position }) : null;
   }
-  if (view.kind !== 'scatter' && mode === 'all' && focus.kind === 'aligned') {
-    // What the tooltip shows at this x, the stack total included, said once (spec I1, F10).
-    // Every series at x, the ones past the tooltip's eight included, as the tooltip writes its rows: an
-    // incomplete stack is said once, on the total, not again on each series (review C2-7).
-    const model = lookup.tooltip({ kind: 'x', x: focus.x });
-    const rows = alignedRows(view, formatters, focus.x, model).map(r => fill(messages.seriesValue, { series: r.seriesLabel, value: r.value }));
-    if (model.total !== null) rows.push(fill(messages.seriesValue, { series: messages.total, value: model.total }));
-    if (!rows.length) return null;
-    return fill(messages.pointAll, { x: model.title, values: rows.join('; '), position });
+  if (isAligned(view) && mode === 'all' && focus.kind === 'aligned') {
+    const m = lookup.tooltip({ kind: 'x', x: focus.x });
+    const rows = alignedRows(view, formatters, focus.x, m).map(r => fill(messages.seriesValue, { series: r.seriesLabel, value: r.value }));
+    if (m.total !== null) rows.push(fill(messages.seriesValue, { series: messages.total, value: m.total }));
+    return rows.length ? fill(messages.pointAll, { x: m.title, values: rows.join('; '), position }) : null;
   }
   return pointOf(lookup, focus, formatters, messages);
 }
 
-/**
- * Every readable series' row at x, in series order: the tooltip's own rows first (they are the first of
- * them), then the rest written the same way, unqualified, as the tooltip writes a row. Used where every
- * series is read (the keyboard's "all" reading, a pinned tooltip's further rows).
- */
 export function alignedRows(view: AlignedView, formatters: Formatters, x: number, model: TooltipModel): DatumText[] {
-  const rows: DatumText[] = [...model.rows];
-  const shown = new Set(model.rows.map(r => r.seriesIndex));
-  const positions = view.frame.x.values;
-  const i = lowerBound(positions, x);
-  if (i >= positions.length || positions[i] !== x) return rows;
-  const title = model.title;
+  const rows: DatumText[] = [...model.rows], shown = new Set(model.rows.map(r => r.seriesIndex));
+  const xs = view.frame.x.values, i = lowerBound(xs, x);
+  if (i >= xs.length || xs[i] !== x) return rows;
   for (const s of readableSeries(view)) {
     if (shown.has(s)) continue;
-    const series = view.frame.series[s]!;
-    const state = series.slot[i] as SlotState;
+    const ser = view.frame.series[s]!, state = ser.slot[i] as SlotState;
     rows.push({
-      ref: { kind: 'aligned', seriesKey: series.key, x }, seriesIndex: s, seriesLabel: series.label, x: title,
-      value: slotText(formatters, s, series.y[i]!, state), state, percent: null, row: series.row?.[i] ?? i,
+      ref: { kind: 'aligned', seriesKey: ser.key, x }, seriesIndex: s, seriesLabel: ser.label, x: model.title,
+      value: slotText(formatters, s, ser.y[i]!, state), state, percent: null, row: ser.row?.[i] ?? i,
     });
   }
   return rows;
 }
 
-/**
- * What a reading says about the datum itself, for deciding whether the focused text must be rewritten
- * (decision 0004 part 2): its identity, its values and the templates that word them, never its place in
- * the range. Compared as data, not by taking one translated sentence out of another (review finding 14).
- */
 export function datumReading(view: View, lookup: Lookup, ref: DatumRef, mode: Mode, formatters: Formatters, messages: Messages): string | null {
   if (lookup.ordinal(ref) < 0) return null;
   const words = [messages.pointAll, messages.pointOf, messages.seriesValue, messages.total, messages.position];
-  // An aligned datum's x by its raw key: a category's name (not its index, which a sliding window renumbers;
-  // review finding 10), and not its formatted text, which two categories can share (review R10).
-  const x = ref.kind === 'aligned' && view.kind !== 'scatter' && view.kind !== 'donut'
-    ? view.frame.x.categories?.[ref.x] ?? ref.x : null;
-  if (view.kind !== 'scatter' && view.kind !== 'donut' && mode === 'all' && ref.kind === 'aligned') {
-    const model = lookup.tooltip({ kind: 'x', x: ref.x });
-    const rows = alignedRows(view, formatters, ref.x, model).map(r => [r.seriesIndex, r.seriesLabel, r.value]);
-    // Both the raw x (its identity) and the x as read (a changed x format rewrites the text, final check 5).
-    return JSON.stringify(['all', ref.seriesKey, x, model.title, rows, model.total, words]);
+  const x = ref.kind === 'aligned' && isAligned(view) ? view.frame.x.categories?.[ref.x] ?? ref.x : null;
+  if (isAligned(view) && mode === 'all' && ref.kind === 'aligned') {
+    const m = lookup.tooltip({ kind: 'x', x: ref.x });
+    return JSON.stringify(['all', ref.seriesKey, x, m.title, alignedRows(view, formatters, ref.x, m).map(r => [r.seriesIndex, r.seriesLabel, r.value]), m.total, words]);
   }
-  const datum = lookup.datum(ref);
-  if (!datum) return null;
-  // The datum's identity without its place: an aligned datum by series and raw x, a point by series and
-  // source row.
+  const d = lookup.datum(ref);
+  if (!d) return null;
   const id = ref.kind === 'point' ? [ref.seriesKey, ref.row] : ref.kind === 'aligned' ? [ref.seriesKey, x] : [ref.sliceKey];
-  return JSON.stringify(['one', ref.kind, id, datum.seriesLabel, datum.x, datum.value, datum.percent, words]);
+  return JSON.stringify(['one', ref.kind, id, d.seriesLabel, d.x, d.value, d.percent, words]);
 }
-
-// ── overlay ─────────────────────────────────────────────────────────────────────────────────────────
 
 export interface OverlayInput {
   readonly view: View;
   readonly layout: Layout;
   readonly lookup: Lookup;
-  /** What is shown (pointer or keyboard). */
   readonly target: PickTarget | null;
-  /** The keyboard's datum, when the proxy has focus and is focus-visible: it gets the focus ring. */
   readonly ring: DatumRef | null;
-  /** In single mode only the focused series is highlighted. */
   readonly only: DatumRef | null;
 }
 
-const HALO = 13;
-const MARKER = 9;
-const RING_GAP = 4;
-/**
- * How far the keyboard's datum ring reaches beyond the datum's box: the widest gap, then the ring's 2 px in
- * the focus colour between 1 px of background colour on each side (WCAG 1.4.11: the surround separates the
- * focus colour from any mark it crosses, so it needs 3:1 against the background only).
- */
-export const RING_REACH = 10;
-/** The ring in the focus colour, and the background-coloured surround it is drawn on. */
-const RING_WIDTH = 2;
-const SURROUND_WIDTH = 4; // RING_WIDTH + 2, written out: no work at import time
-/** How far inside the plot's rectangle its focus outline reaches (2 px at an offset of -3 px). */
-export const OUTLINE_REACH = 4;
+const HALO = 13, MARKER = 9, RING_GAP = 4, RING_WIDTH = 2, SURROUND_WIDTH = 4;
+export const RING_REACH = 10, OUTLINE_REACH = 4, RING_STROKE = SURROUND_WIDTH;
 
-function rule(x1: number, y1: number, x2: number, y2: number, name: 'axis' | 'focus' | 'text' | 'background', width: number): RuleMark {
-  return { type: 'rule', x1, y1, x2, y2, stroke: { kind: 'token', name }, strokeWidth: width, dash: null, role: 'cursor' };
+const rule = (x1: number, y1: number, x2: number, y2: number, name: 'axis' | 'focus' | 'text' | 'background', strokeWidth: number): RuleMark =>
+  ({ type: 'rule', x1, y1, x2, y2, stroke: { kind: 'token', name }, strokeWidth, dash: null, role: 'cursor' });
+
+function outline(b: Rect, gap: number, name: 'focus' | 'text' | 'background', w: number): RuleMark[] {
+  const x0 = b.x - gap, y0 = b.y - gap, x1 = b.x + b.width + gap, y1 = b.y + b.height + gap, h = w / 2;
+  const r = (a: number, c: number, d: number, e: number) => rule(a, c, d, e, name, w);
+  return [r(x0 - h, y0, x1 + h, y0), r(x1, y0 - h, x1, y1 + h), r(x1 + h, y1, x0 - h, y1), r(x0, y1 + h, x0, y0 - h)];
 }
 
-function outline(box: Rect, gap: number, name: 'focus' | 'text' | 'background', width: number): RuleMark[] {
-  const x0 = box.x - gap, y0 = box.y - gap, x1 = box.x + box.width + gap, y1 = box.y + box.height + gap;
-  // Each side runs on by half the width at both ends, so the corners are closed as with square caps.
-  const h = width / 2;
-  return [
-    rule(x0 - h, y0, x1 + h, y0, name, width), rule(x1, y0 - h, x1, y1 + h, name, width),
-    rule(x1 + h, y1, x0 - h, y1, name, width), rule(x0, y1 + h, x0, y0 - h, name, width),
-  ];
+function posScale(layout: Layout) {
+  if (layout.kind !== 'plot') return null;
+  const p = layout.projection;
+  return p.kind === 'xy' ? p.x : p.kind === 'bands' ? p.band : null;
 }
 
-function seriesIndex(view: View, ref: DatumRef): number {
-  if (view.kind === 'donut') return -1;
-  if (ref.kind === 'slice') return -1;
-  return view.frame.series.findIndex(s => s.key === ref.seriesKey);
+function pushPoint(clipped: Mark[], view: Exclude<View, { kind: 'donut' }>, ref: DatumRef, x: number, y: number, halo: 'background' | 'text'): void {
+  const series = ref.kind === 'slice' ? -1 : seriesOf(view, ref.seriesKey);
+  const xy = Float32Array.of(x, y), shape = view.cues[series]?.marker ?? 'circle';
+  clipped.push(
+    { type: 'points', series, xy, shape, size: HALO, fill: { kind: 'token', name: halo } },
+    { type: 'points', series, xy, shape, size: MARKER, fill: { kind: 'series', index: series } },
+  );
 }
 
-/** Adds what a chart kind draws over its marks for the shown target (cursor, points, outlines). */
 export type TargetMarks = (input: OverlayInput, plot: Rect, clipped: Mark[], unclipped: Mark[]) => void;
 
-/** Aligned charts: the cursor rule at the x, with the points (lines, areas) or outlines (bars) there. */
 export const alignedTargetMarks: TargetMarks = ({ view, layout, lookup, target, only }, plot, clipped, unclipped) => {
-  if (target?.kind !== 'x' || view.kind === 'donut' || view.kind === 'scatter' || layout.kind !== 'plot') return;
-  const projection = layout.projection;
-  const refs = only ? [only] : refsAt(view, target.x);
-  const scale = projection.kind === 'xy' ? projection.x : projection.kind === 'bands' ? projection.band : null;
-  if (scale) {
-    const at = scale.type === 'band' ? scale.center(target.x) : scale.map(target.x);
-    const across = projection.kind === 'bands' && projection.horizontal;
+  if (target?.kind !== 'x' || !isAligned(view) || layout.kind !== 'plot') return;
+  const p = layout.projection, s = posScale(layout);
+  if (s) {
+    const at = s.type === 'band' ? s.center(target.x) : s.map(target.x);
     if (Number.isFinite(at)) {
-      clipped.push(across ? rule(plot.x, at, plot.x + plot.width, at, 'axis', 1) : rule(at, plot.y, at, plot.y + plot.height, 'axis', 1));
+      clipped.push(p.kind === 'bands' && p.horizontal
+        ? rule(plot.x, at, plot.x + plot.width, at, 'axis', 1)
+        : rule(at, plot.y, at, plot.y + plot.height, 'axis', 1));
     }
   }
-  for (const ref of refs) {
-    const box = lookup.anchor(ref);
-    if (!box) continue;
-    if (projection.kind === 'bands') {
-      unclipped.push(...outline(box, 1, 'text', 2));
-    } else {
-      const s = seriesIndex(view, ref);
-      const cue = view.cues[s];
-      const xy = Float32Array.of(box.x + box.width / 2, box.y + box.height / 2);
-      const shape = cue?.marker ?? 'circle';
-      clipped.push({ type: 'points', series: s, xy, shape, size: HALO, fill: { kind: 'token', name: 'background' } });
-      clipped.push({ type: 'points', series: s, xy, shape, size: MARKER, fill: { kind: 'series', index: s } });
-    }
+  for (const ref of only ? [only] : refsAt(view, target.x)) {
+    const b = lookup.anchor(ref);
+    if (!b) continue;
+    if (p.kind === 'bands') unclipped.push(...outline(b, 1, 'text', 2));
+    else pushPoint(clipped, view, ref, b.x + b.width / 2, b.y + b.height / 2, 'background');
   }
 };
 
-/** Scatter: the points under the pointer, highlighted. */
 export const scatterTargetMarks: TargetMarks = ({ view, lookup, target }, _plot, clipped) => {
   if (target?.kind !== 'point' || view.kind !== 'scatter') return;
-  for (const ref of target.refs) {
-    const box = lookup.anchor(ref);
-    if (!box) continue;
-    const s = seriesIndex(view, ref);
-    const xy = Float32Array.of(box.x, box.y);
-    const shape = view.cues[s]?.marker ?? 'circle';
-    clipped.push({ type: 'points', series: s, xy, shape, size: HALO, fill: { kind: 'token', name: 'text' } });
-    clipped.push({ type: 'points', series: s, xy, shape, size: MARKER, fill: { kind: 'series', index: s } });
-  }
+  for (const ref of target.refs) { const b = lookup.anchor(ref); if (b) pushPoint(clipped, view, ref, b.x, b.y, 'text'); }
 };
 
-/** Donut: the slice outlined, outside the ring and inside the hole. */
 export const donutTargetMarks: TargetMarks = ({ view, layout, target }, _plot, _clipped, unclipped) => {
   if (target?.kind !== 'slice' || view.kind !== 'donut' || layout.kind !== 'plot' || layout.projection.kind !== 'ring') return;
-  const projection = layout.projection;
-  // The outline follows the slice as drawn: a slice thinner than a pixel of arc is widened to stay visible.
-  const geometry = donutGeometry(view.slices, projection);
-  const at = geometry.drawn.findIndex(s => s.key === target.sliceKey);
-  const slice = at >= 0 ? geometry.drawn[at] : undefined;
-  const from = at >= 0 ? geometry.angles[2 * at]! : 0;
-  const to = at >= 0 ? geometry.angles[2 * at + 1]! : 0;
-  if (slice && to > from) {
-    const angles = Float32Array.of(from, to);
-    const fills = [{ kind: 'token', name: 'text' } as const];
-    unclipped.push({ type: 'arcs', cx: projection.cx, cy: projection.cy, r0: projection.r1 + 1, r1: projection.r1 + 4, angles, fills, gap: 0 });
-    if (projection.r0 > 5) {
-      unclipped.push({ type: 'arcs', cx: projection.cx, cy: projection.cy, r0: projection.r0 - 4, r1: projection.r0 - 1, angles, fills, gap: 0 });
-    }
-  }
+  const p = layout.projection, g = donutGeometry(view.slices, p), at = g.drawn.findIndex(s => s.key === target.sliceKey);
+  if (at < 0) return;
+  const from = g.angles[2 * at]!, to = g.angles[2 * at + 1]!;
+  if (!(to > from)) return;
+  const angles = Float32Array.of(from, to), fills = [{ kind: 'token', name: 'text' } as const];
+  const push = (r0: number, r1: number) => unclipped.push({ type: 'arcs', cx: p.cx, cy: p.cy, r0, r1, angles, fills, gap: 0 });
+  push(p.r1 + 1, p.r1 + 4);
+  if (p.r0 > 5) push(p.r0 - 4, p.r0 - 1);
 };
 
-const allTargetMarks: TargetMarks = (input, plot, clipped, unclipped) => {
-  const kind = input.view.kind;
-  (kind === 'donut' ? donutTargetMarks : kind === 'scatter' ? scatterTargetMarks : alignedTargetMarks)(input, plot, clipped, unclipped);
-};
+export const buildOverlay = (input: OverlayInput): Overlay | null =>
+  overlayWith(input.view.kind === 'donut' ? donutTargetMarks : input.view.kind === 'scatter' ? scatterTargetMarks : alignedTargetMarks, input);
 
-/** Cursor rule, highlighted points or bar and slice outlines, and the keyboard focus ring (contracts: Overlay). */
-export function buildOverlay(input: OverlayInput): Overlay | null {
-  return overlayWith(allTargetMarks, input);
-}
-
-/** The overlay with a chart kind's own target marks (a kind's composition holds only its own). */
 export function overlayWith(targetMarks: TargetMarks, input: OverlayInput): Overlay | null {
   const { layout, lookup, target, ring } = input;
-  if (layout.kind !== 'plot' || (target === null && ring === null)) return null;
-  const plot = layout.plot;
-  const clipped: Mark[] = [];
-  const unclipped: Mark[] = [];
+  if (layout.kind !== 'plot' || (!target && !ring)) return null;
+  const plot = layout.plot, clipped: Mark[] = [], unclipped: Mark[] = [];
   targetMarks(input, plot, clipped, unclipped);
-
-  if (ring) {
-    const ringBox = ringLine(layout, lookup, ring);
-    // Two tones: the focus colour on a surround of the background colour (WCAG 1.4.11 against whatever
-    // mark the ring crosses).
-    if (ringBox) unclipped.push(...outline(ringBox, 0, 'background', SURROUND_WIDTH), ...outline(ringBox, 0, 'focus', RING_WIDTH));
-  }
+  const rb = ring ? ringLine(layout, lookup, ring) : null;
+  if (rb) unclipped.push(...outline(rb, 0, 'background', SURROUND_WIDTH), ...outline(rb, 0, 'focus', RING_WIDTH));
   return clipped.length || unclipped.length ? { clip: plot, clipped, unclipped } : null;
 }
 
-/**
- * The centre line of the keyboard's datum ring, in plot pixels, or null when it is not drawn. Kept inside
- * the plot's box, so it is painted at the last point and at the top of a donut too (A2): the ring's lines,
- * surround included, stay inside the plot.
- */
 function ringLine(layout: Layout, lookup: Lookup, ref: DatumRef): Rect | null {
   if (layout.kind !== 'plot') return null;
-  const box = lookup.anchor(ref);
-  if (!box) return null;
-  const plot = layout.plot;
-  const gap = box.width === 0 && box.height === 0 ? 8 : RING_GAP;
-  const inset = SURROUND_WIDTH / 2;
-  const x0 = Math.max(plot.x + inset, box.x - gap), y0 = Math.max(plot.y + inset, box.y - gap);
-  const x1 = Math.min(plot.x + plot.width - inset, box.x + box.width + gap), y1 = Math.min(plot.y + plot.height - inset, box.y + box.height + gap);
+  const b = lookup.anchor(ref);
+  if (!b) return null;
+  const p = layout.plot, gap = b.width === 0 && b.height === 0 ? 8 : RING_GAP, h = SURROUND_WIDTH / 2;
+  const x0 = Math.max(p.x + h, b.x - gap), y0 = Math.max(p.y + h, b.y - gap);
+  const x1 = Math.min(p.x + p.width - h, b.x + b.width + gap), y1 = Math.min(p.y + p.height - h, b.y + b.height + gap);
   return x1 > x0 && y1 > y0 ? { x: x0, y: y0, width: x1 - x0, height: y1 - y0 } : null;
 }
 
-/** The keyboard ring's painted extent (surround included), in plot pixels: what a tooltip must not cover. */
 export function ringRect(layout: Layout, lookup: Lookup, ref: DatumRef): Rect | null {
-  const line = ringLine(layout, lookup, ref);
-  if (!line) return null;
-  const h = SURROUND_WIDTH / 2;
-  return { x: line.x - h, y: line.y - h, width: line.width + 2 * h, height: line.height + 2 * h };
+  const l = ringLine(layout, lookup, ref);
+  return l && { x: l.x - 2, y: l.y - 2, width: l.width + SURROUND_WIDTH, height: l.height + SURROUND_WIDTH };
 }
 
-/** Width of the ring's painted stroke, surround included. */
-export const RING_STROKE = SURROUND_WIDTH;
-
-/** The union of the anchors a tooltip must not cover, in plot coordinates; null when nothing is drawn. */
 export function targetBox(view: View, lookup: Lookup, target: PickTarget, only: DatumRef | null): Rect | null {
-  let refs: readonly DatumRef[];
-  if (target.kind === 'x') refs = view.kind === 'donut' || view.kind === 'scatter' ? [] : only ? [only] : refsAt(view, target.x);
-  else if (target.kind === 'point') refs = target.refs;
-  else refs = [{ kind: 'slice', sliceKey: target.sliceKey }];
+  const refs: readonly DatumRef[] = target.kind === 'x' ? (isAligned(view) ? (only ? [only] : refsAt(view, target.x)) : [])
+    : target.kind === 'point' ? target.refs : [{ kind: 'slice', sliceKey: target.sliceKey }];
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const ref of refs) {
-    const box = lookup.anchor(ref);
-    if (!box) continue;
-    x0 = Math.min(x0, box.x);
-    y0 = Math.min(y0, box.y);
-    x1 = Math.max(x1, box.x + box.width);
-    y1 = Math.max(y1, box.y + box.height);
+    const b = lookup.anchor(ref);
+    if (!b) continue;
+    x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y);
+    x1 = Math.max(x1, b.x + b.width); y1 = Math.max(y1, b.y + b.height);
   }
   return Number.isFinite(x0) ? { x: x0, y: y0, width: x1 - x0, height: y1 - y0 } : null;
 }
 
-// ── zoom ────────────────────────────────────────────────────────────────────────────────────────────
+export const ZOOM_FACTOR = 2, PAN_SHARE = 0.1;
 
-/** Factor of one zoom step (buttons, keys): the visible x range halves or doubles around its centre. */
-export const ZOOM_FACTOR = 2;
-/** Shift+arrow moves the window by this share of its width. */
-export const PAN_SHARE = 0.1;
-
-/** Keeps a window of the given width inside `full`, moving it rather than shrinking it. */
 function inside(full: Span, start: number, width: number): Span {
   const a = Math.max(full[0], Math.min(start, full[1] - width));
   return [a, a + width];
 }
 
-/**
- * The window after scaling `current` by `factor` around `center` (a position), clamped to `full` and to a
- * smallest width. null means the whole range (no zoom), so the reset control can disappear. A window that
- * cannot get narrower comes back unchanged; a result is always finite and strictly ordered.
- */
-export function scaleWindow(full: Span, current: Span, factor: number, center: number, minWidth: number): Span | null {
-  const fullWidth = full[1] - full[0];
-  const width = Math.max(minWidth, (current[1] - current[0]) * factor);
-  if (!(fullWidth > 0) || width >= fullWidth) return null;
-  const share = current[1] > current[0] ? (center - current[0]) / (current[1] - current[0]) : 0.5;
-  const next = inside(full, center - share * width, width);
-  if (!(Number.isFinite(next[0]) && Number.isFinite(next[1]) && next[1] > next[0])) return current;
-  return next;
+export function scaleWindow(full: Span, cur: Span, factor: number, center: number, minWidth: number): Span | null {
+  const fw = full[1] - full[0], cw = cur[1] - cur[0], w = Math.max(minWidth, cw * factor);
+  if (!(fw > 0) || w >= fw) return null;
+  const next = inside(full, center - (cw > 0 ? (center - cur[0]) / cw : 0.5) * w, w);
+  return Number.isFinite(next[0]) && Number.isFinite(next[1]) && next[1] > next[0] ? next : cur;
 }
 
-/**
- * One zoom step (button, key, wheel) from `current`: the scaled window when it goes the way asked, a zoom-in
- * strictly narrower and a zoom-out strictly wider (or the whole range, null); undefined when it would not.
- * A window below the minimum (a public zoom() can set one) is not widened by zooming in (interaction review,
- * new item 7).
- */
-export function zoomStep(full: Span, current: Span, factor: number, center: number, minWidth: number): Span | null | undefined {
-  const width = current[1] - current[0];
-  const next = scaleWindow(full, current, factor, center, minWidth);
-  if (factor < 1) return next !== null && next[1] - next[0] < width ? next : undefined;
-  if (factor > 1) {
-    const whole = current[0] <= full[0] && current[1] >= full[1];
-    if (next === null) return whole ? undefined : null;
-    return next[1] - next[0] > width ? next : undefined;
-  }
+export function zoomStep(full: Span, cur: Span, factor: number, center: number, minWidth: number): Span | null | undefined {
+  const w = cur[1] - cur[0], next = scaleWindow(full, cur, factor, center, minWidth);
+  if (factor < 1) return next && next[1] - next[0] < w ? next : undefined;
+  if (factor > 1) return next === null ? (cur[0] <= full[0] && cur[1] >= full[1] ? undefined : null) : next[1] - next[0] > w ? next : undefined;
   return undefined;
 }
 
-/** Whether one Zoom in step from `window` would show a narrower window (else the control is not offered as working). */
-export function canZoomIn(view: View, window: Span): boolean {
-  if (view.kind === 'donut') return false;
-  return zoomStep(view.xFull, window, 1 / ZOOM_FACTOR, (window[0] + window[1]) / 2, minimumWidth(view)) !== undefined;
-}
+export const canZoomIn = (view: View, w: Span): boolean =>
+  view.kind !== 'donut' && zoomStep(view.xFull, w, 1 / ZOOM_FACTOR, (w[0] + w[1]) / 2, minimumWidth(view)) !== undefined;
 
-/**
- * The window width a pinch asks for: the start width scaled by `factor` (start distance over current
- * distance), held at the smallest width, and never the wrong way: spreading the fingers never widens and
- * pinching them never narrows (the same guard as zoomStep; review C3-7). A window already below the
- * smallest width (a public zoom can set one) stays as it is while the fingers spread.
- */
 export function pinchWidth(start: number, factor: number, minWidth: number): number {
-  const width = Math.max(minWidth, start * factor);
-  if (factor < 1) return width < start ? width : start;
-  if (factor > 1) return width > start ? width : start;
-  return start;
+  const w = Math.max(minWidth, start * factor);
+  return factor < 1 ? Math.min(w, start) : factor > 1 ? Math.max(w, start) : start;
 }
 
-/** The window moved by `share` of its width (negative: towards the start); null when it would not move. */
-export function panWindow(full: Span, current: Span, share: number): Span | null {
-  const width = current[1] - current[0];
-  const moved = inside(full, current[0] + share * width, width);
-  return moved[0] === current[0] ? null : moved;
+export function panWindow(full: Span, cur: Span, share: number): Span | null {
+  const w = cur[1] - cur[0], moved = inside(full, cur[0] + share * w, w);
+  return moved[0] === cur[0] ? null : moved;
 }
 
-/**
- * Smallest window: about two x slots for aligned charts, a ten-thousandth of the range otherwise, but never
- * more than half the range, so one halving is always attainable (interaction review, part 1 item 9).
- */
 export function minimumWidth(view: View): number {
   if (view.kind === 'donut') return 0;
-  const full = view.xFull[1] - view.xFull[0];
-  // Never below what doubles can tell apart at these positions: one unit in the last place keeps two ends.
-  const largest = Math.max(Math.abs(view.xFull[0]), Math.abs(view.xFull[1]), Number.MIN_VALUE);
-  const representable = 2 ** (Math.floor(Math.log2(largest)) - 52);
-  const wanted = view.kind === 'scatter' ? full / 1e4
-    : view.frame.x.values.length > 1 ? 2 * full / (view.frame.x.values.length - 1) : full;
-  return Math.max(Math.min(wanted, full / 2), representable);
+  const [a, b] = view.xFull, full = b - a;
+  const ulp = 2 ** (Math.floor(Math.log2(Math.max(Math.abs(a), Math.abs(b), Number.MIN_VALUE))) - 52);
+  const n = view.kind === 'scatter' ? 0 : view.frame.x.values.length;
+  return Math.max(Math.min(view.kind === 'scatter' ? full / 1e4 : n > 1 ? 2 * full / (n - 1) : full, full / 2), ulp);
 }
 
-/** Whether zoom applies to this chart (spec 3.6): not donut, not a category axis, not compact, not switched off. */
-export function zoomApplies(view: View, option: unknown): boolean {
-  if (option === false || view.kind === 'donut' || view.compact) return false;
-  if (view.kind === 'scatter') return true;
-  return view.frame.x.kind !== 'category';
-}
+export const zoomApplies = (view: View, option: unknown): boolean =>
+  option !== false && view.kind !== 'donut' && !view.compact && (view.kind === 'scatter' || view.frame.x.kind !== 'category');
 
-/**
- * Narrowed mode on scatter (review 2, finding 7): the next or previous point of the same series in x order
- * among its visible points; null at an end.
- */
 export function stepInSeries(view: ScatterView, ref: DatumRef, direction: StepDirection): DatumRef | null {
   if (ref.kind !== 'point') return null;
-  const s = view.frame.series.findIndex(series => series.key === ref.seriesKey);
-  const series = view.frame.series[s];
-  const range = view.visiblePoints[s];
-  if (!series || !range || range.end <= range.start) return null;
-  const rows = series.row;
+  const s = seriesOf(view, ref.seriesKey), ser = view.frame.series[s], range = view.visiblePoints[s];
+  if (!ser || !range || range.end <= range.start) return null;
+  const rows = ser.row;
   let at = -1;
   for (let i = range.start; i < range.end; i++) if ((rows ? rows[i]! : i) === ref.row) { at = i; break; }
-  if (at < 0) return null;
-  const to = stepIndex(direction, at, range.start, range.end);
-  if (to === null) return null;
-  return { kind: 'point', seriesKey: series.key, row: rows ? rows[to]! : to, x: series.x[to]! };
+  const to = at < 0 ? null : stepIndex(direction, at, range.start, range.end);
+  return to === null ? null : { kind: 'point', seriesKey: ser.key, row: rows ? rows[to]! : to, x: ser.x[to]! };
 }
 
-/**
- * The window between two x positions picked on the plot (a drag's two ends, or the two clicks of "Select
- * range", spec I4): ordered, clamped to `full`; null for the whole range; undefined when it is narrower than
- * the smallest window (nothing happens then, as for the buttons and keys; review 2, finding 9).
- */
 export function rangeWindow(full: Span, a: number, b: number, minWidth: number): Span | null | undefined {
-  const lo = Math.max(full[0], Math.min(a, b));
-  const hi = Math.min(full[1], Math.max(a, b));
-  if (!(hi > lo) || hi - lo < minWidth) return undefined;
-  return hi - lo >= full[1] - full[0] ? null : [lo, hi];
+  const lo = Math.max(full[0], Math.min(a, b)), hi = Math.min(full[1], Math.max(a, b)), w = hi - lo;
+  return !(w > 0) || w < minWidth ? undefined : w >= full[1] - full[0] ? null : [lo, hi];
 }
 
-/** The plot pixel along the position axis of an x position (the inverse of positionAt); null on a band axis. */
 export function pixelOf(layout: Layout, position: number): number | null {
-  if (layout.kind !== 'plot') return null;
-  const p = layout.projection;
-  const scale = p.kind === 'xy' ? p.x : p.kind === 'bands' ? p.band : null;
-  return scale && scale.type !== 'band' ? scale.map(position) : null;
+  const s = posScale(layout);
+  return s && s.type !== 'band' ? s.map(position) : null;
 }
 
-/** The x position under a plot pixel, from the layout's projection; null on a band (category) axis. */
 export function positionAt(layout: Layout, px: number, py: number): number | null {
-  if (layout.kind !== 'plot') return null;
-  const p = layout.projection;
-  if (p.kind === 'xy') return p.x.type === 'band' ? null : p.x.invert(px);
-  if (p.kind === 'bands') return p.band.type === 'band' ? null : p.band.invert(p.horizontal ? py : px);
-  return null;
+  const s = posScale(layout);
+  if (!s || s.type === 'band') return null;
+  const p = (layout as PlotLayout).projection;
+  return s.invert(p.kind === 'bands' && p.horizontal ? py : px);
 }
 
 export type { PlotLayout };

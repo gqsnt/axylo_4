@@ -1,48 +1,29 @@
 /**
- * The chart's one toolbar (spec A2, I2, I3, I4, I6): legend toggles, zoom, pause and the table control, as
- * ordinary buttons with roving focus, so the whole toolbar is a single tab stop. Arrow keys move between
- * controls, Home and End jump to the ends.
- *
- * Buttons are kept by key and updated in place, so a control the reader is on keeps focus across commits.
- * When the control that has focus goes away (Reset after resetting, Pause before any append), focus moves to
- * its neighbour instead of falling back to the page.
+ * The chart's one toolbar (spec A2, I2, I3, I4, I6): roving-tabindex buttons kept by key.
  */
 import { Listeners } from './mapping';
 import { createSwatch, type SwatchSpec } from './swatch';
-import { activeElementOf, setAttr, make, svgElement } from './attributes';
+import { activeElementOf, placeChildren, setAttr, make, svgElement } from './attributes';
 
-/** The next tab stop for a roving row of buttons. */
-export function rovingIndex(event: KeyboardEvent, at: number, count: number): number | null {
-  if (!count || event.altKey || event.ctrlKey || event.metaKey) return null;
-  switch (event.key) {
-    case 'ArrowRight': case 'ArrowDown': return (at + 1) % count;
-    case 'ArrowLeft': case 'ArrowUp': return (at - 1 + count) % count;
-    case 'Home': return 0;
-    case 'End': return count - 1;
-    default: return null;
-  }
+export function rovingIndex(e: KeyboardEvent, at: number, n: number): number | null {
+  if (!n || e.altKey || e.ctrlKey || e.metaKey) return null;
+  const k = e.key;
+  return k === 'ArrowRight' || k === 'ArrowDown' ? (at + 1) % n
+    : k === 'ArrowLeft' || k === 'ArrowUp' ? (at - 1 + n) % n
+    : k === 'Home' ? 0 : k === 'End' ? n - 1 : null;
 }
 
 export interface ToolbarItem {
   readonly key: string;
   readonly label: string;
-  /** Toggle buttons (legend entries): aria-pressed. */
   readonly pressed?: boolean;
-  /** Disclosure buttons (the table control): aria-expanded and, while expanded, aria-controls. */
   readonly expanded?: boolean;
   readonly controls?: string | null;
   readonly swatch?: SwatchSpec;
-  /** A hidden series: struck-through name, outline swatch (never dimmed text, spec L2). */
   readonly struck?: boolean;
-  /** `lang` of the button ('en' for built-in text on a page in another language), or null. */
   readonly lang: string | null;
   readonly className: string;
-  /**
-   * Drawn as a 24 × 24 symbol, named by `label` (also its `title`): a toggle added to a toolbar that must not
-   * gain a row for it (Select range).
-   */
   readonly symbol?: 'range';
-  /** The control can do nothing now (Zoom in at the smallest window): aria-disabled, activation ignored. */
   readonly disabled?: boolean;
   activate(): void;
 }
@@ -50,136 +31,92 @@ export interface ToolbarItem {
 export interface Toolbar {
   readonly element: HTMLElement;
   render(items: readonly ToolbarItem[], label: string, lang: string | null): void;
-  /** Moves focus to the control with this key; false when there is none. */
   focus(key: string): boolean;
   destroy(): void;
 }
 
 export function createToolbar(doc: Document): Toolbar {
   const element = make(doc, 'div', 'axylo-toolbar');
-  element.setAttribute('role', 'toolbar');
-  // Every listener of the toolbar and its buttons goes with destroy (review 2: none left on removed elements).
+  setAttr(element, 'role', 'toolbar');
   const listening = new Listeners();
+  const buttons = new Map<string, { b: HTMLButtonElement; i: ToolbarItem; s: string }>();
+  let current: string | null = null, order: string[] = [];
+  const active = () => activeElementOf(doc, element);
+  const setCurrent = (key: string | null) => { current = key; for (const [k, { b }] of buttons) b.tabIndex = k === current ? 0 : -1; };
 
-  const buttons = new Map<string, { button: HTMLButtonElement; item: ToolbarItem; signature: string }>();
-  let current: string | null = null;
-  let order: string[] = [];
-
-  function setCurrent(key: string | null): void {
-    current = key;
-    for (const [k, { button }] of buttons) button.tabIndex = k === current ? 0 : -1;
-  }
-
-  listening.on(element, 'keydown', event => {
-    const next = rovingIndex(event, current === null ? -1 : order.indexOf(current), order.length);
+  listening.on(element, 'keydown', e => {
+    const next = rovingIndex(e, current === null ? -1 : order.indexOf(current), order.length);
     if (next === null) return;
     const key = order[next]!;
     setCurrent(key);
-    buttons.get(key)!.button.focus();
-    event.preventDefault();
+    buttons.get(key)!.b.focus();
+    e.preventDefault();
   });
-  listening.on(element, 'focusin', (event: FocusEvent) => {
-    for (const [key, { button }] of buttons) if (button === event.target) setCurrent(key);
+  listening.on(element, 'focusin', (e: FocusEvent) => {
+    for (const [k, { b }] of buttons) if (b === e.target) setCurrent(k);
   });
-
-  listening.on(element, 'click', event => {
-    for (const { button, item } of buttons.values()) {
-      if (button.contains(event.target as Node) && !item.disabled) { item.activate(); return; }
-    }
+  listening.on(element, 'click', e => {
+    for (const { b, i } of buttons.values()) if (b.contains(e.target as Node) && !i.disabled) { i.activate(); return; }
   });
-
-  function fill(button: HTMLButtonElement, item: ToolbarItem): void {
-    const children: Node[] = [];
-    if (item.swatch) children.push(createSwatch(doc, item.swatch));
-    if (item.symbol) children.push(rangeSymbol());
-    const text = doc.createElement('span');
-    // A symbol button keeps its text as its accessible name, visually hidden.
-    text.className = item.symbol ? 'axylo-control-label axylo-visually-hidden' : 'axylo-control-label';
-    text.textContent = item.label;
-    children.push(text);
-    button.replaceChildren(...children);
-    setAttr(button, 'title', item.symbol ? item.label : null);
-  }
-
-  /** Two bounds and a double arrow between them, in the text colour (so forced colours restyle it). */
-  function rangeSymbol(): SVGSVGElement {
-    const svg = svgElement(doc, 'svg', {
-      viewBox: '0 0 16 16', width: '16', height: '16', 'aria-hidden': 'true', class: 'axylo-symbol',
-    });
-    const path = svgElement(doc, 'path', {
-      d: 'M2 2v12M14 2v12M4.5 8h7M4.5 8l2.5-2.5M4.5 8l2.5 2.5M11.5 8l-2.5-2.5M11.5 8l-2.5 2.5',
-    });
-    svg.append(path);
-    return svg;
-  }
 
   return {
     element,
     render(items, label, lang) {
       setAttr(element, 'aria-label', label);
       setAttr(element, 'lang', lang);
-      const focused = activeElementOf(doc, element);
+      const focused = active();
       let focusedKey: string | null = null;
-      for (const [key, { button }] of buttons) if (button === focused) focusedKey = key;
+      for (const [k, { b }] of buttons) if (b === focused) focusedKey = k;
       const keys = items.map(i => i.key);
-      // Where a focused control that is going away hands focus: the control now at its place, or the last.
       let heir: string | null = null;
       if (focusedKey !== null && !keys.includes(focusedKey)) {
         const was = order.indexOf(focusedKey);
-        const after = order.slice(was + 1).find(k => keys.includes(k));
-        const before = order.slice(0, was).reverse().find(k => keys.includes(k));
-        heir = after ?? before ?? keys[0] ?? null;
+        for (let i = was + 1; i < order.length && !heir; i++) if (keys.includes(order[i]!)) heir = order[i]!;
+        for (let i = was - 1; i >= 0 && !heir; i--) if (keys.includes(order[i]!)) heir = order[i]!;
+        heir ??= keys[0] ?? null;
       }
-      for (const [key, entry] of buttons) {
-        if (!keys.includes(key)) {
-          entry.button.remove();
-          buttons.delete(key);
-        }
-      }
-      let previous: HTMLButtonElement | null = null;
+      for (const k of buttons.keys()) if (!keys.includes(k)) buttons.delete(k);
+      const nodes: HTMLButtonElement[] = [];
       for (const item of items) {
-        let entry = buttons.get(item.key);
-        if (!entry) {
-          const button = doc.createElement('button');
-          button.type = 'button';
-          entry = { button, item, signature: '' };
-          buttons.set(item.key, entry);
+        let e = buttons.get(item.key);
+        if (!e) {
+          const b = doc.createElement('button');
+          b.type = 'button';
+          buttons.set(item.key, e = { b, i: item, s: '' });
         }
-        entry.item = item;
-        const { button } = entry;
-        const signature = JSON.stringify([item.label, item.swatch, item.struck, item.symbol]);
-        if (signature !== entry.signature) {
-          fill(button, item);
-          entry.signature = signature;
+        e.i = item;
+        const { b } = e, sig = JSON.stringify([item.label, item.swatch, item.struck, item.symbol]);
+        if (sig !== e.s) {
+          const ch: Node[] = [];
+          if (item.swatch) ch.push(createSwatch(doc, item.swatch));
+          if (item.symbol) {
+            const svg = svgElement(doc, 'svg', { viewBox: '0 0 16 16', width: '16', height: '16', 'aria-hidden': 'true', class: 'axylo-symbol' });
+            svg.append(svgElement(doc, 'path', { d: 'M2 2v12M14 2v12M4.5 8h7M4.5 8l2.5-2.5M4.5 8l2.5 2.5M11.5 8l-2.5-2.5M11.5 8l-2.5 2.5' }));
+            ch.push(svg);
+          }
+          const t = make(doc, 'span', item.symbol ? 'axylo-control-label axylo-visually-hidden' : 'axylo-control-label');
+          t.textContent = item.label;
+          ch.push(t);
+          b.replaceChildren(...ch);
+          setAttr(b, 'title', item.symbol ? item.label : null);
+          e.s = sig;
         }
-        if (button.className !== item.className) button.className = item.className;
-        button.classList.toggle('axylo-struck', item.struck === true);
-        setAttr(button, 'aria-pressed', item.pressed === undefined ? null : String(item.pressed));
-        setAttr(button, 'aria-expanded', item.expanded === undefined ? null : String(item.expanded));
-        setAttr(button, 'aria-controls', item.expanded ? item.controls ?? null : null);
-        setAttr(button, 'lang', item.lang);
-        setAttr(button, 'aria-disabled', item.disabled ? 'true' : null);
-        const place: ChildNode | null = previous ? previous.nextSibling : element.firstChild;
-        if (place !== button) element.insertBefore(button, place);
-        previous = button;
+        const cls = item.struck ? `${item.className} axylo-struck` : item.className;
+        if (b.className !== cls) b.className = cls;
+        setAttr(b, 'aria-pressed', item.pressed === undefined ? null : String(item.pressed));
+        setAttr(b, 'aria-expanded', item.expanded === undefined ? null : String(item.expanded));
+        setAttr(b, 'aria-controls', item.expanded ? item.controls ?? null : null);
+        setAttr(b, 'lang', item.lang);
+        setAttr(b, 'aria-disabled', item.disabled ? 'true' : null);
+        nodes.push(b);
       }
+      placeChildren(element, nodes);
       order = keys;
-      const keep = heir ?? (current !== null && keys.includes(current) ? current : keys[0] ?? null);
-      setCurrent(keep);
-      if (heir !== null) buttons.get(heir)!.button.focus();
-      // A reorder moves the focused button, which can drop focus: it is given back (review 2, finding 17).
-      else if (focusedKey !== null && activeElementOf(doc, element) !== buttons.get(focusedKey)?.button) buttons.get(focusedKey)?.button.focus();
+      setCurrent(heir ?? (current !== null && keys.includes(current) ? current : keys[0] ?? null));
+      const target = heir ?? focusedKey, btn = target !== null ? buttons.get(target)?.b : undefined;
+      if (btn && (heir !== null || active() !== btn)) btn.focus();
     },
-    focus(key) {
-      const entry = buttons.get(key);
-      if (!entry) return false;
-      entry.button.focus();
-      return activeElementOf(doc, element) === entry.button;
-    },
-    destroy() {
-      listening.clear();
-      element.remove();
-      buttons.clear();
-    },
+    focus(key) { const b = buttons.get(key)?.b; if (!b) return false; b.focus(); return active() === b; },
+    destroy() { listening.clear(); element.remove(); buttons.clear(); },
   };
 }

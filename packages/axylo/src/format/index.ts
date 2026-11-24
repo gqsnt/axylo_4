@@ -48,6 +48,14 @@ export interface FormatSpec {
 }
 
 export function createFormatters(spec: FormatSpec, env: Pick<Environment, 'locale' | 'timeZone'>): Formatters {
+  return createFormattersWith(spec, env, createTimeReadout);
+}
+
+export function createFormattersWith(
+  spec: FormatSpec,
+  env: Pick<Environment, 'locale' | 'timeZone'>,
+  timeReadout?: typeof createTimeReadout,
+): Formatters {
   const locale = spec.locale || env.locale;
   const report = spec.onFormatterError;
   const reporter = (field: string) => (report ? (error: unknown) => report(field, error) : null);
@@ -55,7 +63,7 @@ export function createFormatters(spec: FormatSpec, env: Pick<Environment, 'local
   const values = spec.series.map(s =>
     createNumberReadout({ locale, scale: s.scale, unit: s.unit, format: s.format ?? null, onError: reporter(s.field) }),
   );
-  const x = createXReadout(spec.x, locale, env, reporter(spec.x.field));
+  const x = createXReadout(spec.x, locale, env, reporter(spec.x.field), timeReadout);
   const { noData, noObservation } = spec.messages;
 
   return {
@@ -84,6 +92,7 @@ function createXReadout(
   locale: string,
   env: Pick<Environment, 'timeZone'>,
   onError: ((error: unknown) => void) | null,
+  timeReadout?: typeof createTimeReadout,
 ): (position: number) => string {
   switch (x.kind) {
     case 'category': {
@@ -112,7 +121,7 @@ function createXReadout(
     }
     default: {
       const timeZone = x.kind === 'time' ? (x.timeZone == null || x.timeZone === 'local' ? env.timeZone : x.timeZone) : null;
-      return createTimeReadout({ kind: x.kind, timeZone, locale, dateUnit: x.dateUnit, format: x.format ?? null, onError });
+      return timeReadout ? timeReadout({ kind: x.kind, timeZone, locale, dateUnit: x.dateUnit, format: x.format ?? null, onError }) : String;
     }
   }
 }

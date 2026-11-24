@@ -40,7 +40,7 @@ export function affineProjection(scale: XScale, bounds?: readonly [number, numbe
   const [r0, r1] = scale.range;
   const span = d1 - d0;
   const extent = r1 - r0;
-  if (span === 0 || extent === 0 || !Number.isFinite(span) || !Number.isFinite(extent)) return;
+  if (!span || !extent || !Number.isFinite(span) || !Number.isFinite(extent)) return;
   const slope = extent / span;
   const offset = r0 - d0 * slope;
   if (!slope || !Number.isFinite(slope) || !Number.isFinite(offset) ||
@@ -60,7 +60,7 @@ export function affinePosition(affine: AffineProjection, value: number): number 
   const { start, end, origin, edge, span, extent, bounded } = exact;
   if (value === start) return origin;
   if (value === end) return edge;
-  if (!bounded && !(span > 0 ? start < value && value < end : end < value && value < start)) {
+  if (!bounded && !(span > 0 ? value > start && value < end : value > end && value < start)) {
     return position(exact.scale, value);
   }
   // Reassociation can move a sample across a device column or a marker spacing threshold.
@@ -120,7 +120,6 @@ export function projectReference(
     const pixel = boundaryPixel(a, start, end);
     return pixel === null ? null : { vertical, low: pixel, high: pixel };
   }
-
   const b = position(scale, Math.min(to, domain[1]));
   const low = clamp(Math.min(a, b), start, end);
   const high = clamp(Math.max(a, b), start, end);

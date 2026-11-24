@@ -1,5 +1,6 @@
 import { StoreMap } from './store-map';
 import { Labels } from './store-window';
+import { MAX_DATE } from '../scale/zone';
 import type { DiagnosticInput, Environment, XColumn, XKind } from '../core/contracts';
 import { DiagnosticCollector, report, type DiagnosticCode } from '../diagnostics';
 import { diagnosticContext } from '../diagnostics/registry';
@@ -11,7 +12,7 @@ import type { Table } from './table';
 const calendar = /^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$/;
 const dateTime = /^(\d{4})-(\d{2})-(\d{2})[Tt ](\d{2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?([Zz]|[+-]\d{2}:?\d{2})?$/;
 const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-const maxInstant = 8_640_000_000_000_000;
+
 export const DAY = 86_400_000;
 export const HOUR = 3_600_000;
 export type DateUnit = NonNullable<XColumn['dateUnit']>;
@@ -82,8 +83,6 @@ export function kindOf(value: unknown): XKind | null {
   if (value instanceof Date) return 'time';
   if (typeof value !== 'string') return null;
   if (calendar.test(value)) return 'date';
-  const parts = dateTime.exec(value);
-  if (parts) return parts[8] ? 'time' : 'wall';
   // An invalid ISO-looking value should be reported rather than establishing a category axis.
   if (/^\d{4}-\d{2}-\d{2}[Tt ]/.test(value)) return /(?:[Zz]|[+-]\d{2}:?\d{2})$/.test(value) ? 'time' : 'wall';
   return 'category';
@@ -92,7 +91,7 @@ export function kindOf(value: unknown): XKind | null {
 function instant(value: string, kind: 'time' | 'wall'): number {
   const parts = dateTime.exec(value);
   if (!parts || !validDate(parts[1]!, parts[2], parts[3]) || (kind === 'time') !== Boolean(parts[8])) return NaN;
-  const iso = value[10] === ' ' ? value.slice(0, 10) + 'T' + value.slice(11) : value;
+  const iso = value.replace(' ', 'T');
   return Date.parse(kind === 'wall' ? iso + 'Z' : iso);
 }
 
@@ -100,7 +99,14 @@ const kinds = ['date', 'time', 'wall', 'number', 'category'] as const;
 export type KindVotes = Record<XKind, number>;
 
 export function countKinds(table: Table, field: string, series: string | null = null): KindVotes {
-  const votes: KindVotes = { date: 0, time: 0, wall: 0, number: 0, category: 0 };
+  return addKinds(table, field, series, { date: 0, time: 0, wall: 0, number: 0, category: 0 });
+}
+
+export function voteOf(value: unknown, column: boolean): XKind | null {
+  return value == null || value === '' || column && Number.isNaN(value) ? null : kindOf(value) ?? 'category';
+}
+
+export function addKinds(table: Table, field: string, series: string | null, votes: KindVotes): KindVotes {
   const column = table.columns?.[field];
   if (series === null && (column instanceof Float64Array || column instanceof Float32Array)) {
     for (let i = 0; i < column.length; i++) {
@@ -112,9 +118,8 @@ export function countKinds(table: Table, field: string, series: string | null = 
   }
   for (let i = 0; i < table.length; i++) {
     if (series !== null && nameOf(table.read(i, series)) === null) continue;
-    const value = table.read(i, field);
-    if (value == null || value === '' || Number.isNaN(value) && table.isColumnRow(i)) continue;
-    votes[kindOf(value) ?? 'category']++;
+    const kind = voteOf(table.read(i, field), table.isColumnRow(i));
+    if (kind) votes[kind]++;
   }
   return votes;
 }
@@ -125,7 +130,9 @@ export function preferredKind(votes: KindVotes): XKind | null {
   if (recognized + category === 0) return null;
   if (category >= recognized) return 'category';
   // Use a fixed order for ties so reordering records cannot change which values are drawn.
-  return kinds.find(kind => kind !== 'category' && votes[kind] === Math.max(date, time, wall, number))!;
+  const highest = Math.max(date, time, wall, number);
+  for (const kind of kinds) if (votes[kind] === highest) return kind;
+  return null;
 }
 
 export function inferKind(table: Table, field: string, series: string | null = null): XKind | null {
@@ -141,8 +148,8 @@ export function nameOf(value: unknown): string | null {
 export class XParser {
   readonly timeZone: string | null;
   private names: Labels | null;
-  private firstIndex = 0;
-  private indexes: StoreMap<string, number> | null;
+  private base = 0;
+  private index: StoreMap<string, number> | null;
   dateUnit: DateUnit | null = null;
 
   constructor(
@@ -157,7 +164,7 @@ export class XParser {
         canonicalZone(env.timeZone) ?? Intl.DateTimeFormat().resolvedOptions().timeZone
       : null;
     this.names = kind === 'category' ? new Labels(categories) : null;
-    this.indexes = this.names ? new StoreMap(new Map(categories?.map((name, index) => [name, index]))) : null;
+    this.index = this.names ? new StoreMap(new Map(categories?.map((name, index) => [name, index]))) : null;
   }
 
   get categories(): readonly string[] | null {
@@ -169,13 +176,13 @@ export class XParser {
   }
 
   categoryName(position: number): string | undefined {
-    return this.names?.at(position - this.firstIndex);
+    return this.names?.at(position - this.base);
   }
 
   fork(): XParser {
     return Object.assign(Object.create(XParser.prototype) as XParser, this, {
       names: this.names?.fork() ?? null,
-      indexes: this.indexes?.fork() ?? null,
+      index: this.index?.fork() ?? null,
     });
   }
 
@@ -185,38 +192,40 @@ export class XParser {
     return copy;
   }
 
-  commit(): void { this.indexes?.commit(); }
+  commit(): void { this.index?.commit(); }
 
   evictCategories(count: number): void {
     if (!this.names) return;
-    for (let i = 0; i < count; i++) this.indexes!.delete(this.names.at(i));
-    this.firstIndex += count;
+    for (let i = 0; i < count; i++) this.index!.delete(this.names.at(i));
+    this.base += count;
     this.names.drop(count);
   }
 
   private parse(raw: unknown, row: number, reports: Reports): number {
     const kind = this.kind;
+    const type = this.field.type;
     if (typeof raw === 'number' && Number.isFinite(raw)) {
-      if (kind === 'number' && !this.field.type && Math.abs(raw) >= 1e11 && Math.abs(raw) < 1e14) {
+      const magnitude = Math.abs(raw);
+      if (kind === 'number' && !type && magnitude >= 1e11 && magnitude < 1e14) {
         reports.add('AX109', 'none', row, undefined, 'Set type: \'time\' if these values are epoch milliseconds.');
       }
-      if (kind === 'time' && this.field.type === 'time' && Math.abs(raw) >= 1e9 && Math.abs(raw) < 1e10) {
+      if (kind === 'time' && type === 'time' && magnitude >= 1e9 && magnitude < 1e10) {
         reports.add('AX109', 'none', row, undefined, 'These values look like seconds. Multiply them by 1,000 to supply epoch milliseconds.');
       }
-      if (kind === 'number' || kind === 'time' && this.field.type === 'time' && Math.abs(raw) <= maxInstant) return raw;
+      if (kind === 'number' || kind === 'time' && type === 'time' && magnitude <= MAX_DATE) return raw;
     }
     if (kind === 'time' && raw instanceof Date) return raw.getTime();
     if (kind === 'category' && !this.scatter) {
-      const name = this.field.type === 'category' ? nameOf(raw) : typeof raw === 'string' && kindOf(raw) === 'category' ? raw : null;
+      const name = type === 'category' ? nameOf(raw) : typeof raw === 'string' && kindOf(raw) === 'category' ? raw : null;
       if (name === null) return NaN;
-      const known = this.indexes!.get(name);
+      const known = this.index!.get(name);
       if (known !== undefined) return known;
-      const index = this.firstIndex + this.categoryCount;
+      const index = this.base + this.categoryCount;
       this.names!.push(name);
-      this.indexes!.set(name, index);
+      this.index!.set(name, index);
       return index;
     }
-    if (kind === 'date' && this.field.type === 'date' && (typeof raw === 'number' || raw instanceof Date ||
+    if (kind === 'date' && type === 'date' && (typeof raw === 'number' || raw instanceof Date ||
       typeof raw === 'string' && kindOf(raw) === 'time')) {
       const ms = typeof raw === 'number' ? new Date(raw).getTime() : raw instanceof Date ? raw.getTime() : instant(raw, 'time');
       if (!Number.isFinite(ms)) return NaN;
@@ -257,7 +266,7 @@ export class XParser {
   restore(categoryCount: number, dateUnit: DateUnit | null): void {
     this.dateUnit = dateUnit;
     if (!this.names) return;
-    while (this.categoryCount > categoryCount) this.indexes!.delete(this.names.pop()!);
+    while (this.categoryCount > categoryCount) this.index!.delete(this.names.pop()!);
   }
 
   column(values: Float64Array, shareCategories = false): XColumn {

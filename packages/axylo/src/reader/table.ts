@@ -6,7 +6,7 @@ import {
 import { pointOrder, type PointIndex, type PointOrderWork } from '../lookup/point-order';
 import { lowerBound, upperBound } from '../lookup/search';
 import { donutRatio, incomplete, slotLabel, slotText } from '../lookup/text';
-import type { Messages } from '../public';
+import type { Messages, XValue } from '../public';
 import { readPosition } from './x';
 
 const PAGE_SIZE = 100;
@@ -17,6 +17,17 @@ export function withUnit(label: string, unit: string | null): string {
 
 function page(ordinal: number, count: number): number | null {
   return ordinal >= 0 && ordinal < count ? Math.floor(ordinal / PAGE_SIZE) : null;
+}
+
+function paged(
+  caption: string, headers: readonly string[], rowCount: number,
+  row: TableModel['row'], ordinalForX: (x: XValue) => number,
+): TableModel {
+  return {
+    caption, headers, rowCount, pageSize: PAGE_SIZE,
+    row: i => Number.isInteger(i) && i >= 0 && i < rowCount ? row(i) : null,
+    pageForX: x => page(ordinalForX(x), rowCount),
+  };
 }
 
 export interface ReaderLabels {
@@ -73,64 +84,58 @@ export const donutTable: TableBuilder = (view, caption, formatters, messages, la
     }
     return formatters.percent(donutRatio(value / weights.max, weights.total));
   }
-  return {
-    caption, headers: [labels.category, withUnit(frame.valueLabel, frame.unit), labels.percentage], rowCount, pageSize: PAGE_SIZE,
-    row(i) {
-      if (!Number.isInteger(i) || i < 0 || i >= rowCount) return null;
+  return paged(caption, [labels.category, withUnit(frame.valueLabel, frame.unit), labels.percentage], rowCount,
+    i => {
       const state = frame.slot[i] as SlotState;
       const value = frame.values[i]!;
       return [frame.labels[i]!, slotText(formatters, 0, value, state), state === SLOT_VALUE && value >= 0
         ? writePercent(value) : messages.noData];
     },
-    pageForX(x) { return page(readPosition(x, 'category', null, frame.labels), rowCount); },
-  };
+    x => readPosition(x, 'category', null, frame.labels),
+  );
 };
 
 export const scatterTable: TableBuilder = (view, caption, formatters, messages, labels, _locale, work) => {
-  const { frame } = view as ScatterView;
-  const { order, sources } = scatterRows(view as ScatterView, work);
+  const scatter = view as ScatterView;
+  const { frame } = scatter;
+  const { order, sources } = scatterRows(scatter, work);
   let next: (() => PointIndex | null) | null = null;
   let nextOrdinal = -1;
-  return {
-    caption, headers: [withUnit(frame.xLabel, frame.xUnit), labels.series, withUnit(frame.yLabel, frame.yUnit)],
-    rowCount: order.count, pageSize: PAGE_SIZE,
-    row(i) {
-      if (!Number.isInteger(i) || i < 0 || i >= order.count) return null;
+  return paged(caption, [withUnit(frame.xLabel, frame.xUnit), labels.series, withUnit(frame.yLabel, frame.yUnit)], order.count,
+    i => {
       if (i !== nextOrdinal) next = order.cursor(i);
       const at = next?.();
       nextOrdinal = i + 1;
       if (!at) return null;
       const missing = sources[at.series - frame.series.length];
       const series = frame.series[missing ?? at.series]!;
-      if (missing !== undefined) return [formatters.x(series.missingX![at.index]!), series.label, messages.noData];
-      return [formatters.x(series.x[at.index]!), series.label, formatters.value(at.series, series.y[at.index]!)];
+      const xs = missing === undefined ? series.x : series.missingX!;
+      return [formatters.x(xs[at.index]!), series.label,
+        missing === undefined ? formatters.value(at.series, series.y[at.index]!) : messages.noData];
     },
-    pageForX(x) {
-      const xPos = readPosition(x, frame.xKind, frame.timeZone);
-      return Number.isFinite(xPos) ? page(order.beforeX(xPos), order.count) : null;
+    x => {
+      const position = readPosition(x, frame.xKind, frame.timeZone);
+      return Number.isFinite(position) ? order.beforeX(position) : -1;
     },
-  };
+  );
 };
 
 export const alignedTable: TableBuilder = (view, caption, formatters, messages, labels) => {
   const { frame, visibleSlots: { start, end }, stack } = view as AlignedView;
-  const rowCount = end - start;
-  return {
-    caption, headers: [withUnit(frame.xLabel, labels.xUnit ?? null), ...frame.series.map(series => withUnit(series.label, series.unit))],
-    rowCount, pageSize: PAGE_SIZE,
-    row(i) {
-      if (!Number.isInteger(i) || i < 0 || i >= rowCount) return null;
+  const headers = [withUnit(frame.xLabel, labels.xUnit ?? null), ...frame.series.map(series => withUnit(series.label, series.unit))];
+  return paged(caption, headers, end - start,
+    i => {
       const at = start + i;
       const x = slotLabel(frame, formatters, at);
       return [stack?.incomplete?.[at] ? incomplete(x, messages) : x,
         ...frame.series.map((series, s) => slotText(formatters, s, series.y[at]!, series.slot[at] as SlotState))];
     },
-    pageForX(x) {
-      const xPos = readPosition(x, frame.x.kind, frame.x.timeZone, frame.x.categories);
-      if (frame.binEdges) return page(binIndex(frame.binEdges, xPos) - start, rowCount);
-      return Number.isFinite(xPos) ? page(lowerBound(frame.x.values, xPos, start, end) - start, rowCount) : null;
+    x => {
+      const position = readPosition(x, frame.x.kind, frame.x.timeZone, frame.x.categories);
+      if (!Number.isFinite(position)) return -1;
+      return (frame.binEdges ? binIndex(frame.binEdges, position) : lowerBound(frame.x.values, position, start, end)) - start;
     },
-  };
+  );
 };
 
 /**

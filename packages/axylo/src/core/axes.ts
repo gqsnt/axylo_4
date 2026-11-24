@@ -5,7 +5,8 @@
  */
 import { alignedExtrema, alignedScale, pointExtrema, scatterX, withReferences, zeroBaseline } from '../view';
 import type { Layout, TextMeasurer, TextStyle, TickCandidates, View, XKind } from './contracts';
-import type { LayoutInput } from '../layout';
+import { computeLayout, type LayoutInput, type ScaleConstructors } from '../layout';
+import { baseLayoutKey, type LayoutStage } from './composition';
 import type { ResolvedOptions } from '../data';
 import { bandScale, bandTickCandidates, coarserDomains, linearScale, linearTickCandidates, timeScale, timeTickCandidates } from '../scale';
 import { createNumberTickLabeler, createTimeTickLabel, type NumberFormatOption } from '../format';
@@ -26,11 +27,13 @@ export interface AxisContext {
   readonly valueTitle: string;
 }
 
-const scales = {
-  linear: linearScale,
-  time: timeScale,
-  band: bandScale,
+type AxisScales = Pick<ScaleConstructors, 'linear'> & Partial<Pick<ScaleConstructors, 'time' | 'band'>> & {
+  readonly temporalTicks?: typeof temporalTicks;
+  readonly bandTicks?: typeof bandTickCandidates;
 };
+
+export { timeScale, temporalTicks };
+const fullScales = { linear: linearScale, time: timeScale, temporalTicks, band: bandScale, bandTicks: bandTickCandidates };
 
 /**
  * The tick positions an author tick formatter threw on while one axis's candidates were labelled. Layout
@@ -132,12 +135,12 @@ function categoryLabels(categories: readonly string[], option: unknown, failures
 
 function continuousX(
   kind: Exclude<XKind, 'category'>, domain: Span, timeZone: string | null, dateUnit: 'day' | 'month' | 'year' | null,
-  ctx: AxisContext, failures: FailureTracker,
+  ctx: AxisContext, failures: FailureTracker, scales: AxisScales,
 ) {
   const option = ctx.resolved.x.tickFormat;
   const candidates = ctx.compact && option == null ? [] : kind === 'number'
     ? numberTicks(domain, ctx, option, ctx.resolved.x.scale ?? null, failures)
-    : temporalTicks(domain, kind, timeZone, dateUnit, ctx.locale, option, failures);
+    : scales.temporalTicks?.(domain, kind, timeZone, dateUnit, ctx.locale, option, failures) ?? [];
   return { type: kind === 'number' ? 'linear' as const : 'time' as const, domain, candidates, mayThin: true };
 }
 
@@ -152,10 +155,11 @@ type AxisParts = Record<string, unknown>;
  */
 interface AxisEntry {
   readonly key: readonly unknown[];
+  readonly scales: AxisScales;
   readonly parts: AxisParts;
   readonly failures: AxisFailures;
 }
-const axisMemo = new WeakMap<View, AxisEntry>();
+let axisMemo: WeakMap<View, AxisEntry> | undefined;
 
 /**
  * What the axis parts read from the resolved options, so an update that changes none of it (a title) reuses
@@ -169,11 +173,12 @@ function appendAxisInputs(key: unknown[], ctx: AxisContext): void {
     value?.scale, value?.domain != null, ctx.locale, ctx.compact, ctx.xLabelGiven, ctx.valueTitle);
 }
 
-function axisParts(view: View, ctx: AxisContext): AxisEntry {
+function axisParts(view: View, ctx: AxisContext, scales: AxisScales): AxisEntry {
   const { x } = ctx.resolved;
   const value = ctx.resolved.values[0];
-  const hit = axisMemo.get(view);
-  if (hit) {
+  const cache = axisMemo ??= new WeakMap();
+  const hit = cache.get(view);
+  if (hit?.scales === scales) {
     // Compare in appendAxisInputs order so cache hits need no temporary key.
     const { key } = hit;
     if (key[0] === x.field && key[1] === x.scale && key[2] === x.tickFormat && key[3] === x.unit &&
@@ -185,14 +190,18 @@ function axisParts(view: View, ctx: AxisContext): AxisEntry {
   appendAxisInputs(key, ctx);
   const failures = ctx.compact && !x.tickFormat && !value?.tickFormat
     ? NO_FAILURES : { x: new TickFailures(), y: new TickFailures() };
-  const entry = { key, parts: view.kind === 'donut' ? {} : buildAxisParts(view, ctx, failures), failures };
-  axisMemo.set(view, entry);
+  const entry = { key, scales, parts: view.kind === 'donut' ? {} : buildAxisParts(view, ctx, failures, scales), failures };
+  cache.set(view, entry);
   return entry;
 }
 
 /** Makes this view's tick labels now, if they are not made yet, so author tick formatters run here. */
 export function prepareTicks(view: View, ctx: AxisContext): void {
-  if (view.kind !== 'donut') axisParts(view, ctx);
+  prepareTicksWith(view, ctx, fullScales);
+}
+
+function prepareTicksWith(view: View, ctx: AxisContext, scales: AxisScales): void {
+  if (view.kind !== 'donut') axisParts(view, ctx, scales);
 }
 
 /**
@@ -200,8 +209,12 @@ export function prepareTicks(view: View, ctx: AxisContext): void {
  * sets or coarser domains that were not drawn do not count (re-check, R12).
  */
 export function tickFormatFailures(view: View, ctx: AxisContext, layout: Layout): readonly string[] {
+  return tickFormatFailuresWith(view, ctx, layout, fullScales);
+}
+
+function tickFormatFailuresWith(view: View, ctx: AxisContext, layout: Layout, scales: AxisScales): readonly string[] {
   if (view.kind === 'donut' || layout.kind !== 'plot') return [];
-  const { failures } = axisParts(view, ctx);
+  const { failures } = axisParts(view, ctx, scales);
   const out: string[] = [];
   if (failures.x.drawn(layout.xTicks)) out.push(ctx.resolved.x.field);
   if (failures.y.drawn(layout.yTicks)) out.push(ctx.resolved.values[0]?.field ?? 'y');
@@ -211,10 +224,16 @@ export function tickFormatFailures(view: View, ctx: AxisContext, layout: Layout)
 export function layoutInput(
   view: View, size: { width: number; height: number }, text: { measurer: TextMeasurer; style: TextStyle }, ctx: AxisContext,
 ): LayoutInput {
+  return layoutInputWith(view, size, text, ctx, fullScales);
+}
+
+function layoutInputWith(
+  view: View, size: { width: number; height: number }, text: { measurer: TextMeasurer; style: TextStyle }, ctx: AxisContext, scales: AxisScales,
+): LayoutInput {
   const { width, height } = size;
   if (view.kind === 'donut') return { width, height, kind: 'ring' };
   const common = { width, height, compact: ctx.compact, measurer: text.measurer, style: text.style, scales };
-  return { ...common, ...axisParts(view, ctx).parts } as unknown as LayoutInput;
+  return { ...common, ...axisParts(view, ctx, scales).parts } as unknown as LayoutInput;
 }
 
 function valueAxis(
@@ -229,7 +248,22 @@ function valueAxis(
   };
 }
 
-function buildAxisParts(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext, failures: AxisFailures): AxisParts {
+export function cartesianLayout(scales: AxisScales): LayoutStage {
+  return {
+    prepareTicks: (view, ctx) => prepareTicksWith(view, ctx, scales),
+    tickFormatFailures: (view, ctx, layout) => tickFormatFailuresWith(view, ctx, layout, scales),
+    layoutKey,
+    compute: (view, size, text, ctx) => computeLayout(layoutInputWith(view, size, text, ctx, scales)),
+  };
+}
+
+let alignedStage: LayoutStage | undefined;
+
+export function alignedLayout(): LayoutStage {
+  return alignedStage ??= cartesianLayout(fullScales);
+}
+
+function buildAxisParts(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext, failures: AxisFailures, scales: AxisScales): AxisParts {
   const value = ctx.resolved.values[0];
   const yOption = value?.tickFormat ?? null;
   const scale = view.kind === 'scatter' ? value?.scale ?? null : alignedScale(view.frame, view.visible);
@@ -242,7 +276,7 @@ function buildAxisParts(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext
     const automatic = !ctx.resolved.x.domain && view.xDomain[0] === view.xFull[0] && view.xDomain[1] === view.xFull[1];
     const x = kind === 'number' ? { type: 'linear', ...valueAxis(view.xDomain, automatic ? valueExtent(view, 'x') : null, null,
       domain => numberTicks(domain, ctx, ctx.resolved.x.tickFormat, null, failures.x)) }
-      : continuousX(kind, view.xDomain, view.frame.timeZone, null, ctx, failures.x);
+      : continuousX(kind, view.xDomain, view.frame.timeZone, null, ctx, failures.x, scales);
     return { kind: 'xy', x: { ...x, title: titles.x }, y, references: view.references };
   }
 
@@ -251,20 +285,20 @@ function buildAxisParts(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext
   const references = view.references;
   const x = column.kind === 'category' ? {
     type: 'band' as const, count: column.categories?.length ?? 0, padding: view.kind === 'bar' ? 0.2 : 0,
-    candidates: bandTickCandidates(categoryLabels(column.categories ?? [], ctx.resolved.x.tickFormat, failures.x)),
+    candidates: scales.bandTicks?.(categoryLabels(column.categories ?? [], ctx.resolved.x.tickFormat, failures.x)) ?? [],
     mayThin: column.ordered, title: xTitle,
-  } : { ...continuousX(column.kind, view.xDomain, column.timeZone, column.dateUnit, ctx, failures.x), title: xTitle };
+  } : { ...continuousX(column.kind, view.xDomain, column.timeZone, column.dateUnit, ctx, failures.x, scales), title: xTitle };
   return view.kind === 'bar' || view.kind === 'histogram'
     ? { kind: 'bands', horizontal: view.horizontal, x, y, references }
     : { kind: 'xy', x, y, references };
 }
 
 /** The extremes that the automatic domain was rounded from, read once per immutable view. */
-const xExtents = new WeakMap<View, Span | null>();
-const yExtents = new WeakMap<View, Span | null>();
+let xExtents: WeakMap<View, Span | null> | undefined;
+let yExtents: WeakMap<View, Span | null> | undefined;
 
 export function valueExtent(view: Exclude<View, { kind: 'donut' }>, axis: 'x' | 'y' = 'y'): Span | null {
-  const cache = axis === 'x' ? xExtents : yExtents;
+  const cache = axis === 'x' ? (xExtents ??= new WeakMap()) : (yExtents ??= new WeakMap());
   const known = cache.get(view);
   if (known !== undefined) return known;
   const data = view.kind === 'scatter'
@@ -344,8 +378,7 @@ function sharedUnit(series: readonly { readonly unit: string | null }[]): string
 export function layoutKey(
   view: View, size: { width: number; height: number }, style: TextStyle, fontEpoch: number, ctx: AxisContext,
 ): readonly unknown[] {
-  const base: unknown[] = [size.width, size.height, style.font, style.letterSpacing, style.wordSpacing, style.lineHeight,
-    fontEpoch, ctx.locale, ctx.compact, view.kind];
+  const base = baseLayoutKey(view, size, style, fontEpoch, ctx);
   if (view.kind === 'donut') return base;
   const value = ctx.resolved.values[0];
   base.push(view.xDomain[0], view.xDomain[1], view.yDomain[0], view.yDomain[1]);
@@ -372,15 +405,4 @@ export function layoutKey(
   return base;
 }
 
-export function sameKey(a: readonly unknown[] | null, b: readonly unknown[]): boolean {
-  if (a === null || a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    const x = a[i];
-    const y = b[i];
-    if (Object.is(x, y)) continue;
-    // Categories are compared by content: a renormalized frame has a new array with the same names.
-    if (Array.isArray(x) && Array.isArray(y) && x.length === y.length && x.every((v, k) => v === y[k])) continue;
-    return false;
-  }
-  return true;
-}
+export { sameKey } from './composition';

@@ -5,23 +5,25 @@ import type { Messages } from '../public';
 import { fill } from '../messages';
 import { clipBox, contains, pointBox, pointerOnPlot, type PlotLayout } from './geometry';
 import { clamp, projectBand } from '../scene/geometry';
-import { lowerBound, pageDistance } from './search';
+import { lowerBound, stepIndex } from './search';
 import { incomplete, slotLabel, slotText } from './text';
 
 const TOOLTIP_LIMIT = 8;
 
 export function alignedLookup(view: AlignedView, layout: PlotLayout | null, formatters: Formatters, messages: Messages): Lookup {
   const { frame, visibleSlots: { start, end }, stack } = view;
+  const { series } = frame;
   const positions = frame.x.values;
-  const visible = frame.series.flatMap((series, s) => view.visible[s] && series.drawable ? [s] : []);
-  const keys = new Map(frame.series.map((series, s) => [series.key, s]));
+  const visible = series.flatMap((entry, s) => view.visible[s] && entry.drawable ? [s] : []);
+  const keys = new Map(series.map((entry, s) => [entry.key, s]));
   const projection = layout?.projection;
   const xScale = projection?.kind === 'xy' ? projection.x : projection?.kind === 'bands' ? projection.band : null;
 
   const bounds = new Float64Array(2);
+  const inView = (i: number) => i >= start && i < end;
 
   function ref(s: number, i: number): DatumRef {
-    return { kind: 'aligned', seriesKey: frame.series[s]!.key, x: positions[i]! };
+    return { kind: 'aligned', seriesKey: series[s]!.key, x: positions[i]! };
   }
 
   function index(x: number): number {
@@ -30,7 +32,7 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
   }
 
   function isValue(s: number, i: number): boolean {
-    return frame.series[s]!.slot[i] === SLOT_VALUE;
+    return series[s]!.slot[i] === SLOT_VALUE;
   }
 
   function seek(s: number, i: number, delta: 1 | -1, lo = start, hi = end): number {
@@ -40,15 +42,15 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
 
   function first(): DatumRef | null {
     let earliest = end;
-    let series = -1;
+    let chosen = -1;
     for (const s of visible) {
       const i = seek(s, start, 1, start, earliest);
       if (i >= 0) {
         earliest = i;
-        series = s;
+        chosen = s;
       }
     }
-    return series < 0 ? null : ref(series, earliest);
+    return chosen < 0 ? null : ref(chosen, earliest);
   }
 
   /**
@@ -57,19 +59,20 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
    * component that makes its stack incomplete says so; the values that are there are not qualified.
    */
   function write(s: number, i: number, announce = false): DatumText {
-    const series = frame.series[s]!;
-    const state = series.slot[i] as SlotState;
-    const value = slotText(formatters, s, series.y[i]!, state);
-    const missingComponent = state !== SLOT_VALUE && stack?.incomplete?.[i] && stack.order.includes(s) && visible.includes(s);
+    const entry = series[s]!;
+    const state = entry.slot[i] as SlotState;
+    const value = slotText(formatters, s, entry.y[i]!, state);
+    const missingComponent = announce && state !== SLOT_VALUE
+      && stack?.incomplete?.[i] && stack.order.includes(s) && visible.includes(s);
     return {
-      ref: ref(s, i), seriesIndex: s, seriesLabel: series.label, x: slotLabel(frame, formatters, i),
-      value: announce && missingComponent ? incomplete(value, messages) : value,
-      state, percent: null, row: series.row?.[i] ?? i,
+      ref: ref(s, i), seriesIndex: s, seriesLabel: entry.label, x: slotLabel(frame, formatters, i),
+      value: missingComponent ? incomplete(value, messages) : value,
+      state, percent: null, row: entry.row?.[i] ?? i,
     };
   }
 
   function primary(i: number): DatumRef | null {
-    if (i < start || i >= end) return null;
+    if (!inView(i)) return null;
     const s = visible.find(s => isValue(s, i)) ?? visible[0];
     return s === undefined ? null : ref(s, i);
   }
@@ -79,11 +82,11 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
     const s = keys.get(datum.seriesKey);
     if (s === undefined) return null;
     const i = lowerBound(positions, datum.x);
-    const inView = i >= start && i < end && positions[i] === datum.x;
-    if (!view.visible[s] || !frame.series[s]!.drawable) {
-      return inView && !view.visible[s] ? primary(i) : null;
+    const exact = inView(i) && positions[i] === datum.x;
+    if (!view.visible[s] || !series[s]!.drawable) {
+      return exact && !view.visible[s] ? primary(i) : null;
     }
-    if (inView) return datum;
+    if (exact) return datum;
     const next = seek(s, Math.max(i, start), 1);
     const replacement = next >= 0 ? next : seek(s, Math.min(i - 1, end - 1), -1);
     return replacement < 0 ? null : ref(s, replacement);
@@ -92,10 +95,10 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
   function nearestSlot(pixel: number): number {
     if (!xScale || start === end) return -1;
     const x = xScale.invert(pixel);
-    if (xScale.type === 'band') return x >= start && x < end ? x : -1;
+    if (xScale.type === 'band') return inView(x) ? x : -1;
     if (frame.binEdges) {
       const bin = binIndex(frame.binEdges, x);
-      return bin >= 0 ? Math.min(end - 1, Math.max(start, bin)) : -1;
+      return bin >= 0 ? clamp(bin, start, end - 1) : -1;
     }
     const right = lowerBound(positions, x, start, end);
     if (right === start) return start;
@@ -115,11 +118,12 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
     members(target, from, count) {
       const i = at(target);
       // The tooltip's rows, in its order: the visible series at that x.
-      return i < start || i >= end ? [] : visible.slice(Math.max(0, from), Math.max(0, from) + Math.max(0, count)).map(s => ref(s, i));
+      from = Math.max(0, from);
+      return inView(i) ? visible.slice(from, from + Math.max(0, count)).map(s => ref(s, i)) : [];
     },
     has(target, datum) {
       const i = at(target);
-      return i >= start && i < end && datum.kind === 'aligned' && datum.x === positions[i] && shown.has(keys.get(datum.seriesKey) ?? -1);
+      return inView(i) && datum.kind === 'aligned' && datum.x === positions[i] && shown.has(keys.get(datum.seriesKey) ?? -1);
     },
     slot: slotOf,
     pick(pointerX, pointerY) {
@@ -129,8 +133,8 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
       return i < 0 ? null : { kind: 'x', x: positions[i]! };
     },
     tooltip(target) {
-      const i = target.kind === 'x' ? index(target.x) : -1;
-      if (i < start || i >= end) return { title: '', rows: [], count: 0, total: null };
+      const i = at(target);
+      if (!inView(i)) return { title: '', rows: [], count: 0, total: null };
       let total: string | null = null;
       if (stack && stack.order.length) {
         let positive = 0;
@@ -138,7 +142,7 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
         let hasValue = false;
         for (const s of stack.order) {
           if (!isValue(s, i)) continue;
-          const value = frame.series[s]!.y[i]!;
+          const value = series[s]!.y[i]!;
           if (value < 0) negative += value;
           else positive += value;
           hasValue = true;
@@ -155,7 +159,7 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
       };
     },
     primary(target) {
-      return target.kind === 'x' ? primary(index(target.x)) : null;
+      return primary(at(target));
     },
     datum(datum) {
       if (datum.kind !== 'aligned') return null;
@@ -168,8 +172,8 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
       const s = keys.get(datum.seriesKey);
       const i = index(datum.x);
       const lane = s === undefined ? -1 : visible.indexOf(s);
-      if (s === undefined || lane < 0 || i < start || i >= end) return null;
-      const value = frame.series[s]!.y[i]!;
+      if (s === undefined || lane < 0 || !inView(i)) return null;
+      const value = series[s]!.y[i]!;
       const present = isValue(s, i);
       const accumulated = stack?.order.indexOf(s) ?? -1;
       const side = value < 0 ? stack?.negative : stack?.positive;
@@ -220,7 +224,7 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
       if (datum.kind !== 'aligned') return -1;
       const s = keys.get(datum.seriesKey);
       const i = index(datum.x);
-      return s !== undefined && view.visible[s] && frame.series[s]!.drawable && i >= start && i < end ? i - start : -1;
+      return s !== undefined && view.visible[s] && series[s]!.drawable && inView(i) ? i - start : -1;
     },
     step(from, direction) {
       if (!from) return first();
@@ -239,18 +243,14 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
         case 'last': to = seek(s, end - 1, -1); break;
         case 'next': to = seek(s, at + 1, 1); break;
         case 'previous': to = seek(s, at - 1, -1); break;
-        case 'page-next': {
-          if (at === end - 1) return null;
-          const target = Math.min(end - 1, at + pageDistance(end - start));
-          to = seek(s, target, 1);
-          if (to < 0) to = seek(s, target - 1, -1, at + 1);
-          break;
-        }
+        case 'page-next':
         case 'page-previous': {
-          if (at === start) return null;
-          const target = Math.max(start, at - pageDistance(end - start));
-          to = seek(s, target, -1);
-          if (to < 0) to = seek(s, target + 1, 1, start, at);
+          const forward = direction === 'page-next';
+          const delta = forward ? 1 : -1;
+          const target = stepIndex(direction, at, start, end);
+          if (target === null) return null;
+          to = seek(s, target, delta);
+          if (to < 0) to = seek(s, target - delta, forward ? -1 : 1, forward ? at + 1 : start, forward ? end : at);
           break;
         }
       }

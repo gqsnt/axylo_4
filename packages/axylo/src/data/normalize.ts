@@ -35,6 +35,19 @@ export interface XData {
   readonly dateUnits: Record<DateUnit, number> | null;
 }
 
+/** Read a position once, retaining the caller's row number for diagnostics on static and appended data. */
+export function readPosition(
+  parser: XParser, table: Table, row: number, series: string | null, omitted: number,
+  reports: Reports, dateUnits: XData['dateUnits'], start = 0, column?: ArrayLike<unknown>,
+): number {
+  if (series !== null && nameOf(table.read(row, series)) === null) return NaN;
+  const raw = column === undefined ? table.read(row, parser.field.field) : column[row];
+  if (Number.isNaN(raw) && table.isColumnRow(row)) return NaN;
+  const position = parser.read(raw, start + table.rowIndex(row), reports, omitted);
+  if (dateUnits && Number.isFinite(position)) dateUnits[dateUnitOf(raw)]++;
+  return position;
+}
+
 export function readX(type: ChartType, options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, categories?: readonly string[]): XData {
   const { x, table } = options;
   const kind = x.type ?? inferKind(table, x.field, options.series) ?? (categories ? 'category' : 'number');
@@ -62,10 +75,7 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
   }
   let valid = i;
   for (; i < table.length; i++) {
-    const usableSeries = options.series === null || nameOf(table.read(i, options.series)) !== null;
-    const raw = usableSeries ? input === undefined ? table.read(i, x.field) : input[i] : undefined;
-    const value = usableSeries && !(Number.isNaN(raw) && table.isColumnRow(i))
-      ? parser.read(raw, table.rowIndex(i), reports, options.values.length) : NaN;
+    const value = readPosition(parser, table, i, options.series, options.values.length, reports, dateUnits, 0, input);
     if (positions === input && !Object.is(positions[i], value)) positions = positions.slice();
     if (positions !== input) positions[i] = value;
     if (!Number.isFinite(value)) {
@@ -73,7 +83,6 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
       continue;
     }
     if (!(value > last)) ascending = false;
-    if (dateUnits) dateUnits[dateUnitOf(raw)]++;
     last = value;
     valid++;
   }
@@ -110,6 +119,16 @@ export function reportCalendarDates(x: XData, table: Table, sink: DiagnosticSink
   report(sink, 'AX111', 'none', { field: x.parser.field.field, count: length, rows });
 }
 
+export function reportMissingName(reports: Reports, row: number, raw: unknown, slice = false): void {
+  if (raw === undefined) {
+    reports.add('AX102', 'omitted', row, undefined, undefined, {
+      outcome: slice ? 'The affected slice is not drawn.' : 'The affected row is not drawn.',
+    });
+  } else {
+    reports.add('AX107', 'omitted', row, raw, slice ? 'Supply a label for each donut value.' : 'Supply a name for the series in each row.');
+  }
+}
+
 interface Group {
   readonly key: string;
   readonly label: string;
@@ -134,8 +153,7 @@ function groups(options: ResolvedOptions, x: XData, sink: DiagnosticSink): Group
     const name = nameOf(raw);
     if (name === null) {
       if (Number.isNaN(raw) && table.isColumnRow(i)) continue;
-      if (raw === undefined) reports.add('AX102', 'omitted', table.rowIndex(i), undefined, undefined, { outcome: 'The affected row is not drawn.' });
-      else reports.add('AX107', 'omitted', table.rowIndex(i), raw, 'Supply a name for the series in each row.');
+      reportMissingName(reports, table.rowIndex(i), raw);
       continue;
     }
     if (!Number.isFinite(x.positions[i])) continue;
@@ -205,34 +223,31 @@ function alignGroup(group: Group, x: XData, axis: XColumn, field: string, table:
   return { group, order, gaps, drawable, sparse };
 }
 
-function combinePositions(x: XData, groups: readonly AlignedGroup[]): Float64Array {
-  const gapSets = new Set(groups.flatMap(group => group.gaps ? [group.gaps] : []));
-  let gapCount = 0;
-  for (const gaps of gapSets) gapCount += gaps.length;
-  if (x.order === null && gapCount === 0) return x.positions;
-  const observed = x.order?.length ?? x.positions.length;
-  const positions = new Float64Array(observed + gapCount);
-  if (x.order) {
-    for (let i = 0; i < observed; i++) positions[i] = x.positions[x.order[i]!]!;
-  } else {
-    positions.set(x.positions);
+function distinctPositions(sorted: Float64Array): Float64Array {
+  let length = 0;
+  for (const position of sorted) {
+    if (!length || position !== sorted[length - 1]) sorted[length++] = position;
   }
-  let next = observed;
-  for (const gaps of gapSets) {
-    positions.set(gaps, next);
-    next += gaps.length;
-  }
-  if (gapCount) positions.sort();
-  let distinct = 0;
-  let last = -Infinity;
-  for (let i = 0; i < positions.length; i++) {
-    const position = positions[i]!;
-    if (position > last) {
-      positions[distinct++] = position;
-      last = position;
+  return sorted.subarray(0, length);
+}
+
+/** Wide series share one inferred grid. Long series can each contribute different gaps. */
+export function mergeGaps(observed: Float64Array, groups: readonly { gaps: Float64Array | null }[], shared = false): Float64Array {
+  const count = shared ? Math.min(1, groups.length) : groups.length;
+  let length = observed.length;
+  for (let i = 0; i < count; i++) length += groups[i]!.gaps?.length ?? 0;
+  if (length === observed.length) return observed;
+  const positions = new Float64Array(length);
+  positions.set(observed);
+  let next = observed.length;
+  for (let i = 0; i < count; i++) {
+    const gaps = groups[i]!.gaps;
+    if (gaps) {
+      positions.set(gaps, next);
+      next += gaps.length;
     }
   }
-  return positions.subarray(0, distinct);
+  return distinctPositions(positions.sort());
 }
 
 export function seriesDescription(key: string, label: string, value: ResolvedValueField) {
@@ -327,14 +342,19 @@ export function alignedFrame(
     xLabel: options.x.label, yLabel: options.values.length === 1 ? options.values[0]!.label : null,
   };
   const empty = () => ({ ...frame, x: { ...axis, values: new Float64Array(), categories: axis.categories && [] }, length: 0, series: [] });
-  const observed = combinePositions(x, []);
+  let observed = x.positions;
+  if (x.order) {
+    const sorted = new Float64Array(x.order.length);
+    for (let i = 0; i < sorted.length; i++) sorted[i] = x.positions[x.order[i]!]!;
+    observed = distinctPositions(sorted);
+  }
   const groupsBySeries = groups(options, x, sink);
   if (!alignmentFits(groupsBySeries.length, observed.length, sink)) return empty();
   const aligned: AlignedGroup[] = [];
   for (const group of groupsBySeries) {
     aligned.push(alignGroup(group, x, axis, options.x.field, table, sink, options.series === null ? aligned[0] : undefined));
   }
-  const positions = aligned.some(group => group.gaps) ? combinePositions(x, aligned) : observed;
+  const positions = mergeGaps(observed, aligned, options.series === null);
   if (!alignmentFits(aligned.length, positions.length, sink)) return empty();
   const column = { ...axis, values: positions };
   const included = x.order === null ? undefined : (row: number) => Number.isFinite(x.positions[row]);
@@ -373,24 +393,21 @@ export function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticS
     }
     const rows = new Int32Array(length);
     let next = 0;
-    let missing = 0;
+    let missingStart = length;
     for (let i = 0; i < length; i++) {
       const row = group.order?.[i] ?? i;
       if (values.slot[row] === SLOT_VALUE) rows[next++] = row;
-      else missing++;
+      else rows[--missingStart] = row;
     }
     // The reader still needs each valid x when a diagnostic kept its y out of the plot.
     // Their source rows too, so a re-encode can read them again (another field may have a value there).
+    const missing = length - missingStart;
     const missingX = missing ? new Float64Array(missing) : undefined;
     const missingRow = missing ? new Int32Array(missing) : undefined;
-    if (missingX && missingRow) {
-      let index = 0;
-      for (let i = 0; i < length; i++) {
-        const row = group.order?.[i] ?? i;
-        if (values.slot[row] === SLOT_VALUE) continue;
-        missingX[index] = x.positions[row]!;
-        missingRow[index++] = table.rowIndex(row);
-      }
+    for (let i = 0; i < missing; i++) {
+      const row = rows[length - 1 - i]!;
+      missingX![i] = x.positions[row]!;
+      missingRow![i] = table.rowIndex(row);
     }
     const kept = rows.subarray(0, next);
     kept.sort((a, b) => x.positions[a]! - x.positions[b]! || values.y[a]! - values.y[b]!);
@@ -420,8 +437,7 @@ function donutFrame(options: ResolvedOptions, sink: DiagnosticSink, version: Fra
     const name = nameOf(raw);
     if (name === null) {
       if (Number.isNaN(raw) && table.isColumnRow(i)) continue;
-      if (raw === undefined) issues.add('AX102', 'omitted', table.rowIndex(i), undefined, undefined, { outcome: 'The affected slice is not drawn.' });
-      else issues.add('AX107', 'omitted', table.rowIndex(i), raw, 'Supply a label for each donut value.');
+      reportMissingName(issues, table.rowIndex(i), raw, true);
     } else {
       if (seen.has(name)) issues.add('AX108', 'chart-error', table.rowIndex(i), name);
       seen.add(name);

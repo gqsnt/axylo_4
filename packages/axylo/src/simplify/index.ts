@@ -79,7 +79,6 @@ interface BlockSummary {
   e: number;
   uses: number;
   full?: { readonly r: IndexRange; readonly v: ReturnType<typeof scan> };
-  turns?: { readonly s: number; readonly e: number; readonly idx: Uint32Array | null };
   sel?: SelectionCache;
 }
 const summaries = new WeakMap<Values, WeakMap<Uint8Array, BlockSummary>>();
@@ -118,28 +117,6 @@ function summarize(y: Values, slot: Uint8Array, { start, end }: IndexRange): Blo
   summary.s = begin;
   summary.e = stop;
   return summary;
-}
-
-function turningPoints(summary: BlockSummary, y: Values, start: number, end: number): Uint32Array | null {
-  const cached = summary.turns;
-  if (cached && start >= cached.s && end <= cached.e) return cached.idx;
-  // Cap the index at about one byte per six slots. Noisy runs use the block summaries.
-  const indexes = new Uint32Array(Math.ceil((end - start) / 24));
-  let count = 0, before = y[start]!, value = y[start + 1]!, i = start + 1;
-  for (; i + 1 < end; i++) {
-    const after = y[i + 1]!;
-    if (!Number.isFinite(before)) break;
-    if ((value < before && value <= after) || (value > before && value >= after)) {
-      if (count === indexes.length) break;
-      indexes[count++] = i;
-    }
-    before = value;
-    value = after;
-  }
-  const idx = i + 1 === end && Number.isFinite(before) && Number.isFinite(value)
-    ? (count < indexes.length * 0.75 ? indexes.slice(0, count) : indexes.subarray(0, count)) : null;
-  summary.turns = { s: start, e: end, idx };
-  return idx;
 }
 
 function reserve(buffer: IndexBuffer, length: number): Uint32Array {
@@ -236,70 +213,40 @@ function rememberSelection(cache: SelectionCache, extent: number, indexes: Uint3
 
 function keepAffineRun(
   x: Float64Array, y: Values, from: number, to: number, pixel: (x: number) => number,
-  firstColumn: number, lastColumn: number, blocks: Uint8Array, turns: Uint32Array | null,
+  firstColumn: number, lastColumn: number, blocks: Uint8Array,
   indexes: Uint32Array, cursor: number,
 ): number {
   let prevSize = Math.floor((to - from + 1) / (Math.abs(lastColumn - firstColumn) + 1));
-  let turn = 0;
-  if (turns) {
-    let end = turns.length;
-    while (turn < end) {
-      const mid = turn + ((end - turn) >>> 1);
-      if (turns[mid]! <= from) turn = mid + 1;
-      else end = mid;
-    }
-  }
   for (let first = from, column = firstColumn; first <= to;) {
     let last = to, nextColumn = lastColumn;
     if (column !== lastColumn) {
-      // On regular x the previous column predicts the next edge; widen exponentially for irregular x.
+      let next = to, step = Math.max(1, prevSize);
       last = first;
-      let next = to;
-      const guess = Math.min(first + prevSize, to), gCol = pixel(x[guess]!);
-      const dir = gCol === column ? 1 : -1;
-      if (dir > 0) last = guess;
-      else { next = guess; nextColumn = gCol; }
-      for (let step = dir; dir > 0 ? last + step < next : next + step > last; step *= 2) {
-        const probe = (dir > 0 ? last : next) + step, pCol = pixel(x[probe]!);
-        if (pCol === column) { last = probe; if (dir < 0) break; }
-        else { next = probe; nextColumn = pCol; if (dir > 0) break; }
+      while (last + step < next) {
+        const p = last + step, c = pixel(x[p]!);
+        if (c === column) { last = p; step *= 2; }
+        else { next = p; nextColumn = c; break; }
       }
       while (last + 1 < next) {
-        const mid = last + ((next - last) >>> 1), mCol = pixel(x[mid]!);
-        if (mCol === column) last = mid;
-        else { next = mid; nextColumn = mCol; }
+        const mid = last + ((next - last) >>> 1), c = pixel(x[mid]!);
+        if (c === column) last = mid;
+        else { next = mid; nextColumn = c; }
       }
     }
     prevSize = last - first + 1;
     let min = first, max = first, low = y[first]!, high = low;
-    if (turns) {
-      while (turn < turns.length && turns[turn]! <= last) {
-        const i = turns[turn++]!, v = y[i]!;
-        if (v < low) { low = v; min = i; }
-        if (v > high) { high = v; max = i; }
-      }
-      const v = y[last]!;
-      if (v < low) min = last;
-      if (v > high) max = last;
-    } else {
-      let i = first;
-      const fullStart = Math.min(last + 1, Math.ceil(first / BLOCK_SIZE) * BLOCK_SIZE);
-      const fullEnd = last + 1 - (last + 1) % BLOCK_SIZE;
-      for (; i < fullStart; i++) {
-        const v = y[i]!;
-        if (v < low) { low = v; min = i; }
-        if (v > high) { high = v; max = i; }
-      }
-      for (; i < fullEnd; i += BLOCK_SIZE) {
-        const o = 2 * (i / BLOCK_SIZE), eMin = i + blocks[o]! - 1, eMax = i + blocks[o + 1]!;
+    for (let i = first; i <= last;) {
+      if ((i & 31) === 0 && i + BLOCK_SIZE <= last + 1) {
+        const o = i / 16, eMin = i + blocks[o]! - 1, eMax = i + blocks[o + 1]!;
         const bLow = y[eMin]!, bHigh = y[eMax]!;
         if (bLow < low) { low = bLow; min = eMin; }
         if (bHigh > high) { high = bHigh; max = eMax; }
-      }
-      for (; i <= last; i++) {
+        i += BLOCK_SIZE;
+      } else {
         const v = y[i]!;
         if (v < low) { low = v; min = i; }
         if (v > high) { high = v; max = i; }
+        i++;
       }
     }
     cursor = keepColumn(indexes, cursor, first, last, min, max);
@@ -388,8 +335,7 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
         const firstColumn = pixel(x[first]!), lastColumn = pixel(x[last]!);
         const capacity = 4 * (Math.abs(lastColumn - firstColumn) + 1);
         if (capacity <= runLength) {
-          const turns = reused && size.values === runLength && runLength >= 4096 ? turningPoints(summary, y, first, last + 1) : null;
-          cursor = keepAffineRun(x, y, first, last, pixel, firstColumn, lastColumn, summary.blocks, turns, reserve(buffer, cursor + capacity), cursor);
+          cursor = keepAffineRun(x, y, first, last, pixel, firstColumn, lastColumn, summary.blocks, reserve(buffer, cursor + capacity), cursor);
           continue;
         }
       }
@@ -428,16 +374,16 @@ export function stackIndexes(
   if (size <= columnLimit(input)) return Uint32Array.from({ length: size }, (_, i) => i);
   const kept = new Uint8Array(size), scratch = new Uint32Array(size);
   const buffer: IndexBuffer = { data: scratch, limit: size };
-  const columns: Columns = { x: input.x, map: xMapper(input.mapX, input.affineX), ratio: input.devicePixelRatio, y: 0 };
+  const columns = { x: input.x, map: xMapper(input.mapX, input.affineX), ratio: input.devicePixelRatio, y: 0 as Values | 0 };
   for (let k = 0; k < stack.order.length; k++) {
     const { y, slot } = frame.series[stack.order[k]!]!;
     for (const values of [stack.positive[k]!, stack.negative[k]!]) {
-      const edge = { ...columns, y: values };
+      columns.y = values;
       let first = start;
       for (let i = start + 1; i <= end; i++) {
         // Keep both ends of every pinch, including zero and wholly missing stretches.
         if (i < end && slot[i] === slot[first] && (slot[i] !== SLOT_VALUE || Math.sign(y[i]!) === Math.sign(y[first]!))) continue;
-        const count = keepRun(null, first, i - 1, edge, buffer, 0);
+        const count = keepRun(null, first, i - 1, columns, buffer, 0);
         for (let j = 0; j < count; j++) kept[scratch[j]! - start] = 1;
         first = i;
       }
@@ -587,17 +533,14 @@ export function simplifyArea(input: AreaInput): SimplifiedArea {
   let upperStart = 0, lowerStart = 0;
   for (let run = 0; run * 4 < runs.length; run++) {
     const upperEnd = upperSel.breaks[run] ?? upperSel.indexes.length, count = upperEnd - upperStart;
-    let lowerCount: number;
+    const lowerCount = flatDense ? Math.min(count, 2) : (lowerSel.breaks[run] ?? lowerSel.indexes.length) - lowerStart;
     if (flatDense) {
-      lowerCount = Math.min(count, 2);
       lowerXY[2 * lowerStart] = upperBoundary.xy[2 * upperStart]!;
       lowerXY[2 * lowerStart + 1] = baseline;
       if (count > 1) {
         lowerXY[2 * (lowerStart + 1)] = upperBoundary.xy[2 * (upperEnd - 1)]!;
         lowerXY[2 * (lowerStart + 1) + 1] = baseline;
       }
-    } else {
-      lowerCount = (lowerSel.breaks[run] ?? lowerSel.indexes.length) - lowerStart;
     }
     runs[run * 4] = upperStart;
     runs[run * 4 + 1] = count;

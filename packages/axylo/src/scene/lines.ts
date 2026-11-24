@@ -5,6 +5,9 @@ import {
 import { buildPath, buildPoints, simplifyLine, type JoinedRuns, type LineInput } from '../simplify';
 import { affinePosition, affineProjection, position, seriesPaint, type AffineProjection } from './geometry';
 
+const MARKER_SPACING = 12;
+const SPARSE_SPACING = 80;
+
 export type XY = Extract<Projection, { kind: 'xy' }>;
 export type Drawing = Omit<LineInput, 'y' | 'slot' | 'range'> & {
   readonly mapX: (x: number) => number;
@@ -35,14 +38,14 @@ function denseMarkers(input: LineInput, range: IndexRange, affine: AffineProject
   for (; next < range.end; next++) {
     if (slot[next] !== SLOT_VALUE) continue;
     const pixel = affinePosition(affine, x[next]!);
-    if (Math.abs(pixel - previous) < 12) break;
+    if (Math.abs(pixel - previous) < MARKER_SPACING) break;
     previous = pixel;
   }
   if (next === range.end) return null;
   let last = range.end - 1;
   while (slot[last] !== SLOT_VALUE) last--;
   previous = affinePosition(affine, x[last]!);
-  const capacity = Math.min(last - first + 1, Math.floor(Math.abs(previous - firstPixel) / 80) + 1);
+  const capacity = Math.min(last - first + 1, Math.floor(Math.abs(previous - firstPixel) / SPARSE_SPACING) + 1);
   const indexes = new Uint32Array(capacity);
   let write = capacity;
   for (let i = last; i >= first;) {
@@ -52,7 +55,7 @@ function denseMarkers(input: LineInput, range: IndexRange, affine: AffineProject
     // Search the projected distance directly so an exact 80 px tie uses the same slot as the walk.
     while (low < high) {
       const mid = low + ((high - low) >>> 1);
-      if (Math.abs(previous - affinePosition(affine, x[mid]!)) >= 80) low = mid + 1;
+      if (Math.abs(previous - affinePosition(affine, x[mid]!)) >= SPARSE_SPACING) low = mid + 1;
       else high = mid;
     }
     i = low - 1;
@@ -71,6 +74,7 @@ function markerIndexes(
     const markers = denseMarkers(input, range, affineX);
     if (markers) return markers;
   }
+  const pixelAt = affineX ? (i: number) => affinePosition(affineX, x[i]!) : (i: number) => mapX(x[i]!);
   let count = 0;
   let first = range.end;
   let last = range.start;
@@ -80,16 +84,15 @@ function markerIndexes(
     if (slot[i] !== SLOT_VALUE) continue;
     if (count++ === 0) first = i;
     if (showAll) {
-      const pixel = affineX ? affinePosition(affineX, x[i]!) : mapX(x[i]!);
-      showAll = i === first || Math.abs(pixel - previousPixel) >= 12;
+      const pixel = pixelAt(i);
+      showAll = i === first || Math.abs(pixel - previousPixel) >= MARKER_SPACING;
       previousPixel = pixel;
     }
     last = i;
   }
   if (!count) return isolated;
-  const span = Math.abs(affineX ? affinePosition(affineX, x[last]!) - affinePosition(affineX, x[first]!)
-    : mapX(x[last]!) - mapX(x[first]!));
-  const capacity = showAll ? count : Math.min(count, Math.floor(span / 80) + 1 + isolated.length);
+  const capacity = showAll ? count : Math.min(count,
+    Math.floor(Math.abs(pixelAt(last) - pixelAt(first)) / SPARSE_SPACING) + 1 + isolated.length);
   const indexes = new Uint32Array(capacity);
   let write = capacity;
   let previous = Infinity;
@@ -97,10 +100,10 @@ function markerIndexes(
   // Walk back from the last observed value so the series always has its identity at that end.
   for (let i = last; i >= first; i--) {
     if (slot[i] !== SLOT_VALUE) continue;
-    const pixel = affineX ? affinePosition(affineX, x[i]!) : mapX(x[i]!);
+    const pixel = showAll ? 0 : pixelAt(i);
     const required = isolated[single] === i;
     if (required) single--;
-    if (showAll || required || Math.abs(previous - pixel) >= 80) {
+    if (showAll || required || Math.abs(previous - pixel) >= SPARSE_SPACING) {
       indexes[--write] = i;
       previous = pixel;
     }

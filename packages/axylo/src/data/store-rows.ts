@@ -1,4 +1,7 @@
 import type { DiagnosticInput, DiagnosticSink, Frame, RowSource } from '../core/contracts';
+import { DiagnosticCollector } from '../diagnostics';
+import type { FrameVersion } from './normalize';
+import { resolveTable, type ResolvedOptions } from './options';
 
 /** Whether the first slots of `window` hold `prefix` from `start` on (checked at both ends). */
 export function sameRemainder(prefix: Float64Array, start: number, window: Float64Array): boolean {
@@ -53,8 +56,8 @@ function typedColumn(column: ArrayLike<unknown>): boolean {
   return ArrayBuffer.isView(column) && 'BYTES_PER_ELEMENT' in column;
 }
 
-function forkReferences(source: ReadonlyMap<string, StoreMap<number, object>>): Map<string, StoreMap<number, object>> {
-  const result = new Map<string, StoreMap<number, object>>();
+export function forkValues<K, V extends { fork(): V }>(source: ReadonlyMap<K, V>): Map<K, V> {
+  const result = new Map<K, V>();
   for (const [key, entries] of source) result.set(key, entries.fork());
   return result;
 }
@@ -84,7 +87,7 @@ export class RawRows {
     return new RawRows(
       this.#objects.fork(),
       this.#columnCount > 0 ? this.columns.fork() : getEmptyColumns(),
-      this.#references !== null && this.#references.size > 0 ? forkReferences(this.#references) : null,
+      this.#references?.size ? forkValues(this.#references) : null,
       this.#columnCount,
       this.#borrowedSize,
     );
@@ -107,8 +110,8 @@ export class RawRows {
     }
     if (this.columns === sharedEmptyColumns) this.columns = new StoreMap();
     const columns = table.columns;
-    const keys = Object.keys(columns);
     this.#columnCount = table.length;
+    const keys = Object.keys(columns);
     const borrowed = keys.some(key => ArrayBuffer.isView(columns[key]));
     this.#borrowedSize = borrowed ? table.length : 0;
     for (let start = 0; start < table.length; start += blockSize) {
@@ -134,7 +137,7 @@ export class RawRows {
   #own(block: ColumnBlock): ColumnBlock {
     if (!block.borrowed) return block;
     const columns = block.table.columns!;
-    const contents: Columns = Object.fromEntries(Object.entries(columns).map(([key, column]) => [
+    const contents = Object.fromEntries(Object.entries(columns).map(([key, column]) => [
       key, typedColumn(column) ? Uint8Array.prototype.slice.call(column) : column,
     ]));
     return { ...block, table: columnsTable(contents, block.table.length), borrowed: false };
@@ -206,7 +209,7 @@ export class RawRows {
   rowAt(row: number): unknown {
     const range = this.#column(row)?.table;
     if (!range) return this.#objects.has(row) ? this.#objects.get(row) : null;
-    if (!this.#references || this.#references.size === 0) return range.rowAt(row % blockSize);
+    if (!this.#references?.size) return range.rowAt(row % blockSize);
     return Object.fromEntries(range.keys().map(field => [field, this.read(row, field)]));
   }
 
@@ -260,9 +263,9 @@ export class StreamRows {
     if (previous) {
       this.retained = previous.retained.fork();
       this.#positions = previous.#positions.fork();
-      this.#previousAtPosition = previous.#previousAtPosition !== null && previous.#previousAtPosition.size > 0
+      this.#previousAtPosition = previous.#previousAtPosition?.size
         ? previous.#previousAtPosition.fork() : null;
-      this.#unplaced = previous.#unplaced !== null && previous.#unplaced.size > 0
+      this.#unplaced = previous.#unplaced?.size
         ? previous.#unplaced.fork() : null;
       this.seedPositions = previous.seedPositions;
       this.#seedOffset = previous.#seedOffset;
@@ -280,7 +283,7 @@ export class StreamRows {
   }
 
   get size(): number { return this.retained.size; }
-  get hasUnplaced(): boolean { return this.#unplaced !== null && this.#unplaced.size > 0; }
+  get hasUnplaced(): boolean { return Boolean(this.#unplaced?.size); }
 
   fork(): StreamRows {
     return new StreamRows(undefined, this);
@@ -449,13 +452,16 @@ export class FrameSource implements RowSource {
   #revision = 0;
   #custom: ((row: number) => unknown) | null = null;
 
-  constructor(private readonly end: number, rows: StreamRows, live?: () => boolean) {
+  readonly #end: number;
+
+  constructor(end: number, rows: StreamRows, live?: () => boolean) {
+    this.#end = end;
     this.#rows = rows;
     this.#live = live ?? null;
   }
 
   rowAt(row: number): unknown {
-    if (!Number.isInteger(row) || row < 0 || row >= this.end) return null;
+    if (!Number.isInteger(row) || row < 0 || row >= this.#end) return null;
     if (this.#window) return this.#window.readRevision(this.#revision, row);
     if (this.#custom) return this.#custom(row);
     if (this.#rows) {
@@ -467,7 +473,7 @@ export class FrameSource implements RowSource {
     return null;
   }
 
-  get limit(): number { return this.end; }
+  get limit(): number { return this.#end; }
 
   watchBase(store: RevisionStore<Frame>, base: Frame): void {
     this.#store = store;
@@ -475,22 +481,14 @@ export class FrameSource implements RowSource {
   }
 
   bindWindow(window: RowWindow, revision: number): void {
+    this.release();
     this.#window = window;
     this.#revision = revision;
-    this.#rows = null;
-    this.#live = null;
-    this.#store = null;
-    this.#base = null;
-    this.#custom = null;
   }
 
   bind(read: (row: number) => unknown): void {
+    this.release();
     this.#custom = read;
-    this.#window = null;
-    this.#rows = null;
-    this.#live = null;
-    this.#store = null;
-    this.#base = null;
   }
 
   release(): void {
@@ -506,7 +504,7 @@ export class FrameSource implements RowSource {
 export class RowWindow {
   private readonly archived = new RawRows();
   readonly #lastSeen = new Map<number, number>();
-  private readonly sources = new Map<number, FrameSource>();
+  readonly #sources = new Map<number, FrameSource>();
   #latestRevision = -Infinity;
   private rows: StreamRows | null;
   #closed = false;
@@ -516,12 +514,12 @@ export class RowWindow {
   }
 
   get size(): number { return (this.rows?.size ?? 0) + this.archived.size; }
-  get disposable(): boolean { return this.#closed && this.sources.size === 0; }
+  get disposable(): boolean { return this.#closed && this.#sources.size === 0; }
 
   archive(row: number): void {
     const revision = this.#latestRevision;
     // Newly appended rows can be evicted before any accepted frame has addressed them.
-    const source = this.sources.get(revision);
+    const source = this.#sources.get(revision);
     if (!source || row >= source.limit || !this.rows?.archive(row, this.archived)) return;
     this.#lastSeen.set(row, revision);
   }
@@ -534,7 +532,7 @@ export class RowWindow {
   publish(revision: number, source: FrameSource, rows: StreamRows): void {
     this.rows = rows;
     this.#latestRevision = revision;
-    this.sources.set(revision, source);
+    this.#sources.set(revision, source);
     source.bindWindow(this, revision);
   }
 
@@ -543,7 +541,7 @@ export class RowWindow {
    * window's live revisions. The rows still retained below its end, and the evicted rows kept for it.
    */
   retainedRows(revision: number, source: RowSource): ArrayLike<number> | null {
-    if (this.sources.get(revision) !== source || !this.rows) return null;
+    if (this.#sources.get(revision) !== source || !this.rows) return null;
     const end = (source as FrameSource).limit;
     const current = this.rows.retainedIndexes();
     const live = current.subarray(0, lowerBound(current, end));
@@ -561,14 +559,14 @@ export class RowWindow {
 
   close(): void {
     this.#closed = true;
-    if (this.sources.size === 0) this.rows = null;
+    if (this.#sources.size === 0) this.rows = null;
   }
 
   retire(revision: number): void {
-    for (const [number, source] of this.sources) {
+    for (const [number, source] of this.#sources) {
       if (number > revision) break;
       source.release();
-      this.sources.delete(number);
+      this.#sources.delete(number);
     }
     // A source row leaves a window once. Map insertion order is therefore eviction revision order.
     for (const [row, last] of this.#lastSeen) {
@@ -576,7 +574,7 @@ export class RowWindow {
       this.archived.forget(row);
       this.#lastSeen.delete(row);
     }
-    if (this.#closed && this.sources.size === 0) this.rows = null;
+    if (this.#closed && this.#sources.size === 0) this.rows = null;
   }
 }
 
@@ -658,6 +656,41 @@ export abstract class RevisionStore<F extends Frame> {
     rows.commit();
     this.rows = rows;
   }
+}
+
+export function nextVersion(frame: FrameVersion): FrameVersion {
+  return { epoch: frame.epoch, revision: frame.revision + 1 };
+}
+
+export function checkVersion(base: FrameVersion, version: FrameVersion): void {
+  if (version.revision <= base.revision || version.epoch <= base.epoch) {
+    throw new Error('Encoding updates and replacements require a newer epoch and revision.');
+  }
+}
+
+interface EncodingExtras<F extends Frame> {
+  prepareReencode(options: ResolvedOptions, version: FrameVersion): PreparedFrame<F>;
+  reencode(options: ResolvedOptions, version: FrameVersion): F;
+  replace(data: unknown, options: ResolvedOptions, version: FrameVersion): F;
+  prepareReplace(data: unknown, options: ResolvedOptions, version: FrameVersion): PreparedFrame<F>;
+}
+
+/** Installed only by the development and benchmark store constructors. */
+export function installEncodingExtras<F extends Frame, S extends EncodingExtras<F>>(proto: S, prepare: (
+  this: S, rows: StreamRows, options: ResolvedOptions, version: FrameVersion, call: DiagnosticCollector,
+  replacement: ReturnType<typeof resolveTable>,
+) => PreparedFrame<F>): void {
+  function commit(change: PreparedFrame<F>): F {
+    change.commit();
+    return change.frame;
+  }
+  proto.reencode = function (options, version) { return commit(this.prepareReencode(options, version)); };
+  proto.replace = function (data, options, version) { return commit(this.prepareReplace(data, options, version)); };
+  proto.prepareReplace = function (data, options, version) {
+    const call = new DiagnosticCollector();
+    const replacement = resolveTable(data, call);
+    return prepare.call(this, new StreamRows(replacement.table), options, version, call, replacement);
+  };
 }
 
 export function forwardDiagnostics(inputs: readonly DiagnosticInput[], sink: DiagnosticSink): void {

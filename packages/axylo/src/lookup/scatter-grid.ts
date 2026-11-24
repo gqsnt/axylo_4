@@ -233,7 +233,8 @@ export function scatterGrid(
         maxY = Math.max(maxY, py[p]!);
         count += multiplicity[p]!;
       }
-      if (end - start <= LEAF_SIZE) {
+      const size = end - start;
+      if (size <= LEAF_SIZE) {
         let latest = order[start]!;
         for (let i = start + 1; i < end; i++) {
           const at = order[i]!;
@@ -253,12 +254,12 @@ export function scatterGrid(
         order[mid++] = p;
       }
       const smaller = Math.min(mid - start, end - mid);
-      const skewed = smaller < (end - start) / 8;
+      const skewed = smaller < size / 8;
       // Keep spatially separated groups together. Consecutive skewed splits need a median to bound depth.
       const useSkew = skewed && allowSkew && smaller > 0;
       if (skewed && !useSkew) {
         order.subarray(start, end).sort((a, b) => positions[a]! - positions[b]!);
-        mid = start + Math.floor((end - start) / 2);
+        mid = start + Math.floor(size / 2);
       }
       const left = build(start, mid, !useSkew);
       const right = build(mid, end, !useSkew);
@@ -350,8 +351,10 @@ export function scatterGrid(
     for (let i = 0; i < end; i++) placed[order[i]!] = i;
 
     const squaredDistance = (at: number, x: number, y: number) => (px[at]! - x) ** 2 + (py[at]! - y) ** 2;
-    const otherCount = (bucket: Bucket, own: number) =>
-      bucket.count - (placed[own]! >= bucket.start && placed[own]! < bucket.end ? multiplicity[own]! : 0);
+    function otherCount({ count, start, end }: Bucket, own: number): number {
+      const place = placed[own]!;
+      return place >= start && place < end ? count - multiplicity[own]! : count;
+    }
 
     function pick(x: number, y: number, limit: number): ScatterPick | null {
       // The window covers every compared position within the radius, and every 0.5 px neighbourhood of one.
@@ -492,7 +495,7 @@ export function scatterGrid(
     return { pick, members, has: (at, other) => near(other, px[at]!, py[at]!) };
   }
 
-  const exact = exactLists ? index(xs, ys, exactLists) : null;
+  const exact = exactLists && index(xs, ys, exactLists);
   // An exact pick checks each point of the cells it searches at most three times (nearest, ties, coincidence)
   // and samples at most POINT_LIMIT rows; it searches at most 4 × 4 cells (a 49 px window over 24 px cells).
   // When no such window holds more than the budget allows, no pick can fall back. Otherwise the lattice index
@@ -510,7 +513,8 @@ export function scatterGrid(
   }
   let lattice: Index | null = canFallBack ? latticeIndex() : null;
   // Built with the lookup whenever a pick can need it; built later only if that bound were ever wrong.
-  const indexFor = (rule: GroupRule): Index => (rule === 'exact' && exact) || (lattice ??= latticeIndex());
+  const getLattice = () => lattice ??= latticeIndex();
+  const indexFor = (rule: GroupRule): Index => (rule === 'exact' && exact) || getLattice();
 
   const grid = {
     series, points,
@@ -531,7 +535,7 @@ export function scatterGrid(
         }
       }
       usedLattice = true;
-      return indexFor('lattice').pick(x, y, Infinity);
+      return getLattice().pick(x, y, Infinity);
     },
     /** The grid index of point i of series s, or -1 when it is not on the plot. */
     at(s: number, i: number): number {

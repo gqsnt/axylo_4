@@ -1,6 +1,5 @@
 import type { DiagnosticSink, Formatters, IndexRange, ReaderModel, View } from '../core/contracts';
 import { report } from '../diagnostics';
-import { isPlainEnglish } from '../format/intl';
 import { sliceText } from '../lookup/text';
 import { chartTypeName, defaultMessages, fill, fillChartSummary, fillDonutSlice, messageLanguage } from '../messages';
 import type { Messages, Title } from '../public';
@@ -59,12 +58,11 @@ function textOf(runs: readonly TextRun[]): string {
 }
 
 function omitTable(template: string): string {
-  const placeholder = /\{seeTable\}/;
-  if (!placeholder.test(template)) return template;
+  if (!template.includes('{seeTable}')) return template;
   const wrapped = /\(\s*\{seeTable\}\s*\)|\[\s*\{seeTable\}\s*\]|\{\s*\{seeTable\}\s*\}|【\s*\{seeTable\}\s*】|（\s*\{seeTable\}\s*）/gu;
   return template.replace(wrapped, '{seeTable}')
-    .replace(/(\s*)\{seeTable\}(\s*)/g, (_, before: string, after: string, at: number, source: string) => {
-      const next = source[at + before.length + '{seeTable}'.length + after.length];
+    .replace(/(\s*)\{seeTable\}(\s*)/g, (match: string, before: string, after: string, at: number, source: string) => {
+      const next = source[at + match.length];
       return at > 0 && next !== undefined && !/[.,;:!?。！？)\]】）]/u.test(next) && (before || after) ? ' ' : '';
     }).replace(/[\s\p{Bidi_Control}]+$/u, '').trimStart();
 }
@@ -93,27 +91,19 @@ export function seriesNotDrawnSentence(messages: Messages, series: string, table
   return textOf(tableSentence(messages, 'seriesNotDrawn', { series }, table));
 }
 
-function joinSentences(sentences: readonly (readonly TextRun[])[]): TextRun[] {
-  const runs: TextRun[] = [];
-  for (const sentence of sentences) {
-    if (runs.length && sentence.length) addRun(runs, ' ', runs.at(-1)!.lang);
-    for (const { text, lang } of sentence) addRun(runs, text, lang);
-  }
-  return runs;
+function appendSentence(runs: TextRun[], sentence: readonly TextRun[]): void {
+  if (runs.length && sentence.length) addRun(runs, ' ', runs.at(-1)!.lang);
+  for (const { text, lang } of sentence) addRun(runs, text, lang);
 }
 
 type ChartText = (input: ReaderInput, type: string, xLabel: string, yLabel: string, table: boolean, listReady?: boolean) => string[];
 
 const listFormats = new Map<string | undefined, Intl.ListFormat>();
 
-function englishList(locale: string | undefined): boolean {
-  return locale === 'en';
-}
-
 /** Names joined as a list in the chart's locale ("Visits and Signups"). */
 function listOf(names: readonly string[], locale: string | undefined): string {
   if (names.length < 2) return names[0] ?? '';
-  if (englishList(locale)) {
+  if (locale === 'en') {
     return names.slice(0, -1).join(', ') + (names.length === 2 ? ' and ' : ', and ') + names.at(-1);
   }
   try {
@@ -265,19 +255,20 @@ export function buildReader(input: ReaderInput): BuiltReader {
 
 export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader {
   const { view, title, labelledBy, subtitle, description, formatters, messages, disclosure } = input;
-  const labels = {
-    category: input.labels?.category ?? messages.category,
-    percentage: input.labels?.percentage ?? messages.percentage,
-    series: input.labels?.series ?? messages.series,
-    value: input.labels?.value ?? messages.value,
-    xUnit: input.labels?.xUnit,
+  const custom = input.labels;
+  const labels: ReaderLabels = {
+    category: custom?.category ?? messages.category,
+    percentage: custom?.percentage ?? messages.percentage,
+    series: custom?.series ?? messages.series,
+    value: custom?.value ?? messages.value,
+    xUnit: custom?.xUnit,
   };
   const type = chartTypeName(messages, view.kind);
   const xLabel = view.kind === 'donut' ? labels.category : view.frame.xLabel;
   const yLabel = view.kind === 'donut' ? view.frame.valueLabel
     : view.kind === 'scatter' ? view.frame.yLabel
     : view.frame.yLabel || listOf(view.frame.series.flatMap(s => s.drawable ? [s.label] : []), input.locale) || labels.value;
-  const listReady = englishList(input.locale) || listFormats.has(input.locale);
+  const listReady = input.locale === 'en' || listFormats.has(input.locale);
   const titleText = typeof title === 'string' ? title : title?.text;
   if (!labelledBy && !titleText && input.diagnostics) report(input.diagnostics, 'AX140', 'none');
   const generated = fill(messages.chartName, { type, x: xLabel, y: yLabel });
@@ -292,16 +283,17 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
   const hasTable = table !== null;
   const omitted = disclosure?.omitted ?? 0;
   const changed = disclosure?.changed ?? 0;
-  const statements: TextRun[][] = [];
+  const noteSegments: TextRun[] = [];
+  const append = (key: TableSentence, values: Record<string, string>) =>
+    appendSentence(noteSegments, tableSentence(messages, key, values, hasTable));
   if (omitted > 0 || changed > 0) {
     const counts = { omitted: formatters.count(omitted), changed: formatters.count(changed) };
-    if (omitted > 0) statements.push(tableSentence(messages, 'valuesNotShown', { ...counts, count: counts.omitted }, hasTable));
-    if (changed > 0) statements.push(tableSentence(messages, 'valuesChanged', { ...counts, count: counts.changed }, hasTable));
+    if (omitted > 0) append('valuesNotShown', { ...counts, count: counts.omitted });
+    if (changed > 0) append('valuesChanged', { ...counts, count: counts.changed });
   }
-  const omission = textOf(joinSentences(statements));
+  const omission = textOf(noteSegments);
   const hidden = input.labelsHidden ?? 0;
-  if (hidden > 0) statements.push(tableSentence(messages, 'labelsHidden', { count: formatters.count(hidden) }, hasTable));
-  const noteSegments = joinSentences(statements);
+  if (hidden > 0) append('labelsHidden', { count: formatters.count(hidden) });
   const note = textOf(noteSegments) || null;
   let summary: string | undefined;
   return {

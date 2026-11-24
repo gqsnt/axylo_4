@@ -41,20 +41,35 @@ function openingCapacity(length: number): number {
 export class FrameBuffers {
   x: Float64Array;
   /** null while every slot of the window has an observation (no gap slot was ever stored). */
-  private observedFlags: Uint8Array | null = null;
-  private categoryPositions = new Float64Array();
-  readonly series = new Map<string, SeriesBuffers>();
-  private range: BufferWindow;
+  private observedFlags: Uint8Array | null;
+  private categoryPositions: Float64Array;
+  readonly series: Map<string, SeriesBuffers>;
+  #range: BufferWindow;
   /** Source row of slot i for an identity series is i + rowShift; storage rebasing moves slots, not rows. */
-  private rowShift = 0;
+  #rowShift: number;
 
-  get start(): number { return this.range.start; }
-  get end(): number { return this.range.end; }
-  set end(end: number) { this.range.end = end; }
+  get start(): number { return this.#range.start; }
+  get end(): number { return this.#range.end; }
+  set end(end: number) { this.#range.end = end; }
   distinct: number;
 
-  constructor(frame?: AlignedFrame, positions?: Float64Array, order: Int32Array | null = null) {
-    this.range = new BufferWindow(0, frame?.length ?? 0);
+  constructor(frame?: AlignedFrame | FrameBuffers, positions?: Float64Array, order: Int32Array | null = null) {
+    // A fork owns its window and descriptors. Its columns and tail flags stay shared until a write claims or copies them.
+    if (frame instanceof FrameBuffers) {
+      this.#range = frame.#range.fork();
+      this.series = mapValues(frame.series, series => ({ ...series }));
+      this.x = frame.x;
+      this.distinct = frame.distinct;
+      this.observedFlags = frame.observedFlags;
+      this.categoryPositions = frame.categoryPositions;
+      this.#rowShift = frame.#rowShift;
+      return;
+    }
+    this.series = new Map();
+    this.observedFlags = null;
+    this.categoryPositions = new Float64Array();
+    this.#rowShift = 0;
+    this.#range = new BufferWindow(0, frame?.length ?? 0);
     this.distinct = 0;
     const capacity = openingCapacity(this.end);
     this.x = new Float64Array(capacity);
@@ -83,14 +98,10 @@ export class FrameBuffers {
   }
 
   fork(): FrameBuffers {
-    const draft = Object.assign(Object.create(FrameBuffers.prototype) as FrameBuffers, this, {
-      range: this.range.fork(),
-      series: mapValues(this.series, series => ({ ...series })),
-    });
-    return draft;
+    return new FrameBuffers(this);
   }
 
-  get hasCompetingWrites(): boolean { return this.range.hasCompetingWrites; }
+  get hasCompetingWrites(): boolean { return this.#range.hasCompetingWrites; }
 
   /** Whether slot `index` holds an observed x (not only an expected step that no series had). */
   observed(index: number): boolean {
@@ -109,23 +120,23 @@ export class FrameBuffers {
   /** Writes the source row of a slot, giving the series an explicit index the first time it stops being the identity. */
   setRow(series: SeriesBuffers, index: number, row: number): void {
     if (!series.row) {
-      if (row === index + this.rowShift) return;
+      if (row === index + this.#rowShift) return;
       // A batch writes past `end` before it moves `end`: the slots it already wrote are identity rows too.
-      this.materializeRows(series, Math.max(this.end, index));
+      this.#materializeRows(series, Math.max(this.end, index));
     }
     series.row![index] = row;
   }
 
-  private materializeRows(series: SeriesBuffers, end = this.end): void {
+  #materializeRows(series: SeriesBuffers, end = this.end): void {
     const rows = new Int32Array(this.x.length);
-    for (let i = this.start; i < end; i++) rows[i] = i + this.rowShift;
+    for (let i = this.start; i < end; i++) rows[i] = i + this.#rowShift;
     series.row = rows;
   }
 
   reserve(extra: number): boolean {
-    const capacity = this.range.reserve(extra, this.x.length);
+    const capacity = this.#range.reserve(extra, this.x.length);
     const grow = capacity !== 0;
-    if (grow) this.resize(capacity, extra);
+    if (grow) this.#resize(capacity, extra);
     // A rival may have claimed the base's tail. Reconstruct that tail before this
     // draft can publish a longer view in which the old slot is no longer special.
     else for (const series of this.series.values()) {
@@ -135,11 +146,11 @@ export class FrameBuffers {
   }
 
   shrink(): void {
-    const capacity = this.range.compact(this.x.length);
-    if (capacity) this.resize(capacity, 0);
+    const capacity = this.#range.compact(this.x.length);
+    if (capacity) this.#resize(capacity, 0);
   }
 
-  private resize(capacity: number, extra: number): void {
+  #resize(capacity: number, extra: number): void {
     const { start, end } = this;
     const x = new Float64Array(capacity);
     x.set(this.x.subarray(start, end));
@@ -151,8 +162,8 @@ export class FrameBuffers {
     }
     if (this.categoryPositions.length > capacity) this.categoryPositions = new Float64Array();
     for (const series of this.series.values()) this.copySeries(series, capacity, 0);
-    this.rowShift += start;
-    this.range.rebase(extra);
+    this.#rowShift += start;
+    this.#range.rebase(extra);
   }
 
   copySeries(series: SeriesBuffers, capacity = this.x.length, offset = this.start): SeriesBuffers {
@@ -194,7 +205,7 @@ export class FrameBuffers {
       const observed = this.observed(this.start);
       if (observed) this.distinct--;
       evict(this.x[this.start]!, observed);
-      this.range.start++;
+      this.#range.start++;
     }
   }
 
@@ -217,14 +228,14 @@ export class FrameBuffers {
       },
       series: Array.from(this.series.values(), series => {
         // The frame's null row means "slot i came from row i", which holds only while nothing has shifted.
-        if (!series.row && start + this.rowShift !== 0 && end > start) this.materializeRows(series);
+        if (!series.row && start + this.#rowShift !== 0 && end > start) this.#materializeRows(series);
         const { description, y, slot, row } = series;
         if (start === end || !open(description.key)) {
           return { ...description, y: y.subarray(start, end), slot: slot.subarray(start, end), row: row?.subarray(start, end) ?? null };
         }
         const index = end - 1;
         if (series.tail?.index !== index) {
-          series.tail = { index, exposed: false, claimed: false, y: y[index]!, slot: slot[index]!, row: row ? row[index]! : index + this.rowShift };
+          series.tail = { index, exposed: false, claimed: false, y: y[index]!, slot: slot[index]!, row: row ? row[index]! : index + this.#rowShift };
         }
         const tail = series.tail;
         let values: Float64Array | undefined;

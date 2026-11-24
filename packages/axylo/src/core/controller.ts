@@ -25,16 +25,15 @@ import type { ChartEvents, Diagnostic, Messages, Point, Title, XValue } from '..
 import type { PreparedFrame } from '../data';
 import { resolveFields, withoutTable, type ChartType, type ResolvedOptions } from '../data/options';
 import { createDiagnostic, DiagnosticCollector, readerDisclosure, type DiagnosticCode } from '../diagnostics';
-import { createFormatters, type FormatSpec } from '../format';
+import { createFormattersWith, type FormatSpec } from '../format';
 import { dateUnitOf } from '../data/x';
 import { rowsTable, type Table } from '../data/table';
-import { computeLayout } from '../layout';
 import { readerWith, seriesNotDrawnSentence } from '../reader';
 import { chartTypeName, fill, resolveMessages } from '../messages';
 import { lowContrastSeries, type ThemeResolution } from '../theme';
 import { OptionsStore, sameValue, type OptionRecord } from './options';
 import { Delivery, diagnosticKey, StrictError, strictViolations, type DeliveryConsole } from './delivery';
-import { layoutInput, layoutKey, prepareTicks, sameKey, tickFormatFailures, type AxisContext } from './axes';
+import type { AxisContext } from './axes';
 import { zoomApplies } from './focus';
 import {
   completeViewDiagnostics, dedupe, encodingChanged, isCompact, namesOnlyChanged, namingDiagnostics, object, publicOptions, stringOption,
@@ -42,7 +41,7 @@ import {
 } from './stages';
 import type { FigureModel } from '../dom/figure';
 import type { Committed, ControlsState } from '../dom/interaction';
-import type { Composition, Store } from './composition';
+import { sameKey, type Composition, type Store } from './composition';
 import { sameTextStyle } from './environment';
 import { attachHooks, StageCounter, type ChartHandle, type Stage } from './instrument';
 import { COMPOSITIONS } from '../kinds';
@@ -309,6 +308,10 @@ function followsLatest(view: View, zoom: Span<XValue> | null): boolean {
 }
 
 /** What a destroyed controller holds instead of its host, so a handle kept by the page retains no DOM. */
+function joinedDiagnostics(a: readonly DiagnosticInput[], b: readonly DiagnosticInput[]): readonly DiagnosticInput[] {
+  return a.length === 0 ? b : b.length === 0 ? a : [...a, ...b];
+}
+
 function deadHost(from: Host): Host {
   const none = (): null => null;
   const empty = { width: 0, height: 0 };
@@ -332,6 +335,8 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
 /** The controller for one chart kind: every stage that differs between kinds comes from its composition. */
 export function controllerFor(composition: Composition, input: unknown, page: Host): Controller {
   const kind = composition.kind;
+  const layoutStage = composition.layout;
+  const buildView = composition.view;
   const resolveOptions = composition.resolve ?? resolveFields;
   let host = page;
   // Instrumentation (core/instrument.ts): only in development and benchmark builds; the guard folds to false in
@@ -430,8 +435,9 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     return [...seen.values()];
   }
 
-  function stateDiagnostics(a: Accepted): readonly DiagnosticInput[] {
-    const o = a.optionDiagnostics, d = a.dataDiagnostics, v = a.viewDiagnostics, n = a.naming;
+  function stateDiagnostics(a: Accepted, pending: typeof held = null): readonly DiagnosticInput[] {
+    const o = a.optionDiagnostics, d = pending?.dataDiagnostics ?? a.dataDiagnostics;
+    const v = pending?.viewDiagnostics ?? a.viewDiagnostics, n = a.naming;
     const total = o.length + d.length + v.length + n.length;
     if (total === 0) return EMPTY_DIAGNOSTICS;
     if (o.length === total) return o;
@@ -441,19 +447,14 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     return [...o, ...d, ...v, ...n];
   }
 
-  function currentDiagnostics(): Diagnostic[] {
-    // Before anything was accepted (a create that failed): what the failure raised (finding 14).
-    if (!accepted) {
-      const pres = presentationList();
-      return pres.length === 0 ? [] : toPublic(pres, chartName(options.current));
-    }
-    // While paused, `diagnostics` describes everything accepted, the held rows included (finding 6).
-    const a = held ? { ...accepted, dataDiagnostics: held.dataDiagnostics, viewDiagnostics: held.viewDiagnostics } : accepted;
-    const sd = stateDiagnostics(a);
-    const pl = presentationList();
-    if (sd.length === 0 && pl.length === 0) return [];
-    const combined = sd.length === 0 ? pl : pl.length === 0 ? sd : [...sd, ...pl];
-    return toPublic(combined, accepted.name);
+  function diagnosticInputs(): readonly DiagnosticInput[] {
+    const pres = presentationList();
+    const a = accepted;
+    return a ? joinedDiagnostics(stateDiagnostics(a, held), pres) : pres;
+  }
+
+  function publicDiagnostics(inputs: readonly DiagnosticInput[]): Diagnostic[] {
+    return inputs.length ? toPublic(inputs, accepted?.name ?? chartName(options.current)) : [];
   }
 
   /** Replaces what a presentation stage found; outside a frame the change is delivered at once. */
@@ -518,28 +519,17 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
    */
   function deliverChanges(): void {
     if (destroyed) return;
-    const pres = presentationList();
-    if (!accepted) {
-      if (pres.length === 0) {
-        deliveredKeys?.clear();
-        return;
-      }
-    } else if (!held && stateDiagnostics(accepted).length === 0 && pres.length === 0) {
+    const inputs = diagnosticInputs();
+    if (!inputs.length) {
       deliveredKeys?.clear();
       return;
     }
-    const now = currentDiagnostics();
-    if (now.length === 0) {
-      deliveredKeys?.clear();
-      return;
-    }
+    const now = publicDiagnostics(inputs);
     if (deliveredKeys && deliveredKeys.size > 0) {
       const keys = new Set(now.map(diagnosticKey));
       for (const k of [...deliveredKeys]) if (!keys.has(k)) deliveredKeys.delete(k);
     }
-    const fresh = deliveredKeys && deliveredKeys.size > 0
-      ? now.filter(d => !deliveredKeys!.has(diagnosticKey(d)))
-      : now;
+    const fresh = undelivered(now);
     if (!fresh.length) return;
     const delivered = deliveredKeys ??= new Set();
     for (const d of fresh) delivered.add(diagnosticKey(d));
@@ -549,11 +539,11 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
 
   /** A rejected or ignored call's findings: printed and given to `onDiagnostic`, never part of `diagnostics`. */
   function deliverRejected(found: readonly DiagnosticInput[], name: string, handler: unknown): void {
-    const publicList = toPublic(found, name);
-    const list = deliveredKeys && deliveredKeys.size > 0
-      ? publicList.filter(d => !deliveredKeys!.has(diagnosticKey(d)))
-      : publicList;
-    notifyDiagnostics(list, handler);
+    notifyDiagnostics(undelivered(toPublic(found, name)), handler);
+  }
+
+  function undelivered(list: Diagnostic[]): Diagnostic[] {
+    return deliveredKeys?.size ? list.filter(d => !deliveredKeys!.has(diagnosticKey(d))) : list;
   }
 
   function notifyDiagnostics(list: readonly Diagnostic[], handler: unknown): void {
@@ -599,7 +589,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     stage('view');
     let sink = new DiagnosticCollector();
     let state = viewStateFor(kind, c.options, c.resolved, zoom, previous?.view ?? null, c.hidden, c.messages);
-    let view = composition.view(c.frame, state, sink);
+    let view = buildView(c.frame, state, sink);
     // A window is read against the domain that is drawn: when the layout drew this data on a wider automatic
     // domain (a narrow scatter's coarser one, F7), that domain is the full range a window may take, for
     // zoom() and for the gestures reading `xFull` (re-check, R8).
@@ -610,7 +600,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       const full = view.xFull;
       sink = new DiagnosticCollector();
       state = { ...state as Exclude<typeof state, { kind: 'donut' }>, xDomain: [Math.min(wide.drawn[0], full[0]), Math.max(wide.drawn[1], full[1])] };
-      view = composition.view(c.frame, state, sink);
+      view = buildView(c.frame, state, sink);
     }
     // A wall-clock window on a wall-clock axis is what the axis reads: the column's own AX112 already says
     // the values have no offset, and the window is not news (documentation finding 2).
@@ -857,6 +847,12 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     return { candidate, commit: again.commit };
   }
 
+  function commitRetained(prepared: PreparedFrame<Frame>): void {
+    prepared.commit();
+    (storeFrames ??= new WeakSet()).add(prepared.frame);
+    frameRevision = Math.max(frameRevision, prepared.frame.revision);
+  }
+
   function append(rows: unknown, appendOptions?: { keep?: number }): void {
     guarded(call => {
       const previous = accepted;
@@ -876,21 +872,20 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       ends(prepared.frame, store.frame, rows.length);
       // While paused the view does not move (spec I6), but the rows are validated now, with the window shown.
       const base = held ? { ...previous, frame: held.frame } : previous;
-      let zoom = previous.zoom;
-      if (!paused && previous.follow && zoom) zoom = followLatest(prepared.frame, previous.view) ?? zoom;
+      const zoom = paused ? previous.zoom : followingZoom(previous, prepared.frame);
+      const nextOptions = streamOptions(previous.options);
+      const resolved = withoutTable(previous.resolved);
+      const source = withoutTable(previous.source);
       let c: Candidate = {
         // Once the stream has its store the caller's opening data is no longer read: options and source keep no
         // reference to it, so it can be collected once no displayed frame needs it (data agent's report).
-        ...previous, options: streamOptions(previous.options), resolved: withoutTable(previous.resolved),
-        source: withoutTable(previous.source), store, frame: prepared.frame, dataDiagnostics: prepared.diagnostics, zoom,
+        ...previous, options: nextOptions, resolved, source, store, frame: prepared.frame, dataDiagnostics: prepared.diagnostics, zoom,
       };
       let commitAppend: (() => void) | null = prepared.commit;
-      if (!paused && previous.dataOptions.some(d => d.code === 'AX101') && previous.options.strict !== true) {
+      if (!paused && canRecoverFields(previous)) {
         // A field the earlier data did not have: once the retained rows have it, the frame is read again with
         // the fields as given and AX101 goes (review 3, finding 8).
-        prepared.commit();
-        (storeFrames ??= new WeakSet()).add(prepared.frame);
-        frameRevision = Math.max(frameRevision, prepared.frame.revision);
+        commitRetained(prepared);
         commitAppend = null;
         const repaired = recoverFields(previous, store, c, prepared.frame);
         if (repaired) {
@@ -901,20 +896,13 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       const viewed = viewFor(c, base);
       if (destroyed) return;
       if (previous.options.strict === true) {
-        const found = prepared.callDiagnostics.length === 0 ? viewed.found
-          : viewed.found.length === 0 ? prepared.callDiagnostics
-          : [...prepared.callDiagnostics, ...viewed.found];
+        const found = joinedDiagnostics(prepared.callDiagnostics, viewed.found);
         rejectIfStrict(true, found, previous.name, previous.options.onDiagnostic);
       }
       if (paused) {
-        prepared.commit();
-        (storeFrames ??= new WeakSet()).add(prepared.frame);
-        frameRevision = Math.max(frameRevision, prepared.frame.revision);
+        commitRetained(prepared);
         // The store is the accepted state's now; rows no displayed or pending frame needs go (finding 4).
-        accepted = {
-          ...previous, store, options: streamOptions(previous.options),
-          resolved: withoutTable(previous.resolved), source: withoutTable(previous.source),
-        };
+        accepted = { ...previous, options: nextOptions, resolved, source, store };
         options.commit(accepted.options);
         release();
         // The held state: complete findings for the data accepted so far, kept apart from what is drawn, so a
@@ -942,7 +930,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   function displayedTable(frame: Frame, store: Store | null): Table {
     const own = frozenRows?.get(frame);
     if (!own && !storeFrames?.has(frame) && isTable(frame.source)) return frame.source;
-    const rows = own ?? freeze(frame).rows;
+    const rows = own ?? freeze(frame);
     const indexes = [...rows.keys()].sort((p, q) => p - q);
     const columns = store ? columnRows?.get(store) ?? 0 : 0;
     // Positions read the rows in order; provenance and events read them by their own source index.
@@ -958,13 +946,13 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
    * field can make points; verification, defect 4). The window is the retained rows from the lowest one a
    * slot refers to up to the end of the revision, and the retained rows just below it.
    */
-  function freeze(frame: Frame): { frame: Frame; rows: Map<number, unknown> } {
+  function freeze(frame: Frame): Map<number, unknown> {
     const rows = new Map<number, unknown>();
     // The store knows which source rows a revision still addresses: read exactly those (re-check, C4 and R7).
     const retained = (onScreenStore(frame) as { retainedRows?(frame: Frame): ArrayLike<number> | null } | null)?.retainedRows?.(frame);
     if (retained) {
       for (let i = 0; i < retained.length; i++) rows.set(retained[i]!, frame.source.rowAt(retained[i]!));
-      return { frame, rows };
+      return rows;
     }
     let lowest = Infinity;
     const keep = (row: number) => {
@@ -999,7 +987,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         rows.set(i, row);
       }
     }
-    return { frame, rows };
+    return rows;
   }
 
   /** The store a frame's rows live in: the accepted chart's, when the frame came from it. */
@@ -1020,6 +1008,14 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
 
   /** Candidate for a call that changes only the view (zoom, legend, resume): same options, same data. */
   /** The accepted state with the held frame in it, when Resume was asked for but did not complete. */
+  function followingZoom(a: Accepted, frame: Frame): Span<XValue> | null {
+    return a.follow && a.zoom ? followLatest(frame, a.view) ?? a.zoom : a.zoom;
+  }
+
+  function canRecoverFields(a: Accepted): boolean {
+    return a.options.strict !== true && a.dataOptions.some(d => d.code === 'AX101');
+  }
+
   function resumable(a: Accepted): Accepted {
     return !paused && held ? { ...a, frame: held.frame, dataDiagnostics: held.dataDiagnostics } : a;
   }
@@ -1092,12 +1088,11 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       guarded(() => {
         const previous = accepted;
         if (!previous) return;
-        let zoomed = previous.zoom;
-        if (previous.follow && zoomed) zoomed = followLatest(frame.frame, previous.view) ?? zoomed;
+        const zoomed = followingZoom(previous, frame.frame);
         let c = viewCandidate(previous, { frame: frame.frame, dataDiagnostics: frame.dataDiagnostics, zoom: zoomed });
         let commit: (() => void) | null = null;
         const store = previous.store;
-        if (store && previous.dataOptions.some(d => d.code === 'AX101') && previous.options.strict !== true) {
+        if (store && canRecoverFields(previous)) {
           // A field the earlier data did not have, which the held arrivals bring: the frame is read again with
           // the fields as given, and AX101 goes, as for a running append (final review, finding 6).
           const repaired = recoverFields(previous, store, c, store.frame);
@@ -1172,12 +1167,13 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   function schedule(): void {
     if (destroyed || frameScheduled) return;
     frameScheduled = true;
-    frameRequest = host.requestFrame(time => {
-      frameRequest = 0;
-      frameScheduled = false;
-      void time;
-      flush();
-    });
+    frameRequest = host.requestFrame(runScheduledFrame);
+  }
+
+  function runScheduledFrame(): void {
+    frameRequest = 0;
+    frameScheduled = false;
+    flush();
   }
 
   function scheduleMicrotask(): void {
@@ -1321,11 +1317,15 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     return !destroyed && accepted === a;
   }
 
-  function beginFrame(): FrameRun | null {
+  function cancelScheduledFrame(): void {
     microtaskToken++;
     if (frameRequest !== 0) host.cancelFrame(frameRequest);
     frameRequest = 0;
     frameScheduled = false;
+  }
+
+  function beginFrame(): FrameRun | null {
+    cancelScheduledFrame();
     const a = accepted;
     if (destroyed || !a) return null;
     inFrame = true;
@@ -1341,18 +1341,24 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       inflight = null;
       if (!destroyed) release();
     };
-    const guard = (step: () => void): void => {
-      if (closed) return;
-      if (destroyed) { close(); return; }
-      try {
-        step();
-      } catch (error) {
-        // A frame that a newer call superseded, or a destroyed chart, does not publish an error state: the newer
-        // state is drawn by the next frame (final review, finding 1).
-        if (error !== ABORT && !destroyed && accepted === a) failSafe(a, error);
-        close();
-      }
-    };
+    function phase(step: () => void): () => void;
+    function phase(step: () => boolean, stopped: false): () => boolean;
+    function phase(step: () => void | boolean, stopped?: false) {
+      return () => {
+        if (!closed) {
+          if (!destroyed) {
+            try {
+              return step();
+            } catch (error) {
+              // A superseded frame leaves error handling to the revision that will be drawn.
+              if (error !== ABORT && current(a!)) failSafe(a!, error);
+            }
+          }
+          close();
+        }
+        return stopped;
+      };
+    }
 
     /**
      * Every host mutation of this frame comes from `a`. Author code (formatters, the lazy summary) runs
@@ -1421,7 +1427,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         if (stateDiag.length === 0 && pres.length === 0) {
           discCache = EMPTY_DISCLOSURE;
         } else {
-          discCache = readerDisclosure(stateDiag.length === 0 ? pres : pres.length === 0 ? stateDiag : [...stateDiag, ...pres]);
+          discCache = readerDisclosure(joinedDiagnostics(stateDiag, pres));
         }
       }
       return discCache;
@@ -1528,6 +1534,13 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       // Decision 0004 revision 3, rule 5, for the interaction layer: 'floating', 'strip' or 'none'.
       readoutMode: readoutKind,
     });
+    const settleFigureReader = (hidden: number): void => {
+      ({ reader, inputs: readerInputs } = settleReader(hidden));
+    };
+    const reservedStrip = (at: Size): number =>
+      readoutMode && at.room ? Math.max(0, at.room.height - at.height) : 0;
+    const canDecideReadout = (at: Size | null): at is Size =>
+      at !== null && at.width > 0 && shown.kind === 'ready' && !compact && !tooSmall;
     const figureInputs = (small: boolean) => [reader, small, ...settlementKey(currentHidden, disclosureNow())];
     const arrange = (small: boolean): boolean => {
       const inputs = figureInputs(small);
@@ -1546,196 +1559,296 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       if (!compact && (at.width <= 0 || at.height <= 0)) {
         return { layout: { kind: 'too-small', width: Math.max(0, at.width), height: Math.max(0, at.height) }, key: ['too-small', at.width, at.height] };
       }
-      const key = [...layoutKey(view, at, style, fontEpoch, axisContext), strip];
+      const key = [...layoutStage.layoutKey(view, at, style, fontEpoch, axisContext), strip];
       if (drawn && drawn.layoutKey && sameKey(drawn.layoutKey, key) && drawn.layout.kind !== 'unmeasured') return { layout: drawn.layout, key: drawn.layoutKey };
       if (lastLayout && sameKey(lastLayout.key, key)) return lastLayout;
       stage('layout');
-      const input = layoutInput(view, at, { measurer: host.measurer, style }, axisContext);
-      const computed = { layout: computeLayout(input), key };
+      const computed = { layout: layoutStage.compute(view, at, { measurer: host.measurer, style }, axisContext), key };
       lastLayout = computed;
       return computed;
     };
 
+    const publish = phase(() => {
+      if (result !== null) {
+        layout = result.layout;
+        lKey = result.key;
+        if (view.kind === 'scatter' && a.zoom === null) {
+          const x = layout.kind === 'plot' && layout.projection.kind === 'xy' ? layout.projection.x : null;
+          widenedX = x && x.type !== 'band' && !sameKey(x.domain, view.xFull) ? { epoch: view.frame.epoch, drawn: x.domain } : null;
+        }
+        if (destroyed) throw ABORT;
+      }
+
+      // Findings that follow from the layout shown, recomputed every frame (cheap): L8, L1, the bar hint.
+      let fit: DiagnosticInput[] | null = null;
+      if (tooSmall || layout.kind === 'too-small') (fit ??= []).push(createDiagnostic('AX142', 'none', {}, 'presentation'));
+      const hidden = hiddenIn(layout);
+      if (hidden > 0) {
+        // The registry suggests horizontal bars only for vertical bars on category labels.
+        const xKind = view.kind === 'donut' ? undefined : view.kind === 'scatter' ? view.frame.xKind : view.frame.x.kind;
+        (fit ??= []).push(createDiagnostic('AX143', 'none', {
+          field: a.resolved.x.field, count: hidden, chartType: view.kind, xKind, horizontal: view.kind === 'bar' ? view.horizontal : undefined,
+        }, 'presentation'));
+      }
+      if (view.kind === 'bar' && layout.kind === 'plot') {
+        const along = view.horizontal ? layout.plot.height : layout.plot.width;
+        const bars = view.visibleSlots.end - view.visibleSlots.start;
+        if (bars > along) (fit ??= []).push(createDiagnostic('AX132', 'none', { field: a.resolved.x.field }, 'presentation'));
+      }
+      setPresentation('fit', fit ?? EMPTY_DIAGNOSTICS);
+      // A tick label in the default format is not a value shown differently (F12): its AX160 has no effect on
+      // the figure, so the note it would add cannot take room from the ticks and bring the label back (closing
+      // pass, item 2).
+      const failed = shown.kind === 'ready' && !compact ? layoutStage.tickFormatFailures?.(view, axisContext, layout) : undefined;
+      setPresentation('layout', failed?.length
+        ? failed.map(field => createDiagnostic('AX160', 'none', { field }, 'presentation')) : EMPTY_DIAGNOSTICS);
+      const measured = layout.kind !== 'unmeasured' || (shown.kind !== 'ready' && size !== null && size.width > 0 && size.height > 0);
+      settleFigureReader(hidden);
+      if (destroyed) throw ABORT;
+
+      // Scene.
+      const sceneInputs = [view, layout, pixelRatio];
+      let scene: Scene;
+      if (drawn && sameKey(drawn.sceneInputs, sceneInputs)) scene = drawn.scene;
+      else {
+        stage('scene');
+        scene = composition.scene(view, layout, pixelRatio);
+      }
+
+      // Lookup reads the frame through the view; it switches with the marks.
+      // Scatter ties are decided within half a device pixel: the ratio is part of what the lookup depends on.
+      // Compact charts have no interaction, so skip building a lookup until promoted to full.
+      const lookupInputs = [compact, view, layout, formatters, a.messages, locale, view.kind === 'scatter' ? pixelRatio : 1];
+      let lookup = drawn?.lookup;
+      if (compact) {
+        lookup = EMPTY_LOOKUP;
+      } else if (!lookup || lookup === EMPTY_LOOKUP || !drawn || !sameKey(drawn.lookupInputs, lookupInputs)) {
+        stage('lookup');
+        lookup = composition.lookup(view, layout, formatters, a.messages, locale, pixelRatio);
+      }
+
+      // Marks: drawn again for a new scene, a new theme or a new pixel ratio, never rebuilt for a theme alone.
+      // A frame that cannot draw (no size) clears what an earlier frame drew, so no marks outlive their rows.
+      mutate();
+      if (surfacesHidden) {
+        host.surfaces?.(true);
+        surfacesHidden = false;
+      }
+      const paintInputs = measured ? [scene, themeRevision, pixelRatio] : [];
+      // Nothing drawn yet and nothing to draw: no call at all (a hidden container stays untouched, L3).
+      const drewBefore = drawn !== null && drawn.paintInputs.length > 0;
+      if (measured ? !drawn || !sameKey(drawn.paintInputs, paintInputs) : drewBefore || (drawn === null && hadMarks)) {
+        stage('draw');
+        host.renderer.draw(measured ? scene : emptyScene(), theme!.bindings, theme!.theme, pixelRatio);
+        hadMarks = measured;
+      }
+      if (drawn?.layout !== layout) {
+        stage('text');
+        host.text.render(layout.kind === 'plot' ? layout.texts : []);
+      }
+
+      if (!sameKey(arranged, figureInputs(tooSmall))) {
+        stage('figure');
+        host.figure.update(modelFor(reader, tooSmall));
+      }
+
+      // A change of state is said once, politely (spec L7). The first state is not announced: it is what
+      // the page shows on load, and 24 charts saying "Loading" at once is noise.
+      if (announced !== null && announced !== shown.kind) {
+        host.figure.announce(shown.kind === 'ready' ? readyText(a, reader, byText) : shown.text,
+          shown.kind !== 'ready' && shown.message ? english(shown.message) : null);
+      }
+      if (measured || announced !== null) announced = shown.kind;
+
+      drawn = {
+        accepted: a, formatters, formattersKey: fKey, layout, layoutKey: lKey, scene, sceneInputs,
+        lookup, lookupInputs, reader, readerInputs, paintInputs,
+      };
+      const committed: Committed = {
+        ...controlsFor(reader, tooSmall), layout, lookup, bindings: theme!.bindings, theme: theme!.theme, pixelRatio,
+      };
+      if (__DEV__ && compact) {
+        // Dev/test hosts (acceptance tests) may inspect committed.lookup on compact charts; materialize
+        // lazily on first access while keeping browser compact charts completely free of lookup allocations.
+        let materialized: Lookup | null = null;
+        Object.defineProperty(committed, 'lookup', {
+          enumerable: true,
+          configurable: true,
+          get() {
+            return materialized ??= composition.lookup(view, layout, formatters, a.messages, locale, pixelRatio);
+          },
+        });
+      }
+      host.interaction.commit(committed);
+      // The displayed snapshot is now this revision (or nothing, when nothing could be drawn): older rows go.
+      showing(measured ? a : null);
+      if (stages && measured) settle(a.revision);
+    });
+
     return {
       // Phase 1: Initial reads & pure CPU prep (zero DOM writes, zero probeColors).
-      phase1(): void {
-        guard(() => {
-          stage('frame');
-          shown = display(a);
-          noteShown = shown.kind === 'ready' || shown.kind === 'empty' || shown.kind === 'error';
-          if (compact) {
-            style = COMPACT_TEXT_STYLE;
-            // Compact charts do not mount the text layer; keep dirty so an upgrade to full reads the real text style.
-            textStyleDirty = true;
-          } else {
-            if (textStyleDirty) {
-              const next = host.textStyle();
-              if (!sameTextStyle(textStyle, next)) textStyle = next;
-              textStyleDirty = false;
-            }
-            style = textStyle!;
+      phase1: phase(() => {
+        stage('frame');
+        shown = display(a);
+        noteShown = shown.kind === 'ready' || shown.kind === 'empty' || shown.kind === 'error';
+        if (compact) {
+          style = COMPACT_TEXT_STYLE;
+          // Compact charts do not mount the text layer; keep dirty so an upgrade to full reads the real text style.
+          textStyleDirty = true;
+        } else {
+          if (textStyleDirty) {
+            const next = host.textStyle();
+            if (!sameTextStyle(textStyle, next)) textStyle = next;
+            textStyleDirty = false;
           }
-          locale = host.locale(a.options.locale);
-          lang = host.pageLang();
+          style = textStyle!;
+        }
+        locale = host.locale(a.options.locale);
+        lang = host.pageLang();
 
-          // Formatters. What a formatter threw on belongs to the formatters and the revision it formatted.
-          const spec = formatSpec(a, locale);
-          fKey = formattersKey(spec, a.resolved.values.length);
-          let f = drawn?.formatters;
-          if (!f || !drawn || !sameKey(drawn.formattersKey, fKey)) {
-            stage('formatters');
-            // The bucket belongs to the formatters: emptied before they are built, so what their construction
-            // reports (an invalid Intl option) stays, and kept while they stay, as their fallback goes on (finding 13).
-            setPresentation('format', EMPTY_DIAGNOSTICS);
-            f = createFormatters(spec, { locale, get timeZone() { return environment.timeZone; } });
-          }
-          formatters = f;
+        // Formatters. What a formatter threw on belongs to the formatters and the revision it formatted.
+        const spec = formatSpec(a, locale);
+        fKey = formattersKey(spec, a.resolved.values.length);
+        let f = drawn?.formatters;
+        if (!drawn || !sameKey(drawn.formattersKey, fKey)) {
+          stage('formatters');
+          // The bucket belongs to the formatters: emptied before they are built, so what their construction
+          // reports (an invalid Intl option) stays, and kept while they stay, as their fallback goes on (finding 13).
+          setPresentation('format', EMPTY_DIAGNOSTICS);
+          f = createFormattersWith(spec, { locale, get timeZone() { return environment.timeZone; } }, composition.timeReadout);
+        }
+        formatters = f!;
 
-          // Naming (spec A1): a labelledBy that names nothing falls back to the title or a generated name.
-          by = stringOption(a.options, 'labelledBy');
-          byText = by ? host.labelText(by) : null;
-          named = by !== null && byText !== null;
-          title = titleOf(a.options);
-          setPresentation('naming', by !== null && !named && title === null
-            ? [createDiagnostic('AX140', 'none', { detail: `No element has the id "${by}".` }, 'presentation')] : EMPTY_DIAGNOSTICS);
-          caption = named ? byText!.trim() || undefined : undefined;
+        // Naming (spec A1): a labelledBy that names nothing falls back to the title or a generated name.
+        by = stringOption(a.options, 'labelledBy');
+        byText = by ? host.labelText(by) : null;
+        named = by !== null && byText !== null;
+        title = titleOf(a.options);
+        setPresentation('naming', by !== null && !named && title === null
+          ? [createDiagnostic('AX140', 'none', { detail: `No element has the id "${by}".` }, 'presentation')] : EMPTY_DIAGNOSTICS);
+        caption = named ? byText!.trim() || undefined : undefined;
 
-          english = englishFor(a, lang);
-          foreignPage = lang !== null && !/^en(?:-|$)/i.test(lang);
+        english = englishFor(a, lang);
+        foreignPage = lang !== null && !/^en(?:-|$)/i.test(lang);
 
-          // Tick labels are made now, before anything is written: an author tick formatter runs here, never during
-          // publication (final review, finding 1), and what it reported belongs to every layout made from them,
-          // cached ones included (finding 11).
-          axisContext = {
-            resolved: a.resolved, locale, compact,
-            xLabelGiven: typeof object(a.options.x).label === 'string',
-            valueTitle: a.messages.value,
-          };
-          if (shown.kind === 'ready' && !compact) prepareTicks(view, axisContext);
-          // A formatter that changed the chart made findings about a revision that is not drawn (defect 3); what
-          // the formatters threw on is reported with the layout, from the ticks it draws (re-check, R12).
-          if (!current(a)) throw ABORT;
+        // Tick labels are made now, before anything is written: an author tick formatter runs here, never during
+        // publication (final review, finding 1), and what it reported belongs to every layout made from them,
+        // cached ones included (finding 11).
+        axisContext = {
+          resolved: a.resolved, locale, compact,
+          xLabelGiven: typeof object(a.options.x).label === 'string',
+          valueTitle: a.messages.value,
+        };
+        if (shown.kind === 'ready' && !compact) layoutStage.prepareTicks?.(view, axisContext);
+        // A formatter that changed the chart made findings about a revision that is not drawn (defect 3); what
+        // the formatters threw on is reported with the layout, from the ticks it draws (re-check, R12).
+        if (!current(a)) throw ABORT;
 
-          ({ reader, inputs: readerInputs } = settleReader(hiddenIn(drawn?.layout)));
-          // The lazy parts of the reader model run author formatters: materialized here, before anything is written.
-          void reader.summary;
-          void reader.note;
-          if (!current(a)) throw ABORT;
+        settleFigureReader(hiddenIn(drawn?.layout));
+        // The lazy parts of the reader model run author formatters: materialized here, before anything is written.
+        void reader.summary;
+        void reader.note;
+        if (!current(a)) throw ABORT;
 
-          // Theme check: read-only preparation when the host supports phased theme resolution.
-          keys = themeKeys(view);
-          nextThemeKey = [keys.join('\u0000'), a.options.colors];
-          needsTheme = themeDirty || !theme || !sameKey(themeKey, nextThemeKey);
-          if (needsTheme && host.themePrepare) {
-            preparedTheme = host.themePrepare(keys, object(a.options.colors) as Record<string, string>);
-          }
+        // Theme check: read-only preparation when the host supports phased theme resolution.
+        keys = themeKeys(view);
+        nextThemeKey = [keys.join('\u0000'), a.options.colors];
+        needsTheme = themeDirty || !theme || !sameKey(themeKey, nextThemeKey);
+        if (needsTheme && host.themePrepare) {
+          preparedTheme = host.themePrepare(keys, object(a.options.colors) as Record<string, string>);
+        }
 
-          // The fallback is only for a plot; a state message is shown in whatever room there is.
-          if (shown.kind !== 'ready' || compact) fallback = null;
-          tooSmall = fallback !== null;
-        });
-      },
+        // The fallback is only for a plot; a state message is shown in whatever room there is.
+        if (shown.kind !== 'ready' || compact) fallback = null;
+        tooSmall = fallback !== null;
+      }),
 
       // Phase 2: Theme writes + initial arrange.
-      phase2(): void {
-        guard(() => {
-          if (needsTheme) {
-            mutate();
-            if (preparedTheme !== null && host.themeApply) {
-              stage('theme');
-              host.themeApply(preparedTheme);
-            } else {
-              resolveTheme(keys, a.options.colors, nextThemeKey);
-            }
+      phase2: phase(() => {
+        if (needsTheme) {
+          mutate();
+          if (preparedTheme !== null && host.themeApply) {
+            stage('theme');
+            host.themeApply(preparedTheme);
+          } else {
+            resolveTheme(keys, a.options.colors, nextThemeKey);
           }
-          needMeasure = arrange(tooSmall) || sizeDirty || size === null;
-        });
-      },
+        }
+        needMeasure = arrange(tooSmall) || sizeDirty || size === null;
+      }),
 
       // Phase 3a (part 1): Verify standard theme declarations after Phase 2 writes (reads only).
-      phase3Theme(): void {
-        guard(() => {
-          if (needsTheme && preparedTheme !== null && host.themeFinish) {
-            const res = host.themeFinish(preparedTheme, true);
-            if (res !== null) applyThemeResolution(res, keys, nextThemeKey);
-            else needsThemeProbe = true;
-          }
-        });
-      },
+      phase3Theme: phase(() => {
+        if (needsTheme && preparedTheme !== null && host.themeFinish) {
+          const res = host.themeFinish(preparedTheme, true);
+          if (res !== null) applyThemeResolution(res, keys, nextThemeKey);
+          else needsThemeProbe = true;
+        }
+      }),
 
       // Phase 3a (part 2): Batched plot measure across all pending charts (reads only).
-      phase3Measure(): void {
-        guard(() => {
-          if (needMeasure) {
-            size = host.measure();
-            sizeDirty = false;
-          }
-        });
-      },
+      phase3Measure: phase(() => {
+        if (needMeasure) {
+          size = host.measure();
+          sizeDirty = false;
+        }
+      }),
 
       // Phase 3a (part 3): Non-standard theme probes (only when a chart uses custom CSS tokens/colors).
-      phase3Probe(): void {
-        guard(() => {
-          if (needsThemeProbe && preparedTheme !== null && host.themeProbe) {
-            applyThemeResolution(host.themeProbe(preparedTheme), keys, nextThemeKey);
-            needsThemeProbe = false;
-          }
-        });
-      },
+      phase3Probe: phase(() => {
+        if (needsThemeProbe && preparedTheme !== null && host.themeProbe) {
+          applyThemeResolution(host.themeProbe(preparedTheme), keys, nextThemeKey);
+          needsThemeProbe = false;
+        }
+      }),
 
       // Phase 3b (part 1): Pure layout check; returns true if this chart needs a strip-height probe.
-      phase3LayoutCheck(): boolean {
+      phase3LayoutCheck: phase(() => {
         needsStripProbe = false;
-        guard(() => {
-          // Readout mode, decided by layout (rule 5): the plot's rectangle as it is without the strip, laid out in
-          // the plot's whole column, is narrower than 240 or shorter than 140 CSS px. The strip is then reserved and
-          // the plot measured again; the decision does not depend on the strip, so it cannot flip with it. Held
-          // while the plot is too small (L8): that state has no strip.
-          withoutLayout = null;
-          withoutStrip = null;
-          needsReadoutCheck = false;
-          stripAction = null;
-          if (size !== null && size.width > 0 && shown.kind === 'ready' && !compact && !tooSmall) {
-            const room = size.room ?? size;
-            const without = plotLayout({ width: room.width, height: room.height }).layout;
-            withoutLayout = without;
-            withoutStrip = without.kind;
-            if (a.options.tooltip !== false && without.kind === 'plot' &&
-                (without.plot.width < READOUT_WIDTH || without.plot.height < READOUT_HEIGHT)) {
-              needsReadoutCheck = true;
-              // Measure the strip only when it might use space, and re-measure on style or fontEpoch changes.
-              if (stripStyle !== style || stripFontEpoch !== fontEpoch) {
-                needsStripProbe = true;
-              }
+        // Readout mode, decided by layout (rule 5): the plot's rectangle as it is without the strip, laid out in
+        // the plot's whole column, is narrower than 240 or shorter than 140 CSS px. The strip is then reserved and
+        // the plot measured again; the decision does not depend on the strip, so it cannot flip with it. Held
+        // while the plot is too small (L8): that state has no strip.
+        withoutLayout = null;
+        withoutStrip = null;
+        needsReadoutCheck = false;
+        stripAction = null;
+        if (canDecideReadout(size)) {
+          const room = size.room ?? size;
+          const without = plotLayout({ width: room.width, height: room.height }).layout;
+          withoutLayout = without;
+          withoutStrip = without.kind;
+          if (a.options.tooltip !== false && without.kind === 'plot' &&
+              (without.plot.width < READOUT_WIDTH || without.plot.height < READOUT_HEIGHT)) {
+            needsReadoutCheck = true;
+            // Measure the strip only when it might use space, and re-measure on style or fontEpoch changes.
+            if (stripStyle !== style || stripFontEpoch !== fontEpoch) {
+              needsStripProbe = true;
             }
           }
-        });
+        }
         return needsStripProbe;
-      },
+      }, false),
 
       // Phase 3b (part 2A): Mount hidden strip-height probe div (write pass, batched across charts).
-      phase3StripMount(): void {
-        guard(() => {
-          if (needsStripProbe && host.stripProbeMount) {
-            stripProbe = host.stripProbeMount();
-          }
-        });
-      },
+      phase3StripMount: phase(() => {
+        if (needsStripProbe && host.stripProbeMount) {
+          stripProbe = host.stripProbeMount();
+        }
+      }),
 
       // Phase 3b (part 2B): Read strip-height computed style (read pass, 1 layout across all charts).
-      phase3StripRead(): void {
-        guard(() => {
-          if (!needsStripProbe) return;
-          stripStyle = style;
-          stripFontEpoch = fontEpoch;
-          const measured = stripProbe !== null && host.stripProbeRead
-            ? host.stripProbeRead(stripProbe)
-            : host.stripHeight?.();
-          stripHeight = measured !== undefined && Number.isFinite(measured) && measured > 0
-            ? measured : 2 * Math.max(24, style.lineHeight);
-          needsStripProbe = false;
-        });
-      },
+      phase3StripRead: phase(() => {
+        if (!needsStripProbe) return;
+        stripStyle = style;
+        stripFontEpoch = fontEpoch;
+        const measured = stripProbe !== null && host.stripProbeRead
+          ? host.stripProbeRead(stripProbe)
+          : host.stripHeight?.();
+        stripHeight = measured !== undefined && Number.isFinite(measured) && measured > 0
+          ? measured : 2 * Math.max(24, style.lineHeight);
+        needsStripProbe = false;
+      }),
 
       // Phase 3b (part 2C): Remove hidden strip-height probe div unconditionally, even on error.
       phase3StripRemove(): void {
@@ -1747,278 +1860,144 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       },
 
       // Phase 3b (part 3): Pure readout mode decision using measured stripHeight.
-      phase3ReadoutDecide(): void {
-        guard(() => {
-          if (size !== null && size.width > 0 && shown.kind === 'ready' && !compact && !tooSmall) {
-            // Decision 0004 revision 3, rule 5: a plot that, laid out without a strip, is under 240 × 140 has the
-            // strip; if the strip would leave it under the L8 minimum of 80 px, there is no strip and no floating
-            // tooltip either ('none': pointing highlights the datum; its values are in the keyboard reading and the
-            // table). Never floating below the limit (final review, finding 9).
-            let next: ReadoutMode = 'floating';
-            if (needsReadoutCheck && withoutLayout && withoutLayout.kind === 'plot') {
-              if (readoutMode && size.room && size.room.height - size.height > 0) stripHeight = size.room.height - size.height;
-              next = withoutLayout.plot.height - stripHeight >= MIN_PLOT_HEIGHT ? 'strip' : 'none';
-            }
-            if (next !== readoutKind) {
-              readoutKind = next;
-              const wantStrip = next === 'strip';
-              if (wantStrip !== readoutMode) {
-                readoutMode = wantStrip;
-                stripAction = 'strip-arrange';
-              } else {
-                stripAction = 'prepare-only';
-              }
+      phase3ReadoutDecide: phase(() => {
+        if (canDecideReadout(size)) {
+          // Decision 0004 revision 3, rule 5: a plot that, laid out without a strip, is under 240 × 140 has the
+          // strip; if the strip would leave it under the L8 minimum of 80 px, there is no strip and no floating
+          // tooltip either ('none': pointing highlights the datum; its values are in the keyboard reading and the
+          // table). Never floating below the limit (final review, finding 9).
+          let next: ReadoutMode = 'floating';
+          if (needsReadoutCheck && withoutLayout?.kind === 'plot') {
+            if (readoutMode && size.room && size.room.height - size.height > 0) stripHeight = size.room.height - size.height;
+            next = withoutLayout.plot.height - stripHeight >= MIN_PLOT_HEIGHT ? 'strip' : 'none';
+          }
+          if (next !== readoutKind) {
+            readoutKind = next;
+            const wantStrip = next === 'strip';
+            if (wantStrip !== readoutMode) {
+              readoutMode = wantStrip;
+              stripAction = 'strip-arrange';
+            } else {
+              stripAction = 'prepare-only';
             }
           }
-        });
-      },
+        }
+      }),
 
       // Phase 4.0 (writes): Reserve/release readout strip or update floating/none controls.
-      phase4StripWrite(): void {
-        guard(() => {
-          if (stripAction === 'strip-arrange') {
-            // Reserving or giving back the strip always changes the plot: it is measured again.
-            arrange(tooSmall);
-          } else if (stripAction === 'prepare-only') {
-            // Readout switched between 'floating' and 'none' without reserving a strip: only the controls state changes.
-            mutate();
-            host.interaction.prepare(controlsFor(reader, tooSmall));
-          }
-        });
-      },
+      phase4StripWrite: phase(() => {
+        if (stripAction === 'strip-arrange') {
+          // Reserving or giving back the strip always changes the plot: it is measured again.
+          arrange(tooSmall);
+        } else if (stripAction === 'prepare-only') {
+          // Readout switched between 'floating' and 'none' without reserving a strip: only the controls state changes.
+          mutate();
+          host.interaction.prepare(controlsFor(reader, tooSmall));
+        }
+      }),
 
       // Phase 4.0 (reads): Batched re-measure after strip reservation.
-      phase4StripMeasure(): void {
-        guard(() => {
-          if (stripAction === 'strip-arrange') {
-            size = host.measure() ?? size;
-          }
-          stripAction = null;
-        });
-      },
+      phase4StripMeasure: phase(() => {
+        if (stripAction === 'strip-arrange') {
+          size = host.measure() ?? size;
+        }
+        stripAction = null;
+      }),
 
       // Phase 4.1 (init): Initial layout computation for L8 / hidden-label note convergence loop.
-      phase4Init(): void {
-        guard(() => {
-          result = null;
-          layoutDone = true;
-          passAction = null;
-          if (size === null || size.width <= 0) {
-            layout = { kind: 'unmeasured', width: size?.width ?? 0, height: size?.height ?? 0 };
-          } else if (shown.kind !== 'ready') {
-            const h = Math.max(0, size.height);
-            layout = { kind: 'unmeasured', width: size.width, height: h };
-            lKey = ['message', size.width, h];
-          } else {
-            /*
-             * Spec L8, decided on the room a normal plot gets, which the fallback cannot change: in the fallback
-             * the plot's size is read back as it would be without the fallback's own DOM (`fallback` is what that
-             * DOM adds, measured when it was entered). Within the frame the figure is settled first: a plot whose
-             * layout hides labels gets the note under it, and is measured again with it, so the size a mode is
-             * judged on is the size that mode really has. Each mode is then self-consistent, and stepping the
-             * container through the boundary switches once, at the same size in both directions.
-             */
-            const strip = readoutMode && size.room ? Math.max(0, size.room.height - size.height) : 0;
-            result = plotLayout(fallback ? { width: size.width - fallback.width, height: size.height - fallback.height } : size, strip);
-            layoutDone = false;
-          }
-        });
-      },
+      phase4Init: phase(() => {
+        result = null;
+        layoutDone = true;
+        passAction = null;
+        if (size === null || size.width <= 0) {
+          layout = { kind: 'unmeasured', width: size?.width ?? 0, height: size?.height ?? 0 };
+        } else if (shown.kind !== 'ready') {
+          const h = Math.max(0, size.height);
+          layout = { kind: 'unmeasured', width: size.width, height: h };
+          lKey = ['message', size.width, h];
+        } else {
+          /*
+           * Spec L8, decided on the room a normal plot gets, which the fallback cannot change: in the fallback
+           * the plot's size is read back as it would be without the fallback's own DOM (`fallback` is what that
+           * DOM adds, measured when it was entered). Within the frame the figure is settled first: a plot whose
+           * layout hides labels gets the note under it, and is measured again with it, so the size a mode is
+           * judged on is the size that mode really has. Each mode is then self-consistent, and stepping the
+           * container through the boundary switches once, at the same size in both directions.
+           */
+          const strip = reservedStrip(size);
+          result = plotLayout(fallback ? { width: size.width - fallback.width, height: size.height - fallback.height } : size, strip);
+          layoutDone = false;
+        }
+      }),
 
       // Phase 4.1 (per-pass writes): Drop strip, enter L8 fallback, or arrange hidden-label note.
-      phase4PassWrite(): boolean {
-        let moved = false;
-        guard(() => {
-          passAction = null;
-          if (layoutDone || result === null || size === null) return;
-          const small = result.layout.kind === 'too-small';
-          if (small && readoutMode && withoutStrip === 'plot') {
-            // Too small only because of the strip (its real height was more than expected): no strip and no
-            // tooltip, and the readable plot stays (rule 5). The measured height keeps the next frame there.
-            if (size.room) stripHeight = Math.max(stripHeight, size.room.height - size.height);
-            readoutMode = false;
-            readoutKind = 'none';
-            arrange(tooSmall);
-            passAction = 'drop-strip';
-            moved = true;
-            return;
-          }
-          if (small && !tooSmall) {
-            normalSize = size;
-            tooSmall = true;
-            ({ reader, inputs: readerInputs } = settleReader(0));
-            arrange(true);
-            passAction = 'enter-fallback';
-            moved = true;
-            return;
-          }
-          if (!small && tooSmall) {
-            tooSmall = false;
-            fallback = null;
-          }
-          if (tooSmall) {
-            layoutDone = true;
-            return;
-          }
-          // Normal: the note says what this layout hides; if that moves the figure, judge the new size.
-          ({ reader, inputs: readerInputs } = settleReader(hiddenIn(result.layout)));
-          if (!arrange(false)) {
-            layoutDone = true;
-            return;
-          }
-          passAction = 'note-moved';
-          moved = true;
-        });
-        return moved;
-      },
+      phase4PassWrite: phase(() => {
+        passAction = null;
+        if (layoutDone || result === null || size === null) return false;
+        const small = result.layout.kind === 'too-small';
+        if (small && readoutMode && withoutStrip === 'plot') {
+          // Too small only because of the strip (its real height was more than expected): no strip and no
+          // tooltip, and the readable plot stays (rule 5). The measured height keeps the next frame there.
+          if (size.room) stripHeight = Math.max(stripHeight, size.room.height - size.height);
+          readoutMode = false;
+          readoutKind = 'none';
+          arrange(tooSmall);
+          passAction = 'drop-strip';
+          return true;
+        }
+        if (small && !tooSmall) {
+          normalSize = size;
+          tooSmall = true;
+          settleFigureReader(0);
+          arrange(true);
+          passAction = 'enter-fallback';
+          return true;
+        }
+        if (!small && tooSmall) {
+          tooSmall = false;
+          fallback = null;
+        }
+        if (tooSmall) {
+          layoutDone = true;
+          return false;
+        }
+        // Normal: the note says what this layout hides; if that moves the figure, judge the new size.
+        settleFigureReader(hiddenIn(result.layout));
+        if (!arrange(false)) {
+          layoutDone = true;
+          return false;
+        }
+        passAction = 'note-moved';
+        return true;
+      }, false),
 
       // Phase 4.1 (per-pass reads): Batched re-measure after pass writes.
-      phase4PassMeasure(): void {
-        guard(() => {
-          const action = passAction;
-          passAction = null;
-          if (action === null || size === null) return;
-          if (action === 'drop-strip') {
-            size = host.measure() ?? size;
-            result = plotLayout(size);
-          } else if (action === 'enter-fallback') {
-            const normal = normalSize!;
-            size = host.measure() ?? normal;
-            fallback = { width: size.width - normal.width, height: size.height - normal.height };
+      phase4PassMeasure: phase(() => {
+        const action = passAction;
+        passAction = null;
+        if (action === null || size === null) return;
+        if (action === 'drop-strip') {
+          size = host.measure() ?? size;
+          result = plotLayout(size);
+        } else if (action === 'enter-fallback') {
+          const normal = normalSize!;
+          size = host.measure() ?? normal;
+          fallback = { width: size.width - normal.width, height: size.height - normal.height };
+          layoutDone = true;
+        } else if (action === 'note-moved') {
+          const now = host.measure();
+          if (now === null || (now.width === size.width && now.height === size.height)) {
             layoutDone = true;
-          } else if (action === 'note-moved') {
-            const now = host.measure();
-            if (now === null || (now.width === size.width && now.height === size.height)) {
-              layoutDone = true;
-            } else {
-              size = now;
-              result = plotLayout(size, readoutMode && size.room ? Math.max(0, size.room.height - size.height) : 0);
-            }
+          } else {
+            size = now;
+            result = plotLayout(size, reservedStrip(size));
           }
-        });
-      },
+        }
+      }),
 
       // Phase 5: Final diagnostics, scene, lookup, draw, text, figure, commit & close out frame.
-      phase5(): void {
-        guard(() => {
-          if (result !== null) {
-            layout = result.layout;
-            lKey = result.key;
-            if (view.kind === 'scatter' && a.zoom === null) {
-              const x = layout.kind === 'plot' && layout.projection.kind === 'xy' ? layout.projection.x : null;
-              widenedX = x && x.type !== 'band' && !sameKey(x.domain, view.xFull) ? { epoch: view.frame.epoch, drawn: x.domain } : null;
-            }
-            if (destroyed) throw ABORT;
-          }
-
-          // Findings that follow from the layout shown, recomputed every frame (cheap): L8, L1, the bar hint.
-          let fit: DiagnosticInput[] | null = null;
-          if (tooSmall || layout.kind === 'too-small') (fit ??= []).push(createDiagnostic('AX142', 'none', {}, 'presentation'));
-          const hidden = hiddenIn(layout);
-          if (hidden > 0) {
-            // The registry suggests horizontal bars only for vertical bars on category labels.
-            const xKind = view.kind === 'donut' ? undefined : view.kind === 'scatter' ? view.frame.xKind : view.frame.x.kind;
-            (fit ??= []).push(createDiagnostic('AX143', 'none', {
-              field: a.resolved.x.field, count: hidden, chartType: view.kind, xKind, horizontal: view.kind === 'bar' ? view.horizontal : undefined,
-            }, 'presentation'));
-          }
-          if (view.kind === 'bar' && layout.kind === 'plot') {
-            const along = view.horizontal ? layout.plot.height : layout.plot.width;
-            const bars = view.visibleSlots.end - view.visibleSlots.start;
-            if (bars > along) (fit ??= []).push(createDiagnostic('AX132', 'none', { field: a.resolved.x.field }, 'presentation'));
-          }
-          setPresentation('fit', fit ?? EMPTY_DIAGNOSTICS);
-          // A tick label in the default format is not a value shown differently (F12): its AX160 has no effect on
-          // the figure, so the note it would add cannot take room from the ticks and bring the label back (closing
-          // pass, item 2).
-          if (shown.kind === 'ready' && !compact) {
-            const failed = tickFormatFailures(view, axisContext, layout);
-            setPresentation('layout', failed.length
-              ? failed.map(field => createDiagnostic('AX160', 'none', { field }, 'presentation')) : EMPTY_DIAGNOSTICS);
-          } else {
-            setPresentation('layout', EMPTY_DIAGNOSTICS);
-          }
-          const measured = layout.kind !== 'unmeasured' || (shown.kind !== 'ready' && size !== null && size.width > 0 && size.height > 0);
-          ({ reader, inputs: readerInputs } = settleReader(hidden));
-          if (destroyed) throw ABORT;
-
-          // Scene.
-          const sceneInputs = [view, layout, pixelRatio];
-          let scene = drawn?.scene;
-          if (!scene || !drawn || !sameKey(drawn.sceneInputs, sceneInputs)) {
-            stage('scene');
-            scene = composition.scene(view, layout, pixelRatio);
-          }
-
-          // Lookup reads the frame through the view; it switches with the marks.
-          // Scatter ties are decided within half a device pixel: the ratio is part of what the lookup depends on.
-          // Compact charts have no interaction, so skip building a lookup until promoted to full.
-          const lookupInputs = [compact, view, layout, formatters, a.messages, locale, view.kind === 'scatter' ? pixelRatio : 1];
-          let lookup = drawn?.lookup;
-          if (compact) {
-            lookup = EMPTY_LOOKUP;
-          } else if (!lookup || lookup === EMPTY_LOOKUP || !drawn || !sameKey(drawn.lookupInputs, lookupInputs)) {
-            stage('lookup');
-            lookup = composition.lookup(view, layout, formatters, a.messages, locale, pixelRatio);
-          }
-
-          // Marks: drawn again for a new scene, a new theme or a new pixel ratio, never rebuilt for a theme alone.
-          // A frame that cannot draw (no size) clears what an earlier frame drew, so no marks outlive their rows.
-          mutate();
-          if (surfacesHidden) {
-            host.surfaces?.(true);
-            surfacesHidden = false;
-          }
-          const paintInputs = measured ? [scene, themeRevision, pixelRatio] : [];
-          // Nothing drawn yet and nothing to draw: no call at all (a hidden container stays untouched, L3).
-          const drewBefore = drawn !== null && drawn.paintInputs.length > 0;
-          if (measured ? !drawn || !sameKey(drawn.paintInputs, paintInputs) : drewBefore || (drawn === null && hadMarks)) {
-            stage('draw');
-            host.renderer.draw(measured ? scene : emptyScene(), theme!.bindings, theme!.theme, pixelRatio);
-            hadMarks = measured;
-          }
-          if (!drawn || drawn.layout !== layout || (drawn.layout.kind === 'plot') !== (layout.kind === 'plot')) {
-            stage('text');
-            host.text.render(layout.kind === 'plot' ? layout.texts : []);
-          }
-
-          if (!sameKey(arranged, figureInputs(tooSmall))) {
-            stage('figure');
-            host.figure.update(modelFor(reader, tooSmall));
-          }
-
-          // A change of state is said once, politely (spec L7). The first state is not announced: it is what
-          // the page shows on load, and 24 charts saying "Loading" at once is noise.
-          if (announced !== null && announced !== shown.kind) {
-            host.figure.announce(shown.kind === 'ready' ? readyText(a, reader, byText) : shown.text,
-              shown.kind !== 'ready' && shown.message ? english(shown.message) : null);
-          }
-          if (measured || announced !== null) announced = shown.kind;
-
-          drawn = {
-            accepted: a, formatters, formattersKey: fKey, layout, layoutKey: lKey, scene, sceneInputs,
-            lookup, lookupInputs, reader, readerInputs, paintInputs,
-          };
-          const committed: Committed = {
-            ...controlsFor(reader, tooSmall), layout, lookup, bindings: theme!.bindings, theme: theme!.theme, pixelRatio,
-          };
-          if (__DEV__ && compact) {
-            // Dev/test hosts (acceptance tests) may inspect committed.lookup on compact charts; materialize
-            // lazily on first access while keeping browser compact charts completely free of lookup allocations.
-            let materialized: Lookup | null = null;
-            Object.defineProperty(committed, 'lookup', {
-              enumerable: true,
-              configurable: true,
-              get() {
-                return materialized ??= composition.lookup(view, layout, formatters, a.messages, locale, pixelRatio);
-              },
-            });
-          }
-          host.interaction.commit(committed);
-          // The displayed snapshot is now this revision (or nothing, when nothing could be drawn): older rows go.
-          showing(measured ? a : null);
-          if (stages && measured) settle(a.revision);
-        });
+      phase5() {
+        publish();
         close();
       },
 
@@ -2051,39 +2030,25 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     const store = accepted?.store;
     if (!store) return;
     const head = store.frame;
-    let floor = head.revision;
-    let f0: Frame | null = null;
-    let f1: Frame | null = null;
-    let f2: Frame | null = null;
-    let f3: Frame | null = null;
-    let count = 0;
-    const check = (f: Frame | undefined | null): void => {
-      if (!f || f === head || !storeFrames?.has(f) || frozenRows?.has(f)) return;
-      if (f === f0 || f === f1 || f === f2 || f === f3) return;
-      if (count === 0) f0 = f;
-      else if (count === 1) f1 = f;
-      else if (count === 2) f2 = f;
-      else f3 = f;
-      count++;
-      if (f.revision < floor) floor = f.revision;
-    };
-    if (onScreen && onScreen.store === store) check(onScreen.frame);
-    // The pending frame (accepted, not drawn yet) and the frame being published keep their rows too.
-    check(accepted!.frame);
-    if (inflight && inflight.store === store) check(inflight.frame);
-    if (held) check(held.frame);
-    // Once the store holds more than twice what was on screen (plus a few rows), every frame that still pins
-    // its history takes a copy of its own rows instead: one copy per frame, so the cost is amortized over the
-    // rows that arrived, and `keep` bounds retention while paused too.
-    // The same bound holds for the revisions kept: late rows that are evicted at once add a revision each but
-    // no row (closing pass, C2).
+    const screen = onScreen?.store === store ? onScreen.frame : null;
+    const pending = accepted!.frame;
+    const running = inflight?.store === store ? inflight.frame : null;
+    const pausedFrame = held?.frame;
+    const pinned = (frame: Frame | null | undefined): frame is Frame =>
+      !!frame && frame !== head && !!storeFrames?.has(frame) && !frozenRows?.has(frame);
+    const revision = (frame: Frame | null | undefined) => pinned(frame) ? frame.revision : head.revision;
+    let floor = Math.min(revision(screen), revision(pending), revision(running), revision(pausedFrame));
+    // Copy only once the store has grown beyond the retention bound, so copying is amortized over arrivals.
     const bound = 2 * retainedBaseline + RETENTION_SLACK;
-    if (count > 0 && (store.retainedRowCount > bound || head.revision - floor > bound)) {
-      const map = frozenRows ??= new WeakMap();
-      if (f0) map.set(f0, freeze(f0).rows);
-      if (f1) map.set(f1, freeze(f1).rows);
-      if (f2) map.set(f2, freeze(f2).rows);
-      if (f3) map.set(f3, freeze(f3).rows);
+    if (head.revision - floor > bound || store.retainedRowCount > bound &&
+        (pinned(screen) || pinned(pending) || pinned(running) || pinned(pausedFrame))) {
+      const copy = (frame: Frame | null | undefined) => {
+        if (pinned(frame)) (frozenRows ??= new WeakMap()).set(frame, freeze(frame));
+      };
+      copy(screen);
+      copy(pending);
+      copy(running);
+      copy(pausedFrame);
       floor = head.revision;
     }
     if (floor > 0) store.retire(floor - 1);
@@ -2255,13 +2220,17 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
 
   // ── watchers ───────────────────────────────────────────────────────────────────────────────────
 
+  function dirtyTextAndStrip(): void {
+    textStyleDirty = true;
+    stripStyle = null;
+  }
+
   const invalidate: Invalidate = {
     resize() {
       if (destroyed) return;
       sizeDirty = true;
       // Responsive CSS can change the font or spacing with the size (plan 2.2), and the strip's height (R11).
-      textStyleDirty = true;
-      stripStyle = null;
+      dirtyTextAndStrip();
       schedule();
     },
     page() {
@@ -2269,9 +2238,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       // Back in the document: anything the page could have changed meanwhile is read again, the pixel ratio
       // and web fonts included (review 3, finding 19).
       themeDirty = true;
-      textStyleDirty = true;
+      dirtyTextAndStrip();
       sizeDirty = true;
-      stripStyle = null;
       pixelRatio = host.devicePixelRatio();
       fontEpoch++;
       schedule();
@@ -2279,8 +2247,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     theme() {
       if (destroyed) return;
       themeDirty = true;
-      textStyleDirty = true;
-      stripStyle = null;
+      dirtyTextAndStrip();
       // The colours are resolved and written now, in the observer's callback, so the marks show the new
       // scheme in the first frame after the change (L4): their paint refers to the custom properties written
       // here. The light-dark() defaults follow prefers-color-scheme in CSS. Resolve AX141 when the
@@ -2298,16 +2265,12 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       }
       schedule();
     },
-    language() {
-      if (destroyed) return;
-      schedule();
-    },
+    language: schedule,
     fonts() {
       if (destroyed) return;
       fontEpoch++;
-      textStyleDirty = true;
+      dirtyTextAndStrip();
       sizeDirty = true;
-      stripStyle = null;
       schedule();
     },
     pixelRatio() {
@@ -2321,10 +2284,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   function destroy(): void {
     if (destroyed) return;
     destroyed = true;
-    microtaskToken++;
-    if (frameRequest !== 0) host.cancelFrame(frameRequest);
-    frameRequest = 0;
-    frameScheduled = false;
+    cancelScheduledFrame();
     const pending = waiters;
     waiters = null;
     // Nothing the handle still references keeps the data, the options or the drawing alive.
@@ -2376,7 +2336,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       return () => { listeners?.get(event)?.delete(listener as (payload: never) => void); };
     },
     get diagnostics() {
-      return currentDiagnostics();
+      return publicDiagnostics(diagnosticInputs());
     },
     destroy,
   };

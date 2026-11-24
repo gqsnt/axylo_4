@@ -46,19 +46,17 @@ export interface ResolvedOptions {
   readonly name: string;
 }
 
-const commonKeys = ['data', 'title', 'labelledBy', 'subtitle', 'description', 'state', 'legend', 'tooltip',
-  'table', 'colors', 'messages', 'locale', 'strict', 'onDiagnostic'];
-const keysForChart: Record<ChartType, readonly string[]> = {
-  line: ['x', 'y', 'series', 'zoom', 'reference', 'compact'],
-  area: ['x', 'y', 'series', 'zoom', 'reference', 'compact', 'stacked'],
-  bar: ['x', 'y', 'series', 'zoom', 'reference', 'compact', 'layout', 'horizontal'],
-  histogram: ['x', 'bins', 'normalize', 'zoom', 'reference', 'compact'],
-  scatter: ['x', 'y', 'series', 'zoom', 'reference'],
-  donut: ['label', 'value'],
+const commonKeys = 'data title labelledBy subtitle description state legend tooltip table colors messages locale strict onDiagnostic';
+const scatterKeys = 'x y series zoom reference';
+const alignedKeys = scatterKeys + ' compact';
+const keysForChart: Record<ChartType, string> = {
+  line: alignedKeys, area: alignedKeys + ' stacked', bar: alignedKeys + ' layout horizontal',
+  histogram: 'x bins normalize zoom reference compact', scatter: scatterKeys, donut: 'label value',
 };
-const scatterXKeys = ['field', 'label', 'unit', 'format', 'tickFormat', 'domain', 'type', 'timeZone'];
-const xKeys = ['field', 'label', 'unit', 'format', 'tickFormat', 'domain', 'type', 'timeZone', 'ordered'];
-const valueKeys = ['field', 'label', 'unit', 'format', 'tickFormat', 'domain', 'scale', 'missing', 'parse'];
+const fieldKeys = 'field label unit format tickFormat domain';
+const scatterXKeys = (fieldKeys + ' type timeZone').split(' ');
+const xKeys = scatterXKeys.concat('ordered');
+const valueKeys = (fieldKeys + ' scale missing parse').split(' ');
 
 function distance(a: string, b: string): number {
   let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
@@ -66,7 +64,7 @@ function distance(a: string, b: string): number {
   for (let i = 1; i <= a.length; i++) {
     const costs = [i];
     for (let j = 1; j <= b.length; j++) {
-      let cost = Math.min(previous[j]! + 1, costs[j - 1]! + 1, previous[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
+      let cost = Math.min(previous[j]! + 1, costs[j - 1]! + 1, previous[j - 1]! + Number(a[i - 1] !== b[j - 1]));
       if (i > 1 && j > 1 && a[i - 2] === b[j - 1] && a[i - 1] === b[j - 2]) {
         cost = Math.min(cost, earlier[j - 2]! + 1);
       }
@@ -81,9 +79,10 @@ function distance(a: string, b: string): number {
 function closest<T extends string>(name: string, keys: readonly T[], limit = name.length / 3): T | undefined {
   let suggestion: T | undefined;
   let best = Infinity;
+  const lower = name.toLowerCase();
   for (const key of keys) {
     if (name === key || Math.abs(name.length - key.length) > limit) continue;
-    const score = distance(name.toLowerCase(), key.toLowerCase());
+    const score = distance(lower, key.toLowerCase());
     if (score <= limit && score < best) {
       suggestion = key;
       best = score;
@@ -114,8 +113,8 @@ export function object(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === 'object' ? value as Record<string, unknown> : {};
 }
 
-function unknownKeys(options: Record<string, unknown>, keys: readonly string[], sink: DiagnosticSink, path = ''): void {
-  for (const key of Object.keys(options)) {
+function unknownKeys(options: unknown, keys: readonly string[], sink: DiagnosticSink, path = ''): void {
+  for (const key of Object.keys(object(options))) {
     if (!keys.includes(key)) {
       const suggestion = closest(key, keys);
       report(sink, 'AX150', 'none', { field: path + key, suggestion: suggestion && path + suggestion, count: 1 });
@@ -164,7 +163,7 @@ const DONUT_TICKS = 'Donut charts draw no axis ticks.';
 function resolveX(input: unknown, type: ChartType, compact: boolean, sink: DiagnosticSink): ResolvedXField {
   const unusedTicks = compact ? COMPACT_TICKS : type === 'donut' ? DONUT_TICKS : null;
   const options = object(input) as XFieldOptions;
-  if (type !== 'donut') unknownKeys(object(input), type === 'scatter' ? scatterXKeys : xKeys, sink, 'x.');
+  if (type !== 'donut') unknownKeys(input, type === 'scatter' ? scatterXKeys : xKeys, sink, 'x.');
   const field = fieldName(input) ?? '';
   const declared = literal(options.type, ['number', 'time', 'date', 'category'], 'x.type', sink);
   const zone = options.timeZone === undefined || options.timeZone === 'local'
@@ -184,7 +183,7 @@ function resolveX(input: unknown, type: ChartType, compact: boolean, sink: Diagn
 
 function resolveValue(input: unknown, path: string, unusedTicks: string | null, sink: DiagnosticSink): ResolvedValueField {
   const options = object(input) as ValueFieldOptions & { parse?: 'number' };
-  unknownKeys(object(input), valueKeys, sink, path);
+  unknownKeys(input, valueKeys, sink, path);
   const field = fieldName(input) ?? '';
   return {
     field, label: options.label ?? field, unit: options.unit ?? null,
@@ -195,29 +194,33 @@ function resolveValue(input: unknown, path: string, unusedTicks: string | null, 
   };
 }
 
+export function namedFields(fields: Omit<ResolvedOptions, 'table'>): [string, string][] {
+  const named: [string, string][] = [[fields.x.field, 'x']];
+  for (const value of fields.values) named.push([value.field, 'y']);
+  if (fields.series !== null) named.push([fields.series, 'series']);
+  return named;
+}
+
 const encodings = new WeakMap<ResolvedOptions, {
   readonly named: readonly (readonly [string | null, string])[];
   readonly supported: boolean;
 }>();
 
-export function withoutTable(options: ResolvedOptions): ResolvedOptions {
-  const resolved = { ...options, table: rowsTable([]) };
+function withTable(options: ResolvedOptions, table: Table, valid: boolean): ResolvedOptions {
+  const resolved = { ...options, table, valid };
   const encoding = encodings.get(options);
   if (encoding) encodings.set(resolved, encoding);
   return resolved;
 }
 
+export function withoutTable(options: ResolvedOptions): ResolvedOptions {
+  return withTable(options, rowsTable([]), options.valid);
+}
+
 export function retargetOptions(options: ResolvedOptions, table: Table, sink: DiagnosticSink, validData = true): ResolvedOptions {
   const encoding = encodings.get(options);
-  const named = encoding?.named ?? [
-    [options.x.field, 'x'] as const,
-    ...options.values.map(value => [value.field, 'y'] as const),
-    ...(options.series === null ? [] : [[options.series, 'series'] as const]),
-  ];
-  const valid = checkFields(table, named, sink) && (encoding?.supported ?? options.valid) && validData;
-  const resolved = { ...options, table, valid };
-  if (encoding) encodings.set(resolved, encoding);
-  return resolved;
+  return withTable(options, table, checkFields(table, encoding?.named ?? namedFields(options), sink) &&
+    (encoding?.supported ?? options.valid) && validData);
 }
 
 export function resolveOptions(type: ChartType, input: unknown, sink: DiagnosticSink, retained?: Table): ResolvedOptions {
@@ -249,16 +252,16 @@ export function resolveFields(type: ChartType, input: unknown, sink: DiagnosticS
   const options = object(input);
   const donut = type === 'donut';
   const compact = !donut && type !== 'scatter' && options.compact === true;
-  unknownKeys(options, commonKeys.concat(keysForChart[type]), sink);
-  unknownKeys(object(options.title), ['text', 'visible', 'level'], sink, 'title.');
-  unknownKeys(object(options.state), ['error', 'empty'], sink, 'state.');
+  unknownKeys(options, (commonKeys + ' ' + keysForChart[type]).split(' '), sink);
+  unknownKeys(options.title, ['text', 'visible', 'level'], sink, 'title.');
+  unknownKeys(options.state, ['error', 'empty'], sink, 'state.');
   // The message keys are those of the built-in messages (the one list of them, in the same order).
-  unknownKeys(object(options.messages), Object.keys(defaultMessages), sink, 'messages.');
+  unknownKeys(options.messages, Object.keys(defaultMessages), sink, 'messages.');
   if (compact && options.reference !== undefined) {
     report(sink, 'AX150', 'none', { field: 'reference', count: 1, detail: 'Compact charts draw no references.' });
   } else if (!donut && Array.isArray(options.reference)) {
     options.reference.forEach((reference, row) => {
-      unknownKeys(object(reference), ['x', 'y', 'label'], sink, 'reference[' + row + '].');
+      unknownKeys(reference, ['x', 'y', 'label'], sink, 'reference[' + row + '].');
     });
   }
 
@@ -267,7 +270,7 @@ export function resolveFields(type: ChartType, input: unknown, sink: DiagnosticS
   const distribution = histogram?.(options, compact, sink);
   const x = distribution?.x ?? resolveX(xInput, type, compact, sink);
   const wide = !histogram && !donut && Array.isArray(options.y);
-  const supportsWide = type !== 'scatter' && !donut;
+  const supported = !wide || type !== 'scatter';
   const valueInputs = histogram ? [] : wide ? options.y as readonly unknown[] : [donut ? options.value : options.y];
   // Only the first value field supplies the shared axis's tick formatter.
   const values = valueInputs.map((field, index) =>
@@ -277,34 +280,33 @@ export function resolveFields(type: ChartType, input: unknown, sink: DiagnosticS
   if (wide && options.series !== undefined) {
     report(sink, 'AX150', 'none', { field: 'series', count: 1, detail: 'Use a single y field when naming a series field.' });
   }
-  if (wide && !supportsWide) {
+  if (!supported) {
     report(sink, 'AX150', 'chart-error', { field: 'y', count: 1, detail: 'Use a single y field for scatter charts.' });
   }
 
-  let valid = validTable && (!wide || supportsWide);
   const fields: [string | null, string][] = [[fieldName(xInput), donut ? 'label' : 'x']];
   for (const input of valueInputs) fields.push([fieldName(input), donut ? 'value' : 'y']);
   if (!histogram && values.length === 0) fields.push([null, 'y']);
   if (series !== null) fields.push([series, 'series']);
-  valid = checkFields(table, fields, sink) && valid;
+  const valid = checkFields(table, fields, sink) && validTable && supported;
 
   const title = typeof options.title === 'string' ? options.title : object(options.title).text;
   const name = typeof title === 'string' && title ? title
     : typeof options.labelledBy === 'string' && options.labelledBy ? options.labelledBy : type;
   const resolved: ResolvedOptions = { ...distribution, table, x, values, form: wide ? 'wide' : 'long', series, valid, name };
-  encodings.set(resolved, { named: fields, supported: !wide || supportsWide });
+  encodings.set(resolved, { named: fields, supported });
   return resolved;
 }
 
 export function checkFields(table: Table, fields: readonly (readonly [string | null, string])[], sink: DiagnosticSink): boolean {
-  const reported = new Set<string>();
+  let reported: Set<string> | undefined;
   for (const [field, role] of fields) {
     if (field !== null && (table.columns === null && table.length === 0 || table.hasField(field))) continue;
     const name = field ?? role;
-    if (reported.has(name)) continue;
-    reported.add(name);
+    if (reported?.has(name)) continue;
+    (reported ??= new Set()).add(name);
     const keys = table.keys();
     report(sink, 'AX101', 'chart-error', { field: name, keys, suggestion: field === null ? undefined : closest(name, keys), count: 1 });
   }
-  return reported.size === 0;
+  return reported === undefined;
 }

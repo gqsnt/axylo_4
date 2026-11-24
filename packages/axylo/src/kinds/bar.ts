@@ -1,4 +1,5 @@
 /** The bar chart's stages (core/composition.ts): aligned data on bands, bar and "no data" rectangles, bar outlines. */
+import { alignedLayout } from '../core/axes';
 import type { Composition } from '../core/composition';
 import { alignedTargetMarks } from '../core/focus';
 import { normalizeAligned } from '../data/normalize';
@@ -7,6 +8,7 @@ import { buildAlignedView } from '../view';
 import { barScene } from '../scene';
 import { alignedLookupFor } from '../lookup';
 import { alignedReader } from '../reader';
+import { createTimeReadout } from '../format/time';
 import { barSwatch } from '../dom/interaction';
 import { svgBand, svgRects, svgRule } from '../render/svg';
 
@@ -15,6 +17,8 @@ export const BAR: Composition = {
   normalize: normalizeAligned as Composition['normalize'],
   openStore: openAlignedStore as Composition['openStore'],
   view: buildAlignedView as Composition['view'],
+  get layout() { return alignedLayout(); },
+  timeReadout: createTimeReadout,
   scene: barScene,
   lookup: alignedLookupFor,
   reader: alignedReader,

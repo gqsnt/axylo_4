@@ -1,10 +1,10 @@
 import type { DiagnosticInput, DiagnosticSink, DonutFrame, Frame, PointFrame } from '../core/contracts';
 import { DiagnosticCollector } from '../diagnostics';
 import { normalizeDonut, buildPoints, type DataEnvironment, type FrameVersion } from './normalize';
-import { resolveFields, resolveTable, retargetOptions, withoutTable, type ResolvedOptions } from './options';
+import { resolveFields, retargetOptions, withoutTable, type ResolvedOptions } from './options';
 import { Reports } from './reports';
 import { lowerBound } from './search';
-import { forwardDiagnostics, RevisionStore, retentionStart, StreamRows } from './store-rows';
+import { checkVersion, forwardDiagnostics, installEncodingExtras, nextVersion, RevisionStore, retentionStart, StreamRows } from './store-rows';
 import { CalendarWindow } from './store-calendar';
 import { StoreMap } from './store-map';
 import { Column, Labels } from './store-window';
@@ -287,54 +287,69 @@ function removeRows(table: Table, result: Result<Frame>, keep: number, rows: Str
   return evicted.length - before;
 }
 
+let installUnalignedExtras: () => void;
+
 export class SampleStore<F extends Frame> extends RevisionStore<F> {
-  private encoding: ResolvedOptions;
-  private storage: Storage<F> | null;
+  #encoding: ResolvedOptions;
+  #storage: Storage<F> | null;
+
+  readonly #type: 'scatter' | 'donut' | 'histogram';
+  readonly #build: Build<F>;
+  readonly #open: Open<F>;
+  readonly #environment: DataEnvironment;
+  readonly #sink: DiagnosticSink;
+  readonly #resolve: typeof resolveFields;
 
   constructor(
-    private readonly type: 'scatter' | 'donut' | 'histogram',
-    private readonly build: Build<F>,
-    private readonly open: Open<F>,
+    type: 'scatter' | 'donut' | 'histogram',
+    build: Build<F>,
+    open: Open<F>,
     options: ResolvedOptions,
-    private readonly environment: DataEnvironment,
+    environment: DataEnvironment,
     version: FrameVersion,
-    private readonly sink: DiagnosticSink = quiet,
-    private readonly resolve = resolveFields,
+    sink: DiagnosticSink = quiet,
+    resolve = resolveFields,
   ) {
     super(options.table);
+    this.#type = type;
+    this.#build = build;
+    this.#open = open;
+    this.#environment = environment;
+    this.#sink = sink;
+    this.#resolve = resolve;
     if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) installUnalignedExtras();
-    this.encoding = withoutTable(options);
+    this.#encoding = withoutTable(options);
     const diagnostics = new DiagnosticCollector();
     const table = this.rows.table();
     const result = build({ ...options, table }, environment, diagnostics, version);
     const { frame, positions } = result;
-    if (this.type !== 'histogram') this.rows.resetPositions(table, positions);
+    if (this.#type !== 'histogram') this.rows.resetPositions(table, positions);
     this.latest = diagnostics.inputs();
-    this.storage = this.latest.length ? null : this.open(result, this.encoding);
-    this.publish(this.storage?.frame(frame) ?? frame);
+    this.#storage = this.latest.length ? null : this.#open(result, this.#encoding);
+    this.publish(this.#storage?.frame(frame) ?? frame);
     forwardDiagnostics(this.latest, sink);
   }
 
   get diagnostics(): readonly DiagnosticInput[] { return this.latest; }
   resolveEncoding(input: unknown, sink: DiagnosticSink): ResolvedOptions {
-    return withoutTable(this.resolve(this.type, input, sink, this.rows.table()));
+    return withoutTable(this.#resolve(this.#type, input, sink, this.rows.table()));
   }
 
   prepareAppend(rows: readonly unknown[], options: StoreAppendOptions = {}): Candidate<F> {
     const base = this.current;
-    const version = { epoch: base.epoch, revision: base.revision + 1 };
+    const version = nextVersion(base);
     const keep = retention(options);
-    const fast = this.extendAppend(base, rows, version, keep);
+    const fast = this.#extendAppend(base, rows, version, keep);
     if (fast) return fast;
     const retained = this.rows.fork();
     retained.append(rows);
     let table = retained.table();
     const call = new DiagnosticCollector();
-    const rebuild = (sink: DiagnosticSink) => this.build(retargetOptions(this.encoding, table, sink), this.environment, sink, version);
+    const rebuild = (sink: DiagnosticSink) => this.#build(retargetOptions(this.#encoding, table, sink), this.#environment, sink, version);
     let result = rebuild(call);
     const ordering = new DiagnosticCollector();
-    if (this.type === 'scatter') {
-      const reports = new Reports(this.encoding.x.field, ordering);
+    if (this.#type === 'scatter') {
+      const reports = new Reports(this.#encoding.x.field, ordering);
       let highest = -Infinity;
       for (let i = 0; i < result.positions.length; i++) {
         const position = result.positions[i]!;
@@ -356,64 +371,87 @@ export class SampleStore<F extends Frame> extends RevisionStore<F> {
     retained.compactColumns();
     const ordered = ordering.inputs();
     const diagnostics = [...current.inputs(), ...ordered];
-    if (this.type !== 'histogram') retained.resetPositions(table, result.positions);
-    return this.prepare(base, result.frame, retained, diagnostics.length ? null : this.open(result, this.encoding),
+    if (this.#type !== 'histogram') retained.resetPositions(table, result.positions);
+    return this.#prepare(base, result.frame, retained, diagnostics.length ? null : this.#open(result, this.#encoding),
       diagnostics, [...call.inputs(), ...ordered], evicted);
   }
 
-  private extendAppend(base: F, rows: readonly unknown[], version: FrameVersion, keep: number | undefined): Candidate<F> | null {
+  #extendAppend(base: F, rows: readonly unknown[], version: FrameVersion, keep: number | undefined): Candidate<F> | null {
     // Implicit string parsing and diagnostics can change when old rows leave. Reuse old values only when
     // both partitions have unambiguous clean values and the same x interpretation.
-    if (!this.storage || this.encoding.values[0]?.parse || this.encoding.series !== null) return null;
+    if (!this.#storage || this.#encoding.values[0]?.parse || this.#encoding.series !== null) return null;
     const table = { ...rowsTable(rows), rowIndex: (row: number) => this.rows.next + row };
     const diagnostics = new DiagnosticCollector();
-    const resolved = retargetOptions(this.encoding, table, diagnostics);
+    const resolved = retargetOptions(this.#encoding, table, diagnostics);
     if (!resolved.valid) return null;
-    const result = this.build(resolved, this.environment, diagnostics, version);
+    const result = this.#build(resolved, this.#environment, diagnostics, version);
     if (diagnostics.inputs().length) return null;
     const retained = this.rows.fork();
     const evicted: number[] = [];
     retained.onForget = row => evicted.push(row);
     retained.append(rows);
-    const extension = this.storage.extend(result, retained, this.rows.next, keep);
+    const extension = this.#storage.extend(result, retained, this.rows.next, keep);
     retained.onForget = undefined;
     if (!extension) return null;
     retained.compactColumns();
-    return this.prepare(base, result.frame, retained, extension, [], [], evicted);
+    return this.#prepare(base, result.frame, retained, extension, [], [], evicted);
   }
 
   prepareReencode(options: ResolvedOptions, version: FrameVersion): Candidate<F> {
-    return this.prepareEncoding(this.rows.fork(), options, version, new DiagnosticCollector());
+    return this.#prepareEncoding(this.rows.fork(), options, version, new DiagnosticCollector());
   }
 
-  private prepareEncoding(
+  #prepareEncoding(
     rows: StreamRows, options: ResolvedOptions, version: FrameVersion, call: DiagnosticCollector,
     replacement?: { table: Table; valid: boolean },
   ): Candidate<F> {
     const base = this.current;
-    if (version.revision <= base.revision || version.epoch <= base.epoch) {
-      throw new Error('Encoding updates and replacements require a newer epoch and revision.');
-    }
+    checkVersion(base, version);
     const table = rows.table();
     const resolved = retargetOptions(options, replacement?.table ?? table, call, replacement?.valid);
-    const result = this.build({ ...resolved, table }, this.environment, call, version);
-    if (this.type !== 'histogram') rows.resetPositions(table, result.positions);
+    const result = this.#build({ ...resolved, table }, this.#environment, call, version);
+    if (this.#type !== 'histogram') rows.resetPositions(table, result.positions);
     const diagnostics = call.inputs();
-    return this.prepare(base, result.frame, rows, diagnostics.length ? null : this.open(result, withoutTable(options)), diagnostics, diagnostics, [], options, replacement !== undefined);
+    return this.#prepare(base, result.frame, rows, diagnostics.length ? null : this.#open(result, withoutTable(options)), diagnostics, diagnostics, [], options, replacement !== undefined);
   }
 
-  private prepare(
+  #prepare(
     base: F, frame: F, rows: StreamRows, storage: Storage<F> | null,
     diagnostics: readonly DiagnosticInput[], callDiagnostics: readonly DiagnosticInput[],
-    evicted: readonly number[], options = this.encoding, replacement = false,
+    evicted: readonly number[], options = this.#encoding, replacement = false,
   ): Candidate<F> {
     const candidate = this.preview(base, storage?.frame(frame) ?? frame, rows, diagnostics, callDiagnostics, () => {
       this.commitRows(rows, evicted, replacement);
       storage?.commit?.();
-      this.storage = storage;
-      if (options !== this.encoding) this.encoding = withoutTable(options);
+      this.#storage = storage;
+      if (options !== this.#encoding) this.#encoding = withoutTable(options);
     });
     return { ...candidate, abort: candidate.commit.abort };
+  }
+  static {
+    if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) installUnalignedExtras = () => {
+      if (Object.hasOwn(SampleStore.prototype, 'ownedBytes')) return;
+      type Store = SampleStore<PointFrame | DonutFrame>;
+      const proto = SampleStore.prototype as Store;
+      proto.ownedBytes = function (this: Store, frames: readonly Frame[] = []): OwnedBytes {
+        const bytes = new ByteCount(new CallerBuffers());
+        const storage = this.#storage;
+        storage?.countBytes?.(bytes);
+        countRevisions(this.revisions, bytes);
+        bytes.frame(this.current);
+        for (const frame of frames) bytes.frame(frame);
+        return bytes.result();
+      };
+      proto.append = function (this: Store, rows: readonly unknown[], options: StoreAppendOptions = {}, sink = this.#sink) {
+        const prepared = this.prepareAppend(rows, options);
+        forwardDiagnostics(prepared.callDiagnostics, sink);
+        prepared.commit();
+        return prepared.frame;
+      };
+      installEncodingExtras<PointFrame | DonutFrame, Store>(proto, function (rows, options, version, call, replacement) {
+        return this.#prepareEncoding(rows, options, version, call, replacement);
+      });
+    };
   }
 }
 
@@ -429,44 +467,6 @@ export interface SampleStore<F extends Frame> {
   reencode(options: ResolvedOptions, version: FrameVersion): F;
   replace(data: unknown, options: ResolvedOptions, version: FrameVersion): F;
   prepareReplace(data: unknown, options: ResolvedOptions, version: FrameVersion): PreparedFrame<F>;
-}
-
-let unalignedExtras = false;
-function installUnalignedExtras(): void {
-  if (unalignedExtras) return;
-  unalignedExtras = true;
-  type Store = SampleStore<PointFrame | DonutFrame>;
-  const proto = SampleStore.prototype as Store;
-  proto.ownedBytes = function (this: Store, frames: readonly Frame[] = []): OwnedBytes {
-    const bytes = new ByteCount(new CallerBuffers());
-    const storage = this['storage'];
-    storage?.countBytes?.(bytes);
-    countRevisions(this['revisions'], bytes);
-    bytes.frame(this['current']);
-    for (const frame of frames) bytes.frame(frame);
-    return bytes.result();
-  };
-  proto.append = function (this: Store, rows: readonly unknown[], options: StoreAppendOptions = {}, sink = this['sink']) {
-    const prepared = this.prepareAppend(rows, options);
-    forwardDiagnostics(prepared.callDiagnostics, sink);
-    prepared.commit();
-    return prepared.frame;
-  };
-  proto.reencode = function (this: Store, options: ResolvedOptions, version: FrameVersion) {
-    const prepared = this.prepareReencode(options, version);
-    prepared.commit();
-    return prepared.frame;
-  };
-  proto.prepareReplace = function (this: Store, data: unknown, options: ResolvedOptions, version: FrameVersion) {
-    const call = new DiagnosticCollector();
-    const replacement = resolveTable(data, call);
-    return this['prepareEncoding'](new StreamRows(replacement.table), options, version, call, replacement);
-  };
-  proto.replace = function (this: Store, data: unknown, options: ResolvedOptions, version: FrameVersion) {
-    const prepared = this.prepareReplace(data, options, version);
-    prepared.commit();
-    return prepared.frame;
-  };
 }
 
 export class PointStore extends SampleStore<PointFrame> {
