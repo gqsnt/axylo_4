@@ -1,7 +1,7 @@
 import { SLOT_VALUE, type DiagnosticSink, type Formatters, type IndexRange, type ReaderModel, type View } from '../core/contracts';
 import { report } from '../diagnostics';
 import { sliceText } from '../lookup/text';
-import { CHART_TYPE_MESSAGE, defaultMessages, fill, fillChartSummary, fillDonutSlice, messageLanguage } from '../messages';
+import { chartTypeName, defaultMessages, fill, fillChartSummary, fillDonutSlice, messageLanguage } from '../messages';
 import type { Messages, Title } from '../public';
 import { alignedTable, donutTable, scatterTable, type ReaderLabels, type TableBuilder } from './table';
 
@@ -173,8 +173,8 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table) => {
   if (view.kind !== 'scatter') {
     const { start, end } = view.visibleSlots;
     if (start < end) {
-      xMin = view.frame.x.values[start]!;
-      xMax = view.frame.x.values[end - 1]!;
+      xMin = view.frame.binEdges?.[start] ?? view.frame.x.values[start]!;
+      xMax = view.frame.binEdges?.[end] ?? view.frame.x.values[end - 1]!;
     }
   }
   frame.series.forEach((series, s) => {
@@ -267,7 +267,7 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
     value: input.labels?.value ?? messages.value,
     xUnit: input.labels?.xUnit,
   };
-  const type = messages[CHART_TYPE_MESSAGE[view.kind]];
+  const type = chartTypeName(messages, view.kind);
   const xLabel = view.kind === 'donut' ? labels.category : view.frame.xLabel;
   const yLabel = view.kind === 'donut' ? view.frame.valueLabel
     : view.kind === 'scatter' ? view.frame.yLabel : view.frame.yLabel || wideLabel(view, input.locale, () => true) || labels.value;

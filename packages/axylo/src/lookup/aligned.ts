@@ -1,11 +1,12 @@
+import { binIndex } from '../data/search';
 import { SLOT_NULL, SLOT_VALUE } from '../core/contracts';
 import type { AlignedView, DatumRef, DatumText, Formatters, Lookup, PickTarget, SlotState } from '../core/contracts';
 import type { Messages } from '../public';
 import { fill } from '../messages';
 import { clipBox, contains, pointBox, pointerOnPlot, type PlotLayout } from './geometry';
-import { clamp } from '../scene/geometry';
+import { clamp, projectBand } from '../scene/geometry';
 import { lowerBound, pageDistance } from './search';
-import { incomplete, slotText } from './text';
+import { incomplete, slotLabel, slotText } from './text';
 
 const TOOLTIP_LIMIT = 8;
 
@@ -16,6 +17,8 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
   const keys = new Map(frame.series.map((series, s) => [series.key, s]));
   const projection = layout?.projection;
   const xScale = projection?.kind === 'xy' ? projection.x : projection?.kind === 'bands' ? projection.band : null;
+
+  const bounds = new Float64Array(2);
 
   function ref(s: number, i: number): DatumRef {
     return { kind: 'aligned', seriesKey: frame.series[s]!.key, x: positions[i]! };
@@ -59,7 +62,7 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
     const value = slotText(formatters, s, series.y[i]!, state);
     const missingComponent = state !== SLOT_VALUE && stack?.incomplete?.[i] && stack.order.includes(s) && visible.includes(s);
     return {
-      ref: ref(s, i), seriesIndex: s, seriesLabel: series.label, x: formatters.x(positions[i]!),
+      ref: ref(s, i), seriesIndex: s, seriesLabel: series.label, x: slotLabel(frame, formatters, i),
       value: announce && missingComponent ? incomplete(value, messages) : value,
       state, percent: null, row: series.row?.[i] ?? i,
     };
@@ -90,6 +93,10 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
     if (!xScale || start === end) return -1;
     const x = xScale.invert(pixel);
     if (xScale.type === 'band') return x >= start && x < end ? x : -1;
+    if (frame.binEdges) {
+      const bin = binIndex(frame.binEdges, x);
+      return bin >= 0 ? Math.min(end - 1, Math.max(start, bin)) : -1;
+    }
     const right = lowerBound(positions, x, start, end);
     if (right === start) return start;
     if (right === end) return end - 1;
@@ -143,7 +150,7 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
         if (hasValue && stack.incomplete?.[i]) total = incomplete(total, messages);
       }
       return {
-        title: formatters.x(positions[i]!), rows: visible.slice(0, TOOLTIP_LIMIT).map(s => write(s, i)),
+        title: slotLabel(frame, formatters, i), rows: visible.slice(0, TOOLTIP_LIMIT).map(s => write(s, i)),
         count: visible.length, total,
       };
     },
@@ -178,20 +185,11 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
       const { plot } = layout;
       const low = horizontal ? plot.y : plot.x;
       const high = low + (horizontal ? plot.height : plot.width);
-      const center = xScale.type === 'band' ? xScale.center(datum.x) : xScale.map(datum.x);
-      let half: number;
-      if (xScale.type === 'band') {
-        half = xScale.bandwidth / 2;
-      } else {
-        const adjacent = i > 0 ? Math.abs(center - xScale.map(positions[i - 1]!)) : Infinity;
-        const following = i + 1 < positions.length ? Math.abs(xScale.map(positions[i + 1]!) - center) : Infinity;
-        const spacing = Math.min(adjacent, following);
-        // Continuous bars use their closest neighbour to leave a gap on both sides of a mark.
-        half = 0.4 * (Number.isFinite(spacing) && spacing > 0 ? spacing : high - low);
-      }
-      const bandStart = clamp(center - half, low, high);
-      const part = (clamp(center + half, low, high) - bandStart) / (stack ? 1 : visible.length);
-      const size = Math.max(1, part);
+      projectBand(frame, xScale, i, high - low, bounds, 0);
+      const [left, right] = bounds;
+      const bandStart = clamp(left!, low, high);
+      const part = (clamp(right!, low, high) - bandStart) / (stack ? 1 : visible.length);
+      const size = frame.binEdges ? part : Math.max(1, part);
       const middle = bandStart + part * ((stack ? 0 : lane) + 0.5);
       const band = clamp(middle - size / 2, low, Math.max(low, high - size));
       const base = accumulated > 0 ? side![accumulated - 1]![i]! : 0;

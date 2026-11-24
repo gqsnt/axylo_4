@@ -4,21 +4,22 @@
  * (`line`, `area`, …) passes its own composition (src/kinds), so a page that imports one kind bundles that
  * kind's stages only; the controller, the host, aligned data and Cartesian layout stay one implementation.
  */
-import type { DiagnosticSink, Frame, Layout, Scene, View } from './contracts';
-import type { ChartType, ResolvedOptions } from '../data/options';
+import type { AlignedFrame, DiagnosticSink, Frame, Layout, Scene, View } from './contracts';
+import type { ChartType, resolveOptions, ResolvedOptions } from '../data/options';
 import type { DataEnvironment, FrameVersion } from '../data/normalize';
 import type { AlignedStore } from '../data/store';
-import type { DonutStore, PointStore } from '../data/store-unaligned';
+import type { DonutStore, PointStore, SampleStore } from '../data/store-unaligned';
 import type { ViewState } from '../view';
 import type { LookupBuilder } from '../lookup';
 import type { ReaderParts } from '../reader';
 import type { InteractionParts } from '../dom/interaction';
 import type { SvgMarks } from '../render/svg';
 
-export type Store = AlignedStore | PointStore | DonutStore;
+export type Store = AlignedStore | PointStore | DonutStore | SampleStore<AlignedFrame>;
 
 export interface Composition {
   readonly kind: ChartType;
+  readonly resolve?: typeof resolveOptions;
   /** The frame shape's normalization; the kind is passed back in (the aligned kinds share one). */
   normalize(kind: ChartType, resolved: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): Frame;
   /** Streaming storage for a static frame, opened by the first append. */

@@ -6,16 +6,17 @@ Types are written in TypeScript. `Row` is the type of one of your rows (for type
 
 ## Which options apply where
 
-| Group | line | area | bar | scatter | donut |
-|---|---|---|---|---|---|
-| [Common options](#common-options) | yes | yes | yes | yes | yes |
-| [Encoding](#encoding-line-area-bar) (`x`, `y`, `series`) | yes | yes | yes | – | – |
-| [Cartesian options](#cartesian-options) (`zoom`, `reference`) | yes | yes | yes | yes | – |
-| [`compact`](#compact) | yes | yes | yes | – | – |
-| [`stacked`](#area-options) | – | yes | – | – | – |
-| [`layout`, `horizontal`](#bar-options) | – | – | yes | – | – |
-| [Scatter encoding](#scatter-options) | – | – | – | yes | – |
-| [Donut encoding](#donut-options) (`label`, `value`) | – | – | – | – | yes |
+| Group | line | area | bar | scatter | donut | histogram |
+|---|---|---|---|---|---| --- |
+| [Common options](#common-options) | yes | yes | yes | yes | yes | yes |
+| [Encoding](#encoding-line-area-bar) (`x`, `y`, `series`) | yes | yes | yes | – | – | – |
+| [Cartesian options](#cartesian-options) (`zoom`, `reference`) | yes | yes | yes | yes | – | yes |
+| [`compact`](#compact) | yes | yes | yes | – | – | yes |
+| [`stacked`](#area-options) | – | yes | – | – | – | – |
+| [`layout`, `horizontal`](#bar-options) | – | – | yes | – | – | – |
+| [Scatter encoding](#scatter-options) | – | – | – | yes | – | – |
+| [Donut encoding](#donut-options) (`label`, `value`) | – | – | – | – | yes | – |
+| [Histogram options](#histogram-options) | – | – | – | – | – | yes |
 
 An option that does not apply to a chart type does not compile, and at run time is ignored with [AX150](diagnostics.md#ax150).
 
@@ -65,7 +66,7 @@ Long rows name one `y` and a `series`; wide rows give `y` as a list and no `seri
 
 ## Cartesian options
 
-On line, area, bar and scatter charts.
+On line, area, bar, histogram and scatter charts.
 
 <!-- options: CartesianOptions -->
 | Option | Type | Default | Meaning |
@@ -89,7 +90,7 @@ A reference widens the automatic value domain to include it. An author `domain` 
 <!-- options: CompactOption -->
 | Option | Type | Default | Meaning |
 |---|---|---|---|
-| `compact` | `boolean` | `false` | Line, area and bar only. Marks only, as an image with a text alternative. See [Compact](compact.md). |
+| `compact` | `boolean` | `false` | Line, area, bar and histogram only. Marks only, as an image with a text alternative. See [Compact](compact.md). |
 
 ## Area options
 
@@ -105,6 +106,17 @@ A reference widens the automatic value domain to include it. An author `domain` 
 |---|---|---|---|
 | `layout` | `'grouped' \| 'stacked'` | `'grouped'` | Several series side by side, or stacked. |
 | `horizontal` | `boolean` | `false` | Bars from the left, categories down the side. |
+
+## Histogram options
+
+Histograms accept common, Cartesian and compact options.
+
+<!-- options: HistogramOptions -->
+| Option | Type | Default | Meaning |
+|---|---|---|---|
+| `x` | `ValueField<Row>` | required | Numeric sample field. Use `parse: 'number'` for decimal strings. |
+| `bins` | `number \| readonly number[]` | automatic | Choose 1–100 equal-width bins or supply ascending finite edges. |
+| `normalize` | `'count' \| 'probability' \| 'density'` | `'count'` | Count samples, show their share, or divide that share by bin width. |
 
 ## Scatter options
 

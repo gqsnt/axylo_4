@@ -5,7 +5,7 @@ import { defaultMessages } from '../messages';
 import { borrowColumns } from './store-bytes';
 import { columnsTable, rowsTable, type Columns, type Table } from './table';
 
-export type AlignedChartType = 'line' | 'area' | 'bar';
+export type AlignedChartType = 'line' | 'area' | 'bar' | 'histogram';
 export type ChartType = AlignedChartType | 'scatter' | 'donut';
 
 export interface ResolvedXField {
@@ -15,6 +15,7 @@ export interface ResolvedXField {
   readonly type: NonNullable<XFieldOptions['type']> | null;
   readonly timeZone: string;
   readonly ordered: boolean;
+  readonly scale?: ResolvedValueField['scale'];
   readonly format: NonNullable<XFieldOptions['format']> | null;
   readonly tickFormat: NonNullable<XFieldOptions['tickFormat']> | null;
   readonly domain: NonNullable<XFieldOptions['domain']> | null;
@@ -33,6 +34,9 @@ export interface ResolvedValueField {
 }
 
 export interface ResolvedOptions {
+  readonly bins?: number | readonly number[];
+  readonly normalize?: 'count' | 'probability' | 'density';
+  readonly sample?: ResolvedValueField;
   readonly table: Table;
   readonly x: ResolvedXField;
   readonly values: readonly ResolvedValueField[];
@@ -42,20 +46,15 @@ export interface ResolvedOptions {
   readonly name: string;
 }
 
-// The option names each chart accepts. Written out rather than spread from shared lists: building them at
-// import time would keep a bundler from dropping the module.
-const aligned = ['data', 'title', 'labelledBy', 'subtitle', 'description', 'state', 'legend', 'tooltip',
-  'table', 'colors', 'messages', 'locale', 'strict', 'onDiagnostic', 'x', 'y', 'series', 'zoom', 'reference', 'compact'];
+const commonKeys = ['data', 'title', 'labelledBy', 'subtitle', 'description', 'state', 'legend', 'tooltip',
+  'table', 'colors', 'messages', 'locale', 'strict', 'onDiagnostic'];
 const keysForChart: Record<ChartType, readonly string[]> = {
-  line: aligned,
-  area: ['data', 'title', 'labelledBy', 'subtitle', 'description', 'state', 'legend', 'tooltip',
-    'table', 'colors', 'messages', 'locale', 'strict', 'onDiagnostic', 'x', 'y', 'series', 'zoom', 'reference', 'compact', 'stacked'],
-  bar: ['data', 'title', 'labelledBy', 'subtitle', 'description', 'state', 'legend', 'tooltip',
-    'table', 'colors', 'messages', 'locale', 'strict', 'onDiagnostic', 'x', 'y', 'series', 'zoom', 'reference', 'compact', 'layout', 'horizontal'],
-  scatter: ['data', 'title', 'labelledBy', 'subtitle', 'description', 'state', 'legend', 'tooltip',
-    'table', 'colors', 'messages', 'locale', 'strict', 'onDiagnostic', 'x', 'y', 'series', 'zoom', 'reference'],
-  donut: ['data', 'title', 'labelledBy', 'subtitle', 'description', 'state', 'legend', 'tooltip',
-    'table', 'colors', 'messages', 'locale', 'strict', 'onDiagnostic', 'label', 'value'],
+  line: ['x', 'y', 'series', 'zoom', 'reference', 'compact'],
+  area: ['x', 'y', 'series', 'zoom', 'reference', 'compact', 'stacked'],
+  bar: ['x', 'y', 'series', 'zoom', 'reference', 'compact', 'layout', 'horizontal'],
+  histogram: ['x', 'bins', 'normalize', 'zoom', 'reference', 'compact'],
+  scatter: ['x', 'y', 'series', 'zoom', 'reference'],
+  donut: ['label', 'value'],
 };
 const scatterXKeys = ['field', 'label', 'unit', 'format', 'tickFormat', 'domain', 'type', 'timeZone'];
 const xKeys = ['field', 'label', 'unit', 'format', 'tickFormat', 'domain', 'type', 'timeZone', 'ordered'];
@@ -222,10 +221,35 @@ export function retargetOptions(options: ResolvedOptions, table: Table, sink: Di
 }
 
 export function resolveOptions(type: ChartType, input: unknown, sink: DiagnosticSink, retained?: Table): ResolvedOptions {
+  return resolveFields(type, input, sink, retained, type === 'histogram' ? histogramFields : undefined);
+}
+
+function validEdges(edges: readonly unknown[]): boolean {
+  let previous = -Infinity;
+  for (const edge of edges) {
+    if (typeof edge !== 'number' || !Number.isFinite(edge) || edge <= previous) return false;
+    previous = edge;
+  }
+  return edges.length >= 2;
+}
+
+function histogramFields(options: Record<string, unknown>, compact: boolean, sink: DiagnosticSink) {
+  const sample = resolveValue(options.x, 'x.', compact ? COMPACT_TICKS : null, sink);
+  // Histogram positions are always numeric, so these formatters receive numbers on this axis.
+  const x = { ...sample, type: 'number', timeZone: 'local', ordered: false } as ResolvedXField;
+  const normalize = literal(options.normalize, ['count', 'probability', 'density'], 'normalize', sink) ?? 'count';
+  let bins: ResolvedOptions['bins'];
+  const b = options.bins;
+  if (typeof b === 'number' && Number.isInteger(b) && b >= 1 && b <= 100 || Array.isArray(b) && validEdges(b)) bins = b;
+  else if (b !== undefined) report(sink, 'AX150', 'none', { field: 'bins' });
+  return { x, sample, bins, normalize };
+}
+
+export function resolveFields(type: ChartType, input: unknown, sink: DiagnosticSink, retained?: Table, histogram?: typeof histogramFields): ResolvedOptions {
   const options = object(input);
   const donut = type === 'donut';
   const compact = !donut && type !== 'scatter' && options.compact === true;
-  unknownKeys(options, keysForChart[type], sink);
+  unknownKeys(options, commonKeys.concat(keysForChart[type]), sink);
   unknownKeys(object(options.title), ['text', 'visible', 'level'], sink, 'title.');
   unknownKeys(object(options.state), ['error', 'empty'], sink, 'state.');
   // The message keys are those of the built-in messages (the one list of them, in the same order).
@@ -240,15 +264,16 @@ export function resolveOptions(type: ChartType, input: unknown, sink: Diagnostic
 
   const { table, valid: validTable } = retained ? { table: retained, valid: true } : resolveTable(options.data, sink);
   const xInput = donut ? options.label : options.x;
-  const x = resolveX(xInput, type, compact, sink);
-  const wide = !donut && Array.isArray(options.y);
+  const distribution = histogram?.(options, compact, sink);
+  const x = distribution?.x ?? resolveX(xInput, type, compact, sink);
+  const wide = !histogram && !donut && Array.isArray(options.y);
   const supportsWide = type !== 'scatter' && !donut;
-  const valueInputs = wide ? options.y as readonly unknown[] : [donut ? options.value : options.y];
+  const valueInputs = histogram ? [] : wide ? options.y as readonly unknown[] : [donut ? options.value : options.y];
   // Only the first value field supplies the shared axis's tick formatter.
   const values = valueInputs.map((field, index) =>
     resolveValue(field, wide ? 'y[' + index + '].' : donut ? 'value.' : 'y.', compact ? COMPACT_TICKS : donut ? DONUT_TICKS
       : index > 0 ? 'The y fields share one value axis, labelled by y[0].tickFormat.' : null, sink));
-  const series = !wide && !donut && typeof options.series === 'string' ? options.series : null;
+  const series = !histogram && !wide && !donut && typeof options.series === 'string' ? options.series : null;
   if (wide && options.series !== undefined) {
     report(sink, 'AX150', 'none', { field: 'series', count: 1, detail: 'Use a single y field when naming a series field.' });
   }
@@ -259,14 +284,14 @@ export function resolveOptions(type: ChartType, input: unknown, sink: Diagnostic
   let valid = validTable && (!wide || supportsWide);
   const fields: [string | null, string][] = [[fieldName(xInput), donut ? 'label' : 'x']];
   for (const input of valueInputs) fields.push([fieldName(input), donut ? 'value' : 'y']);
-  if (values.length === 0) fields.push([null, 'y']);
+  if (!histogram && values.length === 0) fields.push([null, 'y']);
   if (series !== null) fields.push([series, 'series']);
   valid = checkFields(table, fields, sink) && valid;
 
   const title = typeof options.title === 'string' ? options.title : object(options.title).text;
   const name = typeof title === 'string' && title ? title
     : typeof options.labelledBy === 'string' && options.labelledBy ? options.labelledBy : type;
-  const resolved: ResolvedOptions = { table, x, values, form: wide ? 'wide' : 'long', series, valid, name };
+  const resolved: ResolvedOptions = { ...distribution, table, x, values, form: wide ? 'wide' : 'long', series, valid, name };
   encodings.set(resolved, { named: fields, supported: !wide || supportsWide });
   return resolved;
 }

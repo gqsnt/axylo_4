@@ -41,6 +41,7 @@ export const messageUses = {
   value: 'The value axis title when several y fields share the axis and no name fits them all; the value part of a generated name when nothing else names it.',
   typeLine: 'The chart type in the generated name and summary, and in the plot\'s role description.',
   typeArea: 'As `typeLine`, for area charts.',
+  typeHistogram: 'Chart type in the generated name, summary and plot role for a histogram.',
   typeBar: 'As `typeLine`, for bar charts.',
   typeScatter: 'As `typeLine`, for scatter charts.',
   typeDonut: 'As `typeLine`, for donuts.',

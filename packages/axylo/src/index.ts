@@ -3,7 +3,7 @@
  * runs; the chart functions need a document and are only called in a browser.
  */
 import type {
-  AreaOptions, BarOptions, Chart, Diagnostic, DonutOptions, LineOptions, ScatterOptions, Target,
+  AreaOptions, BarOptions, Chart, Diagnostic, HistogramOptions, DonutOptions, LineOptions, ScatterOptions, Target,
 } from './public.js';
 import { staticDiagnostics } from './core/stages';
 import { viewerTimeZone } from './core/environment';
@@ -11,6 +11,7 @@ import { createChart } from './core/chart';
 import { AREA } from './kinds/area';
 import { BAR } from './kinds/bar';
 import { DONUT } from './kinds/donut';
+import { HISTOGRAM } from './kinds/histogram';
 import { LINE } from './kinds/line';
 import { SCATTER } from './kinds/scatter';
 
@@ -26,6 +27,10 @@ export function area<Row>(target: Target, options: AreaOptions<Row>): Chart<Row,
 
 export function bar<Row>(target: Target, options: BarOptions<Row>): Chart<Row, BarOptions<Row>> {
   return createChart(BAR, target, options) as unknown as Chart<Row, BarOptions<Row>>;
+}
+
+export function histogram<Row>(target: Target, options: HistogramOptions<Row>): Chart<Row, HistogramOptions<Row>> {
+  return createChart(HISTOGRAM, target, options) as unknown as Chart<Row, HistogramOptions<Row>>;
 }
 
 export function scatter<Row>(target: Target, options: ScatterOptions<Row>): Chart<Row, ScatterOptions<Row>> {
@@ -44,8 +49,9 @@ export function donut<Row>(target: Target, options: DonutOptions<Row>): Chart<Ro
 export function validate<Row>(type: 'line', options: LineOptions<Row>): Diagnostic[];
 export function validate<Row>(type: 'area', options: AreaOptions<Row>): Diagnostic[];
 export function validate<Row>(type: 'bar', options: BarOptions<Row>): Diagnostic[];
+export function validate<Row>(type: 'histogram', options: HistogramOptions<Row>): Diagnostic[];
 export function validate<Row>(type: 'scatter', options: ScatterOptions<Row>): Diagnostic[];
 export function validate<Row>(type: 'donut', options: DonutOptions<Row>): Diagnostic[];
-export function validate(type: 'line' | 'area' | 'bar' | 'scatter' | 'donut', options: unknown): Diagnostic[] {
+export function validate(type: 'line' | 'area' | 'bar' | 'histogram' | 'scatter' | 'donut', options: unknown): Diagnostic[] {
   return staticDiagnostics(type, options, viewerTimeZone());
 }

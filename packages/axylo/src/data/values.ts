@@ -34,7 +34,7 @@ export function readValues(
   sink: DiagnosticSink,
   impute: boolean,
   startRow = 0,
-  mode?: ValueMode,
+  mode?: ValueMode | 'parsed',
   included?: (row: number) => boolean,
   outcome?: string,
   counts?: ValueCounts,
@@ -83,7 +83,7 @@ export function readValues(
         { outcome: zero ? undefined : outcome });
     } else if (raw === null || raw === '') {
       state = SLOT_NULL;
-    } else if (mode === 'decimal') {
+    } else if (mode === 'decimal' || mode === 'parsed' && typeof raw === 'string' && decimal.test(raw)) {
       value = Number(raw);
       if (!Number.isFinite(value)) {
         value = NaN;

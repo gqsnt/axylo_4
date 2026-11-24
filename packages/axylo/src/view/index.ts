@@ -1,3 +1,4 @@
+import { lowerBound, upperBound } from '../data/search';
 import {
   SLOT_NO_ROW, SLOT_VALUE, type AlignedFrame, type AlignedView, type DiagnosticSink, type DonutFrame,
   type DonutView, type Frame, type IndexRange, type MarkerShape, type PointFrame, type ResolvedReference,
@@ -86,20 +87,11 @@ function cues(count: number, compact: boolean, previous: AlignedView | ScatterVi
   });
 }
 
-function positionIndex(values: Float64Array, x: number, upper: boolean): number {
-  let start = 0;
-  let end = values.length;
-  while (start < end) {
-    const middle = start + Math.floor((end - start) / 2);
-    const value = values[middle]!;
-    if (value < x || upper && value === x) start = middle + 1;
-    else end = middle;
-  }
-  return start;
-}
-
-function rangeOf(values: Float64Array, domain: Span, previous?: IndexRange): IndexRange {
-  const range = { start: positionIndex(values, domain[0], false), end: positionIndex(values, domain[1], true) };
+function rangeOf(values: Float64Array, domain: Span, previous?: IndexRange, edges?: Float64Array | null): IndexRange {
+  const range = edges && edges.length ? {
+    start: Math.min(values.length, Math.max(0, upperBound(edges, domain[0]) - 1)),
+    end: Math.min(values.length, lowerBound(edges, domain[1])),
+  } : { start: lowerBound(values, domain[0]), end: upperBound(values, domain[1]) };
   return previous && sameRange(range, previous) ? previous : range;
 }
 
@@ -162,36 +154,38 @@ export function interpolated(x: Float64Array, edge: number, left: number, right:
   return Math.max(Math.min(a, b), Math.min(value, Math.max(a, b)));
 }
 
-function alignedExtrema(
+export function alignedExtrema(
   frame: AlignedFrame, visible: readonly boolean[], range: IndexRange, draws: readonly IndexRange[],
-  domain: Span, stack: StackView | null, kind: AlignedView['kind'],
+  domain: Span | null, stack: StackView | null, kind: AlignedView['kind'],
 ): Span {
   let min = Infinity;
   let max = -Infinity;
   const x = frame.x.values;
   const { start, end } = kind === 'bar' ? draws[0] ?? range : range;
   const include = (value: number) => {
+    if (!Number.isFinite(value)) return;
     min = Math.min(min, value);
     max = Math.max(max, value);
   };
   if (stack) {
     // Every component stroke lies between the two cumulative totals on each adjacent interval.
-    const fill = kind === 'area' ? stackAreaRange(frame, range, domain) : range;
+    const fill = domain && kind === 'area' ? stackAreaRange(frame, range, domain) : range;
     for (const total of [stack.negative.at(-1), stack.positive.at(-1)]) {
       if (!total) continue;
       for (let i = start; i < end; i++) include(total[i]!);
-      if (fill.start < start) include(interpolated(x, domain[0], start - 1, start, total));
-      if (end < fill.end) include(interpolated(x, domain[1], end - 1, end, total));
+      if (domain && fill.start < start) include(interpolated(x, domain[0], start - 1, start, total));
+      if (domain && end < fill.end) include(interpolated(x, domain[1], end - 1, end, total));
     }
     return [min, max];
   }
   for (let series = 0; series < frame.series.length; series++) {
     if (!visible[series]) continue;
     const { y, slot } = frame.series[series]!;
+    const { start, end } = kind === 'bar' ? draws[series] ?? range : range;
     for (let j = start; j < end; j++) {
       if (slot[j] === SLOT_VALUE) include(y[j]!);
     }
-    if (kind === 'bar') continue;
+    if (!domain || kind === 'bar') continue;
     const draw = draws[series]!;
     if (draw.start < start) {
       const right = nextObservation(slot, start, draw.end, 1);
@@ -206,7 +200,7 @@ function alignedExtrema(
   return [min, max];
 }
 
-function pointExtrema(frame: PointFrame, visible: readonly boolean[], ranges: readonly IndexRange[]): Span {
+export function pointExtrema(frame: PointFrame, visible: readonly boolean[], ranges: readonly IndexRange[]): Span {
   let min = Infinity;
   let max = -Infinity;
   for (let i = 0; i < frame.series.length; i++) {
@@ -214,14 +208,14 @@ function pointExtrema(frame: PointFrame, visible: readonly boolean[], ranges: re
     const { y } = frame.series[i]!;
     const { start, end } = ranges[i]!;
     for (let j = start; j < end; j++) {
-      min = Math.min(min, y[j]!);
-      max = Math.max(max, y[j]!);
+      const v = y[j]!;
+      if (Number.isFinite(v)) { min = Math.min(min, v); max = Math.max(max, v); }
     }
   }
   return [min, max];
 }
 
-function scatterX(frame: PointFrame, sink: DiagnosticSink): Span {
+export function scatterX(frame: PointFrame, sink?: DiagnosticSink): Span {
   let min = Infinity;
   let max = -Infinity;
   let count = 0;
@@ -237,7 +231,7 @@ function scatterX(frame: PointFrame, sink: DiagnosticSink): Span {
       if (Number.isFinite(v)) { min = Math.min(min, v); max = Math.max(max, v); }
     }
   }
-  if (count > 50_000) report(sink, 'AX133', 'none');
+  if (sink && count > 50_000) report(sink, 'AX133', 'none');
   return [min, max];
 }
 
@@ -259,18 +253,27 @@ function fitZoom(full: Span, zoom: Span | null): Span {
   return shifted < high ? [Math.max(low, shifted), high] : full;
 }
 
+export function withReferences(data: Span, references: readonly ResolvedReference[], axis: 'x' | 'y'): Span {
+  let [min, max] = data;
+  for (const reference of references) {
+    if (reference.axis !== axis) continue;
+    min = Math.min(min, reference.from);
+    max = Math.max(max, reference.to);
+  }
+  return [min, max];
+}
+
+export function zeroBaseline(kind: View['kind']): boolean {
+  return kind === 'area' || kind === 'bar' || kind === 'histogram';
+}
+
 function xExtents(
   data: Span, kind: XKind, readX: ReturnType<typeof positionReader>, references: readonly ResolvedReference[],
   state: AlignedViewState | ScatterViewState, compact: boolean, sink: DiagnosticSink,
 ): { xFull: Span; xDomain: Span } {
   const authorInput = state.xDomain === undefined ? state.xField?.domain : state.xDomain;
   const author = readSpan(authorInput, readX, 'x.domain', sink);
-  let [min, max] = data;
-  for (const reference of references) {
-    if (reference.axis !== 'x') continue;
-    min = Math.min(min, reference.from);
-    max = Math.max(max, reference.to);
-  }
+  const [min, max] = withReferences(data, references, 'x');
   const xFull: Span = state.kind === 'scatter' && kind === 'number'
     ? valueDomain({ min, max, authorDomain: author, includeZero: false }).domain
     : author ?? (min <= max ? [min, max] : kind === 'category' ? [0, 0] : [0, 1]);
@@ -282,18 +285,18 @@ function yExtent(
   data: Span, references: readonly ResolvedReference[], state: AlignedViewState | ScatterViewState,
   scale: CartesianState['valueScale'], sink: DiagnosticSink,
 ): ReturnType<typeof valueDomain> {
-  const positions = references.flatMap(r => r.axis === 'y' ? [r.from, r.to] : []);
+  const [min, max] = withReferences(data, references, 'y');
   if (state.valueDomain && !state.valueDomain.every(Number.isFinite)) {
     report(sink, 'AX103', 'none', { field: 'y.domain' });
   }
   return valueDomain({
-    min: data[0], max: data[1], includeZero: state.kind === 'bar' || state.kind === 'area',
-    authorDomain: state.valueDomain, valueScale: scale, references: positions,
+    min, max, includeZero: zeroBaseline(state.kind),
+    authorDomain: state.valueDomain, valueScale: scale,
   });
 }
 
-function alignedScale(frame: AlignedFrame, visible: readonly boolean[]): CartesianState['valueScale'] {
-  const scale = frame.series.find((_, i) => visible[i])?.valueScale;
+export function alignedScale(frame: AlignedFrame, visible: readonly boolean[]): AlignedFrame['series'][number]['valueScale'] {
+  const scale = frame.series.find((_, i) => visible[i])?.valueScale ?? null;
   return frame.series.every((series, i) => !visible[i] || series.valueScale === scale) ? scale : null;
 }
 
@@ -367,11 +370,12 @@ export function buildScatterView(frame: PointFrame, state: ScatterViewState, sin
 }
 
 export function buildAlignedView(frame: AlignedFrame, state: AlignedViewState, sink: DiagnosticSink): AlignedView {
+  const edges = frame.binEdges;
   const { prior, sameFrame, visible, references, category, continuousBars, xDomain, shared, sameShared, oldExtrema } = cartesianBase(frame, state, sink,
-    bars => bars ? barExtent(frame.x.values) : [frame.x.values[0] ?? Infinity, frame.x.values[frame.length - 1] ?? -Infinity]);
+    bars => edges?.length ? [edges[0]!, edges[edges.length - 1]!] : bars ? barExtent(frame.x.values) : [frame.x.values[0] ?? Infinity, frame.x.values[frame.length - 1] ?? -Infinity]);
   const old = prior?.kind === state.kind ? prior : undefined;
   const horizontal = state.kind === 'bar' && (state.horizontal ?? false);
-  const visibleSlots = sameFrame && old?.xDomain === xDomain ? old.visibleSlots : rangeOf(frame.x.values, xDomain, old?.visibleSlots);
+  const visibleSlots = sameFrame && old?.xDomain === xDomain ? old.visibleSlots : rangeOf(frame.x.values, xDomain, old?.visibleSlots, edges);
   const stack = state.stacked && state.kind !== 'line'
     ? sameFrame && old?.visible === visible && old.stack ? old.stack : buildStack(frame, visible)
     : null;
@@ -384,7 +388,7 @@ export function buildAlignedView(frame: AlignedFrame, state: AlignedViewState, s
   const fill = stackedArea ? stackAreaRange(frame, visibleSlots, xDomain) : null;
   const drawSlots = sameDrawWindow ? old.drawSlots : reuse(
     frame.series.map(({ slot }) => fill ? adjacentDrawRange(slot, visibleSlots, fill)
-      : state.kind === 'bar' || category || singlePosition ? barSlots : drawRange(slot, visibleSlots)),
+      : state.kind === 'bar' || edges || category || singlePosition ? barSlots : drawRange(slot, visibleSlots)),
     old?.drawSlots, sameRange,
   );
   if (stack) reportStack(stack, sink);

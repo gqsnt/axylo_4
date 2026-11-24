@@ -1,10 +1,11 @@
+import { binIndex } from '../data/search';
 import {
   SLOT_VALUE, type AlignedView, type DonutView, type Formatters, type IndexRange, type PointSeries, type ScatterView, type SlotState,
   type TableModel, type View,
 } from '../core/contracts';
 import { pointOrder, type PointIndex, type PointOrderWork } from '../lookup/point-order';
 import { lowerBound, upperBound } from '../lookup/search';
-import { donutRatio, incomplete, slotText } from '../lookup/text';
+import { donutRatio, incomplete, slotLabel, slotText } from '../lookup/text';
 import type { Messages } from '../public';
 import { readPosition } from './x';
 
@@ -150,12 +151,13 @@ export const alignedTable: TableBuilder = (view, caption, formatters, messages, 
     row(i) {
       if (!Number.isInteger(i) || i < 0 || i >= rowCount) return null;
       const at = start + i;
-      const x = formatters.x(frame.x.values[at]!);
+      const x = slotLabel(frame, formatters, at);
       return [stack?.incomplete?.[at] ? incomplete(x, messages) : x,
         ...frame.series.map((series, s) => slotText(formatters, s, series.y[at]!, series.slot[at] as SlotState))];
     },
     pageForX(x) {
       const xPos = readPosition(x, frame.x.kind, frame.x.timeZone, frame.x.categories);
+      if (frame.binEdges) return page(binIndex(frame.binEdges, xPos) - start, rowCount);
       return Number.isFinite(xPos) ? page(lowerBound(frame.x.values, xPos, start, end) - start, rowCount) : null;
     },
   };
@@ -182,7 +184,9 @@ export function printedX(view: View, formatters: Formatters, matches: (printed: 
       }
     });
   } else if (view.kind !== 'donut') {
-    scan(view.frame.x.values, view.visibleSlots.start, view.visibleSlots.end);
+    for (let i = view.visibleSlots.start; i < view.visibleSlots.end; i++) {
+      if (matches(slotLabel(view.frame, formatters, i))) return view.frame.x.values[i]!;
+    }
   }
   return Number.isFinite(found) ? found : null;
 }

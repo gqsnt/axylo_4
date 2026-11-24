@@ -3,6 +3,7 @@
  * tick sets with labels, and their titles. Also produces the key that decides whether layout must rerun
  * (plan 2.2: a data-only update reruns layout only when tick labels or margins would change).
  */
+import { alignedExtrema, alignedScale, pointExtrema, scatterX, withReferences, zeroBaseline } from '../view';
 import type { Layout, TextMeasurer, TextStyle, TickCandidates, View, XKind } from './contracts';
 import type { LayoutInput } from '../layout';
 import type { ResolvedOptions } from '../data';
@@ -114,7 +115,7 @@ function continuousX(
 ) {
   const option = ctx.resolved.x.tickFormat;
   const candidates = kind === 'number'
-    ? numberTicks(domain, ctx.locale, option, null, failures)
+    ? numberTicks(domain, ctx.locale, option, ctx.resolved.x.scale ?? null, failures)
     : temporalTicks(domain, kind, timeZone, dateUnit, ctx.locale, option, failures);
   return { type: kind === 'number' ? 'linear' as const : 'time' as const, domain, candidates, mayThin: true };
 }
@@ -143,8 +144,8 @@ const axisMemo = new WeakMap<View, AxisEntry>();
 function axisInputs(ctx: AxisContext): unknown[] {
   const { x } = ctx.resolved;
   const value = ctx.resolved.values[0];
-  return [x.field, x.tickFormat, x.unit, x.domain !== null && x.domain !== undefined, value?.field, value?.tickFormat,
-    value?.scale, value?.domain !== null && value?.domain !== undefined, ctx.locale, ctx.compact, ctx.xLabelGiven, ctx.valueTitle];
+  return [x.field, x.scale, x.tickFormat, x.unit, x.domain != null, value?.field, value?.tickFormat,
+    value?.scale, value?.domain != null, ctx.locale, ctx.compact, ctx.xLabelGiven, ctx.valueTitle];
 }
 
 function axisParts(view: View, ctx: AxisContext): AxisEntry {
@@ -184,138 +185,66 @@ export function layoutInput(
   return { ...common, ...axisParts(view, ctx).parts } as unknown as LayoutInput;
 }
 
+function valueAxis(
+  domain: Span, extent: Span | null, scale: 'percent' | 'ratio' | null, ticks: (domain: Span) => TickCandidates,
+) {
+  const candidates = (span: Span) => endingCandidates(ticks(span), span, extent, scale);
+  const full = scale === 'percent' ? 100 : scale === 'ratio' ? 1 : null;
+  return {
+    domain, mayThin: true, candidates: candidates(domain),
+    coarser: extent ? coarserDomains(extent[0], extent[1], domain, domain[1] === full)
+      .map(span => ({ domain: span, candidates: candidates(span) })) : undefined,
+  };
+}
+
 function buildAxisParts(
   view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext, failures: { readonly x: TickFailures; readonly y: TickFailures },
 ): AxisParts {
   const value = ctx.resolved.values[0];
   const yOption = value?.tickFormat ?? null;
-  const onYError = failures.y;
-  const visibleSeries = view.frame.series.filter((_, i) => view.visible[i]);
-  const firstScale = 'valueScale' in (visibleSeries[0] ?? {}) ? (visibleSeries[0] as { valueScale: 'percent' | 'ratio' | null }).valueScale : null;
-  const valueScale = view.kind === 'scatter' ? value?.scale ?? null
-    : visibleSeries.every(s => (s as { valueScale: unknown }).valueScale === firstScale) ? firstScale : null;
+  const scale = view.kind === 'scatter' ? value?.scale ?? null : alignedScale(view.frame, view.visible);
   const titles = axisTitles(view, ctx);
-  const all = numberTicks(view.yDomain, ctx.locale, yOption, valueScale, onYError);
-  const extent = value?.domain ? null : valueExtent(view);
-  const full = valueScale === 'percent' ? 100 : valueScale === 'ratio' ? 1 : null;
-  const y = {
-    domain: view.yDomain,
-    // An automatic domain ends at the first drawn tick at or beyond each extreme (F7): layout may only choose
-    // among the tick sets for which that holds, and a plot too short for all of them takes a wider domain on
-    // a coarser step, chosen with its ticks. An author's domain is drawn as given.
-    candidates: extent ? endingCandidates(all, view.yDomain, extent, valueScale) : all,
-    coarser: extent ? coarserDomains(extent[0], extent[1], view.yDomain, full !== null && view.yDomain[1] === full).map(domain => ({
-      domain, candidates: endingCandidates(numberTicks(domain, ctx.locale, yOption, valueScale, onYError), domain, extent, valueScale),
-    })) : undefined,
-    title: titles.y, mayThin: true,
-  };
+  const y = { ...valueAxis(view.yDomain, value?.domain ? null : valueExtent(view), scale,
+    domain => numberTicks(domain, ctx.locale, yOption, scale, failures.y)), title: titles.y };
 
   if (view.kind === 'scatter') {
-    const x = continuousX(view.frame.xKind, view.xDomain, view.frame.timeZone, null, ctx, failures.x);
-    // Spec F7: both axes of scatter are value axes. An automatic number x domain (not the author's, not a
-    // zoomed window) ends at the first drawn tick at or beyond each extreme, like y.
-    const automatic = view.frame.xKind === 'number' && !ctx.resolved.x.domain &&
-      view.xDomain[0] === view.xFull[0] && view.xDomain[1] === view.xFull[1];
-    const xExtent = automatic ? scatterXExtent(view) : null;
-    const candidates = xExtent ? endingCandidates(x.candidates, view.xDomain, xExtent, null) : x.candidates;
-    // Wider domains on coarser steps, as for y: a plot too narrow for every set of the domain can take one
-    // that still ends at drawn ticks (verification, defect 10). Layout reads them for x once its bottom-axis
-    // fit reports a partial set (a change routed to the layout author).
-    const coarser = xExtent ? coarserDomains(xExtent[0], xExtent[1], view.xDomain).map(domain => ({
-      domain, candidates: endingCandidates(continuousX('number', domain, null, null, ctx, failures.x).candidates, domain, xExtent, null),
-    })) : undefined;
-    return { kind: 'xy', x: { ...x, candidates, coarser, title: titles.x }, y, references: view.references };
+    const kind = view.frame.xKind;
+    const automatic = !ctx.resolved.x.domain && view.xDomain[0] === view.xFull[0] && view.xDomain[1] === view.xFull[1];
+    const x = kind === 'number' ? { type: 'linear', ...valueAxis(view.xDomain, automatic ? valueExtent(view, 'x') : null, null,
+      domain => numberTicks(domain, ctx.locale, ctx.resolved.x.tickFormat, null, failures.x)) }
+      : continuousX(kind, view.xDomain, view.frame.timeZone, null, ctx, failures.x);
+    return { kind: 'xy', x: { ...x, title: titles.x }, y, references: view.references };
   }
 
   const column = view.frame.x;
   const xTitle = titles.x;
   const references = view.references;
-  if (column.kind === 'category') {
-    const labels = categoryLabels(column.categories ?? [], ctx.resolved.x.tickFormat, failures.x);
-    const x = {
-      type: 'band' as const, count: labels.length, padding: view.kind === 'bar' ? 0.2 : 0,
-      candidates: bandTickCandidates(labels), mayThin: column.ordered, title: xTitle,
-    };
-    return view.kind === 'bar'
-      ? { kind: 'bands', horizontal: view.horizontal, x, y, references }
-      : { kind: 'xy', x, y, references };
-  }
-  // Bars on a continuous x: the view's domain already has room for the outer bars (view/bar-bands.ts), and
-  // ticks, marks and lookup all use that one domain.
-  const x = { ...continuousX(column.kind, view.xDomain, column.timeZone, column.dateUnit, ctx, failures.x), title: xTitle };
-  return view.kind === 'bar'
+  const x = column.kind === 'category' ? {
+    type: 'band' as const, count: column.categories?.length ?? 0, padding: view.kind === 'bar' ? 0.2 : 0,
+    candidates: bandTickCandidates(categoryLabels(column.categories ?? [], ctx.resolved.x.tickFormat, failures.x)),
+    mayThin: column.ordered, title: xTitle,
+  } : { ...continuousX(column.kind, view.xDomain, column.timeZone, column.dateUnit, ctx, failures.x), title: xTitle };
+  return view.kind === 'bar' || view.kind === 'histogram'
     ? { kind: 'bands', horizontal: view.horizontal, x, y, references }
     : { kind: 'xy', x, y, references };
 }
 
-/**
- * What scatter's automatic x domain was rounded from, as the view rounds it: every series' x, observations
- * with an x and no y included (they reach the table, F2), and the x references. Ticks are chosen against the
- * same extent as the domain, or a domain widened for a missing-y position has no tick set ending at it
- * (verification, defect 10).
- */
-function scatterXExtent(view: Extract<View, { kind: 'scatter' }>): Span | null {
-  const known = xExtents.get(view);
-  if (known !== undefined) return known;
-  let lo = Infinity;
-  let hi = -Infinity;
-  for (const s of view.frame.series) {
-    if (s.x.length) { lo = Math.min(lo, s.x[0]!); hi = Math.max(hi, s.x[s.x.length - 1]!); }
-    const missing = s.missingX;
-    if (missing) for (let i = 0; i < missing.length; i++) {
-      const v = missing[i]!;
-      if (Number.isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
-    }
-  }
-  for (const r of view.references) if (r.axis === 'x') { lo = Math.min(lo, r.from); hi = Math.max(hi, r.to); }
-  const extent: Span | null = lo <= hi ? [lo, hi] : null;
-  xExtents.set(view, extent);
-  return extent;
-}
-
-/** Read once per view, like `extents` (the layout key reads it every frame). */
+/** The extremes that the automatic domain was rounded from, read once per immutable view. */
 const xExtents = new WeakMap<View, Span | null>();
+const yExtents = new WeakMap<View, Span | null>();
 
-/**
- * What an automatic value domain was rounded from: the visible values (stack totals for a stack), the
- * reference lines and bands, and zero on bar and area (spec F1, F7).
- */
-export function valueExtent(view: Exclude<View, { kind: 'donut' }>): Span | null {
-  const known = extents.get(view);
+export function valueExtent(view: Exclude<View, { kind: 'donut' }>, axis: 'x' | 'y' = 'y'): Span | null {
+  const cache = axis === 'x' ? xExtents : yExtents;
+  const known = cache.get(view);
   if (known !== undefined) return known;
-  const extent = scanExtent(view);
-  extents.set(view, extent);
+  const data = view.kind === 'scatter'
+    ? axis === 'x' ? scatterX(view.frame) : pointExtrema(view.frame, view.visible, view.visiblePoints)
+    : alignedExtrema(view.frame, view.visible, view.visibleSlots, view.drawSlots, null, view.stack, view.kind);
+  let [lo, hi] = withReferences(data, view.references, axis);
+  if (axis === 'y' && zeroBaseline(view.kind)) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }
+  const extent: Span | null = lo <= hi ? [lo, hi] : null;
+  cache.set(view, extent);
   return extent;
-}
-
-/** Views are immutable: the extent is read once per view (layout input and layout key). */
-const extents = new WeakMap<View, Span | null>();
-
-function scanExtent(view: Exclude<View, { kind: 'donut' }>): Span | null {
-  let lo = Infinity;
-  let hi = -Infinity;
-  const take = (v: number) => { if (Number.isFinite(v)) { if (v < lo) lo = v; if (v > hi) hi = v; } };
-  if (view.kind === 'scatter') {
-    view.frame.series.forEach((s, i) => {
-      if (!view.visible[i]) return;
-      const { start, end } = view.visiblePoints[i]!;
-      for (let j = start; j < end; j++) take(s.y[j]!);
-    });
-  } else if (view.stack) {
-    const top = view.stack.positive.at(-1);
-    const bottom = view.stack.negative.at(-1);
-    const { start, end } = view.kind === 'bar' ? view.drawSlots[0] ?? view.visibleSlots : view.visibleSlots;
-    for (let j = start; j < end; j++) { if (top) take(top[j]!); if (bottom) take(bottom[j]!); }
-  } else {
-    view.frame.series.forEach((s, i) => {
-      if (!view.visible[i]) return;
-      const { start, end } = view.kind === 'bar' ? view.drawSlots[i] ?? view.visibleSlots : view.visibleSlots;
-      for (let j = start; j < end; j++) if (s.slot[j] === 0) take(s.y[j]!);
-    });
-  }
-  for (const r of view.references) if (r.axis === 'y') { take(r.from); take(r.to); }
-  if (view.kind === 'bar' || view.kind === 'area') take(0);
-  return lo <= hi ? [lo, hi] : null;
 }
 
 /**
@@ -389,9 +318,7 @@ export function layoutKey(
     fontEpoch, ctx.locale, ctx.compact, view.kind];
   if (view.kind === 'donut') return base;
   const value = ctx.resolved.values[0];
-  base.push(view.xDomain[0], view.xDomain[1], view.yDomain[0], view.yDomain[1], ctx.resolved.x.tickFormat,
-    ctx.resolved.x.label, ctx.resolved.x.unit, value?.tickFormat, value?.label, value?.unit, value?.scale,
-    ctx.xLabelGiven, ctx.valueTitle, view.references);
+  base.push(...view.xDomain, ...view.yDomain, ...axisInputs(ctx), ctx.resolved.x.label, value?.label, value?.unit, view.references);
   // The extremes choose among the tick sets and wider domains of an automatic domain (F7).
   const extent = value?.domain ? null : valueExtent(view);
   base.push(extent?.[0], extent?.[1]);
@@ -401,7 +328,7 @@ export function layoutKey(
   base.push(titles.x, titles.y);
   if (view.kind === 'scatter') {
     // The x extent chooses among the x tick sets of an automatic domain, as the value extent does for y.
-    const xExtent = scatterXExtent(view);
+    const xExtent = valueExtent(view, 'x');
     base.push(view.frame.xKind, view.frame.timeZone, view.frame.xLabel, view.frame.yLabel, xExtent?.[0], xExtent?.[1]);
     return base;
   }

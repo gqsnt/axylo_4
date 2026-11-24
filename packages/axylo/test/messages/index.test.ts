@@ -11,7 +11,7 @@ it('gives every public message a non-empty default', () => {
     plotLabel: true, controlsLabel: true, pointOf: true,
     zoomIn: true, zoomOut: true, resetZoom: true, pause: true, resume: true,
     category: true, percentage: true, series: true, value: true,
-    typeLine: true, typeArea: true, typeBar: true, typeScatter: true, typeDonut: true,
+    typeLine: true, typeArea: true, typeBar: true, typeHistogram: true, typeScatter: true, typeDonut: true,
     plotRole: true, pointAll: true, seriesValue: true, position: true, total: true,
     panLeft: true, panRight: true, jumpNotFound: true, plotInstructions: true,
     donutInstructions: true, seriesInstructions: true, zoomInstructions: true,

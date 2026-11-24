@@ -24,6 +24,7 @@ export interface SeriesFormatSpec {
 
 /** Formatting inputs of the x axis. Built from the frame's x column and the x field options. */
 export interface XFormatSpec {
+  readonly scale?: ValueScale;
   readonly field: string;
   readonly kind: XKind;
   readonly unit: string | null;
@@ -107,7 +108,7 @@ function createXReadout(
       // Date-time options make no sense for a number; only a function or number options are used.
       const numberOption: NumberFormatOption | null =
         typeof format === 'function' ? (v: number) => format(v) : format != null && !isDateOptions(format) ? (format as Intl.NumberFormatOptions) : null;
-      return createNumberReadout({ locale, scale: null, unit: x.unit, format: numberOption, onError });
+      return createNumberReadout({ locale, scale: x.scale, unit: x.unit, format: numberOption, onError });
     }
     default: {
       const timeZone = x.kind === 'time' ? (x.timeZone == null || x.timeZone === 'local' ? env.timeZone : x.timeZone) : null;

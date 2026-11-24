@@ -143,6 +143,8 @@ interface FrameBase {
 
 export interface AlignedFrame extends FrameBase {
   readonly shape: 'aligned';
+  /** Inclusive outer edges, with each interior edge belonging to the bin on its right. */
+  readonly binEdges?: Float64Array | null;
   readonly x: XColumn;
   readonly series: readonly Series[];
   /** Number of x slots. */
@@ -286,7 +288,7 @@ interface CartesianViewBase {
 
 /** What is currently shown of an aligned frame. */
 export interface AlignedView extends CartesianViewBase {
-  readonly kind: 'line' | 'area' | 'bar';
+  readonly kind: 'line' | 'area' | 'bar' | 'histogram';
   readonly frame: AlignedFrame;
   /** True only for horizontal bars. */
   readonly horizontal: boolean;

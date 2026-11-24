@@ -1,8 +1,7 @@
 import {
-  SLOT_NO_ROW, SLOT_VALUE, type AlignedView, type Projection, type Rect, type RectMark, type XScale,
+  SLOT_NO_ROW, SLOT_VALUE, type AlignedView, type Projection, type Rect, type RectMark,
 } from '../core/contracts';
-import { barHalfWidth } from '../view/bar-bands';
-import { clamp, COORDINATE_LIMIT, position, seriesPaint, token } from './geometry';
+import { clamp, projectBand, position, seriesPaint, token } from './geometry';
 
 type Bands = Extract<Projection, { kind: 'bands' }>;
 // With the eight palette colours, no pattern and three patterns give the 32 combinations of spec F9.
@@ -21,35 +20,6 @@ export function barPattern(series: number, compact: boolean): 'none' | typeof PA
   return group ? PATTERNS[(group - 1) % PATTERNS.length]! : 'none';
 }
 
-function bandExtents(
-  scale: XScale, values: Float64Array, start: number, end: number, low: number, high: number,
-): Float64Array {
-  const extents = new Float64Array((end - start) * 2);
-  for (let i = start, out = 0; i < end; i++) {
-    const value = values[i]!;
-    const center = position(scale, value);
-    let halfWidth: number;
-    if (scale.type === 'band') {
-      halfWidth = scale.bandwidth / 2;
-    } else {
-      const half = barHalfWidth(values, i);
-      // Project the extent before clipping so zoom does not shift or narrow the bar.
-      const span = scale.domain[1] - scale.domain[0];
-      const pixels = Math.abs(scale.range[1] - scale.range[0]);
-      if (span === 0) halfWidth = (high - low) * 0.4;
-      else if (pixels === 0) halfWidth = 0;
-      else {
-        const fraction = Number.isFinite(span) ? half / span : (half / 2) / (scale.domain[1] / 2 - scale.domain[0] / 2);
-        // An extreme extrapolation still needs to fit the packed scene geometry.
-        halfWidth = Math.min(fraction * pixels, COORDINATE_LIMIT);
-      }
-    }
-    extents[out++] = center - halfWidth;
-    extents[out++] = center + halfWidth;
-  }
-  return extents;
-}
-
 export function barMarks(view: AlignedView, projection: Bands, plot: Rect): RectMark[] {
   const { band, value, horizontal } = projection;
   const { start, end } = view.drawSlots[0] ?? view.visibleSlots;
@@ -60,7 +30,8 @@ export function barMarks(view: AlignedView, projection: Bands, plot: Rect): Rect
   const valueLow = horizontal ? plot.x : plot.y;
   const valueHigh = valueLow + (horizontal ? plot.width : plot.height);
   const baseline = (v: number) => clamp(position(value, v), valueLow, valueHigh);
-  const extents = bandExtents(band, view.frame.x.values, start, end, low, high);
+  const extents = new Float64Array((end - start) * 2);
+  for (let i = start; i < end; i++) projectBand(view.frame, band, i, high - low, extents, (i - start) * 2);
   const positives = stack?.positive.at(-1);
   const negatives = stack?.negative.at(-1);
   const divisor = stack ? 1 : order.length;
@@ -90,7 +61,7 @@ export function barMarks(view: AlignedView, projection: Bands, plot: Rect): Rect
       const bandStart = extents[k]!;
       const part = (extents[k + 1]! - bandStart) / divisor;
       // Grouped bars side by side keep 1 px of background between them (spec A5); a stack shares its band.
-      const width = Math.max(1, !stack && divisor > 1 ? part - 1 : part);
+      const width = view.frame.binEdges ? part : Math.max(1, !stack && divisor > 1 ? part - 1 : part);
       const mid = bandStart + part * ((stack ? 0 : i) + 0.5);
       const across = band.type === 'band' ? clamp(mid - width / 2, low, Math.max(low, high - width)) : mid - width / 2;
       const isValue = slot[j] === SLOT_VALUE;

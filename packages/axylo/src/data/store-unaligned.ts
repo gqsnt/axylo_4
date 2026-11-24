@@ -1,7 +1,7 @@
 import type { DiagnosticInput, DiagnosticSink, DonutFrame, Frame, PointFrame } from '../core/contracts';
 import { DiagnosticCollector } from '../diagnostics';
 import { normalizeDonut, normalizePoints, pointFrame, readX, reportCalendarDates, type DataEnvironment, type FrameVersion } from './normalize';
-import { resolveOptions, resolveTable, retargetOptions, withoutTable, type ResolvedOptions } from './options';
+import { resolveFields, resolveTable, retargetOptions, withoutTable, type ResolvedOptions } from './options';
 import { Reports } from './reports';
 import { lowerBound } from './search';
 import { FrameSource, RowRevisions, StreamRows } from './store-rows';
@@ -16,7 +16,7 @@ import { nameOf } from './x';
 const quiet: DiagnosticSink = { add() {} };
 
 
-interface Result<F> {
+export interface Result<F> {
   readonly frame: F;
   readonly positions: Float64Array;
   readonly order: Int32Array | null;
@@ -24,13 +24,15 @@ interface Result<F> {
 
 type Build<F> = (options: ResolvedOptions, environment: DataEnvironment, sink: DiagnosticSink, version: FrameVersion) => Result<F>;
 
-interface Storage<F> {
+type Candidate<F extends Frame> = PreparedFrame<F> & { abort(): void };
+
+export interface Storage<F> {
   frame(frame: F): F;
   extend(next: Result<F>, rows: StreamRows, firstRow: number, keep: number | undefined): Storage<F> | null;
-  commit(): void;
+  commit?(): void;
 }
 
-type Open<F> = (result: Result<F>) => Storage<F> | null;
+type Open<F> = (result: Result<F>, options: ResolvedOptions) => Storage<F> | null;
 
 const doubles = (length: number) => new Float64Array(length);
 const indexes = (length: number) => new Int32Array(length);
@@ -63,7 +65,7 @@ function buildDonut(options: ResolvedOptions, environment: DataEnvironment, sink
   return { frame, positions, order };
 }
 
-function firstPosition(result: Result<PointFrame | DonutFrame>, keep: number): number {
+function firstPosition(result: Result<Frame>, keep: number): number {
   const { positions, order } = result;
   let first = Infinity;
   let distinct = 0;
@@ -260,7 +262,25 @@ class Slices implements Storage<DonutFrame> {
   }
 }
 
-function removeRows(table: Table, positions: Float64Array, keep: number, first: number, rows: StreamRows): number[] {
+// Sample windows retain a contiguous suffix of arrival indexes, including rows whose value is missing.
+export function dropOldSamples(rows: StreamRows, keep: number, evicted?: number[]): number {
+  const count = Math.max(0, rows.size - keep);
+  const first = rows.next - rows.size;
+  for (let i = first; i < first + count; i++) {
+    rows.forget(i);
+    evicted?.push(i);
+  }
+  return count;
+}
+
+function removeRows(table: Table, result: Result<Frame>, keep: number, rows: StreamRows): number[] {
+  if (result.frame.shape === 'aligned') {
+    const evicted: number[] = [];
+    dropOldSamples(rows, keep, evicted);
+    return evicted;
+  }
+  const { positions } = result;
+  const first = firstPosition(result, keep);
   let unplaced = 0;
   for (let i = 0; i < table.length; i++) {
     if (!Number.isFinite(positions[i])) unplaced++;
@@ -277,7 +297,7 @@ function removeRows(table: Table, positions: Float64Array, keep: number, first: 
   return removed;
 }
 
-class UnalignedStore<F extends PointFrame | DonutFrame> {
+export class SampleStore<F extends Frame> {
   private rows: StreamRows;
   private readonly revisions: RowRevisions;
   private encoding: ResolvedOptions;
@@ -286,13 +306,14 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
   private storage: Storage<F> | null;
 
   constructor(
-    private readonly type: 'scatter' | 'donut',
+    private readonly type: 'scatter' | 'donut' | 'histogram',
     private readonly build: Build<F>,
     private readonly open: Open<F>,
     options: ResolvedOptions,
     private readonly environment: DataEnvironment,
     version: FrameVersion,
-    private readonly sink: DiagnosticSink,
+    private readonly sink: DiagnosticSink = quiet,
+    private readonly resolve = resolveFields,
   ) {
     if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) installUnalignedExtras();
     this.rows = new StreamRows(options.table);
@@ -302,15 +323,16 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
     const table = this.rows.table();
     const result = build({ ...options, table }, environment, diagnostics, version);
     const { frame, positions } = result;
-    this.rows.resetPositions(table, positions);
+    if (this.type !== 'histogram') this.rows.resetPositions(table, positions);
     this.latest = diagnostics.inputs();
-    this.storage = this.latest.length ? null : this.open(result);
+    this.storage = this.latest.length ? null : this.open(result, this.encoding);
     const source = new FrameSource(this.rows.next, this.rows);
     this.current = { ...(this.storage?.frame(frame) ?? frame), source };
     this.revisions.current.publish(frame.revision, source, this.rows);
     for (const diagnostic of this.latest) sink.add(diagnostic);
   }
 
+  get diagnostics(): readonly DiagnosticInput[] { return this.latest; }
   get frame(): F { return this.current; }
   get retainedRowCount(): number { return this.revisions.size; }
 
@@ -325,10 +347,10 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
 
   /** Validates encoding against the retained rows and returns options for re-encoding this store. */
   resolveEncoding(input: unknown, sink: DiagnosticSink): ResolvedOptions {
-    return withoutTable(resolveOptions(this.type, input, sink, this.rows.table()));
+    return withoutTable(this.resolve(this.type, input, sink, this.rows.table()));
   }
 
-  prepareAppend(rows: readonly unknown[], options: StoreAppendOptions = {}): PreparedFrame<F> {
+  prepareAppend(rows: readonly unknown[], options: StoreAppendOptions = {}): Candidate<F> {
     const base = this.current;
     const version = { epoch: base.epoch, revision: base.revision + 1 };
     const keep = retention(options);
@@ -358,7 +380,7 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
     if (keep !== undefined) {
       // Removing rows can change the inferred kind and make formerly unplaceable x values usable.
       while (true) {
-        const removed = removeRows(table, result.positions, keep, firstPosition(result, keep), retained);
+        const removed = removeRows(table, result, keep, retained);
         if (removed.length === 0) break;
         for (const row of removed) evicted.push(row);
         current = new DiagnosticCollector();
@@ -370,12 +392,12 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
     retained.compactColumns();
     const ordered = ordering.inputs();
     const diagnostics = [...current.inputs(), ...ordered];
-    retained.resetPositions(table, result.positions);
-    return this.prepare(base, result.frame, retained, diagnostics.length ? null : this.open(result),
+    if (this.type !== 'histogram') retained.resetPositions(table, result.positions);
+    return this.prepare(base, result.frame, retained, diagnostics.length ? null : this.open(result, this.encoding),
       diagnostics, [...call.inputs(), ...ordered], evicted);
   }
 
-  private extendAppend(base: F, rows: readonly unknown[], version: FrameVersion, keep: number | undefined): PreparedFrame<F> | null {
+  private extendAppend(base: F, rows: readonly unknown[], version: FrameVersion, keep: number | undefined): Candidate<F> | null {
     // Implicit string parsing and diagnostics can change when old rows leave. Reuse old values only when
     // both partitions have unambiguous clean values and the same x interpretation.
     if (!this.storage || this.encoding.values[0]?.parse || this.encoding.series !== null) return null;
@@ -396,14 +418,14 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
     return this.prepare(base, result.frame, retained, extension, [], [], evicted);
   }
 
-  prepareReencode(options: ResolvedOptions, version: FrameVersion): PreparedFrame<F> {
+  prepareReencode(options: ResolvedOptions, version: FrameVersion): Candidate<F> {
     return this.prepareEncoding(this.rows.fork(), options, version, new DiagnosticCollector());
   }
 
   private prepareEncoding(
     rows: StreamRows, options: ResolvedOptions, version: FrameVersion, call: DiagnosticCollector,
     replacement?: { table: Table; valid: boolean },
-  ): PreparedFrame<F> {
+  ): Candidate<F> {
     const base = this.current;
     if (version.revision <= base.revision || version.epoch <= base.epoch) {
       throw new Error('Encoding updates and replacements require a newer epoch and revision.');
@@ -411,23 +433,23 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
     const table = rows.table();
     const resolved = retargetOptions(options, replacement?.table ?? table, call, replacement?.valid);
     const result = this.build({ ...resolved, table }, this.environment, call, version);
-    rows.resetPositions(table, result.positions);
+    if (this.type !== 'histogram') rows.resetPositions(table, result.positions);
     const diagnostics = call.inputs();
-    return this.prepare(base, result.frame, rows, diagnostics.length ? null : this.open(result), diagnostics, diagnostics, [], options, replacement !== undefined);
+    return this.prepare(base, result.frame, rows, diagnostics.length ? null : this.open(result, withoutTable(options)), diagnostics, diagnostics, [], options, replacement !== undefined);
   }
 
   private prepare(
     base: F, frame: F, rows: StreamRows, storage: Storage<F> | null,
     diagnostics: readonly DiagnosticInput[], callDiagnostics: readonly DiagnosticInput[],
     evicted: readonly number[], options = this.encoding, replacement = false,
-  ): PreparedFrame<F> {
+  ): Candidate<F> {
     const source = new FrameSource(rows.next, rows, () => this.current === base);
     const candidate = { ...(storage?.frame(frame) ?? frame), source };
     const commit = once(() => this.current, () => {
       if (replacement) this.revisions.replace(rows);
       for (const row of evicted) this.revisions.current.archive(row);
       rows.commit();
-      storage?.commit();
+      storage?.commit?.();
       this.rows = rows;
       this.current = candidate;
       this.latest = diagnostics;
@@ -435,7 +457,9 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
       if (options !== this.encoding) this.encoding = withoutTable(options);
       this.revisions.current.publish(candidate.revision, source, rows);
     }, base);
-    return { frame: candidate, diagnostics, callDiagnostics, commit };
+    return { frame: candidate, diagnostics, callDiagnostics,
+      commit, abort: commit.abort,
+    };
   }
 }
 
@@ -444,8 +468,7 @@ class UnalignedStore<F extends PointFrame | DonutFrame> {
  * prepare and commit). Development and benchmark builds install them when the first store is made; the
  * production file has none of them.
  */
-interface UnalignedStore<F extends PointFrame | DonutFrame> {
-  readonly diagnostics: readonly DiagnosticInput[];
+export interface SampleStore<F extends Frame> {
   /** The typed storage beyond the caller's columns, with frames still held counted in the same set (P7). */
   ownedBytes(frames?: readonly Frame[]): OwnedBytes;
   append(rows: readonly unknown[], options?: StoreAppendOptions, sink?: DiagnosticSink): F;
@@ -458,9 +481,8 @@ let unalignedExtras = false;
 function installUnalignedExtras(): void {
   if (unalignedExtras) return;
   unalignedExtras = true;
-  type Store = UnalignedStore<PointFrame | DonutFrame>;
-  const proto = UnalignedStore.prototype as Store;
-  Object.defineProperty(proto, 'diagnostics', { configurable: true, get(this: Store) { return this['latest']; } });
+  type Store = SampleStore<PointFrame | DonutFrame>;
+  const proto = SampleStore.prototype as Store;
   proto.ownedBytes = function (this: Store, frames: readonly Frame[] = []): OwnedBytes {
     const bytes = new ByteCount(new CallerBuffers());
     const storage = this['storage'];
@@ -504,13 +526,13 @@ function installUnalignedExtras(): void {
   };
 }
 
-export class PointStore extends UnalignedStore<PointFrame> {
+export class PointStore extends SampleStore<PointFrame> {
   constructor(options: ResolvedOptions, environment: DataEnvironment, version: FrameVersion, sink: DiagnosticSink = quiet) {
     super('scatter', buildPoints, Points.open, options, environment, version, sink);
   }
 }
 
-export class DonutStore extends UnalignedStore<DonutFrame> {
+export class DonutStore extends SampleStore<DonutFrame> {
   constructor(options: ResolvedOptions, environment: DataEnvironment, version: FrameVersion, sink: DiagnosticSink = quiet) {
     super('donut', buildDonut, Slices.open, options, environment, version, sink);
   }

@@ -11,7 +11,7 @@ import { object } from '../data/options';
 
 export { object };
 import { createDiagnostic, DiagnosticCollector, report } from '../diagnostics';
-import { buildView, type ViewState } from '../view';
+import { buildView, zeroBaseline, type ViewState } from '../view';
 import { fill, resolveMessages } from '../messages';
 import { sameValue, type OptionRecord } from './options';
 
@@ -32,7 +32,7 @@ export function stringOption(options: OptionRecord, key: string): string | null 
 }
 
 export function isCompact(kind: ChartType, options: OptionRecord): boolean {
-  return (kind === 'line' || kind === 'area' || kind === 'bar') && options.compact === true;
+  return (kind !== 'scatter' && kind !== 'donut') && options.compact === true;
 }
 
 /** Options without the controller's own keys (the renderer switch). */
@@ -48,7 +48,7 @@ export function publicOptions(input: unknown): OptionRecord {
 }
 
 /** Option keys whose content normalization reads. */
-const ENCODING_KEYS = ['x', 'y', 'series', 'label', 'value'] as const;
+const ENCODING_KEYS = ['x', 'y', 'series', 'label', 'value', 'bins', 'normalize'] as const;
 /** Parts of a field spec that only the view, layout or formatting read: changing them never renormalizes. */
 const PRESENTATION_PARTS = new Set(['domain', 'format', 'tickFormat']);
 
@@ -64,7 +64,7 @@ function fieldEncoding(spec: unknown, ignore: ReadonlySet<string> = PRESENTATION
 
 /** True when the field specs differ in something normalization reads (plan 2.2: author domains belong to the view). */
 export function encodingChanged(before: OptionRecord, after: OptionRecord): boolean {
-  return ENCODING_KEYS.some(key => !sameValue(fieldEncoding(before[key]), fieldEncoding(after[key])));
+  return !namesOnlyChanged(before, after, PRESENTATION_PARTS);
 }
 
 /** PRESENTATION_PARTS with the names (a literal: no work at import time). */
@@ -74,8 +74,8 @@ const NAMING_PARTS = new Set(['domain', 'format', 'tickFormat', 'label', 'unit']
  * True when the field specs differ only in labels and units: the values read are the same, so the frame's
  * names can be updated without reading the data again (review 3, finding 12).
  */
-export function namesOnlyChanged(before: OptionRecord, after: OptionRecord): boolean {
-  return ENCODING_KEYS.every(key => sameValue(fieldEncoding(before[key], NAMING_PARTS), fieldEncoding(after[key], NAMING_PARTS)));
+export function namesOnlyChanged(before: OptionRecord, after: OptionRecord, ignore = NAMING_PARTS): boolean {
+  return ENCODING_KEYS.every(key => sameValue(fieldEncoding(before[key], ignore), fieldEncoding(after[key], ignore)));
 }
 
 export function viewStateFor(
@@ -122,7 +122,7 @@ export function completeViewDiagnostics(
   const stillHolds: Record<string, boolean> = {
     AX130: series > 8,
     AX131: view.compact && series > 1,
-    AX110: (kind === 'bar' || kind === 'area') && domain !== null && domain !== undefined &&
+    AX110: zeroBaseline(kind) && domain !== null && domain !== undefined &&
       domain.every(Number.isFinite) && (Math.min(domain[0], domain[1]) > 0 || Math.max(domain[0], domain[1]) < 0),
   };
   for (const d of before) {

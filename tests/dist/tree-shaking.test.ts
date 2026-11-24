@@ -34,14 +34,15 @@ import { fixture, fixtureGuard, out, repo } from './paths';
 // @ts-expect-error scripts/build.mjs is plain JavaScript without declarations
 import { PRODUCTION, stylesheetPlugin, stylesheets } from '../../scripts/build.mjs';
 
-const KINDS = ['line', 'area', 'bar', 'scatter', 'donut'] as const;
+const KINDS = ['line', 'area', 'bar', 'histogram', 'scatter', 'donut'] as const;
 type Kind = typeof KINDS[number];
 
 const ALIGNED_STORE = /adoptNormalized/;
 const MARKERS: Record<Kind, readonly RegExp[]> = {
   line: [/kind:"line",normalize:/],
   area: [/kind:"area",normalize:/, /\.upper\b/],
-  bar: [/kind:"bar",normalize:/, /axylo-pattern-/],
+  bar: [/kind:"bar",normalize:/],
+  histogram: [/kind:"histogram",normalize:/],
   scatter: [/kind:"scatter",normalize:/, /\.minX\b/],
   donut: [/kind:"donut",normalize:/, /__other__/],
 };
@@ -82,6 +83,7 @@ describe('a consumer that imports one chart kind', () => {
     it(`${kind}: carries its own composition and code (the markers are present)`, async () => {
       const text = await consumer(kind);
       for (const marker of MARKERS[kind]) expect(text, `${kind} lacks its own marker ${marker}`).toMatch(marker);
+      if (kind === 'bar' || kind === 'histogram') expect(text).toMatch(/axylo-pattern-/);
       if (ALIGNED.includes(kind)) expect(text).toMatch(ALIGNED_STORE);
     });
 
@@ -92,6 +94,7 @@ describe('a consumer that imports one chart kind', () => {
         if (other === kind) continue;
         for (const marker of MARKERS[other]) if (marker.test(text)) found.push(`${other} ${marker}`);
       }
+      if (kind !== 'bar' && kind !== 'histogram' && /axylo-pattern-/.test(text)) found.push('bar patterns');
       if (!ALIGNED.includes(kind) && ALIGNED_STORE.test(text)) found.push(`aligned storage ${ALIGNED_STORE}`);
       console.info(`${kind} only: ${text.length} bytes minified`);
       expect(found).toEqual([]);
@@ -102,14 +105,15 @@ describe('a consumer that imports one chart kind', () => {
 /** Source modules that belong to some kinds only (paths under packages/axylo/src), and the kinds they belong to. */
 const OWNED: Record<string, readonly Kind[]> = {
   'kinds/line.ts': ['line'], 'kinds/area.ts': ['area'], 'kinds/bar.ts': ['bar'], 'kinds/scatter.ts': ['scatter'], 'kinds/donut.ts': ['donut'],
-  'scene/areas.ts': ['area'], 'scene/bars.ts': ['bar'],
+  'kinds/histogram.ts': ['histogram'], 'data/histogram.ts': ['histogram'],
+  'scene/areas.ts': ['area'], 'scene/bars.ts': ['bar', 'histogram'],
   'lookup/scatter.ts': ['scatter'], 'lookup/scatter-grid.ts': ['scatter'], 'lookup/point-order.ts': ['scatter'],
   'lookup/donut.ts': ['donut'], 'view/donut.ts': ['donut'], 'view/donut-geometry.ts': ['donut'],
   // Aligned data (one x shared by every series): line, area and bar.
-  'data/store.ts': ['line', 'area', 'bar'], 'data/store-buffers.ts': ['line', 'area', 'bar'], 'lookup/aligned.ts': ['line', 'area', 'bar'],
-  'view/stack.ts': ['line', 'area', 'bar'],
+  'data/store.ts': ['line', 'area', 'bar'], 'data/store-buffers.ts': ['line', 'area', 'bar'], 'lookup/aligned.ts': ['line', 'area', 'bar', 'histogram'],
+  'view/stack.ts': ['line', 'area', 'bar', 'histogram'],
   // Unaligned data: scatter points and donut slices.
-  'data/store-unaligned.ts': ['scatter', 'donut'],
+  'data/store-unaligned.ts': ['scatter', 'donut', 'histogram'],
 };
 
 const src = path.join(repo, 'packages/axylo/src');

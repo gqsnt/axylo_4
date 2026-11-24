@@ -10,6 +10,7 @@ export const nav = [
     { page: 'line', label: 'Line' },
     { page: 'area', label: 'Area' },
     { page: 'bar', label: 'Bar' },
+    { page: 'histogram', label: 'Histogram' },
     { page: 'scatter', label: 'Scatter' },
     { page: 'donut', label: 'Donut' },
     { page: 'compact', label: 'Compact' },

@@ -7,7 +7,7 @@ const fullChartSummary = '{type} chart with {seriesCount} series. {xLabel} from 
 const donutSlice = '{label}: {value} ({percent}).';
 
 export const CHART_TYPE_MESSAGE = {
-  line: 'typeLine', area: 'typeArea', bar: 'typeBar', scatter: 'typeScatter', donut: 'typeDonut',
+  line: 'typeLine', area: 'typeArea', bar: 'typeBar', histogram: 'typeHistogram', scatter: 'typeScatter', donut: 'typeDonut',
 } as const;
 
 export const defaultMessages: Required<Messages> = {
@@ -48,6 +48,7 @@ export const defaultMessages: Required<Messages> = {
   typeLine: 'Line',
   typeArea: 'Area',
   typeBar: 'Bar',
+  typeHistogram: 'Histogram',
   typeScatter: 'Scatter',
   typeDonut: 'Donut',
   donutSummary: '{type} chart with {count} slices. Total {total}.',
@@ -73,6 +74,11 @@ export const defaultMessages: Required<Messages> = {
   incompleteAt: '{label}: incomplete at {positions}.',
   incompleteCount: '{label}: {count} incomplete stacks.',
 };
+
+export function chartTypeName(messages: Messages, kind: keyof typeof CHART_TYPE_MESSAGE): string {
+  const key = CHART_TYPE_MESSAGE[kind];
+  return messages[key] ?? defaultMessages[key];
+}
 
 export function fill(template: string, values: Readonly<Record<string, string | number>>): string {
   return template.replace(/\{(\w+)\}/g, (placeholder: string, name: string) =>

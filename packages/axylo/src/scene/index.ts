@@ -109,7 +109,7 @@ export function donutScene(view: View, layout: Layout): Scene {
 }
 
 export const barLayers: DataLayers = (view, projection, clip) =>
-  view.kind === 'bar' && projection.kind === 'bands' ? [barMarks(view, projection, clip)] : [];
+  (view.kind === 'bar' || view.kind === 'histogram') && projection.kind === 'bands' ? [barMarks(view, projection, clip)] : [];
 
 export const scatterLayers: DataLayers = (view, projection) =>
   view.kind === 'scatter' && projection.kind === 'xy' ? [scatterPoints(view, projection)] : [];
@@ -159,7 +159,7 @@ export const barScene = (view: View, layout: Layout, devicePixelRatio: number): 
 export const scatterScene = (view: View, layout: Layout, devicePixelRatio: number): Scene => cartesianScene(scatterLayers, view, layout, devicePixelRatio);
 
 const allLayers: DataLayers = (view, projection, clip, compact, devicePixelRatio) =>
-  view.kind === 'bar' ? barLayers(view, projection, clip, compact, devicePixelRatio)
+  (view.kind === 'bar' || view.kind === 'histogram') ? barLayers(view, projection, clip, compact, devicePixelRatio)
     : view.kind === 'scatter' ? scatterLayers(view, projection, clip, compact, devicePixelRatio)
       : view.kind === 'area' ? areaLayers(view, projection, clip, compact, devicePixelRatio)
         : lineLayers(view, projection, clip, compact, devicePixelRatio);

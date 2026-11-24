@@ -1,4 +1,5 @@
-import type { Paint, PaintToken, Projection, Rect, ResolvedReference, RuleMark, XScale } from '../core/contracts';
+import { barHalfWidth } from '../view/bar-bands';
+import type { AlignedFrame, Paint, PaintToken, Projection, Rect, ResolvedReference, RuleMark, XScale } from '../core/contracts';
 
 /** 2¹²⁰, as a literal so the module does no work at import time. */
 export const COORDINATE_LIMIT = 1.329227995784916e+36;
@@ -16,6 +17,31 @@ export function position(scale: XScale, value: number): number {
     return (value < scale.domain[0]) === (start < end) ? -COORDINATE_LIMIT : COORDINATE_LIMIT;
   }
   return clamp(pixel, -COORDINATE_LIMIT, COORDINATE_LIMIT);
+}
+
+/** The mark and its focus outline use the same projected band, including the inter-bin separator. */
+export function projectBand(frame: AlignedFrame, scale: XScale, i: number, spanPixels: number, out: Float64Array, offset: number): void {
+  const edges = frame.binEdges;
+  if (edges?.length === frame.length + 1) {
+    const left = position(scale, edges[i]!);
+    const right = position(scale, edges[i + 1]!);
+    out[offset] = left;
+    out[offset + 1] = right - (right - left > 2 ? 1 : 0);
+    return;
+  }
+  const values = frame.x.values;
+  const center = position(scale, values[i]!);
+  let half: number;
+  if (scale.type === 'band') half = scale.bandwidth / 2;
+  else {
+    const [lo, hi] = scale.domain;
+    const width = barHalfWidth(values, i);
+    const pixels = Math.abs(scale.range[1] - scale.range[0]);
+    const proportion = Number.isFinite(hi - lo) ? width / (hi - lo) : (width / 2) / (hi / 2 - lo / 2);
+    half = lo === hi ? spanPixels * 0.4 : pixels === 0 ? 0 : Math.min(proportion * pixels, COORDINATE_LIMIT);
+  }
+  out[offset] = center - half;
+  out[offset + 1] = center + half;
 }
 
 export function clamp(value: number, from: number, to: number): number {

@@ -22,7 +22,7 @@ export const examplesDir = path.join(docsRoot, 'examples');
 /** Generated inputs that are not the site: the packed consumer and compiler probes. Git-ignored. */
 export const cacheDir = path.join(docsRoot, '.cache');
 
-const CHART_CALL = /\b(?:line|area|bar|scatter|donut)\(\s*(['"])#([\w-]+)\1|getElementById\(\s*(['"])([\w-]+)\3\s*\)/g;
+const CHART_CALL = /\b(?:line|area|bar|histogram|scatter|donut)\(\s*(['"])#([\w-]+)\1|getElementById\(\s*(['"])([\w-]+)\3\s*\)/g;
 const RAISES = /Raises ((?:AX\d{3})(?:(?:, | and )AX\d{3})*) on purpose/;
 const NO_MARKS = /Draws no marks on purpose/;
 export const MODULE_SCRIPT = /<script type="module">([\s\S]*?)<\/script>/g;

@@ -98,7 +98,7 @@ export function valueText(
     const rows = alignedRows(view, formatters, focus.x, model).map(r => fill(messages.seriesValue, { series: r.seriesLabel, value: r.value }));
     if (model.total !== null) rows.push(fill(messages.seriesValue, { series: messages.total, value: model.total }));
     if (!rows.length) return null;
-    return fill(messages.pointAll, { x: formatters.x(focus.x), values: rows.join('; '), position });
+    return fill(messages.pointAll, { x: model.title, values: rows.join('; '), position });
   }
   return pointOf(lookup, focus, formatters, messages);
 }
@@ -114,7 +114,7 @@ export function alignedRows(view: AlignedView, formatters: Formatters, x: number
   const positions = view.frame.x.values;
   const i = lowerBound(positions, x);
   if (i >= positions.length || positions[i] !== x) return rows;
-  const title = formatters.x(x);
+  const title = model.title;
   for (const s of readableSeries(view)) {
     if (shown.has(s)) continue;
     const series = view.frame.series[s]!;
@@ -143,7 +143,7 @@ export function datumReading(view: View, lookup: Lookup, ref: DatumRef, mode: Mo
     const model = lookup.tooltip({ kind: 'x', x: ref.x });
     const rows = alignedRows(view, formatters, ref.x, model).map(r => [r.seriesIndex, r.seriesLabel, r.value]);
     // Both the raw x (its identity) and the x as read (a changed x format rewrites the text, final check 5).
-    return JSON.stringify(['all', ref.seriesKey, x, formatters.x(ref.x), rows, model.total, words]);
+    return JSON.stringify(['all', ref.seriesKey, x, model.title, rows, model.total, words]);
   }
   const datum = lookup.datum(ref);
   if (!datum) return null;

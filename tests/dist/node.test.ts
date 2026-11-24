@@ -25,8 +25,8 @@ describe.each([[[]], [['--conditions=development']]] as const)('axylo in plain N
     expect(inside(fixture('npm', 'node_modules/axylo'), new URL(probe.resolved).pathname)).toBe(true);
   });
 
-  it('exports the five chart functions and validate, and adds no globals on import', () => {
-    expect(probe.exports).toEqual(['area', 'bar', 'donut', 'line', 'scatter', 'validate']);
+  it('exports the six chart functions and validate, and adds no globals on import', () => {
+    expect(probe.exports).toEqual(['area', 'bar', 'donut', 'histogram', 'line', 'scatter', 'validate']);
     expect(probe.addedGlobals).toEqual([]);
   });
 

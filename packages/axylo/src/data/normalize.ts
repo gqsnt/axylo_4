@@ -12,6 +12,8 @@ import type { Table } from './table';
 import { readValues, type ValueCounts, type Values } from './values';
 import { dateUnitOf, inferKind, nameOf, positionName, XParser, type DateUnit } from './x';
 
+export { normalize } from './index';
+
 export type DataEnvironment = Pick<Environment, 'timeZone'>;
 export interface FrameVersion { readonly epoch: number; readonly revision: number }
 
@@ -460,16 +462,6 @@ const alignedSeeds = new WeakMap<AlignedFrame, AlignedSeed>();
 
 export function alignedSeed(frame: AlignedFrame): AlignedSeed | undefined {
   return alignedSeeds.get(frame);
-}
-
-export function normalize(type: AlignedChartType, options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): AlignedFrame;
-export function normalize(type: 'scatter', options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): PointFrame;
-export function normalize(type: 'donut', options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): DonutFrame;
-export function normalize(type: ChartType, options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): Frame;
-export function normalize(type: ChartType, options: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): Frame {
-  if (type === 'donut') return normalizeDonut(options, env, sink, version);
-  if (type === 'scatter') return normalizePoints(options, env, sink, version);
-  return normalizeAligned(type, options, env, sink, version);
 }
 
 /** Options whose data could not be read normalize as no rows. */

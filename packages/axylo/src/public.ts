@@ -116,6 +116,11 @@ export interface CartesianOptions {
 /** Line, area and bar only. Marks only, as a static image with a text alternative: no axes, legend, toolbar, table, zoom or tooltip. */
 export interface CompactOption { compact?: boolean }
 
+export type HistogramOptions<Row> = CommonOptions<Row> & CartesianOptions & CompactOption & {
+  x: ValueField<Row>;
+  bins?: number | readonly number[];
+  normalize?: 'count' | 'probability' | 'density';
+};
 export type LineOptions<Row> = CommonOptions<Row> & CartesianOptions & CompactOption & Encoding<Row>;
 export type AreaOptions<Row> = CommonOptions<Row> & CartesianOptions & CompactOption & Encoding<Row> & { stacked?: boolean };
 export type BarOptions<Row> = CommonOptions<Row> & CartesianOptions & CompactOption & Encoding<Row> & { layout?: 'grouped' | 'stacked'; horizontal?: boolean };
@@ -198,7 +203,7 @@ export interface Messages {
   /** Column headers and nouns. */
   category: string; percentage: string; series: string; value: string;
   /** Chart type names used in generated names and summaries. */
-  typeLine: string; typeArea: string; typeBar: string; typeScatter: string; typeDonut: string;
+  typeLine: string; typeArea: string; typeBar: string; typeHistogram?: string; typeScatter: string; typeDonut: string;
   /** Summary sentences that have no cartesian form. */
   donutSummary: string; seriesNoData: string; seriesNotDrawn: string; referenceLine: string; referenceBand: string;
   /** What the keyboard proxy says it is ("{type} chart") and how it reads a position. */

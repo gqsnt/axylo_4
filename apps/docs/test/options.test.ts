@@ -31,6 +31,7 @@ const GROUPS: Record<string, { type: string; keys: string }> = {
   CompactOption: { type: 'CompactOption', keys: 'Keys<CompactOption>' },
   AreaOptions: { type: 'AreaOptions<Row>', keys: `Exclude<Keys<AreaOptions<Row>>, Keys<${L}>>` },
   BarOptions: { type: 'BarOptions<Row>', keys: `Exclude<Keys<BarOptions<Row>>, Keys<${L}>>` },
+  HistogramOptions: { type: 'HistogramOptions<Row>', keys: 'Exclude<Keys<HistogramOptions<Row>>, Keys<CommonOptions<Row>> | Keys<CartesianOptions> | Keys<CompactOption>>' },
   ScatterOptions: { type: 'ScatterOptions<Row>', keys: 'Exclude<Keys<ScatterOptions<Row>>, Keys<CommonOptions<Row>> | Keys<CartesianOptions>>' },
   DonutOptions: { type: 'DonutOptions<Row>', keys: 'Exclude<Keys<DonutOptions<Row>>, Keys<CommonOptions<Row>>>' },
   ValueField: { type: 'Exclude<ValueField<Row>, string>', keys: 'Keys<Exclude<ValueField<Row>, string>>' },
@@ -101,7 +102,7 @@ beforeAll(() => {
     files: ['probe.ts', rel('packages/axylo/src/core/globals.d.ts')],
   }, null, 2));
   const lines = [
-    "import type { AreaOptions, BarOptions, CartesianOptions, Chart, ChartEvents, CommonOptions, CompactOption, Data, Diagnostic, DonutOptions, Encoding, LineOptions, Messages, NumberKey, Point, Reference, ScatterOptions, ScatterXField, SeriesKey, StringKey, Title, ValueField, XField, XKey, XValue } from 'axylo';",
+    "import type { AreaOptions, BarOptions, CartesianOptions, Chart, ChartEvents, CommonOptions, CompactOption, Data, Diagnostic, DonutOptions, Encoding, HistogramOptions, LineOptions, Messages, NumberKey, Point, Reference, ScatterOptions, ScatterXField, SeriesKey, StringKey, Title, ValueField, XField, XKey, XValue } from 'axylo';",
     'interface Row { day: string; v: number; s: string }',
     'type Keys<T> = T extends unknown ? { [K in keyof T]-?: [Exclude<T[K], undefined>] extends [never] ? never : K }[keyof T] : never;',
     'type Prop<T, K extends PropertyKey> = T extends unknown ? (K extends keyof T ? Exclude<T[K], undefined> : never) : never;',

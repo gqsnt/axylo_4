@@ -1,7 +1,12 @@
-import { SLOT_NULL, SLOT_VALUE, type DonutView, type DonutSlice, type Formatters, type SlotState } from '../core/contracts';
+import { SLOT_NULL, SLOT_VALUE, type AlignedFrame, type DonutView, type DonutSlice, type Formatters, type SlotState } from '../core/contracts';
 import { createFormatters } from '../format';
 import type { Messages } from '../public';
 import { defaultMessages, fill } from '../messages';
+
+export function slotLabel(frame: AlignedFrame, formatters: Formatters, i: number): string {
+  const edges = frame.binEdges;
+  return edges ? formatters.x(edges[i]!) + '–' + formatters.x(edges[i + 1]!) : formatters.x(frame.x.values[i]!);
+}
 
 export function slotText(formatters: Formatters, series: number, value: number, state: SlotState): string {
   return state === SLOT_VALUE ? formatters.value(series, value) : formatters.missing(state);

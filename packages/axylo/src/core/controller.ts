@@ -23,14 +23,14 @@ import {
 } from './contracts';
 import type { ChartEvents, Diagnostic, Messages, Point, Title, XValue } from '../public';
 import type { PreparedFrame } from '../data';
-import { resolveOptions, withoutTable, type ChartType, type ResolvedOptions } from '../data/options';
+import { resolveFields, withoutTable, type ChartType, type ResolvedOptions } from '../data/options';
 import { createDiagnostic, DiagnosticCollector, readerDisclosure, type DiagnosticCode } from '../diagnostics';
 import { createFormatters, type FormatSpec } from '../format';
 import { dateUnitOf } from '../data/x';
 import { rowsTable, type Table } from '../data/table';
 import { computeLayout } from '../layout';
 import { readerWith, seriesNotDrawnSentence } from '../reader';
-import { CHART_TYPE_MESSAGE, fill, resolveMessages } from '../messages';
+import { chartTypeName, fill, resolveMessages } from '../messages';
 import { lowContrastSeries, type ThemeResolution } from '../theme';
 import { OptionsStore, sameValue, type OptionRecord } from './options';
 import { Delivery, diagnosticKey, StrictError, strictViolations, type DeliveryConsole } from './delivery';
@@ -54,7 +54,6 @@ const ABORT = Symbol('axylo frame superseded');
 
 export type { BenchHook, ChartHandle, DevHook, Stage } from './instrument';
 
-const KIND_NAMES: Record<ChartKind, string> = { line: 'Line', area: 'Area', bar: 'Bar', scatter: 'Scatter', donut: 'Donut' };
 /** Option resolution reports these about the data; they belong to the call that set the data. */
 const DATA_CODES = new Set(['AX100', 'AX101']);
 /** Rows a store may hold beyond twice what was on screen before the frames that pin it copy their rows. */
@@ -275,6 +274,7 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
 /** The controller for one chart kind: every stage that differs between kinds comes from its composition. */
 export function controllerFor(composition: Composition, input: unknown, page: Host): Controller {
   const kind = composition.kind;
+  const resolveOptions = composition.resolve ?? resolveFields;
   let host = page;
   // Instrumentation (core/instrument.ts): only in development and benchmark builds; the guard folds to false in
   // the shipped production files, which then carry neither the counters nor the hooks.
@@ -1151,7 +1151,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       ? frame.series.map(s => ({ field: s.field, unit: s.unit, scale: s.valueScale, format: valueFor(s.field)?.format ?? null }))
       : frame.series.map(() => ({ field: resolved.values[0]?.field ?? 'y', unit: frame.yUnit, scale: resolved.values[0]?.scale ?? null, format: resolved.values[0]?.format ?? null }));
     return {
-      series, x: { field: resolved.x.field, unit: resolved.x.unit, format: resolved.x.format as never, ...x },
+      series, x: { field: resolved.x.field, unit: resolved.x.unit, scale: resolved.x.scale, format: resolved.x.format as never, ...x },
       locale, messages, onFormatterError,
     };
   }
@@ -1160,7 +1160,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   const onFormatterError = (field: string): void => formatterFailed(field);
 
   function formattersKey(spec: FormatSpec, valueCount: number): unknown[] {
-    return [spec.locale, spec.x.kind, spec.x.timeZone, spec.x.dateUnit, spec.x.categories, spec.x.format, spec.x.unit,
+    return [spec.locale, spec.x.kind, spec.x.timeZone, spec.x.dateUnit, spec.x.categories, spec.x.format, spec.x.unit, spec.x.scale,
       spec.messages.noData, spec.messages.noObservation,
       spec.series.map(s => `${s.field}\u0001${s.unit}\u0001${s.scale}`).join('\u0002'), ...spec.series.map(s => s.format), valueCount];
   }
@@ -1281,7 +1281,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         ? before.reader : null;
       const t = a.options.title;
       const reader = readerWith(composition.reader, {
-        view, formatters: formatters!, messages: a.messages, type: a.messages[CHART_TYPE_MESSAGE[kind]] || KIND_NAMES[kind],
+        view, formatters: formatters!, messages: a.messages, type: chartTypeName(a.messages, kind),
         title: typeof t === 'string' || (t && typeof t === 'object') ? t as string | Title : undefined,
         labelledBy: named ? by! : undefined, caption,
         // The x column header carries the x unit (spec A4).
@@ -1964,6 +1964,7 @@ function renamed(frame: Frame, resolved: ResolvedOptions, revision: number): Fra
   if (frame.shape === 'points') {
     return { ...frame, revision, xLabel: resolved.x.label, yLabel: value?.label ?? frame.yLabel, xUnit: resolved.x.unit, yUnit: value?.unit ?? null };
   }
+  if (frame.binEdges) return { ...frame, revision, xLabel: resolved.x.label };
   const byField = new Map(resolved.values.map(v => [v.field, v]));
   return {
     ...frame, revision, xLabel: resolved.x.label, yLabel: resolved.values.length === 1 ? value!.label : null,

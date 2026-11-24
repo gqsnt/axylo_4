@@ -31,7 +31,7 @@ import type {
   Rect, ResolvedTheme, StepDirection, TooltipModel, View, XValue,
 } from '../core/contracts';
 import type { Messages } from '../public';
-import { CHART_TYPE_MESSAGE, defaultMessages, fill, messageLanguage } from '../messages';
+import { chartTypeName, defaultMessages, fill, messageLanguage } from '../messages';
 import {
   overlayWith, OUTLINE_REACH, RING_REACH, RING_STROKE, alignedRows, canZoomIn, datumReading, minimumWidth, panWindow,
   pinchWidth, pixelOf, positionAt, rangeWindow, refsAt, ringRect, sameRef, stepAcross, zoomStep, targetBox, targetOf, valueText, PAN_SHARE, ZOOM_FACTOR,
@@ -64,7 +64,7 @@ export type ReadoutMode = 'floating' | 'strip' | 'none';
  * measured and their arrival never makes the plot relayout.
  */
 export interface ControlsState {
-  readonly kind: 'line' | 'area' | 'bar' | 'scatter' | 'donut';
+  readonly kind: 'line' | 'area' | 'bar' | 'histogram' | 'scatter' | 'donut';
   readonly view: View;
   readonly formatters: Formatters;
   readonly messages: Messages;
@@ -217,7 +217,7 @@ export function seriesPattern(index: number): SwatchPattern['kind'] | null {
 
 /** How a series is drawn, repeated in its legend and tooltip swatch (spec A5). */
 export function seriesSwatch(kind: ControlsState['kind'], index: number, cue: SwatchSpec['cue'], hollow: boolean): SwatchSpec {
-  if (kind === 'bar') return barSwatch(index, cue, hollow);
+  if (kind === 'bar' || kind === 'histogram') return barSwatch(index, cue, hollow);
   if (kind === 'area') return areaSwatch(index, cue, hollow);
   return kind === 'line' ? lineSwatch(index, cue, hollow) : pointSwatch(index, cue, hollow);
 }
@@ -719,8 +719,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   // ── what the reader is on ──────────────────────────────────────────────────────────────────────
 
-  function aligned(view: View): view is Extract<View, { kind: 'line' | 'area' | 'bar' }> {
-    return view.kind === 'line' || view.kind === 'area' || view.kind === 'bar';
+  function aligned(view: View): view is Extract<View, { kind: 'line' | 'area' | 'bar' | 'histogram' }> {
+    return view.kind !== 'scatter' && view.kind !== 'donut';
   }
 
   /** A zoomed window with nothing in it: the plot keeps its focus and its zoom keys, so the reader can go back. */
@@ -1887,7 +1887,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     // Inside a toolbar marked English, a replaced label is marked with the page's language again.
     const inherited = d.english('controlsLabel') ? d.pageLang : null;
     const button = (key: Exclude<keyof Messages, InstructionKey>, activate: () => void, disabled = false): ToolbarItem =>
-      ({ key, label: m[key], lang: d.english(key) ?? inherited, className: 'axylo-control', activate, disabled });
+      ({ key, label: m[key] ?? defaultMessages[key], lang: d.english(key) ?? inherited, className: 'axylo-control', activate, disabled });
     if (offersZoom(d) && (d.ready || recoverable(d))) {
       const window = d.zoomed ? d.view.xDomain : d.view.xFull;
       if (d.ready) items.push(button('zoomIn', () => zoomBy(1 / ZOOM_FACTOR), !canZoomIn(d.view, window)));
@@ -2013,7 +2013,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       while (instructions.children.length > parts.length) instructions.lastElementChild!.remove();
       setAttr(proxy, 'aria-describedby', parts.length ? instructions.id : null);
     }
-    setAttr(proxy, 'aria-roledescription', fill(d.messages.plotRole, { type: d.messages[CHART_TYPE_MESSAGE[d.kind]] }));
+    setAttr(proxy, 'aria-roledescription', fill(d.messages.plotRole, { type: chartTypeName(d.messages, d.kind) }));
     plot.classList.toggle('axylo-touch-zoom', d.zoom === 'touch');
     plot.classList.toggle('axylo-zoomable', d.zoom !== false);
   }

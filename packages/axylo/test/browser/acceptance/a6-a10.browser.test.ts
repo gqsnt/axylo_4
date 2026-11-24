@@ -367,7 +367,7 @@ const WHERE: Record<keyof Messages, readonly ChartType[] | string> = {
   previousPage: ['line', 'area', 'bar', 'scatter', 'donut'], nextPage: ['line', 'area', 'bar', 'scatter', 'donut'], pageOf: ['line', 'area', 'bar', 'scatter', 'donut'],
   jumpToX: ['line', 'area', 'bar', 'scatter', 'donut'],
   category: ['donut'], percentage: ['donut'], series: ['scatter'], value: 'used only when a value field has no label; every scenario labels or names it',
-  typeLine: ['line', 'compact'], typeArea: ['area'], typeBar: ['bar'], typeScatter: ['scatter'], typeDonut: ['donut'],
+  typeLine: ['line', 'compact'], typeArea: ['area'], typeBar: ['bar'], typeHistogram: 'used by histogram charts; covered in histogram.browser.test.ts', typeScatter: ['scatter'], typeDonut: ['donut'],
   donutSummary: ['donut'], seriesNoData: ['line', 'area', 'bar', 'scatter'], seriesNotDrawn: ['line', 'area', 'bar'],
   referenceLine: ['line', 'area', 'bar', 'scatter'], referenceBand: ['line', 'area', 'bar', 'scatter'],
   plotRole: ['line', 'area', 'bar', 'scatter', 'donut'], pointAll: ['line', 'area', 'bar'], seriesValue: ['line', 'area', 'bar'],

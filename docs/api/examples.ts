@@ -1,5 +1,5 @@
 // Every example in docs/03-plan-typescript-release.md, type-checked against the package's real entry point.
-import { line, bar, area, donut, scatter, validate, type Chart, type LineOptions } from '../../packages/axylo/src/index';
+import { line, bar, histogram, area, donut, scatter, validate, type Chart, type LineOptions } from '../../packages/axylo/src/index';
 
 // --- the first chart: long rows
 interface Session { day: string; channel: string; sessions: number | null }
@@ -99,3 +99,10 @@ line('#x', { data: rows, x: 'day', y: 'sessions', labelledBy: document.body });
 line('#x', { data: rows, x: 'day', y: 'sessions', series: 'channel', colors: { Direct: 1 } });
 // @ts-expect-error compact is a boolean
 line('#x', { data: rows, x: 'day', y: 'sessions', compact: 'yes' });
+
+histogram('#latency', { data: { columns: { ms: new Float64Array([8, 12, 32]) } }, x: 'ms', bins: [0, 10, 50] });
+validate('histogram', { data: pg, x: { field: 'count', parse: 'number' }, normalize: 'density' });
+// @ts-expect-error numeric strings need an explicit parse
+histogram('#x', { data: pg, x: 'count' });
+// @ts-expect-error histogram has one distribution and cannot be stacked
+histogram('#x', { data: samples, x: 'ts', stacked: true });

@@ -8,7 +8,7 @@ import {
   type DataEnvironment, type FrameVersion, type XData,
 } from './normalize';
 import {
-  checkFields, resolveOptions, resolveTable, retargetOptions, withoutTable,
+  checkFields, resolveFields, resolveTable, retargetOptions, withoutTable,
   type AlignedChartType, type ResolvedOptions, type ResolvedValueField,
 } from './options';
 import { Reports } from './reports';
@@ -515,7 +515,7 @@ export class AlignedStore {
 
   /** Validates encoding against the retained rows and returns options for re-encoding this store. */
   resolveEncoding(input: unknown, sink: DiagnosticSink): ResolvedOptions {
-    return withoutTable(resolveOptions(this.type, input, sink, this.rows.table()));
+    return withoutTable(resolveFields(this.type, input, sink, this.rows.table()));
   }
 
   prepareAppend(rows: readonly unknown[], options: StoreAppendOptions = {}): PreparedFrame<AlignedFrame> {

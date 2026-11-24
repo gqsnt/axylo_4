@@ -18,12 +18,14 @@ export function retention(options: StoreAppendOptions): number | undefined {
   return keep === undefined || !Number.isFinite(keep) ? undefined : Math.max(0, Math.floor(keep));
 }
 
-export function once(current: () => Frame, apply: () => void, base = current()): () => void {
+export function once(current: () => Frame, apply: () => void, base = current()) {
   let pending: { base: Frame; current: () => Frame; apply: () => void } | undefined = { base, current, apply };
-  return () => {
+  const commit = () => {
     if (!pending) return;
     if (pending.base !== pending.current()) throw new Error('Cannot commit a superseded data revision.');
     pending.apply();
     pending = undefined;
   };
+  commit.abort = () => { pending = undefined; };
+  return commit;
 }
