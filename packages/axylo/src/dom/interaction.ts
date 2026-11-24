@@ -46,7 +46,7 @@ import { sliceText } from '../lookup/text';
 import { barPattern } from '../scene/bars';
 import { readPosition } from '../reader/x';
 import { printedX } from '../reader/table';
-import { activeElementOf, placeChildren, setAttr, setText, make, keepFocusOnPress, hideFromAT } from './attributes';
+import { activeElementOf, isElement, isFocusable, listenOutside, placeChildren, setAttr, setText, make, keepFocusOnPress, hideFromAT, shadowRootOf, shadowRootsOf } from './attributes';
 import { mappingOf, rectToViewport, toLocal, toViewport, visibleRegion, type Point } from './mapping';
 import { insideCorridor, intersect, type PlacementInput } from './placement';
 import { identityOf, matchesIdentity, sameTarget, type Identity } from './pointer';
@@ -271,7 +271,7 @@ export const donutSliceList: SliceList = (doc, d, actions, list) => {
       if (step === undefined) return;
       const buttons = [...own.querySelectorAll<HTMLButtonElement>('.axylo-legend-choice')];
       if (!buttons.length) return;
-      const at = buttons.findIndex(b => b === activeElementOf(doc));
+      const at = buttons.findIndex(b => b === activeElementOf(doc, own));
       const to = step === 'first' ? 0 : step === 'last' ? buttons.length - 1 : (Math.max(0, at) + step + buttons.length) % buttons.length;
       event.preventDefault();
       for (const [i, b] of buttons.entries()) b.tabIndex = i === to ? 0 : -1;
@@ -325,15 +325,34 @@ export const donutSliceList: SliceList = (doc, d, actions, list) => {
   }
   const live = new Set(view.slices.map(slice => slice.key));
   for (const key of [...kept.keys()]) if (!live.has(key)) kept.delete(key);
-  // Moving a focused entry blurs it: it gets focus back after a reorder (review I13).
-  const had = activeElementOf(doc);
-  const hadInList = had instanceof HTMLElement && list.contains(had);
+  // Moving a focused entry blurs it, and removing one must hand focus to a surviving neighbour (or the figure).
+  const had = activeElementOf(doc, list);
+  const hadInList = isFocusable(had) && list.contains(had);
+  const prevButtons = hadInList ? [...list.querySelectorAll<HTMLButtonElement>('.axylo-legend-choice')] : [];
+  const hadIndex = hadInList ? prevButtons.indexOf(had as HTMLButtonElement) : -1;
   placeChildren(list, wanted);
-  if (hadInList && had.isConnected && activeElementOf(doc) !== had) had.focus({ preventScroll: true });
+  const buttons = [...list.querySelectorAll<HTMLButtonElement>('.axylo-legend-choice')];
+  if (hadInList) {
+    if (had.isConnected) {
+      if (activeElementOf(doc, list) !== had) had.focus({ preventScroll: true });
+    } else if (buttons.length > 0) {
+      const after = hadIndex >= 0 ? prevButtons.slice(hadIndex + 1).find(b => b.isConnected) : undefined;
+      const before = hadIndex > 0 ? prevButtons.slice(0, hadIndex).reverse().find(b => b.isConnected) : undefined;
+      const heir = after ?? before ?? buttons[Math.min(Math.max(0, hadIndex), buttons.length - 1)]!;
+      heir.focus({ preventScroll: true });
+    } else {
+      const fig = list.closest('.axylo-figure');
+      if (isFocusable(fig)) {
+        if (!fig.hasAttribute('tabindex')) fig.setAttribute('tabindex', '-1');
+        fig.focus({ preventScroll: true });
+      }
+    }
+  }
   const roving = !d.ready;
   list.dataset.roving = String(roving);
-  const buttons = [...list.querySelectorAll<HTMLButtonElement>('.axylo-legend-choice')];
-  const focusedAt = buttons.findIndex(b => b === activeElementOf(doc) || b.tabIndex === 0);
+  const currentActive = activeElementOf(doc, list);
+  let focusedAt = buttons.indexOf(currentActive as HTMLButtonElement);
+  if (focusedAt < 0) focusedAt = buttons.findIndex(b => b.tabIndex === 0);
   for (const [i, b] of buttons.entries()) b.tabIndex = roving && i === Math.max(0, focusedAt) ? 0 : -1;
   return list;
 };
@@ -374,6 +393,8 @@ interface Content {
   readonly rect: Rect;
   readonly anchor: Rect | null;
   readonly presentation: Presentation;
+  readonly pinned: boolean;
+  readonly page: number;
 }
 
 const NONE: Shown = { kind: 'none' };
@@ -450,10 +471,28 @@ export function parseNumberAs(text: string, format: (n: number) => string, count
 }
 
 /**
- * The figure of the chart that most recently showed content: with focus in no chart, only it spends an Escape
- * (decision 0004, clarifications: one key press is spent by at most one chart).
+ * Figures currently showing content, per document, in recency order (last is most recent): with focus in no
+ * chart, only the most recent one spends an Escape (decision 0004, clarifications: one key press is spent by
+ * at most one chart). WeakMap-keyed by Document and released on hide/clear/detach/destroy so nothing leaks.
  */
-let lastShowing: HTMLElement | null = null;
+let lastShowing: WeakMap<Document, HTMLElement[]> | null = null;
+/** Attached figures per document, so Escape sees focus inside another chart's closed shadow root. */
+let liveFigures: WeakMap<Document, Set<HTMLElement>> | null = null;
+
+function focusedFigure(doc: Document, own: HTMLElement): Element | null {
+  const active = activeElementOf(doc, own);
+  const inOwn = isElement(active) ? active.closest('.axylo-figure') : null;
+  if (inOwn !== null) return inOwn;
+  const all = liveFigures?.get(doc);
+  if (all) {
+    for (const fig of all) {
+      if (fig === own) continue;
+      const inner = shadowRootOf(fig)?.activeElement ?? null;
+      if (isElement(inner) && fig.contains(inner)) return fig;
+    }
+  }
+  return null;
+}
 
 export function createInteraction(parts: InteractionParts, figure: Figure, renderer: MarkRenderer, actions: Actions): Interaction {
   const doc = figure.figure.ownerDocument;
@@ -517,6 +556,21 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   let built: AbortController | null = null;
   let documentListeners: AbortController | null = null;
 
+  function registerFigure(): void {
+    let set = (liveFigures ??= new WeakMap()).get(doc);
+    if (!set) liveFigures.set(doc, set = new Set());
+    set.add(figure.figure);
+  }
+
+  function unregisterFigure(): void {
+    const set = liveFigures?.get(doc);
+    if (!set) return;
+    set.delete(figure.figure);
+    if (set.size === 0) liveFigures!.delete(doc);
+  }
+
+  registerFigure();
+
   // ── elements (built for full charts only) ──────────────────────────────────────────────────────
 
   let proxy: HTMLInputElement | null = null;
@@ -530,12 +584,19 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     if (documentListeners || !attached || !proxy) return;
     documentListeners = new AbortController();
     const signal = documentListeners.signal;
+    const roots = shadowRootsOf(figure.figure);
     // On the window, capturing: the chart sees Escape before anything in the page, a dialog included, and
     // spends it when it has something to close (rule 7).
     doc.defaultView?.addEventListener('keydown', onEscape, { capture: true, signal });
     doc.addEventListener('scroll', onScroll, { capture: true, passive: true, signal });
     doc.defaultView?.addEventListener('blur', onWindowBlur, { signal });
-    doc.addEventListener('pointerdown', onDocumentDown, { capture: true, signal });
+    listenOutside(doc, roots, 'pointerdown', [plot, figure.tooltip, figure.readout], () => {
+      if (shown.kind !== 'pinned') return;
+      endPin();
+      redraw();
+    }, signal);
+    // Element scroll has composed: false, so enclosing shadow roots need their own capture scroll listener.
+    for (const root of roots) root.addEventListener('scroll', onScroll, { capture: true, passive: true, signal });
   }
 
   function unlistenDocument(): void {
@@ -596,7 +657,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
    * tab stop is added (WCAG 2.4.3; interaction review, new item 6).
    */
   function handOff(): void {
-    if (!proxy || activeElementOf(doc) !== proxy) return;
+    if (!proxy || activeElementOf(doc, figure.figure) !== proxy) return;
     if (toolbar?.focus('table')) return;
     focusFigure();
   }
@@ -624,8 +685,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   /** Focus is in one of the chart's own elements other than the figure itself. */
   function focusOwned(): boolean {
-    const active = activeElementOf(doc);
-    return active instanceof Element && active !== figure.figure && figure.figure.contains(active);
+    const active = activeElementOf(doc, figure.figure);
+    return isElement(active) && active !== figure.figure && figure.figure.contains(active);
   }
 
   function unbuild(ownedBefore = false): void {
@@ -652,7 +713,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       host.replaceChildren();
     }
     plot.classList.remove('axylo-touch-zoom', 'axylo-zoomable');
-    if (owned && (activeElementOf(doc) === null || activeElementOf(doc) === doc.body || !figure.figure.contains(activeElementOf(doc)))) focusFigure();
+    const after = activeElementOf(doc, figure.figure);
+    if (owned && (after === null || after === doc.body || !figure.figure.contains(after))) focusFigure();
   }
 
   // ── what the reader is on ──────────────────────────────────────────────────────────────────────
@@ -810,20 +872,52 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   /** The clock event timestamps are on. */
   const clock = (): number => doc.defaultView?.performance.now() ?? 0;
 
+  function noteShowing(promote: boolean): void {
+    let list = (lastShowing ??= new WeakMap()).get(doc);
+    if (!list) lastShowing.set(doc, list = []);
+    const i = list.indexOf(figure.figure);
+    if (promote) {
+      if (i >= 0) list.splice(i, 1);
+      list.push(figure.figure);
+    } else if (i < 0) {
+      list.unshift(figure.figure);
+    }
+  }
+
+  function releaseShowing(): void {
+    const list = lastShowing?.get(doc);
+    if (!list) return;
+    const i = list.indexOf(figure.figure);
+    if (i >= 0) list.splice(i, 1);
+    if (list.length === 0) lastShowing!.delete(doc);
+  }
+
+  function isLastShowing(): boolean {
+    const list = lastShowing?.get(doc);
+    return list !== undefined && list[list.length - 1] === figure.figure;
+  }
+
+  function hideTooltip(): void {
+    tooltip.hide();
+    releaseShowing();
+  }
+
   /** Presents again, whatever was presented. */
-  function redraw(): void {
+  function redraw(recency: 'auto' | 'keep' | 'promote' = 'auto'): void {
     dirty = true;
-    present();
+    present(recency);
   }
 
   /** Draws the overlay and the tooltip for what is shown, and fires `hover` when the datum changes. */
-  function present(): void {
+  function present(recency: 'auto' | 'keep' | 'promote' = 'auto'): void {
     const d = c;
     if (!plotReady(d) || !proxy) {
       if (presented !== '') {
         if (d) renderer.drawOverlay(null, d.bindings, d.theme, d.pixelRatio);
-        tooltip.hide();
+        hideTooltip();
         presented = '';
+      } else {
+        releaseShowing();
       }
       content = null;
       hover(null);
@@ -845,13 +939,14 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     dirty = false;
     const overlay: Overlay | null = overlayWith(parts.overlay, { view: d.view, layout: d.layout, lookup: d.lookup, target, ring: visibleRing, only });
     renderer.drawOverlay(overlay, d.bindings, d.theme, d.pixelRatio);
+    const prev = content;
     content = null;
     if (!showTip || target === null) {
-      tooltip.hide();
+      hideTooltip();
     } else {
       const model = pinned ? pinnedModel(d, target, pinPage) : d.lookup.tooltip(target);
       if (model.rows.length === 0) {
-        tooltip.hide();
+        hideTooltip();
       } else {
         const tc: TooltipContent = {
           model, swatch: swatchFor(d), moreRows: count => fill(d.messages.moreRows, { count: d.formatters.count(count) }),
@@ -872,8 +967,13 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
           : tooltip.show(tc, placementFor(d, target, visibleRing), pinned);
         const rect = placed ? tooltip.rect() : null;
         if (rect) {
-          content = { target, rect, anchor: anchorOf(d, target), presentation };
-          lastShowing = figure.figure;
+          const page = pinned ? pinPage : 0;
+          const promote = recency === 'promote' || (recency === 'auto' &&
+            (prev === null || !sameTarget(prev.target, target) || prev.pinned !== pinned || prev.page !== page));
+          content = { target, rect, anchor: anchorOf(d, target), presentation, pinned, page };
+          noteShowing(promote);
+        } else {
+          releaseShowing();
         }
       }
     }
@@ -1176,7 +1276,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     keyed = false;
     proxy?.classList.remove('axylo-keyed');
     if (shown.kind === 'keyboard') shown = pointer && c ? { kind: 'hover', target: plotReady(c) ? pick(c, pointer) : null } : NONE;
-    redraw();
+    redraw('keep');
   }
 
   // ── zoom ───────────────────────────────────────────────────────────────────────────────────────
@@ -1231,7 +1331,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   function onWheel(event: WheelEvent): void {
     const d = c;
     // Spec I3: only while the plot has focus, and never with Ctrl or Meta (browser zoom, page scroll).
-    if (!plotReady(d) || !d.zoom || !proxy || activeElementOf(doc) !== proxy || event.ctrlKey || event.metaKey) return;
+    if (!plotReady(d) || !d.zoom || !proxy || activeElementOf(doc, figure.figure) !== proxy || event.ctrlKey || event.metaKey) return;
     if (event.deltaY === 0) return;
     const p = local(event);
     const at = positionAt(d.layout, p.x, p.y);
@@ -1322,7 +1422,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
         down.dragging = true;
         // A gesture ends a pin: no state holds a pin with nothing shown (decision 0004, clarifications).
         if (shown.kind === 'pinned') { shown = NO_HOVER; pinPage = 0; }
-        tooltip.hide();
+        hideTooltip();
         content = null;
         presented = '';
       }
@@ -1501,7 +1601,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       writeProxy(true);
       actions.select(ref);
     }
-    redraw();
+    redraw('promote');
   }
 
   function onPointerCancel(event: PointerEvent): void {
@@ -1537,16 +1637,6 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     shown = pointer && plotReady(c) ? { kind: 'hover', target: pick(c, pointer) } : idle();
   }
 
-  function onDocumentDown(event: PointerEvent): void {
-    if (shown.kind !== 'pinned') return;
-    // The composed path: inside a shadow root the target seen here is the host (review finding 9).
-    const path = event.composedPath();
-    const inside = path.includes(plot) || path.includes(figure.tooltip) || path.includes(figure.readout);
-    if (inside) return;
-    endPin();
-    redraw();
-  }
-
   function startPinch(d: Committed): void {
     const [ia, ib] = [...touches.keys()];
     const a = ia === undefined ? undefined : touches.get(ia);
@@ -1556,7 +1646,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     const center = positionAt(d.layout, (a.x + b.x) / 2, (a.y + b.y) / 2) ?? (window[0] + window[1]) / 2;
     pinch = { ids: [ia, ib], distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), window, center };
     if (shown.kind === 'pinned') { shown = idle(); pinPage = 0; }
-    tooltip.hide();
+    hideTooltip();
     content = null;
     presented = '';
   }
@@ -1601,9 +1691,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     // Which chart an Escape belongs to, decided before anything is spent: the one focus is in (through
     // shadow roots, review R2); with focus in no chart, the one dragging, else the one that showed content
     // last (decision 0004, clarifications).
-    const active = activeElementOf(doc);
-    const inChart = active instanceof Element ? active.closest('.axylo-figure') : null;
-    if (inChart !== figure.figure && (inChart !== null || (lastShowing !== figure.figure && !down?.dragging))) return;
+    const inChart = focusedFigure(doc, figure.figure);
+    if (inChart !== figure.figure && (inChart !== null || (!isLastShowing() && !down?.dragging))) return;
     if (down?.dragging) {
       spend();
       endDrag();
@@ -1667,19 +1756,23 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
    */
   function jumpTarget(raw: string): XValue | null {
     const d = cs;
-    if (!d?.reader.table || raw.trim() === '') return null;
+    if (!d?.reader.table) return null;
     const view = d.view;
     const kind = xKindOf(view);
     if (kind === 'category') return raw;
     const text = raw.trim();
-    // Last: an x the column itself writes, matched as written (a localized date, a sign the grammar missed).
+    if (text === '') return null;
     // Last: an x the table itself prints, matched as printed (a localized date, a sign the grammar missed);
     // the reader knows exactly which rows it prints (review I13).
     const written = (): number | null => {
       const want = normalized(text);
       return printedX(view, d.formatters, printed => normalized(printed) === want);
     };
-    if (kind === 'number') return parseNumberAs(text, d.formatters.x, d.formatters.count) ?? written();
+    if (kind === 'number') {
+      const parsed = parseNumberAs(text, d.formatters.x, d.formatters.count);
+      if (parsed === null) return written();
+      return normalized(d.formatters.x(parsed)) === normalized(text) ? parsed : written() ?? parsed;
+    }
     const zone = view.kind === 'scatter' ? view.frame.timeZone : view.kind === 'donut' ? null : view.frame.x.timeZone;
     const position = (value: XValue) => {
       try { return readPosition(value, kind, zone); } catch { return NaN; }
@@ -1708,7 +1801,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     rest = null;
     pinPage = 0;
     shown = NONE;
-    tooltip.hide();
+    hideTooltip();
     content = null;
     presented = '';
     tableModel = null;
@@ -1720,13 +1813,16 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   function closeTable(restore = true): void {
     if (!tableView) return;
     // Focus inside the table goes to its disclosure before the table goes (review 2, finding 17).
-    const focusInside = tableView.element.contains(activeElementOf(doc));
+    const focusInside = tableView.element.contains(activeElementOf(doc, figure.figure));
     tableView.destroy();
     tableView = null;
     tableModel = null;
     figure.figure.classList.remove('axylo-table-open');
     plot.inert = false;
-    if (focusInside && restore) toolbar?.focus('table') || proxy?.focus({ preventScroll: true });
+    if (focusInside && restore && !toolbar?.focus('table')) {
+      if (proxy && !proxy.hidden) proxy.focus({ preventScroll: true });
+      if (!proxy || proxy.hidden || activeElementOf(doc, figure.figure) !== proxy) focusFigure();
+    }
   }
 
   /** The cells' text as runs, built-in English marked on a page in another language (A10; review C2-19). */
@@ -1838,14 +1934,14 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   }
 
   function renderDonutLegend(d: ControlsState): void {
+    const inside = legendList !== null && legendList.contains(activeElementOf(doc, figure.figure));
     const next = parts.sliceList?.(doc, d, actions, legendList) ?? null;
     if (next === null && legendList) {
       // A slice the reader is on goes with its list: focus goes to the figure, not the page (C2-17).
-      const inside = legendList.contains(activeElementOf(doc));
       legendList.remove();
-      if (inside) focusFigure();
     }
     legendList = next;
+    if (inside && (!legendList || !legendList.contains(activeElementOf(doc, figure.figure)))) focusFigure();
   }
 
   /** Puts exactly `wanted`, in order, into `host`, moving rather than rebuilding. */
@@ -1860,8 +1956,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
     renderDonutLegend(d);
     const items = controlItems(d);
-    const active = activeElementOf(doc);
-    const inToolbar = toolbar.element.contains(active);
+    const inToolbar = toolbar.element.contains(activeElementOf(doc, figure.figure));
     toolbar.render(items, d.messages.controlsLabel, d.english('controlsLabel'));
     // The legend, and the toolbar it is part of (one tab stop, spec A2), go where `legend` says.
     const legend: Element[] = [];
@@ -1870,10 +1965,12 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     const where = d.legend === 'top' ? figure.top : d.legend === 'right' ? figure.side : figure.controls;
     if (tableView && !(d.reader.table && (d.ready || d.inspectable))) closeTable();
     else if (tableView) renderTable(d);
+    // Captured after toolbar.render and closeTable so an heir button they just focused keeps focus across a move.
+    const active = activeElementOf(doc, figure.figure);
     place(where, legend);
     for (const other of [figure.top, figure.side, figure.controls]) if (other !== where) place(other, []);
     // Moving an element can take focus with it; the control the reader was on keeps it (review 2, finding 17).
-    if (active instanceof HTMLElement && active !== activeElementOf(doc) && active.isConnected) active.focus({ preventScroll: true });
+    if (isFocusable(active) && active !== activeElementOf(doc, figure.figure) && active.isConnected) active.focus({ preventScroll: true });
     // A toolbar that emptied under the reader hands focus to the figure, not the page (C2-17).
     else if (inToolbar && !items.length) focusFigure();
   }
@@ -2108,11 +2205,12 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       renderControls(state);
     }
     // The strip is reserved before the plot is measured, so the plot's size is the one it really has.
-    const strip = presentationFor(state) === 'strip';
+    const nextPres = presentationFor(state);
+    const strip = nextPres === 'strip';
     if (figure.figure.classList.contains('axylo-readout-mode') !== strip) {
       figure.figure.classList.toggle('axylo-readout-mode', strip);
-      // The presentation changes: a hold or what was shown in the old one goes with it (rule 3b).
-      tooltip.hide();
+      // A pinned tooltip switches directly in commit so an active row press survives floating <-> strip (R1).
+      if (shown.kind !== 'pinned' || nextPres === 'none') hideTooltip();
       content = null;
       presented = '';
       if (shown.kind === 'held') shown = pointer ? NO_HOVER : idle();
@@ -2135,7 +2233,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     presented = '';
     // Recorded before the tooltip goes: a focused pinned row goes with it (review C3-6).
     const owned = focusOwned();
-    tooltip.hide();
+    hideTooltip();
     unbuild(owned);
     focus = null;
     shown = NONE;
@@ -2164,6 +2262,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     attach() {
       if (attached || destroyed) return;
       attached = true;
+      registerFigure();
       listenDocument();
     },
     detach() {
@@ -2171,11 +2270,16 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       attached = false;
       cancelGestures();
       endPin();
+      hideTooltip();
+      content = null;
+      presented = '';
+      unregisterFigure();
       unlistenDocument();
     },
     destroy() {
       if (destroyed) return;
       clear();
+      unregisterFigure();
       tooltip.destroy();
       destroyed = true;
       if (pinchFrame !== 0) doc.defaultView?.cancelAnimationFrame(pinchFrame);

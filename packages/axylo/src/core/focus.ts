@@ -169,7 +169,7 @@ export function alignedRows(view: AlignedView, formatters: Formatters, x: number
  */
 export function datumReading(view: View, lookup: Lookup, ref: DatumRef, mode: Mode, formatters: Formatters, messages: Messages): string | null {
   if (lookup.ordinal(ref) < 0) return null;
-  const words = [messages.pointAll, messages.pointOf, messages.seriesValue, messages.total];
+  const words = [messages.pointAll, messages.pointOf, messages.seriesValue, messages.total, messages.position];
   // An aligned datum's x by its raw key: a category's name (not its index, which a sliding window renumbers;
   // review finding 10), and not its formatted text, which two categories can share (review R10).
   const x = ref.kind === 'aligned' && view.kind !== 'scatter' && view.kind !== 'donut'

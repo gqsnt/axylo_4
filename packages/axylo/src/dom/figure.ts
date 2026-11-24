@@ -240,7 +240,12 @@ export function createFigure(root: HTMLElement, id: string, parts: { marks: Elem
     },
     announce(text: string, lang: string | null = null): void {
       setAttr(live, 'lang', lang);
-      setText(live, text);
+      if (live.textContent === text) {
+        // Replace the text node so an identical re-announcement is still observed by assistive technology.
+        if (text !== '') live.replaceChildren(doc.createTextNode(text));
+      } else {
+        live.textContent = text;
+      }
     },
     destroy(): void {
       figure.remove();
@@ -258,9 +263,19 @@ function movesLayout(a: FigureModel, b: FigureModel): boolean {
     (a.compact ? null : a.note) !== (b.compact ? null : b.note);
 }
 
+function sameSegments(a: readonly NoteSegment[] | null | undefined, b: readonly NoteSegment[] | null | undefined): boolean {
+  if (a === b || (!a && !b)) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i]!.text !== b[i]!.text || a[i]!.lang !== b[i]!.lang) return false;
+  }
+  return true;
+}
+
 function same(a: FigureModel, b: FigureModel): boolean {
   return a.compact === b.compact && a.messageLang === b.messageLang && a.noteLang === b.noteLang && a.labelledBy === b.labelledBy && a.name === b.name && a.subtitle === b.subtitle &&
     a.summary === b.summary && a.summaryLang === b.summaryLang && a.summaryVisible === b.summaryVisible && a.note === b.note && a.message === b.message &&
+    sameSegments(a.noteSegments, b.noteSegments) &&
     (a.title === b.title || (a.title !== null && b.title !== null && a.title.text === b.title.text &&
       a.title.level === b.title.level && a.title.visible === b.title.visible));
 }

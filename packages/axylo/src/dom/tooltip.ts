@@ -16,7 +16,7 @@
  *   of rule 6 is used, and when even that would cover a control or a focus ring nothing floats.
  * - Strip: at least the x and one row are always shown.
  */
-import { activeElementOf, placeChildren, setAttr, setText, make, keepFocusOnPress } from './attributes';
+import { activeElementOf, listenOutside, placeChildren, setAttr, setText, make, keepFocusOnPress, shadowRootsOf } from './attributes';
 import type { DatumText, Rect, TooltipModel } from '../core/contracts';
 import { createSwatch, type SwatchSpec } from './swatch';
 import { fallbackPlacement, placeTooltip, type PlacementInput } from './placement';
@@ -101,6 +101,10 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
    * at release, wherever a redraw moved or replaced its element meanwhile (review R1, final check 3).
    */
   let press: { key: string; pointer: number } | null = null;
+  /** Document/shadow listeners watching for release/cancel outside the tooltip while a press is active. */
+  let pressListening: AbortController | null = null;
+  /** The pointerdown event that started a row press, so the host listener does not clear it as it bubbles. */
+  let pressEvent: Event | null = null;
   /** The pointer click that follows a completed press, on that row, is not a second choice. */
   let pressed: { key: string; at: number } | null = null;
   /** A row that had focus when its presentation was hidden: the next presentation focuses it again. */
@@ -110,6 +114,28 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
   let current: TooltipContent | null = null;
   /** How many rows the content on show lists (the rest are in "+N more"). */
   let displayed = 0;
+
+  function clearPress(): void {
+    press = null;
+    pressListening?.abort();
+    pressListening = null;
+  }
+
+  function startPress(key: string, pointer: number): void {
+    clearPress();
+    press = { key, pointer };
+    pressListening = new AbortController();
+    const signal = pressListening.signal;
+    const roots = shadowRootsOf(element);
+    listenOutside(doc, roots, 'pointerup', [element, readoutElement], event => {
+      if (press && press.pointer === (event as PointerEvent).pointerId) clearPress();
+    }, signal);
+    const onDocCancel = (event: Event) => {
+      if (press && press.pointer === (event as PointerEvent).pointerId) clearPress();
+    };
+    doc.addEventListener('pointercancel', onDocCancel, { capture: true, signal });
+    for (const root of roots) root.addEventListener('pointercancel', onDocCancel, { capture: true, signal });
+  }
 
   /** One set of row elements per presentation, keyed by row identity and by being buttons or text. */
   const entries = { floating: new Map<string, RowEntry>(), strip: new Map<string, RowEntry>() };
@@ -123,16 +149,20 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       key, element, name: doc.createElement('span'), value: doc.createElement('span'),
       separator: strip ? doc.createTextNode('; ') : null, row: r, swatch: '', listening,
     };
-    if (element instanceof HTMLButtonElement && listening) {
-      element.type = 'button';
-      element.tabIndex = -1;
-      element.classList.add('axylo-tooltip-choice');
+    if (button && listening) {
+      const btn = element as HTMLButtonElement;
+      btn.type = 'button';
+      btn.tabIndex = -1;
+      btn.classList.add('axylo-tooltip-choice');
       // A press does not take focus from the plot, whose keyboard reading goes on from the chosen datum.
-      element.addEventListener('mousedown', keepFocusOnPress, { signal: listening.signal });
-      element.addEventListener('pointerdown', event => { press = { key, pointer: event.pointerId }; }, { signal: listening.signal });
+      btn.addEventListener('mousedown', keepFocusOnPress, { signal: listening.signal });
+      btn.addEventListener('pointerdown', event => {
+        pressEvent = event;
+        startPress(key, event.pointerId);
+      }, { signal: listening.signal });
       // A click without a press of its own (Enter, Space, an assistive action: detail 0) chooses this row; the
       // pointer click that follows a completed press does not choose again (review R1).
-      element.addEventListener('click', event => {
+      btn.addEventListener('click', event => {
         if (event.detail > 0 && pressed?.key === key && event.timeStamp - pressed.at < 1000) return;
         current?.select?.(entry.row);
       }, { signal: listening.signal });
@@ -184,7 +214,8 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
 
   /** The key of the row that has focus in `presentation`, if one has. */
   function focusedKey(presentation: Presentation): string | null {
-    for (const [key, entry] of entries[presentation]) if (entry.element === activeElementOf(doc)) return key;
+    const active = activeElementOf(doc, figure);
+    for (const [key, entry] of entries[presentation]) if (entry.element === active) return key;
     return null;
   }
 
@@ -198,9 +229,9 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
 
   // Completes a press on the row it began on, wherever the pointer is released inside the content.
   const releasing = (event: PointerEvent) => {
+    if (!press || press.pointer !== event.pointerId) return;
     const was = press;
-    press = null;
-    if (!was || was.pointer !== event.pointerId) return;
+    clearPress();
     pressed = { key: was.key, at: event.timeStamp };
     // The row as it is now, in the presentation on show: the same series' row of what is pinned now (its x
     // remapped with a sliding category window); a row no longer shown chooses nothing.
@@ -223,8 +254,15 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
   const stripTotal = make(doc, 'span', 'axylo-readout-total');
   const listening = new AbortController();
   for (const host of [element, readoutElement]) {
+    host.addEventListener('pointerdown', event => {
+      if (pressEvent === event) { pressEvent = null; return; }
+      pressEvent = null;
+      clearPress();
+    }, { signal: listening.signal });
     host.addEventListener('pointerup', releasing, { signal: listening.signal });
-    host.addEventListener('pointercancel', () => { press = null; }, { signal: listening.signal });
+    host.addEventListener('pointercancel', event => {
+      if (press && press.pointer === event.pointerId) clearPress();
+    }, { signal: listening.signal });
   }
   /** "+N more": text while hovered, a button that shows the next rows while pinned. */
   function moreElement(presentation: Presentation, pinned: boolean): HTMLElement {
@@ -234,12 +272,13 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     if (!el) {
       el = doc.createElement(button ? 'button' : presentation === 'strip' ? 'span' : 'div');
       el.className = 'axylo-tooltip-more';
-      if (el instanceof HTMLButtonElement) {
-        el.type = 'button';
-        el.tabIndex = -1;
-        el.classList.add('axylo-tooltip-choice');
-        el.addEventListener('mousedown', keepFocusOnPress, { signal: listening.signal });
-        el.addEventListener('click', () => current?.more?.(displayed), { signal: listening.signal });
+      if (button) {
+        const btn = el as HTMLButtonElement;
+        btn.type = 'button';
+        btn.tabIndex = -1;
+        btn.classList.add('axylo-tooltip-choice');
+        btn.addEventListener('mousedown', keepFocusOnPress, { signal: listening.signal });
+        btn.addEventListener('click', () => current?.more?.(displayed), { signal: listening.signal });
       }
       mores.set(key, el);
     }
@@ -286,13 +325,15 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     queueMicrotask(() => {
       if (pendingFocus === null) return;
       pendingFocus = null;
-      if (!element.contains(activeElementOf(doc)) && !readoutElement.contains(activeElementOf(doc))) lost();
+      const active = activeElementOf(doc, figure);
+      if (!element.contains(active) && !readoutElement.contains(active)) lost();
     });
   }
 
   function hideFloating(): void {
     if (element.hidden && !element.firstChild) return;
     keepFocus('floating');
+    clearPress();
     element.hidden = true;
     element.classList.remove('axylo-tooltip-pinned');
     expose(element, false);
@@ -303,6 +344,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
   function hideStrip(): void {
     if (readoutElement.hidden && !readoutElement.firstChild) return;
     keepFocus('strip');
+    clearPress();
     readoutElement.hidden = true;
     readoutElement.classList.remove('axylo-readout-pinned');
     expose(readoutElement, false);
@@ -324,6 +366,8 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     },
     show(content, p, pinned) {
       current = content;
+      const carried = pinned ? press : null;
+      if (!pinned) clearPress();
       const had = focusedKey('strip') ?? focusedKey('floating') ?? pendingFocus;
       pendingFocus = null;
       hideStrip();
@@ -359,10 +403,20 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
         const b = element.getBoundingClientRect();
         size = { width: b.width, height: b.height };
         const spot = placeTooltip(p, size.width, size.height);
-        if (spot) { position(spot.x, spot.y); carryFocus(had, 'floating'); return true; }
+        if (spot) {
+          position(spot.x, spot.y);
+          if (carried && !press) startPress(carried.key, carried.pointer);
+          carryFocus(had, 'floating');
+          return true;
+        }
       }
       const last = size.width > 0 ? fallbackPlacement(p, size.width, size.height) : null;
-      if (last) { position(last.x, last.y); carryFocus(had, 'floating'); return true; }
+      if (last) {
+        position(last.x, last.y);
+        if (carried && !press) startPress(carried.key, carried.pointer);
+        carryFocus(had, 'floating');
+        return true;
+      }
       // Nowhere clear of the controls and focus rings, or not even one row visible: nothing floats (rule 6).
       hideFloating();
       where = null;
@@ -371,6 +425,8 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     },
     strip(content, pinned, visible) {
       current = content;
+      const carried = pinned ? press : null;
+      if (!pinned) clearPress();
       const had = focusedKey('floating') ?? focusedKey('strip') ?? pendingFocus;
       pendingFocus = null;
       hideFloating();
@@ -436,16 +492,19 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
         return false;
       }
       where = 'strip';
+      if (carried && !press) startPress(carried.key, carried.pointer);
       carryFocus(had, 'strip');
       return true;
     },
     hide() {
+      clearPress();
       hideFloating();
       hideStrip();
       where = null;
       current = null;
     },
     destroy() {
+      clearPress();
       hideFloating();
       hideStrip();
       listening.abort();
