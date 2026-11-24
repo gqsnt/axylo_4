@@ -568,12 +568,18 @@ describe('dom/figure.ts: lazy structural DOM mounting and compact toggle', () =>
     );
     const el = fig.figure as unknown as TestElement;
 
-    // Minimal compact DOM: description directly in figure before body; message and note mounted (hidden); nothing else.
+    // Minimal compact DOM: description directly in figure before plot (no body/stage wrappers); message and note mounted (hidden); nothing else.
     expect(el.children.map(c => c.className)).toEqual([
       'axylo-description axylo-visually-hidden',
-      'axylo-body',
+      'axylo-plot',
       'axylo-note',
     ]);
+    expect(el.querySelector('.axylo-body')).toBeNull();
+    expect(el.querySelector('.axylo-stage')).toBeNull();
+    // Reading fig.stage on compact returns fig.plot without force-creating body/stage wrappers.
+    expect(fig.stage).toBe(fig.plot);
+    expect(el.querySelector('.axylo-body')).toBeNull();
+    expect(el.querySelector('.axylo-stage')).toBeNull();
     expect((el.querySelector('.axylo-message') as TestElement).hidden).toBe(true);
     expect((el.querySelector('.axylo-note') as TestElement).hidden).toBe(true);
     expect(el.querySelector('.axylo-caption')).toBeNull();
@@ -585,10 +591,12 @@ describe('dom/figure.ts: lazy structural DOM mounting and compact toggle', () =>
     expect(el.querySelector('.axylo-live')).toBeNull();
     expect(el.querySelector('.axylo-corner')).toBeNull();
 
-    // Clean compact update keeps corner unmounted.
+    // Clean compact update keeps corner, body, and stage unmounted.
     fig.update(baseModel({ compact: true, note: null }));
     expect(el.getAttribute('aria-describedby')).toBe('compact-1-s');
     expect(el.querySelector('.axylo-corner')).toBeNull();
+    expect(el.querySelector('.axylo-body')).toBeNull();
+    expect(el.querySelector('.axylo-stage')).toBeNull();
 
     // Dirty compact update mounts corner with title; clearing removes it.
     fig.update(baseModel({ compact: true, note: 'Values not shown: 3.' }));
@@ -606,7 +614,7 @@ describe('dom/figure.ts: lazy structural DOM mounting and compact toggle', () =>
     expect(live.textContent).toBe('Loading chart.');
     expect(live.getAttribute('lang')).toBe('en');
 
-    // Toggle compact: true -> false mounts all full elements in exact canonical order.
+    // Toggle compact: true -> false mounts body, stage, and all full elements in exact canonical order.
     fig.update(baseModel({ compact: false, subtitle: 'Sub' }));
     expect(el.children.map(c => c.className)).toEqual([
       'axylo-caption',
@@ -616,6 +624,7 @@ describe('dom/figure.ts: lazy structural DOM mounting and compact toggle', () =>
       'axylo-live axylo-visually-hidden',
       'axylo-tooltip',
     ]);
+    expect((fig.stage as unknown as TestElement).className).toBe('axylo-stage');
     expect((fig.stage as unknown as TestElement).children.map(c => c.className)).toEqual([
       'axylo-plot',
       'axylo-readout',
@@ -628,8 +637,10 @@ describe('dom/figure.ts: lazy structural DOM mounting and compact toggle', () =>
     ]);
     const tipRef = fig.tooltip;
     const readoutRef = fig.readout;
+    const bodyRef = fig.body;
+    const stageRef = fig.stage;
 
-    // Focus inside controls, then toggle compact: false -> true: focus moves to figure and full elements unmount.
+    // Focus inside controls, then toggle compact: false -> true: focus moves to figure and full elements (including body/stage) unmount.
     const btn = doc.createElement('button');
     fig.placeControls('controls', [btn as unknown as Element]);
     btn.focus();
@@ -639,19 +650,72 @@ describe('dom/figure.ts: lazy structural DOM mounting and compact toggle', () =>
     expect(el.getAttribute('tabindex')).toBe('-1');
     expect(el.children.map(c => c.className)).toEqual([
       'axylo-description axylo-visually-hidden',
-      'axylo-body',
+      'axylo-plot',
       'axylo-note',
     ]);
+    expect(el.querySelector('.axylo-body')).toBeNull();
+    expect(el.querySelector('.axylo-stage')).toBeNull();
+    expect(fig.stage).toBe(fig.plot);
     expect(el.querySelector('.axylo-subtitle')).toBeNull();
     expect(el.querySelector('.axylo-tooltip')).toBeNull();
     expect(el.querySelector('.axylo-readout')).toBeNull();
 
-    // Toggling back to compact: false re-mounts the exact same tooltip & readout instances.
+    // Toggling back to compact: false re-mounts the exact same body, stage, tooltip & readout instances.
     fig.update(baseModel({ compact: false }));
+    expect(fig.body).toBe(bodyRef);
+    expect(fig.stage).toBe(stageRef);
     expect(fig.tooltip).toBe(tipRef);
     expect(fig.readout).toBe(readoutRef);
 
     fig.destroy();
+  });
+
+  it('uses a prototype-backed class with shared getters/methods (no per-instance closures) and lazily wraps plot when body is accessed on compact', () => {
+    const doc = new TestDocument();
+    const rootA = doc.createElement('div');
+    const rootB = doc.createElement('div');
+    doc.body.append(rootA, rootB);
+    const figA = createFigure(
+      rootA as unknown as HTMLElement,
+      'proto-a',
+      { marks: doc.createElement('svg') as unknown as Element, text: null },
+      { compact: true },
+    );
+    const figB = createFigure(
+      rootB as unknown as HTMLElement,
+      'proto-b',
+      { marks: doc.createElement('svg') as unknown as Element, text: null },
+      { compact: true },
+    );
+
+    // Same prototype, shared prototype methods & getters (not own properties on instances).
+    expect(Object.getPrototypeOf(figA)).toBe(Object.getPrototypeOf(figB));
+    expect(Object.getPrototypeOf(figA)).not.toBe(Object.prototype);
+    expect(figA.update).toBe(figB.update);
+    expect(figA.announce).toBe(figB.announce);
+    expect(figA.destroy).toBe(figB.destroy);
+    expect(figA.placeControls).toBe(figB.placeControls);
+    expect(Object.getOwnPropertyDescriptor(figA, 'top')).toBeUndefined();
+    expect(Object.getOwnPropertyDescriptor(figA, 'side')).toBeUndefined();
+    expect(Object.getOwnPropertyDescriptor(figA, 'tooltip')).toBeUndefined();
+    expect(Object.getOwnPropertyDescriptor(figA, 'readout')).toBeUndefined();
+    expect(Object.getOwnPropertyDescriptor(figA, 'controls')).toBeUndefined();
+    expect(Object.getOwnPropertyDescriptor(figA, 'body')).toBeUndefined();
+    expect(Object.getOwnPropertyDescriptor(figA, 'stage')).toBeUndefined();
+
+    // Accessing figA.body lazily wraps plot into body > stage.
+    const body = figA.body as unknown as TestElement;
+    expect(body.className).toBe('axylo-body');
+    expect((figA.stage as unknown as TestElement).className).toBe('axylo-stage');
+    expect((figA.stage as unknown as TestElement).children).toEqual([figA.plot]);
+    expect((figA.figure as unknown as TestElement).children.map(c => c.className)).toEqual([
+      'axylo-description axylo-visually-hidden',
+      'axylo-body',
+      'axylo-note',
+    ]);
+
+    figA.destroy();
+    figB.destroy();
   });
 });
 
@@ -763,8 +827,10 @@ describe('core/chart.ts: lazy interaction, fontProbe, ResizeObserver, and textLa
     });
     doc.defaultView.flushFrames();
 
-    // Only 1 ResizeObserver (plot/figure), zero fontProbe, zero textLayer, zero interaction proxy/controls.
+    // Only 1 ResizeObserver (plot/figure), zero body/stage wrappers, zero fontProbe, zero textLayer, zero interaction proxy/controls.
     expect(doc.defaultView.observers).toHaveLength(1);
+    expect(root.querySelector('.axylo-body')).toBeNull();
+    expect(root.querySelector('.axylo-stage')).toBeNull();
     expect(root.querySelector('.axylo-font-probe')).toBeNull();
     expect(root.querySelector('.axylo-text')).toBeNull();
     expect(root.querySelector('.axylo-proxy')).toBeNull();
@@ -776,10 +842,12 @@ describe('core/chart.ts: lazy interaction, fontProbe, ResizeObserver, and textLa
     expect(root.querySelector('.axylo-message')).not.toBeNull();
     expect(root.querySelector('.axylo-note')).not.toBeNull();
 
-    // Upgrading to compact: false lazily mounts textLayer, fontProbe (+ 2nd ResizeObserver), full figure, and interaction.
+    // Upgrading to compact: false lazily mounts body/stage, textLayer, fontProbe (+ 2nd ResizeObserver), full figure, and interaction.
     handle.update({ compact: false });
     doc.defaultView.flushFrames();
     expect(handle.diagnostics).toEqual([]);
+    expect(root.querySelector('.axylo-body')).not.toBeNull();
+    expect(root.querySelector('.axylo-stage')).not.toBeNull();
     expect(root.querySelector('.axylo-text')).not.toBeNull();
     expect(root.querySelector('.axylo-font-probe')).not.toBeNull();
     expect(doc.defaultView.observers.filter(o => !o.disconnected)).toHaveLength(2);
@@ -787,9 +855,11 @@ describe('core/chart.ts: lazy interaction, fontProbe, ResizeObserver, and textLa
     expect(root.querySelector('.axylo-caption')).not.toBeNull();
     expect(root.querySelector('.axylo-controls')).not.toBeNull();
 
-    // Downgrading back to compact: true releases textLayer, fontProbe, and disconnects the font ResizeObserver.
+    // Downgrading back to compact: true releases body/stage, textLayer, fontProbe, and disconnects the font ResizeObserver.
     handle.update({ compact: true });
     doc.defaultView.flushFrames();
+    expect(root.querySelector('.axylo-body')).toBeNull();
+    expect(root.querySelector('.axylo-stage')).toBeNull();
     expect(root.querySelector('.axylo-text')).toBeNull();
     expect(root.querySelector('.axylo-font-probe')).toBeNull();
     expect(doc.defaultView.observers.filter(o => !o.disconnected)).toHaveLength(1);

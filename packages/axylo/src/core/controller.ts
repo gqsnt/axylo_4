@@ -19,7 +19,7 @@ import {
   SLOT_NO_ROW, SLOT_VALUE,
   type DatumRef, type DiagnosticInput, type Formatters, type Frame, type Layout, type Lookup, type MarkRenderer,
   type PlacedText, type ReaderModel, type ResolvedTheme, type PaintBindings, type Scene, type TextMeasurer,
-  type TextStyle, type View,
+  type TextStyle, type TooltipModel, type View,
 } from './contracts';
 import type { ChartEvents, Diagnostic, Messages, Point, Title, XValue } from '../public';
 import type { PreparedFrame } from '../data';
@@ -81,6 +81,27 @@ const READOUT_HEIGHT = 140;
 type ReadoutMode = 'floating' | 'strip' | 'none';
 /** Shared neutral text style used for compact charts, which never lay out text labels. */
 const COMPACT_TEXT_STYLE: TextStyle = { font: '', letterSpacing: 0, wordSpacing: 0, lineHeight: 0 };
+/** Shared empty collections and singletons to avoid per-chart and per-frame allocations on clean/compact charts. */
+const EMPTY_DIAGNOSTICS: readonly DiagnosticInput[] = [];
+const EMPTY_HIDDEN: ReadonlySet<string> = new Set();
+const EMPTY_DISCLOSURE: { readonly omitted: number; readonly changed: number } = { omitted: 0, changed: 0 };
+const EMPTY_APPEND_OPTIONS: { keep?: number } = {};
+const EMPTY_REFS: readonly DatumRef[] = [];
+const EMPTY_TOOLTIP: TooltipModel = { title: '', rows: [], count: 0, total: null };
+const EMPTY_LOOKUP: Lookup = {
+  count: 0,
+  pick: () => null,
+  members: () => EMPTY_REFS,
+  has: () => false,
+  slot: () => -1,
+  tooltip: () => EMPTY_TOOLTIP,
+  primary: () => null,
+  datum: () => null,
+  anchor: () => null,
+  ordinal: () => 0,
+  step: () => null,
+  resolve: () => null,
+};
 
 /** Spec L8: the smallest plot height drawn. */
 const MIN_PLOT_HEIGHT = 80;
@@ -328,9 +349,9 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
 
   let options = new OptionsStore(input);
   let accepted: Accepted | null = null;
-  const presentation = new Map<PresentationStage, readonly DiagnosticInput[]>();
+  let presentation: Map<PresentationStage, readonly DiagnosticInput[]> | null = null;
   /** Keys of the current diagnostics already printed and handed to `onDiagnostic`. */
-  let deliveredKeys = new Set<string>();
+  let deliveredKeys: Set<string> | null = null;
   /** Increases with every delivery pass; a pass started inside author code supersedes the outer one. */
   let destroyed = false;
   let internalError: unknown = null;
@@ -344,30 +365,30 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
    * of this file). `frozen` holds the caller's rows of that frame once the store had to let go of its revision.
    */
   let onScreen: { frame: Frame; store: Store | null; frozen: Map<number, unknown> | null } | null = null;
-  /** Frames a store produced (their rows live in that store's revisions). */
-  const storeFrames = new WeakSet<Frame>();
+  /** Frames a store produced (their rows live in that store's revisions). Lazily allocated when streaming starts. */
+  let storeFrames: WeakSet<Frame> | null = null;
   /**
    * Rows copied out of the store for a frame that still needs them after the store moved on: the displayed
    * frame, the pending (accepted, not yet drawn) one and the one being published each own theirs, so none of
    * them pins the store's history (final review, finding 2).
    */
-  let frozenRows = new WeakMap<Frame, Map<number, unknown>>();
+  let frozenRows: WeakMap<Frame, Map<number, unknown>> | null = null;
   /** The rows of `frame` by source index: its copy when it has one, else its source. */
   const rowOf = (frame: Frame, row: number): unknown => {
-    const own = frozenRows.get(frame);
+    const own = frozenRows?.get(frame);
     return own ? own.get(row) ?? null : frame.source.rowAt(row);
   };
   /**
    * One past the last source index each store frame can address: a store numbers rows in arrival order (the
    * opening data first), so a frame's raw window can be read back without the store (re-encoding while paused).
    */
-  const rowEnds = new WeakMap<Frame, number>();
+  let rowEnds: WeakMap<Frame, number> | null = null;
   /** Rows of a store below this source index came from the caller's typed columns (its opening data). */
-  const columnRows = new WeakMap<Store, number>();
+  let columnRows: WeakMap<Store, number> | null = null;
   /** `frame` addresses the rows `from` did, and `added` more. */
   const ends = (frame: Frame, from: Frame, added = 0): void => {
-    const end = rowEnds.get(from);
-    if (end !== undefined) rowEnds.set(frame, end + added);
+    const end = rowEnds?.get(from);
+    if (end !== undefined) rowEnds!.set(frame, end + added);
   };
   /** The wider x domain the layout drew a scatter's automatic domain on, with the domain it widened. */
   let widenedX: { epoch: number; drawn: readonly [number, number] } | null = null;
@@ -378,7 +399,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   let epochs = 0;
   let frameRevision = 0;
   let commits = 0;
-  let listeners = new Map<keyof ChartEvents<unknown>, Set<(payload: never) => void>>();
+  let listeners: Map<keyof ChartEvents<unknown>, Set<(payload: never) => void>> | null = null;
   /** True while a frame runs: findings are delivered at its end, not from inside a stage. */
   let inFrame = false;
   /** The accepted state a running frame publishes: its rows are kept until it is on screen. */
@@ -392,7 +413,12 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
    * Every presentation finding once: the same code and field found by two stages (ticks and readouts) is one,
    * the one with an effect on the figure if either has one (a value shown differently keeps its note).
    */
-  function presentationList(): DiagnosticInput[] {
+  function presentationList(): readonly DiagnosticInput[] {
+    if (!presentation || presentation.size === 0) return EMPTY_DIAGNOSTICS;
+    if (presentation.size === 1) {
+      const only = presentation.values().next().value!;
+      if (only.length <= 1) return only.length === 0 ? EMPTY_DIAGNOSTICS : only;
+    }
     const seen = new Map<string, DiagnosticInput>();
     for (const list of presentation.values()) {
       for (const d of list) {
@@ -404,23 +430,38 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     return [...seen.values()];
   }
 
-  function stateDiagnostics(a: Accepted): DiagnosticInput[] {
-    return [...a.optionDiagnostics, ...a.dataDiagnostics, ...a.viewDiagnostics, ...a.naming];
+  function stateDiagnostics(a: Accepted): readonly DiagnosticInput[] {
+    const o = a.optionDiagnostics, d = a.dataDiagnostics, v = a.viewDiagnostics, n = a.naming;
+    const total = o.length + d.length + v.length + n.length;
+    if (total === 0) return EMPTY_DIAGNOSTICS;
+    if (o.length === total) return o;
+    if (d.length === total) return d;
+    if (v.length === total) return v;
+    if (n.length === total) return n;
+    return [...o, ...d, ...v, ...n];
   }
 
   function currentDiagnostics(): Diagnostic[] {
     // Before anything was accepted (a create that failed): what the failure raised (finding 14).
-    if (!accepted) return toPublic(presentationList(), chartName(options.current));
+    if (!accepted) {
+      const pres = presentationList();
+      return pres.length === 0 ? [] : toPublic(pres, chartName(options.current));
+    }
     // While paused, `diagnostics` describes everything accepted, the held rows included (finding 6).
     const a = held ? { ...accepted, dataDiagnostics: held.dataDiagnostics, viewDiagnostics: held.viewDiagnostics } : accepted;
-    return toPublic([...stateDiagnostics(a), ...presentationList()], accepted.name);
+    const sd = stateDiagnostics(a);
+    const pl = presentationList();
+    if (sd.length === 0 && pl.length === 0) return [];
+    const combined = sd.length === 0 ? pl : pl.length === 0 ? sd : [...sd, ...pl];
+    return toPublic(combined, accepted.name);
   }
 
   /** Replaces what a presentation stage found; outside a frame the change is delivered at once. */
   function setPresentation(where: PresentationStage, list: readonly DiagnosticInput[]): void {
-    const before = presentation.get(where) ?? [];
-    if (before.length === 0 && list.length === 0) return;
-    if (before.length === list.length && before.every((d, i) => diagnosticKey(d) === diagnosticKey(list[i]!))) return;
+    const before = presentation?.get(where);
+    const beforeLen = before ? before.length : 0;
+    if (beforeLen === 0 && list.length === 0) return;
+    if (before && beforeLen === list.length && before.every((d, i) => diagnosticKey(d) === diagnosticKey(list[i]!))) return;
     setPresentationQuiet(where, list);
     if (!inFrame && !destroyed) {
       deliverChanges();
@@ -430,9 +471,9 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   }
 
   function addPresentation(where: PresentationStage, d: DiagnosticInput): void {
-    const list = presentation.get(where) ?? [];
-    if (list.some(o => o.code === d.code && o.field === d.field)) return;
-    setPresentation(where, [...list, d]);
+    const list = presentation?.get(where);
+    if (list && list.some(o => o.code === d.code && o.field === d.field)) return;
+    setPresentation(where, list ? [...list, d] : [d]);
   }
 
   function formatterFailed(field: string): void {
@@ -446,11 +487,11 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
    * is a snapshot taken when it is made and is drained in full, and one made by author code during a drain
    * waits behind it. Only destruction stops a drain (review 3, finding 7).
    */
-  const notifications: (() => void)[] = [];
+  let notifications: (() => void)[] | null = null;
   let draining = false;
 
   function enqueue(work: () => void): void {
-    notifications.push(work);
+    (notifications ??= []).push(work);
     // During a frame nothing reaches author code: hover, select and zoom that the interaction layer raises
     // while it is being committed are delivered once the frame has finished publishing (final review, 1).
     if (draining || inFrame) return;
@@ -458,13 +499,16 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   }
 
   function drain(): void {
-    if (draining || notifications.length === 0) return;
+    if (draining || !notifications || notifications.length === 0) return;
     draining = true;
     try {
-      while (notifications.length && !destroyed) notifications.shift()!();
+      while (notifications && notifications.length && !destroyed) notifications.shift()!();
     } finally {
       draining = false;
-      if (destroyed) notifications.length = 0;
+      if (destroyed && notifications) {
+        notifications.length = 0;
+        notifications = null;
+      }
     }
   }
 
@@ -474,19 +518,41 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
    */
   function deliverChanges(): void {
     if (destroyed) return;
+    const pres = presentationList();
+    if (!accepted) {
+      if (pres.length === 0) {
+        deliveredKeys?.clear();
+        return;
+      }
+    } else if (!held && stateDiagnostics(accepted).length === 0 && pres.length === 0) {
+      deliveredKeys?.clear();
+      return;
+    }
     const now = currentDiagnostics();
-    const keys = new Set(now.map(diagnosticKey));
-    for (const k of [...deliveredKeys]) if (!keys.has(k)) deliveredKeys.delete(k);
-    const fresh = now.filter(d => !deliveredKeys.has(diagnosticKey(d)));
+    if (now.length === 0) {
+      deliveredKeys?.clear();
+      return;
+    }
+    if (deliveredKeys && deliveredKeys.size > 0) {
+      const keys = new Set(now.map(diagnosticKey));
+      for (const k of [...deliveredKeys]) if (!keys.has(k)) deliveredKeys.delete(k);
+    }
+    const fresh = deliveredKeys && deliveredKeys.size > 0
+      ? now.filter(d => !deliveredKeys!.has(diagnosticKey(d)))
+      : now;
     if (!fresh.length) return;
-    for (const d of fresh) deliveredKeys.add(diagnosticKey(d));
+    const delivered = deliveredKeys ??= new Set();
+    for (const d of fresh) delivered.add(diagnosticKey(d));
     const handler = (accepted?.options ?? options.current).onDiagnostic;
     notifyDiagnostics(fresh, handler);
   }
 
   /** A rejected or ignored call's findings: printed and given to `onDiagnostic`, never part of `diagnostics`. */
   function deliverRejected(found: readonly DiagnosticInput[], name: string, handler: unknown): void {
-    const list = toPublic(found, name).filter(d => !deliveredKeys.has(diagnosticKey(d)));
+    const publicList = toPublic(found, name);
+    const list = deliveredKeys && deliveredKeys.size > 0
+      ? publicList.filter(d => !deliveredKeys!.has(diagnosticKey(d)))
+      : publicList;
     notifyDiagnostics(list, handler);
   }
 
@@ -548,11 +614,22 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     }
     // A wall-clock window on a wall-clock axis is what the axis reads: the column's own AX112 already says
     // the values have no offset, and the window is not news (documentation finding 2).
-    const found = sink.inputs().filter(d => !(d.code === 'AX112' && d.field === 'zoom' && isWall(c.frame)));
-    const before = previous?.viewDiagnostics ?? [];
-    const viewDiagnostics = completeViewDiagnostics(kind, found, before, view, state);
-    const known = new Set(before.map(diagnosticKey));
-    return { view, viewKey: key, viewDiagnostics, found: found.filter(d => !known.has(diagnosticKey(d))) };
+    const rawFound = sink.inputs();
+    const found = rawFound.length === 0
+      ? EMPTY_DIAGNOSTICS
+      : rawFound.filter(d => !(d.code === 'AX112' && d.field === 'zoom' && isWall(c.frame)));
+    const before = previous?.viewDiagnostics ?? EMPTY_DIAGNOSTICS;
+    const viewDiagnostics = found.length === 0 && before.length === 0
+      ? EMPTY_DIAGNOSTICS
+      : completeViewDiagnostics(kind, found, before, view, state);
+    let newFound: readonly DiagnosticInput[];
+    if (found.length === 0) newFound = EMPTY_DIAGNOSTICS;
+    else if (before.length === 0) newFound = found;
+    else {
+      const known = new Set(before.map(diagnosticKey));
+      newFound = found.filter(d => !known.has(diagnosticKey(d)));
+    }
+    return { view, viewKey: key, viewDiagnostics, found: newFound };
   }
 
   function messagesFor(next: OptionRecord, previous: Accepted | null): Messages {
@@ -567,7 +644,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     // Liveness before acceptance: a chart destroyed by author code during the call takes nothing (defect 6).
     if (destroyed) return;
     commit?.();
-    if (commit && c.store && c.store.frame === c.frame) storeFrames.add(c.frame);
+    if (commit && c.store && c.store.frame === c.frame) (storeFrames ??= new WeakSet()).add(c.frame);
     if (held && c.frame === held.frame) held = null;
     options.commit(c.options);
     frameRevision = Math.max(frameRevision, c.frame.revision);
@@ -577,7 +654,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     };
     if (internalError !== null) {
       internalError = null;
-      setPresentationQuiet('internal', []);
+      setPresentationQuiet('internal', EMPTY_DIAGNOSTICS);
     }
     release();
     deliverChanges();
@@ -589,8 +666,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
 
   function setPresentationQuiet(where: PresentationStage, list: readonly DiagnosticInput[]): void {
     presentationVersion++;
-    if (list.length) presentation.set(where, list);
-    else presentation.delete(where);
+    if (list.length) (presentation ??= new Map()).set(where, list);
+    else presentation?.delete(where);
   }
 
   /**
@@ -660,7 +737,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         naming: previous === null ? namingDiagnostics(next) : [],
       });
       const messages = messagesFor(next, previous);
-      const common = { options: next, messages, zoom: previous?.zoom ?? null, hidden: previous?.hidden ?? new Set<string>() };
+      const common = { options: next, messages, zoom: previous?.zoom ?? null, hidden: previous?.hidden ?? EMPTY_HIDDEN };
       const resolve = (table?: Table) => resolveOptions(kind, publicOptions(next), optionSink, table);
       let c: Candidate;
       let commit: (() => void) | null = null;
@@ -761,8 +838,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     const store = composition.openStore(a.frame, a.source, a.options.data, environment, kind);
     const table = a.source.table;
     if (table) {
-      rowEnds.set(store.frame, table.length);
-      columnRows.set(store, table.columns ? table.length : 0);
+      (rowEnds ??= new WeakMap()).set(store.frame, table.length);
+      (columnRows ??= new WeakMap()).set(store, table.columns ? table.length : 0);
     }
     return store;
   }
@@ -795,7 +872,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       const keep = appendOptions?.keep;
       const store = previous.store ?? openStore(previous);
       const prepared = (store.prepareAppend as (r: readonly unknown[], o: { keep?: number }) => PreparedFrame<Frame>)(
-        rows, keep === undefined ? {} : { keep });
+        rows, keep === undefined ? EMPTY_APPEND_OPTIONS : { keep });
       ends(prepared.frame, store.frame, rows.length);
       // While paused the view does not move (spec I6), but the rows are validated now, with the window shown.
       const base = held ? { ...previous, frame: held.frame } : previous;
@@ -812,7 +889,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         // A field the earlier data did not have: once the retained rows have it, the frame is read again with
         // the fields as given and AX101 goes (review 3, finding 8).
         prepared.commit();
-        storeFrames.add(prepared.frame);
+        (storeFrames ??= new WeakSet()).add(prepared.frame);
         frameRevision = Math.max(frameRevision, prepared.frame.revision);
         commitAppend = null;
         const repaired = recoverFields(previous, store, c, prepared.frame);
@@ -823,11 +900,15 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       }
       const viewed = viewFor(c, base);
       if (destroyed) return;
-      const found = [...prepared.callDiagnostics, ...viewed.found];
-      rejectIfStrict(previous.options.strict === true, found, previous.name, previous.options.onDiagnostic);
+      if (previous.options.strict === true) {
+        const found = prepared.callDiagnostics.length === 0 ? viewed.found
+          : viewed.found.length === 0 ? prepared.callDiagnostics
+          : [...prepared.callDiagnostics, ...viewed.found];
+        rejectIfStrict(true, found, previous.name, previous.options.onDiagnostic);
+      }
       if (paused) {
         prepared.commit();
-        storeFrames.add(prepared.frame);
+        (storeFrames ??= new WeakSet()).add(prepared.frame);
         frameRevision = Math.max(frameRevision, prepared.frame.revision);
         // The store is the accepted state's now; rows no displayed or pending frame needs go (finding 4).
         accepted = {
@@ -859,11 +940,11 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
    * columns marked as such (a NaN there is "no data", not an unplottable value; verification, defect 4).
    */
   function displayedTable(frame: Frame, store: Store | null): Table {
-    const own = frozenRows.get(frame);
-    if (!own && !storeFrames.has(frame) && isTable(frame.source)) return frame.source;
+    const own = frozenRows?.get(frame);
+    if (!own && !storeFrames?.has(frame) && isTable(frame.source)) return frame.source;
     const rows = own ?? freeze(frame).rows;
     const indexes = [...rows.keys()].sort((p, q) => p - q);
-    const columns = store ? columnRows.get(store) ?? 0 : 0;
+    const columns = store ? columnRows?.get(store) ?? 0 : 0;
     // Positions read the rows in order; provenance and events read them by their own source index.
     return {
       ...rowsTable(indexes.map(i => rows.get(i))), isColumnRow: i => indexes[i]! < columns,
@@ -904,7 +985,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       }
     }
     else each(frame.row, frame.labels.length);
-    const end = rowEnds.get(frame);
+    const end = rowEnds?.get(frame);
     if (end !== undefined) {
       const from = Math.min(lowest, end);
       for (let i = from; i < end; i++) {
@@ -924,7 +1005,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   /** The store a frame's rows live in: the accepted chart's, when the frame came from it. */
   function onScreenStore(frame: Frame): Store | null {
     const store = accepted?.store ?? null;
-    return store && storeFrames.has(frame) ? store : null;
+    return store && storeFrames?.has(frame) ? store : null;
   }
 
   /** The window moved to end at the new latest x, keeping its width; null when it cannot follow. */
@@ -1086,7 +1167,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   let hadMarks = false;
   /** The host hid the mark and text surfaces for an error revision; the next drawn frame shows them again. */
   let surfacesHidden = false;
-  let waiters: { revision: number; resolve: () => void }[] = [];
+  let waiters: { revision: number; resolve: () => void }[] | null = null;
 
   function schedule(): void {
     if (destroyed || frameScheduled) return;
@@ -1332,15 +1413,21 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     const hiddenIn = (l: Layout | undefined) => l?.kind === 'plot' ? l.fit.x.hidden + l.fit.y.hidden : 0;
     const stateDiag = stateDiagnostics(a);
     let discVer = -1;
-    let discCache = { omitted: 0, changed: 0 };
+    let discCache: { readonly omitted: number; readonly changed: number } = EMPTY_DISCLOSURE;
     const disclosureNow = () => {
       if (discVer !== presentationVersion) {
         discVer = presentationVersion;
-        discCache = readerDisclosure([...stateDiag, ...presentationList()]);
+        const pres = presentationList();
+        if (stateDiag.length === 0 && pres.length === 0) {
+          discCache = EMPTY_DISCLOSURE;
+        } else {
+          discCache = readerDisclosure(stateDiag.length === 0 ? pres : pres.length === 0 ? stateDiag : [...stateDiag, ...pres]);
+        }
       }
       return discCache;
     };
-    const noteLangFor = (labelsHidden: number, disclosure: { omitted: number; changed: number }): string | null => {
+    const noteLangFor = (labelsHidden: number, disclosure: { readonly omitted: number; readonly changed: number }): string | null => {
+      if (disclosure.omitted === 0 && disclosure.changed === 0 && labelsHidden === 0) return null;
       const shownKeys = [disclosure.omitted > 0 ? 'valuesNotShown' : null, disclosure.changed > 0 ? 'valuesChanged' : null,
         labelsHidden > 0 ? 'labelsHidden' : null].filter((k): k is 'valuesNotShown' | 'valuesChanged' | 'labelsHidden' => k !== null);
       const withTable = a.options.table !== false && !compact && shownKeys.some(k => a.messages[k].includes('{seeTable}'));
@@ -1499,7 +1586,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
             stage('formatters');
             // The bucket belongs to the formatters: emptied before they are built, so what their construction
             // reports (an invalid Intl option) stays, and kept while they stay, as their fallback goes on (finding 13).
-            setPresentation('format', []);
+            setPresentation('format', EMPTY_DIAGNOSTICS);
             f = createFormatters(spec, { locale, get timeZone() { return environment.timeZone; } });
           }
           formatters = f;
@@ -1510,7 +1597,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
           named = by !== null && byText !== null;
           title = titleOf(a.options);
           setPresentation('naming', by !== null && !named && title === null
-            ? [createDiagnostic('AX140', 'none', { detail: `No element has the id "${by}".` }, 'presentation')] : []);
+            ? [createDiagnostic('AX140', 'none', { detail: `No element has the id "${by}".` }, 'presentation')] : EMPTY_DIAGNOSTICS);
           caption = named ? byText!.trim() || undefined : undefined;
 
           english = englishFor(a, lang);
@@ -1825,27 +1912,32 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
           }
 
           // Findings that follow from the layout shown, recomputed every frame (cheap): L8, L1, the bar hint.
-          const fit: DiagnosticInput[] = [];
-          if (tooSmall || layout.kind === 'too-small') fit.push(createDiagnostic('AX142', 'none', {}, 'presentation'));
+          let fit: DiagnosticInput[] | null = null;
+          if (tooSmall || layout.kind === 'too-small') (fit ??= []).push(createDiagnostic('AX142', 'none', {}, 'presentation'));
           const hidden = hiddenIn(layout);
           if (hidden > 0) {
             // The registry suggests horizontal bars only for vertical bars on category labels.
             const xKind = view.kind === 'donut' ? undefined : view.kind === 'scatter' ? view.frame.xKind : view.frame.x.kind;
-            fit.push(createDiagnostic('AX143', 'none', {
+            (fit ??= []).push(createDiagnostic('AX143', 'none', {
               field: a.resolved.x.field, count: hidden, chartType: view.kind, xKind, horizontal: view.kind === 'bar' ? view.horizontal : undefined,
             }, 'presentation'));
           }
           if (view.kind === 'bar' && layout.kind === 'plot') {
             const along = view.horizontal ? layout.plot.height : layout.plot.width;
             const bars = view.visibleSlots.end - view.visibleSlots.start;
-            if (bars > along) fit.push(createDiagnostic('AX132', 'none', { field: a.resolved.x.field }, 'presentation'));
+            if (bars > along) (fit ??= []).push(createDiagnostic('AX132', 'none', { field: a.resolved.x.field }, 'presentation'));
           }
-          setPresentation('fit', fit);
+          setPresentation('fit', fit ?? EMPTY_DIAGNOSTICS);
           // A tick label in the default format is not a value shown differently (F12): its AX160 has no effect on
           // the figure, so the note it would add cannot take room from the ticks and bring the label back (closing
           // pass, item 2).
-          setPresentation('layout', shown.kind === 'ready' && !compact
-            ? tickFormatFailures(view, axisContext, layout).map(field => createDiagnostic('AX160', 'none', { field }, 'presentation')) : []);
+          if (shown.kind === 'ready' && !compact) {
+            const failed = tickFormatFailures(view, axisContext, layout);
+            setPresentation('layout', failed.length
+              ? failed.map(field => createDiagnostic('AX160', 'none', { field }, 'presentation')) : EMPTY_DIAGNOSTICS);
+          } else {
+            setPresentation('layout', EMPTY_DIAGNOSTICS);
+          }
           const measured = layout.kind !== 'unmeasured' || (shown.kind !== 'ready' && size !== null && size.width > 0 && size.height > 0);
           ({ reader, inputs: readerInputs } = settleReader(hidden));
           if (destroyed) throw ABORT;
@@ -1860,9 +1952,12 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
 
           // Lookup reads the frame through the view; it switches with the marks.
           // Scatter ties are decided within half a device pixel: the ratio is part of what the lookup depends on.
-          const lookupInputs = [view, layout, formatters, a.messages, locale, view.kind === 'scatter' ? pixelRatio : 1];
+          // Compact charts have no interaction, so skip building a lookup until promoted to full.
+          const lookupInputs = [compact, view, layout, formatters, a.messages, locale, view.kind === 'scatter' ? pixelRatio : 1];
           let lookup = drawn?.lookup;
-          if (!lookup || !drawn || !sameKey(drawn.lookupInputs, lookupInputs)) {
+          if (compact) {
+            lookup = EMPTY_LOOKUP;
+          } else if (!lookup || lookup === EMPTY_LOOKUP || !drawn || !sameKey(drawn.lookupInputs, lookupInputs)) {
             stage('lookup');
             lookup = composition.lookup(view, layout, formatters, a.messages, locale, pixelRatio);
           }
@@ -1904,9 +1999,22 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
             accepted: a, formatters, formattersKey: fKey, layout, layoutKey: lKey, scene, sceneInputs,
             lookup, lookupInputs, reader, readerInputs, paintInputs,
           };
-          host.interaction.commit({
+          const committed: Committed = {
             ...controlsFor(reader, tooSmall), layout, lookup, bindings: theme!.bindings, theme: theme!.theme, pixelRatio,
-          });
+          };
+          if (__DEV__ && compact) {
+            // Dev/test hosts (acceptance tests) may inspect committed.lookup on compact charts; materialize
+            // lazily on first access while keeping browser compact charts completely free of lookup allocations.
+            let materialized: Lookup | null = null;
+            Object.defineProperty(committed, 'lookup', {
+              enumerable: true,
+              configurable: true,
+              get() {
+                return materialized ??= composition.lookup(view, layout, formatters, a.messages, locale, pixelRatio);
+              },
+            });
+          }
+          host.interaction.commit(committed);
           // The displayed snapshot is now this revision (or nothing, when nothing could be drawn): older rows go.
           showing(measured ? a : null);
           if (stages && measured) settle(a.revision);
@@ -1942,27 +2050,41 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   function release(): void {
     const store = accepted?.store;
     if (!store) return;
-    const needed: Frame[] = [];
-    const owners = new Set<Frame>();
-    if (onScreen && onScreen.store === store) owners.add(onScreen.frame);
+    const head = store.frame;
+    let floor = head.revision;
+    let f0: Frame | null = null;
+    let f1: Frame | null = null;
+    let f2: Frame | null = null;
+    let f3: Frame | null = null;
+    let count = 0;
+    const check = (f: Frame | undefined | null): void => {
+      if (!f || f === head || !storeFrames?.has(f) || frozenRows?.has(f)) return;
+      if (f === f0 || f === f1 || f === f2 || f === f3) return;
+      if (count === 0) f0 = f;
+      else if (count === 1) f1 = f;
+      else if (count === 2) f2 = f;
+      else f3 = f;
+      count++;
+      if (f.revision < floor) floor = f.revision;
+    };
+    if (onScreen && onScreen.store === store) check(onScreen.frame);
     // The pending frame (accepted, not drawn yet) and the frame being published keep their rows too.
-    owners.add(accepted!.frame);
-    if (inflight && inflight.store === store) owners.add(inflight.frame);
-    if (held) owners.add(held.frame);
-    for (const f of owners) {
-      if (f === store.frame || !storeFrames.has(f) || frozenRows.has(f)) continue;
-      needed.push(f);
-    }
+    check(accepted!.frame);
+    if (inflight && inflight.store === store) check(inflight.frame);
+    if (held) check(held.frame);
     // Once the store holds more than twice what was on screen (plus a few rows), every frame that still pins
     // its history takes a copy of its own rows instead: one copy per frame, so the cost is amortized over the
     // rows that arrived, and `keep` bounds retention while paused too.
     // The same bound holds for the revisions kept: late rows that are evicted at once add a revision each but
     // no row (closing pass, C2).
     const bound = 2 * retainedBaseline + RETENTION_SLACK;
-    let floor = needed.length ? Math.min(...needed.map(f => f.revision)) : store.frame.revision;
-    if (needed.length && (store.retainedRowCount > bound || store.frame.revision - floor > bound)) {
-      for (const f of needed) frozenRows.set(f, freeze(f).rows);
-      floor = store.frame.revision;
+    if (count > 0 && (store.retainedRowCount > bound || head.revision - floor > bound)) {
+      const map = frozenRows ??= new WeakMap();
+      if (f0) map.set(f0, freeze(f0).rows);
+      if (f1) map.set(f1, freeze(f1).rows);
+      if (f2) map.set(f2, freeze(f2).rows);
+      if (f3) map.set(f3, freeze(f3).rows);
+      floor = head.revision;
     }
     if (floor > 0) store.retire(floor - 1);
   }
@@ -2013,7 +2135,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     themeRevision++;
     // When the backdrop could not be determined the background is a guess, so contrast is not judged.
     const low = resolution.backdropKnown === false ? [] : lowContrastSeries(resolution.theme).filter(i => i < keys.length);
-    setPresentation('theme', low.length ? [createDiagnostic('AX141', 'none', { count: low.length }, 'presentation')] : []);
+    setPresentation('theme', low.length ? [createDiagnostic('AX141', 'none', { count: low.length }, 'presentation')] : EMPTY_DIAGNOSTICS);
   }
 
   /** Resolves the theme for these series keys and writes it (custom properties, scheme) on the figure. */
@@ -2051,6 +2173,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
 
   function settle(revision: number): void {
     settledRevision = Math.max(settledRevision, revision);
+    if (!waiters || waiters.length === 0) return;
     for (let i = waiters.length - 1; i >= 0; i--) {
       if (waiters[i]!.revision <= revision) waiters.splice(i, 1)[0]!.resolve();
     }
@@ -2093,7 +2216,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   /** Calls the listeners with a snapshot taken before any runs; stops when one destroys or changes the chart. */
   /** Every listener subscribed when the event happened gets it, in order; nested events follow (finding 7). */
   function emit<E extends keyof ChartEvents<unknown>>(event: E, payload: ChartEvents<unknown>[E] | null): void {
-    const set = listeners.get(event);
+    const set = listeners?.get(event);
     if (!set || set.size === 0) return;
     const snapshot = [...set];
     enqueue(() => {
@@ -2125,7 +2248,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       const d = drawn;
       if (destroyed) return;
       // Nothing is built for a pointer move nobody listens to.
-      if (!listeners.get('hover')?.size) return;
+      if (!listeners?.get('hover')?.size) return;
       emit('hover', d && ref ? pointFor(d, ref) : null);
     },
   };
@@ -2203,18 +2326,23 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     frameRequest = 0;
     frameScheduled = false;
     const pending = waiters;
-    waiters = [];
+    waiters = null;
     // Nothing the handle still references keeps the data, the options or the drawing alive.
     accepted = null;
     drawn = null;
     held = null;
     lastLayout = null;
     onScreen = null;
-    frozenRows = new WeakMap();
+    storeFrames = null;
+    frozenRows = null;
+    rowEnds = null;
+    columnRows = null;
     theme = null;
-    listeners = new Map();
-    presentation.clear();
-    deliveredKeys = new Set();
+    themeKey = null;
+    if (listeners) { listeners.clear(); listeners = null; }
+    if (presentation) { presentation.clear(); presentation = null; }
+    if (deliveredKeys) { deliveredKeys.clear(); deliveredKeys = null; }
+    if (notifications) { notifications.length = 0; notifications = null; }
     options = new OptionsStore({});
     const owner = host;
     host = deadHost(owner);
@@ -2222,7 +2350,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     try {
       owner.dispose();
     } finally {
-      for (const w of pending) w.resolve();
+      if (pending) for (const w of pending) w.resolve();
     }
   }
 
@@ -2240,11 +2368,12 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     update, append, zoom,
     on(event, listener) {
       if (destroyed) return () => {};
-      let set = listeners.get(event);
-      if (!set) listeners.set(event, set = new Set());
+      const map = listeners ??= new Map();
+      let set = map.get(event);
+      if (!set) map.set(event, set = new Set());
       set.add(listener as (payload: never) => void);
-      // Resolved through the chart's map, which destroy empties: a kept unsubscribe holds no one else.
-      return () => { listeners.get(event)?.delete(listener as (payload: never) => void); };
+      // Resolved through the chart's map, which destroy clears and nulls: a kept unsubscribe holds no one else.
+      return () => { listeners?.get(event)?.delete(listener as (payload: never) => void); };
     },
     get diagnostics() {
       return currentDiagnostics();
@@ -2259,7 +2388,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       ready() {
         const revision = accepted?.revision ?? 0;
         if (destroyed || (settledRevision >= revision && !frameScheduled)) return Promise.resolve();
-        return new Promise<void>(resolve => waiters.push({ revision, resolve }));
+        return new Promise<void>(resolve => (waiters ??= []).push({ revision, resolve }));
       },
       shown: () => drawn && {
         view: drawn.accepted.view, layout: drawn.layout, pixelRatio, scene: drawn.scene,

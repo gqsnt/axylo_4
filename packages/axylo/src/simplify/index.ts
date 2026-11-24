@@ -57,8 +57,8 @@ interface IndexBuffer {
 
 const BLOCK_SIZE = 32;
 const MIXED_BLOCK = 255;
-const SELECTION_CACHE_BYTES = 192 * 1024;
-const SELECTION_CACHE_ENTRIES = 24;
+const SELECTION_CACHE_BYTES = 64 * 1024;
+const SELECTION_CACHE_ENTRIES = 12;
 type ExactProjection = NonNullable<AffineProjection['exact']>;
 
 interface SelectionCache {
@@ -77,6 +77,7 @@ interface BlockSummary {
   readonly blocks: Uint8Array;
   start: number;
   end: number;
+  uses: number;
   contiguous?: { readonly range: IndexRange; readonly result: ReturnType<typeof scan> };
   turns?: { readonly start: number; readonly end: number; readonly indexes: Uint32Array | null };
   selections?: SelectionCache;
@@ -91,7 +92,7 @@ function summarize(y: Values, slot: Uint8Array, { start, end }: IndexRange): Blo
   const count = Math.floor(Math.min(y.length, slot.length) / BLOCK_SIZE);
   let summary = bySlot.get(slot);
   if (summary?.blocks.length !== 2 * count) {
-    bySlot.set(slot, summary = { blocks: new Uint8Array(2 * count), start: 0, end: 0 });
+    bySlot.set(slot, summary = { blocks: new Uint8Array(2 * count), start: 0, end: 0, uses: 0 });
   }
   const { blocks } = summary;
   const begin = Math.ceil(start / BLOCK_SIZE);
@@ -147,7 +148,7 @@ function turningPoints(summary: BlockSummary, y: Values, start: number, end: num
     value = after;
   }
   const result = i + 1 === end && Number.isFinite(before) && Number.isFinite(value)
-    ? indexes.subarray(0, count) : null;
+    ? (count < indexes.length * 0.75 ? indexes.slice(0, count) : indexes.subarray(0, count)) : null;
   summary.turns = { start, end, indexes: result };
   return result;
 }
@@ -434,6 +435,8 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
   // Near the density threshold, most blocks would straddle device columns.
   const summary = affine && y && length >= 1024 && length >= 4 * limit && range.end <= y.length
     ? summarize(y, slot, range) : undefined;
+  // Blocks suffice for a one-off draw. Build the extra indexes only when the series is reused.
+  const reused = summary !== undefined && summary.uses++ > 0;
   const blocks = summary?.blocks;
   const cached = summary?.contiguous;
   const size = cached?.range.start === range.start && cached.range.end === range.end
@@ -446,7 +449,7 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
   // Cache only the single-run case, after validating the exact column projection.
   let cache: SelectionCache | undefined;
   const exact = affine?.exact;
-  if (dense && summary && exact && size.values === length) {
+  if (dense && reused && summary && exact && size.values === length) {
     const { x, ratio } = columns;
     if (hasMonotoneColumns(exact, x[range.start]!, x[range.end - 1]!)) {
       cache = selectionCache(summary, x, range, exact, ratio);
@@ -476,7 +479,7 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
         const lastColumn = pixel(x[last]!);
         const capacity = 4 * (Math.abs(lastColumn - firstColumn) + 1);
         if (capacity <= runLength) {
-          const turns = size.values === runLength && runLength >= 4096
+          const turns = reused && size.values === runLength && runLength >= 4096
             ? turningPoints(summary, y, first, last + 1) : null;
           cursor = keepAffineRun(x, y, first, last, pixel, firstColumn, lastColumn, summary.blocks,
             turns, reserve(buffer, cursor + capacity), cursor);

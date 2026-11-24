@@ -12,6 +12,22 @@ export interface TickContext {
 /** Writes one tick label. A plain `(value) => string` is a valid labeler. */
 export type TickLabeler = (value: number, context: TickContext) => string;
 
+class LazyTick implements Tick {
+  #label: string | undefined;
+  readonly #format: TickLabeler;
+  readonly #context: TickContext;
+
+  constructor(readonly value: number, format: TickLabeler, context: TickContext) {
+    this.#format = format;
+    this.#context = context;
+  }
+
+  get label(): string {
+    const format = this.#format;
+    return this.#label ??= format(this.value, this.#context);
+  }
+}
+
 export function linearScale(domain: readonly [number, number], range: readonly [number, number]): ContinuousScale {
   return continuous('linear', domain, range);
 }
@@ -58,12 +74,9 @@ export function linearTickCandidates(domain: readonly [number, number], format: 
   // A width that no nice step can resolve (subnormal, or below the precision of the values) gets one tick.
   // Divided before subtracting, so that [-1e308, 1e308] does not overflow.
   const width = hi / (MAX_TICKS - 1) - lo / (MAX_TICKS - 1);
-  const tick = (value: number, context: TickContext): Tick => {
-    if (!deferLabels) return { value, label: format(value, context) };
-    // Domain selection reads positions. Only layout needs the built-in label.
-    let label: string;
-    return { value, get label() { return label ??= format(value, context); } };
-  };
+  // Domain selection reads positions. Only layout needs the built-in label.
+  const tick = (value: number, context: TickContext): Tick => deferLabels
+    ? new LazyTick(value, format, context) : { value, label: format(value, context) };
   const single = (value: number): Tick[] => [tick(value, { step: 0, maxAbs: Math.abs(value) })];
   const tooNarrow = !(width > 0) || hi - lo <= 4 * Number.EPSILON * Math.max(Math.abs(lo), Math.abs(hi));
   if (lo === hi || tooNarrow) {

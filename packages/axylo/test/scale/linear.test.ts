@@ -90,6 +90,20 @@ describe('linearTickCandidates', () => {
     expect(seen[0]).toEqual([0, 200_000, 2_000_000]);
   });
 
+  it('formats deferred labels on demand and remembers even an empty label', () => {
+    const seen: Array<[number, number, number]> = [];
+    const sets = linearTickCandidates([0, 100], (v, c) => {
+      seen.push([v, c.step, c.maxAbs]);
+      return v === 0 ? '' : String(v);
+    }, true);
+    const first = sets[0]![0]!;
+    const later = sets[1]![1]!;
+    expect([first.value, later.value]).toEqual([0, 20]);
+    expect(seen).toEqual([]);
+    expect([later.label, first.label, later.label, first.label]).toEqual(['20', '', '20', '']);
+    expect(seen).toEqual([[20, 20, 100], [0, 10, 100]]);
+  });
+
   it('gives one tick for a zero-width domain and none for a non-finite one', () => {
     expect(linearTickCandidates([4, 4], plain).map(values)).toEqual([[4]]);
     // A width below the resolution of doubles cannot hold nice steps: one tick, no endless loop.

@@ -82,6 +82,8 @@ export function measurementCacheSize(doc: Document): number {
 
 type SpacingContext = CanvasRenderingContext2D & { letterSpacing?: string; wordSpacing?: string };
 
+const measurers = new WeakMap<Document, TextMeasurer>();
+
 /**
  * Canvas `measureText` with the computed font and the page's letter and word spacing (spec A6). Where the
  * context supports `letterSpacing` and `wordSpacing` they are set on it, so the browser adds them as it
@@ -89,7 +91,9 @@ type SpacingContext = CanvasRenderingContext2D & { letterSpacing?: string; wordS
  * after every space). Cached per document, font epoch, style and string.
  */
 export function createMeasurer(doc: Document): TextMeasurer {
-  return {
+  let measurer = measurers.get(doc);
+  if (measurer) return measurer;
+  measurer = {
     width(text: string, style: TextStyle): number {
       let ctx = contexts.get(doc);
       if (ctx === undefined) {
@@ -139,6 +143,8 @@ export function createMeasurer(doc: Document): TextMeasurer {
       return width;
     },
   };
+  measurers.set(doc, measurer);
+  return measurer;
 }
 
 export function sameTextStyle(a: TextStyle | null, b: TextStyle): boolean {
@@ -152,8 +158,12 @@ interface EnvSubscriber {
   readonly fonts: () => void;
 }
 
+interface EnvRegistration {
+  readonly h: EnvSubscriber;
+}
+
 interface EnvHub {
-  readonly subscribers: Set<EnvSubscriber>;
+  readonly subscribers: Set<EnvRegistration>;
   readonly teardown: () => void;
 }
 
@@ -168,7 +178,7 @@ export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; mo
   let hub = envHubs.get(win);
   if (!hub) {
     let active = true;
-    const subscribers = new Set<EnvSubscriber>();
+    const subscribers = new Set<EnvRegistration>();
     // Each subscription registers its removal as soon as it exists, so a failure part-way (a matchMedia that
     // throws) leaves none behind (review 3, finding 9).
     const undo: (() => void)[] = [];
@@ -184,7 +194,7 @@ export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; mo
         if (!active) return;
         arm();
         for (const sub of [...subscribers]) {
-          if (subscribers.has(sub)) sub.pixelRatio();
+          if (subscribers.has(sub)) sub.h.pixelRatio();
         }
       };
       // A resolution query matches one ratio only, so it is re-armed for the new ratio after each change.
@@ -199,7 +209,7 @@ export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; mo
       const onMotion = (): void => {
         if (!active) return;
         for (const sub of [...subscribers]) {
-          if (subscribers.has(sub)) sub.motion();
+          if (subscribers.has(sub)) sub.h.motion();
         }
       };
       motion.addEventListener('change', onMotion);
@@ -212,7 +222,7 @@ export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; mo
         const faces = (event as Event & { fontfaces?: ArrayLike<unknown> }).fontfaces;
         if (!active || (faces !== undefined && faces.length === 0)) return;
         for (const sub of [...subscribers]) {
-          if (subscribers.has(sub)) sub.fonts();
+          if (subscribers.has(sub)) sub.h.fonts();
         }
       };
       fonts?.addEventListener('loadingdone', onFonts);
@@ -224,11 +234,7 @@ export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; mo
     hub = { subscribers, teardown };
     envHubs.set(win, hub);
   }
-  const sub: EnvSubscriber = {
-    pixelRatio: () => handlers.pixelRatio(),
-    motion: () => handlers.motion(),
-    fonts: () => handlers.fonts(),
-  };
+  const sub: EnvRegistration = { h: handlers };
   hub.subscribers.add(sub);
   let stopped = false;
   return () => {

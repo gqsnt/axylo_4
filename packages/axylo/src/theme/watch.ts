@@ -8,7 +8,7 @@
  * so the watch keeps working when the chart is moved to another parent or `<body>` is replaced.
  */
 
-import { subscribeTreeMutations } from '../core/environment';
+import { subscribeTreeMutations, type SharedTreeSubscriber } from '../core/environment';
 
 const QUERIES = ['(prefers-color-scheme: dark)', '(forced-colors: active)', '(prefers-contrast: more)'];
 const ATTRIBUTES = ['class', 'style', 'data-theme'];
@@ -16,9 +16,23 @@ const MUTATION_OPTIONS: MutationObserverInit = { attributes: true, attributeFilt
 
 /** Declarations resolveTheme itself writes on the chart root; changes to them alone are not theme changes. */
 const OWN = /--axylo-(?:series-color-\d+|backdrop)\s*:[^;]*;?\s*/g;
+const noop = (): void => {};
+
+function ownStyleChanged(this: SharedTreeSubscriber, records: readonly MutationRecord[]): boolean {
+  const after = (this.element.getAttribute('style') ?? '').replace(OWN, '').trim();
+  for (let i = 0; i < records.length; i++) {
+    const before = (records[i]!.oldValue ?? '').replace(OWN, '').trim();
+    if (before !== after) return true;
+  }
+  return false;
+}
+
+interface MediaRegistration {
+  readonly fn: () => void;
+}
 
 interface ThemeMediaHub {
-  readonly subscribers: Set<() => void>;
+  readonly subscribers: Set<MediaRegistration>;
   readonly teardown: () => void;
 }
 
@@ -28,7 +42,7 @@ function subscribeMedia(win: Window, onChange: () => void): () => void {
   let hub = mediaHubs.get(win);
   if (!hub) {
     let active = true;
-    const subscribers = new Set<() => void>();
+    const subscribers = new Set<MediaRegistration>();
     const undo: (() => void)[] = [];
     const teardown = (): void => {
       active = false;
@@ -38,8 +52,8 @@ function subscribeMedia(win: Window, onChange: () => void): () => void {
     };
     const dispatch = (): void => {
       if (!active) return;
-      for (const fn of [...subscribers]) {
-        if (subscribers.has(fn)) fn();
+      for (const entry of [...subscribers]) {
+        if (subscribers.has(entry)) entry.fn();
       }
     };
     try {
@@ -55,12 +69,13 @@ function subscribeMedia(win: Window, onChange: () => void): () => void {
     hub = { subscribers, teardown };
     mediaHubs.set(win, hub);
   }
-  hub.subscribers.add(onChange);
+  const entry: MediaRegistration = { fn: onChange };
+  hub.subscribers.add(entry);
   let stopped = false;
   return () => {
     if (stopped) return;
     stopped = true;
-    hub!.subscribers.delete(onChange);
+    hub!.subscribers.delete(entry);
     if (hub!.subscribers.size === 0) {
       if (mediaHubs.get(win) === hub) mediaHubs.delete(win);
       hub!.teardown();
@@ -74,47 +89,31 @@ function subscribeMedia(win: Window, onChange: () => void): () => void {
  * (review 3, finding 19). Returns `stop`.
  */
 export function watchTheme(element: Element, onChange: () => void): () => void {
-  const doc = element.ownerDocument;
-  const win = doc.defaultView;
-  if (win === null) return () => {};
-  let stopped = false;
-
-  // At once: the observer already delivers a burst as one batch, and the caller only marks itself dirty and
-  // schedules its frame, so the repaint is in the very next animation frame.
-  const schedule = (): void => {
-    if (!stopped) onChange();
-  };
-
+  const win = element.ownerDocument.defaultView;
+  if (win === null) return noop;
   // Every subscription's release is kept as it is made, so a failure part-way (an observe() that throws)
   // leaves nothing registered (final review, finding 14).
-  const undo: (() => void)[] = [];
-  const release = (): void => {
-    stopped = true;
-    for (let fn = undo.pop(); fn; fn = undo.pop()) {
-      try { fn(); } catch { /* keep releasing */ }
-    }
-  };
+  let stopMedia: (() => void) | null = null;
+  let stopTree: (() => void) | null = null;
   try {
-    undo.push(subscribeMedia(win, schedule));
-    undo.push(subscribeTreeMutations('theme', element, MUTATION_OPTIONS, {
+    stopMedia = subscribeMedia(win, onChange);
+    stopTree = subscribeTreeMutations('theme', element, MUTATION_OPTIONS, {
       element,
-      onChange: schedule,
-      styleChanged(records) {
-        const after = (element.getAttribute('style') ?? '').replace(OWN, '').trim();
-        for (let i = 0; i < records.length; i++) {
-          const before = (records[i]!.oldValue ?? '').replace(OWN, '').trim();
-          if (before !== after) return true;
-        }
-        return false;
-      },
-    }));
+      onChange,
+      styleChanged: ownStyleChanged,
+    });
   } catch (error) {
-    release();
+    if (stopTree) { try { stopTree(); } catch { /* keep releasing */ } }
+    if (stopMedia) { try { stopMedia(); } catch { /* keep releasing */ } }
     throw error;
   }
 
   return () => {
-    if (stopped) return;
-    release();
+    const tree = stopTree;
+    const media = stopMedia;
+    stopTree = null;
+    stopMedia = null;
+    if (tree) { try { tree(); } catch { /* keep releasing */ } }
+    if (media) { try { media(); } catch { /* keep releasing */ } }
   };
 }

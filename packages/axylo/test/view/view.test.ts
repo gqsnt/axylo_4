@@ -24,6 +24,23 @@ describe('view domains and visibility', () => {
     expect(aligned(options, { kind: 'line', compact: true, zoom: ['East', 'South'] }).view.xDomain).toEqual([0, 2]);
   });
 
+  it.each([false, true])('shares the first eight immutable series cues across charts with compact=%s', compact => {
+    const data = Array.from({ length: 9 }, (_, i) => ({ x: 0, y: i, series: String(i) }));
+    const options = { data, x: 'x', y: 'y', series: 'series' };
+    const a = aligned(options, { kind: 'line', compact }).view.cues;
+    const b = aligned(options, { kind: 'line', compact }).view.cues;
+    expect(new Set(a.slice(0, 8).map(cue => cue.marker)).size).toBe(8);
+    for (let i = 0; i < 8; i++) {
+      const cue = a[i]!;
+      expect(cue).toBe(b[i]);
+      expect(Object.isFrozen(cue)).toBe(true);
+      expect(Object.isFrozen(cue.dash)).toBe(true);
+      if (cue.dash.contrast) expect(Object.isFrozen(cue.dash.contrast)).toBe(true);
+      expect(cue.dash.normal).toBe(compact ? cue.dash.contrast : null);
+    }
+    expect(a[8]!.dash.normal).toEqual([10, 3]);
+  });
+
   it('widens draw slots to the nearest joinable values and spans a view between observations', () => {
     const data = Array.from({ length: 9 }, (_, x) => ({ x, y: 2, s: 'dense' }));
     for (const x of [0, 2, 4, 5, 8]) data.push({ x, y: 10, s: 'sparse' });

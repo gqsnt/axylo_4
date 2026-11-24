@@ -193,11 +193,11 @@ it.each([Float32Array, Float64Array])('closes dense zero-baseline polygons for %
   expect(areaData(areas[0]!)).toBe('M0 1L0.13 4L0.19 3L0.19 0L0 0ZM0.31 7L0.44 2L0.5 4L0.5 0L0.31 0Z');
 });
 
-it('agrees with the finite slot values for whole blocks, partial blocks, and short ranges', () => {
+it.each([1060, 4140])('agrees with the finite slot values for whole blocks, partial blocks, and short ranges from %i slots', minLength => {
   const values = fc.oneof(fc.integer({ min: -500, max: 500 }), fc.constantFrom(NaN, Infinity, -Infinity, -0, 0));
   const states = fc.constantFrom(SLOT_VALUE, SLOT_VALUE, SLOT_NO_ROW, SLOT_NULL);
   fc.assert(fc.property(
-    fc.array(fc.tuple(values, states), { minLength: 1060, maxLength: 1500 }), fc.boolean(),
+    fc.array(fc.tuple(values, states), { minLength, maxLength: minLength + 440 }), fc.boolean(),
     (samples, float32) => {
       const y = new (float32 ? Float32Array : Float64Array)(samples.length);
       const slot = new Uint8Array(samples.length);
@@ -219,15 +219,15 @@ it('agrees with the finite slot values for whole blocks, partial blocks, and sho
         });
       }
     },
-  ));
+  ), { numRuns: 1000 });
 });
 
-it('preserves reader tie order and signed extrema in an otherwise empty block summary', () => {
-  const slot = new Uint8Array(1281).fill(SLOT_NO_ROW);
+it.each([1281, 4353])('preserves reader tie order and signed extrema with %i mostly empty slots', length => {
+  const slot = new Uint8Array(length).fill(SLOT_NO_ROW);
   const y = new Float64Array(slot.length).fill(NaN);
-  slot[256] = slot[257] = slot[1280] = SLOT_VALUE;
+  slot[256] = slot[257] = slot[length - 1] = SLOT_VALUE;
   y[256] = 0;
-  y[257] = y[1280] = -0;
+  y[257] = y[length - 1] = -0;
   const series = { ...view.frame.series[0]!, y, slot };
   expect(alignedStatistics(series, 0, slot.length, true)).toEqual({ min: -0, max: 0, last: -0 });
   expect(alignedStatistics(series, 0, slot.length)).toEqual({ min: 0, max: 0, last: -0 });

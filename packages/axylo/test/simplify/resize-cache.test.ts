@@ -34,3 +34,28 @@ it('reuses a resize selection while keeping returned indexes and changed project
   expect(draw(2)).toEqual(twoColumns);
   expect(draw(2, 1, 1, x.map(value => value / 2))).toEqual(Uint32Array.of(0, 2047, 2048));
 });
+
+it('keeps sparse interior extrema on the first draw, resize and cache hit', () => {
+  const end = 8193;
+  const x = Float64Array.from({ length: end }, (_, i) => i);
+  const y = new Float64Array(end);
+  y[1500] = 10;
+  y[1600] = 10;
+  y[5500] = -10;
+  const slot = new Uint8Array(end).fill(SLOT_VALUE);
+  const draw = (width: number) => {
+    const mapX = linearScale([0, 8192], [0, width]);
+    return simplifyLine({
+      x, y, slot, range: { start: 0, end }, mapX, affineX: affineProjection(mapX, [0, 8192]),
+      left: 0, width, devicePixelRatio: 1,
+    }).indexes;
+  };
+
+  // Keep the endpoints of each column and the earliest occurrence of an interior extreme.
+  expect(draw(2)).toEqual(Uint32Array.of(0, 1500, 4095, 4096, 5500, 8191, 8192));
+  const resized = Uint32Array.of(0, 1500, 2047, 2048, 4095, 4096, 5500, 6143, 6144, 8191, 8192);
+  const returned = draw(4);
+  expect(returned).toEqual(resized);
+  returned.fill(0);
+  expect(draw(4)).toEqual(resized);
+});

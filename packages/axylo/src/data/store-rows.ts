@@ -8,7 +8,7 @@ export function sameRemainder(prefix: Float64Array, start: number, window: Float
 }
 import { once, type PreparedFrame } from './transaction';
 import { lowerBound } from './search';
-import { mapValues, StoreMap } from './store-map';
+import { StoreMap } from './store-map';
 import { columnsTable, rowValue, type Columns, type Table } from './table';
 
 /** The left edge of the newest distinct positions. An undersized window has no lower bound. */
@@ -39,6 +39,12 @@ interface ColumnBlock {
   readonly borrowed: boolean;
 }
 
+/** Shared empty column map for row-only stores and archives; lazily created so import does zero work. */
+let sharedEmptyColumns: StoreMap<number, ColumnBlock> | null = null;
+function getEmptyColumns(): StoreMap<number, ColumnBlock> {
+  return sharedEmptyColumns ??= new StoreMap<number, ColumnBlock>();
+}
+
 function blockIndex(row: number): number { return Math.floor(row / blockSize); }
 function rowBit(row: number): bigint { return 1n << BigInt(row % blockSize); }
 function fullBlock(length: number): bigint { return (1n << BigInt(length)) - 1n; }
@@ -47,29 +53,49 @@ function typedColumn(column: ArrayLike<unknown>): boolean {
   return ArrayBuffer.isView(column) && 'BYTES_PER_ELEMENT' in column;
 }
 
+function forkReferences(source: ReadonlyMap<string, StoreMap<number, object>>): Map<string, StoreMap<number, object>> {
+  const result = new Map<string, StoreMap<number, object>>();
+  for (const [key, entries] of source) result.set(key, entries.fork());
+  return result;
+}
+
 export class RawRows {
   #objects: StoreMap<number, unknown>;
-  #references: Map<string, StoreMap<number, object>>;
+  private columns: StoreMap<number, ColumnBlock>;
+  #references: Map<string, StoreMap<number, object>> | null;
   #columnCount: number;
   #borrowedSize: number;
 
-  constructor(objects = new StoreMap<number, unknown>(), private readonly columns = new StoreMap<number, ColumnBlock>(),
-    references = new Map<string, StoreMap<number, object>>(), count = 0, borrowed = 0) {
+  constructor(
+    objects = new StoreMap<number, unknown>(),
+    columns: StoreMap<number, ColumnBlock> = getEmptyColumns(),
+    references: Map<string, StoreMap<number, object>> | null = null,
+    count = 0,
+    borrowed = 0,
+  ) {
     this.#objects = objects;
+    this.columns = columns;
     this.#references = references;
     this.#columnCount = count;
     this.#borrowedSize = borrowed;
   }
 
   fork(): RawRows {
-    return new RawRows(this.#objects.fork(), this.columns.fork(),
-      mapValues(this.#references, entries => entries.fork()), this.#columnCount, this.#borrowedSize);
+    return new RawRows(
+      this.#objects.fork(),
+      this.#columnCount > 0 ? this.columns.fork() : getEmptyColumns(),
+      this.#references !== null && this.#references.size > 0 ? forkReferences(this.#references) : null,
+      this.#columnCount,
+      this.#borrowedSize,
+    );
   }
 
   commit(): void {
     this.#objects.commit();
-    this.columns.commit();
-    for (const entries of this.#references.values()) entries.commit();
+    if (this.columns !== sharedEmptyColumns) this.columns.commit();
+    if (this.#references) {
+      for (const entries of this.#references.values()) entries.commit();
+    }
   }
 
   get size(): number { return this.#objects.size + this.#columnCount; }
@@ -79,6 +105,7 @@ export class RawRows {
       for (let i = 0; i < table.length; i++) this.#objects.set(i, table.rowAt(i));
       return;
     }
+    if (this.columns === sharedEmptyColumns) this.columns = new StoreMap();
     const columns = table.columns;
     const keys = Object.keys(columns);
     this.#columnCount = table.length;
@@ -122,13 +149,14 @@ export class RawRows {
   }
 
   #column(row: number): ColumnBlock | undefined {
+    if (this.#columnCount === 0) return undefined;
     const block = this.columns.get(blockIndex(row));
     if (block && (block.present === null ? row % blockSize < block.table.length : (block.present & rowBit(row)) !== 0n)) return block;
     return undefined;
   }
 
   #reference(field: string, row: number, value: object): void {
-    groupFor(this.#references, field, StoreMap<number, object>).set(row, value);
+    groupFor(this.#references ??= new Map(), field, StoreMap<number, object>).set(row, value);
   }
 
   append(start: number, rows: readonly unknown[]): void {
@@ -138,13 +166,16 @@ export class RawRows {
   copy(row: number, target: RawRows): boolean {
     const block = this.#column(row);
     if (block) {
+      if (target.columns === sharedEmptyColumns) target.columns = new StoreMap();
       const index = blockIndex(row);
       const archived = target.columns.get(index);
       target.columns.set(index, { ...(archived ?? this.#own(block)), present: (archived?.present ?? 0n) | rowBit(row) });
       target.#columnCount++;
-      for (const [field, entries] of this.#references) {
-        const value = entries.get(row);
-        if (value !== undefined) target.#reference(field, row, value);
+      if (this.#references) {
+        for (const [field, entries] of this.#references) {
+          const value = entries.get(row);
+          if (value !== undefined) target.#reference(field, row, value);
+        }
       }
     } else if (this.#objects.has(row)) target.#objects.set(row, this.#objects.get(row));
     else return false;
@@ -153,6 +184,7 @@ export class RawRows {
 
   forget(row: number): void {
     this.#objects.delete(row);
+    if (this.#columnCount === 0) return;
     const block = this.#column(row);
     if (block) {
       const index = blockIndex(row);
@@ -160,19 +192,21 @@ export class RawRows {
       if (present) this.columns.set(index, { ...block, present });
       else this.columns.delete(index);
       this.#columnCount--;
-      for (const entries of this.#references.values()) entries.delete(row);
+      if (this.#references) {
+        for (const entries of this.#references.values()) entries.delete(row);
+      }
     }
   }
 
   read(row: number, field: string): unknown {
     const range = this.#column(row)?.table;
-    return range ? this.#references.get(field)?.get(row) ?? range.read(row % blockSize, field) : rowValue(this.#objects.get(row), field);
+    return range ? this.#references?.get(field)?.get(row) ?? range.read(row % blockSize, field) : rowValue(this.#objects.get(row), field);
   }
 
   rowAt(row: number): unknown {
     const range = this.#column(row)?.table;
     if (!range) return this.#objects.has(row) ? this.#objects.get(row) : null;
-    if (this.#references.size === 0) return range.rowAt(row % blockSize);
+    if (!this.#references || this.#references.size === 0) return range.rowAt(row % blockSize);
     return Object.fromEntries(range.keys().map(field => [field, this.read(row, field)]));
   }
 
@@ -191,10 +225,12 @@ export class RawRows {
   indexes(start: number, incoming: number): Int32Array {
     const indexes = new Int32Array(this.size + incoming);
     let i = 0;
-    for (const [index, { table, present }] of this.columns) {
-      const base = index * blockSize;
-      for (let offset = 0; offset < table.length; offset++) {
-        if (present === null || (present & rowBit(offset)) !== 0n) indexes[i++] = base + offset;
+    if (this.#columnCount > 0) {
+      for (const [index, { table, present }] of this.columns) {
+        const base = index * blockSize;
+        for (let offset = 0; offset < table.length; offset++) {
+          if (present === null || (present & rowBit(offset)) !== 0n) indexes[i++] = base + offset;
+        }
       }
     }
     for (const row of this.#objects.keys()) indexes[i++] = row;
@@ -212,18 +248,22 @@ export class StreamRows {
   private seedPositions: Float64Array | null = null;
   #seedOffset = 0;
   #seedStart = 0;
-  #previousAtPosition: StoreMap<number, number>;
-  #unplaced: StoreMap<number, number>;
+  #previousAtPosition: StoreMap<number, number> | null;
+  #unplaced: StoreMap<number, number> | null;
   #latestPosition = -Infinity;
   onForget?: (row: number) => void;
+  trackEvictions = false;
+  evicted: number[] | null = null;
   next: number;
 
   constructor(table?: Table, previous?: StreamRows) {
     if (previous) {
       this.retained = previous.retained.fork();
       this.#positions = previous.#positions.fork();
-      this.#previousAtPosition = previous.#previousAtPosition.fork();
-      this.#unplaced = previous.#unplaced.fork();
+      this.#previousAtPosition = previous.#previousAtPosition !== null && previous.#previousAtPosition.size > 0
+        ? previous.#previousAtPosition.fork() : null;
+      this.#unplaced = previous.#unplaced !== null && previous.#unplaced.size > 0
+        ? previous.#unplaced.fork() : null;
       this.seedPositions = previous.seedPositions;
       this.#seedOffset = previous.#seedOffset;
       this.#seedStart = previous.#seedStart;
@@ -232,14 +272,15 @@ export class StreamRows {
     } else {
       this.retained = new RawRows();
       this.#positions = new StoreMap();
-      this.#previousAtPosition = new StoreMap();
-      this.#unplaced = new StoreMap();
+      this.#previousAtPosition = null;
+      this.#unplaced = null;
       if (table) this.retained.load(table);
       this.next = table?.length ?? 0;
     }
   }
 
   get size(): number { return this.retained.size; }
+  get hasUnplaced(): boolean { return this.#unplaced !== null && this.#unplaced.size > 0; }
 
   fork(): StreamRows {
     return new StreamRows(undefined, this);
@@ -248,25 +289,25 @@ export class StreamRows {
   commit(): void {
     this.retained.commit();
     this.#positions.commit();
-    this.#previousAtPosition.commit();
-    this.#unplaced.commit();
+    this.#previousAtPosition?.commit();
+    this.#unplaced?.commit();
   }
 
   record(position: number, row: number): void {
     if (!Number.isFinite(position)) {
-      this.#unplaced.set(row, this.#latestPosition);
+      (this.#unplaced ??= new StoreMap()).set(row, this.#latestPosition);
       return;
     }
     this.#latestPosition = Math.max(position, this.#latestPosition);
     const previous = this.#positions.get(position);
-    if (previous !== undefined) this.#previousAtPosition.set(row, previous);
+    if (previous !== undefined) (this.#previousAtPosition ??= new StoreMap()).set(row, previous);
     this.#positions.set(position, row);
   }
 
   resetPositions(table: Table, positions: Float64Array, seed?: Float64Array): void {
     this.#positions = new StoreMap();
-    this.#previousAtPosition = new StoreMap();
-    this.#unplaced = new StoreMap();
+    this.#previousAtPosition = null;
+    this.#unplaced = null;
     this.#latestPosition = -Infinity;
     this.seedPositions = null;
     this.#seedStart = this.#seedOffset = 0;
@@ -293,15 +334,17 @@ export class StreamRows {
   }
 
   forget(row: number): void {
+    if (this.trackEvictions) (this.evicted ??= []).push(row);
     this.onForget?.(row);
     this.retained.forget(row);
   }
 
   evictRead(position: number, discard?: Discard): void {
     let row = this.#positions.get(position);
+    const previousMap = this.#previousAtPosition;
     while (row !== undefined) {
-      const previous = this.#previousAtPosition.get(row);
-      this.#previousAtPosition.delete(row);
+      const previous = previousMap?.get(row);
+      if (previous !== undefined) previousMap!.delete(row);
       discard?.(row, this.retained.isColumn(row));
       this.forget(row);
       row = previous;
@@ -335,11 +378,13 @@ export class StreamRows {
   }
 
   trimUnplacedRead(keep: number, first: number, observed: number, discard: Discard): void {
+    const unplaced = this.#unplaced;
+    if (!unplaced || unplaced.size === 0) return;
     // Invalid records need a bounded home even when every new record is unplaceable.
     const capacity = observed ? 2 * keep : keep;
-    for (const [row, position] of this.#unplaced) {
-      if (this.#unplaced.size <= capacity && (!observed || position >= first)) break;
-      this.#unplaced.delete(row);
+    for (const [row, position] of unplaced) {
+      if (unplaced.size <= capacity && (!observed || position >= first)) break;
+      unplaced.delete(row);
       discard(row, this.retained.isColumn(row));
       this.forget(row);
     }
@@ -396,28 +441,65 @@ export class StreamRows {
 }
 
 export class FrameSource implements RowSource {
-  #read: ((row: number) => unknown) | null;
+  #rows: StreamRows | null;
+  #live: (() => boolean) | null;
+  #store: RevisionStore<Frame> | null = null;
+  #base: Frame | null = null;
+  #window: RowWindow | null = null;
+  #revision = 0;
+  #custom: ((row: number) => unknown) | null = null;
 
-  constructor(private readonly end: number, rows: StreamRows, live: () => boolean = () => true) {
-    this.#read = row => {
-      if (live()) return rows.rowAt(row);
-      this.release();
-      return null;
-    };
+  constructor(private readonly end: number, rows: StreamRows, live?: () => boolean) {
+    this.#rows = rows;
+    this.#live = live ?? null;
   }
 
   rowAt(row: number): unknown {
-    return Number.isInteger(row) && row >= 0 && row < this.end && this.#read ? this.#read(row) : null;
+    if (!Number.isInteger(row) || row < 0 || row >= this.end) return null;
+    if (this.#window) return this.#window.readRevision(this.#revision, row);
+    if (this.#custom) return this.#custom(row);
+    if (this.#rows) {
+      if ((this.#store === null || this.#store.frame === this.#base) && (this.#live === null || this.#live())) {
+        return this.#rows.rowAt(row);
+      }
+      this.release();
+    }
+    return null;
   }
 
   get limit(): number { return this.end; }
 
+  watchBase(store: RevisionStore<Frame>, base: Frame): void {
+    this.#store = store;
+    this.#base = base;
+  }
+
+  bindWindow(window: RowWindow, revision: number): void {
+    this.#window = window;
+    this.#revision = revision;
+    this.#rows = null;
+    this.#live = null;
+    this.#store = null;
+    this.#base = null;
+    this.#custom = null;
+  }
+
   bind(read: (row: number) => unknown): void {
-    this.#read = read;
+    this.#custom = read;
+    this.#window = null;
+    this.#rows = null;
+    this.#live = null;
+    this.#store = null;
+    this.#base = null;
   }
 
   release(): void {
-    this.#read = null;
+    this.#window = null;
+    this.#rows = null;
+    this.#live = null;
+    this.#store = null;
+    this.#base = null;
+    this.#custom = null;
   }
 }
 
@@ -444,14 +526,16 @@ export class RowWindow {
     this.#lastSeen.set(row, revision);
   }
 
+  readRevision(revision: number, row: number): unknown {
+    const last = this.#lastSeen.get(row);
+    return last === undefined ? this.rows?.rowAt(row) : revision <= last ? this.archived.rowAt(row) : null;
+  }
+
   publish(revision: number, source: FrameSource, rows: StreamRows): void {
     this.rows = rows;
     this.#latestRevision = revision;
     this.sources.set(revision, source);
-    source.bind(row => {
-      const last = this.#lastSeen.get(row);
-      return last === undefined ? this.rows?.rowAt(row) : revision <= last ? this.archived.rowAt(row) : null;
-    });
+    source.bindWindow(this, revision);
   }
 
   /**
@@ -557,7 +641,8 @@ export abstract class RevisionStore<F extends Frame> {
 
   protected preview(base: F, result: F, rows: StreamRows, diagnostics: readonly DiagnosticInput[],
     callDiagnostics: readonly DiagnosticInput[], apply: () => void): PreparedFrame<F> & { commit: ReturnType<typeof once> } {
-    const source = rows.source(() => this.current === base);
+    const source = rows.source();
+    source.watchBase(this, base);
     const frame = { ...result, source };
     const commit = once(() => this.current, () => {
       apply();
@@ -569,12 +654,12 @@ export abstract class RevisionStore<F extends Frame> {
 
   protected commitRows(rows: StreamRows, evicted: readonly number[], replacement: boolean): void {
     if (replacement) this.revisions.replace(rows);
-    for (const row of evicted) this.revisions.current.archive(row);
+    for (let i = 0; i < evicted.length; i++) this.revisions.current.archive(evicted[i]!);
     rows.commit();
     this.rows = rows;
   }
 }
 
 export function forwardDiagnostics(inputs: readonly DiagnosticInput[], sink: DiagnosticSink): void {
-  for (const diagnostic of inputs) sink.add(diagnostic);
+  for (let i = 0; i < inputs.length; i++) sink.add(inputs[i]!);
 }

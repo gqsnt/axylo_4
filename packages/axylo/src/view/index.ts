@@ -49,7 +49,13 @@ export type ViewState = AlignedViewState | ScatterViewState | DonutViewState;
 const SHAPES: readonly MarkerShape[] = ['circle', 'square', 'triangle', 'diamond', 'cross', 'plus', 'triangle-down', 'star'];
 const CONTRAST_DASHES: readonly SeriesCue['dash']['contrast'][] = [
   null, [12, 5], [5, 4], [1, 5], [9, 4, 1, 4], [9, 4, 1, 4, 1, 4], [12, 4, 5, 4], [1, 2],
-];
+].map(dash => Object.freeze(dash));
+const STANDARD_CUES = SHAPES.map((marker, i) => Object.freeze({
+  marker, dash: Object.freeze({ normal: null, contrast: CONTRAST_DASHES[i]! }),
+}));
+const COMPACT_CUES = SHAPES.map((marker, i) => Object.freeze({
+  marker, dash: Object.freeze({ normal: CONTRAST_DASHES[i]!, contrast: CONTRAST_DASHES[i]! }),
+}));
 const extrema = new WeakMap<AlignedView | ScatterView, Span>();
 const widenedDomains = new WeakMap<AlignedView, string | undefined>();
 
@@ -76,13 +82,15 @@ function cues(count: number, compact: boolean, previous: AlignedView | ScatterVi
   if (compact && count > 1 && !(previous?.compact && previous.cues.length > 1)) report(sink, 'AX131', 'none');
   const existing = previous?.compact === compact ? previous.cues : undefined;
   if (existing?.length === count) return existing;
+  const shared = compact ? COMPACT_CUES : STANDARD_CUES;
   return Array.from({ length: count }, (_, i) => {
+    if (i < shared.length) return shared[i]!;
     if (existing && i < existing.length) return existing[i]!;
     const cycle = Math.floor(i / SHAPES.length);
     const contrast = CONTRAST_DASHES[i % CONTRAST_DASHES.length]!;
     return {
       marker: SHAPES[(i + cycle) % SHAPES.length]!,
-      dash: { normal: cycle ? [2 + i, 3] : compact ? contrast : null, contrast },
+      dash: { normal: [2 + i, 3], contrast },
     };
   });
 }
@@ -155,7 +163,7 @@ export function interpolated(x: Float64Array, edge: number, left: number, right:
 }
 
 const BLOCK = 256;
-const SUMMARY_THRESHOLD = 4 * BLOCK;
+const SUMMARY_THRESHOLD = 16 * BLOCK;
 type AlignedSeries = AlignedFrame['series'][number];
 interface BlockSummary {
   readonly min: Float64Array;

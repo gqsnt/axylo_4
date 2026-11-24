@@ -1,6 +1,6 @@
 import {
   SLOT_ABSENT_FIELD, SLOT_GAP, SLOT_NO_ROW, SLOT_NULL, SLOT_VALUE,
-  type AlignedFrame, type DiagnosticInput, type DiagnosticSink, type Frame, type XColumn,
+  type AlignedFrame, type DiagnosticInput, type DiagnosticSink, type Frame, type RowSource, type XColumn,
 } from '../core/contracts';
 import { DiagnosticCollector } from '../diagnostics';
 import {
@@ -26,12 +26,35 @@ import { readValues, valueMode, type ValueCounts, type ValueMode, type Values } 
 import { countKinds, dateUnitOf, kindOf, nameOf, positionName, preferredKind, type DateUnit, type KindVotes } from './x';
 
 const quiet: DiagnosticSink = { add: () => {} };
+const noSource: RowSource = { rowAt: () => null };
 type Fields = Omit<ResolvedOptions, 'table'>;
 const noPositions = new Float64Array(0);
 const noObservations = new Uint8Array(0);
 const oneObservation = Uint8Array.of(1);
 const noRows: readonly number[] = [];
 const firstRowOnly: readonly number[] = [0];
+
+function forkObservations(source: ReadonlyMap<string, Observations>): Map<string, Observations> {
+  const result = new Map<string, Observations>();
+  for (const [key, value] of source) result.set(key, value.fork());
+  return result;
+}
+
+function forkDuplicates(source: ReadonlyMap<string, StoreMap<number, true>> | null): Map<string, StoreMap<number, true>> | null {
+  if (!source || source.size === 0) return null;
+  const result = new Map<string, StoreMap<number, true>>();
+  for (const [key, value] of source) result.set(key, value.fork());
+  return result;
+}
+
+function replacesLast(item: BatchSeries | undefined, positions: Float64Array, lastX: number | undefined): boolean {
+  return item !== undefined && item.rows.length > 0 && positions[item.rows[0]!] === lastX;
+}
+
+function valueFieldFor(values: readonly ResolvedValueField[], fieldName: string): ResolvedValueField | undefined {
+  for (let i = 0; i < values.length; i++) if (values[i]!.field === fieldName) return values[i]!;
+  return undefined;
+}
 
 function namedFields(fields: Fields): [string, string][] {
   const named: [string, string][] = [[fields.x.field, 'x']];
@@ -89,11 +112,20 @@ function absent(c: Cadence, size: number): number {
 }
 
 class Observations {
-  private positions = new Float64Array();
-  private range = new BufferWindow();
-  private prefixStart = 0;
+  private positions: Float64Array;
+  private range: BufferWindow;
+  private prefixStart: number;
 
-  constructor(private prefix: Float64Array | null = null) {}
+  constructor(
+    private prefix: Float64Array | null = null,
+    positions: Float64Array = noPositions,
+    range: BufferWindow = new BufferWindow(),
+    prefixStart = 0,
+  ) {
+    this.positions = positions;
+    this.range = range;
+    this.prefixStart = prefixStart;
+  }
 
   get last(): number | undefined {
     return this.range.end > this.range.start ? this.positions[this.range.end - 1] : this.prefix?.at(-1);
@@ -102,11 +134,7 @@ class Observations {
   get first(): number | undefined { return this.at(0); }
 
   fork(): Observations {
-    const draft = new Observations(this.prefix);
-    draft.prefixStart = this.prefixStart;
-    draft.positions = this.positions;
-    draft.range = this.range.fork();
-    return draft;
+    return new Observations(this.prefix, this.positions, this.range.fork(), this.prefixStart);
   }
 
   at(index: number): number | undefined {
@@ -200,17 +228,17 @@ function cadences(options: Fields, table: Table, x: XData, axis: XColumn, buffer
     return {
       history: new Map(options.values.map(field => [field.field, { ...initial }])),
       observations: new Map(options.values.map(field => [field.field, window.fork()])),
-      duplicates: new Map<string, StoreMap<number, true>>(),
+      duplicates: null as Map<string, StoreMap<number, true>> | null,
     };
   }
   const field = options.series;
   const keys = field === null ? null : Array.from({ length: table.length }, (_, i) => nameOf(table.read(i, field)));
   const observations = new Map<string, Observations>();
-  const duplicates = new Map<string, StoreMap<number, true>>();
+  let duplicates: Map<string, StoreMap<number, true>> | null = null;
   function observe(key: string, position: number): void {
     const window = groupFor(observations, key, Observations);
     if (position === window.last) {
-      const positions = groupFor(duplicates, key, StoreMap<number, true>);
+      const positions = groupFor(duplicates ??= new Map(), key, StoreMap<number, true>);
       positions.set(position, true);
     } else {
       window.add(position);
@@ -260,7 +288,7 @@ interface State {
   readonly buffers: FrameBuffers;
   readonly history: Map<string, Cadence>;
   readonly observations: Map<string, Observations>;
-  readonly duplicates: Map<string, StoreMap<number, true>>;
+  duplicates: Map<string, StoreMap<number, true>> | null;
   readonly modes: Map<string, ValueCounts>;
   readonly calendar: CalendarWindow | null;
   readonly votes: KindVotes | null;
@@ -293,7 +321,8 @@ interface Batch {
 function tail(
   positions: Float64Array, series: readonly BatchSeries[], lastX: number,
 ): { x: Float64Array; observed: Uint8Array } {
-  const gapCount = series.reduce((sum, item) => sum + (item.gaps?.length ?? 0), 0);
+  let gapCount = 0;
+  for (let i = 0; i < series.length; i++) gapCount += series[i]!.gaps?.length ?? 0;
   if (!gapCount && positions.length === 1) {
     const x = positions[0]!;
     return Number.isFinite(x) && x > lastX ? { x: positions, observed: oneObservation }
@@ -328,21 +357,26 @@ function tail(
   return { x: union.subarray(0, count), observed: observed.subarray(0, count) };
 }
 
+interface LazyReports {
+  reports: Reports | null;
+}
+
 function extendSeries(
   key: string, field: ResolvedValueField, values: Values, rows: readonly number[],
   positions: Float64Array, state: State, axis: XColumn, lastX: number,
-  duplicates: Reports, firstRow: number, observedX: () => Float64Array, label: string = key,
+  duplicates: LazyReports, xField: string, diagnostics: StreamDiagnostics, firstRow: number, allFinite: boolean, label: string = key,
 ): BatchSeries | null {
   const previous = state.history.get(key) ?? cadence();
   const next = { ...previous };
   let firstObserved = false;
   let observedRows: number[] | undefined;
   let repeated: number[] | undefined;
-  for (const row of rows) {
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]!;
     const position = positions[row]!;
     if (position === next.last) {
       (repeated ??= []).push(position);
-      duplicates.add('AX108', 'series-disabled', firstRow + row, undefined, undefined, {
+      (duplicates.reports ??= new Reports(xField, diagnostics)).add('AX108', 'series-disabled', firstRow + row, undefined, undefined, {
         series: label, position: axis.kind === 'category' ? JSON.stringify(state.parser.categoryName(position)) : positionName(axis, position),
       });
     } else {
@@ -365,25 +399,26 @@ function extendSeries(
   let gapCount = 0;
   if (newStep && !newSparse) {
     let last = previous.last;
-    for (const row of observed) {
-      const position = positions[row]!;
+    for (let i = 0; i < observed.length; i++) {
+      const position = positions[observed[i]!]!;
       if (last !== -Infinity) gapCount += stepMultiple(stepDelta(axis, last, position), newStep) - 1;
       last = position;
     }
   }
   const gaps = gapCount ? new Float64Array(gapCount) : null;
   if (gaps) {
+    let validX: Float64Array | undefined;
     let index = 0;
     let last = previous.last;
-    for (const row of observed) {
-      const position = positions[row]!;
+    for (let i = 0; i < observed.length; i++) {
+      const position = positions[observed[i]!]!;
       const multiple = last === -Infinity ? 0 : stepMultiple(stepDelta(axis, last, position), newStep);
       for (let j = 1; j < multiple; j++) {
         let gap = gapPosition(axis, last, position, newStep, j, multiple);
         if (axis.kind === 'number') {
-          const x = observedX();
-          const previous = Number.isFinite(lastX) ? 1 : 0;
-          gap = snapGap(gap, last, position, newStep, x.length + previous, i => previous && i === 0 ? lastX : x[i - previous]!);
+          const x = validX ??= allFinite ? positions : positions.filter(Number.isFinite);
+          const previousCount = Number.isFinite(lastX) ? 1 : 0;
+          gap = snapGap(gap, last, position, newStep, x.length + previousCount, idx => previousCount && idx === 0 ? lastX : x[idx - previousCount]!);
         }
         if (gap <= lastX) return null;
         gaps[index++] = gap;
@@ -493,22 +528,25 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     if (this.writing) throw new Error('Cannot prepare a data change during an append.');
     const base = this.current;
     const rowsDraft = this.rows.fork();
-    const evicted: number[] = [];
-    rowsDraft.onForget = row => evicted.push(row);
+    rowsDraft.trackEvictions = true;
     const state = this.state;
     const draft = this.fork(rowsDraft);
+    // `modes`, `votes`, and `dateUnits` are replaced with fresh instances by commitBatch or build before trim runs.
     draft.state = {
       ...state, parser: state.parser.fork(), buffers: state.buffers.fork(),
       history: new Map(state.history),
-      observations: mapValues(state.observations, value => value.fork()),
-      duplicates: mapValues(state.duplicates, value => value.fork()),
-      modes: mapValues(state.modes, value => ({ ...value })),
+      observations: forkObservations(state.observations),
+      duplicates: forkDuplicates(state.duplicates),
       calendar: state.calendar?.fork() ?? null, diagnostics: state.diagnostics.fork(),
-      votes: state.votes && { ...state.votes }, dateUnits: state.dateUnits && { ...state.dateUnits },
     };
     const call = new DiagnosticCollector();
-    draft.appendInPlace(rows, options, call);
-    rowsDraft.onForget = undefined;
+    try {
+      draft.appendInPlace(rows, options, call, true);
+    } finally {
+      rowsDraft.trackEvictions = false;
+    }
+    const evicted = rowsDraft.evicted ?? noRows;
+    rowsDraft.evicted = null;
     return this.transaction(base, draft, call, evicted);
   }
 
@@ -552,7 +590,9 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
       draft.state.parser.commit();
       draft.state.calendar?.commit();
       draft.state.diagnostics.commit();
-      for (const positions of draft.state.duplicates.values()) positions.commit();
+      if (draft.state.duplicates) {
+        for (const positions of draft.state.duplicates.values()) positions.commit();
+      }
       this.fields = draft.fields;
       this.named = draft.named;
       this.state = draft.state;
@@ -578,7 +618,7 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     const buffers = new FrameBuffers(frame, x.positions, x.order);
     const state: State = {
       axis, parser: x.parser, buffers,
-      ...(overBudget ? { history: new Map(), observations: new Map(), duplicates: new Map() } : cadences(options, table, x, frame.x, buffers)),
+      ...(overBudget ? { history: new Map(), observations: new Map(), duplicates: null } : cadences(options, table, x, frame.x, buffers)),
       modes: seed ? mapValues(seed.counts, count => ({ ...count })) : overBudget ? new Map() : new Map(options.values.map(value => [value.field, valueCounts(table, value.field, x.positions)])),
       calendar: overBudget ? null : calendarFor(x, table),
       votes: options.x.type !== null ? null : seed ?
@@ -589,64 +629,91 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     return { frame, state, x };
   }
 
-  private batch(table: Table, positions: Float64Array, axis: XColumn, lastX: number, diagnostics: StreamDiagnostics): Batch | null {
+  private batch(table: Table, positions: Float64Array, axis: XColumn, lastX: number, diagnostics: StreamDiagnostics, allFinite: boolean): Batch | null {
     const { state, fields } = this;
-    const modes = new Map(state.modes);
-    const values = new Map<string, Values>();
-    const included = (i: number) => Number.isFinite(positions[i]);
-    for (const field of fields.values) {
-      const before = modes.get(field.field) ?? { decimal: 0, other: 0 };
-      const added = valueCounts(table, field.field, positions);
-      if (mode(before) === 'decimal' && added.other) return null;
-      const counts = { decimal: before.decimal + added.decimal, other: before.other + added.other };
-      modes.set(field.field, counts);
-      values.set(field.field, readValues(table, field, diagnostics, true, this.rows.next, mode(counts), included));
+    const modes = new Map<string, ValueCounts>();
+    for (const [k, v] of state.modes) modes.set(k, { decimal: v.decimal, other: v.other });
+    const valueFields = fields.values;
+    const singleField = valueFields.length === 1;
+    let singleValues: Values | null = null;
+    const values = singleField ? null : new Map<string, Values>();
+    const included = allFinite ? undefined : (i: number) => Number.isFinite(positions[i]);
+    for (let f = 0; f < valueFields.length; f++) {
+      const field = valueFields[f]!;
+      const before = modes.get(field.field);
+      let addedDecimal = 0;
+      let addedOther = 0;
+      for (let i = 0; i < table.length; i++) {
+        if (!allFinite && !Number.isFinite(positions[i])) continue;
+        const kind = valueMode(table.read(i, field.field), table.isColumnRow(i));
+        if (kind === 'decimal') addedDecimal++;
+        else if (kind === 'other') addedOther++;
+      }
+      if (before && !before.other && before.decimal && addedOther) return null;
+      const counts = before
+        ? (before.decimal += addedDecimal, before.other += addedOther, before)
+        : { decimal: addedDecimal, other: addedOther };
+      if (!before) modes.set(field.field, counts);
+      const read = readValues(table, field, diagnostics, true, this.rows.next, mode(counts), included);
+      if (singleField) singleValues = read;
+      else values!.set(field.field, read);
     }
 
     const series: BatchSeries[] = [];
-    const duplicates = new Reports(fields.x.field, diagnostics);
-    let validX: Float64Array | undefined;
-    const observedX = () => validX ??= positions.every(Number.isFinite) ? positions : positions.filter(Number.isFinite);
-    const add = (key: string, field: ResolvedValueField, rows: readonly number[], label = key) => {
-      const item = extendSeries(key, field, values.get(field.field)!, rows, positions, state, axis, lastX,
-        duplicates, this.rows.next, observedX, label);
-      if (item) series.push(item);
-      return item !== null;
-    };
+    const duplicates: LazyReports = { reports: null };
+    const xField = fields.x.field;
+    const firstRow = this.rows.next;
     if (fields.series !== null) {
       const memberships = new Map<string, number[]>();
-      const seriesReports = new Reports(fields.series, diagnostics);
+      let seriesReports: Reports | null = null;
       for (let i = 0; i < table.length; i++) {
         const raw = table.read(i, fields.series);
         const key = nameOf(raw);
         if (key === null) {
-          if (raw === undefined) seriesReports.add('AX102', 'omitted', this.rows.next + i, undefined, undefined, { outcome: 'The affected row is not drawn.' });
-          else seriesReports.add('AX107', 'omitted', this.rows.next + i, raw, 'Supply a name for the series in each row.');
-        } else if (Number.isFinite(positions[i])) groupFor(memberships, key, Array<number>).push(i);
+          seriesReports ??= new Reports(fields.series, diagnostics);
+          if (raw === undefined) seriesReports.add('AX102', 'omitted', firstRow + i, undefined, undefined, { outcome: 'The affected row is not drawn.' });
+          else seriesReports.add('AX107', 'omitted', firstRow + i, raw, 'Supply a name for the series in each row.');
+        } else if (allFinite || Number.isFinite(positions[i])) groupFor(memberships, key, Array<number>).push(i);
       }
-      seriesReports.flush(diagnostics);
-      for (const [key, rows] of memberships) if (!add(key, fields.values[0]!, rows)) return null;
+      seriesReports?.flush(diagnostics);
+      const primaryField = valueFields[0]!;
+      const primaryValues = singleField ? singleValues! : values!.get(primaryField.field)!;
+      for (const [key, rows] of memberships) {
+        const item = extendSeries(key, primaryField, primaryValues, rows, positions, state, axis, lastX,
+          duplicates, xField, diagnostics, firstRow, allFinite, key);
+        if (!item) return null;
+        series.push(item);
+      }
     } else {
       let allRows: readonly number[];
-      if (table.length === 1) allRows = included(0) ? firstRowOnly : noRows;
+      if (table.length === 1) allRows = allFinite || Number.isFinite(positions[0]) ? firstRowOnly : noRows;
       else {
         const validRows: number[] = [];
-        for (let i = 0; i < table.length; i++) if (included(i)) validRows.push(i);
+        for (let i = 0; i < table.length; i++) if (allFinite || Number.isFinite(positions[i])) validRows.push(i);
         allRows = validRows;
       }
-      for (const field of fields.values) if (!add(field.field, field, allRows, field.label)) return null;
-    }
-    duplicates.flush(diagnostics);
-    for (const item of series) {
-      if (item.gaps || item.sparse) {
-        reportGaps(diagnostics, fields.x.field, item.value.missing === 'zero', item.gaps, axis, this.label(item.key), item.sparse, item.key);
+      for (let f = 0; f < valueFields.length; f++) {
+        const field = valueFields[f]!;
+        const fieldValues = singleField ? singleValues! : values!.get(field.field)!;
+        const item = extendSeries(field.field, field, fieldValues, allRows, positions, state, axis, lastX,
+          duplicates, xField, diagnostics, firstRow, allFinite, field.label);
+        if (!item) return null;
+        series.push(item);
       }
     }
-    return { positions, axis, series, ...tail(positions, series, lastX), modes, diagnostics };
+    duplicates.reports?.flush(diagnostics);
+    for (let i = 0; i < series.length; i++) {
+      const item = series[i]!;
+      if (item.gaps || item.sparse) {
+        reportGaps(diagnostics, xField, item.value.missing === 'zero', item.gaps, axis, this.label(item.key), item.sparse, item.key);
+      }
+    }
+    const { x, observed } = tail(positions, series, lastX);
+    return { positions, axis, series, x, observed, modes, diagnostics };
   }
 
   private commitBatch(
-    batch: Batch, rows: readonly unknown[], version: FrameVersion, dateUnits: State['dateUnits'],
+    batch: Batch, rows: readonly unknown[], version: FrameVersion, dateUnits: State['dateUnits'], votes: State['votes'],
   ): void {
     const base = this.rows.next;
     this.rows.append(rows);
@@ -666,16 +733,16 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     const lastX = end > buffers.start ? buffers.x[end - 1] : undefined;
     buffers.x.set(batch.x, end);
     buffers.markObserved(batch.observed, end);
-    for (const observed of batch.observed) buffers.distinct += observed;
+    for (let i = 0; i < batch.observed.length; i++) buffers.distinct += batch.observed[i]!;
     const only = batch.series.length === 1 ? batch.series[0] : undefined;
     const updates = batch.series.length > 1 ? new Map<string, BatchSeries>() : null;
-    const replacesLast = (item: BatchSeries | undefined) => item?.rows[0] !== undefined && batch.positions[item.rows[0]] === lastX;
-    for (const item of batch.series) {
+    for (let s = 0; s < batch.series.length; s++) {
+      const item = batch.series[s]!;
       updates?.set(item.key, item);
       let series = buffers.series.get(item.key);
       const zero = item.value.missing === 'zero';
       const first = item.rows[0];
-      const replacingLast = replacesLast(item);
+      const replacingLast = replacesLast(item, batch.positions, lastX);
       if (series && replacingLast && !resized) series = buffers.writeTail(series, hasCompetingWrites);
       if (!series) {
         series = buffers.addSeries({
@@ -684,7 +751,7 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
         }, zero);
       }
       if (item.duplicates.length) {
-        const positions = groupFor(this.state.duplicates, item.key, StoreMap<number, true>);
+        const positions = groupFor(this.state.duplicates ??= new Map(), item.key, StoreMap<number, true>);
         for (const position of item.duplicates) positions.set(position, true);
         if (series.description.drawable) series.description = { ...series.description, drawable: false };
       }
@@ -693,13 +760,13 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
       }
       this.state.history.set(item.key, item.cadence);
       const window = groupFor(this.state.observations, item.key, Observations);
-      for (const row of item.rows) window.add(batch.positions[row]!);
+      for (let r = 0; r < item.rows.length; r++) window.add(batch.positions[item.rows[r]!]!);
     }
     const length = batch.x.length;
     for (const [key, series] of buffers.series) {
       const item = only?.key === key ? only : updates?.get(key);
-      const zero = (item?.value ?? this.fields.values.find(field => field.field === series.description.field))?.missing === 'zero';
-      let next = replacesLast(item) ? 1 : 0;
+      const zero = (item?.value ?? valueFieldFor(this.fields.values, series.description.field))?.missing === 'zero';
+      let next = replacesLast(item, batch.positions, lastX) ? 1 : 0;
       let gap = 0;
       for (let i = 0; i < length; i++) {
         const position = batch.x[i]!;
@@ -719,7 +786,7 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     }
     buffers.end += length;
     this.state.diagnostics.merge(batch.diagnostics);
-    this.state = { ...this.state, axis: batch.axis, modes: batch.modes, dateUnits };
+    this.state = { ...this.state, axis: batch.axis, modes: batch.modes, dateUnits, votes };
     this.current = { ...this.current, ...version };
   }
 
@@ -733,10 +800,10 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     return this.fields.series === null ? this.fields.values.find(value => value.field === key)?.label ?? key : key;
   }
 
-  private snapshot(frame: AlignedFrame): AlignedFrame {
+  private snapshot(frame: AlignedFrame, skipSource = false): AlignedFrame {
     const { buffers, axis, history } = this.state;
     const last = buffers.x[buffers.end - 1];
-    return buffers.frame(frame, axis, this.rows.source(), key => history.get(key)?.last !== last);
+    return buffers.frame(frame, axis, skipSource ? noSource : this.rows.source(), key => history.get(key)?.last !== last);
   }
 
   private failAppend(count: number, version: FrameVersion, diagnostics: readonly DiagnosticInput[], sink: DiagnosticSink): AlignedFrame {
@@ -760,16 +827,16 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     if (next === undefined) {
       history.delete(key);
       observations.delete(key);
-      duplicates.delete(key);
+      duplicates?.delete(key);
       diagnostics.evictSeries(key);
       if (this.fields.series !== null) buffers.series.delete(key);
       else if (!series.description.drawable) series.description = { ...series.description, drawable: true };
       return false;
     }
-    const repeats = duplicates.get(key);
+    const repeats = duplicates?.get(key);
     repeats?.delete(position);
     if (repeats?.size === 0) {
-      duplicates.delete(key);
+      duplicates!.delete(key);
       series.description = { ...series.description, drawable: true };
     }
     if (!supportsSteps(axis)) return false;
@@ -805,6 +872,7 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
 
   private trim(keep: number): boolean {
     const { axis, buffers, diagnostics, calendar, observations, modes, votes, parser, dateUnits } = this.state;
+    if (keep >= buffers.distinct && !this.rows.hasUnplaced) return false;
     let update = false;
     let mixedModes: Set<string> | undefined;
     for (const [field, counts] of modes) {
@@ -830,20 +898,24 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
         if (kind !== 'empty') counts[kind]--;
       }
     };
-    buffers.trim(keep, (position, observed) => {
-      diagnostics.evict(position, true);
-      if (!observed) return;
-      if (parser.kind === 'category') categories++;
-      calendar?.evictPosition(position);
-      for (const [key, window] of observations) {
-        update = this.evictObservation(key, window, position, firstX) || update;
-      }
-      this.rows.evictRead(position, discard);
-    });
-    buffers.shrink();
+    if (keep < buffers.distinct) {
+      buffers.trim(keep, (position, observed) => {
+        diagnostics.evict(position, true);
+        if (!observed) return;
+        if (parser.kind === 'category') categories++;
+        calendar?.evictPosition(position);
+        for (const [key, window] of observations) {
+          update = this.evictObservation(key, window, position, firstX) || update;
+        }
+        this.rows.evictRead(position, discard);
+      });
+      buffers.shrink();
+      this.sharePositions();
+    }
     if (buffers.distinct === 0) buffers.series.clear();
-    this.sharePositions();
-    this.rows.trimUnplacedRead(keep, firstX, buffers.distinct, (row, column) => discard(row, column, false));
+    if (this.rows.hasUnplaced) {
+      this.rows.trimUnplacedRead(keep, firstX, buffers.distinct, (row, column) => discard(row, column, false));
+    }
     this.rows.compactColumns();
     if (categories) parser.evictCategories(categories);
     if (mixedModes) {
@@ -863,7 +935,7 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     return update || Boolean(inferred && inferred !== parser.kind);
   }
 
-  private appendInPlace(rows: readonly unknown[], options: StoreAppendOptions, sink: DiagnosticSink): AlignedFrame {
+  private appendInPlace(rows: readonly unknown[], options: StoreAppendOptions, sink: DiagnosticSink, skipSource = false): AlignedFrame {
     const { parser, buffers } = this.state;
     const categoryCount = parser.categoryCount;
     const dateUnit = parser.dateUnit;
@@ -879,18 +951,29 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     if (!checkFields(table, this.named, diagnostics)) return this.failAppend(rows.length, version, diagnostics.inputs(), sink);
 
     const votes = this.state.votes && countKinds(table, fields.x.field, fields.series);
-    if (votes) for (const kind of Object.keys(votes) as (keyof KindVotes)[]) votes[kind] += this.state.votes![kind];
+    if (votes) {
+      const prev = this.state.votes!;
+      votes.date += prev.date;
+      votes.wall += prev.wall;
+      votes.number += prev.number;
+      votes.time += prev.time;
+      votes.category += prev.category;
+    }
     const inferred = votes && preferredKind(votes);
     const positions = new Float64Array(rows.length);
     const dateUnits = this.state.dateUnits && { ...this.state.dateUnits };
     let needsUpdate = !fields.valid || this.state.overBudget || Boolean(inferred && inferred !== parser.kind);
     let highest = lastX;
+    let allFinite = true;
     for (let i = 0; i < rows.length; i++) {
       const validSeries = fields.series === null || nameOf(table.read(i, fields.series)) !== null;
       const raw = validSeries ? table.read(i, fields.x.field) : undefined;
       const position = validSeries ? parser.read(raw, this.rows.next + i, issues, fields.values.length) : NaN;
       positions[i] = position;
-      if (!Number.isFinite(position)) continue;
+      if (!Number.isFinite(position)) {
+        allFinite = false;
+        continue;
+      }
       if (dateUnits) dateUnits[dateUnitOf(raw)]++;
       if (position < highest) {
         order ??= new Reports(fields.x.field, ordering = new StreamDiagnostics());
@@ -903,12 +986,12 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     issues.flush(diagnostics);
     const axis = categoryCount === parser.categoryCount && dateUnit === parser.dateUnit
       ? this.state.axis : parser.column(noPositions, true);
-    let batch = needsUpdate ? null : this.batch(table, positions, axis, lastX, diagnostics);
+    let batch = needsUpdate ? null : this.batch(table, positions, axis, lastX, diagnostics, allFinite);
     if (ordering) order?.flush(ordering);
     const orderInputs = ordering?.inputs();
     if (batch) {
       let count = buffers.series.size;
-      for (const item of batch.series) if (!buffers.series.has(item.key)) count++;
+      for (let i = 0; i < batch.series.length; i++) if (!buffers.series.has(batch.series[i]!.key)) count++;
       const limits = keep === undefined ? new DiagnosticCollector() : null;
       if (!alignmentFits(count, buffers.end - buffers.start + batch.x.length, limits ?? quiet)) {
         if (limits) {
@@ -928,8 +1011,7 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
         parser.restore(categoryCount, dateUnit);
         throw error;
       }
-      this.commitBatch(batch, rows, version, dateUnits);
-      if (this.state.votes !== votes) this.state = { ...this.state, votes };
+      this.commitBatch(batch, rows, version, dateUnits, votes);
     } else {
       parser.restore(categoryCount, dateUnit);
       const combined = this.rows.table(rows);
@@ -963,7 +1045,7 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     }
     // Growth may have moved the window to a new buffer: history must not pin the old one.
     this.sharePositions();
-    this.current = this.snapshot(this.current);
+    this.current = this.snapshot(this.current, skipSource);
     const findings = this.currentDiagnostics();
     this.latest = orderInputs?.length ? [...findings, ...orderInputs] : findings;
     return this.current;

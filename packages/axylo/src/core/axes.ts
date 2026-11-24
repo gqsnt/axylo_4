@@ -39,7 +39,7 @@ const scales = {
  * used at all) is about every tick.
  */
 class TickFailures {
-  readonly positions = new Set<number>();
+  private positions: Set<number> | null = null;
   always = false;
   private at = NaN;
   private seen = false;
@@ -52,7 +52,7 @@ class TickFailures {
       try {
         return format(...args);
       } catch (error) {
-        this.positions.add(this.at);
+        this.failed(this.at);
         this.seen = true;
         throw error;
       }
@@ -73,14 +73,33 @@ class TickFailures {
     else this.always = true;
   };
 
-  failed(at: number): void { this.positions.add(at); }
+  failed(at: number): void { (this.positions ??= new Set()).add(at); }
 
   drawn(ticks: readonly { readonly value: number }[]): boolean {
-    return ticks.length > 0 && (this.always || ticks.some(t => this.positions.has(t.value)));
+    if (this.always) return ticks.length > 0;
+    if (this.positions) for (const tick of ticks) {
+      if (this.positions.has(tick.value)) return true;
+    }
+    return false;
   }
 }
 
-function numberTicks(domain: Span, ctx: AxisContext, option: unknown, scale: 'percent' | 'ratio' | null, failures: TickFailures): TickCandidates {
+type FailureTracker = Pick<TickFailures, 'author' | 'labeler' | 'report' | 'failed' | 'drawn'>;
+interface AxisFailures {
+  readonly x: FailureTracker;
+  readonly y: FailureTracker;
+}
+
+const noFailures: FailureTracker = {
+  author: option => option,
+  labeler: label => label,
+  report: () => {},
+  failed: () => {},
+  drawn: () => false,
+};
+const NO_FAILURES: AxisFailures = { x: noFailures, y: noFailures };
+
+function numberTicks(domain: Span, ctx: AxisContext, option: unknown, scale: 'percent' | 'ratio' | null, failures: FailureTracker): TickCandidates {
   if (ctx.compact && option == null) return [];
   const tickFormat = typeof option === 'function' || (option !== null && typeof option === 'object')
     ? failures.author(option) as NumberFormatOption : null;
@@ -90,7 +109,7 @@ function numberTicks(domain: Span, ctx: AxisContext, option: unknown, scale: 'pe
 
 function temporalTicks(
   domain: Span, kind: 'time' | 'date' | 'wall', timeZone: string | null, dateUnit: 'day' | 'month' | 'year' | null,
-  locale: string, option: unknown, failures: TickFailures,
+  locale: string, option: unknown, failures: FailureTracker,
 ): TickCandidates {
   const format = typeof option === 'function' || (option !== null && typeof option === 'object')
     ? failures.author(option) as Parameters<typeof createTimeTickLabel>[0]['format'] : null;
@@ -98,7 +117,7 @@ function temporalTicks(
   return timeTickCandidates(domain, { kind, timeZone, locale, dateUnit, label: label && failures.labeler(label) });
 }
 
-function categoryLabels(categories: readonly string[], option: unknown, failures: TickFailures): readonly string[] {
+function categoryLabels(categories: readonly string[], option: unknown, failures: FailureTracker): readonly string[] {
   if (typeof option !== 'function') return categories;
   return categories.map((name, i) => {
     try {
@@ -113,7 +132,7 @@ function categoryLabels(categories: readonly string[], option: unknown, failures
 
 function continuousX(
   kind: Exclude<XKind, 'category'>, domain: Span, timeZone: string | null, dateUnit: 'day' | 'month' | 'year' | null,
-  ctx: AxisContext, failures: TickFailures,
+  ctx: AxisContext, failures: FailureTracker,
 ) {
   const option = ctx.resolved.x.tickFormat;
   const candidates = ctx.compact && option == null ? [] : kind === 'number'
@@ -134,7 +153,7 @@ type AxisParts = Record<string, unknown>;
 interface AxisEntry {
   readonly key: readonly unknown[];
   readonly parts: AxisParts;
-  readonly failures: { readonly x: TickFailures; readonly y: TickFailures };
+  readonly failures: AxisFailures;
 }
 const axisMemo = new WeakMap<View, AxisEntry>();
 
@@ -143,18 +162,29 @@ const axisMemo = new WeakMap<View, AxisEntry>();
  * the labels made for this view: an author tick formatter that updates the chart on every call can then not
  * stop every frame from publishing (verification, defect 3).
  */
-function axisInputs(ctx: AxisContext): unknown[] {
+function appendAxisInputs(key: unknown[], ctx: AxisContext): void {
   const { x } = ctx.resolved;
   const value = ctx.resolved.values[0];
-  return [x.field, x.scale, x.tickFormat, x.unit, x.domain != null, value?.field, value?.tickFormat,
-    value?.scale, value?.domain != null, ctx.locale, ctx.compact, ctx.xLabelGiven, ctx.valueTitle];
+  key.push(x.field, x.scale, x.tickFormat, x.unit, x.domain != null, value?.field, value?.tickFormat,
+    value?.scale, value?.domain != null, ctx.locale, ctx.compact, ctx.xLabelGiven, ctx.valueTitle);
 }
 
 function axisParts(view: View, ctx: AxisContext): AxisEntry {
-  const key = axisInputs(ctx);
+  const { x } = ctx.resolved;
+  const value = ctx.resolved.values[0];
   const hit = axisMemo.get(view);
-  if (hit && hit.key.length === key.length && hit.key.every((v, i) => v === key[i])) return hit;
-  const failures = { x: new TickFailures(), y: new TickFailures() };
+  if (hit) {
+    // Compare in appendAxisInputs order so cache hits need no temporary key.
+    const { key } = hit;
+    if (key[0] === x.field && key[1] === x.scale && key[2] === x.tickFormat && key[3] === x.unit &&
+        key[4] === (x.domain != null) && key[5] === value?.field && key[6] === value?.tickFormat &&
+        key[7] === value?.scale && key[8] === (value?.domain != null) && key[9] === ctx.locale &&
+        key[10] === ctx.compact && key[11] === ctx.xLabelGiven && key[12] === ctx.valueTitle) return hit;
+  }
+  const key: unknown[] = [];
+  appendAxisInputs(key, ctx);
+  const failures = ctx.compact && !x.tickFormat && !value?.tickFormat
+    ? NO_FAILURES : { x: new TickFailures(), y: new TickFailures() };
   const entry = { key, parts: view.kind === 'donut' ? {} : buildAxisParts(view, ctx, failures), failures };
   axisMemo.set(view, entry);
   return entry;
@@ -199,9 +229,7 @@ function valueAxis(
   };
 }
 
-function buildAxisParts(
-  view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext, failures: { readonly x: TickFailures; readonly y: TickFailures },
-): AxisParts {
+function buildAxisParts(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext, failures: AxisFailures): AxisParts {
   const value = ctx.resolved.values[0];
   const yOption = value?.tickFormat ?? null;
   const scale = view.kind === 'scatter' ? value?.scale ?? null : alignedScale(view.frame, view.visible);
@@ -320,11 +348,13 @@ export function layoutKey(
     fontEpoch, ctx.locale, ctx.compact, view.kind];
   if (view.kind === 'donut') return base;
   const value = ctx.resolved.values[0];
-  base.push(...view.xDomain, ...view.yDomain, ...axisInputs(ctx), ctx.resolved.x.label, value?.label, value?.unit, view.references);
+  base.push(view.xDomain[0], view.xDomain[1], view.yDomain[0], view.yDomain[1]);
+  appendAxisInputs(base, ctx);
+  base.push(ctx.resolved.x.label, value?.label, value?.unit, view.references);
   // The extremes choose among the tick sets and wider domains of an automatic domain (F7).
   const extent = value?.domain ? null : valueExtent(view);
   base.push(extent?.[0], extent?.[1]);
-  base.push(...view.visible);
+  for (const visible of view.visible) base.push(visible);
   // The titles as drawn: a unit can change on one series only and change the shared unit (review 2, finding 20).
   const titles = axisTitles(view, ctx);
   base.push(titles.x, titles.y);
