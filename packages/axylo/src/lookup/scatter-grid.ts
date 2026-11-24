@@ -1,5 +1,5 @@
-import type { ScatterView } from '../core/contracts';
-import { contains, pointerOnPlot, scatterPosition, type PlotLayout } from './geometry';
+import type { ScatterView, XScale } from '../core/contracts';
+import { pointerOnPlot, scatterPosition, type PlotLayout } from './geometry';
 
 // Squares written out, so the module does no work at import time.
 const CELL = 24;
@@ -7,6 +7,7 @@ const RADIUS2 = 576; // CELL²
 const COINCIDENT = 0.5;
 const COINCIDENT2 = 0.25; // COINCIDENT²
 const LEAF_SIZE = 32;
+const MAX_DENSE_CELLS = 65_536;
 export const POINT_LIMIT = 8;
 
 interface Bucket {
@@ -52,6 +53,28 @@ export interface GridOptions {
 /** Thrown inside an exact pick that ran out of budget; never escapes `pick`. */
 const OVER_BUDGET = Symbol('over budget');
 
+function projector(scale: XScale): (value: number) => number {
+  if (scale.type === 'band') return value => scale.map(value);
+  const [d0, d1] = scale.domain;
+  const [r0, r1] = scale.range;
+  const span = d1 - d0, extent = r1 - r0;
+  if (!Number.isFinite(span) || !span || !Number.isFinite(extent) || !extent) {
+    return value => scatterPosition(scale, value);
+  }
+  const low = Math.min(r0, r1), high = Math.max(r0, r1);
+  const unitDomain = d0 === 0 && Math.abs(span) === 1;
+  const slope = extent / span;
+  return value => {
+    if (value === d0) return r0;
+    if (value === d1) return r1;
+    // Match continuous.map's rounding. A pre-rounded slope or intercept can change a radius or lattice tie.
+    const offset = unitDomain ? value * slope : ((value - d0) / span) * extent;
+    const pixel = r0 + offset;
+    if (pixel >= low && pixel <= high) return pixel;
+    return scatterPosition(scale, value);
+  };
+}
+
 /**
  * The pointer index of a scatter view (contract: `Lookup.pick`).
  *
@@ -69,11 +92,14 @@ export function scatterGrid(
   const { plot, projection } = layout;
   const columns = Math.floor(plot.width / CELL) + 1;
   const rows = Math.floor(plot.height / CELL) + 1;
+  const gridSize = columns * rows;
+  const dense = gridSize <= MAX_DENSE_CELLS;
+  const dataSeries = view.frame.series;
   const series = new Uint32Array(count);
   const points = new Uint32Array(count);
   // Grid index of point i of series s at atOf[first[s] + i - start of its range], -1 when it is not on the
   // plot: sized to the points in view, so a narrow view of a large frame indexes only what it shows.
-  const shown = view.frame.series.map((data, s) => view.visible[s] && data.drawable ? view.visiblePoints[s]! : { start: 0, end: 0 });
+  const shown = dataSeries.map((data, s) => view.visible[s] && data.drawable ? view.visiblePoints[s]! : { start: 0, end: 0 });
   const first = new Int32Array(shown.length + 1);
   shown.forEach(({ start, end }, s) => { first[s + 1] = first[s]! + end - start; });
   const atOf = new Int32Array(first[shown.length]!).fill(-1);
@@ -97,33 +123,72 @@ export function scatterGrid(
   const column = (x: number) => cellIndex(x, plot.x, columns);
   const row = (y: number) => cellIndex(y, plot.y, rows);
 
-  function sourceRow(at: number): number {
-    const i = points[at]!;
-    return view.frame.series[series[at]!]!.row?.[i] ?? i;
+  function cellLists(capacity: number) {
+    const heads = dense ? new Int32Array(gridSize).fill(-1) : new Map<number, number>();
+    const cells = dense ? new Uint16Array(capacity) : new Float64Array(capacity);
+    const next = new Int32Array(capacity);
+    function add(at: number, x: number, y: number): number {
+      const cell = row(y) * columns + column(x);
+      cells[at] = cell;
+      if (heads instanceof Map) {
+        next[at] = heads.get(cell) ?? -1;
+        heads.set(cell, at);
+      } else {
+        next[at] = heads[cell]!;
+        heads[cell] = at;
+      }
+      return cell;
+    }
+    return { heads, cells, next, add };
   }
 
-  view.frame.series.forEach((data, s) => {
+  const exactLists = budget > 0 ? cellLists(count) : null;
+  const counts = dense ? new Int32Array(gridSize) : new Map<number, number>();
+  const sourceRows = new Float64Array(count);
+  const projectX = projector(projection.x), projectY = projector(projection.y);
+  const right = plot.x + plot.width, bottom = plot.y + plot.height;
+  dataSeries.forEach((data, s) => {
     const { start, end } = shown[s]!;
     for (let i = start; i < end; i++) {
-      const x = scatterPosition(projection.x, data.x[i]!);
-      const y = scatterPosition(projection.y, data.y[i]!);
+      const x = projectX(data.x[i]!);
+      const y = projectY(data.y[i]!);
       // Exact positions decide what is in the plot, on both indexes.
-      if (!contains(plot, x, y)) continue;
+      if (!(x >= plot.x && x <= right && y >= plot.y && y <= bottom)) continue;
       const at = length++;
       xs[at] = x;
       ys[at] = y;
       series[at] = s;
       points[at] = i;
+      sourceRows[at] = data.row?.[i] ?? i;
       atOf[first[s]! + i - start] = at;
+      if (exactLists) {
+        const cell = exactLists.add(at, x, y);
+        if (counts instanceof Map) counts.set(cell, (counts.get(cell) ?? 0) + 1);
+        else counts[cell]!++;
+      }
     }
   });
 
   /** The most points in any 4 × 4 block of cells. */
   function densestWindow(): number {
-    const counts = new Int32Array(columns * rows);
-    for (let at = 0; at < length; at++) counts[row(ys[at]!) * columns + column(xs[at]!)]!++;
-    const totals = new Int32Array(columns);
     let densest = 0;
+    if (counts instanceof Map) {
+      // Each occupied cell contributes to at most sixteen windows, identified by their top left cell.
+      const windows = new Map<number, number>();
+      for (const [cell, count] of counts) {
+        const r = Math.floor(cell / columns), c = cell % columns;
+        for (let dy = 0; dy <= Math.min(3, r); dy++) {
+          for (let dx = 0; dx <= Math.min(3, c); dx++) {
+            const key = cell - dy * columns - dx;
+            const sum = (windows.get(key) ?? 0) + count;
+            windows.set(key, sum);
+            densest = Math.max(densest, sum);
+          }
+        }
+      }
+      return densest;
+    }
+    const totals = new Int32Array(columns);
     for (let r = 0; r < rows; r++) {
       let sum = 0;
       for (let c = 0; c < columns; c++) {
@@ -143,20 +208,11 @@ export function scatterGrid(
     has(at: number, other: number): boolean;
   }
 
-  function index(px: Float64Array, py: Float64Array): Index {
-    const cellFor = (x: number, y: number) => column(x) + columns * row(y);
-    const heads = new Map<number, number>();
-    const next = new Int32Array(length);
-    for (let at = 0; at < length; at++) {
-      const cell = cellFor(px[at]!, py[at]!);
-      next[at] = heads.get(cell) ?? -1;
-      heads.set(cell, at);
-    }
-
+  function index(px: Float64Array, py: Float64Array, { heads, cells, next }: ReturnType<typeof cellLists>): Index {
     function later(at: number, other: number): boolean {
-      const difference = sourceRow(at) - sourceRow(other);
+      const difference = sourceRows[at]! - sourceRows[other]!;
       if (difference !== 0) return difference > 0;
-      const cellDifference = cellFor(px[at]!, py[at]!) - cellFor(px[other]!, py[other]!);
+      const cellDifference = cells[at]! - cells[other]!;
       return cellDifference < 0 || cellDifference === 0 && at > other;
     }
 
@@ -165,7 +221,7 @@ export function scatterGrid(
     // The representative of each point's position, and where each representative sits in `order`.
     const repOf = new Int32Array(length);
     const placed = new Int32Array(length);
-    const buckets = new Map<number, Bucket>();
+    const buckets = dense ? new Array<Bucket | undefined>(gridSize) : new Map<number, Bucket>();
     function build(start: number, end: number, allowSkew = true): Bucket {
       let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
       let count = 0;
@@ -177,14 +233,13 @@ export function scatterGrid(
         maxY = Math.max(maxY, py[p]!);
         count += multiplicity[p]!;
       }
-      const bounds = { start, end, count, minX, maxX, minY, maxY };
       if (end - start <= LEAF_SIZE) {
         let latest = order[start]!;
         for (let i = start + 1; i < end; i++) {
           const at = order[i]!;
           if (later(at, latest)) latest = at;
         }
-        return { ...bounds, latest };
+        return { start, end, count, minX, maxX, minY, maxY, latest };
       }
 
       const byX = maxX - minX >= maxY - minY;
@@ -207,18 +262,54 @@ export function scatterGrid(
       }
       const left = build(start, mid, !useSkew);
       const right = build(mid, end, !useSkew);
-      return { ...bounds, left, right, latest: later(left.latest, right.latest) ? left.latest : right.latest };
+      return { start, end, count, minX, maxX, minY, maxY, left, right, latest: later(left.latest, right.latest) ? left.latest : right.latest };
     }
 
     let end = 0;
-    for (const [cell, head] of heads) {
+    function buildCell(head: number): Bucket {
       const start = end;
-      let uniform = true;
-      for (let at = head; at >= 0; at = next[at]!) {
-        order[end++] = at;
-        uniform &&= px[at] === px[head] && py[at] === py[head];
+      order[end++] = head;
+      if (next[head] === -1) {
+        multiplicity[head] = 1;
+        repOf[head] = head;
+        return { start, end, count: 1, minX: px[head]!, maxX: px[head]!, minY: py[head]!, maxY: py[head]!, latest: head };
       }
-      if (!uniform) order.subarray(start, end).sort((a, b) => px[a]! - px[b]! || py[a]! - py[b]!);
+      let ascending = true, strictlyDescending = true;
+      let previous = head;
+      for (let at = next[head]!; at >= 0; at = next[at]!) {
+        order[end++] = at;
+        const less = px[at]! < px[previous]! || px[at] === px[previous] && py[at]! < py[previous]!;
+        if (less) ascending = false;
+        else strictlyDescending = false;
+        previous = at;
+      }
+      // A series in x order usually gives a strictly descending list. Reversing it is stable only without ties.
+      if (strictlyDescending) {
+        let write = end;
+        for (let at = head; at >= 0;) {
+          const following = next[at]!;
+          order[--write] = at;
+          multiplicity[at] = 1;
+          repOf[at] = at;
+          next[at] = -1;
+          at = following;
+        }
+        return build(start, end);
+      }
+      if (!ascending && end - start <= LEAF_SIZE) {
+        for (let i = start + 1; i < end; i++) {
+          const at = order[i]!, x = px[at]!, y = py[at]!;
+          let j = i;
+          while (j > start) {
+            const before = order[j - 1]!;
+            if (!(x < px[before]! || x === px[before] && y < py[before]!)) break;
+            order[j--] = before;
+          }
+          order[j] = at;
+        }
+      } else if (!ascending) {
+        order.subarray(start, end).sort((a, b) => px[a]! - px[b]! || py[a]! - py[b]!);
+      }
 
       // Group identical positions before splitting the cell, so a median cannot spread them across leaves.
       // Keep the latest row as the representative and link the others for the capped tooltip.
@@ -247,8 +338,14 @@ export function scatterGrid(
         order[write++] = winner;
       }
       end = write;
-      buckets.set(cell, build(start, end));
+      return build(start, end);
     }
+    heads.forEach((head, cell) => {
+      if (head < 0) return;
+      const bucket = buildCell(head);
+      if (buckets instanceof Map) buckets.set(cell, bucket);
+      else buckets[cell] = bucket;
+    });
     // After the trees have arranged `order`: a bucket holds a representative iff its range holds its place.
     for (let i = 0; i < end; i++) placed[order[i]!] = i;
 
@@ -331,7 +428,8 @@ export function scatterGrid(
       for (let r = row(cy - radius); r <= bottom; r++) {
         for (let c = left; c <= right; c++) {
           if (trackWork && picking) cellsExamined++;
-          const bucket = buckets.get(c + r * columns);
+          const cell = c + r * columns;
+          const bucket = buckets instanceof Map ? buckets.get(cell) : buckets[cell];
           if (bucket) found.push(bucket);
         }
       }
@@ -394,19 +492,21 @@ export function scatterGrid(
     return { pick, members, has: (at, other) => near(other, px[at]!, py[at]!) };
   }
 
-  const exact = budget > 0 ? index(xs, ys) : null;
+  const exact = exactLists ? index(xs, ys, exactLists) : null;
   // An exact pick checks each point of the cells it searches at most three times (nearest, ties, coincidence)
   // and samples at most POINT_LIMIT rows; it searches at most 4 × 4 cells (a 49 px window over 24 px cells).
   // When no such window holds more than the budget allows, no pick can fall back. Otherwise the lattice index
   // is built here, with the lookup, so that no pointer move does work in proportion to the data.
-  const canFallBack = !exact || 3 * densestWindow() + 2 * POINT_LIMIT > budget;
+  const canFallBack = !exact || (3 * length + 2 * POINT_LIMIT > budget && 3 * densestWindow() + 2 * POINT_LIMIT > budget);
   function latticeIndex(): Index {
-    function rounded(values: Float64Array): Float64Array {
-      const result = new Float64Array(length);
-      for (let i = 0; i < length; i++) result[i] = Math.round(values[i]! * ratio) / ratio;
-      return result;
+    const px = new Float64Array(length), py = new Float64Array(length);
+    const lists = cellLists(length);
+    for (let i = 0; i < length; i++) {
+      px[i] = Math.round(xs[i]! * ratio) / ratio;
+      py[i] = Math.round(ys[i]! * ratio) / ratio;
+      lists.add(i, px[i]!, py[i]!);
     }
-    return index(rounded(xs), rounded(ys));
+    return index(px, py, lists);
   }
   let lattice: Index | null = canFallBack ? latticeIndex() : null;
   // Built with the lookup whenever a pick can need it; built later only if that bound were ever wrong.

@@ -28,10 +28,15 @@ function edgesFor(samples: Samples, bins: ResolvedOptions['bins']): Float64Array
   let low = Infinity;
   let high = -Infinity;
   let n = 0;
-  for (const value of samples) if (Number.isFinite(value)) {
-    n++;
-    low = Math.min(low, value);
-    high = Math.max(high, value);
+  for (let i = 0, len = samples.length; i < len; i++) {
+    const value = samples[i]!;
+    if (value === value && value !== Infinity && value !== -Infinity) {
+      n++;
+      if (value < low) low = value;
+      else if (value === 0 && low === 0) low = Math.min(low, value);
+      if (value > high) high = value;
+      else if (value === 0 && high === 0) high = Math.max(high, value);
+    }
   }
   if (low > high) return new Float64Array();
   if (low === high) {
@@ -68,16 +73,35 @@ function edgesFor(samples: Samples, bins: ResolvedOptions['bins']): Float64Array
   return edges.subarray(0, end);
 }
 
+function uniformBin(edges: Float64Array, value: number, lo: number, hi: number, inverseSpan: number): number {
+  if (value < lo || value > hi) return -1;
+  const last = edges.length - 2;
+  // A subnormal span can have an infinite reciprocal even when the fraction is well defined.
+  const fraction = Number.isFinite(inverseSpan) ? (value - lo) * inverseSpan : (value - lo) / (hi - lo);
+  const bin = Math.max(0, Math.min(last, Math.floor(fraction * (last + 1))));
+  if (value < edges[bin]!) {
+    if (value >= edges[bin - 1]!) return bin - 1;
+  } else if (bin < last && value >= edges[bin + 1]!) {
+    if (bin + 1 === last || value < edges[bin + 2]!) return bin + 1;
+  } else return bin;
+  // edgesFor drops repeated rounded edges. The remaining widths can differ by more than one bin.
+  return binIndex(edges, value);
+}
+
 function histogramFrame(options: ResolvedOptions, samples: Samples, sink: DiagnosticSink, version: FrameVersion): AlignedFrame {
   const { x, table, normalize } = options;
   let edges = edgesFor(samples, options.bins);
   let y = new Float64Array(Math.max(0, edges.length - 1));
   let total = 0;
   const reports = new Reports(x.field, sink);
+  const lo = edges[0]!, hi = edges[edges.length - 1]!;
+  const span = hi - lo;
+  const uniform = typeof options.bins === 'number' && edges.length >= 2 && Number.isFinite(span) && span > 0;
+  const inverseSpan = 1 / span;
   for (let i = 0; i < samples.length; i++) {
     const value = samples[i]!;
     if (!Number.isFinite(value)) continue;
-    const bin = binIndex(edges, value);
+    const bin = uniform ? uniformBin(edges, value, lo, hi, inverseSpan) : binIndex(edges, value);
     if (bin < 0) reports.add('AX106', 'omitted', table.rowIndex(i), value);
     else { y[bin]!++; total++; }
   }

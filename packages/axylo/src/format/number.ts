@@ -73,6 +73,35 @@ function intlShift(scale: ValueScale): number {
   return scale === 'percent' ? -2 : 0;
 }
 
+function groupEnglishInteger(integer: string): string {
+  return integer.replace(/\B(?=(\d{3})+$)/g, ',');
+}
+
+/** Standard decimal and percent notation for en and en-US. Null represents a normalized zero. */
+function englishDecimal(d: Decimal | null, scale: ValueScale, maximum: number, minimum = 0): string {
+  const negative = d?.mantissa.startsWith('-');
+  let digits = d ? d.mantissa.replace(/[-.]/g, '') : '';
+  let point = d ? d.exponent + shownShift(scale) + 1 : 0;
+  const keep = point + maximum;
+  if (keep < digits.length) {
+    if (keep >= 0 && digits.charCodeAt(keep) >= 0x35) {
+      // Intl's halfExpand rounds the magnitude up on a tie. Carry exactly even past 2^53.
+      digits = (BigInt(digits.slice(0, keep)) + 1n).toString();
+      point += digits.length - keep;
+    } else {
+      digits = digits.slice(0, Math.max(0, keep));
+    }
+  }
+
+  const integer = digits && point > 0 ? digits.slice(0, point).padEnd(point, '0') : '0';
+  let fraction = '';
+  if (digits && point < digits.length) {
+    fraction = (point < 0 ? '0'.repeat(-point) + digits : digits.slice(point)).replace(/0+$/, '');
+  }
+  fraction = fraction.padEnd(minimum, '0');
+  return (negative ? '-' : '') + groupEnglishInteger(integer) + (fraction ? '.' + fraction : '') + (scale ? '%' : '');
+}
+
 // ───────────────────────────── readouts ─────────────────────────────
 
 /**
@@ -96,14 +125,18 @@ function fractionDigitsOf(d: Decimal, shift: number): number {
 
 /** The default readout of spec F6, without the unit. */
 export function defaultReadoutNumber(v: number, locale: string, scale: ValueScale = null): string {
+  const english = isPlainEnglish(locale);
   if (!scale && Number.isSafeInteger(v)) {
-    return isPlainEnglish(locale) ? String(v).replace(/\B(?=(\d{3})+$)/g, ',') : numberFormat(locale).format(v || 0);
+    return english ? groupEnglishInteger(String(v)) : numberFormat(locale).format(v || 0);
   }
+  if (english && v === 0) return '0%';
+  const d = Number.isFinite(v) && v !== 0 ? toDecimal(v) : null;
+  const digits = d ? fractionDigitsOf(d, shownShift(scale)) : 0;
+  if (english && d && digits <= MAX_INTL_FRACTION_DIGITS) return englishDecimal(d, scale, digits);
+
   const style: Intl.NumberFormatOptions = scale ? { style: 'percent' } : {};
   if (!Number.isFinite(v)) return numberFormat(locale, style, true).format(v);
-  if (v === 0) return numberFormat(locale, { ...style, maximumFractionDigits: 0 }, true).format(0); // no "-0"
-  const d = toDecimal(v);
-  const digits = fractionDigitsOf(d, shownShift(scale));
+  if (!d) return numberFormat(locale, { ...style, maximumFractionDigits: 0 }, true).format(0); // no "-0"
   const value = decimalString(d, intlShift(scale));
   if (digits > MAX_INTL_FRACTION_DIGITS) {
     // Below about 1e-94 fixed notation cannot reach the significant digits.
@@ -122,6 +155,9 @@ const SHARE_FRACTION_DIGITS = 1;
 
 /** A share (0–1) as a percentage. Values on a percent or ratio scale are readouts (F6), not shares. */
 export function shareText(ratio: number, locale: string): string {
+  if (isPlainEnglish(locale) && Number.isFinite(ratio)) {
+    return englishDecimal(ratio === 0 ? null : toDecimal(ratio), 'ratio', SHARE_FRACTION_DIGITS);
+  }
   const style: Intl.NumberFormatOptions = { style: 'percent', maximumFractionDigits: SHARE_FRACTION_DIGITS };
   if (!Number.isFinite(ratio) || ratio === 0) return numberFormat(locale, style, true).format(ratio === 0 ? 0 : ratio);
   return formatExact(numberFormat(locale, style, true), decimalString(toDecimal(ratio)));
@@ -210,7 +246,6 @@ export function defaultTickNumber(value: number, context: TickContext, locale: s
   if (!scale && Number.isSafeInteger(v) && context.step >= 1 && Number.isFinite(context.step) && context.maxAbs > 0 && context.maxAbs < 1e6) {
     return defaultReadoutNumber(v, locale);
   }
-  const options: Intl.NumberFormatOptions = scale ? { style: 'percent' } : {};
   const shift = shownShift(scale);
   const decimal = v === 0 ? null : toDecimal(v);
   const exponentOf = (x: number): number => toDecimal(x).exponent + shift;
@@ -220,7 +255,14 @@ export function defaultTickNumber(value: number, context: TickContext, locale: s
     : valueExp - (SIGNIFICANT_FRACTION_DIGITS - 1);
   const maxExp = context.maxAbs > 0 && Number.isFinite(context.maxAbs) ? exponentOf(context.maxAbs) : valueExp;
   const fractionDigits = Math.max(0, -stepExp);
-  if (maxExp < 6 && fractionDigits <= MAX_TICK_FRACTION_DIGITS) {
+  const fixed = maxExp < 6 && fractionDigits <= MAX_TICK_FRACTION_DIGITS;
+  if (isPlainEnglish(locale)) {
+    if (fixed && Number.isFinite(v)) return englishDecimal(decimal, scale, fractionDigits, fractionDigits);
+    if (!decimal) return scale ? '0%' : '0';
+  }
+
+  const options: Intl.NumberFormatOptions = scale ? { style: 'percent' } : {};
+  if (fixed) {
     options.minimumFractionDigits = options.maximumFractionDigits = fractionDigits;
   } else if (decimal) {
     options.notation = maxExp >= 15 || fractionDigits > MAX_TICK_FRACTION_DIGITS ? 'scientific' : 'compact';

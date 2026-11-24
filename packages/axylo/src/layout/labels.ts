@@ -58,8 +58,15 @@ function widest(lines: readonly string[], metrics: Metrics): number {
 }
 
 function graphemes(text: string): string[] {
-  segmenter ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-  return Array.from(segmenter.segment(text), part => part.segment);
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    // Printable ASCII stands alone; even ASCII controls can cluster (CR followed by LF).
+    if (code < 0x20 || code > 0x7e) {
+      segmenter ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+      return Array.from(segmenter.segment(text), part => part.segment);
+    }
+  }
+  return text.split('');
 }
 
 export function wrapText(text: string, limit: number, metrics: Metrics, lineLimit = Infinity): string[] {

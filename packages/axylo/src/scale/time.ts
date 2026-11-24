@@ -238,16 +238,32 @@ function wallBoundaries(interval: Interval, wallLo: number, wallHi: number, loca
 
 interface WeekInfoLocale { getWeekInfo?: () => { firstDay: number }; weekInfo?: { firstDay: number } }
 
+const WEEK_START_CACHE_LIMIT = 64;
+let weekStarts: Map<string, number> | undefined;
+
 /** First day of the week for the locale, Sunday = 0. Monday (ISO) when the engine cannot say. */
 export function weekStart(locale: string): number {
+  if (locale === 'en-GB') return 1;
+  if (locale === 'en' || locale === 'en-US') {
+    // Bare English resolves to the US for week rules. Keep the ISO fallback on engines without week info.
+    const prototype = Intl.Locale?.prototype;
+    return prototype && ('getWeekInfo' in prototype || 'weekInfo' in prototype) ? 0 : 1;
+  }
+
+  const cache = weekStarts ??= new Map();
+  const cached = cache.get(locale);
+  if (cached !== undefined) return cached;
+  let first = 1;
   try {
     const l = new Intl.Locale(locale) as unknown as WeekInfoLocale;
     const info = typeof l.getWeekInfo === 'function' ? l.getWeekInfo() : l.weekInfo;
-    if (info && Number.isInteger(info.firstDay)) return info.firstDay % 7;
+    if (info && Number.isInteger(info.firstDay)) first = info.firstDay % 7;
   } catch {
-    // An invalid tag is reported by whoever resolved the locale; fall through to ISO.
+    // An invalid tag is reported by whoever resolved the locale.
   }
-  return 1;
+  if (cache.size >= WEEK_START_CACHE_LIMIT) cache.clear();
+  cache.set(locale, first);
+  return first;
 }
 
 // ───────────────────────────── labels ─────────────────────────────
