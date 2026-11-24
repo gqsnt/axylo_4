@@ -127,11 +127,34 @@ function drawRange(slot: Uint8Array, range: IndexRange): IndexRange {
   return left === start && right === end ? range : { start: left, end: right };
 }
 
-function interpolated(x: Float64Array, edge: number, left: number, right: number, a: number, b: number): number {
-  const start = x[left]!;
-  const end = x[right]!;
+/** Stacked bands taper across the immediate frame interval even when a component has no stroke there. */
+export function stackAreaRange(frame: AlignedFrame, visible: IndexRange, domain: Span): IndexRange {
+  const { start, end } = visible;
+  const x = frame.x.values;
+  if (frame.x.kind === 'category') return visible;
+  const left = start > 0 && start < x.length && domain[0] < x[start]! ? start - 1 : start;
+  const right = end > 0 && end < x.length && x[end - 1]! < domain[1] ? end + 1 : end;
+  return left === start && right === end ? visible : { start: left, end: right };
+}
+
+function adjacentDrawRange(slot: Uint8Array, visible: IndexRange, fill: IndexRange): IndexRange {
+  const start = slot[fill.start] === SLOT_VALUE ? fill.start : visible.start;
+  const end = slot[fill.end - 1] === SLOT_VALUE ? fill.end : visible.end;
+  return { start, end };
+}
+
+export function interpolated(x: Float64Array, edge: number, left: number, right: number, y: Float64Array | Float32Array): number {
+  let a = y[left]!;
+  let b = y[right]!;
+  let start = x[left]!;
+  let end = x[right]!;
   if (edge === start || a === b) return a;
   if (edge === end) return b;
+  // Measure the smaller distance directly. The complementary fraction can round to zero.
+  if (end - edge < edge - start) {
+    [start, end] = [end, start];
+    [a, b] = [b, a];
+  }
   const width = end - start;
   const t = Number.isFinite(width) ? (edge - start) / width : (edge / 2 - start / 2) / (end / 2 - start / 2);
   const delta = b - a;
@@ -147,56 +170,37 @@ function alignedExtrema(
   let max = -Infinity;
   const x = frame.x.values;
   const { start, end } = kind === 'bar' ? draws[0] ?? range : range;
-  const negative = stack?.negative.at(-1);
-  const positive = stack?.positive.at(-1);
-  if (negative && positive) {
-    for (let i = start; i < end; i++) {
-      min = Math.min(min, negative[i]!);
-      max = Math.max(max, positive[i]!);
-    }
-  }
   const include = (value: number) => {
     min = Math.min(min, value);
     max = Math.max(max, value);
   };
-  let reachesLeft = false;
-  let reachesRight = false;
-
-  for (let series = 0, k = 0; series < frame.series.length; series++) {
+  if (stack) {
+    // Every component stroke lies between the two cumulative totals on each adjacent interval.
+    const fill = kind === 'area' ? stackAreaRange(frame, range, domain) : range;
+    for (const total of [stack.negative.at(-1), stack.positive.at(-1)]) {
+      if (!total) continue;
+      for (let i = start; i < end; i++) include(total[i]!);
+      if (fill.start < start) include(interpolated(x, domain[0], start - 1, start, total));
+      if (end < fill.end) include(interpolated(x, domain[1], end - 1, end, total));
+    }
+    return [min, max];
+  }
+  for (let series = 0; series < frame.series.length; series++) {
     if (!visible[series]) continue;
     const { y, slot } = frame.series[series]!;
-    if (!stack) {
-      for (let j = start; j < end; j++) {
-        if (slot[j] === SLOT_VALUE) include(y[j]!);
-      }
+    for (let j = start; j < end; j++) {
+      if (slot[j] === SLOT_VALUE) include(y[j]!);
     }
     if (kind === 'bar') continue;
-
     const draw = draws[series]!;
-    const below = stack?.negative[k];
-    const above = stack?.positive[k++];
-    const stroke = (index: number) => (y[index]! < 0 ? below : above)?.[index] ?? y[index]!;
     if (draw.start < start) {
       const right = nextObservation(slot, start, draw.end, 1);
-      include(interpolated(x, domain[0], draw.start, right, stroke(draw.start), stroke(right)));
-      reachesLeft = true;
+      include(interpolated(x, domain[0], draw.start, right, y));
     }
     if (draw.end > end) {
       const left = nextObservation(slot, end - 1, draw.start - 1, -1);
       const right = draw.end - 1;
-      include(interpolated(x, domain[1], left, right, stroke(left), stroke(right)));
-      reachesRight = true;
-    }
-  }
-  if (negative && positive) {
-    // Stacked fills use adjacent frame slots even when their component strokes join across NO_ROW.
-    if (reachesLeft) {
-      include(interpolated(x, domain[0], start - 1, start, negative[start - 1]!, negative[start]!));
-      include(interpolated(x, domain[0], start - 1, start, positive[start - 1]!, positive[start]!));
-    }
-    if (reachesRight) {
-      include(interpolated(x, domain[1], end - 1, end, negative[end - 1]!, negative[end]!));
-      include(interpolated(x, domain[1], end - 1, end, positive[end - 1]!, positive[end]!));
+      include(interpolated(x, domain[1], left, right, y));
     }
   }
   return [min, max];
@@ -368,17 +372,21 @@ export function buildAlignedView(frame: AlignedFrame, state: AlignedViewState, s
   const old = prior?.kind === state.kind ? prior : undefined;
   const horizontal = state.kind === 'bar' && (state.horizontal ?? false);
   const visibleSlots = sameFrame && old?.xDomain === xDomain ? old.visibleSlots : rangeOf(frame.x.values, xDomain, old?.visibleSlots);
-  const singlePosition = xDomain[0] === xDomain[1];
-  const sameDrawWindow = sameFrame && old !== undefined && (continuousBars ? old.xDomain === xDomain
-    : old.visibleSlots === visibleSlots && (old.xDomain[0] === old.xDomain[1]) === singlePosition);
-  const barSlots = continuousBars ? barRange(frame.x.values, visibleSlots, xDomain) : visibleSlots;
-  const drawSlots = sameDrawWindow ? old.drawSlots : reuse(
-    frame.series.map(({ slot }) => state.kind === 'bar' || category || singlePosition ? barSlots : drawRange(slot, visibleSlots)),
-    old?.drawSlots, sameRange,
-  );
   const stack = state.stacked && state.kind !== 'line'
     ? sameFrame && old?.visible === visible && old.stack ? old.stack : buildStack(frame, visible)
     : null;
+  const singlePosition = xDomain[0] === xDomain[1];
+  const stackedArea = stack !== null && state.kind === 'area';
+  const sameDrawWindow = sameFrame && old !== undefined && Boolean(old.stack) === Boolean(stack) &&
+    (continuousBars || stackedArea ? old.xDomain === xDomain
+      : old.visibleSlots === visibleSlots && (old.xDomain[0] === old.xDomain[1]) === singlePosition);
+  const barSlots = continuousBars ? barRange(frame.x.values, visibleSlots, xDomain) : visibleSlots;
+  const fill = stackedArea ? stackAreaRange(frame, visibleSlots, xDomain) : null;
+  const drawSlots = sameDrawWindow ? old.drawSlots : reuse(
+    frame.series.map(({ slot }) => fill ? adjacentDrawRange(slot, visibleSlots, fill)
+      : state.kind === 'bar' || category || singlePosition ? barSlots : drawRange(slot, visibleSlots)),
+    old?.drawSlots, sameRange,
+  );
   if (stack) reportStack(stack, sink);
   const data = oldExtrema && old?.xDomain === xDomain && old.stack === stack
     ? oldExtrema : alignedExtrema(frame, visible, visibleSlots, drawSlots, xDomain, stack, state.kind);

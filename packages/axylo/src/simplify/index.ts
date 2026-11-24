@@ -1,5 +1,5 @@
 import { SLOT_GAP, SLOT_NO_ROW, SLOT_VALUE } from '../core/contracts';
-import type { AreaMark, ContinuousScale, IndexRange, PathMark, PointMark, XScale } from '../core/contracts';
+import type { AlignedFrame, AreaMark, ContinuousScale, IndexRange, PathMark, PointMark, StackView, XScale } from '../core/contracts';
 
 type Values = Float64Array | Float32Array;
 type XMap = XScale | ((x: number) => number);
@@ -77,12 +77,11 @@ function keepColumn(
 }
 
 function keepRun(
-  slot: Uint8Array, from: number, to: number, count: number, columns: Columns, indexes: Uint32Array, cursor: number,
+  slot: Uint8Array | null, from: number, to: number, columns: Columns, indexes: Uint32Array, cursor: number,
 ): number {
   const { affine, x, y, map, ratio } = columns;
   const slope = affine?.slope ?? 0;
   const offset = affine?.offset ?? 0;
-  const contiguous = to - from + 1 === count;
   const valueSlot = SLOT_VALUE;
   let column = NaN;
   let first = from;
@@ -92,7 +91,7 @@ function keepRun(
   let low = 0;
   let high = 0;
   for (let i = from; i <= to; i++) {
-    if (!contiguous && slot[i] !== valueSlot) continue;
+    if (slot && slot[i] !== valueSlot) continue;
     const sample = x[i]!;
     const pixel = Math.floor((affine ? slope * sample + offset : map(sample)) * ratio);
     const value = y === 0 ? 0 : y[i]!;
@@ -154,8 +153,10 @@ function scan(slot: Uint8Array, range: IndexRange, output?: JoinedRuns, columns?
           breaks++;
         }
         if (!output) vertices += runValues;
-        else if (columns) vertices = keepRun(slot, runFirst, runLast, runValues, columns, output.indexes, vertices);
-        else {
+        else if (columns) {
+          const sparse = runLast - runFirst + 1 === runValues ? null : slot;
+          vertices = keepRun(sparse, runFirst, runLast, columns, output.indexes, vertices);
+        } else {
           for (let index = runFirst; index <= runLast; index++) {
             if (slot[index] === valueSlot) output.indexes[vertices++] = index;
           }
@@ -185,16 +186,51 @@ export function joinRuns(slot: Uint8Array, range: IndexRange): JoinedRuns {
   return select(slot, range, Infinity);
 }
 
+function columnLimit({ width, left, devicePixelRatio: ratio }: Pick<DrawingInput, 'width' | 'left' | 'devicePixelRatio'>): number {
+  return width > 0 ? 4 * (Math.ceil((left + width) * ratio) - Math.floor(left * ratio)) : 0;
+}
+
 function simplifyBoundary(input: DrawingInput, y: Values | 0): JoinedRuns {
-  const { left, width, devicePixelRatio: ratio, range } = input;
-  const columns = width > 0 ? Math.ceil((left + width) * ratio) - Math.floor(left * ratio) : 0;
-  const limit = 4 * columns;
+  const { range, devicePixelRatio: ratio } = input;
+  const limit = columnLimit(input);
   if (range.end - range.start <= limit) return joinRuns(input.slot, range);
   return select(input.slot, range, limit, { x: input.x, y, map: xMapper(input.mapX), affine: input.affineX, ratio });
 }
 
 export function simplifyLine(input: LineInput): JoinedRuns {
   return simplifyBoundary(input, input.y);
+}
+
+/** Common source vertices keep neighboring cumulative edges ordered between samples as well as at them. */
+export function stackIndexes(
+  input: Omit<DrawingInput, 'slot' | 'range'>, frame: AlignedFrame, stack: StackView, range: IndexRange,
+): Uint32Array {
+  const { start, end } = range;
+  const size = end - start;
+  const limit = columnLimit(input);
+  if (size <= limit) return Uint32Array.from({ length: size }, (_, i) => i);
+  const kept = new Uint8Array(size);
+  const scratch = new Uint32Array(size);
+  const columns: Columns = { x: input.x, map: xMapper(input.mapX), affine: input.affineX, ratio: input.devicePixelRatio, y: 0 };
+  for (let k = 0; k < stack.order.length; k++) {
+    const { y, slot } = frame.series[stack.order[k]!]!;
+    for (const values of [stack.positive[k]!, stack.negative[k]!]) {
+      const edge = { ...columns, y: values };
+      let first = start;
+      for (let i = start + 1; i <= end; i++) {
+        // Keep both ends of every pinch, including zero and wholly missing stretches.
+        if (i < end && slot[i] === slot[first] && (slot[i] !== SLOT_VALUE || Math.sign(y[i]!) === Math.sign(y[first]!))) continue;
+        const count = keepRun(null, first, i - 1, edge, scratch, 0);
+        for (let j = 0; j < count; j++) kept[scratch[j]! - start] = 1;
+        first = i;
+      }
+    }
+  }
+  // Keep the adjacent interval exact where the viewport clips the drawing.
+  kept[1] = kept[size - 2] = 1;
+  let count = 0;
+  for (let i = 0; i < size; i++) if (kept[i]) scratch[count++] = i;
+  return scratch.slice(0, count);
 }
 
 function pack(indexes: Uint32Array, breaks: Uint32Array | null, input: PathInput): Float32Array {
