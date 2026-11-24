@@ -212,12 +212,11 @@ export function axyloAdapter(id, fixed = {}) {
       const hook = chart.__bench;
       let ready;
       const sanity = p.build === 'release';
-      if (hook) ready = hook.ready();
-      else if (sanity) {
+      if (!hook && sanity) {
         // The shipped bytes have no hook: readiness is two animation frames, a guess, so a release run is a sanity
         // run (does the shipped bundle draw a chart without errors), never a timing for an endpoint.
         ready = new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-      } else {
+      } else if (!hook) {
         ready = Promise.reject(Object.assign(new Error(NO_HOOK), { benchNotAdmitted: true }));
         ready.catch(() => {}); // the page reads the reason; avoid an unhandled-rejection report
       }
@@ -226,10 +225,10 @@ export function axyloAdapter(id, fixed = {}) {
       // describe() scan, inside or outside the measured window.
       let drawnNewest = NaN;
       const drew = x => () => { if (!(drawnNewest >= x)) drawnNewest = x; };
-      if (opts.window) void Promise.resolve(ready).then(drew(fix.x[fix.x.length - 1]), () => {});
+      if (opts.window) void Promise.resolve(hook ? hook.ready() : ready).then(drew(fix.x[fix.x.length - 1]), () => {});
       let hovered = NaN;
       if (opts.hover) chart.on('hover', pt => { hovered = pt ? pt.index : NaN; });
-      const fmt = new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 });
+      let fmt;
       return {
         chart,
         get ready() { return hook ? hook.ready() : ready; }, // re-evaluated: the page awaits it again after a resize or zoom
@@ -263,6 +262,7 @@ export function axyloAdapter(id, fixed = {}) {
         // The readout shows datum i when the visible tooltip (or the readout strip) has a value row reading exactly
         // the datum's y in the spec's readout format (F6, en-US). Exact text: "10.24" does not show 1.
         readoutShows(i) {
+          fmt ??= new Intl.NumberFormat('en-US', { maximumFractionDigits: 6 });
           const want = fmt.format(fix.ys[0][i]);
           for (const box of [el.querySelector('.axylo-tooltip'), el.querySelector('.axylo-readout')]) {
             if (!box || box.hidden) continue;

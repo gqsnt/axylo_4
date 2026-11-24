@@ -500,6 +500,8 @@ async function runHover(adapter, fix, el) {
   // Untimed: put the pointer on the plot once so the first timed move is a move, not an entry.
   await window.__benchPointer?.(plot.left + 2, y);
   await raf(); await raf();
+  // Prime the harness's readout formatting before the first latency sample.
+  if (targets.length) handle.readoutShows(targets[0]);
   await metrics('hover:start');
   for (let k = 0; k < moves; k++) {
     const mv = log[k];
@@ -573,7 +575,7 @@ async function runZoom(adapter, fix, el) {
 }
 
 // ── W-mem lifecycle (P7) ────────────────────────────────────────────────────────────────────────
-// Create, wait for ready, destroy, on one container, `cycles` times (2,500 by default) after 20 warm-up cycles;
+// Create, wait for ready, destroy, on one container, `cycles` times (2,500 by default) after warm-up;
 // heap after forced collection, JS listeners, DOM nodes and live observers at checkpoints: after warm-up, 100, 300,
 // 1,000, and every 100 cycles over plan 5.1's windows 1,500-2,000 and 2,000-2,500. Live observers are counted by
 // wrapping the Resize/Mutation/Intersection observer constructors (constructed and not disconnected), installed in
@@ -591,15 +593,16 @@ function observerCounter() {
   return () => live;
 }
 async function runLifecycle(adapter, fix, el) {
-  const cycles = params.cycles ?? 2500, warm = 20;
+  const cycles = params.cycles ?? 2500;
+  const warm = params.warm ?? (cycles >= 1500 ? 700 : 20);
   const liveObservers = observerCounter();
   const at = new Set([0, 100, 300, 1000, cycles].filter(c => c <= cycles));
   for (let c = 1500; c <= Math.min(2500, cycles); c += 100) at.add(c);
   const checkpoints = [];
   const once = async () => { const h = adapter.create(el, fix, { params: adapterParams }); await h.ready; h.destroy(); };
-  for (let i = 0; i < warm; i++) await once();
-  for (let c = 0; c <= cycles; c++) {
-    if (at.has(c)) { const label = `cycles${c}`; await raf(); await memory(label); checkpoints.push({ cycles: c, label, observers: liveObservers() }); }
+  // Warm the same loop and call site before the heap-growth windows begin.
+  for (let c = -warm; c <= cycles; c++) {
+    if (c >= 0 && at.has(c)) { const label = `cycles${c}`; await raf(); await memory(label); checkpoints.push({ cycles: c, label, observers: liveObservers() }); }
     if (c < cycles) await once();
   }
   const leftover = el.childElementCount;
