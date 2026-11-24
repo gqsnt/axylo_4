@@ -52,13 +52,19 @@ function sortedDomain(domain: readonly [number, number]): [number, number] {
  * Tick sets at nice steps (1, 2, 5 × 10^k), densest first, every tick inside the domain.
  * The densest set has at most MAX_TICKS ticks; the sparsest has one.
  */
-export function linearTickCandidates(domain: readonly [number, number], format: TickLabeler): TickCandidates {
+export function linearTickCandidates(domain: readonly [number, number], format: TickLabeler, deferLabels = false): TickCandidates {
   const [lo, hi] = sortedDomain(domain);
   if (!Number.isFinite(lo) || !Number.isFinite(hi)) return [];
   // A width that no nice step can resolve (subnormal, or below the precision of the values) gets one tick.
   // Divided before subtracting, so that [-1e308, 1e308] does not overflow.
   const width = hi / (MAX_TICKS - 1) - lo / (MAX_TICKS - 1);
-  const single = (value: number): Tick[] => [{ value, label: format(value, { step: 0, maxAbs: Math.abs(value) }) }];
+  const tick = (value: number, context: TickContext): Tick => {
+    if (!deferLabels) return { value, label: format(value, context) };
+    // Domain selection reads positions. Only layout needs the built-in label.
+    let label: string;
+    return { value, get label() { return label ??= format(value, context); } };
+  };
+  const single = (value: number): Tick[] => [tick(value, { step: 0, maxAbs: Math.abs(value) })];
   const tooNarrow = !(width > 0) || hi - lo <= 4 * Number.EPSILON * Math.max(Math.abs(lo), Math.abs(hi));
   if (lo === hi || tooNarrow) {
     return [single(lo === 0 ? 0 : lo)];
@@ -86,7 +92,7 @@ export function linearTickCandidates(domain: readonly [number, number], format: 
       if (values.length > 0) {
         const maxAbs = Math.max(Math.abs(values[0] as number), Math.abs(values[values.length - 1] as number));
         const context: TickContext = { step: step.value, maxAbs };
-        const set = values.map(value => ({ value, label: format(value, context) }));
+        const set = values.map(value => tick(value, context));
         pushCandidate(sets, set);
       }
     }
@@ -110,7 +116,7 @@ export function linearTickCandidates(domain: readonly [number, number], format: 
  * Keeps the sequence strictly decreasing in size. When a coarser step gives as many ticks as the previous
  * set, the coarser one replaces it: same density, rounder numbers.
  */
-export function pushCandidate(sets: Tick[][], set: Tick[]): void {
+export function pushCandidate<T extends { length: number }>(sets: T[], set: T): void {
   const last = sets[sets.length - 1];
   if (last !== undefined && set.length >= last.length) {
     if (set.length === last.length) sets[sets.length - 1] = set;

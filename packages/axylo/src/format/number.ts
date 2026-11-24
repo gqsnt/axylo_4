@@ -41,23 +41,21 @@ const MAX_INTL_FRACTION_DIGITS = 100;
 
 /** A finite non-zero double as the shortest decimal that reads back as it: d.ddd × 10^exponent. */
 interface Decimal {
-  readonly negative: boolean;
-  /** Significant digits, first one non-zero. */
-  readonly digits: string;
+  /** Signed mantissa as Intl will read it. */
+  readonly mantissa: string;
   /** Power of ten of the first digit. */
   readonly exponent: number;
 }
 
 function toDecimal(v: number): Decimal {
   // toExponential() without an argument gives the shortest round-trip digits.
-  const [mantissa = '0', exp = '0'] = Math.abs(v).toExponential().split('e');
-  return { negative: v < 0, digits: mantissa.replace('.', ''), exponent: Number(exp) };
+  const [mantissa = '0', exp = '0'] = v.toExponential().split('e');
+  return { mantissa, exponent: Number(exp) };
 }
 
 /** The decimal × 10^shift as a string Intl formats exactly. */
 function decimalString(d: Decimal, shift = 0): string {
-  const rest = d.digits.slice(1);
-  return `${d.negative ? '-' : ''}${d.digits[0]}${rest ? '.' + rest : ''}e${d.exponent + shift}`;
+  return `${d.mantissa}e${d.exponent + shift}`;
 }
 
 /** Intl.NumberFormat#format for an exact decimal string (typed for numbers only in the ES2022 lib). */
@@ -88,30 +86,32 @@ export function readoutFractionDigits(abs: number): number {
 
 function fractionDigitsOf(d: Decimal, shift: number): number {
   const e = d.exponent + shift;
+  const digits = d.mantissa.replace(/[-.]/g, '');
   // Digit i has power e - i; the fraction starts where that power is negative.
-  for (let i = Math.max(0, e + 1); i < d.digits.length; i++) {
-    if (d.digits[i] !== '0') return (i - e - 1) + SIGNIFICANT_FRACTION_DIGITS;
+  for (let i = Math.max(0, e + 1); i < digits.length; i++) {
+    if (digits[i] !== '0') return (i - e - 1) + SIGNIFICANT_FRACTION_DIGITS;
   }
   return 0; // an integer
 }
 
 /** The default readout of spec F6, without the unit. */
 export function defaultReadoutNumber(v: number, locale: string, scale: ValueScale = null): string {
+  if (!scale && Number.isSafeInteger(v)) return numberFormat(locale).format(v || 0);
   const style: Intl.NumberFormatOptions = scale ? { style: 'percent' } : {};
-  if (!Number.isFinite(v)) return numberFormat(locale, style).format(v);
-  if (v === 0) return numberFormat(locale, { ...style, maximumFractionDigits: 0 }).format(0); // no "-0"
+  if (!Number.isFinite(v)) return numberFormat(locale, style, true).format(v);
+  if (v === 0) return numberFormat(locale, { ...style, maximumFractionDigits: 0 }, true).format(0); // no "-0"
   const d = toDecimal(v);
   const digits = fractionDigitsOf(d, shownShift(scale));
   const value = decimalString(d, intlShift(scale));
   if (digits > MAX_INTL_FRACTION_DIGITS) {
     // Below about 1e-94 fixed notation cannot reach the significant digits.
-    return formatExact(numberFormat(locale, { ...style, notation: 'scientific', maximumSignificantDigits: SIGNIFICANT_FRACTION_DIGITS }), value);
+    return formatExact(numberFormat(locale, { ...style, notation: 'scientific', maximumSignificantDigits: SIGNIFICANT_FRACTION_DIGITS }, true), value);
   }
   try {
-    return formatExact(numberFormat(locale, { ...style, maximumFractionDigits: digits }), value);
+    return formatExact(numberFormat(locale, { ...style, maximumFractionDigits: digits }, true), value);
   } catch {
     // Engines before ES2023 allow at most 20 fraction digits.
-    return formatExact(numberFormat(locale, { ...style, maximumFractionDigits: Math.min(digits, 20) }), value);
+    return formatExact(numberFormat(locale, { ...style, maximumFractionDigits: Math.min(digits, 20) }, true), value);
   }
 }
 
@@ -121,8 +121,8 @@ const SHARE_FRACTION_DIGITS = 1;
 /** A share (0–1) as a percentage. Values on a percent or ratio scale are readouts (F6), not shares. */
 export function shareText(ratio: number, locale: string): string {
   const style: Intl.NumberFormatOptions = { style: 'percent', maximumFractionDigits: SHARE_FRACTION_DIGITS };
-  if (!Number.isFinite(ratio) || ratio === 0) return numberFormat(locale, style).format(ratio === 0 ? 0 : ratio);
-  return formatExact(numberFormat(locale, style), decimalString(toDecimal(ratio)));
+  if (!Number.isFinite(ratio) || ratio === 0) return numberFormat(locale, style, true).format(ratio === 0 ? 0 : ratio);
+  return formatExact(numberFormat(locale, style, true), decimalString(toDecimal(ratio)));
 }
 
 /**
@@ -167,9 +167,9 @@ export function createNumberReadout(spec: NumberReadoutSpec): (v: number) => str
   const { locale, unit } = spec;
   const scale = spec.scale ?? null;
   const fallback = (v: number): string => withUnit(defaultReadoutNumber(v, locale, scale), unit, scale);
-  const report = once(spec.onError);
   const format = spec.format;
   if (format == null) return fallback;
+  const report = once(spec.onError);
   if (typeof format === 'function') {
     return (v: number) => {
       try {
@@ -204,25 +204,28 @@ const MAX_TICK_FRACTION_DIGITS = 9;
  * every notation each tick gets enough significant digits for the step, so neighbours never read the same.
  */
 export function defaultTickNumber(value: number, context: TickContext, locale: string, scale: ValueScale = null): string {
-  const style: Intl.NumberFormatOptions = scale ? { style: 'percent' } : {};
-  const shift = shownShift(scale);
   const v = value === 0 ? 0 : value;
+  if (!scale && Number.isSafeInteger(v) && context.step >= 1 && Number.isFinite(context.step) && context.maxAbs > 0 && context.maxAbs < 1e6) {
+    return numberFormat(locale).format(v);
+  }
+  const options: Intl.NumberFormatOptions = scale ? { style: 'percent' } : {};
+  const shift = shownShift(scale);
+  const decimal = v === 0 ? null : toDecimal(v);
   const exponentOf = (x: number): number => toDecimal(x).exponent + shift;
-  const valueExp = v === 0 ? null : exponentOf(v);
+  const valueExp = decimal ? decimal.exponent + shift : 0;
   const stepExp = context.step > 0 && Number.isFinite(context.step)
     ? exponentOf(context.step)
-    : (valueExp ?? 0) - (SIGNIFICANT_FRACTION_DIGITS - 1);
-  const maxExp = context.maxAbs > 0 && Number.isFinite(context.maxAbs) ? exponentOf(context.maxAbs) : (valueExp ?? 0);
+    : valueExp - (SIGNIFICANT_FRACTION_DIGITS - 1);
+  const maxExp = context.maxAbs > 0 && Number.isFinite(context.maxAbs) ? exponentOf(context.maxAbs) : valueExp;
   const fractionDigits = Math.max(0, -stepExp);
-  const exact = v === 0 ? '0' : decimalString(toDecimal(v), intlShift(scale));
   if (maxExp < 6 && fractionDigits <= MAX_TICK_FRACTION_DIGITS) {
-    return formatExact(numberFormat(locale, { ...style, minimumFractionDigits: fractionDigits, maximumFractionDigits: fractionDigits }), exact);
-  }
-  if (valueExp === null) return numberFormat(locale, { ...style, maximumFractionDigits: 0 }).format(0);
-  // Significant digits that write this tick exactly at the set's step: 10.2M at a 200K step needs three.
-  const significant = Math.min(Math.max(valueExp - stepExp + 1, 1), 21);
-  const notation: Intl.NumberFormatOptions['notation'] = maxExp >= 15 || fractionDigits > MAX_TICK_FRACTION_DIGITS ? 'scientific' : 'compact';
-  return formatExact(numberFormat(locale, { ...style, notation, maximumSignificantDigits: significant }), exact);
+    options.minimumFractionDigits = options.maximumFractionDigits = fractionDigits;
+  } else if (decimal) {
+    options.notation = maxExp >= 15 || fractionDigits > MAX_TICK_FRACTION_DIGITS ? 'scientific' : 'compact';
+    // 10.2M at a 200K step needs three significant digits.
+    options.maximumSignificantDigits = Math.min(Math.max(valueExp - stepExp + 1, 1), 21);
+  } else options.maximumFractionDigits = 0;
+  return formatExact(numberFormat(locale, options, true), decimal ? decimalString(decimal, intlShift(scale)) : '0');
 }
 
 /** Tick labeler for a value axis (or a numeric x axis). */
@@ -230,9 +233,9 @@ export function createNumberTickLabeler(spec: NumberTickSpec): TickLabeler {
   const { locale } = spec;
   const scale = spec.scale ?? null;
   const fallback: TickLabeler = (value, context) => defaultTickNumber(value, context, locale, scale);
-  const report = once(spec.onError);
   const format = spec.tickFormat;
   if (format == null) return fallback;
+  const report = once(spec.onError);
   if (typeof format === 'function') {
     return (value, context) => {
       try {

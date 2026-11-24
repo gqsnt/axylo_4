@@ -80,10 +80,12 @@ class TickFailures {
   }
 }
 
-function numberTicks(domain: Span, locale: string, option: unknown, scale: 'percent' | 'ratio' | null, failures: TickFailures): TickCandidates {
+function numberTicks(domain: Span, ctx: AxisContext, option: unknown, scale: 'percent' | 'ratio' | null, failures: TickFailures): TickCandidates {
+  if (ctx.compact && option == null) return [];
   const tickFormat = typeof option === 'function' || (option !== null && typeof option === 'object')
     ? failures.author(option) as NumberFormatOption : null;
-  return linearTickCandidates(domain, failures.labeler(createNumberTickLabeler({ locale, scale, tickFormat, onError: failures.report })));
+  const label = createNumberTickLabeler({ locale: ctx.locale, scale, tickFormat, onError: failures.report });
+  return linearTickCandidates(domain, tickFormat ? failures.labeler(label) : label, !tickFormat);
 }
 
 function temporalTicks(
@@ -114,8 +116,8 @@ function continuousX(
   ctx: AxisContext, failures: TickFailures,
 ) {
   const option = ctx.resolved.x.tickFormat;
-  const candidates = kind === 'number'
-    ? numberTicks(domain, ctx.locale, option, ctx.resolved.x.scale ?? null, failures)
+  const candidates = ctx.compact && option == null ? [] : kind === 'number'
+    ? numberTicks(domain, ctx, option, ctx.resolved.x.scale ?? null, failures)
     : temporalTicks(domain, kind, timeZone, dateUnit, ctx.locale, option, failures);
   return { type: kind === 'number' ? 'linear' as const : 'time' as const, domain, candidates, mayThin: true };
 }
@@ -204,14 +206,14 @@ function buildAxisParts(
   const yOption = value?.tickFormat ?? null;
   const scale = view.kind === 'scatter' ? value?.scale ?? null : alignedScale(view.frame, view.visible);
   const titles = axisTitles(view, ctx);
-  const y = { ...valueAxis(view.yDomain, value?.domain ? null : valueExtent(view), scale,
-    domain => numberTicks(domain, ctx.locale, yOption, scale, failures.y)), title: titles.y };
+  const y = { ...valueAxis(view.yDomain, value?.domain || (ctx.compact && yOption == null) ? null : valueExtent(view), scale,
+    domain => numberTicks(domain, ctx, yOption, scale, failures.y)), title: titles.y };
 
   if (view.kind === 'scatter') {
     const kind = view.frame.xKind;
     const automatic = !ctx.resolved.x.domain && view.xDomain[0] === view.xFull[0] && view.xDomain[1] === view.xFull[1];
     const x = kind === 'number' ? { type: 'linear', ...valueAxis(view.xDomain, automatic ? valueExtent(view, 'x') : null, null,
-      domain => numberTicks(domain, ctx.locale, ctx.resolved.x.tickFormat, null, failures.x)) }
+      domain => numberTicks(domain, ctx, ctx.resolved.x.tickFormat, null, failures.x)) }
       : continuousX(kind, view.xDomain, view.frame.timeZone, null, ctx, failures.x);
     return { kind: 'xy', x: { ...x, title: titles.x }, y, references: view.references };
   }

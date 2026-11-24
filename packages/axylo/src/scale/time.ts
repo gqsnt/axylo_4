@@ -74,6 +74,11 @@ export interface TimeTickOptions {
   readonly label?: ((position: number) => string) | null;
 }
 
+interface Candidate {
+  readonly length: number;
+  ticks(): Tick[];
+}
+
 /** The zone ticks are computed and labeled in. */
 function axisZone(options: TimeTickOptions): string {
   return options.kind === 'time' && options.timeZone ? options.timeZone : 'UTC';
@@ -100,13 +105,18 @@ export function timeTickCandidates(domain: readonly [number, number], options: T
   const finest = UNIT_ORDER.indexOf(finestUnit(options));
   const span = hi - lo;
 
-  const sets: Tick[][] = [];
+  const sets: Candidate[] = [];
   const consider = (interval: Interval): boolean => {
     if (UNIT_ORDER.indexOf(interval.unit) < finest) return true;
     // Skip intervals that would obviously give far too many ticks, before paying for generation.
     if (span / interval.approx > MAX_TICKS + 2) return true;
     const values = boundaries(interval, lo, hi, zone, options.locale);
-    if (values.length >= 1 && values.length <= MAX_TICKS) pushCandidate(sets, label(values, interval.unit, zone, options));
+    if (values.length >= 1 && values.length <= MAX_TICKS) {
+      const build = () => label(values, interval.unit, zone, options);
+      // Author callbacks run in interval order, even for a density a later interval replaces.
+      const eager = options.label ? build() : null;
+      pushCandidate(sets, { length: values.length, ticks: eager ? () => eager : build });
+    }
     // Go on while there is a tick: a coarser interval with as many ticks replaces the finer set, so a lone
     // tick ends up on the roundest boundary in the domain (midnight rather than 00:00:00.000).
     return values.length > 0;
@@ -123,8 +133,8 @@ export function timeTickCandidates(domain: readonly [number, number], options: T
 }
 
 /** A domain too short to hold any boundary still gets one labeled tick at its start. */
-function finish(sets: Tick[][], lo: number, zone: string, options: TimeTickOptions): TickCandidates {
-  if (sets.length > 0) return sets;
+function finish(sets: Candidate[], lo: number, zone: string, options: TimeTickOptions): TickCandidates {
+  if (sets.length > 0) return sets.map(set => set.ticks());
   let unit = finestUnit(options);
   if (unit === 'millisecond') {
     // Show the clock only as precisely as the instant needs.
@@ -297,13 +307,14 @@ function label(values: readonly number[], unit: TimeUnit, zone: string, options:
   const year = (wall: number) => new Date(Math.max(-MAX_DATE, Math.min(wall, MAX_DATE))).getUTCFullYear();
   // Astronomical year 0 is 1 BC: Intl writes it as "1", like AD 1, unless the era is shown.
   const era: Intl.DateTimeFormatOptions = walls.some(w => year(w) < 1) ? { era: 'short' } : {};
-  const base = { ...short, ...era };
-  const fields: Intl.DateTimeFormatOptions[] = [];
-  const builtIn: boolean[] = [];
+  const base = { ...short, ...era, timeZone: zone };
+  // A custom label has no built-in fields to disambiguate or contextualize.
+  const fields: (Intl.DateTimeFormatOptions | null)[] = [];
   const ticks: Tick[] = [];
   const keys: number[] = [];
-  const format = (value: number, fields: Intl.DateTimeFormatOptions) =>
-    dateTimeFormat(options.locale, { ...fields, timeZone: zone }).format(value);
+  const formatter = (fields: Intl.DateTimeFormatOptions) => dateTimeFormat(options.locale, fields, true).format;
+  let shortFormat: Intl.DateTimeFormat['format'] | undefined;
+  let contextFormat: Intl.DateTimeFormat['format'] | undefined;
   values.forEach((t, i) => {
     const value = t === 0 ? 0 : t;
     const wall = walls[i]!;
@@ -312,24 +323,24 @@ function label(values: readonly number[], unit: TimeUnit, zone: string, options:
     const key = level === 'year' ? 0 : level === 'month' || level === 'day'
       ? year(wall) : Math.floor(wall / DAY);
     keys.push(key);
-    fields.push(base);
     const custom = customLabel(options.label, value);
-    builtIn.push(custom === null);
-    ticks.push({ value, label: custom ?? format(value, base) });
+    fields.push(custom === null ? base : null);
+    ticks.push({ value, label: custom ?? (shortFormat ??= formatter(base))(value) });
   });
   for (const extra of disambiguators(zone)) {
-    const repeated = repeatedBuiltIn(ticks, builtIn, keys);
+    const repeated = repeatedBuiltIn(ticks, fields, keys);
     if (repeated.length === 0) break;
     for (const j of repeated) {
       fields[j] = { ...fields[j], ...extra };
       const { value } = ticks[j]!;
-      ticks[j] = { value, label: format(value, fields[j]!) };
+      ticks[j] = { value, label: formatter(fields[j]!)(value) };
     }
   }
   // Add the date or year only after comparing short labels within their local day or year.
   if (context) ticks.forEach(({ value }, i) => {
-    if (builtIn[i] && keys[i] !== keys[i - 1]) {
-      ticks[i] = { value, label: format(value, { ...context, ...fields[i] }) };
+    if (fields[i] && keys[i] !== keys[i - 1]) {
+      const format = fields[i] === base ? contextFormat ??= formatter({ ...context, ...base }) : formatter({ ...context, ...fields[i] });
+      ticks[i] = { value, label: format(value) };
     }
   });
   return ticks;
@@ -339,13 +350,13 @@ function label(values: readonly number[], unit: TimeUnit, zone: string, options:
  * Indexes of built-in labels that equal another label read in the same context. "3:00 AM" on two different
  * days is not repeated (the date is written where the day changes); "1:00 AM" twice on one day (a fold) is.
  */
-function repeatedBuiltIn(ticks: readonly Tick[], builtIn: readonly boolean[], keys: readonly number[]): number[] {
-  const id = (i: number): string => `${keys[i]}\u0000${ticks[i]!.label}`;
+function repeatedBuiltIn(ticks: readonly Tick[], fields: readonly (Intl.DateTimeFormatOptions | null)[], keys: readonly number[]): number[] {
+  const ids = ticks.map((tick, i) => `${keys[i]}\u0000${tick.label}`);
   const count = new Map<string, number>();
-  ticks.forEach((_, i) => count.set(id(i), (count.get(id(i)) ?? 0) + 1));
+  for (const id of ids) count.set(id, (count.get(id) ?? 0) + 1);
   const out: number[] = [];
-  ticks.forEach((_, i) => {
-    if (builtIn[i] && (count.get(id(i)) ?? 0) > 1) out.push(i);
+  ids.forEach((id, i) => {
+    if (fields[i] && count.get(id)! > 1) out.push(i);
   });
   return out;
 }

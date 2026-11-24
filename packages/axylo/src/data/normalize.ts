@@ -4,6 +4,7 @@ import {
   type RowSource, type Series, type XColumn,
 } from '../core/contracts';
 import { report, type DiagnosticDetails } from '../diagnostics';
+import { MAX_DATE } from '../scale/zone';
 import type { AlignedChartType, ChartType, ResolvedOptions, ResolvedValueField } from './options';
 import { Reports } from './reports';
 import { calendarIntervals, inferGaps, snapGap } from './steps';
@@ -46,12 +47,16 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
   let ascending = true;
   let last = -Infinity;
   let i = 0;
-  if (options.series === null && input instanceof Float64Array && kind === 'number') {
-    // Skip parsing the strictly ascending numeric prefix, stopping before any row that can report a hint.
-    const inferred = x.type === null;
+  const epoch = x.type === 'time';
+  if (options.series === null && input instanceof Float64Array && (kind === 'number' || epoch)) {
+    // XParser owns AX109 and invalid instants. Hand it the first exceptional row and the whole suffix.
+    const limit = epoch ? MAX_DATE : Number.MAX_VALUE;
+    const hintStart = epoch ? 1e9 : x.type === null ? 1e11 : Infinity;
+    const hintEnd = epoch ? 1e10 : 1e14;
     for (; i < table.length; i++) {
       const value = input[i]!;
-      if (!(value > last && value < Infinity) || inferred && Math.abs(value) >= 1e11 && Math.abs(value) < 1e14) break;
+      const abs = Math.abs(value);
+      if (!(value > last && abs <= limit) || abs >= hintStart && abs < hintEnd) break;
       last = value;
     }
   }
