@@ -4,13 +4,13 @@ import { normalizeDonut, buildPoints, type DataEnvironment, type FrameVersion } 
 import { resolveFields, resolveTable, retargetOptions, withoutTable, type ResolvedOptions } from './options';
 import { Reports } from './reports';
 import { lowerBound } from './search';
-import { FrameSource, RowRevisions, StreamRows } from './store-rows';
+import { forwardDiagnostics, RevisionStore, retentionStart, StreamRows } from './store-rows';
 import { CalendarWindow } from './store-calendar';
 import { StoreMap } from './store-map';
 import { Column, Labels } from './store-window';
 import { ByteCount, CallerBuffers, countColumn, countRevisions, type OwnedBytes } from './store-bytes';
 import { rowsTable, type Table } from './table';
-import { once, retention, type PreparedFrame, type StoreAppendOptions } from './transaction';
+import { retention, type PreparedFrame, type StoreAppendOptions } from './transaction';
 import { nameOf } from './x';
 
 const quiet: DiagnosticSink = { add() {} };
@@ -55,20 +55,6 @@ function buildDonut(options: ResolvedOptions, environment: DataEnvironment, sink
   }
   order.sort((a, b) => positions[a]! - positions[b]!);
   return { frame, positions, order };
-}
-
-function firstPosition(result: Result<Frame>, keep: number): number {
-  const { positions, order } = result;
-  let first = Infinity;
-  let distinct = 0;
-  for (let i = (order?.length ?? positions.length) - 1; i >= 0; i--) {
-    const position = positions[order?.[i] ?? i]!;
-    if (position === first) continue;
-    if (distinct === keep) return first;
-    first = position;
-    distinct++;
-  }
-  return -Infinity;
 }
 
 function ordered(positions: Float64Array, last: number = -Infinity): boolean {
@@ -216,54 +202,56 @@ function pointWindow(
   return storage;
 }
 
-class Slices implements Storage<DonutFrame> {
-  private constructor(
-    private readonly labels: Labels, private readonly positions: StoreMap<string, number>, private next: number,
-    private readonly values: Column<Float64Array>, private readonly slot: Column<Uint8Array>, private readonly row: Column<Int32Array>,
-  ) {}
+function openSlices({ frame, positions }: Result<DonutFrame>): Storage<DonutFrame> | null {
+  if (frame.labels.length !== positions.length || !frame.row) return null;
+  const labels = new Map(frame.labels.map((label, index) => [label, index]));
+  if (labels.size !== frame.labels.length) return null;
+  return sliceWindow(new Labels(frame.labels), new StoreMap(labels), labels.size,
+    new Column(doubles, frame.values), new Column(states, frame.slot), new Column(indexes, frame.row));
+}
 
-  static open({ frame, positions }: Result<DonutFrame>): Slices | null {
-    if (frame.labels.length !== positions.length || !frame.row) return null;
-    const labels = new Map(frame.labels.map((label, index) => [label, index]));
-    if (labels.size !== frame.labels.length) return null;
-    return new Slices(new Labels(frame.labels), new StoreMap(labels), labels.size,
-      new Column(doubles, frame.values), new Column(states, frame.slot), new Column(indexes, frame.row));
-  }
-
-  commit(): void { this.positions.commit(); }
-
-  extend(next: Result<DonutFrame>, rows: StreamRows, firstRow: number, keep: number | undefined): Slices | null {
-    const frame = next.frame;
-    if (frame.labels.length !== next.positions.length || !frame.row || frame.labels.some(label => this.positions.has(label))) return null;
-    const draft = new Slices(this.labels.fork(), this.positions.fork(), this.next,
-      extended(this.values, frame.values), extended(this.slot, frame.slot), extended(this.row, frame.row));
-    for (let i = 0; i < frame.labels.length; i++) {
-      const label = frame.labels[i]!;
-      draft.labels.push(label);
-      const position = draft.next++;
-      draft.positions.set(label, position);
-      rows.record(position, firstRow + i);
-    }
-
-    if (keep !== undefined && draft.labels.length > keep) {
-      const dropped = draft.labels.length - keep;
-      for (let i = 0; i < dropped; i++) {
-        const label = draft.labels.at(i);
-        rows.evictRead(draft.positions.get(label)!);
-        draft.positions.delete(label);
+function sliceWindow(labels: Labels, positions: StoreMap<string, number>, next: number,
+  values: Column<Float64Array>, slot: Column<Uint8Array>, row: Column<Int32Array>): Storage<DonutFrame> {
+  const storage: Storage<DonutFrame> = {
+    commit() { positions.commit(); },
+    frame: frame => ({ ...frame, labels: labels.view(), values: values.view(), slot: slot.view(), row: row.view() }),
+    extend(result, rows, firstRow, keep) {
+      const { frame } = result;
+      if (frame.labels.length !== result.positions.length || !frame.row || frame.labels.some(label => positions.has(label))) return null;
+      const names = labels.fork();
+      const index = positions.fork();
+      const y = extended(values, frame.values);
+      const states = extended(slot, frame.slot);
+      const source = extended(row, frame.row);
+      for (let i = 0; i < frame.labels.length; i++) {
+        const label = frame.labels[i]!;
+        names.push(label);
+        index.set(label, next + i);
+        rows.record(next + i, firstRow + i);
       }
-      draft.labels.drop(dropped);
-      draft.values.drop(dropped);
-      draft.slot.drop(dropped);
-      draft.row.drop(dropped);
-    }
-
-    return draft;
+      if (keep !== undefined && names.length > keep) {
+        const dropped = names.length - keep;
+        for (let i = 0; i < dropped; i++) {
+          const label = names.at(i);
+          rows.evictRead(index.get(label)!);
+          index.delete(label);
+        }
+        names.drop(dropped);
+        y.drop(dropped);
+        states.drop(dropped);
+        source.drop(dropped);
+      }
+      return sliceWindow(names, index, next + frame.labels.length, y, states, source);
+    },
+  };
+  if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) {
+    storage.countBytes = bytes => {
+      countColumn(values, bytes, 'values');
+      countColumn(slot, bytes, 'slot');
+      countColumn(row, bytes, 'row');
+    };
   }
-
-  frame(frame: DonutFrame): DonutFrame {
-    return { ...frame, labels: this.labels.view(), values: this.values.view(), slot: this.slot.view(), row: this.row.view() };
-  }
+  return storage;
 }
 
 // Sample windows retain a contiguous suffix of arrival indexes, including rows whose value is missing.
@@ -277,36 +265,30 @@ export function dropOldSamples(rows: StreamRows, keep: number, evicted?: number[
   return count;
 }
 
-function removeRows(table: Table, result: Result<Frame>, keep: number, rows: StreamRows): number[] {
+function removeRows(table: Table, result: Result<Frame>, keep: number, rows: StreamRows, evicted: number[]): number {
   if (result.frame.shape === 'aligned') {
-    const evicted: number[] = [];
-    dropOldSamples(rows, keep, evicted);
-    return evicted;
+    return dropOldSamples(rows, keep, evicted);
   }
   const { positions } = result;
-  const first = firstPosition(result, keep);
+  const first = retentionStart(result, keep);
   let unplaced = 0;
   for (let i = 0; i < table.length; i++) {
     if (!Number.isFinite(positions[i])) unplaced++;
   }
   let excess = Math.max(0, unplaced - 2 * keep);
-  const removed: number[] = [];
+  const before = evicted.length;
   for (let i = 0; i < table.length; i++) {
     const position = positions[i]!;
     if (Number.isFinite(position) ? position >= first : excess-- <= 0) continue;
     const row = table.rowIndex(i);
     rows.forget(row);
-    removed.push(row);
+    evicted.push(row);
   }
-  return removed;
+  return evicted.length - before;
 }
 
-export class SampleStore<F extends Frame> {
-  private rows: StreamRows;
-  private readonly revisions: RowRevisions;
+export class SampleStore<F extends Frame> extends RevisionStore<F> {
   private encoding: ResolvedOptions;
-  private current: F;
-  private latest: readonly DiagnosticInput[];
   private storage: Storage<F> | null;
 
   constructor(
@@ -319,9 +301,8 @@ export class SampleStore<F extends Frame> {
     private readonly sink: DiagnosticSink = quiet,
     private readonly resolve = resolveFields,
   ) {
+    super(options.table);
     if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) installUnalignedExtras();
-    this.rows = new StreamRows(options.table);
-    this.revisions = new RowRevisions(this.rows);
     this.encoding = withoutTable(options);
     const diagnostics = new DiagnosticCollector();
     const table = this.rows.table();
@@ -330,26 +311,11 @@ export class SampleStore<F extends Frame> {
     if (this.type !== 'histogram') this.rows.resetPositions(table, positions);
     this.latest = diagnostics.inputs();
     this.storage = this.latest.length ? null : this.open(result, this.encoding);
-    const source = new FrameSource(this.rows.next, this.rows);
-    this.current = { ...(this.storage?.frame(frame) ?? frame), source };
-    this.revisions.current.publish(frame.revision, source, this.rows);
-    for (const diagnostic of this.latest) sink.add(diagnostic);
+    this.publish(this.storage?.frame(frame) ?? frame);
+    forwardDiagnostics(this.latest, sink);
   }
 
   get diagnostics(): readonly DiagnosticInput[] { return this.latest; }
-  get frame(): F { return this.current; }
-  get retainedRowCount(): number { return this.revisions.size; }
-
-  /**
-   * The source rows `frame.source.rowAt` still answers, ascending, or null when the frame's revision is
-   * retired or not one this store published. Imputed rows (row −1 in a series) are source rows too and listed.
-   */
-  retainedRows(frame: Frame): ArrayLike<number> | null { return this.revisions.retainedRows(frame); }
-
-  /** Releases source rows through this revision. Held frame views keep their normalized values. */
-  retire(revision: number): void { this.revisions.retire(Math.min(revision, this.current.revision)); }
-
-  /** Validates encoding against the retained rows and returns options for re-encoding this store. */
   resolveEncoding(input: unknown, sink: DiagnosticSink): ResolvedOptions {
     return withoutTable(this.resolve(this.type, input, sink, this.rows.table()));
   }
@@ -381,16 +347,11 @@ export class SampleStore<F extends Frame> {
     }
     let current = call;
     const evicted: number[] = [];
-    if (keep !== undefined) {
-      // Removing rows can change the inferred kind and make formerly unplaceable x values usable.
-      while (true) {
-        const removed = removeRows(table, result, keep, retained);
-        if (removed.length === 0) break;
-        for (const row of removed) evicted.push(row);
-        current = new DiagnosticCollector();
-        table = retained.table();
-        result = rebuild(current);
-      }
+    // Removing rows can change the inferred kind and make formerly unplaceable x values usable.
+    while (keep !== undefined && removeRows(table, result, keep, retained, evicted)) {
+      current = new DiagnosticCollector();
+      table = retained.table();
+      result = rebuild(current);
     }
     retained.compactColumns();
     const ordered = ordering.inputs();
@@ -446,23 +407,13 @@ export class SampleStore<F extends Frame> {
     diagnostics: readonly DiagnosticInput[], callDiagnostics: readonly DiagnosticInput[],
     evicted: readonly number[], options = this.encoding, replacement = false,
   ): Candidate<F> {
-    const source = new FrameSource(rows.next, rows, () => this.current === base);
-    const candidate = { ...(storage?.frame(frame) ?? frame), source };
-    const commit = once(() => this.current, () => {
-      if (replacement) this.revisions.replace(rows);
-      for (const row of evicted) this.revisions.current.archive(row);
-      rows.commit();
+    const candidate = this.preview(base, storage?.frame(frame) ?? frame, rows, diagnostics, callDiagnostics, () => {
+      this.commitRows(rows, evicted, replacement);
       storage?.commit?.();
-      this.rows = rows;
-      this.current = candidate;
-      this.latest = diagnostics;
       this.storage = storage;
       if (options !== this.encoding) this.encoding = withoutTable(options);
-      this.revisions.current.publish(candidate.revision, source, rows);
-    }, base);
-    return { frame: candidate, diagnostics, callDiagnostics,
-      commit, abort: commit.abort,
-    };
+    });
+    return { ...candidate, abort: candidate.commit.abort };
   }
 }
 
@@ -490,11 +441,6 @@ function installUnalignedExtras(): void {
     const bytes = new ByteCount(new CallerBuffers());
     const storage = this['storage'];
     storage?.countBytes?.(bytes);
-    if (storage instanceof Slices) {
-      countColumn(storage['values'], bytes, 'values');
-      countColumn(storage['slot'], bytes, 'slot');
-      countColumn(storage['row'], bytes, 'row');
-    }
     countRevisions(this['revisions'], bytes);
     bytes.frame(this['current']);
     for (const frame of frames) bytes.frame(frame);
@@ -502,7 +448,7 @@ function installUnalignedExtras(): void {
   };
   proto.append = function (this: Store, rows: readonly unknown[], options: StoreAppendOptions = {}, sink = this['sink']) {
     const prepared = this.prepareAppend(rows, options);
-    for (const diagnostic of prepared.callDiagnostics) sink.add(diagnostic);
+    forwardDiagnostics(prepared.callDiagnostics, sink);
     prepared.commit();
     return prepared.frame;
   };
@@ -531,7 +477,7 @@ export class PointStore extends SampleStore<PointFrame> {
 
 export class DonutStore extends SampleStore<DonutFrame> {
   constructor(options: ResolvedOptions, environment: DataEnvironment, version: FrameVersion, sink: DiagnosticSink = quiet) {
-    super('donut', buildDonut, Slices.open, options, environment, version, sink);
+    super('donut', buildDonut, openSlices, options, environment, version, sink);
   }
 }
 

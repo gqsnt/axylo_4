@@ -29,7 +29,7 @@ export interface ThemeResolution {
   readonly invalidColors?: readonly string[];
 }
 
-const TOKENS: readonly PaintToken[] = ['axis', 'grid', 'reference', 'muted', 'focus', 'background', 'text'];
+const TOKENS: readonly PaintToken[] = ['axis', 'grid', 'reference', 'muted', 'focus', 'text'];
 
 /**
  * CSS expressions for the token paints. Each public name (which an author may set anywhere, including
@@ -84,45 +84,45 @@ export function resolveTheme(
 ): ThemeResolution {
   const doc = element.ownerDocument;
   const win = doc.defaultView;
-  const bindings: PaintBindings = { tokens: TOKEN_BINDINGS, series: seriesKeys.map((_, i) => `var(${seriesProperty(i)})`) };
-  const authored = seriesKeys.map(key => {
-    const own = colors != null && Object.hasOwn(colors, key) ? colors[key] : undefined;
-    return own !== undefined && own.trim() !== '' ? own.trim() : null;
-  });
   const connected = win !== null && element.isConnected;
-  const forcedColors = connected && win.matchMedia('(forced-colors: active)').matches;
-  const moreContrast = connected && win.matchMedia('(prefers-contrast: more)').matches;
-  const valid = connected ? validColors(element, authored) : null;
+  const authored = colors && seriesKeys.map(key => Object.hasOwn(colors, key) ? colors[key]?.trim() || null : null);
+  const valid = connected && authored?.some(Boolean) ? validColors(element, authored) : null;
   const invalidColors: string[] = [];
-  writeSeries(element, authored.map((own, i) => {
-    if (own !== null) {
-      if (!valid || valid[i]) return authorBinding(own);
-      invalidColors.push(seriesKeys[i]!);
+  const series = seriesKeys.map((key, i) => {
+    const property = seriesProperty(i);
+    const own = authored?.[i];
+    let value = seriesBinding(i);
+    if (own) {
+      if (!valid || valid[i]) value = authorBinding(own);
+      else invalidColors.push(key);
     }
-    return seriesBinding(i);
-  }));
+    setProperty(element, property, value);
+    return `var(${property})`;
+  });
+  const before = written.get(element) ?? 0;
+  for (let i = series.length; i < before; i++) element.style.removeProperty(seriesProperty(i));
+  written.set(element, series.length);
+  const bindings: PaintBindings = { tokens: TOKEN_BINDINGS, series };
   if (!connected) return unresolved(element, bindings, seriesKeys.length);
 
-  const backdrop = findBackdrop(element, win);
+  const style = win.getComputedStyle(element);
+  const backdrop = findBackdrop(element, win, style);
   setProperty(element, '--axylo-backdrop', rgbText(backdrop.color));
 
-  const style = win.getComputedStyle(element);
   const expression = 'var(--axylo-background)';
   const value = style.getPropertyValue('--axylo-background').trim();
   const override = value !== '' && (/^currentcolor$/i.test(value) || validColors(element, [expression])[0]);
-  const [overrideText, canvasText] = override ? probeColors(element, [expression, 'Canvas']) : [];
-  const overrideColor = override ? parseColor(overrideText!) : null;
-  const background = overrideColor !== null && overrideColor.a > 0 ? composite(overrideColor, backdrop.color) : backdrop.color;
-
+  const overrideColor = override ? parseColor(probeColors(element, [expression])[0]!) : null;
   const overridden = overrideColor !== null && overrideColor.a > 0;
-  const scheme = decideScheme(style, overridden ? background : null, element, canvasText);
+  const background = overridden ? composite(overrideColor, backdrop.color) : backdrop.color;
+  const scheme = decideScheme(style, overridden ? background : null, element);
   // Where the page sets the chart's color-scheme, the stylesheet's defaults follow the browser's used scheme
   // by themselves (light-dark()), media changes included, in the frame they happen: no attribute freezes one.
   // Otherwise (color-scheme normal, or the author's --axylo-background decides) the scheme found here is it.
   const follows = !overridden && style.colorScheme.trim() !== '' && style.colorScheme.trim() !== 'normal';
-  if (follows) {
-    if (element.hasAttribute('data-axylo-scheme')) element.removeAttribute('data-axylo-scheme');
-  } else if (element.getAttribute('data-axylo-scheme') !== scheme) element.setAttribute('data-axylo-scheme', scheme);
+  const attribute = 'data-axylo-scheme';
+  if (follows) element.removeAttribute(attribute);
+  else if (element.getAttribute(attribute) !== scheme) element.setAttribute(attribute, scheme);
 
   const expressions = [...TOKENS.map(t => TOKEN_BINDINGS[t]), ...bindings.series];
   const computed = probeColors(element, expressions);
@@ -134,7 +134,8 @@ export function resolveTheme(
 
   return {
     bindings,
-    theme: { scheme, forcedColors, moreContrast, paints },
+    theme: { scheme, paints, forcedColors: win.matchMedia('(forced-colors: active)').matches,
+      moreContrast: win.matchMedia('(prefers-contrast: more)').matches },
     resolved: true,
     backdropKnown: backdrop.known || (overrideColor !== null && overrideColor.a >= 1),
     invalidColors,
@@ -144,6 +145,7 @@ export function resolveTheme(
 function unresolved(element: HTMLElement, bindings: PaintBindings, count: number): ThemeResolution {
   const hex = (h: string): string => rgbText(parseColor(h)!);
   const tokens = {} as Record<PaintToken, string>;
+  tokens.background = hex(LIGHT.background);
   for (const token of TOKENS) tokens[token] = token === 'text' ? 'rgb(0, 0, 0)' : hex(LIGHT[token]);
   const series = Array.from({ length: count }, (_, i) => hex(LIGHT.series[i % SERIES_COUNT]!));
   const scheme = element.getAttribute('data-axylo-scheme') === 'dark' ? 'dark' : 'light';
@@ -162,17 +164,17 @@ function unresolved(element: HTMLElement, bindings: PaintBindings, count: number
  * the browser actually uses there (the luminance of the `Canvas` system color in the chart's context);
  * else (unset or normal) the inherited text color: light text means a dark scheme.
  */
-function decideScheme(style: CSSStyleDeclaration, background: Rgba | null, element: HTMLElement, canvas?: string): 'light' | 'dark' {
+function decideScheme(style: CSSStyleDeclaration, background: Rgba | null, element: HTMLElement): 'light' | 'dark' {
   if (background !== null) return isLightColor(background) ? 'light' : 'dark';
-  const words = style.colorScheme.split(/\s+/).filter(w => w === 'light' || w === 'dark');
+  const words = style.colorScheme.split(/\s+/);
   const light = words.includes('light');
   const dark = words.includes('dark');
   if (light !== dark) return light ? 'light' : 'dark';
   if (light && dark) {
-    const used = parseColor(canvas ?? probeColors(element, ['Canvas'])[0]!);
+    const used = parseColor(probeColors(element, ['Canvas'])[0]!);
     if (used !== null) return isLightColor(used) ? 'light' : 'dark';
   }
-  const text = parseColor(normalizeColor(style.color, element.ownerDocument));
+  const text = concreteColor(style.color, element.ownerDocument);
   return text !== null && isLightColor(text) ? 'dark' : 'light';
 }
 
@@ -182,26 +184,25 @@ interface Backdrop { readonly color: Rgba; readonly known: boolean }
  * The opaque color behind the chart: computed background colors from the chart up, composited until one
  * is opaque, over the document's canvas color. A background image on the way up makes it unknown.
  */
-function findBackdrop(element: HTMLElement, win: Window): Backdrop {
+function findBackdrop(element: HTMLElement, win: Window, style: CSSStyleDeclaration): Backdrop {
   const layers: Rgba[] = [];
   let known = true;
-  let opaque = false;
+  let color: Rgba | undefined;
   for (let node: Element | null = element; node !== null; node = composedParent(node)) {
-    const cs = win.getComputedStyle(node);
+    const cs = node === element ? style : win.getComputedStyle(node);
     if (cs.backgroundImage !== 'none' && cs.backgroundImage !== '') { known = false; }
-    const c = parseColor(normalizeColor(cs.backgroundColor, element.ownerDocument));
+    const c = concreteColor(cs.backgroundColor, element.ownerDocument);
     if (c !== null && c.a > 0) {
+      if (c.a >= 1) { color = c; break; }
       layers.push(c);
-      if (c.a >= 1) { opaque = true; break; }
     }
   }
-  let color: Rgba;
-  if (opaque) color = layers.pop()!;
-  else {
+  if (!color) {
+    const white = { r: 1, g: 1, b: 1, a: 1 };
     // The page canvas: the `Canvas` system color under the root's color-scheme.
     const [canvas] = probeColors(element.ownerDocument.documentElement, ['Canvas']);
-    color = parseColor(canvas!) ?? { r: 1, g: 1, b: 1, a: 1 };
-    if (color.a < 1) color = composite(color, { r: 1, g: 1, b: 1, a: 1 });
+    color = parseColor(canvas!) ?? white;
+    if (color.a < 1) color = composite(color, white);
   }
   while (layers.length > 0) color = composite(layers.pop()!, color);
   return { color, known };
@@ -213,72 +214,64 @@ function setProperty(element: HTMLElement, name: string, value: string): void {
   if (element.style.getPropertyValue(name) !== value) element.style.setProperty(name, value);
 }
 
-function writeSeries(element: HTMLElement, values: readonly string[]): void {
-  values.forEach((v, i) => setProperty(element, seriesProperty(i), v));
-  const before = written.get(element) ?? 0;
-  for (let i = values.length; i < before; i++) element.style.removeProperty(seriesProperty(i));
-  written.set(element, values.length);
+// Children retain their inline declarations, but inherit variables from the chart being measured.
+interface ProbeSet {
+  box: HTMLElement;
+  colors: HTMLElement[];
+  pairs: HTMLElement[];
 }
+const probes = new WeakMap<Document, ProbeSet>();
 
-function probeBox(doc: Document): HTMLElement {
-  const box = doc.createElement('div');
-  box.style.setProperty('display', 'none');
-  return box;
-}
-
-function colorProbe(parent: HTMLElement, expression: string): HTMLElement {
-  const probe = parent.ownerDocument.createElement('span');
-  // Forced colors may replace an author color with CanvasText. Read the requested color.
-  probe.style.setProperty('forced-color-adjust', 'none');
-  probe.style.setProperty('color', expression);
-  return parent.appendChild(probe);
-}
-
-/**
- * Which author expressions the browser accepts as colors. Each is set as `color` on two probes whose parents
- * have different colors: an expression that is not a color is dropped at computed-value time, so `color`
- * inherits and the two probes disagree. Works for `var()` references too, which CSS.supports cannot judge.
- */
-function validColors(element: HTMLElement, expressions: readonly (string | null)[]): boolean[] {
-  if (!expressions.some(e => e !== null)) return expressions.map(() => true);
+function probeColors(element: Element, expressions: readonly string[], validating = false): string[] {
   const doc = element.ownerDocument;
-  const win = doc.defaultView!;
-  const box = probeBox(doc);
-  const pairs = expressions.map(expression => {
-    if (expression === null) return null;
-    return (['rgb(1, 2, 3)', 'rgb(4, 5, 6)'] as const).map(parentColor => {
-      const parent = doc.createElement('div');
-      parent.style.setProperty('color', parentColor);
-      parent.style.setProperty('forced-color-adjust', 'none');
-      const probe = colorProbe(parent, expression);
-      box.appendChild(parent);
-      return probe;
+  let cached = probes.get(doc);
+  if (!cached) {
+    const box = doc.createElement('div');
+    box.style.display = 'none';
+    probes.set(doc, cached = { box, colors: [], pairs: [] });
+  }
+  const { box } = cached;
+  const pool = validating ? cached.pairs : cached.colors;
+  box.style.forcedColorAdjust = validating ? '' : 'none';
+  const spans = expressions.map((expression, i) => {
+    let span = pool[i];
+    if (!span) {
+      span = pool[i] = doc.createElement('span');
+      span.style.forcedColorAdjust = 'none';
+      if (validating) {
+        const parent = doc.createElement('div');
+        parent.style.color = i % 2 ? 'rgb(4, 5, 6)' : 'rgb(1, 2, 3)';
+        parent.style.forcedColorAdjust = 'none';
+        parent.appendChild(span);
+      }
+    }
+    // CSSOM ignores an invalid assignment, so validation must clear the previous color.
+    if (validating) span.style.color = '';
+    span.style.color = expression;
+    box.appendChild(validating ? span.parentElement! : span);
+    return span;
+  });
+  element.appendChild(box);
+  try {
+    return spans.map(span => {
+      const color = doc.defaultView!.getComputedStyle(span).color;
+      return validating ? color : normalizeColor(color, doc);
     });
-  });
-  element.appendChild(box);
-  const result = pairs.map((pair, i) => {
-    if (pair === null) return true;
-    if (/^currentcolor$/i.test(expressions[i]!)) return true;
-    return win.getComputedStyle(pair[0]!).color === win.getComputedStyle(pair[1]!).color;
-  });
-  box.remove();
-  return result;
+  } finally {
+    box.remove();
+    box.replaceChildren();
+  }
 }
 
-/**
- * Lets the browser resolve CSS color expressions in the element's context: one hidden child per expression,
- * all written before any is read so the style is computed once.
- */
-function probeColors(element: Element, expressions: readonly string[]): string[] {
-  const doc = element.ownerDocument;
-  const win = doc.defaultView!;
-  const box = probeBox(doc);
-  box.style.setProperty('forced-color-adjust', 'none');
-  const probes = expressions.map(expression => colorProbe(box, expression));
-  element.appendChild(box);
-  const values = probes.map(p => win.getComputedStyle(p).color);
-  box.remove();
-  return values.map(v => normalizeColor(v, doc));
+function validColors(element: HTMLElement, expressions: readonly (string | null)[]): boolean[] {
+  const values = probeColors(element, expressions.flatMap(e => e === null ? [] : [e, e]), true);
+  let index = 0;
+  return expressions.map(e => {
+    if (e === null) return true;
+    const valid = values[index] === values[index + 1];
+    index += 2;
+    return valid || /^currentcolor$/i.test(e);
+  });
 }
 
 /**
@@ -287,7 +280,14 @@ function probeColors(element: Element, expressions: readonly string[]): string[]
  * or unknown value is returned as is rather than as the canvas's initial black.
  */
 function normalizeColor(value: string, doc: Document): string {
-  if (value === '' || parseColor(value) !== null) return value;
+  return value && !parseColor(value) ? canvasColor(value, doc) : value;
+}
+
+function concreteColor(value: string, doc: Document): Rgba | null {
+  return parseColor(value) ?? (value ? parseColor(canvasColor(value, doc)) : null);
+}
+
+function canvasColor(value: string, doc: Document): string {
   const canvas = doc.createElement('canvas');
   canvas.width = 1;
   canvas.height = 1;

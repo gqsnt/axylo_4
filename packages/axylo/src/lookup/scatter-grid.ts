@@ -28,8 +28,8 @@ function distanceTo(bucket: Bucket, x: number, y: number): number {
 }
 
 function distanceAcross(bucket: Bucket, x: number, y: number): number {
-  return Math.max(Math.abs(bucket.minX - x), Math.abs(bucket.maxX - x)) ** 2
-    + Math.max(Math.abs(bucket.minY - y), Math.abs(bucket.maxY - y)) ** 2;
+  return Math.max(x - bucket.minX, bucket.maxX - x) ** 2
+    + Math.max(y - bucket.minY, bucket.maxY - y) ** 2;
 }
 
 export interface ScatterPick {
@@ -120,18 +120,16 @@ export function scatterGrid(
 
   /** The most points in any 4 × 4 block of cells. */
   function densestWindow(): number {
-    const counts = new Int32Array((columns + 1) * (rows + 1));
-    // Summed-area table, one row and column of zeros in front.
-    for (let at = 0; at < length; at++) counts[(row(ys[at]!) + 1) * (columns + 1) + column(xs[at]!) + 1]!++;
+    const counts = new Int32Array(columns * rows);
+    for (let at = 0; at < length; at++) counts[row(ys[at]!) * columns + column(xs[at]!)]!++;
+    const totals = new Int32Array(columns);
     let densest = 0;
-    const stride = columns + 1;
-    for (let r = 1; r <= rows; r++) {
-      const above = Math.max(0, r - 4) * stride;
-      for (let c = 1; c <= columns; c++) {
-        const i = r * stride + c;
-        const left = Math.max(0, c - 4);
-        counts[i] = counts[i]! + counts[i - 1]! + counts[i - stride]! - counts[i - stride - 1]!;
-        const sum = counts[i]! - counts[above + c]! - counts[r * stride + left]! + counts[above + left]!;
+    for (let r = 0; r < rows; r++) {
+      let sum = 0;
+      for (let c = 0; c < columns; c++) {
+        const i = r * columns + c;
+        totals[c]! += counts[i]! - (r >= 4 ? counts[i - 4 * columns]! : 0);
+        sum += totals[c]! - (c >= 4 ? totals[c - 4]! : 0);
         densest = Math.max(densest, sum);
       }
     }
@@ -228,26 +226,24 @@ export function scatterGrid(
       for (let i = start; i < end;) {
         const first = order[i]!;
         const groupStart = i++;
-        let last = first;
         let winner = first;
-        let beforeWinner = -1;
         for (; i < end; i++) {
           const at = order[i]!;
           if (px[at] !== px[first] || py[at] !== py[first]) break;
-          next[last] = at;
-          if (later(at, winner)) {
-            winner = at;
-            beforeWinner = last;
+          if (later(at, winner)) winner = at;
+        }
+        // Prepend in reverse order to preserve the stable order behind the representative.
+        let head = -1;
+        for (let j = i - 1; j >= groupStart; j--) {
+          const at = order[j]!;
+          repOf[at] = winner;
+          if (at !== winner) {
+            next[at] = head;
+            head = at;
           }
-          last = at;
         }
-        next[last] = -1;
-        if (beforeWinner >= 0) {
-          next[beforeWinner] = next[winner]!;
-          next[winner] = first;
-        }
+        next[winner] = head;
         multiplicity[winner] = i - groupStart;
-        for (let at = winner; at >= 0; at = next[at]!) repOf[at] = winner;
         order[write++] = winner;
       }
       end = write;
@@ -379,21 +375,19 @@ export function scatterGrid(
         else out.push(member);
         return out.length < take;
       };
+      function skipGroup(size: number): boolean {
+        if (!(skip >= size)) return false;
+        skip -= size;
+        return true;
+      }
       function position(entry: number, first = -1): boolean {
-        if (skip >= multiplicity[entry]!) {
-          skip -= multiplicity[entry]!;
-          return true;
-        }
+        if (skipGroup(multiplicity[entry]!)) return true;
         if (first >= 0 && !emit(first)) return false;
         for (let member = entry; member >= 0; member = next[member]!) if (member !== first && !emit(member)) return false;
         return true;
       }
       if (!position(own, at)) return out;
-      visitGroup(at, size => {
-        if (!(skip >= size)) return false;
-        skip -= size;
-        return true;
-      }, position, () => { if (trackWork) membersRead++; });
+      visitGroup(at, skipGroup, position, () => { if (trackWork) membersRead++; });
       return out;
     }
 
@@ -407,13 +401,12 @@ export function scatterGrid(
   // is built here, with the lookup, so that no pointer move does work in proportion to the data.
   const canFallBack = !exact || 3 * densestWindow() + 2 * POINT_LIMIT > budget;
   function latticeIndex(): Index {
-    const lx = new Float64Array(length);
-    const ly = new Float64Array(length);
-    for (let at = 0; at < length; at++) {
-      lx[at] = Math.round(xs[at]! * ratio) / ratio;
-      ly[at] = Math.round(ys[at]! * ratio) / ratio;
+    function rounded(values: Float64Array): Float64Array {
+      const result = new Float64Array(length);
+      for (let i = 0; i < length; i++) result[i] = Math.round(values[i]! * ratio) / ratio;
+      return result;
     }
-    return index(lx, ly);
+    return index(rounded(xs), rounded(ys));
   }
   let lattice: Index | null = canFallBack ? latticeIndex() : null;
   // Built with the lookup whenever a pick can need it; built later only if that bound were ever wrong.

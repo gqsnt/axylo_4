@@ -19,7 +19,7 @@ import { FrameBuffers, type SeriesBuffers } from './store-buffers';
 import { ByteCount, CallerBuffers, countBuffers, countRevisions, type OwnedBytes } from './store-bytes';
 import { CalendarWindow } from './store-calendar';
 import { StreamDiagnostics } from './store-diagnostics';
-import { FrameSource, RowRevisions, sameRemainder, StreamRows } from './store-rows';
+import { forwardDiagnostics, groupFor, RevisionStore, retentionStart, sameRemainder, StreamRows } from './store-rows';
 import { rowsTable, sameTableData, type Table } from './table';
 import { once, retention, type PreparedFrame, type StoreAppendOptions } from './transaction';
 import { readValues, valueMode, type ValueCounts, type ValueMode, type Values } from './values';
@@ -29,16 +29,11 @@ const quiet: DiagnosticSink = { add: () => {} };
 type Fields = Omit<ResolvedOptions, 'table'>;
 
 function sameNormalization(before: ResolvedOptions, after: ResolvedOptions): boolean {
-  const a = before.x;
-  const b = after.x;
+  const same = <T>(a: T, b: T, keys: readonly (keyof T)[]) => keys.every(key => a[key] === b[key]);
   return after.valid && sameTableData(before.table, after.table) && before.series === after.series &&
-    a.field === b.field && a.type === b.type && a.timeZone === b.timeZone && a.ordered === b.ordered &&
-    a.label === b.label && a.unit === b.unit && before.values.length === after.values.length &&
-    before.values.every((field, i) => {
-      const next = after.values[i]!;
-      return field.field === next.field && field.label === next.label && field.unit === next.unit &&
-        field.scale === next.scale && field.missing === next.missing && field.parse === next.parse;
-    });
+    same(before.x, after.x, ['field', 'type', 'timeZone', 'ordered', 'label', 'unit']) &&
+    before.values.length === after.values.length && before.values.every((field, i) =>
+      same(field, after.values[i]!, ['field', 'label', 'unit', 'scale', 'missing', 'parse']));
 }
 
 interface Cadence {
@@ -87,6 +82,10 @@ class Observations {
   private prefixStart = 0;
 
   constructor(private prefix: Float64Array | null = null) {}
+
+  get last(): number | undefined {
+    return this.range.end > this.range.start ? this.positions[this.range.end - 1] : this.prefix?.at(-1);
+  }
 
   get first(): number | undefined { return this.at(0); }
 
@@ -171,30 +170,6 @@ function readCadence(axis: XColumn, observations: Observations): Cadence {
   return c;
 }
 
-function seriesKeys(table: Table, field: string | null): (string | null)[] | null {
-  if (field === null) return null;
-  const keys = new Array<string | null>(table.length);
-  for (let row = 0; row < table.length; row++) keys[row] = nameOf(table.read(row, field));
-  return keys;
-}
-
-function eachObservation(
-  options: Fields, x: XData, keys: readonly (string | null)[] | null,
-  visit: (key: string, position: number) => void,
-): void {
-  const length = x.order?.length ?? x.positions.length;
-  for (let i = 0; i < length; i++) {
-    const row = x.order?.[i] ?? i;
-    const position = x.positions[row]!;
-    if (keys) {
-      const key = keys[row];
-      if (key != null) visit(key, position);
-    } else {
-      for (const field of options.values) visit(field.field, position);
-    }
-  }
-}
-
 /**
  * The x positions of the first frame's slots, for history that outlives the store's first buffer. A view on the
  * caller's own column costs nothing and, unlike a view on the store's buffer, never pins a superseded copy.
@@ -216,22 +191,27 @@ function cadences(options: Fields, table: Table, x: XData, axis: XColumn, buffer
       duplicates: new Map<string, StoreMap<number, true>>(),
     };
   }
-  const keys = seriesKeys(table, options.series);
+  const field = options.series;
+  const keys = field === null ? null : Array.from({ length: table.length }, (_, i) => nameOf(table.read(i, field)));
   const observations = new Map<string, Observations>();
   const duplicates = new Map<string, StoreMap<number, true>>();
-  const last = new Map<string, number>();
-  eachObservation(options, x, keys, (key, position) => {
-    let window = observations.get(key);
-    if (!window) observations.set(key, window = new Observations());
-    if (position === last.get(key)) {
-      let positions = duplicates.get(key);
-      if (!positions) duplicates.set(key, positions = new StoreMap());
+  function observe(key: string, position: number): void {
+    const window = groupFor(observations, key, Observations);
+    if (position === window.last) {
+      const positions = groupFor(duplicates, key, StoreMap<number, true>);
       positions.set(position, true);
     } else {
       window.add(position);
-      last.set(key, position);
     }
-  });
+  }
+  for (let i = 0, length = x.order?.length ?? x.positions.length; i < length; i++) {
+    const row = x.order?.[i] ?? i;
+    const position = x.positions[row]!;
+    if (keys) {
+      const key = keys[row];
+      if (key != null) observe(key, position);
+    } else for (const value of options.values) observe(value.field, position);
+  }
   const history = mapValues(observations, window => readCadence(axis, window));
   return { history, observations, duplicates };
 }
@@ -361,10 +341,9 @@ function extendSeries(
   const newSparse = tooSparse(nextAbsent, next.differences + 1);
   if (oldSparse !== newSparse || oldStep !== newStep && !newSparse &&
     (oldAbsent > 0 || absent(previous, newStep) > 0)) return null;
-  if (newSparse) return { key, value: field, values, rows: observed, cadence: next, gaps: null, duplicates: repeated, sparse: nextAbsent };
 
   let gapCount = 0;
-  if (newStep) {
+  if (newStep && !newSparse) {
     let last = previous.last;
     for (const row of observed) {
       const position = positions[row]!;
@@ -392,25 +371,15 @@ function extendSeries(
       last = position;
     }
   }
-  return { key, value: field, values, rows: observed, cadence: next, gaps, duplicates: repeated, sparse: 0 };
+  return { key, value: field, values, rows: observed, cadence: next, gaps, duplicates: repeated, sparse: newSparse ? nextAbsent : 0 };
 }
 
 function keptTable(table: Table, x: XData, keep: number): {
   table: Table; discarded: readonly number[]; categories: readonly string[] | null;
 } | null {
-  const { positions, order, parser } = x;
-  let first = Infinity;
-  let distinct = 0;
-  if (keep > 0) {
-    for (let i = (order?.length ?? positions.length) - 1; i >= 0; i--) {
-      const position = positions[order?.[i] ?? i]!;
-      if (position === first) continue;
-      if (distinct === keep) break;
-      first = position;
-      distinct++;
-    }
-    if (distinct < keep) return null;
-  }
+  const { positions, parser } = x;
+  const first = retentionStart(x, keep);
+  if (first === -Infinity) return null;
 
   const unplaced: number[] = [];
   let latest = -Infinity;
@@ -450,13 +419,9 @@ function writeObservation(
   buffers.setRow(series, target, imputed ? -1 : base + row);
 }
 
-export class AlignedStore {
-  private rows: StreamRows;
+export class AlignedStore extends RevisionStore<AlignedFrame> {
   private fields: Fields;
-  private readonly revisions: RowRevisions;
   private state: State;
-  private current: AlignedFrame;
-  private latest: readonly DiagnosticInput[];
   private writing = false;
 
   constructor(
@@ -467,21 +432,19 @@ export class AlignedStore {
     private readonly sink: DiagnosticSink = quiet,
     normalized?: AlignedFrame,
   ) {
+    super(options.table);
     if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) installAlignedExtras();
     const { table, ...fields } = options;
-    this.rows = new StreamRows(table);
-    this.revisions = new RowRevisions(this.rows);
     this.fields = fields;
     const seed = normalized && alignedSeed(normalized);
-    const { frame, state, x } = normalized && seed && seed.type === type && sameNormalization(seed.options, options)
-      ? this.adoptNormalized(normalized, seed)
-      : this.build(table, version);
+    const reusable = normalized && seed?.type === type && sameNormalization(seed.options, options);
+    const { frame, state, x } = this.build(table, version, null, reusable ? normalized : undefined);
     this.state = state;
     this.rows.resetPositions(table, x.positions, prefixPositions(table, fields.x.field, x, state.buffers));
     this.current = this.snapshot(frame);
     this.latest = this.currentDiagnostics();
     this.publish(this.current);
-    for (const diagnostic of this.latest) this.sink.add(diagnostic);
+    forwardDiagnostics(this.latest, this.sink);
   }
 
   /**
@@ -498,22 +461,6 @@ export class AlignedStore {
     return new AlignedStore(type, options, environment, frame, sink, frame);
   }
 
-  get frame(): AlignedFrame {
-    return this.current;
-  }
-
-  get retainedRowCount(): number { return this.revisions.size; }
-
-  /**
-   * The source rows `frame.source.rowAt` still answers, ascending, or null when the frame's revision is
-   * retired or not one this store published. Imputed rows (row −1 in a series) are source rows too and listed.
-   */
-  retainedRows(frame: Frame): ArrayLike<number> | null { return this.revisions.retainedRows(frame); }
-
-  /** Releases source rows through this revision. Held frame views keep their normalized values. */
-  retire(revision: number): void { this.revisions.retire(Math.min(revision, this.current.revision)); }
-
-  /** Validates encoding against the retained rows and returns options for re-encoding this store. */
   resolveEncoding(input: unknown, sink: DiagnosticSink): ResolvedOptions {
     return withoutTable(resolveFields(this.type, input, sink, this.rows.table()));
   }
@@ -562,7 +509,7 @@ export class AlignedStore {
     draft.state = built.state;
     draft.rows.resetPositions(table, built.x.positions);
     draft.current = draft.snapshot(built.frame);
-    for (const diagnostic of draft.currentDiagnostics()) call.add(diagnostic);
+    forwardDiagnostics(draft.currentDiagnostics(), call);
     draft.latest = call.inputs();
     return this.transaction(base, draft, call, [], replacement !== undefined);
   }
@@ -574,65 +521,40 @@ export class AlignedStore {
   private transaction(
     base: AlignedFrame, draft: AlignedStore, call: DiagnosticCollector, evicted: readonly number[], replacement = false,
   ): PreparedFrame<AlignedFrame> {
-    const source = new FrameSource(draft.rows.next, draft.rows, () => this.current === base);
-    const frame = { ...draft.current, source };
-    const diagnostics = draft.latest;
-    const commit = once(() => this.current, () => {
+    return this.preview(base, draft.current, draft.rows, draft.latest, call.inputs(), () => {
       if (this.writing) throw new Error('Cannot commit a data change during an append.');
-      if (replacement) this.revisions.replace(draft.rows);
-      for (const row of evicted) this.revisions.current.archive(row);
-      draft.rows.commit();
+      this.commitRows(draft.rows, evicted, replacement);
       draft.state.parser.commit();
       draft.state.calendar?.commit();
       draft.state.diagnostics.commit();
       for (const positions of draft.state.duplicates.values()) positions.commit();
-      this.rows = draft.rows;
       this.fields = draft.fields;
       this.state = draft.state;
-      this.latest = diagnostics;
-      this.publish(frame, source);
-    }, base);
-    return { frame, diagnostics, callDiagnostics: call.inputs(), commit };
+    });
   }
 
-  private publish(frame: AlignedFrame, source = new FrameSource(this.rows.next, this.rows)): void {
-    this.revisions.current.publish(frame.revision, source, this.rows);
-    this.current = frame.source === source ? frame : { ...frame, source };
-  }
-
-  private adoptNormalized(frame: AlignedFrame, seed: NonNullable<ReturnType<typeof alignedSeed>>) {
-    const { options, counts } = seed;
-    const x = { ...seed.x, parser: seed.x.parser.copy() };
-    const axis = x.parser.column(new Float64Array(), true);
-    const votes = options.x.type === null ? { date: 0, wall: 0, number: 0, time: 0, category: 0, [axis.kind]: x.positions.length } : null;
-    const buffers = new FrameBuffers(frame, x.positions, x.order);
-    const state: State = {
-      axis, parser: x.parser, buffers,
-      ...cadences(this.fields, options.table, x, frame.x, buffers),
-      modes: mapValues(counts, count => ({ ...count })),
-      calendar: calendarFor(x, options.table), votes, dateUnits: x.dateUnits && { ...x.dateUnits },
-      overBudget: false, diagnostics: seed.diagnostics.copy(),
-    };
-    return { frame, state, x };
-  }
-
-  private build(table: Table, version: FrameVersion, categories: readonly string[] | null = this.state?.parser.categories ?? null) {
+  private build(table: Table, version: FrameVersion,
+    categories: readonly string[] | null = this.state?.parser.categories ?? null, normalized?: AlignedFrame) {
     const options = { ...this.fields, table };
-    const diagnostics = new StreamDiagnostics();
-    const x = readX(this.type, this.fields.valid ? options : { ...options, table: rowsTable([]) },
-      this.environment, diagnostics, categories ?? undefined);
-    const frame = options.valid ? alignedFrame(options, x, diagnostics, version)
-      : normalizeAligned(this.type, options, this.environment, diagnostics, version);
+    const seed = normalized && alignedSeed(normalized);
+    const diagnostics = seed?.diagnostics.copy() ?? new StreamDiagnostics();
+    const x = seed ? { ...seed.x, parser: seed.x.parser.copy() } :
+      readX(this.type, options.valid ? options : { ...options, table: rowsTable([]) },
+        this.environment, diagnostics, categories ?? undefined);
+    const frame = normalized ?? (options.valid ? alignedFrame(options, x, diagnostics, version)
+      : normalizeAligned(this.type, options, this.environment, diagnostics, version));
     const axis = x.parser.column(new Float64Array(), true);
-    const overBudget = diagnostics.inputs().some(diagnostic => diagnostic.code === 'AX134');
+    const overBudget = !seed && diagnostics.inputs().some(diagnostic => diagnostic.code === 'AX134');
     const buffers = new FrameBuffers(frame, x.positions, x.order);
     const state: State = {
       axis, parser: x.parser, buffers,
       ...(overBudget ? { history: new Map(), observations: new Map(), duplicates: new Map() } : cadences(options, table, x, frame.x, buffers)),
-      modes: overBudget ? new Map() : new Map(options.values.map(value => [value.field, valueCounts(table, value.field, x.positions)])),
+      modes: seed ? mapValues(seed.counts, count => ({ ...count })) : overBudget ? new Map() : new Map(options.values.map(value => [value.field, valueCounts(table, value.field, x.positions)])),
       calendar: overBudget ? null : calendarFor(x, table),
-      votes: options.x.type === null ? countKinds(table, options.x.field, options.series) : null,
-      overBudget, dateUnits: x.dateUnits, diagnostics,
+      votes: options.x.type !== null ? null : seed ?
+        { date: 0, wall: 0, number: 0, time: 0, category: 0, [axis.kind]: x.positions.length } :
+        countKinds(table, options.x.field, options.series),
+      overBudget, dateUnits: seed && x.dateUnits ? { ...x.dateUnits } : x.dateUnits, diagnostics,
     };
     return { frame, state, x };
   }
@@ -666,9 +588,7 @@ export class AlignedStore {
         continue;
       }
       if (!Number.isFinite(position)) continue;
-      let indexes = memberships.get(key);
-      if (!indexes) memberships.set(key, indexes = []);
-      indexes.push(i);
+      groupFor(memberships, key, Array<number>).push(i);
     }
     seriesReports?.flush(diagnostics);
 
@@ -717,12 +637,12 @@ export class AlignedStore {
     buffers.markObserved(batch.observed, end);
     for (const observed of batch.observed) buffers.distinct += observed;
     const updates = new Map(batch.series.map(item => [item.key, item]));
-    const priorWrites = new Set<string>();
+    const replacesLast = (item: BatchSeries | undefined) => item?.rows[0] !== undefined && batch.positions[item.rows[0]] === lastX;
     for (const item of batch.series) {
       let series = buffers.series.get(item.key);
       const zero = item.value.missing === 'zero';
       const first = item.rows[0];
-      const replacingLast = first !== undefined && batch.positions[first] === lastX;
+      const replacingLast = replacesLast(item);
       if (series && replacingLast && !resized) series = buffers.writeTail(series, hasCompetingWrites);
       if (!series) {
         series = buffers.addSeries({
@@ -731,25 +651,22 @@ export class AlignedStore {
         }, zero);
       }
       if (item.duplicates.length) {
-        let positions = this.state.duplicates.get(item.key);
-        if (!positions) this.state.duplicates.set(item.key, positions = new StoreMap());
+        const positions = groupFor(this.state.duplicates, item.key, StoreMap<number, true>);
         for (const position of item.duplicates) positions.set(position, true);
         if (series.description.drawable) series.description = { ...series.description, drawable: false };
       }
       if (replacingLast) {
-        writeObservation(buffers, series, end - 1, item.values, first, base, zero);
-        priorWrites.add(item.key);
+        writeObservation(buffers, series, end - 1, item.values, first!, base, zero);
       }
       this.state.history.set(item.key, item.cadence);
-      let window = this.state.observations.get(item.key);
-      if (!window) this.state.observations.set(item.key, window = new Observations());
+      const window = groupFor(this.state.observations, item.key, Observations);
       for (const row of item.rows) window.add(batch.positions[row]!);
     }
     const length = batch.x.length;
     for (const [key, series] of buffers.series) {
       const item = updates.get(key);
       const zero = (item?.value ?? this.fields.values.find(field => field.field === series.description.field))?.missing === 'zero';
-      let next = priorWrites.has(key) ? 1 : 0;
+      let next = replacesLast(item) ? 1 : 0;
       let gap = 0;
       for (let i = 0; i < length; i++) {
         const position = batch.x[i]!;
@@ -790,7 +707,7 @@ export class AlignedStore {
   }
 
   private failAppend(count: number, version: FrameVersion, diagnostics: readonly DiagnosticInput[], sink: DiagnosticSink): AlignedFrame {
-    for (const diagnostic of diagnostics) sink.add(diagnostic);
+    forwardDiagnostics(diagnostics, sink);
     this.rows.next += count;
     const axis = this.state.axis;
     this.current = {
@@ -962,7 +879,7 @@ export class AlignedStore {
 
     if (batch) {
       try {
-        for (const diagnostic of batch.diagnostics.inputs()) sink.add(diagnostic);
+        forwardDiagnostics(batch.diagnostics.inputs(), sink);
         const hint = this.state.calendar?.preview(fields.x.field, buffers.x[buffers.start] ?? -Infinity, positions, this.rows.next);
         if (hint) sink.add(hint);
       } catch (error) {
@@ -979,8 +896,8 @@ export class AlignedStore {
       if (window) prepared = this.build(window.table, version, window.categories);
       const { frame, state, x: read } = prepared;
       if (state.overBudget) return this.failAppend(rows.length, version, state.diagnostics.inputs(), sink);
-      for (const diagnostic of ordering.inputs()) sink.add(diagnostic);
-      for (const diagnostic of state.diagnostics.inputs()) sink.add(diagnostic);
+      forwardDiagnostics(ordering.inputs(), sink);
+      forwardDiagnostics(state.diagnostics.inputs(), sink);
       const hint = state.calendar?.diagnostic(fields.x.field, frame.x.values[0]!);
       if (hint) sink.add(hint);
       this.rows.append(rows);
@@ -1049,7 +966,7 @@ function installAlignedExtras(): void {
   proto.append = function (this: AlignedStore, rows: readonly unknown[], options: { keep?: number } = {}, sink = this['sink']): AlignedFrame {
     if (retention(options) !== undefined) {
       const prepared = this.prepareAppend(rows, options);
-      for (const diagnostic of prepared.callDiagnostics) sink.add(diagnostic);
+      forwardDiagnostics(prepared.callDiagnostics, sink);
       prepared.commit();
       return prepared.frame;
     }

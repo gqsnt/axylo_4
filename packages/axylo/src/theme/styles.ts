@@ -13,97 +13,76 @@ import { AXYLO_CSS } from './css';
 
 type StyleRoot = Document | ShadowRoot;
 
-type Installed =
-  | { readonly kind: 'adopted'; readonly sheet: CSSStyleSheet }
-  | { readonly kind: 'element'; readonly element: HTMLStyleElement }
-  | { readonly kind: 'standalone'; readonly sheet: CSSStyleSheet | null };
-
-const installed = new WeakMap<StyleRoot, Installed>();
-/** One constructed sheet per document, shared by its document and shadow roots. */
+const installed = new WeakMap<StyleRoot, () => boolean>();
 const constructed = new WeakMap<Document, CSSStyleSheet>();
 
-/**
- * Makes the default styles apply to `root` (a Document or a ShadowRoot). Safe to call any number of times;
- * after the first call it costs a few property reads unless the sheet it relied on has gone away.
- */
 export function ensureStyles(root: StyleRoot): void {
-  const state = installed.get(root);
-  if (state !== undefined && stillActive(root, state)) return;
-  const doc = 'ownerDocument' in root && root.ownerDocument !== null ? root.ownerDocument : (root as Document);
+  if (installed.get(root)?.()) return;
+  const doc = root.ownerDocument ?? root as Document;
   const win = doc.defaultView;
-  if (win === null) return;
+  if (!win) return;
 
-  const standalone = findStandalone(root, doc, win);
-  if (standalone !== undefined) { installed.set(root, { kind: 'standalone', sheet: standalone }); return; }
+  // Imported and cross-origin rules may supply the stylesheet without exposing its marker here.
+  let candidate = false;
+  let standalone: CSSStyleSheet | undefined;
+  for (const sheet of [...Array.from(root.styleSheets), ...(root.adoptedStyleSheets ?? [])]) {
+    try {
+      for (const rule of Array.from(sheet.cssRules)) {
+        if (rule.cssText.includes('--axylo-stylesheet')) {
+          standalone = sheet;
+          break;
+        }
+        if (rule.type === 3) candidate = true; // CSSImportRule
+      }
+    } catch { candidate = true; }
+    if (standalone) break;
+  }
 
-  if (canAdopt(root, win)) {
-    let sheet = constructed.get(doc);
-    if (sheet === undefined) {
-      // The constructor must come from the document's own window, or adopting the sheet throws.
-      sheet = new win.CSSStyleSheet();
-      sheet.replaceSync(AXYLO_CSS);
-      constructed.set(doc, sheet);
+  const parent = root === doc ? doc.documentElement : root;
+  if ((standalone || candidate) && standaloneActive(doc, parent, win)) {
+    if (standalone?.ownerNode) {
+      const sheet = standalone;
+      installed.set(root, () => !sheet.disabled && !!sheet.ownerNode?.isConnected &&
+        Array.prototype.includes.call(root.styleSheets, sheet) &&
+        (!sheet.media.mediaText || win.matchMedia(sheet.media.mediaText).matches));
     }
-    const list = (root as { adoptedStyleSheets: CSSStyleSheet[] }).adoptedStyleSheets;
-    if (!list.includes(sheet)) (root as { adoptedStyleSheets: CSSStyleSheet[] }).adoptedStyleSheets = [...list, sheet];
-    installed.set(root, { kind: 'adopted', sheet });
     return;
+  }
+
+  if (root.adoptedStyleSheets && typeof win.CSSStyleSheet?.prototype.replaceSync === 'function') {
+    let sheet = constructed.get(doc);
+    if (!sheet) {
+      // Some engines expose the interface without supporting construction.
+      try { sheet = new win.CSSStyleSheet(); } catch { /* use a style element below */ }
+      if (sheet) {
+        sheet.replaceSync(AXYLO_CSS);
+        constructed.set(doc, sheet);
+      }
+    }
+    if (sheet) {
+      if (!root.adoptedStyleSheets.includes(sheet)) root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
+      installed.set(root, () => root.adoptedStyleSheets?.includes(sheet));
+      return;
+    }
   }
 
   const element = doc.createElement('style');
   element.setAttribute('data-axylo-styles', '');
   element.textContent = AXYLO_CSS;
-  if (root === doc) (doc.head ?? doc.documentElement).appendChild(element);
+  if (root === doc) (doc.head ?? parent).appendChild(element);
   else root.insertBefore(element, root.firstChild);
-  installed.set(root, { kind: 'element', element });
+  installed.set(root, () => element.isConnected && !!element.sheet && !element.sheet.disabled);
 }
 
-function stillActive(root: StyleRoot, state: Installed): boolean {
-  switch (state.kind) {
-    case 'adopted': return (root as { adoptedStyleSheets?: CSSStyleSheet[] }).adoptedStyleSheets?.includes(state.sheet) ?? false;
-    case 'element': return state.element.isConnected && state.element.sheet !== null && !state.element.sheet.disabled;
-    case 'standalone': {
-      if (state.sheet === null) return false; // not identifiable: verify by effect again
-      const owner = state.sheet.ownerNode;
-      const media = state.sheet.media.mediaText;
-      return (!media || !!owner?.ownerDocument?.defaultView?.matchMedia(media).matches) &&
-        !state.sheet.disabled && owner !== null && owner.isConnected && Array.prototype.includes.call(root.styleSheets, state.sheet);
-    }
-  }
-}
-
-function canAdopt(root: StyleRoot, win: Window): boolean {
-  if (!('adoptedStyleSheets' in root)) return false;
-  const Sheet = (win as unknown as { CSSStyleSheet?: { new(): CSSStyleSheet; prototype: Partial<CSSStyleSheet> } }).CSSStyleSheet;
-  if (typeof Sheet !== 'function' || typeof Sheet.prototype.replaceSync !== 'function') return false;
-  try { new Sheet(); } catch { return false; }
-  return true;
-}
-
-/**
- * The standalone sheet if it is in effect in `root`: undefined if not, null if in effect but not
- * identifiable (a cross-origin sheet whose rules cannot be read). In effect means a probe chart root picks
- * up a private token and a mark rule that only this stylesheet defines; custom properties alone could be
- * inherited from outside a shadow root, so a non-inherited property is checked as well.
- */
-function findStandalone(root: StyleRoot, doc: Document, win: Window): CSSStyleSheet | null | undefined {
+function standaloneActive(doc: Document, parent: Node, win: Window): boolean {
   const probe = doc.createElement('div');
   probe.className = 'axylo';
-  probe.style.setProperty('display', 'none');
-  const mark = doc.createElement('div');
+  probe.style.display = 'none';
+  const mark = probe.appendChild(doc.createElement('div'));
   mark.className = 'axylo-svg';
-  probe.appendChild(mark);
-  (root === doc ? doc.documentElement : root).appendChild(probe);
-  const token = win.getComputedStyle(probe).getPropertyValue('--axylo-default-background').trim();
-  const rule = win.getComputedStyle(mark).position;
-  probe.remove();
-  if (token === '' || rule !== 'absolute') return undefined;
-  for (const sheet of Array.from(root.styleSheets)) {
-    try {
-      for (const r of Array.from(sheet.cssRules)) if (r.cssText.includes('--axylo-stylesheet')) return sheet;
-    } catch {
-      // Cross-origin: its rules cannot be read.
-    }
-  }
-  return null;
+  parent.appendChild(probe);
+  try {
+    return !!win.getComputedStyle(probe).getPropertyValue('--axylo-default-background').trim() &&
+      win.getComputedStyle(mark).position === 'absolute';
+  } finally { probe.remove(); }
 }
