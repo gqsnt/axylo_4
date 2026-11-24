@@ -1539,7 +1539,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   /** The first end of "Select range", marked with the drag selection's own visual, 2 px wide. */
   function markRange(d: Committed): void {
     const px = range?.start == null ? null : pixelOf(d.layout, range.start);
-    if (px === null || !selection) {
+    if (px === null) {
       if (selection && !down?.dragging) selection.hidden = true;
       return;
     }
