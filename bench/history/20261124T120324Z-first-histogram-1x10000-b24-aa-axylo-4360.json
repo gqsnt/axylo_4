@@ -1,0 +1,7369 @@
+{
+ "schema": "axylo-bench/2",
+ "runId": "20261124T120324Z-first-histogram-1x10000-b24-aa-axylo-4360",
+ "status": "complete",
+ "startedAt": "2026-11-24T12:03:24.650Z",
+ "command": [
+  "--artifact",
+  "bench/artifacts/stage1b-all-charts",
+  "--history-dir",
+  "bench/history",
+  "--blocks",
+  "8",
+  "--aa",
+  "axylo",
+  "--workload",
+  "first",
+  "--kind",
+  "histogram",
+  "--size",
+  "1x10000"
+ ],
+ "design": {
+  "raster": "software",
+  "mode": "aa",
+  "baseline": "axylo",
+  "candidate": "axylo",
+  "labels": {
+   "A": "axylo",
+   "B": "axylo"
+  },
+  "adapters": {
+   "A": {
+    "id": "axylo",
+    "params": {}
+   },
+   "B": {
+    "id": "axylo",
+    "params": {}
+   }
+  },
+  "workload": "first",
+  "params": {
+   "kind": "histogram",
+   "size": "1x10000",
+   "bins": 24
+  },
+  "blocks": 8,
+  "order": [
+   "BA",
+   "AB",
+   "BA",
+   "AB",
+   "AB",
+   "BA",
+   "BA",
+   "AB"
+  ],
+  "seed": 483925394,
+  "bootstrapSeed": 12345,
+  "settleMs": 500,
+  "timeoutMs": 120000,
+  "dpr": 1,
+  "viewport": [
+   1440,
+   900
+  ],
+  "warmup": "one untimed admission run per side (A then B), then one untimed warm-up run per side in the opposite order (B then A), so each side has run twice in this browser before timing starts",
+  "isolate": false,
+  "isolation": "one browser process for the session, a fresh context per run",
+  "endpoint": null,
+  "noiseFrom": null
+ },
+ "environment": {
+  "browser": {
+   "name": "Google Chrome (system, via Playwright channel \"chrome\")",
+   "version": "158.0.8127.88",
+   "headless": true
+  },
+  "playwright": "1.65.1",
+  "node": "v24.21.0",
+  "host": {
+   "hostname": "canarit-Z690-AORUS-ELITE-DDR4",
+   "cpuModel": "13th Gen Intel(R) Core(TM) i5-13600K",
+   "logicalCores": 20
+  },
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13600K",
+   "logicalCores": 20,
+   "governor": "powersave"
+  },
+  "memoryGiB": 30.4,
+  "os": {
+   "type": "Linux",
+   "release": "7.0.0-44-generic",
+   "name": "Ubuntu 26.04.1 LTS",
+   "arch": "x64"
+  },
+  "loadAverageAtStart": [
+   1.5,
+   1.39,
+   1.35
+  ],
+  "hostIdle": "not controlled: other processes (including other agents) may run on this machine during the session",
+  "power": "not available: power settings are not read by this harness",
+  "runnerCheckoutHead": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+  "lockfiles": {
+   "bench/package-lock.json": "640e6069d6ca766dd415693245d446e83b5cdd8b30218c4031ccb5852543e72f",
+   "package-lock.json": "e98151ca9f4f8d9aa1b6dd7e828f8e5024fbbf43a752a754d1a469a5850af392"
+  },
+  "libraries": {
+   "uplot": "1.6.32",
+   "chart.js": "4.6.1",
+   "chartjs-adapter-date-fns": "3.0.0",
+   "date-fns": "4.4.0",
+   "echarts": "6.1.0",
+   "axylo": "0.0.0"
+  },
+  "raster": {
+   "mode": "software",
+   "requested": "default (software here)",
+   "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+   "canvas2d": "unavailable_software",
+   "rasterization": "disabled_software",
+   "gpuCompositing": "disabled_software",
+   "refused": null,
+   "detail": {
+    "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "featureStatus": {
+     "2d_canvas": "unavailable_software",
+     "direct_rendering_display_compositor": "disabled_off_ok",
+     "gpu_compositing": "disabled_software",
+     "multiple_raster_threads": "enabled_on",
+     "opengl": "disabled_off",
+     "rasterization": "disabled_software",
+     "skia_graphite": "disabled_off",
+     "trees_in_viz": "disabled_off",
+     "video_decode": "disabled_software",
+     "video_encode": "disabled_software",
+     "vulkan": "disabled_off",
+     "webgl": "unavailable_software",
+     "webgpu": "unavailable_software",
+     "webgpu_on_vk_via_gl_interop": "disabled_off",
+     "webnn": "unavailable_software"
+    },
+    "devices": [
+     {
+      "vendor": "Google Inc. (Google)",
+      "device": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0)",
+      "driver": "5.0.0"
+     }
+    ],
+    "gl": {
+     "displayType": "ANGLE_SWIFTSHADER",
+     "glExtensions": "GL_AMD_performance_monitor GL_ANGLE_base_vertex_base_instance_shader_builtin GL_ANGLE_blob_cache GL_ANGLE_client_arrays GL_ANGLE_clip_cull_distance GL_ANGLE_compressed_texture_etc GL_ANGLE_copy_textur",
+     "glImplementationParts": "(gl=egl-angle,angle=swiftshader)",
+     "glRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0)",
+     "glResetNotificationStrategy": "33362",
+     "glVendor": "Google Inc. (Google)",
+     "glVersion": "OpenGL ES 3.0 (ANGLE 2.1.29257 git hash: 1f6526a566c2)",
+     "glWsExtensions": "EGL_EXT_create_context_robustness EGL_ANGLE_surface_orientation EGL_KHR_create_context EGL_KHR_image EGL_KHR_image_base EGL_EXT_image_gl_colorspace EGL_KHR_gl_colorspace EGL_KHR_gl_texture_2D_image EG",
+     "glWsVendor": "Google Inc. (Google)",
+     "glWsVersion": "1.5 (ANGLE 2.1.29257 git hash: 1f6526a566c2)",
+     "passthroughCmdDecoder": "true",
+     "skiaBackendType": "None"
+    }
+   },
+   "flags": "Playwright defaults"
+  },
+  "page": {
+   "devicePixelRatio": 1,
+   "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+   "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+   "viewport": [
+    1440,
+    900
+   ],
+   "hardwareConcurrency": 20,
+   "refresh": {
+    "medianIntervalMs": 16.7,
+    "hz": 59.88,
+    "minMs": 16.5,
+    "maxMs": 16.8
+   }
+  },
+  "loadAverageAtEnd": [
+   1.18,
+   1.32,
+   1.33
+  ]
+ },
+ "hashes": {
+  "fixtureChecksum": "b3a492aa",
+  "slots": {
+   "A": {
+    "artifact": "stage1b-all-charts",
+    "dir": "/home/canarit/projects/prism/phase4_stage1/axylo-bench-repo/bench/artifacts/stage1b-all-charts",
+    "manifestSha256": "f67ff955819aa0d1ce7fb05485a5a19ff3a4578efbc380de7bb05ba38e69b12d",
+    "source": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean",
+     "axyloSourceHash": "91275224cf666963715bd18521bbc71821a288856f0e153cc7a18aa8ec2ee956",
+     "shippedOptions": "identical: axylo.iife.min.js (release copy) is byte-for-byte what the scripts/build.mjs recipe produces from this snapshot",
+     "distComparison": "identical to packages/axylo/dist/axylo.iife.min.js at build time"
+    },
+    "bench": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean"
+    },
+    "files": {
+     "adapters/axylo-stale-mark.js": "455b32e71fd223bcaa475083e211ead37d8ebd3d8df3dee52c51cdc551563fc6",
+     "adapters/axylo-svg.js": "a5330566dc0878d61367af8e77ee114fd9a12aa8e17b6bdd147e9d8035f99eb8",
+     "adapters/axylo-wrong-renderer.js": "7af78eb82cc84af9b59d5999e0d670c6adc1c060e3e8be69bbefe818d8425750",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "adapters/broken-never-ready.js": "ff6de0d681540cd6f4ea71dca4c33f91d11aea9598e36fd63ebf211b60e2fc9f",
+     "adapters/broken-throws.js": "17e4d7a33f724a22ed2da26aad000f33accbbe11f6741c1c646804983c83f6b7",
+     "adapters/chartjs-tuned.js": "daaafde618d7feda2a38de161cece0e2f2931b86e3f9544c3ea6048771a50d99",
+     "adapters/chartjs.js": "87dfe6084949337506720d921746beaf25f59e6adcf7934b60a789806029fc34",
+     "adapters/echarts.js": "f2a9ff8da676bea6e4a0fca4afcce8a1c1e7f039f9ce9cd558f6ac9c8ef2a59e",
+     "adapters/noop.js": "87036ef493cfbbb79c8cbd42cb44b01f0b46988a1430a6859dae870158adb8aa",
+     "adapters/uplot-fixed-width.js": "bdc7453e345e3b0c3d98a84b47c6d12f3d1f90ce7ce9149b3d108e45c6491fe9",
+     "adapters/uplot-no-trim.js": "2ab62ccbe4f6e5fae0685ae8f2972465367e07b8c24efe459060f582570fedc1",
+     "adapters/uplot-pinned-y.js": "136a61a772e62259aee9821b8d0e55cc151dd51d0da548f7891649acad574c9f",
+     "adapters/uplot-stalls.js": "e4b6672d47136813ffeb899c3b233bd00316dbc14047e1cd9a27da48f04de54f",
+     "adapters/uplot.js": "7e4865f22c594705393c301916e7617fbd9bee70ba2d3a0afb167803c6b48655",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694",
+     "axylo/axylo.bench.iife.min.js.map": "73b65f747f97a9f1adde3859a65031eb516ecc86cc932c0ead36b4cab146ec8b",
+     "axylo/axylo.iife.js": "96ce1dcad3727fcd4e8112a65a0f9e0df8373822a0d33d67070803f8683505c9",
+     "axylo/axylo.iife.js.map": "fa53111acc881ccda6c1af5ee0251a8ea736225d6c0a4aebdf0ea77da4b12909",
+     "axylo/axylo.iife.min.js": "3fba985e8fa7924e5194cf6c8ca494ebe3902b67bab3fb0caa82b1199bcbf1c7",
+     "axylo/axylo.iife.min.js.map": "0521ac20524a9804106f99bbd5486c31b6789f24c26acd1c1eba46897dadc230",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08"
+    },
+    "served": {
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694"
+    }
+   },
+   "B": {
+    "artifact": "stage1b-all-charts",
+    "dir": "/home/canarit/projects/prism/phase4_stage1/axylo-bench-repo/bench/artifacts/stage1b-all-charts",
+    "manifestSha256": "f67ff955819aa0d1ce7fb05485a5a19ff3a4578efbc380de7bb05ba38e69b12d",
+    "source": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean",
+     "axyloSourceHash": "91275224cf666963715bd18521bbc71821a288856f0e153cc7a18aa8ec2ee956",
+     "shippedOptions": "identical: axylo.iife.min.js (release copy) is byte-for-byte what the scripts/build.mjs recipe produces from this snapshot",
+     "distComparison": "identical to packages/axylo/dist/axylo.iife.min.js at build time"
+    },
+    "bench": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean"
+    },
+    "files": {
+     "adapters/axylo-stale-mark.js": "455b32e71fd223bcaa475083e211ead37d8ebd3d8df3dee52c51cdc551563fc6",
+     "adapters/axylo-svg.js": "a5330566dc0878d61367af8e77ee114fd9a12aa8e17b6bdd147e9d8035f99eb8",
+     "adapters/axylo-wrong-renderer.js": "7af78eb82cc84af9b59d5999e0d670c6adc1c060e3e8be69bbefe818d8425750",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "adapters/broken-never-ready.js": "ff6de0d681540cd6f4ea71dca4c33f91d11aea9598e36fd63ebf211b60e2fc9f",
+     "adapters/broken-throws.js": "17e4d7a33f724a22ed2da26aad000f33accbbe11f6741c1c646804983c83f6b7",
+     "adapters/chartjs-tuned.js": "daaafde618d7feda2a38de161cece0e2f2931b86e3f9544c3ea6048771a50d99",
+     "adapters/chartjs.js": "87dfe6084949337506720d921746beaf25f59e6adcf7934b60a789806029fc34",
+     "adapters/echarts.js": "f2a9ff8da676bea6e4a0fca4afcce8a1c1e7f039f9ce9cd558f6ac9c8ef2a59e",
+     "adapters/noop.js": "87036ef493cfbbb79c8cbd42cb44b01f0b46988a1430a6859dae870158adb8aa",
+     "adapters/uplot-fixed-width.js": "bdc7453e345e3b0c3d98a84b47c6d12f3d1f90ce7ce9149b3d108e45c6491fe9",
+     "adapters/uplot-no-trim.js": "2ab62ccbe4f6e5fae0685ae8f2972465367e07b8c24efe459060f582570fedc1",
+     "adapters/uplot-pinned-y.js": "136a61a772e62259aee9821b8d0e55cc151dd51d0da548f7891649acad574c9f",
+     "adapters/uplot-stalls.js": "e4b6672d47136813ffeb899c3b233bd00316dbc14047e1cd9a27da48f04de54f",
+     "adapters/uplot.js": "7e4865f22c594705393c301916e7617fbd9bee70ba2d3a0afb167803c6b48655",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694",
+     "axylo/axylo.bench.iife.min.js.map": "73b65f747f97a9f1adde3859a65031eb516ecc86cc932c0ead36b4cab146ec8b",
+     "axylo/axylo.iife.js": "96ce1dcad3727fcd4e8112a65a0f9e0df8373822a0d33d67070803f8683505c9",
+     "axylo/axylo.iife.js.map": "fa53111acc881ccda6c1af5ee0251a8ea736225d6c0a4aebdf0ea77da4b12909",
+     "axylo/axylo.iife.min.js": "3fba985e8fa7924e5194cf6c8ca494ebe3902b67bab3fb0caa82b1199bcbf1c7",
+     "axylo/axylo.iife.min.js.map": "0521ac20524a9804106f99bbd5486c31b6789f24c26acd1c1eba46897dadc230",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08"
+    },
+    "served": {
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694"
+    }
+   }
+  }
+ },
+ "admission": {
+  "A:axylo": {
+   "outcome": "ok",
+   "reason": null,
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "describe": [
+    {
+     "kind": "histogram",
+     "renderer": {
+      "kind": "svg",
+      "canvases": 0,
+      "svgs": 1,
+      "reported": "svg",
+      "dom": "svg"
+     },
+     "x": [
+      12,
+      136
+     ],
+     "y": [
+      0,
+      1500
+     ],
+     "plot": {
+      "x": 59.67219543457031,
+      "y": 11.5,
+      "width": 736.3278045654297,
+      "height": 283.453125
+     },
+     "rectangles": [
+      [
+       {
+        "x": 59.66999816894531,
+        "y": 288.5299987792969,
+        "width": 29.68000030517578,
+        "height": 6.420000076293945
+       },
+       {
+        "x": 90.3499984741211,
+        "y": 273.9800109863281,
+        "width": 29.68000030517578,
+        "height": 20.979999542236328
+       },
+       {
+        "x": 121.02999877929688,
+        "y": 241.2899932861328,
+        "width": 29.68000030517578,
+        "height": 53.66999816894531
+       },
+       {
+        "x": 151.7100067138672,
+        "y": 214.63999938964844,
+        "width": 29.68000030517578,
+        "height": 80.30999755859375
+       },
+       {
+        "x": 182.38999938964844,
+        "y": 161.5399932861328,
+        "width": 29.68000030517578,
+        "height": 133.41000366210938
+       },
+       {
+        "x": 213.07000732421875,
+        "y": 123.37000274658203,
+        "width": 29.68000030517578,
+        "height": 171.5800018310547
+       },
+       {
+        "x": 243.75,
+        "y": 67.05999755859375,
+        "width": 29.68000030517578,
+        "height": 227.89999389648438
+       },
+       {
+        "x": 274.42999267578125,
+        "y": 100.69000244140625,
+        "width": 29.68000030517578,
+        "height": 194.25999450683594
+       },
+       {
+        "x": 305.1099853515625,
+        "y": 126.0199966430664,
+        "width": 29.68000030517578,
+        "height": 168.94000244140625
+       },
+       {
+        "x": 335.79998779296875,
+        "y": 171.55999755859375,
+        "width": 29.68000030517578,
+        "height": 123.4000015258789
+       },
+       {
+        "x": 366.4800109863281,
+        "y": 218.99000549316406,
+        "width": 29.68000030517578,
+        "height": 75.97000122070312
+       },
+       {
+        "x": 397.1600036621094,
+        "y": 244.5,
+        "width": 29.68000030517578,
+        "height": 50.45000076293945
+       },
+       {
+        "x": 427.8399963378906,
+        "y": 260.94000244140625,
+        "width": 29.68000030517578,
+        "height": 34.0099983215332
+       },
+       {
+        "x": 458.5199890136719,
+        "y": 268.8800048828125,
+        "width": 29.68000030517578,
+        "height": 26.079999923706055
+       },
+       {
+        "x": 489.20001220703125,
+        "y": 249.22000122070312,
+        "width": 29.68000030517578,
+        "height": 45.72999954223633
+       },
+       {
+        "x": 519.8800048828125,
+        "y": 236.17999267578125,
+        "width": 29.68000030517578,
+        "height": 58.77000045776367
+       },
+       {
+        "x": 550.5599975585938,
+        "y": 213.88999938964844,
+        "width": 29.68000030517578,
+        "height": 81.06999969482422
+       },
+       {
+        "x": 581.239990234375,
+        "y": 207.0800018310547,
+        "width": 29.68000030517578,
+        "height": 87.87000274658203
+       },
+       {
+        "x": 611.9199829101562,
+        "y": 200.27999877929688,
+        "width": 29.68000030517578,
+        "height": 94.66999816894531
+       },
+       {
+        "x": 642.5999755859375,
+        "y": 233.5399932861328,
+        "width": 29.68000030517578,
+        "height": 61.40999984741211
+       },
+       {
+        "x": 673.280029296875,
+        "y": 250.72999572753906,
+        "width": 29.68000030517578,
+        "height": 44.220001220703125
+       },
+       {
+        "x": 703.9600219726562,
+        "y": 269.25,
+        "width": 29.68000030517578,
+        "height": 25.700000762939453
+       },
+       {
+        "x": 734.6400146484375,
+        "y": 279.2699890136719,
+        "width": 29.68000030517578,
+        "height": 15.680000305175781
+       },
+       {
+        "x": 765.3200073242188,
+        "y": 287.7699890136719,
+        "width": 29.68000030517578,
+        "height": 7.179999828338623
+       }
+      ]
+     ]
+    }
+   ],
+   "adapter": {
+    "id": "axylo",
+    "library": "Axylo",
+    "version": "0.0.0",
+    "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+    "params": {
+     "build": "prod"
+    },
+    "floor": false,
+    "expectRenderer": "svg",
+    "bundle": "axylo/axylo.bench.iife.min.js"
+   }
+  }
+ },
+ "probes": {},
+ "blocks": [
+  {
+   "block": 0,
+   "load1": 1.5,
+   "at": "2026-11-24T12:03:28.176Z"
+  },
+  {
+   "block": 1,
+   "load1": 1.46,
+   "at": "2026-11-24T12:03:31.574Z"
+  },
+  {
+   "block": 2,
+   "load1": 1.35,
+   "at": "2026-11-24T12:03:34.933Z"
+  },
+  {
+   "block": 3,
+   "load1": 1.35,
+   "at": "2026-11-24T12:03:38.266Z"
+  },
+  {
+   "block": 4,
+   "load1": 1.32,
+   "at": "2026-11-24T12:03:41.604Z"
+  },
+  {
+   "block": 5,
+   "load1": 1.21,
+   "at": "2026-11-24T12:03:45.002Z"
+  },
+  {
+   "block": 6,
+   "load1": 1.21,
+   "at": "2026-11-24T12:03:48.336Z"
+  },
+  {
+   "block": 7,
+   "load1": 1.2,
+   "at": "2026-11-24T12:03:51.698Z"
+  }
+ ],
+ "runs": [
+  {
+   "index": 0,
+   "phase": "admission",
+   "chromeVersion": "158.0.8127.88",
+   "side": "A",
+   "adapter": "axylo",
+   "slot": "A",
+   "outcome": "ok",
+   "reason": null,
+   "limits": [],
+   "durationMs": 1685,
+   "logs": [],
+   "pageErrors": []
+  },
+  {
+   "index": 1,
+   "phase": "warmup",
+   "chromeVersion": "158.0.8127.88",
+   "side": "A",
+   "adapter": "axylo",
+   "slot": "A",
+   "outcome": "ok",
+   "reason": null,
+   "durationMs": 1674
+  },
+  {
+   "index": 2,
+   "phase": "timed",
+   "block": 0,
+   "position": 0,
+   "config": "B",
+   "startedAt": "2026-11-24T12:03:28.182Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1683,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "timing": {
+     "syncMs": 5.3,
+     "readyMs": 22,
+     "readyFrameMs": 23.7,
+     "windowMs": 525.6,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 2,
+     "svgPaths": 1,
+     "domNodes": 109
+    },
+    "callerColumnBytes": 80000,
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 736.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 29.68000030517578,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 90.3499984741211,
+         "y": 273.9800109863281,
+         "width": 29.68000030517578,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 121.02999877929688,
+         "y": 241.2899932861328,
+         "width": 29.68000030517578,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 151.7100067138672,
+         "y": 214.63999938964844,
+         "width": 29.68000030517578,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 182.38999938964844,
+         "y": 161.5399932861328,
+         "width": 29.68000030517578,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 213.07000732421875,
+         "y": 123.37000274658203,
+         "width": 29.68000030517578,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 243.75,
+         "y": 67.05999755859375,
+         "width": 29.68000030517578,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 274.42999267578125,
+         "y": 100.69000244140625,
+         "width": 29.68000030517578,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 305.1099853515625,
+         "y": 126.0199966430664,
+         "width": 29.68000030517578,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 335.79998779296875,
+         "y": 171.55999755859375,
+         "width": 29.68000030517578,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 366.4800109863281,
+         "y": 218.99000549316406,
+         "width": 29.68000030517578,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 397.1600036621094,
+         "y": 244.5,
+         "width": 29.68000030517578,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 427.8399963378906,
+         "y": 260.94000244140625,
+         "width": 29.68000030517578,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 458.5199890136719,
+         "y": 268.8800048828125,
+         "width": 29.68000030517578,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 489.20001220703125,
+         "y": 249.22000122070312,
+         "width": 29.68000030517578,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 519.8800048828125,
+         "y": 236.17999267578125,
+         "width": 29.68000030517578,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 550.5599975585938,
+         "y": 213.88999938964844,
+         "width": 29.68000030517578,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 581.239990234375,
+         "y": 207.0800018310547,
+         "width": 29.68000030517578,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 611.9199829101562,
+         "y": 200.27999877929688,
+         "width": 29.68000030517578,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 642.5999755859375,
+         "y": 233.5399932861328,
+         "width": 29.68000030517578,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 673.280029296875,
+         "y": 250.72999572753906,
+         "width": 29.68000030517578,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 703.9600219726562,
+         "y": 269.25,
+         "width": 29.68000030517578,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 734.6400146484375,
+         "y": 279.2699890136719,
+         "width": 29.68000030517578,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 765.3200073242188,
+         "y": 287.7699890136719,
+         "width": 29.68000030517578,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.022892,
+     "ScriptDuration": 0.018686,
+     "LayoutDuration": 0.001232,
+     "RecalcStyleDuration": 0.001361,
+     "DevToolsCommandDuration": 0.0002559999999999993,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0013570000000000006,
+     "ThreadTime": 0.022764,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 1059188,
+     "JSHeapTotalSize": 1835008,
+     "endNodes": 165,
+     "endJSHeapUsedSize": 2533208,
+     "rendererCpu": 0.020000000000000004,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 1005206,
+    "gpuPid": 1004895,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180136,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 333192,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 1005206,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 52170752,
+       "rss": 144175104
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.07,
+       "pss": 40574976,
+       "rss": 101138432
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005205,
+        "pss": 18520064
+       },
+       {
+        "pid": 1005196,
+        "pss": 55115776
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1445688,
+      "heapTotal": 2359296,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 469443,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 1005206,
+       "type": "renderer",
+       "cpuTime": 0.08,
+       "pss": 60915712,
+       "rss": 156147712
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.07,
+       "pss": 40914944,
+       "rss": 102174720
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005205,
+        "pss": 18521088
+       },
+       {
+        "pid": 1005196,
+        "pss": 53853184
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2205556,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 811904,
+      "backingStorage": 489099,
+      "listeners": 31,
+      "nodes": 164,
+      "renderer": {
+       "pid": 1005206,
+       "type": "renderer",
+       "cpuTime": 0.12,
+       "pss": 70563840,
+       "rss": 169852928
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.07,
+       "pss": 40991744,
+       "rss": 102518784
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005205,
+        "pss": 18520064
+       },
+       {
+        "pid": 1005196,
+        "pss": 52989952
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 22.892,
+    "scriptMs": 18.686,
+    "layoutStyleMs": 2.593,
+    "devtoolsMs": 0.2559999999999993,
+    "readyMs": 22,
+    "readyFrameMs": 23.7,
+    "rendererCpuMs": 20.000000000000004,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 759868,
+    "heapUsedBytes": 2205556,
+    "rendererPssBytes": 70563840,
+    "rendererPssChartBytes": 9648128,
+    "gpuPssBytes": 40991744,
+    "gpuPssChartBytes": 76800,
+    "canvasBackingBytes": 0,
+    "domNodes": 109
+   }
+  },
+  {
+   "index": 3,
+   "phase": "timed",
+   "block": 0,
+   "position": 1,
+   "config": "A",
+   "startedAt": "2026-11-24T12:03:29.870Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1704,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "timing": {
+     "syncMs": 5.2,
+     "readyMs": 21.1,
+     "readyFrameMs": 22.2,
+     "windowMs": 524.7,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 2,
+     "svgPaths": 1,
+     "domNodes": 109
+    },
+    "callerColumnBytes": 80000,
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 736.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 29.68000030517578,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 90.3499984741211,
+         "y": 273.9800109863281,
+         "width": 29.68000030517578,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 121.02999877929688,
+         "y": 241.2899932861328,
+         "width": 29.68000030517578,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 151.7100067138672,
+         "y": 214.63999938964844,
+         "width": 29.68000030517578,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 182.38999938964844,
+         "y": 161.5399932861328,
+         "width": 29.68000030517578,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 213.07000732421875,
+         "y": 123.37000274658203,
+         "width": 29.68000030517578,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 243.75,
+         "y": 67.05999755859375,
+         "width": 29.68000030517578,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 274.42999267578125,
+         "y": 100.69000244140625,
+         "width": 29.68000030517578,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 305.1099853515625,
+         "y": 126.0199966430664,
+         "width": 29.68000030517578,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 335.79998779296875,
+         "y": 171.55999755859375,
+         "width": 29.68000030517578,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 366.4800109863281,
+         "y": 218.99000549316406,
+         "width": 29.68000030517578,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 397.1600036621094,
+         "y": 244.5,
+         "width": 29.68000030517578,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 427.8399963378906,
+         "y": 260.94000244140625,
+         "width": 29.68000030517578,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 458.5199890136719,
+         "y": 268.8800048828125,
+         "width": 29.68000030517578,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 489.20001220703125,
+         "y": 249.22000122070312,
+         "width": 29.68000030517578,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 519.8800048828125,
+         "y": 236.17999267578125,
+         "width": 29.68000030517578,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 550.5599975585938,
+         "y": 213.88999938964844,
+         "width": 29.68000030517578,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 581.239990234375,
+         "y": 207.0800018310547,
+         "width": 29.68000030517578,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 611.9199829101562,
+         "y": 200.27999877929688,
+         "width": 29.68000030517578,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 642.5999755859375,
+         "y": 233.5399932861328,
+         "width": 29.68000030517578,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 673.280029296875,
+         "y": 250.72999572753906,
+         "width": 29.68000030517578,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 703.9600219726562,
+         "y": 269.25,
+         "width": 29.68000030517578,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 734.6400146484375,
+         "y": 279.2699890136719,
+         "width": 29.68000030517578,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 765.3200073242188,
+         "y": 287.7699890136719,
+         "width": 29.68000030517578,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.023423,
+     "ScriptDuration": 0.019123,
+     "LayoutDuration": 0.001576,
+     "RecalcStyleDuration": 0.001397,
+     "DevToolsCommandDuration": 0.00027999999999999987,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0010469999999999993,
+     "ThreadTime": 0.023101,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 960760,
+     "JSHeapTotalSize": 1572864,
+     "endNodes": 165,
+     "endJSHeapUsedSize": 2434780,
+     "rendererCpu": 0.039999999999999994,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 1005261,
+    "gpuPid": 1004895,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180136,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 333080,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 1005261,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 52345856,
+       "rss": 143794176
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.09,
+       "pss": 40634368,
+       "rss": 101179392
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005260,
+        "pss": 18322432
+       },
+       {
+        "pid": 1005251,
+        "pss": 55465984
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1446224,
+      "heapTotal": 2359296,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 469443,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 1005261,
+       "type": "renderer",
+       "cpuTime": 0.08,
+       "pss": 61086720,
+       "rss": 155860992
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.1,
+       "pss": 40969216,
+       "rss": 102211584
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005260,
+        "pss": 18307072
+       },
+       {
+        "pid": 1005251,
+        "pss": 54187008
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2205260,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 812904,
+      "backingStorage": 489099,
+      "listeners": 31,
+      "nodes": 164,
+      "renderer": {
+       "pid": 1005261,
+       "type": "renderer",
+       "cpuTime": 0.13,
+       "pss": 70652928,
+       "rss": 169537536
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.1,
+       "pss": 41048064,
+       "rss": 102555648
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005260,
+        "pss": 18302976
+       },
+       {
+        "pid": 1005251,
+        "pss": 53320704
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 23.423,
+    "scriptMs": 19.123,
+    "layoutStyleMs": 2.973,
+    "devtoolsMs": 0.27999999999999986,
+    "readyMs": 21.1,
+    "readyFrameMs": 22.2,
+    "rendererCpuMs": 39.99999999999999,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 759036,
+    "heapUsedBytes": 2205260,
+    "rendererPssBytes": 70652928,
+    "rendererPssChartBytes": 9566208,
+    "gpuPssBytes": 41048064,
+    "gpuPssChartBytes": 78848,
+    "canvasBackingBytes": 0,
+    "domNodes": 109
+   }
+  },
+  {
+   "index": 4,
+   "phase": "timed",
+   "block": 1,
+   "position": 0,
+   "config": "A",
+   "startedAt": "2026-11-24T12:03:31.579Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1677,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "timing": {
+     "syncMs": 5.2,
+     "readyMs": 21.1,
+     "readyFrameMs": 22.1,
+     "windowMs": 525.4,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 2,
+     "svgPaths": 1,
+     "domNodes": 109
+    },
+    "callerColumnBytes": 80000,
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 736.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 29.68000030517578,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 90.3499984741211,
+         "y": 273.9800109863281,
+         "width": 29.68000030517578,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 121.02999877929688,
+         "y": 241.2899932861328,
+         "width": 29.68000030517578,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 151.7100067138672,
+         "y": 214.63999938964844,
+         "width": 29.68000030517578,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 182.38999938964844,
+         "y": 161.5399932861328,
+         "width": 29.68000030517578,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 213.07000732421875,
+         "y": 123.37000274658203,
+         "width": 29.68000030517578,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 243.75,
+         "y": 67.05999755859375,
+         "width": 29.68000030517578,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 274.42999267578125,
+         "y": 100.69000244140625,
+         "width": 29.68000030517578,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 305.1099853515625,
+         "y": 126.0199966430664,
+         "width": 29.68000030517578,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 335.79998779296875,
+         "y": 171.55999755859375,
+         "width": 29.68000030517578,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 366.4800109863281,
+         "y": 218.99000549316406,
+         "width": 29.68000030517578,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 397.1600036621094,
+         "y": 244.5,
+         "width": 29.68000030517578,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 427.8399963378906,
+         "y": 260.94000244140625,
+         "width": 29.68000030517578,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 458.5199890136719,
+         "y": 268.8800048828125,
+         "width": 29.68000030517578,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 489.20001220703125,
+         "y": 249.22000122070312,
+         "width": 29.68000030517578,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 519.8800048828125,
+         "y": 236.17999267578125,
+         "width": 29.68000030517578,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 550.5599975585938,
+         "y": 213.88999938964844,
+         "width": 29.68000030517578,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 581.239990234375,
+         "y": 207.0800018310547,
+         "width": 29.68000030517578,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 611.9199829101562,
+         "y": 200.27999877929688,
+         "width": 29.68000030517578,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 642.5999755859375,
+         "y": 233.5399932861328,
+         "width": 29.68000030517578,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 673.280029296875,
+         "y": 250.72999572753906,
+         "width": 29.68000030517578,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 703.9600219726562,
+         "y": 269.25,
+         "width": 29.68000030517578,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 734.6400146484375,
+         "y": 279.2699890136719,
+         "width": 29.68000030517578,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 765.3200073242188,
+         "y": 287.7699890136719,
+         "width": 29.68000030517578,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.023437,
+     "ScriptDuration": 0.019394,
+     "LayoutDuration": 0.001327,
+     "RecalcStyleDuration": 0.00139,
+     "DevToolsCommandDuration": 0.0002580000000000004,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0010679999999999995,
+     "ThreadTime": 0.023145,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 947544,
+     "JSHeapTotalSize": 1572864,
+     "endNodes": 165,
+     "endJSHeapUsedSize": 2421564,
+     "rendererCpu": 0.039999999999999994,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 1005352,
+    "gpuPid": 1004895,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180136,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 333080,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 1005352,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 52305920,
+       "rss": 143736832
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.11,
+       "pss": 40548352,
+       "rss": 100970496
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005351,
+        "pss": 18180096
+       },
+       {
+        "pid": 1005342,
+        "pss": 55277568
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1446224,
+      "heapTotal": 2359296,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 469443,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 1005352,
+       "type": "renderer",
+       "cpuTime": 0.08,
+       "pss": 60980224,
+       "rss": 155660288
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.11,
+       "pss": 40888320,
+       "rss": 102006784
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005351,
+        "pss": 18174976
+       },
+       {
+        "pid": 1005342,
+        "pss": 54008832
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2205344,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 813744,
+      "backingStorage": 489099,
+      "listeners": 31,
+      "nodes": 164,
+      "renderer": {
+       "pid": 1005352,
+       "type": "renderer",
+       "cpuTime": 0.13,
+       "pss": 70731776,
+       "rss": 169545728
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.11,
+       "pss": 40970240,
+       "rss": 102354944
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005351,
+        "pss": 18169856
+       },
+       {
+        "pid": 1005342,
+        "pss": 53141504
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 23.437,
+    "scriptMs": 19.394000000000002,
+    "layoutStyleMs": 2.7169999999999996,
+    "devtoolsMs": 0.2580000000000004,
+    "readyMs": 21.1,
+    "readyFrameMs": 22.1,
+    "rendererCpuMs": 39.99999999999999,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 759120,
+    "heapUsedBytes": 2205344,
+    "rendererPssBytes": 70731776,
+    "rendererPssChartBytes": 9751552,
+    "gpuPssBytes": 40970240,
+    "gpuPssChartBytes": 81920,
+    "canvasBackingBytes": 0,
+    "domNodes": 109
+   }
+  },
+  {
+   "index": 5,
+   "phase": "timed",
+   "block": 1,
+   "position": 1,
+   "config": "B",
+   "startedAt": "2026-11-24T12:03:33.261Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1671,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "timing": {
+     "syncMs": 5.1,
+     "readyMs": 22.8,
+     "readyFrameMs": 24.6,
+     "windowMs": 526.3,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 2,
+     "svgPaths": 1,
+     "domNodes": 109
+    },
+    "callerColumnBytes": 80000,
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 736.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 29.68000030517578,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 90.3499984741211,
+         "y": 273.9800109863281,
+         "width": 29.68000030517578,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 121.02999877929688,
+         "y": 241.2899932861328,
+         "width": 29.68000030517578,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 151.7100067138672,
+         "y": 214.63999938964844,
+         "width": 29.68000030517578,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 182.38999938964844,
+         "y": 161.5399932861328,
+         "width": 29.68000030517578,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 213.07000732421875,
+         "y": 123.37000274658203,
+         "width": 29.68000030517578,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 243.75,
+         "y": 67.05999755859375,
+         "width": 29.68000030517578,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 274.42999267578125,
+         "y": 100.69000244140625,
+         "width": 29.68000030517578,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 305.1099853515625,
+         "y": 126.0199966430664,
+         "width": 29.68000030517578,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 335.79998779296875,
+         "y": 171.55999755859375,
+         "width": 29.68000030517578,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 366.4800109863281,
+         "y": 218.99000549316406,
+         "width": 29.68000030517578,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 397.1600036621094,
+         "y": 244.5,
+         "width": 29.68000030517578,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 427.8399963378906,
+         "y": 260.94000244140625,
+         "width": 29.68000030517578,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 458.5199890136719,
+         "y": 268.8800048828125,
+         "width": 29.68000030517578,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 489.20001220703125,
+         "y": 249.22000122070312,
+         "width": 29.68000030517578,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 519.8800048828125,
+         "y": 236.17999267578125,
+         "width": 29.68000030517578,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 550.5599975585938,
+         "y": 213.88999938964844,
+         "width": 29.68000030517578,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 581.239990234375,
+         "y": 207.0800018310547,
+         "width": 29.68000030517578,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 611.9199829101562,
+         "y": 200.27999877929688,
+         "width": 29.68000030517578,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 642.5999755859375,
+         "y": 233.5399932861328,
+         "width": 29.68000030517578,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 673.280029296875,
+         "y": 250.72999572753906,
+         "width": 29.68000030517578,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 703.9600219726562,
+         "y": 269.25,
+         "width": 29.68000030517578,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 734.6400146484375,
+         "y": 279.2699890136719,
+         "width": 29.68000030517578,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 765.3200073242188,
+         "y": 287.7699890136719,
+         "width": 29.68000030517578,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.022405,
+     "ScriptDuration": 0.018352,
+     "LayoutDuration": 0.001313,
+     "RecalcStyleDuration": 0.001281,
+     "DevToolsCommandDuration": 0.0002520000000000005,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0012070000000000015,
+     "ThreadTime": 0.022217,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 1060860,
+     "JSHeapTotalSize": 1835008,
+     "endNodes": 165,
+     "endJSHeapUsedSize": 2534880,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 1005410,
+    "gpuPid": 1004895,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180136,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 333192,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 1005410,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 52145152,
+       "rss": 143622144
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.13,
+       "pss": 40523776,
+       "rss": 100962304
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005409,
+        "pss": 18260992
+       },
+       {
+        "pid": 1005400,
+        "pss": 55436288
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1445688,
+      "heapTotal": 2359296,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 469443,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 1005410,
+       "type": "renderer",
+       "cpuTime": 0.07,
+       "pss": 60950528,
+       "rss": 155725824
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.14,
+       "pss": 40830976,
+       "rss": 101965824
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005409,
+        "pss": 18249728
+       },
+       {
+        "pid": 1005400,
+        "pss": 54161408
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2205544,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 814560,
+      "backingStorage": 489099,
+      "listeners": 31,
+      "nodes": 164,
+      "renderer": {
+       "pid": 1005410,
+       "type": "renderer",
+       "cpuTime": 0.12,
+       "pss": 70637568,
+       "rss": 169537536
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.14,
+       "pss": 40910848,
+       "rss": 102309888
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005409,
+        "pss": 18243584
+       },
+       {
+        "pid": 1005400,
+        "pss": 53291008
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 22.405,
+    "scriptMs": 18.352,
+    "layoutStyleMs": 2.594,
+    "devtoolsMs": 0.2520000000000005,
+    "readyMs": 22.8,
+    "readyFrameMs": 24.6,
+    "rendererCpuMs": 30,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 759856,
+    "heapUsedBytes": 2205544,
+    "rendererPssBytes": 70637568,
+    "rendererPssChartBytes": 9687040,
+    "gpuPssBytes": 40910848,
+    "gpuPssChartBytes": 79872,
+    "canvasBackingBytes": 0,
+    "domNodes": 109
+   }
+  },
+  {
+   "index": 6,
+   "phase": "timed",
+   "block": 2,
+   "position": 0,
+   "config": "B",
+   "startedAt": "2026-11-24T12:03:34.938Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1663,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "timing": {
+     "syncMs": 5.3,
+     "readyMs": 20.7,
+     "readyFrameMs": 21.8,
+     "windowMs": 524.9,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 2,
+     "svgPaths": 1,
+     "domNodes": 109
+    },
+    "callerColumnBytes": 80000,
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 736.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 29.68000030517578,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 90.3499984741211,
+         "y": 273.9800109863281,
+         "width": 29.68000030517578,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 121.02999877929688,
+         "y": 241.2899932861328,
+         "width": 29.68000030517578,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 151.7100067138672,
+         "y": 214.63999938964844,
+         "width": 29.68000030517578,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 182.38999938964844,
+         "y": 161.5399932861328,
+         "width": 29.68000030517578,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 213.07000732421875,
+         "y": 123.37000274658203,
+         "width": 29.68000030517578,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 243.75,
+         "y": 67.05999755859375,
+         "width": 29.68000030517578,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 274.42999267578125,
+         "y": 100.69000244140625,
+         "width": 29.68000030517578,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 305.1099853515625,
+         "y": 126.0199966430664,
+         "width": 29.68000030517578,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 335.79998779296875,
+         "y": 171.55999755859375,
+         "width": 29.68000030517578,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 366.4800109863281,
+         "y": 218.99000549316406,
+         "width": 29.68000030517578,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 397.1600036621094,
+         "y": 244.5,
+         "width": 29.68000030517578,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 427.8399963378906,
+         "y": 260.94000244140625,
+         "width": 29.68000030517578,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 458.5199890136719,
+         "y": 268.8800048828125,
+         "width": 29.68000030517578,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 489.20001220703125,
+         "y": 249.22000122070312,
+         "width": 29.68000030517578,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 519.8800048828125,
+         "y": 236.17999267578125,
+         "width": 29.68000030517578,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 550.5599975585938,
+         "y": 213.88999938964844,
+         "width": 29.68000030517578,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 581.239990234375,
+         "y": 207.0800018310547,
+         "width": 29.68000030517578,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 611.9199829101562,
+         "y": 200.27999877929688,
+         "width": 29.68000030517578,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 642.5999755859375,
+         "y": 233.5399932861328,
+         "width": 29.68000030517578,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 673.280029296875,
+         "y": 250.72999572753906,
+         "width": 29.68000030517578,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 703.9600219726562,
+         "y": 269.25,
+         "width": 29.68000030517578,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 734.6400146484375,
+         "y": 279.2699890136719,
+         "width": 29.68000030517578,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 765.3200073242188,
+         "y": 287.7699890136719,
+         "width": 29.68000030517578,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.022951,
+     "ScriptDuration": 0.019048,
+     "LayoutDuration": 0.001319,
+     "RecalcStyleDuration": 0.001309,
+     "DevToolsCommandDuration": 0.00021899999999999958,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0010560000000000014,
+     "ThreadTime": 0.022738,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 995512,
+     "JSHeapTotalSize": 1835008,
+     "endNodes": 165,
+     "endJSHeapUsedSize": 2469532,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 1005483,
+    "gpuPid": 1004895,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180136,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 405136,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 1005483,
+       "type": "renderer",
+       "cpuTime": 0.04,
+       "pss": 52245504,
+       "rss": 144269312
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.16,
+       "pss": 40526848,
+       "rss": 100990976
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005481,
+        "pss": 18504704
+       },
+       {
+        "pid": 1005472,
+        "pss": 55263232
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1444728,
+      "heapTotal": 2359296,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 469443,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 1005483,
+       "type": "renderer",
+       "cpuTime": 0.07,
+       "pss": 61080576,
+       "rss": 156332032
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.16,
+       "pss": 40866816,
+       "rss": 102027264
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005481,
+        "pss": 18504704
+       },
+       {
+        "pid": 1005472,
+        "pss": 54004736
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2205344,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 813744,
+      "backingStorage": 489099,
+      "listeners": 31,
+      "nodes": 164,
+      "renderer": {
+       "pid": 1005483,
+       "type": "renderer",
+       "cpuTime": 0.11,
+       "pss": 70663168,
+       "rss": 169971712
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.16,
+       "pss": 40948736,
+       "rss": 102371328
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005481,
+        "pss": 18504704
+       },
+       {
+        "pid": 1005472,
+        "pss": 53142528
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 22.951,
+    "scriptMs": 19.048,
+    "layoutStyleMs": 2.628,
+    "devtoolsMs": 0.21899999999999958,
+    "readyMs": 20.7,
+    "readyFrameMs": 21.8,
+    "rendererCpuMs": 30,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 760616,
+    "heapUsedBytes": 2205344,
+    "rendererPssBytes": 70663168,
+    "rendererPssChartBytes": 9582592,
+    "gpuPssBytes": 40948736,
+    "gpuPssChartBytes": 81920,
+    "canvasBackingBytes": 0,
+    "domNodes": 109
+   }
+  },
+  {
+   "index": 7,
+   "phase": "timed",
+   "block": 2,
+   "position": 1,
+   "config": "A",
+   "startedAt": "2026-11-24T12:03:36.606Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1660,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "timing": {
+     "syncMs": 5.3,
+     "readyMs": 20.3,
+     "readyFrameMs": 21.3,
+     "windowMs": 524,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 2,
+     "svgPaths": 1,
+     "domNodes": 109
+    },
+    "callerColumnBytes": 80000,
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 736.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 29.68000030517578,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 90.3499984741211,
+         "y": 273.9800109863281,
+         "width": 29.68000030517578,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 121.02999877929688,
+         "y": 241.2899932861328,
+         "width": 29.68000030517578,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 151.7100067138672,
+         "y": 214.63999938964844,
+         "width": 29.68000030517578,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 182.38999938964844,
+         "y": 161.5399932861328,
+         "width": 29.68000030517578,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 213.07000732421875,
+         "y": 123.37000274658203,
+         "width": 29.68000030517578,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 243.75,
+         "y": 67.05999755859375,
+         "width": 29.68000030517578,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 274.42999267578125,
+         "y": 100.69000244140625,
+         "width": 29.68000030517578,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 305.1099853515625,
+         "y": 126.0199966430664,
+         "width": 29.68000030517578,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 335.79998779296875,
+         "y": 171.55999755859375,
+         "width": 29.68000030517578,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 366.4800109863281,
+         "y": 218.99000549316406,
+         "width": 29.68000030517578,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 397.1600036621094,
+         "y": 244.5,
+         "width": 29.68000030517578,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 427.8399963378906,
+         "y": 260.94000244140625,
+         "width": 29.68000030517578,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 458.5199890136719,
+         "y": 268.8800048828125,
+         "width": 29.68000030517578,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 489.20001220703125,
+         "y": 249.22000122070312,
+         "width": 29.68000030517578,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 519.8800048828125,
+         "y": 236.17999267578125,
+         "width": 29.68000030517578,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 550.5599975585938,
+         "y": 213.88999938964844,
+         "width": 29.68000030517578,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 581.239990234375,
+         "y": 207.0800018310547,
+         "width": 29.68000030517578,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 611.9199829101562,
+         "y": 200.27999877929688,
+         "width": 29.68000030517578,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 642.5999755859375,
+         "y": 233.5399932861328,
+         "width": 29.68000030517578,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 673.280029296875,
+         "y": 250.72999572753906,
+         "width": 29.68000030517578,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 703.9600219726562,
+         "y": 269.25,
+         "width": 29.68000030517578,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 734.6400146484375,
+         "y": 279.2699890136719,
+         "width": 29.68000030517578,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 765.3200073242188,
+         "y": 287.7699890136719,
+         "width": 29.68000030517578,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.022315,
+     "ScriptDuration": 0.018642,
+     "LayoutDuration": 0.001178,
+     "RecalcStyleDuration": 0.001273,
+     "DevToolsCommandDuration": 0.00022599999999999964,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0009960000000000004,
+     "ThreadTime": 0.022139,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 931136,
+     "JSHeapTotalSize": 1572864,
+     "endNodes": 165,
+     "endJSHeapUsedSize": 2405156,
+     "rendererCpu": 0.020000000000000004,
+     "gpuCpu": 0.009999999999999981
+    }
+   },
+   "memory": {
+    "pagePid": 1005543,
+    "gpuPid": 1004895,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180136,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 333080,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 1005543,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 52149248,
+       "rss": 144138240
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.17,
+       "pss": 40526848,
+       "rss": 100995072
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005542,
+        "pss": 18510848
+       },
+       {
+        "pid": 1005533,
+        "pss": 54754304
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1445688,
+      "heapTotal": 2359296,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 469443,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 1005543,
+       "type": "renderer",
+       "cpuTime": 0.07,
+       "pss": 60906496,
+       "rss": 156123136
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.17,
+       "pss": 40870912,
+       "rss": 102035456
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005542,
+        "pss": 18510848
+       },
+       {
+        "pid": 1005533,
+        "pss": 53490688
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2204836,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 813744,
+      "backingStorage": 489099,
+      "listeners": 31,
+      "nodes": 164,
+      "renderer": {
+       "pid": 1005543,
+       "type": "renderer",
+       "cpuTime": 0.11,
+       "pss": 70602752,
+       "rss": 169914368
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.18,
+       "pss": 40948736,
+       "rss": 102379520
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005542,
+        "pss": 18511872
+       },
+       {
+        "pid": 1005533,
+        "pss": 52628480
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 22.315,
+    "scriptMs": 18.642,
+    "layoutStyleMs": 2.451,
+    "devtoolsMs": 0.22599999999999965,
+    "readyMs": 20.3,
+    "readyFrameMs": 21.3,
+    "rendererCpuMs": 20.000000000000004,
+    "gpuCpuMs": 9.99999999999998,
+    "heapChartBytes": 759148,
+    "heapUsedBytes": 2204836,
+    "rendererPssBytes": 70602752,
+    "rendererPssChartBytes": 9696256,
+    "gpuPssBytes": 40948736,
+    "gpuPssChartBytes": 77824,
+    "canvasBackingBytes": 0,
+    "domNodes": 109
+   }
+  },
+  {
+   "index": 8,
+   "phase": "timed",
+   "block": 3,
+   "position": 0,
+   "config": "A",
+   "startedAt": "2026-11-24T12:03:38.271Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1663,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "timing": {
+     "syncMs": 6.4,
+     "readyMs": 22,
+     "readyFrameMs": 23.4,
+     "windowMs": 525.8,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 2,
+     "svgPaths": 1,
+     "domNodes": 109
+    },
+    "callerColumnBytes": 80000,
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 736.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 29.68000030517578,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 90.3499984741211,
+         "y": 273.9800109863281,
+         "width": 29.68000030517578,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 121.02999877929688,
+         "y": 241.2899932861328,
+         "width": 29.68000030517578,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 151.7100067138672,
+         "y": 214.63999938964844,
+         "width": 29.68000030517578,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 182.38999938964844,
+         "y": 161.5399932861328,
+         "width": 29.68000030517578,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 213.07000732421875,
+         "y": 123.37000274658203,
+         "width": 29.68000030517578,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 243.75,
+         "y": 67.05999755859375,
+         "width": 29.68000030517578,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 274.42999267578125,
+         "y": 100.69000244140625,
+         "width": 29.68000030517578,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 305.1099853515625,
+         "y": 126.0199966430664,
+         "width": 29.68000030517578,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 335.79998779296875,
+         "y": 171.55999755859375,
+         "width": 29.68000030517578,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 366.4800109863281,
+         "y": 218.99000549316406,
+         "width": 29.68000030517578,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 397.1600036621094,
+         "y": 244.5,
+         "width": 29.68000030517578,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 427.8399963378906,
+         "y": 260.94000244140625,
+         "width": 29.68000030517578,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 458.5199890136719,
+         "y": 268.8800048828125,
+         "width": 29.68000030517578,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 489.20001220703125,
+         "y": 249.22000122070312,
+         "width": 29.68000030517578,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 519.8800048828125,
+         "y": 236.17999267578125,
+         "width": 29.68000030517578,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 550.5599975585938,
+         "y": 213.88999938964844,
+         "width": 29.68000030517578,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 581.239990234375,
+         "y": 207.0800018310547,
+         "width": 29.68000030517578,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 611.9199829101562,
+         "y": 200.27999877929688,
+         "width": 29.68000030517578,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 642.5999755859375,
+         "y": 233.5399932861328,
+         "width": 29.68000030517578,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 673.280029296875,
+         "y": 250.72999572753906,
+         "width": 29.68000030517578,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 703.9600219726562,
+         "y": 269.25,
+         "width": 29.68000030517578,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 734.6400146484375,
+         "y": 279.2699890136719,
+         "width": 29.68000030517578,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 765.3200073242188,
+         "y": 287.7699890136719,
+         "width": 29.68000030517578,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.024373,
+     "ScriptDuration": 0.020007999999999998,
+     "LayoutDuration": 0.001342,
+     "RecalcStyleDuration": 0.0013779999999999999,
+     "DevToolsCommandDuration": 0.00031899999999999984,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0013260000000000008,
+     "ThreadTime": 0.024169000000000003,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 1059188,
+     "JSHeapTotalSize": 1835008,
+     "endNodes": 165,
+     "endJSHeapUsedSize": 2533208,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 1005597,
+    "gpuPid": 1004895,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180136,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 333080,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 1005597,
+       "type": "renderer",
+       "cpuTime": 0.04,
+       "pss": 52174848,
+       "rss": 144199680
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.19,
+       "pss": 40679424,
+       "rss": 101273600
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005596,
+        "pss": 18508800
+       },
+       {
+        "pid": 1005587,
+        "pss": 55380992
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1445688,
+      "heapTotal": 2359296,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 469443,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 1005597,
+       "type": "renderer",
+       "cpuTime": 0.08,
+       "pss": 60948480,
+       "rss": 156200960
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.2,
+       "pss": 41015296,
+       "rss": 102305792
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005596,
+        "pss": 18509824
+       },
+       {
+        "pid": 1005587,
+        "pss": 54117376
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2205544,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 813744,
+      "backingStorage": 489099,
+      "listeners": 31,
+      "nodes": 164,
+      "renderer": {
+       "pid": 1005597,
+       "type": "renderer",
+       "cpuTime": 0.11,
+       "pss": 70604800,
+       "rss": 169914368
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.2,
+       "pss": 41097216,
+       "rss": 102649856
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005596,
+        "pss": 18509824
+       },
+       {
+        "pid": 1005587,
+        "pss": 53255168
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 24.372999999999998,
+    "scriptMs": 20.008,
+    "layoutStyleMs": 2.7199999999999998,
+    "devtoolsMs": 0.31899999999999984,
+    "readyMs": 22,
+    "readyFrameMs": 23.4,
+    "rendererCpuMs": 30,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 759856,
+    "heapUsedBytes": 2205544,
+    "rendererPssBytes": 70604800,
+    "rendererPssChartBytes": 9656320,
+    "gpuPssBytes": 41097216,
+    "gpuPssChartBytes": 81920,
+    "canvasBackingBytes": 0,
+    "domNodes": 109
+   }
+  },
+  {
+   "index": 9,
+   "phase": "timed",
+   "block": 3,
+   "position": 1,
+   "config": "B",
+   "startedAt": "2026-11-24T12:03:39.939Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1664,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "timing": {
+     "syncMs": 5.2,
+     "readyMs": 20.6,
+     "readyFrameMs": 21.9,
+     "windowMs": 524.8,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 2,
+     "svgPaths": 1,
+     "domNodes": 109
+    },
+    "callerColumnBytes": 80000,
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 736.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 29.68000030517578,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 90.3499984741211,
+         "y": 273.9800109863281,
+         "width": 29.68000030517578,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 121.02999877929688,
+         "y": 241.2899932861328,
+         "width": 29.68000030517578,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 151.7100067138672,
+         "y": 214.63999938964844,
+         "width": 29.68000030517578,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 182.38999938964844,
+         "y": 161.5399932861328,
+         "width": 29.68000030517578,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 213.07000732421875,
+         "y": 123.37000274658203,
+         "width": 29.68000030517578,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 243.75,
+         "y": 67.05999755859375,
+         "width": 29.68000030517578,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 274.42999267578125,
+         "y": 100.69000244140625,
+         "width": 29.68000030517578,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 305.1099853515625,
+         "y": 126.0199966430664,
+         "width": 29.68000030517578,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 335.79998779296875,
+         "y": 171.55999755859375,
+         "width": 29.68000030517578,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 366.4800109863281,
+         "y": 218.99000549316406,
+         "width": 29.68000030517578,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 397.1600036621094,
+         "y": 244.5,
+         "width": 29.68000030517578,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 427.8399963378906,
+         "y": 260.94000244140625,
+         "width": 29.68000030517578,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 458.5199890136719,
+         "y": 268.8800048828125,
+         "width": 29.68000030517578,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 489.20001220703125,
+         "y": 249.22000122070312,
+         "width": 29.68000030517578,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 519.8800048828125,
+         "y": 236.17999267578125,
+         "width": 29.68000030517578,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 550.5599975585938,
+         "y": 213.88999938964844,
+         "width": 29.68000030517578,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 581.239990234375,
+         "y": 207.0800018310547,
+         "width": 29.68000030517578,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 611.9199829101562,
+         "y": 200.27999877929688,
+         "width": 29.68000030517578,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 642.5999755859375,
+         "y": 233.5399932861328,
+         "width": 29.68000030517578,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 673.280029296875,
+         "y": 250.72999572753906,
+         "width": 29.68000030517578,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 703.9600219726562,
+         "y": 269.25,
+         "width": 29.68000030517578,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 734.6400146484375,
+         "y": 279.2699890136719,
+         "width": 29.68000030517578,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 765.3200073242188,
+         "y": 287.7699890136719,
+         "width": 29.68000030517578,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.023102,
+     "ScriptDuration": 0.01909,
+     "LayoutDuration": 0.001271,
+     "RecalcStyleDuration": 0.0013930000000000001,
+     "DevToolsCommandDuration": 0.0002249999999999995,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.001122999999999999,
+     "ThreadTime": 0.022902,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 925268,
+     "JSHeapTotalSize": 1572864,
+     "endNodes": 165,
+     "endJSHeapUsedSize": 2399264,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 1005659,
+    "gpuPid": 1004895,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180136,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 333080,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 1005659,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 52379648,
+       "rss": 144408576
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.21,
+       "pss": 40538112,
+       "rss": 101011456
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005658,
+        "pss": 18521088
+       },
+       {
+        "pid": 1005649,
+        "pss": 54977536
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1444704,
+      "heapTotal": 2359296,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 469443,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 1005659,
+       "type": "renderer",
+       "cpuTime": 0.07,
+       "pss": 61054976,
+       "rss": 156311552
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.21,
+       "pss": 40873984,
+       "rss": 102043648
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005658,
+        "pss": 18522112
+       },
+       {
+        "pid": 1005649,
+        "pss": 53713920
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2204988,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 812088,
+      "backingStorage": 489099,
+      "listeners": 31,
+      "nodes": 164,
+      "renderer": {
+       "pid": 1005659,
+       "type": "renderer",
+       "cpuTime": 0.11,
+       "pss": 70633472,
+       "rss": 169947136
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.21,
+       "pss": 40955904,
+       "rss": 102387712
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005658,
+        "pss": 18522112
+       },
+       {
+        "pid": 1005649,
+        "pss": 52851712
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 23.102,
+    "scriptMs": 19.09,
+    "layoutStyleMs": 2.664,
+    "devtoolsMs": 0.2249999999999995,
+    "readyMs": 20.6,
+    "readyFrameMs": 21.9,
+    "rendererCpuMs": 30,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 760284,
+    "heapUsedBytes": 2204988,
+    "rendererPssBytes": 70633472,
+    "rendererPssChartBytes": 9578496,
+    "gpuPssBytes": 40955904,
+    "gpuPssChartBytes": 81920,
+    "canvasBackingBytes": 0,
+    "domNodes": 109
+   }
+  },
+  {
+   "index": 10,
+   "phase": "timed",
+   "block": 4,
+   "position": 0,
+   "config": "A",
+   "startedAt": "2026-11-24T12:03:41.609Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1676,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "timing": {
+     "syncMs": 5.2,
+     "readyMs": 21.2,
+     "readyFrameMs": 22.6,
+     "windowMs": 525.2,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 2,
+     "svgPaths": 1,
+     "domNodes": 109
+    },
+    "callerColumnBytes": 80000,
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 736.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 29.68000030517578,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 90.3499984741211,
+         "y": 273.9800109863281,
+         "width": 29.68000030517578,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 121.02999877929688,
+         "y": 241.2899932861328,
+         "width": 29.68000030517578,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 151.7100067138672,
+         "y": 214.63999938964844,
+         "width": 29.68000030517578,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 182.38999938964844,
+         "y": 161.5399932861328,
+         "width": 29.68000030517578,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 213.07000732421875,
+         "y": 123.37000274658203,
+         "width": 29.68000030517578,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 243.75,
+         "y": 67.05999755859375,
+         "width": 29.68000030517578,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 274.42999267578125,
+         "y": 100.69000244140625,
+         "width": 29.68000030517578,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 305.1099853515625,
+         "y": 126.0199966430664,
+         "width": 29.68000030517578,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 335.79998779296875,
+         "y": 171.55999755859375,
+         "width": 29.68000030517578,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 366.4800109863281,
+         "y": 218.99000549316406,
+         "width": 29.68000030517578,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 397.1600036621094,
+         "y": 244.5,
+         "width": 29.68000030517578,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 427.8399963378906,
+         "y": 260.94000244140625,
+         "width": 29.68000030517578,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 458.5199890136719,
+         "y": 268.8800048828125,
+         "width": 29.68000030517578,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 489.20001220703125,
+         "y": 249.22000122070312,
+         "width": 29.68000030517578,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 519.8800048828125,
+         "y": 236.17999267578125,
+         "width": 29.68000030517578,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 550.5599975585938,
+         "y": 213.88999938964844,
+         "width": 29.68000030517578,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 581.239990234375,
+         "y": 207.0800018310547,
+         "width": 29.68000030517578,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 611.9199829101562,
+         "y": 200.27999877929688,
+         "width": 29.68000030517578,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 642.5999755859375,
+         "y": 233.5399932861328,
+         "width": 29.68000030517578,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 673.280029296875,
+         "y": 250.72999572753906,
+         "width": 29.68000030517578,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 703.9600219726562,
+         "y": 269.25,
+         "width": 29.68000030517578,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 734.6400146484375,
+         "y": 279.2699890136719,
+         "width": 29.68000030517578,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 765.3200073242188,
+         "y": 287.7699890136719,
+         "width": 29.68000030517578,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.023039999999999998,
+     "ScriptDuration": 0.018802,
+     "LayoutDuration": 0.001373,
+     "RecalcStyleDuration": 0.001416,
+     "DevToolsCommandDuration": 0.0002040000000000002,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0012449999999999996,
+     "ThreadTime": 0.022821,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 1055720,
+     "JSHeapTotalSize": 1835008,
+     "endNodes": 165,
+     "endJSHeapUsedSize": 2529740,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 1005716,
+    "gpuPid": 1004895,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180136,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 333192,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 1005716,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 52178944,
+       "rss": 144019456
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.23,
+       "pss": 40578048,
+       "rss": 101031936
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005715,
+        "pss": 18435072
+       },
+       {
+        "pid": 1005706,
+        "pss": 55059456
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1446224,
+      "heapTotal": 2359296,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 469443,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 1005716,
+       "type": "renderer",
+       "cpuTime": 0.07,
+       "pss": 61052928,
+       "rss": 156131328
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.24,
+       "pss": 40916992,
+       "rss": 102068224
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005715,
+        "pss": 18435072
+       },
+       {
+        "pid": 1005706,
+        "pss": 53794816
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2205544,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 812928,
+      "backingStorage": 489099,
+      "listeners": 31,
+      "nodes": 164,
+      "renderer": {
+       "pid": 1005716,
+       "type": "renderer",
+       "cpuTime": 0.12,
+       "pss": 70694912,
+       "rss": 169877504
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.24,
+       "pss": 40997888,
+       "rss": 102412288
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005715,
+        "pss": 18430976
+       },
+       {
+        "pid": 1005706,
+        "pss": 52928512
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 23.04,
+    "scriptMs": 18.802,
+    "layoutStyleMs": 2.7889999999999997,
+    "devtoolsMs": 0.20400000000000018,
+    "readyMs": 21.2,
+    "readyFrameMs": 22.6,
+    "rendererCpuMs": 30,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 759320,
+    "heapUsedBytes": 2205544,
+    "rendererPssBytes": 70694912,
+    "rendererPssChartBytes": 9641984,
+    "gpuPssBytes": 40997888,
+    "gpuPssChartBytes": 80896,
+    "canvasBackingBytes": 0,
+    "domNodes": 109
+   }
+  },
+  {
+   "index": 11,
+   "phase": "timed",
+   "block": 4,
+   "position": 1,
+   "config": "B",
+   "startedAt": "2026-11-24T12:03:43.291Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1710,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "timing": {
+     "syncMs": 5.2,
+     "readyMs": 20.6,
+     "readyFrameMs": 21.8,
+     "windowMs": 523.8,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 2,
+     "svgPaths": 1,
+     "domNodes": 109
+    },
+    "callerColumnBytes": 80000,
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 736.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 29.68000030517578,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 90.3499984741211,
+         "y": 273.9800109863281,
+         "width": 29.68000030517578,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 121.02999877929688,
+         "y": 241.2899932861328,
+         "width": 29.68000030517578,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 151.7100067138672,
+         "y": 214.63999938964844,
+         "width": 29.68000030517578,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 182.38999938964844,
+         "y": 161.5399932861328,
+         "width": 29.68000030517578,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 213.07000732421875,
+         "y": 123.37000274658203,
+         "width": 29.68000030517578,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 243.75,
+         "y": 67.05999755859375,
+         "width": 29.68000030517578,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 274.42999267578125,
+         "y": 100.69000244140625,
+         "width": 29.68000030517578,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 305.1099853515625,
+         "y": 126.0199966430664,
+         "width": 29.68000030517578,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 335.79998779296875,
+         "y": 171.55999755859375,
+         "width": 29.68000030517578,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 366.4800109863281,
+         "y": 218.99000549316406,
+         "width": 29.68000030517578,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 397.1600036621094,
+         "y": 244.5,
+         "width": 29.68000030517578,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 427.8399963378906,
+         "y": 260.94000244140625,
+         "width": 29.68000030517578,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 458.5199890136719,
+         "y": 268.8800048828125,
+         "width": 29.68000030517578,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 489.20001220703125,
+         "y": 249.22000122070312,
+         "width": 29.68000030517578,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 519.8800048828125,
+         "y": 236.17999267578125,
+         "width": 29.68000030517578,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 550.5599975585938,
+         "y": 213.88999938964844,
+         "width": 29.68000030517578,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 581.239990234375,
+         "y": 207.0800018310547,
+         "width": 29.68000030517578,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 611.9199829101562,
+         "y": 200.27999877929688,
+         "width": 29.68000030517578,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 642.5999755859375,
+         "y": 233.5399932861328,
+         "width": 29.68000030517578,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 673.280029296875,
+         "y": 250.72999572753906,
+         "width": 29.68000030517578,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 703.9600219726562,
+         "y": 269.25,
+         "width": 29.68000030517578,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 734.6400146484375,
+         "y": 279.2699890136719,
+         "width": 29.68000030517578,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 765.3200073242188,
+         "y": 287.7699890136719,
+         "width": 29.68000030517578,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.023028,
+     "ScriptDuration": 0.018949,
+     "LayoutDuration": 0.001318,
+     "RecalcStyleDuration": 0.001352,
+     "DevToolsCommandDuration": 0.0003179999999999997,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0010909999999999982,
+     "ThreadTime": 0.022795000000000003,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 928044,
+     "JSHeapTotalSize": 1572864,
+     "endNodes": 165,
+     "endJSHeapUsedSize": 2402064,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 1005787,
+    "gpuPid": 1004895,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180136,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 333192,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 1005787,
+       "type": "renderer",
+       "cpuTime": 0.06,
+       "pss": 52212736,
+       "rss": 144199680
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.25,
+       "pss": 40620032,
+       "rss": 101081088
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005785,
+        "pss": 18508800
+       },
+       {
+        "pid": 1005776,
+        "pss": 55395328
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1445688,
+      "heapTotal": 2359296,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 469443,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 1005787,
+       "type": "renderer",
+       "cpuTime": 0.09,
+       "pss": 60961792,
+       "rss": 156176384
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.25,
+       "pss": 40964096,
+       "rss": 102121472
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005785,
+        "pss": 18509824
+       },
+       {
+        "pid": 1005776,
+        "pss": 54130688
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2204956,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 812928,
+      "backingStorage": 489099,
+      "listeners": 31,
+      "nodes": 164,
+      "renderer": {
+       "pid": 1005787,
+       "type": "renderer",
+       "cpuTime": 0.13,
+       "pss": 70625280,
+       "rss": 169934848
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.25,
+       "pss": 41041920,
+       "rss": 102465536
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005785,
+        "pss": 18509824
+       },
+       {
+        "pid": 1005776,
+        "pss": 53269504
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 23.028,
+    "scriptMs": 18.949,
+    "layoutStyleMs": 2.67,
+    "devtoolsMs": 0.3179999999999997,
+    "readyMs": 20.6,
+    "readyFrameMs": 21.8,
+    "rendererCpuMs": 30,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 759268,
+    "heapUsedBytes": 2204956,
+    "rendererPssBytes": 70625280,
+    "rendererPssChartBytes": 9663488,
+    "gpuPssBytes": 41041920,
+    "gpuPssChartBytes": 77824,
+    "canvasBackingBytes": 0,
+    "domNodes": 109
+   }
+  },
+  {
+   "index": 12,
+   "phase": "timed",
+   "block": 5,
+   "position": 0,
+   "config": "B",
+   "startedAt": "2026-11-24T12:03:45.007Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1660,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "timing": {
+     "syncMs": 5.3,
+     "readyMs": 20.8,
+     "readyFrameMs": 22.4,
+     "windowMs": 525.5,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 2,
+     "svgPaths": 1,
+     "domNodes": 109
+    },
+    "callerColumnBytes": 80000,
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 736.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 29.68000030517578,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 90.3499984741211,
+         "y": 273.9800109863281,
+         "width": 29.68000030517578,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 121.02999877929688,
+         "y": 241.2899932861328,
+         "width": 29.68000030517578,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 151.7100067138672,
+         "y": 214.63999938964844,
+         "width": 29.68000030517578,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 182.38999938964844,
+         "y": 161.5399932861328,
+         "width": 29.68000030517578,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 213.07000732421875,
+         "y": 123.37000274658203,
+         "width": 29.68000030517578,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 243.75,
+         "y": 67.05999755859375,
+         "width": 29.68000030517578,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 274.42999267578125,
+         "y": 100.69000244140625,
+         "width": 29.68000030517578,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 305.1099853515625,
+         "y": 126.0199966430664,
+         "width": 29.68000030517578,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 335.79998779296875,
+         "y": 171.55999755859375,
+         "width": 29.68000030517578,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 366.4800109863281,
+         "y": 218.99000549316406,
+         "width": 29.68000030517578,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 397.1600036621094,
+         "y": 244.5,
+         "width": 29.68000030517578,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 427.8399963378906,
+         "y": 260.94000244140625,
+         "width": 29.68000030517578,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 458.5199890136719,
+         "y": 268.8800048828125,
+         "width": 29.68000030517578,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 489.20001220703125,
+         "y": 249.22000122070312,
+         "width": 29.68000030517578,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 519.8800048828125,
+         "y": 236.17999267578125,
+         "width": 29.68000030517578,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 550.5599975585938,
+         "y": 213.88999938964844,
+         "width": 29.68000030517578,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 581.239990234375,
+         "y": 207.0800018310547,
+         "width": 29.68000030517578,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 611.9199829101562,
+         "y": 200.27999877929688,
+         "width": 29.68000030517578,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 642.5999755859375,
+         "y": 233.5399932861328,
+         "width": 29.68000030517578,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 673.280029296875,
+         "y": 250.72999572753906,
+         "width": 29.68000030517578,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 703.9600219726562,
+         "y": 269.25,
+         "width": 29.68000030517578,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 734.6400146484375,
+         "y": 279.2699890136719,
+         "width": 29.68000030517578,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 765.3200073242188,
+         "y": 287.7699890136719,
+         "width": 29.68000030517578,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.022998,
+     "ScriptDuration": 0.018636,
+     "LayoutDuration": 0.001485,
+     "RecalcStyleDuration": 0.001348,
+     "DevToolsCommandDuration": 0.00022699999999999977,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.001302000000000001,
+     "ThreadTime": 0.022715,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 1055636,
+     "JSHeapTotalSize": 1835008,
+     "endNodes": 165,
+     "endJSHeapUsedSize": 2529656,
+     "rendererCpu": 0.039999999999999994,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 1005861,
+    "gpuPid": 1004895,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180136,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 405120,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 1005861,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 52199424,
+       "rss": 144224256
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.27,
+       "pss": 40624128,
+       "rss": 101089280
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005860,
+        "pss": 18504704
+       },
+       {
+        "pid": 1005851,
+        "pss": 54915072
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1445688,
+      "heapTotal": 2359296,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 469443,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 1005861,
+       "type": "renderer",
+       "cpuTime": 0.07,
+       "pss": 60989440,
+       "rss": 156241920
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.28,
+       "pss": 40968192,
+       "rss": 102129664
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005860,
+        "pss": 18505728
+       },
+       {
+        "pid": 1005851,
+        "pss": 53651456
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2205544,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 813744,
+      "backingStorage": 489099,
+      "listeners": 31,
+      "nodes": 164,
+      "renderer": {
+       "pid": 1005861,
+       "type": "renderer",
+       "cpuTime": 0.12,
+       "pss": 70577152,
+       "rss": 169938944
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.28,
+       "pss": 41050112,
+       "rss": 102473728
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005860,
+        "pss": 18505728
+       },
+       {
+        "pid": 1005851,
+        "pss": 52789248
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 22.998,
+    "scriptMs": 18.636,
+    "layoutStyleMs": 2.833,
+    "devtoolsMs": 0.22699999999999976,
+    "readyMs": 20.8,
+    "readyFrameMs": 22.4,
+    "rendererCpuMs": 39.99999999999999,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 759856,
+    "heapUsedBytes": 2205544,
+    "rendererPssBytes": 70577152,
+    "rendererPssChartBytes": 9587712,
+    "gpuPssBytes": 41050112,
+    "gpuPssChartBytes": 81920,
+    "canvasBackingBytes": 0,
+    "domNodes": 109
+   }
+  },
+  {
+   "index": 13,
+   "phase": "timed",
+   "block": 5,
+   "position": 1,
+   "config": "A",
+   "startedAt": "2026-11-24T12:03:46.672Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1663,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "timing": {
+     "syncMs": 6.1,
+     "readyMs": 22.2,
+     "readyFrameMs": 23.4,
+     "windowMs": 526.1,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 2,
+     "svgPaths": 1,
+     "domNodes": 109
+    },
+    "callerColumnBytes": 80000,
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 736.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 29.68000030517578,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 90.3499984741211,
+         "y": 273.9800109863281,
+         "width": 29.68000030517578,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 121.02999877929688,
+         "y": 241.2899932861328,
+         "width": 29.68000030517578,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 151.7100067138672,
+         "y": 214.63999938964844,
+         "width": 29.68000030517578,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 182.38999938964844,
+         "y": 161.5399932861328,
+         "width": 29.68000030517578,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 213.07000732421875,
+         "y": 123.37000274658203,
+         "width": 29.68000030517578,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 243.75,
+         "y": 67.05999755859375,
+         "width": 29.68000030517578,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 274.42999267578125,
+         "y": 100.69000244140625,
+         "width": 29.68000030517578,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 305.1099853515625,
+         "y": 126.0199966430664,
+         "width": 29.68000030517578,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 335.79998779296875,
+         "y": 171.55999755859375,
+         "width": 29.68000030517578,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 366.4800109863281,
+         "y": 218.99000549316406,
+         "width": 29.68000030517578,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 397.1600036621094,
+         "y": 244.5,
+         "width": 29.68000030517578,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 427.8399963378906,
+         "y": 260.94000244140625,
+         "width": 29.68000030517578,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 458.5199890136719,
+         "y": 268.8800048828125,
+         "width": 29.68000030517578,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 489.20001220703125,
+         "y": 249.22000122070312,
+         "width": 29.68000030517578,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 519.8800048828125,
+         "y": 236.17999267578125,
+         "width": 29.68000030517578,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 550.5599975585938,
+         "y": 213.88999938964844,
+         "width": 29.68000030517578,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 581.239990234375,
+         "y": 207.0800018310547,
+         "width": 29.68000030517578,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 611.9199829101562,
+         "y": 200.27999877929688,
+         "width": 29.68000030517578,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 642.5999755859375,
+         "y": 233.5399932861328,
+         "width": 29.68000030517578,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 673.280029296875,
+         "y": 250.72999572753906,
+         "width": 29.68000030517578,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 703.9600219726562,
+         "y": 269.25,
+         "width": 29.68000030517578,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 734.6400146484375,
+         "y": 279.2699890136719,
+         "width": 29.68000030517578,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 765.3200073242188,
+         "y": 287.7699890136719,
+         "width": 29.68000030517578,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.025182999999999997,
+     "ScriptDuration": 0.020345,
+     "LayoutDuration": 0.001839,
+     "RecalcStyleDuration": 0.001478,
+     "DevToolsCommandDuration": 0.00032899999999999943,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0011919999999999986,
+     "ThreadTime": 0.024801,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 895408,
+     "JSHeapTotalSize": 1572864,
+     "endNodes": 165,
+     "endJSHeapUsedSize": 2369428,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 1005918,
+    "gpuPid": 1004895,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180136,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 405120,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 1005918,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 52211712,
+       "rss": 144236544
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.29,
+       "pss": 40562688,
+       "rss": 101023744
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005917,
+        "pss": 18516992
+       },
+       {
+        "pid": 1005908,
+        "pss": 54755328
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1445688,
+      "heapTotal": 2359296,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 469443,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 1005918,
+       "type": "renderer",
+       "cpuTime": 0.07,
+       "pss": 61116416,
+       "rss": 156368896
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.3,
+       "pss": 40906752,
+       "rss": 102064128
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005917,
+        "pss": 18518016
+       },
+       {
+        "pid": 1005908,
+        "pss": 53491712
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2204664,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 813744,
+      "backingStorage": 489099,
+      "listeners": 31,
+      "nodes": 164,
+      "renderer": {
+       "pid": 1005918,
+       "type": "renderer",
+       "cpuTime": 0.12,
+       "pss": 70809600,
+       "rss": 170135552
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.3,
+       "pss": 40939520,
+       "rss": 102359040
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005917,
+        "pss": 18518016
+       },
+       {
+        "pid": 1005908,
+        "pss": 52614144
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 25.182999999999996,
+    "scriptMs": 20.345,
+    "layoutStyleMs": 3.317,
+    "devtoolsMs": 0.3289999999999994,
+    "readyMs": 22.2,
+    "readyFrameMs": 23.4,
+    "rendererCpuMs": 30,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 758976,
+    "heapUsedBytes": 2204664,
+    "rendererPssBytes": 70809600,
+    "rendererPssChartBytes": 9693184,
+    "gpuPssBytes": 40939520,
+    "gpuPssChartBytes": 32768,
+    "canvasBackingBytes": 0,
+    "domNodes": 109
+   }
+  },
+  {
+   "index": 14,
+   "phase": "timed",
+   "block": 6,
+   "position": 0,
+   "config": "B",
+   "startedAt": "2026-11-24T12:03:48.342Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1679,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.7
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "timing": {
+     "syncMs": 5.3,
+     "readyMs": 22,
+     "readyFrameMs": 23.4,
+     "windowMs": 525.8,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 2,
+     "svgPaths": 1,
+     "domNodes": 109
+    },
+    "callerColumnBytes": 80000,
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 736.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 29.68000030517578,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 90.3499984741211,
+         "y": 273.9800109863281,
+         "width": 29.68000030517578,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 121.02999877929688,
+         "y": 241.2899932861328,
+         "width": 29.68000030517578,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 151.7100067138672,
+         "y": 214.63999938964844,
+         "width": 29.68000030517578,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 182.38999938964844,
+         "y": 161.5399932861328,
+         "width": 29.68000030517578,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 213.07000732421875,
+         "y": 123.37000274658203,
+         "width": 29.68000030517578,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 243.75,
+         "y": 67.05999755859375,
+         "width": 29.68000030517578,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 274.42999267578125,
+         "y": 100.69000244140625,
+         "width": 29.68000030517578,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 305.1099853515625,
+         "y": 126.0199966430664,
+         "width": 29.68000030517578,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 335.79998779296875,
+         "y": 171.55999755859375,
+         "width": 29.68000030517578,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 366.4800109863281,
+         "y": 218.99000549316406,
+         "width": 29.68000030517578,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 397.1600036621094,
+         "y": 244.5,
+         "width": 29.68000030517578,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 427.8399963378906,
+         "y": 260.94000244140625,
+         "width": 29.68000030517578,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 458.5199890136719,
+         "y": 268.8800048828125,
+         "width": 29.68000030517578,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 489.20001220703125,
+         "y": 249.22000122070312,
+         "width": 29.68000030517578,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 519.8800048828125,
+         "y": 236.17999267578125,
+         "width": 29.68000030517578,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 550.5599975585938,
+         "y": 213.88999938964844,
+         "width": 29.68000030517578,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 581.239990234375,
+         "y": 207.0800018310547,
+         "width": 29.68000030517578,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 611.9199829101562,
+         "y": 200.27999877929688,
+         "width": 29.68000030517578,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 642.5999755859375,
+         "y": 233.5399932861328,
+         "width": 29.68000030517578,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 673.280029296875,
+         "y": 250.72999572753906,
+         "width": 29.68000030517578,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 703.9600219726562,
+         "y": 269.25,
+         "width": 29.68000030517578,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 734.6400146484375,
+         "y": 279.2699890136719,
+         "width": 29.68000030517578,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 765.3200073242188,
+         "y": 287.7699890136719,
+         "width": 29.68000030517578,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.023479999999999997,
+     "ScriptDuration": 0.019018,
+     "LayoutDuration": 0.00138,
+     "RecalcStyleDuration": 0.001396,
+     "DevToolsCommandDuration": 0.0002459999999999997,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0014400000000000003,
+     "ThreadTime": 0.023305000000000003,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 1057772,
+     "JSHeapTotalSize": 1835008,
+     "endNodes": 165,
+     "endJSHeapUsedSize": 2531792,
+     "rendererCpu": 0.039999999999999994,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 1005973,
+    "gpuPid": 1004895,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180136,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 405152,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 1005973,
+       "type": "renderer",
+       "cpuTime": 0.06,
+       "pss": 52173824,
+       "rss": 143802368
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.32,
+       "pss": 40561664,
+       "rss": 101007360
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005972,
+        "pss": 18257920
+       },
+       {
+        "pid": 1005963,
+        "pss": 54960128
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1445688,
+      "heapTotal": 2359296,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 469443,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 1005973,
+       "type": "renderer",
+       "cpuTime": 0.08,
+       "pss": 60921856,
+       "rss": 155836416
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.32,
+       "pss": 40896512,
+       "rss": 102039552
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005972,
+        "pss": 18247680
+       },
+       {
+        "pid": 1005963,
+        "pss": 53672960
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2205544,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 813744,
+      "backingStorage": 489099,
+      "listeners": 31,
+      "nodes": 164,
+      "renderer": {
+       "pid": 1005973,
+       "type": "renderer",
+       "cpuTime": 0.13,
+       "pss": 70578176,
+       "rss": 169574400
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.32,
+       "pss": 40978432,
+       "rss": 102383616
+      },
+      "otherRenderers": [
+       {
+        "pid": 1005972,
+        "pss": 18241536
+       },
+       {
+        "pid": 1005963,
+        "pss": 52804608
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 23.479999999999997,
+    "scriptMs": 19.018,
+    "layoutStyleMs": 2.776,
+    "devtoolsMs": 0.2459999999999997,
+    "readyMs": 22,
+    "readyFrameMs": 23.4,
+    "rendererCpuMs": 39.99999999999999,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 759856,
+    "heapUsedBytes": 2205544,
+    "rendererPssBytes": 70578176,
+    "rendererPssChartBytes": 9656320,
+    "gpuPssBytes": 40978432,
+    "gpuPssChartBytes": 81920,
+    "canvasBackingBytes": 0,
+    "domNodes": 109
+   }
+  },
+  {
+   "index": 15,
+   "phase": "timed",
+   "block": 6,
+   "position": 1,
+   "config": "A",
+   "startedAt": "2026-11-24T12:03:50.026Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1671,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "timing": {
+     "syncMs": 5.1,
+     "readyMs": 20.3,
+     "readyFrameMs": 21.3,
+     "windowMs": 522.9,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 2,
+     "svgPaths": 1,
+     "domNodes": 109
+    },
+    "callerColumnBytes": 80000,
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 736.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 29.68000030517578,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 90.3499984741211,
+         "y": 273.9800109863281,
+         "width": 29.68000030517578,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 121.02999877929688,
+         "y": 241.2899932861328,
+         "width": 29.68000030517578,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 151.7100067138672,
+         "y": 214.63999938964844,
+         "width": 29.68000030517578,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 182.38999938964844,
+         "y": 161.5399932861328,
+         "width": 29.68000030517578,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 213.07000732421875,
+         "y": 123.37000274658203,
+         "width": 29.68000030517578,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 243.75,
+         "y": 67.05999755859375,
+         "width": 29.68000030517578,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 274.42999267578125,
+         "y": 100.69000244140625,
+         "width": 29.68000030517578,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 305.1099853515625,
+         "y": 126.0199966430664,
+         "width": 29.68000030517578,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 335.79998779296875,
+         "y": 171.55999755859375,
+         "width": 29.68000030517578,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 366.4800109863281,
+         "y": 218.99000549316406,
+         "width": 29.68000030517578,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 397.1600036621094,
+         "y": 244.5,
+         "width": 29.68000030517578,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 427.8399963378906,
+         "y": 260.94000244140625,
+         "width": 29.68000030517578,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 458.5199890136719,
+         "y": 268.8800048828125,
+         "width": 29.68000030517578,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 489.20001220703125,
+         "y": 249.22000122070312,
+         "width": 29.68000030517578,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 519.8800048828125,
+         "y": 236.17999267578125,
+         "width": 29.68000030517578,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 550.5599975585938,
+         "y": 213.88999938964844,
+         "width": 29.68000030517578,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 581.239990234375,
+         "y": 207.0800018310547,
+         "width": 29.68000030517578,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 611.9199829101562,
+         "y": 200.27999877929688,
+         "width": 29.68000030517578,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 642.5999755859375,
+         "y": 233.5399932861328,
+         "width": 29.68000030517578,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 673.280029296875,
+         "y": 250.72999572753906,
+         "width": 29.68000030517578,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 703.9600219726562,
+         "y": 269.25,
+         "width": 29.68000030517578,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 734.6400146484375,
+         "y": 279.2699890136719,
+         "width": 29.68000030517578,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 765.3200073242188,
+         "y": 287.7699890136719,
+         "width": 29.68000030517578,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.022524999999999996,
+     "ScriptDuration": 0.018711000000000002,
+     "LayoutDuration": 0.001238,
+     "RecalcStyleDuration": 0.0012649999999999998,
+     "DevToolsCommandDuration": 0.0002539999999999999,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.001056999999999999,
+     "ThreadTime": 0.022293999999999998,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 947952,
+     "JSHeapTotalSize": 1572864,
+     "endNodes": 165,
+     "endJSHeapUsedSize": 2421972,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 1006027,
+    "gpuPid": 1004895,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180136,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 333192,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 1006027,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 52199424,
+       "rss": 144224256
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.33,
+       "pss": 40628224,
+       "rss": 101089280
+      },
+      "otherRenderers": [
+       {
+        "pid": 1006026,
+        "pss": 18521088
+       },
+       {
+        "pid": 1006017,
+        "pss": 54980608
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1445688,
+      "heapTotal": 2359296,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 469443,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 1006027,
+       "type": "renderer",
+       "cpuTime": 0.07,
+       "pss": 60903424,
+       "rss": 156155904
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.35,
+       "pss": 40972288,
+       "rss": 102129664
+      },
+      "otherRenderers": [
+       {
+        "pid": 1006026,
+        "pss": 18522112
+       },
+       {
+        "pid": 1006017,
+        "pss": 53716992
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2205276,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 812928,
+      "backingStorage": 489099,
+      "listeners": 31,
+      "nodes": 164,
+      "renderer": {
+       "pid": 1006027,
+       "type": "renderer",
+       "cpuTime": 0.12,
+       "pss": 70622208,
+       "rss": 169984000
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.35,
+       "pss": 41054208,
+       "rss": 102473728
+      },
+      "otherRenderers": [
+       {
+        "pid": 1006026,
+        "pss": 18522112
+       },
+       {
+        "pid": 1006017,
+        "pss": 52854784
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 22.524999999999995,
+    "scriptMs": 18.711000000000002,
+    "layoutStyleMs": 2.503,
+    "devtoolsMs": 0.2539999999999999,
+    "readyMs": 20.3,
+    "readyFrameMs": 21.3,
+    "rendererCpuMs": 30,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 759588,
+    "heapUsedBytes": 2205276,
+    "rendererPssBytes": 70622208,
+    "rendererPssChartBytes": 9718784,
+    "gpuPssBytes": 41054208,
+    "gpuPssChartBytes": 81920,
+    "canvasBackingBytes": 0,
+    "domNodes": 109
+   }
+  },
+  {
+   "index": 16,
+   "phase": "timed",
+   "block": 7,
+   "position": 0,
+   "config": "A",
+   "startedAt": "2026-11-24T12:03:51.703Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1723,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.7
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "timing": {
+     "syncMs": 8.5,
+     "readyMs": 24.7,
+     "readyFrameMs": 25.9,
+     "windowMs": 527.9,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 2,
+     "svgPaths": 1,
+     "domNodes": 109
+    },
+    "callerColumnBytes": 80000,
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 736.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 29.68000030517578,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 90.3499984741211,
+         "y": 273.9800109863281,
+         "width": 29.68000030517578,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 121.02999877929688,
+         "y": 241.2899932861328,
+         "width": 29.68000030517578,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 151.7100067138672,
+         "y": 214.63999938964844,
+         "width": 29.68000030517578,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 182.38999938964844,
+         "y": 161.5399932861328,
+         "width": 29.68000030517578,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 213.07000732421875,
+         "y": 123.37000274658203,
+         "width": 29.68000030517578,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 243.75,
+         "y": 67.05999755859375,
+         "width": 29.68000030517578,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 274.42999267578125,
+         "y": 100.69000244140625,
+         "width": 29.68000030517578,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 305.1099853515625,
+         "y": 126.0199966430664,
+         "width": 29.68000030517578,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 335.79998779296875,
+         "y": 171.55999755859375,
+         "width": 29.68000030517578,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 366.4800109863281,
+         "y": 218.99000549316406,
+         "width": 29.68000030517578,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 397.1600036621094,
+         "y": 244.5,
+         "width": 29.68000030517578,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 427.8399963378906,
+         "y": 260.94000244140625,
+         "width": 29.68000030517578,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 458.5199890136719,
+         "y": 268.8800048828125,
+         "width": 29.68000030517578,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 489.20001220703125,
+         "y": 249.22000122070312,
+         "width": 29.68000030517578,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 519.8800048828125,
+         "y": 236.17999267578125,
+         "width": 29.68000030517578,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 550.5599975585938,
+         "y": 213.88999938964844,
+         "width": 29.68000030517578,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 581.239990234375,
+         "y": 207.0800018310547,
+         "width": 29.68000030517578,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 611.9199829101562,
+         "y": 200.27999877929688,
+         "width": 29.68000030517578,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 642.5999755859375,
+         "y": 233.5399932861328,
+         "width": 29.68000030517578,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 673.280029296875,
+         "y": 250.72999572753906,
+         "width": 29.68000030517578,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 703.9600219726562,
+         "y": 269.25,
+         "width": 29.68000030517578,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 734.6400146484375,
+         "y": 279.2699890136719,
+         "width": 29.68000030517578,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 765.3200073242188,
+         "y": 287.7699890136719,
+         "width": 29.68000030517578,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.027276,
+     "ScriptDuration": 0.02264,
+     "LayoutDuration": 0.0014000000000000002,
+     "RecalcStyleDuration": 0.001666,
+     "DevToolsCommandDuration": 0.0003439999999999997,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0012260000000000014,
+     "ThreadTime": 0.026948,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 929120,
+     "JSHeapTotalSize": 1572864,
+     "endNodes": 165,
+     "endJSHeapUsedSize": 2403140,
+     "rendererCpu": 0.04000000000000001,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 1006085,
+    "gpuPid": 1004895,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180136,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 333080,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 1006085,
+       "type": "renderer",
+       "cpuTime": 0.06,
+       "pss": 52178944,
+       "rss": 144203776
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.36,
+       "pss": 40837120,
+       "rss": 101519360
+      },
+      "otherRenderers": [
+       {
+        "pid": 1006083,
+        "pss": 18504704
+       },
+       {
+        "pid": 1006074,
+        "pss": 54988800
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1446224,
+      "heapTotal": 2359296,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 469443,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 1006085,
+       "type": "renderer",
+       "cpuTime": 0.1,
+       "pss": 61026304,
+       "rss": 156278784
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.37,
+       "pss": 41177088,
+       "rss": 102555648
+      },
+      "otherRenderers": [
+       {
+        "pid": 1006083,
+        "pss": 18505728
+       },
+       {
+        "pid": 1006074,
+        "pss": 53729280
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2204988,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 813744,
+      "backingStorage": 489099,
+      "listeners": 31,
+      "nodes": 164,
+      "renderer": {
+       "pid": 1006085,
+       "type": "renderer",
+       "cpuTime": 0.14,
+       "pss": 70686720,
+       "rss": 170008576
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.37,
+       "pss": 41263104,
+       "rss": 102903808
+      },
+      "otherRenderers": [
+       {
+        "pid": 1006083,
+        "pss": 18505728
+       },
+       {
+        "pid": 1006074,
+        "pss": 52868096
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 27.276000000000003,
+    "scriptMs": 22.64,
+    "layoutStyleMs": 3.066,
+    "devtoolsMs": 0.3439999999999997,
+    "readyMs": 24.7,
+    "readyFrameMs": 25.9,
+    "rendererCpuMs": 40.00000000000001,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 758764,
+    "heapUsedBytes": 2204988,
+    "rendererPssBytes": 70686720,
+    "rendererPssChartBytes": 9660416,
+    "gpuPssBytes": 41263104,
+    "gpuPssChartBytes": 86016,
+    "canvasBackingBytes": 0,
+    "domNodes": 109
+   }
+  },
+  {
+   "index": 17,
+   "phase": "timed",
+   "block": 7,
+   "position": 1,
+   "config": "B",
+   "startedAt": "2026-11-24T12:03:53.433Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1703,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "timing": {
+     "syncMs": 5.5,
+     "readyMs": 20.8,
+     "readyFrameMs": 22,
+     "windowMs": 524.1,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 2,
+     "svgPaths": 1,
+     "domNodes": 109
+    },
+    "callerColumnBytes": 80000,
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 736.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 29.68000030517578,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 90.3499984741211,
+         "y": 273.9800109863281,
+         "width": 29.68000030517578,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 121.02999877929688,
+         "y": 241.2899932861328,
+         "width": 29.68000030517578,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 151.7100067138672,
+         "y": 214.63999938964844,
+         "width": 29.68000030517578,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 182.38999938964844,
+         "y": 161.5399932861328,
+         "width": 29.68000030517578,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 213.07000732421875,
+         "y": 123.37000274658203,
+         "width": 29.68000030517578,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 243.75,
+         "y": 67.05999755859375,
+         "width": 29.68000030517578,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 274.42999267578125,
+         "y": 100.69000244140625,
+         "width": 29.68000030517578,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 305.1099853515625,
+         "y": 126.0199966430664,
+         "width": 29.68000030517578,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 335.79998779296875,
+         "y": 171.55999755859375,
+         "width": 29.68000030517578,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 366.4800109863281,
+         "y": 218.99000549316406,
+         "width": 29.68000030517578,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 397.1600036621094,
+         "y": 244.5,
+         "width": 29.68000030517578,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 427.8399963378906,
+         "y": 260.94000244140625,
+         "width": 29.68000030517578,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 458.5199890136719,
+         "y": 268.8800048828125,
+         "width": 29.68000030517578,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 489.20001220703125,
+         "y": 249.22000122070312,
+         "width": 29.68000030517578,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 519.8800048828125,
+         "y": 236.17999267578125,
+         "width": 29.68000030517578,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 550.5599975585938,
+         "y": 213.88999938964844,
+         "width": 29.68000030517578,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 581.239990234375,
+         "y": 207.0800018310547,
+         "width": 29.68000030517578,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 611.9199829101562,
+         "y": 200.27999877929688,
+         "width": 29.68000030517578,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 642.5999755859375,
+         "y": 233.5399932861328,
+         "width": 29.68000030517578,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 673.280029296875,
+         "y": 250.72999572753906,
+         "width": 29.68000030517578,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 703.9600219726562,
+         "y": 269.25,
+         "width": 29.68000030517578,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 734.6400146484375,
+         "y": 279.2699890136719,
+         "width": 29.68000030517578,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 765.3200073242188,
+         "y": 287.7699890136719,
+         "width": 29.68000030517578,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.023211,
+     "ScriptDuration": 0.019244,
+     "LayoutDuration": 0.001328,
+     "RecalcStyleDuration": 0.001356,
+     "DevToolsCommandDuration": 0.000196,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0010869999999999977,
+     "ThreadTime": 0.022952999999999998,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 960572,
+     "JSHeapTotalSize": 1572864,
+     "endNodes": 165,
+     "endJSHeapUsedSize": 2434592,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 1006149,
+    "gpuPid": 1004895,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180136,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 333192,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 1006149,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 52390912,
+       "rss": 144232448
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.39,
+       "pss": 40670208,
+       "rss": 101240832
+      },
+      "otherRenderers": [
+       {
+        "pid": 1006148,
+        "pss": 18449408
+       },
+       {
+        "pid": 1006139,
+        "pss": 55462912
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1445688,
+      "heapTotal": 2359296,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 469443,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 1006149,
+       "type": "renderer",
+       "cpuTime": 0.08,
+       "pss": 61134848,
+       "rss": 156209152
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.39,
+       "pss": 41014272,
+       "rss": 102281216
+      },
+      "otherRenderers": [
+       {
+        "pid": 1006148,
+        "pss": 18448384
+       },
+       {
+        "pid": 1006139,
+        "pss": 54197248
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2205248,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 812360,
+      "backingStorage": 489099,
+      "listeners": 31,
+      "nodes": 164,
+      "renderer": {
+       "pid": 1006149,
+       "type": "renderer",
+       "cpuTime": 0.12,
+       "pss": 70813696,
+       "rss": 169975808
+      },
+      "gpu": {
+       "pid": 1004895,
+       "type": "GPU",
+       "cpuTime": 0.39,
+       "pss": 41078784,
+       "rss": 102612992
+      },
+      "otherRenderers": [
+       {
+        "pid": 1006148,
+        "pss": 18447360
+       },
+       {
+        "pid": 1006139,
+        "pss": 53330944
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 23.211,
+    "scriptMs": 19.244,
+    "layoutStyleMs": 2.684,
+    "devtoolsMs": 0.196,
+    "readyMs": 20.8,
+    "readyFrameMs": 22,
+    "rendererCpuMs": 30,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 759560,
+    "heapUsedBytes": 2205248,
+    "rendererPssBytes": 70813696,
+    "rendererPssChartBytes": 9678848,
+    "gpuPssBytes": 41078784,
+    "gpuPssChartBytes": 64512,
+    "canvasBackingBytes": 0,
+    "domNodes": 109
+   }
+  }
+ ],
+ "analysis": {
+  "completePairs": 8,
+  "blocks": 8,
+  "outcomes": {
+   "B:ok": 8,
+   "A:ok": 8
+  },
+  "reliability": {
+   "timed": {
+    "A": 8,
+    "B": 8
+   },
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "failureRate": {
+    "A": 0,
+    "B": 0
+   },
+   "adverseKey": null,
+   "adverse": {
+    "A": 0,
+    "B": 0
+   },
+   "conditional": false,
+   "betterBlocked": null,
+   "worseBlocked": null
+  },
+  "bootstrapSeed": 12345,
+  "level": 0.95,
+  "zeroOnly": false,
+  "metrics": {
+   "taskMs": {
+    "key": "taskMs",
+    "unit": "ms",
+    "primary": true,
+    "what": "main-thread TaskDuration from the create call to settle window end",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 23.43,
+    "medianB": 23.012999999999998,
+    "diff": -0.4170000000000016,
+    "lo": -2.0784999999999947,
+    "hi": 0.28249999999999886,
+    "relative": -0.017797695262484065,
+    "blockDiffs": [
+     -0.5309999999999988,
+     -1.032,
+     0.6359999999999992,
+     -1.2709999999999972,
+     -0.012000000000000455,
+     -2.184999999999995,
+     0.9550000000000018,
+     -4.065000000000005
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": -0.8400000000000034
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 0.0005000000000023874
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "scriptMs": {
+    "key": "scriptMs",
+    "unit": "ms",
+    "what": "ScriptDuration in the same window",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 19.2585,
+    "medianB": 18.9835,
+    "diff": -0.27500000000000213,
+    "lo": -1.4570000000000007,
+    "hi": 0.26149999999999807,
+    "relative": -0.014279409092089317,
+    "blockDiffs": [
+     -0.43700000000000117,
+     -1.0420000000000016,
+     0.4059999999999988,
+     -0.9179999999999993,
+     0.14700000000000202,
+     -1.7089999999999996,
+     0.3069999999999986,
+     -3.396000000000001
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": -0.6814999999999998
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": -0.06500000000000128
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "layoutStyleMs": {
+    "key": "layoutStyleMs",
+    "unit": "ms",
+    "what": "LayoutDuration + RecalcStyleDuration in the same window",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 2.7544999999999997,
+    "medianB": 2.667,
+    "diff": -0.08749999999999991,
+    "lo": -0.3804999999999996,
+    "hi": 0.05699999999999994,
+    "relative": -0.03176620076238879,
+    "blockDiffs": [
+     -0.3799999999999999,
+     -0.12299999999999978,
+     0.17700000000000005,
+     -0.055999999999999606,
+     -0.11899999999999977,
+     -0.484,
+     0.2729999999999997,
+     -0.3819999999999997
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": -0.08749999999999991
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": -0.03600000000000003
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "readyMs": {
+    "key": "readyMs",
+    "unit": "ms",
+    "what": "wall clock from create call to the adapter's ready signal",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 21.15,
+    "medianB": 20.8,
+    "diff": -0.34999999999999787,
+    "lo": -1.3999999999999986,
+    "hi": 0.8999999999999986,
+    "relative": -0.016548463356973894,
+    "blockDiffs": [
+     0.8999999999999986,
+     1.6999999999999993,
+     0.3999999999999986,
+     -1.3999999999999986,
+     -0.5999999999999979,
+     -1.3999999999999986,
+     1.6999999999999993,
+     -3.8999999999999986
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": -0.8999999999999986
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 0.6999999999999957
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "readyFrameMs": {
+    "key": "readyFrameMs",
+    "unit": "ms",
+    "what": "wall clock to the first animation frame after ready",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 22.4,
+    "medianB": 22.2,
+    "diff": -0.1999999999999993,
+    "lo": -1.4499999999999993,
+    "hi": 1.5,
+    "relative": -0.008928571428571397,
+    "blockDiffs": [
+     1.5,
+     2.5,
+     0.5,
+     -1.5,
+     -0.8000000000000007,
+     -1,
+     2.099999999999998,
+     -3.8999999999999986
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": -1.0500000000000007
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 1.1499999999999986
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "rendererCpuMs": {
+    "key": "rendererCpuMs",
+    "unit": "ms",
+    "what": "CPU time of the page renderer process, all threads, same window (SystemInfo.getProcessInfo)",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 30,
+    "medianB": 30,
+    "diff": 0,
+    "lo": -9.999999999999993,
+    "hi": 5,
+    "relative": 0,
+    "blockDiffs": [
+     -19.99999999999999,
+     -9.999999999999993,
+     9.999999999999996,
+     0,
+     0,
+     9.999999999999993,
+     9.999999999999993,
+     -10.000000000000007
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": -5
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 5
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "gpuCpuMs": {
+    "key": "gpuCpuMs",
+    "unit": "ms",
+    "what": "CPU time of the GPU process, same window",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 0,
+    "medianB": 0,
+    "diff": 0,
+    "lo": 0,
+    "hi": 0,
+    "relative": null,
+    "blockDiffs": [
+     0,
+     0,
+     -9.99999999999998,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": 0
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 0
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "heapChartBytes": {
+    "key": "heapChartBytes",
+    "unit": "bytes",
+    "what": "JS heap after forced GC with the chart, minus the same with only the input data",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 759134,
+    "medianB": 759856,
+    "diff": 722,
+    "lo": 354,
+    "hi": 942,
+    "relative": 0.0009510837348873848,
+    "blockDiffs": [
+     832,
+     736,
+     1468,
+     428,
+     -52,
+     880,
+     268,
+     796
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": 488
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 770
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "heapUsedBytes": {
+    "key": "heapUsedBytes",
+    "unit": "bytes",
+    "what": "JS heap after forced GC with the chart (absolute)",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 2205268,
+    "medianB": 2205444,
+    "diff": 176,
+    "lo": -244,
+    "hi": 456,
+    "relative": 0.00007980889397569819,
+    "blockDiffs": [
+     296,
+     200,
+     508,
+     -556,
+     -588,
+     880,
+     268,
+     260
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": -326
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 496
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "rendererPssBytes": {
+    "key": "rendererPssBytes",
+    "unit": "bytes",
+    "what": "page renderer process PSS with the chart (Linux /proc, after GC)",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 70669824,
+    "medianB": 70629376,
+    "diff": -40448,
+    "lo": -112128,
+    "hi": 28672,
+    "relative": -0.0005723517862447203,
+    "blockDiffs": [
+     -89088,
+     -94208,
+     60416,
+     28672,
+     -69632,
+     -232448,
+     -44032,
+     126976
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": -55296
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": -59904
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "rendererPssChartBytes": {
+    "key": "rendererPssChartBytes",
+    "unit": "bytes",
+    "what": "page renderer PSS with the chart minus with only the input data",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 9676800,
+    "medianB": 9652224,
+    "diff": -24576,
+    "lo": -107008,
+    "hi": 8704,
+    "relative": -0.0025396825396825397,
+    "blockDiffs": [
+     81920,
+     -64512,
+     -113664,
+     -77824,
+     21504,
+     -105472,
+     -62464,
+     18432
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": 12800
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": -76800
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "gpuPssBytes": {
+    "key": "gpuPssBytes",
+    "unit": "bytes",
+    "what": "GPU process PSS with the chart",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 41022976,
+    "medianB": 40985088,
+    "diff": -37888,
+    "lo": -98304,
+    "hi": 66048,
+    "relative": -0.0009235799957565243,
+    "blockDiffs": [
+     -56320,
+     -59392,
+     0,
+     -141312,
+     44032,
+     110592,
+     -75776,
+     -184320
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": -48640
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": -13312
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "gpuPssChartBytes": {
+    "key": "gpuPssChartBytes",
+    "unit": "bytes",
+    "what": "GPU process PSS with the chart minus with only the input data",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 81408,
+    "medianB": 80896,
+    "diff": -512,
+    "lo": -4096,
+    "hi": 2560,
+    "relative": -0.006289308176100629,
+    "blockDiffs": [
+     -2048,
+     -2048,
+     4096,
+     0,
+     -3072,
+     49152,
+     0,
+     -21504
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": -3072
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 3584
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "canvasBackingBytes": {
+    "key": "canvasBackingBytes",
+    "unit": "bytes",
+    "what": "CALCULATED: sum of canvas.width x canvas.height x 4 over the chart canvases",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 0,
+    "medianB": 0,
+    "diff": 0,
+    "lo": 0,
+    "hi": 0,
+    "relative": null,
+    "blockDiffs": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": 0
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 0
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "domNodes": {
+    "key": "domNodes",
+    "unit": "nodes",
+    "what": "elements inside the chart containers",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 109,
+    "medianB": 109,
+    "diff": 0,
+    "lo": 0,
+    "hi": 0,
+    "relative": 0,
+    "blockDiffs": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": 0
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 0
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   }
+  }
+ },
+ "endedBecause": "all blocks run",
+ "finishedAt": "2026-11-24T12:03:55.209Z",
+ "integrity": {
+  "violations": []
+ },
+ "eligibility": {
+  "eligible": true,
+  "reasons": []
+ }
+}

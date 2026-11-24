@@ -1,0 +1,7756 @@
+{
+ "schema": "axylo-bench/2",
+ "runId": "20261124T120724Z-lifecycle-histogram-1x2000-b24-c2500-aa-axylo-20fa",
+ "status": "complete",
+ "startedAt": "2026-11-24T12:07:24.966Z",
+ "command": [
+  "--artifact",
+  "bench/artifacts/stage1b-all-charts",
+  "--history-dir",
+  "bench/history",
+  "--blocks",
+  "4",
+  "--aa",
+  "axylo",
+  "--workload",
+  "lifecycle",
+  "--kind",
+  "histogram",
+  "--size",
+  "1x2000"
+ ],
+ "design": {
+  "raster": "software",
+  "mode": "aa",
+  "baseline": "axylo",
+  "candidate": "axylo",
+  "labels": {
+   "A": "axylo",
+   "B": "axylo"
+  },
+  "adapters": {
+   "A": {
+    "id": "axylo",
+    "params": {}
+   },
+   "B": {
+    "id": "axylo",
+    "params": {}
+   }
+  },
+  "workload": "lifecycle",
+  "params": {
+   "kind": "histogram",
+   "size": "1x2000",
+   "bins": 24,
+   "cycles": 2500
+  },
+  "blocks": 4,
+  "order": [
+   "BA",
+   "AB",
+   "BA",
+   "AB"
+  ],
+  "seed": 1558984346,
+  "bootstrapSeed": 12345,
+  "settleMs": 500,
+  "timeoutMs": 120000,
+  "dpr": 1,
+  "viewport": [
+   1440,
+   900
+  ],
+  "warmup": "one untimed admission run per side (A then B), then one untimed warm-up run per side in the opposite order (B then A), so each side has run twice in this browser before timing starts",
+  "isolate": false,
+  "isolation": "one browser process for the session, a fresh context per run",
+  "endpoint": null,
+  "noiseFrom": null
+ },
+ "environment": {
+  "browser": {
+   "name": "Google Chrome (system, via Playwright channel \"chrome\")",
+   "version": "158.0.8127.88",
+   "headless": true
+  },
+  "playwright": "1.65.1",
+  "node": "v24.21.0",
+  "host": {
+   "hostname": "canarit-Z690-AORUS-ELITE-DDR4",
+   "cpuModel": "13th Gen Intel(R) Core(TM) i5-13600K",
+   "logicalCores": 20
+  },
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13600K",
+   "logicalCores": 20,
+   "governor": "powersave"
+  },
+  "memoryGiB": 30.4,
+  "os": {
+   "type": "Linux",
+   "release": "7.0.0-44-generic",
+   "name": "Ubuntu 26.04.1 LTS",
+   "arch": "x64"
+  },
+  "loadAverageAtStart": [
+   0.84,
+   1.19,
+   1.28
+  ],
+  "hostIdle": "not controlled: other processes (including other agents) may run on this machine during the session",
+  "power": "not available: power settings are not read by this harness",
+  "runnerCheckoutHead": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+  "lockfiles": {
+   "bench/package-lock.json": "640e6069d6ca766dd415693245d446e83b5cdd8b30218c4031ccb5852543e72f",
+   "package-lock.json": "e98151ca9f4f8d9aa1b6dd7e828f8e5024fbbf43a752a754d1a469a5850af392"
+  },
+  "libraries": {
+   "uplot": "1.6.32",
+   "chart.js": "4.6.1",
+   "chartjs-adapter-date-fns": "3.0.0",
+   "date-fns": "4.4.0",
+   "echarts": "6.1.0",
+   "axylo": "0.0.0"
+  },
+  "raster": {
+   "mode": "software",
+   "requested": "default (software here)",
+   "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+   "canvas2d": "unavailable_software",
+   "rasterization": "disabled_software",
+   "gpuCompositing": "disabled_software",
+   "refused": null,
+   "detail": {
+    "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "featureStatus": {
+     "2d_canvas": "unavailable_software",
+     "direct_rendering_display_compositor": "disabled_off_ok",
+     "gpu_compositing": "disabled_software",
+     "multiple_raster_threads": "enabled_on",
+     "opengl": "disabled_off",
+     "rasterization": "disabled_software",
+     "skia_graphite": "disabled_off",
+     "trees_in_viz": "disabled_off",
+     "video_decode": "disabled_software",
+     "video_encode": "disabled_software",
+     "vulkan": "disabled_off",
+     "webgl": "unavailable_software",
+     "webgpu": "unavailable_software",
+     "webgpu_on_vk_via_gl_interop": "disabled_off",
+     "webnn": "unavailable_software"
+    },
+    "devices": [
+     {
+      "vendor": "Google Inc. (Google)",
+      "device": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0)",
+      "driver": "5.0.0"
+     }
+    ],
+    "gl": {
+     "displayType": "ANGLE_SWIFTSHADER",
+     "glExtensions": "GL_AMD_performance_monitor GL_ANGLE_base_vertex_base_instance_shader_builtin GL_ANGLE_blob_cache GL_ANGLE_client_arrays GL_ANGLE_clip_cull_distance GL_ANGLE_compressed_texture_etc GL_ANGLE_copy_textur",
+     "glImplementationParts": "(gl=egl-angle,angle=swiftshader)",
+     "glRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0)",
+     "glResetNotificationStrategy": "33362",
+     "glVendor": "Google Inc. (Google)",
+     "glVersion": "OpenGL ES 3.0 (ANGLE 2.1.29257 git hash: 1f6526a566c2)",
+     "glWsExtensions": "EGL_EXT_create_context_robustness EGL_ANGLE_surface_orientation EGL_KHR_create_context EGL_KHR_image EGL_KHR_image_base EGL_EXT_image_gl_colorspace EGL_KHR_gl_colorspace EGL_KHR_gl_texture_2D_image EG",
+     "glWsVendor": "Google Inc. (Google)",
+     "glWsVersion": "1.5 (ANGLE 2.1.29257 git hash: 1f6526a566c2)",
+     "passthroughCmdDecoder": "true",
+     "skiaBackendType": "None"
+    }
+   },
+   "flags": "Playwright defaults"
+  },
+  "page": {
+   "devicePixelRatio": 1,
+   "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+   "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+   "viewport": [
+    1440,
+    900
+   ],
+   "hardwareConcurrency": 20,
+   "refresh": {
+    "medianIntervalMs": 16.7,
+    "hz": 59.88,
+    "minMs": 16.6,
+    "maxMs": 16.8
+   }
+  },
+  "loadAverageAtEnd": [
+   1.92,
+   1.23,
+   1.19
+  ]
+ },
+ "hashes": {
+  "fixtureChecksum": "2cb438e6",
+  "slots": {
+   "A": {
+    "artifact": "stage1b-all-charts",
+    "dir": "/home/canarit/projects/prism/phase4_stage1/axylo-bench-repo/bench/artifacts/stage1b-all-charts",
+    "manifestSha256": "f67ff955819aa0d1ce7fb05485a5a19ff3a4578efbc380de7bb05ba38e69b12d",
+    "source": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean",
+     "axyloSourceHash": "91275224cf666963715bd18521bbc71821a288856f0e153cc7a18aa8ec2ee956",
+     "shippedOptions": "identical: axylo.iife.min.js (release copy) is byte-for-byte what the scripts/build.mjs recipe produces from this snapshot",
+     "distComparison": "identical to packages/axylo/dist/axylo.iife.min.js at build time"
+    },
+    "bench": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean"
+    },
+    "files": {
+     "adapters/axylo-stale-mark.js": "455b32e71fd223bcaa475083e211ead37d8ebd3d8df3dee52c51cdc551563fc6",
+     "adapters/axylo-svg.js": "a5330566dc0878d61367af8e77ee114fd9a12aa8e17b6bdd147e9d8035f99eb8",
+     "adapters/axylo-wrong-renderer.js": "7af78eb82cc84af9b59d5999e0d670c6adc1c060e3e8be69bbefe818d8425750",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "adapters/broken-never-ready.js": "ff6de0d681540cd6f4ea71dca4c33f91d11aea9598e36fd63ebf211b60e2fc9f",
+     "adapters/broken-throws.js": "17e4d7a33f724a22ed2da26aad000f33accbbe11f6741c1c646804983c83f6b7",
+     "adapters/chartjs-tuned.js": "daaafde618d7feda2a38de161cece0e2f2931b86e3f9544c3ea6048771a50d99",
+     "adapters/chartjs.js": "87dfe6084949337506720d921746beaf25f59e6adcf7934b60a789806029fc34",
+     "adapters/echarts.js": "f2a9ff8da676bea6e4a0fca4afcce8a1c1e7f039f9ce9cd558f6ac9c8ef2a59e",
+     "adapters/noop.js": "87036ef493cfbbb79c8cbd42cb44b01f0b46988a1430a6859dae870158adb8aa",
+     "adapters/uplot-fixed-width.js": "bdc7453e345e3b0c3d98a84b47c6d12f3d1f90ce7ce9149b3d108e45c6491fe9",
+     "adapters/uplot-no-trim.js": "2ab62ccbe4f6e5fae0685ae8f2972465367e07b8c24efe459060f582570fedc1",
+     "adapters/uplot-pinned-y.js": "136a61a772e62259aee9821b8d0e55cc151dd51d0da548f7891649acad574c9f",
+     "adapters/uplot-stalls.js": "e4b6672d47136813ffeb899c3b233bd00316dbc14047e1cd9a27da48f04de54f",
+     "adapters/uplot.js": "7e4865f22c594705393c301916e7617fbd9bee70ba2d3a0afb167803c6b48655",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694",
+     "axylo/axylo.bench.iife.min.js.map": "73b65f747f97a9f1adde3859a65031eb516ecc86cc932c0ead36b4cab146ec8b",
+     "axylo/axylo.iife.js": "96ce1dcad3727fcd4e8112a65a0f9e0df8373822a0d33d67070803f8683505c9",
+     "axylo/axylo.iife.js.map": "fa53111acc881ccda6c1af5ee0251a8ea736225d6c0a4aebdf0ea77da4b12909",
+     "axylo/axylo.iife.min.js": "3fba985e8fa7924e5194cf6c8ca494ebe3902b67bab3fb0caa82b1199bcbf1c7",
+     "axylo/axylo.iife.min.js.map": "0521ac20524a9804106f99bbd5486c31b6789f24c26acd1c1eba46897dadc230",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08"
+    },
+    "served": {
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694"
+    }
+   },
+   "B": {
+    "artifact": "stage1b-all-charts",
+    "dir": "/home/canarit/projects/prism/phase4_stage1/axylo-bench-repo/bench/artifacts/stage1b-all-charts",
+    "manifestSha256": "f67ff955819aa0d1ce7fb05485a5a19ff3a4578efbc380de7bb05ba38e69b12d",
+    "source": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean",
+     "axyloSourceHash": "91275224cf666963715bd18521bbc71821a288856f0e153cc7a18aa8ec2ee956",
+     "shippedOptions": "identical: axylo.iife.min.js (release copy) is byte-for-byte what the scripts/build.mjs recipe produces from this snapshot",
+     "distComparison": "identical to packages/axylo/dist/axylo.iife.min.js at build time"
+    },
+    "bench": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean"
+    },
+    "files": {
+     "adapters/axylo-stale-mark.js": "455b32e71fd223bcaa475083e211ead37d8ebd3d8df3dee52c51cdc551563fc6",
+     "adapters/axylo-svg.js": "a5330566dc0878d61367af8e77ee114fd9a12aa8e17b6bdd147e9d8035f99eb8",
+     "adapters/axylo-wrong-renderer.js": "7af78eb82cc84af9b59d5999e0d670c6adc1c060e3e8be69bbefe818d8425750",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "adapters/broken-never-ready.js": "ff6de0d681540cd6f4ea71dca4c33f91d11aea9598e36fd63ebf211b60e2fc9f",
+     "adapters/broken-throws.js": "17e4d7a33f724a22ed2da26aad000f33accbbe11f6741c1c646804983c83f6b7",
+     "adapters/chartjs-tuned.js": "daaafde618d7feda2a38de161cece0e2f2931b86e3f9544c3ea6048771a50d99",
+     "adapters/chartjs.js": "87dfe6084949337506720d921746beaf25f59e6adcf7934b60a789806029fc34",
+     "adapters/echarts.js": "f2a9ff8da676bea6e4a0fca4afcce8a1c1e7f039f9ce9cd558f6ac9c8ef2a59e",
+     "adapters/noop.js": "87036ef493cfbbb79c8cbd42cb44b01f0b46988a1430a6859dae870158adb8aa",
+     "adapters/uplot-fixed-width.js": "bdc7453e345e3b0c3d98a84b47c6d12f3d1f90ce7ce9149b3d108e45c6491fe9",
+     "adapters/uplot-no-trim.js": "2ab62ccbe4f6e5fae0685ae8f2972465367e07b8c24efe459060f582570fedc1",
+     "adapters/uplot-pinned-y.js": "136a61a772e62259aee9821b8d0e55cc151dd51d0da548f7891649acad574c9f",
+     "adapters/uplot-stalls.js": "e4b6672d47136813ffeb899c3b233bd00316dbc14047e1cd9a27da48f04de54f",
+     "adapters/uplot.js": "7e4865f22c594705393c301916e7617fbd9bee70ba2d3a0afb167803c6b48655",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694",
+     "axylo/axylo.bench.iife.min.js.map": "73b65f747f97a9f1adde3859a65031eb516ecc86cc932c0ead36b4cab146ec8b",
+     "axylo/axylo.iife.js": "96ce1dcad3727fcd4e8112a65a0f9e0df8373822a0d33d67070803f8683505c9",
+     "axylo/axylo.iife.js.map": "fa53111acc881ccda6c1af5ee0251a8ea736225d6c0a4aebdf0ea77da4b12909",
+     "axylo/axylo.iife.min.js": "3fba985e8fa7924e5194cf6c8ca494ebe3902b67bab3fb0caa82b1199bcbf1c7",
+     "axylo/axylo.iife.min.js.map": "0521ac20524a9804106f99bbd5486c31b6789f24c26acd1c1eba46897dadc230",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08"
+    },
+    "served": {
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694"
+    }
+   }
+  }
+ },
+ "admission": {
+  "A:axylo": {
+   "outcome": "ok",
+   "reason": null,
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "describe": [
+    {
+     "kind": "histogram",
+     "renderer": {
+      "kind": "svg",
+      "canvases": 0,
+      "svgs": 1,
+      "reported": "svg",
+      "dom": "svg"
+     },
+     "x": [
+      12,
+      135
+     ],
+     "y": [
+      0,
+      250
+     ],
+     "plot": {
+      "x": 49.592132568359375,
+      "y": 11.5,
+      "width": 746.4078674316406,
+      "height": 283.453125
+     },
+     "rectangles": [
+      [
+       {
+        "x": 49.59000015258789,
+        "y": 283.6099853515625,
+        "width": 30.100000381469727,
+        "height": 11.34000015258789
+       },
+       {
+        "x": 80.69000244140625,
+        "y": 259.79998779296875,
+        "width": 30.100000381469727,
+        "height": 35.150001525878906
+       },
+       {
+        "x": 111.79000091552734,
+        "y": 231.4600067138672,
+        "width": 30.100000381469727,
+        "height": 63.4900016784668
+       },
+       {
+        "x": 142.88999938964844,
+        "y": 204.25,
+        "width": 30.100000381469727,
+        "height": 90.70999908447266
+       },
+       {
+        "x": 173.99000549316406,
+        "y": 129.4199981689453,
+        "width": 30.100000381469727,
+        "height": 165.5399932861328
+       },
+       {
+        "x": 205.08999633789062,
+        "y": 86.33000183105469,
+        "width": 30.100000381469727,
+        "height": 208.6199951171875
+       },
+       {
+        "x": 236.19000244140625,
+        "y": 79.52999877929688,
+        "width": 30.100000381469727,
+        "height": 215.4199981689453
+       },
+       {
+        "x": 267.2900085449219,
+        "y": 31.90999984741211,
+        "width": 30.100000381469727,
+        "height": 263.0400085449219
+       },
+       {
+        "x": 298.3900146484375,
+        "y": 45.5099983215332,
+        "width": 30.100000381469727,
+        "height": 249.44000244140625
+       },
+       {
+        "x": 329.5,
+        "y": 152.08999633789062,
+        "width": 30.100000381469727,
+        "height": 142.86000061035156
+       },
+       {
+        "x": 360.6000061035156,
+        "y": 212.17999267578125,
+        "width": 30.100000381469727,
+        "height": 82.7699966430664
+       },
+       {
+        "x": 391.70001220703125,
+        "y": 228.05999755859375,
+        "width": 30.100000381469727,
+        "height": 66.88999938964844
+       },
+       {
+        "x": 422.79998779296875,
+        "y": 260.94000244140625,
+        "width": 30.100000381469727,
+        "height": 34.0099983215332
+       },
+       {
+        "x": 453.8999938964844,
+        "y": 265.4700012207031,
+        "width": 30.100000381469727,
+        "height": 29.479999542236328
+       },
+       {
+        "x": 485,
+        "y": 249.60000610351562,
+        "width": 30.100000381469727,
+        "height": 45.349998474121094
+       },
+       {
+        "x": 516.0999755859375,
+        "y": 234.86000061035156,
+        "width": 30.100000381469727,
+        "height": 60.09000015258789
+       },
+       {
+        "x": 547.2000122070312,
+        "y": 192.91000366210938,
+        "width": 30.100000381469727,
+        "height": 102.04000091552734
+       },
+       {
+        "x": 578.2999877929688,
+        "y": 184.97000122070312,
+        "width": 30.100000381469727,
+        "height": 109.9800033569336
+       },
+       {
+        "x": 609.4000244140625,
+        "y": 201.97999572753906,
+        "width": 30.100000381469727,
+        "height": 92.97000122070312
+       },
+       {
+        "x": 640.5,
+        "y": 213.32000732421875,
+        "width": 30.100000381469727,
+        "height": 81.62999725341797
+       },
+       {
+        "x": 671.5999755859375,
+        "y": 248.47000122070312,
+        "width": 30.100000381469727,
+        "height": 46.4900016784668
+       },
+       {
+        "x": 702.7000122070312,
+        "y": 260.94000244140625,
+        "width": 30.100000381469727,
+        "height": 34.0099983215332
+       },
+       {
+        "x": 733.7999877929688,
+        "y": 271.1400146484375,
+        "width": 30.100000381469727,
+        "height": 23.809999465942383
+       },
+       {
+        "x": 764.9000244140625,
+        "y": 282.4800109863281,
+        "width": 30.100000381469727,
+        "height": 12.470000267028809
+       }
+      ]
+     ]
+    }
+   ],
+   "adapter": {
+    "id": "axylo",
+    "library": "Axylo",
+    "version": "0.0.0",
+    "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+    "params": {
+     "build": "prod"
+    },
+    "floor": false,
+    "expectRenderer": "svg",
+    "bundle": "axylo/axylo.bench.iife.min.js"
+   }
+  }
+ },
+ "probes": {},
+ "blocks": [
+  {
+   "block": 0,
+   "load1": 1.24,
+   "at": "2026-11-24T12:09:14.613Z"
+  },
+  {
+   "block": 1,
+   "load1": 0.97,
+   "at": "2026-11-24T12:11:04.108Z"
+  },
+  {
+   "block": 2,
+   "load1": 0.76,
+   "at": "2026-11-24T12:12:53.620Z"
+  },
+  {
+   "block": 3,
+   "load1": 0.87,
+   "at": "2026-11-24T12:14:43.112Z"
+  }
+ ],
+ "runs": [
+  {
+   "index": 0,
+   "phase": "admission",
+   "chromeVersion": "158.0.8127.88",
+   "side": "A",
+   "adapter": "axylo",
+   "slot": "A",
+   "outcome": "ok",
+   "reason": null,
+   "limits": [],
+   "durationMs": 54731,
+   "logs": [],
+   "pageErrors": []
+  },
+  {
+   "index": 1,
+   "phase": "warmup",
+   "chromeVersion": "158.0.8127.88",
+   "side": "A",
+   "adapter": "axylo",
+   "slot": "A",
+   "outcome": "ok",
+   "reason": null,
+   "durationMs": 54742
+  },
+  {
+   "index": 2,
+   "phase": "timed",
+   "block": 0,
+   "position": 0,
+   "config": "B",
+   "startedAt": "2026-11-24T12:09:14.617Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 54756,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "2cb438e6",
+    "probe": null,
+    "lifecycle": {
+     "cycles": 2500,
+     "warm": 700,
+     "checkpoints": [
+      {
+       "cycles": 0,
+       "label": "cycles0",
+       "observers": 0
+      },
+      {
+       "cycles": 100,
+       "label": "cycles100",
+       "observers": 0
+      },
+      {
+       "cycles": 300,
+       "label": "cycles300",
+       "observers": 0
+      },
+      {
+       "cycles": 1000,
+       "label": "cycles1000",
+       "observers": 0
+      },
+      {
+       "cycles": 1500,
+       "label": "cycles1500",
+       "observers": 0
+      },
+      {
+       "cycles": 1600,
+       "label": "cycles1600",
+       "observers": 0
+      },
+      {
+       "cycles": 1700,
+       "label": "cycles1700",
+       "observers": 0
+      },
+      {
+       "cycles": 1800,
+       "label": "cycles1800",
+       "observers": 0
+      },
+      {
+       "cycles": 1900,
+       "label": "cycles1900",
+       "observers": 0
+      },
+      {
+       "cycles": 2000,
+       "label": "cycles2000",
+       "observers": 0
+      },
+      {
+       "cycles": 2100,
+       "label": "cycles2100",
+       "observers": 0
+      },
+      {
+       "cycles": 2200,
+       "label": "cycles2200",
+       "observers": 0
+      },
+      {
+       "cycles": 2300,
+       "label": "cycles2300",
+       "observers": 0
+      },
+      {
+       "cycles": 2400,
+       "label": "cycles2400",
+       "observers": 0
+      },
+      {
+       "cycles": 2500,
+       "label": "cycles2500",
+       "observers": 0
+      }
+     ],
+     "leftover": 0
+    },
+    "lifecycleCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       135
+      ],
+      "y": [
+       0,
+       250
+      ],
+      "plot": {
+       "x": 49.592132568359375,
+       "y": 11.5,
+       "width": 746.4078674316406,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 49.59000015258789,
+         "y": 283.6099853515625,
+         "width": 30.100000381469727,
+         "height": 11.34000015258789
+        },
+        {
+         "x": 80.69000244140625,
+         "y": 259.79998779296875,
+         "width": 30.100000381469727,
+         "height": 35.150001525878906
+        },
+        {
+         "x": 111.79000091552734,
+         "y": 231.4600067138672,
+         "width": 30.100000381469727,
+         "height": 63.4900016784668
+        },
+        {
+         "x": 142.88999938964844,
+         "y": 204.25,
+         "width": 30.100000381469727,
+         "height": 90.70999908447266
+        },
+        {
+         "x": 173.99000549316406,
+         "y": 129.4199981689453,
+         "width": 30.100000381469727,
+         "height": 165.5399932861328
+        },
+        {
+         "x": 205.08999633789062,
+         "y": 86.33000183105469,
+         "width": 30.100000381469727,
+         "height": 208.6199951171875
+        },
+        {
+         "x": 236.19000244140625,
+         "y": 79.52999877929688,
+         "width": 30.100000381469727,
+         "height": 215.4199981689453
+        },
+        {
+         "x": 267.2900085449219,
+         "y": 31.90999984741211,
+         "width": 30.100000381469727,
+         "height": 263.0400085449219
+        },
+        {
+         "x": 298.3900146484375,
+         "y": 45.5099983215332,
+         "width": 30.100000381469727,
+         "height": 249.44000244140625
+        },
+        {
+         "x": 329.5,
+         "y": 152.08999633789062,
+         "width": 30.100000381469727,
+         "height": 142.86000061035156
+        },
+        {
+         "x": 360.6000061035156,
+         "y": 212.17999267578125,
+         "width": 30.100000381469727,
+         "height": 82.7699966430664
+        },
+        {
+         "x": 391.70001220703125,
+         "y": 228.05999755859375,
+         "width": 30.100000381469727,
+         "height": 66.88999938964844
+        },
+        {
+         "x": 422.79998779296875,
+         "y": 260.94000244140625,
+         "width": 30.100000381469727,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 453.8999938964844,
+         "y": 265.4700012207031,
+         "width": 30.100000381469727,
+         "height": 29.479999542236328
+        },
+        {
+         "x": 485,
+         "y": 249.60000610351562,
+         "width": 30.100000381469727,
+         "height": 45.349998474121094
+        },
+        {
+         "x": 516.0999755859375,
+         "y": 234.86000061035156,
+         "width": 30.100000381469727,
+         "height": 60.09000015258789
+        },
+        {
+         "x": 547.2000122070312,
+         "y": 192.91000366210938,
+         "width": 30.100000381469727,
+         "height": 102.04000091552734
+        },
+        {
+         "x": 578.2999877929688,
+         "y": 184.97000122070312,
+         "width": 30.100000381469727,
+         "height": 109.9800033569336
+        },
+        {
+         "x": 609.4000244140625,
+         "y": 201.97999572753906,
+         "width": 30.100000381469727,
+         "height": 92.97000122070312
+        },
+        {
+         "x": 640.5,
+         "y": 213.32000732421875,
+         "width": 30.100000381469727,
+         "height": 81.62999725341797
+        },
+        {
+         "x": 671.5999755859375,
+         "y": 248.47000122070312,
+         "width": 30.100000381469727,
+         "height": 46.4900016784668
+        },
+        {
+         "x": 702.7000122070312,
+         "y": 260.94000244140625,
+         "width": 30.100000381469727,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 733.7999877929688,
+         "y": 271.1400146484375,
+         "width": 30.100000381469727,
+         "height": 23.809999465942383
+        },
+        {
+         "x": 764.9000244140625,
+         "y": 282.4800109863281,
+         "width": 30.100000381469727,
+         "height": 12.470000267028809
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {},
+   "memory": {
+    "pagePid": null,
+    "gpuPid": 1012037,
+    "samples": {
+     "cycles0": {
+      "heapUsed": 3600148,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 707080,
+      "backingStorage": 423526,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.62,
+       "pss": 38488064,
+       "rss": 100175872
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012630,
+        "pss": 18515968
+       },
+       {
+        "pid": 1012632,
+        "pss": 75945984
+       },
+       {
+        "pid": 1012621,
+        "pss": 52411392
+       }
+      ]
+     },
+     "cycles100": {
+      "heapUsed": 3673680,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 728520,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.62,
+       "pss": 38414336,
+       "rss": 100102144
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012630,
+        "pss": 18515968
+       },
+       {
+        "pid": 1012632,
+        "pss": 75778048
+       },
+       {
+        "pid": 1012621,
+        "pss": 52411392
+       }
+      ]
+     },
+     "cycles300": {
+      "heapUsed": 3711984,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 706024,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.64,
+       "pss": 38413312,
+       "rss": 100102144
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012630,
+        "pss": 18514944
+       },
+       {
+        "pid": 1012632,
+        "pss": 76424192
+       },
+       {
+        "pid": 1012621,
+        "pss": 52410368
+       }
+      ]
+     },
+     "cycles1000": {
+      "heapUsed": 3735468,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 728520,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.68,
+       "pss": 38413312,
+       "rss": 100102144
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012630,
+        "pss": 18514944
+       },
+       {
+        "pid": 1012632,
+        "pss": 77104128
+       },
+       {
+        "pid": 1012621,
+        "pss": 52410368
+       }
+      ]
+     },
+     "cycles1500": {
+      "heapUsed": 3752596,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 701288,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.71,
+       "pss": 38378496,
+       "rss": 100102144
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012630,
+        "pss": 18514944
+       },
+       {
+        "pid": 1012632,
+        "pss": 76177408
+       },
+       {
+        "pid": 1012621,
+        "pss": 50675712
+       }
+      ]
+     },
+     "cycles1600": {
+      "heapUsed": 3753876,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 693952,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.72,
+       "pss": 38373376,
+       "rss": 100102144
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012630,
+        "pss": 18514944
+       },
+       {
+        "pid": 1012632,
+        "pss": 75819008
+       },
+       {
+        "pid": 1012621,
+        "pss": 50696192
+       }
+      ]
+     },
+     "cycles1700": {
+      "heapUsed": 3754064,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 707616,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.73,
+       "pss": 38373376,
+       "rss": 100102144
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012630,
+        "pss": 18514944
+       },
+       {
+        "pid": 1012632,
+        "pss": 75945984
+       },
+       {
+        "pid": 1012621,
+        "pss": 50696192
+       }
+      ]
+     },
+     "cycles1800": {
+      "heapUsed": 3755436,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 732608,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.74,
+       "pss": 38373376,
+       "rss": 100102144
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012630,
+        "pss": 18514944
+       },
+       {
+        "pid": 1012632,
+        "pss": 76351488
+       },
+       {
+        "pid": 1012621,
+        "pss": 50696192
+       }
+      ]
+     },
+     "cycles1900": {
+      "heapUsed": 3778324,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 702624,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.74,
+       "pss": 38373376,
+       "rss": 100102144
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012630,
+        "pss": 18514944
+       },
+       {
+        "pid": 1012632,
+        "pss": 76044288
+       },
+       {
+        "pid": 1012621,
+        "pss": 50696192
+       }
+      ]
+     },
+     "cycles2000": {
+      "heapUsed": 3775328,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 743912,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.75,
+       "pss": 38373376,
+       "rss": 100102144
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012630,
+        "pss": 18514944
+       },
+       {
+        "pid": 1012632,
+        "pss": 75933696
+       },
+       {
+        "pid": 1012621,
+        "pss": 50696192
+       }
+      ]
+     },
+     "cycles2100": {
+      "heapUsed": 3775944,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 706728,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.76,
+       "pss": 38374400,
+       "rss": 100102144
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012630,
+        "pss": 18515968
+       },
+       {
+        "pid": 1012632,
+        "pss": 75910144
+       },
+       {
+        "pid": 1012621,
+        "pss": 50697216
+       }
+      ]
+     },
+     "cycles2200": {
+      "heapUsed": 3777276,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 715368,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.77,
+       "pss": 38374400,
+       "rss": 100102144
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012630,
+        "pss": 18515968
+       },
+       {
+        "pid": 1012632,
+        "pss": 75983872
+       },
+       {
+        "pid": 1012621,
+        "pss": 50697216
+       }
+      ]
+     },
+     "cycles2300": {
+      "heapUsed": 3777268,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 728512,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.77,
+       "pss": 38374400,
+       "rss": 100102144
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012630,
+        "pss": 18515968
+       },
+       {
+        "pid": 1012632,
+        "pss": 75934720
+       },
+       {
+        "pid": 1012621,
+        "pss": 50697216
+       }
+      ]
+     },
+     "cycles2400": {
+      "heapUsed": 3777316,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 688048,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.78,
+       "pss": 38374400,
+       "rss": 100102144
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012630,
+        "pss": 18515968
+       },
+       {
+        "pid": 1012632,
+        "pss": 75848704
+       },
+       {
+        "pid": 1012621,
+        "pss": 50697216
+       }
+      ]
+     },
+     "cycles2500": {
+      "heapUsed": 3775924,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 720648,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.79,
+       "pss": 38374400,
+       "rss": 100102144
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012630,
+        "pss": 18515968
+       },
+       {
+        "pid": 1012632,
+        "pss": 75705344
+       },
+       {
+        "pid": 1012621,
+        "pss": 50697216
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "heapGrowth": 0.00582089353485582,
+    "heapGate": "pass",
+    "heapSlopeBytesPerCycle": 53.92331683168317,
+    "heapCheckpoints": [
+     [
+      0,
+      3600148
+     ],
+     [
+      100,
+      3673680
+     ],
+     [
+      300,
+      3711984
+     ],
+     [
+      1000,
+      3735468
+     ],
+     [
+      1500,
+      3752596
+     ],
+     [
+      1600,
+      3753876
+     ],
+     [
+      1700,
+      3754064
+     ],
+     [
+      1800,
+      3755436
+     ],
+     [
+      1900,
+      3778324
+     ],
+     [
+      2000,
+      3775328
+     ],
+     [
+      2100,
+      3775944
+     ],
+     [
+      2200,
+      3777276
+     ],
+     [
+      2300,
+      3777268
+     ],
+     [
+      2400,
+      3777316
+     ],
+     [
+      2500,
+      3775924
+     ]
+    ],
+    "listenersAfter": 0,
+    "observersAfter": 0,
+    "nodesAfter": 0
+   }
+  },
+  {
+   "index": 3,
+   "phase": "timed",
+   "block": 0,
+   "position": 1,
+   "config": "A",
+   "startedAt": "2026-11-24T12:10:09.380Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 54728,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "2cb438e6",
+    "probe": null,
+    "lifecycle": {
+     "cycles": 2500,
+     "warm": 700,
+     "checkpoints": [
+      {
+       "cycles": 0,
+       "label": "cycles0",
+       "observers": 0
+      },
+      {
+       "cycles": 100,
+       "label": "cycles100",
+       "observers": 0
+      },
+      {
+       "cycles": 300,
+       "label": "cycles300",
+       "observers": 0
+      },
+      {
+       "cycles": 1000,
+       "label": "cycles1000",
+       "observers": 0
+      },
+      {
+       "cycles": 1500,
+       "label": "cycles1500",
+       "observers": 0
+      },
+      {
+       "cycles": 1600,
+       "label": "cycles1600",
+       "observers": 0
+      },
+      {
+       "cycles": 1700,
+       "label": "cycles1700",
+       "observers": 0
+      },
+      {
+       "cycles": 1800,
+       "label": "cycles1800",
+       "observers": 0
+      },
+      {
+       "cycles": 1900,
+       "label": "cycles1900",
+       "observers": 0
+      },
+      {
+       "cycles": 2000,
+       "label": "cycles2000",
+       "observers": 0
+      },
+      {
+       "cycles": 2100,
+       "label": "cycles2100",
+       "observers": 0
+      },
+      {
+       "cycles": 2200,
+       "label": "cycles2200",
+       "observers": 0
+      },
+      {
+       "cycles": 2300,
+       "label": "cycles2300",
+       "observers": 0
+      },
+      {
+       "cycles": 2400,
+       "label": "cycles2400",
+       "observers": 0
+      },
+      {
+       "cycles": 2500,
+       "label": "cycles2500",
+       "observers": 0
+      }
+     ],
+     "leftover": 0
+    },
+    "lifecycleCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       135
+      ],
+      "y": [
+       0,
+       250
+      ],
+      "plot": {
+       "x": 49.592132568359375,
+       "y": 11.5,
+       "width": 746.4078674316406,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 49.59000015258789,
+         "y": 283.6099853515625,
+         "width": 30.100000381469727,
+         "height": 11.34000015258789
+        },
+        {
+         "x": 80.69000244140625,
+         "y": 259.79998779296875,
+         "width": 30.100000381469727,
+         "height": 35.150001525878906
+        },
+        {
+         "x": 111.79000091552734,
+         "y": 231.4600067138672,
+         "width": 30.100000381469727,
+         "height": 63.4900016784668
+        },
+        {
+         "x": 142.88999938964844,
+         "y": 204.25,
+         "width": 30.100000381469727,
+         "height": 90.70999908447266
+        },
+        {
+         "x": 173.99000549316406,
+         "y": 129.4199981689453,
+         "width": 30.100000381469727,
+         "height": 165.5399932861328
+        },
+        {
+         "x": 205.08999633789062,
+         "y": 86.33000183105469,
+         "width": 30.100000381469727,
+         "height": 208.6199951171875
+        },
+        {
+         "x": 236.19000244140625,
+         "y": 79.52999877929688,
+         "width": 30.100000381469727,
+         "height": 215.4199981689453
+        },
+        {
+         "x": 267.2900085449219,
+         "y": 31.90999984741211,
+         "width": 30.100000381469727,
+         "height": 263.0400085449219
+        },
+        {
+         "x": 298.3900146484375,
+         "y": 45.5099983215332,
+         "width": 30.100000381469727,
+         "height": 249.44000244140625
+        },
+        {
+         "x": 329.5,
+         "y": 152.08999633789062,
+         "width": 30.100000381469727,
+         "height": 142.86000061035156
+        },
+        {
+         "x": 360.6000061035156,
+         "y": 212.17999267578125,
+         "width": 30.100000381469727,
+         "height": 82.7699966430664
+        },
+        {
+         "x": 391.70001220703125,
+         "y": 228.05999755859375,
+         "width": 30.100000381469727,
+         "height": 66.88999938964844
+        },
+        {
+         "x": 422.79998779296875,
+         "y": 260.94000244140625,
+         "width": 30.100000381469727,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 453.8999938964844,
+         "y": 265.4700012207031,
+         "width": 30.100000381469727,
+         "height": 29.479999542236328
+        },
+        {
+         "x": 485,
+         "y": 249.60000610351562,
+         "width": 30.100000381469727,
+         "height": 45.349998474121094
+        },
+        {
+         "x": 516.0999755859375,
+         "y": 234.86000061035156,
+         "width": 30.100000381469727,
+         "height": 60.09000015258789
+        },
+        {
+         "x": 547.2000122070312,
+         "y": 192.91000366210938,
+         "width": 30.100000381469727,
+         "height": 102.04000091552734
+        },
+        {
+         "x": 578.2999877929688,
+         "y": 184.97000122070312,
+         "width": 30.100000381469727,
+         "height": 109.9800033569336
+        },
+        {
+         "x": 609.4000244140625,
+         "y": 201.97999572753906,
+         "width": 30.100000381469727,
+         "height": 92.97000122070312
+        },
+        {
+         "x": 640.5,
+         "y": 213.32000732421875,
+         "width": 30.100000381469727,
+         "height": 81.62999725341797
+        },
+        {
+         "x": 671.5999755859375,
+         "y": 248.47000122070312,
+         "width": 30.100000381469727,
+         "height": 46.4900016784668
+        },
+        {
+         "x": 702.7000122070312,
+         "y": 260.94000244140625,
+         "width": 30.100000381469727,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 733.7999877929688,
+         "y": 271.1400146484375,
+         "width": 30.100000381469727,
+         "height": 23.809999465942383
+        },
+        {
+         "x": 764.9000244140625,
+         "y": 282.4800109863281,
+         "width": 30.100000381469727,
+         "height": 12.470000267028809
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {},
+   "memory": {
+    "pagePid": null,
+    "gpuPid": 1012037,
+    "samples": {
+     "cycles0": {
+      "heapUsed": 3599232,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 736984,
+      "backingStorage": 423526,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.86,
+       "pss": 38501376,
+       "rss": 100167680
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012901,
+        "pss": 18304000
+       },
+       {
+        "pid": 1012902,
+        "pss": 76479488
+       },
+       {
+        "pid": 1012892,
+        "pss": 52364288
+       }
+      ]
+     },
+     "cycles100": {
+      "heapUsed": 3674792,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 728552,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.87,
+       "pss": 38501376,
+       "rss": 100167680
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012901,
+        "pss": 18304000
+       },
+       {
+        "pid": 1012902,
+        "pss": 76094464
+       },
+       {
+        "pid": 1012892,
+        "pss": 52364288
+       }
+      ]
+     },
+     "cycles300": {
+      "heapUsed": 3711880,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 687048,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.88,
+       "pss": 38530048,
+       "rss": 100167680
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012901,
+        "pss": 18304000
+       },
+       {
+        "pid": 1012902,
+        "pss": 76398592
+       },
+       {
+        "pid": 1012892,
+        "pss": 52363264
+       }
+      ]
+     },
+     "cycles1000": {
+      "heapUsed": 3734952,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 695288,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.93,
+       "pss": 38467584,
+       "rss": 100106240
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012901,
+        "pss": 18302976
+       },
+       {
+        "pid": 1012902,
+        "pss": 76794880
+       },
+       {
+        "pid": 1012892,
+        "pss": 52362240
+       }
+      ]
+     },
+     "cycles1500": {
+      "heapUsed": 3751156,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 740832,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.96,
+       "pss": 38431744,
+       "rss": 100106240
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012901,
+        "pss": 18302976
+       },
+       {
+        "pid": 1012902,
+        "pss": 76175360
+       },
+       {
+        "pid": 1012892,
+        "pss": 50982912
+       }
+      ]
+     },
+     "cycles1600": {
+      "heapUsed": 3752436,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 718232,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.98,
+       "pss": 38426624,
+       "rss": 100106240
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012901,
+        "pss": 18302976
+       },
+       {
+        "pid": 1012902,
+        "pss": 75195392
+       },
+       {
+        "pid": 1012892,
+        "pss": 50999296
+       }
+      ]
+     },
+     "cycles1700": {
+      "heapUsed": 3752624,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 715400,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.98,
+       "pss": 38426624,
+       "rss": 100106240
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012901,
+        "pss": 18302976
+       },
+       {
+        "pid": 1012902,
+        "pss": 75797504
+       },
+       {
+        "pid": 1012892,
+        "pss": 50999296
+       }
+      ]
+     },
+     "cycles1800": {
+      "heapUsed": 3753024,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 714128,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 0.99,
+       "pss": 38426624,
+       "rss": 100106240
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012901,
+        "pss": 18302976
+       },
+       {
+        "pid": 1012902,
+        "pss": 75740160
+       },
+       {
+        "pid": 1012892,
+        "pss": 50999296
+       }
+      ]
+     },
+     "cycles1900": {
+      "heapUsed": 3775912,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 712520,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1,
+       "pss": 38426624,
+       "rss": 100106240
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012901,
+        "pss": 18302976
+       },
+       {
+        "pid": 1012902,
+        "pss": 75752448
+       },
+       {
+        "pid": 1012892,
+        "pss": 50999296
+       }
+      ]
+     },
+     "cycles2000": {
+      "heapUsed": 3772916,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 688752,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.01,
+       "pss": 38426624,
+       "rss": 100106240
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012901,
+        "pss": 18302976
+       },
+       {
+        "pid": 1012902,
+        "pss": 76162048
+       },
+       {
+        "pid": 1012892,
+        "pss": 50999296
+       }
+      ]
+     },
+     "cycles2100": {
+      "heapUsed": 3774896,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 718232,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.02,
+       "pss": 38426624,
+       "rss": 100106240
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012901,
+        "pss": 18302976
+       },
+       {
+        "pid": 1012902,
+        "pss": 76149760
+       },
+       {
+        "pid": 1012892,
+        "pss": 50999296
+       }
+      ]
+     },
+     "cycles2200": {
+      "heapUsed": 3774864,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 688376,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.02,
+       "pss": 38426624,
+       "rss": 100106240
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012901,
+        "pss": 18302976
+       },
+       {
+        "pid": 1012902,
+        "pss": 75764736
+       },
+       {
+        "pid": 1012892,
+        "pss": 50999296
+       }
+      ]
+     },
+     "cycles2300": {
+      "heapUsed": 3774912,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 736912,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.03,
+       "pss": 38426624,
+       "rss": 100106240
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012901,
+        "pss": 18302976
+       },
+       {
+        "pid": 1012902,
+        "pss": 76186624
+       },
+       {
+        "pid": 1012892,
+        "pss": 50999296
+       }
+      ]
+     },
+     "cycles2400": {
+      "heapUsed": 3774904,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 718392,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.03,
+       "pss": 38427648,
+       "rss": 100106240
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012901,
+        "pss": 18304000
+       },
+       {
+        "pid": 1012902,
+        "pss": 75986944
+       },
+       {
+        "pid": 1012892,
+        "pss": 51000320
+       }
+      ]
+     },
+     "cycles2500": {
+      "heapUsed": 3773512,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 719280,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.05,
+       "pss": 38427648,
+       "rss": 100106240
+      },
+      "otherRenderers": [
+       {
+        "pid": 1012901,
+        "pss": 18304000
+       },
+       {
+        "pid": 1012902,
+        "pss": 76130304
+       },
+       {
+        "pid": 1012892,
+        "pss": 51000320
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "heapGrowth": 0.005877174096094118,
+    "heapGate": "pass",
+    "heapSlopeBytesPerCycle": 52.834826732673264,
+    "heapCheckpoints": [
+     [
+      0,
+      3599232
+     ],
+     [
+      100,
+      3674792
+     ],
+     [
+      300,
+      3711880
+     ],
+     [
+      1000,
+      3734952
+     ],
+     [
+      1500,
+      3751156
+     ],
+     [
+      1600,
+      3752436
+     ],
+     [
+      1700,
+      3752624
+     ],
+     [
+      1800,
+      3753024
+     ],
+     [
+      1900,
+      3775912
+     ],
+     [
+      2000,
+      3772916
+     ],
+     [
+      2100,
+      3774896
+     ],
+     [
+      2200,
+      3774864
+     ],
+     [
+      2300,
+      3774912
+     ],
+     [
+      2400,
+      3774904
+     ],
+     [
+      2500,
+      3773512
+     ]
+    ],
+    "listenersAfter": 0,
+    "observersAfter": 0,
+    "nodesAfter": 0
+   }
+  },
+  {
+   "index": 4,
+   "phase": "timed",
+   "block": 1,
+   "position": 0,
+   "config": "A",
+   "startedAt": "2026-11-24T12:11:04.114Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 54741,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "2cb438e6",
+    "probe": null,
+    "lifecycle": {
+     "cycles": 2500,
+     "warm": 700,
+     "checkpoints": [
+      {
+       "cycles": 0,
+       "label": "cycles0",
+       "observers": 0
+      },
+      {
+       "cycles": 100,
+       "label": "cycles100",
+       "observers": 0
+      },
+      {
+       "cycles": 300,
+       "label": "cycles300",
+       "observers": 0
+      },
+      {
+       "cycles": 1000,
+       "label": "cycles1000",
+       "observers": 0
+      },
+      {
+       "cycles": 1500,
+       "label": "cycles1500",
+       "observers": 0
+      },
+      {
+       "cycles": 1600,
+       "label": "cycles1600",
+       "observers": 0
+      },
+      {
+       "cycles": 1700,
+       "label": "cycles1700",
+       "observers": 0
+      },
+      {
+       "cycles": 1800,
+       "label": "cycles1800",
+       "observers": 0
+      },
+      {
+       "cycles": 1900,
+       "label": "cycles1900",
+       "observers": 0
+      },
+      {
+       "cycles": 2000,
+       "label": "cycles2000",
+       "observers": 0
+      },
+      {
+       "cycles": 2100,
+       "label": "cycles2100",
+       "observers": 0
+      },
+      {
+       "cycles": 2200,
+       "label": "cycles2200",
+       "observers": 0
+      },
+      {
+       "cycles": 2300,
+       "label": "cycles2300",
+       "observers": 0
+      },
+      {
+       "cycles": 2400,
+       "label": "cycles2400",
+       "observers": 0
+      },
+      {
+       "cycles": 2500,
+       "label": "cycles2500",
+       "observers": 0
+      }
+     ],
+     "leftover": 0
+    },
+    "lifecycleCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       135
+      ],
+      "y": [
+       0,
+       250
+      ],
+      "plot": {
+       "x": 49.592132568359375,
+       "y": 11.5,
+       "width": 746.4078674316406,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 49.59000015258789,
+         "y": 283.6099853515625,
+         "width": 30.100000381469727,
+         "height": 11.34000015258789
+        },
+        {
+         "x": 80.69000244140625,
+         "y": 259.79998779296875,
+         "width": 30.100000381469727,
+         "height": 35.150001525878906
+        },
+        {
+         "x": 111.79000091552734,
+         "y": 231.4600067138672,
+         "width": 30.100000381469727,
+         "height": 63.4900016784668
+        },
+        {
+         "x": 142.88999938964844,
+         "y": 204.25,
+         "width": 30.100000381469727,
+         "height": 90.70999908447266
+        },
+        {
+         "x": 173.99000549316406,
+         "y": 129.4199981689453,
+         "width": 30.100000381469727,
+         "height": 165.5399932861328
+        },
+        {
+         "x": 205.08999633789062,
+         "y": 86.33000183105469,
+         "width": 30.100000381469727,
+         "height": 208.6199951171875
+        },
+        {
+         "x": 236.19000244140625,
+         "y": 79.52999877929688,
+         "width": 30.100000381469727,
+         "height": 215.4199981689453
+        },
+        {
+         "x": 267.2900085449219,
+         "y": 31.90999984741211,
+         "width": 30.100000381469727,
+         "height": 263.0400085449219
+        },
+        {
+         "x": 298.3900146484375,
+         "y": 45.5099983215332,
+         "width": 30.100000381469727,
+         "height": 249.44000244140625
+        },
+        {
+         "x": 329.5,
+         "y": 152.08999633789062,
+         "width": 30.100000381469727,
+         "height": 142.86000061035156
+        },
+        {
+         "x": 360.6000061035156,
+         "y": 212.17999267578125,
+         "width": 30.100000381469727,
+         "height": 82.7699966430664
+        },
+        {
+         "x": 391.70001220703125,
+         "y": 228.05999755859375,
+         "width": 30.100000381469727,
+         "height": 66.88999938964844
+        },
+        {
+         "x": 422.79998779296875,
+         "y": 260.94000244140625,
+         "width": 30.100000381469727,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 453.8999938964844,
+         "y": 265.4700012207031,
+         "width": 30.100000381469727,
+         "height": 29.479999542236328
+        },
+        {
+         "x": 485,
+         "y": 249.60000610351562,
+         "width": 30.100000381469727,
+         "height": 45.349998474121094
+        },
+        {
+         "x": 516.0999755859375,
+         "y": 234.86000061035156,
+         "width": 30.100000381469727,
+         "height": 60.09000015258789
+        },
+        {
+         "x": 547.2000122070312,
+         "y": 192.91000366210938,
+         "width": 30.100000381469727,
+         "height": 102.04000091552734
+        },
+        {
+         "x": 578.2999877929688,
+         "y": 184.97000122070312,
+         "width": 30.100000381469727,
+         "height": 109.9800033569336
+        },
+        {
+         "x": 609.4000244140625,
+         "y": 201.97999572753906,
+         "width": 30.100000381469727,
+         "height": 92.97000122070312
+        },
+        {
+         "x": 640.5,
+         "y": 213.32000732421875,
+         "width": 30.100000381469727,
+         "height": 81.62999725341797
+        },
+        {
+         "x": 671.5999755859375,
+         "y": 248.47000122070312,
+         "width": 30.100000381469727,
+         "height": 46.4900016784668
+        },
+        {
+         "x": 702.7000122070312,
+         "y": 260.94000244140625,
+         "width": 30.100000381469727,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 733.7999877929688,
+         "y": 271.1400146484375,
+         "width": 30.100000381469727,
+         "height": 23.809999465942383
+        },
+        {
+         "x": 764.9000244140625,
+         "y": 282.4800109863281,
+         "width": 30.100000381469727,
+         "height": 12.470000267028809
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {},
+   "memory": {
+    "pagePid": null,
+    "gpuPid": 1012037,
+    "samples": {
+     "cycles0": {
+      "heapUsed": 3599672,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 700224,
+      "backingStorage": 423526,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.13,
+       "pss": 38492160,
+       "rss": 100093952
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013153,
+        "pss": 18228224
+       },
+       {
+        "pid": 1013154,
+        "pss": 76242944
+       },
+       {
+        "pid": 1013144,
+        "pss": 51699712
+       }
+      ]
+     },
+     "cycles100": {
+      "heapUsed": 3674884,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 728552,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.13,
+       "pss": 38492160,
+       "rss": 100093952
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013153,
+        "pss": 18228224
+       },
+       {
+        "pid": 1013154,
+        "pss": 75931648
+       },
+       {
+        "pid": 1013144,
+        "pss": 51699712
+       }
+      ]
+     },
+     "cycles300": {
+      "heapUsed": 3711868,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 739272,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.15,
+       "pss": 38492160,
+       "rss": 100093952
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013153,
+        "pss": 18228224
+       },
+       {
+        "pid": 1013154,
+        "pss": 76709888
+       },
+       {
+        "pid": 1013144,
+        "pss": 51699712
+       }
+      ]
+     },
+     "cycles1000": {
+      "heapUsed": 3735424,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 702928,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.2,
+       "pss": 38482944,
+       "rss": 100093952
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013153,
+        "pss": 18225152
+       },
+       {
+        "pid": 1013154,
+        "pss": 77297664
+       },
+       {
+        "pid": 1013144,
+        "pss": 51693568
+       }
+      ]
+     },
+     "cycles1500": {
+      "heapUsed": 3753824,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 688496,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.23,
+       "pss": 38362112,
+       "rss": 100007936
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013153,
+        "pss": 18225152
+       },
+       {
+        "pid": 1013154,
+        "pss": 76267520
+       },
+       {
+        "pid": 1013144,
+        "pss": 50493440
+       }
+      ]
+     },
+     "cycles1600": {
+      "heapUsed": 3755104,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 699608,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.25,
+       "pss": 38356992,
+       "rss": 100007936
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013153,
+        "pss": 18225152
+       },
+       {
+        "pid": 1013154,
+        "pss": 75803648
+       },
+       {
+        "pid": 1013144,
+        "pss": 50513920
+       }
+      ]
+     },
+     "cycles1700": {
+      "heapUsed": 3755292,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 732640,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.25,
+       "pss": 38356992,
+       "rss": 100007936
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013153,
+        "pss": 18225152
+       },
+       {
+        "pid": 1013154,
+        "pss": 76090368
+       },
+       {
+        "pid": 1013144,
+        "pss": 50513920
+       }
+      ]
+     },
+     "cycles1800": {
+      "heapUsed": 3756664,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 696400,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.26,
+       "pss": 38356992,
+       "rss": 100007936
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013153,
+        "pss": 18225152
+       },
+       {
+        "pid": 1013154,
+        "pss": 75643904
+       },
+       {
+        "pid": 1013144,
+        "pss": 50513920
+       }
+      ]
+     },
+     "cycles1900": {
+      "heapUsed": 3779552,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 681472,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.27,
+       "pss": 38356992,
+       "rss": 100007936
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013153,
+        "pss": 18225152
+       },
+       {
+        "pid": 1013154,
+        "pss": 75623424
+       },
+       {
+        "pid": 1013144,
+        "pss": 50513920
+       }
+      ]
+     },
+     "cycles2000": {
+      "heapUsed": 3776816,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 688992,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.27,
+       "pss": 38356992,
+       "rss": 100007936
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013153,
+        "pss": 18225152
+       },
+       {
+        "pid": 1013154,
+        "pss": 75582464
+       },
+       {
+        "pid": 1013144,
+        "pss": 50513920
+       }
+      ]
+     },
+     "cycles2100": {
+      "heapUsed": 3777432,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 728544,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.29,
+       "pss": 38356992,
+       "rss": 100007936
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013153,
+        "pss": 18225152
+       },
+       {
+        "pid": 1013154,
+        "pss": 75836416
+       },
+       {
+        "pid": 1013144,
+        "pss": 50513920
+       }
+      ]
+     },
+     "cycles2200": {
+      "heapUsed": 3777400,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 699608,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.29,
+       "pss": 38356992,
+       "rss": 100007936
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013153,
+        "pss": 18225152
+       },
+       {
+        "pid": 1013154,
+        "pss": 75721728
+       },
+       {
+        "pid": 1013144,
+        "pss": 50513920
+       }
+      ]
+     },
+     "cycles2300": {
+      "heapUsed": 3777448,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 681088,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.3,
+       "pss": 38356992,
+       "rss": 100007936
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013153,
+        "pss": 18225152
+       },
+       {
+        "pid": 1013154,
+        "pss": 75824128
+       },
+       {
+        "pid": 1013144,
+        "pss": 50513920
+       }
+      ]
+     },
+     "cycles2400": {
+      "heapUsed": 3777440,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 662736,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.3,
+       "pss": 38356992,
+       "rss": 100007936
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013153,
+        "pss": 18225152
+       },
+       {
+        "pid": 1013154,
+        "pss": 75680768
+       },
+       {
+        "pid": 1013144,
+        "pss": 50513920
+       }
+      ]
+     },
+     "cycles2500": {
+      "heapUsed": 3776048,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 691552,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.3,
+       "pss": 38356992,
+       "rss": 100007936
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013153,
+        "pss": 18225152
+       },
+       {
+        "pid": 1013154,
+        "pss": 75779072
+       },
+       {
+        "pid": 1013144,
+        "pss": 50513920
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "heapGrowth": 0.005707701163318868,
+    "heapGate": "pass",
+    "heapSlopeBytesPerCycle": 54.11995874587459,
+    "heapCheckpoints": [
+     [
+      0,
+      3599672
+     ],
+     [
+      100,
+      3674884
+     ],
+     [
+      300,
+      3711868
+     ],
+     [
+      1000,
+      3735424
+     ],
+     [
+      1500,
+      3753824
+     ],
+     [
+      1600,
+      3755104
+     ],
+     [
+      1700,
+      3755292
+     ],
+     [
+      1800,
+      3756664
+     ],
+     [
+      1900,
+      3779552
+     ],
+     [
+      2000,
+      3776816
+     ],
+     [
+      2100,
+      3777432
+     ],
+     [
+      2200,
+      3777400
+     ],
+     [
+      2300,
+      3777448
+     ],
+     [
+      2400,
+      3777440
+     ],
+     [
+      2500,
+      3776048
+     ]
+    ],
+    "listenersAfter": 0,
+    "observersAfter": 0,
+    "nodesAfter": 0
+   }
+  },
+  {
+   "index": 5,
+   "phase": "timed",
+   "block": 1,
+   "position": 1,
+   "config": "B",
+   "startedAt": "2026-11-24T12:11:58.860Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 54759,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "2cb438e6",
+    "probe": null,
+    "lifecycle": {
+     "cycles": 2500,
+     "warm": 700,
+     "checkpoints": [
+      {
+       "cycles": 0,
+       "label": "cycles0",
+       "observers": 0
+      },
+      {
+       "cycles": 100,
+       "label": "cycles100",
+       "observers": 0
+      },
+      {
+       "cycles": 300,
+       "label": "cycles300",
+       "observers": 0
+      },
+      {
+       "cycles": 1000,
+       "label": "cycles1000",
+       "observers": 0
+      },
+      {
+       "cycles": 1500,
+       "label": "cycles1500",
+       "observers": 0
+      },
+      {
+       "cycles": 1600,
+       "label": "cycles1600",
+       "observers": 0
+      },
+      {
+       "cycles": 1700,
+       "label": "cycles1700",
+       "observers": 0
+      },
+      {
+       "cycles": 1800,
+       "label": "cycles1800",
+       "observers": 0
+      },
+      {
+       "cycles": 1900,
+       "label": "cycles1900",
+       "observers": 0
+      },
+      {
+       "cycles": 2000,
+       "label": "cycles2000",
+       "observers": 0
+      },
+      {
+       "cycles": 2100,
+       "label": "cycles2100",
+       "observers": 0
+      },
+      {
+       "cycles": 2200,
+       "label": "cycles2200",
+       "observers": 0
+      },
+      {
+       "cycles": 2300,
+       "label": "cycles2300",
+       "observers": 0
+      },
+      {
+       "cycles": 2400,
+       "label": "cycles2400",
+       "observers": 0
+      },
+      {
+       "cycles": 2500,
+       "label": "cycles2500",
+       "observers": 0
+      }
+     ],
+     "leftover": 0
+    },
+    "lifecycleCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       135
+      ],
+      "y": [
+       0,
+       250
+      ],
+      "plot": {
+       "x": 49.592132568359375,
+       "y": 11.5,
+       "width": 746.4078674316406,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 49.59000015258789,
+         "y": 283.6099853515625,
+         "width": 30.100000381469727,
+         "height": 11.34000015258789
+        },
+        {
+         "x": 80.69000244140625,
+         "y": 259.79998779296875,
+         "width": 30.100000381469727,
+         "height": 35.150001525878906
+        },
+        {
+         "x": 111.79000091552734,
+         "y": 231.4600067138672,
+         "width": 30.100000381469727,
+         "height": 63.4900016784668
+        },
+        {
+         "x": 142.88999938964844,
+         "y": 204.25,
+         "width": 30.100000381469727,
+         "height": 90.70999908447266
+        },
+        {
+         "x": 173.99000549316406,
+         "y": 129.4199981689453,
+         "width": 30.100000381469727,
+         "height": 165.5399932861328
+        },
+        {
+         "x": 205.08999633789062,
+         "y": 86.33000183105469,
+         "width": 30.100000381469727,
+         "height": 208.6199951171875
+        },
+        {
+         "x": 236.19000244140625,
+         "y": 79.52999877929688,
+         "width": 30.100000381469727,
+         "height": 215.4199981689453
+        },
+        {
+         "x": 267.2900085449219,
+         "y": 31.90999984741211,
+         "width": 30.100000381469727,
+         "height": 263.0400085449219
+        },
+        {
+         "x": 298.3900146484375,
+         "y": 45.5099983215332,
+         "width": 30.100000381469727,
+         "height": 249.44000244140625
+        },
+        {
+         "x": 329.5,
+         "y": 152.08999633789062,
+         "width": 30.100000381469727,
+         "height": 142.86000061035156
+        },
+        {
+         "x": 360.6000061035156,
+         "y": 212.17999267578125,
+         "width": 30.100000381469727,
+         "height": 82.7699966430664
+        },
+        {
+         "x": 391.70001220703125,
+         "y": 228.05999755859375,
+         "width": 30.100000381469727,
+         "height": 66.88999938964844
+        },
+        {
+         "x": 422.79998779296875,
+         "y": 260.94000244140625,
+         "width": 30.100000381469727,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 453.8999938964844,
+         "y": 265.4700012207031,
+         "width": 30.100000381469727,
+         "height": 29.479999542236328
+        },
+        {
+         "x": 485,
+         "y": 249.60000610351562,
+         "width": 30.100000381469727,
+         "height": 45.349998474121094
+        },
+        {
+         "x": 516.0999755859375,
+         "y": 234.86000061035156,
+         "width": 30.100000381469727,
+         "height": 60.09000015258789
+        },
+        {
+         "x": 547.2000122070312,
+         "y": 192.91000366210938,
+         "width": 30.100000381469727,
+         "height": 102.04000091552734
+        },
+        {
+         "x": 578.2999877929688,
+         "y": 184.97000122070312,
+         "width": 30.100000381469727,
+         "height": 109.9800033569336
+        },
+        {
+         "x": 609.4000244140625,
+         "y": 201.97999572753906,
+         "width": 30.100000381469727,
+         "height": 92.97000122070312
+        },
+        {
+         "x": 640.5,
+         "y": 213.32000732421875,
+         "width": 30.100000381469727,
+         "height": 81.62999725341797
+        },
+        {
+         "x": 671.5999755859375,
+         "y": 248.47000122070312,
+         "width": 30.100000381469727,
+         "height": 46.4900016784668
+        },
+        {
+         "x": 702.7000122070312,
+         "y": 260.94000244140625,
+         "width": 30.100000381469727,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 733.7999877929688,
+         "y": 271.1400146484375,
+         "width": 30.100000381469727,
+         "height": 23.809999465942383
+        },
+        {
+         "x": 764.9000244140625,
+         "y": 282.4800109863281,
+         "width": 30.100000381469727,
+         "height": 12.470000267028809
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {},
+   "memory": {
+    "pagePid": null,
+    "gpuPid": 1012037,
+    "samples": {
+     "cycles0": {
+      "heapUsed": 3595956,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 722976,
+      "backingStorage": 423526,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.37,
+       "pss": 38500352,
+       "rss": 100114432
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013362,
+        "pss": 18182144
+       },
+       {
+        "pid": 1013363,
+        "pss": 77682688
+       },
+       {
+        "pid": 1013353,
+        "pss": 51663872
+       }
+      ]
+     },
+     "cycles100": {
+      "heapUsed": 3675832,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 735752,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.38,
+       "pss": 38500352,
+       "rss": 100114432
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013362,
+        "pss": 18182144
+       },
+       {
+        "pid": 1013363,
+        "pss": 77371392
+       },
+       {
+        "pid": 1013353,
+        "pss": 51663872
+       }
+      ]
+     },
+     "cycles300": {
+      "heapUsed": 3716460,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 695200,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.39,
+       "pss": 38499328,
+       "rss": 100114432
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013362,
+        "pss": 18182144
+       },
+       {
+        "pid": 1013363,
+        "pss": 78149632
+       },
+       {
+        "pid": 1013353,
+        "pss": 51663872
+       }
+      ]
+     },
+     "cycles1000": {
+      "heapUsed": 3744960,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 739384,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.44,
+       "pss": 38500352,
+       "rss": 100114432
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013362,
+        "pss": 18182144
+       },
+       {
+        "pid": 1013363,
+        "pss": 78546944
+       },
+       {
+        "pid": 1013353,
+        "pss": 51663872
+       }
+      ]
+     },
+     "cycles1500": {
+      "heapUsed": 3761620,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 760224,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.48,
+       "pss": 38463488,
+       "rss": 100114432
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013362,
+        "pss": 18182144
+       },
+       {
+        "pid": 1013363,
+        "pss": 77578240
+       },
+       {
+        "pid": 1013353,
+        "pss": 50599936
+       }
+      ]
+     },
+     "cycles1600": {
+      "heapUsed": 3761928,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 743152,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.48,
+       "pss": 38458368,
+       "rss": 100114432
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013362,
+        "pss": 18182144
+       },
+       {
+        "pid": 1013363,
+        "pss": 77327360
+       },
+       {
+        "pid": 1013353,
+        "pss": 50616320
+       }
+      ]
+     },
+     "cycles1700": {
+      "heapUsed": 3762116,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 710976,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.5,
+       "pss": 38458368,
+       "rss": 100114432
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013362,
+        "pss": 18182144
+       },
+       {
+        "pid": 1013363,
+        "pss": 77126656
+       },
+       {
+        "pid": 1013353,
+        "pss": 50616320
+       }
+      ]
+     },
+     "cycles1800": {
+      "heapUsed": 3762516,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 727304,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.5,
+       "pss": 38388736,
+       "rss": 100044800
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013362,
+        "pss": 18182144
+       },
+       {
+        "pid": 1013363,
+        "pss": 76897280
+       },
+       {
+        "pid": 1013353,
+        "pss": 50616320
+       }
+      ]
+     },
+     "cycles1900": {
+      "heapUsed": 3785404,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 714888,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.51,
+       "pss": 38388736,
+       "rss": 100044800
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013362,
+        "pss": 18182144
+       },
+       {
+        "pid": 1013363,
+        "pss": 76893184
+       },
+       {
+        "pid": 1013353,
+        "pss": 50616320
+       }
+      ]
+     },
+     "cycles2000": {
+      "heapUsed": 3782628,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 735752,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.51,
+       "pss": 38388736,
+       "rss": 100044800
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013362,
+        "pss": 18182144
+       },
+       {
+        "pid": 1013363,
+        "pss": 77609984
+       },
+       {
+        "pid": 1013353,
+        "pss": 50616320
+       }
+      ]
+     },
+     "cycles2100": {
+      "heapUsed": 3783696,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 695664,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.53,
+       "pss": 38388736,
+       "rss": 100044800
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013362,
+        "pss": 18182144
+       },
+       {
+        "pid": 1013363,
+        "pss": 77470720
+       },
+       {
+        "pid": 1013353,
+        "pss": 50616320
+       }
+      ]
+     },
+     "cycles2200": {
+      "heapUsed": 3783616,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 702128,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.53,
+       "pss": 38388736,
+       "rss": 100044800
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013362,
+        "pss": 18182144
+       },
+       {
+        "pid": 1013363,
+        "pss": 77581312
+       },
+       {
+        "pid": 1013353,
+        "pss": 50616320
+       }
+      ]
+     },
+     "cycles2300": {
+      "heapUsed": 3783664,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 714720,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.54,
+       "pss": 38388736,
+       "rss": 100044800
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013362,
+        "pss": 18182144
+       },
+       {
+        "pid": 1013363,
+        "pss": 77241344
+       },
+       {
+        "pid": 1013353,
+        "pss": 50616320
+       }
+      ]
+     },
+     "cycles2400": {
+      "heapUsed": 3783712,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 731216,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.55,
+       "pss": 38388736,
+       "rss": 100044800
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013362,
+        "pss": 18182144
+       },
+       {
+        "pid": 1013363,
+        "pss": 76827648
+       },
+       {
+        "pid": 1013353,
+        "pss": 50616320
+       }
+      ]
+     },
+     "cycles2500": {
+      "heapUsed": 3782192,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 714720,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.55,
+       "pss": 38388736,
+       "rss": 100044800
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013362,
+        "pss": 18182144
+       },
+       {
+        "pid": 1013363,
+        "pss": 76745728
+       },
+       {
+        "pid": 1013353,
+        "pss": 50616320
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "heapGrowth": 0.0056677854810707196,
+    "heapGate": "pass",
+    "heapSlopeBytesPerCycle": 56.49240924092409,
+    "heapCheckpoints": [
+     [
+      0,
+      3595956
+     ],
+     [
+      100,
+      3675832
+     ],
+     [
+      300,
+      3716460
+     ],
+     [
+      1000,
+      3744960
+     ],
+     [
+      1500,
+      3761620
+     ],
+     [
+      1600,
+      3761928
+     ],
+     [
+      1700,
+      3762116
+     ],
+     [
+      1800,
+      3762516
+     ],
+     [
+      1900,
+      3785404
+     ],
+     [
+      2000,
+      3782628
+     ],
+     [
+      2100,
+      3783696
+     ],
+     [
+      2200,
+      3783616
+     ],
+     [
+      2300,
+      3783664
+     ],
+     [
+      2400,
+      3783712
+     ],
+     [
+      2500,
+      3782192
+     ]
+    ],
+    "listenersAfter": 0,
+    "observersAfter": 0,
+    "nodesAfter": 0
+   }
+  },
+  {
+   "index": 6,
+   "phase": "timed",
+   "block": 2,
+   "position": 0,
+   "config": "B",
+   "startedAt": "2026-11-24T12:12:53.625Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 54741,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "2cb438e6",
+    "probe": null,
+    "lifecycle": {
+     "cycles": 2500,
+     "warm": 700,
+     "checkpoints": [
+      {
+       "cycles": 0,
+       "label": "cycles0",
+       "observers": 0
+      },
+      {
+       "cycles": 100,
+       "label": "cycles100",
+       "observers": 0
+      },
+      {
+       "cycles": 300,
+       "label": "cycles300",
+       "observers": 0
+      },
+      {
+       "cycles": 1000,
+       "label": "cycles1000",
+       "observers": 0
+      },
+      {
+       "cycles": 1500,
+       "label": "cycles1500",
+       "observers": 0
+      },
+      {
+       "cycles": 1600,
+       "label": "cycles1600",
+       "observers": 0
+      },
+      {
+       "cycles": 1700,
+       "label": "cycles1700",
+       "observers": 0
+      },
+      {
+       "cycles": 1800,
+       "label": "cycles1800",
+       "observers": 0
+      },
+      {
+       "cycles": 1900,
+       "label": "cycles1900",
+       "observers": 0
+      },
+      {
+       "cycles": 2000,
+       "label": "cycles2000",
+       "observers": 0
+      },
+      {
+       "cycles": 2100,
+       "label": "cycles2100",
+       "observers": 0
+      },
+      {
+       "cycles": 2200,
+       "label": "cycles2200",
+       "observers": 0
+      },
+      {
+       "cycles": 2300,
+       "label": "cycles2300",
+       "observers": 0
+      },
+      {
+       "cycles": 2400,
+       "label": "cycles2400",
+       "observers": 0
+      },
+      {
+       "cycles": 2500,
+       "label": "cycles2500",
+       "observers": 0
+      }
+     ],
+     "leftover": 0
+    },
+    "lifecycleCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       135
+      ],
+      "y": [
+       0,
+       250
+      ],
+      "plot": {
+       "x": 49.592132568359375,
+       "y": 11.5,
+       "width": 746.4078674316406,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 49.59000015258789,
+         "y": 283.6099853515625,
+         "width": 30.100000381469727,
+         "height": 11.34000015258789
+        },
+        {
+         "x": 80.69000244140625,
+         "y": 259.79998779296875,
+         "width": 30.100000381469727,
+         "height": 35.150001525878906
+        },
+        {
+         "x": 111.79000091552734,
+         "y": 231.4600067138672,
+         "width": 30.100000381469727,
+         "height": 63.4900016784668
+        },
+        {
+         "x": 142.88999938964844,
+         "y": 204.25,
+         "width": 30.100000381469727,
+         "height": 90.70999908447266
+        },
+        {
+         "x": 173.99000549316406,
+         "y": 129.4199981689453,
+         "width": 30.100000381469727,
+         "height": 165.5399932861328
+        },
+        {
+         "x": 205.08999633789062,
+         "y": 86.33000183105469,
+         "width": 30.100000381469727,
+         "height": 208.6199951171875
+        },
+        {
+         "x": 236.19000244140625,
+         "y": 79.52999877929688,
+         "width": 30.100000381469727,
+         "height": 215.4199981689453
+        },
+        {
+         "x": 267.2900085449219,
+         "y": 31.90999984741211,
+         "width": 30.100000381469727,
+         "height": 263.0400085449219
+        },
+        {
+         "x": 298.3900146484375,
+         "y": 45.5099983215332,
+         "width": 30.100000381469727,
+         "height": 249.44000244140625
+        },
+        {
+         "x": 329.5,
+         "y": 152.08999633789062,
+         "width": 30.100000381469727,
+         "height": 142.86000061035156
+        },
+        {
+         "x": 360.6000061035156,
+         "y": 212.17999267578125,
+         "width": 30.100000381469727,
+         "height": 82.7699966430664
+        },
+        {
+         "x": 391.70001220703125,
+         "y": 228.05999755859375,
+         "width": 30.100000381469727,
+         "height": 66.88999938964844
+        },
+        {
+         "x": 422.79998779296875,
+         "y": 260.94000244140625,
+         "width": 30.100000381469727,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 453.8999938964844,
+         "y": 265.4700012207031,
+         "width": 30.100000381469727,
+         "height": 29.479999542236328
+        },
+        {
+         "x": 485,
+         "y": 249.60000610351562,
+         "width": 30.100000381469727,
+         "height": 45.349998474121094
+        },
+        {
+         "x": 516.0999755859375,
+         "y": 234.86000061035156,
+         "width": 30.100000381469727,
+         "height": 60.09000015258789
+        },
+        {
+         "x": 547.2000122070312,
+         "y": 192.91000366210938,
+         "width": 30.100000381469727,
+         "height": 102.04000091552734
+        },
+        {
+         "x": 578.2999877929688,
+         "y": 184.97000122070312,
+         "width": 30.100000381469727,
+         "height": 109.9800033569336
+        },
+        {
+         "x": 609.4000244140625,
+         "y": 201.97999572753906,
+         "width": 30.100000381469727,
+         "height": 92.97000122070312
+        },
+        {
+         "x": 640.5,
+         "y": 213.32000732421875,
+         "width": 30.100000381469727,
+         "height": 81.62999725341797
+        },
+        {
+         "x": 671.5999755859375,
+         "y": 248.47000122070312,
+         "width": 30.100000381469727,
+         "height": 46.4900016784668
+        },
+        {
+         "x": 702.7000122070312,
+         "y": 260.94000244140625,
+         "width": 30.100000381469727,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 733.7999877929688,
+         "y": 271.1400146484375,
+         "width": 30.100000381469727,
+         "height": 23.809999465942383
+        },
+        {
+         "x": 764.9000244140625,
+         "y": 282.4800109863281,
+         "width": 30.100000381469727,
+         "height": 12.470000267028809
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {},
+   "memory": {
+    "pagePid": null,
+    "gpuPid": 1012037,
+    "samples": {
+     "cycles0": {
+      "heapUsed": 3599812,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 707080,
+      "backingStorage": 423526,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.63,
+       "pss": 38451200,
+       "rss": 100081664
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013544,
+        "pss": 18516992
+       },
+       {
+        "pid": 1013545,
+        "pss": 77072384
+       },
+       {
+        "pid": 1013535,
+        "pss": 51891200
+       }
+      ]
+     },
+     "cycles100": {
+      "heapUsed": 3674952,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 728520,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.63,
+       "pss": 38451200,
+       "rss": 100081664
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013544,
+        "pss": 18516992
+       },
+       {
+        "pid": 1013545,
+        "pss": 76822528
+       },
+       {
+        "pid": 1013535,
+        "pss": 51891200
+       }
+      ]
+     },
+     "cycles300": {
+      "heapUsed": 3711936,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 702624,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.64,
+       "pss": 38451200,
+       "rss": 100081664
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013544,
+        "pss": 18516992
+       },
+       {
+        "pid": 1013545,
+        "pss": 76371968
+       },
+       {
+        "pid": 1013535,
+        "pss": 51891200
+       }
+      ]
+     },
+     "cycles1000": {
+      "heapUsed": 3735260,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 715224,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.71,
+       "pss": 38451200,
+       "rss": 100081664
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013544,
+        "pss": 18516992
+       },
+       {
+        "pid": 1013545,
+        "pss": 77248512
+       },
+       {
+        "pid": 1013535,
+        "pss": 51891200
+       }
+      ]
+     },
+     "cycles1500": {
+      "heapUsed": 3752616,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 628896,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.74,
+       "pss": 38414336,
+       "rss": 100081664
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013544,
+        "pss": 18515968
+       },
+       {
+        "pid": 1013545,
+        "pss": 75907072
+       },
+       {
+        "pid": 1013535,
+        "pss": 50568192
+       }
+      ]
+     },
+     "cycles1600": {
+      "heapUsed": 3754040,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 697144,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.75,
+       "pss": 38409216,
+       "rss": 100081664
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013544,
+        "pss": 18515968
+       },
+       {
+        "pid": 1013545,
+        "pss": 75455488
+       },
+       {
+        "pid": 1013535,
+        "pss": 50584576
+       }
+      ]
+     },
+     "cycles1700": {
+      "heapUsed": 3754228,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 706264,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.76,
+       "pss": 38409216,
+       "rss": 100081664
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013544,
+        "pss": 18515968
+       },
+       {
+        "pid": 1013545,
+        "pss": 75545600
+       },
+       {
+        "pid": 1013535,
+        "pss": 50584576
+       }
+      ]
+     },
+     "cycles1800": {
+      "heapUsed": 3755600,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 728520,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.76,
+       "pss": 38409216,
+       "rss": 100081664
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013544,
+        "pss": 18515968
+       },
+       {
+        "pid": 1013545,
+        "pss": 75734016
+       },
+       {
+        "pid": 1013535,
+        "pss": 50584576
+       }
+      ]
+     },
+     "cycles1900": {
+      "heapUsed": 3778488,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 688048,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.77,
+       "pss": 38409216,
+       "rss": 100081664
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013544,
+        "pss": 18515968
+       },
+       {
+        "pid": 1013545,
+        "pss": 75664384
+       },
+       {
+        "pid": 1013535,
+        "pss": 50584576
+       }
+      ]
+     },
+     "cycles2000": {
+      "heapUsed": 3775492,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 720648,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.78,
+       "pss": 38409216,
+       "rss": 100081664
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013544,
+        "pss": 18515968
+       },
+       {
+        "pid": 1013545,
+        "pss": 75983872
+       },
+       {
+        "pid": 1013535,
+        "pss": 50584576
+       }
+      ]
+     },
+     "cycles2100": {
+      "heapUsed": 3776108,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 706728,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.79,
+       "pss": 38409216,
+       "rss": 100081664
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013544,
+        "pss": 18515968
+       },
+       {
+        "pid": 1013545,
+        "pss": 75713536
+       },
+       {
+        "pid": 1013535,
+        "pss": 50584576
+       }
+      ]
+     },
+     "cycles2200": {
+      "heapUsed": 3777520,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 688344,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.8,
+       "pss": 38409216,
+       "rss": 100081664
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013544,
+        "pss": 18515968
+       },
+       {
+        "pid": 1013545,
+        "pss": 75529216
+       },
+       {
+        "pid": 1013535,
+        "pss": 50584576
+       }
+      ]
+     },
+     "cycles2300": {
+      "heapUsed": 3777568,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 706728,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.8,
+       "pss": 38409216,
+       "rss": 100081664
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013544,
+        "pss": 18515968
+       },
+       {
+        "pid": 1013545,
+        "pss": 76053504
+       },
+       {
+        "pid": 1013535,
+        "pss": 50584576
+       }
+      ]
+     },
+     "cycles2400": {
+      "heapUsed": 3777560,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 728520,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.82,
+       "pss": 38339584,
+       "rss": 100012032
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013544,
+        "pss": 18515968
+       },
+       {
+        "pid": 1013545,
+        "pss": 75832320
+       },
+       {
+        "pid": 1013535,
+        "pss": 50584576
+       }
+      ]
+     },
+     "cycles2500": {
+      "heapUsed": 3776168,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 688048,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.82,
+       "pss": 38339584,
+       "rss": 100012032
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013544,
+        "pss": 18515968
+       },
+       {
+        "pid": 1013545,
+        "pss": 75590656
+       },
+       {
+        "pid": 1013535,
+        "pss": 50584576
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "heapGrowth": 0.0058403468095407085,
+    "heapGate": "pass",
+    "heapSlopeBytesPerCycle": 53.917194719471944,
+    "heapCheckpoints": [
+     [
+      0,
+      3599812
+     ],
+     [
+      100,
+      3674952
+     ],
+     [
+      300,
+      3711936
+     ],
+     [
+      1000,
+      3735260
+     ],
+     [
+      1500,
+      3752616
+     ],
+     [
+      1600,
+      3754040
+     ],
+     [
+      1700,
+      3754228
+     ],
+     [
+      1800,
+      3755600
+     ],
+     [
+      1900,
+      3778488
+     ],
+     [
+      2000,
+      3775492
+     ],
+     [
+      2100,
+      3776108
+     ],
+     [
+      2200,
+      3777520
+     ],
+     [
+      2300,
+      3777568
+     ],
+     [
+      2400,
+      3777560
+     ],
+     [
+      2500,
+      3776168
+     ]
+    ],
+    "listenersAfter": 0,
+    "observersAfter": 0,
+    "nodesAfter": 0
+   }
+  },
+  {
+   "index": 7,
+   "phase": "timed",
+   "block": 2,
+   "position": 1,
+   "config": "A",
+   "startedAt": "2026-11-24T12:13:48.370Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 54741,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "2cb438e6",
+    "probe": null,
+    "lifecycle": {
+     "cycles": 2500,
+     "warm": 700,
+     "checkpoints": [
+      {
+       "cycles": 0,
+       "label": "cycles0",
+       "observers": 0
+      },
+      {
+       "cycles": 100,
+       "label": "cycles100",
+       "observers": 0
+      },
+      {
+       "cycles": 300,
+       "label": "cycles300",
+       "observers": 0
+      },
+      {
+       "cycles": 1000,
+       "label": "cycles1000",
+       "observers": 0
+      },
+      {
+       "cycles": 1500,
+       "label": "cycles1500",
+       "observers": 0
+      },
+      {
+       "cycles": 1600,
+       "label": "cycles1600",
+       "observers": 0
+      },
+      {
+       "cycles": 1700,
+       "label": "cycles1700",
+       "observers": 0
+      },
+      {
+       "cycles": 1800,
+       "label": "cycles1800",
+       "observers": 0
+      },
+      {
+       "cycles": 1900,
+       "label": "cycles1900",
+       "observers": 0
+      },
+      {
+       "cycles": 2000,
+       "label": "cycles2000",
+       "observers": 0
+      },
+      {
+       "cycles": 2100,
+       "label": "cycles2100",
+       "observers": 0
+      },
+      {
+       "cycles": 2200,
+       "label": "cycles2200",
+       "observers": 0
+      },
+      {
+       "cycles": 2300,
+       "label": "cycles2300",
+       "observers": 0
+      },
+      {
+       "cycles": 2400,
+       "label": "cycles2400",
+       "observers": 0
+      },
+      {
+       "cycles": 2500,
+       "label": "cycles2500",
+       "observers": 0
+      }
+     ],
+     "leftover": 0
+    },
+    "lifecycleCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       135
+      ],
+      "y": [
+       0,
+       250
+      ],
+      "plot": {
+       "x": 49.592132568359375,
+       "y": 11.5,
+       "width": 746.4078674316406,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 49.59000015258789,
+         "y": 283.6099853515625,
+         "width": 30.100000381469727,
+         "height": 11.34000015258789
+        },
+        {
+         "x": 80.69000244140625,
+         "y": 259.79998779296875,
+         "width": 30.100000381469727,
+         "height": 35.150001525878906
+        },
+        {
+         "x": 111.79000091552734,
+         "y": 231.4600067138672,
+         "width": 30.100000381469727,
+         "height": 63.4900016784668
+        },
+        {
+         "x": 142.88999938964844,
+         "y": 204.25,
+         "width": 30.100000381469727,
+         "height": 90.70999908447266
+        },
+        {
+         "x": 173.99000549316406,
+         "y": 129.4199981689453,
+         "width": 30.100000381469727,
+         "height": 165.5399932861328
+        },
+        {
+         "x": 205.08999633789062,
+         "y": 86.33000183105469,
+         "width": 30.100000381469727,
+         "height": 208.6199951171875
+        },
+        {
+         "x": 236.19000244140625,
+         "y": 79.52999877929688,
+         "width": 30.100000381469727,
+         "height": 215.4199981689453
+        },
+        {
+         "x": 267.2900085449219,
+         "y": 31.90999984741211,
+         "width": 30.100000381469727,
+         "height": 263.0400085449219
+        },
+        {
+         "x": 298.3900146484375,
+         "y": 45.5099983215332,
+         "width": 30.100000381469727,
+         "height": 249.44000244140625
+        },
+        {
+         "x": 329.5,
+         "y": 152.08999633789062,
+         "width": 30.100000381469727,
+         "height": 142.86000061035156
+        },
+        {
+         "x": 360.6000061035156,
+         "y": 212.17999267578125,
+         "width": 30.100000381469727,
+         "height": 82.7699966430664
+        },
+        {
+         "x": 391.70001220703125,
+         "y": 228.05999755859375,
+         "width": 30.100000381469727,
+         "height": 66.88999938964844
+        },
+        {
+         "x": 422.79998779296875,
+         "y": 260.94000244140625,
+         "width": 30.100000381469727,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 453.8999938964844,
+         "y": 265.4700012207031,
+         "width": 30.100000381469727,
+         "height": 29.479999542236328
+        },
+        {
+         "x": 485,
+         "y": 249.60000610351562,
+         "width": 30.100000381469727,
+         "height": 45.349998474121094
+        },
+        {
+         "x": 516.0999755859375,
+         "y": 234.86000061035156,
+         "width": 30.100000381469727,
+         "height": 60.09000015258789
+        },
+        {
+         "x": 547.2000122070312,
+         "y": 192.91000366210938,
+         "width": 30.100000381469727,
+         "height": 102.04000091552734
+        },
+        {
+         "x": 578.2999877929688,
+         "y": 184.97000122070312,
+         "width": 30.100000381469727,
+         "height": 109.9800033569336
+        },
+        {
+         "x": 609.4000244140625,
+         "y": 201.97999572753906,
+         "width": 30.100000381469727,
+         "height": 92.97000122070312
+        },
+        {
+         "x": 640.5,
+         "y": 213.32000732421875,
+         "width": 30.100000381469727,
+         "height": 81.62999725341797
+        },
+        {
+         "x": 671.5999755859375,
+         "y": 248.47000122070312,
+         "width": 30.100000381469727,
+         "height": 46.4900016784668
+        },
+        {
+         "x": 702.7000122070312,
+         "y": 260.94000244140625,
+         "width": 30.100000381469727,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 733.7999877929688,
+         "y": 271.1400146484375,
+         "width": 30.100000381469727,
+         "height": 23.809999465942383
+        },
+        {
+         "x": 764.9000244140625,
+         "y": 282.4800109863281,
+         "width": 30.100000381469727,
+         "height": 12.470000267028809
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {},
+   "memory": {
+    "pagePid": null,
+    "gpuPid": 1012037,
+    "samples": {
+     "cycles0": {
+      "heapUsed": 3600048,
+      "heapTotal": 3932160,
+      "embedderHeapUsed": 734064,
+      "backingStorage": 423526,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.9,
+       "pss": 38476800,
+       "rss": 100147200
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013759,
+        "pss": 18501632
+       },
+       {
+        "pid": 1013760,
+        "pss": 75283456
+       },
+       {
+        "pid": 1013750,
+        "pss": 51732480
+       }
+      ]
+     },
+     "cycles100": {
+      "heapUsed": 3675104,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 710744,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.9,
+       "pss": 38477824,
+       "rss": 100147200
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013759,
+        "pss": 18502656
+       },
+       {
+        "pid": 1013760,
+        "pss": 76020736
+       },
+       {
+        "pid": 1013750,
+        "pss": 51733504
+       }
+      ]
+     },
+     "cycles300": {
+      "heapUsed": 3711908,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 730096,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.92,
+       "pss": 38477824,
+       "rss": 100147200
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013759,
+        "pss": 18502656
+       },
+       {
+        "pid": 1013760,
+        "pss": 76632064
+       },
+       {
+        "pid": 1013750,
+        "pss": 51733504
+       }
+      ]
+     },
+     "cycles1000": {
+      "heapUsed": 3734812,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 735064,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 1.97,
+       "pss": 38477824,
+       "rss": 100147200
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013759,
+        "pss": 18502656
+       },
+       {
+        "pid": 1013760,
+        "pss": 77176832
+       },
+       {
+        "pid": 1013750,
+        "pss": 51733504
+       }
+      ]
+     },
+     "cycles1500": {
+      "heapUsed": 3752216,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 708928,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.01,
+       "pss": 38444032,
+       "rss": 100147200
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013759,
+        "pss": 18502656
+       },
+       {
+        "pid": 1013760,
+        "pss": 75880448
+       },
+       {
+        "pid": 1013750,
+        "pss": 50361344
+       }
+      ]
+     },
+     "cycles1600": {
+      "heapUsed": 3753412,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 737304,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.01,
+       "pss": 38437888,
+       "rss": 100147200
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013759,
+        "pss": 18502656
+       },
+       {
+        "pid": 1013760,
+        "pss": 75874304
+       },
+       {
+        "pid": 1013750,
+        "pss": 50377728
+       }
+      ]
+     },
+     "cycles1700": {
+      "heapUsed": 3753600,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 713656,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.02,
+       "pss": 38437888,
+       "rss": 100147200
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013759,
+        "pss": 18502656
+       },
+       {
+        "pid": 1013760,
+        "pss": 76365824
+       },
+       {
+        "pid": 1013750,
+        "pss": 50377728
+       }
+      ]
+     },
+     "cycles1800": {
+      "heapUsed": 3754000,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 698440,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.02,
+       "pss": 38436864,
+       "rss": 100147200
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013759,
+        "pss": 18501632
+       },
+       {
+        "pid": 1013760,
+        "pss": 76057600
+       },
+       {
+        "pid": 1013750,
+        "pss": 50376704
+       }
+      ]
+     },
+     "cycles1900": {
+      "heapUsed": 3776888,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 732336,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.03,
+       "pss": 38436864,
+       "rss": 100147200
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013759,
+        "pss": 18501632
+       },
+       {
+        "pid": 1013760,
+        "pss": 76393472
+       },
+       {
+        "pid": 1013750,
+        "pss": 50376704
+       }
+      ]
+     },
+     "cycles2000": {
+      "heapUsed": 3774152,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 695728,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.04,
+       "pss": 38436864,
+       "rss": 100147200
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013759,
+        "pss": 18501632
+       },
+       {
+        "pid": 1013760,
+        "pss": 76274688
+       },
+       {
+        "pid": 1013750,
+        "pss": 50376704
+       }
+      ]
+     },
+     "cycles2100": {
+      "heapUsed": 3774768,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 720232,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.04,
+       "pss": 38436864,
+       "rss": 100147200
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013759,
+        "pss": 18501632
+       },
+       {
+        "pid": 1013760,
+        "pss": 76094464
+       },
+       {
+        "pid": 1013750,
+        "pss": 50376704
+       }
+      ]
+     },
+     "cycles2200": {
+      "heapUsed": 3774736,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 731280,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.06,
+       "pss": 38436864,
+       "rss": 100147200
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013759,
+        "pss": 18501632
+       },
+       {
+        "pid": 1013760,
+        "pss": 75672576
+       },
+       {
+        "pid": 1013750,
+        "pss": 50376704
+       }
+      ]
+     },
+     "cycles2300": {
+      "heapUsed": 3774728,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 745288,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.06,
+       "pss": 38436864,
+       "rss": 100147200
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013759,
+        "pss": 18501632
+       },
+       {
+        "pid": 1013760,
+        "pss": 75836416
+       },
+       {
+        "pid": 1013750,
+        "pss": 50376704
+       }
+      ]
+     },
+     "cycles2400": {
+      "heapUsed": 3774776,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 731448,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.07,
+       "pss": 38436864,
+       "rss": 100147200
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013759,
+        "pss": 18501632
+       },
+       {
+        "pid": 1013760,
+        "pss": 76119040
+       },
+       {
+        "pid": 1013750,
+        "pss": 50376704
+       }
+      ]
+     },
+     "cycles2500": {
+      "heapUsed": 3773384,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 728384,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.07,
+       "pss": 38436864,
+       "rss": 100147200
+      },
+      "otherRenderers": [
+       {
+        "pid": 1013759,
+        "pss": 18501632
+       },
+       {
+        "pid": 1013760,
+        "pss": 75680768
+       },
+       {
+        "pid": 1013750,
+        "pss": 50376704
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "heapGrowth": 0.00557621610101755,
+    "heapGate": "pass",
+    "heapSlopeBytesPerCycle": 52.733919141914186,
+    "heapCheckpoints": [
+     [
+      0,
+      3600048
+     ],
+     [
+      100,
+      3675104
+     ],
+     [
+      300,
+      3711908
+     ],
+     [
+      1000,
+      3734812
+     ],
+     [
+      1500,
+      3752216
+     ],
+     [
+      1600,
+      3753412
+     ],
+     [
+      1700,
+      3753600
+     ],
+     [
+      1800,
+      3754000
+     ],
+     [
+      1900,
+      3776888
+     ],
+     [
+      2000,
+      3774152
+     ],
+     [
+      2100,
+      3774768
+     ],
+     [
+      2200,
+      3774736
+     ],
+     [
+      2300,
+      3774728
+     ],
+     [
+      2400,
+      3774776
+     ],
+     [
+      2500,
+      3773384
+     ]
+    ],
+    "listenersAfter": 0,
+    "observersAfter": 0,
+    "nodesAfter": 0
+   }
+  },
+  {
+   "index": 8,
+   "phase": "timed",
+   "block": 3,
+   "position": 0,
+   "config": "A",
+   "startedAt": "2026-11-24T12:14:43.116Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 54728,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "2cb438e6",
+    "probe": null,
+    "lifecycle": {
+     "cycles": 2500,
+     "warm": 700,
+     "checkpoints": [
+      {
+       "cycles": 0,
+       "label": "cycles0",
+       "observers": 0
+      },
+      {
+       "cycles": 100,
+       "label": "cycles100",
+       "observers": 0
+      },
+      {
+       "cycles": 300,
+       "label": "cycles300",
+       "observers": 0
+      },
+      {
+       "cycles": 1000,
+       "label": "cycles1000",
+       "observers": 0
+      },
+      {
+       "cycles": 1500,
+       "label": "cycles1500",
+       "observers": 0
+      },
+      {
+       "cycles": 1600,
+       "label": "cycles1600",
+       "observers": 0
+      },
+      {
+       "cycles": 1700,
+       "label": "cycles1700",
+       "observers": 0
+      },
+      {
+       "cycles": 1800,
+       "label": "cycles1800",
+       "observers": 0
+      },
+      {
+       "cycles": 1900,
+       "label": "cycles1900",
+       "observers": 0
+      },
+      {
+       "cycles": 2000,
+       "label": "cycles2000",
+       "observers": 0
+      },
+      {
+       "cycles": 2100,
+       "label": "cycles2100",
+       "observers": 0
+      },
+      {
+       "cycles": 2200,
+       "label": "cycles2200",
+       "observers": 0
+      },
+      {
+       "cycles": 2300,
+       "label": "cycles2300",
+       "observers": 0
+      },
+      {
+       "cycles": 2400,
+       "label": "cycles2400",
+       "observers": 0
+      },
+      {
+       "cycles": 2500,
+       "label": "cycles2500",
+       "observers": 0
+      }
+     ],
+     "leftover": 0
+    },
+    "lifecycleCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       135
+      ],
+      "y": [
+       0,
+       250
+      ],
+      "plot": {
+       "x": 49.592132568359375,
+       "y": 11.5,
+       "width": 746.4078674316406,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 49.59000015258789,
+         "y": 283.6099853515625,
+         "width": 30.100000381469727,
+         "height": 11.34000015258789
+        },
+        {
+         "x": 80.69000244140625,
+         "y": 259.79998779296875,
+         "width": 30.100000381469727,
+         "height": 35.150001525878906
+        },
+        {
+         "x": 111.79000091552734,
+         "y": 231.4600067138672,
+         "width": 30.100000381469727,
+         "height": 63.4900016784668
+        },
+        {
+         "x": 142.88999938964844,
+         "y": 204.25,
+         "width": 30.100000381469727,
+         "height": 90.70999908447266
+        },
+        {
+         "x": 173.99000549316406,
+         "y": 129.4199981689453,
+         "width": 30.100000381469727,
+         "height": 165.5399932861328
+        },
+        {
+         "x": 205.08999633789062,
+         "y": 86.33000183105469,
+         "width": 30.100000381469727,
+         "height": 208.6199951171875
+        },
+        {
+         "x": 236.19000244140625,
+         "y": 79.52999877929688,
+         "width": 30.100000381469727,
+         "height": 215.4199981689453
+        },
+        {
+         "x": 267.2900085449219,
+         "y": 31.90999984741211,
+         "width": 30.100000381469727,
+         "height": 263.0400085449219
+        },
+        {
+         "x": 298.3900146484375,
+         "y": 45.5099983215332,
+         "width": 30.100000381469727,
+         "height": 249.44000244140625
+        },
+        {
+         "x": 329.5,
+         "y": 152.08999633789062,
+         "width": 30.100000381469727,
+         "height": 142.86000061035156
+        },
+        {
+         "x": 360.6000061035156,
+         "y": 212.17999267578125,
+         "width": 30.100000381469727,
+         "height": 82.7699966430664
+        },
+        {
+         "x": 391.70001220703125,
+         "y": 228.05999755859375,
+         "width": 30.100000381469727,
+         "height": 66.88999938964844
+        },
+        {
+         "x": 422.79998779296875,
+         "y": 260.94000244140625,
+         "width": 30.100000381469727,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 453.8999938964844,
+         "y": 265.4700012207031,
+         "width": 30.100000381469727,
+         "height": 29.479999542236328
+        },
+        {
+         "x": 485,
+         "y": 249.60000610351562,
+         "width": 30.100000381469727,
+         "height": 45.349998474121094
+        },
+        {
+         "x": 516.0999755859375,
+         "y": 234.86000061035156,
+         "width": 30.100000381469727,
+         "height": 60.09000015258789
+        },
+        {
+         "x": 547.2000122070312,
+         "y": 192.91000366210938,
+         "width": 30.100000381469727,
+         "height": 102.04000091552734
+        },
+        {
+         "x": 578.2999877929688,
+         "y": 184.97000122070312,
+         "width": 30.100000381469727,
+         "height": 109.9800033569336
+        },
+        {
+         "x": 609.4000244140625,
+         "y": 201.97999572753906,
+         "width": 30.100000381469727,
+         "height": 92.97000122070312
+        },
+        {
+         "x": 640.5,
+         "y": 213.32000732421875,
+         "width": 30.100000381469727,
+         "height": 81.62999725341797
+        },
+        {
+         "x": 671.5999755859375,
+         "y": 248.47000122070312,
+         "width": 30.100000381469727,
+         "height": 46.4900016784668
+        },
+        {
+         "x": 702.7000122070312,
+         "y": 260.94000244140625,
+         "width": 30.100000381469727,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 733.7999877929688,
+         "y": 271.1400146484375,
+         "width": 30.100000381469727,
+         "height": 23.809999465942383
+        },
+        {
+         "x": 764.9000244140625,
+         "y": 282.4800109863281,
+         "width": 30.100000381469727,
+         "height": 12.470000267028809
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {},
+   "memory": {
+    "pagePid": null,
+    "gpuPid": 1012037,
+    "samples": {
+     "cycles0": {
+      "heapUsed": 3599856,
+      "heapTotal": 3932160,
+      "embedderHeapUsed": 707080,
+      "backingStorage": 423526,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.15,
+       "pss": 38347776,
+       "rss": 99950592
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014027,
+        "pss": 18522112
+       },
+       {
+        "pid": 1014028,
+        "pss": 75940864
+       },
+       {
+        "pid": 1014018,
+        "pss": 51946496
+       }
+      ]
+     },
+     "cycles100": {
+      "heapUsed": 3673448,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 728520,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.16,
+       "pss": 38347776,
+       "rss": 99950592
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014027,
+        "pss": 18522112
+       },
+       {
+        "pid": 1014028,
+        "pss": 75719680
+       },
+       {
+        "pid": 1014018,
+        "pss": 51946496
+       }
+      ]
+     },
+     "cycles300": {
+      "heapUsed": 3711932,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 702368,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.17,
+       "pss": 38347776,
+       "rss": 99950592
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014027,
+        "pss": 18522112
+       },
+       {
+        "pid": 1014028,
+        "pss": 76575744
+       },
+       {
+        "pid": 1014018,
+        "pss": 51946496
+       }
+      ]
+     },
+     "cycles1000": {
+      "heapUsed": 3734156,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 747424,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.22,
+       "pss": 38348800,
+       "rss": 99950592
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014027,
+        "pss": 18523136
+       },
+       {
+        "pid": 1014028,
+        "pss": 77137920
+       },
+       {
+        "pid": 1014018,
+        "pss": 51947520
+       }
+      ]
+     },
+     "cycles1500": {
+      "heapUsed": 3751548,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 701072,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.25,
+       "pss": 38313984,
+       "rss": 99950592
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014027,
+        "pss": 18523136
+       },
+       {
+        "pid": 1014028,
+        "pss": 76100608
+       },
+       {
+        "pid": 1014018,
+        "pss": 50648064
+       }
+      ]
+     },
+     "cycles1600": {
+      "heapUsed": 3751856,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 684800,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.26,
+       "pss": 38307840,
+       "rss": 99950592
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014027,
+        "pss": 18523136
+       },
+       {
+        "pid": 1014028,
+        "pss": 76169216
+       },
+       {
+        "pid": 1014018,
+        "pss": 50664448
+       }
+      ]
+     },
+     "cycles1700": {
+      "heapUsed": 3752692,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 706728,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.26,
+       "pss": 38307840,
+       "rss": 99950592
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014027,
+        "pss": 18523136
+       },
+       {
+        "pid": 1014028,
+        "pss": 75948032
+       },
+       {
+        "pid": 1014018,
+        "pss": 50664448
+       }
+      ]
+     },
+     "cycles1800": {
+      "heapUsed": 3753092,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 688040,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.28,
+       "pss": 38307840,
+       "rss": 99950592
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014027,
+        "pss": 18523136
+       },
+       {
+        "pid": 1014028,
+        "pss": 75931648
+       },
+       {
+        "pid": 1014018,
+        "pss": 50664448
+       }
+      ]
+     },
+     "cycles1900": {
+      "heapUsed": 3776952,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 695696,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.28,
+       "pss": 38307840,
+       "rss": 99950592
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014027,
+        "pss": 18523136
+       },
+       {
+        "pid": 1014028,
+        "pss": 75808768
+       },
+       {
+        "pid": 1014018,
+        "pss": 50664448
+       }
+      ]
+     },
+     "cycles2000": {
+      "heapUsed": 3774216,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 702624,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.29,
+       "pss": 38307840,
+       "rss": 99950592
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014027,
+        "pss": 18523136
+       },
+       {
+        "pid": 1014028,
+        "pss": 75558912
+       },
+       {
+        "pid": 1014018,
+        "pss": 50664448
+       }
+      ]
+     },
+     "cycles2100": {
+      "heapUsed": 3774832,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 728352,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.3,
+       "pss": 38307840,
+       "rss": 99950592
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014027,
+        "pss": 18523136
+       },
+       {
+        "pid": 1014028,
+        "pss": 75550720
+       },
+       {
+        "pid": 1014018,
+        "pss": 50664448
+       }
+      ]
+     },
+     "cycles2200": {
+      "heapUsed": 3774800,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 706560,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.3,
+       "pss": 38306816,
+       "rss": 99950592
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014027,
+        "pss": 18522112
+       },
+       {
+        "pid": 1014028,
+        "pss": 74902528
+       },
+       {
+        "pid": 1014018,
+        "pss": 50663424
+       }
+      ]
+     },
+     "cycles2300": {
+      "heapUsed": 3774848,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 688208,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.31,
+       "pss": 38306816,
+       "rss": 99950592
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014027,
+        "pss": 18522112
+       },
+       {
+        "pid": 1014028,
+        "pss": 76008448
+       },
+       {
+        "pid": 1014018,
+        "pss": 50663424
+       }
+      ]
+     },
+     "cycles2400": {
+      "heapUsed": 3774840,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 658232,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.32,
+       "pss": 38306816,
+       "rss": 99950592
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014027,
+        "pss": 18522112
+       },
+       {
+        "pid": 1014028,
+        "pss": 76061696
+       },
+       {
+        "pid": 1014018,
+        "pss": 50663424
+       }
+      ]
+     },
+     "cycles2500": {
+      "heapUsed": 3773448,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 728352,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.33,
+       "pss": 38306816,
+       "rss": 99950592
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014027,
+        "pss": 18522112
+       },
+       {
+        "pid": 1014028,
+        "pss": 75435008
+       },
+       {
+        "pid": 1014018,
+        "pss": 50663424
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "heapGrowth": 0.00584189473078367,
+    "heapGate": "pass",
+    "heapSlopeBytesPerCycle": 53.044909240924085,
+    "heapCheckpoints": [
+     [
+      0,
+      3599856
+     ],
+     [
+      100,
+      3673448
+     ],
+     [
+      300,
+      3711932
+     ],
+     [
+      1000,
+      3734156
+     ],
+     [
+      1500,
+      3751548
+     ],
+     [
+      1600,
+      3751856
+     ],
+     [
+      1700,
+      3752692
+     ],
+     [
+      1800,
+      3753092
+     ],
+     [
+      1900,
+      3776952
+     ],
+     [
+      2000,
+      3774216
+     ],
+     [
+      2100,
+      3774832
+     ],
+     [
+      2200,
+      3774800
+     ],
+     [
+      2300,
+      3774848
+     ],
+     [
+      2400,
+      3774840
+     ],
+     [
+      2500,
+      3773448
+     ]
+    ],
+    "listenersAfter": 0,
+    "observersAfter": 0,
+    "nodesAfter": 0
+   }
+  },
+  {
+   "index": 9,
+   "phase": "timed",
+   "block": 3,
+   "position": 1,
+   "config": "B",
+   "startedAt": "2026-11-24T12:15:37.850Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 54743,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "2cb438e6",
+    "probe": null,
+    "lifecycle": {
+     "cycles": 2500,
+     "warm": 700,
+     "checkpoints": [
+      {
+       "cycles": 0,
+       "label": "cycles0",
+       "observers": 0
+      },
+      {
+       "cycles": 100,
+       "label": "cycles100",
+       "observers": 0
+      },
+      {
+       "cycles": 300,
+       "label": "cycles300",
+       "observers": 0
+      },
+      {
+       "cycles": 1000,
+       "label": "cycles1000",
+       "observers": 0
+      },
+      {
+       "cycles": 1500,
+       "label": "cycles1500",
+       "observers": 0
+      },
+      {
+       "cycles": 1600,
+       "label": "cycles1600",
+       "observers": 0
+      },
+      {
+       "cycles": 1700,
+       "label": "cycles1700",
+       "observers": 0
+      },
+      {
+       "cycles": 1800,
+       "label": "cycles1800",
+       "observers": 0
+      },
+      {
+       "cycles": 1900,
+       "label": "cycles1900",
+       "observers": 0
+      },
+      {
+       "cycles": 2000,
+       "label": "cycles2000",
+       "observers": 0
+      },
+      {
+       "cycles": 2100,
+       "label": "cycles2100",
+       "observers": 0
+      },
+      {
+       "cycles": 2200,
+       "label": "cycles2200",
+       "observers": 0
+      },
+      {
+       "cycles": 2300,
+       "label": "cycles2300",
+       "observers": 0
+      },
+      {
+       "cycles": 2400,
+       "label": "cycles2400",
+       "observers": 0
+      },
+      {
+       "cycles": 2500,
+       "label": "cycles2500",
+       "observers": 0
+      }
+     ],
+     "leftover": 0
+    },
+    "lifecycleCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       135
+      ],
+      "y": [
+       0,
+       250
+      ],
+      "plot": {
+       "x": 49.592132568359375,
+       "y": 11.5,
+       "width": 746.4078674316406,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 49.59000015258789,
+         "y": 283.6099853515625,
+         "width": 30.100000381469727,
+         "height": 11.34000015258789
+        },
+        {
+         "x": 80.69000244140625,
+         "y": 259.79998779296875,
+         "width": 30.100000381469727,
+         "height": 35.150001525878906
+        },
+        {
+         "x": 111.79000091552734,
+         "y": 231.4600067138672,
+         "width": 30.100000381469727,
+         "height": 63.4900016784668
+        },
+        {
+         "x": 142.88999938964844,
+         "y": 204.25,
+         "width": 30.100000381469727,
+         "height": 90.70999908447266
+        },
+        {
+         "x": 173.99000549316406,
+         "y": 129.4199981689453,
+         "width": 30.100000381469727,
+         "height": 165.5399932861328
+        },
+        {
+         "x": 205.08999633789062,
+         "y": 86.33000183105469,
+         "width": 30.100000381469727,
+         "height": 208.6199951171875
+        },
+        {
+         "x": 236.19000244140625,
+         "y": 79.52999877929688,
+         "width": 30.100000381469727,
+         "height": 215.4199981689453
+        },
+        {
+         "x": 267.2900085449219,
+         "y": 31.90999984741211,
+         "width": 30.100000381469727,
+         "height": 263.0400085449219
+        },
+        {
+         "x": 298.3900146484375,
+         "y": 45.5099983215332,
+         "width": 30.100000381469727,
+         "height": 249.44000244140625
+        },
+        {
+         "x": 329.5,
+         "y": 152.08999633789062,
+         "width": 30.100000381469727,
+         "height": 142.86000061035156
+        },
+        {
+         "x": 360.6000061035156,
+         "y": 212.17999267578125,
+         "width": 30.100000381469727,
+         "height": 82.7699966430664
+        },
+        {
+         "x": 391.70001220703125,
+         "y": 228.05999755859375,
+         "width": 30.100000381469727,
+         "height": 66.88999938964844
+        },
+        {
+         "x": 422.79998779296875,
+         "y": 260.94000244140625,
+         "width": 30.100000381469727,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 453.8999938964844,
+         "y": 265.4700012207031,
+         "width": 30.100000381469727,
+         "height": 29.479999542236328
+        },
+        {
+         "x": 485,
+         "y": 249.60000610351562,
+         "width": 30.100000381469727,
+         "height": 45.349998474121094
+        },
+        {
+         "x": 516.0999755859375,
+         "y": 234.86000061035156,
+         "width": 30.100000381469727,
+         "height": 60.09000015258789
+        },
+        {
+         "x": 547.2000122070312,
+         "y": 192.91000366210938,
+         "width": 30.100000381469727,
+         "height": 102.04000091552734
+        },
+        {
+         "x": 578.2999877929688,
+         "y": 184.97000122070312,
+         "width": 30.100000381469727,
+         "height": 109.9800033569336
+        },
+        {
+         "x": 609.4000244140625,
+         "y": 201.97999572753906,
+         "width": 30.100000381469727,
+         "height": 92.97000122070312
+        },
+        {
+         "x": 640.5,
+         "y": 213.32000732421875,
+         "width": 30.100000381469727,
+         "height": 81.62999725341797
+        },
+        {
+         "x": 671.5999755859375,
+         "y": 248.47000122070312,
+         "width": 30.100000381469727,
+         "height": 46.4900016784668
+        },
+        {
+         "x": 702.7000122070312,
+         "y": 260.94000244140625,
+         "width": 30.100000381469727,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 733.7999877929688,
+         "y": 271.1400146484375,
+         "width": 30.100000381469727,
+         "height": 23.809999465942383
+        },
+        {
+         "x": 764.9000244140625,
+         "y": 282.4800109863281,
+         "width": 30.100000381469727,
+         "height": 12.470000267028809
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {},
+   "memory": {
+    "pagePid": null,
+    "gpuPid": 1012037,
+    "samples": {
+     "cycles0": {
+      "heapUsed": 3600296,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 695288,
+      "backingStorage": 423526,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.4,
+       "pss": 38432768,
+       "rss": 100036608
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014177,
+        "pss": 18433024
+       },
+       {
+        "pid": 1014178,
+        "pss": 75307008
+       },
+       {
+        "pid": 1014168,
+        "pss": 52048896
+       }
+      ]
+     },
+     "cycles100": {
+      "heapUsed": 3673624,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 728552,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.41,
+       "pss": 38432768,
+       "rss": 100036608
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014177,
+        "pss": 18433024
+       },
+       {
+        "pid": 1014178,
+        "pss": 75929600
+       },
+       {
+        "pid": 1014168,
+        "pss": 52048896
+       }
+      ]
+     },
+     "cycles300": {
+      "heapUsed": 3711984,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 686864,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.42,
+       "pss": 38375424,
+       "rss": 99979264
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014177,
+        "pss": 18433024
+       },
+       {
+        "pid": 1014178,
+        "pss": 76531712
+       },
+       {
+        "pid": 1014168,
+        "pss": 52048896
+       }
+      ]
+     },
+     "cycles1000": {
+      "heapUsed": 3735864,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 729064,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.47,
+       "pss": 38376448,
+       "rss": 99979264
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014177,
+        "pss": 18434048
+       },
+       {
+        "pid": 1014178,
+        "pss": 77413376
+       },
+       {
+        "pid": 1014168,
+        "pss": 52049920
+       }
+      ]
+     },
+     "cycles1500": {
+      "heapUsed": 3751012,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 700768,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.5,
+       "pss": 38340608,
+       "rss": 99979264
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014177,
+        "pss": 18434048
+       },
+       {
+        "pid": 1014178,
+        "pss": 76318720
+       },
+       {
+        "pid": 1014168,
+        "pss": 50718720
+       }
+      ]
+     },
+     "cycles1600": {
+      "heapUsed": 3752292,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 709704,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.51,
+       "pss": 38335488,
+       "rss": 99979264
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014177,
+        "pss": 18434048
+       },
+       {
+        "pid": 1014178,
+        "pss": 76009472
+       },
+       {
+        "pid": 1014168,
+        "pss": 50735104
+       }
+      ]
+     },
+     "cycles1700": {
+      "heapUsed": 3752480,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 693096,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.52,
+       "pss": 38335488,
+       "rss": 99979264
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014177,
+        "pss": 18434048
+       },
+       {
+        "pid": 1014178,
+        "pss": 75841536
+       },
+       {
+        "pid": 1014168,
+        "pss": 50735104
+       }
+      ]
+     },
+     "cycles1800": {
+      "heapUsed": 3752880,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 709824,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.53,
+       "pss": 38335488,
+       "rss": 99979264
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014177,
+        "pss": 18434048
+       },
+       {
+        "pid": 1014178,
+        "pss": 76451840
+       },
+       {
+        "pid": 1014168,
+        "pss": 50735104
+       }
+      ]
+     },
+     "cycles1900": {
+      "heapUsed": 3775768,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 721520,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.53,
+       "pss": 38335488,
+       "rss": 99979264
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014177,
+        "pss": 18434048
+       },
+       {
+        "pid": 1014178,
+        "pss": 76058624
+       },
+       {
+        "pid": 1014168,
+        "pss": 50735104
+       }
+      ]
+     },
+     "cycles2000": {
+      "heapUsed": 3772772,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 692040,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.54,
+       "pss": 38335488,
+       "rss": 99979264
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014177,
+        "pss": 18434048
+       },
+       {
+        "pid": 1014178,
+        "pss": 76619776
+       },
+       {
+        "pid": 1014168,
+        "pss": 50735104
+       }
+      ]
+     },
+     "cycles2100": {
+      "heapUsed": 3758088,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 729440,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.54,
+       "pss": 38335488,
+       "rss": 99979264
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014177,
+        "pss": 18434048
+       },
+       {
+        "pid": 1014178,
+        "pss": 76275712
+       },
+       {
+        "pid": 1014168,
+        "pss": 50735104
+       }
+      ]
+     },
+     "cycles2200": {
+      "heapUsed": 3774720,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 710920,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.55,
+       "pss": 38335488,
+       "rss": 99979264
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014177,
+        "pss": 18434048
+       },
+       {
+        "pid": 1014178,
+        "pss": 76247040
+       },
+       {
+        "pid": 1014168,
+        "pss": 50735104
+       }
+      ]
+     },
+     "cycles2300": {
+      "heapUsed": 3774768,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 693096,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.55,
+       "pss": 38335488,
+       "rss": 99979264
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014177,
+        "pss": 18434048
+       },
+       {
+        "pid": 1014178,
+        "pss": 76718080
+       },
+       {
+        "pid": 1014168,
+        "pss": 50735104
+       }
+      ]
+     },
+     "cycles2400": {
+      "heapUsed": 3774760,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 705008,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.57,
+       "pss": 38335488,
+       "rss": 99979264
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014177,
+        "pss": 18434048
+       },
+       {
+        "pid": 1014178,
+        "pss": 76881920
+       },
+       {
+        "pid": 1014168,
+        "pss": 50735104
+       }
+      ]
+     },
+     "cycles2500": {
+      "heapUsed": 3773368,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 728712,
+      "backingStorage": 423535,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 1012037,
+       "type": "GPU",
+       "cpuTime": 2.58,
+       "pss": 38334464,
+       "rss": 99979264
+      },
+      "otherRenderers": [
+       {
+        "pid": 1014177,
+        "pss": 18433024
+       },
+       {
+        "pid": 1014178,
+        "pss": 76844032
+       },
+       {
+        "pid": 1014168,
+        "pss": 50734080
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "heapGrowth": 0.0056929980707121075,
+    "heapGate": "pass",
+    "heapSlopeBytesPerCycle": 51.77337458745875,
+    "heapCheckpoints": [
+     [
+      0,
+      3600296
+     ],
+     [
+      100,
+      3673624
+     ],
+     [
+      300,
+      3711984
+     ],
+     [
+      1000,
+      3735864
+     ],
+     [
+      1500,
+      3751012
+     ],
+     [
+      1600,
+      3752292
+     ],
+     [
+      1700,
+      3752480
+     ],
+     [
+      1800,
+      3752880
+     ],
+     [
+      1900,
+      3775768
+     ],
+     [
+      2000,
+      3772772
+     ],
+     [
+      2100,
+      3758088
+     ],
+     [
+      2200,
+      3774720
+     ],
+     [
+      2300,
+      3774768
+     ],
+     [
+      2400,
+      3774760
+     ],
+     [
+      2500,
+      3773368
+     ]
+    ],
+    "listenersAfter": 0,
+    "observersAfter": 0,
+    "nodesAfter": 0
+   }
+  }
+ ],
+ "analysis": {
+  "completePairs": 4,
+  "blocks": 4,
+  "outcomes": {
+   "B:ok": 4,
+   "A:ok": 4
+  },
+  "reliability": {
+   "timed": {
+    "A": 4,
+    "B": 4
+   },
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "failureRate": {
+    "A": 0,
+    "B": 0
+   },
+   "adverseKey": null,
+   "adverse": {
+    "A": 0,
+    "B": 0
+   },
+   "conditional": false,
+   "betterBlocked": null,
+   "worseBlocked": null
+  },
+  "bootstrapSeed": 12345,
+  "level": 0.95,
+  "zeroOnly": false,
+  "metrics": {
+   "heapGrowth": {
+    "key": "heapGrowth",
+    "unit": "x",
+    "primary": true,
+    "what": "P7 (plan 5.1): median heap after forced GC over cycles 2,000-2,500 divided by that over 1,500-2,000, minus 1 (gate: above 0.01 fails)",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 4,
+    "level": 0.95,
+    "medianA": 0.005774797947051269,
+    "medianB": 0.005756945802783964,
+    "diff": -0.000017852144267305192,
+    "lo": -0.00010258861065493008,
+    "hi": 0.00012471380795819886,
+    "relative": -0.0030913885526368703,
+    "blockDiffs": [
+     -0.00005628056123829772,
+     -0.00003991568224814834,
+     0.0002641307085231581,
+     -0.00014889666007156244
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 2,
+      "diff": -0.00009440617115985539
+     },
+     "BA": {
+      "pairs": 2,
+      "diff": 0.0001039250736424302
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 20"
+   },
+   "heapSlopeBytesPerCycle": {
+    "key": "heapSlopeBytesPerCycle",
+    "unit": "bytes",
+    "what": "least-squares slope of heap after forced GC over all checkpoints, per cycle",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 4,
+    "level": 0.95,
+    "medianA": 52.939867986798674,
+    "medianB": 53.92025577557756,
+    "diff": 0.9803877887788843,
+    "lo": -0.09458333333333258,
+    "hi": 1.7778630363036285,
+    "relative": 0.018518893719632213,
+    "blockDiffs": [
+     1.0884900990099027,
+     2.372450495049499,
+     1.1832755775577581,
+     -1.2715346534653378
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 2,
+      "diff": 0.5504579207920841
+     },
+     "BA": {
+      "pairs": 2,
+      "diff": 1.135882838283834
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 20"
+   },
+   "listenersAfter": {
+    "key": "listenersAfter",
+    "unit": "listeners",
+    "what": "JS event listeners on the page after the last cycle minus after warm-up",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 4,
+    "level": 0.95,
+    "medianA": 0,
+    "medianB": 0,
+    "diff": 0,
+    "lo": 0,
+    "hi": 0,
+    "relative": null,
+    "blockDiffs": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 2,
+      "diff": 0
+     },
+     "BA": {
+      "pairs": 2,
+      "diff": 0
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 20"
+   },
+   "observersAfter": {
+    "key": "observersAfter",
+    "unit": "observers",
+    "what": "Resize/Mutation/Intersection observers constructed and never disconnected, after the last cycle minus after warm-up",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 4,
+    "level": 0.95,
+    "medianA": 0,
+    "medianB": 0,
+    "diff": 0,
+    "lo": 0,
+    "hi": 0,
+    "relative": null,
+    "blockDiffs": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 2,
+      "diff": 0
+     },
+     "BA": {
+      "pairs": 2,
+      "diff": 0
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 20"
+   },
+   "nodesAfter": {
+    "key": "nodesAfter",
+    "unit": "nodes",
+    "what": "DOM nodes after the last cycle minus after warm-up",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 4,
+    "level": 0.95,
+    "medianA": 0,
+    "medianB": 0,
+    "diff": 0,
+    "lo": 0,
+    "hi": 0,
+    "relative": null,
+    "blockDiffs": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 2,
+      "diff": 0
+     },
+     "BA": {
+      "pairs": 2,
+      "diff": 0
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 20"
+   }
+  }
+ },
+ "endedBecause": "all blocks run",
+ "finishedAt": "2026-11-24T12:16:32.633Z",
+ "integrity": {
+  "violations": []
+ },
+ "eligibility": {
+  "eligible": true,
+  "reasons": []
+ }
+}

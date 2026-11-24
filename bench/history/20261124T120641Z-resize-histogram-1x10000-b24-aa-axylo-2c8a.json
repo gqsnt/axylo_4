@@ -1,0 +1,5290 @@
+{
+ "schema": "axylo-bench/2",
+ "runId": "20261124T120641Z-resize-histogram-1x10000-b24-aa-axylo-2c8a",
+ "status": "complete",
+ "startedAt": "2026-11-24T12:06:41.698Z",
+ "command": [
+  "--artifact",
+  "bench/artifacts/stage1b-all-charts",
+  "--history-dir",
+  "bench/history",
+  "--blocks",
+  "4",
+  "--aa",
+  "axylo",
+  "--workload",
+  "resize",
+  "--kind",
+  "histogram",
+  "--size",
+  "1x10000"
+ ],
+ "design": {
+  "raster": "software",
+  "mode": "aa",
+  "baseline": "axylo",
+  "candidate": "axylo",
+  "labels": {
+   "A": "axylo",
+   "B": "axylo"
+  },
+  "adapters": {
+   "A": {
+    "id": "axylo",
+    "params": {}
+   },
+   "B": {
+    "id": "axylo",
+    "params": {}
+   }
+  },
+  "workload": "resize",
+  "params": {
+   "kind": "histogram",
+   "size": "1x10000",
+   "bins": 24,
+   "charts": 1
+  },
+  "blocks": 4,
+  "order": [
+   "BA",
+   "AB",
+   "BA",
+   "AB"
+  ],
+  "seed": 529151107,
+  "bootstrapSeed": 12345,
+  "settleMs": 500,
+  "timeoutMs": 120000,
+  "dpr": 1,
+  "viewport": [
+   1440,
+   900
+  ],
+  "warmup": "one untimed admission run per side (A then B), then one untimed warm-up run per side in the opposite order (B then A), so each side has run twice in this browser before timing starts",
+  "isolate": false,
+  "isolation": "one browser process for the session, a fresh context per run",
+  "endpoint": null,
+  "noiseFrom": null
+ },
+ "environment": {
+  "browser": {
+   "name": "Google Chrome (system, via Playwright channel \"chrome\")",
+   "version": "158.0.8127.88",
+   "headless": true
+  },
+  "playwright": "1.65.1",
+  "node": "v24.21.0",
+  "host": {
+   "hostname": "canarit-Z690-AORUS-ELITE-DDR4",
+   "cpuModel": "13th Gen Intel(R) Core(TM) i5-13600K",
+   "logicalCores": 20
+  },
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13600K",
+   "logicalCores": 20,
+   "governor": "powersave"
+  },
+  "memoryGiB": 30.4,
+  "os": {
+   "type": "Linux",
+   "release": "7.0.0-44-generic",
+   "name": "Ubuntu 26.04.1 LTS",
+   "arch": "x64"
+  },
+  "loadAverageAtStart": [
+   0.84,
+   1.25,
+   1.31
+  ],
+  "hostIdle": "not controlled: other processes (including other agents) may run on this machine during the session",
+  "power": "not available: power settings are not read by this harness",
+  "runnerCheckoutHead": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+  "lockfiles": {
+   "bench/package-lock.json": "640e6069d6ca766dd415693245d446e83b5cdd8b30218c4031ccb5852543e72f",
+   "package-lock.json": "e98151ca9f4f8d9aa1b6dd7e828f8e5024fbbf43a752a754d1a469a5850af392"
+  },
+  "libraries": {
+   "uplot": "1.6.32",
+   "chart.js": "4.6.1",
+   "chartjs-adapter-date-fns": "3.0.0",
+   "date-fns": "4.4.0",
+   "echarts": "6.1.0",
+   "axylo": "0.0.0"
+  },
+  "raster": {
+   "mode": "software",
+   "requested": "default (software here)",
+   "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+   "canvas2d": "unavailable_software",
+   "rasterization": "disabled_software",
+   "gpuCompositing": "disabled_software",
+   "refused": null,
+   "detail": {
+    "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "featureStatus": {
+     "2d_canvas": "unavailable_software",
+     "direct_rendering_display_compositor": "disabled_off_ok",
+     "gpu_compositing": "disabled_software",
+     "multiple_raster_threads": "enabled_on",
+     "opengl": "disabled_off",
+     "rasterization": "disabled_software",
+     "skia_graphite": "disabled_off",
+     "trees_in_viz": "disabled_off",
+     "video_decode": "disabled_software",
+     "video_encode": "disabled_software",
+     "vulkan": "disabled_off",
+     "webgl": "unavailable_software",
+     "webgpu": "unavailable_software",
+     "webgpu_on_vk_via_gl_interop": "disabled_off",
+     "webnn": "unavailable_software"
+    },
+    "devices": [
+     {
+      "vendor": "Google Inc. (Google)",
+      "device": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0)",
+      "driver": "5.0.0"
+     }
+    ],
+    "gl": {
+     "displayType": "ANGLE_SWIFTSHADER",
+     "glExtensions": "GL_AMD_performance_monitor GL_ANGLE_base_vertex_base_instance_shader_builtin GL_ANGLE_blob_cache GL_ANGLE_client_arrays GL_ANGLE_clip_cull_distance GL_ANGLE_compressed_texture_etc GL_ANGLE_copy_textur",
+     "glImplementationParts": "(gl=egl-angle,angle=swiftshader)",
+     "glRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0)",
+     "glResetNotificationStrategy": "33362",
+     "glVendor": "Google Inc. (Google)",
+     "glVersion": "OpenGL ES 3.0 (ANGLE 2.1.29257 git hash: 1f6526a566c2)",
+     "glWsExtensions": "EGL_EXT_create_context_robustness EGL_ANGLE_surface_orientation EGL_KHR_create_context EGL_KHR_image EGL_KHR_image_base EGL_EXT_image_gl_colorspace EGL_KHR_gl_colorspace EGL_KHR_gl_texture_2D_image EG",
+     "glWsVendor": "Google Inc. (Google)",
+     "glWsVersion": "1.5 (ANGLE 2.1.29257 git hash: 1f6526a566c2)",
+     "passthroughCmdDecoder": "true",
+     "skiaBackendType": "None"
+    }
+   },
+   "flags": "Playwright defaults"
+  },
+  "page": {
+   "devicePixelRatio": 1,
+   "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+   "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+   "viewport": [
+    1440,
+    900
+   ],
+   "hardwareConcurrency": 20,
+   "refresh": {
+    "medianIntervalMs": 16.7,
+    "hz": 59.88,
+    "minMs": 16.5,
+    "maxMs": 16.8
+   }
+  },
+  "loadAverageAtEnd": [
+   0.84,
+   1.19,
+   1.28
+  ]
+ },
+ "hashes": {
+  "fixtureChecksum": "b3a492aa",
+  "slots": {
+   "A": {
+    "artifact": "stage1b-all-charts",
+    "dir": "/home/canarit/projects/prism/phase4_stage1/axylo-bench-repo/bench/artifacts/stage1b-all-charts",
+    "manifestSha256": "f67ff955819aa0d1ce7fb05485a5a19ff3a4578efbc380de7bb05ba38e69b12d",
+    "source": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean",
+     "axyloSourceHash": "91275224cf666963715bd18521bbc71821a288856f0e153cc7a18aa8ec2ee956",
+     "shippedOptions": "identical: axylo.iife.min.js (release copy) is byte-for-byte what the scripts/build.mjs recipe produces from this snapshot",
+     "distComparison": "identical to packages/axylo/dist/axylo.iife.min.js at build time"
+    },
+    "bench": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean"
+    },
+    "files": {
+     "adapters/axylo-stale-mark.js": "455b32e71fd223bcaa475083e211ead37d8ebd3d8df3dee52c51cdc551563fc6",
+     "adapters/axylo-svg.js": "a5330566dc0878d61367af8e77ee114fd9a12aa8e17b6bdd147e9d8035f99eb8",
+     "adapters/axylo-wrong-renderer.js": "7af78eb82cc84af9b59d5999e0d670c6adc1c060e3e8be69bbefe818d8425750",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "adapters/broken-never-ready.js": "ff6de0d681540cd6f4ea71dca4c33f91d11aea9598e36fd63ebf211b60e2fc9f",
+     "adapters/broken-throws.js": "17e4d7a33f724a22ed2da26aad000f33accbbe11f6741c1c646804983c83f6b7",
+     "adapters/chartjs-tuned.js": "daaafde618d7feda2a38de161cece0e2f2931b86e3f9544c3ea6048771a50d99",
+     "adapters/chartjs.js": "87dfe6084949337506720d921746beaf25f59e6adcf7934b60a789806029fc34",
+     "adapters/echarts.js": "f2a9ff8da676bea6e4a0fca4afcce8a1c1e7f039f9ce9cd558f6ac9c8ef2a59e",
+     "adapters/noop.js": "87036ef493cfbbb79c8cbd42cb44b01f0b46988a1430a6859dae870158adb8aa",
+     "adapters/uplot-fixed-width.js": "bdc7453e345e3b0c3d98a84b47c6d12f3d1f90ce7ce9149b3d108e45c6491fe9",
+     "adapters/uplot-no-trim.js": "2ab62ccbe4f6e5fae0685ae8f2972465367e07b8c24efe459060f582570fedc1",
+     "adapters/uplot-pinned-y.js": "136a61a772e62259aee9821b8d0e55cc151dd51d0da548f7891649acad574c9f",
+     "adapters/uplot-stalls.js": "e4b6672d47136813ffeb899c3b233bd00316dbc14047e1cd9a27da48f04de54f",
+     "adapters/uplot.js": "7e4865f22c594705393c301916e7617fbd9bee70ba2d3a0afb167803c6b48655",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694",
+     "axylo/axylo.bench.iife.min.js.map": "73b65f747f97a9f1adde3859a65031eb516ecc86cc932c0ead36b4cab146ec8b",
+     "axylo/axylo.iife.js": "96ce1dcad3727fcd4e8112a65a0f9e0df8373822a0d33d67070803f8683505c9",
+     "axylo/axylo.iife.js.map": "fa53111acc881ccda6c1af5ee0251a8ea736225d6c0a4aebdf0ea77da4b12909",
+     "axylo/axylo.iife.min.js": "3fba985e8fa7924e5194cf6c8ca494ebe3902b67bab3fb0caa82b1199bcbf1c7",
+     "axylo/axylo.iife.min.js.map": "0521ac20524a9804106f99bbd5486c31b6789f24c26acd1c1eba46897dadc230",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08"
+    },
+    "served": {
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694"
+    }
+   },
+   "B": {
+    "artifact": "stage1b-all-charts",
+    "dir": "/home/canarit/projects/prism/phase4_stage1/axylo-bench-repo/bench/artifacts/stage1b-all-charts",
+    "manifestSha256": "f67ff955819aa0d1ce7fb05485a5a19ff3a4578efbc380de7bb05ba38e69b12d",
+    "source": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean",
+     "axyloSourceHash": "91275224cf666963715bd18521bbc71821a288856f0e153cc7a18aa8ec2ee956",
+     "shippedOptions": "identical: axylo.iife.min.js (release copy) is byte-for-byte what the scripts/build.mjs recipe produces from this snapshot",
+     "distComparison": "identical to packages/axylo/dist/axylo.iife.min.js at build time"
+    },
+    "bench": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean"
+    },
+    "files": {
+     "adapters/axylo-stale-mark.js": "455b32e71fd223bcaa475083e211ead37d8ebd3d8df3dee52c51cdc551563fc6",
+     "adapters/axylo-svg.js": "a5330566dc0878d61367af8e77ee114fd9a12aa8e17b6bdd147e9d8035f99eb8",
+     "adapters/axylo-wrong-renderer.js": "7af78eb82cc84af9b59d5999e0d670c6adc1c060e3e8be69bbefe818d8425750",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "adapters/broken-never-ready.js": "ff6de0d681540cd6f4ea71dca4c33f91d11aea9598e36fd63ebf211b60e2fc9f",
+     "adapters/broken-throws.js": "17e4d7a33f724a22ed2da26aad000f33accbbe11f6741c1c646804983c83f6b7",
+     "adapters/chartjs-tuned.js": "daaafde618d7feda2a38de161cece0e2f2931b86e3f9544c3ea6048771a50d99",
+     "adapters/chartjs.js": "87dfe6084949337506720d921746beaf25f59e6adcf7934b60a789806029fc34",
+     "adapters/echarts.js": "f2a9ff8da676bea6e4a0fca4afcce8a1c1e7f039f9ce9cd558f6ac9c8ef2a59e",
+     "adapters/noop.js": "87036ef493cfbbb79c8cbd42cb44b01f0b46988a1430a6859dae870158adb8aa",
+     "adapters/uplot-fixed-width.js": "bdc7453e345e3b0c3d98a84b47c6d12f3d1f90ce7ce9149b3d108e45c6491fe9",
+     "adapters/uplot-no-trim.js": "2ab62ccbe4f6e5fae0685ae8f2972465367e07b8c24efe459060f582570fedc1",
+     "adapters/uplot-pinned-y.js": "136a61a772e62259aee9821b8d0e55cc151dd51d0da548f7891649acad574c9f",
+     "adapters/uplot-stalls.js": "e4b6672d47136813ffeb899c3b233bd00316dbc14047e1cd9a27da48f04de54f",
+     "adapters/uplot.js": "7e4865f22c594705393c301916e7617fbd9bee70ba2d3a0afb167803c6b48655",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694",
+     "axylo/axylo.bench.iife.min.js.map": "73b65f747f97a9f1adde3859a65031eb516ecc86cc932c0ead36b4cab146ec8b",
+     "axylo/axylo.iife.js": "96ce1dcad3727fcd4e8112a65a0f9e0df8373822a0d33d67070803f8683505c9",
+     "axylo/axylo.iife.js.map": "fa53111acc881ccda6c1af5ee0251a8ea736225d6c0a4aebdf0ea77da4b12909",
+     "axylo/axylo.iife.min.js": "3fba985e8fa7924e5194cf6c8ca494ebe3902b67bab3fb0caa82b1199bcbf1c7",
+     "axylo/axylo.iife.min.js.map": "0521ac20524a9804106f99bbd5486c31b6789f24c26acd1c1eba46897dadc230",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08"
+    },
+    "served": {
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694"
+    }
+   }
+  }
+ },
+ "admission": {
+  "A:axylo": {
+   "outcome": "ok",
+   "reason": null,
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "describe": [
+    {
+     "kind": "histogram",
+     "renderer": {
+      "kind": "svg",
+      "canvases": 0,
+      "svgs": 1,
+      "reported": "svg",
+      "dom": "svg"
+     },
+     "x": [
+      12,
+      136
+     ],
+     "y": [
+      0,
+      1500
+     ],
+     "plot": {
+      "x": 59.67219543457031,
+      "y": 11.5,
+      "width": 1136.3278045654297,
+      "height": 283.453125
+     },
+     "rectangles": [
+      [
+       {
+        "x": 59.66999816894531,
+        "y": 288.5299987792969,
+        "width": 46.349998474121094,
+        "height": 6.420000076293945
+       },
+       {
+        "x": 107.0199966430664,
+        "y": 273.9800109863281,
+        "width": 46.349998474121094,
+        "height": 20.979999542236328
+       },
+       {
+        "x": 154.3699951171875,
+        "y": 241.2899932861328,
+        "width": 46.349998474121094,
+        "height": 53.66999816894531
+       },
+       {
+        "x": 201.7100067138672,
+        "y": 214.63999938964844,
+        "width": 46.349998474121094,
+        "height": 80.30999755859375
+       },
+       {
+        "x": 249.05999755859375,
+        "y": 161.5399932861328,
+        "width": 46.349998474121094,
+        "height": 133.41000366210938
+       },
+       {
+        "x": 296.4100036621094,
+        "y": 123.37000274658203,
+        "width": 46.349998474121094,
+        "height": 171.5800018310547
+       },
+       {
+        "x": 343.75,
+        "y": 67.05999755859375,
+        "width": 46.349998474121094,
+        "height": 227.89999389648438
+       },
+       {
+        "x": 391.1000061035156,
+        "y": 100.69000244140625,
+        "width": 46.349998474121094,
+        "height": 194.25999450683594
+       },
+       {
+        "x": 438.45001220703125,
+        "y": 126.0199966430664,
+        "width": 46.349998474121094,
+        "height": 168.94000244140625
+       },
+       {
+        "x": 485.79998779296875,
+        "y": 171.55999755859375,
+        "width": 46.349998474121094,
+        "height": 123.4000015258789
+       },
+       {
+        "x": 533.1400146484375,
+        "y": 218.99000549316406,
+        "width": 46.349998474121094,
+        "height": 75.97000122070312
+       },
+       {
+        "x": 580.489990234375,
+        "y": 244.5,
+        "width": 46.349998474121094,
+        "height": 50.45000076293945
+       },
+       {
+        "x": 627.8400268554688,
+        "y": 260.94000244140625,
+        "width": 46.349998474121094,
+        "height": 34.0099983215332
+       },
+       {
+        "x": 675.1799926757812,
+        "y": 268.8800048828125,
+        "width": 46.349998474121094,
+        "height": 26.079999923706055
+       },
+       {
+        "x": 722.530029296875,
+        "y": 249.22000122070312,
+        "width": 46.349998474121094,
+        "height": 45.72999954223633
+       },
+       {
+        "x": 769.8800048828125,
+        "y": 236.17999267578125,
+        "width": 46.349998474121094,
+        "height": 58.77000045776367
+       },
+       {
+        "x": 817.219970703125,
+        "y": 213.88999938964844,
+        "width": 46.349998474121094,
+        "height": 81.06999969482422
+       },
+       {
+        "x": 864.5700073242188,
+        "y": 207.0800018310547,
+        "width": 46.349998474121094,
+        "height": 87.87000274658203
+       },
+       {
+        "x": 911.9199829101562,
+        "y": 200.27999877929688,
+        "width": 46.349998474121094,
+        "height": 94.66999816894531
+       },
+       {
+        "x": 959.27001953125,
+        "y": 233.5399932861328,
+        "width": 46.349998474121094,
+        "height": 61.40999984741211
+       },
+       {
+        "x": 1006.6099853515625,
+        "y": 250.72999572753906,
+        "width": 46.349998474121094,
+        "height": 44.220001220703125
+       },
+       {
+        "x": 1053.9599609375,
+        "y": 269.25,
+        "width": 46.349998474121094,
+        "height": 25.700000762939453
+       },
+       {
+        "x": 1101.31005859375,
+        "y": 279.2699890136719,
+        "width": 46.349998474121094,
+        "height": 15.680000305175781
+       },
+       {
+        "x": 1148.6500244140625,
+        "y": 287.7699890136719,
+        "width": 46.349998474121094,
+        "height": 7.179999828338623
+       }
+      ]
+     ]
+    }
+   ],
+   "adapter": {
+    "id": "axylo",
+    "library": "Axylo",
+    "version": "0.0.0",
+    "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+    "params": {
+     "build": "prod"
+    },
+    "floor": false,
+    "expectRenderer": "svg",
+    "bundle": "axylo/axylo.bench.iife.min.js"
+   },
+   "resizeCheck": {
+    "ok": true,
+    "reasons": []
+   },
+   "resize": {
+    "intermediate": [
+     {
+      "container": 400,
+      "widest": 400
+     }
+    ]
+   }
+  }
+ },
+ "probes": {},
+ "blocks": [
+  {
+   "block": 0,
+   "load1": 0.71,
+   "at": "2026-11-24T12:06:50.433Z"
+  },
+  {
+   "block": 1,
+   "load1": 0.65,
+   "at": "2026-11-24T12:06:58.998Z"
+  },
+  {
+   "block": 2,
+   "load1": 0.63,
+   "at": "2026-11-24T12:07:07.581Z"
+  },
+  {
+   "block": 3,
+   "load1": 0.9,
+   "at": "2026-11-24T12:07:16.148Z"
+  }
+ ],
+ "runs": [
+  {
+   "index": 0,
+   "phase": "admission",
+   "chromeVersion": "158.0.8127.88",
+   "side": "A",
+   "adapter": "axylo",
+   "slot": "A",
+   "outcome": "ok",
+   "reason": null,
+   "limits": [],
+   "durationMs": 4304,
+   "logs": [],
+   "pageErrors": []
+  },
+  {
+   "index": 1,
+   "phase": "warmup",
+   "chromeVersion": "158.0.8127.88",
+   "side": "A",
+   "adapter": "axylo",
+   "slot": "A",
+   "outcome": "ok",
+   "reason": null,
+   "durationMs": 4273
+  },
+  {
+   "index": 2,
+   "phase": "timed",
+   "block": 0,
+   "position": 0,
+   "config": "B",
+   "startedAt": "2026-11-24T12:06:50.440Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 4278,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "resize": {
+     "from": 1200,
+     "to": 400,
+     "steps": 123,
+     "startAt": 1624.7,
+     "endAt": 3689,
+     "elapsedMs": 2064.3,
+     "frames": [
+      1605.4,
+      1622,
+      1638.7,
+      1655.3,
+      1672,
+      1688.7,
+      1705.4,
+      1722,
+      1738.7,
+      1755.4,
+      1772,
+      1788.7,
+      1805.4,
+      1822,
+      1838.7,
+      1855.4,
+      1872,
+      1888.7,
+      1905.3,
+      1922,
+      1938.7,
+      1955.4,
+      1972.1,
+      1988.7,
+      2005.3,
+      2022,
+      2038.7,
+      2055.4,
+      2072,
+      2088.7,
+      2105.3,
+      2122.1,
+      2138.7,
+      2155.4,
+      2172.1,
+      2188.7,
+      2205.3,
+      2222,
+      2238.7,
+      2255.4,
+      2272.1,
+      2288.7,
+      2305.3,
+      2322,
+      2338.7,
+      2355.4,
+      2372,
+      2388.7,
+      2405.3,
+      2422,
+      2438.7,
+      2455.3,
+      2472.1,
+      2488.7,
+      2505.4,
+      2522,
+      2538.6,
+      2555.3,
+      2572,
+      2588.6,
+      2605.3,
+      2622,
+      2638.7,
+      2655.3,
+      2672,
+      2688.7,
+      2705.4,
+      2722,
+      2738.7,
+      2755.3,
+      2772,
+      2788.6,
+      2805.3,
+      2822,
+      2838.7,
+      2855.3,
+      2872,
+      2888.7,
+      2905.3,
+      2922,
+      2938.6,
+      2955.4,
+      2972,
+      2988.7,
+      3005.3,
+      3022,
+      3038.7,
+      3055.3,
+      3072,
+      3088.7,
+      3105.4,
+      3122,
+      3138.6,
+      3155.3,
+      3171.9,
+      3188.7,
+      3205.3,
+      3222,
+      3238.7,
+      3255.3,
+      3272,
+      3288.7,
+      3305.3,
+      3322,
+      3338.6,
+      3355.3,
+      3372,
+      3388.6,
+      3405.3,
+      3422,
+      3438.7,
+      3455.3,
+      3472,
+      3488.7,
+      3505.3,
+      3521.9,
+      3538.6,
+      3555.3,
+      3571.9,
+      3588.7,
+      3605.3,
+      3622,
+      3638.7,
+      3655.3,
+      3672,
+      3688.6,
+      3705.3,
+      3722,
+      3738.6
+     ],
+     "widths": [
+      1186.6666666666667,
+      1173.3333333333333,
+      1160,
+      1146.6666666666667,
+      1133.3333333333333,
+      1120,
+      1106.6666666666667,
+      1093.3333333333333,
+      1080,
+      1066.6666666666667,
+      1053.3333333333333,
+      1040,
+      1026.6666666666667,
+      1013.3333333333334,
+      1000,
+      986.6666666666666,
+      973.3333333333334,
+      960,
+      946.6666666666666,
+      933.3333333333333,
+      920,
+      906.6666666666667,
+      893.3333333333333,
+      880,
+      866.6666666666667,
+      853.3333333333333,
+      840,
+      826.6666666666667,
+      813.3333333333333,
+      800,
+      786.6666666666667,
+      773.3333333333333,
+      760,
+      746.6666666666667,
+      733.3333333333333,
+      720,
+      706.6666666666667,
+      693.3333333333333,
+      680,
+      666.6666666666666,
+      653.3333333333334,
+      640,
+      626.6666666666666,
+      613.3333333333334,
+      600,
+      586.6666666666666,
+      573.3333333333334,
+      560,
+      546.6666666666666,
+      533.3333333333334,
+      520,
+      506.66666666666663,
+      493.33333333333337,
+      480,
+      466.66666666666663,
+      453.33333333333337,
+      440,
+      426.66666666666663,
+      413.33333333333337,
+      400,
+      413.3333333333333,
+      426.6666666666667,
+      440,
+      453.3333333333333,
+      466.6666666666667,
+      480,
+      493.3333333333333,
+      506.6666666666667,
+      520,
+      533.3333333333334,
+      546.6666666666666,
+      560,
+      573.3333333333334,
+      586.6666666666666,
+      600,
+      613.3333333333334,
+      626.6666666666666,
+      640,
+      653.3333333333334,
+      666.6666666666667,
+      680,
+      693.3333333333333,
+      706.6666666666667,
+      720,
+      733.3333333333333,
+      746.6666666666667,
+      760,
+      773.3333333333333,
+      786.6666666666667,
+      800,
+      813.3333333333333,
+      826.6666666666667,
+      840,
+      853.3333333333333,
+      866.6666666666667,
+      880,
+      893.3333333333333,
+      906.6666666666667,
+      920,
+      933.3333333333334,
+      946.6666666666666,
+      960,
+      973.3333333333334,
+      986.6666666666666,
+      1000,
+      1013.3333333333334,
+      1026.6666666666665,
+      1040,
+      1053.3333333333335,
+      1066.6666666666665,
+      1080,
+      1093.3333333333335,
+      1106.6666666666665,
+      1120,
+      1133.3333333333335,
+      1146.6666666666665,
+      1160,
+      1173.3333333333335,
+      1186.6666666666665,
+      1200,
+      1200,
+      1200,
+      1200
+     ],
+     "intermediate": null
+    },
+    "resizeCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 1136.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 46.349998474121094,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 107.0199966430664,
+         "y": 273.9800109863281,
+         "width": 46.349998474121094,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 154.3699951171875,
+         "y": 241.2899932861328,
+         "width": 46.349998474121094,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 201.7100067138672,
+         "y": 214.63999938964844,
+         "width": 46.349998474121094,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 249.05999755859375,
+         "y": 161.5399932861328,
+         "width": 46.349998474121094,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 296.4100036621094,
+         "y": 123.37000274658203,
+         "width": 46.349998474121094,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 343.75,
+         "y": 67.05999755859375,
+         "width": 46.349998474121094,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 391.1000061035156,
+         "y": 100.69000244140625,
+         "width": 46.349998474121094,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 438.45001220703125,
+         "y": 126.0199966430664,
+         "width": 46.349998474121094,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 485.79998779296875,
+         "y": 171.55999755859375,
+         "width": 46.349998474121094,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 533.1400146484375,
+         "y": 218.99000549316406,
+         "width": 46.349998474121094,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 580.489990234375,
+         "y": 244.5,
+         "width": 46.349998474121094,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 627.8400268554688,
+         "y": 260.94000244140625,
+         "width": 46.349998474121094,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 675.1799926757812,
+         "y": 268.8800048828125,
+         "width": 46.349998474121094,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 722.530029296875,
+         "y": 249.22000122070312,
+         "width": 46.349998474121094,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 769.8800048828125,
+         "y": 236.17999267578125,
+         "width": 46.349998474121094,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 817.219970703125,
+         "y": 213.88999938964844,
+         "width": 46.349998474121094,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 864.5700073242188,
+         "y": 207.0800018310547,
+         "width": 46.349998474121094,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 911.9199829101562,
+         "y": 200.27999877929688,
+         "width": 46.349998474121094,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 959.27001953125,
+         "y": 233.5399932861328,
+         "width": 46.349998474121094,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 1006.6099853515625,
+         "y": 250.72999572753906,
+         "width": 46.349998474121094,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 1053.9599609375,
+         "y": 269.25,
+         "width": 46.349998474121094,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 1101.31005859375,
+         "y": 279.2699890136719,
+         "width": 46.349998474121094,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 1148.6500244140625,
+         "y": 287.7699890136719,
+         "width": 46.349998474121094,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.024835999999999997,
+     "ScriptDuration": 0.020419,
+     "LayoutDuration": 0.001263,
+     "RecalcStyleDuration": 0.00132,
+     "DevToolsCommandDuration": 0.000709,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0011249999999999993,
+     "ThreadTime": 0.024668,
+     "LayoutCount": 2,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 1189776,
+     "JSHeapTotalSize": 786432,
+     "endNodes": 181,
+     "endJSHeapUsedSize": 3315792,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0
+    },
+    "resize:start->resize:end": {
+     "TaskDuration": 0.13887,
+     "ScriptDuration": 0.06590199999999999,
+     "LayoutDuration": 0.0187,
+     "RecalcStyleDuration": 0.019368000000000003,
+     "DevToolsCommandDuration": 0.00038999999999999994,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.03451,
+     "ThreadTime": 0.141941,
+     "LayoutCount": 239,
+     "RecalcStyleCount": 360,
+     "Nodes": 0,
+     "JSEventListeners": 1,
+     "JSHeapUsedSize": 1446172,
+     "JSHeapTotalSize": 2621440,
+     "endNodes": 181,
+     "endJSHeapUsedSize": 4777128,
+     "rendererCpu": 0.25,
+     "gpuCpu": 0.04999999999999999
+    }
+   },
+   "memory": {
+    "na": "memory not sampled in this workload"
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 138.87,
+    "frameP95Ms": 16.700000000000273,
+    "frameP99Ms": 16.799999999999727,
+    "frameMaxMs": 16.800000000000182,
+    "framesOverThreshold": 0,
+    "frameThresholdMs": 25.049999999999997,
+    "frameCount": 125,
+    "rendererCpuMs": 250,
+    "gpuCpuMs": 49.999999999999986
+   }
+  },
+  {
+   "index": 3,
+   "phase": "timed",
+   "block": 0,
+   "position": 1,
+   "config": "A",
+   "startedAt": "2026-11-24T12:06:54.723Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 4274,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "resize": {
+     "from": 1200,
+     "to": 400,
+     "steps": 123,
+     "startAt": 1615.4,
+     "endAt": 3679.2,
+     "elapsedMs": 2063.8,
+     "frames": [
+      1595.9,
+      1612.5,
+      1629.2,
+      1645.8,
+      1662.5,
+      1679.1,
+      1695.8,
+      1712.5,
+      1729.2,
+      1745.8,
+      1762.5,
+      1779.2,
+      1795.8,
+      1812.4,
+      1829.1,
+      1845.8,
+      1862.4,
+      1879.1,
+      1895.8,
+      1912.5,
+      1929.1,
+      1945.8,
+      1962.5,
+      1979.2,
+      1995.8,
+      2012.4,
+      2029.1,
+      2045.8,
+      2062.5,
+      2079.1,
+      2095.8,
+      2112.5,
+      2129.2,
+      2145.8,
+      2162.5,
+      2179.1,
+      2195.8,
+      2212.5,
+      2229.2,
+      2245.8,
+      2262.5,
+      2279.2,
+      2295.8,
+      2312.5,
+      2329.2,
+      2345.8,
+      2362.5,
+      2379.1,
+      2395.8,
+      2412.5,
+      2429.1,
+      2445.8,
+      2462.5,
+      2479.1,
+      2495.7,
+      2512.5,
+      2529.1,
+      2545.8,
+      2562.5,
+      2579.1,
+      2595.8,
+      2612.4,
+      2629.1,
+      2645.8,
+      2662.4,
+      2679.1,
+      2695.8,
+      2712.4,
+      2729.1,
+      2745.8,
+      2762.5,
+      2779.1,
+      2795.8,
+      2812.4,
+      2829.1,
+      2845.8,
+      2862.5,
+      2879.1,
+      2895.7,
+      2912.5,
+      2929.1,
+      2945.8,
+      2962.5,
+      2979.1,
+      2995.8,
+      3012.4,
+      3029.1,
+      3045.8,
+      3062.5,
+      3079.1,
+      3095.7,
+      3112.4,
+      3129.1,
+      3145.8,
+      3162.4,
+      3179.1,
+      3195.7,
+      3212.4,
+      3229,
+      3245.8,
+      3262.4,
+      3279.1,
+      3295.8,
+      3312.4,
+      3329.1,
+      3345.7,
+      3362.4,
+      3379.1,
+      3395.8,
+      3412.4,
+      3429.1,
+      3445.8,
+      3462.4,
+      3479.1,
+      3495.8,
+      3512.4,
+      3529.1,
+      3545.7,
+      3562.4,
+      3579.1,
+      3595.8,
+      3612.4,
+      3629.1,
+      3645.8,
+      3662.4,
+      3679,
+      3695.8,
+      3712.4,
+      3729.1
+     ],
+     "widths": [
+      1186.6666666666667,
+      1173.3333333333333,
+      1160,
+      1146.6666666666667,
+      1133.3333333333333,
+      1120,
+      1106.6666666666667,
+      1093.3333333333333,
+      1080,
+      1066.6666666666667,
+      1053.3333333333333,
+      1040,
+      1026.6666666666667,
+      1013.3333333333334,
+      1000,
+      986.6666666666666,
+      973.3333333333334,
+      960,
+      946.6666666666666,
+      933.3333333333333,
+      920,
+      906.6666666666667,
+      893.3333333333333,
+      880,
+      866.6666666666667,
+      853.3333333333333,
+      840,
+      826.6666666666667,
+      813.3333333333333,
+      800,
+      786.6666666666667,
+      773.3333333333333,
+      760,
+      746.6666666666667,
+      733.3333333333333,
+      720,
+      706.6666666666667,
+      693.3333333333333,
+      680,
+      666.6666666666666,
+      653.3333333333334,
+      640,
+      626.6666666666666,
+      613.3333333333334,
+      600,
+      586.6666666666666,
+      573.3333333333334,
+      560,
+      546.6666666666666,
+      533.3333333333334,
+      520,
+      506.66666666666663,
+      493.33333333333337,
+      480,
+      466.66666666666663,
+      453.33333333333337,
+      440,
+      426.66666666666663,
+      413.33333333333337,
+      400,
+      413.3333333333333,
+      426.6666666666667,
+      440,
+      453.3333333333333,
+      466.6666666666667,
+      480,
+      493.3333333333333,
+      506.6666666666667,
+      520,
+      533.3333333333334,
+      546.6666666666666,
+      560,
+      573.3333333333334,
+      586.6666666666666,
+      600,
+      613.3333333333334,
+      626.6666666666666,
+      640,
+      653.3333333333334,
+      666.6666666666667,
+      680,
+      693.3333333333333,
+      706.6666666666667,
+      720,
+      733.3333333333333,
+      746.6666666666667,
+      760,
+      773.3333333333333,
+      786.6666666666667,
+      800,
+      813.3333333333333,
+      826.6666666666667,
+      840,
+      853.3333333333333,
+      866.6666666666667,
+      880,
+      893.3333333333333,
+      906.6666666666667,
+      920,
+      933.3333333333334,
+      946.6666666666666,
+      960,
+      973.3333333333334,
+      986.6666666666666,
+      1000,
+      1013.3333333333334,
+      1026.6666666666665,
+      1040,
+      1053.3333333333335,
+      1066.6666666666665,
+      1080,
+      1093.3333333333335,
+      1106.6666666666665,
+      1120,
+      1133.3333333333335,
+      1146.6666666666665,
+      1160,
+      1173.3333333333335,
+      1186.6666666666665,
+      1200,
+      1200,
+      1200,
+      1200
+     ],
+     "intermediate": null
+    },
+    "resizeCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 1136.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 46.349998474121094,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 107.0199966430664,
+         "y": 273.9800109863281,
+         "width": 46.349998474121094,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 154.3699951171875,
+         "y": 241.2899932861328,
+         "width": 46.349998474121094,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 201.7100067138672,
+         "y": 214.63999938964844,
+         "width": 46.349998474121094,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 249.05999755859375,
+         "y": 161.5399932861328,
+         "width": 46.349998474121094,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 296.4100036621094,
+         "y": 123.37000274658203,
+         "width": 46.349998474121094,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 343.75,
+         "y": 67.05999755859375,
+         "width": 46.349998474121094,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 391.1000061035156,
+         "y": 100.69000244140625,
+         "width": 46.349998474121094,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 438.45001220703125,
+         "y": 126.0199966430664,
+         "width": 46.349998474121094,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 485.79998779296875,
+         "y": 171.55999755859375,
+         "width": 46.349998474121094,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 533.1400146484375,
+         "y": 218.99000549316406,
+         "width": 46.349998474121094,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 580.489990234375,
+         "y": 244.5,
+         "width": 46.349998474121094,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 627.8400268554688,
+         "y": 260.94000244140625,
+         "width": 46.349998474121094,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 675.1799926757812,
+         "y": 268.8800048828125,
+         "width": 46.349998474121094,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 722.530029296875,
+         "y": 249.22000122070312,
+         "width": 46.349998474121094,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 769.8800048828125,
+         "y": 236.17999267578125,
+         "width": 46.349998474121094,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 817.219970703125,
+         "y": 213.88999938964844,
+         "width": 46.349998474121094,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 864.5700073242188,
+         "y": 207.0800018310547,
+         "width": 46.349998474121094,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 911.9199829101562,
+         "y": 200.27999877929688,
+         "width": 46.349998474121094,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 959.27001953125,
+         "y": 233.5399932861328,
+         "width": 46.349998474121094,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 1006.6099853515625,
+         "y": 250.72999572753906,
+         "width": 46.349998474121094,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 1053.9599609375,
+         "y": 269.25,
+         "width": 46.349998474121094,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 1101.31005859375,
+         "y": 279.2699890136719,
+         "width": 46.349998474121094,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 1148.6500244140625,
+         "y": 287.7699890136719,
+         "width": 46.349998474121094,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.024408,
+     "ScriptDuration": 0.01931,
+     "LayoutDuration": 0.0018870000000000002,
+     "RecalcStyleDuration": 0.001495,
+     "DevToolsCommandDuration": 0.000558,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0011579999999999993,
+     "ThreadTime": 0.023864000000000003,
+     "LayoutCount": 2,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 1088840,
+     "JSHeapTotalSize": 524288,
+     "endNodes": 181,
+     "endJSHeapUsedSize": 3214940,
+     "rendererCpu": 0.039999999999999994,
+     "gpuCpu": 0
+    },
+    "resize:start->resize:end": {
+     "TaskDuration": 0.149957,
+     "ScriptDuration": 0.072551,
+     "LayoutDuration": 0.020205,
+     "RecalcStyleDuration": 0.020358,
+     "DevToolsCommandDuration": 0.000405,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.036438000000000005,
+     "ThreadTime": 0.152583,
+     "LayoutCount": 239,
+     "RecalcStyleCount": 360,
+     "Nodes": 0,
+     "JSEventListeners": 1,
+     "JSHeapUsedSize": 1367512,
+     "JSHeapTotalSize": 3145728,
+     "endNodes": 181,
+     "endJSHeapUsedSize": 4597576,
+     "rendererCpu": 0.26,
+     "gpuCpu": 0.04999999999999999
+    }
+   },
+   "memory": {
+    "na": "memory not sampled in this workload"
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 149.957,
+    "frameP95Ms": 16.700000000000273,
+    "frameP99Ms": 16.800000000000182,
+    "frameMaxMs": 16.800000000000182,
+    "framesOverThreshold": 0,
+    "frameThresholdMs": 25.049999999999997,
+    "frameCount": 125,
+    "rendererCpuMs": 260,
+    "gpuCpuMs": 49.999999999999986
+   }
+  },
+  {
+   "index": 4,
+   "phase": "timed",
+   "block": 1,
+   "position": 0,
+   "config": "A",
+   "startedAt": "2026-11-24T12:06:59.004Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 4278,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "resize": {
+     "from": 1200,
+     "to": 400,
+     "steps": 123,
+     "startAt": 1627.8,
+     "endAt": 3692.1,
+     "elapsedMs": 2064.3,
+     "frames": [
+      1608.6,
+      1625.2,
+      1641.9,
+      1658.6,
+      1675.2,
+      1691.9,
+      1708.6,
+      1725.2,
+      1741.9,
+      1758.5,
+      1775.3,
+      1791.9,
+      1808.5,
+      1825.2,
+      1841.9,
+      1858.6,
+      1875.2,
+      1891.9,
+      1908.5,
+      1925.3,
+      1941.9,
+      1958.6,
+      1975.2,
+      1991.9,
+      2008.6,
+      2025.2,
+      2041.9,
+      2058.5,
+      2075.2,
+      2091.9,
+      2108.5,
+      2125.2,
+      2141.9,
+      2158.5,
+      2175.2,
+      2191.8,
+      2208.6,
+      2225.3,
+      2241.8,
+      2258.5,
+      2275.2,
+      2291.9,
+      2308.6,
+      2325.3,
+      2341.9,
+      2358.5,
+      2375.2,
+      2391.9,
+      2408.6,
+      2425.2,
+      2441.9,
+      2458.6,
+      2475.2,
+      2491.8,
+      2508.5,
+      2525.2,
+      2541.8,
+      2558.6,
+      2575.2,
+      2591.9,
+      2608.5,
+      2625.2,
+      2641.8,
+      2658.5,
+      2675.2,
+      2691.9,
+      2708.6,
+      2725.2,
+      2741.9,
+      2758.5,
+      2775.2,
+      2791.8,
+      2808.5,
+      2825.2,
+      2841.9,
+      2858.5,
+      2875.2,
+      2891.8,
+      2908.5,
+      2925.2,
+      2941.9,
+      2958.5,
+      2975.2,
+      2991.9,
+      3008.5,
+      3025.2,
+      3041.8,
+      3058.5,
+      3075.2,
+      3091.9,
+      3108.5,
+      3125.2,
+      3141.8,
+      3158.6,
+      3175.2,
+      3191.9,
+      3208.5,
+      3225.2,
+      3241.8,
+      3258.5,
+      3275.2,
+      3291.8,
+      3308.5,
+      3325.2,
+      3341.9,
+      3358.5,
+      3375.2,
+      3391.8,
+      3408.5,
+      3425.2,
+      3441.8,
+      3458.5,
+      3475.2,
+      3491.8,
+      3508.5,
+      3525.1,
+      3541.9,
+      3558.5,
+      3575.2,
+      3591.9,
+      3608.5,
+      3625.1,
+      3641.8,
+      3658.5,
+      3675.2,
+      3691.8,
+      3708.5,
+      3725.1,
+      3741.8
+     ],
+     "widths": [
+      1186.6666666666667,
+      1173.3333333333333,
+      1160,
+      1146.6666666666667,
+      1133.3333333333333,
+      1120,
+      1106.6666666666667,
+      1093.3333333333333,
+      1080,
+      1066.6666666666667,
+      1053.3333333333333,
+      1040,
+      1026.6666666666667,
+      1013.3333333333334,
+      1000,
+      986.6666666666666,
+      973.3333333333334,
+      960,
+      946.6666666666666,
+      933.3333333333333,
+      920,
+      906.6666666666667,
+      893.3333333333333,
+      880,
+      866.6666666666667,
+      853.3333333333333,
+      840,
+      826.6666666666667,
+      813.3333333333333,
+      800,
+      786.6666666666667,
+      773.3333333333333,
+      760,
+      746.6666666666667,
+      733.3333333333333,
+      720,
+      706.6666666666667,
+      693.3333333333333,
+      680,
+      666.6666666666666,
+      653.3333333333334,
+      640,
+      626.6666666666666,
+      613.3333333333334,
+      600,
+      586.6666666666666,
+      573.3333333333334,
+      560,
+      546.6666666666666,
+      533.3333333333334,
+      520,
+      506.66666666666663,
+      493.33333333333337,
+      480,
+      466.66666666666663,
+      453.33333333333337,
+      440,
+      426.66666666666663,
+      413.33333333333337,
+      400,
+      413.3333333333333,
+      426.6666666666667,
+      440,
+      453.3333333333333,
+      466.6666666666667,
+      480,
+      493.3333333333333,
+      506.6666666666667,
+      520,
+      533.3333333333334,
+      546.6666666666666,
+      560,
+      573.3333333333334,
+      586.6666666666666,
+      600,
+      613.3333333333334,
+      626.6666666666666,
+      640,
+      653.3333333333334,
+      666.6666666666667,
+      680,
+      693.3333333333333,
+      706.6666666666667,
+      720,
+      733.3333333333333,
+      746.6666666666667,
+      760,
+      773.3333333333333,
+      786.6666666666667,
+      800,
+      813.3333333333333,
+      826.6666666666667,
+      840,
+      853.3333333333333,
+      866.6666666666667,
+      880,
+      893.3333333333333,
+      906.6666666666667,
+      920,
+      933.3333333333334,
+      946.6666666666666,
+      960,
+      973.3333333333334,
+      986.6666666666666,
+      1000,
+      1013.3333333333334,
+      1026.6666666666665,
+      1040,
+      1053.3333333333335,
+      1066.6666666666665,
+      1080,
+      1093.3333333333335,
+      1106.6666666666665,
+      1120,
+      1133.3333333333335,
+      1146.6666666666665,
+      1160,
+      1173.3333333333335,
+      1186.6666666666665,
+      1200,
+      1200,
+      1200,
+      1200
+     ],
+     "intermediate": null
+    },
+    "resizeCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 1136.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 46.349998474121094,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 107.0199966430664,
+         "y": 273.9800109863281,
+         "width": 46.349998474121094,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 154.3699951171875,
+         "y": 241.2899932861328,
+         "width": 46.349998474121094,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 201.7100067138672,
+         "y": 214.63999938964844,
+         "width": 46.349998474121094,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 249.05999755859375,
+         "y": 161.5399932861328,
+         "width": 46.349998474121094,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 296.4100036621094,
+         "y": 123.37000274658203,
+         "width": 46.349998474121094,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 343.75,
+         "y": 67.05999755859375,
+         "width": 46.349998474121094,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 391.1000061035156,
+         "y": 100.69000244140625,
+         "width": 46.349998474121094,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 438.45001220703125,
+         "y": 126.0199966430664,
+         "width": 46.349998474121094,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 485.79998779296875,
+         "y": 171.55999755859375,
+         "width": 46.349998474121094,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 533.1400146484375,
+         "y": 218.99000549316406,
+         "width": 46.349998474121094,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 580.489990234375,
+         "y": 244.5,
+         "width": 46.349998474121094,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 627.8400268554688,
+         "y": 260.94000244140625,
+         "width": 46.349998474121094,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 675.1799926757812,
+         "y": 268.8800048828125,
+         "width": 46.349998474121094,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 722.530029296875,
+         "y": 249.22000122070312,
+         "width": 46.349998474121094,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 769.8800048828125,
+         "y": 236.17999267578125,
+         "width": 46.349998474121094,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 817.219970703125,
+         "y": 213.88999938964844,
+         "width": 46.349998474121094,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 864.5700073242188,
+         "y": 207.0800018310547,
+         "width": 46.349998474121094,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 911.9199829101562,
+         "y": 200.27999877929688,
+         "width": 46.349998474121094,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 959.27001953125,
+         "y": 233.5399932861328,
+         "width": 46.349998474121094,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 1006.6099853515625,
+         "y": 250.72999572753906,
+         "width": 46.349998474121094,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 1053.9599609375,
+         "y": 269.25,
+         "width": 46.349998474121094,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 1101.31005859375,
+         "y": 279.2699890136719,
+         "width": 46.349998474121094,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 1148.6500244140625,
+         "y": 287.7699890136719,
+         "width": 46.349998474121094,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.023125999999999997,
+     "ScriptDuration": 0.018730999999999998,
+     "LayoutDuration": 0.0013570000000000001,
+     "RecalcStyleDuration": 0.001401,
+     "DevToolsCommandDuration": 0.000499,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0011380000000000001,
+     "ThreadTime": 0.022988,
+     "LayoutCount": 2,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 1083640,
+     "JSHeapTotalSize": 524288,
+     "endNodes": 181,
+     "endJSHeapUsedSize": 3209584,
+     "rendererCpu": 0.020000000000000004,
+     "gpuCpu": 0
+    },
+    "resize:start->resize:end": {
+     "TaskDuration": 0.143108,
+     "ScriptDuration": 0.06789899999999999,
+     "LayoutDuration": 0.019687999999999997,
+     "RecalcStyleDuration": 0.019511,
+     "DevToolsCommandDuration": 0.000357,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.035653000000000004,
+     "ThreadTime": 0.145835,
+     "LayoutCount": 239,
+     "RecalcStyleCount": 360,
+     "Nodes": 0,
+     "JSEventListeners": 1,
+     "JSHeapUsedSize": 1368484,
+     "JSHeapTotalSize": 2883584,
+     "endNodes": 181,
+     "endJSHeapUsedSize": 4593192,
+     "rendererCpu": 0.26,
+     "gpuCpu": 0.06
+    }
+   },
+   "memory": {
+    "na": "memory not sampled in this workload"
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 143.108,
+    "frameP95Ms": 16.700000000000273,
+    "frameP99Ms": 16.799999999999955,
+    "frameMaxMs": 16.800000000000182,
+    "framesOverThreshold": 0,
+    "frameThresholdMs": 25.049999999999997,
+    "frameCount": 125,
+    "rendererCpuMs": 260,
+    "gpuCpuMs": 60
+   }
+  },
+  {
+   "index": 5,
+   "phase": "timed",
+   "block": 1,
+   "position": 1,
+   "config": "B",
+   "startedAt": "2026-11-24T12:07:03.287Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 4294,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "resize": {
+     "from": 1200,
+     "to": 400,
+     "steps": 123,
+     "startAt": 1625.5,
+     "endAt": 3689.5,
+     "elapsedMs": 2064,
+     "frames": [
+      1606.1,
+      1622.8,
+      1639.4,
+      1656.1,
+      1672.8,
+      1689.4,
+      1706,
+      1722.7,
+      1739.4,
+      1756.1,
+      1772.7,
+      1789.5,
+      1806.1,
+      1822.7,
+      1839.5,
+      1856.1,
+      1872.8,
+      1889.4,
+      1906.1,
+      1922.8,
+      1939.4,
+      1956.1,
+      1972.8,
+      1989.4,
+      2006.1,
+      2022.7,
+      2039.4,
+      2056.1,
+      2072.8,
+      2089.4,
+      2106.1,
+      2122.7,
+      2139.4,
+      2156.1,
+      2172.7,
+      2189.4,
+      2206.1,
+      2222.7,
+      2239.4,
+      2256.1,
+      2272.8,
+      2289.4,
+      2306.1,
+      2322.7,
+      2339.4,
+      2356,
+      2372.7,
+      2389.4,
+      2406,
+      2422.7,
+      2439.4,
+      2456.1,
+      2472.7,
+      2489.4,
+      2506,
+      2522.7,
+      2539.4,
+      2556,
+      2572.7,
+      2589.3,
+      2606.1,
+      2622.8,
+      2639.4,
+      2656,
+      2672.8,
+      2689.4,
+      2706,
+      2722.7,
+      2739.4,
+      2756,
+      2772.7,
+      2789.4,
+      2806,
+      2822.7,
+      2839.4,
+      2856.1,
+      2872.7,
+      2889.3,
+      2906.1,
+      2922.7,
+      2939.4,
+      2956,
+      2972.7,
+      2989.3,
+      3006,
+      3022.7,
+      3039.4,
+      3056.1,
+      3072.7,
+      3089.3,
+      3106,
+      3122.7,
+      3139.3,
+      3156,
+      3172.7,
+      3189.4,
+      3206,
+      3222.7,
+      3239.3,
+      3256.1,
+      3272.7,
+      3289.3,
+      3306.1,
+      3322.7,
+      3339.4,
+      3356,
+      3372.7,
+      3389.4,
+      3406.1,
+      3422.7,
+      3439.4,
+      3456,
+      3472.7,
+      3489.3,
+      3506,
+      3522.7,
+      3539.3,
+      3556.1,
+      3572.7,
+      3589.3,
+      3606.1,
+      3622.7,
+      3639.3,
+      3656,
+      3672.7,
+      3689.4,
+      3706,
+      3722.7,
+      3739.3
+     ],
+     "widths": [
+      1186.6666666666667,
+      1173.3333333333333,
+      1160,
+      1146.6666666666667,
+      1133.3333333333333,
+      1120,
+      1106.6666666666667,
+      1093.3333333333333,
+      1080,
+      1066.6666666666667,
+      1053.3333333333333,
+      1040,
+      1026.6666666666667,
+      1013.3333333333334,
+      1000,
+      986.6666666666666,
+      973.3333333333334,
+      960,
+      946.6666666666666,
+      933.3333333333333,
+      920,
+      906.6666666666667,
+      893.3333333333333,
+      880,
+      866.6666666666667,
+      853.3333333333333,
+      840,
+      826.6666666666667,
+      813.3333333333333,
+      800,
+      786.6666666666667,
+      773.3333333333333,
+      760,
+      746.6666666666667,
+      733.3333333333333,
+      720,
+      706.6666666666667,
+      693.3333333333333,
+      680,
+      666.6666666666666,
+      653.3333333333334,
+      640,
+      626.6666666666666,
+      613.3333333333334,
+      600,
+      586.6666666666666,
+      573.3333333333334,
+      560,
+      546.6666666666666,
+      533.3333333333334,
+      520,
+      506.66666666666663,
+      493.33333333333337,
+      480,
+      466.66666666666663,
+      453.33333333333337,
+      440,
+      426.66666666666663,
+      413.33333333333337,
+      400,
+      413.3333333333333,
+      426.6666666666667,
+      440,
+      453.3333333333333,
+      466.6666666666667,
+      480,
+      493.3333333333333,
+      506.6666666666667,
+      520,
+      533.3333333333334,
+      546.6666666666666,
+      560,
+      573.3333333333334,
+      586.6666666666666,
+      600,
+      613.3333333333334,
+      626.6666666666666,
+      640,
+      653.3333333333334,
+      666.6666666666667,
+      680,
+      693.3333333333333,
+      706.6666666666667,
+      720,
+      733.3333333333333,
+      746.6666666666667,
+      760,
+      773.3333333333333,
+      786.6666666666667,
+      800,
+      813.3333333333333,
+      826.6666666666667,
+      840,
+      853.3333333333333,
+      866.6666666666667,
+      880,
+      893.3333333333333,
+      906.6666666666667,
+      920,
+      933.3333333333334,
+      946.6666666666666,
+      960,
+      973.3333333333334,
+      986.6666666666666,
+      1000,
+      1013.3333333333334,
+      1026.6666666666665,
+      1040,
+      1053.3333333333335,
+      1066.6666666666665,
+      1080,
+      1093.3333333333335,
+      1106.6666666666665,
+      1120,
+      1133.3333333333335,
+      1146.6666666666665,
+      1160,
+      1173.3333333333335,
+      1186.6666666666665,
+      1200,
+      1200,
+      1200,
+      1200
+     ],
+     "intermediate": null
+    },
+    "resizeCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 1136.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 46.349998474121094,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 107.0199966430664,
+         "y": 273.9800109863281,
+         "width": 46.349998474121094,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 154.3699951171875,
+         "y": 241.2899932861328,
+         "width": 46.349998474121094,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 201.7100067138672,
+         "y": 214.63999938964844,
+         "width": 46.349998474121094,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 249.05999755859375,
+         "y": 161.5399932861328,
+         "width": 46.349998474121094,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 296.4100036621094,
+         "y": 123.37000274658203,
+         "width": 46.349998474121094,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 343.75,
+         "y": 67.05999755859375,
+         "width": 46.349998474121094,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 391.1000061035156,
+         "y": 100.69000244140625,
+         "width": 46.349998474121094,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 438.45001220703125,
+         "y": 126.0199966430664,
+         "width": 46.349998474121094,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 485.79998779296875,
+         "y": 171.55999755859375,
+         "width": 46.349998474121094,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 533.1400146484375,
+         "y": 218.99000549316406,
+         "width": 46.349998474121094,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 580.489990234375,
+         "y": 244.5,
+         "width": 46.349998474121094,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 627.8400268554688,
+         "y": 260.94000244140625,
+         "width": 46.349998474121094,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 675.1799926757812,
+         "y": 268.8800048828125,
+         "width": 46.349998474121094,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 722.530029296875,
+         "y": 249.22000122070312,
+         "width": 46.349998474121094,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 769.8800048828125,
+         "y": 236.17999267578125,
+         "width": 46.349998474121094,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 817.219970703125,
+         "y": 213.88999938964844,
+         "width": 46.349998474121094,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 864.5700073242188,
+         "y": 207.0800018310547,
+         "width": 46.349998474121094,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 911.9199829101562,
+         "y": 200.27999877929688,
+         "width": 46.349998474121094,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 959.27001953125,
+         "y": 233.5399932861328,
+         "width": 46.349998474121094,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 1006.6099853515625,
+         "y": 250.72999572753906,
+         "width": 46.349998474121094,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 1053.9599609375,
+         "y": 269.25,
+         "width": 46.349998474121094,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 1101.31005859375,
+         "y": 279.2699890136719,
+         "width": 46.349998474121094,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 1148.6500244140625,
+         "y": 287.7699890136719,
+         "width": 46.349998474121094,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.024564999999999997,
+     "ScriptDuration": 0.019853,
+     "LayoutDuration": 0.001633,
+     "RecalcStyleDuration": 0.001364,
+     "DevToolsCommandDuration": 0.0005,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0012150000000000008,
+     "ThreadTime": 0.024244,
+     "LayoutCount": 2,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 1077768,
+     "JSHeapTotalSize": 524288,
+     "endNodes": 181,
+     "endJSHeapUsedSize": 3203868,
+     "rendererCpu": 0.04000000000000001,
+     "gpuCpu": 0
+    },
+    "resize:start->resize:end": {
+     "TaskDuration": 0.138222,
+     "ScriptDuration": 0.065355,
+     "LayoutDuration": 0.019131,
+     "RecalcStyleDuration": 0.018899,
+     "DevToolsCommandDuration": 0.000236,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.034601,
+     "ThreadTime": 0.14049,
+     "LayoutCount": 239,
+     "RecalcStyleCount": 360,
+     "Nodes": 0,
+     "JSEventListeners": 1,
+     "JSHeapUsedSize": 1377172,
+     "JSHeapTotalSize": 2883584,
+     "endNodes": 181,
+     "endJSHeapUsedSize": 4596164,
+     "rendererCpu": 0.24000000000000002,
+     "gpuCpu": 0.04999999999999999
+    }
+   },
+   "memory": {
+    "na": "memory not sampled in this workload"
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 138.222,
+    "frameP95Ms": 16.799999999999727,
+    "frameP99Ms": 16.799999999999955,
+    "frameMaxMs": 16.800000000000182,
+    "framesOverThreshold": 0,
+    "frameThresholdMs": 25.049999999999997,
+    "frameCount": 125,
+    "rendererCpuMs": 240.00000000000003,
+    "gpuCpuMs": 49.999999999999986
+   }
+  },
+  {
+   "index": 6,
+   "phase": "timed",
+   "block": 2,
+   "position": 0,
+   "config": "B",
+   "startedAt": "2026-11-24T12:07:07.586Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 4277,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "resize": {
+     "from": 1200,
+     "to": 400,
+     "steps": 123,
+     "startAt": 1622.5,
+     "endAt": 3687.5,
+     "elapsedMs": 2065,
+     "frames": [
+      1604,
+      1620.7,
+      1637.3,
+      1654,
+      1670.6,
+      1687.3,
+      1704,
+      1720.7,
+      1737.4,
+      1754,
+      1770.7,
+      1787.3,
+      1804,
+      1820.7,
+      1837.3,
+      1854,
+      1870.7,
+      1887.3,
+      1904,
+      1920.7,
+      1937.3,
+      1953.9,
+      1970.7,
+      1987.3,
+      2004,
+      2020.7,
+      2037.3,
+      2053.9,
+      2070.7,
+      2087.3,
+      2104,
+      2120.6,
+      2137.3,
+      2154,
+      2170.6,
+      2187.3,
+      2204,
+      2220.6,
+      2237.3,
+      2254,
+      2270.6,
+      2287.3,
+      2304,
+      2320.6,
+      2337.3,
+      2354,
+      2370.6,
+      2387.3,
+      2404,
+      2420.6,
+      2437.3,
+      2454,
+      2470.7,
+      2487.3,
+      2503.9,
+      2520.6,
+      2537.3,
+      2554,
+      2570.6,
+      2587.3,
+      2604,
+      2620.6,
+      2637.3,
+      2653.9,
+      2670.6,
+      2687.3,
+      2703.9,
+      2720.6,
+      2737.3,
+      2753.9,
+      2770.6,
+      2787.2,
+      2804,
+      2820.6,
+      2837.3,
+      2853.9,
+      2870.6,
+      2887.3,
+      2904,
+      2920.6,
+      2937.2,
+      2953.9,
+      2970.6,
+      2987.2,
+      3004,
+      3020.6,
+      3037.3,
+      3053.9,
+      3070.6,
+      3087.3,
+      3103.9,
+      3120.6,
+      3137.3,
+      3154,
+      3170.6,
+      3187.3,
+      3203.9,
+      3220.6,
+      3237.2,
+      3254,
+      3270.6,
+      3287.2,
+      3303.9,
+      3320.6,
+      3337.2,
+      3353.9,
+      3370.6,
+      3387.3,
+      3403.9,
+      3420.6,
+      3437.2,
+      3453.9,
+      3470.6,
+      3487.2,
+      3503.9,
+      3520.6,
+      3537.3,
+      3553.9,
+      3570.6,
+      3587.3,
+      3603.9,
+      3620.6,
+      3637.3,
+      3653.9,
+      3670.6,
+      3687.2,
+      3703.9,
+      3720.6,
+      3737.2
+     ],
+     "widths": [
+      1186.6666666666667,
+      1173.3333333333333,
+      1160,
+      1146.6666666666667,
+      1133.3333333333333,
+      1120,
+      1106.6666666666667,
+      1093.3333333333333,
+      1080,
+      1066.6666666666667,
+      1053.3333333333333,
+      1040,
+      1026.6666666666667,
+      1013.3333333333334,
+      1000,
+      986.6666666666666,
+      973.3333333333334,
+      960,
+      946.6666666666666,
+      933.3333333333333,
+      920,
+      906.6666666666667,
+      893.3333333333333,
+      880,
+      866.6666666666667,
+      853.3333333333333,
+      840,
+      826.6666666666667,
+      813.3333333333333,
+      800,
+      786.6666666666667,
+      773.3333333333333,
+      760,
+      746.6666666666667,
+      733.3333333333333,
+      720,
+      706.6666666666667,
+      693.3333333333333,
+      680,
+      666.6666666666666,
+      653.3333333333334,
+      640,
+      626.6666666666666,
+      613.3333333333334,
+      600,
+      586.6666666666666,
+      573.3333333333334,
+      560,
+      546.6666666666666,
+      533.3333333333334,
+      520,
+      506.66666666666663,
+      493.33333333333337,
+      480,
+      466.66666666666663,
+      453.33333333333337,
+      440,
+      426.66666666666663,
+      413.33333333333337,
+      400,
+      413.3333333333333,
+      426.6666666666667,
+      440,
+      453.3333333333333,
+      466.6666666666667,
+      480,
+      493.3333333333333,
+      506.6666666666667,
+      520,
+      533.3333333333334,
+      546.6666666666666,
+      560,
+      573.3333333333334,
+      586.6666666666666,
+      600,
+      613.3333333333334,
+      626.6666666666666,
+      640,
+      653.3333333333334,
+      666.6666666666667,
+      680,
+      693.3333333333333,
+      706.6666666666667,
+      720,
+      733.3333333333333,
+      746.6666666666667,
+      760,
+      773.3333333333333,
+      786.6666666666667,
+      800,
+      813.3333333333333,
+      826.6666666666667,
+      840,
+      853.3333333333333,
+      866.6666666666667,
+      880,
+      893.3333333333333,
+      906.6666666666667,
+      920,
+      933.3333333333334,
+      946.6666666666666,
+      960,
+      973.3333333333334,
+      986.6666666666666,
+      1000,
+      1013.3333333333334,
+      1026.6666666666665,
+      1040,
+      1053.3333333333335,
+      1066.6666666666665,
+      1080,
+      1093.3333333333335,
+      1106.6666666666665,
+      1120,
+      1133.3333333333335,
+      1146.6666666666665,
+      1160,
+      1173.3333333333335,
+      1186.6666666666665,
+      1200,
+      1200,
+      1200,
+      1200
+     ],
+     "intermediate": null
+    },
+    "resizeCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 1136.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 46.349998474121094,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 107.0199966430664,
+         "y": 273.9800109863281,
+         "width": 46.349998474121094,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 154.3699951171875,
+         "y": 241.2899932861328,
+         "width": 46.349998474121094,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 201.7100067138672,
+         "y": 214.63999938964844,
+         "width": 46.349998474121094,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 249.05999755859375,
+         "y": 161.5399932861328,
+         "width": 46.349998474121094,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 296.4100036621094,
+         "y": 123.37000274658203,
+         "width": 46.349998474121094,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 343.75,
+         "y": 67.05999755859375,
+         "width": 46.349998474121094,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 391.1000061035156,
+         "y": 100.69000244140625,
+         "width": 46.349998474121094,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 438.45001220703125,
+         "y": 126.0199966430664,
+         "width": 46.349998474121094,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 485.79998779296875,
+         "y": 171.55999755859375,
+         "width": 46.349998474121094,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 533.1400146484375,
+         "y": 218.99000549316406,
+         "width": 46.349998474121094,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 580.489990234375,
+         "y": 244.5,
+         "width": 46.349998474121094,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 627.8400268554688,
+         "y": 260.94000244140625,
+         "width": 46.349998474121094,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 675.1799926757812,
+         "y": 268.8800048828125,
+         "width": 46.349998474121094,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 722.530029296875,
+         "y": 249.22000122070312,
+         "width": 46.349998474121094,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 769.8800048828125,
+         "y": 236.17999267578125,
+         "width": 46.349998474121094,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 817.219970703125,
+         "y": 213.88999938964844,
+         "width": 46.349998474121094,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 864.5700073242188,
+         "y": 207.0800018310547,
+         "width": 46.349998474121094,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 911.9199829101562,
+         "y": 200.27999877929688,
+         "width": 46.349998474121094,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 959.27001953125,
+         "y": 233.5399932861328,
+         "width": 46.349998474121094,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 1006.6099853515625,
+         "y": 250.72999572753906,
+         "width": 46.349998474121094,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 1053.9599609375,
+         "y": 269.25,
+         "width": 46.349998474121094,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 1101.31005859375,
+         "y": 279.2699890136719,
+         "width": 46.349998474121094,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 1148.6500244140625,
+         "y": 287.7699890136719,
+         "width": 46.349998474121094,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.024485,
+     "ScriptDuration": 0.019483,
+     "LayoutDuration": 0.001994,
+     "RecalcStyleDuration": 0.0013679999999999999,
+     "DevToolsCommandDuration": 0.0005560000000000001,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0010839999999999982,
+     "ThreadTime": 0.024150000000000005,
+     "LayoutCount": 2,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 1089328,
+     "JSHeapTotalSize": 524288,
+     "endNodes": 181,
+     "endJSHeapUsedSize": 3215320,
+     "rendererCpu": 0.01999999999999999,
+     "gpuCpu": 0
+    },
+    "resize:start->resize:end": {
+     "TaskDuration": 0.150206,
+     "ScriptDuration": 0.070637,
+     "LayoutDuration": 0.020487000000000002,
+     "RecalcStyleDuration": 0.021040999999999997,
+     "DevToolsCommandDuration": 0.000255,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.037786,
+     "ThreadTime": 0.153418,
+     "LayoutCount": 239,
+     "RecalcStyleCount": 360,
+     "Nodes": 0,
+     "JSEventListeners": 1,
+     "JSHeapUsedSize": 1358116,
+     "JSHeapTotalSize": 3145728,
+     "endNodes": 181,
+     "endJSHeapUsedSize": 4588536,
+     "rendererCpu": 0.24999999999999997,
+     "gpuCpu": 0.06000000000000005
+    }
+   },
+   "memory": {
+    "na": "memory not sampled in this workload"
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 150.20600000000002,
+    "frameP95Ms": 16.700000000000273,
+    "frameP99Ms": 16.800000000000182,
+    "frameMaxMs": 16.800000000000182,
+    "framesOverThreshold": 0,
+    "frameThresholdMs": 25.049999999999997,
+    "frameCount": 125,
+    "rendererCpuMs": 249.99999999999997,
+    "gpuCpuMs": 60.00000000000006
+   }
+  },
+  {
+   "index": 7,
+   "phase": "timed",
+   "block": 2,
+   "position": 1,
+   "config": "A",
+   "startedAt": "2026-11-24T12:07:11.869Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 4278,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "resize": {
+     "from": 1200,
+     "to": 400,
+     "steps": 123,
+     "startAt": 1626.5,
+     "endAt": 3690.3,
+     "elapsedMs": 2063.8,
+     "frames": [
+      1606.8,
+      1623.5,
+      1640.2,
+      1656.8,
+      1673.5,
+      1690.1,
+      1706.8,
+      1723.5,
+      1740.2,
+      1756.8,
+      1773.5,
+      1790.1,
+      1806.9,
+      1823.5,
+      1840.2,
+      1856.8,
+      1873.5,
+      1890.1,
+      1906.8,
+      1923.4,
+      1940.1,
+      1956.8,
+      1973.5,
+      1990.2,
+      2006.8,
+      2023.4,
+      2040.1,
+      2056.8,
+      2073.5,
+      2090.2,
+      2106.8,
+      2123.5,
+      2140.2,
+      2156.8,
+      2173.4,
+      2190.2,
+      2206.9,
+      2223.5,
+      2240.1,
+      2256.8,
+      2273.5,
+      2290.2,
+      2306.9,
+      2323.5,
+      2340.1,
+      2356.8,
+      2373.4,
+      2390.2,
+      2406.8,
+      2423.5,
+      2440.2,
+      2456.8,
+      2473.4,
+      2490.1,
+      2506.8,
+      2523.5,
+      2540.1,
+      2556.8,
+      2573.5,
+      2590.1,
+      2606.8,
+      2623.5,
+      2640.1,
+      2656.8,
+      2673.5,
+      2690.1,
+      2706.8,
+      2723.5,
+      2740.1,
+      2756.8,
+      2773.5,
+      2790.1,
+      2806.8,
+      2823.4,
+      2840.1,
+      2856.7,
+      2873.5,
+      2890.1,
+      2906.8,
+      2923.4,
+      2940.1,
+      2956.8,
+      2973.4,
+      2990.1,
+      3006.8,
+      3023.4,
+      3040.1,
+      3056.8,
+      3073.4,
+      3090.1,
+      3106.8,
+      3123.4,
+      3140.1,
+      3156.8,
+      3173.5,
+      3190.1,
+      3206.7,
+      3223.4,
+      3240.1,
+      3256.8,
+      3273.5,
+      3290.1,
+      3306.7,
+      3323.5,
+      3340.1,
+      3356.8,
+      3373.4,
+      3390,
+      3406.8,
+      3423.4,
+      3440.1,
+      3456.7,
+      3473.4,
+      3490.1,
+      3506.8,
+      3523.5,
+      3540,
+      3556.8,
+      3573.5,
+      3590.1,
+      3606.8,
+      3623.4,
+      3640.1,
+      3656.7,
+      3673.4,
+      3690.1,
+      3706.7,
+      3723.4,
+      3740
+     ],
+     "widths": [
+      1186.6666666666667,
+      1173.3333333333333,
+      1160,
+      1146.6666666666667,
+      1133.3333333333333,
+      1120,
+      1106.6666666666667,
+      1093.3333333333333,
+      1080,
+      1066.6666666666667,
+      1053.3333333333333,
+      1040,
+      1026.6666666666667,
+      1013.3333333333334,
+      1000,
+      986.6666666666666,
+      973.3333333333334,
+      960,
+      946.6666666666666,
+      933.3333333333333,
+      920,
+      906.6666666666667,
+      893.3333333333333,
+      880,
+      866.6666666666667,
+      853.3333333333333,
+      840,
+      826.6666666666667,
+      813.3333333333333,
+      800,
+      786.6666666666667,
+      773.3333333333333,
+      760,
+      746.6666666666667,
+      733.3333333333333,
+      720,
+      706.6666666666667,
+      693.3333333333333,
+      680,
+      666.6666666666666,
+      653.3333333333334,
+      640,
+      626.6666666666666,
+      613.3333333333334,
+      600,
+      586.6666666666666,
+      573.3333333333334,
+      560,
+      546.6666666666666,
+      533.3333333333334,
+      520,
+      506.66666666666663,
+      493.33333333333337,
+      480,
+      466.66666666666663,
+      453.33333333333337,
+      440,
+      426.66666666666663,
+      413.33333333333337,
+      400,
+      413.3333333333333,
+      426.6666666666667,
+      440,
+      453.3333333333333,
+      466.6666666666667,
+      480,
+      493.3333333333333,
+      506.6666666666667,
+      520,
+      533.3333333333334,
+      546.6666666666666,
+      560,
+      573.3333333333334,
+      586.6666666666666,
+      600,
+      613.3333333333334,
+      626.6666666666666,
+      640,
+      653.3333333333334,
+      666.6666666666667,
+      680,
+      693.3333333333333,
+      706.6666666666667,
+      720,
+      733.3333333333333,
+      746.6666666666667,
+      760,
+      773.3333333333333,
+      786.6666666666667,
+      800,
+      813.3333333333333,
+      826.6666666666667,
+      840,
+      853.3333333333333,
+      866.6666666666667,
+      880,
+      893.3333333333333,
+      906.6666666666667,
+      920,
+      933.3333333333334,
+      946.6666666666666,
+      960,
+      973.3333333333334,
+      986.6666666666666,
+      1000,
+      1013.3333333333334,
+      1026.6666666666665,
+      1040,
+      1053.3333333333335,
+      1066.6666666666665,
+      1080,
+      1093.3333333333335,
+      1106.6666666666665,
+      1120,
+      1133.3333333333335,
+      1146.6666666666665,
+      1160,
+      1173.3333333333335,
+      1186.6666666666665,
+      1200,
+      1200,
+      1200,
+      1200
+     ],
+     "intermediate": null
+    },
+    "resizeCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 1136.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 46.349998474121094,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 107.0199966430664,
+         "y": 273.9800109863281,
+         "width": 46.349998474121094,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 154.3699951171875,
+         "y": 241.2899932861328,
+         "width": 46.349998474121094,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 201.7100067138672,
+         "y": 214.63999938964844,
+         "width": 46.349998474121094,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 249.05999755859375,
+         "y": 161.5399932861328,
+         "width": 46.349998474121094,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 296.4100036621094,
+         "y": 123.37000274658203,
+         "width": 46.349998474121094,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 343.75,
+         "y": 67.05999755859375,
+         "width": 46.349998474121094,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 391.1000061035156,
+         "y": 100.69000244140625,
+         "width": 46.349998474121094,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 438.45001220703125,
+         "y": 126.0199966430664,
+         "width": 46.349998474121094,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 485.79998779296875,
+         "y": 171.55999755859375,
+         "width": 46.349998474121094,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 533.1400146484375,
+         "y": 218.99000549316406,
+         "width": 46.349998474121094,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 580.489990234375,
+         "y": 244.5,
+         "width": 46.349998474121094,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 627.8400268554688,
+         "y": 260.94000244140625,
+         "width": 46.349998474121094,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 675.1799926757812,
+         "y": 268.8800048828125,
+         "width": 46.349998474121094,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 722.530029296875,
+         "y": 249.22000122070312,
+         "width": 46.349998474121094,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 769.8800048828125,
+         "y": 236.17999267578125,
+         "width": 46.349998474121094,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 817.219970703125,
+         "y": 213.88999938964844,
+         "width": 46.349998474121094,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 864.5700073242188,
+         "y": 207.0800018310547,
+         "width": 46.349998474121094,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 911.9199829101562,
+         "y": 200.27999877929688,
+         "width": 46.349998474121094,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 959.27001953125,
+         "y": 233.5399932861328,
+         "width": 46.349998474121094,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 1006.6099853515625,
+         "y": 250.72999572753906,
+         "width": 46.349998474121094,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 1053.9599609375,
+         "y": 269.25,
+         "width": 46.349998474121094,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 1101.31005859375,
+         "y": 279.2699890136719,
+         "width": 46.349998474121094,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 1148.6500244140625,
+         "y": 287.7699890136719,
+         "width": 46.349998474121094,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.023852,
+     "ScriptDuration": 0.019166,
+     "LayoutDuration": 0.001397,
+     "RecalcStyleDuration": 0.0015309999999999998,
+     "DevToolsCommandDuration": 0.000581,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0011769999999999992,
+     "ThreadTime": 0.023593,
+     "LayoutCount": 2,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 1176972,
+     "JSHeapTotalSize": 524288,
+     "endNodes": 181,
+     "endJSHeapUsedSize": 3302604,
+     "rendererCpu": 0.039999999999999994,
+     "gpuCpu": 0
+    },
+    "resize:start->resize:end": {
+     "TaskDuration": 0.160472,
+     "ScriptDuration": 0.075774,
+     "LayoutDuration": 0.02164,
+     "RecalcStyleDuration": 0.022123999999999998,
+     "DevToolsCommandDuration": 0.00041299999999999996,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.040521,
+     "ThreadTime": 0.163799,
+     "LayoutCount": 239,
+     "RecalcStyleCount": 360,
+     "Nodes": 0,
+     "JSEventListeners": 1,
+     "JSHeapUsedSize": 1485056,
+     "JSHeapTotalSize": 2883584,
+     "endNodes": 181,
+     "endJSHeapUsedSize": 4802784,
+     "rendererCpu": 0.29000000000000004,
+     "gpuCpu": 0.08999999999999997
+    }
+   },
+   "memory": {
+    "na": "memory not sampled in this workload"
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 160.472,
+    "frameP95Ms": 16.779999999999838,
+    "frameP99Ms": 16.800000000000182,
+    "frameMaxMs": 16.800000000000182,
+    "framesOverThreshold": 0,
+    "frameThresholdMs": 25.049999999999997,
+    "frameCount": 125,
+    "rendererCpuMs": 290.00000000000006,
+    "gpuCpuMs": 89.99999999999997
+   }
+  },
+  {
+   "index": 8,
+   "phase": "timed",
+   "block": 3,
+   "position": 0,
+   "config": "A",
+   "startedAt": "2026-11-24T12:07:16.154Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 4260,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "resize": {
+     "from": 1200,
+     "to": 400,
+     "steps": 123,
+     "startAt": 1605.9,
+     "endAt": 3670.2,
+     "elapsedMs": 2064.3,
+     "frames": [
+      1586.7,
+      1603.4,
+      1620.1,
+      1636.8,
+      1653.4,
+      1670.1,
+      1686.8,
+      1703.4,
+      1720,
+      1736.8,
+      1753.5,
+      1770,
+      1786.7,
+      1803.4,
+      1820.1,
+      1836.7,
+      1853.4,
+      1870.1,
+      1886.8,
+      1903.4,
+      1920,
+      1936.7,
+      1953.4,
+      1970.1,
+      1986.7,
+      2003.4,
+      2020,
+      2036.7,
+      2053.4,
+      2070,
+      2086.7,
+      2103.4,
+      2120.1,
+      2136.7,
+      2153.4,
+      2170,
+      2186.8,
+      2203.4,
+      2220.1,
+      2236.7,
+      2253.4,
+      2270.1,
+      2286.7,
+      2303.4,
+      2320,
+      2336.7,
+      2353.4,
+      2370.1,
+      2386.7,
+      2403.4,
+      2420,
+      2436.7,
+      2453.3,
+      2470.1,
+      2486.7,
+      2503.4,
+      2520.1,
+      2536.7,
+      2553.4,
+      2570,
+      2586.7,
+      2603.4,
+      2620,
+      2636.7,
+      2653.3,
+      2670,
+      2686.7,
+      2703.3,
+      2720,
+      2736.7,
+      2753.3,
+      2770,
+      2786.7,
+      2803.4,
+      2820,
+      2836.7,
+      2853.4,
+      2870,
+      2886.7,
+      2903.4,
+      2920,
+      2936.7,
+      2953.4,
+      2970.1,
+      2986.7,
+      3003.4,
+      3020,
+      3036.6,
+      3053.4,
+      3070,
+      3086.7,
+      3103.3,
+      3120,
+      3136.7,
+      3153.3,
+      3170,
+      3186.7,
+      3203.3,
+      3220,
+      3236.7,
+      3253.3,
+      3270,
+      3286.7,
+      3303.3,
+      3320,
+      3336.7,
+      3353.3,
+      3370,
+      3386.6,
+      3403.3,
+      3420,
+      3436.6,
+      3453.3,
+      3470,
+      3486.6,
+      3503.3,
+      3520,
+      3536.7,
+      3553.3,
+      3570,
+      3586.7,
+      3603.3,
+      3620,
+      3636.7,
+      3653.3,
+      3670,
+      3686.6,
+      3703.3,
+      3720
+     ],
+     "widths": [
+      1186.6666666666667,
+      1173.3333333333333,
+      1160,
+      1146.6666666666667,
+      1133.3333333333333,
+      1120,
+      1106.6666666666667,
+      1093.3333333333333,
+      1080,
+      1066.6666666666667,
+      1053.3333333333333,
+      1040,
+      1026.6666666666667,
+      1013.3333333333334,
+      1000,
+      986.6666666666666,
+      973.3333333333334,
+      960,
+      946.6666666666666,
+      933.3333333333333,
+      920,
+      906.6666666666667,
+      893.3333333333333,
+      880,
+      866.6666666666667,
+      853.3333333333333,
+      840,
+      826.6666666666667,
+      813.3333333333333,
+      800,
+      786.6666666666667,
+      773.3333333333333,
+      760,
+      746.6666666666667,
+      733.3333333333333,
+      720,
+      706.6666666666667,
+      693.3333333333333,
+      680,
+      666.6666666666666,
+      653.3333333333334,
+      640,
+      626.6666666666666,
+      613.3333333333334,
+      600,
+      586.6666666666666,
+      573.3333333333334,
+      560,
+      546.6666666666666,
+      533.3333333333334,
+      520,
+      506.66666666666663,
+      493.33333333333337,
+      480,
+      466.66666666666663,
+      453.33333333333337,
+      440,
+      426.66666666666663,
+      413.33333333333337,
+      400,
+      413.3333333333333,
+      426.6666666666667,
+      440,
+      453.3333333333333,
+      466.6666666666667,
+      480,
+      493.3333333333333,
+      506.6666666666667,
+      520,
+      533.3333333333334,
+      546.6666666666666,
+      560,
+      573.3333333333334,
+      586.6666666666666,
+      600,
+      613.3333333333334,
+      626.6666666666666,
+      640,
+      653.3333333333334,
+      666.6666666666667,
+      680,
+      693.3333333333333,
+      706.6666666666667,
+      720,
+      733.3333333333333,
+      746.6666666666667,
+      760,
+      773.3333333333333,
+      786.6666666666667,
+      800,
+      813.3333333333333,
+      826.6666666666667,
+      840,
+      853.3333333333333,
+      866.6666666666667,
+      880,
+      893.3333333333333,
+      906.6666666666667,
+      920,
+      933.3333333333334,
+      946.6666666666666,
+      960,
+      973.3333333333334,
+      986.6666666666666,
+      1000,
+      1013.3333333333334,
+      1026.6666666666665,
+      1040,
+      1053.3333333333335,
+      1066.6666666666665,
+      1080,
+      1093.3333333333335,
+      1106.6666666666665,
+      1120,
+      1133.3333333333335,
+      1146.6666666666665,
+      1160,
+      1173.3333333333335,
+      1186.6666666666665,
+      1200,
+      1200,
+      1200,
+      1200
+     ],
+     "intermediate": null
+    },
+    "resizeCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 1136.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 46.349998474121094,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 107.0199966430664,
+         "y": 273.9800109863281,
+         "width": 46.349998474121094,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 154.3699951171875,
+         "y": 241.2899932861328,
+         "width": 46.349998474121094,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 201.7100067138672,
+         "y": 214.63999938964844,
+         "width": 46.349998474121094,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 249.05999755859375,
+         "y": 161.5399932861328,
+         "width": 46.349998474121094,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 296.4100036621094,
+         "y": 123.37000274658203,
+         "width": 46.349998474121094,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 343.75,
+         "y": 67.05999755859375,
+         "width": 46.349998474121094,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 391.1000061035156,
+         "y": 100.69000244140625,
+         "width": 46.349998474121094,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 438.45001220703125,
+         "y": 126.0199966430664,
+         "width": 46.349998474121094,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 485.79998779296875,
+         "y": 171.55999755859375,
+         "width": 46.349998474121094,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 533.1400146484375,
+         "y": 218.99000549316406,
+         "width": 46.349998474121094,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 580.489990234375,
+         "y": 244.5,
+         "width": 46.349998474121094,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 627.8400268554688,
+         "y": 260.94000244140625,
+         "width": 46.349998474121094,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 675.1799926757812,
+         "y": 268.8800048828125,
+         "width": 46.349998474121094,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 722.530029296875,
+         "y": 249.22000122070312,
+         "width": 46.349998474121094,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 769.8800048828125,
+         "y": 236.17999267578125,
+         "width": 46.349998474121094,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 817.219970703125,
+         "y": 213.88999938964844,
+         "width": 46.349998474121094,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 864.5700073242188,
+         "y": 207.0800018310547,
+         "width": 46.349998474121094,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 911.9199829101562,
+         "y": 200.27999877929688,
+         "width": 46.349998474121094,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 959.27001953125,
+         "y": 233.5399932861328,
+         "width": 46.349998474121094,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 1006.6099853515625,
+         "y": 250.72999572753906,
+         "width": 46.349998474121094,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 1053.9599609375,
+         "y": 269.25,
+         "width": 46.349998474121094,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 1101.31005859375,
+         "y": 279.2699890136719,
+         "width": 46.349998474121094,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 1148.6500244140625,
+         "y": 287.7699890136719,
+         "width": 46.349998474121094,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.024340999999999998,
+     "ScriptDuration": 0.019089000000000002,
+     "LayoutDuration": 0.001911,
+     "RecalcStyleDuration": 0.0014089999999999999,
+     "DevToolsCommandDuration": 0.0008280000000000001,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.001103999999999999,
+     "ThreadTime": 0.023646000000000004,
+     "LayoutCount": 2,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 1172956,
+     "JSHeapTotalSize": 786432,
+     "endNodes": 181,
+     "endJSHeapUsedSize": 3298980,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0
+    },
+    "resize:start->resize:end": {
+     "TaskDuration": 0.14376,
+     "ScriptDuration": 0.06836800000000001,
+     "LayoutDuration": 0.019675,
+     "RecalcStyleDuration": 0.019330999999999997,
+     "DevToolsCommandDuration": 0.0004550000000000001,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.035931000000000005,
+     "ThreadTime": 0.146764,
+     "LayoutCount": 239,
+     "RecalcStyleCount": 360,
+     "Nodes": 0,
+     "JSEventListeners": 1,
+     "JSHeapUsedSize": 1488452,
+     "JSHeapTotalSize": 2883584,
+     "endNodes": 181,
+     "endJSHeapUsedSize": 4802556,
+     "rendererCpu": 0.25,
+     "gpuCpu": 0.04999999999999993
+    }
+   },
+   "memory": {
+    "na": "memory not sampled in this workload"
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 143.76,
+    "frameP95Ms": 16.700000000000273,
+    "frameP99Ms": 16.80000000000013,
+    "frameMaxMs": 16.800000000000182,
+    "framesOverThreshold": 0,
+    "frameThresholdMs": 25.049999999999997,
+    "frameCount": 125,
+    "rendererCpuMs": 250,
+    "gpuCpuMs": 49.999999999999936
+   }
+  },
+  {
+   "index": 9,
+   "phase": "timed",
+   "block": 3,
+   "position": 1,
+   "config": "B",
+   "startedAt": "2026-11-24T12:07:20.421Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 4278,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "b3a492aa",
+    "probe": null,
+    "resize": {
+     "from": 1200,
+     "to": 400,
+     "steps": 123,
+     "startAt": 1620.2,
+     "endAt": 3685.1,
+     "elapsedMs": 2064.9,
+     "frames": [
+      1601.7,
+      1618.4,
+      1635.1,
+      1651.7,
+      1668.3,
+      1685.1,
+      1701.7,
+      1718.4,
+      1735.1,
+      1751.7,
+      1768.4,
+      1785,
+      1801.7,
+      1818.4,
+      1835,
+      1851.7,
+      1868.3,
+      1885,
+      1901.7,
+      1918.4,
+      1935,
+      1951.7,
+      1968.4,
+      1985,
+      2001.7,
+      2018.4,
+      2035.1,
+      2051.7,
+      2068.4,
+      2085,
+      2101.7,
+      2118.4,
+      2135,
+      2151.7,
+      2168.3,
+      2185,
+      2201.6,
+      2218.4,
+      2235,
+      2251.7,
+      2268.4,
+      2285,
+      2301.7,
+      2318.4,
+      2335,
+      2351.7,
+      2368.4,
+      2385,
+      2401.7,
+      2418.3,
+      2435,
+      2451.7,
+      2468.4,
+      2485,
+      2501.6,
+      2518.4,
+      2535,
+      2551.7,
+      2568.3,
+      2585,
+      2601.6,
+      2618.4,
+      2635,
+      2651.7,
+      2668.3,
+      2685,
+      2701.6,
+      2718.3,
+      2735,
+      2751.7,
+      2768.3,
+      2785,
+      2801.6,
+      2818.3,
+      2835,
+      2851.7,
+      2868.3,
+      2885,
+      2901.7,
+      2918.3,
+      2935,
+      2951.7,
+      2968.3,
+      2985,
+      3001.6,
+      3018.3,
+      3035,
+      3051.7,
+      3068.3,
+      3085,
+      3101.7,
+      3118.3,
+      3135,
+      3151.7,
+      3168.3,
+      3185,
+      3201.6,
+      3218.3,
+      3235,
+      3251.7,
+      3268.3,
+      3285,
+      3301.7,
+      3318.3,
+      3335,
+      3351.6,
+      3368.3,
+      3384.9,
+      3401.7,
+      3418.3,
+      3434.9,
+      3451.7,
+      3468.3,
+      3485,
+      3501.6,
+      3518.3,
+      3535,
+      3551.6,
+      3568.3,
+      3585,
+      3601.7,
+      3618.3,
+      3635,
+      3651.7,
+      3668.3,
+      3685,
+      3701.6,
+      3718.3,
+      3735
+     ],
+     "widths": [
+      1186.6666666666667,
+      1173.3333333333333,
+      1160,
+      1146.6666666666667,
+      1133.3333333333333,
+      1120,
+      1106.6666666666667,
+      1093.3333333333333,
+      1080,
+      1066.6666666666667,
+      1053.3333333333333,
+      1040,
+      1026.6666666666667,
+      1013.3333333333334,
+      1000,
+      986.6666666666666,
+      973.3333333333334,
+      960,
+      946.6666666666666,
+      933.3333333333333,
+      920,
+      906.6666666666667,
+      893.3333333333333,
+      880,
+      866.6666666666667,
+      853.3333333333333,
+      840,
+      826.6666666666667,
+      813.3333333333333,
+      800,
+      786.6666666666667,
+      773.3333333333333,
+      760,
+      746.6666666666667,
+      733.3333333333333,
+      720,
+      706.6666666666667,
+      693.3333333333333,
+      680,
+      666.6666666666666,
+      653.3333333333334,
+      640,
+      626.6666666666666,
+      613.3333333333334,
+      600,
+      586.6666666666666,
+      573.3333333333334,
+      560,
+      546.6666666666666,
+      533.3333333333334,
+      520,
+      506.66666666666663,
+      493.33333333333337,
+      480,
+      466.66666666666663,
+      453.33333333333337,
+      440,
+      426.66666666666663,
+      413.33333333333337,
+      400,
+      413.3333333333333,
+      426.6666666666667,
+      440,
+      453.3333333333333,
+      466.6666666666667,
+      480,
+      493.3333333333333,
+      506.6666666666667,
+      520,
+      533.3333333333334,
+      546.6666666666666,
+      560,
+      573.3333333333334,
+      586.6666666666666,
+      600,
+      613.3333333333334,
+      626.6666666666666,
+      640,
+      653.3333333333334,
+      666.6666666666667,
+      680,
+      693.3333333333333,
+      706.6666666666667,
+      720,
+      733.3333333333333,
+      746.6666666666667,
+      760,
+      773.3333333333333,
+      786.6666666666667,
+      800,
+      813.3333333333333,
+      826.6666666666667,
+      840,
+      853.3333333333333,
+      866.6666666666667,
+      880,
+      893.3333333333333,
+      906.6666666666667,
+      920,
+      933.3333333333334,
+      946.6666666666666,
+      960,
+      973.3333333333334,
+      986.6666666666666,
+      1000,
+      1013.3333333333334,
+      1026.6666666666665,
+      1040,
+      1053.3333333333335,
+      1066.6666666666665,
+      1080,
+      1093.3333333333335,
+      1106.6666666666665,
+      1120,
+      1133.3333333333335,
+      1146.6666666666665,
+      1160,
+      1173.3333333333335,
+      1186.6666666666665,
+      1200,
+      1200,
+      1200,
+      1200
+     ],
+     "intermediate": null
+    },
+    "resizeCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "kind": "histogram",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "x": [
+       12,
+       136
+      ],
+      "y": [
+       0,
+       1500
+      ],
+      "plot": {
+       "x": 59.67219543457031,
+       "y": 11.5,
+       "width": 1136.3278045654297,
+       "height": 283.453125
+      },
+      "rectangles": [
+       [
+        {
+         "x": 59.66999816894531,
+         "y": 288.5299987792969,
+         "width": 46.349998474121094,
+         "height": 6.420000076293945
+        },
+        {
+         "x": 107.0199966430664,
+         "y": 273.9800109863281,
+         "width": 46.349998474121094,
+         "height": 20.979999542236328
+        },
+        {
+         "x": 154.3699951171875,
+         "y": 241.2899932861328,
+         "width": 46.349998474121094,
+         "height": 53.66999816894531
+        },
+        {
+         "x": 201.7100067138672,
+         "y": 214.63999938964844,
+         "width": 46.349998474121094,
+         "height": 80.30999755859375
+        },
+        {
+         "x": 249.05999755859375,
+         "y": 161.5399932861328,
+         "width": 46.349998474121094,
+         "height": 133.41000366210938
+        },
+        {
+         "x": 296.4100036621094,
+         "y": 123.37000274658203,
+         "width": 46.349998474121094,
+         "height": 171.5800018310547
+        },
+        {
+         "x": 343.75,
+         "y": 67.05999755859375,
+         "width": 46.349998474121094,
+         "height": 227.89999389648438
+        },
+        {
+         "x": 391.1000061035156,
+         "y": 100.69000244140625,
+         "width": 46.349998474121094,
+         "height": 194.25999450683594
+        },
+        {
+         "x": 438.45001220703125,
+         "y": 126.0199966430664,
+         "width": 46.349998474121094,
+         "height": 168.94000244140625
+        },
+        {
+         "x": 485.79998779296875,
+         "y": 171.55999755859375,
+         "width": 46.349998474121094,
+         "height": 123.4000015258789
+        },
+        {
+         "x": 533.1400146484375,
+         "y": 218.99000549316406,
+         "width": 46.349998474121094,
+         "height": 75.97000122070312
+        },
+        {
+         "x": 580.489990234375,
+         "y": 244.5,
+         "width": 46.349998474121094,
+         "height": 50.45000076293945
+        },
+        {
+         "x": 627.8400268554688,
+         "y": 260.94000244140625,
+         "width": 46.349998474121094,
+         "height": 34.0099983215332
+        },
+        {
+         "x": 675.1799926757812,
+         "y": 268.8800048828125,
+         "width": 46.349998474121094,
+         "height": 26.079999923706055
+        },
+        {
+         "x": 722.530029296875,
+         "y": 249.22000122070312,
+         "width": 46.349998474121094,
+         "height": 45.72999954223633
+        },
+        {
+         "x": 769.8800048828125,
+         "y": 236.17999267578125,
+         "width": 46.349998474121094,
+         "height": 58.77000045776367
+        },
+        {
+         "x": 817.219970703125,
+         "y": 213.88999938964844,
+         "width": 46.349998474121094,
+         "height": 81.06999969482422
+        },
+        {
+         "x": 864.5700073242188,
+         "y": 207.0800018310547,
+         "width": 46.349998474121094,
+         "height": 87.87000274658203
+        },
+        {
+         "x": 911.9199829101562,
+         "y": 200.27999877929688,
+         "width": 46.349998474121094,
+         "height": 94.66999816894531
+        },
+        {
+         "x": 959.27001953125,
+         "y": 233.5399932861328,
+         "width": 46.349998474121094,
+         "height": 61.40999984741211
+        },
+        {
+         "x": 1006.6099853515625,
+         "y": 250.72999572753906,
+         "width": 46.349998474121094,
+         "height": 44.220001220703125
+        },
+        {
+         "x": 1053.9599609375,
+         "y": 269.25,
+         "width": 46.349998474121094,
+         "height": 25.700000762939453
+        },
+        {
+         "x": 1101.31005859375,
+         "y": 279.2699890136719,
+         "width": 46.349998474121094,
+         "height": 15.680000305175781
+        },
+        {
+         "x": 1148.6500244140625,
+         "y": 287.7699890136719,
+         "width": 46.349998474121094,
+         "height": 7.179999828338623
+        }
+       ]
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.03924,
+     "ScriptDuration": 0.031825,
+     "LayoutDuration": 0.002228,
+     "RecalcStyleDuration": 0.002575,
+     "DevToolsCommandDuration": 0.000843,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0017689999999999997,
+     "ThreadTime": 0.038953,
+     "LayoutCount": 2,
+     "RecalcStyleCount": 8,
+     "Nodes": 138,
+     "JSEventListeners": 29,
+     "JSHeapUsedSize": 1075040,
+     "JSHeapTotalSize": 786432,
+     "endNodes": 181,
+     "endJSHeapUsedSize": 3201028,
+     "rendererCpu": 0.05,
+     "gpuCpu": 0
+    },
+    "resize:start->resize:end": {
+     "TaskDuration": 0.149383,
+     "ScriptDuration": 0.07088900000000001,
+     "LayoutDuration": 0.020504,
+     "RecalcStyleDuration": 0.020389,
+     "DevToolsCommandDuration": 0.00030199999999999997,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.037299,
+     "ThreadTime": 0.152492,
+     "LayoutCount": 239,
+     "RecalcStyleCount": 360,
+     "Nodes": 0,
+     "JSEventListeners": 1,
+     "JSHeapUsedSize": 1371304,
+     "JSHeapTotalSize": 2883584,
+     "endNodes": 181,
+     "endJSHeapUsedSize": 4587456,
+     "rendererCpu": 0.26,
+     "gpuCpu": 0.08000000000000007
+    }
+   },
+   "memory": {
+    "na": "memory not sampled in this workload"
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 149.38299999999998,
+    "frameP95Ms": 16.700000000000273,
+    "frameP99Ms": 16.800000000000182,
+    "frameMaxMs": 16.800000000000182,
+    "framesOverThreshold": 0,
+    "frameThresholdMs": 25.049999999999997,
+    "frameCount": 125,
+    "rendererCpuMs": 260,
+    "gpuCpuMs": 80.00000000000007
+   }
+  }
+ ],
+ "analysis": {
+  "completePairs": 4,
+  "blocks": 4,
+  "outcomes": {
+   "B:ok": 4,
+   "A:ok": 4
+  },
+  "reliability": {
+   "timed": {
+    "A": 4,
+    "B": 4
+   },
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "failureRate": {
+    "A": 0,
+    "B": 0
+   },
+   "adverseKey": "framesOverThreshold",
+   "adverse": {
+    "A": 0,
+    "B": 0
+   },
+   "conditional": false,
+   "betterBlocked": null,
+   "worseBlocked": null
+  },
+  "bootstrapSeed": 12345,
+  "level": 0.95,
+  "zeroOnly": false,
+  "metrics": {
+   "taskMs": {
+    "key": "taskMs",
+    "unit": "ms",
+    "primary": true,
+    "what": "TaskDuration over the fixed width sequence and until the charts report ready",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 4,
+    "level": 0.95,
+    "medianA": 146.8585,
+    "medianB": 144.1265,
+    "diff": -2.7319999999999993,
+    "lo": -7.988499999999988,
+    "hi": 2.524499999999989,
+    "relative": -0.01860294092612957,
+    "blockDiffs": [
+     -11.086999999999989,
+     -4.885999999999996,
+     -10.265999999999991,
+     5.6229999999999905
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 2,
+      "diff": 0.3685000000000116
+     },
+     "BA": {
+      "pairs": 2,
+      "diff": -10.676499999999976
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 20"
+   },
+   "frameP95Ms": {
+    "key": "frameP95Ms",
+    "unit": "ms",
+    "what": "95th percentile animation-frame interval in the window (boundary-spanning intervals included)",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 4,
+    "level": 0.95,
+    "medianA": 16.700000000000273,
+    "medianB": 16.700000000000273,
+    "diff": 0,
+    "lo": -0.03999999999978243,
+    "hi": 0.04999999999972715,
+    "relative": 0,
+    "blockDiffs": [
+     0,
+     0.0999999999994543,
+     -0.07999999999956486,
+     0
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 2,
+      "diff": 0.04999999999972715
+     },
+     "BA": {
+      "pairs": 2,
+      "diff": -0.03999999999978243
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 20"
+   },
+   "frameP99Ms": {
+    "key": "frameP99Ms",
+    "unit": "ms",
+    "what": "99th percentile animation-frame interval",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 4,
+    "level": 0.95,
+    "medianA": 16.800000000000153,
+    "medianB": 16.800000000000068,
+    "diff": -8.526512829121202e-14,
+    "lo": -3.126388037344441e-13,
+    "hi": 2.842170943040401e-14,
+    "relative": -5.075305255429241e-15,
+    "blockDiffs": [
+     -4.547473508864641e-13,
+     0,
+     0,
+     5.3290705182007514e-14
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 2,
+      "diff": 2.842170943040401e-14
+     },
+     "BA": {
+      "pairs": 2,
+      "diff": -2.2737367544323206e-13
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 20"
+   },
+   "framesOverThreshold": {
+    "key": "framesOverThreshold",
+    "unit": "frames",
+    "what": "frame intervals over 1.5x the observed refresh interval (25 ms at 60 Hz)",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 4,
+    "level": 0.95,
+    "medianA": 0,
+    "medianB": 0,
+    "diff": 0,
+    "lo": 0,
+    "hi": 0,
+    "relative": null,
+    "blockDiffs": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 2,
+      "diff": 0
+     },
+     "BA": {
+      "pairs": 2,
+      "diff": 0
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 20"
+   },
+   "frameMaxMs": {
+    "key": "frameMaxMs",
+    "unit": "ms",
+    "what": "largest frame interval",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 4,
+    "level": 0.95,
+    "medianA": 16.800000000000182,
+    "medianB": 16.800000000000182,
+    "diff": 0,
+    "lo": 0,
+    "hi": 0,
+    "relative": 0,
+    "blockDiffs": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 2,
+      "diff": 0
+     },
+     "BA": {
+      "pairs": 2,
+      "diff": 0
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 20"
+   },
+   "rendererCpuMs": {
+    "key": "rendererCpuMs",
+    "unit": "ms",
+    "what": "page renderer process CPU time, all threads, same window",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 4,
+    "level": 0.95,
+    "medianA": 260,
+    "medianB": 250,
+    "diff": -10,
+    "lo": -30,
+    "hi": 0,
+    "relative": -0.038461538461538464,
+    "blockDiffs": [
+     -10,
+     -19.99999999999997,
+     -40.000000000000085,
+     10
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 2,
+      "diff": -5
+     },
+     "BA": {
+      "pairs": 2,
+      "diff": -25
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 20"
+   },
+   "gpuCpuMs": {
+    "key": "gpuCpuMs",
+    "unit": "ms",
+    "what": "GPU process CPU time, same window",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 4,
+    "level": 0.95,
+    "medianA": 54.99999999999999,
+    "medianB": 55.00000000000002,
+    "diff": 2.842170943040401e-14,
+    "lo": -19.999999999999964,
+    "hi": 20.0000000000001,
+    "relative": 5.167583532800729e-16,
+    "blockDiffs": [
+     0,
+     -10.000000000000014,
+     -29.999999999999915,
+     30.000000000000135
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 2,
+      "diff": 10.000000000000057
+     },
+     "BA": {
+      "pairs": 2,
+      "diff": -14.99999999999995
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 20"
+   }
+  }
+ },
+ "endedBecause": "all blocks run",
+ "finishedAt": "2026-11-24T12:07:24.737Z",
+ "integrity": {
+  "violations": []
+ },
+ "eligibility": {
+  "eligible": true,
+  "reasons": []
+ }
+}

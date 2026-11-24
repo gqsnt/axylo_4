@@ -1,0 +1,7443 @@
+{
+ "schema": "axylo-bench/2",
+ "runId": "20261124T111159Z-lifecycle-area-trend-c2500-aa-axylo-de51",
+ "status": "complete",
+ "startedAt": "2026-11-24T11:11:59.743Z",
+ "command": [
+  "--artifact",
+  "bench/artifacts/stage1b-all-charts",
+  "--history-dir",
+  "bench/history",
+  "--blocks",
+  "4",
+  "--aa",
+  "axylo",
+  "--workload",
+  "lifecycle",
+  "--kind",
+  "area",
+  "--fixture",
+  "trend"
+ ],
+ "design": {
+  "raster": "software",
+  "mode": "aa",
+  "baseline": "axylo",
+  "candidate": "axylo",
+  "labels": {
+   "A": "axylo",
+   "B": "axylo"
+  },
+  "adapters": {
+   "A": {
+    "id": "axylo",
+    "params": {}
+   },
+   "B": {
+    "id": "axylo",
+    "params": {}
+   }
+  },
+  "workload": "lifecycle",
+  "params": {
+   "kind": "area",
+   "fixture": "trend",
+   "cycles": 2500
+  },
+  "blocks": 4,
+  "order": [
+   "AB",
+   "BA",
+   "BA",
+   "AB"
+  ],
+  "seed": 782819957,
+  "bootstrapSeed": 12345,
+  "settleMs": 500,
+  "timeoutMs": 120000,
+  "dpr": 1,
+  "viewport": [
+   1440,
+   900
+  ],
+  "warmup": "one untimed admission run per side (A then B), then one untimed warm-up run per side in the opposite order (B then A), so each side has run twice in this browser before timing starts",
+  "isolate": false,
+  "isolation": "one browser process for the session, a fresh context per run",
+  "endpoint": null,
+  "noiseFrom": null
+ },
+ "environment": {
+  "browser": {
+   "name": "Google Chrome (system, via Playwright channel \"chrome\")",
+   "version": "158.0.8127.88",
+   "headless": true
+  },
+  "playwright": "1.65.1",
+  "node": "v24.21.0",
+  "host": {
+   "hostname": "canarit-Z690-AORUS-ELITE-DDR4",
+   "cpuModel": "13th Gen Intel(R) Core(TM) i5-13600K",
+   "logicalCores": 20
+  },
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13600K",
+   "logicalCores": 20,
+   "governor": "powersave"
+  },
+  "memoryGiB": 30.4,
+  "os": {
+   "type": "Linux",
+   "release": "7.0.0-44-generic",
+   "name": "Ubuntu 26.04.1 LTS",
+   "arch": "x64"
+  },
+  "loadAverageAtStart": [
+   1.58,
+   1.54,
+   1.3
+  ],
+  "hostIdle": "not controlled: other processes (including other agents) may run on this machine during the session",
+  "power": "not available: power settings are not read by this harness",
+  "runnerCheckoutHead": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+  "lockfiles": {
+   "bench/package-lock.json": "640e6069d6ca766dd415693245d446e83b5cdd8b30218c4031ccb5852543e72f",
+   "package-lock.json": "e98151ca9f4f8d9aa1b6dd7e828f8e5024fbbf43a752a754d1a469a5850af392"
+  },
+  "libraries": {
+   "uplot": "1.6.32",
+   "chart.js": "4.6.1",
+   "chartjs-adapter-date-fns": "3.0.0",
+   "date-fns": "4.4.0",
+   "echarts": "6.1.0",
+   "axylo": "0.0.0"
+  },
+  "raster": {
+   "mode": "software",
+   "requested": "default (software here)",
+   "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+   "canvas2d": "unavailable_software",
+   "rasterization": "disabled_software",
+   "gpuCompositing": "disabled_software",
+   "refused": null,
+   "detail": {
+    "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "featureStatus": {
+     "2d_canvas": "unavailable_software",
+     "direct_rendering_display_compositor": "disabled_off_ok",
+     "gpu_compositing": "disabled_software",
+     "multiple_raster_threads": "enabled_on",
+     "opengl": "disabled_off",
+     "rasterization": "disabled_software",
+     "skia_graphite": "disabled_off",
+     "trees_in_viz": "disabled_off",
+     "video_decode": "disabled_software",
+     "video_encode": "disabled_software",
+     "vulkan": "disabled_off",
+     "webgl": "unavailable_software",
+     "webgpu": "unavailable_software",
+     "webgpu_on_vk_via_gl_interop": "disabled_off",
+     "webnn": "unavailable_software"
+    },
+    "devices": [
+     {
+      "vendor": "Google Inc. (Google)",
+      "device": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0)",
+      "driver": "5.0.0"
+     }
+    ],
+    "gl": {
+     "displayType": "ANGLE_SWIFTSHADER",
+     "glExtensions": "GL_AMD_performance_monitor GL_ANGLE_base_vertex_base_instance_shader_builtin GL_ANGLE_blob_cache GL_ANGLE_client_arrays GL_ANGLE_clip_cull_distance GL_ANGLE_compressed_texture_etc GL_ANGLE_copy_textur",
+     "glImplementationParts": "(gl=egl-angle,angle=swiftshader)",
+     "glRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0)",
+     "glResetNotificationStrategy": "33362",
+     "glVendor": "Google Inc. (Google)",
+     "glVersion": "OpenGL ES 3.0 (ANGLE 2.1.29257 git hash: 1f6526a566c2)",
+     "glWsExtensions": "EGL_EXT_create_context_robustness EGL_ANGLE_surface_orientation EGL_KHR_create_context EGL_KHR_image EGL_KHR_image_base EGL_EXT_image_gl_colorspace EGL_KHR_gl_colorspace EGL_KHR_gl_texture_2D_image EG",
+     "glWsVendor": "Google Inc. (Google)",
+     "glWsVersion": "1.5 (ANGLE 2.1.29257 git hash: 1f6526a566c2)",
+     "passthroughCmdDecoder": "true",
+     "skiaBackendType": "None"
+    }
+   },
+   "flags": "Playwright defaults"
+  },
+  "page": {
+   "devicePixelRatio": 1,
+   "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+   "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+   "viewport": [
+    1440,
+    900
+   ],
+   "hardwareConcurrency": 20,
+   "refresh": {
+    "medianIntervalMs": 16.7,
+    "hz": 59.88,
+    "minMs": 16.6,
+    "maxMs": 16.8
+   }
+  },
+  "loadAverageAtEnd": [
+   1.75,
+   1.54,
+   1.38
+  ]
+ },
+ "hashes": {
+  "fixtureChecksum": "d15a237a",
+  "slots": {
+   "A": {
+    "artifact": "stage1b-all-charts",
+    "dir": "/home/canarit/projects/prism/phase4_stage1/axylo-bench-repo/bench/artifacts/stage1b-all-charts",
+    "manifestSha256": "f67ff955819aa0d1ce7fb05485a5a19ff3a4578efbc380de7bb05ba38e69b12d",
+    "source": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean",
+     "axyloSourceHash": "91275224cf666963715bd18521bbc71821a288856f0e153cc7a18aa8ec2ee956",
+     "shippedOptions": "identical: axylo.iife.min.js (release copy) is byte-for-byte what the scripts/build.mjs recipe produces from this snapshot",
+     "distComparison": "identical to packages/axylo/dist/axylo.iife.min.js at build time"
+    },
+    "bench": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean"
+    },
+    "files": {
+     "adapters/axylo-stale-mark.js": "455b32e71fd223bcaa475083e211ead37d8ebd3d8df3dee52c51cdc551563fc6",
+     "adapters/axylo-svg.js": "a5330566dc0878d61367af8e77ee114fd9a12aa8e17b6bdd147e9d8035f99eb8",
+     "adapters/axylo-wrong-renderer.js": "7af78eb82cc84af9b59d5999e0d670c6adc1c060e3e8be69bbefe818d8425750",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "adapters/broken-never-ready.js": "ff6de0d681540cd6f4ea71dca4c33f91d11aea9598e36fd63ebf211b60e2fc9f",
+     "adapters/broken-throws.js": "17e4d7a33f724a22ed2da26aad000f33accbbe11f6741c1c646804983c83f6b7",
+     "adapters/chartjs-tuned.js": "daaafde618d7feda2a38de161cece0e2f2931b86e3f9544c3ea6048771a50d99",
+     "adapters/chartjs.js": "87dfe6084949337506720d921746beaf25f59e6adcf7934b60a789806029fc34",
+     "adapters/echarts.js": "f2a9ff8da676bea6e4a0fca4afcce8a1c1e7f039f9ce9cd558f6ac9c8ef2a59e",
+     "adapters/noop.js": "87036ef493cfbbb79c8cbd42cb44b01f0b46988a1430a6859dae870158adb8aa",
+     "adapters/uplot-fixed-width.js": "bdc7453e345e3b0c3d98a84b47c6d12f3d1f90ce7ce9149b3d108e45c6491fe9",
+     "adapters/uplot-no-trim.js": "2ab62ccbe4f6e5fae0685ae8f2972465367e07b8c24efe459060f582570fedc1",
+     "adapters/uplot-pinned-y.js": "136a61a772e62259aee9821b8d0e55cc151dd51d0da548f7891649acad574c9f",
+     "adapters/uplot-stalls.js": "e4b6672d47136813ffeb899c3b233bd00316dbc14047e1cd9a27da48f04de54f",
+     "adapters/uplot.js": "7e4865f22c594705393c301916e7617fbd9bee70ba2d3a0afb167803c6b48655",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694",
+     "axylo/axylo.bench.iife.min.js.map": "73b65f747f97a9f1adde3859a65031eb516ecc86cc932c0ead36b4cab146ec8b",
+     "axylo/axylo.iife.js": "96ce1dcad3727fcd4e8112a65a0f9e0df8373822a0d33d67070803f8683505c9",
+     "axylo/axylo.iife.js.map": "fa53111acc881ccda6c1af5ee0251a8ea736225d6c0a4aebdf0ea77da4b12909",
+     "axylo/axylo.iife.min.js": "3fba985e8fa7924e5194cf6c8ca494ebe3902b67bab3fb0caa82b1199bcbf1c7",
+     "axylo/axylo.iife.min.js.map": "0521ac20524a9804106f99bbd5486c31b6789f24c26acd1c1eba46897dadc230",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08"
+    },
+    "served": {
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694"
+    }
+   },
+   "B": {
+    "artifact": "stage1b-all-charts",
+    "dir": "/home/canarit/projects/prism/phase4_stage1/axylo-bench-repo/bench/artifacts/stage1b-all-charts",
+    "manifestSha256": "f67ff955819aa0d1ce7fb05485a5a19ff3a4578efbc380de7bb05ba38e69b12d",
+    "source": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean",
+     "axyloSourceHash": "91275224cf666963715bd18521bbc71821a288856f0e153cc7a18aa8ec2ee956",
+     "shippedOptions": "identical: axylo.iife.min.js (release copy) is byte-for-byte what the scripts/build.mjs recipe produces from this snapshot",
+     "distComparison": "identical to packages/axylo/dist/axylo.iife.min.js at build time"
+    },
+    "bench": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean"
+    },
+    "files": {
+     "adapters/axylo-stale-mark.js": "455b32e71fd223bcaa475083e211ead37d8ebd3d8df3dee52c51cdc551563fc6",
+     "adapters/axylo-svg.js": "a5330566dc0878d61367af8e77ee114fd9a12aa8e17b6bdd147e9d8035f99eb8",
+     "adapters/axylo-wrong-renderer.js": "7af78eb82cc84af9b59d5999e0d670c6adc1c060e3e8be69bbefe818d8425750",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "adapters/broken-never-ready.js": "ff6de0d681540cd6f4ea71dca4c33f91d11aea9598e36fd63ebf211b60e2fc9f",
+     "adapters/broken-throws.js": "17e4d7a33f724a22ed2da26aad000f33accbbe11f6741c1c646804983c83f6b7",
+     "adapters/chartjs-tuned.js": "daaafde618d7feda2a38de161cece0e2f2931b86e3f9544c3ea6048771a50d99",
+     "adapters/chartjs.js": "87dfe6084949337506720d921746beaf25f59e6adcf7934b60a789806029fc34",
+     "adapters/echarts.js": "f2a9ff8da676bea6e4a0fca4afcce8a1c1e7f039f9ce9cd558f6ac9c8ef2a59e",
+     "adapters/noop.js": "87036ef493cfbbb79c8cbd42cb44b01f0b46988a1430a6859dae870158adb8aa",
+     "adapters/uplot-fixed-width.js": "bdc7453e345e3b0c3d98a84b47c6d12f3d1f90ce7ce9149b3d108e45c6491fe9",
+     "adapters/uplot-no-trim.js": "2ab62ccbe4f6e5fae0685ae8f2972465367e07b8c24efe459060f582570fedc1",
+     "adapters/uplot-pinned-y.js": "136a61a772e62259aee9821b8d0e55cc151dd51d0da548f7891649acad574c9f",
+     "adapters/uplot-stalls.js": "e4b6672d47136813ffeb899c3b233bd00316dbc14047e1cd9a27da48f04de54f",
+     "adapters/uplot.js": "7e4865f22c594705393c301916e7617fbd9bee70ba2d3a0afb167803c6b48655",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694",
+     "axylo/axylo.bench.iife.min.js.map": "73b65f747f97a9f1adde3859a65031eb516ecc86cc932c0ead36b4cab146ec8b",
+     "axylo/axylo.iife.js": "96ce1dcad3727fcd4e8112a65a0f9e0df8373822a0d33d67070803f8683505c9",
+     "axylo/axylo.iife.js.map": "fa53111acc881ccda6c1af5ee0251a8ea736225d6c0a4aebdf0ea77da4b12909",
+     "axylo/axylo.iife.min.js": "3fba985e8fa7924e5194cf6c8ca494ebe3902b67bab3fb0caa82b1199bcbf1c7",
+     "axylo/axylo.iife.min.js.map": "0521ac20524a9804106f99bbd5486c31b6789f24c26acd1c1eba46897dadc230",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08"
+    },
+    "served": {
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694"
+    }
+   }
+  }
+ },
+ "admission": {
+  "A:axylo": {
+   "outcome": "ok",
+   "reason": null,
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "describe": [
+    {
+     "reads": "Axylo chart.__bench.describe(): committed view xDomain/yDomain; per series slots held, first and last x, non-value slots, kept indexes (and run starts when reported); renderer reported by the library and read from the mark elements; strokes or markers in probe runs",
+     "renderer": {
+      "kind": "svg",
+      "canvases": 0,
+      "svgs": 1,
+      "reported": "svg",
+      "dom": "svg"
+     },
+     "kind": "area",
+     "areaFills": 3,
+     "x": [
+      1767225600000,
+      1777507200000
+     ],
+     "y": [
+      0,
+      50000
+     ],
+     "series": [
+      {
+       "points": 120,
+       "oldestX": 1767225600000,
+       "newestX": 1777507200000,
+       "missing": 0,
+       "drawn": {
+        "kind": "pixels"
+       }
+      },
+      {
+       "points": 120,
+       "oldestX": 1767225600000,
+       "newestX": 1777507200000,
+       "missing": 0,
+       "drawn": {
+        "kind": "pixels"
+       }
+      },
+      {
+       "points": 120,
+       "oldestX": 1767225600000,
+       "newestX": 1777507200000,
+       "missing": 7,
+       "drawn": {
+        "kind": "pixels"
+       }
+      }
+     ],
+     "drawnPixels": {
+      "plot": {
+       "x": 66.53623962402344,
+       "y": 11.5,
+       "width": 729.4637603759766,
+       "height": 302.453125
+      },
+      "strokes": [
+       {
+        "color": "rgb(43, 151, 238)",
+        "polylines": [
+         [
+          66.54,
+          138.25,
+          72.67,
+          122.12,
+          78.8,
+          95.75,
+          84.93,
+          111.56,
+          91.06,
+          130.88,
+          97.19,
+          142.78,
+          103.32,
+          137.08,
+          109.45,
+          127.64,
+          115.58,
+          105.15,
+          121.71,
+          96.65,
+          127.84,
+          117.16,
+          133.97,
+          134.65,
+          140.1,
+          129.02,
+          146.23,
+          130.74,
+          152.36,
+          123.6,
+          158.49,
+          104.55,
+          164.62,
+          102.13,
+          170.75,
+          105.38,
+          176.88,
+          126.17,
+          183.01,
+          118.77,
+          189.14,
+          132.21,
+          195.27,
+          102.05,
+          201.4,
+          103.75,
+          207.53,
+          100.67,
+          213.65,
+          109.49,
+          219.78,
+          121.22,
+          225.91,
+          124.09,
+          232.04,
+          114.68,
+          238.17,
+          116.4,
+          244.3,
+          81.2,
+          250.43,
+          85.66,
+          256.56,
+          93.11,
+          262.69,
+          106.72,
+          268.82,
+          108.9,
+          274.95,
+          112.93,
+          281.08,
+          90.83,
+          287.21,
+          78.18,
+          293.34,
+          93.01,
+          299.47,
+          98.84,
+          305.6,
+          109.46,
+          311.73,
+          116.9,
+          317.86,
+          122.47,
+          323.99,
+          105.91,
+          330.12,
+          74.54,
+          336.25,
+          79.97,
+          342.38,
+          87.66,
+          348.51,
+          101.67,
+          354.64,
+          99.21,
+          360.77,
+          100.86,
+          366.9,
+          86.31,
+          373.03,
+          80.05,
+          379.16,
+          75.2,
+          385.29,
+          89.55,
+          391.42,
+          104.7,
+          397.55,
+          94.93,
+          403.68,
+          104.99,
+          409.81,
+          93.27,
+          415.94,
+          67.67,
+          422.07,
+          70.59,
+          428.2,
+          86.77,
+          434.33,
+          86.3,
+          440.46,
+          89.65,
+          446.59,
+          94.46,
+          452.72,
+          72.8,
+          458.85,
+          62.03,
+          464.98,
+          51.4,
+          471.11,
+          79.91,
+          477.24,
+          84.95,
+          483.37,
+          91.15,
+          489.5,
+          81.07,
+          495.63,
+          64.48,
+          501.76,
+          52.53,
+          507.89,
+          54.19,
+          514.02,
+          54.35,
+          520.15,
+          69.28,
+          526.28,
+          88.51,
+          532.41,
+          77.74,
+          538.54,
+          82.5,
+          544.67,
+          55.23,
+          550.8,
+          55.56,
+          556.93,
+          55.06,
+          563.06,
+          74.31,
+          569.19,
+          78.42,
+          575.32,
+          68.83,
+          581.45,
+          64.07,
+          587.58,
+          42.73,
+          593.71,
+          48.01,
+          599.84,
+          51.96,
+          605.97,
+          64.65,
+          612.1,
+          78.27,
+          618.23,
+          79.83,
+          624.36,
+          66.75,
+          630.49,
+          57.33,
+          636.62,
+          52.75,
+          642.75,
+          39.6,
+          648.88,
+          57.28,
+          655.01,
+          71.28,
+          661.14,
+          81.96,
+          667.27,
+          52.42,
+          673.4,
+          38.09,
+          679.53,
+          30.91,
+          685.66,
+          33.27,
+          691.79,
+          65.64,
+          697.92,
+          57.59,
+          704.05,
+          61.5,
+          710.18,
+          42.83,
+          716.31,
+          32.29,
+          722.44,
+          23.08,
+          728.57,
+          48.9,
+          734.7,
+          43.23,
+          740.83,
+          64.11,
+          746.96,
+          58.43,
+          753.09,
+          53.34,
+          759.22,
+          32.73,
+          765.35,
+          32.99,
+          771.48,
+          27.49,
+          777.61,
+          41.35,
+          783.74,
+          53.49,
+          789.87,
+          51.13,
+          796,
+          28.19
+         ]
+        ]
+       },
+       {
+        "color": "rgb(207, 128, 32)",
+        "polylines": [
+         [
+          66.54,
+          203.09,
+          72.67,
+          188.59,
+          78.8,
+          181.34,
+          84.93,
+          197.62,
+          91.06,
+          215.08,
+          97.19,
+          216.47,
+          103.32,
+          209.35,
+          109.45,
+          196.11,
+          115.58,
+          195.97,
+          121.71,
+          186.06,
+          127.84,
+          195.28,
+          133.97,
+          207.18,
+          140.1,
+          221.26,
+          146.23,
+          216.7,
+          152.36,
+          201.1,
+          158.49,
+          188.21,
+          164.62,
+          190.49,
+          170.75,
+          201.36,
+          176.88,
+          211.03,
+          183.01,
+          221.55,
+          189.14,
+          216.76,
+          195.27,
+          190.62,
+          201.4,
+          176.5,
+          207.53,
+          189.96,
+          213.65,
+          195.71,
+          219.78,
+          204.28,
+          225.91,
+          210.39,
+          232.04,
+          202.88,
+          238.17,
+          197.3,
+          244.3,
+          185.26,
+          250.43,
+          174.15,
+          256.56,
+          183.43,
+          262.69,
+          194.57,
+          268.82,
+          207.29,
+          274.95,
+          199.14,
+          281.08,
+          193.96,
+          287.21,
+          179.05,
+          293.34,
+          180.66,
+          299.47,
+          184.22,
+          305.6,
+          192.46,
+          311.73,
+          212.92,
+          317.86,
+          206.51,
+          323.99,
+          183.89,
+          330.12,
+          171.7,
+          336.25,
+          169.37,
+          342.38,
+          183.45,
+          348.51,
+          197.53,
+          354.64,
+          195.13,
+          360.77,
+          203.99,
+          366.9,
+          189.8,
+          373.03,
+          175.52,
+          379.16,
+          165.82,
+          385.29,
+          181.38,
+          391.42,
+          183.78,
+          397.55,
+          199.28,
+          403.68,
+          198.09,
+          409.81,
+          187.67,
+          415.94,
+          171.88,
+          422.07,
+          173.03,
+          428.2,
+          170.12,
+          434.33,
+          188.54,
+          440.46,
+          188.85,
+          446.59,
+          188.21,
+          452.72,
+          182.28,
+          458.85,
+          171.17,
+          464.98,
+          163.15,
+          471.11,
+          166.73,
+          477.24,
+          186.4,
+          483.37,
+          192.28,
+          489.5,
+          197.97,
+          495.63,
+          176.16,
+          501.76,
+          169.46,
+          507.89,
+          162.21,
+          514.02,
+          165.55,
+          520.15,
+          186.88,
+          526.28,
+          196.3,
+          532.41,
+          196.74,
+          538.54,
+          173.8,
+          544.67,
+          160.72,
+          550.8,
+          153.22,
+          556.93,
+          172.79,
+          563.06,
+          186.6,
+          569.19,
+          197.9,
+          575.32,
+          182.77,
+          581.45,
+          166.85,
+          587.58,
+          157.24,
+          593.71,
+          153.14,
+          599.84,
+          158.53,
+          605.97,
+          184.65,
+          612.1,
+          178.82,
+          618.23,
+          188.17,
+          624.36,
+          171.35,
+          630.49,
+          161.83,
+          636.62,
+          152.7,
+          642.75,
+          159.67,
+          648.88,
+          174.91,
+          655.01,
+          180.88,
+          661.14,
+          179.48,
+          667.27,
+          167.79,
+          673.4,
+          161.46,
+          679.53,
+          148.01,
+          685.66,
+          162.16,
+          691.79,
+          181.15,
+          697.92,
+          178.39,
+          704.05,
+          179.8,
+          710.18,
+          165.88,
+          716.31,
+          153.85,
+          722.44,
+          144.45,
+          728.57,
+          151.09,
+          734.7,
+          178.36,
+          740.83,
+          187.12,
+          746.96,
+          180.47,
+          753.09,
+          163.98,
+          759.22,
+          154.18,
+          765.35,
+          141.51,
+          771.48,
+          150.28,
+          777.61,
+          168.98,
+          783.74,
+          169.94,
+          789.87,
+          178.08,
+          796,
+          162.01
+         ]
+        ]
+       },
+       {
+        "color": "rgb(11, 108, 73)",
+        "polylines": [
+         [
+          66.54,
+          285.46,
+          72.67,
+          285.43,
+          78.8,
+          284.14,
+          84.93,
+          288.85,
+          91.06,
+          286.82,
+          97.19,
+          287.74,
+          103.32,
+          288.24,
+          109.45,
+          292.5,
+          115.58,
+          289.45,
+          121.71,
+          284.79,
+          127.84,
+          290.85,
+          133.97,
+          293.16,
+          140.1,
+          288.5,
+          146.23,
+          292.73,
+          152.36,
+          288.58,
+          158.49,
+          289.11,
+          164.62,
+          284.83,
+          170.75,
+          286.73,
+          176.88,
+          293.68,
+          183.01,
+          292.21,
+          189.14,
+          287.92,
+          195.27,
+          292.59,
+          201.4,
+          290.73,
+          207.53,
+          288.17,
+          213.65,
+          286.56,
+          219.78,
+          289.42,
+          225.91,
+          293.82,
+          232.04,
+          291.77,
+          238.17,
+          292.76,
+          244.3,
+          288.18,
+          250.43,
+          288.09,
+          256.56,
+          288.67,
+          262.69,
+          293.56,
+          268.82,
+          290.53,
+          274.95,
+          293.51,
+          281.08,
+          288.85,
+          287.21,
+          285.98,
+          293.34,
+          291.34,
+          299.47,
+          291.64,
+          305.6,
+          289.91,
+          311.73,
+          289.99,
+          317.86,
+          294,
+          323.99,
+          288.11,
+          330.12,
+          287.69,
+          336.25,
+          289.61,
+          342.38,
+          292.62,
+          348.51,
+          294.67,
+          354.64,
+          289.64,
+          360.77,
+          291.36,
+          366.9,
+          292.68,
+          373.03,
+          288.95,
+          379.16,
+          291.77,
+          385.29,
+          289.9,
+          391.42,
+          292.7,
+          397.55,
+          291.49,
+          403.68,
+          295.55,
+          409.81,
+          289.51,
+          415.94,
+          291.81,
+          422.07,
+          290.89,
+          428.2,
+          292.5
+         ],
+         [
+          477.24,
+          291.35,
+          483.37,
+          296.59,
+          489.5,
+          293.65,
+          495.63,
+          295.03,
+          501.76,
+          289.4,
+          507.89,
+          288.06,
+          514.02,
+          288.52,
+          520.15,
+          296.3,
+          526.28,
+          294.03,
+          532.41,
+          295.06,
+          538.54,
+          295.5,
+          544.67,
+          287.38,
+          550.8,
+          291.66,
+          556.93,
+          293.87,
+          563.06,
+          295.09,
+          569.19,
+          295.98,
+          575.32,
+          292.33,
+          581.45,
+          290.26,
+          587.58,
+          288.11,
+          593.71,
+          288.37,
+          599.84,
+          290.2,
+          605.97,
+          291.21,
+          612.1,
+          294.22,
+          618.23,
+          293.33,
+          624.36,
+          291.58,
+          630.49,
+          292.5,
+          636.62,
+          291.39,
+          642.75,
+          290.89,
+          648.88,
+          295.45,
+          655.01,
+          297.43,
+          661.14,
+          295.16,
+          667.27,
+          292.58,
+          673.4,
+          290.17,
+          679.53,
+          291.56,
+          685.66,
+          290.85,
+          691.79,
+          296.41,
+          697.92,
+          294.16,
+          704.05,
+          295.33,
+          710.18,
+          294.06,
+          716.31,
+          292.57,
+          722.44,
+          289.07,
+          728.57,
+          295.45,
+          734.7,
+          294.48,
+          740.83,
+          295.94,
+          746.96,
+          294.65,
+          753.09,
+          293.05,
+          759.22,
+          295.19,
+          765.35,
+          292.29,
+          771.48,
+          289.83,
+          777.61,
+          293.67,
+          783.74,
+          296.48,
+          789.87,
+          294.73,
+          796,
+          295.64
+         ]
+        ]
+       }
+      ]
+     }
+    }
+   ],
+   "adapter": {
+    "id": "axylo",
+    "library": "Axylo",
+    "version": "0.0.0",
+    "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+    "params": {
+     "build": "prod"
+    },
+    "floor": false,
+    "expectRenderer": "svg",
+    "bundle": "axylo/axylo.bench.iife.min.js"
+   }
+  }
+ },
+ "probes": {},
+ "blocks": [
+  {
+   "block": 0,
+   "load1": 1.39,
+   "at": "2026-11-24T11:13:49.428Z"
+  },
+  {
+   "block": 1,
+   "load1": 1.59,
+   "at": "2026-11-24T11:15:38.925Z"
+  },
+  {
+   "block": 2,
+   "load1": 1.91,
+   "at": "2026-11-24T11:17:28.421Z"
+  },
+  {
+   "block": 3,
+   "load1": 1,
+   "at": "2026-11-24T11:19:17.897Z"
+  }
+ ],
+ "runs": [
+  {
+   "index": 0,
+   "phase": "admission",
+   "chromeVersion": "158.0.8127.88",
+   "side": "A",
+   "adapter": "axylo",
+   "slot": "A",
+   "outcome": "ok",
+   "reason": null,
+   "limits": [],
+   "durationMs": 54761,
+   "logs": [],
+   "pageErrors": []
+  },
+  {
+   "index": 1,
+   "phase": "warmup",
+   "chromeVersion": "158.0.8127.88",
+   "side": "A",
+   "adapter": "axylo",
+   "slot": "A",
+   "outcome": "ok",
+   "reason": null,
+   "durationMs": 54751
+  },
+  {
+   "index": 2,
+   "phase": "timed",
+   "block": 0,
+   "position": 0,
+   "config": "A",
+   "startedAt": "2026-11-24T11:13:49.432Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 54742,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": [
+     "series 0: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run",
+     "series 1: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run",
+     "series 2: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run"
+    ]
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "d15a237a",
+    "probe": null,
+    "lifecycle": {
+     "cycles": 2500,
+     "warm": 700,
+     "checkpoints": [
+      {
+       "cycles": 0,
+       "label": "cycles0",
+       "observers": 0
+      },
+      {
+       "cycles": 100,
+       "label": "cycles100",
+       "observers": 0
+      },
+      {
+       "cycles": 300,
+       "label": "cycles300",
+       "observers": 0
+      },
+      {
+       "cycles": 1000,
+       "label": "cycles1000",
+       "observers": 0
+      },
+      {
+       "cycles": 1500,
+       "label": "cycles1500",
+       "observers": 0
+      },
+      {
+       "cycles": 1600,
+       "label": "cycles1600",
+       "observers": 0
+      },
+      {
+       "cycles": 1700,
+       "label": "cycles1700",
+       "observers": 0
+      },
+      {
+       "cycles": 1800,
+       "label": "cycles1800",
+       "observers": 0
+      },
+      {
+       "cycles": 1900,
+       "label": "cycles1900",
+       "observers": 0
+      },
+      {
+       "cycles": 2000,
+       "label": "cycles2000",
+       "observers": 0
+      },
+      {
+       "cycles": 2100,
+       "label": "cycles2100",
+       "observers": 0
+      },
+      {
+       "cycles": 2200,
+       "label": "cycles2200",
+       "observers": 0
+      },
+      {
+       "cycles": 2300,
+       "label": "cycles2300",
+       "observers": 0
+      },
+      {
+       "cycles": 2400,
+       "label": "cycles2400",
+       "observers": 0
+      },
+      {
+       "cycles": 2500,
+       "label": "cycles2500",
+       "observers": 0
+      }
+     ],
+     "leftover": 0
+    },
+    "lifecycleCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Axylo chart.__bench.describe(): committed view xDomain/yDomain; per series slots held, first and last x, non-value slots, kept indexes (and run starts when reported); renderer reported by the library and read from the mark elements; strokes or markers in probe runs",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "kind": "area",
+      "areaFills": 3,
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       0,
+       50000
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 7,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {},
+   "memory": {
+    "pagePid": null,
+    "gpuPid": 966980,
+    "samples": {
+     "cycles0": {
+      "heapUsed": 3941024,
+      "heapTotal": 5242880,
+      "embedderHeapUsed": 878872,
+      "backingStorage": 412180,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.54,
+       "pss": 39431168,
+       "rss": 100519936
+      },
+      "otherRenderers": [
+       {
+        "pid": 967391,
+        "pss": 18593792
+       },
+       {
+        "pid": 967392,
+        "pss": 76050432
+       },
+       {
+        "pid": 967382,
+        "pss": 53095424
+       }
+      ]
+     },
+     "cycles100": {
+      "heapUsed": 4012044,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 736648,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.54,
+       "pss": 39341056,
+       "rss": 100429824
+      },
+      "otherRenderers": [
+       {
+        "pid": 967391,
+        "pss": 18593792
+       },
+       {
+        "pid": 967392,
+        "pss": 75694080
+       },
+       {
+        "pid": 967382,
+        "pss": 53095424
+       }
+      ]
+     },
+     "cycles300": {
+      "heapUsed": 4052960,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 723336,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.55,
+       "pss": 39341056,
+       "rss": 100429824
+      },
+      "otherRenderers": [
+       {
+        "pid": 967391,
+        "pss": 18593792
+       },
+       {
+        "pid": 967392,
+        "pss": 76189696
+       },
+       {
+        "pid": 967382,
+        "pss": 53095424
+       }
+      ]
+     },
+     "cycles1000": {
+      "heapUsed": 4086804,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 708400,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.6,
+       "pss": 39341056,
+       "rss": 100429824
+      },
+      "otherRenderers": [
+       {
+        "pid": 967391,
+        "pss": 18593792
+       },
+       {
+        "pid": 967392,
+        "pss": 76783616
+       },
+       {
+        "pid": 967382,
+        "pss": 53095424
+       }
+      ]
+     },
+     "cycles1500": {
+      "heapUsed": 4088048,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 749328,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.63,
+       "pss": 39271424,
+       "rss": 100429824
+      },
+      "otherRenderers": [
+       {
+        "pid": 967391,
+        "pss": 18593792
+       },
+       {
+        "pid": 967392,
+        "pss": 75414528
+       },
+       {
+        "pid": 967382,
+        "pss": 51913728
+       }
+      ]
+     },
+     "cycles1600": {
+      "heapUsed": 4089536,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 711712,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.64,
+       "pss": 39265280,
+       "rss": 100429824
+      },
+      "otherRenderers": [
+       {
+        "pid": 967391,
+        "pss": 18593792
+       },
+       {
+        "pid": 967392,
+        "pss": 74704896
+       },
+       {
+        "pid": 967382,
+        "pss": 51934208
+       }
+      ]
+     },
+     "cycles1700": {
+      "heapUsed": 4090396,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 694712,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.64,
+       "pss": 39265280,
+       "rss": 100429824
+      },
+      "otherRenderers": [
+       {
+        "pid": 967391,
+        "pss": 18593792
+       },
+       {
+        "pid": 967392,
+        "pss": 75368448
+       },
+       {
+        "pid": 967382,
+        "pss": 51934208
+       }
+      ]
+     },
+     "cycles1800": {
+      "heapUsed": 4089712,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 741824,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.65,
+       "pss": 39264256,
+       "rss": 100429824
+      },
+      "otherRenderers": [
+       {
+        "pid": 967391,
+        "pss": 18592768
+       },
+       {
+        "pid": 967392,
+        "pss": 74920960
+       },
+       {
+        "pid": 967382,
+        "pss": 51933184
+       }
+      ]
+     },
+     "cycles1900": {
+      "heapUsed": 4115740,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 711000,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.66,
+       "pss": 39264256,
+       "rss": 100429824
+      },
+      "otherRenderers": [
+       {
+        "pid": 967391,
+        "pss": 18592768
+       },
+       {
+        "pid": 967392,
+        "pss": 75023360
+       },
+       {
+        "pid": 967382,
+        "pss": 51933184
+       }
+      ]
+     },
+     "cycles2000": {
+      "heapUsed": 4122500,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 694712,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.66,
+       "pss": 39264256,
+       "rss": 100429824
+      },
+      "otherRenderers": [
+       {
+        "pid": 967391,
+        "pss": 18592768
+       },
+       {
+        "pid": 967392,
+        "pss": 74400768
+       },
+       {
+        "pid": 967382,
+        "pss": 51933184
+       }
+      ]
+     },
+     "cycles2100": {
+      "heapUsed": 4124360,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 710056,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.67,
+       "pss": 39264256,
+       "rss": 100429824
+      },
+      "otherRenderers": [
+       {
+        "pid": 967391,
+        "pss": 18592768
+       },
+       {
+        "pid": 967392,
+        "pss": 74667008
+       },
+       {
+        "pid": 967382,
+        "pss": 51933184
+       }
+      ]
+     },
+     "cycles2200": {
+      "heapUsed": 4124284,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 729072,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.67,
+       "pss": 39264256,
+       "rss": 100429824
+      },
+      "otherRenderers": [
+       {
+        "pid": 967391,
+        "pss": 18592768
+       },
+       {
+        "pid": 967392,
+        "pss": 74740736
+       },
+       {
+        "pid": 967382,
+        "pss": 51933184
+       }
+      ]
+     },
+     "cycles2300": {
+      "heapUsed": 4124316,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 710280,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.68,
+       "pss": 39264256,
+       "rss": 100429824
+      },
+      "otherRenderers": [
+       {
+        "pid": 967391,
+        "pss": 18592768
+       },
+       {
+        "pid": 967392,
+        "pss": 75600896
+       },
+       {
+        "pid": 967382,
+        "pss": 51933184
+       }
+      ]
+     },
+     "cycles2400": {
+      "heapUsed": 4125824,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 705152,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.69,
+       "pss": 39264256,
+       "rss": 100429824
+      },
+      "otherRenderers": [
+       {
+        "pid": 967391,
+        "pss": 18592768
+       },
+       {
+        "pid": 967392,
+        "pss": 75342848
+       },
+       {
+        "pid": 967382,
+        "pss": 51933184
+       }
+      ]
+     },
+     "cycles2500": {
+      "heapUsed": 4124400,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 710280,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.7,
+       "pss": 39264256,
+       "rss": 100429824
+      },
+      "otherRenderers": [
+       {
+        "pid": 967391,
+        "pss": 18592768
+       },
+       {
+        "pid": 967392,
+        "pss": 75752448
+       },
+       {
+        "pid": 967382,
+        "pss": 51933184
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "heapGrowth": 0.008382285417258606,
+    "heapGate": "pass",
+    "heapSlopeBytesPerCycle": 56.3256105610561,
+    "heapCheckpoints": [
+     [
+      0,
+      3941024
+     ],
+     [
+      100,
+      4012044
+     ],
+     [
+      300,
+      4052960
+     ],
+     [
+      1000,
+      4086804
+     ],
+     [
+      1500,
+      4088048
+     ],
+     [
+      1600,
+      4089536
+     ],
+     [
+      1700,
+      4090396
+     ],
+     [
+      1800,
+      4089712
+     ],
+     [
+      1900,
+      4115740
+     ],
+     [
+      2000,
+      4122500
+     ],
+     [
+      2100,
+      4124360
+     ],
+     [
+      2200,
+      4124284
+     ],
+     [
+      2300,
+      4124316
+     ],
+     [
+      2400,
+      4125824
+     ],
+     [
+      2500,
+      4124400
+     ]
+    ],
+    "listenersAfter": 0,
+    "observersAfter": 0,
+    "nodesAfter": 0
+   }
+  },
+  {
+   "index": 3,
+   "phase": "timed",
+   "block": 0,
+   "position": 1,
+   "config": "B",
+   "startedAt": "2026-11-24T11:14:44.181Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 54743,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": [
+     "series 0: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run",
+     "series 1: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run",
+     "series 2: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run"
+    ]
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "d15a237a",
+    "probe": null,
+    "lifecycle": {
+     "cycles": 2500,
+     "warm": 700,
+     "checkpoints": [
+      {
+       "cycles": 0,
+       "label": "cycles0",
+       "observers": 0
+      },
+      {
+       "cycles": 100,
+       "label": "cycles100",
+       "observers": 0
+      },
+      {
+       "cycles": 300,
+       "label": "cycles300",
+       "observers": 0
+      },
+      {
+       "cycles": 1000,
+       "label": "cycles1000",
+       "observers": 0
+      },
+      {
+       "cycles": 1500,
+       "label": "cycles1500",
+       "observers": 0
+      },
+      {
+       "cycles": 1600,
+       "label": "cycles1600",
+       "observers": 0
+      },
+      {
+       "cycles": 1700,
+       "label": "cycles1700",
+       "observers": 0
+      },
+      {
+       "cycles": 1800,
+       "label": "cycles1800",
+       "observers": 0
+      },
+      {
+       "cycles": 1900,
+       "label": "cycles1900",
+       "observers": 0
+      },
+      {
+       "cycles": 2000,
+       "label": "cycles2000",
+       "observers": 0
+      },
+      {
+       "cycles": 2100,
+       "label": "cycles2100",
+       "observers": 0
+      },
+      {
+       "cycles": 2200,
+       "label": "cycles2200",
+       "observers": 0
+      },
+      {
+       "cycles": 2300,
+       "label": "cycles2300",
+       "observers": 0
+      },
+      {
+       "cycles": 2400,
+       "label": "cycles2400",
+       "observers": 0
+      },
+      {
+       "cycles": 2500,
+       "label": "cycles2500",
+       "observers": 0
+      }
+     ],
+     "leftover": 0
+    },
+    "lifecycleCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Axylo chart.__bench.describe(): committed view xDomain/yDomain; per series slots held, first and last x, non-value slots, kept indexes (and run starts when reported); renderer reported by the library and read from the mark elements; strokes or markers in probe runs",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "kind": "area",
+      "areaFills": 3,
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       0,
+       50000
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 7,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {},
+   "memory": {
+    "pagePid": null,
+    "gpuPid": 966980,
+    "samples": {
+     "cycles0": {
+      "heapUsed": 3945100,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 722928,
+      "backingStorage": 412180,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.76,
+       "pss": 39409664,
+       "rss": 100499456
+      },
+      "otherRenderers": [
+       {
+        "pid": 967573,
+        "pss": 18507776
+       },
+       {
+        "pid": 967575,
+        "pss": 75856896
+       },
+       {
+        "pid": 967564,
+        "pss": 53389312
+       }
+      ]
+     },
+     "cycles100": {
+      "heapUsed": 4016664,
+      "heapTotal": 5242880,
+      "embedderHeapUsed": 712352,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.77,
+       "pss": 39409664,
+       "rss": 100499456
+      },
+      "otherRenderers": [
+       {
+        "pid": 967573,
+        "pss": 18507776
+       },
+       {
+        "pid": 967575,
+        "pss": 75742208
+       },
+       {
+        "pid": 967564,
+        "pss": 53389312
+       }
+      ]
+     },
+     "cycles300": {
+      "heapUsed": 4052540,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 751120,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.78,
+       "pss": 39435264,
+       "rss": 100499456
+      },
+      "otherRenderers": [
+       {
+        "pid": 967573,
+        "pss": 18519040
+       },
+       {
+        "pid": 967575,
+        "pss": 75484160
+       },
+       {
+        "pid": 967564,
+        "pss": 53388288
+       }
+      ]
+     },
+     "cycles1000": {
+      "heapUsed": 4088148,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 727488,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.82,
+       "pss": 39357440,
+       "rss": 100421632
+      },
+      "otherRenderers": [
+       {
+        "pid": 967573,
+        "pss": 18519040
+       },
+       {
+        "pid": 967575,
+        "pss": 76356608
+       },
+       {
+        "pid": 967564,
+        "pss": 53388288
+       }
+      ]
+     },
+     "cycles1500": {
+      "heapUsed": 4087436,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 719272,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.86,
+       "pss": 39287808,
+       "rss": 100421632
+      },
+      "otherRenderers": [
+       {
+        "pid": 967573,
+        "pss": 18519040
+       },
+       {
+        "pid": 967575,
+        "pss": 75383808
+       },
+       {
+        "pid": 967564,
+        "pss": 52175872
+       }
+      ]
+     },
+     "cycles1600": {
+      "heapUsed": 4088648,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 705184,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.86,
+       "pss": 39282688,
+       "rss": 100421632
+      },
+      "otherRenderers": [
+       {
+        "pid": 967573,
+        "pss": 18519040
+       },
+       {
+        "pid": 967575,
+        "pss": 75070464
+       },
+       {
+        "pid": 967564,
+        "pss": 52192256
+       }
+      ]
+     },
+     "cycles1700": {
+      "heapUsed": 4089028,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 710312,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.87,
+       "pss": 39282688,
+       "rss": 100421632
+      },
+      "otherRenderers": [
+       {
+        "pid": 967573,
+        "pss": 18519040
+       },
+       {
+        "pid": 967575,
+        "pss": 74943488
+       },
+       {
+        "pid": 967564,
+        "pss": 52192256
+       }
+      ]
+     },
+     "cycles1800": {
+      "heapUsed": 4087932,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 709144,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.88,
+       "pss": 39282688,
+       "rss": 100421632
+      },
+      "otherRenderers": [
+       {
+        "pid": 967573,
+        "pss": 18519040
+       },
+       {
+        "pid": 967575,
+        "pss": 74537984
+       },
+       {
+        "pid": 967564,
+        "pss": 52192256
+       }
+      ]
+     },
+     "cycles1900": {
+      "heapUsed": 4113336,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 710088,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.89,
+       "pss": 39282688,
+       "rss": 100421632
+      },
+      "otherRenderers": [
+       {
+        "pid": 967573,
+        "pss": 18519040
+       },
+       {
+        "pid": 967575,
+        "pss": 74513408
+       },
+       {
+        "pid": 967564,
+        "pss": 52192256
+       }
+      ]
+     },
+     "cycles2000": {
+      "heapUsed": 4120828,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 707488,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.9,
+       "pss": 39282688,
+       "rss": 100421632
+      },
+      "otherRenderers": [
+       {
+        "pid": 967573,
+        "pss": 18519040
+       },
+       {
+        "pid": 967575,
+        "pss": 74677248
+       },
+       {
+        "pid": 967564,
+        "pss": 52192256
+       }
+      ]
+     },
+     "cycles2100": {
+      "heapUsed": 4121848,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 688096,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.9,
+       "pss": 39281664,
+       "rss": 100421632
+      },
+      "otherRenderers": [
+       {
+        "pid": 967573,
+        "pss": 18518016
+       },
+       {
+        "pid": 967575,
+        "pss": 74624000
+       },
+       {
+        "pid": 967564,
+        "pss": 52191232
+       }
+      ]
+     },
+     "cycles2200": {
+      "heapUsed": 4122232,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 754640,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.91,
+       "pss": 39281664,
+       "rss": 100421632
+      },
+      "otherRenderers": [
+       {
+        "pid": 967573,
+        "pss": 18518016
+       },
+       {
+        "pid": 967575,
+        "pss": 74902528
+       },
+       {
+        "pid": 967564,
+        "pss": 52191232
+       }
+      ]
+     },
+     "cycles2300": {
+      "heapUsed": 4122672,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 736440,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.92,
+       "pss": 39281664,
+       "rss": 100421632
+      },
+      "otherRenderers": [
+       {
+        "pid": 967573,
+        "pss": 18518016
+       },
+       {
+        "pid": 967575,
+        "pss": 74972160
+       },
+       {
+        "pid": 967564,
+        "pss": 52191232
+       }
+      ]
+     },
+     "cycles2400": {
+      "heapUsed": 4124792,
+      "heapTotal": 5242880,
+      "embedderHeapUsed": 711296,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.93,
+       "pss": 39281664,
+       "rss": 100421632
+      },
+      "otherRenderers": [
+       {
+        "pid": 967573,
+        "pss": 18518016
+       },
+       {
+        "pid": 967575,
+        "pss": 75168768
+       },
+       {
+        "pid": 967564,
+        "pss": 52191232
+       }
+      ]
+     },
+     "cycles2500": {
+      "heapUsed": 4123364,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 714520,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 0.94,
+       "pss": 39281664,
+       "rss": 100421632
+      },
+      "otherRenderers": [
+       {
+        "pid": 967573,
+        "pss": 18518016
+       },
+       {
+        "pid": 967575,
+        "pss": 75025408
+       },
+       {
+        "pid": 967564,
+        "pss": 52191232
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "heapGrowth": 0.008220917532071548,
+    "heapGate": "pass",
+    "heapSlopeBytesPerCycle": 54.13658415841585,
+    "heapCheckpoints": [
+     [
+      0,
+      3945100
+     ],
+     [
+      100,
+      4016664
+     ],
+     [
+      300,
+      4052540
+     ],
+     [
+      1000,
+      4088148
+     ],
+     [
+      1500,
+      4087436
+     ],
+     [
+      1600,
+      4088648
+     ],
+     [
+      1700,
+      4089028
+     ],
+     [
+      1800,
+      4087932
+     ],
+     [
+      1900,
+      4113336
+     ],
+     [
+      2000,
+      4120828
+     ],
+     [
+      2100,
+      4121848
+     ],
+     [
+      2200,
+      4122232
+     ],
+     [
+      2300,
+      4122672
+     ],
+     [
+      2400,
+      4124792
+     ],
+     [
+      2500,
+      4123364
+     ]
+    ],
+    "listenersAfter": 0,
+    "observersAfter": 0,
+    "nodesAfter": 0
+   }
+  },
+  {
+   "index": 4,
+   "phase": "timed",
+   "block": 1,
+   "position": 0,
+   "config": "B",
+   "startedAt": "2026-11-24T11:15:38.929Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 54740,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": [
+     "series 0: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run",
+     "series 1: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run",
+     "series 2: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run"
+    ]
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "d15a237a",
+    "probe": null,
+    "lifecycle": {
+     "cycles": 2500,
+     "warm": 700,
+     "checkpoints": [
+      {
+       "cycles": 0,
+       "label": "cycles0",
+       "observers": 0
+      },
+      {
+       "cycles": 100,
+       "label": "cycles100",
+       "observers": 0
+      },
+      {
+       "cycles": 300,
+       "label": "cycles300",
+       "observers": 0
+      },
+      {
+       "cycles": 1000,
+       "label": "cycles1000",
+       "observers": 0
+      },
+      {
+       "cycles": 1500,
+       "label": "cycles1500",
+       "observers": 0
+      },
+      {
+       "cycles": 1600,
+       "label": "cycles1600",
+       "observers": 0
+      },
+      {
+       "cycles": 1700,
+       "label": "cycles1700",
+       "observers": 0
+      },
+      {
+       "cycles": 1800,
+       "label": "cycles1800",
+       "observers": 0
+      },
+      {
+       "cycles": 1900,
+       "label": "cycles1900",
+       "observers": 0
+      },
+      {
+       "cycles": 2000,
+       "label": "cycles2000",
+       "observers": 0
+      },
+      {
+       "cycles": 2100,
+       "label": "cycles2100",
+       "observers": 0
+      },
+      {
+       "cycles": 2200,
+       "label": "cycles2200",
+       "observers": 0
+      },
+      {
+       "cycles": 2300,
+       "label": "cycles2300",
+       "observers": 0
+      },
+      {
+       "cycles": 2400,
+       "label": "cycles2400",
+       "observers": 0
+      },
+      {
+       "cycles": 2500,
+       "label": "cycles2500",
+       "observers": 0
+      }
+     ],
+     "leftover": 0
+    },
+    "lifecycleCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Axylo chart.__bench.describe(): committed view xDomain/yDomain; per series slots held, first and last x, non-value slots, kept indexes (and run starts when reported); renderer reported by the library and read from the mark elements; strokes or markers in probe runs",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "kind": "area",
+      "areaFills": 3,
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       0,
+       50000
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 7,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {},
+   "memory": {
+    "pagePid": null,
+    "gpuPid": 966980,
+    "samples": {
+     "cycles0": {
+      "heapUsed": 3910264,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 741952,
+      "backingStorage": 412180,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1,
+       "pss": 39419904,
+       "rss": 100478976
+      },
+      "otherRenderers": [
+       {
+        "pid": 967739,
+        "pss": 18639872
+       },
+       {
+        "pid": 967740,
+        "pss": 75068416
+       },
+       {
+        "pid": 967730,
+        "pss": 53109760
+       }
+      ]
+     },
+     "cycles100": {
+      "heapUsed": 3979948,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 695672,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1,
+       "pss": 39419904,
+       "rss": 100478976
+      },
+      "otherRenderers": [
+       {
+        "pid": 967739,
+        "pss": 18639872
+       },
+       {
+        "pid": 967740,
+        "pss": 74085376
+       },
+       {
+        "pid": 967730,
+        "pss": 53109760
+       }
+      ]
+     },
+     "cycles300": {
+      "heapUsed": 4010784,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 754600,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.02,
+       "pss": 39419904,
+       "rss": 100478976
+      },
+      "otherRenderers": [
+       {
+        "pid": 967739,
+        "pss": 18639872
+       },
+       {
+        "pid": 967740,
+        "pss": 74667008
+       },
+       {
+        "pid": 967730,
+        "pss": 53109760
+       }
+      ]
+     },
+     "cycles1000": {
+      "heapUsed": 4042704,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 729360,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.07,
+       "pss": 39415808,
+       "rss": 100478976
+      },
+      "otherRenderers": [
+       {
+        "pid": 967739,
+        "pss": 18639872
+       },
+       {
+        "pid": 967740,
+        "pss": 75611136
+       },
+       {
+        "pid": 967730,
+        "pss": 53103616
+       }
+      ]
+     },
+     "cycles1500": {
+      "heapUsed": 4048264,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 700240,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.1,
+       "pss": 39268352,
+       "rss": 100401152
+      },
+      "otherRenderers": [
+       {
+        "pid": 967739,
+        "pss": 18639872
+       },
+       {
+        "pid": 967740,
+        "pss": 73489408
+       },
+       {
+        "pid": 967730,
+        "pss": 51988480
+       }
+      ]
+     },
+     "cycles1600": {
+      "heapUsed": 4048696,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 728824,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.11,
+       "pss": 39263232,
+       "rss": 100401152
+      },
+      "otherRenderers": [
+       {
+        "pid": 967739,
+        "pss": 18639872
+       },
+       {
+        "pid": 967740,
+        "pss": 73259008
+       },
+       {
+        "pid": 967730,
+        "pss": 52003840
+       }
+      ]
+     },
+     "cycles1700": {
+      "heapUsed": 4049076,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 696392,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.12,
+       "pss": 39263232,
+       "rss": 100401152
+      },
+      "otherRenderers": [
+       {
+        "pid": 967739,
+        "pss": 18639872
+       },
+       {
+        "pid": 967740,
+        "pss": 73545728
+       },
+       {
+        "pid": 967730,
+        "pss": 52003840
+       }
+      ]
+     },
+     "cycles1800": {
+      "heapUsed": 4048656,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 692264,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.12,
+       "pss": 39263232,
+       "rss": 100401152
+      },
+      "otherRenderers": [
+       {
+        "pid": 967739,
+        "pss": 18639872
+       },
+       {
+        "pid": 967740,
+        "pss": 72972288
+       },
+       {
+        "pid": 967730,
+        "pss": 52003840
+       }
+      ]
+     },
+     "cycles1900": {
+      "heapUsed": 4074892,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 726288,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.13,
+       "pss": 39263232,
+       "rss": 100401152
+      },
+      "otherRenderers": [
+       {
+        "pid": 967739,
+        "pss": 18639872
+       },
+       {
+        "pid": 967740,
+        "pss": 72931328
+       },
+       {
+        "pid": 967730,
+        "pss": 52003840
+       }
+      ]
+     },
+     "cycles2000": {
+      "heapUsed": 4080836,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 744888,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.14,
+       "pss": 39263232,
+       "rss": 100401152
+      },
+      "otherRenderers": [
+       {
+        "pid": 967739,
+        "pss": 18639872
+       },
+       {
+        "pid": 967740,
+        "pss": 72730624
+       },
+       {
+        "pid": 967730,
+        "pss": 52003840
+       }
+      ]
+     },
+     "cycles2100": {
+      "heapUsed": 4081760,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 724184,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.14,
+       "pss": 39263232,
+       "rss": 100401152
+      },
+      "otherRenderers": [
+       {
+        "pid": 967739,
+        "pss": 18639872
+       },
+       {
+        "pid": 967740,
+        "pss": 73250816
+       },
+       {
+        "pid": 967730,
+        "pss": 52003840
+       }
+      ]
+     },
+     "cycles2200": {
+      "heapUsed": 4081712,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 691752,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.14,
+       "pss": 39263232,
+       "rss": 100401152
+      },
+      "otherRenderers": [
+       {
+        "pid": 967739,
+        "pss": 18639872
+       },
+       {
+        "pid": 967740,
+        "pss": 73152512
+       },
+       {
+        "pid": 967730,
+        "pss": 52003840
+       }
+      ]
+     },
+     "cycles2300": {
+      "heapUsed": 4081720,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 742856,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.15,
+       "pss": 39263232,
+       "rss": 100401152
+      },
+      "otherRenderers": [
+       {
+        "pid": 967739,
+        "pss": 18639872
+       },
+       {
+        "pid": 967740,
+        "pss": 73238528
+       },
+       {
+        "pid": 967730,
+        "pss": 52003840
+       }
+      ]
+     },
+     "cycles2400": {
+      "heapUsed": 4083232,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 728824,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.16,
+       "pss": 39262208,
+       "rss": 100401152
+      },
+      "otherRenderers": [
+       {
+        "pid": 967739,
+        "pss": 18639872
+       },
+       {
+        "pid": 967740,
+        "pss": 73372672
+       },
+       {
+        "pid": 967730,
+        "pss": 52003840
+       }
+      ]
+     },
+     "cycles2500": {
+      "heapUsed": 4084308,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 718256,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.17,
+       "pss": 39262208,
+       "rss": 100401152
+      },
+      "otherRenderers": [
+       {
+        "pid": 967739,
+        "pss": 18639872
+       },
+       {
+        "pid": 967740,
+        "pss": 73442304
+       },
+       {
+        "pid": 967730,
+        "pss": 52003840
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "heapGrowth": 0.008114330707261308,
+    "heapGate": "pass",
+    "heapSlopeBytesPerCycle": 53.266963696369636,
+    "heapCheckpoints": [
+     [
+      0,
+      3910264
+     ],
+     [
+      100,
+      3979948
+     ],
+     [
+      300,
+      4010784
+     ],
+     [
+      1000,
+      4042704
+     ],
+     [
+      1500,
+      4048264
+     ],
+     [
+      1600,
+      4048696
+     ],
+     [
+      1700,
+      4049076
+     ],
+     [
+      1800,
+      4048656
+     ],
+     [
+      1900,
+      4074892
+     ],
+     [
+      2000,
+      4080836
+     ],
+     [
+      2100,
+      4081760
+     ],
+     [
+      2200,
+      4081712
+     ],
+     [
+      2300,
+      4081720
+     ],
+     [
+      2400,
+      4083232
+     ],
+     [
+      2500,
+      4084308
+     ]
+    ],
+    "listenersAfter": 0,
+    "observersAfter": 0,
+    "nodesAfter": 0
+   }
+  },
+  {
+   "index": 5,
+   "phase": "timed",
+   "block": 1,
+   "position": 1,
+   "config": "A",
+   "startedAt": "2026-11-24T11:16:33.675Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 54745,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": [
+     "series 0: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run",
+     "series 1: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run",
+     "series 2: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run"
+    ]
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "d15a237a",
+    "probe": null,
+    "lifecycle": {
+     "cycles": 2500,
+     "warm": 700,
+     "checkpoints": [
+      {
+       "cycles": 0,
+       "label": "cycles0",
+       "observers": 0
+      },
+      {
+       "cycles": 100,
+       "label": "cycles100",
+       "observers": 0
+      },
+      {
+       "cycles": 300,
+       "label": "cycles300",
+       "observers": 0
+      },
+      {
+       "cycles": 1000,
+       "label": "cycles1000",
+       "observers": 0
+      },
+      {
+       "cycles": 1500,
+       "label": "cycles1500",
+       "observers": 0
+      },
+      {
+       "cycles": 1600,
+       "label": "cycles1600",
+       "observers": 0
+      },
+      {
+       "cycles": 1700,
+       "label": "cycles1700",
+       "observers": 0
+      },
+      {
+       "cycles": 1800,
+       "label": "cycles1800",
+       "observers": 0
+      },
+      {
+       "cycles": 1900,
+       "label": "cycles1900",
+       "observers": 0
+      },
+      {
+       "cycles": 2000,
+       "label": "cycles2000",
+       "observers": 0
+      },
+      {
+       "cycles": 2100,
+       "label": "cycles2100",
+       "observers": 0
+      },
+      {
+       "cycles": 2200,
+       "label": "cycles2200",
+       "observers": 0
+      },
+      {
+       "cycles": 2300,
+       "label": "cycles2300",
+       "observers": 0
+      },
+      {
+       "cycles": 2400,
+       "label": "cycles2400",
+       "observers": 0
+      },
+      {
+       "cycles": 2500,
+       "label": "cycles2500",
+       "observers": 0
+      }
+     ],
+     "leftover": 0
+    },
+    "lifecycleCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Axylo chart.__bench.describe(): committed view xDomain/yDomain; per series slots held, first and last x, non-value slots, kept indexes (and run starts when reported); renderer reported by the library and read from the mark elements; strokes or markers in probe runs",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "kind": "area",
+      "areaFills": 3,
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       0,
+       50000
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 7,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {},
+   "memory": {
+    "pagePid": null,
+    "gpuPid": 966980,
+    "samples": {
+     "cycles0": {
+      "heapUsed": 3909588,
+      "heapTotal": 4456448,
+      "embedderHeapUsed": 709712,
+      "backingStorage": 412180,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.23,
+       "pss": 39406592,
+       "rss": 100458496
+      },
+      "otherRenderers": [
+       {
+        "pid": 967904,
+        "pss": 18451456
+       },
+       {
+        "pid": 967905,
+        "pss": 75365376
+       },
+       {
+        "pid": 967895,
+        "pss": 53097472
+       }
+      ]
+     },
+     "cycles100": {
+      "heapUsed": 3978436,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 734856,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.24,
+       "pss": 39406592,
+       "rss": 100458496
+      },
+      "otherRenderers": [
+       {
+        "pid": 967904,
+        "pss": 18451456
+       },
+       {
+        "pid": 967905,
+        "pss": 74812416
+       },
+       {
+        "pid": 967895,
+        "pss": 53097472
+       }
+      ]
+     },
+     "cycles300": {
+      "heapUsed": 4009904,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 736064,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.26,
+       "pss": 39406592,
+       "rss": 100458496
+      },
+      "otherRenderers": [
+       {
+        "pid": 967904,
+        "pss": 18451456
+       },
+       {
+        "pid": 967905,
+        "pss": 75488256
+       },
+       {
+        "pid": 967895,
+        "pss": 53097472
+       }
+      ]
+     },
+     "cycles1000": {
+      "heapUsed": 4042500,
+      "heapTotal": 5242880,
+      "embedderHeapUsed": 694632,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.3,
+       "pss": 39407616,
+       "rss": 100458496
+      },
+      "otherRenderers": [
+       {
+        "pid": 967904,
+        "pss": 18452480
+       },
+       {
+        "pid": 967905,
+        "pss": 75815936
+       },
+       {
+        "pid": 967895,
+        "pss": 53098496
+       }
+      ]
+     },
+     "cycles1500": {
+      "heapUsed": 4047324,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 743440,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.34,
+       "pss": 39337984,
+       "rss": 100458496
+      },
+      "otherRenderers": [
+       {
+        "pid": 967904,
+        "pss": 18452480
+       },
+       {
+        "pid": 967905,
+        "pss": 74278912
+       },
+       {
+        "pid": 967895,
+        "pss": 51973120
+       }
+      ]
+     },
+     "cycles1600": {
+      "heapUsed": 4047756,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 689672,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.35,
+       "pss": 39332864,
+       "rss": 100458496
+      },
+      "otherRenderers": [
+       {
+        "pid": 967904,
+        "pss": 18452480
+       },
+       {
+        "pid": 967905,
+        "pss": 74175488
+       },
+       {
+        "pid": 967895,
+        "pss": 51989504
+       }
+      ]
+     },
+     "cycles1700": {
+      "heapUsed": 4048216,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 700144,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.36,
+       "pss": 39332864,
+       "rss": 100458496
+      },
+      "otherRenderers": [
+       {
+        "pid": 967904,
+        "pss": 18452480
+       },
+       {
+        "pid": 967905,
+        "pss": 73352192
+       },
+       {
+        "pid": 967895,
+        "pss": 51989504
+       }
+      ]
+     },
+     "cycles1800": {
+      "heapUsed": 4047904,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 729168,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.36,
+       "pss": 39263232,
+       "rss": 100388864
+      },
+      "otherRenderers": [
+       {
+        "pid": 967904,
+        "pss": 18452480
+       },
+       {
+        "pid": 967905,
+        "pss": 73241600
+       },
+       {
+        "pid": 967895,
+        "pss": 51989504
+       }
+      ]
+     },
+     "cycles1900": {
+      "heapUsed": 4074176,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 664128,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.37,
+       "pss": 39263232,
+       "rss": 100388864
+      },
+      "otherRenderers": [
+       {
+        "pid": 967904,
+        "pss": 18452480
+       },
+       {
+        "pid": 967905,
+        "pss": 74105856
+       },
+       {
+        "pid": 967895,
+        "pss": 51989504
+       }
+      ]
+     },
+     "cycles2000": {
+      "heapUsed": 4080120,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 726632,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.38,
+       "pss": 39263232,
+       "rss": 100388864
+      },
+      "otherRenderers": [
+       {
+        "pid": 967904,
+        "pss": 18452480
+       },
+       {
+        "pid": 967905,
+        "pss": 73659392
+       },
+       {
+        "pid": 967895,
+        "pss": 51989504
+       }
+      ]
+     },
+     "cycles2100": {
+      "heapUsed": 4081044,
+      "heapTotal": 5242880,
+      "embedderHeapUsed": 730160,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.39,
+       "pss": 39263232,
+       "rss": 100388864
+      },
+      "otherRenderers": [
+       {
+        "pid": 967904,
+        "pss": 18452480
+       },
+       {
+        "pid": 967905,
+        "pss": 73950208
+       },
+       {
+        "pid": 967895,
+        "pss": 51989504
+       }
+      ]
+     },
+     "cycles2200": {
+      "heapUsed": 4080996,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 664128,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.4,
+       "pss": 39263232,
+       "rss": 100388864
+      },
+      "otherRenderers": [
+       {
+        "pid": 967904,
+        "pss": 18452480
+       },
+       {
+        "pid": 967905,
+        "pss": 73634816
+       },
+       {
+        "pid": 967895,
+        "pss": 51989504
+       }
+      ]
+     },
+     "cycles2300": {
+      "heapUsed": 4081004,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 715096,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.41,
+       "pss": 39263232,
+       "rss": 100388864
+      },
+      "otherRenderers": [
+       {
+        "pid": 967904,
+        "pss": 18452480
+       },
+       {
+        "pid": 967905,
+        "pss": 73651200
+       },
+       {
+        "pid": 967895,
+        "pss": 51989504
+       }
+      ]
+     },
+     "cycles2400": {
+      "heapUsed": 4082516,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 707736,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.42,
+       "pss": 39263232,
+       "rss": 100388864
+      },
+      "otherRenderers": [
+       {
+        "pid": 967904,
+        "pss": 18452480
+       },
+       {
+        "pid": 967905,
+        "pss": 73802752
+       },
+       {
+        "pid": 967895,
+        "pss": 51989504
+       }
+      ]
+     },
+     "cycles2500": {
+      "heapUsed": 4083592,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 688832,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.42,
+       "pss": 39263232,
+       "rss": 100388864
+      },
+      "otherRenderers": [
+       {
+        "pid": 967904,
+        "pss": 18452480
+       },
+       {
+        "pid": 967905,
+        "pss": 74003456
+       },
+       {
+        "pid": 967895,
+        "pss": 51989504
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "heapGrowth": 0.00814315993340009,
+    "heapGate": "pass",
+    "heapSlopeBytesPerCycle": 53.36962046204621,
+    "heapCheckpoints": [
+     [
+      0,
+      3909588
+     ],
+     [
+      100,
+      3978436
+     ],
+     [
+      300,
+      4009904
+     ],
+     [
+      1000,
+      4042500
+     ],
+     [
+      1500,
+      4047324
+     ],
+     [
+      1600,
+      4047756
+     ],
+     [
+      1700,
+      4048216
+     ],
+     [
+      1800,
+      4047904
+     ],
+     [
+      1900,
+      4074176
+     ],
+     [
+      2000,
+      4080120
+     ],
+     [
+      2100,
+      4081044
+     ],
+     [
+      2200,
+      4080996
+     ],
+     [
+      2300,
+      4081004
+     ],
+     [
+      2400,
+      4082516
+     ],
+     [
+      2500,
+      4083592
+     ]
+    ],
+    "listenersAfter": 0,
+    "observersAfter": 0,
+    "nodesAfter": 0
+   }
+  },
+  {
+   "index": 6,
+   "phase": "timed",
+   "block": 2,
+   "position": 0,
+   "config": "B",
+   "startedAt": "2026-11-24T11:17:28.425Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 54740,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": [
+     "series 0: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run",
+     "series 1: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run",
+     "series 2: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run"
+    ]
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "d15a237a",
+    "probe": null,
+    "lifecycle": {
+     "cycles": 2500,
+     "warm": 700,
+     "checkpoints": [
+      {
+       "cycles": 0,
+       "label": "cycles0",
+       "observers": 0
+      },
+      {
+       "cycles": 100,
+       "label": "cycles100",
+       "observers": 0
+      },
+      {
+       "cycles": 300,
+       "label": "cycles300",
+       "observers": 0
+      },
+      {
+       "cycles": 1000,
+       "label": "cycles1000",
+       "observers": 0
+      },
+      {
+       "cycles": 1500,
+       "label": "cycles1500",
+       "observers": 0
+      },
+      {
+       "cycles": 1600,
+       "label": "cycles1600",
+       "observers": 0
+      },
+      {
+       "cycles": 1700,
+       "label": "cycles1700",
+       "observers": 0
+      },
+      {
+       "cycles": 1800,
+       "label": "cycles1800",
+       "observers": 0
+      },
+      {
+       "cycles": 1900,
+       "label": "cycles1900",
+       "observers": 0
+      },
+      {
+       "cycles": 2000,
+       "label": "cycles2000",
+       "observers": 0
+      },
+      {
+       "cycles": 2100,
+       "label": "cycles2100",
+       "observers": 0
+      },
+      {
+       "cycles": 2200,
+       "label": "cycles2200",
+       "observers": 0
+      },
+      {
+       "cycles": 2300,
+       "label": "cycles2300",
+       "observers": 0
+      },
+      {
+       "cycles": 2400,
+       "label": "cycles2400",
+       "observers": 0
+      },
+      {
+       "cycles": 2500,
+       "label": "cycles2500",
+       "observers": 0
+      }
+     ],
+     "leftover": 0
+    },
+    "lifecycleCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Axylo chart.__bench.describe(): committed view xDomain/yDomain; per series slots held, first and last x, non-value slots, kept indexes (and run starts when reported); renderer reported by the library and read from the mark elements; strokes or markers in probe runs",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "kind": "area",
+      "areaFills": 3,
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       0,
+       50000
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 7,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {},
+   "memory": {
+    "pagePid": null,
+    "gpuPid": 966980,
+    "samples": {
+     "cycles0": {
+      "heapUsed": 3909372,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 703896,
+      "backingStorage": 412180,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.49,
+       "pss": 39420928,
+       "rss": 100495360
+      },
+      "otherRenderers": [
+       {
+        "pid": 968022,
+        "pss": 18648064
+       },
+       {
+        "pid": 968023,
+        "pss": 75235328
+       },
+       {
+        "pid": 968013,
+        "pss": 52630528
+       }
+      ]
+     },
+     "cycles100": {
+      "heapUsed": 3979156,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 692648,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.49,
+       "pss": 39420928,
+       "rss": 100495360
+      },
+      "otherRenderers": [
+       {
+        "pid": 968022,
+        "pss": 18648064
+       },
+       {
+        "pid": 968023,
+        "pss": 74584064
+       },
+       {
+        "pid": 968013,
+        "pss": 52630528
+       }
+      ]
+     },
+     "cycles300": {
+      "heapUsed": 4010584,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 710568,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.51,
+       "pss": 39420928,
+       "rss": 100495360
+      },
+      "otherRenderers": [
+       {
+        "pid": 968022,
+        "pss": 18648064
+       },
+       {
+        "pid": 968023,
+        "pss": 74899456
+       },
+       {
+        "pid": 968013,
+        "pss": 52630528
+       }
+      ]
+     },
+     "cycles1000": {
+      "heapUsed": 4041024,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 715512,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.56,
+       "pss": 39420928,
+       "rss": 100495360
+      },
+      "otherRenderers": [
+       {
+        "pid": 968022,
+        "pss": 18648064
+       },
+       {
+        "pid": 968023,
+        "pss": 75800576
+       },
+       {
+        "pid": 968013,
+        "pss": 52630528
+       }
+      ]
+     },
+     "cycles1500": {
+      "heapUsed": 4044844,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 743152,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.59,
+       "pss": 39352320,
+       "rss": 100495360
+      },
+      "otherRenderers": [
+       {
+        "pid": 968022,
+        "pss": 18648064
+       },
+       {
+        "pid": 968023,
+        "pss": 74171392
+       },
+       {
+        "pid": 968013,
+        "pss": 51527680
+       }
+      ]
+     },
+     "cycles1600": {
+      "heapUsed": 4045276,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 718944,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.59,
+       "pss": 39347200,
+       "rss": 100495360
+      },
+      "otherRenderers": [
+       {
+        "pid": 968022,
+        "pss": 18648064
+       },
+       {
+        "pid": 968023,
+        "pss": 73273344
+       },
+       {
+        "pid": 968013,
+        "pss": 51544064
+       }
+      ]
+     },
+     "cycles1700": {
+      "heapUsed": 4045692,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 698784,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.6,
+       "pss": 39347200,
+       "rss": 100495360
+      },
+      "otherRenderers": [
+       {
+        "pid": 968022,
+        "pss": 18648064
+       },
+       {
+        "pid": 968023,
+        "pss": 73592832
+       },
+       {
+        "pid": 968013,
+        "pss": 51544064
+       }
+      ]
+     },
+     "cycles1800": {
+      "heapUsed": 4045272,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 739992,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.6,
+       "pss": 39347200,
+       "rss": 100495360
+      },
+      "otherRenderers": [
+       {
+        "pid": 968022,
+        "pss": 18648064
+       },
+       {
+        "pid": 968023,
+        "pss": 73523200
+       },
+       {
+        "pid": 968013,
+        "pss": 51544064
+       }
+      ]
+     },
+     "cycles1900": {
+      "heapUsed": 4071508,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 735568,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.61,
+       "pss": 39347200,
+       "rss": 100495360
+      },
+      "otherRenderers": [
+       {
+        "pid": 968022,
+        "pss": 18648064
+       },
+       {
+        "pid": 968023,
+        "pss": 73957376
+       },
+       {
+        "pid": 968013,
+        "pss": 51544064
+       }
+      ]
+     },
+     "cycles2000": {
+      "heapUsed": 4077452,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 716128,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.61,
+       "pss": 39347200,
+       "rss": 100495360
+      },
+      "otherRenderers": [
+       {
+        "pid": 968022,
+        "pss": 18648064
+       },
+       {
+        "pid": 968023,
+        "pss": 73707520
+       },
+       {
+        "pid": 968013,
+        "pss": 51544064
+       }
+      ]
+     },
+     "cycles2100": {
+      "heapUsed": 4078376,
+      "heapTotal": 5242880,
+      "embedderHeapUsed": 698272,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.62,
+       "pss": 39347200,
+       "rss": 100495360
+      },
+      "otherRenderers": [
+       {
+        "pid": 968022,
+        "pss": 18648064
+       },
+       {
+        "pid": 968023,
+        "pss": 73527296
+       },
+       {
+        "pid": 968013,
+        "pss": 51544064
+       }
+      ]
+     },
+     "cycles2200": {
+      "heapUsed": 4078328,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 704152,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.63,
+       "pss": 39347200,
+       "rss": 100495360
+      },
+      "otherRenderers": [
+       {
+        "pid": 968022,
+        "pss": 18648064
+       },
+       {
+        "pid": 968023,
+        "pss": 73695232
+       },
+       {
+        "pid": 968013,
+        "pss": 51544064
+       }
+      ]
+     },
+     "cycles2300": {
+      "heapUsed": 4078336,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 722824,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.63,
+       "pss": 39347200,
+       "rss": 100495360
+      },
+      "otherRenderers": [
+       {
+        "pid": 968022,
+        "pss": 18648064
+       },
+       {
+        "pid": 968023,
+        "pss": 73814016
+       },
+       {
+        "pid": 968013,
+        "pss": 51544064
+       }
+      ]
+     },
+     "cycles2400": {
+      "heapUsed": 4079848,
+      "heapTotal": 5242880,
+      "embedderHeapUsed": 722824,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.64,
+       "pss": 39277568,
+       "rss": 100425728
+      },
+      "otherRenderers": [
+       {
+        "pid": 968022,
+        "pss": 18648064
+       },
+       {
+        "pid": 968023,
+        "pss": 73854976
+       },
+       {
+        "pid": 968013,
+        "pss": 51544064
+       }
+      ]
+     },
+     "cycles2500": {
+      "heapUsed": 4080924,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 729976,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.65,
+       "pss": 39277568,
+       "rss": 100425728
+      },
+      "otherRenderers": [
+       {
+        "pid": 968022,
+        "pss": 18648064
+       },
+       {
+        "pid": 968023,
+        "pss": 73363456
+       },
+       {
+        "pid": 968013,
+        "pss": 51544064
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "heapGrowth": 0.008125603759649103,
+    "heapGate": "pass",
+    "heapSlopeBytesPerCycle": 51.96362211221122,
+    "heapCheckpoints": [
+     [
+      0,
+      3909372
+     ],
+     [
+      100,
+      3979156
+     ],
+     [
+      300,
+      4010584
+     ],
+     [
+      1000,
+      4041024
+     ],
+     [
+      1500,
+      4044844
+     ],
+     [
+      1600,
+      4045276
+     ],
+     [
+      1700,
+      4045692
+     ],
+     [
+      1800,
+      4045272
+     ],
+     [
+      1900,
+      4071508
+     ],
+     [
+      2000,
+      4077452
+     ],
+     [
+      2100,
+      4078376
+     ],
+     [
+      2200,
+      4078328
+     ],
+     [
+      2300,
+      4078336
+     ],
+     [
+      2400,
+      4079848
+     ],
+     [
+      2500,
+      4080924
+     ]
+    ],
+    "listenersAfter": 0,
+    "observersAfter": 0,
+    "nodesAfter": 0
+   }
+  },
+  {
+   "index": 7,
+   "phase": "timed",
+   "block": 2,
+   "position": 1,
+   "config": "A",
+   "startedAt": "2026-11-24T11:18:23.170Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 54726,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": [
+     "series 0: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run",
+     "series 1: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run",
+     "series 2: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run"
+    ]
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "d15a237a",
+    "probe": null,
+    "lifecycle": {
+     "cycles": 2500,
+     "warm": 700,
+     "checkpoints": [
+      {
+       "cycles": 0,
+       "label": "cycles0",
+       "observers": 0
+      },
+      {
+       "cycles": 100,
+       "label": "cycles100",
+       "observers": 0
+      },
+      {
+       "cycles": 300,
+       "label": "cycles300",
+       "observers": 0
+      },
+      {
+       "cycles": 1000,
+       "label": "cycles1000",
+       "observers": 0
+      },
+      {
+       "cycles": 1500,
+       "label": "cycles1500",
+       "observers": 0
+      },
+      {
+       "cycles": 1600,
+       "label": "cycles1600",
+       "observers": 0
+      },
+      {
+       "cycles": 1700,
+       "label": "cycles1700",
+       "observers": 0
+      },
+      {
+       "cycles": 1800,
+       "label": "cycles1800",
+       "observers": 0
+      },
+      {
+       "cycles": 1900,
+       "label": "cycles1900",
+       "observers": 0
+      },
+      {
+       "cycles": 2000,
+       "label": "cycles2000",
+       "observers": 0
+      },
+      {
+       "cycles": 2100,
+       "label": "cycles2100",
+       "observers": 0
+      },
+      {
+       "cycles": 2200,
+       "label": "cycles2200",
+       "observers": 0
+      },
+      {
+       "cycles": 2300,
+       "label": "cycles2300",
+       "observers": 0
+      },
+      {
+       "cycles": 2400,
+       "label": "cycles2400",
+       "observers": 0
+      },
+      {
+       "cycles": 2500,
+       "label": "cycles2500",
+       "observers": 0
+      }
+     ],
+     "leftover": 0
+    },
+    "lifecycleCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Axylo chart.__bench.describe(): committed view xDomain/yDomain; per series slots held, first and last x, non-value slots, kept indexes (and run starts when reported); renderer reported by the library and read from the mark elements; strokes or markers in probe runs",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "kind": "area",
+      "areaFills": 3,
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       0,
+       50000
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 7,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {},
+   "memory": {
+    "pagePid": null,
+    "gpuPid": 966980,
+    "samples": {
+     "cycles0": {
+      "heapUsed": 3945228,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 756040,
+      "backingStorage": 412180,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.71,
+       "pss": 39412736,
+       "rss": 100462592
+      },
+      "otherRenderers": [
+       {
+        "pid": 968152,
+        "pss": 18518016
+       },
+       {
+        "pid": 968153,
+        "pss": 76981248
+       },
+       {
+        "pid": 968143,
+        "pss": 52790272
+       }
+      ]
+     },
+     "cycles100": {
+      "heapUsed": 4018060,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 731600,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.72,
+       "pss": 39412736,
+       "rss": 100462592
+      },
+      "otherRenderers": [
+       {
+        "pid": 968152,
+        "pss": 18518016
+       },
+       {
+        "pid": 968153,
+        "pss": 76227584
+       },
+       {
+        "pid": 968143,
+        "pss": 52790272
+       }
+      ]
+     },
+     "cycles300": {
+      "heapUsed": 4052792,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 711984,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.73,
+       "pss": 39412736,
+       "rss": 100462592
+      },
+      "otherRenderers": [
+       {
+        "pid": 968152,
+        "pss": 18518016
+       },
+       {
+        "pid": 968153,
+        "pss": 76329984
+       },
+       {
+        "pid": 968143,
+        "pss": 52790272
+       }
+      ]
+     },
+     "cycles1000": {
+      "heapUsed": 4086300,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 708752,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.78,
+       "pss": 39412736,
+       "rss": 100462592
+      },
+      "otherRenderers": [
+       {
+        "pid": 968152,
+        "pss": 18518016
+       },
+       {
+        "pid": 968153,
+        "pss": 76723200
+       },
+       {
+        "pid": 968143,
+        "pss": 52790272
+       }
+      ]
+     },
+     "cycles1500": {
+      "heapUsed": 4086556,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 707440,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.81,
+       "pss": 39343104,
+       "rss": 100462592
+      },
+      "otherRenderers": [
+       {
+        "pid": 968152,
+        "pss": 18518016
+       },
+       {
+        "pid": 968153,
+        "pss": 75596800
+       },
+       {
+        "pid": 968143,
+        "pss": 51756032
+       }
+      ]
+     },
+     "cycles1600": {
+      "heapUsed": 4087728,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 729368,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.81,
+       "pss": 39339008,
+       "rss": 100462592
+      },
+      "otherRenderers": [
+       {
+        "pid": 968152,
+        "pss": 18518016
+       },
+       {
+        "pid": 968153,
+        "pss": 75363328
+       },
+       {
+        "pid": 968143,
+        "pss": 51773440
+       }
+      ]
+     },
+     "cycles1700": {
+      "heapUsed": 4089476,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 751232,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.83,
+       "pss": 39339008,
+       "rss": 100462592
+      },
+      "otherRenderers": [
+       {
+        "pid": 968152,
+        "pss": 18518016
+       },
+       {
+        "pid": 968153,
+        "pss": 75064320
+       },
+       {
+        "pid": 968143,
+        "pss": 51773440
+       }
+      ]
+     },
+     "cycles1800": {
+      "heapUsed": 4088396,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 708872,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.83,
+       "pss": 39339008,
+       "rss": 100462592
+      },
+      "otherRenderers": [
+       {
+        "pid": 968152,
+        "pss": 18518016
+       },
+       {
+        "pid": 968153,
+        "pss": 75437056
+       },
+       {
+        "pid": 968143,
+        "pss": 51773440
+       }
+      ]
+     },
+     "cycles1900": {
+      "heapUsed": 4114748,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 751008,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.84,
+       "pss": 39339008,
+       "rss": 100462592
+      },
+      "otherRenderers": [
+       {
+        "pid": 968152,
+        "pss": 18518016
+       },
+       {
+        "pid": 968153,
+        "pss": 74949632
+       },
+       {
+        "pid": 968143,
+        "pss": 51773440
+       }
+      ]
+     },
+     "cycles2000": {
+      "heapUsed": 4121508,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 750304,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.84,
+       "pss": 39339008,
+       "rss": 100462592
+      },
+      "otherRenderers": [
+       {
+        "pid": 968152,
+        "pss": 18518016
+       },
+       {
+        "pid": 968153,
+        "pss": 75453440
+       },
+       {
+        "pid": 968143,
+        "pss": 51773440
+       }
+      ]
+     },
+     "cycles2100": {
+      "heapUsed": 4122396,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 723848,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.85,
+       "pss": 39339008,
+       "rss": 100462592
+      },
+      "otherRenderers": [
+       {
+        "pid": 968152,
+        "pss": 18518016
+       },
+       {
+        "pid": 968153,
+        "pss": 74925056
+       },
+       {
+        "pid": 968143,
+        "pss": 51773440
+       }
+      ]
+     },
+     "cycles2200": {
+      "heapUsed": 4122300,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 705664,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.85,
+       "pss": 39339008,
+       "rss": 100462592
+      },
+      "otherRenderers": [
+       {
+        "pid": 968152,
+        "pss": 18518016
+       },
+       {
+        "pid": 968153,
+        "pss": 75203584
+       },
+       {
+        "pid": 968143,
+        "pss": 51773440
+       }
+      ]
+     },
+     "cycles2300": {
+      "heapUsed": 4122308,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 744208,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.86,
+       "pss": 39339008,
+       "rss": 100462592
+      },
+      "otherRenderers": [
+       {
+        "pid": 968152,
+        "pss": 18518016
+       },
+       {
+        "pid": 968153,
+        "pss": 75285504
+       },
+       {
+        "pid": 968143,
+        "pss": 51773440
+       }
+      ]
+     },
+     "cycles2400": {
+      "heapUsed": 4123780,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 729144,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.86,
+       "pss": 39339008,
+       "rss": 100462592
+      },
+      "otherRenderers": [
+       {
+        "pid": 968152,
+        "pss": 18518016
+       },
+       {
+        "pid": 968153,
+        "pss": 75449344
+       },
+       {
+        "pid": 968143,
+        "pss": 51773440
+       }
+      ]
+     },
+     "cycles2500": {
+      "heapUsed": 4122352,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 752664,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.87,
+       "pss": 39339008,
+       "rss": 100462592
+      },
+      "otherRenderers": [
+       {
+        "pid": 968152,
+        "pss": 18518016
+       },
+       {
+        "pid": 968153,
+        "pss": 75113472
+       },
+       {
+        "pid": 968143,
+        "pss": 51773440
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "heapGrowth": 0.008166916772480715,
+    "heapGate": "pass",
+    "heapSlopeBytesPerCycle": 53.90118811881188,
+    "heapCheckpoints": [
+     [
+      0,
+      3945228
+     ],
+     [
+      100,
+      4018060
+     ],
+     [
+      300,
+      4052792
+     ],
+     [
+      1000,
+      4086300
+     ],
+     [
+      1500,
+      4086556
+     ],
+     [
+      1600,
+      4087728
+     ],
+     [
+      1700,
+      4089476
+     ],
+     [
+      1800,
+      4088396
+     ],
+     [
+      1900,
+      4114748
+     ],
+     [
+      2000,
+      4121508
+     ],
+     [
+      2100,
+      4122396
+     ],
+     [
+      2200,
+      4122300
+     ],
+     [
+      2300,
+      4122308
+     ],
+     [
+      2400,
+      4123780
+     ],
+     [
+      2500,
+      4122352
+     ]
+    ],
+    "listenersAfter": 0,
+    "observersAfter": 0,
+    "nodesAfter": 0
+   }
+  },
+  {
+   "index": 8,
+   "phase": "timed",
+   "block": 3,
+   "position": 0,
+   "config": "A",
+   "startedAt": "2026-11-24T11:19:17.902Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 54759,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": [
+     "series 0: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run",
+     "series 1: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run",
+     "series 2: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run"
+    ]
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "d15a237a",
+    "probe": null,
+    "lifecycle": {
+     "cycles": 2500,
+     "warm": 700,
+     "checkpoints": [
+      {
+       "cycles": 0,
+       "label": "cycles0",
+       "observers": 0
+      },
+      {
+       "cycles": 100,
+       "label": "cycles100",
+       "observers": 0
+      },
+      {
+       "cycles": 300,
+       "label": "cycles300",
+       "observers": 0
+      },
+      {
+       "cycles": 1000,
+       "label": "cycles1000",
+       "observers": 0
+      },
+      {
+       "cycles": 1500,
+       "label": "cycles1500",
+       "observers": 0
+      },
+      {
+       "cycles": 1600,
+       "label": "cycles1600",
+       "observers": 0
+      },
+      {
+       "cycles": 1700,
+       "label": "cycles1700",
+       "observers": 0
+      },
+      {
+       "cycles": 1800,
+       "label": "cycles1800",
+       "observers": 0
+      },
+      {
+       "cycles": 1900,
+       "label": "cycles1900",
+       "observers": 0
+      },
+      {
+       "cycles": 2000,
+       "label": "cycles2000",
+       "observers": 0
+      },
+      {
+       "cycles": 2100,
+       "label": "cycles2100",
+       "observers": 0
+      },
+      {
+       "cycles": 2200,
+       "label": "cycles2200",
+       "observers": 0
+      },
+      {
+       "cycles": 2300,
+       "label": "cycles2300",
+       "observers": 0
+      },
+      {
+       "cycles": 2400,
+       "label": "cycles2400",
+       "observers": 0
+      },
+      {
+       "cycles": 2500,
+       "label": "cycles2500",
+       "observers": 0
+      }
+     ],
+     "leftover": 0
+    },
+    "lifecycleCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Axylo chart.__bench.describe(): committed view xDomain/yDomain; per series slots held, first and last x, non-value slots, kept indexes (and run starts when reported); renderer reported by the library and read from the mark elements; strokes or markers in probe runs",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "kind": "area",
+      "areaFills": 3,
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       0,
+       50000
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 7,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {},
+   "memory": {
+    "pagePid": null,
+    "gpuPid": 966980,
+    "samples": {
+     "cycles0": {
+      "heapUsed": 3909216,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 708752,
+      "backingStorage": 412180,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.94,
+       "pss": 39336960,
+       "rss": 100364288
+      },
+      "otherRenderers": [
+       {
+        "pid": 968285,
+        "pss": 18577408
+       },
+       {
+        "pid": 968286,
+        "pss": 75011072
+       },
+       {
+        "pid": 968276,
+        "pss": 52986880
+       }
+      ]
+     },
+     "cycles100": {
+      "heapUsed": 3978952,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 710144,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.95,
+       "pss": 39335936,
+       "rss": 100364288
+      },
+      "otherRenderers": [
+       {
+        "pid": 968285,
+        "pss": 18577408
+       },
+       {
+        "pid": 968286,
+        "pss": 74215424
+       },
+       {
+        "pid": 968276,
+        "pss": 52985856
+       }
+      ]
+     },
+     "cycles300": {
+      "heapUsed": 4009840,
+      "heapTotal": 5242880,
+      "embedderHeapUsed": 691192,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 1.97,
+       "pss": 39335936,
+       "rss": 100364288
+      },
+      "otherRenderers": [
+       {
+        "pid": 968285,
+        "pss": 18577408
+       },
+       {
+        "pid": 968286,
+        "pss": 75046912
+       },
+       {
+        "pid": 968276,
+        "pss": 52985856
+       }
+      ]
+     },
+     "cycles1000": {
+      "heapUsed": 4042520,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 705104,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.01,
+       "pss": 39335936,
+       "rss": 100364288
+      },
+      "otherRenderers": [
+       {
+        "pid": 968285,
+        "pss": 18577408
+       },
+       {
+        "pid": 968286,
+        "pss": 75862016
+       },
+       {
+        "pid": 968276,
+        "pss": 52985856
+       }
+      ]
+     },
+     "cycles1500": {
+      "heapUsed": 4047132,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 718288,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.05,
+       "pss": 39266304,
+       "rss": 100364288
+      },
+      "otherRenderers": [
+       {
+        "pid": 968285,
+        "pss": 18577408
+       },
+       {
+        "pid": 968286,
+        "pss": 74784768
+       },
+       {
+        "pid": 968276,
+        "pss": 51805184
+       }
+      ]
+     },
+     "cycles1600": {
+      "heapUsed": 4047564,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 726800,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.05,
+       "pss": 39260160,
+       "rss": 100364288
+      },
+      "otherRenderers": [
+       {
+        "pid": 968285,
+        "pss": 18577408
+       },
+       {
+        "pid": 968286,
+        "pss": 73501696
+       },
+       {
+        "pid": 968276,
+        "pss": 51824640
+       }
+      ]
+     },
+     "cycles1700": {
+      "heapUsed": 4047944,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 718560,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.06,
+       "pss": 39260160,
+       "rss": 100364288
+      },
+      "otherRenderers": [
+       {
+        "pid": 968285,
+        "pss": 18577408
+       },
+       {
+        "pid": 968286,
+        "pss": 73640960
+       },
+       {
+        "pid": 968276,
+        "pss": 51824640
+       }
+      ]
+     },
+     "cycles1800": {
+      "heapUsed": 4046828,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 729048,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.07,
+       "pss": 39260160,
+       "rss": 100364288
+      },
+      "otherRenderers": [
+       {
+        "pid": 968285,
+        "pss": 18577408
+       },
+       {
+        "pid": 968286,
+        "pss": 74058752
+       },
+       {
+        "pid": 968276,
+        "pss": 51824640
+       }
+      ]
+     },
+     "cycles1900": {
+      "heapUsed": 4073064,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 689488,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.08,
+       "pss": 39262208,
+       "rss": 100364288
+      },
+      "otherRenderers": [
+       {
+        "pid": 968285,
+        "pss": 18577408
+       },
+       {
+        "pid": 968286,
+        "pss": 73822208
+       },
+       {
+        "pid": 968276,
+        "pss": 51825664
+       }
+      ]
+     },
+     "cycles2000": {
+      "heapUsed": 4079008,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 688488,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.08,
+       "pss": 39258112,
+       "rss": 100360192
+      },
+      "otherRenderers": [
+       {
+        "pid": 968285,
+        "pss": 18577408
+       },
+       {
+        "pid": 968286,
+        "pss": 73551872
+       },
+       {
+        "pid": 968276,
+        "pss": 51825664
+       }
+      ]
+     },
+     "cycles2100": {
+      "heapUsed": 4080012,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 718656,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.09,
+       "pss": 39258112,
+       "rss": 100360192
+      },
+      "otherRenderers": [
+       {
+        "pid": 968285,
+        "pss": 18577408
+       },
+       {
+        "pid": 968286,
+        "pss": 73498624
+       },
+       {
+        "pid": 968276,
+        "pss": 51825664
+       }
+      ]
+     },
+     "cycles2200": {
+      "heapUsed": 4080072,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 692264,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.1,
+       "pss": 39258112,
+       "rss": 100360192
+      },
+      "otherRenderers": [
+       {
+        "pid": 968285,
+        "pss": 18577408
+       },
+       {
+        "pid": 968286,
+        "pss": 73719808
+       },
+       {
+        "pid": 968276,
+        "pss": 51825664
+       }
+      ]
+     },
+     "cycles2300": {
+      "heapUsed": 4080812,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 692264,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.11,
+       "pss": 39258112,
+       "rss": 100360192
+      },
+      "otherRenderers": [
+       {
+        "pid": 968285,
+        "pss": 18577408
+       },
+       {
+        "pid": 968286,
+        "pss": 73809920
+       },
+       {
+        "pid": 968276,
+        "pss": 51825664
+       }
+      ]
+     },
+     "cycles2400": {
+      "heapUsed": 4082324,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 733472,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.11,
+       "pss": 39258112,
+       "rss": 100360192
+      },
+      "otherRenderers": [
+       {
+        "pid": 968285,
+        "pss": 18577408
+       },
+       {
+        "pid": 968286,
+        "pss": 73367552
+       },
+       {
+        "pid": 968276,
+        "pss": 51825664
+       }
+      ]
+     },
+     "cycles2500": {
+      "heapUsed": 4083400,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 725840,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.12,
+       "pss": 39258112,
+       "rss": 100360192
+      },
+      "otherRenderers": [
+       {
+        "pid": 968285,
+        "pss": 18577408
+       },
+       {
+        "pid": 968286,
+        "pss": 73397248
+       },
+       {
+        "pid": 968276,
+        "pss": 51826688
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "heapGrowth": 0.008075589573872222,
+    "heapGate": "pass",
+    "heapSlopeBytesPerCycle": 53.07094884488449,
+    "heapCheckpoints": [
+     [
+      0,
+      3909216
+     ],
+     [
+      100,
+      3978952
+     ],
+     [
+      300,
+      4009840
+     ],
+     [
+      1000,
+      4042520
+     ],
+     [
+      1500,
+      4047132
+     ],
+     [
+      1600,
+      4047564
+     ],
+     [
+      1700,
+      4047944
+     ],
+     [
+      1800,
+      4046828
+     ],
+     [
+      1900,
+      4073064
+     ],
+     [
+      2000,
+      4079008
+     ],
+     [
+      2100,
+      4080012
+     ],
+     [
+      2200,
+      4080072
+     ],
+     [
+      2300,
+      4080812
+     ],
+     [
+      2400,
+      4082324
+     ],
+     [
+      2500,
+      4083400
+     ]
+    ],
+    "listenersAfter": 0,
+    "observersAfter": 0,
+    "nodesAfter": 0
+   }
+  },
+  {
+   "index": 9,
+   "phase": "timed",
+   "block": 3,
+   "position": 1,
+   "config": "B",
+   "startedAt": "2026-11-24T11:20:12.666Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 54742,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": [
+     "series 0: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run",
+     "series 1: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run",
+     "series 2: drawn geometry not captured in this run (this Axylo build reports no kept indexes; strokes are captured only in the probe run); it was checked in the untimed probe run"
+    ]
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "d15a237a",
+    "probe": null,
+    "lifecycle": {
+     "cycles": 2500,
+     "warm": 700,
+     "checkpoints": [
+      {
+       "cycles": 0,
+       "label": "cycles0",
+       "observers": 0
+      },
+      {
+       "cycles": 100,
+       "label": "cycles100",
+       "observers": 0
+      },
+      {
+       "cycles": 300,
+       "label": "cycles300",
+       "observers": 0
+      },
+      {
+       "cycles": 1000,
+       "label": "cycles1000",
+       "observers": 0
+      },
+      {
+       "cycles": 1500,
+       "label": "cycles1500",
+       "observers": 0
+      },
+      {
+       "cycles": 1600,
+       "label": "cycles1600",
+       "observers": 0
+      },
+      {
+       "cycles": 1700,
+       "label": "cycles1700",
+       "observers": 0
+      },
+      {
+       "cycles": 1800,
+       "label": "cycles1800",
+       "observers": 0
+      },
+      {
+       "cycles": 1900,
+       "label": "cycles1900",
+       "observers": 0
+      },
+      {
+       "cycles": 2000,
+       "label": "cycles2000",
+       "observers": 0
+      },
+      {
+       "cycles": 2100,
+       "label": "cycles2100",
+       "observers": 0
+      },
+      {
+       "cycles": 2200,
+       "label": "cycles2200",
+       "observers": 0
+      },
+      {
+       "cycles": 2300,
+       "label": "cycles2300",
+       "observers": 0
+      },
+      {
+       "cycles": 2400,
+       "label": "cycles2400",
+       "observers": 0
+      },
+      {
+       "cycles": 2500,
+       "label": "cycles2500",
+       "observers": 0
+      }
+     ],
+     "leftover": 0
+    },
+    "lifecycleCheck": {
+     "ok": true,
+     "reasons": []
+    },
+    "timing": {
+     "settleMs": 500
+    },
+    "describe": [
+     {
+      "reads": "Axylo chart.__bench.describe(): committed view xDomain/yDomain; per series slots held, first and last x, non-value slots, kept indexes (and run starts when reported); renderer reported by the library and read from the mark elements; strokes or markers in probe runs",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "kind": "area",
+      "areaFills": 3,
+      "x": [
+       1767225600000,
+       1777507200000
+      ],
+      "y": [
+       0,
+       50000
+      ],
+      "series": [
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 0,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       },
+       {
+        "points": 120,
+        "oldestX": 1767225600000,
+        "newestX": 1777507200000,
+        "missing": 7,
+        "drawn": {
+         "kind": "not-captured",
+         "reason": "this Axylo build reports no kept indexes; strokes are captured only in the probe run"
+        }
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {},
+   "memory": {
+    "pagePid": null,
+    "gpuPid": 966980,
+    "samples": {
+     "cycles0": {
+      "heapUsed": 3909500,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 741272,
+      "backingStorage": 412180,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.18,
+       "pss": 39387136,
+       "rss": 100405248
+      },
+      "otherRenderers": [
+       {
+        "pid": 968421,
+        "pss": 18629632
+       },
+       {
+        "pid": 968422,
+        "pss": 74680320
+       },
+       {
+        "pid": 968412,
+        "pss": 52858880
+       }
+      ]
+     },
+     "cycles100": {
+      "heapUsed": 3979104,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 697824,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.19,
+       "pss": 39387136,
+       "rss": 100405248
+      },
+      "otherRenderers": [
+       {
+        "pid": 968421,
+        "pss": 18629632
+       },
+       {
+        "pid": 968422,
+        "pss": 74053632
+       },
+       {
+        "pid": 968412,
+        "pss": 52858880
+       }
+      ]
+     },
+     "cycles300": {
+      "heapUsed": 4010120,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 738040,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.2,
+       "pss": 39313408,
+       "rss": 100331520
+      },
+      "otherRenderers": [
+       {
+        "pid": 968421,
+        "pss": 18629632
+       },
+       {
+        "pid": 968422,
+        "pss": 74911744
+       },
+       {
+        "pid": 968412,
+        "pss": 52858880
+       }
+      ]
+     },
+     "cycles1000": {
+      "heapUsed": 4041888,
+      "heapTotal": 5242880,
+      "embedderHeapUsed": 750248,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.25,
+       "pss": 39312384,
+       "rss": 100331520
+      },
+      "otherRenderers": [
+       {
+        "pid": 968421,
+        "pss": 18628608
+       },
+       {
+        "pid": 968422,
+        "pss": 76073984
+       },
+       {
+        "pid": 968412,
+        "pss": 52857856
+       }
+      ]
+     },
+     "cycles1500": {
+      "heapUsed": 4047416,
+      "heapTotal": 5242880,
+      "embedderHeapUsed": 723152,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.28,
+       "pss": 39242752,
+       "rss": 100331520
+      },
+      "otherRenderers": [
+       {
+        "pid": 968421,
+        "pss": 18628608
+       },
+       {
+        "pid": 968422,
+        "pss": 73095168
+       },
+       {
+        "pid": 968412,
+        "pss": 51643392
+       }
+      ]
+     },
+     "cycles1600": {
+      "heapUsed": 4047848,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 704824,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.28,
+       "pss": 39237632,
+       "rss": 100331520
+      },
+      "otherRenderers": [
+       {
+        "pid": 968421,
+        "pss": 18628608
+       },
+       {
+        "pid": 968422,
+        "pss": 73360384
+       },
+       {
+        "pid": 968412,
+        "pss": 51663872
+       }
+      ]
+     },
+     "cycles1700": {
+      "heapUsed": 4048308,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 738360,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.3,
+       "pss": 39237632,
+       "rss": 100331520
+      },
+      "otherRenderers": [
+       {
+        "pid": 968421,
+        "pss": 18628608
+       },
+       {
+        "pid": 968422,
+        "pss": 73606144
+       },
+       {
+        "pid": 968412,
+        "pss": 51663872
+       }
+      ]
+     },
+     "cycles1800": {
+      "heapUsed": 4047996,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 698192,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.3,
+       "pss": 39237632,
+       "rss": 100331520
+      },
+      "otherRenderers": [
+       {
+        "pid": 968421,
+        "pss": 18628608
+       },
+       {
+        "pid": 968422,
+        "pss": 73643008
+       },
+       {
+        "pid": 968412,
+        "pss": 51663872
+       }
+      ]
+     },
+     "cycles1900": {
+      "heapUsed": 4074268,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 690432,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.3,
+       "pss": 39237632,
+       "rss": 100331520
+      },
+      "otherRenderers": [
+       {
+        "pid": 968421,
+        "pss": 18628608
+       },
+       {
+        "pid": 968422,
+        "pss": 73372672
+       },
+       {
+        "pid": 968412,
+        "pss": 51663872
+       }
+      ]
+     },
+     "cycles2000": {
+      "heapUsed": 4080212,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 736928,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.31,
+       "pss": 39237632,
+       "rss": 100331520
+      },
+      "otherRenderers": [
+       {
+        "pid": 968421,
+        "pss": 18628608
+       },
+       {
+        "pid": 968422,
+        "pss": 73667584
+       },
+       {
+        "pid": 968412,
+        "pss": 51663872
+       }
+      ]
+     },
+     "cycles2100": {
+      "heapUsed": 4081136,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 694040,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.32,
+       "pss": 39237632,
+       "rss": 100331520
+      },
+      "otherRenderers": [
+       {
+        "pid": 968421,
+        "pss": 18628608
+       },
+       {
+        "pid": 968422,
+        "pss": 73675776
+       },
+       {
+        "pid": 968412,
+        "pss": 51663872
+       }
+      ]
+     },
+     "cycles2200": {
+      "heapUsed": 4081088,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 736704,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.32,
+       "pss": 39238656,
+       "rss": 100331520
+      },
+      "otherRenderers": [
+       {
+        "pid": 968421,
+        "pss": 18629632
+       },
+       {
+        "pid": 968422,
+        "pss": 73500672
+       },
+       {
+        "pid": 968412,
+        "pss": 51664896
+       }
+      ]
+     },
+     "cycles2300": {
+      "heapUsed": 4081096,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 717312,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.33,
+       "pss": 39238656,
+       "rss": 100331520
+      },
+      "otherRenderers": [
+       {
+        "pid": 968421,
+        "pss": 18629632
+       },
+       {
+        "pid": 968422,
+        "pss": 73349120
+       },
+       {
+        "pid": 968412,
+        "pss": 51664896
+       }
+      ]
+     },
+     "cycles2400": {
+      "heapUsed": 4082608,
+      "heapTotal": 4980736,
+      "embedderHeapUsed": 707344,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.34,
+       "pss": 39238656,
+       "rss": 100331520
+      },
+      "otherRenderers": [
+       {
+        "pid": 968421,
+        "pss": 18629632
+       },
+       {
+        "pid": 968422,
+        "pss": 73644032
+       },
+       {
+        "pid": 968412,
+        "pss": 51664896
+       }
+      ]
+     },
+     "cycles2500": {
+      "heapUsed": 4083684,
+      "heapTotal": 4718592,
+      "embedderHeapUsed": 687160,
+      "backingStorage": 412189,
+      "listeners": 2,
+      "nodes": 28,
+      "renderer": {
+       "na": "not available: page renderer not identified"
+      },
+      "gpu": {
+       "pid": 966980,
+       "type": "GPU",
+       "cpuTime": 2.35,
+       "pss": 39238656,
+       "rss": 100331520
+      },
+      "otherRenderers": [
+       {
+        "pid": 968421,
+        "pss": 18629632
+       },
+       {
+        "pid": 968422,
+        "pss": 74070016
+       },
+       {
+        "pid": 968412,
+        "pss": 51664896
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "heapGrowth": 0.00814297486853266,
+    "heapGate": "pass",
+    "heapSlopeBytesPerCycle": 53.33639438943894,
+    "heapCheckpoints": [
+     [
+      0,
+      3909500
+     ],
+     [
+      100,
+      3979104
+     ],
+     [
+      300,
+      4010120
+     ],
+     [
+      1000,
+      4041888
+     ],
+     [
+      1500,
+      4047416
+     ],
+     [
+      1600,
+      4047848
+     ],
+     [
+      1700,
+      4048308
+     ],
+     [
+      1800,
+      4047996
+     ],
+     [
+      1900,
+      4074268
+     ],
+     [
+      2000,
+      4080212
+     ],
+     [
+      2100,
+      4081136
+     ],
+     [
+      2200,
+      4081088
+     ],
+     [
+      2300,
+      4081096
+     ],
+     [
+      2400,
+      4082608
+     ],
+     [
+      2500,
+      4083684
+     ]
+    ],
+    "listenersAfter": 0,
+    "observersAfter": 0,
+    "nodesAfter": 0
+   }
+  }
+ ],
+ "analysis": {
+  "completePairs": 4,
+  "blocks": 4,
+  "outcomes": {
+   "A:ok": 4,
+   "B:ok": 4
+  },
+  "reliability": {
+   "timed": {
+    "A": 4,
+    "B": 4
+   },
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "failureRate": {
+    "A": 0,
+    "B": 0
+   },
+   "adverseKey": null,
+   "adverse": {
+    "A": 0,
+    "B": 0
+   },
+   "conditional": false,
+   "betterBlocked": null,
+   "worseBlocked": null
+  },
+  "bootstrapSeed": 12345,
+  "level": 0.95,
+  "zeroOnly": false,
+  "metrics": {
+   "heapGrowth": {
+    "key": "heapGrowth",
+    "unit": "x",
+    "primary": true,
+    "what": "P7 (plan 5.1): median heap after forced GC over cycles 2,000-2,500 divided by that over 1,500-2,000, minus 1 (gate: above 0.01 fails)",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 4,
+    "level": 0.95,
+    "medianA": 0.008155038352940402,
+    "medianB": 0.008134289314090881,
+    "diff": -0.000020749038849521284,
+    "lo": -0.00010134044900933503,
+    "hi": 0.000024914560454725176,
+    "relative": -0.0025443214306944315,
+    "blockDiffs": [
+     -0.00016136788518705814,
+     -0.00002882922613878236,
+     -0.00004131301283161193,
+     0.00006738529466043808
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 2,
+      "diff": -0.00004699129526331003
+     },
+     "BA": {
+      "pairs": 2,
+      "diff": -0.000035071119485197144
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 20"
+   },
+   "heapSlopeBytesPerCycle": {
+    "key": "heapSlopeBytesPerCycle",
+    "unit": "bytes",
+    "what": "least-squares slope of heap after forced GC over all checkpoints, per cycle",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 4,
+    "level": 0.95,
+    "medianA": 53.635404290429044,
+    "medianB": 53.30167904290428,
+    "diff": -0.33372524752476096,
+    "lo": -2.063296204620457,
+    "hi": 0.08139438943893396,
+    "relative": -0.0062221074295940836,
+    "blockDiffs": [
+     -2.189026402640252,
+     -0.10265676567657067,
+     -1.9375660066006617,
+     0.2654455445544457
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 2,
+      "diff": -0.9617904290429067
+     },
+     "BA": {
+      "pairs": 2,
+      "diff": -1.0201113861386162
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 20"
+   },
+   "listenersAfter": {
+    "key": "listenersAfter",
+    "unit": "listeners",
+    "what": "JS event listeners on the page after the last cycle minus after warm-up",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 4,
+    "level": 0.95,
+    "medianA": 0,
+    "medianB": 0,
+    "diff": 0,
+    "lo": 0,
+    "hi": 0,
+    "relative": null,
+    "blockDiffs": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 2,
+      "diff": 0
+     },
+     "BA": {
+      "pairs": 2,
+      "diff": 0
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 20"
+   },
+   "observersAfter": {
+    "key": "observersAfter",
+    "unit": "observers",
+    "what": "Resize/Mutation/Intersection observers constructed and never disconnected, after the last cycle minus after warm-up",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 4,
+    "level": 0.95,
+    "medianA": 0,
+    "medianB": 0,
+    "diff": 0,
+    "lo": 0,
+    "hi": 0,
+    "relative": null,
+    "blockDiffs": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 2,
+      "diff": 0
+     },
+     "BA": {
+      "pairs": 2,
+      "diff": 0
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 20"
+   },
+   "nodesAfter": {
+    "key": "nodesAfter",
+    "unit": "nodes",
+    "what": "DOM nodes after the last cycle minus after warm-up",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 4,
+    "level": 0.95,
+    "medianA": 0,
+    "medianB": 0,
+    "diff": 0,
+    "lo": 0,
+    "hi": 0,
+    "relative": null,
+    "blockDiffs": [
+     0,
+     0,
+     0,
+     0
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 2,
+      "diff": 0
+     },
+     "BA": {
+      "pairs": 2,
+      "diff": 0
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 4 complete pairs, fewer than 20"
+   }
+  }
+ },
+ "endedBecause": "all blocks run",
+ "finishedAt": "2026-11-24T11:21:07.450Z",
+ "integrity": {
+  "violations": []
+ },
+ "eligibility": {
+  "eligible": true,
+  "reasons": []
+ }
+}

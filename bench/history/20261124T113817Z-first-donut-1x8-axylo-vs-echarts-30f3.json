@@ -1,0 +1,6179 @@
+{
+ "schema": "axylo-bench/2",
+ "runId": "20261124T113817Z-first-donut-1x8-axylo-vs-echarts-30f3",
+ "status": "complete",
+ "startedAt": "2026-11-24T11:38:17.937Z",
+ "command": [
+  "--artifact",
+  "bench/artifacts/stage1b-all-charts",
+  "--history-dir",
+  "bench/history",
+  "--blocks",
+  "8",
+  "--baseline",
+  "axylo",
+  "--candidate",
+  "echarts",
+  "--workload",
+  "first",
+  "--kind",
+  "donut",
+  "--size",
+  "1x8"
+ ],
+ "design": {
+  "raster": "software",
+  "mode": "compare",
+  "baseline": "axylo",
+  "candidate": "echarts",
+  "labels": {
+   "A": "axylo",
+   "B": "echarts"
+  },
+  "adapters": {
+   "A": {
+    "id": "axylo",
+    "params": {}
+   },
+   "B": {
+    "id": "echarts",
+    "params": {}
+   }
+  },
+  "workload": "first",
+  "params": {
+   "kind": "donut",
+   "size": "1x8"
+  },
+  "blocks": 8,
+  "order": [
+   "AB",
+   "AB",
+   "AB",
+   "BA",
+   "AB",
+   "BA",
+   "BA",
+   "BA"
+  ],
+  "seed": 212171508,
+  "bootstrapSeed": 12345,
+  "settleMs": 500,
+  "timeoutMs": 120000,
+  "dpr": 1,
+  "viewport": [
+   1440,
+   900
+  ],
+  "warmup": "one untimed admission run per side (A then B), then one untimed warm-up run per side in the opposite order (B then A), so each side has run twice in this browser before timing starts",
+  "isolate": false,
+  "isolation": "one browser process for the session, a fresh context per run",
+  "endpoint": null,
+  "noiseFrom": null
+ },
+ "environment": {
+  "browser": {
+   "name": "Google Chrome (system, via Playwright channel \"chrome\")",
+   "version": "158.0.8127.88",
+   "headless": true
+  },
+  "playwright": "1.65.1",
+  "node": "v24.21.0",
+  "host": {
+   "hostname": "canarit-Z690-AORUS-ELITE-DDR4",
+   "cpuModel": "13th Gen Intel(R) Core(TM) i5-13600K",
+   "logicalCores": 20
+  },
+  "cpu": {
+   "model": "13th Gen Intel(R) Core(TM) i5-13600K",
+   "logicalCores": 20,
+   "governor": "powersave"
+  },
+  "memoryGiB": 30.4,
+  "os": {
+   "type": "Linux",
+   "release": "7.0.0-44-generic",
+   "name": "Ubuntu 26.04.1 LTS",
+   "arch": "x64"
+  },
+  "loadAverageAtStart": [
+   1.83,
+   1.42,
+   1.33
+  ],
+  "hostIdle": "not controlled: other processes (including other agents) may run on this machine during the session",
+  "power": "not available: power settings are not read by this harness",
+  "runnerCheckoutHead": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+  "lockfiles": {
+   "bench/package-lock.json": "640e6069d6ca766dd415693245d446e83b5cdd8b30218c4031ccb5852543e72f",
+   "package-lock.json": "e98151ca9f4f8d9aa1b6dd7e828f8e5024fbbf43a752a754d1a469a5850af392"
+  },
+  "libraries": {
+   "uplot": "1.6.32",
+   "chart.js": "4.6.1",
+   "chartjs-adapter-date-fns": "3.0.0",
+   "date-fns": "4.4.0",
+   "echarts": "6.1.0",
+   "axylo": "0.0.0"
+  },
+  "raster": {
+   "mode": "software",
+   "requested": "default (software here)",
+   "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+   "canvas2d": "unavailable_software",
+   "rasterization": "disabled_software",
+   "gpuCompositing": "disabled_software",
+   "refused": null,
+   "detail": {
+    "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "featureStatus": {
+     "2d_canvas": "unavailable_software",
+     "direct_rendering_display_compositor": "disabled_off_ok",
+     "gpu_compositing": "disabled_software",
+     "multiple_raster_threads": "enabled_on",
+     "opengl": "disabled_off",
+     "rasterization": "disabled_software",
+     "skia_graphite": "disabled_off",
+     "trees_in_viz": "disabled_off",
+     "video_decode": "disabled_software",
+     "video_encode": "disabled_software",
+     "vulkan": "disabled_off",
+     "webgl": "unavailable_software",
+     "webgpu": "unavailable_software",
+     "webgpu_on_vk_via_gl_interop": "disabled_off",
+     "webnn": "unavailable_software"
+    },
+    "devices": [
+     {
+      "vendor": "Google Inc. (Google)",
+      "device": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0)",
+      "driver": "5.0.0"
+     }
+    ],
+    "gl": {
+     "displayType": "ANGLE_SWIFTSHADER",
+     "glExtensions": "GL_AMD_performance_monitor GL_ANGLE_base_vertex_base_instance_shader_builtin GL_ANGLE_blob_cache GL_ANGLE_client_arrays GL_ANGLE_clip_cull_distance GL_ANGLE_compressed_texture_etc GL_ANGLE_copy_textur",
+     "glImplementationParts": "(gl=egl-angle,angle=swiftshader)",
+     "glRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver-5.0.0)",
+     "glResetNotificationStrategy": "33362",
+     "glVendor": "Google Inc. (Google)",
+     "glVersion": "OpenGL ES 3.0 (ANGLE 2.1.29257 git hash: 1f6526a566c2)",
+     "glWsExtensions": "EGL_EXT_create_context_robustness EGL_ANGLE_surface_orientation EGL_KHR_create_context EGL_KHR_image EGL_KHR_image_base EGL_EXT_image_gl_colorspace EGL_KHR_gl_colorspace EGL_KHR_gl_texture_2D_image EG",
+     "glWsVendor": "Google Inc. (Google)",
+     "glWsVersion": "1.5 (ANGLE 2.1.29257 git hash: 1f6526a566c2)",
+     "passthroughCmdDecoder": "true",
+     "skiaBackendType": "None"
+    }
+   },
+   "flags": "Playwright defaults"
+  },
+  "page": {
+   "devicePixelRatio": 1,
+   "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+   "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+   "viewport": [
+    1440,
+    900
+   ],
+   "hardwareConcurrency": 20,
+   "refresh": {
+    "medianIntervalMs": 16.7,
+    "hz": 59.88,
+    "minMs": 16.6,
+    "maxMs": 16.8
+   }
+  },
+  "loadAverageAtEnd": [
+   1.89,
+   1.48,
+   1.35
+  ]
+ },
+ "hashes": {
+  "fixtureChecksum": "9dca8678",
+  "slots": {
+   "A": {
+    "artifact": "stage1b-all-charts",
+    "dir": "/home/canarit/projects/prism/phase4_stage1/axylo-bench-repo/bench/artifacts/stage1b-all-charts",
+    "manifestSha256": "f67ff955819aa0d1ce7fb05485a5a19ff3a4578efbc380de7bb05ba38e69b12d",
+    "source": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean",
+     "axyloSourceHash": "91275224cf666963715bd18521bbc71821a288856f0e153cc7a18aa8ec2ee956",
+     "shippedOptions": "identical: axylo.iife.min.js (release copy) is byte-for-byte what the scripts/build.mjs recipe produces from this snapshot",
+     "distComparison": "identical to packages/axylo/dist/axylo.iife.min.js at build time"
+    },
+    "bench": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean"
+    },
+    "files": {
+     "adapters/axylo-stale-mark.js": "455b32e71fd223bcaa475083e211ead37d8ebd3d8df3dee52c51cdc551563fc6",
+     "adapters/axylo-svg.js": "a5330566dc0878d61367af8e77ee114fd9a12aa8e17b6bdd147e9d8035f99eb8",
+     "adapters/axylo-wrong-renderer.js": "7af78eb82cc84af9b59d5999e0d670c6adc1c060e3e8be69bbefe818d8425750",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "adapters/broken-never-ready.js": "ff6de0d681540cd6f4ea71dca4c33f91d11aea9598e36fd63ebf211b60e2fc9f",
+     "adapters/broken-throws.js": "17e4d7a33f724a22ed2da26aad000f33accbbe11f6741c1c646804983c83f6b7",
+     "adapters/chartjs-tuned.js": "daaafde618d7feda2a38de161cece0e2f2931b86e3f9544c3ea6048771a50d99",
+     "adapters/chartjs.js": "87dfe6084949337506720d921746beaf25f59e6adcf7934b60a789806029fc34",
+     "adapters/echarts.js": "f2a9ff8da676bea6e4a0fca4afcce8a1c1e7f039f9ce9cd558f6ac9c8ef2a59e",
+     "adapters/noop.js": "87036ef493cfbbb79c8cbd42cb44b01f0b46988a1430a6859dae870158adb8aa",
+     "adapters/uplot-fixed-width.js": "bdc7453e345e3b0c3d98a84b47c6d12f3d1f90ce7ce9149b3d108e45c6491fe9",
+     "adapters/uplot-no-trim.js": "2ab62ccbe4f6e5fae0685ae8f2972465367e07b8c24efe459060f582570fedc1",
+     "adapters/uplot-pinned-y.js": "136a61a772e62259aee9821b8d0e55cc151dd51d0da548f7891649acad574c9f",
+     "adapters/uplot-stalls.js": "e4b6672d47136813ffeb899c3b233bd00316dbc14047e1cd9a27da48f04de54f",
+     "adapters/uplot.js": "7e4865f22c594705393c301916e7617fbd9bee70ba2d3a0afb167803c6b48655",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694",
+     "axylo/axylo.bench.iife.min.js.map": "73b65f747f97a9f1adde3859a65031eb516ecc86cc932c0ead36b4cab146ec8b",
+     "axylo/axylo.iife.js": "96ce1dcad3727fcd4e8112a65a0f9e0df8373822a0d33d67070803f8683505c9",
+     "axylo/axylo.iife.js.map": "fa53111acc881ccda6c1af5ee0251a8ea736225d6c0a4aebdf0ea77da4b12909",
+     "axylo/axylo.iife.min.js": "3fba985e8fa7924e5194cf6c8ca494ebe3902b67bab3fb0caa82b1199bcbf1c7",
+     "axylo/axylo.iife.min.js.map": "0521ac20524a9804106f99bbd5486c31b6789f24c26acd1c1eba46897dadc230",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08"
+    },
+    "served": {
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694",
+     "adapters/echarts.js": "f2a9ff8da676bea6e4a0fca4afcce8a1c1e7f039f9ce9cd558f6ac9c8ef2a59e"
+    }
+   },
+   "B": {
+    "artifact": "stage1b-all-charts",
+    "dir": "/home/canarit/projects/prism/phase4_stage1/axylo-bench-repo/bench/artifacts/stage1b-all-charts",
+    "manifestSha256": "f67ff955819aa0d1ce7fb05485a5a19ff3a4578efbc380de7bb05ba38e69b12d",
+    "source": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean",
+     "axyloSourceHash": "91275224cf666963715bd18521bbc71821a288856f0e153cc7a18aa8ec2ee956",
+     "shippedOptions": "identical: axylo.iife.min.js (release copy) is byte-for-byte what the scripts/build.mjs recipe produces from this snapshot",
+     "distComparison": "identical to packages/axylo/dist/axylo.iife.min.js at build time"
+    },
+    "bench": {
+     "head": "498b624afadf3c2ff5556eb6789e31c03d625cc4",
+     "uncommitted": "clean"
+    },
+    "files": {
+     "adapters/axylo-stale-mark.js": "455b32e71fd223bcaa475083e211ead37d8ebd3d8df3dee52c51cdc551563fc6",
+     "adapters/axylo-svg.js": "a5330566dc0878d61367af8e77ee114fd9a12aa8e17b6bdd147e9d8035f99eb8",
+     "adapters/axylo-wrong-renderer.js": "7af78eb82cc84af9b59d5999e0d670c6adc1c060e3e8be69bbefe818d8425750",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "adapters/broken-never-ready.js": "ff6de0d681540cd6f4ea71dca4c33f91d11aea9598e36fd63ebf211b60e2fc9f",
+     "adapters/broken-throws.js": "17e4d7a33f724a22ed2da26aad000f33accbbe11f6741c1c646804983c83f6b7",
+     "adapters/chartjs-tuned.js": "daaafde618d7feda2a38de161cece0e2f2931b86e3f9544c3ea6048771a50d99",
+     "adapters/chartjs.js": "87dfe6084949337506720d921746beaf25f59e6adcf7934b60a789806029fc34",
+     "adapters/echarts.js": "f2a9ff8da676bea6e4a0fca4afcce8a1c1e7f039f9ce9cd558f6ac9c8ef2a59e",
+     "adapters/noop.js": "87036ef493cfbbb79c8cbd42cb44b01f0b46988a1430a6859dae870158adb8aa",
+     "adapters/uplot-fixed-width.js": "bdc7453e345e3b0c3d98a84b47c6d12f3d1f90ce7ce9149b3d108e45c6491fe9",
+     "adapters/uplot-no-trim.js": "2ab62ccbe4f6e5fae0685ae8f2972465367e07b8c24efe459060f582570fedc1",
+     "adapters/uplot-pinned-y.js": "136a61a772e62259aee9821b8d0e55cc151dd51d0da548f7891649acad574c9f",
+     "adapters/uplot-stalls.js": "e4b6672d47136813ffeb899c3b233bd00316dbc14047e1cd9a27da48f04de54f",
+     "adapters/uplot.js": "7e4865f22c594705393c301916e7617fbd9bee70ba2d3a0afb167803c6b48655",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694",
+     "axylo/axylo.bench.iife.min.js.map": "73b65f747f97a9f1adde3859a65031eb516ecc86cc932c0ead36b4cab146ec8b",
+     "axylo/axylo.iife.js": "96ce1dcad3727fcd4e8112a65a0f9e0df8373822a0d33d67070803f8683505c9",
+     "axylo/axylo.iife.js.map": "fa53111acc881ccda6c1af5ee0251a8ea736225d6c0a4aebdf0ea77da4b12909",
+     "axylo/axylo.iife.min.js": "3fba985e8fa7924e5194cf6c8ca494ebe3902b67bab3fb0caa82b1199bcbf1c7",
+     "axylo/axylo.iife.min.js.map": "0521ac20524a9804106f99bbd5486c31b6789f24c26acd1c1eba46897dadc230",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08"
+    },
+    "served": {
+     "index.html": "0cfdb7107bd02315debeee1ef77358135eca0e3315ae08af3ad21960149178a5",
+     "page.js": "7f0789cc1d44ba4e06660ddf58a1fb7d254a38d4693b39d7c426df78e501ea08",
+     "adapters/axylo.js": "0f36e1c44907e12343ba87f84369c0b9f502f2f2db211586c30e2501c0acbcc0",
+     "axylo/capabilities.json": "b1b89f62689ed25b882d6a0a1e0eeadc43c90d016939d0e1d35f8acaade5e278",
+     "axylo/axylo.bench.iife.min.js": "87b2865e504599231ed2f85c864be03e4a92b4dd81c8b33c1707265c3b78b694",
+     "adapters/echarts.js": "f2a9ff8da676bea6e4a0fca4afcce8a1c1e7f039f9ce9cd558f6ac9c8ef2a59e"
+    }
+   }
+  }
+ },
+ "admission": {
+  "A:axylo": {
+   "outcome": "ok",
+   "reason": null,
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "describe": [
+    {
+     "kind": "donut",
+     "renderer": {
+      "kind": "svg",
+      "canvases": 0,
+      "svgs": 1,
+      "reported": "svg",
+      "dom": "svg"
+     },
+     "plot": {
+      "x": 0,
+      "y": 0,
+      "width": 800,
+      "height": 288.453125
+     },
+     "slices": [
+      {
+       "label": "Direct",
+       "value": 163,
+       "cx": 400,
+       "cy": 144.2265625,
+       "startAngle": -1.5673295729024945,
+       "sweep": 1.4477913735004877,
+       "outerRadius": 144.23,
+       "innerRadius": 86.54
+      },
+      {
+       "label": "Organic",
+       "value": 122,
+       "cx": 400,
+       "cy": 144.2265625,
+       "startAngle": -0.11254013457018852,
+       "sweep": 1.0818097377205749,
+       "outerRadius": 144.23,
+       "innerRadius": 86.54
+      },
+      {
+       "label": "Referral",
+       "value": 64,
+       "cx": 400,
+       "cy": 144.2265625,
+       "startAngle": 0.9763071640191744,
+       "sweep": 0.5642494976317347,
+       "outerRadius": 144.23,
+       "innerRadius": 86.54
+      },
+      {
+       "label": "Email",
+       "value": 59,
+       "cx": 400,
+       "cy": 144.2265625,
+       "startAngle": 1.5474968963667568,
+       "sweep": 0.5196033414517536,
+       "outerRadius": 144.23,
+       "innerRadius": 86.54
+      },
+      {
+       "label": "Paid search",
+       "value": 57,
+       "cx": 400,
+       "cy": 144.2265625,
+       "startAngle": 2.0740715471368687,
+       "sweep": 0.5017324224393648,
+       "outerRadius": 144.23,
+       "innerRadius": 86.54
+      },
+      {
+       "label": "Social",
+       "value": 51,
+       "cx": 400,
+       "cy": 144.2265625,
+       "startAngle": 2.5828040886804455,
+       "sweep": 0.4482267410585873,
+       "outerRadius": 144.23,
+       "innerRadius": 86.54
+      },
+      {
+       "label": "Partners",
+       "value": 68,
+       "cx": 400,
+       "cy": 144.2265625,
+       "startAngle": 3.0379332112837183,
+       "sweep": 0.5999437014265162,
+       "outerRadius": 144.23,
+       "innerRadius": 86.54
+      },
+      {
+       "label": "Events",
+       "value": 120,
+       "cx": 400,
+       "cy": 144.2265625,
+       "startAngle": -2.638326817266213,
+       "sweep": 1.0640195433344504,
+       "outerRadius": 144.23,
+       "innerRadius": 86.54
+      }
+     ]
+    }
+   ],
+   "adapter": {
+    "id": "axylo",
+    "library": "Axylo",
+    "version": "0.0.0",
+    "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+    "params": {
+     "build": "prod"
+    },
+    "floor": false,
+    "expectRenderer": "svg",
+    "bundle": "axylo/axylo.bench.iife.min.js"
+   }
+  },
+  "A:echarts": {
+   "outcome": "ok",
+   "reason": null,
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "describe": [
+    {
+     "kind": "donut",
+     "plot": {
+      "x": 0,
+      "y": 0,
+      "width": 800,
+      "height": 400
+     },
+     "slices": [
+      {
+       "label": "Direct",
+       "value": 163,
+       "cx": 400,
+       "cy": 200,
+       "startAngle": 4.71238898038469,
+       "sweep": 1.4547715981111828,
+       "innerRadius": 100,
+       "outerRadius": 150
+      },
+      {
+       "label": "Organic",
+       "value": 122,
+       "cx": 400,
+       "cy": 200,
+       "startAngle": 6.1671605784958725,
+       "sweep": 1.0888474538010078,
+       "innerRadius": 100,
+       "outerRadius": 150
+      },
+      {
+       "label": "Referral",
+       "value": 64,
+       "cx": 400,
+       "cy": 200,
+       "startAngle": 7.25600803229688,
+       "sweep": 0.571198664289053,
+       "innerRadius": 100,
+       "outerRadius": 150
+      },
+      {
+       "label": "Email",
+       "value": 59,
+       "cx": 400,
+       "cy": 200,
+       "startAngle": 7.827206696585933,
+       "sweep": 0.5265737686414704,
+       "innerRadius": 100,
+       "outerRadius": 150
+      },
+      {
+       "label": "Paid search",
+       "value": 57,
+       "cx": 400,
+       "cy": 200,
+       "startAngle": 8.353780465227404,
+       "sweep": 0.5087238103824383,
+       "innerRadius": 100,
+       "outerRadius": 150
+      },
+      {
+       "label": "Social",
+       "value": 51,
+       "cx": 400,
+       "cy": 200,
+       "startAngle": 8.862504275609842,
+       "sweep": 0.45517393560533925,
+       "innerRadius": 100,
+       "outerRadius": 150
+      },
+      {
+       "label": "Partners",
+       "value": 68,
+       "cx": 400,
+       "cy": 200,
+       "startAngle": 9.317678211215181,
+       "sweep": 0.606898580807119,
+       "innerRadius": 100,
+       "outerRadius": 150
+      },
+      {
+       "label": "Events",
+       "value": 120,
+       "cx": 400,
+       "cy": 200,
+       "startAngle": 9.9245767920223,
+       "sweep": 1.0709974955419757,
+       "innerRadius": 100,
+       "outerRadius": 150
+      }
+     ]
+    }
+   ],
+   "adapter": {
+    "id": "echarts",
+    "library": "Apache ECharts",
+    "version": "6.1.0",
+    "config": "modular tree-shaken (Canvas, ARIA, tooltip, legend, animation: false); line sampling: none (default none preserves endpoints, gaps, visible extrema and exact hover candidates)",
+    "params": {},
+    "floor": false,
+    "expectRenderer": null,
+    "bundle": null
+   }
+  }
+ },
+ "probes": {},
+ "blocks": [
+  {
+   "block": 0,
+   "load1": 1.92,
+   "at": "2026-11-24T11:38:24.792Z"
+  },
+  {
+   "block": 1,
+   "load1": 1.92,
+   "at": "2026-11-24T11:38:28.183Z"
+  },
+  {
+   "block": 2,
+   "load1": 1.85,
+   "at": "2026-11-24T11:38:31.519Z"
+  },
+  {
+   "block": 3,
+   "load1": 1.7,
+   "at": "2026-11-24T11:38:34.879Z"
+  },
+  {
+   "block": 4,
+   "load1": 1.7,
+   "at": "2026-11-24T11:38:38.225Z"
+  },
+  {
+   "block": 5,
+   "load1": 2.05,
+   "at": "2026-11-24T11:38:41.577Z"
+  },
+  {
+   "block": 6,
+   "load1": 1.88,
+   "at": "2026-11-24T11:38:44.913Z"
+  },
+  {
+   "block": 7,
+   "load1": 1.88,
+   "at": "2026-11-24T11:38:48.259Z"
+  }
+ ],
+ "runs": [
+  {
+   "index": 0,
+   "phase": "admission",
+   "chromeVersion": "158.0.8127.88",
+   "side": "A",
+   "adapter": "axylo",
+   "slot": "A",
+   "outcome": "ok",
+   "reason": null,
+   "limits": [],
+   "durationMs": 1666,
+   "logs": [],
+   "pageErrors": []
+  },
+  {
+   "index": 1,
+   "phase": "admission",
+   "chromeVersion": "158.0.8127.88",
+   "side": "B",
+   "adapter": "echarts",
+   "slot": "A",
+   "outcome": "ok",
+   "reason": null,
+   "limits": [],
+   "durationMs": 1689,
+   "logs": [],
+   "pageErrors": []
+  },
+  {
+   "index": 2,
+   "phase": "warmup",
+   "chromeVersion": "158.0.8127.88",
+   "side": "B",
+   "adapter": "echarts",
+   "slot": "A",
+   "outcome": "ok",
+   "reason": null,
+   "durationMs": 1655
+  },
+  {
+   "index": 3,
+   "phase": "warmup",
+   "chromeVersion": "158.0.8127.88",
+   "side": "A",
+   "adapter": "axylo",
+   "slot": "A",
+   "outcome": "ok",
+   "reason": null,
+   "durationMs": 1657
+  },
+  {
+   "index": 4,
+   "phase": "timed",
+   "block": 0,
+   "position": 0,
+   "config": "A",
+   "startedAt": "2026-11-24T11:38:24.798Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1666,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "9dca8678",
+    "probe": null,
+    "timing": {
+     "syncMs": 5.3,
+     "readyMs": 20.1,
+     "readyFrameMs": 20.9,
+     "windowMs": 523.1,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 9,
+     "svgPaths": 16,
+     "domNodes": 93
+    },
+    "callerColumnBytes": 64,
+    "describe": [
+     {
+      "kind": "donut",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "plot": {
+       "x": 0,
+       "y": 0,
+       "width": 800,
+       "height": 288.453125
+      },
+      "slices": [
+       {
+        "label": "Direct",
+        "value": 163,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -1.5673295729024945,
+        "sweep": 1.4477913735004877,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Organic",
+        "value": 122,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -0.11254013457018852,
+        "sweep": 1.0818097377205749,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Referral",
+        "value": 64,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 0.9763071640191744,
+        "sweep": 0.5642494976317347,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Email",
+        "value": 59,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 1.5474968963667568,
+        "sweep": 0.5196033414517536,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Paid search",
+        "value": 57,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 2.0740715471368687,
+        "sweep": 0.5017324224393648,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Social",
+        "value": 51,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 2.5828040886804455,
+        "sweep": 0.4482267410585873,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Partners",
+        "value": 68,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 3.0379332112837183,
+        "sweep": 0.5999437014265162,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Events",
+        "value": 120,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -2.638326817266213,
+        "sweep": 1.0640195433344504,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.022372999999999997,
+     "ScriptDuration": 0.018125000000000002,
+     "LayoutDuration": 0.001317,
+     "RecalcStyleDuration": 0.00146,
+     "DevToolsCommandDuration": 0.00041200000000000004,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.001059000000000001,
+     "ThreadTime": 0.022174,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 120,
+     "JSEventListeners": 33,
+     "JSHeapUsedSize": 822112,
+     "JSHeapTotalSize": 786432,
+     "endNodes": 147,
+     "endJSHeapUsedSize": 2293576,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0.009999999999999995
+    }
+   },
+   "memory": {
+    "pagePid": 983245,
+    "gpuPid": 982861,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180068,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 405120,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 983245,
+       "type": "renderer",
+       "cpuTime": 0.06,
+       "pss": 50229248,
+       "rss": 138686464
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.1,
+       "pss": 40393728,
+       "rss": 101265408
+      },
+      "otherRenderers": [
+       {
+        "pid": 983244,
+        "pss": 18224128
+       },
+       {
+        "pid": 983235,
+        "pss": 53544960
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1441608,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 389507,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 983245,
+       "type": "renderer",
+       "cpuTime": 0.07,
+       "pss": 52543488,
+       "rss": 142311424
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.1,
+       "pss": 40904704,
+       "rss": 102301696
+      },
+      "otherRenderers": [
+       {
+        "pid": 983244,
+        "pss": 18225152
+       },
+       {
+        "pid": 983235,
+        "pss": 53244928
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2027216,
+      "heapTotal": 2621440,
+      "embedderHeapUsed": 696512,
+      "backingStorage": 407324,
+      "listeners": 35,
+      "nodes": 147,
+      "renderer": {
+       "pid": 983245,
+       "type": "renderer",
+       "cpuTime": 0.11,
+       "pss": 61633536,
+       "rss": 155619328
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.11,
+       "pss": 40904704,
+       "rss": 102473728
+      },
+      "otherRenderers": [
+       {
+        "pid": 983244,
+        "pss": 18225152
+       },
+       {
+        "pid": 983235,
+        "pss": 52112384
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 22.372999999999998,
+    "scriptMs": 18.125000000000004,
+    "layoutStyleMs": 2.777,
+    "devtoolsMs": 0.41200000000000003,
+    "readyMs": 20.1,
+    "readyFrameMs": 20.9,
+    "rendererCpuMs": 30,
+    "gpuCpuMs": 9.999999999999995,
+    "heapChartBytes": 585608,
+    "heapUsedBytes": 2027216,
+    "rendererPssBytes": 61633536,
+    "rendererPssChartBytes": 9090048,
+    "gpuPssBytes": 40904704,
+    "gpuPssChartBytes": 0,
+    "canvasBackingBytes": 0,
+    "domNodes": 93
+   }
+  },
+  {
+   "index": 5,
+   "phase": "timed",
+   "block": 0,
+   "position": 1,
+   "config": "B",
+   "startedAt": "2026-11-24T11:38:26.471Z",
+   "adapter": "echarts",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1703,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "echarts",
+     "library": "Apache ECharts",
+     "version": "6.1.0",
+     "config": "modular tree-shaken (Canvas, ARIA, tooltip, legend, animation: false); line sampling: none (default none preserves endpoints, gaps, visible extrema and exact hover candidates)",
+     "params": {},
+     "floor": false,
+     "expectRenderer": null,
+     "bundle": null
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "9dca8678",
+    "probe": null,
+    "timing": {
+     "syncMs": 17,
+     "readyMs": 17.1,
+     "readyFrameMs": 18.4,
+     "windowMs": 520.4,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 1280000,
+     "chartCanvasCount": 1,
+     "otherCanvasBytes": 0,
+     "svgElements": 0,
+     "svgPaths": 0,
+     "domNodes": 5
+    },
+    "callerColumnBytes": 64,
+    "describe": [
+     {
+      "kind": "donut",
+      "plot": {
+       "x": 0,
+       "y": 0,
+       "width": 800,
+       "height": 400
+      },
+      "slices": [
+       {
+        "label": "Direct",
+        "value": 163,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 4.71238898038469,
+        "sweep": 1.4547715981111828,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Organic",
+        "value": 122,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 6.1671605784958725,
+        "sweep": 1.0888474538010078,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Referral",
+        "value": 64,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 7.25600803229688,
+        "sweep": 0.571198664289053,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Email",
+        "value": 59,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 7.827206696585933,
+        "sweep": 0.5265737686414704,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Paid search",
+        "value": 57,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 8.353780465227404,
+        "sweep": 0.5087238103824383,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Social",
+        "value": 51,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 8.862504275609842,
+        "sweep": 0.45517393560533925,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Partners",
+        "value": 68,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 9.317678211215181,
+        "sweep": 0.606898580807119,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Events",
+        "value": 120,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 9.9245767920223,
+        "sweep": 1.0709974955419757,
+        "innerRadius": 100,
+        "outerRadius": 150
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.022136000000000003,
+     "ScriptDuration": 0.017328000000000003,
+     "LayoutDuration": 0.000059999999999999995,
+     "RecalcStyleDuration": 0.000125,
+     "DevToolsCommandDuration": 0.0001969999999999997,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.004425999999999999,
+     "ThreadTime": 0.023113999999999996,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 5,
+     "JSEventListeners": 14,
+     "JSHeapUsedSize": 1709356,
+     "JSHeapTotalSize": 2097152,
+     "endNodes": 31,
+     "endJSHeapUsedSize": 4078588,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 983302,
+    "gpuPid": 982861,
+    "samples": {
+     "blank": {
+      "heapUsed": 2073028,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 329864,
+      "backingStorage": 614226,
+      "listeners": 0,
+      "nodes": 25,
+      "renderer": {
+       "pid": 983302,
+       "type": "renderer",
+       "cpuTime": 0.07,
+       "pss": 52028416,
+       "rss": 141746176
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.12,
+       "pss": 40418304,
+       "rss": 101289984
+      },
+      "otherRenderers": [
+       {
+        "pid": 983301,
+        "pss": 18212864
+       },
+       {
+        "pid": 983292,
+        "pss": 52155392
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 2340328,
+      "heapTotal": 3145728,
+      "embedderHeapUsed": 333576,
+      "backingStorage": 619828,
+      "listeners": 0,
+      "nodes": 26,
+      "renderer": {
+       "pid": 983302,
+       "type": "renderer",
+       "cpuTime": 0.1,
+       "pss": 53991424,
+       "rss": 144621568
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.13,
+       "pss": 40928256,
+       "rss": 102322176
+      },
+      "otherRenderers": [
+       {
+        "pid": 983301,
+        "pss": 18212864
+       },
+       {
+        "pid": 983292,
+        "pss": 52047872
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 3303108,
+      "heapTotal": 3670016,
+      "embedderHeapUsed": 445904,
+      "backingStorage": 621160,
+      "listeners": 14,
+      "nodes": 31,
+      "renderer": {
+       "pid": 983302,
+       "type": "renderer",
+       "cpuTime": 0.14,
+       "pss": 63176704,
+       "rss": 158216192
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.13,
+       "pss": 41468928,
+       "rss": 103604224
+      },
+      "otherRenderers": [
+       {
+        "pid": 983301,
+        "pss": 18210816
+       },
+       {
+        "pid": 983292,
+        "pss": 51251200
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "echarts",
+   "summary": {
+    "taskMs": 22.136000000000003,
+    "scriptMs": 17.328000000000003,
+    "layoutStyleMs": 0.185,
+    "devtoolsMs": 0.1969999999999997,
+    "readyMs": 17.1,
+    "readyFrameMs": 18.4,
+    "rendererCpuMs": 30,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 962780,
+    "heapUsedBytes": 3303108,
+    "rendererPssBytes": 63176704,
+    "rendererPssChartBytes": 9185280,
+    "gpuPssBytes": 41468928,
+    "gpuPssChartBytes": 540672,
+    "canvasBackingBytes": 1280000,
+    "domNodes": 5
+   }
+  },
+  {
+   "index": 6,
+   "phase": "timed",
+   "block": 1,
+   "position": 0,
+   "config": "A",
+   "startedAt": "2026-11-24T11:38:28.189Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1659,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "9dca8678",
+    "probe": null,
+    "timing": {
+     "syncMs": 3,
+     "readyMs": 19.8,
+     "readyFrameMs": 23.3,
+     "windowMs": 525.7,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 9,
+     "svgPaths": 16,
+     "domNodes": 93
+    },
+    "callerColumnBytes": 64,
+    "describe": [
+     {
+      "kind": "donut",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "plot": {
+       "x": 0,
+       "y": 0,
+       "width": 800,
+       "height": 288.453125
+      },
+      "slices": [
+       {
+        "label": "Direct",
+        "value": 163,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -1.5673295729024945,
+        "sweep": 1.4477913735004877,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Organic",
+        "value": 122,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -0.11254013457018852,
+        "sweep": 1.0818097377205749,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Referral",
+        "value": 64,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 0.9763071640191744,
+        "sweep": 0.5642494976317347,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Email",
+        "value": 59,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 1.5474968963667568,
+        "sweep": 0.5196033414517536,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Paid search",
+        "value": 57,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 2.0740715471368687,
+        "sweep": 0.5017324224393648,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Social",
+        "value": 51,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 2.5828040886804455,
+        "sweep": 0.4482267410585873,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Partners",
+        "value": 68,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 3.0379332112837183,
+        "sweep": 0.5999437014265162,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Events",
+        "value": 120,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -2.638326817266213,
+        "sweep": 1.0640195433344504,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.018518,
+     "ScriptDuration": 0.014727999999999998,
+     "LayoutDuration": 0.0013059999999999999,
+     "RecalcStyleDuration": 0.001333,
+     "DevToolsCommandDuration": 0.00022099999999999984,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0009300000000000003,
+     "ThreadTime": 0.018368000000000002,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 120,
+     "JSEventListeners": 33,
+     "JSHeapUsedSize": 822112,
+     "JSHeapTotalSize": 786432,
+     "endNodes": 147,
+     "endJSHeapUsedSize": 2293576,
+     "rendererCpu": 0.020000000000000004,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 983356,
+    "gpuPid": 982861,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180068,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 333080,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 983356,
+       "type": "renderer",
+       "cpuTime": 0.04,
+       "pss": 49944576,
+       "rss": 138407936
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.15,
+       "pss": 40458240,
+       "rss": 101330944
+      },
+      "otherRenderers": [
+       {
+        "pid": 983355,
+        "pss": 18222080
+       },
+       {
+        "pid": 983346,
+        "pss": 52997120
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1441608,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 389507,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 983356,
+       "type": "renderer",
+       "cpuTime": 0.06,
+       "pss": 52268032,
+       "rss": 142041088
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.15,
+       "pss": 40969216,
+       "rss": 102367232
+      },
+      "otherRenderers": [
+       {
+        "pid": 983355,
+        "pss": 18223104
+       },
+       {
+        "pid": 983346,
+        "pss": 52694016
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2027216,
+      "heapTotal": 2621440,
+      "embedderHeapUsed": 697792,
+      "backingStorage": 407324,
+      "listeners": 35,
+      "nodes": 147,
+      "renderer": {
+       "pid": 983356,
+       "type": "renderer",
+       "cpuTime": 0.09,
+       "pss": 61372416,
+       "rss": 155324416
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.15,
+       "pss": 40965120,
+       "rss": 102539264
+      },
+      "otherRenderers": [
+       {
+        "pid": 983355,
+        "pss": 18223104
+       },
+       {
+        "pid": 983346,
+        "pss": 51555328
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 18.518,
+    "scriptMs": 14.727999999999998,
+    "layoutStyleMs": 2.639,
+    "devtoolsMs": 0.22099999999999984,
+    "readyMs": 19.8,
+    "readyFrameMs": 23.3,
+    "rendererCpuMs": 20.000000000000004,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 585608,
+    "heapUsedBytes": 2027216,
+    "rendererPssBytes": 61372416,
+    "rendererPssChartBytes": 9104384,
+    "gpuPssBytes": 40965120,
+    "gpuPssChartBytes": -4096,
+    "canvasBackingBytes": 0,
+    "domNodes": 93
+   }
+  },
+  {
+   "index": 7,
+   "phase": "timed",
+   "block": 1,
+   "position": 1,
+   "config": "B",
+   "startedAt": "2026-11-24T11:38:29.853Z",
+   "adapter": "echarts",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1666,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "echarts",
+     "library": "Apache ECharts",
+     "version": "6.1.0",
+     "config": "modular tree-shaken (Canvas, ARIA, tooltip, legend, animation: false); line sampling: none (default none preserves endpoints, gaps, visible extrema and exact hover candidates)",
+     "params": {},
+     "floor": false,
+     "expectRenderer": null,
+     "bundle": null
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "9dca8678",
+    "probe": null,
+    "timing": {
+     "syncMs": 16.7,
+     "readyMs": 16.7,
+     "readyFrameMs": 18.1,
+     "windowMs": 519.8,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 1280000,
+     "chartCanvasCount": 1,
+     "otherCanvasBytes": 0,
+     "svgElements": 0,
+     "svgPaths": 0,
+     "domNodes": 5
+    },
+    "callerColumnBytes": 64,
+    "describe": [
+     {
+      "kind": "donut",
+      "plot": {
+       "x": 0,
+       "y": 0,
+       "width": 800,
+       "height": 400
+      },
+      "slices": [
+       {
+        "label": "Direct",
+        "value": 163,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 4.71238898038469,
+        "sweep": 1.4547715981111828,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Organic",
+        "value": 122,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 6.1671605784958725,
+        "sweep": 1.0888474538010078,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Referral",
+        "value": 64,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 7.25600803229688,
+        "sweep": 0.571198664289053,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Email",
+        "value": 59,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 7.827206696585933,
+        "sweep": 0.5265737686414704,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Paid search",
+        "value": 57,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 8.353780465227404,
+        "sweep": 0.5087238103824383,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Social",
+        "value": 51,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 8.862504275609842,
+        "sweep": 0.45517393560533925,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Partners",
+        "value": 68,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 9.317678211215181,
+        "sweep": 0.606898580807119,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Events",
+        "value": 120,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 9.9245767920223,
+        "sweep": 1.0709974955419757,
+        "innerRadius": 100,
+        "outerRadius": 150
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.020921,
+     "ScriptDuration": 0.016940999999999998,
+     "LayoutDuration": 0.00006300000000000001,
+     "RecalcStyleDuration": 0.000128,
+     "DevToolsCommandDuration": 0.0002369999999999998,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0035519999999999996,
+     "ThreadTime": 0.021793,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 5,
+     "JSEventListeners": 14,
+     "JSHeapUsedSize": 1709448,
+     "JSHeapTotalSize": 1835008,
+     "endNodes": 31,
+     "endJSHeapUsedSize": 4078676,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 983412,
+    "gpuPid": 982861,
+    "samples": {
+     "blank": {
+      "heapUsed": 2073024,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 405192,
+      "backingStorage": 614226,
+      "listeners": 0,
+      "nodes": 25,
+      "renderer": {
+       "pid": 983412,
+       "type": "renderer",
+       "cpuTime": 0.06,
+       "pss": 51966976,
+       "rss": 141213696
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.16,
+       "pss": 40477696,
+       "rss": 101330944
+      },
+      "otherRenderers": [
+       {
+        "pid": 983411,
+        "pss": 17986560
+       },
+       {
+        "pid": 983402,
+        "pss": 52166656
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 2340324,
+      "heapTotal": 3145728,
+      "embedderHeapUsed": 333576,
+      "backingStorage": 619828,
+      "listeners": 0,
+      "nodes": 26,
+      "renderer": {
+       "pid": 983412,
+       "type": "renderer",
+       "cpuTime": 0.08,
+       "pss": 53950464,
+       "rss": 144109568
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.17,
+       "pss": 40987648,
+       "rss": 102363136
+      },
+      "otherRenderers": [
+       {
+        "pid": 983411,
+        "pss": 17986560
+       },
+       {
+        "pid": 983402,
+        "pss": 52058112
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 3303148,
+      "heapTotal": 3932160,
+      "embedderHeapUsed": 445904,
+      "backingStorage": 621160,
+      "listeners": 14,
+      "nodes": 31,
+      "renderer": {
+       "pid": 983412,
+       "type": "renderer",
+       "cpuTime": 0.12,
+       "pss": 63185920,
+       "rss": 157798400
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.17,
+       "pss": 41530368,
+       "rss": 103649280
+      },
+      "otherRenderers": [
+       {
+        "pid": 983411,
+        "pss": 17983488
+       },
+       {
+        "pid": 983402,
+        "pss": 51262464
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "echarts",
+   "summary": {
+    "taskMs": 20.921,
+    "scriptMs": 16.941,
+    "layoutStyleMs": 0.191,
+    "devtoolsMs": 0.2369999999999998,
+    "readyMs": 16.7,
+    "readyFrameMs": 18.1,
+    "rendererCpuMs": 30,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 962824,
+    "heapUsedBytes": 3303148,
+    "rendererPssBytes": 63185920,
+    "rendererPssChartBytes": 9235456,
+    "gpuPssBytes": 41530368,
+    "gpuPssChartBytes": 542720,
+    "canvasBackingBytes": 1280000,
+    "domNodes": 5
+   }
+  },
+  {
+   "index": 8,
+   "phase": "timed",
+   "block": 2,
+   "position": 0,
+   "config": "A",
+   "startedAt": "2026-11-24T11:38:31.524Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1686,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "9dca8678",
+    "probe": null,
+    "timing": {
+     "syncMs": 3.1,
+     "readyMs": 18.8,
+     "readyFrameMs": 22.4,
+     "windowMs": 525.1,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 9,
+     "svgPaths": 16,
+     "domNodes": 93
+    },
+    "callerColumnBytes": 64,
+    "describe": [
+     {
+      "kind": "donut",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "plot": {
+       "x": 0,
+       "y": 0,
+       "width": 800,
+       "height": 288.453125
+      },
+      "slices": [
+       {
+        "label": "Direct",
+        "value": 163,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -1.5673295729024945,
+        "sweep": 1.4477913735004877,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Organic",
+        "value": 122,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -0.11254013457018852,
+        "sweep": 1.0818097377205749,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Referral",
+        "value": 64,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 0.9763071640191744,
+        "sweep": 0.5642494976317347,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Email",
+        "value": 59,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 1.5474968963667568,
+        "sweep": 0.5196033414517536,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Paid search",
+        "value": 57,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 2.0740715471368687,
+        "sweep": 0.5017324224393648,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Social",
+        "value": 51,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 2.5828040886804455,
+        "sweep": 0.4482267410585873,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Partners",
+        "value": 68,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 3.0379332112837183,
+        "sweep": 0.5999437014265162,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Events",
+        "value": 120,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -2.638326817266213,
+        "sweep": 1.0640195433344504,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.018196999999999998,
+     "ScriptDuration": 0.014384000000000001,
+     "LayoutDuration": 0.0013009999999999999,
+     "RecalcStyleDuration": 0.001273,
+     "DevToolsCommandDuration": 0.0002409999999999999,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0009980000000000024,
+     "ThreadTime": 0.018092000000000004,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 120,
+     "JSEventListeners": 33,
+     "JSHeapUsedSize": 822160,
+     "JSHeapTotalSize": 786432,
+     "endNodes": 147,
+     "endJSHeapUsedSize": 2293624,
+     "rendererCpu": 0.020000000000000004,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 983495,
+    "gpuPid": 982861,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180068,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 333080,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 983495,
+       "type": "renderer",
+       "cpuTime": 0.06,
+       "pss": 49958912,
+       "rss": 138080256
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.19,
+       "pss": 40589312,
+       "rss": 101564416
+      },
+      "otherRenderers": [
+       {
+        "pid": 983494,
+        "pss": 18012160
+       },
+       {
+        "pid": 983485,
+        "pss": 53245952
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1441608,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 389507,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 983495,
+       "type": "renderer",
+       "cpuTime": 0.08,
+       "pss": 52282368,
+       "rss": 141713408
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.19,
+       "pss": 41097216,
+       "rss": 102596608
+      },
+      "otherRenderers": [
+       {
+        "pid": 983494,
+        "pss": 18013184
+       },
+       {
+        "pid": 983485,
+        "pss": 52945920
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2027228,
+      "heapTotal": 2621440,
+      "embedderHeapUsed": 697792,
+      "backingStorage": 407324,
+      "listeners": 35,
+      "nodes": 147,
+      "renderer": {
+       "pid": 983495,
+       "type": "renderer",
+       "cpuTime": 0.11,
+       "pss": 61446144,
+       "rss": 155103232
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.19,
+       "pss": 41096192,
+       "rss": 102768640
+      },
+      "otherRenderers": [
+       {
+        "pid": 983494,
+        "pss": 18009088
+       },
+       {
+        "pid": 983485,
+        "pss": 51810304
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 18.197,
+    "scriptMs": 14.384,
+    "layoutStyleMs": 2.574,
+    "devtoolsMs": 0.24099999999999988,
+    "readyMs": 18.8,
+    "readyFrameMs": 22.4,
+    "rendererCpuMs": 20.000000000000004,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 585620,
+    "heapUsedBytes": 2027228,
+    "rendererPssBytes": 61446144,
+    "rendererPssChartBytes": 9163776,
+    "gpuPssBytes": 41096192,
+    "gpuPssChartBytes": -1024,
+    "canvasBackingBytes": 0,
+    "domNodes": 93
+   }
+  },
+  {
+   "index": 9,
+   "phase": "timed",
+   "block": 2,
+   "position": 1,
+   "config": "B",
+   "startedAt": "2026-11-24T11:38:33.216Z",
+   "adapter": "echarts",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1662,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "echarts",
+     "library": "Apache ECharts",
+     "version": "6.1.0",
+     "config": "modular tree-shaken (Canvas, ARIA, tooltip, legend, animation: false); line sampling: none (default none preserves endpoints, gaps, visible extrema and exact hover candidates)",
+     "params": {},
+     "floor": false,
+     "expectRenderer": null,
+     "bundle": null
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "9dca8678",
+    "probe": null,
+    "timing": {
+     "syncMs": 21,
+     "readyMs": 21,
+     "readyFrameMs": 22.4,
+     "windowMs": 524.6,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 1280000,
+     "chartCanvasCount": 1,
+     "otherCanvasBytes": 0,
+     "svgElements": 0,
+     "svgPaths": 0,
+     "domNodes": 5
+    },
+    "callerColumnBytes": 64,
+    "describe": [
+     {
+      "kind": "donut",
+      "plot": {
+       "x": 0,
+       "y": 0,
+       "width": 800,
+       "height": 400
+      },
+      "slices": [
+       {
+        "label": "Direct",
+        "value": 163,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 4.71238898038469,
+        "sweep": 1.4547715981111828,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Organic",
+        "value": 122,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 6.1671605784958725,
+        "sweep": 1.0888474538010078,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Referral",
+        "value": 64,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 7.25600803229688,
+        "sweep": 0.571198664289053,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Email",
+        "value": 59,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 7.827206696585933,
+        "sweep": 0.5265737686414704,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Paid search",
+        "value": 57,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 8.353780465227404,
+        "sweep": 0.5087238103824383,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Social",
+        "value": 51,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 8.862504275609842,
+        "sweep": 0.45517393560533925,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Partners",
+        "value": 68,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 9.317678211215181,
+        "sweep": 0.606898580807119,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Events",
+        "value": 120,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 9.9245767920223,
+        "sweep": 1.0709974955419757,
+        "innerRadius": 100,
+        "outerRadius": 150
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.025593999999999995,
+     "ScriptDuration": 0.021154,
+     "LayoutDuration": 0.00008300000000000001,
+     "RecalcStyleDuration": 0.000173,
+     "DevToolsCommandDuration": 0.0002959999999999998,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.003887999999999999,
+     "ThreadTime": 0.026396,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 5,
+     "JSEventListeners": 14,
+     "JSHeapUsedSize": 1709560,
+     "JSHeapTotalSize": 2097152,
+     "endNodes": 31,
+     "endJSHeapUsedSize": 4078792,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0.010000000000000009
+    }
+   },
+   "memory": {
+    "pagePid": 983551,
+    "gpuPid": 982861,
+    "samples": {
+     "blank": {
+      "heapUsed": 2073028,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 329752,
+      "backingStorage": 614226,
+      "listeners": 0,
+      "nodes": 25,
+      "renderer": {
+       "pid": 983551,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 52016128,
+       "rss": 141725696
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.21,
+       "pss": 40679424,
+       "rss": 101781504
+      },
+      "otherRenderers": [
+       {
+        "pid": 983550,
+        "pss": 18215936
+       },
+       {
+        "pid": 983541,
+        "pss": 52658176
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 2340328,
+      "heapTotal": 3145728,
+      "embedderHeapUsed": 333576,
+      "backingStorage": 619828,
+      "listeners": 0,
+      "nodes": 26,
+      "renderer": {
+       "pid": 983551,
+       "type": "renderer",
+       "cpuTime": 0.08,
+       "pss": 54007808,
+       "rss": 144629760
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.21,
+       "pss": 41193472,
+       "rss": 102817792
+      },
+      "otherRenderers": [
+       {
+        "pid": 983550,
+        "pss": 18215936
+       },
+       {
+        "pid": 983541,
+        "pss": 52550656
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 3303176,
+      "heapTotal": 3670016,
+      "embedderHeapUsed": 445904,
+      "backingStorage": 621160,
+      "listeners": 14,
+      "nodes": 31,
+      "renderer": {
+       "pid": 983551,
+       "type": "renderer",
+       "cpuTime": 0.13,
+       "pss": 63160320,
+       "rss": 158208000
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.22,
+       "pss": 41737216,
+       "rss": 104099840
+      },
+      "otherRenderers": [
+       {
+        "pid": 983550,
+        "pss": 18215936
+       },
+       {
+        "pid": 983541,
+        "pss": 51758080
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "echarts",
+   "summary": {
+    "taskMs": 25.593999999999994,
+    "scriptMs": 21.154,
+    "layoutStyleMs": 0.256,
+    "devtoolsMs": 0.2959999999999998,
+    "readyMs": 21,
+    "readyFrameMs": 22.4,
+    "rendererCpuMs": 30,
+    "gpuCpuMs": 10.000000000000009,
+    "heapChartBytes": 962848,
+    "heapUsedBytes": 3303176,
+    "rendererPssBytes": 63160320,
+    "rendererPssChartBytes": 9152512,
+    "gpuPssBytes": 41737216,
+    "gpuPssChartBytes": 543744,
+    "canvasBackingBytes": 1280000,
+    "domNodes": 5
+   }
+  },
+  {
+   "index": 10,
+   "phase": "timed",
+   "block": 3,
+   "position": 0,
+   "config": "B",
+   "startedAt": "2026-11-24T11:38:34.884Z",
+   "adapter": "echarts",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1671,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "echarts",
+     "library": "Apache ECharts",
+     "version": "6.1.0",
+     "config": "modular tree-shaken (Canvas, ARIA, tooltip, legend, animation: false); line sampling: none (default none preserves endpoints, gaps, visible extrema and exact hover candidates)",
+     "params": {},
+     "floor": false,
+     "expectRenderer": null,
+     "bundle": null
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "9dca8678",
+    "probe": null,
+    "timing": {
+     "syncMs": 18.3,
+     "readyMs": 18.3,
+     "readyFrameMs": 19.6,
+     "windowMs": 521.1,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 1280000,
+     "chartCanvasCount": 1,
+     "otherCanvasBytes": 0,
+     "svgElements": 0,
+     "svgPaths": 0,
+     "domNodes": 5
+    },
+    "callerColumnBytes": 64,
+    "describe": [
+     {
+      "kind": "donut",
+      "plot": {
+       "x": 0,
+       "y": 0,
+       "width": 800,
+       "height": 400
+      },
+      "slices": [
+       {
+        "label": "Direct",
+        "value": 163,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 4.71238898038469,
+        "sweep": 1.4547715981111828,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Organic",
+        "value": 122,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 6.1671605784958725,
+        "sweep": 1.0888474538010078,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Referral",
+        "value": 64,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 7.25600803229688,
+        "sweep": 0.571198664289053,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Email",
+        "value": 59,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 7.827206696585933,
+        "sweep": 0.5265737686414704,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Paid search",
+        "value": 57,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 8.353780465227404,
+        "sweep": 0.5087238103824383,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Social",
+        "value": 51,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 8.862504275609842,
+        "sweep": 0.45517393560533925,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Partners",
+        "value": 68,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 9.317678211215181,
+        "sweep": 0.606898580807119,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Events",
+        "value": 120,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 9.9245767920223,
+        "sweep": 1.0709974955419757,
+        "innerRadius": 100,
+        "outerRadius": 150
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.022697000000000002,
+     "ScriptDuration": 0.018439,
+     "LayoutDuration": 0.00008100000000000002,
+     "RecalcStyleDuration": 0.000161,
+     "DevToolsCommandDuration": 0.00030099999999999984,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.003715000000000003,
+     "ThreadTime": 0.023608000000000004,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 5,
+     "JSEventListeners": 14,
+     "JSHeapUsedSize": 1709372,
+     "JSHeapTotalSize": 2097152,
+     "endNodes": 31,
+     "endJSHeapUsedSize": 4078616,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0.010000000000000009
+    }
+   },
+   "memory": {
+    "pagePid": 983611,
+    "gpuPid": 982861,
+    "samples": {
+     "blank": {
+      "heapUsed": 2073040,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 329864,
+      "backingStorage": 614226,
+      "listeners": 0,
+      "nodes": 25,
+      "renderer": {
+       "pid": 983611,
+       "type": "renderer",
+       "cpuTime": 0.06,
+       "pss": 52051968,
+       "rss": 141737984
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.23,
+       "pss": 40435712,
+       "rss": 101330944
+      },
+      "otherRenderers": [
+       {
+        "pid": 983610,
+        "pss": 18206720
+       },
+       {
+        "pid": 983601,
+        "pss": 52023296
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 2340340,
+      "heapTotal": 3145728,
+      "embedderHeapUsed": 333576,
+      "backingStorage": 619828,
+      "listeners": 0,
+      "nodes": 26,
+      "renderer": {
+       "pid": 983611,
+       "type": "renderer",
+       "cpuTime": 0.09,
+       "pss": 54096896,
+       "rss": 144695296
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.24,
+       "pss": 40945664,
+       "rss": 102363136
+      },
+      "otherRenderers": [
+       {
+        "pid": 983610,
+        "pss": 18206720
+       },
+       {
+        "pid": 983601,
+        "pss": 51915776
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 3303120,
+      "heapTotal": 3670016,
+      "embedderHeapUsed": 445904,
+      "backingStorage": 621160,
+      "listeners": 14,
+      "nodes": 31,
+      "renderer": {
+       "pid": 983611,
+       "type": "renderer",
+       "cpuTime": 0.13,
+       "pss": 63142912,
+       "rss": 158167040
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.25,
+       "pss": 41489408,
+       "rss": 103645184
+      },
+      "otherRenderers": [
+       {
+        "pid": 983610,
+        "pss": 18205696
+       },
+       {
+        "pid": 983601,
+        "pss": 51123200
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "echarts",
+   "summary": {
+    "taskMs": 22.697000000000003,
+    "scriptMs": 18.439,
+    "layoutStyleMs": 0.24200000000000002,
+    "devtoolsMs": 0.3009999999999998,
+    "readyMs": 18.3,
+    "readyFrameMs": 19.6,
+    "rendererCpuMs": 30,
+    "gpuCpuMs": 10.000000000000009,
+    "heapChartBytes": 962780,
+    "heapUsedBytes": 3303120,
+    "rendererPssBytes": 63142912,
+    "rendererPssChartBytes": 9046016,
+    "gpuPssBytes": 41489408,
+    "gpuPssChartBytes": 543744,
+    "canvasBackingBytes": 1280000,
+    "domNodes": 5
+   }
+  },
+  {
+   "index": 11,
+   "phase": "timed",
+   "block": 3,
+   "position": 1,
+   "config": "A",
+   "startedAt": "2026-11-24T11:38:36.560Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1664,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "9dca8678",
+    "probe": null,
+    "timing": {
+     "syncMs": 3.2,
+     "readyMs": 19.8,
+     "readyFrameMs": 23.1,
+     "windowMs": 524.9,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 9,
+     "svgPaths": 16,
+     "domNodes": 93
+    },
+    "callerColumnBytes": 64,
+    "describe": [
+     {
+      "kind": "donut",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "plot": {
+       "x": 0,
+       "y": 0,
+       "width": 800,
+       "height": 288.453125
+      },
+      "slices": [
+       {
+        "label": "Direct",
+        "value": 163,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -1.5673295729024945,
+        "sweep": 1.4477913735004877,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Organic",
+        "value": 122,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -0.11254013457018852,
+        "sweep": 1.0818097377205749,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Referral",
+        "value": 64,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 0.9763071640191744,
+        "sweep": 0.5642494976317347,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Email",
+        "value": 59,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 1.5474968963667568,
+        "sweep": 0.5196033414517536,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Paid search",
+        "value": 57,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 2.0740715471368687,
+        "sweep": 0.5017324224393648,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Social",
+        "value": 51,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 2.5828040886804455,
+        "sweep": 0.4482267410585873,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Partners",
+        "value": 68,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 3.0379332112837183,
+        "sweep": 0.5999437014265162,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Events",
+        "value": 120,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -2.638326817266213,
+        "sweep": 1.0640195433344504,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.018688000000000003,
+     "ScriptDuration": 0.014665999999999998,
+     "LayoutDuration": 0.001344,
+     "RecalcStyleDuration": 0.0013249999999999998,
+     "DevToolsCommandDuration": 0.0003489999999999999,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0010039999999999997,
+     "ThreadTime": 0.018503000000000002,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 120,
+     "JSEventListeners": 33,
+     "JSHeapUsedSize": 822112,
+     "JSHeapTotalSize": 786432,
+     "endNodes": 147,
+     "endJSHeapUsedSize": 2293576,
+     "rendererCpu": 0.01999999999999999,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 983667,
+    "gpuPid": 982861,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180068,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 333080,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 983667,
+       "type": "renderer",
+       "cpuTime": 0.04,
+       "pss": 49918976,
+       "rss": 138342400
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.25,
+       "pss": 40630272,
+       "rss": 101629952
+      },
+      "otherRenderers": [
+       {
+        "pid": 983666,
+        "pss": 18220032
+       },
+       {
+        "pid": 983657,
+        "pss": 53466112
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1441608,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 389507,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 983667,
+       "type": "renderer",
+       "cpuTime": 0.07,
+       "pss": 52221952,
+       "rss": 141955072
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.26,
+       "pss": 41137152,
+       "rss": 102662144
+      },
+      "otherRenderers": [
+       {
+        "pid": 983666,
+        "pss": 18220032
+       },
+       {
+        "pid": 983657,
+        "pss": 53163008
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2027216,
+      "heapTotal": 2621440,
+      "embedderHeapUsed": 697792,
+      "backingStorage": 407324,
+      "listeners": 35,
+      "nodes": 147,
+      "renderer": {
+       "pid": 983667,
+       "type": "renderer",
+       "cpuTime": 0.1,
+       "pss": 61381632,
+       "rss": 155332608
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.26,
+       "pss": 41137152,
+       "rss": 102838272
+      },
+      "otherRenderers": [
+       {
+        "pid": 983666,
+        "pss": 18221056
+       },
+       {
+        "pid": 983657,
+        "pss": 52030464
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 18.688000000000002,
+    "scriptMs": 14.665999999999999,
+    "layoutStyleMs": 2.6689999999999996,
+    "devtoolsMs": 0.3489999999999999,
+    "readyMs": 19.8,
+    "readyFrameMs": 23.1,
+    "rendererCpuMs": 19.99999999999999,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 585608,
+    "heapUsedBytes": 2027216,
+    "rendererPssBytes": 61381632,
+    "rendererPssChartBytes": 9159680,
+    "gpuPssBytes": 41137152,
+    "gpuPssChartBytes": 0,
+    "canvasBackingBytes": 0,
+    "domNodes": 93
+   }
+  },
+  {
+   "index": 12,
+   "phase": "timed",
+   "block": 4,
+   "position": 0,
+   "config": "A",
+   "startedAt": "2026-11-24T11:38:38.229Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1679,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "9dca8678",
+    "probe": null,
+    "timing": {
+     "syncMs": 5.2,
+     "readyMs": 21.9,
+     "readyFrameMs": 23.1,
+     "windowMs": 525.4,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 9,
+     "svgPaths": 16,
+     "domNodes": 93
+    },
+    "callerColumnBytes": 64,
+    "describe": [
+     {
+      "kind": "donut",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "plot": {
+       "x": 0,
+       "y": 0,
+       "width": 800,
+       "height": 288.453125
+      },
+      "slices": [
+       {
+        "label": "Direct",
+        "value": 163,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -1.5673295729024945,
+        "sweep": 1.4477913735004877,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Organic",
+        "value": 122,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -0.11254013457018852,
+        "sweep": 1.0818097377205749,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Referral",
+        "value": 64,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 0.9763071640191744,
+        "sweep": 0.5642494976317347,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Email",
+        "value": 59,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 1.5474968963667568,
+        "sweep": 0.5196033414517536,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Paid search",
+        "value": 57,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 2.0740715471368687,
+        "sweep": 0.5017324224393648,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Social",
+        "value": 51,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 2.5828040886804455,
+        "sweep": 0.4482267410585873,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Partners",
+        "value": 68,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 3.0379332112837183,
+        "sweep": 0.5999437014265162,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Events",
+        "value": 120,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -2.638326817266213,
+        "sweep": 1.0640195433344504,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.024530000000000003,
+     "ScriptDuration": 0.019431,
+     "LayoutDuration": 0.00165,
+     "RecalcStyleDuration": 0.001722,
+     "DevToolsCommandDuration": 0.0003029999999999999,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0014240000000000017,
+     "ThreadTime": 0.024154000000000002,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 120,
+     "JSEventListeners": 33,
+     "JSHeapUsedSize": 822112,
+     "JSHeapTotalSize": 786432,
+     "endNodes": 147,
+     "endJSHeapUsedSize": 2293576,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 983731,
+    "gpuPid": 982861,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180068,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 333192,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 983731,
+       "type": "renderer",
+       "cpuTime": 0.06,
+       "pss": 50164736,
+       "rss": 138055680
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.28,
+       "pss": 40585216,
+       "rss": 101560320
+      },
+      "otherRenderers": [
+       {
+        "pid": 983730,
+        "pss": 17978368
+       },
+       {
+        "pid": 983721,
+        "pss": 53910528
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1441608,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 389507,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 983731,
+       "type": "renderer",
+       "cpuTime": 0.08,
+       "pss": 52467712,
+       "rss": 141668352
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.28,
+       "pss": 41093120,
+       "rss": 102592512
+      },
+      "otherRenderers": [
+       {
+        "pid": 983730,
+        "pss": 17978368
+       },
+       {
+        "pid": 983721,
+        "pss": 53607424
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2027216,
+      "heapTotal": 2621440,
+      "embedderHeapUsed": 696512,
+      "backingStorage": 407324,
+      "listeners": 35,
+      "nodes": 147,
+      "renderer": {
+       "pid": 983731,
+       "type": "renderer",
+       "cpuTime": 0.12,
+       "pss": 61589504,
+       "rss": 155074560
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.28,
+       "pss": 41091072,
+       "rss": 102764544
+      },
+      "otherRenderers": [
+       {
+        "pid": 983730,
+        "pss": 17971200
+       },
+       {
+        "pid": 983721,
+        "pss": 52467712
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 24.530000000000005,
+    "scriptMs": 19.431,
+    "layoutStyleMs": 3.372,
+    "devtoolsMs": 0.3029999999999999,
+    "readyMs": 21.9,
+    "readyFrameMs": 23.1,
+    "rendererCpuMs": 30,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 585608,
+    "heapUsedBytes": 2027216,
+    "rendererPssBytes": 61589504,
+    "rendererPssChartBytes": 9121792,
+    "gpuPssBytes": 41091072,
+    "gpuPssChartBytes": -2048,
+    "canvasBackingBytes": 0,
+    "domNodes": 93
+   }
+  },
+  {
+   "index": 13,
+   "phase": "timed",
+   "block": 4,
+   "position": 1,
+   "config": "B",
+   "startedAt": "2026-11-24T11:38:39.913Z",
+   "adapter": "echarts",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1663,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "echarts",
+     "library": "Apache ECharts",
+     "version": "6.1.0",
+     "config": "modular tree-shaken (Canvas, ARIA, tooltip, legend, animation: false); line sampling: none (default none preserves endpoints, gaps, visible extrema and exact hover candidates)",
+     "params": {},
+     "floor": false,
+     "expectRenderer": null,
+     "bundle": null
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "9dca8678",
+    "probe": null,
+    "timing": {
+     "syncMs": 18.2,
+     "readyMs": 18.3,
+     "readyFrameMs": 19.7,
+     "windowMs": 522.3,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 1280000,
+     "chartCanvasCount": 1,
+     "otherCanvasBytes": 0,
+     "svgElements": 0,
+     "svgPaths": 0,
+     "domNodes": 5
+    },
+    "callerColumnBytes": 64,
+    "describe": [
+     {
+      "kind": "donut",
+      "plot": {
+       "x": 0,
+       "y": 0,
+       "width": 800,
+       "height": 400
+      },
+      "slices": [
+       {
+        "label": "Direct",
+        "value": 163,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 4.71238898038469,
+        "sweep": 1.4547715981111828,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Organic",
+        "value": 122,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 6.1671605784958725,
+        "sweep": 1.0888474538010078,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Referral",
+        "value": 64,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 7.25600803229688,
+        "sweep": 0.571198664289053,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Email",
+        "value": 59,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 7.827206696585933,
+        "sweep": 0.5265737686414704,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Paid search",
+        "value": 57,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 8.353780465227404,
+        "sweep": 0.5087238103824383,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Social",
+        "value": 51,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 8.862504275609842,
+        "sweep": 0.45517393560533925,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Partners",
+        "value": 68,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 9.317678211215181,
+        "sweep": 0.606898580807119,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Events",
+        "value": 120,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 9.9245767920223,
+        "sweep": 1.0709974955419757,
+        "innerRadius": 100,
+        "outerRadius": 150
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.022888000000000002,
+     "ScriptDuration": 0.018430999999999996,
+     "LayoutDuration": 0.000073,
+     "RecalcStyleDuration": 0.000154,
+     "DevToolsCommandDuration": 0.0002639999999999999,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.003965999999999999,
+     "ThreadTime": 0.024017000000000004,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 5,
+     "JSEventListeners": 14,
+     "JSHeapUsedSize": 1709280,
+     "JSHeapTotalSize": 2097152,
+     "endNodes": 31,
+     "endJSHeapUsedSize": 4078532,
+     "rendererCpu": 0.039999999999999994,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 983819,
+    "gpuPid": 982861,
+    "samples": {
+     "blank": {
+      "heapUsed": 2073048,
+      "heapTotal": 2621440,
+      "embedderHeapUsed": 329864,
+      "backingStorage": 614226,
+      "listeners": 0,
+      "nodes": 25,
+      "renderer": {
+       "pid": 983819,
+       "type": "renderer",
+       "cpuTime": 0.06,
+       "pss": 51937280,
+       "rss": 141651968
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.29,
+       "pss": 40514560,
+       "rss": 101404672
+      },
+      "otherRenderers": [
+       {
+        "pid": 983818,
+        "pss": 18220032
+       },
+       {
+        "pid": 983809,
+        "pss": 52419584
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 2340348,
+      "heapTotal": 3145728,
+      "embedderHeapUsed": 333576,
+      "backingStorage": 619828,
+      "listeners": 0,
+      "nodes": 26,
+      "renderer": {
+       "pid": 983819,
+       "type": "renderer",
+       "cpuTime": 0.08,
+       "pss": 53983232,
+       "rss": 144609280
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.31,
+       "pss": 41024512,
+       "rss": 102436864
+      },
+      "otherRenderers": [
+       {
+        "pid": 983818,
+        "pss": 18220032
+       },
+       {
+        "pid": 983809,
+        "pss": 52312064
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 3303092,
+      "heapTotal": 3670016,
+      "embedderHeapUsed": 445904,
+      "backingStorage": 621160,
+      "listeners": 14,
+      "nodes": 31,
+      "renderer": {
+       "pid": 983819,
+       "type": "renderer",
+       "cpuTime": 0.13,
+       "pss": 63172608,
+       "rss": 158224384
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.31,
+       "pss": 41568256,
+       "rss": 103718912
+      },
+      "otherRenderers": [
+       {
+        "pid": 983818,
+        "pss": 18220032
+       },
+       {
+        "pid": 983809,
+        "pss": 51520512
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "echarts",
+   "summary": {
+    "taskMs": 22.888,
+    "scriptMs": 18.430999999999997,
+    "layoutStyleMs": 0.22699999999999998,
+    "devtoolsMs": 0.2639999999999999,
+    "readyMs": 18.3,
+    "readyFrameMs": 19.7,
+    "rendererCpuMs": 39.99999999999999,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 962744,
+    "heapUsedBytes": 3303092,
+    "rendererPssBytes": 63172608,
+    "rendererPssChartBytes": 9189376,
+    "gpuPssBytes": 41568256,
+    "gpuPssChartBytes": 543744,
+    "canvasBackingBytes": 1280000,
+    "domNodes": 5
+   }
+  },
+  {
+   "index": 14,
+   "phase": "timed",
+   "block": 5,
+   "position": 0,
+   "config": "B",
+   "startedAt": "2026-11-24T11:38:41.582Z",
+   "adapter": "echarts",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1657,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "echarts",
+     "library": "Apache ECharts",
+     "version": "6.1.0",
+     "config": "modular tree-shaken (Canvas, ARIA, tooltip, legend, animation: false); line sampling: none (default none preserves endpoints, gaps, visible extrema and exact hover candidates)",
+     "params": {},
+     "floor": false,
+     "expectRenderer": null,
+     "bundle": null
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "9dca8678",
+    "probe": null,
+    "timing": {
+     "syncMs": 16.6,
+     "readyMs": 16.6,
+     "readyFrameMs": 17.9,
+     "windowMs": 520.2,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 1280000,
+     "chartCanvasCount": 1,
+     "otherCanvasBytes": 0,
+     "svgElements": 0,
+     "svgPaths": 0,
+     "domNodes": 5
+    },
+    "callerColumnBytes": 64,
+    "describe": [
+     {
+      "kind": "donut",
+      "plot": {
+       "x": 0,
+       "y": 0,
+       "width": 800,
+       "height": 400
+      },
+      "slices": [
+       {
+        "label": "Direct",
+        "value": 163,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 4.71238898038469,
+        "sweep": 1.4547715981111828,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Organic",
+        "value": 122,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 6.1671605784958725,
+        "sweep": 1.0888474538010078,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Referral",
+        "value": 64,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 7.25600803229688,
+        "sweep": 0.571198664289053,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Email",
+        "value": 59,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 7.827206696585933,
+        "sweep": 0.5265737686414704,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Paid search",
+        "value": 57,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 8.353780465227404,
+        "sweep": 0.5087238103824383,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Social",
+        "value": 51,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 8.862504275609842,
+        "sweep": 0.45517393560533925,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Partners",
+        "value": 68,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 9.317678211215181,
+        "sweep": 0.606898580807119,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Events",
+        "value": 120,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 9.9245767920223,
+        "sweep": 1.0709974955419757,
+        "innerRadius": 100,
+        "outerRadius": 150
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.020138,
+     "ScriptDuration": 0.016783,
+     "LayoutDuration": 0.000057,
+     "RecalcStyleDuration": 0.00012100000000000001,
+     "DevToolsCommandDuration": 0.00018800000000000002,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0029889999999999986,
+     "ThreadTime": 0.021185,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 5,
+     "JSEventListeners": 14,
+     "JSHeapUsedSize": 1709224,
+     "JSHeapTotalSize": 2097152,
+     "endNodes": 31,
+     "endJSHeapUsedSize": 4078476,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 983876,
+    "gpuPid": 982861,
+    "samples": {
+     "blank": {
+      "heapUsed": 2073048,
+      "heapTotal": 2621440,
+      "embedderHeapUsed": 329864,
+      "backingStorage": 614226,
+      "listeners": 0,
+      "nodes": 25,
+      "renderer": {
+       "pid": 983876,
+       "type": "renderer",
+       "cpuTime": 0.06,
+       "pss": 52146176,
+       "rss": 141860864
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.32,
+       "pss": 40518656,
+       "rss": 101408768
+      },
+      "otherRenderers": [
+       {
+        "pid": 983875,
+        "pss": 18215936
+       },
+       {
+        "pid": 983866,
+        "pss": 52411392
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 2340348,
+      "heapTotal": 3145728,
+      "embedderHeapUsed": 333576,
+      "backingStorage": 619828,
+      "listeners": 0,
+      "nodes": 26,
+      "renderer": {
+       "pid": 983876,
+       "type": "renderer",
+       "cpuTime": 0.08,
+       "pss": 54118400,
+       "rss": 144744448
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.32,
+       "pss": 41028608,
+       "rss": 102440960
+      },
+      "otherRenderers": [
+       {
+        "pid": 983875,
+        "pss": 18215936
+       },
+       {
+        "pid": 983866,
+        "pss": 52303872
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 3303136,
+      "heapTotal": 3670016,
+      "embedderHeapUsed": 445904,
+      "backingStorage": 621160,
+      "listeners": 14,
+      "nodes": 31,
+      "renderer": {
+       "pid": 983876,
+       "type": "renderer",
+       "cpuTime": 0.12,
+       "pss": 63210496,
+       "rss": 158224384
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.32,
+       "pss": 41572352,
+       "rss": 103723008
+      },
+      "otherRenderers": [
+       {
+        "pid": 983875,
+        "pss": 18215936
+       },
+       {
+        "pid": 983866,
+        "pss": 51512320
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "echarts",
+   "summary": {
+    "taskMs": 20.137999999999998,
+    "scriptMs": 16.782999999999998,
+    "layoutStyleMs": 0.17800000000000002,
+    "devtoolsMs": 0.18800000000000003,
+    "readyMs": 16.6,
+    "readyFrameMs": 17.9,
+    "rendererCpuMs": 30,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 962788,
+    "heapUsedBytes": 3303136,
+    "rendererPssBytes": 63210496,
+    "rendererPssChartBytes": 9092096,
+    "gpuPssBytes": 41572352,
+    "gpuPssChartBytes": 543744,
+    "canvasBackingBytes": 1280000,
+    "domNodes": 5
+   }
+  },
+  {
+   "index": 15,
+   "phase": "timed",
+   "block": 5,
+   "position": 1,
+   "config": "A",
+   "startedAt": "2026-11-24T11:38:43.245Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1667,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "9dca8678",
+    "probe": null,
+    "timing": {
+     "syncMs": 3.2,
+     "readyMs": 18.8,
+     "readyFrameMs": 21.9,
+     "windowMs": 524.4,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 9,
+     "svgPaths": 16,
+     "domNodes": 93
+    },
+    "callerColumnBytes": 64,
+    "describe": [
+     {
+      "kind": "donut",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "plot": {
+       "x": 0,
+       "y": 0,
+       "width": 800,
+       "height": 288.453125
+      },
+      "slices": [
+       {
+        "label": "Direct",
+        "value": 163,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -1.5673295729024945,
+        "sweep": 1.4477913735004877,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Organic",
+        "value": 122,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -0.11254013457018852,
+        "sweep": 1.0818097377205749,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Referral",
+        "value": 64,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 0.9763071640191744,
+        "sweep": 0.5642494976317347,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Email",
+        "value": 59,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 1.5474968963667568,
+        "sweep": 0.5196033414517536,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Paid search",
+        "value": 57,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 2.0740715471368687,
+        "sweep": 0.5017324224393648,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Social",
+        "value": 51,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 2.5828040886804455,
+        "sweep": 0.4482267410585873,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Partners",
+        "value": 68,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 3.0379332112837183,
+        "sweep": 0.5999437014265162,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Events",
+        "value": 120,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -2.638326817266213,
+        "sweep": 1.0640195433344504,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.018761999999999997,
+     "ScriptDuration": 0.014876999999999998,
+     "LayoutDuration": 0.0013160000000000001,
+     "RecalcStyleDuration": 0.001328,
+     "DevToolsCommandDuration": 0.00023400000000000027,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.001007000000000001,
+     "ThreadTime": 0.018549,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 120,
+     "JSEventListeners": 33,
+     "JSHeapUsedSize": 822112,
+     "JSHeapTotalSize": 786432,
+     "endNodes": 147,
+     "endJSHeapUsedSize": 2293576,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 983936,
+    "gpuPid": 982861,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180068,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 405136,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 983936,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 49946624,
+       "rss": 138412032
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.34,
+       "pss": 40545280,
+       "rss": 101429248
+      },
+      "otherRenderers": [
+       {
+        "pid": 983935,
+        "pss": 18223104
+       },
+       {
+        "pid": 983926,
+        "pss": 53307392
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1441608,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 389507,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 983936,
+       "type": "renderer",
+       "cpuTime": 0.06,
+       "pss": 52224000,
+       "rss": 142000128
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.34,
+       "pss": 41053184,
+       "rss": 102461440
+      },
+      "otherRenderers": [
+       {
+        "pid": 983935,
+        "pss": 18224128
+       },
+       {
+        "pid": 983926,
+        "pss": 53004288
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2027216,
+      "heapTotal": 2621440,
+      "embedderHeapUsed": 698672,
+      "backingStorage": 407324,
+      "listeners": 35,
+      "nodes": 147,
+      "renderer": {
+       "pid": 983936,
+       "type": "renderer",
+       "cpuTime": 0.11,
+       "pss": 61426688,
+       "rss": 155377664
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.34,
+       "pss": 41052160,
+       "rss": 102633472
+      },
+      "otherRenderers": [
+       {
+        "pid": 983935,
+        "pss": 18224128
+       },
+       {
+        "pid": 983926,
+        "pss": 51871744
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 18.761999999999997,
+    "scriptMs": 14.876999999999997,
+    "layoutStyleMs": 2.644,
+    "devtoolsMs": 0.23400000000000026,
+    "readyMs": 18.8,
+    "readyFrameMs": 21.9,
+    "rendererCpuMs": 30,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 585608,
+    "heapUsedBytes": 2027216,
+    "rendererPssBytes": 61426688,
+    "rendererPssChartBytes": 9202688,
+    "gpuPssBytes": 41052160,
+    "gpuPssChartBytes": -1024,
+    "canvasBackingBytes": 0,
+    "domNodes": 93
+   }
+  },
+  {
+   "index": 16,
+   "phase": "timed",
+   "block": 6,
+   "position": 0,
+   "config": "B",
+   "startedAt": "2026-11-24T11:38:44.917Z",
+   "adapter": "echarts",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1671,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "echarts",
+     "library": "Apache ECharts",
+     "version": "6.1.0",
+     "config": "modular tree-shaken (Canvas, ARIA, tooltip, legend, animation: false); line sampling: none (default none preserves endpoints, gaps, visible extrema and exact hover candidates)",
+     "params": {},
+     "floor": false,
+     "expectRenderer": null,
+     "bundle": null
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "9dca8678",
+    "probe": null,
+    "timing": {
+     "syncMs": 17.3,
+     "readyMs": 17.3,
+     "readyFrameMs": 18.6,
+     "windowMs": 520.8,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 1280000,
+     "chartCanvasCount": 1,
+     "otherCanvasBytes": 0,
+     "svgElements": 0,
+     "svgPaths": 0,
+     "domNodes": 5
+    },
+    "callerColumnBytes": 64,
+    "describe": [
+     {
+      "kind": "donut",
+      "plot": {
+       "x": 0,
+       "y": 0,
+       "width": 800,
+       "height": 400
+      },
+      "slices": [
+       {
+        "label": "Direct",
+        "value": 163,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 4.71238898038469,
+        "sweep": 1.4547715981111828,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Organic",
+        "value": 122,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 6.1671605784958725,
+        "sweep": 1.0888474538010078,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Referral",
+        "value": 64,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 7.25600803229688,
+        "sweep": 0.571198664289053,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Email",
+        "value": 59,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 7.827206696585933,
+        "sweep": 0.5265737686414704,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Paid search",
+        "value": 57,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 8.353780465227404,
+        "sweep": 0.5087238103824383,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Social",
+        "value": 51,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 8.862504275609842,
+        "sweep": 0.45517393560533925,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Partners",
+        "value": 68,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 9.317678211215181,
+        "sweep": 0.606898580807119,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Events",
+        "value": 120,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 9.9245767920223,
+        "sweep": 1.0709974955419757,
+        "innerRadius": 100,
+        "outerRadius": 150
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.021516000000000004,
+     "ScriptDuration": 0.017498,
+     "LayoutDuration": 0.00007099999999999999,
+     "RecalcStyleDuration": 0.00014600000000000003,
+     "DevToolsCommandDuration": 0.00021199999999999995,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0035889999999999984,
+     "ThreadTime": 0.022635000000000002,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 5,
+     "JSEventListeners": 14,
+     "JSHeapUsedSize": 1709480,
+     "JSHeapTotalSize": 2097152,
+     "endNodes": 31,
+     "endJSHeapUsedSize": 4078724,
+     "rendererCpu": 0.020000000000000004,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 983994,
+    "gpuPid": 982861,
+    "samples": {
+     "blank": {
+      "heapUsed": 2073040,
+      "heapTotal": 2883584,
+      "embedderHeapUsed": 329864,
+      "backingStorage": 614226,
+      "listeners": 0,
+      "nodes": 25,
+      "renderer": {
+       "pid": 983994,
+       "type": "renderer",
+       "cpuTime": 0.06,
+       "pss": 51920896,
+       "rss": 141594624
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.35,
+       "pss": 40551424,
+       "rss": 101445632
+      },
+      "otherRenderers": [
+       {
+        "pid": 983992,
+        "pss": 18217984
+       },
+       {
+        "pid": 983983,
+        "pss": 52342784
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 2340340,
+      "heapTotal": 3145728,
+      "embedderHeapUsed": 333576,
+      "backingStorage": 619828,
+      "listeners": 0,
+      "nodes": 26,
+      "renderer": {
+       "pid": 983994,
+       "type": "renderer",
+       "cpuTime": 0.08,
+       "pss": 53920768,
+       "rss": 144506880
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.35,
+       "pss": 41061376,
+       "rss": 102477824
+      },
+      "otherRenderers": [
+       {
+        "pid": 983992,
+        "pss": 18217984
+       },
+       {
+        "pid": 983983,
+        "pss": 52239360
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 3303188,
+      "heapTotal": 3670016,
+      "embedderHeapUsed": 445904,
+      "backingStorage": 621160,
+      "listeners": 14,
+      "nodes": 31,
+      "renderer": {
+       "pid": 983994,
+       "type": "renderer",
+       "cpuTime": 0.12,
+       "pss": 63123456,
+       "rss": 158134272
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.35,
+       "pss": 41573376,
+       "rss": 103731200
+      },
+      "otherRenderers": [
+       {
+        "pid": 983992,
+        "pss": 18217984
+       },
+       {
+        "pid": 983983,
+        "pss": 51446784
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "echarts",
+   "summary": {
+    "taskMs": 21.516000000000005,
+    "scriptMs": 17.498,
+    "layoutStyleMs": 0.21700000000000003,
+    "devtoolsMs": 0.21199999999999994,
+    "readyMs": 17.3,
+    "readyFrameMs": 18.6,
+    "rendererCpuMs": 20.000000000000004,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 962848,
+    "heapUsedBytes": 3303188,
+    "rendererPssBytes": 63123456,
+    "rendererPssChartBytes": 9202688,
+    "gpuPssBytes": 41573376,
+    "gpuPssChartBytes": 512000,
+    "canvasBackingBytes": 1280000,
+    "domNodes": 5
+   }
+  },
+  {
+   "index": 17,
+   "phase": "timed",
+   "block": 6,
+   "position": 1,
+   "config": "A",
+   "startedAt": "2026-11-24T11:38:46.593Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1665,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.6,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "9dca8678",
+    "probe": null,
+    "timing": {
+     "syncMs": 5.1,
+     "readyMs": 18.9,
+     "readyFrameMs": 19.8,
+     "windowMs": 522.9,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 9,
+     "svgPaths": 16,
+     "domNodes": 93
+    },
+    "callerColumnBytes": 64,
+    "describe": [
+     {
+      "kind": "donut",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "plot": {
+       "x": 0,
+       "y": 0,
+       "width": 800,
+       "height": 288.453125
+      },
+      "slices": [
+       {
+        "label": "Direct",
+        "value": 163,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -1.5673295729024945,
+        "sweep": 1.4477913735004877,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Organic",
+        "value": 122,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -0.11254013457018852,
+        "sweep": 1.0818097377205749,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Referral",
+        "value": 64,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 0.9763071640191744,
+        "sweep": 0.5642494976317347,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Email",
+        "value": 59,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 1.5474968963667568,
+        "sweep": 0.5196033414517536,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Paid search",
+        "value": 57,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 2.0740715471368687,
+        "sweep": 0.5017324224393648,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Social",
+        "value": 51,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 2.5828040886804455,
+        "sweep": 0.4482267410585873,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Partners",
+        "value": 68,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 3.0379332112837183,
+        "sweep": 0.5999437014265162,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Events",
+        "value": 120,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -2.638326817266213,
+        "sweep": 1.0640195433344504,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.021103000000000004,
+     "ScriptDuration": 0.016916,
+     "LayoutDuration": 0.00139,
+     "RecalcStyleDuration": 0.0014470000000000002,
+     "DevToolsCommandDuration": 0.0003159999999999999,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0010340000000000002,
+     "ThreadTime": 0.020857999999999998,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 120,
+     "JSEventListeners": 33,
+     "JSHeapUsedSize": 822088,
+     "JSHeapTotalSize": 786432,
+     "endNodes": 147,
+     "endJSHeapUsedSize": 2293552,
+     "rendererCpu": 0.03,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 984050,
+    "gpuPid": 982861,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180068,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 333192,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 984050,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 49977344,
+       "rss": 138412032
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.37,
+       "pss": 40510464,
+       "rss": 101384192
+      },
+      "otherRenderers": [
+       {
+        "pid": 984048,
+        "pss": 18172928
+       },
+       {
+        "pid": 984039,
+        "pss": 52974592
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1441608,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 389507,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 984050,
+       "type": "renderer",
+       "cpuTime": 0.06,
+       "pss": 52279296,
+       "rss": 142024704
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.38,
+       "pss": 41017344,
+       "rss": 102416384
+      },
+      "otherRenderers": [
+       {
+        "pid": 984048,
+        "pss": 18172928
+       },
+       {
+        "pid": 984039,
+        "pss": 52675584
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2027204,
+      "heapTotal": 2621440,
+      "embedderHeapUsed": 698608,
+      "backingStorage": 407324,
+      "listeners": 35,
+      "nodes": 147,
+      "renderer": {
+       "pid": 984050,
+       "type": "renderer",
+       "cpuTime": 0.11,
+       "pss": 61395968,
+       "rss": 155324416
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.38,
+       "pss": 41013248,
+       "rss": 102588416
+      },
+      "otherRenderers": [
+       {
+        "pid": 984048,
+        "pss": 18172928
+       },
+       {
+        "pid": 984039,
+        "pss": 51538944
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 21.103000000000005,
+    "scriptMs": 16.916,
+    "layoutStyleMs": 2.8369999999999997,
+    "devtoolsMs": 0.3159999999999999,
+    "readyMs": 18.9,
+    "readyFrameMs": 19.8,
+    "rendererCpuMs": 30,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 585596,
+    "heapUsedBytes": 2027204,
+    "rendererPssBytes": 61395968,
+    "rendererPssChartBytes": 9116672,
+    "gpuPssBytes": 41013248,
+    "gpuPssChartBytes": -4096,
+    "canvasBackingBytes": 0,
+    "domNodes": 93
+   }
+  },
+  {
+   "index": 18,
+   "phase": "timed",
+   "block": 7,
+   "position": 0,
+   "config": "B",
+   "startedAt": "2026-11-24T11:38:48.264Z",
+   "adapter": "echarts",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1664,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "echarts",
+     "library": "Apache ECharts",
+     "version": "6.1.0",
+     "config": "modular tree-shaken (Canvas, ARIA, tooltip, legend, animation: false); line sampling: none (default none preserves endpoints, gaps, visible extrema and exact hover candidates)",
+     "params": {},
+     "floor": false,
+     "expectRenderer": null,
+     "bundle": null
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.5,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "9dca8678",
+    "probe": null,
+    "timing": {
+     "syncMs": 18.2,
+     "readyMs": 18.2,
+     "readyFrameMs": 19.6,
+     "windowMs": 521.9,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 1280000,
+     "chartCanvasCount": 1,
+     "otherCanvasBytes": 0,
+     "svgElements": 0,
+     "svgPaths": 0,
+     "domNodes": 5
+    },
+    "callerColumnBytes": 64,
+    "describe": [
+     {
+      "kind": "donut",
+      "plot": {
+       "x": 0,
+       "y": 0,
+       "width": 800,
+       "height": 400
+      },
+      "slices": [
+       {
+        "label": "Direct",
+        "value": 163,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 4.71238898038469,
+        "sweep": 1.4547715981111828,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Organic",
+        "value": 122,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 6.1671605784958725,
+        "sweep": 1.0888474538010078,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Referral",
+        "value": 64,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 7.25600803229688,
+        "sweep": 0.571198664289053,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Email",
+        "value": 59,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 7.827206696585933,
+        "sweep": 0.5265737686414704,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Paid search",
+        "value": 57,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 8.353780465227404,
+        "sweep": 0.5087238103824383,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Social",
+        "value": 51,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 8.862504275609842,
+        "sweep": 0.45517393560533925,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Partners",
+        "value": 68,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 9.317678211215181,
+        "sweep": 0.606898580807119,
+        "innerRadius": 100,
+        "outerRadius": 150
+       },
+       {
+        "label": "Events",
+        "value": 120,
+        "cx": 400,
+        "cy": 200,
+        "startAngle": 9.9245767920223,
+        "sweep": 1.0709974955419757,
+        "innerRadius": 100,
+        "outerRadius": 150
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.023377000000000002,
+     "ScriptDuration": 0.018500000000000003,
+     "LayoutDuration": 0.000087,
+     "RecalcStyleDuration": 0.00015000000000000001,
+     "DevToolsCommandDuration": 0.00020800000000000029,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.0044319999999999984,
+     "ThreadTime": 0.024148999999999997,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 3,
+     "Nodes": 5,
+     "JSEventListeners": 14,
+     "JSHeapUsedSize": 1709356,
+     "JSHeapTotalSize": 2097152,
+     "endNodes": 31,
+     "endJSHeapUsedSize": 4078608,
+     "rendererCpu": 0.039999999999999994,
+     "gpuCpu": 0.009999999999999953
+    }
+   },
+   "memory": {
+    "pagePid": 984105,
+    "gpuPid": 982861,
+    "samples": {
+     "blank": {
+      "heapUsed": 2073048,
+      "heapTotal": 2621440,
+      "embedderHeapUsed": 329752,
+      "backingStorage": 614226,
+      "listeners": 0,
+      "nodes": 25,
+      "renderer": {
+       "pid": 984105,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 51889152,
+       "rss": 141656064
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.4,
+       "pss": 40531968,
+       "rss": 101425152
+      },
+      "otherRenderers": [
+       {
+        "pid": 984104,
+        "pss": 18217984
+       },
+       {
+        "pid": 984095,
+        "pss": 52586496
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 2340348,
+      "heapTotal": 3145728,
+      "embedderHeapUsed": 333576,
+      "backingStorage": 619828,
+      "listeners": 0,
+      "nodes": 26,
+      "renderer": {
+       "pid": 984105,
+       "type": "renderer",
+       "cpuTime": 0.07,
+       "pss": 53876736,
+       "rss": 144556032
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.4,
+       "pss": 41041920,
+       "rss": 102457344
+      },
+      "otherRenderers": [
+       {
+        "pid": 984104,
+        "pss": 18217984
+       },
+       {
+        "pid": 984095,
+        "pss": 52477952
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 3303148,
+      "heapTotal": 3670016,
+      "embedderHeapUsed": 445904,
+      "backingStorage": 621160,
+      "listeners": 14,
+      "nodes": 31,
+      "renderer": {
+       "pid": 984105,
+       "type": "renderer",
+       "cpuTime": 0.13,
+       "pss": 62898176,
+       "rss": 157982720
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.41,
+       "pss": 41585664,
+       "rss": 103739392
+      },
+      "otherRenderers": [
+       {
+        "pid": 984104,
+        "pss": 18217984
+       },
+       {
+        "pid": 984095,
+        "pss": 51686400
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "echarts",
+   "summary": {
+    "taskMs": 23.377000000000002,
+    "scriptMs": 18.500000000000004,
+    "layoutStyleMs": 0.23700000000000002,
+    "devtoolsMs": 0.2080000000000003,
+    "readyMs": 18.2,
+    "readyFrameMs": 19.6,
+    "rendererCpuMs": 39.99999999999999,
+    "gpuCpuMs": 9.999999999999954,
+    "heapChartBytes": 962800,
+    "heapUsedBytes": 3303148,
+    "rendererPssBytes": 62898176,
+    "rendererPssChartBytes": 9021440,
+    "gpuPssBytes": 41585664,
+    "gpuPssChartBytes": 543744,
+    "canvasBackingBytes": 1280000,
+    "domNodes": 5
+   }
+  },
+  {
+   "index": 19,
+   "phase": "timed",
+   "block": 7,
+   "position": 1,
+   "config": "A",
+   "startedAt": "2026-11-24T11:38:49.934Z",
+   "adapter": "axylo",
+   "adapterParams": {},
+   "slot": "A",
+   "probe": null,
+   "durationMs": 1678,
+   "logs": [],
+   "pageErrors": [],
+   "outcome": "ok",
+   "admission": {
+    "admitted": true,
+    "reasons": [],
+    "limits": []
+   },
+   "result": {
+    "outcome": "ok",
+    "adapter": {
+     "id": "axylo",
+     "library": "Axylo",
+     "version": "0.0.0",
+     "config": "default options, SVG marks, instrumented production build (axylo.bench.iife.min.js)",
+     "params": {
+      "build": "prod"
+     },
+     "floor": false,
+     "expectRenderer": "svg",
+     "bundle": "axylo/axylo.bench.iife.min.js"
+    },
+    "env": {
+     "devicePixelRatio": 1,
+     "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/158.0.0.0 Safari/537.36",
+     "webglRenderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+     "viewport": [
+      1440,
+      900
+     ],
+     "hardwareConcurrency": 20,
+     "refresh": {
+      "medianIntervalMs": 16.7,
+      "hz": 59.88,
+      "minMs": 16.534,
+      "maxMs": 16.8
+     }
+    },
+    "checksum": "9dca8678",
+    "probe": null,
+    "timing": {
+     "syncMs": 3.1,
+     "readyMs": 19.7,
+     "readyFrameMs": 23.4,
+     "windowMs": 525,
+     "settleMs": 500
+    },
+    "canvasBacking": {
+     "chartCanvasBytes": 0,
+     "chartCanvasCount": 0,
+     "otherCanvasBytes": 0,
+     "svgElements": 9,
+     "svgPaths": 16,
+     "domNodes": 93
+    },
+    "callerColumnBytes": 64,
+    "describe": [
+     {
+      "kind": "donut",
+      "renderer": {
+       "kind": "svg",
+       "canvases": 0,
+       "svgs": 1,
+       "reported": "svg",
+       "dom": "svg"
+      },
+      "plot": {
+       "x": 0,
+       "y": 0,
+       "width": 800,
+       "height": 288.453125
+      },
+      "slices": [
+       {
+        "label": "Direct",
+        "value": 163,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -1.5673295729024945,
+        "sweep": 1.4477913735004877,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Organic",
+        "value": 122,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -0.11254013457018852,
+        "sweep": 1.0818097377205749,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Referral",
+        "value": 64,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 0.9763071640191744,
+        "sweep": 0.5642494976317347,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Email",
+        "value": 59,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 1.5474968963667568,
+        "sweep": 0.5196033414517536,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Paid search",
+        "value": 57,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 2.0740715471368687,
+        "sweep": 0.5017324224393648,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Social",
+        "value": 51,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 2.5828040886804455,
+        "sweep": 0.4482267410585873,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Partners",
+        "value": 68,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": 3.0379332112837183,
+        "sweep": 0.5999437014265162,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       },
+       {
+        "label": "Events",
+        "value": 120,
+        "cx": 400,
+        "cy": 144.2265625,
+        "startAngle": -2.638326817266213,
+        "sweep": 1.0640195433344504,
+        "outerRadius": 144.23,
+        "innerRadius": 86.54
+       }
+      ]
+     }
+    ]
+   },
+   "deltas": {
+    "create:start->create:end": {
+     "TaskDuration": 0.018063000000000003,
+     "ScriptDuration": 0.014405999999999999,
+     "LayoutDuration": 0.001225,
+     "RecalcStyleDuration": 0.001269,
+     "DevToolsCommandDuration": 0.00020199999999999992,
+     "V8CompileDuration": 0,
+     "TaskOtherDuration": 0.000961,
+     "ThreadTime": 0.017953,
+     "LayoutCount": 3,
+     "RecalcStyleCount": 8,
+     "Nodes": 120,
+     "JSEventListeners": 33,
+     "JSHeapUsedSize": 822112,
+     "JSHeapTotalSize": 786432,
+     "endNodes": 147,
+     "endJSHeapUsedSize": 2293576,
+     "rendererCpu": 0.020000000000000004,
+     "gpuCpu": 0
+    }
+   },
+   "memory": {
+    "pagePid": 984165,
+    "gpuPid": 982861,
+    "samples": {
+     "blank": {
+      "heapUsed": 1180068,
+      "heapTotal": 1835008,
+      "embedderHeapUsed": 333080,
+      "backingStorage": 383905,
+      "listeners": 2,
+      "nodes": 26,
+      "renderer": {
+       "pid": 984165,
+       "type": "renderer",
+       "cpuTime": 0.05,
+       "pss": 50055168,
+       "rss": 138469376
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.42,
+       "pss": 40656896,
+       "rss": 101662720
+      },
+      "otherRenderers": [
+       {
+        "pid": 984164,
+        "pss": 18230272
+       },
+       {
+        "pid": 984155,
+        "pss": 53481472
+       }
+      ]
+     },
+     "data": {
+      "heapUsed": 1441608,
+      "heapTotal": 2097152,
+      "embedderHeapUsed": 336872,
+      "backingStorage": 389507,
+      "listeners": 2,
+      "nodes": 27,
+      "renderer": {
+       "pid": 984165,
+       "type": "renderer",
+       "cpuTime": 0.08,
+       "pss": 52340736,
+       "rss": 142065664
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.42,
+       "pss": 41171968,
+       "rss": 102711296
+      },
+      "otherRenderers": [
+       {
+        "pid": 984164,
+        "pss": 18230272
+       },
+       {
+        "pid": 984155,
+        "pss": 53182464
+       }
+      ]
+     },
+     "chart": {
+      "heapUsed": 2027216,
+      "heapTotal": 2621440,
+      "embedderHeapUsed": 699760,
+      "backingStorage": 407324,
+      "listeners": 35,
+      "nodes": 147,
+      "renderer": {
+       "pid": 984165,
+       "type": "renderer",
+       "cpuTime": 0.1,
+       "pss": 61436928,
+       "rss": 155336704
+      },
+      "gpu": {
+       "pid": 982861,
+       "type": "GPU",
+       "cpuTime": 0.42,
+       "pss": 41171968,
+       "rss": 102883328
+      },
+      "otherRenderers": [
+       {
+        "pid": 984164,
+        "pss": 18231296
+       },
+       {
+        "pid": 984155,
+        "pss": 52049920
+       }
+      ]
+     }
+    }
+   },
+   "chromeVersion": "158.0.8127.88",
+   "ref": "axylo",
+   "summary": {
+    "taskMs": 18.063000000000002,
+    "scriptMs": 14.405999999999999,
+    "layoutStyleMs": 2.4939999999999998,
+    "devtoolsMs": 0.20199999999999993,
+    "readyMs": 19.7,
+    "readyFrameMs": 23.4,
+    "rendererCpuMs": 20.000000000000004,
+    "gpuCpuMs": 0,
+    "heapChartBytes": 585608,
+    "heapUsedBytes": 2027216,
+    "rendererPssBytes": 61436928,
+    "rendererPssChartBytes": 9096192,
+    "gpuPssBytes": 41171968,
+    "gpuPssChartBytes": 0,
+    "canvasBackingBytes": 0,
+    "domNodes": 93
+   }
+  }
+ ],
+ "analysis": {
+  "completePairs": 8,
+  "blocks": 8,
+  "outcomes": {
+   "A:ok": 8,
+   "B:ok": 8
+  },
+  "reliability": {
+   "timed": {
+    "A": 8,
+    "B": 8
+   },
+   "failed": {
+    "A": 0,
+    "B": 0
+   },
+   "failureRate": {
+    "A": 0,
+    "B": 0
+   },
+   "adverseKey": null,
+   "adverse": {
+    "A": 0,
+    "B": 0
+   },
+   "conditional": false,
+   "betterBlocked": null,
+   "worseBlocked": null
+  },
+  "bootstrapSeed": 12345,
+  "level": 0.95,
+  "zeroOnly": false,
+  "metrics": {
+   "taskMs": {
+    "key": "taskMs",
+    "unit": "ms",
+    "primary": true,
+    "what": "main-thread TaskDuration from the create call to settle window end",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 18.725,
+    "medianB": 22.416500000000003,
+    "diff": 3.6915000000000013,
+    "lo": 0.41300000000000026,
+    "hi": 5.180000000000003,
+    "relative": 0.1971428571428572,
+    "blockDiffs": [
+     -0.23699999999999477,
+     2.4029999999999987,
+     7.396999999999995,
+     4.009,
+     -1.642000000000003,
+     1.3760000000000012,
+     0.41300000000000026,
+     5.314
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": 2.0665000000000013
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 3.3815000000000026
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "scriptMs": {
+    "key": "scriptMs",
+    "unit": "ms",
+    "what": "ScriptDuration in the same window",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 14.802499999999998,
+    "medianB": 17.9645,
+    "diff": 3.1620000000000026,
+    "lo": 0.44399999999999906,
+    "hi": 4.094000000000005,
+    "relative": 0.21361256544502638,
+    "blockDiffs": [
+     -0.7970000000000006,
+     2.213000000000001,
+     6.77,
+     3.7730000000000015,
+     -1.0000000000000036,
+     1.9060000000000006,
+     0.5820000000000007,
+     4.094000000000005
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": 1.4529999999999994
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 3.197000000000001
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "layoutStyleMs": {
+    "key": "layoutStyleMs",
+    "unit": "ms",
+    "what": "LayoutDuration + RecalcStyleDuration in the same window",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 2.6565,
+    "medianB": 0.222,
+    "diff": -2.4345,
+    "lo": -2.61,
+    "hi": -2.3369999999999997,
+    "relative": -0.9164313946922643,
+    "blockDiffs": [
+     -2.592,
+     -2.448,
+     -2.3179999999999996,
+     -2.4269999999999996,
+     -3.145,
+     -2.466,
+     -2.6199999999999997,
+     -2.2569999999999997
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": -2.499
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": -2.4295
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "readyMs": {
+    "key": "readyMs",
+    "unit": "ms",
+    "what": "wall clock from create call to the adapter's ready signal",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 19.75,
+    "medianB": 17.75,
+    "diff": -2,
+    "lo": -2.900000000000002,
+    "hi": -0.6000000000000014,
+    "relative": -0.10126582278481013,
+    "blockDiffs": [
+     -3,
+     -3.1000000000000014,
+     2.1999999999999993,
+     -1.5,
+     -3.599999999999998,
+     -2.1999999999999993,
+     -1.5999999999999979,
+     -1.5
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": -2.25
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": -1.5499999999999972
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "readyFrameMs": {
+    "key": "readyFrameMs",
+    "unit": "ms",
+    "what": "wall clock to the first animation frame after ready",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 22.75,
+    "medianB": 19.1,
+    "diff": -3.6499999999999986,
+    "lo": -4.800000000000004,
+    "hi": -2.3999999999999986,
+    "relative": -0.16043956043956037,
+    "blockDiffs": [
+     -2.5,
+     -5.199999999999999,
+     0,
+     -3.5,
+     -3.400000000000002,
+     -4,
+     -1.1999999999999993,
+     -3.799999999999997
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": -3.700000000000003
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": -3.3999999999999986
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "rendererCpuMs": {
+    "key": "rendererCpuMs",
+    "unit": "ms",
+    "what": "CPU time of the page renderer process, all threads, same window (SystemInfo.getProcessInfo)",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 25,
+    "medianB": 30,
+    "diff": 5,
+    "lo": 0,
+    "hi": 14.999999999999996,
+    "relative": 0.2,
+    "blockDiffs": [
+     0,
+     9.999999999999996,
+     9.999999999999996,
+     10.00000000000001,
+     9.999999999999993,
+     0,
+     -9.999999999999996,
+     19.99999999999999
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": 5
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 5
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "gpuCpuMs": {
+    "key": "gpuCpuMs",
+    "unit": "ms",
+    "what": "CPU time of the GPU process, same window",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 0,
+    "medianB": 0,
+    "diff": 0,
+    "lo": 0,
+    "hi": 9.999999999999982,
+    "relative": null,
+    "blockDiffs": [
+     -9.999999999999995,
+     0,
+     10.000000000000009,
+     10.000000000000009,
+     0,
+     0,
+     0,
+     9.999999999999954
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": 0
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 4.999999999999977
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "heapChartBytes": {
+    "key": "heapChartBytes",
+    "unit": "bytes",
+    "what": "JS heap after forced GC with the chart, minus the same with only the input data",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 585608,
+    "medianB": 962794,
+    "diff": 377186,
+    "lo": 377172,
+    "hi": 377234,
+    "relative": 0.6440929768719007,
+    "blockDiffs": [
+     377172,
+     377216,
+     377228,
+     377172,
+     377136,
+     377180,
+     377252,
+     377192
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": 377194
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 377186
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "heapUsedBytes": {
+    "key": "heapUsedBytes",
+    "unit": "bytes",
+    "what": "JS heap after forced GC with the chart (absolute)",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 2027216,
+    "medianB": 3303142,
+    "diff": 1275926,
+    "lo": 1275898,
+    "hi": 1275954,
+    "relative": 0.6293981499751383,
+    "blockDiffs": [
+     1275892,
+     1275932,
+     1275948,
+     1275904,
+     1275876,
+     1275920,
+     1275984,
+     1275932
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": 1275912
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 1275926
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "rendererPssBytes": {
+    "key": "rendererPssBytes",
+    "unit": "bytes",
+    "what": "page renderer process PSS with the chart (Linux /proc, after GC)",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 61431808,
+    "medianB": 63166464,
+    "diff": 1734656,
+    "lo": 1659392,
+    "hi": 1784320,
+    "relative": 0.028237098279770636,
+    "blockDiffs": [
+     1543168,
+     1813504,
+     1714176,
+     1761280,
+     1583104,
+     1783808,
+     1727488,
+     1461248
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": 1656832
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 1721856
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "rendererPssChartBytes": {
+    "key": "rendererPssChartBytes",
+    "unit": "bytes",
+    "what": "page renderer PSS with the chart minus with only the input data",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 9119232,
+    "medianB": 9168896,
+    "diff": 49664,
+    "lo": -41472,
+    "hi": 89600,
+    "relative": 0.005446072651732076,
+    "blockDiffs": [
+     95232,
+     131072,
+     -11264,
+     -113664,
+     67584,
+     -110592,
+     86016,
+     -74752
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": 74240
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": -69120
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "gpuPssBytes": {
+    "key": "gpuPssBytes",
+    "unit": "bytes",
+    "what": "GPU process PSS with the chart",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 41071616,
+    "medianB": 41570304,
+    "diff": 498688,
+    "lo": 415232,
+    "hi": 560128,
+    "relative": 0.012141913286294846,
+    "blockDiffs": [
+     564224,
+     565248,
+     641024,
+     352256,
+     477184,
+     520192,
+     560128,
+     413696
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": 521216
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 478208
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "gpuPssChartBytes": {
+    "key": "gpuPssChartBytes",
+    "unit": "bytes",
+    "what": "GPU process PSS with the chart minus with only the input data",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": -1024,
+    "medianB": 543744,
+    "diff": 544768,
+    "lo": 542208,
+    "hi": 546304,
+    "relative": -532,
+    "blockDiffs": [
+     540672,
+     546816,
+     544768,
+     543744,
+     545792,
+     544768,
+     516096,
+     543744
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": 544768
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 544256
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "canvasBackingBytes": {
+    "key": "canvasBackingBytes",
+    "unit": "bytes",
+    "what": "CALCULATED: sum of canvas.width x canvas.height x 4 over the chart canvases",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 0,
+    "medianB": 1280000,
+    "diff": 1280000,
+    "lo": 1280000,
+    "hi": 1280000,
+    "relative": null,
+    "blockDiffs": [
+     1280000,
+     1280000,
+     1280000,
+     1280000,
+     1280000,
+     1280000,
+     1280000,
+     1280000
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": 1280000
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": 1280000
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   },
+   "domNodes": {
+    "key": "domNodes",
+    "unit": "nodes",
+    "what": "elements inside the chart containers",
+    "scope": "secondary: classified against zero (or the band), no declared threshold",
+    "pairs": 8,
+    "level": 0.95,
+    "medianA": 93,
+    "medianB": 5,
+    "diff": -88,
+    "lo": -88,
+    "hi": -88,
+    "relative": -0.946236559139785,
+    "blockDiffs": [
+     -88,
+     -88,
+     -88,
+     -88,
+     -88,
+     -88,
+     -88,
+     -88
+    ],
+    "byOrder": {
+     "AB": {
+      "pairs": 4,
+      "diff": -88
+     },
+     "BA": {
+      "pairs": 4,
+      "diff": -88
+     }
+    },
+    "noiseBand": "not available: no A-versus-A run given (--noise)",
+    "outcome": "inconclusive",
+    "outcomeNote": "inconclusive by rule: 8 complete pairs, fewer than 20"
+   }
+  }
+ },
+ "endedBecause": "all blocks run",
+ "finishedAt": "2026-11-24T11:38:51.692Z",
+ "integrity": {
+  "violations": []
+ },
+ "eligibility": {
+  "eligible": true,
+  "reasons": []
+ }
+}
