@@ -76,3 +76,44 @@ export function numberFormat(locale: string, options?: Intl.NumberFormatOptions,
 export function dateTimeFormat(locale: string, options?: Intl.DateTimeFormatOptions, literal = false): Intl.DateTimeFormat {
   return cached(dateFormats ??= new Formats(), Intl.DateTimeFormat, locale, options, literal);
 }
+
+export function isPlainEnglish(locale: string): boolean {
+  return locale === 'en' || locale === 'en-US';
+}
+
+export const enum DateParts {
+  Year = 1, Month = 2, Day = 4, Clock = 8, Seconds = 16, Milliseconds = 32, Zone = 64, Era = 128, Offset = 256,
+  MonthDay = Month | Day,
+  Date = Year | MonthDay,
+}
+
+// Bits follow DateParts order, so a numeric offset replaces a short zone name when both are set.
+const dateFields = [
+  { year: 'numeric' }, { month: 'short' }, { day: 'numeric' }, { hour: 'numeric', minute: '2-digit' },
+  { second: '2-digit' }, { fractionalSecondDigits: 3 }, { timeZoneName: 'short' },
+  { era: 'short' }, { timeZoneName: 'shortOffset' },
+] satisfies Intl.DateTimeFormatOptions[];
+
+/** Only built-in labels use these fields. Author options always go through dateTimeFormat. */
+export function builtInDateFormat(locale: string, timeZone: string, parts: number): (value: number) => string {
+  const native = () => dateTimeFormat(locale, Object.assign(
+    { timeZone }, ...dateFields.filter((_, i) => parts & (1 << i)),
+  ), true).format;
+  if (timeZone !== 'UTC' || parts & (DateParts.Era | DateParts.Offset) || !isPlainEnglish(locale)) return native();
+  let fallback: ReturnType<typeof native> | undefined;
+  return value => {
+    const date = new Date(value);
+    const year = date.getUTCFullYear();
+    if (!(year >= 1 && year <= 9999)) return (fallback ??= native())(value);
+    // Date's UTC string has fixed month names, and ISO time fields have fixed widths here.
+    let text = parts & DateParts.Month ? date.toUTCString().slice(8, 11) : '';
+    if (parts & DateParts.Day) text += ` ${date.getUTCDate()}`;
+    if (parts & DateParts.Year) text += (parts & DateParts.Day ? ', ' : text ? ' ' : '') + year;
+    if (!(parts & DateParts.Clock)) return text;
+    const hour = date.getUTCHours();
+    const end = parts & DateParts.Milliseconds ? 23 : parts & DateParts.Seconds ? 19 : 16;
+    // Intl.format emits a space here on V8 even when formatToParts emits U+202F.
+    const clock = `${hour % 12 || 12}${date.toISOString().slice(13, end)} ${hour < 12 ? 'AM' : 'PM'}`;
+    return text + (text && ', ') + clock + (parts & DateParts.Zone ? ' UTC' : '');
+  };
+}

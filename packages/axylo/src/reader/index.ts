@@ -108,6 +108,9 @@ const listFormats = new Map<string | undefined, Intl.ListFormat>();
 /** Names joined as a list in the chart's locale ("Visits and Signups"). */
 function listOf(names: readonly string[], locale: string | undefined): string {
   if (names.length < 2) return names[0] ?? '';
+  if (locale === 'en') {
+    return names.slice(0, -1).join(', ') + (names.length === 2 ? ' and ' : ', and ') + names.at(-1);
+  }
   try {
     let format = listFormats.get(locale);
     if (!format) {
@@ -269,7 +272,7 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
   const yLabel = view.kind === 'donut' ? view.frame.valueLabel
     : view.kind === 'scatter' ? view.frame.yLabel
     : view.frame.yLabel || listOf(view.frame.series.flatMap(s => s.drawable ? [s.label] : []), input.locale) || labels.value;
-  const listReady = listFormats.has(input.locale);
+  const listReady = input.locale === 'en' || listFormats.has(input.locale);
   const titleText = typeof title === 'string' ? title : title?.text;
   if (!labelledBy && !titleText && input.diagnostics) report(input.diagnostics, 'AX140', 'none');
   const generated = fill(messages.chartName, { type, x: xLabel, y: yLabel });

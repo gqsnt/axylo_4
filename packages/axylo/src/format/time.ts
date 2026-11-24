@@ -7,7 +7,7 @@
  */
 import type { XValue } from '../public';
 import { instantToWall } from '../scale/zone';
-import { dateTimeFormat } from './intl';
+import { builtInDateFormat, dateTimeFormat, DateParts } from './intl';
 import { once } from './number';
 
 export type TemporalKind = 'time' | 'date' | 'wall';
@@ -26,7 +26,7 @@ export interface TimeReadoutSpec {
   readonly onError?: ((error: unknown) => void) | null;
 }
 
-function zoneOf(kind: TemporalKind, timeZone: string | null | undefined): string {
+export function zoneOf(kind: TemporalKind, timeZone: string | null | undefined): string {
   return kind === 'time' && timeZone ? timeZone : 'UTC';
 }
 
@@ -42,22 +42,17 @@ export function defaultTimeReadout(
   if (!representable(position)) return String(position);
   const zone = zoneOf(kind, timeZone);
   const wall = kind === 'time' ? instantToWall(zone, position) : position;
-  // Astronomical year 0 is 1 BC, which Intl writes "1" like AD 1 unless the era is shown.
-  const era: Intl.DateTimeFormatOptions = new Date(wall).getUTCFullYear() < 1 ? { era: 'short' } : {};
-  if (kind === 'date') {
-    const options: Intl.DateTimeFormatOptions =
-      dateUnit === 'year' ? { year: 'numeric' }
-        : dateUnit === 'month' ? { year: 'numeric', month: 'short' }
-          : { year: 'numeric', month: 'short', day: 'numeric' };
-    return dateTimeFormat(locale, { ...options, ...era, timeZone: 'UTC' }).format(position);
+  let parts = dateUnit === 'year' ? DateParts.Year : dateUnit === 'month' ? DateParts.Year | DateParts.Month : DateParts.Date;
+  if (kind !== 'date') {
+    parts = DateParts.Date | DateParts.Clock;
+    const withinMinute = ((wall % MINUTE) + MINUTE) % MINUTE;
+    if (withinMinute !== 0) parts |= DateParts.Seconds;
+    if (withinMinute % 1000 !== 0) parts |= DateParts.Milliseconds;
+    if (kind === 'time') parts |= DateParts.Zone;
   }
-  const withinMinute = ((wall % MINUTE) + MINUTE) % MINUTE;
-  const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', ...era };
-  if (withinMinute !== 0) options.second = '2-digit';
-  if (withinMinute % 1000 !== 0) options.fractionalSecondDigits = 3;
-  if (kind === 'time') options.timeZoneName = 'short';
-  options.timeZone = zone;
-  return dateTimeFormat(locale, options).format(position);
+  // Astronomical year 0 is 1 BC, which Intl writes "1" like AD 1 unless the era is shown.
+  if (new Date(wall).getUTCFullYear() < 1) parts |= DateParts.Era;
+  return builtInDateFormat(locale, zone, parts)(position);
 }
 
 /** Positions a Date can hold; Intl throws on any other ("Invalid time value"), so they are written as numbers. */

@@ -8,7 +8,7 @@
  * the decimal it is, and a ratio's ×100 is done by Intl's percent style in decimal.
  */
 import type { TickContext, TickLabeler } from '../scale/linear';
-import { numberFormat } from './intl';
+import { isPlainEnglish, numberFormat } from './intl';
 
 export type ValueScale = 'percent' | 'ratio' | null;
 export type NumberFormatOption = Intl.NumberFormatOptions | ((value: number) => string);
@@ -96,7 +96,9 @@ function fractionDigitsOf(d: Decimal, shift: number): number {
 
 /** The default readout of spec F6, without the unit. */
 export function defaultReadoutNumber(v: number, locale: string, scale: ValueScale = null): string {
-  if (!scale && Number.isSafeInteger(v)) return numberFormat(locale).format(v || 0);
+  if (!scale && Number.isSafeInteger(v)) {
+    return isPlainEnglish(locale) ? String(v).replace(/\B(?=(\d{3})+$)/g, ',') : numberFormat(locale).format(v || 0);
+  }
   const style: Intl.NumberFormatOptions = scale ? { style: 'percent' } : {};
   if (!Number.isFinite(v)) return numberFormat(locale, style, true).format(v);
   if (v === 0) return numberFormat(locale, { ...style, maximumFractionDigits: 0 }, true).format(0); // no "-0"
@@ -206,7 +208,7 @@ const MAX_TICK_FRACTION_DIGITS = 9;
 export function defaultTickNumber(value: number, context: TickContext, locale: string, scale: ValueScale = null): string {
   const v = value === 0 ? 0 : value;
   if (!scale && Number.isSafeInteger(v) && context.step >= 1 && Number.isFinite(context.step) && context.maxAbs > 0 && context.maxAbs < 1e6) {
-    return numberFormat(locale).format(v);
+    return defaultReadoutNumber(v, locale);
   }
   const options: Intl.NumberFormatOptions = scale ? { style: 'percent' } : {};
   const shift = shownShift(scale);

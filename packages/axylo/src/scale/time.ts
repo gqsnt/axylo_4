@@ -9,7 +9,8 @@ import type { ContinuousScale, Tick, TickCandidates } from '../core/contracts';
 import { continuous, pushCandidate } from './linear';
 import { MAX_TICKS } from './nice';
 import { MAX_DATE, firstInstantAtOrAfterWall, firstInstantWithOffset, instantToWall, utcFields, zoneOffset } from './zone';
-import { dateTimeFormat } from '../format/intl';
+import { builtInDateFormat, DateParts } from '../format/intl';
+import { zoneOf } from '../format/time';
 
 // Literals rather than computed values throughout: the module does no work at import time, so a bundler
 // can drop it where it is not used (the same values as scale/zone.ts's TIME).
@@ -79,11 +80,6 @@ interface Candidate {
   ticks(): Tick[];
 }
 
-/** The zone ticks are computed and labeled in. */
-function axisZone(options: TimeTickOptions): string {
-  return options.kind === 'time' && options.timeZone ? options.timeZone : 'UTC';
-}
-
 /** The finest unit allowed on this axis. */
 function finestUnit(options: TimeTickOptions): TimeUnit {
   if (options.kind !== 'date') return 'millisecond';
@@ -101,7 +97,7 @@ export function timeTickCandidates(domain: readonly [number, number], options: T
   const lo = Math.max(Math.min(domain[0], domain[1]), -MAX_DATE);
   const hi = Math.min(Math.max(domain[0], domain[1]), MAX_DATE);
   if (!Number.isFinite(lo) || !Number.isFinite(hi) || lo > hi) return [];
-  const zone = axisZone(options);
+  const zone = zoneOf(options.kind, options.timeZone);
   const finest = UNIT_ORDER.indexOf(finestUnit(options));
   const span = hi - lo;
 
@@ -266,32 +262,16 @@ function customLabel(custom: ((position: number) => string) | null | undefined, 
   }
 }
 
-type Level = 'year' | 'month' | 'day' | 'minute' | 'second' | 'millisecond';
+const tickParts: Record<TimeUnit, number> = {
+  year: DateParts.Year, month: DateParts.Month, week: DateParts.MonthDay, day: DateParts.MonthDay,
+  hour: DateParts.Clock, minute: DateParts.Clock, second: DateParts.Clock | DateParts.Seconds,
+  millisecond: DateParts.Clock | DateParts.Seconds | DateParts.Milliseconds,
+};
 
-function levelOf(unit: TimeUnit): Level {
-  return unit === 'week' ? 'day' : unit === 'hour' ? 'minute' : unit;
-}
-
-/** Options for the short label, and for the label that adds the context (year, or date) it depends on. */
-function labelOptions(level: Level): { short: Intl.DateTimeFormatOptions; context: Intl.DateTimeFormatOptions | null } {
-  if (level === 'year') return { short: { year: 'numeric' }, context: null };
-  const date: Intl.DateTimeFormatOptions = { month: 'short' };
-  if (level !== 'month') date.day = 'numeric';
-  if (level === 'month' || level === 'day') return { short: date, context: { ...date, year: 'numeric' } };
-  const clock: Intl.DateTimeFormatOptions = { hour: 'numeric', minute: '2-digit' };
-  if (level !== 'minute') clock.second = '2-digit';
-  if (level === 'millisecond') clock.fractionalSecondDigits = 3;
-  return { short: clock, context: { ...date, ...clock } };
-}
-
-/**
- * Ways to tell apart built-in labels that still read the same in one context, tried in order: the zone abbreviation and
- * then the numeric offset (the same clock time twice in a fold), then the era (1 BC and AD 1).
- */
-function disambiguators(zone: string): Intl.DateTimeFormatOptions[] {
-  const named: Intl.DateTimeFormatOptions[] = zone === 'UTC' ? [] : [{ timeZoneName: 'short' }, { timeZoneName: 'shortOffset' }];
-  return [...named, { era: 'short' }, { era: 'short', year: 'numeric', timeZoneName: 'shortOffset' }];
-}
+// Try the zone abbreviation and offset first in a fold, then the era for labels such as 1 BC and AD 1.
+const disambiguators = [
+  DateParts.Zone, DateParts.Offset, DateParts.Era, DateParts.Era | DateParts.Year | DateParts.Offset,
+];
 
 /**
  * Labels a tick set. The context (year for month and day ticks, date for clock ticks) is written on the
@@ -300,63 +280,42 @@ function disambiguators(zone: string): Intl.DateTimeFormatOptions[] {
  * told apart (see `disambiguators`).
  */
 function label(values: readonly number[], unit: TimeUnit, zone: string, options: TimeTickOptions): Tick[] {
-  const level = levelOf(unit);
-  const { short, context } = labelOptions(level);
+  const short = tickParts[unit];
+  const context = short === DateParts.Year ? 0 : short & DateParts.Clock ? DateParts.MonthDay : DateParts.Year;
   const walls = values.map(v => instantToWall(zone, v));
   // An offset can move the local day beyond Date's limits, but never across a year at either limit.
   const year = (wall: number) => new Date(Math.max(-MAX_DATE, Math.min(wall, MAX_DATE))).getUTCFullYear();
   // Astronomical year 0 is 1 BC: Intl writes it as "1", like AD 1, unless the era is shown.
-  const era: Intl.DateTimeFormatOptions = walls.some(w => year(w) < 1) ? { era: 'short' } : {};
-  const base = { ...short, ...era, timeZone: zone };
-  // A custom label has no built-in fields to disambiguate or contextualize.
-  const fields: (Intl.DateTimeFormatOptions | null)[] = [];
-  const ticks: Tick[] = [];
-  const keys: number[] = [];
-  const formatter = (fields: Intl.DateTimeFormatOptions) => dateTimeFormat(options.locale, fields, true).format;
+  const base = short | (walls.some(w => year(w) < 1) ? DateParts.Era : 0);
+  const formatter = (parts: number) => builtInDateFormat(options.locale, zone, parts);
   let shortFormat: Intl.DateTimeFormat['format'] | undefined;
   let contextFormat: Intl.DateTimeFormat['format'] | undefined;
-  values.forEach((t, i) => {
+  const ticks = values.map((t, i) => {
     const value = t === 0 ? 0 : t;
     const wall = walls[i]!;
     // The context a label is read in: the year for calendar ticks, the calendar day for clock ticks, the
     // whole set for year ticks.
-    const key = level === 'year' ? 0 : level === 'month' || level === 'day'
-      ? year(wall) : Math.floor(wall / DAY);
-    keys.push(key);
+    const key = !context ? 0 : context === DateParts.Year ? year(wall) : Math.floor(wall / DAY);
     const custom = customLabel(options.label, value);
-    fields.push(custom === null ? base : null);
-    ticks.push({ value, label: custom ?? (shortFormat ??= formatter(base))(value) });
+    // A custom label has no built-in fields to disambiguate or contextualize.
+    return { value, key, parts: custom === null ? base : null, label: custom ?? (shortFormat ??= formatter(base))(value) };
   });
-  for (const extra of disambiguators(zone)) {
-    const repeated = repeatedBuiltIn(ticks, fields, keys);
-    if (repeated.length === 0) break;
-    for (const j of repeated) {
-      fields[j] = { ...fields[j], ...extra };
-      const { value } = ticks[j]!;
-      ticks[j] = { value, label: formatter(fields[j]!)(value) };
+  for (const extra of zone === 'UTC' ? disambiguators.slice(2) : disambiguators) {
+    // Candidate sets are capped at MAX_TICKS, so comparing labels avoids building a frequency map.
+    const repeated = ticks.filter(tick => tick.parts !== null && ticks.some(other =>
+      other !== tick && other.key === tick.key && other.label === tick.label));
+    if (!repeated.length) break;
+    for (const tick of repeated) {
+      tick.parts = tick.parts! | extra;
+      tick.label = formatter(tick.parts)(tick.value);
     }
   }
   // Add the date or year only after comparing short labels within their local day or year.
-  if (context) ticks.forEach(({ value }, i) => {
-    if (fields[i] && keys[i] !== keys[i - 1]) {
-      const format = fields[i] === base ? contextFormat ??= formatter({ ...context, ...base }) : formatter({ ...context, ...fields[i] });
-      ticks[i] = { value, label: format(value) };
+  return ticks.map(({ value, label, key, parts }, i) => {
+    if (context && parts !== null && key !== ticks[i - 1]?.key) {
+      const format = parts === base ? contextFormat ??= formatter(base | context) : formatter(parts | context);
+      label = format(value);
     }
+    return { value, label };
   });
-  return ticks;
-}
-
-/**
- * Indexes of built-in labels that equal another label read in the same context. "3:00 AM" on two different
- * days is not repeated (the date is written where the day changes); "1:00 AM" twice on one day (a fold) is.
- */
-function repeatedBuiltIn(ticks: readonly Tick[], fields: readonly (Intl.DateTimeFormatOptions | null)[], keys: readonly number[]): number[] {
-  const ids = ticks.map((tick, i) => `${keys[i]}\u0000${tick.label}`);
-  const count = new Map<string, number>();
-  for (const id of ids) count.set(id, (count.get(id) ?? 0) + 1);
-  const out: number[] = [];
-  ids.forEach((id, i) => {
-    if (fields[i] && count.get(id)! > 1) out.push(i);
-  });
-  return out;
 }
