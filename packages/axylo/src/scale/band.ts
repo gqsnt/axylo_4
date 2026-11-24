@@ -11,6 +11,14 @@ export function bandScale(count: number, range: readonly [number, number], paddi
   const p = Number.isFinite(padding) ? Math.min(Math.max(padding, 0), 0.95) : 0;
   const r0 = range[0];
   const r1 = range[1];
+  // Halving both endpoints keeps the step and intermediate band offsets representable.
+  if (!Number.isFinite(r1 - r0) && Number.isFinite(r0) && Number.isFinite(r1)) {
+    const half = bandScale(n, [r0 / 2, r1 / 2], p);
+    return {
+      ...half, range: [r0, r1], step: half.step * 2, bandwidth: half.bandwidth * 2,
+      map: i => 2 * half.map(i), center: i => 2 * half.center(i), invert: pixel => half.invert(pixel / 2),
+    };
+  }
   const extent = Math.abs(r1 - r0);
   const forward = r1 >= r0;
   const step = n === 0 ? 0 : extent / (n + p);

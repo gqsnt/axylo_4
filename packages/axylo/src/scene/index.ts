@@ -4,7 +4,7 @@ import type {
 import { DONUT_GAP, donutGeometry } from '../view/donut-geometry';
 import { addArea, addStackedAreas } from './areas';
 import { barMarks } from './bars';
-import { position, projectReference, rule, seriesPaint, token } from './geometry';
+import { boundaryPixel, position, projectReference, rule, seriesPaint, token } from './geometry';
 import { addLine, drawing, scatterPoints, type Drawing } from './lines';
 
 type Plot = Extract<Layout, { kind: 'plot' }>;
@@ -31,19 +31,16 @@ function gridAndAxes(layout: Plot, projection: Cartesian): { grid: RuleMark[]; e
   const bottomScale = horizontal ? y : x;
   const leftScale = horizontal ? x : y;
   for (const tick of horizontal ? layout.yTicks : layout.xTicks) {
-    const pixel = position(bottomScale, tick.value);
-    if (pixel < left || pixel > right) continue;
+    const pixel = boundaryPixel(position(bottomScale, tick.value), left, right);
+    if (pixel === null) continue;
+    if (horizontal) grid.push(rule('grid', gridPaint, pixel, top, pixel, bottom));
     edges.push(rule('tick', axis, pixel, bottom, pixel, bottom + TICK_LENGTH));
   }
   for (const tick of horizontal ? layout.xTicks : layout.yTicks) {
-    const pixel = position(leftScale, tick.value);
-    if (pixel < top || pixel > bottom) continue;
+    const pixel = boundaryPixel(position(leftScale, tick.value), top, bottom);
+    if (pixel === null) continue;
+    if (!horizontal) grid.push(rule('grid', gridPaint, left, pixel, right, pixel));
     edges.push(rule('tick', axis, left - TICK_LENGTH, pixel, left, pixel));
-  }
-  for (const tick of layout.yTicks) {
-    const pixel = position(y, tick.value);
-    if (horizontal && pixel >= left && pixel <= right) grid.push(rule('grid', gridPaint, pixel, top, pixel, bottom));
-    if (!horizontal && pixel >= top && pixel <= bottom) grid.push(rule('grid', gridPaint, left, pixel, right, pixel));
   }
   return { grid, edges };
 }

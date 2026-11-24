@@ -22,25 +22,26 @@ export function continuous(type: 'linear' | 'time', domain: readonly [number, nu
   const d1 = domain[1];
   const r0 = range[0];
   const r1 = range[1];
-  const span = d1 - d0;
-  const extent = r1 - r0;
-  const mid = r0 / 2 + r1 / 2;
-  // A domain wider than the largest double (say [-1e308, 1e308]) is interpolated on halves, so the
-  // intermediate width never overflows.
-  const overflow = !Number.isFinite(span) && Number.isFinite(d0) && Number.isFinite(d1);
-  const halfSpan = d1 / 2 - d0 / 2;
-  let map: (v: number) => number;
-  let invert: (p: number) => number;
-  if (span === 0) map = () => mid; // a zero-width domain (one value, one instant) is drawn in the middle
-  else if (overflow) map = (v: number) => r0 + ((v / 2 - d0 / 2) / halfSpan) * extent;
-  else map = (v: number) => r0 + ((v - d0) / span) * extent;
-  if (extent === 0) invert = () => d0;
-  else if (overflow) invert = (p: number) => {
-    const f = (p - r0) / extent;
-    return d0 * (1 - f) + d1 * f;
-  };
-  else invert = (p: number) => d0 + ((p - r0) / extent) * span;
+  const map = d0 === d1 ? () => r0 / 2 + r1 / 2 : interpolate(d0, d1, r0, r1);
+  const invert = r0 === r1 || d0 === d1 ? () => d0 : interpolate(r0, r1, d0, d1);
   return { type, domain: [d0, d1], range: [r0, r1], map, invert };
+}
+
+function interpolate(a: number, b: number, start: number, end: number): (v: number) => number {
+  const span = b - a;
+  const extent = end - start;
+  if (extent === 0) return () => start;
+  return v => {
+    if (v === a) return start;
+    if (v === b) return end;
+    const delta = v - a;
+    // Differences across opposite signs can overflow even when their ratio is small.
+    const f = Number.isFinite(span) && Number.isFinite(delta) ? delta / span
+      : (v / 2 - a / 2) / (b / 2 - a / 2);
+    if (!Number.isFinite(extent)) return start * (1 - f) + end * f;
+    const offset = f * extent;
+    return Number.isFinite(offset) ? start + offset : (start / 2 + f * (extent / 2)) * 2;
+  };
 }
 
 function sortedDomain(domain: readonly [number, number]): [number, number] {
@@ -57,7 +58,7 @@ export function linearTickCandidates(domain: readonly [number, number], format: 
   // A width that no nice step can resolve (subnormal, or below the precision of the values) gets one tick.
   // Divided before subtracting, so that [-1e308, 1e308] does not overflow.
   const width = hi / (MAX_TICKS - 1) - lo / (MAX_TICKS - 1);
-  const tooNarrow = !(width > 1e-300) || hi - lo <= 4 * Number.EPSILON * Math.max(Math.abs(lo), Math.abs(hi));
+  const tooNarrow = !(width > 0) || hi - lo <= 4 * Number.EPSILON * Math.max(Math.abs(lo), Math.abs(hi));
   if (lo === hi || tooNarrow) {
     const v = lo === 0 ? 0 : lo;
     return [[{ value: v, label: format(v, { step: 0, maxAbs: Math.abs(v) }) }]];
@@ -97,10 +98,11 @@ export function linearTickCandidates(domain: readonly [number, number], format: 
     const v = lo === 0 ? 0 : lo;
     return [[{ value: v, label: format(v, { step: 0, maxAbs: Math.abs(v) }) }]];
   }
-  // Near the largest doubles the next step overflows; the only multiple of an infinite step is zero.
-  const last = sets[sets.length - 1];
-  if (!Number.isFinite(step.value) && last !== undefined && last.length > 1 && lo <= 0 && hi >= 0) {
-    pushCandidate(sets, [{ value: 0, label: format(0, { step: 0, maxAbs: 0 }) }]);
+  // A coarser step can jump from several multiples straight to none.
+  const last = sets[sets.length - 1]!;
+  if (last.length > 1) {
+    const v = lo <= 0 && hi >= 0 ? 0 : last[0]!.value;
+    sets.push([{ value: v, label: format(v, { step: 0, maxAbs: Math.abs(v) }) }]);
   }
   return sets;
 }

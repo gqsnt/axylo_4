@@ -84,7 +84,7 @@ export function instantToWall(timeZone: string, instant: number): number {
  * two in a fold, one otherwise.
  */
 export function wallToInstants(timeZone: string, wall: number): number[] {
-  if (isUtc(timeZone)) return [wall];
+  if (isUtc(timeZone)) return Math.abs(wall) <= MAX_DATE ? [wall] : [];
   // The offsets a day either side are the offsets on each side of any transition near this wall time
   // (zones do not change offset twice within two days).
   const before = zoneOffset(timeZone, wall - DAY);
@@ -92,7 +92,7 @@ export function wallToInstants(timeZone: string, wall: number): number[] {
   const out: number[] = [];
   const tryOffset = (offset: number): void => {
     const t = wall - offset;
-    if (zoneOffset(timeZone, t) === offset && !out.includes(t)) out.push(t);
+    if (Math.abs(t) <= MAX_DATE && zoneOffset(timeZone, t) === offset && !out.includes(t)) out.push(t);
   };
   tryOffset(before);
   if (after !== before) tryOffset(after);

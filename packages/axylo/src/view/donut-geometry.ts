@@ -6,6 +6,7 @@ const PRECISION = 9.5367431640625e-7;
 export const DONUT_GAP = 1;
 
 export function donutGeometry(slices: readonly DonutSlice[], ring: Extract<Projection, { kind: 'ring' }>) {
+  if (!(ring.r1 > 0 && ring.r1 > ring.r0)) return { drawn: [], angles: new Float32Array(0) };
   const drawn = slices.filter(slice => slice.angles !== null);
   const angles = new Float32Array(2 * drawn.length);
   if (drawn.length < 2) {
@@ -13,8 +14,9 @@ export function donutGeometry(slices: readonly DonutSlice[], ring: Extract<Proje
     return { drawn, angles };
   }
 
-  const mid = ring.r0 + (ring.r1 - ring.r0) / 2;
-  const gapAngle = 2 * Math.asin(DONUT_GAP / (2 * mid));
+  const inner = Math.max(0, ring.r0);
+  const mid = inner + (ring.r1 - inner) / 2;
+  const gapAngle = 2 * Math.asin(Math.min(1, DONUT_GAP / (2 * mid)));
   // Keep one CSS pixel of fill at mid-radius after the renderer insets both sides.
   // Leave room for Float32 rounding and for the renderer's 1e-4-radian full-turn tolerance.
   const minimum = Math.max(gapAngle + 1 / mid, 1e-4) + PRECISION;
@@ -32,14 +34,14 @@ export function donutGeometry(slices: readonly DonutSlice[], ring: Extract<Proje
     }
   }
 
+  // Rounding the final Float32 edge down preserves the separator at twelve o'clock.
+  const lastEdge = TURN - 2 ** -22;
   let start = 0;
   for (let i = 0; i < drawn.length; i++) {
     const end = scale === 1 ? drawn[i]!.angles![1] : start + Math.max(minimum, spans[i]! * scale);
     angles[2 * i] = start;
-    angles[2 * i + 1] = end;
-    start = end;
+    start = i === drawn.length - 1 ? lastEdge : Math.min(end, lastEdge);
+    angles[2 * i + 1] = start;
   }
-  // A Float32 rounded above a full turn would narrow the separator at twelve o'clock.
-  angles[angles.length - 1] = TURN - 2 ** -22;
   return { drawn, angles };
 }

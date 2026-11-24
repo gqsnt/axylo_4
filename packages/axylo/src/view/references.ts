@@ -36,7 +36,7 @@ export function positionReader(
   };
   const parser = new XParser(resolved, x.kind, { timeZone: x.timeZone ?? 'UTC' });
   return (value, option) => {
-    if (option?.axisPosition && x.kind !== 'number' && typeof value === 'number' && Number.isFinite(value)) return value;
+    if (option?.axisPosition && x.kind !== 'number' && typeof value === 'number' && Math.abs(value) <= 8.64e15) return value;
     const reports = new Reports(option?.field ?? resolved.field);
     const position = parser.read(value, -1, reports);
     // The parser's diagnostics still apply, but an option has no source row or omitted data values.

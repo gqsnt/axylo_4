@@ -35,7 +35,9 @@ const DOMAIN_INTERVALS = 5;
 
 /** The step the automatic domain of [lo, hi] is rounded to (lo < hi). Divided first so that a span wider than the largest double does not overflow. */
 export function domainStep(lo: number, hi: number): NiceStep {
-  return niceStepAtLeast(hi / DOMAIN_INTERVALS - lo / DOMAIN_INTERVALS);
+  const span = hi - lo;
+  return Number.isFinite(span) ? niceStepAtLeast(span, DOMAIN_INTERVALS)
+    : niceStepAtLeast(hi / DOMAIN_INTERVALS - lo / DOMAIN_INTERVALS);
 }
 
 export function valueDomain(input: ValueDomainInput): ValueDomain {
@@ -98,9 +100,8 @@ export function niceExtent(lo: number, hi: number, fixedTop = false): [number, n
 function aroundConstant(v: number, fixedTop: boolean, includeZero: boolean): [number, number] {
   // Zero on a bar or area axis starts at the baseline.
   if (v === 0) return includeZero ? [0, 1] : [-1, 1];
-  // Below 1e-300 a tenth of the value is not representable; such a value is drawn as zero would be.
-  if (Math.abs(v) < 1e-300) return [-1, 1];
   const h = Math.abs(v) * 0.1;
+  if (h === 0) return [-1, 1];
   if (fixedTop || !Number.isFinite(v + h)) return niceExtent(v - 2 * h, v, true);
   if (!Number.isFinite(v - h)) return [v, niceExtent(v, v + 2 * h)[1]];
   return niceExtent(v - h, v + h);
@@ -132,14 +133,17 @@ export function coarserDomains(lo: number, hi: number, domain: readonly [number,
   if (!(lo < hi) || !Number.isFinite(lo) || !Number.isFinite(hi)) return out;
   const b0 = domain[1];
   // The automatic domain's own step, then each coarser one.
-  let step: NiceStep = nextNiceStep(domainStep(lo, hi));
+  let step: NiceStep = nextNiceStep(domainStep(lo, fixedTop ? b0 : hi));
   let intervals = Infinity;
   // Bounded: each step at least doubles, and the domain is reached in one interval within a few steps.
   for (let n = 0; n < 12 && intervals > 1; n++, step = nextNiceStep(step)) {
     const b = fixedTop ? b0 : stepMultiple(firstIndexAtOrAbove(hi, step), step);
-    const a = fixedTop ? b - stepMultiple(firstIndexAtOrAbove(b - lo, step), step) : stepMultiple(lastIndexAtOrBelow(lo, step), step);
+    // When the top is already on the grid, round lo directly to keep decimal multiples exact.
+    const a = fixedTop && stepMultiple(Math.round(b / step.value), step) !== b
+      ? b - stepMultiple(firstIndexAtOrAbove(b - lo, step), step)
+      : stepMultiple(lastIndexAtOrBelow(lo, step), step);
     if (!(Number.isFinite(a) && Number.isFinite(b) && a < b && a <= lo && b >= hi)) continue;
-    const count = Math.round((b - a) / step.value);
+    const count = Math.round(b / step.value - a / step.value);
     if (count >= intervals) continue;
     intervals = count;
     // A domain already offered keeps its ticks of every step: only a wider one is new.

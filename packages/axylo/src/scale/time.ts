@@ -312,37 +312,46 @@ function disambiguators(zone: string): Intl.DateTimeFormatOptions[] {
 function label(values: readonly number[], unit: TimeUnit, zone: string, options: TimeTickOptions): Tick[] {
   const level = levelOf(unit);
   const { short, context } = labelOptions(level);
-  const walls = values.map(v => new Date(instantToWall(zone, v)));
+  const walls = values.map(v => instantToWall(zone, v));
+  // An offset can move the local day beyond Date's limits, but never across a year at either limit.
+  const year = (wall: number) => new Date(Math.max(-MAX_DATE, Math.min(wall, MAX_DATE))).getUTCFullYear();
   // Astronomical year 0 is 1 BC: Intl writes it as "1", like AD 1, unless the era is shown.
-  const era: Intl.DateTimeFormatOptions = walls.some(w => w.getUTCFullYear() < 1) ? { era: 'short' } : {};
+  const era: Intl.DateTimeFormatOptions = walls.some(w => year(w) < 1) ? { era: 'short' } : {};
+  const base = { ...short, ...era };
   const fields: Intl.DateTimeFormatOptions[] = [];
   const builtIn: boolean[] = [];
   const ticks: Tick[] = [];
   const keys: number[] = [];
-  let previous = NaN;
-  values.forEach((value, i) => {
+  const format = (value: number, fields: Intl.DateTimeFormatOptions) =>
+    dateTimeFormat(options.locale, { ...fields, timeZone: zone }).format(value);
+  values.forEach((t, i) => {
+    const value = t === 0 ? 0 : t;
     const wall = walls[i]!;
     // The context a label is read in: the year for calendar ticks, the calendar day for clock ticks, the
     // whole set for year ticks.
     const key = level === 'year' ? 0 : level === 'month' || level === 'day'
-      ? wall.getUTCFullYear()
-      : wall.getUTCFullYear() * 10000 + wall.getUTCMonth() * 100 + wall.getUTCDate();
+      ? year(wall) : Math.floor(wall / DAY);
     keys.push(key);
-    const f = { ...(context !== null && key !== previous ? context : short), ...era };
-    previous = key;
-    fields.push(f);
+    fields.push(base);
     const custom = customLabel(options.label, value);
     builtIn.push(custom === null);
-    ticks.push({ value, label: custom ?? dateTimeFormat(options.locale, { ...f, timeZone: zone }).format(value) });
+    ticks.push({ value, label: custom ?? format(value, base) });
   });
   for (const extra of disambiguators(zone)) {
     const repeated = repeatedBuiltIn(ticks, builtIn, keys);
     if (repeated.length === 0) break;
     for (const j of repeated) {
       fields[j] = { ...fields[j], ...extra };
-      ticks[j] = { value: ticks[j]!.value, label: dateTimeFormat(options.locale, { ...fields[j], timeZone: zone }).format(ticks[j]!.value) };
+      const { value } = ticks[j]!;
+      ticks[j] = { value, label: format(value, fields[j]!) };
     }
   }
+  // Add the date or year only after comparing short labels within their local day or year.
+  if (context) ticks.forEach(({ value }, i) => {
+    if (builtIn[i] && keys[i] !== keys[i - 1]) {
+      ticks[i] = { value, label: format(value, { ...context, ...fields[i] }) };
+    }
+  });
   return ticks;
 }
 

@@ -17,22 +17,19 @@ function make(mantissa: 1 | 2 | 5, exponent: number): NiceStep {
 
 function multiple(i: number, mantissa: number, exponent: number): number {
   const n = i * mantissa;
-  // Dividing an exact integer by an exact power of ten gives the double nearest the decimal value.
-  if (exponent >= 0) return n * 10 ** exponent;
-  if (exponent >= -300) return n / 10 ** -exponent;
+  if (Number.isSafeInteger(n)) return Number(`${n}e${exponent}`);
+  if (exponent < 0 && exponent >= -300) return n / 10 ** -exponent;
   return n * 10 ** exponent;
 }
 
-/** The smallest nice step at or above `x` (x > 0 and finite). */
-export function niceStepAtLeast(x: number): NiceStep {
-  const exponent = Math.floor(Math.log10(x));
-  const base = 10 ** exponent;
-  const r = x / base;
-  // Tolerance: log10 and the division are off by an ulp or two for values like 0.2 or 5e-7.
-  const tol = 1 + 1e-9;
-  if (r <= tol) return make(1, exponent);
-  if (r <= 2 * tol) return make(2, exponent);
-  if (r <= 5 * tol) return make(5, exponent);
+/** Smallest nice step whose given number of intervals covers x. */
+export function niceStepAtLeast(x: number, intervals = 1): NiceStep {
+  const exponent = Math.floor(Math.log10(Math.max(Number.MIN_VALUE, x / intervals)));
+  for (const m of [1, 2, 5] as const) {
+    const step = make(m, exponent);
+    // Compare the full decimal multiple: dividing 5e24 by five rounds above 1e24.
+    if ((intervals === 1 ? step.value : stepMultiple(intervals, step)) >= x && step.value > 0) return step;
+  }
   return make(1, exponent + 1);
 }
 
