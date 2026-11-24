@@ -14,7 +14,7 @@ import {
 import { Reports } from './reports';
 import { gapPosition, snapGap, stepDelta, stepMultiple, supportsSteps, tooSparse } from './steps';
 import { BufferWindow } from './store-window';
-import { StoreMap } from './store-map';
+import { mapValues, StoreMap } from './store-map';
 import { FrameBuffers, type SeriesBuffers } from './store-buffers';
 import { ByteCount, CallerBuffers, countBuffers, countRevisions, type OwnedBytes } from './store-bytes';
 import { CalendarWindow } from './store-calendar';
@@ -232,7 +232,7 @@ function cadences(options: Fields, table: Table, x: XData, axis: XColumn, buffer
       last.set(key, position);
     }
   });
-  const history = new Map(Array.from(observations, ([key, window]) => [key, readCadence(axis, window)]));
+  const history = mapValues(observations, window => readCadence(axis, window));
   return { history, observations, duplicates };
 }
 
@@ -519,10 +519,6 @@ export class AlignedStore {
   }
 
   prepareAppend(rows: readonly unknown[], options: StoreAppendOptions = {}): PreparedFrame<AlignedFrame> {
-    return this.prepare(rows, options);
-  }
-
-  private prepare(rows: readonly unknown[], options: StoreAppendOptions): PreparedFrame<AlignedFrame> {
     if (this.writing) throw new Error('Cannot prepare a data change during an append.');
     const base = this.current;
     const rowsDraft = this.rows.fork();
@@ -533,9 +529,9 @@ export class AlignedStore {
     draft.state = {
       ...state, parser: state.parser.fork(), buffers: state.buffers.fork(),
       history: new Map(state.history),
-      observations: new Map(Array.from(state.observations, ([key, value]) => [key, value.fork()])),
-      duplicates: new Map(Array.from(state.duplicates, ([key, value]) => [key, value.fork()])),
-      modes: new Map(Array.from(state.modes, ([key, value]) => [key, { ...value }])),
+      observations: mapValues(state.observations, value => value.fork()),
+      duplicates: mapValues(state.duplicates, value => value.fork()),
+      modes: mapValues(state.modes, value => ({ ...value })),
       calendar: state.calendar?.fork() ?? null, diagnostics: state.diagnostics.fork(),
       votes: state.votes && { ...state.votes }, dateUnits: state.dateUnits && { ...state.dateUnits },
     };
@@ -613,7 +609,7 @@ export class AlignedStore {
     const state: State = {
       axis, parser: x.parser, buffers,
       ...cadences(this.fields, options.table, x, frame.x, buffers),
-      modes: new Map(Array.from(counts, ([field, count]) => [field, { ...count }])),
+      modes: mapValues(counts, count => ({ ...count })),
       calendar: calendarFor(x, options.table), votes, dateUnits: x.dateUnits && { ...x.dateUnits },
       overBudget: false, diagnostics: seed.diagnostics.copy(),
     };
@@ -680,19 +676,16 @@ export class AlignedStore {
     const duplicates = new Reports(fields.x.field, diagnostics);
     let validX: Float64Array | undefined;
     const observedX = () => validX ??= positions.every(Number.isFinite) ? positions : positions.filter(Number.isFinite);
+    const add = (key: string, field: ResolvedValueField, rows: readonly number[], label = key) => {
+      const item = extendSeries(key, field, values.get(field.field)!, rows, positions, state, axis, lastX,
+        duplicates, this.rows.next, observedX, label);
+      if (item) series.push(item);
+      return item !== null;
+    };
     if (fields.series !== null) {
-      for (const [key, rows] of memberships) {
-        const value = fields.values[0]!;
-        const item = extendSeries(key, value, values.get(value.field)!, rows, positions, state, axis, lastX, duplicates, this.rows.next, observedX);
-        if (!item) return null;
-        series.push(item);
-      }
+      for (const [key, rows] of memberships) if (!add(key, fields.values[0]!, rows)) return null;
     } else {
-      for (const field of fields.values) {
-        const item = extendSeries(field.field, field, values.get(field.field)!, allRows, positions, state, axis, lastX, duplicates, this.rows.next, observedX, field.label);
-        if (!item) return null;
-        series.push(item);
-      }
+      for (const field of fields.values) if (!add(field.field, field, allRows, field.label)) return null;
     }
     duplicates.flush(diagnostics);
     for (const item of series) {
@@ -863,7 +856,7 @@ export class AlignedStore {
   private trim(keep: number): boolean {
     const { buffers, diagnostics, calendar, observations, modes, votes, parser, dateUnits } = this.state;
     let update = false;
-    const priorModes = new Map(Array.from(modes, ([field, counts]) => [field, mode(counts)]));
+    const priorModes = mapValues(modes, mode);
     let categories = 0;
     let remove = buffers.distinct - keep;
     let first = buffers.start;
@@ -943,8 +936,10 @@ export class AlignedStore {
       positions[i] = position;
       if (!Number.isFinite(position)) continue;
       if (dateUnits) dateUnits[dateUnitOf(raw)]++;
-      if (position < highest) order.add('AX151', 'none', this.rows.next + i);
-      if (position < highest) needsUpdate = true;
+      if (position < highest) {
+        order.add('AX151', 'none', this.rows.next + i);
+        needsUpdate = true;
+      }
       highest = Math.max(highest, position);
     }
     if (dateUnit !== parser.dateUnit && buffers.distinct) needsUpdate = true;

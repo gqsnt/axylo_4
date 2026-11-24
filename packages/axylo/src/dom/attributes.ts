@@ -122,3 +122,12 @@ export const keepFocusOnPress = (event: Event): void => event.preventDefault();
 
 /** Hides an element from assistive technology. */
 export const hideFromAT = (el: Element): void => el.setAttribute('aria-hidden', 'true');
+
+/** Initial attributes for a new SVG node. Updates to reused marks have their own cache. */
+export function svgElement<K extends keyof SVGElementTagNameMap>(
+  doc: Document, tag: K, attrs?: Readonly<Record<string, string>>,
+): SVGElementTagNameMap[K] {
+  const el = doc.createElementNS('http://www.w3.org/2000/svg', tag);
+  if (attrs) for (const key of Object.keys(attrs)) el.setAttribute(key, attrs[key]!);
+  return el;
+}

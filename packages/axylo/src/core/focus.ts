@@ -14,7 +14,7 @@ import {
 import { donutGeometry } from '../view/donut-geometry';
 import type { Messages } from '../public';
 import { fill, pointOf } from '../messages';
-import { lowerBound, pageDistance } from '../lookup/search';
+import { lowerBound, pageDistance, stepIndex } from '../lookup/search';
 
 /** Matches lookup's page size (spec A2 "Page keys"): one definition, the lookup's. */
 export { pageDistance };
@@ -52,49 +52,14 @@ export function readableSeries(view: AlignedView): number[] {
  * them ("point 2 of 3") and as the pointer reaches them: a slot where a series has no data reads "No data"
  * (spec F2), one only a hidden series observes reads "No observation" (review 2, finding 7).
  */
-function occupied(_view: AlignedView, _series: readonly number[], _i: number): boolean {
-  return true;
-}
-
-/** The x position "all" mode moves to, or null when there is nowhere to go in that direction. */
 export function stepAcross(view: AlignedView, x: number | null, direction: StepDirection): number | null {
   const { start, end } = view.visibleSlots;
+  if (start >= end || !view.frame.series.some((series, i) => view.visible[i] && series.drawable)) return null;
   const positions = view.frame.x.values;
-  const series = readableSeries(view);
-  if (start >= end || series.length === 0) return null;
-  const seek = (from: number, delta: 1 | -1, lo = start, hi = end): number => {
-    for (let i = from; i >= lo && i < hi; i += delta) if (occupied(view, series, i)) return i;
-    return -1;
-  };
-  let at = x === null ? -1 : lowerBound(positions, x, start, end);
-  if (at >= 0 && (at >= end || positions[at] !== x)) at = -1;
-  let to = -1;
-  if (at < 0) {
-    to = direction === 'last' ? seek(end - 1, -1) : seek(start, 1);
-  } else {
-    const page = pageDistance(end - start);
-    switch (direction) {
-      case 'next': to = seek(at + 1, 1); break;
-      case 'previous': to = seek(at - 1, -1); break;
-      case 'first': to = seek(start, 1); break;
-      case 'last': to = seek(end - 1, -1); break;
-      case 'page-next': {
-        const target = Math.min(end - 1, at + page);
-        to = seek(target, 1);
-        if (to < 0) to = seek(target - 1, -1, at + 1);
-        break;
-      }
-      case 'page-previous': {
-        const target = Math.max(start, at - page);
-        to = seek(target, -1);
-        if (to < 0) to = seek(target + 1, 1, start, at);
-        break;
-      }
-      default: return null;
-    }
-    if (to === at) return null;
-  }
-  return to < 0 ? null : positions[to]!;
+  const at = x === null ? end : lowerBound(positions, x, start, end);
+  if (at >= end || positions[at] !== x) return positions[direction === 'last' ? end - 1 : start]!;
+  const to = stepIndex(direction, at, start, end);
+  return to === null ? null : positions[to]!;
 }
 
 /** The refs of every readable series at x, in series order. */
@@ -485,11 +450,8 @@ export function stepInSeries(view: ScatterView, ref: DatumRef, direction: StepDi
   let at = -1;
   for (let i = range.start; i < range.end; i++) if ((rows ? rows[i]! : i) === ref.row) { at = i; break; }
   if (at < 0) return null;
-  const page = pageDistance(range.end - range.start);
-  const to = direction === 'next' ? at + 1 : direction === 'previous' ? at - 1 : direction === 'first' ? range.start
-    : direction === 'last' ? range.end - 1 : direction === 'page-next' ? Math.min(range.end - 1, at + page)
-      : direction === 'page-previous' ? Math.max(range.start, at - page) : -1;
-  if (to < range.start || to >= range.end || to === at) return null;
+  const to = stepIndex(direction, at, range.start, range.end);
+  if (to === null) return null;
   return { kind: 'point', seriesKey: series.key, row: rows ? rows[to]! : to, x: series.x[to]! };
 }
 

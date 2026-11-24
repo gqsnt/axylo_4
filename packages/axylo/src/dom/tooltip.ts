@@ -330,26 +330,54 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     });
   }
 
-  function hideFloating(): void {
-    if (element.hidden && !element.firstChild) return;
-    keepFocus('floating');
+  const hosts = { floating: element, strip: readoutElement };
+  const pinnedClasses = { floating: 'axylo-tooltip-pinned', strip: 'axylo-readout-pinned' };
+
+  function hidePresentation(mode: Presentation): void {
+    const host = hosts[mode];
+    if (host.hidden && !host.firstChild) return;
+    keepFocus(mode);
     clearPress();
-    element.hidden = true;
-    element.classList.remove('axylo-tooltip-pinned');
-    expose(element, false);
-    place(element, []);
-    dropEntries('floating');
+    host.hidden = true;
+    host.classList.remove(pinnedClasses[mode]);
+    expose(host, false);
+    place(host, []);
+    dropEntries(mode);
   }
 
-  function hideStrip(): void {
-    if (readoutElement.hidden && !readoutElement.firstChild) return;
-    keepFocus('strip');
+  function begin(mode: Presentation, content: TooltipContent, pinned: boolean) {
+    current = content;
+    const carried = pinned ? press : null;
+    if (!pinned) clearPress();
+    const other = mode === 'strip' ? 'floating' : 'strip';
+    const had = focusedKey(other) ?? focusedKey(mode) ?? pendingFocus;
+    pendingFocus = null;
+    hidePresentation(other);
+    const host = hosts[mode];
+    host.hidden = false;
+    host.classList.toggle(pinnedClasses[mode], pinned);
+    expose(host, pinned);
+
+    return (visible: boolean) => {
+      if (visible) {
+        where = mode;
+        if (carried && !press) startPress(carried.key, carried.pointer);
+        carryFocus(had, mode);
+      } else {
+        hidePresentation(mode);
+        where = null;
+        if (had !== null) lost();
+      }
+      return visible;
+    };
+  }
+
+  function hide(): void {
     clearPress();
-    readoutElement.hidden = true;
-    readoutElement.classList.remove('axylo-readout-pinned');
-    expose(readoutElement, false);
-    place(readoutElement, []);
-    dropEntries('strip');
+    hidePresentation('floating');
+    hidePresentation('strip');
+    where = null;
+    current = null;
   }
 
   return {
@@ -365,15 +393,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       return node !== null && (element.contains(node) || readoutElement.contains(node));
     },
     show(content, p, pinned) {
-      current = content;
-      const carried = pinned ? press : null;
-      if (!pinned) clearPress();
-      const had = focusedKey('strip') ?? focusedKey('floating') ?? pendingFocus;
-      pendingFocus = null;
-      hideStrip();
-      element.hidden = false;
-      element.classList.toggle('axylo-tooltip-pinned', pinned);
-      expose(element, pinned);
+      const finish = begin('floating', content, pinned);
       // The tooltip lives in the figure's layout pixels; placement is in viewport pixels.
       const m = mappingOf(figure);
       // Never larger than the visible part of the plot (rule 6): it wraps within that.
@@ -385,7 +405,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       const position = (x: number, y: number) => {
         const transform = `translate(${(x - m.left) / m.kx}px, ${(y - m.top) / m.ky}px)`;
         if (element.style.transform !== transform) element.style.transform = transform;
-        where = 'floating';
+        return finish(true);
       };
       // Measured where it cannot be squeezed by the figure's edge.
       element.style.transform = 'translate(0px, 0px)';
@@ -404,35 +424,18 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
         size = { width: b.width, height: b.height };
         const spot = placeTooltip(p, size.width, size.height);
         if (spot) {
-          position(spot.x, spot.y);
-          if (carried && !press) startPress(carried.key, carried.pointer);
-          carryFocus(had, 'floating');
-          return true;
+          return position(spot.x, spot.y);
         }
       }
       const last = size.width > 0 ? fallbackPlacement(p, size.width, size.height) : null;
       if (last) {
-        position(last.x, last.y);
-        if (carried && !press) startPress(carried.key, carried.pointer);
-        carryFocus(had, 'floating');
-        return true;
+        return position(last.x, last.y);
       }
       // Nowhere clear of the controls and focus rings, or not even one row visible: nothing floats (rule 6).
-      hideFloating();
-      where = null;
-      if (had !== null) lost();
-      return false;
+      return finish(false);
     },
     strip(content, pinned, visible) {
-      current = content;
-      const carried = pinned ? press : null;
-      if (!pinned) clearPress();
-      const had = focusedKey('floating') ?? focusedKey('strip') ?? pendingFocus;
-      pendingFocus = null;
-      hideFloating();
-      readoutElement.hidden = false;
-      readoutElement.classList.toggle('axylo-readout-pinned', pinned);
-      expose(readoutElement, pinned);
+      const finish = begin('strip', content, pinned);
       const { model } = content;
       const rows = rowEntries('strip', content, pinned);
       setText(stripTitle, `${model.title}: `);
@@ -485,28 +488,13 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
           seen = within(stripTitle) && rows.slice(0, shown).every(e => within(e.element)) && (!pager?.isConnected || within(pager));
         }
       }
-      if (!seen) {
-        hideStrip();
-        where = null;
-        if (had !== null) lost();
-        return false;
-      }
-      where = 'strip';
-      if (carried && !press) startPress(carried.key, carried.pointer);
-      carryFocus(had, 'strip');
-      return true;
+      return finish(seen);
     },
-    hide() {
-      clearPress();
-      hideFloating();
-      hideStrip();
-      where = null;
-      current = null;
-    },
+    hide,
     destroy() {
       clearPress();
-      hideFloating();
-      hideStrip();
+      hidePresentation('floating');
+      hidePresentation('strip');
       listening.abort();
       mores.clear();
       where = null;

@@ -8,7 +8,7 @@
  * its neighbour instead of falling back to the page.
  */
 import { createSwatch, type SwatchSpec } from './swatch';
-import { activeElementOf, setAttr, make, hideFromAT } from './attributes';
+import { activeElementOf, setAttr, make, svgElement } from './attributes';
 
 export interface ToolbarItem {
   readonly key: string;
@@ -41,8 +41,6 @@ export interface Toolbar {
   focus(key: string): boolean;
   destroy(): void;
 }
-
-const SVG = 'http://www.w3.org/2000/svg';
 
 export function createToolbar(doc: Document): Toolbar {
   const element = make(doc, 'div', 'axylo-toolbar');
@@ -97,14 +95,12 @@ export function createToolbar(doc: Document): Toolbar {
 
   /** Two bounds and a double arrow between them, in the text colour (so forced colours restyle it). */
   function rangeSymbol(): SVGSVGElement {
-    const svg = doc.createElementNS(SVG, 'svg');
-    svg.setAttribute('viewBox', '0 0 16 16');
-    svg.setAttribute('width', '16');
-    svg.setAttribute('height', '16');
-    hideFromAT(svg);
-    svg.setAttribute('class', 'axylo-symbol');
-    const path = doc.createElementNS(SVG, 'path');
-    path.setAttribute('d', 'M2 2v12M14 2v12M4.5 8h7M4.5 8l2.5-2.5M4.5 8l2.5 2.5M11.5 8l-2.5-2.5M11.5 8l-2.5 2.5');
+    const svg = svgElement(doc, 'svg', {
+      viewBox: '0 0 16 16', width: '16', height: '16', 'aria-hidden': 'true', class: 'axylo-symbol',
+    });
+    const path = svgElement(doc, 'path', {
+      d: 'M2 2v12M14 2v12M4.5 8h7M4.5 8l2.5-2.5M4.5 8l2.5 2.5M11.5 8l-2.5-2.5M11.5 8l-2.5 2.5',
+    });
     svg.append(path);
     return svg;
   }

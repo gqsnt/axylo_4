@@ -356,17 +356,15 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
    * the one with an effect on the figure if either has one (a value shown differently keeps its note).
    */
   function presentationList(): DiagnosticInput[] {
-    const out: DiagnosticInput[] = [];
-    const seen = new Map<string, number>();
+    const seen = new Map<string, DiagnosticInput>();
     for (const list of presentation.values()) {
       for (const d of list) {
         const key = `${d.code}\u0000${d.field ?? ''}`;
-        const at = seen.get(key);
-        if (at === undefined) seen.set(key, out.push(d) - 1);
-        else if (out[at]!.effect === 'none') out[at] = d;
+        const previous = seen.get(key);
+        if (!previous || previous.effect === 'none') seen.set(key, d);
       }
     }
-    return out;
+    return [...seen.values()];
   }
 
   function stateDiagnostics(a: Accepted): DiagnosticInput[] {
@@ -386,8 +384,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     const before = presentation.get(where) ?? [];
     if (before.length === 0 && list.length === 0) return;
     if (before.length === list.length && before.every((d, i) => diagnosticKey(d) === diagnosticKey(list[i]!))) return;
-    if (list.length) presentation.set(where, list);
-    else presentation.delete(where);
+    setPresentationQuiet(where, list);
     if (!inFrame && !destroyed) {
       deliverChanges();
       // The reader's note may change with it (spec F12).
@@ -540,11 +537,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     options.commit(c.options);
     frameRevision = Math.max(frameRevision, c.frame.revision);
     accepted = {
-      options: c.options, resolved: c.resolved, source: c.source, store: c.store, frame: c.frame,
-      dataDiagnostics: c.dataDiagnostics, dataOptions: c.dataOptions, optionDiagnostics: c.optionDiagnostics,
-      viewDiagnostics: viewed.viewDiagnostics, naming: namingDiagnostics(c.options), view: viewed.view,
-      viewKey: viewed.viewKey, zoom: c.zoom, follow, revision: ++commits, messages: c.messages,
-      name: chartName(c.options), hidden: c.hidden,
+      ...c, viewDiagnostics: viewed.viewDiagnostics, naming: namingDiagnostics(c.options), view: viewed.view,
+      viewKey: viewed.viewKey, follow, revision: ++commits, name: chartName(c.options),
     };
     if (internalError !== null) {
       internalError = null;
@@ -627,6 +621,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         naming: previous === null ? namingDiagnostics(next) : [],
       });
       const messages = messagesFor(next, previous);
+      const common = { options: next, messages, zoom: previous?.zoom ?? null, hidden: previous?.hidden ?? new Set<string>() };
+      const resolve = (table?: Table) => resolveOptions(kind, publicOptions(next), optionSink, table);
       let c: Candidate;
       let commit: (() => void) | null = null;
       let heldAfter: typeof held = null;
@@ -634,27 +630,26 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       const reencode = !replace && encodingChanged(previous!.options, next);
       if (!replace && reencode && previous!.store === null && namesOnlyChanged(previous!.options, next)) {
         // Labels or units only, over the caller's own data: the same columns with new names (finding 12).
-        const resolved = resolveOptions(kind, publicOptions(next), optionSink, previous!.source.table);
+        const resolved = resolve(previous!.source.table);
         const p = previous!;
         const opts = optionSink.inputs().filter(d => !DATA_CODES.has(d.code));
         c = {
-          options: next, resolved, source: resolved, store: null, frame: renamed(p.frame, resolved, frameRevision += 1),
+          ...common, resolved, source: resolved, store: null, frame: renamed(p.frame, resolved, frameRevision += 1),
           dataDiagnostics: p.dataDiagnostics, dataOptions: p.dataOptions,
-          optionDiagnostics: dedupe([...p.dataOptions, ...opts], p.dataDiagnostics), zoom: p.zoom, hidden: p.hidden, messages,
+          optionDiagnostics: dedupe([...p.dataOptions, ...opts], p.dataDiagnostics),
         };
       } else if (replace || (reencode && previous!.store === null)) {
         // New data, or new fields over the caller's own data: normalized from the options, borrowing typed
         // columns (plan 1.2). A stream this replaces is dropped with everything it held.
         stage('normalize');
-        const resolved = resolveOptions(kind, publicOptions(next), optionSink);
+        const resolved = resolve();
         const dataSink = new DiagnosticCollector();
         const frame = composition.normalize(kind, resolved, environment, dataSink, nextVersion());
         const data = dataSink.inputs();
         const opts = optionSink.inputs();
         c = {
-          options: next, resolved, source: resolved, store: null, frame, dataDiagnostics: data,
+          ...common, resolved, source: resolved, store: null, frame, dataDiagnostics: data,
           dataOptions: opts.filter(d => DATA_CODES.has(d.code)), optionDiagnostics: dedupe(opts, data),
-          zoom: previous?.zoom ?? null, hidden: previous?.hidden ?? new Set(), messages,
         };
       } else if (reencode) {
         // New fields after streaming: the retained rows are read again (a new epoch, plan 1.5).
@@ -665,6 +660,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         ends(prepared.frame, store.frame);
         commit = prepared.commit;
         const opts = optionSink.inputs();
+        c = { ...common, resolved, source: resolved, store, frame: prepared.frame,
+          dataDiagnostics: prepared.diagnostics, dataOptions: [], optionDiagnostics: [] };
         if (paused && held) {
           // Paused: the rows on screen are read again with the new fields on their own, and the arrivals stay
           // held, re-encoded in the store, until Resume (review 3, finding 5). The rows on screen are the
@@ -679,22 +676,14 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
           const shown = composition.normalize(kind, shownResolved, environment, shownSink, nextVersion());
           // Both views are built and validated before either is accepted: the held one keeps its findings
           // (AX130 of a held ninth series), which count for strict and for `diagnostics` (defect 4).
-          const heldView = viewFor({
-            options: next, resolved, source: resolved, store, frame: prepared.frame, dataDiagnostics: prepared.diagnostics,
-            dataOptions: [], optionDiagnostics: [], zoom: previous!.zoom, hidden: previous!.hidden, messages,
-          }, null);
+          const heldView = viewFor(c, null);
           heldAfter = { frame: prepared.frame, dataDiagnostics: prepared.diagnostics, viewDiagnostics: heldView.viewDiagnostics };
           c = {
-            options: next, resolved, source: shownResolved, store, frame: shown, dataDiagnostics: shownSink.inputs(),
+            ...c, source: shownResolved, frame: shown, dataDiagnostics: shownSink.inputs(),
             dataOptions: shownData, optionDiagnostics: dedupe([...dedupe(shownData, opts), ...opts], prepared.diagnostics),
-            zoom: previous!.zoom, hidden: previous!.hidden, messages,
           };
         } else {
-          c = {
-            options: next, resolved, source: resolved, store, frame: prepared.frame, dataDiagnostics: prepared.diagnostics,
-            dataOptions: [], optionDiagnostics: dedupe(opts, prepared.diagnostics),
-            zoom: previous!.zoom, hidden: previous!.hidden, messages,
-          };
+          c = { ...c, optionDiagnostics: dedupe(opts, prepared.diagnostics) };
         }
       } else {
         // Presentation only (title, domains, references, colors, …): the frame stays. Rows held by a Resume
@@ -703,14 +692,12 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         // The fields are unchanged, so what the retained rows said about them still holds: a stream is checked
         // against no rows (a title update must not walk them, finding 11) unless they were found wanting.
         const resolved = p.store
-          ? p.resolved.valid ? resolveOptions(kind, publicOptions(next), optionSink, rowsTable([]))
+          ? p.resolved.valid ? resolve(rowsTable([]))
             : p.store.resolveEncoding(publicOptions(next), optionSink)
-          : resolveOptions(kind, publicOptions(next), optionSink, p.source.table);
+          : resolve(p.source.table);
         const opts = optionSink.inputs().filter(d => !DATA_CODES.has(d.code));
         c = {
-          options: next, resolved, source: p.source, store: p.store, frame: p.frame, dataDiagnostics: p.dataDiagnostics,
-          dataOptions: p.dataOptions, optionDiagnostics: dedupe([...p.dataOptions, ...opts], p.dataDiagnostics),
-          zoom: p.zoom, hidden: p.hidden, messages,
+          ...p, ...common, resolved, optionDiagnostics: dedupe([...p.dataOptions, ...opts], p.dataDiagnostics),
         };
       }
       const viewed = viewFor(c, previous);
@@ -741,6 +728,19 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     return store;
   }
 
+  function recoverFields(previous: Accepted, store: Store, c: Candidate, before: Frame) {
+    const check = new DiagnosticCollector();
+    const resolved = store.resolveEncoding(publicOptions(previous.options), check);
+    if (check.inputs().some(d => d.code === 'AX101')) return null;
+    const again = store.prepareReencode(resolved, nextVersion());
+    ends(again.frame, before);
+    const candidate = {
+      ...c, resolved, source: resolved, frame: again.frame, dataDiagnostics: again.diagnostics, dataOptions: [],
+      optionDiagnostics: previous.optionDiagnostics.filter(d => !DATA_CODES.has(d.code)),
+    };
+    return { candidate, commit: again.commit };
+  }
+
   function append(rows: unknown, appendOptions?: { keep?: number }): void {
     guarded(call => {
       const previous = accepted;
@@ -765,9 +765,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       let c: Candidate = {
         // Once the stream has its store the caller's opening data is no longer read: options and source keep no
         // reference to it, so it can be collected once no displayed frame needs it (data agent's report).
-        options: streamOptions(previous.options), resolved: withoutTable(previous.resolved), source: withoutTable(previous.source), store, frame: prepared.frame,
-        dataDiagnostics: prepared.diagnostics, dataOptions: previous.dataOptions,
-        optionDiagnostics: previous.optionDiagnostics, zoom, hidden: previous.hidden, messages: previous.messages,
+        ...previous, options: streamOptions(previous.options), resolved: withoutTable(previous.resolved),
+        source: withoutTable(previous.source), store, frame: prepared.frame, dataDiagnostics: prepared.diagnostics, zoom,
       };
       let commitAppend: (() => void) | null = prepared.commit;
       if (!paused && previous.dataOptions.some(d => d.code === 'AX101') && previous.options.strict !== true) {
@@ -777,16 +776,10 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         storeFrames.add(prepared.frame);
         frameRevision = Math.max(frameRevision, prepared.frame.revision);
         commitAppend = null;
-        const check = new DiagnosticCollector();
-        const resolved = store.resolveEncoding(publicOptions(previous.options), check);
-        if (!check.inputs().some(d => d.code === 'AX101')) {
-          const again: PreparedFrame<Frame> = store.prepareReencode(resolved, nextVersion());
-          ends(again.frame, prepared.frame);
-          commitAppend = again.commit;
-          c = {
-            ...c, resolved, source: resolved, frame: again.frame, dataDiagnostics: again.diagnostics, dataOptions: [],
-            optionDiagnostics: previous.optionDiagnostics.filter(d => !DATA_CODES.has(d.code)),
-          };
+        const repaired = recoverFields(previous, store, c, prepared.frame);
+        if (repaired) {
+          c = repaired.candidate;
+          commitAppend = repaired.commit;
         }
       }
       const viewed = viewFor(c, base);
@@ -912,12 +905,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   }
 
   function viewCandidate(given: Accepted, change: Partial<Pick<Candidate, 'zoom' | 'hidden' | 'frame' | 'dataDiagnostics'>>): Candidate {
-    const a = resumable(given);
-    return {
-      options: a.options, resolved: a.resolved, source: a.source, store: a.store, frame: a.frame,
-      dataDiagnostics: a.dataDiagnostics, dataOptions: a.dataOptions, optionDiagnostics: a.optionDiagnostics,
-      zoom: a.zoom, hidden: a.hidden, messages: a.messages, ...change,
-    };
+    return { ...resumable(given), ...change };
   }
 
   function zoom(domain: unknown): void {
@@ -1004,16 +992,10 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         if (store && previous.dataOptions.some(d => d.code === 'AX101') && previous.options.strict !== true) {
           // A field the earlier data did not have, which the held arrivals bring: the frame is read again with
           // the fields as given, and AX101 goes, as for a running append (final review, finding 6).
-          const check = new DiagnosticCollector();
-          const resolved = store.resolveEncoding(publicOptions(previous.options), check);
-          if (!check.inputs().some(d => d.code === 'AX101')) {
-            const again: PreparedFrame<Frame> = store.prepareReencode(resolved, nextVersion());
-            ends(again.frame, store.frame);
-            commit = again.commit;
-            c = {
-              ...c, resolved, source: resolved, frame: again.frame, dataDiagnostics: again.diagnostics, dataOptions: [],
-              optionDiagnostics: previous.optionDiagnostics.filter(d => !DATA_CODES.has(d.code)),
-            };
+          const repaired = recoverFields(previous, store, c, store.frame);
+          if (repaired) {
+            c = repaired.candidate;
+            commit = repaired.commit;
           }
         }
         const viewed = viewFor(c, previous);
@@ -1622,7 +1604,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     });
     // The displayed snapshot is now this revision (or nothing, when nothing could be drawn): older rows go.
     showing(measured ? a : null);
-    if (measured) settle(a.revision);
+    if (stages && measured) settle(a.revision);
   }
 
   function emptyScene(): Scene {
@@ -1700,7 +1682,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     lastLayout = null;
     themeDirty = true;
     sizeDirty = true;
-    settle(a.revision);
+    if (stages) settle(a.revision);
   }
 
   /** Resolves the theme for these series keys and writes it (custom properties, scheme) on the figure. */
@@ -1926,9 +1908,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   }
 
   const handle: ChartHandle = {
-    update: patch => update(patch),
-    append: (rows, appendOptions) => append(rows, appendOptions),
-    zoom: domain => zoom(domain),
+    update, append, zoom,
     on(event, listener) {
       if (destroyed) return () => {};
       let set = listeners.get(event);

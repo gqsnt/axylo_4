@@ -1,7 +1,7 @@
 import type { DatumRef, DonutView, Formatters, Lookup, Rect } from '../core/contracts';
 import { donutGeometry } from '../view/donut-geometry';
 import { pointerOnPlot, type PlotLayout } from './geometry';
-import { pageDistance } from './search';
+import { stepIndex } from './search';
 import { sliceText } from './text';
 
 const TURN = 6.283185307179586; // 2π, a literal so the module does no work at import time
@@ -98,18 +98,8 @@ export function donutLookup(view: DonutView, layout: PlotLayout | null, formatte
       const resolved = resolve(from);
       if (!resolved) return null;
       const i = index(resolved);
-      let to: number;
-      switch (direction) {
-        case 'next': to = i + 1; break;
-        case 'previous': to = i - 1; break;
-        case 'first': to = 0; break;
-        case 'last': to = slices.length - 1; break;
-        case 'page-next': to = Math.min(slices.length - 1, i + pageDistance(slices.length)); break;
-        case 'page-previous': to = Math.max(0, i - pageDistance(slices.length)); break;
-        case 'series-next':
-        case 'series-previous': return null;
-      }
-      return to === i ? null : ref(to);
+      const to = stepIndex(direction, i, 0, slices.length);
+      return to === null ? null : ref(to);
     },
     resolve,
   };

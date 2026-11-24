@@ -203,8 +203,7 @@ export function readoutOf(state: ControlsState): ReadoutMode {
 /** How the content is presented for this state: never, by `tooltip: false`, in the too-small state or without a readout. */
 function presentationFor(state: ControlsState): Presentation | 'none' {
   if (!state.interactive || !state.tooltip || state.tooSmall) return 'none';
-  const mode = readoutOf(state);
-  return mode === 'strip' ? 'strip' : mode === 'none' ? 'none' : 'floating';
+  return readoutOf(state);
 }
 
 /**
@@ -315,10 +314,10 @@ export const donutSliceList: SliceList = (doc, d, actions, list) => {
       entry.choose.replaceChildren(createSwatch(doc, swatchSpec), entry.name, entry.value);
       entry.swatch = signature;
     }
-    if (entry.name.textContent !== slice.label) entry.name.textContent = slice.label;
+    setText(entry.name, slice.label);
     const percent = datum?.percent;
     const text = datum ? (percent && percent !== datum.value ? `${datum.value} (${percent})` : datum.value) : '';
-    if (entry.value.textContent !== text) entry.value.textContent = text;
+    setText(entry.value, text);
     // A missing value is the built-in "No data": marked as English on a page in another language (A10).
     setAttr(entry.value, 'lang', datum && datum.value === d.messages.noData ? missingLang : null);
     wanted.push(entry.li);
@@ -495,10 +494,12 @@ function focusedFigure(doc: Document, own: HTMLElement): Element | null {
 }
 
 export function createInteraction(parts: InteractionParts, figure: Figure, renderer: MarkRenderer, actions: Actions): Interaction {
-  const doc = figure.figure.ownerDocument;
+  const root = figure.figure;
+  const doc = root.ownerDocument;
+  const activeElement = () => activeElementOf(doc, root);
   const plot = figure.plot;
   // A focused row that a redraw took away hands focus back to the plot (or the figure), never the page.
-  const tooltip = createTooltip(figure.tooltip, figure.readout, figure.figure, () => {
+  const tooltip = createTooltip(figure.tooltip, figure.readout, root, () => {
     if (proxy && !proxy.hidden) proxy.focus({ preventScroll: true });
     else focusFigure();
   });
@@ -559,13 +560,13 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   function registerFigure(): void {
     let set = (liveFigures ??= new WeakMap()).get(doc);
     if (!set) liveFigures.set(doc, set = new Set());
-    set.add(figure.figure);
+    set.add(root);
   }
 
   function unregisterFigure(): void {
     const set = liveFigures?.get(doc);
     if (!set) return;
-    set.delete(figure.figure);
+    set.delete(root);
     if (set.size === 0) liveFigures!.delete(doc);
   }
 
@@ -584,7 +585,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     if (documentListeners || !attached || !proxy) return;
     documentListeners = new AbortController();
     const signal = documentListeners.signal;
-    const roots = shadowRootsOf(figure.figure);
+    const roots = shadowRootsOf(root);
     // On the window, capturing: the chart sees Escape before anything in the page, a dialog included, and
     // spends it when it has something to close (rule 7).
     doc.defaultView?.addEventListener('keydown', onEscape, { capture: true, signal });
@@ -646,7 +647,6 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   /** Focus that is inside the chart's own interactive elements goes to the figure, which takes focus from script only. */
   function focusFigure(): void {
-    const root = figure.figure;
     if (!root.hasAttribute('tabindex')) root.setAttribute('tabindex', '-1');
     root.focus({ preventScroll: true });
   }
@@ -657,7 +657,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
    * tab stop is added (WCAG 2.4.3; interaction review, new item 6).
    */
   function handOff(): void {
-    if (!proxy || activeElementOf(doc, figure.figure) !== proxy) return;
+    if (!proxy || activeElement() !== proxy) return;
     if (toolbar?.focus('table')) return;
     focusFigure();
   }
@@ -685,8 +685,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   /** Focus is in one of the chart's own elements other than the figure itself. */
   function focusOwned(): boolean {
-    const active = activeElementOf(doc, figure.figure);
-    return isElement(active) && active !== figure.figure && figure.figure.contains(active);
+    const active = activeElement();
+    return isElement(active) && active !== root && root.contains(active);
   }
 
   function unbuild(ownedBefore = false): void {
@@ -713,8 +713,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       host.replaceChildren();
     }
     plot.classList.remove('axylo-touch-zoom', 'axylo-zoomable');
-    const after = activeElementOf(doc, figure.figure);
-    if (owned && (after === null || after === doc.body || !figure.figure.contains(after))) focusFigure();
+    const after = activeElement();
+    if (owned && (after === null || after === doc.body || !root.contains(after))) focusFigure();
   }
 
   // ── what the reader is on ──────────────────────────────────────────────────────────────────────
@@ -875,26 +875,26 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   function noteShowing(promote: boolean): void {
     let list = (lastShowing ??= new WeakMap()).get(doc);
     if (!list) lastShowing.set(doc, list = []);
-    const i = list.indexOf(figure.figure);
+    const i = list.indexOf(root);
     if (promote) {
       if (i >= 0) list.splice(i, 1);
-      list.push(figure.figure);
+      list.push(root);
     } else if (i < 0) {
-      list.unshift(figure.figure);
+      list.unshift(root);
     }
   }
 
   function releaseShowing(): void {
     const list = lastShowing?.get(doc);
     if (!list) return;
-    const i = list.indexOf(figure.figure);
+    const i = list.indexOf(root);
     if (i >= 0) list.splice(i, 1);
     if (list.length === 0) lastShowing!.delete(doc);
   }
 
   function isLastShowing(): boolean {
     const list = lastShowing?.get(doc);
-    return list !== undefined && list[list.length - 1] === figure.figure;
+    return list !== undefined && list[list.length - 1] === root;
   }
 
   function hideTooltip(): void {
@@ -1007,8 +1007,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       hole = { cx: centre.x, cy: centre.y, rx: (r0 - HOLE_CLEARANCE) * m.kx, ry: (r0 - HOLE_CLEARANCE) * m.ky };
     }
     const controls: Rect[] = [];
-    for (const el of figure.figure.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], [tabindex], .axylo-legend-list > li')) {
-      if (el === proxy || el === figure.figure || tooltip.contains(el)) continue;
+    for (const el of root.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], [tabindex], .axylo-legend-list > li')) {
+      if (el === proxy || el === root || tooltip.contains(el)) continue;
       const r = el.getBoundingClientRect();
       // With the outline it paints (its own width and offset, scaled as the chart is), or the stylesheet's focus
       // outline that it will paint when focused, whichever reaches further.
@@ -1331,7 +1331,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   function onWheel(event: WheelEvent): void {
     const d = c;
     // Spec I3: only while the plot has focus, and never with Ctrl or Meta (browser zoom, page scroll).
-    if (!plotReady(d) || !d.zoom || !proxy || activeElementOf(doc, figure.figure) !== proxy || event.ctrlKey || event.metaKey) return;
+    if (!plotReady(d) || !d.zoom || !proxy || activeElement() !== proxy || event.ctrlKey || event.metaKey) return;
     if (event.deltaY === 0) return;
     const p = local(event);
     const at = positionAt(d.layout, p.x, p.y);
@@ -1344,8 +1344,12 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   // ── pointer, touch, drag ───────────────────────────────────────────────────────────────────────
 
   /** In the plot's layout pixels, which picking and the layout use, also under a CSS transform (rule 10). */
+  function clientPoint(event: MouseEvent): Point {
+    return { x: event.clientX, y: event.clientY };
+  }
+
   function local(event: MouseEvent): Point {
-    return toLocal(plotMapping(), { x: event.clientX, y: event.clientY });
+    return toLocal(plotMapping(), clientPoint(event));
   }
 
   /** The pointer has picked `target`: what is shown follows it; a dismissal for another datum lapses. */
@@ -1408,7 +1412,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
         const at = local(event);
         t.x = at.x;
         t.y = at.y;
-        t.client = { x: event.clientX, y: event.clientY };
+        t.client = clientPoint(event);
         if (pinch && pinch.ids.includes(event.pointerId)) pinchMove();
       }
       return;
@@ -1431,7 +1435,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
         return;
       }
     }
-    pointerAt({ x: event.clientX, y: event.clientY }, event.timeStamp);
+    pointerAt(clientPoint(event), event.timeStamp);
   }
 
   /** The pointer left the plot and the content: a hover or hold ends; a pin stays. */
@@ -1501,7 +1505,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     if (keyed) setKeyed(false);
     const at = local(event);
     if (event.pointerType === 'touch') {
-      touches.set(event.pointerId, { ...at, x0: at.x, y0: at.y, t0: event.timeStamp, client: { x: event.clientX, y: event.clientY } });
+      touches.set(event.pointerId, { ...at, x0: at.x, y0: at.y, t0: event.timeStamp, client: clientPoint(event) });
       if (touches.size === 2 && d.zoom === 'touch' && d.view.kind !== 'donut') startPinch(d);
       if (touches.size > 1) pinched = true;
       return;
@@ -1527,7 +1531,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       // The release's own position decides the tap and what it picks, not the last move (review finding 1).
       const up = local(event);
       if (t && plotReady(d) && Math.hypot(up.x - t.x0, up.y - t.y0) < TAP_DISTANCE && event.timeStamp - t.t0 < TAP_TIME) {
-        activate(d, { x: event.clientX, y: event.clientY }, false);
+        activate(d, clientPoint(event), false);
       }
       return;
     }
@@ -1544,10 +1548,10 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       // A drag chooses the range itself: a pressed Select range is released (decision 0004, clarifications).
       endRange();
       if (next !== undefined) requestZoom(next);
-      pointerAt({ x: event.clientX, y: event.clientY }, event.timeStamp);
+      pointerAt(clientPoint(event), event.timeStamp);
       return;
     }
-    activate(d, { x: event.clientX, y: event.clientY }, true);
+    activate(d, clientPoint(event), true);
   }
 
   /**
@@ -1691,8 +1695,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     // Which chart an Escape belongs to, decided before anything is spent: the one focus is in (through
     // shadow roots, review R2); with focus in no chart, the one dragging, else the one that showed content
     // last (decision 0004, clarifications).
-    const inChart = focusedFigure(doc, figure.figure);
-    if (inChart !== figure.figure && (inChart !== null || (!isLastShowing() && !down?.dragging))) return;
+    const inChart = focusedFigure(doc, root);
+    if (inChart !== root && (inChart !== null || (!isLastShowing() && !down?.dragging))) return;
     if (down?.dragging) {
       spend();
       endDrag();
@@ -1795,7 +1799,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     // The table covers the plot's column only, at whatever size the plot has (it stays in the flow, inert,
     // under the table): opening it moves nothing on the page, and the controls beside or under the plot stay
     // reachable (spec A4; review 3, interaction blocker 2). A pinned tooltip belongs to the covered plot.
-    figure.figure.classList.add('axylo-table-open');
+    root.classList.add('axylo-table-open');
     plot.inert = true;
     pointer = null;
     rest = null;
@@ -1813,15 +1817,15 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   function closeTable(restore = true): void {
     if (!tableView) return;
     // Focus inside the table goes to its disclosure before the table goes (review 2, finding 17).
-    const focusInside = tableView.element.contains(activeElementOf(doc, figure.figure));
+    const focusInside = tableView.element.contains(activeElement());
     tableView.destroy();
     tableView = null;
     tableModel = null;
-    figure.figure.classList.remove('axylo-table-open');
+    root.classList.remove('axylo-table-open');
     plot.inert = false;
     if (focusInside && restore && !toolbar?.focus('table')) {
       if (proxy && !proxy.hidden) proxy.focus({ preventScroll: true });
-      if (!proxy || proxy.hidden || activeElementOf(doc, figure.figure) !== proxy) focusFigure();
+      if (!proxy || proxy.hidden || activeElement() !== proxy) focusFigure();
     }
   }
 
@@ -1934,14 +1938,14 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   }
 
   function renderDonutLegend(d: ControlsState): void {
-    const inside = legendList !== null && legendList.contains(activeElementOf(doc, figure.figure));
+    const inside = legendList !== null && legendList.contains(activeElement());
     const next = parts.sliceList?.(doc, d, actions, legendList) ?? null;
     if (next === null && legendList) {
       // A slice the reader is on goes with its list: focus goes to the figure, not the page (C2-17).
       legendList.remove();
     }
     legendList = next;
-    if (inside && (!legendList || !legendList.contains(activeElementOf(doc, figure.figure)))) focusFigure();
+    if (inside && (!legendList || !legendList.contains(activeElement()))) focusFigure();
   }
 
   /** Puts exactly `wanted`, in order, into `host`, moving rather than rebuilding. */
@@ -1956,7 +1960,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
     renderDonutLegend(d);
     const items = controlItems(d);
-    const inToolbar = toolbar.element.contains(activeElementOf(doc, figure.figure));
+    const inToolbar = toolbar.element.contains(activeElement());
     toolbar.render(items, d.messages.controlsLabel, d.english('controlsLabel'));
     // The legend, and the toolbar it is part of (one tab stop, spec A2), go where `legend` says.
     const legend: Element[] = [];
@@ -1966,11 +1970,11 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     if (tableView && !(d.reader.table && (d.ready || d.inspectable))) closeTable();
     else if (tableView) renderTable(d);
     // Captured after toolbar.render and closeTable so an heir button they just focused keeps focus across a move.
-    const active = activeElementOf(doc, figure.figure);
+    const active = activeElement();
     place(where, legend);
     for (const other of [figure.top, figure.side, figure.controls]) if (other !== where) place(other, []);
     // Moving an element can take focus with it; the control the reader was on keeps it (review 2, finding 17).
-    if (isFocusable(active) && active !== activeElementOf(doc, figure.figure) && active.isConnected) active.focus({ preventScroll: true });
+    if (isFocusable(active) && active !== activeElement() && active.isConnected) active.focus({ preventScroll: true });
     // A toolbar that emptied under the reader hands focus to the figure, not the page (C2-17).
     else if (inToolbar && !items.length) focusFigure();
   }
@@ -2207,8 +2211,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     // The strip is reserved before the plot is measured, so the plot's size is the one it really has.
     const nextPres = presentationFor(state);
     const strip = nextPres === 'strip';
-    if (figure.figure.classList.contains('axylo-readout-mode') !== strip) {
-      figure.figure.classList.toggle('axylo-readout-mode', strip);
+    if (root.classList.contains('axylo-readout-mode') !== strip) {
+      root.classList.toggle('axylo-readout-mode', strip);
       // A pinned tooltip switches directly in commit so an active row press survives floating <-> strip (R1).
       if (shown.kind !== 'pinned' || nextPres === 'none') hideTooltip();
       content = null;
@@ -2223,7 +2227,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   /** What around the plot can change its size: which controls exist, where, and their labels. */
   function layoutSignature(): string {
     return [figure.top, figure.side, figure.controls].map(host => host.hidden ? '' : host.textContent ?? '').join('\u0000') +
-      (figure.figure.classList.contains('axylo-readout-mode') ? '\u0000readout' : '');
+      (root.classList.contains('axylo-readout-mode') ? '\u0000readout' : '');
   }
 
   /** Everything goes; a later full build starts from no input at all (new item 6; review C3-6). */

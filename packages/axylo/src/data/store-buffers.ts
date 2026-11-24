@@ -1,3 +1,4 @@
+import { mapValues } from './store-map';
 import { BufferWindow } from './store-window';
 import { SLOT_NO_ROW, type AlignedFrame, type RowSource, type Series, type XColumn } from '../core/contracts';
 import { lazyColumns } from './store-bytes';
@@ -84,7 +85,7 @@ export class FrameBuffers {
   fork(): FrameBuffers {
     const draft = Object.assign(Object.create(FrameBuffers.prototype) as FrameBuffers, this, {
       range: this.range.fork(),
-      series: new Map(Array.from(this.series, ([key, series]) => [key, { ...series }])),
+      series: mapValues(this.series, series => ({ ...series })),
     });
     return draft;
   }
@@ -149,25 +150,18 @@ export class FrameBuffers {
       this.observedFlags = observed;
     }
     if (this.categoryPositions.length > capacity) this.categoryPositions = new Float64Array();
-    for (const [key, previous] of this.series) {
-      const series = buffers(previous.description, capacity, previous.row !== null);
-      series.y.set(previous.y.subarray(start, end));
-      series.slot.set(previous.slot.subarray(start, end));
-      series.row?.set(previous.row!.subarray(start, end));
-      restoreTail(previous.tail, series, end - start - 1);
-      this.series.set(key, series);
-    }
+    for (const series of this.series.values()) this.copySeries(series, capacity, 0);
     this.rowShift += start;
     this.range.rebase(extra);
   }
 
-  copySeries(series: SeriesBuffers): SeriesBuffers {
-    const copy = buffers(series.description, this.x.length, series.row !== null);
+  copySeries(series: SeriesBuffers, capacity = this.x.length, offset = this.start): SeriesBuffers {
+    const copy = buffers(series.description, capacity, series.row !== null);
     const { start, end } = this;
-    copy.y.set(series.y.subarray(start, end), start);
-    copy.slot.set(series.slot.subarray(start, end), start);
-    copy.row?.set(series.row!.subarray(start, end), start);
-    restoreTail(series.tail, copy, end - 1);
+    copy.y.set(series.y.subarray(start, end), offset);
+    copy.slot.set(series.slot.subarray(start, end), offset);
+    copy.row?.set(series.row!.subarray(start, end), offset);
+    restoreTail(series.tail, copy, offset + end - start - 1);
     this.series.set(series.description.key, copy);
     return copy;
   }

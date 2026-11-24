@@ -21,6 +21,8 @@ import {
   DOT_RADIUS, DOT_TILE, dashText, lifted, MARKER_POLYGONS, PATTERN_LINE, PATTERN_TILE, MISSING_STROKE, missingBox, paintOf, sector, SECTOR_APEX, SECTOR_ARCS, SECTOR_NONE, SECTOR_RING, snapRule, unclippedRule,
 } from './geometry';
 
+import { svgElement } from '../dom/attributes';
+
 const NS = 'http://www.w3.org/2000/svg';
 let ids = 0;
 
@@ -278,7 +280,7 @@ function patternUrl(c: SvgContext, kind: 'diagonal' | 'cross' | 'dots', bindings
     const tile = kind === 'dots' ? DOT_TILE : PATTERN_TILE;
     el.el.setAttribute('width', String(tile));
     el.el.setAttribute('height', String(tile));
-    const shape = doc.createElementNS(NS, 'path');
+    const shape = svgElement(doc, 'path');
     const t = PATTERN_TILE;
     if (kind === 'dots') {
       const c = DOT_TILE / 2, r = DOT_RADIUS;
@@ -314,16 +316,13 @@ export function createSvgRenderer(doc: Document = document): MarkRenderer {
 }
 
 export function svgRendererWith(marks: SvgMarks, doc: Document = document): MarkRenderer {
-  const svg = doc.createElementNS(NS, 'svg');
-  svg.setAttribute('class', 'axylo-svg');
-  svg.setAttribute('aria-hidden', 'true');
-  svg.setAttribute('focusable', 'false');
+  const svg = svgElement(doc, 'svg', { class: 'axylo-svg', 'aria-hidden': 'true', focusable: 'false' });
   for (const [k, v] of [
     ['position', 'absolute'], ['left', '0'], ['top', '0'], ['display', 'block'], ['overflow', 'hidden'], ['pointer-events', 'none'],
     ['forced-color-adjust', 'none'],
   ] as const) svg.style.setProperty(k, v);
 
-  const defs = doc.createElementNS(NS, 'defs');
+  const defs = svgElement(doc, 'defs');
   const sceneClipId = `axylo-clip-${++ids}`;
   const overlayClipId = `axylo-clip-${++ids}`;
   const sceneClip = clipPath(doc, defs, sceneClipId);
@@ -334,10 +333,8 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
   attr(background, 'x', '0');
   attr(background, 'y', '0');
   paint(background, 'fill', 'var(--axylo-background, transparent)');
-  const sceneGroup = doc.createElementNS(NS, 'g');
-  sceneGroup.setAttribute('class', 'axylo-scene');
-  const overlayGroup = doc.createElementNS(NS, 'g');
-  overlayGroup.setAttribute('class', 'axylo-overlay');
+  const sceneGroup = svgElement(doc, 'g', { class: 'axylo-scene' });
+  const overlayGroup = svgElement(doc, 'g', { class: 'axylo-overlay' });
   svg.append(defs, background.el, sceneGroup, overlayGroup);
 
   const context: SvgContext = { doc, defs, scratch: new Float64Array(8) };
@@ -405,9 +402,7 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
 }
 
 function clipPath(doc: Document, defs: SVGElement, id: string): SvgNode {
-  const clip = doc.createElementNS(NS, 'clipPath');
-  clip.setAttribute('id', id);
-  clip.setAttribute('clipPathUnits', 'userSpaceOnUse');
+  const clip = svgElement(doc, 'clipPath', { id, clipPathUnits: 'userSpaceOnUse' });
   const rect = node(doc, 'rect', 'clip');
   clip.appendChild(rect.el);
   defs.appendChild(clip);

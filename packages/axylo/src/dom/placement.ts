@@ -91,40 +91,8 @@ function nearestFree(preferred: number, lo: number, hi: number, blocked: readonl
   return best === null ? null : clamp(best);
 }
 
-/**
- * The tooltip on one side of the box, with its fixed coordinate `fixed`, shifted along the free axis clear
- * of `obstacles` and inside `visible`; null when no shift is clear.
- */
-function along(side: Side, fixed: number, preferred: number, width: number, height: number, visible: Rect, obstacles: readonly Rect[]): Spot | null {
-  const vertical = side === 'above' || side === 'below';
-  // Obstacles that meet the band the tooltip occupies across the free axis block an interval of it.
-  const blocked: [number, number][] = [];
-  for (const o of obstacles) {
-    if (vertical) {
-      if (Math.min(fixed + height, o.y + o.height) - Math.max(fixed, o.y) > EPSILON) blocked.push([o.x - width, o.x + o.width]);
-    } else if (Math.min(fixed + width, o.x + o.width) - Math.max(fixed, o.x) > EPSILON) {
-      blocked.push([o.y - height, o.y + o.height]);
-    }
-  }
-  const at = vertical
-    ? nearestFree(preferred, visible.x, visible.x + visible.width - width, blocked)
-    : nearestFree(preferred, visible.y, visible.y + visible.height - height, blocked);
-  if (at === null) return null;
-  return vertical ? { x: at, y: fixed, side } : { x: fixed, y: at, side };
-}
-
 function sides(order: PlacementInput['order']): Side[] {
   return order === 'horizontal' ? ['right', 'left', 'above', 'below'] : ['above', 'below', 'right', 'left'];
-}
-
-/** The fixed coordinate of a side, and the centred preferred position along the free axis. */
-function anchorOf(side: Side, box: Rect, width: number, height: number): { fixed: number; preferred: number } {
-  switch (side) {
-    case 'above': return { fixed: box.y - OFFSET - height, preferred: box.x + box.width / 2 - width / 2 };
-    case 'below': return { fixed: box.y + box.height + OFFSET, preferred: box.x + box.width / 2 - width / 2 };
-    case 'right': return { fixed: box.x + box.width + OFFSET, preferred: box.y + box.height / 2 - height / 2 };
-    case 'left': return { fixed: box.x - OFFSET - width, preferred: box.y + box.height / 2 - height / 2 };
-  }
 }
 
 /** The hole candidate: centred, every corner inside the hole, no ring stroke or control under it. */
@@ -142,50 +110,53 @@ function holeSpot(p: PlacementInput, width: number, height: number): Spot | null
 
 /** Rule 2: the first valid candidate for a tooltip of this size, or null. */
 export function placeTooltip(p: PlacementInput, width: number, height: number): Spot | null {
-  if (width > p.visible.width + EPSILON || height > p.visible.height + EPSILON) return null;
-  const hole = holeSpot(p, width, height);
-  if (hole) return hole;
-  const obstacles = [p.box, ...p.controls, ...p.rings];
-  for (const side of sides(p.order)) {
-    const { fixed, preferred } = anchorOf(side, p.box, width, height);
-    // The fixed coordinate must already be inside the visible part; only the free axis may shift.
-    const vertical = side === 'above' || side === 'below';
-    const inside = vertical
-      ? fixed >= p.visible.y - EPSILON && fixed + height <= p.visible.y + p.visible.height + EPSILON
-      : fixed >= p.visible.x - EPSILON && fixed + width <= p.visible.x + p.visible.width + EPSILON;
-    if (!inside) continue;
-    const spot = along(side, fixed, preferred, width, height, p.visible, obstacles);
-    if (spot) return spot;
-  }
-  return null;
+  return place(p, width, height, false);
 }
 
-/**
- * Rule 6's last resort, for one row that fits nowhere: each side pushed into the visible part and shifted
- * along its free axis clear of every control and focus ring; the one covering the box least. Null when no
- * such position exists (the tooltip is then not shown floating; the values are in the keyboard reading and
- * the table).
- */
+/** Rule 6: choose the legal side with least overlap when no side clears the datum. */
 export function fallbackPlacement(p: PlacementInput, width: number, height: number): Spot | null {
-  if (width > p.visible.width + EPSILON || height > p.visible.height + EPSILON) return null;
+  return place(p, width, height, true);
+}
+
+function place(p: PlacementInput, width: number, height: number, fallback: boolean): Spot | null {
+  const { visible, box } = p;
+  if (width > visible.width + EPSILON || height > visible.height + EPSILON) return null;
   const obstacles = [...p.controls, ...p.rings];
+  if (!fallback) {
+    const hole = holeSpot(p, width, height);
+    if (hole) return hole;
+    obstacles.unshift(box);
+  }
   let best: { spot: Spot; cost: number; off: number } | null = null;
   for (const side of sides(p.order)) {
-    const { fixed, preferred } = anchorOf(side, p.box, width, height);
+    // Translate each side into a fixed axis and the free axis along which the tooltip can slide.
     const vertical = side === 'above' || side === 'below';
-    const pushed = vertical
-      ? Math.max(p.visible.y, Math.min(fixed, p.visible.y + p.visible.height - height))
-      : Math.max(p.visible.x, Math.min(fixed, p.visible.x + p.visible.width - width));
-    // Every legal position along the free axis where the overlap with the box can be least: the centred
-    // one, the bounds, each obstacle's edges, and where the tooltip just clears the box (review finding 11).
-    const lo = vertical ? p.visible.x : p.visible.y;
-    const hi = vertical ? p.visible.x + p.visible.width - width : p.visible.y + p.visible.height - height;
-    const size = vertical ? width : height;
-    const edges = [preferred, lo, hi, vertical ? p.box.x - size : p.box.y - size, vertical ? p.box.x + p.box.width : p.box.y + p.box.height];
-    for (const o of obstacles) edges.push(vertical ? o.x - size : o.y - size, vertical ? o.x + o.width : o.y + o.height);
+    const along = vertical ? 'x' : 'y', across = vertical ? 'y' : 'x';
+    const span = vertical ? 'width' : 'height', depth = vertical ? 'height' : 'width';
+    const size = vertical ? width : height, thickness = vertical ? height : width;
+    const lo = visible[along], hi = lo + visible[span] - size;
+    const min = visible[across], max = min + visible[depth];
+    const fixed = side === 'above' || side === 'left' ? box[across] - OFFSET - thickness : box[across] + box[depth] + OFFSET;
+    const preferred = box[along] + box[span] / 2 - size / 2;
+    const spotAt = (along: number, across: number): Spot => vertical ? { x: along, y: across, side } : { x: across, y: along, side };
+    if (!fallback) {
+      if (!(fixed >= min - EPSILON && fixed + thickness <= max + EPSILON)) continue;
+      const blocked: [number, number][] = [];
+      for (const o of obstacles) {
+        if (Math.min(fixed + thickness, o[across] + o[depth]) - Math.max(fixed, o[across]) > EPSILON) {
+          blocked.push([o[along] - size, o[along] + o[span]]);
+        }
+      }
+      const at = nearestFree(preferred, lo, hi, blocked);
+      if (at !== null) return spotAt(at, fixed);
+      continue;
+    }
+    const pushed = Math.max(min, Math.min(fixed, max - thickness));
+    const edges = [preferred, lo, hi, box[along] - size, box[along] + box[span]];
+    for (const o of obstacles) edges.push(o[along] - size, o[along] + o[span]);
     for (const e of edges) {
       const at = Math.max(lo, Math.min(hi, e));
-      const spot: Spot = vertical ? { x: at, y: pushed, side } : { x: pushed, y: at, side };
+      const spot = spotAt(at, pushed);
       const r = { x: spot.x, y: spot.y, width, height };
       if (obstacles.some(o => overlapArea(r, o) > 0)) continue;
       const cost = overlapArea(r, p.box);
@@ -236,17 +207,16 @@ export function insideCorridor(from: Point, r: Rect, p: Point): boolean {
     .sort((a, b) => a.x - b.x || a.y - b.y);
   const cross = (o: Point, a: Point, b: Point) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
   // Andrew's monotone chain: the hull, counter-clockwise.
-  const lower: Point[] = [];
-  for (const q of points) {
-    while (lower.length >= 2 && cross(lower[lower.length - 2]!, lower[lower.length - 1]!, q) <= 0) lower.pop();
-    lower.push(q);
-  }
-  const upper: Point[] = [];
-  for (const q of [...points].reverse()) {
-    while (upper.length >= 2 && cross(upper[upper.length - 2]!, upper[upper.length - 1]!, q) <= 0) upper.pop();
-    upper.push(q);
-  }
-  const hull = [...lower.slice(0, -1), ...upper.slice(0, -1)];
+  const chain = (ordered: Point[]) => {
+    const half: Point[] = [];
+    for (const q of ordered) {
+      while (half.length >= 2 && cross(half[half.length - 2]!, half[half.length - 1]!, q) <= 0) half.pop();
+      half.push(q);
+    }
+    half.pop();
+    return half;
+  };
+  const hull = [...chain(points), ...chain(points.reverse())];
   if (hull.length < 3) return false;
   let outside = false;
   for (let i = 0; i < hull.length && !outside; i++) outside = cross(hull[i]!, hull[(i + 1) % hull.length]!, p) < -EPSILON;

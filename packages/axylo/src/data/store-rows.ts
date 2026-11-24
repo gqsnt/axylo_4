@@ -6,7 +6,7 @@ export function sameRemainder(prefix: Float64Array, start: number, window: Float
   return remaining > 0 && remaining <= window.length &&
     window[0] === prefix[start] && window[remaining - 1] === prefix[prefix.length - 1];
 }
-import { StoreMap } from './store-map';
+import { mapValues, StoreMap } from './store-map';
 import { columnsTable, rowValue, type Columns, type Table } from './table';
 
 const blockSize = 256;
@@ -32,7 +32,7 @@ export class RawRows {
   ) {}
 
   fork(): RawRows {
-    const references = new Map(Array.from(this.references, ([field, entries]) => [field, entries.fork()]));
+    const references = mapValues(this.references, entries => entries.fork());
     return new RawRows(this.objects.fork(), this.columns.fork(), references, this.columnCount, this.borrowedSize);
   }
 
@@ -56,12 +56,12 @@ export class RawRows {
     this.borrowedSize = borrowed ? table.length : 0;
     for (let start = 0; start < table.length; start += blockSize) {
       const end = Math.min(start + blockSize, table.length);
-      const block: Columns = Object.fromEntries(keys.map(key => [key, this.columnSlice(columns[key]!, key, start, end)]));
+      const block: Columns = Object.fromEntries(keys.map(key => [key, this.#columnSlice(columns[key]!, key, start, end)]));
       this.columns.set(blockIndex(start), { table: columnsTable(block, end - start), present: null, borrowed });
     }
   }
 
-  private columnSlice(column: ArrayLike<unknown>, field: string, start: number, end: number): ArrayLike<unknown> {
+  #columnSlice(column: ArrayLike<unknown>, field: string, start: number, end: number): ArrayLike<unknown> {
     if (ArrayBuffer.isView(column) && 'BYTES_PER_ELEMENT' in column) {
       return Uint8Array.prototype.subarray.call(column, start, end);
     }
@@ -69,12 +69,12 @@ export class RawRows {
       const value = column[start + i];
       if (value === null || typeof value !== 'object' && typeof value !== 'function') return value;
       // A partly retained block may keep primitive values, but an object belongs to one row.
-      this.reference(field, start + i, value);
+      this.#reference(field, start + i, value);
       return undefined;
     });
   }
 
-  private own(block: ColumnBlock): ColumnBlock {
+  #own(block: ColumnBlock): ColumnBlock {
     if (!block.borrowed) return block;
     const columns = block.table.columns!;
     const contents: Columns = Object.fromEntries(Object.entries(columns).map(([key, column]) => [
@@ -87,17 +87,17 @@ export class RawRows {
     if (!this.borrowedSize || this.columnCount * 2 > this.borrowedSize) return;
     // One copy at the halfway point frees the original large buffers after the old
     // revisions retire. Subsequent eviction can free each small block independently.
-    for (const [index, block] of this.columns) this.columns.set(index, this.own(block));
+    for (const [index, block] of this.columns) this.columns.set(index, this.#own(block));
     this.borrowedSize = 0;
   }
 
-  private column(row: number): ColumnBlock | undefined {
+  #column(row: number): ColumnBlock | undefined {
     const block = this.columns.get(blockIndex(row));
     if (block && (block.present === null ? row % blockSize < block.table.length : (block.present & rowBit(row)) !== 0n)) return block;
     return undefined;
   }
 
-  private reference(field: string, row: number, value: object): void {
+  #reference(field: string, row: number, value: object): void {
     let entries = this.references.get(field);
     if (!entries) this.references.set(field, entries = new StoreMap());
     entries.set(row, value);
@@ -108,15 +108,15 @@ export class RawRows {
   }
 
   copy(row: number, target: RawRows): boolean {
-    const block = this.column(row);
+    const block = this.#column(row);
     if (block) {
       const index = blockIndex(row);
       const archived = target.columns.get(index);
-      target.columns.set(index, { ...(archived ?? this.own(block)), present: (archived?.present ?? 0n) | rowBit(row) });
+      target.columns.set(index, { ...(archived ?? this.#own(block)), present: (archived?.present ?? 0n) | rowBit(row) });
       target.columnCount++;
       for (const [field, entries] of this.references) {
         const value = entries.get(row);
-        if (value !== undefined) target.reference(field, row, value);
+        if (value !== undefined) target.#reference(field, row, value);
       }
     } else if (this.objects.has(row)) target.objects.set(row, this.objects.get(row));
     else return false;
@@ -125,7 +125,7 @@ export class RawRows {
 
   forget(row: number): void {
     this.objects.delete(row);
-    const block = this.column(row);
+    const block = this.#column(row);
     if (block) {
       const index = blockIndex(row);
       const present = (block.present ?? fullBlock(block.table.length)) & ~rowBit(row);
@@ -137,27 +137,27 @@ export class RawRows {
   }
 
   read(row: number, field: string): unknown {
-    const range = this.column(row)?.table;
+    const range = this.#column(row)?.table;
     return range ? this.references.get(field)?.get(row) ?? range.read(row % blockSize, field) : rowValue(this.objects.get(row), field);
   }
 
   rowAt(row: number): unknown {
-    const range = this.column(row)?.table;
+    const range = this.#column(row)?.table;
     if (!range) return this.objects.has(row) ? this.objects.get(row) : null;
     if (this.references.size === 0) return range.rowAt(row % blockSize);
     return Object.fromEntries(range.keys().map(field => [field, this.read(row, field)]));
   }
 
   isColumn(row: number): boolean {
-    return this.column(row) !== undefined;
+    return this.#column(row) !== undefined;
   }
 
   keysAt(row: number): readonly string[] {
-    return this.column(row)?.table.keys() ?? Object.keys(Object(this.objects.get(row)));
+    return this.#column(row)?.table.keys() ?? Object.keys(Object(this.objects.get(row)));
   }
 
   hasField(row: number, field: string): boolean {
-    return this.column(row)?.table.hasField(field) ?? Object.hasOwn(Object(this.objects.get(row)), field);
+    return this.#column(row)?.table.hasField(field) ?? Object.hasOwn(Object(this.objects.get(row)), field);
   }
 
   indexes(start: number, incoming: number): Int32Array {
@@ -179,14 +179,14 @@ type Discard = (row: number, column: boolean) => void;
 
 export class StreamRows {
   private retained = new RawRows();
-  private positions = new StoreMap<number, number>();
+  #positions = new StoreMap<number, number>();
   // A sorted, unique column prefix already has a typed position index and implicit source rows.
   private seedPositions: Float64Array | null = null;
-  private seedOffset = 0;
-  private seedStart = 0;
-  private previousAtPosition = new StoreMap<number, number>();
-  private unplaced = new StoreMap<number, number>();
-  private latestPosition = -Infinity;
+  #seedOffset = 0;
+  #seedStart = 0;
+  #previousAtPosition = new StoreMap<number, number>();
+  #unplaced = new StoreMap<number, number>();
+  #latestPosition = -Infinity;
   onForget?: (row: number) => void;
   next: number;
 
@@ -200,42 +200,42 @@ export class StreamRows {
   fork(): StreamRows {
     const draft = new StreamRows();
     draft.retained = this.retained.fork();
-    draft.positions = this.positions.fork();
+    draft.#positions = this.#positions.fork();
     draft.seedPositions = this.seedPositions;
-    draft.seedOffset = this.seedOffset;
-    draft.seedStart = this.seedStart;
-    draft.previousAtPosition = this.previousAtPosition.fork();
-    draft.unplaced = this.unplaced.fork();
-    draft.latestPosition = this.latestPosition;
+    draft.#seedOffset = this.#seedOffset;
+    draft.#seedStart = this.#seedStart;
+    draft.#previousAtPosition = this.#previousAtPosition.fork();
+    draft.#unplaced = this.#unplaced.fork();
+    draft.#latestPosition = this.#latestPosition;
     draft.next = this.next;
     return draft;
   }
 
   commit(): void {
     this.retained.commit();
-    this.positions.commit();
-    this.previousAtPosition.commit();
-    this.unplaced.commit();
+    this.#positions.commit();
+    this.#previousAtPosition.commit();
+    this.#unplaced.commit();
   }
 
   record(position: number, row: number): void {
     if (!Number.isFinite(position)) {
-      this.unplaced.set(row, this.latestPosition);
+      this.#unplaced.set(row, this.#latestPosition);
       return;
     }
-    this.latestPosition = Math.max(position, this.latestPosition);
-    const previous = this.positions.get(position);
-    if (previous !== undefined) this.previousAtPosition.set(row, previous);
-    this.positions.set(position, row);
+    this.#latestPosition = Math.max(position, this.#latestPosition);
+    const previous = this.#positions.get(position);
+    if (previous !== undefined) this.#previousAtPosition.set(row, previous);
+    this.#positions.set(position, row);
   }
 
   resetPositions(table: Table, positions: Float64Array, seed?: Float64Array): void {
-    this.positions = new StoreMap();
-    this.previousAtPosition = new StoreMap();
-    this.unplaced = new StoreMap();
-    this.latestPosition = -Infinity;
+    this.#positions = new StoreMap();
+    this.#previousAtPosition = new StoreMap();
+    this.#unplaced = new StoreMap();
+    this.#latestPosition = -Infinity;
     this.seedPositions = null;
-    this.seedStart = this.seedOffset = 0;
+    this.#seedStart = this.#seedOffset = 0;
     if (table.columns && seed?.length === table.length && table.length) {
       let last = -Infinity;
       let i = 0;
@@ -246,7 +246,7 @@ export class StreamRows {
       }
       if (i === seed.length) {
         this.seedPositions = seed;
-        this.latestPosition = last;
+        this.#latestPosition = last;
         return;
       }
     }
@@ -264,19 +264,19 @@ export class StreamRows {
   }
 
   evictRead(position: number, discard?: Discard): void {
-    let row = this.positions.get(position);
+    let row = this.#positions.get(position);
     while (row !== undefined) {
-      const previous = this.previousAtPosition.get(row);
-      this.previousAtPosition.delete(row);
+      const previous = this.#previousAtPosition.get(row);
+      this.#previousAtPosition.delete(row);
       discard?.(row, this.retained.isColumn(row));
       this.forget(row);
       row = previous;
     }
-    this.positions.delete(position);
+    this.#positions.delete(position);
     // Eviction walks positions in ascending order. Appended rows at this same x
     // have already been evicted from the delta above.
-    if (this.seedPositions?.[this.seedStart] === position) {
-      const index = this.seedOffset + this.seedStart++;
+    if (this.seedPositions?.[this.#seedStart] === position) {
+      const index = this.#seedOffset + this.#seedStart++;
       discard?.(index, true);
       this.forget(index);
     }
@@ -285,27 +285,27 @@ export class StreamRows {
   /** As `Observations.share`: the seed's remaining positions read from the store's window (see store.ts). */
   shareSeed(window: Float64Array): void {
     const seed = this.seedPositions;
-    if (!seed || !sameRemainder(seed, this.seedStart, window)) return;
-    this.seedPositions = window.subarray(0, seed.length - this.seedStart);
-    this.seedOffset += this.seedStart;
-    this.seedStart = 0;
+    if (!seed || !sameRemainder(seed, this.#seedStart, window)) return;
+    this.seedPositions = window.subarray(0, seed.length - this.#seedStart);
+    this.#seedOffset += this.#seedStart;
+    this.#seedStart = 0;
   }
 
   compactColumns(): void {
     this.retained.compactColumns();
     const seed = this.seedPositions;
-    if (!seed || this.seedStart * 2 < seed.length) return;
-    this.seedPositions = this.seedStart === seed.length ? null : seed.slice(this.seedStart);
-    this.seedOffset += this.seedStart;
-    this.seedStart = 0;
+    if (!seed || this.#seedStart * 2 < seed.length) return;
+    this.seedPositions = this.#seedStart === seed.length ? null : seed.slice(this.#seedStart);
+    this.#seedOffset += this.#seedStart;
+    this.#seedStart = 0;
   }
 
   trimUnplacedRead(keep: number, first: number, observed: number, discard: Discard): void {
     // Invalid records need a bounded home even when every new record is unplaceable.
     const capacity = observed ? 2 * keep : keep;
-    for (const [row, position] of this.unplaced) {
-      if (this.unplaced.size <= capacity && (!observed || position >= first)) break;
-      this.unplaced.delete(row);
+    for (const [row, position] of this.#unplaced) {
+      if (this.#unplaced.size <= capacity && (!observed || position >= first)) break;
+      this.#unplaced.delete(row);
       discard(row, this.retained.isColumn(row));
       this.forget(row);
     }
@@ -390,38 +390,38 @@ export class FrameSource implements RowSource {
 
 export class RowWindow {
   private readonly archived = new RawRows();
-  private readonly lastSeen = new Map<number, number>();
-  private readonly evictions = new Map<number, number[]>();
+  readonly #lastSeen = new Map<number, number>();
+  readonly #evictions = new Map<number, number[]>();
   private readonly sources = new Map<number, FrameSource>();
-  private latestRevision = -Infinity;
-  private latestEnd = 0;
+  #latestRevision = -Infinity;
+  #latestEnd = 0;
   private rows: StreamRows | null;
-  private closed = false;
+  #closed = false;
 
   constructor(rows: StreamRows) {
     this.rows = rows;
   }
 
   get size(): number { return (this.rows?.size ?? 0) + this.archived.size; }
-  get disposable(): boolean { return this.closed && this.sources.size === 0; }
+  get disposable(): boolean { return this.#closed && this.sources.size === 0; }
 
   archive(row: number): void {
-    const revision = this.latestRevision;
+    const revision = this.#latestRevision;
     // Newly appended rows can be evicted before any accepted frame has addressed them.
-    if (!this.sources.has(revision) || row >= this.latestEnd || !this.rows?.archive(row, this.archived)) return;
-    this.lastSeen.set(row, revision);
-    let indexes = this.evictions.get(revision);
-    if (!indexes) this.evictions.set(revision, indexes = []);
+    if (!this.sources.has(revision) || row >= this.#latestEnd || !this.rows?.archive(row, this.archived)) return;
+    this.#lastSeen.set(row, revision);
+    let indexes = this.#evictions.get(revision);
+    if (!indexes) this.#evictions.set(revision, indexes = []);
     indexes.push(row);
   }
 
   publish(revision: number, source: FrameSource, rows: StreamRows): void {
     this.rows = rows;
-    this.latestRevision = revision;
-    this.latestEnd = rows.next;
+    this.#latestRevision = revision;
+    this.#latestEnd = rows.next;
     this.sources.set(revision, source);
     source.bind(row => {
-      const last = this.lastSeen.get(row);
+      const last = this.#lastSeen.get(row);
       return last === undefined ? this.rows?.rowAt(row) : revision <= last ? this.archived.rowAt(row) : null;
     });
   }
@@ -438,7 +438,7 @@ export class RowWindow {
     while (cut > 0 && current[cut - 1]! >= end) cut--;
     const live = current.subarray(0, cut);
     const kept: number[] = [];
-    for (const [row, last] of this.lastSeen) if (revision <= last && row < end) kept.push(row);
+    for (const [row, last] of this.#lastSeen) if (revision <= last && row < end) kept.push(row);
     if (!kept.length) return live;
     kept.sort((a, b) => a - b);
     // Merge the two ascending lists.
@@ -450,7 +450,7 @@ export class RowWindow {
   }
 
   close(): void {
-    this.closed = true;
+    this.#closed = true;
     if (this.sources.size === 0) this.rows = null;
   }
 
@@ -460,15 +460,15 @@ export class RowWindow {
       source.release();
       this.sources.delete(number);
     }
-    for (const [number, indexes] of this.evictions) {
+    for (const [number, indexes] of this.#evictions) {
       if (number > revision) break;
       for (const row of indexes) {
         this.archived.forget(row);
-        this.lastSeen.delete(row);
+        this.#lastSeen.delete(row);
       }
-      this.evictions.delete(number);
+      this.#evictions.delete(number);
     }
-    if (this.closed && this.sources.size === 0) this.rows = null;
+    if (this.#closed && this.sources.size === 0) this.rows = null;
   }
 }
 

@@ -14,8 +14,8 @@ class Formats<T> extends Path<T> {
   count = 0;
 }
 
-const numberFormats = new Formats<Intl.NumberFormat>();
-const dateFormats = new Formats<Intl.DateTimeFormat>();
+let numberFormats: Formats<Intl.NumberFormat> | undefined;
+let dateFormats: Formats<Intl.DateTimeFormat> | undefined;
 
 function cached<O extends object, T>(cache: Formats<T>, Format: new (locale: string, options: O) => T, locale: string, options: O): T {
   const proto = Object.getPrototypeOf(options);
@@ -63,9 +63,9 @@ function descend<T>(path: Path<T>, key: unknown): Path<T> {
 }
 
 export function numberFormat(locale: string, options: Intl.NumberFormatOptions): Intl.NumberFormat {
-  return cached(numberFormats, Intl.NumberFormat, locale, options);
+  return cached(numberFormats ??= new Formats(), Intl.NumberFormat, locale, options);
 }
 
 export function dateTimeFormat(locale: string, options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
-  return cached(dateFormats, Intl.DateTimeFormat, locale, options);
+  return cached(dateFormats ??= new Formats(), Intl.DateTimeFormat, locale, options);
 }

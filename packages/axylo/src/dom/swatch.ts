@@ -6,11 +6,9 @@
  *
  * A hidden series is drawn as an outline of the same shape (spec I2: marked by shape, not by dimming).
  */
-import { hideFromAT } from './attributes';
+import { svgElement } from './attributes';
 import type { MarkerShape, SeriesCue } from '../core/contracts';
 import { MARKER_POLYGONS } from '../render/geometry';
-
-const NS = 'http://www.w3.org/2000/svg';
 
 export interface SwatchSpec {
   /** Palette index of the series (or slice), null for a muted entry such as a donut's "Other". */
@@ -84,23 +82,12 @@ function markerPath(shape: MarkerShape, cx: number, cy: number, size: number): s
 
 /** A 20 × 12 swatch (CSS px). aria-hidden: the series name beside it is the text. */
 export function createSwatch(doc: Document, spec: SwatchSpec): SVGSVGElement {
-  const svg = doc.createElementNS(NS, 'svg');
-  svg.setAttribute('class', 'axylo-swatch');
-  svg.setAttribute('viewBox', '0 0 20 12');
-  svg.setAttribute('width', '20');
-  svg.setAttribute('height', '12');
-  hideFromAT(svg);
-  svg.setAttribute('focusable', 'false');
-  const color = colorOf(spec.color);
-  svg.style.color = color;
+  const svg = svgElement(doc, 'svg', {
+    class: 'axylo-swatch', viewBox: '0 0 20 12', width: '20', height: '12', 'aria-hidden': 'true', focusable: 'false',
+  });
+  svg.style.color = colorOf(spec.color);
   if (spec.line) {
-    const line = doc.createElementNS(NS, 'line');
-    line.setAttribute('x1', '0');
-    line.setAttribute('x2', '20');
-    line.setAttribute('y1', '6');
-    line.setAttribute('y2', '6');
-    line.setAttribute('stroke', 'currentColor');
-    line.setAttribute('stroke-width', '2');
+    const line = svgElement(doc, 'line', { x1: '0', x2: '20', y1: '6', y2: '6', stroke: 'currentColor', 'stroke-width': '2' });
     // Both patterns, so the stylesheet can switch to the contrast one exactly where the marks do (prefers-
     // contrast: more, forced colors; review 2, finding 22). Halved: the swatch is a short sample.
     const pattern = (dash: readonly number[] | null | undefined) => dash && dash.length ? dash.map(v => Math.max(1, v / 2)).join(' ') : 'none';
@@ -109,46 +96,28 @@ export function createSwatch(doc: Document, spec: SwatchSpec): SVGSVGElement {
     line.style.setProperty('--axylo-swatch-dash-contrast', pattern(spec.cue?.dash.contrast));
     svg.appendChild(line);
   }
-  const shape = doc.createElementNS(NS, 'path');
-  // Bars, areas and donut slices are filled regions: a square chip. Otherwise the series' marker.
+  // Under the line a hollow marker needs the background inside it, or the line shows through.
   const chip = spec.fill === true || !spec.cue;
   const marked = chip && spec.marker === true && spec.cue !== null;
-  shape.setAttribute('class', chip ? 'axylo-swatch-chip' : 'axylo-swatch-marker');
-  shape.setAttribute('d', chip ? 'M5 1H15V11H5Z' : markerPath(spec.cue!.marker, 10, 6, 10));
-  // Under a marker the chip is lighter, as an area's fill is, so the marker in full color shows on it.
-  if (marked && !spec.hollow) shape.setAttribute('fill-opacity', '0.4');
-  if (spec.hollow) {
-    // Under the line a hollow marker needs the background inside it, or the line shows through.
-    shape.setAttribute('fill', BACKGROUND);
-    shape.setAttribute('stroke', 'currentColor');
-    shape.setAttribute('stroke-width', '1.5');
-  } else {
-    shape.setAttribute('fill', 'currentColor');
-  }
-  svg.appendChild(shape);
-  if (marked) {
-    const marker = doc.createElementNS(NS, 'path');
-    marker.setAttribute('class', 'axylo-swatch-marker');
-    marker.setAttribute('d', markerPath(spec.cue!.marker, 10, 6, 10));
-    if (spec.hollow) {
-      marker.setAttribute('fill', BACKGROUND);
-      marker.setAttribute('stroke', 'currentColor');
-      marker.setAttribute('stroke-width', '1.5');
-    } else {
-      marker.setAttribute('fill', 'currentColor');
-      // A thin edge of the background keeps the marker's outline readable on its own color (spec A5).
-      marker.setAttribute('stroke', BACKGROUND);
-      marker.setAttribute('stroke-width', '1');
+  const appendShape = (square: boolean, onChip: boolean): void => {
+    const shape = svgElement(doc, 'path', {
+      class: square ? 'axylo-swatch-chip' : 'axylo-swatch-marker',
+      d: square ? 'M5 1H15V11H5Z' : markerPath(spec.cue!.marker, 10, 6, 10),
+    });
+    if (square && marked && !spec.hollow) shape.setAttribute('fill-opacity', '0.4');
+    shape.setAttribute('fill', spec.hollow ? BACKGROUND : 'currentColor');
+    if (spec.hollow || onChip) {
+      shape.setAttribute('stroke', spec.hollow ? 'currentColor' : BACKGROUND);
+      shape.setAttribute('stroke-width', spec.hollow ? '1.5' : '1');
     }
-    svg.appendChild(marker);
-  }
+    svg.appendChild(shape);
+  };
+  appendShape(chip, false);
+  if (marked) appendShape(false, true);
   if (chip && spec.pattern && !spec.hollow) {
-    const pattern = doc.createElementNS(NS, 'path');
-    pattern.setAttribute('class', 'axylo-swatch-pattern');
-    pattern.setAttribute('d', spec.pattern.d);
-    if (spec.pattern.kind === 'dots') pattern.setAttribute('fill', BACKGROUND);
-    else {
-      pattern.setAttribute('fill', 'none');
+    const dots = spec.pattern.kind === 'dots';
+    const pattern = svgElement(doc, 'path', { class: 'axylo-swatch-pattern', d: spec.pattern.d, fill: dots ? BACKGROUND : 'none' });
+    if (!dots) {
       pattern.setAttribute('stroke', BACKGROUND);
       pattern.setAttribute('stroke-width', '1.5');
     }
