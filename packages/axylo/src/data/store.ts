@@ -438,7 +438,9 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     this.fields = fields;
     const seed = normalized && alignedSeed(normalized);
     const reusable = normalized && seed?.type === type && sameNormalization(seed.options, options);
-    const { frame, state, x } = this.build(table, version, null, reusable ? normalized : undefined);
+    const { frame, state, x } = reusable
+      ? this.adoptNormalized(table, version, normalized)
+      : this.build(table, version, null);
     this.state = state;
     this.rows.resetPositions(table, x.positions, prefixPositions(table, fields.x.field, x, state.buffers));
     this.current = this.snapshot(frame);
@@ -531,6 +533,10 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
       this.fields = draft.fields;
       this.state = draft.state;
     });
+  }
+
+  private adoptNormalized(table: Table, version: FrameVersion, normalized: AlignedFrame) {
+    return this.build(table, version, null, normalized);
   }
 
   private build(table: Table, version: FrameVersion,
