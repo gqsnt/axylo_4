@@ -6,7 +6,7 @@
  * 4. Shadow DOM scroll/focus/outside-click (open & closed), focus restoration (closeTable, donutSliceList, renderControls),
  *    and jumpTarget (whitespace-only categories & formatted numeric printed-value lookup)
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { activeElementOf, isElement, isFocusable, shadowRootOf } from '../../src/dom/attributes';
 import { createFigure } from '../../src/dom/figure';
 import { createTooltip, type TooltipContent } from '../../src/dom/tooltip';
@@ -621,6 +621,85 @@ function buildLineInteraction(doc: MockDocument, host: MockContainer, id: string
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────────────────────────────────
+
+describe('hover and streaming DOM work', () => {
+  it('measures changed tooltip text once and reuses plot geometry during a hover sweep', () => {
+    const doc = new MockDocument();
+    const chart = buildLineInteraction(doc, doc.body, 'sweep');
+    const plot = chart.fig.plot as unknown as MockElement;
+    const stage = chart.fig.stage as unknown as MockElement;
+    const figure = chart.fig.figure as unknown as MockElement;
+    const tip = chart.fig.tooltip as unknown as MockElement;
+    const move = (ref: DatumRef) => {
+      const at = chart.committed.lookup.anchor(ref)!;
+      stage.dispatchEvent(new MockEvent('pointermove', { clientX: at.x, clientY: at.y }));
+    };
+    move(chart.firstRef);
+    expect(tip.hidden).toBe(false);
+    const plotRect = vi.spyOn(plot, 'getBoundingClientRect');
+    const figureRect = vi.spyOn(figure, 'getBoundingClientRect');
+    const tipRect = vi.spyOn(tip, 'getBoundingClientRect');
+    const toggle = vi.spyOn(tip.classList, 'toggle');
+    const scrollHeight = vi.fn(() => 40);
+    const clientHeight = vi.fn(() => 200);
+    Object.defineProperties(tip, { scrollHeight: { get: scrollHeight }, clientHeight: { get: clientHeight } });
+    const next = chart.committed.lookup.step(chart.firstRef, 'next')!;
+    move(next);
+    move(chart.committed.lookup.step(next, 'next')!);
+    expect(tip.hidden).toBe(false);
+    expect(tipRect).toHaveBeenCalledTimes(2);
+    expect(scrollHeight).not.toHaveBeenCalled();
+    expect(clientHeight).not.toHaveBeenCalled();
+    expect(toggle).not.toHaveBeenCalled();
+    expect(plotRect).not.toHaveBeenCalled();
+    expect(figureRect).not.toHaveBeenCalled();
+    chart.interaction.destroy();
+  });
+
+  it('checks overflow and remeasures after wrapping a constrained tooltip', () => {
+    const doc = new MockDocument();
+    const fig = doc.createElement('figure');
+    const tip = doc.createElement('div');
+    const readout = doc.createElement('div');
+    fig.append(tip, readout);
+    doc.body.appendChild(fig);
+    const view = createTooltip(tip as unknown as HTMLElement, readout as unknown as HTMLElement, fig as unknown as HTMLElement, () => {});
+    const wrapped = () => tip.classList.contains('axylo-tooltip-wrap');
+    const measure = vi.spyOn(tip, 'getBoundingClientRect').mockImplementation(() => ({
+      ...tip.rect, width: wrapped() ? 280 : 320, height: wrapped() ? 50 : 35,
+    }));
+    const scrollHeight = vi.fn(() => wrapped() ? 45 : 60);
+    Object.defineProperties(tip, { scrollHeight: { get: scrollHeight }, clientHeight: { value: 45 } });
+    expect(view.show(sampleContent(), makePlacement(), false, { left: 0, top: 0, kx: 1, ky: 1 })).toBe(true);
+    expect(wrapped()).toBe(true);
+    expect(scrollHeight).toHaveBeenCalledTimes(2);
+    expect(measure).toHaveBeenCalledTimes(2);
+    expect(view.rect()).toMatchObject({ width: 280, height: 50 });
+    view.destroy();
+  });
+
+  it('keeps controls and their queried nodes across equivalent streaming revisions', () => {
+    const doc = new MockDocument();
+    const chart = buildLineInteraction(doc, doc.body, 'stream');
+    const { committed, interaction, fig, firstBox } = chart;
+    const state = { ...committed, streaming: true };
+    expect(interaction.prepare(state)).toBe(true);
+    interaction.commit(state);
+    (fig.stage as unknown as MockElement).dispatchEvent(new MockEvent('pointermove', { clientX: firstBox.x, clientY: firstBox.y }));
+    const controls = fig.controls as unknown as MockElement;
+    const pause = controls.querySelectorAll('button').find(button => button.textContent === defaultMessages.pause)!;
+    const rendered = vi.spyOn(pause.classList, 'toggle');
+    const query = vi.spyOn(fig.figure as unknown as MockElement, 'querySelectorAll');
+    const next = { ...state, view: { ...state.view }, english: () => null };
+    expect(interaction.prepare(next)).toBe(false);
+    interaction.commit(next);
+    expect(rendered).not.toHaveBeenCalled();
+    expect(query).not.toHaveBeenCalled();
+    expect(interaction.prepare({ ...next, paused: true })).toBe(true);
+    expect(pause.textContent).toBe(defaultMessages.resume);
+    interaction.destroy();
+  });
+});
 
 describe('Bug 2 & 3: cross-realm tooltip buttons and stale press state', () => {
   it('cross-realm buttons work without instanceof HTMLButtonElement', () => {

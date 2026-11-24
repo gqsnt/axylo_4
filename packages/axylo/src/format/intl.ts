@@ -94,26 +94,68 @@ const dateFields = [
   { era: 'short' }, { timeZoneName: 'shortOffset' },
 ] satisfies Intl.DateTimeFormatOptions[];
 
-/** Only built-in labels use these fields. Author options always go through dateTimeFormat. */
-export function builtInDateFormat(locale: string, timeZone: string, parts: number): (value: number) => string {
-  const native = () => dateTimeFormat(locale, Object.assign(
-    { timeZone }, ...dateFields.filter((_, i) => parts & (1 << i)),
-  ), true).format;
-  if (timeZone !== 'UTC' || parts & (DateParts.Era | DateParts.Offset) || !isPlainEnglish(locale)) return native();
-  let fallback: ReturnType<typeof native> | undefined;
+const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const utcFormats: ((value: number) => string)[] = [];
+let utcOffset: string | undefined;
+
+function probeUtcOffset(): string {
+  const sample = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'UTC', hour: 'numeric', minute: '2-digit', timeZoneName: 'shortOffset',
+  }).format(0);
+  const period = sample.indexOf('AM');
+  return utcOffset = sample.slice(period + 3);
+}
+
+function englishUtcFormat(parts: number): (value: number) => string {
+  const dateParts = parts & DateParts.Date;
+  const hasClock = (parts & DateParts.Clock) !== 0;
+  const hasFraction = (parts & DateParts.Milliseconds) !== 0;
+  const hasSeconds = (parts & DateParts.Seconds) !== 0 || hasClock && hasFraction;
+  const hasTime = hasClock || hasSeconds || hasFraction;
   return value => {
     const date = new Date(value);
     const year = date.getUTCFullYear();
-    if (!(year >= 1 && year <= 9999)) return (fallback ??= native())(value);
-    // Date's UTC string has fixed month names, and ISO time fields have fixed widths here.
-    let text = parts & DateParts.Month ? date.toUTCString().slice(8, 11) : '';
-    if (parts & DateParts.Day) text += ` ${date.getUTCDate()}`;
-    if (parts & DateParts.Year) text += (parts & DateParts.Day ? ', ' : text ? ' ' : '') + year;
-    if (!(parts & DateParts.Clock)) return text;
-    const hour = date.getUTCHours();
-    const end = parts & DateParts.Milliseconds ? 23 : parts & DateParts.Seconds ? 19 : 16;
-    // Intl.format emits a space here on V8 even when formatToParts emits U+202F.
-    const clock = `${hour % 12 || 12}${date.toISOString().slice(13, end)} ${hour < 12 ? 'AM' : 'PM'}`;
-    return text + (text && ', ') + clock + (parts & DateParts.Zone ? ' UTC' : '');
+    if (Number.isNaN(year)) throw new RangeError('Invalid time value');
+    const yearOfEra = year > 0 ? year : 1 - year;
+    let text = '';
+    switch (dateParts) {
+      case 0:
+        if (!hasTime) text = `${date.getUTCMonth() + 1}/${date.getUTCDate()}/${yearOfEra}`;
+        break;
+      case DateParts.Year: text = String(yearOfEra); break;
+      case DateParts.Month: text = months[date.getUTCMonth()]!; break;
+      case DateParts.Year | DateParts.Month: text = `${months[date.getUTCMonth()]} ${yearOfEra}`; break;
+      case DateParts.Day: text = String(date.getUTCDate()); break;
+      case DateParts.Year | DateParts.Day: text = `${yearOfEra} (day: ${date.getUTCDate()})`; break;
+      case DateParts.MonthDay: text = `${months[date.getUTCMonth()]} ${date.getUTCDate()}`; break;
+      case DateParts.Date: text = `${months[date.getUTCMonth()]} ${date.getUTCDate()}, ${yearOfEra}`; break;
+    }
+    if (hasTime) {
+      if (text) text += ', ';
+      if (hasClock) {
+        const hour = date.getUTCHours();
+        text += `${hour % 12 || 12}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
+        if (hasSeconds) text += ':' + String(date.getUTCSeconds()).padStart(2, '0');
+        if (hasFraction) text += '.' + String(date.getUTCMilliseconds()).padStart(3, '0');
+        // Intl.format emits an ASCII space before AM/PM on V8/Chromium without waking ICU.
+        text += hour < 12 ? ' AM' : ' PM';
+      } else {
+        if (hasSeconds) text += date.getUTCSeconds();
+        if (hasFraction) text += (hasSeconds ? '.' : '') + String(date.getUTCMilliseconds()).padStart(3, '0');
+      }
+    }
+    const zone = parts & DateParts.Offset ? (utcOffset ?? probeUtcOffset()) : parts & DateParts.Zone ? 'UTC' : '';
+    return zone ? text + (hasTime ? ' ' : ', ') + zone : text;
   };
+}
+
+/** Only built-in labels use these fields. Author options always go through dateTimeFormat. */
+export function builtInDateFormat(locale: string, timeZone: string, parts: number): (value: number) => string {
+  if (timeZone === 'UTC' && !(parts & DateParts.Era) && isPlainEnglish(locale)) {
+    const mask = parts & (DateParts.Offset | (DateParts.Era - 1));
+    return utcFormats[mask] ??= englishUtcFormat(mask);
+  }
+  return dateTimeFormat(locale, Object.assign(
+    { timeZone }, ...dateFields.filter((_, i) => parts & (1 << i)),
+  ), true).format;
 }

@@ -285,13 +285,14 @@ export const donutSliceList: SliceList = (doc, d, actions, list) => {
       for (const b of choices()) b.tabIndex = b === event.target ? 0 : -1;
     });
   }
-  list.className = 'axylo-legend-list';
+  if (list.className !== 'axylo-legend-list') list.className = 'axylo-legend-list';
   const missingLang = d.english('noData');
   // Entries are kept by slice key and updated in place, so a focused entry survives a redraw (review 12).
   const state = sliceLists.get(list);
   const kept = state?.entries ?? new Map<string, SliceEntry>();
   if (!state) sliceLists.set(list, { entries: kept, listeners: new Listeners() });
   const wanted: HTMLLIElement[] = [];
+  const buttons: HTMLButtonElement[] = [];
   for (const slice of view.slices) {
     let entry = kept.get(slice.key);
     if (!entry) {
@@ -322,6 +323,7 @@ export const donutSliceList: SliceList = (doc, d, actions, list) => {
     // A missing value is the built-in "No data": marked as English on a page in another language (A10).
     setAttr(entry.value, 'lang', datum && datum.value === d.messages.noData ? missingLang : null);
     wanted.push(entry.li);
+    buttons.push(entry.choose);
   }
   const live = new Set(view.slices.map(slice => slice.key));
   for (const key of [...kept.keys()]) if (!live.has(key)) kept.delete(key);
@@ -331,7 +333,6 @@ export const donutSliceList: SliceList = (doc, d, actions, list) => {
   const prevButtons = hadInList ? [...list.querySelectorAll<HTMLButtonElement>('.axylo-legend-choice')] : [];
   const hadIndex = hadInList ? prevButtons.indexOf(had as HTMLButtonElement) : -1;
   placeChildren(list, wanted);
-  const buttons = [...list.querySelectorAll<HTMLButtonElement>('.axylo-legend-choice')];
   if (hadInList) {
     if (had.isConnected) {
       if (activeElementOf(doc, list) !== had) had.focus({ preventScroll: true });
@@ -349,11 +350,15 @@ export const donutSliceList: SliceList = (doc, d, actions, list) => {
     }
   }
   const roving = !d.ready;
-  list.dataset.roving = String(roving);
+  const flag = String(roving);
+  if (list.dataset.roving !== flag) list.dataset.roving = flag;
   const currentActive = activeElementOf(doc, list);
   let focusedAt = buttons.indexOf(currentActive as HTMLButtonElement);
   if (focusedAt < 0) focusedAt = buttons.findIndex(b => b.tabIndex === 0);
-  for (const [i, b] of buttons.entries()) b.tabIndex = roving && i === Math.max(0, focusedAt) ? 0 : -1;
+  for (const [i, b] of buttons.entries()) {
+    const index = roving && i === Math.max(0, focusedAt) ? 0 : -1;
+    if (b.tabIndex !== index) b.tabIndex = index;
+  }
   return list;
 };
 
@@ -511,6 +516,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   let geoVisible: Rect | null = null;
   let geoReadout: Rect | null = null;
   let geoControls: readonly Rect[] | null = null;
+  let controlNodes: readonly HTMLElement[] | null = null;
   function clearGeo(): void {
     geoPlot = geoFigure = geoVisible = geoReadout = geoControls = null;
   }
@@ -597,6 +603,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   let proxy: HTMLInputElement | null = null;
   let ring: HTMLElement | null = null;
+  let proxyRect: Rect | null = null;
   let instructions: HTMLElement | null = null;
   let selection: HTMLElement | null = null;
   let legendList: HTMLUListElement | null = null;
@@ -728,8 +735,10 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     removeLegend();
     toolbar?.destroy();
     proxy = ring = selection = legendList = null;
+    proxyRect = null;
     toolbar = null;
     lastControls = null;
+    controlNodes = null;
     clearGeo();
     for (const host of [figure.controls, figure.top, figure.side]) {
       host.hidden = true;
@@ -836,8 +845,10 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   function controlRects(m: Mapping): readonly Rect[] {
     if (geoControls) return geoControls;
     const controls: Rect[] = [];
-    for (const el of root.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], [tabindex], .axylo-legend-list > li')) {
-      if (el === proxy || el === root || tooltip?.contains(el)) continue;
+    controlNodes ??= Array.from(root.querySelectorAll<HTMLElement>(
+      'button, input, select, textarea, a[href], [tabindex], .axylo-legend-list > li',
+    )).filter(el => el !== proxy && el !== root && !figure.tooltip.contains(el) && !figure.readout.contains(el));
+    for (const el of controlNodes) {
       const r = el.getBoundingClientRect();
       if (r.width <= 0 || r.height <= 0) continue;
       // With the outline it paints (its own width and offset, scaled as the chart is), or the stylesheet's focus
@@ -1024,15 +1035,19 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
             redraw();
           },
         };
+        const marks = markBox(d, target);
+        const mapping = plotMapping();
+        // Read all placement geometry before the tooltip or overlay changes layout.
+        const anchor = marks ? rectToViewport(mapping, marks) : null;
         const tip = getTooltip();
         const placed = presentation === 'strip'
           ? tip.strip(tc, pinned, visibleReadout())
-          : tip.show(tc, placementFor(d, target, visibleRing), pinned, figureMapping());
+          : tip.show(tc, placementFor(d, marks, visibleRing, mapping), pinned, figureMapping());
         const rect = placed ? tip.rect() : null;
         if (rect) {
           const promote = recency === 'promote' || (recency === 'auto' &&
             (prev === null || !sameTarget(prev.target, target) || prev.pinned !== pinned || prev.page !== page));
-          content = { target, rect, anchor: anchorOf(d, target), presentation, pinned, page };
+          content = { target, rect, anchor, presentation, pinned, page };
           noteShowing(promote);
         } else {
           releaseShowing();
@@ -1058,10 +1073,9 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
    * keyboard's ring is kept clear wherever it is; the plot is the marks' rectangle inset by the plot's
    * outline and cut to what is visible; every control of the figure is avoided. All in viewport pixels.
    */
-  function placementFor(d: Committed, target: PickTarget, keyboardRing: DatumRef | null): PlacementInput {
-    const m = plotMapping();
+  function placementFor(d: Committed, box: Rect | null, keyboardRing: DatumRef | null, m: Mapping): PlacementInput {
     const area = d.layout.kind === 'plot' ? d.layout.plot : { x: 0, y: 0, width: d.layout.width, height: d.layout.height };
-    const marks = markBox(d, target) ?? { x: area.x + area.width / 2, y: area.y + area.height / 2, width: 0, height: 0 };
+    const marks = box ?? { x: area.x + area.width / 2, y: area.y + area.height / 2, width: 0, height: 0 };
     const datum = { x: marks.x - RING_REACH, y: marks.y - RING_REACH, width: marks.width + 2 * RING_REACH, height: marks.height + 2 * RING_REACH };
     const inset = OUTLINE_REACH;
     const plotRect = { x: area.x + inset, y: area.y + inset, width: Math.max(0, area.width - 2 * inset), height: Math.max(0, area.height - 2 * inset) };
@@ -1940,12 +1954,12 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     const series = view.frame.series;
     if (series.length < 2) return [];
     const hiddenLang = d.english('controlsLabel') ? d.pageLang : null;
-    return series.map((s, i) => {
+    return series.map(({ key, label }, i) => {
       const shownSeries = view.visible[i] === true;
       return {
-        key: `series:${s.key}`, label: s.label, pressed: shownSeries, lang: hiddenLang, className: 'axylo-control axylo-legend-entry',
+        key: `series:${key}`, label, pressed: shownSeries, lang: hiddenLang, className: 'axylo-control axylo-legend-entry',
         struck: !shownSeries, swatch: parts.swatch(i, view.cues[i] ?? null, !shownSeries),
-        activate: () => actions.toggle(s.key),
+        activate: () => actions.toggle(key),
       };
     });
   }
@@ -2030,17 +2044,45 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   /** Puts exactly `wanted`, in order, into `host`, moving rather than rebuilding. */
   function place(host: HTMLElement, wanted: readonly Element[]): void {
     placeChildren(host, wanted);
-    host.hidden = wanted.length === 0;
+    const hidden = wanted.length === 0;
+    if (host.hidden !== hidden) host.hidden = hidden;
   }
 
-  function renderControls(d: ControlsState): void {
-    if (!toolbar) return;
+  function controlInputs(d: ControlsState): readonly unknown[] {
+    // A new frame can keep the same controls. Compare what the user sees and can activate.
+    const { view } = d;
+    const inputs: unknown[] = [d.messages, d.english('controlsLabel'), d.pageLang, d.legend,
+      tableView !== null, range !== null];
+    if (tableView) inputs.push(d.reader.table, d.formatters);
+    const hasTable = Boolean(d.reader.table && (d.ready || d.inspectable));
+    inputs.push(hasTable, hasTable ? d.english(tableOpen() ? 'hideTable' : 'viewAsTable') : null);
+    inputs.push(d.streaming, d.paused, d.streaming ? d.english(d.paused ? 'resume' : 'pause') : null);
+    if (offersZoom(d) && (d.ready || recoverable(d))) {
+      const { xDomain: now, xFull: full } = d.view;
+      inputs.push(true, d.ready, d.zoomed, d.ready && canZoomIn(d.view, d.zoomed ? now : full), d.english('zoomOut'));
+      if (d.ready) inputs.push(d.english('zoomIn'), d.english('selectRange'));
+      if (d.zoomed) inputs.push(now[0] > full[0], now[1] < full[1], d.english('panLeft'), d.english('panRight'), d.english('resetZoom'));
+    } else inputs.push(false);
+    if (view.kind === 'donut') {
+      inputs.push(view, d.formatters, d.ready, d.inspectable, d.tooSmall, d.english('noData'));
+    } else if (d.ready && d.legend && !d.tooSmall && view.frame.series.length > 1) {
+      for (const [i, series] of view.frame.series.entries()) {
+        const cue = view.cues[i];
+        inputs.push(series.key, series.label, view.visible[i] === true, cue?.marker,
+          cue?.dash.normal?.join(','), cue?.dash.contrast?.join(','));
+      }
+    }
+    return inputs;
+  }
+
+  function renderControls(d: ControlsState, measure = false): boolean {
+    if (!toolbar) return false;
     cs = d;
-    const inputs = [d.view, d.formatters, d.messages, d.english, d.pageLang, d.tooSmall, d.ready,
-      d.inspectable, d.empty, d.interactive, d.legend, d.zoom, d.zoomed, d.streaming, d.paused,
-      range !== null, tableView !== null, tableView ? d.reader.table : Boolean(d.reader.table)];
-    if (sameKey(lastControls, inputs)) return;
+    const inputs = controlInputs(d);
+    if (sameKey(lastControls, inputs)) return false;
+    const before = measure ? layoutSignature() : '';
     lastControls = inputs;
+    controlNodes = null;
     clearGeo();
 
     renderDonutLegend(d);
@@ -2062,6 +2104,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     if (isFocusable(active) && active !== activeElement() && active.isConnected) active.focus({ preventScroll: true });
     // A toolbar that emptied under the reader hands focus to the figure, not the page (C2-17).
     else if (inToolbar && !items.length) focusFigure();
+    return measure && layoutSignature() !== before;
   }
 
   // ── commit ─────────────────────────────────────────────────────────────────────────────────────
@@ -2071,15 +2114,16 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     const ready = plotReady(d);
     const usable = ready || recoverable(d);
     if (!usable) handOff();
-    proxy.hidden = !usable;
-    ring.hidden = !usable;
-    if (instructions) instructions.hidden = !usable;
+    if (proxy.hidden === usable) proxy.hidden = !usable;
+    if (ring.hidden === usable) ring.hidden = !usable;
+    if (instructions && instructions.hidden === usable) instructions.hidden = !usable;
     if (!usable) return;
     const p = d.layout.kind === 'plot' ? d.layout.plot : { x: 0, y: 0, width: d.layout.width, height: d.layout.height };
-    const style = `left: ${p.x}px; top: ${p.y}px; width: ${p.width}px; height: ${p.height}px;`;
-    if (proxy.style.cssText !== style) {
+    if (!proxyRect || proxyRect.x !== p.x || proxyRect.y !== p.y || proxyRect.width !== p.width || proxyRect.height !== p.height) {
+      const style = `left: ${p.x}px; top: ${p.y}px; width: ${p.width}px; height: ${p.height}px;`;
       proxy.style.cssText = style;
       ring.style.cssText = style;
+      proxyRect = p;
     }
     // Each string in its own language where it can have one (spec A10; review C2-19): the description is an
     // element of its own. The name, the role description and the value text are attributes of the proxy
@@ -2099,8 +2143,9 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       setAttr(proxy, 'aria-describedby', parts.length ? instructions.id : null);
     }
     setAttr(proxy, 'aria-roledescription', fill(d.messages.plotRole, { type: chartTypeName(d.messages, d.kind) }));
-    plot.classList.toggle('axylo-touch-zoom', d.zoom === 'touch');
-    plot.classList.toggle('axylo-zoomable', d.zoom !== false);
+    const touch = d.zoom === 'touch', zoomable = d.zoom !== false;
+    if (plot.classList.contains('axylo-touch-zoom') !== touch) plot.classList.toggle('axylo-touch-zoom', touch);
+    if (plot.classList.contains('axylo-zoomable') !== zoomable) plot.classList.toggle('axylo-zoomable', zoomable);
   }
 
   /**
@@ -2286,15 +2331,17 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     const strip = nextPres === 'strip';
     const readoutChanged = root.classList.contains('axylo-readout-mode') !== strip;
     if (!state.interactive && !proxy && !c && !cs && !readoutChanged) return false;
-    const before = layoutSignature();
+    let controlsChanged: boolean;
     if (!state.interactive) {
       // The overlay is cleared while the frame that drew it is still known (new item 6).
+      const before = layoutSignature();
       clear();
       c = null;
       cs = null;
+      controlsChanged = layoutSignature() !== before;
     } else {
       build();
-      renderControls(state);
+      controlsChanged = renderControls(state, true);
     }
     // The strip is reserved before the plot is measured, so the plot's size is the one it really has.
     if (readoutChanged) {
@@ -2307,13 +2354,12 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       // The rest starts again in the new presentation, for whatever the still pointer is on (review I6).
       rest = pointer ? { at: pointer, time: clock(), target: pointerTarget() } : null;
     }
-    return layoutSignature() !== before;
+    return readoutChanged || controlsChanged;
   }
 
   /** What around the plot can change its size: which controls exist, where, and their labels. */
   function layoutSignature(): string {
-    return [figure.top, figure.side, figure.controls].map(host => host.hidden ? '' : host.textContent ?? '').join('\u0000') +
-      (root.classList.contains('axylo-readout-mode') ? '\u0000readout' : '');
+    return [figure.top, figure.side, figure.controls].map(host => host.hidden ? '' : host.textContent ?? '').join('\u0000');
   }
 
   /** Everything goes; a later full build starts from no input at all (new item 6; review C3-6). */

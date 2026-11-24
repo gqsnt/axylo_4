@@ -111,6 +111,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
   /** A row that had focus when its presentation was hidden: the next presentation focuses it again. */
   let pendingFocus: string | null = null;
   let where: Presentation | null = null;
+  let wasPinned = false;
   /** The content on show: row buttons read it when chosen, so a redraw never strands a pressed button. */
   let current: TooltipContent | null = null;
   /** How many rows the content on show lists (the rest are in "+N more"). */
@@ -267,8 +268,8 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
   function carryFocus(key: string | null, to: Presentation): void {
     if (key === null) return;
     const entry = entries[to].get(key);
-    if (entry?.element.isConnected) entry.element.focus({ preventScroll: true });
-    else lost();
+    if (!entry?.element.isConnected) lost();
+    else if (activeElementOf(doc, figure) !== entry.element) entry.element.focus({ preventScroll: true });
   }
 
   // Completes a press on the row it began on, wherever the pointer is released inside the content.
@@ -380,13 +381,16 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     const carried = pinned ? press : null;
     if (!pinned) clearPress();
     const other = mode === 'strip' ? 'floating' : 'strip';
-    const had = focusedKey(other) ?? focusedKey(mode) ?? pendingFocus;
+    const had = (wasPinned && where !== null ? focusedKey(where) : null) ?? pendingFocus;
     pendingFocus = null;
     hidePresentation(other);
     const host = hosts[mode];
-    if (host.hidden) host.hidden = false;
-    host.classList.toggle(pinnedClasses[mode], pinned);
-    expose(host, pinned);
+    if (where !== mode || pinned !== wasPinned || host.hidden) {
+      if (host.hidden) host.hidden = false;
+      if (pinned || where === mode && wasPinned) host.classList.toggle(pinnedClasses[mode], pinned);
+      expose(host, pinned);
+    }
+    wasPinned = pinned;
 
     return (visible: boolean) => {
       if (visible) {
@@ -426,12 +430,13 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       // The tooltip lives in the figure's layout pixels; placement is in viewport pixels.
       const m = figMapping ?? mappingOf(figure);
       // Never larger than the visible part of the plot (rule 6): it wraps within that.
-      const maxWidth = `${Math.max(0, Math.min(320, p.visible.width / m.kx))}px`;
-      const maxHeight = `${Math.max(0, p.visible.height / m.ky)}px`;
+      const maxWidth = Math.max(0, Math.min(320, p.visible.width / m.kx));
+      const maxHeight = Math.max(0, p.visible.height / m.ky);
       const inputs = [pinned, maxWidth, maxHeight, figMapping, m.kx, m.ky];
       if (wasHidden || !sameKey(constraints, inputs)) {
-        if (element.style.maxWidth !== maxWidth) element.style.maxWidth = maxWidth;
-        if (element.style.maxHeight !== maxHeight) element.style.maxHeight = maxHeight;
+        const width = `${maxWidth}px`, height = `${maxHeight}px`;
+        if (element.style.maxWidth !== width) element.style.maxWidth = width;
+        if (element.style.maxHeight !== height) element.style.maxHeight = height;
         constraints = inputs;
         lastSize = null;
       }
@@ -448,14 +453,18 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
         fillFloating(content, rows, pinned, shown);
         let size = lastSize;
         if (!size) {
-          let over = overflows();
-          if (over && !wrapped) {
-            element.classList.add('axylo-tooltip-wrap');
-            wrapped = true;
-            over = overflows();
-          }
-          if (over && shown > 1) continue;
           size = element.getBoundingClientRect();
+          // The rect is in viewport pixels. Check both caps in layout pixels before reading scroll metrics.
+          if (size.width >= (maxWidth - 2) * m.kx || size.height >= (maxHeight - 2) * m.ky) {
+            let over = overflows();
+            if (over && !wrapped) {
+              element.classList.add('axylo-tooltip-wrap');
+              wrapped = true;
+              over = overflows();
+              if (!over || shown <= 1) size = element.getBoundingClientRect();
+            }
+            if (over && shown > 1) continue;
+          }
           if (shown === total && !wrapped) lastSize = size;
         }
         const { width, height } = size;

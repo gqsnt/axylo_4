@@ -1,6 +1,7 @@
 import fc from 'fast-check';
 import { expect, it, vi } from 'vitest';
 import { SLOT_GAP, SLOT_NO_ROW, SLOT_NULL, SLOT_VALUE, type PointMark } from '../../src/core/contracts';
+import { AlignedStore, resolveOptions } from '../../src/data';
 import { defaultMessages } from '../../src/messages';
 import { buildReader } from '../../src/reader';
 import { areaData } from '../../src/render/svg';
@@ -8,23 +9,109 @@ import { linearScale } from '../../src/scale/linear';
 import { addArea } from '../../src/scene/areas';
 import { COORDINATE_LIMIT, position } from '../../src/scene/geometry';
 import { addLine, drawing } from '../../src/scene/lines';
-import { buildPoints, simplifyLine } from '../../src/simplify';
+import { buildPath, buildPoints, simplifyLine } from '../../src/simplify';
 import { alignedStatistics } from '../../src/view';
+import { utc, version } from '../data/helpers';
 import { formatter } from '../lookup/fixtures';
 import { aligned } from '../view/fixtures';
 
 const { view } = aligned({ data: [{ x: 0, y: 1 }], x: 'x', y: 'y' }, { kind: 'line' });
 
-it('uses the continuous scale’s division order at a dense device-column boundary', () => {
-  const x = Float64Array.from({ length: 373 }, (_, i) => i < 370 ? 6.9 + i / 10_000 : 7 + (i - 370) / 100);
+it.each([370, 1500])('uses exact division order after %i samples at a device-column boundary', count => {
+  const x = Float64Array.from({ length: count + 3 }, (_, i) => i < count ? 6.9 + i / 100_000 : 7 + (i - count) / 100);
   const y = new Float64Array(x.length).fill(1);
-  y.set([8, 3, 2], 370);
+  y.set([8, 3, 2], count);
   const xy = { kind: 'xy', x: linearScale([0, 10], [0, 90]), y: linearScale([0, 10], [0, 10]) } as const;
   const input = drawing(x, xy, { x: 0, y: 0, width: 90, height: 10 }, 1);
   expect(Math.floor((7 / 10) * 90)).toBe(62);
   expect(Math.floor(7 * (90 / 10))).toBe(63);
   const kept = simplifyLine({ ...input, y, slot: new Uint8Array(x.length).fill(SLOT_VALUE), range: { start: 0, end: x.length } });
-  expect(kept.indexes).toEqual(Uint32Array.of(0, 370, 371, 372));
+  expect(kept.indexes).toEqual(Uint32Array.of(0, count, count + 1, count + 2));
+});
+
+it('keeps exact column extrema and path bytes as dense views resize and zoom', () => {
+  const pattern = fc.array(fc.integer({ min: -9, max: 9 }), { minLength: 3, maxLength: 35 });
+  fc.assert(fc.property(pattern, fc.boolean(), fc.boolean(), fc.boolean(), (values, inverted, float32, mixed) => {
+    const count = 2179;
+    let t = 1_700_000_000_000;
+    const x = Float64Array.from({ length: count }, (_, i) => t += i % 137 < 109 ? 21 : 521);
+    const y = new (float32 ? Float32Array : Float64Array)(count);
+    for (let i = 0; i < count; i++) y[i] = values[i % values.length]! / 7;
+    const slot = new Uint8Array(count);
+    if (mixed) {
+      slot[737] = slot[739] = slot[1500] = SLOT_GAP;
+      slot[801] = SLOT_NO_ROW;
+    }
+    const sourceRuns = mixed ? [[0, 737], [740, 1500], [1501, count]] as const : [[0, count]] as const;
+    for (const [start, end, width, ratio] of [
+      [7, count - 13, 18.5, 1.5], [7, count - 13, 26, 2], [0, count, 32, 1], [13, count - 3, 9, 2],
+    ] as const) {
+      const left = -11.25;
+      const right = left + width;
+      const xy = {
+        kind: 'xy',
+        x: linearScale([x[start]!, x[end - 1]!], inverted ? [right, left] : [left, right]),
+        y: linearScale([-0.25, 0.75], [20, -5]),
+      } as const;
+      const input = { ...drawing(x, xy, { x: left, y: -5, width, height: 25 }, ratio), y, slot, range: { start, end } };
+      const expected: number[] = [];
+      const breaks: number[] = [];
+      const path: number[] = [];
+      for (const [from, to] of sourceRuns) {
+        const byColumn = new Map<number, number[]>();
+        for (let i = Math.max(from, start); i < Math.min(to, end); i++) {
+          if (slot[i] === SLOT_NO_ROW) continue;
+          const column = Math.floor(xy.x.map(x[i]!) * ratio);
+          if (!byColumn.has(column)) byColumn.set(column, []);
+          byColumn.get(column)!.push(i);
+        }
+        if (expected.length) {
+          breaks.push(expected.length);
+          path.push(NaN, NaN);
+        }
+        for (const indexes of byColumn.values()) {
+          const samples = indexes.map(i => y[i]!);
+          const kept = new Set([indexes[0], indexes.at(-1),
+            indexes[samples.indexOf(Math.min(...samples))], indexes[samples.indexOf(Math.max(...samples))]]);
+          for (const i of indexes) if (kept.has(i)) {
+            expected.push(i);
+            path.push(xy.x.map(x[i]!), xy.y.map(y[i]!));
+          }
+        }
+      }
+      const actual = simplifyLine(input);
+      expect(actual.indexes).toEqual(Uint32Array.from(expected));
+      expect(actual.breaks).toEqual(Uint32Array.from(breaks));
+      expect(actual.isolated).toEqual(mixed ? Uint32Array.of(738) : new Uint32Array());
+      expect(new Uint32Array(buildPath(actual.indexes, actual.breaks, input).buffer))
+        .toEqual(new Uint32Array(Float32Array.from(path).buffer));
+    }
+  }));
+});
+
+it('keeps cached extrema tied to the published view across shared buffers and a tail fill', () => {
+  const data = Array.from({ length: 1055 }, (_, x) => ({ x, y: x === 1040 ? 8 : 1, group: 'a' }));
+  const options = resolveOptions('line', { data, x: 'x', y: 'y', series: 'group' }, { add() {} });
+  const store = new AlignedStore('line', options, utc, version);
+  store.prepareAppend([{ x: 1055, y: 0, group: 'b' }]).commit();
+  const draw = (frame: typeof store.frame) => {
+    const { y, slot } = frame.series.find(series => series.key === 'a')!;
+    return simplifyLine({
+      x: frame.x.values, y, slot, range: { start: 0, end: frame.length },
+      mapX: value => value / 2048, affineX: { slope: 1 / 2048, offset: 0 },
+      left: 0, width: 1, devicePixelRatio: 1,
+    }).indexes;
+  };
+  const before = store.frame;
+  expect(draw(before)).toEqual(Uint32Array.of(0, 1040, 1054));
+  store.prepareAppend([{ x: 1055, y: 25, group: 'a' }]).commit();
+  const filled = store.frame;
+  expect(draw(filled)).toEqual(Uint32Array.of(0, 1055));
+  store.prepareAppend([{ x: 1056, y: 10, group: 'a' }]).commit();
+  expect(store.frame.series[0]!.y.buffer).toBe(filled.series[0]!.y.buffer);
+  expect(draw(store.frame)).toEqual(Uint32Array.of(0, 1055, 1056));
+  expect(draw(filled)).toEqual(Uint32Array.of(0, 1055));
+  expect(draw(before)).toEqual(Uint32Array.of(0, 1040, 1054));
 });
 
 it('falls back for degenerate scales and extrapolation beyond packed coordinate bounds', () => {

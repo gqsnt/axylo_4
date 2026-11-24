@@ -206,37 +206,43 @@ export class RawRows {
 type Discard = (row: number, column: boolean) => void;
 
 export class StreamRows {
-  private retained = new RawRows();
-  #positions = new StoreMap<number, number>();
+  private retained: RawRows;
+  #positions: StoreMap<number, number>;
   // A sorted, unique column prefix already has a typed position index and implicit source rows.
   private seedPositions: Float64Array | null = null;
   #seedOffset = 0;
   #seedStart = 0;
-  #previousAtPosition = new StoreMap<number, number>();
-  #unplaced = new StoreMap<number, number>();
+  #previousAtPosition: StoreMap<number, number>;
+  #unplaced: StoreMap<number, number>;
   #latestPosition = -Infinity;
   onForget?: (row: number) => void;
   next: number;
 
-  constructor(table?: Table) {
-    if (table) this.retained.load(table);
-    this.next = table?.length ?? 0;
+  constructor(table?: Table, previous?: StreamRows) {
+    if (previous) {
+      this.retained = previous.retained.fork();
+      this.#positions = previous.#positions.fork();
+      this.#previousAtPosition = previous.#previousAtPosition.fork();
+      this.#unplaced = previous.#unplaced.fork();
+      this.seedPositions = previous.seedPositions;
+      this.#seedOffset = previous.#seedOffset;
+      this.#seedStart = previous.#seedStart;
+      this.#latestPosition = previous.#latestPosition;
+      this.next = previous.next;
+    } else {
+      this.retained = new RawRows();
+      this.#positions = new StoreMap();
+      this.#previousAtPosition = new StoreMap();
+      this.#unplaced = new StoreMap();
+      if (table) this.retained.load(table);
+      this.next = table?.length ?? 0;
+    }
   }
 
   get size(): number { return this.retained.size; }
 
   fork(): StreamRows {
-    const draft = new StreamRows();
-    draft.retained = this.retained.fork();
-    draft.#positions = this.#positions.fork();
-    draft.seedPositions = this.seedPositions;
-    draft.#seedOffset = this.#seedOffset;
-    draft.#seedStart = this.#seedStart;
-    draft.#previousAtPosition = this.#previousAtPosition.fork();
-    draft.#unplaced = this.#unplaced.fork();
-    draft.#latestPosition = this.#latestPosition;
-    draft.next = this.next;
-    return draft;
+    return new StreamRows(undefined, this);
   }
 
   commit(): void {
