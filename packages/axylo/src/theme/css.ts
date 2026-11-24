@@ -133,8 +133,10 @@ ${forced}
   /* The figure fills a container that has a definite height; otherwise it is as tall as its content. */
   .axylo-figure {
     position: relative; display: flex; flex-direction: column; box-sizing: border-box;
+    font-family: var(--axylo-font-family, inherit); letter-spacing: var(--axylo-letter-spacing, inherit);
     margin: 0; padding: 0; height: 100%; min-width: 0; min-height: 0;
   }
+  .axylo .axylo-caption, .axylo .axylo-note, .axylo .axylo-legend-list, .axylo .axylo-table { color: var(--axylo-text, currentColor); }
   .axylo-caption { flex: none; margin: 0 0 0.5em; min-width: 0; }
   .axylo-caption:has(> :not([hidden]):not(.axylo-visually-hidden)) { margin-bottom: 0.5em; }
   .axylo-caption:not(:has(> :not([hidden]):not(.axylo-visually-hidden))) { margin: 0; }
@@ -181,7 +183,7 @@ ${forced}
     /* Never larger than the visible part of the plot (rule 6): the layer sets both maxima; content wraps. */
     overflow: hidden; overflow-wrap: anywhere;
   }
-  .axylo .axylo-tooltip.axylo-tooltip-pinned { pointer-events: auto; }
+  .axylo .axylo-tooltip.axylo-tooltip-pinned { pointer-events: auto; border-width: 2px; }
   /* Readout mode (rule 5): a strip of two lines reserved under the plot, in the plot's column, as running
      text. Outside readout mode it does not exist. */
   .axylo .axylo-readout { display: none; }
@@ -204,13 +206,15 @@ ${forced}
     cursor: pointer; box-sizing: border-box; margin: 0; padding: 0; border: 0; background: none;
     font: inherit; color: inherit; text-align: inherit; align-items: center; min-height: 24px; min-width: 24px;
   }
+  .axylo .axylo-tooltip-choice:hover, .axylo button.axylo-tooltip-more { text-decoration: underline; text-underline-offset: 2px; }
+  .axylo .axylo-tooltip-more:not(button) { color: var(--axylo-muted, var(--axylo-default-muted)); }
   .axylo .axylo-tooltip .axylo-tooltip-choice { width: 100%; }
   .axylo .axylo-readout .axylo-tooltip-choice { display: inline-flex; vertical-align: middle; }
   .axylo .axylo-legend-choice { max-width: 100%; overflow-wrap: anywhere; display: inline-flex; gap: 0.375em; }
   .axylo .axylo-tooltip-title { font-weight: 600; }
   .axylo .axylo-tooltip-row { display: flex; gap: 1em; justify-content: space-between; }
   .axylo .axylo-tooltip-series { display: inline-flex; align-items: center; gap: 0.375em; min-width: 0; overflow-wrap: anywhere; }
-  .axylo .axylo-tooltip-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .axylo .axylo-tooltip-value, .axylo .axylo-legend-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
   /* A value that cannot fit on one line wraps, anywhere if it must (rule 6); short ones keep number and unit together. */
   .axylo .axylo-tooltip-wrap .axylo-tooltip-value, .axylo .axylo-readout-wrap .axylo-tooltip-value { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
   /* A strip row that still cannot fit is cut to one line with an ellipsis. */
@@ -220,6 +224,7 @@ ${forced}
     margin-top: 2px; padding-top: 2px; border-top: 1px solid var(--axylo-axis, var(--axylo-default-axis));
     text-align: end; font-weight: 600; font-variant-numeric: tabular-nums;
   }
+  .axylo .axylo-readout-total { font-weight: 600; font-variant-numeric: tabular-nums; }
   .axylo .axylo-swatch { flex: none; display: inline-block; overflow: visible; }
   /* The swatch repeats the dash the marks use, normal or contrast (spec A5; review 2, finding 22). */
   .axylo .axylo-swatch-line { stroke-dasharray: var(--axylo-swatch-dash, none); }
@@ -269,7 +274,7 @@ ${forced}
   /* legend: 'top' puts the legend and its toolbar above the plot; 'right' beside it, entries stacked. */
   .axylo .axylo-controls-top, .axylo .axylo-controls-side { flex: none; display: flex; flex-direction: column; gap: 0.5em; min-width: 0; }
   .axylo .axylo-controls-top { margin: 0 0 0.5em; }
-  .axylo .axylo-controls-side { margin: 0 0 0 0.75em; max-width: 40%; overflow: auto; }
+  .axylo .axylo-controls-side { margin: 0; margin-inline-start: 0.75em; padding: 3px; max-width: 40%; overflow: auto; }
   .axylo .axylo-controls-side .axylo-toolbar { flex-direction: column; align-items: stretch; flex-wrap: nowrap; }
   .axylo .axylo-controls-side .axylo-legend-list { flex-direction: column; flex-wrap: nowrap; }
   .axylo .axylo-controls-side .axylo-legend-entry + .axylo-control:not(.axylo-legend-entry) { margin-inline-start: 0; margin-block-start: 0.5em; }
@@ -285,7 +290,7 @@ ${forced}
   .axylo .axylo-legend-entry + .axylo-control:not(.axylo-legend-entry) { margin-inline-start: auto; }
   .axylo .axylo-control:focus-visible, .axylo .axylo-legend-choice:focus-visible, .axylo .axylo-tooltip-choice:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
   .axylo .axylo-tooltip-choice:focus-visible { outline-offset: -2px; }
-  .axylo .axylo-control[aria-disabled="true"] { cursor: default; border-style: dashed; }
+  .axylo .axylo-control[aria-disabled="true"] { cursor: default; border-style: dashed; color: var(--axylo-muted, var(--axylo-default-muted)); border-color: var(--axylo-muted, var(--axylo-default-muted)); }
   /* A symbol button (Select range): 24 × 24, so it adds no toolbar row; its name stays as hidden text. */
   .axylo .axylo-control.axylo-control-symbol { width: 24px; height: 24px; padding: 0; justify-content: center; }
   .axylo .axylo-symbol { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
@@ -300,7 +305,6 @@ ${forced}
     display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; list-style: none; font-size: max(12px, 0.875em);
   }
   .axylo .axylo-legend-list > li { display: inline-flex; align-items: center; gap: 0.375em; min-width: 0; }
-  .axylo .axylo-legend-value { font-variant-numeric: tabular-nums; }
   .axylo .axylo-table { display: flex; flex-direction: column; gap: 0.5em; min-width: 0; }
   /* The open table takes the plot's place at the plot's size, so nothing else moves (spec A4; review 2, finding 15). */
   /* Keep the table and its pager reachable even when the caption leaves no plot height. */
@@ -312,21 +316,22 @@ ${forced}
   }
   .axylo .axylo-stage > .axylo-table > .axylo-table-scroll { flex: 1 1 auto; }
   .axylo .axylo-table-scroll { overflow: auto; box-sizing: border-box; min-height: 4.5em; border: 1px solid var(--axylo-grid, var(--axylo-default-grid)); }
-  .axylo .axylo-table-scroll:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
-  .axylo .axylo-table table { border-collapse: collapse; width: max-content; min-width: 100%; font-size: max(12px, 0.875em); font-variant-numeric: tabular-nums; }
+  .axylo .axylo-table-scroll:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: -2px; }
+  .axylo .axylo-table table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: max(12px, 0.875em); font-variant-numeric: tabular-nums; }
   .axylo .axylo-table caption { padding: 4px 8px; text-align: start; font-weight: 600; caption-side: top; }
   .axylo .axylo-table th, .axylo .axylo-table td {
     padding: 2px 8px; border-bottom: 1px solid var(--axylo-grid, var(--axylo-default-grid)); text-align: end; white-space: nowrap;
   }
   .axylo .axylo-table th[scope="row"], .axylo .axylo-table thead th:first-child { text-align: start; }
-  .axylo .axylo-table thead th { position: sticky; top: 0; background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background))); }
+  .axylo .axylo-table thead th { position: sticky; top: 0; border-bottom-color: var(--axylo-axis, var(--axylo-default-axis)); background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background))); }
   .axylo .axylo-pager { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: max(12px, 0.875em); }
   .axylo .axylo-jump { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0.375em; margin: 0; }
   .axylo .axylo-jump-field {
-    box-sizing: border-box; min-height: 24px; width: 12em; padding: 2px 4px; font: inherit;
+    box-sizing: border-box; min-height: 24px; width: 12em; max-width: 100%; padding: 2px 4px; font: inherit;
     border: 1px solid var(--axylo-axis, var(--axylo-default-axis)); border-radius: 2px;
     background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background))); color: var(--axylo-text, currentColor);
   }
+  .axylo .axylo-jump-field[aria-invalid="true"] { border-width: 2px; }
   .axylo .axylo-jump-error:empty { position: absolute; }
   .axylo .axylo-jump-error { flex-basis: 100%; margin: 0; font-size: max(12px, 0.875em); }
   .axylo .axylo-jump-field:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }

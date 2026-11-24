@@ -141,7 +141,7 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
     }
     body.replaceChildren(...rows);
     // A pager the reader is on does not vanish under them: focus goes to the table first (finding 17).
-    if (count <= 1 && pager.contains(activeElementOf(doc))) scroll.focus({ preventScroll: true });
+    if (count <= 1 && pager.contains(activeElementOf(doc, pager))) scroll.focus({ preventScroll: true });
     pager.hidden = count <= 1;
     previous.textContent = texts.previousPage;
     next.textContent = texts.nextPage;
@@ -168,6 +168,13 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
   next.addEventListener('click', () => {
     if (page < pages() - 1) { page++; render(true); scroll.scrollTop = 0; }
   }, { signal });
+  function clearError(): void {
+    if (!field.hasAttribute('aria-invalid')) return;
+    field.removeAttribute('aria-invalid');
+    field.removeAttribute('aria-describedby');
+    error.textContent = '';
+  }
+  field.addEventListener('input', clearError, { signal });
   form.addEventListener('submit', event => {
     event.preventDefault();
     // As typed: a category is matched exactly; numbers and dates are trimmed by the parser (finding 18).
@@ -182,9 +189,7 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
       }
       return;
     }
-    field.removeAttribute('aria-invalid');
-    field.removeAttribute('aria-describedby');
-    error.textContent = '';
+    clearError();
     page = target;
     render(true);
     scroll.scrollTop = 0;

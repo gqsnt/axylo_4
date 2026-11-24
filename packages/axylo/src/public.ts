@@ -187,8 +187,6 @@ export interface Diagnostic {
   count?: number;
 }
 
-/** Runs normalization and validation only. Works without a DOM, so a server or an agent can check options before rendering. */
-
 /** Built-in text. Templates use {name} placeholders. Every entry can be replaced through `messages` (spec A10). */
 export interface Messages {
   viewAsTable: string; hideTable: string;
