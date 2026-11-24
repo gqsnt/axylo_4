@@ -15,6 +15,7 @@ import { svgRendererWith } from '../render/svg';
 import { createTextLayer, type TextLayer } from '../render/text';
 import { ensureStyles, resolveTheme, watchTheme } from '../theme';
 import { createFigure, type Figure } from '../dom/figure';
+import { shadowRootOf } from '../dom/attributes';
 import { createInteraction, type Interaction } from '../dom/interaction';
 import { mappingOf } from '../dom/mapping';
 import type { DeliveryConsole } from './delivery';
@@ -60,10 +61,7 @@ export function createChart(composition: Composition, target: unknown, input: un
 
   let controller: Controller | null = null;
   try {
-    const styleRoot = (): Document | ShadowRoot => {
-      const tree = root.getRootNode();
-      return 'host' in tree ? tree as ShadowRoot : doc;
-    };
+    const styleRoot = (): Document | ShadowRoot => shadowRootOf(root) ?? doc;
     let tree = styleRoot();
     const id = allocateId(doc, tree);
 

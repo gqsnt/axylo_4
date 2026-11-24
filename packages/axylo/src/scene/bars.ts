@@ -59,11 +59,19 @@ export function barMarks(view: AlignedView, projection: Bands, plot: Rect): Rect
 
     for (let j = start, k = 0; j < end; j++, k += 2) {
       const bandStart = extents[k]!;
-      const part = (extents[k + 1]! - bandStart) / divisor;
-      // Grouped bars side by side keep 1 px of background between them (spec A5); a stack shares its band.
-      const width = view.frame.binEdges ? part : Math.max(1, !stack && divisor > 1 ? part - 1 : part);
-      const mid = bandStart + part * ((stack ? 0 : i) + 0.5);
-      const across = band.type === 'band' ? clamp(mid - width / 2, low, Math.max(low, high - width)) : mid - width / 2;
+      let across: number;
+      let width: number;
+      if (view.frame.binEdges) {
+        // Clip in double precision so a bin extending far offscreen keeps exact Float32 plot edges.
+        across = clamp(bandStart, low, high);
+        width = Math.max(0, clamp(extents[k + 1]!, low, high) - across);
+      } else {
+        const part = (extents[k + 1]! - bandStart) / divisor;
+        // Grouped bars side by side keep 1 px of background between them (spec A5); a stack shares its band.
+        width = Math.max(1, !stack && divisor > 1 ? part - 1 : part);
+        const mid = bandStart + part * ((stack ? 0 : i) + 0.5);
+        across = band.type === 'band' ? clamp(mid - width / 2, low, Math.max(low, high - width)) : mid - width / 2;
+      }
       const isValue = slot[j] === SLOT_VALUE;
       if (!isValue && slot[j] === SLOT_NO_ROW) continue;
       const positiveTotal = positives?.[j] ?? 0;

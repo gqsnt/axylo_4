@@ -5,6 +5,7 @@ import { normalize, resolveOptions } from '../../src/data';
 import { openHistogramStore } from '../../src/data/histogram';
 import { DiagnosticCollector, readerDisclosure } from '../../src/diagnostics';
 import { buildAlignedView } from '../../src/view';
+import { barScene } from '../../src/scene';
 import { record } from '../core/host';
 import { utc, version } from './helpers';
 
@@ -160,5 +161,39 @@ describe('histogram stages together', () => {
     expect(() => bad.commit()).toThrow(/superseded/);
     expect(store.diagnostics).toEqual([]);
     expect([...store.frame.series[0]!.y]).toEqual([1]);
+  });
+
+  it('honors x.missing = zero on create and append and clips huge zoomed bins in double precision', () => {
+    const chart = record('histogram', {
+      title: 'Imputed',
+      x: { field: 'v', missing: 'zero' },
+      bins: [-0.5, 0.5, 1.5],
+      data: rows([null, 1]),
+    });
+    chart.frames();
+    expect(chart.committed!.reader.table!.row(0)).toEqual(['-0.5–0.5', '1']);
+    expect(chart.committed!.reader.table!.row(1)).toEqual(['0.5–1.5', '1']);
+    chart.controller.handle.append(rows([null]));
+    chart.frames();
+    expect(chart.committed!.reader.table!.row(0)).toEqual(['-0.5–0.5', '2']);
+
+    const huge = record('histogram', {
+      title: 'Clipped huge bin',
+      x: 'v',
+      bins: [-1e12, 1, 2],
+      data: rows([-5e11, 1.5]),
+    });
+    huge.controller.handle.zoom([0, 2]);
+    huge.frames();
+    const { view, layout } = huge.committed!;
+    if (layout.kind !== 'plot') throw Error('Expected plot layout');
+    const scene = barScene(view, layout, 1);
+    const rects = scene.marks.filter((m): m is Extract<typeof m, { type: 'rects' }> => m.type === 'rects' && m.variant === 'bar');
+    expect(rects).toHaveLength(1);
+    const xywh = rects[0]!.xywh;
+    // First bin [-1e12, 1] clipped to [0, 2] fills the left half of the plot (minus 1px separator).
+    expect(xywh[0]).toBeCloseTo(layout.plot.x, 1);
+    expect(xywh[2]).toBeGreaterThan(layout.plot.width * 0.45);
+    expect(xywh[2]).toBeLessThan(layout.plot.width * 0.52);
   });
 });

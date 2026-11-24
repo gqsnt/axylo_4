@@ -113,7 +113,7 @@ function histogramFrame(options: ResolvedOptions, samples: Samples, sink: Diagno
 
 function samplesOf(options: ResolvedOptions, sink: DiagnosticSink): Samples {
   const sample = options.sample!;
-  return options.valid ? readValues(options.table, sample, sink, false, 0, sample.parse ? 'parsed' : undefined, undefined, 'The affected samples are omitted.').y
+  return options.valid ? readValues(options.table, sample, sink, true, 0, sample.parse ? 'parsed' : undefined, undefined, 'The affected samples are omitted.').y
     : new Float64Array();
 }
 

@@ -201,7 +201,7 @@ export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; mo
 /** The parent that supplies inherited styles and language, including through a slot. */
 export function composedParent(element: Element): Element | null {
   const parent = element.parentNode;
-  return element.assignedSlot ?? element.parentElement ?? (parent && 'host' in parent ? (parent as ShadowRoot).host : null);
+  return element.assignedSlot ?? element.parentElement ?? (parent && parent.nodeType === 11 && 'host' in parent ? (parent as ShadowRoot).host : null);
 }
 
 export function holds(target: Node, element: Element): boolean {
@@ -222,7 +222,7 @@ export function observeTrees(observer: MutationObserver, element: Element, optio
   observer.observe(element.ownerDocument.documentElement, options);
   for (let el: Element | null = element; el; el = composedParent(el)) {
     const parent = el.parentNode;
-    if (parent && 'host' in parent) observer.observe(parent, options);
+    if (parent && parent.nodeType === 11 && 'host' in parent) observer.observe(parent, options);
   }
 }
 

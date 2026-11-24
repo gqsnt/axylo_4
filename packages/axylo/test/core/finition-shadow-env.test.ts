@@ -17,9 +17,9 @@ it('inherits the nearest composed language and watches each tree containing an a
     ownerDocument: doc, parentNode, parentElement, getAttribute: () => lang ?? null,
   });
   const host = element(null, null, 'fr');
-  const outer = { host };
+  const outer = { nodeType: 11, host };
   const section = element(outer, null, 'de');
-  const inner = { host: element(section, section) };
+  const inner = { nodeType: 11, host: element(section, section) };
   const slot = element(inner, null);
   const target = { ...element(host, host), assignedSlot: slot } as unknown as Element;
   expect(pageLanguage(target)).toBe('de');
@@ -34,4 +34,9 @@ it('inherits the nearest composed language and watches each tree containing an a
   expect(change).toHaveBeenCalledTimes(1);
   stop();
   expect(disconnect).toHaveBeenCalledOnce();
+
+  // Detached anchor with URL `host` property is not treated as a ShadowRoot.
+  const anchor = { nodeType: 1, host: 'example.com', ownerDocument: doc, parentNode: null, parentElement: null, getAttribute: () => null };
+  const detachedChild = { ...element(anchor, null), ownerDocument: doc } as unknown as Element;
+  expect(pageLanguage(detachedChild)).toBeNull();
 });
