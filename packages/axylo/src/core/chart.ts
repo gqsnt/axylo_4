@@ -203,7 +203,7 @@ export function createChart(composition: Composition, target: unknown, input: un
         // revision 3, rule 10): bounding rect over the fractional computed size, exactly 1 only within the
         // computed size's serialization (1e-5), so a scale of 1.015 or 0.99 is not taken for 1 (it laid the
         // scene out 9 px too wide on a 600 px plot), and an unscaled sub-pixel width stays exactly 1.
-        const mapping = mappingOf(figure.plot);
+        const mapping = mappingOf(figure.plot, plot);
         const sx = mapping.kx;
         const sy = mapping.ky;
         // When the plot is squeezed to nothing, how far the rest overflows the figure is how much room is

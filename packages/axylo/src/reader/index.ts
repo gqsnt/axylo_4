@@ -103,11 +103,19 @@ function joinSentences(sentences: readonly (readonly TextRun[])[]): TextRun[] {
 
 type ChartText = (input: ReaderInput, type: string, xLabel: string, yLabel: string, table: boolean) => string[];
 
+const listFormats = new Map<string | undefined, Intl.ListFormat>();
+
 /** Names joined as a list in the chart's locale ("Visits and Signups"). */
 function listOf(names: readonly string[], locale: string | undefined): string {
   if (names.length < 2) return names[0] ?? '';
   try {
-    return new Intl.ListFormat(locale, { type: 'conjunction' }).format(names);
+    let format = listFormats.get(locale);
+    if (!format) {
+      format = new Intl.ListFormat(locale, { type: 'conjunction' });
+      if (listFormats.size >= 64) listFormats.clear();
+      listFormats.set(locale, format);
+    }
+    return format.format(names);
   } catch {
     return names.join(', ');
   }
@@ -132,7 +140,7 @@ export interface ReaderParts {
 const donutText: ChartText = (input, type) => {
   const { view, formatters, messages } = input;
   if (view.kind !== 'donut') return [];
-  const drawn = view.slices.filter(slice => slice.angles && slice.angles[1] > slice.angles[0]);
+  const drawn = view.slices.filter(slice => slice.angles !== null);
   if (!drawn.length) return [messages.empty];
   return [
     fill(messages.donutSummary, { type, count: formatters.count(drawn.length), total: formatters.value(0, view.total) }),

@@ -44,11 +44,8 @@ function layoutSize(el: Element, style: CSSStyleDeclaration): { width: number; h
 }
 
 /** The mapping of `el`'s own layout pixels (origin at its padding box) to viewport pixels. */
-export function mappingOf(el: Element): Mapping {
-  const win = el.ownerDocument.defaultView;
-  const rect = el.getBoundingClientRect();
-  if (!win) return { left: rect.left, top: rect.top, kx: 1, ky: 1 };
-  const style = win.getComputedStyle(el);
+export function mappingOf(el: Element, rect = el.getBoundingClientRect(), style = el.ownerDocument.defaultView?.getComputedStyle(el)): Mapping {
+  if (!style) return { left: rect.left, top: rect.top, kx: 1, ky: 1 };
   const size = layoutSize(el, style);
   // A computed size is serialized to six significant digits ("341.531px" for 341.53125): a ratio that close
   // to 1 is that rounding, not a transform (a scale that small moves nothing by a hundredth of a pixel), and
@@ -98,8 +95,8 @@ export function visibleRegion(from: Element, viewport = true): Rect {
     const clipsX = style.overflowX !== 'visible';
     const clipsY = style.overflowY !== 'visible';
     if (!clipsX && !clipsY) continue;
-    const m = mappingOf(el);
     const rect = el.getBoundingClientRect();
+    const m = mappingOf(el, rect, style);
     const h = el as HTMLElement;
     const bl = px(style.borderLeftWidth);
     const br = px(style.borderRightWidth);
