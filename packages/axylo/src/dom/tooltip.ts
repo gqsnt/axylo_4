@@ -16,11 +16,12 @@
  *   of rule 6 is used, and when even that would cover a control or a focus ring nothing floats.
  * - Strip: at least the x and one row are always shown.
  */
-import { activeElementOf, listenOutside, placeChildren, setAttr, setText, make, keepFocusOnPress, shadowRootsOf } from './attributes';
+import { activeElementOf, placeChildren, setAttr, setText, make, keepFocusOnPress, shadowRootsOf } from './attributes';
 import type { DatumText, Rect, TooltipModel } from '../core/contracts';
 import { createSwatch, type SwatchSpec } from './swatch';
 import { fallbackPlacement, placeTooltip, type PlacementInput } from './placement';
-import { mappingOf } from './mapping';
+import { sameKey } from '../core/axes';
+import { Listeners, listenOutside, mappingOf, type Mapping } from './mapping';
 
 export interface TooltipContent {
   readonly model: TooltipModel;
@@ -46,7 +47,7 @@ export interface TooltipView {
    * Floating, placed by rules 2 and 6 against `placement` (viewport pixels). `pinned`: it takes events and
    * its rows are buttons. Returns false when nothing could be placed (nothing is shown then).
    */
-  show(content: TooltipContent, placement: PlacementInput, pinned: boolean): boolean;
+  show(content: TooltipContent, placement: PlacementInput, pinned: boolean, figureMapping?: Mapping): boolean;
   /**
    * Readout mode: the content as running text in the strip under the plot, at most two lines. Returns false
    * when nothing of the strip can be seen (`visible`, viewport pixels: what its clipping ancestors leave).
@@ -66,11 +67,13 @@ interface RowEntry {
   readonly element: HTMLElement;
   readonly name: HTMLElement;
   readonly value: HTMLElement;
+  readonly valueNode: Text;
   /** The strip's "; " before the entry. */
   readonly separator: Text | null;
   row: DatumText;
-  swatch: string;
-  readonly listening: AbortController | null;
+  spec: SwatchSpec | null;
+  label: string | null;
+  valueLang: string | null;
 }
 
 /**
@@ -102,9 +105,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
    */
   let press: { key: string; pointer: number } | null = null;
   /** Document/shadow listeners watching for release/cancel outside the tooltip while a press is active. */
-  let pressListening: AbortController | null = null;
-  /** The pointerdown event that started a row press, so the host listener does not clear it as it bubbles. */
-  let pressEvent: Event | null = null;
+  let pressListening: Listeners | null = null;
   /** The pointer click that follows a completed press, on that row, is not a second choice. */
   let pressed: { key: string; at: number } | null = null;
   /** A row that had focus when its presentation was hidden: the next presentation focuses it again. */
@@ -117,55 +118,88 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
 
   function clearPress(): void {
     press = null;
-    pressListening?.abort();
+    pressListening?.clear();
     pressListening = null;
+  }
+
+  function cancelPointer(event: Event): void {
+    if (press && press.pointer === (event as PointerEvent).pointerId) clearPress();
   }
 
   function startPress(key: string, pointer: number): void {
     clearPress();
     press = { key, pointer };
-    pressListening = new AbortController();
-    const signal = pressListening.signal;
+    const listeners = pressListening = new Listeners();
     const roots = shadowRootsOf(element);
-    listenOutside(doc, roots, 'pointerup', [element, readoutElement], event => {
-      if (press && press.pointer === (event as PointerEvent).pointerId) clearPress();
-    }, signal);
-    const onDocCancel = (event: Event) => {
-      if (press && press.pointer === (event as PointerEvent).pointerId) clearPress();
-    };
-    doc.addEventListener('pointercancel', onDocCancel, { capture: true, signal });
-    for (const root of roots) root.addEventListener('pointercancel', onDocCancel, { capture: true, signal });
+    listenOutside(doc, roots, 'pointerup', [element, readoutElement], cancelPointer, listeners);
+    for (const target of [doc, ...roots]) listeners.on(target, 'pointercancel', cancelPointer, true);
   }
 
   /** One set of row elements per presentation, keyed by row identity and by being buttons or text. */
   const entries = { floating: new Map<string, RowEntry>(), strip: new Map<string, RowEntry>() };
+  const listening = new Listeners();
+  const mores = new Map<string, HTMLElement>();
+  let wrapped = false;
+  let lastSize: { width: number; height: number } | null = null;
+  let constraints: readonly unknown[] | null = null;
+  let lastRect: Rect | null = null;
+  let lastFloatOrder: readonly Node[] | null = null;
+
+  // Delegate to the persistent hosts so a removed row or page button has no listeners to release.
+  const choices = new WeakMap<Element, RowEntry>();
+  for (const host of [element, readoutElement]) {
+    const buttonOf = (event: Event) => (event.target as Element | null)?.closest?.('button.axylo-tooltip-choice');
+    listening.on(host, 'mousedown', event => { if (buttonOf(event)) keepFocusOnPress(event); });
+    listening.on(host, 'pointerdown', event => {
+      const button = buttonOf(event);
+      const row = button && choices.get(button);
+      if (row) startPress(row.key, event.pointerId);
+      else clearPress();
+    });
+    listening.on(host, 'pointerup', releasing);
+    listening.on(host, 'pointercancel', cancelPointer);
+    listening.on(host, 'click', event => {
+      const button = buttonOf(event);
+      if (!button) return;
+      const row = choices.get(button);
+      if (!row) current?.more?.(displayed);
+      else if (!(event.detail > 0 && pressed?.key === row.key && event.timeStamp - pressed.at < 1000)) current?.select?.(row.row);
+    });
+  }
+
+  function choice(button: HTMLButtonElement): void {
+    button.type = 'button';
+    button.tabIndex = -1;
+    button.classList.add('axylo-tooltip-choice');
+  }
+
+  const floatTitle = make(doc, 'div', 'axylo-tooltip-title');
+  const floatTitleNode = doc.createTextNode('');
+  floatTitle.appendChild(floatTitleNode);
+  const floatTotal = make(doc, 'div', 'axylo-tooltip-row axylo-tooltip-total');
+  const floatTotalName = make(doc, 'span', 'axylo-tooltip-series');
+  const floatTotalValue = make(doc, 'span', 'axylo-tooltip-value');
+  floatTotal.append(floatTotalName, floatTotalValue);
+
+  const stripTitle = make(doc, 'span', 'axylo-tooltip-title');
+  const stripTotal = make(doc, 'span', 'axylo-readout-total');
+  const moreSeparator = doc.createTextNode('; ');
+  const totalSeparator = doc.createTextNode('; ');
 
   function makeEntry(r: DatumText, pinned: boolean, strip: boolean, key: string): RowEntry {
     const button = pinned && current?.select !== undefined;
     const element = doc.createElement(button ? 'button' : strip ? 'span' : 'div');
     element.className = strip ? 'axylo-readout-entry' : 'axylo-tooltip-row';
-    const listening = button ? new AbortController() : null;
+    const value = doc.createElement('span');
+    const valueNode = doc.createTextNode('');
+    value.appendChild(valueNode);
     const entry: RowEntry = {
-      key, element, name: doc.createElement('span'), value: doc.createElement('span'),
-      separator: strip ? doc.createTextNode('; ') : null, row: r, swatch: '', listening,
+      key, element, name: doc.createElement('span'), value, valueNode,
+      separator: strip ? doc.createTextNode('; ') : null, row: r, spec: null, label: null, valueLang: null,
     };
-    if (button && listening) {
-      const btn = element as HTMLButtonElement;
-      btn.type = 'button';
-      btn.tabIndex = -1;
-      btn.classList.add('axylo-tooltip-choice');
-      // A press does not take focus from the plot, whose keyboard reading goes on from the chosen datum.
-      btn.addEventListener('mousedown', keepFocusOnPress, { signal: listening.signal });
-      btn.addEventListener('pointerdown', event => {
-        pressEvent = event;
-        startPress(key, event.pointerId);
-      }, { signal: listening.signal });
-      // A click without a press of its own (Enter, Space, an assistive action: detail 0) chooses this row; the
-      // pointer click that follows a completed press does not choose again (review R1).
-      btn.addEventListener('click', event => {
-        if (event.detail > 0 && pressed?.key === key && event.timeStamp - pressed.at < 1000) return;
-        current?.select?.(entry.row);
-      }, { signal: listening.signal });
+    if (button) {
+      choice(element as HTMLButtonElement);
+      choices.set(element, entry);
     }
     entry.name.className = 'axylo-tooltip-series';
     entry.value.className = 'axylo-tooltip-value';
@@ -178,13 +212,20 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
   function updateEntry(entry: RowEntry, r: DatumText, content: TooltipContent): void {
     entry.row = r;
     const spec = content.swatch(r);
-    const signature = JSON.stringify(spec);
-    if (signature !== entry.swatch || entry.name.lastChild?.textContent !== r.seriesLabel) {
+    if (entry.label !== r.seriesLabel || entry.spec !== spec) {
       entry.name.replaceChildren(...(spec ? [createSwatch(doc, spec)] : []), doc.createTextNode(r.seriesLabel));
-      entry.swatch = signature;
+      entry.label = r.seriesLabel;
+      lastSize = null;
+      entry.spec = spec;
     }
-    setText(entry.value, r.percent === null || r.percent === r.value ? r.value : `${r.value} (${r.percent})`);
-    setLang(entry.value, content.valueLang?.(r.value));
+    const text = r.percent === null || r.percent === r.value ? r.value : `${r.value} (${r.percent})`;
+    updateText(entry.valueNode, text);
+    const lang = content.valueLang?.(r.value) ?? null;
+    if (entry.valueLang !== lang) {
+      setLang(entry.value, lang);
+      entry.valueLang = lang;
+      lastSize = null;
+    }
   }
 
   /** The row entries for `rows`, reused by identity; entries of rows no longer in the model are dropped. */
@@ -200,22 +241,25 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       if (!entry) {
         entry = makeEntry(r, pinned, strip, key);
         map.set(key, entry);
+        lastSize = null;
       }
       updateEntry(entry, r, content);
       out.push(entry);
     }
-    for (const [key, entry] of map) {
+    for (const key of map.keys()) {
       if (keep.has(key)) continue;
-      entry.listening?.abort();
       map.delete(key);
+      lastSize = null;
     }
     return out;
   }
 
   /** The key of the row that has focus in `presentation`, if one has. */
   function focusedKey(presentation: Presentation): string | null {
+    const map = entries[presentation];
+    if (!map.size) return null;
     const active = activeElementOf(doc, figure);
-    for (const [key, entry] of entries[presentation]) if (entry.element === active) return key;
+    for (const [key, entry] of map) if (entry.element === active) return key;
     return null;
   }
 
@@ -228,7 +272,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
   }
 
   // Completes a press on the row it began on, wherever the pointer is released inside the content.
-  const releasing = (event: PointerEvent) => {
+  function releasing(event: PointerEvent): void {
     if (!press || press.pointer !== event.pointerId) return;
     const was = press;
     clearPress();
@@ -237,83 +281,64 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     // remapped with a sliding category window); a row no longer shown chooses nothing.
     const now = entries.floating.get(was.key) ?? entries.strip.get(was.key);
     if (now) current?.select?.(now.row);
-  };
-
-  function dropEntries(presentation: Presentation): void {
-    for (const entry of entries[presentation].values()) entry.listening?.abort();
-    entries[presentation].clear();
   }
 
-  // The fixed parts of each presentation, made once.
-  const floatTitle = make(doc, 'div', 'axylo-tooltip-title');
-  const floatTotal = make(doc, 'div', 'axylo-tooltip-row axylo-tooltip-total');
-  const floatTotalName = make(doc, 'span', 'axylo-tooltip-series');
-  const floatTotalValue = make(doc, 'span', 'axylo-tooltip-value');
-  floatTotal.append(floatTotalName, floatTotalValue);
-  const stripTitle = make(doc, 'span', 'axylo-tooltip-title');
-  const stripTotal = make(doc, 'span', 'axylo-readout-total');
-  const listening = new AbortController();
-  for (const host of [element, readoutElement]) {
-    host.addEventListener('pointerdown', event => {
-      if (pressEvent === event) { pressEvent = null; return; }
-      pressEvent = null;
-      clearPress();
-    }, { signal: listening.signal });
-    host.addEventListener('pointerup', releasing, { signal: listening.signal });
-    host.addEventListener('pointercancel', event => {
-      if (press && press.pointer === event.pointerId) clearPress();
-    }, { signal: listening.signal });
-  }
   /** "+N more": text while hovered, a button that shows the next rows while pinned. */
-  function moreElement(presentation: Presentation, pinned: boolean): HTMLElement {
+  function moreElement(presentation: Presentation, pinned: boolean, content: TooltipContent, count: number): HTMLElement {
     const button = pinned && current?.more !== undefined;
     const key = `${presentation}\u0000${button}`;
     let el = mores.get(key);
     if (!el) {
       el = doc.createElement(button ? 'button' : presentation === 'strip' ? 'span' : 'div');
       el.className = 'axylo-tooltip-more';
-      if (button) {
-        const btn = el as HTMLButtonElement;
-        btn.type = 'button';
-        btn.tabIndex = -1;
-        btn.classList.add('axylo-tooltip-choice');
-        btn.addEventListener('mousedown', keepFocusOnPress, { signal: listening.signal });
-        btn.addEventListener('click', () => current?.more?.(displayed), { signal: listening.signal });
-      }
+      if (button) choice(el as HTMLButtonElement);
       mores.set(key, el);
     }
+    updateText(el, content.moreRows(count));
+    updateLang(el, content.moreLang);
     return el;
   }
-  const mores = new Map<string, HTMLElement>();
-  const moreSeparator = doc.createTextNode('; ');
-  const totalSeparator = doc.createTextNode('; ');
 
   function expose(host: HTMLElement, pinned: boolean): void {
     // Pinned content is real (rule 9); hovered content is the proxy's reading again, so it stays hidden.
-    if (pinned) host.removeAttribute('aria-hidden');
-    else if (host.getAttribute('aria-hidden') !== 'true') host.setAttribute('aria-hidden', 'true');
+    setAttr(host, 'aria-hidden', pinned ? null : 'true');
+  }
+
+  function updateLang(el: HTMLElement, lang: string | null | undefined): void {
+    if (el.getAttribute('lang') === (lang || null)) return;
+    setLang(el, lang);
+    lastSize = null;
+  }
+
+  function updateText(node: Node, text: string): void {
+    if (node.textContent === text) return;
+    node.textContent = text;
+    lastSize = null;
   }
 
   /** The floating tooltip's content with the first `shown` rows; the rest are counted in "+N more". */
   function fillFloating(content: TooltipContent, rows: readonly RowEntry[], pinned: boolean, shown: number): void {
     const { model } = content;
-    setText(floatTitle, model.title);
-    const children: Node[] = [floatTitle, ...rows.slice(0, shown).map(e => e.element)];
-    displayed = Math.min(shown, rows.length);
-    const more = model.count - Math.min(shown, model.rows.length);
+    updateText(floatTitleNode, model.title);
+    const children: Node[] = [floatTitle];
+    for (let i = 0; i < shown; i++) children.push(rows[i]!.element);
+    displayed = shown;
+    const more = model.count - shown;
     if (more > 0) {
-      const el = moreElement('floating', pinned);
-      setText(el, content.moreRows(more));
-      setLang(el, content.moreLang);
-      children.push(el);
+      children.push(moreElement('floating', pinned, content, more));
     }
     if (model.total !== null) {
-      setText(floatTotalName, content.totalLabel ?? '');
-      setLang(floatTotalName, content.totalLang);
-      setText(floatTotalValue, model.total);
+      const label = content.totalLabel ?? '';
+      updateText(floatTotalName, label);
+      updateLang(floatTotalName, content.totalLang);
+      updateText(floatTotalValue, model.total);
       children.push(floatTotal);
     }
-    place(element, children);
+    if (!sameKey(lastFloatOrder, children)) {
+      place(element, children);
+      lastFloatOrder = children;
+      lastSize = null;
+    }
   }
 
   /** Remembers a focused row of `presentation` before it goes, for the next show or strip to restore. */
@@ -335,6 +360,11 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
 
   function hidePresentation(mode: Presentation): void {
     const host = hosts[mode];
+    if (mode === 'floating') {
+      lastSize = null;
+      lastFloatOrder = null;
+    }
+    if (where === mode) lastRect = null;
     if (host.hidden && !host.firstChild) return;
     keepFocus(mode);
     clearPress();
@@ -342,7 +372,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     host.classList.remove(pinnedClasses[mode]);
     expose(host, false);
     place(host, []);
-    dropEntries(mode);
+    entries[mode].clear();
   }
 
   function begin(mode: Presentation, content: TooltipContent, pinned: boolean) {
@@ -354,7 +384,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     pendingFocus = null;
     hidePresentation(other);
     const host = hosts[mode];
-    host.hidden = false;
+    if (host.hidden) host.hidden = false;
     host.classList.toggle(pinnedClasses[mode], pinned);
     expose(host, pinned);
 
@@ -366,6 +396,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       } else {
         hidePresentation(mode);
         where = null;
+        lastRect = null;
         if (had !== null) lost();
       }
       return visible;
@@ -377,6 +408,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     hidePresentation('floating');
     hidePresentation('strip');
     where = null;
+    lastRect = null;
     current = null;
   }
 
@@ -384,52 +416,58 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     get visible() {
       return where !== null;
     },
-    rect() {
-      if (where === 'floating') return element.getBoundingClientRect();
-      if (where === 'strip') return readoutElement.getBoundingClientRect();
-      return null;
-    },
+    rect: () => lastRect,
     contains(node) {
       return node !== null && (element.contains(node) || readoutElement.contains(node));
     },
-    show(content, p, pinned) {
+    show(content, p, pinned, figMapping) {
+      const wasHidden = where !== 'floating' || element.hidden;
       const finish = begin('floating', content, pinned);
       // The tooltip lives in the figure's layout pixels; placement is in viewport pixels.
-      const m = mappingOf(figure);
+      const m = figMapping ?? mappingOf(figure);
       // Never larger than the visible part of the plot (rule 6): it wraps within that.
       const maxWidth = `${Math.max(0, Math.min(320, p.visible.width / m.kx))}px`;
       const maxHeight = `${Math.max(0, p.visible.height / m.ky)}px`;
-      if (element.style.maxWidth !== maxWidth) element.style.maxWidth = maxWidth;
-      if (element.style.maxHeight !== maxHeight) element.style.maxHeight = maxHeight;
+      const inputs = [pinned, maxWidth, maxHeight, figMapping, m.kx, m.ky];
+      if (wasHidden || !sameKey(constraints, inputs)) {
+        if (element.style.maxWidth !== maxWidth) element.style.maxWidth = maxWidth;
+        if (element.style.maxHeight !== maxHeight) element.style.maxHeight = maxHeight;
+        constraints = inputs;
+        lastSize = null;
+      }
       const rows = rowEntries('floating', content, pinned);
-      const position = (x: number, y: number) => {
-        const transform = `translate(${(x - m.left) / m.kx}px, ${(y - m.top) / m.ky}px)`;
-        if (element.style.transform !== transform) element.style.transform = transform;
-        return finish(true);
-      };
-      // Measured where it cannot be squeezed by the figure's edge.
-      element.style.transform = 'translate(0px, 0px)';
       const total = content.model.rows.length;
-      let size = { width: 0, height: 0 };
-      // A value keeps its number and unit on one line while it fits; one that does not fit wraps (rule 6).
-      element.classList.remove('axylo-tooltip-wrap');
+      // Fast path when content, constraints and scale are unchanged: reuse the last measured size without
+      // forcing a synchronous layout read.
+      if (wrapped) {
+        element.classList.remove('axylo-tooltip-wrap');
+        wrapped = false;
+      }
       const overflows = () => element.scrollHeight > element.clientHeight + 1 || element.scrollWidth > element.clientWidth + 1;
       for (let shown = total; shown >= Math.min(1, total); shown--) {
         fillFloating(content, rows, pinned, shown);
-        if (overflows() && !element.classList.contains('axylo-tooltip-wrap')) element.classList.add('axylo-tooltip-wrap');
-        // Fit is judged on what can be seen: content cut by the size limit does not fit (review finding 4),
-        // except one row, which is shown, cut if it must be, title and row first (spec I1, rule 6).
-        if (overflows() && shown > 1) continue;
-        const b = element.getBoundingClientRect();
-        size = { width: b.width, height: b.height };
-        const spot = placeTooltip(p, size.width, size.height);
-        if (spot) {
-          return position(spot.x, spot.y);
+        let size = lastSize;
+        if (!size) {
+          let over = overflows();
+          if (over && !wrapped) {
+            element.classList.add('axylo-tooltip-wrap');
+            wrapped = true;
+            over = overflows();
+          }
+          if (over && shown > 1) continue;
+          size = element.getBoundingClientRect();
+          if (shown === total && !wrapped) lastSize = size;
         }
-      }
-      const last = size.width > 0 ? fallbackPlacement(p, size.width, size.height) : null;
-      if (last) {
-        return position(last.x, last.y);
+        const { width, height } = size;
+        let spot = placeTooltip(p, width, height);
+        if (!spot && shown <= 1 && width > 0) spot = fallbackPlacement(p, width, height);
+        if (spot) {
+          const { x, y } = spot;
+          const transform = `translate(${(x - m.left) / m.kx}px, ${(y - m.top) / m.ky}px)`;
+          if (element.style.transform !== transform) element.style.transform = transform;
+          lastRect = { x, y, width, height };
+          return finish(true);
+        }
       }
       // Nowhere clear of the controls and focus rings, or not even one row visible: nothing floats (rule 6).
       return finish(false);
@@ -443,7 +481,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       // x and one row are always shown (rule 5).
       const build = (shown: number): void => {
         const parts: Node[] = [stripTitle];
-        displayed = Math.min(shown, rows.length);
+        displayed = shown;
         rows.slice(0, shown).forEach((entry, i) => {
           if (i > 0 && entry.separator) parts.push(entry.separator);
           parts.push(entry.element);
@@ -453,13 +491,10 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
           setLang(stripTotal, content.totalLang);
           parts.push(totalSeparator, stripTotal);
         }
-        const more = model.count - Math.min(shown, model.rows.length);
+        const more = model.count - shown;
         if (more > 0) {
-          const el = moreElement('strip', pinned);
-          setText(el, content.moreRows(more));
-          setLang(el, content.moreLang);
           if (shown > 0) parts.push(moreSeparator);
-          parts.push(el);
+          parts.push(moreElement('strip', pinned, content, more));
         }
         place(readoutElement, parts);
       };
@@ -470,10 +505,11 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       const box = { x: Math.max(r.x, visible.x), y: Math.max(r.y, visible.y), right: Math.min(r.x + r.width, visible.x + visible.width), bottom: Math.min(r.y + r.height, visible.y + visible.height) };
       const within = (el: Element | undefined) => {
         if (!el?.isConnected) return true;
-        for (const part of el.getClientRects()) {
+        const rects = el.getClientRects();
+        for (const part of rects) {
           if (part.left < box.x - 0.5 || part.top < box.y - 0.5 || part.right > box.right + 0.5 || part.bottom > box.bottom + 0.5) return false;
         }
-        return el.getClientRects().length > 0;
+        return rects.length > 0;
       };
       let seen = false;
       // Passes: as written; with long values wrapping; then one row cut to one line with an ellipsis. The
@@ -488,17 +524,15 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
           seen = within(stripTitle) && rows.slice(0, shown).every(e => within(e.element)) && (!pager?.isConnected || within(pager));
         }
       }
+      if (seen) lastRect = r;
       return finish(seen);
     },
     hide,
     destroy() {
-      clearPress();
-      hidePresentation('floating');
-      hidePresentation('strip');
-      listening.abort();
+      hide();
+      pendingFocus = null;
+      listening.clear();
       mores.clear();
-      where = null;
-      current = null;
     },
   };
 }

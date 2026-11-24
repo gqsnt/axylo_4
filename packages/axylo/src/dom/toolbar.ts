@@ -7,8 +7,21 @@
  * When the control that has focus goes away (Reset after resetting, Pause before any append), focus moves to
  * its neighbour instead of falling back to the page.
  */
+import { Listeners } from './mapping';
 import { createSwatch, type SwatchSpec } from './swatch';
 import { activeElementOf, setAttr, make, svgElement } from './attributes';
+
+/** The next tab stop for a roving row of buttons. */
+export function rovingIndex(event: KeyboardEvent, at: number, count: number): number | null {
+  if (!count || event.altKey || event.ctrlKey || event.metaKey) return null;
+  switch (event.key) {
+    case 'ArrowRight': case 'ArrowDown': return (at + 1) % count;
+    case 'ArrowLeft': case 'ArrowUp': return (at - 1 + count) % count;
+    case 'Home': return 0;
+    case 'End': return count - 1;
+    default: return null;
+  }
+}
 
 export interface ToolbarItem {
   readonly key: string;
@@ -46,8 +59,8 @@ export function createToolbar(doc: Document): Toolbar {
   const element = make(doc, 'div', 'axylo-toolbar');
   element.setAttribute('role', 'toolbar');
   // Every listener of the toolbar and its buttons goes with destroy (review 2: none left on removed elements).
-  const listening = new AbortController();
-  const signal = listening.signal;
+  const listening = new Listeners();
+
   const buttons = new Map<string, { button: HTMLButtonElement; item: ToolbarItem; signature: string }>();
   let current: string | null = null;
   let order: string[] = [];
@@ -57,28 +70,23 @@ export function createToolbar(doc: Document): Toolbar {
     for (const [k, { button }] of buttons) button.tabIndex = k === current ? 0 : -1;
   }
 
-  function move(to: number): void {
-    if (!order.length) return;
-    const key = order[(to + order.length) % order.length]!;
+  listening.on(element, 'keydown', event => {
+    const next = rovingIndex(event, current === null ? -1 : order.indexOf(current), order.length);
+    if (next === null) return;
+    const key = order[next]!;
     setCurrent(key);
     buttons.get(key)!.button.focus();
-  }
-
-  element.addEventListener('keydown', (event: KeyboardEvent) => {
-    if (event.altKey || event.ctrlKey || event.metaKey) return;
-    const at = current === null ? -1 : order.indexOf(current);
-    switch (event.key) {
-      case 'ArrowRight': case 'ArrowDown': move(at + 1); break;
-      case 'ArrowLeft': case 'ArrowUp': move(at - 1); break;
-      case 'Home': move(0); break;
-      case 'End': move(order.length - 1); break;
-      default: return;
-    }
     event.preventDefault();
-  }, { signal });
-  element.addEventListener('focusin', (event: FocusEvent) => {
+  });
+  listening.on(element, 'focusin', (event: FocusEvent) => {
     for (const [key, { button }] of buttons) if (button === event.target) setCurrent(key);
-  }, { signal });
+  });
+
+  listening.on(element, 'click', event => {
+    for (const { button, item } of buttons.values()) {
+      if (button.contains(event.target as Node) && !item.disabled) { item.activate(); return; }
+    }
+  });
 
   function fill(button: HTMLButtonElement, item: ToolbarItem): void {
     const children: Node[] = [];
@@ -134,10 +142,6 @@ export function createToolbar(doc: Document): Toolbar {
         if (!entry) {
           const button = doc.createElement('button');
           button.type = 'button';
-          button.addEventListener('click', () => {
-            const current = buttons.get(item.key)?.item;
-            if (current && !current.disabled) current.activate();
-          }, { signal });
           entry = { button, item, signature: '' };
           buttons.set(item.key, entry);
         }
@@ -173,7 +177,7 @@ export function createToolbar(doc: Document): Toolbar {
       return activeElementOf(doc, element) === entry.button;
     },
     destroy() {
-      listening.abort();
+      listening.clear();
       element.remove();
       buttons.clear();
     },

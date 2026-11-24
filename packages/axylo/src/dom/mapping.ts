@@ -77,7 +77,7 @@ export function rectToViewport(m: Mapping, r: Rect): Rect {
  * roots. Without `viewport`, only the ancestors cut it: content in the page's flow (the strip) can be
  * scrolled into view, a floating tooltip cannot.
  */
-export function visibleRegion(from: Element, viewport = true): Rect {
+export function visibleRegion(from: Element, viewport = true, also?: Element): Rect {
   const doc = from.ownerDocument;
   const win = doc.defaultView;
   const root = doc.documentElement;
@@ -90,11 +90,11 @@ export function visibleRegion(from: Element, viewport = true): Rect {
   // The composed chain: a slotted element's parent is its slot (whose shadow wrappers can clip it, review I5),
   // and past a shadow root comes its host, whose ancestors clip what is inside it too.
   const up = (el: Element): Element | null => el.assignedSlot ?? el.parentElement ?? ((el.getRootNode() as ShadowRoot).host ?? null);
-  for (let el: Element | null = up(from); el && el !== root && win; el = up(el)) {
-    const style = win.getComputedStyle(el);
+  const clip = (el: Element): void => {
+    const style = win!.getComputedStyle(el);
     const clipsX = style.overflowX !== 'visible';
     const clipsY = style.overflowY !== 'visible';
-    if (!clipsX && !clipsY) continue;
+    if (!clipsX && !clipsY) return;
     const rect = el.getBoundingClientRect();
     const m = mappingOf(el, rect, style);
     const h = el as HTMLElement;
@@ -113,6 +113,74 @@ export function visibleRegion(from: Element, viewport = true): Rect {
       top = Math.max(top, m.top);
       bottom = Math.min(bottom, rect.bottom - (bb + scrollY) * m.ky);
     }
+  };
+  if (win) {
+    // When a second chain is intersected, record visited ancestors so every shared ancestor is read once.
+    const seen = also ? new Set<Element>() : null;
+    const walk = (start: Element) => {
+      for (let el = up(start); el && el !== root && !seen?.has(el); el = up(el)) {
+        seen?.add(el);
+        clip(el);
+      }
+    };
+    walk(from);
+    if (also) walk(also);
   }
   return { x: left, y: top, width: Math.max(0, right - left), height: Math.max(0, bottom - top) };
+}
+
+/** Registrations that share a lifetime, including capture listeners on enclosing shadow roots. */
+export class Listeners {
+  private readonly cleanup: (() => void)[] = [];
+
+  on<K extends keyof GlobalEventHandlersEventMap>(
+    target: EventTarget | null, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void,
+    options?: boolean | AddEventListenerOptions,
+  ): void {
+    if (!target) return;
+    const listener = handler as EventListener;
+    target.addEventListener(type, listener, options);
+    this.cleanup.push(() => target.removeEventListener(type, listener, options));
+  }
+
+  clear(): void {
+    for (const remove of this.cleanup) remove();
+    this.cleanup.length = 0;
+  }
+}
+
+/** Capture outside the chart, even when closed shadow roots retarget the event to their host. */
+export function listenOutside(
+  doc: Document,
+  roots: readonly ShadowRoot[],
+  type: 'pointerup' | 'pointerdown',
+  inside: readonly Element[],
+  onOutside: (event: Event) => void,
+  listeners: Listeners,
+): void {
+  const seen = new WeakSet<Event>();
+  const check = (event: Event) => {
+    if (seen.has(event)) return;
+    const path = typeof event.composedPath === 'function' ? event.composedPath() : [];
+    const target = event.target as Node | null;
+    if (inside.some(el => path.includes(el) || (target !== null && el.contains(target)))) {
+      seen.add(event);
+      return;
+    }
+    // Inside a closed shadow root, an outer capture listener's composedPath stops at its host; wait for that root.
+    if (roots.some(r => r !== event.currentTarget && !path.includes(r) && path.includes(r.host))) return;
+    seen.add(event);
+    onOutside(event);
+  };
+  const onHost = (event: Event) => {
+    if (seen.has(event)) return;
+    seen.add(event);
+    onOutside(event);
+  };
+  listeners.on(doc, type, check, true);
+  for (const root of roots) {
+    listeners.on(root, type, check, true);
+    // If the event targeted the closed host itself (e.g. host padding), root capture never ran; catch it here.
+    listeners.on(root.host, type, onHost);
+  }
 }

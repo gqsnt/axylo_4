@@ -23,13 +23,14 @@
  * never reads a newer state than the marks show. It changes the chart only through `actions`, which go
  * through the public paths (zoom, the view's hidden set, pause), so every change follows the commit contract.
  *
- * Every listener on the chart's own elements is registered with one abort signal per build, so clearing the
+ * Every listener on the chart's own elements is registered with the cleanup list for its build, so clearing the
  * layer or destroying the chart removes them all.
  */
 import type {
   DatumRef, DatumText, Formatters, Layout, Lookup, MarkRenderer, Overlay, PaintBindings, PickTarget, ReaderModel,
   Rect, ResolvedTheme, StepDirection, TooltipModel, View, XValue,
 } from '../core/contracts';
+import { sameKey } from '../core/axes';
 import type { Messages } from '../public';
 import { chartTypeName, defaultMessages, fill, messageLanguage } from '../messages';
 import {
@@ -39,15 +40,15 @@ import {
 } from '../core/focus';
 import type { Figure } from './figure';
 import { createTableView, type TableView } from './table';
-import { createToolbar, type Toolbar, type ToolbarItem } from './toolbar';
-import { createTooltip, type Presentation, type TooltipContent } from './tooltip';
+import { rovingIndex, createToolbar, type Toolbar, type ToolbarItem } from './toolbar';
+import { createTooltip, type Presentation, type TooltipContent, type TooltipView } from './tooltip';
 import { createSwatch, swatchPattern, type SwatchPattern, type SwatchSpec } from './swatch';
 import { sliceText } from '../lookup/text';
 import { barPattern } from '../scene/bars';
 import { readPosition } from '../reader/x';
 import { printedX } from '../reader/table';
-import { activeElementOf, isElement, isFocusable, listenOutside, placeChildren, setAttr, setText, make, keepFocusOnPress, hideFromAT, shadowRootOf, shadowRootsOf } from './attributes';
-import { mappingOf, rectToViewport, toLocal, toViewport, visibleRegion, type Point } from './mapping';
+import { activeElementOf, isElement, isFocusable, placeChildren, setAttr, setText, make, keepFocusOnPress, hideFromAT, shadowRootOf, shadowRootsOf } from './attributes';
+import { Listeners, listenOutside, mappingOf, rectToViewport, toLocal, toViewport, visibleRegion, type Mapping, type Point } from './mapping';
 import { insideCorridor, intersect, type PlacementInput } from './placement';
 import { identityOf, matchesIdentity, sameTarget, type Identity } from './pointer';
 
@@ -245,13 +246,9 @@ export interface InteractionParts {
   readonly sliceList: SliceList | null;
 }
 
-const ROVING_KEYS: Readonly<Record<string, 1 | -1 | 'first' | 'last'>> = {
-  ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1, Home: 'first', End: 'last',
-};
-
 type SliceEntry = { li: HTMLLIElement; choose: HTMLButtonElement; name: HTMLElement; value: HTMLElement; swatch: string };
 /** Each slice list's entries by slice key (made on first use: nothing runs at import). */
-let sliceEntries: WeakMap<HTMLUListElement, Map<string, SliceEntry>> | null = null;
+const sliceLists = new WeakMap<HTMLUListElement, { entries: Map<string, SliceEntry>; listeners: Listeners }>();
 
 export const donutSliceList: SliceList = (doc, d, actions, list) => {
   const view = d.view;
@@ -264,29 +261,36 @@ export const donutSliceList: SliceList = (doc, d, actions, list) => {
     // While the plot cannot be focused (an all-zero donut), the list is how the keyboard reaches the
     // slices: one tab stop, arrows between entries (review finding 3); otherwise the plot's proxy is.
     const own = list;
-    own.addEventListener('keydown', event => {
-      if (own.dataset.roving !== 'true' || event.altKey || event.ctrlKey || event.metaKey) return;
-      const step = ROVING_KEYS[event.key];
-      if (step === undefined) return;
-      const buttons = [...own.querySelectorAll<HTMLButtonElement>('.axylo-legend-choice')];
-      if (!buttons.length) return;
-      const at = buttons.findIndex(b => b === activeElementOf(doc, own));
-      const to = step === 'first' ? 0 : step === 'last' ? buttons.length - 1 : (Math.max(0, at) + step + buttons.length) % buttons.length;
+    const listeners = new Listeners();
+    sliceLists.set(own, { entries: new Map(), listeners });
+    const choices = () => [...own.querySelectorAll<HTMLButtonElement>('.axylo-legend-choice')];
+    const choice = (event: Event) => (event.target as Element | null)?.closest?.('.axylo-legend-choice');
+    listeners.on(own, 'mousedown', event => { if (choice(event)) keepFocusOnPress(event); });
+    listeners.on(own, 'click', event => {
+      const key = choice(event)?.parentElement?.dataset.key;
+      if (key !== undefined) actions.select({ kind: 'slice', sliceKey: key });
+    });
+    listeners.on(own, 'keydown', event => {
+      if (own.dataset.roving !== 'true') return;
+      const buttons = choices();
+      const at = buttons.indexOf(activeElementOf(doc, own) as HTMLButtonElement);
+      const to = rovingIndex(event, Math.max(0, at), buttons.length);
+      if (to === null) return;
       event.preventDefault();
       for (const [i, b] of buttons.entries()) b.tabIndex = i === to ? 0 : -1;
       buttons[to]!.focus();
     });
-    own.addEventListener('focusin', event => {
+    listeners.on(own, 'focusin', event => {
       if (own.dataset.roving !== 'true') return;
-      for (const b of own.querySelectorAll<HTMLButtonElement>('.axylo-legend-choice')) b.tabIndex = b === event.target ? 0 : -1;
+      for (const b of choices()) b.tabIndex = b === event.target ? 0 : -1;
     });
   }
   list.className = 'axylo-legend-list';
   const missingLang = d.english('noData');
   // Entries are kept by slice key and updated in place, so a focused entry survives a redraw (review 12).
-  sliceEntries ??= new WeakMap();
-  let kept = sliceEntries.get(list);
-  if (!kept) sliceEntries.set(list, kept = new Map());
+  const state = sliceLists.get(list);
+  const kept = state?.entries ?? new Map<string, SliceEntry>();
+  if (!state) sliceLists.set(list, { entries: kept, listeners: new Listeners() });
   const wanted: HTMLLIElement[] = [];
   for (const slice of view.slices) {
     let entry = kept.get(slice.key);
@@ -300,9 +304,6 @@ export const donutSliceList: SliceList = (doc, d, actions, list) => {
       const choose = make(doc, 'button', 'axylo-legend-choice');
       choose.type = 'button';
       choose.tabIndex = -1;
-      const key = slice.key;
-      choose.addEventListener('mousedown', keepFocusOnPress);
-      choose.addEventListener('click', () => actions.select({ kind: 'slice', sliceKey: key }));
       li.append(choose);
       entry = { li, choose, name, value, swatch: '' };
       kept.set(slice.key, entry);
@@ -498,15 +499,27 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   const doc = root.ownerDocument;
   const activeElement = () => activeElementOf(doc, root);
   const plot = figure.plot;
-  // A focused row that a redraw took away hands focus back to the plot (or the figure), never the page.
-  const tooltip = createTooltip(figure.tooltip, figure.readout, root, () => {
+  // Deferred until first show/strip so first paint and compact charts allocate no tooltip DOM or listeners.
+  let tooltip: TooltipView | null = null;
+  const getTooltip = (): TooltipView => tooltip ??= createTooltip(figure.tooltip, figure.readout, root, () => {
     if (proxy && !proxy.hidden) proxy.focus({ preventScroll: true });
     else focusFigure();
   });
 
+  let geoPlot: Mapping | null = null;
+  let geoFigure: Mapping | null = null;
+  let geoVisible: Rect | null = null;
+  let geoReadout: Rect | null = null;
+  let geoControls: readonly Rect[] | null = null;
+  function clearGeo(): void {
+    geoPlot = geoFigure = geoVisible = geoReadout = geoControls = null;
+  }
+
   let c: Committed | null = null;
   /** The newest controls state (prepared or committed), for the toolbar's actions. */
   let cs: ControlsState | null = null;
+  /** Last state rendered into toolbar/legend so commit skips duplicate reconciliation when unchanged. */
+  let lastControls: readonly unknown[] | null = null;
   /** The keyboard's datum. Established before the range, the ring and the tooltip are written. */
   let focus: DatumRef | null = null;
   let mode: Mode = 'all';
@@ -536,7 +549,15 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   /** What the value text was last written about (decision 0004, part 2); null after a state message. */
   let shownText: { ref: DatumRef; mode: Mode; reading: string | null } | null = null;
   let lastHover: DatumRef | null = null;
-  let presented = '';
+  let lastPresented: {
+    readonly target: PickTarget | null;
+    readonly ring: DatumRef | null;
+    readonly only: DatumRef | null;
+    readonly showTip: boolean;
+    readonly pinned: boolean;
+    readonly page: number;
+    readonly presentation: Presentation | 'none';
+  } | null = null;
   let dirty = true;
   /** A zoom requested but not committed yet, so quick repeats (wheel, key repeat) build on each other. */
   let pendingWindow: Span | null | undefined;
@@ -554,8 +575,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   let destroyed = false;
   /** The chart is in the document, so the document's own listeners may be held. */
   let attached = true;
-  let built: AbortController | null = null;
-  let documentListeners: AbortController | null = null;
+  let built: Listeners | null = null;
+  let documentListeners: Listeners | null = null;
 
   function registerFigure(): void {
     let set = (liveFigures ??= new WeakMap()).get(doc);
@@ -583,65 +604,65 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   function listenDocument(): void {
     if (documentListeners || !attached || !proxy) return;
-    documentListeners = new AbortController();
-    const signal = documentListeners.signal;
+    const listeners = documentListeners = new Listeners();
     const roots = shadowRootsOf(root);
     // On the window, capturing: the chart sees Escape before anything in the page, a dialog included, and
     // spends it when it has something to close (rule 7).
-    doc.defaultView?.addEventListener('keydown', onEscape, { capture: true, signal });
-    doc.addEventListener('scroll', onScroll, { capture: true, passive: true, signal });
-    doc.defaultView?.addEventListener('blur', onWindowBlur, { signal });
+    listeners.on(doc.defaultView, 'keydown', onEscape, true);
+    listeners.on(doc, 'scroll', onScroll, { capture: true, passive: true });
+    listeners.on(doc.defaultView, 'resize', clearGeo, { passive: true });
+    listeners.on(doc.defaultView, 'blur', onWindowBlur);
     listenOutside(doc, roots, 'pointerdown', [plot, figure.tooltip, figure.readout], () => {
       if (shown.kind !== 'pinned') return;
       endPin();
       redraw();
-    }, signal);
+    }, listeners);
     // Element scroll has composed: false, so enclosing shadow roots need their own capture scroll listener.
-    for (const root of roots) root.addEventListener('scroll', onScroll, { capture: true, passive: true, signal });
+    for (const root of roots) listeners.on(root, 'scroll', onScroll, { capture: true, passive: true });
   }
 
   function unlistenDocument(): void {
-    documentListeners?.abort();
+    documentListeners?.clear();
     documentListeners = null;
   }
 
   function build(): void {
     if (proxy) return;
-    built = new AbortController();
-    const signal = built.signal;
+    const listeners = built = new Listeners();
     proxy = make(doc, 'input', 'axylo-proxy');
     proxy.type = 'range';
     proxy.id = `${figure.id}-proxy`;
     proxy.min = '0';
     proxy.step = '1';
-    proxy.addEventListener('keydown', event => {
+    listeners.on(proxy, 'keydown', event => {
       onProxyKey(event);
       // A key the plot handled: from now on its focus is shown, in every engine (spec A2; Firefox does not
       // match :focus-visible on a key after a mouse interaction).
       if (event.defaultPrevented && !keyed) setKeyed(true);
-    }, { signal });
-    proxy.addEventListener('input', onProxyInput, { signal });
-    proxy.addEventListener('change', onProxyInput, { signal });
-    proxy.addEventListener('focus', onProxyFocus, { signal });
-    proxy.addEventListener('blur', onProxyBlur, { signal });
+    });
+    listeners.on(proxy, 'input', onProxyInput);
+    listeners.on(proxy, 'change', onProxyInput);
+    listeners.on(proxy, 'focus', onProxyFocus);
+    listeners.on(proxy, 'blur', onProxyBlur);
     ring = make(doc, 'div', 'axylo-focus-ring');
     hideFromAT(ring);
     instructions = make(doc, 'span', 'axylo-visually-hidden');
     instructions.id = `${figure.id}-i`;
-    selection = make(doc, 'div', 'axylo-selection');
-    hideFromAT(selection);
-    selection.hidden = true;
-    plot.append(proxy, ring, selection, instructions);
+    plot.append(proxy, ring, instructions);
     toolbar = createToolbar(doc);
+    // Custom :focus outlines can change a control's clearance without a commit or scroll.
+    const dropControls = () => { geoControls = null; };
+    listeners.on(root, 'focusin', dropControls);
+    listeners.on(root, 'focusout', dropControls);
     // The plot's column (the plot and the strip under it) receives the moves: the corridor to the strip
     // crosses from one to the other.
-    figure.stage.addEventListener('pointermove', onPointerMove, { signal });
-    figure.stage.addEventListener('pointerleave', onStageLeave, { signal });
-    plot.addEventListener('pointerdown', onPointerDown, { signal });
-    plot.addEventListener('pointerup', onPointerUp, { signal });
-    plot.addEventListener('pointercancel', onPointerCancel, { signal });
-    plot.addEventListener('lostpointercapture', onLostCapture, { signal });
-    plot.addEventListener('wheel', onWheel, { passive: false, signal });
+    listeners.on(figure.stage, 'pointermove', onPointerMove);
+    listeners.on(figure.stage, 'pointerleave', onStageLeave);
+    listeners.on(plot, 'pointerdown', onPointerDown);
+    listeners.on(plot, 'pointerup', onPointerUp);
+    listeners.on(plot, 'pointercancel', onPointerCancel);
+    listeners.on(plot, 'lostpointercapture', onLostCapture);
+    listeners.on(plot, 'wheel', onWheel, { passive: false });
     listenDocument();
   }
 
@@ -697,17 +718,19 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     cancelGestures();
     closeTable(false);
     unlistenDocument();
-    built?.abort();
+    built?.clear();
     built = null;
     proxy.remove();
     instructions?.remove();
     instructions = null;
     ring?.remove();
     selection?.remove();
-    legendList?.remove();
+    removeLegend();
     toolbar?.destroy();
     proxy = ring = selection = legendList = null;
     toolbar = null;
+    lastControls = null;
+    clearGeo();
     for (const host of [figure.controls, figure.top, figure.side]) {
       host.hidden = true;
       host.replaceChildren();
@@ -739,7 +762,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   /** The pointer's datum, when the pointer leads; the keyboard starts from it (contracts: Lookup.primary). */
   function pointerTarget(): PickTarget | null {
-    return shown.kind === 'hover' || shown.kind === 'held' || shown.kind === 'pinned' ? shown.target : null;
+    return 'target' in shown ? shown.target : null;
   }
 
   /** The keyboard takes over: from the pointer's datum when the pointer leads, else from where it was. */
@@ -758,14 +781,16 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     }
   }
 
+  function pointGroup(d: Committed, ref: DatumRef, box: Rect): PickTarget {
+    const picked = d.lookup.pick(box.x + box.width / 2, box.y + box.height / 2);
+    return picked?.kind === 'point' && d.lookup.has(picked, ref) ? picked : targetOf(ref);
+  }
+
   /** What the keyboard's datum shows, as a pointer would see it there: coincident scatter points included. */
   function keyboardTarget(d: Committed, ref: DatumRef): PickTarget {
     if (ref.kind === 'point' && d.view.kind === 'scatter') {
       const box = d.lookup.anchor(ref);
-      const picked = box ? d.lookup.pick(box.x + box.width / 2, box.y + box.height / 2) : null;
-      // The lookup's group as it picked it (its anchor, sample and count stay together, so paging and
-      // dismissal ask about the same group); focus and selection keep the ref itself (`focus`).
-      if (picked?.kind === 'point' && d.lookup.has(picked, ref)) return picked;
+      if (box) return pointGroup(d, ref, box);
     }
     return targetOf(ref);
   }
@@ -781,17 +806,49 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     return proxyFocused && !fromClick ? { kind: 'keyboard' } : NONE;
   }
 
-  function swatchFor(d: Committed): (row: DatumText) => SwatchSpec | null {
-    const view = d.view;
-    return row => {
-      if (view.kind === 'donut') return { color: view.slices[row.seriesIndex]?.colorIndex ?? null, cue: null, line: false, hollow: false };
-      return parts.swatch(row.seriesIndex, view.cues[row.seriesIndex] ?? null, false);
-    };
+  // Swatch inputs belong to the committed view. Reuse its chips across pointer moves.
+  const swatches: SwatchSpec[] = [];
+  function swatchFor(row: DatumText): SwatchSpec {
+    const view = c!.view;
+    const i = row.seriesIndex;
+    return swatches[i] ??= view.kind === 'donut'
+      ? { color: view.slices[i]?.colorIndex ?? null, cue: null, line: false, hollow: false }
+      : parts.swatch(i, view.cues[i] ?? null, false);
   }
 
-  /** The mapping between the plot's layout pixels and viewport pixels (rule 10), read when needed. */
-  function plotMapping() {
-    return mappingOf(plot);
+  /** The mapping between the plot's layout pixels and viewport pixels (rule 10), cached per frame/scroll/resize. */
+  function plotMapping(): Mapping {
+    return geoPlot ??= mappingOf(plot);
+  }
+
+  function figureMapping(): Mapping {
+    return geoFigure ??= mappingOf(root);
+  }
+
+  function visiblePlot(): Rect {
+    return geoVisible ??= visibleRegion(plot, true, figure.tooltip);
+  }
+
+  function visibleReadout(): Rect {
+    return geoReadout ??= visibleRegion(figure.readout, false);
+  }
+
+  function controlRects(m: Mapping): readonly Rect[] {
+    if (geoControls) return geoControls;
+    const controls: Rect[] = [];
+    for (const el of root.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], [tabindex], .axylo-legend-list > li')) {
+      if (el === proxy || el === root || tooltip?.contains(el)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) continue;
+      // With the outline it paints (its own width and offset, scaled as the chart is), or the stylesheet's focus
+      // outline that it will paint when focused, whichever reaches further.
+      const style = doc.defaultView?.getComputedStyle(el);
+      const painted = style && style.outlineStyle !== 'none' ? (parseFloat(style.outlineWidth) || 0) + Math.max(0, parseFloat(style.outlineOffset) || 0) : 0;
+      const reach = Math.max(FOCUS_OUTLINE, painted);
+      const ox = reach * m.kx, oy = reach * m.ky;
+      controls.push({ x: r.left - ox, y: r.top - oy, width: r.width + 2 * ox, height: r.height + 2 * oy });
+    }
+    return geoControls = controls;
   }
 
   /**
@@ -803,11 +860,16 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     const m = plotMapping();
     if (d.layout.kind !== 'plot') return toLocal(m, at);
     const r = rectToViewport(m, d.layout.plot);
-    const near = (v: number, lo: number, hi: number) => v >= lo - 1 && v <= hi + 1 ? Math.max(lo, Math.min(hi, v)) : v;
-    const p = toLocal(m, { x: near(at.x, r.x, r.x + r.width), y: near(at.y, r.y, r.y + r.height) });
-    // A snapped point lands exactly on the edge in layout pixels too, whatever the roundoff of the conversion.
-    const b = d.layout.plot, inX = at.x >= r.x - 1 && at.x <= r.x + r.width + 1, inY = at.y >= r.y - 1 && at.y <= r.y + r.height + 1;
-    return { x: inX ? Math.max(b.x, Math.min(b.x + b.width, p.x)) : p.x, y: inY ? Math.max(b.y, Math.min(b.y + b.height, p.y)) : p.y };
+    const b = d.layout.plot;
+    // Clamp in layout pixels as well, so division at a scaled viewport edge cannot round past it.
+    const coordinate = (client: number, start: number, length: number, origin: number, scale: number, low: number, extent: number) => {
+      const value = (client - origin) / scale;
+      return client >= start - 1 && client <= start + length + 1 ? Math.max(low, Math.min(low + extent, value)) : value;
+    };
+    return {
+      x: coordinate(at.x, r.x, r.width, m.left, m.kx, b.x, b.width),
+      y: coordinate(at.y, r.y, r.height, m.top, m.ky, b.y, b.height),
+    };
   }
 
   function pick(d: Committed, at: Point): PickTarget | null {
@@ -898,7 +960,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   }
 
   function hideTooltip(): void {
-    tooltip.hide();
+    tooltip?.hide();
     releaseShowing();
   }
 
@@ -912,10 +974,10 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   function present(recency: 'auto' | 'keep' | 'promote' = 'auto'): void {
     const d = c;
     if (!plotReady(d) || !proxy) {
-      if (presented !== '') {
+      if (lastPresented !== null) {
         if (d) renderer.drawOverlay(null, d.bindings, d.theme, d.pixelRatio);
         hideTooltip();
-        presented = '';
+        lastPresented = null;
       } else {
         releaseShowing();
       }
@@ -931,14 +993,14 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     const presentation = presentationFor(d);
     const pinned = shown.kind === 'pinned';
     const showTip = presentation !== 'none' && target !== null && !isDismissed(target);
-    // The pointer's own position is not part of it: the tooltip depends on the datum only (rule 1).
-    const key = JSON.stringify([target, visibleRing, only, showTip, pinned, pinned ? pinPage : 0, presentation]);
+    const page = pinned ? pinPage : 0;
     markLegend(proxyFocused && focus?.kind === 'slice' ? focus.sliceKey : null);
-    if (!dirty && key === presented) return;
-    presented = key;
+    if (!dirty && lastPresented !== null && sameTarget(target, lastPresented.target) &&
+      sameRef(visibleRing, lastPresented.ring) && sameRef(only, lastPresented.only) &&
+      showTip === lastPresented.showTip && pinned === lastPresented.pinned &&
+      page === lastPresented.page && presentation === lastPresented.presentation) return;
+    lastPresented = { target, ring: visibleRing, only, showTip, pinned, page, presentation };
     dirty = false;
-    const overlay: Overlay | null = overlayWith(parts.overlay, { view: d.view, layout: d.layout, lookup: d.lookup, target, ring: visibleRing, only });
-    renderer.drawOverlay(overlay, d.bindings, d.theme, d.pixelRatio);
     const prev = content;
     content = null;
     if (!showTip || target === null) {
@@ -949,7 +1011,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
         hideTooltip();
       } else {
         const tc: TooltipContent = {
-          model, swatch: swatchFor(d), moreRows: count => fill(d.messages.moreRows, { count: d.formatters.count(count) }),
+          model, swatch: swatchFor, moreRows: count => fill(d.messages.moreRows, { count: d.formatters.count(count) }),
           totalLabel: d.messages.total, moreLang: d.english('moreRows'), totalLang: d.english('total'),
           valueLang: text => text === d.messages.noData ? d.english('noData') : text === d.messages.noObservation ? d.english('noObservation') : null,
           // A pinned row selects its series, so one that is not the primary can be chosen without a keyboard
@@ -962,12 +1024,12 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
             redraw();
           },
         };
+        const tip = getTooltip();
         const placed = presentation === 'strip'
-          ? tooltip.strip(tc, pinned, visibleRegion(figure.readout, false))
-          : tooltip.show(tc, placementFor(d, target, visibleRing), pinned);
-        const rect = placed ? tooltip.rect() : null;
+          ? tip.strip(tc, pinned, visibleReadout())
+          : tip.show(tc, placementFor(d, target, visibleRing), pinned, figureMapping());
+        const rect = placed ? tip.rect() : null;
         if (rect) {
-          const page = pinned ? pinPage : 0;
           const promote = recency === 'promote' || (recency === 'auto' &&
             (prev === null || !sameTarget(prev.target, target) || prev.pinned !== pinned || prev.page !== page));
           content = { target, rect, anchor: anchorOf(d, target), presentation, pinned, page };
@@ -984,6 +1046,9 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       redraw();
       return;
     }
+    // Drawn after tooltip measurement so SVG overlay updates never dirty style/layout before tooltip sizing.
+    const overlay: Overlay | null = overlayWith(parts.overlay, { view: d.view, layout: d.layout, lookup: d.lookup, target, ring: visibleRing, only });
+    renderer.drawOverlay(overlay, d.bindings, d.theme, d.pixelRatio);
     hover(target === null ? null : shown.kind === 'keyboard' ? focus : shown.kind === 'pinned' ? shown.ref : d.lookup.primary(target));
   }
 
@@ -1006,25 +1071,13 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       const centre = toViewport(m, { x: cx, y: cy });
       hole = { cx: centre.x, cy: centre.y, rx: (r0 - HOLE_CLEARANCE) * m.kx, ry: (r0 - HOLE_CLEARANCE) * m.ky };
     }
-    const controls: Rect[] = [];
-    for (const el of root.querySelectorAll<HTMLElement>('button, input, select, textarea, a[href], [tabindex], .axylo-legend-list > li')) {
-      if (el === proxy || el === root || tooltip.contains(el)) continue;
-      const r = el.getBoundingClientRect();
-      // With the outline it paints (its own width and offset, scaled as the chart is), or the stylesheet's focus
-      // outline that it will paint when focused, whichever reaches further.
-      const style = doc.defaultView?.getComputedStyle(el);
-      const painted = style && style.outlineStyle !== 'none' ? (parseFloat(style.outlineWidth) || 0) + Math.max(0, parseFloat(style.outlineOffset) || 0) : 0;
-      const reach = Math.max(FOCUS_OUTLINE, painted);
-      const ox = reach * m.kx, oy = reach * m.ky;
-      if (r.width > 0 && r.height > 0) controls.push({ x: r.left - ox, y: r.top - oy, width: r.width + 2 * ox, height: r.height + 2 * oy });
-    }
     const rings: Rect[] = [];
     const ringBox = keyboardRing ? ringRect(d.layout, d.lookup, keyboardRing) : null;
     if (ringBox) rings.push(rectToViewport(m, ringBox));
     return {
-      // What can be seen of the plot, and of the tooltip's place: both chains of clipping ancestors.
-      box: rectToViewport(m, datum), visible: intersect(intersect(rectToViewport(m, plotRect), visibleRegion(plot)), visibleRegion(figure.tooltip)),
-      order: horizontalBars(d) ? 'horizontal' : 'vertical', hole, controls, rings, ringStroke: RING_STROKE * Math.max(m.kx, m.ky),
+      // What can be seen of the plot, and of the tooltip's place: both chains of clipping ancestors, read once per shared ancestor.
+      box: rectToViewport(m, datum), visible: intersect(rectToViewport(m, plotRect), visiblePlot()),
+      order: horizontalBars(d) ? 'horizontal' : 'vertical', hole, controls: controlRects(m), rings, ringStroke: RING_STROKE * Math.max(m.kx, m.ky),
     };
   }
 
@@ -1037,7 +1090,15 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   /** The donut slice the keyboard is on is marked in the slice list too, which shows arcless slices (review 2, finding 14). */
   function markLegend(sliceKey: string | null): void {
     if (!legendList) return;
-    for (const li of legendList.children) li.classList.toggle('axylo-legend-current', sliceKey !== null && (li as HTMLElement).dataset.key === sliceKey);
+    let changed = false;
+    for (const li of legendList.children) {
+      const want = sliceKey !== null && (li as HTMLElement).dataset.key === sliceKey;
+      if (li.classList.contains('axylo-legend-current') !== want) {
+        li.classList.toggle('axylo-legend-current', want);
+        changed = true;
+      }
+    }
+    if (changed) geoControls = null;
   }
 
   // ── the keyboard proxy ─────────────────────────────────────────────────────────────────────────
@@ -1420,15 +1481,15 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     if (down && down.id !== event.pointerId) return;
     // The open table covers the plot: there is nothing to point at under it.
     if (tableView) return;
-    const at = local(event);
     if (down) {
+      const at = local(event);
       if (!down.dragging && c?.zoom && Math.hypot(at.x - down.x, at.y - down.y) > DRAG_THRESHOLD) {
         down.dragging = true;
         // A gesture ends a pin: no state holds a pin with nothing shown (decision 0004, clarifications).
         if (shown.kind === 'pinned') { shown = NO_HOVER; pinPage = 0; }
         hideTooltip();
         content = null;
-        presented = '';
+        lastPresented = null;
       }
       if (down.dragging) {
         drawSelection(down, at);
@@ -1448,6 +1509,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   function onStageLeave(event: PointerEvent): void {
     if (event.pointerType === 'touch' || down?.dragging) return;
+    clearGeo();
     leave();
   }
 
@@ -1457,7 +1519,13 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   function drawSelection(from: Point, to: Point): void {
     const d = c;
-    if (!selection || !d || d.layout.kind !== 'plot') return;
+    if (!d || d.layout.kind !== 'plot') return;
+    if (!selection) {
+      selection = make(doc, 'div', 'axylo-selection');
+      hideFromAT(selection);
+      selection.hidden = true;
+      plot.appendChild(selection);
+    }
     const p = d.layout.plot;
     const clampX = (v: number) => Math.max(p.x, Math.min(p.x + p.width, v));
     const clampY = (v: number) => Math.max(p.y, Math.min(p.y + p.height, v));
@@ -1652,7 +1720,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     if (shown.kind === 'pinned') { shown = idle(); pinPage = 0; }
     hideTooltip();
     content = null;
-    presented = '';
+    lastPresented = null;
   }
 
   function pinchMove(): void {
@@ -1711,7 +1779,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     }
     const target = shownTarget();
     // A pin is spent on whether or not its content can be seen (review finding 3).
-    if (target === null || (!tooltip.visible && shown.kind !== 'pinned')) return;
+    if (target === null || (!tooltip?.visible && shown.kind !== 'pinned')) return;
     spend();
     const chosen = shown.kind === 'pinned' ? shown.ref : shown.kind === 'keyboard' ? focus : c?.lookup.primary(target) ?? null;
     dismissed = [identityOf(target, chosen)];
@@ -1735,12 +1803,13 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
    * it is picked again; a tooltip that stays put (pinned, the keyboard's) is placed again.
    */
   function onScroll(): void {
+    clearGeo();
     const d = c;
     if (!plotReady(d)) return;
     if ((shown.kind === 'hover' || shown.kind === 'held') && pointer) {
       rest = null;
       pointTo(pick(d, pointer));
-    } else if (!tooltip.visible) {
+    } else if (!tooltip?.visible) {
       return;
     }
     redraw();
@@ -1807,8 +1876,9 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     shown = NONE;
     hideTooltip();
     content = null;
-    presented = '';
+    lastPresented = null;
     tableModel = null;
+    clearGeo();
     renderTable(d);
     // Focus goes into the region that opened, so the next Tab does not leave the chart.
     tableView.focus();
@@ -1821,6 +1891,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     tableView.destroy();
     tableView = null;
     tableModel = null;
+    clearGeo();
     root.classList.remove('axylo-table-open');
     plot.inert = false;
     if (focusInside && restore && !toolbar?.focus('table')) {
@@ -1937,12 +2008,20 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     return items;
   }
 
+  function removeLegend(): void {
+    if (legendList) {
+      sliceLists.get(legendList)?.listeners.clear();
+      sliceLists.delete(legendList);
+      legendList.remove();
+    }
+  }
+
   function renderDonutLegend(d: ControlsState): void {
     const inside = legendList !== null && legendList.contains(activeElement());
     const next = parts.sliceList?.(doc, d, actions, legendList) ?? null;
     if (next === null && legendList) {
       // A slice the reader is on goes with its list: focus goes to the figure, not the page (C2-17).
-      legendList.remove();
+      removeLegend();
     }
     legendList = next;
     if (inside && (!legendList || !legendList.contains(activeElement()))) focusFigure();
@@ -1957,6 +2036,12 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   function renderControls(d: ControlsState): void {
     if (!toolbar) return;
     cs = d;
+    const inputs = [d.view, d.formatters, d.messages, d.english, d.pageLang, d.tooSmall, d.ready,
+      d.inspectable, d.empty, d.interactive, d.legend, d.zoom, d.zoomed, d.streaming, d.paused,
+      range !== null, tableView !== null, tableView ? d.reader.table : Boolean(d.reader.table)];
+    if (sameKey(lastControls, inputs)) return;
+    lastControls = inputs;
+    clearGeo();
 
     renderDonutLegend(d);
     const items = controlItems(d);
@@ -2060,11 +2145,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     if (target.kind === 'point') {
       if (ref.kind !== 'point' || next.lookup.ordinal(ref) < 0) return null;
       const box = next.lookup.anchor(ref);
-      if (!box) return null;
-      const picked = next.lookup.pick(box.x + box.width / 2, box.y + box.height / 2);
-      // The pinned ref is tracked apart; the rows shown are the lookup's own group for it, never a sample of
-      // one group with another's count (final check, item 2).
-      return { ref, target: picked?.kind === 'point' && next.lookup.has(picked, ref) ? picked : targetOf(ref) };
+      return box ? { ref, target: pointGroup(next, ref, box) } : null;
     }
     if (target.kind === 'slice') return ref.kind === 'slice' && next.lookup.ordinal(ref) >= 0 ? { ref, target } : null;
     // The exact datum chosen, never the primary in its place: it must still be displayed and its series visible.
@@ -2168,7 +2249,9 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   function commit(next: Committed | null): void {
     if (destroyed) return;
+    clearGeo();
     const previous = c;
+    if (previous?.view !== next?.view) swatches.length = 0;
     c = next;
     pendingWindow = undefined;
     dirty = true;
@@ -2198,6 +2281,11 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   function prepare(state: ControlsState): boolean {
     if (destroyed) return false;
+    clearGeo();
+    const nextPres = presentationFor(state);
+    const strip = nextPres === 'strip';
+    const readoutChanged = root.classList.contains('axylo-readout-mode') !== strip;
+    if (!state.interactive && !proxy && !c && !cs && !readoutChanged) return false;
     const before = layoutSignature();
     if (!state.interactive) {
       // The overlay is cleared while the frame that drew it is still known (new item 6).
@@ -2209,14 +2297,12 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       renderControls(state);
     }
     // The strip is reserved before the plot is measured, so the plot's size is the one it really has.
-    const nextPres = presentationFor(state);
-    const strip = nextPres === 'strip';
-    if (root.classList.contains('axylo-readout-mode') !== strip) {
+    if (readoutChanged) {
       root.classList.toggle('axylo-readout-mode', strip);
       // A pinned tooltip switches directly in commit so an active row press survives floating <-> strip (R1).
       if (shown.kind !== 'pinned' || nextPres === 'none') hideTooltip();
       content = null;
-      presented = '';
+      lastPresented = null;
       if (shown.kind === 'held') shown = pointer ? NO_HOVER : idle();
       // The rest starts again in the new presentation, for whatever the still pointer is on (review I6).
       rest = pointer ? { at: pointer, time: clock(), target: pointerTarget() } : null;
@@ -2232,9 +2318,12 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   /** Everything goes; a later full build starts from no input at all (new item 6; review C3-6). */
   function clear(): void {
+    swatches.length = 0;
+    clearGeo();
     const d = c;
-    if (presented !== '' && d) renderer.drawOverlay(null, d.bindings, d.theme, d.pixelRatio);
-    presented = '';
+    if (lastPresented === null && !proxy && !tooltip?.visible && !legendList && !tableView && lastHover === null) return;
+    if (lastPresented !== null && d) renderer.drawOverlay(null, d.bindings, d.theme, d.pixelRatio);
+    lastPresented = null;
     // Recorded before the tooltip goes: a focused pinned row goes with it (review C3-6).
     const owned = focusOwned();
     hideTooltip();
@@ -2266,17 +2355,19 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     attach() {
       if (attached || destroyed) return;
       attached = true;
+      clearGeo();
       registerFigure();
       listenDocument();
     },
     detach() {
       if (!attached) return;
       attached = false;
+      clearGeo();
       cancelGestures();
       endPin();
       hideTooltip();
       content = null;
-      presented = '';
+      lastPresented = null;
       unregisterFigure();
       unlistenDocument();
     },
@@ -2284,7 +2375,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       if (destroyed) return;
       clear();
       unregisterFigure();
-      tooltip.destroy();
+      tooltip?.destroy();
       destroyed = true;
       if (pinchFrame !== 0) doc.defaultView?.cancelAnimationFrame(pinchFrame);
     },

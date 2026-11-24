@@ -14,6 +14,7 @@
  * is not even rebuilt when its coordinate arrays are the same objects as last time. Scene arrays must
  * therefore never be mutated in place: a changed geometry is a new array.
  */
+import { sameKey } from '../core/axes';
 import type {
   AreaMark, ArcMark, BandMark, Mark, MarkRenderer, Overlay, PaintBindings, PathMark, PointMark, Rect, RectMark, ResolvedTheme, RuleMark, Scene,
 } from '../core/contracts';
@@ -43,8 +44,7 @@ function node(doc: Document, tag: string, key: string): SvgNode {
 
 /** Sets `d` from `build()` unless every input is identical (===) to the ones the current `d` came from. */
 function data(n: SvgNode, source: readonly unknown[], build: () => string): void {
-  const last = n.source;
-  if (last !== null && last.length === source.length && last.every((v, i) => v === source[i])) return;
+  if (sameKey(n.source, source)) return;
   n.source = source;
   attr(n, 'd', build());
 }
@@ -58,7 +58,8 @@ function paint(n: SvgNode, role: 'fill' | 'stroke', value: string | null): void 
   css(n, role, 'currentColor');
 }
 
-function attr(n: SvgNode, name: string, value: string | null): void {
+function attr(n: SvgNode, name: string, input: number | string | null): void {
+  const value = typeof input === 'number' ? String(input) : input;
   if (value === null) {
     if (n.attrs.has(name)) { n.attrs.delete(name); n.el.removeAttribute(name); }
   } else if (n.attrs.get(name) !== value) {
@@ -120,6 +121,15 @@ export function areaData(mark: AreaMark): string {
   const upperCount = upper.length >> 1;
   const lowerCount = lower.length >> 1;
   const out = new PathText();
+  function boundary(xy: Float32Array, start: number, stop: number, step: number, started: boolean): boolean {
+    for (let k = start; k !== stop; k += step) {
+      const x = xy[2 * k]!, y = xy[2 * k + 1]!;
+      if (lifted(x) || lifted(y)) continue;
+      out.add((started ? 'L' : 'M') + f(x) + ' ' + f(y));
+      started = true;
+    }
+    return started;
+  }
   for (let r = 0; r + 3 < runs.length; r += 4) {
     const us = runs[r]!;
     const ue = Math.min(us + runs[r + 1]!, upperCount);
@@ -127,20 +137,8 @@ export function areaData(mark: AreaMark): string {
     const le = Math.min(ls + runs[r + 3]!, lowerCount);
     // A region between two boundaries needs both: a run with an empty side draws nothing.
     if (ue <= us || le <= ls) continue;
-    let started = false;
-    for (let k = us; k < ue; k++) {
-      const x = upper[2 * k]!, y = upper[2 * k + 1]!;
-      if (lifted(x) || lifted(y)) continue;
-      out.add((started ? 'L' : 'M') + f(x) + ' ' + f(y));
-      started = true;
-    }
-    for (let k = le - 1; k >= ls; k--) {
-      const x = lower[2 * k]!, y = lower[2 * k + 1]!;
-      if (lifted(x) || lifted(y)) continue;
-      out.add((started ? 'L' : 'M') + f(x) + ' ' + f(y));
-      started = true;
-    }
-    if (started) out.add('Z');
+    const started = boundary(upper, us, ue, 1, false);
+    if (boundary(lower, le - 1, ls - 1, -1, started)) out.add('Z');
   }
   return out.done();
 }
@@ -150,23 +148,19 @@ function pointData(mark: PointMark): string {
   const out = new PathText();
   if (!(size > 0)) return '';
   const r = size / 2;
-  if (mark.shape === 'circle') {
-    const a = ` A${f(r)} ${f(r)} 0 1 1 `;
-    for (let i = 0; i + 1 < xy.length; i += 2) {
-      const x = xy[i]!, y = xy[i + 1]!;
-      if (lifted(x) || lifted(y)) continue;
-      // Two half circles, clockwise like the polygons, so overlapping markers union under nonzero.
-      out.add('M' + f(x + r) + ' ' + f(y) + a + f(x - r) + ' ' + f(y) + a + f(x + r) + ' ' + f(y) + 'Z');
-    }
-    return out.done();
-  }
-  const poly = MARKER_POLYGONS[mark.shape];
+  const poly = mark.shape === 'circle' ? null : MARKER_POLYGONS[mark.shape];
   for (let i = 0; i + 1 < xy.length; i += 2) {
     const x = xy[i]!, y = xy[i + 1]!;
     if (lifted(x) || lifted(y)) continue;
-    let s = 'M' + f(x + poly[0]! * size) + ' ' + f(y + poly[1]! * size);
-    for (let k = 2; k < poly.length; k += 2) s += 'L' + f(x + poly[k]! * size) + ' ' + f(y + poly[k + 1]! * size);
-    out.add(s + 'Z');
+    if (!poly) {
+      out.add(circlePath(x, y, r, 1));
+      continue;
+    }
+    let path = '';
+    for (let k = 0; k < poly.length; k += 2) {
+      path += (k ? 'L' : 'M') + f(x + poly[k]! * size) + ' ' + f(y + poly[k + 1]! * size);
+    }
+    out.add(path + 'Z');
   }
   return out.done();
 }
@@ -184,14 +178,19 @@ function missingData(mark: RectMark, box: Float64Array, clip: Rect | null): stri
   return out.done();
 }
 
+/** Two semicircles, with the opposite winding for a donut's inner edge. */
+function circlePath(x: number, y: number, r: number, sweep: 0 | 1): string {
+  const start = f(x + r) + ' ' + f(y);
+  const arc = `A${f(r)} ${f(r)} 0 1 ${sweep} `;
+  return 'M' + start + arc + f(x - r) + ' ' + f(y) + arc + start + 'Z';
+}
+
 function sectorData(cx: number, cy: number, r0: number, r1: number, a0: number, a1: number, gap: number, s: Float64Array): string {
   const kind = sector(a0, a1, r0, r1, gap, s);
   if (kind === SECTOR_NONE) return '';
   const px = (r: number, a: number): string => f(cx + r * Math.cos(a)) + ' ' + f(cy + r * Math.sin(a));
   if (kind === SECTOR_RING) {
-    let d = `M${f(cx + r1)} ${f(cy)}A${f(r1)} ${f(r1)} 0 1 1 ${f(cx - r1)} ${f(cy)}A${f(r1)} ${f(r1)} 0 1 1 ${f(cx + r1)} ${f(cy)}Z`;
-    if (r0 > 0) d += `M${f(cx + r0)} ${f(cy)}A${f(r0)} ${f(r0)} 0 1 0 ${f(cx - r0)} ${f(cy)}A${f(r0)} ${f(r0)} 0 1 0 ${f(cx + r0)} ${f(cy)}Z`;
-    return d;
+    return circlePath(cx, cy, r1, 1) + (r0 > 0 ? circlePath(cx, cy, r0, 0) : '');
   }
   const os = s[0]!, oe = s[1]!;
   let d = `M${px(r1, os)}A${f(r1)} ${f(r1)} 0 ${oe - os > Math.PI ? 1 : 0} 1 ${px(r1, oe)}`;
@@ -239,7 +238,7 @@ export const svgRects: SvgMark<RectMark> = (c, n, mark, bindings, _dpr, clip) =>
   else {
     data(n, [mark.xywh, clip?.x, clip?.y, clip?.width, clip?.height], () => missingData(mark, c.scratch, clip));
     paint(n, 'stroke', paintOf(mark.fill, bindings));
-    attr(n, 'stroke-width', String(MISSING_STROKE));
+    attr(n, 'stroke-width', MISSING_STROKE);
     attr(n, 'stroke-linejoin', 'miter');
   }
 };
@@ -254,10 +253,7 @@ export const svgArcs: SvgMark<ArcMark> = (c, n, mark, bindings) => updateArcs(c.
 export const svgRule: SvgMark<RuleMark> = (c, n, mark, bindings, dpr) => updateRule(n, mark, bindings, dpr, c.scratch);
 
 export const svgBand: SvgMark<BandMark> = (_c, n, mark, bindings) => {
-  attr(n, 'x', String(f(mark.box.x)));
-  attr(n, 'y', String(f(mark.box.y)));
-  attr(n, 'width', String(f(Math.max(0, mark.box.width))));
-  attr(n, 'height', String(f(Math.max(0, mark.box.height))));
+  setRect(n, mark.box, f);
   paint(n, 'fill', paintOf(mark.fill, bindings));
   css(n, 'fill-opacity', String(mark.opacity));
 };
@@ -273,13 +269,14 @@ function patternUrl(c: SvgContext, kind: 'diagonal' | 'cross' | 'dots', bindings
   if (p === undefined) {
     const id = `axylo-pattern-${++ids}`;
     const el = node(doc, 'pattern', 'pattern');
-    el.el.setAttribute('id', id);
-    el.el.setAttribute('patternUnits', 'userSpaceOnUse');
-    el.el.setAttribute('x', '0');
-    el.el.setAttribute('y', '0');
+    const pattern = el.el;
+    pattern.setAttribute('id', id);
+    pattern.setAttribute('patternUnits', 'userSpaceOnUse');
+    pattern.setAttribute('x', '0');
+    pattern.setAttribute('y', '0');
     const tile = kind === 'dots' ? DOT_TILE : PATTERN_TILE;
-    el.el.setAttribute('width', String(tile));
-    el.el.setAttribute('height', String(tile));
+    pattern.setAttribute('width', String(tile));
+    pattern.setAttribute('height', String(tile));
     const shape = svgElement(doc, 'path');
     const t = PATTERN_TILE;
     if (kind === 'dots') {
@@ -297,8 +294,8 @@ function patternUrl(c: SvgContext, kind: 'diagonal' | 'cross' | 'dots', bindings
       shape.setAttribute('stroke-width', String(PATTERN_LINE));
       shape.setAttribute('stroke-linecap', 'butt');
     }
-    el.el.appendChild(shape);
-    defs.appendChild(el.el);
+    pattern.appendChild(shape);
+    defs.appendChild(pattern);
     p = { id, node: el };
     patterns.set(kind, p);
   }
@@ -326,7 +323,7 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
   const sceneClipId = `axylo-clip-${++ids}`;
   const overlayClipId = `axylo-clip-${++ids}`;
   const sceneClip = clipPath(doc, defs, sceneClipId);
-  const overlayClip = clipPath(doc, defs, overlayClipId);
+  let overlayClip: SvgNode | null = null;
   // The author's --axylo-background, painted behind everything and live; transparent when unset.
   const background = node(doc, 'rect', 'background');
   background.el.setAttribute('class', 'axylo-background');
@@ -338,13 +335,26 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
   svg.append(defs, background.el, sceneGroup, overlayGroup);
 
   const context: SvgContext = { doc, defs, scratch: new Float64Array(8) };
-  let slots: SvgNode[] = [];
+  const slots: SvgNode[] = [];
+  const overlaySlots: SvgNode[] = [];
   let width = -1;
   let height = -1;
 
-  function update(n: SvgNode, mark: Mark, bindings: PaintBindings, dpr: number, clipUrl: string | null, clip: Rect | null): void {
+  function sync(parent: SVGElement, list: SvgNode[], i: number, mark: Mark, bindings: PaintBindings, dpr: number, clipUrl: string | null, clip: Rect | null): void {
+    const key = keyOf(mark);
+    let n = list[i];
+    if (n === undefined || n.key !== key) {
+      const fresh = node(doc, TAGS[key]!, key);
+      if (n === undefined) parent.appendChild(fresh.el);
+      else parent.replaceChild(fresh.el, n.el);
+      list[i] = n = fresh;
+    }
     attr(n, 'clip-path', clipUrl);
     (marks[mark.type] as SvgMark | undefined)?.(context, n, mark, bindings, dpr, clip);
+  }
+
+  function trim(list: SvgNode[], count: number): void {
+    while (list.length > count) list.pop()!.el.remove();
   }
 
   return {
@@ -358,45 +368,37 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
         svg.setAttribute('width', String(width));
         svg.setAttribute('height', String(height));
         svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-        attr(background, 'width', String(Math.max(0, width)));
-        attr(background, 'height', String(Math.max(0, height)));
+        attr(background, 'width', Math.max(0, width));
+        attr(background, 'height', Math.max(0, height));
       }
       setRect(sceneClip, scene.clip);
       const url = `url(#${sceneClipId})`;
-      const next: SvgNode[] = [];
-      scene.marks.forEach((mark, i) => {
-        const key = keyOf(mark);
-        let n = slots[i];
-        if (n === undefined || n.key !== key) {
-          const fresh = node(doc, TAGS[key]!, key);
-          if (n === undefined) sceneGroup.appendChild(fresh.el);
-          else sceneGroup.replaceChild(fresh.el, n.el);
-          n = fresh;
-        }
-        update(n, mark, bindings, dpr, mark.type === 'rule' && unclippedRule(mark.role) ? null : url, scene.clip);
-        next.push(n);
-      });
-      for (let i = scene.marks.length; i < slots.length; i++) slots[i]!.el.remove();
-      slots = next;
+      for (let i = 0; i < scene.marks.length; i++) {
+        const mark = scene.marks[i]!;
+        sync(sceneGroup, slots, i, mark, bindings, dpr, mark.type === 'rule' && unclippedRule(mark.role) ? null : url, scene.clip);
+      }
+      trim(slots, scene.marks.length);
     },
     drawOverlay(overlay: Overlay | null, bindings: PaintBindings, _theme: ResolvedTheme, devicePixelRatio: number): void {
+      if (overlay === null) {
+        if (overlaySlots.length > 0) {
+          overlayGroup.replaceChildren();
+          overlaySlots.length = 0;
+        }
+        return;
+      }
       const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
-      overlayGroup.replaceChildren();
-      if (overlay === null) return;
-      setRect(overlayClip, overlay.clip);
+      setRect(overlayClip ??= clipPath(doc, defs, overlayClipId), overlay.clip);
       const url = `url(#${overlayClipId})`;
-      const add = (mark: Mark, clipUrl: string | null, clip: Rect | null): void => {
-        const key = keyOf(mark);
-        const n = node(doc, TAGS[key]!, key);
-        update(n, mark, bindings, dpr, clipUrl, clip);
-        overlayGroup.appendChild(n.el);
-      };
-      for (const m of overlay.clipped) add(m, url, overlay.clip);
-      for (const m of overlay.unclipped) add(m, null, null);
+      let i = 0;
+      for (const m of overlay.clipped) sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, url, overlay.clip);
+      for (const m of overlay.unclipped) sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, null, null);
+      trim(overlaySlots, i);
     },
     destroy(): void {
       svg.remove();
-      slots = [];
+      slots.length = 0;
+      overlaySlots.length = 0;
     },
   };
 }
@@ -409,17 +411,19 @@ function clipPath(doc: Document, defs: SVGElement, id: string): SvgNode {
   return rect;
 }
 
-function setRect(rect: SvgNode, r: Rect): void {
-  attr(rect, 'x', String(r.x));
-  attr(rect, 'y', String(r.y));
-  attr(rect, 'width', String(Math.max(0, r.width)));
-  attr(rect, 'height', String(Math.max(0, r.height)));
+const unrounded = (v: number): number => v;
+
+function setRect(rect: SvgNode, r: Rect, round = unrounded): void {
+  attr(rect, 'x', round(r.x));
+  attr(rect, 'y', round(r.y));
+  attr(rect, 'width', round(Math.max(0, r.width)));
+  attr(rect, 'height', round(Math.max(0, r.height)));
 }
 
 function updatePath(n: SvgNode, mark: PathMark, bindings: PaintBindings): void {
   data(n, [mark.xy], () => pathData(mark.xy));
   paint(n, 'stroke', paintOf(mark.stroke, bindings));
-  attr(n, 'stroke-width', String(mark.strokeWidth));
+  attr(n, 'stroke-width', mark.strokeWidth);
   attr(n, 'stroke-linejoin', 'round');
   attr(n, 'stroke-linecap', 'butt');
   const { normal, contrast } = mark.dash;
@@ -438,14 +442,15 @@ function updatePath(n: SvgNode, mark: PathMark, bindings: PaintBindings): void {
 function updateBars(doc: Document, g: SvgNode, mark: RectMark, bindings: PaintBindings, pattern: string | null): void {
   // The group carries the color; each <rect> is painted on its own so overlaps composite.
   // With a pattern, every rectangle is repeated once more, filled with the pattern, after all the fills.
-  paint(g, 'fill', paintOf(mark.fill, bindings));
+  const color = paintOf(mark.fill, bindings);
+  paint(g, 'fill', color);
   const q = mark.xywh;
   const count = q.length >> 2;
   const total = pattern === null ? count : 2 * count;
-  const color = paintOf(mark.fill, bindings);
-  if (g.source !== null && g.source[0] === q && g.source[1] === pattern && g.source[2] === color && g.kids.length === total) return;
+  const source = [q, pattern, color];
+  if (sameKey(g.source, source) && g.kids.length === total) return;
   syncKids(doc, g, total, 'rect');
-  g.source = [q, pattern, color];
+  g.source = source;
   for (let i = 0; i < total; i++) {
     const k = i % count;
     const x = q[4 * k]!, y = q[4 * k + 1]!, w = q[4 * k + 2]!, h = q[4 * k + 3]!;
@@ -465,9 +470,9 @@ function updateBars(doc: Document, g: SvgNode, mark: RectMark, bindings: PaintBi
 function updateArcs(doc: Document, g: SvgNode, mark: ArcMark, bindings: PaintBindings, s: Float64Array): void {
   const count = mark.angles.length >> 1;
   syncKids(doc, g, count, 'path');
-  const same = g.source !== null && g.source[0] === mark.angles && g.source[1] === mark.cx && g.source[2] === mark.cy &&
-    g.source[3] === mark.r0 && g.source[4] === mark.r1 && g.source[5] === mark.gap;
-  g.source = [mark.angles, mark.cx, mark.cy, mark.r0, mark.r1, mark.gap];
+  const source = [mark.angles, mark.cx, mark.cy, mark.r0, mark.r1, mark.gap];
+  const same = sameKey(g.source, source);
+  g.source = source;
   for (let i = 0; i < count; i++) {
     const kid = g.kids[i]!;
     const fill = mark.fills[i];
@@ -478,11 +483,11 @@ function updateArcs(doc: Document, g: SvgNode, mark: ArcMark, bindings: PaintBin
 
 function updateRule(n: SvgNode, mark: RuleMark, bindings: PaintBindings, dpr: number, s: Float64Array): void {
   snapRule(mark.x1, mark.y1, mark.x2, mark.y2, mark.strokeWidth, dpr, s);
-  attr(n, 'x1', String(s[0]));
-  attr(n, 'y1', String(s[1]));
-  attr(n, 'x2', String(s[2]));
-  attr(n, 'y2', String(s[3]));
-  attr(n, 'stroke-width', String(mark.strokeWidth > 0 ? s[4] : 0));
+  attr(n, 'x1', s[0]!);
+  attr(n, 'y1', s[1]!);
+  attr(n, 'x2', s[2]!);
+  attr(n, 'y2', s[3]!);
+  attr(n, 'stroke-width', mark.strokeWidth > 0 ? s[4]! : 0);
   attr(n, 'stroke-linecap', 'butt');
   attr(n, 'stroke-dasharray', mark.dash === null ? null : dashText(mark.dash));
   paint(n, 'stroke', paintOf(mark.stroke, bindings));

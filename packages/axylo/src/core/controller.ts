@@ -444,18 +444,16 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     if (!fresh.length) return;
     for (const d of fresh) deliveredKeys.add(diagnosticKey(d));
     const handler = (accepted?.options ?? options.current).onDiagnostic;
-    enqueue(() => {
-      for (const d of fresh) {
-        if (destroyed) return;
-        delivery.print(d);
-        if (typeof handler === 'function') delivery.notify(handler as (d: Diagnostic) => void, d);
-      }
-    });
+    notifyDiagnostics(fresh, handler);
   }
 
   /** A rejected or ignored call's findings: printed and given to `onDiagnostic`, never part of `diagnostics`. */
   function deliverRejected(found: readonly DiagnosticInput[], name: string, handler: unknown): void {
     const list = toPublic(found, name).filter(d => !deliveredKeys.has(diagnosticKey(d)));
+    notifyDiagnostics(list, handler);
+  }
+
+  function notifyDiagnostics(list: readonly Diagnostic[], handler: unknown): void {
     if (!list.length) return;
     enqueue(() => {
       for (const d of list) {
@@ -549,7 +547,10 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     schedule();
   }
 
+  let presentationVersion = 0;
+
   function setPresentationQuiet(where: PresentationStage, list: readonly DiagnosticInput[]): void {
+    presentationVersion++;
     if (list.length) presentation.set(where, list);
     else presentation.delete(where);
   }
@@ -912,23 +913,11 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     guarded(() => {
       const previous = accepted;
       if (!previous) return;
-      if (!zoomable(previous.frame)) {
-        // 1.0 zooms time, date and number x axes only (spec I3): a window on a donut or a category axis is an
-        // option that does not apply to the chart (DX3), reported and ignored. Clearing a zoom is no request.
+      const applicable = zoomable(previous.frame);
+      if (!applicable || isCompact(kind, previous.options)) {
         if (domain !== null && domain !== undefined) {
-          deliverRejected([createDiagnostic('AX150', 'none', {
-            field: 'zoom', detail: 'Zoom applies to time, date and number x axes only.',
-          }, 'call')], previous.name, previous.options.onDiagnostic);
-        }
-        return;
-      }
-      if (isCompact(kind, previous.options)) {
-        // A compact chart has no zoom (spec 3.7): a window is reported and nothing is kept for later, so turning
-        // compact off does not apply it (final review, finding 13).
-        if (domain !== null && domain !== undefined) {
-          deliverRejected([createDiagnostic('AX150', 'none', {
-            field: 'zoom', detail: 'A compact chart does not zoom.',
-          }, 'call')], previous.name, previous.options.onDiagnostic);
+          const detail = applicable ? 'A compact chart does not zoom.' : 'Zoom applies to time, date and number x axes only.';
+          deliverRejected([createDiagnostic('AX150', 'none', { field: 'zoom', detail }, 'call')], previous.name, previous.options.onDiagnostic);
         }
         return;
       }
@@ -1086,13 +1075,11 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     if (state === 'loading') return { kind: 'loading', text: m.loading, message: 'loading' };
     if (state && typeof state === 'object') {
       const s = state as { error?: unknown; empty?: unknown };
-      if ('error' in s) {
-        const own = typeof s.error === 'string' && s.error !== '';
-        return { kind: 'error', text: own ? s.error as string : m.error, message: own ? null : 'error' };
-      }
-      if ('empty' in s) {
-        const own = typeof s.empty === 'string' && s.empty !== '';
-        return { kind: 'empty', text: own ? s.empty as string : m.empty, message: own ? null : 'empty' };
+      for (const kind of ['error', 'empty'] as const) {
+        if (!(kind in s)) continue;
+        const text = s[kind];
+        if (typeof text === 'string' && text !== '') return { kind, text, message: null };
+        return { kind, text: m[kind], message: kind };
       }
     }
     if (stateDiagnostics(a).some(d => d.effect === 'chart-error')) return { kind: 'error', text: m.error, message: 'error' };
@@ -1266,7 +1253,16 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       return runs.map(run => ({ text: run.text, lang: run.lang === 'en' && foreignPage ? 'en' : null }));
     };
     const hiddenIn = (l: Layout | undefined) => l?.kind === 'plot' ? l.fit.x.hidden + l.fit.y.hidden : 0;
-    const disclosureNow = () => readerDisclosure([...stateDiagnostics(a), ...presentationList()]);
+    const stateDiag = stateDiagnostics(a);
+    let discVer = -1;
+    let discCache = { omitted: 0, changed: 0 };
+    const disclosureNow = () => {
+      if (discVer !== presentationVersion) {
+        discVer = presentationVersion;
+        discCache = readerDisclosure([...stateDiag, ...presentationList()]);
+      }
+      return discCache;
+    };
     let lastReader: { reader: ReaderModel; inputs: readonly unknown[] } | null = null;
     const readerFor = (labelsHidden: number, disclosure: { omitted: number; changed: number }): { reader: ReaderModel; inputs: readonly unknown[] } => {
       const inputs = [view, formatters, a.messages, a.options.title, named ? by : null, a.options.subtitle,
@@ -1301,9 +1297,13 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     };
     /** Builds the reader; when building it found new omissions (a formatter threw), once more with them. */
     let currentHidden = 0;
+    let settled: ReturnType<typeof readerFor> | null = null;
+    let settledInputs: readonly number[] | null = null;
+    const settlementKey = (hidden: number, d: typeof discCache) => [hidden, d.omitted, d.changed];
     const settleReader = (labelsHidden: number) => {
       currentHidden = labelsHidden;
-      let disclosure = disclosureNow();
+      const disclosure = disclosureNow();
+      if (settled && sameKey(settledInputs, settlementKey(labelsHidden, disclosure))) return settled;
       let built = readerFor(labelsHidden, disclosure);
       // The summary runs author formatters lazily: it is made here, so what they threw on is in the
       // disclosure this settles on, and no reader is built again once writing has started (verification,
@@ -1311,10 +1311,10 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       void built.reader.summary;
       const after = disclosureNow();
       if (after.omitted !== disclosure.omitted || after.changed !== disclosure.changed) {
-        disclosure = after;
-        built = readerFor(labelsHidden, disclosure);
+        built = readerFor(labelsHidden, after);
       }
-      return built;
+      settledInputs = settlementKey(labelsHidden, after);
+      return settled = built;
     };
 
     // The note stays when every value was left out (F12, C5): it explains the empty state.
@@ -1387,11 +1387,15 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     // The fallback is only for a plot; a state message is shown in whatever room there is.
     if (shown.kind !== 'ready' || compact) fallback = null;
     let tooSmall = fallback !== null;
-    let arranged: { reader: ReaderModel; small: boolean; strip: boolean } | null = null;
+    let arranged: readonly unknown[] | null = null;
+    const figureInputs = (small: boolean) => [reader, small, ...settlementKey(currentHidden, disclosureNow())];
+    let arrangedStrip: boolean | undefined;
     /** Puts the caption and the controls in place for one mode, and says whether anything moved. */
     const arrange = (small: boolean): boolean => {
-      if (arranged && arranged.reader === reader && arranged.small === small && arranged.strip === readoutMode) return false;
-      arranged = { reader, small, strip: readoutMode };
+      const inputs = figureInputs(small);
+      if (sameKey(arranged, inputs) && arrangedStrip === readoutMode) return false;
+      arranged = inputs;
+      arrangedStrip = readoutMode;
       stage('figure');
       const model = modelFor(reader, small);
       mutate();
@@ -1455,8 +1459,9 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
           arrange(tooSmall);
           size = host.measure() ?? size;
         } else {
-          arranged = null;
-          arrange(tooSmall);
+          // Readout switched between 'floating' and 'none' without reserving a strip: only the controls state changes.
+          mutate();
+          host.interaction.prepare(controlsFor(reader, tooSmall));
         }
       }
     }
@@ -1584,8 +1589,10 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       host.text.render(layout.kind === 'plot' ? layout.texts : []);
     }
 
-    stage('figure');
-    host.figure.update(modelFor(reader, tooSmall));
+    if (!sameKey(arranged, figureInputs(tooSmall))) {
+      stage('figure');
+      host.figure.update(modelFor(reader, tooSmall));
+    }
 
     // A change of state is said once, politely (spec L7). The first state is not announced: it is what
     // the page shows on load, and 24 charts saying "Loading" at once is noise.
@@ -1791,8 +1798,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       if (!a || destroyed) return;
       zoom(window === null ? null : [positionValue(a.frame, window[0]), positionValue(a.frame, window[1])]);
     },
-    toggle: key => toggleSeries(key),
-    pause: next => setPaused(next),
+    toggle: toggleSeries,
+    pause: setPaused,
     select(ref) {
       const d = drawn;
       const point = d && !destroyed ? pointFor(d, ref) : null;

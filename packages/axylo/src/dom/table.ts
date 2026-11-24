@@ -4,6 +4,7 @@
  * labelled scroll region no taller than the plot, 100 rows per page, with a pager and a "go to" field that
  * jumps to the page holding an x value. Text only, never HTML.
  */
+import { Listeners } from './mapping';
 import type { TableModel, XValue } from '../core/contracts';
 import { activeElementOf, setAttr, make } from './attributes';
 
@@ -42,8 +43,8 @@ export interface TableView {
  */
 export function createTableView(doc: Document, id: string, toValue: (text: string) => XValue | null): TableView {
   const element = make(doc, 'div', 'axylo-table');
-  const listening = new AbortController();
-  const signal = listening.signal;
+  const listening = new Listeners();
+
   element.id = `${id}-table`;
   const scroll = make(doc, 'div', 'axylo-table-scroll');
   scroll.setAttribute('role', 'region');
@@ -86,7 +87,7 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
   let model: TableModel | null = null;
   let texts: TableTexts | null = null;
   let page = 0;
-  let shownSignature = '';
+  let shownHeight: number | undefined;
 
   const pages = () => model ? Math.max(1, Math.ceil(model.rowCount / model.pageSize)) : 1;
 
@@ -162,20 +163,20 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
     labelText.textContent = texts.jump;
   }
 
-  previous.addEventListener('click', () => {
+  listening.on(previous, 'click', () => {
     if (page > 0) { page--; render(true); scroll.scrollTop = 0; }
-  }, { signal });
-  next.addEventListener('click', () => {
+  });
+  listening.on(next, 'click', () => {
     if (page < pages() - 1) { page++; render(true); scroll.scrollTop = 0; }
-  }, { signal });
+  });
   function clearError(): void {
     if (!field.hasAttribute('aria-invalid')) return;
     field.removeAttribute('aria-invalid');
     field.removeAttribute('aria-describedby');
     error.textContent = '';
   }
-  field.addEventListener('input', clearError, { signal });
-  form.addEventListener('submit', event => {
+  listening.on(field, 'input', clearError);
+  listening.on(form, 'submit', event => {
     event.preventDefault();
     // As typed: a category is matched exactly; numbers and dates are trimmed by the parser (finding 18).
     const value = toValue(field.value);
@@ -193,18 +194,17 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
     page = target;
     render(true);
     scroll.scrollTop = 0;
-  }, { signal });
+  });
 
   return {
     element,
     update(nextModel, nextTexts, maxHeight) {
-      const signature = `${maxHeight}`;
       model = nextModel;
       texts = nextTexts;
       // The table fills the plot's place (its stylesheet); the height is only a ceiling for the scroll region.
-      if (signature !== shownSignature) {
+      if (maxHeight !== shownHeight) {
         scroll.style.maxHeight = maxHeight > 0 ? `${Math.floor(maxHeight)}px` : '';
-        shownSignature = signature;
+        shownHeight = maxHeight;
       }
       render();
     },
@@ -212,7 +212,7 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
       scroll.focus({ preventScroll: true });
     },
     destroy() {
-      listening.abort();
+      listening.clear();
       element.remove();
       model = null;
     },
