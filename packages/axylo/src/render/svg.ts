@@ -86,8 +86,7 @@ function isTrustedCss(name: string, value: string): boolean {
     || value === 'var(--axylo-muted, var(--axylo-default-muted))'
     || value === 'var(--axylo-focus, var(--axylo-default-focus))';
   if (name === 'fill-opacity') return value === '0' || value === '0.25' || value === '0.5' || value === '0.8' || value === '1';
-  return (name === 'fill' || name === 'stroke')
-    && (value === 'none' || value === 'currentColor' || (name === 'fill' && hasDigits(value, 'url(#axylo-pattern-')));
+  return (name === 'fill' || name === 'stroke') && (value === 'none' || value === 'currentColor');
 }
 
 function cssClear(n: SvgNode, name: string): void {
@@ -163,10 +162,15 @@ let polyScratch: Float64Array | null = null;
 const NUMBER_BYTES = 24;
 const XY_BYTES = 2 + 2 * NUMBER_BYTES;
 const XY_ESTIMATE = 26;
-const DIGITS = new Uint8Array(200);
-for (let i = 0; i < 100; i++) {
-  DIGITS[2 * i] = 48 + ((i / 10) | 0);
-  DIGITS[2 * i + 1] = 48 + i % 10;
+let digitsCache: Uint8Array | null = null;
+function digitTable(): Uint8Array {
+  if (digitsCache !== null) return digitsCache;
+  const d = new Uint8Array(200);
+  for (let i = 0; i < 100; i++) {
+    d[2 * i] = 48 + ((i / 10) | 0);
+    d[2 * i + 1] = 48 + i % 10;
+  }
+  return digitsCache = d;
 }
 
 function ensureBuf(need: number): Uint8Array {
@@ -187,21 +191,22 @@ function writeText(b: Uint8Array, pos: number, s: string): number {
 
 function writeFixed(b: Uint8Array, pos: number, cents: number): number {
   if (!(cents > -1_000_000 && cents < 1_000_000)) return writeText(b, pos, String(cents / 100));
+  const digits = digitTable();
   if (cents < 0) { b[pos++] = 45; cents = -cents; }
   let q = (cents / 100) | 0;
   const r = cents - q * 100;
   if (q >= 100) {
     const hi = (q / 100) | 0;
     q -= hi * 100;
-    if (hi >= 10) b[pos++] = DIGITS[2 * hi]!;
-    b[pos++] = DIGITS[2 * hi + 1]!;
-    b[pos++] = DIGITS[2 * q]!;
-  } else if (q >= 10) b[pos++] = DIGITS[2 * q]!;
-  b[pos++] = DIGITS[2 * q + 1]!;
+    if (hi >= 10) b[pos++] = digits[2 * hi]!;
+    b[pos++] = digits[2 * hi + 1]!;
+    b[pos++] = digits[2 * q]!;
+  } else if (q >= 10) b[pos++] = digits[2 * q]!;
+  b[pos++] = digits[2 * q + 1]!;
   if (r) {
     b[pos++] = 46;
-    b[pos++] = DIGITS[2 * r]!;
-    const last = DIGITS[2 * r + 1]!;
+    b[pos++] = digits[2 * r]!;
+    const last = digits[2 * r + 1]!;
     if (last !== 48) b[pos++] = last;
   }
   return pos;

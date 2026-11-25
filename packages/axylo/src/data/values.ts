@@ -29,7 +29,8 @@ export interface Values {
   readonly allValid: boolean;
 }
 
-const noSlots = new Uint8Array(0);
+let emptySlots: Uint8Array | null = null;
+const getNoSlots = (): Uint8Array => emptySlots ??= new Uint8Array(0);
 
 export function readValues(
   table: Table,
@@ -64,7 +65,7 @@ export function readValues(
     allValid = missing === 0;
     if (i === table.length) {
       // A scatter frame only needs slots when some values could be missing.
-      return { y, slot: slot ?? (keepAllValidSlots ? new Uint8Array(table.length) : noSlots), allValid };
+      return { y, slot: slot ?? (keepAllValidSlots ? new Uint8Array(table.length) : getNoSlots()), allValid };
     }
   }
   slot ??= new Uint8Array(table.length);

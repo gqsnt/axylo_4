@@ -29,11 +29,13 @@ import { addKinds, countKinds, dateUnitOf, voteOf, nameOf, positionName, preferr
 const quiet: DiagnosticSink = { add: () => {} };
 const noSource: RowSource = { rowAt: () => null };
 type Fields = Omit<ResolvedOptions, 'table'>;
-const noPositions = new Float64Array(0);
 const noRows: readonly number[] = [];
-const noDiagnostics: readonly DiagnosticInput[] = Object.freeze([]);
-const smallBatches: readonly (readonly number[])[] = Array.from({ length: 9 }, (_, size) =>
-  Array.from({ length: size }, (_, i) => i));
+const noDiagnostics: readonly DiagnosticInput[] = [];
+const smallBatches: readonly (readonly number[])[] = [
+  [], [0], [0, 1], [0, 1, 2], [0, 1, 2, 3], [0, 1, 2, 3, 4], [0, 1, 2, 3, 4, 5], [0, 1, 2, 3, 4, 5, 6], [0, 1, 2, 3, 4, 5, 6, 7],
+];
+let emptyPositions: Float64Array | null = null;
+const getNoPositions = (): Float64Array => emptyPositions ??= new Float64Array(0);
 
 class AppendTable implements Table {
   readonly columns = null;
@@ -183,7 +185,7 @@ class Observations {
 
   constructor(
     prefix: Float64Array | null = null,
-    positions: Float64Array = noPositions,
+    positions: Float64Array = getNoPositions(),
     range: BufferWindow = new BufferWindow(),
     prefixStart = 0,
   ) {
@@ -219,8 +221,8 @@ class Observations {
   useWindow(positions: Float64Array, cadence: Cadence): void {
     this.#prefix = positions;
     this.#prefixStart = 0;
-    if (this.#positions !== noPositions) {
-      this.#positions = noPositions;
+    if (this.#positions !== getNoPositions()) {
+      this.#positions = getNoPositions();
       this.#range = new BufferWindow();
     }
     this.cadence = cadence;
@@ -407,7 +409,7 @@ function tail(
   let seen: Float64Array;
   if (ascending) seen = positions;
   else if (positions.length === 1) {
-    seen = Number.isFinite(positions[0]) && positions[0]! > lastX ? positions : noPositions;
+    seen = Number.isFinite(positions[0]) && positions[0]! > lastX ? positions : getNoPositions();
   } else {
     const distinct = new Float64Array(positions.length);
     let length = 0;
@@ -570,6 +572,10 @@ class AlignedData {
     return draft;
   }
 
+  adoptNormalized(table: Table, version: FrameVersion, normalized: AlignedFrame) {
+    return this.build(table, version, null, normalized);
+  }
+
   build(table: Table, version: FrameVersion,
     categories: readonly string[] | null = this.state?.parser.categories ?? null, normalized?: AlignedFrame) {
     const options = { ...this.fields, table };
@@ -580,7 +586,7 @@ class AlignedData {
         this.environment, diagnostics, categories ?? undefined);
     const frame = normalized ?? (options.valid ? alignedFrame(options, x, diagnostics, version)
       : normalizeAligned(this.type, options, this.environment, diagnostics, version));
-    const axis = x.parser.column(noPositions, true);
+    const axis = x.parser.column(getNoPositions(), true);
     const overBudget = !seed && diagnostics.inputs().some(diagnostic => diagnostic.code === 'AX134');
     const buffers = new FrameBuffers(frame, x.positions, x.order);
     const state: State = {
@@ -989,7 +995,7 @@ class AlignedData {
       else if (precision !== parser.dateUnit) update = true;
     }
     if (categories || axis.kind === 'date' && axis.dateUnit !== (parser.dateUnit ?? 'day')) {
-      this.state = { ...this.state, axis: parser.column(noPositions, true) };
+      this.state = { ...this.state, axis: parser.column(getNoPositions(), true) };
     }
     const inferred = votes && preferredKind(votes);
     return update || Boolean(inferred && inferred !== parser.kind);
@@ -1036,7 +1042,7 @@ class AlignedData {
     if (dateUnit !== parser.dateUnit && buffers.distinct) needsUpdate = true;
     issues.flush(diagnostics);
     const axis = categoryCount === parser.categoryCount && dateUnit === parser.dateUnit
-      ? this.state.axis : parser.column(noPositions, true);
+      ? this.state.axis : parser.column(getNoPositions(), true);
     let batch = needsUpdate ? null : this.#batch(table, positions, axis, lastX, diagnostics, allFinite, ascending);
     if (ordering) order?.flush(ordering);
     const orderInputs = ordering?.inputs();
@@ -1125,7 +1131,9 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     const data = this.#data = new AlignedData(type, environment, fields, namedFields(fields), this.rows);
     const seed = normalized && alignedSeed(normalized);
     const reusable = seed?.type === type && sameNormalization(seed.options, options);
-    const { frame, state, x } = data.build(table, version, null, reusable ? normalized : undefined);
+    const { frame, state, x } = reusable
+      ? data.adoptNormalized(table, version, normalized!)
+      : data.build(table, version, null);
     data.state = state;
     this.rows.resetPositions(table, x.positions, prefixPositions(table, fields.x.field, x, state.buffers));
     data.current = data.snapshot(frame, true);

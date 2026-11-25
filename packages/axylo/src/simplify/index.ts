@@ -59,7 +59,8 @@ const BLOCK_SIZE = 32;
 const MIXED_BLOCK = 255;
 const SELECTION_CACHE_BYTES = 64 * 1024;
 const SELECTION_CACHE_ENTRIES = 12;
-const NO_INDEXES = new Uint32Array(0);
+let emptyIndexesBuf: Uint32Array | null = null;
+const emptyIndexes = (): Uint32Array => emptyIndexesBuf ??= new Uint32Array(0);
 type ExactProjection = NonNullable<AffineProjection['exact']>;
 
 interface SelectionCache {
@@ -268,7 +269,7 @@ function scan(slot: Uint8Array, range: IndexRange, blocks?: Uint8Array) {
   let values = 0, vertices = 0, runCount = 0, singles = 0, runFirst = -1, runLast = -1, runValues = 0;
   const { start, end } = range, length = end - start;
   const runs: IndexBuffer = { data: new Uint32Array(Math.min(12, 3 * length)), limit: 3 * length };
-  const isolated: IndexBuffer = { data: NO_INDEXES, limit: length };
+  const isolated: IndexBuffer = { data: emptyIndexes(), limit: length };
   let joinsBefore = start < end && joinedNeighbor(slot, start - 1, -1);
   const joinsAfter = start < end && joinedNeighbor(slot, end, 1);
 
@@ -308,7 +309,7 @@ function scan(slot: Uint8Array, range: IndexRange, blocks?: Uint8Array) {
     }
     joinsBefore = false;
   }
-  return { values, vertices, runCount, runs: runs.data, isolated: singles ? isolated.data.subarray(0, singles) : NO_INDEXES };
+  return { values, vertices, runCount, runs: runs.data, isolated: singles ? isolated.data.subarray(0, singles) : emptyIndexes() };
 }
 
 function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Columns) {
@@ -323,7 +324,7 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
   const values = size?.values ?? length;
   const vertices = size?.vertices ?? length;
   const runCount = size?.runCount ?? 1;
-  const isolated = size?.isolated ?? NO_INDEXES;
+  const isolated = size?.isolated ?? emptyIndexes();
   if (summary && size && values === length) {
     // Overlapping validated ranges certify one continuous run for subsequent zooms.
     summary.full = full && full.start <= range.end && range.start <= full.end
@@ -336,11 +337,11 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
   if (dense && reused && summary && exact && values === length && hasMonotoneColumns(exact, columns.x[range.start]!, columns.x[range.end - 1]!)) {
     cache = selectionCache(summary, columns.x, range, exact, columns.ratio);
     const indexes = cache.map.get(exact.extent);
-    if (indexes) return { selection: { indexes: indexes.slice(), breaks: NO_INDEXES, isolated }, dense };
+    if (indexes) return { selection: { indexes: indexes.slice(), breaks: emptyIndexes(), isolated }, dense };
   }
   let buffer: IndexBuffer | undefined;
   const initialCapacity = dense ? Math.min(vertices, limit + 4 * runCount + 4) : vertices;
-  const breaks = runCount > 1 ? new Uint32Array(runCount - 1) : NO_INDEXES;
+  const breaks = runCount > 1 ? new Uint32Array(runCount - 1) : emptyIndexes();
   let cursor = 0;
   for (let run = 0; run < runCount; run++) {
     const first = size?.runs[3 * run] ?? range.start, last = size?.runs[3 * run + 1] ?? range.end - 1;
@@ -374,7 +375,7 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
       for (let index = first; index <= last; index++) if (slot[index] === SLOT_VALUE) data[cursor++] = index;
     }
   }
-  const selection: JoinedRuns = { indexes: buffer?.data.subarray(0, cursor) ?? NO_INDEXES, breaks, isolated };
+  const selection: JoinedRuns = { indexes: buffer?.data.subarray(0, cursor) ?? emptyIndexes(), breaks, isolated };
   if (cache && exact) rememberSelection(cache, exact.extent, selection.indexes);
   return { selection, dense };
 }
