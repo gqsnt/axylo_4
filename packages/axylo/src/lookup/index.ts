@@ -17,7 +17,7 @@ export const donutLookupFor: LookupBuilder = (view, layout, formatters, _message
   donutLookup(view as DonutView, plotOf(layout), formatters, locale);
 
 export const scatterLookupFor: LookupBuilder = (view, layout, formatters, _messages, _locale, devicePixelRatio = 1) =>
-  scatterLookup(view as ScatterView, plotOf(layout), formatters, undefined, devicePixelRatio);
+  scatterLookup(view as ScatterView, plotOf(layout), formatters, undefined, devicePixelRatio, { lazy: true });
 
 export const alignedLookupFor: LookupBuilder = (view, layout, formatters, messages) =>
   alignedLookup(view as AlignedView, plotOf(layout), formatters, messages);

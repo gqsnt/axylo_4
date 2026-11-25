@@ -30,8 +30,8 @@ let ids = 0;
 export interface SvgNode {
   readonly key: string;
   readonly el: SVGElement;
-  attrs: Map<string, string> | null;
-  styles: Map<string, string> | null;
+  attrs: Record<string, string> | null;
+  styles: Record<string, string> | null;
   kids: SvgNode[] | null;
   rects: SVGRectElement[] | null;
   /** The inputs the current `d` was built from, compared by identity. */
@@ -50,15 +50,18 @@ function data(n: SvgNode, source: readonly unknown[], build: () => string): void
 }
 
 function attrStr(n: SvgNode, name: string, value: string): void {
-  if (n.attrs?.get(name) !== value) {
-    (n.attrs ??= new Map()).set(name, value);
+  if (n.attrs?.[name] !== value) {
+    (n.attrs ??= Object.create(null))[name] = value;
     n.el.setAttribute(name, value);
   }
 }
 
 function attr(n: SvgNode, name: string, input: number | string | null): void {
   if (input === null) {
-    if (n.attrs?.delete(name)) n.el.removeAttribute(name);
+    if (n.attrs?.[name] !== undefined) {
+      delete n.attrs[name];
+      n.el.removeAttribute(name);
+    }
   } else attrStr(n, name, String(input));
 }
 
@@ -72,22 +75,31 @@ function hasDigits(s: string, prefix: string): boolean {
   return true;
 }
 
-const TRUSTED_COLOR_RE = /^var\(--axylo-(?:background, (?:transparent|var\(--axylo-backdrop, var\(--axylo-default-background\)\))|text, currentColor|(axis|grid|reference|muted|focus), var\(--axylo-default-\1\))\)$/;
-
 function isTrustedCss(name: string, value: string): boolean {
-  if (name === 'color') return hasDigits(value, 'var(--axylo-series-color-') || TRUSTED_COLOR_RE.test(value);
-  if (name === 'fill-opacity') return /^(?:0(?:\.25|\.5|\.8)?|1)$/.test(value);
+  if (name === 'color') return hasDigits(value, 'var(--axylo-series-color-')
+    || value === 'var(--axylo-background, transparent)'
+    || value === 'var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)))'
+    || value === 'var(--axylo-text, currentColor)'
+    || value === 'var(--axylo-axis, var(--axylo-default-axis))'
+    || value === 'var(--axylo-grid, var(--axylo-default-grid))'
+    || value === 'var(--axylo-reference, var(--axylo-default-reference))'
+    || value === 'var(--axylo-muted, var(--axylo-default-muted))'
+    || value === 'var(--axylo-focus, var(--axylo-default-focus))';
+  if (name === 'fill-opacity') return value === '0' || value === '0.25' || value === '0.5' || value === '0.8' || value === '1';
   return (name === 'fill' || name === 'stroke')
     && (value === 'none' || value === 'currentColor' || (name === 'fill' && hasDigits(value, 'url(#axylo-pattern-')));
 }
 
 function cssClear(n: SvgNode, name: string): void {
-  if (n.styles?.delete(name)) n.el.style.removeProperty(name);
+  if (n.styles?.[name] !== undefined) {
+    delete n.styles[name];
+    n.el.style.removeProperty(name);
+  }
 }
 
 function cssTrusted(n: SvgNode, name: string, value: string): void {
-  if (n.styles?.get(name) !== value) {
-    (n.styles ??= new Map()).set(name, value);
+  if (n.styles?.[name] !== value) {
+    (n.styles ??= Object.create(null))[name] = value;
     n.el.style.setProperty(name, value);
   }
 }
@@ -113,9 +125,9 @@ function setCss(style: CSSStyleDeclaration, name: string, value: string): boolea
 
 function css(n: SvgNode, name: string, value: string | null): void {
   if (value === null) cssClear(n, name);
-  else if (n.styles?.get(name) !== value) {
-    if (setCss(n.el.style, name, value)) (n.styles ??= new Map()).set(name, value);
-    else n.styles?.delete(name);
+  else if (n.styles?.[name] !== value) {
+    if (setCss(n.el.style, name, value)) (n.styles ??= Object.create(null))[name] = value;
+    else if (n.styles !== null) delete n.styles[name];
   }
 }
 
@@ -147,6 +159,16 @@ let pathBuf: Uint8Array | null = null;
 const MAX_RETAINED_BUF = 16 * 1024;
 let polyScratch: Float64Array | null = null;
 
+// The fallback number can be a signed, 17-digit mantissa with a three-digit exponent.
+const NUMBER_BYTES = 24;
+const XY_BYTES = 2 + 2 * NUMBER_BYTES;
+const XY_ESTIMATE = 26;
+const DIGITS = new Uint8Array(200);
+for (let i = 0; i < 100; i++) {
+  DIGITS[2 * i] = 48 + ((i / 10) | 0);
+  DIGITS[2 * i + 1] = 48 + i % 10;
+}
+
 function ensureBuf(need: number): Uint8Array {
   if (pathBuf === null) return pathBuf = new Uint8Array(need > 4096 ? need : 4096);
   return pathBuf.length < need ? pathBuf = new Uint8Array(Math.max(pathBuf.length * 2, need)) : pathBuf;
@@ -158,60 +180,42 @@ function growBuf(used: number, need: number): Uint8Array {
   return pathBuf = next;
 }
 
-function writeNum(pos: number, v: number, rem: number): number {
-  if (v >= -2e7 && v <= 2e7) {
-    let c = Math.round(v * 100);
-    const b = pathBuf!;
-    if (c === 0) { b[pos++] = 48; return pos; }
-    if (c < 0) { b[pos++] = 45; c = -c; }
-    let q = (c / 100) | 0;
-    const r = c - q * 100;
-    if (q < 10) {
-      b[pos++] = 48 + q;
-    } else {
-      const start = pos;
-      while (q > 0) {
-        const q10 = (q / 10) | 0;
-        b[pos++] = 48 + q - q10 * 10;
-        q = q10;
-      }
-      for (let l = start, hi = pos - 1; l < hi; l++, hi--) {
-        const t = b[l]!; b[l] = b[hi]!; b[hi] = t;
-      }
-    }
-    if (r) {
-      b[pos++] = 46;
-      const d1 = (r / 10) | 0;
-      b[pos++] = 48 + d1;
-      if (r !== d1 * 10) b[pos++] = 48 + r - d1 * 10;
-    }
-    return pos;
-  }
-  const s = String(f(v));
-  const need = pos + s.length + rem + 64;
-  const b = need > pathBuf!.length ? growBuf(pos, need) : pathBuf!;
+function writeText(b: Uint8Array, pos: number, s: string): number {
   for (let i = 0; i < s.length; i++) b[pos++] = s.charCodeAt(i);
   return pos;
 }
 
-function writeByte(pos: number, byte: number, rem: number): number {
-  if (pos >= pathBuf!.length) growBuf(pos, pos + rem + 1);
-  pathBuf![pos++] = byte;
+function writeFixed(b: Uint8Array, pos: number, cents: number): number {
+  if (!(cents > -1_000_000 && cents < 1_000_000)) return writeText(b, pos, String(cents / 100));
+  if (cents < 0) { b[pos++] = 45; cents = -cents; }
+  let q = (cents / 100) | 0;
+  const r = cents - q * 100;
+  if (q >= 100) {
+    const hi = (q / 100) | 0;
+    q -= hi * 100;
+    if (hi >= 10) b[pos++] = DIGITS[2 * hi]!;
+    b[pos++] = DIGITS[2 * hi + 1]!;
+    b[pos++] = DIGITS[2 * q]!;
+  } else if (q >= 10) b[pos++] = DIGITS[2 * q]!;
+  b[pos++] = DIGITS[2 * q + 1]!;
+  if (r) {
+    b[pos++] = 46;
+    b[pos++] = DIGITS[2 * r]!;
+    const last = DIGITS[2 * r + 1]!;
+    if (last !== 48) b[pos++] = last;
+  }
   return pos;
 }
 
-function writeCmd(pos: number, cmd: number, v: number, rem: number): number {
-  if (pos + 16 > pathBuf!.length) growBuf(pos, pos + rem + 16);
-  pathBuf![pos++] = cmd;
-  return writeNum(pos, v, rem);
+function writeCmd(b: Uint8Array, pos: number, cmd: number, v: number): number {
+  b[pos++] = cmd;
+  return writeFixed(b, pos, Math.round(v * 100));
 }
 
-function writeXY(pos: number, cmd: number, x: number, y: number, rem: number): number {
-  if (pos + 28 > pathBuf!.length) growBuf(pos, pos + rem + 28);
-  pathBuf![pos++] = cmd;
-  pos = writeNum(pos, x, rem);
-  pathBuf![pos++] = 32;
-  return writeNum(pos, y, rem);
+function writeXY(b: Uint8Array, pos: number, cmd: number, x: number, y: number): number {
+  pos = writeCmd(b, pos, cmd, x);
+  b[pos++] = 32;
+  return writeFixed(b, pos, Math.round(y * 100));
 }
 
 function decodeBuf(len: number): string {
@@ -224,13 +228,14 @@ function decodeBuf(len: number): string {
 export function pathData(xy: Float32Array): string {
   const len = xy.length - 1;
   if (len <= 0) return '';
-  ensureBuf((xy.length >> 1) * 26);
+  let b = ensureBuf((xy.length >> 1) * XY_ESTIMATE);
   let pos = 0;
   let pen = false;
   for (let i = 0; i < len; i += 2) {
     const x = xy[i]!, y = xy[i + 1]!;
     if (lifted(x) || lifted(y)) { pen = false; continue; }
-    pos = writeXY(pos, pen ? 76 : 77, x, y, ((len - i) >> 1) * 26);
+    if (pos + XY_BYTES > b.length) b = growBuf(pos, pos + XY_BYTES);
+    pos = writeXY(b, pos, pen ? 76 : 77, x, y);
     pen = true;
   }
   return decodeBuf(pos);
@@ -246,28 +251,42 @@ export function areaData(mark: AreaMark): string {
     if (ue > us && le > ls) maxVerts += ue - us + le - ls;
   }
   if (maxVerts === 0) return '';
-  let remRuns = runs.length >> 2;
-  ensureBuf(maxVerts * 26 + remRuns);
-  let pos = 0, remVerts = maxVerts, runStart = 0;
+  let b = ensureBuf(maxVerts * XY_ESTIMATE + (runs.length >> 2));
+  let pos = 0, runStart = 0;
   const emit = (arr: Float32Array, from: number, to: number, step: number) => {
     for (let k = from; k !== to; k += step) {
       const x = arr[2 * k]!, y = arr[2 * k + 1]!;
-      remVerts--;
-      if (!lifted(x) && !lifted(y)) pos = writeXY(pos, pos > runStart ? 76 : 77, x, y, remVerts * 26 + remRuns);
+      if (lifted(x) || lifted(y)) continue;
+      if (pos + XY_BYTES + 1 > b.length) b = growBuf(pos, pos + XY_BYTES + 1);
+      pos = writeXY(b, pos, pos > runStart ? 76 : 77, x, y);
     }
   };
   for (let r = 0; r + 3 < runs.length; r += 4) {
     const us = runs[r]!, ue = Math.min(us + runs[r + 1]!, upperCount);
     const ls = runs[r + 2]!, le = Math.min(ls + runs[r + 3]!, lowerCount);
-    remRuns--;
     // A region between two boundaries needs both: a run with an empty side draws nothing.
     if (ue <= us || le <= ls) continue;
     runStart = pos;
     emit(upper, us, ue, 1);
     emit(lower, le - 1, ls - 1, -1);
-    if (pos > runStart) pos = writeByte(pos, 90, remVerts * 26 + remRuns);
+    if (pos > runStart) b[pos++] = 90;
   }
   return decodeBuf(pos);
+}
+
+let circleArcs: { radius: number; absolute: Uint8Array; compact: Uint8Array; relative: Uint8Array } | null = null;
+
+function arcsFor(radius: number) {
+  if (circleArcs?.radius === radius) return circleArcs;
+  const r = fstr(radius), diameter = fstr(2 * radius);
+  const encoder = new TextEncoder();
+  return circleArcs = {
+    radius,
+    absolute: encoder.encode(`A${r} ${r} 0 1 1 `),
+    // Each flag consumes one byte, so the following flag or coordinate needs no separator.
+    compact: encoder.encode(`A${r} ${r} 0 11`),
+    relative: encoder.encode(`a${r} ${r} 0 11${diameter} 0z`),
+  };
 }
 
 function pointData(mark: PointMark): string {
@@ -276,37 +295,43 @@ function pointData(mark: PointMark): string {
   if (!(size > 0) || len <= 0) return '';
   const nPts = xy.length >> 1;
   if (mark.shape === 'circle') {
-    const r = size / 2, rs = fstr(r);
-    const arcStr = `A${rs} ${rs} 0 1 1 `;
-    const arcLen = arcStr.length;
-    const arcBytes = new Uint8Array(arcLen);
-    for (let j = 0; j < arcLen; j++) arcBytes[j] = arcStr.charCodeAt(j);
-    const perPoint = 77 + 2 * arcLen;
-    ensureBuf(nPts * perPoint);
+    const r = size / 2, arcs = arcsFor(r);
+    // Sparse marker geometry is also read by consumers that expect both endpoints to be absolute.
+    const compact = nPts >= 2000 && Number.isInteger(size) && size < 1e6;
+    const arc = compact ? arcs.compact : arcs.absolute;
+    const diameter = size * 100;
+    const maxPoint = 6 * NUMBER_BYTES + 5 + 2 * arc.length;
+    const estimate = compact ? 4 * 12 + 3 + arc.length + arcs.relative.length : 77 + 2 * arc.length;
+    let b = ensureBuf(nPts * estimate);
     let pos = 0;
     for (let i = 0; i < len; i += 2) {
       const x = xy[i]!, y = xy[i + 1]!;
       if (lifted(x) || lifted(y)) continue;
-      const rem = ((len - i) >> 1) * perPoint + perPoint;
-      if (pos + perPoint > pathBuf!.length) growBuf(pos, pos + rem);
-      pathBuf![pos++] = 77;
-      const sStart = pos;
-      pos = writeNum(pos, x + r, rem);
-      pathBuf![pos++] = 32;
-      const yStart = pos;
-      pos = writeNum(pos, y, rem);
-      const yLen = pos - yStart, sLen = pos - sStart;
-      const tailNeed = pos + 2 * arcLen + yLen + sLen + 64;
-      if (tailNeed > pathBuf!.length) growBuf(pos, tailNeed + rem);
-      pathBuf!.set(arcBytes, pos);
-      pos = writeNum(pos + arcLen, x - r, rem);
-      const copyNeed = pos + 2 + yLen + arcLen + sLen;
-      if (copyNeed > pathBuf!.length) growBuf(pos, copyNeed + rem);
-      const b = pathBuf!;
+      if (pos + maxPoint > b.length) b = growBuf(pos, pos + maxPoint);
+      const right = Math.round((x + r) * 100), left = Math.round((x - r) * 100);
+      b[pos++] = 77;
+      const start = pos;
+      pos = writeFixed(b, pos, right);
       b[pos++] = 32;
-      b.copyWithin(pos, yStart, yStart + yLen); pos += yLen;
-      b.set(arcBytes, pos); pos += arcLen;
-      b.copyWithin(pos, sStart, sStart + sLen); pos += sLen;
+      const yStart = pos;
+      const end = pos = writeFixed(b, pos, Math.round(y * 100));
+      b.set(arc, pos);
+      pos = writeFixed(b, pos + arc.length, left);
+      b[pos++] = 32;
+      b.copyWithin(pos, yStart, end);
+      pos += end - yStart;
+      // In the same sign and binary exponent range, an integer diameter preserves the float grid.
+      // Crossing a range boundary can round the relative endpoint differently from the absolute one.
+      if (compact && left >= 100 && right < 1e8 && right - left === diameter
+        && Math.clz32(left / 100) === Math.clz32(right / 100)) {
+        b.set(arcs.relative, pos);
+        pos += arcs.relative.length;
+        continue;
+      }
+      b.set(arc, pos);
+      pos += arc.length;
+      b.copyWithin(pos, start, end);
+      pos += end - start;
       b[pos++] = 90;
     }
     return decodeBuf(pos);
@@ -315,17 +340,17 @@ function pointData(mark: PointMark): string {
   const polyLen = poly.length;
   const scratch = polyScratch ??= new Float64Array(24);
   for (let k = 0; k < polyLen; k++) scratch[k] = poly[k]! * size;
-  const perPoint = (polyLen >> 1) * 26 + 1;
-  ensureBuf(nPts * perPoint);
+  const vertices = polyLen >> 1, maxPoint = vertices * XY_BYTES + 1;
+  let b = ensureBuf(nPts * (vertices * XY_ESTIMATE + 1));
   let pos = 0;
   for (let i = 0; i < len; i += 2) {
     const x = xy[i]!, y = xy[i + 1]!;
     if (lifted(x) || lifted(y)) continue;
-    const rem = ((len - i) >> 1) * perPoint;
+    if (pos + maxPoint > b.length) b = growBuf(pos, pos + maxPoint);
     for (let k = 0; k < polyLen; k += 2) {
-      pos = writeXY(pos, k ? 76 : 77, x + scratch[k]!, y + scratch[k + 1]!, rem);
+      pos = writeXY(b, pos, k ? 76 : 77, x + scratch[k]!, y + scratch[k + 1]!);
     }
-    pos = writeByte(pos, 90, rem);
+    b[pos++] = 90;
   }
   return decodeBuf(pos);
 }
@@ -334,21 +359,22 @@ function missingData(mark: RectMark, box: Float64Array, clip: Rect | null): stri
   const q = mark.xywh;
   const nBoxes = q.length >> 2;
   if (nBoxes === 0) return '';
-  ensureBuf(nBoxes * 128);
+  const maxBox = 3 * XY_BYTES + 3 * (NUMBER_BYTES + 1) + 1;
+  let b = ensureBuf(nBoxes * 128);
   let pos = 0;
   for (let i = 0; i + 3 < q.length; i += 4) {
     const x = q[i]!, y = q[i + 1]!, w = q[i + 2]!, h = q[i + 3]!;
     if (lifted(x) || lifted(y) || lifted(w) || lifted(h)) continue;
-    const rem = ((q.length - i) >> 2) * 128;
+    if (pos + maxBox > b.length) b = growBuf(pos, pos + maxBox);
     missingBox(x, y, w, h, box, clip);
     const bx = f(box[0]!), by = f(box[1]!), bw = f(box[2]!), bh = f(box[3]!);
-    pos = writeXY(pos, 77, bx, by, rem);
-    pos = writeCmd(pos, 104, bw, rem);
-    pos = writeCmd(pos, 118, bh, rem);
-    pos = writeCmd(pos, 104, -bw, rem);
-    pos = writeByte(pos, 90, rem);
-    pos = writeXY(pos, 77, bx, by + bh, rem);
-    pos = writeXY(pos, 76, bx + bw, by, rem);
+    pos = writeXY(b, pos, 77, bx, by);
+    pos = writeCmd(b, pos, 104, bw);
+    pos = writeCmd(b, pos, 118, bh);
+    pos = writeCmd(b, pos, 104, -bw);
+    b[pos++] = 90;
+    pos = writeXY(b, pos, 77, bx, by + bh);
+    pos = writeXY(b, pos, 76, bx + bw, by);
   }
   return decodeBuf(pos);
 }

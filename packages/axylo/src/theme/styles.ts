@@ -25,31 +25,47 @@ export function ensureStyles(root: StyleRoot): void {
   // Imported and cross-origin rules may supply the stylesheet without exposing its marker here.
   let candidate = false;
   let standalone: CSSStyleSheet | undefined;
-  for (const sheet of [...Array.from(root.styleSheets), ...(root.adoptedStyleSheets ?? [])]) {
-    try {
-      for (const rule of Array.from(sheet.cssRules)) {
-        if (rule.cssText.includes('--axylo-stylesheet')) {
-          standalone = sheet;
-          break;
+  const adopted = root.adoptedStyleSheets;
+  search: for (const sheets of [root.styleSheets, adopted ?? []]) {
+    for (let i = 0; i < sheets.length; i++) {
+      const sheet = sheets[i]!;
+      try {
+        const rules = sheet.cssRules;
+        for (let j = 0; j < rules.length; j++) {
+          const rule = rules[j]!;
+          if (rule.cssText.includes('--axylo-stylesheet')) {
+            standalone = sheet;
+            break search;
+          }
+          if (rule.type === 3) candidate = true; // CSSImportRule
         }
-        if (rule.type === 3) candidate = true; // CSSImportRule
-      }
-    } catch { candidate = true; }
-    if (standalone) break;
+      } catch { candidate = true; }
+    }
   }
 
   const parent = root === doc ? doc.documentElement : root;
   if ((standalone || candidate) && standaloneActive(doc, parent, win)) {
-    if (standalone?.ownerNode) {
+    const owner = standalone?.ownerNode;
+    if (standalone && owner) {
       const sheet = standalone;
-      installed.set(root, () => !sheet.disabled && !!sheet.ownerNode?.isConnected &&
-        Array.prototype.includes.call(root.styleSheets, sheet) &&
-        (!sheet.media.mediaText || win.matchMedia(sheet.media.mediaText).matches));
+      let media = '';
+      let query: MediaQueryList | undefined;
+      installed.set(root, () => {
+        if (sheet.disabled || !owner.isConnected) return false;
+        if ('sheet' in owner ? owner.sheet !== sheet || owner.getRootNode() !== root
+          : !Array.prototype.includes.call(root.styleSheets, sheet)) return false;
+        const current = sheet.media.mediaText;
+        if (current !== media) {
+          media = current;
+          query = media ? win.matchMedia(media) : undefined;
+        }
+        return query?.matches ?? true;
+      });
     }
     return;
   }
 
-  if (root.adoptedStyleSheets && typeof win.CSSStyleSheet?.prototype.replaceSync === 'function') {
+  if (adopted && typeof win.CSSStyleSheet?.prototype.replaceSync === 'function') {
     let sheet = constructed.get(doc);
     if (!sheet) {
       // Some engines expose the interface without supporting construction.
@@ -60,8 +76,18 @@ export function ensureStyles(root: StyleRoot): void {
       }
     }
     if (sheet) {
-      if (!root.adoptedStyleSheets.includes(sheet)) root.adoptedStyleSheets = [...root.adoptedStyleSheets, sheet];
-      installed.set(root, () => root.adoptedStyleSheets?.includes(sheet));
+      let index = adopted.indexOf(sheet);
+      if (index < 0) {
+        index = adopted.length;
+        root.adoptedStyleSheets = [...adopted, sheet];
+      }
+      // Check the live list so a synchronous removal is visible to the next chart.
+      installed.set(root, () => {
+        const sheets = root.adoptedStyleSheets;
+        if (sheets?.[index] === sheet) return true;
+        index = sheets?.indexOf(sheet) ?? -1;
+        return index >= 0;
+      });
       return;
     }
   }
