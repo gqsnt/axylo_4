@@ -5,7 +5,7 @@
  */
 import { alignedExtrema, alignedScale, pointExtrema, scatterX, withReferences, zeroBaseline } from '../view';
 import type { Layout, TextMeasurer, TextStyle, TickCandidates, View, XKind } from './contracts';
-import { computeLayout, type LayoutInput, type ScaleConstructors } from '../layout';
+import { computeLayout, type LayoutInput, type ScaleConstructors, type ValueAxis } from '../layout';
 import { baseLayoutKey, type LayoutStage } from './composition';
 import type { ResolvedOptions } from '../data';
 import { bandScale, bandTickCandidates, coarserDomains, linearScale, linearTickCandidates, timeScale, timeTickCandidates } from '../scale';
@@ -188,8 +188,10 @@ function axisParts(view: View, ctx: AxisContext, scales: AxisScales): AxisEntry 
   }
   const key: unknown[] = [];
   appendAxisInputs(key, ctx);
-  const failures = ctx.compact && !x.tickFormat && !value?.tickFormat
-    ? NO_FAILURES : { x: new TickFailures(), y: new TickFailures() };
+  const failures = x.tickFormat == null && value?.tickFormat == null ? NO_FAILURES : {
+    x: x.tickFormat == null ? noFailures : new TickFailures(),
+    y: value?.tickFormat == null ? noFailures : new TickFailures(),
+  };
   const entry = { key, scales, parts: view.kind === 'donut' ? {} : buildAxisParts(view, ctx, failures, scales), failures };
   cache.set(view, entry);
   return entry;
@@ -238,7 +240,7 @@ function layoutInputWith(
 
 function valueAxis(
   domain: Span, extent: Span | null, scale: 'percent' | 'ratio' | null, ticks: (domain: Span) => TickCandidates,
-) {
+): ValueAxis {
   const candidates = (span: Span) => endingCandidates(ticks(span), span, extent, scale);
   const full = scale === 'percent' ? 100 : scale === 'ratio' ? 1 : null;
   return {
@@ -248,12 +250,47 @@ function valueAxis(
   };
 }
 
+const VALUE_AXIS_LIMIT = 32;
+let defaultValueAxes: Map<string, ValueAxis> | undefined;
+
+function defaultValueAxis(domain: Span, extent: Span | null, scale: 'percent' | 'ratio' | null, ctx: AxisContext): ValueAxis {
+  // A rolling window often changes x while keeping the same value domain and extremes. Author formatters
+  // still run per view because their output (and whether they throw) can depend on mutable state.
+  const [lo, hi] = domain;
+  const key = `${Object.is(lo, -0) ? '-0' : lo}/${Object.is(hi, -0) ? '-0' : hi}/${extent?.[0]}/${extent?.[1]}/${scale}/${ctx.locale}`;
+  const cache = defaultValueAxes ??= new Map();
+  const known = cache.get(key);
+  if (known) return known;
+  const axis = valueAxis(domain, extent, scale, span => numberTicks(span, ctx, null, scale, noFailures));
+  if (cache.size >= VALUE_AXIS_LIMIT) cache.delete(cache.keys().next().value!);
+  cache.set(key, axis);
+  return axis;
+}
+
 export function cartesianLayout(scales: AxisScales): LayoutStage {
+  const epochs = new WeakMap<AxisContext, number>();
+  const measurements = new WeakMap<TextStyle, { measurer: TextMeasurer; epoch: number; widths: Map<string, number> }>();
   return {
     prepareTicks: (view, ctx) => prepareTicksWith(view, ctx, scales),
     tickFormatFailures: (view, ctx, layout) => tickFormatFailuresWith(view, ctx, layout, scales),
-    layoutKey,
-    compute: (view, size, text, ctx) => computeLayout(layoutInputWith(view, size, text, ctx, scales)),
+    layoutKey(view, size, style, fontEpoch, ctx) {
+      epochs.set(ctx, fontEpoch);
+      return layoutKey(view, size, style, fontEpoch, ctx);
+    },
+    compute(view, size, text, ctx) {
+      const input = layoutInputWith(view, size, text, ctx, scales);
+      const epoch = epochs.get(ctx);
+      // A font can change widths while computed style stays identical. Only reuse widths when the caller
+      // supplied its current font epoch through the layout key.
+      if (epoch === undefined || input.kind === 'ring' || input.kind === 'message' || ctx.compact) return computeLayout(input);
+      const { measurer, style } = text;
+      let cached = measurements.get(style);
+      if (cached?.measurer !== measurer || cached.epoch !== epoch) {
+        cached = { measurer, epoch, widths: new Map() };
+        measurements.set(style, cached);
+      }
+      return computeLayout(input, cached.widths);
+    },
   };
 }
 
@@ -268,8 +305,10 @@ function buildAxisParts(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext
   const yOption = value?.tickFormat ?? null;
   const scale = view.kind === 'scatter' ? value?.scale ?? null : alignedScale(view.frame, view.visible);
   const titles = axisTitles(view, ctx);
-  const y = { ...valueAxis(view.yDomain, value?.domain || (ctx.compact && yOption == null) ? null : valueExtent(view), scale,
-    domain => numberTicks(domain, ctx, yOption, scale, failures.y)), title: titles.y };
+  const extent = value?.domain || (ctx.compact && yOption == null) ? null : valueExtent(view);
+  const valueTicks = yOption == null && !ctx.compact ? defaultValueAxis(view.yDomain, extent, scale, ctx)
+    : valueAxis(view.yDomain, extent, scale, domain => numberTicks(domain, ctx, yOption, scale, failures.y));
+  const y = { ...valueTicks, title: titles.y };
 
   if (view.kind === 'scatter') {
     const kind = view.frame.xKind;

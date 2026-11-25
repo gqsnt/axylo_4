@@ -26,7 +26,10 @@ export function inspectValues(table: Table, field: string, included?: (row: numb
 export interface Values {
   readonly y: Float64Array | Float32Array;
   readonly slot: Uint8Array;
+  readonly allValid: boolean;
 }
+
+const noSlots = new Uint8Array(0);
 
 export function readValues(
   table: Table,
@@ -38,13 +41,15 @@ export function readValues(
   included?: (row: number) => boolean,
   outcome?: string,
   counts?: ValueCounts,
+  keepAllValidSlots = true,
 ): Values {
   const column = table.columns?.[field.field];
   const borrowed = column instanceof Float64Array || column instanceof Float32Array;
   const zero = impute && field.missing === 'zero';
-  const slot = new Uint8Array(table.length);
+  let slot: Uint8Array | undefined;
   let y = borrowed ? column : new Float64Array(table.length);
   let i = 0;
+  let allValid = !included;
   if (borrowed && !included) {
     // Values and typed NaNs can stay in the caller's storage without generic row validation.
     let missing = 0;
@@ -52,12 +57,17 @@ export function readValues(
       const value = column[i]!;
       if (Number.isFinite(value)) continue;
       if (zero || !Number.isNaN(value)) break;
-      slot[i] = SLOT_NULL;
+      (slot ??= new Uint8Array(table.length))[i] = SLOT_NULL;
       missing++;
     }
     if (counts) counts.other += i - missing;
-    if (i === table.length) return { y, slot };
+    allValid = missing === 0;
+    if (i === table.length) {
+      // A scatter frame only needs slots when some values could be missing.
+      return { y, slot: slot ?? (keepAllValidSlots ? new Uint8Array(table.length) : noSlots), allValid };
+    }
   }
+  slot ??= new Uint8Array(table.length);
   const reports = new Reports(field.field, sink);
   mode ??= borrowed ? 'other' : inspectValues(table, field.field, included);
 
@@ -101,9 +111,12 @@ export function readValues(
       y = y.slice();
     }
     if (y !== column) y[i] = value;
-    slot[i] = state;
+    if (state !== SLOT_VALUE) {
+      slot[i] = state;
+      allValid = false;
+    }
   }
 
   reports.flush(sink);
-  return { y, slot };
+  return { y, slot, allValid };
 }

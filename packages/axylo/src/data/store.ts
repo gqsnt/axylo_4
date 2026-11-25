@@ -19,8 +19,8 @@ import { FrameBuffers, type SeriesBuffers } from './store-buffers';
 import { ByteCount, CallerBuffers, countBuffers, countRevisions, type OwnedBytes } from './store-bytes';
 import { CalendarWindow } from './store-calendar';
 import { StreamDiagnostics } from './store-diagnostics';
-import { forkValues, checkVersion, forwardDiagnostics, installEncodingExtras, nextVersion, groupFor, RevisionStore, retentionStart, sameRemainder, StreamRows } from './store-rows';
-import { rowsTable, sameTableData, type Table } from './table';
+import { forkValues, checkVersion, forwardDiagnostics, installEncodingExtras, nextVersion, groupFor, RevisionStore, retentionStart, shareRemainder, StreamRows } from './store-rows';
+import { rowsTable, rowValue, sameTableData, type Table } from './table';
 import { once, retention, type PreparedFrame, type StoreAppendOptions } from './transaction';
 import { readValues, valueMode, type ValueCounts, type ValueMode, type Values } from './values';
 import { addKinds, countKinds, dateUnitOf, voteOf, nameOf, positionName, preferredKind, type DateUnit, type KindVotes } from './x';
@@ -29,10 +29,30 @@ const quiet: DiagnosticSink = { add: () => {} };
 const noSource: RowSource = { rowAt: () => null };
 type Fields = Omit<ResolvedOptions, 'table'>;
 const noPositions = new Float64Array(0);
-const noObservations = new Uint8Array(0);
-const oneObservation = Uint8Array.of(1);
 const noRows: readonly number[] = [];
-const firstRowOnly: readonly number[] = [0];
+const smallBatches: readonly (readonly number[])[] = Array.from({ length: 9 }, (_, size) =>
+  Array.from({ length: size }, (_, i) => i));
+
+class AppendTable implements Table {
+  readonly columns = null;
+  readonly length: number;
+
+  constructor(private readonly rows: readonly unknown[]) { this.length = rows.length; }
+
+  read(row: number, field: string): unknown { return rowValue(this.rows[row], field); }
+  rowAt(row: number): unknown { return Number.isInteger(row) && row >= 0 && row < this.length ? this.rows[row] : null; }
+  rowIndex(row: number): number { return row; }
+  isColumnRow(): boolean { return false; }
+  keys(): readonly string[] { return rowsTable(this.rows).keys(); }
+
+  hasField(field: string): boolean {
+    for (let i = 0; i < this.length; i++) {
+      const row = this.rows[i];
+      if (row !== null && typeof row === 'object' && Object.hasOwn(row, field)) return true;
+    }
+    return false;
+  }
+}
 
 function replacesLast(item: BatchSeries | undefined, positions: Float64Array, lastX: number | undefined): boolean {
   return item !== undefined && item.rows.length > 0 && positions[item.rows[0]!] === lastX;
@@ -80,10 +100,10 @@ class Cadence {
 
   sparse(absent: number): boolean { return tooSparse(absent, this.#differences + 1); }
 
-  extend(axis: XColumn, x: number): void {
+  extend(axis: XColumn, x: number): boolean {
     const previous = this.last;
     this.last = x;
-    if (previous === -Infinity || !supportsSteps(axis)) return;
+    if (previous === -Infinity || !supportsSteps(axis)) return false;
     const delta = stepDelta(axis, previous, x);
     const multiple = stepMultiple(delta, this.#min);
     if (delta < this.#min && multiple !== 1) {
@@ -97,13 +117,14 @@ class Cadence {
     }
     this.#span += delta;
     this.#differences++;
+    return multiple === 1;
   }
 
   multiple(delta: number): number { return stepMultiple(delta, this.#min); }
 
-  evict(axis: XColumn, window: Observations, delta: number, multiple: number): Cadence {
+  evict(axis: XColumn, window: Observations, delta: number, multiple: number, writable: boolean): Cadence {
     if (!multiple || this.#multiple === null || this.#matches === Number(multiple === 1)) return Cadence.read(axis, window);
-    const next = this.fork();
+    const next = writable ? this : this.fork();
     next.#span -= delta;
     next.#differences--;
     if (multiple === 1) next.#matches--;
@@ -212,11 +233,12 @@ class Observations {
    * one sorted x column, no gap slots): one copy of x per window, and the caller's column is not pinned.
    * Falls back to a copy of the remainder once half of it is gone, as before, if the window does not match.
    */
-  share(window: Float64Array): void {
+  share(x: Float64Array, start: number, end: number): void {
     const prefix = this.#prefix;
     if (!prefix) return;
-    const remaining = prefix.length - this.#prefixStart;
-    if (sameRemainder(prefix, this.#prefixStart, window)) this.#prefix = window.subarray(0, remaining);
+    const shared = shareRemainder(prefix, this.#prefixStart, x, start, end);
+    if (shared === prefix) return;
+    if (shared) this.#prefix = shared;
     else if (this.#prefixStart * 2 >= prefix.length) this.#prefix = prefix.slice(this.#prefixStart);
     else return;
     this.#prefixStart = 0;
@@ -323,16 +345,18 @@ interface Batch {
   readonly axis: XColumn;
   readonly series: readonly BatchSeries[];
   readonly x: Float64Array;
-  readonly observed: Uint8Array;
+  readonly observed: Uint8Array | null;
+  readonly ascending: boolean;
   readonly modes: State['modes'];
   readonly diagnostics: StreamDiagnostics;
 }
 
 function tail(
-  positions: Float64Array, series: readonly BatchSeries[], lastX: number,
-): { x: Float64Array; observed: Uint8Array } {
+  positions: Float64Array, series: readonly BatchSeries[], lastX: number, ascending: boolean,
+): { x: Float64Array; observed: Uint8Array | null } {
   let seen: Float64Array;
-  if (positions.length === 1) {
+  if (ascending) seen = positions;
+  else if (positions.length === 1) {
     seen = Number.isFinite(positions[0]) && positions[0]! > lastX ? positions : noPositions;
   } else {
     const distinct = new Float64Array(positions.length);
@@ -343,10 +367,7 @@ function tail(
     seen = distinct.subarray(0, length);
   }
   const x = mergeGaps(seen, series);
-  if (x === seen) {
-    const observed = x.length === 1 ? oneObservation : x.length ? new Uint8Array(x.length).fill(1) : noObservations;
-    return { x, observed };
-  }
+  if (x === seen) return { x, observed: null };
   const observed = new Uint8Array(x.length);
   let next = 0;
   for (let i = 0; i < x.length; i++) {
@@ -371,6 +392,7 @@ function extendSeries(
   const next = previous.fork();
   let unique: number[] | undefined;
   let repeated: number[] | undefined;
+  let consecutive = true;
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]!;
     const position = positions[row]!;
@@ -381,7 +403,7 @@ function extendSeries(
         series: label, position: axis.kind === 'category' ? JSON.stringify(state.parser.categoryName(position)) : positionName(axis, position),
       });
     } else {
-      next.extend(axis, position);
+      consecutive = next.extend(axis, position) && consecutive;
       unique?.push(row);
     }
   }
@@ -397,7 +419,7 @@ function extendSeries(
 
   const observed = unique ?? rows;
   let gapCount = 0;
-  if (newStep && !newSparse) {
+  if (newStep && !newSparse && !consecutive) {
     let last = previous.last;
     for (let i = 0; i < observed.length; i++) {
       const position = positions[observed[i]!]!;
@@ -490,7 +512,8 @@ class AlignedData {
     const state = this.state;
     // commitBatch replaces modes, votes and date units before trimming the draft.
     draft.state = {
-      ...state, parser: state.parser.fork(), buffers: state.buffers.fork(),
+      ...state, parser: state.parser.kind === 'category' || state.parser.kind === 'date' ? state.parser.fork() : state.parser,
+      buffers: state.buffers.fork(),
       observations: forkValues(state.observations),
       calendar: state.calendar?.fork() ?? null, diagnostics: state.diagnostics.fork(),
     };
@@ -523,7 +546,8 @@ class AlignedData {
     return { frame, state, x };
   }
 
-  #batch(table: Table, positions: Float64Array, axis: XColumn, lastX: number, diagnostics: StreamDiagnostics, allFinite: boolean): Batch | null {
+  #batch(table: Table, positions: Float64Array, axis: XColumn, lastX: number,
+    diagnostics: StreamDiagnostics, allFinite: boolean, ascending: boolean): Batch | null {
     const { state, fields } = this;
     const modes = new Map<string, ValueCounts>();
     for (const [k, v] of state.modes) modes.set(k, { decimal: v.decimal, other: v.other });
@@ -570,7 +594,8 @@ class AlignedData {
       }
     } else {
       let allRows: readonly number[];
-      if (table.length === 1) allRows = allFinite || Number.isFinite(positions[0]) ? firstRowOnly : noRows;
+      const dense = allFinite ? smallBatches[table.length] : undefined;
+      if (dense) allRows = dense;
       else {
         const validRows: number[] = [];
         for (let i = 0; i < table.length; i++) if (allFinite || Number.isFinite(positions[i])) validRows.push(i);
@@ -592,41 +617,41 @@ class AlignedData {
         reportGaps(diagnostics, xField, item.value.missing === 'zero', item.gaps, axis, this.#label(item.key), item.sparse, item.key);
       }
     }
-    const { x, observed } = tail(positions, series, lastX);
-    return { positions, axis, series, x, observed, modes, diagnostics };
+    const { x, observed } = tail(positions, series, lastX, ascending);
+    return { positions, axis, series, x, observed, ascending, modes, diagnostics };
   }
 
   #commitBatch(
     batch: Batch, rows: readonly unknown[], version: FrameVersion, dateUnits: State['dateUnits'], votes: State['votes'],
-  ): void {
+  ): boolean {
     const base = this.rows.next;
-    this.rows.append(rows);
-    for (let i = 0; i < batch.positions.length; i++) {
+    this.rows.appendPositions(rows, batch.positions, batch.ascending);
+    const { buffers, calendar } = this.state;
+    if (calendar) for (let i = 0; i < batch.positions.length; i++) {
       const position = batch.positions[i]!;
-      const row = base + i;
-      this.rows.record(position, row);
       if (!Number.isFinite(position)) continue;
-      this.state.calendar?.observe(position);
-      this.state.calendar?.record(row);
+      calendar.observe(position);
+      calendar.record(base + i);
     }
 
-    const { buffers } = this.state;
+    const length = batch.x.length;
+    const dense = batch.ascending && !batch.observed && this.fields.series === null &&
+      batch.series.length === buffers.series.size;
     const hasCompetingWrites = buffers.hasCompetingWrites;
-    const resized = buffers.reserve(batch.x.length);
+    const resized = buffers.reserve(length);
     const { end } = buffers;
     const lastX = end > buffers.start ? buffers.x[end - 1] : undefined;
     buffers.x.set(batch.x, end);
-    buffers.markObserved(batch.observed, end);
-    for (let i = 0; i < batch.observed.length; i++) buffers.distinct += batch.observed[i]!;
+    buffers.markObserved(batch.observed, end, length);
     const only = batch.series.length === 1 ? batch.series[0] : undefined;
-    const updates = batch.series.length > 1 ? new Map<string, BatchSeries>() : null;
+    const updates = !dense && batch.series.length > 1 ? new Map<string, BatchSeries>() : null;
     for (let s = 0; s < batch.series.length; s++) {
       const item = batch.series[s]!;
       updates?.set(item.key, item);
       let series = buffers.series.get(item.key);
       const zero = item.value.missing === 'zero';
       const first = item.rows[0];
-      const replacingLast = replacesLast(item, batch.positions, lastX);
+      const replacingLast = !batch.ascending && replacesLast(item, batch.positions, lastX);
       if (series && replacingLast && !resized) series = buffers.writeTail(series, hasCompetingWrites);
       if (!series) {
         series = buffers.addSeries({
@@ -645,9 +670,11 @@ class AlignedData {
       }
       window.cadence = item.cadence;
       for (let r = 0; r < item.rows.length; r++) window.add(batch.positions[item.rows[r]!]!);
+      if (dense) {
+        for (let r = 0; r < length; r++) writeObservation(buffers, series, end + r, item.values, r, base, zero);
+      }
     }
-    const length = batch.x.length;
-    for (const [key, series] of buffers.series) {
+    if (!dense) for (const [key, series] of buffers.series) {
       const item = only?.key === key ? only : updates?.get(key);
       const zero = (item?.value ?? valueFieldFor(this.fields.values, series.description.field))?.missing === 'zero';
       let next = replacesLast(item, batch.positions, lastX) ? 1 : 0;
@@ -672,6 +699,7 @@ class AlignedData {
     this.state.diagnostics.merge(batch.diagnostics);
     this.state = { ...this.state, axis: batch.axis, modes: batch.modes, dateUnits, votes };
     this.current = { ...this.current, ...version };
+    return dense;
   }
 
   currentDiagnostics(): readonly DiagnosticInput[] {
@@ -706,7 +734,7 @@ class AlignedData {
     return this.current;
   }
 
-  #evictObservation(key: string, window: Observations, position: number, first: number): boolean {
+  #evictObservation(key: string, window: Observations, position: number, first: number, writable: boolean): boolean {
     const { axis, buffers, diagnostics, observations } = this.state;
     if (window.first !== position) return false;
     window.evict();
@@ -732,7 +760,7 @@ class AlignedData {
     const oldSparse = before.sparse(oldAbsent);
     const delta = stepDelta(axis, position, next);
     const multiple = before.multiple(delta);
-    const after = before.evict(axis, window, delta, multiple);
+    const after = before.evict(axis, window, delta, multiple, writable);
     window.cadence = after;
     const currentStep = after.step;
     const newAbsent = after.absent(currentStep);
@@ -749,12 +777,12 @@ class AlignedData {
   /** History that reads x positions reads them from the window, never from a copy of its own. */
   #sharePositions(): void {
     const { buffers, observations } = this.state;
-    const window = buffers.x.subarray(buffers.start, buffers.end);
-    for (const history of observations.values()) history.share(window);
-    this.rows.shareSeed(window);
+    const { x, start, end } = buffers;
+    for (const history of observations.values()) history.share(x, start, end);
+    this.rows.shareSeed(x, start, end);
   }
 
-  #trim(keep: number): boolean {
+  #trim(keep: number, writable: boolean): boolean {
     const { axis, buffers, diagnostics, calendar, observations, modes, votes, parser, dateUnits } = this.state;
     if (keep >= buffers.distinct && !this.rows.hasUnplaced) return false;
     let update = false;
@@ -763,15 +791,12 @@ class AlignedData {
       if (counts.decimal && counts.other) (mixedModes ??= new Set()).add(field);
     }
     let categories = 0;
-    let remove = buffers.distinct - keep;
-    let first = buffers.start;
-    while (remove > 0 && first < buffers.end) remove -= Number(buffers.observed(first++));
-    while (first < buffers.end && !buffers.observed(first)) first++;
+    const first = buffers.retainedStart(keep);
     const firstX = buffers.x[first] ?? Infinity;
     const discard = (row: number, column: boolean, placed = true) => {
       diagnostics.evict(row, false);
       calendar?.evictRow(row);
-      const x = this.rows.read(row, this.fields.x.field);
+      const x = votes || dateUnits ? this.rows.read(row, this.fields.x.field) : undefined;
       if (votes && (this.fields.series === null || nameOf(this.rows.read(row, this.fields.series)) !== null)) {
         const kind = voteOf(x, column);
         if (kind) votes[kind]--;
@@ -784,24 +809,22 @@ class AlignedData {
       }
     };
     if (keep < buffers.distinct) {
-      buffers.trim(keep, (position, observed) => {
+      buffers.trim(first, (position, observed) => {
         diagnostics.evict(position, true);
         if (!observed) return;
         if (parser.kind === 'category') categories++;
         calendar?.evictPosition(position);
         for (const [key, window] of observations) {
-          update = this.#evictObservation(key, window, position, firstX) || update;
+          update = this.#evictObservation(key, window, position, firstX, writable) || update;
         }
         this.rows.evictRead(position, discard);
       });
       buffers.shrink();
-      this.#sharePositions();
     }
     if (buffers.distinct === 0) buffers.series.clear();
     if (this.rows.hasUnplaced) {
       this.rows.trimUnplacedRead(keep, firstX, buffers.distinct, (row, column) => discard(row, column, false));
     }
-    this.rows.compactColumns();
     if (categories) parser.evictCategories(categories);
     if (mixedModes) {
       for (const field of mixedModes) {
@@ -831,7 +854,7 @@ class AlignedData {
     const issues = new Reports(this.fields.x.field, diagnostics);
     let ordering: StreamDiagnostics | undefined;
     let order: Reports | undefined;
-    const table = rowsTable(rows);
+    const table = new AppendTable(rows);
     const fields = this.fields;
     if (!checkFields(table, this.named, diagnostics)) return this.#failAppend(rows.length, version, diagnostics.inputs(), sink);
 
@@ -842,13 +865,16 @@ class AlignedData {
     let needsUpdate = !fields.valid || this.state.overBudget || Boolean(inferred && inferred !== parser.kind);
     let highest = lastX;
     let allFinite = true;
+    let ascending = rows.length > 0;
     for (let i = 0; i < rows.length; i++) {
       const position = readPosition(parser, table, i, fields.series, fields.values.length, issues, dateUnits, this.rows.next);
       positions[i] = position;
       if (!Number.isFinite(position)) {
         allFinite = false;
+        ascending = false;
         continue;
       }
+      if (position <= highest) ascending = false;
       if (position < highest) {
         order ??= new Reports(fields.x.field, ordering = new StreamDiagnostics());
         order.add('AX151', 'none', this.rows.next + i);
@@ -860,9 +886,10 @@ class AlignedData {
     issues.flush(diagnostics);
     const axis = categoryCount === parser.categoryCount && dateUnit === parser.dateUnit
       ? this.state.axis : parser.column(noPositions, true);
-    let batch = needsUpdate ? null : this.#batch(table, positions, axis, lastX, diagnostics, allFinite);
+    let batch = needsUpdate ? null : this.#batch(table, positions, axis, lastX, diagnostics, allFinite, ascending);
     if (ordering) order?.flush(ordering);
     const orderInputs = ordering?.inputs();
+    let writableCadence = false;
     if (batch) {
       let count = buffers.series.size;
       for (let i = 0; i < batch.series.length; i++) if (!buffers.series.has(batch.series[i]!.key)) count++;
@@ -885,7 +912,7 @@ class AlignedData {
         parser.restore(categoryCount, dateUnit);
         throw error;
       }
-      this.#commitBatch(batch, rows, version, dateUnits, votes);
+      writableCadence = this.#commitBatch(batch, rows, version, dateUnits, votes);
     } else {
       parser.restore(categoryCount, dateUnit);
       const combined = this.rows.table(rows);
@@ -908,7 +935,7 @@ class AlignedData {
     }
 
     if (keep !== undefined) {
-      while (this.#trim(keep)) {
+      while (this.#trim(keep, writableCadence)) {
         const retained = this.rows.table();
         const { frame, state, x: read } = this.build(retained, version);
         this.rows.resetPositions(retained, read.positions);
@@ -919,6 +946,7 @@ class AlignedData {
     }
     // Growth may have moved the window to a new buffer: history must not pin the old one.
     this.#sharePositions();
+    if (keep !== undefined) this.rows.compactColumns(this.state.buffers.x.buffer);
     this.current = this.snapshot(this.current, skipSource);
     const findings = this.currentDiagnostics();
     this.latest = orderInputs?.length ? [...findings, ...orderInputs] : findings;
@@ -986,7 +1014,7 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     } finally {
       rowsDraft.trackEvictions = false;
     }
-    const evicted = rowsDraft.evicted ?? noRows;
+    const evicted = rowsDraft.evicted;
     rowsDraft.evicted = null;
     return this.#transaction(base, draft, call, evicted);
   }
@@ -1012,11 +1040,11 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     draft.current = draft.snapshot(built.frame, true);
     forwardDiagnostics(draft.currentDiagnostics(), call);
     draft.latest = call.inputs();
-    return this.#transaction(base, draft, call, [], replacement !== undefined);
+    return this.#transaction(base, draft, call, null, replacement !== undefined);
   }
 
   #transaction(
-    base: AlignedFrame, draft: AlignedData, call: DiagnosticCollector, evicted: readonly number[], replacement = false,
+    base: AlignedFrame, draft: AlignedData, call: DiagnosticCollector, evicted: number | readonly number[] | null, replacement = false,
   ): PreparedFrame<AlignedFrame> {
     const candidate = this.preview(base, draft.current, draft.rows, draft.latest, call.inputs(), () => {
       if (this.#writing) throw new Error('Cannot commit a data change during an append.');

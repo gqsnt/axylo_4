@@ -17,13 +17,10 @@ export interface TextLayer {
 
 interface Label {
   readonly el: HTMLDivElement;
-  align: string;
+  readonly role: PlacedText['role'];
+  placed: PlacedText | null;
   rx: number;
   ry: number;
-  rotate: number;
-  anchor: PlacedText['anchor'] | '';
-  baseline: PlacedText['baseline'] | '';
-  role: string;
   line0: HTMLDivElement | null;
   text0: string;
   lines: HTMLDivElement[] | null;
@@ -33,16 +30,19 @@ interface Label {
 const ALIGN = { start: 'left', middle: 'center', end: 'right' } as const;
 const SHIFT_X = { start: '0%', middle: '-50%', end: '-100%' } as const;
 const SHIFT_Y = { top: '0%', middle: '-50%', bottom: '-100%' } as const;
+const POSITION = 'position:absolute;left:0;top:0;transform-origin:0 0;white-space:pre;';
 
-/** Rounded to 1/100 px so that equal positions produce equal strings and skip the write. */
-const px = (v: number): string => `${Math.round(v * 100) / 100}px`;
+const round = (v: number): number => Math.round(v * 100) / 100;
 
-export function labelStyle(t: PlacedText): string {
+function transform(t: PlacedText, x: number, y: number): string {
   // Transforms apply right to left: move the anchor point of the text to the origin, rotate about it,
   // then move the origin to (x, y).
   const rotate = t.rotate !== 0 ? ` rotate(${t.rotate}deg)` : '';
-  return `position:absolute;left:0;top:0;transform-origin:0 0;white-space:pre;text-align:${ALIGN[t.anchor]};` +
-    `transform:translate(${px(t.x)},${px(t.y)})${rotate} translate(${SHIFT_X[t.anchor]},${SHIFT_Y[t.baseline]})`;
+  return `translate(${x}px,${y}px)${rotate} translate(${SHIFT_X[t.anchor]},${SHIFT_Y[t.baseline]})`;
+}
+
+export function labelStyle(t: PlacedText): string {
+  return `${POSITION}text-align:${ALIGN[t.anchor]};transform:${transform(t, round(t.x), round(t.y))}`;
 }
 
 function appendLine(doc: Document, label: HTMLDivElement): HTMLDivElement {
@@ -88,59 +88,98 @@ function renderLines(doc: Document, label: Label, text: readonly string[]): void
   }
 }
 
+function createLabel(doc: Document, role: PlacedText['role']): Label {
+  const el = doc.createElement('div');
+  el.className = 'axylo-label';
+  el.setAttribute('data-role', role);
+  el.style.cssText = POSITION;
+  return { el, role, placed: null, rx: NaN, ry: NaN, line0: null, text0: '', lines: null, text: null };
+}
+
+function renderLabel(doc: Document, label: Label, t: PlacedText): void {
+  const previous = label.placed;
+  if (previous === t) return;
+  if (previous?.anchor !== t.anchor) label.el.style.textAlign = ALIGN[t.anchor];
+  const rx = previous?.x === t.x ? label.rx : round(t.x);
+  const ry = previous?.y === t.y ? label.ry : round(t.y);
+  if (previous === null || label.rx !== rx || label.ry !== ry || previous.rotate !== t.rotate ||
+      previous.anchor !== t.anchor || previous.baseline !== t.baseline) {
+    label.rx = rx;
+    label.ry = ry;
+    label.el.style.transform = transform(t, rx, ry);
+  }
+  if (previous?.lines !== t.lines) renderLines(doc, label, t.lines);
+  label.placed = t;
+}
+
+function reconcileRoles(doc: Document, element: HTMLDivElement, labels: Label[], texts: readonly PlacedText[], start: number): void {
+  // Match in role order so an inserted tick cannot displace the labels of the other axis.
+  const before = labels[start]!.el.previousSibling;
+  const byRole = new Map<PlacedText['role'], Label[]>();
+  for (let i = labels.length - 1; i >= start; i--) {
+    const label = labels[i]!;
+    const group = byRole.get(label.role);
+    if (group) group.push(label);
+    else byRole.set(label.role, [label]);
+  }
+  labels.length = texts.length;
+  for (let i = start; i < texts.length; i++) {
+    const t = texts[i]!;
+    const label = byRole.get(t.role)?.pop() ?? createLabel(doc, t.role);
+    labels[i] = label;
+    renderLabel(doc, label, t);
+  }
+  for (const group of byRole.values()) for (const label of group) label.el.remove();
+
+  // The text layer can also contain the chart's font probe. Start where the managed labels started.
+  let next = before ? before.nextSibling : element.firstChild;
+  for (let i = start; i < labels.length; i++) {
+    const { el } = labels[i]!;
+    if (el === next) next = el.nextSibling;
+    else element.insertBefore(el, next);
+  }
+}
+
 export function createTextLayer(doc: Document = document): TextLayer {
   const element = doc.createElement('div');
   element.className = 'axylo-text';
   element.setAttribute('aria-hidden', 'true');
   const labels: Label[] = [];
+  let previous: readonly PlacedText[] | null = null;
 
   return {
     element,
     render(texts: readonly PlacedText[]): void {
-      let fresh: DocumentFragment | null = null;
-      for (let i = 0; i < texts.length; i++) {
+      if (texts === previous) return;
+      const common = Math.min(labels.length, texts.length);
+      for (let i = 0; i < common; i++) {
+        const label = labels[i]!;
         const t = texts[i]!;
-        let label = labels[i];
-        if (label === undefined) {
-          const el = doc.createElement('div');
-          el.className = 'axylo-label';
-          // Invariant positioning styles are set once on creation rather than re-parsed via cssText on every frame.
-          const st = el.style;
-          st.position = 'absolute';
-          st.left = '0';
-          st.top = '0';
-          st.transformOrigin = '0 0';
-          st.whiteSpace = 'pre';
-          label = {
-            el, align: '', rx: NaN, ry: NaN, rotate: NaN, anchor: '', baseline: '', role: '',
-            line0: null, text0: '', lines: null, text: null,
-          };
-          labels.push(label);
-          (fresh ??= doc.createDocumentFragment()).appendChild(el);
+        if (label.role !== t.role) {
+          reconcileRoles(doc, element, labels, texts, i);
+          previous = texts;
+          return;
         }
-        const align = ALIGN[t.anchor];
-        if (label.align !== align) { label.align = align; label.el.style.textAlign = align; }
-        const rx = Math.round(t.x * 100) / 100;
-        const ry = Math.round(t.y * 100) / 100;
-        if (label.rx !== rx || label.ry !== ry || label.rotate !== t.rotate || label.anchor !== t.anchor || label.baseline !== t.baseline) {
-          label.rx = rx;
-          label.ry = ry;
-          label.rotate = t.rotate;
-          label.anchor = t.anchor;
-          label.baseline = t.baseline;
-          const rotate = t.rotate !== 0 ? ` rotate(${t.rotate}deg)` : '';
-          label.el.style.transform = `translate(${rx}px,${ry}px)${rotate} translate(${SHIFT_X[t.anchor]},${SHIFT_Y[t.baseline]})`;
-        }
-        if (label.role !== t.role) { label.role = t.role; label.el.setAttribute('data-role', t.role); }
-        renderLines(doc, label, t.lines);
+        renderLabel(doc, label, t);
       }
-      for (let i = texts.length; i < labels.length; i++) labels[i]!.el.remove();
-      if (labels.length > texts.length) labels.length = texts.length;
-      if (fresh !== null) element.appendChild(fresh);
+      if (labels.length < texts.length) {
+        const fresh = doc.createDocumentFragment();
+        for (let i = labels.length; i < texts.length; i++) {
+          const t = texts[i]!;
+          const label = createLabel(doc, t.role);
+          renderLabel(doc, label, t);
+          labels.push(label);
+          fresh.appendChild(label.el);
+        }
+        element.appendChild(fresh);
+      }
+      while (labels.length > texts.length) labels.pop()!.el.remove();
+      previous = texts;
     },
     destroy(): void {
       element.remove();
       labels.length = 0;
+      previous = null;
     },
   };
 }

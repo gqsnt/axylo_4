@@ -18,35 +18,107 @@ function interpolate(lo: number, hi: number, fraction: number): number {
   return Number.isFinite(width) ? lo + width * fraction : lo * (1 - fraction) + hi * fraction;
 }
 
-function quartile(sorted: Samples, fraction: number): number {
-  const at = (sorted.length - 1) * fraction;
-  return interpolate(sorted[Math.floor(at)]!, sorted[Math.ceil(at)]!, at % 1);
+function below(a: number, b: number): boolean {
+  // Typed-array sort places negative zero before positive zero.
+  return a < b || (a === 0 && b === 0 && 1 / a < 1 / b);
 }
 
-function edgesFor(samples: Samples, bins: ResolvedOptions['bins']): Float64Array {
-  if (bins !== undefined && typeof bins !== 'number') return Float64Array.from(bins);
+function select(samples: Float64Array, rank: number, left: number, right: number): void {
+  while (right > left) {
+    if (right - left > 600) {
+      // Floyd–Rivest narrows the pivot search on large partitions.
+      const count = right - left + 1;
+      const offset = rank - left + 1;
+      const log = Math.log(count);
+      const size = 0.5 * Math.exp(2 * log / 3);
+      const shift = 0.5 * Math.sqrt(log * size * (count - size) / count) * Math.sign(offset - count / 2);
+      select(samples, rank, Math.max(left, Math.floor(rank - offset * size / count + shift)),
+        Math.min(right, Math.floor(rank + (count - offset) * size / count + shift)));
+    }
+    const pivot = samples[rank]!;
+    let i = left;
+    let j = right;
+    samples[rank] = samples[left]!;
+    samples[left] = pivot;
+    if (below(pivot, samples[right]!)) {
+      samples[left] = samples[right]!;
+      samples[right] = pivot;
+    }
+    while (i < j) {
+      const value = samples[i]!;
+      samples[i++] = samples[j]!;
+      samples[j--] = value;
+      while (below(samples[i]!, pivot)) i++;
+      while (below(pivot, samples[j]!)) j--;
+    }
+    if (Object.is(samples[left], pivot)) {
+      samples[left] = samples[j]!;
+      samples[j] = pivot;
+    } else {
+      j++;
+      samples[right] = samples[j]!;
+      samples[j] = pivot;
+    }
+    if (j <= rank) left = j + 1;
+    if (j >= rank) right = j - 1;
+  }
+}
+
+function quartile(samples: Float64Array, at: number, left: number): number {
+  const first = Math.floor(at), last = Math.ceil(at), right = samples.length - 1;
+  select(samples, first, left, right);
+  if (last > first) select(samples, last, last, right);
+  return interpolate(samples[first]!, samples[last]!, at % 1);
+}
+
+interface SampleExtent {
+  readonly low: number;
+  readonly high: number;
+  readonly count: number;
+}
+
+function sampleExtent(samples: Samples, borrowed = false, zero = false): SampleExtent | undefined {
   let low = Infinity;
   let high = -Infinity;
-  let n = 0;
-  for (let i = 0, len = samples.length; i < len; i++) {
+  let count = 0;
+  for (let i = 0, length = samples.length; i < length; i++) {
     const value = samples[i]!;
     if (value === value && value !== Infinity && value !== -Infinity) {
-      n++;
+      count++;
       if (value < low) low = value;
       else if (value === 0 && low === 0) low = Math.min(low, value);
       if (value > high) high = value;
       else if (value === 0 && high === 0) high = Math.max(high, value);
-    }
+    } else if (borrowed && (zero || value === value)) return;
   }
+  return { low, high, count };
+}
+
+function edgesFor(samples: Samples, bins: ResolvedOptions['bins'], extent: SampleExtent | undefined): Float64Array {
+  if (bins !== undefined && typeof bins !== 'number') return Float64Array.from(bins);
+  const { low, high, count: n } = extent ?? sampleExtent(samples)!;
   if (low > high) return new Float64Array();
   if (low === high) {
     const half = Math.max(0.5, Math.abs(low) * 0.05);
     return Float64Array.of(Math.max(-Number.MAX_VALUE, low - half), Math.min(Number.MAX_VALUE, high + half));
   }
   if (bins === undefined) {
-    // Sort a private double column so borrowed samples and their source indexes stay in order.
-    const finite = Float64Array.from(samples).sort().subarray(0, n);
-    const width = 2 * (quartile(finite, 0.75) - quartile(finite, 0.25)) / Math.cbrt(n);
+    // Partition a private, finite-only column so source rows stay in order.
+    let finite: Float64Array;
+    if (n === samples.length) {
+      finite = samples instanceof Float64Array ? samples.slice() : Float64Array.from(samples);
+    } else {
+      finite = new Float64Array(n);
+      let next = 0;
+      for (let i = 0; i < samples.length; i++) {
+        const value = samples[i]!;
+        if (Number.isFinite(value)) finite[next++] = value;
+      }
+    }
+    const first = (n - 1) * 0.25;
+    const q1 = quartile(finite, first, 0);
+    const q3 = quartile(finite, (n - 1) * 0.75, Math.ceil(first));
+    const width = 2 * (q3 - q1) / Math.cbrt(n);
     const wanted = width > 0 && Number.isFinite(width) ? (high - low) / width : Math.log2(n) + 1;
     bins = Math.min(100, Math.max(1, Math.ceil(wanted)));
     let step = niceStepAtLeast(high / bins - low / bins);
@@ -73,39 +145,45 @@ function edgesFor(samples: Samples, bins: ResolvedOptions['bins']): Float64Array
   return edges.subarray(0, end);
 }
 
-function uniformBin(edges: Float64Array, value: number, lo: number, hi: number, inverseSpan: number): number {
-  if (value < lo || value > hi) return -1;
-  const last = edges.length - 2;
-  // A subnormal span can have an infinite reciprocal even when the fraction is well defined.
-  const fraction = Number.isFinite(inverseSpan) ? (value - lo) * inverseSpan : (value - lo) / (hi - lo);
-  const bin = Math.max(0, Math.min(last, Math.floor(fraction * (last + 1))));
-  if (value < edges[bin]!) {
-    if (value >= edges[bin - 1]!) return bin - 1;
-  } else if (bin < last && value >= edges[bin + 1]!) {
-    if (bin + 1 === last || value < edges[bin + 2]!) return bin + 1;
-  } else return bin;
-  // edgesFor drops repeated rounded edges. The remaining widths can differ by more than one bin.
-  return binIndex(edges, value);
-}
-
-function histogramFrame(options: ResolvedOptions, samples: Samples, sink: DiagnosticSink, version: FrameVersion): AlignedFrame {
-  const { x, table, normalize } = options;
-  let edges = edgesFor(samples, options.bins);
+function histogramFrame(options: ResolvedOptions, samples: Samples, sink: DiagnosticSink, version: FrameVersion, extent?: SampleExtent): AlignedFrame {
+  const { x, table, normalize, bins } = options;
+  const derived = bins === undefined || typeof bins === 'number';
+  if (derived) extent ??= sampleExtent(samples);
+  let edges = edgesFor(samples, bins, extent);
   let y = new Float64Array(Math.max(0, edges.length - 1));
   let total = 0;
-  const reports = new Reports(x.field, sink);
   const lo = edges[0]!, hi = edges[edges.length - 1]!;
   const span = hi - lo;
-  const uniform = typeof options.bins === 'number' && edges.length >= 2 && Number.isFinite(span) && span > 0;
-  const inverseSpan = 1 / span;
-  for (let i = 0; i < samples.length; i++) {
-    const value = samples[i]!;
-    if (!Number.isFinite(value)) continue;
-    const bin = uniform ? uniformBin(edges, value, lo, hi, inverseSpan) : binIndex(edges, value);
-    if (bin < 0) reports.add('AX106', 'omitted', table.rowIndex(i), value);
-    else { y[bin]!++; total++; }
+  const count = edges.length - 1;
+  const scale = count * (1 / span);
+  if (extent && extent.low >= lo && extent.high <= hi && scale > 0 && Number.isFinite(scale)) {
+    // The outer edges come from these samples. Check the actual inner edges to repair rounding.
+    const last = count - 1;
+    const finite = extent.count === samples.length;
+    for (let i = 0, length = samples.length; i < length; i++) {
+      const value = samples[i]!;
+      if (!finite && !(value === value && value !== Infinity && value !== -Infinity)) continue;
+      let bin = Math.min(last, Math.floor((value - lo) * scale));
+      if (value < edges[bin]!) {
+        bin = value >= edges[bin - 1]! ? bin - 1 : binIndex(edges, value);
+      } else if (bin < last && value >= edges[bin + 1]!) {
+        // Repeated rounded boundaries can be dropped, so the estimate may miss by several bins.
+        bin = bin + 1 === last || value < edges[bin + 2]! ? bin + 1 : binIndex(edges, value);
+      }
+      y[bin]!++;
+    }
+    total = extent.count;
+  } else {
+    const reports = new Reports(x.field, sink);
+    for (let i = 0; i < samples.length; i++) {
+      const value = samples[i]!;
+      if (!Number.isFinite(value)) continue;
+      const bin = binIndex(edges, value);
+      if (bin < 0) reports.add('AX106', 'omitted', table.rowIndex(i), value);
+      else { y[bin]!++; total++; }
+    }
+    reports.flush(sink);
   }
-  reports.flush(sink);
   if (!total) { edges = new Float64Array(); y = new Float64Array(); }
   const values = new Float64Array(y.length);
   const slot = new Uint8Array(y.length);
@@ -142,6 +220,15 @@ function samplesOf(options: ResolvedOptions, sink: DiagnosticSink): Samples {
 }
 
 export function normalizeHistogram(_kind: string, options: ResolvedOptions, _env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): AlignedFrame {
+  if (options.valid && (options.bins === undefined || typeof options.bins === 'number')) {
+    const sample = options.sample!;
+    const column = options.table.columns?.[sample.field];
+    if (column instanceof Float64Array || column instanceof Float32Array) {
+      // Collect bounds while checking for values that need diagnostics or zero imputation.
+      const extent = sampleExtent(column, true, sample.missing === 'zero');
+      if (extent) return histogramFrame(options, column, sink, version, extent);
+    }
+  }
   return histogramFrame(options, samplesOf(options, sink), sink, version);
 }
 

@@ -109,9 +109,17 @@ export class FrameBuffers {
   }
 
   /** Records the observed flags of slots written from `index`. Call after `reserve`. */
-  markObserved(flags: Uint8Array, index: number): void {
+  markObserved(flags: Uint8Array | null, index: number, length: number): void {
+    if (!flags) {
+      this.observedFlags?.fill(1, index, index + length);
+      this.distinct += length;
+      return;
+    }
+    let observed = 0;
+    for (let i = 0; i < flags.length; i++) observed += flags[i]!;
+    this.distinct += observed;
     if (!this.observedFlags) {
-      if (flags.every(flag => flag === 1)) return;
+      if (observed === length) return;
       this.observedFlags = new Uint8Array(this.x.length).fill(1, this.start, index);
     }
     this.observedFlags.set(flags, index);
@@ -199,9 +207,17 @@ export class FrameBuffers {
     return series;
   }
 
-  trim(keep: number | undefined, evict: (x: number, observed: boolean) => void): void {
-    if (keep === undefined || keep >= this.distinct) return;
-    while (this.start < this.end && (this.distinct > keep || !this.observed(this.start))) {
+  retainedStart(keep: number): number {
+    let remove = this.distinct - keep;
+    if (!this.observedFlags) return this.start + Math.max(0, remove);
+    let first = this.start;
+    while (remove > 0) remove -= this.observedFlags[first++]!;
+    while (first < this.end && !this.observedFlags[first]) first++;
+    return first;
+  }
+
+  trim(first: number, evict: (x: number, observed: boolean) => void): void {
+    while (this.start < first) {
       const observed = this.observed(this.start);
       if (observed) this.distinct--;
       evict(this.x[this.start]!, observed);

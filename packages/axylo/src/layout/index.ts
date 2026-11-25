@@ -3,7 +3,7 @@ import type {
   TextMeasurer, TextStyle, TickCandidates, XScale,
 } from '../core/contracts';
 import { fitBottom, fitLeftCategories, fitValue, messageLines, placeText, prepareLabels, wrapText } from './labels';
-import type { FittedLabels, Metrics } from './labels';
+import type { FittedLabels, Metrics, PreparedLabels } from './labels';
 import { placeReferences } from './references';
 
 type Span = readonly [number, number];
@@ -106,14 +106,16 @@ function tooSmall(size: Size): Layout {
   return { ...size, kind: 'too-small' };
 }
 
-function metrics(input: TextInput): Metrics {
-  const widths = new Map<string, number>();
+function metrics(input: TextInput, shared?: Map<string, number>): Metrics {
+  const widths = shared ?? new Map<string, number>();
   return {
     lineHeight: input.style.lineHeight,
     width(text) {
       const cached = widths.get(text);
       if (cached !== undefined) return cached;
       const width = input.measurer.width(text, input.style);
+      // A streaming axis can introduce a different label at every step.
+      if (shared && widths.size >= 512) widths.clear();
       widths.set(text, width);
       return width;
     },
@@ -142,6 +144,20 @@ function hiddenCategories(axis: Axes['x'], fit: FittedLabels): number {
 /** Whether a fitted axis kept no whole candidate set (F7). */
 type AxisFit = Partial<Record<'x' | 'y', boolean>>;
 
+let allSets: WeakMap<TickCandidates, PreparedLabels> | undefined;
+let firstSet: WeakMap<TickCandidates, PreparedLabels> | undefined;
+
+function axisLabels(candidates: TickCandidates, firstOnly: boolean): PreparedLabels {
+  const limited = firstOnly && candidates.length > 1;
+  const cache = limited ? (firstSet ??= new WeakMap()) : (allSets ??= new WeakMap());
+  let prepared = cache.get(candidates);
+  if (!prepared) {
+    prepared = prepareLabels(candidates, limited ? 1 : candidates.length);
+    cache.set(candidates, prepared);
+  }
+  return prepared;
+}
+
 function titleLines(title: string | undefined, span: number, text: Metrics): string[] | null {
   const lines = title ? wrapText(title, span, text) : [];
   return lines.some(line => text.width(line) > span) ? null : lines;
@@ -155,10 +171,10 @@ function layoutAxes(
   const horizontal = input.kind === 'bands' && input.horizontal;
   const leftAxis = horizontal ? input.x : input.y;
   const bottomAxis = horizontal ? input.y : input.x;
-  const leftCandidates = horizontal ? leftAxis.candidates.slice(0, 1) : leftAxis.candidates;
-  const bottomCandidates = horizontal || bottomAxis.mayThin ? bottomAxis.candidates : bottomAxis.candidates.slice(0, 1);
-  const leftLabels = showTicks ? prepareLabels(leftCandidates) : undefined;
-  const bottomLabels = showTicks ? prepareLabels(bottomCandidates) : undefined;
+  const leftCandidates = leftAxis.candidates;
+  const bottomCandidates = bottomAxis.candidates;
+  const leftLabels = showTicks ? axisLabels(leftCandidates, horizontal) : undefined;
+  const bottomLabels = showTicks ? axisLabels(bottomCandidates, !horizontal && !bottomAxis.mayThin) : undefined;
   const leftRole = horizontal ? 'tick-x' : 'tick-y';
   const bottomRole = horizontal ? 'tick-y' : 'tick-x';
   const clearance = leftLabels?.sets.some(ticks => ticks.length > 0) ? text.lineHeight / 2 : 0;
@@ -234,7 +250,7 @@ function layoutAxes(
   }
 }
 
-export function computeLayout(input: LayoutInput): Layout {
+export function computeLayout(input: LayoutInput, widths?: Map<string, number>): Layout {
   const { width, height } = input;
   const size = { width, height };
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return { ...size, kind: 'unmeasured' };
@@ -257,7 +273,7 @@ export function computeLayout(input: LayoutInput): Layout {
     return { ...size, kind: 'plot', plot, projection: ring(plot), xTicks: [], yTicks: [], texts: [], fit: { x: UNCHANGED, y: UNCHANGED } };
   }
   if (width < MIN_WIDTH + 2 * INSET || height < MIN_HEIGHT + 2 * INSET) return tooSmall(size);
-  const text = metrics(input);
+  const text = metrics(input, widths);
   const fit: AxisFit = {};
   let layout = layoutAxes(input, size, text, true, fit);
   // Titles may need the space otherwise reserved for ticks at the ends of the left axis.

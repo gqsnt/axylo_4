@@ -169,6 +169,12 @@ export function interpolated(x: Float64Array, edge: number, left: number, right:
 const BLOCK = 256;
 const SUMMARY_THRESHOLD = 16 * BLOCK;
 type AlignedSeries = AlignedFrame['series'][number];
+interface Statistics {
+  readonly min: number;
+  readonly max: number;
+  readonly last: number;
+}
+
 interface BlockSummary {
   readonly min: Float64Array;
   readonly max: Float64Array;
@@ -176,12 +182,16 @@ interface BlockSummary {
   readonly zeros: Uint8Array;
 }
 
+interface SeriesStatistics {
+  blocks?: BlockSummary;
+  full?: Statistics;
+  signed?: Statistics;
+}
+
 // Published series are immutable. Updates and appends publish new series, even when they share a buffer.
-const summaries = new WeakMap<AlignedSeries, BlockSummary>();
+const summaries = new WeakMap<AlignedSeries, SeriesStatistics>();
 
 function summarize(series: AlignedSeries): BlockSummary {
-  const cached = summaries.get(series);
-  if (cached) return cached;
   const { slot, y } = series;
   const blocks = Math.ceil(slot.length / BLOCK);
   const min = new Float64Array(blocks);
@@ -197,7 +207,7 @@ function summarize(series: AlignedSeries): BlockSummary {
     for (let i = block * BLOCK; i < end; i++) {
       if (slot[i] !== SLOT_VALUE) continue;
       const value = y[i]!;
-      if (!Number.isFinite(value)) continue;
+      if (!(value > -Infinity && value < Infinity)) continue;
       if (value < low) low = value;
       if (value > high) high = value;
       if (value === 0) signs |= Object.is(value, -0) ? 1 : 2;
@@ -208,14 +218,28 @@ function summarize(series: AlignedSeries): BlockSummary {
     last[block] = final;
     zeros[block] = signs;
   }
-  const summary = { min, max, last, zeros };
-  summaries.set(series, summary);
-  return summary;
+  return { min, max, last, zeros };
 }
 
-export function alignedStatistics(series: AlignedSeries, start: number, end: number, signedExtrema = false) {
+function withSignedZeros(min: number, max: number, last: number, zeros: number): Statistics {
+  // The reader keeps the first value on ties, while Math.min/Math.max order signed zeros.
+  if (min === 0 && (zeros & 1)) min = -0;
+  if (max === 0 && (zeros & 2)) max = 0;
+  return { min, max, last };
+}
+
+export function alignedStatistics(series: AlignedSeries, start: number, end: number, signedExtrema = false): Statistics {
   const { slot, y } = series;
-  const summary = end - start >= SUMMARY_THRESHOLD ? summarize(series) : undefined;
+  const size = end - start;
+  const full = size >= SUMMARY_THRESHOLD && start === 0 && end === slot.length;
+  let cached = size >= BLOCK ? summaries.get(series) : undefined;
+  if (full && cached?.full) return signedExtrema ? cached.signed! : cached.full;
+  // The reader can share the first full scan. Block indexes only pay off for partial views.
+  if (!full && size >= SUMMARY_THRESHOLD && size >= slot.length / 4 && !cached?.blocks) {
+    if (!cached) summaries.set(series, cached = {});
+    cached.blocks = summarize(series);
+  }
+  const summary = cached?.blocks;
   let min = Infinity;
   let max = -Infinity;
   let last = NaN;
@@ -229,25 +253,27 @@ export function alignedStatistics(series: AlignedSeries, start: number, end: num
       if (low < min) min = low;
       if (high > max) max = high;
       if (final >= 0) last = y[final]!;
-      zeros |= summary.zeros[block]!;
+      if (full || signedExtrema) zeros |= summary.zeros[block]!;
       i += BLOCK;
     } else {
       const index = i++;
       if (slot[index] !== SLOT_VALUE) continue;
       const value = y[index]!;
-      if (!Number.isFinite(value)) continue;
+      if (!(value > -Infinity && value < Infinity)) continue;
       if (value < min) min = value;
       if (value > max) max = value;
-      if (signedExtrema && value === 0) zeros |= Object.is(value, -0) ? 1 : 2;
+      if ((full || signedExtrema) && value === 0) zeros |= Object.is(value, -0) ? 1 : 2;
       last = value;
     }
   }
-  // The reader keeps the first value on ties, while Math.min/Math.max order signed zeros.
-  if (signedExtrema) {
-    if (min === 0 && (zeros & 1)) min = -0;
-    if (max === 0 && (zeros & 2)) max = 0;
+  const stats = { min, max, last };
+  const signed = zeros ? withSignedZeros(min, max, last, zeros) : stats;
+  if (full) {
+    if (!cached) summaries.set(series, cached = {});
+    cached.full = stats;
+    cached.signed = signed;
   }
-  return { min, max, last };
+  return signedExtrema ? signed : stats;
 }
 
 export function alignedExtrema(
@@ -312,7 +338,11 @@ export function pointExtrema(frame: PointFrame, visible: readonly boolean[], ran
     const { start, end } = ranges[i]!;
     for (let j = start; j < end; j++) {
       const v = y[j]!;
-      if (Number.isFinite(v)) { min = Math.min(min, v); max = Math.max(max, v); }
+      if (!(v > -Infinity && v < Infinity)) continue;
+      if (v < min) min = v;
+      else if (v === 0 && min === 0) min = Math.min(min, v);
+      if (v > max) max = v;
+      else if (v === 0 && max === 0) max = Math.max(max, v);
     }
   }
   return [min, max];

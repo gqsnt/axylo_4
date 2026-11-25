@@ -33,6 +33,7 @@ export interface XData {
   readonly positions: Float64Array;
   readonly order: Int32Array | null;
   readonly dateUnits: Record<DateUnit, number> | null;
+  readonly ties?: boolean;
 }
 
 /** Read a position once, retaining the caller's row number for diagnostics on static and appended data. */
@@ -58,6 +59,8 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
   let positions = input instanceof Float64Array && (kind === 'number' || kind === 'time')
     ? input : new Float64Array(table.length);
   let ascending = true;
+  let ties = false;
+  const scatter = type === 'scatter';
   let last = -Infinity;
   let i = 0;
   const epoch = x.type === 'time';
@@ -69,7 +72,11 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
     for (; i < table.length; i++) {
       const value = input[i]!;
       const abs = Math.abs(value);
-      if (!(value > last && abs <= limit) || abs >= hintStart && abs < hintEnd) break;
+      if (!(abs <= limit) || abs >= hintStart && abs < hintEnd) break;
+      if (!(value > last)) {
+        if (!scatter || value !== last) break;
+        ties = true;
+      }
       last = value;
     }
   }
@@ -78,21 +85,21 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
     const value = readPosition(parser, table, i, options.series, options.values.length, reports, dateUnits, 0, input);
     if (positions === input && !Object.is(positions[i], value)) positions = positions.slice();
     if (positions !== input) positions[i] = value;
-    if (!Number.isFinite(value)) {
-      ascending = false;
-      continue;
+    if (!Number.isFinite(value)) continue;
+    if (!(value > last)) {
+      if (scatter && value === last) ties = true;
+      else ascending = false;
     }
-    if (!(value > last)) ascending = false;
     last = value;
     valid++;
   }
   reports.flush(sink);
-  if (ascending) return { parser, positions, order: null, dateUnits };
+  if (ascending && valid === table.length) return { parser, positions, order: null, dateUnits, ties };
 
   const order = new Int32Array(valid);
   let next = 0;
   for (let i = 0; i < positions.length; i++) if (Number.isFinite(positions[i])) order[next++] = i;
-  order.sort((a, b) => positions[a]! - positions[b]!);
+  if (!ascending) order.sort((a, b) => positions[a]! - positions[b]!);
   return { parser, positions, order, dateUnits };
 }
 
@@ -189,6 +196,15 @@ interface AlignedGroup {
   readonly sparse?: number;
 }
 
+function sameStep(positions: Float64Array): boolean {
+  if (positions.length < 3) return true;
+  const step = positions[1]! - positions[0]!;
+  for (let i = 2; i < positions.length; i++) {
+    if (positions[i]! - positions[i - 1]! !== step) return false;
+  }
+  return true;
+}
+
 function alignGroup(group: Group, x: XData, axis: XColumn, field: string, table: Table, sink: DiagnosticSink, grid?: AlignedGroup): AlignedGroup {
   const { positions } = x;
   let order = group.order;
@@ -216,6 +232,10 @@ function alignGroup(group: Group, x: XData, axis: XColumn, field: string, table:
     order = kept.subarray(0, distinct);
   }
   if (grid) return { group, order, drawable, gaps: grid.gaps, sparse: grid.sparse };
+  // Category axes have no inferred steps. Numeric, instant and wall-clock steps depend only on deltas.
+  if (!order && (axis.kind === 'category' || axis.kind !== 'date' && sameStep(positions))) {
+    return { group, order, drawable, gaps: null };
+  }
   let sparse: number | undefined;
   const gaps = inferGaps(axis, order?.length ?? positions.length, i => positions[order?.[i] ?? i]!,
     (gap, a, b, step) => snapGap(gap, a, b, step, x.order?.length ?? positions.length, i => positions[x.order?.[i] ?? i]!),
@@ -282,7 +302,7 @@ function alignedSeries(aligned: AlignedGroup, axis: XColumn, x: XData, table: Ta
 
   if (order === null && axis.values === x.positions) {
     let row = table.columns ? null : sourceRows(table);
-    if (zero) {
+    if (zero && !values.allValid) {
       for (let i = 0; i < values.slot.length; i++) {
         if (values.slot[i] !== SLOT_NULL && values.slot[i] !== SLOT_ABSENT_FIELD) continue;
         row ??= sourceRows(table);
@@ -372,22 +392,48 @@ export function alignedFrame(
   return { ...frame, x: column, length: positions.length, series };
 }
 
+function orderedTies(x: Float64Array, y: Values['y']): boolean {
+  for (let i = 1; i < x.length; i++) {
+    if (x[i] === x[i - 1] && y[i]! < y[i - 1]!) return false;
+  }
+  return true;
+}
+
+function sortTies(rows: Int32Array, x: Float64Array, y: Values['y']): void {
+  const compare = (a: number, b: number) => y[a]! - y[b]!;
+  for (let start = 0; start < rows.length;) {
+    const position = x[rows[start]!]!;
+    let descending = false;
+    let end = start + 1;
+    for (; end < rows.length && x[rows[end]!] === position; end++) {
+      descending ||= y[rows[end]!]! < y[rows[end - 1]!]!;
+    }
+    if (descending) rows.subarray(start, end).sort(compare);
+    start = end;
+  }
+}
+
 export function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticSink, version: FrameVersion): PointFrame {
   const { table } = options;
   const value = options.values[0]!;
   const included = x.order === null ? undefined : (row: number) => Number.isFinite(x.positions[row]);
   const members = groups(options, x, sink);
-  const values = readValues(table, value, sink, true, 0, undefined, included, 'The affected points are not drawn.');
-  if (value.missing === 'zero') {
+  const values = readValues(table, value, sink, true, 0, undefined, included, 'The affected points are not drawn.', undefined, false);
+  let allValid = values.allValid;
+  if (value.missing === 'zero' && !allValid) {
+    allValid = !included;
     for (let row = 0; row < values.slot.length; row++) {
-      if (values.slot[row] === SLOT_NULL || values.slot[row] === SLOT_ABSENT_FIELD) values.slot[row] = SLOT_VALUE;
+      const state = values.slot[row];
+      if (state === SLOT_NULL || state === SLOT_ABSENT_FIELD) values.slot[row] = SLOT_VALUE;
+      else if (state !== SLOT_VALUE) allValid = false;
     }
   }
   const series = members.map(group => {
     const length = group.order?.length ?? x.positions.length;
-    if (!group.order && values.y instanceof Float64Array && values.slot.every(slot => slot === SLOT_VALUE)) {
+    if (!group.order && allValid && (!x.ties || orderedTies(x.positions, values.y))) {
       return {
-        key: group.key, label: group.label, drawable: true, x: x.positions, y: values.y,
+        key: group.key, label: group.label, drawable: true, x: x.positions,
+        y: values.y instanceof Float64Array ? values.y : new Float64Array(values.y),
         row: table.columns ? null : sourceRows(table),
       };
     }
@@ -396,7 +442,7 @@ export function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticS
     let missingStart = length;
     for (let i = 0; i < length; i++) {
       const row = group.order?.[i] ?? i;
-      if (values.slot[row] === SLOT_VALUE) rows[next++] = row;
+      if (allValid || values.slot[row] === SLOT_VALUE) rows[next++] = row;
       else rows[--missingStart] = row;
     }
     // The reader still needs each valid x when a diagnostic kept its y out of the plot.
@@ -410,10 +456,17 @@ export function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticS
       missingRow![i] = table.rowIndex(row);
     }
     const kept = rows.subarray(0, next);
-    kept.sort((a, b) => x.positions[a]! - x.positions[b]! || values.y[a]! - values.y[b]!);
+    if (group.order || x.ties) sortTies(kept, x.positions, values.y);
+    const xs = new Float64Array(next), ys = new Float64Array(next), provenance = new Int32Array(next);
+    for (let i = 0; i < next; i++) {
+      const row = kept[i]!;
+      xs[i] = x.positions[row]!;
+      ys[i] = values.y[row]!;
+      provenance[i] = table.rowIndex(row);
+    }
     return {
       key: group.key, label: group.label, drawable: true, missingX, missingRow,
-      x: Float64Array.from(kept, row => x.positions[row]!), y: Float64Array.from(kept, row => values.y[row]!), row: Int32Array.from(kept, table.rowIndex),
+      x: xs, y: ys, row: provenance,
     };
   });
 

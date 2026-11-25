@@ -3,16 +3,21 @@ import { DiagnosticCollector } from '../diagnostics';
 import type { FrameVersion } from './normalize';
 import { resolveTable, type ResolvedOptions } from './options';
 
-/** Whether the first slots of `window` hold `prefix` from `start` on (checked at both ends). */
-export function sameRemainder(prefix: Float64Array, start: number, window: Float64Array): boolean {
-  const remaining = prefix.length - start;
-  return remaining > 0 && remaining <= window.length &&
-    window[0] === prefix[start] && window[remaining - 1] === prefix[prefix.length - 1];
-}
 import { once, type PreparedFrame } from './transaction';
 import { lowerBound } from './search';
 import { StoreMap } from './store-map';
 import { columnsTable, rowValue, type Columns, type Table } from './table';
+
+/** Share a matching window. A prefix already on that backing keeps its existing cursor. */
+export function shareRemainder(
+  prefix: Float64Array, offset: number, x: Float64Array, start: number, end: number,
+): Float64Array | null {
+  const remaining = prefix.length - offset;
+  if (remaining <= 0 || remaining > end - start) return null;
+  if (prefix.buffer === x.buffer && prefix.byteOffset + offset * 8 === x.byteOffset + start * 8) return prefix;
+  return x[start] === prefix[offset] && x[start + remaining - 1] === prefix[prefix.length - 1]
+    ? x.subarray(start, start + remaining) : null;
+}
 
 /** The left edge of the newest distinct positions. An undersized window has no lower bound. */
 export function retentionStart({ positions, order }: { positions: Float64Array; order: Int32Array | null }, keep: number): number {
@@ -37,8 +42,10 @@ const blockSize = 256;
 
 interface ColumnBlock {
   readonly table: Table;
-  // An untouched block has implicit row indexes. Only a sparse block needs a mask.
-  readonly present: bigint | null;
+  readonly start: number;
+  readonly end: number;
+  // Only a block with holes needs an explicit index.
+  readonly present: readonly number[] | null;
   readonly borrowed: boolean;
 }
 
@@ -49,8 +56,18 @@ function getEmptyColumns(): StoreMap<number, ColumnBlock> {
 }
 
 function blockIndex(row: number): number { return Math.floor(row / blockSize); }
-function rowBit(row: number): bigint { return 1n << BigInt(row % blockSize); }
-function fullBlock(length: number): bigint { return (1n << BigInt(length)) - 1n; }
+function offsetBit(offset: number): number { return 1 << (offset & 31); }
+
+function hasOffset(mask: readonly number[], offset: number): boolean {
+  return (mask[offset >>> 5]! & offsetBit(offset)) !== 0;
+}
+
+function blockMask(block: ColumnBlock, start: number): number[] {
+  if (block.present) return block.present.slice();
+  const mask = new Array<number>(blockSize / 32).fill(0);
+  for (let offset = start; offset < block.end; offset++) mask[offset >>> 5]! |= offsetBit(offset);
+  return mask;
+}
 
 function typedColumn(column: ArrayLike<unknown>): boolean {
   return ArrayBuffer.isView(column) && 'BYTES_PER_ELEMENT' in column;
@@ -68,6 +85,9 @@ export class RawRows {
   #references: Map<string, StoreMap<number, object>> | null;
   #columnCount: number;
   #borrowedSize: number;
+  // Keep the advancing edge on the draft itself so it can share its block with the base.
+  #headIndex = -1;
+  #headOffset = 0;
 
   constructor(
     objects = new StoreMap<number, unknown>(),
@@ -84,13 +104,16 @@ export class RawRows {
   }
 
   fork(): RawRows {
-    return new RawRows(
+    const draft = new RawRows(
       this.#objects.fork(),
       this.#columnCount > 0 ? this.columns.fork() : getEmptyColumns(),
       this.#references?.size ? forkValues(this.#references) : null,
       this.#columnCount,
       this.#borrowedSize,
     );
+    draft.#headIndex = this.#headIndex;
+    draft.#headOffset = this.#headOffset;
+    return draft;
   }
 
   commit(): void {
@@ -117,7 +140,7 @@ export class RawRows {
     for (let start = 0; start < table.length; start += blockSize) {
       const end = Math.min(start + blockSize, table.length);
       const block: Columns = Object.fromEntries(keys.map(key => [key, this.#columnSlice(columns[key]!, key, start, end)]));
-      this.columns.set(blockIndex(start), { table: columnsTable(block, end - start), present: null, borrowed });
+      this.columns.set(blockIndex(start), { table: columnsTable(block, end - start), start: 0, end: end - start, present: null, borrowed });
     }
   }
 
@@ -153,9 +176,25 @@ export class RawRows {
 
   #column(row: number): ColumnBlock | undefined {
     if (this.#columnCount === 0) return undefined;
-    const block = this.columns.get(blockIndex(row));
-    if (block && (block.present === null ? row % blockSize < block.table.length : (block.present & rowBit(row)) !== 0n)) return block;
+    const index = blockIndex(row);
+    const block = this.columns.get(index);
+    const offset = row % blockSize;
+    if (block && offset >= this.#blockStart(index, block) && offset < block.end &&
+      (!block.present || hasOffset(block.present, offset))) return block;
     return undefined;
+  }
+
+  #blockStart(index: number, block: ColumnBlock): number {
+    return index === this.#headIndex ? this.#headOffset : block.start;
+  }
+
+  #rememberHead(index: number, offset: number): void {
+    if (this.#headIndex !== index) {
+      const previous = this.columns.get(this.#headIndex);
+      if (previous) this.columns.set(this.#headIndex, { ...previous, start: this.#headOffset });
+      this.#headIndex = index;
+    }
+    this.#headOffset = offset;
   }
 
   #reference(field: string, row: number, value: object): void {
@@ -171,8 +210,18 @@ export class RawRows {
     if (block) {
       if (target.columns === sharedEmptyColumns) target.columns = new StoreMap();
       const index = blockIndex(row);
+      const offset = row % blockSize;
       const archived = target.columns.get(index);
-      target.columns.set(index, { ...(archived ?? this.#own(block)), present: (archived?.present ?? 0n) | rowBit(row) });
+      if (!archived) {
+        target.columns.set(index, { ...this.#own(block), start: offset, end: offset + 1, present: null });
+      } else if (!target.#column(row)) {
+        const start = target.#blockStart(index, archived);
+        const adjacent = !archived.present && (offset === start - 1 || offset === archived.end);
+        const present = adjacent ? null : blockMask(archived, start);
+        if (present) present[offset >>> 5]! |= offsetBit(offset);
+        if (target.#headIndex === index) target.#headIndex = -1;
+        target.columns.set(index, { ...archived, start: Math.min(start, offset), end: Math.max(archived.end, offset + 1), present });
+      } else return true;
       target.#columnCount++;
       if (this.#references) {
         for (const [field, entries] of this.#references) {
@@ -191,9 +240,27 @@ export class RawRows {
     const block = this.#column(row);
     if (block) {
       const index = blockIndex(row);
-      const present = (block.present ?? fullBlock(block.table.length)) & ~rowBit(row);
-      if (present) this.columns.set(index, { ...block, present });
-      else this.columns.delete(index);
+      const offset = row % blockSize;
+      const start = this.#blockStart(index, block);
+      if (start + 1 === block.end) {
+        this.columns.delete(index);
+        if (this.#headIndex === index) this.#headIndex = -1;
+      } else if (!block.present && offset === start) this.#rememberHead(index, offset + 1);
+      else {
+        let first = start;
+        let end = block.end;
+        let present: number[] | null = null;
+        if (!block.present && offset === end - 1) end--;
+        else {
+          present = blockMask(block, start);
+          present[offset >>> 5]! &= ~offsetBit(offset);
+          while (!hasOffset(present, first)) first++;
+          while (!hasOffset(present, end - 1)) end--;
+          if (first + 1 === end) present = null;
+        }
+        this.columns.set(index, { ...block, start: first, end, present });
+        if (this.#headIndex === index) this.#headIndex = -1;
+      }
       this.#columnCount--;
       if (this.#references) {
         for (const entries of this.#references.values()) entries.delete(row);
@@ -229,10 +296,11 @@ export class RawRows {
     const indexes = new Int32Array(this.size + incoming);
     let i = 0;
     if (this.#columnCount > 0) {
-      for (const [index, { table, present }] of this.columns) {
+      for (const [index, block] of this.columns) {
+        const { end, present } = block;
         const base = index * blockSize;
-        for (let offset = 0; offset < table.length; offset++) {
-          if (present === null || (present & rowBit(offset)) !== 0n) indexes[i++] = base + offset;
+        for (let offset = this.#blockStart(index, block); offset < end; offset++) {
+          if (!present || hasOffset(present, offset)) indexes[i++] = base + offset;
         }
       }
     }
@@ -256,7 +324,7 @@ export class StreamRows {
   #latestPosition = -Infinity;
   onForget?: (row: number) => void;
   trackEvictions = false;
-  evicted: number[] | null = null;
+  evicted: number | number[] | null = null;
   next: number;
 
   constructor(table?: Table, previous?: StreamRows) {
@@ -336,23 +404,40 @@ export class StreamRows {
     this.next += rows.length;
   }
 
+  appendPositions(rows: readonly unknown[], positions: Float64Array, ascending: boolean): void {
+    const start = this.next;
+    this.append(rows);
+    if (ascending && positions[0]! > this.#latestPosition) {
+      for (let i = 0; i < positions.length; i++) this.#positions.set(positions[i]!, start + i);
+      this.#latestPosition = positions[positions.length - 1]!;
+    } else {
+      for (let i = 0; i < positions.length; i++) this.record(positions[i]!, start + i);
+    }
+  }
+
   forget(row: number): void {
-    if (this.trackEvictions) (this.evicted ??= []).push(row);
+    if (this.trackEvictions) {
+      if (this.evicted === null) this.evicted = row;
+      else if (typeof this.evicted === 'number') this.evicted = [this.evicted, row];
+      else this.evicted.push(row);
+    }
     this.onForget?.(row);
     this.retained.forget(row);
   }
 
   evictRead(position: number, discard?: Discard): void {
     let row = this.#positions.get(position);
-    const previousMap = this.#previousAtPosition;
-    while (row !== undefined) {
-      const previous = previousMap?.get(row);
-      if (previous !== undefined) previousMap!.delete(row);
-      discard?.(row, this.retained.isColumn(row));
-      this.forget(row);
-      row = previous;
+    if (row !== undefined) {
+      const previousMap = this.#previousAtPosition;
+      do {
+        const previous: number | undefined = previousMap?.get(row);
+        if (previous !== undefined) previousMap!.delete(row);
+        discard?.(row, this.retained.isColumn(row));
+        this.forget(row);
+        row = previous;
+      } while (row !== undefined);
+      this.#positions.delete(position);
     }
-    this.#positions.delete(position);
     // Eviction walks positions in ascending order. Appended rows at this same x
     // have already been evicted from the delta above.
     if (this.seedPositions?.[this.#seedStart] === position) {
@@ -363,18 +448,21 @@ export class StreamRows {
   }
 
   /** As `Observations.share`: the seed's remaining positions read from the store's window (see store.ts). */
-  shareSeed(window: Float64Array): void {
+  shareSeed(x: Float64Array, start: number, end: number): void {
     const seed = this.seedPositions;
-    if (!seed || !sameRemainder(seed, this.#seedStart, window)) return;
-    this.seedPositions = window.subarray(0, seed.length - this.#seedStart);
+    if (!seed) return;
+    const shared = shareRemainder(seed, this.#seedStart, x, start, end);
+    if (!shared || shared === seed) return;
+    this.seedPositions = shared;
     this.#seedOffset += this.#seedStart;
     this.#seedStart = 0;
   }
 
-  compactColumns(): void {
+  compactColumns(window?: ArrayBufferLike): void {
     this.retained.compactColumns();
     const seed = this.seedPositions;
     if (!seed || this.#seedStart * 2 < seed.length) return;
+    if (seed.buffer === window && this.#seedStart < seed.length) return;
     this.seedPositions = this.#seedStart === seed.length ? null : seed.slice(this.#seedStart);
     this.#seedOffset += this.#seedStart;
     this.#seedStart = 0;
@@ -650,9 +738,12 @@ export abstract class RevisionStore<F extends Frame> {
     return { frame, diagnostics, callDiagnostics, commit };
   }
 
-  protected commitRows(rows: StreamRows, evicted: readonly number[], replacement: boolean): void {
+  protected commitRows(rows: StreamRows, evicted: number | readonly number[] | null, replacement: boolean): void {
     if (replacement) this.revisions.replace(rows);
-    for (let i = 0; i < evicted.length; i++) this.revisions.current.archive(evicted[i]!);
+    if (typeof evicted === 'number') this.revisions.current.archive(evicted);
+    else if (evicted) {
+      for (let i = 0; i < evicted.length; i++) this.revisions.current.archive(evicted[i]!);
+    }
     rows.commit();
     this.rows = rows;
   }

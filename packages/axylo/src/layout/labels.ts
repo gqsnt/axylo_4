@@ -26,6 +26,7 @@ const EPSILON = 1e-7;
 const OVERLAP_TOLERANCE = 0.9999999; // 1 - EPSILON, written out: no work at import time
 const DIAGONAL = Math.SQRT1_2;
 const ELLIPSIS = '…';
+const NON_WHITESPACE = /\S/u;
 /** Created on first use, not at import. */
 let segmenter: Intl.Segmenter | null = null;
 
@@ -38,8 +39,9 @@ export function placeText(
   const height = lines.length * metrics.lineHeight;
   const left = anchor === 'start' ? 0 : anchor === 'middle' ? -width / 2 : -width;
   const top = baseline === 'top' ? 0 : baseline === 'middle' ? -height / 2 : -height;
-  const sine = rotate === 0 ? 0 : rotate === -45 ? DIAGONAL : 1;
-  const cosine = rotate === 0 ? 1 : rotate === -45 ? DIAGONAL : 0;
+  if (rotate === 0) return { lines, full, x, y, anchor, baseline, rotate, role, box: { x: x + left, y: y + top, width, height } };
+  const sine = rotate === -45 ? DIAGONAL : 1;
+  const cosine = rotate === -45 ? DIAGONAL : 0;
   return {
     lines, full, x, y, anchor, baseline, rotate, role,
     box: {
@@ -52,6 +54,7 @@ export function placeText(
 }
 
 function widest(lines: readonly string[], metrics: Metrics): number {
+  if (lines.length === 1) return Math.max(0, metrics.width(lines[0]!));
   let width = 0;
   for (const line of lines) width = Math.max(width, metrics.width(line));
   return width;
@@ -99,33 +102,48 @@ export function wrapText(text: string, limit: number, metrics: Metrics, lineLimi
   return lines;
 }
 
+function hasLabel(text: string): boolean {
+  const first = text.charCodeAt(0);
+  return (first > 0x20 && first <= 0x7e) || NON_WHITESPACE.test(text);
+}
+
+function endOfSpaces(text: string, start: number): number {
+  let end = start + 1;
+  while (text.charCodeAt(end) === 32) end++;
+  return end;
+}
+
 function wrapLabel(text: string, current: readonly string[], count: 2 | 3, metrics: Metrics): readonly string[] {
   let best = current;
   let width = widest(current, metrics);
   // Replace exactly one space at each break so the lines still identify the source.
-  const splits = Array.from(text.matchAll(/ +/gu), space => space.index + Math.floor((space[0].length - 1) / 2));
-  for (const [i, split] of splits.entries()) {
+  let end = 0;
+  for (let start = text.indexOf(' '); start >= 0; start = text.indexOf(' ', end)) {
+    end = endOfSpaces(text, start);
+    const split = start + Math.floor((end - start - 1) / 2);
     const first = text.slice(0, split);
-    if (!first.trim()) continue;
+    if (!hasLabel(first)) continue;
     const firstWidth = metrics.width(first);
     if (firstWidth >= width) break;
     if (count === 2) {
       const last = text.slice(split + 1);
       const next = Math.max(firstWidth, metrics.width(last));
-      if (last.trim() && next < width) {
+      if (hasLabel(last) && next < width) {
         best = [first, last];
         width = next;
       }
       continue;
     }
-    for (let j = i + 1; j < splits.length; j++) {
-      const secondSplit = splits[j]!;
+    let secondEnd = end;
+    for (let secondStart = text.indexOf(' ', end); secondStart >= 0; secondStart = text.indexOf(' ', secondEnd)) {
+      secondEnd = endOfSpaces(text, secondStart);
+      const secondSplit = secondStart + Math.floor((secondEnd - secondStart - 1) / 2);
       const second = text.slice(split + 1, secondSplit);
       const secondWidth = metrics.width(second);
       if (secondWidth >= width) break;
       const last = text.slice(secondSplit + 1);
       const next = Math.max(firstWidth, secondWidth, metrics.width(last));
-      if (last.trim() && next < width) {
+      if (hasLabel(last) && next < width) {
         best = [first, second, last];
         width = next;
       }
@@ -139,33 +157,54 @@ export interface PreparedLabels {
   competingLabel(full: string, prefix: string, suffix: string): boolean;
 }
 
-export function prepareLabels(candidates: TickCandidates): PreparedLabels {
-  const originals = new Set<string>();
-  const first = new Map<string, number>();
-  const sets = candidates.map((ticks, index) => {
-    const shown: Tick[] = [];
-    const seen = index === 0 ? first : new Map<string, number>();
-    for (const tick of ticks) {
-      const { label, value } = tick;
-      if (!label.trim() || seen.has(label) || (first.has(label) && first.get(label) !== value)) continue;
-      originals.add(label);
-      seen.set(label, value);
-      shown.push(tick);
-    }
-    return shown;
-  });
+const SMALL_SET = 12;
 
+function findLabel(ticks: readonly Tick[], label: string, end = ticks.length): Tick | undefined {
+  for (let i = 0; i < end; i++) {
+    const tick = ticks[i]!;
+    if (tick.label === label) return tick;
+  }
+}
+
+export function prepareLabels(candidates: TickCandidates, count = candidates.length): PreparedLabels {
+  const sets: (readonly Tick[])[] = [];
+  const first = (candidates[0]?.length ?? 0) > SMALL_SET ? new Map<string, number>() : undefined;
+  for (let index = 0; index < count; index++) {
+    const ticks = candidates[index]!;
+    const seen = index === 0 ? first : ticks.length > SMALL_SET ? new Map<string, number>() : undefined;
+    let shown: Tick[] | undefined;
+    for (let i = 0; i < ticks.length; i++) {
+      const tick = ticks[i]!;
+      const { label, value } = tick;
+      // Sparser sets cannot reuse a label for a different value than the densest set.
+      const original = index === 0 ? undefined : first ? first.get(label) : findLabel(sets[0]!, label)?.value;
+      if (!hasLabel(label) || (seen ? seen.has(label) : findLabel(shown ?? ticks, label, shown?.length ?? i)) ||
+          (original !== undefined && original !== value)) {
+        shown ??= ticks.slice(0, i);
+        continue;
+      }
+      seen?.set(label, value);
+      shown?.push(tick);
+    }
+    sets.push(shown ?? ticks);
+  }
+
+  let originals: Set<string> | undefined;
   let byEnding: Map<string, string[]> | undefined;
   return {
     sets,
     competingLabel(full, prefix, suffix) {
-      if (!byEnding && originals.size > 128) {
-        byEnding = new Map();
-        for (const original of originals) {
-          const key = original.slice(-2);
-          const bucket = byEnding.get(key);
-          if (bucket) bucket.push(original);
-          else byEnding.set(key, [original]);
+      if (!originals) {
+        originals = new Set();
+        for (const ticks of sets) for (const tick of ticks) originals.add(tick.label);
+        if (originals.size > 128) {
+          byEnding = new Map();
+          for (const original of originals) {
+            const key = original.slice(-2);
+            const bucket = byEnding.get(key);
+            if (bucket) bucket.push(original);
+            else byEnding.set(key, [original]);
+          }
         }
       }
       for (const other of byEnding ? byEnding.get(suffix.slice(-2)) ?? [] : originals) {

@@ -59,6 +59,7 @@ const BLOCK_SIZE = 32;
 const MIXED_BLOCK = 255;
 const SELECTION_CACHE_BYTES = 64 * 1024;
 const SELECTION_CACHE_ENTRIES = 12;
+const NO_INDEXES = new Uint32Array(0);
 type ExactProjection = NonNullable<AffineProjection['exact']>;
 
 interface SelectionCache {
@@ -78,7 +79,7 @@ interface BlockSummary {
   s: number;
   e: number;
   uses: number;
-  full?: { readonly r: IndexRange; readonly v: ReturnType<typeof scan> };
+  full?: IndexRange;
   sel?: SelectionCache;
 }
 const summaries = new WeakMap<Values, WeakMap<Uint8Array, BlockSummary>>();
@@ -101,18 +102,17 @@ function summarize(y: Values, slot: Uint8Array, { start, end }: IndexRange): Blo
     const offset = 2 * block;
     if (blocks[offset]) continue;
     const first = block * BLOCK_SIZE;
-    let low = NaN, high = NaN, min = 0, max = 0, i = 0;
+    let i = 0;
+    while (i < BLOCK_SIZE && slot[first + i] === SLOT_VALUE && Number.isNaN(y[first + i])) i++;
+    let low = y[first + i]!, high = low, min = i, max = i;
     for (; i < BLOCK_SIZE && slot[first + i] === SLOT_VALUE; i++) {
       const value = y[first + i]!;
-      if (Number.isNaN(low)) { low = high = value; min = max = i; }
-      else {
-        if (value < low) { low = value; min = i; }
-        if (value > high) { high = value; max = i; }
-      }
+      if (value < low) { low = value; min = i; }
+      if (value > high) { high = value; max = i; }
     }
     // Zero means uncomputed. A mixed block must be visited slot by slot to preserve gaps.
-    blocks[offset] = i === BLOCK_SIZE ? min + 1 : MIXED_BLOCK;
-    blocks[offset + 1] = max;
+    blocks[offset] = i === BLOCK_SIZE ? Math.min(min + 1, BLOCK_SIZE) : MIXED_BLOCK;
+    blocks[offset + 1] = Math.min(max, BLOCK_SIZE - 1);
   }
   summary.s = begin;
   summary.e = stop;
@@ -158,11 +158,18 @@ function appendColumn(
 function keepRun(
   slot: Uint8Array | null, from: number, to: number, columns: Columns, indexes: IndexBuffer, cursor: number,
 ): number {
-  const { x, y, map, ratio } = columns;
+  const { x, y, map, ratio, affine } = columns;
+  const exact = affine?.exact;
+  const monotone = exact && hasMonotoneColumns(exact, x[from]!, x[to]!) && interpolatesEndpoints(exact);
+  const start = exact?.start ?? 0, span = exact?.span ?? 1;
+  const origin = exact?.origin ?? 0, extent = exact?.extent ?? 0;
+  const simple = affine !== undefined && !exact;
+  const slope = affine?.slope ?? 0, offset = affine?.offset ?? 0;
   let column = NaN, first = from, last = -1, min = -1, max = -1, low = 0, high = 0;
   for (let i = from; i <= to; i++) {
     if (slot && slot[i] !== SLOT_VALUE) continue;
-    const pixel = Math.floor(map(x[i]!) * ratio);
+    const at = x[i]!;
+    const pixel = Math.floor((monotone ? origin + (at - start) / span * extent : simple ? slope * at + offset : map(at)) * ratio);
     const value = y === 0 ? 0 : y[i]!;
     if (pixel !== column) {
       if (last >= 0) cursor = appendColumn(indexes, cursor, first, last, min, max);
@@ -174,14 +181,6 @@ function keepRun(
     last = i;
   }
   return appendColumn(indexes, cursor, first, last, min, max);
-}
-
-function columnMapper(affine: AffineProjection, ratio: number, first: number, last: number) {
-  const { exact, slope, offset } = affine;
-  if (!exact) return (x: number) => Math.floor((slope * x + offset) * ratio);
-  if (!hasMonotoneColumns(exact, first, last)) return;
-  const { start, origin, span, extent } = exact;
-  return (x: number) => Math.floor((origin + (x - start) / span * extent) * ratio);
 }
 
 function hasMonotoneColumns({ start, end, origin, edge, span, extent, bounded }: ExactProjection, first: number, last: number): boolean {
@@ -212,10 +211,12 @@ function rememberSelection(cache: SelectionCache, extent: number, indexes: Uint3
 }
 
 function keepAffineRun(
-  x: Float64Array, y: Values, from: number, to: number, pixel: (x: number) => number,
+  x: Float64Array, y: Values, from: number, to: number, { exact, slope, offset }: AffineProjection, ratio: number,
   firstColumn: number, lastColumn: number, blocks: Uint8Array,
   indexes: Uint32Array, cursor: number,
 ): number {
+  const start = exact?.start ?? 0, span = exact?.span ?? 1;
+  const origin = exact?.origin ?? 0, extent = exact?.extent ?? 0;
   let prevSize = Math.floor((to - from + 1) / (Math.abs(lastColumn - firstColumn) + 1));
   for (let first = from, column = firstColumn; first <= to;) {
     let last = to, nextColumn = lastColumn;
@@ -223,31 +224,38 @@ function keepAffineRun(
       let next = to, step = Math.max(1, prevSize);
       last = first;
       while (last + step < next) {
-        const p = last + step, c = pixel(x[p]!);
+        const p = last + step, at = x[p]!;
+        const c = Math.floor((exact ? origin + (at - start) / span * extent : slope * at + offset) * ratio);
         if (c === column) { last = p; step *= 2; }
         else { next = p; nextColumn = c; break; }
       }
       while (last + 1 < next) {
-        const mid = last + ((next - last) >>> 1), c = pixel(x[mid]!);
+        const mid = last + ((next - last) >>> 1), at = x[mid]!;
+        const c = Math.floor((exact ? origin + (at - start) / span * extent : slope * at + offset) * ratio);
         if (c === column) last = mid;
         else { next = mid; nextColumn = c; }
       }
     }
     prevSize = last - first + 1;
     let min = first, max = first, low = y[first]!, high = low;
-    for (let i = first; i <= last;) {
-      if ((i & 31) === 0 && i + BLOCK_SIZE <= last + 1) {
-        const o = i / 16, eMin = i + blocks[o]! - 1, eMax = i + blocks[o + 1]!;
-        const bLow = y[eMin]!, bHigh = y[eMax]!;
-        if (bLow < low) { low = bLow; min = eMin; }
-        if (bHigh > high) { high = bHigh; max = eMax; }
-        i += BLOCK_SIZE;
-      } else {
-        const v = y[i]!;
-        if (v < low) { low = v; min = i; }
-        if (v > high) { high = v; max = i; }
-        i++;
-      }
+    let i = first;
+    const blockStart = Math.min(last + 1, Math.ceil(i / BLOCK_SIZE) * BLOCK_SIZE);
+    const blockEnd = Math.floor((last + 1) / BLOCK_SIZE) * BLOCK_SIZE;
+    for (; i < blockStart; i++) {
+      const value = y[i]!;
+      if (value < low) { low = value; min = i; }
+      if (value > high) { high = value; max = i; }
+    }
+    for (; i < blockEnd; i += BLOCK_SIZE) {
+      const o = i / (BLOCK_SIZE / 2), eMin = i + blocks[o]! - 1, eMax = i + blocks[o + 1]!;
+      const bLow = y[eMin]!, bHigh = y[eMax]!;
+      if (bLow < low) { low = bLow; min = eMin; }
+      if (bHigh > high) { high = bHigh; max = eMax; }
+    }
+    for (; i <= last; i++) {
+      const value = y[i]!;
+      if (value < low) { low = value; min = i; }
+      if (value > high) { high = value; max = i; }
     }
     cursor = keepColumn(indexes, cursor, first, last, min, max);
     first = last + 1;
@@ -260,7 +268,7 @@ function scan(slot: Uint8Array, range: IndexRange, blocks?: Uint8Array) {
   let values = 0, vertices = 0, runCount = 0, singles = 0, runFirst = -1, runLast = -1, runValues = 0;
   const { start, end } = range, length = end - start;
   const runs: IndexBuffer = { data: new Uint32Array(Math.min(12, 3 * length)), limit: 3 * length };
-  const isolated: IndexBuffer = { data: new Uint32Array(0), limit: length };
+  const isolated: IndexBuffer = { data: NO_INDEXES, limit: length };
   let joinsBefore = start < end && joinedNeighbor(slot, start - 1, -1);
   const joinsAfter = start < end && joinedNeighbor(slot, end, 1);
 
@@ -295,7 +303,7 @@ function scan(slot: Uint8Array, range: IndexRange, blocks?: Uint8Array) {
     }
     joinsBefore = false;
   }
-  return { values, vertices, runCount, runs: runs.data, isolated: isolated.data.subarray(0, singles) };
+  return { values, vertices, runCount, runs: runs.data, isolated: singles ? isolated.data.subarray(0, singles) : NO_INDEXES };
 }
 
 function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Columns) {
@@ -305,45 +313,57 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
     ? summarize(y, slot, range) : undefined;
   // Blocks suffice for a one-off draw. Build the extra indexes only when the series is reused.
   const reused = summary !== undefined && summary.uses++ > 0;
-  const cached = summary?.full;
-  const size = cached?.r.start === range.start && cached.r.end === range.end
-    ? cached.v : scan(slot, range, summary?.blocks);
-  if (summary && size !== cached?.v && size.values === length) summary.full = { r: { ...range }, v: size };
-  const dense = columns !== undefined && size.values > limit;
+  const full = summary?.full;
+  const size = full && full.start <= range.start && full.end >= range.end ? undefined : scan(slot, range, summary?.blocks);
+  const values = size?.values ?? length;
+  const vertices = size?.vertices ?? length;
+  const runCount = size?.runCount ?? 1;
+  const isolated = size?.isolated ?? NO_INDEXES;
+  if (summary && size && values === length) {
+    // Overlapping validated ranges certify one continuous run for subsequent zooms.
+    summary.full = full && full.start <= range.end && range.start <= full.end
+      ? { start: Math.min(full.start, range.start), end: Math.max(full.end, range.end) } : { ...range };
+  }
+  const dense = columns !== undefined && values > limit;
   // Responsive layouts can revisit widths without changing their data or zoom.
   let cache: SelectionCache | undefined;
   const exact = affine?.exact;
-  if (dense && reused && summary && exact && size.values === length && hasMonotoneColumns(exact, columns.x[range.start]!, columns.x[range.end - 1]!)) {
+  if (dense && reused && summary && exact && values === length && hasMonotoneColumns(exact, columns.x[range.start]!, columns.x[range.end - 1]!)) {
     cache = selectionCache(summary, columns.x, range, exact, columns.ratio);
     const indexes = cache.map.get(exact.extent);
-    if (indexes) return { selection: { indexes: indexes.slice(), breaks: new Uint32Array(0), isolated: size.isolated }, dense };
+    if (indexes) return { selection: { indexes: indexes.slice(), breaks: NO_INDEXES, isolated }, dense };
   }
-  const buffer: IndexBuffer = {
-    data: new Uint32Array(dense ? Math.min(size.vertices, limit + 4 * size.runCount + 4) : size.vertices),
-    limit: size.vertices,
-  };
-  const breaks = new Uint32Array(Math.max(0, size.runCount - 1));
+  let buffer: IndexBuffer | undefined;
+  const initialCapacity = dense ? Math.min(vertices, limit + 4 * runCount + 4) : vertices;
+  const breaks = runCount > 1 ? new Uint32Array(runCount - 1) : NO_INDEXES;
   let cursor = 0;
-  for (let run = 0; run < size.runCount; run++) {
-    const first = size.runs[3 * run]!, last = size.runs[3 * run + 1]!, runLength = last - first + 1;
-    const contiguous = runLength === size.runs[3 * run + 2];
+  for (let run = 0; run < runCount; run++) {
+    const first = size?.runs[3 * run] ?? range.start, last = size?.runs[3 * run + 1] ?? range.end - 1;
+    const runLength = last - first + 1, contiguous = !size || runLength === size.runs[3 * run + 2];
     if (run) breaks[run - 1] = cursor;
     if (dense && contiguous && summary && affine && y && runLength >= 2 * BLOCK_SIZE) {
       const { x, ratio } = columns;
-      const pixel = columnMapper(affine, ratio, x[first]!, x[last]!);
-      if (pixel) {
-        const firstColumn = pixel(x[first]!), lastColumn = pixel(x[last]!);
+      const start = x[first]!, end = x[last]!;
+      if (!exact || hasMonotoneColumns(exact, start, end)) {
+        const firstColumn = Math.floor((exact
+          ? exact.origin + (start - exact.start) / exact.span * exact.extent : affine.slope * start + affine.offset) * ratio);
+        const lastColumn = Math.floor((exact
+          ? exact.origin + (end - exact.start) / exact.span * exact.extent : affine.slope * end + affine.offset) * ratio);
         const capacity = 4 * (Math.abs(lastColumn - firstColumn) + 1);
         if (capacity <= runLength) {
-          cursor = keepAffineRun(x, y, first, last, pixel, firstColumn, lastColumn, summary.blocks, reserve(buffer, cursor + capacity), cursor);
+          // A single dense run can reserve for its actual projected span, including offscreen endpoints.
+          buffer ??= { data: new Uint32Array(runCount === 1 ? capacity : initialCapacity), limit: vertices };
+          cursor = keepAffineRun(x, y, first, last, affine, ratio, firstColumn, lastColumn, summary.blocks,
+            reserve(buffer, cursor + capacity), cursor);
           continue;
         }
       }
     }
+    buffer ??= { data: new Uint32Array(initialCapacity), limit: vertices };
     if (dense) cursor = keepRun(contiguous ? null : slot, first, last, columns, buffer, cursor);
     else for (let index = first; index <= last; index++) if (contiguous || slot[index] === SLOT_VALUE) buffer.data[cursor++] = index;
   }
-  const selection: JoinedRuns = { indexes: buffer.data.subarray(0, cursor), breaks, isolated: size.isolated };
+  const selection: JoinedRuns = { indexes: buffer?.data.subarray(0, cursor) ?? NO_INDEXES, breaks, isolated };
   if (cache && exact) rememberSelection(cache, exact.extent, selection.indexes);
   return { selection, dense };
 }
@@ -374,7 +394,7 @@ export function stackIndexes(
   if (size <= columnLimit(input)) return Uint32Array.from({ length: size }, (_, i) => i);
   const kept = new Uint8Array(size), scratch = new Uint32Array(size);
   const buffer: IndexBuffer = { data: scratch, limit: size };
-  const columns = { x: input.x, map: xMapper(input.mapX, input.affineX), ratio: input.devicePixelRatio, y: 0 as Values | 0 };
+  const columns = { x: input.x, map: xMapper(input.mapX, input.affineX), affine: input.affineX, ratio: input.devicePixelRatio, y: 0 as Values | 0 };
   for (let k = 0; k < stack.order.length; k++) {
     const { y, slot } = frame.series[stack.order[k]!]!;
     for (const values of [stack.positive[k]!, stack.negative[k]!]) {
