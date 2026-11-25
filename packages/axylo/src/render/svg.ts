@@ -228,13 +228,12 @@ function decodeBuf(len: number): string {
 export function pathData(xy: Float32Array): string {
   const len = xy.length - 1;
   if (len <= 0) return '';
-  let b = ensureBuf((xy.length >> 1) * XY_ESTIMATE);
+  const b = ensureBuf((xy.length >> 1) * XY_BYTES);
   let pos = 0;
   let pen = false;
   for (let i = 0; i < len; i += 2) {
     const x = xy[i]!, y = xy[i + 1]!;
     if (lifted(x) || lifted(y)) { pen = false; continue; }
-    if (pos + XY_BYTES > b.length) b = growBuf(pos, pos + XY_BYTES);
     pos = writeXY(b, pos, pen ? 76 : 77, x, y);
     pen = true;
   }
@@ -274,19 +273,100 @@ export function areaData(mark: AreaMark): string {
   return decodeBuf(pos);
 }
 
-let circleArcs: { radius: number; absolute: Uint8Array; compact: Uint8Array; relative: Uint8Array } | null = null;
+const TENTH_COUNT = 10_000;
+const DENSE_COORD_LIMIT = 10_000;
+const DENSE_RADIUS_LIMIT = 100;
+let tenthsTable: { bytes: Float64Array; lengths: Uint8Array } | null = null;
 
-function arcsFor(radius: number) {
-  if (circleArcs?.radius === radius) return circleArcs;
+function packedTenths() {
+  // Each entry contains ASCII bytes. A word store replaces the digit writes at an unaligned position.
+  const bytes = new Float64Array(TENTH_COUNT), lengths = new Uint8Array(TENTH_COUNT);
+  const scratch = new Uint8Array(8), view = new DataView(scratch.buffer);
+  for (let i = 0; i < TENTH_COUNT; i++) {
+    lengths[i] = writeText(scratch, 0, String(i / 10));
+    bytes[i] = view.getFloat64(0, true);
+  }
+  return { bytes, lengths };
+}
+
+interface PackedArcs {
+  readonly radius: number;
+  readonly arcLength: number;
+  readonly backLength: number;
+  readonly arc0: number;
+  readonly arc1: number;
+  readonly back0: number;
+  readonly back1: number;
+  readonly back2: number;
+}
+
+let denseArcs: PackedArcs | null = null;
+
+function packedArcs(radius: number): PackedArcs {
+  if (denseArcs?.radius === radius) return denseArcs;
   const r = fstr(radius), diameter = fstr(2 * radius);
-  const encoder = new TextEncoder();
-  return circleArcs = {
-    radius,
-    absolute: encoder.encode(`A${r} ${r} 0 1 1 `),
-    // Each flag consumes one byte, so the following flag or coordinate needs no separator.
-    compact: encoder.encode(`A${r} ${r} 0 11`),
-    relative: encoder.encode(`a${r} ${r} 0 11${diameter} 0z`),
+  const bytes = new Uint8Array(40), view = new DataView(bytes.buffer);
+  // At this radius limit the arc prefix fits in two words and the return arc in three.
+  // Each flag consumes one byte, so the following flag or coordinate needs no separator.
+  const arcLength = writeText(bytes, 0, `A${r} ${r} 0 11`);
+  const backLength = writeText(bytes, 16, `a${r} ${r} 0 11${diameter} 0`) - 16;
+  return denseArcs = {
+    radius, arcLength, backLength,
+    arc0: view.getFloat64(0, true), arc1: view.getFloat64(8, true),
+    back0: view.getFloat64(16, true), back1: view.getFloat64(24, true), back2: view.getFloat64(32, true),
   };
+}
+
+let absoluteArc: { radius: number; bytes: Uint8Array } | null = null;
+
+function absoluteArcFor(radius: number): Uint8Array {
+  if (absoluteArc?.radius !== radius) {
+    const r = fstr(radius);
+    absoluteArc = { radius, bytes: new TextEncoder().encode(`A${r} ${r} 0 1 1 `) };
+  }
+  return absoluteArc.bytes;
+}
+
+function denseCircles(xy: Float32Array, radius: number): string | null {
+  const { arcLength, backLength, arc0, arc1, back0, back1, back2 } = packedArcs(radius);
+  // Four signed coordinates of up to eight bytes, three command/separator bytes and the arcs.
+  // A word store may extend past the last byte. Each following write starts at the true length.
+  const b = ensureBuf((xy.length >> 1) * (35 + arcLength + backLength) + 7);
+  const view = new DataView(b.buffer);
+  const { bytes, lengths } = tenthsTable ??= packedTenths();
+  const write = (at: number, value: number): number => {
+    const magnitude = Math.abs(value);
+    if (magnitude >= TENTH_COUNT) return writeFixed(b, at, value * 10);
+    if (value < 0) b[at++] = 45;
+    view.setFloat64(at, bytes[magnitude]!, true);
+    return at + lengths[magnitude]!;
+  };
+  const radiusTenths = radius * 10, longBack = backLength > 16;
+  let pos = 0;
+  const len = xy.length - 1;
+  for (let i = 0; i < len; i += 2) {
+    const x = xy[i]!, y = xy[i + 1]!;
+    if (!(Math.abs(x) < DENSE_COORD_LIMIT && Math.abs(y) < DENSE_COORD_LIMIT)) {
+      if (lifted(x) || lifted(y)) continue;
+      return null;
+    }
+    const cx = Math.round(x * 10), cy = Math.round(y * 10);
+    b[pos++] = 77;
+    pos = write(pos, cx + radiusTenths);
+    b[pos++] = 32;
+    pos = write(pos, cy);
+    view.setFloat64(pos, arc0, true);
+    view.setFloat64(pos + 8, arc1, true);
+    pos = write(pos + arcLength, cx - radiusTenths);
+    if (cy >= 0) b[pos++] = 32;
+    pos = write(pos, cy);
+    // The second arc returns by one diameter. The fill closes the subpath.
+    view.setFloat64(pos, back0, true);
+    view.setFloat64(pos + 8, back1, true);
+    if (longBack) view.setFloat64(pos + 16, back2, true);
+    pos += backLength;
+  }
+  return decodeBuf(pos);
 }
 
 function pointData(mark: PointMark): string {
@@ -295,14 +375,17 @@ function pointData(mark: PointMark): string {
   if (!(size > 0) || len <= 0) return '';
   const nPts = xy.length >> 1;
   if (mark.shape === 'circle') {
-    const r = size / 2, arcs = arcsFor(r);
-    // Sparse marker geometry is also read by consumers that expect both endpoints to be absolute.
-    const compact = nPts >= 2000 && Number.isInteger(size) && size < 1e6;
-    const arc = compact ? arcs.compact : arcs.absolute;
-    const diameter = size * 100;
+    const r = size / 2;
+    if (nPts === 1) return lifted(xy[0]!) || lifted(xy[1]!) ? '' : circlePath(xy[0]!, xy[1]!, r, 1);
+    // Quantize the center once and offset by the radius to keep both semicircles symmetric.
+    if (nPts >= 2000 && r > 0 && r < DENSE_RADIUS_LIMIT && Number.isInteger(r * 10)) {
+      const dense = denseCircles(xy, r);
+      if (dense !== null) return dense;
+    }
+    // Sparse marker geometry is read by consumers that expect both endpoints to be absolute.
+    const arc = absoluteArcFor(r);
     const maxPoint = 6 * NUMBER_BYTES + 5 + 2 * arc.length;
-    const estimate = compact ? 4 * 12 + 3 + arc.length + arcs.relative.length : 77 + 2 * arc.length;
-    let b = ensureBuf(nPts * estimate);
+    let b = ensureBuf(nPts * (77 + 2 * arc.length));
     let pos = 0;
     for (let i = 0; i < len; i += 2) {
       const x = xy[i]!, y = xy[i + 1]!;
@@ -320,14 +403,6 @@ function pointData(mark: PointMark): string {
       b[pos++] = 32;
       b.copyWithin(pos, yStart, end);
       pos += end - yStart;
-      // In the same sign and binary exponent range, an integer diameter preserves the float grid.
-      // Crossing a range boundary can round the relative endpoint differently from the absolute one.
-      if (compact && left >= 100 && right < 1e8 && right - left === diameter
-        && Math.clz32(left / 100) === Math.clz32(right / 100)) {
-        b.set(arcs.relative, pos);
-        pos += arcs.relative.length;
-        continue;
-      }
       b.set(arc, pos);
       pos += arc.length;
       b.copyWithin(pos, start, end);
@@ -419,7 +494,10 @@ export type SvgMark<M extends Mark = Mark> = (c: SvgContext, n: SvgNode, mark: M
 export type SvgMarks = { readonly [K in Mark['type']]?: SvgMark<Extract<Mark, { type: K }>> };
 
 export const svgPath: SvgMark<PathMark> = (_c, n, mark, bindings) => {
-  data(n, [mark.xy], () => pathData(mark.xy));
+  if (n.source?.[0] !== mark.xy) {
+    attrStr(n, 'd', pathData(mark.xy));
+    n.source = [mark.xy];
+  }
   paint(n, 'stroke', paintOf(mark.stroke, bindings));
   attr(n, 'stroke-width', mark.strokeWidth);
   attrStr(n, 'stroke-linejoin', 'round');
@@ -454,7 +532,11 @@ export const svgRects: SvgMark<RectMark> = (c, n, mark, bindings, _dpr, clip) =>
 };
 
 export const svgPoints: SvgMark<PointMark> = (_c, n, mark, bindings) => {
-  data(n, [mark.xy, mark.shape, mark.size], () => pointData(mark));
+  const source = n.source;
+  if (source?.[0] !== mark.xy || source[1] !== mark.shape || source[2] !== mark.size) {
+    attrStr(n, 'd', pointData(mark));
+    n.source = [mark.xy, mark.shape, mark.size];
+  }
   paint(n, 'fill', paintOf(mark.fill, bindings));
 };
 
@@ -525,6 +607,7 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
   const sceneClipUrl = `url(#${sceneClipId})`, overlayClipUrl = `url(#${overlayClipId})`;
   const sceneClip = clipPath(doc, defs, sceneClipId);
   let overlayClip: SvgNode | null = null;
+  let overlayBounds: Rect | null = null;
   // The author's --axylo-background, painted behind everything and live; transparent when unset.
   const background = node(doc, 'rect', 'background', { class: 'axylo-background', x: '0', y: '0' });
   paint(background, 'fill', 'var(--axylo-background, transparent)');
@@ -601,7 +684,10 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
         return;
       }
       const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
-      setRect(overlayClip ??= clipPath(doc, defs, overlayClipId), overlay.clip);
+      if (overlay.clip !== overlayBounds) {
+        setRect(overlayClip ??= clipPath(doc, defs, overlayClipId), overlay.clip);
+        overlayBounds = overlay.clip;
+      }
       let i = 0;
       for (const m of overlay.clipped) sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, overlayClipUrl, overlay.clip);
       for (const m of overlay.unclipped) sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, null, null);

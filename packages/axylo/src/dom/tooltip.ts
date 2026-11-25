@@ -1,11 +1,10 @@
 /**
  * Renders a tooltip model as text (spec I1, DX8: textContent only), floating or in the strip under the plot.
  */
-import { activeElementOf, placeChildren, setAttr, make, keepFocusOnPress, shadowRootsOf } from './attributes';
-import type { DatumText, Rect, TooltipModel } from '../core/contracts';
+import { activeElementOf, placeChildren, setAttr, setText, make, keepFocusOnPress, shadowRootsOf } from './attributes';
+import type { DatumRef, DatumText, Rect, TooltipModel } from '../core/contracts';
 import { createSwatch, type SwatchSpec } from './swatch';
 import { fallbackPlacement, intersect, placeTooltip, type PlacementInput } from './placement';
-import { sameKey } from '../core/axes';
 import { Listeners, listenOutside, mappingOf, type Mapping } from './mapping';
 
 export interface TooltipContent {
@@ -33,7 +32,7 @@ export interface TooltipView {
 }
 
 interface RowEntry {
-  readonly k: string;
+  readonly button: boolean;
   readonly e: HTMLElement;
   readonly n: HTMLElement;
   readonly v: HTMLElement;
@@ -45,63 +44,69 @@ interface RowEntry {
   g: string | null;
 }
 
-const rowKey = ({ ref }: DatumText): string =>
-  ref.kind === 'aligned' ? `a\0${ref.seriesKey}` : ref.kind === 'point' ? `p\0${ref.seriesKey}\0${ref.row}` : `s\0${ref.sliceKey}`;
+// Aligned rows follow their series across x positions. Scatter rows follow the source observation.
+function sameRow(a: DatumRef, b: DatumRef | null): boolean {
+  if (a.kind === 'aligned') return b?.kind === 'aligned' && a.seriesKey === b.seriesKey;
+  if (a.kind === 'point') return b?.kind === 'point' && a.seriesKey === b.seriesKey && a.row === b.row;
+  return b?.kind === 'slice' && a.sliceKey === b.sliceKey;
+}
 
 export function createTooltip(element: HTMLElement, readoutElement: HTMLElement, figure: HTMLElement, lost: () => void): TooltipView {
   const doc = element.ownerDocument;
   const txt = (s = '') => doc.createTextNode(s);
   const active = () => activeElementOf(doc, figure);
 
-  let pressKey: string | null = null, pressPtr = 0, pressListening: Listeners | null = null;
-  let pressedKey: string | null = null, pressedAt = 0, pendingFocus: string | null = null;
+  let pressRef: DatumRef | null = null, pressPtr = 0, pressListening: Listeners | null = null;
+  let pressedRef: DatumRef | null = null, pressedAt = 0, pendingFocus: DatumRef | null = null;
   // 0 = hidden, 1 = floating, 2 = strip
   let where: 0 | 1 | 2 = 0, wasPinned = false, current: TooltipContent | null = null, displayed = 0;
-  let carriedKey: string | null = null, carriedPtr = 0, hadFocus: string | null = null;
+  let carriedRef: DatumRef | null = null, carriedPtr = 0, hadFocus: DatumRef | null = null;
 
-  const entries = [new Map<string, RowEntry>(), new Map<string, RowEntry>()] as const;
+  const entries: [RowEntry[], RowEntry[]] = [[], []];
+  let nextRows: RowEntry[] = [];
+  const children: Node[] = [];
   const hosts = [element, readoutElement] as const;
   const pinCls = ['axylo-tooltip-pinned', 'axylo-readout-pinned'] as const;
-  const listening = new Listeners(), mores = new Map<string, HTMLElement>();
-  let wrapped = false, lastSize: { width: number; height: number } | null = null;
-  let constraints: readonly unknown[] | null = null, lastRect: Rect | null = null, lastFloatOrder: readonly Node[] | null = null;
+  const listening = new Listeners(), mores: (HTMLElement | undefined)[] = [];
+  let wrapped = false, lastRect: Rect | null = null;
+  let maxWidth = -1, maxHeight = -1;
 
-  function clearPress(): void { pressKey = null; pressListening?.clear(); pressListening = null; }
-  function cancelPointer(e: Event): void { if (pressKey !== null && pressPtr === (e as PointerEvent).pointerId) clearPress(); }
+  function clearPress(): void { pressRef = null; pressListening?.clear(); pressListening = null; }
+  function cancelPointer(e: Event): void { if (pressRef !== null && pressPtr === (e as PointerEvent).pointerId) clearPress(); }
 
-  function startPress(key: string, ptr: number): void {
+  function startPress(ref: DatumRef, ptr: number): void {
     clearPress();
-    pressKey = key; pressPtr = ptr;
+    pressRef = ref; pressPtr = ptr;
     const l = pressListening = new Listeners(), roots = shadowRootsOf(element);
     listenOutside(doc, roots, 'pointerup', hosts, cancelPointer, l);
     for (const t of [doc, ...roots]) l.on(t, 'pointercancel', cancelPointer, true);
   }
 
-  const choices = new WeakMap<Element, RowEntry>();
   const buttonOf = (e: Event) => (e.target as Element | null)?.closest?.('button.axylo-tooltip-choice');
-  for (const host of hosts) {
+  hosts.forEach((host, idx) => {
+    const rows = () => entries[idx as 0 | 1];
     listening.on(host, 'mousedown', e => { if (buttonOf(e)) keepFocusOnPress(e); });
     listening.on(host, 'pointerdown', e => {
-      const b = buttonOf(e), row = b && choices.get(b);
-      if (row) startPress(row.k, e.pointerId); else clearPress();
+      const b = buttonOf(e), row = b && rows().find(entry => entry.e === b);
+      if (row) startPress(row.r.ref, e.pointerId); else clearPress();
     });
     listening.on(host, 'pointerup', e => {
-      if (pressKey === null || pressPtr !== e.pointerId) return;
-      const key = pressKey;
+      if (pressRef === null || pressPtr !== e.pointerId) return;
+      const ref = pressRef;
       clearPress();
-      pressedKey = key; pressedAt = e.timeStamp;
-      const now = entries[0].get(key) ?? entries[1].get(key);
+      pressedRef = ref; pressedAt = e.timeStamp;
+      const now = rows().find(entry => entry.button && sameRow(entry.r.ref, ref));
       if (now) current?.select?.(now.r);
     });
     listening.on(host, 'pointercancel', cancelPointer);
     listening.on(host, 'click', e => {
       const b = buttonOf(e);
       if (!b) return;
-      const row = choices.get(b);
+      const row = rows().find(entry => entry.e === b);
       if (!row) current?.more?.(displayed);
-      else if (!(e.detail > 0 && pressedKey === row.k && e.timeStamp - pressedAt < 1000)) current?.select?.(row.r);
+      else if (!(e.detail > 0 && sameRow(row.r.ref, pressedRef) && e.timeStamp - pressedAt < 1000)) current?.select?.(row.r);
     });
-  }
+  });
 
   function makeBox(cls: string, button: boolean, isStrip: boolean): HTMLElement {
     const el = doc.createElement(button ? 'button' : isStrip ? 'span' : 'div');
@@ -112,75 +117,67 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
 
   const floatTitle = make(doc, 'div', 'axylo-tooltip-title'), floatTitleNode = txt();
   floatTitle.appendChild(floatTitleNode);
-  const floatTotal = make(doc, 'div', 'axylo-tooltip-row axylo-tooltip-total');
-  const floatTotalName = make(doc, 'span', 'axylo-tooltip-series'), floatTotalValue = make(doc, 'span', 'axylo-tooltip-value');
-  floatTotal.append(floatTotalName, floatTotalValue);
-  const stripTitle = make(doc, 'span', 'axylo-tooltip-title'), stripTotal = make(doc, 'span', 'axylo-readout-total');
-  const moreSep = txt('; '), totalSep = txt('; ');
+  let floatTotal: { row: HTMLElement; name: HTMLElement; value: HTMLElement } | null = null;
+  let stripParts: { title: HTMLElement; total: HTMLElement; moreSep: Text; totalSep: Text } | null = null;
 
-  const setT = (n: Node, s: string) => { if (n.textContent !== s) { n.textContent = s; lastSize = null; } };
   const setL = (el: HTMLElement, l: string | null | undefined) => {
-    const v = l || null;
-    if (el.getAttribute('lang') !== v) { setAttr(el, 'lang', v); lastSize = null; }
+    setAttr(el, 'lang', l || null);
   };
 
   function rowEntries(idx: 0 | 1, content: TooltipContent, pinned: boolean): RowEntry[] {
-    const map = entries[idx], isStrip = idx === 1, keep = new Set<string>(), out: RowEntry[] = [];
-    const asBtn = pinned && content.select !== undefined;
+    const previous = entries[idx], isStrip = idx === 1, out = nextRows;
+    const button = pinned && content.select !== undefined;
     for (const r of content.model.rows) {
-      const k = `${asBtn ? 'b' : 't'}\0${rowKey(r)}`;
-      keep.add(k);
-      let entry = map.get(k);
+      let entry: RowEntry | undefined = previous[out.length];
+      if (!entry || entry.button !== button || !sameRow(r.ref, entry.r.ref)) {
+        entry = previous.find(e => e.button === button && sameRow(r.ref, e.r.ref));
+      }
       if (!entry) {
-        const e = makeBox(isStrip ? 'axylo-readout-entry' : 'axylo-tooltip-row', asBtn, isStrip);
+        const e = makeBox(isStrip ? 'axylo-readout-entry' : 'axylo-tooltip-row', button, isStrip);
         const n = make(doc, 'span', 'axylo-tooltip-series'), v = make(doc, 'span', 'axylo-tooltip-value'), t = txt();
         v.appendChild(t);
         if (isStrip) e.append(n, txt(' '), v); else e.append(n, v);
-        entry = { k, e, n, v, t, s: isStrip ? txt('; ') : null, r, p: null, l: null, g: null };
-        if (asBtn) choices.set(e, entry);
-        map.set(k, entry);
-        lastSize = null;
+        entry = { button, e, n, v, t, s: isStrip ? txt('; ') : null, r, p: null, l: null, g: null };
       }
       entry.r = r;
       const spec = content.swatch(r);
       if (entry.l !== r.seriesLabel || entry.p !== spec) {
         entry.n.replaceChildren(...(spec ? [createSwatch(doc, spec)] : []), txt(r.seriesLabel));
-        entry.l = r.seriesLabel; entry.p = spec; lastSize = null;
+        entry.l = r.seriesLabel; entry.p = spec;
       }
-      setT(entry.t, r.percent === null || r.percent === r.value ? r.value : `${r.value} (${r.percent})`);
+      setText(entry.t, r.percent === null || r.percent === r.value ? r.value : `${r.value} (${r.percent})`);
       const lang = content.valueLang?.(r.value) ?? null;
-      if (entry.g !== lang) { setAttr(entry.v, 'lang', lang); entry.g = lang; lastSize = null; }
+      if (entry.g !== lang) { setAttr(entry.v, 'lang', lang); entry.g = lang; }
       out.push(entry);
     }
-    for (const k of map.keys()) if (!keep.has(k)) { map.delete(k); lastSize = null; }
+    entries[idx] = out;
+    nextRows = previous;
+    nextRows.length = 0;
     return out;
   }
 
-  function focusedKey(idx: 0 | 1): string | null {
-    const map = entries[idx];
-    if (!map.size) return null;
+  function focusedRef(idx: 0 | 1): DatumRef | null {
+    const rows = entries[idx];
+    if (!rows.length) return null;
     const act = active();
-    for (const [k, e] of map) if (e.e === act) return k;
-    return null;
+    return rows.find(e => e.button && e.e === act)?.r.ref ?? null;
   }
 
   function moreElement(isStrip: boolean, pinned: boolean, content: TooltipContent, count: number): HTMLElement {
-    const btn = pinned && current?.more !== undefined, k = `${isStrip ? 1 : 0}${btn ? 1 : 0}`;
-    let el = mores.get(k);
-    if (!el) mores.set(k, el = makeBox('axylo-tooltip-more', btn, isStrip));
-    setT(el, content.moreRows(count));
+    const btn = pinned && content.more !== undefined, index = (isStrip ? 2 : 0) + (btn ? 1 : 0);
+    const el = mores[index] ??= makeBox('axylo-tooltip-more', btn, isStrip);
+    setText(el, content.moreRows(count));
     setL(el, content.moreLang);
     return el;
   }
 
   function hideIdx(idx: 0 | 1): void {
     const host = hosts[idx];
-    if (!idx) lastSize = lastFloatOrder = null;
     if (where === idx + 1) lastRect = null;
     if (host.hidden && !host.firstChild) return;
-    const key = focusedKey(idx);
-    if (key !== null) {
-      pendingFocus = key;
+    const ref = focusedRef(idx);
+    if (ref !== null) {
+      pendingFocus = ref;
       queueMicrotask(() => {
         if (pendingFocus === null) return;
         pendingFocus = null;
@@ -192,15 +189,17 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     host.hidden = true;
     host.classList.remove(pinCls[idx]);
     setAttr(host, 'aria-hidden', 'true');
-    placeChildren(host, []);
-    entries[idx].clear();
+    host.replaceChildren();
+    entries[idx].length = 0;
+    mores[idx * 2] = mores[idx * 2 + 1] = undefined;
+    if (idx === 0) floatTotal = null;
   }
 
   function begin(idx: 0 | 1, content: TooltipContent, pinned: boolean): void {
     current = content;
-    carriedKey = pinned ? pressKey : null; carriedPtr = pressPtr;
+    carriedRef = pinned ? pressRef : null; carriedPtr = pressPtr;
     if (!pinned) clearPress();
-    hadFocus = (wasPinned && where ? focusedKey((where - 1) as 0 | 1) : null) ?? pendingFocus;
+    hadFocus = (wasPinned && where ? focusedRef((where - 1) as 0 | 1) : null) ?? pendingFocus;
     pendingFocus = null;
     hideIdx(idx ? 0 : 1);
     const host = hosts[idx];
@@ -215,9 +214,9 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
   function finish(idx: 0 | 1, visible: boolean): boolean {
     if (visible) {
       where = (idx + 1) as 1 | 2;
-      if (carriedKey !== null && pressKey === null) startPress(carriedKey, carriedPtr);
+      if (carriedRef !== null && pressRef === null) startPress(carriedRef, carriedPtr);
       if (hadFocus !== null) {
-        const entry = entries[idx].get(hadFocus);
+        const entry = entries[idx].find(e => e.button && sameRow(e.r.ref, hadFocus));
         if (!entry?.e.isConnected) lost();
         else if (active() !== entry.e) entry.e.focus({ preventScroll: true });
       }
@@ -226,57 +225,60 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       where = 0; lastRect = null;
       if (hadFocus !== null) lost();
     }
-    carriedKey = hadFocus = null;
+    carriedRef = hadFocus = null;
     return visible;
   }
 
-  function hide(): void { clearPress(); hideIdx(0); hideIdx(1); where = 0; lastRect = current = null; }
+  function hide(): void {
+    clearPress(); hideIdx(0); hideIdx(1);
+    where = displayed = 0;
+    children.length = nextRows.length = 0;
+    pressedRef = carriedRef = hadFocus = current = lastRect = null;
+  }
 
   return {
     get visible() { return where !== 0; },
     rect: () => lastRect,
     contains: node => node !== null && (element.contains(node) || readoutElement.contains(node)),
     show(content, p, pinned, figMapping) {
-      const wasHidden = where !== 1 || element.hidden;
-      begin(0, content, pinned);
       const m = figMapping ?? mappingOf(figure);
       const maxW = Math.max(0, Math.min(320, p.visible.width / m.kx)), maxH = Math.max(0, p.visible.height / m.ky);
-      const inputs = [pinned, maxW, maxH, figMapping, m.kx, m.ky];
-      if (wasHidden || !sameKey(constraints, inputs)) {
-        const w = `${maxW}px`, h = `${maxH}px`;
-        if (element.style.maxWidth !== w) element.style.maxWidth = w;
-        if (element.style.maxHeight !== h) element.style.maxHeight = h;
-        constraints = inputs; lastSize = null;
-      }
+      begin(0, content, pinned);
+      if (maxWidth !== maxW) { maxWidth = maxW; element.style.maxWidth = `${maxW}px`; }
+      if (maxHeight !== maxH) { maxHeight = maxH; element.style.maxHeight = `${maxH}px`; }
       const rows = rowEntries(0, content, pinned), { model } = content, total = rows.length;
       if (wrapped) { element.classList.remove('axylo-tooltip-wrap'); wrapped = false; }
-      setT(floatTitleNode, model.title);
+      setText(floatTitleNode, model.title);
       if (model.total !== null) {
-        setT(floatTotalName, content.totalLabel ?? '');
-        setL(floatTotalName, content.totalLang);
-        setT(floatTotalValue, model.total);
+        if (!floatTotal) {
+          const row = make(doc, 'div', 'axylo-tooltip-row axylo-tooltip-total');
+          const name = make(doc, 'span', 'axylo-tooltip-series'), value = make(doc, 'span', 'axylo-tooltip-value');
+          row.append(name, value);
+          floatTotal = { row, name, value };
+        }
+        setText(floatTotal.name, content.totalLabel ?? '');
+        setL(floatTotal.name, content.totalLang);
+        setText(floatTotal.value, model.total);
       }
       const overflows = () => element.scrollHeight > element.clientHeight + 1 || element.scrollWidth > element.clientWidth + 1;
       for (let shown = total; shown >= Math.min(1, total); shown--) {
-        const children: Node[] = [floatTitle];
+        children.push(floatTitle);
         for (let i = 0; i < shown; i++) children.push(rows[i]!.e);
         displayed = shown;
         if (model.count > shown) children.push(moreElement(false, pinned, content, model.count - shown));
-        if (model.total !== null) children.push(floatTotal);
-        if (!sameKey(lastFloatOrder, children)) { placeChildren(element, children); lastFloatOrder = children; lastSize = null; }
-        let size = lastSize;
-        if (!size) {
-          size = element.getBoundingClientRect();
-          if (size.width >= (maxW - 2) * m.kx || size.height >= (maxH - 2) * m.ky) {
-            let over = overflows();
-            if (over && !wrapped) {
-              element.classList.add('axylo-tooltip-wrap'); wrapped = true;
-              over = overflows();
-              if (!over || shown <= 1) size = element.getBoundingClientRect();
-            }
-            if (over && shown > 1) continue;
+        if (model.total !== null && floatTotal) children.push(floatTotal.row);
+        placeChildren(element, children);
+        children.length = 0;
+        let size = element.getBoundingClientRect();
+        if (size.width >= (maxW - 2) * m.kx || size.height >= (maxH - 2) * m.ky) {
+          let over = overflows();
+          if (over && !wrapped) {
+            element.classList.add('axylo-tooltip-wrap'); wrapped = true;
+            over = overflows();
+            // Wrapping changes the rendered box and must be measured before placement.
+            if (!over || shown <= 1) size = element.getBoundingClientRect();
           }
-          if (shown === total && !wrapped) lastSize = size;
+          if (over && shown > 1) continue;
         }
         const { width, height } = size;
         let spot = placeTooltip(p, width, height);
@@ -292,9 +294,13 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     },
     strip(content, pinned, visible) {
       begin(1, content, pinned);
+      const { title: stripTitle, total: stripTotal, moreSep, totalSep } = stripParts ??= {
+        title: make(doc, 'span', 'axylo-tooltip-title'), total: make(doc, 'span', 'axylo-readout-total'),
+        moreSep: txt('; '), totalSep: txt('; '),
+      };
       const { model } = content, rows = rowEntries(1, content, pinned);
-      setT(stripTitle, `${model.title}: `);
-      if (model.total !== null) { setT(stripTotal, `${content.totalLabel ?? ''} ${model.total}`); setL(stripTotal, content.totalLang); }
+      setText(stripTitle, `${model.title}: `);
+      if (model.total !== null) { setText(stripTotal, `${content.totalLabel ?? ''} ${model.total}`); setL(stripTotal, content.totalLang); }
       const r = readoutElement.getBoundingClientRect(), box = intersect(r, visible), bx2 = box.x + box.width, by2 = box.y + box.height;
       const within = (el: Element | null) => {
         if (!el?.isConnected) return true;
@@ -324,6 +330,6 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       return finish(1, seen);
     },
     hide,
-    destroy() { hide(); pendingFocus = null; listening.clear(); mores.clear(); },
+    destroy() { hide(); pendingFocus = stripParts = null; listening.clear(); mores.length = 0; },
   };
 }

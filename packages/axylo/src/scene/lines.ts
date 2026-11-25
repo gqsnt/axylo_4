@@ -3,7 +3,7 @@ import {
   type Rect, type ScatterView, type SeriesCue,
 } from '../core/contracts';
 import { buildPath, buildPoints, simplifyLine, type JoinedRuns, type LineInput } from '../simplify';
-import { affinePosition, affineProjection, position, seriesPaint, type AffineProjection } from './geometry';
+import { affinePosition, affineProjection, exactProjection, position, seriesPaint, type AffineProjection } from './geometry';
 
 const MARKER_SPACING = 12;
 const SPARSE_SPACING = 80;
@@ -135,14 +135,30 @@ export function addLine(
 
 export function scatterPoints(view: ScatterView, projection: XY): PointMark[] {
   const result: PointMark[] = [];
+  const xProjection = exactProjection(projection.x);
+  const yProjection = exactProjection(projection.y);
   for (let i = 0; i < view.frame.series.length; i++) {
     if (!view.visible[i]) continue;
     const { x, y } = view.frame.series[i]!;
     const { start, end } = view.visiblePoints[i]!;
     const xy = new Float32Array(2 * (end - start));
-    for (let index = start, out = 0; index < end; index++) {
-      xy[out++] = position(projection.x, x[index]!);
-      xy[out++] = position(projection.y, y[index]!);
+    if (xProjection && yProjection) {
+      const { start: xStart, span: xSpan, origin: xOrigin, extent: xExtent } = xProjection;
+      const { start: yStart, span: ySpan, origin: yOrigin, extent: yExtent } = yProjection;
+      // Interior fractions fit in the packed coordinates. Endpoints, NaN and extrapolation use position.
+      for (let index = start, out = 0; index < end; index++) {
+        const xValue = x[index]!;
+        const yValue = y[index]!;
+        const xFraction = (xValue - xStart) / xSpan;
+        const yFraction = (yValue - yStart) / ySpan;
+        xy[out++] = xFraction > 0 && xFraction < 1 ? xOrigin + xFraction * xExtent : position(projection.x, xValue);
+        xy[out++] = yFraction > 0 && yFraction < 1 ? yOrigin + yFraction * yExtent : position(projection.y, yValue);
+      }
+    } else {
+      for (let index = start, out = 0; index < end; index++) {
+        xy[out++] = position(projection.x, x[index]!);
+        xy[out++] = position(projection.y, y[index]!);
+      }
     }
     result.push(pointMark(i, view.cues[i]!, xy));
   }

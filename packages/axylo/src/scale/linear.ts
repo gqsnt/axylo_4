@@ -47,21 +47,29 @@ function interpolate(a: number, b: number, start: number, end: number): (v: numb
   const span = b - a;
   const extent = end - start;
   if (extent === 0) return () => start;
+  const halfSpan = b / 2 - a / 2;
+  const finiteSpan = Number.isFinite(span);
+  const finiteExtent = Number.isFinite(extent);
+  if (finiteSpan && finiteExtent) {
+    return v => {
+      if (v === a) return start;
+      if (v === b) return end;
+      const delta = v - a;
+      const f = Number.isFinite(delta) ? delta / span : (v / 2 - a / 2) / halfSpan;
+      const offset = f * extent;
+      return Number.isFinite(offset) ? start + offset : (start / 2 + f * (extent / 2)) * 2;
+    };
+  }
   return v => {
     if (v === a) return start;
     if (v === b) return end;
     const delta = v - a;
     // Differences across opposite signs can overflow even when their ratio is small.
-    const f = Number.isFinite(span) && Number.isFinite(delta) ? delta / span
-      : (v / 2 - a / 2) / (b / 2 - a / 2);
-    if (!Number.isFinite(extent)) return start * (1 - f) + end * f;
+    const f = finiteSpan && Number.isFinite(delta) ? delta / span : (v / 2 - a / 2) / halfSpan;
+    if (!finiteExtent) return start * (1 - f) + end * f;
     const offset = f * extent;
     return Number.isFinite(offset) ? start + offset : (start / 2 + f * (extent / 2)) * 2;
   };
-}
-
-function sortedDomain(domain: readonly [number, number]): [number, number] {
-  return domain[0] <= domain[1] ? [domain[0], domain[1]] : [domain[1], domain[0]];
 }
 
 /**
@@ -69,7 +77,9 @@ function sortedDomain(domain: readonly [number, number]): [number, number] {
  * The densest set has at most MAX_TICKS ticks; the sparsest has one.
  */
 export function linearTickCandidates(domain: readonly [number, number], format: TickLabeler, deferLabels = false): TickCandidates {
-  const [lo, hi] = sortedDomain(domain);
+  const ascending = domain[0] <= domain[1];
+  const lo = domain[ascending ? 0 : 1];
+  const hi = domain[ascending ? 1 : 0];
   if (!Number.isFinite(lo) || !Number.isFinite(hi)) return [];
   // A width that no nice step can resolve (subnormal, or below the precision of the values) gets one tick.
   // Divided before subtracting, so that [-1e308, 1e308] does not overflow.
@@ -96,16 +106,23 @@ export function linearTickCandidates(domain: readonly [number, number], format: 
     const count = i1 - i0 + 1;
     if (count >= 1 && count <= MAX_TICKS) {
       const values: number[] = [];
+      const exponent = Math.abs(step.exponent);
+      // With an exact integer factor and a safe index product, one operation rounds like decimal parsing.
+      const factor = exponent <= 15 ? Number(`1e${exponent}`) : 0;
       // Counted, not `i <= i1`: the loop must end whatever the index arithmetic does.
       for (let n = 0; n < count; n++) {
-        const v = stepMultiple(i0 + n, step);
+        const index = i0 + n;
+        const multiple = index * step.mantissa;
+        const v = factor === 0 ? stepMultiple(index, step)
+          : (step.exponent < 0 ? multiple / factor : multiple * factor) || 0;
         // Where the step is below the resolution of the values, neighbours collapse to one double.
         if (v >= lo && v <= hi && values[values.length - 1] !== v) values.push(v);
       }
       if (values.length > 0) {
         const maxAbs = Math.max(Math.abs(values[0] as number), Math.abs(values[values.length - 1] as number));
         const context: TickContext = { step: step.value, maxAbs };
-        const set = values.map(value => tick(value, context));
+        const set: Tick[] = [];
+        for (const value of values) set.push(tick(value, context));
         pushCandidate(sets, set);
       }
     }

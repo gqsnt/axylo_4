@@ -48,11 +48,21 @@ function addStackLine(
   const range = { start: draw.start - start, end: draw.end - start };
   const visible = { start: view.visibleSlots.start - start, end: view.visibleSlots.end - start };
   const y = component.y.subarray(start, end);
+  let hasNegative = false;
+  let hasNonnegative = false;
+  for (let i = 0; i < y.length; i++) {
+    const value = y[i]!;
+    if (value < 0) hasNegative = true;
+    else if (value >= 0) hasNonnegative = true;
+    if (hasNegative && hasNonnegative) break;
+  }
   let values = positive;
-  if (y.some(value => value < 0)) {
-    values = y.some(value => value >= 0)
-      ? Float64Array.from(y, (value, i) => (value < 0 ? negative : positive)[i]!)
-      : negative;
+  if (hasNegative) {
+    values = negative;
+    if (hasNonnegative) {
+      values = new Float64Array(y.length);
+      for (let i = 0; i < y.length; i++) values[i] = (y[i]! < 0 ? negative : positive)[i]!;
+    }
   }
   const selection = segments(vertices, (a, b) =>
     a >= range.start && b < range.end && slot[a] === SLOT_VALUE && slot[b] === SLOT_VALUE);
@@ -77,15 +87,15 @@ export function addStackedAreas(
   const hasPositive = positive.some(value => value > 0);
   const hasNegative = negative.some(value => value < 0);
   // Clip shared edges once from their source values, including when both cuts use the same interval.
-  function clipEnds(xy: Float32Array, indexes: Uint32Array, y: Float64Array | 0) {
+  function clipEnds(xy: Float32Array, indexes: Uint32Array, y: Float64Array | 0, first = 0, endOffset = xy.length) {
     const last = source.x.length - 1;
     const clip = (offset: number, edge: number, left: number) => {
       xy[offset] = affineX ? affinePosition(affineX, edge) : mapX(edge);
       const value = y === 0 ? 0 : interpolated(source.x, edge, left, left + 1, y);
       xy[offset + 1] = affineY ? affinePosition(affineY, value) : mapY(value);
     };
-    if (start < view.visibleSlots.start && indexes[0] === 0) clip(0, view.xDomain[0], 0);
-    if (end > view.visibleSlots.end && indexes.at(-1) === last) clip(xy.length - 2, view.xDomain[1], last - 1);
+    if (start < view.visibleSlots.start && indexes[0] === 0) clip(first, view.xDomain[0], 0);
+    if (end > view.visibleSlots.end && indexes.at(-1) === last) clip(endOffset - 2, view.xDomain[1], last - 1);
   }
 
   function addSeam(y: Float64Array | 0, series: number, width: number, accepts: (a: number, b: number) => boolean) {
@@ -112,10 +122,11 @@ export function addStackedAreas(
     const series = stack.order[k]!;
     const runs: number[] = [];
     let upper = lower;
-    for (const below of [false, true]) {
+    for (let sign = 0; sign < 2; sign++) {
+      const below = sign === 1;
+      if (!(below ? hasNegative : hasPositive) || vertices.length < 2) continue;
       const edges = below ? stack.negative : stack.positive;
       const values = edges[k]!.subarray(start, end);
-      if (!(below ? hasNegative : hasPositive) || vertices.length < 2) continue;
       const base = edges[k - 1]?.subarray(start, end);
       const changed = (i: number) => values[i] !== (base?.[i] ?? 0);
       if (!vertices.some(changed)) continue;
@@ -125,7 +136,7 @@ export function addStackedAreas(
         const value = values[vertices[j]!]!;
         upper[2 * (offset + j) + 1] = affineY ? affinePosition(affineY, value) : mapY(value);
       }
-      clipEnds(upper.subarray(offset * 2, (offset + vertices.length) * 2), vertices, values);
+      clipEnds(upper, vertices, values, offset * 2, (offset + vertices.length) * 2);
       runs.push(offset, vertices.length, offset, vertices.length);
       const total = below ? negative : positive;
       addSeam(values, series, 4, (a, b) =>

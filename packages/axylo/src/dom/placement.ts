@@ -66,11 +66,10 @@ const VERT: readonly Side[] = ['above', 'below', 'right', 'left'];
 function place(p: PlacementInput, width: number, height: number, fallback: boolean): Spot | null {
   const { visible, box } = p;
   if (width > visible.width + E || height > visible.height + E) return null;
-  const obs = [...p.controls, ...p.rings];
+  let obstacles: readonly Rect[] | undefined;
   if (!fallback) {
     const hole = holeSpot(p, width, height);
     if (hole) return hole;
-    obs.unshift(box);
   }
   let bestSpot: Spot | null = null, bestCost = Infinity, bestOff = Infinity;
   for (const side of p.order === 'horizontal' ? HORIZ : VERT) {
@@ -85,8 +84,11 @@ function place(p: PlacementInput, width: number, height: number, fallback: boole
     if (!fallback) {
       const at = clamp(pref, lo, hi);
       const spot: Spot = vert ? { x: at, y: across, side } : { x: across, y: at, side };
-      if (!hits({ x: spot.x, y: spot.y, width, height }, obs)) return spot;
+      const r = { x: spot.x, y: spot.y, width, height };
+      if (!hits(r, p.controls) && !hits(r, p.rings) && overlapArea(r, box) === 0) return spot;
     }
+    // Only a blocked candidate needs the edges of every obstacle.
+    const obs = obstacles ??= fallback ? [...p.controls, ...p.rings] : [box, ...p.controls, ...p.rings];
     const edges = fallback ? [pref, lo, hi, box[ax] - size, box[ax] + box[sp]] : [];
     for (const o of obs) {
       if (o[cx] + o[dp] > across + E && o[cx] < across + thick - E) edges.push(o[ax] - size, o[ax] + o[sp]);

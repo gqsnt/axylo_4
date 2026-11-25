@@ -34,24 +34,29 @@ export interface AffineProjection {
   };
 }
 
-export function affineProjection(scale: XScale, bounds?: readonly [number, number]): AffineProjection | undefined {
-  if (scale.type === 'band') return;
-  const [d0, d1] = scale.domain;
-  const [r0, r1] = scale.range;
-  const span = d1 - d0;
-  const extent = r1 - r0;
+export function exactProjection(scale: XScale, bounded = false): AffineProjection['exact'] {
+  if (scale.type !== 'linear' && scale.type !== 'time') return;
+  const [start, end] = scale.domain;
+  const [origin, edge] = scale.range;
+  const span = end - start;
+  const extent = edge - origin;
   if (!span || !extent || !Number.isFinite(span) || !Number.isFinite(extent)) return;
+  if (Math.max(Math.abs(origin), Math.abs(edge), Math.abs(origin + extent)) > COORDINATE_LIMIT) return;
+  return { scale, start, end, origin, edge, span, extent, bounded };
+}
+
+export function affineProjection(scale: XScale, bounds?: readonly [number, number]): AffineProjection | undefined {
+  const exact = exactProjection(scale, bounds !== undefined);
+  if (!exact) return;
+  const { start, end, origin, edge, span, extent } = exact;
   const slope = extent / span;
-  const offset = r0 - d0 * slope;
-  if (!slope || !Number.isFinite(slope) || !Number.isFinite(offset) ||
-      Math.max(Math.abs(r0), Math.abs(r1)) > COORDINATE_LIMIT) return;
+  const offset = origin - start * slope;
+  if (!slope || !Number.isFinite(slope) || !Number.isFinite(offset)) return;
   // The sorted x column's endpoints also bound any samples used to extend a run past the viewport.
-  for (const value of bounds ? [d0, d1, ...bounds] : [d0, d1]) {
-    const displaced = (value - d0) / span * extent;
-    if (!(Math.abs(displaced + r0) <= COORDINATE_LIMIT) ||
-        !(Math.abs(slope * value + offset) <= COORDINATE_LIMIT)) return;
-  }
-  return { slope, offset, exact: { scale, start: d0, end: d1, origin: r0, edge: r1, span, extent, bounded: bounds !== undefined } };
+  const fits = (value: number) => Math.abs((value - start) / span * extent + origin) <= COORDINATE_LIMIT &&
+    Math.abs(slope * value + offset) <= COORDINATE_LIMIT;
+  if (!fits(start) || !fits(end) || (bounds && (!fits(bounds[0]) || !fits(bounds[1])))) return;
+  return { slope, offset, exact };
 }
 
 export function affinePosition(affine: AffineProjection, value: number): number {
@@ -67,14 +72,35 @@ export function affinePosition(affine: AffineProjection, value: number): number 
   return origin + (value - start) / span * extent;
 }
 
+function writeBin(out: Float64Array, offset: number, left: number, right: number): void {
+  out[offset] = left;
+  out[offset + 1] = right - (right - left > 2 ? 1 : 0);
+}
+
+export function projectBands(frame: AlignedFrame, scale: XScale, start: number, end: number, spanPixels: number): Float64Array {
+  const bounds = new Float64Array((end - start) * 2);
+  const edges = frame.binEdges;
+  if (edges?.length === frame.length + 1 && start < end) {
+    // Adjacent bins share an edge even when the viewport starts inside a bin.
+    let left = position(scale, edges[start]!);
+    for (let i = start, offset = 0; i < end; i++, offset += 2) {
+      const right = position(scale, edges[i + 1]!);
+      writeBin(bounds, offset, left, right);
+      left = right;
+    }
+  } else {
+    for (let i = start, offset = 0; i < end; i++, offset += 2) projectBand(frame, scale, i, spanPixels, bounds, offset);
+  }
+  return bounds;
+}
+
 /** The mark and its focus outline use the same projected band, including the inter-bin separator. */
 export function projectBand(frame: AlignedFrame, scale: XScale, i: number, spanPixels: number, out: Float64Array, offset: number): void {
   const edges = frame.binEdges;
   if (edges?.length === frame.length + 1) {
     const left = position(scale, edges[i]!);
     const right = position(scale, edges[i + 1]!);
-    out[offset] = left;
-    out[offset + 1] = right - (right - left > 2 ? 1 : 0);
+    writeBin(out, offset, left, right);
     return;
   }
   const values = frame.x.values;

@@ -6,8 +6,8 @@
  * Seconds and milliseconds are shown only for positions that have them.
  */
 import type { XValue } from '../public';
-import { instantToWall } from '../scale/zone';
-import { builtInDateFormat, dateTimeFormat, DateParts } from './intl';
+import { instantToWall, MAX_DATE } from '../scale/zone';
+import { builtInDateFormat, dateTimeFormat, DateParts, isPlainEnglish } from './intl';
 import { once } from './number';
 
 export type TemporalKind = 'time' | 'date' | 'wall';
@@ -31,6 +31,13 @@ export function zoneOf(kind: TemporalKind, timeZone: string | null | undefined):
 }
 
 const MINUTE = 60_000;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+const FIRST_AD = -62_135_596_800_000; // 0001-01-01T00:00:00.000Z
+
+function calendarParts(unit: TimeReadoutSpec['dateUnit']): DateParts {
+  return unit === 'year' ? DateParts.Year : unit === 'month' ? DateParts.Year | DateParts.Month : DateParts.Date;
+}
 
 export function defaultTimeReadout(
   position: number,
@@ -41,8 +48,8 @@ export function defaultTimeReadout(
 ): string {
   if (!representable(position)) return String(position);
   const zone = zoneOf(kind, timeZone);
-  const wall = kind === 'time' ? instantToWall(zone, position) : position;
-  let parts = dateUnit === 'year' ? DateParts.Year : dateUnit === 'month' ? DateParts.Year | DateParts.Month : DateParts.Date;
+  const wall = kind === 'time' && zone !== 'UTC' ? instantToWall(zone, position) : position;
+  let parts = calendarParts(dateUnit);
   if (kind !== 'date') {
     parts = DateParts.Date | DateParts.Clock;
     const withinMinute = ((wall % MINUTE) + MINUTE) % MINUTE;
@@ -51,13 +58,47 @@ export function defaultTimeReadout(
     if (kind === 'time') parts |= DateParts.Zone;
   }
   // Astronomical year 0 is 1 BC, which Intl writes "1" like AD 1 unless the era is shown.
-  if (new Date(wall).getUTCFullYear() < 1) parts |= DateParts.Era;
+  if (wall >= -MAX_DATE && wall <= FIRST_AD - 1) parts |= DateParts.Era;
   return builtInDateFormat(locale, zone, parts)(position);
 }
 
 /** Positions a Date can hold; Intl throws on any other ("Invalid time value"), so they are written as numbers. */
 function representable(position: number): boolean {
-  return Number.isFinite(position) && Math.abs(position) <= 8.64e15;
+  return Number.isFinite(position) && Math.abs(position) <= MAX_DATE;
+}
+
+function padClock(value: number): string {
+  return value < 10 ? '0' + value : String(value);
+}
+
+function englishUtcReadout(spec: TimeReadoutSpec, fallback: (position: number) => string): (position: number) => string {
+  const { kind, locale, dateUnit } = spec;
+  const calendar = kind === 'date';
+  const date = builtInDateFormat(locale, 'UTC', calendar ? calendarParts(dateUnit) : DateParts.Date);
+  const zone = kind === 'time' ? ' UTC' : '';
+  // Nearby observations reuse the calendar text. A single day per formatter also bounds retention.
+  let previousDay = Infinity;
+  let dateText = '';
+  return position => {
+    if (!Number.isInteger(position) || position < FIRST_AD || position > MAX_DATE) return fallback(position);
+    const day = Math.floor(position / DAY);
+    if (day !== previousDay) {
+      dateText = date(position);
+      previousDay = day;
+    }
+    if (calendar) return dateText;
+    const withinDay = position - day * DAY;
+    const hours = Math.floor(withinDay / HOUR);
+    const minutes = Math.floor(withinDay / MINUTE) % 60;
+    const withinMinute = withinDay % MINUTE;
+    let text = `${dateText}, ${hours % 12 || 12}:${padClock(minutes)}`;
+    if (withinMinute) {
+      text += ':' + padClock(Math.floor(withinMinute / 1000));
+      const milliseconds = withinMinute % 1000;
+      if (milliseconds) text += '.' + String(milliseconds).padStart(3, '0');
+    }
+    return text + (hours < 12 ? ' AM' : ' PM') + zone;
+  };
 }
 
 /** The zone's name at an instant as Intl writes it ("PST", "GMT+5:30"), in the given style. */
@@ -119,7 +160,9 @@ function authorTimeFormat(spec: TimeReadoutSpec, fallback: ((position: number) =
 
 /** Readout formatter for a temporal x axis. */
 export function createTimeReadout(spec: TimeReadoutSpec): (position: number) => string {
-  const fallback = (position: number): string => defaultTimeReadout(position, spec.kind, spec.timeZone, spec.locale, spec.dateUnit);
+  const standard = (position: number): string => defaultTimeReadout(position, spec.kind, spec.timeZone, spec.locale, spec.dateUnit);
+  const fallback = isPlainEnglish(spec.locale) && zoneOf(spec.kind, spec.timeZone) === 'UTC'
+    ? englishUtcReadout(spec, standard) : standard;
   const author = authorTimeFormat(spec, fallback, true);
   if (author === null) return fallback;
   return (position: number) => (representable(position) ? author(position) : String(position));

@@ -46,31 +46,70 @@ type Decimal = readonly [mantissa: string, exponent: number];
 
 function toDecimal(v: number): Decimal {
   // toExponential() without an argument gives the shortest round-trip digits.
-  const [m = '0', e = '0'] = v.toExponential().split('e');
-  return [m, Number(e)];
+  const text = v.toExponential();
+  const e = text.indexOf('e');
+  return e < 0 ? [text, 0] : [text.slice(0, e), Number(text.slice(e + 1))];
 }
 
 const decimalString = (d: Decimal, shift = 0): string => `${d[0]}e${d[1] + shift}`;
 const formatExact = (nf: Intl.NumberFormat, value: string): string => (nf.format as unknown as (v: string) => string)(value);
-const groupEnglishInteger = (integer: string): string => integer.replace(/\B(?=(\d{3})+$)/g, ',');
+
+function groupEnglishInteger(integer: string): string {
+  const sign = integer[0] === '-' ? 1 : 0;
+  const length = integer.length - sign;
+  if (length <= 3) return integer;
+  const first = sign + (length % 3 || 3);
+  let grouped = integer.slice(0, first);
+  for (let i = first; i < integer.length; i += 3) grouped += ',' + integer.slice(i, i + 3);
+  return grouped;
+}
+
+function decimalDigits(mantissa: string): string {
+  const start = mantissa[0] === '-' ? 1 : 0;
+  return mantissa.length > start + 1 ? mantissa[start] + mantissa.slice(start + 2) : mantissa.slice(start);
+}
 
 /** Standard decimal and percent notation for en and en-US. Null represents a normalized zero. */
 function englishDecimal(d: Decimal | null, scale: ValueScale, max: number, min = 0): string {
-  let digits = d ? d[0].replace(/[-.]/g, '') : '';
-  let point = d ? d[1] + (scale === 'ratio' ? 3 : 1) : 0;
+  return writeEnglishDecimal(d ? decimalDigits(d[0]) : '', d ? d[1] + (scale === 'ratio' ? 3 : 1) : 0,
+    d?.[0][0] === '-', scale, max, min);
+}
+
+function writeEnglishDecimal(digits: string, point: number, negative: boolean, scale: ValueScale, max: number, min = 0): string {
   const keep = point + max;
   if (keep < digits.length) {
     if (keep >= 0 && digits.charCodeAt(keep) >= 53) {
       // Intl's halfExpand rounds the magnitude up on a tie. Carry exactly even past 2^53.
-      digits = (BigInt(digits.slice(0, keep)) + 1n).toString();
+      const prefix = digits.slice(0, keep);
+      digits = keep <= 15 ? String(Number(prefix) + 1) : String(BigInt(prefix) + 1n);
       point += digits.length - keep;
     } else digits = digits.slice(0, Math.max(0, keep));
   }
   const int = digits && point > 0 ? digits.slice(0, point).padEnd(point, '0') : '0';
-  const frac = (digits && point < digits.length
-    ? (point < 0 ? '0'.repeat(-point) + digits : digits.slice(point)).replace(/0+$/, '')
-    : '').padEnd(min, '0');
-  return (d?.[0][0] === '-' ? '-' : '') + groupEnglishInteger(int) + (frac ? '.' + frac : '') + (scale ? '%' : '');
+  const start = Math.max(0, point);
+  let end = digits.length;
+  while (end > start && digits.charCodeAt(end - 1) === 48) end--;
+  const fraction = end > start ? (point < 0 ? '0'.repeat(-point) : '') + digits.slice(start, end) : '';
+  const frac = fraction.padEnd(min, '0');
+  return (negative ? '-' : '') + groupEnglishInteger(int) + (frac ? '.' + frac : '') + (scale ? '%' : '');
+}
+
+function englishReadout(value: number): string | undefined {
+  // Fixed Number#toString uses the same shortest decimal digits as toExponential.
+  const text = String(value);
+  if (text.includes('e')) return;
+  const dot = text.indexOf('.');
+  if (dot < 0) return groupEnglishInteger(text);
+  let first = dot + 1;
+  while (text.charCodeAt(first) === 48) first++;
+  const end = first + SIGNIFICANT_FRACTION_DIGITS;
+  if (end >= text.length) return groupEnglishInteger(text.slice(0, dot)) + text.slice(dot);
+  const negative = value < 0;
+  const start = negative ? 1 : 0;
+  const leadingZero = text[start] === '0';
+  const digits = leadingZero ? text.slice(first) : text.slice(start, dot) + text.slice(dot + 1);
+  const point = leadingZero ? dot + 1 - first : dot - start;
+  return writeEnglishDecimal(digits, point, negative, null, end - dot - 1);
 }
 
 // ───────────────────────────── readouts ─────────────────────────────
@@ -80,14 +119,14 @@ function englishDecimal(d: Decimal | null, scale: ValueScale, max: number, min =
  * not counting its leading zeros (123456.75 → 2, 0.000123456 → 9, 0.30000000000000004 → 6).
  */
 export function readoutFractionDigits(abs: number): number {
-  return abs && Number.isFinite(abs) ? fractionDigitsOf(toDecimal(abs), 0) : 0;
+  if (!abs || !Number.isFinite(abs)) return 0;
+  const [mantissa, exponent] = toDecimal(abs);
+  return fractionDigitsOf(decimalDigits(mantissa), exponent + 1);
 }
 
-function fractionDigitsOf(d: Decimal, shift: number): number {
-  const e = d[1] + shift, digits = d[0].replace(/[-.]/g, '');
-  // Digit i has power e - i; the fraction starts where that power is negative.
-  for (let i = Math.max(0, e + 1); i < digits.length; i++) {
-    if (digits[i] !== '0') return i - e - 1 + SIGNIFICANT_FRACTION_DIGITS;
+function fractionDigitsOf(digits: string, point: number): number {
+  for (let i = Math.max(0, point); i < digits.length; i++) {
+    if (digits.charCodeAt(i) !== 48) return i - point + SIGNIFICANT_FRACTION_DIGITS;
   }
   return 0;
 }
@@ -97,12 +136,19 @@ export function defaultReadoutNumber(v: number, locale: string, scale: ValueScal
   const english = isPlainEnglish(locale);
   if (!scale && Number.isSafeInteger(v)) return english ? groupEnglishInteger(String(v)) : numberFormat(locale).format(v || 0);
   if (english && v === 0) return '0%';
-  const d = Number.isFinite(v) && v !== 0 ? toDecimal(v) : null;
-  const digits = d ? fractionDigitsOf(d, scale === 'ratio' ? 2 : 0) : 0;
-  if (english && d && digits <= MAX_INTL_FRACTION_DIGITS) return englishDecimal(d, scale, digits);
+  const finite = Number.isFinite(v);
+  if (english && finite && !scale) {
+    const text = englishReadout(v);
+    if (text !== undefined) return text;
+  }
+  const d = finite && v !== 0 ? toDecimal(v) : null;
+  const point = d ? d[1] + (scale === 'ratio' ? 3 : 1) : 0;
+  const mantissa = d ? decimalDigits(d[0]) : '';
+  const digits = fractionDigitsOf(mantissa, point);
+  if (english && d && digits <= MAX_INTL_FRACTION_DIGITS) return writeEnglishDecimal(mantissa, point, v < 0, scale, digits);
 
   const style: Intl.NumberFormatOptions = scale ? { style: 'percent' } : {};
-  if (!Number.isFinite(v)) return numberFormat(locale, style, true).format(v);
+  if (!finite) return numberFormat(locale, style, true).format(v);
   if (!d) return numberFormat(locale, { ...style, maximumFractionDigits: 0 }, true).format(0); // no "-0"
   const value = decimalString(d, scale === 'percent' ? -2 : 0);
   if (digits > MAX_INTL_FRACTION_DIGITS) {

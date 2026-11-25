@@ -1,7 +1,7 @@
 import {
   SLOT_NO_ROW, SLOT_VALUE, type AlignedView, type Projection, type Rect, type RectMark,
 } from '../core/contracts';
-import { clamp, projectBand, position, seriesPaint, token } from './geometry';
+import { clamp, projectBands, position, seriesPaint, token } from './geometry';
 
 type Bands = Extract<Projection, { kind: 'bands' }>;
 // With the eight palette colours, no pattern and three patterns give the 32 combinations of spec F9.
@@ -23,24 +23,26 @@ export function barPattern(series: number, compact: boolean): 'none' | typeof PA
 export function barMarks(view: AlignedView, projection: Bands, plot: Rect): RectMark[] {
   const { band, value, horizontal } = projection;
   const { start, end } = view.drawSlots[0] ?? view.visibleSlots;
-  const { stack } = view;
+  const { stack, frame } = view;
   const order = stack?.order ?? view.visible.flatMap((shown, i) => shown ? [i] : []);
   const low = horizontal ? plot.y : plot.x;
   const high = low + (horizontal ? plot.height : plot.width);
   const valueLow = horizontal ? plot.x : plot.y;
   const valueHigh = valueLow + (horizontal ? plot.width : plot.height);
-  const baseline = (v: number) => clamp(position(value, v), valueLow, valueHigh);
-  const extents = new Float64Array((end - start) * 2);
-  for (let i = start; i < end; i++) projectBand(view.frame, band, i, high - low, extents, (i - start) * 2);
+  const zero = position(value, 0);
+  const banded = band.type === 'band';
+  const bins = frame.binEdges;
+  const extents = projectBands(frame, band, start, end, high - low);
   const positives = stack?.positive.at(-1);
   const negatives = stack?.negative.at(-1);
   const divisor = stack ? 1 : order.length;
+  const grouped = !stack && divisor > 1;
   const bars: RectMark[] = [];
   const missing: RectMark[] = [];
 
   for (let i = 0; i < order.length; i++) {
     const series = order[i]!;
-    const { slot, y } = view.frame.series[series]!;
+    const { slot, y } = frame.series[series]!;
     const pos = stack?.positive[i];
     const neg = stack?.negative[i];
     const prevPos = stack?.positive[i - 1];
@@ -56,24 +58,26 @@ export function barMarks(view: AlignedView, projection: Bands, plot: Rect): Rect
     const absent = new Float32Array(missed * 4);
     let valueOffset = 0;
     let missingOffset = 0;
+    const bandOffset = (stack ? 0 : i) + 0.5;
 
     for (let j = start, k = 0; j < end; j++, k += 2) {
+      const state = slot[j];
+      if (state === SLOT_NO_ROW) continue;
+      const isValue = state === SLOT_VALUE;
       const bandStart = extents[k]!;
       let across: number;
       let width: number;
-      if (view.frame.binEdges) {
+      if (bins) {
         // Clip in double precision so a bin extending far offscreen keeps exact Float32 plot edges.
         across = clamp(bandStart, low, high);
         width = Math.max(0, clamp(extents[k + 1]!, low, high) - across);
       } else {
         const part = (extents[k + 1]! - bandStart) / divisor;
         // Grouped bars side by side keep 1 px of background between them (spec A5); a stack shares its band.
-        width = Math.max(1, !stack && divisor > 1 ? part - 1 : part);
-        const mid = bandStart + part * ((stack ? 0 : i) + 0.5);
-        across = band.type === 'band' ? clamp(mid - width / 2, low, Math.max(low, high - width)) : mid - width / 2;
+        width = Math.max(1, grouped ? part - 1 : part);
+        const mid = bandStart + part * bandOffset;
+        across = banded ? clamp(mid - width / 2, low, Math.max(low, high - width)) : mid - width / 2;
       }
-      const isValue = slot[j] === SLOT_VALUE;
-      if (!isValue && slot[j] === SLOT_NO_ROW) continue;
       const positiveTotal = positives?.[j] ?? 0;
       const negativeTotal = negatives?.[j] ?? 0;
       // A missing value has no sign. Prefer the positive edge unless only the negative side exists
@@ -82,10 +86,10 @@ export function barMarks(view: AlignedView, projection: Bands, plot: Rect): Rect
         : negativeTotal < 0 && (positiveTotal === 0 || (prevNeg?.[j] ?? 0) < 0 && (prevPos?.[j] ?? 0) === 0);
       const base = isValue ? (negative ? prevNeg?.[j] : prevPos?.[j]) ?? 0 : negative ? negativeTotal : positiveTotal;
       const tip = isValue ? (negative ? neg?.[j] : pos?.[j]) ?? y[j]! : base;
-      let from = baseline(base);
-      const to = baseline(tip);
-      if (stack && (base !== 0 || negative && positiveTotal > 0) && Math.abs(to - from) > 1 &&
-        position(value, base) === from) {
+      const basePixel = base === 0 ? zero : position(value, base);
+      let from = clamp(basePixel, valueLow, valueHigh);
+      const to = tip === base ? from : clamp(tip === 0 ? zero : position(value, tip), valueLow, valueHigh);
+      if (stack && (base !== 0 || negative && positiveTotal > 0) && Math.abs(to - from) > 1 && basePixel === from) {
         // Leave the shared edge clear without moving the outside end of the stack.
         from += Math.sign(to - from);
       }
