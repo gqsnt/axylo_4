@@ -4,7 +4,6 @@ import type { Messages } from '../public';
 const chartSummary = '{type} chart with {seriesCount} series. {xLabel} from {xMin} to {xMax}.';
 // chartSummary and the range, written out: no work at import time.
 const fullChartSummary = '{type} chart with {seriesCount} series. {xLabel} from {xMin} to {xMax}. {yLabel} from {yMin} to {yMax}.';
-const donutSlice = '{label}: {value} ({percent}).';
 
 export const CHART_TYPE_MESSAGE = {
   line: 'typeLine', area: 'typeArea', bar: 'typeBar', histogram: 'typeHistogram', scatter: 'typeScatter', donut: 'typeDonut',
@@ -81,23 +80,42 @@ export function chartTypeName(messages: Messages, kind: keyof typeof CHART_TYPE_
 }
 
 export function fill(template: string, values: Readonly<Record<string, string | number>>): string {
-  return template.replace(/\{(\w+)\}/g, (placeholder: string, name: string) =>
-    Object.hasOwn(values, name) ? String(values[name]) : placeholder,
-  );
+  let open = template.indexOf('{');
+  if (open < 0) return template;
+  let result = '';
+  let start = 0;
+  while (open >= 0) {
+    let end = open + 1;
+    for (; end < template.length; end++) {
+      const code = template.charCodeAt(end);
+      if (!(code >= 48 && code <= 57 || code >= 65 && code <= 90 || code === 95 || code >= 97 && code <= 122)) break;
+    }
+    if (end > open + 1 && template[end] === '}') {
+      const name = template.slice(open + 1, end);
+      if (Object.hasOwn(values, name)) {
+        result += template.slice(start, open) + String(values[name]);
+        start = end + 1;
+      }
+    }
+    // An invalid placeholder can contain another opening brace.
+    open = template.indexOf('{', end);
+  }
+  return start === 0 ? template : result + template.slice(start);
 }
 
 const authoredMessages = new WeakMap<Messages, ReadonlySet<keyof Messages>>();
 
 export function resolveMessages(overrides?: Partial<Messages> | null): Messages {
   const messages = { ...defaultMessages };
-  const authored = new Set<keyof Messages>();
+  if (!overrides) return messages;
+  let authored: Set<keyof Messages> | undefined;
   for (const key of Object.keys(messages) as (keyof Messages)[]) {
-    const value = overrides?.[key];
+    const value = overrides[key];
     if (value == null) continue;
     messages[key] = value;
-    authored.add(key);
+    (authored ??= new Set()).add(key);
   }
-  authoredMessages.set(messages, authored);
+  if (authored) authoredMessages.set(messages, authored);
   return messages;
 }
 
@@ -109,14 +127,16 @@ export function fillChartSummary(
   template: string, values: Readonly<Record<string, string>>, range: { readonly yMin: string; readonly yMax: string } | null,
 ): string {
   if (range) return fill(template, { ...values, ...range });
+  if (template === fullChartSummary) return fill(chartSummary, values);
   // When a translation uses the same placeholders, omit the sentence that would describe the missing range.
-  const withoutRange = template === fullChartSummary ? chartSummary
-    : template.match(/[^.!?。！？]+[.!?。！？]*|[.!?。！？]+/gu)?.filter(part => !/\{y(?:Min|Max)\}/.test(part)).join('').trim();
+  const withoutRange = template.includes('{yMin}') || template.includes('{yMax}')
+    ? template.match(/[^.!?。！？]+[.!?。！？]*|[.!?。！？]+/gu)?.filter(part => !/\{y(?:Min|Max)\}/.test(part)).join('').trim()
+    : template.trim();
   return fill(withoutRange || chartSummary, values);
 }
 
 export function fillDonutSlice(label: string, value: string, percent: string): string {
-  return fill(donutSlice, { label, value, percent });
+  return `${label}: ${value} (${percent}).`;
 }
 
 export function pointOf(lookup: Lookup, ref: DatumRef, formatters: Formatters, messages: Messages): string | null {

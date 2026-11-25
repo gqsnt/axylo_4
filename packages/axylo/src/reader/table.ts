@@ -122,13 +122,19 @@ export const scatterTable: TableBuilder = (view, caption, formatters, messages, 
 
 export const alignedTable: TableBuilder = (view, caption, formatters, messages, labels) => {
   const { frame, visibleSlots: { start, end }, stack } = view as AlignedView;
-  const headers = [withUnit(frame.xLabel, labels.xUnit ?? null), ...frame.series.map(series => withUnit(series.label, series.unit))];
+  const { series } = frame;
+  const headers = [withUnit(frame.xLabel, labels.xUnit ?? null)];
+  for (const entry of series) headers.push(withUnit(entry.label, entry.unit));
   return paged(caption, headers, end - start,
     i => {
       const at = start + i;
       const x = slotLabel(frame, formatters, at);
-      return [stack?.incomplete?.[at] ? incomplete(x, messages) : x,
-        ...frame.series.map((series, s) => slotText(formatters, s, series.y[at]!, series.slot[at] as SlotState))];
+      const row = [stack?.incomplete?.[at] ? incomplete(x, messages) : x];
+      for (let s = 0; s < series.length; s++) {
+        const entry = series[s]!;
+        row.push(slotText(formatters, s, entry.y[at]!, entry.slot[at] as SlotState));
+      }
+      return row;
     },
     x => {
       const position = readPosition(x, frame.x.kind, frame.x.timeZone, frame.x.categories);

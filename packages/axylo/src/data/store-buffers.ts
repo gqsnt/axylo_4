@@ -43,7 +43,8 @@ export class FrameBuffers {
   /** null while every slot of the window has an observation (no gap slot was ever stored). */
   private observedFlags: Uint8Array | null;
   private categoryPositions: Float64Array;
-  readonly series: Map<string, SeriesBuffers>;
+  #series: Map<string, SeriesBuffers>;
+  #sharedSeries = false;
   #range: BufferWindow;
   /** Source row of slot i for an identity series is i + rowShift; storage rebasing moves slots, not rows. */
   #rowShift: number;
@@ -51,13 +52,16 @@ export class FrameBuffers {
   get start(): number { return this.#range.start; }
   get end(): number { return this.#range.end; }
   set end(end: number) { this.#range.end = end; }
+  get series(): ReadonlyMap<string, SeriesBuffers> { return this.#series; }
   distinct: number;
 
-  constructor(frame?: AlignedFrame | FrameBuffers, positions?: Float64Array, order: Int32Array | null = null) {
-    // A fork owns its window and descriptors. Its columns and tail flags stay shared until a write claims or copies them.
+  constructor(frame?: AlignedFrame | FrameBuffers, positions?: Float64Array, order: Int32Array | null = null, dense = false) {
     if (frame instanceof FrameBuffers) {
       this.#range = frame.#range.fork();
-      this.series = mapValues(frame.series, series => ({ ...series }));
+      // Dense drafts can share descriptors with explicit row indexes and no writable tail.
+      this.#sharedSeries = dense && frame.#canShareSeries();
+      this.#series = this.#sharedSeries ? frame.#series : mapValues(frame.#series, series => ({ ...series }));
+      if (this.#sharedSeries) frame.#sharedSeries = true;
       this.x = frame.x;
       this.distinct = frame.distinct;
       this.observedFlags = frame.observedFlags;
@@ -65,7 +69,7 @@ export class FrameBuffers {
       this.#rowShift = frame.#rowShift;
       return;
     }
-    this.series = new Map();
+    this.#series = new Map();
     this.observedFlags = null;
     this.categoryPositions = new Float64Array();
     this.#rowShift = 0;
@@ -93,13 +97,29 @@ export class FrameBuffers {
       series.y.set(y);
       series.slot.set(slot);
       if (row) series.row!.set(row);
-      this.series.set(description.key, series);
+      this.#series.set(description.key, series);
     }
   }
 
-  fork(): FrameBuffers {
-    return new FrameBuffers(this);
+  fork(dense = false): FrameBuffers {
+    return new FrameBuffers(this, undefined, null, dense);
   }
+
+  #canShareSeries(): boolean {
+    for (const series of this.#series.values()) if (!series.row || series.tail) return false;
+    return true;
+  }
+
+  #ownSeries(): Map<string, SeriesBuffers> {
+    if (this.#sharedSeries) {
+      this.#series = new Map(this.#series);
+      this.#sharedSeries = false;
+    }
+    return this.#series;
+  }
+
+  deleteSeries(key: string): void { this.#ownSeries().delete(key); }
+  clearSeries(): void { this.#ownSeries().clear(); }
 
   get hasCompetingWrites(): boolean { return this.#range.hasCompetingWrites; }
 
@@ -181,7 +201,7 @@ export class FrameBuffers {
     copy.slot.set(series.slot.subarray(start, end), offset);
     copy.row?.set(series.row!.subarray(start, end), offset);
     restoreTail(series.tail, copy, offset + end - start - 1);
-    this.series.set(series.description.key, copy);
+    this.#ownSeries().set(series.description.key, copy);
     return copy;
   }
 
@@ -203,7 +223,7 @@ export class FrameBuffers {
       series.y.fill(NaN, this.start, this.end);
       series.slot.fill(SLOT_NO_ROW, this.start, this.end);
     }
-    this.series.set(description.key, series);
+    this.#ownSeries().set(description.key, series);
     return series;
   }
 
@@ -225,7 +245,15 @@ export class FrameBuffers {
     }
   }
 
-  frame(previous: AlignedFrame, axis: XColumn, source: RowSource, open: (key: string) => boolean): AlignedFrame {
+  dropObservedHead(): void {
+    this.#range.start++;
+    this.distinct--;
+    this.shrink();
+  }
+
+  frame(previous: AlignedFrame, axis: XColumn, source: RowSource, open?: (key: string) => boolean,
+    revision = previous.revision,
+  ): AlignedFrame {
     const { start, end } = this;
     let positions = this.x.subarray(start, end);
     if (axis.kind === 'category' && positions[0]) {
@@ -235,38 +263,49 @@ export class FrameBuffers {
       }
       positions = this.categoryPositions.subarray(0, positions.length);
     }
-    return {
-      ...previous, source, revision: previous.revision, length: end - start,
-      x: {
-        values: positions, kind: axis.kind, dateUnit: axis.dateUnit,
-        timeZone: axis.timeZone, ordered: axis.ordered,
-        get categories() { return axis.kind === 'category' && end === start ? [] : axis.categories; },
-      },
-      series: Array.from(this.series.values(), series => {
-        // The frame's null row means "slot i came from row i", which holds only while nothing has shifted.
-        if (!series.row && start + this.#rowShift !== 0 && end > start) this.#materializeRows(series);
-        const { description, y, slot, row } = series;
-        if (start === end || !open(description.key)) {
-          return { ...description, y: y.subarray(start, end), slot: slot.subarray(start, end), row: row?.subarray(start, end) ?? null };
-        }
-        const index = end - 1;
-        if (series.tail?.index !== index) {
-          series.tail = { index, exposed: false, claimed: false, y: y[index]!, slot: slot[index]!, row: row ? row[index]! : index + this.#rowShift };
-        }
-        const tail = series.tail;
-        let values: Float64Array | undefined;
-        let states: Uint8Array | undefined;
-        let rows: Int32Array | undefined;
-        const columns = {
-          ...description,
-          get y() { return values ??= readColumn(y, tail, start, end, tail.y); },
-          get slot() { return states ??= readColumn(slot, tail, start, end, tail.slot); },
-          get row() { return row ? rows ??= readColumn(row, tail, start, end, tail.row) : null; },
-        };
-        if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) lazyColumns.set(columns, () => [values, states, rows]);
-        return columns;
-      }),
+    const { kind, dateUnit, timeZone, ordered } = axis;
+    const x = kind === 'category' ? {
+      values: positions, kind, dateUnit, timeZone, ordered,
+      get categories() { return end === start ? [] : axis.categories; },
+    } : { values: positions, kind, dateUnit, timeZone, ordered, categories: null };
+    const series: Series[] = [];
+    for (const buffer of this.#series.values()) {
+      // The frame's null row means "slot i came from row i", which holds only while nothing has shifted.
+      if (!buffer.row && start + this.#rowShift !== 0 && end > start) this.#materializeRows(buffer);
+      const { key, label, field, unit, valueScale, drawable } = buffer.description;
+      if (start !== end && open?.(key)) {
+        series.push(this.#openSeries(buffer, start, end));
+      } else {
+        series.push({
+          key, label, field, unit, valueScale, drawable,
+          y: buffer.y.subarray(start, end), slot: buffer.slot.subarray(start, end),
+          row: buffer.row?.subarray(start, end) ?? null,
+        });
+      }
+    }
+    const { shape, epoch, xLabel, yLabel, binEdges } = previous;
+    const frame = { shape, epoch, xLabel, yLabel, source, revision, length: end - start, x, series };
+    return binEdges === undefined ? frame : { ...frame, binEdges };
+  }
+
+  #openSeries(series: SeriesBuffers, start: number, end: number): Series {
+    const { description, y, slot, row } = series;
+    const index = end - 1;
+    if (series.tail?.index !== index) {
+      series.tail = { index, exposed: false, claimed: false, y: y[index]!, slot: slot[index]!, row: row ? row[index]! : index + this.#rowShift };
+    }
+    const tail = series.tail;
+    let values: Float64Array | undefined;
+    let states: Uint8Array | undefined;
+    let rows: Int32Array | undefined;
+    const columns = {
+      ...description,
+      get y() { return values ??= readColumn(y, tail, start, end, tail.y); },
+      get slot() { return states ??= readColumn(slot, tail, start, end, tail.slot); },
+      get row() { return row ? rows ??= readColumn(row, tail, start, end, tail.row) : null; },
     };
+    if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) lazyColumns.set(columns, () => [values, states, rows]);
+    return columns;
   }
 }
 

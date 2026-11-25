@@ -1,7 +1,7 @@
 /** Writes an attribute only when it changes; null removes it. Shared by the figure and its controls. */
 export function setAttr(el: Element, name: string, value: string | null): void {
   if (value === null) {
-    if (el.hasAttribute(name)) el.removeAttribute(name);
+    el.removeAttribute(name);
   } else if (el.getAttribute(name) !== value) {
     el.setAttribute(name, value);
   }
@@ -93,13 +93,22 @@ export function activeElementOf(doc: Document, from?: Node | null): Element | nu
 
 /** Writes text only when it changes. */
 export function setText(node: Node, text: string): void {
+  if (text !== '' && node.nodeType === 1) {
+    const child = node.firstChild;
+    if (child?.nodeType === 3 && child.nextSibling === null) {
+      // Reuse the text node when readouts or summaries change on each frame.
+      if (child.textContent !== text) child.textContent = text;
+      return;
+    }
+  }
   if (node.textContent !== text) node.textContent = text;
 }
 
 /** Puts exactly `wanted`, in order, into `host`, moving a node only when it is out of place. */
 export function placeChildren(host: Node, wanted: readonly Node[]): void {
   let at: ChildNode | null = host.firstChild;
-  for (const node of wanted) {
+  for (let i = 0; i < wanted.length; i++) {
+    const node = wanted[i]!;
     if (at !== node) host.insertBefore(node, at);
     at = (node as ChildNode).nextSibling;
   }
@@ -128,6 +137,8 @@ export function svgElement<K extends keyof SVGElementTagNameMap>(
   doc: Document, tag: K, attrs?: Readonly<Record<string, string>>,
 ): SVGElementTagNameMap[K] {
   const el = doc.createElementNS('http://www.w3.org/2000/svg', tag);
-  if (attrs) for (const key of Object.keys(attrs)) el.setAttribute(key, attrs[key]!);
+  if (attrs) {
+    for (const key in attrs) if (Object.hasOwn(attrs, key)) el.setAttribute(key, attrs[key]!);
+  }
   return el;
 }

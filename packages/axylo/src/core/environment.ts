@@ -13,19 +13,32 @@ export function viewerTimeZone(): string {
   }
 }
 
+const LOCALE_CACHE_LIMIT = 64;
+const canonicalLocales = new Map<string, string | null>();
+let canonicalize: typeof Intl.getCanonicalLocales | undefined;
+
+function canonicalLocale(candidate: unknown): string | null {
+  if (typeof candidate !== 'string') return null;
+  const tag = candidate.trim();
+  if (!tag) return null;
+  if (canonicalize !== Intl.getCanonicalLocales) {
+    canonicalize = Intl.getCanonicalLocales;
+    canonicalLocales.clear();
+  }
+  const cached = canonicalLocales.get(tag);
+  if (cached !== undefined) return cached;
+  let canonical: string | null = null;
+  try { canonical = Intl.getCanonicalLocales(tag)[0] ?? null; }
+  catch { /* Try the next locale source. */ }
+  if (canonicalLocales.size >= LOCALE_CACHE_LIMIT) canonicalLocales.delete(canonicalLocales.keys().next().value!);
+  canonicalLocales.set(tag, canonical);
+  return canonical;
+}
+
 /** `options.locale`, else the document language, else the browser's, as a locale Intl accepts. */
 export function resolveLocale(option: unknown, doc: Document | null, lang = doc?.documentElement.lang): string {
-  const candidates = [option, lang, doc?.defaultView?.navigator.language];
-  for (const candidate of candidates) {
-    if (typeof candidate !== 'string' || candidate.trim() === '') continue;
-    try {
-      const [canonical] = Intl.getCanonicalLocales(candidate.trim());
-      if (canonical) return canonical;
-    } catch {
-      // Not a locale tag; try the next source.
-    }
-  }
-  return new Intl.NumberFormat().resolvedOptions().locale;
+  return canonicalLocale(option) ?? canonicalLocale(lang) ?? canonicalLocale(doc?.defaultView?.navigator.language)
+    ?? new Intl.NumberFormat().resolvedOptions().locale;
 }
 
 function pixels(value: string, fontSize: number): number {
@@ -59,8 +72,14 @@ export function readTextStyle(element: Element): TextStyle {
 }
 
 const contexts = new WeakMap<Document, CanvasRenderingContext2D | null>();
+type Widths = Map<string, number>;
+interface MeasurementCache {
+  readonly styles: WeakMap<TextStyle, Widths>;
+  readonly fonts: Map<string, Map<number, Map<number, Widths>>>;
+  size: number;
+}
 /** Measured widths per document, for every style together, so the bound holds for the whole page. */
-const caches = new WeakMap<Document, Map<string, number>>();
+const caches = new WeakMap<Document, MeasurementCache>();
 const fontEpochs = new WeakMap<Document, number>();
 /** The font epoch each document's context last resolved its font in. */
 const contextEpochs = new WeakMap<Document, number>();
@@ -72,7 +91,7 @@ export const MEASUREMENT_CACHE_LIMIT = 8192;
  */
 export function noteFontLoad(doc: Document): void {
   fontEpochs.set(doc, (fontEpochs.get(doc) ?? 0) + 1);
-  caches.get(doc)?.clear();
+  caches.delete(doc);
 }
 
 /** How many widths the document's cache holds (for tests of its bound). */
@@ -83,6 +102,26 @@ export function measurementCacheSize(doc: Document): number {
 type SpacingContext = CanvasRenderingContext2D & { letterSpacing?: string; wordSpacing?: string };
 
 const measurers = new WeakMap<Document, TextMeasurer>();
+
+function newMeasurementCache(doc: Document): MeasurementCache {
+  const cache: MeasurementCache = { styles: new WeakMap(), fonts: new Map(), size: 0 };
+  caches.set(doc, cache);
+  return cache;
+}
+
+function widthsFor(cache: MeasurementCache, style: TextStyle): Widths {
+  let widths = cache.styles.get(style);
+  if (widths) return widths;
+  // Equivalent styles from different charts share measurements. Line height does not affect width.
+  let letters = cache.fonts.get(style.font);
+  if (!letters) cache.fonts.set(style.font, letters = new Map());
+  let words = letters.get(style.letterSpacing);
+  if (!words) letters.set(style.letterSpacing, words = new Map());
+  widths = words.get(style.wordSpacing);
+  if (!widths) words.set(style.wordSpacing, widths = new Map());
+  cache.styles.set(style, widths);
+  return widths;
+}
 
 /**
  * Canvas `measureText` with the computed font and the page's letter and word spacing (spec A6). Where the
@@ -95,16 +134,15 @@ export function createMeasurer(doc: Document): TextMeasurer {
   if (measurer) return measurer;
   measurer = {
     width(text: string, style: TextStyle): number {
+      let cache = caches.get(doc) ?? newMeasurementCache(doc);
+      let widths = widthsFor(cache, style);
+      const hit = widths.get(text);
+      if (hit !== undefined) return hit;
       let ctx = contexts.get(doc);
       if (ctx === undefined) {
         ctx = doc.createElement('canvas').getContext('2d');
         contexts.set(doc, ctx);
       }
-      let cache = caches.get(doc);
-      if (!cache) caches.set(doc, cache = new Map());
-      const key = `${fontEpochs.get(doc) ?? 0}|${style.font}|${style.letterSpacing}|${style.wordSpacing}|${text}`;
-      const hit = cache.get(key);
-      if (hit !== undefined) return hit;
       let width: number;
       let spaced = false;
       if (ctx) {
@@ -138,8 +176,12 @@ export function createMeasurer(doc: Document): TextMeasurer {
           width += style.wordSpacing * spaces;
         }
       }
-      if (cache.size >= MEASUREMENT_CACHE_LIMIT) cache.clear();
-      cache.set(key, width);
+      if (cache.size >= MEASUREMENT_CACHE_LIMIT) {
+        cache = newMeasurementCache(doc);
+        widths = widthsFor(cache, style);
+      }
+      widths.set(text, width);
+      cache.size++;
       return width;
     },
   };

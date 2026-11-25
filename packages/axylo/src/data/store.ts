@@ -3,6 +3,7 @@ import {
   type AlignedFrame, type DiagnosticInput, type DiagnosticSink, type Frame, type RowSource, type XColumn,
 } from '../core/contracts';
 import { DiagnosticCollector } from '../diagnostics';
+import { MAX_DATE } from '../scale/zone';
 import {
   alignedFrame, alignedSeed, alignmentFits, mergeGaps, normalizeAligned, readPosition, readX, reportGaps, reportMissingName, seriesDescription,
   type DataEnvironment, type FrameVersion, type XData,
@@ -19,17 +20,18 @@ import { FrameBuffers, type SeriesBuffers } from './store-buffers';
 import { ByteCount, CallerBuffers, countBuffers, countRevisions, type OwnedBytes } from './store-bytes';
 import { CalendarWindow } from './store-calendar';
 import { StreamDiagnostics } from './store-diagnostics';
-import { forkValues, checkVersion, forwardDiagnostics, installEncodingExtras, nextVersion, groupFor, RevisionStore, retentionStart, shareRemainder, StreamRows } from './store-rows';
+import { forkValues, checkVersion, forwardDiagnostics, installEncodingExtras, nextVersion, groupFor, RevisionStore, retentionStart, shareRemainder, StreamRows, type FrameSource } from './store-rows';
 import { rowsTable, rowValue, sameTableData, type Table } from './table';
 import { once, retention, type PreparedFrame, type StoreAppendOptions } from './transaction';
 import { readValues, valueMode, type ValueCounts, type ValueMode, type Values } from './values';
-import { addKinds, countKinds, dateUnitOf, voteOf, nameOf, positionName, preferredKind, type DateUnit, type KindVotes } from './x';
+import { addKinds, countKinds, dateUnitOf, voteOf, nameOf, positionName, preferredKind, DAY, HOUR, type DateUnit, type KindVotes } from './x';
 
 const quiet: DiagnosticSink = { add: () => {} };
 const noSource: RowSource = { rowAt: () => null };
 type Fields = Omit<ResolvedOptions, 'table'>;
 const noPositions = new Float64Array(0);
 const noRows: readonly number[] = [];
+const noDiagnostics: readonly DiagnosticInput[] = Object.freeze([]);
 const smallBatches: readonly (readonly number[])[] = Array.from({ length: 9 }, (_, size) =>
   Array.from({ length: size }, (_, i) => i));
 
@@ -122,6 +124,22 @@ class Cadence {
 
   multiple(delta: number): number { return stepMultiple(delta, this.#min); }
 
+  appendRegular(position: number, delta: number, dropped: number | undefined): Cadence | null {
+    const step = this.step;
+    if (!step || this.#matches !== this.#differences || this.absent(step) !== 0 ||
+      stepMultiple(delta, step) !== 1 || (dropped !== undefined && stepMultiple(dropped, step) !== 1)) return null;
+    const span = this.#span + delta;
+    const differences = this.#differences + 1;
+    if (Math.round(span / step) > differences) return null;
+
+    const next = this.fork();
+    next.last = position;
+    next.#span = dropped === undefined ? span : span - dropped;
+    next.#differences = next.#matches = dropped === undefined ? differences : this.#differences;
+    if (next.absent(step) !== 0) return null;
+    return next;
+  }
+
   evict(axis: XColumn, window: Observations, delta: number, multiple: number, writable: boolean): Cadence {
     if (!multiple || this.#multiple === null || this.#matches === Number(multiple === 1)) return Cadence.read(axis, window);
     const next = writable ? this : this.fork();
@@ -196,6 +214,16 @@ class Observations {
     draft.cadence = this.cadence;
     draft.duplicates = this.duplicates?.size ? this.duplicates.fork() : null;
     return draft;
+  }
+
+  useWindow(positions: Float64Array, cadence: Cadence): void {
+    this.#prefix = positions;
+    this.#prefixStart = 0;
+    if (this.#positions !== noPositions) {
+      this.#positions = noPositions;
+      this.#range = new BufferWindow();
+    }
+    this.cadence = cadence;
   }
 
   at(index: number): number | undefined {
@@ -319,9 +347,9 @@ function valueCounts(table: Table, field: string, positions: Float64Array, count
 interface State {
   readonly axis: XColumn;
   readonly parser: XData['parser'];
-  readonly buffers: FrameBuffers;
+  buffers: FrameBuffers;
   readonly observations: Map<string, Observations>;
-  readonly modes: Map<string, ValueCounts>;
+  modes: Map<string, ValueCounts>;
   readonly calendar: CalendarWindow | null;
   readonly votes: KindVotes | null;
   readonly dateUnits: Record<DateUnit, number> | null;
@@ -349,6 +377,28 @@ interface Batch {
   readonly ascending: boolean;
   readonly modes: State['modes'];
   readonly diagnostics: StreamDiagnostics;
+}
+
+interface SingleAppend {
+  readonly frame: AlignedFrame;
+  readonly source: FrameSource;
+  readonly buffers: FrameBuffers;
+  readonly cadence: Cadence;
+  readonly modes: State['modes'];
+  readonly row: object;
+  readonly index: number;
+  readonly position: number;
+  readonly first: number | undefined;
+  readonly evicted: number | undefined;
+  readonly bounded: boolean;
+}
+
+function ownNumber(row: Record<string, unknown>, key: string): number | undefined {
+  // Accessors use the general validation path, where reads can raise diagnostics.
+  const property = Object.getOwnPropertyDescriptor(row, key);
+  if (!property || !Object.hasOwn(property, 'value')) return undefined;
+  const value: unknown = property.value;
+  return typeof value === 'number' && Number.isFinite(value) && Object.is(row[key], value) ? value : undefined;
 }
 
 function tail(
@@ -544,6 +594,108 @@ class AlignedData {
       overBudget, dateUnits: seed && x.dateUnits ? { ...x.dateUnits } : x.dateUnits, diagnostics,
     };
     return { frame, state, x };
+  }
+
+  prepareSingle(row: unknown, keep: number | undefined): SingleAppend | null {
+    const { fields, rows, current, state } = this;
+    const { axis, buffers, observations } = state;
+    const { start, end } = buffers;
+    const length = end - start;
+    if (!fields.valid || state.overBudget || fields.series !== null || fields.x.type !== axis.kind ||
+      (axis.kind !== 'number' && axis.kind !== 'time') || this.latest.length ||
+      length < 3 || buffers.distinct !== length || rows.size !== length || current.length !== length ||
+      !fields.values.length || fields.values.length !== buffers.series.size ||
+      typeof row !== 'object' || row === null) return null;
+    const prototype: unknown = Object.getPrototypeOf(row);
+    if (prototype !== Object.prototype && prototype !== null) return null;
+
+    if ((keep !== undefined && keep < length) || !alignmentFits(buffers.series.size, length + 1, quiet)) return null;
+    const object = row as Record<string, unknown>;
+    const position = ownNumber(object, fields.x.field);
+    const last = buffers.x[end - 1]!;
+    if (position === undefined || !(position > last)) return null;
+    const delta = position - last;
+    if (axis.kind === 'time') {
+      const magnitude = Math.abs(position);
+      // A retained sub-day interval rules out AX111 both before and after a one-row slide.
+      if (magnitude > MAX_DATE || (magnitude >= 1e9 && magnitude < 1e10) || delta >= DAY - HOUR) return null;
+    }
+
+    const first = keep === length ? buffers.x[start]! : undefined;
+    const evicted = first === undefined ? undefined : rows.firstRowAt(first);
+    if (first !== undefined && evicted === undefined) return null;
+    const dropped = first === undefined ? undefined : stepDelta(axis, first, buffers.x[start + 1]!);
+    const cadence = observations.get(fields.values[0]!.field)?.cadence.appendRegular(position, delta, dropped);
+    if (!cadence) return null;
+
+    const values: number[] = [];
+    const column = evicted !== undefined && rows.isColumn(evicted);
+    // Column compaction can invoke a caller's typed-array species during preparation.
+    if (keep !== undefined && rows.needsColumnCompaction(Number(column))) return null;
+    const outgoingRow = evicted !== undefined && !column ? rows.rowAt(evicted) as Record<string, unknown> : null;
+    let modes = state.modes;
+    for (const field of fields.values) {
+      const key = field.field;
+      const value = ownNumber(object, key);
+      const window = observations.get(key);
+      const counts = state.modes.get(key);
+      if (value === undefined || window?.cadence.last !== last || window.duplicates?.size ||
+        !buffers.series.has(key) || counts?.decimal !== 0) return null;
+      values.push(value);
+
+      let raw: unknown;
+      if (column) raw = rows.read(evicted!, key);
+      else if (outgoingRow) {
+        const property = Object.getOwnPropertyDescriptor(outgoingRow, key);
+        if (property) {
+          if (!Object.hasOwn(property, 'value')) return null;
+          raw = outgoingRow[key];
+        }
+      }
+      const outgoing = valueMode(raw, column);
+      if (outgoing === 'other') continue;
+      if (modes === state.modes) modes = new Map(modes);
+      modes.set(key, { decimal: counts.decimal - Number(outgoing === 'decimal'), other: counts.other + 1 });
+    }
+
+    const draft = buffers.fork(true);
+    const index = rows.next;
+    draft.reserve(1);
+    const target = draft.end;
+    draft.x[target] = position;
+    for (let i = 0; i < values.length; i++) {
+      const series = draft.series.get(fields.values[i]!.field)!;
+      series.y[target] = values[i]!;
+      series.slot[target] = SLOT_VALUE;
+      draft.setRow(series, target, index);
+    }
+    draft.markObserved(null, target, 1);
+    draft.end++;
+    if (first !== undefined) draft.dropObservedHead();
+    const source = rows.previewAppend(row, evicted);
+    const frame = draft.frame(current, axis, source, undefined, current.revision + 1);
+    return { frame, source, buffers: draft, cadence, modes, row, index, position, first, evicted, bounded: keep !== undefined };
+  }
+
+  commitSingle(append: SingleAppend): void {
+    const { rows, state } = this;
+    const { calendar, observations } = state;
+    rows.appendPosition(append.row, append.position);
+    calendar?.observe(append.position);
+    calendar?.record(append.index);
+    if (append.first !== undefined) {
+      rows.evictSingle(append.first, append.evicted!);
+      calendar?.evictPosition(append.first);
+      calendar?.evictRow(append.evicted!);
+    }
+    const { buffers, frame } = append;
+    // Every wide series can use the frame's own x window as its observation history.
+    for (const history of observations.values()) history.useWindow(frame.x.values, append.cadence);
+    rows.shareSeed(buffers.x, buffers.start, buffers.end);
+    if (append.bounded) rows.compactColumns(buffers.x.buffer);
+    state.buffers = buffers;
+    state.modes = append.modes;
+    this.current = frame;
   }
 
   #batch(table: Table, positions: Float64Array, axis: XColumn, lastX: number,
@@ -743,7 +895,7 @@ class AlignedData {
     if (next === undefined) {
       observations.delete(key);
       diagnostics.evictSeries(key);
-      if (this.fields.series !== null) buffers.series.delete(key);
+      if (this.fields.series !== null) buffers.deleteSeries(key);
       else if (!series.description.drawable) series.description = { ...series.description, drawable: true };
       return false;
     }
@@ -821,7 +973,7 @@ class AlignedData {
       });
       buffers.shrink();
     }
-    if (buffers.distinct === 0) buffers.series.clear();
+    if (buffers.distinct === 0) buffers.clearSeries();
     if (this.rows.hasUnplaced) {
       this.rows.trimUnplacedRead(keep, firstX, buffers.distinct, (row, column) => discard(row, column, false));
     }
@@ -843,11 +995,10 @@ class AlignedData {
     return update || Boolean(inferred && inferred !== parser.kind);
   }
 
-  appendInPlace(rows: readonly unknown[], options: StoreAppendOptions, sink: DiagnosticSink, skipSource = false): AlignedFrame {
+  appendInPlace(rows: readonly unknown[], keep: number | undefined, sink: DiagnosticSink, skipSource = false): AlignedFrame {
     const { parser, buffers } = this.state;
     const categoryCount = parser.categoryCount;
     const dateUnit = parser.dateUnit;
-    const keep = retention(options);
     const version = nextVersion(this.current);
     const lastX = buffers.end > buffers.start ? buffers.x[buffers.end - 1]! : -Infinity;
     const diagnostics = new StreamDiagnostics();
@@ -978,7 +1129,7 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     data.state = state;
     this.rows.resetPositions(table, x.positions, prefixPositions(table, fields.x.field, x, state.buffers));
     data.current = data.snapshot(frame, true);
-    this.latest = data.currentDiagnostics();
+    this.latest = data.latest = data.currentDiagnostics();
     this.publish(data.current);
     data.current = this.current;
     forwardDiagnostics(this.latest, sink);
@@ -1005,12 +1156,22 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
   prepareAppend(rows: readonly unknown[], options: StoreAppendOptions = {}): PreparedFrame<AlignedFrame> {
     if (this.#writing) throw new Error('Cannot prepare a data change during an append.');
     const base = this.current;
+    const data = this.#data;
+    const keep = retention(options);
+    if (rows.length === 1) {
+      const single = data.prepareSingle(rows[0], keep);
+      if (single) return this.preview(base, single.frame, this.rows, noDiagnostics, noDiagnostics, () => {
+        if (this.#writing) throw new Error('Cannot commit a data change during an append.');
+        if (single.evicted !== undefined) this.revisions.current.archive(single.evicted);
+        data.commitSingle(single);
+      }, single.source);
+    }
     const rowsDraft = this.rows.fork();
     rowsDraft.trackEvictions = true;
     const draft = this.#data.fork(rowsDraft);
     const call = new DiagnosticCollector();
     try {
-      draft.appendInPlace(rows, options, call, true);
+      draft.appendInPlace(rows, keep, call, true);
     } finally {
       rowsDraft.trackEvictions = false;
     }
@@ -1089,7 +1250,7 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
           const unit = parser.dateUnit;
           this.#writing = true;
           try {
-            this.publish(this.#data.appendInPlace(rows, options, sink));
+            this.publish(this.#data.appendInPlace(rows, undefined, sink));
             this.#data.current = this.current;
             this.latest = this.#data.latest;
           } catch (error) {

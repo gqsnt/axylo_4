@@ -277,11 +277,16 @@ function scan(slot: Uint8Array, range: IndexRange, blocks?: Uint8Array) {
     if (state === SLOT_VALUE) {
       if (runValues === 0) runFirst = i;
       let next = i + 1;
-      while (next < end) {
-        const block = blocks && next % BLOCK_SIZE === 0 ? blocks[2 * (next / BLOCK_SIZE)] : 0;
-        if (block && block !== MIXED_BLOCK && next + BLOCK_SIZE <= end) next += BLOCK_SIZE;
-        else if (slot[next] === SLOT_VALUE) next++;
-        else break;
+      if (!blocks) {
+        // Short windows have no block index, so their contiguous runs need only read slot states.
+        while (next < end && slot[next] === SLOT_VALUE) next++;
+      } else {
+        while (next < end) {
+          const block = next % BLOCK_SIZE === 0 ? blocks[2 * (next / BLOCK_SIZE)] : 0;
+          if (block && block !== MIXED_BLOCK && next + BLOCK_SIZE <= end) next += BLOCK_SIZE;
+          else if (slot[next] === SLOT_VALUE) next++;
+          else break;
+        }
       }
       runValues += next - i;
       runLast = i = next - 1;
@@ -361,7 +366,13 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
     }
     buffer ??= { data: new Uint32Array(initialCapacity), limit: vertices };
     if (dense) cursor = keepRun(contiguous ? null : slot, first, last, columns, buffer, cursor);
-    else for (let index = first; index <= last; index++) if (contiguous || slot[index] === SLOT_VALUE) buffer.data[cursor++] = index;
+    else if (contiguous) {
+      const data = buffer.data;
+      for (let index = first; index <= last; index++) data[cursor++] = index;
+    } else {
+      const data = buffer.data;
+      for (let index = first; index <= last; index++) if (slot[index] === SLOT_VALUE) data[cursor++] = index;
+    }
   }
   const selection: JoinedRuns = { indexes: buffer?.data.subarray(0, cursor) ?? NO_INDEXES, breaks, isolated };
   if (cache && exact) rememberSelection(cache, exact.extent, selection.indexes);

@@ -1,4 +1,4 @@
-import type { DiagnosticSink, Formatters, IndexRange, ReaderModel, View } from '../core/contracts';
+import type { AlignedFrame, DiagnosticSink, Formatters, IndexRange, ReaderModel, View } from '../core/contracts';
 import { report } from '../diagnostics';
 import { sliceText } from '../lookup/text';
 import { chartTypeName, defaultMessages, fill, fillChartSummary, fillDonutSlice, messageLanguage } from '../messages';
@@ -35,10 +35,11 @@ function statistics(y: Float64Array, { start, end }: IndexRange) {
   let last = NaN;
   for (let i = start; i < end; i++) {
     const value = y[i]!;
-    if (!Number.isFinite(value)) continue;
-    last = value;
-    if (last < min) min = last;
-    if (last > max) max = last;
+    if (value === value && value !== Infinity && value !== -Infinity) {
+      last = value;
+      if (value < min) min = value;
+      if (value > max) max = value;
+    }
   }
   return { min, max, last };
 }
@@ -54,7 +55,9 @@ function addRun(runs: TextRun[], text: string, lang: TextRun['lang']): void {
 }
 
 function textOf(runs: readonly TextRun[]): string {
-  return runs.map(run => run.text).join('');
+  let text = '';
+  for (const run of runs) text += run.text;
+  return text;
 }
 
 function omitTable(template: string): string {
@@ -100,11 +103,19 @@ type ChartText = (input: ReaderInput, type: string, xLabel: string, yLabel: stri
 
 const listFormats = new Map<string | undefined, Intl.ListFormat>();
 
+function englishList(locale: string | undefined): boolean {
+  return locale === 'en';
+}
+
 /** Names joined as a list in the chart's locale ("Visits and Signups"). */
 function listOf(names: readonly string[], locale: string | undefined): string {
-  if (names.length < 2) return names[0] ?? '';
-  if (locale === 'en') {
-    return names.slice(0, -1).join(', ') + (names.length === 2 ? ' and ' : ', and ') + names.at(-1);
+  const length = names.length;
+  if (length < 2) return names[0] ?? '';
+  if (englishList(locale)) {
+    if (length === 2) return names[0]! + ' and ' + names[1]!;
+    let text = names[0]!;
+    for (let i = 1; i < length - 1; i++) text += ', ' + names[i];
+    return text + ', and ' + names[length - 1];
   }
   try {
     let format = listFormats.get(locale);
@@ -119,6 +130,14 @@ function listOf(names: readonly string[], locale: string | undefined): string {
   }
 }
 
+function seriesNames(frame: AlignedFrame, locale: string | undefined): string {
+  const { series } = frame;
+  if (series.length === 1) return series[0]!.drawable ? series[0]!.label : '';
+  const names: string[] = [];
+  for (const entry of series) if (entry.drawable) names.push(entry.label);
+  return listOf(names, locale);
+}
+
 /** What differs between frame shapes in the reader: the table and the summary's data sentences. */
 export interface ReaderParts {
   readonly table: TableBuilder;
@@ -130,13 +149,14 @@ const donutText: ChartText = (input, type) => {
   if (view.kind !== 'donut') return [];
   const drawn = view.slices.filter(slice => slice.angles !== null);
   if (!drawn.length) return [messages.empty];
-  return [
-    fill(messages.donutSummary, { type, count: formatters.count(drawn.length), total: formatters.value(0, view.total) }),
-    ...drawn.map(slice => {
-      const { label, value, percent } = sliceText(view, slice, formatters);
-      return fillDonutSlice(label, value, percent ?? '');
-    }),
-  ];
+  const sentences = [fill(messages.donutSummary, {
+    type, count: formatters.count(drawn.length), total: formatters.value(0, view.total),
+  })];
+  for (const slice of drawn) {
+    const { label, value, percent } = sliceText(view, slice, formatters);
+    sentences.push(fillDonutSlice(label, value, percent ?? ''));
+  }
+  return sentences;
 };
 
 const cartesianText: ChartText = (input, type, xLabel, yLabel, table, listReady) => {
@@ -150,10 +170,13 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table, listReady)
   let minSeries = 0;
   let maxSeries = 0;
   let drawable = 0;
-  const ranged: number[] = [];
+  let unit: string | undefined;
+  let oneUnit = true;
+  let rangeNames: string[] | undefined;
   const entries: string[] = [];
-  const undrawn: string[] = [];
+  let undrawn: string[] | undefined;
   const { frame } = view;
+  const nameRange = view.kind !== 'scatter' && !frame.yLabel;
   const zone = view.kind === 'scatter'
     ? view.frame.xKind === 'time' && view.frame.timeZone
     : view.frame.x.kind === 'time' && view.frame.x.timeZone;
@@ -165,53 +188,62 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table, listReady)
       xMax = view.frame.binEdges?.[end] ?? view.frame.x.values[end - 1]!;
     }
   }
-  frame.series.forEach((series, s) => {
+  for (let s = 0; s < frame.series.length; s++) {
+    const series = frame.series[s]!;
     if (!series.drawable) {
-      undrawn.push(seriesNotDrawnSentence(messages, series.label, table));
-      return;
+      (undrawn ??= []).push(seriesNotDrawnSentence(messages, series.label, table));
+      continue;
     }
     drawable++;
-    if (!view.visible[s]) return;
+    if (!view.visible[s]) continue;
     const range = view.kind === 'scatter' ? view.visiblePoints[s]! : view.visibleSlots;
     if (range.start < range.end && 'x' in series) {
       xMin = Math.min(xMin, series.x[range.start]!);
       xMax = Math.max(xMax, series.x[range.end - 1]!);
     }
     const stats = 'slot' in series ? alignedStatistics(series, range.start, range.end) : statistics(series.y, range);
-    if (Number.isFinite(stats.last)) ranged.push(s);
     if (stats.min < min) { min = stats.min; minSeries = s; }
     if (stats.max > max) { max = stats.max; maxSeries = s; }
-    entries.push(Number.isFinite(stats.last) ? fill(messages.seriesSummary, {
+    const hasValue = Number.isFinite(stats.last);
+    if (hasValue) {
+      if (nameRange) (rangeNames ??= []).push(series.label);
+      if (oneUnit && 'unit' in series) {
+        // A shared range needs a single unit and scale on both ends.
+        const current = `${series.unit}\u0001${series.valueScale}`;
+        unit ??= current;
+        oneUnit = unit === current;
+      }
+    }
+    entries.push(hasValue ? fill(messages.seriesSummary, {
       series: series.label, min: formatters.value(s, stats.min),
       max: formatters.value(s, stats.max), last: formatters.value(s, stats.last),
     }) : fill(messages.seriesNoData, { series: series.label }));
-  });
+  }
 
-  const zoneText = zone ? [fill(messages.timeZoneNote, { zone })] : [];
-  if (!entries.length || !Number.isFinite(xMin) || !Number.isFinite(xMax)) return [...undrawn, messages.empty, ...zoneText];
-  // One range over series in different units would put one unit on one end and another on the other end:
-  // then each series' own sentence gives its range in its unit, and the chart's sentence has none.
-  const unitOf = (s: number) => {
-    const series = frame.series[s]!;
-    return 'unit' in series ? `${series.unit}\u0001${series.valueScale}` : '';
-  };
-  const oneUnit = ranged.every(s => unitOf(s) === unitOf(ranged[0]!));
+  const zoneText = zone ? fill(messages.timeZoneNote, { zone }) : null;
+  if (!entries.length || !Number.isFinite(xMin) || !Number.isFinite(xMax)) {
+    const sentences = undrawn ?? [];
+    sentences.push(messages.empty);
+    if (zoneText !== null) sentences.push(zoneText);
+    return sentences;
+  }
   const range = Number.isFinite(min) && Number.isFinite(max) && oneUnit
     ? { yMin: formatters.value(minSeries, min), yMax: formatters.value(maxSeries, max) } : null;
   let rangeLabel = yLabel;
-  if (view.kind !== 'scatter' && !frame.yLabel && ranged.length) {
-    if (ranged.length === 1) rangeLabel = frame.series[ranged[0]!]!.label;
+  if (rangeNames) {
+    if (rangeNames.length === 1) rangeLabel = rangeNames[0]!;
     // A failed locale lookup is retried when the summary is read.
-    else if (ranged.length !== drawable || !listReady) {
-      rangeLabel = listOf(ranged.map(s => frame.series[s]!.label), input.locale);
+    else if (rangeNames.length !== drawable || !listReady) {
+      rangeLabel = listOf(rangeNames, input.locale);
     }
   }
-  return [
-    fillChartSummary(messages.chartSummary, {
-      type, seriesCount: formatters.count(entries.length), xLabel, xMin: formatters.x(xMin), xMax: formatters.x(xMax), yLabel: rangeLabel,
-    }, range),
-    ...zoneText, ...entries, ...undrawn,
-  ];
+  const heading = fillChartSummary(messages.chartSummary, {
+    type, seriesCount: formatters.count(entries.length), xLabel, xMin: formatters.x(xMin), xMax: formatters.x(xMax), yLabel: rangeLabel,
+  }, range);
+  if (zoneText === null) entries.unshift(heading);
+  else entries.unshift(heading, zoneText);
+  if (undrawn) for (const sentence of undrawn) entries.push(sentence);
+  return entries;
 };
 
 export const alignedReader: ReaderParts = { table: alignedTable, text: cartesianText };
@@ -239,10 +271,15 @@ function stackText(view: View, formatters: Formatters, messages: Messages): stri
 function referenceText(view: View, formatters: Formatters, messages: Messages): string[] {
   if (view.kind === 'donut') return [];
   return view.references.map(({ axis, from, to, label }) => {
-    const write = axis === 'x' ? (x: number) => formatters.x(x) : (y: number) => formatters.value(0, y);
-    const values = { label, axis, from: write(from) };
-    return from === to ? fill(messages.referenceLine, values) : fill(messages.referenceBand, { ...values, to: write(to) });
+    const start = axis === 'x' ? formatters.x(from) : formatters.value(0, from);
+    if (from === to) return fill(messages.referenceLine, { label, axis, from: start });
+    const end = axis === 'x' ? formatters.x(to) : formatters.value(0, to);
+    return fill(messages.referenceBand, { label, axis, from: start, to: end });
   });
+}
+
+function addSentence(text: string, sentence: string | undefined): string {
+  return !sentence ? text : text ? `${text} ${sentence}` : sentence;
 }
 
 export type BuiltReader = ReaderModel & { readonly noteSegments: readonly TextRun[] | null };
@@ -256,54 +293,71 @@ export function buildReader(input: ReaderInput): BuiltReader {
 export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader {
   const { view, title, labelledBy, subtitle, description, formatters, messages, disclosure } = input;
   const custom = input.labels;
-  const labels: ReaderLabels = {
-    category: custom?.category ?? messages.category,
-    percentage: custom?.percentage ?? messages.percentage,
-    series: custom?.series ?? messages.series,
-    value: custom?.value ?? messages.value,
-    xUnit: custom?.xUnit,
-  };
+  const category = custom?.category ?? messages.category;
+  const value = custom?.value ?? messages.value;
   const type = chartTypeName(messages, view.kind);
-  const xLabel = view.kind === 'donut' ? labels.category : view.frame.xLabel;
+  const xLabel = view.kind === 'donut' ? category : view.frame.xLabel;
   const yLabel = view.kind === 'donut' ? view.frame.valueLabel
     : view.kind === 'scatter' ? view.frame.yLabel
-    : view.frame.yLabel || listOf(view.frame.series.flatMap(s => s.drawable ? [s.label] : []), input.locale) || labels.value;
-  const listReady = input.locale === 'en' || listFormats.has(input.locale);
+    : view.frame.yLabel || seriesNames(view.frame, input.locale) || value;
+  const listReady = englishList(input.locale) || listFormats.has(input.locale);
   const titleText = typeof title === 'string' ? title : title?.text;
   if (!labelledBy && !titleText && input.diagnostics) report(input.diagnostics, 'AX140', 'none');
-  const generated = fill(messages.chartName, { type, x: xLabel, y: yLabel });
-  const name = labelledBy ? '' : titleText || generated;
+  let generated: string | undefined;
+  const name = labelledBy ? '' : titleText || (generated = fill(messages.chartName, { type, x: xLabel, y: yLabel }));
   const compact = input.compact === true || (view.kind !== 'donut' && view.compact);
+  const hasReferences = !compact && view.kind !== 'donut' && view.references.length > 0;
   let references: string[] | undefined;
-  const referencesForView = () => references ??= compact ? [] : referenceText(view, formatters, messages);
-  const caption = [input.caption, name, generated, messages.plotLabel].find(text => text?.trim()) ?? defaultMessages.plotLabel;
-  const table = input.table === false || compact ? null : parts.table(
-    view, [caption, ...referencesForView()].join(' '), formatters, messages, labels, input.locale,
-  );
+  let table: ReaderModel['table'] = null;
+  if (input.table !== false && !compact) {
+    let caption = input.caption;
+    if (!caption?.trim()) caption = name;
+    if (!caption.trim()) caption = generated ?? fill(messages.chartName, { type, x: xLabel, y: yLabel });
+    if (!caption.trim()) caption = messages.plotLabel?.trim() ? messages.plotLabel : defaultMessages.plotLabel;
+    if (hasReferences) {
+      references = referenceText(view, formatters, messages);
+      for (const reference of references) caption += ' ' + reference;
+    }
+    table = parts.table(view, caption, formatters, messages, {
+      category, value, percentage: custom?.percentage ?? messages.percentage,
+      series: custom?.series ?? messages.series, xUnit: custom?.xUnit,
+    }, input.locale);
+  }
   const hasTable = table !== null;
   const omitted = disclosure?.omitted ?? 0;
   const changed = disclosure?.changed ?? 0;
-  const noteSegments: TextRun[] = [];
-  const append = (key: TableSentence, values: Record<string, string>) =>
-    appendSentence(noteSegments, tableSentence(messages, key, values, hasTable));
-  if (omitted > 0 || changed > 0) {
-    const counts = { omitted: formatters.count(omitted), changed: formatters.count(changed) };
-    if (omitted > 0) append('valuesNotShown', { ...counts, count: counts.omitted });
-    if (changed > 0) append('valuesChanged', { ...counts, count: counts.changed });
-  }
-  const omission = textOf(noteSegments);
   const hidden = input.labelsHidden ?? 0;
-  if (hidden > 0) append('labelsHidden', { count: formatters.count(hidden) });
-  const note = textOf(noteSegments) || null;
+  let noteSegments: TextRun[] | null = null;
+  let omission = '';
+  if (omitted > 0 || changed > 0) {
+    noteSegments = [];
+    const counts = { omitted: formatters.count(omitted), changed: formatters.count(changed) };
+    if (omitted > 0) appendSentence(noteSegments, tableSentence(messages, 'valuesNotShown', { ...counts, count: counts.omitted }, hasTable));
+    if (changed > 0) appendSentence(noteSegments, tableSentence(messages, 'valuesChanged', { ...counts, count: counts.changed }, hasTable));
+    omission = textOf(noteSegments);
+  }
+  let note = omission || null;
+  if (hidden > 0) {
+    noteSegments ??= [];
+    appendSentence(noteSegments, tableSentence(messages, 'labelsHidden', { count: formatters.count(hidden) }, hasTable));
+    note = textOf(noteSegments) || null;
+  }
   let summary: string | undefined;
   return {
     name, note, table, noteSegments: note ? noteSegments : null,
     get summary() {
       // Opening the table should not scan the rest of the frame.
-      return summary ??= [
-        ...parts.text(input, type, xLabel, yLabel, hasTable, listReady), compact ? stackText(view, formatters, messages) : '',
-        ...referencesForView(), subtitle, omission, description,
-      ].filter(Boolean).join(' ');
+      if (summary !== undefined) return summary;
+      let text = '';
+      for (const sentence of parts.text(input, type, xLabel, yLabel, hasTable, listReady)) text = addSentence(text, sentence);
+      if (compact) text = addSentence(text, stackText(view, formatters, messages));
+      if (hasReferences) {
+        references ??= referenceText(view, formatters, messages);
+        for (const reference of references) text = addSentence(text, reference);
+      }
+      text = addSentence(text, subtitle);
+      text = addSentence(text, omission);
+      return summary = addSentence(text, description);
     },
   };
 }

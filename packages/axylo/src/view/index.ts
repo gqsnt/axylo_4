@@ -100,11 +100,17 @@ function cues(count: number, compact: boolean, previous: AlignedView | ScatterVi
 }
 
 function rangeOf(values: Float64Array, domain: Span, previous?: IndexRange, edges?: Float64Array | null): IndexRange {
-  const range = edges && edges.length ? {
-    start: Math.min(values.length, Math.max(0, upperBound(edges, domain[0]) - 1)),
-    end: Math.min(values.length, lowerBound(edges, domain[1])),
-  } : { start: lowerBound(values, domain[0]), end: upperBound(values, domain[1]) };
-  return previous && sameRange(range, previous) ? previous : range;
+  const length = values.length;
+  let start: number;
+  let end: number;
+  if (edges?.length) {
+    start = Math.min(length, Math.max(0, upperBound(edges, domain[0]) - 1));
+    end = Math.min(length, lowerBound(edges, domain[1]));
+  } else {
+    start = domain[0] <= values[0]! ? 0 : lowerBound(values, domain[0]);
+    end = domain[1] >= values[length - 1]! ? length : upperBound(values, domain[1]);
+  }
+  return previous?.start === start && previous.end === end ? previous : { start, end };
 }
 
 function nextObservation(slot: Uint8Array, from: number, end: number, direction: -1 | 1): number {
@@ -184,8 +190,15 @@ interface BlockSummary {
 
 interface SeriesStatistics {
   blocks?: BlockSummary;
-  full?: Statistics;
-  signed?: Statistics;
+  full?: WindowStatistics;
+  recent?: WindowStatistics;
+}
+
+interface WindowStatistics {
+  readonly start: number;
+  readonly end: number;
+  readonly ordered: Statistics;
+  readonly signed: Statistics;
 }
 
 // Published series are immutable. Updates and appends publish new series, even when they share a buffer.
@@ -233,7 +246,8 @@ export function alignedStatistics(series: AlignedSeries, start: number, end: num
   const size = end - start;
   const full = size >= SUMMARY_THRESHOLD && start === 0 && end === slot.length;
   let cached = size >= BLOCK ? summaries.get(series) : undefined;
-  if (full && cached?.full) return signedExtrema ? cached.signed! : cached.full;
+  const known = full ? cached?.full : cached?.recent;
+  if (known?.start === start && known.end === end) return signedExtrema ? known.signed : known.ordered;
   // The reader can share the first full scan. Block indexes only pay off for partial views.
   if (!full && size >= SUMMARY_THRESHOLD && size >= slot.length / 4 && !cached?.blocks) {
     if (!cached) summaries.set(series, cached = {});
@@ -244,6 +258,8 @@ export function alignedStatistics(series: AlignedSeries, start: number, end: num
   let max = -Infinity;
   let last = NaN;
   let zeros = 0;
+  // Layout and the reader can ask for the same window with different signed-zero ordering.
+  const trackZeros = signedExtrema || size >= BLOCK;
   for (let i = start; i < end;) {
     if (summary && i % BLOCK === 0 && (end - i >= BLOCK || end === slot.length)) {
       const block = i / BLOCK;
@@ -253,25 +269,28 @@ export function alignedStatistics(series: AlignedSeries, start: number, end: num
       if (low < min) min = low;
       if (high > max) max = high;
       if (final >= 0) last = y[final]!;
-      if (full || signedExtrema) zeros |= summary.zeros[block]!;
+      if (trackZeros) zeros |= summary.zeros[block]!;
       i += BLOCK;
     } else {
-      const index = i++;
-      if (slot[index] !== SLOT_VALUE) continue;
-      const value = y[index]!;
-      if (!(value > -Infinity && value < Infinity)) continue;
-      if (value < min) min = value;
-      if (value > max) max = value;
-      if ((full || signedExtrema) && value === 0) zeros |= Object.is(value, -0) ? 1 : 2;
-      last = value;
+      const stop = summary ? Math.min(end, (Math.floor(i / BLOCK) + 1) * BLOCK) : end;
+      for (; i < stop; i++) {
+        if (slot[i] !== SLOT_VALUE) continue;
+        const value = y[i]!;
+        if (!(value > -Infinity && value < Infinity)) continue;
+        if (value < min) min = value;
+        if (value > max) max = value;
+        if (trackZeros && value === 0) zeros |= Object.is(value, -0) ? 1 : 2;
+        last = value;
+      }
     }
   }
   const stats = { min, max, last };
   const signed = zeros ? withSignedZeros(min, max, last, zeros) : stats;
-  if (full) {
+  if (size >= BLOCK) {
     if (!cached) summaries.set(series, cached = {});
-    cached.full = stats;
-    cached.signed = signed;
+    const window = { start, end, ordered: stats, signed };
+    if (full) cached.full = window;
+    else cached.recent = window;
   }
   return signedExtrema ? signed : stats;
 }
@@ -387,6 +406,7 @@ function fitZoom(full: Span, zoom: Span | null): Span {
 }
 
 export function withReferences(data: Span, references: readonly ResolvedReference[], axis: 'x' | 'y'): Span {
+  if (references.length === 0) return data;
   let [min, max] = data;
   for (const reference of references) {
     if (reference.axis !== axis) continue;
@@ -429,8 +449,14 @@ function yExtent(
 }
 
 export function alignedScale(frame: AlignedFrame, visible: readonly boolean[]): AlignedFrame['series'][number]['valueScale'] {
-  const scale = frame.series.find((_, i) => visible[i])?.valueScale ?? null;
-  return frame.series.every((series, i) => !visible[i] || series.valueScale === scale) ? scale : null;
+  let scale: AlignedFrame['series'][number]['valueScale'] | undefined;
+  for (let i = 0; i < frame.series.length; i++) {
+    if (!visible[i]) continue;
+    const value = frame.series[i]!.valueScale;
+    if (scale === undefined) scale = value;
+    else if (value !== scale) return null;
+  }
+  return scale ?? null;
 }
 
 function keepSpan(span: Span, previous?: Span): Span {
@@ -459,6 +485,19 @@ export function buildDonutView(frame: DonutFrame, state: DonutViewState, sink: D
   return buildDonut(frame, state.otherLabel, previous, sink);
 }
 
+function visibleSeries(
+  series: AlignedFrame['series'] | PointFrame['series'], hidden: ReadonlySet<string> | undefined, previous?: readonly boolean[],
+): readonly boolean[] {
+  let visible = previous?.length === series.length ? undefined : new Array<boolean>(series.length);
+  for (let i = 0; i < series.length; i++) {
+    const { drawable, key } = series[i]!;
+    const value = drawable && !hidden?.has(key);
+    if (!visible && previous![i] !== value) visible = previous!.slice();
+    if (visible) visible[i] = value;
+  }
+  return visible ?? previous!;
+}
+
 /** What the scatter and aligned views share: visibility, cues, references and the x domains. */
 function cartesianBase(
   frame: AlignedFrame | PointFrame, state: AlignedViewState | ScatterViewState, sink: DiagnosticSink,
@@ -469,7 +508,7 @@ function cartesianBase(
   const prior = state.previous?.kind === state.kind ? state.previous as AlignedView | ScatterView : undefined;
   const sameFrame = prior?.frame === frame;
   const compact = state.kind !== 'scatter' && (state.compact ?? false);
-  const visible = reuse(frame.series.map(series => series.drawable && !state.hidden?.has(series.key)), prior?.visible, (a, b) => a === b);
+  const visible = visibleSeries(frame.series, state.hidden, prior?.visible);
   const seriesCues = cues(frame.series.length, compact, prior, sink);
   const column = frame.shape === 'aligned' ? frame.x : { kind: frame.xKind, timeZone: frame.timeZone, categories: null };
   const readX = positionReader(column, state.xField);

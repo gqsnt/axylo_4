@@ -166,8 +166,12 @@ export class RawRows {
     return { ...block, table: columnsTable(contents, block.table.length), borrowed: false };
   }
 
+  needsColumnCompaction(discarded = 0): boolean {
+    return this.#borrowedSize > 0 && (this.#columnCount - discarded) * 2 <= this.#borrowedSize;
+  }
+
   compactColumns(): void {
-    if (!this.#borrowedSize || this.#columnCount * 2 > this.#borrowedSize) return;
+    if (!this.needsColumnCompaction()) return;
     // One copy at the halfway point frees the original large buffers after the old
     // revisions retire. Subsequent eviction can free each small block independently.
     for (const [index, block] of this.columns) this.columns.set(index, this.#own(block));
@@ -204,6 +208,8 @@ export class RawRows {
   append(start: number, rows: readonly unknown[]): void {
     for (let i = 0; i < rows.length; i++) this.#objects.set(start + i, rows[i]);
   }
+
+  appendOne(index: number, row: unknown): void { this.#objects.set(index, row); }
 
   copy(row: number, target: RawRows): boolean {
     const block = this.#column(row);
@@ -415,6 +421,34 @@ export class StreamRows {
     }
   }
 
+  /** The dense append path has already checked that this x is new and in order. */
+  appendPosition(row: object, position: number): void {
+    this.retained.appendOne(this.next, row);
+    this.#positions.set(position, this.next++);
+    this.#latestPosition = position;
+  }
+
+  firstRowAt(position: number): number | undefined {
+    return this.#positions.get(position) ??
+      (this.seedPositions?.[this.#seedStart] === position ? this.#seedOffset + this.#seedStart : undefined);
+  }
+
+  evictSingle(position: number, row: number): void {
+    // The dense window has exactly one retained row per position.
+    if (this.seedPositions?.[this.#seedStart] === position) this.#seedStart++;
+    else this.#positions.delete(position);
+    this.forget(row);
+  }
+
+  isColumn(row: number): boolean { return this.retained.isColumn(row); }
+
+  needsColumnCompaction(discarded: number): boolean { return this.retained.needsColumnCompaction(discarded); }
+
+  previewAppend(row: object, evicted: number | undefined): FrameSource {
+    // The preview overlays just the changed rows until its base is superseded or it is published.
+    return new FrameSource(this.next + 1, this, undefined, row, evicted);
+  }
+
   forget(row: number): void {
     if (this.trackEvictions) {
       if (this.evicted === null) this.evicted = row;
@@ -542,7 +576,10 @@ export class FrameSource implements RowSource {
 
   readonly #end: number;
 
-  constructor(end: number, rows: StreamRows, live?: () => boolean) {
+  constructor(
+    end: number, rows: StreamRows, live?: () => boolean,
+    private appended?: object, private readonly evicted?: number,
+  ) {
     this.#end = end;
     this.#rows = rows;
     this.#live = live ?? null;
@@ -554,6 +591,10 @@ export class FrameSource implements RowSource {
     if (this.#custom) return this.#custom(row);
     if (this.#rows) {
       if ((this.#store === null || this.#store.frame === this.#base) && (this.#live === null || this.#live())) {
+        if (this.appended) {
+          if (row === this.evicted) return null;
+          if (row === this.#end - 1) return this.appended;
+        }
         return this.#rows.rowAt(row);
       }
       this.release();
@@ -586,13 +627,16 @@ export class FrameSource implements RowSource {
     this.#store = null;
     this.#base = null;
     this.#custom = null;
+    this.appended = undefined;
   }
 }
 
 export class RowWindow {
   private readonly archived = new RawRows();
   readonly #lastSeen = new Map<number, number>();
-  readonly #sources = new Map<number, FrameSource>();
+  // A renderer may hold other revisions, but the latest source is the only one used on every append.
+  #olderSources: Map<number, FrameSource> | null = null;
+  #latestSource: FrameSource | null = null;
   #latestRevision = -Infinity;
   private rows: StreamRows | null;
   #closed = false;
@@ -602,12 +646,12 @@ export class RowWindow {
   }
 
   get size(): number { return (this.rows?.size ?? 0) + this.archived.size; }
-  get disposable(): boolean { return this.#closed && this.#sources.size === 0; }
+  get disposable(): boolean { return this.#closed && !this.#latestSource && !this.#olderSources?.size; }
 
   archive(row: number): void {
     const revision = this.#latestRevision;
     // Newly appended rows can be evicted before any accepted frame has addressed them.
-    const source = this.#sources.get(revision);
+    const source = this.#latestSource;
     if (!source || row >= source.limit || !this.rows?.archive(row, this.archived)) return;
     this.#lastSeen.set(row, revision);
   }
@@ -619,8 +663,9 @@ export class RowWindow {
 
   publish(revision: number, source: FrameSource, rows: StreamRows): void {
     this.rows = rows;
+    if (this.#latestSource) (this.#olderSources ??= new Map()).set(this.#latestRevision, this.#latestSource);
     this.#latestRevision = revision;
-    this.#sources.set(revision, source);
+    this.#latestSource = source;
     source.bindWindow(this, revision);
   }
 
@@ -629,7 +674,8 @@ export class RowWindow {
    * window's live revisions. The rows still retained below its end, and the evicted rows kept for it.
    */
   retainedRows(revision: number, source: RowSource): ArrayLike<number> | null {
-    if (this.#sources.get(revision) !== source || !this.rows) return null;
+    const active = revision === this.#latestRevision ? this.#latestSource : this.#olderSources?.get(revision);
+    if (active !== source || !this.rows) return null;
     const end = (source as FrameSource).limit;
     const current = this.rows.retainedIndexes();
     const live = current.subarray(0, lowerBound(current, end));
@@ -647,22 +693,30 @@ export class RowWindow {
 
   close(): void {
     this.#closed = true;
-    if (this.#sources.size === 0) this.rows = null;
+    if (this.disposable) this.rows = null;
   }
 
   retire(revision: number): void {
-    for (const [number, source] of this.#sources) {
-      if (number > revision) break;
-      source.release();
-      this.#sources.delete(number);
+    if (this.#olderSources?.size) {
+      for (const [number, source] of this.#olderSources) {
+        if (number > revision) break;
+        source.release();
+        this.#olderSources.delete(number);
+      }
+    }
+    if (this.#latestRevision <= revision && this.#latestSource) {
+      this.#latestSource.release();
+      this.#latestSource = null;
     }
     // A source row leaves a window once. Map insertion order is therefore eviction revision order.
-    for (const [row, last] of this.#lastSeen) {
-      if (last > revision) break;
-      this.archived.forget(row);
-      this.#lastSeen.delete(row);
+    if (this.#lastSeen.size) {
+      for (const [row, last] of this.#lastSeen) {
+        if (last > revision) break;
+        this.archived.forget(row);
+        this.#lastSeen.delete(row);
+      }
     }
-    if (this.#closed && this.#sources.size === 0) this.rows = null;
+    if (this.disposable) this.rows = null;
   }
 }
 
@@ -696,6 +750,10 @@ export class RowRevisions {
   }
 
   retire(revision: number): void {
+    if (this.windows.size === 1) {
+      this.current.retire(revision);
+      return;
+    }
     for (const window of this.windows) {
       window.retire(revision);
       if (window.disposable) this.windows.delete(window);
@@ -726,10 +784,10 @@ export abstract class RevisionStore<F extends Frame> {
   }
 
   protected preview(base: F, result: F, rows: StreamRows, diagnostics: readonly DiagnosticInput[],
-    callDiagnostics: readonly DiagnosticInput[], apply: () => void): PreparedFrame<F> & { commit: ReturnType<typeof once> } {
-    const source = rows.source();
+    callDiagnostics: readonly DiagnosticInput[], apply: () => void, source = rows.source(),
+  ): PreparedFrame<F> & { commit: ReturnType<typeof once> } {
     source.watchBase(this, base);
-    const frame = { ...result, source };
+    const frame = result.source === source ? result : { ...result, source };
     const commit = once(() => this.current, () => {
       apply();
       this.latest = diagnostics;

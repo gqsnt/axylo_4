@@ -30,10 +30,23 @@ function sectorBox(cx: number, cy: number, inner: number, outer: number, start: 
 
 export function donutLookup(view: DonutView, layout: PlotLayout | null, formatters: Formatters, locale?: string): Lookup {
   const { slices } = view;
-  const keys = new Map(slices.map((slice, i) => [slice.key, i]));
+  let keys: Map<string, number> | undefined;
   const ring = layout?.projection.kind === 'ring' ? layout.projection : null;
-  const geometry = ring && donutGeometry(slices, ring);
-  const index = (datum: DatumRef) => datum.kind === 'slice' ? keys.get(datum.sliceKey) ?? -1 : -1;
+  let geometry: ReturnType<typeof donutGeometry> | undefined;
+
+  function index(datum: DatumRef): number {
+    if (datum.kind !== 'slice') return -1;
+    const key = datum.sliceKey;
+    if (slices.length <= 4) {
+      for (let i = slices.length - 1; i >= 0; i--) if (slices[i]!.key === key) return i;
+      return -1;
+    }
+    if (!keys) {
+      keys = new Map();
+      for (let i = 0; i < slices.length; i++) keys.set(slices[i]!.key, i);
+    }
+    return keys.get(key) ?? -1;
+  }
 
   function ref(i: number): DatumRef | null {
     const slice = slices[i];
@@ -42,27 +55,33 @@ export function donutLookup(view: DonutView, layout: PlotLayout | null, formatte
 
   function resolve(datum: DatumRef): DatumRef | null {
     if (datum.kind !== 'slice') return null;
-    if (keys.has(datum.sliceKey)) return datum;
-    const folded = slices.find(slice => slice.members.length > 1 && slice.members.some(i => {
-      const label = view.frame.labels[i];
-      // The view prefixes author labels that would collide with the reserved Other key.
-      return label !== undefined && datum.sliceKey === (label.startsWith('__other__') ? '__other__' + label : label);
-    }));
-    return folded ? { kind: 'slice', sliceKey: folded.key } : null;
+    if (index(datum) >= 0) return datum;
+    for (const slice of slices) {
+      if (slice.members.length < 2) continue;
+      for (const i of slice.members) {
+        const label = view.frame.labels[i];
+        // The view prefixes author labels that would collide with the reserved Other key.
+        if (label !== undefined && datum.sliceKey === (label.startsWith('__other__') ? '__other__' + label : label)) {
+          return { kind: 'slice', sliceKey: slice.key };
+        }
+      }
+    }
+    return null;
   }
 
   const lookup: Lookup = {
     members(target, from, count) {
-      return target.kind === 'slice' && keys.has(target.sliceKey) && from <= 0 && count > 0 ? [target] : [];
+      return target.kind === 'slice' && from <= 0 && count > 0 && index(target) >= 0 ? [target] : [];
     },
     has(target, datum) {
-      return target.kind === 'slice' && datum.kind === 'slice' && datum.sliceKey === target.sliceKey && keys.has(target.sliceKey);
+      return target.kind === 'slice' && datum.kind === 'slice' && datum.sliceKey === target.sliceKey && index(target) >= 0;
     },
     /** The slice's index in the view's slices (an "Other" slice stands for several frame categories). */
     slot: index,
     pick(pointerX, pointerY) {
-      const at = layout ? pointerOnPlot(layout.plot, pointerX, pointerY) : null;
-      if (!geometry || !ring || !at || !(ring.r1 > ring.r0)) return null;
+      if (!layout || !ring || !(ring.r1 > ring.r0)) return null;
+      const at = pointerOnPlot(layout.plot, pointerX, pointerY);
+      if (!at) return null;
       const { x: px, y: py } = at;
       const dx = px - ring.cx;
       const dy = py - ring.cy;
@@ -70,16 +89,20 @@ export function donutLookup(view: DonutView, layout: PlotLayout | null, formatte
       if (radius < ring.r0 || radius > ring.r1) return null;
       const raw = Math.atan2(dx, -dy);
       const angle = raw < 0 ? raw + TURN : raw;
+      const { drawn, angles } = geometry ??= donutGeometry(slices, ring);
       // Assign the narrow separators to their adjoining slices just as for proportional angles.
-      const slice = geometry.drawn.find((_, i) => angle >= geometry.angles[2 * i]! &&
-        (i + 1 === geometry.drawn.length || angle < geometry.angles[2 * i + 1]!));
-      return slice ? { kind: 'slice', sliceKey: slice.key } : null;
+      for (let i = 0; i < drawn.length; i++) {
+        if (angle >= angles[2 * i]! && (i + 1 === drawn.length || angle < angles[2 * i + 1]!)) {
+          return { kind: 'slice', sliceKey: drawn[i]!.key };
+        }
+      }
+      return null;
     },
     tooltip(target) {
       const datum = target.kind === 'slice' ? lookup.datum(target) : null;
       return { title: datum?.seriesLabel ?? '', rows: datum ? [datum] : [], count: datum ? 1 : 0, total: null };
     },
-    primary(target) { return target.kind === 'slice' && keys.has(target.sliceKey) ? target : null; },
+    primary(target) { return target.kind === 'slice' && index(target) >= 0 ? target : null; },
     datum(datum) {
       const i = index(datum);
       if (i < 0) return null;
@@ -87,9 +110,12 @@ export function donutLookup(view: DonutView, layout: PlotLayout | null, formatte
       return { ref: datum, seriesIndex: i, seriesLabel: label, x: label, value, percent, state, row };
     },
     anchor(datum) {
-      if (datum.kind !== 'slice' || !geometry || !ring || !(ring.r1 > ring.r0)) return null;
-      const i = geometry.drawn.findIndex(slice => slice.key === datum.sliceKey);
-      return i < 0 ? null : sectorBox(ring.cx, ring.cy, ring.r0, ring.r1, geometry.angles[2 * i]!, geometry.angles[2 * i + 1]!);
+      if (datum.kind !== 'slice' || !ring || !(ring.r1 > ring.r0)) return null;
+      const { drawn, angles } = geometry ??= donutGeometry(slices, ring);
+      for (let i = 0; i < drawn.length; i++) {
+        if (drawn[i]!.key === datum.sliceKey) return sectorBox(ring.cx, ring.cy, ring.r0, ring.r1, angles[2 * i]!, angles[2 * i + 1]!);
+      }
+      return null;
     },
     count: slices.length,
     ordinal: index,

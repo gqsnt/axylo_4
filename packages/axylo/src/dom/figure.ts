@@ -142,8 +142,6 @@ class FigureImpl implements Figure {
   _a: HTMLElement | null = null;
   _s: HTMLElement | null = null;
   _p: FigureModel | null = null;
-  /** The note's runs as last written, when it was written as runs. */
-  _nr: string | null = null;
 
   constructor(
     root: HTMLElement,
@@ -220,7 +218,7 @@ class FigureImpl implements Figure {
       if (host) {
         if (host.firstChild) host.replaceChildren();
         if (slot !== 'controls') {
-          host.hidden = true;
+          show(host, false);
           detach(host);
         } else show(host, false);
       }
@@ -248,77 +246,76 @@ class FigureImpl implements Figure {
     this._p = model;
     const { compact, title, subtitle, summary, summaryLang, note: noteText, message, messageLang } = model;
     const { figure, plot, _ds: description, _n: note, _m: status } = this;
-    figure.classList.toggle('axylo-compact', compact);
-    setAttr(figure, 'role', compact ? 'img' : 'group');
-
-    if (compact) makeCompact(this, previous);
-    else ensureFull(this);
+    const modeChanged = previous === null || previous.compact !== compact;
+    if (modeChanged) {
+      figure.classList.toggle('axylo-compact', compact);
+      setAttr(figure, 'role', compact ? 'img' : 'group');
+      if (compact) makeCompact(this, previous);
+      else if (previous?.compact ?? this._ic) ensureFull(this);
+    }
 
     // Name: the title, else the page's own heading, else the generated name.
     const heading = compact ? null : title;
     const titleNode = this._t;
-    if (titleNode) {
+    const headingChanged = modeChanged || !sameTitle(previous!.title, title);
+    if (titleNode && headingChanged) {
       if (heading) {
         setText(titleNode, heading.text);
         setAttr(titleNode, 'aria-level', String(heading.level));
-        titleNode.classList.toggle(HIDDEN, !heading.visible);
+        if (modeChanged || previous!.title?.visible !== heading.visible) titleNode.classList.toggle(HIDDEN, !heading.visible);
       }
       show(titleNode, heading !== null);
     }
-    const labelledBy = model.labelledBy || (heading ? titleNode!.id : null);
-    setAttr(figure, 'aria-labelledby', labelledBy);
-    setAttr(figure, 'aria-label', labelledBy === null ? model.name : null);
+    if (headingChanged || previous!.labelledBy !== model.labelledBy || previous!.name !== model.name) {
+      const labelledBy = model.labelledBy || (heading ? titleNode!.id : null);
+      setAttr(figure, 'aria-labelledby', labelledBy);
+      setAttr(figure, 'aria-label', labelledBy === null ? model.name : null);
+    }
 
-    if (!compact && subtitle) {
-      const sub = this._su ??= identified(this._d, 'p', 'subtitle', this.id, 'st');
-      setText(sub, subtitle);
-      sub.hidden = false;
-      mount(this._c!, sub, description);
-    } else clearSubtitle(this._su);
+    if (modeChanged || previous!.subtitle !== subtitle) {
+      if (!compact && subtitle) {
+        const sub = this._su ??= identified(this._d, 'p', 'subtitle', this.id, 'st');
+        setText(sub, subtitle);
+        show(sub, true);
+        mount(this._c!, sub, description);
+      } else clearSubtitle(this._su);
+    }
 
-    textWithLang(description, summary, summaryLang);
+    const summaryChanged = previous === null || previous.summary !== summary || previous.summaryLang !== summaryLang;
+    if (summaryChanged) textWithLang(description, summary, summaryLang);
     const summaryNode = this._sm;
     if (summaryNode && !compact) {
-      textWithLang(summaryNode, /^.*?[.!?。！？](?=\s|$)/u.exec(summary)?.[0] ?? summary, summaryLang);
-      summaryNode.classList.toggle(HIDDEN, !model.summaryVisible);
+      if (modeChanged || summaryChanged) {
+        textWithLang(summaryNode, /^.*?[.!?。！？](?=\s|$)/u.exec(summary)?.[0] ?? summary, summaryLang);
+      }
+      if (modeChanged || previous!.summaryVisible !== model.summaryVisible) summaryNode.classList.toggle(HIDDEN, !model.summaryVisible);
     }
-    setAttr(figure, 'aria-describedby', description.id);
+    if (previous === null) setAttr(figure, 'aria-describedby', description.id);
 
     // The compact variant has no note element: the summary says what was left out, and a corner marker
     // shows it (spec C5); the marker's text equivalent is that description.
     const segments = compact ? null : model.noteSegments ?? null;
-    if (segments && segments.length > 1) {
-      // Runs in their own languages: one span each, so assistive technology switches voice per run.
-      // Compared in memory: nothing but the runs' text reaches the page (the distribution test reads every
-      // attribute for stray serialized data).
-      let signature = '';
-      for (let i = 0; i < segments.length; i++) {
-        const run = segments[i]!;
-        if (i > 0) signature += '\u0002';
-        signature += `${run.lang ?? ''}\u0001${run.text}`;
-      }
-      if (this._nr !== signature) {
-        const spans: HTMLElement[] = [];
-        for (let i = 0; i < segments.length; i++) {
-          const run = segments[i]!;
-          const span = this._d.createElement('span');
-          // The runs carry their own spacing (the reader joins sentences with a space run).
-          span.textContent = run.text;
-          if (run.lang !== null) span.setAttribute('lang', run.lang);
-          spans.push(span);
+    const segmentsChanged = modeChanged || !sameSegments(segments, previous!.noteSegments);
+    if (segmentsChanged || previous!.note !== noteText || previous!.noteLang !== model.noteLang) {
+      if (segments && segments.length > 1) {
+        // One span per language run lets assistive technology switch voice.
+        if (segmentsChanged) {
+          const spans = segments.map(run => {
+            const span = this._d.createElement('span');
+            span.textContent = run.text;
+            if (run.lang !== null) span.setAttribute('lang', run.lang);
+            return span;
+          });
+          note.replaceChildren(...spans);
         }
-        note.replaceChildren(...spans);
-        this._nr = signature;
+        setAttr(note, 'lang', null);
+      } else {
+        if (note.firstElementChild) note.textContent = '';
+        setText(note, compact ? '' : segments?.[0]?.text ?? noteText ?? '');
+        setAttr(note, 'lang', segments ? segments[0]?.lang ?? null : model.noteLang ?? null);
       }
-      setAttr(note, 'lang', null);
-    } else {
-      this._nr = null;
-      if (note.firstElementChild) note.textContent = '';
-      setText(note, compact ? '' : segments?.[0]?.text ?? noteText ?? '');
-      setAttr(note, 'lang', segments ? segments[0]?.lang ?? null : model.noteLang ?? null);
+      show(note, !compact && noteText !== null);
     }
-    setAttr(status, 'lang', messageLang ?? null);
-    show(note, !compact && noteText !== null);
 
     const showCorner = compact && noteText !== null;
     if (showCorner) {
@@ -327,17 +324,20 @@ class FigureImpl implements Figure {
         hideFromAT(corner);
         corner.textContent = '*';
       }
-      this._co.hidden = false;
+      show(this._co, true);
       setAttr(this._co, 'title', noteText);
       mount(plot, this._co);
-    } else if (this._co) {
+    } else if (this._co && (modeChanged || previous!.note !== noteText)) {
       detach(this._co);
-      this._co.hidden = true;
+      show(this._co, false);
       setAttr(this._co, 'title', null);
     }
 
-    setText(status, message ?? '');
-    show(status, message !== null);
+    if (previous === null || previous.message !== message) {
+      setText(status, message ?? '');
+      show(status, message !== null);
+    }
+    if (previous === null || previous.messageLang !== messageLang) setAttr(status, 'lang', messageLang ?? null);
     return moved;
   }
 
@@ -414,7 +414,7 @@ function clearSubtitle(node: HTMLElement | null): void {
   if (node) {
     detach(node);
     setText(node, '');
-    node.hidden = true;
+    show(node, false);
   }
 }
 
@@ -506,13 +506,13 @@ export function createFigure(
   return new FigureImpl(root, id, parts, options);
 }
 
-function headingKey(m: FigureModel): string {
-  return m.compact || m.title === null ? '' : `${m.title.visible}\u0000${m.title.level}\u0000${m.title.text}`;
+function sameTitle(a: TitleModel | null, b: TitleModel | null): boolean {
+  return a === b || (a !== null && b !== null && a.text === b.text && a.level === b.level && a.visible === b.visible);
 }
 
 /** Whether going from `a` to `b` can change the size of anything around the plot (the caption or the note). */
 function movesLayout(a: FigureModel, b: FigureModel): boolean {
-  return a.compact !== b.compact || headingKey(a) !== headingKey(b) || (a.compact ? '' : a.subtitle) !== (b.compact ? '' : b.subtitle) ||
+  return a.compact !== b.compact || (!b.compact && (!sameTitle(a.title, b.title) || a.subtitle !== b.subtitle)) ||
     a.summaryVisible !== b.summaryVisible || (b.summaryVisible && a.summary !== b.summary) ||
     (a.compact ? null : a.note) !== (b.compact ? null : b.note);
 }
@@ -530,6 +530,5 @@ function same(a: FigureModel, b: FigureModel): boolean {
   return a.compact === b.compact && a.messageLang === b.messageLang && a.noteLang === b.noteLang && a.labelledBy === b.labelledBy && a.name === b.name && a.subtitle === b.subtitle &&
     a.summary === b.summary && a.summaryLang === b.summaryLang && a.summaryVisible === b.summaryVisible && a.note === b.note && a.message === b.message &&
     sameSegments(a.noteSegments, b.noteSegments) &&
-    (a.title === b.title || (a.title !== null && b.title !== null && a.title.text === b.title.text &&
-      a.title.level === b.title.level && a.title.visible === b.title.visible));
+    sameTitle(a.title, b.title);
 }

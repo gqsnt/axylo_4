@@ -3,7 +3,7 @@ import { SLOT_NULL, SLOT_VALUE } from '../core/contracts';
 import type { AlignedView, DatumRef, DatumText, Formatters, Lookup, PickTarget, SlotState } from '../core/contracts';
 import type { Messages } from '../public';
 import { fill } from '../messages';
-import { clipBox, contains, pointBox, pointerOnPlot, type PlotLayout } from './geometry';
+import { clipBox, contains, pointBox, POINTER_SLACK, type PlotLayout } from './geometry';
 import { clamp, projectBand } from '../scene/geometry';
 import { lowerBound, stepIndex } from './search';
 import { incomplete, slotLabel, slotText } from './text';
@@ -14,19 +14,37 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
   const { frame, visibleSlots: { start, end }, stack } = view;
   const { series } = frame;
   const positions = frame.x.values;
-  const visible = series.flatMap((entry, s) => view.visible[s] && entry.drawable ? [s] : []);
-  const keys = new Map(series.map((entry, s) => [entry.key, s]));
+  const visible: number[] = [];
+  for (let s = 0; s < series.length; s++) if (view.visible[s] && series[s]!.drawable) visible.push(s);
+  let keys: Map<string, number> | undefined;
+  const plot = layout?.plot;
   const projection = layout?.projection;
   const xScale = projection?.kind === 'xy' ? projection.x : projection?.kind === 'bands' ? projection.band : null;
+  const horizontal = projection?.kind === 'bands' && projection.horizontal;
 
-  const bounds = new Float64Array(2);
+  let bounds: Float64Array | undefined;
+  let pickedSlot = -1;
   const inView = (i: number) => i >= start && i < end;
+
+  function seriesIndex(key: string): number | undefined {
+    if (series.length <= 4) {
+      for (let s = series.length - 1; s >= 0; s--) if (series[s]!.key === key) return s;
+      return undefined;
+    }
+    if (!keys) {
+      keys = new Map();
+      for (let s = 0; s < series.length; s++) keys.set(series[s]!.key, s);
+    }
+    return keys.get(key);
+  }
 
   function ref(s: number, i: number): DatumRef {
     return { kind: 'aligned', seriesKey: series[s]!.key, x: positions[i]! };
   }
 
   function index(x: number): number {
+    // The tooltip, cursor, and focus usually ask about the x just picked.
+    if (pickedSlot >= 0 && positions[pickedSlot] === x) return pickedSlot;
     const i = lowerBound(positions, x);
     return positions[i] === x ? i : -1;
   }
@@ -36,7 +54,8 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
   }
 
   function seek(s: number, i: number, delta: 1 | -1, lo = start, hi = end): number {
-    for (; i >= lo && i < hi; i += delta) if (isValue(s, i)) return i;
+    const { slot } = series[s]!;
+    for (; i >= lo && i < hi; i += delta) if (slot[i] === SLOT_VALUE) return i;
     return -1;
   }
 
@@ -73,13 +92,14 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
 
   function primary(i: number): DatumRef | null {
     if (!inView(i)) return null;
-    const s = visible.find(s => isValue(s, i)) ?? visible[0];
+    for (const s of visible) if (isValue(s, i)) return ref(s, i);
+    const s = visible[0];
     return s === undefined ? null : ref(s, i);
   }
 
   function resolve(datum: DatumRef): DatumRef | null {
     if (datum.kind !== 'aligned') return null;
-    const s = keys.get(datum.seriesKey);
+    const s = seriesIndex(datum.seriesKey);
     if (s === undefined) return null;
     const i = lowerBound(positions, datum.x);
     const exact = inView(i) && positions[i] === datum.x;
@@ -110,8 +130,6 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
     return (leftPixel <= rightPixel ? pixel >= midpoint : pixel <= midpoint) ? right : right - 1;
   }
 
-  const shown = new Set(visible);
-  const slotOf = (datum: DatumRef) => datum.kind === 'aligned' && keys.has(datum.seriesKey) ? index(datum.x) : -1;
   const at = (target: PickTarget) => target.kind === 'x' ? index(target.x) : -1;
 
   return {
@@ -123,14 +141,25 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
     },
     has(target, datum) {
       const i = at(target);
-      return inView(i) && datum.kind === 'aligned' && datum.x === positions[i] && shown.has(keys.get(datum.seriesKey) ?? -1);
+      if (!inView(i) || datum.kind !== 'aligned' || datum.x !== positions[i]) return false;
+      const s = seriesIndex(datum.seriesKey);
+      return s !== undefined && !!view.visible[s] && series[s]!.drawable;
     },
-    slot: slotOf,
+    slot(datum) {
+      return datum.kind === 'aligned' && seriesIndex(datum.seriesKey) !== undefined ? index(datum.x) : -1;
+    },
     pick(pointerX, pointerY) {
-      const at = layout && visible.length ? pointerOnPlot(layout.plot, pointerX, pointerY) : null;
-      if (!at) return null;
-      const i = nearestSlot(projection?.kind === 'bands' && projection.horizontal ? at.y : at.x);
-      return i < 0 ? null : { kind: 'x', x: positions[i]! };
+      if (!plot || !visible.length) return null;
+      // Clamp the picking axis only, with the same one-pixel allowance as pointerOnPlot.
+      const right = plot.x + plot.width;
+      const bottom = plot.y + plot.height;
+      if (!(pointerX >= plot.x - POINTER_SLACK && pointerX <= right + POINTER_SLACK &&
+        pointerY >= plot.y - POINTER_SLACK && pointerY <= bottom + POINTER_SLACK)) return null;
+      const pixel = horizontal ? Math.min(bottom, Math.max(plot.y, pointerY)) : Math.min(right, Math.max(plot.x, pointerX));
+      const i = nearestSlot(pixel);
+      if (i < 0) return null;
+      pickedSlot = i;
+      return { kind: 'x', x: positions[i]! };
     },
     tooltip(target) {
       const i = at(target);
@@ -147,29 +176,31 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
           else positive += value;
           hasValue = true;
         }
-        const write = (value: number) => formatters.value(stack.order[0]!, value);
+        const first = stack.order[0]!;
         total = !hasValue ? formatters.missing(SLOT_NULL)
-          : positive > 0 && negative < 0 ? fill(messages.totalMixed, { positive: write(positive), negative: write(negative) })
-            : write(positive + negative);
+          : positive > 0 && negative < 0 ? fill(messages.totalMixed, {
+            positive: formatters.value(first, positive), negative: formatters.value(first, negative),
+          }) : formatters.value(first, positive + negative);
         if (hasValue && stack.incomplete?.[i]) total = incomplete(total, messages);
       }
-      return {
-        title: slotLabel(frame, formatters, i), rows: visible.slice(0, TOOLTIP_LIMIT).map(s => write(s, i)),
-        count: visible.length, total,
-      };
+      const title = slotLabel(frame, formatters, i);
+      const shown = Math.min(visible.length, TOOLTIP_LIMIT);
+      const rows: DatumText[] = [];
+      for (let row = 0; row < shown; row++) rows.push(write(visible[row]!, i));
+      return { title, rows, count: visible.length, total };
     },
     primary(target) {
       return primary(at(target));
     },
     datum(datum) {
       if (datum.kind !== 'aligned') return null;
-      const s = keys.get(datum.seriesKey);
+      const s = seriesIndex(datum.seriesKey);
       const i = index(datum.x);
       return s === undefined || i < 0 ? null : write(s, i, true);
     },
     anchor(datum) {
       if (datum.kind !== 'aligned' || !layout || !projection || !xScale) return null;
-      const s = keys.get(datum.seriesKey);
+      const s = seriesIndex(datum.seriesKey);
       const i = index(datum.x);
       const lane = s === undefined ? -1 : visible.indexOf(s);
       if (s === undefined || lane < 0 || !inView(i)) return null;
@@ -189,10 +220,10 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
       const { plot } = layout;
       const low = horizontal ? plot.y : plot.x;
       const high = low + (horizontal ? plot.height : plot.width);
+      bounds ??= new Float64Array(2);
       projectBand(frame, xScale, i, high - low, bounds, 0);
-      const [left, right] = bounds;
-      const bandStart = clamp(left!, low, high);
-      const part = (clamp(right!, low, high) - bandStart) / (stack ? 1 : visible.length);
+      const bandStart = clamp(bounds[0]!, low, high);
+      const part = (clamp(bounds[1]!, low, high) - bandStart) / (stack ? 1 : visible.length);
       const size = frame.binEdges ? part : Math.max(1, part);
       const middle = bandStart + part * ((stack ? 0 : lane) + 0.5);
       const band = clamp(middle - size / 2, low, Math.max(low, high - size));
@@ -222,7 +253,7 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
     count: end - start,
     ordinal(datum) {
       if (datum.kind !== 'aligned') return -1;
-      const s = keys.get(datum.seriesKey);
+      const s = seriesIndex(datum.seriesKey);
       const i = index(datum.x);
       return s !== undefined && view.visible[s] && series[s]!.drawable && inView(i) ? i - start : -1;
     },
@@ -230,7 +261,7 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
       if (!from) return first();
       const resolved = resolve(from);
       if (resolved?.kind !== 'aligned') return null;
-      const s = keys.get(resolved.seriesKey)!;
+      const s = seriesIndex(resolved.seriesKey)!;
       const at = index(resolved.x);
       let to = -1;
       switch (direction) {

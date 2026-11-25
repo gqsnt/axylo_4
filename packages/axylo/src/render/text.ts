@@ -27,6 +27,9 @@ interface Label {
   text: string[] | null;
 }
 
+type TickRole = 'tick-x' | 'tick-y';
+type SpareTicks = Record<TickRole, Label | undefined>;
+
 const ALIGN = { start: 'left', middle: 'center', end: 'right' } as const;
 const SHIFT_X = { start: '0%', middle: '-50%', end: '-100%' } as const;
 const SHIFT_Y = { top: '0%', middle: '-50%', bottom: '-100%' } as const;
@@ -34,15 +37,17 @@ const POSITION = 'position:absolute;left:0;top:0;transform-origin:0 0;white-spac
 
 const round = (v: number): number => Math.round(v * 100) / 100;
 
-function transform(t: PlacedText, x: number, y: number): string {
+function transform(t: PlacedText, x: number, y: number, keepZeroShift = false): string {
   // Transforms apply right to left: move the anchor point of the text to the origin, rotate about it,
   // then move the origin to (x, y).
   const rotate = t.rotate !== 0 ? ` rotate(${t.rotate}deg)` : '';
-  return `translate(${x}px,${y}px)${rotate} translate(${SHIFT_X[t.anchor]},${SHIFT_Y[t.baseline]})`;
+  const position = `translate(${x}px,${y}px)${rotate}`;
+  return !keepZeroShift && t.anchor === 'start' && t.baseline === 'top'
+    ? position : `${position} translate(${SHIFT_X[t.anchor]},${SHIFT_Y[t.baseline]})`;
 }
 
 export function labelStyle(t: PlacedText): string {
-  return `${POSITION}text-align:${ALIGN[t.anchor]};transform:${transform(t, round(t.x), round(t.y))}`;
+  return `${POSITION}text-align:${ALIGN[t.anchor]};transform:${transform(t, round(t.x), round(t.y), true)}`;
 }
 
 function appendLine(doc: Document, label: HTMLDivElement): HTMLDivElement {
@@ -92,8 +97,29 @@ function createLabel(doc: Document, role: PlacedText['role']): Label {
   const el = doc.createElement('div');
   el.className = 'axylo-label';
   el.setAttribute('data-role', role);
-  el.style.cssText = POSITION;
+  el.style.setProperty('position', 'absolute');
+  el.style.setProperty('left', '0');
+  el.style.setProperty('top', '0');
+  el.style.setProperty('transform-origin', '0 0');
+  el.style.setProperty('white-space', 'pre');
   return { el, role, placed: null, rx: NaN, ry: NaN, line0: null, text0: '', lines: null, text: null };
+}
+
+function takeLabel(doc: Document, role: PlacedText['role'], spare: SpareTicks): Label {
+  if (role === 'tick-x' || role === 'tick-y') {
+    const label = spare[role];
+    if (label) {
+      spare[role] = undefined;
+      return label;
+    }
+  }
+  return createLabel(doc, role);
+}
+
+function releaseLabel(label: Label, spare: SpareTicks): void {
+  label.el.remove();
+  // Tick counts can oscillate around a time boundary. One detached label per axis covers that change.
+  if (label.role === 'tick-x' || label.role === 'tick-y') spare[label.role] ??= label;
 }
 
 function renderLabel(doc: Document, label: Label, t: PlacedText): void {
@@ -112,32 +138,61 @@ function renderLabel(doc: Document, label: Label, t: PlacedText): void {
   label.placed = t;
 }
 
-function reconcileRoles(doc: Document, element: HTMLDivElement, labels: Label[], texts: readonly PlacedText[], start: number): void {
-  // Match in role order so an inserted tick cannot displace the labels of the other axis.
-  const before = labels[start]!.el.previousSibling;
-  const byRole = new Map<PlacedText['role'], Label[]>();
-  for (let i = labels.length - 1; i >= start; i--) {
-    const label = labels[i]!;
-    const group = byRole.get(label.role);
-    if (group) group.push(label);
-    else byRole.set(label.role, [label]);
-  }
+function reconcileLabels(
+  doc: Document, element: HTMLDivElement, labels: Label[], texts: readonly PlacedText[], start: number,
+  available: (Label | undefined)[], stationary: (boolean | undefined)[], spare: SpareTicks,
+): void {
+  // Match surviving text first so an entering tick cannot take a label needed farther along.
+  let next = labels[labels.length - 1]!.el.nextSibling;
+  for (let i = start; i < labels.length; i++) available.push(labels[i]);
   labels.length = texts.length;
+  let lastMatch = -1;
   for (let i = start; i < texts.length; i++) {
     const t = texts[i]!;
-    const label = byRole.get(t.role)?.pop() ?? createLabel(doc, t.role);
+    let match = -1;
+    if (t.lines.length === 1) {
+      for (let j = 0; j < available.length; j++) {
+        const label = available[j];
+        if (label?.role === t.role && label.placed?.lines.length === 1 && label.text0 === t.lines[0]) {
+          match = j;
+          break;
+        }
+      }
+    }
+    stationary[i] = undefined;
+    if (match >= 0) {
+      labels[i] = available[match]!;
+      available[match] = undefined;
+      stationary[i] = match > lastMatch;
+      if (stationary[i]) lastMatch = match;
+    }
+  }
+  for (let i = start; i < texts.length; i++) {
+    const t = texts[i]!;
+    let label = stationary[i] === undefined ? undefined : labels[i];
+    if (label === undefined) {
+      for (let j = 0; j < available.length; j++) {
+        if (available[j]?.role !== t.role) continue;
+        label = available[j];
+        available[j] = undefined;
+        break;
+      }
+      label ??= takeLabel(doc, t.role, spare);
+    }
     labels[i] = label;
     renderLabel(doc, label, t);
   }
-  for (const group of byRole.values()) for (const label of group) label.el.remove();
+  for (const label of available) if (label) releaseLabel(label, spare);
+  available.length = 0;
 
-  // The text layer can also contain the chart's font probe. Start where the managed labels started.
-  let next = before ? before.nextSibling : element.firstChild;
-  for (let i = start; i < labels.length; i++) {
+  // Leave surviving ticks that are already in order mounted, even when the window slides.
+  // The last managed label's former successor can be the chart's font probe.
+  for (let i = labels.length - 1; i >= start; i--) {
     const { el } = labels[i]!;
-    if (el === next) next = el.nextSibling;
-    else element.insertBefore(el, next);
+    if (!stationary[i] && (el.parentNode !== element || el.nextSibling !== next)) element.insertBefore(el, next);
+    next = el;
   }
+  stationary.length = 0;
 }
 
 export function createTextLayer(doc: Document = document): TextLayer {
@@ -145,6 +200,9 @@ export function createTextLayer(doc: Document = document): TextLayer {
   element.className = 'axylo-text';
   element.setAttribute('aria-hidden', 'true');
   const labels: Label[] = [];
+  const available: (Label | undefined)[] = [];
+  const stationary: (boolean | undefined)[] = [];
+  const spare: SpareTicks = { 'tick-x': undefined, 'tick-y': undefined };
   let previous: readonly PlacedText[] | null = null;
 
   return {
@@ -155,8 +213,12 @@ export function createTextLayer(doc: Document = document): TextLayer {
       for (let i = 0; i < common; i++) {
         const label = labels[i]!;
         const t = texts[i]!;
-        if (label.role !== t.role) {
-          reconcileRoles(doc, element, labels, texts, i);
+        const wasSingle = label.placed?.lines.length === 1;
+        const isSingle = t.lines.length === 1;
+        const canMatchElsewhere = i + 1 < labels.length || i + 1 < texts.length;
+        if (label.role !== t.role || canMatchElsewhere && (wasSingle || isSingle) &&
+            (!wasSingle || !isSingle || label.text0 !== t.lines[0])) {
+          reconcileLabels(doc, element, labels, texts, i, available, stationary, spare);
           previous = texts;
           return;
         }
@@ -166,19 +228,20 @@ export function createTextLayer(doc: Document = document): TextLayer {
         const fresh = doc.createDocumentFragment();
         for (let i = labels.length; i < texts.length; i++) {
           const t = texts[i]!;
-          const label = createLabel(doc, t.role);
+          const label = takeLabel(doc, t.role, spare);
           renderLabel(doc, label, t);
           labels.push(label);
           fresh.appendChild(label.el);
         }
         element.appendChild(fresh);
       }
-      while (labels.length > texts.length) labels.pop()!.el.remove();
+      while (labels.length > texts.length) releaseLabel(labels.pop()!, spare);
       previous = texts;
     },
     destroy(): void {
       element.remove();
       labels.length = 0;
+      spare['tick-x'] = spare['tick-y'] = undefined;
       previous = null;
     },
   };

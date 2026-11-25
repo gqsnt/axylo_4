@@ -61,11 +61,16 @@ export function scheduleFrame(win: Window, doc: Document, get: () => Controller 
     const active = sched;
     active.rafId = win.requestAnimationFrame(time => {
       active.rafId = 0;
+      if (schedulers.get(win) === active) schedulers.delete(win);
+      if (active.pending.size === 1) {
+        const entry = active.pending.values().next().value!;
+        active.pending.clear();
+        entry.cb(time);
+        return;
+      }
       const batch = [...active.pending.values()];
       active.pending.clear();
-      if (schedulers.get(win) === active) schedulers.delete(win);
-      if (batch.length === 1) batch[0]!.cb(time);
-      else if (batch.length) runPhasedBatch(win, doc, batch, time);
+      if (batch.length) runPhasedBatch(win, doc, batch, time);
     });
   }
   return handle;
@@ -98,24 +103,32 @@ function runPhasedBatch(win: Window, doc: Document, batch: readonly ScheduledEnt
   } finally {
     if (activeThemeBatches.get(doc) === themeBatch) activeThemeBatches.delete(doc);
   }
-  const each = <K extends keyof FrameRun>(fn: K): boolean => {
+  const each = (fn: keyof FrameRun): void => {
+    for (const run of runs) run[fn]();
+  };
+  const any = (fn: 'phase3LayoutCheck' | 'phase4PassWrite' | 'phase4PassMeasure'): boolean => {
     let hit = false;
-    for (let i = 0; i < runs.length; i++) if (runs[i]![fn]() as unknown) hit = true;
+    for (const run of runs) if (run[fn]()) hit = true;
     return hit;
+  };
+  const readout = (): void => {
+    if (any('phase3LayoutCheck')) {
+      each('phase3StripMount');
+      try { each('phase3StripRead'); } finally { each('phase3StripRemove'); }
+    }
+    each('phase3ReadoutDecide');
+    each('phase4StripWrite');
+    each('phase4StripMeasure');
+    each('phase4Init');
   };
   each('phase2');
   each('phase3Theme');
   each('phase3Probe');
   each('phase3Measure');
-  if (each('phase3LayoutCheck')) {
-    each('phase3StripMount');
-    try { each('phase3StripRead'); } finally { each('phase3StripRemove'); }
+  readout();
+  for (let pass = 0; pass < 4 && any('phase4PassWrite'); pass++) {
+    if (any('phase4PassMeasure')) readout();
   }
-  each('phase3ReadoutDecide');
-  each('phase4StripWrite');
-  each('phase4StripMeasure');
-  each('phase4Init');
-  for (let pass = 0; pass < 4 && each('phase4PassWrite'); pass++) each('phase4PassMeasure');
   each('phase5');
   each('after');
 }
@@ -126,9 +139,14 @@ let instances = 0;
 
 /** An id prefix none of whose element ids exist in the page yet (spec A1: ids unique per chart). */
 function allocateId(doc: Document, tree: Document | ShadowRoot): string {
-  for (;;) {
+  const shadow = tree === doc ? null : tree;
+  next: for (;;) {
     const id = `axylo-${++instances}`;
-    if (ID_SUFFIXES.every(s => !tree.getElementById(id + s) && (doc === tree || !doc.getElementById(id + s)))) return id;
+    for (const suffix of ID_SUFFIXES) {
+      const candidate = id + suffix;
+      if (doc.getElementById(candidate) || shadow?.getElementById(candidate)) continue next;
+    }
+    return id;
   }
 }
 
@@ -193,7 +211,6 @@ export function createChart(composition: Composition, target: unknown, input: un
     } : createInteraction(composition.interaction, figure, renderer, makeActions());
     cleanup.push(() => interaction.destroy());
     const measurer = createMeasurer(doc);
-    ensureStyles(tree);
 
     // Watchers that the document holds; released while the target is out of the document.
     let watching: (() => void) | null = null;
@@ -205,6 +222,7 @@ export function createChart(composition: Composition, target: unknown, input: un
       if (watching && current === tree) return;
       unwatch();
       tree = current;
+      // A detached chart's stylesheet may have been removed before its first attachment.
       ensureStyles(tree);
       const c = controller;
       if (watchedBefore) { noteFontLoad(doc); c.invalidate.page(); }
@@ -347,7 +365,20 @@ export function createChart(composition: Composition, target: unknown, input: un
       themePrepare: (keys, colors) => prepareTheme(figure.figure, keys, colors, activeThemeBatches.get(doc)),
       themeApply: prepared => applyTheme(prepared as PreparedTheme),
       themeFinish: (prepared, deferProbe) => finalizeTheme(prepared as PreparedTheme, deferProbe),
-      themeProbe: prepared => probeTheme(prepared as PreparedTheme),
+      themeProbe(prepared, layoutChanged) {
+        const pending = prepared as PreparedTheme;
+        if (pending.later === null) {
+          layoutChanged(false);
+          return probeTheme(pending);
+        }
+        const element = pending.el;
+        const backdrop = element.style.getPropertyValue('--axylo-backdrop');
+        const scheme = element.getAttribute('data-axylo-scheme');
+        const resolution = probeTheme(pending);
+        layoutChanged(backdrop !== element.style.getPropertyValue('--axylo-backdrop') ||
+          scheme !== element.getAttribute('data-axylo-scheme'));
+        return resolution;
+      },
       surfaces(visible) {
         textHidden = !visible;
         const v = visible ? '' : 'hidden';
@@ -359,6 +390,7 @@ export function createChart(composition: Composition, target: unknown, input: un
     resizeObserver.observe(figure.plot);
     resizeObserver.observe(figure.figure);
     if (root.isConnected) watch();
+    else ensureStyles(styleRoot());
     return controller.handle;
   } catch (error) {
     const created = controller as Controller | null;

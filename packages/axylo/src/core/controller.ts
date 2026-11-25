@@ -19,7 +19,7 @@ import {
   SLOT_NO_ROW, SLOT_VALUE,
   type DatumRef, type DiagnosticInput, type Formatters, type Frame, type Layout, type Lookup, type MarkRenderer,
   type PlacedText, type ReaderModel, type ResolvedTheme, type PaintBindings, type Scene, type TextMeasurer,
-  type TextStyle, type TooltipModel, type View,
+  type TextStyle, type TooltipModel, type View, type XKind,
 } from './contracts';
 import type { ChartEvents, Diagnostic, Messages, Point, Title, XValue } from '../public';
 import type { PreparedFrame } from '../data';
@@ -87,6 +87,7 @@ const EMPTY_DISCLOSURE: { readonly omitted: number; readonly changed: number } =
 const EMPTY_APPEND_OPTIONS: { keep?: number } = {};
 const EMPTY_REFS: readonly DatumRef[] = [];
 const EMPTY_TOOLTIP: TooltipModel = { title: '', rows: [], count: 0, total: null };
+const INHERIT_LANGUAGE = (): null => null;
 const EMPTY_LOOKUP: Lookup = {
   count: 0,
   pick: () => null,
@@ -101,6 +102,14 @@ const EMPTY_LOOKUP: Lookup = {
   step: () => null,
   resolve: () => null,
 };
+
+function lazyLookup(
+  composition: Composition, view: View, layout: Layout, formatters: Formatters, messages: Messages,
+  locale: string, pixelRatio: number,
+): () => Lookup {
+  let lookup: Lookup | null = null;
+  return () => lookup ??= composition.lookup(view, layout, formatters, messages, locale, pixelRatio);
+}
 
 /** Spec L8: the smallest plot height drawn. */
 const MIN_PLOT_HEIGHT = 80;
@@ -151,7 +160,8 @@ export interface Host {
   themePrepare?(seriesKeys: readonly string[], colors: Record<string, string>): unknown;
   themeApply?(prepared: unknown): void;
   themeFinish?(prepared: unknown, deferProbe?: boolean): ThemeResolution | null;
-  themeProbe?(prepared: unknown): ThemeResolution;
+  /** Report whether a late probe changed live theme properties. Hosts that omit the report are remeasured. */
+  themeProbe?(prepared: unknown, layoutChanged: (changed: boolean) => void): ThemeResolution;
   /** Shows or hides the mark and text surfaces without drawing (the error revision hides them). */
   surfaces?(visible: boolean): void;
   /** Called once by destroy, after the controller released its own state. */
@@ -195,7 +205,8 @@ export interface FrameRun {
   phase4StripMeasure(): void;
   phase4Init(): void;
   phase4PassWrite(): boolean;
-  phase4PassMeasure(): void;
+  /** Returns true when a chart restored from fallback needs the readout check again. */
+  phase4PassMeasure(): boolean | void;
   phase5(): void;
   after(): void;
 }
@@ -246,6 +257,21 @@ type Display =
     /** The built-in message shown, or null when the author wrote the text. */
     readonly message: keyof Messages | null;
   };
+
+const READY: Display = { kind: 'ready' };
+
+interface PlotLayout {
+  readonly layout: Layout;
+  readonly key: readonly unknown[] | null;
+  readonly width: number;
+  readonly height: number;
+  /** A reserved strip can leave the size unchanged (for example on an auto-height tile). */
+  readonly strip: number | null;
+}
+
+function sameLayoutSize(layout: PlotLayout | null | undefined, width: number, height: number, strip: number | null): layout is PlotLayout {
+  return !!layout && Object.is(layout.width, width) && Object.is(layout.height, height) && layout.strip === strip;
+}
 
 /** Presentation diagnostics by the stage that found them (spec 3.5: reported when found, never thrown). */
 type PresentationStage = 'theme' | 'layout' | 'fit' | 'format' | 'naming' | 'internal';
@@ -1133,7 +1159,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   let fontEpoch = 0;
   let pixelRatio = host.devicePixelRatio();
   let themeDirty = true;
-  let themeKey: readonly unknown[] | null = null;
+  let themeSeries: readonly string[] | null = null;
+  let themeColors: unknown;
   let theme: { bindings: PaintBindings; theme: ResolvedTheme } | null = null;
   let themeRevision = 0;
   /** The display state last shown, for announcing changes once (spec L7). */
@@ -1145,19 +1172,25 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     accepted: Accepted;
     formatters: Formatters;
     formattersKey: readonly unknown[];
+    locale: string;
+    style: TextStyle;
+    fontEpoch: number;
+    pixelRatio: number;
     layout: Layout;
-    layoutKey: readonly unknown[] | null;
+    plotLayout: PlotLayout | null;
     scene: Scene;
-    sceneInputs: readonly unknown[];
     lookup: Lookup;
-    lookupInputs: readonly unknown[];
     reader: ReaderModel;
     readerInputs: readonly unknown[];
-    paintInputs: readonly unknown[];
+    paintedTheme: number | null;
   }
   let drawn: Drawn | null = null;
+  let fitKey: {
+    small: boolean; dense: boolean; hidden: number; field: string;
+    xKind: XKind | undefined; horizontal: boolean | undefined; kind: View['kind'];
+  } | null = null;
   /** The last layout computed, also at a size that was only an estimate (the L8 fallback). */
-  let lastLayout: { layout: Layout; key: readonly unknown[] } | null = null;
+  let lastLayout: PlotLayout | null = null;
   /** Marks were drawn at some point (cleared marks after a failure count): a later empty frame must clear them. */
   let hadMarks = false;
   /** The host hid the mark and text surfaces for an error revision; the next drawn frame shows them again. */
@@ -1200,7 +1233,42 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     return keys;
   }
 
-  function display(a: Accepted): Display {
+  function sameSeriesKeys(view: Exclude<View, { kind: 'donut' }>, keys: readonly string[]): boolean {
+    const series = view.frame.series;
+    if (series.length !== keys.length) return false;
+    for (let i = 0; i < keys.length; i++) if (series[i]!.key !== keys[i]) return false;
+    return true;
+  }
+
+  function reportFit(a: Accepted, layout: Layout, tooSmall: boolean, hidden: number): void {
+    const view = a.view;
+    const small = tooSmall || layout.kind === 'too-small';
+    const dense = view.kind === 'bar' && layout.kind === 'plot' &&
+      view.visibleSlots.end - view.visibleSlots.start > (view.horizontal ? layout.plot.height : layout.plot.width);
+    if (!small && !dense && hidden === 0) {
+      if (fitKey !== null) {
+        fitKey = null;
+        setPresentation('fit', EMPTY_DIAGNOSTICS);
+      }
+      return;
+    }
+    const field = a.resolved.x.field;
+    // AX143 suggests horizontal bars only for vertical bars on category labels.
+    const xKind = view.kind === 'donut' ? undefined : view.kind === 'scatter' ? view.frame.xKind : view.frame.x.kind;
+    const horizontal = view.kind === 'bar' ? view.horizontal : undefined;
+    if (fitKey && fitKey.small === small && fitKey.dense === dense && fitKey.hidden === hidden && fitKey.field === field &&
+        fitKey.xKind === xKind && fitKey.horizontal === horizontal && fitKey.kind === view.kind) return;
+    fitKey = { small, dense, hidden, field, xKind, horizontal, kind: view.kind };
+    const fit: DiagnosticInput[] = [];
+    if (small) fit.push(createDiagnostic('AX142', 'none', {}, 'presentation'));
+    if (hidden > 0) fit.push(createDiagnostic('AX143', 'none', {
+      field, count: hidden, chartType: view.kind, xKind, horizontal,
+    }, 'presentation'));
+    if (dense) fit.push(createDiagnostic('AX132', 'none', { field }, 'presentation'));
+    setPresentation('fit', fit);
+  }
+
+  function display(a: Accepted, diagnostics: readonly DiagnosticInput[]): Display {
     const m = a.messages;
     if (internalError !== null) return { kind: 'internal', text: m.internalError, message: 'internalError' };
     const state = a.options.state;
@@ -1214,7 +1282,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         return { kind, text: m[kind], message: kind };
       }
     }
-    if (stateDiagnostics(a).some(d => d.effect === 'chart-error')) return { kind: 'error', text: m.error, message: 'error' };
+    if (diagnostics.some(d => d.effect === 'chart-error')) return { kind: 'error', text: m.error, message: 'error' };
     // Series the reader hid are still data: the chart stays ready, so the legend can show them again.
     if (!hasData(a.view, true)) {
       // Nothing drawn because series could not be (AX108: series disabled) is not an empty chart: the figure
@@ -1227,17 +1295,17 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       }
       return { kind: 'empty', text: m.empty, message: 'empty' };
     }
-    return { kind: 'ready' };
+    return READY;
   }
 
   /**
    * `lang` for an element showing the built-in text of `key`: 'en' when the page is in another language and
    * the author has not replaced that text (spec A10), else null.
    */
-  function englishFor(a: Accepted, lang: string | null): (key: keyof Messages) => string | null {
-    const foreign = lang !== null && !/^en(?:-|$)/i.test(lang);
+  function englishFor(a: Accepted, foreign: boolean): (key: keyof Messages) => string | null {
+    if (!foreign) return INHERIT_LANGUAGE;
     const overrides = object(a.options.messages);
-    return key => foreign && typeof overrides[key] !== 'string' ? 'en' : null;
+    return key => typeof overrides[key] !== 'string' ? 'en' : null;
   }
 
   /** AX199 (spec 3.5): Axylo itself failed. Given to onDiagnostic and printed, beside the error state. */
@@ -1284,6 +1352,29 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       spec.series.map(s => `${s.field}\u0001${s.unit}\u0001${s.scale}`).join('\u0002'), ...spec.series.map(s => s.format), valueCount];
   }
 
+  function sameFormatInputs(before: Accepted, after: Accepted): boolean {
+    if (before.resolved.x !== after.resolved.x || before.resolved.values !== after.resolved.values ||
+        before.messages.noData !== after.messages.noData || before.messages.noObservation !== after.messages.noObservation) return false;
+    const a = before.frame, b = after.frame;
+    if (a === b) return true;
+    if (a.shape === 'aligned' && b.shape === 'aligned') {
+      if (a.x.kind !== b.x.kind || a.x.timeZone !== b.x.timeZone || a.x.dateUnit !== b.x.dateUnit ||
+          a.x.categories !== b.x.categories || a.series.length !== b.series.length) return false;
+      for (let i = 0; i < a.series.length; i++) {
+        const x = a.series[i]!, y = b.series[i]!;
+        if (x.field !== y.field || x.unit !== y.unit || x.valueScale !== y.valueScale) return false;
+      }
+      return true;
+    }
+    if (a.shape === 'points' && b.shape === 'points') {
+      return a.xKind === b.xKind && a.timeZone === b.timeZone && a.yUnit === b.yUnit &&
+        a.series.length === b.series.length &&
+        pointDateUnit(a, before.resolved.x.field, rowOf) === pointDateUnit(b, after.resolved.x.field, rowOf);
+    }
+    return a.shape === 'donut' && b.shape === 'donut' &&
+      a.labels === b.labels && a.unit === b.unit && a.valueScale === b.valueScale;
+  }
+
   function flush(): void {
     const run = beginFrame();
     if (!run) return;
@@ -1292,21 +1383,24 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     run.phase3Theme();
     run.phase3Probe();
     run.phase3Measure();
-    if (run.phase3LayoutCheck()) {
-      run.phase3StripMount();
-      try {
-        run.phase3StripRead();
-      } finally {
-        run.phase3StripRemove();
+    const readout = (): void => {
+      if (run.phase3LayoutCheck()) {
+        run.phase3StripMount();
+        try {
+          run.phase3StripRead();
+        } finally {
+          run.phase3StripRemove();
+        }
       }
-    }
-    run.phase3ReadoutDecide();
-    run.phase4StripWrite();
-    run.phase4StripMeasure();
-    run.phase4Init();
+      run.phase3ReadoutDecide();
+      run.phase4StripWrite();
+      run.phase4StripMeasure();
+      run.phase4Init();
+    };
+    readout();
     for (let pass = 0; pass < 4; pass++) {
       if (!run.phase4PassWrite()) break;
-      run.phase4PassMeasure();
+      if (run.phase4PassMeasure()) readout();
     }
     run.phase5();
     run.after();
@@ -1376,13 +1470,14 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     };
 
     let style!: TextStyle;
+    let layoutEpoch = 0;
     const view = a.view;
     const compact = isCompact(kind, a.options);
     let locale = '';
     let shown!: Display;
     let noteShown = false;
     let lang: string | null = null;
-    let fKey!: unknown[];
+    let fKey!: readonly unknown[];
     let formatters!: Formatters;
     let byText: string | null = null;
     let named = false;
@@ -1395,25 +1490,25 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     let reader!: ReaderModel;
     let readerInputs!: readonly unknown[];
     let keys!: string[];
-    let nextThemeKey!: readonly unknown[];
     let needsTheme = false;
     let preparedTheme: unknown = null;
     let needsThemeProbe = false;
     let tooSmall = false;
-    let arranged: readonly unknown[] | null = null;
+    let arrangedReader: ReaderModel | null = null;
+    let arrangedSmall = false;
+    let arrangedHidden = 0;
+    let arrangedDisclosure = EMPTY_DISCLOSURE;
     let arrangedStrip: boolean | undefined;
     let needMeasure = false;
-    let withoutLayout: Layout | null = null;
-    let withoutStrip: Layout['kind'] | null = null;
-    let needsReadoutCheck = false;
+    let withoutLayout: PlotLayout | null = null;
+    let readoutPending = true;
+    let narrowPlotHeight: number | null = null;
     let needsStripProbe = false;
     let stripProbe: unknown = null;
     let stripAction: 'strip-arrange' | 'prepare-only' | null = null;
-    let layout!: Layout;
-    let lKey: readonly unknown[] | null = null;
-    let result: { layout: Layout; key: readonly unknown[] } | null = null;
+    let result: PlotLayout | null = null;
     let layoutDone = true;
-    let passAction: 'drop-strip' | 'enter-fallback' | 'note-moved' | null = null;
+    let passAction: 'drop-strip' | 'enter-fallback' | 'leave-fallback' | 'note-moved' | null = null;
     let normalSize: Size | null = null;
 
     const hiddenIn = (l: Layout | undefined) => l?.kind === 'plot' ? l.fit.x.hidden + l.fit.y.hidden : 0;
@@ -1479,22 +1574,24 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     };
     let currentHidden = 0;
     let settled: ReturnType<typeof readerFor> | null = null;
-    let settledInputs: readonly number[] | null = null;
-    const settlementKey = (hidden: number, d: typeof discCache) => [hidden, d.omitted, d.changed];
+    let settledHidden = 0;
+    let settledDisclosure = EMPTY_DISCLOSURE;
+    const sameDisclosure = (a: typeof discCache, b: typeof discCache) => a.omitted === b.omitted && a.changed === b.changed;
     const settleReader = (labelsHidden: number) => {
       currentHidden = labelsHidden;
       const disclosure = disclosureNow();
-      if (settled && sameKey(settledInputs, settlementKey(labelsHidden, disclosure))) return settled;
+      if (settled && settledHidden === labelsHidden && sameDisclosure(settledDisclosure, disclosure)) return settled;
       let built = readerFor(labelsHidden, disclosure);
       // The summary runs author formatters lazily: it is made here, so what they threw on is in the
       // disclosure this settles on, and no reader is built again once writing has started (verification,
       // claims: a throwing value formatter ran again during the figure's write).
       void built.reader.summary;
       const after = disclosureNow();
-      if (after.omitted !== disclosure.omitted || after.changed !== disclosure.changed) {
+      if (!sameDisclosure(after, disclosure)) {
         built = readerFor(labelsHidden, after);
       }
-      settledInputs = settlementKey(labelsHidden, after);
+      settledHidden = labelsHidden;
+      settledDisclosure = after;
       return settled = built;
     };
 
@@ -1522,7 +1619,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     };
     const zoomOn = zoomApplies(view, a.options.zoom) ? (a.options.zoom === 'touch' ? 'touch' as const : true) : false;
     const zoomed = view.kind !== 'donut' && a.zoom !== null && (view.xDomain[0] > view.xFull[0] || view.xDomain[1] < view.xFull[1]);
-    const legend = a.options.legend === false ? false : (['top', 'right', 'bottom'] as const).find(p => p === a.options.legend) ?? 'bottom';
+    const placement = a.options.legend;
+    const legend = placement === false || placement === 'top' || placement === 'right' ? placement : 'bottom';
     const controlsFor = (r: ReaderModel, small: boolean): ControlsState => ({
       kind, view, formatters, messages: a.messages, reader: r, tooSmall: small,
       ready: shown.kind === 'ready', interactive: !compact, tooltip: a.options.tooltip !== false, legend,
@@ -1537,15 +1635,24 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     const settleFigureReader = (hidden: number): void => {
       ({ reader, inputs: readerInputs } = settleReader(hidden));
     };
-    const reservedStrip = (at: Size): number =>
-      readoutMode && at.room ? Math.max(0, at.room.height - at.height) : 0;
-    const canDecideReadout = (at: Size | null): at is Size =>
-      at !== null && at.width > 0 && shown.kind === 'ready' && !compact && !tooSmall;
-    const figureInputs = (small: boolean) => [reader, small, ...settlementKey(currentHidden, disclosureNow())];
+    const reservedStrip = (at: Size): number | null =>
+      readoutMode ? (at.room ? Math.max(0, at.room.height - at.height) : 0) : null;
+    const measurePending = (): void => {
+      if (needMeasure) {
+        needMeasure = false;
+        sizeDirty = false;
+        size = host.measure();
+      }
+    };
+    const arrangedFor = (small: boolean): boolean =>
+      arrangedReader === reader && arrangedSmall === small && arrangedHidden === currentHidden &&
+      sameDisclosure(arrangedDisclosure, disclosureNow());
     const arrange = (small: boolean): boolean => {
-      const inputs = figureInputs(small);
-      if (sameKey(arranged, inputs) && arrangedStrip === readoutMode) return false;
-      arranged = inputs;
+      if (arrangedFor(small) && arrangedStrip === readoutMode) return false;
+      arrangedReader = reader;
+      arrangedSmall = small;
+      arrangedHidden = currentHidden;
+      arrangedDisclosure = disclosureNow();
       arrangedStrip = readoutMode;
       stage('figure');
       const model = modelFor(reader, small);
@@ -1554,48 +1661,54 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       // The legend and toolbar are in place before the plot is measured: they take their share now.
       return host.interaction.prepare(controlsFor(reader, small)) || moved;
     };
-    const plotLayout = (at: Size, strip = 0): { layout: Layout; key: readonly unknown[] } => {
+    const plotLayout = (width: number, height: number, strip: number | null): PlotLayout => {
+      if (sameLayoutSize(withoutLayout, width, height, strip)) return withoutLayout;
+      if (sameLayoutSize(result, width, height, strip)) return result;
       // A visible figure that leaves the plot no room is too small (L8), not unmeasured.
-      if (!compact && (at.width <= 0 || at.height <= 0)) {
-        return { layout: { kind: 'too-small', width: Math.max(0, at.width), height: Math.max(0, at.height) }, key: ['too-small', at.width, at.height] };
+      if (!compact && (width <= 0 || height <= 0)) {
+        return { layout: { kind: 'too-small', width: Math.max(0, width), height: Math.max(0, height) },
+          key: null, width, height, strip };
       }
-      const key = [...layoutStage.layoutKey(view, at, style, fontEpoch, axisContext), strip];
-      if (drawn && drawn.layoutKey && sameKey(drawn.layoutKey, key) && drawn.layout.kind !== 'unmeasured') return { layout: drawn.layout, key: drawn.layoutKey };
-      if (lastLayout && sameKey(lastLayout.key, key)) return lastLayout;
+      const previous = drawn;
+      const previousLayout = previous?.plotLayout;
+      const sameSize = sameLayoutSize(previousLayout, width, height, strip) && previousLayout.layout.kind !== 'unmeasured';
+      if (sameSize && previous && previous.accepted.view === view && previous.accepted.resolved === a.resolved &&
+          previous.accepted.options.x === a.options.x && previous.accepted.messages.value === a.messages.value &&
+          isCompact(kind, previous.accepted.options) === compact && previous.locale === locale &&
+          previous.style === style && previous.fontEpoch === layoutEpoch) return previousLayout;
+      const at = { width, height };
+      const key = layoutStage.layoutKey(view, at, style, layoutEpoch, axisContext);
+      if (sameSize && sameKey(previousLayout.key, key)) return previousLayout;
+      if (sameLayoutSize(lastLayout, width, height, strip) && sameKey(lastLayout.key, key)) return lastLayout;
       stage('layout');
-      const computed = { layout: layoutStage.compute(view, at, { measurer: host.measurer, style }, axisContext), key };
+      const computed = { layout: layoutStage.compute(view, at, { measurer: host.measurer, style }, axisContext), key, width, height, strip };
       lastLayout = computed;
       return computed;
     };
+    const layoutForSize = (): PlotLayout | null => size === null || size.width <= 0 || shown.kind !== 'ready' ? null
+      : plotLayout(size.width - (fallback?.width ?? 0), size.height - (fallback?.height ?? 0), reservedStrip(size));
 
     const publish = phase(() => {
+      const layout: Layout = result?.layout ?? {
+        kind: 'unmeasured', width: size?.width ?? 0,
+        height: size && size.width > 0 && shown.kind !== 'ready' ? Math.max(0, size.height) : size?.height ?? 0,
+      };
       if (result !== null) {
-        layout = result.layout;
-        lKey = result.key;
         if (view.kind === 'scatter' && a.zoom === null) {
           const x = layout.kind === 'plot' && layout.projection.kind === 'xy' ? layout.projection.x : null;
-          widenedX = x && x.type !== 'band' && !sameKey(x.domain, view.xFull) ? { epoch: view.frame.epoch, drawn: x.domain } : null;
+          if (x && x.type !== 'band' && (x.domain[0] !== view.xFull[0] || x.domain[1] !== view.xFull[1])) {
+            if (widenedX?.epoch !== view.frame.epoch || widenedX.drawn !== x.domain) {
+              widenedX = { epoch: view.frame.epoch, drawn: x.domain };
+            }
+          } else {
+            widenedX = null;
+          }
         }
         if (destroyed) throw ABORT;
       }
 
-      // Findings that follow from the layout shown, recomputed every frame (cheap): L8, L1, the bar hint.
-      let fit: DiagnosticInput[] | null = null;
-      if (tooSmall || layout.kind === 'too-small') (fit ??= []).push(createDiagnostic('AX142', 'none', {}, 'presentation'));
       const hidden = hiddenIn(layout);
-      if (hidden > 0) {
-        // The registry suggests horizontal bars only for vertical bars on category labels.
-        const xKind = view.kind === 'donut' ? undefined : view.kind === 'scatter' ? view.frame.xKind : view.frame.x.kind;
-        (fit ??= []).push(createDiagnostic('AX143', 'none', {
-          field: a.resolved.x.field, count: hidden, chartType: view.kind, xKind, horizontal: view.kind === 'bar' ? view.horizontal : undefined,
-        }, 'presentation'));
-      }
-      if (view.kind === 'bar' && layout.kind === 'plot') {
-        const along = view.horizontal ? layout.plot.height : layout.plot.width;
-        const bars = view.visibleSlots.end - view.visibleSlots.start;
-        if (bars > along) (fit ??= []).push(createDiagnostic('AX132', 'none', { field: a.resolved.x.field }, 'presentation'));
-      }
-      setPresentation('fit', fit ?? EMPTY_DIAGNOSTICS);
+      reportFit(a, layout, tooSmall, hidden);
       // A tick label in the default format is not a value shown differently (F12): its AX160 has no effect on
       // the figure, so the note it would add cannot take room from the ticks and bring the label back (closing
       // pass, item 2).
@@ -1607,24 +1720,29 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       if (destroyed) throw ABORT;
 
       // Scene.
-      const sceneInputs = [view, layout, pixelRatio];
+      const ratio = pixelRatio;
+      const previous = drawn;
+      const sameGeometry = previous?.accepted.view === view && previous.layout === layout;
       let scene: Scene;
-      if (drawn && sameKey(drawn.sceneInputs, sceneInputs)) scene = drawn.scene;
+      if (sameGeometry && Object.is(previous.pixelRatio, ratio)) scene = previous.scene;
       else {
         stage('scene');
-        scene = composition.scene(view, layout, pixelRatio);
+        scene = composition.scene(view, layout, ratio);
       }
 
       // Lookup reads the frame through the view; it switches with the marks.
       // Scatter ties are decided within half a device pixel: the ratio is part of what the lookup depends on.
       // Compact charts have no interaction, so skip building a lookup until promoted to full.
-      const lookupInputs = [compact, view, layout, formatters, a.messages, locale, view.kind === 'scatter' ? pixelRatio : 1];
-      let lookup = drawn?.lookup;
+      let lookup: Lookup;
       if (compact) {
         lookup = EMPTY_LOOKUP;
-      } else if (!lookup || lookup === EMPTY_LOOKUP || !drawn || !sameKey(drawn.lookupInputs, lookupInputs)) {
+      } else if (sameGeometry && previous.lookup !== EMPTY_LOOKUP && previous.formatters === formatters &&
+          previous.accepted.messages === a.messages && previous.locale === locale &&
+          (view.kind !== 'scatter' || Object.is(previous.pixelRatio, ratio))) {
+        lookup = previous.lookup;
+      } else {
         stage('lookup');
-        lookup = composition.lookup(view, layout, formatters, a.messages, locale, pixelRatio);
+        lookup = composition.lookup(view, layout, formatters, a.messages, locale, ratio);
       }
 
       // Marks: drawn again for a new scene, a new theme or a new pixel ratio, never rebuilt for a theme alone.
@@ -1634,12 +1752,12 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         host.surfaces?.(true);
         surfacesHidden = false;
       }
-      const paintInputs = measured ? [scene, themeRevision, pixelRatio] : [];
       // Nothing drawn yet and nothing to draw: no call at all (a hidden container stays untouched, L3).
-      const drewBefore = drawn !== null && drawn.paintInputs.length > 0;
-      if (measured ? !drawn || !sameKey(drawn.paintInputs, paintInputs) : drewBefore || (drawn === null && hadMarks)) {
+      const paintedTheme = measured ? themeRevision : null;
+      const drewBefore = previous ? previous.paintedTheme !== null : hadMarks;
+      if (measured ? previous?.paintedTheme !== paintedTheme || previous.scene !== scene || !Object.is(previous.pixelRatio, ratio) : drewBefore) {
         stage('draw');
-        host.renderer.draw(measured ? scene : emptyScene(), theme!.bindings, theme!.theme, pixelRatio);
+        host.renderer.draw(measured ? scene : emptyScene(), theme!.bindings, theme!.theme, ratio);
         hadMarks = measured;
       }
       if (drawn?.layout !== layout) {
@@ -1647,7 +1765,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         host.text.render(layout.kind === 'plot' ? layout.texts : []);
       }
 
-      if (!sameKey(arranged, figureInputs(tooSmall))) {
+      if (!arrangedFor(tooSmall)) {
         stage('figure');
         host.figure.update(modelFor(reader, tooSmall));
       }
@@ -1661,22 +1779,19 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       if (measured || announced !== null) announced = shown.kind;
 
       drawn = {
-        accepted: a, formatters, formattersKey: fKey, layout, layoutKey: lKey, scene, sceneInputs,
-        lookup, lookupInputs, reader, readerInputs, paintInputs,
+        accepted: a, formatters, formattersKey: fKey, locale, style, fontEpoch: layoutEpoch, pixelRatio: ratio,
+        layout, plotLayout: result, scene, lookup, reader, readerInputs, paintedTheme,
       };
       const committed: Committed = {
-        ...controlsFor(reader, tooSmall), layout, lookup, bindings: theme!.bindings, theme: theme!.theme, pixelRatio,
+        ...controlsFor(reader, tooSmall), layout, lookup, bindings: theme!.bindings, theme: theme!.theme, pixelRatio: ratio,
       };
       if (__DEV__ && compact) {
         // Dev/test hosts (acceptance tests) may inspect committed.lookup on compact charts; materialize
         // lazily on first access while keeping browser compact charts completely free of lookup allocations.
-        let materialized: Lookup | null = null;
         Object.defineProperty(committed, 'lookup', {
           enumerable: true,
           configurable: true,
-          get() {
-            return materialized ??= composition.lookup(view, layout, formatters, a.messages, locale, pixelRatio);
-          },
+          get: lazyLookup(composition, view, layout, formatters, a.messages, locale, ratio),
         });
       }
       host.interaction.commit(committed);
@@ -1689,7 +1804,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       // Phase 1: Initial reads & pure CPU prep (zero DOM writes, zero probeColors).
       phase1: phase(() => {
         stage('frame');
-        shown = display(a);
+        shown = display(a, stateDiag);
         noteShown = shown.kind === 'ready' || shown.kind === 'empty' || shown.kind === 'error';
         if (compact) {
           style = COMPACT_TEXT_STYLE;
@@ -1703,21 +1818,27 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
           }
           style = textStyle!;
         }
+        layoutEpoch = fontEpoch;
         locale = host.locale(a.options.locale);
         lang = host.pageLang();
 
         // Formatters. What a formatter threw on belongs to the formatters and the revision it formatted.
-        const spec = formatSpec(a, locale);
-        fKey = formattersKey(spec, a.resolved.values.length);
-        let f = drawn?.formatters;
-        if (!drawn || !sameKey(drawn.formattersKey, fKey)) {
-          stage('formatters');
-          // The bucket belongs to the formatters: emptied before they are built, so what their construction
-          // reports (an invalid Intl option) stays, and kept while they stay, as their fallback goes on (finding 13).
-          setPresentation('format', EMPTY_DIAGNOSTICS);
-          f = createFormattersWith(spec, { locale, get timeZone() { return environment.timeZone; } }, composition.timeReadout);
+        const previous = drawn;
+        if (previous?.locale === locale && sameFormatInputs(previous.accepted, a)) {
+          fKey = previous.formattersKey;
+          formatters = previous.formatters;
+        } else {
+          const spec = formatSpec(a, locale);
+          fKey = formattersKey(spec, a.resolved.values.length);
+          if (previous && sameKey(previous.formattersKey, fKey)) {
+            formatters = previous.formatters;
+          } else {
+            stage('formatters');
+            // The bucket belongs to the formatters, including any fallback they reported on construction.
+            setPresentation('format', EMPTY_DIAGNOSTICS);
+            formatters = createFormattersWith(spec, { locale, get timeZone() { return environment.timeZone; } }, composition.timeReadout);
+          }
         }
-        formatters = f!;
 
         // Naming (spec A1): a labelledBy that names nothing falls back to the title or a generated name.
         by = stringOption(a.options, 'labelledBy');
@@ -1728,8 +1849,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
           ? [createDiagnostic('AX140', 'none', { detail: `No element has the id "${by}".` }, 'presentation')] : EMPTY_DIAGNOSTICS);
         caption = named ? byText!.trim() || undefined : undefined;
 
-        english = englishFor(a, lang);
         foreignPage = lang !== null && !/^en(?:-|$)/i.test(lang);
+        english = englishFor(a, foreignPage);
 
         // Tick labels are made now, before anything is written: an author tick formatter runs here, never during
         // publication (final review, finding 1), and what it reported belongs to every layout made from them,
@@ -1751,9 +1872,14 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         if (!current(a)) throw ABORT;
 
         // Theme check: read-only preparation when the host supports phased theme resolution.
-        keys = themeKeys(view);
-        nextThemeKey = [keys.join('\u0000'), a.options.colors];
-        needsTheme = themeDirty || !theme || !sameKey(themeKey, nextThemeKey);
+        needsTheme = themeDirty || !theme || themeSeries === null || themeColors !== a.options.colors;
+        if (needsTheme || view.kind === 'donut') {
+          keys = themeKeys(view);
+          needsTheme ||= !sameKey(themeSeries, keys);
+        } else if (!sameSeriesKeys(view, themeSeries!)) {
+          keys = themeKeys(view);
+          needsTheme = true;
+        }
         if (needsTheme && host.themePrepare) {
           preparedTheme = host.themePrepare(keys, object(a.options.colors) as Record<string, string>);
         }
@@ -1771,58 +1897,62 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
             stage('theme');
             host.themeApply(preparedTheme);
           } else {
-            resolveTheme(keys, a.options.colors, nextThemeKey);
+            resolveTheme(keys, a.options.colors);
           }
         }
-        needMeasure = arrange(tooSmall) || sizeDirty || size === null;
+        const hadStrip = readoutMode;
+        if (shown.kind !== 'ready' || compact || tooSmall || a.options.tooltip === false) {
+          readoutMode = false;
+          readoutKind = 'floating';
+        }
+        needMeasure = arrange(tooSmall) || hadStrip !== readoutMode || sizeDirty || size === null;
       }),
 
       // Phase 3a (part 1): Verify standard theme declarations after Phase 2 writes (reads only).
       phase3Theme: phase(() => {
         if (needsTheme && preparedTheme !== null && host.themeFinish) {
           const res = host.themeFinish(preparedTheme, true);
-          if (res !== null) applyThemeResolution(res, keys, nextThemeKey);
+          if (res !== null) applyThemeResolution(res, keys, a.options.colors);
           else needsThemeProbe = true;
         }
       }),
 
-      // Phase 3a (part 2): Batched plot measure across all pending charts (reads only).
+      // Phase 3a: Batched plot measure after late theme writes.
       phase3Measure: phase(() => {
-        if (needMeasure) {
-          size = host.measure();
-          sizeDirty = false;
-        }
+        measurePending();
       }),
 
       // Phase 3a (part 3): Non-standard theme probes (only when a chart uses custom CSS tokens/colors).
       phase3Probe: phase(() => {
         if (needsThemeProbe && preparedTheme !== null && host.themeProbe) {
-          applyThemeResolution(host.themeProbe(preparedTheme), keys, nextThemeKey);
+          let changed = true;
+          const res = host.themeProbe(preparedTheme, wrote => { changed = wrote; });
+          needMeasure ||= changed;
+          applyThemeResolution(res, keys, a.options.colors);
           needsThemeProbe = false;
         }
       }),
 
       // Phase 3b (part 1): Pure layout check; returns true if this chart needs a strip-height probe.
       phase3LayoutCheck: phase(() => {
+        if (!readoutPending) return false;
+        measurePending();
         needsStripProbe = false;
         // Readout mode, decided by layout (rule 5): the plot's rectangle as it is without the strip, laid out in
         // the plot's whole column, is narrower than 240 or shorter than 140 CSS px. The strip is then reserved and
         // the plot measured again; the decision does not depend on the strip, so it cannot flip with it. Held
         // while the plot is too small (L8): that state has no strip.
         withoutLayout = null;
-        withoutStrip = null;
-        needsReadoutCheck = false;
+        narrowPlotHeight = null;
         stripAction = null;
-        if (canDecideReadout(size)) {
+        if (size !== null && size.width > 0 && shown.kind === 'ready' && !compact && !tooSmall && a.options.tooltip !== false) {
           const room = size.room ?? size;
-          const without = plotLayout({ width: room.width, height: room.height }).layout;
-          withoutLayout = without;
-          withoutStrip = without.kind;
-          if (a.options.tooltip !== false && without.kind === 'plot' &&
-              (without.plot.width < READOUT_WIDTH || without.plot.height < READOUT_HEIGHT)) {
-            needsReadoutCheck = true;
+          withoutLayout = plotLayout(room.width, room.height, null);
+          const without = withoutLayout.layout;
+          if (without.kind === 'plot' && (without.plot.width < READOUT_WIDTH || without.plot.height < READOUT_HEIGHT)) {
+            narrowPlotHeight = without.plot.height;
             // Measure the strip only when it might use space, and re-measure on style or fontEpoch changes.
-            if (stripStyle !== style || stripFontEpoch !== fontEpoch) {
+            if (stripStyle !== style || stripFontEpoch !== layoutEpoch) {
               needsStripProbe = true;
             }
           }
@@ -1841,7 +1971,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       phase3StripRead: phase(() => {
         if (!needsStripProbe) return;
         stripStyle = style;
-        stripFontEpoch = fontEpoch;
+        stripFontEpoch = layoutEpoch;
         const measured = stripProbe !== null && host.stripProbeRead
           ? host.stripProbeRead(stripProbe)
           : host.stripHeight?.();
@@ -1861,15 +1991,15 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
 
       // Phase 3b (part 3): Pure readout mode decision using measured stripHeight.
       phase3ReadoutDecide: phase(() => {
-        if (canDecideReadout(size)) {
+        if (readoutPending && size !== null && withoutLayout !== null) {
           // Decision 0004 revision 3, rule 5: a plot that, laid out without a strip, is under 240 × 140 has the
           // strip; if the strip would leave it under the L8 minimum of 80 px, there is no strip and no floating
           // tooltip either ('none': pointing highlights the datum; its values are in the keyboard reading and the
           // table). Never floating below the limit (final review, finding 9).
           let next: ReadoutMode = 'floating';
-          if (needsReadoutCheck && withoutLayout?.kind === 'plot') {
+          if (narrowPlotHeight !== null) {
             if (readoutMode && size.room && size.room.height - size.height > 0) stripHeight = size.room.height - size.height;
-            next = withoutLayout.plot.height - stripHeight >= MIN_PLOT_HEIGHT ? 'strip' : 'none';
+            next = narrowPlotHeight - stripHeight >= MIN_PLOT_HEIGHT ? 'strip' : 'none';
           }
           if (next !== readoutKind) {
             readoutKind = next;
@@ -1899,35 +2029,19 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       // Phase 4.0 (reads): Batched re-measure after strip reservation.
       phase4StripMeasure: phase(() => {
         if (stripAction === 'strip-arrange') {
-          size = host.measure() ?? size;
+          size = host.measure();
         }
         stripAction = null;
       }),
 
       // Phase 4.1 (init): Initial layout computation for L8 / hidden-label note convergence loop.
       phase4Init: phase(() => {
-        result = null;
-        layoutDone = true;
+        if (!readoutPending) return;
+        readoutPending = false;
         passAction = null;
-        if (size === null || size.width <= 0) {
-          layout = { kind: 'unmeasured', width: size?.width ?? 0, height: size?.height ?? 0 };
-        } else if (shown.kind !== 'ready') {
-          const h = Math.max(0, size.height);
-          layout = { kind: 'unmeasured', width: size.width, height: h };
-          lKey = ['message', size.width, h];
-        } else {
-          /*
-           * Spec L8, decided on the room a normal plot gets, which the fallback cannot change: in the fallback
-           * the plot's size is read back as it would be without the fallback's own DOM (`fallback` is what that
-           * DOM adds, measured when it was entered). Within the frame the figure is settled first: a plot whose
-           * layout hides labels gets the note under it, and is measured again with it, so the size a mode is
-           * judged on is the size that mode really has. Each mode is then self-consistent, and stepping the
-           * container through the boundary switches once, at the same size in both directions.
-           */
-          const strip = reservedStrip(size);
-          result = plotLayout(fallback ? { width: size.width - fallback.width, height: size.height - fallback.height } : size, strip);
-          layoutDone = false;
-        }
+        // Subtract the fallback's own effect on the plot size so L8 uses the normal plot's room.
+        result = layoutForSize();
+        layoutDone = result === null;
       }),
 
       // Phase 4.1 (per-pass writes): Drop strip, enter L8 fallback, or arrange hidden-label note.
@@ -1935,7 +2049,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         passAction = null;
         if (layoutDone || result === null || size === null) return false;
         const small = result.layout.kind === 'too-small';
-        if (small && readoutMode && withoutStrip === 'plot') {
+        if (small && readoutMode && withoutLayout?.layout.kind === 'plot') {
           // Too small only because of the strip (its real height was more than expected): no strip and no
           // tooltip, and the readable plot stays (rule 5). The measured height keeps the next frame there.
           if (size.room) stripHeight = Math.max(stripHeight, size.room.height - size.height);
@@ -1948,6 +2062,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         if (small && !tooSmall) {
           normalSize = size;
           tooSmall = true;
+          readoutMode = false;
+          readoutKind = 'floating';
           settleFigureReader(0);
           arrange(true);
           passAction = 'enter-fallback';
@@ -1956,6 +2072,10 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         if (!small && tooSmall) {
           tooSmall = false;
           fallback = null;
+          settleFigureReader(hiddenIn(result.layout));
+          arrange(false);
+          passAction = 'leave-fallback';
+          return true;
         }
         if (tooSmall) {
           layoutDone = true;
@@ -1975,25 +2095,30 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       phase4PassMeasure: phase(() => {
         const action = passAction;
         passAction = null;
-        if (action === null || size === null) return;
+        if (action === null || size === null) return false;
         if (action === 'drop-strip') {
-          size = host.measure() ?? size;
-          result = plotLayout(size);
+          size = host.measure();
+          result = layoutForSize();
+          layoutDone = result === null;
         } else if (action === 'enter-fallback') {
           const normal = normalSize!;
-          size = host.measure() ?? normal;
-          fallback = { width: size.width - normal.width, height: size.height - normal.height };
+          size = host.measure();
+          fallback = { width: (size?.width ?? normal.width) - normal.width, height: (size?.height ?? normal.height) - normal.height };
+          if (size === null || size.width <= 0) result = null;
           layoutDone = true;
+        } else if (action === 'leave-fallback') {
+          // The estimate let us leave fallback. Only the restored plot's measured room can decide readout.
+          size = host.measure();
+          readoutPending = true;
+          return true;
         } else if (action === 'note-moved') {
-          const now = host.measure();
-          if (now === null || (now.width === size.width && now.height === size.height)) {
-            layoutDone = true;
-          } else {
-            size = now;
-            result = plotLayout(size, reservedStrip(size));
-          }
+          size = host.measure();
+          const next = layoutForSize();
+          layoutDone = next === null || result === next;
+          result = next;
         }
-      }),
+        return false;
+      }, false),
 
       // Phase 5: Final diagnostics, scene, lookup, draw, text, figure, commit & close out frame.
       phase5() {
@@ -2092,9 +2217,10 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   }
 
   /** Records a resolved theme and its AX141 presentation finding. */
-  function applyThemeResolution(resolution: ThemeResolution, keys: readonly string[], key: readonly unknown[]): void {
+  function applyThemeResolution(resolution: ThemeResolution, keys: readonly string[], colors: unknown): void {
     theme = resolution;
-    themeKey = key;
+    themeSeries = keys;
+    themeColors = colors;
     // A detached chart gets the light defaults; it resolves again in the next frame that draws.
     themeDirty = resolution.resolved === false;
     themeRevision++;
@@ -2104,9 +2230,9 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   }
 
   /** Resolves the theme for these series keys and writes it (custom properties, scheme) on the figure. */
-  function resolveTheme(keys: readonly string[], colors: unknown, key: readonly unknown[]): void {
+  function resolveTheme(keys: readonly string[], colors: unknown): void {
     stage('theme');
-    applyThemeResolution(host.theme(keys, object(colors) as Record<string, string>), keys, key);
+    applyThemeResolution(host.theme(keys, object(colors) as Record<string, string>), keys, colors);
   }
 
   /**
@@ -2257,7 +2383,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       if (!inFrame && a && drawn && theme && drawn.accepted.view === a.view) {
         try {
           const keys = themeKeys(a.view);
-          resolveTheme(keys, a.options.colors, [keys.join('\u0000'), a.options.colors]);
+          resolveTheme(keys, a.options.colors);
           if (!themeDirty) deliverChanges();
         } catch {
           themeDirty = true;
@@ -2298,7 +2424,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     rowEnds = null;
     columnRows = null;
     theme = null;
-    themeKey = null;
+    themeSeries = null;
+    themeColors = undefined;
     if (listeners) { listeners.clear(); listeners = null; }
     if (presentation) { presentation.clear(); presentation = null; }
     if (deliveredKeys) { deliveredKeys.clear(); deliveredKeys = null; }

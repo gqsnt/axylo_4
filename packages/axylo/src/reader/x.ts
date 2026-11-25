@@ -11,6 +11,7 @@ export function readPosition(
     return typeof value === 'number' && Number.isInteger(value) ? value : NaN;
   }
   if (typeof value === 'number') return value;
+  if (kind === 'number') return NaN;
 
   return positionReader({ kind, timeZone: zone, categories }, undefined)(value);
 }
