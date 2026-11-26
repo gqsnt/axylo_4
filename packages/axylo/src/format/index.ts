@@ -47,6 +47,13 @@ export interface FormatSpec {
   readonly onFormatterError?: ((field: string, error: unknown) => void) | null;
 }
 
+let cacheableValues: WeakMap<Formatters['value'], readonly boolean[]> | undefined;
+
+/** Reader summaries can keep built-in and Intl output while author callbacks keep their call semantics. */
+export function cacheableValueSeries(value: Formatters['value']): readonly boolean[] | undefined {
+  return cacheableValues?.get(value);
+}
+
 export function createFormatters(spec: FormatSpec, env: Pick<Environment, 'locale' | 'timeZone'>): Formatters {
   return createFormattersWith(spec, env, createTimeReadout);
 }
@@ -66,7 +73,7 @@ export function createFormattersWith(
   const x = createXReadout(spec.x, locale, env, reporter(spec.x.field), timeReadout);
   const { noData, noObservation } = spec.messages;
 
-  return {
+  const formatters: Formatters = {
     value(seriesIndex: number, v: number): string {
       const f = values[seriesIndex];
       return f ? f(v) : defaultReadoutNumber(v, locale);
@@ -85,6 +92,8 @@ export function createFormattersWith(
       return state === SLOT_NO_ROW ? noObservation : noData;
     },
   };
+  (cacheableValues ??= new WeakMap()).set(formatters.value, spec.series.map(s => typeof s.format !== 'function'));
+  return formatters;
 }
 
 function createXReadout(

@@ -90,7 +90,7 @@ export interface Figure {
 
 const HIDDEN = 'axylo-visually-hidden';
 const EMPTY_ELEMENTS: readonly Element[] = [];
-const templates = new WeakMap<Document, { full?: HTMLElement; compact?: HTMLElement }>();
+const templates = new WeakMap<Document, { full?: HTMLElement | null; compact?: HTMLElement | null }>();
 
 function show(el: HTMLElement, visible: boolean): void {
   if (el.hidden === visible) el.hidden = !visible;
@@ -167,11 +167,16 @@ class FigureImpl implements Figure {
     // The figure carries the `axylo` class too: the theme writes its custom properties and scheme attribute on
     // the figure, so two charts on one target never share them (review 3, finding 10).
     const key = initialCompact ? 'compact' : 'full';
-    const template = templates.get(doc)?.[key];
-    const skeleton = template ?? make(doc, 'figure', 'axylo axylo-figure');
-    if (typeof skeleton.cloneNode === 'function') {
-      if (!template) cacheTemplate(doc, skeleton, key);
-      const figure = this.figure = skeleton.cloneNode(true) as HTMLElement;
+    let cached = templates.get(doc);
+    if (!cached) templates.set(doc, cached = {});
+    let template = cached[key];
+    // A single chart mounts the only skeleton it needs. A dashboard can amortize a detached blueprint.
+    if (template === null) {
+      const skeleton = make(doc, 'figure', 'axylo axylo-figure');
+      if (typeof skeleton.cloneNode === 'function') template = cached[key] = makeTemplate(doc, skeleton, key);
+    }
+    if (template) {
+      const figure = this.figure = template.cloneNode(true) as HTMLElement;
       let description: HTMLElement;
       let plot: HTMLElement;
       if (initialCompact) {
@@ -206,7 +211,8 @@ class FigureImpl implements Figure {
       return;
     }
 
-    const figure = this.figure = skeleton;
+    const figure = this.figure = make(doc, 'figure', 'axylo axylo-figure');
+    if (typeof figure.cloneNode === 'function') cached[key] = null;
     figure.id = id;
 
     // The whole generated summary is the figure's description, always (visually hidden). On compact charts it
@@ -460,7 +466,7 @@ function makeLive(doc: Document): HTMLElement {
   return live;
 }
 
-function cacheTemplate(doc: Document, figure: HTMLElement, key: 'compact' | 'full'): void {
+function makeTemplate(doc: Document, figure: HTMLElement, key: 'compact' | 'full'): HTMLElement {
   const description = element(doc, `description ${HIDDEN}`, 'p');
   const plot = element(doc, 'plot');
   const message = element(doc, 'message', 'p');
@@ -476,9 +482,7 @@ function cacheTemplate(doc: Document, figure: HTMLElement, key: 'compact' | 'ful
     body.appendChild(stage);
     figure.append(caption, body, hiddenSlot(doc, 'controls'), note, makeLive(doc), hiddenSlot(doc, 'tooltip', true));
   }
-  let cached = templates.get(doc);
-  if (!cached) templates.set(doc, cached = {});
-  cached[key] = figure;
+  return figure;
 }
 
 function makeCompact(f: FigureImpl, previous: FigureModel | null): void {

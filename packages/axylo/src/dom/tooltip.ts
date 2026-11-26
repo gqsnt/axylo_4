@@ -2,7 +2,7 @@
  * Renders a tooltip model as text (spec I1, DX8: textContent only), floating or in the strip under the plot.
  */
 import { activeElementOf, placeChildren, setAttr, setText, make, keepFocusOnPress, shadowRootsOf } from './attributes';
-import type { DatumRef, DatumText, Rect, TextStyle, TooltipModel } from '../core/contracts';
+import type { DatumRef, DatumText, Rect, TextMeasurer, TextStyle, TooltipModel } from '../core/contracts';
 import { createMeasurer, readTextStyle } from '../core/environment';
 import { createSwatch, type SwatchSpec } from './swatch';
 import { fallbackPlacement, intersect, placeTooltip, type PlacementInput, type Spot } from './placement';
@@ -29,6 +29,7 @@ export interface TooltipView {
   readonly visible: boolean;
   rect(): Rect | null;
   contains(node: Node | null): boolean;
+  invalidateSize(): void;
   destroy(): void;
 }
 
@@ -44,7 +45,6 @@ interface RowEntry {
   l: string | null;
   g: string | null;
   value: string;
-  digits: string;
 }
 
 interface MoreEntry {
@@ -53,16 +53,23 @@ interface MoreEntry {
   lang: string | null;
 }
 
-interface HoverRow {
+interface HoverText {
+  readonly style: TextStyle;
+  readonly key: string;
+  text: string;
+  width: number;
+}
+
+interface HoverRow extends HoverText {
+  readonly element: HTMLElement;
   readonly label: string | null;
   readonly swatch: SwatchSpec | null;
   readonly lang: string | null;
-  readonly style: TextStyle;
   readonly fixed: number;
 }
 
 interface HoverSize {
-  readonly title: TextStyle;
+  readonly title: HoverText;
   readonly rows: readonly HoverRow[];
   readonly more: string | null;
   readonly moreLang: string | null;
@@ -74,14 +81,36 @@ interface HoverSize {
 }
 
 const canvasAvailable = new WeakMap<Document, boolean>();
-const digitsForWidth = (text: string) => text.replace(/[1-9]/g, '0');
+const digit = (code: number) => code >= 48 && code <= 57;
 
-function hasCanvas(doc: Document): boolean {
+function sameShape(text: string, previous: string): boolean {
+  if (text === previous) return true;
+  if (text.length !== previous.length) return false;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i), before = previous.charCodeAt(i);
+    if (code !== before && !(digit(code) && digit(before))) return false;
+  }
+  return true;
+}
+
+function digitShape(text: string): string {
+  let shape = '', start = 0;
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code <= 48 || code > 57) continue;
+    shape += text.slice(start, i) + '0';
+    start = i + 1;
+  }
+  return start ? shape + text.slice(start) : text;
+}
+
+function hasCanvas(doc: Document, measure: TextMeasurer): boolean {
   const cached = canvasAvailable.get(doc);
   if (cached !== undefined) return cached;
   let available = false;
   try {
-    available = typeof doc.createElement('canvas').getContext?.('2d')?.measureText === 'function';
+    // The shared measurer's length-based fallback assigns width to a zero-width space.
+    available = measure.width('\u200b', { font: '12px sans-serif', lineHeight: 12, letterSpacing: 0, wordSpacing: 0 }) === 0;
   } catch { /* A document without Canvas2D uses exact DOM dimensions. */ }
   canvasAvailable.set(doc, available);
   return available;
@@ -113,7 +142,10 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
   const listening = new Listeners(), mores: (MoreEntry | undefined)[] = [];
   let wrapped = false, lastRect: Rect | null = null;
   let maxWidth = -1, maxHeight = -1;
+  let transformX = NaN, transformY = NaN;
   let hoverSize: HoverSize | null = null, expectedWidth = 0;
+  let shapeWidths: Map<string, number> | undefined;
+  let measurer: TextMeasurer | undefined;
   let sizeObserver: ResizeObserver | undefined, observing = false;
 
   function clearPress(): void { pressRef = null; pressListening?.clear(); pressListening = null; }
@@ -161,10 +193,12 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
   }
 
   const floatTitle = make(doc, 'div', 'axylo-tooltip-title'), floatTitleNode = txt();
+  // Width prediction uses the same digit shape for successive headings, as it does for values.
+  floatTitle.style.fontVariantNumeric = 'tabular-nums';
   floatTitle.appendChild(floatTitleNode);
   let floatTitleText = '';
   let floatTotal: {
-    row: HTMLElement; name: HTMLElement; value: HTMLElement; label: string; lang: string | null; text: string; digits: string;
+    row: HTMLElement; name: HTMLElement; value: HTMLElement; label: string; lang: string | null; text: string;
   } | null = null;
   let stripParts: { title: HTMLElement; total: HTMLElement; moreSep: Text; totalSep: Text } | null = null;
 
@@ -185,7 +219,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
         const n = make(doc, 'span', 'axylo-tooltip-series'), v = make(doc, 'span', 'axylo-tooltip-value'), t = txt();
         v.appendChild(t);
         if (isStrip) e.append(n, txt(' '), v); else e.append(n, v);
-        entry = { button, e, n, v, t, s: isStrip ? txt('; ') : null, r, p: null, l: null, g: null, value: '', digits: '' };
+        entry = { button, e, n, v, t, s: isStrip ? txt('; ') : null, r, p: null, l: null, g: null, value: '' };
       }
       entry.r = r;
       const spec = content.swatch(r);
@@ -194,10 +228,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
         entry.l = r.seriesLabel; entry.p = spec;
       }
       const value = r.percent === null || r.percent === r.value ? r.value : `${r.value} (${r.percent})`;
-      if (entry.value !== value) {
-        setText(entry.t, entry.value = value);
-        entry.digits = isStrip ? value : digitsForWidth(value);
-      }
+      if (entry.value !== value) entry.t.textContent = entry.value = value;
       const lang = content.valueLang?.(r.value) ?? null;
       if (entry.g !== lang) { setAttr(entry.v, 'lang', lang); entry.g = lang; }
       out.push(entry);
@@ -237,30 +268,52 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     observing = true;
   }
 
+  function shapeWidth(text: string, entry: HoverText): number {
+    if (sameShape(text, entry.text)) return entry.width;
+    const widths = shapeWidths ??= new Map();
+    const shape = digitShape(text), key = entry.key + shape;
+    let width = widths.get(key);
+    if (width === undefined) {
+      width = measurer!.width(shape, entry.style);
+      if (widths.size >= 128) widths.clear();
+      widths.set(key, width);
+    }
+    entry.text = text;
+    return entry.width = width;
+  }
+
+  function hoverText(element: HTMLElement, key: string, text: string): HoverText {
+    const entry = { style: readTextStyle(element), key, text: '', width: 0 };
+    shapeWidth(text, entry);
+    return entry;
+  }
+
   // Measure shrink-to-fit content in layout pixels. The exact first box supplies the outer chrome
   // and corrects for differences between Canvas and DOM text metrics.
   function calibrate(rows: readonly RowEntry[], more: MoreEntry | null, total: typeof floatTotal, width: number, height: number): HoverSize | null {
     const win = doc.defaultView;
-    if (typeof win?.getComputedStyle !== 'function' || !hasCanvas(doc)) return null;
-    const measure = createMeasurer(doc);
-    const title = readTextStyle(floatTitle);
+    if (typeof win?.getComputedStyle !== 'function') return null;
+    const measure = measurer ??= createMeasurer(doc);
+    if (!hasCanvas(doc, measure)) return null;
+    shapeWidths?.clear();
+    const title = hoverText(floatTitle, 't:', floatTitleText);
     const moreWidth = more ? measure.width(more.text, readTextStyle(more.el)) : 0;
     const rowGap = (node: Element) => parseFloat(win.getComputedStyle(node).columnGap) || 0;
-    let natural = Math.max(moreWidth, measure.width(floatTitleText, title));
-    const measured = rows.map(entry => {
+    let natural = Math.max(moreWidth, title.width);
+    const measured = rows.map((entry, index) => {
       const swatch = entry.n.firstElementChild;
       const swatchWidth = swatch ? (parseFloat(win.getComputedStyle(swatch).width) || 20) + rowGap(entry.n) : 0;
       const fixed = measure.width(entry.l ?? '', readTextStyle(entry.n)) + swatchWidth + rowGap(entry.e);
-      const style = readTextStyle(entry.v);
-      natural = Math.max(natural, fixed + measure.width(entry.digits, style));
-      return { label: entry.l, swatch: entry.p, lang: entry.g, style, fixed };
+      const text = hoverText(entry.v, `${index}:`, entry.value);
+      natural = Math.max(natural, fixed + text.width);
+      return { ...text, element: entry.e, label: entry.l, swatch: entry.p, lang: entry.g, fixed };
     });
     let measuredTotal: HoverRow | null = null;
     if (total) {
-      const style = readTextStyle(total.value);
+      const text = hoverText(total.value, 's:', total.text);
       const fixed = measure.width(total.label, readTextStyle(total.name)) + rowGap(total.row);
-      natural = Math.max(natural, fixed + measure.width(total.digits, style));
-      measuredTotal = { label: total.label, swatch: null, lang: total.lang, style, fixed };
+      natural = Math.max(natural, fixed + text.width);
+      measuredTotal = { ...text, element: total.row, label: total.label, swatch: null, lang: total.lang, fixed };
     }
     return { title, rows: measured, more: more?.text ?? null, moreLang: more?.lang ?? null, moreWidth,
       total: measuredTotal, correction: width - natural, width, height };
@@ -269,14 +322,13 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
   function predictedWidth(size: HoverSize, rows: readonly RowEntry[], more: MoreEntry | null, total: typeof floatTotal): number {
     if (size.rows.length !== rows.length || size.more !== (more?.text ?? null) || size.moreLang !== (more?.lang ?? null) ||
         size.total?.label !== total?.label || size.total?.lang !== total?.lang) return NaN;
-    const measure = createMeasurer(doc);
-    let natural = Math.max(size.moreWidth, measure.width(floatTitleText, size.title));
+    let natural = Math.max(size.moreWidth, shapeWidth(floatTitleText, size.title));
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]!, calibrated = size.rows[i]!;
-      if (row.l !== calibrated.label || row.p !== calibrated.swatch || row.g !== calibrated.lang) return NaN;
-      natural = Math.max(natural, calibrated.fixed + measure.width(row.digits, calibrated.style));
+      if (row.e !== calibrated.element || row.l !== calibrated.label || row.p !== calibrated.swatch || row.g !== calibrated.lang) return NaN;
+      natural = Math.max(natural, calibrated.fixed + shapeWidth(row.value, calibrated));
     }
-    if (total && size.total) natural = Math.max(natural, size.total.fixed + measure.width(total.digits, size.total.style));
+    if (total && size.total) natural = Math.max(natural, size.total.fixed + shapeWidth(total.text, size.total));
     return natural + size.correction;
   }
 
@@ -310,6 +362,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
 
   function begin(idx: 0 | 1, content: TooltipContent, pinned: boolean): void {
     current = content;
+    if (idx === 0 && where === 1 && !pinned && !wasPinned && !element.hidden) return;
     carriedRef = pinned ? pressRef : null; carriedPtr = pressPtr;
     if (!pinned) clearPress();
     hadFocus = (wasPinned && where ? focusedRef((where - 1) as 0 | 1) : null) ?? pendingFocus;
@@ -343,9 +396,14 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
   }
 
   function positionFloat(spot: Spot, width: number, height: number, m: Mapping): boolean {
-    const transform = `translate(${(spot.x - m.left) / m.kx}px, ${(spot.y - m.top) / m.ky}px)`;
-    if (element.style.transform !== transform) element.style.transform = transform;
-    lastRect = { x: spot.x, y: spot.y, width, height };
+    const x = (spot.x - m.left) / m.kx, y = (spot.y - m.top) / m.ky;
+    if (x !== transformX || y !== transformY) {
+      element.style.transform = `translate(${x}px, ${y}px)`;
+      transformX = x; transformY = y;
+    }
+    if (!lastRect || lastRect.x !== spot.x || lastRect.y !== spot.y || lastRect.width !== width || lastRect.height !== height) {
+      lastRect = { x: spot.x, y: spot.y, width, height };
+    }
     observeSize();
     return finish(0, true);
   }
@@ -361,6 +419,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     get visible() { return where !== 0; },
     rect: () => lastRect,
     contains: node => node !== null && (element.contains(node) || readoutElement.contains(node)),
+    invalidateSize() { hoverSize = null; },
     show(content, p, pinned, figMapping) {
       const m = figMapping ?? mappingOf(figure);
       const maxW = Math.max(0, Math.min(320, p.visible.width / m.kx)), maxH = Math.max(0, p.visible.height / m.ky);
@@ -370,23 +429,35 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       if (maxHeight !== maxH) { maxHeight = maxH; element.style.maxHeight = `${maxH}px`; }
       const rows = rowEntries(0, content, pinned), { model } = content, total = rows.length;
       if (wrapped) { element.classList.remove('axylo-tooltip-wrap'); wrapped = false; }
-      if (floatTitleText !== model.title) setText(floatTitleNode, floatTitleText = model.title);
+      if (floatTitleText !== model.title) floatTitleNode.textContent = floatTitleText = model.title;
       if (model.total !== null) {
         if (!floatTotal) {
           const row = make(doc, 'div', 'axylo-tooltip-row axylo-tooltip-total');
           const name = make(doc, 'span', 'axylo-tooltip-series'), value = make(doc, 'span', 'axylo-tooltip-value');
           row.append(name, value);
-          floatTotal = { row, name, value, label: '', lang: null, text: '', digits: '' };
+          floatTotal = { row, name, value, label: '', lang: null, text: '' };
         }
         const label = content.totalLabel ?? '', lang = content.totalLang || null;
         if (floatTotal.label !== label) setText(floatTotal.name, floatTotal.label = label);
         if (floatTotal.lang !== lang) setAttr(floatTotal.name, 'lang', floatTotal.lang = lang);
-        if (floatTotal.text !== model.total) {
-          setText(floatTotal.value, floatTotal.text = model.total);
-          floatTotal.digits = digitsForWidth(model.total);
-        }
+        if (floatTotal.text !== model.total) setText(floatTotal.value, floatTotal.text = model.total);
       }
       const totalRow = model.total === null ? null : floatTotal;
+      if (hoverSize) {
+        const more = model.count > total ? moreEntry(false, pinned, content, model.count - total) : null;
+        const size = hoverSize;
+        const width = predictedWidth(size, rows, more, totalRow), { height } = size;
+        if (width > 0 && width < maxW - 8 && height < maxH - 8) {
+          // Allow for fractional DOM rounding when an estimated box meets an obstacle or edge.
+          const pad = Math.abs(width - size.width) > 0.01 ? 1 : 0;
+          const spot = placeTooltip(p, (width + pad) * m.kx, height * m.ky);
+          if (spot) {
+            expectedWidth = width;
+            return positionFloat(spot, width * m.kx, height * m.ky, m);
+          }
+        }
+        hoverSize = null;
+      }
       const overflows = () => element.scrollHeight > element.clientHeight + 1 || element.scrollWidth > element.clientWidth + 1;
       for (let shown = total; shown >= Math.min(1, total); shown--) {
         children.push(floatTitle);
@@ -397,19 +468,6 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
         if (totalRow) children.push(totalRow.row);
         placeChildren(element, children);
         children.length = 0;
-        if (shown === total && hoverSize) {
-          const width = predictedWidth(hoverSize, rows, more, totalRow), { height } = hoverSize;
-          if (width > 0 && width < maxW - 8 && height < maxH - 8) {
-            // Allow for fractional DOM rounding when an estimated box meets an obstacle or edge.
-            const pad = Math.abs(width - hoverSize.width) > 0.01 ? 1 : 0;
-            const spot = placeTooltip(p, (width + pad) * m.kx, height * m.ky);
-            if (spot) {
-              expectedWidth = width;
-              return positionFloat(spot, width * m.kx, height * m.ky, m);
-            }
-          }
-        }
-        hoverSize = null;
         let size = element.getBoundingClientRect();
         if (size.width >= (maxW - 2) * m.kx || size.height >= (maxH - 2) * m.ky) {
           let over = overflows();

@@ -897,6 +897,19 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     return { candidate, commit: again.commit };
   }
 
+  /** Resolutions this chart already let go of the caller's table: a later append keeps them as they are. */
+  let tableless: WeakSet<ResolvedOptions> | null = null;
+  /**
+   * `resolved` without the caller's opening table. One that has none already is kept, so a stream does not make
+   * two resolutions and two empty tables per append (they would be equal to the ones they replace).
+   */
+  function dropTable(resolved: ResolvedOptions): ResolvedOptions {
+    if (tableless?.has(resolved)) return resolved;
+    const own = withoutTable(resolved);
+    (tableless ??= new WeakSet()).add(own);
+    return own;
+  }
+
   function commitRetained(prepared: PreparedFrame<Frame>): void {
     prepared.commit();
     (storeFrames ??= new WeakSet()).add(prepared.frame);
@@ -924,8 +937,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       const base = held ? { ...previous, frame: held.frame } : previous;
       const zoom = paused ? previous.zoom : followingZoom(previous, prepared.frame);
       const nextOptions = streamOptions(previous.options);
-      const resolved = withoutTable(previous.resolved);
-      const source = withoutTable(previous.source);
+      const resolved = dropTable(previous.resolved);
+      const source = dropTable(previous.source);
       let c: Candidate = {
         // Once the stream has its store the caller's opening data is no longer read: options and source keep no
         // reference to it, so it can be collected once no displayed frame needs it (data agent's report).
@@ -1405,6 +1418,9 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     // A ready compact plot has no readout strip and no L8 fallback: its readout steps would all pass.
     run.phase1();
     run.phase2();
+    // The measure's layout brings style up to date, so the theme's reads after it start no style pass of their
+    // own; a late theme probe that moved the figure has it measured again (the second call does nothing else).
+    run.phase3Measure();
     run.phase3Theme();
     run.phase3Probe();
     run.phase3Measure();
@@ -1454,11 +1470,21 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     inflight = a;
 
     let closed = false;
+    /** The strip-height probe while it is in the figure (mounted early or after the measure). */
+    let stripProbe: unknown = null;
+    const removeStripProbe = (): void => {
+      if (stripProbe === null) return;
+      const probe = stripProbe;
+      stripProbe = null;
+      try { host.stripProbeRemove?.(probe); } catch { /* ignore cleanup error */ }
+    };
     const close = (): void => {
       if (closed) return;
       closed = true;
       inFrame = false;
       inflight = null;
+      // A frame that stopped between mounting the probe and the step that removes it leaves no probe behind.
+      removeStripProbe();
       if (!destroyed) release();
     };
     function phase(step: () => void): () => void;
@@ -1530,7 +1556,6 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     let readoutPending = true;
     let narrowPlotHeight: number | null = null;
     let needsStripProbe = false;
-    let stripProbe: unknown = null;
     let stripAction: 'strip-arrange' | 'prepare-only' | null = null;
     let result: PlotLayout | null = null;
     let layoutDone = true;
@@ -1993,7 +2018,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
 
       // Phase 3b (part 2A): Mount hidden strip-height probe div (write pass, batched across charts).
       phase3StripMount: phase(() => {
-        if (needsStripProbe && host.stripProbeMount) {
+        if (needsStripProbe && stripProbe === null && host.stripProbeMount) {
           stripProbe = host.stripProbeMount();
         }
       }),
@@ -2012,13 +2037,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       }),
 
       // Phase 3b (part 2C): Remove hidden strip-height probe div unconditionally, even on error.
-      phase3StripRemove(): void {
-        if (stripProbe !== null) {
-          const probe = stripProbe;
-          stripProbe = null;
-          try { host.stripProbeRemove?.(probe); } catch { /* ignore cleanup error */ }
-        }
-      },
+      phase3StripRemove: removeStripProbe,
 
       // Phase 3b (part 3): Pure readout mode decision using measured stripHeight.
       phase3ReadoutDecide: phase(() => {

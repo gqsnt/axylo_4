@@ -2,7 +2,7 @@ import {
   SLOT_VALUE, type AlignedView, type IndexRange, type PathMark, type PointMark, type Projection,
   type Rect, type ScatterView, type SeriesCue,
 } from '../core/contracts';
-import { buildPath, buildPoints, emptyIndexes, simplifyLine, unthinnedPath, type JoinedRuns, type LineInput } from '../simplify';
+import { buildPath, buildPoints, emptyIndexes, simplifiedPath, unthinnedPath, type JoinedRuns, type LineInput } from '../simplify';
 import { affinePosition, affineProjection, exactProjection, position, seriesPaint, type AffineProjection } from './geometry';
 
 const MARKER_SPACING = 12;
@@ -24,14 +24,18 @@ export function drawing(x: Float64Array, xy: XY, plot: Rect, devicePixelRatio: n
   };
 }
 
-function denseMarkers(input: LineInput, range: IndexRange, affine: AffineProjection): Uint32Array | null {
+let markerScratch: Uint32Array | undefined;
+
+function denseMarkerPoints(
+  input: LineInput & Drawing, range: IndexRange, affine: AffineProjection, path: Float32Array | null,
+): Float32Array | null {
   const { exact } = affine;
   // A special-cased end pixel must agree with the monotone interpolation used by the search.
   if (exact && exact.origin + exact.extent !== exact.edge) return null;
   const { slot, x } = input;
   let first = range.start;
   while (first < range.end && slot[first] !== SLOT_VALUE) first++;
-  if (first === range.end) return new Uint32Array(0);
+  if (first === range.end) return new Float32Array(0);
   const firstPixel = affinePosition(affine, x[first]!);
   let previous = firstPixel;
   let next = first + 1;
@@ -46,13 +50,24 @@ function denseMarkers(input: LineInput, range: IndexRange, affine: AffineProject
   while (slot[last] !== SLOT_VALUE) last--;
   previous = affinePosition(affine, x[last]!);
   const capacity = Math.min(last - first + 1, Math.floor(Math.abs(previous - firstPixel) / SPARSE_SPACING) + 1);
-  const indexes = new Uint32Array(capacity);
+  const indexes = markerScratch && markerScratch.length >= capacity ? markerScratch : new Uint32Array(capacity);
+  markerScratch = undefined;
+  const stride = Math.max(1, Math.ceil((last - first) / Math.abs(previous - firstPixel) * SPARSE_SPACING));
   let write = capacity;
   for (let i = last; i >= first;) {
     indexes[--write] = i;
     let low = first;
     let high = i;
-    // Search the projected distance directly so an exact 80 px tie uses the same slot as the walk.
+    // A regular time window lands on this bracket immediately. Verify it in projected pixels
+    // before skipping any slots, including at an exact spacing tie or on an irregular axis.
+    const guess = Math.max(first, i - stride);
+    if (Math.abs(previous - affinePosition(affine, x[guess]!)) >= SPARSE_SPACING) {
+      low = guess + 1;
+      if (low < high && Math.abs(previous - affinePosition(affine, x[low]!)) < SPARSE_SPACING) high = low;
+    } else {
+      high = guess;
+      if (low < high && Math.abs(previous - affinePosition(affine, x[high - 1]!)) >= SPARSE_SPACING) low = high;
+    }
     while (low < high) {
       const mid = low + ((high - low) >>> 1);
       if (Math.abs(previous - affinePosition(affine, x[mid]!)) >= SPARSE_SPACING) low = mid + 1;
@@ -62,7 +77,19 @@ function denseMarkers(input: LineInput, range: IndexRange, affine: AffineProject
     while (i >= first && slot[i] !== SLOT_VALUE) i--;
     if (i >= first) previous = affinePosition(affine, x[i]!);
   }
-  return indexes.subarray(write);
+  let xy: Float32Array;
+  if (path) {
+    xy = new Float32Array(2 * (capacity - write));
+    for (let j = write, out = 0; j < capacity; j++) {
+      const source = 2 * (indexes[j]! - input.range.start);
+      xy[out++] = path[source]!;
+      xy[out++] = path[source + 1]!;
+    }
+  } else {
+    xy = buildPoints(indexes.subarray(write, capacity), input);
+  }
+  if (indexes.length <= 1024) markerScratch = indexes;
+  return xy;
 }
 
 function markerIndexes(
@@ -70,10 +97,6 @@ function markerIndexes(
 ): Uint32Array {
   if (compact) return isolated;
   const { slot, x, mapX, affineX } = input;
-  if (affineX && affineX.slope !== 0 && range.end - range.start > 64 && isolated.length === 0) {
-    const markers = denseMarkers(input, range, affineX);
-    if (markers) return markers;
-  }
   const pixelAt = affineX ? (i: number) => affinePosition(affineX, x[i]!) : (i: number) => mapX(x[i]!);
   let count = 0;
   let first = range.end;
@@ -121,19 +144,29 @@ export function addLine(
 ): void {
   const cue = view.cues[series]!;
   let xy = selection ? null : unthinnedPath(input);
+  const fullPath = xy;
   let isolated = emptyIndexes();
-  if (!xy) {
-    const runs = selection ?? simplifyLine(input);
+  if (selection) {
     // A single slot in an author domain can have joined neighbours outside the drawing.
-    const singlePoint = input.range.end - input.range.start === 1 && runs.indexes.length === 1;
-    isolated = singlePoint ? runs.indexes : runs.isolated;
-    if (runs.indexes.length && !singlePoint) {
-      xy = packed && !runs.breaks.length ? packed : buildPath(runs.indexes, runs.breaks, input);
+    const single = input.range.end - input.range.start === 1 && selection.indexes.length === 1;
+    isolated = single ? selection.indexes : selection.isolated;
+    if (selection.indexes.length && !single) {
+      xy = packed && !selection.breaks.length ? packed : buildPath(selection.indexes, selection.breaks, input);
     }
+  } else if (!xy) {
+    ({ xy, isolated } = simplifiedPath(input));
   }
   if (xy) paths.push({
     type: 'path', series, xy, stroke: seriesPaint(series), strokeWidth: 2, dash: cue.dash,
   });
+  if (!compact && input.affineX && input.affineX.slope !== 0 && visible.end - visible.start > 64 && !isolated.length) {
+    const markerXY = denseMarkerPoints(input, visible, input.affineX,
+      visible.start >= input.range.start && visible.end <= input.range.end ? fullPath : null);
+    if (markerXY) {
+      if (markerXY.length) points.push(pointMark(series, cue, markerXY));
+      return;
+    }
+  }
   const markers = markerIndexes(input, visible, isolated, compact);
   if (markers.length) points.push(pointMark(series, cue, buildPoints(markers, input)));
 }

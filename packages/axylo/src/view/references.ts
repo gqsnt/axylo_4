@@ -34,10 +34,12 @@ export function positionReader(
     field: 'x', label: 'x', unit: null, type: x.kind === 'wall' || x.kind === 'number' ? null : x.kind,
     timeZone: x.timeZone ?? 'UTC', ordered: false, format: null, tickFormat: null, domain: null,
   };
-  const parser = new XParser(resolved, x.kind, { timeZone: x.timeZone ?? 'UTC' });
+  let parser: XParser | undefined;
   return (value, option) => {
     if (option?.axisPosition && x.kind !== 'number' && typeof value === 'number' && Math.abs(value) <= 8.64e15) return value;
     const reports = new Reports(option?.field ?? resolved.field);
+    // Most streaming views have no author-supplied x positions to parse.
+    parser ??= new XParser(resolved, x.kind, { timeZone: x.timeZone ?? 'UTC' });
     const position = parser.read(value, -1, reports);
     // The parser's diagnostics still apply, but an option has no source row or omitted data values.
     if (option) reports.flush({

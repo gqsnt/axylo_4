@@ -31,8 +31,8 @@ export function zoneOf(kind: TemporalKind, timeZone: string | null | undefined):
 }
 
 const MINUTE = 60_000;
-const HOUR = 60 * MINUTE;
-const DAY = 24 * HOUR;
+const HOUR = 3_600_000;
+const DAY = 86_400_000;
 const FIRST_AD = -62_135_596_800_000; // 0001-01-01T00:00:00.000Z
 
 function calendarParts(unit: TimeReadoutSpec['dateUnit']): DateParts {
@@ -79,7 +79,10 @@ function englishUtcReadout(spec: TimeReadoutSpec, fallback: (position: number) =
   // Nearby observations reuse the calendar text. A single day per formatter also bounds retention.
   let previousDay = Infinity;
   let dateText = '';
+  let previousPosition = NaN, previousText = '';
   return position => {
+    // An aligned tooltip reads the same x for its heading and each series row.
+    if (position === previousPosition) return previousText;
     if (!Number.isInteger(position) || position < FIRST_AD || position > MAX_DATE) return fallback(position);
     const day = Math.floor(position / DAY);
     if (day !== previousDay) {
@@ -97,7 +100,8 @@ function englishUtcReadout(spec: TimeReadoutSpec, fallback: (position: number) =
       const milliseconds = withinMinute % 1000;
       if (milliseconds) text += '.' + String(milliseconds).padStart(3, '0');
     }
-    return text + (hours < 12 ? ' AM' : ' PM') + zone;
+    previousPosition = position;
+    return previousText = text + (hours < 12 ? ' AM' : ' PM') + zone;
   };
 }
 

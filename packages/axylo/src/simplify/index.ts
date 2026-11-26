@@ -53,12 +53,12 @@ interface Columns {
 
 interface IndexBuffer {
   data: Uint32Array;
-  readonly limit: number;
+  limit: number;
 }
 
 const BLOCK_SIZE = 32;
 const MIXED_BLOCK = 255;
-const SELECTION_CACHE_BYTES = 64 * 1024;
+const SELECTION_CACHE_BYTES = 65_536;
 const SELECTION_CACHE_ENTRIES = 12;
 let emptyIndexesBuf: Uint32Array | null = null;
 export const emptyIndexes = (): Uint32Array => emptyIndexesBuf ??= new Uint32Array(0);
@@ -80,7 +80,7 @@ interface BlockSummary {
   readonly blocks: Uint8Array;
   s: number;
   e: number;
-  uses: number;
+  used: boolean;
   full?: IndexRange;
   sel?: SelectionCache;
 }
@@ -94,7 +94,7 @@ function summarize(y: Values, slot: Uint8Array, { start, end }: IndexRange): Blo
   const count = Math.floor(Math.min(y.length, slot.length) / BLOCK_SIZE);
   let summary = bySlot.get(slot);
   if (summary?.blocks.length !== 2 * count) {
-    bySlot.set(slot, summary = { blocks: new Uint8Array(2 * count), s: 0, e: 0, uses: 0 });
+    bySlot.set(slot, summary = { blocks: new Uint8Array(2 * count), s: 0, e: 0, used: false });
   }
   const { blocks } = summary;
   const begin = Math.ceil(start / BLOCK_SIZE);
@@ -119,6 +119,16 @@ function summarize(y: Values, slot: Uint8Array, { start, end }: IndexRange): Blo
   summary.s = begin;
   summary.e = stop;
   return summary;
+}
+
+// Only scene construction borrows this buffer. Published selections and packed marks own their arrays.
+let lineScratch: IndexBuffer | undefined;
+
+function indexBuffer(capacity: number, limit: number, scratch?: IndexBuffer): IndexBuffer {
+  if (!scratch) return { data: new Uint32Array(capacity), limit };
+  scratch.limit = limit;
+  if (scratch.data.length < capacity) scratch.data = new Uint32Array(capacity);
+  return scratch;
 }
 
 function reserve(buffer: IndexBuffer, length: number): Uint32Array {
@@ -240,24 +250,33 @@ function keepAffineRun(
     }
     prevSize = last - first + 1;
     let min = first, max = first, low = y[first]!, high = low;
-    let i = first;
-    const blockStart = blocks ? Math.min(last + 1, Math.ceil(i / BLOCK_SIZE) * BLOCK_SIZE) : last + 1;
-    const blockEnd = Math.floor((last + 1) / BLOCK_SIZE) * BLOCK_SIZE;
-    for (; i < blockStart; i++) {
-      const value = y[i]!;
-      if (value < low) { low = value; min = i; }
-      if (value > high) { high = value; max = i; }
-    }
-    for (; i < blockEnd; i += BLOCK_SIZE) {
-      const o = i / (BLOCK_SIZE / 2), eMin = i + blocks![o]! - 1, eMax = i + blocks![o + 1]!;
-      const bLow = y[eMin]!, bHigh = y[eMax]!;
-      if (bLow < low) { low = bLow; min = eMin; }
-      if (bHigh > high) { high = bHigh; max = eMax; }
-    }
-    for (; i <= last; i++) {
-      const value = y[i]!;
-      if (value < low) { low = value; min = i; }
-      if (value > high) { high = value; max = i; }
+    if (!blocks) {
+      // The first draw scans the column once, retaining the earliest index on ties.
+      for (let i = first + 1; i <= last; i++) {
+        const value = y[i]!;
+        if (value < low) { low = value; min = i; }
+        else if (value > high) { high = value; max = i; }
+      }
+    } else {
+      let i = first;
+      const blockStart = Math.min(last + 1, Math.ceil(i / BLOCK_SIZE) * BLOCK_SIZE);
+      const blockEnd = Math.floor((last + 1) / BLOCK_SIZE) * BLOCK_SIZE;
+      for (; i < blockStart; i++) {
+        const value = y[i]!;
+        if (value < low) { low = value; min = i; }
+        if (value > high) { high = value; max = i; }
+      }
+      for (; i < blockEnd; i += BLOCK_SIZE) {
+        const o = i / (BLOCK_SIZE / 2), eMin = i + blocks[o]! - 1, eMax = i + blocks[o + 1]!;
+        const bLow = y[eMin]!, bHigh = y[eMax]!;
+        if (bLow < low) { low = bLow; min = eMin; }
+        if (bHigh > high) { high = bHigh; max = eMax; }
+      }
+      for (; i <= last; i++) {
+        const value = y[i]!;
+        if (value < low) { low = value; min = i; }
+        if (value > high) { high = value; max = i; }
+      }
     }
     cursor = keepColumn(indexes, cursor, first, last, min, max);
     first = last + 1;
@@ -313,17 +332,20 @@ function scan(slot: Uint8Array, range: IndexRange, blocks?: Uint8Array) {
   return { values, vertices, runCount, runs: runs.data, isolated: singles ? isolated.data.subarray(0, singles) : emptyIndexes() };
 }
 
-function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Columns) {
+function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Columns, scratch?: IndexBuffer) {
   const length = range.end - range.start, affine = columns?.affine, y = columns?.y;
   // Near the density threshold, most blocks would straddle device columns.
   const indexable = affine && y && length >= 1024 && length >= 4 * limit && range.end <= y.length;
   // The first draw of a validated column can reduce each pixel directly without building an index.
-  const firstDraw = indexable && range.start >= 0 && range.end <= slot.length && denseSlots.get(slot) === 'fresh';
+  const density = indexable && range.start >= 0 && range.end <= slot.length ? denseSlots.get(slot) : undefined;
+  const firstDraw = density === 'fresh';
   if (firstDraw) denseSlots.set(slot, 'drawn');
   const summary = indexable && !firstDraw ? summarize(y, slot, range) : undefined;
-  const reused = summary !== undefined && summary.uses++ > 0;
+  // A validated column has already had its direct draw when its summary is first created.
+  const repeated = summary && (summary.used || density === 'drawn');
+  if (summary) summary.used = true;
   const full = summary?.full;
-  const size = firstDraw || full && full.start <= range.start && full.end >= range.end ? undefined : scan(slot, range, summary?.blocks);
+  const size = density || full && full.start <= range.start && full.end >= range.end ? undefined : scan(slot, range, summary?.blocks);
   const values = size?.values ?? length;
   const vertices = size?.vertices ?? length;
   const runCount = size?.runCount ?? 1;
@@ -337,10 +359,10 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
   // Responsive layouts can revisit widths without changing their data or zoom.
   let cache: SelectionCache | undefined;
   const exact = affine?.exact;
-  if (dense && reused && summary && exact && values === length && hasMonotoneColumns(exact, columns.x[range.start]!, columns.x[range.end - 1]!)) {
+  if (dense && repeated && summary && exact && values === length && hasMonotoneColumns(exact, columns.x[range.start]!, columns.x[range.end - 1]!)) {
     cache = selectionCache(summary, columns.x, range, exact, columns.ratio);
     const indexes = cache.map.get(exact.extent);
-    if (indexes) return { selection: { indexes: indexes.slice(), breaks: emptyIndexes(), isolated }, dense };
+    if (indexes) return { selection: { indexes: scratch ? indexes : indexes.slice(), breaks: emptyIndexes(), isolated }, dense };
   }
   let buffer: IndexBuffer | undefined;
   const initialCapacity = dense ? Math.min(vertices, limit + 4 * runCount + 4) : vertices;
@@ -361,14 +383,14 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
         const capacity = 4 * (Math.abs(lastColumn - firstColumn) + 1);
         if (capacity <= runLength) {
           // A single dense run can reserve for its actual projected span, including offscreen endpoints.
-          buffer ??= { data: new Uint32Array(runCount === 1 ? capacity : initialCapacity), limit: vertices };
+          buffer ??= indexBuffer(runCount === 1 ? capacity : initialCapacity, vertices, scratch);
           cursor = keepAffineRun(x, y, first, last, affine, ratio, firstColumn, lastColumn, summary?.blocks,
             reserve(buffer, cursor + capacity), cursor);
           continue;
         }
       }
     }
-    buffer ??= { data: new Uint32Array(initialCapacity), limit: vertices };
+    buffer ??= indexBuffer(initialCapacity, vertices, scratch);
     if (dense) cursor = keepRun(contiguous ? null : slot, first, last, columns, buffer, cursor);
     else if (contiguous) {
       const data = buffer.data;
@@ -391,14 +413,27 @@ function columnLimit({ width, left, devicePixelRatio: ratio }: Pick<DrawingInput
   return width > 0 ? 4 * (Math.ceil((left + width) * ratio) - Math.floor(left * ratio)) : 0;
 }
 
-function simplifyBoundary(input: DrawingInput, y: Values | 0) {
+function simplifyBoundary(input: DrawingInput, y: Values | 0, scratch?: IndexBuffer) {
   const { range, devicePixelRatio: ratio } = input, limit = columnLimit(input);
   return select(input.slot, range, limit, range.end - range.start <= limit ? undefined
-    : { x: input.x, y, map: xMapper(input.mapX, input.affineX), affine: input.affineX, ratio });
+    : { x: input.x, y, map: xMapper(input.mapX, input.affineX), affine: input.affineX, ratio }, scratch);
 }
 
 export function simplifyLine(input: LineInput): JoinedRuns {
   return simplifyBoundary(input, input.y).selection;
+}
+
+/** Scenes retain coordinates, so their intermediate source indexes can be recycled. */
+export function simplifiedPath(input: LineInput & PathInput): { xy: Float32Array | null; isolated: Uint32Array } {
+  const scratch = lineScratch ?? { data: emptyIndexes(), limit: 0 };
+  // A custom projection may enter scene construction again before packing has finished.
+  lineScratch = undefined;
+  const { indexes, breaks, isolated } = simplifyBoundary(input, input.y, scratch).selection;
+  const single = input.range.end - input.range.start === 1 && indexes.length === 1;
+  const xy = indexes.length && !single ? buildPath(indexes, breaks, input) : null;
+  const markers = single ? indexes.slice() : isolated;
+  if (scratch.data.byteLength <= SELECTION_CACHE_BYTES) lineScratch = scratch;
+  return { xy, isolated: markers };
 }
 
 /** Common source vertices keep neighboring cumulative edges ordered between samples as well as at them. */

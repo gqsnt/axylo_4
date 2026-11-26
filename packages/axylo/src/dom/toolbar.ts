@@ -43,16 +43,10 @@ function itemSignature(item: ToolbarItem): string {
   return `${key}:${color}:${line}:${hollow}:${fill === true}:${marker === true}:${cue?.marker ?? ''}:${cue?.dash.normal ?? ''}:${cue?.dash.contrast ?? ''}:${pattern?.kind ?? ''}:${pattern?.d ?? ''}`;
 }
 
-const rangeSymbols = new WeakMap<Document, SVGSVGElement>();
-
 function rangeSymbol(doc: Document): SVGSVGElement {
-  let svg = rangeSymbols.get(doc);
-  if (svg) return svg.cloneNode(true) as SVGSVGElement;
-  svg = svgElement(doc, 'svg', { viewBox: '0 0 16 16', width: '16', height: '16', 'aria-hidden': 'true', class: 'axylo-symbol' });
+  const svg = svgElement(doc, 'svg', { viewBox: '0 0 16 16', width: '16', height: '16', 'aria-hidden': 'true', class: 'axylo-symbol' });
   svg.append(svgElement(doc, 'path', { d: 'M2 2v12M14 2v12M4.5 8h7M4.5 8l2.5-2.5M4.5 8l2.5 2.5M11.5 8l-2.5-2.5M11.5 8l-2.5 2.5' }));
-  if (typeof svg.cloneNode !== 'function') return svg;
-  rangeSymbols.set(doc, svg);
-  return svg.cloneNode(true) as SVGSVGElement;
+  return svg;
 }
 
 interface ButtonEntry {

@@ -253,17 +253,34 @@ function valueAxis(
 const VALUE_AXIS_LIMIT = 32;
 let defaultValueAxes: Map<string, ValueAxis> | undefined;
 
+/**
+ * The value axis the last call returned, with what it was asked for: a stream asks for the same one frame after
+ * frame, and this answers without writing the cache key. The domain ends compare as the key spells them (-0 apart
+ * from 0), the extremes as their text does (-0 as 0).
+ */
+let lastValueAxis: {
+  readonly lo: number; readonly hi: number; readonly e0: number | undefined; readonly e1: number | undefined;
+  readonly scale: 'percent' | 'ratio' | null; readonly locale: string; readonly axis: ValueAxis;
+} | undefined;
+
 function defaultValueAxis(domain: Span, extent: Span | null, scale: 'percent' | 'ratio' | null, ctx: AxisContext): ValueAxis {
   // A rolling window often changes x while keeping the same value domain and extremes. Author formatters
   // still run per view because their output (and whether they throw) can depend on mutable state.
   const [lo, hi] = domain;
-  const key = `${Object.is(lo, -0) ? '-0' : lo}/${Object.is(hi, -0) ? '-0' : hi}/${extent?.[0]}/${extent?.[1]}/${scale}/${ctx.locale}`;
+  const e0 = extent?.[0];
+  const e1 = extent?.[1];
+  const last = lastValueAxis;
+  if (last && Object.is(last.lo, lo) && Object.is(last.hi, hi) && last.e0 === e0 && last.e1 === e1 &&
+      last.scale === scale && last.locale === ctx.locale) return last.axis;
+  const key = `${Object.is(lo, -0) ? '-0' : lo}/${Object.is(hi, -0) ? '-0' : hi}/${e0}/${e1}/${scale}/${ctx.locale}`;
   const cache = defaultValueAxes ??= new Map();
-  const known = cache.get(key);
-  if (known) return known;
-  const axis = valueAxis(domain, extent, scale, span => numberTicks(span, ctx, null, scale, noFailures));
-  if (cache.size >= VALUE_AXIS_LIMIT) cache.delete(cache.keys().next().value!);
-  cache.set(key, axis);
+  let axis = cache.get(key);
+  if (!axis) {
+    axis = valueAxis(domain, extent, scale, span => numberTicks(span, ctx, null, scale, noFailures));
+    if (cache.size >= VALUE_AXIS_LIMIT) cache.delete(cache.keys().next().value!);
+    cache.set(key, axis);
+  }
+  lastValueAxis = { lo, hi, e0, e1, scale, locale: ctx.locale, axis };
   return axis;
 }
 

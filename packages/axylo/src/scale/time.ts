@@ -110,7 +110,7 @@ function generate(lo: number, hi: number, zone: string, finest: Unit, options: T
     if (span / interval.approx > MAX_TICKS + 2) return true;
     const values = boundaries(interval, lo, hi, zone, options.locale);
     if (values.length >= 1 && values.length <= MAX_TICKS) {
-      const build = () => label(values, interval.unit, zone, options);
+      const build = () => intervalLabels(interval, values, zone, options);
       // Author callbacks run in interval order, even for a density a later interval replaces.
       const eager = options.label ? build() : null;
       pushCandidate(sets, { length: values.length, ticks: eager ? () => eager : build });
@@ -316,14 +316,40 @@ const disambiguators = [
  */
 function label(values: readonly number[], unit: Unit, zone: string, options: TimeTickOptions): Tick[] {
   if (options.label) return labelled(values, unit, zone, options);
-  // `${-0}` is '0', as the tick's value is: the key names exactly the ticks made.
-  let key = `${unit}|${zone}|${options.locale}`;
-  for (let i = 0; i < values.length; i++) key += `|${values[i]}`;
+  // The ends and the count find the set; the values between them are compared on a hit, so the key need not
+  // spell out every tick (a sliding window asks for a dozen sets per frame). `${-0}` is '0', and -0 === 0, as
+  // the tick's value is 0 for both.
+  const count = values.length;
+  const key = count === 0 ? `${unit}|${zone}|${options.locale}|0`
+    : `${unit}|${zone}|${options.locale}|${count}|${values[0]}|${values[count - 1]}`;
   const known = recall(builtInLabels, key);
-  if (known) return known;
+  if (known && sameValues(known, values)) return known;
   const ticks = labelled(values, unit, zone, options);
-  remember(builtInLabels ??= new Map(), key, ticks);
+  if (known) builtInLabels!.set(key, ticks);
+  else remember(builtInLabels ??= new Map(), key, ticks);
   return ticks;
+}
+
+/**
+ * The built-in labels each sub-year interval made last, with the zone and locale they were made in. A sliding
+ * window asks every interval for the same boundaries frame after frame while its ends move; those are answered
+ * here, by comparing the values, without a key. Year intervals are made per call and go to `label` directly.
+ */
+let recentLabels: WeakMap<Interval, { readonly zone: string; readonly locale: string; readonly ticks: Tick[] }> | undefined;
+
+function intervalLabels(interval: Interval, values: readonly number[], zone: string, options: TimeTickOptions): Tick[] {
+  if (options.label || interval.unit === Unit.Year) return label(values, interval.unit, zone, options);
+  const recent = (recentLabels ??= new WeakMap()).get(interval);
+  if (recent && recent.zone === zone && recent.locale === options.locale && sameValues(recent.ticks, values)) return recent.ticks;
+  const ticks = label(values, interval.unit, zone, options);
+  recentLabels.set(interval, { zone, locale: options.locale, ticks });
+  return ticks;
+}
+
+function sameValues(ticks: readonly Tick[], values: readonly number[]): boolean {
+  if (ticks.length !== values.length) return false;
+  for (let i = 0; i < values.length; i++) if (ticks[i]!.value !== values[i]) return false;
+  return true;
 }
 
 function labelled(values: readonly number[], unit: Unit, zone: string, options: TimeTickOptions): Tick[] {

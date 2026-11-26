@@ -103,7 +103,7 @@ function englishReadout(value: number): string | undefined {
   let first = dot + 1;
   while (text.charCodeAt(first) === 48) first++;
   const end = first + SIGNIFICANT_FRACTION_DIGITS;
-  if (end >= text.length) return groupEnglishInteger(text.slice(0, dot)) + text.slice(dot);
+  if (end >= text.length) return Math.abs(value) < 1000 ? text : groupEnglishInteger(text.slice(0, dot)) + text.slice(dot);
   const negative = value < 0;
   const start = negative ? 1 : 0;
   const leadingZero = text[start] === '0';
@@ -134,7 +134,11 @@ function fractionDigitsOf(digits: string, point: number): number {
 /** The default readout of spec F6, without the unit. */
 export function defaultReadoutNumber(v: number, locale: string, scale: ValueScale = null): string {
   const english = isPlainEnglish(locale);
-  if (!scale && Number.isSafeInteger(v)) return english ? groupEnglishInteger(String(v)) : numberFormat(locale).format(v || 0);
+  if (!scale && Number.isSafeInteger(v)) {
+    if (!english) return numberFormat(locale).format(v || 0);
+    const text = String(v);
+    return Math.abs(v) < 1000 ? text : groupEnglishInteger(text);
+  }
   if (english && v === 0) return '0%';
   const finite = Number.isFinite(v);
   if (english && finite && !scale) {

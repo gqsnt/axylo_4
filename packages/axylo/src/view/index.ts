@@ -62,6 +62,7 @@ function cueTable(compact: boolean): readonly SeriesCue[] {
 }
 
 const extrema = /* @__PURE__ */ new WeakMap<AlignedView | ScatterView, Span>();
+const noReferences: readonly ResolvedReference[] = [];
 const widenedDomains = /* @__PURE__ */ new WeakMap<AlignedView, string | undefined>();
 
 function reuse<T>(values: T[], previous: readonly T[] | undefined, same: (a: T, b: T) => boolean): readonly T[] {
@@ -174,7 +175,7 @@ export function interpolated(x: Float64Array, edge: number, left: number, right:
 }
 
 const BLOCK = 256;
-const SUMMARY_THRESHOLD = 16 * BLOCK;
+const SUMMARY_THRESHOLD = 4096; // Sixteen blocks.
 type AlignedSeries = AlignedFrame['series'][number];
 interface BlockSummary {
   readonly min: Float64Array;
@@ -282,7 +283,7 @@ export function alignedStatistics(series: AlignedSeries, start: number, end: num
   if (size >= BLOCK) {
     if (full) {
       fullStatistics.set(series, summaryStats);
-      if (continuous) denseSlots.set(slot, 'fresh');
+      if (continuous && !denseSlots.has(slot)) denseSlots.set(slot, 'fresh');
     } else {
       if (!cached) summaries.set(series, cached = {});
       cached.recent = { start, end, ...summaryStats };
@@ -508,7 +509,8 @@ function cartesianBase(
   const seriesCues = cues(frame.series.length, compact, prior, sink);
   const column = frame.shape === 'aligned' ? frame.x : { kind: frame.xKind, timeZone: frame.timeZone, categories: null };
   const readX = positionReader(column, state.xField);
-  const references = reuse(compact ? [] : resolveReferences(state.references ?? [], readX, column.kind, sink), prior?.references,
+  const references = compact || !state.references?.length ? (prior?.references.length === 0 ? prior.references : noReferences)
+    : reuse(resolveReferences(state.references, readX, column.kind, sink), prior?.references,
     (a, b) => a.axis === b.axis && a.from === b.from && a.to === b.to && a.label === b.label);
   const category = column.kind === 'category';
   const continuousBars = state.kind === 'bar' && !category;
@@ -575,7 +577,11 @@ function buildAligned(frame: AlignedFrame, state: AlignedViewState, sink: Diagno
       : old.visibleSlots === visibleSlots && (old.xDomain[0] === old.xDomain[1]) === singlePosition);
   const barSlots = continuousBars && extras.barRange ? extras.barRange(frame.x.values, visibleSlots, xDomain) : visibleSlots;
   const fill = stackedArea ? stackAreaRange(frame, visibleSlots, xDomain) : null;
-  const drawSlots = sameDrawWindow ? old.drawSlots : reuse(
+  // A full line window has no outside neighbours. A one-row slide keeps the same slot bounds.
+  const sameFullLine = state.kind === 'line' && old && old.visibleSlots === visibleSlots &&
+    visibleSlots.start === 0 && visibleSlots.end === frame.length && frame.length === old.frame.length &&
+    frame.series.length === old.drawSlots.length;
+  const drawSlots = sameDrawWindow || sameFullLine ? old.drawSlots : reuse(
     frame.series.map(({ slot }) => fill ? adjacentDrawRange(slot, visibleSlots, fill)
       : state.kind === 'bar' || edges || category || singlePosition ? barSlots : drawRange(slot, visibleSlots)),
     old?.drawSlots, sameRange,

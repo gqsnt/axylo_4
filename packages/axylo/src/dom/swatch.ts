@@ -38,7 +38,6 @@ export interface SwatchPattern {
 const BACKGROUND = 'var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)))';
 const patterns: Partial<Record<SwatchPattern['kind'], SwatchPattern>> = {};
 const markerPaths: Partial<Record<MarkerShape, string>> = {};
-const swatchTemplates = new WeakMap<Document, SVGSVGElement>();
 
 /** A bar pattern for the chip; only the bar's swatch asks for one, so only bars carry the drawing. */
 export function swatchPattern(kind: SwatchPattern['kind']): SwatchPattern {
@@ -83,20 +82,11 @@ function markerPath(shape: MarkerShape, cx: number, cy: number, size: number): s
   return d + 'Z';
 }
 
-function swatchBase(doc: Document): SVGSVGElement {
-  const template = swatchTemplates.get(doc);
-  if (template) return template.cloneNode(false) as SVGSVGElement;
+/** A 20 × 12 swatch (CSS px). aria-hidden: the series name beside it is the text. */
+export function createSwatch(doc: Document, spec: SwatchSpec): SVGSVGElement {
   const svg = svgElement(doc, 'svg', {
     class: 'axylo-swatch', viewBox: '0 0 20 12', width: '20', height: '12', 'aria-hidden': 'true', focusable: 'false',
   });
-  if (typeof svg.cloneNode !== 'function') return svg;
-  swatchTemplates.set(doc, svg);
-  return svg.cloneNode(false) as SVGSVGElement;
-}
-
-/** A 20 × 12 swatch (CSS px). aria-hidden: the series name beside it is the text. */
-export function createSwatch(doc: Document, spec: SwatchSpec): SVGSVGElement {
-  const svg = swatchBase(doc);
   svg.style.color = colorOf(spec.color);
   if (spec.line) {
     const line = svgElement(doc, 'line', { x1: '0', x2: '20', y1: '6', y2: '6', stroke: 'currentColor', 'stroke-width': '2' });

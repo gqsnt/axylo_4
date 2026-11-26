@@ -293,7 +293,8 @@ export function prepareTheme(
     if (prepared.backdrop && !prepared.bgExpr) {
       const canvas = prepared.modes === 3
         ? readCachedCanvas(doc, win!, colorScheme, forcedColors, batch) : null;
-      if (canvas !== undefined) decideScheme(prepared, canvas);
+      // Nothing was written since colorScheme was read: the same value serves the decision.
+      if (canvas !== undefined) decideScheme(prepared, canvas, undefined, colorScheme);
     }
   }
   return prepared;
@@ -303,7 +304,8 @@ const SCHEME_ATTRIBUTE = 'data-axylo-scheme';
 const BACKGROUND_PROPERTY = '--axylo-background';
 const BACKDROP_PROPERTY = '--axylo-backdrop';
 
-function decideScheme(p: PreparedTheme, schemeColor: Rgba | null, override?: Rgba): void {
+/** `colorScheme`: the computed color-scheme when the caller read it with no write since; else it is read here. */
+function decideScheme(p: PreparedTheme, schemeColor: Rgba | null, override?: Rgba, colorScheme?: string): void {
   const { css: style, modes: allowed, backdrop } = p;
   const fixed = allowed === 1 || allowed === 2;
   if (schemeColor) p.scheme = isLightColor(schemeColor) ? 'light' : 'dark';
@@ -313,7 +315,8 @@ function decideScheme(p: PreparedTheme, schemeColor: Rgba | null, override?: Rgb
     p.scheme = text && isLightColor(text) ? 'dark' : 'light';
   }
   // For a declared color-scheme the CSS defaults follow the browser, including media changes.
-  p.follows = !override && !!style!.colorScheme && style!.colorScheme !== 'normal';
+  const scheme = override ? '' : colorScheme ?? style!.colorScheme;
+  p.follows = !override && !!scheme && scheme !== 'normal';
   p.std = !p.fc && !p.mc && !p.custom
     && (!p.follows || fixed || schemeColor !== null);
   p.bg = override ? rgbText(schemeColor!) : backdrop!.rgb;

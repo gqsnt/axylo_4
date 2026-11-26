@@ -1,7 +1,7 @@
 import { SLOT_ABSENT_FIELD, SLOT_INVALID, SLOT_NULL, SLOT_VALUE, type DiagnosticSink, type SlotState } from '../core/contracts';
 import type { ResolvedValueField } from './options';
 import { Reports } from './reports';
-import { denseSlots, withSignedZeros, type FullStatistics } from './store-statistics';
+import { denseSlots, type FullStatistics } from './store-statistics';
 import type { Table } from './table';
 
 const decimal = /^[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
@@ -58,19 +58,36 @@ export function readValues(
     if (counts && keepAllValidSlots && table.length >= 256) {
       let min = Infinity;
       let max = -Infinity;
-      let zeros = 0;
-      for (; i < table.length; i++) {
-        const value = column[i]!;
-        if (!Number.isFinite(value)) break;
-        if (value < min) min = value;
-        if (value > max) max = value;
-        if (value === 0) zeros |= Object.is(value, -0) ? 1 : 2;
+      // NaN poisons both extrema and an infinity survives in at least one. In either case
+      // the ordinary validation below recovers the individual slot states and diagnostics.
+      while (i < table.length) {
+        const end = Math.min(i + 1024, table.length);
+        for (let row = i; row < end; row++) {
+          const value = column[row]!;
+          min = Math.min(min, value);
+          max = Math.max(max, value);
+        }
+        if (!Number.isFinite(min) || !Number.isFinite(max)) break;
+        i = end;
       }
       if (i === table.length) {
-        counts.other += i;
-        const slot = new Uint8Array(i);
+        const last = column[table.length - 1]!;
+        const signed = { min, max, last };
+        let ordered = signed;
+        if (min === 0 || max === 0) {
+          // The reader keeps the first zero on a tie, including its sign.
+          for (let row = 0; row < i; row++) {
+            const value = column[row]!;
+            if (value === 0) {
+              ordered = { min: min === 0 ? value : min, max: max === 0 ? value : max, last };
+              break;
+            }
+          }
+        }
+        counts.other += table.length;
+        const slot = new Uint8Array(table.length);
         denseSlots.set(slot, 'fresh');
-        return { y, slot, allValid: true, statistics: withSignedZeros({ min, max, last: column[i - 1]! }, zeros) };
+        return { y, slot, allValid: true, statistics: { ordered, signed } };
       }
     }
     let missing = 0;

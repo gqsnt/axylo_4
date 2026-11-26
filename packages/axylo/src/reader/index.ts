@@ -1,5 +1,6 @@
 import type { AlignedFrame, DiagnosticSink, Formatters, IndexRange, ReaderModel, View } from '../core/contracts';
 import { report } from '../diagnostics';
+import { cacheableValueSeries } from '../format';
 import { sliceText } from '../lookup/text';
 import { chartTypeName, defaultMessages, fill, fillChartName, fillChartSummary, fillDonutSlice, fillSeriesSummary, messageLanguage } from '../messages';
 import type { Messages, Title } from '../public';
@@ -153,17 +154,85 @@ function localizedList(locale: string | undefined, key: string, first: string, s
   }
 }
 
-function seriesNames(frame: AlignedFrame, locale: string | undefined): string {
+interface SeriesNames {
+  readonly locale: string | undefined;
+  readonly labels: readonly string[];
+  readonly text: string;
+}
+
+let nameLists: WeakMap<Formatters, SeriesNames> | undefined;
+
+function seriesNames(frame: AlignedFrame, locale: string | undefined, formatters: Formatters): string {
   const { series } = frame;
   if (series.length === 1) return series[0]!.drawable ? series[0]!.label : '';
-  if (series.length === 2) {
-    const first = series[0]!, second = series[1]!;
-    if (!first.drawable) return second.drawable ? second.label : '';
-    return second.drawable ? pair(first.label, second.label, locale) : first.label;
+  const cached = nameLists?.get(formatters);
+  if (cached && cached.locale === locale && (englishList(locale) || listFormats.has(locale))) {
+    let i = 0;
+    for (const entry of series) {
+      if (entry.drawable && cached.labels[i++] !== entry.label) { i = -1; break; }
+    }
+    if (i === cached.labels.length) return cached.text;
   }
   const names: string[] = [];
   for (const entry of series) if (entry.drawable) names.push(entry.label);
-  return listOf(names, locale);
+  const text = listOf(names, locale);
+  if (englishList(locale) || listFormats.has(locale)) (nameLists ??= new WeakMap()).set(formatters, { locale, labels: names, text });
+  return text;
+}
+
+interface ChartName {
+  readonly template: string;
+  readonly type: string;
+  readonly x: string;
+  readonly y: string;
+  readonly text: string;
+}
+
+let chartNames: WeakMap<Formatters, ChartName> | undefined;
+
+function chartName(formatters: Formatters, template: string, type: string, x: string, y: string): string {
+  const cached = chartNames?.get(formatters);
+  if (cached && cached.template === template && cached.type === type && cached.x === x && cached.y === y) return cached.text;
+  const text = fillChartName(template, type, x, y);
+  (chartNames ??= new WeakMap()).set(formatters, { template, type, x, y, text });
+  return text;
+}
+
+interface FormattedStats {
+  min: number;
+  max: number;
+  last: number;
+  minText: string;
+  maxText: string;
+  lastText: string;
+}
+
+interface StatsCache {
+  readonly locale: string | undefined;
+  readonly value: Formatters['value'];
+  readonly series: (FormattedStats | undefined)[];
+}
+
+let formattedStats: WeakMap<Formatters, StatsCache> | undefined;
+
+function statsCache(input: ReaderInput): StatsCache {
+  const { formatters, locale } = input;
+  const cached = formattedStats?.get(formatters);
+  if (cached && cached.value === formatters.value && cached.locale === locale) return cached;
+  const next = { locale, value: formatters.value, series: [] };
+  (formattedStats ??= new WeakMap()).set(formatters, next);
+  return next;
+}
+
+function seriesStats(cache: StatsCache, formatters: Formatters, s: number, min: number, max: number, last: number): FormattedStats {
+  const entry = cache.series[s];
+  if (!entry) return cache.series[s] = {
+    min, max, last, minText: formatters.value(s, min), maxText: formatters.value(s, max), lastText: formatters.value(s, last),
+  };
+  if (!Object.is(entry.min, min)) { entry.minText = formatters.value(s, min); entry.min = min; }
+  if (!Object.is(entry.max, max)) { entry.maxText = formatters.value(s, max); entry.max = max; }
+  if (!Object.is(entry.last, last)) { entry.lastText = formatters.value(s, last); entry.last = last; }
+  return entry;
 }
 
 /** What differs between frame shapes in the reader: the table and the summary's data sentences. */
@@ -197,6 +266,8 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table, listReady)
   let max = -Infinity;
   let minSeries = 0;
   let maxSeries = 0;
+  let minText: string | undefined;
+  let maxText: string | undefined;
   let drawable = 0;
   let unit: string | undefined;
   let oneUnit = true;
@@ -204,6 +275,8 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table, listReady)
   const entries: string[] = [];
   let undrawn: string[] | undefined;
   const { frame } = view;
+  const cacheable = cacheableValueSeries(formatters.value);
+  let cache: StatsCache | undefined;
   const nameRange = view.kind !== 'scatter' && !frame.yLabel;
   const zone = view.kind === 'scatter'
     ? view.frame.xKind === 'time' && view.frame.timeZone
@@ -230,9 +303,11 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table, listReady)
       xMax = Math.max(xMax, series.x[range.end - 1]!);
     }
     const stats = 'slot' in series ? alignedStatistics(series, range.start, range.end) : statistics(series.y, range);
-    if (stats.min < min) { min = stats.min; minSeries = s; }
-    if (stats.max > max) { max = stats.max; maxSeries = s; }
     const hasValue = Number.isFinite(stats.last);
+    const formatted = hasValue && cacheable?.[s]
+      ? seriesStats(cache ??= statsCache(input), formatters, s, stats.min, stats.max, stats.last) : undefined;
+    if (stats.min < min) { min = stats.min; minSeries = s; minText = formatted?.minText; }
+    if (stats.max > max) { max = stats.max; maxSeries = s; maxText = formatted?.maxText; }
     if (hasValue) {
       if (nameRange) (rangeNames ??= []).push(series.label);
       if (oneUnit && 'unit' in series) {
@@ -243,7 +318,8 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table, listReady)
       }
     }
     entries.push(hasValue ? fillSeriesSummary(messages.seriesSummary, series.label,
-      formatters.value(s, stats.min), formatters.value(s, stats.max), formatters.value(s, stats.last),
+      formatted?.minText ?? formatters.value(s, stats.min), formatted?.maxText ?? formatters.value(s, stats.max),
+      formatted?.lastText ?? formatters.value(s, stats.last),
     ) : fill(messages.seriesNoData, { series: series.label }));
   }
 
@@ -255,7 +331,7 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table, listReady)
     return sentences;
   }
   const range = Number.isFinite(min) && Number.isFinite(max) && oneUnit
-    ? { yMin: formatters.value(minSeries, min), yMax: formatters.value(maxSeries, max) } : null;
+    ? { yMin: minText ?? formatters.value(minSeries, min), yMax: maxText ?? formatters.value(maxSeries, max) } : null;
   let rangeLabel = yLabel;
   if (rangeNames) {
     if (rangeNames.length === 1) rangeLabel = rangeNames[0]!;
@@ -326,12 +402,12 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
   const xLabel = view.kind === 'donut' ? category : view.frame.xLabel;
   const yLabel = view.kind === 'donut' ? view.frame.valueLabel
     : view.kind === 'scatter' ? view.frame.yLabel
-    : view.frame.yLabel || seriesNames(view.frame, input.locale) || value;
+    : view.frame.yLabel || seriesNames(view.frame, input.locale, formatters) || value;
   const listReady = englishList(input.locale) || listFormats.has(input.locale);
   const titleText = typeof title === 'string' ? title : title?.text;
   if (!labelledBy && !titleText && input.diagnostics) report(input.diagnostics, 'AX140', 'none');
   let generated: string | undefined;
-  const name = labelledBy ? '' : titleText || (generated = fillChartName(messages.chartName, type, xLabel, yLabel));
+  const name = labelledBy ? '' : titleText || (generated = chartName(formatters, messages.chartName, type, xLabel, yLabel));
   const compact = input.compact === true || (view.kind !== 'donut' && view.compact);
   const hasReferences = !compact && view.kind !== 'donut' && view.references.length > 0;
   let references: string[] | undefined;
@@ -339,7 +415,7 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
   if (input.table !== false && !compact) {
     let caption = input.caption;
     if (!caption?.trim()) caption = name;
-    if (!caption.trim()) caption = generated ?? fillChartName(messages.chartName, type, xLabel, yLabel);
+    if (!caption.trim()) caption = generated ?? chartName(formatters, messages.chartName, type, xLabel, yLabel);
     if (!caption.trim()) caption = messages.plotLabel?.trim() ? messages.plotLabel : defaultMessages.plotLabel;
     if (hasReferences) {
       references = referenceText(view, formatters, messages);

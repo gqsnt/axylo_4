@@ -142,6 +142,9 @@ function runPhasedBatch(win: Window, doc: Document, batch: readonly ScheduledEnt
     each('phase4Init');
   };
   each('phase2');
+  // Measured first: that layout brings style up to date for the theme's reads, which then start no style pass
+  // of their own. A late theme probe that moved a figure has it measured again; the others measure nothing.
+  each('phase3Measure');
   each('phase3Theme');
   each('phase3Probe');
   each('phase3Measure');
@@ -316,15 +319,21 @@ export function createChart(composition: Composition, target: unknown, input: un
       if (textMounted) { textLayer?.destroy(); textLayer = null; textMounted = false; }
     };
 
+    // One probe per chart, made when first asked for: it is mounted for a read and taken out again.
+    let stripProbe: { holder: HTMLDivElement; strip: HTMLDivElement } | null = null;
     const stripProbeMount = () => {
-      const holder = doc.createElement('div');
-      holder.className = 'axylo-readout-mode';
-      holder.style.cssText = 'position:absolute;left:0;top:0;width:100px;visibility:hidden;pointer-events:none';
-      const strip = doc.createElement('div');
-      strip.className = 'axylo-readout';
-      holder.appendChild(strip);
-      figure.figure.appendChild(holder);
-      return { holder, strip };
+      let probe = stripProbe;
+      if (!probe) {
+        const holder = doc.createElement('div');
+        holder.className = 'axylo-readout-mode';
+        holder.style.cssText = 'position:absolute;left:0;top:0;width:100px;visibility:hidden;pointer-events:none';
+        const strip = doc.createElement('div');
+        strip.className = 'axylo-readout';
+        holder.appendChild(strip);
+        probe = stripProbe = { holder, strip };
+      }
+      figure.figure.appendChild(probe.holder);
+      return probe;
     };
     const stripProbeRead = (probe: unknown): number => {
       const h = parseFloat(win.getComputedStyle((probe as { strip: HTMLDivElement }).strip).height);

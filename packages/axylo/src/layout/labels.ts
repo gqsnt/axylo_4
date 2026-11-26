@@ -320,7 +320,7 @@ function lineStart(pixel: number, bottom: boolean, span: number, width: number, 
 }
 
 function singleLineFits(
-  ticks: readonly Tick[], scale: XScale, side: Side, span: number, room: number, gap: number, metrics: Metrics,
+  ticks: readonly Tick[], scale: XScale, side: Side, span: number, room: number, gap: number, metrics: Metrics, measured: number[],
 ): boolean {
   if (ticks.length === 0) return true;
   const bottom = side === 'bottom', height = metrics.lineHeight;
@@ -328,9 +328,13 @@ function singleLineFits(
   const forward = position(scale, ticks[0]!) <= position(scale, ticks[lastIndex]!);
   let previousStart = -Infinity, end = -Infinity, unordered = false;
   for (let i = 0; i < ticks.length; i++) {
-    const tick = ticks[forward ? i : lastIndex - i]!;
+    const index = forward ? i : lastIndex - i;
+    const tick = ticks[index]!;
     const width = Math.max(0, metrics.width(tick.label));
-    const first = lineStart(position(scale, tick), bottom, span, width, height);
+    const pixel = position(scale, tick);
+    measured[2 * index] = pixel;
+    measured[2 * index + 1] = width;
+    const first = lineStart(pixel, bottom, span, width, height);
     const last = first + (bottom ? width : height);
     if (!(first >= -EPSILON && last <= span + EPSILON && (bottom ? height : width) <= room + EPSILON)) return false;
     if (first > previousStart || (forward && first === previousStart)) {
@@ -346,17 +350,34 @@ function singleLineFits(
 
   // Clamping or an unordered candidate can reverse interval starts. Check those pairs in either order.
   for (let i = 1; i < ticks.length; i++) {
-    const tick = ticks[i]!, width = Math.max(0, metrics.width(tick.label));
-    const first = lineStart(position(scale, tick), bottom, span, width, height);
+    const width = measured[2 * i + 1]!;
+    const first = lineStart(measured[2 * i]!, bottom, span, width, height);
     const last = first + (bottom ? width : height);
     for (let j = 0; j < i; j++) {
-      const other = ticks[j]!, otherWidth = Math.max(0, metrics.width(other.label));
-      const start = lineStart(position(scale, other), bottom, span, otherWidth, height);
+      const otherWidth = measured[2 * j + 1]!;
+      const start = lineStart(measured[2 * j]!, bottom, span, otherWidth, height);
       const stop = start + (bottom ? otherWidth : height);
       if (start <= first ? first < stop + gap - EPSILON : start < last + gap - EPSILON) return false;
     }
   }
   return true;
+}
+
+function singleLineResult(
+  ticks: readonly Tick[], side: Side, span: number, role: Role, metrics: Metrics, measured: number[], remedies: readonly LabelRemedy[],
+): FittedLabels {
+  const bottom = side === 'bottom';
+  const texts: PlacedText[] = [];
+  let depth = 0;
+  for (let i = 0; i < ticks.length; i++) {
+    const { label } = ticks[i]!;
+    const pixel = measured[2 * i]!, width = measured[2 * i + 1]!;
+    texts.push(bottom
+      ? placeText([label], label, bottomAnchor(pixel, span, width), 0, 'middle', 'top', 0, role, metrics, width)
+      : placeText([label], label, 0, pixel, 'end', 'middle', 0, role, metrics, width));
+    depth = Math.max(depth, bottom ? metrics.lineHeight : width);
+  }
+  return { ticks, texts, depth, remedies };
 }
 
 function start(label: Label, side: Side): number {
@@ -458,7 +479,7 @@ function truncate(
 export function fitBottom(
   candidates: TickCandidates, mayThin: boolean, scale: XScale, width: number, room: number,
   role: Role, metrics: Metrics, prepared = prepareLabels(mayThin ? candidates : candidates.slice(0, 1)),
-  rotatedRoom = room,
+  rotatedRoom = room, measured: number[] = [],
 ): FittedLabels {
   const remedies: LabelRemedy[] = [];
   let ticks = prepared.sets[0] ?? [];
@@ -476,9 +497,8 @@ export function fitBottom(
   for (let i = 0; i < prepared.sets.length; i++) {
     ticks = prepared.sets[i]!;
     if (i === 1) remedies.push('thinned');
-    if (singleLineFits(ticks, scale, 'bottom', width, room, gap, metrics)) {
-      const labels = ticks.map(tick => tickLabel(tick, position(scale, tick), 'bottom', width, [tick.label], 0, role, metrics));
-      return result(labels, 'bottom', remedies);
+    if (singleLineFits(ticks, scale, 'bottom', width, room, gap, metrics, measured)) {
+      return singleLineResult(ticks, 'bottom', width, role, metrics, measured, remedies);
     }
   }
 
@@ -532,15 +552,14 @@ export function fitLeftCategories(
 
 export function fitValue(
   candidates: TickCandidates, scale: XScale, side: Side, span: number, room: number, role: Role, metrics: Metrics,
-  prepared = prepareLabels(candidates),
+  prepared = prepareLabels(candidates), measured: number[] = [],
 ): FittedLabels {
   const gap = metrics.lineHeight / 2;
   let ticks: readonly Tick[] = [];
   for (let i = 0; i < prepared.sets.length; i++) {
     ticks = prepared.sets[i]!;
-    if (singleLineFits(ticks, scale, side, span, room, gap, metrics)) {
-      const labels = ticks.map(tick => tickLabel(tick, position(scale, tick), side, span, [tick.label], 0, role, metrics));
-      return result(labels, side, i ? ['thinned'] : []);
+    if (singleLineFits(ticks, scale, side, span, room, gap, metrics, measured)) {
+      return singleLineResult(ticks, side, span, role, metrics, measured, i ? ['thinned'] : []);
     }
   }
 

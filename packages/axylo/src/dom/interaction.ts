@@ -29,6 +29,7 @@ import { insideCorridor, intersect, type PlacementInput } from './placement';
 import { identityOf, matchesIdentity, sameTarget, type Identity } from './pointer';
 
 type Span = readonly [number, number];
+type MutablePlacement = { -readonly [K in keyof PlacementInput]: PlacementInput[K] };
 export type ReadoutMode = 'floating' | 'strip' | 'none';
 
 export interface ControlsState {
@@ -97,6 +98,10 @@ function setClass(el: Element, cls: string, on: boolean): boolean {
 }
 const padRect = (x: number, y: number, w: number, h: number, ox: number, oy = ox): Rect =>
   ({ x: x - ox, y: y - oy, width: Math.max(0, w + 2 * ox), height: Math.max(0, h + 2 * oy) });
+function plotCoordinate(value: number, offset: number, scale: number, start: number, extent: number): number {
+  const pixel = (value - offset) / scale, edge = offset + start * scale;
+  return value >= edge - 1 && value <= edge + extent * scale + 1 ? clamp(pixel, start, start + extent) : pixel;
+}
 const isAligned = (v: View): v is Extract<View, { kind: 'line' | 'area' | 'bar' | 'histogram' }> => v.kind !== 'scatter' && v.kind !== 'donut';
 const offersZoom = (d: ControlsState): d is ControlsState & { readonly zoom: true | 'touch'; readonly tooSmall: false; readonly view: Exclude<View, { kind: 'donut' }> } =>
   d.zoom !== false && !d.tooSmall && d.view.kind !== 'donut';
@@ -277,6 +282,7 @@ type Shown =
 interface Content { readonly t: PickTarget; readonly b: Rect; readonly a: Rect | null; readonly p: Presentation; readonly pin: boolean; readonly pg: number }
 
 const NONE: Shown = { k: S_NONE }, KEY: Shown = { k: S_KEY }, NO_HOVER: Shown = { k: S_HOVER, t: null };
+const NO_RINGS: readonly Rect[] = [];
 
 const sameWindow = (a: Span | null, b: Span | null) => a === b || (a !== null && b !== null && a[0] === b[0] && a[1] === b[1]);
 const sameRect = (a: Rect | null, b: Rect | null) => a === null || b === null ? a === b
@@ -339,17 +345,19 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   // Cached per-frame/scroll/resize geometry (Stage 2/3 invariant).
   let geoPlot: Mapping | null = null, geoFigure: Mapping | null = null, geoVisible: Rect | null = null;
   let geoReadout: Rect | null = null, geoControls: readonly Rect[] | null = null, controlNodes: readonly HTMLElement[] | null = null;
-  const clearGeo = () => { geoPlot = geoFigure = geoVisible = geoReadout = geoControls = null; };
+  let geoPlacement: MutablePlacement | null = null;
+  const clearGeo = () => { geoPlot = geoFigure = geoVisible = geoReadout = geoControls = geoPlacement = null; };
 
   let c: Committed | null = null, cs: ControlsState | null = null, lastControls: unknown[] | null = null, controlScratch: unknown[] | null = null;
   let focus: DatumRef | null = null, single = false, shown: Shown = NONE, pointer: Point | null = null;
+  const hoverState: { k: 2; t: PickTarget | null } = { k: S_HOVER, t: null };
   let rest: { p: Point; t: number; g: PickTarget | null } | null = null;
   let content: Content | null = null, dismissed: Identity[] | null = null, pinPage = 0;
   let range: { s: number | null } | null = null;
   let proxyFocused = false, keyed = false, clickFocus = false, fromClick = false, shownOrdinal = 0;
   let shownText: { r: DatumRef; s: boolean; d: string | null } | null = null;
   let lastHover: DatumRef | null = null;
-  let lastPres: readonly [PickTarget | null, DatumRef | null, DatumRef | null, boolean, boolean, number, Presentation | 'none'] | null = null;
+  let lastPres: [PickTarget | null, DatumRef | null, DatumRef | null, boolean, boolean, number, Presentation | 'none'] | null = null;
   let dirty = true, overlayVisible = false, pendingWindow: Span | null | undefined, tableView: TableView | null = null, tableModel: unknown = null;
   let down: { id: number; x: number; y: number; d: boolean } | null = null;
   let touches: Map<number, { x: number; y: number; x0: number; y0: number; t0: number }> | null = null;
@@ -529,18 +537,11 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     return geoControls = out;
   }
 
-  function plotPoint(d: Committed, at: Point): Point {
-    const m = plotMapping();
-    if (d.layout.kind !== 'plot') return toLocal(m, at);
-    const b = d.layout.plot, r = rectToViewport(m, b);
-    const coord = (v: number, s: number, len: number, o: number, k: number, lo: number, ext: number) => {
-      const p = (v - o) / k;
-      return v >= s - 1 && v <= s + len + 1 ? clamp(p, lo, lo + ext) : p;
-    };
-    return { x: coord(at.x, r.x, r.width, m.left, m.kx, b.x, b.width), y: coord(at.y, r.y, r.height, m.top, m.ky, b.y, b.height) };
+  function pick(d: Committed, at: Point): PickTarget | null {
+    if (d.layout.kind !== 'plot') return null;
+    const m = plotMapping(), b = d.layout.plot;
+    return d.lookup.pick(plotCoordinate(at.x, m.left, m.kx, b.x, b.width), plotCoordinate(at.y, m.top, m.ky, b.y, b.height));
   }
-
-  const pick = (d: Committed, at: Point) => { const p = plotPoint(d, at); return d.lookup.pick(p.x, p.y); };
 
   function zoomBounds(d: Committed): Span {
     if (d.view.kind === 'donut') return [0, 0];
@@ -548,8 +549,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     return d.view.xFull;
   }
 
-  function markBox(d: Committed, target: PickTarget): Rect | null {
-    const box = targetBox(d.view, d.lookup, target, null);
+  function markBox(d: Committed, target: PickTarget, soleRef?: DatumRef): Rect | null {
+    const box = soleRef ? d.lookup.anchor(soleRef) : targetBox(d.view, d.lookup, target, null);
     if (box || target.kind !== 'x' || d.layout.kind !== 'plot') return box;
     const s = posScale(d), at = s ? (s.type === 'band' ? s.center(target.x) : s.map(target.x)) : NaN;
     if (!Number.isFinite(at)) return null;
@@ -604,13 +605,18 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     const showTip = pres !== 'none' && target !== null && !isDismissed(target), page = pinned ? pinPage : 0;
     if (!dirty && lastPres && sameTarget(target, lastPres[0]) && sameRef(visibleRing, lastPres[1]) &&
       sameRef(only, lastPres[2]) && showTip === lastPres[3] && pinned === lastPres[4] && page === lastPres[5] && pres === lastPres[6]) return;
-    lastPres = [target, visibleRing, only, showTip, pinned, page, pres];
+    if (!lastPres) lastPres = [target, visibleRing, only, showTip, pinned, page, pres];
+    else {
+      lastPres[0] = target; lastPres[1] = visibleRing; lastPres[2] = only;
+      lastPres[3] = showTip; lastPres[4] = pinned; lastPres[5] = page; lastPres[6] = pres;
+    }
     dirty = false;
     if (pinned) listenPin(); else unlistenPin();
     const prev = content; content = null;
     const overlay = overlayWith(parts.overlay, { view, layout, lookup, target, ring: visibleRing, only });
     if (pinned && !showTip) { endPin(); redraw(); return; }
     const model = showTip ? (pinned ? pinnedModel(d, target, pinPage) : lookup.tooltip(target)) : null;
+    const soleRef = target?.kind === 'x' && model?.count === 1 ? model.rows[0]?.ref : undefined;
     if (model?.rows.length && target && pres !== 'none') {
       const tc = tooltipContent ??= {
         model, swatch: swatchFor,
@@ -628,7 +634,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       tc.totalLabel = m.total;
       tc.moreLang = d.english('moreRows');
       tc.totalLang = d.english('total');
-      const marks = markBox(d, target), map = plotMapping(), anchor = marks ? rectToViewport(map, marks) : null;
+      const marks = markBox(d, target, soleRef), map = plotMapping(), anchor = marks ? rectToViewport(map, marks) : null;
       const bounds = pres === 'strip' ? visibleReadout() : placementFor(d, marks, visibleRing, map);
       const figureMap = pres === 'strip' ? undefined : figureMapping();
       // When the tooltip needs a layout read, measure after both sets of writes.
@@ -645,25 +651,30 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       draw(d, overlay);
     }
     if (pinned && !content) { endPin(); redraw(); return; }
-    hover(!target ? null : shown.k === S_KEY ? focus : shown.k === S_PIN ? shown.r : lookup.primary(target));
+    hover(!target ? null : shown.k === S_KEY ? focus : shown.k === S_PIN ? shown.r : soleRef ?? lookup.primary(target));
   }
 
   function placementFor(d: Committed, box: Rect | null, keyboardRing: DatumRef | null, m: Mapping): PlacementInput {
     const { layout, lookup } = d, area = plotBox(d);
     const mk = box ?? { x: area.x + area.width / 2, y: area.y + area.height / 2, width: 0, height: 0 };
     const datum = padRect(mk.x, mk.y, mk.width, mk.height, RING_REACH);
-    const pr = padRect(area.x, area.y, area.width, area.height, -OUTLINE_REACH);
-    let hole: PlacementInput['hole'] = null;
-    if (layout.kind === 'plot' && layout.projection.kind === 'ring' && layout.projection.r0 > HOLE_CLEARANCE) {
-      const { cx, cy, r0 } = layout.projection, ctr = toViewport(m, { x: cx, y: cy });
-      hole = { cx: ctr.x, cy: ctr.y, rx: (r0 - HOLE_CLEARANCE) * m.kx, ry: (r0 - HOLE_CLEARANCE) * m.ky };
-    }
+    const datumBox = rectToViewport(m, datum), controls = controlRects(m);
     const rb = keyboardRing ? ringRect(layout, lookup, keyboardRing) : null;
-    return {
-      box: rectToViewport(m, datum), visible: intersect(rectToViewport(m, pr), visiblePlot()),
-      order: horizontalBars(d) ? 'horizontal' : 'vertical', hole, controls: controlRects(m),
-      rings: rb ? [rectToViewport(m, rb)] : [], ringStroke: RING_STROKE * Math.max(m.kx, m.ky),
-    };
+    const rings = rb ? [rectToViewport(m, rb)] : NO_RINGS;
+    if (!geoPlacement) {
+      const pr = padRect(area.x, area.y, area.width, area.height, -OUTLINE_REACH);
+      let hole: PlacementInput['hole'] = null;
+      if (layout.kind === 'plot' && layout.projection.kind === 'ring' && layout.projection.r0 > HOLE_CLEARANCE) {
+        const { cx, cy, r0 } = layout.projection, ctr = toViewport(m, { x: cx, y: cy });
+        hole = { cx: ctr.x, cy: ctr.y, rx: (r0 - HOLE_CLEARANCE) * m.kx, ry: (r0 - HOLE_CLEARANCE) * m.ky };
+      }
+      return geoPlacement = {
+        box: datumBox, visible: intersect(rectToViewport(m, pr), visiblePlot()),
+        order: horizontalBars(d) ? 'horizontal' : 'vertical', hole, controls, rings, ringStroke: RING_STROKE * Math.max(m.kx, m.ky),
+      };
+    }
+    geoPlacement.box = datumBox; geoPlacement.controls = controls; geoPlacement.rings = rings;
+    return geoPlacement;
   }
 
   function hover(ref: DatumRef | null): void { if (!sameRef(ref, lastHover)) { lastHover = ref; actions.hover(ref); } }
@@ -887,7 +898,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   const dismissedBy = (id: Identity, t: PickTarget) => matchesIdentity(id, t) || (id.kind === 'point' && t.kind === 'point' && c !== null && c.lookup.has(t, id.ref));
   const isDismissed = (t: PickTarget) => dismissed !== null && dismissed.some(id => dismissedBy(id, t));
   function reached(t: PickTarget | null): void { if (t && dismissed) { const kept = dismissed.filter(id => dismissedBy(id, t)); dismissed = kept.length ? kept : null; } }
-  const pointTo = (t: PickTarget | null) => { reached(t); shown = { k: S_HOVER, t }; };
+  const pointTo = (t: PickTarget | null) => { reached(t); hoverState.t = t; shown = hoverState; };
 
   function pointerAt(at: Point, time: number): void {
     const d = c;
@@ -905,7 +916,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     }
     const target = pick(d, at);
     pointTo(target);
-    if (!still || !rest || !sameTarget(rest.g, target)) rest = { p: at, t: time, g: target };
+    if (!rest) rest = { p: at, t: time, g: target };
+    else if (!still || !sameTarget(rest.g, target)) { rest.p = at; rest.t = time; rest.g = target; }
     present();
   }
 
@@ -1029,7 +1041,9 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   function activate(d: Committed & { readonly ready: true }, at: Point, mouse: boolean): void {
     if (range && d.view.kind !== 'donut' && d.layout.kind === 'plot') {
-      const p = plotPoint(d, at), pr = d.layout.plot, x = positionAt(d.layout, p.x, p.y);
+      const m = plotMapping(), pr = d.layout.plot;
+      const p = { x: plotCoordinate(at.x, m.left, m.kx, pr.x, pr.width), y: plotCoordinate(at.y, m.top, m.ky, pr.y, pr.height) };
+      const x = positionAt(d.layout, p.x, p.y);
       if (x === null || p.x < pr.x || p.x > pr.x + pr.width || p.y < pr.y || p.y > pr.y + pr.height) return;
       if (range.s === null) { range.s = x; markRange(d); return; }
       applyRange(d, range.s, x); return;
@@ -1398,6 +1412,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     const prev = c;
     pendingWindow = undefined;
     if (!next?.interactive) { clear(); c = next; return; }
+    if (prev?.layout !== next.layout || prev.theme !== next.theme) tooltip?.invalidateSize();
     if (prev?.view !== next?.view) swatches.length = 0;
     c = next; dirty = true;
     build();

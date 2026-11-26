@@ -155,12 +155,13 @@ function fstr(v: number): string {
 
 let pathDecoder: TextDecoder | null = null;
 let pathBuf: Uint8Array | null = null;
-const MAX_RETAINED_BUF = 16 * 1024;
+let pathView: DataView | null = null;
+const MAX_RETAINED_BUF = 16_384;
 let polyScratch: Float64Array | null = null;
 
 // The fallback number can be a signed, 17-digit mantissa with a three-digit exponent.
 const NUMBER_BYTES = 24;
-const XY_BYTES = 2 + 2 * NUMBER_BYTES;
+const XY_BYTES = 50; // Two worst-case numbers, a command and a space.
 const XY_ESTIMATE = 26;
 let digitsCache: Uint8Array | null = null;
 function digitTable(): Uint8Array {
@@ -176,6 +177,11 @@ function digitTable(): Uint8Array {
 function ensureBuf(need: number): Uint8Array {
   if (pathBuf === null) return pathBuf = new Uint8Array(need > 4096 ? need : 4096);
   return pathBuf.length < need ? pathBuf = new Uint8Array(Math.max(Math.min(pathBuf.length * 2, MAX_RETAINED_BUF), need)) : pathBuf;
+}
+
+function viewOf(buf: Uint8Array): DataView {
+  if (buf.byteLength > MAX_RETAINED_BUF) return new DataView(buf.buffer);
+  return pathView?.buffer === buf.buffer ? pathView : pathView = new DataView(buf.buffer);
 }
 
 function growBuf(used: number, need: number): Uint8Array {
@@ -250,45 +256,56 @@ function decimalTable(): Uint32Array {
   return words;
 }
 
-function writePixel(b: Uint8Array, bytes: DataView, words: Uint32Array, pos: number, value: number): number {
+function writePixel(b: Uint8Array, bytes: DataView, words: Uint32Array, pos: number, prefix: number, value: number): number {
   const cents = Math.round(value * 100);
-  if (!(cents >= 0 && cents < 100000)) return writeFixed(b, pos, cents);
+  if (!(cents >= 0 && cents < 100000)) {
+    b[pos++] = prefix;
+    return writeFixed(b, pos, cents);
+  }
   const whole = (cents / 100) | 0;
   const integer = words[whole]!;
   // The following write overwrites padding. Callers reserve a worst-case coordinate pair.
-  bytes.setUint32(pos, integer, true);
-  pos += integer >>> 24;
+  bytes.setUint32(pos, prefix | (integer << 8), true);
+  pos += 1 + (integer >>> 24);
   const fraction = words[1000 + (cents - whole * 100)]!;
   bytes.setUint32(pos, fraction, true);
   return pos + (fraction >>> 24);
 }
 
 function writePixelPair(b: Uint8Array, bytes: DataView, words: Uint32Array, pos: number, command: number, x: number, y: number): number {
-  b[pos++] = command;
-  pos = writePixel(b, bytes, words, pos, x);
-  b[pos++] = 32;
-  return writePixel(b, bytes, words, pos, y);
+  pos = writePixel(b, bytes, words, pos, command, x);
+  return writePixel(b, bytes, words, pos, 32, y);
 }
 
 export function pathData(xy: Float32Array): string {
   const len = xy.length - 1;
   if (len <= 0) return '';
-  let b = ensureBuf((xy.length >> 1) * XY_ESTIMATE);
+  const estimate = (xy.length >> 1) * XY_ESTIMATE;
+  // Long zoom paths can span several buffers. Carry the pen across chunks and reuse the
+  // same 16 KiB of scratch, leaving shorter paths to a single decode.
+  const chunked = estimate > 4 * MAX_RETAINED_BUF;
+  let b = ensureBuf(chunked ? MAX_RETAINED_BUF : estimate);
+  let prefix = '';
   let pos = 0;
   const words = decimalWords ??= decimalTable();
-  let bytes = new DataView(b.buffer);
+  let bytes = viewOf(b);
   let pen = false;
   for (let i = 0; i < len; i += 2) {
     const x = xy[i]!, y = xy[i + 1]!;
     if (lifted(x) || lifted(y)) { pen = false; continue; }
     if (pos + XY_BYTES > b.length) {
-      b = growBuf(pos, pos + XY_BYTES);
-      bytes = new DataView(b.buffer);
+      if (chunked) {
+        prefix += (pathDecoder ??= new TextDecoder()).decode(b.subarray(0, pos));
+        pos = 0;
+      } else {
+        b = growBuf(pos, pos + XY_BYTES);
+        bytes = viewOf(b);
+      }
     }
     pos = writePixelPair(b, bytes, words, pos, pen ? 76 : 77, x, y);
     pen = true;
   }
-  return decodeBuf(pos);
+  return prefix + decodeBuf(pos);
 }
 
 export function areaData(mark: AreaMark): string {
@@ -302,7 +319,7 @@ export function areaData(mark: AreaMark): string {
   }
   if (maxVerts === 0) return '';
   let b = ensureBuf(maxVerts * XY_ESTIMATE + (runs.length >> 2));
-  let bytes = new DataView(b.buffer);
+  let bytes = viewOf(b);
   const words = decimalWords ??= decimalTable();
   let pos = 0, runStart = 0;
   const emit = (arr: Float32Array, from: number, to: number, step: number) => {
@@ -311,7 +328,7 @@ export function areaData(mark: AreaMark): string {
       if (lifted(x) || lifted(y)) continue;
       if (pos + XY_BYTES + 1 > b.length) {
         b = growBuf(pos, pos + XY_BYTES + 1);
-        bytes = new DataView(b.buffer);
+        bytes = viewOf(b);
       }
       pos = writePixelPair(b, bytes, words, pos, pos > runStart ? 76 : 77, x, y);
     }
@@ -388,7 +405,7 @@ function denseCircles(xy: Float32Array, radius: number): string | null {
   // Four signed coordinates of up to eight bytes, three command/separator bytes and the arcs.
   // A word store may extend past the last byte. Each following write starts at the true length.
   const b = ensureBuf((xy.length >> 1) * (35 + arcLength + backLength) + 7);
-  const view = new DataView(b.buffer);
+  const view = viewOf(b);
   const { bytes, lengths } = tenthsTable ??= packedTenths();
   const write = (at: number, value: number): number => {
     const magnitude = Math.abs(value);
@@ -549,10 +566,68 @@ export type SvgMark<M extends Mark = Mark> = (c: SvgContext, n: SvgNode, mark: M
 /** A handler per mark type the scenes of a chart kind can produce; a mark with no handler is not drawn. */
 export type SvgMarks = { readonly [K in Mark['type']]?: SvgMark<Extract<Mark, { type: K }>> };
 
+interface SlidingPath {
+  readonly bytes: Uint8Array;
+  readonly view: DataView;
+  readonly lengths: Uint8Array;
+  head: number;
+}
+
+// At this magnitude even the sign, delimiter and two-place fraction fit in eight ASCII bytes.
+function fitsPixelWord(value: number): boolean {
+  return value > -1000 && value < 10000;
+}
+
+function cachePixel(cache: SlidingPath, index: number, prefix: number, value: number): void {
+  const start = index * 8;
+  cache.lengths[index] = writePixel(cache.bytes, cache.view, decimalWords ??= decimalTable(), start, prefix, value) - start;
+}
+
+function slidingPath(source: unknown[], xy: Float32Array): string | null {
+  const previous = source[0] as Float32Array | undefined;
+  const length = xy.length;
+  if (!previous || previous.length !== length || length < 128 || length * 9 > MAX_RETAINED_BUF || length % 2) return null;
+  let cache = source[1] as SlidingPath | undefined;
+  if (!fitsPixelWord(xy[length - 1]!)) return null;
+  // A fixed-width, regular stream can revisit the exact same x pixels with its y column shifted one slot.
+  // Verify every coordinate, so gaps, zooms, irregular samples and domain changes take the ordinary path.
+  for (let i = 0; i < length; i += 2) {
+    const x = xy[i]!, y = xy[i + 1]!;
+    if (x !== previous[i] || (i + 2 < length && y !== previous[i + 3])) return null;
+    if (!cache && !(fitsPixelWord(x) && fitsPixelWord(y))) return null;
+  }
+  if (!cache) {
+    const bytes = new Uint8Array(8 * length);
+    cache = { bytes, view: new DataView(bytes.buffer), lengths: new Uint8Array(length), head: 1 };
+    for (let i = 0; i < length; i += 2) {
+      cachePixel(cache, i, i ? 76 : 77, xy[i]!);
+      cachePixel(cache, i + 1, 32, xy[i + 1]!);
+    }
+    source[1] = cache;
+  } else {
+    cachePixel(cache, cache.head, 32, xy[length - 1]!);
+    cache.head = cache.head + 2 >= length ? 1 : cache.head + 2;
+  }
+  const out = viewOf(ensureBuf(8 * length));
+  const { lengths, view } = cache;
+  let pos = 0, y = cache.head;
+  for (let x = 0; x < length; x += 2) {
+    out.setFloat64(pos, view.getFloat64(x * 8, true), true);
+    pos += lengths[x]!;
+    out.setFloat64(pos, view.getFloat64(y * 8, true), true);
+    pos += lengths[y]!;
+    y = y + 2 >= length ? 1 : y + 2;
+  }
+  return decodeBuf(pos);
+}
+
 export const svgPath: SvgMark<PathMark> = (_c, n, mark, bindings) => {
-  if (n.source?.[0] !== mark.xy) {
-    attrStr(n, 'd', pathData(mark.xy));
-    (n.source ??= [])[0] = mark.xy;
+  const source = n.source ??= [];
+  if (source[0] !== mark.xy) {
+    const sliding = slidingPath(source, mark.xy);
+    if (sliding === null) source[1] = undefined;
+    attrStr(n, 'd', sliding ?? pathData(mark.xy));
+    source[0] = mark.xy;
   }
   paint(n, 'stroke', paintOf(mark.stroke, bindings));
   attr(n, 'stroke-width', mark.strokeWidth);
@@ -688,22 +763,26 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
   const batchRules = marks.rule === svgRule;
   let width = -1, height = -1;
 
-  function syncSlot(parent: SVGElement, list: SvgNode[], i: number, key: string, clipUrl: string | null): SvgNode {
-    let n = list[i];
-    if (n === undefined || n.key !== key) {
-      const fresh = node(doc, TAGS[key]!, key);
-      if (n === undefined) parent.appendChild(fresh.el);
-      else parent.replaceChild(fresh.el, n.el);
-      list[i] = n = fresh;
-    }
+  function slotAt(list: SvgNode[], i: number, key: string, clipUrl: string | null): SvgNode {
+    const old = list[i];
+    const n = old?.key === key ? old : node(doc, TAGS[key]!, key);
     attr(n, 'clip-path', clipUrl);
     return n;
   }
 
+  function mountSlot(parent: SVGElement, list: SvgNode[], i: number, n: SvgNode): void {
+    const old = list[i];
+    if (old === n) return;
+    if (old) parent.replaceChild(n.el, old.el);
+    else parent.appendChild(n.el);
+    list[i] = n;
+  }
+
   function sync(parent: SVGElement, list: SvgNode[], i: number, mark: Mark, bindings: PaintBindings, dpr: number, clipUrl: string | null, clip: Rect | null): void {
     const key = mark.type === 'rects' ? (mark.variant === 'bar' ? 'bars' : 'missing') : mark.type;
-    const n = syncSlot(parent, list, i, key, clipUrl);
+    const n = slotAt(list, i, key, clipUrl);
     (marks[mark.type] as SvgMark | undefined)?.(context, n, mark, bindings, dpr, clip);
+    mountSlot(parent, list, i, n);
   }
 
   function trim(list: SvgNode[], count: number): void {
@@ -733,7 +812,9 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
           const color = paintOf(mark.stroke, bindings);
           const end = ruleRunEnd(scene.marks, i, mark, bindings, color, dpr, context.scratch);
           if (end > i + 1) {
-            updateRules(syncSlot(sceneGroup, slots, slot++, 'rules', clipUrl), scene.marks, i, end, mark, color, dpr, context.scratch);
+            const n = slotAt(slots, slot, 'rules', clipUrl);
+            updateRules(n, scene.marks, i, end, mark, color, dpr, context.scratch);
+            mountSlot(sceneGroup, slots, slot++, n);
             i = end;
             continue;
           }
@@ -785,6 +866,13 @@ function setRect(rect: SvgNode, r: Rect, round = unrounded): void {
   attr(rect, 'height', round(Math.max(0, r.height)));
 }
 
+function setBox(rect: SVGRectElement, x: string, y: string, w: string, h: string, fresh: boolean): void {
+  if (fresh || rect.getAttribute('x') !== x) rect.setAttribute('x', x);
+  if (fresh || rect.getAttribute('y') !== y) rect.setAttribute('y', y);
+  if (fresh || rect.getAttribute('width') !== w) rect.setAttribute('width', w);
+  if (fresh || rect.getAttribute('height') !== h) rect.setAttribute('height', h);
+}
+
 function updateBars(doc: Document, g: SvgNode, mark: RectMark, bindings: PaintBindings, pattern: string | null): void {
   // The group carries the color; each <rect> is painted on its own so overlaps composite.
   // With a pattern, every rectangle is repeated once more, filled with the pattern, after all the fills.
@@ -797,19 +885,13 @@ function updateBars(doc: Document, g: SvgNode, mark: RectMark, bindings: PaintBi
   const rects = g.rects ??= [], oldTotal = rects.length;
   const oldOverlayStart = oldPattern == null ? oldTotal : oldTotal / 2;
   while (rects.length > total) rects.pop()!.remove();
-  const freshRects = total > oldTotal + 1 ? doc.createDocumentFragment() : null;
+  // A new group is still detached. Only an already-mounted group needs a fragment for batch insertion.
+  const freshRects = total > oldTotal + 1 && g.el.parentNode ? doc.createDocumentFragment() : null;
   while (rects.length < total) {
     const rect = svgElement(doc, 'rect');
     (freshRects ?? g.el).appendChild(rect);
     rects.push(rect);
   }
-  g.source = [q, pattern, color];
-  const setBox = (rect: SVGRectElement, x: string, y: string, w: string, h: string, fresh: boolean) => {
-    if (fresh || rect.getAttribute('x') !== x) rect.setAttribute('x', x);
-    if (fresh || rect.getAttribute('y') !== y) rect.setAttribute('y', y);
-    if (fresh || rect.getAttribute('width') !== w) rect.setAttribute('width', w);
-    if (fresh || rect.getAttribute('height') !== h) rect.setAttribute('height', h);
-  };
   const oldBoxes = prev?.[0] as Float32Array | undefined;
   for (let k = 0; k < count; k++) {
     const x = q[4 * k]!, y = q[4 * k + 1]!, w = q[4 * k + 2]!, h = q[4 * k + 3]!;
@@ -835,6 +917,10 @@ function updateBars(doc: Document, g: SvgNode, mark: RectMark, bindings: PaintBi
     }
   }
   if (freshRects) g.el.appendChild(freshRects);
+  const source = g.source ??= [];
+  source[0] = q;
+  source[1] = pattern;
+  source[2] = color;
 }
 
 function updateArcs(doc: Document, g: SvgNode, mark: ArcMark, bindings: PaintBindings, s: Float64Array): void {
