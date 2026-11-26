@@ -435,7 +435,8 @@
     "testFiles": [
       "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
       "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
-      "packages/axylo/test/browser/chart/interaction.browser.test.ts"
+      "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+      "packages/axylo/test/browser/chart/c3-journeys.browser.test.ts"
     ],
     "screenshots": [
       "line",
@@ -516,7 +517,8 @@
       "packages/axylo/test/core/focus2.test.ts",
       "packages/axylo/test/dom/finition-figure-focus.test.ts",
       "packages/axylo/test/browser/chart/histogram.browser.test.ts",
-      "packages/axylo/test/browser/chart/split-seams.browser.test.ts"
+      "packages/axylo/test/browser/chart/split-seams.browser.test.ts",
+      "packages/axylo/test/browser/chart/c3-journeys.browser.test.ts"
     ],
     "screenshots": [
       "accessibility"
@@ -604,7 +606,9 @@
       "packages/axylo/test/reader/index.test.ts",
       "packages/axylo/test/acceptance/reader-model.test.ts",
       "packages/axylo/test/browser/chart/histogram.browser.test.ts",
-      "packages/axylo/test/browser/chart/split-seams.browser.test.ts"
+      "packages/axylo/test/browser/chart/split-seams.browser.test.ts",
+      "packages/axylo/test/core/c3-a11y-touch.test.ts",
+      "packages/axylo/test/browser/chart/c3-journeys.browser.test.ts"
     ],
     "screenshots": [
       "accessibility",
