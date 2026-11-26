@@ -529,7 +529,7 @@ class AlignedData {
 
   get chartType(): AlignedChartType { return this.#type; }
 
-  reencode(fields: Fields, rows: StreamRows): AlignedData {
+  rebuildData(fields: Fields, rows: StreamRows): AlignedData {
     return new AlignedData(this.#type, this.#environment, fields, namedFields(fields), rows);
   }
 
@@ -1186,7 +1186,7 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     checkVersion(base, version);
     const input = replacement?.table ?? rows.table();
     const { table, ...fields } = retargetOptions(options, input, call, replacement?.valid);
-    const draft = this.#data.reencode(fields, rows);
+    const draft = this.#data.rebuildData(fields, rows);
     draft.init(table, version);
     forwardDiagnostics(draft.latest, call);
     draft.latest = call.inputs();

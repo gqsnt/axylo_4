@@ -73,10 +73,14 @@ async function main() {
       build: () => consumer({ cwd: npm, contents: fs.readFileSync(path.join(npm, 'example/npm.ts'), 'utf8') }), cssFile: false,
     },
     { entry: 'everything (export * from axylo)', targetKiB: SIZE_TARGETS['everything (export * from axylo)'], build: () => consumer({ cwd: npm, contents: "export * from 'axylo';" }), cssFile: false },
-    ...['area', 'bar', 'scatter', 'donut', 'validate'].map(name => ({
+    ...['area', 'bar', 'histogram', 'scatter', 'donut', 'validate'].map(name => ({
       entry: `${name} only (export { ${name} } from axylo)`, targetKiB: null, cssFile: false,
       build: () => consumer({ cwd: npm, contents: `export { ${name} } from 'axylo';` }),
     })),
+    {
+      entry: "bare import (import 'axylo')", targetKiB: null, cssFile: false,
+      build: () => consumer({ cwd: npm, contents: "import 'axylo';" }),
+    },
     { entry: 'script tag (axylo.iife.min.js + axylo.css)', targetKiB: null, build: async () => ({ bytes: axyloFile('axylo.iife.min.js') }), cssFile: true },
   ];
 

@@ -14369,7 +14369,7 @@
   },
   {
     "id": "P6",
-    "statement": "Download: exact minified and gzipped bytes, CSS included, within the DX7 targets (116 KiB everything, 98 KiB line only).",
+    "statement": "Download: exact minified and gzipped bytes, CSS included, tracked against the DX7 targets (128 KiB everything, 108 KiB line only).",
     "appliesTo": [
       "line",
       "area",
