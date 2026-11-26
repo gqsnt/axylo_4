@@ -31,7 +31,7 @@ export interface ThemeResolution {
 }
 
 const STANDARD_TOKENS = ['axis', 'grid', 'reference', 'muted', 'focus'] as const;
-const TOKENS = [...STANDARD_TOKENS, 'text'] as const;
+const TOKENS = ['axis', 'grid', 'reference', 'muted', 'focus', 'text'] as const;
 
 /**
  * CSS expressions for the token paints. Each public name (which an author may set anywhere, including
@@ -126,14 +126,19 @@ interface StandardResult {
   readonly resolution: ThemeResolution;
 }
 
+const MEDIA_FORCED = '(forced-colors: active)';
+const MEDIA_CONTRAST = '(prefers-contrast: more)';
+const MEDIA_DARK = '(prefers-color-scheme: dark)';
+const media = (win: Window, query: string) => win.matchMedia(query).matches;
+
 /** `media`: the live media state when the window's theme watchers already hold it (no new queries). */
 export function createThemeBatch(
-  win: Window, media?: { readonly forcedColors: boolean; readonly moreContrast: boolean; readonly prefersDark: boolean } | null,
+  win: Window, cached?: { readonly forcedColors: boolean; readonly moreContrast: boolean; readonly prefersDark: boolean } | null,
 ): ThemeBatch {
   return {
-    forcedColors: media ? media.forcedColors : win.matchMedia('(forced-colors: active)').matches,
-    moreContrast: media ? media.moreContrast : win.matchMedia('(prefers-contrast: more)').matches,
-    prefersDark: media ? media.prefersDark : win.matchMedia('(prefers-color-scheme: dark)').matches,
+    forcedColors: cached ? cached.forcedColors : media(win, MEDIA_FORCED),
+    moreContrast: cached ? cached.moreContrast : media(win, MEDIA_CONTRAST),
+    prefersDark: cached ? cached.prefersDark : media(win, MEDIA_DARK),
     backdrops: new WeakMap(),
     ancestorLayers: new WeakMap(),
     canvas: new Map(),
@@ -165,7 +170,7 @@ function bindingsFor(count: number): PaintBindings {
 const NO_INVALID: readonly string[] = [];
 
 function canvasKey(win: Window, scheme: string, batch?: ThemeBatch | null): string {
-  const dark = batch?.prefersDark ?? win.matchMedia('(prefers-color-scheme: dark)').matches;
+  const dark = batch?.prefersDark ?? media(win, MEDIA_DARK);
   return `${scheme}|${dark ? '1' : '0'}`;
 }
 
@@ -271,8 +276,8 @@ export function prepareTheme(
   const doc = element.ownerDocument;
   const win = doc.defaultView;
   const connected = win !== null && element.isConnected;
-  const forcedColors = connected && (batch ? batch.forcedColors : win.matchMedia('(forced-colors: active)').matches);
-  const moreContrast = connected && (batch ? batch.moreContrast : win.matchMedia('(prefers-contrast: more)').matches);
+  const forcedColors = connected && (batch ? batch.forcedColors : media(win, MEDIA_FORCED));
+  const moreContrast = connected && (batch ? batch.moreContrast : media(win, MEDIA_CONTRAST));
   let authored: (string | null)[] | null = null;
   if (colors) {
     for (let i = 0; i < seriesKeys.length; i++) {
@@ -485,11 +490,10 @@ function standardResolution(p: PreparedTheme): ThemeResolution | null {
     if (shared.bindings === p.bindings && p.invalid.length === 0 && shared.invalidColors!.length === 0) return shared;
     return { bindings: p.bindings, resolved: p.on, backdropKnown: p.known, invalidColors: p.invalid, theme: last.theme };
   }
-  const paints = { background: p.bg } as Record<PaintToken, string>;
+  const paints = { background: p.bg, text } as Record<PaintToken, string>;
   for (let t = 0; t < tokens.length; t++) paints[tokens[t]!.name] = paletteRgb(tokens[t]!.values[palette]);
   const series = new Array<string>(count);
   for (let i = 0; i < count; i++) series[i] = paletteRgb(defaults.series[i % SERIES_COUNT]![palette]);
-  paints.text = text;
   const resolution = themeResolution(p, paints, series);
   if (shareable) {
     batch.last = {

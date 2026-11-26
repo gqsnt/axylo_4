@@ -372,10 +372,10 @@ function select(slot: Uint8Array | null, range: IndexRange, limit: number, colum
       const { x, ratio } = columns;
       const start = x[first]!, end = x[last]!;
       if (!exact || hasMonotoneColumns(exact, start, end)) {
-        const firstPixel = (exact
-          ? exact.origin + (start - exact.start) / exact.span * exact.extent : affine.slope * start + affine.offset) * ratio;
-        const lastPixel = (exact
-          ? exact.origin + (end - exact.start) / exact.span * exact.extent : affine.slope * end + affine.offset) * ratio;
+        const px = (v: number) => (exact
+          ? exact.origin + (v - exact.start) / exact.span * exact.extent : affine.slope * v + affine.offset) * ratio;
+        const firstPixel = px(start);
+        const lastPixel = px(end);
         const capacity = 4 * (Math.abs(Math.floor(lastPixel) - Math.floor(firstPixel)) + 1);
         if (capacity <= runLength) {
           // A single dense run can reserve for its actual projected span, including offscreen endpoints.
@@ -606,12 +606,13 @@ export function simplifyArea(input: AreaInput): SimplifiedArea {
   let lowerSel: JoinedRuns = upperSel;
   let lowerXY: Float32Array;
   let baseline = 0;
+  const base = () => source.affineY ? affinePosition(source.affineY, 0) : yMapper(source.mapY)(0);
   if (flatDense) {
     lowerXY = new Float32Array(runs.length);
-    baseline = source.affineY ? affinePosition(source.affineY, 0) : yMapper(source.mapY)(0);
+    baseline = base();
   } else if (lower === 0) {
     lowerXY = new Float32Array(upperBoundary.xy.length);
-    if (lowerXY.length) baseline = source.affineY ? affinePosition(source.affineY, 0) : yMapper(source.mapY)(0);
+    if (lowerXY.length) baseline = base();
     for (let i = 0; i < lowerXY.length; i += 2) {
       lowerXY[i] = upperBoundary.xy[i]!;
       lowerXY[i + 1] = baseline;

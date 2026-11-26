@@ -95,9 +95,11 @@ export function seriesNotDrawnSentence(messages: Messages, series: string, table
   return textOf(tableSentence(messages, 'seriesNotDrawn', { series }, table));
 }
 
-function appendSentence(runs: TextRun[], sentence: readonly TextRun[]): void {
+function appendSentence(runs: TextRun[] | null, sentence: TextRun[]): TextRun[] {
+  if (!runs) return sentence;
   if (runs.length && sentence.length) addRun(runs, ' ', runs.at(-1)!.lang);
   for (const { text, lang } of sentence) addRun(runs, text, lang);
+  return runs;
 }
 
 type ChartText = (input: ReaderInput, type: string, xLabel: string, yLabel: string, table: boolean, listReady?: boolean) => string[];
@@ -111,6 +113,10 @@ let listFormats: Map<string | undefined, ListFormatEntry> | undefined;
 
 function englishList(locale: string | undefined): boolean {
   return locale === 'en';
+}
+
+function listReadyFor(locale: string | undefined): boolean {
+  return englishList(locale) || listFormats?.has(locale) === true;
 }
 
 /** Names joined as a list in the chart's locale ("Visits and Signups"). */
@@ -167,7 +173,7 @@ function seriesNames(frame: AlignedFrame, locale: string | undefined, formatters
   const { series } = frame;
   if (series.length === 1) return series[0]!.drawable ? series[0]!.label : '';
   const cached = nameLists?.get(formatters);
-  if (cached && cached.locale === locale && (englishList(locale) || listFormats?.has(locale))) {
+  if (cached && cached.locale === locale && listReadyFor(locale)) {
     let i = 0;
     for (const entry of series) {
       if (entry.drawable && cached.labels[i++] !== entry.label) { i = -1; break; }
@@ -177,7 +183,7 @@ function seriesNames(frame: AlignedFrame, locale: string | undefined, formatters
   const names: string[] = [];
   for (const entry of series) if (entry.drawable) names.push(entry.label);
   const text = listOf(names, locale);
-  if (englishList(locale) || listFormats?.has(locale)) (nameLists ??= new WeakMap()).set(formatters, { locale, labels: names, text });
+  if (listReadyFor(locale)) (nameLists ??= new WeakMap()).set(formatters, { locale, labels: names, text });
   return text;
 }
 
@@ -426,16 +432,20 @@ interface SummaryDraft {
 }
 
 class Reader implements BuiltReader {
+  #reading: SummaryDraft | string;
+
   constructor(
     readonly name: string,
     readonly note: string | null,
     readonly table: TableModel | null,
     readonly noteSegments: readonly TextRun[] | null,
-    private reading: SummaryDraft | string,
-  ) {}
+    reading: SummaryDraft | string,
+  ) {
+    this.#reading = reading;
+  }
 
   get summary(): string {
-    const draft = this.reading;
+    const draft = this.#reading;
     if (typeof draft === 'string') return draft;
     const { input, type, xLabel, yLabel, listReady, compact, hasReferences, references, omission } = draft;
     const { view, formatters, messages, subtitle, description } = input;
@@ -448,7 +458,7 @@ class Reader implements BuiltReader {
     text = addSentence(text, subtitle);
     text = addSentence(text, omission);
     // The finished summary no longer needs the input, reference sentences, or formatter context.
-    return this.reading = addSentence(text, description);
+    return this.#reading = addSentence(text, description);
   }
 }
 
@@ -462,18 +472,22 @@ interface TableSource {
 }
 
 class DeferredTable implements TableModel {
-  constructor(readonly caption: string, readonly rowCount: number, private source: TableSource | TableModel) {}
+  #source: TableSource | TableModel;
 
-  private get model(): TableModel {
-    const source = this.source;
-    if (!('build' in source)) return source;
-    return this.source = source.build(source.view, this.caption, source.formatters, source.messages, source.labels, source.locale);
+  constructor(readonly caption: string, readonly rowCount: number, source: TableSource | TableModel) {
+    this.#source = source;
   }
 
-  get headers(): readonly string[] { return this.model.headers; }
-  get pageSize(): number { return this.model.pageSize; }
-  row(i: number): readonly string[] | null { return this.model.row(i); }
-  pageForX(x: XValue): number | null { return this.model.pageForX(x); }
+  static #model(table: DeferredTable): TableModel {
+    const source = table.#source;
+    if (!('build' in source)) return source;
+    return table.#source = source.build(source.view, table.caption, source.formatters, source.messages, source.labels, source.locale);
+  }
+
+  get headers(): readonly string[] { return DeferredTable.#model(this).headers; }
+  get pageSize(): number { return DeferredTable.#model(this).pageSize; }
+  row(i: number): readonly string[] | null { return DeferredTable.#model(this).row(i); }
+  pageForX(x: XValue): number | null { return DeferredTable.#model(this).pageForX(x); }
 }
 
 function makeTable(parts: ReaderParts, input: ReaderInput, caption: string, labels: ReaderLabels): TableModel {
@@ -500,7 +514,7 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
   const yLabel = view.kind === 'donut' ? view.frame.valueLabel
     : view.kind === 'scatter' ? view.frame.yLabel
     : view.frame.yLabel || seriesNames(view.frame, input.locale, formatters) || value;
-  const listReady = englishList(input.locale) || listFormats?.has(input.locale) === true;
+  const listReady = listReadyFor(input.locale);
   const titleText = typeof title === 'string' ? title : title?.text;
   if (!labelledBy && !titleText && input.diagnostics) report(input.diagnostics, 'AX140', 'none');
   let generated: string | undefined;
@@ -535,17 +549,13 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
     if (omitted > 0) noteSegments = tableSentence(messages, 'valuesNotShown', counts, hasTable);
     if (changed > 0) {
       counts.count = changedText;
-      const sentence = tableSentence(messages, 'valuesChanged', counts, hasTable);
-      if (noteSegments) appendSentence(noteSegments, sentence);
-      else noteSegments = sentence;
+      noteSegments = appendSentence(noteSegments, tableSentence(messages, 'valuesChanged', counts, hasTable));
     }
     omission = textOf(noteSegments!);
   }
   let note = omission || null;
   if (hidden > 0) {
-    const sentence = tableSentence(messages, 'labelsHidden', { count: formatters.count(hidden) }, hasTable);
-    if (noteSegments) appendSentence(noteSegments, sentence);
-    else noteSegments = sentence;
+    noteSegments = appendSentence(noteSegments, tableSentence(messages, 'labelsHidden', { count: formatters.count(hidden) }, hasTable));
     note = textOf(noteSegments) || null;
   }
   return new Reader(name, note, table, note ? noteSegments : null, {

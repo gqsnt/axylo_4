@@ -148,7 +148,7 @@ export class FrameBuffers {
   get hasCompetingWrites(): boolean { return this.#range.hasCompetingWrites; }
 
   /** Whether slot `index` holds an observed x (not only an expected step that no series had). */
-  observed(index: number): boolean {
+  #observed(index: number): boolean {
     return this.observedFlags ? this.observedFlags[index] === 1 : index >= this.start && index < this.end;
   }
 
@@ -263,7 +263,7 @@ export class FrameBuffers {
 
   trim(first: number, evict: (x: number, observed: boolean) => void): void {
     while (this.start < first) {
-      const observed = this.observed(this.start);
+      const observed = this.#observed(this.start);
       if (observed) this.distinct--;
       evict(this.x[this.start]!, observed);
       this.#range.start++;
@@ -297,13 +297,13 @@ export class FrameBuffers {
     for (const buffer of this.#series.values()) {
       // The frame's null row means "slot i came from row i", which holds only while nothing has shifted.
       if (!buffer.row && start + this.#rowShift !== 0 && end > start) this.#materializeRows(buffer);
-      const { key, label, field, unit, valueScale, drawable } = buffer.description;
+      const { key } = buffer.description;
       if (start !== end && open?.(key)) {
         series.push(this.#openSeries(buffer, start, end));
       } else {
         const owned = buffer.y, y = owned.subarray(start, end), row = buffer.row?.subarray(start, end) ?? null;
-        series.push(buffer.slot ? { key, label, field, unit, valueScale, drawable, y, slot: buffer.slot.subarray(start, end), row }
-          : denseSeries({ key, label, field, unit, valueScale, drawable, y, row }, end - start,
+        series.push(buffer.slot ? { ...buffer.description, y, slot: buffer.slot.subarray(start, end), row }
+          : denseSeries({ ...buffer.description, y, row }, end - start,
             () => sharedStates(owned).subarray(start, end)));
       }
     }

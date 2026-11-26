@@ -57,16 +57,16 @@ function addSamples(target: Set<string>, samples: Iterable<string>): void {
 }
 
 export class StreamDiagnostics extends DiagnosticCollector implements DiagnosticTrace {
-  private readonly occurrences = new Map<string, Occurrences>();
-  private readonly sparse = new Map<string, DiagnosticInput>();
+  readonly #occurrences = new Map<string, Occurrences>();
+  readonly #sparse = new Map<string, DiagnosticInput>();
 
   fork(): StreamDiagnostics {
     const draft = new StreamDiagnostics();
-    for (const [key, occurrence] of this.occurrences) {
-      draft.occurrences.set(key, { ...occurrence, coordinates: occurrence.coordinates.fork() });
+    for (const [key, occurrence] of this.#occurrences) {
+      draft.#occurrences.set(key, { ...occurrence, coordinates: occurrence.coordinates.fork() });
     }
     for (const [key, diagnostic] of this.entries) draft.entries.set(key, diagnostic);
-    for (const [key, diagnostic] of this.sparse) draft.sparse.set(key, diagnostic);
+    for (const [key, diagnostic] of this.#sparse) draft.#sparse.set(key, diagnostic);
     return draft;
   }
 
@@ -77,13 +77,13 @@ export class StreamDiagnostics extends DiagnosticCollector implements Diagnostic
   }
 
   commit(): void {
-    for (const occurrence of this.occurrences.values()) occurrence.coordinates.commit();
+    for (const occurrence of this.#occurrences.values()) occurrence.coordinates.commit();
   }
 
-  private trace(key: string, coordinate: number, gaps: boolean, amount: number,
+  #trace(key: string, coordinate: number, gaps: boolean, amount: number,
     examples: Iterable<string>, series: Iterable<string>, axis?: XColumn): void {
-    let entry = this.occurrences.get(key);
-    if (!entry) this.occurrences.set(key, entry = { coordinates: new StoreMap(), count: 0, gaps, axis });
+    let entry = this.#occurrences.get(key);
+    if (!entry) this.#occurrences.set(key, entry = { coordinates: new StoreMap(), count: 0, gaps, axis });
     const previous = entry.coordinates.get(coordinate);
     const sample = { count: previous?.count ?? 0, examples: new Set(previous?.examples), series: new Set(previous?.series) };
     entry.coordinates.set(coordinate, sample);
@@ -94,28 +94,28 @@ export class StreamDiagnostics extends DiagnosticCollector implements Diagnostic
   }
 
   traceRow(code: DiagnosticCode, field: string, effect: DiagnosticEffect, row: number, amount = 1, example?: string, series?: string): void {
-    this.trace(keyOf(code, field, effect), row, false, amount, example === undefined ? [] : [example], series === undefined ? [] : [series]);
+    this.#trace(keyOf(code, field, effect), row, false, amount, example === undefined ? [] : [example], series === undefined ? [] : [series]);
   }
 
   traceGaps(field: string, effect: DiagnosticEffect, positions: Float64Array, details?: DiagnosticDetails, axis?: XColumn): void {
     const key = keyOf('AX105', field, effect);
-    for (const position of positions) this.trace(key, position, true, 1, [], details?.series ?? [], axis);
+    for (const position of positions) this.#trace(key, position, true, 1, [], details?.series ?? [], axis);
   }
 
   traceSparseGaps(details: DiagnosticDetails, seriesKey?: string): void {
-    this.sparse.set(seriesKey ?? details.sparseSeries?.[0] ?? '', createDiagnostic('AX105', 'none', details));
+    this.#sparse.set(seriesKey ?? details.sparseSeries?.[0] ?? '', createDiagnostic('AX105', 'none', details));
   }
 
   merge(batch: StreamDiagnostics): void {
-    for (const [name, diagnostic] of batch.sparse) this.sparse.set(name, diagnostic);
+    for (const [name, diagnostic] of batch.#sparse) this.#sparse.set(name, diagnostic);
     for (const diagnostic of batch.entries.values()) this.add(diagnostic);
-    for (const [key, { coordinates, gaps, axis }] of batch.occurrences) {
-      for (const [coordinate, sample] of coordinates) this.trace(key, coordinate, gaps, sample.count, sample.examples, sample.series, axis);
+    for (const [key, { coordinates, gaps, axis }] of batch.#occurrences) {
+      for (const [coordinate, sample] of coordinates) this.#trace(key, coordinate, gaps, sample.count, sample.examples, sample.series, axis);
     }
   }
 
   evict(coordinate: number, gaps: boolean): void {
-    for (const [key, occurrence] of this.occurrences) {
+    for (const [key, occurrence] of this.#occurrences) {
       if (occurrence.gaps !== gaps) continue;
       const sample = occurrence.coordinates.get(coordinate);
       if (!sample) continue;
@@ -123,13 +123,13 @@ export class StreamDiagnostics extends DiagnosticCollector implements Diagnostic
       occurrence.coordinates.delete(coordinate);
       if (occurrence.count === 0) {
         this.entries.delete(key);
-        this.occurrences.delete(key);
+        this.#occurrences.delete(key);
       }
     }
   }
 
   evictSeries(key: string): void {
-    this.sparse.delete(key);
+    this.#sparse.delete(key);
   }
 
   override inputs(): readonly DiagnosticInput[] {
@@ -140,7 +140,7 @@ export class StreamDiagnostics extends DiagnosticCollector implements Diagnostic
     const result = new DiagnosticCollector();
     for (const diagnostic of this.entries.values()) {
       const { code, field, effect, origin } = diagnostic;
-      const entry = this.occurrences.get(keyOf(code, field, effect));
+      const entry = this.#occurrences.get(keyOf(code, field, effect));
       if (!entry) {
         result.add(diagnostic);
         continue;
@@ -163,7 +163,7 @@ export class StreamDiagnostics extends DiagnosticCollector implements Diagnostic
         rows: entry.gaps ? undefined : rows, examples: [...examples], series: [...series],
       }, origin));
     }
-    for (const diagnostic of this.sparse.values()) result.add(diagnostic);
+    for (const diagnostic of this.#sparse.values()) result.add(diagnostic);
     return result.inputs();
   }
 }

@@ -272,39 +272,42 @@ function unchangedSlide(labels: Label[], texts: readonly PlacedText[], start: nu
 
 class DomTextLayer implements TextLayer {
   readonly element: HTMLDivElement;
-  private readonly labels: Label[] = [];
-  private tickGroup: HTMLDivElement | null = null;
-  private groupDx = 0;
-  private tickStart = 0;
-  private tickEnd = -1;
-  private spare?: SpareTicks;
-  private previous: readonly PlacedText[] | null = null;
+  readonly #labels: Label[] = [];
+  #tickGroup: HTMLDivElement | null = null;
+  #groupDx = 0;
+  #tickStart = 0;
+  #tickEnd = -1;
+  #spare?: SpareTicks;
+  #previous: readonly PlacedText[] | null = null;
 
-  constructor(private readonly doc: Document) {
+  readonly #doc: Document;
+
+  constructor(doc: Document) {
+    this.#doc = doc;
     this.element = doc.createElement('div');
     this.element.className = 'axylo-text';
     this.element.setAttribute('aria-hidden', 'true');
   }
 
   render(texts: readonly PlacedText[]): void {
-    const { labels, doc, element } = this;
-    if (texts === this.previous) return;
+    const { element } = this, labels = this.#labels, doc = this.#doc;
+    if (texts === this.#previous) return;
     const count = labels.length;
-    if (this.tickGroup && count && count === texts.length) {
-      const dx = unchangedSlide(labels, texts, this.tickStart, this.tickEnd);
+    if (this.#tickGroup && count && count === texts.length) {
+      const dx = unchangedSlide(labels, texts, this.#tickStart, this.#tickEnd);
       if (dx !== null) {
-        if (dx !== this.groupDx) this.tickGroup.style.transform = dx ? `translate(${dx}px,0px)` : '';
-        this.groupDx = dx;
-        this.previous = texts;
+        if (dx !== this.#groupDx) this.#tickGroup.style.transform = dx ? `translate(${dx}px,0px)` : '';
+        this.#groupDx = dx;
+        this.#previous = texts;
         return;
       }
     }
     if (!count) {
-      this.tickEnd = -1;
+      this.#tickEnd = -1;
       if (texts.length) {
         const fresh = doc.createDocumentFragment();
         for (const t of texts) {
-          const label = takeLabel(doc, t.role, this.spare);
+          const label = takeLabel(doc, t.role, this.#spare);
           renderLabel(doc, label, t);
           labels.push(label);
           fresh.appendChild(label.el);
@@ -312,7 +315,7 @@ class DomTextLayer implements TextLayer {
         if (element.firstChild) element.insertBefore(fresh, element.firstChild);
         else element.appendChild(fresh);
       }
-      this.previous = texts;
+      this.#previous = texts;
       return;
     }
 
@@ -324,41 +327,41 @@ class DomTextLayer implements TextLayer {
       if (label.placed === t) continue;
       if (label.role !== t.role || (i + 1 < count || i + 1 < texts.length) &&
           (label.placed?.lines.length === 1 || t.lines.length === 1) && !sameSingleLine(label, t)) {
-        moving = reconcileLabels(doc, labels, texts, i, this.spare ??= {});
+        moving = reconcileLabels(doc, labels, texts, i, this.#spare ??= {});
         reorder = true;
         break;
       }
     }
-    while (labels.length < texts.length) labels.push(takeLabel(doc, texts[labels.length]!.role, this.spare));
-    while (labels.length > texts.length) releaseLabel(labels.pop()!, this.spare ??= {});
+    while (labels.length < texts.length) labels.push(takeLabel(doc, texts[labels.length]!.role, this.#spare));
+    while (labels.length > texts.length) releaseLabel(labels.pop()!, this.#spare ??= {});
 
-    if (reorder || this.tickEnd < 0) {
-      this.tickStart = 0;
-      while (this.tickStart < texts.length && texts[this.tickStart]!.role !== 'tick-x') this.tickStart++;
-      this.tickEnd = this.tickStart;
-      while (this.tickEnd < texts.length && texts[this.tickEnd]!.role === 'tick-x') this.tickEnd++;
+    if (reorder || this.#tickEnd < 0) {
+      this.#tickStart = 0;
+      while (this.#tickStart < texts.length && texts[this.#tickStart]!.role !== 'tick-x') this.#tickStart++;
+      this.#tickEnd = this.#tickStart;
+      while (this.#tickEnd < texts.length && texts[this.#tickEnd]!.role === 'tick-x') this.#tickEnd++;
       // A single wrapper can preserve paint order only for a contiguous run of ticks.
-      for (let i = this.tickEnd; i < texts.length; i++) {
-        if (texts[i]!.role === 'tick-x') { this.tickEnd = this.tickStart; break; }
+      for (let i = this.#tickEnd; i < texts.length; i++) {
+        if (texts[i]!.role === 'tick-x') { this.#tickEnd = this.#tickStart; break; }
       }
     }
-    const groupable = this.tickEnd - this.tickStart >= 2;
-    const slide = groupable ? slideOffset(labels, texts, this.tickStart, this.tickEnd, this.tickGroup ? 1 : 2) : null;
+    const groupable = this.#tickEnd - this.#tickStart >= 2;
+    const slide = groupable ? slideOffset(labels, texts, this.#tickStart, this.#tickEnd, this.#tickGroup ? 1 : 2) : null;
     const dx = round(slide ?? 0);
-    if (!this.tickGroup && dx !== 0) {
-      this.tickGroup = doc.createElement('div');
-      this.tickGroup.className = 'axylo-tick-x-group';
+    if (!this.#tickGroup && dx !== 0) {
+      this.#tickGroup = doc.createElement('div');
+      this.#tickGroup.className = 'axylo-tick-x-group';
       reorder = true;
-    } else if (this.tickGroup && !groupable) {
-      this.tickGroup.remove();
-      this.tickGroup = null;
+    } else if (this.#tickGroup && !groupable) {
+      this.#tickGroup.remove();
+      this.#tickGroup = null;
       reorder = true;
     }
-    if (this.tickGroup && dx !== this.groupDx) this.tickGroup.style.transform = dx ? `translate(${dx}px,0px)` : '';
-    this.groupDx = dx;
+    if (this.#tickGroup && dx !== this.#groupDx) this.#tickGroup.style.transform = dx ? `translate(${dx}px,0px)` : '';
+    this.#groupDx = dx;
     for (let i = 0; i < texts.length; i++) {
       const label = labels[i]!, t = texts[i]!;
-      if (this.tickGroup && i >= this.tickStart && i < this.tickEnd && slide !== null) {
+      if (this.#tickGroup && i >= this.#tickStart && i < this.#tickEnd && slide !== null) {
         // A survivor's existing local position already puts it at its base. Only an entering
         // label needs its position expressed in the group's coordinate system.
         if (label.sliding) label.placed = t;
@@ -371,26 +374,26 @@ class DomTextLayer implements TextLayer {
       let nextTick: ChildNode | null = null;
       for (let i = labels.length - 1; i >= 0; i--) {
         const label = labels[i]!, el = label.el;
-        if (this.tickGroup && i >= this.tickStart && i < this.tickEnd) {
-          if (el.parentNode !== this.tickGroup || moving?.has(label)) placeBefore(this.tickGroup, el, nextTick);
+        if (this.#tickGroup && i >= this.#tickStart && i < this.#tickEnd) {
+          if (el.parentNode !== this.#tickGroup || moving?.has(label)) placeBefore(this.#tickGroup, el, nextTick);
           nextTick = el;
-          if (i !== this.tickStart) continue;
-          placeBefore(element, this.tickGroup, next);
-          next = this.tickGroup;
+          if (i !== this.#tickStart) continue;
+          placeBefore(element, this.#tickGroup, next);
+          next = this.#tickGroup;
         } else {
           if (el.parentNode !== element || moving?.has(label)) placeBefore(element, el, next);
           next = el;
         }
       }
     }
-    this.previous = texts;
+    this.#previous = texts;
   }
 
   destroy(): void {
     this.element.remove();
-    this.labels.length = 0;
-    this.spare = undefined;
-    this.previous = null;
+    this.#labels.length = 0;
+    this.#spare = undefined;
+    this.#previous = null;
   }
 }
 

@@ -1,23 +1,23 @@
 // An inspected preparation can outlive the next one. It owns the spare slots it
 // wrote, so a competing writer must open a new buffer before reusing those indexes.
 export class BufferWindow {
-  private written: { end: number };
+  #written: { end: number };
 
   constructor(public start = 0, public end = 0, written = { end }) {
-    this.written = written;
+    this.#written = written;
   }
 
   fork(): BufferWindow {
-    return new BufferWindow(this.start, this.end, this.written);
+    return new BufferWindow(this.start, this.end, this.#written);
   }
 
-  get hasCompetingWrites(): boolean { return this.end < this.written.end; }
+  get hasCompetingWrites(): boolean { return this.end < this.#written.end; }
 
   reserve(extra: number, capacity: number): number {
     if (this.end + extra > capacity || extra > 0 && this.hasCompetingWrites) {
       return Math.max(16, 2 * (this.end - this.start + extra));
     }
-    this.written.end = Math.max(this.written.end, this.end + extra);
+    this.#written.end = Math.max(this.#written.end, this.end + extra);
     return 0;
   }
 
@@ -35,56 +35,59 @@ export class BufferWindow {
   rebase(extra: number): void {
     this.end -= this.start;
     this.start = 0;
-    this.written = { end: this.end + extra };
+    this.#written = { end: this.end + extra };
   }
 }
 
 export class Labels {
-  private names: string[];
-  private range: BufferWindow;
+  #names: string[];
+  #range: BufferWindow;
 
   constructor(names: readonly string[] = []) {
-    this.names = [...names];
-    this.range = new BufferWindow(0, names.length);
+    this.#names = [...names];
+    this.#range = new BufferWindow(0, names.length);
   }
 
-  get length(): number { return this.range.end - this.range.start; }
+  get length(): number { return this.#range.end - this.#range.start; }
 
   at(index: number): string {
-    return this.names[this.range.start + index]!;
+    return this.#names[this.#range.start + index]!;
   }
 
   fork(): Labels {
-    return Object.assign(new Labels(), { names: this.names, range: this.range.fork() });
+    const copy = new Labels();
+    copy.#names = this.#names;
+    copy.#range = this.#range.fork();
+    return copy;
   }
 
   push(name: string): void {
-    if (this.range.reserve(1, Infinity)) this.copy(1);
-    this.names[this.range.end++] = name;
+    if (this.#range.reserve(1, Infinity)) this.#copy(1);
+    this.#names[this.#range.end++] = name;
   }
 
   pop(): string {
     // The cursor can move back, but an inspected category view may still read the slot.
-    return this.names[--this.range.end]!;
+    return this.#names[--this.#range.end]!;
   }
 
   drop(count: number): void {
-    this.range.start += count;
-    if (this.range.compact(this.names.length)) this.copy(0);
+    this.#range.start += count;
+    if (this.#range.compact(this.#names.length)) this.#copy(0);
   }
 
-  private copy(extra: number): void {
-    this.names = this.snapshot();
-    this.range.rebase(extra);
+  #copy(extra: number): void {
+    this.#names = this.snapshot();
+    this.#range.rebase(extra);
   }
 
   snapshot(): string[] {
-    return this.names.slice(this.range.start, this.range.end);
+    return this.#names.slice(this.#range.start, this.#range.end);
   }
 
   view(): readonly string[] {
-    const names = this.names;
-    const { start, end } = this.range;
+    const names = this.#names;
+    const { start, end } = this.#range;
     const length = end - start;
     // An ordinary array snapshot would copy every retained label on every append.
     const indexOf = (key: PropertyKey): number => {
@@ -122,10 +125,17 @@ type NumericArray = Float64Array | Int32Array | Uint8Array;
 
 export class Column<T extends NumericArray> {
   private data: T;
-  private range: BufferWindow;
+  #range: BufferWindow;
+  #allocate: (size: number) => T;
 
-  constructor(private readonly allocate: (size: number) => T, input: T) {
-    this.range = new BufferWindow(0, input.length);
+  constructor(allocate: (size: number) => T, input: T, range?: BufferWindow) {
+    this.#allocate = allocate;
+    if (range) {
+      this.data = input;
+      this.#range = range;
+      return;
+    }
+    this.#range = new BufferWindow(0, input.length);
     // The store opens on the first append to a static chart (spec P7 measures that copy): a large
     // column gets a small tail. Later growth doubles the window.
     this.data = allocate(input.length + Math.max(16, Math.min(Math.ceil(input.length / 8), 4096)));
@@ -133,30 +143,30 @@ export class Column<T extends NumericArray> {
   }
 
   view(): T {
-    return this.data.subarray(this.range.start, this.range.end) as T;
+    return this.data.subarray(this.#range.start, this.#range.end) as T;
   }
 
   fork(): Column<T> {
-    return Object.assign(Object.create(Column.prototype) as Column<T>, this, { range: this.range.fork() });
+    return new Column(this.#allocate, this.data, this.#range.fork());
   }
 
   append(values: T): void {
-    const capacity = this.range.reserve(values.length, this.data.length);
-    if (capacity) this.resize(capacity, values.length);
-    this.data.set(values, this.range.end);
-    this.range.end += values.length;
+    const capacity = this.#range.reserve(values.length, this.data.length);
+    if (capacity) this.#resize(capacity, values.length);
+    this.data.set(values, this.#range.end);
+    this.#range.end += values.length;
   }
 
   drop(count: number): void {
-    this.range.start += count;
-    const capacity = this.range.compact(this.data.length);
-    if (capacity) this.resize(capacity, 0);
+    this.#range.start += count;
+    const capacity = this.#range.compact(this.data.length);
+    if (capacity) this.#resize(capacity, 0);
   }
 
-  private resize(capacity: number, extra: number): void {
-    const next = this.allocate(capacity);
+  #resize(capacity: number, extra: number): void {
+    const next = this.#allocate(capacity);
     next.set(this.view());
     this.data = next;
-    this.range.rebase(extra);
+    this.#range.rebase(extra);
   }
 }

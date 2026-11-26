@@ -288,6 +288,14 @@ function layoutAxes(
   let leftFit = NO_LABELS, bottomFit = NO_LABELS;
   let bottomLineSet = -1, bottomLane = 0;
 
+  const fitKey = (
+    fitter: FitKey['fitter'], side: FitKey['side'], role: FitKey['role'], span: number,
+    room: number, rotatedRoom: number, mayThin: boolean, nativeLinear?: boolean,
+  ): FitKey | null => widths ? {
+    fitter, side, role, span, room, rotatedRoom, mayThin, nativeLinear,
+    widths, measurer: input.measurer, style: input.style,
+  } : null;
+
   for (;;) {
     const plot = { x: left, y: top, width: width - left - INSET, height: height - top - bottom };
     if (plot.width < MIN_WIDTH - 1e-7 || plot.height < MIN_HEIGHT - 1e-7) return tooSmall(size);
@@ -305,10 +313,8 @@ function layoutAxes(
       const room = width - 2 * INSET - MIN_WIDTH - leftTitleSize - TICK_GAP;
       if (leftLabels) leftFit = horizontal
         ? fitLeftCategories(leftCandidates[0] ?? [], xScale, width, height, leftRole, text, room, leftLabels)
-        : rememberedFit(leftLabels, yScale, widths ? {
-          fitter: 'value', side: 'left', role: leftRole, span: height, room, rotatedRoom: room, mayThin: true,
-          nativeLinear: input.scales.linear === linearScale, widths, measurer: input.measurer, style: input.style,
-        } : null, () => fitValue(leftCandidates, yScale, 'left', height, room, leftRole, text, leftLabels, measured));
+        : rememberedFit(leftLabels, yScale, fitKey('value', 'left', leftRole, height, room, room, true, input.scales.linear === linearScale),
+          () => fitValue(leftCandidates, yScale, 'left', height, room, leftRole, text, leftLabels, measured));
     }
     if (left !== lastLeft) {
       const lines = titleLines(bottomAxis.title, plot.width, text);
@@ -327,11 +333,8 @@ function layoutAxes(
           bottomLane = bottomLabels.sets[bottomLineSet]!.length ? TICK_GAP + Math.max(0, text.lineHeight) : 0;
         } else {
           const rotatedRoom = Math.min(room, height * 0.4 - fixed);
-          const key: FitKey | null = widths ? {
-            fitter: horizontal ? 'value' : 'bottom', side: 'bottom', role: bottomRole, span: width, room,
-            rotatedRoom: horizontal ? room : rotatedRoom, mayThin: horizontal || bottomAxis.mayThin,
-            nativeLinear: horizontal && input.scales.linear === linearScale, widths, measurer: input.measurer, style: input.style,
-          } : null;
+          const key = fitKey(horizontal ? 'value' : 'bottom', 'bottom', bottomRole, width, room,
+            horizontal ? room : rotatedRoom, horizontal || bottomAxis.mayThin, horizontal && input.scales.linear === linearScale);
           bottomFit = horizontal
             ? rememberedFit(bottomLabels, yScale, key,
               () => fitValue(bottomCandidates, yScale, 'bottom', width, room, bottomRole, text, bottomLabels, measured))

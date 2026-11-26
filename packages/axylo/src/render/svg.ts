@@ -161,6 +161,11 @@ function paint(n: SvgNode, role: 'fill' | 'stroke', value: string | null): void 
   cssTrusted(n, role, 'currentColor');
 }
 
+function paintFill(n: SvgNode, mark: AreaMark | BandMark, bindings: PaintBindings): void {
+  paint(n, 'fill', paintOf(mark.fill, bindings));
+  css(n, 'fill-opacity', String(mark.opacity));
+}
+
 /** Two decimals: well below a device pixel at any realistic ratio, and keeps `d` short. */
 const f = (v: number): number => Math.round(v * 100) / 100;
 
@@ -703,8 +708,7 @@ export const svgArea: SvgMark<AreaMark> = (_c, n, mark, bindings) => {
     source[1] = mark.lower;
     source[2] = mark.runs;
   }
-  paint(n, 'fill', paintOf(mark.fill, bindings));
-  css(n, 'fill-opacity', String(mark.opacity));
+  paintFill(n, mark, bindings);
 };
 
 export const svgRects: SvgMark<RectMark> = (c, n, mark, bindings, _dpr, clip) => {
@@ -755,8 +759,7 @@ export const svgRule: SvgMark<RuleMark> = (c, n, mark, bindings, dpr) => {
 
 export const svgBand: SvgMark<BandMark> = (_c, n, mark, bindings) => {
   setRect(n, mark.box, f);
-  paint(n, 'fill', paintOf(mark.fill, bindings));
-  css(n, 'fill-opacity', String(mark.opacity));
+  paintFill(n, mark, bindings);
 };
 
 /**
@@ -819,25 +822,26 @@ class SvgRenderer implements MarkRenderer, SvgContext {
   readonly kind = 'svg';
   readonly element: SVGSVGElement;
   readonly defs: SVGElement;
-  private geometryScratch?: Float64Array;
-  get scratch(): Float64Array { return this.geometryScratch ??= new Float64Array(8); }
-  private readonly sceneClip: SvgNode;
-  private readonly sceneClipUrl: string;
-  private readonly sceneGroup: SVGElement;
-  private readonly background: SVGRectElement;
-  private readonly overlayNode: SvgNode;
-  private overlayClip: SvgNode | null = null;
-  private overlayClipUrl: string | null = null;
-  private overlaySlots?: SvgNode[];
-  private readonly slots: SvgNode[] = [];
-  private readonly batchRules: boolean;
-  private sceneBounds: Rect | null = null;
-  private overlayBounds: Rect | null = null;
-  private width = -1;
-  private height = -1;
+  #geometryScratch?: Float64Array;
+  get scratch(): Float64Array { return this.#geometryScratch ??= new Float64Array(8); }
+  readonly #sceneClip: SvgNode;
+  readonly #sceneGroup: SVGElement;
+  readonly #background: SVGRectElement;
+  readonly #overlayNode: SvgNode;
+  #overlayClip: SvgNode | null = null;
+  #overlaySlots?: SvgNode[];
+  readonly #slots: SvgNode[] = [];
+  readonly #batchRules: boolean;
+  #sceneBounds: Rect | null = null;
+  #overlayBounds: Rect | null = null;
+  #width = -1;
+  #height = -1;
 
-  constructor(private readonly marks: SvgMarks, readonly doc: Document) {
-    this.batchRules = marks.rule === svgRule;
+  readonly #marks: SvgMarks;
+
+  constructor(marks: SvgMarks, readonly doc: Document) {
+    this.#marks = marks;
+    this.#batchRules = marks.rule === svgRule;
     const svg = this.element = svgElement(doc, 'svg', { class: 'axylo-svg', 'aria-hidden': 'true', focusable: 'false' });
     const style = svg.style;
     style.setProperty('position', 'absolute');
@@ -849,49 +853,48 @@ class SvgRenderer implements MarkRenderer, SvgContext {
     style.setProperty('forced-color-adjust', 'none');
 
     const defs = this.defs = svgElement(doc, 'defs');
-    const sceneClipId = `axylo-clip-${++ids}`;
-    this.sceneClipUrl = `url(#${sceneClipId})`;
-    this.sceneClip = clipPath(doc, defs, sceneClipId);
+    this.#sceneClip = clipPath(doc, defs);
     // The author's --axylo-background, painted behind everything and live; transparent when unset.
-    const background = this.background = svgElement(doc, 'rect', { class: 'axylo-background', x: '0', y: '0' });
+    const background = this.#background = svgElement(doc, 'rect', { class: 'axylo-background', x: '0', y: '0' });
     background.style.setProperty('stroke', 'none');
     background.style.setProperty('color', 'var(--axylo-background, transparent)');
     background.style.setProperty('fill', 'currentColor');
-    const sceneGroup = this.sceneGroup = svgElement(doc, 'g', { class: 'axylo-scene' });
-    const overlayNode = this.overlayNode = node(doc, 'g', 'overlay', { class: 'axylo-overlay' });
+    const sceneGroup = this.#sceneGroup = svgElement(doc, 'g', { class: 'axylo-scene' });
+    const overlayNode = this.#overlayNode = node(doc, 'g', 'overlay', { class: 'axylo-overlay' });
     const overlayGroup = overlayNode.el;
     svg.append(defs, background, sceneGroup, overlayGroup);
   }
 
-  private sync(parent: SVGElement, list: SvgNode[], i: number, mark: Mark, bindings: PaintBindings, dpr: number, clipUrl: string | null, clip: Rect | null): void {
+  #sync(parent: SVGElement, list: SvgNode[], i: number, mark: Mark, bindings: PaintBindings, dpr: number, clipUrl: string | null, clip: Rect | null): void {
     const key = mark.type === 'rects' ? (mark.variant === 'bar' ? 'bars' : 'missing') : mark.type;
     const n = slotAt(this.doc, list, i, key, clipUrl);
-    (this.marks[mark.type] as SvgMark | undefined)?.(this, n, mark, bindings, dpr, clip);
+    (this.#marks[mark.type] as SvgMark | undefined)?.(this, n, mark, bindings, dpr, clip);
     mountSlot(parent, list, i, n);
   }
 
   draw(scene: Scene, bindings: PaintBindings, _theme: ResolvedTheme, devicePixelRatio: number): void {
-    const { slots, sceneGroup, element } = this;
+    const element = this.element, slots = this.#slots, sceneGroup = this.#sceneGroup;
     const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
-    if (scene.width !== this.width || scene.height !== this.height) {
+    if (scene.width !== this.#width || scene.height !== this.#height) {
       const { width, height } = scene;
       element.setAttribute('width', String(width));
       element.setAttribute('height', String(height));
       element.setAttribute('viewBox', `0 0 ${width} ${height}`);
-      if (width !== this.width) this.background.setAttribute('width', String(Math.max(0, width)));
-      if (height !== this.height) this.background.setAttribute('height', String(Math.max(0, height)));
-      this.width = width;
-      this.height = height;
+      if (width !== this.#width) this.#background.setAttribute('width', String(Math.max(0, width)));
+      if (height !== this.#height) this.#background.setAttribute('height', String(Math.max(0, height)));
+      this.#width = width;
+      this.#height = height;
     }
-    if (this.sceneBounds !== scene.clip) {
-      setRect(this.sceneClip, scene.clip);
-      this.sceneBounds = scene.clip;
+    if (this.#sceneBounds !== scene.clip) {
+      setRect(this.#sceneClip, scene.clip);
+      this.#sceneBounds = scene.clip;
     }
+    const sceneClipUrl = this.#sceneClip.key;
     let slot = 0;
     for (let i = 0; i < scene.marks.length;) {
       const mark = scene.marks[i]!;
-      const clipUrl = mark.type === 'rule' && unclippedRule(mark.role) ? null : this.sceneClipUrl;
-      if (this.batchRules && mark.type === 'rule' && (mark.role === 'grid' || mark.role === 'tick')) {
+      const clipUrl = mark.type === 'rule' && unclippedRule(mark.role) ? null : sceneClipUrl;
+      if (this.#batchRules && mark.type === 'rule' && (mark.role === 'grid' || mark.role === 'tick')) {
         const color = paintOf(mark.stroke, bindings);
         const end = ruleRunEnd(scene.marks, i, mark, bindings, color, dpr, this.scratch);
         if (end > i + 1) {
@@ -902,46 +905,42 @@ class SvgRenderer implements MarkRenderer, SvgContext {
           continue;
         }
       }
-      this.sync(sceneGroup, slots, slot++, mark, bindings, dpr, clipUrl, scene.clip);
+      this.#sync(sceneGroup, slots, slot++, mark, bindings, dpr, clipUrl, scene.clip);
       i++;
     }
     trim(slots, slot);
   }
 
   drawOverlay(overlay: Overlay | null, bindings: PaintBindings, _theme: ResolvedTheme, devicePixelRatio: number): void {
-    const overlayGroup = this.overlayNode.el;
+    const overlayGroup = this.#overlayNode.el;
     if (overlay === null) {
-      if (this.overlaySlots?.length) {
+      if (this.#overlaySlots?.length) {
         overlayGroup.replaceChildren();
-        this.overlaySlots.length = 0;
+        this.#overlaySlots.length = 0;
       }
       return;
     }
     const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
-    if (overlay.clipped.length && overlay.clip !== this.overlayBounds) {
-      if (!this.overlayClip) {
-        const id = `axylo-clip-${++ids}`;
-        this.overlayClip = clipPath(this.doc, this.defs, id);
-        this.overlayClipUrl = `url(#${id})`;
-      }
-      setRect(this.overlayClip, overlay.clip);
-      this.overlayBounds = overlay.clip;
+    if (overlay.clipped.length && overlay.clip !== this.#overlayBounds) {
+      setRect(this.#overlayClip ??= clipPath(this.doc, this.defs), overlay.clip);
+      this.#overlayBounds = overlay.clip;
     }
     // The cursor, halo and marker all use the same plot clip. A focus outline can extend past it.
     const groupClip = overlay.clipped.length > 0 && overlay.unclipped.length === 0;
-    attr(this.overlayNode, 'clip-path', groupClip ? this.overlayClipUrl : null);
-    const markClip = groupClip ? null : this.overlayClipUrl;
-    const overlaySlots = this.overlaySlots ??= [];
+    const clipUrl = this.#overlayClip?.key ?? null;
+    attr(this.#overlayNode, 'clip-path', groupClip ? clipUrl : null);
+    const markClip = groupClip ? null : clipUrl;
+    const overlaySlots = this.#overlaySlots ??= [];
     let i = 0;
-    for (const m of overlay.clipped) this.sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, markClip, overlay.clip);
-    for (const m of overlay.unclipped) this.sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, null, null);
+    for (const m of overlay.clipped) this.#sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, markClip, overlay.clip);
+    for (const m of overlay.unclipped) this.#sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, null, null);
     trim(overlaySlots, i);
   }
 
   destroy(): void {
     this.element.remove();
-    this.slots.length = 0;
-    this.overlaySlots = undefined;
+    this.#slots.length = 0;
+    this.#overlaySlots = undefined;
   }
 }
 
@@ -949,9 +948,11 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
   return new SvgRenderer(marks, doc);
 }
 
-function clipPath(doc: Document, defs: SVGElement, id: string): SvgNode {
+function clipPath(doc: Document, defs: SVGElement): SvgNode {
+  const id = `axylo-clip-${++ids}`;
   const clip = svgElement(doc, 'clipPath', { id, clipPathUnits: 'userSpaceOnUse' });
-  const rect = node(doc, 'rect', 'clip');
+  // Use the clip's URL as its key so the renderer only needs to keep the node.
+  const rect = node(doc, 'rect', `url(#${id})`);
   clip.appendChild(rect.el);
   defs.appendChild(clip);
   return rect;

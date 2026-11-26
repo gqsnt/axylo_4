@@ -122,128 +122,158 @@ function sameRow(a: DatumRef, b: DatumRef | null): boolean {
 
 type FloatTotal = { row: HTMLElement; name: HTMLElement; value: HTMLElement; label: string; lang: string | null; text: string };
 const FLOAT_PINNED = 'axylo-tooltip-pinned', STRIP_PINNED = 'axylo-readout-pinned';
+const CHOICE_EVENTS = ['mousedown', 'pointerdown', 'pointerup', 'pointercancel', 'click'] as const;
+const FLOAT_WRAPPED = 1, FLOAT_OBSERVED = 2;
 const buttonOf = (e: Event) => (e.target as Element | null)?.closest?.('button.axylo-tooltip-choice');
 
+function tooltipText(doc: Document, part: 'title' | 'series' | 'value', tag: 'span' | 'div' = 'span'): HTMLElement {
+  return make(doc, tag, `axylo-tooltip-${part}`);
+}
+
+function floatingTotal(doc: Document): FloatTotal {
+  const row = make(doc, 'div', 'axylo-tooltip-row axylo-tooltip-total');
+  const name = tooltipText(doc, 'series'), value = tooltipText(doc, 'value');
+  row.append(name, value);
+  return { row, name, value, label: '', lang: null, text: '' };
+}
+
+function withinStrip(el: Element | null, box: Rect, right: number, bottom: number): boolean {
+  if (!el?.isConnected) return true;
+  const rects = el.getClientRects();
+  for (const r of rects) {
+    if (r.left < box.x - 0.5 || r.top < box.y - 0.5 || r.right > right + 0.5 || r.bottom > bottom + 0.5) return false;
+  }
+  return rects.length > 0;
+}
+
+function columnGap(win: Window, node: Element): number {
+  return parseFloat(win.getComputedStyle(node).columnGap) || 0;
+}
+
 class DomTooltip implements TooltipView {
-  private readonly doc: Document;
-  private floatTitle: HTMLElement | null = null;
-  private floatTitleNode: Text | null = null;
-  private listening: Listeners | null = null;
-  private pressRef: DatumRef | null = null;
-  private pressPtr = 0;
-  private pressListening: Listeners | null = null;
-  private pressedRef: DatumRef | null = null;
-  private pressedAt = 0;
-  private pendingFocus: DatumRef | null = null;
-  private where: 0 | 1 | 2 = 0; // Hidden, floating, or strip.
-  private wasPinned = false;
-  private current: TooltipContent | null = null;
-  private displayed = 0;
-  private carriedRef: DatumRef | null = null;
-  private carriedPtr = 0;
-  private hadFocus: DatumRef | null = null;
-  private readonly entries: [RowEntry[]?, RowEntry[]?] = [];
-  private nextRows: RowEntry[] | undefined;
-  private children: Node[] | undefined;
-  private mores: (MoreEntry | undefined)[] | undefined;
-  private wrapped = false;
-  private lastRect: Rect | null = null;
-  private maxWidth = -1;
-  private maxHeight = -1;
-  private transformX = NaN;
-  private transformY = NaN;
-  private hoverSize: HoverSize | null = null;
-  private expectedWidth = 0;
-  private shapeWidths: Map<string, number> | undefined;
-  private measurer: TextMeasurer | undefined;
-  private sizeObserver: ResizeObserver | undefined;
-  private observing = false;
-  private floatTitleText = '';
-  private floatTotal: FloatTotal | null = null;
-  private stripParts: { title: HTMLElement; total: HTMLElement; moreSep: Text; totalSep: Text } | null = null;
+  readonly #doc: Document;
+  #floatTitle: HTMLElement | null = null;
+  #floatTitleNode: Text | null = null;
+  #listening: Listeners | null = null;
+  #pressRef: DatumRef | null = null;
+  #pressPtr = 0;
+  #pressListening: Listeners | null = null;
+  #pressedRef: DatumRef | null = null;
+  #pressedAt = 0;
+  #pendingFocus: DatumRef | null = null;
+  #where: 0 | 1 | 2 = 0; // Hidden, floating, or strip.
+  #wasPinned = false;
+  #current: TooltipContent | null = null;
+  #displayed = 0;
+  #carriedRef: DatumRef | null = null;
+  #carriedPtr = 0;
+  #hadFocus: DatumRef | null = null;
+  readonly #entries: [RowEntry[]?, RowEntry[]?] = [];
+  #nextRows: RowEntry[] | undefined;
+  #children: Node[] | undefined;
+  #mores: (MoreEntry | undefined)[] | undefined;
+  #floatFlags = 0;
+  #lastRect: Rect | null = null;
+  #maxWidth = -1;
+  #maxHeight = -1;
+  #transformX = NaN;
+  #transformY = NaN;
+  #hoverSize: HoverSize | null = null;
+  #expectedWidth = 0;
+  #shapeWidths: Map<string, number> | undefined;
+  #measurer: TextMeasurer | undefined;
+  #sizeObserver: ResizeObserver | undefined;
+  #floatTitleText = '';
+  #floatTotal: FloatTotal | null = null;
+  #stripParts: [title: HTMLElement, total: HTMLElement, moreSep: Text, totalSep: Text] | null = null;
+
+  readonly #element: HTMLElement;
+  readonly #readoutElement: HTMLElement;
+  readonly #figure: HTMLElement;
+  readonly #lost: () => void;
 
   constructor(
-    private readonly element: HTMLElement,
-    private readonly readoutElement: HTMLElement,
-    private readonly figure: HTMLElement,
-    private readonly lost: () => void,
+    element: HTMLElement,
+    readoutElement: HTMLElement,
+    figure: HTMLElement,
+    lost: () => void,
   ) {
-    this.doc = element.ownerDocument;
+    this.#element = element;
+    this.#readoutElement = readoutElement;
+    this.#figure = figure;
+    this.#lost = lost;
+    this.#doc = element.ownerDocument;
   }
 
-  get visible(): boolean { return this.where !== 0; }
-  rect(): Rect | null { return this.lastRect; }
+  get visible(): boolean { return this.#where !== 0; }
+  rect(): Rect | null { return this.#lastRect; }
   contains(node: Node | null): boolean {
-    return node !== null && (this.element.contains(node) || this.readoutElement.contains(node));
+    return node !== null && (this.#element.contains(node) || this.#readoutElement.contains(node));
   }
 
-  private txt(s = ''): Text { return this.doc.createTextNode(s); }
-  private active(): Element | null { return activeElementOf(this.doc, this.figure); }
+  #txt(s = ''): Text { return this.#doc.createTextNode(s); }
+  #active(): Element | null { return activeElementOf(this.#doc, this.#figure); }
 
-  private listenChoices(): void {
-    if (this.listening) return;
-    const l = this.listening = new Listeners(), choice = this.onChoice.bind(this);
-    for (const host of [this.element, this.readoutElement]) {
-      l.on(host, 'mousedown', choice);
-      l.on(host, 'pointerdown', choice);
-      l.on(host, 'pointerup', choice);
-      l.on(host, 'pointercancel', choice);
-      l.on(host, 'click', choice);
+  #listenChoices(): void {
+    if (this.#listening) return;
+    const l = this.#listening = new Listeners(), choice = this.#onChoice.bind(this);
+    for (const host of [this.#element, this.#readoutElement]) {
+      for (const type of CHOICE_EVENTS) l.on(host, type, choice);
     }
   }
 
-  private onChoice(event: MouseEvent): void {
-    const rows = this.entries[event.currentTarget === this.readoutElement ? 1 : 0];
+  #onChoice(event: MouseEvent): void {
+    const rows = this.#entries[event.currentTarget === this.#readoutElement ? 1 : 0];
     if (event.type === 'mousedown') {
       if (buttonOf(event)) keepFocusOnPress(event);
     } else if (event.type === 'pointerdown') {
       const button = buttonOf(event), row = button && rows?.find(entry => entry.e === button);
-      if (row) this.startPress(row.ref, (event as PointerEvent).pointerId); else this.clearPress();
+      if (row) this.#startPress(row.ref, (event as PointerEvent).pointerId); else this.#clearPress();
     } else if (event.type === 'pointerup') {
-      const ref = this.pressRef;
-      if (ref === null || this.pressPtr !== (event as PointerEvent).pointerId) return;
-      this.clearPress();
-      this.pressedRef = ref; this.pressedAt = event.timeStamp;
+      const ref = this.#pressRef;
+      if (ref === null || this.#pressPtr !== (event as PointerEvent).pointerId) return;
+      this.#clearPress();
+      this.#pressedRef = ref; this.#pressedAt = event.timeStamp;
       const row = rows?.find(entry => entry.button && sameRow(entry.ref, ref));
-      if (row) this.current?.select?.(row.r);
+      if (row) this.#current?.select?.(row.r);
     } else if (event.type === 'pointercancel') {
-      this.cancelPointer(event);
+      this.#cancelPointer(event);
     } else if (event.type === 'click') {
       const button = buttonOf(event);
       if (!button) return;
       const row = rows?.find(entry => entry.e === button);
-      if (!row) this.current?.more?.(this.displayed);
-      else if (!(event.detail > 0 && sameRow(row.ref, this.pressedRef) && event.timeStamp - this.pressedAt < 1000)) this.current?.select?.(row.r);
+      if (!row) this.#current?.more?.(this.#displayed);
+      else if (!(event.detail > 0 && sameRow(row.ref, this.#pressedRef) && event.timeStamp - this.#pressedAt < 1000)) this.#current?.select?.(row.r);
     }
   }
 
-  private clearPress(): void { this.pressRef = null; this.pressListening?.clear(); this.pressListening = null; }
+  #clearPress(): void { this.#pressRef = null; this.#pressListening?.clear(); this.#pressListening = null; }
 
-  private cancelPointer(e: Event): void { if (this.pressRef !== null && this.pressPtr === (e as PointerEvent).pointerId) this.clearPress(); }
+  #cancelPointer(e: Event): void { if (this.#pressRef !== null && this.#pressPtr === (e as PointerEvent).pointerId) this.#clearPress(); }
 
-  private startPress(ref: DatumRef, ptr: number): void {
-    this.clearPress();
-    this.pressRef = ref; this.pressPtr = ptr;
-    const l = this.pressListening = new Listeners(), roots = shadowRootsOf(this.element);
-    const cancel = this.cancelPointer.bind(this);
-    listenOutside(this.doc, roots, 'pointerup', [this.element, this.readoutElement], cancel, l);
-    for (const t of [this.doc, ...roots]) l.on(t, 'pointercancel', cancel, true);
+  #startPress(ref: DatumRef, ptr: number): void {
+    this.#clearPress();
+    this.#pressRef = ref; this.#pressPtr = ptr;
+    const l = this.#pressListening = new Listeners(), roots = shadowRootsOf(this.#element);
+    const cancel = this.#cancelPointer.bind(this);
+    listenOutside(this.#doc, roots, 'pointerup', [this.#element, this.#readoutElement], cancel, l);
+    for (const t of [this.#doc, ...roots]) l.on(t, 'pointercancel', cancel, true);
   }
 
-  private makeBox(cls: string, button: boolean, isStrip: boolean): HTMLElement {
-    const el = this.doc.createElement(button ? 'button' : isStrip ? 'span' : 'div');
+  #makeBox(cls: string, button: boolean, isStrip: boolean): HTMLElement {
+    const el = this.#doc.createElement(button ? 'button' : isStrip ? 'span' : 'div');
     el.className = button ? `${cls} axylo-tooltip-choice` : cls;
     if (button) { (el as HTMLButtonElement).type = 'button'; el.tabIndex = -1; }
     return el;
   }
 
-  private syncRow(entry: RowEntry, content: TooltipContent, row: DatumText): void {
+  #syncRow(entry: RowEntry, content: TooltipContent, row: DatumText): void {
     entry.r = row;
     entry.ref = row.ref;
     const spec = content.swatch(row);
     if (entry.p !== spec) {
       entry.n.firstElementChild?.remove();
-      if (spec) entry.n.insertBefore(createSwatch(this.doc, spec), entry.label);
+      if (spec) entry.n.insertBefore(createSwatch(this.#doc, spec), entry.label);
       entry.p = spec;
     }
     if (entry.l !== row.seriesLabel) entry.label.textContent = entry.l = row.seriesLabel;
@@ -253,77 +283,77 @@ class DomTooltip implements TooltipView {
     if (entry.g !== lang) { setAttr(entry.v, 'lang', lang); entry.g = lang; }
   }
 
-  private rowEntries(idx: 0 | 1, content: TooltipContent, pinned: boolean): RowEntry[] {
-    const previous = this.entries[idx], isStrip = idx === 1;
+  #rowEntries(idx: 0 | 1, content: TooltipContent, pinned: boolean): RowEntry[] {
+    const previous = this.#entries[idx], isStrip = idx === 1;
     const button = pinned && content.select !== undefined;
     if (!isStrip && !pinned && previous?.length === 1 && content.model.rows.length === 1) {
       const entry = previous[0]!, row = content.model.rows[0]!;
       if (!entry.button && sameRow(row.ref, entry.ref)) {
-        this.syncRow(entry, content, row);
+        this.#syncRow(entry, content, row);
         return previous;
       }
     }
-    const out = this.nextRows ?? [];
+    const out = this.#nextRows ?? [];
     for (const r of content.model.rows) {
       let entry: RowEntry | undefined = previous?.[out.length];
       if (!entry || entry.button !== button || !sameRow(r.ref, entry.ref)) {
         entry = previous?.find(e => e.button === button && sameRow(r.ref, e.ref));
       }
       if (!entry) {
-        const e = this.makeBox(isStrip ? 'axylo-readout-entry' : 'axylo-tooltip-row', button, isStrip);
-        const n = make(this.doc, 'span', 'axylo-tooltip-series'), v = make(this.doc, 'span', 'axylo-tooltip-value'), t = this.txt();
-        const label = this.txt(r.seriesLabel);
+        const e = this.#makeBox(isStrip ? 'axylo-readout-entry' : 'axylo-tooltip-row', button, isStrip);
+        const n = tooltipText(this.#doc, 'series'), v = tooltipText(this.#doc, 'value'), t = this.#txt();
+        const label = this.#txt(r.seriesLabel);
         n.appendChild(label); v.appendChild(t);
-        if (isStrip) e.append(n, this.txt(' '), v); else e.append(n, v);
-        entry = { button, e, n, v, t, label, s: isStrip ? this.txt('; ') : null,
+        if (isStrip) e.append(n, this.#txt(' '), v); else e.append(n, v);
+        entry = { button, e, n, v, t, label, s: isStrip ? this.#txt('; ') : null,
           r, ref: r.ref, p: null, l: r.seriesLabel, g: null, value: '' };
       }
-      this.syncRow(entry, content, r);
+      this.#syncRow(entry, content, r);
       out.push(entry);
     }
-    this.entries[idx] = out;
-    this.nextRows = previous;
+    this.#entries[idx] = out;
+    this.#nextRows = previous;
     if (previous) previous.length = 0;
     return out;
   }
 
-  private focusedRef(idx: 0 | 1): DatumRef | null {
-    const rows = this.entries[idx];
+  #focusedRef(idx: 0 | 1): DatumRef | null {
+    const rows = this.#entries[idx];
     if (!rows?.length) return null;
-    const act = this.active();
+    const act = this.#active();
     return rows.find(e => e.button && e.e === act)?.ref ?? null;
   }
 
-  private moreEntry(isStrip: boolean, pinned: boolean, content: TooltipContent, count: number): MoreEntry {
+  #moreEntry(isStrip: boolean, pinned: boolean, content: TooltipContent, count: number): MoreEntry {
     const btn = pinned && content.more !== undefined, index = (isStrip ? 2 : 0) + (btn ? 1 : 0);
-    const mores = this.mores ??= [];
-    const entry = mores[index] ??= { el: this.makeBox('axylo-tooltip-more', btn, isStrip), text: '', lang: null };
+    const mores = this.#mores ??= [];
+    const entry = mores[index] ??= { el: this.#makeBox('axylo-tooltip-more', btn, isStrip), text: '', lang: null };
     const text = content.moreRows(count), lang = content.moreLang || null;
     if (entry.text !== text) setText(entry.el, entry.text = text);
     if (entry.lang !== lang) setAttr(entry.el, 'lang', entry.lang = lang);
     return entry;
   }
 
-  private observeSize(): void {
-    if (this.observing) return;
-    const Observer = (this.doc.defaultView as (Window & typeof globalThis) | null)?.ResizeObserver;
+  #observeSize(): void {
+    if (this.#floatFlags & FLOAT_OBSERVED) return;
+    const Observer = (this.#doc.defaultView as (Window & typeof globalThis) | null)?.ResizeObserver;
     if (!Observer) return;
-    this.sizeObserver ??= new Observer(records => {
+    this.#sizeObserver ??= new Observer(records => {
       const size = records[0]?.borderBoxSize?.[0];
-      if (this.hoverSize && (!size || Math.abs(size.inlineSize - this.expectedWidth) > 1 ||
-          Math.abs(size.blockSize - this.hoverSize.height) > 1)) this.hoverSize = null;
+      if (this.#hoverSize && (!size || Math.abs(size.inlineSize - this.#expectedWidth) > 1 ||
+          Math.abs(size.blockSize - this.#hoverSize.height) > 1)) this.#hoverSize = null;
     });
-    this.sizeObserver.observe(this.element, { box: 'border-box' });
-    this.observing = true;
+    this.#sizeObserver.observe(this.#element, { box: 'border-box' });
+    this.#floatFlags |= FLOAT_OBSERVED;
   }
 
-  private shapeWidth(text: string, entry: HoverText): number {
+  #shapeWidth(text: string, entry: HoverText): number {
     if (sameShape(text, entry.text)) return entry.width;
-    const widths = this.shapeWidths ??= new Map();
+    const widths = this.#shapeWidths ??= new Map();
     const shape = digitShape(text), key = entry.key + shape;
     let width = widths.get(key);
     if (width === undefined) {
-      width = this.measurer!.width(shape, entry.style);
+      width = this.#measurer!.width(shape, entry.style);
       if (widths.size >= 128) widths.clear();
       widths.set(key, width);
     }
@@ -331,35 +361,34 @@ class DomTooltip implements TooltipView {
     return entry.width = width;
   }
 
-  private hoverText(element: HTMLElement, key: string, text: string): HoverText {
+  #hoverText(element: HTMLElement, key: string, text: string): HoverText {
     const entry = { style: readTextStyle(element), key, text: '', width: 0 };
-    this.shapeWidth(text, entry);
+    this.#shapeWidth(text, entry);
     return entry;
   }
 
   // The first DOM measurement calibrates the canvas estimate for the same tooltip chrome.
-  private calibrate(rows: readonly RowEntry[], more: MoreEntry | null, total: FloatTotal | null, width: number, height: number): HoverSize | null {
-    const win = this.doc.defaultView;
+  #calibrate(rows: readonly RowEntry[], more: MoreEntry | null, total: FloatTotal | null, width: number, height: number): HoverSize | null {
+    const win = this.#doc.defaultView;
     if (typeof win?.getComputedStyle !== 'function') return null;
-    const measure = this.measurer ??= createMeasurer(this.doc);
-    if (!hasCanvas(this.doc, measure)) return null;
-    this.shapeWidths?.clear();
-    const title = this.hoverText(this.floatTitle!, 't:', this.floatTitleText);
+    const measure = this.#measurer ??= createMeasurer(this.#doc);
+    if (!hasCanvas(this.#doc, measure)) return null;
+    this.#shapeWidths?.clear();
+    const title = this.#hoverText(this.#floatTitle!, 't:', this.#floatTitleText);
     const moreWidth = more ? measure.width(more.text, readTextStyle(more.el)) : 0;
-    const rowGap = (node: Element) => parseFloat(win.getComputedStyle(node).columnGap) || 0;
     let natural = Math.max(moreWidth, title.width);
     const measured = rows.map((entry, index) => {
       const swatch = entry.n.firstElementChild;
-      const swatchWidth = swatch ? (parseFloat(win.getComputedStyle(swatch).width) || 20) + rowGap(entry.n) : 0;
-      const fixed = measure.width(entry.l ?? '', readTextStyle(entry.n)) + swatchWidth + rowGap(entry.e);
-      const text = this.hoverText(entry.v, `${index}:`, entry.value);
+      const swatchWidth = swatch ? (parseFloat(win.getComputedStyle(swatch).width) || 20) + columnGap(win, entry.n) : 0;
+      const fixed = measure.width(entry.l ?? '', readTextStyle(entry.n)) + swatchWidth + columnGap(win, entry.e);
+      const text = this.#hoverText(entry.v, `${index}:`, entry.value);
       natural = Math.max(natural, fixed + text.width);
       return { ...text, element: entry.e, label: entry.l, swatch: entry.p, lang: entry.g, fixed };
     });
     let measuredTotal: HoverRow | null = null;
     if (total) {
-      const text = this.hoverText(total.value, 's:', total.text);
-      const fixed = measure.width(total.label, readTextStyle(total.name)) + rowGap(total.row);
+      const text = this.#hoverText(total.value, 's:', total.text);
+      const fixed = measure.width(total.label, readTextStyle(total.name)) + columnGap(win, total.row);
       natural = Math.max(natural, fixed + text.width);
       measuredTotal = { ...text, element: total.row, label: total.label, swatch: null, lang: total.lang, fixed };
     }
@@ -367,175 +396,177 @@ class DomTooltip implements TooltipView {
       total: measuredTotal, correction: width - natural, width, height };
   }
 
-  private predictedWidth(size: HoverSize, rows: readonly RowEntry[], more: MoreEntry | null, total: FloatTotal | null): number {
+  #predictedWidth(size: HoverSize, rows: readonly RowEntry[], more: MoreEntry | null, total: FloatTotal | null): number {
     if (size.rows.length !== rows.length || size.more !== (more?.text ?? null) || size.moreLang !== (more?.lang ?? null) ||
         size.total?.label !== total?.label || size.total?.lang !== total?.lang) return NaN;
-    let natural = Math.max(size.moreWidth, this.shapeWidth(this.floatTitleText, size.title));
+    let natural = Math.max(size.moreWidth, this.#shapeWidth(this.#floatTitleText, size.title));
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]!, calibrated = size.rows[i]!;
       if (row.e !== calibrated.element || row.l !== calibrated.label || row.p !== calibrated.swatch || row.g !== calibrated.lang) return NaN;
-      natural = Math.max(natural, calibrated.fixed + this.shapeWidth(row.value, calibrated));
+      natural = Math.max(natural, calibrated.fixed + this.#shapeWidth(row.value, calibrated));
     }
-    if (total && size.total) natural = Math.max(natural, size.total.fixed + this.shapeWidth(total.text, size.total));
+    if (total && size.total) natural = Math.max(natural, size.total.fixed + this.#shapeWidth(total.text, size.total));
     return natural + size.correction;
   }
 
-  private hideIdx(idx: 0 | 1): void {
-    const host = idx === 0 ? this.element : this.readoutElement;
+  #hideIdx(idx: 0 | 1): void {
+    const host = idx === 0 ? this.#element : this.#readoutElement;
     if (idx === 0) {
-      this.hoverSize = null;
-      if (this.observing) { this.sizeObserver!.unobserve(this.element); this.observing = false; }
+      this.#hoverSize = null;
+      if (this.#floatFlags & FLOAT_OBSERVED) {
+        this.#sizeObserver!.unobserve(this.#element);
+        this.#floatFlags &= ~FLOAT_OBSERVED;
+      }
     }
-    if (this.where === idx + 1) this.lastRect = null;
+    if (this.#where === idx + 1) this.#lastRect = null;
     if (host.hidden && !host.firstChild) return;
-    const ref = this.focusedRef(idx);
+    const ref = this.#focusedRef(idx);
     if (ref !== null) {
-      this.pendingFocus = ref;
+      this.#pendingFocus = ref;
       queueMicrotask(() => {
-        if (this.pendingFocus === null) return;
-        this.pendingFocus = null;
-        const act = this.active();
-        if (!this.element.contains(act) && !this.readoutElement.contains(act)) this.lost();
+        if (this.#pendingFocus === null) return;
+        this.#pendingFocus = null;
+        const act = this.#active();
+        if (!this.#element.contains(act) && !this.#readoutElement.contains(act)) this.#lost();
       });
     }
-    this.clearPress();
+    this.#clearPress();
     host.hidden = true;
     host.classList.remove(idx === 0 ? FLOAT_PINNED : STRIP_PINNED);
     setAttr(host, 'aria-hidden', 'true');
     host.replaceChildren();
-    const rows = this.entries[idx];
+    const rows = this.#entries[idx];
     if (rows) rows.length = 0;
-    if (this.mores) this.mores[idx * 2] = this.mores[idx * 2 + 1] = undefined;
-    if (idx === 0) this.floatTotal = null;
+    if (this.#mores) this.#mores[idx * 2] = this.#mores[idx * 2 + 1] = undefined;
+    if (idx === 0) this.#floatTotal = null;
   }
 
-  private begin(idx: 0 | 1, content: TooltipContent, pinned: boolean): void {
-    this.current = content;
-    this.carriedRef = pinned ? this.pressRef : null; this.carriedPtr = this.pressPtr;
-    if (pinned) this.listenChoices(); else this.clearPress();
-    this.hadFocus = (this.wasPinned && this.where ? this.focusedRef((this.where - 1) as 0 | 1) : null) ?? this.pendingFocus;
-    this.pendingFocus = null;
-    this.hideIdx(idx ? 0 : 1);
-    const host = idx === 0 ? this.element : this.readoutElement;
-    if (this.where !== idx + 1 || pinned !== this.wasPinned || host.hidden) {
+  #begin(idx: 0 | 1, content: TooltipContent, pinned: boolean): void {
+    this.#current = content;
+    this.#carriedRef = pinned ? this.#pressRef : null; this.#carriedPtr = this.#pressPtr;
+    if (pinned) this.#listenChoices(); else this.#clearPress();
+    this.#hadFocus = (this.#wasPinned && this.#where ? this.#focusedRef((this.#where - 1) as 0 | 1) : null) ?? this.#pendingFocus;
+    this.#pendingFocus = null;
+    this.#hideIdx(idx ? 0 : 1);
+    const host = idx === 0 ? this.#element : this.#readoutElement;
+    if (this.#where !== idx + 1 || pinned !== this.#wasPinned || host.hidden) {
       if (host.hidden) host.hidden = false;
-      if (pinned || (this.where === idx + 1 && this.wasPinned)) host.classList.toggle(idx === 0 ? FLOAT_PINNED : STRIP_PINNED, pinned);
+      if (pinned || (this.#where === idx + 1 && this.#wasPinned)) host.classList.toggle(idx === 0 ? FLOAT_PINNED : STRIP_PINNED, pinned);
       setAttr(host, 'aria-hidden', pinned ? null : 'true');
     }
-    this.wasPinned = pinned;
+    this.#wasPinned = pinned;
   }
 
-  private finish(idx: 0 | 1, visible: boolean): boolean {
+  #finish(idx: 0 | 1, visible: boolean): boolean {
     if (visible) {
-      this.where = (idx + 1) as 1 | 2;
-      if (this.carriedRef !== null && this.pressRef === null) this.startPress(this.carriedRef, this.carriedPtr);
-      if (this.hadFocus !== null) {
-        const entry = this.entries[idx]?.find(e => e.button && sameRow(e.ref, this.hadFocus));
-        if (!entry?.e.isConnected) this.lost();
-        else if (this.active() !== entry.e) entry.e.focus({ preventScroll: true });
+      this.#where = (idx + 1) as 1 | 2;
+      if (this.#carriedRef !== null && this.#pressRef === null) this.#startPress(this.#carriedRef, this.#carriedPtr);
+      if (this.#hadFocus !== null) {
+        const entry = this.#entries[idx]?.find(e => e.button && sameRow(e.ref, this.#hadFocus));
+        if (!entry?.e.isConnected) this.#lost();
+        else if (this.#active() !== entry.e) entry.e.focus({ preventScroll: true });
       }
     } else {
-      this.hideIdx(idx);
-      this.where = 0; this.lastRect = null;
-      if (this.hadFocus !== null) this.lost();
+      this.#hideIdx(idx);
+      this.#where = 0; this.#lastRect = null;
+      if (this.#hadFocus !== null) this.#lost();
     }
-    this.carriedRef = this.hadFocus = null;
+    this.#carriedRef = this.#hadFocus = null;
     return visible;
   }
 
-  private positionFloat(spot: Spot, width: number, height: number, m: Mapping): void {
+  #positionFloat(spot: Spot, width: number, height: number, m: Mapping): void {
     const x = (spot.x - m.left) / m.kx, y = (spot.y - m.top) / m.ky;
-    if (x !== this.transformX || y !== this.transformY) {
-      this.element.style.transform = `translate(${x}px, ${y}px)`;
-      this.transformX = x; this.transformY = y;
+    if (x !== this.#transformX || y !== this.#transformY) {
+      this.#element.style.transform = `translate(${x}px, ${y}px)`;
+      this.#transformX = x; this.#transformY = y;
     }
-    if (!this.lastRect || this.lastRect.x !== spot.x || this.lastRect.y !== spot.y || this.lastRect.width !== width || this.lastRect.height !== height) {
-      this.lastRect = { x: spot.x, y: spot.y, width, height };
+    if (!this.#lastRect || this.#lastRect.x !== spot.x || this.#lastRect.y !== spot.y || this.#lastRect.width !== width || this.#lastRect.height !== height) {
+      this.#lastRect = { x: spot.x, y: spot.y, width, height };
     }
   }
 
   hide(): void {
-    this.clearPress(); this.hideIdx(0); this.hideIdx(1);
-    this.where = this.displayed = 0;
-    if (this.children) this.children.length = 0;
-    if (this.nextRows) this.nextRows.length = 0;
-    this.pressedRef = this.carriedRef = this.hadFocus = this.current = this.lastRect = null;
+    this.#clearPress(); this.#hideIdx(0); this.#hideIdx(1);
+    this.#where = this.#displayed = 0;
+    if (this.#children) this.#children.length = 0;
+    if (this.#nextRows) this.#nextRows.length = 0;
+    this.#pressedRef = this.#carriedRef = this.#hadFocus = this.#current = this.#lastRect = null;
   }
 
-  invalidateSize(): void { this.hoverSize = null; }
+  invalidateSize(): void { this.#hoverSize = null; }
 
-  private floatingTitle(): HTMLElement {
-    const title = make(this.doc, 'div', 'axylo-tooltip-title');
+  #floatingTitle(): HTMLElement {
+    const title = tooltipText(this.#doc, 'title', 'div');
     // Width prediction assumes the same width for every digit in the heading.
     title.style.fontVariantNumeric = 'tabular-nums';
-    title.appendChild(this.floatTitleNode = this.txt());
+    title.appendChild(this.#floatTitleNode = this.#txt());
     return title;
   }
 
-  private overflows(): boolean {
-    const el = this.element;
+  #overflows(): boolean {
+    const el = this.#element;
     return el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
   }
 
   show(content: TooltipContent, p: PlacementInput, pinned: boolean, figMapping?: Mapping): boolean {
-    const m = figMapping ?? mappingOf(this.figure);
+    const m = figMapping ?? mappingOf(this.#figure);
     const maxW = Math.max(0, Math.min(320, p.visible.width / m.kx)), maxH = Math.max(0, p.visible.height / m.ky);
-    const steady = this.where === 1 && !pinned && !this.wasPinned && !this.element.hidden;
-    if (steady) this.current = content; else this.begin(0, content, pinned);
-    if (this.maxWidth !== maxW || this.maxHeight !== maxH || pinned || this.wrapped || this.where !== 1) this.hoverSize = null;
-    if (this.maxWidth !== maxW) { this.maxWidth = maxW; this.element.style.maxWidth = `${maxW}px`; }
-    if (this.maxHeight !== maxH) { this.maxHeight = maxH; this.element.style.maxHeight = `${maxH}px`; }
-    const rows = this.rowEntries(0, content, pinned), { model } = content, total = rows.length;
-    if (this.wrapped) { this.element.classList.remove('axylo-tooltip-wrap'); this.wrapped = false; }
-    const title = this.floatTitle ??= this.floatingTitle();
-    if (this.floatTitleText !== model.title) this.floatTitleNode!.textContent = this.floatTitleText = model.title;
-    if (model.total !== null) {
-      if (!this.floatTotal) {
-        const row = make(this.doc, 'div', 'axylo-tooltip-row axylo-tooltip-total');
-        const name = make(this.doc, 'span', 'axylo-tooltip-series'), value = make(this.doc, 'span', 'axylo-tooltip-value');
-        row.append(name, value);
-        this.floatTotal = { row, name, value, label: '', lang: null, text: '' };
-      }
-      const label = content.totalLabel ?? '', lang = content.totalLang || null;
-      if (this.floatTotal.label !== label) setText(this.floatTotal.name, this.floatTotal.label = label);
-      if (this.floatTotal.lang !== lang) setAttr(this.floatTotal.name, 'lang', this.floatTotal.lang = lang);
-      if (this.floatTotal.text !== model.total) setText(this.floatTotal.value, this.floatTotal.text = model.total);
+    const steady = this.#where === 1 && !pinned && !this.#wasPinned && !this.#element.hidden;
+    if (steady) this.#current = content; else this.#begin(0, content, pinned);
+    if (this.#maxWidth !== maxW || this.#maxHeight !== maxH || pinned || (this.#floatFlags & FLOAT_WRAPPED) || this.#where !== 1) this.#hoverSize = null;
+    if (this.#maxWidth !== maxW) { this.#maxWidth = maxW; this.#element.style.maxWidth = `${maxW}px`; }
+    if (this.#maxHeight !== maxH) { this.#maxHeight = maxH; this.#element.style.maxHeight = `${maxH}px`; }
+    const rows = this.#rowEntries(0, content, pinned), { model } = content, total = rows.length;
+    if (this.#floatFlags & FLOAT_WRAPPED) {
+      this.#element.classList.remove('axylo-tooltip-wrap');
+      this.#floatFlags &= ~FLOAT_WRAPPED;
     }
-    const totalRow = model.total === null ? null : this.floatTotal;
-    if (this.hoverSize) {
-      const more = model.count > total ? this.moreEntry(false, pinned, content, model.count - total) : null;
-      const size = this.hoverSize;
-      const width = this.predictedWidth(size, rows, more, totalRow), { height } = size;
+    const title = this.#floatTitle ??= this.#floatingTitle();
+    if (this.#floatTitleText !== model.title) this.#floatTitleNode!.textContent = this.#floatTitleText = model.title;
+    let totalRow: FloatTotal | null = null;
+    if (model.total !== null) {
+      totalRow = this.#floatTotal ??= floatingTotal(this.#doc);
+      const label = content.totalLabel ?? '', lang = content.totalLang || null;
+      if (totalRow.label !== label) setText(totalRow.name, totalRow.label = label);
+      if (totalRow.lang !== lang) setAttr(totalRow.name, 'lang', totalRow.lang = lang);
+      if (totalRow.text !== model.total) setText(totalRow.value, totalRow.text = model.total);
+    }
+    if (this.#hoverSize) {
+      const more = model.count > total ? this.#moreEntry(false, pinned, content, model.count - total) : null;
+      const size = this.#hoverSize;
+      const width = this.#predictedWidth(size, rows, more, totalRow), { height } = size;
       if (width > 0 && width < maxW - 8 && height < maxH - 8) {
         // Allow for fractional DOM rounding when an estimated box meets an obstacle or edge.
         const pad = Math.abs(width - size.width) > 0.01 ? 1 : 0;
         const spot = placeTooltip(p, (width + pad) * m.kx, height * m.ky);
         if (spot) {
-          this.expectedWidth = width;
-          this.positionFloat(spot, width * m.kx, height * m.ky, m);
-          return steady || this.finish(0, true);
+          this.#expectedWidth = width;
+          this.#positionFloat(spot, width * m.kx, height * m.ky, m);
+          return steady || this.#finish(0, true);
         }
       }
-      this.hoverSize = null;
+      this.#hoverSize = null;
     }
-    const children = this.children ??= [];
+    const children = this.#children ??= [];
     for (let shown = total; shown >= Math.min(1, total); shown--) {
       children.push(title);
       for (let i = 0; i < shown; i++) children.push(rows[i]!.e);
-      this.displayed = shown;
-      const more = model.count > shown ? this.moreEntry(false, pinned, content, model.count - shown) : null;
+      this.#displayed = shown;
+      const more = model.count > shown ? this.#moreEntry(false, pinned, content, model.count - shown) : null;
       if (more) children.push(more.el);
       if (totalRow) children.push(totalRow.row);
-      placeChildren(this.element, children);
+      placeChildren(this.#element, children);
       children.length = 0;
-      let size = this.element.getBoundingClientRect();
+      let size = this.#element.getBoundingClientRect();
       if (size.width >= (maxW - 2) * m.kx || size.height >= (maxH - 2) * m.ky) {
-        let over = this.overflows();
-        if (over && !this.wrapped) {
-          this.element.classList.add('axylo-tooltip-wrap'); this.wrapped = true;
-          over = this.overflows();
+        let over = this.#overflows();
+        if (over && !(this.#floatFlags & FLOAT_WRAPPED)) {
+          this.#element.classList.add('axylo-tooltip-wrap');
+          this.#floatFlags |= FLOAT_WRAPPED;
+          over = this.#overflows();
           // Wrapping changes the rendered box and must be measured before placement.
-          if (!over || shown <= 1) size = this.element.getBoundingClientRect();
+          if (!over || shown <= 1) size = this.#element.getBoundingClientRect();
         }
         if (over && shown > 1) continue;
       }
@@ -544,36 +575,29 @@ class DomTooltip implements TooltipView {
       if (!spot && shown <= 1 && width > 0) spot = fallbackPlacement(p, width, height);
       if (spot) {
         const localW = width / m.kx, localH = height / m.ky;
-        if (!pinned && !this.wrapped && shown === total && localW > 0 && localW < maxW - 8 && localH < maxH - 8) {
-          this.hoverSize = this.calibrate(rows, more, totalRow, localW, localH);
-          this.expectedWidth = localW;
+        if (!pinned && !(this.#floatFlags & FLOAT_WRAPPED) && shown === total && localW > 0 && localW < maxW - 8 && localH < maxH - 8) {
+          this.#hoverSize = this.#calibrate(rows, more, totalRow, localW, localH);
+          this.#expectedWidth = localW;
         }
-        this.positionFloat(spot, width, height, m);
-        this.observeSize();
-        return this.finish(0, true);
+        this.#positionFloat(spot, width, height, m);
+        this.#observeSize();
+        return this.#finish(0, true);
       }
     }
-    return this.finish(0, false);
+    return this.#finish(0, false);
   }
 
   strip(content: TooltipContent, pinned: boolean, visible: Rect): boolean {
-    this.begin(1, content, pinned);
-    const { title: stripTitle, total: stripTotal, moreSep, totalSep } = this.stripParts ??= {
-      title: make(this.doc, 'span', 'axylo-tooltip-title'), total: make(this.doc, 'span', 'axylo-readout-total'),
-      moreSep: this.txt('; '), totalSep: this.txt('; '),
-    };
-    const { model } = content, rows = this.rowEntries(1, content, pinned);
+    this.#begin(1, content, pinned);
+    const [stripTitle, stripTotal, moreSep, totalSep] = this.#stripParts ??= [
+      tooltipText(this.#doc, 'title'), make(this.#doc, 'span', 'axylo-readout-total'), this.#txt('; '), this.#txt('; '),
+    ];
+    const { model } = content, rows = this.#rowEntries(1, content, pinned);
     setText(stripTitle, `${model.title}: `);
     if (model.total !== null) { setText(stripTotal, `${content.totalLabel ?? ''} ${model.total}`); setAttr(stripTotal, 'lang', content.totalLang || null); }
-    const r = this.readoutElement.getBoundingClientRect(), box = intersect(r, visible), bx2 = box.x + box.width, by2 = box.y + box.height;
-    const within = (el: Element | null) => {
-      if (!el?.isConnected) return true;
-      const rects = el.getClientRects();
-      for (const q of rects) if (q.left < box.x - 0.5 || q.top < box.y - 0.5 || q.right > bx2 + 0.5 || q.bottom > by2 + 0.5) return false;
-      return rects.length > 0;
-    };
-    const cl = this.readoutElement.classList, minS = Math.min(1, rows.length);
-    const parts = this.children ??= [];
+    const r = this.#readoutElement.getBoundingClientRect(), box = intersect(r, visible), bx2 = box.x + box.width, by2 = box.y + box.height;
+    const cl = this.#readoutElement.classList, minS = Math.min(1, rows.length);
+    const parts = this.#children ??= [];
     cl.remove('axylo-readout-wrap', 'axylo-readout-cut');
     let seen = false;
     for (let pass = 0; pass < 3 && !seen; pass++) {
@@ -581,27 +605,27 @@ class DomTooltip implements TooltipView {
       if (pass === 2) cl.replace('axylo-readout-wrap', 'axylo-readout-cut');
       for (let shown = pass === 2 ? minS : rows.length; shown >= minS && !seen; shown--) {
         parts.push(stripTitle);
-        this.displayed = shown;
+        this.#displayed = shown;
         for (let i = 0; i < shown; i++) { if (i && rows[i]!.s) parts.push(rows[i]!.s!); parts.push(rows[i]!.e); }
         if (model.total !== null) parts.push(totalSep, stripTotal);
         let pager: HTMLElement | null = null;
-        if (model.count > shown) { if (shown) parts.push(moreSep); parts.push(pager = this.moreEntry(true, pinned, content, model.count - shown).el); }
-        placeChildren(this.readoutElement, parts);
+        if (model.count > shown) { if (shown) parts.push(moreSep); parts.push(pager = this.#moreEntry(true, pinned, content, model.count - shown).el); }
+        placeChildren(this.#readoutElement, parts);
         parts.length = 0;
-        seen = within(stripTitle) && within(pager);
-        for (let i = 0; seen && i < shown; i++) seen = within(rows[i]!.e);
+        seen = withinStrip(stripTitle, box, bx2, by2) && withinStrip(pager, box, bx2, by2);
+        for (let i = 0; seen && i < shown; i++) seen = withinStrip(rows[i]!.e, box, bx2, by2);
       }
     }
-    if (seen) this.lastRect = r;
-    return this.finish(1, seen);
+    if (seen) this.#lastRect = r;
+    return this.#finish(1, seen);
   }
 
   destroy(): void {
-    this.hide(); this.sizeObserver?.disconnect(); this.sizeObserver = undefined;
-    this.pendingFocus = this.stripParts = this.floatTitle = this.floatTitleNode = null;
-    this.floatTitleText = '';
-    this.listening?.clear(); this.listening = null;
-    this.mores = this.children = this.nextRows = this.shapeWidths = this.measurer = undefined;
+    this.hide(); this.#sizeObserver?.disconnect(); this.#sizeObserver = undefined;
+    this.#pendingFocus = this.#stripParts = this.#floatTitle = this.#floatTitleNode = null;
+    this.#floatTitleText = '';
+    this.#listening?.clear(); this.#listening = null;
+    this.#mores = this.#children = this.#nextRows = this.#shapeWidths = this.#measurer = undefined;
   }
 }
 

@@ -575,28 +575,30 @@ export class FrameSource implements RowSource {
   #base: Frame | null = null;
   #window: RowWindow | null = null;
   #revision = 0;
-  #custom: ((row: number) => unknown) | null = null;
+  #appended?: object;
+  readonly #evicted?: number;
 
   readonly #end: number;
 
   constructor(
     end: number, rows: StreamRows, live?: () => boolean,
-    private appended?: object, private readonly evicted?: number,
+    appended?: object, evicted?: number,
   ) {
     this.#end = end;
     this.#rows = rows;
     this.#live = live ?? null;
+    this.#appended = appended;
+    this.#evicted = evicted;
   }
 
   rowAt(row: number): unknown {
     if (!Number.isInteger(row) || row < 0 || row >= this.#end) return null;
     if (this.#window) return this.#window.readRevision(this.#revision, row);
-    if (this.#custom) return this.#custom(row);
     if (this.#rows) {
       if ((this.#store === null || this.#store.frame === this.#base) && (this.#live === null || this.#live())) {
-        if (this.appended) {
-          if (row === this.evicted) return null;
-          if (row === this.#end - 1) return this.appended;
+        if (this.#appended) {
+          if (row === this.#evicted) return null;
+          if (row === this.#end - 1) return this.#appended;
         }
         return this.#rows.rowAt(row);
       }
@@ -618,19 +620,13 @@ export class FrameSource implements RowSource {
     this.#revision = revision;
   }
 
-  bind(read: (row: number) => unknown): void {
-    this.release();
-    this.#custom = read;
-  }
-
   release(): void {
     this.#window = null;
     this.#rows = null;
     this.#live = null;
     this.#store = null;
     this.#base = null;
-    this.#custom = null;
-    this.appended = undefined;
+    this.#appended = undefined;
   }
 }
 

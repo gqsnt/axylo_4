@@ -481,7 +481,7 @@ export class GeometryRegistration {
   /** This registration's own entries of the delivery being dispatched; empty between deliveries. */
   readonly entries: ResizeObserverEntry[] = [];
   /** How many of `targets`, from the first, are observed. */
-  private observed = 0;
+  #observed = 0;
 
   constructor(
     private readonly doc: Document, private readonly hub: GeometryHub, private readonly targets: readonly Element[],
@@ -494,12 +494,12 @@ export class GeometryRegistration {
     try {
       for (const target of this.targets) {
         hub.index.set(target, this);
-        this.observed++;
+        this.#observed++;
         hub.observer.observe(target);
       }
     } catch (error) {
       this.live = false;
-      try { this.unobserve(); } catch { /* the original failure matters more */ }
+      try { this.#unobserve(); } catch { /* the original failure matters more */ }
       throw error;
     }
     hub.count++;
@@ -510,14 +510,14 @@ export class GeometryRegistration {
     if (!this.live) return;
     this.live = false;
     this.hub.count--;
-    this.unobserve();
+    this.#unobserve();
   }
 
-  private unobserve(): void {
+  #unobserve(): void {
     const hub = this.hub;
     const targets = this.targets;
-    const observed = this.observed;
-    this.observed = 0;
+    const observed = this.#observed;
+    this.#observed = 0;
     for (let i = 0; i < observed; i++) {
       const target = targets[i]!;
       if (hub.index.get(target) === this) hub.index.delete(target);
@@ -830,8 +830,8 @@ const LANG_OPTIONS: MutationObserverInit = { attributes: true, attributeFilter: 
  */
 export class LanguageWatch implements SharedTreeSubscriber {
   /** The shared root hub this watch is on, or the dedicated observer of a chart inside shadow DOM. */
-  private root: Node | null = null;
-  private stopShadow: (() => void) | null = null;
+  #root: Node | null = null;
+  #stopShadow: (() => void) | null = null;
 
   constructor(readonly element: Element, private readonly target: { language(): void }) {}
 
@@ -845,18 +845,18 @@ export class LanguageWatch implements SharedTreeSubscriber {
     if (trees.length === 1) {
       const root = trees[0]!;
       rootHubFor(langRootHubs, 'lang', win, root, LANG_OPTIONS).subscribers.add(this);
-      this.root = root;
+      this.#root = root;
     } else {
-      this.stopShadow = watchLanguage(element, () => this.onChange());
+      this.#stopShadow = watchLanguage(element, () => this.onChange());
     }
   }
 
   /** Idempotent; the last subscriber of a root disconnects its observer. */
   stop(): void {
-    const root = this.root;
-    const shadow = this.stopShadow;
-    this.root = null;
-    this.stopShadow = null;
+    const root = this.#root;
+    const shadow = this.#stopShadow;
+    this.#root = null;
+    this.#stopShadow = null;
     shadow?.();
     if (root === null) return;
     const hub = langRootHubs.get(root);

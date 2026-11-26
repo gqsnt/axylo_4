@@ -53,7 +53,7 @@ export interface GridOptions {
 }
 
 /** Thrown inside an exact pick that ran out of budget; never escapes `pick`. */
-const OVER_BUDGET = Symbol('over budget');
+const OVER_BUDGET = {};
 
 function linearProjection(scale: XScale) {
   if (scale.type === 'band') return null;

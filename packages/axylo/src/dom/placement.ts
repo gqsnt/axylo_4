@@ -3,10 +3,10 @@
  * pure rectangle arithmetic in viewport pixels so it runs in Node.
  */
 import type { Rect } from '../core/contracts';
+import { clamp } from '../scene/geometry';
 
 export const OFFSET = 8;
 const E = 1e-6;
-const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 export interface Hole {
   readonly cx: number;

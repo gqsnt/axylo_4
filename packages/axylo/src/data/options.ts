@@ -47,16 +47,15 @@ export interface ResolvedOptions {
 }
 
 const commonKeys = 'data title labelledBy subtitle description state legend tooltip table colors messages locale strict onDiagnostic';
-const scatterKeys = 'x y series zoom reference';
-const alignedKeys = scatterKeys + ' compact';
 const keysForChart: Record<ChartType, string> = {
-  line: alignedKeys, area: alignedKeys + ' stacked', bar: alignedKeys + ' layout horizontal',
-  histogram: 'x bins normalize zoom reference compact', scatter: scatterKeys, donut: 'label value',
+  line: 'x y series zoom reference compact',
+  area: 'x y series zoom reference compact stacked',
+  bar: 'x y series zoom reference compact layout horizontal',
+  histogram: 'x bins normalize zoom reference compact',
+  scatter: 'x y series zoom reference',
+  donut: 'label value',
 };
 const fieldKeys = 'field label unit format tickFormat domain';
-const scatterXKeys = (fieldKeys + ' type timeZone').split(' ');
-const xKeys = scatterXKeys.concat('ordered');
-const valueKeys = (fieldKeys + ' scale missing parse').split(' ');
 const titleKeys = ['text', 'visible', 'level'];
 const stateKeys = ['error', 'empty'];
 const referenceKeys = ['x', 'y', 'label'];
@@ -65,9 +64,16 @@ const valueScales = ['percent', 'ratio'] as const;
 const missingModes = ['gap', 'zero'] as const;
 const parseModes = ['number'] as const;
 
-/** The top-level option names per chart type, and the message keys: made once, on first use. */
+/** The top-level and field option names, and the message keys: made once, on first use. */
 let topKeys: Partial<Record<ChartType, readonly string[]>> | undefined;
 let messageKeys: readonly string[] | undefined;
+let scatterXKeysCache: readonly string[] | undefined;
+let xKeysCache: readonly string[] | undefined;
+let valueKeysCache: readonly string[] | undefined;
+
+const getScatterXKeys = () => scatterXKeysCache ??= (fieldKeys + ' type timeZone').split(' ');
+const getXKeys = () => xKeysCache ??= getScatterXKeys().concat('ordered');
+const getValueKeys = () => valueKeysCache ??= (fieldKeys + ' scale missing parse').split(' ');
 
 function optionKeys(type: ChartType): readonly string[] {
   const known = topKeys ??= {};
@@ -195,11 +201,22 @@ function resolveTickFormat<T>(format: T | undefined, path: string, unused: strin
 const COMPACT_TICKS = 'Compact charts draw no axis ticks.';
 const DONUT_TICKS = 'Donut charts draw no axis ticks.';
 
+function baseField<T extends XFieldOptions | ValueFieldOptions>(
+  input: unknown, options: T, path: string, unusedTicks: string | null, sink: DiagnosticSink,
+) {
+  const field = fieldName(input) ?? '';
+  return {
+    field, label: options.label ?? field, unit: options.unit ?? null,
+    format: (options.format ?? null) as NonNullable<T['format']> | null,
+    tickFormat: resolveTickFormat(options.tickFormat, path, unusedTicks, sink) as NonNullable<T['tickFormat']> | null,
+    domain: (options.domain ?? null) as NonNullable<T['domain']> | null,
+  };
+}
+
 function resolveX(input: unknown, type: ChartType, compact: boolean, sink: DiagnosticSink): ResolvedXField {
   const unusedTicks = compact ? COMPACT_TICKS : type === 'donut' ? DONUT_TICKS : null;
   const options = object(input) as XFieldOptions;
-  if (type !== 'donut') unknownKeys(input, type === 'scatter' ? scatterXKeys : xKeys, sink, 'x.');
-  const field = fieldName(input) ?? '';
+  if (type !== 'donut') unknownKeys(input, type === 'scatter' ? getScatterXKeys() : getXKeys(), sink, 'x.');
   const declared = literal(options.type, xTypes, 'x.type', sink);
   const zone = options.timeZone === undefined || options.timeZone === 'local'
     ? 'local' : canonicalZone(options.timeZone);
@@ -208,25 +225,19 @@ function resolveX(input: unknown, type: ChartType, compact: boolean, sink: Diagn
     report(sink, 'AX152', 'none', { field: 'x.timeZone', examples });
   }
   return {
-    field, label: options.label ?? field, unit: options.unit ?? null,
+    ...baseField(input, options, 'x.', unusedTicks, sink),
     type: type === 'donut' ? 'category' : declared ?? null,
     timeZone: zone ?? 'local', ordered: type !== 'scatter' && (options.ordered ?? false),
-    format: options.format ?? null, tickFormat: resolveTickFormat(options.tickFormat, 'x.', unusedTicks, sink),
-    domain: options.domain ?? null,
   };
 }
 
 function resolveValue(input: unknown, path: string, unusedTicks: string | null, sink: DiagnosticSink): ResolvedValueField {
   const options = object(input) as ValueFieldOptions & { parse?: 'number' };
-  unknownKeys(input, valueKeys, sink, path);
-  const field = fieldName(input) ?? '';
-  return {
-    field, label: options.label ?? field, unit: options.unit ?? null,
-    scale: literal(options.scale, valueScales, path + 'scale', sink) ?? null,
-    missing: literal(options.missing, missingModes, path + 'missing', sink) ?? 'gap',
-    parse: literal(options.parse, parseModes, path + 'parse', sink) ?? null, format: options.format ?? null,
-    tickFormat: resolveTickFormat(options.tickFormat, path, unusedTicks, sink), domain: options.domain ?? null,
-  };
+  unknownKeys(input, getValueKeys(), sink, path);
+  const scale = literal(options.scale, valueScales, path + 'scale', sink) ?? null;
+  const missing = literal(options.missing, missingModes, path + 'missing', sink) ?? 'gap';
+  const parse = literal(options.parse, parseModes, path + 'parse', sink) ?? null;
+  return { ...baseField(input, options, path, unusedTicks, sink), scale, missing, parse };
 }
 
 export function namedFields(fields: Omit<ResolvedOptions, 'table'>): [string, string][] {

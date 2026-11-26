@@ -43,7 +43,7 @@ const fullScales = { linear: linearScale, time: timeScale, temporalTicks, band: 
  */
 class TickFailures {
   private positions: Set<number> | null = null;
-  always = false;
+  #always = false;
   private at = NaN;
   private seen = false;
 
@@ -73,13 +73,13 @@ class TickFailures {
   /** What a labeler reports: once per labeler, after the formatter's own throw or for the whole option. */
   report = (): void => {
     if (this.seen) this.seen = false;
-    else this.always = true;
+    else this.#always = true;
   };
 
   failed(at: number): void { (this.positions ??= new Set()).add(at); }
 
   drawn(ticks: readonly { readonly value: number }[]): boolean {
-    if (this.always) return ticks.length > 0;
+    if (this.#always) return ticks.length > 0;
     if (this.positions) for (const tick of ticks) {
       if (this.positions.has(tick.value)) return true;
     }

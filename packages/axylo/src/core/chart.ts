@@ -216,23 +216,23 @@ class HostActions implements ControllerActions {
 
 /** A compact chart's interaction layer: made only if the chart is updated to full mode. */
 class LazyInteraction implements Interaction {
-  private real: Interaction | null = null;
+  #real: Interaction | null = null;
   private attached = false;
   constructor(private readonly host: BrowserHost) {}
-  private ensure(): Interaction {
-    let real = this.real;
+  #ensure(): Interaction {
+    let real = this.#real;
     if (!real) {
-      real = this.real = this.host.makeInteraction();
+      real = this.#real = this.host.makeInteraction();
       if (!this.attached) real.detach();
     }
     return real;
   }
-  prepare(state: ControlsState): boolean { return !state.interactive && !this.real ? false : this.ensure().prepare(state); }
-  commit(state: Committed | null): void { if ((state && state.interactive) || this.real) this.ensure().commit(state); }
-  clear(): void { this.real?.clear(); }
-  attach(): void { this.attached = true; this.real?.attach(); }
-  detach(): void { this.attached = false; this.real?.detach(); }
-  destroy(): void { this.real?.destroy(); this.real = null; }
+  prepare(state: ControlsState): boolean { return !state.interactive && !this.#real ? false : this.#ensure().prepare(state); }
+  commit(state: Committed | null): void { if ((state && state.interactive) || this.#real) this.#ensure().commit(state); }
+  clear(): void { this.#real?.clear(); }
+  attach(): void { this.attached = true; this.#real?.attach(); }
+  detach(): void { this.attached = false; this.#real?.detach(); }
+  destroy(): void { this.#real?.destroy(); this.#real = null; }
 }
 
 /** One per chart: everything the controller needs from the page, and the page's observers of the chart. */
@@ -248,39 +248,39 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
   readonly measurer: TextMeasurer;
 
   controller: Controller | null;
-  private readonly composition: Composition;
-  private readonly root: HTMLElement;
-  private readonly win: Window & typeof globalThis;
-  private readonly isDonut: boolean;
-  private readonly parts: Figure;
+  readonly #composition: Composition;
+  readonly #root: HTMLElement;
+  readonly #win: Window & typeof globalThis;
+  readonly #isDonut: boolean;
+  readonly #parts: Figure;
   /** The plot and the figure: what the size observers watch. */
-  private readonly geometryTargets: readonly Element[];
+  readonly #geometryTargets: readonly Element[];
   /** How many setup steps succeeded (STEP_*). */
-  private built: number;
-  private disposed: boolean;
-  private tree: Document | ShadowRoot;
+  #built: number;
+  #disposed: boolean;
+  #tree: Document | ShadowRoot;
 
-  private textLayer: TextLayer | null;
-  private textMounted: boolean;
-  private textHidden: boolean;
+  #textLayer: TextLayer | null;
+  #textMounted: boolean;
+  #textHidden: boolean;
 
   /** Watchers that the document holds; released while the target is out of the document. */
-  private watching: boolean;
-  private watchedBefore: boolean;
-  private stopTheme: (() => void) | null;
-  private environment: EnvSubscriber | null;
-  private language: LanguageWatch | null;
-  private interactionAttached: boolean;
+  #watching: boolean;
+  #watchedBefore: boolean;
+  #stopTheme: (() => void) | null;
+  #environment: EnvSubscriber | null;
+  #language: LanguageWatch | null;
+  #interactionAttached: boolean;
 
   /**
    * Deferred font-load probe until first non-empty text render so compact/donut charts skip it. The probe
    * stays in this chart's text layer (it inherits the chart's font and spacing); the observer is the
    * document's shared one.
    */
-  private fontProbe: HTMLDivElement | null;
-  private probeRegistration: ProbeRegistration | null;
+  #fontProbe: HTMLDivElement | null;
+  #probeRegistration: ProbeRegistration | null;
   /** One strip-height probe per chart, made when first asked for: it is mounted for a read and taken out again. */
-  private stripHolder: HTMLDivElement | null;
+  #stripHolder: HTMLDivElement | null;
 
   /**
    * Size and attachment. While the target is in the document its figure and plot are observed on the
@@ -288,198 +288,198 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
    * reachable from the page and its return is still noticed. Observers are never started from inside a
    * ResizeObserver delivery (that would be reported as a resize loop): the switch waits for the next frame.
    */
-  private geometry: GeometryRegistration | null;
-  private detachedObserver: ResizeObserver | null;
-  private switchFrame: number;
+  #geometry: GeometryRegistration | null;
+  #detachedObserver: ResizeObserver | null;
+  #switchFrame: number;
   /** The next shared delivery is the first since the targets were observed there. */
-  private firstDelivery: boolean;
+  #firstDelivery: boolean;
   /**
    * The border boxes the last measure() read, in layout pixels (what a ResizeObserver reports); `comparable`
    * only while they are known to be that: the plot's mapping is the identity (no scale on it or above it) and
    * the figure's box agrees with its integer layout size, so no transform makes a viewport size pass for a
    * layout one. Otherwise every delivery is a resize.
    */
-  private comparable: boolean;
-  private figureWidth: number;
-  private figureHeight: number;
-  private plotWidth: number;
-  private plotHeight: number;
+  #comparable: boolean;
+  #figureWidth: number;
+  #figureHeight: number;
+  #plotWidth: number;
+  #plotHeight: number;
   /** A frame or a zoom microtask the controller asked for and that has not run yet. */
-  private framePending: number;
-  private microtasksPending: number;
+  #framePending: number;
+  #microtasksPending: number;
   /** The controller keeps at most one frame request; tracked so a resize delivery can tell it is still due. */
-  private frameCallback: ((time?: number) => void) | null;
+  #frameCallback: ((time?: number) => void) | null;
 
   constructor(
     composition: Composition, root: HTMLElement, doc: Document, win: Window & typeof globalThis, input: unknown,
     overrides: ChartEnvironmentOverrides,
   ) {
-    this.composition = composition;
-    this.root = root;
+    this.#composition = composition;
+    this.#root = root;
     this.page = doc;
-    this.win = win;
+    this.#win = win;
     this.controller = null;
-    this.built = 0;
-    this.disposed = false;
-    this.textLayer = null;
-    this.textMounted = false;
-    this.textHidden = false;
-    this.watching = false;
-    this.watchedBefore = false;
-    this.stopTheme = null;
-    this.environment = null;
-    this.language = null;
-    this.interactionAttached = false;
-    this.fontProbe = null;
-    this.probeRegistration = null;
-    this.stripHolder = null;
-    this.geometry = null;
-    this.detachedObserver = null;
-    this.switchFrame = 0;
-    this.firstDelivery = false;
-    this.comparable = false;
-    this.figureWidth = 0;
-    this.figureHeight = 0;
-    this.plotWidth = 0;
-    this.plotHeight = 0;
-    this.framePending = 0;
-    this.microtasksPending = 0;
-    this.frameCallback = null;
+    this.#built = 0;
+    this.#disposed = false;
+    this.#textLayer = null;
+    this.#textMounted = false;
+    this.#textHidden = false;
+    this.#watching = false;
+    this.#watchedBefore = false;
+    this.#stopTheme = null;
+    this.#environment = null;
+    this.#language = null;
+    this.#interactionAttached = false;
+    this.#fontProbe = null;
+    this.#probeRegistration = null;
+    this.#stripHolder = null;
+    this.#geometry = null;
+    this.#detachedObserver = null;
+    this.#switchFrame = 0;
+    this.#firstDelivery = false;
+    this.#comparable = false;
+    this.#figureWidth = 0;
+    this.#figureHeight = 0;
+    this.#plotWidth = 0;
+    this.#plotHeight = 0;
+    this.#framePending = 0;
+    this.#microtasksPending = 0;
+    this.#frameCallback = null;
     this.targetId = root.id || null;
     this.console = overrides.console === undefined ? (win.console as DeliveryConsole) : overrides.console;
-    this.isDonut = composition.kind === 'donut';
-    const tree = this.tree = this.styleRoot();
+    this.#isDonut = composition.kind === 'donut';
+    const tree = this.#tree = this.#styleRoot();
     this.id = allocateId(doc, tree);
     try {
       const initialCompact = Boolean(input && typeof input === 'object' && (input as { compact?: unknown }).compact === true);
-      const eagerText = !initialCompact && !this.isDonut;
+      const eagerText = !initialCompact && !this.#isDonut;
 
       const renderer = this.renderer = svgRendererWith(composition.svg, doc);
-      this.built = STEP_RENDERER;
-      const textLayer = this.textLayer = eagerText ? createTextLayer(doc) : null;
-      this.textMounted = eagerText;
-      this.built = STEP_TEXT;
-      const parts = this.parts = createFigure(root, this.id, { marks: renderer.element, text: textLayer?.element ?? null }, { compact: initialCompact });
-      this.built = STEP_FIGURE;
-      this.figure = this.isDonut ? parts : this;
+      this.#built = STEP_RENDERER;
+      const textLayer = this.#textLayer = eagerText ? createTextLayer(doc) : null;
+      this.#textMounted = eagerText;
+      this.#built = STEP_TEXT;
+      const parts = this.#parts = createFigure(root, this.id, { marks: renderer.element, text: textLayer?.element ?? null }, { compact: initialCompact });
+      this.#built = STEP_FIGURE;
+      this.figure = this.#isDonut ? parts : this;
       this.text = this;
       // Compact charts never need the interaction layer unless updated to full mode; defer its closures and state.
       this.interaction = initialCompact ? new LazyInteraction(this) : this.makeInteraction();
-      this.built = STEP_INTERACTION;
+      this.#built = STEP_INTERACTION;
       this.measurer = createMeasurer(doc);
-      this.geometryTargets = [parts.plot, parts.figure];
-      this.built = STEP_GEOMETRY;
+      this.#geometryTargets = [parts.plot, parts.figure];
+      this.#built = STEP_GEOMETRY;
 
       this.controller = controllerFor(composition, input, this);
       if (root.isConnected) {
-        this.joinShared();
-        this.watch();
+        this.#joinShared();
+        this.#watch();
       } else {
-        this.startDetached();
-        ensureStyles(this.styleRoot());
+        this.#startDetached();
+        ensureStyles(this.#styleRoot());
       }
     } catch (error) {
       const created = this.controller as Controller | null;
       this.controller = null;
       try { created?.handle.destroy(); } catch { /* releasing the rest matters more */ }
-      this.release();
+      this.#release();
       throw error;
     }
   }
 
   makeInteraction(): Interaction {
-    return createInteraction(this.composition.interaction, this.parts, this.renderer, new HostActions(this));
+    return createInteraction(this.#composition.interaction, this.#parts, this.renderer, new HostActions(this));
   }
 
-  styleRoot(): Document | ShadowRoot {
-    return shadowRootOf(this.root) ?? this.page;
+  #styleRoot(): Document | ShadowRoot {
+    return shadowRootOf(this.#root) ?? this.page;
   }
 
   /** Undoes every setup step done, from the last; one that throws does not stop the others. Idempotent. */
-  release(): void {
-    for (let step = this.built; step > 0; step = this.built) {
-      this.built = step - 1;
-      try { this.undo(step); } catch { /* keep releasing */ }
+  #release(): void {
+    for (let step = this.#built; step > 0; step = this.#built) {
+      this.#built = step - 1;
+      try { this.#undo(step); } catch { /* keep releasing */ }
     }
   }
 
-  private undo(step: number): void {
+  #undo(step: number): void {
     switch (step) {
       case STEP_GEOMETRY: {
-        this.disposed = true;
-        if (this.switchFrame !== 0) { const frame = this.switchFrame; this.switchFrame = 0; this.win.cancelAnimationFrame(frame); }
-        this.stopDetached();
-        this.leaveShared();
+        this.#disposed = true;
+        if (this.#switchFrame !== 0) { const frame = this.#switchFrame; this.#switchFrame = 0; this.#win.cancelAnimationFrame(frame); }
+        this.#stopDetached();
+        this.#leaveShared();
         return;
       }
-      case STEP_PROBE: this.disposed = true; this.stopProbe(); return;
-      case STEP_WATCHERS: this.unwatch(); return;
+      case STEP_PROBE: this.#disposed = true; this.#stopProbe(); return;
+      case STEP_WATCHERS: this.#unwatch(); return;
       case STEP_INTERACTION: this.interaction.destroy(); return;
-      case STEP_FIGURE: this.parts.destroy(); return;
-      case STEP_TEXT: this.textLayer?.destroy(); this.textLayer = null; return;
+      case STEP_FIGURE: this.#parts.destroy(); return;
+      case STEP_TEXT: this.#textLayer?.destroy(); this.#textLayer = null; return;
       case STEP_RENDERER: this.renderer.destroy(); return;
     }
   }
 
   // ── watchers ──────────────────────────────────────────────────────────────────────────────────
 
-  watch(): void {
+  #watch(): void {
     const c = this.controller;
     if (!c) return;
-    const current = this.styleRoot();
-    if (this.watching && current === this.tree) return;
-    this.unwatch();
-    this.tree = current;
+    const current = this.#styleRoot();
+    if (this.#watching && current === this.#tree) return;
+    this.#unwatch();
+    this.#tree = current;
     // A detached chart's stylesheet may have been removed before its first attachment.
     ensureStyles(current);
-    if (this.watchedBefore) { noteFontLoad(this.page); c.invalidate.page(); }
-    this.watchedBefore = true;
-    this.watching = true;
+    if (this.#watchedBefore) { noteFontLoad(this.page); c.invalidate.page(); }
+    this.#watchedBefore = true;
+    this.#watching = true;
     try {
       const invalidate = c.invalidate;
-      this.stopTheme = watchTheme(this.root, () => invalidate.theme());
-      joinEnvironment(this.win, invalidate);
-      this.environment = invalidate;
-      const language = new LanguageWatch(this.root, invalidate);
+      this.#stopTheme = watchTheme(this.#root, () => invalidate.theme());
+      joinEnvironment(this.#win, invalidate);
+      this.#environment = invalidate;
+      const language = new LanguageWatch(this.#root, invalidate);
       language.start();
-      this.language = language;
+      this.#language = language;
       this.interaction.attach();
-      this.interactionAttached = true;
+      this.#interactionAttached = true;
     } catch (error) {
-      this.unwatch();
+      this.#unwatch();
       throw error;
     }
   }
 
   /** Stops the watchers in reverse order of starting; one that throws does not stop the others. */
-  unwatch(): void {
-    if (!this.watching) return;
-    this.watching = false;
-    if (this.interactionAttached) {
-      this.interactionAttached = false;
+  #unwatch(): void {
+    if (!this.#watching) return;
+    this.#watching = false;
+    if (this.#interactionAttached) {
+      this.#interactionAttached = false;
       try { this.interaction.detach(); } catch { /* keep releasing */ }
     }
-    const language = this.language;
-    this.language = null;
+    const language = this.#language;
+    this.#language = null;
     if (language) try { language.stop(); } catch { /* keep releasing */ }
-    const environment = this.environment;
-    this.environment = null;
-    if (environment) try { leaveEnvironment(this.win, environment); } catch { /* keep releasing */ }
-    const theme = this.stopTheme;
-    this.stopTheme = null;
+    const environment = this.#environment;
+    this.#environment = null;
+    if (environment) try { leaveEnvironment(this.#win, environment); } catch { /* keep releasing */ }
+    const theme = this.#stopTheme;
+    this.#stopTheme = null;
     if (theme) try { theme(); } catch { /* keep releasing */ }
   }
 
   // ── font probe ────────────────────────────────────────────────────────────────────────────────
 
-  stopProbe(): void {
-    const registration = this.probeRegistration;
-    this.probeRegistration = null;
+  #stopProbe(): void {
+    const registration = this.#probeRegistration;
+    this.#probeRegistration = null;
     registration?.release();
   }
 
   fontProbeReady(): boolean {
-    return this.controller !== null && this.root.isConnected;
+    return this.controller !== null && this.#root.isConnected;
   }
 
   fontProbeChanged(): void {
@@ -490,39 +490,39 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
    * Observed only while the target is in the document (the shared observer would keep a forgotten chart
    * reachable); a probe that is observed again starts from a new baseline.
    */
-  observeProbe(): void {
-    if (this.fontProbe && !this.probeRegistration && !this.disposed && this.root.isConnected) {
-      this.probeRegistration = observeFontProbe(this.win, this.page, this.fontProbe, this);
+  #observeProbe(): void {
+    if (this.#fontProbe && !this.#probeRegistration && !this.#disposed && this.#root.isConnected) {
+      this.#probeRegistration = observeFontProbe(this.#win, this.page, this.#fontProbe, this);
     }
   }
 
-  mountText(withProbe = true): TextLayer {
-    let textLayer = this.textLayer;
+  #mountText(withProbe = true): TextLayer {
+    let textLayer = this.#textLayer;
     if (!textLayer) {
-      textLayer = this.textLayer = createTextLayer(this.page);
-      if (this.textHidden) textLayer.element.style.visibility = 'hidden';
+      textLayer = this.#textLayer = createTextLayer(this.page);
+      if (this.#textHidden) textLayer.element.style.visibility = 'hidden';
     }
-    if (!this.textMounted) {
-      this.textMounted = true;
-      this.parts.plot.insertBefore(textLayer.element, this.renderer.element.nextSibling);
+    if (!this.#textMounted) {
+      this.#textMounted = true;
+      this.#parts.plot.insertBefore(textLayer.element, this.renderer.element.nextSibling);
     }
-    if (withProbe && !this.disposed) {
-      if (!this.fontProbe) {
-        const probe = this.fontProbe = this.page.createElement('div');
+    if (withProbe && !this.#disposed) {
+      if (!this.#fontProbe) {
+        const probe = this.#fontProbe = this.page.createElement('div');
         probe.className = 'axylo-font-probe';
         textLayer.element.appendChild(probe);
       }
       // Again on later renders if observing it failed or waited for the target to come back.
-      this.observeProbe();
+      this.#observeProbe();
     }
     return textLayer;
   }
 
-  unmountText(): void {
-    this.stopProbe();
-    this.fontProbe?.remove();
-    this.fontProbe = null;
-    if (this.textMounted) { this.textLayer?.destroy(); this.textLayer = null; this.textMounted = false; }
+  #unmountText(): void {
+    this.#stopProbe();
+    this.#fontProbe?.remove();
+    this.#fontProbe = null;
+    if (this.#textMounted) { this.#textLayer?.destroy(); this.#textLayer = null; this.#textMounted = false; }
   }
 
   // ── size and attachment ───────────────────────────────────────────────────────────────────────
@@ -533,9 +533,9 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
    * frame pending. Anything else (a hidden chart becoming visible, a resize between the frame and the
    * delivery) is a resize.
    */
-  private alreadyMeasured(entries: readonly ResizeObserverEntry[]): boolean {
-    if (!this.comparable || this.framePending !== 0 || this.microtasksPending !== 0 || !this.watching || this.styleRoot() !== this.tree) return false;
-    const plot = this.geometryTargets[0], figure = this.geometryTargets[1];
+  #alreadyMeasured(entries: readonly ResizeObserverEntry[]): boolean {
+    if (!this.#comparable || this.#framePending !== 0 || this.#microtasksPending !== 0 || !this.#watching || this.#styleRoot() !== this.#tree) return false;
+    const plot = this.#geometryTargets[0], figure = this.#geometryTargets[1];
     let seen = false;
     for (let i = 0; i < entries.length; i++) {
       const entry = entries[i]!;
@@ -544,7 +544,7 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
       if (!isPlot && target !== figure) continue;
       const box = entry.borderBoxSize?.[0];
       if (!box) return false;
-      if (box.inlineSize !== (isPlot ? this.plotWidth : this.figureWidth) || box.blockSize !== (isPlot ? this.plotHeight : this.figureHeight)) return false;
+      if (box.inlineSize !== (isPlot ? this.#plotWidth : this.#figureWidth) || box.blockSize !== (isPlot ? this.#plotHeight : this.#figureHeight)) return false;
       seen = true;
     }
     return seen;
@@ -554,79 +554,79 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
   geometryChanged(entries: readonly ResizeObserverEntry[]): void {
     const controller = this.controller;
     if (!controller) return;
-    if (!this.root.isConnected) {
-      this.unwatch();
-      this.leaveShared();
-      this.stopProbe();
-      this.scheduleSwitch();
+    if (!this.#root.isConnected) {
+      this.#unwatch();
+      this.#leaveShared();
+      this.#stopProbe();
+      this.#scheduleSwitch();
       return;
     }
-    const first = this.firstDelivery;
-    this.firstDelivery = false;
-    if (first && this.alreadyMeasured(entries)) return;
-    this.watch();
+    const first = this.#firstDelivery;
+    this.#firstDelivery = false;
+    if (first && this.#alreadyMeasured(entries)) return;
+    this.#watch();
     controller.invalidate.resize();
   }
 
-  private joinShared(): void {
-    if (this.geometry || this.disposed) return;
-    this.geometry = observeGeometry(this.win, this.page, this.geometryTargets, this);
-    this.firstDelivery = true;
+  #joinShared(): void {
+    if (this.#geometry || this.#disposed) return;
+    this.#geometry = observeGeometry(this.#win, this.page, this.#geometryTargets, this);
+    this.#firstDelivery = true;
   }
 
-  private leaveShared(): void {
-    const geometry = this.geometry;
-    this.geometry = null;
+  #leaveShared(): void {
+    const geometry = this.#geometry;
+    this.#geometry = null;
     geometry?.release();
   }
 
-  private onDetachedResize(): void {
+  #onDetachedResize(): void {
     const controller = this.controller;
-    if (!controller || !this.root.isConnected) return;
+    if (!controller || !this.#root.isConnected) return;
     // Back in the document: drawn again now, and observed on the shared observer from the next frame. The
     // local observer stays until the watchers and the shared registration are both in place: a watcher that
     // throws here leaves it to report the next resize, which tries again.
-    this.watch();
+    this.#watch();
     controller.invalidate.resize();
-    this.scheduleSwitch();
+    this.#scheduleSwitch();
   }
 
   /** Only charts out of the document have this observer and its callback. */
-  private startDetached(): void {
-    if (this.detachedObserver || this.disposed) return;
-    const observer = this.detachedObserver = new this.win.ResizeObserver(() => this.onDetachedResize());
-    for (const target of this.geometryTargets) observer.observe(target);
+  #startDetached(): void {
+    if (this.#detachedObserver || this.#disposed) return;
+    const observer = this.#detachedObserver = new this.#win.ResizeObserver(() => this.#onDetachedResize());
+    for (const target of this.#geometryTargets) observer.observe(target);
   }
 
-  private stopDetached(): void {
-    const observer = this.detachedObserver;
-    this.detachedObserver = null;
+  #stopDetached(): void {
+    const observer = this.#detachedObserver;
+    this.#detachedObserver = null;
     observer?.disconnect();
   }
 
-  private settleSwitch(): void {
-    this.switchFrame = 0;
-    if (this.disposed || !this.controller) return;
-    if (this.root.isConnected) {
+  #settleSwitch(): void {
+    this.#switchFrame = 0;
+    if (this.#disposed || !this.controller) return;
+    if (this.#root.isConnected) {
       // Not watching yet (a watcher threw when the chart came back): the local observer's next delivery
       // sets the watchers up first.
-      if (this.detachedObserver && !this.watching) return;
+      if (this.#detachedObserver && !this.#watching) return;
       // A shared registration that fails leaves the local observer in place.
-      this.joinShared();
-      this.stopDetached();
-      this.observeProbe();
+      this.#joinShared();
+      this.#stopDetached();
+      this.#observeProbe();
     } else {
       // Out again since the last delivery: nothing of the document may keep holding the chart.
-      this.unwatch();
-      this.leaveShared();
-      this.stopProbe();
-      this.startDetached();
+      this.#unwatch();
+      this.#leaveShared();
+      this.#stopProbe();
+      this.#startDetached();
     }
   }
 
   /** Attachment changes are rare: the frame callback is made for each switch. */
-  private scheduleSwitch(): void {
-    if (this.switchFrame === 0 && !this.disposed) this.switchFrame = this.win.requestAnimationFrame(() => this.settleSwitch());
+  #scheduleSwitch(): void {
+    if (this.#switchFrame === 0 && !this.#disposed) this.#switchFrame = this.#win.requestAnimationFrame(() => this.#settleSwitch());
   }
 
   // ── frames ────────────────────────────────────────────────────────────────────────────────────
@@ -636,26 +636,26 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
   }
 
   runEntry(time?: number): void {
-    this.framePending = 0;
-    const cb = this.frameCallback;
-    this.frameCallback = null;
+    this.#framePending = 0;
+    const cb = this.#frameCallback;
+    this.#frameCallback = null;
     cb?.(time);
   }
 
   requestFrame(cb: (time?: number) => void): number {
-    this.frameCallback = cb;
-    return this.framePending = scheduleEntry(this.win, this.page, this);
+    this.#frameCallback = cb;
+    return this.#framePending = scheduleEntry(this.#win, this.page, this);
   }
 
   cancelFrame(handle: number): void {
-    if (handle === this.framePending) { this.framePending = 0; this.frameCallback = null; }
-    cancelScheduledFrame(this.win, handle);
+    if (handle === this.#framePending) { this.#framePending = 0; this.#frameCallback = null; }
+    cancelScheduledFrame(this.#win, handle);
   }
 
   scheduleMicrotask(cb: () => void): void {
-    this.microtasksPending++;
-    const run = (): void => { this.microtasksPending--; cb(); };
-    const win = this.win;
+    this.#microtasksPending++;
+    const run = (): void => { this.#microtasksPending--; cb(); };
+    const win = this.#win;
     if (typeof win.queueMicrotask === 'function') win.queueMicrotask(run);
     else queueMicrotask(run);
   }
@@ -668,43 +668,43 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
 
   /** The text layer (Host['text']). */
   render(texts: readonly PlacedText[]): void {
-    if (texts.length) this.mountText().render(texts);
-    else this.textLayer?.render(texts);
+    if (texts.length) this.#mountText().render(texts);
+    else this.#textLayer?.render(texts);
   }
 
   /** The figure (Host['figure']) of a chart with text: the text layer follows compact mode. */
   update(model: FigureModel): boolean {
-    if (model.compact) { if (this.textMounted || this.fontProbe) this.unmountText(); }
-    else this.mountText();
-    return this.parts.update(model);
+    if (model.compact) { if (this.#textMounted || this.#fontProbe) this.#unmountText(); }
+    else this.#mountText();
+    return this.#parts.update(model);
   }
 
   announce(text: string, lang?: string | null): void {
-    this.parts.announce(text, lang);
+    this.#parts.announce(text, lang);
   }
 
   locale(option: unknown, lang?: string | null): string {
     const doc = this.page;
-    return resolveLocale(option, doc, (lang === undefined ? pageLanguage(this.root) : lang) ?? doc.documentElement.lang);
+    return resolveLocale(option, doc, (lang === undefined ? pageLanguage(this.#root) : lang) ?? doc.documentElement.lang);
   }
 
   pageLang(): string | null {
-    return pageLanguage(this.root);
+    return pageLanguage(this.#root);
   }
 
   labelText(own: string): string | null {
-    return this.styleRoot().getElementById(own)?.textContent ?? null;
+    return this.#styleRoot().getElementById(own)?.textContent ?? null;
   }
 
   textStyle(): TextStyle {
-    if (!this.isDonut && !this.textMounted) this.mountText(false);
-    return readTextStyle(this.textMounted && this.textLayer ? this.textLayer.element : this.parts.plot);
+    if (!this.#isDonut && !this.#textMounted) this.#mountText(false);
+    return readTextStyle(this.#textMounted && this.#textLayer ? this.#textLayer.element : this.#parts.plot);
   }
 
   measure(): Size | null {
-    this.comparable = false;
-    if (!this.root.isConnected) return null;
-    const parts = this.parts;
+    this.#comparable = false;
+    if (!this.#root.isConnected) return null;
+    const parts = this.#parts;
     const figureElement = parts.figure;
     const box = figureElement.getBoundingClientRect();
     if (box.width <= 0 || box.height <= 0) return null;
@@ -717,11 +717,11 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
     const stage = stageElement === plotElement ? plot : stageElement.getBoundingClientRect();
     if (kx === 1 && ky === 1 && Math.abs(box.width - figureElement.offsetWidth) < 1 &&
         Math.abs(box.height - figureElement.offsetHeight) < 1) {
-      this.figureWidth = box.width;
-      this.figureHeight = box.height;
-      this.plotWidth = plot.width;
-      this.plotHeight = plot.height;
-      this.comparable = true;
+      this.#figureWidth = box.width;
+      this.#figureHeight = box.height;
+      this.#plotWidth = plot.width;
+      this.#plotHeight = plot.height;
+      this.#comparable = true;
     }
     return { width: plot.width / kx, height: plot.height / ky - overflow, room: { width: stage.width / kx, height: stage.height / ky } };
   }
@@ -732,23 +732,23 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
   }
 
   stripProbeMount(): HTMLDivElement {
-    let holder = this.stripHolder;
+    let holder = this.#stripHolder;
     if (!holder) {
       const doc = this.page;
-      holder = this.stripHolder = doc.createElement('div');
+      holder = this.#stripHolder = doc.createElement('div');
       holder.className = 'axylo-readout-mode';
       holder.style.cssText = 'position:absolute;left:0;top:0;width:100px;visibility:hidden;pointer-events:none';
       const strip = doc.createElement('div');
       strip.className = 'axylo-readout';
       holder.appendChild(strip);
     }
-    this.parts.figure.appendChild(holder);
+    this.#parts.figure.appendChild(holder);
     return holder;
   }
 
   stripProbeRead(probe: unknown): number {
     const strip = (probe as HTMLDivElement).firstElementChild as HTMLDivElement;
-    const h = parseFloat(this.win.getComputedStyle(strip).height);
+    const h = parseFloat(this.#win.getComputedStyle(strip).height);
     return Number.isFinite(h) ? h : NaN;
   }
 
@@ -757,15 +757,15 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
   }
 
   devicePixelRatio(): number {
-    return this.win.devicePixelRatio || 1;
+    return this.#win.devicePixelRatio || 1;
   }
 
   theme(keys: readonly string[], colors: Record<string, string>): ThemeResolution {
-    return resolveTheme(this.parts.figure, keys, colors);
+    return resolveTheme(this.#parts.figure, keys, colors);
   }
 
   themePrepare(keys: readonly string[], colors: Record<string, string>): unknown {
-    return prepareTheme(this.parts.figure, keys, colors, themeBatchFor(this.page));
+    return prepareTheme(this.#parts.figure, keys, colors, themeBatchFor(this.page));
   }
 
   themeApply(prepared: unknown): void {
@@ -792,14 +792,14 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
   }
 
   surfaces(visible: boolean): void {
-    this.textHidden = !visible;
+    this.#textHidden = !visible;
     const v = visible ? '' : 'hidden';
     this.renderer.element.style.visibility = v;
-    if (this.textLayer) this.textLayer.element.style.visibility = v;
+    if (this.#textLayer) this.#textLayer.element.style.visibility = v;
   }
 
   dispose(): void {
-    this.release();
+    this.#release();
   }
 }
 

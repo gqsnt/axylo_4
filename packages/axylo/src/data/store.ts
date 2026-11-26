@@ -41,18 +41,22 @@ const getNoPositions = (): Float64Array => emptyPositions ??= new Float64Array(0
 class AppendTable implements Table {
   readonly columns = null;
   readonly length: number;
+  readonly #rows: readonly unknown[];
 
-  constructor(private readonly rows: readonly unknown[]) { this.length = rows.length; }
+  constructor(rows: readonly unknown[]) {
+    this.#rows = rows;
+    this.length = rows.length;
+  }
 
-  read(row: number, field: string): unknown { return rowValue(this.rows[row], field); }
-  rowAt(row: number): unknown { return Number.isInteger(row) && row >= 0 && row < this.length ? this.rows[row] : null; }
+  read(row: number, field: string): unknown { return rowValue(this.#rows[row], field); }
+  rowAt(row: number): unknown { return Number.isInteger(row) && row >= 0 && row < this.length ? this.#rows[row] : null; }
   rowIndex(row: number): number { return row; }
   isColumnRow(): boolean { return false; }
-  keys(): readonly string[] { return rowsTable(this.rows).keys(); }
+  keys(): readonly string[] { return rowsTable(this.#rows).keys(); }
 
   hasField(field: string): boolean {
     for (let i = 0; i < this.length; i++) {
-      const row = this.rows[i];
+      const row = this.#rows[i];
       if (row !== null && typeof row === 'object' && Object.hasOwn(row, field)) return true;
     }
     return false;
@@ -545,6 +549,64 @@ function writeObservation(
   buffers.setRow(series, target, imputed ? -1 : base + row);
 }
 
+function forkAlignedData(data: AlignedData, rows: StreamRows): AlignedData {
+  const draft = new AlignedData(data.type, data.environment, data.fields, data.named, rows);
+  draft.current = data.current;
+  const state = data.state;
+  // commitBatch replaces modes, votes and date units before trimming the draft.
+  draft.state = {
+    ...state, parser: state.parser.kind === 'category' || state.parser.kind === 'date' ? state.parser.fork() : state.parser,
+    buffers: state.buffers.fork(),
+    observations: forkValues(state.observations),
+    calendar: state.calendar?.fork() ?? null, diagnostics: state.diagnostics.fork(),
+  };
+  return draft;
+}
+
+function buildAlignedData(
+  data: AlignedData, table: Table, version: FrameVersion,
+  categories: readonly string[] | null = data.state?.parser.categories ?? null, normalized?: AlignedFrame,
+) {
+  const options = { ...data.fields, table };
+  const seed = normalized && alignedSeed(normalized);
+  const diagnostics = seed?.diagnostics.copy() ?? new StreamDiagnostics();
+  const x = seed ? { ...seed.x, parser: seed.x.parser.copy() } :
+    readX(data.type, options.valid ? options : { ...options, table: rowsTable([]) },
+      data.environment, diagnostics, categories ?? undefined);
+  const frame = normalized ?? (options.valid ? alignedFrame(options, x, diagnostics, version)
+    : normalizeAligned(data.type, options, data.environment, diagnostics, version));
+  const axis = x.parser.column(getNoPositions(), true);
+  const overBudget = !seed && diagnostics.inputs().some(diagnostic => diagnostic.code === 'AX134');
+  const buffers = new FrameBuffers(frame, x.positions, x.order);
+  const state: State = {
+    axis, parser: x.parser, buffers,
+    observations: overBudget ? new Map() : cadences(options, table, x, frame.x, buffers),
+    modes: seed ? mapValues(seed.counts, count => ({ ...count })) : overBudget ? new Map() : new Map(options.values.map(value => [value.field, valueCounts(table, value.field, x.positions)])),
+    calendar: overBudget ? null : calendarFor(x, table),
+    votes: options.x.type !== null ? null : seed ?
+      { date: 0, wall: 0, number: 0, time: 0, category: 0, [axis.kind]: x.positions.length } :
+      countKinds(table, options.x.field, options.series),
+    overBudget, dateUnits: seed && x.dateUnits ? { ...x.dateUnits } : x.dateUnits, diagnostics,
+  };
+  return { frame, state, x };
+}
+
+function dataDiagnostics(data: AlignedData): readonly DiagnosticInput[] {
+  const findings = data.state.diagnostics.retained();
+  const calendar = data.state.calendar?.diagnostic(data.fields.x.field, data.current.x.values[0]!);
+  return calendar ? [...findings, calendar] : findings;
+}
+
+function dataSnapshot(data: AlignedData, frame: AlignedFrame, skipSource = false): AlignedFrame {
+  const { buffers, axis } = data.state;
+  const last = buffers.x[buffers.end - 1];
+  let history: State['observations'] | null = data.state.observations;
+  const snapshot = buffers.frame(frame, axis, skipSource ? noSource : data.rows.source(), key => history!.get(key)?.cadence.last !== last);
+  // frame() checks the open tail synchronously. Its lazy columns can outlive this history's borrowed x prefix.
+  history = null;
+  return snapshot;
+}
+
 class AlignedData {
   state!: State;
   current!: AlignedFrame;
@@ -555,48 +617,8 @@ class AlignedData {
     readonly fields: Fields, readonly named: readonly [string, string][], readonly rows: StreamRows,
   ) {}
 
-  fork(rows: StreamRows): AlignedData {
-    const draft = new AlignedData(this.type, this.environment, this.fields, this.named, rows);
-    draft.current = this.current;
-    const state = this.state;
-    // commitBatch replaces modes, votes and date units before trimming the draft.
-    draft.state = {
-      ...state, parser: state.parser.kind === 'category' || state.parser.kind === 'date' ? state.parser.fork() : state.parser,
-      buffers: state.buffers.fork(),
-      observations: forkValues(state.observations),
-      calendar: state.calendar?.fork() ?? null, diagnostics: state.diagnostics.fork(),
-    };
-    return draft;
-  }
-
   adoptNormalized(table: Table, version: FrameVersion, normalized: AlignedFrame) {
-    return this.build(table, version, null, normalized);
-  }
-
-  build(table: Table, version: FrameVersion,
-    categories: readonly string[] | null = this.state?.parser.categories ?? null, normalized?: AlignedFrame) {
-    const options = { ...this.fields, table };
-    const seed = normalized && alignedSeed(normalized);
-    const diagnostics = seed?.diagnostics.copy() ?? new StreamDiagnostics();
-    const x = seed ? { ...seed.x, parser: seed.x.parser.copy() } :
-      readX(this.type, options.valid ? options : { ...options, table: rowsTable([]) },
-        this.environment, diagnostics, categories ?? undefined);
-    const frame = normalized ?? (options.valid ? alignedFrame(options, x, diagnostics, version)
-      : normalizeAligned(this.type, options, this.environment, diagnostics, version));
-    const axis = x.parser.column(getNoPositions(), true);
-    const overBudget = !seed && diagnostics.inputs().some(diagnostic => diagnostic.code === 'AX134');
-    const buffers = new FrameBuffers(frame, x.positions, x.order);
-    const state: State = {
-      axis, parser: x.parser, buffers,
-      observations: overBudget ? new Map() : cadences(options, table, x, frame.x, buffers),
-      modes: seed ? mapValues(seed.counts, count => ({ ...count })) : overBudget ? new Map() : new Map(options.values.map(value => [value.field, valueCounts(table, value.field, x.positions)])),
-      calendar: overBudget ? null : calendarFor(x, table),
-      votes: options.x.type !== null ? null : seed ?
-        { date: 0, wall: 0, number: 0, time: 0, category: 0, [axis.kind]: x.positions.length } :
-        countKinds(table, options.x.field, options.series),
-      overBudget, dateUnits: seed && x.dateUnits ? { ...x.dateUnits } : x.dateUnits, diagnostics,
-    };
-    return { frame, state, x };
+    return buildAlignedData(this, table, version, null, normalized);
   }
 
   #batch(table: Table, positions: Float64Array, axis: XColumn, lastX: number,
@@ -755,24 +777,8 @@ class AlignedData {
     return dense;
   }
 
-  currentDiagnostics(): readonly DiagnosticInput[] {
-    const findings = this.state.diagnostics.retained();
-    const calendar = this.state.calendar?.diagnostic(this.fields.x.field, this.current.x.values[0]!);
-    return calendar ? [...findings, calendar] : findings;
-  }
-
   #label(key: string): string {
     return this.fields.series === null ? this.fields.values.find(value => value.field === key)?.label ?? key : key;
-  }
-
-  snapshot(frame: AlignedFrame, skipSource = false): AlignedFrame {
-    const { buffers, axis } = this.state;
-    const last = buffers.x[buffers.end - 1];
-    let history: State['observations'] | null = this.state.observations;
-    const snapshot = buffers.frame(frame, axis, skipSource ? noSource : this.rows.source(), key => history!.get(key)?.cadence.last !== last);
-    // frame() checks the open tail synchronously. Its lazy columns can outlive this history's borrowed x prefix.
-    history = null;
-    return snapshot;
   }
 
   #failAppend(count: number, version: FrameVersion, diagnostics: readonly DiagnosticInput[], sink: DiagnosticSink): AlignedFrame {
@@ -896,7 +902,7 @@ class AlignedData {
     return update || Boolean(inferred && inferred !== parser.kind);
   }
 
-  appendInPlace(rows: readonly unknown[], keep: number | undefined, sink: DiagnosticSink, skipSource = false): AlignedFrame {
+  append(rows: readonly unknown[], keep: number | undefined, sink: DiagnosticSink, skipSource = false): AlignedFrame {
     const { parser, buffers } = this.state;
     const categoryCount = parser.categoryCount;
     const dateUnit = parser.dateUnit;
@@ -968,9 +974,9 @@ class AlignedData {
     } else {
       parser.restore(categoryCount, dateUnit);
       const combined = this.rows.table(rows);
-      let prepared = this.build(combined, version);
+      let prepared = buildAlignedData(this, combined, version);
       const window = prepared.state.overBudget && keep !== undefined ? keptTable(combined, prepared.x, keep) : null;
-      if (window) prepared = this.build(window.table, version, window.categories);
+      if (window) prepared = buildAlignedData(this, window.table, version, window.categories);
       const { frame, state, x: read } = prepared;
       if (state.overBudget) return this.#failAppend(rows.length, version, state.diagnostics.inputs(), sink);
       if (orderInputs) forwardDiagnostics(orderInputs, sink);
@@ -989,7 +995,7 @@ class AlignedData {
     if (keep !== undefined) {
       while (this.#trim(keep, writableCadence)) {
         const retained = this.rows.table();
-        const { frame, state, x: read } = this.build(retained, version);
+        const { frame, state, x: read } = buildAlignedData(this, retained, version);
         this.rows.resetPositions(retained, read.positions);
         this.state = state;
         this.current = frame;
@@ -999,8 +1005,8 @@ class AlignedData {
     // Growth may have moved the window to a new buffer: history must not pin the old one.
     this.#sharePositions();
     if (keep !== undefined) this.rows.compactColumns(this.state.buffers.x.buffer);
-    this.current = this.snapshot(this.current, skipSource);
-    const findings = this.currentDiagnostics();
+    this.current = dataSnapshot(this, this.current, skipSource);
+    const findings = dataDiagnostics(this);
     this.latest = orderInputs?.length ? [...findings, ...orderInputs] : findings;
     return this.current;
   }
@@ -1011,16 +1017,18 @@ let installAlignedExtras: () => void;
 export class AlignedStore extends RevisionStore<AlignedFrame> {
   #data: AlignedData;
   #writing = false;
+  readonly #sink: DiagnosticSink;
 
   constructor(
     type: AlignedChartType,
     options: ResolvedOptions,
     environment: DataEnvironment,
     version: FrameVersion,
-    private readonly sink: DiagnosticSink = quiet,
+    sink: DiagnosticSink = quiet,
     normalized?: AlignedFrame,
   ) {
     super(options.table);
+    this.#sink = sink;
     if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) installAlignedExtras();
     const { table, ...fields } = options;
     const data = this.#data = new AlignedData(type, environment, fields, namedFields(fields), this.rows);
@@ -1028,11 +1036,11 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     const reusable = seed?.type === type && sameNormalization(seed.options, options);
     const { frame, state, x } = reusable
       ? data.adoptNormalized(table, version, normalized!)
-      : data.build(table, version, null);
+      : buildAlignedData(data, table, version, null);
     data.state = state;
     this.rows.resetPositions(table, x.positions, prefixPositions(table, fields.x.field, x, state.buffers));
-    data.current = data.snapshot(frame, true);
-    this.latest = data.latest = data.currentDiagnostics();
+    data.current = dataSnapshot(data, frame, true);
+    this.latest = data.latest = dataDiagnostics(data);
     this.publish(data.current);
     data.current = this.current;
     forwardDiagnostics(this.latest, sink);
@@ -1145,7 +1153,7 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
       extendStatistics(current.series[i]!, frame.series[i]!, first !== undefined);
     }
     return this.preview(base, frame, rows, noDiagnostics, noDiagnostics, () => {
-      if (this.#writing) throw new Error('Cannot commit a data change during an append.');
+      this.#checkWriting('commit');
       if (evicted !== undefined) this.revisions.current.archive(evicted, true);
       const committed = data.state;
       const { calendar } = committed;
@@ -1169,8 +1177,12 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     }, source);
   }
 
+  #checkWriting(action: string): void {
+    if (this.#writing) throw new Error(`Cannot ${action} a data change during an append.`);
+  }
+
   prepareAppend(rows: readonly unknown[], options: StoreAppendOptions = {}): PreparedFrame<AlignedFrame> {
-    if (this.#writing) throw new Error('Cannot prepare a data change during an append.');
+    this.#checkWriting('prepare');
     const base = this.current;
     const data = this.#data;
     const keep = retention(options);
@@ -1180,10 +1192,10 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     }
     const rowsDraft = this.rows.fork();
     rowsDraft.trackEvictions = true;
-    const draft = this.#data.fork(rowsDraft);
+    const draft = forkAlignedData(this.#data, rowsDraft);
     const call = new DiagnosticCollector();
     try {
-      draft.appendInPlace(rows, keep, call, true);
+      draft.append(rows, keep, call, true);
     } finally {
       rowsDraft.trackEvictions = false;
     }
@@ -1200,18 +1212,18 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     rows: StreamRows, options: ResolvedOptions, version: FrameVersion, call: DiagnosticCollector,
     replacement?: { table: Table; valid: boolean },
   ): PreparedFrame<AlignedFrame> {
-    if (this.#writing) throw new Error('Cannot prepare a data change during an append.');
+    this.#checkWriting('prepare');
     const base = this.current;
     checkVersion(base, version);
     const input = replacement?.table ?? rows.table();
     const { table, ...fields } = retargetOptions(options, input, call, replacement?.valid);
     const { type, environment } = this.#data;
     const draft = new AlignedData(type, environment, fields, namedFields(fields), rows);
-    const built = draft.build(table, version, null);
+    const built = buildAlignedData(draft, table, version, null);
     draft.state = built.state;
     draft.rows.resetPositions(table, built.x.positions);
-    draft.current = draft.snapshot(built.frame, true);
-    forwardDiagnostics(draft.currentDiagnostics(), call);
+    draft.current = dataSnapshot(draft, built.frame, true);
+    forwardDiagnostics(dataDiagnostics(draft), call);
     draft.latest = call.inputs();
     return this.#transaction(base, draft, call, null, replacement !== undefined);
   }
@@ -1220,7 +1232,7 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     base: AlignedFrame, draft: AlignedData, call: DiagnosticCollector, evicted: number | readonly number[] | null, replacement = false,
   ): PreparedFrame<AlignedFrame> {
     const candidate = this.preview(base, draft.current, draft.rows, draft.latest, call.inputs(), () => {
-      if (this.#writing) throw new Error('Cannot commit a data change during an append.');
+      this.#checkWriting('commit');
       this.commitRows(draft.rows, evicted, replacement);
       draft.state.parser.commit();
       draft.state.calendar?.commit();
@@ -1247,14 +1259,14 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
         for (const frame of frames) bytes.frame(frame);
         return bytes.result();
       };
-      proto.append = function (this: AlignedStore, rows: readonly unknown[], options: { keep?: number } = {}, sink = this.sink): AlignedFrame {
+      proto.append = function (this: AlignedStore, rows: readonly unknown[], options: { keep?: number } = {}, sink = this.#sink): AlignedFrame {
         if (retention(options) !== undefined) {
           const prepared = this.prepareAppend(rows, options);
           forwardDiagnostics(prepared.callDiagnostics, sink);
           prepared.commit();
           return prepared.frame;
         }
-        if (this.#writing) throw new Error('Cannot prepare a data change during an append.');
+        this.#checkWriting('prepare');
         // Without an inspected candidate, the incremental path can safely reuse the owned buffers.
         once(() => this.current, () => {
           const parser = this.#data.state.parser;
@@ -1262,7 +1274,7 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
           const unit = parser.dateUnit;
           this.#writing = true;
           try {
-            this.publish(this.#data.appendInPlace(rows, undefined, sink));
+            this.publish(this.#data.append(rows, undefined, sink));
             this.#data.current = this.current;
             this.latest = this.#data.latest;
           } catch (error) {

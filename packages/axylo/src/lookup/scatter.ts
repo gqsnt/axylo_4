@@ -17,9 +17,10 @@ interface ScatterWork {
  * kept with the series and released with it, so a zoom or pan of the same frame builds nothing again.
  */
 const RUN = 32;
-const rowIndexes = new WeakMap<PointSeries, Map<number, number> | null>();
+let rowIndexes: WeakMap<PointSeries, Map<number, number> | null> | undefined;
 function rowIndex(entry: PointSeries): Map<number, number> | null {
-  let index = rowIndexes.get(entry);
+  const indexes = rowIndexes ??= new WeakMap();
+  let index = indexes.get(entry);
   if (index !== undefined) return index;
   index = null;
   const { x, row } = entry;
@@ -32,7 +33,7 @@ function rowIndex(entry: PointSeries): Map<number, number> | null {
       for (let i = 0; i < row.length; i++) index.set(row[i]!, i);
     }
   }
-  rowIndexes.set(entry, index);
+  indexes.set(entry, index);
   return index;
 }
 

@@ -89,8 +89,7 @@ ${forced}
   }
 
   /* marks */
-  .axylo .axylo-svg { position: absolute; left: 0; top: 0; display: block; pointer-events: none; }
-  .axylo .axylo-svg { overflow: hidden; }
+  .axylo .axylo-svg { position: absolute; left: 0; top: 0; display: block; pointer-events: none; overflow: hidden; }
 
   /*
    * Dash patterns of the SVG renderer. Each dashed element carries its normal pattern inline and both
@@ -138,7 +137,6 @@ ${forced}
   }
   .axylo .axylo-caption, .axylo .axylo-note, .axylo .axylo-legend-list, .axylo .axylo-table { color: var(--axylo-text, currentColor); }
   .axylo-caption { flex: none; margin: 0 0 0.5em; min-width: 0; }
-  .axylo-caption:has(> :not([hidden]):not(.axylo-visually-hidden)) { margin-bottom: 0.5em; }
   .axylo-caption:not(:has(> :not([hidden]):not(.axylo-visually-hidden))) { margin: 0; }
   .axylo-title { font-weight: 600; font-size: max(12px, 1.125em); line-height: 1.3; overflow-wrap: anywhere; }
   .axylo-subtitle { margin: 0.125em 0 0; font-size: max(12px, 0.875em); color: var(--axylo-muted, var(--axylo-default-muted)); overflow-wrap: anywhere; }
@@ -154,10 +152,12 @@ ${forced}
    * its starting size when it does (flex then grows or shrinks it to fit).
    */
   /* The plot and a legend beside it share one row, which takes what the caption and the controls leave. */
-  .axylo-body { flex: 1 1 auto; display: flex; flex-direction: row; min-height: 0; min-width: 0; }
+  .axylo-body, .axylo-stage, .axylo-plot { flex: auto; min-height: 0; min-width: 0; }
+  .axylo-body, .axylo-stage { display: flex; }
+  .axylo-stage, .axylo-plot { position: relative; }
   /* The plot's column: the plot, and the open table over it. */
-  .axylo-stage { position: relative; flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
-  .axylo-plot { position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; overflow: hidden; }
+  .axylo-stage { flex-direction: column; }
+  .axylo-plot { overflow: hidden; }
   .axylo-plot::before { content: ""; display: block; width: 100%; aspect-ratio: 16 / 9; min-height: 160px; max-height: 480px; }
   .axylo-compact .axylo-plot::before { aspect-ratio: auto; min-height: 0; max-height: none; height: 32px; }
   .axylo-message {
@@ -223,9 +223,9 @@ ${forced}
   .axylo .axylo-readout-cut .axylo-readout-entry > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .axylo .axylo-tooltip-total {
     margin-top: 2px; padding-top: 2px; border-top: 1px solid var(--axylo-axis, var(--axylo-default-axis));
-    text-align: end; font-weight: 600; font-variant-numeric: tabular-nums;
+    text-align: end;
   }
-  .axylo .axylo-readout-total { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .axylo .axylo-tooltip-total, .axylo .axylo-readout-total { font-weight: 600; font-variant-numeric: tabular-nums; }
   .axylo .axylo-swatch { flex: none; display: inline-block; overflow: visible; }
   /* The swatch repeats the dash the marks use, normal or contrast (spec A5; review 2, finding 22). */
   .axylo .axylo-swatch-line { stroke-dasharray: var(--axylo-swatch-dash, none); }
@@ -248,7 +248,7 @@ ${forced}
   /* The keyboard proxy (decision 0001): a native range over the plot, transparent, never in the pointer's way. */
   .axylo .axylo-proxy {
     position: absolute; z-index: 2; margin: 0; padding: 0; border: 0; box-sizing: border-box;
-    opacity: 0; pointer-events: none; appearance: none; -webkit-appearance: none; background: transparent;
+    opacity: 0; pointer-events: none; appearance: none; -webkit-appearance: none; background: none;
   }
   /* The plot's focus indicator (spec A2): 2 px in the focus token, at least 3:1 in both schemes. */
   .axylo .axylo-focus-ring {
@@ -271,9 +271,9 @@ ${forced}
   }
 
   /* Legend, toolbar and table, under the plot. */
-  .axylo .axylo-controls { flex: none; display: flex; flex-direction: column; gap: 0.5em; margin: 0.5em 0 0; min-width: 0; }
+  .axylo .axylo-controls, .axylo .axylo-controls-top, .axylo .axylo-controls-side { flex: none; display: flex; flex-direction: column; gap: 0.5em; min-width: 0; }
+  .axylo .axylo-controls { margin: 0.5em 0 0; }
   /* legend: 'top' puts the legend and its toolbar above the plot; 'right' beside it, entries stacked. */
-  .axylo .axylo-controls-top, .axylo .axylo-controls-side { flex: none; display: flex; flex-direction: column; gap: 0.5em; min-width: 0; }
   .axylo .axylo-controls-top { margin: 0 0 0.5em; }
   .axylo .axylo-controls-side { margin: 0; margin-inline-start: 0.75em; max-width: 40%; overflow: auto; }
   .axylo .axylo-controls-side .axylo-toolbar { flex-direction: column; align-items: stretch; flex-wrap: nowrap; }
@@ -316,7 +316,7 @@ ${forced}
     position: absolute; inset: 0; z-index: 4; box-sizing: border-box;
     background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)));
   }
-  .axylo .axylo-stage > .axylo-table > .axylo-table-scroll { flex: 1 1 auto; }
+  .axylo .axylo-stage > .axylo-table > .axylo-table-scroll { flex: auto; }
   .axylo .axylo-table-scroll { overflow: auto; box-sizing: border-box; min-height: 4.5em; border: 1px solid var(--axylo-grid, var(--axylo-default-grid)); }
   .axylo .axylo-table-scroll:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: -2px; }
   .axylo .axylo-table table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: max(12px, 0.875em); font-variant-numeric: tabular-nums; }
