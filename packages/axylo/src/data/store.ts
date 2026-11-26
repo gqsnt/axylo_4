@@ -21,7 +21,7 @@ import { FrameBuffers, type SeriesBuffers } from './store-buffers';
 import { ByteCount, CallerBuffers, countBuffers, countRevisions, type OwnedBytes } from './store-bytes';
 import { CalendarWindow } from './store-calendar';
 import { StreamDiagnostics } from './store-diagnostics';
-import { forkValues, checkVersion, forwardDiagnostics, installEncodingExtras, nextVersion, groupFor, RevisionStore, retentionStart, shareRemainder, StreamRows, type FrameSource } from './store-rows';
+import { forkValues, checkVersion, forwardDiagnostics, installEncodingExtras, nextVersion, groupFor, RevisionStore, retentionStart, shareRemainder, StreamRows } from './store-rows';
 import { rowsTable, rowValue, sameTableData, type Table } from './table';
 import { once, retention, type PreparedFrame, type StoreAppendOptions } from './transaction';
 import { readValues, valueMode, type ValueCounts, type ValueMode, type Values } from './values';
@@ -160,12 +160,19 @@ class Cadence {
     c.last = observations.last ?? -Infinity;
     if (!supportsSteps(axis)) return c;
     let last = observations.first!;
+    let max = -Infinity;
     for (let i = 1, x = observations.at(1); x !== undefined; x = observations.at(++i)) {
       const delta = stepDelta(axis, last, x);
       last = x;
       c.#min = Math.min(c.#min, delta);
+      max = Math.max(max, delta);
       c.#span += delta;
       c.#differences++;
+    }
+    // On regular data every interval has the same multiple. One check covers the whole prefix.
+    if (max === c.#min && c.multiple(max) === 1) {
+      c.#matches = c.#differences;
+      return c;
     }
     for (let i = 1, x = observations.at(1); x !== undefined; x = observations.at(++i)) {
       const multiple = c.multiple(stepDelta(axis, observations.at(i - 1)!, x));
@@ -385,21 +392,6 @@ interface Batch {
   readonly diagnostics: StreamDiagnostics;
 }
 
-interface SingleAppend {
-  readonly frame: AlignedFrame;
-  readonly source: FrameSource;
-  readonly buffers: FrameBuffers;
-  readonly cadence: Cadence;
-  readonly modes: State['modes'];
-  readonly span: number;
-  readonly row: object;
-  readonly index: number;
-  readonly position: number;
-  readonly first: number | undefined;
-  readonly evicted: number | undefined;
-  readonly bounded: boolean;
-}
-
 function ownNumber(row: Record<string, unknown>, key: string): number | undefined {
   // Accessors use the general validation path, where reads can raise diagnostics.
   const property = Object.getOwnPropertyDescriptor(row, key);
@@ -605,119 +597,6 @@ class AlignedData {
       overBudget, dateUnits: seed && x.dateUnits ? { ...x.dateUnits } : x.dateUnits, diagnostics,
     };
     return { frame, state, x };
-  }
-
-  prepareSingle(row: unknown, keep: number | undefined): SingleAppend | null {
-    const { fields, rows, current, state } = this;
-    const { axis, buffers, observations } = state;
-    const { start, end } = buffers;
-    const length = end - start;
-    if (!fields.valid || state.overBudget || fields.series !== null || fields.x.type !== axis.kind ||
-      (axis.kind !== 'number' && axis.kind !== 'time') || this.latest.length ||
-      length < 3 || buffers.distinct !== length || rows.size !== length || current.length !== length ||
-      !fields.values.length || fields.values.length !== buffers.series.size ||
-      typeof row !== 'object' || row === null) return null;
-    const prototype: unknown = Object.getPrototypeOf(row);
-    if (prototype !== Object.prototype && prototype !== null) return null;
-
-    if ((keep !== undefined && keep < length) || !alignmentFits(buffers.series.size, length + 1, quiet)) return null;
-    const object = row as Record<string, unknown>;
-    const position = ownNumber(object, fields.x.field);
-    const last = buffers.x[end - 1]!;
-    if (position === undefined || !(position > last)) return null;
-    const delta = position - last;
-    if (axis.kind === 'time') {
-      const magnitude = Math.abs(position);
-      // A retained sub-day interval rules out AX111 both before and after a one-row slide.
-      if (magnitude > MAX_DATE || (magnitude >= 1e9 && magnitude < 1e10) || delta >= DAY - HOUR) return null;
-    }
-
-    const first = keep === length ? buffers.x[start]! : undefined;
-    const evicted = first === undefined ? undefined : rows.firstRowAt(first);
-    if (first !== undefined && evicted === undefined) return null;
-    const dropped = first === undefined ? undefined : stepDelta(axis, first, buffers.x[start + 1]!);
-    const primary = observations.get(fields.values[0]!.field);
-    const cadence = primary?.cadence;
-    if (!cadence) return null;
-    const span = cadence.regularSpan(delta, dropped);
-    if (span === undefined) return null;
-
-    // Keep the common one-field preview in a scalar. Reads of caller properties may reenter.
-    let firstValue = 0;
-    const rest: number[] | null = fields.values.length > 1 ? [] : null;
-    const column = evicted !== undefined && rows.isColumn(evicted);
-    // Column compaction can invoke a caller's typed-array species during preparation.
-    if (keep !== undefined && rows.needsColumnCompaction(Number(column))) return null;
-    const outgoingRow = evicted !== undefined && !column ? rows.rowAt(evicted) as Record<string, unknown> : null;
-    let modes = state.modes;
-    for (let i = 0; i < fields.values.length; i++) {
-      const key = fields.values[i]!.field;
-      const value = ownNumber(object, key);
-      const window = i === 0 ? primary : observations.get(key);
-      const counts = state.modes.get(key);
-      if (value === undefined || window?.cadence.last !== last || window.duplicates?.size ||
-        !buffers.series.has(key) || counts?.decimal !== 0) return null;
-      if (i === 0) firstValue = value;
-      else rest!.push(value);
-
-      let raw: unknown;
-      if (column) raw = rows.read(evicted!, key);
-      else if (outgoingRow) {
-        const property = Object.getOwnPropertyDescriptor(outgoingRow, key);
-        if (property) {
-          if (!Object.hasOwn(property, 'value')) return null;
-          raw = outgoingRow[key];
-        }
-      }
-      const outgoing = valueMode(raw, column);
-      if (outgoing === 'other') continue;
-      if (modes === state.modes) modes = new Map(modes);
-      modes.set(key, { decimal: counts.decimal - Number(outgoing === 'decimal'), other: counts.other + 1 });
-    }
-
-    const draft = buffers.fork(true);
-    const index = rows.next;
-    draft.reserve(1);
-    const target = draft.end;
-    draft.x[target] = position;
-    for (let i = 0; i < fields.values.length; i++) {
-      const series = draft.series.get(fields.values[i]!.field)!;
-      series.y[target] = i === 0 ? firstValue : rest![i - 1]!;
-      series.slot[target] = SLOT_VALUE;
-      draft.setRow(series, target, index);
-    }
-    draft.markObserved(null, target, 1);
-    draft.end++;
-    if (first !== undefined) draft.dropObservedHead();
-    const source = rows.previewAppend(row, evicted);
-    const frame = draft.frame(current, axis, source, undefined, current.revision + 1);
-    for (let i = 0; i < frame.series.length; i++) {
-      extendStatistics(current.series[i]!, frame.series[i]!, first !== undefined);
-    }
-    return { frame, source, buffers: draft, cadence, span, modes, row, index, position, first, evicted, bounded: keep !== undefined };
-  }
-
-  commitSingle(append: SingleAppend): void {
-    const { rows, state } = this;
-    const { calendar, observations } = state;
-    rows.appendPosition(append.row, append.position);
-    calendar?.observe(append.position);
-    calendar?.record(append.index);
-    if (append.first !== undefined) {
-      rows.evictSingle(append.first, append.evicted!);
-      calendar?.evictPosition(append.first);
-      calendar?.evictRow(append.evicted!);
-    }
-    const { buffers, frame } = append;
-    // Competing previews have their own spans. Only the winning commit advances this cadence.
-    append.cadence.commitRegular(append.position, append.span, append.first !== undefined);
-    // Every wide series can use the frame's own x window as its observation history.
-    for (const history of observations.values()) history.useWindow(frame.x.values, append.cadence);
-    rows.shareSeed(buffers.x, buffers.start, buffers.end);
-    if (append.bounded) rows.compactColumns(buffers.x.buffer);
-    state.buffers = buffers;
-    state.modes = append.modes;
-    this.current = frame;
   }
 
   #batch(table: Table, positions: Float64Array, axis: XColumn, lastX: number,
@@ -1177,18 +1056,126 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     return withoutTable(resolveFields(this.#data.type, input, sink, this.rows.table()));
   }
 
+  #prepareSingle(base: AlignedFrame, data: AlignedData, row: unknown, keep: number | undefined): PreparedFrame<AlignedFrame> | null {
+    const { fields, rows, current, state } = data;
+    const { axis, buffers, observations } = state;
+    const { start, end } = buffers;
+    const length = end - start;
+    if (!fields.valid || state.overBudget || fields.series !== null || fields.x.type !== axis.kind ||
+      (axis.kind !== 'number' && axis.kind !== 'time') || data.latest.length ||
+      length < 3 || buffers.distinct !== length || rows.size !== length || current.length !== length ||
+      !fields.values.length || fields.values.length !== buffers.series.size ||
+      typeof row !== 'object' || row === null) return null;
+    const prototype: unknown = Object.getPrototypeOf(row);
+    if (prototype !== Object.prototype && prototype !== null) return null;
+
+    if ((keep !== undefined && keep < length) || !alignmentFits(buffers.series.size, length + 1, quiet)) return null;
+    const object = row as Record<string, unknown>;
+    const position = ownNumber(object, fields.x.field);
+    const last = buffers.x[end - 1]!;
+    if (position === undefined || !(position > last)) return null;
+    const delta = position - last;
+    if (axis.kind === 'time') {
+      const magnitude = Math.abs(position);
+      // A retained sub-day interval rules out AX111 both before and after a one-row slide.
+      if (magnitude > MAX_DATE || (magnitude >= 1e9 && magnitude < 1e10) || delta >= DAY - HOUR) return null;
+    }
+
+    const first = keep === length ? buffers.x[start]! : undefined;
+    const evicted = first === undefined ? undefined : rows.firstRowAt(first);
+    if (first !== undefined && evicted === undefined) return null;
+    const dropped = first === undefined ? undefined : stepDelta(axis, first, buffers.x[start + 1]!);
+    const primary = observations.get(fields.values[0]!.field);
+    const cadence = primary?.cadence;
+    if (!cadence) return null;
+    const span = cadence.regularSpan(delta, dropped);
+    if (span === undefined) return null;
+
+    // Keep the common one-field preview in a scalar. Reads of caller properties may reenter.
+    let firstValue = 0;
+    const rest: number[] | null = fields.values.length > 1 ? [] : null;
+    const column = evicted !== undefined && rows.isColumn(evicted);
+    // Column compaction can invoke a caller's typed-array species during preparation.
+    if (keep !== undefined && rows.needsColumnCompaction(Number(column))) return null;
+    const outgoingRow = evicted !== undefined && !column ? rows.rowAt(evicted) as Record<string, unknown> : null;
+    let modes = state.modes;
+    for (let i = 0; i < fields.values.length; i++) {
+      const key = fields.values[i]!.field;
+      const value = ownNumber(object, key);
+      const window = i === 0 ? primary : observations.get(key);
+      const counts = state.modes.get(key);
+      if (value === undefined || window?.cadence.last !== last || window.duplicates?.size ||
+        !buffers.series.has(key) || counts?.decimal !== 0) return null;
+      if (i === 0) firstValue = value;
+      else rest!.push(value);
+
+      let raw: unknown;
+      if (column) raw = rows.read(evicted!, key);
+      else if (outgoingRow) {
+        const property = Object.getOwnPropertyDescriptor(outgoingRow, key);
+        if (property) {
+          if (!Object.hasOwn(property, 'value')) return null;
+          raw = outgoingRow[key];
+        }
+      }
+      const outgoing = valueMode(raw, column);
+      if (outgoing === 'other') continue;
+      if (modes === state.modes) modes = new Map(modes);
+      modes.set(key, { decimal: counts.decimal - Number(outgoing === 'decimal'), other: counts.other + 1 });
+    }
+
+    const draft = buffers.fork(true);
+    const index = rows.next;
+    draft.reserve(1);
+    const target = draft.end;
+    draft.x[target] = position;
+    for (let i = 0; i < fields.values.length; i++) {
+      const series = draft.series.get(fields.values[i]!.field)!;
+      series.y[target] = i === 0 ? firstValue : rest![i - 1]!;
+      series.slot[target] = SLOT_VALUE;
+      draft.setRow(series, target, index);
+    }
+    draft.markObserved(null, target, 1);
+    draft.end++;
+    if (first !== undefined) draft.dropObservedHead();
+    const source = rows.previewAppend(row, evicted);
+    const frame = draft.frame(current, axis, source, undefined, current.revision + 1);
+    for (let i = 0; i < frame.series.length; i++) {
+      extendStatistics(current.series[i]!, frame.series[i]!, first !== undefined);
+    }
+    return this.preview(base, frame, rows, noDiagnostics, noDiagnostics, () => {
+      if (this.#writing) throw new Error('Cannot commit a data change during an append.');
+      if (evicted !== undefined) this.revisions.current.archive(evicted, true);
+      const committed = data.state;
+      const { calendar } = committed;
+      rows.appendPosition(row, position);
+      calendar?.observe(position);
+      calendar?.record(index);
+      if (first !== undefined) {
+        rows.evictSingle(first, evicted!);
+        calendar?.evictPosition(first);
+        calendar?.evictRow(evicted!);
+      }
+      // Competing previews have their own spans. Only the winning commit advances this cadence.
+      cadence.commitRegular(position, span, first !== undefined);
+      // Every wide series can use the frame's own x window as its observation history.
+      for (const history of committed.observations.values()) history.useWindow(frame.x.values, cadence);
+      rows.shareSeed(draft.x, draft.start, draft.end);
+      if (keep !== undefined) rows.compactColumns(draft.x.buffer);
+      committed.buffers = draft;
+      committed.modes = modes;
+      data.current = frame;
+    }, source);
+  }
+
   prepareAppend(rows: readonly unknown[], options: StoreAppendOptions = {}): PreparedFrame<AlignedFrame> {
     if (this.#writing) throw new Error('Cannot prepare a data change during an append.');
     const base = this.current;
     const data = this.#data;
     const keep = retention(options);
     if (rows.length === 1) {
-      const single = data.prepareSingle(rows[0], keep);
-      if (single) return this.preview(base, single.frame, this.rows, noDiagnostics, noDiagnostics, () => {
-        if (this.#writing) throw new Error('Cannot commit a data change during an append.');
-        if (single.evicted !== undefined) this.revisions.current.archive(single.evicted, true);
-        data.commitSingle(single);
-      }, single.source);
+      const single = this.#prepareSingle(base, data, rows[0], keep);
+      if (single) return single;
     }
     const rowsDraft = this.rows.fork();
     rowsDraft.trackEvictions = true;

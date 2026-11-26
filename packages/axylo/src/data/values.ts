@@ -56,19 +56,17 @@ export function readValues(
   if (borrowed && !included) {
     // Values and typed NaNs can stay in the caller's storage without generic row validation.
     if (counts && keepAllValidSlots && table.length >= 256) {
-      let min = Infinity;
-      let max = -Infinity;
-      // NaN poisons both extrema and an infinity survives in at least one. In either case
-      // the ordinary validation below recovers the individual slot states and diagnostics.
-      while (i < table.length) {
-        const end = Math.min(i + 1024, table.length);
-        for (let row = i; row < end; row++) {
-          const value = column[row]!;
+      let min = column[0]!, max = min;
+      if (Number.isFinite(min)) {
+        // Interior values and exact repeats leave both finite extrema unchanged.
+        // Opposite zero signs still go through Math.min/max.
+        for (i = 1; i < table.length; i++) {
+          const value = column[i]!;
+          if ((value > min && value < max) || Object.is(value, min) || Object.is(value, max)) continue;
+          if (!Number.isFinite(value)) break;
           min = Math.min(min, value);
           max = Math.max(max, value);
         }
-        if (!Number.isFinite(min) || !Number.isFinite(max)) break;
-        i = end;
       }
       if (i === table.length) {
         const last = column[table.length - 1]!;

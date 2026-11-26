@@ -226,12 +226,21 @@ function statsCache(input: ReaderInput): StatsCache {
 
 function seriesStats(cache: StatsCache, formatters: Formatters, s: number, min: number, max: number, last: number): FormattedStats {
   const entry = cache.series[s];
-  if (!entry) return cache.series[s] = {
-    min, max, last, minText: formatters.value(s, min), maxText: formatters.value(s, max), lastText: formatters.value(s, last),
-  };
+  if (!entry) {
+    const minText = formatters.value(s, min);
+    const maxText = Object.is(max, min) ? minText : formatters.value(s, max);
+    const lastText = Object.is(last, min) ? minText : Object.is(last, max) ? maxText : formatters.value(s, last);
+    return cache.series[s] = { min, max, last, minText, maxText, lastText };
+  }
   if (!Object.is(entry.min, min)) { entry.minText = formatters.value(s, min); entry.min = min; }
-  if (!Object.is(entry.max, max)) { entry.maxText = formatters.value(s, max); entry.max = max; }
-  if (!Object.is(entry.last, last)) { entry.lastText = formatters.value(s, last); entry.last = last; }
+  if (!Object.is(entry.max, max)) {
+    entry.maxText = Object.is(max, min) ? entry.minText : formatters.value(s, max);
+    entry.max = max;
+  }
+  if (!Object.is(entry.last, last)) {
+    entry.lastText = Object.is(last, min) ? entry.minText : Object.is(last, max) ? entry.maxText : formatters.value(s, last);
+    entry.last = last;
+  }
   return entry;
 }
 
@@ -272,7 +281,6 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table, listReady)
   let unit: string | undefined;
   let oneUnit = true;
   let rangeNames: string[] | undefined;
-  const entries: string[] = [];
   let undrawn: string[] | undefined;
   const { frame } = view;
   const cacheable = cacheableValueSeries(formatters.value);
@@ -281,6 +289,9 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table, listReady)
   const zone = view.kind === 'scatter'
     ? view.frame.xKind === 'time' && view.frame.timeZone
     : view.frame.x.kind === 'time' && view.frame.x.timeZone;
+  // Reserve the heading and optional zone sentence without moving the series sentences later.
+  const entries = zone ? ['', ''] : [''];
+  const headingLength = entries.length;
 
   if (view.kind !== 'scatter') {
     const { start, end } = view.visibleSlots;
@@ -310,7 +321,7 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table, listReady)
     if (stats.max > max) { max = stats.max; maxSeries = s; maxText = formatted?.maxText; }
     if (hasValue) {
       if (nameRange) (rangeNames ??= []).push(series.label);
-      if (oneUnit && 'unit' in series) {
+      if (frame.series.length > 1 && oneUnit && 'unit' in series) {
         // A shared range needs a single unit and scale on both ends.
         const current = `${series.unit}\u0001${series.valueScale}`;
         unit ??= current;
@@ -324,7 +335,8 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table, listReady)
   }
 
   const zoneText = zone ? fill(messages.timeZoneNote, { zone }) : null;
-  if (!entries.length || !Number.isFinite(xMin) || !Number.isFinite(xMax)) {
+  const seriesCount = entries.length - headingLength;
+  if (!seriesCount || !Number.isFinite(xMin) || !Number.isFinite(xMax)) {
     const sentences = undrawn ?? [];
     sentences.push(messages.empty);
     if (zoneText !== null) sentences.push(zoneText);
@@ -340,11 +352,10 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table, listReady)
       rangeLabel = listOf(rangeNames, input.locale);
     }
   }
-  const heading = fillChartSummary(messages.chartSummary, {
-    type, seriesCount: formatters.count(entries.length), xLabel, xMin: formatters.x(xMin), xMax: formatters.x(xMax), yLabel: rangeLabel,
+  entries[0] = fillChartSummary(messages.chartSummary, {
+    type, seriesCount: formatters.count(seriesCount), xLabel, xMin: formatters.x(xMin), xMax: formatters.x(xMax), yLabel: rangeLabel,
   }, range);
-  if (zoneText === null) entries.unshift(heading);
-  else entries.unshift(heading, zoneText);
+  if (zoneText !== null) entries[1] = zoneText;
   if (undrawn) for (const sentence of undrawn) entries.push(sentence);
   return entries;
 };
@@ -433,16 +444,22 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
   let noteSegments: TextRun[] | null = null;
   let omission = '';
   if (omitted > 0 || changed > 0) {
-    noteSegments = [];
-    const counts = { omitted: formatters.count(omitted), changed: formatters.count(changed) };
-    if (omitted > 0) appendSentence(noteSegments, tableSentence(messages, 'valuesNotShown', { ...counts, count: counts.omitted }, hasTable));
-    if (changed > 0) appendSentence(noteSegments, tableSentence(messages, 'valuesChanged', { ...counts, count: counts.changed }, hasTable));
-    omission = textOf(noteSegments);
+    const omittedText = formatters.count(omitted), changedText = formatters.count(changed);
+    const counts = { omitted: omittedText, changed: changedText, count: omittedText };
+    if (omitted > 0) noteSegments = tableSentence(messages, 'valuesNotShown', counts, hasTable);
+    if (changed > 0) {
+      counts.count = changedText;
+      const sentence = tableSentence(messages, 'valuesChanged', counts, hasTable);
+      if (noteSegments) appendSentence(noteSegments, sentence);
+      else noteSegments = sentence;
+    }
+    omission = textOf(noteSegments!);
   }
   let note = omission || null;
   if (hidden > 0) {
-    noteSegments ??= [];
-    appendSentence(noteSegments, tableSentence(messages, 'labelsHidden', { count: formatters.count(hidden) }, hasTable));
+    const sentence = tableSentence(messages, 'labelsHidden', { count: formatters.count(hidden) }, hasTable);
+    if (noteSegments) appendSentence(noteSegments, sentence);
+    else noteSegments = sentence;
     note = textOf(noteSegments) || null;
   }
   let summary: string | undefined;

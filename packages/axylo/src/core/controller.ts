@@ -716,6 +716,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   let presentation: Map<PresentationStage, readonly DiagnosticInput[]> | null = null;
   /** Keys of the current diagnostics already printed and handed to `onDiagnostic`. */
   let deliveredKeys: Set<string> | null = null;
+  /** The finding list whose keys `deliveredKeys` holds after the last full delivery pass (see deliverChanges). */
+  let settledInputs: readonly DiagnosticInput[] | null = null;
   /** Increases with every delivery pass; a pass started inside author code supersedes the outer one. */
   let destroyed = false;
   let internalError: unknown = null;
@@ -881,14 +883,21 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     const inputs = diagnosticInputs();
     if (!inputs.length) {
       deliveredKeys?.clear();
+      settledInputs = null;
       return;
     }
+    // Finding lists are replaced, never changed in place, and a key depends on the finding alone (not the chart
+    // name): the list a full pass last settled holds nothing new, and the delivered set already equals its keys.
+    // Charts with a standing finding (a hint on their data) then skip the copies and key sets on every frame.
+    if (inputs === settledInputs) return;
     const now = publicDiagnostics(inputs);
     if (deliveredKeys && deliveredKeys.size > 0) {
       const keys = new Set(now.map(diagnosticKey));
       for (const k of [...deliveredKeys]) if (!keys.has(k)) deliveredKeys.delete(k);
     }
     const fresh = undelivered(now);
+    // Settled before any handler runs: a delivery that author code starts from the handler settles its own list.
+    settledInputs = inputs;
     if (!fresh.length) return;
     const delivered = deliveredKeys ??= new Set();
     for (const d of fresh) delivered.add(diagnosticKey(d));
@@ -1000,9 +1009,13 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     if (held && c.frame === held.frame) held = null;
     options.commit(c.options);
     frameRevision = Math.max(frameRevision, c.frame.revision);
+    // Naming and the chart's name come from the options alone: a stream's appends keep the same options object,
+    // so they keep the same naming list too (and the delivery pass can see that nothing changed).
+    const before = accepted;
+    const sameOptions = before !== null && before.options === c.options;
     accepted = {
-      ...c, viewDiagnostics: viewed.viewDiagnostics, naming: namingDiagnostics(c.options), view: viewed.view,
-      viewKey: viewed.viewKey, follow, revision: ++commits, name: chartName(c.options),
+      ...c, viewDiagnostics: viewed.viewDiagnostics, naming: sameOptions ? before.naming : namingDiagnostics(c.options), view: viewed.view,
+      viewKey: viewed.viewKey, follow, revision: ++commits, name: sameOptions ? before.name : chartName(c.options),
     };
     if (internalError !== null) {
       internalError = null;
@@ -2875,6 +2888,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     if (listeners) { listeners.clear(); listeners = null; }
     if (presentation) { presentation.clear(); presentation = null; }
     if (deliveredKeys) { deliveredKeys.clear(); deliveredKeys = null; }
+    settledInputs = null;
     if (notifications) { notifications.length = 0; notifications = null; }
     options = new OptionsStore({});
     const owner = host;

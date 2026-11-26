@@ -137,7 +137,7 @@ function renderLabel(doc: Document, label: Label, t: PlacedText, x = t.x): void 
     label.ry = ry;
     label.el.style.transform = `translate(${rx}${label.transformEnd}`;
   }
-  if (previous?.lines !== t.lines && !sameSingleLine(label, t)) {
+  if (previous?.lines !== t.lines && !sameLines(label, t)) {
     renderLines(doc, label, t.lines);
   }
   label.placed = t;
@@ -145,6 +145,16 @@ function renderLabel(doc: Document, label: Label, t: PlacedText, x = t.x): void 
 
 function sameSingleLine(label: Label, t: PlacedText): boolean {
   return t.lines.length === 1 && label.line0 !== null && label.lines === null && t.lines[0] === label.text0;
+}
+
+function sameLines(label: Label, t: PlacedText): boolean {
+  if (label.line0 === null) return t.lines.length === 0;
+  if (label.text0 !== t.lines[0]) return false;
+  const tail = label.text;
+  if (tail === null) return t.lines.length === 1;
+  if (tail.length !== t.lines.length - 1) return false;
+  for (let j = 0; j < tail.length; j++) if (tail[j] !== t.lines[j + 1]) return false;
+  return true;
 }
 
 function reconcileLabels(
@@ -235,6 +245,24 @@ function placeBefore(parent: HTMLDivElement, el: HTMLDivElement, next: ChildNode
   if (el.parentNode !== parent || el.nextSibling !== next) parent.insertBefore(el, next);
 }
 
+function unchangedSlide(labels: Label[], texts: readonly PlacedText[], start: number, end: number): number | null {
+  const dx = texts[start]!.x - labels[start]!.baseX;
+  if (!Number.isFinite(dx)) return null;
+  for (let i = 0; i < texts.length; i++) {
+    const t = texts[i]!, label = labels[i]!, old = label.placed!;
+    if (i >= start && i < end) {
+      // Compare to the original local positions so subpixel differences never accumulate.
+      if (!(Math.abs((t.x - label.baseX) - dx) <= 0.005)) return null;
+    } else if (t.x !== label.baseX) return null;
+    if (old === t) continue;
+    if (t.role !== label.role || t.y !== old.y || t.anchor !== old.anchor || t.rotate !== old.rotate ||
+        t.baseline !== old.baseline || (t.lines !== old.lines && !sameLines(label, t))) return null;
+    // Even on a later mismatch this prefix already has the correct text and local transforms.
+    label.placed = t;
+  }
+  return round(dx);
+}
+
 export function createTextLayer(doc: Document = document): TextLayer {
   const element = doc.createElement('div');
   element.className = 'axylo-text';
@@ -250,6 +278,15 @@ export function createTextLayer(doc: Document = document): TextLayer {
     render(texts: readonly PlacedText[]): void {
       if (texts === previous) return;
       const count = labels.length;
+      if (tickGroup && count && count === texts.length) {
+        const dx = unchangedSlide(labels, texts, tickStart, tickEnd);
+        if (dx !== null) {
+          if (dx !== groupDx) tickGroup.style.transform = dx ? `translate(${dx}px,0px)` : '';
+          groupDx = dx;
+          previous = texts;
+          return;
+        }
+      }
       if (!count) {
         tickEnd = -1;
         if (texts.length) {

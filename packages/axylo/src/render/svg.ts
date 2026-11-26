@@ -263,11 +263,13 @@ function decimalTable(): Uint32Array {
 }
 
 function writePixel(b: Uint8Array, bytes: DataView, words: Uint32Array, pos: number, prefix: number, value: number): number {
-  const cents = Math.round(value * 100);
-  if (!(cents >= 0 && cents < 100000)) {
+  if (!(value >= 0 && value < 999.995)) {
     b[pos++] = prefix;
-    return writeFixed(b, pos, cents);
+    return writeFixed(b, pos, Math.round(value * 100));
   }
+  // Float32 coordinates at these magnitudes have enough precision in a double for
+  // the half-cent addition to preserve which side of the rounding boundary they occupy.
+  const cents = (value * 100 + 0.5) | 0;
   const whole = (cents / 100) | 0;
   const integer = words[whole]!;
   // The following write overwrites padding. Callers reserve a worst-case coordinate pair.
@@ -362,13 +364,17 @@ function packedTenths() {
   const bytes = new Float64Array(TENTH_COUNT), lengths = new Uint8Array(TENTH_COUNT);
   const scratch = new Uint8Array(8), view = new DataView(scratch.buffer);
   const words = decimalWords ??= decimalTable();
-  for (let i = 0; i < TENTH_COUNT; i++) {
-    const whole = (i / 10) | 0, integer = words[whole]!;
-    const size = integer >>> 24, digit = i - whole * 10;
+  for (let whole = 0; whole < TENTH_COUNT / 10; whole++) {
+    const integer = words[whole]!, size = integer >>> 24, base = 10 * whole;
     view.setUint32(0, integer, true);
-    if (digit) { scratch[size] = 46; scratch[size + 1] = 48 + digit; }
-    lengths[i] = size + (digit ? 2 : 0);
-    bytes[i] = view.getFloat64(0, true);
+    lengths[base] = size;
+    bytes[base] = view.getFloat64(0, true);
+    scratch[size] = 46;
+    for (let digit = 1; digit < 10; digit++) {
+      scratch[size + 1] = 48 + digit;
+      lengths[base + digit] = size + 2;
+      bytes[base + digit] = view.getFloat64(0, true);
+    }
   }
   return { bytes, lengths };
 }
@@ -434,7 +440,8 @@ function denseCircles(xy: Float32Array, radius: number): string | null {
       if (lifted(x) || lifted(y)) continue;
       return null;
     }
-    const cx = Math.round(x * 10), cy = Math.round(y * 10);
+    const cx = x >= 0 ? (x * 10 + 0.5) | 0 : Math.round(x * 10);
+    const cy = y >= 0 ? (y * 10 + 0.5) | 0 : Math.round(y * 10);
     b[pos++] = 77;
     pos = write(pos, cx + radiusTenths);
     b[pos++] = 32;
@@ -593,8 +600,7 @@ export type SvgMark<M extends Mark = Mark> = (c: SvgContext, n: SvgNode, mark: M
 export type SvgMarks = { readonly [K in Mark['type']]?: SvgMark<Extract<Mark, { type: K }>> };
 
 interface SlidingPath {
-  readonly bytes: Uint8Array;
-  readonly view: DataView;
+  readonly words: Float64Array;
   readonly lengths: Uint8Array;
   head: number;
 }
@@ -604,43 +610,41 @@ function fitsPixelWord(value: number): boolean {
   return value > -1000 && value < 10000;
 }
 
-function cachePixel(cache: SlidingPath, index: number, prefix: number, value: number): void {
-  const start = index * 8;
-  cache.lengths[index] = writePixel(cache.bytes, cache.view, decimalWords ??= decimalTable(), start, prefix, value) - start;
-}
-
 function slidingPath(source: unknown[], xy: Float32Array): string | null {
   const previous = source[0] as Float32Array | undefined;
   const length = xy.length;
   if (!previous || previous.length !== length || length < 128 || length * 9 > MAX_RETAINED_BUF || length % 2) return null;
   let cache = source[1] as SlidingPath | undefined;
-  if (!fitsPixelWord(xy[length - 1]!)) return null;
-  // A fixed-width, regular stream can revisit the exact same x pixels with its y column shifted one slot.
-  // Verify every coordinate, so gaps, zooms, irregular samples and domain changes take the ordinary path.
-  for (let i = 0; i < length; i += 2) {
-    const x = xy[i]!, y = xy[i + 1]!;
-    if (x !== previous[i] || (i + 2 < length && y !== previous[i + 3])) return null;
-    if (!cache && !(fitsPixelWord(x) && fitsPixelWord(y))) return null;
+  if (xy[length - 2] !== previous[length - 2] || !fitsPixelWord(xy[length - 1]!)) return null;
+  // Accept only a complete one-slot shift; a pen lift or any changed x invalidates the ring.
+  for (let i = 0; i < length - 2; i += 2) {
+    if (xy[i] !== previous[i] || xy[i + 1] !== previous[i + 3]) return null;
   }
   if (!cache) {
-    const bytes = new Uint8Array(8 * length);
-    cache = { bytes, view: new DataView(bytes.buffer), lengths: new Uint8Array(length), head: 1 };
-    for (let i = 0; i < length; i += 2) {
-      cachePixel(cache, i, i ? 76 : 77, xy[i]!);
-      cachePixel(cache, i + 1, 32, xy[i + 1]!);
+    for (let i = 0; i < length; i++) if (!fitsPixelWord(xy[i]!)) return null;
+  }
+  const b = ensureBuf(8 * length), out = viewOf(b);
+  const decimals = decimalWords ??= decimalTable();
+  if (!cache) {
+    cache = { words: new Float64Array(length), lengths: new Uint8Array(length), head: 1 };
+    for (let i = 0; i < length; i++) {
+      const value = xy[i]!;
+      const prefix = i % 2 ? 32 : i ? 76 : 77;
+      cache.lengths[i] = writePixel(b, out, decimals, 0, prefix, value);
+      cache.words[i] = out.getFloat64(0, true);
     }
     source[1] = cache;
   } else {
-    cachePixel(cache, cache.head, 32, xy[length - 1]!);
+    cache.lengths[cache.head] = writePixel(b, out, decimals, 0, 32, xy[length - 1]!);
+    cache.words[cache.head] = out.getFloat64(0, true);
     cache.head = cache.head + 2 >= length ? 1 : cache.head + 2;
   }
-  const out = viewOf(ensureBuf(8 * length));
-  const { lengths, view } = cache;
+  const { lengths, words } = cache;
   let pos = 0, y = cache.head;
   for (let x = 0; x < length; x += 2) {
-    out.setFloat64(pos, view.getFloat64(x * 8, true), true);
+    out.setFloat64(pos, words[x]!, true);
     pos += lengths[x]!;
-    out.setFloat64(pos, view.getFloat64(y * 8, true), true);
+    out.setFloat64(pos, words[y]!, true);
     pos += lengths[y]!;
     y = y + 2 >= length ? 1 : y + 2;
   }
@@ -1002,7 +1006,7 @@ function ruleRunEnd(marks: readonly Mark[], start: number, first: RuleMark, bind
   for (; end < marks.length; end++) {
     const next = marks[end]!;
     if (next.type !== 'rule' || next.role !== first.role || next.strokeWidth !== first.strokeWidth
-      || paintOf(next.stroke, bindings) !== color || !sameDash(first.dash, next.dash)) break;
+      || (next.stroke !== first.stroke && paintOf(next.stroke, bindings) !== color) || !sameDash(first.dash, next.dash)) break;
     // A path has one stroke width. Only horizontal and vertical rules get a device-snapped width.
     if (aligned !== (next.x1 === next.x2 || next.y1 === next.y2) && first.strokeWidth > 0) {
       const o = aligned ? first : next;
