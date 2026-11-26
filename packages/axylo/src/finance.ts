@@ -1,5 +1,9 @@
 /**
- * Opt-in financial candlestick (+ optional volume) entry point (`axylo/finance`, C6.3).
+ * Opt-in financial candlestick (+ optional volume) entry point (`axylo/finance`, C6.3; split panes in N7a).
+ *
+ * The chart is a price pane over a volume pane with one shared x axis (finance/layout.ts). An explicit
+ * `yAxis.domain` is drawn exactly; `yAxis.label` and `volumeAxis.label` title the two value axes. Dense views
+ * draw pixel-bin OHLCV aggregates (finance/aggregate.ts) while every readout stays on the raw rows.
  *
  * Admitted by the Campaign 6 C6.3 architecture council:
  * - Zero edits to `public.ts`, zero legacy bundle tax (0 B), 0 raw bytes on bare import.
@@ -9,22 +13,14 @@
  */
 import type { CommonOptions, Diagnostic, Reference, Target, ValueField, XField, XValue } from './public.js';
 import type { StaticChart } from './static.js';
-import { alignedLayout } from './core/axes';
 import { createStaticChart } from './core/chart';
-import type { Composition } from './core/composition';
 import { namingDiagnostics, toPublic } from './core/stages';
 import { resolveOptions } from './data/options';
 import { DiagnosticCollector } from './diagnostics/collector';
-import { lineSwatch } from './dom/swatch';
-import { createTimeReadout } from './format/time';
-import { svgBand, svgPath, svgRects, svgRule } from './render/svg';
+import { openFinanceChart } from './finance/chart';
 import {
-  buildFinanceView, createFinanceDiagnostic, createFinanceResolver, normalizeFinance,
-  parseFinanceInput, type FinanceStateRef, type FinanceValidationIssue,
+  buildFinanceView, createFinanceDiagnostic, normalizeFinance, parseFinanceInput, type FinanceStateRef,
 } from './finance/core';
-import {
-  buildFinanceScene, createFinanceLookup, createFinanceOverlay, createFinanceReader,
-} from './finance/render';
 
 export interface FinanceAxisOptions {
   readonly label?: string;
@@ -47,59 +43,13 @@ export interface CandlestickOptions<Row> extends CommonOptions<Row> {
   readonly reference?: readonly Reference[];
 }
 
-function createFinanceComposition(
-  stateRef: FinanceStateRef,
-  pendingIssues: { list: readonly FinanceValidationIssue[] },
-): Composition {
-  return {
-    kind: 'line',
-    resolve: createFinanceResolver(pendingIssues),
-    normalize: ((kind, resolved, env, sink, version) => normalizeFinance(stateRef, kind, resolved, env, sink, version)) as Composition['normalize'],
-    view: ((frame, state, sink) => buildFinanceView(stateRef, frame as never, state as never, sink)) as Composition['view'],
-    layout: alignedLayout(),
-    timeReadout: createTimeReadout,
-    scene: (view, lay, dpr) => buildFinanceScene(stateRef, view, lay, dpr),
-    lookup: (view, lay, formatters, messages, locale) => createFinanceLookup(stateRef, view, lay, formatters, messages, locale),
-    reader: createFinanceReader(stateRef),
-    interaction: { overlay: createFinanceOverlay(stateRef), swatch: lineSwatch, stepInSeries: null, sliceList: null },
-    svg: { band: svgBand, path: svgPath, rects: svgRects, rule: svgRule },
-  };
-}
-
 /** Creates an opt-in static candlestick (+ optional volume) financial chart. */
 export function candlestick<Row>(
   target: Target,
   options: CandlestickOptions<Row>,
 ): StaticChart<Row, CandlestickOptions<Row>> {
-  let currentRaw: Record<string, unknown> = options && typeof options === 'object' ? { ...options } : {};
-  const parsed = parseFinanceInput(currentRaw);
-  const stateRef: FinanceStateRef = { meta: parsed.meta };
-  const pendingIssues = { list: parsed.issues };
-  const inner = createStaticChart(createFinanceComposition(stateRef, pendingIssues), target, parsed.translated);
-
-  return {
-    update(patch) {
-      const prevRaw = currentRaw;
-      const prevMeta = stateRef.meta;
-      const prevIssues = pendingIssues.list;
-      if (patch && typeof patch === 'object') currentRaw = { ...currentRaw, ...patch };
-      const next = parseFinanceInput(currentRaw, prevMeta);
-      stateRef.meta = next.meta;
-      pendingIssues.list = next.issues;
-      try {
-        inner.update(next.translated);
-      } catch (err) {
-        currentRaw = prevRaw;
-        stateRef.meta = prevMeta;
-        pendingIssues.list = prevIssues;
-        throw err;
-      }
-    },
-    zoom(range) { inner.zoom(range as never); },
-    on(event, listener) { return inner.on(event as never, listener as never); },
-    get diagnostics() { return inner.diagnostics; },
-    destroy() { inner.destroy(); },
-  };
+  return openFinanceChart(options, (composition, translated) => createStaticChart(composition, target, translated)) as unknown as
+    StaticChart<Row, CandlestickOptions<Row>>;
 }
 
 /** Validates `axylo/finance` candlestick options and OHLC/volume data without a DOM (Node/SSR safe). */

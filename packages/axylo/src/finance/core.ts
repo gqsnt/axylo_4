@@ -8,6 +8,7 @@ import {
   type DiagnosticSink, type Series,
 } from '../core/contracts';
 import type { Composition } from '../core/composition';
+import { sameValue } from '../core/options';
 import { normalizeAligned, type DataEnvironment, type FrameVersion } from '../data/normalize';
 import { resolveOptions, type ChartType, type ResolvedOptions } from '../data/options';
 import type { NumberFormatOption } from '../format';
@@ -30,17 +31,25 @@ export interface FinanceMeta {
   readonly priceUnit: string | null;
   readonly priceFormat: NumberFormatOption | null;
   readonly priceDomain: readonly [number, number] | null;
+  /** `yAxis.label`: the price pane's axis title (null = the generic value title). */
+  readonly priceAxisLabel: string | null;
+  /** `volumeAxis.label`: the volume pane's axis title (null = the volume field's label). */
+  readonly volumeAxisLabel: string | null;
   readonly volumeUnit: string | null;
   readonly volumeFormat: NumberFormatOption | null;
   readonly invalidConfig: boolean;
-  /** Per-slot status flags populated during normalization: bit 1 = invalid OHLC (AX180), bit 2 = partial/missing OHLC, bit 4 = invalid volume (AX181). */
-  slotFlags: Uint8Array;
 }
 
 export const FLAG_INVALID_OHLC = 1;
 export const FLAG_INCOMPLETE_OHLC = 2;
 export const FLAG_INVALID_VOLUME = 4;
 
+/**
+ * The meta of the call the controller resolves next. The wrapper sets it before each create or update; the
+ * stages never read it while drawing. Layout reads the meta bound to the accepted resolved options, every other
+ * stage the meta bound to the frame, so a callback that updates the chart mid-frame (a tick formatter) cannot
+ * mix the options of two revisions in one drawn frame.
+ */
 export interface FinanceStateRef {
   meta: FinanceMeta;
 }
@@ -95,10 +104,90 @@ export interface ParsedFinance {
   readonly translated: Record<string, unknown>;
 }
 
-let frameFlags: WeakMap<AlignedFrame, Uint8Array> | undefined;
+/** Per-slot flags of one frame: bit 1 = invalid OHLC (AX180), bit 2 = partial/missing OHLC, bit 4 = invalid volume (AX181). */
+interface FrameRecord {
+  readonly meta: FinanceMeta;
+  readonly flags: Uint8Array;
+}
+
+let resolvedMetas: WeakMap<object, FinanceMeta> | undefined;
+let frameRecords: WeakMap<AlignedFrame, FrameRecord> | undefined;
+
+/** Ties resolved options to the finance meta they were resolved from (the first binding wins). */
+export function bindResolved(resolved: object, meta: FinanceMeta): void {
+  const map = resolvedMetas ??= new WeakMap();
+  if (!map.has(resolved)) map.set(resolved, meta);
+}
+
+/** The meta of a revision's resolved options: what layout reads for titles, units and formats. */
+export function metaForResolved(stateRef: FinanceStateRef, resolved: object): FinanceMeta {
+  return resolvedMetas?.get(resolved) ?? stateRef.meta;
+}
+
+function slotFlagsOf(frame: AlignedFrame, meta: FinanceMeta): {
+  readonly flags: Uint8Array; readonly ohlcRows: number[]; readonly ohlcCount: number; readonly volRows: number[]; readonly volCount: number;
+} {
+  const { open, high, low, close, volume } = findOhlcSeries(frame, meta);
+  const flags = new Uint8Array(frame.length);
+  const ohlcRows: number[] = [];
+  const volRows: number[] = [];
+  let ohlcCount = 0;
+  let volCount = 0;
+  if (!open || !high || !low || !close) return { flags, ohlcRows, ohlcCount, volRows, volCount };
+  for (let i = 0; i < frame.length; i++) {
+    const oOk = open.slot[i] === SLOT_VALUE && Number.isFinite(open.y[i]!);
+    const hOk = high.slot[i] === SLOT_VALUE && Number.isFinite(high.y[i]!);
+    const lOk = low.slot[i] === SLOT_VALUE && Number.isFinite(low.y[i]!);
+    const cOk = close.slot[i] === SLOT_VALUE && Number.isFinite(close.y[i]!);
+    if (!oOk || !hOk || !lOk || !cOk) {
+      flags[i] = (flags[i]! | FLAG_INCOMPLETE_OHLC);
+    } else {
+      const o = open.y[i]!, h = high.y[i]!, l = low.y[i]!, c = close.y[i]!;
+      if (h < Math.max(o, c) || l > Math.min(o, c)) {
+        flags[i] = (flags[i]! | FLAG_INVALID_OHLC);
+        ohlcCount++;
+        if (ohlcRows.length < 10) {
+          const srcRow = open.row ? open.row[i]! : i;
+          if (srcRow >= 0) ohlcRows.push(srcRow);
+        }
+      }
+    }
+    if (volume && volume.slot[i] === SLOT_VALUE && Number.isFinite(volume.y[i]!) && volume.y[i]! < 0) {
+      flags[i] = (flags[i]! | FLAG_INVALID_VOLUME);
+      volCount++;
+      if (volRows.length < 10) {
+        const srcRow = volume.row ? volume.row[i]! : i;
+        if (srcRow >= 0) volRows.push(srcRow);
+      }
+    }
+  }
+  return { flags, ohlcRows, ohlcCount, volRows, volCount };
+}
+
+/**
+ * The frame's own record. A frame the controller derived without normalizing (labels or units renamed over the
+ * same columns) is recorded when a stage first meets it, which is its view stage inside the same update, with
+ * that update's meta; its flags are recomputed from its (borrowed, unchanged) columns.
+ */
+function recordFor(frame: AlignedFrame, meta: FinanceMeta): FrameRecord {
+  const map = frameRecords ??= new WeakMap();
+  let record = map.get(frame);
+  if (!record) map.set(frame, record = { meta, flags: slotFlagsOf(frame, meta).flags });
+  return record;
+}
+
+/** The meta a frame was made with: its field names and labels, read by view, scene, lookup and reader. */
+export function frameMeta(stateRef: FinanceStateRef, frame: AlignedFrame): FinanceMeta {
+  return recordFor(frame, stateRef.meta).meta;
+}
 
 export function flagsForFrame(frame: AlignedFrame, meta: FinanceMeta): Uint8Array {
-  return frameFlags?.get(frame) ?? meta.slotFlags;
+  return recordFor(frame, meta).flags;
+}
+
+function keptFormat(given: unknown, before: NumberFormatOption | null | undefined): NumberFormatOption | null {
+  const format = (given as NumberFormatOption | undefined) ?? null;
+  return before !== undefined && sameValue(before, format) ? before : format;
 }
 
 export function parseFinanceInput(input: unknown, previous?: FinanceMeta | null): ParsedFinance {
@@ -114,13 +203,22 @@ export function parseFinanceInput(input: unknown, previous?: FinanceMeta | null)
   const volumeField = src.volume !== undefined ? fieldName(src.volume) || null : null;
 
   const priceUnit = typeof yAxis.unit === 'string' ? yAxis.unit : null;
-  const priceFormat = (yAxis.format as NumberFormatOption | undefined) ?? null;
+  // Formats are the snapshot taken where the options were submitted (the chart wrapper's applyPatch): one equal to
+  // the accepted one keeps the accepted object, so the layout key, compared by identity, changes with content only.
+  const priceFormat = keptFormat(yAxis.format, previous?.priceFormat);
   const priceTickFormat = (yAxis.tickFormat as NumberFormatOption | undefined) ?? null;
-  const priceDomain = Array.isArray(yAxis.domain) && yAxis.domain.length === 2
+  const givenDomain = Array.isArray(yAxis.domain) && yAxis.domain.length === 2
     ? [Number(yAxis.domain[0]), Number(yAxis.domain[1])] as const : null;
+  // The same ends keep the same array, so an update that leaves the domain alone keeps the view (and the
+  // shared tick labels made for it) instead of looking like a new domain.
+  const before = previous?.priceDomain;
+  const priceDomain = givenDomain && before && Object.is(before[0], givenDomain[0]) && Object.is(before[1], givenDomain[1])
+    ? before : givenDomain;
 
+  const priceAxisLabel = typeof yAxis.label === 'string' && yAxis.label.trim() ? yAxis.label : null;
+  const volumeAxisLabel = typeof volAxis.label === 'string' && volAxis.label.trim() ? volAxis.label : null;
   const volumeUnit = typeof volAxis.unit === 'string' ? volAxis.unit : null;
-  const volumeFormat = (volAxis.format as NumberFormatOption | undefined) ?? null;
+  const volumeFormat = keptFormat(volAxis.format, previous?.volumeFormat);
 
   const makeSpec = (raw: unknown, name: string, label: string, unit: string | null, format: NumberFormatOption | null, tickFormat: NumberFormatOption | null, includeDomain: boolean) => {
     const base = isObj(raw) ? raw : {};
@@ -161,9 +259,8 @@ export function parseFinanceInput(input: unknown, previous?: FinanceMeta | null)
   const meta: FinanceMeta = {
     openField, highField, lowField, closeField, volumeField,
     openLabel, highLabel, lowLabel, closeLabel, volumeLabel,
-    priceUnit, priceFormat, priceDomain, volumeUnit, volumeFormat,
+    priceUnit, priceFormat, priceDomain, priceAxisLabel, volumeAxisLabel, volumeUnit, volumeFormat,
     invalidConfig: issues.length > 0,
-    slotFlags: previous?.slotFlags ?? new Uint8Array(0),
   };
 
   const {
@@ -182,13 +279,17 @@ export function parseFinanceInput(input: unknown, previous?: FinanceMeta | null)
 }
 
 export function createFinanceResolver(
+  stateRef: FinanceStateRef,
   pendingIssues: { list: readonly FinanceValidationIssue[] },
 ): Composition['resolve'] {
   return (_kind, options, sink, table): ResolvedOptions => {
     for (const issue of pendingIssues.list) {
       sink.add(createFinanceDiagnostic(issue.code, 'chart-error', { field: issue.field, detail: issue.detail }));
     }
-    return resolveOptions('line', options, sink, table);
+    const resolved = resolveOptions('line', options, sink, table);
+    // Resolution runs inside the call the wrapper set the meta for: the binding is that call's revision.
+    bindResolved(resolved, stateRef.meta);
+    return resolved;
   };
 }
 
@@ -223,65 +324,61 @@ export function normalizeFinance(
   version: FrameVersion,
 ): AlignedFrame {
   const frame = normalizeAligned('line', resolved, env, sink, version);
-  const { meta } = stateRef;
-  const { open, high, low, close, volume } = findOhlcSeries(frame, meta);
-  const flags = new Uint8Array(frame.length);
-  meta.slotFlags = flags;
-  (frameFlags ??= new WeakMap()).set(frame, flags);
+  bindResolved(resolved, stateRef.meta);
+  const meta = metaForResolved(stateRef, resolved);
+  const found = slotFlagsOf(frame, meta);
+  (frameRecords ??= new WeakMap()).set(frame, { meta, flags: found.flags });
 
-  if (!open || !high || !low || !close) return frame;
-
-  const invalidOhlcRows: number[] = [];
-  let invalidOhlcCount = 0;
-  const invalidVolRows: number[] = [];
-  let invalidVolCount = 0;
-
-  for (let i = 0; i < frame.length; i++) {
-    const oOk = open.slot[i] === SLOT_VALUE && Number.isFinite(open.y[i]!);
-    const hOk = high.slot[i] === SLOT_VALUE && Number.isFinite(high.y[i]!);
-    const lOk = low.slot[i] === SLOT_VALUE && Number.isFinite(low.y[i]!);
-    const cOk = close.slot[i] === SLOT_VALUE && Number.isFinite(close.y[i]!);
-    if (!oOk || !hOk || !lOk || !cOk) {
-      flags[i] = (flags[i]! | FLAG_INCOMPLETE_OHLC);
-    } else {
-      const o = open.y[i]!, h = high.y[i]!, l = low.y[i]!, c = close.y[i]!;
-      const bodyMax = Math.max(o, c);
-      const bodyMin = Math.min(o, c);
-      if (h < bodyMax || l > bodyMin) {
-        flags[i] = (flags[i]! | FLAG_INVALID_OHLC);
-        invalidOhlcCount++;
-        if (invalidOhlcRows.length < 10) {
-          const srcRow = open.row ? open.row[i]! : i;
-          if (srcRow >= 0) invalidOhlcRows.push(srcRow);
-        }
-      }
-    }
-    if (volume && volume.slot[i] === SLOT_VALUE && Number.isFinite(volume.y[i]!) && volume.y[i]! < 0) {
-      flags[i] = (flags[i]! | FLAG_INVALID_VOLUME);
-      invalidVolCount++;
-      if (invalidVolRows.length < 10) {
-        const srcRow = volume.row ? volume.row[i]! : i;
-        if (srcRow >= 0) invalidVolRows.push(srcRow);
-      }
-    }
+  if (found.ohlcCount > 0) {
+    sink.add(createFinanceDiagnostic('AX180', 'omitted', { field: 'ohlc', rows: found.ohlcRows, count: found.ohlcCount }));
   }
-
-  if (invalidOhlcCount > 0) {
-    sink.add(createFinanceDiagnostic('AX180', 'omitted', {
-      field: 'ohlc',
-      rows: invalidOhlcRows,
-      count: invalidOhlcCount,
-    }));
+  if (found.volCount > 0 && meta.volumeField) {
+    sink.add(createFinanceDiagnostic('AX181', 'omitted', { field: meta.volumeField, rows: found.volRows, count: found.volCount }));
   }
-  if (invalidVolCount > 0 && meta.volumeField) {
-    sink.add(createFinanceDiagnostic('AX181', 'omitted', {
-      field: meta.volumeField,
-      rows: invalidVolRows,
-      count: invalidVolCount,
-    }));
-  }
-
   return frame;
+}
+
+/** An explicit price domain the price pane can draw as given: two finite, distinct ends (sorted). */
+export function explicitPriceDomain(d: readonly [number, number] | null | undefined): readonly [number, number] | null {
+  if (!d || !Number.isFinite(d[0]) || !Number.isFinite(d[1]) || d[0] === d[1]) return null;
+  return d[0] < d[1] ? [d[0], d[1]] : [d[1], d[0]];
+}
+
+/** The price pane's domain when nothing is drawable in view (all-invalid data, a zoom into a gap). */
+export const NEUTRAL_PRICE_DOMAIN: readonly [number, number] = [0, 1];
+const PRICE_PAD = 0.08;
+
+/**
+ * The automatic price domain: the lows and highs of the visible drawable candles and the y references, padded
+ * by 8% of their span on each side. Volume never takes part: it has its own pane and scale. A padded lower end
+ * that would cross zero for non-negative prices stops at zero, so a positive series never shows negative ticks.
+ *
+ * Every finite price is drawable, so the ends stay finite: the padding is taken from each end before
+ * subtracting (hi - lo overflows for [-1e308, 1e308]), and an end padded past the largest double stops there,
+ * which still encloses the data. The linear scale and ticks are overflow-safe for such spans.
+ */
+export function fitPriceDomain(
+  low: Float64Array | Float32Array, high: Float64Array | Float32Array, flags: Uint8Array, start: number, end: number,
+  references: readonly { readonly axis: 'x' | 'y'; readonly from: number; readonly to: number }[],
+): readonly [number, number] {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (let i = start; i < end; i++) {
+    if ((flags[i]! & (FLAG_INVALID_OHLC | FLAG_INCOMPLETE_OHLC)) !== 0) continue;
+    const l = low[i]!;
+    const h = high[i]!;
+    if (l < lo) lo = l;
+    if (h > hi) hi = h;
+  }
+  for (const ref of references) {
+    if (ref.axis !== 'y' || !Number.isFinite(ref.from) || !Number.isFinite(ref.to)) continue;
+    lo = Math.min(lo, ref.from, ref.to);
+    hi = Math.max(hi, ref.from, ref.to);
+  }
+  if (!(lo <= hi) || !Number.isFinite(lo) || !Number.isFinite(hi)) return NEUTRAL_PRICE_DOMAIN;
+  const pad = lo < hi ? hi * PRICE_PAD - lo * PRICE_PAD : Math.abs(hi) * 0.05 || 1;
+  const bottom = lo >= 0 ? Math.max(0, lo - pad) : Math.max(-Number.MAX_VALUE, lo - pad);
+  return [bottom, Math.min(Number.MAX_VALUE, hi + pad)];
 }
 
 export function buildFinanceView(
@@ -290,53 +387,19 @@ export function buildFinanceView(
   state: AlignedViewState,
   sink: DiagnosticSink,
 ): AlignedView {
-  const { meta } = stateRef;
-  const base = buildPlainAlignedView(frame, { ...state, valueDomain: meta.priceDomain }, sink);
-  const { high, low, volume } = findOhlcSeries(frame, meta);
+  const meta = frameMeta(stateRef, frame);
+  // The view state's domain is the accepted options' own (a domain-only update keeps the frame).
+  const explicit = explicitPriceDomain(state.valueDomain);
+  const base = buildPlainAlignedView(frame, { ...state, valueDomain: explicit }, sink);
+  // An explicit domain is drawn exactly as given, through every zoom: no room is borrowed for volume (it has its own pane).
+  if (explicit) return { ...base, yDomain: explicit, ...(base.yDomains ? { yDomains: [explicit] } : {}) };
+  const { high, low } = findOhlcSeries(frame, meta);
   const flags = flagsForFrame(frame, meta);
-  const volIdx = volume ? frame.series.indexOf(volume) : -1;
-  const showVolume = volIdx >= 0 && base.visible[volIdx] !== false;
-
-  if (meta.priceDomain && meta.priceDomain.every(Number.isFinite)) {
-    const d0 = Math.min(meta.priceDomain[0], meta.priceDomain[1]);
-    const d1 = Math.max(meta.priceDomain[0], meta.priceDomain[1]);
-    const span = d1 - d0 || Math.max(1, Math.abs(d1) * 0.05);
-    // Reserve dedicated lower 26% plot space for volume bars even when yAxis.domain is explicit.
-    return { ...base, yDomain: [showVolume ? d0 - span * 0.36 : d0, d1] };
-  }
-
-  // Compute yDomain strictly from valid OHLC price candles (never distorted by volume magnitude!)
-  let pMin = Infinity;
-  let pMax = -Infinity;
   const { start, end } = base.visibleSlots;
-  const scan = (lo: number, hi: number) => {
-    if (!high || !low) return;
-    for (let i = lo; i < hi; i++) {
-      if ((flags[i]! & (FLAG_INVALID_OHLC | FLAG_INCOMPLETE_OHLC)) !== 0) continue;
-      const h = high.y[i]!;
-      const l = low.y[i]!;
-      if (l < pMin) pMin = l;
-      if (h > pMax) pMax = h;
-    }
-  };
-  scan(start, end);
-  if (!(pMin <= pMax)) scan(0, frame.length);
-
-  for (const ref of base.references) {
-    if (ref.axis === 'y') {
-      pMin = Math.min(pMin, ref.from, ref.to);
-      pMax = Math.max(pMax, ref.from, ref.to);
-    }
-  }
-
-  if (!(pMin <= pMax)) return base;
-  const span = pMax - pMin;
-  const pad = span > 0 ? span * 0.08 : Math.max(1, Math.abs(pMax) * 0.05);
-  const bottomPad = showVolume ? Math.max(pad, (span > 0 ? span : pad * 2) * 0.36) : pad;
-  return {
-    ...base,
-    yDomain: [pMin - bottomPad, pMax + pad],
-  };
+  const yDomain = high && low
+    ? fitPriceDomain(low.y, high.y, flags, start, end, base.references)
+    : fitPriceDomain(new Float64Array(0), new Float64Array(0), flags, 0, 0, base.references);
+  return { ...base, yDomain, ...(base.yDomains ? { yDomains: [yDomain] } : {}) };
 }
 
 export function formatFinancePrice(meta: FinanceMeta, value: number, locale: string): string {
