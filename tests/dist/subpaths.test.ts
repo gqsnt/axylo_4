@@ -34,8 +34,8 @@ describe('package.json', () => {
 
 describe('import for effect, with side-effect hints ignored', () => {
   for (const specifier of ['axylo', 'axylo/static', 'axylo/stream']) {
-    it(`"import '${specifier}'" bundles to nothing`, async () => {
-      expect((await consumer(`import '${specifier}';`, { ignoreAnnotations: true })).trim()).toBe('');
+    it(`"import '${specifier}'" bundles to 0 raw bytes`, async () => {
+      expect((await consumer(`import '${specifier}';`, { ignoreAnnotations: true })).length).toBe(0);
     });
   }
 });

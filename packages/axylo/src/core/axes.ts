@@ -4,7 +4,8 @@
  * (plan 2.2: a data-only update reruns layout only when tick labels or margins would change).
  */
 import { alignedExtrema, alignedScale, pointExtrema, scatterX, withReferences, zeroBaseline } from '../view';
-import type { Layout, TextMeasurer, TextStyle, TickCandidates, View, XKind } from './contracts';
+import type { DiagnosticInput, Layout, TextMeasurer, TextStyle, TickCandidates, View, XKind } from './contracts';
+import { createDiagnostic } from '../diagnostics/registry';
 import { computeLayout, type LayoutInput, type ScaleConstructors, type ValueAxis } from '../layout';
 import { baseLayoutKey, type LayoutStage } from './composition';
 import type { ResolvedOptions } from '../data';
@@ -225,19 +226,15 @@ function prepareTicksWith(view: View, ctx: AxisContext, scales: AxisScales): voi
 }
 
 /**
- * The fields whose tick formatter threw on a tick the layout draws (spec 3.5, AX160): labels of candidate
- * sets or coarser domains that were not drawn do not count (re-check, R12).
+ * Presentation diagnostics derived from drawn ticks (spec 3.5, AX160): labels of candidate sets or
+ * coarser domains that were not drawn do not count (re-check, R12).
  */
-export function tickFormatFailures(view: View, ctx: AxisContext, layout: Layout): readonly string[] {
-  return tickFormatFailuresWith(view, ctx, layout, fullScales);
-}
-
-function tickFormatFailuresWith(view: View, ctx: AxisContext, layout: Layout, scales: AxisScales): readonly string[] {
+function layoutDiagnosticsWith(view: View, ctx: AxisContext, layout: Layout, scales: AxisScales): readonly DiagnosticInput[] {
   if (view.kind === 'donut' || layout.kind !== 'plot') return [];
   const { failures } = axisParts(view, ctx, scales);
-  const out: string[] = [];
-  if (failures.x.drawn(layout.xTicks)) out.push(ctx.resolved.x.field);
-  if (failures.y.drawn(layout.yTicks)) out.push(ctx.resolved.values[0]?.field ?? 'y');
+  const out: DiagnosticInput[] = [];
+  if (failures.x.drawn(layout.xTicks)) out.push(createDiagnostic('AX160', 'none', { field: ctx.resolved.x.field }, 'presentation'));
+  if (failures.y.drawn(layout.yTicks)) out.push(createDiagnostic('AX160', 'none', { field: ctx.resolved.values[0]?.field ?? 'y' }, 'presentation'));
   return out;
 }
 
@@ -307,7 +304,7 @@ export function cartesianLayout(scales: AxisScales): LayoutStage {
   const measurements = new WeakMap<TextStyle, { measurer: TextMeasurer; epoch: number; widths: Map<string, number> }>();
   return {
     prepareTicks: (view, ctx) => prepareTicksWith(view, ctx, scales),
-    tickFormatFailures: (view, ctx, layout) => tickFormatFailuresWith(view, ctx, layout, scales),
+    layoutDiagnostics: (view, ctx, layout) => layoutDiagnosticsWith(view, ctx, layout, scales),
     layoutKey(view, size, style, fontEpoch, ctx) {
       epochs.set(ctx, fontEpoch);
       return layoutKey(view, size, style, fontEpoch, ctx);

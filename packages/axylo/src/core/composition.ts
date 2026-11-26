@@ -4,7 +4,7 @@
  * (`line`, `area`, …) passes its own composition (src/kinds), so a page that imports one kind bundles that
  * kind's stages only; the controller, the host, aligned data and Cartesian layout stay one implementation.
  */
-import type { AlignedFrame, DiagnosticSink, Frame, Layout, Scene, TextMeasurer, TextStyle, View } from './contracts';
+import type { AlignedFrame, DiagnosticInput, DiagnosticSink, Frame, Layout, Scene, TextMeasurer, TextStyle, View } from './contracts';
 import type { ChartType, resolveOptions, ResolvedOptions } from '../data/options';
 import type { DataEnvironment, FrameVersion } from '../data/normalize';
 import type { AlignedStore } from '../data/store';
@@ -23,7 +23,7 @@ type Size = { readonly width: number; readonly height: number };
 
 export interface LayoutStage {
   prepareTicks?(view: View, ctx: AxisContext): void;
-  tickFormatFailures?(view: View, ctx: AxisContext, layout: Layout): readonly string[];
+  layoutDiagnostics?(view: View, ctx: AxisContext, layout: Layout): readonly DiagnosticInput[];
   layoutKey(view: View, size: Size, style: TextStyle, fontEpoch: number, ctx: AxisContext): readonly unknown[];
   compute(view: View, size: Size, text: { measurer: TextMeasurer; style: TextStyle }, ctx: AxisContext): Layout;
 }

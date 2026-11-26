@@ -106,6 +106,10 @@ export interface Series {
   readonly slot: Uint8Array;
   /** Index of the caller's row each slot came from, -1 where there is none. null means "slot i came from row i" (typed columns). */
   readonly row: Int32Array | null;
+  /** Optional stable y-axis ID (multi-axis cartesian only; omitted on single-axis charts). */
+  readonly axisId?: string;
+  /** Optional index into `Projection.yAxes` (0 = primary left axis; omitted on single-axis charts). */
+  readonly axisIndex?: number;
 }
 
 /** One series of a point frame (scatter): its own x and y, sorted by x then y. */
@@ -203,7 +207,7 @@ export interface Formatters {
 // ───────────────────────────── scales and ticks ─────────────────────────────
 
 export interface ContinuousScale {
-  readonly type: 'linear' | 'time';
+  readonly type: 'linear' | 'time' | 'log';
   readonly domain: readonly [number, number];
   /** Pixel range in CSS px; range[0] maps domain[0]. */
   readonly range: readonly [number, number];
@@ -245,6 +249,8 @@ export type TickCandidates = readonly (readonly Tick[])[];
 /** A reference line (one position) or band (two) after its values were turned into axis positions. */
 export interface ResolvedReference {
   readonly axis: 'x' | 'y';
+  /** Optional stable y-axis ID when `axis === 'y'` on multi-axis charts; defaults to primary y-axis (index 0). */
+  readonly axisId?: string;
   readonly from: number;
   /** Equal to `from` for a line. */
   readonly to: number;
@@ -282,6 +288,10 @@ interface CartesianViewBase {
   readonly xDomain: readonly [number, number];
   /** Value domain after the rules of spec F1 and F7. */
   readonly yDomain: readonly [number, number];
+  /** Per-axis value domains for multi-axis charts (`yDomains[0]` equals `yDomain`). */
+  readonly yDomains?: readonly (readonly [number, number])[];
+  /** Stable string IDs corresponding 1-to-1 with `yDomains`. */
+  readonly yAxisIds?: readonly string[];
   readonly references: readonly ResolvedReference[];
   readonly compact: boolean;
 }
@@ -380,9 +390,9 @@ export interface PlacedText {
 
 /** The mapping from data to pixels that scene building and lookup must share. */
 export type Projection =
-  | { readonly kind: 'xy'; readonly x: XScale; readonly y: ContinuousScale }
+  | { readonly kind: 'xy'; readonly x: XScale; readonly y: ContinuousScale; readonly yAxes?: readonly ContinuousScale[] }
   /** Bars: `band` runs along the category axis, `value` along the other; `horizontal` swaps the screen axes. */
-  | { readonly kind: 'bands'; readonly horizontal: boolean; readonly band: XScale; readonly value: ContinuousScale }
+  | { readonly kind: 'bands'; readonly horizontal: boolean; readonly band: XScale; readonly value: ContinuousScale; readonly yAxes?: readonly ContinuousScale[] }
   | { readonly kind: 'ring'; readonly cx: number; readonly cy: number; readonly r0: number; readonly r1: number };
 
 /** What label fitting did on one axis, in the order it did it (spec L1). */
@@ -410,8 +420,10 @@ export type Layout =
       readonly projection: Projection;
       readonly xTicks: readonly Tick[];
       readonly yTicks: readonly Tick[];
+      /** Ticks for the secondary (right) y-axis when rendered (multi-axis cartesian only). */
+      readonly yTicksRight?: readonly Tick[];
       readonly texts: readonly PlacedText[];
-      readonly fit: { readonly x: AxisLabelFit; readonly y: AxisLabelFit };
+      readonly fit: { readonly x: AxisLabelFit; readonly y: AxisLabelFit; readonly yRight?: AxisLabelFit };
     })
   /** Compact variant (spec 3.7): marks fill the container, no text. */
   | (LayoutSize & { readonly kind: 'compact'; readonly plot: Rect; readonly projection: Projection })

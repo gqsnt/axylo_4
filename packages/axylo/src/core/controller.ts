@@ -1536,9 +1536,8 @@ class ChartController implements Controller, ControllerCore, FrameDriver {
     // A tick label in the default format is not a value shown differently (F12): its AX160 has no effect on
     // the figure, so the note it would add cannot take room from the ticks and bring the label back (closing
     // pass, item 2).
-    const failed = shown.kind === 'ready' && !compact ? this.#composition.layout.tickFormatFailures?.(view, f.axisContext, layout) : undefined;
-    this.#setPresentation('layout', failed?.length
-      ? failed.map(field => createDiagnostic('AX160', 'none', { field }, 'presentation')) : EMPTY_DIAGNOSTICS);
+    const layoutDiags = shown.kind === 'ready' && !compact ? this.#composition.layout.layoutDiagnostics?.(view, f.axisContext, layout) : undefined;
+    this.#setPresentation('layout', layoutDiags?.length ? layoutDiags : EMPTY_DIAGNOSTICS);
     const measured = layout.kind !== 'unmeasured' || (shown.kind !== 'ready' && this.#size !== null && this.#size.width > 0 && this.#size.height > 0);
     this.#settleFigureReader(f, hidden);
     if (this.#destroyed) throw ABORT;

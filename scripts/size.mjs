@@ -77,9 +77,10 @@ async function main() {
       entry: `${name} only (export { ${name} } from axylo)`, targetKiB: null, cssFile: false,
       build: () => consumer({ cwd: npm, contents: `export { ${name} } from 'axylo';` }),
     })),
-    // The opt-in static subpath (no streaming storage), measured beside the root rows it is compared with.
+    // The opt-in static & stream subpaths, measured beside the root rows they are compared with.
     { entry: "line only (export { line } from 'axylo/static')", targetKiB: null, cssFile: false, build: () => consumer({ cwd: npm, contents: "export { line } from 'axylo/static';" }) },
     { entry: "everything (export * from 'axylo/static')", targetKiB: null, cssFile: false, build: () => consumer({ cwd: npm, contents: "export * from 'axylo/static';" }) },
+    { entry: "line only (export { line } from 'axylo/stream')", targetKiB: null, cssFile: false, build: () => consumer({ cwd: npm, contents: "export { line } from 'axylo/stream';" }) },
     {
       entry: "bare import (import 'axylo')", targetKiB: null, cssFile: false,
       build: () => consumer({ cwd: npm, contents: "import 'axylo';" }),
