@@ -43,4 +43,11 @@ describe('C6.1 axylo/export CSV round-trip parity', () => {
       ['B', '', 'a,b'],
     ]);
   });
+
+  it('preserves single empty-cell row without header and consumes trailing CRLF without phantom rows', () => {
+    const singleEmpty = exportCsv([{ a: '' }], { includeHeader: false });
+    expect(singleEmpty).toBe('""');
+    expect(parseCsv(singleEmpty)).toEqual([['']]);
+    expect(parseCsv('a,b\r\n1,2\r\n')).toEqual([['a', 'b'], ['1', '2']]);
+  });
 });

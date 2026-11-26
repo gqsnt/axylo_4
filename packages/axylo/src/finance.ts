@@ -83,7 +83,7 @@ export function candlestick<Row>(
       const prevMeta = stateRef.meta;
       const prevIssues = pendingIssues.list;
       if (patch && typeof patch === 'object') currentRaw = { ...currentRaw, ...patch };
-      const next = parseFinanceInput(currentRaw);
+      const next = parseFinanceInput(currentRaw, prevMeta);
       stateRef.meta = next.meta;
       pendingIssues.list = next.issues;
       try {

@@ -142,21 +142,32 @@ export function exportSvg(target: Target, options: ExportSvgOptions = {}): strin
   if (!doc || !win) throw new Error('axylo/export: exportSvg requires a browser DOM window.');
 
   const figure = (root.tagName.toLowerCase() === 'figure' ? root : root.querySelector<HTMLElement>('figure')) ?? root;
-  const srcSvg = figure.querySelector<SVGSVGElement>('svg');
+  // Select the plot surface SVG specifically (never a legend swatch SVG when legend: 'top').
+  const srcSvg = figure.querySelector<SVGSVGElement>('.axylo-scene, .axylo-plot svg') ?? figure.querySelector<SVGSVGElement>('svg');
   if (!srcSvg) throw new Error('axylo/export: no rendered <svg> chart surface found inside target.');
 
   const svgRect = srcSvg.getBoundingClientRect();
   const attrW = Number(srcSvg.getAttribute('width'));
   const attrH = Number(srcSvg.getAttribute('height'));
-  const width = Math.max(1, Math.round(options.width ?? (svgRect.width > 0 ? svgRect.width : Number.isFinite(attrW) && attrW > 0 ? attrW : 600)));
-  const height = Math.max(1, Math.round(options.height ?? (svgRect.height > 0 ? svgRect.height : Number.isFinite(attrH) && attrH > 0 ? attrH : 320)));
+  const origW = Math.max(1, Math.round(svgRect.width > 0 ? svgRect.width : Number.isFinite(attrW) && attrW > 0 ? attrW : 600));
+  const origH = Math.max(1, Math.round(svgRect.height > 0 ? svgRect.height : Number.isFinite(attrH) && attrH > 0 ? attrH : 320));
+  const width = Math.max(1, Math.round(options.width ?? origW));
+  const height = Math.max(1, Math.round(options.height ?? origH));
 
   const clone = srcSvg.cloneNode(true) as SVGSVGElement;
   inlineResolvedSvgStyles(srcSvg, clone, win);
+  // Strip any full-bleed renderer background <rect> so our single resolved background controls both SVG & PNG.
+  const firstChild = clone.firstElementChild;
+  if (firstChild && firstChild.tagName.toLowerCase() === 'rect'
+    && Number(firstChild.getAttribute('x') ?? 0) === 0 && Number(firstChild.getAttribute('y') ?? 0) === 0
+    && Number(firstChild.getAttribute('width')) >= origW - 1 && Number(firstChild.getAttribute('height')) >= origH - 1) {
+    firstChild.remove();
+  }
   clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
   clone.setAttribute('width', String(width));
   clone.setAttribute('height', String(height));
-  clone.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  // Keep viewBox in original mark coordinates so both marks and text labels scale identically when width/height override!
+  clone.setAttribute('viewBox', `0 0 ${origW} ${origH}`);
   clone.removeAttribute('aria-hidden');
 
   const parts: string[] = [];
@@ -170,21 +181,18 @@ export function exportSvg(target: Target, options: ExportSvgOptions = {}): strin
   }
 
   const bg = resolveBackground(figure, win, options.background);
-  if (bg) parts.push(`<rect x="0" y="0" width="${width}" height="${height}" fill="${escapeXml(bg)}" />`);
+  if (bg) parts.push(`<rect x="0" y="0" width="${origW}" height="${origH}" fill="${escapeXml(bg)}" />`);
 
   // Inner SVG marks with resolved styles
   parts.push(clone.innerHTML);
 
-  // Convert positioned HTML `.axylo-text` overlay spans into concrete SVG `<text>` elements
+  // Convert positioned HTML `.axylo-text` overlay spans into concrete SVG `<text>` elements in viewBox coordinates
   const textLayer = figure.querySelector<HTMLElement>('.axylo-text');
   if (textLayer && svgRect.width > 0 && svgRect.height > 0) {
-    const scaleX = width / svgRect.width;
-    const scaleY = height / svgRect.height;
     const spans = textLayer.querySelectorAll<HTMLElement>('span, div');
     const textEls: string[] = [];
     for (let i = 0; i < spans.length; i++) {
       const span = spans[i]!;
-      // Only serialize leaf text elements to avoid duplicating nested spans.
       if (span.children.length > 0) continue;
       const content = span.textContent?.trim();
       if (!content) continue;
@@ -192,9 +200,15 @@ export function exportSvg(target: Target, options: ExportSvgOptions = {}): strin
       if (r.width === 0 && r.height === 0) continue;
       const cs = win.getComputedStyle(span);
       if (cs.visibility === 'hidden' || cs.display === 'none' || cs.opacity === '0') continue;
-      const cx = Math.round(((r.left + r.width / 2) - svgRect.left) * scaleX * 100) / 100;
-      const cy = Math.round(((r.top + r.height / 2) - svgRect.top) * scaleY * 100) / 100;
-      const deg = parseRotationDegrees(cs.transform);
+      const cx = Math.round(((r.left + r.width / 2) - svgRect.left) * 100) / 100;
+      const cy = Math.round(((r.top + r.height / 2) - svgRect.top) * 100) / 100;
+      // Walk up inside textLayer to pick up rotation placed on the label's positioned wrapper (`render/text.ts:105`).
+      let deg = parseRotationDegrees(cs.transform);
+      let anc = span.parentElement;
+      while (deg === 0 && anc && anc !== textLayer) {
+        deg = parseRotationDegrees(win.getComputedStyle(anc).transform);
+        anc = anc.parentElement;
+      }
       const transformAttr = deg !== 0 ? ` transform="rotate(${deg} ${cx} ${cy})"` : '';
       const fill = escapeXml(cs.color || '#111111');
       const family = escapeXml(cs.fontFamily || 'sans-serif');
@@ -207,7 +221,7 @@ export function exportSvg(target: Target, options: ExportSvgOptions = {}): strin
     if (textEls.length > 0) parts.push(`<g class="axylo-export-text">${textEls.join('')}</g>`);
   }
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${parts.join('')}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${origW} ${origH}">${parts.join('')}</svg>`;
 }
 
 async function rasterizeSvgToCanvas(target: Target, options: ExportPngOptions = {}): Promise<HTMLCanvasElement> {
@@ -283,7 +297,10 @@ function serializeCsvRows(headers: readonly string[] | null, rows: readonly (rea
     lines.push(headers.map(h => formatCsvCell(h, delimiter)).join(delimiter));
   }
   for (let i = 0; i < rows.length; i++) {
-    lines.push(rows[i]!.map(cell => formatCsvCell(cell, delimiter)).join(delimiter));
+    const r = rows[i]!;
+    const line = r.map(cell => formatCsvCell(cell, delimiter)).join(delimiter);
+    // Quote a lone empty single-column cell so 1 empty row never serializes identically to 0 rows.
+    lines.push(r.length === 1 && line === '' ? '""' : line);
   }
   const body = lines.join(eol);
   return options.bom ? `\uFEFF${body}` : body;
@@ -325,9 +342,9 @@ export function exportCsv<Row = Record<string, unknown>>(
     if (!table) {
       throw new Error('axylo/export: no rendered <table> found inside target. Open the accessible table or pass a TableModel / Data<Row>.');
     }
-    const headers = [...table.querySelectorAll('thead th')].map(th => th.textContent?.trim() ?? '');
+    const headers = [...table.querySelectorAll('thead th')].map(th => th.textContent ?? '');
     const rows = [...table.querySelectorAll('tbody tr')].map(tr =>
-      [...tr.querySelectorAll('th, td')].map(cell => cell.textContent?.trim() ?? ''),
+      [...tr.querySelectorAll('th, td')].map(cell => cell.textContent ?? ''),
     );
     return serializeCsvRows(options.headers ?? headers, rows, options);
   }
@@ -369,9 +386,11 @@ export function parseCsv(text: string, delimiter = ','): string[][] {
   let inQuotes = false;
   let i = 0;
 
+  let hasToken = false;
   while (i < src.length) {
     const ch = src[i]!;
     if (inQuotes) {
+      hasToken = true;
       if (ch === '"') {
         if (src[i + 1] === '"') {
           field += '"';
@@ -386,25 +405,31 @@ export function parseCsv(text: string, delimiter = ','): string[][] {
       }
     } else if (ch === '"' && field.length === 0) {
       inQuotes = true;
+      hasToken = true;
       i++;
     } else if (ch === delimiter) {
       row.push(field);
       field = '';
+      hasToken = true;
       i++;
     } else if (ch === '\r' || ch === '\n') {
       row.push(field);
       rows.push(row);
       row = [];
       field = '';
+      hasToken = false;
       if (ch === '\r' && src[i + 1] === '\n') i += 2;
       else i++;
     } else {
       field += ch;
+      hasToken = true;
       i++;
     }
   }
-  row.push(field);
-  rows.push(row);
+  if (hasToken || row.length > 0) {
+    row.push(field);
+    rows.push(row);
+  }
   return rows;
 }
 

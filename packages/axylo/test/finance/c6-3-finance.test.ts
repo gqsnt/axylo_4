@@ -86,5 +86,32 @@ describe('C6.3 axylo/finance candlestick + volume', () => {
     expect(reader.table!.row(3)![1]).toContain('(invalid OHLC)');
     expect(reader.table!.row(4)![7]).toContain('(invalid volume)');
     expect(reader.summary).toContain('Up candles are drawn hollow; down candles are filled; unchanged candles are horizontal ticks.');
+
+    // pageForX contract: jumps to page 1 on row 51 and returns null past end
+    const manyRows = Array.from({ length: 60 }, (_, i) => ({
+      x: i + 1, o: 100, h: 110, l: 95, c: 105,
+    }));
+    const p2 = parseFinanceInput({ title: 'Paged', data: manyRows, x: 'x', open: 'o', high: 'h', low: 'l', close: 'c' });
+    const sr2 = { meta: p2.meta };
+    const s2 = new DiagnosticCollector();
+    const r2 = resolveOptions('line', p2.translated, s2);
+    const f2 = normalizeFinance(sr2, 'line', r2, { timeZone: 'UTC' }, s2, { epoch: 1, revision: 1 });
+    const v2 = buildFinanceView(sr2, f2, {
+      kind: 'line', hidden: new Set(), zoom: null, xField: r2.x, xDomain: r2.x.domain,
+      valueDomain: null, valueField: r2.values[0]?.field, references: [], previous: null,
+      stacked: false, horizontal: false, compact: false,
+    }, s2);
+    const fmt2 = createFormatters({
+      series: f2.series.map(s => ({ field: s.field, unit: s.unit, scale: s.valueScale, format: null })),
+      x: { field: r2.x.field, kind: f2.x.kind, unit: r2.x.unit, scale: r2.x.scale, format: null, timeZone: f2.x.timeZone, dateUnit: f2.x.dateUnit, categories: f2.x.categories },
+      locale: 'en-US',
+      messages: { noData: defaultMessages.noData, noObservation: defaultMessages.noObservation },
+    }, { locale: 'en-US', timeZone: 'UTC' });
+    const rdr2 = readerWith(createFinanceReader(sr2), {
+      view: v2, formatters: fmt2, messages: defaultMessages, type: 'Line', title: 'Paged', locale: 'en-US',
+    });
+    expect(rdr2.table!.pageForX(1)).toBe(0);
+    expect(rdr2.table!.pageForX(51)).toBe(1);
+    expect(rdr2.table!.pageForX(999)).toBeNull();
   });
 });

@@ -95,7 +95,13 @@ export interface ParsedFinance {
   readonly translated: Record<string, unknown>;
 }
 
-export function parseFinanceInput(input: unknown): ParsedFinance {
+let frameFlags: WeakMap<AlignedFrame, Uint8Array> | undefined;
+
+export function flagsForFrame(frame: AlignedFrame, meta: FinanceMeta): Uint8Array {
+  return frameFlags?.get(frame) ?? meta.slotFlags;
+}
+
+export function parseFinanceInput(input: unknown, previous?: FinanceMeta | null): ParsedFinance {
   const src = isObj(input) ? input : {};
   const issues: FinanceValidationIssue[] = [];
   const yAxis = isObj(src.yAxis) ? src.yAxis : {};
@@ -157,7 +163,7 @@ export function parseFinanceInput(input: unknown): ParsedFinance {
     openLabel, highLabel, lowLabel, closeLabel, volumeLabel,
     priceUnit, priceFormat, priceDomain, volumeUnit, volumeFormat,
     invalidConfig: issues.length > 0,
-    slotFlags: new Uint8Array(0),
+    slotFlags: previous?.slotFlags ?? new Uint8Array(0),
   };
 
   const {
@@ -166,6 +172,8 @@ export function parseFinanceInput(input: unknown): ParsedFinance {
   } = src;
 
   const translated: Record<string, unknown> = {
+    // Default legend off for OHLC candlesticks (individual O/H/L/C toggles do not map to separate series)
+    legend: false,
     ...rest,
     y: ySpecs,
     series: undefined,
@@ -219,6 +227,7 @@ export function normalizeFinance(
   const { open, high, low, close, volume } = findOhlcSeries(frame, meta);
   const flags = new Uint8Array(frame.length);
   meta.slotFlags = flags;
+  (frameFlags ??= new WeakMap()).set(frame, flags);
 
   if (!open || !high || !low || !close) return frame;
 
@@ -283,11 +292,17 @@ export function buildFinanceView(
 ): AlignedView {
   const { meta } = stateRef;
   const base = buildPlainAlignedView(frame, { ...state, valueDomain: meta.priceDomain }, sink);
-  const { high, low } = findOhlcSeries(frame, meta);
-  const flags = meta.slotFlags;
+  const { high, low, volume } = findOhlcSeries(frame, meta);
+  const flags = flagsForFrame(frame, meta);
+  const volIdx = volume ? frame.series.indexOf(volume) : -1;
+  const showVolume = volIdx >= 0 && base.visible[volIdx] !== false;
 
   if (meta.priceDomain && meta.priceDomain.every(Number.isFinite)) {
-    return { ...base, yDomain: [meta.priceDomain[0], meta.priceDomain[1]] };
+    const d0 = Math.min(meta.priceDomain[0], meta.priceDomain[1]);
+    const d1 = Math.max(meta.priceDomain[0], meta.priceDomain[1]);
+    const span = d1 - d0 || Math.max(1, Math.abs(d1) * 0.05);
+    // Reserve dedicated lower 26% plot space for volume bars even when yAxis.domain is explicit.
+    return { ...base, yDomain: [showVolume ? d0 - span * 0.36 : d0, d1] };
   }
 
   // Compute yDomain strictly from valid OHLC price candles (never distorted by volume magnitude!)
@@ -317,8 +332,7 @@ export function buildFinanceView(
   if (!(pMin <= pMax)) return base;
   const span = pMax - pMin;
   const pad = span > 0 ? span * 0.08 : Math.max(1, Math.abs(pMax) * 0.05);
-  // Reserve extra bottom headroom (~28% of span) when volume panel is enabled so bars never obscure candles.
-  const bottomPad = meta.volumeField ? Math.max(pad, (span > 0 ? span : pad * 2) * 0.34) : pad;
+  const bottomPad = showVolume ? Math.max(pad, (span > 0 ? span : pad * 2) * 0.36) : pad;
   return {
     ...base,
     yDomain: [pMin - bottomPad, pMax + pad],

@@ -19,9 +19,10 @@ import type { Messages, XValue } from '../public';
 import type { ReaderParts } from '../reader';
 import { alignedReader } from '../reader';
 import { boundaryPixel, clamp, position, rule, seriesPaint, token } from '../scene/geometry';
+import { positionReader } from '../view/references';
 import {
   FLAG_INCOMPLETE_OHLC, FLAG_INVALID_OHLC, FLAG_INVALID_VOLUME,
-  findOhlcSeries, formatFinancePrice, formatFinanceVolume, type FinanceStateRef,
+  findOhlcSeries, flagsForFrame, type FinanceStateRef,
 } from './core';
 
 const TICK_LENGTH = 4;
@@ -115,15 +116,17 @@ export function buildFinanceScene(
   const { meta } = stateRef;
   const { open, high, low, close, volume } = findOhlcSeries(view.frame, meta);
   if (open && high && low && close) {
-    const flags = meta.slotFlags;
+    const flags = flagsForFrame(view.frame, meta);
     const xVals = view.frame.x.values;
     const { start, end } = view.visibleSlots;
     const nSlots = Math.max(0, end - start);
     const bodyW = candleWidth(xScale, xVals, start, end, plot.width);
     const halfW = bodyW / 2;
+    const volIdx = volume ? view.frame.series.indexOf(volume) : -1;
+    const showVolume = Boolean(volume && volIdx >= 0 && view.visible[volIdx] !== false);
 
-    // Optional volume panel in bottom 22% of plot (independent positive volume scale)
-    if (volume && nSlots > 0) {
+    // Optional volume panel in dedicated bottom 22% region (respects view.visible[volIdx])
+    if (showVolume && volume && nSlots > 0) {
       let maxVol = 0;
       for (let i = start; i < end; i++) {
         if ((flags[i]! & (FLAG_INVALID_OHLC | FLAG_INCOMPLETE_OHLC | FLAG_INVALID_VOLUME)) !== 0) continue;
@@ -372,49 +375,55 @@ class FinanceLookup implements Lookup {
 
   #buildRows(slotIndex: number): DatumText[] {
     const { meta } = this.#stateRef;
+    const series = this.#view.frame.series;
     const { open, high, low, close, volume } = findOhlcSeries(this.#view.frame, meta);
+    const oIdx = open ? series.indexOf(open) : 0;
+    const hIdx = high ? series.indexOf(high) : 1;
+    const lIdx = low ? series.indexOf(low) : 2;
+    const cIdx = close ? series.indexOf(close) : 3;
+    const vIdx = volume ? series.indexOf(volume) : -1;
     const xVal = this.#view.frame.x.values[slotIndex]!;
     const xText = this.#formatters.x(xVal);
-    const flags = meta.slotFlags[slotIndex] ?? 0;
+    const flags = flagsForFrame(this.#view.frame, meta)[slotIndex] ?? 0;
     const rowIdx = close?.row ? close.row[slotIndex]! : slotIndex;
     const ref: DatumRef = { kind: 'aligned', seriesKey: this.#primaryKey(), x: xVal };
     const mk = (seriesIndex: number, label: string, value: string, state: SlotState = SLOT_VALUE): DatumText => ({
       ref, seriesIndex, seriesLabel: label, x: xText, value, state, percent: null, row: rowIdx,
     });
 
-    const fmtS = (s: typeof open, suffix = ''): { text: string; state: SlotState } => {
+    const fmtS = (s: typeof open, idx: number, suffix = ''): { text: string; state: SlotState } => {
       if (!s) return { text: this.#formatters.missing(0 as SlotState), state: 0 as SlotState };
       const st = s.slot[slotIndex]! as SlotState;
       if (st !== SLOT_VALUE) return { text: this.#formatters.missing(st), state: st };
-      const formatted = formatFinancePrice(meta, s.y[slotIndex]!, this.#locale);
+      const formatted = this.#formatters.value(idx, s.y[slotIndex]!);
       return { text: suffix ? `${formatted}${suffix}` : formatted, state: st };
     };
 
     const ohlcSuffix = (flags & FLAG_INVALID_OHLC) !== 0 ? ' (invalid OHLC)' : '';
-    const oR = fmtS(open, ohlcSuffix);
-    const hR = fmtS(high, ohlcSuffix);
-    const lR = fmtS(low, ohlcSuffix);
-    const cR = fmtS(close, ohlcSuffix);
+    const oR = fmtS(open, oIdx, ohlcSuffix);
+    const hR = fmtS(high, hIdx, ohlcSuffix);
+    const lR = fmtS(low, lIdx, ohlcSuffix);
+    const cR = fmtS(close, cIdx, ohlcSuffix);
     const rows: DatumText[] = [
-      mk(0, meta.openLabel, oR.text, oR.state),
-      mk(1, meta.highLabel, hR.text, hR.state),
-      mk(2, meta.lowLabel, lR.text, lR.state),
-      mk(3, meta.closeLabel, cR.text, cR.state),
+      mk(oIdx, meta.openLabel, oR.text, oR.state),
+      mk(hIdx, meta.highLabel, hR.text, hR.state),
+      mk(lIdx, meta.lowLabel, lR.text, lR.state),
+      mk(cIdx, meta.closeLabel, cR.text, cR.state),
     ];
 
     if (open && close && open.slot[slotIndex] === SLOT_VALUE && close.slot[slotIndex] === SLOT_VALUE && (flags & FLAG_INVALID_OHLC) === 0) {
       const diff = close.y[slotIndex]! - open.y[slotIndex]!;
       const dir = directionOf(open.y[slotIndex]!, close.y[slotIndex]!);
       const sign = diff > 0 ? '+' : '';
-      rows.push(mk(3, 'Change', `${sign}${formatFinancePrice(meta, diff, this.#locale)} (${dir})`));
+      rows.push(mk(cIdx, 'Change', `${sign}${this.#formatters.value(cIdx, diff)} (${dir})`));
     }
 
-    if (volume) {
+    if (volume && vIdx >= 0 && this.#view.visible[vIdx] !== false) {
       const vst = volume.slot[slotIndex]! as SlotState;
       const vText = vst === SLOT_VALUE
-        ? `${formatFinanceVolume(meta, volume.y[slotIndex]!, this.#locale)}${(flags & FLAG_INVALID_VOLUME) !== 0 ? ' (invalid volume)' : ''}`
+        ? `${this.#formatters.value(vIdx, volume.y[slotIndex]!)}${(flags & FLAG_INVALID_VOLUME) !== 0 ? ' (invalid volume)' : ''}`
         : this.#formatters.missing(vst);
-      rows.push(mk(4, meta.volumeLabel, vText, vst));
+      rows.push(mk(vIdx, meta.volumeLabel, vText, vst));
     }
     return rows;
   }
@@ -503,15 +512,21 @@ export function createFinanceOverlay(stateRef: FinanceStateRef) {
 export function createFinanceReader(stateRef: FinanceStateRef): ReaderParts {
   return {
     tableRowCount: alignedReader.tableRowCount,
-    table(view, caption, formatters, _messages, _labels, locale): TableModel {
+    table(view, caption, formatters): TableModel {
       if (view.kind === 'donut' || view.kind === 'scatter') {
         return { caption, headers: [], rowCount: 0, pageSize: 50, row: () => null, pageForX: () => null };
       }
       const { meta } = stateRef;
+      const series = view.frame.series;
       const { open, high, low, close, volume } = findOhlcSeries(view.frame, meta);
+      const oIdx = open ? series.indexOf(open) : 0;
+      const hIdx = high ? series.indexOf(high) : 1;
+      const lIdx = low ? series.indexOf(low) : 2;
+      const cIdx = close ? series.indexOf(close) : 3;
+      const vIdx = volume ? series.indexOf(volume) : -1;
+      const flags = flagsForFrame(view.frame, meta);
       const { start, end } = view.visibleSlots;
       const rowCount = Math.max(0, end - start);
-      const loc = locale ?? 'en-US';
       const headers = [
         view.frame.xLabel,
         meta.openLabel,
@@ -523,43 +538,51 @@ export function createFinanceReader(stateRef: FinanceStateRef): ReaderParts {
         ...(volume ? [meta.volumeLabel] : []),
       ];
       const pageSize = 50;
+      const readX = positionReader(view.frame.x, undefined);
       return {
         caption,
         headers,
         rowCount,
         pageSize,
-        pageForX(_x: XValue): number | null { return 0; },
+        pageForX(x: XValue): number | null {
+          if (rowCount === 0) return null;
+          const target = readX(x);
+          if (!Number.isFinite(target)) return null;
+          const idx = lowerBound(view.frame.x.values, target, start, end);
+          if (idx >= end) return null;
+          return Math.floor((idx - start) / pageSize);
+        },
         row(index: number): readonly string[] | null {
           if (index < 0 || index >= rowCount) return null;
           const slotIndex = start + index;
-          const flags = meta.slotFlags[slotIndex] ?? 0;
-          const invalidOhlc = (flags & FLAG_INVALID_OHLC) !== 0;
+          const slotFlag = flags[slotIndex] ?? 0;
+          const invalidOhlc = (slotFlag & FLAG_INVALID_OHLC) !== 0;
           const ohlcSuffix = invalidOhlc ? ' (invalid OHLC)' : '';
-          const fmtPrice = (s: typeof open) => {
+          const fmtPrice = (s: typeof open, idx: number) => {
             if (!s) return formatters.missing(0 as SlotState);
             const st = s.slot[slotIndex]! as SlotState;
-            return st === SLOT_VALUE ? `${formatFinancePrice(meta, s.y[slotIndex]!, loc)}${ohlcSuffix}` : formatters.missing(st);
+            return st === SLOT_VALUE ? `${formatters.value(idx, s.y[slotIndex]!)}${ohlcSuffix}` : formatters.missing(st);
           };
           let changeText = formatters.missing(0 as SlotState);
           let dirText = invalidOhlc ? 'omitted' : formatters.missing(0 as SlotState);
           if (!invalidOhlc && open && close && open.slot[slotIndex] === SLOT_VALUE && close.slot[slotIndex] === SLOT_VALUE) {
             const diff = close.y[slotIndex]! - open.y[slotIndex]!;
-            changeText = `${diff > 0 ? '+' : ''}${formatFinancePrice(meta, diff, loc)}`;
+            changeText = `${diff > 0 ? '+' : ''}${formatters.value(cIdx, diff)}`;
             dirText = directionOf(open.y[slotIndex]!, close.y[slotIndex]!);
           }
           const cells = [
             formatters.x(view.frame.x.values[slotIndex]!),
-            fmtPrice(open),
-            fmtPrice(high),
-            fmtPrice(low),
-            fmtPrice(close),
+            fmtPrice(open, oIdx),
+            fmtPrice(high, hIdx),
+            fmtPrice(low, lIdx),
+            fmtPrice(close, cIdx),
             changeText,
             dirText,
           ];
-          if (volume) {
+          if (volume && vIdx >= 0) {
             const vst = volume.slot[slotIndex]! as SlotState;
             const vText = vst === SLOT_VALUE
-              ? `${formatFinanceVolume(meta, volume.y[slotIndex]!, loc)}${(flags & FLAG_INVALID_VOLUME) !== 0 ? ' (invalid volume)' : ''}`
+              ? `${formatters.value(vIdx, volume.y[slotIndex]!)}${(slotFlag & FLAG_INVALID_VOLUME) !== 0 ? ' (invalid volume)' : ''}`
               : formatters.missing(vst);
             cells.push(vText);
           }
