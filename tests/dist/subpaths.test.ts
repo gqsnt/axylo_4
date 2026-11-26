@@ -56,41 +56,47 @@ describe('axylo/static carries no streaming storage and is smaller than the root
 });
 
 describe('declarations', () => {
-  const project = path.join(cwd, '.out', 'subpaths-types');
-  fs.rmSync(project, { recursive: true, force: true });
-  fs.mkdirSync(project, { recursive: true });
-  fs.writeFileSync(path.join(project, 'tsconfig.json'), JSON.stringify({
-    compilerOptions: {
-      target: 'ES2022', module: 'ESNext', moduleResolution: 'Bundler', lib: ['ES2022', 'DOM', 'DOM.Iterable'],
-      strict: true, noEmit: true, skipLibCheck: false, types: [],
-    },
-    include: ['check.ts'],
-  }));
-  fs.writeFileSync(path.join(project, 'check.ts'), [
-    "import * as fixed from 'axylo/static';",
-    "import * as stream from 'axylo/stream';",
-    "import type { StaticChart, LineOptions, Diagnostic } from 'axylo/static';",
-    "type Row = { x: number; y: number };",
-    "declare const el: HTMLElement;",
-    "const options: LineOptions<Row> = { data: [{ x: 1, y: 2 }], x: 'x', y: 'y' };",
-    "const a: StaticChart<Row, LineOptions<Row>> = fixed.line(el, options);",
-    "a.update({ title: 'T' });",
-    "a.zoom(null);",
-    "// @ts-expect-error a static chart has no append",
-    "a.append([{ x: 2, y: 3 }]);",
-    "const b = stream.line(el, options);",
-    "b.append([{ x: 2, y: 3 }]);",
-    "const d: Diagnostic[] = fixed.validate('line', options).concat(stream.validate('line', options));",
-    "export { a, b, d };",
-  ].join('\n'));
-  const result = check(project, 'tsconfig.json');
+  const configs = [
+    ['Bundler', { module: 'ESNext', moduleResolution: 'Bundler' }],
+    ['NodeNext', { module: 'NodeNext', moduleResolution: 'NodeNext' }],
+  ] as const;
 
-  it('compile against the packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it', () => {
-    expect(result.errors).toEqual([]);
-    expect(result.status).toBe(0);
-    expect(result.files).toContain(installed('axylo', 'dist', 'static.d.ts'));
-    expect(result.files).toContain(installed('axylo', 'dist', 'stream.d.ts'));
-  });
+  for (const [label, resolution] of configs) {
+    it(`compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it`, () => {
+      const project = path.join(cwd, '.out', `subpaths-types-${label.toLowerCase()}`);
+      fs.rmSync(project, { recursive: true, force: true });
+      fs.mkdirSync(project, { recursive: true });
+      fs.writeFileSync(path.join(project, 'tsconfig.json'), JSON.stringify({
+        compilerOptions: {
+          target: 'ES2022', ...resolution, lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+          strict: true, noEmit: true, skipLibCheck: false, types: [],
+        },
+        include: ['check.ts'],
+      }));
+      fs.writeFileSync(path.join(project, 'check.ts'), [
+        "import * as fixed from 'axylo/static';",
+        "import * as stream from 'axylo/stream';",
+        "import type { StaticChart, LineOptions, Diagnostic } from 'axylo/static';",
+        "type Row = { x: number; y: number };",
+        "declare const el: HTMLElement;",
+        "const options: LineOptions<Row> = { data: [{ x: 1, y: 2 }], x: 'x', y: 'y' };",
+        "const a: StaticChart<Row, LineOptions<Row>> = fixed.line(el, options);",
+        "a.update({ title: 'T' });",
+        "a.zoom(null);",
+        "// @ts-expect-error a static chart has no append",
+        "a.append([{ x: 2, y: 3 }]);",
+        "const b = stream.line(el, options);",
+        "b.append([{ x: 2, y: 3 }]);",
+        "const d: Diagnostic[] = fixed.validate('line', options).concat(stream.validate('line', options));",
+        "export { a, b, d };",
+      ].join('\n'));
+      const result = check(project, 'tsconfig.json');
+      expect(result.errors).toEqual([]);
+      expect(result.status).toBe(0);
+      expect(result.files).toContain(installed('axylo', 'dist', 'static.d.ts'));
+      expect(result.files).toContain(installed('axylo', 'dist', 'stream.d.ts'));
+    });
+  }
 });
 
 describe('Node import (no DOM)', () => {

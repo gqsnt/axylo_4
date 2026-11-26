@@ -15,7 +15,7 @@ import { LINE_STATIC } from './kinds/line';
 import { SCATTER_STATIC } from './kinds/scatter';
 
 export type * from './public.js';
-export { validate } from './index';
+export { validate } from './index.js';
 
 /** A chart without `append`: the type says what the runtime enforces. */
 export type StaticChart<Row, Opts> = Omit<Chart<Row, Opts>, 'append'>;
