@@ -1241,10 +1241,11 @@ class ChartController implements Controller, ControllerCore, FrameDriver {
     // Naming (spec A1): a labelledBy that names nothing falls back to the title or a generated name.
     const by = f.by = stringOption(a.options, 'labelledBy');
     const byText = f.byText = by ? this.host.labelText(by) : null;
-    const named = f.named = by !== null && byText !== null;
+    // A heading with no text names nothing either (A1): the title, else the generated name, is used instead.
+    const named = f.named = !!byText?.trim();
     const title = f.title = titleOf(a.options);
     this.#setPresentation('naming', by !== null && !named && title === null
-      ? [createDiagnostic('AX140', 'none', { detail: `No element has the id "${by}".` }, 'presentation')] : EMPTY_DIAGNOSTICS);
+      ? [createDiagnostic('AX140', 'none', { detail: `No element with text has the id "${by}".` }, 'presentation')] : EMPTY_DIAGNOSTICS);
     f.caption = named ? byText!.trim() || undefined : undefined;
 
     const foreignPage = f.foreignPage = lang !== null && !ENGLISH_TAG.test(lang);

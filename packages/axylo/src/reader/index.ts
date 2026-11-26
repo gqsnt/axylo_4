@@ -511,7 +511,8 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
     : view.kind === 'scatter' ? view.frame.yLabel
     : view.frame.yLabel || seriesNames(view.frame, input.locale, formatters) || value;
   const listReady = listReadyFor(input.locale);
-  const titleText = typeof title === 'string' ? title : title?.text;
+  const authored = typeof title === 'string' ? title : title?.text;
+  const titleText = authored?.trim() ? authored : undefined;
   if (!labelledBy && !titleText && input.diagnostics) report(input.diagnostics, 'AX140', 'none');
   const name = labelledBy ? '' : titleText || chartName(formatters, messages.chartName, type, xLabel, yLabel);
   const compact = input.compact === true || (view.kind !== 'donut' && view.compact);
@@ -530,7 +531,8 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
       series: custom?.series ?? messages.series, xUnit: custom?.xUnit,
     });
   }
-  const hasTable = table !== null;
+  // A table with no rows cannot be opened (an empty chart offers it only with rows), so nothing points to it.
+  const hasTable = (table?.rowCount ?? 0) > 0;
   const omitted = disclosure?.omitted ?? 0;
   const changed = disclosure?.changed ?? 0;
   const hidden = input.labelsHidden ?? 0;

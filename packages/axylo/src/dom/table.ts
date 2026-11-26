@@ -58,6 +58,8 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
   element.append(scroll, pager);
 
   let model: TableModel | null = null, texts: TableTexts | null = null, page = 0, shownHeight: number | undefined;
+  // The rows shown, each with the cells and language runs it was made from.
+  const rows: { r: HTMLTableRowElement; s: string }[] = [];
   const pages = () => model ? Math.max(1, Math.ceil(model.rowCount / model.pageSize)) : 1;
   const go = (p: number) => { page = p; render(true); scroll.scrollTop = 0; };
 
@@ -78,20 +80,24 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
       head.replaceChildren(row);
       head.dataset.headers = headers;
     }
-    const first = page * model.pageSize, last = Math.min(model.rowCount, first + model.pageSize), rows: HTMLTableRowElement[] = [];
+    const first = page * model.pageSize, last = Math.min(model.rowCount, first + model.pageSize);
+    let n = 0;
     for (let i = first; i < last; i++) {
       const cells = model.row(i);
       if (!cells) continue;
+      const runs = cells.map(text => t.cell?.(text)), sig = JSON.stringify([cells, runs]), kept = rows[n];
+      // A row that reads the same is kept: replacing it would move an assistive technology's reading cursor (A4).
+      if (kept?.s === sig) { n++; continue; }
       const tr = doc.createElement('tr');
       cells.forEach((text, k) => {
         const cell = doc.createElement(k ? 'td' : 'th');
         if (!k) (cell as HTMLTableCellElement).scope = 'row';
-        const runs = t.cell?.(text);
-        if (!runs || runs.length === 1) {
-          cell.textContent = runs ? runs[0]!.text : text;
-          if (runs?.[0]!.lang) setAttr(cell, 'lang', runs[0]!.lang);
+        const cellRuns = runs[k];
+        if (!cellRuns || cellRuns.length === 1) {
+          cell.textContent = cellRuns ? cellRuns[0]!.text : text;
+          if (cellRuns?.[0]!.lang) setAttr(cell, 'lang', cellRuns[0]!.lang);
         } else {
-          for (const r of runs) {
+          for (const r of cellRuns) {
             if (!r.lang) { cell.append(r.text); continue; }
             const s = doc.createElement('span');
             s.lang = r.lang; s.textContent = r.text;
@@ -100,9 +106,10 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
         }
         tr.appendChild(cell);
       });
-      rows.push(tr);
+      if (kept) { body.insertBefore(tr, kept.r); kept.r.remove(); } else body.appendChild(tr);
+      rows[n++] = { r: tr, s: sig };
     }
-    body.replaceChildren(...rows);
+    for (const { r } of rows.splice(n)) r.remove();
     if (count <= 1 && pager.contains(activeElementOf(doc, pager))) focusQuiet(scroll);
     pager.hidden = count <= 1;
     const pageLang = t.lang('pageOf');

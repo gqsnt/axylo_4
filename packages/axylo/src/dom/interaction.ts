@@ -75,7 +75,7 @@ const boxStyle = (r: Rect) => `left:${r.x}px;top:${r.y}px;width:${r.width}px;hei
 const NAVIGATION: Readonly<Record<string, StepDirection>> = {
   ArrowRight: 'next', ArrowLeft: 'previous', Home: 'first', End: 'last', PageUp: 'page-next', PageDown: 'page-previous',
 };
-const DRAG_THRESHOLD = 4, REST_DISTANCE = 2, REST_TIME = 250, TAP_DISTANCE = 10, TAP_TIME = 500, FOCUS_OUTLINE = 3, HOLE_CLEARANCE = 5;
+const DRAG_THRESHOLD = 4, REST_DISTANCE = 2, REST_TIME = 250, TAP_DISTANCE = 10, TAP_TIME = 1000, FOCUS_OUTLINE = 3, HOLE_CLEARANCE = 5;
 
 const S_NONE = 0, S_KEY = 1, S_HOVER = 2, S_HELD = 3, S_PIN = 4;
 type Shown =
@@ -954,6 +954,8 @@ class DomInteraction implements Interaction {
     if (!target) { this.#shown = mouse ? NO_HOVER : this.#idle(); this.#redraw(); return; }
     const primary = d.lookup.primary(target);
     const ref = primary && this.#resolveAligned(d, target, primary);
+    // A touch screen has no Escape key and a full-width chart no outside to tap: tapping the pinned datum again unpins it.
+    if (!mouse && ref && this.#shown.k === S_PIN && sameRef(ref, this.#shown.r)) { this.#dismissPin(); return; }
     this.#dismissed = null;
     if (ref && presentationFor(d) !== 'none') {
       this.#shown = { k: S_PIN, r: ref, t: target };
@@ -1152,6 +1154,15 @@ class DomInteraction implements Interaction {
     return measure && this.#figure.controlsSignature() !== before;
   }
 
+  #leaveSlices(d: Committed): void {
+    const list = this.#legendList, act = this.#activeElement();
+    const key = list?.dataset.roving === 'false' && list.contains(act) ? (act as HTMLElement).parentElement?.dataset.key : undefined;
+    if (key === undefined || !plotReady(d)) return;
+    // A ready donut's slices are no longer a tab stop (A2): focus moves on, still on the slice it was on.
+    this.#focus = { kind: 'slice', sliceKey: key };
+    if (this.#tableView) this.#tableView.focus(); else this.#restorePlotFocus(true);
+  }
+
   #refreshControls(): void {
     if (this.#controlsState) this.#renderControls(this.#controlsState);
   }
@@ -1260,7 +1271,7 @@ class DomInteraction implements Interaction {
     // An untouched chart has no datum identity to carry across frame revisions.
     if (this.#shown.k !== S_NONE || this.#proxyFocused || this.#focus || this.#pointer || this.#dismissed) this.#reconcile(prev, next);
     const hasData = plotReady(next) && readable(next);
-    this.#placeProxy(next, hasData); this.#writeProxy(false, hasData); this.#renderControls(next);
+    this.#placeProxy(next, hasData); this.#writeProxy(false, hasData); this.#renderControls(next); this.#leaveSlices(next);
     if (this.#shown.k !== S_NONE || this.#proxyFocused || this.#lastPres || this.#lastHover || this.#overlayVisible || this.#pinListeners) this.#present();
     if (this.#shown.k === S_HELD && (!this.#content || !sameRect(this.#content.b, this.#shown.b)) && plotReady(next)) { this.#dropHold(next); this.#redraw(); }
   }

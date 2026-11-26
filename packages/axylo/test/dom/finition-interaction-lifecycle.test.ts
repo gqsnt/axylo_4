@@ -1253,3 +1253,130 @@ describe('Bug 4c: jumpTarget handles whitespace-only categories and formatted nu
     chart.interaction.destroy();
   });
 });
+
+describe('C3.3 Wave A: touch pin toggle, tap time, table row reuse, donut slice-list handoff', () => {
+  const tap = (plot: MockElement, x: number, y: number, t0: number, t1: number) => {
+    plot.dispatchEvent(new MockEvent('pointerdown', { clientX: x, clientY: y, pointerId: 5, pointerType: 'touch', timeStamp: t0 }));
+    plot.dispatchEvent(new MockEvent('pointerup', { clientX: x, clientY: y, pointerId: 5, pointerType: 'touch', timeStamp: t1 }));
+  };
+  const pinned = (fig: { tooltip: unknown }) => (fig.tooltip as MockElement).classList.contains('axylo-tooltip-pinned');
+
+  it('F-RESP-3: a touch tap held for up to 1 s still pins (a 500 ms limit dropped slower taps)', () => {
+    const doc = new MockDocument();
+    const chart = buildLineInteraction(doc, doc.body, 'slow-tap');
+    tap(chart.fig.plot as unknown as MockElement, chart.firstBox.x + 1, chart.firstBox.y + 1, 100, 100 + 900);
+    expect(pinned(chart.fig)).toBe(true);
+    chart.interaction.destroy();
+  });
+
+  it('F-RESP-3: a touch held 1 s or longer is not a tap', () => {
+    const doc = new MockDocument();
+    const chart = buildLineInteraction(doc, doc.body, 'long-press');
+    tap(chart.fig.plot as unknown as MockElement, chart.firstBox.x + 1, chart.firstBox.y + 1, 100, 100 + 1000);
+    expect(pinned(chart.fig)).toBe(false);
+    chart.interaction.destroy();
+  });
+
+  it('F-RESP-4: tapping the pinned datum again unpins it; the mouse still re-pins on a second click', () => {
+    const doc = new MockDocument();
+    const chart = buildLineInteraction(doc, doc.body, 'tap-toggle');
+    const plot = chart.fig.plot as unknown as MockElement, x = chart.firstBox.x + 1, y = chart.firstBox.y + 1;
+    tap(plot, x, y, 100, 150);
+    expect(pinned(chart.fig)).toBe(true);
+    tap(plot, x, y, 300, 350);
+    expect(pinned(chart.fig)).toBe(false);
+    tap(plot, x, y, 500, 550);
+    expect(pinned(chart.fig)).toBe(true);
+    chart.interaction.destroy();
+
+    const mouse = buildLineInteraction(doc, doc.body, 'click-repin');
+    const mp = mouse.fig.plot as unknown as MockElement, mx = mouse.firstBox.x + 1, my = mouse.firstBox.y + 1;
+    for (let i = 0; i < 2; i++) {
+      mp.dispatchEvent(new MockEvent('pointerdown', { clientX: mx, clientY: my, pointerId: 1 }));
+      mp.dispatchEvent(new MockEvent('pointerup', { clientX: mx, clientY: my, pointerId: 1 }));
+      expect(pinned(mouse.fig)).toBe(true);
+    }
+    mouse.interaction.destroy();
+  });
+
+  it('F-A11Y-4: a passive refresh that adds rows to page 2 keeps every page-1 row and cell node', () => {
+    const doc = new MockDocument();
+    const data = Array.from({ length: 120 }, (_, i) => ({ x: i, y: i }));
+    const chart = buildLineInteraction(doc, doc.body, 'table-reuse', data);
+    const tableBtn = (chart.fig.controls as unknown as MockElement).querySelectorAll('button').find(b => b.textContent.includes('table'))!;
+    tableBtn.dispatchEvent(new MockEvent('click'));
+    const stage = chart.fig.stage as unknown as MockElement;
+    const rowsOf = () => stage.querySelector('tbody')!.children;
+    const before = rowsOf(), cellsBefore = before.map(tr => tr.children.slice());
+    expect(before).toHaveLength(100);
+    expect(stage.querySelector('.axylo-page')!.textContent).toBe('Page 1 of 2');
+
+    const more = record('line', { title: 'table-reuse', data: [...data, { x: 120, y: 120 }, { x: 121, y: 121 }], x: 'x', y: 'y' });
+    more.frames();
+    const c = more.committed!;
+    chart.interaction.commit({ ...chart.committed, view: c.view, reader: c.reader, layout: c.layout, lookup: c.lookup, formatters: c.formatters });
+    const after = rowsOf();
+    expect(after).toHaveLength(before.length);
+    after.forEach((tr, i) => {
+      expect(tr).toBe(before[i]);
+      tr.children.forEach((cell, k) => expect(cell).toBe(cellsBefore[i]![k]));
+    });
+
+    // An explicit page change still shows the other page's rows.
+    const next = stage.querySelectorAll('button').find(b => b.textContent.includes('Next'))!;
+    next.dispatchEvent(new MockEvent('click'));
+    expect(stage.querySelector('.axylo-page')!.textContent).toBe('Page 2 of 2');
+    expect(rowsOf()).toHaveLength(22);
+    expect(rowsOf()[0]!.children[0]!.textContent).not.toBe(before[0]!.children[0]!.textContent);
+    chart.interaction.destroy();
+  });
+
+  it('F-A11Y-2: focus on a slice moves to the proxy, still on that slice, when the all-zero donut becomes ready', () => {
+    const doc = new MockDocument();
+    const root = doc.createElement('div');
+    doc.body.appendChild(root);
+    const fig = createFigure(root as unknown as HTMLElement, 'donut-ready', {
+      marks: doc.createElement('svg') as unknown as Element, text: doc.createElement('div') as unknown as Element,
+    });
+    (fig.plot as unknown as MockElement).rect = { x: 0, y: 0, left: 0, top: 0, width: 300, height: 300, right: 300, bottom: 300 };
+    const renderer: MarkRenderer = { kind: 'svg', element: doc.createElement('svg') as unknown as SVGSVGElement, draw() {}, drawOverlay() {}, destroy() {} };
+    const actions: Actions = { zoom: () => {}, toggle: () => {}, pause: () => {}, select: () => {}, hover: () => {} };
+    const interaction = createInteraction({ overlay: alignedTargetMarks, swatch: lineSwatch, stepInSeries: null, sliceList: donutSliceList }, fig, renderer, actions);
+    const stateOf = (values: number[], ready: boolean): Committed => {
+      const r = record('donut', { title: 'D', data: values.map((value, i) => ({ label: `S${i}`, value })), label: 'label', value: 'value' });
+      r.frames();
+      const c = r.committed!;
+      return {
+        kind: 'donut', view: c.view, formatters: c.formatters, messages: defaultMessages, reader: c.reader,
+        tooSmall: false, ready, inspectable: true, interactive: true, tooltip: true, legend: 'right', zoom: false, zoomed: false,
+        streaming: false, paused: false, epoch: 1, english: () => null, pageLang: null,
+        layout: c.layout, lookup: c.lookup, bindings: {} as PaintBindings, theme: {} as ResolvedTheme, pixelRatio: 1,
+      };
+    };
+    const zero = stateOf([0, 0, 0], false);
+    interaction.prepare(zero); interaction.commit(zero);
+    const side = fig.side as unknown as MockElement;
+    const sliceB = side.querySelectorAll('.axylo-legend-choice')[1]!;
+    sliceB.focus();
+    expect(activeElementOf(doc as unknown as Document)).toBe(sliceB);
+
+    const ready = stateOf([1, 2, 3], true);
+    interaction.prepare(ready); interaction.commit(ready);
+    const proxy = (fig.plot as unknown as MockElement).querySelector('.axylo-proxy')!;
+    expect(activeElementOf(doc as unknown as Document)).toBe(proxy);
+    expect(proxy.getAttribute('aria-valuetext')).toMatch(/^S1\b/);
+
+    // With the data table open, the table's scroll region takes the focus instead (the plot is inert).
+    const zeroAgain = stateOf([0, 0, 0], false);
+    interaction.prepare(zeroAgain); interaction.commit(zeroAgain);
+    const tableBtn = (fig.controls as unknown as MockElement).querySelectorAll('button').concat(side.querySelectorAll('button'))
+      .find(b => b.textContent.includes('table'))!;
+    tableBtn.dispatchEvent(new MockEvent('click'));
+    const scroll = (fig.stage as unknown as MockElement).querySelector('.axylo-table-scroll')!;
+    side.querySelectorAll('.axylo-legend-choice')[1]!.focus();
+    const readyAgain = stateOf([1, 2, 3], true);
+    interaction.prepare(readyAgain); interaction.commit(readyAgain);
+    expect(activeElementOf(doc as unknown as Document)).toBe(scroll);
+    interaction.destroy();
+  });
+});

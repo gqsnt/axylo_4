@@ -339,7 +339,9 @@ export function figureModelFor(f: FrameState, r: ReaderModel, small: boolean, di
   // Loading and error are not empty (documentation findings 1 and 3): their description is the state, not
   // a reading of data the plot does not show.
   const summary = message === null ? r.summary
-    : shown.kind === 'empty' ? (compact ? `${message} ${r.summary}` : r.summary) : message;
+    : shown.kind === 'empty' ? (compact ? `${message} ${r.summary}` : r.summary)
+    // A compact error still shows the omission marker, whose text equivalent is this description (C5).
+    : compact && f.noteShown && r.note ? `${message} ${r.note}` : message;
   return {
     compact, title: named ? null : f.title, labelledBy: named ? f.by : null, name: r.name || a.name,
     subtitle: stringOption(a.options, 'subtitle'), summary,

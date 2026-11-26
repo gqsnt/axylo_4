@@ -19,9 +19,10 @@ export type Span<T = number> = readonly [T, T];
 
 export function titleOf(options: OptionRecord): { text: string; level: number; visible: boolean } | null {
   const raw = options.title;
-  if (typeof raw === 'string') return raw ? { text: raw, level: 3, visible: true } : null;
+  // A title of only spaces names nothing (A1): it is absent, so the generated name and AX140 apply.
+  if (typeof raw === 'string') return raw.trim() ? { text: raw, level: 3, visible: true } : null;
   const t = object(raw) as Partial<Title>;
-  if (typeof t.text !== 'string' || t.text === '') return null;
+  if (typeof t.text !== 'string' || !t.text.trim()) return null;
   const level = typeof t.level === 'number' && t.level >= 2 && t.level <= 6 ? Math.floor(t.level) : 3;
   return { text: t.text, level, visible: t.visible !== false };
 }
