@@ -161,15 +161,16 @@ export function computeAxisDomain(
     }
     const fullRange: IndexRange = { start: 0, end: frame.length };
     const fullExt = positiveExtremaInRange(frame, allBound, fullRange);
-    let fullMin = fullExt ? fullExt[0] : Infinity;
-    let fullMax = fullExt ? fullExt[1] : -Infinity;
+    // Data positivity governs AX172: a positive reference line never masks all-nonpositive data!
+    if (!fullExt) {
+      reportCartesian(sink, 'AX172', 'chart-error', { field: axis.id });
+      return { domain: [1, 10], hasPositive: false, error: true };
+    }
+    let fullMin = fullExt[0];
+    let fullMax = fullExt[1];
     for (const r of refs) {
       if (r.from > 0 && Number.isFinite(r.from)) { fullMin = Math.min(fullMin, r.from); fullMax = Math.max(fullMax, r.from); }
       if (r.to > 0 && Number.isFinite(r.to)) { fullMin = Math.min(fullMin, r.to); fullMax = Math.max(fullMax, r.to); }
-    }
-    if (!(fullMin <= fullMax)) {
-      reportCartesian(sink, 'AX172', 'chart-error', { field: axis.id });
-      return { domain: [1, 10], hasPositive: false, error: true };
     }
     const fullNice = niceLogDomain(fullMin, fullMax, axis.base);
     meta.fullPositiveDomains.set(axis.id, fullNice);

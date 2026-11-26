@@ -144,25 +144,30 @@ describe('C4.2 niceLogDomain & logTickCandidates (RFC §4.3)', () => {
     expect(niceLogDomain(100, 100, 10)).toEqual([10, 1000]);
     expect(niceLogDomain(8, 8, 2)).toEqual([4, 16]);
     const hi = niceLogDomain(1e300, 1e300, 10);
-    expect(hi[0]).toBeGreaterThan(0);
-    expect(hi[1]).toBeLessThanOrEqual(1e300);
-    expect(hi[0]).toBeLessThan(hi[1]);
+    expect(hi).toEqual([1e298, 1e300]);
     const lo = niceLogDomain(1e-300, 1e-300, 10);
-    expect(lo[0]).toBeGreaterThanOrEqual(1e-300);
-    expect(lo[0]).toBeLessThan(lo[1]);
+    expect(lo).toEqual([1e-300, 1e-298]);
   });
 
-  it('snaps sub-decade ranges to nice 1-2-5 (base 10) and 1-1.5-2 (base 2) mantissas', () => {
+  it('snaps sub-decade ranges strictly outward to nice 1-2-5 (base 10) and 1-1.5-2 (base 2) mantissas', () => {
     expect(niceLogDomain(12, 48, 10)).toEqual([10, 50]);
     expect(niceLogDomain(2.1, 4.9, 10)).toEqual([2, 5]);
+    // Must never snap inward even within 1e-12 of a step boundary
+    const strictlyOut = niceLogDomain(1.999999999999, 5.000000000001, 10);
+    expect(strictlyOut[0]).toBeLessThanOrEqual(1.999999999999);
+    expect(strictlyOut[1]).toBeGreaterThanOrEqual(5.000000000001);
     expect(niceLogDomain(4.2, 5.8, 2)).toEqual([4, 6]);
   });
 
-  it('guarantees >= 2 distinct ticks on sub-decade, middle-span (base 10 & 2), and bounded <= 13 ticks across 600 decades', () => {
+  it('guarantees >= 2 distinct ticks on sub-decade, middle-span (base 10 & 2), [3, 40] endpoint fallback, and bounded <= 13 ticks across 600 decades', () => {
     // Sub-decade fallback even on ultra-narrow valid domain
     const narrow = logTickCandidates([100, 100.0001], plain, 10);
     expect(narrow.length).toBeGreaterThanOrEqual(1);
     expect(narrow[0]!.length).toBeGreaterThanOrEqual(2);
+
+    // [3, 40] contains only 1 power of 10 (10), so coarsest candidate falls back to [3, 40] endpoints
+    const singlePower = logTickCandidates([3, 40], plain, 10);
+    expect(singlePower[singlePower.length - 1]!.map(t => t.value)).toEqual([3, 40]);
 
     // Middle span base 10: densest has 1, 2, 5 multiples; coarser has powers
     const mid10 = logTickCandidates([1, 100], plain, 10);

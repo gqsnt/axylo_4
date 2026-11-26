@@ -87,10 +87,8 @@ export function niceLogDomain(min: number, max: number, base: LogBase = 10): Spa
   if (loRaw === hiRaw) {
     let lo = clampLogBound(loRaw / base);
     let hi = clampLogBound(hiRaw * base);
-    if (lo === hi) {
-      if (lo <= LOG_MIN_DOMAIN * base) hi = clampLogBound(LOG_MIN_DOMAIN * base * base);
-      else lo = clampLogBound(LOG_MAX_DOMAIN / (base * base));
-    }
+    if (lo === loRaw) hi = clampLogBound(powBase(Math.round(logBase(loRaw, base)) + 2, base));
+    else if (hi === hiRaw) lo = clampLogBound(powBase(Math.round(logBase(hiRaw, base)) - 2, base));
     return [lo, hi];
   }
   const close = hiRaw - loRaw <= 0.5 * loRaw;
@@ -103,21 +101,19 @@ export function niceLogDomain(min: number, max: number, base: LogBase = 10): Spa
     const hi = clampLogBound(powBase(pMax, base));
     return lo < hi ? [lo, hi] : [loRaw, hiRaw];
   }
-  // Sub-decade: snap outward to 1-2-5 (base 10) or 1-1.5-2 (base 2) inside the decade.
+  // Sub-decade: snap strictly outward to 1-2-5 (base 10) or 1-1.5-2 (base 2) inside the decade.
   const k = Math.floor(logBase(loRaw, base));
   const unit = powBase(k, base);
   const steps = base === 10 ? [1, 2, 5, 10] : [1, 1.5, 2];
-  const mLo = loRaw / unit;
-  const mHi = hiRaw / unit;
   let snappedLo = steps[0]!;
-  for (const s of steps) if (s <= mLo + 1e-12) snappedLo = s;
+  for (const s of steps) if (s * unit <= loRaw) snappedLo = s;
   let snappedHi = steps[steps.length - 1]!;
   for (let i = steps.length - 1; i >= 0; i--) {
     const s = steps[i]!;
-    if (s >= mHi - 1e-12) snappedHi = s;
+    if (s * unit >= hiRaw) snappedHi = s;
   }
-  // If hi crossed into the next decade (mHi > base), expand snappedHi to next decade multiple.
-  const hiCandidate = mHi > base ? powBase(Math.ceil(logBase(hiRaw, base)), base) : snappedHi * unit;
+  // If hi crossed into the next decade (hiRaw > base * unit), expand snappedHi to next decade multiple.
+  const hiCandidate = hiRaw > base * unit ? powBase(Math.ceil(logBase(hiRaw, base)), base) : snappedHi * unit;
   const lo = clampLogBound(snappedLo * unit);
   const hi = clampLogBound(hiCandidate);
   return lo < hi ? [lo, hi] : [loRaw, hiRaw];
@@ -180,7 +176,8 @@ export function logTickCandidates(domain: Span, format: TickLabeler, base: LogBa
     if (dense.length >= 2 && dense.length <= MAX_LOG_TICKS) pushCandidate(sets, makeTickSet(dense, format));
     const powers = powersInDomain(d0, d1, base, 1, [1]);
     if (powers.length >= 2) pushCandidate(sets, makeTickSet(powers, format));
-    if (sets.length === 0 || sets[sets.length - 1]!.length < 2) pushCandidate(sets, endpoints());
+    else pushCandidate(sets, endpoints());
+    if (sets.length === 0) sets.push(endpoints());
     return sets;
   }
 

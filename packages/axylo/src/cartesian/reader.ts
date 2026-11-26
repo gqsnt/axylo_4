@@ -57,8 +57,17 @@ export function createCartesianReader(stateRef: CartesianStateRef): ReaderParts 
     table: (view, caption, formatters, messages, labels, locale) =>
       cartesianTable(stateRef, view, caption, formatters, messages, labels, locale),
     tableRowCount: alignedReader.tableRowCount,
-    text: alignedReader.text,
-    formatReferenceValue(ref: ResolvedReference, value: number, formatters: Formatters, locale: string | undefined): string {
+    text(input, type, xLabel, yLabel, table, listReady) {
+      const sentences = [...alignedReader.text(input, type, xLabel, yLabel, table, listReady)];
+      const { meta } = stateRef;
+      if (meta.collapsedRightAxis && meta.axes[1]) {
+        const right = meta.axes[1];
+        const title = right.unit ? `${right.label ?? right.id} (${right.unit})` : (right.label ?? right.id);
+        sentences.push(`Secondary right axis (${title}) values are plotted on their own scale.`);
+      }
+      return sentences;
+    },
+    ref(ref: ResolvedReference, value: number, formatters: Formatters, locale: string | undefined): string {
       if (ref.axis !== 'y') return formatters.x(value);
       const { meta } = stateRef;
       const axis = meta.axisById.get(ref.axisId ?? meta.leftAxisId) ?? meta.axes[0];

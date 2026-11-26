@@ -18,61 +18,31 @@ import {
 } from '../core/contracts';
 import { boundaryPixel, clamp, position, rule, seriesPaint, token } from '../scene/geometry';
 import { axisScaleOf } from './scale-ref';
-import type { CartesianStateRef } from './meta';
+import { barBoxAt, buildBarSlotLayout, xSlotPixel } from './bar-geom';
+import type { CartesianMeta, CartesianStateRef } from './meta';
 
 const TICK_LENGTH = 4;
 const REFERENCE_DASH = [4, 3] as const;
-
-function xPixel(xScale: XScale, xVal: number, slotIndex: number): number {
-  return xScale.type === 'band' ? xScale.center(slotIndex) : position(xScale, xVal);
-}
-
-function slotBandwidth(xScale: XScale, xValues: Float64Array, visibleStart: number, visibleEnd: number, plotWidth: number): number {
-  if (xScale.type === 'band') return Math.max(2, xScale.bandwidth);
-  const count = Math.max(1, visibleEnd - visibleStart);
-  if (count === 1) return Math.min(36, plotWidth * 0.4);
-  let minGap = Infinity;
-  for (let i = visibleStart + 1; i < visibleEnd; i++) {
-    const gap = Math.abs(position(xScale, xValues[i]!) - position(xScale, xValues[i - 1]!));
-    if (gap > 0 && gap < minGap) minGap = gap;
-  }
-  const base = Number.isFinite(minGap) ? minGap * 0.72 : plotWidth / count * 0.72;
-  return clamp(base, 2, 48);
-}
 
 function buildBarMarks(
   view: AlignedView,
   projection: Projection,
   plot: Rect,
+  meta: CartesianMeta,
   barSeriesIndexes: readonly number[],
 ): RectMark[] {
   if (!barSeriesIndexes.length || projection.kind === 'ring') return [];
-  const xScale = projection.kind === 'xy' ? projection.x : projection.band;
+  const barLayout = buildBarSlotLayout(view, meta, barSeriesIndexes);
   const { start, end } = view.visibleSlots;
-  const xVals = view.frame.x.values;
-  const groupW = slotBandwidth(xScale, xVals, start, end, plot.width);
-  const barW = Math.max(1, groupW / barSeriesIndexes.length);
   const marks: RectMark[] = [];
 
-  for (let b = 0; b < barSeriesIndexes.length; b++) {
-    const sIdx = barSeriesIndexes[b]!;
-    const series = view.frame.series[sIdx]!;
-    const yScale = axisScaleOf(projection, series.axisIndex ?? 0);
-    const yZero = clamp(position(yScale, 0), plot.y, plot.y + plot.height);
+  for (const sIdx of barSeriesIndexes) {
     const coords: number[] = [];
-
     for (let i = start; i < end; i++) {
-      if (series.slot[i] !== SLOT_VALUE) continue;
-      const v = series.y[i]!;
-      if (!Number.isFinite(v)) continue;
-      const cx = xPixel(xScale, xVals[i]!, i);
-      const bx = cx - groupW / 2 + b * barW;
-      const py = clamp(position(yScale, v), plot.y, plot.y + plot.height);
-      const top = Math.min(yZero, py);
-      const h = Math.max(1, Math.abs(py - yZero));
-      coords.push(bx, top, Math.max(1, barW - (barSeriesIndexes.length > 1 ? 1 : 0)), h);
+      const box = barBoxAt(view, projection, plot, barLayout, sIdx, i);
+      if (!box) continue;
+      coords.push(box.x, box.y, box.width, box.height);
     }
-
     if (coords.length > 0) {
       marks.push({
         type: 'rects',
@@ -90,6 +60,7 @@ function buildAreaMarks(
   view: AlignedView,
   projection: Projection,
   plot: Rect,
+  meta: CartesianMeta,
   areaSeriesIndexes: readonly number[],
 ): { areas: AreaMark[]; strokes: PathMark[] } {
   const areas: AreaMark[] = [];
@@ -97,12 +68,28 @@ function buildAreaMarks(
   if (!areaSeriesIndexes.length || projection.kind === 'ring') return { areas, strokes };
   const xScale = projection.kind === 'xy' ? projection.x : projection.band;
   const xVals = view.frame.x.values;
+  const n = view.frame.length;
+  const posStackByAxis = new Map<number, Float64Array>();
+  const negStackByAxis = new Map<number, Float64Array>();
 
   for (const sIdx of areaSeriesIndexes) {
     const series = view.frame.series[sIdx]!;
-    const yScale = axisScaleOf(projection, series.axisIndex ?? 0);
+    const spec = meta.seriesByField.get(series.field);
+    const stacked = spec?.stacked === true;
+    const axisIdx = series.axisIndex ?? 0;
+    const yScale = axisScaleOf(projection, axisIdx);
     const yZero = clamp(position(yScale, 0), plot.y, plot.y + plot.height);
     const { start, end } = view.drawSlots[sIdx] ?? view.visibleSlots;
+
+    let posAcc = posStackByAxis.get(axisIdx);
+    let negAcc = negStackByAxis.get(axisIdx);
+    if (stacked && !posAcc) {
+      posAcc = new Float64Array(n);
+      negAcc = new Float64Array(n);
+      posStackByAxis.set(axisIdx, posAcc);
+      negStackByAxis.set(axisIdx, negAcc);
+    }
+
     const upperCoords: number[] = [];
     const lowerCoords: number[] = [];
     const runs: number[] = [];
@@ -118,21 +105,43 @@ function buildAreaMarks(
 
     for (let i = start; i < end; i++) {
       const st = series.slot[i]!;
-      if (st === SLOT_NO_ROW) continue;
-      const v = series.y[i]!;
+      if (st === SLOT_NO_ROW && !stacked) continue;
+      const v = st === SLOT_VALUE ? series.y[i]! : NaN;
       if (st !== SLOT_VALUE || !Number.isFinite(v)) {
+        if (stacked && posAcc && negAcc) {
+          // Stacked missing slot contributes 0 height while keeping cumulative baseline intact.
+          const px = xSlotPixel(xScale, xVals, i);
+          const py = clamp(position(yScale, posAcc[i]!), plot.y, plot.y + plot.height);
+          if (runStart < 0) runStart = upperCoords.length / 2;
+          upperCoords.push(px, py);
+          lowerCoords.push(px, py);
+          runCount++;
+          if (strokeCoords.length && !Number.isNaN(strokeCoords[strokeCoords.length - 1]!)) strokeCoords.push(NaN, NaN);
+          continue;
+        }
         flush();
         if (strokeCoords.length && !Number.isNaN(strokeCoords[strokeCoords.length - 1]!)) {
           strokeCoords.push(NaN, NaN);
         }
         continue;
       }
-      const px = xPixel(xScale, xVals[i]!, i);
-      const py = position(yScale, v);
+      const px = xSlotPixel(xScale, xVals, i);
+      let pyLow = yZero;
+      let pyHigh: number;
+      if (stacked && posAcc && negAcc) {
+        const acc = v >= 0 ? posAcc : negAcc;
+        const prev = acc[i]!;
+        const next = prev + v;
+        acc[i] = next;
+        pyLow = clamp(position(yScale, prev), plot.y, plot.y + plot.height);
+        pyHigh = clamp(position(yScale, next), plot.y, plot.y + plot.height);
+      } else {
+        pyHigh = position(yScale, v);
+      }
       if (runStart < 0) runStart = upperCoords.length / 2;
-      upperCoords.push(px, py);
-      lowerCoords.push(px, yZero);
-      strokeCoords.push(px, py);
+      upperCoords.push(px, pyHigh);
+      lowerCoords.push(px, pyLow);
+      strokeCoords.push(px, pyHigh);
       runCount++;
     }
     flush();
@@ -206,7 +215,7 @@ function buildLineMarks(
         endRun();
         continue;
       }
-      const px = xPixel(xScale, xVals[i]!, i);
+      const px = xSlotPixel(xScale, xVals, i);
       const py = position(yScale, v);
       xy.push(px, py);
       lastPx = px;
@@ -343,9 +352,9 @@ export function buildCartesianScene(
   }
 
   // 2. Bars
-  marks.push(...buildBarMarks(view, projection, plot, barSeries));
+  marks.push(...buildBarMarks(view, projection, plot, meta, barSeries));
   // 3. Areas
-  const { areas, strokes } = buildAreaMarks(view, projection, plot, areaSeries);
+  const { areas, strokes } = buildAreaMarks(view, projection, plot, meta, areaSeries);
   marks.push(...areas, ...strokes);
   // 4. Lines (always topmost)
   const { paths, points } = buildLineMarks(view, projection, lineSeries, compact);

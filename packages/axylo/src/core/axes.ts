@@ -233,9 +233,8 @@ function layoutDiagnosticsWith(view: View, ctx: AxisContext, layout: Layout, sca
   if (view.kind === 'donut' || layout.kind !== 'plot') return [];
   const { failures } = axisParts(view, ctx, scales);
   const out: DiagnosticInput[] = [];
-  const push = (field: string) => out.push(createDiagnostic('AX160', 'none', { field }, 'presentation'));
-  if (failures.x.drawn(layout.xTicks)) push(ctx.resolved.x.field);
-  if (failures.y.drawn(layout.yTicks)) push(ctx.resolved.values[0]?.field ?? 'y');
+  if (failures.x.drawn(layout.xTicks)) out.push(createDiagnostic('AX160', 'none', { field: ctx.resolved.x.field }, 'presentation'));
+  if (failures.y.drawn(layout.yTicks)) out.push(createDiagnostic('AX160', 'none', { field: ctx.resolved.values[0]?.field ?? 'y' }, 'presentation'));
   return out;
 }
 
@@ -443,15 +442,12 @@ function xTitled(kind: XKind, ctx: AxisContext): boolean {
 /** A value axis is always titled (spec L6): its label, else its one field, else the generic noun. */
 function alignedValueTitle(series: readonly { readonly field: string }[], generic: string): string {
   const first = series[0]?.field;
-  if (first === undefined) return generic;
-  for (let i = 1; i < series.length; i++) if (series[i]!.field !== first) return generic;
-  return first;
+  return first !== undefined && series.every(s => s.field === first) ? first : generic;
 }
 
 function sharedUnit(series: readonly { readonly unit: string | null }[]): string | null {
   const first = series[0]?.unit ?? null;
-  for (let i = 0; i < series.length; i++) if (series[i]!.unit !== first) return null;
-  return first;
+  return series.every(s => s.unit === first) ? first : null;
 }
 
 /**

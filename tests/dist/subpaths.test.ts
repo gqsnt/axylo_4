@@ -51,7 +51,13 @@ describe('axylo/cartesian packed size stays under RFC C4.1 cap and carries no st
 });
 
 describe('axylo/static carries no streaming storage and is smaller than the root entry', () => {
-  for (const [label, statement] of [['line', 'export { line } from'], ['everything', 'export * from']] as const) {
+  // C4/C5+ zero-legacy-tax regression guard anchored to the clean C3-sealed b097f1a baseline.
+  const LEGACY_CAPS = { line: 135_293, everything: 158_096, staticLine: 120_729, staticEverything: 140_988, iife: 158_425 } as const;
+
+  for (const [label, statement, fullCap, staticCap] of [
+    ['line', 'export { line } from', LEGACY_CAPS.line, LEGACY_CAPS.staticLine],
+    ['everything', 'export * from', LEGACY_CAPS.everything, LEGACY_CAPS.staticEverything],
+  ] as const) {
     it(`${label}`, async () => {
       const fixed = await consumer(`${statement} 'axylo/static';`);
       const full = await consumer(`${statement} 'axylo';`);
@@ -59,10 +65,18 @@ describe('axylo/static carries no streaming storage and is smaller than the root
       // The minifier renames the StreamSession class, but the store's method name survives: proof that the
       // markers still find the stores where they are bundled.
       expect(full, `axylo ${label} lacks adoptNormalized: the marker no longer identifies the stores`).toContain('adoptNormalized');
-      console.info(`${label}: axylo ${gzip(full)} B, axylo/static ${gzip(fixed)} B gzip-9`);
-      expect(gzip(fixed)).toBeLessThan(gzip(full));
+      const fullGz = gzip(full), fixedGz = gzip(fixed);
+      console.info(`${label}: axylo ${fullGz} B, axylo/static ${fixedGz} B gzip-9`);
+      expect(fixedGz).toBeLessThan(fullGz);
+      expect(fullGz, `legacy axylo ${label} exceeded <= +0 B cap`).toBeLessThanOrEqual(fullCap);
+      expect(fixedGz, `legacy axylo/static ${label} exceeded <= +0 B cap`).toBeLessThanOrEqual(staticCap);
     });
   }
+
+  it('IIFE bundle stays <= +0 B vs C3-sealed b097f1a baseline', () => {
+    const iifeGz = gzipSync(fs.readFileSync(installed('axylo', 'dist', 'axylo.iife.min.js')), { level: 9 }).length;
+    expect(iifeGz).toBeLessThanOrEqual(LEGACY_CAPS.iife);
+  });
 });
 
 describe('declarations', () => {

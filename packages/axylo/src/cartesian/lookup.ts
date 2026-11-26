@@ -15,6 +15,7 @@ import {
 import type { Messages } from '../public';
 import { clamp, position } from '../scene/geometry';
 import { axisScaleOf } from './scale-ref';
+import { barBoxAt, buildBarSlotLayout, type BarSlotLayout } from './bar-geom';
 import type { CartesianStateRef } from './meta';
 
 const LINE_HIT_RADIUS = 12;
@@ -73,6 +74,8 @@ class CartesianLookup implements Lookup {
   readonly #xScale: XScale | null;
   readonly #formatters: Formatters;
   readonly #visible: readonly number[];
+  readonly #barSeries: readonly number[];
+  readonly #barLayout: BarSlotLayout;
   readonly #start: number;
   readonly #end: number;
   readonly count: number;
@@ -96,10 +99,16 @@ class CartesianLookup implements Lookup {
     this.count = Math.max(0, this.#end - this.#start);
 
     const visible: number[] = [];
+    const barSeries: number[] = [];
     for (let s = 0; s < view.frame.series.length; s++) {
-      if (view.visible[s] && view.frame.series[s]!.drawable) visible.push(s);
+      if (view.visible[s] && view.frame.series[s]!.drawable) {
+        visible.push(s);
+        if (stateRef.meta.seriesByField.get(view.frame.series[s]!.field)?.mark === 'bar') barSeries.push(s);
+      }
     }
     this.#visible = visible;
+    this.#barSeries = barSeries;
+    this.#barLayout = buildBarSlotLayout(view, stateRef.meta, barSeries);
   }
 
   #slotForX(x: number): number {
@@ -170,7 +179,7 @@ class CartesianLookup implements Lookup {
     return dPrev <= dCurr ? i - 1 : i;
   }
 
-  #pickPreferredSeries(slotIndex: number, yPx: number): number {
+  #pickPreferredSeries(slotIndex: number, xPx: number, yPx: number): number {
     const projection = this.#projection;
     const plot = this.#plot;
     if (!projection || !plot || projection.kind === 'ring') return this.#visible[0] ?? -1;
@@ -194,18 +203,14 @@ class CartesianLookup implements Lookup {
     }
     if (bestLine >= 0) return bestLine;
 
-    // 2. Visible bar rectangle containing yPx
-    for (const sIdx of this.#visible) {
-      const s = this.#view.frame.series[sIdx]!;
-      const spec = meta.seriesByField.get(s.field);
-      if (spec?.mark !== 'bar') continue;
-      if (s.slot[slotIndex] !== SLOT_VALUE) continue;
-      const scale = axisScaleOf(projection, s.axisIndex ?? 0);
-      const yZero = clamp(position(scale, 0), plot.y, plot.y + plot.height);
-      const py = clamp(position(scale, s.y[slotIndex]!), plot.y, plot.y + plot.height);
-      const lo = Math.min(yZero, py);
-      const hi = Math.max(yZero, py);
-      if (yPx >= lo - 2 && yPx <= hi + 2) return sIdx;
+    // 2. Visible bar rectangle containing (xPx, yPx) using exact shared bar geometry (grouped + stacked)
+    for (let k = this.#barSeries.length - 1; k >= 0; k--) {
+      const sIdx = this.#barSeries[k]!;
+      const box = barBoxAt(this.#view, projection, plot, this.#barLayout, sIdx, slotIndex);
+      if (!box) continue;
+      if (xPx >= box.x - 1 && xPx <= box.x + box.width + 1 && yPx >= box.y - 2 && yPx <= box.y + box.height + 2) {
+        return sIdx;
+      }
     }
 
     return this.#visible[0] ?? -1;
@@ -221,7 +226,7 @@ class CartesianLookup implements Lookup {
     const i = this.#nearestSlot(x);
     if (i < 0) return null;
     this.#lastPickedSlot = i;
-    this.#lastPickedSeries = this.#pickPreferredSeries(i, y);
+    this.#lastPickedSeries = this.#pickPreferredSeries(i, x, y);
     return { kind: 'x', x: this.#view.frame.x.values[i]! };
   }
 
@@ -286,6 +291,8 @@ class CartesianLookup implements Lookup {
     const sIdx = this.#seriesIndex(ref.seriesKey);
     const i = this.#slotForX(ref.x);
     if (sIdx < 0 || i < 0 || !this.#visible.includes(sIdx)) return null;
+    const spec = this.#stateRef.meta.seriesByField.get(this.#view.frame.series[sIdx]!.field);
+    if (spec?.mark === 'bar') return barBoxAt(this.#view, projection, plot, this.#barLayout, sIdx, i);
     if (!this.#isPlottableAt(sIdx, i)) return null;
     const s = this.#view.frame.series[sIdx]!;
     const yScale = axisScaleOf(projection, s.axisIndex ?? 0);

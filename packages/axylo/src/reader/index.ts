@@ -56,9 +56,7 @@ function addRun(runs: TextRun[], text: string, lang: TextRun['lang']): void {
 }
 
 function textOf(runs: readonly TextRun[]): string {
-  let text = '';
-  for (const run of runs) text += run.text;
-  return text;
+  return runs.map(run => run.text).join('');
 }
 
 function omitTable(template: string): string {
@@ -98,7 +96,7 @@ export function seriesNotDrawnSentence(messages: Messages, series: string, table
 function appendSentence(runs: TextRun[] | null, sentence: TextRun[]): TextRun[] {
   if (!runs) return sentence;
   if (runs.length && sentence.length) addRun(runs, ' ', runs.at(-1)!.lang);
-  for (const { text, lang } of sentence) addRun(runs, text, lang);
+  sentence.forEach(r => addRun(runs, r.text, r.lang));
   return runs;
 }
 
@@ -121,26 +119,13 @@ function listReadyFor(locale: string | undefined): boolean {
 
 /** Names joined as a list in the chart's locale ("Visits and Signups"). */
 function listOf(names: readonly string[], locale: string | undefined): string {
-  const length = names.length;
-  if (length < 2) return names[0] ?? '';
-  const first = names[0]!, second = names[1]!;
-  if (length === 2) return pair(first, second, locale);
-  if (englishList(locale)) {
-    let text = first;
-    for (let i = 1; i < length - 1; i++) text += ', ' + names[i];
-    return text + ', and ' + names[length - 1];
-  }
-  let key = '';
-  for (const name of names) key += `${name.length}:${name}`;
-  return localizedList(locale, key, first, second, names);
+  const n = names.length;
+  if (n < 2) return names[0] ?? '';
+  if (englishList(locale)) return n === 2 ? `${names[0]} and ${names[1]}` : `${names.slice(0, -1).join(', ')}, and ${names[n - 1]}`;
+  return localizedList(locale, names.map(s => `${s.length}:${s}`).join(''), names);
 }
 
-function pair(first: string, second: string, locale: string | undefined): string {
-  if (englishList(locale)) return `${first} and ${second}`;
-  return localizedList(locale, `${first.length}:${first}${second.length}:${second}`, first, second);
-}
-
-function localizedList(locale: string | undefined, key: string, first: string, second: string, names?: readonly string[]): string {
+function localizedList(locale: string | undefined, key: string, names: readonly string[]): string {
   try {
     const formats = listFormats ??= new Map();
     let entry = formats.get(locale);
@@ -152,12 +137,12 @@ function localizedList(locale: string | undefined, key: string, first: string, s
     const { format, lists } = entry;
     const cached = lists.get(key);
     if (cached !== undefined) return cached;
-    const text = format.format(names ?? [first, second]);
+    const text = format.format(names);
     if (lists.size >= 128) lists.delete(lists.keys().next().value!);
     lists.set(key, text);
     return text;
   } catch {
-    return names ? names.join(', ') : `${first}, ${second}`;
+    return names.join(', ');
   }
 }
 
@@ -232,18 +217,13 @@ function statsCache(input: ReaderInput): StatsCache {
 }
 
 function seriesStats(cache: StatsCache, formatters: Formatters, s: number, min: number, max: number, last: number): FormattedStats {
-  const previous = cache.series[s];
-  const entry = previous ?? { min: NaN, max: NaN, last: NaN, minText: '', maxText: '', lastText: '' };
+  const entry = cache.series[s] ??= { min: NaN, max: NaN, last: NaN, minText: '', maxText: '', lastText: '' };
   if (!Object.is(entry.min, min)) { entry.minText = formatters.value(s, min); entry.min = min; }
-  if (!Object.is(entry.max, max)) {
-    entry.maxText = Object.is(max, min) ? entry.minText : formatters.value(s, max);
-    entry.max = max;
-  }
+  if (!Object.is(entry.max, max)) { entry.maxText = Object.is(max, min) ? entry.minText : formatters.value(s, max); entry.max = max; }
   if (!Object.is(entry.last, last)) {
     entry.lastText = Object.is(last, min) ? entry.minText : Object.is(last, max) ? entry.maxText : formatters.value(s, last);
     entry.last = last;
   }
-  if (!previous) cache.series[s] = entry;
   return entry;
 }
 
@@ -252,7 +232,7 @@ export interface ReaderParts {
   readonly table: TableBuilder;
   readonly tableRowCount?: (view: View) => number | null;
   readonly text: ChartText;
-  readonly formatReferenceValue?: (ref: ResolvedReference, value: number, formatters: Formatters, locale: string | undefined) => string;
+  readonly ref?: (ref: ResolvedReference, value: number, formatters: Formatters, locale: string | undefined) => string;
 }
 
 const donutText: ChartText = (input, type) => {
@@ -402,15 +382,11 @@ function stackText(view: View, formatters: Formatters, messages: Messages): stri
 function referenceText(input: ReaderInput, parts: ReaderParts): string[] {
   const { view, formatters, messages, locale } = input;
   if (view.kind === 'donut') return [];
-  const fmt = parts.formatReferenceValue;
   return view.references.map(ref => {
     const { axis, from, to, label } = ref;
-    const x = axis === 'x';
-    const values: { label: string; axis: typeof axis; from: string; to?: string } = {
-      label, axis, from: x ? formatters.x(from) : fmt ? fmt(ref, from, formatters, locale) : formatters.value(0, from),
-    };
-    if (from !== to) values.to = x ? formatters.x(to) : fmt ? fmt(ref, to, formatters, locale) : formatters.value(0, to);
-    return fill(from === to ? messages.referenceLine : messages.referenceBand, values);
+    const fmt = (n: number) => axis === 'x' ? formatters.x(n) : parts.ref ? parts.ref(ref, n, formatters, locale) : formatters.value(0, n);
+    return fill(from === to ? messages.referenceLine : messages.referenceBand,
+      from === to ? { label, axis, from: fmt(from) } : { label, axis, from: fmt(from), to: fmt(to) });
   });
 }
 
@@ -524,12 +500,13 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
   let references: string[] | undefined;
   let table: ReaderModel['table'] = null;
   if (input.table !== false && !compact) {
-    const supplied = input.caption?.trim() ? input.caption : name;
-    const generated = supplied.trim() ? supplied : chartName(formatters, messages.chartName, type, xLabel, yLabel);
-    let caption = generated.trim() ? generated : messages.plotLabel?.trim() ? messages.plotLabel : defaultMessages.plotLabel;
+    const pick = (s: string | undefined) => (s?.trim() ? s : '');
+    let caption = pick(input.caption) || pick(name)
+      || pick(chartName(formatters, messages.chartName, type, xLabel, yLabel))
+      || pick(messages.plotLabel) || defaultMessages.plotLabel;
     if (view.kind !== 'donut' && view.references.length) {
       references = referenceText(input, parts);
-      for (const reference of references) caption += ' ' + reference;
+      caption += ' ' + references.join(' ');
     }
     table = makeTable(parts, input, caption, {
       category, value, percentage: custom?.percentage ?? messages.percentage,
@@ -538,26 +515,18 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
   }
   // A table with no rows cannot be opened (an empty chart offers it only with rows), so nothing points to it.
   const hasTable = (table?.rowCount ?? 0) > 0;
-  const omitted = disclosure?.omitted ?? 0;
-  const changed = disclosure?.changed ?? 0;
-  const hidden = input.labelsHidden ?? 0;
+  const omitted = disclosure?.omitted ?? 0, changed = disclosure?.changed ?? 0, hidden = input.labelsHidden ?? 0;
   let noteSegments: TextRun[] | null = null;
   let omission = '';
   if (omitted > 0 || changed > 0) {
     const omittedText = formatters.count(omitted), changedText = formatters.count(changed);
     const counts = { omitted: omittedText, changed: changedText, count: omittedText };
     if (omitted > 0) noteSegments = tableSentence(messages, 'valuesNotShown', counts, hasTable);
-    if (changed > 0) {
-      counts.count = changedText;
-      noteSegments = appendSentence(noteSegments, tableSentence(messages, 'valuesChanged', counts, hasTable));
-    }
+    if (changed > 0) noteSegments = appendSentence(noteSegments, tableSentence(messages, 'valuesChanged', { ...counts, count: changedText }, hasTable));
     omission = textOf(noteSegments!);
   }
-  let note = omission || null;
-  if (hidden > 0) {
-    noteSegments = appendSentence(noteSegments, tableSentence(messages, 'labelsHidden', { count: formatters.count(hidden) }, hasTable));
-    note = textOf(noteSegments) || null;
-  }
+  if (hidden > 0) noteSegments = appendSentence(noteSegments, tableSentence(messages, 'labelsHidden', { count: formatters.count(hidden) }, hasTable));
+  const note = noteSegments ? textOf(noteSegments) || null : null;
   return new Reader(name, note, table, note ? noteSegments : null, {
     parts, input, type, xLabel, yLabel, listReady, compact, references, omission,
   });

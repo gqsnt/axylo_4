@@ -125,13 +125,24 @@ export function cartesian<Row, const Axes extends AxesRecord>(
 
   const handle: StaticCartesianChart<Row, Axes> = {
     update(patch) {
+      const prevRaw = currentRaw;
+      const prevMeta = stateRef.meta;
+      const prevIssues = pendingIssues.list;
       if (patch && typeof patch === 'object') {
         currentRaw = { ...currentRaw, ...patch };
       }
-      const next = parseCartesianInput(currentRaw, stateRef.meta);
+      const next = parseCartesianInput(currentRaw, prevMeta);
       stateRef.meta = next.meta;
       pendingIssues.list = next.issues;
-      inner.update(next.translated);
+      try {
+        inner.update(next.translated);
+      } catch (err) {
+        // Transactional rollback on strict rejection: preserve previously accepted state.
+        currentRaw = prevRaw;
+        stateRef.meta = prevMeta;
+        pendingIssues.list = prevIssues;
+        throw err;
+      }
     },
     zoom(range) {
       inner.zoom(range as never);

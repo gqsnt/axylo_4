@@ -120,6 +120,20 @@ describe('axylo/cartesian packed Chrome integration under strict CSP', () => {
         (window as unknown as { __cart: { diagnostics: readonly { code: string }[] } }).__cart.diagnostics.map(d => d.code));
       expect(wideCodes).not.toContain('AX175');
 
+      // Strict-mode invalid update rolls back facade state cleanly so a subsequent valid update succeeds
+      const rollbackOk = await page.evaluate(() => {
+        const chart = (window as unknown as { __cart: { update(p: unknown): void; diagnostics: readonly { code: string }[] } }).__cart;
+        let threw = false;
+        try {
+          chart.update({ strict: true, layers: [{ type: 'bar', y: 'orders', yAxis: 'latency' }] });
+        } catch {
+          threw = true;
+        }
+        chart.update({ strict: false, title: 'After Rollback' });
+        return { threw, has173: chart.diagnostics.some(d => d.code === 'AX173') };
+      });
+      expect(rollbackOk).toEqual({ threw: true, has173: false });
+
       expect(errors).toEqual([]);
       expect(server.reports.get('cartesian') ?? []).toEqual([]);
     } finally {

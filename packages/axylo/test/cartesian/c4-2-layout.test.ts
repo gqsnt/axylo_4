@@ -183,10 +183,18 @@ describe('C4.2 dual-axis responsive layout & single projection authority', () =>
     expect(diagsNarrow.map(d => d.code)).toEqual(['AX175']);
     expect(diagsNarrow[0]!.origin).toBe('presentation');
 
-    // Resize back to >= 360 px -> right axis returns and AX175 clears!
-    const wide = stage.compute(view, { width: DUAL_AXIS_MIN_WIDTH + 40, height: 240 }, { measurer, style }, ctx);
+    // Container 400 px still collapses when gutters push fitted plot.width < 360 px (RFC §3.1)
+    const tight = stage.compute(view, { width: DUAL_AXIS_MIN_WIDTH + 40, height: 240 }, { measurer, style }, ctx);
+    expect(tight.kind).toBe('plot');
+    if (tight.kind !== 'plot') return;
+    expect(tight.yTicksRight).toBeUndefined();
+    expect(stage.layoutDiagnostics!(view, ctx, tight).map(d => d.code)).toEqual(['AX175']);
+
+    // Resize back so fitted plot.width >= 360 px -> right axis returns and AX175 clears!
+    const wide = stage.compute(view, { width: 560, height: 240 }, { measurer, style }, ctx);
     expect(wide.kind).toBe('plot');
     if (wide.kind !== 'plot') return;
+    expect(wide.plot.width).toBeGreaterThanOrEqual(DUAL_AXIS_MIN_WIDTH);
     expect(wide.yTicksRight!.length).toBeGreaterThanOrEqual(2);
     expect(stage.layoutDiagnostics!(view, ctx, wide)).toEqual([]);
   });

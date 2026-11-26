@@ -17,12 +17,25 @@ function resolveCartesianReferences(
 ): readonly ResolvedReference[] {
   const { meta } = stateRef;
   if (!baseRefs.length || !meta.references.length) return baseRefs;
-  let yIdx = 0;
+  // Match each surviving resolved y-reference by identity (label, from, to) so dropped invalid
+  // references never shift a later band onto an earlier reference's axis!
   const ySpecs = meta.references.filter(r => r.axis === 'y');
+  const used = new Uint8Array(ySpecs.length);
   return baseRefs.map(ref => {
     if (ref.axis !== 'y') return ref;
-    const spec = ySpecs[yIdx++];
-    return { ...ref, axisId: spec?.axisId ?? meta.leftAxisId };
+    let matchedAxisId: string | undefined;
+    for (let i = 0; i < ySpecs.length; i++) {
+      if (used[i]) continue;
+      const s = ySpecs[i]!;
+      const lo = Math.min(Number(s.from), Number(s.to));
+      const hi = Math.max(Number(s.from), Number(s.to));
+      if (s.label === ref.label && Object.is(lo, ref.from) && Object.is(hi, ref.to)) {
+        used[i] = 1;
+        matchedAxisId = s.axisId;
+        break;
+      }
+    }
+    return { ...ref, axisId: matchedAxisId ?? meta.leftAxisId };
   });
 }
 

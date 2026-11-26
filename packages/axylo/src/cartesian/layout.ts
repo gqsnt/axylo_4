@@ -176,6 +176,7 @@ export function computeCartesianLayoutDetailed(
   textInput: { readonly measurer: TextMeasurer; readonly style: TextStyle },
   ctx: AxisContext,
   stateRef: CartesianStateRef,
+  forceCollapseRight = false,
 ): CartesianLayoutComputation {
   const { width, height } = size;
   const xFailures = createTickFailureTracker();
@@ -183,6 +184,7 @@ export function computeCartesianLayoutDetailed(
   const yFailures = meta.axes.map(() => createTickFailureTracker());
 
   if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    meta.collapsedRightAxis = false;
     return { layout: { width, height, kind: 'unmeasured' }, collapsedRightAxis: false, xFailures, yFailures };
   }
 
@@ -199,6 +201,7 @@ export function computeCartesianLayoutDetailed(
     const mx = Math.min(2, width / 2);
     const my = Math.min(2, height / 2);
     const plot: Rect = { x: mx, y: my, width: width - 2 * mx, height: height - 2 * my };
+    meta.collapsedRightAxis = false;
     return {
       layout: { width, height, kind: 'compact', plot, projection: makeProjection(plot) },
       collapsedRightAxis: false,
@@ -208,13 +211,14 @@ export function computeCartesianLayoutDetailed(
   }
 
   if (width < MIN_WIDTH + 2 * INSET || height < MIN_HEIGHT + 2 * INSET) {
+    meta.collapsedRightAxis = false;
     return { layout: { width, height, kind: 'too-small' }, collapsedRightAxis: false, xFailures, yFailures };
   }
 
   const text = makeMetrics(textInput.measurer, textInput.style);
   const leftAxis = meta.axes[0]!;
   const rightAxis = meta.axes[1] ?? null;
-  const showRightAxis = rightAxis !== null && width >= DUAL_AXIS_MIN_WIDTH;
+  const showRightAxis = rightAxis !== null && !forceCollapseRight && width >= DUAL_AXIS_MIN_WIDTH;
   const collapsedRightAxis = rightAxis !== null && !showRightAxis;
 
   const leftDomain = domains[0] ?? view.yDomain;
@@ -311,6 +315,11 @@ export function computeCartesianLayoutDetailed(
     if (iter >= 6) grow = true;
     if ((!grow && nextLeft === left && nextRight === right && nextBottom === bottom) ||
         (grow && nextLeft <= left && nextRight <= right && nextBottom <= bottom)) {
+      // Spec L9: threshold applies to the fitted plot width (not raw container width).
+      if (showRightAxis && plot.width < DUAL_AXIS_MIN_WIDTH - 1e-7) {
+        return computeCartesianLayoutDetailed(view, size, textInput, ctx, stateRef, true);
+      }
+      meta.collapsedRightAxis = collapsedRightAxis;
       const base = plot.y + plot.height + clearance;
       const texts: PlacedText[] = [];
       for (const label of leftFit.texts) texts.push(moveText(label, left - TICK_GAP, 0));

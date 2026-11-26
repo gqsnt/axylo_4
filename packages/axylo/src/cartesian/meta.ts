@@ -58,6 +58,8 @@ export interface CartesianMeta {
   readonly invalid: boolean;
   /** Full-data positive domains cached per axis for zoom fallback (RFC §4.4). */
   fullPositiveDomains: Map<string, Span>;
+  /** True when the latest committed layout collapsed the secondary right axis (`plot.width < 360 px`, spec L9). */
+  collapsedRightAxis?: boolean;
 }
 
 export interface CartesianStateRef {

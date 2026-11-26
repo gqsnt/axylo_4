@@ -216,12 +216,72 @@ describe('C4.3 axylo/cartesian mixed layers, picking, and readout parity', () =>
     });
     expect(d170.filter(d => d.code === 'AX170').length).toBeGreaterThanOrEqual(1);
 
-    // AX172: all nonpositive on log
+    // AX172: all nonpositive on log — even when a positive reference line is present!
     const d172 = validateCartesian({
       title: 'All neg', data: [{ x: 1, a: 0 }, { x: 2, a: -5 }], x: 'x',
       axes: { y: { position: 'left', scale: 'log' } },
       layers: [{ type: 'line', y: 'a', yAxis: 'y' }],
+      reference: [{ y: 100, axisId: 'y', label: 'Positive Ref' }],
     });
     expect(d172.some(d => d.code === 'AX172')).toBe(true);
+  });
+
+  it('picks the second of two equal-height grouped bars, renders stacked bars & areas cumulatively, and preserves reference axis after invalid ref', () => {
+    const rows = [
+      { x: 1, a: 100, b: 100 },
+      { x: 2, a: 100, b: 100 },
+    ];
+    // Grouped equal-height bars: clicking the second bar's x-center selects series 'b'
+    const grouped = runPipeline({
+      title: 'Grouped', data: rows, x: 'x',
+      axes: { y: { position: 'left', scale: 'linear' } },
+      layers: [{ type: 'bar', y: ['a', 'b'], yAxis: 'y' }],
+    });
+    const rectMarks = grouped.scene.marks.filter(m => m.type === 'rects');
+    expect(rectMarks).toHaveLength(2);
+    const secondBar = rectMarks[1]!;
+    if (secondBar.type === 'rects') {
+      const bx = secondBar.xywh[0]! + secondBar.xywh[2]! / 2;
+      const by = secondBar.xywh[1]! + secondBar.xywh[3]! / 2;
+      const tgt = grouped.lookup.pick(bx, by);
+      expect(grouped.lookup.primary(tgt!)).toEqual({ kind: 'aligned', seriesKey: 'b', x: 1 });
+    }
+
+    // Stacked bars: second bar sits ABOVE first bar (smaller y pixel, non-overlapping y range)
+    const stacked = runPipeline({
+      title: 'Stacked', data: rows, x: 'x',
+      axes: { y: { position: 'left', scale: 'linear' } },
+      layers: [{ type: 'bar', y: ['a', 'b'], yAxis: 'y', stacked: true }],
+    });
+    const sRects = stacked.scene.marks.filter(m => m.type === 'rects');
+    expect(sRects).toHaveLength(2);
+    if (sRects[0]!.type === 'rects' && sRects[1]!.type === 'rects') {
+      expect(sRects[1]!.xywh[1]!).toBeLessThan(sRects[0]!.xywh[1]!);
+    }
+
+    // Container >= 360 px (380 px) whose fitted plot width is < 360 px collapses right axis & annotates summary (spec L9)
+    const narrowPlot = runPipeline({
+      title: 'Narrow plot', data: [{ x: 1, orders: 100, latency: 10 }, { x: 2, orders: 200, latency: 100 }], x: 'x',
+      axes: {
+        orders: { position: 'left', scale: 'linear', label: 'Orders', unit: 'qty' },
+        latency: { position: 'right', scale: 'log', label: 'Latency', unit: 'ms' },
+      },
+      layers: [
+        { type: 'bar', y: 'orders', yAxis: 'orders' },
+        { type: 'line', y: 'latency', yAxis: 'latency' },
+      ],
+      reference: [
+        // Invalid reference dropped before resolution must not shift the next reference's axis!
+        { y: Number.NaN, axisId: 'orders', label: 'Dropped' },
+        { y: [10, 50], axisId: 'latency', label: 'SLA' },
+      ],
+    }, 380, 260);
+    expect(narrowPlot.layout.kind).toBe('plot');
+    if (narrowPlot.layout.kind === 'plot') {
+      expect(narrowPlot.layout.yTicksRight).toBeUndefined();
+    }
+    expect(narrowPlot.reader.summary).toContain('Secondary right axis (Latency (ms))');
+    expect(narrowPlot.reader.summary).toContain('10 ms');
+    expect(narrowPlot.reader.summary).toContain('50 ms');
   });
 });
