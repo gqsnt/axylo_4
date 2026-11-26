@@ -12650,7 +12650,7 @@
         {
           "kind": "unit",
           "file": "tests/dist/node.test.ts",
-          "title": "exports the five chart functions and validate, and adds no globals on import",
+          "title": "exports the six chart functions and validate, and adds no globals on import",
           "ancestors": [
             "axylo in plain Node []"
           ]
@@ -12666,7 +12666,7 @@
         {
           "kind": "unit",
           "file": "tests/dist/node.test.ts",
-          "title": "exports the five chart functions and validate, and adds no globals on import",
+          "title": "exports the six chart functions and validate, and adds no globals on import",
           "ancestors": [
             "axylo in plain Node [\"--conditions=development\"]"
           ]
@@ -12819,7 +12819,7 @@
         {
           "kind": "unit",
           "file": "tests/dist/node.test.ts",
-          "title": "exports the five chart functions and validate, and adds no globals on import",
+          "title": "exports the six chart functions and validate, and adds no globals on import",
           "ancestors": [
             "axylo in plain Node []"
           ]
@@ -12835,7 +12835,7 @@
         {
           "kind": "unit",
           "file": "tests/dist/node.test.ts",
-          "title": "exports the five chart functions and validate, and adds no globals on import",
+          "title": "exports the six chart functions and validate, and adds no globals on import",
           "ancestors": [
             "axylo in plain Node [\"--conditions=development\"]"
           ]
@@ -12951,7 +12951,7 @@
         {
           "kind": "unit",
           "file": "tests/dist/node.test.ts",
-          "title": "exports the five chart functions and validate, and adds no globals on import",
+          "title": "exports the six chart functions and validate, and adds no globals on import",
           "ancestors": [
             "axylo in plain Node []"
           ]
@@ -12967,7 +12967,7 @@
         {
           "kind": "unit",
           "file": "tests/dist/node.test.ts",
-          "title": "exports the five chart functions and validate, and adds no globals on import",
+          "title": "exports the six chart functions and validate, and adds no globals on import",
           "ancestors": [
             "axylo in plain Node [\"--conditions=development\"]"
           ]
@@ -13083,7 +13083,7 @@
         {
           "kind": "unit",
           "file": "tests/dist/node.test.ts",
-          "title": "exports the five chart functions and validate, and adds no globals on import",
+          "title": "exports the six chart functions and validate, and adds no globals on import",
           "ancestors": [
             "axylo in plain Node []"
           ]
@@ -13099,7 +13099,7 @@
         {
           "kind": "unit",
           "file": "tests/dist/node.test.ts",
-          "title": "exports the five chart functions and validate, and adds no globals on import",
+          "title": "exports the six chart functions and validate, and adds no globals on import",
           "ancestors": [
             "axylo in plain Node [\"--conditions=development\"]"
           ]
@@ -13215,7 +13215,7 @@
         {
           "kind": "unit",
           "file": "tests/dist/node.test.ts",
-          "title": "exports the five chart functions and validate, and adds no globals on import",
+          "title": "exports the six chart functions and validate, and adds no globals on import",
           "ancestors": [
             "axylo in plain Node []"
           ]
@@ -13231,7 +13231,7 @@
         {
           "kind": "unit",
           "file": "tests/dist/node.test.ts",
-          "title": "exports the five chart functions and validate, and adds no globals on import",
+          "title": "exports the six chart functions and validate, and adds no globals on import",
           "ancestors": [
             "axylo in plain Node [\"--conditions=development\"]"
           ]
@@ -13347,7 +13347,7 @@
         {
           "kind": "unit",
           "file": "tests/dist/node.test.ts",
-          "title": "exports the five chart functions and validate, and adds no globals on import",
+          "title": "exports the six chart functions and validate, and adds no globals on import",
           "ancestors": [
             "axylo in plain Node []"
           ]
@@ -13363,7 +13363,7 @@
         {
           "kind": "unit",
           "file": "tests/dist/node.test.ts",
-          "title": "exports the five chart functions and validate, and adds no globals on import",
+          "title": "exports the six chart functions and validate, and adds no globals on import",
           "ancestors": [
             "axylo in plain Node [\"--conditions=development\"]"
           ]

@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { citedTestFiles, declaredEngines, engineLabel, ENGINES, hashFile, packIntegrity, snapshot } from './provenance.mjs';
 import { exceeds, SIZE_TARGETS } from '../scripts/size.mjs';
 import { matchesTemplate, readTitles } from './titles.mjs';
+import { evaluateJourneys, readJourneys, renderJourneysMarkdown } from './journeys.mjs';
 
 const chartTypes = ['line', 'area', 'bar', 'scatter', 'donut', 'compact'];
 const statuses = ['pass', 'fail', 'weak', 'no evidence', 'not run', 'not recorded for this revision', 'cannot be verified here', 'not applicable'];
@@ -712,7 +713,7 @@ function uniqueReportLabel(file, files, root) {
  * tree now (provenance.mjs), computed only when a size citation needs it, and the targets are scripts/size.mjs's.
  */
 export function check({ root, matrixFile = resolve(root, 'acceptance/matrix.json'), resultFiles = [], resultRoots = [], release = false,
-  packIntegrity: currentPack, sizeTargets = SIZE_TARGETS }) {
+  packIntegrity: currentPack, sizeTargets = SIZE_TARGETS, pers = false, journeysFile }) {
   root = resolve(root);
   const expected = specIds(readFileSync(resolve(root, 'docs/02-product-spec.md'), 'utf8'));
   const { matrix, sources, confirmations } = readMatrix(root, matrixFile, expected, sizeTargets);
@@ -766,9 +767,18 @@ export function check({ root, matrixFile = resolve(root, 'acceptance/matrix.json
     'The matrix contains individual test citations and applicability reasons. ' + fileLink(from, root, relative(root, matrixFile)), '',
     table, '', readerDetails(rows, root, from, review), ...describeReview(review, rows, counts)].join('\n') + '\n';
   const blocked = rows.some(({ cells }) => cells.some(cell => cell.blocksRelease));
-  return {
+  const result = {
     table, summary, report, counts, runs, warnings, rows: structuredRows(rows, runs, reportFiles, root, sources),
     exitCode: release && (blocked || runs.some(run => run.provenanceError)) ? 1 : 0,
+  };
+  if (!pers) return result;
+  // PERS gates in every mode, not only --release: a failing or stale journey is a product regression now.
+  const journeys = readJourneys({ root, journeysFile, matrixIds: matrix.map(row => row.id) });
+  const evaluation = evaluateJourneys({ journeys, checkResult: result });
+  return {
+    ...result, pers: evaluation,
+    report: result.report + '\n' + renderJourneysMarkdown(evaluation),
+    exitCode: evaluation.blocked ? 1 : result.exitCode,
   };
 }
 
@@ -809,9 +819,12 @@ function main(args) {
   const resultRoots = [];
   let release = false;
   let write = false;
+  let pers = false;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--release') {
       release = true;
+    } else if (args[i] === '--pers') {
+      pers = true;
     } else if (args[i] === '--write') {
       write = true;
     } else if (args[i] === '--results' || args[i] === '--roots') {
@@ -821,12 +834,12 @@ function main(args) {
       while (args[i + 1] && !args[i + 1].startsWith('--')) paths.push(resolve(args[++i]));
       if (before === paths.length) throw new Error(option + ' needs at least one path');
     } else {
-      throw new Error(`unknown argument ${args[i]} (usage: node acceptance/check.mjs [--results <file>…] [--roots <directory>…] [--release] [--write])`);
+      throw new Error(`unknown argument ${args[i]} (usage: node acceptance/check.mjs [--results <file>…] [--roots <directory>…] [--release] [--write] [--pers])`);
     }
   }
   let result;
   try {
-    result = check({ root, resultFiles, resultRoots, release });
+    result = check({ root, resultFiles, resultRoots, release, pers });
   } catch (error) {
     for (const file of [...new Set(resultFiles)].sort()) {
       let provenance;
@@ -842,6 +855,7 @@ function main(args) {
   if (write) writeFileSync(resolve(root, 'acceptance/report.md'), result.report);
   if (result.runs.length) console.log(describeRuns(result.runs, root).join('\n'));
   console.log(`${result.table}\n\n${result.summary}`);
+  if (result.pers) console.log('\n' + renderJourneysMarkdown(result.pers));
   return result.exitCode;
 }
 

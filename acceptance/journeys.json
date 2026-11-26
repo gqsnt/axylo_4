@@ -1,0 +1,884 @@
+[
+  {
+    "id": "first-impression",
+    "title": "Professional first impression",
+    "owner": "core-experience",
+    "outcomeGuarantees": [
+      "A chart created with data only, in ten lines or fewer, looks finished: titled axes with units, readable ticks, a legend when there is more than one series.",
+      "The first render is not animated and shows the data at once; empty, loading and error states show a message inside the plot.",
+      "Numbers and dates read in the page locale without configuration."
+    ],
+    "applicableKinds": [
+      "line",
+      "area",
+      "bar",
+      "histogram",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "matrixIds": [
+      "DX1",
+      "L6",
+      "L7",
+      "I5",
+      "F6"
+    ],
+    "testFiles": [
+      "tests/dist/first-chart.browser.test.ts",
+      "packages/axylo/test/browser/chart/render.browser.test.ts",
+      "packages/axylo/test/browser/acceptance/type-matrix.browser.test.ts",
+      "packages/axylo/test/acceptance/type-matrix.test.ts",
+      "packages/axylo/test/browser/chart/histogram.browser.test.ts"
+    ],
+    "screenshots": [
+      "getting-started",
+      "index",
+      "histogram"
+    ],
+    "benchWorkloads": [
+      "first",
+      "page",
+      "compact",
+      "lifecycle"
+    ],
+    "rehearsalTasks": [
+      "daily-revenue",
+      "daily-visits",
+      "regional-sales",
+      "signups"
+    ],
+    "accessibilityEvidence": {
+      "automated": [
+        "packages/axylo/test/browser/a11y/axe.browser.test.ts",
+        "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts"
+      ],
+      "manualAt": {
+        "status": "not-applicable",
+        "environments": [],
+        "protocolNote": "First impression is judged visually and by the automated name/axe checks; reader experience is owned by screen-reader."
+      }
+    },
+    "ownedGaps": [
+      {
+        "id": "histogram-matrix-column",
+        "kinds": [
+          "histogram"
+        ],
+        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "owner": "core-experience",
+        "targetCycle": "C1.2"
+      },
+      {
+        "id": "c1.2-split-protection",
+        "kinds": [
+          "line",
+          "area",
+          "bar",
+          "histogram",
+          "scatter",
+          "donut",
+          "compact"
+        ],
+        "reason": "PERS rolls journeys up from the existing matrix; protection against a journey losing evidence when a test file or matrix row is split is scheduled for C1.2 and not enforced here.",
+        "owner": "acceptance",
+        "targetCycle": "C1.2"
+      }
+    ]
+  },
+  {
+    "id": "reading",
+    "title": "Legible reading",
+    "owner": "core-experience",
+    "outcomeGuarantees": [
+      "No visible text overlaps other text or is clipped, and no label disappears without being announced.",
+      "Text is at least 12 CSS px with at least 4.5:1 contrast against what is behind it.",
+      "Scales are meaningful: bar, area and histogram value axes include zero, ticks fall on round values, temporal values are never mixed silently."
+    ],
+    "applicableKinds": [
+      "line",
+      "area",
+      "bar",
+      "histogram",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "matrixIds": [
+      "L1",
+      "L2",
+      "L6",
+      "F1",
+      "F4",
+      "F6",
+      "L5"
+    ],
+    "testFiles": [
+      "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+      "packages/axylo/test/browser/render/text.browser.test.ts",
+      "packages/axylo/test/core/ticks.test.ts",
+      "packages/axylo/test/acceptance/f-domains.test.ts",
+      "packages/axylo/test/acceptance/f-format.test.ts",
+      "packages/axylo/test/acceptance/f-time.test.ts",
+      "packages/axylo/test/data/histogram.test.ts"
+    ],
+    "screenshots": [
+      "line",
+      "histogram"
+    ],
+    "benchWorkloads": [],
+    "rehearsalTasks": [],
+    "accessibilityEvidence": {
+      "automated": [
+        "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+        "packages/axylo/test/browser/a11y/axe.browser.test.ts"
+      ],
+      "manualAt": {
+        "status": "not-applicable",
+        "environments": [],
+        "protocolNote": "Legibility is measured geometrically and by contrast in the browser suite; no assistive technology is involved."
+      }
+    },
+    "ownedGaps": [
+      {
+        "id": "histogram-matrix-column",
+        "kinds": [
+          "histogram"
+        ],
+        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "owner": "core-experience",
+        "targetCycle": "C1.2"
+      }
+    ]
+  },
+  {
+    "id": "hover",
+    "title": "Precise hover readouts",
+    "owner": "interaction",
+    "outcomeGuarantees": [
+      "Pointing anywhere in the plot shows what is there by the type's picking rule; the readout matches the drawn frame exactly.",
+      "Tooltip content lists every visible series at that position (stack totals on area, percentages on donut, the full interval on histogram).",
+      "The readout is stable: it does not flicker or jump while the pointer is still."
+    ],
+    "applicableKinds": [
+      "line",
+      "area",
+      "bar",
+      "histogram",
+      "scatter",
+      "donut"
+    ],
+    "matrixIds": [
+      "I1",
+      "T-pointer-line",
+      "T-pointer-area",
+      "T-pointer-bar",
+      "T-pointer-donut",
+      "T-pointer-scatter",
+      "T-tooltip-line",
+      "T-tooltip-area",
+      "T-tooltip-bar",
+      "T-tooltip-donut",
+      "T-tooltip-scatter"
+    ],
+    "testFiles": [
+      "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+      "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+      "packages/axylo/test/lookup/aligned.test.ts",
+      "packages/axylo/test/lookup/scatter.test.ts",
+      "packages/axylo/test/lookup/donut.test.ts",
+      "packages/axylo/test/browser/chart/histogram.browser.test.ts",
+      "packages/axylo/test/data/histogram.test.ts"
+    ],
+    "screenshots": [
+      "line",
+      "histogram"
+    ],
+    "benchWorkloads": [
+      "hover"
+    ],
+    "rehearsalTasks": [],
+    "accessibilityEvidence": {
+      "automated": [
+        "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts"
+      ],
+      "manualAt": {
+        "status": "not-applicable",
+        "environments": [],
+        "protocolNote": "Pointer readouts are visual; their non-pointer equivalent is covered by keyboard and screen-reader."
+      }
+    },
+    "ownedGaps": [
+      {
+        "id": "histogram-matrix-column",
+        "kinds": [
+          "histogram"
+        ],
+        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "owner": "interaction",
+        "targetCycle": "C1.2"
+      }
+    ]
+  },
+  {
+    "id": "explore",
+    "title": "Natural exploration",
+    "owner": "interaction",
+    "outcomeGuarantees": [
+      "Zoom on time, date and numeric x is reachable by buttons, keyboard, wheel/pinch and two-click range selection, and Reset always returns to the full view.",
+      "The zoomed value axis stays inside the visible data; nothing is drawn outside the plot.",
+      "Every interaction works with a single pointer without dragging."
+    ],
+    "applicableKinds": [
+      "line",
+      "area",
+      "bar",
+      "histogram",
+      "scatter"
+    ],
+    "matrixIds": [
+      "I3",
+      "T-zoom-line",
+      "T-zoom-area",
+      "T-zoom-bar",
+      "T-zoom-scatter",
+      "F7",
+      "I4"
+    ],
+    "testFiles": [
+      "packages/axylo/test/browser/chart/interaction.browser.test.ts",
+      "packages/axylo/test/browser/chart/final-range.browser.test.ts",
+      "packages/axylo/test/core/focus-range.test.ts",
+      "packages/axylo/test/browser/chart/histogram.browser.test.ts",
+      "packages/axylo/test/data/histogram.test.ts"
+    ],
+    "screenshots": [
+      "line"
+    ],
+    "benchWorkloads": [
+      "zoom"
+    ],
+    "rehearsalTasks": [],
+    "accessibilityEvidence": {
+      "automated": [
+        "packages/axylo/test/browser/chart/final-range.browser.test.ts",
+        "packages/axylo/test/browser/a11y/keyboard.browser.test.ts"
+      ],
+      "manualAt": {
+        "status": "gap-open",
+        "environments": [
+          "NVDA + Firefox (Windows)",
+          "JAWS + Chrome (Windows)",
+          "VoiceOver + Safari (macOS)",
+          "VoiceOver + Safari (iOS)",
+          "TalkBack + Chrome (Android)"
+        ],
+        "protocolNote": "Zoom and range selection announcements have not been checked with a real screen reader."
+      }
+    },
+    "ownedGaps": [
+      {
+        "id": "histogram-matrix-column",
+        "kinds": [
+          "histogram"
+        ],
+        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "owner": "interaction",
+        "targetCycle": "C1.2"
+      },
+      {
+        "id": "explore-manual-at",
+        "kinds": [
+          "line",
+          "area",
+          "bar",
+          "histogram",
+          "scatter"
+        ],
+        "reason": "Range-selection and zoom announcements are verified only through automated ARIA checks, not with real assistive technology.",
+        "owner": "a11y",
+        "targetCycle": "C2"
+      }
+    ]
+  },
+  {
+    "id": "compare",
+    "title": "Series comparison",
+    "owner": "core-experience",
+    "outcomeGuarantees": [
+      "Each series is identifiable without colour: dash, marker shape or direct label in addition to its swatch.",
+      "Up to eight series never share a colour; beyond eight a diagnostic is raised.",
+      "Stacked and grouped comparisons keep positive and negative values on their own sides of zero, and legend toggles show and hide series predictably."
+    ],
+    "applicableKinds": [
+      "line",
+      "area",
+      "bar",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "matrixIds": [
+      "A5",
+      "F9",
+      "F10",
+      "I2",
+      "C4",
+      "T-limit-line",
+      "T-limit-area",
+      "T-limit-bar",
+      "T-limit-donut",
+      "T-limit-scatter"
+    ],
+    "testFiles": [
+      "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts",
+      "packages/axylo/test/acceptance/f-series.test.ts",
+      "packages/axylo/test/acceptance/f-stacks.test.ts",
+      "packages/axylo/test/scene/finition-stacked-areas.test.ts",
+      "packages/axylo/test/theme/palette.test.ts"
+    ],
+    "screenshots": [
+      "bar",
+      "area"
+    ],
+    "benchWorkloads": [],
+    "rehearsalTasks": [
+      "regional-sales"
+    ],
+    "accessibilityEvidence": {
+      "automated": [
+        "packages/axylo/test/browser/acceptance/a5-not-colour-alone.browser.test.ts"
+      ],
+      "manualAt": {
+        "status": "not-applicable",
+        "environments": [],
+        "protocolNote": "Not-colour-alone is checked by rendering; no assistive technology is involved."
+      }
+    },
+    "ownedGaps": []
+  },
+  {
+    "id": "resize",
+    "title": "Responsive resizing",
+    "owner": "core-experience",
+    "outcomeGuarantees": [
+      "The chart follows its container in both directions with no call from the page.",
+      "At any width labels adapt instead of clipping or overflowing; content reflows at 320 CSS px and 400% zoom without two-dimensional scrolling.",
+      "When the figure cannot hold a readable plot it says so instead of drawing an unreadable one."
+    ],
+    "applicableKinds": [
+      "line",
+      "area",
+      "bar",
+      "histogram",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "matrixIds": [
+      "L3",
+      "L8",
+      "A6",
+      "C3",
+      "L1"
+    ],
+    "testFiles": [
+      "packages/axylo/test/browser/acceptance/l-legibility.browser.test.ts",
+      "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
+      "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
+      "packages/axylo/test/layout/layout.test.ts",
+      "packages/axylo/test/simplify/resize-cache.test.ts"
+    ],
+    "screenshots": [
+      "line",
+      "compact"
+    ],
+    "benchWorkloads": [
+      "resize"
+    ],
+    "rehearsalTasks": [],
+    "accessibilityEvidence": {
+      "automated": [
+        "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts"
+      ],
+      "manualAt": {
+        "status": "not-applicable",
+        "environments": [],
+        "protocolNote": "Reflow is measured in the browser suite."
+      }
+    },
+    "ownedGaps": [
+      {
+        "id": "histogram-matrix-column",
+        "kinds": [
+          "histogram"
+        ],
+        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "owner": "core-experience",
+        "targetCycle": "C1.2"
+      },
+      {
+        "id": "histogram-resize-test",
+        "kinds": [
+          "histogram"
+        ],
+        "reason": "No test resizes a histogram across widths; histogram resize behaviour is inferred from the shared layout tests.",
+        "owner": "core-experience",
+        "targetCycle": "C1.2"
+      }
+    ]
+  },
+  {
+    "id": "mobile-touch",
+    "title": "Mobile and touch",
+    "owner": "interaction",
+    "outcomeGuarantees": [
+      "On phone-width viewports the chart stays readable and every interaction is reachable with a single touch, without dragging.",
+      "Readouts on narrow viewports move to the strip instead of covering the data."
+    ],
+    "applicableKinds": [
+      "line",
+      "area",
+      "bar",
+      "histogram",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "matrixIds": [
+      "I4",
+      "A6",
+      "L8",
+      "C3"
+    ],
+    "testFiles": [
+      "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
+      "packages/axylo/test/browser/acceptance/i1-pointer.browser.test.ts",
+      "packages/axylo/test/browser/chart/interaction.browser.test.ts"
+    ],
+    "screenshots": [
+      "line",
+      "theming"
+    ],
+    "benchWorkloads": [],
+    "rehearsalTasks": [],
+    "accessibilityEvidence": {
+      "automated": [
+        "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts"
+      ],
+      "manualAt": {
+        "status": "gap-open",
+        "environments": [
+          "VoiceOver + Safari (iOS)",
+          "TalkBack + Chrome (Android)"
+        ],
+        "protocolNote": "Touch is emulated in desktop Chrome; no real phone or mobile screen reader has been used."
+      }
+    },
+    "ownedGaps": [
+      {
+        "id": "histogram-matrix-column",
+        "kinds": [
+          "histogram"
+        ],
+        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "owner": "interaction",
+        "targetCycle": "C1.2"
+      },
+      {
+        "id": "real-device-touch",
+        "kinds": [
+          "line",
+          "area",
+          "bar",
+          "histogram",
+          "scatter",
+          "donut",
+          "compact"
+        ],
+        "reason": "Touch and narrow-viewport behaviour is verified only in emulated desktop Chrome, never on a real phone.",
+        "owner": "interaction",
+        "targetCycle": "C2"
+      }
+    ]
+  },
+  {
+    "id": "keyboard",
+    "title": "Keyboard navigation",
+    "owner": "a11y",
+    "outcomeGuarantees": [
+      "At most two tab stops while the table is closed; arrow keys move through data in the documented order for each type.",
+      "Focus survives updates, appends and zoom, and there is never a keyboard trap.",
+      "Moving focus to a point conveys its text through the accessibility tree."
+    ],
+    "applicableKinds": [
+      "line",
+      "area",
+      "bar",
+      "histogram",
+      "scatter",
+      "donut"
+    ],
+    "matrixIds": [
+      "A2",
+      "A3",
+      "T-keyboard-line",
+      "T-keyboard-area",
+      "T-keyboard-bar",
+      "T-keyboard-donut",
+      "T-keyboard-scatter"
+    ],
+    "testFiles": [
+      "packages/axylo/test/browser/a11y/keyboard.browser.test.ts",
+      "packages/axylo/test/browser/acceptance/a2-keyboard.browser.test.ts",
+      "packages/axylo/test/core/focus.test.ts",
+      "packages/axylo/test/core/focus2.test.ts",
+      "packages/axylo/test/dom/finition-figure-focus.test.ts",
+      "packages/axylo/test/browser/chart/histogram.browser.test.ts"
+    ],
+    "screenshots": [
+      "accessibility"
+    ],
+    "benchWorkloads": [],
+    "rehearsalTasks": [],
+    "accessibilityEvidence": {
+      "automated": [
+        "packages/axylo/test/browser/a11y/keyboard.browser.test.ts",
+        "packages/axylo/test/browser/acceptance/a2-keyboard.browser.test.ts"
+      ],
+      "manualAt": {
+        "status": "gap-open",
+        "environments": [
+          "NVDA + Firefox (Windows)",
+          "JAWS + Chrome (Windows)",
+          "VoiceOver + Safari (macOS)",
+          "VoiceOver + Safari (iOS)",
+          "TalkBack + Chrome (Android)"
+        ],
+        "protocolNote": "A3 requires a real screen reader announcing focused points; automated tests read the ARIA/AX tree only."
+      }
+    },
+    "ownedGaps": [
+      {
+        "id": "histogram-matrix-column",
+        "kinds": [
+          "histogram"
+        ],
+        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "owner": "a11y",
+        "targetCycle": "C1.2"
+      },
+      {
+        "id": "a3-manual-at",
+        "kinds": [
+          "line",
+          "area",
+          "bar",
+          "histogram",
+          "scatter",
+          "donut"
+        ],
+        "reason": "A3 (focused point conveyed through assistive technology) has not been verified with NVDA, JAWS or VoiceOver.",
+        "owner": "a11y",
+        "targetCycle": "C2"
+      }
+    ]
+  },
+  {
+    "id": "screen-reader",
+    "title": "Screen-reader exploration",
+    "owner": "a11y",
+    "outcomeGuarantees": [
+      "Every chart has an accessible name and a summary that states what the chart shows, including any values left out.",
+      "\"View as table\" opens an HTML table of the normalized data that a screen-reader user can explore.",
+      "Data arriving does not speak; announcements happen only for the reader's own actions.",
+      "axe-core reports no violations in any state."
+    ],
+    "applicableKinds": [
+      "line",
+      "area",
+      "bar",
+      "histogram",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "matrixIds": [
+      "A1",
+      "A3",
+      "A4",
+      "A7",
+      "A8",
+      "F12",
+      "C1",
+      "C5"
+    ],
+    "testFiles": [
+      "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
+      "packages/axylo/test/browser/acceptance/a4-table.browser.test.ts",
+      "packages/axylo/test/browser/a11y/axe.browser.test.ts",
+      "packages/axylo/test/browser/acceptance/f12-note.browser.test.ts",
+      "packages/axylo/test/browser/chart/plot-description.browser.test.ts",
+      "packages/axylo/test/reader/index.test.ts",
+      "packages/axylo/test/acceptance/reader-model.test.ts",
+      "packages/axylo/test/browser/chart/histogram.browser.test.ts"
+    ],
+    "screenshots": [
+      "accessibility",
+      "conformance"
+    ],
+    "benchWorkloads": [],
+    "rehearsalTasks": [],
+    "accessibilityEvidence": {
+      "automated": [
+        "packages/axylo/test/browser/a11y/axe.browser.test.ts",
+        "packages/axylo/test/browser/acceptance/a1-names.browser.test.ts",
+        "packages/axylo/test/browser/acceptance/a4-table.browser.test.ts"
+      ],
+      "manualAt": {
+        "status": "gap-open",
+        "environments": [
+          "NVDA + Firefox (Windows)",
+          "JAWS + Chrome (Windows)",
+          "VoiceOver + Safari (macOS)",
+          "VoiceOver + Safari (iOS)",
+          "TalkBack + Chrome (Android)"
+        ],
+        "protocolNote": "Automated checks cover names, roles, the AX tree and axe-core; reading order and announcements with a real screen reader are not verified."
+      }
+    },
+    "ownedGaps": [
+      {
+        "id": "histogram-matrix-column",
+        "kinds": [
+          "histogram"
+        ],
+        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "owner": "a11y",
+        "targetCycle": "C1.2"
+      },
+      {
+        "id": "manual-screen-reader",
+        "kinds": [
+          "line",
+          "area",
+          "bar",
+          "histogram",
+          "scatter",
+          "donut",
+          "compact"
+        ],
+        "reason": "No manual pass with NVDA, JAWS or VoiceOver has been recorded for the summary, table or live-region behaviour.",
+        "owner": "a11y",
+        "targetCycle": "C2"
+      }
+    ]
+  },
+  {
+    "id": "invalid-data",
+    "title": "Transparent invalid-data handling",
+    "owner": "diagnostics",
+    "outcomeGuarantees": [
+      "Input that cannot be plotted as given is reported with a stable AX1xx code naming the field and row, never guessed.",
+      "Missing values are never drawn as zero or bridged unless asked; the chart tells the reader when values were left out.",
+      "In strict mode a rejected update or append leaves the chart exactly as it was."
+    ],
+    "applicableKinds": [
+      "line",
+      "area",
+      "bar",
+      "histogram",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "matrixIds": [
+      "F3",
+      "F2",
+      "F12",
+      "DX3",
+      "DX4",
+      "DX12"
+    ],
+    "testFiles": [
+      "packages/axylo/test/acceptance/dx-diagnostics.test.ts",
+      "packages/axylo/test/diagnostics/registry.test.ts",
+      "packages/axylo/test/core/validate.test.ts",
+      "packages/axylo/test/data/transactions.test.ts",
+      "packages/axylo/test/acceptance/f-missing-values.test.ts",
+      "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
+      "packages/axylo/test/data/histogram.test.ts"
+    ],
+    "screenshots": [
+      "diagnostics",
+      "data"
+    ],
+    "benchWorkloads": [],
+    "rehearsalTasks": [
+      "daily-revenue",
+      "daily-visits",
+      "regional-sales",
+      "signups"
+    ],
+    "accessibilityEvidence": {
+      "automated": [
+        "packages/axylo/test/browser/acceptance/f12-note.browser.test.ts"
+      ],
+      "manualAt": {
+        "status": "not-applicable",
+        "environments": [],
+        "protocolNote": "Diagnostics are developer-facing; the reader-facing note is covered by screen-reader."
+      }
+    },
+    "ownedGaps": [
+      {
+        "id": "histogram-matrix-column",
+        "kinds": [
+          "histogram"
+        ],
+        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "owner": "diagnostics",
+        "targetCycle": "C1.2"
+      }
+    ]
+  },
+  {
+    "id": "customization",
+    "title": "Theming and customization",
+    "owner": "theme",
+    "outcomeGuarantees": [
+      "Colors, font and spacing follow documented CSS custom properties and inherit from the page.",
+      "Light, dark and forced-colors modes stay legible without extra configuration.",
+      "Every built-in string can be replaced through messages, and colors overrides are honoured."
+    ],
+    "applicableKinds": [
+      "line",
+      "area",
+      "bar",
+      "histogram",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "matrixIds": [
+      "DX6",
+      "L4",
+      "A10",
+      "L2"
+    ],
+    "testFiles": [
+      "packages/axylo/test/browser/chart/theme.browser.test.ts",
+      "packages/axylo/test/browser/render/theme.browser.test.ts",
+      "packages/axylo/test/browser/render/scheme.browser.test.ts",
+      "packages/axylo/test/messages/index.test.ts",
+      "packages/axylo/test/theme/color.test.ts",
+      "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts"
+    ],
+    "screenshots": [
+      "theming"
+    ],
+    "benchWorkloads": [],
+    "rehearsalTasks": [],
+    "accessibilityEvidence": {
+      "automated": [
+        "packages/axylo/test/browser/render/scheme.browser.test.ts",
+        "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts"
+      ],
+      "manualAt": {
+        "status": "gap-open",
+        "environments": [
+          "Windows High Contrast (forced-colors) + Edge"
+        ],
+        "protocolNote": "forced-colors is emulated in Chrome; a real Windows contrast theme has not been checked."
+      }
+    },
+    "ownedGaps": [
+      {
+        "id": "histogram-matrix-column",
+        "kinds": [
+          "histogram"
+        ],
+        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "owner": "theme",
+        "targetCycle": "C1.2"
+      },
+      {
+        "id": "histogram-theme-test",
+        "kinds": [
+          "histogram"
+        ],
+        "reason": "No theme or forced-colors test renders a histogram; histogram theming is inferred from the shared bar renderer.",
+        "owner": "theme",
+        "targetCycle": "C1.2"
+      }
+    ]
+  },
+  {
+    "id": "live-data",
+    "title": "Live and streaming data",
+    "owner": "streaming",
+    "outcomeGuarantees": [
+      "append(rows, { keep }) shows new rows and evicts old ones without losing the reader's place.",
+      "A Pause/Resume control buffers rows while paused and applies them on resume, including through eviction.",
+      "update, append and zoom apply in call order; streaming does not speak to screen readers."
+    ],
+    "applicableKinds": [
+      "line",
+      "area",
+      "bar",
+      "histogram",
+      "scatter",
+      "donut",
+      "compact"
+    ],
+    "matrixIds": [
+      "I6",
+      "DX5",
+      "A7",
+      "P3"
+    ],
+    "testFiles": [
+      "packages/axylo/test/data/streaming-storage.test.ts",
+      "packages/axylo/test/data/store.test.ts",
+      "packages/axylo/test/acceptance/dx-controller.test.ts",
+      "packages/axylo/test/core/controller.test.ts",
+      "packages/axylo/test/data/transactions.test.ts",
+      "packages/axylo/test/data/histogram.test.ts"
+    ],
+    "screenshots": [
+      "updating"
+    ],
+    "benchWorkloads": [
+      "stream",
+      "mem"
+    ],
+    "rehearsalTasks": [],
+    "accessibilityEvidence": {
+      "automated": [
+        "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts"
+      ],
+      "manualAt": {
+        "status": "gap-open",
+        "environments": [
+          "NVDA + Firefox (Windows)",
+          "JAWS + Chrome (Windows)",
+          "VoiceOver + Safari (macOS)",
+          "VoiceOver + Safari (iOS)",
+          "TalkBack + Chrome (Android)"
+        ],
+        "protocolNote": "Silence of live updates (A7) is checked through live-region attributes only, not with a running screen reader."
+      }
+    },
+    "ownedGaps": [
+      {
+        "id": "histogram-matrix-column",
+        "kinds": [
+          "histogram"
+        ],
+        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "owner": "streaming",
+        "targetCycle": "C1.2"
+      }
+    ]
+  }
+]
