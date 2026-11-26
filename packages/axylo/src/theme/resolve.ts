@@ -293,8 +293,7 @@ export function prepareTheme(
     collectBackdrop(prepared);
     prepared.bgExpr = style.getPropertyValue(BACKGROUND_PROPERTY).trim();
     const colorScheme = style.colorScheme;
-    const schemes = colorScheme === 'normal' ? [] : colorScheme.split(/\s+/);
-    prepared.modes = Number(schemes.includes('light')) + 2 * Number(schemes.includes('dark'));
+    prepared.modes = schemeModes(colorScheme);
     // Cold Canvas and custom backgrounds must wait until the probe phase.
     if (prepared.backdrop && !prepared.bgExpr) {
       const canvas = prepared.modes === 3
@@ -304,6 +303,22 @@ export function prepareTheme(
     }
   }
   return prepared;
+}
+
+/**
+ * The schemes a computed color-scheme allows: bit 0 light, bit 1 dark. The tiles of a page share one value,
+ * so the last one is kept rather than split again per chart.
+ */
+let lastColorScheme = 'normal';
+let lastModes = 0;
+
+function schemeModes(colorScheme: string): number {
+  if (colorScheme !== lastColorScheme) {
+    const schemes = colorScheme === 'normal' ? [] : colorScheme.split(/\s+/);
+    lastModes = Number(schemes.includes('light')) + 2 * Number(schemes.includes('dark'));
+    lastColorScheme = colorScheme;
+  }
+  return lastModes;
 }
 
 const SCHEME_ATTRIBUTE = 'data-axylo-scheme';

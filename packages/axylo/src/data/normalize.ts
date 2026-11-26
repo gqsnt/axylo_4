@@ -116,23 +116,32 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
 
 export function reportCalendarDates(x: XData, table: Table, sink: DiagnosticSink): void {
   if (x.parser.kind !== 'time') return;
-  const length = x.order?.length ?? x.positions.length;
+  const { positions, order } = x;
+  const length = order?.length ?? positions.length;
   if (length < 2) return;
-  const first = x.positions[x.order?.[0] ?? 0]!;
+  const first = positions[order?.[0] ?? 0]!;
   let last = first;
   const zone = x.parser.timeZone ?? 'UTC';
   let matches = 3;
-  for (let i = 1; i < length; i++) {
-    const position = x.positions[x.order?.[i] ?? i]!;
-    if (position === last) continue;
-    matches &= calendarIntervals(last, position, zone);
+  if (x.regular && order === null && zone === 'UTC') {
+    // readX proved every delta the same positive step, and in UTC the answer depends on the delta alone:
+    // one pair stands for all of them.
+    matches &= calendarIntervals(first, positions[1]!, zone);
     if (!matches) return;
-    last = position;
+    last = positions[length - 1]!;
+  } else {
+    for (let i = 1; i < length; i++) {
+      const position = positions[order === null ? i : order[i]!]!;
+      if (position === last) continue;
+      matches &= calendarIntervals(last, position, zone);
+      if (!matches) return;
+      last = position;
+    }
   }
   if (last === first) return;
   const rows: number[] = [];
-  for (let i = 0; i < x.positions.length && rows.length < 10; i++) {
-    if (Number.isFinite(x.positions[i])) rows.push(table.rowIndex(i));
+  for (let i = 0; i < positions.length && rows.length < 10; i++) {
+    if (Number.isFinite(positions[i])) rows.push(table.rowIndex(i));
   }
   report(sink, 'AX111', 'none', { field: x.parser.field.field, count: length, rows });
 }

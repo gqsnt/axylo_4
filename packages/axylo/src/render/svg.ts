@@ -648,6 +648,10 @@ function slidingPath(source: unknown[], xy: Float32Array): string | null {
 }
 
 export const svgPath: SvgMark<PathMark> = (_c, n, mark, bindings) => {
+  if (!n.source) {
+    attrStr(n, 'stroke-linejoin', 'round');
+    attrStr(n, 'stroke-linecap', 'butt');
+  }
   const source = n.source ??= [];
   if (source[0] !== mark.xy) {
     const sliding = slidingPath(source, mark.xy);
@@ -657,8 +661,6 @@ export const svgPath: SvgMark<PathMark> = (_c, n, mark, bindings) => {
   }
   paint(n, 'stroke', paintOf(mark.stroke, bindings));
   attr(n, 'stroke-width', mark.strokeWidth);
-  attrStr(n, 'stroke-linejoin', 'round');
-  attrStr(n, 'stroke-linecap', 'butt');
   const { normal, contrast } = mark.dash;
   if (normal === null && contrast === null) {
     attr(n, 'class', null);
@@ -712,13 +714,22 @@ export const svgPoints: SvgMark<PointMark> = (_c, n, mark, bindings) => {
 export const svgArcs: SvgMark<ArcMark> = (c, n, mark, bindings) => updateArcs(c.doc, n, mark, bindings, c.scratch);
 
 export const svgRule: SvgMark<RuleMark> = (c, n, mark, bindings, dpr) => {
-  const s = c.scratch;
-  snapRule(mark.x1, mark.y1, mark.x2, mark.y2, mark.strokeWidth, dpr, s);
-  attr(n, 'x1', s[0]!);
-  attr(n, 'y1', s[1]!);
-  attr(n, 'x2', s[2]!);
-  attr(n, 'y2', s[3]!);
-  styleRule(n, mark, paintOf(mark.stroke, bindings), mark.strokeWidth > 0 ? s[4]! : 0);
+  const source = n.source ??= [];
+  const old = source[0] as RuleMark | undefined;
+  if (source[1] !== dpr || !old || (old !== mark && (old.x1 !== mark.x1 || old.y1 !== mark.y1 ||
+      old.x2 !== mark.x2 || old.y2 !== mark.y2 || old.strokeWidth !== mark.strokeWidth))) {
+    const s = c.scratch;
+    snapRule(mark.x1, mark.y1, mark.x2, mark.y2, mark.strokeWidth, dpr, s);
+    attr(n, 'x1', s[0]!);
+    attr(n, 'y1', s[1]!);
+    attr(n, 'x2', s[2]!);
+    attr(n, 'y2', s[3]!);
+    source[1] = dpr;
+    attr(n, 'stroke-width', mark.strokeWidth > 0 ? s[4]! : 0);
+  }
+  source[0] = mark;
+  if (!old || old.dash !== mark.dash) setRuleDash(n, mark);
+  paint(n, 'stroke', paintOf(mark.stroke, bindings));
 };
 
 export const svgBand: SvgMark<BandMark> = (_c, n, mark, bindings) => {
@@ -780,12 +791,13 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
   const sceneClipUrl = `url(#${sceneClipId})`, overlayClipUrl = `url(#${overlayClipId})`;
   const sceneClip = clipPath(doc, defs, sceneClipId);
   let overlayClip: SvgNode | null = null;
-  let overlayBounds: Rect | null = null;
+  let sceneBounds: Rect | null = null, overlayBounds: Rect | null = null;
   // The author's --axylo-background, painted behind everything and live; transparent when unset.
   const background = node(doc, 'rect', 'background', { class: 'axylo-background', x: '0', y: '0' });
   paint(background, 'fill', 'var(--axylo-background, transparent)');
   const sceneGroup = svgElement(doc, 'g', { class: 'axylo-scene' });
-  const overlayGroup = svgElement(doc, 'g', { class: 'axylo-overlay' });
+  const overlayNode = node(doc, 'g', 'overlay', { class: 'axylo-overlay' });
+  const overlayGroup = overlayNode.el;
   svg.append(defs, background.el, sceneGroup, overlayGroup);
 
   const context: SvgContext = { doc, defs, scratch: new Float64Array(8) };
@@ -833,7 +845,10 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
         attr(background, 'width', Math.max(0, width));
         attr(background, 'height', Math.max(0, height));
       }
-      setRect(sceneClip, scene.clip);
+      if (sceneBounds !== scene.clip) {
+        setRect(sceneClip, scene.clip);
+        sceneBounds = scene.clip;
+      }
       let slot = 0;
       for (let i = 0; i < scene.marks.length;) {
         const mark = scene.marks[i]!;
@@ -863,12 +878,16 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
         return;
       }
       const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
-      if (overlay.clip !== overlayBounds) {
+      if (overlay.clipped.length && overlay.clip !== overlayBounds) {
         setRect(overlayClip ??= clipPath(doc, defs, overlayClipId), overlay.clip);
         overlayBounds = overlay.clip;
       }
+      // The cursor, halo and marker all use the same plot clip. A focus outline can extend past it.
+      const groupClip = overlay.clipped.length > 0 && overlay.unclipped.length === 0;
+      attr(overlayNode, 'clip-path', groupClip ? overlayClipUrl : null);
+      const markClip = groupClip ? null : overlayClipUrl;
       let i = 0;
-      for (const m of overlay.clipped) sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, overlayClipUrl, overlay.clip);
+      for (const m of overlay.clipped) sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, markClip, overlay.clip);
       for (const m of overlay.unclipped) sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, null, null);
       trim(overlaySlots, i);
     },
@@ -1027,7 +1046,11 @@ function updateRules(n: SvgNode, marks: readonly Mark[], start: number, end: num
 
 function styleRule(n: SvgNode, mark: RuleMark, color: string | null, width: number): void {
   attr(n, 'stroke-width', width);
+  setRuleDash(n, mark);
+  paint(n, 'stroke', color);
+}
+
+function setRuleDash(n: SvgNode, mark: RuleMark): void {
   attrStr(n, 'stroke-linecap', 'butt');
   attr(n, 'stroke-dasharray', mark.dash === null ? null : dashText(mark.dash));
-  paint(n, 'stroke', color);
 }

@@ -1,7 +1,14 @@
-import { SLOT_NULL, SLOT_VALUE, type AlignedFrame, type DonutView, type DonutSlice, type Formatters, type SlotState } from '../core/contracts';
+import { SLOT_NULL, SLOT_VALUE, type AlignedFrame, type AlignedView, type DonutView, type DonutSlice, type Formatters, type SlotState } from '../core/contracts';
 import { createFormatters } from '../format';
 import type { Messages } from '../public';
 import { defaultMessages, fill } from '../messages';
+
+export function singleContinuousSeries(view: AlignedView) {
+  const { frame, visible, stack } = view;
+  const first = frame.series[0];
+  return frame.series.length === 1 && visible[0] && first?.drawable && !stack?.order.length && frame.x.kind !== 'category'
+    ? first : undefined;
+}
 
 export function slotLabel(frame: AlignedFrame, formatters: Formatters, i: number): string {
   const edges = frame.binEdges;
@@ -10,6 +17,18 @@ export function slotLabel(frame: AlignedFrame, formatters: Formatters, i: number
 
 export function slotText(formatters: Formatters, series: number, value: number, state: SlotState): string {
   return state === SLOT_VALUE ? formatters.value(series, value) : formatters.missing(state);
+}
+
+/** The idle range reads the first slot of an unstacked single-series lookup. */
+export function firstSlotReading(view: AlignedView, formatters: Formatters, messages: Messages, position: string): string {
+  const { frame, visibleSlots: { start } } = view;
+  const series = frame.series[0]!;
+  const x = slotLabel(frame, formatters, start);
+  const value = slotText(formatters, 0, series.y[start]!, series.slot[start] as SlotState);
+  // Preserve the heading and row calls for author formatters, even though only the heading is read here.
+  slotLabel(frame, formatters, start);
+  const values = fill(messages.seriesValue, { series: series.label, value });
+  return fill(messages.pointAll, { x, values, position });
 }
 
 export function incomplete(text: string, messages: Messages): string {

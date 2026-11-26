@@ -230,33 +230,27 @@ function keepAffineRun(
     }
     prevSize = last - first + 1;
     let min = first, max = first, low = y[first]!, high = low;
-    if (!blocks) {
-      // The first draw scans the column once, retaining the earliest index on ties.
-      for (let i = first + 1; i <= last; i++) {
-        const value = y[i]!;
-        if (value < low) { low = value; min = i; }
-        else if (value > high) { high = value; max = i; }
-      }
-    } else {
-      let i = first;
-      const blockStart = Math.min(last + 1, Math.ceil(i / BLOCK_SIZE) * BLOCK_SIZE);
+    let i = first + 1;
+    if (blocks && last - first + 1 >= BLOCK_SIZE) {
+      const blockStart = Math.ceil(first / BLOCK_SIZE) * BLOCK_SIZE;
       const blockEnd = Math.floor((last + 1) / BLOCK_SIZE) * BLOCK_SIZE;
       for (; i < blockStart; i++) {
         const value = y[i]!;
         if (value < low) { low = value; min = i; }
-        if (value > high) { high = value; max = i; }
+        else if (value > high) { high = value; max = i; }
       }
-      for (; i < blockEnd; i += BLOCK_SIZE) {
+      for (i = blockStart; i < blockEnd; i += BLOCK_SIZE) {
         const o = i / (BLOCK_SIZE / 2), eMin = i + blocks[o]! - 1, eMax = i + blocks[o + 1]!;
         const bLow = y[eMin]!, bHigh = y[eMax]!;
         if (bLow < low) { low = bLow; min = eMin; }
         if (bHigh > high) { high = bHigh; max = eMax; }
       }
-      for (; i <= last; i++) {
-        const value = y[i]!;
-        if (value < low) { low = value; min = i; }
-        if (value > high) { high = value; max = i; }
-      }
+    }
+    // Short columns need only this scan. Strict comparisons retain the earliest index on ties.
+    for (; i <= last; i++) {
+      const value = y[i]!;
+      if (value < low) { low = value; min = i; }
+      else if (value > high) { high = value; max = i; }
     }
     cursor = keepColumn(indexes, cursor, first, last, min, max);
     first = last + 1;

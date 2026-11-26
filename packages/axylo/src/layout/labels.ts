@@ -27,6 +27,8 @@ const OVERLAP_TOLERANCE = 0.9999999; // 1 - EPSILON, written out: no work at imp
 const DIAGONAL = Math.SQRT1_2;
 const ELLIPSIS = '…';
 const NON_WHITESPACE = /\S/u;
+const THINNED: readonly LabelRemedy[] = ['thinned'];
+const NO_REMEDIES: readonly LabelRemedy[] = [];
 /** Created on first use, not at import. */
 let segmenter: Intl.Segmenter | null = null;
 
@@ -315,28 +317,28 @@ function position(scale: XScale, tick: Tick): number {
   return scale.type === 'band' ? scale.center(tick.value) : scale.map(tick.value);
 }
 
-function lineStart(pixel: number, bottom: boolean, span: number, width: number, height: number): number {
-  return bottom ? bottomAnchor(pixel, span, width) - width / 2 : pixel - height / 2;
-}
-
 function singleLineFits(
   ticks: readonly Tick[], scale: XScale, side: Side, span: number, room: number, gap: number, metrics: Metrics, measured: number[],
 ): boolean {
   if (ticks.length === 0) return true;
   const bottom = side === 'bottom', height = metrics.lineHeight;
+  if (bottom && !(height <= room + EPSILON)) return false;
   const lastIndex = ticks.length - 1;
-  const forward = position(scale, ticks[0]!) <= position(scale, ticks[lastIndex]!);
+  const startPixel = position(scale, ticks[0]!);
+  const endPixel = lastIndex ? position(scale, ticks[lastIndex]!) : startPixel;
+  const forward = startPixel <= endPixel;
   let previousStart = -Infinity, end = -Infinity, unordered = false;
   for (let i = 0; i < ticks.length; i++) {
     const index = forward ? i : lastIndex - i;
     const tick = ticks[index]!;
     const width = Math.max(0, metrics.width(tick.label));
-    const pixel = position(scale, tick);
-    measured[2 * index] = pixel;
+    const pixel = index === 0 ? startPixel : index === lastIndex ? endPixel : position(scale, tick);
+    const anchor = bottom ? bottomAnchor(pixel, span, width) : pixel;
+    const size = bottom ? width : height;
+    measured[2 * index] = anchor;
     measured[2 * index + 1] = width;
-    const first = lineStart(pixel, bottom, span, width, height);
-    const last = first + (bottom ? width : height);
-    if (!(first >= -EPSILON && last <= span + EPSILON && (bottom ? height : width) <= room + EPSILON)) return false;
+    const first = anchor - size / 2, last = first + size;
+    if (!(first >= -EPSILON && last <= span + EPSILON && (bottom || width <= room + EPSILON))) return false;
     if (first > previousStart || (forward && first === previousStart)) {
       if (first < end + gap - EPSILON) return false;
     } else {
@@ -350,13 +352,11 @@ function singleLineFits(
 
   // Clamping or an unordered candidate can reverse interval starts. Check those pairs in either order.
   for (let i = 1; i < ticks.length; i++) {
-    const width = measured[2 * i + 1]!;
-    const first = lineStart(measured[2 * i]!, bottom, span, width, height);
-    const last = first + (bottom ? width : height);
+    const size = bottom ? measured[2 * i + 1]! : height;
+    const first = measured[2 * i]! - size / 2, last = first + size;
     for (let j = 0; j < i; j++) {
-      const otherWidth = measured[2 * j + 1]!;
-      const start = lineStart(measured[2 * j]!, bottom, span, otherWidth, height);
-      const stop = start + (bottom ? otherWidth : height);
+      const otherSize = bottom ? measured[2 * j + 1]! : height;
+      const start = measured[2 * j]! - otherSize / 2, stop = start + otherSize;
       if (start <= first ? first < stop + gap - EPSILON : start < last + gap - EPSILON) return false;
     }
   }
@@ -364,20 +364,38 @@ function singleLineFits(
 }
 
 function singleLineResult(
-  ticks: readonly Tick[], side: Side, span: number, role: Role, metrics: Metrics, measured: number[], remedies: readonly LabelRemedy[],
+  ticks: readonly Tick[], side: Side, role: Role, metrics: Metrics, measured: number[], remedies: readonly LabelRemedy[],
+  bottomY = 0,
 ): FittedLabels {
   const bottom = side === 'bottom';
   const texts: PlacedText[] = [];
-  let depth = 0;
+  let depth = bottom && ticks.length ? Math.max(0, metrics.lineHeight) : 0;
   for (let i = 0; i < ticks.length; i++) {
     const { label } = ticks[i]!;
-    const pixel = measured[2 * i]!, width = measured[2 * i + 1]!;
+    const anchor = measured[2 * i]!, width = measured[2 * i + 1]!;
     texts.push(bottom
-      ? placeText([label], label, bottomAnchor(pixel, span, width), 0, 'middle', 'top', 0, role, metrics, width)
-      : placeText([label], label, 0, pixel, 'end', 'middle', 0, role, metrics, width));
-    depth = Math.max(depth, bottom ? metrics.lineHeight : width);
+      ? placeText([label], label, anchor, bottomY, 'middle', 'top', 0, role, metrics, width)
+      : placeText([label], label, 0, anchor, 'end', 'middle', 0, role, metrics, width));
+    if (!bottom) depth = Math.max(depth, width);
   }
   return { ticks, texts, depth, remedies };
+}
+
+/** The winning horizontal set, with its anchors and widths left in the caller's scratch array. */
+export function fitBottomLines(
+  prepared: PreparedLabels, mayThin: boolean, scale: XScale, span: number, room: number, metrics: Metrics, measured: number[],
+): number {
+  const gap = mayThin ? 8 : 0;
+  for (let i = 0; i < prepared.sets.length; i++) {
+    if (singleLineFits(prepared.sets[i]!, scale, 'bottom', span, room, gap, metrics, measured)) return i;
+  }
+  return -1;
+}
+
+export function placeBottomLines(
+  ticks: readonly Tick[], thinned: boolean, y: number, role: Role, metrics: Metrics, measured: number[],
+): FittedLabels {
+  return singleLineResult(ticks, 'bottom', role, metrics, measured, thinned ? THINNED : NO_REMEDIES, y);
 }
 
 function start(label: Label, side: Side): number {
@@ -479,7 +497,7 @@ function truncate(
 export function fitBottom(
   candidates: TickCandidates, mayThin: boolean, scale: XScale, width: number, room: number,
   role: Role, metrics: Metrics, prepared = prepareLabels(mayThin ? candidates : candidates.slice(0, 1)),
-  rotatedRoom = room, measured: number[] = [],
+  rotatedRoom = room, measured: number[] = [], tryHorizontal = true,
 ): FittedLabels {
   const remedies: LabelRemedy[] = [];
   let ticks = prepared.sets[0] ?? [];
@@ -493,14 +511,10 @@ export function fitBottom(
     }
   }
 
-  const gap = mayThin ? 8 : 0;
-  for (let i = 0; i < prepared.sets.length; i++) {
-    ticks = prepared.sets[i]!;
-    if (i === 1) remedies.push('thinned');
-    if (singleLineFits(ticks, scale, 'bottom', width, room, gap, metrics, measured)) {
-      return singleLineResult(ticks, 'bottom', width, role, metrics, measured, remedies);
-    }
-  }
+  const fitted = tryHorizontal ? fitBottomLines(prepared, mayThin, scale, width, room, metrics, measured) : -1;
+  if (fitted >= 0) return placeBottomLines(prepared.sets[fitted]!, fitted > 0, 0, role, metrics, measured);
+  ticks = prepared.sets.at(-1) ?? ticks;
+  if (prepared.sets.length > 1) remedies.push('thinned');
 
   let labels = ticks.map(tick => tickLabel(tick, position(scale, tick), 'bottom', width, [tick.label], 0, role, metrics));
   let bad = conflicts(labels, 'bottom', width, room);
@@ -559,7 +573,7 @@ export function fitValue(
   for (let i = 0; i < prepared.sets.length; i++) {
     ticks = prepared.sets[i]!;
     if (singleLineFits(ticks, scale, side, span, room, gap, metrics, measured)) {
-      return singleLineResult(ticks, side, span, role, metrics, measured, i ? ['thinned'] : []);
+      return singleLineResult(ticks, side, role, metrics, measured, i ? THINNED : NO_REMEDIES);
     }
   }
 

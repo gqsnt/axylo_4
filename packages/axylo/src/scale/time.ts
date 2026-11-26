@@ -66,9 +66,31 @@ export interface TimeTickOptions {
   readonly label?: ((position: number) => string) | null;
 }
 
+/** A tick set by its size; labelled in `finish` unless it was labelled already (author labels, a reused set). */
 interface Candidate {
   readonly length: number;
-  ticks(): Tick[];
+  readonly interval: Interval;
+  readonly values: readonly number[] | null;
+  readonly ticks: Tick[] | null;
+}
+
+/**
+ * The zone offsets at the ends of one domain, read once for all of its intervals (each offset outside UTC
+ * is an Intl call). NaN until read.
+ */
+interface Ends {
+  readonly lo: number;
+  readonly hi: number;
+  readonly zone: string;
+  offLo: number;
+  offHi: number;
+}
+
+function offsetsOf(ends: Ends): void {
+  if (ends.offLo !== ends.offLo) {
+    ends.offLo = zoneOffset(ends.zone, ends.lo);
+    ends.offHi = zoneOffset(ends.zone, ends.hi);
+  }
 }
 
 /** The finest unit allowed on this axis. */
@@ -102,18 +124,24 @@ export function timeTickCandidates(domain: readonly [number, number], options: T
 
 function generate(lo: number, hi: number, zone: string, finest: Unit, options: TimeTickOptions): TickCandidates {
   const span = hi - lo;
+  const ends: Ends = { lo, hi, zone, offLo: NaN, offHi: NaN };
 
   const sets: Candidate[] = [];
   const consider = (interval: Interval): boolean => {
     if (interval.unit < finest) return true;
     // Skip intervals that would obviously give far too many ticks, before paying for generation.
     if (span / interval.approx > MAX_TICKS + 2) return true;
-    const values = boundaries(interval, lo, hi, zone, options.locale);
+    // A sliding window keeps most intervals' boundaries while its ends move: those come back labelled.
+    const kept = options.label ? null : keptLabels(interval, ends, options.locale);
+    if (kept !== null) {
+      if (kept.length <= MAX_TICKS) pushCandidate(sets, { length: kept.length, interval, values: null, ticks: kept });
+      return true;
+    }
+    const values = boundaries(interval, ends, options.locale);
     if (values.length >= 1 && values.length <= MAX_TICKS) {
-      const build = () => intervalLabels(interval, values, zone, options);
       // Author callbacks run in interval order, even for a density a later interval replaces.
-      const eager = options.label ? build() : null;
-      pushCandidate(sets, { length: values.length, ticks: eager ? () => eager : build });
+      const eager = options.label ? intervalLabels(interval, values, zone, options) : null;
+      pushCandidate(sets, { length: values.length, interval, values, ticks: eager });
     }
     // Go on while there is a tick: a coarser interval with as many ticks replaces the finer set, so a lone
     // tick ends up on the roundest boundary in the domain (midnight rather than 00:00:00.000).
@@ -157,7 +185,7 @@ function remember<T>(cache: Map<string, T>, key: string, value: T): void {
 
 /** A domain too short to hold any boundary still gets one labeled tick at its start. */
 function finish(sets: Candidate[], lo: number, zone: string, options: TimeTickOptions): TickCandidates {
-  if (sets.length > 0) return sets.map(set => set.ticks());
+  if (sets.length > 0) return sets.map(set => set.ticks ?? intervalLabels(set.interval, set.values!, zone, options));
   let unit = finestUnit(options);
   if (unit === Unit.Millisecond) {
     // Show the clock only as precisely as the instant needs.
@@ -181,14 +209,16 @@ function regularBoundaries(lo: number, hi: number, step: number): number[] {
 }
 
 /** Instants in [lo, hi] on the interval's boundaries in `zone`, ascending, without duplicates. */
-function boundaries(interval: Interval, lo: number, hi: number, zone: string, locale: string): number[] {
+function boundaries(interval: Interval, ends: Ends, locale: string): number[] {
+  const { lo, hi, zone } = ends;
   if (interval.unit === Unit.Millisecond) return regularBoundaries(lo, hi, interval.n);
-  if (interval.unit <= Unit.Hour) return clockBoundaries(interval.approx, lo, hi, zone);
+  offsetsOf(ends);
+  if (interval.unit <= Unit.Hour) return clockBoundaries(interval.approx, ends);
   // Wall time of an instant moves back by at most the size of a fold (two hours in any zone in use), so a
   // three-hour margin covers every boundary whose instant lies in [lo, hi]. Day and coarser units have at
   // most one boundary in the margin, so it costs nothing.
-  const wallLo = Math.max(instantToWall(zone, lo) - 3 * HOUR, -MAX_DATE);
-  const wallHi = Math.min(instantToWall(zone, hi) + 3 * HOUR, MAX_DATE);
+  const wallLo = Math.max(lo + ends.offLo - 3 * HOUR, -MAX_DATE);
+  const wallHi = Math.min(hi + ends.offHi + 3 * HOUR, MAX_DATE);
   const out: number[] = [];
   for (const w of wallBoundaries(interval, wallLo, wallHi, locale)) {
     // A calendar boundary is the first instant of its day, also where midnight falls in a gap.
@@ -204,13 +234,12 @@ function boundaries(interval: Interval, lo: number, hi: number, zone: string, lo
  * constant offset that is plain arithmetic, so the domain is cut at its offset change, if any. A clock time
  * that happens twice (fold) gives two ticks; one that never happens (gap) gives none.
  */
-function clockBoundaries(size: number, lo: number, hi: number, zone: string): number[] {
+function clockBoundaries(size: number, ends: Ends): number[] {
+  const { lo, hi, zone, offLo, offHi } = ends;
   const out: number[] = [];
   const push = (from: number, to: number, offset: number): void => {
     appendBoundaries(out, Math.ceil((from + offset) / size) * size - offset, to, size);
   };
-  const offLo = zoneOffset(zone, lo);
-  const offHi = zoneOffset(zone, hi);
   if (offLo === offHi) {
     // Clock ticks are only asked for spans of a few days at most, and no zone changes its offset twice
     // and back within that.
@@ -344,6 +373,45 @@ function intervalLabels(interval: Interval, values: readonly number[], zone: str
   const ticks = label(values, interval.unit, zone, options);
   recentLabels.set(interval, { zone, locale: options.locale, ticks });
   return ticks;
+}
+
+/**
+ * The labels `intervalLabels` made last for this interval when they are exactly its boundaries in [lo, hi]
+ * now, else null. Only where those boundaries are one evenly spaced run (as `boundaries` makes them: the
+ * first at or after lo, then every step while not past hi): milliseconds, clock units while the offset holds,
+ * UTC days. The kept ticks were made by the same arithmetic, so the first value, the spacing and the two
+ * ends decide it without making the run.
+ */
+function keptLabels(interval: Interval, ends: Ends, locale: string): Tick[] | null {
+  const unit = interval.unit;
+  if (unit > Unit.Day || (unit === Unit.Day && ends.zone !== 'UTC')) return null;
+  const recent = recentLabels?.get(interval);
+  if (!recent || recent.zone !== ends.zone || recent.locale !== locale) return null;
+  const { lo, hi } = ends;
+  let step: number, first: number;
+  if (unit === Unit.Millisecond) {
+    step = interval.n;
+    first = Math.ceil(lo / step) * step;
+  } else if (unit === Unit.Day) {
+    // UTC days are the multiples of the step: boundaries() finds the same ones through wall time, from three
+    // hours before lo, so its first is exactly the least multiple at or after lo (a quotient rounded down to
+    // a whole number would give the one before).
+    step = interval.approx;
+    first = Math.ceil(lo / step) * step;
+    if (first < lo) first += step;
+  } else {
+    offsetsOf(ends);
+    if (ends.offLo !== ends.offHi) return null;
+    step = interval.approx;
+    first = Math.ceil((lo + ends.offLo) / step) * step - ends.offLo;
+  }
+  const ticks = recent.ticks;
+  const count = ticks.length;
+  // A tick's value is the boundary with -0 written as 0, which === compares equal.
+  if (count === 0 || ticks[0]!.value !== first) return null;
+  for (let i = 1; i < count; i++) if (ticks[i]!.value !== ticks[i - 1]!.value + step) return null;
+  const last = ticks[count - 1]!.value;
+  return last <= hi && !(last + step <= hi) ? ticks : null;
 }
 
 function sameValues(ticks: readonly Tick[], values: readonly number[]): boolean {

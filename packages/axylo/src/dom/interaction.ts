@@ -3,23 +3,24 @@
  * keyboard, tooltip, overlay, toolbar, table and zoom gestures.
  */
 import type {
-  DatumRef, DatumText, Formatters, Layout, Lookup, MarkRenderer, Overlay, PaintBindings, PickTarget, ReaderModel,
+  AlignedView, DatumRef, DatumText, Formatters, Layout, Lookup, Mark, MarkRenderer, Overlay, PaintBindings, PickTarget, ReaderModel,
   Rect, ResolvedTheme, StepDirection, TooltipModel, View, XValue,
 } from '../core/contracts';
 import { sameKey } from '../core/axes';
 import type { Messages } from '../public';
 import { chartTypeName, defaultMessages, fill, messageLanguage } from '../messages';
 import {
-  overlayWith, OUTLINE_REACH, RING_REACH, RING_STROKE, alignedRows, canZoomIn, datumReading, minimumWidth, panWindow,
+  overlayWith, OUTLINE_REACH, RING_REACH, RING_STROKE, alignedRows, alignedTargetMarks, canZoomIn, datumReading, minimumWidth, panWindow,
   pinchWidth, pixelOf, positionAt, rangeWindow, refsAt, ringRect, sameRef, stepAcross, zoomStep, targetBox, targetOf, valueText, PAN_SHARE, ZOOM_FACTOR,
-  type Mode, type TargetMarks,
+  positionText, type Mode, type OverlayInput, type TargetMarks,
 } from '../core/focus';
 import type { Figure } from './figure';
 import { createTableView, type TableView } from './table';
 import { rovingIndex, createToolbar, type Toolbar, type ToolbarItem } from './toolbar';
 import { createTooltip, type Presentation, type TooltipContent, type TooltipView } from './tooltip';
 import { createSwatch, swatchPattern, type SwatchPattern, type SwatchSpec } from './swatch';
-import { sliceText } from '../lookup/text';
+import { alignedHover, type AlignedHoverLookup, type AlignedHoverModel } from '../lookup/aligned';
+import { firstSlotReading, sliceText } from '../lookup/text';
 import { barPattern } from '../scene/bars';
 import { readPosition } from '../reader/x';
 import { printedX } from '../reader/table';
@@ -29,7 +30,8 @@ import { insideCorridor, intersect, type PlacementInput } from './placement';
 import { identityOf, matchesIdentity, sameTarget, type Identity } from './pointer';
 
 type Span = readonly [number, number];
-type MutablePlacement = { -readonly [K in keyof PlacementInput]: PlacementInput[K] };
+type Mutable<T> = { -readonly [K in keyof T]: T[K] };
+type MutablePlacement = Omit<Mutable<PlacementInput>, 'box'> & { box: Mutable<Rect> };
 export type ReadoutMode = 'floating' | 'strip' | 'none';
 
 export interface ControlsState {
@@ -102,7 +104,7 @@ function plotCoordinate(value: number, offset: number, scale: number, start: num
   const pixel = (value - offset) / scale, edge = offset + start * scale;
   return value >= edge - 1 && value <= edge + extent * scale + 1 ? clamp(pixel, start, start + extent) : pixel;
 }
-const isAligned = (v: View): v is Extract<View, { kind: 'line' | 'area' | 'bar' | 'histogram' }> => v.kind !== 'scatter' && v.kind !== 'donut';
+const isAligned = (v: View): v is AlignedView => v.kind !== 'scatter' && v.kind !== 'donut';
 const offersZoom = (d: ControlsState): d is ControlsState & { readonly zoom: true | 'touch'; readonly tooSmall: false; readonly view: Exclude<View, { kind: 'donut' }> } =>
   d.zoom !== false && !d.tooSmall && d.view.kind !== 'donut';
 const plotReady = (d: Committed | null): d is Committed & { readonly ready: true } => d !== null && d.ready && d.layout.kind === 'plot';
@@ -118,10 +120,11 @@ function posScale(d: Committed) {
   return p?.kind === 'xy' ? p.x : p?.kind === 'bands' ? p.band : null;
 }
 
-function instructionSeries(d: Committed): number {
-  if (!d.interactive || !plotReady(d) || !readable(d) || d.lookup.count === 0) return 0;
+function instructionSeries(d: Committed, hasData = plotReady(d) && readable(d)): number {
+  if (!d.interactive || !hasData || d.lookup.count === 0) return 0;
   const { view } = d;
   if (view.kind === 'donut') return 1;
+  if (view.visible.length <= 1) return 1;
   let count = 0;
   for (let i = 0; i < view.visible.length; i++) {
     if (view.visible[i] && (view.kind !== 'scatter' || view.visiblePoints[i]!.end > view.visiblePoints[i]!.start) && ++count === 2) return count;
@@ -283,6 +286,10 @@ interface Content { readonly t: PickTarget; readonly b: Rect; readonly a: Rect |
 
 const NONE: Shown = { k: S_NONE }, KEY: Shown = { k: S_KEY }, NO_HOVER: Shown = { k: S_HOVER, t: null };
 const NO_RINGS: readonly Rect[] = [];
+// The aligned mark builder only adds unclipped target marks for bands.
+const NO_UNCLIPPED_MARKS: Mark[] = [];
+const CONTROL_SLOTS = ['top', 'side', 'controls'] as const;
+const NO_CONTROLS: readonly Element[] = [];
 
 const sameWindow = (a: Span | null, b: Span | null) => a === b || (a !== null && b !== null && a[0] === b[0] && a[1] === b[1]);
 const sameRect = (a: Rect | null, b: Rect | null) => a === null || b === null ? a === b
@@ -337,7 +344,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   const root = figure.figure, doc = root.ownerDocument, plot = figure.plot;
   const win = () => doc.defaultView, activeElement = () => activeElementOf(doc, root);
   let tooltip: TooltipView | null = null;
-  let tooltipContent: { -readonly [K in keyof TooltipContent]: TooltipContent[K] } | null = null;
+  let tooltipContent: Mutable<TooltipContent> | null = null;
+  let hoverModel: AlignedHoverModel | null = null, overlayInput: Mutable<OverlayInput> | null = null;
   const getTooltip = () => tooltip ??= createTooltip(figure.tooltip, figure.readout, root, () => {
     if (proxy && !proxy.hidden) focusQuiet(proxy); else focusFig(root);
   });
@@ -349,9 +357,9 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   const clearGeo = () => { geoPlot = geoFigure = geoVisible = geoReadout = geoControls = geoPlacement = null; };
 
   let c: Committed | null = null, cs: ControlsState | null = null, lastControls: unknown[] | null = null, controlScratch: unknown[] | null = null;
-  let focus: DatumRef | null = null, single = false, shown: Shown = NONE, pointer: Point | null = null;
+  let focus: DatumRef | null = null, single = false, shown: Shown = NONE, pointer: Mutable<Point> | null = null;
   const hoverState: { k: 2; t: PickTarget | null } = { k: S_HOVER, t: null };
-  let rest: { p: Point; t: number; g: PickTarget | null } | null = null;
+  let rest: { x: number; y: number; t: number; g: PickTarget | null } | null = null;
   let content: Content | null = null, dismissed: Identity[] | null = null, pinPage = 0;
   let range: { s: number | null } | null = null;
   let proxyFocused = false, keyed = false, clickFocus = false, fromClick = false, shownOrdinal = 0;
@@ -373,6 +381,9 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   let proxyUsable: boolean | null = null, proxyMeta: unknown[] | null = null, idleReading: unknown[] | null = null;
   // Spare key arrays, so an idle commit (a stream frame nobody reads) compares without allocating.
   let proxyScratch: unknown[] | null = null, idleScratch: unknown[] | null = null;
+  let proxyLang: string | null | undefined, idleCount: number | undefined, idlePosition = '', idleMax = '';
+  let countFormatter: Formatters['count'] | undefined, positionTemplate: string | undefined;
+  let zoomCheckView: View | null = null, zoomCheckWindow: Span | null = null, zoomCheckResult = false;
 
   const mode = (): Mode => single ? 'single' : 'all';
   const focusFigure = () => focusFig(root);
@@ -471,7 +482,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     for (const n of [proxy, instructions, ring, selection]) n?.remove();
     removeLegend(); toolbar?.destroy();
     proxy = instructions = ring = selection = legendList = legendMarked = proxyRect = toolbar = lastControls = controlScratch = controlNodes = null;
-    proxyUsable = proxyMeta = idleReading = proxyScratch = idleScratch = null;
+    proxyUsable = proxyMeta = idleReading = proxyScratch = idleScratch = zoomCheckView = zoomCheckWindow = null;
+    proxyLang = idleCount = countFormatter = positionTemplate = undefined;
     clearGeo(); figure.clearControls();
     plot.classList.remove('axylo-touch-zoom', 'axylo-zoomable');
     const after = activeElement();
@@ -601,7 +613,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       dropView();
       hover(null); return;
     }
-    const { view, layout, lookup, messages: m } = d;
+    const { view, layout, lookup } = d;
     const target = shownTarget(), visibleRing = proxyFocused && (keyed || proxy.matches(':focus-visible')) ? focus : null;
     const only = single && shown.k === S_KEY ? focus : null, pres = presentationFor(d), pinned = shown.k === S_PIN;
     const showTip = pres !== 'none' && target !== null && !isDismissed(target), page = pinned ? pinPage : 0;
@@ -615,10 +627,29 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     dirty = false;
     if (pinned) listenPin(); else unlistenPin();
     const prev = content; content = null;
-    const overlay = overlayWith(parts.overlay, { view, layout, lookup, target, ring: visibleRing, only });
     if (pinned && !showTip) { endPin(); redraw(); return; }
-    const model = showTip ? (pinned ? pinnedModel(d, target, pinPage) : lookup.tooltip(target)) : null;
+    const readHover = showTip && shown.k === S_HOVER && pres === 'floating' && target.kind === 'x'
+      ? (lookup as AlignedHoverLookup)[alignedHover] : undefined;
+    let model: TooltipModel | null;
+    if (readHover && target?.kind === 'x') {
+      model = hoverModel = readHover(target, hoverModel);
+    } else {
+      model = showTip ? (pinned ? pinnedModel(d, target, pinPage) : lookup.tooltip(target)) : null;
+    }
     const soleRef = target?.kind === 'x' && model?.count === 1 ? model.rows[0]?.ref : undefined;
+    const input = overlayInput ??= { view, layout, lookup, target, ring: visibleRing, only };
+    input.target = target; input.ring = visibleRing; input.only = only;
+    let overlay: Overlay | null;
+    if (readHover && soleRef && !visibleRing && layout.kind === 'plot' && layout.projection.kind === 'xy' &&
+        parts.overlay === alignedTargetMarks) {
+      // Reuse the tooltip's ref for the cursor and hover event. The renderer still gets a snapshot.
+      const clipped: Mark[] = [];
+      input.only = soleRef;
+      alignedTargetMarks(input, layout.plot, clipped, NO_UNCLIPPED_MARKS);
+      overlay = clipped.length ? { clip: layout.plot, clipped, unclipped: NO_UNCLIPPED_MARKS } : null;
+    } else {
+      overlay = overlayWith(parts.overlay, input);
+    }
     if (model?.rows.length && target && pres !== 'none') {
       const tc = tooltipContent ??= {
         model, swatch: swatchFor,
@@ -633,9 +664,11 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
         },
       };
       tc.model = model;
-      tc.totalLabel = m.total;
-      tc.moreLang = d.english('moreRows');
-      tc.totalLang = d.english('total');
+      if (model.total !== null) {
+        tc.totalLabel = d.messages.total;
+        tc.totalLang = d.english('total');
+      }
+      if (model.count > 1) tc.moreLang = d.english('moreRows');
       const marks = markBox(d, target, soleRef), map = plotMapping(), anchor = marks ? rectToViewport(map, marks) : null;
       const bounds = pres === 'strip' ? visibleReadout() : placementFor(d, marks, visibleRing, map);
       const figureMap = pres === 'strip' ? undefined : figureMapping();
@@ -660,13 +693,12 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     const { layout, lookup } = d, area = plotBox(d);
     // The padded datum box in viewport pixels, as rectToViewport(m, padRect(...)) computes it, in one object.
     const bx = box ? box.x : area.x + area.width / 2, by = box ? box.y : area.y + area.height / 2;
-    const datumBox: Rect = {
-      x: m.left + (bx - RING_REACH) * m.kx, y: m.top + (by - RING_REACH) * m.ky,
-      width: Math.max(0, (box ? box.width : 0) + 2 * RING_REACH) * m.kx, height: Math.max(0, (box ? box.height : 0) + 2 * RING_REACH) * m.ky,
-    };
     const controls = controlRects(m);
     const rb = keyboardRing ? ringRect(layout, lookup, keyboardRing) : null;
     const rings = rb ? [rectToViewport(m, rb)] : NO_RINGS;
+    const x = m.left + (bx - RING_REACH) * m.kx, y = m.top + (by - RING_REACH) * m.ky;
+    const width = Math.max(0, (box ? box.width : 0) + 2 * RING_REACH) * m.kx;
+    const height = Math.max(0, (box ? box.height : 0) + 2 * RING_REACH) * m.ky;
     if (!geoPlacement) {
       const pr = padRect(area.x, area.y, area.width, area.height, -OUTLINE_REACH);
       let hole: PlacementInput['hole'] = null;
@@ -675,11 +707,13 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
         hole = { cx: ctr.x, cy: ctr.y, rx: (r0 - HOLE_CLEARANCE) * m.kx, ry: (r0 - HOLE_CLEARANCE) * m.ky };
       }
       return geoPlacement = {
-        box: datumBox, visible: intersect(rectToViewport(m, pr), visiblePlot()),
+        box: { x, y, width, height }, visible: intersect(rectToViewport(m, pr), visiblePlot()),
         order: horizontalBars(d) ? 'horizontal' : 'vertical', hole, controls, rings, ringStroke: RING_STROKE * Math.max(m.kx, m.ky),
       };
     }
-    geoPlacement.box = datumBox; geoPlacement.controls = controls; geoPlacement.rings = rings;
+    const datumBox = geoPlacement.box;
+    datumBox.x = x; datumBox.y = y; datumBox.width = width; datumBox.height = height;
+    geoPlacement.controls = controls; geoPlacement.rings = rings;
     return geoPlacement;
   }
 
@@ -706,16 +740,31 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     markLegend(plotReady(d) && proxyFocused && focus?.kind === 'slice' ? focus.sliceKey : null);
   }
 
-  const readingLang = (d: Committed) => d.english(
-    !plotReady(d) || !readable(d) ? 'empty' : d.view.kind === 'donut' || (!single && d.view.kind !== 'scatter') ? 'pointAll' : 'pointOf',
+  const readingLang = (d: Committed, hasData: boolean) => d.english(
+    !hasData ? 'empty' : d.view.kind === 'donut' || (!single && d.view.kind !== 'scatter') ? 'pointAll' : 'pointOf',
   );
 
-  function writeProxy(acted: boolean): void {
+  function writeIdleAligned(el: HTMLInputElement, d: Committed, view: AlignedView): void {
+    const { lookup, messages, formatters } = d;
+    const count = lookup.count;
+    if (idleCount !== count || countFormatter !== formatters.count || positionTemplate !== messages.position) {
+      idleCount = count; countFormatter = formatters.count; positionTemplate = messages.position;
+      idlePosition = positionText(messages, formatters, 0, count);
+      idleMax = String(count - 1);
+    }
+    if (el.max !== idleMax) el.max = idleMax;
+    if (el.value !== '0') el.value = '0';
+    setAttr(el, 'aria-valuetext', firstSlotReading(view, formatters, messages, idlePosition));
+    shownOrdinal = 0;
+    shownText = null;
+  }
+
+  function writeProxy(acted: boolean, readyData?: boolean): void {
     const d = c;
     if (!proxy || !d) return;
     const { view, lookup, formatters, messages } = d;
-    markFocusedSlice(d);
-    const lang = readingLang(d), hasData = plotReady(d) && readable(d);
+    if (view.kind === 'donut' || legendMarked) markFocusedSlice(d);
+    const hasData = readyData ?? (plotReady(d) && readable(d)), lang = readingLang(d, hasData);
     const empty = hasData ? messages.noData : recoverable(d) || plotReady(d) ? messages.empty : d.message ?? messages.noData;
     const inactive = !acted && !proxyFocused && !focus;
     if (inactive) {
@@ -730,7 +779,11 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       idleScratch ??= idleReading;
       idleReading = null;
     }
-    setAttr(proxy, 'lang', lang);
+    if (proxyLang !== lang) { setAttr(proxy, 'lang', lang); proxyLang = lang; }
+    if (inactive && hasData && !single && lookup.count > 0 && (lookup as AlignedHoverLookup)[alignedHover] && isAligned(view)) {
+      writeIdleAligned(proxy, d, view);
+      return;
+    }
     const ref = hasData ? focus ?? firstDatum(d) : null;
     if (!ref) {
       if (proxy.max !== '0') proxy.max = '0';
@@ -913,24 +966,25 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   function reached(t: PickTarget | null): void { if (t && dismissed) { const kept = dismissed.filter(id => dismissedBy(id, t)); dismissed = kept.length ? kept : null; } }
   const pointTo = (t: PickTarget | null) => { reached(t); hoverState.t = t; shown = hoverState; };
 
-  function pointerAt(at: Point, time: number): void {
+  function pointerAt(x: number, y: number, time: number): void {
     const d = c;
     if (!plotReady(d)) return;
-    pointer = at;
+    const at = pointer ??= { x, y };
+    at.x = x; at.y = y;
     if (shown.k === S_PIN) return;
-    const still = rest !== null && dist(at.x, at.y, rest.p.x, rest.p.y) <= REST_DISTANCE;
+    const still = rest !== null && dist(x, y, rest.x, rest.y) <= REST_DISTANCE;
     if (shown.k === S_HOVER && shown.t && rest?.g && time - rest.t >= REST_TIME &&
       sameTarget(rest.g, shown.t) && content && sameTarget(content.t, shown.t)) {
-      shown = { k: S_HELD, t: shown.t, f: rest.p, b: content.b, a: content.a, p: content.p };
+      shown = { k: S_HELD, t: shown.t, f: { x: rest.x, y: rest.y }, b: content.b, a: content.a, p: content.p };
     }
     if (shown.k === S_HELD) {
-      if (insideCorridor(shown.f, shown.b, at)) { if (!still) rest = { p: at, t: time, g: shown.t }; present(); return; }
+      if (insideCorridor(shown.f, shown.b, at)) { if (!still) rest = { x, y, t: time, g: shown.t }; present(); return; }
       shown = NO_HOVER;
     }
     const target = pick(d, at);
     pointTo(target);
-    if (!rest) rest = { p: at, t: time, g: target };
-    else if (!still || !sameTarget(rest.g, target)) { rest.p = at; rest.t = time; rest.g = target; }
+    if (!rest) rest = { x, y, t: time, g: target };
+    else if (!still || !sameTarget(rest.g, target)) { rest.x = x; rest.y = y; rest.t = time; rest.g = target; }
     present();
   }
 
@@ -955,7 +1009,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       }
       if (down.d) { drawSelection(down, at); return; }
     }
-    pointerAt(clientPoint(e), e.timeStamp);
+    pointerAt(e.clientX, e.clientY, e.timeStamp);
   }
 
   function leave(): void { pointer = rest = null; if (shown.k === S_HOVER || shown.k === S_HELD) shown = idle(); present(); }
@@ -1046,7 +1100,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       const at = local(e), a = positionAt(d.layout, was.x, was.y), b = positionAt(d.layout, at.x, at.y);
       if (a === null || b === null || d.view.kind === 'donut') return;
       applyRange(d, a, b);
-      pointerAt(clientPoint(e), e.timeStamp);
+      pointerAt(e.clientX, e.clientY, e.timeStamp);
       return;
     }
     activate(d, clientPoint(e), true);
@@ -1219,7 +1273,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       const { xDomain: now, xFull: full } = d.view;
       if (d.ready) {
         items.push(
-          btn('zoomIn', () => zoomBy(1 / ZOOM_FACTOR), !canZoomIn(d.view, d.zoomed ? now : full)),
+          btn('zoomIn', () => zoomBy(1 / ZOOM_FACTOR), !canZoomCloser(view, d.zoomed ? now : full)),
           btn('selectRange', () => {
             if (range) endRange();
             else { startInteraction(); range = { s: null }; if (cs) renderControls(cs); }
@@ -1249,14 +1303,26 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     legendList.remove();
   }
 
+  function canZoomCloser(view: View, window: Span): boolean {
+    if (zoomCheckView !== view || zoomCheckWindow !== window) {
+      zoomCheckView = view; zoomCheckWindow = window;
+      zoomCheckResult = canZoomIn(view, window);
+    }
+    return zoomCheckResult;
+  }
+
   function controlInputs(d: ControlsState, out: unknown[]): void {
     const { view } = d;
     out.push(d.messages, d.english('controlsLabel'), d.pageLang, d.legend, tableView !== null, range !== null, canInspect(d), d.streaming, d.paused);
     if (tableView) out.push(d.reader.table, d.formatters);
     if (canZoom(d)) {
       const { xDomain: now, xFull: full } = d.view;
-      out.push(true, d.ready, d.zoomed, d.ready && canZoomIn(d.view, d.zoomed ? now : full), d.zoomed && now[0] > full[0], d.zoomed && now[1] < full[1]);
-    } else out.push(false);
+      out.push(true, d.ready, d.zoomed, d.ready && canZoomCloser(view, d.zoomed ? now : full), d.zoomed && now[0] > full[0], d.zoomed && now[1] < full[1]);
+      if (!d.ready) zoomCheckView = zoomCheckWindow = null;
+    } else {
+      zoomCheckView = zoomCheckWindow = null;
+      out.push(false);
+    }
     if (showsSlices(d)) out.push(view, d.formatters, d.ready, d.english('noData'));
     else if (view.kind !== 'donut' && d.ready && d.legend && !d.tooSmall && view.frame.series.length > 1) {
       const { series } = view.frame;
@@ -1292,7 +1358,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     if (tableView && !canInspect(d)) closeTable(); else if (tableView) renderTable(d);
     const act = activeElement();
     figure.placeControls(slot, legend);
-    for (const s of ['top', 'side', 'controls'] as const) if (s !== slot) figure.placeControls(s, []);
+    for (const s of CONTROL_SLOTS) if (s !== slot) figure.placeControls(s, NO_CONTROLS);
     markFocusedSlice(c);
     if (isFocusable(act) && act !== activeElement() && act.isConnected) focusQuiet(act);
     else if (inToolbar && !items.length) focusFigure();
@@ -1319,13 +1385,15 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     while (el.children.length > list.length) el.lastElementChild!.remove();
   }
 
-  function placeProxy(d: Committed): void {
+  function placeProxy(d: Committed, hasData: boolean): void {
     if (!proxy || !ring) return;
     const ready = plotReady(d), usable = ready || recoverable(d);
     if (usable !== proxyUsable) {
       proxyUsable = usable;
       if (!usable && activeElement() === proxy && !toolbar?.focus('table')) focusFigure();
-      for (const el of [proxy, ring, instructions]) if (el && el.hidden === usable) el.hidden = !usable;
+      if (proxy.hidden === usable) proxy.hidden = !usable;
+      if (ring.hidden === usable) ring.hidden = !usable;
+      if (instructions && instructions.hidden === usable) instructions.hidden = !usable;
     }
     if (!usable) return;
     const p = plotBox(d);
@@ -1333,10 +1401,12 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       proxy.style.cssText = ring.style.cssText = boxStyle(p);
     }
     proxyRect = p;
-    const count = instructionSeries(d), lang = readingLang(d);
+    const count = instructionSeries(d, hasData), lang = readingLang(d, hasData);
+    const zoomInstructions = ready && offersZoom(d), donut = d.view.kind === 'donut';
     const inputs = proxyScratch ??= [];
-    inputs.push(d.kind, d.messages, d.zoom, ready, ready && offersZoom(d), count, lang, d.pageLang,
-      d.english('plotInstructions'), d.english('seriesInstructions'), d.english('donutInstructions'), d.english('zoomInstructions'));
+    inputs.push(d.kind, d.messages, d.zoom, ready, zoomInstructions, count, lang, d.pageLang,
+      count ? d.english('plotInstructions') : null, count > 1 ? d.english('seriesInstructions') : null,
+      count && donut ? d.english('donutInstructions') : null, zoomInstructions ? d.english('zoomInstructions') : null);
     if (sameKey(proxyMeta, inputs)) { inputs.length = 0; return; }
     proxyScratch = proxyMeta;
     if (proxyScratch) proxyScratch.length = 0;
@@ -1419,7 +1489,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       const before = shown.t; pointTo(pick(next, pointer));
       const now = (shown as Shown).k === S_HOVER ? (shown as Extract<Shown, { k: 2 }>).t : null;
       const moved = now !== null && content !== null && sameTarget(content.t, now) && !sameRect(anchorOf(next, now), content.a);
-      if (!sameTarget(before, now) || moved) rest = { p: pointer, t: clock(), g: now };
+      if (!sameTarget(before, now) || moved) rest = { x: pointer.x, y: pointer.y, t: clock(), g: now };
     }
   }
 
@@ -1430,14 +1500,16 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     pendingWindow = undefined;
     if (!next?.interactive) { clear(); c = next; return; }
     if (prev?.layout !== next.layout || prev.theme !== next.theme) tooltip?.invalidateSize();
-    if (prev?.view !== next?.view) swatches.length = 0;
+    if (prev?.view !== next.view) swatches.length = 0;
+    overlayInput = null;
     c = next; dirty = true;
     build();
     if (range && !(plotReady(next) && next.zoom && next.view.kind !== 'donut')) { range = null; if (selection && !down?.d) selection.hidden = true; }
     else if (range && !down?.d) markRange(next);
     // An untouched chart has no datum identity to carry across frame revisions.
     if (shown.k !== S_NONE || proxyFocused || focus || pointer || dismissed) reconcile(prev, next);
-    placeProxy(next); writeProxy(false); renderControls(next);
+    const hasData = plotReady(next) && readable(next);
+    placeProxy(next, hasData); writeProxy(false, hasData); renderControls(next);
     if (shown.k !== S_NONE || proxyFocused || lastPres || lastHover || overlayVisible || pinListeners) present();
     if (shown.k === S_HELD && (!content || !sameRect(content.b, shown.b)) && plotReady(next)) { dropHold(next); redraw(); }
   }
@@ -1456,13 +1528,14 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       root.classList.toggle('axylo-readout-mode', strip);
       dropView(shown.k !== S_PIN || nextPres === 'none');
       if (shown.k === S_HELD) shown = pointer ? NO_HOVER : idle();
-      rest = pointer ? { p: pointer, t: clock(), g: pointerTarget() } : null;
+      rest = pointer ? { x: pointer.x, y: pointer.y, t: clock(), g: pointerTarget() } : null;
     }
     return readoutChanged || controlsChanged;
   }
 
   function clear(): void {
     swatches.length = 0; clearGeo();
+    hoverModel = overlayInput = null;
     unlistenPin();
     if (c) draw(c, null);
     if (!lastPres && !proxy && !tooltip?.visible && !legendList && !tableView && !lastHover) return;

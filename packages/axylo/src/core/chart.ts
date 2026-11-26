@@ -75,10 +75,15 @@ let nextFrameHandle = 0;
 const schedulers = new WeakMap<Window, FrameScheduler>();
 
 export function scheduleFrame(win: Window, doc: Document, get: () => Controller | null, cb: (time?: number) => void): number {
+  return scheduleEntry(win, doc, { get, cb });
+}
+
+/** scheduleFrame with an entry the caller keeps: a chart makes its one entry once rather than one per frame. */
+function scheduleEntry(win: Window, doc: Document, entry: ScheduledEntry): number {
   let sched = schedulers.get(win);
   if (!sched) schedulers.set(win, sched = { pending: new Map(), rafId: 0 });
   const handle = ++nextFrameHandle;
-  sched.pending.set(handle, { get, cb });
+  sched.pending.set(handle, entry);
   if (!sched.rafId) {
     const active = sched;
     active.rafId = win.requestAnimationFrame(time => {
@@ -466,6 +471,7 @@ export function createChart(composition: Composition, target: unknown, input: un
       frameCallback = null;
       cb?.(time);
     };
+    const frameEntry: ScheduledEntry = { get: getController, cb: runFrame };
 
     controller = controllerFor(composition, input, {
       id,
@@ -492,7 +498,7 @@ export function createChart(composition: Composition, target: unknown, input: un
       measurer,
       requestFrame(cb) {
         frameCallback = cb;
-        return framePending = scheduleFrame(win, doc, getController, runFrame);
+        return framePending = scheduleEntry(win, doc, frameEntry);
       },
       cancelFrame(handle) {
         if (handle === framePending) { framePending = 0; frameCallback = null; }

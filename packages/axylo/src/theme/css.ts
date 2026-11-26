@@ -107,6 +107,7 @@ ${forced}
    * this layer's computed font, so the same values reach measurement.
    */
   .axylo .axylo-text {
+    contain: layout style;
     position: absolute;
     inset: 0;
     pointer-events: none;
@@ -118,8 +119,8 @@ ${forced}
     letter-spacing: var(--axylo-letter-spacing, inherit);
     white-space: nowrap;
   }
-  .axylo .axylo-text > .axylo-label { position: absolute; left: 0; top: 0; transform-origin: 0 0; white-space: pre; }
-  .axylo .axylo-text > .axylo-label > div { display: block; }
+  .axylo .axylo-text .axylo-label { position: absolute; left: 0; top: 0; transform-origin: 0 0; white-space: pre; }
+  .axylo .axylo-text .axylo-label > div { display: block; }
 }
 
 /* structure: added by the figure module (inside "@layer axylo { … }") */
@@ -176,6 +177,7 @@ ${forced}
   /* Decision 0004 revision 3: a hovered tooltip is text that never takes the pointer (rule 3); a pinned one
      takes events and its rows are buttons of at least 24 px (rule 4). */
   .axylo .axylo-tooltip {
+    contain: layout style;
     position: absolute; left: 0; top: 0; z-index: 3; box-sizing: border-box; pointer-events: none;
     max-width: min(320px, 100%); padding: 4px 8px; border: 1px solid var(--axylo-axis, var(--axylo-default-axis)); border-radius: 4px;
     background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background))); color: var(--axylo-text, currentColor);

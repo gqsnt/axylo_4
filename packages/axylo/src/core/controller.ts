@@ -367,12 +367,14 @@ function readoutSteps(run: FrameRun): void {
 }
 
 /**
- * One frame's state and its phased handle. The controller keeps one and starts every frame from it once the
- * previous frame has finished, so a frame allocates no closures and no scope; the fields are what each frame
- * started from before (see `begin`). Every field is set in the constructor, so the shape never changes.
+ * One frame's state and its phased handle. Finished states go back to a small pool shared by every chart
+ * (acquireFrame, releaseFrame), so a steady stream of frames allocates no closures and no scope, and a chart
+ * that is not drawing keeps none; the fields are what each frame started from before (see `begin`). Every
+ * field is set in the constructor, so the shape never changes.
  */
 class FrameState implements FrameRun {
-  readonly driver: FrameDriver;
+  /** The controller running this frame; null once the state is back in the pool, so a stale handle does nothing. */
+  driver: FrameDriver | null;
   /** True until a frame begins and again once its `after` step has run: only an idle state is reused. */
   idle = true;
   closed = true;
@@ -502,9 +504,10 @@ class FrameState implements FrameRun {
     this.settledDisclosure = EMPTY_DISCLOSURE;
   }
 
-  /** Lets go of everything the finished frame referenced: a kept state holds no revision, view or reader. */
+  /** Lets go of everything the finished frame referenced: a pooled state holds no controller, revision, view or reader. */
   clear(): void {
     this.idle = true;
+    this.driver = null;
     this.a = null;
     this.view = null!;
     this.stateDiag = EMPTY_DIAGNOSTICS;
@@ -529,24 +532,78 @@ class FrameState implements FrameRun {
 
   /** Only once phase 2 completed for this frame (a failure closes the frame, and the skipped steps would have done nothing either way). */
   stripless(): boolean { return this.noReadout && !this.closed; }
-  phase1(): void { this.driver.step(this, STEP_PHASE1); }
-  phase2(): void { this.driver.step(this, STEP_PHASE2); }
-  phase3Theme(): void { this.driver.step(this, STEP_THEME); }
-  phase3Measure(): void { this.driver.step(this, STEP_MEASURE); }
-  phase3Probe(): void { this.driver.step(this, STEP_PROBE); }
-  phase3LayoutCheck(): boolean { return this.driver.step(this, STEP_LAYOUT_CHECK); }
-  phase3StripMount(): void { this.driver.step(this, STEP_STRIP_MOUNT); }
-  phase3StripRead(): void { this.driver.step(this, STEP_STRIP_READ); }
+  phase1(): void { this.driver?.step(this, STEP_PHASE1); }
+  phase2(): void { this.driver?.step(this, STEP_PHASE2); }
+  phase3Theme(): void { this.driver?.step(this, STEP_THEME); }
+  phase3Measure(): void { this.driver?.step(this, STEP_MEASURE); }
+  phase3Probe(): void { this.driver?.step(this, STEP_PROBE); }
+  phase3LayoutCheck(): boolean { return this.driver?.step(this, STEP_LAYOUT_CHECK) ?? false; }
+  phase3StripMount(): void { this.driver?.step(this, STEP_STRIP_MOUNT); }
+  phase3StripRead(): void { this.driver?.step(this, STEP_STRIP_READ); }
   /** Unconditional, even on error or after the frame closed. */
-  phase3StripRemove(): void { this.driver.removeProbe(this); }
-  phase3ReadoutDecide(): void { this.driver.step(this, STEP_READOUT); }
-  phase4StripWrite(): void { this.driver.step(this, STEP_STRIP_WRITE); }
-  phase4StripMeasure(): void { this.driver.step(this, STEP_STRIP_MEASURE); }
-  phase4Init(): void { this.driver.step(this, STEP_INIT); }
-  phase4PassWrite(): boolean { return this.driver.step(this, STEP_PASS_WRITE); }
-  phase4PassMeasure(): boolean { return this.driver.step(this, STEP_PASS_MEASURE); }
-  phase5(): void { this.driver.finish(this); }
-  after(): void { this.driver.after(this); }
+  phase3StripRemove(): void { this.driver?.removeProbe(this); }
+  phase3ReadoutDecide(): void { this.driver?.step(this, STEP_READOUT); }
+  phase4StripWrite(): void { this.driver?.step(this, STEP_STRIP_WRITE); }
+  phase4StripMeasure(): void { this.driver?.step(this, STEP_STRIP_MEASURE); }
+  phase4Init(): void { this.driver?.step(this, STEP_INIT); }
+  phase4PassWrite(): boolean { return this.driver?.step(this, STEP_PASS_WRITE) ?? false; }
+  phase4PassMeasure(): boolean { return this.driver?.step(this, STEP_PASS_MEASURE) ?? false; }
+  phase5(): void { this.driver?.finish(this); }
+  after(): void { this.driver?.after(this); }
+}
+
+/**
+ * Single-use handle around a pooled FrameState for external phased callers (`beginFrame()`).
+ * Becomes permanently inert once `after()` returns the backing state to the pool, so a stale
+ * handle can never reach another chart that later acquires the same FrameState.
+ */
+class FrameHandle implements FrameRun {
+  private state: FrameState | null;
+  constructor(state: FrameState) { this.state = state; }
+  phase1(): void { this.state?.phase1(); }
+  phase2(): void { this.state?.phase2(); }
+  phase3Theme(): void { this.state?.phase3Theme(); }
+  phase3Measure(): void { this.state?.phase3Measure(); }
+  phase3Probe(): void { this.state?.phase3Probe(); }
+  phase3LayoutCheck(): boolean { return this.state?.phase3LayoutCheck() ?? false; }
+  phase3StripMount(): void { this.state?.phase3StripMount(); }
+  phase3StripRead(): void { this.state?.phase3StripRead(); }
+  phase3StripRemove(): void { this.state?.phase3StripRemove(); }
+  phase3ReadoutDecide(): void { this.state?.phase3ReadoutDecide(); }
+  phase4StripWrite(): void { this.state?.phase4StripWrite(); }
+  phase4StripMeasure(): void { this.state?.phase4StripMeasure(); }
+  phase4Init(): void { this.state?.phase4Init(); }
+  phase4PassWrite(): boolean { return this.state?.phase4PassWrite() ?? false; }
+  phase4PassMeasure(): boolean { return this.state?.phase4PassMeasure() ?? false; }
+  phase5(): void { this.state?.phase5(); }
+  after(): void {
+    const s = this.state;
+    if (!s) return;
+    this.state = null;
+    s.after();
+  }
+}
+
+/**
+ * Idle frame states shared by every chart. Frames run synchronously (flush, or one phased batch that ends
+ * every frame it began), so a single chart or a batch of up to this many reuses states and allocates none,
+ * while a page of static charts retains at most this many in all rather than one per chart.
+ */
+const FRAME_POOL_SIZE = 4;
+/** Made on the first release, so importing the module allocates nothing. */
+let framePool: FrameState[] | null = null;
+
+function acquireFrame(driver: FrameDriver): FrameState {
+  const f = framePool?.pop() ?? new FrameState(driver);
+  f.driver = driver;
+  return f;
+}
+
+/** Clears the finished state and keeps it if the pool has room; nothing else may use the state afterwards. */
+function releaseFrame(f: FrameState): void {
+  f.clear();
+  const pool = framePool ??= [];
+  if (pool.length < FRAME_POOL_SIZE) pool.push(f);
 }
 
 /** Presentation diagnostics by the stage that found them (spec 3.5: reported when found, never thrown). */
@@ -1576,7 +1633,10 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
         return { kind, text: m[kind], message: kind };
       }
     }
-    if (diagnostics.some(d => d.effect === 'chart-error')) return { kind: 'error', text: m.error, message: 'error' };
+    // A loop rather than `some`: every frame asks, and most have nothing to scan.
+    for (let i = 0; i < diagnostics.length; i++) {
+      if (diagnostics[i]!.effect === 'chart-error') return { kind: 'error', text: m.error, message: 'error' };
+    }
     // Series the reader hid are still data: the chart stays ready, so the legend can show them again.
     if (!hasData(a.view, true)) {
       // Nothing drawn because series could not be (AX108: series disabled) is not an empty chart: the figure
@@ -1703,11 +1763,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     frameScheduled = false;
   }
 
-  /**
-   * The frame state the next frame starts from once the last one has finished: a steady stream of frames
-   * makes no closures and no per-frame scope. A frame begun while another is still running gets its own.
-   */
-  let spareFrame: FrameState | null = null;
+  /** How the pooled frame states reach this controller: made once per chart, held by a state only while it runs. */
   const frameDriver: FrameDriver = { step: frameStep, removeProbe: removeStripProbe, finish: finishFrame, after: afterFrame };
   /** The axis context of the last frame: kept while what it holds is unchanged. */
   let lastAxisContext: AxisContext | null = null;
@@ -1725,8 +1781,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     // The frame's own rows are kept while it publishes, whatever its author code accepts meanwhile (an append
     // with keep from a callback can no longer retire them; final review, finding 1).
     inflight = a;
-    let f = spareFrame;
-    if (f === null || !f.idle) spareFrame = f = new FrameState(frameDriver);
+    const f = acquireFrame(frameDriver);
     const view = a.view;
     const zoomOn = zoomApplies(view, a.options.zoom) ? (a.options.zoom === 'touch' ? 'touch' as const : true) : false;
     const zoomed = view.kind !== 'donut' && a.zoom !== null && (view.xDomain[0] > view.xFull[0] || view.xDomain[1] < view.xFull[1]);
@@ -1805,8 +1860,9 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       return;
     }
     const a = f.a;
-    // The frame's references go now: a state kept for the next frame holds no revision, view or reader.
-    f.clear();
+    // The frame's references go now, and the state back to the pool: a pooled state holds nothing of this
+    // chart. A frame author code starts from here (below) may take it again; this one is done with it.
+    releaseFrame(f);
     // A call made by author code during the frame is drawn by the next one.
     if (!destroyed && accepted !== a) schedule();
     // Author code last: the frame is complete before any handler runs.
@@ -2804,7 +2860,6 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     drawn = null;
     held = null;
     lastLayout = null;
-    spareFrame = null;
     lastAxisContext = null;
     textStyle = null;
     stripStyle = null;
@@ -2882,7 +2937,11 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       },
     });
   }
-  return { handle, actions, invalidate, flush, beginFrame };
+  function beginFrameHandle(): FrameRun | null {
+    const f = beginFrame();
+    return f ? new FrameHandle(f) : null;
+  }
+  return { handle, actions, invalidate, flush, beginFrame: beginFrameHandle };
 }
 
 /** Options of a chart that streams from its own store: without the caller's opening data. */

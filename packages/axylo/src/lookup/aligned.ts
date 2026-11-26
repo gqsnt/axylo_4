@@ -1,14 +1,31 @@
 import { binIndex } from '../data/search';
 import { SLOT_NULL, SLOT_VALUE } from '../core/contracts';
-import type { AlignedView, DatumRef, DatumText, Formatters, Lookup, PickTarget, SlotState } from '../core/contracts';
+import type { AlignedView, DatumRef, DatumText, Formatters, Lookup, PickTarget, Rect, SlotState } from '../core/contracts';
 import type { Messages } from '../public';
 import { fill } from '../messages';
 import { clipBox, contains, pointBox, POINTER_SLACK, type PlotLayout } from './geometry';
 import { clamp, projectBand } from '../scene/geometry';
 import { lowerBound, stepIndex } from './search';
-import { incomplete, slotLabel, slotText } from './text';
+import { incomplete, singleContinuousSeries, slotLabel, slotText } from './text';
 
 const TOOLTIP_LIMIT = 8;
+
+type MutableRow = { -readonly [K in keyof DatumText]: DatumText[K] };
+type AlignedRef = Extract<DatumRef, { kind: 'aligned' }>;
+type XTarget = Extract<PickTarget, { kind: 'x' }>;
+
+export interface AlignedHoverModel {
+  title: string;
+  readonly rows: readonly [MutableRow];
+  readonly count: 1;
+  readonly total: null;
+}
+
+// Only unpinned hover owns a reusable model. Lookup.tooltip and datum still return snapshots.
+export const alignedHover = Symbol();
+export type AlignedHoverLookup = Lookup & {
+  [alignedHover]?: (target: XTarget, reuse: AlignedHoverModel | null) => AlignedHoverModel | null;
+};
 
 export function alignedLookup(view: AlignedView, layout: PlotLayout | null, formatters: Formatters, messages: Messages): Lookup {
   const { frame, visibleSlots: { start, end }, stack } = view;
@@ -21,9 +38,14 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
   const projection = layout?.projection;
   const xScale = projection?.kind === 'xy' ? projection.x : projection?.kind === 'bands' ? projection.band : null;
   const horizontal = projection?.kind === 'bands' && projection.horizontal;
+  const right = plot ? plot.x + plot.width : 0;
+  const bottom = plot ? plot.y + plot.height : 0;
+  const single = singleContinuousSeries(view);
 
   let bounds: Float64Array | undefined;
   let pickedSlot = -1;
+  let pickedPixel = NaN, pickedTarget: XTarget | undefined;
+  let pickedRef: AlignedRef | undefined, pickedAnchor: Rect | null | undefined;
   const inView = (i: number) => i >= start && i < end;
 
   function seriesIndex(key: string): number | undefined {
@@ -38,7 +60,8 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
     return keys.get(key);
   }
 
-  function ref(s: number, i: number): DatumRef {
+  function ref(s: number, i: number): AlignedRef {
+    if (single && i === pickedSlot) return pickedRef ??= { kind: 'aligned', seriesKey: single.key, x: positions[i]! };
     return { kind: 'aligned', seriesKey: series[s]!.key, x: positions[i]! };
   }
 
@@ -77,17 +100,20 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
    * (spec F10, review C2-7). A single datum read on its own (`announce`) has no total beside it, so the
    * component that makes its stack incomplete says so; the values that are there are not qualified.
    */
-  function write(s: number, i: number, announce = false): DatumText {
+  function write(s: number, i: number, announce = false, reuse?: MutableRow): MutableRow {
     const entry = series[s]!;
     const state = entry.slot[i] as SlotState;
     const value = slotText(formatters, s, entry.y[i]!, state);
     const missingComponent = announce && state !== SLOT_VALUE
       && stack?.incomplete?.[i] && stack.order.includes(s) && visible.includes(s);
-    return {
-      ref: ref(s, i), seriesIndex: s, seriesLabel: entry.label, x: slotLabel(frame, formatters, i),
-      value: missingComponent ? incomplete(value, messages) : value,
-      state, percent: null, row: entry.row?.[i] ?? i,
-    };
+    const datum = ref(s, i), x = slotLabel(frame, formatters, i);
+    const text = missingComponent ? incomplete(value, messages) : value, row = entry.row?.[i] ?? i;
+    if (reuse) {
+      reuse.ref = datum; reuse.seriesLabel = entry.label; reuse.x = x;
+      reuse.value = text; reuse.state = state; reuse.row = row;
+      return reuse;
+    }
+    return { ref: datum, seriesIndex: s, seriesLabel: entry.label, x, value: text, state, percent: null, row };
   }
 
   function primary(i: number): DatumRef | null {
@@ -132,7 +158,7 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
 
   const at = (target: PickTarget) => target.kind === 'x' ? index(target.x) : -1;
 
-  return {
+  const lookup: AlignedHoverLookup = {
     members(target, from, count) {
       const i = at(target);
       // The tooltip's rows, in its order: the visible series at that x.
@@ -151,16 +177,29 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
     pick(pointerX, pointerY) {
       if (!plot || !visible.length) return null;
       // Clamp the picking axis only, with the same one-pixel allowance as pointerOnPlot.
-      const right = plot.x + plot.width;
-      const bottom = plot.y + plot.height;
       if (!(pointerX >= plot.x - POINTER_SLACK && pointerX <= right + POINTER_SLACK &&
         pointerY >= plot.y - POINTER_SLACK && pointerY <= bottom + POINTER_SLACK)) return null;
       const pixel = horizontal ? Math.min(bottom, Math.max(plot.y, pointerY)) : Math.min(right, Math.max(plot.x, pointerX));
+      if (pickedTarget && pixel === pickedPixel) return pickedTarget;
       const i = nearestSlot(pixel);
       if (i < 0) return null;
-      pickedSlot = i;
-      return { kind: 'x', x: positions[i]! };
+      pickedPixel = pixel;
+      if (i !== pickedSlot) {
+        pickedSlot = i;
+        pickedRef = pickedAnchor = undefined;
+        pickedTarget = { kind: 'x', x: positions[i]! };
+      }
+      return pickedTarget!;
     },
+    [alignedHover]: single ? (target, reuse) => {
+      const i = at(target);
+      if (!inView(i)) return null;
+      const title = slotLabel(frame, formatters, i);
+      if (!reuse) return { title, rows: [write(0, i)], count: 1, total: null };
+      write(0, i, false, reuse.rows[0]);
+      reuse.title = title;
+      return reuse;
+    } : undefined,
     tooltip(target) {
       const i = at(target);
       if (!inView(i)) return { title: '', rows: [], count: 0, total: null };
@@ -200,6 +239,7 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
     },
     anchor(datum) {
       if (datum.kind !== 'aligned' || !layout || !projection || !xScale) return null;
+      if (datum === pickedRef && pickedAnchor !== undefined) return pickedAnchor;
       const s = seriesIndex(datum.seriesKey);
       const i = index(datum.x);
       const lane = s === undefined ? -1 : visible.indexOf(s);
@@ -210,10 +250,17 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
       const side = value < 0 ? stack?.negative : stack?.positive;
       const top = accumulated < 0 ? value : side![accumulated]![i]!;
       if (projection.kind === 'xy') {
-        if (!present) return null;
+        const cache = single !== undefined && i === pickedSlot;
+        if (cache && pickedAnchor !== undefined) return pickedAnchor;
+        if (!present) {
+          if (cache) pickedAnchor = null;
+          return null;
+        }
         const x = xScale.type === 'band' ? xScale.center(datum.x) : xScale.map(datum.x);
         const y = projection.y.map(top);
-        return contains(layout.plot, x, y) ? pointBox(x, y) : null;
+        const box = contains(layout.plot, x, y) ? pointBox(x, y) : null;
+        if (cache) pickedAnchor = box;
+        return box;
       }
       if (projection.kind !== 'bands') return null;
       const horizontal = projection.horizontal;
@@ -289,4 +336,5 @@ export function alignedLookup(view: AlignedView, layout: PlotLayout | null, form
     },
     resolve,
   };
+  return lookup;
 }

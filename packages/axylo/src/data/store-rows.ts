@@ -637,8 +637,10 @@ export class FrameSource implements RowSource {
 export class RowWindow {
   private readonly archived = new RawRows();
   readonly #lastSeen = new Map<number, number>();
-  // A renderer may hold other revisions, but the latest source is the only one used on every append.
+  // A normal rolling update holds one predecessor until presentation. Only a backlog needs the map.
   #olderSources: Map<number, FrameSource> | null = null;
+  #previousSource: FrameSource | null = null;
+  #previousRevision = -Infinity;
   #latestSource: FrameSource | null = null;
   #latestRevision = -Infinity;
   private rows: StreamRows | null;
@@ -649,7 +651,7 @@ export class RowWindow {
   }
 
   get size(): number { return (this.rows?.size ?? 0) + this.archived.size; }
-  get disposable(): boolean { return this.#closed && !this.#latestSource && !this.#olderSources?.size; }
+  get disposable(): boolean { return this.#closed && !this.#latestSource && !this.#previousSource && !this.#olderSources?.size; }
 
   archive(row: number, rolling = false): void {
     const revision = this.#latestRevision;
@@ -666,7 +668,9 @@ export class RowWindow {
 
   publish(revision: number, source: FrameSource, rows: StreamRows): void {
     this.rows = rows;
-    if (this.#latestSource) (this.#olderSources ??= new Map()).set(this.#latestRevision, this.#latestSource);
+    if (this.#previousSource) (this.#olderSources ??= new Map()).set(this.#previousRevision, this.#previousSource);
+    this.#previousRevision = this.#latestRevision;
+    this.#previousSource = this.#latestSource;
     this.#latestRevision = revision;
     this.#latestSource = source;
     source.bindWindow(this, revision);
@@ -677,7 +681,8 @@ export class RowWindow {
    * window's live revisions. The rows still retained below its end, and the evicted rows kept for it.
    */
   retainedRows(revision: number, source: RowSource): ArrayLike<number> | null {
-    const active = revision === this.#latestRevision ? this.#latestSource : this.#olderSources?.get(revision);
+    const active = revision === this.#latestRevision ? this.#latestSource :
+      revision === this.#previousRevision ? this.#previousSource : this.#olderSources?.get(revision);
     if (active !== source || !this.rows) return null;
     const end = (source as FrameSource).limit;
     const current = this.rows.retainedIndexes();
@@ -706,6 +711,10 @@ export class RowWindow {
         source.release();
         this.#olderSources.delete(number);
       }
+    }
+    if (this.#previousRevision <= revision && this.#previousSource) {
+      this.#previousSource.release();
+      this.#previousSource = null;
     }
     if (this.#latestRevision <= revision && this.#latestSource) {
       this.#latestSource.release();
@@ -774,6 +783,7 @@ export abstract class RevisionStore<F extends Frame> {
   protected rows: StreamRows;
   protected readonly revisions: RowRevisions;
   protected current!: F;
+  readonly #currentFrame = () => this.current;
   protected latest!: readonly DiagnosticInput[];
 
   constructor(table: Table) {
@@ -796,7 +806,7 @@ export abstract class RevisionStore<F extends Frame> {
   ): PreparedFrame<F> & { commit: ReturnType<typeof once> } {
     source.watchBase(this, base);
     const frame = result.source === source ? result : { ...result, source };
-    const commit = once(() => this.current, () => {
+    const commit = once(this.#currentFrame, () => {
       apply();
       this.latest = diagnostics;
       this.publish(frame, source);

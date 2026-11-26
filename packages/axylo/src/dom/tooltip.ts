@@ -39,8 +39,10 @@ interface RowEntry {
   readonly n: HTMLElement;
   readonly v: HTMLElement;
   readonly t: Text;
+  readonly label: Text;
   readonly s: Text | null;
   r: DatumText;
+  ref: DatumRef;
   p: SwatchSpec | null;
   l: string | null;
   g: string | null;
@@ -159,14 +161,14 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     listening.on(host, 'mousedown', e => { if (buttonOf(e)) keepFocusOnPress(e); });
     listening.on(host, 'pointerdown', e => {
       const b = buttonOf(e), row = b && rows().find(entry => entry.e === b);
-      if (row) startPress(row.r.ref, e.pointerId); else clearPress();
+      if (row) startPress(row.ref, e.pointerId); else clearPress();
     });
     listening.on(host, 'pointerup', e => {
       if (pressRef === null || pressPtr !== e.pointerId) return;
       const ref = pressRef;
       clearPress();
       pressedRef = ref; pressedAt = e.timeStamp;
-      const now = rows().find(entry => entry.button && sameRow(entry.r.ref, ref));
+      const now = rows().find(entry => entry.button && sameRow(entry.ref, ref));
       if (now) current?.select?.(now.r);
     });
     listening.on(host, 'pointercancel', cancelPointer);
@@ -175,7 +177,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       if (!b) return;
       const row = rows().find(entry => entry.e === b);
       if (!row) current?.more?.(displayed);
-      else if (!(e.detail > 0 && sameRow(row.r.ref, pressedRef) && e.timeStamp - pressedAt < 1000)) current?.select?.(row.r);
+      else if (!(e.detail > 0 && sameRow(row.ref, pressedRef) && e.timeStamp - pressedAt < 1000)) current?.select?.(row.r);
     });
   });
 
@@ -200,31 +202,47 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     setAttr(el, 'lang', l || null);
   };
 
+  function syncRow(entry: RowEntry, content: TooltipContent, row: DatumText): void {
+    entry.r = row;
+    entry.ref = row.ref;
+    const spec = content.swatch(row);
+    if (entry.p !== spec) {
+      entry.n.firstElementChild?.remove();
+      if (spec) entry.n.insertBefore(createSwatch(doc, spec), entry.label);
+      entry.p = spec;
+    }
+    if (entry.l !== row.seriesLabel) entry.label.textContent = entry.l = row.seriesLabel;
+    const value = row.percent === null || row.percent === row.value ? row.value : `${row.value} (${row.percent})`;
+    if (entry.value !== value) entry.t.textContent = entry.value = value;
+    const lang = content.valueLang?.(row.value) ?? null;
+    if (entry.g !== lang) { setAttr(entry.v, 'lang', lang); entry.g = lang; }
+  }
+
   function rowEntries(idx: 0 | 1, content: TooltipContent, pinned: boolean): RowEntry[] {
     const previous = entries[idx], isStrip = idx === 1, out = nextRows;
     const button = pinned && content.select !== undefined;
+    if (!isStrip && !pinned && previous.length === 1 && content.model.rows.length === 1) {
+      const entry = previous[0]!, row = content.model.rows[0]!;
+      if (!entry.button && sameRow(row.ref, entry.ref)) {
+        syncRow(entry, content, row);
+        return previous;
+      }
+    }
     for (const r of content.model.rows) {
       let entry: RowEntry | undefined = previous[out.length];
-      if (!entry || entry.button !== button || !sameRow(r.ref, entry.r.ref)) {
-        entry = previous.find(e => e.button === button && sameRow(r.ref, e.r.ref));
+      if (!entry || entry.button !== button || !sameRow(r.ref, entry.ref)) {
+        entry = previous.find(e => e.button === button && sameRow(r.ref, e.ref));
       }
       if (!entry) {
         const e = makeBox(isStrip ? 'axylo-readout-entry' : 'axylo-tooltip-row', button, isStrip);
         const n = make(doc, 'span', 'axylo-tooltip-series'), v = make(doc, 'span', 'axylo-tooltip-value'), t = txt();
-        v.appendChild(t);
+        const label = txt(r.seriesLabel);
+        n.appendChild(label); v.appendChild(t);
         if (isStrip) e.append(n, txt(' '), v); else e.append(n, v);
-        entry = { button, e, n, v, t, s: isStrip ? txt('; ') : null, r, p: null, l: null, g: null, value: '' };
+        entry = { button, e, n, v, t, label, s: isStrip ? txt('; ') : null,
+          r, ref: r.ref, p: null, l: r.seriesLabel, g: null, value: '' };
       }
-      entry.r = r;
-      const spec = content.swatch(r);
-      if (entry.l !== r.seriesLabel || entry.p !== spec) {
-        entry.n.replaceChildren(...(spec ? [createSwatch(doc, spec)] : []), txt(r.seriesLabel));
-        entry.l = r.seriesLabel; entry.p = spec;
-      }
-      const value = r.percent === null || r.percent === r.value ? r.value : `${r.value} (${r.percent})`;
-      if (entry.value !== value) entry.t.textContent = entry.value = value;
-      const lang = content.valueLang?.(r.value) ?? null;
-      if (entry.g !== lang) { setAttr(entry.v, 'lang', lang); entry.g = lang; }
+      syncRow(entry, content, r);
       out.push(entry);
     }
     entries[idx] = out;
@@ -237,7 +255,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     const rows = entries[idx];
     if (!rows.length) return null;
     const act = active();
-    return rows.find(e => e.button && e.e === act)?.r.ref ?? null;
+    return rows.find(e => e.button && e.e === act)?.ref ?? null;
   }
 
   function moreEntry(isStrip: boolean, pinned: boolean, content: TooltipContent, count: number): MoreEntry {
@@ -356,7 +374,6 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
 
   function begin(idx: 0 | 1, content: TooltipContent, pinned: boolean): void {
     current = content;
-    if (idx === 0 && where === 1 && !pinned && !wasPinned && !element.hidden) return;
     carriedRef = pinned ? pressRef : null; carriedPtr = pressPtr;
     if (!pinned) clearPress();
     hadFocus = (wasPinned && where ? focusedRef((where - 1) as 0 | 1) : null) ?? pendingFocus;
@@ -376,7 +393,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       where = (idx + 1) as 1 | 2;
       if (carriedRef !== null && pressRef === null) startPress(carriedRef, carriedPtr);
       if (hadFocus !== null) {
-        const entry = entries[idx].find(e => e.button && sameRow(e.r.ref, hadFocus));
+        const entry = entries[idx].find(e => e.button && sameRow(e.ref, hadFocus));
         if (!entry?.e.isConnected) lost();
         else if (active() !== entry.e) entry.e.focus({ preventScroll: true });
       }
@@ -389,7 +406,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     return visible;
   }
 
-  function positionFloat(spot: Spot, width: number, height: number, m: Mapping): boolean {
+  function positionFloat(spot: Spot, width: number, height: number, m: Mapping): void {
     const x = (spot.x - m.left) / m.kx, y = (spot.y - m.top) / m.ky;
     if (x !== transformX || y !== transformY) {
       element.style.transform = `translate(${x}px, ${y}px)`;
@@ -398,8 +415,6 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     if (!lastRect || lastRect.x !== spot.x || lastRect.y !== spot.y || lastRect.width !== width || lastRect.height !== height) {
       lastRect = { x: spot.x, y: spot.y, width, height };
     }
-    observeSize();
-    return finish(0, true);
   }
 
   function hide(): void {
@@ -417,7 +432,8 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     show(content, p, pinned, figMapping) {
       const m = figMapping ?? mappingOf(figure);
       const maxW = Math.max(0, Math.min(320, p.visible.width / m.kx)), maxH = Math.max(0, p.visible.height / m.ky);
-      begin(0, content, pinned);
+      const steady = where === 1 && !pinned && !wasPinned && !element.hidden;
+      if (steady) current = content; else begin(0, content, pinned);
       if (maxWidth !== maxW || maxHeight !== maxH || pinned || wrapped || where !== 1) hoverSize = null;
       if (maxWidth !== maxW) { maxWidth = maxW; element.style.maxWidth = `${maxW}px`; }
       if (maxHeight !== maxH) { maxHeight = maxH; element.style.maxHeight = `${maxH}px`; }
@@ -447,7 +463,8 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
           const spot = placeTooltip(p, (width + pad) * m.kx, height * m.ky);
           if (spot) {
             expectedWidth = width;
-            return positionFloat(spot, width * m.kx, height * m.ky, m);
+            positionFloat(spot, width * m.kx, height * m.ky, m);
+            return steady || finish(0, true);
           }
         }
         hoverSize = null;
@@ -482,7 +499,9 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
             hoverSize = calibrate(rows, more, totalRow, localW, localH);
             expectedWidth = localW;
           }
-          return positionFloat(spot, width, height, m);
+          positionFloat(spot, width, height, m);
+          observeSize();
+          return finish(0, true);
         }
       }
       return finish(0, false);

@@ -129,8 +129,9 @@ class Cadence {
 
   regularSpan(delta: number, dropped: number | undefined): number | undefined {
     const step = this.step;
-    if (!step || this.#matches !== this.#differences || this.absent(step) !== 0 ||
-      stepMultiple(delta, step) !== 1 || (dropped !== undefined && stepMultiple(dropped, step) !== 1)) return;
+    if (!Number.isFinite(step) || !step || this.#matches !== this.#differences || this.absent(step) !== 0 ||
+      (delta !== step && stepMultiple(delta, step) !== 1) ||
+      (dropped !== undefined && dropped !== delta && stepMultiple(dropped, step) !== 1)) return;
     const extended = this.#span + delta;
     const count = this.#differences + 1;
     if (Math.round(extended / step) > count) return;
@@ -635,7 +636,8 @@ class AlignedData {
     const evicted = first === undefined ? undefined : rows.firstRowAt(first);
     if (first !== undefined && evicted === undefined) return null;
     const dropped = first === undefined ? undefined : stepDelta(axis, first, buffers.x[start + 1]!);
-    const cadence = observations.get(fields.values[0]!.field)?.cadence;
+    const primary = observations.get(fields.values[0]!.field);
+    const cadence = primary?.cadence;
     if (!cadence) return null;
     const span = cadence.regularSpan(delta, dropped);
     if (span === undefined) return null;
@@ -651,7 +653,7 @@ class AlignedData {
     for (let i = 0; i < fields.values.length; i++) {
       const key = fields.values[i]!.field;
       const value = ownNumber(object, key);
-      const window = observations.get(key);
+      const window = i === 0 ? primary : observations.get(key);
       const counts = state.modes.get(key);
       if (value === undefined || window?.cadence.last !== last || window.duplicates?.size ||
         !buffers.series.has(key) || counts?.decimal !== 0) return null;

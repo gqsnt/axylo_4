@@ -57,6 +57,22 @@ const fieldKeys = 'field label unit format tickFormat domain';
 const scatterXKeys = (fieldKeys + ' type timeZone').split(' ');
 const xKeys = scatterXKeys.concat('ordered');
 const valueKeys = (fieldKeys + ' scale missing parse').split(' ');
+const titleKeys = ['text', 'visible', 'level'];
+const stateKeys = ['error', 'empty'];
+const referenceKeys = ['x', 'y', 'label'];
+const xTypes = ['number', 'time', 'date', 'category'] as const;
+const valueScales = ['percent', 'ratio'] as const;
+const missingModes = ['gap', 'zero'] as const;
+const parseModes = ['number'] as const;
+
+/** The top-level option names per chart type, and the message keys: made once, on first use. */
+let topKeys: Partial<Record<ChartType, readonly string[]>> | undefined;
+let messageKeys: readonly string[] | undefined;
+
+function optionKeys(type: ChartType): readonly string[] {
+  const known = topKeys ??= {};
+  return known[type] ??= (commonKeys + ' ' + keysForChart[type]).split(' ');
+}
 
 function distance(a: string, b: string): number {
   let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
@@ -99,14 +115,31 @@ function literal<const T extends string>(value: unknown, keys: readonly T[], fie
   return undefined;
 }
 
+/** Canonical names by what was written (null: not a zone): each chart naming a zone would make a formatter. */
+const ZONE_CACHE_LIMIT = 64;
+let canonicalZones: Map<string, string | null> | undefined;
+let canonicalZoneDtf: typeof Intl.DateTimeFormat | undefined;
+
 export function canonicalZone(zone: unknown): string | undefined {
   if (zone === 'UTC') return zone;
   if (typeof zone !== 'string') return undefined;
-  try {
-    return Intl.DateTimeFormat('en', { timeZone: zone }).resolvedOptions().timeZone;
-  } catch {
-    return undefined;
+  const dtf = Intl.DateTimeFormat;
+  if (canonicalZoneDtf !== dtf) {
+    canonicalZoneDtf = dtf;
+    canonicalZones?.clear();
   }
+  const cache = canonicalZones ??= new Map();
+  const known = cache.get(zone);
+  if (known !== undefined) return known ?? undefined;
+  let canonical: string | null;
+  try {
+    canonical = dtf('en', { timeZone: zone }).resolvedOptions().timeZone;
+  } catch {
+    canonical = null;
+  }
+  if (cache.size >= ZONE_CACHE_LIMIT) cache.clear();
+  cache.set(zone, canonical);
+  return canonical ?? undefined;
 }
 
 export function object(value: unknown): Record<string, unknown> {
@@ -114,7 +147,9 @@ export function object(value: unknown): Record<string, unknown> {
 }
 
 function unknownKeys(options: unknown, keys: readonly string[], sink: DiagnosticSink, path = ''): void {
-  for (const key of Object.keys(object(options))) {
+  // Anything but an object has no keys to check.
+  if (options === null || typeof options !== 'object') return;
+  for (const key of Object.keys(options)) {
     if (!keys.includes(key)) {
       const suggestion = closest(key, keys);
       report(sink, 'AX150', 'none', { field: path + key, suggestion: suggestion && path + suggestion, count: 1 });
@@ -165,7 +200,7 @@ function resolveX(input: unknown, type: ChartType, compact: boolean, sink: Diagn
   const options = object(input) as XFieldOptions;
   if (type !== 'donut') unknownKeys(input, type === 'scatter' ? scatterXKeys : xKeys, sink, 'x.');
   const field = fieldName(input) ?? '';
-  const declared = literal(options.type, ['number', 'time', 'date', 'category'], 'x.type', sink);
+  const declared = literal(options.type, xTypes, 'x.type', sink);
   const zone = options.timeZone === undefined || options.timeZone === 'local'
     ? 'local' : canonicalZone(options.timeZone);
   if (zone === undefined) {
@@ -187,9 +222,9 @@ function resolveValue(input: unknown, path: string, unusedTicks: string | null, 
   const field = fieldName(input) ?? '';
   return {
     field, label: options.label ?? field, unit: options.unit ?? null,
-    scale: literal(options.scale, ['percent', 'ratio'], path + 'scale', sink) ?? null,
-    missing: literal(options.missing, ['gap', 'zero'], path + 'missing', sink) ?? 'gap',
-    parse: literal(options.parse, ['number'], path + 'parse', sink) ?? null, format: options.format ?? null,
+    scale: literal(options.scale, valueScales, path + 'scale', sink) ?? null,
+    missing: literal(options.missing, missingModes, path + 'missing', sink) ?? 'gap',
+    parse: literal(options.parse, parseModes, path + 'parse', sink) ?? null, format: options.format ?? null,
     tickFormat: resolveTickFormat(options.tickFormat, path, unusedTicks, sink), domain: options.domain ?? null,
   };
 }
@@ -252,16 +287,18 @@ export function resolveFields(type: ChartType, input: unknown, sink: DiagnosticS
   const options = object(input);
   const donut = type === 'donut';
   const compact = !donut && type !== 'scatter' && options.compact === true;
-  unknownKeys(options, (commonKeys + ' ' + keysForChart[type]).split(' '), sink);
-  unknownKeys(options.title, ['text', 'visible', 'level'], sink, 'title.');
-  unknownKeys(options.state, ['error', 'empty'], sink, 'state.');
+  unknownKeys(options, optionKeys(type), sink);
+  unknownKeys(options.title, titleKeys, sink, 'title.');
+  unknownKeys(options.state, stateKeys, sink, 'state.');
   // The message keys are those of the built-in messages (the one list of them, in the same order).
-  unknownKeys(options.messages, Object.keys(defaultMessages), sink, 'messages.');
+  if (options.messages !== null && typeof options.messages === 'object') {
+    unknownKeys(options.messages, messageKeys ??= Object.keys(defaultMessages), sink, 'messages.');
+  }
   if (compact && options.reference !== undefined) {
     report(sink, 'AX150', 'none', { field: 'reference', count: 1, detail: 'Compact charts draw no references.' });
   } else if (!donut && Array.isArray(options.reference)) {
     options.reference.forEach((reference, row) => {
-      unknownKeys(reference, ['x', 'y', 'label'], sink, 'reference[' + row + '].');
+      unknownKeys(reference, referenceKeys, sink, 'reference[' + row + '].');
     });
   }
 
