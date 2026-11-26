@@ -266,16 +266,24 @@ export function sameTextStyle(a: TextStyle | null, b: TextStyle): boolean {
     a.wordSpacing === b.wordSpacing && a.lineHeight === b.lineHeight;
 }
 
-interface EnvSubscriber {
-  readonly pixelRatio: () => void;
-  readonly motion: () => void;
-  readonly fonts: () => void;
+/** What hears of the window's environment changes; reduced motion is optional (charts draw no animation). */
+export interface EnvSubscriber {
+  pixelRatio(): void;
+  motion?(): void;
+  fonts(): void;
 }
 
-interface EnvRegistration { readonly h: EnvSubscriber }
 interface EnvHub {
-  readonly subscribers: Set<EnvRegistration>;
+  readonly subscribers: Set<EnvSubscriber>;
   readonly teardown: () => void;
+}
+
+/** One `watchEnvironment` call: its own entry, so one handlers object watched twice is two subscriptions. */
+class EnvRegistration implements EnvSubscriber {
+  constructor(private readonly h: { pixelRatio(): void; motion(): void; fonts(): void }) {}
+  pixelRatio(): void { this.h.pixelRatio(); }
+  motion(): void { this.h.motion(); }
+  fonts(): void { this.h.fonts(); }
 }
 
 type Subscriptions<S> = { readonly subscribers: Set<S> };
@@ -330,10 +338,30 @@ const envHubs = new WeakMap<Window, EnvHub>();
  * Listeners are shared per window and released as soon as the last subscriber stops.
  */
 export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; motion(): void; fonts(): void }): () => void {
+  return register<Window, EnvSubscriber, EnvHub>(envHubs, win, envHubFor(win), new EnvRegistration(handlers), teardownHub);
+}
+
+/**
+ * `subscriber` hears of the window's environment changes until `leaveEnvironment` with the same object: a chart
+ * subscribes the object it already has, so the subscription makes no wrapper and no `stop` closure.
+ */
+export function joinEnvironment(win: Window, subscriber: EnvSubscriber): void {
+  envHubFor(win).subscribers.add(subscriber);
+}
+
+/** Ends `joinEnvironment`; the last subscriber's leaving removes the window's listeners. Idempotent. */
+export function leaveEnvironment(win: Window, subscriber: EnvSubscriber): void {
+  const hub = envHubs.get(win);
+  if (!hub || !hub.subscribers.delete(subscriber) || hub.subscribers.size) return;
+  envHubs.delete(win);
+  hub.teardown();
+}
+
+function envHubFor(win: Window): EnvHub {
   let hub = envHubs.get(win);
   if (!hub) {
     let active = true;
-    const subscribers = new Set<EnvRegistration>();
+    const subscribers = new Set<EnvSubscriber>();
     // Each subscription registers its removal as soon as it exists, so a failure part-way (a matchMedia that
     // throws) leaves none behind (review 3, finding 9).
     const undo: (() => void)[] = [];
@@ -381,12 +409,12 @@ export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; mo
     hub = { subscribers, teardown };
     envHubs.set(win, hub);
   }
-  return register(envHubs, win, hub, { h: handlers }, teardownHub);
+  return hub;
 }
 
-const notifyPixelRatio = (sub: EnvRegistration): void => sub.h.pixelRatio();
-const notifyFonts = (sub: EnvRegistration): void => sub.h.fonts();
-const notifyMotion = (sub: EnvRegistration): void => sub.h.motion();
+const notifyPixelRatio = (sub: EnvSubscriber): void => sub.pixelRatio();
+const notifyFonts = (sub: EnvSubscriber): void => sub.fonts();
+const notifyMotion = (sub: EnvSubscriber): void => sub.motion?.();
 
 // ── Shared ResizeObservers ────────────────────────────────────────────────────────────────────────
 //
@@ -395,13 +423,9 @@ const notifyMotion = (sub: EnvRegistration): void => sub.h.motion();
 // while they are registered; a chart releases its registration when it leaves the document, so a forgotten
 // chart is not kept reachable from the page through the hub.
 
-interface GeometryRegistration {
-  readonly onResize: (entries: readonly ResizeObserverEntry[]) => void;
-  live: boolean;
-  /** The delivery this registration last heard of, so several of its targets in one delivery count once. */
-  stamp: number;
-  /** This registration's own entries of the delivery being dispatched; empty between deliveries. */
-  readonly entries: ResizeObserverEntry[];
+/** What hears of its targets' resizes: the entries of one delivery that are its own, once per delivery. */
+export interface GeometryListener {
+  geometryChanged(entries: readonly ResizeObserverEntry[]): void;
 }
 
 interface GeometryHub {
@@ -435,7 +459,7 @@ function deliverGeometry(hub: GeometryHub, entries: readonly ResizeObserverEntry
     for (const registration of touched) {
       if (!registration.live) continue;
       // One chart's failure does not keep the others from hearing of their own resize.
-      try { registration.onResize(registration.entries); } catch (error) {
+      try { registration.listener.geometryChanged(registration.entries); } catch (error) {
         if (!failed) { failed = true; failure = error; }
       }
     }
@@ -447,14 +471,74 @@ function deliverGeometry(hub: GeometryHub, entries: readonly ResizeObserverEntry
 }
 
 /**
- * Observes `targets` (a chart's figure and plot) on the document's shared ResizeObserver; `onResize` gets
- * this registration's entries of a delivery, once, when any of its targets changed. Returns `release`, which is idempotent: it unobserves the
- * targets, and the last release disconnects the observer and forgets the hub.
+ * One chart's targets on the document's shared ResizeObserver. A class, so a chart's registration is one
+ * object and its release is a shared method rather than closures made per chart.
+ */
+export class GeometryRegistration {
+  live = true;
+  /** The delivery this registration last heard of, so several of its targets in one delivery count once. */
+  stamp = 0;
+  /** This registration's own entries of the delivery being dispatched; empty between deliveries. */
+  readonly entries: ResizeObserverEntry[] = [];
+  /** How many of `targets`, from the first, are observed. */
+  private observed = 0;
+
+  constructor(
+    private readonly doc: Document, private readonly hub: GeometryHub, private readonly targets: readonly Element[],
+    readonly listener: GeometryListener,
+  ) {}
+
+  /** Observes every target; one that cannot be observed leaves none of this chart's behind (and no empty hub). */
+  observe(): void {
+    const hub = this.hub;
+    try {
+      for (const target of this.targets) {
+        hub.index.set(target, this);
+        this.observed++;
+        hub.observer.observe(target);
+      }
+    } catch (error) {
+      this.live = false;
+      try { this.unobserve(); } catch { /* the original failure matters more */ }
+      throw error;
+    }
+    hub.count++;
+  }
+
+  /** Unobserves the targets; the last release disconnects the observer and forgets the hub. Idempotent. */
+  release(): void {
+    if (!this.live) return;
+    this.live = false;
+    this.hub.count--;
+    this.unobserve();
+  }
+
+  private unobserve(): void {
+    const hub = this.hub;
+    const targets = this.targets;
+    const observed = this.observed;
+    this.observed = 0;
+    for (let i = 0; i < observed; i++) {
+      const target = targets[i]!;
+      if (hub.index.get(target) === this) hub.index.delete(target);
+    }
+    if (hub.count === 0) {
+      if (geometryHubs.get(this.doc) === hub) geometryHubs.delete(this.doc);
+      hub.observer.disconnect();
+    } else {
+      for (let i = 0; i < observed; i++) hub.observer.unobserve(targets[i]!);
+    }
+  }
+}
+
+/**
+ * Observes `targets` (a chart's figure and plot) on the document's shared ResizeObserver; the listener gets
+ * this registration's entries of a delivery, once, when any of its targets changed. `targets` is read again on
+ * release, so it must not change meanwhile. Returns the registration; its `release` is idempotent.
  */
 export function observeGeometry(
-  win: Window & typeof globalThis, doc: Document, targets: readonly Element[],
-  onResize: (entries: readonly ResizeObserverEntry[]) => void,
-): () => void {
+  win: Window & typeof globalThis, doc: Document, targets: readonly Element[], listener: GeometryListener,
+): GeometryRegistration {
   let hub = geometryHubs.get(doc);
   if (!hub) {
     const created: GeometryHub = {
@@ -464,49 +548,15 @@ export function observeGeometry(
     hub = created;
     geometryHubs.set(doc, hub);
   }
-  const shared = hub;
-  const registration: GeometryRegistration = { onResize, live: true, stamp: 0, entries: [] };
-  const observed: Element[] = [];
-  const unobserve = (): void => {
-    for (const target of observed) {
-      if (shared.index.get(target) === registration) shared.index.delete(target);
-    }
-    if (shared.count === 0) {
-      if (geometryHubs.get(doc) === shared) geometryHubs.delete(doc);
-      shared.observer.disconnect();
-    } else {
-      for (const target of observed) shared.observer.unobserve(target);
-    }
-    observed.length = 0;
-  };
-  try {
-    for (const target of targets) {
-      shared.index.set(target, registration);
-      observed.push(target);
-      shared.observer.observe(target);
-    }
-  } catch (error) {
-    // A target that could not be observed leaves none of this chart's behind (and no empty hub).
-    registration.live = false;
-    try { unobserve(); } catch { /* the original failure matters more */ }
-    throw error;
-  }
-  shared.count++;
-  return () => {
-    if (!registration.live) return;
-    registration.live = false;
-    shared.count--;
-    unobserve();
-  };
+  const registration = new GeometryRegistration(doc, hub, targets, listener);
+  registration.observe();
+  return registration;
 }
 
-interface ProbeRegistration {
-  readonly ready: () => boolean;
-  readonly onChange: () => void;
-  live: boolean;
-  /** The probe's last delivered content box; NaN until the first delivery, which only sets the baseline. */
-  width: number;
-  height: number;
+/** What a chart's font probe reports to: whether a change counts now, and the change itself. */
+export interface FontProbeListener {
+  fontProbeReady(): boolean;
+  fontProbeChanged(): void;
 }
 
 interface ProbeHub {
@@ -526,7 +576,7 @@ function deliverProbes(doc: Document, hub: ProbeHub, entries: readonly ResizeObs
     const box = entry.contentRect;
     const { width, height } = box;
     const baseline = Number.isNaN(registration.width);
-    if (!baseline && (width !== registration.width || height !== registration.height) && registration.ready()) {
+    if (!baseline && (width !== registration.width || height !== registration.height) && registration.listener.fontProbeReady()) {
       (changed ??= []).push(registration);
     }
     registration.width = width;
@@ -539,22 +589,51 @@ function deliverProbes(doc: Document, hub: ProbeHub, entries: readonly ResizeObs
   let failure: unknown;
   for (const registration of changed) {
     if (!registration.live) continue;
-    try { registration.onChange(); } catch (error) {
+    try { registration.listener.fontProbeChanged(); } catch (error) {
       if (!failed) { failed = true; failure = error; }
     }
   }
   if (failed) throw failure;
 }
 
+/** One chart's font probe on the document's shared probe observer; `release` is a shared method. */
+export class ProbeRegistration {
+  live = true;
+  /** The probe's last delivered content box; NaN until the first delivery, which only sets the baseline. */
+  width = NaN;
+  height = NaN;
+
+  constructor(
+    private readonly doc: Document, private readonly hub: ProbeHub, private readonly probe: Element,
+    readonly listener: FontProbeListener,
+  ) {}
+
+  /** Idempotent; the last release disconnects the observer. */
+  release(): void {
+    if (!this.live) return;
+    this.live = false;
+    const hub = this.hub;
+    const probe = this.probe;
+    hub.count--;
+    if (hub.index.get(probe) === this) hub.index.delete(probe);
+    if (hub.count === 0) {
+      if (probeHubs.get(this.doc) === hub) probeHubs.delete(this.doc);
+      hub.observer.disconnect();
+    } else {
+      hub.observer.unobserve(probe);
+    }
+  }
+}
+
 /**
  * Observes a chart's font probe (an element in its own text layer, so it inherits the chart's font) on the
  * document's shared probe observer. A change of the probe's size after its first delivery means the font it
- * renders in changed: the measurement cache is cleared once and `onChange` called for each chart whose
- * `ready()` holds. Returns an idempotent `release`; the last one disconnects the observer.
+ * renders in changed: the measurement cache is cleared once and `fontProbeChanged` called for each chart whose
+ * `fontProbeReady()` holds. Returns the registration; its `release` is idempotent.
  */
 export function observeFontProbe(
-  win: Window & typeof globalThis, doc: Document, probe: Element, ready: () => boolean, onChange: () => void,
-): () => void {
+  win: Window & typeof globalThis, doc: Document, probe: Element, listener: FontProbeListener,
+): ProbeRegistration {
   let hub = probeHubs.get(doc);
   const fresh = !hub;
   if (!hub) {
@@ -566,7 +645,7 @@ export function observeFontProbe(
     probeHubs.set(doc, hub);
   }
   const shared = hub;
-  const registration: ProbeRegistration = { ready, onChange, live: true, width: NaN, height: NaN };
+  const registration = new ProbeRegistration(doc, shared, probe, listener);
   shared.index.set(probe, registration);
   try {
     shared.observer.observe(probe);
@@ -585,18 +664,7 @@ export function observeFontProbe(
     throw error;
   }
   shared.count++;
-  return () => {
-    if (!registration.live) return;
-    registration.live = false;
-    shared.count--;
-    if (shared.index.get(probe) === registration) shared.index.delete(probe);
-    if (shared.count === 0) {
-      if (probeHubs.get(doc) === shared) probeHubs.delete(doc);
-      shared.observer.disconnect();
-    } else {
-      shared.observer.unobserve(probe);
-    }
-  };
+  return registration;
 }
 
 /** The parent that supplies inherited styles and language, including through a slot. */
@@ -694,6 +762,16 @@ function subscribeRoot(
   options: MutationObserverInit,
   subscriber: SharedTreeSubscriber,
 ): () => void {
+  return register(hubs, root, rootHubFor(hubs, kind, win, root, options), subscriber, disconnect);
+}
+
+function rootHubFor(
+  hubs: WeakMap<Node, RootMutationHub>,
+  kind: 'lang' | 'theme',
+  win: Window & typeof globalThis,
+  root: Node,
+  options: MutationObserverInit,
+): RootMutationHub {
   let hub = hubs.get(root);
   if (!hub) {
     const subscribers = new Set<SharedTreeSubscriber>();
@@ -707,7 +785,7 @@ function subscribeRoot(
     hub = { observer, subscribers };
     hubs.set(root, hub);
   }
-  return register(hubs, root, hub, subscriber, disconnect);
+  return hub;
 }
 
 /**
@@ -746,6 +824,48 @@ const LANG_OPTIONS: MutationObserverInit = { attributes: true, attributeFilter: 
  * the formatting locale and which built-in text is marked English (spec A10, F6). An environment change,
  * kept apart from the theme watcher. Returns `stop`.
  */
+/**
+ * `watchLanguage` for a chart, which tells `target.language()`: the watch is its own subscriber and stops by
+ * identity, so a chart in the light DOM makes one object for it and no closure.
+ */
+export class LanguageWatch implements SharedTreeSubscriber {
+  /** The shared root hub this watch is on, or the dedicated observer of a chart inside shadow DOM. */
+  private root: Node | null = null;
+  private stopShadow: (() => void) | null = null;
+
+  constructor(readonly element: Element, private readonly target: { language(): void }) {}
+
+  onChange(): void { this.target.language(); }
+
+  start(): void {
+    const element = this.element;
+    const win = element.ownerDocument.defaultView;
+    if (win === null) return;
+    const trees = treesOf(element);
+    if (trees.length === 1) {
+      const root = trees[0]!;
+      rootHubFor(langRootHubs, 'lang', win, root, LANG_OPTIONS).subscribers.add(this);
+      this.root = root;
+    } else {
+      this.stopShadow = watchLanguage(element, () => this.onChange());
+    }
+  }
+
+  /** Idempotent; the last subscriber of a root disconnects its observer. */
+  stop(): void {
+    const root = this.root;
+    const shadow = this.stopShadow;
+    this.root = null;
+    this.stopShadow = null;
+    shadow?.();
+    if (root === null) return;
+    const hub = langRootHubs.get(root);
+    if (!hub || !hub.subscribers.delete(this) || hub.subscribers.size) return;
+    langRootHubs.delete(root);
+    disconnect(hub);
+  }
+}
+
 export function watchLanguage(element: Element, onChange: () => void): () => void {
   const win = element.ownerDocument.defaultView;
   if (win === null) return () => {};

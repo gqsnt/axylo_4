@@ -12,10 +12,18 @@ export interface FullStatistics {
   readonly signed: Statistics;
 }
 
-export const fullStatistics = new WeakMap<Series, FullStatistics>();
+let totals: WeakMap<Series, FullStatistics> | undefined;
+export const fullStatistics = {
+  get(series: Series) { return totals?.get(series); },
+  set(series: Series, stats: FullStatistics) { (totals ??= new WeakMap()).set(series, stats); },
+};
 
-// Presence certifies a continuous column. Its first dense draw can defer building a block index.
-export const denseSlots = new WeakMap<Uint8Array, 'fresh' | 'drawn'>();
+// Continuity belongs to the slots alone. Extrema depend on the paired value column as well.
+let continuous: WeakSet<Uint8Array> | undefined;
+export const denseSlots = {
+  has(slot: Uint8Array) { return continuous?.has(slot) ?? false; },
+  set(slot: Uint8Array, _state: 'fresh') { (continuous ??= new WeakSet()).add(slot); },
+};
 
 export function withSignedZeros(ordered: Statistics, zeros: number): FullStatistics {
   const { min, max, last } = ordered;
@@ -64,17 +72,33 @@ export interface BlockSummary {
   end: number;
   windows?: WindowBlocks;
 }
-const summaries = new WeakMap<Values, WeakMap<Uint8Array, BlockSummary>>();
+type SlotSummaries = WeakMap<Uint8Array, BlockSummary | null>;
+let summaries: WeakMap<Values, SlotSummaries> | undefined;
 
-export function hasBlockSummary(y: Values, slot: Uint8Array): boolean {
-  return summaries.get(y)?.has(slot) ?? false;
+function slotSummaries(y: Values): SlotSummaries {
+  const all = summaries ??= new WeakMap();
+  let bySlot = all.get(y);
+  if (!bySlot) all.set(y, bySlot = new WeakMap());
+  return bySlot;
 }
 
-export function summarizeBlocks(y: Values, slot: Uint8Array, start: number, end: number): BlockSummary {
+export function hasBlockSummary(y: Values, slot: Uint8Array): boolean {
+  return !!summaries?.get(y)?.get(slot);
+}
+
+export function drawingBlocks(y: Values, slot: Uint8Array, start: number, end: number): BlockSummary | undefined {
+  const bySlot = slotSummaries(y);
+  if (!bySlot.has(slot)) {
+    // A single draw needs no index, even for gapped data or a shared slot column.
+    bySlot.set(slot, null);
+    return;
+  }
+  return summarizeBlocks(y, slot, start, end, bySlot);
+}
+
+export function summarizeBlocks(y: Values, slot: Uint8Array, start: number, end: number, bySlot = slotSummaries(y)): BlockSummary {
   // Published series views are immutable. The store appends beyond them and copies an
   // exposed tail before filling it, so views sharing a backing buffer have separate keys.
-  let bySlot = summaries.get(y);
-  if (!bySlot) summaries.set(y, bySlot = new WeakMap());
   const count = Math.floor(Math.min(y.length, slot.length) / BLOCK_SIZE);
   let summary = bySlot.get(slot);
   if (summary?.blocks.length !== 2 * count) {

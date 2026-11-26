@@ -187,17 +187,11 @@ interface FitMemo {
   readonly fit: FittedLabels;
 }
 
-interface FitMemos {
-  /** The layout in which these prepared labels were first fitted. */
-  readonly run: number;
-  readonly entries: FitMemo[];
-}
-
 // A stream keeps its value axis candidates while x moves: the same fits repeat frame after frame. Candidates
 // seen in one layout only (a rolling x axis) never pay for recording positions.
 const FIT_MEMO_ENTRIES = 4;
 const FIT_MEMO_TICKS = 256;
-let fitMemos: WeakMap<PreparedLabels, FitMemos> | undefined;
+let fitMemos: WeakMap<PreparedLabels, number | FitMemo[]> | undefined;
 let layoutRun = 0;
 let tickPixels: Float64Array | undefined;
 
@@ -235,14 +229,16 @@ function rememberedFit(prepared: PreparedLabels, scale: XScale, key: FitKey | nu
   if (!key || scale.type === 'band') return fit();
   const memos = fitMemos ??= new WeakMap();
   const memo = memos.get(prepared);
-  if (!memo) {
-    memos.set(prepared, { run: layoutRun, entries: [] });
+  if (memo === undefined) {
+    // Retries in the same layout still count as one use of these labels.
+    memos.set(prepared, layoutRun);
     return fit();
   }
-  if (memo.run === layoutRun && memo.entries.length === 0) return fit();
+  if (memo === layoutRun) return fit();
   const count = fitPositions(prepared, scale, key.nativeLinear);
   if (count < 0) return fit();
-  const { entries } = memo;
+  const entries = typeof memo === 'number' ? [] : memo;
+  if (typeof memo === 'number') memos.set(prepared, entries);
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i]!;
     if (!sameFitKey(entry.key, key) || !samePositions(entry.positions, count)) continue;

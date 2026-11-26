@@ -90,7 +90,8 @@ export interface Figure {
 
 const HIDDEN = 'axylo-visually-hidden';
 const EMPTY_ELEMENTS: readonly Element[] = [];
-const templates = new WeakMap<Document, { full?: HTMLElement | null; compact?: HTMLElement | null }>();
+let fullTemplates: WeakMap<Document, HTMLElement | null> | undefined;
+let compactTemplates: WeakMap<Document, HTMLElement | null> | undefined;
 
 function show(el: HTMLElement, visible: boolean): void {
   if (el.hidden === visible) el.hidden = !visible;
@@ -113,7 +114,7 @@ function slotText(el: HTMLElement | null): string {
  * Prototype-backed figure instance: keeps every chart in V8 fast-property mode with shared getters/methods
  * and zero per-instance closures. Compact charts omit `body` and `stage` wrappers until promoted to full.
  */
-class FigureImpl implements Figure {
+class DomFigure implements Figure {
   readonly figure: HTMLElement;
   readonly plot: HTMLElement;
   readonly id: string;
@@ -143,7 +144,6 @@ class FigureImpl implements Figure {
   _a: HTMLElement | null = null;
   _s: HTMLElement | null = null;
   _p: FigureModel | null = null;
-  _smText = '';
 
   constructor(
     root: HTMLElement,
@@ -167,13 +167,15 @@ class FigureImpl implements Figure {
     // The figure carries the `axylo` class too: the theme writes its custom properties and scheme attribute on
     // the figure, so two charts on one target never share them (review 3, finding 10).
     const key = initialCompact ? 'compact' : 'full';
-    let cached = templates.get(doc);
-    if (!cached) templates.set(doc, cached = {});
-    let template = cached[key];
+    const templates = initialCompact ? compactTemplates ??= new WeakMap() : fullTemplates ??= new WeakMap();
+    let template = templates.get(doc);
     // A single chart mounts the only skeleton it needs. A dashboard can amortize a detached blueprint.
     if (template === null) {
       const skeleton = make(doc, 'figure', 'axylo axylo-figure');
-      if (typeof skeleton.cloneNode === 'function') template = cached[key] = makeTemplate(doc, skeleton, key);
+      if (typeof skeleton.cloneNode === 'function') {
+        template = makeTemplate(doc, skeleton, key);
+        templates.set(doc, template);
+      }
     }
     if (template) {
       const figure = this.figure = template.cloneNode(true) as HTMLElement;
@@ -212,7 +214,7 @@ class FigureImpl implements Figure {
     }
 
     const figure = this.figure = make(doc, 'figure', 'axylo axylo-figure');
-    if (typeof figure.cloneNode === 'function') cached[key] = null;
+    if (typeof figure.cloneNode === 'function') templates.set(doc, null);
     figure.id = id;
 
     // The whole generated summary is the figure's description, always (visually hidden). On compact charts it
@@ -334,15 +336,13 @@ class FigureImpl implements Figure {
       setAttr(description, 'lang', lang);
       if (summaryNode) setAttr(summaryNode, 'lang', lang);
     }
-    if (summaryNode && !compact) {
-      if (modeChanged || summaryTextChanged) {
-        const text = firstSentence(summary);
-        if (this._smText !== text) {
-          setText(summaryNode, text);
-          this._smText = text;
-        }
-      }
-      if (modeChanged || previous!.summaryVisible !== model.summaryVisible) summaryNode.classList.toggle(HIDDEN, !model.summaryVisible);
+    if (summaryNode) {
+      const visible = !compact && model.summaryVisible;
+      const visibilityChanged = modeChanged || previous!.summaryVisible !== model.summaryVisible;
+      // The description holds the full text. Only the small-plot fallback needs its own sentence.
+      if (visible && (visibilityChanged || summaryTextChanged)) setText(summaryNode, firstSentence(summary));
+      else if (!visible && previous?.summaryVisible && visibilityChanged) setText(summaryNode, '');
+      if (!compact && visibilityChanged) summaryNode.classList.toggle(HIDDEN, !visible);
     }
     if (previous === null) setAttr(figure, 'aria-describedby', description.id);
 
@@ -485,7 +485,7 @@ function makeTemplate(doc: Document, figure: HTMLElement, key: 'compact' | 'full
   return figure;
 }
 
-function makeCompact(f: FigureImpl, previous: FigureModel | null): void {
+function makeCompact(f: DomFigure, previous: FigureModel | null): void {
   const { figure, _b: body } = f;
   // Preserve focus on the figure when switching a full chart to compact before interaction.prepare runs.
   const active = activeElementOf(f._d, figure);
@@ -529,15 +529,15 @@ function clearSubtitle(node: HTMLElement | null): void {
   }
 }
 
-function middleNode(f: FigureImpl): HTMLElement {
+function middleNode(f: DomFigure): HTMLElement {
   return f._b?.parentNode === f.figure ? f._b : f.plot;
 }
 
-function beforeBody(f: FigureImpl): HTMLElement {
+function beforeBody(f: DomFigure): HTMLElement {
   return f._a?.parentNode === f.figure ? f._a : middleNode(f);
 }
 
-function ensureBodyStage(f: FigureImpl): HTMLElement {
+function ensureBodyStage(f: DomFigure): HTMLElement {
   if (!f._b) {
     f._b = element(f._d, 'body');
     f._st = element(f._d, 'stage');
@@ -548,7 +548,7 @@ function ensureBodyStage(f: FigureImpl): HTMLElement {
   return f._b;
 }
 
-function ensureCaption(f: FigureImpl): void {
+function ensureCaption(f: DomFigure): void {
   if (!f._c) {
     // A figcaption would prevent the figure from taking the group or img role.
     const caption = f._c = element(f._d, 'caption');
@@ -567,34 +567,34 @@ function hiddenSlot(doc: Document, name: string, ariaHidden = false): HTMLElemen
   return node;
 }
 
-function ensureReadout(f: FigureImpl): HTMLElement {
+function ensureReadout(f: DomFigure): HTMLElement {
   const readout = f._ro ??= hiddenSlot(f._d, 'readout', true);
   if (readout.parentNode !== f._st) insertBefore(f._st!, readout, f.plot.nextSibling);
   return readout;
 }
 
-function ensureControls(f: FigureImpl): HTMLElement {
+function ensureControls(f: DomFigure): HTMLElement {
   return mount(f.figure, f._ct ??= hiddenSlot(f._d, 'controls'), f._n);
 }
 
-function ensureLive(f: FigureImpl): HTMLElement {
+function ensureLive(f: DomFigure): HTMLElement {
   f._l ??= makeLive(f._d);
   return mount(f.figure, f._l, f._tp?.parentNode === f.figure ? f._tp : null);
 }
 
-function ensureTooltip(f: FigureImpl): HTMLElement {
+function ensureTooltip(f: DomFigure): HTMLElement {
   return mount(f.figure, f._tp ??= hiddenSlot(f._d, 'tooltip', true));
 }
 
-function ensureTop(f: FigureImpl): HTMLElement {
+function ensureTop(f: DomFigure): HTMLElement {
   return mount(f.figure, f._a ??= hiddenSlot(f._d, 'controls-top'), middleNode(f));
 }
 
-function ensureSide(f: FigureImpl): HTMLElement {
+function ensureSide(f: DomFigure): HTMLElement {
   return mount(ensureBodyStage(f), f._s ??= hiddenSlot(f._d, 'controls-side'));
 }
 
-function ensureFull(f: FigureImpl): void {
+function ensureFull(f: DomFigure): void {
   ensureBodyStage(f);
   ensureCaption(f);
   ensureReadout(f);
@@ -609,7 +609,7 @@ export function createFigure(
   parts: { marks: Element; text?: Element | null },
   options?: FigureOptions,
 ): Figure {
-  return new FigureImpl(root, id, parts, options);
+  return new DomFigure(root, id, parts, options);
 }
 
 function sameTitle(a: TitleModel | null, b: TitleModel | null): boolean {

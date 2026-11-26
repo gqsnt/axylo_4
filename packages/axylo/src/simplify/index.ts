@@ -1,4 +1,4 @@
-import { BLOCK_SIZE, denseSlots, MIXED_BLOCK, summarizeBlocks, type BlockSummary } from '../data/store-statistics';
+import { BLOCK_SIZE, denseSlots, drawingBlocks, MIXED_BLOCK, type BlockSummary } from '../data/store-statistics';
 import { SLOT_GAP, SLOT_NO_ROW, SLOT_VALUE } from '../core/contracts';
 import type { AlignedFrame, AreaMark, ContinuousScale, IndexRange, PathMark, PointMark, StackView, XScale } from '../core/contracts';
 import { affinePosition, position, type AffineProjection } from '../scene/geometry';
@@ -75,15 +75,14 @@ interface SelectionCache {
   bytes: number;
 }
 
-interface DrawingSummary {
-  used: boolean;
+interface DrawingSummary extends BlockSummary {
   full?: IndexRange;
   sel?: SelectionCache;
 }
-const drawings = new WeakMap<BlockSummary, DrawingSummary>();
 
 // Only scene construction borrows this buffer. Published selections and packed marks own their arrays.
-let lineScratch: IndexBuffer | undefined;
+// Undefined until the first scene, null while borrowed or when no buffer was kept.
+let lineScratch: IndexBuffer | null | undefined;
 
 function indexBuffer(capacity: number, limit: number, scratch?: IndexBuffer): IndexBuffer {
   if (!scratch) return { data: new Uint32Array(capacity), limit };
@@ -282,7 +281,7 @@ function scan(slot: Uint8Array, range: IndexRange, blocks?: Uint8Array) {
       if (runValues === 0) runFirst = i;
       let next = i + 1;
       if (!blocks) {
-        // Short windows have no block index, so their contiguous runs need only read slot states.
+        // Without an index, contiguous runs need only read slot states.
         while (next < end && slot[next] === SLOT_VALUE) next++;
       } else {
         while (next < end) {
@@ -319,19 +318,12 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
   const length = range.end - range.start, affine = columns?.affine, y = columns?.y;
   // Near the density threshold, most blocks would straddle device columns.
   const indexable = affine && y && length >= 1024 && length >= 4 * limit && range.end <= y.length;
-  // The first draw of a validated column can reduce each pixel directly without building an index.
-  const density = affine && y && length > 1 && length > limit && range.start >= 0 &&
-    range.end <= y.length && range.end <= slot.length ? denseSlots.get(slot) : undefined;
-  const firstDraw = !!indexable && density === 'fresh';
-  if (firstDraw) denseSlots.set(slot, 'drawn');
-  const blockIndex = indexable && !firstDraw ? summarizeBlocks(y, slot, range.start, range.end) : undefined;
-  let summary = blockIndex && drawings.get(blockIndex);
-  if (blockIndex && !summary) drawings.set(blockIndex, summary = { used: false });
-  // A validated column has already had its direct draw when its summary is first created.
-  const repeated = summary && (summary.used || density === 'drawn');
-  if (summary) summary.used = true;
+  // Validated slots need no run scan, including on a first draw without a block index.
+  const continuous = affine && y && length > 1 && length > limit && range.start >= 0 &&
+    range.end <= y.length && range.end <= slot.length && denseSlots.has(slot);
+  const summary: DrawingSummary | undefined = indexable ? drawingBlocks(y, slot, range.start, range.end) : undefined;
   const full = summary?.full;
-  const size = density || full && full.start <= range.start && full.end >= range.end ? undefined : scan(slot, range, blockIndex?.blocks);
+  const size = continuous || full && full.start <= range.start && full.end >= range.end ? undefined : scan(slot, range, summary?.blocks);
   const values = size?.values ?? length;
   const vertices = size?.vertices ?? length;
   const runCount = size?.runCount ?? 1;
@@ -345,7 +337,7 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
   // Responsive layouts can revisit widths without changing their data or zoom.
   let cache: SelectionCache | undefined;
   const exact = affine?.exact;
-  if (dense && repeated && summary && exact && values === length && hasMonotoneColumns(exact, columns.x[range.start]!, columns.x[range.end - 1]!)) {
+  if (dense && summary && exact && values === length && hasMonotoneColumns(exact, columns.x[range.start]!, columns.x[range.end - 1]!)) {
     cache = selectionCache(summary, columns.x, range, exact, columns.ratio);
     const indexes = cache?.map?.get(exact.extent);
     if (indexes) return { selection: { indexes: scratch ? indexes : indexes.slice(), breaks: emptyIndexes(), isolated }, dense };
@@ -358,7 +350,7 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
     const first = size?.runs[3 * run] ?? range.start, last = size?.runs[3 * run + 1] ?? range.end - 1;
     const runLength = last - first + 1, contiguous = !size || runLength === size.runs[3 * run + 2];
     if (run) breaks[run - 1] = cursor;
-    if (dense && contiguous && (summary || density) && affine && y && runLength >= 2 * BLOCK_SIZE) {
+    if (dense && contiguous && (indexable || continuous) && affine && y && runLength >= 2 * BLOCK_SIZE) {
       const { x, ratio } = columns;
       const start = x[first]!, end = x[last]!;
       if (!exact || hasMonotoneColumns(exact, start, end)) {
@@ -370,7 +362,7 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
         if (capacity <= runLength) {
           // A single dense run can reserve for its actual projected span, including offscreen endpoints.
           buffer ??= indexBuffer(runCount === 1 ? capacity : initialCapacity, vertices, scratch);
-          cursor = keepAffineRun(x, y, first, last, affine, ratio, firstPixel, lastPixel, blockIndex?.blocks,
+          cursor = keepAffineRun(x, y, first, last, affine, ratio, firstPixel, lastPixel, summary?.blocks,
             reserve(buffer, cursor + capacity), cursor);
           continue;
         }
@@ -411,14 +403,16 @@ export function simplifyLine(input: LineInput): JoinedRuns {
 
 /** Scenes retain coordinates, so their intermediate source indexes can be recycled. */
 export function simplifiedPath(input: LineInput & PathInput): { xy: Float32Array | null; isolated: Uint32Array } {
+  const repeated = lineScratch !== undefined;
   const scratch = lineScratch ?? { data: emptyIndexes(), limit: 0 };
   // A custom projection may enter scene construction again before packing has finished.
-  lineScratch = undefined;
+  lineScratch = null;
   const { indexes, breaks, isolated } = simplifyBoundary(input, input.y, scratch).selection;
   const single = input.range.end - input.range.start === 1 && indexes.length === 1;
   const xy = indexes.length && !single ? buildPath(indexes, breaks, input) : null;
   const markers = single ? indexes.slice() : isolated;
-  if (scratch.data.byteLength <= SELECTION_CACHE_BYTES) lineScratch = scratch;
+  // A static first scene has no further use for its intermediate indexes.
+  if (repeated && scratch.data.byteLength <= SELECTION_CACHE_BYTES) lineScratch = scratch;
   return { xy, isolated: markers };
 }
 

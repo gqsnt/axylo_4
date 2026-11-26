@@ -61,9 +61,9 @@ function cueTable(compact: boolean): readonly SeriesCue[] {
   });
 }
 
-const extrema = /* @__PURE__ */ new WeakMap<AlignedView | ScatterView, Span>();
+let extrema: WeakMap<AlignedView | ScatterView, Span> | undefined;
 const noReferences: readonly ResolvedReference[] = [];
-const widenedDomains = /* @__PURE__ */ new WeakMap<AlignedView, string | undefined>();
+let widenedDomains: WeakMap<AlignedView, string | undefined> | undefined;
 
 function reuse<T>(values: T[], previous: readonly T[] | undefined, same: (a: T, b: T) => boolean): readonly T[] {
   if (!previous) return values;
@@ -184,7 +184,7 @@ interface WindowStatistics {
 }
 
 // Published series are immutable. Updates and appends publish new series, even when they share a buffer.
-const summaries = new WeakMap<AlignedSeries, WindowStatistics>();
+let summaries: WeakMap<AlignedSeries, WindowStatistics> | undefined;
 
 export function alignedStatistics(series: AlignedSeries, start: number, end: number, signedExtrema = false): Statistics {
   const { slot, y } = series;
@@ -193,14 +193,15 @@ export function alignedStatistics(series: AlignedSeries, start: number, end: num
   if (full) {
     const known = fullStatistics.get(series);
     if (known) return signedExtrema ? known.signed : known.ordered;
-  }
-  const known = size >= BLOCK ? summaries.get(series) : undefined;
-  if (known?.start === start && known.end === end) return signedExtrema ? known.signed : known.ordered;
-  // Avoid allocating an index for a few hundred visible values in a much larger series.
-  if (!full && size >= BLOCK && (size >= SUMMARY_THRESHOLD && size >= slot.length / 16 || hasBlockSummary(y, slot))) {
-    const stats = windowStatistics(y, slot, start, end);
-    summaries.set(series, { start, end, ...stats });
-    return signedExtrema ? stats.signed : stats.ordered;
+  } else if (size >= BLOCK) {
+    const known = summaries?.get(series);
+    if (known?.start === start && known.end === end) return signedExtrema ? known.signed : known.ordered;
+    // A short slice of a large column is cheaper to scan until a drawing index exists.
+    if ((size >= SUMMARY_THRESHOLD && size >= slot.length / 16) || hasBlockSummary(y, slot)) {
+      const stats = windowStatistics(y, slot, start, end);
+      (summaries ??= new WeakMap()).set(series, { start, end, ...stats });
+      return signedExtrema ? stats.signed : stats.ordered;
+    }
   }
   let continuous = full;
   let min = Infinity;
@@ -224,9 +225,9 @@ export function alignedStatistics(series: AlignedSeries, start: number, end: num
   if (size >= BLOCK) {
     if (full) {
       fullStatistics.set(series, summaryStats);
-      if (continuous && !denseSlots.has(slot)) denseSlots.set(slot, 'fresh');
+      if (continuous) denseSlots.set(slot, 'fresh');
     } else {
-      summaries.set(series, { start, end, ...summaryStats });
+      (summaries ??= new WeakMap()).set(series, { start, end, ...summaryStats });
     }
   }
   return signedExtrema ? summaryStats.signed : stats;
@@ -461,7 +462,7 @@ function cartesianBase(
   const shared = { compact, visible, cues: seriesCues, references, revision: frame.revision, xFull, xDomain };
   const sameShared = sameFrame && prior.compact === compact && prior.visible === visible &&
     prior.cues === seriesCues && prior.references === references && prior.xFull === xFull && prior.xDomain === xDomain;
-  const oldExtrema = sameFrame && prior.visible === visible ? extrema.get(prior) : undefined;
+  const oldExtrema = sameFrame && prior.visible === visible ? extrema?.get(prior) : undefined;
   return { prior, sameFrame, compact, visible, references, category, continuousBars, xFull, xDomain, shared, sameShared, oldExtrema };
 }
 
@@ -475,7 +476,7 @@ export function buildScatterView(frame: PointFrame, state: ScatterViewState, sin
   const yDomain = keepSpan(yExtent(data, references, state, state.valueScale, sink).domain, old?.yDomain);
   if (sameShared && old?.visiblePoints === visiblePoints && old.yDomain === yDomain) return old;
   const view: ScatterView = { ...shared, kind: 'scatter', frame, visiblePoints, yDomain };
-  extrema.set(view, data);
+  (extrema ??= new WeakMap()).set(view, data);
   return view;
 }
 
@@ -532,14 +533,14 @@ function buildAligned(frame: AlignedFrame, state: AlignedViewState, sink: Diagno
   const scale = state.valueScale === undefined ? alignedScale(frame, visible) : state.valueScale;
   const field = state.valueField ?? (frame.yLabel === null ? undefined : frame.series[0]?.field);
   const { domain, widenedToZero } = yExtent(data, references, state, scale, sink);
-  const wasWidened = old !== undefined && widenedDomains.has(old);
-  const sameWidening = wasWidened === widenedToZero && (!wasWidened || widenedDomains.get(old!) === field);
+  const wasWidened = old !== undefined && widenedDomains?.has(old) === true;
+  const sameWidening = wasWidened === widenedToZero && (!wasWidened || widenedDomains?.get(old!) === field);
   if (widenedToZero && !sameWidening) report(sink, 'AX110', 'none', { field });
   const yDomain = keepSpan(domain, old?.yDomain);
   if (sameShared && old?.visibleSlots === visibleSlots && old.stack === stack &&
     old.yDomain === yDomain && old.horizontal === horizontal && sameWidening) return old;
   const view: AlignedView = { ...shared, kind: state.kind, frame, horizontal, visibleSlots, drawSlots, stack, yDomain };
-  extrema.set(view, data);
-  if (widenedToZero) widenedDomains.set(view, field);
+  (extrema ??= new WeakMap()).set(view, data);
+  if (widenedToZero) (widenedDomains ??= new WeakMap()).set(view, field);
   return view;
 }

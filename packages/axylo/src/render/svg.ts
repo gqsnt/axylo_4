@@ -32,26 +32,43 @@ export interface SvgNode {
   readonly el: SVGElement;
   attrs: Record<string, string | number> | null;
   styles: Record<string, string> | null;
-  kids: SvgNode[] | null;
-  rects: SVGRectElement[] | null;
+  kids?: SvgNode[];
+  rects?: SVGRectElement[];
   /** The inputs the current `d` was built from, compared by identity. */
   source: unknown[] | null;
 }
 
 function node(doc: Document, tag: keyof SVGElementTagNameMap, key: string, attrs?: Record<string, string>): SvgNode {
-  return { key, el: svgElement(doc, tag, attrs), attrs: null, styles: null, kids: null, rects: null, source: null };
+  return { key, el: svgElement(doc, tag, attrs), attrs: null, styles: null, source: null };
 }
 
 /** Sets `d` from `build()` unless every input is identical (===) to the ones the current `d` came from. */
 function data(n: SvgNode, source: unknown[], build: () => string): void {
   if (sameKey(n.source, source)) return;
   n.source = source;
-  attrStr(n, 'd', build());
+  setPath(n, build());
+}
+
+// The shared prototype has no inherited keys. Nodes with the same attributes can
+// share an object shape instead of keeping a separate dictionary for each cache.
+let cachePrototype: object | undefined;
+function propertyCache<T>(): Record<string, T> {
+  return Object.create(cachePrototype ??= Object.create(null));
+}
+
+function setPath(n: SvgNode, value: string): void {
+  const cached = n.attrs?.d;
+  // For long paths the DOM owns the text. Equal lengths need an exact comparison only
+  // after the source geometry changes. Reading the attribute does not read layout.
+  const key = value.length > 64 ? value.length : value;
+  if (key === cached && (typeof key === 'string' || n.el.getAttribute('d') === value)) return;
+  (n.attrs ??= propertyCache()).d = key;
+  n.el.setAttribute('d', value);
 }
 
 function attrStr(n: SvgNode, name: string, value: string): void {
   if (n.attrs?.[name] !== value) {
-    (n.attrs ??= Object.create(null))[name] = value;
+    (n.attrs ??= propertyCache())[name] = value;
     n.el.setAttribute(name, value);
   }
 }
@@ -65,7 +82,7 @@ function attr(n: SvgNode, name: string, input: number | string | null): void {
   } else {
     const value = input !== input ? 'NaN' : input;
     if (n.attrs?.[name] === value) return;
-    (n.attrs ??= Object.create(null))[name] = value;
+    (n.attrs ??= propertyCache())[name] = value;
     n.el.setAttribute(name, String(value));
   }
 }
@@ -103,7 +120,7 @@ function cssClear(n: SvgNode, name: string): void {
 
 function cssTrusted(n: SvgNode, name: string, value: string): void {
   if (n.styles?.[name] !== value) {
-    (n.styles ??= Object.create(null))[name] = value;
+    (n.styles ??= propertyCache())[name] = value;
     n.el.style.setProperty(name, value);
   }
 }
@@ -130,7 +147,7 @@ function setCss(style: CSSStyleDeclaration, name: string, value: string): boolea
 function css(n: SvgNode, name: string, value: string | null): void {
   if (value === null) cssClear(n, name);
   else if (n.styles?.[name] !== value) {
-    if (setCss(n.el.style, name, value)) (n.styles ??= Object.create(null))[name] = value;
+    if (setCss(n.el.style, name, value)) (n.styles ??= propertyCache())[name] = value;
     else if (n.styles !== null) delete n.styles[name];
   }
 }
@@ -660,7 +677,7 @@ export const svgPath: SvgMark<PathMark> = (_c, n, mark, bindings) => {
   if (source[0] !== mark.xy) {
     const sliding = slidingPath(source, mark.xy);
     if (sliding === null) source[1] = undefined;
-    attrStr(n, 'd', sliding ?? pathData(mark.xy));
+    setPath(n, sliding ?? pathData(mark.xy));
     source[0] = mark.xy;
   }
   paint(n, 'stroke', paintOf(mark.stroke, bindings));
@@ -681,7 +698,7 @@ export const svgPath: SvgMark<PathMark> = (_c, n, mark, bindings) => {
 export const svgArea: SvgMark<AreaMark> = (_c, n, mark, bindings) => {
   const source = n.source ??= [];
   if (source[0] !== mark.upper || source[1] !== mark.lower || source[2] !== mark.runs) {
-    attrStr(n, 'd', areaData(mark));
+    setPath(n, areaData(mark));
     source[0] = mark.upper;
     source[1] = mark.lower;
     source[2] = mark.runs;
@@ -707,7 +724,7 @@ export const svgPoints: SvgMark<PointMark> = (_c, n, mark, bindings) => {
   if (old !== xy || source[1] !== mark.shape || source[2] !== mark.size) {
     // A hover halo and its marker often arrive as fresh pairs at the same datum.
     if (xy.length !== 2 || old?.length !== 2 || xy[0] !== old[0] || xy[1] !== old[1] ||
-        source[1] !== mark.shape || source[2] !== mark.size) attrStr(n, 'd', pointData(mark, source));
+        source[1] !== mark.shape || source[2] !== mark.size) setPath(n, pointData(mark, source));
     source[0] = mark.xy;
     source[1] = mark.shape;
     source[2] = mark.size;
@@ -779,127 +796,157 @@ export function createSvgRenderer(doc: Document = document): MarkRenderer {
   return svgRendererWith(ALL_MARKS, doc);
 }
 
-export function svgRendererWith(marks: SvgMarks, doc: Document = document): MarkRenderer {
-  const svg = svgElement(doc, 'svg', { class: 'axylo-svg', 'aria-hidden': 'true', focusable: 'false' });
-  const style = svg.style;
-  style.setProperty('position', 'absolute');
-  style.setProperty('left', '0');
-  style.setProperty('top', '0');
-  style.setProperty('display', 'block');
-  style.setProperty('overflow', 'hidden');
-  style.setProperty('pointer-events', 'none');
-  style.setProperty('forced-color-adjust', 'none');
+function slotAt(doc: Document, list: SvgNode[], i: number, key: string, clipUrl: string | null): SvgNode {
+  const old = list[i];
+  const n = old?.key === key ? old : node(doc, TAGS[key]!, key);
+  attr(n, 'clip-path', clipUrl);
+  return n;
+}
 
-  const defs = svgElement(doc, 'defs');
-  const sceneClipId = `axylo-clip-${++ids}`, overlayClipId = `axylo-clip-${++ids}`;
-  const sceneClipUrl = `url(#${sceneClipId})`, overlayClipUrl = `url(#${overlayClipId})`;
-  const sceneClip = clipPath(doc, defs, sceneClipId);
-  let overlayClip: SvgNode | null = null;
-  let sceneBounds: Rect | null = null, overlayBounds: Rect | null = null;
-  // The author's --axylo-background, painted behind everything and live; transparent when unset.
-  const background = node(doc, 'rect', 'background', { class: 'axylo-background', x: '0', y: '0' });
-  paint(background, 'fill', 'var(--axylo-background, transparent)');
-  const sceneGroup = svgElement(doc, 'g', { class: 'axylo-scene' });
-  const overlayNode = node(doc, 'g', 'overlay', { class: 'axylo-overlay' });
-  const overlayGroup = overlayNode.el;
-  svg.append(defs, background.el, sceneGroup, overlayGroup);
+function mountSlot(parent: SVGElement, list: SvgNode[], i: number, n: SvgNode): void {
+  const old = list[i];
+  if (old === n) return;
+  if (old) parent.replaceChild(n.el, old.el);
+  else parent.appendChild(n.el);
+  list[i] = n;
+}
 
-  const context: SvgContext = { doc, defs, scratch: new Float64Array(8) };
-  const slots: SvgNode[] = [], overlaySlots: SvgNode[] = [];
-  const batchRules = marks.rule === svgRule;
-  let width = -1, height = -1;
+function trim(list: SvgNode[], count: number): void {
+  while (list.length > count) list.pop()!.el.remove();
+}
 
-  function slotAt(list: SvgNode[], i: number, key: string, clipUrl: string | null): SvgNode {
-    const old = list[i];
-    const n = old?.key === key ? old : node(doc, TAGS[key]!, key);
-    attr(n, 'clip-path', clipUrl);
-    return n;
+class SvgRenderer implements MarkRenderer, SvgContext {
+  readonly kind = 'svg';
+  readonly element: SVGSVGElement;
+  readonly defs: SVGElement;
+  private geometryScratch?: Float64Array;
+  get scratch(): Float64Array { return this.geometryScratch ??= new Float64Array(8); }
+  private readonly sceneClip: SvgNode;
+  private readonly sceneClipUrl: string;
+  private readonly sceneGroup: SVGElement;
+  private readonly background: SVGRectElement;
+  private readonly overlayNode: SvgNode;
+  private overlayClip: SvgNode | null = null;
+  private overlayClipUrl: string | null = null;
+  private overlaySlots?: SvgNode[];
+  private readonly slots: SvgNode[] = [];
+  private readonly batchRules: boolean;
+  private sceneBounds: Rect | null = null;
+  private overlayBounds: Rect | null = null;
+  private width = -1;
+  private height = -1;
+
+  constructor(private readonly marks: SvgMarks, readonly doc: Document) {
+    this.batchRules = marks.rule === svgRule;
+    const svg = this.element = svgElement(doc, 'svg', { class: 'axylo-svg', 'aria-hidden': 'true', focusable: 'false' });
+    const style = svg.style;
+    style.setProperty('position', 'absolute');
+    style.setProperty('left', '0');
+    style.setProperty('top', '0');
+    style.setProperty('display', 'block');
+    style.setProperty('overflow', 'hidden');
+    style.setProperty('pointer-events', 'none');
+    style.setProperty('forced-color-adjust', 'none');
+
+    const defs = this.defs = svgElement(doc, 'defs');
+    const sceneClipId = `axylo-clip-${++ids}`;
+    this.sceneClipUrl = `url(#${sceneClipId})`;
+    this.sceneClip = clipPath(doc, defs, sceneClipId);
+    // The author's --axylo-background, painted behind everything and live; transparent when unset.
+    const background = this.background = svgElement(doc, 'rect', { class: 'axylo-background', x: '0', y: '0' });
+    background.style.setProperty('stroke', 'none');
+    background.style.setProperty('color', 'var(--axylo-background, transparent)');
+    background.style.setProperty('fill', 'currentColor');
+    const sceneGroup = this.sceneGroup = svgElement(doc, 'g', { class: 'axylo-scene' });
+    const overlayNode = this.overlayNode = node(doc, 'g', 'overlay', { class: 'axylo-overlay' });
+    const overlayGroup = overlayNode.el;
+    svg.append(defs, background, sceneGroup, overlayGroup);
   }
 
-  function mountSlot(parent: SVGElement, list: SvgNode[], i: number, n: SvgNode): void {
-    const old = list[i];
-    if (old === n) return;
-    if (old) parent.replaceChild(n.el, old.el);
-    else parent.appendChild(n.el);
-    list[i] = n;
-  }
-
-  function sync(parent: SVGElement, list: SvgNode[], i: number, mark: Mark, bindings: PaintBindings, dpr: number, clipUrl: string | null, clip: Rect | null): void {
+  private sync(parent: SVGElement, list: SvgNode[], i: number, mark: Mark, bindings: PaintBindings, dpr: number, clipUrl: string | null, clip: Rect | null): void {
     const key = mark.type === 'rects' ? (mark.variant === 'bar' ? 'bars' : 'missing') : mark.type;
-    const n = slotAt(list, i, key, clipUrl);
-    (marks[mark.type] as SvgMark | undefined)?.(context, n, mark, bindings, dpr, clip);
+    const n = slotAt(this.doc, list, i, key, clipUrl);
+    (this.marks[mark.type] as SvgMark | undefined)?.(this, n, mark, bindings, dpr, clip);
     mountSlot(parent, list, i, n);
   }
 
-  function trim(list: SvgNode[], count: number): void {
-    while (list.length > count) list.pop()!.el.remove();
+  draw(scene: Scene, bindings: PaintBindings, _theme: ResolvedTheme, devicePixelRatio: number): void {
+    const { slots, sceneGroup, element } = this;
+    const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
+    if (scene.width !== this.width || scene.height !== this.height) {
+      const { width, height } = scene;
+      element.setAttribute('width', String(width));
+      element.setAttribute('height', String(height));
+      element.setAttribute('viewBox', `0 0 ${width} ${height}`);
+      if (width !== this.width) this.background.setAttribute('width', String(Math.max(0, width)));
+      if (height !== this.height) this.background.setAttribute('height', String(Math.max(0, height)));
+      this.width = width;
+      this.height = height;
+    }
+    if (this.sceneBounds !== scene.clip) {
+      setRect(this.sceneClip, scene.clip);
+      this.sceneBounds = scene.clip;
+    }
+    let slot = 0;
+    for (let i = 0; i < scene.marks.length;) {
+      const mark = scene.marks[i]!;
+      const clipUrl = mark.type === 'rule' && unclippedRule(mark.role) ? null : this.sceneClipUrl;
+      if (this.batchRules && mark.type === 'rule' && (mark.role === 'grid' || mark.role === 'tick')) {
+        const color = paintOf(mark.stroke, bindings);
+        const end = ruleRunEnd(scene.marks, i, mark, bindings, color, dpr, this.scratch);
+        if (end > i + 1) {
+          const n = slotAt(this.doc, slots, slot, 'rules', clipUrl);
+          updateRules(n, scene.marks, i, end, mark, color, dpr, this.scratch);
+          mountSlot(sceneGroup, slots, slot++, n);
+          i = end;
+          continue;
+        }
+      }
+      this.sync(sceneGroup, slots, slot++, mark, bindings, dpr, clipUrl, scene.clip);
+      i++;
+    }
+    trim(slots, slot);
   }
 
-  return {
-    kind: 'svg',
-    element: svg,
-    draw(scene: Scene, bindings: PaintBindings, _theme: ResolvedTheme, devicePixelRatio: number): void {
-      const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
-      if (scene.width !== width || scene.height !== height) {
-        width = scene.width;
-        height = scene.height;
-        svg.setAttribute('width', String(width));
-        svg.setAttribute('height', String(height));
-        svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-        attr(background, 'width', Math.max(0, width));
-        attr(background, 'height', Math.max(0, height));
+  drawOverlay(overlay: Overlay | null, bindings: PaintBindings, _theme: ResolvedTheme, devicePixelRatio: number): void {
+    const overlayGroup = this.overlayNode.el;
+    if (overlay === null) {
+      if (this.overlaySlots?.length) {
+        overlayGroup.replaceChildren();
+        this.overlaySlots.length = 0;
       }
-      if (sceneBounds !== scene.clip) {
-        setRect(sceneClip, scene.clip);
-        sceneBounds = scene.clip;
+      return;
+    }
+    const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
+    if (overlay.clipped.length && overlay.clip !== this.overlayBounds) {
+      if (!this.overlayClip) {
+        const id = `axylo-clip-${++ids}`;
+        this.overlayClip = clipPath(this.doc, this.defs, id);
+        this.overlayClipUrl = `url(#${id})`;
       }
-      let slot = 0;
-      for (let i = 0; i < scene.marks.length;) {
-        const mark = scene.marks[i]!;
-        const clipUrl = mark.type === 'rule' && unclippedRule(mark.role) ? null : sceneClipUrl;
-        if (batchRules && mark.type === 'rule' && (mark.role === 'grid' || mark.role === 'tick')) {
-          const color = paintOf(mark.stroke, bindings);
-          const end = ruleRunEnd(scene.marks, i, mark, bindings, color, dpr, context.scratch);
-          if (end > i + 1) {
-            const n = slotAt(slots, slot, 'rules', clipUrl);
-            updateRules(n, scene.marks, i, end, mark, color, dpr, context.scratch);
-            mountSlot(sceneGroup, slots, slot++, n);
-            i = end;
-            continue;
-          }
-        }
-        sync(sceneGroup, slots, slot++, mark, bindings, dpr, clipUrl, scene.clip);
-        i++;
-      }
-      trim(slots, slot);
-    },
-    drawOverlay(overlay: Overlay | null, bindings: PaintBindings, _theme: ResolvedTheme, devicePixelRatio: number): void {
-      if (overlay === null) {
-        if (overlaySlots.length) {
-          overlayGroup.replaceChildren();
-          overlaySlots.length = 0;
-        }
-        return;
-      }
-      const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
-      if (overlay.clipped.length && overlay.clip !== overlayBounds) {
-        setRect(overlayClip ??= clipPath(doc, defs, overlayClipId), overlay.clip);
-        overlayBounds = overlay.clip;
-      }
-      // The cursor, halo and marker all use the same plot clip. A focus outline can extend past it.
-      const groupClip = overlay.clipped.length > 0 && overlay.unclipped.length === 0;
-      attr(overlayNode, 'clip-path', groupClip ? overlayClipUrl : null);
-      const markClip = groupClip ? null : overlayClipUrl;
-      let i = 0;
-      for (const m of overlay.clipped) sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, markClip, overlay.clip);
-      for (const m of overlay.unclipped) sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, null, null);
-      trim(overlaySlots, i);
-    },
-    destroy(): void {
-      svg.remove();
-      slots.length = overlaySlots.length = 0;
-    },
-  };
+      setRect(this.overlayClip, overlay.clip);
+      this.overlayBounds = overlay.clip;
+    }
+    // The cursor, halo and marker all use the same plot clip. A focus outline can extend past it.
+    const groupClip = overlay.clipped.length > 0 && overlay.unclipped.length === 0;
+    attr(this.overlayNode, 'clip-path', groupClip ? this.overlayClipUrl : null);
+    const markClip = groupClip ? null : this.overlayClipUrl;
+    const overlaySlots = this.overlaySlots ??= [];
+    let i = 0;
+    for (const m of overlay.clipped) this.sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, markClip, overlay.clip);
+    for (const m of overlay.unclipped) this.sync(overlayGroup, overlaySlots, i++, m, bindings, dpr, null, null);
+    trim(overlaySlots, i);
+  }
+
+  destroy(): void {
+    this.element.remove();
+    this.slots.length = 0;
+    this.overlaySlots = undefined;
+  }
+}
+
+export function svgRendererWith(marks: SvgMarks, doc: Document = document): MarkRenderer {
+  return new SvgRenderer(marks, doc);
 }
 
 function clipPath(doc: Document, defs: SVGElement, id: string): SvgNode {
@@ -934,8 +981,11 @@ function updateBars(doc: Document, g: SvgNode, mark: RectMark, bindings: PaintBi
   const q = mark.xywh, count = q.length >> 2, total = pattern === null ? count : 2 * count;
   const prev = g.source, oldPattern = prev?.[1], oldColor = prev?.[2];
   if (prev?.[0] === q && oldPattern === pattern && oldColor === color) return;
-  if (total === 0 && g.rects === null) return;
-  const rects = g.rects ??= [], oldTotal = rects.length;
+  if (total === 0 && !prev) return;
+  // A static bar group needs no JS references to its rects after mounting. Snapshot its
+  // children on the first geometry change, then reuse that list on subsequent updates.
+  const rects = g.rects ?? (prev ? g.rects = Array.from(g.el.children) as SVGRectElement[] : []);
+  const oldTotal = rects.length;
   const oldOverlayStart = oldPattern == null ? oldTotal : oldTotal / 2;
   while (rects.length > total) rects.pop()!.remove();
   // A new group is still detached. Only an already-mounted group needs a fragment for batch insertion.
@@ -978,7 +1028,7 @@ function updateBars(doc: Document, g: SvgNode, mark: RectMark, bindings: PaintBi
 
 function updateArcs(doc: Document, g: SvgNode, mark: ArcMark, bindings: PaintBindings, s: Float64Array): void {
   const count = mark.angles.length >> 1;
-  if (count === 0 && g.kids === null) return;
+  if (count === 0 && !g.kids) return;
   const kids = g.kids ??= [], sameCount = kids.length === count;
   while (kids.length > count) kids.pop()!.el.remove();
   while (kids.length < count) {
@@ -991,7 +1041,7 @@ function updateArcs(doc: Document, g: SvgNode, mark: ArcMark, bindings: PaintBin
   g.source = source;
   for (let i = 0; i < count; i++) {
     const kid = kids[i]!, fill = mark.fills[i];
-    if (!same) attr(kid, 'd', sectorData(mark.cx, mark.cy, mark.r0, mark.r1, mark.angles[2 * i]!, mark.angles[2 * i + 1]!, mark.gap, s));
+    if (!same) setPath(kid, sectorData(mark.cx, mark.cy, mark.r0, mark.r1, mark.angles[2 * i]!, mark.angles[2 * i + 1]!, mark.gap, s));
     paint(kid, 'fill', fill === undefined ? null : paintOf(fill, bindings));
   }
 }
@@ -1042,7 +1092,7 @@ function updateRules(n: SvgNode, marks: readonly Mark[], start: number, end: num
   }
   // The benchmark recognizes paths made of only M and L as data. The butt cap leaves this subpath invisible.
   if (!orthogonal) d += 'M0 0H0';
-  attrStr(n, 'd', d);
+  setPath(n, d);
   const width = first.strokeWidth > 0 ? s[4]! : 0;
   source[1] = width;
   styleRule(n, first, color, width);

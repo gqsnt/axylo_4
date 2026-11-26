@@ -122,6 +122,8 @@ interface StandardResult {
   readonly moreContrast: boolean;
   readonly count: number;
   readonly theme: ResolvedTheme;
+  /** The whole result, which every figure that matches keeps as its own (it is never changed). */
+  readonly resolution: ThemeResolution;
 }
 
 /** `media`: the live media state when the window's theme watchers already hold it (no new queries). */
@@ -139,21 +141,28 @@ export function createThemeBatch(
   };
 }
 
-/** The series bindings for a number of palette slots: the same strings every time, so one array per count. */
-let seriesBindingArrays: Map<number, readonly string[]> | undefined;
+/**
+ * The paint bindings for a number of palette slots: the same expressions every time (an author's colors are
+ * written as the custom properties they name), so one bindings object per count, shared by every chart that
+ * keeps it with its resolved theme.
+ */
+let paintBindings: Map<number, PaintBindings> | undefined;
 const SERIES_BINDING_LIMIT = 64;
 
-function seriesBindingsFor(count: number): readonly string[] {
-  const cache = seriesBindingArrays ??= new Map();
-  let series = cache.get(count);
-  if (series) return series;
-  const made = new Array<string>(count);
-  for (let i = 0; i < count; i++) made[i] = `var(${seriesProperty(i)})`;
-  series = made;
+function bindingsFor(count: number): PaintBindings {
+  const cache = paintBindings ??= new Map();
+  let bindings = cache.get(count);
+  if (bindings) return bindings;
+  const series = new Array<string>(count);
+  for (let i = 0; i < count; i++) series[i] = `var(${seriesProperty(i)})`;
+  bindings = { tokens: TOKEN_BINDINGS, series };
   if (cache.size >= SERIES_BINDING_LIMIT) cache.delete(cache.keys().next().value!);
-  cache.set(count, series);
-  return series;
+  cache.set(count, bindings);
+  return bindings;
 }
+
+/** The invalid-color list of every theme whose author colors all parse (or that has none): kept by each chart. */
+const NO_INVALID: readonly string[] = [];
 
 function canvasKey(win: Window, scheme: string, batch?: ThemeBatch | null): string {
   const dark = batch?.prefersDark ?? win.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -235,7 +244,7 @@ export interface PreparedTheme {
   modes: number;
   bgExpr: string;
   initialBg: string;
-  invalid: string[];
+  invalid: readonly string[];
   backdrop: Backdrop | null;
   pending: PendingBackdrop | null;
   ready: boolean;
@@ -274,14 +283,13 @@ export function prepareTheme(
     }
   }
   const hasAuthored = connected && authored !== null;
-  const series = seriesBindingsFor(seriesKeys.length);
   const previous = element.getAttribute(SCHEME_ATTRIBUTE);
   const prepared: PreparedTheme = {
     el: element, doc, win, on: connected, fc: forcedColors, mc: moreContrast, keys: seriesKeys, own: authored, custom: hasAuthored,
-    bindings: { tokens: TOKEN_BINDINGS, series }, prev: previous,
+    bindings: bindingsFor(seriesKeys.length), prev: previous,
     css: connected ? win.getComputedStyle(element) : undefined, batch: batch ?? null,
     initialBg: '', bgExpr: '', modes: 0,
-    invalid: [], backdrop: null, pending: null,
+    invalid: NO_INVALID, backdrop: null, pending: null,
     ready: !connected, checked: false, later: null,
     scheme: previous === 'dark' ? 'dark' : 'light', follows: false,
     bg: paletteRgb(LIGHT.background), known: false,
@@ -386,14 +394,16 @@ export function applyTheme(p: PreparedTheme): void {
   finishBackdrop(p);
 
   const valid = hasAuthored ? validColors(element, authored!) : null;
-  if (valid) p.invalid = [];
+  // A list is made only when a color is actually invalid.
+  let invalid: string[] | null = null;
   const style = element.style;
   const empty = style.length === 0;
   for (let i = 0; i < series.length; i++) {
     const own = authored?.[i];
-    if (own && valid && !valid[i]) p.invalid.push(seriesKeys[i]!);
+    if (own && valid && !valid[i]) (invalid ??= []).push(seriesKeys[i]!);
     setProperty(style, seriesProperty(i), own && (!valid || valid[i]) ? authorBinding(own) : seriesBinding(i), empty);
   }
+  if (valid) p.invalid = invalid ?? NO_INVALID;
   for (let i = written.get(element) ?? 0; i > series.length; i--) style.removeProperty(seriesProperty(i - 1));
   written.set(element, series.length);
   if (p.on) {
@@ -469,6 +479,10 @@ function standardResolution(p: PreparedTheme): ThemeResolution | null {
   const last = shareable ? batch.last : null;
   if (last && last.palette === palette && last.text === text && last.background === p.bg && last.known === p.known &&
       last.forcedColors === p.fc && last.moreContrast === p.mc && last.count === count) {
+    // Everything the result holds agrees: the same bindings (one per count), a connected figure, the same
+    // backdrop knowledge and no invalid color (a standard figure has no author colors). One object serves all.
+    const shared = last.resolution;
+    if (shared.bindings === p.bindings && p.invalid.length === 0 && shared.invalidColors!.length === 0) return shared;
     return { bindings: p.bindings, resolved: p.on, backdropKnown: p.known, invalidColors: p.invalid, theme: last.theme };
   }
   const paints = { background: p.bg } as Record<PaintToken, string>;
@@ -480,6 +494,7 @@ function standardResolution(p: PreparedTheme): ThemeResolution | null {
   if (shareable) {
     batch.last = {
       palette, text, background: p.bg, known: p.known, forcedColors: p.fc, moreContrast: p.mc, count, theme: resolution.theme,
+      resolution,
     };
   }
   return resolution;

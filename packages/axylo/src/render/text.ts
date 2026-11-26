@@ -23,7 +23,6 @@ interface Label {
   sliding: boolean;
   rx: number;
   ry: number;
-  transformEnd: string;
   line0: HTMLDivElement | null;
   text0: string;
   lines: HTMLDivElement[] | null;
@@ -31,7 +30,7 @@ interface Label {
 }
 
 type TickRole = 'tick-x' | 'tick-y';
-type SpareTicks = Record<TickRole, Label | undefined>;
+type SpareTicks = Partial<Record<TickRole, Label>>;
 
 const ALIGN = { start: 'left', middle: 'center', end: 'right' } as const;
 const SHIFT_X = { start: '0%', middle: '-50%', end: '-100%' } as const;
@@ -41,7 +40,6 @@ const POSITION = 'position:absolute;left:0;top:0;transform-origin:0 0;white-spac
 const round = (v: number): number => Math.round(v * 100) / 100;
 
 // Transforms apply right to left: align the text at the origin, rotate, then position it.
-// A bottom tick sliding horizontally can reuse everything following its x coordinate.
 function transformEnd(t: PlacedText, y: number, keepZeroShift = false): string {
   const rotate = t.rotate !== 0 ? ` rotate(${t.rotate}deg)` : '';
   const end = `px,${y}px)${rotate}`;
@@ -101,11 +99,11 @@ function createLabel(doc: Document, role: PlacedText['role']): Label {
   el.className = 'axylo-label';
   el.setAttribute('data-role', role);
   el.style.cssText = POSITION;
-  return { el, role, placed: null, baseX: NaN, sliding: false, rx: NaN, ry: NaN, transformEnd: '', line0: null, text0: '', lines: null, text: null };
+  return { el, role, placed: null, baseX: NaN, sliding: false, rx: NaN, ry: NaN, line0: null, text0: '', lines: null, text: null };
 }
 
-function takeLabel(doc: Document, role: PlacedText['role'], spare: SpareTicks): Label {
-  if (role === 'tick-x' || role === 'tick-y') {
+function takeLabel(doc: Document, role: PlacedText['role'], spare?: SpareTicks): Label {
+  if (spare && (role === 'tick-x' || role === 'tick-y')) {
     const label = spare[role];
     if (label) {
       spare[role] = undefined;
@@ -132,10 +130,9 @@ function renderLabel(doc: Document, label: Label, t: PlacedText, x = t.x): void 
   if (anchorChanged) label.el.style.textAlign = ALIGN[t.anchor];
   const endChanged = anchorChanged || label.ry !== ry || previous?.rotate !== t.rotate || previous.baseline !== t.baseline;
   if (endChanged || label.rx !== rx) {
-    if (endChanged) label.transformEnd = transformEnd(t, ry);
     label.rx = rx;
     label.ry = ry;
-    label.el.style.transform = `translate(${rx}${label.transformEnd}`;
+    label.el.style.transform = `translate(${rx}${transformEnd(t, ry)}`;
   }
   if (previous?.lines !== t.lines && !sameLines(label, t)) {
     renderLines(doc, label, t.lines);
@@ -263,122 +260,131 @@ function unchangedSlide(labels: Label[], texts: readonly PlacedText[], start: nu
   return round(dx);
 }
 
-export function createTextLayer(doc: Document = document): TextLayer {
-  const element = doc.createElement('div');
-  element.className = 'axylo-text';
-  element.setAttribute('aria-hidden', 'true');
-  const labels: Label[] = [];
-  let tickGroup: HTMLDivElement | null = null;
-  let groupDx = 0, tickStart = 0, tickEnd = -1;
-  const spare: SpareTicks = { 'tick-x': undefined, 'tick-y': undefined };
-  let previous: readonly PlacedText[] | null = null;
+class DomTextLayer implements TextLayer {
+  readonly element: HTMLDivElement;
+  private readonly labels: Label[] = [];
+  private tickGroup: HTMLDivElement | null = null;
+  private groupDx = 0;
+  private tickStart = 0;
+  private tickEnd = -1;
+  private spare?: SpareTicks;
+  private previous: readonly PlacedText[] | null = null;
 
-  return {
-    element,
-    render(texts: readonly PlacedText[]): void {
-      if (texts === previous) return;
-      const count = labels.length;
-      if (tickGroup && count && count === texts.length) {
-        const dx = unchangedSlide(labels, texts, tickStart, tickEnd);
-        if (dx !== null) {
-          if (dx !== groupDx) tickGroup.style.transform = dx ? `translate(${dx}px,0px)` : '';
-          groupDx = dx;
-          previous = texts;
-          return;
-        }
-      }
-      if (!count) {
-        tickEnd = -1;
-        if (texts.length) {
-          const fresh = doc.createDocumentFragment();
-          for (const t of texts) {
-            const label = takeLabel(doc, t.role, spare);
-            renderLabel(doc, label, t);
-            labels.push(label);
-            fresh.appendChild(label.el);
-          }
-          if (element.firstChild) element.insertBefore(fresh, element.firstChild);
-          else element.appendChild(fresh);
-        }
-        previous = texts;
+  constructor(private readonly doc: Document) {
+    this.element = doc.createElement('div');
+    this.element.className = 'axylo-text';
+    this.element.setAttribute('aria-hidden', 'true');
+  }
+
+  render(texts: readonly PlacedText[]): void {
+    const { labels, doc, element } = this;
+    if (texts === this.previous) return;
+    const count = labels.length;
+    if (this.tickGroup && count && count === texts.length) {
+      const dx = unchangedSlide(labels, texts, this.tickStart, this.tickEnd);
+      if (dx !== null) {
+        if (dx !== this.groupDx) this.tickGroup.style.transform = dx ? `translate(${dx}px,0px)` : '';
+        this.groupDx = dx;
+        this.previous = texts;
         return;
       }
+    }
+    if (!count) {
+      this.tickEnd = -1;
+      if (texts.length) {
+        const fresh = doc.createDocumentFragment();
+        for (const t of texts) {
+          const label = takeLabel(doc, t.role, this.spare);
+          renderLabel(doc, label, t);
+          labels.push(label);
+          fresh.appendChild(label.el);
+        }
+        if (element.firstChild) element.insertBefore(fresh, element.firstChild);
+        else element.appendChild(fresh);
+      }
+      this.previous = texts;
+      return;
+    }
 
-      let reorder = count !== texts.length;
-      let moving: Set<Label> | undefined;
-      const common = Math.min(count, texts.length);
-      for (let i = 0; i < common; i++) {
-        const label = labels[i]!, t = texts[i]!;
-        if (label.placed === t) continue;
-        if (label.role !== t.role || (i + 1 < count || i + 1 < texts.length) &&
-            (label.placed?.lines.length === 1 || t.lines.length === 1) && !sameSingleLine(label, t)) {
-          moving = reconcileLabels(doc, labels, texts, i, spare);
-          reorder = true;
-          break;
-        }
+    let reorder = count !== texts.length;
+    let moving: Set<Label> | undefined;
+    const common = Math.min(count, texts.length);
+    for (let i = 0; i < common; i++) {
+      const label = labels[i]!, t = texts[i]!;
+      if (label.placed === t) continue;
+      if (label.role !== t.role || (i + 1 < count || i + 1 < texts.length) &&
+          (label.placed?.lines.length === 1 || t.lines.length === 1) && !sameSingleLine(label, t)) {
+        moving = reconcileLabels(doc, labels, texts, i, this.spare ??= {});
+        reorder = true;
+        break;
       }
-      while (labels.length < texts.length) labels.push(takeLabel(doc, texts[labels.length]!.role, spare));
-      while (labels.length > texts.length) releaseLabel(labels.pop()!, spare);
+    }
+    while (labels.length < texts.length) labels.push(takeLabel(doc, texts[labels.length]!.role, this.spare));
+    while (labels.length > texts.length) releaseLabel(labels.pop()!, this.spare ??= {});
 
-      if (reorder || tickEnd < 0) {
-        tickStart = 0;
-        while (tickStart < texts.length && texts[tickStart]!.role !== 'tick-x') tickStart++;
-        tickEnd = tickStart;
-        while (tickEnd < texts.length && texts[tickEnd]!.role === 'tick-x') tickEnd++;
-        // A single wrapper can preserve paint order only for a contiguous run of ticks.
-        for (let i = tickEnd; i < texts.length; i++) {
-          if (texts[i]!.role === 'tick-x') { tickEnd = tickStart; break; }
+    if (reorder || this.tickEnd < 0) {
+      this.tickStart = 0;
+      while (this.tickStart < texts.length && texts[this.tickStart]!.role !== 'tick-x') this.tickStart++;
+      this.tickEnd = this.tickStart;
+      while (this.tickEnd < texts.length && texts[this.tickEnd]!.role === 'tick-x') this.tickEnd++;
+      // A single wrapper can preserve paint order only for a contiguous run of ticks.
+      for (let i = this.tickEnd; i < texts.length; i++) {
+        if (texts[i]!.role === 'tick-x') { this.tickEnd = this.tickStart; break; }
+      }
+    }
+    const groupable = this.tickEnd - this.tickStart >= 2;
+    const slide = groupable ? slideOffset(labels, texts, this.tickStart, this.tickEnd, this.tickGroup ? 1 : 2) : null;
+    const dx = round(slide ?? 0);
+    if (!this.tickGroup && dx !== 0) {
+      this.tickGroup = doc.createElement('div');
+      this.tickGroup.className = 'axylo-tick-x-group';
+      this.tickGroup.style.cssText = 'position:absolute;inset:0;pointer-events:none;contain:layout style';
+      reorder = true;
+    } else if (this.tickGroup && !groupable) {
+      this.tickGroup.remove();
+      this.tickGroup = null;
+      reorder = true;
+    }
+    if (this.tickGroup && dx !== this.groupDx) this.tickGroup.style.transform = dx ? `translate(${dx}px,0px)` : '';
+    this.groupDx = dx;
+    for (let i = 0; i < texts.length; i++) {
+      const label = labels[i]!, t = texts[i]!;
+      if (this.tickGroup && i >= this.tickStart && i < this.tickEnd && slide !== null) {
+        // A survivor's existing local transform already puts it at its base. Only an entering
+        // label needs its position expressed in the group's coordinate system.
+        if (label.sliding) label.placed = t;
+        else renderLabel(doc, label, t, t.x - slide);
+      } else renderLabel(doc, label, t);
+    }
+    if (reorder) {
+      const tail = element.lastElementChild;
+      let next: ChildNode | null = tail?.className === 'axylo-font-probe' ? tail : null;
+      let nextTick: ChildNode | null = null;
+      for (let i = labels.length - 1; i >= 0; i--) {
+        const label = labels[i]!, el = label.el;
+        if (this.tickGroup && i >= this.tickStart && i < this.tickEnd) {
+          if (el.parentNode !== this.tickGroup || moving?.has(label)) placeBefore(this.tickGroup, el, nextTick);
+          nextTick = el;
+          if (i !== this.tickStart) continue;
+          placeBefore(element, this.tickGroup, next);
+          next = this.tickGroup;
+        } else {
+          if (el.parentNode !== element || moving?.has(label)) placeBefore(element, el, next);
+          next = el;
         }
       }
-      const groupable = tickEnd - tickStart >= 2;
-      const slide = groupable ? slideOffset(labels, texts, tickStart, tickEnd, tickGroup ? 1 : 2) : null;
-      const dx = round(slide ?? 0);
-      if (!tickGroup && dx !== 0) {
-        tickGroup = doc.createElement('div');
-        tickGroup.className = 'axylo-tick-x-group';
-        tickGroup.style.cssText = 'position:absolute;inset:0;pointer-events:none;contain:layout style';
-        reorder = true;
-      } else if (tickGroup && !groupable) {
-        tickGroup.remove();
-        tickGroup = null;
-        reorder = true;
-      }
-      if (tickGroup && dx !== groupDx) tickGroup.style.transform = dx ? `translate(${dx}px,0px)` : '';
-      groupDx = dx;
-      for (let i = 0; i < texts.length; i++) {
-        const label = labels[i]!, t = texts[i]!;
-        if (tickGroup && i >= tickStart && i < tickEnd && slide !== null) {
-          // A survivor's existing local transform already puts it at its base. Only an entering
-          // label needs its position expressed in the group's coordinate system.
-          if (label.sliding) label.placed = t;
-          else renderLabel(doc, label, t, t.x - slide);
-        } else renderLabel(doc, label, t);
-      }
-      if (reorder) {
-        const tail = element.lastElementChild;
-        let next: ChildNode | null = tail?.className === 'axylo-font-probe' ? tail : null;
-        let nextTick: ChildNode | null = null;
-        for (let i = labels.length - 1; i >= 0; i--) {
-          const label = labels[i]!, el = label.el;
-          if (tickGroup && i >= tickStart && i < tickEnd) {
-            if (el.parentNode !== tickGroup || moving?.has(label)) placeBefore(tickGroup, el, nextTick);
-            nextTick = el;
-            if (i !== tickStart) continue;
-            placeBefore(element, tickGroup, next);
-            next = tickGroup;
-          } else {
-            if (el.parentNode !== element || moving?.has(label)) placeBefore(element, el, next);
-            next = el;
-          }
-        }
-      }
-      previous = texts;
-    },
-    destroy(): void {
-      element.remove();
-      labels.length = 0;
-      spare['tick-x'] = spare['tick-y'] = undefined;
-      previous = null;
-    },
-  };
+    }
+    this.previous = texts;
+  }
+
+  destroy(): void {
+    this.element.remove();
+    this.labels.length = 0;
+    this.spare = undefined;
+    this.previous = null;
+  }
+}
+
+export function createTextLayer(doc: Document = document): TextLayer {
+  return new DomTextLayer(doc);
 }

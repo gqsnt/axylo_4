@@ -1,9 +1,9 @@
-import type { AlignedFrame, DiagnosticSink, Formatters, IndexRange, ReaderModel, View } from '../core/contracts';
+import type { AlignedFrame, DiagnosticSink, Formatters, IndexRange, ReaderModel, TableModel, View } from '../core/contracts';
 import { report } from '../diagnostics';
 import { cacheableValueSeries } from '../format';
 import { sliceText } from '../lookup/text';
 import { chartTypeName, defaultMessages, fill, fillChartName, fillChartSummary, fillDonutSlice, fillSeriesSummary, messageLanguage } from '../messages';
-import type { Messages, Title } from '../public';
+import type { Messages, Title, XValue } from '../public';
 import { alignedStatistics } from '../view';
 import { alignedTable, donutTable, scatterTable, type ReaderLabels, type TableBuilder } from './table';
 
@@ -107,7 +107,7 @@ interface ListFormatEntry {
   readonly lists: Map<string, string>;
 }
 
-const listFormats = new Map<string | undefined, ListFormatEntry>();
+let listFormats: Map<string | undefined, ListFormatEntry> | undefined;
 
 function englishList(locale: string | undefined): boolean {
   return locale === 'en';
@@ -136,11 +136,12 @@ function pair(first: string, second: string, locale: string | undefined): string
 
 function localizedList(locale: string | undefined, key: string, first: string, second: string, names?: readonly string[]): string {
   try {
-    let entry = listFormats.get(locale);
+    const formats = listFormats ??= new Map();
+    let entry = formats.get(locale);
     if (!entry) {
       const format = new Intl.ListFormat(locale, { type: 'conjunction' });
-      if (listFormats.size >= 64) listFormats.clear();
-      listFormats.set(locale, entry = { format, lists: new Map() });
+      if (formats.size >= 64) formats.clear();
+      formats.set(locale, entry = { format, lists: new Map() });
     }
     const { format, lists } = entry;
     const cached = lists.get(key);
@@ -166,7 +167,7 @@ function seriesNames(frame: AlignedFrame, locale: string | undefined, formatters
   const { series } = frame;
   if (series.length === 1) return series[0]!.drawable ? series[0]!.label : '';
   const cached = nameLists?.get(formatters);
-  if (cached && cached.locale === locale && (englishList(locale) || listFormats.has(locale))) {
+  if (cached && cached.locale === locale && (englishList(locale) || listFormats?.has(locale))) {
     let i = 0;
     for (const entry of series) {
       if (entry.drawable && cached.labels[i++] !== entry.label) { i = -1; break; }
@@ -176,7 +177,7 @@ function seriesNames(frame: AlignedFrame, locale: string | undefined, formatters
   const names: string[] = [];
   for (const entry of series) if (entry.drawable) names.push(entry.label);
   const text = listOf(names, locale);
-  if (englishList(locale) || listFormats.has(locale)) (nameLists ??= new WeakMap()).set(formatters, { locale, labels: names, text });
+  if (englishList(locale) || listFormats?.has(locale)) (nameLists ??= new WeakMap()).set(formatters, { locale, labels: names, text });
   return text;
 }
 
@@ -247,6 +248,7 @@ function seriesStats(cache: StatsCache, formatters: Formatters, s: number, min: 
 /** What differs between frame shapes in the reader: the table and the summary's data sentences. */
 export interface ReaderParts {
   readonly table: TableBuilder;
+  readonly tableRowCount?: (view: View) => number | null;
   readonly text: ChartText;
 }
 
@@ -360,9 +362,21 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table, listReady)
   return entries;
 };
 
-export const alignedReader: ReaderParts = { table: alignedTable, text: cartesianText };
+export const alignedReader: ReaderParts = {
+  table: alignedTable,
+  tableRowCount(view) {
+    if (view.kind === 'donut' || view.kind === 'scatter') return null;
+    const { start, end } = view.visibleSlots;
+    return end - start;
+  },
+  text: cartesianText,
+};
 export const scatterReader: ReaderParts = { table: scatterTable, text: cartesianText };
-export const donutReader: ReaderParts = { table: donutTable, text: donutText };
+export const donutReader: ReaderParts = {
+  table: donutTable,
+  tableRowCount: view => view.kind === 'donut' ? view.frame.labels.length : null,
+  text: donutText,
+};
 
 function stackText(view: View, formatters: Formatters, messages: Messages): string {
   if (view.kind === 'donut' || view.kind === 'scatter') return '';
@@ -398,6 +412,78 @@ function addSentence(text: string, sentence: string | undefined): string {
 
 export type BuiltReader = ReaderModel & { readonly noteSegments: readonly TextRun[] | null };
 
+interface SummaryDraft {
+  readonly parts: ReaderParts;
+  readonly input: ReaderInput;
+  readonly type: string;
+  readonly xLabel: string;
+  readonly yLabel: string;
+  readonly listReady: boolean;
+  readonly compact: boolean;
+  readonly hasReferences: boolean;
+  readonly references: readonly string[] | undefined;
+  readonly omission: string;
+}
+
+class Reader implements BuiltReader {
+  constructor(
+    readonly name: string,
+    readonly note: string | null,
+    readonly table: TableModel | null,
+    readonly noteSegments: readonly TextRun[] | null,
+    private reading: SummaryDraft | string,
+  ) {}
+
+  get summary(): string {
+    const draft = this.reading;
+    if (typeof draft === 'string') return draft;
+    const { input, type, xLabel, yLabel, listReady, compact, hasReferences, references, omission } = draft;
+    const { view, formatters, messages, subtitle, description } = input;
+    let text = '';
+    for (const sentence of draft.parts.text(input, type, xLabel, yLabel, this.table !== null, listReady)) text = addSentence(text, sentence);
+    if (compact) text = addSentence(text, stackText(view, formatters, messages));
+    if (hasReferences) {
+      for (const reference of references ?? referenceText(view, formatters, messages)) text = addSentence(text, reference);
+    }
+    text = addSentence(text, subtitle);
+    text = addSentence(text, omission);
+    // The finished summary no longer needs the input, reference sentences, or formatter context.
+    return this.reading = addSentence(text, description);
+  }
+}
+
+interface TableSource {
+  readonly build: TableBuilder;
+  readonly view: View;
+  readonly formatters: Formatters;
+  readonly messages: Messages;
+  readonly labels: ReaderLabels;
+  readonly locale: string | undefined;
+}
+
+class DeferredTable implements TableModel {
+  constructor(readonly caption: string, readonly rowCount: number, private source: TableSource | TableModel) {}
+
+  private get model(): TableModel {
+    const source = this.source;
+    if (!('build' in source)) return source;
+    return this.source = source.build(source.view, this.caption, source.formatters, source.messages, source.labels, source.locale);
+  }
+
+  get headers(): readonly string[] { return this.model.headers; }
+  get pageSize(): number { return this.model.pageSize; }
+  row(i: number): readonly string[] | null { return this.model.row(i); }
+  pageForX(x: XValue): number | null { return this.model.pageForX(x); }
+}
+
+function makeTable(parts: ReaderParts, input: ReaderInput, caption: string, labels: ReaderLabels): TableModel {
+  const { view, formatters, messages, locale } = input;
+  // Controls can offer an aligned or donut table from its row count before building headers or callbacks.
+  const rowCount = parts.tableRowCount?.(view);
+  if (rowCount != null) return new DeferredTable(caption, rowCount, { build: parts.table, view, formatters, messages, labels, locale });
+  return parts.table(view, caption, formatters, messages, labels, locale);
+}
+
 /** Every kind's reader, dispatched on the view (a kind's composition calls readerWith with its own parts). */
 export function buildReader(input: ReaderInput): BuiltReader {
   const view = input.view;
@@ -405,7 +491,7 @@ export function buildReader(input: ReaderInput): BuiltReader {
 }
 
 export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader {
-  const { view, title, labelledBy, subtitle, description, formatters, messages, disclosure } = input;
+  const { view, title, labelledBy, formatters, messages, disclosure } = input;
   const custom = input.labels;
   const category = custom?.category ?? messages.category;
   const value = custom?.value ?? messages.value;
@@ -414,7 +500,7 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
   const yLabel = view.kind === 'donut' ? view.frame.valueLabel
     : view.kind === 'scatter' ? view.frame.yLabel
     : view.frame.yLabel || seriesNames(view.frame, input.locale, formatters) || value;
-  const listReady = englishList(input.locale) || listFormats.has(input.locale);
+  const listReady = englishList(input.locale) || listFormats?.has(input.locale) === true;
   const titleText = typeof title === 'string' ? title : title?.text;
   if (!labelledBy && !titleText && input.diagnostics) report(input.diagnostics, 'AX140', 'none');
   let generated: string | undefined;
@@ -432,10 +518,10 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
       references = referenceText(view, formatters, messages);
       for (const reference of references) caption += ' ' + reference;
     }
-    table = parts.table(view, caption, formatters, messages, {
+    table = makeTable(parts, input, caption, {
       category, value, percentage: custom?.percentage ?? messages.percentage,
       series: custom?.series ?? messages.series, xUnit: custom?.xUnit,
-    }, input.locale);
+    });
   }
   const hasTable = table !== null;
   const omitted = disclosure?.omitted ?? 0;
@@ -462,22 +548,7 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
     else noteSegments = sentence;
     note = textOf(noteSegments) || null;
   }
-  let summary: string | undefined;
-  return {
-    name, note, table, noteSegments: note ? noteSegments : null,
-    get summary() {
-      // Opening the table should not scan the rest of the frame.
-      if (summary !== undefined) return summary;
-      let text = '';
-      for (const sentence of parts.text(input, type, xLabel, yLabel, hasTable, listReady)) text = addSentence(text, sentence);
-      if (compact) text = addSentence(text, stackText(view, formatters, messages));
-      if (hasReferences) {
-        references ??= referenceText(view, formatters, messages);
-        for (const reference of references) text = addSentence(text, reference);
-      }
-      text = addSentence(text, subtitle);
-      text = addSentence(text, omission);
-      return summary = addSentence(text, description);
-    },
-  };
+  return new Reader(name, note, table, note ? noteSegments : null, {
+    parts, input, type, xLabel, yLabel, listReady, compact, hasReferences, references, omission,
+  });
 }

@@ -154,7 +154,23 @@ type AxisParts = Record<string, unknown>;
  * cached or not, reports the same AX160 (finding 11).
  */
 interface AxisEntry {
-  readonly key: readonly unknown[];
+  /**
+   * What the parts were made from (appendAxisInputs' values, in its order), as fields: a chart keeps one entry
+   * per view, and fields cost less than a key array beside it.
+   */
+  readonly xField: string;
+  readonly xScale: unknown;
+  readonly xTickFormat: unknown;
+  readonly xUnit: unknown;
+  readonly xDomain: boolean;
+  readonly valueField: unknown;
+  readonly valueTickFormat: unknown;
+  readonly valueScale: unknown;
+  readonly valueDomain: boolean;
+  readonly locale: string;
+  readonly compact: boolean;
+  readonly xLabelGiven: boolean;
+  readonly valueTitle: string;
   readonly scales: AxisScales;
   readonly parts: AxisParts;
   readonly failures: AxisFailures;
@@ -180,19 +196,21 @@ function axisParts(view: View, ctx: AxisContext, scales: AxisScales): AxisEntry 
   const hit = cache.get(view);
   if (hit?.scales === scales) {
     // Compare in appendAxisInputs order so cache hits need no temporary key.
-    const { key } = hit;
-    if (key[0] === x.field && key[1] === x.scale && key[2] === x.tickFormat && key[3] === x.unit &&
-        key[4] === (x.domain != null) && key[5] === value?.field && key[6] === value?.tickFormat &&
-        key[7] === value?.scale && key[8] === (value?.domain != null) && key[9] === ctx.locale &&
-        key[10] === ctx.compact && key[11] === ctx.xLabelGiven && key[12] === ctx.valueTitle) return hit;
+    if (hit.xField === x.field && hit.xScale === x.scale && hit.xTickFormat === x.tickFormat && hit.xUnit === x.unit &&
+        hit.xDomain === (x.domain != null) && hit.valueField === value?.field && hit.valueTickFormat === value?.tickFormat &&
+        hit.valueScale === value?.scale && hit.valueDomain === (value?.domain != null) && hit.locale === ctx.locale &&
+        hit.compact === ctx.compact && hit.xLabelGiven === ctx.xLabelGiven && hit.valueTitle === ctx.valueTitle) return hit;
   }
-  const key: unknown[] = [];
-  appendAxisInputs(key, ctx);
   const failures = x.tickFormat == null && value?.tickFormat == null ? NO_FAILURES : {
     x: x.tickFormat == null ? noFailures : new TickFailures(),
     y: value?.tickFormat == null ? noFailures : new TickFailures(),
   };
-  const entry = { key, scales, parts: view.kind === 'donut' ? {} : buildAxisParts(view, ctx, failures, scales), failures };
+  const entry: AxisEntry = {
+    xField: x.field, xScale: x.scale, xTickFormat: x.tickFormat, xUnit: x.unit, xDomain: x.domain != null,
+    valueField: value?.field, valueTickFormat: value?.tickFormat, valueScale: value?.scale, valueDomain: value?.domain != null,
+    locale: ctx.locale, compact: ctx.compact, xLabelGiven: ctx.xLabelGiven, valueTitle: ctx.valueTitle,
+    scales, parts: view.kind === 'donut' ? {} : buildAxisParts(view, ctx, failures, scales), failures,
+  };
   cache.set(view, entry);
   return entry;
 }
