@@ -27,7 +27,13 @@
     "dist/stats.d.ts",
     "dist/sync.js",
     "dist/sync.dev.js",
-    "dist/sync.d.ts"
+    "dist/sync.d.ts",
+    "dist/export.js",
+    "dist/export.dev.js",
+    "dist/export.d.ts",
+    "dist/finance.js",
+    "dist/finance.dev.js",
+    "dist/finance.d.ts"
   ],
   "exports": {
     ".": {
@@ -59,6 +65,16 @@
       "types": "./dist/sync.d.ts",
       "development": "./dist/sync.dev.js",
       "default": "./dist/sync.js"
+    },
+    "./export": {
+      "types": "./dist/export.d.ts",
+      "development": "./dist/export.dev.js",
+      "default": "./dist/export.js"
+    },
+    "./finance": {
+      "types": "./dist/finance.d.ts",
+      "development": "./dist/finance.dev.js",
+      "default": "./dist/finance.js"
     },
     "./axylo.css": "./dist/axylo.css"
   }

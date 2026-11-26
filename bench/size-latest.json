@@ -1,10 +1,10 @@
 {
- "date": "2026-11-26T13:11:04.502Z",
+ "date": "2026-11-26T13:21:46.550Z",
  "method": "esbuild consumer bundles from tests/dist/fixtures (packed tarballs), minify, production condition; gzip level 9",
  "packed": {
-  "at": "2026-11-26T13:11:03.124Z",
-  "axylo": "sha512-bP+YvGPELXE+mjYnwI/CPFAYLdGOP7b1Q3g/XessxA3gBwaRcGbQa0UsjZvfqzSZKPnR8xcfqHK7o9Jc7Zf0aw==",
-  "commit": "71e54392cbc5b7c6be64d263d1087162f2b5e0df",
+  "at": "2026-11-26T13:21:45.056Z",
+  "axylo": "sha512-fnWyPXHztJcvS8YqVvBEmBel1A2pOdAkPK/YVBeUA9lLgeSYkMnTXayx4fEyzro4jtTRlkUXQqhhaL2lRb8ioA==",
+  "commit": "e1d6d44685ca79042f52bcee1a4ad4ecc504a6a4",
   "dirty": true
  },
  "cssFileBytes": 16001,
@@ -160,6 +160,28 @@
    "cssFileGzipBytes": 0,
    "totalGzipBytes": 1590,
    "totalKiB": 1.55,
+   "targetKiB": null,
+   "targetBytes": null,
+   "over": false
+  },
+  {
+   "entry": "export (export * from 'axylo/export')",
+   "minBytes": 7476,
+   "jsGzipBytes": 3137,
+   "cssFileGzipBytes": 0,
+   "totalGzipBytes": 3137,
+   "totalKiB": 3.06,
+   "targetKiB": null,
+   "targetBytes": null,
+   "over": false
+  },
+  {
+   "entry": "finance (export { candlestick } from 'axylo/finance')",
+   "minBytes": 329357,
+   "jsGzipBytes": 118199,
+   "cssFileGzipBytes": 0,
+   "totalGzipBytes": 118199,
+   "totalKiB": 115.43,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
