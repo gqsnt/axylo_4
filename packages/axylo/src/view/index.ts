@@ -1,4 +1,4 @@
-import { denseSlots, fullStatistics, withSignedZeros, type Statistics } from '../data/store-statistics';
+import { denseSlots, fullStatistics, hasBlockSummary, windowStatistics, withSignedZeros, WINDOW_SIZE as BLOCK, type Statistics } from '../data/store-statistics';
 import { lowerBound, upperBound } from '../data/search';
 import {
   SLOT_NO_ROW, SLOT_VALUE, type AlignedFrame, type AlignedView, type DiagnosticSink, type DonutFrame,
@@ -174,21 +174,8 @@ export function interpolated(x: Float64Array, edge: number, left: number, right:
   return Math.max(Math.min(a, b), Math.min(value, Math.max(a, b)));
 }
 
-const BLOCK = 256;
 const SUMMARY_THRESHOLD = 4096; // Sixteen blocks.
 type AlignedSeries = AlignedFrame['series'][number];
-interface BlockSummary {
-  readonly min: Float64Array;
-  readonly max: Float64Array;
-  readonly last: Int32Array;
-  readonly zeros: Uint8Array;
-}
-
-interface SeriesStatistics {
-  blocks?: BlockSummary;
-  recent?: WindowStatistics;
-}
-
 interface WindowStatistics {
   readonly start: number;
   readonly end: number;
@@ -197,37 +184,7 @@ interface WindowStatistics {
 }
 
 // Published series are immutable. Updates and appends publish new series, even when they share a buffer.
-const summaries = new WeakMap<AlignedSeries, SeriesStatistics>();
-
-function summarize(series: AlignedSeries): BlockSummary {
-  const { slot, y } = series;
-  const blocks = Math.ceil(slot.length / BLOCK);
-  const min = new Float64Array(blocks);
-  const max = new Float64Array(blocks);
-  const last = new Int32Array(blocks);
-  const zeros = new Uint8Array(blocks);
-  for (let block = 0; block < blocks; block++) {
-    const end = Math.min(slot.length, (block + 1) * BLOCK);
-    let low = Infinity;
-    let high = -Infinity;
-    let final = -1;
-    let signs = 0;
-    for (let i = block * BLOCK; i < end; i++) {
-      if (slot[i] !== SLOT_VALUE) continue;
-      const value = y[i]!;
-      if (!(value > -Infinity && value < Infinity)) continue;
-      if (value < low) low = value;
-      if (value > high) high = value;
-      if (value === 0) signs |= Object.is(value, -0) ? 1 : 2;
-      final = i;
-    }
-    min[block] = low;
-    max[block] = high;
-    last[block] = final;
-    zeros[block] = signs;
-  }
-  return { min, max, last, zeros };
-}
+const summaries = new WeakMap<AlignedSeries, WindowStatistics>();
 
 export function alignedStatistics(series: AlignedSeries, start: number, end: number, signedExtrema = false): Statistics {
   const { slot, y } = series;
@@ -237,45 +194,29 @@ export function alignedStatistics(series: AlignedSeries, start: number, end: num
     const known = fullStatistics.get(series);
     if (known) return signedExtrema ? known.signed : known.ordered;
   }
-  let cached = size >= BLOCK ? summaries.get(series) : undefined;
-  const known = cached?.recent;
+  const known = size >= BLOCK ? summaries.get(series) : undefined;
   if (known?.start === start && known.end === end) return signedExtrema ? known.signed : known.ordered;
-  // The reader can share the first full scan. Block indexes only pay off for partial views.
-  if (!full && size >= SUMMARY_THRESHOLD && size >= slot.length / 4 && !cached?.blocks) {
-    if (!cached) summaries.set(series, cached = {});
-    cached.blocks = summarize(series);
+  // Avoid allocating an index for a few hundred visible values in a much larger series.
+  if (!full && size >= BLOCK && (size >= SUMMARY_THRESHOLD && size >= slot.length / 16 || hasBlockSummary(y, slot))) {
+    const stats = windowStatistics(y, slot, start, end);
+    summaries.set(series, { start, end, ...stats });
+    return signedExtrema ? stats.signed : stats.ordered;
   }
-  const summary = cached?.blocks;
-  let continuous = full && !summary;
+  let continuous = full;
   let min = Infinity;
   let max = -Infinity;
   let last = NaN;
   let zeros = 0;
   // Layout and the reader can ask for the same window with different signed-zero ordering.
   const trackZeros = signedExtrema || size >= BLOCK;
-  for (let i = start; i < end;) {
-    if (summary && i % BLOCK === 0 && (end - i >= BLOCK || end === slot.length)) {
-      const block = i / BLOCK;
-      const low = summary.min[block]!;
-      const high = summary.max[block]!;
-      const final = summary.last[block]!;
-      if (low < min) min = low;
-      if (high > max) max = high;
-      if (final >= 0) last = y[final]!;
-      if (trackZeros) zeros |= summary.zeros[block]!;
-      i += BLOCK;
-    } else {
-      const stop = summary ? Math.min(end, (Math.floor(i / BLOCK) + 1) * BLOCK) : end;
-      for (; i < stop; i++) {
-        if (slot[i] !== SLOT_VALUE) { continuous = false; continue; }
-        const value = y[i]!;
-        if (!(value > -Infinity && value < Infinity)) continue;
-        if (value < min) min = value;
-        if (value > max) max = value;
-        if (trackZeros && value === 0) zeros |= Object.is(value, -0) ? 1 : 2;
-        last = value;
-      }
-    }
+  for (let i = start; i < end; i++) {
+    if (slot[i] !== SLOT_VALUE) { continuous = false; continue; }
+    const value = y[i]!;
+    if (!(value > -Infinity && value < Infinity)) continue;
+    if (value < min) min = value;
+    if (value > max) max = value;
+    if (trackZeros && value === 0) zeros |= Object.is(value, -0) ? 1 : 2;
+    last = value;
   }
   const stats = { min, max, last };
   if (size < BLOCK && !zeros) return stats;
@@ -285,8 +226,7 @@ export function alignedStatistics(series: AlignedSeries, start: number, end: num
       fullStatistics.set(series, summaryStats);
       if (continuous && !denseSlots.has(slot)) denseSlots.set(slot, 'fresh');
     } else {
-      if (!cached) summaries.set(series, cached = {});
-      cached.recent = { start, end, ...summaryStats };
+      summaries.set(series, { start, end, ...summaryStats });
     }
   }
   return signedExtrema ? summaryStats.signed : stats;

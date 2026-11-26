@@ -5,12 +5,39 @@
  */
 import type { TextMeasurer, TextStyle } from './contracts';
 
+/**
+ * The viewer's zone as read in the current task: a dashboard that creates its charts together asks Intl once,
+ * not once per chart (each asking makes a DateTimeFormat). A later task reads it again, so a zone that changes
+ * while the page is open is still followed.
+ */
+let taskZone: string | undefined;
+let taskZoneDtf: typeof Intl.DateTimeFormat | undefined;
+let taskZoneTz: string | undefined;
+
+function forgetTaskZone(): void {
+  taskZone = undefined;
+  taskZoneDtf = undefined;
+  taskZoneTz = undefined;
+}
+
 export function viewerTimeZone(): string {
+  const dtf = Intl.DateTimeFormat;
+  const tz = (globalThis as { process?: { env?: { TZ?: string } } }).process?.env?.TZ;
+  if (taskZone !== undefined && taskZoneDtf === dtf && taskZoneTz === tz) return taskZone;
+  let zone: string;
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    zone = dtf().resolvedOptions().timeZone || 'UTC';
   } catch {
-    return 'UTC';
+    zone = 'UTC';
   }
+  if (typeof queueMicrotask === 'function') {
+    const schedule = taskZone === undefined;
+    taskZone = zone;
+    taskZoneDtf = dtf;
+    taskZoneTz = tz;
+    if (schedule) queueMicrotask(forgetTaskZone);
+  }
+  return zone;
 }
 
 const LOCALE_CACHE_LIMIT = 64;
@@ -71,18 +98,37 @@ export function readTextStyle(element: Element): TextStyle {
   };
 }
 
-const contexts = new WeakMap<Document, CanvasRenderingContext2D | null>();
+type SpacingContext = CanvasRenderingContext2D & { letterSpacing?: string; wordSpacing?: string };
+
+/**
+ * A document's measuring context with what this module last set on it. The context is private to the module,
+ * so these are what it holds: a value is assigned only when it differs, never read back (engines normalize
+ * `font` on reading, so comparing with the live value assigned it again, and parsed it, on every miss).
+ */
+interface MeasuringContext {
+  readonly ctx: SpacingContext;
+  /** The context sets letter and word spacing itself (else they are added the way CSS adds them). */
+  readonly spaced: boolean;
+  font: string;
+  letterSpacing: string;
+  wordSpacing: string;
+  /** The font epoch the context last resolved its font in; -1 before its first measurement. */
+  epoch: number;
+}
+
+const contexts = new WeakMap<Document, MeasuringContext | null>();
 type Widths = Map<string, number>;
 interface MeasurementCache {
   readonly styles: WeakMap<TextStyle, Widths>;
   readonly fonts: Map<string, Map<number, Map<number, Widths>>>;
   size: number;
+  /** The style measured last and its widths: consecutive labels of one style skip the lookups. */
+  lastStyle: TextStyle | null;
+  lastWidths: Widths | null;
 }
 /** Measured widths per document, for every style together, so the bound holds for the whole page. */
 const caches = new WeakMap<Document, MeasurementCache>();
 const fontEpochs = new WeakMap<Document, number>();
-/** The font epoch each document's context last resolved its font in. */
-const contextEpochs = new WeakMap<Document, number>();
 export const MEASUREMENT_CACHE_LIMIT = 8192;
 
 /**
@@ -99,28 +145,47 @@ export function measurementCacheSize(doc: Document): number {
   return caches.get(doc)?.size ?? 0;
 }
 
-type SpacingContext = CanvasRenderingContext2D & { letterSpacing?: string; wordSpacing?: string };
-
 const measurers = new WeakMap<Document, TextMeasurer>();
 
 function newMeasurementCache(doc: Document): MeasurementCache {
-  const cache: MeasurementCache = { styles: new WeakMap(), fonts: new Map(), size: 0 };
+  const cache: MeasurementCache = { styles: new WeakMap(), fonts: new Map(), size: 0, lastStyle: null, lastWidths: null };
   caches.set(doc, cache);
   return cache;
 }
 
 function widthsFor(cache: MeasurementCache, style: TextStyle): Widths {
+  if (cache.lastStyle === style) return cache.lastWidths!;
   let widths = cache.styles.get(style);
-  if (widths) return widths;
-  // Equivalent styles from different charts share measurements. Line height does not affect width.
-  let letters = cache.fonts.get(style.font);
-  if (!letters) cache.fonts.set(style.font, letters = new Map());
-  let words = letters.get(style.letterSpacing);
-  if (!words) letters.set(style.letterSpacing, words = new Map());
-  widths = words.get(style.wordSpacing);
-  if (!widths) words.set(style.wordSpacing, widths = new Map());
-  cache.styles.set(style, widths);
+  if (!widths) {
+    // Equivalent styles from different charts share measurements. Line height does not affect width.
+    let letters = cache.fonts.get(style.font);
+    if (!letters) cache.fonts.set(style.font, letters = new Map());
+    let words = letters.get(style.letterSpacing);
+    if (!words) letters.set(style.letterSpacing, words = new Map());
+    widths = words.get(style.wordSpacing);
+    if (!widths) words.set(style.wordSpacing, widths = new Map());
+    cache.styles.set(style, widths);
+  }
+  cache.lastStyle = style;
+  cache.lastWidths = widths;
   return widths;
+}
+
+function measuringContext(doc: Document): MeasuringContext | null {
+  let state = contexts.get(doc);
+  if (state === undefined) {
+    const ctx = doc.createElement('canvas').getContext('2d') as SpacingContext | null;
+    if (ctx) {
+      const spaced = typeof ctx.letterSpacing === 'string' && typeof ctx.wordSpacing === 'string';
+      // The context's own starting values, read once: nothing but this module changes them afterwards.
+      state = {
+        ctx, spaced, font: ctx.font, letterSpacing: spaced ? ctx.letterSpacing! : '', wordSpacing: spaced ? ctx.wordSpacing! : '',
+        epoch: -1,
+      };
+    } else state = null;
+    contexts.set(doc, state);
+  }
+  return state;
 }
 
 /**
@@ -138,30 +203,37 @@ export function createMeasurer(doc: Document): TextMeasurer {
       let widths = widthsFor(cache, style);
       const hit = widths.get(text);
       if (hit !== undefined) return hit;
-      let ctx = contexts.get(doc);
-      if (ctx === undefined) {
-        ctx = doc.createElement('canvas').getContext('2d');
-        contexts.set(doc, ctx);
-      }
+      const state = measuringContext(doc);
       let width: number;
       let spaced = false;
-      if (ctx) {
-        const c = ctx as SpacingContext;
+      if (state) {
+        const c = state.ctx;
         const epoch = fontEpochs.get(doc) ?? 0;
-        if (contextEpochs.get(doc) !== epoch) {
+        if (state.epoch !== epoch) {
           // WebKit keeps the font it resolved when `font` was assigned and does not resolve it again when the
           // same string is assigned: after a font load, a different font is assigned first, so the wanted one
           // is resolved anew (the engines report, WebKit section). Once per load; Chrome and Firefox measure the
-          // same either way.
-          c.font = c.font === '10px serif' ? '10px sans-serif' : '10px serif';
-          contextEpochs.set(doc, epoch);
+          // same either way. The live value is read here, once per load, so the toggle always differs from it.
+          const toggle = c.font === '10px serif' ? '10px sans-serif' : '10px serif';
+          c.font = toggle;
+          state.font = toggle;
+          state.epoch = epoch;
         }
-        if (c.font !== style.font) c.font = style.font;
-        if (typeof c.letterSpacing === 'string' && typeof c.wordSpacing === 'string') {
+        if (state.font !== style.font) {
+          c.font = style.font;
+          state.font = style.font;
+        }
+        if (state.spaced) {
           const letter = `${style.letterSpacing}px`;
           const word = `${style.wordSpacing}px`;
-          if (c.letterSpacing !== letter) c.letterSpacing = letter;
-          if (c.wordSpacing !== word) c.wordSpacing = word;
+          if (state.letterSpacing !== letter) {
+            c.letterSpacing = letter;
+            state.letterSpacing = letter;
+          }
+          if (state.wordSpacing !== word) {
+            c.wordSpacing = word;
+            state.wordSpacing = word;
+          }
           spaced = true;
         }
         width = c.measureText(text).width;

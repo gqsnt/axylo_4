@@ -211,7 +211,7 @@ export class RawRows {
 
   appendOne(index: number, row: unknown): void { this.#objects.set(index, row); }
 
-  copy(row: number, target: RawRows): boolean {
+  copy(row: number, target: RawRows, rolling = false): boolean {
     const block = this.#column(row);
     if (block) {
       if (target.columns === sharedEmptyColumns) target.columns = new StoreMap();
@@ -219,7 +219,11 @@ export class RawRows {
       const offset = row % blockSize;
       const archived = target.columns.get(index);
       if (!archived) {
-        target.columns.set(index, { ...this.#own(block), start: offset, end: offset + 1, present: null });
+        const owned = this.#own(block);
+        // A rolling frame can retire its archive after every row. Share this block's copy
+        // with the live rows so its next eviction does not copy the same columns again.
+        if (rolling && owned !== block) this.columns.set(index, owned);
+        target.columns.set(index, { ...owned, start: offset, end: offset + 1, present: null });
       } else if (!target.#column(row)) {
         const start = target.#blockStart(index, archived);
         const adjacent = !archived.present && (offset === start - 1 || offset === archived.end);
@@ -241,10 +245,9 @@ export class RawRows {
   }
 
   forget(row: number): void {
-    this.#objects.delete(row);
-    if (this.#columnCount === 0) return;
     const block = this.#column(row);
-    if (block) {
+    if (!block) this.#objects.delete(row);
+    else {
       const index = blockIndex(row);
       const offset = row % blockSize;
       const start = this.#blockStart(index, block);
@@ -532,8 +535,8 @@ export class StreamRows {
     return this.retained.indexes(0, 0);
   }
 
-  archive(row: number, target: RawRows): boolean {
-    return this.retained.copy(row, target);
+  archive(row: number, target: RawRows, rolling = false): boolean {
+    return this.retained.copy(row, target, rolling);
   }
 
   table(incoming: readonly unknown[] = []): Table {
@@ -648,11 +651,11 @@ export class RowWindow {
   get size(): number { return (this.rows?.size ?? 0) + this.archived.size; }
   get disposable(): boolean { return this.#closed && !this.#latestSource && !this.#olderSources?.size; }
 
-  archive(row: number): void {
+  archive(row: number, rolling = false): void {
     const revision = this.#latestRevision;
     // Newly appended rows can be evicted before any accepted frame has addressed them.
     const source = this.#latestSource;
-    if (!source || row >= source.limit || !this.rows?.archive(row, this.archived)) return;
+    if (!source || row >= source.limit || !this.rows?.archive(row, this.archived, rolling)) return;
     this.#lastSeen.set(row, revision);
   }
 
@@ -722,6 +725,7 @@ export class RowWindow {
 
 export class RowRevisions {
   private readonly windows = new Set<RowWindow>();
+  #retired = -Infinity;
   current: RowWindow;
 
   constructor(rows: StreamRows) {
@@ -729,6 +733,7 @@ export class RowRevisions {
   }
 
   get size(): number {
+    if (this.windows.size === 1) return this.current.size;
     let size = 0;
     for (const window of this.windows) size += window.size;
     return size;
@@ -750,6 +755,9 @@ export class RowRevisions {
   }
 
   retire(revision: number): void {
+    // The controller releases after acceptance and again after presentation.
+    if (revision <= this.#retired) return;
+    this.#retired = revision;
     if (this.windows.size === 1) {
       this.current.retire(revision);
       return;

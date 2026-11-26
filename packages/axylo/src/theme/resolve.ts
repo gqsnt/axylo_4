@@ -52,16 +52,22 @@ export const TOKEN_BINDINGS: Readonly<Record<PaintToken, string>> = {
 
 /** The palette slot for a series index, as a CSS expression. */
 export const seriesBinding = (index: number): string => {
-  const n = (index % SERIES_COUNT) + 1;
-  return `var(--axylo-series-${n}, var(--axylo-default-series-${n}))`;
+  const slot = index % SERIES_COUNT;
+  // One string per palette slot: every chart writes and compares the same ones.
+  return slotBindings[slot] ??= `var(--axylo-series-${slot + 1}, var(--axylo-default-series-${slot + 1}))`;
 };
+const slotBindings: (string | undefined)[] = [];
 
 /**
  * Name of the custom property, set on the chart root, that carries series `index`'s color. Marks reference
  * it rather than the color itself, so the color can change (an author's `var(--brand)`, forced colors on or
  * off) with no draw call.
  */
-export const seriesProperty = (index: number): string => `--axylo-series-color-${index + 1}`;
+export const seriesProperty = (index: number): string =>
+  index < PROPERTY_CACHE_LIMIT ? seriesProperties[index] ??= `--axylo-series-color-${index + 1}` : `--axylo-series-color-${index + 1}`;
+/** The series property names written and read on every theme pass, made once each. */
+const seriesProperties: (string | undefined)[] = [];
+const PROPERTY_CACHE_LIMIT = 256;
 
 /**
  * An author color as the value of its series property. `--axylo-forced-series` is unset except under forced
@@ -427,14 +433,18 @@ function standardResolution(p: PreparedTheme): ThemeResolution | null {
   const defaults = standard ??= standardPaints();
   const palette = connected ? scheme : 'light';
   const expected = follows ? 'follows' : palette;
-  for (const { property, fallback, values } of defaults.tokens) {
-    if (style && (style.getPropertyValue(property) || style.getPropertyValue(fallback).trim() !== values[expected])) return null;
-  }
+  const tokens = defaults.tokens;
   const count = p.bindings.series.length;
-  for (let i = 0; i < count; i++) {
-    // CSSOM has already substituted both palette variables in the property the marks use.
-    // Read it on each chart so the full cascade, including child-specific selectors, still applies.
-    if (style && style.getPropertyValue(seriesProperty(i)).trim() !== defaults.series[i % SERIES_COUNT]![expected]) return null;
+  if (style) {
+    for (let t = 0; t < tokens.length; t++) {
+      const token = tokens[t]!;
+      if (style.getPropertyValue(token.property) || style.getPropertyValue(token.fallback).trim() !== token.values[expected]) return null;
+    }
+    for (let i = 0; i < count; i++) {
+      // CSSOM has already substituted both palette variables in the property the marks use.
+      // Read it on each chart so the full cascade, including child-specific selectors, still applies.
+      if (style.getPropertyValue(seriesProperty(i)).trim() !== defaults.series[i % SERIES_COUNT]![expected]) return null;
+    }
   }
   const text = style ? normalizeColor(style.color, p.doc) : 'rgb(0, 0, 0)';
   // Every check above passed for this figure: its paints are the palette's, the text and background it
@@ -446,12 +456,12 @@ function standardResolution(p: PreparedTheme): ThemeResolution | null {
       last.forcedColors === p.fc && last.moreContrast === p.mc && last.count === count) {
     return { bindings: p.bindings, resolved: p.on, backdropKnown: p.known, invalidColors: p.invalid, theme: last.theme };
   }
-  const tokens = { background: p.bg } as Record<PaintToken, string>;
-  for (const { name, values } of defaults.tokens) tokens[name] = paletteRgb(values[palette]);
+  const paints = { background: p.bg } as Record<PaintToken, string>;
+  for (let t = 0; t < tokens.length; t++) paints[tokens[t]!.name] = paletteRgb(tokens[t]!.values[palette]);
   const series = new Array<string>(count);
   for (let i = 0; i < count; i++) series[i] = paletteRgb(defaults.series[i % SERIES_COUNT]![palette]);
-  tokens.text = text;
-  const resolution = themeResolution(p, tokens, series);
+  paints.text = text;
+  const resolution = themeResolution(p, paints, series);
   if (shareable) {
     batch.last = {
       palette, text, background: p.bg, known: p.known, forcedColors: p.fc, moreContrast: p.mc, count, theme: resolution.theme,

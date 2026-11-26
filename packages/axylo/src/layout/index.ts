@@ -122,7 +122,11 @@ function metrics(input: TextInput, shared?: Map<string, number>): Metrics {
 }
 
 function moveText(text: PlacedText, dx: number, dy: number): PlacedText {
-  return { ...text, x: text.x + dx, y: text.y + dy, box: { ...text.box, x: text.box.x + dx, y: text.box.y + dy } };
+  const { box } = text;
+  return {
+    lines: text.lines, full: text.full, x: text.x + dx, y: text.y + dy, anchor: text.anchor, baseline: text.baseline,
+    rotate: text.rotate, role: text.role, box: { x: box.x + dx, y: box.y + dy, width: box.width, height: box.height },
+  };
 }
 
 function lane(fit: FittedLabels): number {
@@ -157,6 +161,92 @@ function axisLabels(candidates: TickCandidates, firstOnly: boolean): PreparedLab
   return prepared;
 }
 
+/**
+ * What a continuous axis fit depends on besides its tick candidates and the projected tick positions. A fit
+ * reads a non-band scale only through `position(scale, tick)` for ticks of the prepared sets, and measures
+ * text only through the shared widths of one measurer and style.
+ */
+interface FitKey {
+  readonly fitter: 'value' | 'bottom';
+  readonly side: 'left' | 'bottom';
+  readonly role: PlacedText['role'];
+  readonly span: number;
+  readonly room: number;
+  readonly rotatedRoom: number;
+  readonly mayThin: boolean;
+  readonly widths: Map<string, number>;
+  readonly measurer: TextMeasurer;
+  readonly style: TextStyle;
+}
+
+interface FitMemo {
+  readonly key: FitKey;
+  readonly positions: Float64Array;
+  readonly fit: FittedLabels;
+}
+
+interface FitMemos {
+  /** The layout in which these prepared labels were first fitted. */
+  readonly run: number;
+  readonly entries: FitMemo[];
+}
+
+// A stream keeps its value axis candidates while x moves: the same fits repeat frame after frame. Candidates
+// seen in one layout only (a rolling x axis) never pay for recording positions.
+const FIT_MEMO_ENTRIES = 4;
+const FIT_MEMO_TICKS = 256;
+let fitMemos: WeakMap<PreparedLabels, FitMemos> | undefined;
+let layoutRun = 0;
+let tickPixels: Float64Array | undefined;
+
+function sameFitKey(a: FitKey, b: FitKey): boolean {
+  return a.fitter === b.fitter && a.side === b.side && a.role === b.role && Object.is(a.span, b.span) &&
+    Object.is(a.room, b.room) && Object.is(a.rotatedRoom, b.rotatedRoom) && a.mayThin === b.mayThin &&
+    a.widths === b.widths && a.measurer === b.measurer && a.style === b.style;
+}
+
+/** Positions of every prepared tick into `tickPixels`; -1 when there are too many to be worth comparing. */
+function tickPositions(prepared: PreparedLabels, scale: ContinuousScale): number {
+  let count = 0;
+  for (const set of prepared.sets) count += set.length;
+  if (count > FIT_MEMO_TICKS) return -1;
+  const pixels = tickPixels ??= new Float64Array(FIT_MEMO_TICKS);
+  let at = 0;
+  for (const set of prepared.sets) for (const tick of set) pixels[at++] = scale.map(tick.value);
+  return count;
+}
+
+function samePositions(stored: Float64Array, count: number): boolean {
+  if (stored.length !== count) return false;
+  const pixels = tickPixels!;
+  for (let i = 0; i < count; i++) if (!Object.is(stored[i], pixels[i])) return false;
+  return true;
+}
+
+function rememberedFit(prepared: PreparedLabels, scale: XScale, key: FitKey | null, fit: () => FittedLabels): FittedLabels {
+  if (!key || scale.type === 'band') return fit();
+  const memos = fitMemos ??= new WeakMap();
+  const memo = memos.get(prepared);
+  if (!memo) {
+    memos.set(prepared, { run: layoutRun, entries: [] });
+    return fit();
+  }
+  if (memo.run === layoutRun && memo.entries.length === 0) return fit();
+  const count = tickPositions(prepared, scale);
+  if (count < 0) return fit();
+  const { entries } = memo;
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i]!;
+    if (!sameFitKey(entry.key, key) || !samePositions(entry.positions, count)) continue;
+    if (i > 0) { entries.splice(i, 1); entries.unshift(entry); }
+    return entry.fit;
+  }
+  const fitted = fit();
+  entries.unshift({ key, positions: tickPixels!.slice(0, count), fit: fitted });
+  if (entries.length > FIT_MEMO_ENTRIES) entries.pop();
+  return fitted;
+}
+
 const NO_TITLE: readonly string[] = [];
 
 function titleLines(title: string | undefined, span: number, text: Metrics): readonly string[] | null {
@@ -170,7 +260,7 @@ const titleSize = (lines: readonly string[], text: Metrics) => lines.length ? GA
 
 function layoutAxes(
   input: PlotInput & Cartesian & TextInput, size: Size, text: Metrics, showTicks: boolean,
-  measured: number[], fit: AxisFit = {},
+  measured: number[], fit: AxisFit = {}, widths?: Map<string, number>,
 ): Layout {
   const { width, height } = size;
   const horizontal = input.kind === 'bands' && input.horizontal;
@@ -210,7 +300,10 @@ function layoutAxes(
       const room = width - 2 * INSET - MIN_WIDTH - leftTitleSize - TICK_GAP;
       if (leftLabels) leftFit = horizontal
         ? fitLeftCategories(leftCandidates[0] ?? [], xScale, width, height, leftRole, text, room, leftLabels)
-        : fitValue(leftCandidates, yScale, 'left', height, room, leftRole, text, leftLabels, measured);
+        : rememberedFit(leftLabels, yScale, widths ? {
+          fitter: 'value', side: 'left', role: leftRole, span: height, room, rotatedRoom: room, mayThin: true,
+          widths, measurer: input.measurer, style: input.style,
+        } : null, () => fitValue(leftCandidates, yScale, 'left', height, room, leftRole, text, leftLabels, measured));
     }
     if (left !== lastLeft) {
       const lines = titleLines(bottomAxis.title, plot.width, text);
@@ -220,10 +313,19 @@ function layoutAxes(
       bottomTitleSize = titleSize(lines, text);
       const fixed = INSET + clearance + bottomTitleSize + TICK_GAP;
       const room = height - top - MIN_HEIGHT - fixed;
-      if (bottomLabels) bottomFit = horizontal
-        ? fitValue(bottomCandidates, yScale, 'bottom', width, room, bottomRole, text, bottomLabels, measured)
-        : fitBottom(bottomCandidates, bottomAxis.mayThin, xScale, width, room, bottomRole, text, bottomLabels,
-          Math.min(room, height * 0.4 - fixed), measured);
+      if (bottomLabels) {
+        const rotatedRoom = Math.min(room, height * 0.4 - fixed);
+        const key: FitKey | null = widths ? {
+          fitter: horizontal ? 'value' : 'bottom', side: 'bottom', role: bottomRole, span: width, room,
+          rotatedRoom: horizontal ? room : rotatedRoom, mayThin: horizontal || bottomAxis.mayThin,
+          widths, measurer: input.measurer, style: input.style,
+        } : null;
+        bottomFit = horizontal
+          ? rememberedFit(bottomLabels, yScale, key,
+            () => fitValue(bottomCandidates, yScale, 'bottom', width, room, bottomRole, text, bottomLabels, measured))
+          : rememberedFit(bottomLabels, xScale, key, () => fitBottom(bottomCandidates, bottomAxis.mayThin, xScale, width, room,
+            bottomRole, text, bottomLabels, rotatedRoom, measured));
+      }
     }
 
     const nextLeft = INSET + lane(leftFit) + leftTitleSize;
@@ -296,7 +398,8 @@ export function computeLayout(input: LayoutInput, widths?: Map<string, number>):
   const text = metrics(input, widths);
   const fit: AxisFit = {};
   const measured: number[] = [];
-  let layout = layoutAxes(input, size, text, true, measured, fit);
+  layoutRun++;
+  let layout = layoutAxes(input, size, text, true, measured, fit, widths);
   // Titles may need the space otherwise reserved for ticks at the ends of the left axis.
   if (layout.kind === 'too-small') return layoutAxes(input, size, text, false, measured);
   let chosen = input;
@@ -307,7 +410,7 @@ export function computeLayout(input: LayoutInput, widths?: Map<string, number>):
     for (const coarser of axis.coarser ?? []) {
       const candidate = { ...chosen, [key]: { ...axis, ...coarser, coarser: undefined } };
       const next: AxisFit = {};
-      const wider = layoutAxes(candidate, size, text, true, measured, next);
+      const wider = layoutAxes(candidate, size, text, true, measured, next, widths);
       if (wider.kind !== 'plot' || next[key] || (key === 'x' && next.y && !fit.y)) continue;
       layout = wider;
       chosen = candidate;

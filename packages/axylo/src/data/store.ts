@@ -127,20 +127,22 @@ class Cadence {
 
   multiple(delta: number): number { return stepMultiple(delta, this.#min); }
 
-  appendRegular(position: number, delta: number, dropped: number | undefined): Cadence | null {
+  regularSpan(delta: number, dropped: number | undefined): number | undefined {
     const step = this.step;
     if (!step || this.#matches !== this.#differences || this.absent(step) !== 0 ||
-      stepMultiple(delta, step) !== 1 || (dropped !== undefined && stepMultiple(dropped, step) !== 1)) return null;
-    const span = this.#span + delta;
-    const differences = this.#differences + 1;
-    if (Math.round(span / step) > differences) return null;
+      stepMultiple(delta, step) !== 1 || (dropped !== undefined && stepMultiple(dropped, step) !== 1)) return;
+    const extended = this.#span + delta;
+    const count = this.#differences + 1;
+    if (Math.round(extended / step) > count) return;
+    const span = dropped === undefined ? extended : extended - dropped;
+    const retainedCount = dropped === undefined ? count : this.#differences;
+    if (Math.round(span / step) <= retainedCount) return span;
+  }
 
-    const next = this.fork();
-    next.last = position;
-    next.#span = dropped === undefined ? span : span - dropped;
-    next.#differences = next.#matches = dropped === undefined ? differences : this.#differences;
-    if (next.absent(step) !== 0) return null;
-    return next;
+  commitRegular(position: number, span: number, dropped: boolean): void {
+    this.last = position;
+    this.#span = span;
+    if (!dropped) this.#matches = ++this.#differences;
   }
 
   evict(axis: XColumn, window: Observations, delta: number, multiple: number, writable: boolean): Cadence {
@@ -388,6 +390,7 @@ interface SingleAppend {
   readonly buffers: FrameBuffers;
   readonly cadence: Cadence;
   readonly modes: State['modes'];
+  readonly span: number;
   readonly row: object;
   readonly index: number;
   readonly position: number;
@@ -632,23 +635,28 @@ class AlignedData {
     const evicted = first === undefined ? undefined : rows.firstRowAt(first);
     if (first !== undefined && evicted === undefined) return null;
     const dropped = first === undefined ? undefined : stepDelta(axis, first, buffers.x[start + 1]!);
-    const cadence = observations.get(fields.values[0]!.field)?.cadence.appendRegular(position, delta, dropped);
+    const cadence = observations.get(fields.values[0]!.field)?.cadence;
     if (!cadence) return null;
+    const span = cadence.regularSpan(delta, dropped);
+    if (span === undefined) return null;
 
-    const values: number[] = [];
+    // Keep the common one-field preview in a scalar. Reads of caller properties may reenter.
+    let firstValue = 0;
+    const rest: number[] | null = fields.values.length > 1 ? [] : null;
     const column = evicted !== undefined && rows.isColumn(evicted);
     // Column compaction can invoke a caller's typed-array species during preparation.
     if (keep !== undefined && rows.needsColumnCompaction(Number(column))) return null;
     const outgoingRow = evicted !== undefined && !column ? rows.rowAt(evicted) as Record<string, unknown> : null;
     let modes = state.modes;
-    for (const field of fields.values) {
-      const key = field.field;
+    for (let i = 0; i < fields.values.length; i++) {
+      const key = fields.values[i]!.field;
       const value = ownNumber(object, key);
       const window = observations.get(key);
       const counts = state.modes.get(key);
       if (value === undefined || window?.cadence.last !== last || window.duplicates?.size ||
         !buffers.series.has(key) || counts?.decimal !== 0) return null;
-      values.push(value);
+      if (i === 0) firstValue = value;
+      else rest!.push(value);
 
       let raw: unknown;
       if (column) raw = rows.read(evicted!, key);
@@ -670,9 +678,9 @@ class AlignedData {
     draft.reserve(1);
     const target = draft.end;
     draft.x[target] = position;
-    for (let i = 0; i < values.length; i++) {
+    for (let i = 0; i < fields.values.length; i++) {
       const series = draft.series.get(fields.values[i]!.field)!;
-      series.y[target] = values[i]!;
+      series.y[target] = i === 0 ? firstValue : rest![i - 1]!;
       series.slot[target] = SLOT_VALUE;
       draft.setRow(series, target, index);
     }
@@ -684,7 +692,7 @@ class AlignedData {
     for (let i = 0; i < frame.series.length; i++) {
       extendStatistics(current.series[i]!, frame.series[i]!, first !== undefined);
     }
-    return { frame, source, buffers: draft, cadence, modes, row, index, position, first, evicted, bounded: keep !== undefined };
+    return { frame, source, buffers: draft, cadence, span, modes, row, index, position, first, evicted, bounded: keep !== undefined };
   }
 
   commitSingle(append: SingleAppend): void {
@@ -699,6 +707,8 @@ class AlignedData {
       calendar?.evictRow(append.evicted!);
     }
     const { buffers, frame } = append;
+    // Competing previews have their own spans. Only the winning commit advances this cadence.
+    append.cadence.commitRegular(append.position, append.span, append.first !== undefined);
     // Every wide series can use the frame's own x window as its observation history.
     for (const history of observations.values()) history.useWindow(frame.x.values, append.cadence);
     rows.shareSeed(buffers.x, buffers.start, buffers.end);
@@ -1174,7 +1184,7 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
       const single = data.prepareSingle(rows[0], keep);
       if (single) return this.preview(base, single.frame, this.rows, noDiagnostics, noDiagnostics, () => {
         if (this.#writing) throw new Error('Cannot commit a data change during an append.');
-        if (single.evicted !== undefined) this.revisions.current.archive(single.evicted);
+        if (single.evicted !== undefined) this.revisions.current.archive(single.evicted, true);
         data.commitSingle(single);
       }, single.source);
     }

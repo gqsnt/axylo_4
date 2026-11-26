@@ -21,6 +21,7 @@ interface Label {
   placed: PlacedText | null;
   rx: number;
   ry: number;
+  transformEnd: string;
   line0: HTMLDivElement | null;
   text0: string;
   lines: HTMLDivElement[] | null;
@@ -37,17 +38,17 @@ const POSITION = 'position:absolute;left:0;top:0;transform-origin:0 0;white-spac
 
 const round = (v: number): number => Math.round(v * 100) / 100;
 
-function transform(t: PlacedText, x: number, y: number, keepZeroShift = false): string {
-  // Transforms apply right to left: move the anchor point of the text to the origin, rotate about it,
-  // then move the origin to (x, y).
+// Transforms apply right to left: align the text at the origin, rotate, then position it.
+// A bottom tick sliding horizontally can reuse everything following its x coordinate.
+function transformEnd(t: PlacedText, y: number, keepZeroShift = false): string {
   const rotate = t.rotate !== 0 ? ` rotate(${t.rotate}deg)` : '';
-  const position = `translate(${x}px,${y}px)${rotate}`;
+  const end = `px,${y}px)${rotate}`;
   return !keepZeroShift && t.anchor === 'start' && t.baseline === 'top'
-    ? position : `${position} translate(${SHIFT_X[t.anchor]},${SHIFT_Y[t.baseline]})`;
+    ? end : `${end} translate(${SHIFT_X[t.anchor]},${SHIFT_Y[t.baseline]})`;
 }
 
 export function labelStyle(t: PlacedText): string {
-  return `${POSITION}text-align:${ALIGN[t.anchor]};transform:${transform(t, round(t.x), round(t.y), true)}`;
+  return `${POSITION}text-align:${ALIGN[t.anchor]};transform:translate(${round(t.x)}${transformEnd(t, round(t.y), true)}`;
 }
 
 function appendLine(doc: Document, label: HTMLDivElement): HTMLDivElement {
@@ -98,7 +99,7 @@ function createLabel(doc: Document, role: PlacedText['role']): Label {
   el.className = 'axylo-label';
   el.setAttribute('data-role', role);
   el.style.cssText = POSITION;
-  return { el, role, placed: null, rx: NaN, ry: NaN, line0: null, text0: '', lines: null, text: null };
+  return { el, role, placed: null, rx: NaN, ry: NaN, transformEnd: '', line0: null, text0: '', lines: null, text: null };
 }
 
 function takeLabel(doc: Document, role: PlacedText['role'], spare: SpareTicks): Label {
@@ -118,19 +119,21 @@ function releaseLabel(label: Label, spare: SpareTicks): void {
   if (label.role === 'tick-x' || label.role === 'tick-y') spare[label.role] ??= label;
 }
 
-function renderLabel(doc: Document, label: Label, t: PlacedText): void {
+function renderLabel(doc: Document, label: Label, t: PlacedText, sameLine: boolean): void {
   const previous = label.placed;
   if (previous === t) return;
-  if (previous?.anchor !== t.anchor) label.el.style.textAlign = ALIGN[t.anchor];
   const rx = previous?.x === t.x ? label.rx : round(t.x);
   const ry = previous?.y === t.y ? label.ry : round(t.y);
-  if (previous === null || label.rx !== rx || label.ry !== ry ||
-      previous.rotate !== t.rotate || previous.anchor !== t.anchor || previous.baseline !== t.baseline) {
+  const anchorChanged = previous?.anchor !== t.anchor;
+  if (anchorChanged) label.el.style.textAlign = ALIGN[t.anchor];
+  const endChanged = anchorChanged || label.ry !== ry || previous?.rotate !== t.rotate || previous.baseline !== t.baseline;
+  if (endChanged || label.rx !== rx) {
+    if (endChanged) label.transformEnd = transformEnd(t, ry);
     label.rx = rx;
     label.ry = ry;
-    label.el.style.transform = transform(t, rx, ry);
+    label.el.style.transform = `translate(${rx}${label.transformEnd}`;
   }
-  if (previous?.lines !== t.lines && !(previous?.lines.length === 1 && t.lines.length === 1 && label.text0 === t.lines[0])) {
+  if (!sameLine && previous?.lines !== t.lines) {
     renderLines(doc, label, t.lines);
   }
   label.placed = t;
@@ -144,21 +147,30 @@ function reconcileLabels(
   let next = labels[labels.length - 1]!.el.nextSibling;
   for (let i = start; i < labels.length; i++) available.push(labels[i]);
   labels.length = texts.length;
+  // Reverse indexes form a FIFO for duplicate labels without shifting arrays.
+  const roles = new Map<PlacedText['role'], { byText: Map<string, number>; cursor: number }>();
+  const duplicates: (number | undefined)[] = [];
+  for (let j = available.length - 1; j >= 0; j--) {
+    const label = available[j]!;
+    let role = roles.get(label.role);
+    if (!role) roles.set(label.role, role = { byText: new Map(), cursor: 0 });
+    if (label.placed?.lines.length === 1) {
+      const next = role.byText.get(label.text0);
+      if (next !== undefined) duplicates[j] = next;
+      role.byText.set(label.text0, j);
+    }
+  }
   let lastMatch = -1;
   for (let i = start; i < texts.length; i++) {
     const t = texts[i]!;
-    let match = -1;
-    if (t.lines.length === 1) {
-      for (let j = 0; j < available.length; j++) {
-        const label = available[j];
-        if (label?.role === t.role && label.placed?.lines.length === 1 && label.text0 === t.lines[0]) {
-          match = j;
-          break;
-        }
-      }
-    }
+    const matches = t.lines.length === 1 ? roles.get(t.role)?.byText : undefined;
+    const key = t.lines[0]!;
+    const match = matches?.get(key) ?? -1;
     stationary[i] = undefined;
     if (match >= 0) {
+      const nextMatch = duplicates[match];
+      if (nextMatch === undefined) matches!.delete(key);
+      else matches!.set(key, nextMatch);
       labels[i] = available[match]!;
       available[match] = undefined;
       stationary[i] = match > lastMatch;
@@ -169,7 +181,9 @@ function reconcileLabels(
     const t = texts[i]!;
     let label = stationary[i] === undefined ? undefined : labels[i];
     if (label === undefined) {
-      for (let j = 0; j < available.length; j++) {
+      const group = roles.get(t.role);
+      while (group && group.cursor < available.length) {
+        const j = group.cursor++;
         if (available[j]?.role !== t.role) continue;
         label = available[j];
         available[j] = undefined;
@@ -178,7 +192,7 @@ function reconcileLabels(
       label ??= takeLabel(doc, t.role, spare);
     }
     labels[i] = label;
-    renderLabel(doc, label, t);
+    renderLabel(doc, label, t, stationary[i] !== undefined);
   }
   for (const label of available) if (label) releaseLabel(label, spare);
   available.length = 0;
@@ -211,23 +225,25 @@ export function createTextLayer(doc: Document = document): TextLayer {
       for (let i = 0; i < common; i++) {
         const label = labels[i]!;
         const t = texts[i]!;
-        const wasSingle = label.placed?.lines.length === 1;
+        if (label.placed === t) continue;
+        const wasSingle = label.line0 !== null && label.lines === null;
         const isSingle = t.lines.length === 1;
+        const sameLine = wasSingle && isSingle && label.text0 === t.lines[0];
         const canMatchElsewhere = i + 1 < labels.length || i + 1 < texts.length;
         if (label.role !== t.role || canMatchElsewhere && (wasSingle || isSingle) &&
-            (!wasSingle || !isSingle || label.text0 !== t.lines[0])) {
+            !sameLine) {
           reconcileLabels(doc, element, labels, texts, i, available, stationary, spare);
           previous = texts;
           return;
         }
-        renderLabel(doc, label, t);
+        renderLabel(doc, label, t, sameLine);
       }
       if (labels.length < texts.length) {
         const fresh = doc.createDocumentFragment();
         for (let i = labels.length; i < texts.length; i++) {
           const t = texts[i]!;
           const label = takeLabel(doc, t.role, spare);
-          renderLabel(doc, label, t);
+          renderLabel(doc, label, t, false);
           labels.push(label);
           fresh.appendChild(label.el);
         }

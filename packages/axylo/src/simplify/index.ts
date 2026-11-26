@@ -1,4 +1,4 @@
-import { denseSlots } from '../data/store-statistics';
+import { BLOCK_SIZE, denseSlots, MIXED_BLOCK, summarizeBlocks, type BlockSummary } from '../data/store-statistics';
 import { SLOT_GAP, SLOT_NO_ROW, SLOT_VALUE } from '../core/contracts';
 import type { AlignedFrame, AreaMark, ContinuousScale, IndexRange, PathMark, PointMark, StackView, XScale } from '../core/contracts';
 import { affinePosition, position, type AffineProjection } from '../scene/geometry';
@@ -56,8 +56,6 @@ interface IndexBuffer {
   limit: number;
 }
 
-const BLOCK_SIZE = 32;
-const MIXED_BLOCK = 255;
 const SELECTION_CACHE_BYTES = 65_536;
 const SELECTION_CACHE_ENTRIES = 12;
 let emptyIndexesBuf: Uint32Array | null = null;
@@ -72,54 +70,16 @@ interface SelectionCache {
   readonly dn: number;
   readonly o: number;
   readonly r: number;
-  readonly map: Map<number, Uint32Array>;
+  map?: Map<number, Uint32Array>;
   bytes: number;
 }
 
-interface BlockSummary {
-  readonly blocks: Uint8Array;
-  s: number;
-  e: number;
+interface DrawingSummary {
   used: boolean;
   full?: IndexRange;
   sel?: SelectionCache;
 }
-const summaries = new WeakMap<Values, WeakMap<Uint8Array, BlockSummary>>();
-
-function summarize(y: Values, slot: Uint8Array, { start, end }: IndexRange): BlockSummary {
-  // Published series views are immutable. The store appends beyond them and copies an
-  // exposed tail before filling it, so views sharing a backing buffer have separate keys.
-  let bySlot = summaries.get(y);
-  if (!bySlot) summaries.set(y, bySlot = new WeakMap());
-  const count = Math.floor(Math.min(y.length, slot.length) / BLOCK_SIZE);
-  let summary = bySlot.get(slot);
-  if (summary?.blocks.length !== 2 * count) {
-    bySlot.set(slot, summary = { blocks: new Uint8Array(2 * count), s: 0, e: 0, used: false });
-  }
-  const { blocks } = summary;
-  const begin = Math.ceil(start / BLOCK_SIZE);
-  const stop = Math.min(count, Math.floor(end / BLOCK_SIZE));
-  if (begin >= summary.s && stop <= summary.e) return summary;
-  for (let block = begin; block < stop; block++) {
-    const offset = 2 * block;
-    if (blocks[offset]) continue;
-    const first = block * BLOCK_SIZE;
-    let i = 0;
-    while (i < BLOCK_SIZE && slot[first + i] === SLOT_VALUE && Number.isNaN(y[first + i])) i++;
-    let low = y[first + i]!, high = low, min = i, max = i;
-    for (; i < BLOCK_SIZE && slot[first + i] === SLOT_VALUE; i++) {
-      const value = y[first + i]!;
-      if (value < low) { low = value; min = i; }
-      if (value > high) { high = value; max = i; }
-    }
-    // Zero means uncomputed. A mixed block must be visited slot by slot to preserve gaps.
-    blocks[offset] = i === BLOCK_SIZE ? Math.min(min + 1, BLOCK_SIZE) : MIXED_BLOCK;
-    blocks[offset + 1] = Math.min(max, BLOCK_SIZE - 1);
-  }
-  summary.s = begin;
-  summary.e = stop;
-  return summary;
-}
+const drawings = new WeakMap<BlockSummary, DrawingSummary>();
 
 // Only scene construction borrows this buffer. Published selections and packed marks own their arrays.
 let lineScratch: IndexBuffer | undefined;
@@ -202,16 +162,18 @@ function hasMonotoneColumns({ start, end, origin, edge, span, extent, bounded }:
 }
 
 function selectionCache(
-  summary: BlockSummary, x: Float64Array, { start, end }: IndexRange, exact: ExactProjection, ratio: number,
-): SelectionCache {
+  summary: DrawingSummary, x: Float64Array, { start, end }: IndexRange, exact: ExactProjection, ratio: number,
+): SelectionCache | undefined {
   const c = summary.sel;
   if (c && c.x === x && c.s === start && c.e === end && c.ds === exact.start && c.dn === exact.span && c.o === exact.origin && c.r === ratio) return c;
-  return summary.sel = { x, s: start, e: end, ds: exact.start, dn: exact.span, o: exact.origin, r: ratio, map: new Map(), bytes: 0 };
+  const next = summary.sel = { x, s: start, e: end, ds: exact.start, dn: exact.span, o: exact.origin, r: ratio, bytes: 0 };
+  // Successive zooms change the domain every frame. Snapshot indexes once a domain repeats.
+  return c ? undefined : next;
 }
 
 function rememberSelection(cache: SelectionCache, extent: number, indexes: Uint32Array): void {
   if (indexes.byteLength > SELECTION_CACHE_BYTES) return;
-  const { map } = cache;
+  const map = cache.map ??= new Map();
   while (cache.bytes + indexes.byteLength > SELECTION_CACHE_BYTES || map.size >= SELECTION_CACHE_ENTRIES) {
     const oldest = map.keys().next().value!;
     cache.bytes -= map.get(oldest)!.byteLength;
@@ -229,21 +191,39 @@ function keepAffineRun(
 ): number {
   const start = exact?.start ?? 0, span = exact?.span ?? 1;
   const origin = exact?.origin ?? 0, extent = exact?.extent ?? 0;
+  function columnAt(i: number): number {
+    const at = x[i]!;
+    return Math.floor((exact ? origin + (at - start) / span * extent : slope * at + offset) * ratio);
+  }
   let prevSize = Math.floor((to - from + 1) / (Math.abs(lastColumn - firstColumn) + 1));
   for (let first = from, column = firstColumn; first <= to;) {
     let last = to, nextColumn = lastColumn;
     if (column !== lastColumn) {
-      let next = to, step = Math.max(1, prevSize);
-      last = first;
-      while (last + step < next) {
-        const p = last + step, at = x[p]!;
-        const c = Math.floor((exact ? origin + (at - start) / span * extent : slope * at + offset) * ratio);
-        if (c === column) { last = p; step *= 2; }
-        else { next = p; nextColumn = c; break; }
+      // Regular x often puts the next boundary one sample either side of this estimate.
+      // Bracket it in projected columns before binary search so irregular x stays exact.
+      const guess = Math.min(to, first + Math.max(1, prevSize));
+      const pixel = columnAt(guess);
+      let next: number;
+      if (pixel === column) {
+        last = guess;
+        next = to;
+        for (let step = 1; last + step < next; step *= 2) {
+          const at = last + step, c = columnAt(at);
+          if (c !== column) { next = at; nextColumn = c; break; }
+          last = at;
+        }
+      } else {
+        next = guess;
+        nextColumn = pixel;
+        last = first;
+        for (let step = 1; next - step > last; step *= 2) {
+          const at = next - step, c = columnAt(at);
+          if (c === column) { last = at; break; }
+          next = at; nextColumn = c;
+        }
       }
       while (last + 1 < next) {
-        const mid = last + ((next - last) >>> 1), at = x[mid]!;
-        const c = Math.floor((exact ? origin + (at - start) / span * extent : slope * at + offset) * ratio);
+        const mid = last + ((next - last) >>> 1), c = columnAt(mid);
         if (c === column) last = mid;
         else { next = mid; nextColumn = c; }
       }
@@ -337,15 +317,18 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
   // Near the density threshold, most blocks would straddle device columns.
   const indexable = affine && y && length >= 1024 && length >= 4 * limit && range.end <= y.length;
   // The first draw of a validated column can reduce each pixel directly without building an index.
-  const density = indexable && range.start >= 0 && range.end <= slot.length ? denseSlots.get(slot) : undefined;
-  const firstDraw = density === 'fresh';
+  const density = affine && y && length > 1 && length > limit && range.start >= 0 &&
+    range.end <= y.length && range.end <= slot.length ? denseSlots.get(slot) : undefined;
+  const firstDraw = !!indexable && density === 'fresh';
   if (firstDraw) denseSlots.set(slot, 'drawn');
-  const summary = indexable && !firstDraw ? summarize(y, slot, range) : undefined;
+  const blockIndex = indexable && !firstDraw ? summarizeBlocks(y, slot, range.start, range.end) : undefined;
+  let summary = blockIndex && drawings.get(blockIndex);
+  if (blockIndex && !summary) drawings.set(blockIndex, summary = { used: false });
   // A validated column has already had its direct draw when its summary is first created.
   const repeated = summary && (summary.used || density === 'drawn');
   if (summary) summary.used = true;
   const full = summary?.full;
-  const size = density || full && full.start <= range.start && full.end >= range.end ? undefined : scan(slot, range, summary?.blocks);
+  const size = density || full && full.start <= range.start && full.end >= range.end ? undefined : scan(slot, range, blockIndex?.blocks);
   const values = size?.values ?? length;
   const vertices = size?.vertices ?? length;
   const runCount = size?.runCount ?? 1;
@@ -361,7 +344,7 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
   const exact = affine?.exact;
   if (dense && repeated && summary && exact && values === length && hasMonotoneColumns(exact, columns.x[range.start]!, columns.x[range.end - 1]!)) {
     cache = selectionCache(summary, columns.x, range, exact, columns.ratio);
-    const indexes = cache.map.get(exact.extent);
+    const indexes = cache?.map?.get(exact.extent);
     if (indexes) return { selection: { indexes: scratch ? indexes : indexes.slice(), breaks: emptyIndexes(), isolated }, dense };
   }
   let buffer: IndexBuffer | undefined;
@@ -372,7 +355,7 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
     const first = size?.runs[3 * run] ?? range.start, last = size?.runs[3 * run + 1] ?? range.end - 1;
     const runLength = last - first + 1, contiguous = !size || runLength === size.runs[3 * run + 2];
     if (run) breaks[run - 1] = cursor;
-    if (dense && contiguous && (summary || firstDraw) && affine && y && runLength >= 2 * BLOCK_SIZE) {
+    if (dense && contiguous && (summary || density) && affine && y && runLength >= 2 * BLOCK_SIZE) {
       const { x, ratio } = columns;
       const start = x[first]!, end = x[last]!;
       if (!exact || hasMonotoneColumns(exact, start, end)) {
@@ -384,7 +367,7 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
         if (capacity <= runLength) {
           // A single dense run can reserve for its actual projected span, including offscreen endpoints.
           buffer ??= indexBuffer(runCount === 1 ? capacity : initialCapacity, vertices, scratch);
-          cursor = keepAffineRun(x, y, first, last, affine, ratio, firstColumn, lastColumn, summary?.blocks,
+          cursor = keepAffineRun(x, y, first, last, affine, ratio, firstColumn, lastColumn, blockIndex?.blocks,
             reserve(buffer, cursor + capacity), cursor);
           continue;
         }

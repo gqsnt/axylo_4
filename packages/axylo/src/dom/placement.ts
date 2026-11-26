@@ -39,7 +39,17 @@ export function overlapArea(a: Rect, b: Rect): number {
   return w > E && h > E ? w * h : 0;
 }
 
-const hits = (r: Rect, list: readonly Rect[]) => list.some(o => overlapArea(r, o) > 0);
+function hits(r: Rect, list: readonly Rect[]): boolean {
+  for (let i = 0; i < list.length; i++) if (overlapArea(r, list[i]!) > 0) return true;
+  return false;
+}
+
+// The rectangle under test on each move, reused: only the spot that wins becomes an object.
+const probe = { x: 0, y: 0, width: 0, height: 0 };
+function probeAt(x: number, y: number, width: number, height: number): Rect {
+  probe.x = x; probe.y = y; probe.width = width; probe.height = height;
+  return probe;
+}
 
 const insideRect = (r: Rect, o: Rect) =>
   r.x >= o.x - E && r.y >= o.y - E && r.x + r.width <= o.x + o.width + E && r.y + r.height <= o.y + o.height + E;
@@ -47,14 +57,15 @@ const insideRect = (r: Rect, o: Rect) =>
 function holeSpot(p: PlacementInput, width: number, height: number): Spot | null {
   const h = p.hole;
   if (!h || h.rx <= 0 || h.ry <= 0) return null;
-  const r = { x: h.cx - width / 2, y: h.cy - height / 2, width, height };
+  const x = h.cx - width / 2, y = h.cy - height / 2;
+  const r = probeAt(x, y, width, height);
   if ((width / 2 / h.rx) ** 2 + (height / 2 / h.ry) ** 2 > 1 + E || !insideRect(r, p.visible) || hits(r, p.controls)) return null;
   for (const ring of p.rings) {
     const s = Math.min(p.ringStroke, ring.width / 2, ring.height / 2);
     // Overlaps one of the four stroke strips iff it overlaps the outer rect without lying wholly inside the inner hole.
     if (overlapArea(r, ring) > 0 && !insideRect(r, { x: ring.x + s, y: ring.y + s, width: ring.width - 2 * s, height: ring.height - 2 * s })) return null;
   }
-  return { x: r.x, y: r.y, side: 'hole' };
+  return { x, y, side: 'hole' };
 }
 
 export const placeTooltip = (p: PlacementInput, w: number, h: number): Spot | null => place(p, w, h, false);
@@ -82,10 +93,9 @@ function place(p: PlacementInput, width: number, height: number, fallback: boole
     const across = fallback ? clamp(fixed, min, max - thick) : fixed;
     const pref = box[ax] + box[sp] / 2 - size / 2;
     if (!fallback) {
-      const at = clamp(pref, lo, hi);
-      const spot: Spot = vert ? { x: at, y: across, side } : { x: across, y: at, side };
-      const r = { x: spot.x, y: spot.y, width, height };
-      if (!hits(r, p.controls) && !hits(r, p.rings) && overlapArea(r, box) === 0) return spot;
+      const at = clamp(pref, lo, hi), x = vert ? at : across, y = vert ? across : at;
+      const r = probeAt(x, y, width, height);
+      if (!hits(r, p.controls) && !hits(r, p.rings) && overlapArea(r, box) === 0) return { x, y, side };
     }
     // Only a blocked candidate needs the edges of every obstacle.
     const obs = obstacles ??= fallback ? [...p.controls, ...p.rings] : [box, ...p.controls, ...p.rings];
@@ -94,13 +104,12 @@ function place(p: PlacementInput, width: number, height: number, fallback: boole
       if (o[cx] + o[dp] > across + E && o[cx] < across + thick - E) edges.push(o[ax] - size, o[ax] + o[sp]);
     }
     for (const e of edges) {
-      const at = clamp(e, lo, hi);
-      const spot: Spot = vert ? { x: at, y: across, side } : { x: across, y: at, side };
-      const r = { x: spot.x, y: spot.y, width, height };
+      const at = clamp(e, lo, hi), x = vert ? at : across, y = vert ? across : at;
+      const r = probeAt(x, y, width, height);
       if (hits(r, obs)) continue;
       const cost = fallback ? overlapArea(r, box) : 0, off = Math.abs(at - pref);
-      if (!bestSpot || cost < bestCost - E || (Math.abs(cost - bestCost) <= E && spot.side === bestSpot.side && off < bestOff - E)) {
-        bestSpot = spot; bestCost = cost; bestOff = off;
+      if (!bestSpot || cost < bestCost - E || (Math.abs(cost - bestCost) <= E && side === bestSpot.side && off < bestOff - E)) {
+        bestSpot = { x, y, side }; bestCost = cost; bestOff = off;
       }
     }
     if (bestSpot && (!fallback || bestCost <= E)) break;
@@ -109,7 +118,7 @@ function place(p: PlacementInput, width: number, height: number, fallback: boole
 }
 
 export function validSpot(p: PlacementInput, spot: { x: number; y: number }, width: number, height: number): boolean {
-  const r = { x: spot.x, y: spot.y, width, height };
+  const r = probeAt(spot.x, spot.y, width, height);
   return insideRect(r, p.visible) && !hits(r, p.controls) && !hits(r, p.rings) && overlapArea(r, p.box) === 0;
 }
 

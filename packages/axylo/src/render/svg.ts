@@ -30,7 +30,7 @@ let ids = 0;
 export interface SvgNode {
   readonly key: string;
   readonly el: SVGElement;
-  attrs: Record<string, string> | null;
+  attrs: Record<string, string | number> | null;
   styles: Record<string, string> | null;
   kids: SvgNode[] | null;
   rects: SVGRectElement[] | null;
@@ -62,7 +62,12 @@ function attr(n: SvgNode, name: string, input: number | string | null): void {
       delete n.attrs[name];
       n.el.removeAttribute(name);
     }
-  } else attrStr(n, name, String(input));
+  } else {
+    const value = input !== input ? 'NaN' : input;
+    if (n.attrs?.[name] === value) return;
+    (n.attrs ??= Object.create(null))[name] = value;
+    n.el.setAttribute(name, String(value));
+  }
 }
 
 function hasDigits(s: string, prefix: string): boolean {
@@ -132,6 +137,7 @@ function css(n: SvgNode, name: string, value: string | null): void {
 
 /** Paints `role` ('fill' or 'stroke') with a CSS color expression, through `color` and currentColor. */
 function paint(n: SvgNode, role: 'fill' | 'stroke', value: string | null): void {
+  if (value !== null && n.styles?.color === value && n.styles[role] === 'currentColor') return;
   cssTrusted(n, role === 'fill' ? 'stroke' : 'fill', 'none');
   if (value === null) { cssTrusted(n, role, 'none'); cssClear(n, 'color'); return; }
   css(n, 'color', value);
@@ -355,8 +361,13 @@ function packedTenths() {
   // Each entry contains ASCII bytes. A word store replaces the digit writes at an unaligned position.
   const bytes = new Float64Array(TENTH_COUNT), lengths = new Uint8Array(TENTH_COUNT);
   const scratch = new Uint8Array(8), view = new DataView(scratch.buffer);
+  const words = decimalWords ??= decimalTable();
   for (let i = 0; i < TENTH_COUNT; i++) {
-    lengths[i] = writeText(scratch, 0, String(i / 10));
+    const whole = (i / 10) | 0, integer = words[whole]!;
+    const size = integer >>> 24, digit = i - whole * 10;
+    view.setUint32(0, integer, true);
+    if (digit) { scratch[size] = 46; scratch[size + 1] = 48 + digit; }
+    lengths[i] = size + (digit ? 2 : 0);
     bytes[i] = view.getFloat64(0, true);
   }
   return { bytes, lengths };
@@ -427,12 +438,15 @@ function denseCircles(xy: Float32Array, radius: number): string | null {
     b[pos++] = 77;
     pos = write(pos, cx + radiusTenths);
     b[pos++] = 32;
+    const yStart = pos;
     pos = write(pos, cy);
+    const yLength = pos - yStart;
     view.setFloat64(pos, arc0, true);
     view.setFloat64(pos + 8, arc1, true);
     pos = write(pos + arcLength, cx - radiusTenths);
     if (cy >= 0) b[pos++] = 32;
-    pos = write(pos, cy);
+    view.setFloat64(pos, view.getFloat64(yStart, true), true);
+    pos += yLength;
     // The second arc returns by one diameter. The fill closes the subpath.
     view.setFloat64(pos, back0, true);
     view.setFloat64(pos + 8, back1, true);
@@ -442,14 +456,21 @@ function denseCircles(xy: Float32Array, radius: number): string | null {
   return decodeBuf(pos);
 }
 
-function pointData(mark: PointMark): string {
+function pointData(mark: PointMark, source: unknown[]): string {
   const { xy, size } = mark;
   const len = xy.length - 1;
   if (!(size > 0) || len <= 0) return '';
   const nPts = xy.length >> 1;
   if (mark.shape === 'circle') {
     const r = size / 2;
-    if (nPts === 1) return lifted(xy[0]!) || lifted(xy[1]!) ? '' : circlePath(xy[0]!, xy[1]!, r, 1);
+    if (nPts === 1) {
+      if (lifted(xy[0]!) || lifted(xy[1]!)) return '';
+      if (source[4] !== r) {
+        source[3] = circleArc(r, 1);
+        source[4] = r;
+      }
+      return circlePath(xy[0]!, xy[1]!, r, 1, source[3] as string);
+    }
     // Quantize the center once and offset by the radius to keep both semicircles symmetric.
     if (nPts >= 2000 && r > 0 && r < DENSE_RADIUS_LIMIT && Number.isInteger(r * 10)) {
       const dense = denseCircles(xy, r);
@@ -528,8 +549,13 @@ function missingData(mark: RectMark, box: Float64Array, clip: Rect | null): stri
 }
 
 /** Two semicircles, with the opposite winding for a donut's inner edge. */
-function circlePath(x: number, y: number, r: number, sweep: 0 | 1): string {
-  const rs = fstr(r), ys = fstr(y), start = `${fstr(x + r)} ${ys}`, arc = `A${rs} ${rs} 0 1 ${sweep} `;
+function circleArc(r: number, sweep: 0 | 1): string {
+  const radius = fstr(r);
+  return `A${radius} ${radius} 0 1 ${sweep} `;
+}
+
+function circlePath(x: number, y: number, r: number, sweep: 0 | 1, arc = circleArc(r, sweep)): string {
+  const ys = fstr(y), start = `${fstr(x + r)} ${ys}`;
   return `M${start}${arc}${fstr(x - r)} ${ys}${arc}${start}Z`;
 }
 
@@ -670,8 +696,12 @@ export const svgRects: SvgMark<RectMark> = (c, n, mark, bindings, _dpr, clip) =>
 
 export const svgPoints: SvgMark<PointMark> = (_c, n, mark, bindings) => {
   const source = n.source ??= [];
-  if (source[0] !== mark.xy || source[1] !== mark.shape || source[2] !== mark.size) {
-    attrStr(n, 'd', pointData(mark));
+  const old = source[0] as Float32Array | undefined;
+  const xy = mark.xy;
+  if (old !== xy || source[1] !== mark.shape || source[2] !== mark.size) {
+    // A hover halo and its marker often arrive as fresh pairs at the same datum.
+    if (xy.length !== 2 || old?.length !== 2 || xy[0] !== old[0] || xy[1] !== old[1] ||
+        source[1] !== mark.shape || source[2] !== mark.size) attrStr(n, 'd', pointData(mark, source));
     source[0] = mark.xy;
     source[1] = mark.shape;
     source[2] = mark.size;
@@ -965,9 +995,23 @@ function ruleRunEnd(marks: readonly Mark[], start: number, first: RuleMark, bind
 }
 
 function updateRules(n: SvgNode, marks: readonly Mark[], start: number, end: number, first: RuleMark, color: string | null, dpr: number, s: Float64Array): void {
+  const source = n.source ??= [];
+  let same = source[0] === dpr && source.length === end - start + 2;
+  for (let i = start; same && i < end; i++) {
+    const old = source[i - start + 2] as RuleMark, m = marks[i] as RuleMark;
+    same = old === m || old.x1 === m.x1 && old.x2 === m.x2 && old.y1 === m.y1 && old.y2 === m.y2 &&
+      old.strokeWidth === m.strokeWidth;
+  }
+  if (same) {
+    styleRule(n, first, color, source[1] as number);
+    return;
+  }
+  source.length = end - start + 2;
+  source[0] = dpr;
   let d = '', orthogonal = false;
   for (let i = start; i < end; i++) {
     const m = marks[i] as RuleMark;
+    source[i - start + 2] = m;
     snapRule(m.x1, m.y1, m.x2, m.y2, m.strokeWidth, dpr, s);
     const h = s[1] === s[3], v = !h && s[0] === s[2];
     if (h || v) orthogonal = true;
@@ -976,7 +1020,9 @@ function updateRules(n: SvgNode, marks: readonly Mark[], start: number, end: num
   // The benchmark recognizes paths made of only M and L as data. The butt cap leaves this subpath invisible.
   if (!orthogonal) d += 'M0 0H0';
   attrStr(n, 'd', d);
-  styleRule(n, first, color, first.strokeWidth > 0 ? s[4]! : 0);
+  const width = first.strokeWidth > 0 ? s[4]! : 0;
+  source[1] = width;
+  styleRule(n, first, color, width);
 }
 
 function styleRule(n: SvgNode, mark: RuleMark, color: string | null, width: number): void {

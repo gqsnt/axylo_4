@@ -18,7 +18,11 @@ type Span = readonly [number, number];
 type PlotLayout = Extract<Layout, { kind: 'plot' }>;
 
 const isAligned = (v: View): v is AlignedView => v.kind !== 'donut' && v.kind !== 'scatter';
-const seriesOf = (v: Exclude<View, { kind: 'donut' }>, key: string) => v.frame.series.findIndex(s => s.key === key);
+function seriesOf(v: Exclude<View, { kind: 'donut' }>, key: string): number {
+  const series = v.frame.series;
+  for (let i = 0; i < series.length; i++) if (series[i]!.key === key) return i;
+  return -1;
+}
 
 export const targetOf = (ref: DatumRef): PickTarget =>
   ref.kind === 'aligned' ? { kind: 'x', x: ref.x }
@@ -33,8 +37,13 @@ export function sameRef(a: DatumRef | null, b: DatumRef | null): boolean {
   return a.seriesKey === (b as typeof a).seriesKey && a.row === (b as typeof a).row && a.x === (b as typeof a).x;
 }
 
-export const readableSeries = (view: AlignedView): number[] =>
-  view.frame.series.flatMap((s, i) => view.visible[i] && s.drawable ? [i] : []);
+/** The series a reading lists: shown and drawable, in series order. Runs on every pointer move. */
+export function readableSeries(view: AlignedView): number[] {
+  const series = view.frame.series;
+  const out: number[] = [];
+  for (let i = 0; i < series.length; i++) if (view.visible[i] && series[i]!.drawable) out.push(i);
+  return out;
+}
 
 export function stepAcross(view: AlignedView, x: number | null, direction: StepDirection): number | null {
   const { start, end } = view.visibleSlots;
@@ -45,8 +54,14 @@ export function stepAcross(view: AlignedView, x: number | null, direction: StepD
   return to === null ? null : xs[to]!;
 }
 
-export const refsAt = (view: AlignedView, x: number): DatumRef[] =>
-  readableSeries(view).map(s => ({ kind: 'aligned', seriesKey: view.frame.series[s]!.key, x }) as const);
+export function refsAt(view: AlignedView, x: number): DatumRef[] {
+  const series = view.frame.series;
+  const out: DatumRef[] = [];
+  for (let i = 0; i < series.length; i++) {
+    if (view.visible[i] && series[i]!.drawable) out.push({ kind: 'aligned', seriesKey: series[i]!.key, x });
+  }
+  return out;
+}
 
 export const positionText = (m: Messages, f: Formatters, ord: number, count: number): string =>
   fill(m.position, { index: f.count(ord + 1), count: f.count(count) });
@@ -69,12 +84,16 @@ export function valueText(view: View, lookup: Lookup, focus: DatumRef, mode: Mod
 }
 
 export function alignedRows(view: AlignedView, formatters: Formatters, x: number, model: TooltipModel): DatumText[] {
-  const rows: DatumText[] = [...model.rows], shown = new Set(model.rows.map(r => r.seriesIndex));
+  const given = model.rows;
+  const rows: DatumText[] = given.slice();
   const xs = view.frame.x.values, i = lowerBound(xs, x);
   if (i >= xs.length || xs[i] !== x) return rows;
-  for (const s of readableSeries(view)) {
-    if (shown.has(s)) continue;
-    const ser = view.frame.series[s]!, state = ser.slot[i] as SlotState;
+  const shown = new Set<number>();
+  for (let r = 0; r < given.length; r++) shown.add(given[r]!.seriesIndex);
+  const series = view.frame.series;
+  for (let s = 0; s < series.length; s++) {
+    if (!view.visible[s] || !series[s]!.drawable || shown.has(s)) continue;
+    const ser = series[s]!, state = ser.slot[i] as SlotState;
     rows.push({
       ref: { kind: 'aligned', seriesKey: ser.key, x }, seriesIndex: s, seriesLabel: ser.label, x: model.title,
       value: slotText(formatters, s, ser.y[i]!, state), state, percent: null, row: ser.row?.[i] ?? i,
@@ -114,8 +133,8 @@ const rule = (x1: number, y1: number, x2: number, y2: number, name: 'axis' | 'fo
 
 function outline(b: Rect, gap: number, name: 'focus' | 'text' | 'background', w: number): RuleMark[] {
   const x0 = b.x - gap, y0 = b.y - gap, x1 = b.x + b.width + gap, y1 = b.y + b.height + gap, h = w / 2;
-  const r = (a: number, c: number, d: number, e: number) => rule(a, c, d, e, name, w);
-  return [r(x0 - h, y0, x1 + h, y0), r(x1, y0 - h, x1, y1 + h), r(x1 + h, y1, x0 - h, y1), r(x0, y1 + h, x0, y0 - h)];
+  return [rule(x0 - h, y0, x1 + h, y0, name, w), rule(x1, y0 - h, x1, y1 + h, name, w),
+    rule(x1 + h, y1, x0 - h, y1, name, w), rule(x0, y1 + h, x0, y0 - h, name, w)];
 }
 
 function posScale(layout: Layout) {
@@ -233,8 +252,21 @@ export function zoomStep(full: Span, cur: Span, factor: number, center: number, 
   return undefined;
 }
 
-export const canZoomIn = (view: View, w: Span): boolean =>
-  view.kind !== 'donut' && zoomStep(view.xFull, w, 1 / ZOOM_FACTOR, (w[0] + w[1]) / 2, minimumWidth(view)) !== undefined;
+/**
+ * Whether zooming in from window `w` about its centre moves anything: `zoomStep(...) !== undefined`, worked out
+ * without the windows it would make (the toolbar asks on every commit).
+ */
+export function canZoomIn(view: View, w: Span): boolean {
+  if (view.kind === 'donut') return false;
+  const full = view.xFull, factor = 1 / ZOOM_FACTOR, center = (w[0] + w[1]) / 2, minWidth = minimumWidth(view);
+  // scaleWindow, as zoomStep calls it.
+  const fw = full[1] - full[0], cw = w[1] - w[0], width = Math.max(minWidth, cw * factor);
+  if (!(fw > 0) || width >= fw) return false;
+  const start = center - (cw > 0 ? (center - w[0]) / cw : 0.5) * width;
+  const a = Math.max(full[0], Math.min(start, full[1] - width)), b = a + width;
+  // A window that is not finite or empty is the current one, which is not narrower than itself.
+  return Number.isFinite(a) && Number.isFinite(b) && b > a && b - a < w[1] - w[0];
+}
 
 export function pinchWidth(start: number, factor: number, minWidth: number): number {
   const w = Math.max(minWidth, start * factor);

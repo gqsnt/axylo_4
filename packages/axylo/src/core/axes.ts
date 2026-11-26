@@ -400,9 +400,13 @@ export function endingCandidates(sets: TickCandidates, domain: Span, extent: Spa
   return fits.length ? fits : sets;
 }
 
+interface AxisTitles { readonly x: string | undefined; readonly y: string | undefined }
+/** A compact chart's axes are untitled: one answer for all of them. */
+const NO_TITLES: AxisTitles = { x: undefined, y: undefined };
+
 /** The axis titles layout draws (spec L6), with their units; undefined where an axis is untitled. */
-function axisTitles(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext): { x: string | undefined; y: string | undefined } {
-  if (ctx.compact) return { x: undefined, y: undefined };
+function axisTitles(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext): AxisTitles {
+  if (ctx.compact) return NO_TITLES;
   if (view.kind === 'scatter') {
     return {
       x: xTitled(view.frame.xKind, ctx) ? withUnit(view.frame.xLabel, view.frame.xUnit) : undefined,
@@ -423,12 +427,15 @@ function xTitled(kind: XKind, ctx: AxisContext): boolean {
 /** A value axis is always titled (spec L6): its label, else its one field, else the generic noun. */
 function alignedValueTitle(series: readonly { readonly field: string }[], generic: string): string {
   const first = series[0]?.field;
-  return first !== undefined && series.every(s => s.field === first) ? first : generic;
+  if (first === undefined) return generic;
+  for (let i = 1; i < series.length; i++) if (series[i]!.field !== first) return generic;
+  return first;
 }
 
 function sharedUnit(series: readonly { readonly unit: string | null }[]): string | null {
   const first = series[0]?.unit ?? null;
-  return series.every(s => s.unit === first) ? first : null;
+  for (let i = 0; i < series.length; i++) if (series[i]!.unit !== first) return null;
+  return first;
 }
 
 /**

@@ -370,7 +370,9 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   let proxy: HTMLInputElement | null = null, ring: HTMLElement | null = null, proxyRect: Rect | null = null;
   let instructions: HTMLElement | null = null, selection: HTMLElement | null = null;
   let legendList: HTMLUListElement | null = null, toolbar: Toolbar | null = null, legendMarked: HTMLElement | null = null;
-  let proxyUsable: boolean | null = null, proxyMeta: readonly unknown[] | null = null, idleReading: readonly unknown[] | null = null;
+  let proxyUsable: boolean | null = null, proxyMeta: unknown[] | null = null, idleReading: unknown[] | null = null;
+  // Spare key arrays, so an idle commit (a stream frame nobody reads) compares without allocating.
+  let proxyScratch: unknown[] | null = null, idleScratch: unknown[] | null = null;
 
   const mode = (): Mode => single ? 'single' : 'all';
   const focusFigure = () => focusFig(root);
@@ -469,7 +471,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     for (const n of [proxy, instructions, ring, selection]) n?.remove();
     removeLegend(); toolbar?.destroy();
     proxy = instructions = ring = selection = legendList = legendMarked = proxyRect = toolbar = lastControls = controlScratch = controlNodes = null;
-    proxyUsable = proxyMeta = idleReading = null;
+    proxyUsable = proxyMeta = idleReading = proxyScratch = idleScratch = null;
     clearGeo(); figure.clearControls();
     plot.classList.remove('axylo-touch-zoom', 'axylo-zoomable');
     const after = activeElement();
@@ -656,9 +658,13 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   function placementFor(d: Committed, box: Rect | null, keyboardRing: DatumRef | null, m: Mapping): PlacementInput {
     const { layout, lookup } = d, area = plotBox(d);
-    const mk = box ?? { x: area.x + area.width / 2, y: area.y + area.height / 2, width: 0, height: 0 };
-    const datum = padRect(mk.x, mk.y, mk.width, mk.height, RING_REACH);
-    const datumBox = rectToViewport(m, datum), controls = controlRects(m);
+    // The padded datum box in viewport pixels, as rectToViewport(m, padRect(...)) computes it, in one object.
+    const bx = box ? box.x : area.x + area.width / 2, by = box ? box.y : area.y + area.height / 2;
+    const datumBox: Rect = {
+      x: m.left + (bx - RING_REACH) * m.kx, y: m.top + (by - RING_REACH) * m.ky,
+      width: Math.max(0, (box ? box.width : 0) + 2 * RING_REACH) * m.kx, height: Math.max(0, (box ? box.height : 0) + 2 * RING_REACH) * m.ky,
+    };
+    const controls = controlRects(m);
     const rb = keyboardRing ? ringRect(layout, lookup, keyboardRing) : null;
     const rings = rb ? [rectToViewport(m, rb)] : NO_RINGS;
     if (!geoPlacement) {
@@ -713,10 +719,17 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     const empty = hasData ? messages.noData : recoverable(d) || plotReady(d) ? messages.empty : d.message ?? messages.noData;
     const inactive = !acted && !proxyFocused && !focus;
     if (inactive) {
-      const inputs = [hasData ? lookup : null, hasData ? view : null, formatters, messages, lang, empty];
-      if (sameKey(idleReading, inputs)) return;
+      const inputs = idleScratch ??= [];
+      inputs.push(hasData ? lookup : null, hasData ? view : null, formatters, messages, lang, empty);
+      if (sameKey(idleReading, inputs)) { inputs.length = 0; return; }
+      idleScratch = idleReading;
+      if (idleScratch) idleScratch.length = 0;
       idleReading = inputs;
-    } else idleReading = null;
+    } else if (idleReading) {
+      idleReading.length = 0;
+      idleScratch ??= idleReading;
+      idleReading = null;
+    }
     setAttr(proxy, 'lang', lang);
     const ref = hasData ? focus ?? firstDatum(d) : null;
     if (!ref) {
@@ -1246,10 +1259,11 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     } else out.push(false);
     if (showsSlices(d)) out.push(view, d.formatters, d.ready, d.english('noData'));
     else if (view.kind !== 'donut' && d.ready && d.legend && !d.tooSmall && view.frame.series.length > 1) {
-      view.frame.series.forEach((s, i) => {
-        const cue = view.cues[i];
+      const { series } = view.frame;
+      for (let i = 0; i < series.length; i++) {
+        const s = series[i]!, cue = view.cues[i];
         out.push(s.key, s.label, view.visible[i] === true, cue?.marker, cue?.dash.normal, cue?.dash.contrast);
-      });
+      }
     }
   }
 
@@ -1320,9 +1334,12 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     }
     proxyRect = p;
     const count = instructionSeries(d), lang = readingLang(d);
-    const inputs = [d.kind, d.messages, d.zoom, ready, ready && offersZoom(d), count, lang, d.pageLang,
-      d.english('plotInstructions'), d.english('seriesInstructions'), d.english('donutInstructions'), d.english('zoomInstructions')];
-    if (sameKey(proxyMeta, inputs)) return;
+    const inputs = proxyScratch ??= [];
+    inputs.push(d.kind, d.messages, d.zoom, ready, ready && offersZoom(d), count, lang, d.pageLang,
+      d.english('plotInstructions'), d.english('seriesInstructions'), d.english('donutInstructions'), d.english('zoomInstructions'));
+    if (sameKey(proxyMeta, inputs)) { inputs.length = 0; return; }
+    proxyScratch = proxyMeta;
+    if (proxyScratch) proxyScratch.length = 0;
     proxyMeta = inputs;
     setAttr(proxy, 'aria-label', d.messages.plotLabel);
     if (instructions) {

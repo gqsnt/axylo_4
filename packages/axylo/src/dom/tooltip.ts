@@ -93,16 +93,10 @@ function sameShape(text: string, previous: string): boolean {
   return true;
 }
 
-function digitShape(text: string): string {
-  let shape = '', start = 0;
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    if (code <= 48 || code > 57) continue;
-    shape += text.slice(start, i) + '0';
-    start = i + 1;
-  }
-  return start ? shape + text.slice(start) : text;
-}
+// Every digit other than 0 becomes 0, in one native pass: a new heading or value on each move would
+// otherwise build its shape from a string per digit.
+const NONZERO_DIGIT = /[1-9]/g;
+const digitShape = (text: string): string => text.replace(NONZERO_DIGIT, '0');
 
 function hasCanvas(doc: Document, measure: TextMeasurer): boolean {
   const cached = canvasAvailable.get(doc);
