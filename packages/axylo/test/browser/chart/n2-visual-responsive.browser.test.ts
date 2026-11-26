@@ -479,6 +479,27 @@ async function markAnchors(page: Page, kind: Kind): Promise<{ where: string; x: 
       }
       return null;
     };
+    // An integer viewport point whose whole (2r+1)² CSS-px neighbourhood, mapped back through the inverse screen CTM,
+    // is inside `e`'s fill. A sector's bounding box can cover the whole circle, so a grid hit may sit exactly on the
+    // outer arc; the renderer rounds arc coordinates and the pointer arrives as viewport client coordinates, so such
+    // a boundary point can land just outside the ring that the lookup picks. Coarse grid first, then every pixel and
+    // a 1 px neighbourhood, so a genuinely thin sector is still found (or reported missing, never skipped silently).
+    function interior(e: SVGGeometryElement): { x: number; y: number } | null {
+      const ctm = e.getScreenCTM();
+      if (!ctm) return null;
+      const back = ctm.inverse(), box = e.getBoundingClientRect();
+      const solid = (x: number, y: number, reach: number) => {
+        for (let dy = -reach; dy <= reach; dy++) for (let dx = -reach; dx <= reach; dx++) {
+          if (!e.isPointInFill(new DOMPoint(x + dx, y + dy).matrixTransform(back))) return false;
+        }
+        return true;
+      };
+      const x0 = Math.ceil(box.left), x1 = Math.floor(box.right), y0 = Math.ceil(box.top), y1 = Math.floor(box.bottom);
+      for (const [step, reach] of [[Math.max(1, Math.floor(Math.min(x1 - x0, y1 - y0) / 20)), 2], [1, 2], [1, 1]] as const) {
+        for (let y = y0; y <= y1; y += step) for (let x = x0; x <= x1; x += step) if (solid(x, y, reach)) return { x, y };
+      }
+      return null;
+    }
     if (kind === 'bar' || kind === 'histogram' || kind === 'cartesian') {
       const rects = series('rect').map(e => ({ e, b: (e as SVGRectElement).getBBox() })).filter(r => r.b.width > 0 && r.b.height > 0).sort((a, b) => a.b.x - b.b.x);
       for (const [where, r] of [['first bar', rects[0]], ['last bar', rects.at(-1)]] as const) {
@@ -509,16 +530,42 @@ async function markAnchors(page: Page, kind: Kind): Promise<{ where: string; x: 
       const slices = series('path').filter(e => getComputedStyle(e).fill !== 'none').map(e => ({ e, b: e.getBBox() })).sort((a, b) => b.b.width * b.b.height - a.b.width * a.b.height);
       for (const [where, s] of [['largest slice', slices[0]], ['smallest slice', slices.at(-1)]] as const) {
         if (!s) continue;
-        let found: DOMPoint | null = null;
-        for (let fy = 0.1; fy < 1 && !found; fy += 0.1) for (let fx = 0.1; fx < 1 && !found; fx += 0.1) {
-          const p = new DOMPoint(s.b.x + fx * s.b.width, s.b.y + fy * s.b.height);
-          if (s.e.isPointInFill(p)) found = p;
-        }
-        if (found) out.push({ where, ...toClient(s.e, found.x, found.y) });
+        const p = interior(s.e);
+        if (p) out.push({ where, ...p });
       }
     }
     return out;
   }, kind);
+}
+
+/** The dominant slice's complete value in fr-FR: "90 (90 %)", the percent sign after a (narrow) no-break space. */
+const DOMINANT_VALUE = /(^|[^\d,])90 \(90[\s\u00a0\u202f]?%\)/;
+
+/**
+ * Points at the interior anchor of the largest slice and asks that the answer carries its complete value. A failure
+ * says what was under the pointer, so a picking defect reads apart from a placement one.
+ */
+async function dominantPointerProblems(page: Page, g: Geometry): Promise<string[]> {
+  if (g.tooSmall) return [];
+  const anchor = (await markAnchors(page, 'donut')).find(a => a.where === 'largest slice');
+  if (!anchor) return ['largest slice: no interior pointer anchor found'];
+  await page.mouse.move(0, 0);
+  await page.mouse.move(anchor.x, anchor.y);
+  await ready(page);
+  const a = await answer(page);
+  const shown = a.floating ?? a.readout;
+  if (shown && a.texts.some(t => DOMINANT_VALUE.test(t))) return [];
+  const probe = await page.evaluate(({ x, y }) => {
+    const hit = document.elementFromPoint(x, y);
+    const name = (e: Element | null) => e ? `${e.tagName.toLowerCase()}${e.classList.length ? '.' + [...e.classList].join('.') : ''}` : 'nothing';
+    const slices = [...document.querySelectorAll<SVGGeometryElement>('#chart svg.axylo-svg .axylo-scene [style*="--axylo-series-color"] path')]
+      .filter(e => getComputedStyle(e).fill !== 'none');
+    const inside = slices.map(e => e.isPointInFill(new DOMPoint(x, y).matrixTransform(e.getScreenCTM()!.inverse())));
+    const plot = document.querySelector('#chart .axylo-plot')!.getBoundingClientRect();
+    return `under the pointer ${name(hit)} (in ${name(hit?.parentElement ?? null)}); in slice fills [${inside.join(', ')}]; plot ${plot.x.toFixed(1)},${plot.y.toFixed(1)} ${plot.width.toFixed(1)}×${plot.height.toFixed(1)}`;
+  }, anchor);
+  const what = shown ? `answer without the value 90 (90 %): ${a.texts.join(' / ').slice(0, 80)}` : 'no tooltip and no readout';
+  return [`pointer on largest slice at ${anchor.x},${anchor.y}: ${what}; ${probe}`];
 }
 
 /** What answers the reader at one step: the floating tooltip or the readout strip, with its content and bounds. */
@@ -1043,6 +1090,7 @@ describe('N2 repair regressions (independent review blockers)', () => {
       await shoot(page, 'repair-donut-dominant-360');
       const g = await geometry(page);
       const out = [...layoutProblems(g, 'donut'), ...await tooltipProblems(page, 'donut', g, 'light')];
+      out.push(...await dominantPointerProblems(page, g));
       await page.mouse.move(0, 0);
       await page.locator('#chart').getByRole('slider').focus();
       await page.keyboard.press('Home');
@@ -1051,6 +1099,8 @@ describe('N2 repair regressions (independent review blockers)', () => {
       if (!g.tooSmall && !a.floating && !a.readout) out.push('keyboard Home on the dominant slice shows nothing');
       if (a.floating && !inside(a.floating, a.plot)) out.push(`tooltip ${fmt(a.floating)} outside plot ${fmt(a.plot)}`);
       if ((a.floating || a.readout) && (!a.title || a.rows < 1)) out.push('the answer has no title or no row');
+      // The compact donut pass drops the repeated slice name from the row, never the value and its percentage.
+      if ((a.floating || a.readout) && !a.texts.some(t => DOMINANT_VALUE.test(t))) out.push(`keyboard Home: the answer does not show the value 90 (90 %): ${a.texts.join(' / ').slice(0, 80)}`);
       return out;
     });
     problems.push(...errors.map(e => `page error: ${e}`));
@@ -1067,6 +1117,7 @@ describe('N2 repair regressions (independent review blockers)', () => {
       await shoot(page, 'repair-donut-dominant-360-tall');
       const g = await geometry(page);
       const out = [...layoutProblems(g, 'donut'), ...await tooltipProblems(page, 'donut', g, 'light')];
+      out.push(...await dominantPointerProblems(page, g));
       if (g.tooSmall) out.push('a 425 px tall chart at 360 px should not be too small');
       await page.mouse.move(0, 0);
       await page.locator('#chart').getByRole('slider').focus();
@@ -1076,6 +1127,8 @@ describe('N2 repair regressions (independent review blockers)', () => {
       if (!a.floating && !a.readout) out.push('keyboard Home on the dominant slice shows nothing');
       if (a.floating && !inside(a.floating, a.plot)) out.push(`tooltip ${fmt(a.floating)} outside plot ${fmt(a.plot)}`);
       if ((a.floating || a.readout) && (!a.title || a.rows < 1)) out.push('the answer has no title or no row');
+      // The compact donut pass drops the repeated slice name from the row, never the value and its percentage.
+      if ((a.floating || a.readout) && !a.texts.some(t => DOMINANT_VALUE.test(t))) out.push(`keyboard Home: the answer does not show the value 90 (90 %): ${a.texts.join(' / ').slice(0, 80)}`);
       return out;
     });
     problems.push(...errors.map(e => `page error: ${e}`));

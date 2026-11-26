@@ -187,6 +187,7 @@ class DomTooltip implements TooltipView {
   #sizeObserver: ResizeObserver | undefined;
   #floatTitleText = '';
   #floatTotal: ReadoutRow | null = null;
+  #compact: RowEntry | null = null;
   #stripParts: [title: HTMLElement, total: HTMLElement, moreSep: Text, totalSep: Text] | null = null;
 
   readonly #element: HTMLElement;
@@ -440,6 +441,7 @@ class DomTooltip implements TooltipView {
   #hideIdx(idx: 0 | 1): void {
     const host = idx === 0 ? this.#element : this.#readoutElement;
     if (idx === 0) {
+      this.#plain();
       this.#hoverSize = null;
       if (this.#floatFlags & FLOAT_OBSERVED) {
         this.#sizeObserver!.unobserve(this.#element);
@@ -524,6 +526,12 @@ class DomTooltip implements TooltipView {
 
   invalidateSize(): void { this.#hoverSize = null; }
 
+  // Undoes the compact pass before anything else reads or reuses the floating rows.
+  #plain(): void {
+    const row = this.#compact;
+    if (row) { this.#compact = null; this.#element.classList.remove('axylo-tooltip-compact'); row.label.data = row.l; }
+  }
+
   #overflows(): boolean {
     const el = this.#element;
     return el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
@@ -534,6 +542,7 @@ class DomTooltip implements TooltipView {
     let maxW = Math.max(0, Math.min(320, p.visible.width / m.kx)), maxH = Math.max(0, p.visible.height / m.ky);
     const steady = this.#where === 1 && !pinned && !this.#wasPinned && !this.#element.hidden;
     if (steady) this.#current = content; else this.#begin(0, content, pinned);
+    this.#plain();
     if (this.#maxWidth !== maxW || this.#maxHeight !== maxH || pinned || (this.#floatFlags & FLOAT_WRAPPED) || this.#where !== 1) this.#hoverSize = null;
     if (this.#maxWidth !== maxW) { this.#maxWidth = maxW; this.#element.style.maxWidth = `${maxW}px`; }
     if (this.#maxHeight !== maxH) { this.#maxHeight = maxH; this.#element.style.maxHeight = `${maxH}px`; }
@@ -569,7 +578,9 @@ class DomTooltip implements TooltipView {
       }
       this.#hoverSize = null;
     }
-    const firstMax = maxW;
+    const firstMax = maxW, h = p.hole, ring = p.rings[0], v = p.visible;
+    // The wider free column beside a keyboard ring, in CSS px.
+    const column = ring ? Math.max(ring.x - v.x, v.x + v.width - ring.x - ring.width) / m.kx | 0 : 0;
     let holeTry = 0;
     for (let shown = total; shown >= Math.min(1, total); shown--) {
       const more = this.#mountRows(title, rows, shown, content, pinned, totalRow?.e ?? null);
@@ -609,11 +620,39 @@ class DomTooltip implements TooltipView {
       // No column beside the ring either (a dominant slice), or a pointer with no ring at all: the hole may still
       // hold the row once it is narrower and wrapped. Two widths are tried, the inscribed square's and a wider,
       // shorter one (1.6 r, still inside the hole's chord for two wrapped lines), since wrapping makes the row taller; the hole's own test still decides, so the ring and the controls stay clear.
-      const ring = shown === 1 ? p.rings[0] : null, v = p.visible, h = p.hole;
-      let w = ring ? Math.max(ring.x - v.x, v.x + v.width - ring.x - ring.width) / m.kx | 0 : 0;
+      let w = shown === 1 ? column : 0;
       if (!(w > 48 && w < maxW)) w = shown === 1 && h && holeTry < 2 ? (holeTry++ ? 1.6 : 1.41) * h.rx / m.kx | 0 : 0;
       // A width already tried (or the current one) would only repeat the same measurement.
       if (w > 48 && w < firstMax && w !== maxW) { this.#element.style.maxWidth = `${this.#maxWidth = maxW = w}px`; shown++; }
+    }
+    // Nothing else fits a donut's single slice (a dominant slice in a small plot): its name is the heading and the
+    // row's label both, so one compact pass shows it once, on one line, ellipsized if it must be, over the swatch and
+    // the whole value. Only hover and keyboard tooltips take it: they are hidden from assistive technology, which reads
+    // the slice from the keyboard proxy's value text, while a pinned row is a button that keeps its full name.
+    // Widths: the usual maximum, then the widest box the hole's ellipse holds at the height just measured (holeSpot's
+    // own test solved for the width; narrowing can wrap the value and add a line, so it is solved again), then the
+    // free column beside the ring. holeSpot and the side rules still decide; only the last width may fall back, under
+    // the rules that never cover a ring or a control. Content that would be cut is never placed (L1).
+    const only = rows[0]!;
+    if (h && !pinned && total === 1 && only.l === model.title) {
+      const el = this.#element;
+      // The last pass left this one row mounted; emptying its label leaves the swatch and the value.
+      el.classList.add('axylo-tooltip-compact', 'axylo-tooltip-wrap');
+      this.#floatFlags |= FLOAT_WRAPPED;
+      (this.#compact = only).label.data = '';
+      for (let i = 0, w = firstMax, last = w, height = 0; i < 5; i++) {
+        if (w > 24) {
+          el.style.maxWidth = `${this.#maxWidth = last = w}px`;
+          const size = el.getBoundingClientRect(), width = size.width;
+          height = size.height;
+          const spot = this.#overflows() ? null : placeTooltip(p, width, height) ?? (i > 3 ? fallbackPlacement(p, width, height) : null);
+          if (spot) {
+            this.#positionFloat(spot, width, height, m);
+            return this.#finish(0, true);
+          }
+        }
+        w = Math.min(firstMax, i < 3 ? (2 * h.rx * Math.sqrt(1 - (height / 2 / h.ry) ** 2) / m.kx | 0) - 1 : column > 24 ? column : last);
+      }
     }
     return this.#finish(0, false);
   }

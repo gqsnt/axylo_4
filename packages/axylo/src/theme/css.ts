@@ -184,6 +184,9 @@ ${forced}
     overflow: hidden; overflow-wrap: anywhere;
   }
   .axylo .axylo-tooltip.axylo-tooltip-pinned { pointer-events: auto; border-width: 2px; }
+  /* A donut's last resort (rule 6): the slice's name once, on one line, cut with an ellipsis if it must, over the
+     swatch and the whole value, so the answer fits the hole or the column beside a large slice's ring. */
+  .axylo .axylo-tooltip-compact .axylo-tooltip-row { flex-wrap: wrap; gap: 0 0.375em; }
   /* Readout mode (rule 5): a strip of two lines reserved under the plot, in the plot's column, as running
      text. Outside readout mode it does not exist. */
   .axylo .axylo-readout { display: none; }
@@ -196,7 +199,7 @@ ${forced}
   .axylo .axylo-readout-mode .axylo-readout[hidden] { display: block !important; visibility: hidden; }
   /* The x on one line at most, cut with an ellipsis, so a long title never crowds out the first value; a cut
      row's label and value are cut the same way. */
-  .axylo .axylo-readout .axylo-tooltip-title, .axylo .axylo-readout-cut .axylo-readout-entry span, .axylo .axylo-readout-cut .axylo-readout-total > span {
+  .axylo .axylo-readout .axylo-tooltip-title, .axylo .axylo-tooltip-compact .axylo-tooltip-title, .axylo .axylo-readout-cut .axylo-readout-entry span, .axylo .axylo-readout-cut .axylo-readout-total > span {
     display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom;
   }
   .axylo .axylo-readout .axylo-tooltip-series { display: inline; }
@@ -288,14 +291,14 @@ ${forced}
    * over. The queries read the width of the row that holds the plot and the rail, which the legend's place
    * does not change, so the switch cannot oscillate. That row, not the figure, is the container: inline-size
    * containment drops the container's own width from a shrink-to-fit target, and the figure's title and
-   * controls must still give it one. A container cannot restyle itself, so the row wraps and the strip takes a
-   * whole line of its own instead of turning the row into a column.
+   * controls must still give it one. A container cannot restyle itself, so the row is a one-column grid whose
+   * children change places: narrow, the strip's row is as tall as the strip and the plot's row takes what is left,
+   * down to nothing (the stage's min-height is 0), so a fixed height holds both, where flex lines would each keep
+   * their content's height. Wide, the rail moves to a second, implicit column of its own width, across both rows.
    */
-  .axylo-body:has(> .axylo-controls-side:not([hidden])) { container: axylo / inline-size; flex-wrap: wrap; }
-  @container axylo (max-width: 480px) { .axylo .axylo-body > * { flex: 1 100%; } }
+  .axylo-body:has(> .axylo-controls-side:not([hidden])) { container: axylo / inline-size; display: grid; grid: 1fr auto / 1fr; }
   @container axylo not (max-width: 480px) {
-    .axylo-body > .axylo-stage { flex-basis: 0; }
-    .axylo .axylo-controls-side { margin: 0; margin-inline-start: 0.75em; max-width: 40%; overflow: auto; }
+    .axylo .axylo-body > .axylo-controls-side { grid-area: 1 / 2 / 3; margin: 0; margin-inline-start: 0.75em; max-width: 40cqw; overflow: auto; }
     .axylo .axylo-controls-side .axylo-toolbar { flex-direction: column; align-items: stretch; flex-wrap: nowrap; }
     .axylo .axylo-controls-side .axylo-legend-list { flex-direction: column; flex-wrap: nowrap; }
     .axylo .axylo-controls-side .axylo-legend-entry + .axylo-control:not(.axylo-legend-entry) { margin-inline-start: 0; margin-block-start: 0.5em; }

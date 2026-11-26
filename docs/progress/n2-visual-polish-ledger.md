@@ -12,32 +12,30 @@ Evidence labels used below:
 
 ## Current verification (read this first)
 
-**observed (Director, Chrome)** on parent `opus-5.5-medium__20261126T191124Z`, exit 0. Tail:
-`Test Files  3 passed (3)` / `Tests  86 passed (86)` / `Duration  47.49s`. The configured Director gate ran exactly
-three files, whose test counts match the source:
+**Verified parent: sealed candidate `opus-5.5-medium__20261126T200644Z`** = the "Final 3 Chrome failures" product
+fix plus the "Two remaining Chrome failures" test-fixture repair (last two sections of this ledger). This ledger
+update is a documentation-only child of that parent; it changes no product or test file.
 
-| file | tests |
-|---|---:|
-| `packages/axylo/test/browser/chart/n2-visual-responsive.browser.test.ts` | 78: matrix 63, F-RESP-1 4, swatches 6 (legend per scheme 3, hidden outline, tooltip rows, bar→area update), bundle scan 1, narrow strip 3 (three 220 px charts), matrix summary 1 |
-| `packages/axylo/test/browser/chart/c3-journeys.browser.test.ts` | 6 |
-| `apps/docs/test/theme.browser.test.ts` | 2 (light, dark) |
-
-That run covers the 960 → 360 → 960 F-RESP-1 transition (focus, roving tabindex and toggles carried over) and the
-three 220 px strips. It passed after the fixes for the Director's earlier runs, which failed 43, then 8, then 1 test
-(history below).
-
-**observed (author, Node)**, unchanged since then: `npm run typecheck` pass; `npm test` 113 files / 2,102 tests pass;
-`npm run build` pass; bytes −4 B root line only, −4 B static line only, −3 B static everything (§6).
-
-**Not run:** the full existing browser suite (`packages/axylo/test/browser`, `apps/docs/test`), baseline and candidate
-screenshots, a baseline (pre-N2) Chrome control run, real 400 % native zoom (emulated, §5), and manual AT (§9).
-Commands for these are in §7.
-
-**This ledger update was docs-only** (no code, CSS, test, script or config change). The Director gate will rerun to
-bind the Chrome evidence to the eventual accepted candidate.
-
-Defects below are **inferred from source** unless stated; the only baseline behaviour seen in Chrome is the earlier
-candidate runs' failures relayed by the Director. No pre-N2 baseline was run in Chrome in this cycle.
+- **observed (Director, Chrome), on the named parent:** the Director's verify gate exited `0`. Chrome tail:
+  `Test Files  3 passed (3)`, `Tests  90 passed (90)`, `Duration  52.45s (tests 99%, import 1%)`. Suites:
+  `n2-visual-responsive.browser.test.ts` 82, `c3-journeys.browser.test.ts` 6, `apps/docs/test/theme.browser.test.ts` 2.
+  Both dominant 90/10 donut cases (pointer on the largest slice's interior anchor and keyboard Home, each with the
+  complete `90 (90 %)` value) and every F-RESP-1 case (including the fixed 320 px height at 360 px) passed.
+  The author did not see the full log; only this relayed tail is evidence.
+- **observed (author, Node), on the parent:** `npm run typecheck` pass. `npx vitest run --configLoader runner
+  --no-cache`: 113 files, 2,103 tests passed. `npm run build` pass.
+- **observed (author), bytes**, exact gzip-9 with identical consumer esbuild settings against the 87/90 checkpoint:
+  line only 135,393 → 135,640 (**+247 B**), static line only 120,834 → 121,071 (**+237 B**). Both are inside the
+  clarified +250 B core-fix allowance for `theme/css.ts` / `dom/tooltip.ts`; the earlier ≤ 0 B target is obsolete.
+  `dom/mark-swatch.ts` contributes 0 B to `dist/axylo.js`, `dist/static.js` and `dist/axylo.iife.min.js`, and is
+  still present in `dist/cartesian.js`. Details are in "Final 3 Chrome failures → Bytes".
+- **inferred (source only):** the original diagnosis of the 90/10 pointer miss (the old anchor scan landing on the
+  outer arc) was never instrumented, because the fractional anchor was not logged. What is observed is that the
+  corrected interior pointer anchor answers with the complete value in both 90/10 cases.
+- **Not run:** screenshots (`AXYLO_N2_SHOTS`), manual AT (§9), real 400 % native zoom, and the full existing browser
+  suite outside the configured three-file gate.
+- **Pending:** this documentation-only candidate receives its own Director gate and its own independent review. No
+  review verdict is recorded here.
 
 ## Repair history (historical: each round's cause and fix; superseded Chrome results)
 
@@ -59,7 +57,7 @@ places, the only rules matching that `li` set the outline. The selector keeps it
 **−4 / −4 / −3** (§6). Tried and rejected (gzip larger): `1 1 1px`, `1 .1px`, `1 0.1px`, `1 1pt`, `1 1ch`, `1 1%`,
 `1 1q`, `1 1em`, `1 2px` and `1 4px` (still +1 or +2 on static everything), and reordered declarations.
 Suite and fixture unchanged (the value / pager checks and the 220 px long localized fixture are kept).
-This round's fix is the candidate that passed the current Chrome run (above).
+This round's fix is the candidate that passed that round's Chrome run (86/86, historical).
 
 ### Second repair round (after the Director's second Chrome run)
 
@@ -269,7 +267,7 @@ It runs against the built bundles: `dist/axylo.iife.js` via the shared `chartPag
 
 Opt-in screenshots: `AXYLO_N2_SHOTS=<dir>` writes `<kind>-<scheme>-<size>.png`, `strip-*.png`, `legend-right-*.png` and `cartesian-swatches-*.png` (repeatable command in §7). The Director gate did not set it, so no screenshot has been generated or inspected yet.
 
-## 6. Bundle size (DX7) — observed
+## 6. Bundle size (DX7) — observed (historical, third repair round; current bytes are in "Current verification")
 
 Recipe: `docs/progress/n2-size-and-bundle.mjs` builds a `src` tree the way `scripts/build.mjs` builds dist (same esbuild
 settings, `PRODUCTION` defines, the stylesheet minified by that tree's own `minify.ts` and embedded as a literal),
@@ -291,7 +289,7 @@ reproduces the original table exactly (135,240 / 120,674 / 140,959 B).
 | cartesian | 124,166 | 125,038 | +872 |
 | `axylo.css` file | 3,275 | 3,316 | +41 |
 
-Current candidate (observed, table above, third repair round; the docs-only update did not touch measured files).
+Third-round candidate (observed, table above; superseded by the later rounds; the docs-only update did not touch measured files).
 History: the second round's candidate measured −6 / −4 / −2. The recipe's `axylo.css` and `axylo.js` are
 byte-identical (`cmp`) to this round's `npm run build`.
 
@@ -341,18 +339,21 @@ Inside a sandbox with a read-only, symlinked `node_modules`, add `--configLoader
 
 ## 8. Status
 
+Current state, for the sealed parent `opus-5.5-medium__20261126T200644Z` (earlier rows of this table described the
+third repair round and are superseded):
+
 | item | status |
 |---|---|
 | typecheck (`npm run typecheck`) | observed (author) pass |
-| unit tests (`npm test`) | observed (author) pass: 113 files, 2,102 tests (`vitest run --configLoader runner`) |
+| unit tests (`npm test`) | observed (author) pass: 113 files, 2,103 tests (`vitest run --configLoader runner --no-cache`) |
 | `npm run build` | observed (author) pass |
-| size table | observed (author): −4 / −4 / −3 B on the budget rows (root line only / static line only / static everything) |
-| Director Chrome gate (3 files) | observed (Director, Chrome): 86/86, exit 0 (N2 suite 78, c3 journeys 6, docs painted colours 2) |
-| full existing browser suite (final-closing, final-pin, final-round3, split-seams, …) | **not run**. The cut-pass CSS only applies where the old code hid the strip, and the donut retry only runs where the old code showed no tooltip (inferred) |
+| size | observed (author), gzip-9 vs the 87/90 checkpoint: line only +247 B, static line only +237 B (within +250 B); `dom/mark-swatch.ts` 0 B in `axylo.js` / `static.js` / `axylo.iife.min.js` |
+| Director Chrome gate (3 files) | observed (Director, Chrome) on the named parent: 90/90, exit 0 (N2 suite 82, c3 journeys 6, docs painted colours 2) |
+| full existing browser suite (final-closing, final-pin, final-round3, split-seams, …) | **not run** (outside the configured gate) |
 | baseline (pre-N2) Chrome control run | not run (§7) |
 | screenshots (baseline and candidate) | not generated (`AXYLO_N2_SHOTS`, §5 and §7) |
 | real 400 % native zoom, real forced colours, manual AT | not run; N3 (§9) |
-| evidence binding | the gate reruns on the eventual accepted candidate; this update was docs-only |
+| evidence binding | the Chrome result is for the named parent; this docs-only child gets its own Director gate and review |
 
 ## 9. Deferred to N3 (manual AT and interaction)
 
@@ -433,7 +434,8 @@ Evidence I ran myself (sandbox, no browser):
 - `npm run size` cannot run here (`npm pack` hits EROFS on ~/.npm). I measured instead with the same esbuild settings
   (minify, esm, es2022, production condition, gzip 9) against the rebuilt `packages/axylo` through a symlink:
   line only 135362 (+121 vs 135241), static line 120813 (+138 vs 120675), cartesian 125181, everything 158218.
-  **The size target of <= 0 B is NOT met.** I did not find a safe consolidation inside this time box.
+  (Historical: at that time the target was ≤ 0 B and it was not met. That target is obsolete; the clarified
+  policy allows up to +250 B for these core fixes, and the current measurement is in "Current verification".)
 - Not verified: every Chrome case, including the three failures and the third (truncated) one. Fixed-height narrow
   legend wrap was not assessed. Chrome is left for the Director.
 
@@ -448,3 +450,144 @@ Evidence I ran myself (sandbox, no browser):
 - Plan: in `src/dom/tooltip.ts` `show()`, after both `holeTry` widths fail at `shown === 1`, run one more pass only when the single row's series label equals `model.title`. That pass mounts the value and drops the repeated label, so the title appears once. It keeps the full title as the element's accessible text (`aria-label`/description). Width comes from the ellipse chord: for a measured height `H`, `w = 2·rx·sqrt(1 − (H/2/ry)²)`, which matches `holeSpot`'s test. It never clips. If the row still does not fit, the existing `clipped`/no-show path applies. Pinned selection, normal tooltip and ring/outline avoidance are unchanged because `placeTooltip`/`holeSpot` still decide.
 - Open design choice: the spec has not confirmed whether dropping the repeated series label (as opposed to truncating it) is allowed. It needs a spec/owner ruling before landing.
 - Still open: the Director's 3 Chrome failures (donut 90/10 pointer and Home, and a third case), legacy root/static gzip over budget (+121/+138 B, last recorded and not re-measured; no consolidation attempted).
+
+## Final 3 Chrome failures (candidate on the 87/90 checkpoint): F-RESP-1 fixed height, donut 90/10 pointer/Home
+
+Evidence labels: **observed (Director, Chrome)** for the failures quoted. Diagnoses are **inferred from source**,
+because worker turns may not launch Chrome. (Historical: Chrome was pending when this section was written; the Director gate on the sealed parent has since
+passed 90/90, see "Current verification".)
+
+### F-RESP-1: a fixed 320 px height at 360 px (`n2-visual-responsive.browser.test.ts`, F-RESP-1 describe)
+- Observed failure (Director): `.axylo-controls-side` at y 295.1, 108 px tall, and five toolbar buttons at y 351–403,
+  all outside the 16,37 328×320 container.
+- Cause (inferred): the contained `.axylo-body` was a wrapping flex row. At ≤ 480 px each child took `flex: 1 100%`,
+  so it sat on its own flex line. A multi-line flex container never shrinks a line below its content's height. The
+  stage's line kept the plot spacer's 16:9 height, and the 108 px controls line was pushed past the definite height.
+- Fix (`theme/css.ts`): the contained body (only when its side slot is shown) is a one-column grid,
+  `grid: 1fr auto / 1fr`.
+  - Narrow (the default): the stage is auto-placed in row 1 and the strip in row 2. Row 2 is the strip's natural
+    height, and row 1 takes the remainder. It can shrink to 0, because the stage's `min-height: 0` is its grid minimum.
+  - Wide (`@container axylo not (max-width: 480px)`): only the rail moves, `grid-area: 1 / 2 / 3`, into an implicit
+    auto column across both rows. The stage stays in row 1 (1fr), and row 2 has no item of its own, so it is 0.
+  - The rail keeps its cap, now `max-width: 40cqw` instead of `40%`. Both are 40 % of the body's content width; the
+    `cqw` unit avoids a percentage against an auto grid track. It also keeps `overflow: auto`, its margin and its
+    column toolbar/legend.
+  - Unchanged: the 480/481 px query and the element it reads, so the switch is the same. Inline-size containment stays
+    on the body only, never the figure or root, so the inline-block intrinsic-width case keeps its width from the
+    caption and controls. The DOM is unchanged, so toolbar, legend, focus and roving state are the same across
+    resize. A hidden side slot leaves the body a plain flex row, as before.
+  - Natural auto height (inferred): in an indefinite height the 1fr row is the max-content of what crosses it (stage,
+    and the wide rail), and row 2 is 0. That matches the old flex row's stretch.
+
+### Donut 90/10 (two `N2 repair regressions` cases): pointer on the largest slice, keyboard Home
+- Observed failure (Director): in both, `pointer on largest slice: no tooltip | keyboard Home: no tooltip | keyboard
+  Home on the dominant slice shows nothing`. The smallest slice's pointer step passed, with labels of nearly the
+  same length.
+- Constraint analysis (inferred):
+  - The heading and the row both carry the full ~54-character slice name. At the hole widths tried so far (1.41 r,
+    1.6 r, about 70–80 px), the name wraps to many lines and exceeds the plot's height, so it is refused as cut (L1).
+  - `holeSpot` needs (W/2rx)² + (H/2ry)² ≤ 1. The hole is `r0 − 5` = `0.6 r1 − 5`, roughly 45–50 px at 360 px auto
+    height (estimated from the layout code, not measured).
+  - For Home, the 90 % sector's ring is the whole donut's box, so the only free column is about (plot − donut)/2.
+- Not explained by source reading: why the pointer's normal `fallbackPlacement` at the full width also failed for
+  the largest slice. It should only fail when controls block, or when the box exceeds the visible plot. I could not
+  measure it without Chrome. The compact pass below reaches every path that ended with no tooltip. If the Director
+  run still shows the pointer failing, the next step is to log `p.visible`, `p.controls` and the measured box in
+  that path.
+- Fix (`dom/tooltip.ts` `show()`, plus two CSS rules): a bounded compact last pass, run only when every existing
+  pass failed.
+  - It applies only to a donut with a hole, a single row whose label equals the heading, and an unpinned (hover or
+    keyboard) tooltip.
+  - Content: the row's label text node is emptied, so the slice name shows once, as the heading. The heading is on
+    one line with `text-overflow: ellipsis`; its full text stays in the DOM. The swatch and the complete
+    `value (percent)` stay visible: the row wraps, and the value may wrap but is never cut.
+  - Widths, at most five measurements:
+    1. the usual maximum;
+    2. up to three hole-chord widths, `floor(2·rx·√(1 − (H/2ry)²)/kx) − 1` from the height just measured;
+    3. the free column beside the ring (computed once and shared with the existing ring-column retry), or the last
+       width when there is no ring.
+  - Placement: each width is placed by `placeTooltip`, so `holeSpot`'s ellipse, visible, controls and ring-stroke
+    tests and the side rules stay authoritative. Only the last width may use `fallbackPlacement`, which never covers
+    a ring or a control. Any overflowing box is refused.
+  - State: `#plain()` restores the label and drops the class at the start of every `show()`, in `#hideIdx(0)`, and so
+    on any failure. That covers target changes, pinning, the steady path and hiding. The pass sets
+    `FLOAT_WRAPPED` and writes `#maxWidth`, so the next show drops the cached hover size and restores the usual
+    maximum. The pass never calibrates the size cache.
+  - Accessibility: hover and keyboard tooltips are `aria-hidden`. The keyboard reading is the proxy's
+    `aria-valuetext`, which this change does not touch. Pinned rows (buttons) never take the compact pass, so their
+    accessible names are unchanged.
+- Test strengthened in place (`n2-visual-responsive.browser.test.ts`, the two 90/10 cases; no new test, count still
+  90): after Home, the answer's visible texts must include the value 90 with its percentage. That catches a compact
+  pass that drops the value.
+
+### Bytes (observed, author)
+- Method: `scripts/size.mjs`'s consumer settings (esbuild bundle, minify, esm, es2022, `conditions: ['production']`,
+  gzip level 9), from workspace-local fixtures `.prism-cache/tmp/size/{base,cand}/node_modules/axylo`. Each fixture
+  holds `packages/axylo/package.json` and a `dist` built by `npm run build`.
+- **base** = the checkpoint at the start of this turn: this workspace with the original `theme/css.ts` and
+  `dom/tooltip.ts` restored, rebuilt, then put back. **cand** = this candidate. Line only uses
+  `examples/first-chart/npm.ts`; the other rows are the size script's entry strings.
+
+| row | base gzip-9 B | candidate gzip-9 B | Δ |
+|---|---:|---:|---:|
+| line only | 135,393 | 135,640 | **+247** |
+| everything | 158,247 | 158,514 | +267 |
+| static line only | 120,834 | 121,071 | **+237** |
+| static everything | 141,112 | 141,375 | +263 |
+| cartesian | 125,207 | 125,446 | +239 |
+| `axylo.iife.min.js` (gzip -9c) | 158,252 | 158,598 | +346 |
+| `axylo.css` | 3,350 | 3,387 | +37 |
+
+- Split, measured on an earlier draft: JS ≈ +298, CSS ≈ +68. After compaction: shared ring column, no extra
+  remount, no size observer, title rule merged into the existing ellipsis rule, one-column grid.
+- `dom/mark-swatch.ts`: its path constants (`M1 6L7 3L13 6L19 3`, the band path, the capped whisker) occur 0 times in
+  `dist/axylo.js`, `dist/static.js` and `dist/axylo.iife.min.js` for both base and candidate, and once each in
+  `dist/cartesian.js`. So it contributes 0 B to the first three and keeps its opt-in Cartesian contribution.
+
+### Verification of this candidate
+- observed (author): `npm run typecheck` pass. `npx vitest run --configLoader runner --no-cache`: `Test Files 113
+  passed (113)`, `Tests 2103 passed (2103)`. `npm run build` pass.
+- Chrome (historical): the next Director run on this product change still failed the two 90/10 pointer steps (next
+  section); F-RESP-1 and both keyboard Home assertions passed. With the next section's fixture repair, the gate on
+  the sealed parent passed 90/90 (observed, Director).
+- Not run: screenshots, the full existing browser suite, manual AT.
+
+
+## Two remaining Chrome failures: donut 90/10 pointer anchor (test fixture repair)
+
+Evidence labels: **observed (Director, Chrome)** for the failures quoted; the diagnosis is **inferred from source**
+because the fractional anchor was never instrumented. The corrected interior pointer coverage is **observed
+(Director, Chrome)**: both 90/10 cases passed in the 90/90 gate on the sealed parent.
+
+- Observed (Director, Chrome, on the previous candidate): exactly two failures, both `pointer on largest slice: no
+  tooltip`, in `N2 repair regressions > donut with a dominant 90/10 slice and long labels at 360 px …` (auto
+  height) and `… donut 90/10 at 360 px in a 425 px tall chart …` (fixed 425 px). The fixed-height F-RESP-1 case and
+  both keyboard Home assertions passed.
+- Diagnosis (inferred from source, not observed): `markAnchors` scanned the slice's SVG bounding box at 10 %
+  steps and took the first `isPointInFill` hit. A 90 % sector (0°–324°, `sin`/`−cos` from 12 o'clock) passes all
+  four quarter extremes, so its box is the whole circle `[c − r, c + r]²`. The first hit at fx = .2, fy = .1 is
+  `(−0.6 r, −0.8 r)`: radius exactly `r` (`hypot(.6, .8) = 1`), angle 323.13°, just before the 324° end — on the
+  outer arc. `render/svg.ts` rounds coordinates to 0.01 px, `isPointInFill` may accept a boundary point, the pointer
+  arrives as viewport client coordinates (`dom/interaction.ts`), and `lookup/donut.ts` `pick` returns null for
+  `radius > r1`. A boundary anchor can therefore be an off-mark pointer event: the "no tooltip" was a pick miss
+  caused by the fixture, not a placement failure. The smallest slice's box is smaller than its circle, so its first
+  hit was interior, which matches it passing.
+- Repair (test only, `n2-visual-responsive.browser.test.ts`; no product source changed):
+  - Donut anchors are now an integer viewport point whose whole 5×5 CSS-px neighbourhood, mapped through the
+    inverse screen CTM, is inside the same slice's fill. Search: a grid of ~1/20 of the box, then every pixel with
+    the 5×5 check, then every pixel with a 3×3 check, so a thin sector is still found; if none is found the existing
+    `only N of 2 mark anchors found` problem reports it (no silent skip). The anchor is chosen from geometry only,
+    never from whether a tooltip appears; no retries.
+  - The two 90/10 tests gained `dominantPointerProblems`: the pointer on the largest slice's interior anchor must
+    answer (tooltip or strip) with the complete value `90 (90 %)` (`/(^|[^\d,])90 \(90[\s  ]?%\)/`).
+    On failure it reports the anchor, the element under the pointer, which slice fills contain it, and the plot
+    box, so the next run separates picking from placement. The keyboard Home check now requires the same complete
+    value (previously: any text with `90` and `%`). All existing assertions kept; test count still 90.
+- Bytes: product inputs (`packages/axylo/src/**`) are identical to the previous candidate, so the measurement in
+  the table above is unchanged (not re-measured: line only +247, static line only +237 gzip-9 B;
+  `dom/mark-swatch.ts` 0 B in `axylo.js`, `static.js`, `axylo.iife.min.js`).
+- observed (author): `npm run typecheck` pass (covers `packages/axylo/test`); `npx vitest run --configLoader runner
+  --no-cache`: `Test Files 113 passed (113)`, `Tests 2103 passed (2103)`.
+- observed (Director, Chrome), on sealed candidate `opus-5.5-medium__20261126T200644Z`: verify exit 0, `Test Files  3
+  passed (3)`, `Tests  90 passed (90)`, `Duration  52.45s (tests 99%, import 1%)`; both 90/10 cases and every other
+  donut case on the new anchor search passed. Not run: screenshots, manual AT, the full browser suite outside the gate.
