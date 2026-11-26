@@ -89,7 +89,7 @@ ${forced}
   }
 
   /* marks */
-  .axylo .axylo-svg { position: absolute; left: 0; top: 0; display: block; pointer-events: none; overflow: hidden; }
+  .axylo .axylo-svg { position: absolute; left: 0; top: 0; pointer-events: none; overflow: hidden; }
 
   /*
    * Dash patterns of the SVG renderer. Each dashed element carries its normal pattern inline and both
@@ -157,7 +157,6 @@ ${forced}
   .axylo-stage, .axylo-plot { position: relative; }
   /* The plot's column: the plot, and the open table over it. */
   .axylo-stage { flex-direction: column; }
-  .axylo-plot { overflow: hidden; }
   .axylo-plot::before { content: ""; display: block; width: 100%; aspect-ratio: 16 / 9; min-height: 160px; max-height: 480px; }
   .axylo-compact .axylo-plot::before { aspect-ratio: auto; min-height: 0; max-height: none; height: 32px; }
   .axylo-message {
@@ -171,7 +170,7 @@ ${forced}
   }
   .axylo-note { flex: none; margin: 0.5em 0 0; font-size: max(12px, 0.875em); }
   /* Measures nothing on screen: it has the labels' font, and its size changes when that font arrives. */
-  .axylo .axylo-text > .axylo-font-probe { position: absolute; left: 0; top: 0; white-space: pre; visibility: hidden; pointer-events: none; }
+  .axylo .axylo-text > .axylo-font-probe { position: absolute; left: 0; top: 0; white-space: pre; visibility: hidden; }
   .axylo .axylo-text > .axylo-font-probe::before { content: "Mg 0123456789"; }
   /* Decision 0004 revision 3: a hovered tooltip is text that never takes the pointer (rule 3); a pinned one
      takes events and its rows are buttons of at least 24 px (rule 4). */
@@ -195,11 +194,12 @@ ${forced}
     color: var(--axylo-text, currentColor); overflow-wrap: anywhere;
   }
   .axylo .axylo-readout-mode .axylo-readout[hidden] { display: block !important; visibility: hidden; }
-  /* The x on one line at most, cut with an ellipsis, so a long title never crowds out the first value. */
-  .axylo .axylo-readout .axylo-tooltip-title {
+  /* The x on one line at most, cut with an ellipsis, so a long title never crowds out the first value; a cut
+     row's label and value are cut the same way. */
+  .axylo .axylo-readout .axylo-tooltip-title, .axylo .axylo-readout-cut .axylo-readout-entry span, .axylo .axylo-readout-cut .axylo-readout-total > span {
     display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom;
   }
-  .axylo .axylo-readout .axylo-readout-entry, .axylo .axylo-readout .axylo-tooltip-series { display: inline; }
+  .axylo .axylo-readout .axylo-tooltip-series { display: inline; }
   .axylo .axylo-readout .axylo-swatch { vertical-align: middle; margin-inline-end: 0.25em; }
   /* A pinned row or a slice-list entry can be chosen with a click or a tap (WCAG 2.5.1): real buttons, at
      least 24 × 24 px (WCAG 2.5.8), that look like the text they hold. */
@@ -209,24 +209,33 @@ ${forced}
   }
   .axylo .axylo-tooltip-choice:hover, .axylo button.axylo-tooltip-more { text-decoration: underline; text-underline-offset: 2px; }
   .axylo .axylo-tooltip-more:not(button) { color: var(--axylo-muted, var(--axylo-default-muted)); }
-  .axylo .axylo-tooltip .axylo-tooltip-choice { width: 100%; }
+  .axylo .axylo-tooltip .axylo-tooltip-choice, .axylo .axylo-readout-cut .axylo-tooltip-title { width: 100%; }
   .axylo .axylo-readout .axylo-tooltip-choice { display: inline-flex; vertical-align: middle; }
   .axylo .axylo-legend-choice { max-width: 100%; overflow-wrap: anywhere; display: inline-flex; gap: 0.375em; }
-  .axylo .axylo-tooltip-title { font-weight: 600; }
   .axylo .axylo-tooltip-row { display: flex; gap: 1em; justify-content: space-between; }
-  .axylo .axylo-tooltip-series { display: inline-flex; align-items: center; gap: 0.375em; min-width: 0; overflow-wrap: anywhere; }
+  /* A legend slice item holds only its button, which sets its own overflow-wrap, so it shares the series rule. */
+  .axylo .axylo-tooltip-series, .axylo .axylo-legend-list > li { display: inline-flex; align-items: center; gap: 0.375em; min-width: 0; overflow-wrap: anywhere; }
   .axylo .axylo-tooltip-value { font-variant-numeric: tabular-nums; white-space: nowrap; }
   /* A value that cannot fit on one line wraps, anywhere if it must (rule 6); short ones keep number and unit together. */
   .axylo .axylo-tooltip-wrap .axylo-tooltip-value, .axylo .axylo-readout-wrap .axylo-tooltip-value { white-space: normal; overflow-wrap: anywhere; min-width: 0; }
-  /* A strip row that still cannot fit is cut to one line with an ellipsis. */
-  .axylo .axylo-readout-cut .axylo-readout-entry { display: inline-flex; max-width: 100%; overflow: hidden; vertical-align: bottom; }
-  .axylo .axylo-readout-cut .axylo-readout-entry > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* A strip row that still cannot fit is cut to one line with an ellipsis (rule 5). The title takes line one
+     (its full width is set with the tooltip choice's); line two is a flex line where the row starts at 1px (at 0
+     it could be collected onto the title's full line with no width there) and grows to what its total and pager
+     leave, never past its own width, so the pager never wraps onto a third line. The value does not shrink
+     (flex: none, with the swatch's) and the label takes the ellipsis; white space is kept so each "; "
+     separator, a flex item of its own here, keeps its space. */
+  .axylo .axylo-readout-mode .axylo-readout-cut { display: flex; flex-wrap: wrap; white-space: pre; }
+  .axylo .axylo-readout-cut .axylo-readout-entry { overflow: hidden; }
+  /* The total shrinks like a row, but only its label (min-width 0: the label's nowrap width would otherwise set the
+     total's least width and push the pager off line two); its number stays whole. */
+  .axylo .axylo-readout-cut .axylo-readout-entry, .axylo .axylo-readout-cut .axylo-readout-total { display: flex; flex: 1 1px; max-width: max-content; min-width: 0; }
   .axylo .axylo-tooltip-total {
     margin-top: 2px; padding-top: 2px; border-top: 1px solid var(--axylo-axis, var(--axylo-default-axis));
     text-align: end;
   }
-  .axylo .axylo-tooltip-total, .axylo .axylo-readout-total { font-weight: 600; font-variant-numeric: tabular-nums; }
-  .axylo .axylo-swatch { flex: none; display: inline-block; overflow: visible; }
+  /* Width prediction assumes the same width for every digit in the tooltip's heading. */
+  .axylo .axylo-tooltip-title, .axylo .axylo-tooltip-total, .axylo .axylo-readout-total { font-weight: 600; font-variant-numeric: tabular-nums; }
+  .axylo .axylo-swatch, .axylo .axylo-readout-cut .axylo-tooltip-value { flex: none; display: inline-block; overflow: visible; }
   /* The swatch repeats the dash the marks use, normal or contrast (spec A5; review 2, finding 22). */
   .axylo .axylo-swatch-line { stroke-dasharray: var(--axylo-swatch-dash, none); }
   @media (prefers-contrast: more), (forced-colors: active) {
@@ -242,7 +251,7 @@ ${forced}
    * Interaction. The plot keeps a one-finger drag for the page (spec I4); with zoom: 'touch' pinch and
    * two-finger pan come to the chart. Tick text is not selectable, so a drag selects a range, not text.
    */
-  .axylo .axylo-plot { user-select: none; -webkit-user-select: none; touch-action: manipulation; }
+  .axylo .axylo-plot { overflow: hidden; user-select: none; -webkit-user-select: none; touch-action: manipulation; }
   .axylo .axylo-plot.axylo-touch-zoom { touch-action: pan-x pan-y; }
   .axylo .axylo-plot.axylo-zoomable { cursor: crosshair; }
   /* The keyboard proxy (decision 0001): a native range over the plot, transparent, never in the pointer's way. */
@@ -263,22 +272,34 @@ ${forced}
   }
   .axylo .axylo-proxy:focus-visible + .axylo-focus-ring, .axylo .axylo-proxy.axylo-keyed:focus + .axylo-focus-ring { display: block; }
   /* The donut slice the keyboard is on, also when it has no arc. */
-  .axylo .axylo-legend-list > li.axylo-legend-current { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
   .axylo .axylo-selection {
     position: absolute; z-index: 1; box-sizing: border-box; pointer-events: none;
     border: 1px solid var(--axylo-focus, var(--axylo-default-focus));
     background: color-mix(in srgb, var(--axylo-focus, var(--axylo-default-focus)) 16%, transparent);
   }
 
-  /* Legend, toolbar and table, under the plot. */
-  .axylo .axylo-controls, .axylo .axylo-controls-top, .axylo .axylo-controls-side { flex: none; display: flex; flex-direction: column; gap: 0.5em; min-width: 0; }
-  .axylo .axylo-controls { margin: 0.5em 0 0; }
+  /* Legend, toolbar and table: under the plot by default; 'top' and the 'right' rail set their own margins below. */
+  .axylo .axylo-controls, .axylo .axylo-controls-top, .axylo .axylo-controls-side { flex: none; display: flex; flex-direction: column; gap: 0.5em; min-width: 0; margin: 0.5em 0 0; }
   /* legend: 'top' puts the legend and its toolbar above the plot; 'right' beside it, entries stacked. */
   .axylo .axylo-controls-top { margin: 0 0 0.5em; }
-  .axylo .axylo-controls-side { margin: 0; margin-inline-start: 0.75em; max-width: 40%; overflow: auto; }
-  .axylo .axylo-controls-side .axylo-toolbar { flex-direction: column; align-items: stretch; flex-wrap: nowrap; }
-  .axylo .axylo-controls-side .axylo-legend-list { flex-direction: column; flex-wrap: nowrap; }
-  .axylo .axylo-controls-side .axylo-legend-entry + .axylo-control:not(.axylo-legend-entry) { margin-inline-start: 0; margin-block-start: 0.5em; }
+  /*
+   * A narrow chart cannot spare a rail (F-RESP-1): at 480 px or less, 'right' draws the strip under the plot
+   * that 'bottom' draws, from the same nodes in the same order, so focus, toggles and pressed states carry
+   * over. The queries read the width of the row that holds the plot and the rail, which the legend's place
+   * does not change, so the switch cannot oscillate. That row, not the figure, is the container: inline-size
+   * containment drops the container's own width from a shrink-to-fit target, and the figure's title and
+   * controls must still give it one. A container cannot restyle itself, so the row wraps and the strip takes a
+   * whole line of its own instead of turning the row into a column.
+   */
+  .axylo-body:has(> .axylo-controls-side:not([hidden])) { container: axylo / inline-size; flex-wrap: wrap; }
+  @container axylo (max-width: 480px) { .axylo .axylo-body > * { flex: 1 100%; } }
+  @container axylo not (max-width: 480px) {
+    .axylo-body > .axylo-stage { flex-basis: 0; }
+    .axylo .axylo-controls-side { margin: 0; margin-inline-start: 0.75em; max-width: 40%; overflow: auto; }
+    .axylo .axylo-controls-side .axylo-toolbar { flex-direction: column; align-items: stretch; flex-wrap: nowrap; }
+    .axylo .axylo-controls-side .axylo-legend-list { flex-direction: column; flex-wrap: nowrap; }
+    .axylo .axylo-controls-side .axylo-legend-entry + .axylo-control:not(.axylo-legend-entry) { margin-inline-start: 0; margin-block-start: 0.5em; }
+  }
   /* Tight: the Select range toggle may not cost a wrapped toolbar a row (its 26 px are won back here). */
   .axylo .axylo-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 2px; min-width: 0; }
   .axylo .axylo-control {
@@ -289,14 +310,22 @@ ${forced}
   }
   /* Legend entries first; the other controls start on the right. */
   .axylo .axylo-legend-entry + .axylo-control:not(.axylo-legend-entry) { margin-inline-start: auto; }
-  .axylo .axylo-control:focus-visible, .axylo .axylo-legend-choice:focus-visible, .axylo .axylo-tooltip-choice:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
-  .axylo .axylo-tooltip-choice:focus-visible, .axylo .axylo-controls-side .axylo-control:focus-visible, .axylo .axylo-controls-side .axylo-legend-choice:focus-visible { outline-offset: -2px; }
+  /*
+   * Every focus outline but the plot's ring, and the donut's current slice: 2 px of the focus colour, 1 px out;
+   * drawn inside where a scroller would clip it (the table, the rail; a tooltip choice fills its row).
+   */
+  .axylo .axylo-control:focus-visible, .axylo .axylo-legend-choice:focus-visible, .axylo .axylo-tooltip-choice:focus-visible,
+    .axylo .axylo-legend-list > li.axylo-legend-current, .axylo .axylo-table-scroll:focus-visible, .axylo .axylo-jump-field:focus-visible {
+    outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px;
+  }
+  .axylo .axylo-tooltip-choice:focus-visible, .axylo .axylo-controls-side .axylo-control:focus-visible, .axylo .axylo-controls-side .axylo-legend-choice:focus-visible,
+    .axylo .axylo-controls-side li.axylo-legend-current, .axylo .axylo-table-scroll:focus-visible { outline-offset: -2px; }
   .axylo .axylo-control[aria-disabled="true"] { cursor: default; border-style: dashed; color: var(--axylo-muted, var(--axylo-default-muted)); border-color: var(--axylo-muted, var(--axylo-default-muted)); }
   /* A symbol button (Select range): 24 × 24, so it adds no toolbar row; its name stays as hidden text. */
   .axylo .axylo-control.axylo-control-symbol { width: 24px; height: 24px; padding: 0; justify-content: center; }
   .axylo .axylo-symbol { fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
   /* A pressed toggle (not a legend entry): a heavier border, which forced colours keep. */
-  .axylo .axylo-control[aria-pressed="true"]:not(.axylo-legend-entry) { border-width: 2px; }
+  .axylo .axylo-control[aria-pressed="true"]:not(.axylo-legend-entry), .axylo .axylo-jump-field[aria-invalid="true"] { border-width: 2px; }
   /* Legend toggles read as legend entries; a hidden series keeps full-contrast text, struck through (spec L2). */
   .axylo .axylo-control-label { min-width: 0; overflow-wrap: anywhere; }
   .axylo .axylo-legend-entry { max-width: 100%; border-color: transparent; padding-inline: 4px; }
@@ -305,7 +334,6 @@ ${forced}
   .axylo .axylo-legend-list {
     display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 0; padding: 0; list-style: none; font-size: max(12px, 0.875em);
   }
-  .axylo .axylo-legend-list > li { display: inline-flex; align-items: center; gap: 0.375em; min-width: 0; }
   .axylo .axylo-legend-value { font-variant-numeric: tabular-nums; }
   .axylo .axylo-table { display: flex; flex-direction: column; gap: 0.5em; min-width: 0; }
   /* The open table takes the plot's place at the plot's size, so nothing else moves (spec A4; review 2, finding 15). */
@@ -318,7 +346,6 @@ ${forced}
   }
   .axylo .axylo-stage > .axylo-table > .axylo-table-scroll { flex: auto; }
   .axylo .axylo-table-scroll { overflow: auto; box-sizing: border-box; min-height: 4.5em; border: 1px solid var(--axylo-grid, var(--axylo-default-grid)); }
-  .axylo .axylo-table-scroll:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: -2px; }
   .axylo .axylo-table table { border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%; font-size: max(12px, 0.875em); font-variant-numeric: tabular-nums; }
   .axylo .axylo-table caption { padding: 4px 8px; text-align: start; font-weight: 600; caption-side: top; }
   .axylo .axylo-table th, .axylo .axylo-table td {
@@ -333,9 +360,7 @@ ${forced}
     border: 1px solid var(--axylo-axis, var(--axylo-default-axis)); border-radius: 2px;
     background: var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background))); color: var(--axylo-text, currentColor);
   }
-  .axylo .axylo-jump-field[aria-invalid="true"] { border-width: 2px; }
   .axylo .axylo-jump-error:empty { position: absolute; }
   .axylo .axylo-jump-error { flex-basis: 100%; margin: 0; font-size: max(12px, 0.875em); }
-  .axylo .axylo-jump-field:focus-visible { outline: 2px solid var(--axylo-focus, var(--axylo-default-focus)); outline-offset: 1px; }
 }
 `;

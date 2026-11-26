@@ -64,7 +64,15 @@ export interface Interaction {
 /** The messages that make up the plot's instructions rather than a control's label. */
 export type InstructionKey = 'plotInstructions' | 'donutInstructions' | 'seriesInstructions' | 'zoomInstructions';
 
-export type SeriesSwatch = (index: number, cue: SwatchSpec['cue'], hollow: boolean) => SwatchSpec;
+/** `view` is the committed one the swatch is drawn for: a composition with several marks reads the series' mark from it. */
+export interface SeriesSwatch {
+  (index: number, cue: SwatchSpec['cue'], hollow: boolean, view: View): SwatchSpec;
+  /**
+   * What the swatch depends on beyond the series' index, cue and visibility, compared by identity so the cached
+   * controls redraw when it changes (a Cartesian update that keeps a series but changes its mark). Absent: nothing.
+   */
+  readonly key?: (index: number, view: View) => unknown;
+}
 
 // Called with null when the legend goes away, so the list can release its listeners.
 export type SliceList = (doc: Document, d: ControlsState | null, actions: Actions, list: HTMLUListElement | null) => HTMLUListElement | null;

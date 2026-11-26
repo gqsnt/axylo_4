@@ -33,7 +33,7 @@ On every chart type.
 | `subtitle` | `string` | none | A line under the title. |
 | `description` | `string` | none | Added to the generated summary. The time zone and any omitted values are always stated. |
 | `state` | `'ready' \| 'loading' \| { error: string } \| { empty: string }` | `'ready'` | Shows a loading, error or empty message inside the plot instead of the data. |
-| `legend` | `'auto' \| false \| 'top' \| 'right' \| 'bottom'` | `'auto'` | Where the legend goes, or `false` for none. `'auto'` places it under the plot. A chart with one series has no legend entries. |
+| `legend` | `'auto' \| false \| 'top' \| 'right' \| 'bottom'` | `'auto'` | Where the legend goes, or `false` for none. `'auto'` places it under the plot. `'right'` needs room: on a chart 480 px wide or less the legend goes under the plot instead, and moves back beside it when the chart widens. A chart with one series has no legend entries. |
 | `tooltip` | `boolean` | `true` | The pointer readout: the tooltip, or in a small plot the strip under it. With `false` nothing is pinned, and a click still selects. Keyboard reading is not affected. |
 | `table` | `boolean` | `true` | The "View as table" control. |
 | `colors` | `Readonly<Record<string, string>>` | none | A CSS colour per series key: the `series` value for long rows, the field name for wide rows, the slice label on a donut. |

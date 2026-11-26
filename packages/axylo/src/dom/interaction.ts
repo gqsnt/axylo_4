@@ -381,7 +381,7 @@ class DomInteraction implements Interaction {
     const swatches = this.#swatches ??= [];
     return swatches[i] ??= view.kind === 'donut'
       ? { color: view.slices[i]?.colorIndex ?? null, cue: null, line: false, hollow: false }
-      : this.#parts.swatch(i, view.cues[i] ?? null, false);
+      : this.#parts.swatch(i, view.cues[i] ?? null, false, view);
   }
 
   #plotMapping() { return this.#geoPlot ??= mappingOf(this.#plot); }
@@ -1108,7 +1108,7 @@ class DomInteraction implements Interaction {
     const zoomable = canZoom(d) && d.ready;
     const closer = canZoom(d) && d.ready && this.#canZoomCloser(d.view, d.zoomed ? d.view.xDomain : d.view.xFull);
     if (!zoomable) this.#zoomCheckView = this.#zoomCheckWindow = null;
-    return collectControlInputs(d, out, this.#tableView !== null, this.#range !== null, closer);
+    return collectControlInputs(d, out, this.#tableView !== null, this.#range !== null, closer, this.#parts.swatch);
   }
 
   #renderControls(d: ControlsState, measure = false): boolean {

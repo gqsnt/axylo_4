@@ -43,11 +43,11 @@ export interface Toolbar {
 }
 
 function itemSignature(item: ToolbarItem): string {
-  const swatch = item.swatch;
-  const key = `${item.label.length}:${item.label}:${item.struck === true}:${item.symbol ?? ''}`;
-  if (!swatch) return key;
-  const { color, cue, line, hollow, fill, marker, pattern } = swatch;
-  return `${key}:${color}:${line}:${hollow}:${fill === true}:${marker === true}:${cue?.marker ?? ''}:${cue?.dash.normal ?? ''}:${cue?.dash.contrast ?? ''}:${pattern?.kind ?? ''}:${pattern?.d ?? ''}`;
+  // What a control's content is drawn from, as JSON: unambiguous whatever the label holds. Every field a swatch
+  // is drawn from is plain data (a shape's drawing is named by its key), so specs that draw the same give the
+  // same text; one built in another field order, or with an absent flag for false, may not: a needless redraw,
+  // never a stale one.
+  return JSON.stringify([item.label, item.struck, item.symbol, item.swatch]);
 }
 
 function rangeSymbol(doc: Document): SVGSVGElement {

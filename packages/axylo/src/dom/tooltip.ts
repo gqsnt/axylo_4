@@ -139,11 +139,11 @@ function floatingTotal(doc: Document): ReadoutRow {
   return { e, n, v, p: null, l: '', g: null, value: '' };
 }
 
-function withinStrip(el: Element | null, box: Rect, right: number, bottom: number): boolean {
+function withinStrip(el: Element | null, box: Rect): boolean {
   if (!el?.isConnected) return true;
   const rects = el.getClientRects();
   for (const r of rects) {
-    if (r.left < box.x - 0.5 || r.top < box.y - 0.5 || r.right > right + 0.5 || r.bottom > bottom + 0.5) return false;
+    if (r.left < box.x - 0.5 || r.top < box.y - 0.5 || r.right > box.x + box.width + 0.5 || r.bottom > box.y + box.height + 0.5) return false;
   }
   return rects.length > 0;
 }
@@ -524,14 +524,6 @@ class DomTooltip implements TooltipView {
 
   invalidateSize(): void { this.#hoverSize = null; }
 
-  #floatingTitle(): HTMLElement {
-    const title = tooltipText(this.#doc, 'title', 'div');
-    // Width prediction assumes the same width for every digit in the heading.
-    title.style.fontVariantNumeric = 'tabular-nums';
-    title.appendChild(this.#floatTitleNode = this.#txt());
-    return title;
-  }
-
   #overflows(): boolean {
     const el = this.#element;
     return el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
@@ -539,7 +531,7 @@ class DomTooltip implements TooltipView {
 
   show(content: TooltipContent, p: PlacementInput, pinned: boolean, figMapping?: Mapping): boolean {
     const m = figMapping ?? mappingOf(this.#figure);
-    const maxW = Math.max(0, Math.min(320, p.visible.width / m.kx)), maxH = Math.max(0, p.visible.height / m.ky);
+    let maxW = Math.max(0, Math.min(320, p.visible.width / m.kx)), maxH = Math.max(0, p.visible.height / m.ky);
     const steady = this.#where === 1 && !pinned && !this.#wasPinned && !this.#element.hidden;
     if (steady) this.#current = content; else this.#begin(0, content, pinned);
     if (this.#maxWidth !== maxW || this.#maxHeight !== maxH || pinned || (this.#floatFlags & FLOAT_WRAPPED) || this.#where !== 1) this.#hoverSize = null;
@@ -550,7 +542,8 @@ class DomTooltip implements TooltipView {
       this.#element.classList.remove('axylo-tooltip-wrap');
       this.#floatFlags &= ~FLOAT_WRAPPED;
     }
-    const title = this.#floatTitle ??= this.#floatingTitle();
+    const title = this.#floatTitle ??= tooltipText(this.#doc, 'title', 'div');
+    if (!title.firstChild) title.append(this.#floatTitleNode = this.#txt());
     if (this.#floatTitleText !== model.title) this.#floatTitleNode!.textContent = this.#floatTitleText = model.title;
     let totalRow: ReadoutRow | null = null;
     if (model.total !== null) {
@@ -576,9 +569,11 @@ class DomTooltip implements TooltipView {
       }
       this.#hoverSize = null;
     }
+    const firstMax = maxW;
+    let holeTry = 0;
     for (let shown = total; shown >= Math.min(1, total); shown--) {
       const more = this.#mountRows(title, rows, shown, content, pinned, totalRow?.e ?? null);
-      let size = this.#element.getBoundingClientRect();
+      let size = this.#element.getBoundingClientRect(), clipped = false;
       if (size.width >= (maxW - 2) * m.kx || size.height >= (maxH - 2) * m.ky) {
         let over = this.#overflows();
         if (over && !(this.#floatFlags & FLOAT_WRAPPED)) {
@@ -586,13 +581,17 @@ class DomTooltip implements TooltipView {
           this.#floatFlags |= FLOAT_WRAPPED;
           over = this.#overflows();
           // Wrapping changes the rendered box and must be measured before placement.
-          if (!over || shown <= 1) size = this.#element.getBoundingClientRect();
+          if (!over) size = this.#element.getBoundingClientRect();
         }
+        // Fewer rows first. One row that still overflows once wrapped would be placed cut by the tooltip's
+        // maxima (L1): it is not shown, and the datum keeps its highlight, keyboard reading and table row (I1).
+        // The last row still reaches the narrower retries below: a wrapped row too tall for one width may fit another.
         if (over && shown > 1) continue;
+        clipped = over;
       }
       const { width, height } = size;
-      let spot = placeTooltip(p, width, height);
-      if (!spot && shown <= 1 && width > 0) spot = fallbackPlacement(p, width, height);
+      let spot = clipped ? null : placeTooltip(p, width, height);
+      if (!spot && !clipped && shown <= 1 && width > 0) spot = fallbackPlacement(p, width, height);
       if (spot) {
         const localW = width / m.kx, localH = height / m.ky;
         if (!pinned && !(this.#floatFlags & FLOAT_WRAPPED) && shown === total && localW > 0 && localW < maxW - 8 && localH < maxH - 8) {
@@ -603,6 +602,18 @@ class DomTooltip implements TooltipView {
         this.#observeSize();
         return this.#finish(0, true);
       }
+      // A keyboard ring around a large slice can span most of a small plot, so one row fits neither the hole nor
+      // any side of it. It is tried once more, no wider than the wider free column beside the ring and wrapped if
+      // it must, under the same rules, which never cover the ring or the controls (decision 0004 rules 2, 6). The
+      // changed maximum also makes the next show restore the usual one.
+      // No column beside the ring either (a dominant slice), or a pointer with no ring at all: the hole may still
+      // hold the row once it is narrower and wrapped. Two widths are tried, the inscribed square's and a wider,
+      // shorter one (1.6 r, still inside the hole's chord for two wrapped lines), since wrapping makes the row taller; the hole's own test still decides, so the ring and the controls stay clear.
+      const ring = shown === 1 ? p.rings[0] : null, v = p.visible, h = p.hole;
+      let w = ring ? Math.max(ring.x - v.x, v.x + v.width - ring.x - ring.width) / m.kx | 0 : 0;
+      if (!(w > 48 && w < maxW)) w = shown === 1 && h && holeTry < 2 ? (holeTry++ ? 1.6 : 1.41) * h.rx / m.kx | 0 : 0;
+      // A width already tried (or the current one) would only repeat the same measurement.
+      if (w > 48 && w < firstMax && w !== maxW) { this.#element.style.maxWidth = `${this.#maxWidth = maxW = w}px`; shown++; }
     }
     return this.#finish(0, false);
   }
@@ -612,11 +623,16 @@ class DomTooltip implements TooltipView {
     const parts = this.#stripParts ??= [
       tooltipText(this.#doc, 'title'), make(this.#doc, 'span', 'axylo-readout-total'), this.#txt('; '), this.#txt('; '),
     ];
+    // The total's label and number are apart, so a cut strip can ellipsize a long localized label and keep the number.
+    if (!parts[1].firstChild) parts[1].append(make(this.#doc, 'span', ''), this.#txt());
     const [stripTitle, stripTotal] = parts;
     const { model } = content, rows = this.#rowEntries(1, content, pinned);
     setText(stripTitle, `${model.title}: `);
-    if (model.total !== null) setLanguageText(stripTotal, `${content.totalLabel ?? ''} ${model.total}`, content.totalLang || null);
-    const r = this.#readoutElement.getBoundingClientRect(), box = intersect(r, visible), bx2 = box.x + box.width, by2 = box.y + box.height;
+    if (model.total !== null) {
+      setLanguageText(stripTotal.firstChild as Element, `${content.totalLabel ?? ''} `, content.totalLang || null);
+      (stripTotal.lastChild as Text).data = model.total;
+    }
+    const r = this.#readoutElement.getBoundingClientRect(), box = intersect(r, visible);
     const cl = this.#readoutElement.classList, minS = Math.min(1, rows.length);
     cl.remove('axylo-readout-wrap', 'axylo-readout-cut');
     let seen = false;
@@ -625,8 +641,8 @@ class DomTooltip implements TooltipView {
       if (pass === 2) cl.replace('axylo-readout-wrap', 'axylo-readout-cut');
       for (let shown = pass === 2 ? minS : rows.length; shown >= minS && !seen; shown--) {
         const pager = this.#mountRows(stripTitle, rows, shown, content, pinned, model.total === null ? null : stripTotal, parts);
-        seen = withinStrip(stripTitle, box, bx2, by2) && withinStrip(pager?.el ?? null, box, bx2, by2);
-        for (let i = 0; seen && i < shown; i++) seen = withinStrip(rows[i]!.e, box, bx2, by2);
+        seen = withinStrip(stripTitle, box) && withinStrip(pager?.el ?? null, box) && (model.total === null || withinStrip(stripTotal, box));
+        for (let i = 0; seen && i < shown; i++) seen = withinStrip(rows[i]!.e, box);
       }
     }
     if (seen) this.#lastRect = r;
