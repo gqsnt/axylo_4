@@ -58,7 +58,12 @@ export function createCartesianReader(stateRef: CartesianStateRef): ReaderParts 
     table: (view, caption, formatters, messages, labels, locale) =>
       cartesianTable(stateRef, view, caption, formatters, messages, labels, locale),
     tableRowCount: alignedReader.tableRowCount,
-    stateKey: () => stateRef.meta.collapsedRightAxis === true,
+    stateKey: () => {
+      const { meta } = stateRef;
+      const collapse = meta.collapsedRightAxis === true ? '1' : '0';
+      if (!meta.annotations.length) return collapse;
+      return `${collapse}|${JSON.stringify(meta.annotations)}`;
+    },
     text(input, type, xLabel, yLabel, table, listReady) {
       const sentences = [...alignedReader.text(input, type, xLabel, yLabel, table, listReady)];
       const { meta } = stateRef;

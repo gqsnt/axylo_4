@@ -134,4 +134,37 @@ describe('C5.3 axylo/sync linked hover and zoom', () => {
     expect(clearLog).toEqual([null]);
     gClear.destroy();
   });
+
+  it('matches Date instants with ISO timestamp strings, gates clears/resets across incompatible peers, and scopes detach handles', () => {
+    const a = createMockChart('A');
+    const b = createMockChart('B');
+    const c = createMockChart('C');
+    const bHovers: (XValue | null)[] = [];
+    const cHovers: (XValue | null)[] = [];
+
+    const group = createSyncGroup({ unmatchedHover: 'nearest' });
+    group.attach(a.chart, { id: 'A', xKind: 'time', xUnit: 'utc' });
+    const oldDetachB = group.attach(b.chart, {
+      id: 'B', xValues: ['2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z'], xUnit: 'utc',
+      onHoverSync: p => bHovers.push(p ? p.x : null),
+    });
+    // Re-attach B and call oldDetachB: replacement attachment must remain active!
+    group.attach(b.chart, {
+      id: 'B', xValues: ['2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z'], xUnit: 'utc',
+      onHoverSync: p => bHovers.push(p ? p.x : null),
+    });
+    oldDetachB();
+    group.attach(c.chart, { id: 'C', xKind: 'category', onHoverSync: p => cHovers.push(p ? p.x : null) });
+
+    a.emitHover({ series: 's', x: new Date('2026-01-02T00:00:00Z'), y: 10, row: null, index: 1 });
+    expect(bHovers).toEqual(['2026-01-02T00:00:00Z']);
+    // Hover clear and zoom reset from time chart A must NOT hit incompatible category chart C!
+    a.emitHover(null);
+    a.emitZoom(null);
+    expect(bHovers).toEqual(['2026-01-02T00:00:00Z', null]);
+    expect(b.zoomCalls).toEqual([null]);
+    expect(cHovers).toEqual([]);
+    expect(c.zoomCalls).toEqual([]);
+    group.destroy();
+  });
 });

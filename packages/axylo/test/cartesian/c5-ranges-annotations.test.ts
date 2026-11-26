@@ -99,7 +99,7 @@ describe('C5.1 range bands & error bars in axylo/cartesian', () => {
     expect(nodeDiags.some(d => d.code === 'AX176')).toBe(true);
   });
 
-  it('renders errorBar whiskers, caps, and center markers cleanly', () => {
+  it('batches errorBar whiskers and caps into a single typed PathMark and renders singleton range intervals', () => {
     const { scene, diags } = runPipeline({
       title: 'Error Bars',
       data: [
@@ -111,11 +111,22 @@ describe('C5.1 range bands & error bars in axylo/cartesian', () => {
       layers: [{ type: 'errorBar', y: 'mid', low: 'low', high: 'high', yAxis: 'y', capWidth: 10 }],
     });
     expect(diags).toEqual([]);
-    // 2 slots * (1 vertical whisker + 2 end caps) = 6 rules of role 'reference'
-    const whiskerRules = scene.marks.filter(m => m.type === 'rule' && m.role === 'reference');
-    expect(whiskerRules).toHaveLength(6);
+    // Batched into 1 PathMark containing 2 slots * (vertical whisker + 2 end caps) = 36 floats
+    const paths = scene.marks.filter(m => m.type === 'path');
+    expect(paths).toHaveLength(1);
+    if (paths[0]!.type === 'path') expect(paths[0]!.xy.length).toBe(36);
     const pts = scene.marks.filter(m => m.type === 'points');
     expect(pts).toHaveLength(1);
+
+    // Singleton valid range slot still emits a visible span PathMark
+    const single = runPipeline({
+      title: 'Singleton Range',
+      data: [{ x: 1, lo: 10, hi: 30 }],
+      x: 'x',
+      axes: { y: { position: 'left' } },
+      layers: [{ type: 'range', low: 'lo', high: 'hi', yAxis: 'y' }],
+    });
+    expect(single.scene.marks.filter(m => m.type === 'path')).toHaveLength(1);
   });
 });
 

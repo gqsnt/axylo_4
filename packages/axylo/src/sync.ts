@@ -96,27 +96,45 @@ interface MemberRecord {
 }
 
 const ISO_DATE_RE = /^\d{4}-\d{2}(?:-\d{2})?$/;
+const ISO_DATETIME_RE = /^\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:[Zz]|[+-]\d{2}:?\d{2})?$/;
+const ISO_OFFSET_RE = /(?:[Zz]|[+-]\d{2}:?\d{2})$/;
 
 function inferXKind(value: XValue): SyncXKind {
   if (typeof value === 'number') return 'number';
   if (value instanceof Date) return 'time';
-  if (typeof value === 'string' && ISO_DATE_RE.test(value)) return 'date';
+  if (typeof value === 'string') {
+    if (ISO_DATE_RE.test(value)) return 'date';
+    if (ISO_DATETIME_RE.test(value)) return 'time';
+  }
   return 'category';
 }
 
-function numericValueOf(value: XValue): number {
+function numericValueOf(value: XValue, kind: SyncXKind | null = null): number {
   if (typeof value === 'number') return value;
   if (value instanceof Date) return value.getTime();
-  if (typeof value === 'string' && ISO_DATE_RE.test(value)) {
-    const parsed = Date.parse(value.length === 7 ? `${value}-01T00:00:00Z` : `${value}T00:00:00Z`);
-    return Number.isFinite(parsed) ? parsed : NaN;
+  if (typeof value === 'string') {
+    if (ISO_DATE_RE.test(value)) {
+      const parsed = Date.parse(value.length === 7 ? `${value}-01T00:00:00Z` : `${value}T00:00:00Z`);
+      return Number.isFinite(parsed) ? parsed : NaN;
+    }
+    if (ISO_DATETIME_RE.test(value) || kind === 'time') {
+      const iso = value.replace(' ', 'T');
+      const parsed = Date.parse(ISO_OFFSET_RE.test(iso) ? iso : `${iso}Z`);
+      return Number.isFinite(parsed) ? parsed : NaN;
+    }
   }
   return NaN;
 }
 
-function sameXValue(a: XValue, b: XValue): boolean {
-  if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime();
-  return Object.is(a, b);
+function sameXValue(a: XValue, b: XValue, kind: SyncXKind | null = null): boolean {
+  if (Object.is(a, b)) return true;
+  const k = kind ?? inferXKind(a);
+  if (k === 'time' || k === 'date' || k === 'number') {
+    const na = numericValueOf(a, k);
+    const nb = numericValueOf(b, k);
+    if (Number.isFinite(na) && Number.isFinite(nb)) return na === nb;
+  }
+  return false;
 }
 
 function matchXForMember(
@@ -131,16 +149,17 @@ function matchXForMember(
   }
   const list = member.xValues;
   if (!list) return { matched: true, x };
+  const kind = memberKind(member);
   for (let i = 0; i < list.length; i++) {
-    if (sameXValue(list[i]!, x)) return { matched: true, x: list[i]! };
+    if (sameXValue(list[i]!, x, kind)) return { matched: true, x: list[i]! };
   }
   if (policy === 'nearest' && list.length > 0) {
-    const targetNum = numericValueOf(x);
+    const targetNum = numericValueOf(x, kind);
     if (Number.isFinite(targetNum)) {
       let bestIdx = -1;
       let bestDist = Infinity;
       for (let i = 0; i < list.length; i++) {
-        const curNum = numericValueOf(list[i]!);
+        const curNum = numericValueOf(list[i]!, kind);
         if (!Number.isFinite(curNum)) continue;
         const dist = Math.abs(curNum - targetNum);
         if (dist < bestDist) {
@@ -224,11 +243,11 @@ export function createSyncGroup(options: SyncGroupOptions = {}): SyncGroup {
     try {
       for (const target of [...members.values()]) {
         if (target.detached || target === source || !target.hover || !target.onHoverSync) continue;
+        if (!checkCompatible(sourceId, srcKind, srcUnit, target, 'hover', onMismatch)) continue;
         if (payload === null) {
           target.onHoverSync(null, origin);
           continue;
         }
-        if (!checkCompatible(sourceId, srcKind, srcUnit, target, 'hover', onMismatch)) continue;
         const resolved = matchXForMember(target, payload.x, unmatchedPolicy);
         if (resolved.matched) {
           target.onHoverSync(
@@ -260,9 +279,7 @@ export function createSyncGroup(options: SyncGroupOptions = {}): SyncGroup {
     try {
       for (const target of [...members.values()]) {
         if (target.detached || target === source || !target.zoom) continue;
-        if (domain !== null && !checkCompatible(sourceId, srcKind, srcUnit, target, 'zoom', onMismatch)) {
-          continue;
-        }
+        if (!checkCompatible(sourceId, srcKind, srcUnit, target, 'zoom', onMismatch)) continue;
         target.chart.zoom(domain);
         target.onZoomSync?.(domain, origin);
       }
@@ -316,7 +333,10 @@ export function createSyncGroup(options: SyncGroupOptions = {}): SyncGroup {
         rec.unsubZoom = key.on('zoom', domain => { broadcastZoom(rec, rec.id, domain); });
       }
       members.set(key, rec);
-      return () => { detachMember(key); };
+      // Scope detach callback to this exact attachment record so re-attaching never gets removed by a stale handle.
+      return () => {
+        if (members.get(key) === rec) detachMember(key);
+      };
     },
 
     detach(chart: SyncableChart<unknown>): void {

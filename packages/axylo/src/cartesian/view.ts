@@ -8,6 +8,7 @@ import {
   SLOT_VALUE, type AlignedFrame, type AlignedView, type DiagnosticSink, type ResolvedReference,
 } from '../core/contracts';
 import { buildPlainAlignedView, type AlignedViewState } from '../view';
+import { validateCartesianAnnotations } from './annotations';
 import { computeAxisDomain } from './axes';
 import type { CartesianStateRef } from './meta';
 
@@ -50,6 +51,7 @@ export function buildCartesianView(
 ): AlignedView {
   const { meta } = stateRef;
   const base = buildPlainAlignedView(frame, { ...state, valueDomain: null }, sink);
+  validateCartesianAnnotations(base, meta, sink);
   const references = resolveCartesianReferences(base.references, stateRef);
 
   const yDomains: [number, number][] = [];

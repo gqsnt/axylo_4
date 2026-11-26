@@ -5,10 +5,11 @@
  * and accessible summary descriptions — without altering existing `Reference` semantics or datum lookup.
  */
 import type {
-  AlignedView, BandMark, Mark, PlacedText, PointMark, Projection, Rect, RuleMark, TextMeasurer, TextStyle,
+  AlignedView, BandMark, DiagnosticSink, Mark, PlacedText, PointMark, Projection, Rect, RuleMark, TextMeasurer, TextStyle,
 } from '../core/contracts';
 import type { XValue } from '../public';
 import { clamp, position, rule, token } from '../scene/geometry';
+import { positionReader } from '../view/references';
 import { axisScaleOf } from './scale-ref';
 import { formatAxisValue, type CartesianAnnotationSpec, type CartesianMeta } from './meta';
 
@@ -32,19 +33,23 @@ function boxFitsPlot(box: Box, plot: Rect): boolean {
     && box.y >= plot.y - 1 && box.y + box.height <= plot.y + plot.height + 1;
 }
 
-function resolveXCoord(view: AlignedView, raw: XValue): number | null {
-  const col = view.frame.x;
-  if (col.kind === 'category') {
-    const idx = col.categories?.indexOf(String(raw)) ?? -1;
-    return idx >= 0 ? idx : null;
+function resolveXCoord(view: AlignedView, raw: XValue, sink?: DiagnosticSink): number | null {
+  const read = positionReader(view.frame.x, undefined);
+  const pos = read(raw, sink ? { sink, field: 'annotations', detail: `annotation x (${String(raw)})` } : undefined);
+  return Number.isFinite(pos) ? pos : null;
+}
+
+/** Validates annotation x coordinates against the frame's real XParser (reporting AX107 on unresolvable coordinates). */
+export function validateCartesianAnnotations(view: AlignedView, meta: CartesianMeta, sink: DiagnosticSink): void {
+  if (!meta.annotations.length) return;
+  for (const ann of meta.annotations) {
+    if (ann.type === 'point') resolveXCoord(view, ann.x, sink);
+    else if (ann.type === 'threshold' && ann.axis === 'x') resolveXCoord(view, ann.value as XValue, sink);
+    else if (ann.type === 'range' && ann.axis === 'x') {
+      resolveXCoord(view, ann.from as XValue, sink);
+      resolveXCoord(view, ann.to as XValue, sink);
+    }
   }
-  if (typeof raw === 'number') return Number.isFinite(raw) ? raw : null;
-  if (raw instanceof Date) return Number.isFinite(raw.getTime()) ? raw.getTime() : null;
-  if (typeof raw === 'string') {
-    const ms = Date.parse(raw.length === 10 ? `${raw}T00:00:00Z` : raw);
-    return Number.isFinite(ms) ? ms : null;
-  }
-  return null;
 }
 
 function projectX(view: AlignedView, projection: Exclude<Projection, { kind: 'ring' }>, raw: XValue): number | null {
@@ -86,9 +91,11 @@ export function layoutCartesianAnnotations(
   meta: CartesianMeta,
   measurer: TextMeasurer,
   style: TextStyle,
+  existingTexts: readonly PlacedText[] = [],
 ): AnnotationLayoutResult {
   if (!meta.annotations.length) return { labels: [], hiddenCount: 0 };
-  const placed: Box[] = [];
+  // Seed occupancy with already placed labels (e.g. legacy Reference labels) so annotations never overlap them.
+  const placed: Box[] = existingTexts.map(t => t.box);
   const labels: PlacedText[] = [];
   let hiddenCount = 0;
   const lineH = Math.max(12, style.lineHeight || 14);

@@ -147,6 +147,7 @@ export function parseCartesianInput(input: unknown, previous?: CartesianMeta | n
     mark: CartesianLayerMark,
     stacked: boolean,
     layerIndex: number,
+    extra?: Record<string, unknown>,
   ): string | null => {
     const name = fieldNameOf(rawField);
     if (!name) return null;
@@ -189,6 +190,7 @@ export function parseCartesianInput(input: unknown, previous?: CartesianMeta | n
       __axisBase: axis.base,
       __mark: mark,
       __stacked: stacked,
+      ...extra,
       ...(translatedY.length === 0 ? { __domainSig: domainSig } : {}),
     };
     translatedY.push(carrier);
@@ -216,15 +218,16 @@ export function parseCartesianInput(input: unknown, previous?: CartesianMeta | n
       issues.push({ code: 'AX173', field: axis.id, detail: `${mark} layer cannot bind to log axis '${axis.id}'` });
     }
     if (mark === 'range' || mark === 'errorBar') {
-      const lowName = pushCarrierField(rawLayer.low, axis, mark, false, layerIndex);
+      const capWidth = typeof rawLayer.capWidth === 'number' && Number.isFinite(rawLayer.capWidth) && rawLayer.capWidth >= 0
+        ? rawLayer.capWidth : 8;
+      const extra = mark === 'errorBar' ? { __capWidth: capWidth } : undefined;
+      const lowName = pushCarrierField(rawLayer.low, axis, mark, false, layerIndex, extra);
       const highName = pushCarrierField(rawLayer.high, axis, mark, false, layerIndex);
       const centerName = rawLayer.y !== undefined ? pushCarrierField(rawLayer.y, axis, mark, false, layerIndex) : null;
       if (!lowName || !highName) {
         issues.push({ code: 'AX174', field: `layers[${layerIndex}]`, detail: `${mark} layer requires distinct 'low' and 'high' value fields` });
         continue;
       }
-      const capWidth = typeof rawLayer.capWidth === 'number' && Number.isFinite(rawLayer.capWidth) && rawLayer.capWidth >= 0
-        ? rawLayer.capWidth : 8;
       intervals.push({
         mark,
         label: typeof rawLayer.label === 'string' && rawLayer.label.trim() ? rawLayer.label : `${lowName}–${highName}`,
@@ -287,6 +290,10 @@ export function parseCartesianInput(input: unknown, previous?: CartesianMeta | n
       from: isBand ? rawVal[0] : rawVal,
       to: isBand ? rawVal[1] : rawVal,
     });
+  }
+
+  if (translatedY.length > 0 && annotations.length > 0) {
+    translatedY[0]!.__annSig = JSON.stringify(annotations);
   }
 
   const meta: CartesianMeta = {

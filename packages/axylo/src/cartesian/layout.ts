@@ -352,7 +352,7 @@ export function computeCartesianLayoutDetailed(
       placeCartesianReferences(view.references, projection, plot, texts, text, meta);
       const annLayout = projection.kind === 'ring'
         ? { labels: [], hiddenCount: 0 }
-        : layoutCartesianAnnotations(view, projection, plot, meta, textInput.measurer, textInput.style);
+        : layoutCartesianAnnotations(view, projection, plot, meta, textInput.measurer, textInput.style, texts);
       for (const lbl of annLayout.labels) texts.push(lbl);
 
       const xHidden = xScale.type === 'band' ? Math.max(0, (view.frame.x.categories?.length ?? view.frame.length) - xFit.texts.length) : 0;
@@ -402,7 +402,7 @@ export function createCartesianLayoutStage(stateRef: CartesianStateRef): LayoutS
       for (const axis of stateRef.meta.axes) {
         base.push(axis.id, axis.position, axis.scale, axis.base, axis.label, axis.unit, axis.tickFormat);
       }
-      base.push(view.references, stateRef.meta.annotations, ctx.resolved.x.label, ctx.resolved.x.unit, ctx.resolved.x.tickFormat);
+      base.push(view.references, stateRef.meta.annotations, stateRef.meta.intervals.map(iv => iv.capWidth), ctx.resolved.x.label, ctx.resolved.x.unit, ctx.resolved.x.tickFormat);
       for (const v of view.visible) base.push(v);
       return base;
     },

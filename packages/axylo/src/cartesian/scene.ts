@@ -261,18 +261,18 @@ function buildIntervalMarks(
   projection: Exclude<Projection, { kind: 'ring' }>,
   meta: CartesianMeta,
   compact: boolean,
-): { bands: AreaMark[]; strokes: PathMark[]; rules: RuleMark[]; points: PointMark[] } {
+): { bands: AreaMark[]; strokes: PathMark[]; points: PointMark[] } {
   const bands: AreaMark[] = [];
   const strokes: PathMark[] = [];
-  const rules: RuleMark[] = [];
   const points: PointMark[] = [];
-  if (!meta.intervals.length) return { bands, strokes, rules, points };
+  if (!meta.intervals.length) return { bands, strokes, points };
 
   const xScale = projection.kind === 'xy' ? projection.x : projection.band;
   const xVals = view.frame.x.values;
   const idxByField = new Map<string, number>();
   for (let i = 0; i < view.frame.series.length; i++) idxByField.set(view.frame.series[i]!.field, i);
   const { start, end } = view.visibleSlots;
+  const slotCount = Math.max(0, end - start);
 
   for (const iv of meta.intervals) {
     const lowIdx = idxByField.get(iv.lowField);
@@ -291,10 +291,19 @@ function buildIntervalMarks(
       const upperCoords: number[] = [];
       const lowerCoords: number[] = [];
       const runs: number[] = [];
+      const singletons: number[] = [];
       let runStart = -1;
       let runCount = 0;
+      let lastPx = NaN;
+      let lastPyLow = NaN;
+      let lastPyHigh = NaN;
       const flush = () => {
-        if (runCount >= 2) runs.push(runStart, runCount, runStart, runCount);
+        if (runCount >= 2) {
+          runs.push(runStart, runCount, runStart, runCount);
+        } else if (runCount === 1 && Number.isFinite(lastPx) && Number.isFinite(lastPyLow) && Number.isFinite(lastPyHigh)) {
+          // Preserve singleton valid interval (e.g. zoomed onto 1 slot) as a visible vertical span segment.
+          singletons.push(lastPx, lastPyLow, lastPx, lastPyHigh, NaN, NaN);
+        }
         runStart = -1;
         runCount = 0;
       };
@@ -316,6 +325,9 @@ function buildIntervalMarks(
         if (runStart < 0) runStart = upperCoords.length / 2;
         upperCoords.push(px, pyHigh);
         lowerCoords.push(px, pyLow);
+        lastPx = px;
+        lastPyLow = pyLow;
+        lastPyHigh = pyHigh;
         runCount++;
       }
       flush();
@@ -330,10 +342,25 @@ function buildIntervalMarks(
           opacity: 0.22,
         });
       }
+      if (singletons.length >= 4) {
+        strokes.push({
+          type: 'path',
+          series: lowIdx,
+          xy: Float32Array.from(singletons),
+          stroke: paint,
+          strokeWidth: 4,
+          dash: { normal: null, contrast: null },
+        });
+      }
     } else {
-      // errorBar: vertical whisker rule + horizontal end caps + optional center marker
+      // errorBar: batch all vertical whiskers and end-caps into ONE typed Float32Array PathMark (O(N), 1 SVG node)
       const halfCap = iv.capWidth / 2;
-      const centerPts: number[] = [];
+      const segsPerBar = halfCap > 0 ? 18 : 6; // 3 segments * (x1,y1,x2,y2,NaN,NaN) = 18 floats
+      const segBuf = new Float32Array(slotCount * segsPerBar);
+      let segPos = 0;
+      const centerBuf = centerS ? new Float32Array(slotCount * 2) : null;
+      let centerPos = 0;
+
       for (let i = start; i < end; i++) {
         const loSt = lowS.slot[i]!;
         const hiSt = highS.slot[i]!;
@@ -343,20 +370,37 @@ function buildIntervalMarks(
         const px = xSlotPixel(xScale, xVals, i);
         const pyA = position(yScale, Math.min(loV, hiV));
         const pyB = position(yScale, Math.max(loV, hiV));
-        rules.push({ ...rule('reference', paint, px, pyB, px, pyA), strokeWidth: 1.5 });
+        segBuf[segPos++] = px; segBuf[segPos++] = pyB;
+        segBuf[segPos++] = px; segBuf[segPos++] = pyA;
+        segBuf[segPos++] = NaN; segBuf[segPos++] = NaN;
         if (halfCap > 0) {
-          rules.push({ ...rule('reference', paint, px - halfCap, pyA, px + halfCap, pyA), strokeWidth: 1.5 });
-          rules.push({ ...rule('reference', paint, px - halfCap, pyB, px + halfCap, pyB), strokeWidth: 1.5 });
+          segBuf[segPos++] = px - halfCap; segBuf[segPos++] = pyA;
+          segBuf[segPos++] = px + halfCap; segBuf[segPos++] = pyA;
+          segBuf[segPos++] = NaN; segBuf[segPos++] = NaN;
+          segBuf[segPos++] = px - halfCap; segBuf[segPos++] = pyB;
+          segBuf[segPos++] = px + halfCap; segBuf[segPos++] = pyB;
+          segBuf[segPos++] = NaN; segBuf[segPos++] = NaN;
         }
-        if (centerS && isPlottable(yScale, centerS.slot[i]!, centerS.y[i]!)) {
-          centerPts.push(px, position(yScale, centerS.y[i]!));
+        if (centerS && centerBuf && isPlottable(yScale, centerS.slot[i]!, centerS.y[i]!)) {
+          centerBuf[centerPos++] = px;
+          centerBuf[centerPos++] = position(yScale, centerS.y[i]!);
         }
       }
-      if (centerPts.length >= 2) {
+      if (segPos >= 4) {
+        strokes.push({
+          type: 'path',
+          series: centerIdx ?? lowIdx,
+          xy: segPos === segBuf.length ? segBuf : segBuf.subarray(0, segPos),
+          stroke: paint,
+          strokeWidth: 1.5,
+          dash: { normal: null, contrast: null },
+        });
+      }
+      if (centerBuf && centerPos >= 2) {
         points.push({
           type: 'points',
           series: centerIdx ?? lowIdx,
-          xy: Float32Array.from(centerPts),
+          xy: centerPos === centerBuf.length ? centerBuf : centerBuf.subarray(0, centerPos),
           shape: view.cues[centerIdx ?? lowIdx]?.marker ?? 'circle',
           size: compact ? 3 : 4.5,
           fill: paint,
@@ -364,7 +408,7 @@ function buildIntervalMarks(
       }
     }
   }
-  return { bands, strokes, rules, points };
+  return { bands, strokes, points };
 }
 
 export function buildCartesianScene(
@@ -476,8 +520,8 @@ export function buildCartesianScene(
   // 3. Areas
   const { areas, strokes } = buildAreaMarks(view, projection, plot, meta, areaSeries);
   marks.push(...areas, ...strokes);
-  // 3b. Error bars
-  marks.push(...ivMarks.rules, ...ivMarks.points);
+  // 3b. Error bars & singleton range spans (batched typed PathMarks)
+  marks.push(...ivMarks.strokes, ...ivMarks.points);
   // 4. Lines (always topmost data marks)
   const { paths, points } = buildLineMarks(view, projection, lineSeries, compact);
   marks.push(...paths, ...points);
