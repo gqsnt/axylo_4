@@ -192,7 +192,8 @@ function histogramFrame(options: ResolvedOptions, samples: Samples, sink: Diagno
   const label = probability ? 'Probability' : density ? 'Density' : 'Count';
   for (let i = 0; i < y.length; i++) {
     const lo = edges[i]!, hi = edges[i + 1]!;
-    values[i] = interpolate(lo, hi, 0.5);
+    const sum = lo + hi;
+    values[i] = Number.isFinite(sum) ? sum / 2 : lo / 2 + hi / 2;
     if (i && values[i] === values[i - 1]) values[i] = hi;
     if (probability || density) y[i]! /= total;
     if (density) {

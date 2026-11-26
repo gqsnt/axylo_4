@@ -1,10 +1,10 @@
 {
- "date": "2026-11-26T08:10:55.191Z",
+ "date": "2026-11-26T08:34:05.578Z",
  "method": "esbuild consumer bundles from tests/dist/fixtures (packed tarballs), minify, production condition; gzip level 9",
  "packed": {
-  "at": "2026-11-26T08:10:54.153Z",
-  "axylo": "sha512-I4V5m7Ww0C5vXrX4bq2ChdjjSgfg/PRkiXbeJt0IBYlfZAFo2HvmlkSJNkjZrDFxohQ/hhQXHkJstaHYcf8H9w==",
-  "commit": "c0fcc171c6a8756d883f20aeb5967c30c41fdb98",
+  "at": "2026-11-26T08:34:04.505Z",
+  "axylo": "sha512-AiuFaeV62iuzTSU7q5xAxoTMnTJhI97RHOVxdeunACNw7gCe0KSeIIj8zrXS1vDRJHrVZyvIzsnDr2Ml51Mh7Q==",
+  "commit": "d6625f01e090a40878f5b59a62ae90fe67c8ea36",
   "dirty": true
  },
  "cssFileBytes": 16001,
@@ -23,10 +23,10 @@
   },
   {
    "entry": "everything (export * from axylo)",
-   "minBytes": 432829,
-   "jsGzipBytes": 157654,
+   "minBytes": 432855,
+   "jsGzipBytes": 157656,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 157654,
+   "totalGzipBytes": 157656,
    "totalKiB": 153.96,
    "targetKiB": 128,
    "targetBytes": 131072,
@@ -56,10 +56,10 @@
   },
   {
    "entry": "histogram only (export { histogram } from axylo)",
-   "minBytes": 320902,
-   "jsGzipBytes": 114234,
+   "minBytes": 320928,
+   "jsGzipBytes": 114240,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 114234,
+   "totalGzipBytes": 114240,
    "totalKiB": 111.56,
    "targetKiB": null,
    "targetBytes": null,
@@ -89,11 +89,11 @@
   },
   {
    "entry": "validate only (export { validate } from axylo)",
-   "minBytes": 70343,
-   "jsGzipBytes": 26473,
+   "minBytes": 70369,
+   "jsGzipBytes": 26487,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 26473,
-   "totalKiB": 25.85,
+   "totalGzipBytes": 26487,
+   "totalKiB": 25.87,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
@@ -111,28 +111,28 @@
   },
   {
    "entry": "script tag (axylo.iife.min.js + axylo.css)",
-   "minBytes": 433373,
-   "jsGzipBytes": 157969,
+   "minBytes": 433399,
+   "jsGzipBytes": 157982,
    "cssFileGzipBytes": 3275,
-   "totalGzipBytes": 161244,
-   "totalKiB": 157.46,
+   "totalGzipBytes": 161257,
+   "totalKiB": 157.48,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
   }
  ],
  "breakdown": {
-  "rebuiltMinBytes": 432881,
-  "packedMinBytes": 432881,
+  "rebuiltMinBytes": 432907,
+  "packedMinBytes": 432907,
   "directories": [
    {
-    "directory": "core",
-    "min B": 88427,
+    "directory": "data",
+    "min B": 88452,
     "share": "20.4%"
    },
    {
-    "directory": "data",
-    "min B": 88426,
+    "directory": "core",
+    "min B": 88427,
     "share": "20.4%"
    },
    {
@@ -326,7 +326,7 @@
    },
    {
     "file": "data/histogram.ts",
-    "bytes": 4610
+    "bytes": 4636
    },
    {
     "file": "lookup/scatter.ts",

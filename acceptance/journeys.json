@@ -68,21 +68,6 @@
         "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
         "owner": "core-experience",
         "targetCycle": "C3.2"
-      },
-      {
-        "id": "c1.2-split-protection",
-        "kinds": [
-          "line",
-          "area",
-          "bar",
-          "histogram",
-          "scatter",
-          "donut",
-          "compact"
-        ],
-        "reason": "Behavioral regression tests protecting controller and interaction seams before C2 consolidation (reentrant diagnostics, focus recovery, 5-way readout/table parity, pause/resume through eviction, and teardown during pending work) are scheduled for C1.2.",
-        "owner": "acceptance",
-        "targetCycle": "C1.2"
       }
     ]
   },
@@ -120,7 +105,8 @@
       "packages/axylo/test/acceptance/f-domains.test.ts",
       "packages/axylo/test/acceptance/f-format.test.ts",
       "packages/axylo/test/acceptance/f-time.test.ts",
-      "packages/axylo/test/data/histogram.test.ts"
+      "packages/axylo/test/data/histogram.test.ts",
+      "packages/axylo/test/core/split-seams.test.ts"
     ],
     "screenshots": [
       "line",
@@ -188,7 +174,8 @@
       "packages/axylo/test/lookup/scatter.test.ts",
       "packages/axylo/test/lookup/donut.test.ts",
       "packages/axylo/test/browser/chart/histogram.browser.test.ts",
-      "packages/axylo/test/data/histogram.test.ts"
+      "packages/axylo/test/data/histogram.test.ts",
+      "packages/axylo/test/browser/chart/split-seams.browser.test.ts"
     ],
     "screenshots": [
       "line",
@@ -250,7 +237,8 @@
       "packages/axylo/test/browser/chart/final-range.browser.test.ts",
       "packages/axylo/test/core/focus-range.test.ts",
       "packages/axylo/test/browser/chart/histogram.browser.test.ts",
-      "packages/axylo/test/data/histogram.test.ts"
+      "packages/axylo/test/data/histogram.test.ts",
+      "packages/axylo/test/core/split-seams.test.ts"
     ],
     "screenshots": [
       "line"
@@ -387,7 +375,8 @@
       "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
       "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
       "packages/axylo/test/layout/layout.test.ts",
-      "packages/axylo/test/simplify/resize-cache.test.ts"
+      "packages/axylo/test/simplify/resize-cache.test.ts",
+      "packages/axylo/test/browser/chart/split-seams.browser.test.ts"
     ],
     "screenshots": [
       "line",
@@ -534,7 +523,8 @@
       "packages/axylo/test/core/focus.test.ts",
       "packages/axylo/test/core/focus2.test.ts",
       "packages/axylo/test/dom/finition-figure-focus.test.ts",
-      "packages/axylo/test/browser/chart/histogram.browser.test.ts"
+      "packages/axylo/test/browser/chart/histogram.browser.test.ts",
+      "packages/axylo/test/browser/chart/split-seams.browser.test.ts"
     ],
     "screenshots": [
       "accessibility"
@@ -621,7 +611,8 @@
       "packages/axylo/test/browser/chart/plot-description.browser.test.ts",
       "packages/axylo/test/reader/index.test.ts",
       "packages/axylo/test/acceptance/reader-model.test.ts",
-      "packages/axylo/test/browser/chart/histogram.browser.test.ts"
+      "packages/axylo/test/browser/chart/histogram.browser.test.ts",
+      "packages/axylo/test/browser/chart/split-seams.browser.test.ts"
     ],
     "screenshots": [
       "accessibility",
@@ -707,7 +698,9 @@
       "packages/axylo/test/data/transactions.test.ts",
       "packages/axylo/test/acceptance/f-missing-values.test.ts",
       "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
-      "packages/axylo/test/data/histogram.test.ts"
+      "packages/axylo/test/data/histogram.test.ts",
+      "packages/axylo/test/core/split-seams.test.ts",
+      "packages/axylo/test/browser/chart/split-seams.browser.test.ts"
     ],
     "screenshots": [
       "diagnostics",
@@ -856,7 +849,9 @@
       "packages/axylo/test/acceptance/dx-controller.test.ts",
       "packages/axylo/test/core/controller.test.ts",
       "packages/axylo/test/data/transactions.test.ts",
-      "packages/axylo/test/data/histogram.test.ts"
+      "packages/axylo/test/data/histogram.test.ts",
+      "packages/axylo/test/core/split-seams.test.ts",
+      "packages/axylo/test/browser/chart/split-seams.browser.test.ts"
     ],
     "screenshots": [
       "updating"
