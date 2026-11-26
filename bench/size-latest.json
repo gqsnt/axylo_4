@@ -1,11 +1,11 @@
 {
- "date": "2026-11-26T13:28:48.213Z",
+ "date": "2026-11-26T17:46:59.123Z",
  "method": "esbuild consumer bundles from tests/dist/fixtures (packed tarballs), minify, production condition; gzip level 9",
  "packed": {
-  "at": "2026-11-26T13:28:46.699Z",
+  "at": "2026-11-26T17:46:57.599Z",
   "axylo": "sha512-/E+FuWMNxmr2j50o8c3hOrN+tdA7FS1CVofHm1GORA7lOwxSlHcQq56IdfKiD8KPqnNhPs56WgxYHkguwd+JVA==",
-  "commit": "afc46d7826e87ca3ceb5afa153142a4ad8ee0a7e",
-  "dirty": true
+  "commit": "687aa660c6928a8b5b8b35688d466415f8780ae5",
+  "dirty": false
  },
  "cssFileBytes": 16001,
  "cssFileGzipBytes": 3275,
