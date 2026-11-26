@@ -376,6 +376,7 @@
       "packages/axylo/test/browser/acceptance/compact.browser.test.ts",
       "packages/axylo/test/layout/layout.test.ts",
       "packages/axylo/test/simplify/resize-cache.test.ts",
+      "packages/axylo/test/browser/chart/histogram.browser.test.ts",
       "packages/axylo/test/browser/chart/split-seams.browser.test.ts"
     ],
     "screenshots": [
@@ -403,15 +404,6 @@
           "histogram"
         ],
         "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
-        "owner": "core-experience",
-        "targetCycle": "C3.2"
-      },
-      {
-        "id": "histogram-resize-test",
-        "kinds": [
-          "histogram"
-        ],
-        "reason": "No test resizes a histogram across widths; histogram resize behaviour is inferred from the shared layout tests.",
         "owner": "core-experience",
         "targetCycle": "C3.2"
       }
@@ -765,7 +757,8 @@
       "packages/axylo/test/browser/render/scheme.browser.test.ts",
       "packages/axylo/test/messages/index.test.ts",
       "packages/axylo/test/theme/color.test.ts",
-      "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts"
+      "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
+      "packages/axylo/test/browser/chart/histogram.browser.test.ts"
     ],
     "screenshots": [
       "theming"
@@ -790,15 +783,6 @@
           "histogram"
         ],
         "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
-        "owner": "theme",
-        "targetCycle": "C3.2"
-      },
-      {
-        "id": "histogram-theme-test",
-        "kinds": [
-          "histogram"
-        ],
-        "reason": "No theme or forced-colors test renders a histogram; histogram theming is inferred from the shared bar renderer.",
         "owner": "theme",
         "targetCycle": "C3.2"
       },
