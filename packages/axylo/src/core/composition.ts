@@ -38,8 +38,8 @@ export interface Composition {
   readonly resolve?: typeof resolveOptions;
   /** The frame shape's normalization; the kind is passed back in (the aligned kinds share one). */
   normalize(kind: ChartType, resolved: ResolvedOptions, env: DataEnvironment, sink: DiagnosticSink, version: FrameVersion): Frame;
-  /** Streaming storage for a static frame, opened by the first append. */
-  openStore(frame: Frame, source: ResolvedOptions, data: unknown, env: DataEnvironment, kind: ChartType): Store;
+  /** Streaming storage for a static frame, opened by the first append; absent from the `axylo/static` compositions. */
+  openStore?(frame: Frame, source: ResolvedOptions, data: unknown, env: DataEnvironment, kind: ChartType): Store;
   view(frame: Frame, state: ViewState, sink: DiagnosticSink): View;
   readonly layout: LayoutStage;
   readonly timeReadout?: typeof createTimeReadout;

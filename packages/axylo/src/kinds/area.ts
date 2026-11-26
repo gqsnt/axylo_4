@@ -29,3 +29,22 @@ export const AREA: Composition = {
   // Fills, their edges and stack seams (paths), markers, references, axes and the cursor, focus points.
   svg: { area: svgArea, path: svgPath, points: svgPoints, rule: svgRule, band: svgBand },
 };
+
+/**
+ * The same stages without streaming storage, for `axylo/static`. A separate literal rather than a spread or a
+ * prototype of the one above: either costs the root entry bytes (and a spread would run the layout getter at
+ * import). test/core/static-stream.test.ts checks that the two agree on every stage but `openStore`.
+ */
+export const AREA_STATIC: Composition = {
+  kind: 'area',
+  normalize: normalizeAligned as Composition['normalize'],
+  get view() { return view ??= alignedViewWith({ buildStack, reportStack }) as Composition['view']; },
+  get layout() { return alignedLayout(); },
+  timeReadout: createTimeReadout,
+  scene: areaScene,
+  lookup: alignedLookupFor,
+  reader: alignedReader,
+  interaction: { overlay: alignedTargetMarks, swatch: areaSwatch, stepInSeries: null, sliceList: null },
+  // Fills, their edges and stack seams (paths), markers, references, axes and the cursor, focus points.
+  svg: { area: svgArea, path: svgPath, points: svgPoints, rule: svgRule, band: svgBand },
+};

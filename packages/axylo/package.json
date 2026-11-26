@@ -12,13 +12,29 @@
     "dist/axylo.iife.min.js",
     "dist/axylo.css",
     "dist/index.d.ts",
-    "dist/public.d.ts"
+    "dist/public.d.ts",
+    "dist/static.js",
+    "dist/static.dev.js",
+    "dist/static.d.ts",
+    "dist/stream.js",
+    "dist/stream.dev.js",
+    "dist/stream.d.ts"
   ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "development": "./dist/axylo.dev.js",
       "default": "./dist/axylo.js"
+    },
+    "./static": {
+      "types": "./dist/static.d.ts",
+      "development": "./dist/static.dev.js",
+      "default": "./dist/static.js"
+    },
+    "./stream": {
+      "types": "./dist/stream.d.ts",
+      "development": "./dist/stream.dev.js",
+      "default": "./dist/stream.js"
     },
     "./axylo.css": "./dist/axylo.css"
   }

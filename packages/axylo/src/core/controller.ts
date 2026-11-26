@@ -104,9 +104,12 @@ export function controllerFor(
   return new ChartController(composition, input, page, streamFactory);
 }
 
-/** The static entry uses the same transactions and frame pipeline with append disabled. */
+/**
+ * The static entry uses the same transactions and frame pipeline with no stream factory, so
+ * controller-stream.ts and the stores stay out of its bundles.
+ */
 export function staticControllerFor(composition: Composition, input: unknown, page: Host): Controller {
-  return new ChartController(composition, input, page, null);
+  return new StaticChartController(composition, input, page, null);
 }
 
 /**
@@ -645,8 +648,8 @@ class ChartController implements Controller, ControllerCore, FrameDriver {
   }
 
   append(rows: unknown, appendOptions?: { keep?: number }): void {
-    const openStream = this.#openStream;
-    if (!openStream) return;
+    // The factory is null only after destroy(), which #guarded turns into a no-op, and for the static
+    // controller, whose subclass replaces this method.
     this.#guarded(call => {
       const previous = this.#accepted;
       if (!previous) return;
@@ -662,7 +665,7 @@ class ChartController implements Controller, ControllerCore, FrameDriver {
       this.#stage('append');
       const keep = appendOptions?.keep;
       // An opening session belongs to this candidate until validation succeeds.
-      const stream = previous.stream ?? openStream(this.#composition.openStore.bind(this.#composition), previous, this, this.#kind);
+      const stream = previous.stream ?? this.#openStream!(this.#composition, previous, this, this.#kind);
       const store = stream.store;
       const prepared = (store.prepareAppend as (r: readonly unknown[], o: { keep?: number }) => PreparedFrame<Frame>)(
         rows, keep === undefined ? EMPTY_APPEND_OPTIONS : { keep });
@@ -1786,5 +1789,16 @@ class ChartController implements Controller, ControllerCore, FrameDriver {
   beginFrame(): FrameRun | null {
     const f = this.#startFrame();
     return f ? new FrameHandle(f) : null;
+  }
+}
+
+/**
+ * A chart from `axylo/static` has no streaming storage. Its append fails loudly, before touching any state,
+ * rather than dropping the rows unseen; the subclass keeps that message out of the streaming bundles, where
+ * append after destroy() still returns quietly.
+ */
+class StaticChartController extends ChartController {
+  override append(): void {
+    throw new Error('append() is not available on charts created from axylo/static; import from axylo/stream or axylo for streaming.');
   }
 }

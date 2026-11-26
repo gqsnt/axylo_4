@@ -60,6 +60,15 @@ async function main() {
     build({ ...common, ...dev, format: 'esm', outfile: path.join(dist, 'axylo.dev.js') }),
     build({ ...common, ...dev, format: 'iife', globalName: 'Axylo', outfile: path.join(dist, 'axylo.iife.js') }),
     build({ ...common, ...prod, format: 'iife', globalName: 'Axylo', minify: true, outfile: path.join(dist, 'axylo.iife.min.js') }),
+    // The opt-in subpaths (axylo/static, axylo/stream): ESM only, each its own self-contained file, so the root
+    // file above is built exactly as before and a page pays only for the entry it imports.
+    ...['static', 'stream'].flatMap(name => {
+      const entry = { ...common, entryPoints: [path.join(pkg, `src/${name}.ts`)] };
+      return [
+        build({ ...entry, ...prod, format: 'esm', minify: true, outfile: path.join(dist, `${name}.js`) }),
+        build({ ...entry, ...dev, format: 'esm', outfile: path.join(dist, `${name}.dev.js`) }),
+      ];
+    }),
   ]);
   // For pages that prefer to load the stylesheet themselves, for example under a strict Content Security Policy.
   fs.writeFileSync(path.join(dist, 'axylo.css'), minified);

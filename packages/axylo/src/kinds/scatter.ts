@@ -29,3 +29,22 @@ export const SCATTER: Composition = {
   // Points and highlighted points, references, axes and the focus ring (rules).
   svg: { points: svgPoints, rule: svgRule, band: svgBand },
 };
+
+/**
+ * The same stages without streaming storage, for `axylo/static`. A separate literal rather than a spread or a
+ * prototype of the one above: either costs the root entry bytes (and a spread would run the layout getter at
+ * import). test/core/static-stream.test.ts checks that the two agree on every stage but `openStore`.
+ */
+export const SCATTER_STATIC: Composition = {
+  kind: 'scatter',
+  normalize: (_kind, resolved, env, sink, version) => normalizePoints(resolved, env, sink, version),
+  view: buildScatterView as Composition['view'],
+  get layout() { return layout ??= cartesianLayout({ linear: linearScale, time: timeScale, temporalTicks }); },
+  timeReadout: createTimeReadout,
+  scene: scatterScene,
+  lookup: scatterLookupFor,
+  reader: scatterReader,
+  interaction: { overlay: scatterTargetMarks, swatch: pointSwatch, stepInSeries, sliceList: null },
+  // Points and highlighted points, references, axes and the focus ring (rules).
+  svg: { points: svgPoints, rule: svgRule, band: svgBand },
+};

@@ -41,3 +41,21 @@ export const DONUT: Composition = {
   // Slices and slice outlines (arcs), the focus ring (rules).
   svg: { arcs: svgArcs, rule: svgRule },
 };
+
+/**
+ * The same stages without streaming storage, for `axylo/static`. A separate literal rather than a spread or a
+ * prototype of the one above: either costs the root entry bytes (and a spread would run the layout getter at
+ * import). test/core/static-stream.test.ts checks that the two agree on every stage but `openStore`.
+ */
+export const DONUT_STATIC: Composition = {
+  kind: 'donut',
+  normalize: (_kind, resolved, env, sink, version) => normalizeDonut(resolved, env, sink, version),
+  view: buildDonutView as Composition['view'],
+  layout: donutLayout,
+  scene: donutScene,
+  lookup: donutLookupFor,
+  reader: donutReader,
+  interaction: { overlay: donutTargetMarks, swatch: pointSwatch, stepInSeries: null, sliceList: donutSliceList },
+  // Slices and slice outlines (arcs), the focus ring (rules).
+  svg: { arcs: svgArcs, rule: svgRule },
+};

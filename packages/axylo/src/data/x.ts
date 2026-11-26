@@ -1,5 +1,5 @@
 import { StoreMap } from './store-map';
-import { Labels } from './store-window';
+import { Labels } from './labels';
 import { MAX_DATE } from '../scale/zone';
 import type { DiagnosticInput, Environment, XColumn, XKind } from '../core/contracts';
 import { DiagnosticCollector, report, type DiagnosticCode } from '../diagnostics';

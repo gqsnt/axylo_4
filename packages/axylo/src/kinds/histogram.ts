@@ -27,3 +27,22 @@ export const HISTOGRAM: Composition = {
   // Bars and their patterns, "no data" boxes (rects), references, axes, the cursor and bar outlines (rules).
   svg: { rects: svgRects, rule: svgRule, band: svgBand },
 };
+
+/**
+ * The same stages without streaming storage, for `axylo/static`. A separate literal rather than a spread or a
+ * prototype of the one above: either costs the root entry bytes (and a spread would run the layout getter at
+ * import). test/core/static-stream.test.ts checks that the two agree on every stage but `openStore`.
+ */
+export const HISTOGRAM_STATIC: Composition = {
+  kind: 'histogram',
+  normalize: normalizeHistogram,
+  resolve: resolveOptions,
+  view: buildPlainAlignedView as Composition['view'],
+  get layout() { return layout ??= cartesianLayout({ linear: linearScale }); },
+  scene: barScene,
+  lookup: alignedLookupFor,
+  reader: alignedReader,
+  interaction: { overlay: alignedTargetMarks, swatch: barSwatch, stepInSeries: null, sliceList: null },
+  // Bars and their patterns, "no data" boxes (rects), references, axes, the cursor and bar outlines (rules).
+  svg: { rects: svgRects, rule: svgRule, band: svgBand },
+};

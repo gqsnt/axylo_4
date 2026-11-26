@@ -35,7 +35,7 @@ import {
   type EnvSubscriber, type FontProbeListener, type GeometryListener, type GeometryRegistration, type ProbeRegistration,
 } from './environment';
 import {
-  controllerFor, type ChartHandle, type Controller, type ControllerActions, type FrameRun, type Host, type Size,
+  controllerFor, staticControllerFor, type ChartHandle, type Controller, type ControllerActions, type FrameRun, type Host, type Size,
 } from './controller';
 import type { Composition } from './composition';
 import type { Span } from './stages';
@@ -312,7 +312,7 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
 
   constructor(
     composition: Composition, root: HTMLElement, doc: Document, win: Window & typeof globalThis, input: unknown,
-    overrides: ChartEnvironmentOverrides,
+    overrides: ChartEnvironmentOverrides, makeController: typeof controllerFor,
   ) {
     this.#composition = composition;
     this.#root = root;
@@ -343,7 +343,7 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
       this.#geometryTargets = [parts.plot, parts.figure];
       this.#built = STEP_GEOMETRY;
 
-      this.controller = controllerFor(composition, input, this);
+      this.controller = makeController(composition, input, this);
       if (root.isConnected) {
         this.#joinShared();
         this.#watch();
@@ -784,7 +784,16 @@ export function createChart(composition: Composition, target: unknown, input: un
   const doc = root.ownerDocument;
   const win = doc.defaultView;
   if (win === null) throw new Error('Axylo: the target element is not in a document with a window.');
-  return new BrowserHost(composition, root, doc, win, input, overrides).controller!.handle;
+  return new BrowserHost(composition, root, doc, win, input, overrides, controllerFor).controller!.handle;
+}
+
+/** `createChart` for `axylo/static`: the same host, a controller without streaming (no stores bundled). */
+export function createStaticChart(composition: Composition, target: unknown, input: unknown, overrides: ChartEnvironmentOverrides = {}): ChartHandle {
+  const root = resolveTarget(target);
+  const doc = root.ownerDocument;
+  const win = doc.defaultView;
+  if (win === null) throw new Error('Axylo: the target element is not in a document with a window.');
+  return new BrowserHost(composition, root, doc, win, input, overrides, staticControllerFor).controller!.handle;
 }
 
 function resolveTarget(target: unknown): HTMLElement {

@@ -9,10 +9,11 @@ import { isTable } from './controller-helpers';
 /** Rows a store may hold beyond twice what was on screen before the frames that pin it copy their rows. */
 const RETENTION_SLACK = 8;
 
-export type StreamFactory = (openStore: Composition['openStore'], a: Accepted, env: DataEnvironment, kind: ChartType) => StreamSession;
+export type StreamFactory = (composition: Composition, a: Accepted, env: DataEnvironment, kind: ChartType) => StreamSession;
 
-export function openStreamSession(openStore: Composition['openStore'], a: Accepted, env: DataEnvironment, kind: ChartType): StreamSession {
-  return new StreamSession(openStore(a.frame, a.source, a.options.data, env, kind), a.source.table);
+/** Only the streaming compositions reach here (the static entry passes no factory), so `openStore` is present. */
+export function openStreamSession(composition: Composition, a: Accepted, env: DataEnvironment, kind: ChartType): StreamSession {
+  return new StreamSession(composition.openStore!(a.frame, a.source, a.options.data, env, kind), a.source.table);
 }
 
 /** Retention bookkeeping belongs to the store whose revisions it tracks. */
