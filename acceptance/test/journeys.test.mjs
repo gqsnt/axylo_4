@@ -60,6 +60,14 @@ test('the real journeys index names all twelve journeys and every citation resol
   const keyboard = journeys.find(journey => journey.id === 'keyboard');
   assert.ok(keyboard.matrixIds.includes('A3'));
   assert.notEqual(keyboard.accessibilityEvidence.manualAt.status, 'verified', 'A3 manual AT has not been run');
+  const customization = journeys.find(journey => journey.id === 'customization');
+  assert.equal(customization.accessibilityEvidence.manualAt.status, 'not-applicable');
+  assert.ok(customization.ownedGaps.some(gap => gap.id === 'windows-forced-colors'));
+  for (const journey of journeys) {
+    for (const gap of journey.ownedGaps) {
+      assert.notEqual(gap.targetCycle, 'C2', `${journey.id}.${gap.id} should not target C2`);
+    }
+  }
 });
 
 test('check({ pers: true }) on the real repository evaluates all twelve journeys without blocking', () => {
@@ -67,7 +75,12 @@ test('check({ pers: true }) on the real repository evaluates all twelve journeys
   assert.equal(result.pers.journeys.length, 12);
   assert.deepEqual(result.pers.journeys.map(journey => journey.id), [...JOURNEY_IDS]);
   assert.ok(result.pers.journeys.filter(journey => journey.histogramApplies).every(journey => journey.histogramCited));
+  assert.equal(result.pers.summary.histogramApplicable, 11);
+  assert.equal(result.pers.summary.histogramTestBacked + result.pers.summary.histogramGapOnly, 11);
+  assert.ok(result.pers.summary.histogramGapOnly > 0);
   assert.match(result.report, /## Product Experience Regression Suite \(12 journeys\)/);
+  assert.match(result.report, /11 histogram-applicable \(\d+ test-backed, \d+ gap-only\)/);
+  assert.doesNotMatch(result.report, /cover histogram/);
   assert.equal(result.pers.blocked, false);
   assert.equal(result.exitCode, 0);
 });
@@ -133,8 +146,87 @@ test('a failing result fails the journeys that cite it and blocks --pers', t => 
   const first = result.pers.journeys.find(journey => journey.id === 'first-impression');
   assert.equal(first.status, 'fail');
   assert.equal(first.cells.fail, 1);
-  assert.deepEqual(first.failing, ['F1/line: fail']);
-  assert.match(result.report, /### Failing journey evidence\n\n- \*\*first-impression\*\* · F1\/line: fail/);
+  assert.deepEqual(first.failing, ['F1/line: fail', 'chart.test.ts: line renders']);
+  assert.match(result.report, /### Failing journey evidence\n\n- \*\*first-impression\*\* · F1\/line: fail; chart\.test\.ts: line renders/);
+});
+
+test('a failing test cited only by journeys (outside matrix.json) fails those journeys and blocks --pers', t => {
+  const write = workspace(t);
+  const histogramPath = 'packages/axylo/test/browser/chart/histogram.browser.test.ts';
+  const synthetic = write('histogram-failed.json', {
+    testResults: [{
+      name: `/archived/checkout/${histogramPath}`,
+      status: 'failed',
+      assertionResults: [{
+        title: 'renders histogram bars with interval labels',
+        ancestorTitles: ['histogram'],
+        status: 'failed',
+        meta: { engine: 'chromium', engineVersion: '130' },
+      }],
+    }],
+  });
+  const result = check({ root: repo, resultFiles: [synthetic], pers: true });
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.pers.blocked, true);
+  const first = result.pers.journeys.find(journey => journey.id === 'first-impression');
+  assert.equal(first.status, 'fail');
+  assert.equal(first.cells.fail, 0);
+  assert.deepEqual(first.testFailures, [`${histogramPath}: renders histogram bars with interval labels`]);
+  const compare = result.pers.journeys.find(journey => journey.id === 'compare');
+  assert.notEqual(compare.status, 'fail');
+  assert.equal(compare.testFailures.length, 0);
+});
+
+test('a suite-level failure in an automated ARIA test cited only by journeys blocks --pers', t => {
+  const write = workspace(t);
+  const journeysFile = write('journeys.json', fixtureJourneys(journeys => {
+    journeys[0].accessibilityEvidence.automated = ['chart.browser.test.ts'];
+    for (let i = 1; i < journeys.length; i++) journeys[i].accessibilityEvidence.automated = [];
+    return journeys;
+  }));
+  const suiteCrash = write('aria-crash.json', {
+    testResults: [{
+      name: 'chart.browser.test.ts',
+      status: 'failed',
+      message: 'beforeAll crashed in browser setup',
+      assertionResults: [],
+    }],
+  });
+  const result = check({ root: fixtures, matrixFile: fixtureMatrix, resultFiles: [suiteCrash], pers: true, journeysFile });
+  assert.equal(result.exitCode, 1);
+  assert.equal(result.pers.blocked, true);
+  assert.equal(result.pers.journeys[0].status, 'fail');
+  assert.match(result.pers.journeys[0].testFailures[0], /chart\.browser\.test\.ts: suite failed without assertion \(beforeAll crashed in browser setup\)/);
+  assert.notEqual(result.pers.journeys[1].status, 'fail');
+});
+
+test('evidence validation rejects non-test files, escaping paths, unconfined names, and missing bench runner', t => {
+  const write = workspace(t);
+  const absTest = resolve(repo, 'acceptance/test/journeys.test.mjs');
+  const journeysFile = write('journeys.json', fixtureJourneys(journeys => {
+    journeys[0].testFiles = ['matrix.json'];
+    journeys[1].testFiles = [absTest];
+    journeys[2].testFiles = ['../journeys.test.mjs'];
+    journeys[3].accessibilityEvidence.automated = ['matrix.json'];
+    journeys[4].screenshots = ['../README'];
+    journeys[5].rehearsalTasks = ['nested/task'];
+    journeys[6].benchWorkloads = ['first'];
+    return journeys;
+  }));
+  assert.throws(() => readJourneys({ root: fixtures, journeysFile, matrixIds: ['F1'] }), error => {
+    for (const expected of [
+      'first-impression.testFiles: expected a test file (*.test.*), got matrix.json',
+      `reading.testFiles: expected a repository-relative test file, got ${absTest}`,
+      'hover.testFiles: expected a repository-relative test file, got ../journeys.test.mjs',
+      'explore.accessibilityEvidence.automated: expected a test file (*.test.*), got matrix.json',
+      'compare.screenshots: invalid docs page name ../README',
+      'resize.rehearsalTasks: invalid rehearsal task name nested/task',
+      'mobile-touch.benchWorkloads: missing benchmark runner bench/run.mjs',
+    ]) {
+      assert.ok(error.message.includes(expected), `expected: ${expected}\n${error.message}`);
+    }
+    return true;
+  });
 });
 
 test('passing results let the journeys through, and a passing journey with an owned gap stays weak', t => {

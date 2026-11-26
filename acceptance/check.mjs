@@ -317,17 +317,20 @@ function readProvenance(file) {
   return statSync(sidecar, { throwIfNoEntry: false }) ? json(sidecar) : null;
 }
 
-function readResults(root, roots, files, sources) {
+function readResults(root, roots, files, sources, extraSources = new Set()) {
   const index = new Map();
   const runs = [];
   const suiteFailures = new Map();
-  const paths = [...sources.keys()].map(path => [relative(root, path).split(sep).join('/'), path]);
+  const runSources = new Map();
+  const knownPaths = new Set([...sources.keys(), ...extraSources]);
+  const paths = [...knownPaths].map(path => [relative(root, path).split(sep).join('/'), path]);
   const bases = [...new Set([root, ...roots])];
   for (const file of files) {
     const { testResults } = json(file);
     const provenance = readProvenance(file);
     if (!Array.isArray(testResults)) throw new Error(`${file}: expected Vitest JSON testResults`);
     const failures = [];
+    const touched = new Set();
     let passed = 0;
     let skipped = 0;
     const { engine, engineVersion } = runEngine(file, { testResults }, provenance);
@@ -337,16 +340,18 @@ function readResults(root, roots, files, sources) {
       }
       const name = suite.name.replaceAll('\\', '/');
       const candidates = [...new Set(bases.map(base => resolve(base, name)))];
-      let matches = candidates.filter(path => sources.has(path));
+      let matches = candidates.filter(path => knownPaths.has(path));
       // Absolute paths from archived checkouts can still carry the full repository-relative path.
       if (!matches.length && (isAbsolute(name) || /^[A-Za-z]:\//.test(name))) {
         matches = paths.filter(([relativePath]) => relativePath.includes('/')
           && name.endsWith('/' + relativePath)).map(([, path]) => path);
       }
       if (matches.length > 1) throw new Error(`${file}: ambiguous report path ${suite.name}`);
-      const [path] = matches;
+      const [resolved] = matches;
+      const path = resolved && sources.has(resolved) ? resolved : undefined;
       if (path && !index.has(path)) index.set(path, []);
-      const source = relative(root, path ?? candidates[0]);
+      const source = relative(root, resolved ?? candidates[0]).split(sep).join('/');
+      touched.add(source);
       let failed = false;
       for (const test of suite.assertionResults) {
         if (!isText(test?.title) || !isText(test.status) || !Array.isArray(test.ancestorTitles) || !test.ancestorTitles.every(isText)) {
@@ -369,9 +374,10 @@ function readResults(root, roots, files, sources) {
         }
       }
     }
+    runSources.set(file, touched);
     runs.push({ file, passed, skipped, failures, provenance, engine, engineVersion });
   }
-  return { index, runs, suiteFailures };
+  return { index, runs, suiteFailures, runSources };
 }
 
 /**
@@ -717,9 +723,13 @@ export function check({ root, matrixFile = resolve(root, 'acceptance/matrix.json
   root = resolve(root);
   const expected = specIds(readFileSync(resolve(root, 'docs/02-product-spec.md'), 'utf8'));
   const { matrix, sources, confirmations } = readMatrix(root, matrixFile, expected, sizeTargets);
+  const journeys = pers ? readJourneys({ root, journeysFile, matrixIds: matrix.map(row => row.id) }) : null;
+  const extraSources = journeys
+    ? new Set(journeys.flatMap(journey => [...journey.testFiles, ...journey.accessibilityEvidence.automated]).map(file => resolve(root, file)))
+    : new Set();
   const roots = resultRoots.map(path => resolve(root, path));
   const reports = [...new Set(resultFiles.map(file => resolve(file)))].sort();
-  const { index, runs, suiteFailures } = readResults(root, roots, reports, sources);
+  const { index, runs, suiteFailures, runSources } = readResults(root, roots, reports, sources, extraSources);
   const warnings = confirmTitles(root, confirmations, index);
   // Provenance is judged in every mode: a recorded run of another tree answers nothing about this one. Only a
   // release also requires every run to have a record.
@@ -773,8 +783,7 @@ export function check({ root, matrixFile = resolve(root, 'acceptance/matrix.json
   };
   if (!pers) return result;
   // PERS gates in every mode, not only --release: a failing or stale journey is a product regression now.
-  const journeys = readJourneys({ root, journeysFile, matrixIds: matrix.map(row => row.id) });
-  const evaluation = evaluateJourneys({ journeys, checkResult: result });
+  const evaluation = evaluateJourneys({ journeys, checkResult: result, runSources });
   return {
     ...result, pers: evaluation,
     report: result.report + '\n' + renderJourneysMarkdown(evaluation),

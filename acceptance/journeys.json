@@ -67,7 +67,7 @@
         ],
         "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
         "owner": "core-experience",
-        "targetCycle": "C1.2"
+        "targetCycle": "C3.2"
       },
       {
         "id": "c1.2-split-protection",
@@ -80,7 +80,7 @@
           "donut",
           "compact"
         ],
-        "reason": "PERS rolls journeys up from the existing matrix; protection against a journey losing evidence when a test file or matrix row is split is scheduled for C1.2 and not enforced here.",
+        "reason": "Behavioral regression tests protecting controller and interaction seams before C2 consolidation (reentrant diagnostics, focus recovery, 5-way readout/table parity, pause/resume through eviction, and teardown during pending work) are scheduled for C1.2.",
         "owner": "acceptance",
         "targetCycle": "C1.2"
       }
@@ -147,7 +147,7 @@
         ],
         "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
         "owner": "core-experience",
-        "targetCycle": "C1.2"
+        "targetCycle": "C3.2"
       }
     ]
   },
@@ -216,7 +216,7 @@
         ],
         "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
         "owner": "interaction",
-        "targetCycle": "C1.2"
+        "targetCycle": "C3.2"
       }
     ]
   },
@@ -284,7 +284,7 @@
         ],
         "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
         "owner": "interaction",
-        "targetCycle": "C1.2"
+        "targetCycle": "C3.2"
       },
       {
         "id": "explore-manual-at",
@@ -297,7 +297,7 @@
         ],
         "reason": "Range-selection and zoom announcements are verified only through automated ARIA checks, not with real assistive technology.",
         "owner": "a11y",
-        "targetCycle": "C2"
+        "targetCycle": "C3.3"
       }
     ]
   },
@@ -415,7 +415,7 @@
         ],
         "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
         "owner": "core-experience",
-        "targetCycle": "C1.2"
+        "targetCycle": "C3.2"
       },
       {
         "id": "histogram-resize-test",
@@ -424,7 +424,7 @@
         ],
         "reason": "No test resizes a histogram across widths; histogram resize behaviour is inferred from the shared layout tests.",
         "owner": "core-experience",
-        "targetCycle": "C1.2"
+        "targetCycle": "C3.2"
       }
     ]
   },
@@ -483,7 +483,7 @@
         ],
         "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
         "owner": "interaction",
-        "targetCycle": "C1.2"
+        "targetCycle": "C3.2"
       },
       {
         "id": "real-device-touch",
@@ -498,7 +498,7 @@
         ],
         "reason": "Touch and narrow-viewport behaviour is verified only in emulated desktop Chrome, never on a real phone.",
         "owner": "interaction",
-        "targetCycle": "C2"
+        "targetCycle": "C3.2"
       }
     ]
   },
@@ -566,7 +566,7 @@
         ],
         "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
         "owner": "a11y",
-        "targetCycle": "C1.2"
+        "targetCycle": "C3.2"
       },
       {
         "id": "a3-manual-at",
@@ -580,7 +580,7 @@
         ],
         "reason": "A3 (focused point conveyed through assistive technology) has not been verified with NVDA, JAWS or VoiceOver.",
         "owner": "a11y",
-        "targetCycle": "C2"
+        "targetCycle": "C3.3"
       }
     ]
   },
@@ -655,7 +655,7 @@
         ],
         "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
         "owner": "a11y",
-        "targetCycle": "C1.2"
+        "targetCycle": "C3.2"
       },
       {
         "id": "manual-screen-reader",
@@ -670,7 +670,7 @@
         ],
         "reason": "No manual pass with NVDA, JAWS or VoiceOver has been recorded for the summary, table or live-region behaviour.",
         "owner": "a11y",
-        "targetCycle": "C2"
+        "targetCycle": "C3.3"
       }
     ]
   },
@@ -738,7 +738,7 @@
         ],
         "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
         "owner": "diagnostics",
-        "targetCycle": "C1.2"
+        "targetCycle": "C3.2"
       }
     ]
   },
@@ -785,11 +785,9 @@
         "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts"
       ],
       "manualAt": {
-        "status": "gap-open",
-        "environments": [
-          "Windows High Contrast (forced-colors) + Edge"
-        ],
-        "protocolNote": "forced-colors is emulated in Chrome; a real Windows contrast theme has not been checked."
+        "status": "not-applicable",
+        "environments": [],
+        "protocolNote": "Theming and forced-colors are visual and OS display modes rather than assistive technology; native Windows contrast verification is tracked as an owned gap."
       }
     },
     "ownedGaps": [
@@ -800,7 +798,7 @@
         ],
         "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
         "owner": "theme",
-        "targetCycle": "C1.2"
+        "targetCycle": "C3.2"
       },
       {
         "id": "histogram-theme-test",
@@ -809,7 +807,22 @@
         ],
         "reason": "No theme or forced-colors test renders a histogram; histogram theming is inferred from the shared bar renderer.",
         "owner": "theme",
-        "targetCycle": "C1.2"
+        "targetCycle": "C3.2"
+      },
+      {
+        "id": "windows-forced-colors",
+        "kinds": [
+          "line",
+          "area",
+          "bar",
+          "histogram",
+          "scatter",
+          "donut",
+          "compact"
+        ],
+        "reason": "forced-colors is emulated in headless Chrome; native Windows High Contrast (Edge) has not been verified on a Windows host.",
+        "owner": "theme",
+        "targetCycle": "C3.2"
       }
     ]
   },
@@ -877,7 +890,22 @@
         ],
         "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
         "owner": "streaming",
-        "targetCycle": "C1.2"
+        "targetCycle": "C3.2"
+      },
+      {
+        "id": "a7-manual-at",
+        "kinds": [
+          "line",
+          "area",
+          "bar",
+          "histogram",
+          "scatter",
+          "donut",
+          "compact"
+        ],
+        "reason": "Silence of live updates (A7) is checked through live-region attributes only, not with a running screen reader.",
+        "owner": "a11y",
+        "targetCycle": "C3.3"
       }
     ]
   }
