@@ -1226,7 +1226,7 @@ class DomInteraction implements Interaction {
 
   #dropHold(d: Committed, allowPick = true) { this.#rest = null; if (allowPick && this.#pointer) this.#pointTo(this.#pick(d, this.#pointer)); else this.#shown = this.#idle(); }
 
-  #resetCore() { this.#single = false; this.#dismissed = this.#shownText = this.#focus = this.#handoffSliceKey = this.#rest = null; this.#pinPage = 0; }
+  #resetCore() { this.#single = false; this.#dismissed = this.#shownText = this.#focus = this.#rest = null; this.#pinPage = 0; }
 
   #reconcile(previous: Committed | null, next: Committed): void {
     const { lookup } = next;
@@ -1315,7 +1315,7 @@ class DomInteraction implements Interaction {
     this.#lastPres = null;
     const owned = this.#focusOwned();
     this.#hideTooltip(); this.#unbuild(owned); this.#resetCore();
-    this.#tooltipContent = this.#touches = null;
+    this.#tooltipContent = this.#touches = this.#handoffSliceKey = null;
     this.#shown = NONE; this.#content = this.#range = this.#pointer = null; this.#proxyFocused = this.#fromClick = this.#keyed = false;
     this.#hover(null);
   }
