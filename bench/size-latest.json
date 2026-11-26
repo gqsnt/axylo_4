@@ -1,10 +1,10 @@
 {
- "date": "2026-11-26T12:51:35.581Z",
+ "date": "2026-11-26T13:04:44.812Z",
  "method": "esbuild consumer bundles from tests/dist/fixtures (packed tarballs), minify, production condition; gzip level 9",
  "packed": {
-  "at": "2026-11-26T12:51:34.180Z",
-  "axylo": "sha512-pvH3ENTLy7Td24blqblk8y81oezrEbXDLqGa9I459rvLaKVkvwAw9qRoBckCVww+KLm8H+U8FBwV9CSb8ptXvg==",
-  "commit": "c9e06165b0af224407bfb8383b445ae7fd3840f2",
+  "at": "2026-11-26T13:04:43.446Z",
+  "axylo": "sha512-F1F/lPd8bxuPOVgcbt2dNRdwPuO0lzdw24Dx61pNJtZVXVsBJ4oOJhREYuU8PqbYI7kUcJD9dn69PGPG0sbROQ==",
+  "commit": "94d6df465d76b563a92a22e3fad9be146a97ab6e",
   "dirty": true
  },
  "cssFileBytes": 16001,
@@ -133,11 +133,33 @@
   },
   {
    "entry": "cartesian (export { cartesian } from 'axylo/cartesian')",
-   "minBytes": 338961,
-   "jsGzipBytes": 121084,
+   "minBytes": 348439,
+   "jsGzipBytes": 123869,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 121084,
-   "totalKiB": 118.25,
+   "totalGzipBytes": 123869,
+   "totalKiB": 120.97,
+   "targetKiB": null,
+   "targetBytes": null,
+   "over": false
+  },
+  {
+   "entry": "stats (export * from 'axylo/stats')",
+   "minBytes": 3561,
+   "jsGzipBytes": 1518,
+   "cssFileGzipBytes": 0,
+   "totalGzipBytes": 1518,
+   "totalKiB": 1.48,
+   "targetKiB": null,
+   "targetBytes": null,
+   "over": false
+  },
+  {
+   "entry": "sync (export * from 'axylo/sync')",
+   "minBytes": 3385,
+   "jsGzipBytes": 1451,
+   "cssFileGzipBytes": 0,
+   "totalGzipBytes": 1451,
+   "totalKiB": 1.42,
    "targetKiB": null,
    "targetBytes": null,
    "over": false

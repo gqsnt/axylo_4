@@ -8,6 +8,7 @@ import { SLOT_VALUE, type AlignedView, type Formatters, type ResolvedReference, 
 import type { Messages } from '../public';
 import { alignedReader, type ReaderParts } from '../reader';
 import { alignedTable, type ReaderLabels } from '../reader/table';
+import { annotationSummarySentences } from './annotations';
 import { formatAxisValue, type CartesianStateRef } from './meta';
 
 function cartesianTable(
@@ -65,6 +66,14 @@ export function createCartesianReader(stateRef: CartesianStateRef): ReaderParts 
         const right = meta.axes[1];
         const title = right.unit ? `${right.label ?? right.id} (${right.unit})` : (right.label ?? right.id);
         sentences.push(`Secondary right axis (${title}) values are plotted on their own scale.`);
+      }
+      if (meta.annotations.length > 0) {
+        const fmtX = (x: unknown) => {
+          if (typeof x === 'number') return input.formatters.x(x);
+          if (x instanceof Date) return input.formatters.x(x.getTime());
+          return String(x);
+        };
+        sentences.push(...annotationSummarySentences(meta, fmtX, input.locale ?? 'en-US'));
       }
       return sentences;
     },

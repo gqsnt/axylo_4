@@ -19,6 +19,7 @@ import {
 import { boundaryPixel, clamp, position, rule, seriesPaint, token } from '../scene/geometry';
 import { axisScaleOf } from './scale-ref';
 import { buildBarSlotLayout, writeBarRect, xSlotPixel } from './bar-geom';
+import { buildCartesianAnnotationMarks } from './annotations';
 import type { CartesianMeta, CartesianStateRef } from './meta';
 
 const TICK_LENGTH = 4;
@@ -255,6 +256,117 @@ function buildLineMarks(
   return { paths, points };
 }
 
+function buildIntervalMarks(
+  view: AlignedView,
+  projection: Exclude<Projection, { kind: 'ring' }>,
+  meta: CartesianMeta,
+  compact: boolean,
+): { bands: AreaMark[]; strokes: PathMark[]; rules: RuleMark[]; points: PointMark[] } {
+  const bands: AreaMark[] = [];
+  const strokes: PathMark[] = [];
+  const rules: RuleMark[] = [];
+  const points: PointMark[] = [];
+  if (!meta.intervals.length) return { bands, strokes, rules, points };
+
+  const xScale = projection.kind === 'xy' ? projection.x : projection.band;
+  const xVals = view.frame.x.values;
+  const idxByField = new Map<string, number>();
+  for (let i = 0; i < view.frame.series.length; i++) idxByField.set(view.frame.series[i]!.field, i);
+  const { start, end } = view.visibleSlots;
+
+  for (const iv of meta.intervals) {
+    const lowIdx = idxByField.get(iv.lowField);
+    const highIdx = idxByField.get(iv.highField);
+    if (lowIdx === undefined || highIdx === undefined) continue;
+    if (!view.visible[lowIdx] && !view.visible[highIdx]) continue;
+    const lowS = view.frame.series[lowIdx]!;
+    const highS = view.frame.series[highIdx]!;
+    if (!lowS.drawable || !highS.drawable) continue;
+    const centerIdx = iv.centerField ? idxByField.get(iv.centerField) : undefined;
+    const centerS = centerIdx !== undefined && view.visible[centerIdx] ? view.frame.series[centerIdx] : undefined;
+    const yScale = axisScaleOf(projection, iv.axisIndex);
+    const paint = seriesPaint(centerIdx ?? lowIdx);
+
+    if (iv.mark === 'range') {
+      const upperCoords: number[] = [];
+      const lowerCoords: number[] = [];
+      const runs: number[] = [];
+      let runStart = -1;
+      let runCount = 0;
+      const flush = () => {
+        if (runCount >= 2) runs.push(runStart, runCount, runStart, runCount);
+        runStart = -1;
+        runCount = 0;
+      };
+      for (let i = start; i < end; i++) {
+        const loSt = lowS.slot[i]!;
+        const hiSt = highS.slot[i]!;
+        if (loSt === SLOT_NO_ROW && hiSt === SLOT_NO_ROW) continue;
+        const loV = lowS.y[i]!;
+        const hiV = highS.y[i]!;
+        if (!isPlottable(yScale, loSt, loV) || !isPlottable(yScale, hiSt, hiV)) {
+          flush();
+          continue;
+        }
+        const px = xSlotPixel(xScale, xVals, i);
+        const a = Math.min(loV, hiV);
+        const b = Math.max(loV, hiV);
+        const pyHigh = position(yScale, b);
+        const pyLow = position(yScale, a);
+        if (runStart < 0) runStart = upperCoords.length / 2;
+        upperCoords.push(px, pyHigh);
+        lowerCoords.push(px, pyLow);
+        runCount++;
+      }
+      flush();
+      if (runs.length > 0) {
+        bands.push({
+          type: 'area',
+          series: lowIdx,
+          upper: Float32Array.from(upperCoords),
+          lower: Float32Array.from(lowerCoords),
+          runs: Uint32Array.from(runs),
+          fill: paint,
+          opacity: 0.22,
+        });
+      }
+    } else {
+      // errorBar: vertical whisker rule + horizontal end caps + optional center marker
+      const halfCap = iv.capWidth / 2;
+      const centerPts: number[] = [];
+      for (let i = start; i < end; i++) {
+        const loSt = lowS.slot[i]!;
+        const hiSt = highS.slot[i]!;
+        const loV = lowS.y[i]!;
+        const hiV = highS.y[i]!;
+        if (!isPlottable(yScale, loSt, loV) || !isPlottable(yScale, hiSt, hiV)) continue;
+        const px = xSlotPixel(xScale, xVals, i);
+        const pyA = position(yScale, Math.min(loV, hiV));
+        const pyB = position(yScale, Math.max(loV, hiV));
+        rules.push({ ...rule('reference', paint, px, pyB, px, pyA), strokeWidth: 1.5 });
+        if (halfCap > 0) {
+          rules.push({ ...rule('reference', paint, px - halfCap, pyA, px + halfCap, pyA), strokeWidth: 1.5 });
+          rules.push({ ...rule('reference', paint, px - halfCap, pyB, px + halfCap, pyB), strokeWidth: 1.5 });
+        }
+        if (centerS && isPlottable(yScale, centerS.slot[i]!, centerS.y[i]!)) {
+          centerPts.push(px, position(yScale, centerS.y[i]!));
+        }
+      }
+      if (centerPts.length >= 2) {
+        points.push({
+          type: 'points',
+          series: centerIdx ?? lowIdx,
+          xy: Float32Array.from(centerPts),
+          shape: view.cues[centerIdx ?? lowIdx]?.marker ?? 'circle',
+          size: compact ? 3 : 4.5,
+          fill: paint,
+        });
+      }
+    }
+  }
+  return { bands, strokes, rules, points };
+}
+
 export function buildCartesianScene(
   stateRef: CartesianStateRef,
   view: View,
@@ -340,7 +452,7 @@ export function buildCartesianScene(
     }
   }
 
-  // Partition visible drawable series by mark type (deterministic paint order: bar -> area -> line)
+  // Partition visible drawable series by mark type (deterministic paint order: range -> bar -> area -> errorBar -> line)
   const barSeries: number[] = [];
   const areaSeries: number[] = [];
   const lineSeries: number[] = [];
@@ -348,21 +460,29 @@ export function buildCartesianScene(
     if (!view.visible[i] || !view.frame.series[i]!.drawable) continue;
     const spec = meta.seriesByField.get(view.frame.series[i]!.field);
     const mark = spec?.mark ?? 'line';
+    if (mark === 'range' || mark === 'errorBar') continue;
     if (mark === 'bar') barSeries.push(i);
     else if (mark === 'area') areaSeries.push(i);
     else lineSeries.push(i);
   }
 
+  const annMarks = !compact ? buildCartesianAnnotationMarks(view, projection, plot, meta) : { bands: [], foreground: [] };
+  const ivMarks = buildIntervalMarks(view, projection, meta, compact);
+
+  // 1b. Shaded range annotations & data range bands behind bars/lines
+  marks.push(...annMarks.bands, ...ivMarks.bands);
   // 2. Bars
   marks.push(...buildBarMarks(view, projection, plot, meta, barSeries));
   // 3. Areas
   const { areas, strokes } = buildAreaMarks(view, projection, plot, meta, areaSeries);
   marks.push(...areas, ...strokes);
-  // 4. Lines (always topmost)
+  // 3b. Error bars
+  marks.push(...ivMarks.rules, ...ivMarks.points);
+  // 4. Lines (always topmost data marks)
   const { paths, points } = buildLineMarks(view, projection, lineSeries, compact);
   marks.push(...paths, ...points);
-  // 5. Axes & reference lines
-  marks.push(...edges, ...refLines);
+  // 5. Axes, reference lines, and foreground annotation markers/thresholds
+  marks.push(...edges, ...refLines, ...annMarks.foreground);
 
   return { width: layout.width, height: layout.height, clip: plot, marks };
 }

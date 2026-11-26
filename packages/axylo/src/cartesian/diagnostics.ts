@@ -6,7 +6,7 @@
  */
 import type { DiagnosticEffect, DiagnosticInput, DiagnosticSink } from '../core/contracts';
 
-export type CartesianDiagnosticCode = 'AX170' | 'AX171' | 'AX172' | 'AX173' | 'AX174' | 'AX175';
+export type CartesianDiagnosticCode = 'AX170' | 'AX171' | 'AX172' | 'AX173' | 'AX174' | 'AX175' | 'AX176';
 
 export interface CartesianDiagnosticDetails {
   readonly field?: string;
@@ -48,6 +48,14 @@ const REGISTRY: Readonly<Record<CartesianDiagnosticCode, Entry>> = {
   AX175: {
     level: 'hint',
     message: d => `Plot width is below 360 px; secondary right axis${d.field ? ` '${d.field}'` : ''} collapsed into legend and summary annotations (spec L9).`,
+  },
+  AX176: {
+    level: 'warning',
+    message: d => {
+      const n = d.count ?? d.rows?.length ?? 0;
+      const sample = d.rows?.length ? ` (rows ${d.rows.slice(0, 10).join(', ')})` : '';
+      return `Interval '${d.field ?? 'range'}' has ${n} reversed bound${n === 1 ? '' : 's'} where low > high${sample}. Displayed using min/max span; raw values are preserved in tooltip and table.`;
+    },
   },
 };
 

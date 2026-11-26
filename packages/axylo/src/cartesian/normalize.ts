@@ -56,6 +56,37 @@ export function normalizeCartesian(
     };
   });
 
+  // C5.1: validate range/errorBar intervals for reversed bounds (`low > high`) without copying borrowed columns.
+  if (meta.intervals.length > 0) {
+    const byField = new Map(annotated.map(s => [s.field, s]));
+    for (const iv of meta.intervals) {
+      const lowS = byField.get(iv.lowField);
+      const highS = byField.get(iv.highField);
+      if (!lowS || !highS) continue;
+      let reversed = 0;
+      const sampleRows: number[] = [];
+      for (let i = 0; i < raw.length; i++) {
+        if (lowS.slot[i] !== SLOT_VALUE || highS.slot[i] !== SLOT_VALUE) continue;
+        const lo = lowS.y[i]!;
+        const hi = highS.y[i]!;
+        if (Number.isFinite(lo) && Number.isFinite(hi) && lo > hi) {
+          reversed++;
+          if (sampleRows.length < 10) {
+            const srcRow = lowS.row ? lowS.row[i]! : i;
+            if (srcRow >= 0) sampleRows.push(srcRow);
+          }
+        }
+      }
+      if (reversed > 0) {
+        reportCartesian(sink, 'AX176', 'none', {
+          field: iv.label,
+          rows: sampleRows.length ? sampleRows : undefined,
+          count: reversed,
+        });
+      }
+    }
+  }
+
   return {
     ...raw,
     series: annotated,

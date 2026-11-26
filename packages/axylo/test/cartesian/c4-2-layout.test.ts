@@ -53,6 +53,8 @@ function makeFixture(opts: {
     rightAxisId: rightAxis ? 'latency' : null,
     series: seriesSpecs,
     seriesByField: new Map(seriesSpecs.map(s => [s.field, s])),
+    intervals: [],
+    annotations: [],
     references: [],
     invalid: false,
     fullPositiveDomains: new Map(),

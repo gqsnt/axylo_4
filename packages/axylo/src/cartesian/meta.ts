@@ -3,11 +3,12 @@
  * Stored on the chart instance's closure (passed into `createCartesianComposition(stateRef)`) so metadata
  * survives `renamed()` frames and domain-only updates cleanly without WeakMaps or edits to `controller.ts`.
  */
+import type { XValue } from '../public';
 import type { NumberFormatOption } from '../format';
 import { createNumberReadout } from '../format/number';
 import type { LogBase, Span } from '../scale/log';
 
-export type CartesianLayerMark = 'bar' | 'area' | 'line';
+export type CartesianLayerMark = 'bar' | 'area' | 'line' | 'range' | 'errorBar';
 
 export interface CartesianAxisSpec {
   readonly id: string;
@@ -43,6 +44,23 @@ export interface CartesianReferenceSpec {
   readonly to?: unknown;
 }
 
+export interface CartesianIntervalSpec {
+  readonly mark: 'range' | 'errorBar';
+  readonly label: string;
+  readonly lowField: string;
+  readonly highField: string;
+  readonly centerField: string | null;
+  readonly axisId: string;
+  readonly axisIndex: 0 | 1;
+  readonly layerIndex: number;
+  readonly capWidth: number;
+}
+
+export type CartesianAnnotationSpec =
+  | { readonly type: 'point'; readonly x: XValue; readonly y: number; readonly axisId?: string; readonly label: string; readonly description?: string }
+  | { readonly type: 'threshold'; readonly axis: 'x' | 'y'; readonly value: XValue | number; readonly axisId?: string; readonly label: string; readonly description?: string }
+  | { readonly type: 'range'; readonly axis: 'x' | 'y'; readonly from: XValue | number; readonly to: XValue | number; readonly axisId?: string; readonly label: string; readonly description?: string };
+
 export interface CartesianMeta {
   /** Ordered `[leftAxis]` or `[leftAxis, rightAxis]`; `axes[0]` is always `'left'`. */
   readonly axes: readonly CartesianAxisSpec[];
@@ -52,6 +70,10 @@ export interface CartesianMeta {
   /** Per-field layer specs in declared layer order. */
   readonly series: readonly CartesianSeriesSpec[];
   readonly seriesByField: ReadonlyMap<string, CartesianSeriesSpec>;
+  /** Range-band and error-bar interval specs (`low`/`high` typed columns, C5.1). */
+  readonly intervals: readonly CartesianIntervalSpec[];
+  /** Opt-in annotations (point, threshold, shaded range, C5.2). */
+  readonly annotations: readonly CartesianAnnotationSpec[];
   /** Raw reference specs (preserving `axisId` for y-references). */
   readonly references: readonly CartesianReferenceSpec[];
   /** Non-empty when options failed structural validation (`AX170`/`AX173`/`AX174`). */

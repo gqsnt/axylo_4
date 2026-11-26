@@ -21,7 +21,13 @@
     "dist/stream.d.ts",
     "dist/cartesian.js",
     "dist/cartesian.dev.js",
-    "dist/cartesian.d.ts"
+    "dist/cartesian.d.ts",
+    "dist/stats.js",
+    "dist/stats.dev.js",
+    "dist/stats.d.ts",
+    "dist/sync.js",
+    "dist/sync.dev.js",
+    "dist/sync.d.ts"
   ],
   "exports": {
     ".": {
@@ -43,6 +49,16 @@
       "types": "./dist/cartesian.d.ts",
       "development": "./dist/cartesian.dev.js",
       "default": "./dist/cartesian.js"
+    },
+    "./stats": {
+      "types": "./dist/stats.d.ts",
+      "development": "./dist/stats.dev.js",
+      "default": "./dist/stats.js"
+    },
+    "./sync": {
+      "types": "./dist/sync.d.ts",
+      "development": "./dist/sync.dev.js",
+      "default": "./dist/sync.js"
     },
     "./axylo.css": "./dist/axylo.css"
   }

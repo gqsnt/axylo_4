@@ -26,6 +26,7 @@ import { logScale, type Span } from '../scale/log';
 import { withUnit } from '../reader/table';
 import { axisScaleOf } from './scale-ref';
 import { axisTickCandidates, createTickFailureTracker, type TickFailureTracker } from './axes';
+import { layoutCartesianAnnotations } from './annotations';
 import { createCartesianDiagnostic } from './diagnostics';
 import type { CartesianAxisSpec, CartesianStateRef } from './meta';
 
@@ -349,6 +350,10 @@ export function computeCartesianLayoutDetailed(
         texts.push(placeText(xTitle, xTitleStr, left + plot.width / 2, base + bottomLane + GAP, 'middle', 'top', 0, 'title-x', text));
       }
       placeCartesianReferences(view.references, projection, plot, texts, text, meta);
+      const annLayout = projection.kind === 'ring'
+        ? { labels: [], hiddenCount: 0 }
+        : layoutCartesianAnnotations(view, projection, plot, meta, textInput.measurer, textInput.style);
+      for (const lbl of annLayout.labels) texts.push(lbl);
 
       const xHidden = xScale.type === 'band' ? Math.max(0, (view.frame.x.categories?.length ?? view.frame.length) - xFit.texts.length) : 0;
       const leftHidden = leftFit.partial ? Math.max(0, (leftCandidates[leftCandidates.length - 1]?.length ?? 0) - leftFit.ticks.length) : 0;
@@ -368,8 +373,8 @@ export function computeCartesianLayoutDetailed(
         texts,
         fit: {
           x: { remedies: xFit.remedies, hidden: xHidden },
-          // Fold right-axis hidden label count into fit.y.hidden so frame-state.ts:60 triggers AX143 at 0 B core tax.
-          y: { remedies: leftFit.remedies, hidden: leftHidden + rightHidden },
+          // Fold right-axis and overflow annotation label counts into fit.y.hidden so AX143 / hidden note never drops silently.
+          y: { remedies: leftFit.remedies, hidden: leftHidden + rightHidden + annLayout.hiddenCount },
           ...(showRightAxis ? { yRight: { remedies: rightFit.remedies, hidden: rightHidden } } : {}),
         },
       };
@@ -397,7 +402,7 @@ export function createCartesianLayoutStage(stateRef: CartesianStateRef): LayoutS
       for (const axis of stateRef.meta.axes) {
         base.push(axis.id, axis.position, axis.scale, axis.base, axis.label, axis.unit, axis.tickFormat);
       }
-      base.push(view.references, ctx.resolved.x.label, ctx.resolved.x.unit, ctx.resolved.x.tickFormat);
+      base.push(view.references, stateRef.meta.annotations, ctx.resolved.x.label, ctx.resolved.x.unit, ctx.resolved.x.tickFormat);
       for (const v of view.visible) base.push(v);
       return base;
     },

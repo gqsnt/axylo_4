@@ -11,8 +11,9 @@ import type { NumberFormatOption } from '../format';
 import { isValidLogBase, isValidLogDomain, type LogBase, type Span } from '../scale/log';
 import { reportCartesian } from './diagnostics';
 import {
-  axesDomainSignature, type CartesianAxisSpec, type CartesianLayerMark, type CartesianMeta,
-  type CartesianReferenceSpec, type CartesianSeriesSpec, type CartesianStateRef,
+  axesDomainSignature, type CartesianAnnotationSpec, type CartesianAxisSpec, type CartesianIntervalSpec,
+  type CartesianLayerMark, type CartesianMeta, type CartesianReferenceSpec, type CartesianSeriesSpec,
+  type CartesianStateRef,
 } from './meta';
 
 interface ValidationIssue {
@@ -132,12 +133,67 @@ export function parseCartesianInput(input: unknown, previous?: CartesianMeta | n
 
   const seriesSpecs: CartesianSeriesSpec[] = [];
   const seriesByField = new Map<string, CartesianSeriesSpec>();
+  const intervals: CartesianIntervalSpec[] = [];
   const translatedY: Record<string, unknown>[] = [];
   const domainSig = axesDomainSignature(orderedAxes);
 
   if (rawLayers.length === 0) {
     issues.push({ code: 'AX174', field: 'layers', detail: 'Option `layers` must include at least one layer' });
   }
+
+  const pushCarrierField = (
+    rawField: unknown,
+    axis: CartesianAxisSpec,
+    mark: CartesianLayerMark,
+    stacked: boolean,
+    layerIndex: number,
+  ): string | null => {
+    const name = fieldNameOf(rawField);
+    if (!name) return null;
+    if (seriesByField.has(name)) {
+      issues.push({
+        code: 'AX174',
+        field: name,
+        detail: `Field '${name}' is bound to multiple layers/axes; bind each source field once`,
+      });
+      return null;
+    }
+    const fieldObj = isObject(rawField) ? rawField : {};
+    const label = typeof fieldObj.label === 'string' ? fieldObj.label : name;
+    const unit = typeof fieldObj.unit === 'string' ? fieldObj.unit : axis.unit;
+    const format = (fieldObj.format as NumberFormatOption | undefined) ?? axis.format;
+    const tickFormat = (fieldObj.tickFormat as NumberFormatOption | undefined) ?? axis.tickFormat;
+    const spec: CartesianSeriesSpec = {
+      field: name,
+      label,
+      mark,
+      stacked,
+      axisId: axis.id,
+      axisIndex: axis.index,
+      layerIndex,
+    };
+    seriesSpecs.push(spec);
+    seriesByField.set(name, spec);
+
+    const carrier: Record<string, unknown> = {
+      ...fieldObj,
+      field: name,
+      label,
+      ...(unit !== null ? { unit } : {}),
+      ...(format !== null ? { format } : {}),
+      ...(tickFormat !== null ? { tickFormat } : {}),
+      ...(axis.domain !== null ? { domain: axis.domain } : {}),
+      __axisId: axis.id,
+      __axisPos: axis.position,
+      __axisScale: axis.scale,
+      __axisBase: axis.base,
+      __mark: mark,
+      __stacked: stacked,
+      ...(translatedY.length === 0 ? { __domainSig: domainSig } : {}),
+    };
+    translatedY.push(carrier);
+    return name;
+  };
 
   for (let layerIndex = 0; layerIndex < rawLayers.length; layerIndex++) {
     const rawLayer = rawLayers[layerIndex];
@@ -146,7 +202,7 @@ export function parseCartesianInput(input: unknown, previous?: CartesianMeta | n
       continue;
     }
     const mark = rawLayer.type as CartesianLayerMark;
-    if (mark !== 'bar' && mark !== 'area' && mark !== 'line') {
+    if (mark !== 'bar' && mark !== 'area' && mark !== 'line' && mark !== 'range' && mark !== 'errorBar') {
       issues.push({ code: 'AX174', field: `layers[${layerIndex}]`, detail: `Unsupported layer type '${String(rawLayer.type)}'` });
       continue;
     }
@@ -159,55 +215,55 @@ export function parseCartesianInput(input: unknown, previous?: CartesianMeta | n
     if ((mark === 'bar' || mark === 'area') && axis.scale === 'log') {
       issues.push({ code: 'AX173', field: axis.id, detail: `${mark} layer cannot bind to log axis '${axis.id}'` });
     }
-    const stacked = rawLayer.stacked === true;
-    const fields = normalizeFieldList(rawLayer.y);
-    for (const rawField of fields) {
-      const name = fieldNameOf(rawField);
-      if (!name) continue;
-      if (seriesByField.has(name)) {
-        issues.push({
-          code: 'AX174',
-          field: name,
-          detail: `Field '${name}' is bound to multiple layers/axes; bind each source field once`,
-        });
+    if (mark === 'range' || mark === 'errorBar') {
+      const lowName = pushCarrierField(rawLayer.low, axis, mark, false, layerIndex);
+      const highName = pushCarrierField(rawLayer.high, axis, mark, false, layerIndex);
+      const centerName = rawLayer.y !== undefined ? pushCarrierField(rawLayer.y, axis, mark, false, layerIndex) : null;
+      if (!lowName || !highName) {
+        issues.push({ code: 'AX174', field: `layers[${layerIndex}]`, detail: `${mark} layer requires distinct 'low' and 'high' value fields` });
         continue;
       }
-      const fieldObj = isObject(rawField) ? rawField : {};
-      const label = typeof fieldObj.label === 'string' ? fieldObj.label : name;
-      const unit = typeof fieldObj.unit === 'string' ? fieldObj.unit : axis.unit;
-      const format = (fieldObj.format as NumberFormatOption | undefined) ?? axis.format;
-      const tickFormat = (fieldObj.tickFormat as NumberFormatOption | undefined) ?? axis.tickFormat;
-      const spec: CartesianSeriesSpec = {
-        field: name,
-        label,
+      const capWidth = typeof rawLayer.capWidth === 'number' && Number.isFinite(rawLayer.capWidth) && rawLayer.capWidth >= 0
+        ? rawLayer.capWidth : 8;
+      intervals.push({
         mark,
-        stacked,
+        label: typeof rawLayer.label === 'string' && rawLayer.label.trim() ? rawLayer.label : `${lowName}–${highName}`,
+        lowField: lowName,
+        highField: highName,
+        centerField: centerName,
         axisId: axis.id,
         axisIndex: axis.index,
         layerIndex,
-      };
-      seriesSpecs.push(spec);
-      seriesByField.set(name, spec);
+        capWidth,
+      });
+      continue;
+    }
+    const stacked = rawLayer.stacked === true;
+    const fields = normalizeFieldList(rawLayer.y);
+    for (const rawField of fields) {
+      pushCarrierField(rawField, axis, mark, stacked, layerIndex);
+    }
+  }
 
-      // Build carrier y-field object: non-ignored descriptors invalidate encodingChanged on structural edits;
-      // domainSig on y[0] invalidates both primary & secondary axis domain updates cleanly.
-      const carrier: Record<string, unknown> = {
-        ...fieldObj,
-        field: name,
-        label,
-        ...(unit !== null ? { unit } : {}),
-        ...(format !== null ? { format } : {}),
-        ...(tickFormat !== null ? { tickFormat } : {}),
-        ...(axis.domain !== null ? { domain: axis.domain } : {}),
-        __axisId: axis.id,
-        __axisPos: axis.position,
-        __axisScale: axis.scale,
-        __axisBase: axis.base,
-        __mark: mark,
-        __stacked: stacked,
-        ...(translatedY.length === 0 ? { __domainSig: domainSig } : {}),
-      };
-      translatedY.push(carrier);
+  // Parse opt-in annotations (C5.2: point event markers, labelled thresholds, shaded x/y ranges)
+  const rawAnnotations = Array.isArray(src.annotations) ? src.annotations : [];
+  const annotations: CartesianAnnotationSpec[] = [];
+  for (let i = 0; i < rawAnnotations.length; i++) {
+    const rawAnn = rawAnnotations[i];
+    if (!isObject(rawAnn)) continue;
+    const annType = rawAnn.type;
+    const label = typeof rawAnn.label === 'string' ? rawAnn.label : '';
+    const description = typeof rawAnn.description === 'string' ? rawAnn.description : undefined;
+    const axisId = typeof rawAnn.axisId === 'string' ? rawAnn.axisId : undefined;
+    if (axisId !== undefined && !axisById.has(axisId)) {
+      issues.push({ code: 'AX174', field: axisId, detail: `Annotation '${label || i}' targets unknown y-axis '${axisId}'` });
+    }
+    if (annType === 'point' && rawAnn.x !== undefined && typeof rawAnn.y === 'number' && Number.isFinite(rawAnn.y)) {
+      annotations.push({ type: 'point', x: rawAnn.x as never, y: rawAnn.y, axisId, label, description });
+    } else if (annType === 'threshold' && (rawAnn.axis === 'x' || rawAnn.axis === 'y') && rawAnn.value !== undefined) {
+      annotations.push({ type: 'threshold', axis: rawAnn.axis, value: rawAnn.value as never, axisId, label, description });
+    } else if (annType === 'range' && (rawAnn.axis === 'x' || rawAnn.axis === 'y') && rawAnn.from !== undefined && rawAnn.to !== undefined) {
+      annotations.push({ type: 'range', axis: rawAnn.axis, from: rawAnn.from as never, to: rawAnn.to as never, axisId, label, description });
     }
   }
 
@@ -240,13 +296,15 @@ export function parseCartesianInput(input: unknown, previous?: CartesianMeta | n
     rightAxisId: orderedAxes[1]?.id ?? null,
     series: seriesSpecs,
     seriesByField,
+    intervals,
+    annotations,
     references: refSpecs,
     invalid: issues.length > 0,
     fullPositiveDomains: previous ? new Map(previous.fullPositiveDomains) : new Map(),
   };
 
-  // Strip Cartesian-only top-level keys (`axes`, `layers`) so resolveOptions does not emit AX150 unknown option!
-  const { axes: _axes, layers: _layers, ...rest } = src;
+  // Strip Cartesian-only top-level keys (`axes`, `layers`, `annotations`) so resolveOptions does not emit AX150!
+  const { axes: _axes, layers: _layers, annotations: _annotations, ...rest } = src;
   const translated: Record<string, unknown> = {
     ...rest,
     y: translatedY.length === 1 ? translatedY[0] : translatedY,

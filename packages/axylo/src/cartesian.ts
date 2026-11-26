@@ -64,15 +64,25 @@ export type CartesianReference<Axes extends AxesRecord> =
   | { readonly x: XValue | readonly [XValue, XValue]; readonly y?: never; readonly axisId?: never; readonly label: string }
   | { readonly y: number | readonly [number, number]; readonly x?: never; readonly axisId?: AnyAxisId<Axes>; readonly label: string };
 
+export type CartesianAnnotation<Axes extends AxesRecord> =
+  | { readonly type: 'point'; readonly x: XValue; readonly y: number; readonly axisId?: AnyAxisId<Axes>; readonly label: string; readonly description?: string }
+  | { readonly type: 'threshold'; readonly axis: 'x'; readonly value: XValue; readonly axisId?: never; readonly label: string; readonly description?: string }
+  | { readonly type: 'threshold'; readonly axis: 'y'; readonly value: number; readonly axisId?: AnyAxisId<Axes>; readonly label: string; readonly description?: string }
+  | { readonly type: 'range'; readonly axis: 'x'; readonly from: XValue; readonly to: XValue; readonly axisId?: never; readonly label: string; readonly description?: string }
+  | { readonly type: 'range'; readonly axis: 'y'; readonly from: number; readonly to: number; readonly axisId?: AnyAxisId<Axes>; readonly label: string; readonly description?: string };
+
 export type CartesianLayerOptions<Row, Axes extends AxesRecord> =
   | { readonly type: 'line'; readonly y: ValueField<Row> | readonly ValueField<Row>[]; readonly yAxis: AnyAxisId<Axes> }
-  | { readonly type: 'bar' | 'area'; readonly y: ValueField<Row> | readonly ValueField<Row>[]; readonly yAxis: LinearAxisId<Axes>; readonly stacked?: boolean };
+  | { readonly type: 'bar' | 'area'; readonly y: ValueField<Row> | readonly ValueField<Row>[]; readonly yAxis: LinearAxisId<Axes>; readonly stacked?: boolean }
+  | { readonly type: 'range'; readonly low: ValueField<Row>; readonly high: ValueField<Row>; readonly yAxis: AnyAxisId<Axes>; readonly label?: string }
+  | { readonly type: 'errorBar'; readonly y?: ValueField<Row>; readonly low: ValueField<Row>; readonly high: ValueField<Row>; readonly yAxis: AnyAxisId<Axes>; readonly label?: string; readonly capWidth?: number };
 
 export interface CartesianOptions<Row, Axes extends AxesRecord> extends CommonOptions<Row> {
   readonly x: XField<Row>;
   readonly axes: Axes;
   readonly layers: readonly [CartesianLayerOptions<Row, NoInfer<Axes>>, ...CartesianLayerOptions<Row, NoInfer<Axes>>[]];
   readonly reference?: readonly CartesianReference<NoInfer<Axes>>[];
+  readonly annotations?: readonly CartesianAnnotation<NoInfer<Axes>>[];
   readonly zoom?: boolean | 'touch';
 }
 
