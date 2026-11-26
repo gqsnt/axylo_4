@@ -1,4 +1,4 @@
-import type { AlignedFrame, DiagnosticSink, Formatters, IndexRange, ReaderModel, TableModel, View } from '../core/contracts';
+import type { AlignedFrame, DiagnosticSink, Formatters, IndexRange, ReaderModel, ResolvedReference, TableModel, View } from '../core/contracts';
 import { report } from '../diagnostics';
 import { cacheableValueSeries } from '../format';
 import { sliceText } from '../lookup/text';
@@ -252,6 +252,7 @@ export interface ReaderParts {
   readonly table: TableBuilder;
   readonly tableRowCount?: (view: View) => number | null;
   readonly text: ChartText;
+  readonly formatReferenceValue?: (ref: ResolvedReference, value: number, formatters: Formatters, locale: string | undefined) => string;
 }
 
 const donutText: ChartText = (input, type) => {
@@ -398,13 +399,17 @@ function stackText(view: View, formatters: Formatters, messages: Messages): stri
     : fill(messages.incompleteAt, { label, positions: positions.map(position => formatters.x(position)).join(', ') });
 }
 
-function referenceText(view: View, formatters: Formatters, messages: Messages): string[] {
+function referenceText(input: ReaderInput, parts: ReaderParts): string[] {
+  const { view, formatters, messages, locale } = input;
   if (view.kind === 'donut') return [];
-  return view.references.map(({ axis, from, to, label }) => {
+  const fmt = parts.formatReferenceValue;
+  return view.references.map(ref => {
+    const { axis, from, to, label } = ref;
+    const x = axis === 'x';
     const values: { label: string; axis: typeof axis; from: string; to?: string } = {
-      label, axis, from: axis === 'x' ? formatters.x(from) : formatters.value(0, from),
+      label, axis, from: x ? formatters.x(from) : fmt ? fmt(ref, from, formatters, locale) : formatters.value(0, from),
     };
-    if (from !== to) values.to = axis === 'x' ? formatters.x(to) : formatters.value(0, to);
+    if (from !== to) values.to = x ? formatters.x(to) : fmt ? fmt(ref, to, formatters, locale) : formatters.value(0, to);
     return fill(from === to ? messages.referenceLine : messages.referenceBand, values);
   });
 }
@@ -449,7 +454,7 @@ class Reader implements BuiltReader {
     for (const sentence of draft.parts.text(input, type, xLabel, yLabel, this.table !== null, listReady)) text = addSentence(text, sentence);
     if (compact) text = addSentence(text, stackText(view, formatters, messages));
     else if (view.kind !== 'donut' && view.references.length) {
-      for (const reference of references ?? referenceText(view, formatters, messages)) text = addSentence(text, reference);
+      for (const reference of references ?? referenceText(input, draft.parts)) text = addSentence(text, reference);
     }
     text = addSentence(text, subtitle);
     text = addSentence(text, omission);
@@ -523,7 +528,7 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
     const generated = supplied.trim() ? supplied : chartName(formatters, messages.chartName, type, xLabel, yLabel);
     let caption = generated.trim() ? generated : messages.plotLabel?.trim() ? messages.plotLabel : defaultMessages.plotLabel;
     if (view.kind !== 'donut' && view.references.length) {
-      references = referenceText(view, formatters, messages);
+      references = referenceText(input, parts);
       for (const reference of references) caption += ' ' + reference;
     }
     table = makeTable(parts, input, caption, {

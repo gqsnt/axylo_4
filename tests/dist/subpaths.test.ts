@@ -23,9 +23,9 @@ const gzip = (text: string) => gzipSync(Buffer.from(text), { level: 9 }).length;
 const STREAMING_MARKERS = ['adoptNormalized', 'StreamSession'];
 
 describe('package.json', () => {
-  it('exports ./static and ./stream with types, development and default files that were packed', () => {
+  it('exports ./static, ./stream and ./cartesian with types, development and default files that were packed', () => {
     const json = packedJson('axylo');
-    for (const name of ['static', 'stream']) {
+    for (const name of ['static', 'stream', 'cartesian']) {
       expect(json.exports?.[`./${name}`]).toEqual({ types: `./dist/${name}.d.ts`, development: `./dist/${name}.dev.js`, default: `./dist/${name}.js` });
       for (const file of [`${name}.js`, `${name}.dev.js`, `${name}.d.ts`]) expect(fs.existsSync(installed('axylo', 'dist', file)), file).toBe(true);
     }
@@ -33,11 +33,21 @@ describe('package.json', () => {
 });
 
 describe('import for effect, with side-effect hints ignored', () => {
-  for (const specifier of ['axylo', 'axylo/static', 'axylo/stream']) {
+  for (const specifier of ['axylo', 'axylo/static', 'axylo/stream', 'axylo/cartesian']) {
     it(`"import '${specifier}'" bundles to 0 raw bytes`, async () => {
       expect((await consumer(`import '${specifier}';`, { ignoreAnnotations: true })).length).toBe(0);
     });
   }
+});
+
+describe('axylo/cartesian packed size stays under RFC C4.1 cap and carries no streaming storage', () => {
+  it('cartesian standalone bundle omits streaming storage and stays <= 127,000 B gzip-9', async () => {
+    const cart = await consumer("export { cartesian } from 'axylo/cartesian';");
+    for (const marker of STREAMING_MARKERS) expect(cart, `axylo/cartesian contains ${marker}`).not.toContain(marker);
+    const gz = gzip(cart);
+    console.info(`cartesian: ${gz} B gzip-9`);
+    expect(gz).toBeLessThanOrEqual(127_000);
+  });
 });
 
 describe('axylo/static carries no streaming storage and is smaller than the root entry', () => {
@@ -76,6 +86,7 @@ describe('declarations', () => {
       fs.writeFileSync(path.join(project, 'check.ts'), [
         "import * as fixed from 'axylo/static';",
         "import * as stream from 'axylo/stream';",
+        "import { cartesian, validateCartesian } from 'axylo/cartesian';",
         "import type { StaticChart, LineOptions, Diagnostic } from 'axylo/static';",
         "type Row = { x: number; y: number };",
         "declare const el: HTMLElement;",
@@ -87,8 +98,16 @@ describe('declarations', () => {
         "a.append([{ x: 2, y: 3 }]);",
         "const b = stream.line(el, options);",
         "b.append([{ x: 2, y: 3 }]);",
-        "const d: Diagnostic[] = fixed.validate('line', options).concat(stream.validate('line', options));",
-        "export { a, b, d };",
+        "const c = cartesian(el, {",
+        "  title: 'Dual', data: [{ m: 'Jan', orders: 100, ms: 20 }], x: 'm',",
+        "  axes: { orders: { position: 'left', label: 'Orders' }, ms: { position: 'right', scale: 'log', unit: 'ms' } },",
+        "  layers: [{ type: 'bar', y: 'orders', yAxis: 'orders' }, { type: 'line', y: 'ms', yAxis: 'ms' }],",
+        "});",
+        "c.update({ axes: { orders: { position: 'left', label: 'Renamed', domain: [0, 200] }, ms: { position: 'right', scale: 'log', domain: [1, 100] } } });",
+        "// @ts-expect-error bar cannot bind to log axis",
+        "c.update({ layers: [{ type: 'bar', y: 'orders', yAxis: 'ms' }] });",
+        "const d: Diagnostic[] = fixed.validate('line', options).concat(stream.validate('line', options), validateCartesian({ data: [{ m: 'Jan', orders: 100, ms: 20 }], x: 'm', axes: { orders: { position: 'left' } }, layers: [{ type: 'bar', y: 'orders', yAxis: 'orders' }] }));",
+        "export { a, b, c, d };",
       ].join('\n'));
       const result = check(project, 'tsconfig.json');
       expect(result.errors).toEqual([]);

@@ -233,8 +233,9 @@ function layoutDiagnosticsWith(view: View, ctx: AxisContext, layout: Layout, sca
   if (view.kind === 'donut' || layout.kind !== 'plot') return [];
   const { failures } = axisParts(view, ctx, scales);
   const out: DiagnosticInput[] = [];
-  if (failures.x.drawn(layout.xTicks)) out.push(createDiagnostic('AX160', 'none', { field: ctx.resolved.x.field }, 'presentation'));
-  if (failures.y.drawn(layout.yTicks)) out.push(createDiagnostic('AX160', 'none', { field: ctx.resolved.values[0]?.field ?? 'y' }, 'presentation'));
+  const push = (field: string) => out.push(createDiagnostic('AX160', 'none', { field }, 'presentation'));
+  if (failures.x.drawn(layout.xTicks)) push(ctx.resolved.x.field);
+  if (failures.y.drawn(layout.yTicks)) push(ctx.resolved.values[0]?.field ?? 'y');
   return out;
 }
 

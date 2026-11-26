@@ -1,10 +1,10 @@
 {
- "date": "2026-11-26T12:15:41.284Z",
+ "date": "2026-11-26T12:26:41.049Z",
  "method": "esbuild consumer bundles from tests/dist/fixtures (packed tarballs), minify, production condition; gzip level 9",
  "packed": {
-  "at": "2026-11-26T12:15:39.976Z",
-  "axylo": "sha512-eGJ4EU8CC9P6YirV6dS3CPCf/98IvPL4erWuCCjmBFog9BoP8FY/yND1K0Ov3WJWbUlS0A7Qj5I/zrrHaZspig==",
-  "commit": "09705ce8531f71a0dcc4f0861dea6d84004b0b04",
+  "at": "2026-11-26T12:26:39.637Z",
+  "axylo": "sha512-rwXh3vdt1/tVksxzVgkF5v34wY/DkBeHEhd7oneHY5j/EcQY2HG1EmsIFkFc7kI6Xi/Jv7do6cQP3rZ6B8BAVg==",
+  "commit": "f9973e9b46a69a57cf5f7025c888358c0ae23e66",
   "dirty": true
  },
  "cssFileBytes": 16001,
@@ -12,77 +12,77 @@
  "rows": [
   {
    "entry": "line only (examples/first-chart/npm.ts)",
-   "minBytes": 376440,
-   "jsGzipBytes": 135301,
+   "minBytes": 376513,
+   "jsGzipBytes": 135348,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 135301,
-   "totalKiB": 132.13,
+   "totalGzipBytes": 135348,
+   "totalKiB": 132.18,
    "targetKiB": 108,
    "targetBytes": 110592,
    "over": true
   },
   {
    "entry": "everything (export * from axylo)",
-   "minBytes": 434114,
-   "jsGzipBytes": 158108,
+   "minBytes": 434187,
+   "jsGzipBytes": 158159,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 158108,
-   "totalKiB": 154.4,
+   "totalGzipBytes": 158159,
+   "totalKiB": 154.45,
    "targetKiB": 128,
    "targetBytes": 131072,
    "over": true
   },
   {
    "entry": "area only (export { area } from axylo)",
-   "minBytes": 383224,
-   "jsGzipBytes": 137982,
+   "minBytes": 383297,
+   "jsGzipBytes": 138029,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 137982,
-   "totalKiB": 134.75,
+   "totalGzipBytes": 138029,
+   "totalKiB": 134.79,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
   },
   {
    "entry": "bar only (export { bar } from axylo)",
-   "minBytes": 367528,
-   "jsGzipBytes": 131211,
+   "minBytes": 367601,
+   "jsGzipBytes": 131260,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 131211,
-   "totalKiB": 128.14,
+   "totalGzipBytes": 131260,
+   "totalKiB": 128.18,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
   },
   {
    "entry": "histogram only (export { histogram } from axylo)",
-   "minBytes": 322140,
-   "jsGzipBytes": 114607,
+   "minBytes": 322213,
+   "jsGzipBytes": 114659,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 114607,
-   "totalKiB": 111.92,
+   "totalGzipBytes": 114659,
+   "totalKiB": 111.97,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
   },
   {
    "entry": "scatter only (export { scatter } from axylo)",
-   "minBytes": 340941,
-   "jsGzipBytes": 122834,
+   "minBytes": 341014,
+   "jsGzipBytes": 122881,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 122834,
-   "totalKiB": 119.96,
+   "totalGzipBytes": 122881,
+   "totalKiB": 120,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
   },
   {
    "entry": "donut only (export { donut } from axylo)",
-   "minBytes": 270677,
-   "jsGzipBytes": 94459,
+   "minBytes": 270787,
+   "jsGzipBytes": 94508,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 94459,
-   "totalKiB": 92.25,
+   "totalGzipBytes": 94508,
+   "totalKiB": 92.29,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
@@ -90,9 +90,9 @@
   {
    "entry": "validate only (export { validate } from axylo)",
    "minBytes": 70379,
-   "jsGzipBytes": 26477,
+   "jsGzipBytes": 26478,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 26477,
+   "totalGzipBytes": 26478,
    "totalKiB": 25.86,
    "targetKiB": null,
    "targetBytes": null,
@@ -100,33 +100,44 @@
   },
   {
    "entry": "line only (export { line } from 'axylo/static')",
-   "minBytes": 333702,
-   "jsGzipBytes": 120727,
+   "minBytes": 333775,
+   "jsGzipBytes": 120774,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 120727,
-   "totalKiB": 117.9,
+   "totalGzipBytes": 120774,
+   "totalKiB": 117.94,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
   },
   {
    "entry": "everything (export * from 'axylo/static')",
-   "minBytes": 384041,
-   "jsGzipBytes": 140990,
+   "minBytes": 384114,
+   "jsGzipBytes": 141034,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 140990,
-   "totalKiB": 137.69,
+   "totalGzipBytes": 141034,
+   "totalKiB": 137.73,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
   },
   {
    "entry": "line only (export { line } from 'axylo/stream')",
-   "minBytes": 376251,
-   "jsGzipBytes": 135219,
+   "minBytes": 376324,
+   "jsGzipBytes": 135268,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 135219,
-   "totalKiB": 132.05,
+   "totalGzipBytes": 135268,
+   "totalKiB": 132.1,
+   "targetKiB": null,
+   "targetBytes": null,
+   "over": false
+  },
+  {
+   "entry": "cartesian (export { cartesian } from 'axylo/cartesian')",
+   "minBytes": 336671,
+   "jsGzipBytes": 120162,
+   "cssFileGzipBytes": 0,
+   "totalGzipBytes": 120162,
+   "totalKiB": 117.35,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
@@ -144,23 +155,23 @@
   },
   {
    "entry": "script tag (axylo.iife.min.js + axylo.css)",
-   "minBytes": 434670,
-   "jsGzipBytes": 158430,
+   "minBytes": 434743,
+   "jsGzipBytes": 158480,
    "cssFileGzipBytes": 3275,
-   "totalGzipBytes": 161705,
-   "totalKiB": 157.92,
+   "totalGzipBytes": 161755,
+   "totalKiB": 157.96,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
   }
  ],
  "breakdown": {
-  "rebuiltMinBytes": 434178,
-  "packedMinBytes": 434178,
+  "rebuiltMinBytes": 434251,
+  "packedMinBytes": 434251,
   "directories": [
    {
     "directory": "core",
-    "min B": 88625,
+    "min B": 88588,
     "share": "20.4%"
    },
    {
@@ -210,7 +221,7 @@
    },
    {
     "directory": "reader",
-    "min B": 11354,
+    "min B": 11464,
     "share": "2.6%"
    },
    {
@@ -303,7 +314,7 @@
    },
    {
     "file": "reader/index.ts",
-    "bytes": 8657
+    "bytes": 8767
    },
    {
     "file": "layout/labels.ts",
@@ -311,7 +322,7 @@
    },
    {
     "file": "core/axes.ts",
-    "bytes": 7632
+    "bytes": 7595
    },
    {
     "file": "core/focus.ts",

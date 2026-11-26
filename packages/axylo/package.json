@@ -18,7 +18,10 @@
     "dist/static.d.ts",
     "dist/stream.js",
     "dist/stream.dev.js",
-    "dist/stream.d.ts"
+    "dist/stream.d.ts",
+    "dist/cartesian.js",
+    "dist/cartesian.dev.js",
+    "dist/cartesian.d.ts"
   ],
   "exports": {
     ".": {
@@ -35,6 +38,11 @@
       "types": "./dist/stream.d.ts",
       "development": "./dist/stream.dev.js",
       "default": "./dist/stream.js"
+    },
+    "./cartesian": {
+      "types": "./dist/cartesian.d.ts",
+      "development": "./dist/cartesian.dev.js",
+      "default": "./dist/cartesian.js"
     },
     "./axylo.css": "./dist/axylo.css"
   }

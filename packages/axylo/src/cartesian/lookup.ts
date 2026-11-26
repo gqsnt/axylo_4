@@ -1,0 +1,339 @@
+/**
+ * Multi-axis mixed-layer lookup for `axylo/cartesian` (C4.3, RFC §5.2).
+ * Uses `axisScaleOf(projection, s.axisIndex)` (same projection authority as `scene.ts`), filters
+ * nonpositive values on `'log'` axes before projecting, and enforces deterministic pick priority:
+ *   1. Shared x-slot `i` in `visibleSlots`
+ *   2. Nearest drawable `line` vertex within `12 px` y-distance (tie-break: later declared layer)
+ *   3. Else visible `bar` rectangle hit at slot `i`
+ *   4. Else aligned slot `i` (`{ kind: 'x', x }`) listing all visible series in declared layer order
+ */
+import {
+  SLOT_VALUE, type AlignedView, type DatumRef, type DatumText, type Formatters,
+  type Layout, type Lookup, type PickTarget, type Projection, type Rect, type SlotState,
+  type StepDirection, type TooltipModel, type View, type XScale,
+} from '../core/contracts';
+import type { Messages } from '../public';
+import { clamp, position } from '../scene/geometry';
+import { axisScaleOf } from './scale-ref';
+import type { CartesianStateRef } from './meta';
+
+const LINE_HIT_RADIUS = 12;
+const TOOLTIP_LIMIT = 8;
+
+function lowerBound(arr: Float64Array, value: number, lo: number, hi: number): number {
+  let l = lo;
+  let r = hi;
+  while (l < r) {
+    const m = (l + r) >>> 1;
+    if (arr[m]! < value) l = m + 1;
+    else r = m;
+  }
+  return l;
+}
+
+function xCoord(xScale: XScale, xValues: Float64Array, i: number): number {
+  return xScale.type === 'band' ? xScale.center(i) : position(xScale, xValues[i]!);
+}
+
+function pointBox(x: number, y: number): Rect {
+  return { x: x - 5, y: y - 5, width: 10, height: 10 };
+}
+
+export function createCartesianLookup(
+  stateRef: CartesianStateRef,
+  view: View,
+  layout: Layout,
+  formatters: Formatters,
+  _messages: Messages,
+): Lookup {
+  if (view.kind === 'donut' || view.kind === 'scatter') {
+    return {
+      count: 0,
+      pick: () => null,
+      members: () => [],
+      has: () => false,
+      slot: () => -1,
+      primary: () => null,
+      tooltip: () => ({ title: '', rows: [], count: 0, total: null }),
+      datum: () => null,
+      anchor: () => null,
+      resolve: () => null,
+      ordinal: () => -1,
+      step: () => null,
+    };
+  }
+  return new CartesianLookup(stateRef, view, layout.kind === 'plot' ? layout : null, formatters);
+}
+
+class CartesianLookup implements Lookup {
+  readonly #stateRef: CartesianStateRef;
+  readonly #view: AlignedView;
+  readonly #plot: Rect | null;
+  readonly #projection: Projection | null;
+  readonly #xScale: XScale | null;
+  readonly #formatters: Formatters;
+  readonly #visible: readonly number[];
+  readonly #start: number;
+  readonly #end: number;
+  readonly count: number;
+
+  constructor(
+    stateRef: CartesianStateRef,
+    view: AlignedView,
+    layout: Extract<Layout, { kind: 'plot' }> | null,
+    formatters: Formatters,
+  ) {
+    this.#stateRef = stateRef;
+    this.#view = view;
+    this.#plot = layout?.plot ?? null;
+    this.#projection = layout?.projection ?? null;
+    this.#xScale = layout && layout.projection.kind !== 'ring'
+      ? (layout.projection.kind === 'xy' ? layout.projection.x : layout.projection.band)
+      : null;
+    this.#formatters = formatters;
+    this.#start = view.visibleSlots.start;
+    this.#end = view.visibleSlots.end;
+    this.count = Math.max(0, this.#end - this.#start);
+
+    const visible: number[] = [];
+    for (let s = 0; s < view.frame.series.length; s++) {
+      if (view.visible[s] && view.frame.series[s]!.drawable) visible.push(s);
+    }
+    this.#visible = visible;
+  }
+
+  #slotForX(x: number): number {
+    const vals = this.#view.frame.x.values;
+    const i = lowerBound(vals, x, this.#start, this.#end);
+    return i < this.#end && vals[i] === x ? i : -1;
+  }
+
+  #seriesIndex(key: string): number {
+    const list = this.#view.frame.series;
+    for (let i = 0; i < list.length; i++) if (list[i]!.key === key) return i;
+    return -1;
+  }
+
+  #isLogAxis(seriesIndex: number): boolean {
+    const s = this.#view.frame.series[seriesIndex];
+    const axis = s?.axisId ? this.#stateRef.meta.axisById.get(s.axisId) : undefined;
+    return axis?.scale === 'log';
+  }
+
+  #isPlottableAt(sIdx: number, slotIndex: number): boolean {
+    const s = this.#view.frame.series[sIdx]!;
+    if (s.slot[slotIndex] !== SLOT_VALUE) return false;
+    const v = s.y[slotIndex]!;
+    if (!Number.isFinite(v)) return false;
+    return !this.#isLogAxis(sIdx) || v > 0;
+  }
+
+  #datumText(sIdx: number, slotIndex: number): DatumText {
+    const s = this.#view.frame.series[sIdx]!;
+    const st = s.slot[slotIndex]! as SlotState;
+    const xVal = this.#view.frame.x.values[slotIndex]!;
+    const ref: DatumRef = { kind: 'aligned', seriesKey: s.key, x: xVal };
+    let valueText: string;
+    if (st === SLOT_VALUE) {
+      const v = s.y[slotIndex]!;
+      const formatted = this.#formatters.value(sIdx, v);
+      valueText = this.#isLogAxis(sIdx) && !(v > 0) ? `${formatted} (not plotted)` : formatted;
+    } else {
+      valueText = this.#formatters.missing(st);
+    }
+    return {
+      ref,
+      seriesIndex: sIdx,
+      seriesLabel: s.label,
+      x: this.#formatters.x(xVal),
+      value: valueText,
+      state: st,
+      percent: null,
+      row: s.row ? s.row[slotIndex]! : slotIndex,
+    };
+  }
+
+  #nearestSlot(xPx: number): number {
+    const xScale = this.#xScale;
+    if (!xScale || this.count === 0) return -1;
+    if (xScale.type === 'band') {
+      const idx = clamp(Math.round(xScale.invert(xPx)), this.#start, this.#end - 1);
+      return idx;
+    }
+    const domainX = xScale.invert(xPx);
+    const vals = this.#view.frame.x.values;
+    const i = lowerBound(vals, domainX, this.#start, this.#end);
+    if (i <= this.#start) return this.#start;
+    if (i >= this.#end) return this.#end - 1;
+    const dPrev = Math.abs(xCoord(xScale, vals, i - 1) - xPx);
+    const dCurr = Math.abs(xCoord(xScale, vals, i) - xPx);
+    return dPrev <= dCurr ? i - 1 : i;
+  }
+
+  #pickPreferredSeries(slotIndex: number, yPx: number): number {
+    const projection = this.#projection;
+    const plot = this.#plot;
+    if (!projection || !plot || projection.kind === 'ring') return this.#visible[0] ?? -1;
+    const { meta } = this.#stateRef;
+
+    // 1. Nearest visible drawable line vertex within 12 px (tie-break: later declared layer)
+    let bestLine = -1;
+    let bestDist = LINE_HIT_RADIUS + 1e-6;
+    for (const sIdx of this.#visible) {
+      const s = this.#view.frame.series[sIdx]!;
+      const spec = meta.seriesByField.get(s.field);
+      if ((spec?.mark ?? 'line') !== 'line') continue;
+      if (!this.#isPlottableAt(sIdx, slotIndex)) continue;
+      const scale = axisScaleOf(projection, s.axisIndex ?? 0);
+      const py = position(scale, s.y[slotIndex]!);
+      const dist = Math.abs(py - yPx);
+      if (dist <= bestDist) {
+        bestDist = dist;
+        bestLine = sIdx;
+      }
+    }
+    if (bestLine >= 0) return bestLine;
+
+    // 2. Visible bar rectangle containing yPx
+    for (const sIdx of this.#visible) {
+      const s = this.#view.frame.series[sIdx]!;
+      const spec = meta.seriesByField.get(s.field);
+      if (spec?.mark !== 'bar') continue;
+      if (s.slot[slotIndex] !== SLOT_VALUE) continue;
+      const scale = axisScaleOf(projection, s.axisIndex ?? 0);
+      const yZero = clamp(position(scale, 0), plot.y, plot.y + plot.height);
+      const py = clamp(position(scale, s.y[slotIndex]!), plot.y, plot.y + plot.height);
+      const lo = Math.min(yZero, py);
+      const hi = Math.max(yZero, py);
+      if (yPx >= lo - 2 && yPx <= hi + 2) return sIdx;
+    }
+
+    return this.#visible[0] ?? -1;
+  }
+
+  #lastPickedSeries = -1;
+  #lastPickedSlot = -1;
+
+  pick(x: number, y: number): PickTarget | null {
+    const plot = this.#plot;
+    if (!plot || this.count === 0 || this.#visible.length === 0) return null;
+    if (x < plot.x || x > plot.x + plot.width || y < plot.y || y > plot.y + plot.height) return null;
+    const i = this.#nearestSlot(x);
+    if (i < 0) return null;
+    this.#lastPickedSlot = i;
+    this.#lastPickedSeries = this.#pickPreferredSeries(i, y);
+    return { kind: 'x', x: this.#view.frame.x.values[i]! };
+  }
+
+  members(target: PickTarget, from: number, count: number): readonly DatumRef[] {
+    if (target.kind !== 'x' || count <= 0) return [];
+    const i = this.#slotForX(target.x);
+    if (i < 0) return [];
+    const out: DatumRef[] = [];
+    const end = Math.min(this.#visible.length, from + count);
+    for (let k = Math.max(0, from); k < end; k++) {
+      const s = this.#view.frame.series[this.#visible[k]!]!;
+      out.push({ kind: 'aligned', seriesKey: s.key, x: target.x });
+    }
+    return out;
+  }
+
+  has(target: PickTarget, ref: DatumRef): boolean {
+    if (target.kind !== 'x' || ref.kind !== 'aligned' || ref.x !== target.x) return false;
+    const sIdx = this.#seriesIndex(ref.seriesKey);
+    return sIdx >= 0 && this.#visible.includes(sIdx) && this.#slotForX(target.x) >= 0;
+  }
+
+  slot(ref: DatumRef): number {
+    if (ref.kind !== 'aligned') return -1;
+    return this.#slotForX(ref.x);
+  }
+
+  primary(target: PickTarget): DatumRef | null {
+    if (target.kind !== 'x' || this.#visible.length === 0) return null;
+    const i = this.#slotForX(target.x);
+    if (i < 0) return null;
+    const preferred = i === this.#lastPickedSlot && this.#lastPickedSeries >= 0 && this.#visible.includes(this.#lastPickedSeries)
+      ? this.#lastPickedSeries
+      : this.#visible[0]!;
+    return { kind: 'aligned', seriesKey: this.#view.frame.series[preferred]!.key, x: target.x };
+  }
+
+  tooltip(target: PickTarget): TooltipModel {
+    if (target.kind !== 'x') return { title: '', rows: [], count: 0, total: null };
+    const i = this.#slotForX(target.x);
+    if (i < 0) return { title: '', rows: [], count: 0, total: null };
+    const title = this.#formatters.x(target.x);
+    const shown = Math.min(this.#visible.length, TOOLTIP_LIMIT);
+    const rows: DatumText[] = [];
+    for (let k = 0; k < shown; k++) rows.push(this.#datumText(this.#visible[k]!, i));
+    return { title, rows, count: this.#visible.length, total: null };
+  }
+
+  datum(ref: DatumRef): DatumText | null {
+    if (ref.kind !== 'aligned') return null;
+    const sIdx = this.#seriesIndex(ref.seriesKey);
+    const i = this.#slotForX(ref.x);
+    if (sIdx < 0 || i < 0) return null;
+    return this.#datumText(sIdx, i);
+  }
+
+  anchor(ref: DatumRef): Rect | null {
+    const plot = this.#plot;
+    const projection = this.#projection;
+    const xScale = this.#xScale;
+    if (ref.kind !== 'aligned' || !plot || !projection || !xScale || projection.kind === 'ring') return null;
+    const sIdx = this.#seriesIndex(ref.seriesKey);
+    const i = this.#slotForX(ref.x);
+    if (sIdx < 0 || i < 0 || !this.#visible.includes(sIdx)) return null;
+    if (!this.#isPlottableAt(sIdx, i)) return null;
+    const s = this.#view.frame.series[sIdx]!;
+    const yScale = axisScaleOf(projection, s.axisIndex ?? 0);
+    const px = xCoord(xScale, this.#view.frame.x.values, i);
+    const py = position(yScale, s.y[i]!);
+    if (!Number.isFinite(px) || !Number.isFinite(py)) return null;
+    if (px < plot.x - 1 || px > plot.x + plot.width + 1 || py < plot.y - 1 || py > plot.y + plot.height + 1) return null;
+    return pointBox(px, py);
+  }
+
+  resolve(ref: DatumRef): DatumRef | null {
+    if (ref.kind !== 'aligned') return null;
+    const sIdx = this.#seriesIndex(ref.seriesKey);
+    const i = this.#slotForX(ref.x);
+    return sIdx >= 0 && this.#visible.includes(sIdx) && i >= 0 ? ref : null;
+  }
+
+  ordinal(ref: DatumRef): number {
+    if (ref.kind !== 'aligned') return -1;
+    const sIdx = this.#seriesIndex(ref.seriesKey);
+    const i = this.#slotForX(ref.x);
+    return sIdx >= 0 && this.#visible.includes(sIdx) && i >= 0 ? i - this.#start : -1;
+  }
+
+  step(from: DatumRef | null, direction: StepDirection): DatumRef | null {
+    if (this.count === 0 || this.#visible.length === 0) return null;
+    const vals = this.#view.frame.x.values;
+    if (!from) {
+      const s = this.#visible[0]!;
+      return { kind: 'aligned', seriesKey: this.#view.frame.series[s]!.key, x: vals[this.#start]! };
+    }
+    const resolved = this.resolve(from);
+    if (!resolved || resolved.kind !== 'aligned') return null;
+    const sIdx = this.#seriesIndex(resolved.seriesKey);
+    const at = this.#slotForX(resolved.x);
+    if (direction === 'series-next' || direction === 'series-previous') {
+      const pos = this.#visible.indexOf(sIdx);
+      const next = this.#visible[pos + (direction === 'series-next' ? 1 : -1)];
+      return next === undefined ? null : { kind: 'aligned', seriesKey: this.#view.frame.series[next]!.key, x: resolved.x };
+    }
+    const page = Math.max(1, Math.round(this.count / 10));
+    let to = at;
+    if (direction === 'first') to = this.#start;
+    else if (direction === 'last') to = this.#end - 1;
+    else if (direction === 'next') to = Math.min(this.#end - 1, at + 1);
+    else if (direction === 'previous') to = Math.max(this.#start, at - 1);
+    else if (direction === 'page-next') to = Math.min(this.#end - 1, at + page);
+    else if (direction === 'page-previous') to = Math.max(this.#start, at - page);
+    return to === at ? null : { kind: 'aligned', seriesKey: this.#view.frame.series[sIdx]!.key, x: vals[to]! };
+  }
+}

@@ -402,20 +402,21 @@ export function createCartesianLayoutStage(stateRef: CartesianStateRef): LayoutS
       return res.layout;
     },
     layoutDiagnostics(_view, ctx, layout) {
-      if (layout.kind !== 'plot' || !lastResult || lastLayout !== layout) return [];
+      if (layout.kind !== 'plot') return [];
       const out: DiagnosticInput[] = [];
-      if (lastResult.xFailures.drawn(layout.xTicks)) {
+      const matches = lastResult !== null && lastLayout === layout;
+      if (matches && lastResult!.xFailures.drawn(layout.xTicks)) {
         out.push(createDiagnostic('AX160', 'none', { field: ctx.resolved.x.field }, 'presentation'));
       }
       const leftAxis = stateRef.meta.axes[0];
-      if (leftAxis && lastResult.yFailures[0]?.drawn(layout.yTicks)) {
+      if (matches && leftAxis && lastResult!.yFailures[0]?.drawn(layout.yTicks)) {
         out.push(createDiagnostic('AX160', 'none', { field: leftAxis.id }, 'presentation'));
       }
       const rightAxis = stateRef.meta.axes[1];
-      if (rightAxis && layout.yTicksRight && lastResult.yFailures[1]?.drawn(layout.yTicksRight)) {
+      if (matches && rightAxis && layout.yTicksRight && lastResult!.yFailures[1]?.drawn(layout.yTicksRight)) {
         out.push(createDiagnostic('AX160', 'none', { field: rightAxis.id }, 'presentation'));
       }
-      if (lastResult.collapsedRightAxis && rightAxis) {
+      if (rightAxis && layout.yTicksRight === undefined) {
         out.push(createCartesianDiagnostic('AX175', 'none', { field: rightAxis.id }, 'presentation'));
       }
       return out;
