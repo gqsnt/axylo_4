@@ -52,9 +52,16 @@ function snapshot(value: unknown): unknown {
 /** Holds the accepted options. A rejected call never reaches `commit`, so the store stays on the last valid state. */
 export class OptionsStore {
   private value: OptionRecord;
+  /**
+   * The input the store was created from, until the first preview: a create previews the same input it was
+   * just made from, and its snapshot is that preview (read once, with the same getters, Dates and borrowed
+   * data). Any later preview, of the same object or not, reads its patch again.
+   */
+  private initial: { readonly input: unknown } | null;
 
   constructor(initial: unknown) {
     this.value = applyPatch({}, initial).next;
+    this.initial = { input: initial };
   }
 
   get current(): OptionRecord {
@@ -63,6 +70,10 @@ export class OptionsStore {
 
   /** What `patch` would give, without accepting it. */
   preview(patch: unknown): Patched {
+    const initial = this.initial;
+    this.initial = null;
+    // Nothing was accepted before the first preview, so no key is a change against an earlier state.
+    if (initial !== null && initial.input === patch) return { next: this.value, changed: new Set() };
     return applyPatch(this.value, patch);
   }
 

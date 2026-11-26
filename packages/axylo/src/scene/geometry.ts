@@ -88,6 +88,13 @@ export function projectBands(frame: AlignedFrame, scale: XScale, start: number, 
       writeBin(bounds, offset, left, right);
       left = right;
     }
+  } else if (scale.type === 'band' && !edges) {
+    const half = scale.bandwidth / 2;
+    for (let i = start, offset = 0; i < end; i++, offset += 2) {
+      const center = scale.center(frame.x.values[i]!);
+      bounds[offset] = center - half;
+      bounds[offset + 1] = center + half;
+    }
   } else {
     for (let i = start, offset = 0; i < end; i++, offset += 2) projectBand(frame, scale, i, spanPixels, bounds, offset);
   }

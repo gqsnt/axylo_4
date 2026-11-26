@@ -14,6 +14,7 @@
 import { svgRendererWith } from '../render/svg';
 import { createTextLayer, type TextLayer } from '../render/text';
 import { ensureStyles, resolveTheme, watchTheme } from '../theme';
+import { themeMedia } from '../theme/watch';
 import {
   applyTheme, createThemeBatch, finalizeTheme, prepareTheme, probeTheme,
   type PreparedTheme, type ThemeBatch,
@@ -23,7 +24,10 @@ import { shadowRootOf } from '../dom/attributes';
 import { createInteraction, type Interaction } from '../dom/interaction';
 import { mappingOf } from '../dom/mapping';
 import type { DeliveryConsole } from './delivery';
-import { createMeasurer, noteFontLoad, pageLanguage, readTextStyle, resolveLocale, viewerTimeZone, watchEnvironment, watchLanguage } from './environment';
+import {
+  createMeasurer, noteFontLoad, observeFontProbe, observeGeometry, pageLanguage, readTextStyle, resolveLocale, viewerTimeZone,
+  watchEnvironment, watchLanguage,
+} from './environment';
 import { controllerFor, type ChartHandle, type Controller, type ControllerActions, type FrameRun } from './controller';
 import type { Composition } from './composition';
 
@@ -33,8 +37,26 @@ export interface ChartEnvironmentOverrides {
   readonly console?: DeliveryConsole | null;
 }
 
-/** Per-document active theme batch during multi-chart rAF Phase 1. */
-const activeThemeBatches = new WeakMap<Document, ThemeBatch>();
+/**
+ * Per-document theme batch of a multi-chart rAF Phase 1, made when the first chart of the batch prepares its
+ * theme: most frames of a dashboard (a stream, a resize) prepare none, and then read no media query at all.
+ * `batch` is undefined until made and null when making it failed (each chart then resolves on its own).
+ */
+interface LazyThemeBatch {
+  readonly win: Window;
+  batch: ThemeBatch | null | undefined;
+}
+const activeThemeBatches = new WeakMap<Document, LazyThemeBatch>();
+
+function themeBatchFor(doc: Document): ThemeBatch | undefined {
+  const lazy = activeThemeBatches.get(doc);
+  if (!lazy) return undefined;
+  if (lazy.batch === undefined) {
+    try { lazy.batch = createThemeBatch(lazy.win, themeMedia(lazy.win)); }
+    catch { lazy.batch = null; }
+  }
+  return lazy.batch ?? undefined;
+}
 
 interface ScheduledEntry {
   readonly get: () => Controller | null;
@@ -87,9 +109,7 @@ export function cancelScheduledFrame(win: Window, handle: number): void {
 }
 
 function runPhasedBatch(win: Window, doc: Document, batch: readonly ScheduledEntry[], time: number): void {
-  let themeBatch: ThemeBatch;
-  try { themeBatch = createThemeBatch(win); }
-  catch { for (const item of batch) item.cb(time); return; }
+  const themeBatch: LazyThemeBatch = { win, batch: undefined };
   const runs: FrameRun[] = [];
   activeThemeBatches.set(doc, themeBatch);
   try {
@@ -234,7 +254,7 @@ export function createChart(composition: Composition, target: unknown, input: un
         stops.push(watchEnvironment(win, {
           pixelRatio: () => c.invalidate.pixelRatio(),
           motion() {},
-          fonts() { noteFontLoad(doc); c.invalidate.fonts(); },
+          fonts: () => c.invalidate.fonts(),
         }));
         stops.push(watchLanguage(root, () => c.invalidate.language()));
         interaction.attach();
@@ -246,12 +266,27 @@ export function createChart(composition: Composition, target: unknown, input: un
     };
     cleanup.push(unwatch);
 
-    // Deferred font-load probe until first non-empty text render so compact/donut charts skip it.
+    // Deferred font-load probe until first non-empty text render so compact/donut charts skip it. The probe
+    // stays in this chart's text layer (it inherits the chart's font and spacing); the observer is the
+    // document's shared one.
     let fontProbe: HTMLDivElement | null = null;
-    let fontObserver: ResizeObserver | null = null;
-    let probeSize: string | null = null;
+    let releaseProbe: (() => void) | null = null;
     let disposed = false;
-    cleanup.push(() => { disposed = true; fontObserver?.disconnect(); fontObserver = null; });
+    const stopProbe = (): void => {
+      const stop = releaseProbe;
+      releaseProbe = null;
+      stop?.();
+    };
+    cleanup.push(() => { disposed = true; stopProbe(); });
+    const probeReady = (): boolean => controller !== null && root.isConnected;
+    const probeChanged = (): void => controller?.invalidate.fonts();
+    // Observed only while the target is in the document (the shared observer would keep a forgotten chart
+    // reachable); a probe that is observed again starts from a new baseline.
+    const observeProbe = (): void => {
+      if (fontProbe && !releaseProbe && !disposed && root.isConnected) {
+        releaseProbe = observeFontProbe(win, doc, fontProbe, probeReady, probeChanged);
+      }
+    };
 
     const mountText = (withProbe = true): TextLayer => {
       if (!textLayer) {
@@ -262,27 +297,22 @@ export function createChart(composition: Composition, target: unknown, input: un
         textMounted = true;
         figure.plot.insertBefore(textLayer.element, renderer.element.nextSibling);
       }
-      if (withProbe && !fontProbe && !disposed) {
-        const probe = fontProbe = doc.createElement('div');
-        probe.className = 'axylo-font-probe';
-        textLayer.element.appendChild(probe);
-        (fontObserver = new win.ResizeObserver(entries => {
-          const box = entries?.[0]?.contentRect ?? probe.getBoundingClientRect();
-          const size = `${box.width}x${box.height}`;
-          if (probeSize !== null && size !== probeSize && controller && root.isConnected) {
-            noteFontLoad(doc);
-            controller.invalidate.fonts();
-          }
-          probeSize = size;
-        })).observe(probe);
+      if (withProbe && !disposed) {
+        if (!fontProbe) {
+          const probe = fontProbe = doc.createElement('div');
+          probe.className = 'axylo-font-probe';
+          textLayer.element.appendChild(probe);
+        }
+        // Again on later renders if observing it failed or waited for the target to come back.
+        observeProbe();
       }
       return textLayer;
     };
 
     const unmountText = (): void => {
-      fontObserver?.disconnect();
+      stopProbe();
       fontProbe?.remove();
-      fontObserver = fontProbe = probeSize = null;
+      fontProbe = null;
       if (textMounted) { textLayer?.destroy(); textLayer = null; textMounted = false; }
     };
 
@@ -302,15 +332,131 @@ export function createChart(composition: Composition, target: unknown, input: un
     };
     const stripProbeRemove = (probe: unknown): void => (probe as { holder: HTMLDivElement }).holder.remove();
 
-    const resizeObserver = new win.ResizeObserver(() => {
+    // Size and attachment. While the target is in the document its figure and plot are observed on the
+    // document's shared ResizeObserver; while it is out, on a chart-local one, so a forgotten chart is not
+    // reachable from the page and its return is still noticed. Observers are never started from inside a
+    // ResizeObserver delivery (that would be reported as a resize loop): the switch waits for the next frame.
+    const geometryTargets: readonly Element[] = [figure.plot, figure.figure];
+    let releaseGeometry: (() => void) | null = null;
+    let detachedObserver: ResizeObserver | null = null;
+    let switchFrame = 0;
+    /** The next shared delivery is the first since the targets were observed there. */
+    let firstDelivery = false;
+    /**
+     * The border boxes the last measure() read, in layout pixels (what a ResizeObserver reports); `comparable`
+     * only while they are known to be that: the plot's mapping is the identity (no scale on it or above it) and
+     * the figure's box agrees with its integer layout size, so no transform makes a viewport size pass for a
+     * layout one. Otherwise every delivery is a resize.
+     */
+    let comparable = false;
+    let figureWidth = 0, figureHeight = 0, plotWidth = 0, plotHeight = 0;
+    /** A frame or a zoom microtask the controller asked for and that has not run yet. */
+    let framePending = 0;
+    let microtasksPending = 0;
+
+    /**
+     * The first delivery after observing reports the size the chart already drew at when nothing moved since
+     * its frame measured it: same border boxes, still attached under the same root, watchers live and no
+     * frame pending. Anything else (a hidden chart becoming visible, a resize between the frame and the
+     * delivery) is a resize.
+     */
+    const alreadyMeasured = (entries: readonly ResizeObserverEntry[]): boolean => {
+      if (!comparable || framePending !== 0 || microtasksPending !== 0 || watching === null || styleRoot() !== tree) return false;
+      let seen = false;
+      for (let i = 0; i < entries.length; i++) {
+        const entry = entries[i]!;
+        const target = entry.target;
+        const isPlot = target === geometryTargets[0];
+        if (!isPlot && target !== geometryTargets[1]) continue;
+        const box = entry.borderBoxSize?.[0];
+        if (!box) return false;
+        if (box.inlineSize !== (isPlot ? plotWidth : figureWidth) || box.blockSize !== (isPlot ? plotHeight : figureHeight)) return false;
+        seen = true;
+      }
+      return seen;
+    };
+    const onSharedResize = (entries: readonly ResizeObserverEntry[]): void => {
       if (!controller) return;
-      if (!root.isConnected) { unwatch(); return; }
+      if (!root.isConnected) {
+        unwatch();
+        leaveShared();
+        stopProbe();
+        scheduleSwitch();
+        return;
+      }
+      const first = firstDelivery;
+      firstDelivery = false;
+      if (first && alreadyMeasured(entries)) return;
       watch();
       controller.invalidate.resize();
+    };
+    const joinShared = (): void => {
+      if (releaseGeometry || disposed) return;
+      releaseGeometry = observeGeometry(win, doc, geometryTargets, onSharedResize);
+      firstDelivery = true;
+    };
+    const leaveShared = (): void => {
+      const stop = releaseGeometry;
+      releaseGeometry = null;
+      stop?.();
+    };
+    const onDetachedResize = (): void => {
+      if (!controller || !root.isConnected) return;
+      // Back in the document: drawn again now, and observed on the shared observer from the next frame. The
+      // local observer stays until the watchers and the shared registration are both in place: a watcher that
+      // throws here leaves it to report the next resize, which tries again.
+      watch();
+      controller.invalidate.resize();
+      scheduleSwitch();
+    };
+    const startDetached = (): void => {
+      if (detachedObserver || disposed) return;
+      const observer = detachedObserver = new win.ResizeObserver(onDetachedResize);
+      for (const target of geometryTargets) observer.observe(target);
+    };
+    const stopDetached = (): void => {
+      const observer = detachedObserver;
+      detachedObserver = null;
+      observer?.disconnect();
+    };
+    const settleSwitch = (): void => {
+      switchFrame = 0;
+      if (disposed || !controller) return;
+      if (root.isConnected) {
+        // Not watching yet (a watcher threw when the chart came back): the local observer's next delivery
+        // sets the watchers up first.
+        if (detachedObserver && watching === null) return;
+        // A shared registration that fails leaves the local observer in place.
+        joinShared();
+        stopDetached();
+        observeProbe();
+      } else {
+        // Out again since the last delivery: nothing of the document may keep holding the chart.
+        unwatch();
+        leaveShared();
+        stopProbe();
+        startDetached();
+      }
+    };
+    const scheduleSwitch = (): void => {
+      if (switchFrame === 0 && !disposed) switchFrame = win.requestAnimationFrame(settleSwitch);
+    };
+    cleanup.push(() => {
+      disposed = true;
+      if (switchFrame !== 0) { const frame = switchFrame; switchFrame = 0; win.cancelAnimationFrame(frame); }
+      stopDetached();
+      leaveShared();
     });
-    cleanup.push(() => resizeObserver.disconnect());
 
     const getController = (): Controller | null => controller;
+    // The controller keeps at most one frame request; tracked so a resize delivery can tell it is still due.
+    let frameCallback: ((time?: number) => void) | null = null;
+    const runFrame = (time?: number): void => {
+      framePending = 0;
+      const cb = frameCallback;
+      frameCallback = null;
+      cb?.(time);
+    };
 
     controller = controllerFor(composition, input, {
       id,
@@ -335,10 +481,21 @@ export function createChart(composition: Composition, target: unknown, input: un
       },
       interaction,
       measurer,
-      requestFrame: cb => scheduleFrame(win, doc, getController, cb),
-      cancelFrame: handle => cancelScheduledFrame(win, handle),
-      scheduleMicrotask: cb => typeof win.queueMicrotask === 'function' ? win.queueMicrotask(cb) : queueMicrotask(cb),
-      locale: option => resolveLocale(option, doc, pageLanguage(root) ?? doc.documentElement.lang),
+      requestFrame(cb) {
+        frameCallback = cb;
+        return framePending = scheduleFrame(win, doc, getController, runFrame);
+      },
+      cancelFrame(handle) {
+        if (handle === framePending) { framePending = 0; frameCallback = null; }
+        cancelScheduledFrame(win, handle);
+      },
+      scheduleMicrotask(cb) {
+        microtasksPending++;
+        const run = (): void => { microtasksPending--; cb(); };
+        if (typeof win.queueMicrotask === 'function') win.queueMicrotask(run);
+        else queueMicrotask(run);
+      },
+      locale: (option, lang) => resolveLocale(option, doc, (lang === undefined ? pageLanguage(root) : lang) ?? doc.documentElement.lang),
       pageLang: () => pageLanguage(root),
       labelText: own => styleRoot().getElementById(own)?.textContent ?? null,
       textStyle() {
@@ -346,13 +503,26 @@ export function createChart(composition: Composition, target: unknown, input: un
         return readTextStyle(textMounted && textLayer ? textLayer.element : figure.plot);
       },
       measure() {
+        comparable = false;
         if (!root.isConnected) return null;
         const box = figure.figure.getBoundingClientRect();
         if (box.width <= 0 || box.height <= 0) return null;
-        const plot = figure.plot.getBoundingClientRect();
-        const { kx, ky } = mappingOf(figure.plot, plot);
+        const plotElement = figure.plot;
+        const plot = plotElement.getBoundingClientRect();
+        const { kx, ky } = mappingOf(plotElement, plot);
         const overflow = plot.height < 1 ? Math.max(0, figure.figure.scrollHeight - figure.figure.clientHeight) : 0;
-        const stage = figure.stage.getBoundingClientRect();
+        // A compact chart's plot is its stage column: one read of the same box.
+        const stageElement = figure.stage;
+        const stage = stageElement === plotElement ? plot : stageElement.getBoundingClientRect();
+        const figureElement = figure.figure as HTMLElement;
+        if (kx === 1 && ky === 1 && Math.abs(box.width - figureElement.offsetWidth) < 1 &&
+            Math.abs(box.height - figureElement.offsetHeight) < 1) {
+          figureWidth = box.width;
+          figureHeight = box.height;
+          plotWidth = plot.width;
+          plotHeight = plot.height;
+          comparable = true;
+        }
         return { width: plot.width / kx, height: plot.height / ky - overflow, room: { width: stage.width / kx, height: stage.height / ky } };
       },
       stripHeight() {
@@ -362,7 +532,7 @@ export function createChart(composition: Composition, target: unknown, input: un
       stripProbeMount, stripProbeRead, stripProbeRemove,
       devicePixelRatio: () => win.devicePixelRatio || 1,
       theme: (keys, colors) => resolveTheme(figure.figure, keys, colors),
-      themePrepare: (keys, colors) => prepareTheme(figure.figure, keys, colors, activeThemeBatches.get(doc)),
+      themePrepare: (keys, colors) => prepareTheme(figure.figure, keys, colors, themeBatchFor(doc)),
       themeApply: prepared => applyTheme(prepared as PreparedTheme),
       themeFinish: (prepared, deferProbe) => finalizeTheme(prepared as PreparedTheme, deferProbe),
       themeProbe(prepared, layoutChanged) {
@@ -387,10 +557,13 @@ export function createChart(composition: Composition, target: unknown, input: un
       },
       dispose: release,
     });
-    resizeObserver.observe(figure.plot);
-    resizeObserver.observe(figure.figure);
-    if (root.isConnected) watch();
-    else ensureStyles(styleRoot());
+    if (root.isConnected) {
+      joinShared();
+      watch();
+    } else {
+      startDetached();
+      ensureStyles(styleRoot());
+    }
     return controller.handle;
   } catch (error) {
     const created = controller as Controller | null;

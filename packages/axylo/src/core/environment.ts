@@ -297,6 +297,8 @@ export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; mo
       const onFonts = (event: Event): void => {
         const faces = (event as Event & { fontfaces?: ArrayLike<unknown> }).fontfaces;
         if (!active || (faces !== undefined && faces.length === 0)) return;
+        // One real load moves the document's measurement epoch once, before any chart hears of it.
+        noteFontLoad(win.document);
         dispatch(subscribers, notifyFonts);
       };
       listen(undo, fonts, 'loadingdone', onFonts);
@@ -311,8 +313,219 @@ export function watchEnvironment(win: Window, handlers: { pixelRatio(): void; mo
 }
 
 const notifyPixelRatio = (sub: EnvRegistration): void => sub.h.pixelRatio();
-const notifyMotion = (sub: EnvRegistration): void => sub.h.motion();
 const notifyFonts = (sub: EnvRegistration): void => sub.h.fonts();
+const notifyMotion = (sub: EnvRegistration): void => sub.h.motion();
+
+// ── Shared ResizeObservers ────────────────────────────────────────────────────────────────────────
+//
+// A dashboard of many charts needs one observer per document, not one per chart: each delivery is mapped
+// back to the charts its targets belong to, and every chart hears of it once. A hub holds its charts only
+// while they are registered; a chart releases its registration when it leaves the document, so a forgotten
+// chart is not kept reachable from the page through the hub.
+
+interface GeometryRegistration {
+  readonly onResize: (entries: readonly ResizeObserverEntry[]) => void;
+  live: boolean;
+  /** The delivery this registration last heard of, so several of its targets in one delivery count once. */
+  stamp: number;
+  /** This registration's own entries of the delivery being dispatched; empty between deliveries. */
+  readonly entries: ResizeObserverEntry[];
+}
+
+interface GeometryHub {
+  readonly observer: ResizeObserver;
+  readonly index: WeakMap<Element, GeometryRegistration>;
+  count: number;
+  delivery: number;
+}
+
+const geometryHubs = new WeakMap<Document, GeometryHub>();
+
+function deliverGeometry(hub: GeometryHub, entries: readonly ResizeObserverEntry[]): void {
+  // One pass groups the delivery by chart, so a dashboard mounting at once costs one look at each entry, and
+  // each chart reads only its own.
+  const stamp = ++hub.delivery;
+  const touched: GeometryRegistration[] = [];
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i]!;
+    const registration = hub.index.get(entry.target);
+    if (!registration || !registration.live) continue;
+    if (registration.stamp !== stamp) {
+      registration.stamp = stamp;
+      registration.entries.length = 0;
+      touched.push(registration);
+    }
+    registration.entries.push(entry);
+  }
+  let failed = false;
+  let failure: unknown;
+  try {
+    for (const registration of touched) {
+      if (!registration.live) continue;
+      // One chart's failure does not keep the others from hearing of their own resize.
+      try { registration.onResize(registration.entries); } catch (error) {
+        if (!failed) { failed = true; failure = error; }
+      }
+    }
+  } finally {
+    // Entries name their targets: none is kept past its delivery.
+    for (const registration of touched) registration.entries.length = 0;
+  }
+  if (failed) throw failure;
+}
+
+/**
+ * Observes `targets` (a chart's figure and plot) on the document's shared ResizeObserver; `onResize` gets
+ * this registration's entries of a delivery, once, when any of its targets changed. Returns `release`, which is idempotent: it unobserves the
+ * targets, and the last release disconnects the observer and forgets the hub.
+ */
+export function observeGeometry(
+  win: Window & typeof globalThis, doc: Document, targets: readonly Element[],
+  onResize: (entries: readonly ResizeObserverEntry[]) => void,
+): () => void {
+  let hub = geometryHubs.get(doc);
+  if (!hub) {
+    const created: GeometryHub = {
+      observer: new win.ResizeObserver(entries => deliverGeometry(created, entries)),
+      index: new WeakMap(), count: 0, delivery: 0,
+    };
+    hub = created;
+    geometryHubs.set(doc, hub);
+  }
+  const shared = hub;
+  const registration: GeometryRegistration = { onResize, live: true, stamp: 0, entries: [] };
+  const observed: Element[] = [];
+  const unobserve = (): void => {
+    for (const target of observed) {
+      if (shared.index.get(target) === registration) shared.index.delete(target);
+    }
+    if (shared.count === 0) {
+      if (geometryHubs.get(doc) === shared) geometryHubs.delete(doc);
+      shared.observer.disconnect();
+    } else {
+      for (const target of observed) shared.observer.unobserve(target);
+    }
+    observed.length = 0;
+  };
+  try {
+    for (const target of targets) {
+      shared.index.set(target, registration);
+      observed.push(target);
+      shared.observer.observe(target);
+    }
+  } catch (error) {
+    // A target that could not be observed leaves none of this chart's behind (and no empty hub).
+    registration.live = false;
+    try { unobserve(); } catch { /* the original failure matters more */ }
+    throw error;
+  }
+  shared.count++;
+  return () => {
+    if (!registration.live) return;
+    registration.live = false;
+    shared.count--;
+    unobserve();
+  };
+}
+
+interface ProbeRegistration {
+  readonly ready: () => boolean;
+  readonly onChange: () => void;
+  live: boolean;
+  /** The probe's last delivered content box; NaN until the first delivery, which only sets the baseline. */
+  width: number;
+  height: number;
+}
+
+interface ProbeHub {
+  readonly observer: ResizeObserver;
+  readonly index: WeakMap<Element, ProbeRegistration>;
+  count: number;
+}
+
+const probeHubs = new WeakMap<Document, ProbeHub>();
+
+function deliverProbes(doc: Document, hub: ProbeHub, entries: readonly ResizeObserverEntry[]): void {
+  let changed: ProbeRegistration[] | null = null;
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i]!;
+    const registration = hub.index.get(entry.target);
+    if (!registration || !registration.live) continue;
+    const box = entry.contentRect;
+    const { width, height } = box;
+    const baseline = Number.isNaN(registration.width);
+    if (!baseline && (width !== registration.width || height !== registration.height) && registration.ready()) {
+      (changed ??= []).push(registration);
+    }
+    registration.width = width;
+    registration.height = height;
+  }
+  if (changed === null) return;
+  // A font load is seen by every probe of the page at once: widths measured with the old font go once.
+  noteFontLoad(doc);
+  let failed = false;
+  let failure: unknown;
+  for (const registration of changed) {
+    if (!registration.live) continue;
+    try { registration.onChange(); } catch (error) {
+      if (!failed) { failed = true; failure = error; }
+    }
+  }
+  if (failed) throw failure;
+}
+
+/**
+ * Observes a chart's font probe (an element in its own text layer, so it inherits the chart's font) on the
+ * document's shared probe observer. A change of the probe's size after its first delivery means the font it
+ * renders in changed: the measurement cache is cleared once and `onChange` called for each chart whose
+ * `ready()` holds. Returns an idempotent `release`; the last one disconnects the observer.
+ */
+export function observeFontProbe(
+  win: Window & typeof globalThis, doc: Document, probe: Element, ready: () => boolean, onChange: () => void,
+): () => void {
+  let hub = probeHubs.get(doc);
+  const fresh = !hub;
+  if (!hub) {
+    const created: ProbeHub = {
+      observer: new win.ResizeObserver(entries => deliverProbes(doc, created, entries)),
+      index: new WeakMap(), count: 0,
+    };
+    hub = created;
+    probeHubs.set(doc, hub);
+  }
+  const shared = hub;
+  const registration: ProbeRegistration = { ready, onChange, live: true, width: NaN, height: NaN };
+  shared.index.set(probe, registration);
+  try {
+    shared.observer.observe(probe);
+  } catch (error) {
+    // As for geometry: nothing of this probe stays observed, and a hub it created goes with it.
+    registration.live = false;
+    if (shared.index.get(probe) === registration) shared.index.delete(probe);
+    try {
+      if (fresh && shared.count === 0) {
+        if (probeHubs.get(doc) === shared) probeHubs.delete(doc);
+        shared.observer.disconnect();
+      } else {
+        shared.observer.unobserve(probe);
+      }
+    } catch { /* the original failure matters more */ }
+    throw error;
+  }
+  shared.count++;
+  return () => {
+    if (!registration.live) return;
+    registration.live = false;
+    shared.count--;
+    if (shared.index.get(probe) === registration) shared.index.delete(probe);
+    if (shared.count === 0) {
+      if (probeHubs.get(doc) === shared) probeHubs.delete(doc);
+      shared.observer.disconnect();
+    } else {
+      shared.observer.unobserve(probe);
+    }
+  };
+}
 
 /** The parent that supplies inherited styles and language, including through a slot. */
 export function composedParent(element: Element): Element | null {

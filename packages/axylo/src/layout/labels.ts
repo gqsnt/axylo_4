@@ -33,9 +33,8 @@ let segmenter: Intl.Segmenter | null = null;
 export function placeText(
   lines: readonly string[], full: string, x: number, y: number,
   anchor: PlacedText['anchor'], baseline: PlacedText['baseline'], rotate: 0 | -45 | -90,
-  role: Role, metrics: Metrics,
+  role: Role, metrics: Metrics, width = widest(lines, metrics),
 ): PlacedText {
-  const width = widest(lines, metrics);
   const height = lines.length * metrics.lineHeight;
   const left = anchor === 'start' ? 0 : anchor === 'middle' ? -width / 2 : -width;
   const top = baseline === 'top' ? 0 : baseline === 'middle' ? -height / 2 : -height;
@@ -293,22 +292,71 @@ function rotatedAnchor(pixel: number, width: number, height: number): number {
   return Math.min(pixel, width - DIAGONAL * height);
 }
 
+function bottomAnchor(pixel: number, span: number, width: number): number {
+  const half = width / 2;
+  return half * 2 <= span ? Math.max(half, Math.min(span - half, pixel)) : pixel;
+}
+
 function tickLabel(
   tick: Tick, pixel: number, side: Side, span: number, lines: readonly string[], rotate: 0 | -45,
   role: Role, metrics: Metrics,
 ): Label {
   if (side === 'left') return { tick, text: placeText(lines, tick.label, 0, pixel, 'end', 'middle', 0, role, metrics) };
-  let x = pixel;
-  if (rotate) x = rotatedAnchor(pixel, span, lines.length * metrics.lineHeight);
-  else {
-    const half = widest(lines, metrics) / 2;
-    if (half * 2 <= span) x = Math.max(half, Math.min(span - half, pixel));
+  if (rotate) {
+    const x = rotatedAnchor(pixel, span, lines.length * metrics.lineHeight);
+    return { tick, text: placeText(lines, tick.label, x, 0, 'end', 'top', rotate, role, metrics) };
   }
-  return { tick, text: placeText(lines, tick.label, x, 0, rotate ? 'end' : 'middle', 'top', rotate, role, metrics) };
+  const width = widest(lines, metrics);
+  const x = bottomAnchor(pixel, span, width);
+  return { tick, text: placeText(lines, tick.label, x, 0, 'middle', 'top', 0, role, metrics, width) };
 }
 
 function position(scale: XScale, tick: Tick): number {
   return scale.type === 'band' ? scale.center(tick.value) : scale.map(tick.value);
+}
+
+function lineStart(pixel: number, bottom: boolean, span: number, width: number, height: number): number {
+  return bottom ? bottomAnchor(pixel, span, width) - width / 2 : pixel - height / 2;
+}
+
+function singleLineFits(
+  ticks: readonly Tick[], scale: XScale, side: Side, span: number, room: number, gap: number, metrics: Metrics,
+): boolean {
+  if (ticks.length === 0) return true;
+  const bottom = side === 'bottom', height = metrics.lineHeight;
+  const lastIndex = ticks.length - 1;
+  const forward = position(scale, ticks[0]!) <= position(scale, ticks[lastIndex]!);
+  let previousStart = -Infinity, end = -Infinity, unordered = false;
+  for (let i = 0; i < ticks.length; i++) {
+    const tick = ticks[forward ? i : lastIndex - i]!;
+    const width = Math.max(0, metrics.width(tick.label));
+    const first = lineStart(position(scale, tick), bottom, span, width, height);
+    const last = first + (bottom ? width : height);
+    if (!(first >= -EPSILON && last <= span + EPSILON && (bottom ? height : width) <= room + EPSILON)) return false;
+    if (first > previousStart || (forward && first === previousStart)) {
+      if (first < end + gap - EPSILON) return false;
+    } else {
+      if (previousStart < last + gap - EPSILON) return false;
+      unordered = true;
+    }
+    previousStart = first;
+    end = last;
+  }
+  if (!unordered) return true;
+
+  // Clamping or an unordered candidate can reverse interval starts. Check those pairs in either order.
+  for (let i = 1; i < ticks.length; i++) {
+    const tick = ticks[i]!, width = Math.max(0, metrics.width(tick.label));
+    const first = lineStart(position(scale, tick), bottom, span, width, height);
+    const last = first + (bottom ? width : height);
+    for (let j = 0; j < i; j++) {
+      const other = ticks[j]!, otherWidth = Math.max(0, metrics.width(other.label));
+      const start = lineStart(position(scale, other), bottom, span, otherWidth, height);
+      const stop = start + (bottom ? otherWidth : height);
+      if (start <= first ? first < stop + gap - EPSILON : start < last + gap - EPSILON) return false;
+    }
+  }
+  return true;
 }
 
 function start(label: Label, side: Side): number {
@@ -414,7 +462,6 @@ export function fitBottom(
 ): FittedLabels {
   const remedies: LabelRemedy[] = [];
   let ticks = prepared.sets[0] ?? [];
-  let labels: Label[] = [];
 
   if (!mayThin && scale.type === 'band') {
     const span = Math.abs(scale.range[1] - scale.range[0]);
@@ -425,15 +472,17 @@ export function fitBottom(
     }
   }
 
-  for (const [i, candidate] of prepared.sets.entries()) {
-    ticks = candidate;
-    labels = ticks.map(tick => tickLabel(tick, position(scale, tick), 'bottom', width, [tick.label], 0, role, metrics));
+  const gap = mayThin ? 8 : 0;
+  for (let i = 0; i < prepared.sets.length; i++) {
+    ticks = prepared.sets[i]!;
     if (i === 1) remedies.push('thinned');
-    if (conflicts(labels, 'bottom', width, room, mayThin ? 8 : 0).size === 0) {
+    if (singleLineFits(ticks, scale, 'bottom', width, room, gap, metrics)) {
+      const labels = ticks.map(tick => tickLabel(tick, position(scale, tick), 'bottom', width, [tick.label], 0, role, metrics));
       return result(labels, 'bottom', remedies);
     }
   }
 
+  let labels = ticks.map(tick => tickLabel(tick, position(scale, tick), 'bottom', width, [tick.label], 0, role, metrics));
   let bad = conflicts(labels, 'bottom', width, room);
   if (bad.size === 0) return result(labels, 'bottom', remedies);
   const oneLine = labels;
@@ -486,12 +535,16 @@ export function fitValue(
   prepared = prepareLabels(candidates),
 ): FittedLabels {
   const gap = metrics.lineHeight / 2;
-  let labels: Label[] = [];
-  for (const [i, ticks] of prepared.sets.entries()) {
-    labels = ticks.map(tick => tickLabel(tick, position(scale, tick), side, span, [tick.label], 0, role, metrics));
-    if (conflicts(labels, side, span, room, gap).size === 0) return result(labels, side, i ? ['thinned'] : []);
+  let ticks: readonly Tick[] = [];
+  for (let i = 0; i < prepared.sets.length; i++) {
+    ticks = prepared.sets[i]!;
+    if (singleLineFits(ticks, scale, side, span, room, gap, metrics)) {
+      const labels = ticks.map(tick => tickLabel(tick, position(scale, tick), side, span, [tick.label], 0, role, metrics));
+      return result(labels, side, i ? ['thinned'] : []);
+    }
   }
 
+  const labels = ticks.map(tick => tickLabel(tick, position(scale, tick), side, span, [tick.label], 0, role, metrics));
   const sorted = [...labels].sort((a, b) => start(a, side) + extent(a, side) - start(b, side) - extent(b, side));
   const kept = new Set<Label>();
   let edge = -Infinity;

@@ -35,11 +35,43 @@ export interface Toolbar {
   destroy(): void;
 }
 
+function itemSignature(item: ToolbarItem): string {
+  const swatch = item.swatch;
+  const key = `${item.label.length}:${item.label}:${item.struck === true}:${item.symbol ?? ''}`;
+  if (!swatch) return key;
+  const { color, cue, line, hollow, fill, marker, pattern } = swatch;
+  return `${key}:${color}:${line}:${hollow}:${fill === true}:${marker === true}:${cue?.marker ?? ''}:${cue?.dash.normal ?? ''}:${cue?.dash.contrast ?? ''}:${pattern?.kind ?? ''}:${pattern?.d ?? ''}`;
+}
+
+const rangeSymbols = new WeakMap<Document, SVGSVGElement>();
+
+function rangeSymbol(doc: Document): SVGSVGElement {
+  let svg = rangeSymbols.get(doc);
+  if (svg) return svg.cloneNode(true) as SVGSVGElement;
+  svg = svgElement(doc, 'svg', { viewBox: '0 0 16 16', width: '16', height: '16', 'aria-hidden': 'true', class: 'axylo-symbol' });
+  svg.append(svgElement(doc, 'path', { d: 'M2 2v12M14 2v12M4.5 8h7M4.5 8l2.5-2.5M4.5 8l2.5 2.5M11.5 8l-2.5-2.5M11.5 8l-2.5 2.5' }));
+  if (typeof svg.cloneNode !== 'function') return svg;
+  rangeSymbols.set(doc, svg);
+  return svg.cloneNode(true) as SVGSVGElement;
+}
+
+interface ButtonEntry {
+  readonly b: HTMLButtonElement;
+  i: ToolbarItem;
+  s: string;
+  cls: string;
+  pressed: boolean | undefined;
+  expanded: boolean | undefined;
+  controls: string | null;
+  lang: string | null;
+  disabled: boolean;
+}
+
 export function createToolbar(doc: Document): Toolbar {
   const element = make(doc, 'div', 'axylo-toolbar');
   setAttr(element, 'role', 'toolbar');
   const listening = new Listeners();
-  const buttons = new Map<string, { b: HTMLButtonElement; i: ToolbarItem; s: string }>();
+  const buttons = new Map<string, ButtonEntry>();
   let current: string | null = null, order: string[] = [];
   const active = () => activeElementOf(doc, element);
   const setCurrent = (key: string | null) => { current = key; for (const [k, { b }] of buttons) b.tabIndex = k === current ? 0 : -1; };
@@ -64,7 +96,7 @@ export function createToolbar(doc: Document): Toolbar {
     render(items, label, lang) {
       setAttr(element, 'aria-label', label);
       setAttr(element, 'lang', lang);
-      const focused = active();
+      const focused = buttons.size ? active() : null;
       let focusedKey: string | null = null;
       for (const [k, { b }] of buttons) if (b === focused) focusedKey = k;
       const keys = items.map(i => i.key);
@@ -82,18 +114,16 @@ export function createToolbar(doc: Document): Toolbar {
         if (!e) {
           const b = doc.createElement('button');
           b.type = 'button';
-          buttons.set(item.key, e = { b, i: item, s: '' });
+          buttons.set(item.key, e = {
+            b, i: item, s: '', cls: '', pressed: undefined, expanded: undefined, controls: null, lang: null, disabled: false,
+          });
         }
         e.i = item;
-        const { b } = e, sig = JSON.stringify([item.label, item.swatch, item.struck, item.symbol]);
+        const { b } = e, sig = itemSignature(item);
         if (sig !== e.s) {
           const ch: Node[] = [];
           if (item.swatch) ch.push(createSwatch(doc, item.swatch));
-          if (item.symbol) {
-            const svg = svgElement(doc, 'svg', { viewBox: '0 0 16 16', width: '16', height: '16', 'aria-hidden': 'true', class: 'axylo-symbol' });
-            svg.append(svgElement(doc, 'path', { d: 'M2 2v12M14 2v12M4.5 8h7M4.5 8l2.5-2.5M4.5 8l2.5 2.5M11.5 8l-2.5-2.5M11.5 8l-2.5 2.5' }));
-            ch.push(svg);
-          }
+          if (item.symbol) ch.push(rangeSymbol(doc));
           const t = make(doc, 'span', item.symbol ? 'axylo-control-label axylo-visually-hidden' : 'axylo-control-label');
           t.textContent = item.label;
           ch.push(t);
@@ -102,12 +132,23 @@ export function createToolbar(doc: Document): Toolbar {
           e.s = sig;
         }
         const cls = item.struck ? `${item.className} axylo-struck` : item.className;
-        if (b.className !== cls) b.className = cls;
-        setAttr(b, 'aria-pressed', item.pressed === undefined ? null : String(item.pressed));
-        setAttr(b, 'aria-expanded', item.expanded === undefined ? null : String(item.expanded));
-        setAttr(b, 'aria-controls', item.expanded ? item.controls ?? null : null);
-        setAttr(b, 'lang', item.lang);
-        setAttr(b, 'aria-disabled', item.disabled ? 'true' : null);
+        if (e.cls !== cls) b.className = e.cls = cls;
+        if (e.pressed !== item.pressed) {
+          e.pressed = item.pressed;
+          setAttr(b, 'aria-pressed', item.pressed === undefined ? null : String(item.pressed));
+        }
+        if (e.expanded !== item.expanded) {
+          e.expanded = item.expanded;
+          setAttr(b, 'aria-expanded', item.expanded === undefined ? null : String(item.expanded));
+        }
+        const controls = item.expanded ? item.controls ?? null : null;
+        if (e.controls !== controls) setAttr(b, 'aria-controls', e.controls = controls);
+        if (e.lang !== item.lang) setAttr(b, 'lang', e.lang = item.lang);
+        const disabled = item.disabled === true;
+        if (e.disabled !== disabled) {
+          e.disabled = disabled;
+          setAttr(b, 'aria-disabled', disabled ? 'true' : null);
+        }
         nodes.push(b);
       }
       placeChildren(element, nodes);

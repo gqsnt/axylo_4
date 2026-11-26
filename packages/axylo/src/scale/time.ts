@@ -88,6 +88,19 @@ export function timeTickCandidates(domain: readonly [number, number], options: T
   if (!Number.isFinite(lo) || !Number.isFinite(hi) || lo > hi) return [];
   const zone = zoneOf(options.kind, options.timeZone);
   const finest = finestUnit(options);
+  // Built-in labels are a function of the domain, the zone, the finest unit and the locale only: identical
+  // axes (a dashboard's tiles) share them. An author label runs every time (it may depend on its own state).
+  const key = options.label ? null : `${lo}|${hi}|${zone}|${finest}|${options.locale}`;
+  if (key !== null) {
+    const known = recall(builtInSets, key);
+    if (known) return known;
+  }
+  const result = generate(lo, hi, zone, finest, options);
+  if (key !== null) remember(builtInSets ??= new Map(), key, result);
+  return result;
+}
+
+function generate(lo: number, hi: number, zone: string, finest: Unit, options: TimeTickOptions): TickCandidates {
   const span = hi - lo;
 
   const sets: Candidate[] = [];
@@ -117,6 +130,29 @@ export function timeTickCandidates(domain: readonly [number, number], options: T
     }
   }
   return finish(sets, lo, zone, options);
+}
+
+/**
+ * Bounded caches of built-in results (author labels are never cached): whole candidate lists by domain, and
+ * labelled tick sets by their exact boundaries, which a sliding window keeps for many frames while its ends
+ * move. Shared between charts; nothing downstream changes a tick. Least recently used goes first.
+ */
+const BUILT_IN_CACHE_LIMIT = 64;
+let builtInSets: Map<string, TickCandidates> | undefined;
+let builtInLabels: Map<string, Tick[]> | undefined;
+
+function recall<T>(cache: Map<string, T> | undefined, key: string): T | undefined {
+  const known = cache?.get(key);
+  if (known !== undefined) {
+    cache!.delete(key);
+    cache!.set(key, known);
+  }
+  return known;
+}
+
+function remember<T>(cache: Map<string, T>, key: string, value: T): void {
+  if (cache.size >= BUILT_IN_CACHE_LIMIT) cache.delete(cache.keys().next().value!);
+  cache.set(key, value);
 }
 
 /** A domain too short to hold any boundary still gets one labeled tick at its start. */
@@ -279,6 +315,18 @@ const disambiguators = [
  * told apart (see `disambiguators`).
  */
 function label(values: readonly number[], unit: Unit, zone: string, options: TimeTickOptions): Tick[] {
+  if (options.label) return labelled(values, unit, zone, options);
+  // `${-0}` is '0', as the tick's value is: the key names exactly the ticks made.
+  let key = `${unit}|${zone}|${options.locale}`;
+  for (let i = 0; i < values.length; i++) key += `|${values[i]}`;
+  const known = recall(builtInLabels, key);
+  if (known) return known;
+  const ticks = labelled(values, unit, zone, options);
+  remember(builtInLabels ??= new Map(), key, ticks);
+  return ticks;
+}
+
+function labelled(values: readonly number[], unit: Unit, zone: string, options: TimeTickOptions): Tick[] {
   const short = tickParts[unit]!;
   const context = short === DateParts.Year ? 0 : short & DateParts.Clock ? DateParts.MonthDay : DateParts.Year;
   const walls = values.map(v => instantToWall(zone, v));

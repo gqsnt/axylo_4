@@ -63,6 +63,23 @@ const RETENTION_SLACK = 8;
  */
 const NAMING_INPUTS = new Set([3, 4, 9, 13]);
 
+/**
+ * Reader inputs equal apart from the naming ones (sameKey's rule, without filtered copies). The view comes
+ * first: a streaming frame has a new one, and the comparison ends there.
+ */
+function sameReading(a: readonly unknown[], b: readonly unknown[]): boolean {
+  if (a.length !== b.length || !Object.is(a[0], b[0])) return false;
+  for (let i = 1; i < a.length; i++) {
+    if (NAMING_INPUTS.has(i)) continue;
+    const x = a[i];
+    const y = b[i];
+    if (Object.is(x, y)) continue;
+    if (Array.isArray(x) && Array.isArray(y) && x.length === y.length && x.every((v, k) => v === y[k])) continue;
+    return false;
+  }
+  return true;
+}
+
 export interface Size {
   readonly width: number;
   readonly height: number;
@@ -134,7 +151,11 @@ export interface Host {
   cancelFrame(handle: number): void;
   /** Optional microtask scheduler (browser host only) for 1-frame zoom flushes. */
   scheduleMicrotask?(callback: () => void): void;
-  locale(option: unknown): string;
+  /**
+   * `pageLang`, when given, is what `pageLang()` just returned for this frame: the host need not read the
+   * page's language a second time to resolve the locale from it.
+   */
+  locale(option: unknown, pageLang?: string | null): string;
   pageLang(): string | null;
   /** Text of the page element with this id, or null when there is none. */
   labelText(id: string): string | null;
@@ -609,7 +630,10 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     // A window kept across a data change does not reach an axis it does not apply to.
     const zoom = zoomable(c.frame) ? c.zoom : null;
     const key = viewKeyFor(kind, c.options, c.resolved, c.frame, zoom, c.hidden, c.messages);
-    if (previous && sameValue(previous.viewKey, key)) {
+    // Frames of different revisions are never equal (a revision is part of the frame), so a new frame is a
+    // new view without comparing the rest of the key, or the frames, field by field.
+    const viewed = previous?.viewKey[0] as Frame | undefined;
+    if (previous && (viewed === c.frame || viewed?.revision === c.frame.revision) && sameValue(previous.viewKey, key)) {
       return { view: previous.view, viewKey: previous.viewKey, viewDiagnostics: previous.viewDiagnostics, found: [] };
     }
     stage('view');
@@ -1378,6 +1402,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
   function flush(): void {
     const run = beginFrame();
     if (!run) return;
+    // A ready compact plot has no readout strip and no L8 fallback: its readout steps would all pass.
     run.phase1();
     run.phase2();
     run.phase3Theme();
@@ -1397,7 +1422,8 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       run.phase4StripMeasure();
       run.phase4Init();
     };
-    readout();
+    if (run.stripless()) run.phase4Init();
+    else readout();
     for (let pass = 0; pass < 4; pass++) {
       if (!run.phase4PassWrite()) break;
       if (run.phase4PassMeasure()) readout();
@@ -1418,7 +1444,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     frameScheduled = false;
   }
 
-  function beginFrame(): FrameRun | null {
+  function beginFrame(): (FrameRun & { stripless(): boolean }) | null {
     cancelScheduledFrame();
     const a = accepted;
     if (destroyed || !a) return null;
@@ -1510,6 +1536,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     let layoutDone = true;
     let passAction: 'drop-strip' | 'enter-fallback' | 'leave-fallback' | 'note-moved' | null = null;
     let normalSize: Size | null = null;
+    let stripless = false;
 
     const hiddenIn = (l: Layout | undefined) => l?.kind === 'plot' ? l.fit.x.hidden + l.fit.y.hidden : 0;
     const stateDiag = stateDiagnostics(a);
@@ -1550,8 +1577,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
       // The summary reads the view, not the name: when only the naming inputs changed, the statistics already
       // written are kept rather than scanned again (finding 11).
       const before = lastReader ?? (drawn ? { reader: drawn.reader, inputs: drawn.readerInputs } : null);
-      const kept = before && sameKey(before.inputs.filter((_, i) => !NAMING_INPUTS.has(i)), inputs.filter((_, i) => !NAMING_INPUTS.has(i)))
-        ? before.reader : null;
+      const kept = before && sameReading(before.inputs, inputs) ? before.reader : null;
       const t = a.options.title;
       const built = readerWith(composition.reader, {
         view, formatters, messages: a.messages, type: chartTypeName(a.messages, kind),
@@ -1801,6 +1827,9 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
     });
 
     return {
+      // Only once phase 2 completed for this frame (a failure closes the frame, and the skipped steps would
+      // have done nothing either way).
+      stripless: () => stripless && !closed,
       // Phase 1: Initial reads & pure CPU prep (zero DOM writes, zero probeColors).
       phase1: phase(() => {
         stage('frame');
@@ -1819,8 +1848,9 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
           style = textStyle!;
         }
         layoutEpoch = fontEpoch;
-        locale = host.locale(a.options.locale);
+        // The inherited language is read once and serves the locale and the English marking alike.
         lang = host.pageLang();
+        locale = host.locale(a.options.locale, lang);
 
         // Formatters. What a formatter threw on belongs to the formatters and the revision it formatted.
         const previous = drawn;
@@ -1906,6 +1936,7 @@ export function controllerFor(composition: Composition, input: unknown, page: Ho
           readoutKind = 'floating';
         }
         needMeasure = arrange(tooSmall) || hadStrip !== readoutMode || sizeDirty || size === null;
+        stripless = shown.kind === 'ready' && compact && !tooSmall && !readoutMode;
       }),
 
       // Phase 3a (part 1): Verify standard theme declarations after Phase 2 writes (reads only).

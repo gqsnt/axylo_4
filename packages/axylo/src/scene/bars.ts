@@ -20,11 +20,17 @@ export function barPattern(series: number, compact: boolean): 'none' | typeof PA
   return group ? PATTERNS[(group - 1) % PATTERNS.length]! : 'none';
 }
 
+function visibleOrder(visible: readonly boolean[]): number[] {
+  const order: number[] = [];
+  for (let i = 0; i < visible.length; i++) if (visible[i]) order.push(i);
+  return order;
+}
+
 export function barMarks(view: AlignedView, projection: Bands, plot: Rect): RectMark[] {
   const { band, value, horizontal } = projection;
   const { start, end } = view.drawSlots[0] ?? view.visibleSlots;
   const { stack, frame } = view;
-  const order = stack?.order ?? view.visible.flatMap((shown, i) => shown ? [i] : []);
+  const order = stack?.order ?? visibleOrder(view.visible);
   const low = horizontal ? plot.y : plot.x;
   const high = low + (horizontal ? plot.height : plot.width);
   const valueLow = horizontal ? plot.x : plot.y;
@@ -111,5 +117,5 @@ export function barMarks(view: AlignedView, projection: Bands, plot: Rect): Rect
     bars.push(pattern === 'none' ? bar : { ...bar, pattern });
     if (absent.length) missing.push({ type: 'rects', series, xywh: absent, fill: token('muted'), variant: 'missing' });
   }
-  return bars.concat(missing);
+  return missing.length ? bars.concat(missing) : bars;
 }

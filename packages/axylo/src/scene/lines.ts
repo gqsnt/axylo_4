@@ -2,7 +2,7 @@ import {
   SLOT_VALUE, type AlignedView, type IndexRange, type PathMark, type PointMark, type Projection,
   type Rect, type ScatterView, type SeriesCue,
 } from '../core/contracts';
-import { buildPath, buildPoints, simplifyLine, type JoinedRuns, type LineInput } from '../simplify';
+import { buildPath, buildPoints, emptyIndexes, simplifyLine, unthinnedPath, type JoinedRuns, type LineInput } from '../simplify';
 import { affinePosition, affineProjection, exactProjection, position, seriesPaint, type AffineProjection } from './geometry';
 
 const MARKER_SPACING = 12;
@@ -20,7 +20,7 @@ export function drawing(x: Float64Array, xy: XY, plot: Rect, devicePixelRatio: n
     x, mapX: value => position(xy.x, value), mapY: value => position(xy.y, value),
     affineX: affineProjection(xy.x, x.length ? [x[0]!, x[x.length - 1]!] : undefined),
     affineY: affineProjection(xy.y),
-    left: plot.x, width: plot.width, devicePixelRatio,
+    left: plot.x, width: plot.width, devicePixelRatio: Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1,
   };
 }
 
@@ -117,19 +117,24 @@ function pointMark(series: number, cue: SeriesCue, xy: Float32Array): PointMark 
 
 export function addLine(
   input: LineInput & Drawing, view: AlignedView, series: number, visible: IndexRange, compact: boolean,
-  paths: PathMark[], points: PointMark[], selection: JoinedRuns = simplifyLine(input), packed?: Float32Array,
+  paths: PathMark[], points: PointMark[], selection?: JoinedRuns, packed?: Float32Array,
 ): void {
   const cue = view.cues[series]!;
-  // A single slot in an author domain can have joined neighbours outside the drawing.
-  const singlePoint = input.range.end - input.range.start === 1 && selection.indexes.length === 1;
-  if (selection.indexes.length && !singlePoint) {
-    const xy = packed && selection.breaks.length === 0 ? packed : buildPath(selection.indexes, selection.breaks, input);
-    paths.push({
-      type: 'path', series, xy, stroke: seriesPaint(series),
-      strokeWidth: 2, dash: cue.dash,
-    });
+  let xy = selection ? null : unthinnedPath(input);
+  let isolated = emptyIndexes();
+  if (!xy) {
+    const runs = selection ?? simplifyLine(input);
+    // A single slot in an author domain can have joined neighbours outside the drawing.
+    const singlePoint = input.range.end - input.range.start === 1 && runs.indexes.length === 1;
+    isolated = singlePoint ? runs.indexes : runs.isolated;
+    if (runs.indexes.length && !singlePoint) {
+      xy = packed && !runs.breaks.length ? packed : buildPath(runs.indexes, runs.breaks, input);
+    }
   }
-  const markers = markerIndexes(input, visible, singlePoint ? selection.indexes : selection.isolated, compact);
+  if (xy) paths.push({
+    type: 'path', series, xy, stroke: seriesPaint(series), strokeWidth: 2, dash: cue.dash,
+  });
+  const markers = markerIndexes(input, visible, isolated, compact);
   if (markers.length) points.push(pointMark(series, cue, buildPoints(markers, input)));
 }
 

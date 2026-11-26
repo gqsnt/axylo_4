@@ -1,6 +1,7 @@
 import { SLOT_ABSENT_FIELD, SLOT_INVALID, SLOT_NULL, SLOT_VALUE, type DiagnosticSink, type SlotState } from '../core/contracts';
 import type { ResolvedValueField } from './options';
 import { Reports } from './reports';
+import { denseSlots, withSignedZeros, type FullStatistics } from './store-statistics';
 import type { Table } from './table';
 
 const decimal = /^[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
@@ -27,6 +28,7 @@ export interface Values {
   readonly y: Float64Array | Float32Array;
   readonly slot: Uint8Array;
   readonly allValid: boolean;
+  readonly statistics?: FullStatistics;
 }
 
 let emptySlots: Uint8Array | null = null;
@@ -53,6 +55,24 @@ export function readValues(
   let allValid = !included;
   if (borrowed && !included) {
     // Values and typed NaNs can stay in the caller's storage without generic row validation.
+    if (counts && keepAllValidSlots && table.length >= 256) {
+      let min = Infinity;
+      let max = -Infinity;
+      let zeros = 0;
+      for (; i < table.length; i++) {
+        const value = column[i]!;
+        if (!Number.isFinite(value)) break;
+        if (value < min) min = value;
+        if (value > max) max = value;
+        if (value === 0) zeros |= Object.is(value, -0) ? 1 : 2;
+      }
+      if (i === table.length) {
+        counts.other += i;
+        const slot = new Uint8Array(i);
+        denseSlots.set(slot, 'fresh');
+        return { y, slot, allValid: true, statistics: withSignedZeros({ min, max, last: column[i - 1]! }, zeros) };
+      }
+    }
     let missing = 0;
     for (; i < table.length; i++) {
       const value = column[i]!;

@@ -36,10 +36,13 @@ export interface SwatchPattern {
 }
 
 const BACKGROUND = 'var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)))';
+const patterns: Partial<Record<SwatchPattern['kind'], SwatchPattern>> = {};
+const markerPaths: Partial<Record<MarkerShape, string>> = {};
+const swatchTemplates = new WeakMap<Document, SVGSVGElement>();
 
 /** A bar pattern for the chip; only the bar's swatch asks for one, so only bars carry the drawing. */
 export function swatchPattern(kind: SwatchPattern['kind']): SwatchPattern {
-  return { kind, d: patternPath(kind) };
+  return patterns[kind] ??= { kind, d: patternPath(kind) };
 }
 
 /** The pattern inside the 10 × 10 chip at (5, 1), as path data: lines x + y = c (and x − y = c), or dots. */
@@ -80,11 +83,20 @@ function markerPath(shape: MarkerShape, cx: number, cy: number, size: number): s
   return d + 'Z';
 }
 
-/** A 20 × 12 swatch (CSS px). aria-hidden: the series name beside it is the text. */
-export function createSwatch(doc: Document, spec: SwatchSpec): SVGSVGElement {
+function swatchBase(doc: Document): SVGSVGElement {
+  const template = swatchTemplates.get(doc);
+  if (template) return template.cloneNode(false) as SVGSVGElement;
   const svg = svgElement(doc, 'svg', {
     class: 'axylo-swatch', viewBox: '0 0 20 12', width: '20', height: '12', 'aria-hidden': 'true', focusable: 'false',
   });
+  if (typeof svg.cloneNode !== 'function') return svg;
+  swatchTemplates.set(doc, svg);
+  return svg.cloneNode(false) as SVGSVGElement;
+}
+
+/** A 20 × 12 swatch (CSS px). aria-hidden: the series name beside it is the text. */
+export function createSwatch(doc: Document, spec: SwatchSpec): SVGSVGElement {
+  const svg = swatchBase(doc);
   svg.style.color = colorOf(spec.color);
   if (spec.line) {
     const line = svgElement(doc, 'line', { x1: '0', x2: '20', y1: '6', y2: '6', stroke: 'currentColor', 'stroke-width': '2' });
@@ -100,9 +112,10 @@ export function createSwatch(doc: Document, spec: SwatchSpec): SVGSVGElement {
   const chip = spec.fill === true || !spec.cue;
   const marked = chip && spec.marker === true && spec.cue !== null;
   const appendShape = (square: boolean, onChip: boolean): void => {
+    const marker = spec.cue?.marker;
     const shape = svgElement(doc, 'path', {
       class: square ? 'axylo-swatch-chip' : 'axylo-swatch-marker',
-      d: square ? 'M5 1H15V11H5Z' : markerPath(spec.cue!.marker, 10, 6, 10),
+      d: square ? 'M5 1H15V11H5Z' : (markerPaths[marker!] ??= markerPath(marker!, 10, 6, 10)),
     });
     if (square && marked && !spec.hollow) shape.setAttribute('fill-opacity', '0.4');
     shape.setAttribute('fill', spec.hollow ? BACKGROUND : 'currentColor');

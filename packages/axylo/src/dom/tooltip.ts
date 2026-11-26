@@ -2,9 +2,10 @@
  * Renders a tooltip model as text (spec I1, DX8: textContent only), floating or in the strip under the plot.
  */
 import { activeElementOf, placeChildren, setAttr, setText, make, keepFocusOnPress, shadowRootsOf } from './attributes';
-import type { DatumRef, DatumText, Rect, TooltipModel } from '../core/contracts';
+import type { DatumRef, DatumText, Rect, TextStyle, TooltipModel } from '../core/contracts';
+import { createMeasurer, readTextStyle } from '../core/environment';
 import { createSwatch, type SwatchSpec } from './swatch';
-import { fallbackPlacement, intersect, placeTooltip, type PlacementInput } from './placement';
+import { fallbackPlacement, intersect, placeTooltip, type PlacementInput, type Spot } from './placement';
 import { Listeners, listenOutside, mappingOf, type Mapping } from './mapping';
 
 export interface TooltipContent {
@@ -42,6 +43,48 @@ interface RowEntry {
   p: SwatchSpec | null;
   l: string | null;
   g: string | null;
+  value: string;
+  digits: string;
+}
+
+interface MoreEntry {
+  readonly el: HTMLElement;
+  text: string;
+  lang: string | null;
+}
+
+interface HoverRow {
+  readonly label: string | null;
+  readonly swatch: SwatchSpec | null;
+  readonly lang: string | null;
+  readonly style: TextStyle;
+  readonly fixed: number;
+}
+
+interface HoverSize {
+  readonly title: TextStyle;
+  readonly rows: readonly HoverRow[];
+  readonly more: string | null;
+  readonly moreLang: string | null;
+  readonly moreWidth: number;
+  readonly total: HoverRow | null;
+  readonly correction: number;
+  readonly width: number;
+  readonly height: number;
+}
+
+const canvasAvailable = new WeakMap<Document, boolean>();
+const digitsForWidth = (text: string) => text.replace(/[1-9]/g, '0');
+
+function hasCanvas(doc: Document): boolean {
+  const cached = canvasAvailable.get(doc);
+  if (cached !== undefined) return cached;
+  let available = false;
+  try {
+    available = typeof doc.createElement('canvas').getContext?.('2d')?.measureText === 'function';
+  } catch { /* A document without Canvas2D uses exact DOM dimensions. */ }
+  canvasAvailable.set(doc, available);
+  return available;
 }
 
 // Aligned rows follow their series across x positions. Scatter rows follow the source observation.
@@ -67,9 +110,11 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
   const children: Node[] = [];
   const hosts = [element, readoutElement] as const;
   const pinCls = ['axylo-tooltip-pinned', 'axylo-readout-pinned'] as const;
-  const listening = new Listeners(), mores: (HTMLElement | undefined)[] = [];
+  const listening = new Listeners(), mores: (MoreEntry | undefined)[] = [];
   let wrapped = false, lastRect: Rect | null = null;
   let maxWidth = -1, maxHeight = -1;
+  let hoverSize: HoverSize | null = null, expectedWidth = 0;
+  let sizeObserver: ResizeObserver | undefined, observing = false;
 
   function clearPress(): void { pressRef = null; pressListening?.clear(); pressListening = null; }
   function cancelPointer(e: Event): void { if (pressRef !== null && pressPtr === (e as PointerEvent).pointerId) clearPress(); }
@@ -117,7 +162,10 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
 
   const floatTitle = make(doc, 'div', 'axylo-tooltip-title'), floatTitleNode = txt();
   floatTitle.appendChild(floatTitleNode);
-  let floatTotal: { row: HTMLElement; name: HTMLElement; value: HTMLElement } | null = null;
+  let floatTitleText = '';
+  let floatTotal: {
+    row: HTMLElement; name: HTMLElement; value: HTMLElement; label: string; lang: string | null; text: string; digits: string;
+  } | null = null;
   let stripParts: { title: HTMLElement; total: HTMLElement; moreSep: Text; totalSep: Text } | null = null;
 
   const setL = (el: HTMLElement, l: string | null | undefined) => {
@@ -137,7 +185,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
         const n = make(doc, 'span', 'axylo-tooltip-series'), v = make(doc, 'span', 'axylo-tooltip-value'), t = txt();
         v.appendChild(t);
         if (isStrip) e.append(n, txt(' '), v); else e.append(n, v);
-        entry = { button, e, n, v, t, s: isStrip ? txt('; ') : null, r, p: null, l: null, g: null };
+        entry = { button, e, n, v, t, s: isStrip ? txt('; ') : null, r, p: null, l: null, g: null, value: '', digits: '' };
       }
       entry.r = r;
       const spec = content.swatch(r);
@@ -145,7 +193,11 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
         entry.n.replaceChildren(...(spec ? [createSwatch(doc, spec)] : []), txt(r.seriesLabel));
         entry.l = r.seriesLabel; entry.p = spec;
       }
-      setText(entry.t, r.percent === null || r.percent === r.value ? r.value : `${r.value} (${r.percent})`);
+      const value = r.percent === null || r.percent === r.value ? r.value : `${r.value} (${r.percent})`;
+      if (entry.value !== value) {
+        setText(entry.t, entry.value = value);
+        entry.digits = isStrip ? value : digitsForWidth(value);
+      }
       const lang = content.valueLang?.(r.value) ?? null;
       if (entry.g !== lang) { setAttr(entry.v, 'lang', lang); entry.g = lang; }
       out.push(entry);
@@ -163,16 +215,77 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     return rows.find(e => e.button && e.e === act)?.r.ref ?? null;
   }
 
-  function moreElement(isStrip: boolean, pinned: boolean, content: TooltipContent, count: number): HTMLElement {
+  function moreEntry(isStrip: boolean, pinned: boolean, content: TooltipContent, count: number): MoreEntry {
     const btn = pinned && content.more !== undefined, index = (isStrip ? 2 : 0) + (btn ? 1 : 0);
-    const el = mores[index] ??= makeBox('axylo-tooltip-more', btn, isStrip);
-    setText(el, content.moreRows(count));
-    setL(el, content.moreLang);
-    return el;
+    const entry = mores[index] ??= { el: makeBox('axylo-tooltip-more', btn, isStrip), text: '', lang: null };
+    const text = content.moreRows(count), lang = content.moreLang || null;
+    if (entry.text !== text) setText(entry.el, entry.text = text);
+    if (entry.lang !== lang) setAttr(entry.el, 'lang', entry.lang = lang);
+    return entry;
+  }
+
+  function observeSize(): void {
+    if (observing) return;
+    const Observer = (doc.defaultView as (Window & typeof globalThis) | null)?.ResizeObserver;
+    if (!Observer) return;
+    sizeObserver ??= new Observer(records => {
+      const size = records[0]?.borderBoxSize?.[0];
+      if (hoverSize && (!size || Math.abs(size.inlineSize - expectedWidth) > 1 ||
+          Math.abs(size.blockSize - hoverSize.height) > 1)) hoverSize = null;
+    });
+    sizeObserver.observe(element, { box: 'border-box' });
+    observing = true;
+  }
+
+  // Measure shrink-to-fit content in layout pixels. The exact first box supplies the outer chrome
+  // and corrects for differences between Canvas and DOM text metrics.
+  function calibrate(rows: readonly RowEntry[], more: MoreEntry | null, total: typeof floatTotal, width: number, height: number): HoverSize | null {
+    const win = doc.defaultView;
+    if (typeof win?.getComputedStyle !== 'function' || !hasCanvas(doc)) return null;
+    const measure = createMeasurer(doc);
+    const title = readTextStyle(floatTitle);
+    const moreWidth = more ? measure.width(more.text, readTextStyle(more.el)) : 0;
+    const rowGap = (node: Element) => parseFloat(win.getComputedStyle(node).columnGap) || 0;
+    let natural = Math.max(moreWidth, measure.width(floatTitleText, title));
+    const measured = rows.map(entry => {
+      const swatch = entry.n.firstElementChild;
+      const swatchWidth = swatch ? (parseFloat(win.getComputedStyle(swatch).width) || 20) + rowGap(entry.n) : 0;
+      const fixed = measure.width(entry.l ?? '', readTextStyle(entry.n)) + swatchWidth + rowGap(entry.e);
+      const style = readTextStyle(entry.v);
+      natural = Math.max(natural, fixed + measure.width(entry.digits, style));
+      return { label: entry.l, swatch: entry.p, lang: entry.g, style, fixed };
+    });
+    let measuredTotal: HoverRow | null = null;
+    if (total) {
+      const style = readTextStyle(total.value);
+      const fixed = measure.width(total.label, readTextStyle(total.name)) + rowGap(total.row);
+      natural = Math.max(natural, fixed + measure.width(total.digits, style));
+      measuredTotal = { label: total.label, swatch: null, lang: total.lang, style, fixed };
+    }
+    return { title, rows: measured, more: more?.text ?? null, moreLang: more?.lang ?? null, moreWidth,
+      total: measuredTotal, correction: width - natural, width, height };
+  }
+
+  function predictedWidth(size: HoverSize, rows: readonly RowEntry[], more: MoreEntry | null, total: typeof floatTotal): number {
+    if (size.rows.length !== rows.length || size.more !== (more?.text ?? null) || size.moreLang !== (more?.lang ?? null) ||
+        size.total?.label !== total?.label || size.total?.lang !== total?.lang) return NaN;
+    const measure = createMeasurer(doc);
+    let natural = Math.max(size.moreWidth, measure.width(floatTitleText, size.title));
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]!, calibrated = size.rows[i]!;
+      if (row.l !== calibrated.label || row.p !== calibrated.swatch || row.g !== calibrated.lang) return NaN;
+      natural = Math.max(natural, calibrated.fixed + measure.width(row.digits, calibrated.style));
+    }
+    if (total && size.total) natural = Math.max(natural, size.total.fixed + measure.width(total.digits, size.total.style));
+    return natural + size.correction;
   }
 
   function hideIdx(idx: 0 | 1): void {
     const host = hosts[idx];
+    if (idx === 0) {
+      hoverSize = null;
+      if (observing) { sizeObserver!.unobserve(element); observing = false; }
+    }
     if (where === idx + 1) lastRect = null;
     if (host.hidden && !host.firstChild) return;
     const ref = focusedRef(idx);
@@ -229,6 +342,14 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
     return visible;
   }
 
+  function positionFloat(spot: Spot, width: number, height: number, m: Mapping): boolean {
+    const transform = `translate(${(spot.x - m.left) / m.kx}px, ${(spot.y - m.top) / m.ky}px)`;
+    if (element.style.transform !== transform) element.style.transform = transform;
+    lastRect = { x: spot.x, y: spot.y, width, height };
+    observeSize();
+    return finish(0, true);
+  }
+
   function hide(): void {
     clearPress(); hideIdx(0); hideIdx(1);
     where = displayed = 0;
@@ -244,31 +365,51 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       const m = figMapping ?? mappingOf(figure);
       const maxW = Math.max(0, Math.min(320, p.visible.width / m.kx)), maxH = Math.max(0, p.visible.height / m.ky);
       begin(0, content, pinned);
+      if (maxWidth !== maxW || maxHeight !== maxH || pinned || wrapped || where !== 1) hoverSize = null;
       if (maxWidth !== maxW) { maxWidth = maxW; element.style.maxWidth = `${maxW}px`; }
       if (maxHeight !== maxH) { maxHeight = maxH; element.style.maxHeight = `${maxH}px`; }
       const rows = rowEntries(0, content, pinned), { model } = content, total = rows.length;
       if (wrapped) { element.classList.remove('axylo-tooltip-wrap'); wrapped = false; }
-      setText(floatTitleNode, model.title);
+      if (floatTitleText !== model.title) setText(floatTitleNode, floatTitleText = model.title);
       if (model.total !== null) {
         if (!floatTotal) {
           const row = make(doc, 'div', 'axylo-tooltip-row axylo-tooltip-total');
           const name = make(doc, 'span', 'axylo-tooltip-series'), value = make(doc, 'span', 'axylo-tooltip-value');
           row.append(name, value);
-          floatTotal = { row, name, value };
+          floatTotal = { row, name, value, label: '', lang: null, text: '', digits: '' };
         }
-        setText(floatTotal.name, content.totalLabel ?? '');
-        setL(floatTotal.name, content.totalLang);
-        setText(floatTotal.value, model.total);
+        const label = content.totalLabel ?? '', lang = content.totalLang || null;
+        if (floatTotal.label !== label) setText(floatTotal.name, floatTotal.label = label);
+        if (floatTotal.lang !== lang) setAttr(floatTotal.name, 'lang', floatTotal.lang = lang);
+        if (floatTotal.text !== model.total) {
+          setText(floatTotal.value, floatTotal.text = model.total);
+          floatTotal.digits = digitsForWidth(model.total);
+        }
       }
+      const totalRow = model.total === null ? null : floatTotal;
       const overflows = () => element.scrollHeight > element.clientHeight + 1 || element.scrollWidth > element.clientWidth + 1;
       for (let shown = total; shown >= Math.min(1, total); shown--) {
         children.push(floatTitle);
         for (let i = 0; i < shown; i++) children.push(rows[i]!.e);
         displayed = shown;
-        if (model.count > shown) children.push(moreElement(false, pinned, content, model.count - shown));
-        if (model.total !== null && floatTotal) children.push(floatTotal.row);
+        const more = model.count > shown ? moreEntry(false, pinned, content, model.count - shown) : null;
+        if (more) children.push(more.el);
+        if (totalRow) children.push(totalRow.row);
         placeChildren(element, children);
         children.length = 0;
+        if (shown === total && hoverSize) {
+          const width = predictedWidth(hoverSize, rows, more, totalRow), { height } = hoverSize;
+          if (width > 0 && width < maxW - 8 && height < maxH - 8) {
+            // Allow for fractional DOM rounding when an estimated box meets an obstacle or edge.
+            const pad = Math.abs(width - hoverSize.width) > 0.01 ? 1 : 0;
+            const spot = placeTooltip(p, (width + pad) * m.kx, height * m.ky);
+            if (spot) {
+              expectedWidth = width;
+              return positionFloat(spot, width * m.kx, height * m.ky, m);
+            }
+          }
+        }
+        hoverSize = null;
         let size = element.getBoundingClientRect();
         if (size.width >= (maxW - 2) * m.kx || size.height >= (maxH - 2) * m.ky) {
           let over = overflows();
@@ -284,10 +425,12 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
         let spot = placeTooltip(p, width, height);
         if (!spot && shown <= 1 && width > 0) spot = fallbackPlacement(p, width, height);
         if (spot) {
-          const tf = `translate(${(spot.x - m.left) / m.kx}px, ${(spot.y - m.top) / m.ky}px)`;
-          if (element.style.transform !== tf) element.style.transform = tf;
-          lastRect = { x: spot.x, y: spot.y, width, height };
-          return finish(0, true);
+          const localW = width / m.kx, localH = height / m.ky;
+          if (!pinned && !wrapped && shown === total && localW > 0 && localW < maxW - 8 && localH < maxH - 8) {
+            hoverSize = calibrate(rows, more, totalRow, localW, localH);
+            expectedWidth = localW;
+          }
+          return positionFloat(spot, width, height, m);
         }
       }
       return finish(0, false);
@@ -320,7 +463,7 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
           for (let i = 0; i < shown; i++) { if (i && rows[i]!.s) parts.push(rows[i]!.s!); parts.push(rows[i]!.e); }
           if (model.total !== null) parts.push(totalSep, stripTotal);
           let pager: HTMLElement | null = null;
-          if (model.count > shown) { if (shown) parts.push(moreSep); parts.push(pager = moreElement(true, pinned, content, model.count - shown)); }
+          if (model.count > shown) { if (shown) parts.push(moreSep); parts.push(pager = moreEntry(true, pinned, content, model.count - shown).el); }
           placeChildren(readoutElement, parts);
           seen = within(stripTitle) && within(pager);
           for (let i = 0; seen && i < shown; i++) seen = within(rows[i]!.e);
@@ -330,6 +473,9 @@ export function createTooltip(element: HTMLElement, readoutElement: HTMLElement,
       return finish(1, seen);
     },
     hide,
-    destroy() { hide(); pendingFocus = stripParts = null; listening.clear(); mores.length = 0; },
+    destroy() {
+      hide(); sizeObserver?.disconnect(); sizeObserver = undefined;
+      pendingFocus = stripParts = null; listening.clear(); mores.length = 0;
+    },
   };
 }

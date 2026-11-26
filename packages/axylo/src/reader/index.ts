@@ -1,7 +1,7 @@
 import type { AlignedFrame, DiagnosticSink, Formatters, IndexRange, ReaderModel, View } from '../core/contracts';
 import { report } from '../diagnostics';
 import { sliceText } from '../lookup/text';
-import { chartTypeName, defaultMessages, fill, fillChartSummary, fillDonutSlice, messageLanguage } from '../messages';
+import { chartTypeName, defaultMessages, fill, fillChartName, fillChartSummary, fillDonutSlice, fillSeriesSummary, messageLanguage } from '../messages';
 import type { Messages, Title } from '../public';
 import { alignedStatistics } from '../view';
 import { alignedTable, donutTable, scatterTable, type ReaderLabels, type TableBuilder } from './table';
@@ -101,7 +101,12 @@ function appendSentence(runs: TextRun[], sentence: readonly TextRun[]): void {
 
 type ChartText = (input: ReaderInput, type: string, xLabel: string, yLabel: string, table: boolean, listReady?: boolean) => string[];
 
-const listFormats = new Map<string | undefined, Intl.ListFormat>();
+interface ListFormatEntry {
+  readonly format: Intl.ListFormat;
+  readonly lists: Map<string, string>;
+}
+
+const listFormats = new Map<string | undefined, ListFormatEntry>();
 
 function englishList(locale: string | undefined): boolean {
   return locale === 'en';
@@ -111,28 +116,51 @@ function englishList(locale: string | undefined): boolean {
 function listOf(names: readonly string[], locale: string | undefined): string {
   const length = names.length;
   if (length < 2) return names[0] ?? '';
+  const first = names[0]!, second = names[1]!;
+  if (length === 2) return pair(first, second, locale);
   if (englishList(locale)) {
-    if (length === 2) return names[0]! + ' and ' + names[1]!;
-    let text = names[0]!;
+    let text = first;
     for (let i = 1; i < length - 1; i++) text += ', ' + names[i];
     return text + ', and ' + names[length - 1];
   }
+  let key = '';
+  for (const name of names) key += `${name.length}:${name}`;
+  return localizedList(locale, key, first, second, names);
+}
+
+function pair(first: string, second: string, locale: string | undefined): string {
+  if (englishList(locale)) return `${first} and ${second}`;
+  return localizedList(locale, `${first.length}:${first}${second.length}:${second}`, first, second);
+}
+
+function localizedList(locale: string | undefined, key: string, first: string, second: string, names?: readonly string[]): string {
   try {
-    let format = listFormats.get(locale);
-    if (!format) {
-      format = new Intl.ListFormat(locale, { type: 'conjunction' });
+    let entry = listFormats.get(locale);
+    if (!entry) {
+      const format = new Intl.ListFormat(locale, { type: 'conjunction' });
       if (listFormats.size >= 64) listFormats.clear();
-      listFormats.set(locale, format);
+      listFormats.set(locale, entry = { format, lists: new Map() });
     }
-    return format.format(names);
+    const { format, lists } = entry;
+    const cached = lists.get(key);
+    if (cached !== undefined) return cached;
+    const text = format.format(names ?? [first, second]);
+    if (lists.size >= 128) lists.delete(lists.keys().next().value!);
+    lists.set(key, text);
+    return text;
   } catch {
-    return names.join(', ');
+    return names ? names.join(', ') : `${first}, ${second}`;
   }
 }
 
 function seriesNames(frame: AlignedFrame, locale: string | undefined): string {
   const { series } = frame;
   if (series.length === 1) return series[0]!.drawable ? series[0]!.label : '';
+  if (series.length === 2) {
+    const first = series[0]!, second = series[1]!;
+    if (!first.drawable) return second.drawable ? second.label : '';
+    return second.drawable ? pair(first.label, second.label, locale) : first.label;
+  }
   const names: string[] = [];
   for (const entry of series) if (entry.drawable) names.push(entry.label);
   return listOf(names, locale);
@@ -214,10 +242,9 @@ const cartesianText: ChartText = (input, type, xLabel, yLabel, table, listReady)
         oneUnit = unit === current;
       }
     }
-    entries.push(hasValue ? fill(messages.seriesSummary, {
-      series: series.label, min: formatters.value(s, stats.min),
-      max: formatters.value(s, stats.max), last: formatters.value(s, stats.last),
-    }) : fill(messages.seriesNoData, { series: series.label }));
+    entries.push(hasValue ? fillSeriesSummary(messages.seriesSummary, series.label,
+      formatters.value(s, stats.min), formatters.value(s, stats.max), formatters.value(s, stats.last),
+    ) : fill(messages.seriesNoData, { series: series.label }));
   }
 
   const zoneText = zone ? fill(messages.timeZoneNote, { zone }) : null;
@@ -304,7 +331,7 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
   const titleText = typeof title === 'string' ? title : title?.text;
   if (!labelledBy && !titleText && input.diagnostics) report(input.diagnostics, 'AX140', 'none');
   let generated: string | undefined;
-  const name = labelledBy ? '' : titleText || (generated = fill(messages.chartName, { type, x: xLabel, y: yLabel }));
+  const name = labelledBy ? '' : titleText || (generated = fillChartName(messages.chartName, type, xLabel, yLabel));
   const compact = input.compact === true || (view.kind !== 'donut' && view.compact);
   const hasReferences = !compact && view.kind !== 'donut' && view.references.length > 0;
   let references: string[] | undefined;
@@ -312,7 +339,7 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
   if (input.table !== false && !compact) {
     let caption = input.caption;
     if (!caption?.trim()) caption = name;
-    if (!caption.trim()) caption = generated ?? fill(messages.chartName, { type, x: xLabel, y: yLabel });
+    if (!caption.trim()) caption = generated ?? fillChartName(messages.chartName, type, xLabel, yLabel);
     if (!caption.trim()) caption = messages.plotLabel?.trim() ? messages.plotLabel : defaultMessages.plotLabel;
     if (hasReferences) {
       references = referenceText(view, formatters, messages);

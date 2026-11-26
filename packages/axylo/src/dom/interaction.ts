@@ -331,6 +331,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   const root = figure.figure, doc = root.ownerDocument, plot = figure.plot;
   const win = () => doc.defaultView, activeElement = () => activeElementOf(doc, root);
   let tooltip: TooltipView | null = null;
+  let tooltipContent: { -readonly [K in keyof TooltipContent]: TooltipContent[K] } | null = null;
   const getTooltip = () => tooltip ??= createTooltip(figure.tooltip, figure.readout, root, () => {
     if (proxy && !proxy.hidden) focusQuiet(proxy); else focusFig(root);
   });
@@ -355,6 +356,8 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   let pinch: { ids: readonly [number, number]; d: number; w: Span; c: number } | null = null;
   let pinched = false, pinchFrame = 0, pinchWindow: Span | null | undefined, destroyed = false, attached = true;
   let built: Listeners | null = null, docListeners: Listeners | null = null, pinListeners: Listeners | null = null;
+  let shadowScrollListeners: Listeners | null = null;
+  let interacted = false, focusListeners = false, moveListeners = false, downListeners = false;
 
   let proxy: HTMLInputElement | null = null, ring: HTMLElement | null = null, proxyRect: Rect | null = null;
   let instructions: HTMLElement | null = null, selection: HTMLElement | null = null;
@@ -381,14 +384,39 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
 
   function listenDocument(): void {
     if (docListeners || !attached || !proxy) return;
-    const l = docListeners = new Listeners(), roots = shadowRootsOf(root), w = win();
+    const l = docListeners = new Listeners(), w = win();
     l.on(w, 'keydown', onEscape, true);
     l.on(doc, 'scroll', onScroll, { capture: true, passive: true });
     l.on(w, 'resize', clearGeo, { passive: true });
     l.on(w, 'blur', cancelGestures);
-    for (const r of roots) l.on(r, 'scroll', onScroll, { capture: true, passive: true });
+    l.on(root, 'focusin', clearControlRects);
+    l.on(root, 'focusout', clearControlRects);
   }
-  const unlistenDocument = () => { docListeners?.clear(); docListeners = null; };
+
+  function listenShadowScroll(): void {
+    if (shadowScrollListeners || !attached || !proxy) return;
+    const shadow = shadowRootOf(root);
+    if (!shadow) return;
+    // Scroll events inside a shadow tree do not reach the document listener.
+    const l = shadowScrollListeners = new Listeners();
+    const options = { capture: true, passive: true };
+    for (let current: ShadowRoot | null = shadow; current; current = shadowRootOf(current.host)) {
+      l.on(current, 'scroll', onScroll, options);
+    }
+  }
+
+  function clearControlRects(): void { geoControls = null; }
+  function startInteraction(): void {
+    if (interacted) return;
+    interacted = true;
+    clearGeo();
+    listenDocument();
+  }
+  function unlistenAttached(): void {
+    docListeners?.clear();
+    shadowScrollListeners?.clear();
+    docListeners = shadowScrollListeners = null;
+  }
   const unlistenPin = () => { pinListeners?.clear(); pinListeners = null; };
 
   function listenPin(): void {
@@ -402,24 +430,17 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     const l = built = new Listeners();
     proxy = make(doc, 'input', 'axylo-proxy');
     proxy.type = 'range'; proxy.id = `${figure.id}-proxy`; proxy.min = '0'; proxy.step = '1';
-    l.on(proxy, 'keydown', ev => { onProxyKey(ev); if (ev.defaultPrevented && !keyed) setKeyed(true); });
-    for (const t of ['input', 'change'] as const) l.on(proxy, t, onProxyInput);
     l.on(proxy, 'focus', onProxyFocus);
-    l.on(proxy, 'blur', onProxyBlur);
+    l.on(proxy, 'input', onProxyInput);
+    l.on(proxy, 'change', onProxyInput);
     ring = make(doc, 'div', 'axylo-focus-ring');
     hideFromAT(ring);
     instructions = make(doc, 'span', 'axylo-visually-hidden');
     instructions.id = `${figure.id}-i`;
     plot.append(proxy, ring, instructions);
-    for (const t of ['focusin', 'focusout'] as const) l.on(root, t, () => { geoControls = null; });
     l.on(figure.stage, 'pointermove', onPointerMove);
-    l.on(figure.stage, 'pointerleave', onStageLeave);
     l.on(plot, 'pointerdown', onPointerDown);
-    l.on(plot, 'pointerup', onPointerUp);
-    l.on(plot, 'pointercancel', onPointerCancel);
-    l.on(plot, 'lostpointercapture', ev => { if (down?.id === ev.pointerId) endDrag(); });
-    l.on(plot, 'wheel', onWheel, { passive: false });
-    listenDocument();
+    listenShadowScroll();
   }
 
   function stopPinch(apply = false): void {
@@ -434,8 +455,9 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   function unbuild(ownedBefore = false): void {
     if (!proxy) return;
     const owned = ownedBefore || focusOwned();
-    cancelGestures(); closeTable(false); unlistenDocument();
+    cancelGestures(); closeTable(false); unlistenAttached();
     built?.clear(); built = null;
+    interacted = focusListeners = moveListeners = downListeners = false;
     for (const n of [proxy, instructions, ring, selection]) n?.remove();
     removeLegend(); toolbar?.destroy();
     proxy = instructions = ring = selection = legendList = legendMarked = proxyRect = toolbar = lastControls = controlScratch = controlNodes = null;
@@ -499,7 +521,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     for (const el of controlNodes) {
       const r = el.getBoundingClientRect();
       if (r.width <= 0 || r.height <= 0) continue;
-      const st = w?.getComputedStyle(el);
+      const st = w?.getComputedStyle?.(el);
       const painted = st && st.outlineStyle !== 'none' ? (parseFloat(st.outlineWidth) || 0) + Math.max(0, parseFloat(st.outlineOffset) || 0) : 0;
       const reach = Math.max(FOCUS_OUTLINE, painted);
       out.push(padRect(r.left, r.top, r.width, r.height, reach * m.kx, reach * m.ky));
@@ -576,7 +598,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       dropView();
       hover(null); return;
     }
-    const { view, layout, lookup, messages: m, formatters: f } = d;
+    const { view, layout, lookup, messages: m } = d;
     const target = shownTarget(), visibleRing = proxyFocused && (keyed || proxy.matches(':focus-visible')) ? focus : null;
     const only = single && shown.k === S_KEY ? focus : null, pres = presentationFor(d), pinned = shown.k === S_PIN;
     const showTip = pres !== 'none' && target !== null && !isDismissed(target), page = pinned ? pinPage : 0;
@@ -590,16 +612,26 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
     if (pinned && !showTip) { endPin(); redraw(); return; }
     const model = showTip ? (pinned ? pinnedModel(d, target, pinPage) : lookup.tooltip(target)) : null;
     if (model?.rows.length && target && pres !== 'none') {
-      const tc: TooltipContent = {
-        model, swatch: swatchFor, moreRows: n => fill(m.moreRows, { count: f.count(n) }),
-        totalLabel: m.total, moreLang: d.english('moreRows'), totalLang: d.english('total'),
-        valueLang: t => missingLang(d, t) ?? null, select: row => actions.select(row.ref),
-        more: n => { if (shown.k !== S_PIN) return; const nxt = pinPage + Math.max(1, n); pinPage = nxt >= model.count ? 0 : nxt; redraw(); },
+      const tc = tooltipContent ??= {
+        model, swatch: swatchFor,
+        moreRows: n => fill(c!.messages.moreRows, { count: c!.formatters.count(n) }),
+        valueLang: t => missingLang(c!, t) ?? null,
+        select: row => actions.select(row.ref),
+        more: n => {
+          if (shown.k !== S_PIN) return;
+          const next = pinPage + Math.max(1, n);
+          pinPage = next >= tooltipContent!.model.count ? 0 : next;
+          redraw();
+        },
       };
+      tc.model = model;
+      tc.totalLabel = m.total;
+      tc.moreLang = d.english('moreRows');
+      tc.totalLang = d.english('total');
       const marks = markBox(d, target), map = plotMapping(), anchor = marks ? rectToViewport(map, marks) : null;
       const bounds = pres === 'strip' ? visibleReadout() : placementFor(d, marks, visibleRing, map);
       const figureMap = pres === 'strip' ? undefined : figureMapping();
-      // The overlay and tooltip content share the layout flush needed to measure the tooltip.
+      // When the tooltip needs a layout read, measure after both sets of writes.
       draw(d, overlay);
       const tip = getTooltip();
       const placed = 'box' in bounds ? tip.show(tc, bounds, pinned, figureMap) : tip.strip(tc, pinned, bounds);
@@ -783,6 +815,7 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   }
 
   function onProxyInput(): void {
+    startInteraction();
     const d = c;
     if (!proxy || !plotReady(d)) return;
     if (!readable(d)) { writeProxy(false); return; }
@@ -792,6 +825,13 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   }
 
   function onProxyFocus(): void {
+    startInteraction();
+    if (!focusListeners && built) {
+      focusListeners = true;
+      built.on(proxy, 'keydown', ev => { onProxyKey(ev); if (ev.defaultPrevented && !keyed) setKeyed(true); });
+      built.on(proxy, 'blur', onProxyBlur);
+      built.on(plot, 'wheel', onWheel, { passive: false });
+    }
     const d = c; proxyFocused = true;
     if (!plotReady(d)) { writeProxy(true); return; }
     fromClick = clickFocus; takeover(d);
@@ -870,6 +910,11 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   }
 
   function onPointerMove(e: PointerEvent): void {
+    startInteraction();
+    if (!moveListeners && built) {
+      moveListeners = true;
+      built.on(figure.stage, 'pointerleave', onStageLeave);
+    }
     if (e.pointerType === 'touch') {
       const t = touches?.get(e.pointerId);
       if (t) { const at = local(e); t.x = at.x; t.y = at.y; if (pinch?.ids.includes(e.pointerId)) pinchMove(); }
@@ -937,6 +982,13 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   }
 
   function onPointerDown(e: PointerEvent): void {
+    startInteraction();
+    if (!downListeners && built) {
+      downListeners = true;
+      built.on(plot, 'pointerup', onPointerUp);
+      built.on(plot, 'pointercancel', onPointerCancel);
+      built.on(plot, 'lostpointercapture', ev => { if (down?.id === ev.pointerId) endDrag(); });
+    }
     const d = c;
     if (!plotReady(d)) return;
     if (keyed) setKeyed(false);
@@ -1141,7 +1193,10 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
       if (d.ready) {
         items.push(
           btn('zoomIn', () => zoomBy(1 / ZOOM_FACTOR), !canZoomIn(d.view, d.zoomed ? now : full)),
-          btn('selectRange', () => { if (range) endRange(); else { range = { s: null }; if (cs) renderControls(cs); } }, false, {
+          btn('selectRange', () => {
+            if (range) endRange();
+            else { startInteraction(); range = { s: null }; if (cs) renderControls(cs); }
+          }, false, {
             pressed: range !== null, symbol: 'range', className: 'axylo-control axylo-control-symbol',
           }),
         );
@@ -1389,12 +1444,17 @@ export function createInteraction(parts: InteractionParts, figure: Figure, rende
   return {
     prepare, commit,
     clear() { clear(); c = cs = null; },
-    attach() { if (attached || destroyed) return; attached = true; clearGeo(); registerFigure(); listenDocument(); },
-    detach() { if (!attached) return; attached = false; clearGeo(); cancelGestures(); endPin(); dropView(); unregisterFigure(); unlistenDocument(); },
+    attach() {
+      if (attached || destroyed) return;
+      attached = true; clearGeo(); registerFigure();
+      listenShadowScroll();
+      if (interacted) listenDocument();
+    },
+    detach() { if (!attached) return; attached = false; clearGeo(); cancelGestures(); endPin(); dropView(); unregisterFigure(); unlistenAttached(); },
     destroy() {
       if (destroyed) return;
       clear(); unregisterFigure(); tooltip?.destroy();
-      tooltip = c = cs = null;
+      tooltip = tooltipContent = c = cs = null;
       destroyed = true; stopPinch();
     },
   };

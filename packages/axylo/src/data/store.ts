@@ -14,6 +14,7 @@ import {
 } from './options';
 import { Reports } from './reports';
 import { gapPosition, snapGap, stepDelta, stepMultiple, supportsSteps, tooSparse } from './steps';
+import { extendStatistics } from './store-statistics';
 import { BufferWindow } from './store-window';
 import { mapValues, StoreMap } from './store-map';
 import { FrameBuffers, type SeriesBuffers } from './store-buffers';
@@ -680,6 +681,9 @@ class AlignedData {
     if (first !== undefined) draft.dropObservedHead();
     const source = rows.previewAppend(row, evicted);
     const frame = draft.frame(current, axis, source, undefined, current.revision + 1);
+    for (let i = 0; i < frame.series.length; i++) {
+      extendStatistics(current.series[i]!, frame.series[i]!, first !== undefined);
+    }
     return { frame, source, buffers: draft, cadence, modes, row, index, position, first, evicted, bounded: keep !== undefined };
   }
 

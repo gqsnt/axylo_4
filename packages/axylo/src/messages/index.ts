@@ -4,6 +4,8 @@ import type { Messages } from '../public';
 const chartSummary = '{type} chart with {seriesCount} series. {xLabel} from {xMin} to {xMax}.';
 // chartSummary and the range, written out: no work at import time.
 const fullChartSummary = '{type} chart with {seriesCount} series. {xLabel} from {xMin} to {xMax}. {yLabel} from {yMin} to {yMax}.';
+const chartName = '{type} chart of {y} by {x}';
+const seriesSummary = '{series}: minimum {min}, maximum {max}, last {last}.';
 
 export const CHART_TYPE_MESSAGE = {
   line: 'typeLine', area: 'typeArea', bar: 'typeBar', histogram: 'typeHistogram', scatter: 'typeScatter', donut: 'typeDonut',
@@ -24,9 +26,9 @@ export const defaultMessages: Required<Messages> = {
   empty: 'No data to show.',
   error: 'The chart could not be drawn.',
   internalError: 'Something went wrong while drawing the chart.',
-  chartName: '{type} chart of {y} by {x}',
+  chartName,
   chartSummary: fullChartSummary,
-  seriesSummary: '{series}: minimum {min}, maximum {max}, last {last}.',
+  seriesSummary,
   timeZoneNote: 'Times are shown in {zone}.',
   plotLabel: 'Chart plot',
   controlsLabel: 'Chart controls',
@@ -124,15 +126,32 @@ export function messageLanguage(messages: Messages, key: keyof Messages): 'en' |
 }
 
 export function fillChartSummary(
-  template: string, values: Readonly<Record<string, string>>, range: { readonly yMin: string; readonly yMax: string } | null,
+  template: string,
+  values: { readonly type: string; readonly seriesCount: string; readonly xLabel: string;
+    readonly xMin: string; readonly xMax: string; readonly yLabel: string },
+  range: { readonly yMin: string; readonly yMax: string } | null,
 ): string {
+  if (template === fullChartSummary) {
+    const { type, seriesCount, xLabel, xMin, xMax, yLabel } = values;
+    const heading = `${type} chart with ${seriesCount} series. ${xLabel} from ${xMin} to ${xMax}.`;
+    return range ? `${heading} ${yLabel} from ${range.yMin} to ${range.yMax}.` : heading;
+  }
   if (range) return fill(template, { ...values, ...range });
-  if (template === fullChartSummary) return fill(chartSummary, values);
   // When a translation uses the same placeholders, omit the sentence that would describe the missing range.
   const withoutRange = template.includes('{yMin}') || template.includes('{yMax}')
     ? template.match(/[^.!?。！？]+[.!?。！？]*|[.!?。！？]+/gu)?.filter(part => !/\{y(?:Min|Max)\}/.test(part)).join('').trim()
     : template.trim();
   return fill(withoutRange || chartSummary, values);
+}
+
+export function fillSeriesSummary(template: string, series: string, min: string, max: string, last: string): string {
+  return template === seriesSummary
+    ? `${series}: minimum ${min}, maximum ${max}, last ${last}.`
+    : fill(template, { series, min, max, last });
+}
+
+export function fillChartName(template: string, type: string, x: string, y: string): string {
+  return template === chartName ? `${type} chart of ${y} by ${x}` : fill(template, { type, x, y });
 }
 
 export function fillDonutSlice(label: string, value: string, percent: string): string {

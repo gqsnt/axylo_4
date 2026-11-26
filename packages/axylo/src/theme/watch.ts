@@ -33,6 +33,15 @@ interface MediaRegistration {
 interface ThemeMediaHub {
   readonly subscribers: Set<MediaRegistration>;
   readonly teardown: () => void;
+  /** The live lists of QUERIES, in order (dark, forced colors, more contrast). */
+  readonly lists: readonly MediaQueryList[];
+}
+
+/** What the media features say now, as theme resolution reads them. */
+export interface ThemeMediaState {
+  readonly prefersDark: boolean;
+  readonly forcedColors: boolean;
+  readonly moreContrast: boolean;
 }
 
 const mediaHubs = new WeakMap<Window, ThemeMediaHub>();
@@ -52,16 +61,31 @@ function subscribeMedia(win: Window, onChange: () => void): () => void {
     const onMedia = (): void => {
       if (active) dispatch(subscribers, notify);
     };
+    const lists: MediaQueryList[] = [];
     try {
-      for (const query of QUERIES) listen(undo, win.matchMedia(query), 'change', onMedia);
+      for (const query of QUERIES) {
+        const list = win.matchMedia(query);
+        lists.push(list);
+        listen(undo, list, 'change', onMedia);
+      }
     } catch (error) {
       teardown();
       throw error;
     }
-    hub = { subscribers, teardown };
+    hub = { subscribers, teardown, lists };
     mediaHubs.set(win, hub);
   }
   return register(mediaHubs, win, hub, { fn: onChange }, teardownHub);
+}
+
+/**
+ * The media features from the lists the window's theme watchers already hold (their `matches` is live), so a
+ * frame that resolves themes asks no new query; null when no chart of the window watches its theme.
+ */
+export function themeMedia(win: Window): ThemeMediaState | null {
+  const lists = mediaHubs.get(win)?.lists;
+  if (!lists || lists.length !== QUERIES.length) return null;
+  return { prefersDark: lists[0]!.matches, forcedColors: lists[1]!.matches, moreContrast: lists[2]!.matches };
 }
 
 /**

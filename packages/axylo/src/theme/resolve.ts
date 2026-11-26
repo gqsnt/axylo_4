@@ -99,17 +99,54 @@ export interface ThemeBatch {
   readonly backdrops: WeakMap<Element, Backdrop>;
   readonly ancestorLayers: WeakMap<Element, BackdropLayer>;
   readonly canvas: Map<string, Rgba | null>;
+  /** The last standard paint result of this batch (see `standardResolution`). */
+  last?: StandardResult | null;
 }
 
-export function createThemeBatch(win: Window): ThemeBatch {
+/**
+ * The paints of a standard figure, which depend only on what is compared here: tiles of a dashboard that
+ * agree on all of it share one result instead of building the same palette again.
+ */
+interface StandardResult {
+  readonly palette: 'light' | 'dark';
+  readonly text: string;
+  readonly background: string;
+  readonly known: boolean;
+  readonly forcedColors: boolean;
+  readonly moreContrast: boolean;
+  readonly count: number;
+  readonly theme: ResolvedTheme;
+}
+
+/** `media`: the live media state when the window's theme watchers already hold it (no new queries). */
+export function createThemeBatch(
+  win: Window, media?: { readonly forcedColors: boolean; readonly moreContrast: boolean; readonly prefersDark: boolean } | null,
+): ThemeBatch {
   return {
-    forcedColors: win.matchMedia('(forced-colors: active)').matches,
-    moreContrast: win.matchMedia('(prefers-contrast: more)').matches,
-    prefersDark: win.matchMedia('(prefers-color-scheme: dark)').matches,
+    forcedColors: media ? media.forcedColors : win.matchMedia('(forced-colors: active)').matches,
+    moreContrast: media ? media.moreContrast : win.matchMedia('(prefers-contrast: more)').matches,
+    prefersDark: media ? media.prefersDark : win.matchMedia('(prefers-color-scheme: dark)').matches,
     backdrops: new WeakMap(),
     ancestorLayers: new WeakMap(),
     canvas: new Map(),
+    last: null,
   };
+}
+
+/** The series bindings for a number of palette slots: the same strings every time, so one array per count. */
+let seriesBindingArrays: Map<number, readonly string[]> | undefined;
+const SERIES_BINDING_LIMIT = 64;
+
+function seriesBindingsFor(count: number): readonly string[] {
+  const cache = seriesBindingArrays ??= new Map();
+  let series = cache.get(count);
+  if (series) return series;
+  const made = new Array<string>(count);
+  for (let i = 0; i < count; i++) made[i] = `var(${seriesProperty(i)})`;
+  series = made;
+  if (cache.size >= SERIES_BINDING_LIMIT) cache.delete(cache.keys().next().value!);
+  cache.set(count, series);
+  return series;
 }
 
 function canvasKey(win: Window, scheme: string, batch?: ThemeBatch | null): string {
@@ -231,7 +268,7 @@ export function prepareTheme(
     }
   }
   const hasAuthored = connected && authored !== null;
-  const series = seriesKeys.map((_, i) => `var(${seriesProperty(i)})`);
+  const series = seriesBindingsFor(seriesKeys.length);
   const previous = element.getAttribute(SCHEME_ATTRIBUTE);
   const prepared: PreparedTheme = {
     el: element, doc, win, on: connected, fc: forcedColors, mc: moreContrast, keys: seriesKeys, own: authored, custom: hasAuthored,
@@ -387,21 +424,42 @@ function standardResolution(p: PreparedTheme): ThemeResolution | null {
   const defaults = standard ??= standardPaints();
   const palette = connected ? scheme : 'light';
   const expected = follows ? 'follows' : palette;
-  const tokens = { background: p.bg } as Record<PaintToken, string>;
-  for (const { name, property, fallback, values } of defaults.tokens) {
+  for (const { property, fallback, values } of defaults.tokens) {
     if (style && (style.getPropertyValue(property) || style.getPropertyValue(fallback).trim() !== values[expected])) return null;
-    tokens[name] = paletteRgb(values[palette]);
   }
-  const series = new Array<string>(p.bindings.series.length);
-  for (let i = 0; i < series.length; i++) {
-    const values = defaults.series[i % SERIES_COUNT]!;
+  const count = p.bindings.series.length;
+  for (let i = 0; i < count; i++) {
     // CSSOM has already substituted both palette variables in the property the marks use.
     // Read it on each chart so the full cascade, including child-specific selectors, still applies.
-    if (style && style.getPropertyValue(seriesProperty(i)).trim() !== values[expected]) return null;
-    series[i] = paletteRgb(values[palette]);
+    if (style && style.getPropertyValue(seriesProperty(i)).trim() !== defaults.series[i % SERIES_COUNT]![expected]) return null;
   }
-  tokens.text = style ? normalizeColor(style.color, p.doc) : 'rgb(0, 0, 0)';
-  return themeResolution(p, tokens, series);
+  const text = style ? normalizeColor(style.color, p.doc) : 'rgb(0, 0, 0)';
+  // Every check above passed for this figure: its paints are the palette's, the text and background it
+  // has. Only a light-DOM figure whose background was not probed shares the batch's last result.
+  const batch = p.batch;
+  const shareable = batch !== null && connected && !p.checked && !p.bgExpr && inDocumentTree(p.el, p.doc);
+  const last = shareable ? batch.last : null;
+  if (last && last.palette === palette && last.text === text && last.background === p.bg && last.known === p.known &&
+      last.forcedColors === p.fc && last.moreContrast === p.mc && last.count === count) {
+    return { bindings: p.bindings, resolved: p.on, backdropKnown: p.known, invalidColors: p.invalid, theme: last.theme };
+  }
+  const tokens = { background: p.bg } as Record<PaintToken, string>;
+  for (const { name, values } of defaults.tokens) tokens[name] = paletteRgb(values[palette]);
+  const series = new Array<string>(count);
+  for (let i = 0; i < count; i++) series[i] = paletteRgb(defaults.series[i % SERIES_COUNT]![palette]);
+  tokens.text = text;
+  const resolution = themeResolution(p, tokens, series);
+  if (shareable) {
+    batch.last = {
+      palette, text, background: p.bg, known: p.known, forcedColors: p.fc, moreContrast: p.mc, count, theme: resolution.theme,
+    };
+  }
+  return resolution;
+}
+
+/** The element is in its document's own tree, not in a shadow root. */
+function inDocumentTree(element: Element, doc: Document): boolean {
+  return typeof element.getRootNode === 'function' && element.getRootNode() === doc;
 }
 
 /** Resolves custom/non-standard paints via probe elements after `finalizeTheme(p, true)` returned `null`. */

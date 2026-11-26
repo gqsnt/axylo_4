@@ -90,6 +90,7 @@ export interface Figure {
 
 const HIDDEN = 'axylo-visually-hidden';
 const EMPTY_ELEMENTS: readonly Element[] = [];
+const templates = new WeakMap<Document, { full?: HTMLElement; compact?: HTMLElement }>();
 
 function show(el: HTMLElement, visible: boolean): void {
   if (el.hidden === visible) el.hidden = !visible;
@@ -142,6 +143,7 @@ class FigureImpl implements Figure {
   _a: HTMLElement | null = null;
   _s: HTMLElement | null = null;
   _p: FigureModel | null = null;
+  _smText = '';
 
   constructor(
     root: HTMLElement,
@@ -164,7 +166,47 @@ class FigureImpl implements Figure {
 
     // The figure carries the `axylo` class too: the theme writes its custom properties and scheme attribute on
     // the figure, so two charts on one target never share them (review 3, finding 10).
-    const figure = this.figure = make(doc, 'figure', 'axylo axylo-figure');
+    const key = initialCompact ? 'compact' : 'full';
+    const template = templates.get(doc)?.[key];
+    const skeleton = template ?? make(doc, 'figure', 'axylo axylo-figure');
+    if (typeof skeleton.cloneNode === 'function') {
+      if (!template) cacheTemplate(doc, skeleton, key);
+      const figure = this.figure = skeleton.cloneNode(true) as HTMLElement;
+      let description: HTMLElement;
+      let plot: HTMLElement;
+      if (initialCompact) {
+        description = figure.firstElementChild as HTMLElement;
+        plot = description.nextElementSibling as HTMLElement;
+        this._n = plot.nextElementSibling as HTMLElement;
+      } else {
+        const caption = this._c = figure.firstElementChild as HTMLElement;
+        const title = this._t = caption.firstElementChild as HTMLElement;
+        title.id = `${id}-t`;
+        description = title.nextElementSibling as HTMLElement;
+        this._sm = description.nextElementSibling as HTMLElement;
+        const body = this._b = caption.nextElementSibling as HTMLElement;
+        const stage = this._st = body.firstElementChild as HTMLElement;
+        plot = stage.firstElementChild as HTMLElement;
+        this._ro = plot.nextElementSibling as HTMLElement;
+        this._ct = body.nextElementSibling as HTMLElement;
+        this._n = this._ct.nextElementSibling as HTMLElement;
+        this._l = this._n.nextElementSibling as HTMLElement;
+        this._tp = this._l.nextElementSibling as HTMLElement;
+      }
+      this.plot = plot;
+      this._ds = description;
+      this._m = plot.firstElementChild as HTMLElement;
+      figure.id = id;
+      description.id = `${id}-s`;
+      this._m.id = `${id}-m`;
+      this._n.id = `${id}-n`;
+      plot.insertBefore(parts.marks, this._m);
+      if (parts.text) plot.insertBefore(parts.text, this._m);
+      root.appendChild(figure);
+      return;
+    }
+
+    const figure = this.figure = skeleton;
     figure.id = id;
 
     // The whole generated summary is the figure's description, always (visually hidden). On compact charts it
@@ -177,12 +219,8 @@ class FigureImpl implements Figure {
     if (parts.text) plot.append(parts.marks, parts.text, message);
     else plot.append(parts.marks, message);
 
-    const note = this._n = identified(doc, 'p', 'note', id, 'n');
-    note.setAttribute('role', 'status');
-    // A status that is not live: the note can change as streamed data arrives (labels thinned, values left
-    // out), and data arriving must not speak (spec A7). The summary carries the same statements.
-    note.setAttribute('aria-live', 'off');
-    note.hidden = true;
+    const note = this._n = makeNote(doc);
+    note.id = `${id}-n`;
 
     if (initialCompact) figure.append(description, plot, note);
     else {
@@ -268,8 +306,8 @@ class FigureImpl implements Figure {
     }
     if (headingChanged || previous!.labelledBy !== model.labelledBy || previous!.name !== model.name) {
       const labelledBy = model.labelledBy || (heading ? titleNode!.id : null);
-      setAttr(figure, 'aria-labelledby', labelledBy);
-      setAttr(figure, 'aria-label', labelledBy === null ? model.name : null);
+      if (previous || labelledBy !== null) setAttr(figure, 'aria-labelledby', labelledBy);
+      if (previous || labelledBy === null) setAttr(figure, 'aria-label', labelledBy === null ? model.name : null);
     }
 
     if (modeChanged || previous!.subtitle !== subtitle) {
@@ -281,12 +319,22 @@ class FigureImpl implements Figure {
       } else clearSubtitle(this._su);
     }
 
-    const summaryChanged = previous === null || previous.summary !== summary || previous.summaryLang !== summaryLang;
-    if (summaryChanged) textWithLang(description, summary, summaryLang);
+    const summaryTextChanged = previous === null || previous.summary !== summary;
+    const lang = summaryLang ?? null;
+    const summaryLangChanged = (previous?.summaryLang ?? null) !== lang;
+    if (summaryTextChanged) setText(description, summary);
     const summaryNode = this._sm;
+    if ((modeChanged || summaryLangChanged) && (previous || lang !== null)) {
+      setAttr(description, 'lang', lang);
+      if (summaryNode) setAttr(summaryNode, 'lang', lang);
+    }
     if (summaryNode && !compact) {
-      if (modeChanged || summaryChanged) {
-        textWithLang(summaryNode, /^.*?[.!?。！？](?=\s|$)/u.exec(summary)?.[0] ?? summary, summaryLang);
+      if (modeChanged || summaryTextChanged) {
+        const text = firstSentence(summary);
+        if (this._smText !== text) {
+          setText(summaryNode, text);
+          this._smText = text;
+        }
       }
       if (modeChanged || previous!.summaryVisible !== model.summaryVisible) summaryNode.classList.toggle(HIDDEN, !model.summaryVisible);
     }
@@ -308,11 +356,12 @@ class FigureImpl implements Figure {
           });
           note.replaceChildren(...spans);
         }
-        setAttr(note, 'lang', null);
+        if (previous) setAttr(note, 'lang', null);
       } else {
         if (note.firstElementChild) note.textContent = '';
         setText(note, compact ? '' : segments?.[0]?.text ?? noteText ?? '');
-        setAttr(note, 'lang', segments ? segments[0]?.lang ?? null : model.noteLang ?? null);
+        const lang = segments ? segments[0]?.lang ?? null : model.noteLang ?? null;
+        if (previous || lang !== null) setAttr(note, 'lang', lang);
       }
       show(note, !compact && noteText !== null);
     }
@@ -337,7 +386,7 @@ class FigureImpl implements Figure {
       setText(status, message ?? '');
       show(status, message !== null);
     }
-    if (previous === null || previous.messageLang !== messageLang) setAttr(status, 'lang', messageLang ?? null);
+    if (previous ? previous.messageLang !== messageLang : messageLang != null) setAttr(status, 'lang', messageLang ?? null);
     return moved;
   }
 
@@ -369,9 +418,67 @@ function identified(doc: Document, tag: 'div' | 'p', name: string, id: string, s
   return node;
 }
 
-function textWithLang(node: HTMLElement, text: string, lang?: string | null): void {
-  setText(node, text);
-  setAttr(node, 'lang', lang ?? null);
+function firstSentence(text: string): string {
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code === 10 || code === 13 || code === 0x2028 || code === 0x2029) break;
+    if (code !== 46 && code !== 33 && code !== 63 && code !== 0x3002 && code !== 0xff01 && code !== 0xff1f) continue;
+    const next = text.charCodeAt(i + 1);
+    if (i + 1 === text.length) break;
+    if ((next >= 9 && next <= 13) || next === 32 || next === 0xa0 || next === 0x1680 ||
+        (next >= 0x2000 && next <= 0x200a) || next === 0x2028 || next === 0x2029 ||
+        next === 0x202f || next === 0x205f || next === 0x3000 || next === 0xfeff) return text.slice(0, i + 1);
+  }
+  return text;
+}
+
+function makeNote(doc: Document): HTMLElement {
+  const note = element(doc, 'note', 'p');
+  note.setAttribute('role', 'status');
+  // Streaming can change the note without making an announcement (spec A7).
+  note.setAttribute('aria-live', 'off');
+  note.hidden = true;
+  return note;
+}
+
+function makeTitle(doc: Document): HTMLElement {
+  const title = element(doc, 'title');
+  title.setAttribute('role', 'heading');
+  title.hidden = true;
+  return title;
+}
+
+function makeSummary(doc: Document): HTMLElement {
+  const summary = element(doc, `summary ${HIDDEN}`, 'p');
+  hideFromAT(summary);
+  return summary;
+}
+
+function makeLive(doc: Document): HTMLElement {
+  const live = element(doc, `live ${HIDDEN}`);
+  live.setAttribute('aria-live', 'polite');
+  return live;
+}
+
+function cacheTemplate(doc: Document, figure: HTMLElement, key: 'compact' | 'full'): void {
+  const description = element(doc, `description ${HIDDEN}`, 'p');
+  const plot = element(doc, 'plot');
+  const message = element(doc, 'message', 'p');
+  message.hidden = true;
+  plot.appendChild(message);
+  const note = makeNote(doc);
+  if (key === 'compact') figure.append(description, plot, note);
+  else {
+    // A figcaption would prevent the figure from taking the group or img role.
+    const caption = element(doc, 'caption'), body = element(doc, 'body'), stage = element(doc, 'stage');
+    caption.append(makeTitle(doc), description, makeSummary(doc));
+    stage.append(plot, hiddenSlot(doc, 'readout', true));
+    body.appendChild(stage);
+    figure.append(caption, body, hiddenSlot(doc, 'controls'), note, makeLive(doc), hiddenSlot(doc, 'tooltip', true));
+  }
+  let cached = templates.get(doc);
+  if (!cached) templates.set(doc, cached = {});
+  cached[key] = figure;
 }
 
 function makeCompact(f: FigureImpl, previous: FigureModel | null): void {
@@ -441,51 +548,46 @@ function ensureCaption(f: FigureImpl): void {
   if (!f._c) {
     // A figcaption would prevent the figure from taking the group or img role.
     const caption = f._c = element(f._d, 'caption');
-    const title = f._t = identified(f._d, 'div', 'title', f.id, 't');
-    title.setAttribute('role', 'heading');
-    title.hidden = true;
-    const summary = f._sm = element(f._d, `summary ${HIDDEN}`, 'p');
-    hideFromAT(summary);
+    const title = f._t = makeTitle(f._d);
+    title.id = `${f.id}-t`;
+    const summary = f._sm = makeSummary(f._d);
     caption.append(title, f._ds, summary);
   } else mount(f._c, f._ds, f._sm);
   mount(f.figure, f._c, beforeBody(f));
 }
 
-function hiddenSlot(f: FigureImpl, name: string, ariaHidden = false): HTMLElement {
-  const node = element(f._d, name);
+function hiddenSlot(doc: Document, name: string, ariaHidden = false): HTMLElement {
+  const node = element(doc, name);
   node.hidden = true;
   if (ariaHidden) hideFromAT(node);
   return node;
 }
 
 function ensureReadout(f: FigureImpl): HTMLElement {
-  const readout = f._ro ??= hiddenSlot(f, 'readout', true);
+  const readout = f._ro ??= hiddenSlot(f._d, 'readout', true);
   if (readout.parentNode !== f._st) insertBefore(f._st!, readout, f.plot.nextSibling);
   return readout;
 }
 
 function ensureControls(f: FigureImpl): HTMLElement {
-  return mount(f.figure, f._ct ??= hiddenSlot(f, 'controls'), f._n);
+  return mount(f.figure, f._ct ??= hiddenSlot(f._d, 'controls'), f._n);
 }
 
 function ensureLive(f: FigureImpl): HTMLElement {
-  if (!f._l) {
-    f._l = element(f._d, `live ${HIDDEN}`);
-    f._l.setAttribute('aria-live', 'polite');
-  }
+  f._l ??= makeLive(f._d);
   return mount(f.figure, f._l, f._tp?.parentNode === f.figure ? f._tp : null);
 }
 
 function ensureTooltip(f: FigureImpl): HTMLElement {
-  return mount(f.figure, f._tp ??= hiddenSlot(f, 'tooltip', true));
+  return mount(f.figure, f._tp ??= hiddenSlot(f._d, 'tooltip', true));
 }
 
 function ensureTop(f: FigureImpl): HTMLElement {
-  return mount(f.figure, f._a ??= hiddenSlot(f, 'controls-top'), middleNode(f));
+  return mount(f.figure, f._a ??= hiddenSlot(f._d, 'controls-top'), middleNode(f));
 }
 
 function ensureSide(f: FigureImpl): HTMLElement {
-  return mount(ensureBodyStage(f), f._s ??= hiddenSlot(f, 'controls-side'));
+  return mount(ensureBodyStage(f), f._s ??= hiddenSlot(f._d, 'controls-side'));
 }
 
 function ensureFull(f: FigureImpl): void {

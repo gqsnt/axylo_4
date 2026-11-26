@@ -35,7 +35,7 @@ export interface SvgNode {
   kids: SvgNode[] | null;
   rects: SVGRectElement[] | null;
   /** The inputs the current `d` was built from, compared by identity. */
-  source: readonly unknown[] | null;
+  source: unknown[] | null;
 }
 
 function node(doc: Document, tag: keyof SVGElementTagNameMap, key: string, attrs?: Record<string, string>): SvgNode {
@@ -43,7 +43,7 @@ function node(doc: Document, tag: keyof SVGElementTagNameMap, key: string, attrs
 }
 
 /** Sets `d` from `build()` unless every input is identical (===) to the ones the current `d` came from. */
-function data(n: SvgNode, source: readonly unknown[], build: () => string): void {
+function data(n: SvgNode, source: unknown[], build: () => string): void {
   if (sameKey(n.source, source)) return;
   n.source = source;
   attrStr(n, 'd', build());
@@ -175,7 +175,7 @@ function digitTable(): Uint8Array {
 
 function ensureBuf(need: number): Uint8Array {
   if (pathBuf === null) return pathBuf = new Uint8Array(need > 4096 ? need : 4096);
-  return pathBuf.length < need ? pathBuf = new Uint8Array(Math.max(pathBuf.length * 2, need)) : pathBuf;
+  return pathBuf.length < need ? pathBuf = new Uint8Array(Math.max(Math.min(pathBuf.length * 2, MAX_RETAINED_BUF), need)) : pathBuf;
 }
 
 function growBuf(used: number, need: number): Uint8Array {
@@ -230,16 +230,62 @@ function decodeBuf(len: number): string {
   return out;
 }
 
+let decimalWords: Uint32Array | null = null;
+
+function decimalTable(): Uint32Array {
+  const words = new Uint32Array(1100);
+  // The low three bytes hold ASCII in little-endian order. The high byte holds its length.
+  for (let n = 0; n < 10; n++) words[n] = (1 << 24) | (48 + n);
+  for (let n = 10; n < 1000; n++) {
+    const prefix = words[(n / 10) | 0]!;
+    const length = prefix >>> 24;
+    words[n] = ((length + 1) << 24) | ((48 + n % 10) << (8 * length)) | (prefix & 0xffffff);
+  }
+  // A whole pixel has no fraction, and a trailing zero takes no byte.
+  for (let n = 1; n < 100; n++) {
+    const tenths = 48 + ((n / 10) | 0);
+    const last = n % 10;
+    words[1000 + n] = ((last ? 3 : 2) << 24) | ((48 + last) << 16) | (tenths << 8) | 46;
+  }
+  return words;
+}
+
+function writePixel(b: Uint8Array, bytes: DataView, words: Uint32Array, pos: number, value: number): number {
+  const cents = Math.round(value * 100);
+  if (!(cents >= 0 && cents < 100000)) return writeFixed(b, pos, cents);
+  const whole = (cents / 100) | 0;
+  const integer = words[whole]!;
+  // The following write overwrites padding. Callers reserve a worst-case coordinate pair.
+  bytes.setUint32(pos, integer, true);
+  pos += integer >>> 24;
+  const fraction = words[1000 + (cents - whole * 100)]!;
+  bytes.setUint32(pos, fraction, true);
+  return pos + (fraction >>> 24);
+}
+
+function writePixelPair(b: Uint8Array, bytes: DataView, words: Uint32Array, pos: number, command: number, x: number, y: number): number {
+  b[pos++] = command;
+  pos = writePixel(b, bytes, words, pos, x);
+  b[pos++] = 32;
+  return writePixel(b, bytes, words, pos, y);
+}
+
 export function pathData(xy: Float32Array): string {
   const len = xy.length - 1;
   if (len <= 0) return '';
-  const b = ensureBuf((xy.length >> 1) * XY_BYTES);
+  let b = ensureBuf((xy.length >> 1) * XY_ESTIMATE);
   let pos = 0;
+  const words = decimalWords ??= decimalTable();
+  let bytes = new DataView(b.buffer);
   let pen = false;
   for (let i = 0; i < len; i += 2) {
     const x = xy[i]!, y = xy[i + 1]!;
     if (lifted(x) || lifted(y)) { pen = false; continue; }
-    pos = writeXY(b, pos, pen ? 76 : 77, x, y);
+    if (pos + XY_BYTES > b.length) {
+      b = growBuf(pos, pos + XY_BYTES);
+      bytes = new DataView(b.buffer);
+    }
+    pos = writePixelPair(b, bytes, words, pos, pen ? 76 : 77, x, y);
     pen = true;
   }
   return decodeBuf(pos);
@@ -256,13 +302,18 @@ export function areaData(mark: AreaMark): string {
   }
   if (maxVerts === 0) return '';
   let b = ensureBuf(maxVerts * XY_ESTIMATE + (runs.length >> 2));
+  let bytes = new DataView(b.buffer);
+  const words = decimalWords ??= decimalTable();
   let pos = 0, runStart = 0;
   const emit = (arr: Float32Array, from: number, to: number, step: number) => {
     for (let k = from; k !== to; k += step) {
       const x = arr[2 * k]!, y = arr[2 * k + 1]!;
       if (lifted(x) || lifted(y)) continue;
-      if (pos + XY_BYTES + 1 > b.length) b = growBuf(pos, pos + XY_BYTES + 1);
-      pos = writeXY(b, pos, pos > runStart ? 76 : 77, x, y);
+      if (pos + XY_BYTES + 1 > b.length) {
+        b = growBuf(pos, pos + XY_BYTES + 1);
+        bytes = new DataView(b.buffer);
+      }
+      pos = writePixelPair(b, bytes, words, pos, pos > runStart ? 76 : 77, x, y);
     }
   };
   for (let r = 0; r + 3 < runs.length; r += 4) {
@@ -501,7 +552,7 @@ export type SvgMarks = { readonly [K in Mark['type']]?: SvgMark<Extract<Mark, { 
 export const svgPath: SvgMark<PathMark> = (_c, n, mark, bindings) => {
   if (n.source?.[0] !== mark.xy) {
     attrStr(n, 'd', pathData(mark.xy));
-    n.source = [mark.xy];
+    (n.source ??= [])[0] = mark.xy;
   }
   paint(n, 'stroke', paintOf(mark.stroke, bindings));
   attr(n, 'stroke-width', mark.strokeWidth);
@@ -521,7 +572,13 @@ export const svgPath: SvgMark<PathMark> = (_c, n, mark, bindings) => {
 };
 
 export const svgArea: SvgMark<AreaMark> = (_c, n, mark, bindings) => {
-  data(n, [mark.upper, mark.lower, mark.runs], () => areaData(mark));
+  const source = n.source ??= [];
+  if (source[0] !== mark.upper || source[1] !== mark.lower || source[2] !== mark.runs) {
+    attrStr(n, 'd', areaData(mark));
+    source[0] = mark.upper;
+    source[1] = mark.lower;
+    source[2] = mark.runs;
+  }
   paint(n, 'fill', paintOf(mark.fill, bindings));
   css(n, 'fill-opacity', String(mark.opacity));
 };
@@ -537,10 +594,12 @@ export const svgRects: SvgMark<RectMark> = (c, n, mark, bindings, _dpr, clip) =>
 };
 
 export const svgPoints: SvgMark<PointMark> = (_c, n, mark, bindings) => {
-  const source = n.source;
-  if (source?.[0] !== mark.xy || source[1] !== mark.shape || source[2] !== mark.size) {
+  const source = n.source ??= [];
+  if (source[0] !== mark.xy || source[1] !== mark.shape || source[2] !== mark.size) {
     attrStr(n, 'd', pointData(mark));
-    n.source = [mark.xy, mark.shape, mark.size];
+    source[0] = mark.xy;
+    source[1] = mark.shape;
+    source[2] = mark.size;
   }
   paint(n, 'fill', paintOf(mark.fill, bindings));
 };
@@ -602,10 +661,14 @@ export function createSvgRenderer(doc: Document = document): MarkRenderer {
 
 export function svgRendererWith(marks: SvgMarks, doc: Document = document): MarkRenderer {
   const svg = svgElement(doc, 'svg', { class: 'axylo-svg', 'aria-hidden': 'true', focusable: 'false' });
-  for (const s of 'position:absolute;left:0;top:0;display:block;overflow:hidden;pointer-events:none;forced-color-adjust:none'.split(';')) {
-    const [k, v] = s.split(':');
-    svg.style.setProperty(k!, v!);
-  }
+  const style = svg.style;
+  style.setProperty('position', 'absolute');
+  style.setProperty('left', '0');
+  style.setProperty('top', '0');
+  style.setProperty('display', 'block');
+  style.setProperty('overflow', 'hidden');
+  style.setProperty('pointer-events', 'none');
+  style.setProperty('forced-color-adjust', 'none');
 
   const defs = svgElement(doc, 'defs');
   const sceneClipId = `axylo-clip-${++ids}`, overlayClipId = `axylo-clip-${++ids}`;
@@ -734,9 +797,10 @@ function updateBars(doc: Document, g: SvgNode, mark: RectMark, bindings: PaintBi
   const rects = g.rects ??= [], oldTotal = rects.length;
   const oldOverlayStart = oldPattern == null ? oldTotal : oldTotal / 2;
   while (rects.length > total) rects.pop()!.remove();
+  const freshRects = total > oldTotal + 1 ? doc.createDocumentFragment() : null;
   while (rects.length < total) {
     const rect = svgElement(doc, 'rect');
-    g.el.appendChild(rect);
+    (freshRects ?? g.el).appendChild(rect);
     rects.push(rect);
   }
   g.source = [q, pattern, color];
@@ -746,8 +810,12 @@ function updateBars(doc: Document, g: SvgNode, mark: RectMark, bindings: PaintBi
     if (fresh || rect.getAttribute('width') !== w) rect.setAttribute('width', w);
     if (fresh || rect.getAttribute('height') !== h) rect.setAttribute('height', h);
   };
+  const oldBoxes = prev?.[0] as Float32Array | undefined;
   for (let k = 0; k < count; k++) {
     const x = q[4 * k]!, y = q[4 * k + 1]!, w = q[4 * k + 2]!, h = q[4 * k + 3]!;
+    // The previous immutable mark already describes the attributes of every surviving fill.
+    if (oldPattern === pattern && oldColor === color && oldBoxes?.length === q.length &&
+        x === oldBoxes[4 * k] && y === oldBoxes[4 * k + 1] && w === oldBoxes[4 * k + 2] && h === oldBoxes[4 * k + 3]) continue;
     const bad = lifted(x) || lifted(y) || lifted(w) || lifted(h);
     const xs = bad ? '0' : fstr(w < 0 ? x + w : x), ys = bad ? '0' : fstr(h < 0 ? y + h : y);
     const ws = bad ? '0' : fstr(w < 0 ? -w : w), hs = bad ? '0' : fstr(h < 0 ? -h : h);
@@ -766,6 +834,7 @@ function updateBars(doc: Document, g: SvgNode, mark: RectMark, bindings: PaintBi
       } else if (!wasOverlay || oldColor !== color) setCss(overlay.style, 'color', color);
     }
   }
+  if (freshRects) g.el.appendChild(freshRects);
 }
 
 function updateArcs(doc: Document, g: SvgNode, mark: ArcMark, bindings: PaintBindings, s: Float64Array): void {

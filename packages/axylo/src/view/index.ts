@@ -1,3 +1,4 @@
+import { denseSlots, fullStatistics, withSignedZeros, type Statistics } from '../data/store-statistics';
 import { lowerBound, upperBound } from '../data/search';
 import {
   SLOT_NO_ROW, SLOT_VALUE, type AlignedFrame, type AlignedView, type DiagnosticSink, type DonutFrame,
@@ -175,12 +176,6 @@ export function interpolated(x: Float64Array, edge: number, left: number, right:
 const BLOCK = 256;
 const SUMMARY_THRESHOLD = 16 * BLOCK;
 type AlignedSeries = AlignedFrame['series'][number];
-interface Statistics {
-  readonly min: number;
-  readonly max: number;
-  readonly last: number;
-}
-
 interface BlockSummary {
   readonly min: Float64Array;
   readonly max: Float64Array;
@@ -190,7 +185,6 @@ interface BlockSummary {
 
 interface SeriesStatistics {
   blocks?: BlockSummary;
-  full?: WindowStatistics;
   recent?: WindowStatistics;
 }
 
@@ -234,19 +228,16 @@ function summarize(series: AlignedSeries): BlockSummary {
   return { min, max, last, zeros };
 }
 
-function withSignedZeros(min: number, max: number, last: number, zeros: number): Statistics {
-  // The reader keeps the first value on ties, while Math.min/Math.max order signed zeros.
-  if (min === 0 && (zeros & 1)) min = -0;
-  if (max === 0 && (zeros & 2)) max = 0;
-  return { min, max, last };
-}
-
 export function alignedStatistics(series: AlignedSeries, start: number, end: number, signedExtrema = false): Statistics {
   const { slot, y } = series;
   const size = end - start;
-  const full = size >= SUMMARY_THRESHOLD && start === 0 && end === slot.length;
+  const full = start === 0 && end === slot.length;
+  if (full) {
+    const known = fullStatistics.get(series);
+    if (known) return signedExtrema ? known.signed : known.ordered;
+  }
   let cached = size >= BLOCK ? summaries.get(series) : undefined;
-  const known = full ? cached?.full : cached?.recent;
+  const known = cached?.recent;
   if (known?.start === start && known.end === end) return signedExtrema ? known.signed : known.ordered;
   // The reader can share the first full scan. Block indexes only pay off for partial views.
   if (!full && size >= SUMMARY_THRESHOLD && size >= slot.length / 4 && !cached?.blocks) {
@@ -254,6 +245,7 @@ export function alignedStatistics(series: AlignedSeries, start: number, end: num
     cached.blocks = summarize(series);
   }
   const summary = cached?.blocks;
+  let continuous = full && !summary;
   let min = Infinity;
   let max = -Infinity;
   let last = NaN;
@@ -274,7 +266,7 @@ export function alignedStatistics(series: AlignedSeries, start: number, end: num
     } else {
       const stop = summary ? Math.min(end, (Math.floor(i / BLOCK) + 1) * BLOCK) : end;
       for (; i < stop; i++) {
-        if (slot[i] !== SLOT_VALUE) continue;
+        if (slot[i] !== SLOT_VALUE) { continuous = false; continue; }
         const value = y[i]!;
         if (!(value > -Infinity && value < Infinity)) continue;
         if (value < min) min = value;
@@ -285,14 +277,18 @@ export function alignedStatistics(series: AlignedSeries, start: number, end: num
     }
   }
   const stats = { min, max, last };
-  const signed = zeros ? withSignedZeros(min, max, last, zeros) : stats;
+  if (size < BLOCK && !zeros) return stats;
+  const summaryStats = withSignedZeros(stats, zeros);
   if (size >= BLOCK) {
-    if (!cached) summaries.set(series, cached = {});
-    const window = { start, end, ordered: stats, signed };
-    if (full) cached.full = window;
-    else cached.recent = window;
+    if (full) {
+      fullStatistics.set(series, summaryStats);
+      if (continuous) denseSlots.set(slot, 'fresh');
+    } else {
+      if (!cached) summaries.set(series, cached = {});
+      cached.recent = { start, end, ...summaryStats };
+    }
   }
-  return signedExtrema ? signed : stats;
+  return signedExtrema ? summaryStats.signed : stats;
 }
 
 export function alignedExtrema(

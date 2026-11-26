@@ -44,7 +44,7 @@ function layoutSize(el: Element, style: CSSStyleDeclaration): { width: number; h
 }
 
 /** The mapping of `el`'s own layout pixels (origin at its padding box) to viewport pixels. */
-export function mappingOf(el: Element, rect = el.getBoundingClientRect(), style = el.ownerDocument.defaultView?.getComputedStyle(el)): Mapping {
+export function mappingOf(el: Element, rect = el.getBoundingClientRect(), style = el.ownerDocument.defaultView?.getComputedStyle?.(el)): Mapping {
   if (!style) return { left: rect.left, top: rect.top, kx: 1, ky: 1 };
   const size = layoutSize(el, style);
   // A computed size is serialized to six significant digits ("341.531px" for 341.53125): a ratio that close
@@ -114,7 +114,7 @@ export function visibleRegion(from: Element, viewport = true, also?: Element): R
       bottom = Math.min(bottom, rect.bottom - (bb + scrollY) * m.ky);
     }
   };
-  if (win) {
+  if (typeof win?.getComputedStyle === 'function') {
     // When a second chain is intersected, record visited ancestors so every shared ancestor is read once.
     const seen = also ? new Set<Element>() : null;
     const walk = (start: Element) => {
@@ -131,7 +131,7 @@ export function visibleRegion(from: Element, viewport = true, also?: Element): R
 
 /** Registrations that share a lifetime, including capture listeners on enclosing shadow roots. */
 export class Listeners {
-  private readonly cleanup: (() => void)[] = [];
+  private readonly entries: (EventTarget | string | EventListener | boolean | AddEventListenerOptions | undefined)[] = [];
 
   on<K extends keyof GlobalEventHandlersEventMap>(
     target: EventTarget | null, type: K, handler: (event: GlobalEventHandlersEventMap[K]) => void,
@@ -140,12 +140,17 @@ export class Listeners {
     if (!target) return;
     const listener = handler as EventListener;
     target.addEventListener(type, listener, options);
-    this.cleanup.push(() => target.removeEventListener(type, listener, options));
+    this.entries.push(target, type, listener, options);
   }
 
   clear(): void {
-    for (const remove of this.cleanup) remove();
-    this.cleanup.length = 0;
+    const { entries } = this;
+    for (let i = 0; i < entries.length; i += 4) {
+      (entries[i] as EventTarget).removeEventListener(
+        entries[i + 1] as string, entries[i + 2] as EventListener, entries[i + 3] as boolean | EventListenerOptions | undefined,
+      );
+    }
+    entries.length = 0;
   }
 }
 

@@ -6,6 +6,7 @@ import {
 import { report, type DiagnosticDetails } from '../diagnostics';
 import { MAX_DATE } from '../scale/zone';
 import type { AlignedChartType, ChartType, ResolvedOptions, ResolvedValueField } from './options';
+import { fullStatistics } from './store-statistics';
 import { Reports } from './reports';
 import { calendarIntervals, inferGaps, snapGap } from './steps';
 import { recordDiagnostics, StreamDiagnostics, type DiagnosticTrace } from './store-diagnostics';
@@ -34,6 +35,7 @@ export interface XData {
   readonly order: Int32Array | null;
   readonly dateUnits: Record<DateUnit, number> | null;
   readonly ties?: boolean;
+  readonly regular?: boolean;
 }
 
 /** Read a position once, retaining the caller's row number for diagnostics on static and appended data. */
@@ -69,6 +71,15 @@ export function readX(type: ChartType, options: ResolvedOptions, env: DataEnviro
     const limit = epoch ? MAX_DATE : Number.MAX_VALUE;
     const hintStart = epoch ? 1e9 : x.type === null ? 1e11 : Infinity;
     const hintEnd = epoch ? 1e10 : 1e14;
+    const first = input[0]!, end = input[input.length - 1]!;
+    const step = input[1]! - first;
+    // A positive finite constant delta proves ordering. Bounds then exclude invalid instants
+    // and the two signed AX109 hint intervals for every interior position.
+    if (input.length === table.length && step > 0 && Number.isFinite(step) && first >= -limit && end <= limit &&
+      (end <= -hintEnd || first > -hintStart) && (end < hintStart || first >= hintEnd) &&
+      sameStep(input)) {
+      return { parser, positions, order: null, dateUnits, regular: true };
+    }
     for (; i < table.length; i++) {
       const value = input[i]!;
       const abs = Math.abs(value);
@@ -233,7 +244,7 @@ function alignGroup(group: Group, x: XData, axis: XColumn, field: string, table:
   }
   if (grid) return { group, order, drawable, gaps: grid.gaps, sparse: grid.sparse };
   // Category axes have no inferred steps. Numeric, instant and wall-clock steps depend only on deltas.
-  if (!order && (axis.kind === 'category' || axis.kind !== 'date' && sameStep(positions))) {
+  if (!order && (axis.kind === 'category' || axis.kind !== 'date' && (x.regular || sameStep(positions)))) {
     return { group, order, drawable, gaps: null };
   }
   let sparse: number | undefined;
@@ -310,7 +321,9 @@ function alignedSeries(aligned: AlignedGroup, axis: XColumn, x: XData, table: Ta
         values.slot[i] = SLOT_VALUE;
       }
     }
-    return { ...description, drawable, y: values.y, slot: values.slot, row };
+    const series = { ...description, drawable, y: values.y, slot: values.slot, row };
+    if (values.statistics) fullStatistics.set(series, values.statistics);
+    return series;
   }
   const length = axis.values.length;
   const slot = new Uint8Array(length);

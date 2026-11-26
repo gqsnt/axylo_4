@@ -21,6 +21,7 @@ interface Label {
   placed: PlacedText | null;
   rx: number;
   ry: number;
+  shifted: boolean;
   line0: HTMLDivElement | null;
   text0: string;
   lines: HTMLDivElement[] | null;
@@ -37,11 +38,12 @@ const POSITION = 'position:absolute;left:0;top:0;transform-origin:0 0;white-spac
 
 const round = (v: number): number => Math.round(v * 100) / 100;
 
-function transform(t: PlacedText, x: number, y: number, keepZeroShift = false): string {
+function transform(t: PlacedText, x: number, y: number, keepZeroShift = false, shifted = false): string {
   // Transforms apply right to left: move the anchor point of the text to the origin, rotate about it,
   // then move the origin to (x, y).
   const rotate = t.rotate !== 0 ? ` rotate(${t.rotate}deg)` : '';
-  const position = `translate(${x}px,${y}px)${rotate}`;
+  const horizontal = shifted ? `calc(${x}px + var(--axylo-tick-dx))` : `${x}px`;
+  const position = `translate(${horizontal},${y}px)${rotate}`;
   return !keepZeroShift && t.anchor === 'start' && t.baseline === 'top'
     ? position : `${position} translate(${SHIFT_X[t.anchor]},${SHIFT_Y[t.baseline]})`;
 }
@@ -97,12 +99,8 @@ function createLabel(doc: Document, role: PlacedText['role']): Label {
   const el = doc.createElement('div');
   el.className = 'axylo-label';
   el.setAttribute('data-role', role);
-  el.style.setProperty('position', 'absolute');
-  el.style.setProperty('left', '0');
-  el.style.setProperty('top', '0');
-  el.style.setProperty('transform-origin', '0 0');
-  el.style.setProperty('white-space', 'pre');
-  return { el, role, placed: null, rx: NaN, ry: NaN, line0: null, text0: '', lines: null, text: null };
+  el.style.cssText = POSITION;
+  return { el, role, placed: null, rx: NaN, ry: NaN, shifted: false, line0: null, text0: '', lines: null, text: null };
 }
 
 function takeLabel(doc: Document, role: PlacedText['role'], spare: SpareTicks): Label {
@@ -122,25 +120,49 @@ function releaseLabel(label: Label, spare: SpareTicks): void {
   if (label.role === 'tick-x' || label.role === 'tick-y') spare[label.role] ??= label;
 }
 
-function renderLabel(doc: Document, label: Label, t: PlacedText): void {
+// Keep base positions in hundredths of a pixel so independently rounded ticks stay exact.
+function tickShift(labels: Label[], texts: readonly PlacedText[]): number | null {
+  if (labels.length !== texts.length) return null;
+  let shift = 0;
+  let count = 0;
+  for (let i = 0; i < texts.length; i++) {
+    const t = texts[i]!;
+    if (t.role !== 'tick-x') continue;
+    const label = labels[i]!;
+    if (label.role !== t.role || t.lines.length !== 1 || label.text0 !== t.lines[0]) return null;
+    const dx = Math.round(t.x * 100) - label.rx;
+    if (!Number.isSafeInteger(dx)) return null;
+    if (!count) shift = dx;
+    // Rounding a shared displacement can put a tick a hundredth to either side.
+    else if (Math.abs(dx - shift) > 1) return null;
+    count++;
+  }
+  return count >= 3 && shift !== 0 ? shift : null;
+}
+
+function renderLabel(doc: Document, label: Label, t: PlacedText, shift: number | null): void {
   const previous = label.placed;
-  if (previous === t) return;
+  const shifted = shift !== null && t.role === 'tick-x';
+  if (previous === t && !shifted && !label.shifted) return;
   if (previous?.anchor !== t.anchor) label.el.style.textAlign = ALIGN[t.anchor];
-  const rx = previous?.x === t.x ? label.rx : round(t.x);
+  const rx = Math.round(t.x * 100) - (shifted ? shift : 0);
   const ry = previous?.y === t.y ? label.ry : round(t.y);
-  if (previous === null || label.rx !== rx || label.ry !== ry || previous.rotate !== t.rotate ||
-      previous.anchor !== t.anchor || previous.baseline !== t.baseline) {
+  if (previous === null || label.rx !== rx || label.ry !== ry || label.shifted !== shifted ||
+      previous.rotate !== t.rotate || previous.anchor !== t.anchor || previous.baseline !== t.baseline) {
     label.rx = rx;
     label.ry = ry;
-    label.el.style.transform = transform(t, rx, ry);
+    label.shifted = shifted;
+    label.el.style.transform = transform(t, rx / 100, ry, false, shifted);
   }
-  if (previous?.lines !== t.lines) renderLines(doc, label, t.lines);
+  if (previous?.lines !== t.lines && !(previous?.lines.length === 1 && t.lines.length === 1 && label.text0 === t.lines[0])) {
+    renderLines(doc, label, t.lines);
+  }
   label.placed = t;
 }
 
 function reconcileLabels(
   doc: Document, element: HTMLDivElement, labels: Label[], texts: readonly PlacedText[], start: number,
-  available: (Label | undefined)[], stationary: (boolean | undefined)[], spare: SpareTicks,
+  available: (Label | undefined)[], stationary: (boolean | undefined)[], spare: SpareTicks, shift: number | null,
 ): void {
   // Match surviving text first so an entering tick cannot take a label needed farther along.
   let next = labels[labels.length - 1]!.el.nextSibling;
@@ -180,7 +202,7 @@ function reconcileLabels(
       label ??= takeLabel(doc, t.role, spare);
     }
     labels[i] = label;
-    renderLabel(doc, label, t);
+    renderLabel(doc, label, t, shift);
   }
   for (const label of available) if (label) releaseLabel(label, spare);
   available.length = 0;
@@ -204,11 +226,17 @@ export function createTextLayer(doc: Document = document): TextLayer {
   const stationary: (boolean | undefined)[] = [];
   const spare: SpareTicks = { 'tick-x': undefined, 'tick-y': undefined };
   let previous: readonly PlacedText[] | null = null;
+  let writtenShift: number | undefined;
 
   return {
     element,
     render(texts: readonly PlacedText[]): void {
       if (texts === previous) return;
+      const shift = tickShift(labels, texts);
+      if (shift !== null && shift !== writtenShift) {
+        element.style.setProperty('--axylo-tick-dx', `${shift / 100}px`);
+        writtenShift = shift;
+      }
       const common = Math.min(labels.length, texts.length);
       for (let i = 0; i < common; i++) {
         const label = labels[i]!;
@@ -218,18 +246,18 @@ export function createTextLayer(doc: Document = document): TextLayer {
         const canMatchElsewhere = i + 1 < labels.length || i + 1 < texts.length;
         if (label.role !== t.role || canMatchElsewhere && (wasSingle || isSingle) &&
             (!wasSingle || !isSingle || label.text0 !== t.lines[0])) {
-          reconcileLabels(doc, element, labels, texts, i, available, stationary, spare);
+          reconcileLabels(doc, element, labels, texts, i, available, stationary, spare, shift);
           previous = texts;
           return;
         }
-        renderLabel(doc, label, t);
+        renderLabel(doc, label, t, shift);
       }
       if (labels.length < texts.length) {
         const fresh = doc.createDocumentFragment();
         for (let i = labels.length; i < texts.length; i++) {
           const t = texts[i]!;
           const label = takeLabel(doc, t.role, spare);
-          renderLabel(doc, label, t);
+          renderLabel(doc, label, t, shift);
           labels.push(label);
           fresh.appendChild(label.el);
         }

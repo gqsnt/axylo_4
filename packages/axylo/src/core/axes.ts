@@ -312,7 +312,9 @@ function buildAxisParts(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext
 
   if (view.kind === 'scatter') {
     const kind = view.frame.xKind;
-    const automatic = !ctx.resolved.x.domain && view.xDomain[0] === view.xFull[0] && view.xDomain[1] === view.xFull[1];
+    // A compact axis without a tick format draws no ticks: the x extremes would choose among none.
+    const automatic = !ctx.resolved.x.domain && view.xDomain[0] === view.xFull[0] && view.xDomain[1] === view.xFull[1] &&
+      !(ctx.compact && ctx.resolved.x.tickFormat == null);
     const x = kind === 'number' ? { type: 'linear', ...valueAxis(view.xDomain, automatic ? valueExtent(view, 'x') : null, null,
       domain => numberTicks(domain, ctx, ctx.resolved.x.tickFormat, null, failures.x)) }
       : continuousX(kind, view.xDomain, view.frame.timeZone, null, ctx, failures.x, scales);
@@ -322,9 +324,11 @@ function buildAxisParts(view: Exclude<View, { kind: 'donut' }>, ctx: AxisContext
   const column = view.frame.x;
   const xTitle = titles.x;
   const references = view.references;
+  // A compact band axis is its projection only (count and padding); its labels are made when a format asks.
+  const bandTicks = ctx.compact && ctx.resolved.x.tickFormat == null ? undefined : scales.bandTicks;
   const x = column.kind === 'category' ? {
     type: 'band' as const, count: column.categories?.length ?? 0, padding: view.kind === 'bar' ? 0.2 : 0,
-    candidates: scales.bandTicks?.(categoryLabels(column.categories ?? [], ctx.resolved.x.tickFormat, failures.x)) ?? [],
+    candidates: bandTicks?.(categoryLabels(column.categories ?? [], ctx.resolved.x.tickFormat, failures.x)) ?? [],
     mayThin: column.ordered, title: xTitle,
   } : { ...continuousX(column.kind, view.xDomain, column.timeZone, column.dateUnit, ctx, failures.x, scales), title: xTitle };
   return view.kind === 'bar' || view.kind === 'histogram'
@@ -423,8 +427,9 @@ export function layoutKey(
   base.push(view.xDomain[0], view.xDomain[1], view.yDomain[0], view.yDomain[1]);
   appendAxisInputs(base, ctx);
   base.push(ctx.resolved.x.label, value?.label, value?.unit, view.references);
-  // The extremes choose among the tick sets and wider domains of an automatic domain (F7).
-  const extent = value?.domain ? null : valueExtent(view);
+  // The extremes choose among the tick sets and wider domains of an automatic domain (F7). A compact axis
+  // without a tick format has neither (axis parts give it no extent), so they are not read for it.
+  const extent = value?.domain || (ctx.compact && value?.tickFormat == null) ? null : valueExtent(view);
   base.push(extent?.[0], extent?.[1]);
   for (const visible of view.visible) base.push(visible);
   // The titles as drawn: a unit can change on one series only and change the shared unit (review 2, finding 20).
@@ -432,7 +437,7 @@ export function layoutKey(
   base.push(titles.x, titles.y);
   if (view.kind === 'scatter') {
     // The x extent chooses among the x tick sets of an automatic domain, as the value extent does for y.
-    const xExtent = valueExtent(view, 'x');
+    const xExtent = ctx.compact && ctx.resolved.x.tickFormat == null ? null : valueExtent(view, 'x');
     base.push(view.frame.xKind, view.frame.timeZone, view.frame.xLabel, view.frame.yLabel, xExtent?.[0], xExtent?.[1]);
     return base;
   }

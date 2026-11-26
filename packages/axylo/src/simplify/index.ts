@@ -1,3 +1,4 @@
+import { denseSlots } from '../data/store-statistics';
 import { SLOT_GAP, SLOT_NO_ROW, SLOT_VALUE } from '../core/contracts';
 import type { AlignedFrame, AreaMark, ContinuousScale, IndexRange, PathMark, PointMark, StackView, XScale } from '../core/contracts';
 import { affinePosition, position, type AffineProjection } from '../scene/geometry';
@@ -60,7 +61,7 @@ const MIXED_BLOCK = 255;
 const SELECTION_CACHE_BYTES = 64 * 1024;
 const SELECTION_CACHE_ENTRIES = 12;
 let emptyIndexesBuf: Uint32Array | null = null;
-const emptyIndexes = (): Uint32Array => emptyIndexesBuf ??= new Uint32Array(0);
+export const emptyIndexes = (): Uint32Array => emptyIndexesBuf ??= new Uint32Array(0);
 type ExactProjection = NonNullable<AffineProjection['exact']>;
 
 interface SelectionCache {
@@ -213,7 +214,7 @@ function rememberSelection(cache: SelectionCache, extent: number, indexes: Uint3
 
 function keepAffineRun(
   x: Float64Array, y: Values, from: number, to: number, { exact, slope, offset }: AffineProjection, ratio: number,
-  firstColumn: number, lastColumn: number, blocks: Uint8Array,
+  firstColumn: number, lastColumn: number, blocks: Uint8Array | undefined,
   indexes: Uint32Array, cursor: number,
 ): number {
   const start = exact?.start ?? 0, span = exact?.span ?? 1;
@@ -240,7 +241,7 @@ function keepAffineRun(
     prevSize = last - first + 1;
     let min = first, max = first, low = y[first]!, high = low;
     let i = first;
-    const blockStart = Math.min(last + 1, Math.ceil(i / BLOCK_SIZE) * BLOCK_SIZE);
+    const blockStart = blocks ? Math.min(last + 1, Math.ceil(i / BLOCK_SIZE) * BLOCK_SIZE) : last + 1;
     const blockEnd = Math.floor((last + 1) / BLOCK_SIZE) * BLOCK_SIZE;
     for (; i < blockStart; i++) {
       const value = y[i]!;
@@ -248,7 +249,7 @@ function keepAffineRun(
       if (value > high) { high = value; max = i; }
     }
     for (; i < blockEnd; i += BLOCK_SIZE) {
-      const o = i / (BLOCK_SIZE / 2), eMin = i + blocks[o]! - 1, eMax = i + blocks[o + 1]!;
+      const o = i / (BLOCK_SIZE / 2), eMin = i + blocks![o]! - 1, eMax = i + blocks![o + 1]!;
       const bLow = y[eMin]!, bHigh = y[eMax]!;
       if (bLow < low) { low = bLow; min = eMin; }
       if (bHigh > high) { high = bHigh; max = eMax; }
@@ -315,12 +316,14 @@ function scan(slot: Uint8Array, range: IndexRange, blocks?: Uint8Array) {
 function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Columns) {
   const length = range.end - range.start, affine = columns?.affine, y = columns?.y;
   // Near the density threshold, most blocks would straddle device columns.
-  const summary = affine && y && length >= 1024 && length >= 4 * limit && range.end <= y.length
-    ? summarize(y, slot, range) : undefined;
-  // Blocks suffice for a one-off draw. Build the extra indexes only when the series is reused.
+  const indexable = affine && y && length >= 1024 && length >= 4 * limit && range.end <= y.length;
+  // The first draw of a validated column can reduce each pixel directly without building an index.
+  const firstDraw = indexable && range.start >= 0 && range.end <= slot.length && denseSlots.get(slot) === 'fresh';
+  if (firstDraw) denseSlots.set(slot, 'drawn');
+  const summary = indexable && !firstDraw ? summarize(y, slot, range) : undefined;
   const reused = summary !== undefined && summary.uses++ > 0;
   const full = summary?.full;
-  const size = full && full.start <= range.start && full.end >= range.end ? undefined : scan(slot, range, summary?.blocks);
+  const size = firstDraw || full && full.start <= range.start && full.end >= range.end ? undefined : scan(slot, range, summary?.blocks);
   const values = size?.values ?? length;
   const vertices = size?.vertices ?? length;
   const runCount = size?.runCount ?? 1;
@@ -347,7 +350,7 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
     const first = size?.runs[3 * run] ?? range.start, last = size?.runs[3 * run + 1] ?? range.end - 1;
     const runLength = last - first + 1, contiguous = !size || runLength === size.runs[3 * run + 2];
     if (run) breaks[run - 1] = cursor;
-    if (dense && contiguous && summary && affine && y && runLength >= 2 * BLOCK_SIZE) {
+    if (dense && contiguous && (summary || firstDraw) && affine && y && runLength >= 2 * BLOCK_SIZE) {
       const { x, ratio } = columns;
       const start = x[first]!, end = x[last]!;
       if (!exact || hasMonotoneColumns(exact, start, end)) {
@@ -359,7 +362,7 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
         if (capacity <= runLength) {
           // A single dense run can reserve for its actual projected span, including offscreen endpoints.
           buffer ??= { data: new Uint32Array(runCount === 1 ? capacity : initialCapacity), limit: vertices };
-          cursor = keepAffineRun(x, y, first, last, affine, ratio, firstColumn, lastColumn, summary.blocks,
+          cursor = keepAffineRun(x, y, first, last, affine, ratio, firstColumn, lastColumn, summary?.blocks,
             reserve(buffer, cursor + capacity), cursor);
           continue;
         }
@@ -403,7 +406,11 @@ export function stackIndexes(
   input: Omit<DrawingInput, 'slot' | 'range'>, frame: AlignedFrame, stack: StackView, range: IndexRange,
 ): Uint32Array {
   const { start, end } = range, size = end - start;
-  if (size <= columnLimit(input)) return Uint32Array.from({ length: size }, (_, i) => i);
+  if (size <= columnLimit(input)) {
+    const indexes = new Uint32Array(size);
+    for (let i = 0; i < size; i++) indexes[i] = i;
+    return indexes;
+  }
   const kept = new Uint8Array(size), scratch = new Uint32Array(size);
   const buffer: IndexBuffer = { data: scratch, limit: size };
   const columns = { x: input.x, map: xMapper(input.mapX, input.affineX), affine: input.affineX, ratio: input.devicePixelRatio, y: 0 as Values | 0 };
@@ -448,16 +455,17 @@ function affineMapper(affine: AffineProjection): (value: number) => number {
   return value => value >= low && value <= high ? origin + (value - start) / span * extent : position(scale, value);
 }
 
-function pack(indexes: Uint32Array, breaks: Uint32Array | null, input: PathInput): Float32Array {
-  const xy = new Float32Array(2 * (indexes.length + (breaks?.length ?? 0)));
+function pack(indexes: Uint32Array | null, breaks: Uint32Array | null, input: PathInput, start = 0, length = indexes?.length ?? 0): Float32Array {
+  const xy = new Float32Array(2 * (length + (breaks?.length ?? 0)));
   const { x, y, mapY, affineX, affineY } = input;
   const xExact = affineX?.exact, yExact = affineY?.exact;
   if (!breaks?.length && y !== 0 && xExact?.bounded && yExact && interpolatesEndpoints(xExact) && interpolatesEndpoints(yExact)) {
     const { start: xs, origin: xo, span: xn, extent: xe } = xExact;
     const { start: ys, end: ye, origin: yo, span: yn, extent: yx, bounded, scale } = yExact;
     const low = yn > 0 ? ys : ye, high = yn > 0 ? ye : ys;
-    for (let i = 0; i < indexes.length; i++) {
-      const idx = indexes[i]!, val = y[idx]!;
+    for (let i = 0; i < length; i++) {
+      const idx = indexes ? indexes[i]! : start + i;
+      const val = y[idx]!;
       xy[2 * i] = xo + (x[idx]! - xs) / xn * xe;
       xy[2 * i + 1] = bounded || (val >= low && val <= high) ? yo + (val - ys) / yn * yx : position(scale, val);
     }
@@ -465,21 +473,32 @@ function pack(indexes: Uint32Array, breaks: Uint32Array | null, input: PathInput
   }
   const toX = xMapper(input.mapX, affineX), toY = affineY ? affineMapper(affineY) : yMapper(mapY);
   if (!breaks?.length) {
-    for (let i = 0; i < indexes.length; i++) {
-      const idx = indexes[i]!;
+    for (let i = 0; i < length; i++) {
+      const idx = indexes ? indexes[i]! : start + i;
       xy[2 * i] = toX(x[idx]!);
       xy[2 * i + 1] = toY(y === 0 ? 0 : y[idx]!);
     }
     return xy;
   }
   let cursor = 0, nextBreak = 0;
-  for (let i = 0; i < indexes.length; i++) {
+  for (let i = 0; i < length; i++) {
     if (i === breaks[nextBreak]) { xy[cursor++] = NaN; xy[cursor++] = NaN; nextBreak++; }
-    const idx = indexes[i]!;
+    const idx = indexes ? indexes[i]! : start + i;
     xy[cursor++] = toX(x[idx]!);
     xy[cursor++] = toY(y === 0 ? 0 : y[idx]!);
   }
   return xy;
+}
+
+/** A short continuous line needs neither source indexes nor pen lifts. */
+export function unthinnedPath(input: LineInput & PathInput): Float32Array | null {
+  const { start, end } = input.range;
+  const length = end - start;
+  if (length < 2 || length > columnLimit(input)) return null;
+  if (!denseSlots.has(input.slot) || start < 0 || end > input.slot.length) {
+    for (let i = start; i < end; i++) if (input.slot[i] !== SLOT_VALUE) return null;
+  }
+  return pack(null, null, input, start, length);
 }
 
 export function buildPath(indexes: Uint32Array, breaks: Uint32Array, input: PathInput): PathMark['xy'] {
@@ -551,7 +570,12 @@ export function simplifyArea(input: AreaInput): SimplifiedArea {
     lowerXY = new Float32Array(runs.length);
     baseline = source.affineY ? affinePosition(source.affineY, 0) : yMapper(source.mapY)(0);
   } else if (lower === 0) {
-    lowerXY = buildPoints(upperSel.indexes, { ...source, y: 0 });
+    lowerXY = new Float32Array(upperBoundary.xy.length);
+    if (lowerXY.length) baseline = source.affineY ? affinePosition(source.affineY, 0) : yMapper(source.mapY)(0);
+    for (let i = 0; i < lowerXY.length; i += 2) {
+      lowerXY[i] = upperBoundary.xy[i]!;
+      lowerXY[i + 1] = baseline;
+    }
   } else if (lower instanceof Float64Array) {
     lowerSel = simplifyBoundary(source, lower).selection;
     lowerXY = buildPoints(lowerSel.indexes, { ...source, y: lower });
