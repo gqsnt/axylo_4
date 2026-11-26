@@ -66,7 +66,7 @@ function scanTemplate(source, start) {
   return { end, spans };
 }
 
-function tokens(source) {
+export function tokens(source) {
   const parts = [];
   let previous;
   for (let start = 0; start < source.length;) {

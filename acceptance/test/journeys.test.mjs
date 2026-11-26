@@ -232,7 +232,7 @@ test('evidence validation rejects non-test files, noncanonical/escaping paths, u
   });
 });
 
-test('noncanonical in-repo alias paths and commented-out benchmark cases are refused', t => {
+test('noncanonical in-repo alias paths, commented-out cases, and string-literal cases/braces are handled accurately', t => {
   const directory = mkdtempSync(resolve(tmpdir(), 'axylo-pers-bench-'));
   t.after(() => rmSync(directory, { recursive: true }));
   const put = (rel, content) => {
@@ -242,12 +242,13 @@ test('noncanonical in-repo alias paths and commented-out benchmark cases are ref
     return file;
   };
   put('packages/a/chart.test.ts', 'export {};\n');
-  put('bench/lib/refs.mjs', "export const WORKLOADS = ['first', 'page', 'hover'];\n");
+  put('bench/lib/refs.mjs', "export const WORKLOADS = ['first', 'page', 'zoom', 'hover'];\n");
   put('bench/run.mjs', [
     'export function workloadParams(workload) {',
     '  switch (workload) {',
     "    // case 'first': return {};",
     "    /* case 'page': return {}; */",
+    "    case 'zoom': return { note: \"case 'first': }\" };",
     "    case 'hover': return {};",
     '  }',
     '}',
@@ -258,13 +259,14 @@ test('noncanonical in-repo alias paths and commented-out benchmark cases are ref
       j.accessibilityEvidence.automated = ['packages/a/chart.test.ts'];
     }
     journeys[0].testFiles = ['packages/a/../a/chart.test.ts'];
-    journeys[1].benchWorkloads = ['first', 'page', 'hover'];
+    journeys[1].benchWorkloads = ['first', 'page', 'zoom', 'hover'];
     return journeys;
   }));
   assert.throws(() => readJourneys({ root: directory, journeysFile, matrixIds: ['F1'] }), error => {
     assert.ok(error.message.includes('first-impression.testFiles: expected a canonical repository-relative test file, got packages/a/../a/chart.test.ts'), error.message);
     assert.ok(error.message.includes('reading.benchWorkloads: unknown bench workload first'), error.message);
     assert.ok(error.message.includes('reading.benchWorkloads: unknown bench workload page'), error.message);
+    assert.ok(!error.message.includes('unknown bench workload zoom'), error.message);
     assert.ok(!error.message.includes('unknown bench workload hover'), error.message);
     return true;
   });

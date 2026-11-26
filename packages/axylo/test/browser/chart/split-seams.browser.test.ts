@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { requireEngineFeature, start, stop } from '../harness';
 import { chartPage, closePage } from './util';
-import { create, frames, lastHover, plotBox, recordEvents, selected, settle, tip } from './final-util';
+import { create, frames, inside, lastHover, nearestInside, plotBox, recordEvents, selected, settle, TALL, tip, walk } from './final-util';
 
 beforeAll(start);
 afterAll(stop);
@@ -56,25 +56,20 @@ async function closeTable(page: Page): Promise<void> {
   }
 }
 
-/** Walks Tab from the focused proxy through the chart's roving toolbar to the visible #after button. */
+/** Walks Tab from the focused proxy: A2 allows at most two stops (proxy -> toolbar -> #after). */
 async function expectTabExitsToAfter(page: Page): Promise<void> {
-  const visited: string[] = [];
-  for (let i = 0; i < 6; i++) {
-    await page.keyboard.press('Tab');
-    const step = await page.evaluate(() => {
-      const el = document.activeElement as HTMLElement | null;
-      if (!el) return 'none';
-      if (el.id === 'after') return 'after';
-      if (el.closest('#chart [role="toolbar"]')) return 'toolbar';
-      if (document.getElementById('chart')!.contains(el)) return `chart:${el.className || el.tagName}`;
-      return `outside:${el.tagName}`;
-    });
-    visited.push(step);
-    if (step === 'after') break;
-  }
-  expect(visited).toContain('toolbar');
-  expect(visited.at(-1)).toBe('after');
-  expect(visited.length).toBeLessThanOrEqual(4);
+  const classify = () => page.evaluate(() => {
+    const el = document.activeElement as HTMLElement | null;
+    if (!el) return 'none';
+    if (el.id === 'after') return 'after';
+    if (el.closest('#chart [role="toolbar"]')) return 'toolbar';
+    if (document.getElementById('chart')!.contains(el)) return `chart:${el.className || el.tagName}`;
+    return `outside:${el.tagName}`;
+  });
+  await page.keyboard.press('Tab');
+  expect(await classify()).toBe('toolbar');
+  await page.keyboard.press('Tab');
+  expect(await classify()).toBe('after');
 }
 
 describe('seam 1: strict: true rollback leaves the drawn chart as it was', () => {
@@ -279,19 +274,32 @@ describe('seam 3: one frame behind pointer, keyboard, tooltip, events and table'
       await page.evaluate(async () => { window.charts[0]!.update({ normalize: 'probability' }); await window.charts[0]!.__bench.ready(); });
       await settle(page);
       await fiveWay(page, [0.5, 0, 0.5], ['50%', '0%', '50%']);
-      const ticksBefore = await page.evaluate(() => [...document.querySelectorAll('#chart .axylo-label')].map(t => (t.textContent ?? '').trim()).filter(Boolean));
-      expect(ticksBefore.length).toBeGreaterThan(0);
+      await page.evaluate(async () => { window.charts[0]!.update({ normalize: 'count' }); await window.charts[0]!.__bench.ready(); });
+      await settle(page);
+      // Hold normalization fixed at count across the zoom transition so tick and pixel changes come strictly from zoom([1, 8]).
+      const xTicks = () => page.evaluate(() => [...document.querySelectorAll('#chart .axylo-label[data-role^="tick-x"]')]
+        .map(t => (t.textContent ?? '').trim()).filter(Boolean));
+      const xTicksBefore = await xTicks();
+      expect(xTicksBefore.length).toBeGreaterThan(0);
+      const pBefore = await plotBox(page);
+      // 17.14% of plot width is x = 1.71 on unzoomed [0, 10] (bin 0–2), but x = 2.2 on zoomed [1, 8] (empty bin 2–5).
+      const distinguishX = pBefore.x + pBefore.width * (1.2 / 7);
+      await page.mouse.move(distinguishX, pBefore.y + pBefore.height - 3);
+      await settle(page);
+      expect((await tip(page)).title).toBe('0–2');
       await page.evaluate(async () => {
-        window.charts[0]!.update({ normalize: 'count' });
         window.charts[0]!.zoom([1, 8]);
         await window.charts[0]!.__bench.ready();
       });
       await settle(page);
-      // Verify zoom actually took effect: Reset zoom button appears and the rendered axis ticks update.
       expect(await toolbarButton(page, 'Reset zoom').isVisible()).toBe(true);
-      const ticksAfter = await page.evaluate(() => [...document.querySelectorAll('#chart .axylo-label')].map(t => (t.textContent ?? '').trim()).filter(Boolean));
-      expect(ticksAfter.length).toBeGreaterThan(0);
-      expect(ticksAfter).not.toEqual(ticksBefore);
+      const xTicksAfter = await xTicks();
+      expect(xTicksAfter.length).toBeGreaterThan(0);
+      expect(xTicksAfter).not.toEqual(xTicksBefore);
+      const pAfter = await plotBox(page);
+      await page.mouse.move(pAfter.x + pAfter.width * (1.2 / 7), pAfter.y + pAfter.height - 3);
+      await settle(page);
+      expect((await tip(page)).title).toBe('2–5');
       // Zoom does not rebin (F6): all three bins overlap [1, 8] and agree across all five surfaces.
       await fiveWay(page, [2, 0, 2], ['2', '0', '2'], [1, 8]);
       expect(await closePage(page)).toEqual([]);
@@ -512,13 +520,28 @@ describe('seam 5: destroy() in the middle of things', () => {
           }
         };
       });
-      // (a1) Destroy while pointer hover + tooltip corridor are actively open.
-      await create(page, 'line', LINE);
+      // (a1) Destroy while inside a real held hover corridor (rest >= 250ms on Q3, cross into Q4 while Q3 stays held).
+      await page.evaluate(() => {
+        const el = document.getElementById('chart')!;
+        el.style.width = '640px';
+        el.style.height = '360px';
+      });
+      await create(page, 'bar', { title: 'Tall', data: TALL, x: 'x', y: 'y' });
       const p1 = await plotBox(page);
-      await page.mouse.move(p1.x + p1.width / 2, p1.y + p1.height / 2);
-      await page.locator('#chart .axylo-tooltip').waitFor({ state: 'visible' });
+      const at = { x: p1.x + p1.width * (2.5 / 6), y: p1.y + p1.height * 0.6 };
+      await page.mouse.move(at.x, at.y);
+      await frames(page, 2);
+      const firstTip = await tip(page);
+      expect(firstTip.title).toBe('Q3');
+      await page.waitForTimeout(320);
+      const edge = p1.x + p1.width * (3 / 6);
+      const target = nearestInside(firstTip.box!, at);
+      const over = { x: Math.max(target.x, edge + 4), y: target.y };
+      expect(inside(over, firstTip.box!)).toBe(true);
+      const heldTitles = await walk(page, at, over, 12, async () => (await tip(page)).title);
+      expect(heldTitles.every(t => t === 'Q3')).toBe(true);
       const hoverDestroy = await page.evaluate(async () => {
-        const chart = window.charts[0]!;
+        const chart = window.charts.at(-1)!;
         chart.destroy();
         const stages = chart.__dev.stages();
         for (const target of [document, window]) {

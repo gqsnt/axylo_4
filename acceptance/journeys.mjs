@@ -1,5 +1,6 @@
 import { readFileSync, statSync } from 'node:fs';
 import { basename, isAbsolute, relative, resolve, sep } from 'node:path';
+import { tokens } from './titles.mjs';
 
 /** The twelve product journeys of the Axylo 4 vision, in reading order. */
 export const JOURNEY_IDS = Object.freeze(['first-impression', 'reading', 'hover', 'explore', 'compare', 'resize',
@@ -36,24 +37,66 @@ function checkTestFile(errors, root, where, file) {
   if (!isFile(resolve(root, file))) errors.push(`${where}: missing file ${file}`);
 }
 
-const stripComments = source => source.replace(
-  /'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`|\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g,
-  match => (match.startsWith('//') || match.startsWith('/*') ? ' ' : match),
-);
+function unquoteString(token) {
+  if (!token || token.length < 2) return null;
+  const quote = token[0];
+  if ((quote !== '\'' && quote !== '"') || token.at(-1) !== quote) return null;
+  return token.slice(1, -1).replace(/\\(.)/g, '$1');
+}
 
-function extractSwitchBody(source, headerPattern) {
-  const match = headerPattern.exec(source);
-  if (!match) return null;
-  let depth = 0;
-  let start = -1;
-  for (let i = match.index + match[0].length - 1; i < source.length; i++) {
-    const ch = source[i];
-    if (ch === '{') {
-      if (depth === 0) start = i + 1;
-      depth++;
-    } else if (ch === '}') {
-      depth--;
-      if (depth === 0) return source.slice(start, i);
+function parseWorkloadsArray(source) {
+  const parts = tokens(source);
+  for (let i = 0; i + 4 < parts.length; i++) {
+    if (parts[i] === 'export' && parts[i + 1] === 'const' && parts[i + 2] === 'WORKLOADS' && parts[i + 3] === '=' && parts[i + 4] === '[') {
+      const workloads = new Set();
+      let depth = 1;
+      for (let j = i + 5; j < parts.length && depth > 0; j++) {
+        const tok = parts[j];
+        if (tok === '[') depth++;
+        else if (tok === ']') depth--;
+        else if (depth === 1) {
+          const value = unquoteString(tok);
+          if (value !== null) workloads.add(value);
+        }
+      }
+      return depth === 0 ? workloads : null;
+    }
+  }
+  return null;
+}
+
+function parseDispatchedWorkloads(source) {
+  const parts = tokens(source);
+  for (let i = 0; i + 3 < parts.length; i++) {
+    if (parts[i] !== 'export' || parts[i + 1] !== 'function' || parts[i + 2] !== 'workloadParams' || parts[i + 3] !== '(') continue;
+    let p = i + 4;
+    let parens = 1;
+    while (p < parts.length && parens > 0) {
+      if (parts[p] === '(') parens++;
+      else if (parts[p] === ')') parens--;
+      p++;
+    }
+    if (parts[p] !== '{') return null;
+    let fnDepth = 1;
+    for (let j = p + 1; j < parts.length && fnDepth > 0; j++) {
+      if (parts[j] === '{') fnDepth++;
+      else if (parts[j] === '}') fnDepth--;
+      else if (fnDepth === 1 && parts[j] === 'switch' && parts[j + 1] === '(' && parts[j + 2] === 'workload' && parts[j + 3] === ')' && parts[j + 4] === '{') {
+        const dispatched = new Set();
+        let swDepth = 0;
+        for (let k = j + 5; k < parts.length; k++) {
+          const tok = parts[k];
+          if (tok === '{') swDepth++;
+          else if (tok === '}') {
+            if (swDepth === 0) return dispatched;
+            swDepth--;
+          } else if (swDepth === 0 && tok === 'case' && parts[k + 2] === ':') {
+            const value = unquoteString(parts[k + 1]);
+            if (value !== null) dispatched.add(value);
+          }
+        }
+        return null;
+      }
     }
   }
   return null;
@@ -64,14 +107,10 @@ function readBenchRegistry(root) {
   const refsPath = resolve(root, 'bench/lib/refs.mjs');
   if (!isFile(runnerPath)) return { error: 'missing benchmark runner bench/run.mjs', workloads: null, dispatched: null };
   if (!isFile(refsPath)) return { error: 'missing benchmark workload registry bench/lib/refs.mjs', workloads: null, dispatched: null };
-  const source = stripComments(readFileSync(runnerPath, 'utf8'));
-  const refs = stripComments(readFileSync(refsPath, 'utf8'));
-  const match = /export\s+const\s+WORKLOADS\s*=\s*\[([^\]]+)\]/s.exec(refs);
-  if (!match) return { error: 'could not read WORKLOADS registry from bench/lib/refs.mjs', workloads: null, dispatched: null };
-  const workloads = new Set([...match[1].matchAll(/['"]([^'"]+)['"]/g)].map(entry => entry[1]));
-  const switchBody = extractSwitchBody(source, /\bswitch\s*\(\s*workload\s*\)\s*\{/);
-  if (switchBody === null) return { error: 'could not read workload dispatch switch from bench/run.mjs', workloads: null, dispatched: null };
-  const dispatched = new Set([...switchBody.matchAll(/\bcase\s+['"]([^'"]+)['"]\s*:/g)].map(entry => entry[1]));
+  const workloads = parseWorkloadsArray(readFileSync(refsPath, 'utf8'));
+  if (!workloads) return { error: 'could not read WORKLOADS registry from bench/lib/refs.mjs', workloads: null, dispatched: null };
+  const dispatched = parseDispatchedWorkloads(readFileSync(runnerPath, 'utf8'));
+  if (!dispatched) return { error: 'could not read workload dispatch switch from bench/run.mjs', workloads: null, dispatched: null };
   return { error: null, workloads, dispatched };
 }
 
