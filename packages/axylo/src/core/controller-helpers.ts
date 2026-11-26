@@ -193,10 +193,8 @@ export function themeKeys(view: View): string[] {
 }
 
 export function sameSeriesKeys(view: Exclude<View, { kind: 'donut' }>, keys: readonly string[]): boolean {
-  const series = view.frame.series;
-  if (series.length !== keys.length) return false;
-  for (let i = 0; i < keys.length; i++) if (series[i]!.key !== keys[i]) return false;
-  return true;
+  const s = view.frame.series;
+  return s.length === keys.length && keys.every((k, i) => s[i]!.key === k);
 }
 
 export function displayState(a: Accepted, diagnostics: readonly DiagnosticInput[], chartType: ChartType, failed: boolean): Display {
@@ -277,13 +275,9 @@ export function sameFormatInputs(before: Accepted, after: Accepted): boolean {
   const a = before.frame, b = after.frame;
   if (a === b) return true;
   if (a.shape === 'aligned' && b.shape === 'aligned') {
-    if (a.x.kind !== b.x.kind || a.x.timeZone !== b.x.timeZone || a.x.dateUnit !== b.x.dateUnit ||
-        a.x.categories !== b.x.categories || a.series.length !== b.series.length) return false;
-    for (let i = 0; i < a.series.length; i++) {
-      const x = a.series[i]!, y = b.series[i]!;
-      if (x.field !== y.field || x.unit !== y.unit || x.valueScale !== y.valueScale) return false;
-    }
-    return true;
+    return a.x.kind === b.x.kind && a.x.timeZone === b.x.timeZone && a.x.dateUnit === b.x.dateUnit &&
+      a.x.categories === b.x.categories && a.series.length === b.series.length &&
+      a.series.every((x, i) => { const y = b.series[i]!; return x.field === y.field && x.unit === y.unit && x.valueScale === y.valueScale; });
   }
   if (a.shape === 'points' && b.shape === 'points') {
     return a.xKind === b.xKind && a.timeZone === b.timeZone && a.yUnit === b.yUnit &&
@@ -318,14 +312,14 @@ function noteRunsFor(f: FrameState, r: ReaderModel, disclosure: Disclosure): { t
 }
 
 /** The reader's inputs equal `k` (sameKey's rule), without making the array to compare. */
-export function readerInputsMatch(k: readonly unknown[], f: FrameState, labelsHidden: number, disclosure: Disclosure): boolean {
-  const a = f.a!;
-  const o = a.options;
-  return k.length === READER_INPUTS && sameEntry(k[0], f.view) && sameEntry(k[1], f.formatters) &&
-    sameEntry(k[2], a.messages) && sameEntry(k[3], o.title) && sameEntry(k[4], f.named ? f.by : null) &&
-    sameEntry(k[5], o.subtitle) && sameEntry(k[6], o.description) && sameEntry(k[7], disclosure.omitted) &&
-    sameEntry(k[8], disclosure.changed) && sameEntry(k[9], labelsHidden) && sameEntry(k[10], o.table) &&
-    sameEntry(k[11], f.compact) && sameEntry(k[12], f.locale) && sameEntry(k[13], f.caption);
+export function readerInputsMatch(k: readonly unknown[], f: FrameState, labelsHidden: number, disclosure: Disclosure, tag?: unknown): boolean {
+  if (k.length !== READER_INPUTS) return false;
+  const a = f.a!, o = a.options;
+  return sameEntry(k[0], f.view) && sameEntry(k[1], f.formatters) && sameEntry(k[2], a.messages) &&
+    sameEntry(k[3], o.title) && sameEntry(k[4], f.named ? f.by : null) && sameEntry(k[5], o.subtitle) &&
+    sameEntry(k[6], o.description) && k[7] === disclosure.omitted && k[8] === disclosure.changed &&
+    k[9] === labelsHidden && k[10] === o.table && k[11] === f.compact && k[12] === f.locale &&
+    k[13] === f.caption && Object.is(k[14], tag);
 }
 
 export function figureModelFor(f: FrameState, r: ReaderModel, small: boolean, disclosure: Disclosure): FigureModel {

@@ -108,7 +108,7 @@ class CartesianLookup implements Lookup {
     }
     this.#visible = visible;
     this.#barSeries = barSeries;
-    this.#barLayout = buildBarSlotLayout(view, stateRef.meta, barSeries);
+    this.#barLayout = buildBarSlotLayout(view, this.#projection, this.#plot, stateRef.meta, barSeries);
   }
 
   #slotForX(x: number): number {
@@ -203,15 +203,21 @@ class CartesianLookup implements Lookup {
     }
     if (bestLine >= 0) return bestLine;
 
-    // 2. Visible bar rectangle containing (xPx, yPx) using exact shared bar geometry (grouped + stacked)
+    // 2. Visible bar rectangle containing (xPx, yPx) using exact shared bar geometry (grouped + stacked):
+    // check exact containment first so stacked edges never mis-attribute to the adjacent segment.
+    let fuzzyBar = -1;
     for (let k = this.#barSeries.length - 1; k >= 0; k--) {
       const sIdx = this.#barSeries[k]!;
       const box = barBoxAt(this.#view, projection, plot, this.#barLayout, sIdx, slotIndex);
       if (!box) continue;
-      if (xPx >= box.x - 1 && xPx <= box.x + box.width + 1 && yPx >= box.y - 2 && yPx <= box.y + box.height + 2) {
+      if (xPx >= box.x && xPx <= box.x + box.width && yPx >= box.y && yPx <= box.y + box.height) {
         return sIdx;
       }
+      if (fuzzyBar < 0 && xPx >= box.x - 1 && xPx <= box.x + box.width + 1 && yPx >= box.y - 2 && yPx <= box.y + box.height + 2) {
+        fuzzyBar = sIdx;
+      }
     }
+    if (fuzzyBar >= 0) return fuzzyBar;
 
     return this.#visible[0] ?? -1;
   }

@@ -48,7 +48,7 @@ export const STEP_PASS_MEASURE = 13;
 export const STEP_PUBLISH = 14;
 
 /** How many inputs the reader model is keyed by (readerFor). */
-export const READER_INPUTS = 14;
+export const READER_INPUTS = 15;
 export const EMPTY_KEY: readonly unknown[] = [];
 /** Not global and not sticky, so `test` keeps no state between pages. */
 export const ENGLISH_TAG = /^en(?:-|$)/i;

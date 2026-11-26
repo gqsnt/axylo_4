@@ -107,18 +107,39 @@ describe('axylo/cartesian packed Chrome integration under strict CSP', () => {
       const updatedText = await page.evaluate(() => document.querySelector('#chart .axylo-text')?.textContent ?? '');
       expect(updatedText).toContain('Monthly Orders');
 
-      // Resize below 360 px -> AX175 emitted; resize back to 640 px -> AX175 cleared
+      // Resize below 360 px -> AX175 emitted and accessible summary updated; resize back to 640 px -> both cleared
+      const readSummary = () => page.evaluate(() => {
+        const fig = document.querySelector('#chart [aria-describedby]');
+        const id = fig?.getAttribute('aria-describedby');
+        return (id ? document.getElementById(id)?.textContent : '') ?? '';
+      });
+      expect(await readSummary()).not.toContain('Secondary right axis');
+
       await page.evaluate(() => { (document.getElementById('chart') as HTMLElement).style.width = '300px'; });
       await page.waitForTimeout(150);
-      const narrowCodes = await page.evaluate(() =>
-        (window as unknown as { __cart: { diagnostics: readonly { code: string }[] } }).__cart.diagnostics.map(d => d.code));
-      expect(narrowCodes).toContain('AX175');
+      const narrowState = await page.evaluate(() => {
+        const fig = document.querySelector('#chart [aria-describedby]');
+        const id = fig?.getAttribute('aria-describedby');
+        return {
+          codes: (window as unknown as { __cart: { diagnostics: readonly { code: string }[] } }).__cart.diagnostics.map(d => d.code),
+          summary: (id ? document.getElementById(id)?.textContent : '') ?? '',
+        };
+      });
+      expect(narrowState.codes).toContain('AX175');
+      expect(narrowState.summary).toContain('Secondary right axis');
 
       await page.evaluate(() => { (document.getElementById('chart') as HTMLElement).style.width = '640px'; });
       await page.waitForTimeout(150);
-      const wideCodes = await page.evaluate(() =>
-        (window as unknown as { __cart: { diagnostics: readonly { code: string }[] } }).__cart.diagnostics.map(d => d.code));
-      expect(wideCodes).not.toContain('AX175');
+      const wideStateAfter = await page.evaluate(() => {
+        const fig = document.querySelector('#chart [aria-describedby]');
+        const id = fig?.getAttribute('aria-describedby');
+        return {
+          codes: (window as unknown as { __cart: { diagnostics: readonly { code: string }[] } }).__cart.diagnostics.map(d => d.code),
+          summary: (id ? document.getElementById(id)?.textContent : '') ?? '',
+        };
+      });
+      expect(wideStateAfter.codes).not.toContain('AX175');
+      expect(wideStateAfter.summary).not.toContain('Secondary right axis');
 
       // Strict-mode invalid update rolls back facade state cleanly so a subsequent valid update succeeds
       const rollbackOk = await page.evaluate(() => {

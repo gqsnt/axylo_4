@@ -1,7 +1,8 @@
 /**
  * Shared bar & stacked-area geometry helper for `axylo/cartesian` (C4.4).
  * Consumed by BOTH `cartesian/scene.ts` and `cartesian/lookup.ts` so rendering and pointer hit-testing
- * always share identical x/y bar bounds for grouped AND stacked bars.
+ * share identical x/y bar bounds for grouped AND stacked bars with O(N) precomputed bandwidth and
+ * zero per-bar object allocation on the render path.
  */
 import { SLOT_VALUE, type AlignedView, type Projection, type Rect, type XScale } from '../core/contracts';
 import { clamp, position } from '../scene/geometry';
@@ -23,9 +24,12 @@ export function slotBandwidth(
   const count = Math.max(1, visibleEnd - visibleStart);
   if (count === 1) return Math.min(36, plotWidth * 0.4);
   let minGap = Infinity;
+  let prev = position(xScale, xValues[visibleStart]!);
   for (let i = visibleStart + 1; i < visibleEnd; i++) {
-    const gap = Math.abs(position(xScale, xValues[i]!) - position(xScale, xValues[i - 1]!));
+    const curr = position(xScale, xValues[i]!);
+    const gap = Math.abs(curr - prev);
     if (gap > 0 && gap < minGap) minGap = gap;
+    prev = curr;
   }
   const base = Number.isFinite(minGap) ? minGap * 0.72 : (plotWidth / count) * 0.72;
   return clamp(base, 2, 48);
@@ -34,13 +38,25 @@ export function slotBandwidth(
 export interface BarSlotLayout {
   /** Number of horizontal grouped bar columns at each x-slot (stacked series sharing an axis share 1 lane). */
   readonly laneCount: number;
+  /** Precomputed total group width in CSS pixels (computed once per layout, O(N) total). */
+  readonly groupWidth: number;
+  /** Precomputed lane width in CSS pixels. */
+  readonly laneWidth: number;
+  /** Precomputed drawn bar width in CSS pixels. */
+  readonly barWidth: number;
   /** Lane index per bar series index (`barSeriesIdx -> lane`). */
   readonly laneOf: ReadonlyMap<number, number>;
   /** For stacked bar series, ordered list of preceding stacked bar series on the same axis. */
   readonly stackPredecessors: ReadonlyMap<number, readonly number[]>;
 }
 
-export function buildBarSlotLayout(view: AlignedView, meta: CartesianMeta, barSeriesIndexes: readonly number[]): BarSlotLayout {
+export function buildBarSlotLayout(
+  view: AlignedView,
+  projection: Projection | null,
+  plot: Rect | null,
+  meta: CartesianMeta,
+  barSeriesIndexes: readonly number[],
+): BarSlotLayout {
   const laneOf = new Map<number, number>();
   const stackLaneByAxis = new Map<number, number>();
   const stackGroupByAxis = new Map<number, number[]>();
@@ -66,37 +82,47 @@ export function buildBarSlotLayout(view: AlignedView, meta: CartesianMeta, barSe
       laneOf.set(sIdx, laneCount++);
     }
   }
-  return { laneCount: Math.max(1, laneCount), laneOf, stackPredecessors };
+  const lanes = Math.max(1, laneCount);
+  let groupWidth = 12;
+  if (projection && plot && projection.kind !== 'ring' && barSeriesIndexes.length > 0) {
+    const xScale = projection.kind === 'xy' ? projection.x : projection.band;
+    const { start, end } = view.visibleSlots;
+    groupWidth = slotBandwidth(xScale, view.frame.x.values, start, end, plot.width);
+  }
+  const laneWidth = Math.max(1, groupWidth / lanes);
+  const barWidth = Math.max(1, laneWidth - (lanes > 1 ? 1 : 0));
+  return { laneCount: lanes, groupWidth, laneWidth, barWidth, laneOf, stackPredecessors };
 }
 
-/** Computes the exact rendered CSS-pixel bar rectangle for `(sIdx, slotIndex)`, or `null` if missing. */
-export function barBoxAt(
+/**
+ * Writes exact rendered CSS-pixel bar `(x, y, width, height)` for `(sIdx, slotIndex)` directly into
+ * `out` starting at `offset` (zero object allocations). Returns `false` if slot is missing/non-finite.
+ */
+export function writeBarRect(
   view: AlignedView,
   projection: Projection,
   plot: Rect,
   barLayout: BarSlotLayout,
   sIdx: number,
   slotIndex: number,
-): Rect | null {
-  if (projection.kind === 'ring') return null;
+  out: Float32Array,
+  offset: number,
+): boolean {
+  if (projection.kind === 'ring') return false;
   const series = view.frame.series[sIdx]!;
-  if (series.slot[slotIndex] !== SLOT_VALUE) return null;
+  if (series.slot[slotIndex] !== SLOT_VALUE) return false;
   const v = series.y[slotIndex]!;
-  if (!Number.isFinite(v)) return null;
+  if (!Number.isFinite(v)) return false;
 
   const xScale = projection.kind === 'xy' ? projection.x : projection.band;
   const yScale = axisScaleOf(projection, series.axisIndex ?? 0);
-  const { start, end } = view.visibleSlots;
-  const xVals = view.frame.x.values;
-  const groupW = slotBandwidth(xScale, xVals, start, end, plot.width);
-  const laneW = Math.max(1, groupW / barLayout.laneCount);
   const lane = barLayout.laneOf.get(sIdx) ?? 0;
 
   let baseVal = 0;
   const preds = barLayout.stackPredecessors.get(sIdx);
   if (preds) {
-    for (const pIdx of preds) {
-      const ps = view.frame.series[pIdx]!;
+    for (let p = 0; p < preds.length; p++) {
+      const ps = view.frame.series[preds[p]!]!;
       if (ps.slot[slotIndex] !== SLOT_VALUE) continue;
       const pv = ps.y[slotIndex]!;
       if (!Number.isFinite(pv)) continue;
@@ -107,10 +133,26 @@ export function barBoxAt(
   const topVal = baseVal + v;
   const yBase = clamp(position(yScale, baseVal), plot.y, plot.y + plot.height);
   const yTop = clamp(position(yScale, topVal), plot.y, plot.y + plot.height);
-  const cx = xSlotPixel(xScale, xVals, slotIndex);
-  const bx = cx - groupW / 2 + lane * laneW;
-  const width = Math.max(1, laneW - (barLayout.laneCount > 1 ? 1 : 0));
-  const y = Math.min(yBase, yTop);
-  const height = Math.max(1, Math.abs(yTop - yBase));
-  return { x: bx, y, width, height };
+  const cx = xSlotPixel(xScale, view.frame.x.values, slotIndex);
+  out[offset] = cx - barLayout.groupWidth / 2 + lane * barLayout.laneWidth;
+  out[offset + 1] = Math.min(yBase, yTop);
+  out[offset + 2] = barLayout.barWidth;
+  out[offset + 3] = Math.max(1, Math.abs(yTop - yBase));
+  return true;
+}
+
+let scratch: Float32Array | undefined;
+
+/** Computes the exact rendered CSS-pixel bar rectangle for `(sIdx, slotIndex)`, or `null` if missing. */
+export function barBoxAt(
+  view: AlignedView,
+  projection: Projection,
+  plot: Rect,
+  barLayout: BarSlotLayout,
+  sIdx: number,
+  slotIndex: number,
+): Rect | null {
+  const buf = scratch ??= new Float32Array(4);
+  if (!writeBarRect(view, projection, plot, barLayout, sIdx, slotIndex, buf, 0)) return null;
+  return { x: buf[0]!, y: buf[1]!, width: buf[2]!, height: buf[3]! };
 }

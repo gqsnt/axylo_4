@@ -1044,15 +1044,16 @@ class ChartController implements Controller, ControllerCore, FrameDriver {
 
   #readerFor(f: FrameState, labelsHidden: number, disclosure: Disclosure): ReaderEntry {
     const a = f.a!;
+    const tag = this.#composition.reader.stateKey?.();
     const shownBefore = this.drawn;
-    if (shownBefore && readerInputsMatch(shownBefore.readerInputs, f, labelsHidden, disclosure)) {
+    if (shownBefore && readerInputsMatch(shownBefore.readerInputs, f, labelsHidden, disclosure, tag)) {
       return { reader: shownBefore.reader, inputs: shownBefore.readerInputs };
     }
     const lastReader = f.lastReader;
-    if (lastReader && readerInputsMatch(lastReader.inputs, f, labelsHidden, disclosure)) return lastReader;
+    if (lastReader && readerInputsMatch(lastReader.inputs, f, labelsHidden, disclosure, tag)) return lastReader;
     const view = f.view, formatters = f.formatters, named = f.named, by = f.by, compact = f.compact, locale = f.locale, caption = f.caption;
     const inputs = [view, formatters, a.messages, a.options.title, named ? by : null, a.options.subtitle,
-      a.options.description, disclosure.omitted, disclosure.changed, labelsHidden, a.options.table, compact, locale, caption];
+      a.options.description, disclosure.omitted, disclosure.changed, labelsHidden, a.options.table, compact, locale, caption, tag];
     this.#stage('reader');
     // The summary reads the view, not the name: when only the naming inputs changed, the statistics already
     // written are kept rather than scanned again (finding 11).
@@ -1081,9 +1082,10 @@ class ChartController implements Controller, ControllerCore, FrameDriver {
 
   #settleReader(f: FrameState, labelsHidden: number): ReaderEntry {
     f.currentHidden = labelsHidden;
+    const tag = this.#composition.reader.stateKey?.();
     const disclosure = this.#disclosureNow(f);
     const settled = f.settled;
-    if (settled && f.settledHidden === labelsHidden && sameDisclosure(f.settledDisclosure, disclosure)) return settled;
+    if (settled && f.settledHidden === labelsHidden && Object.is(settled.inputs[14], tag) && sameDisclosure(f.settledDisclosure, disclosure)) return settled;
     let built = this.#readerFor(f, labelsHidden, disclosure);
     // The summary runs author formatters lazily: it is made here, so what they threw on is in the
     // disclosure this settles on, and no reader is built again once writing has started (verification,

@@ -233,6 +233,7 @@ export interface ReaderParts {
   readonly tableRowCount?: (view: View) => number | null;
   readonly text: ChartText;
   readonly ref?: (ref: ResolvedReference, value: number, formatters: Formatters, locale: string | undefined) => string;
+  readonly stateKey?: () => unknown;
 }
 
 const donutText: ChartText = (input, type) => {

@@ -27,8 +27,11 @@ function resolveCartesianReferences(
     for (let i = 0; i < ySpecs.length; i++) {
       if (used[i]) continue;
       const s = ySpecs[i]!;
-      const lo = Math.min(Number(s.from), Number(s.to));
-      const hi = Math.max(Number(s.from), Number(s.to));
+      if (typeof s.from !== 'number' || !Number.isFinite(s.from) || typeof s.to !== 'number' || !Number.isFinite(s.to)) {
+        continue;
+      }
+      const lo = Math.min(s.from, s.to);
+      const hi = Math.max(s.from, s.to);
       if (s.label === ref.label && Object.is(lo, ref.from) && Object.is(hi, ref.to)) {
         used[i] = 1;
         matchedAxisId = s.axisId;

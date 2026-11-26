@@ -18,7 +18,7 @@ import {
 } from '../core/contracts';
 import { boundaryPixel, clamp, position, rule, seriesPaint, token } from '../scene/geometry';
 import { axisScaleOf } from './scale-ref';
-import { barBoxAt, buildBarSlotLayout, xSlotPixel } from './bar-geom';
+import { buildBarSlotLayout, writeBarRect, xSlotPixel } from './bar-geom';
 import type { CartesianMeta, CartesianStateRef } from './meta';
 
 const TICK_LENGTH = 4;
@@ -32,22 +32,24 @@ function buildBarMarks(
   barSeriesIndexes: readonly number[],
 ): RectMark[] {
   if (!barSeriesIndexes.length || projection.kind === 'ring') return [];
-  const barLayout = buildBarSlotLayout(view, meta, barSeriesIndexes);
+  const barLayout = buildBarSlotLayout(view, projection, plot, meta, barSeriesIndexes);
   const { start, end } = view.visibleSlots;
+  const maxBars = Math.max(0, end - start);
   const marks: RectMark[] = [];
 
   for (const sIdx of barSeriesIndexes) {
-    const coords: number[] = [];
+    const buf = new Float32Array(maxBars * 4);
+    let written = 0;
     for (let i = start; i < end; i++) {
-      const box = barBoxAt(view, projection, plot, barLayout, sIdx, i);
-      if (!box) continue;
-      coords.push(box.x, box.y, box.width, box.height);
+      if (writeBarRect(view, projection, plot, barLayout, sIdx, i, buf, written)) {
+        written += 4;
+      }
     }
-    if (coords.length > 0) {
+    if (written > 0) {
       marks.push({
         type: 'rects',
         series: sIdx,
-        xywh: Float32Array.from(coords),
+        xywh: written === buf.length ? buf : buf.subarray(0, written),
         fill: seriesPaint(sIdx),
         variant: 'bar',
       });
