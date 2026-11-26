@@ -128,6 +128,33 @@ describe('axylo/cartesian packed Chrome integration under strict CSP', () => {
       expect(narrowState.codes).toContain('AX175');
       expect(narrowState.summary).toContain('Secondary right axis');
 
+      // Narrow -> too-small (height 50px) clears AX175 and collapsed-axis summary; back to narrow restores both
+      await page.evaluate(() => { (document.getElementById('chart') as HTMLElement).style.height = '50px'; });
+      await page.waitForTimeout(150);
+      const tooSmallState = await page.evaluate(() => {
+        const fig = document.querySelector('#chart [aria-describedby]');
+        const id = fig?.getAttribute('aria-describedby');
+        return {
+          codes: (window as unknown as { __cart: { diagnostics: readonly { code: string }[] } }).__cart.diagnostics.map(d => d.code),
+          summary: (id ? document.getElementById(id)?.textContent : '') ?? '',
+        };
+      });
+      expect(tooSmallState.codes).not.toContain('AX175');
+      expect(tooSmallState.summary).not.toContain('Secondary right axis');
+
+      await page.evaluate(() => { (document.getElementById('chart') as HTMLElement).style.height = '320px'; });
+      await page.waitForTimeout(150);
+      const narrowAgain = await page.evaluate(() => {
+        const fig = document.querySelector('#chart [aria-describedby]');
+        const id = fig?.getAttribute('aria-describedby');
+        return {
+          codes: (window as unknown as { __cart: { diagnostics: readonly { code: string }[] } }).__cart.diagnostics.map(d => d.code),
+          summary: (id ? document.getElementById(id)?.textContent : '') ?? '',
+        };
+      });
+      expect(narrowAgain.codes).toContain('AX175');
+      expect(narrowAgain.summary).toContain('Secondary right axis');
+
       await page.evaluate(() => { (document.getElementById('chart') as HTMLElement).style.width = '640px'; });
       await page.waitForTimeout(150);
       const wideStateAfter = await page.evaluate(() => {

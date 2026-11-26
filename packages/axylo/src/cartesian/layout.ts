@@ -403,14 +403,18 @@ export function createCartesianLayoutStage(stateRef: CartesianStateRef): LayoutS
     },
     compute(view, size, text, ctx) {
       if (view.kind === 'donut' || view.kind === 'scatter') {
+        stateRef.meta.collapsedRightAxis = false;
         return { width: size.width, height: size.height, kind: 'unmeasured' };
       }
       const res = computeCartesianLayoutDetailed(view, size, text, ctx, stateRef);
       lastResult = res;
       lastLayout = res.layout;
+      stateRef.meta.collapsedRightAxis = res.layout.kind === 'plot' && Boolean(stateRef.meta.axes[1]) && res.layout.yTicksRight === undefined;
       return res.layout;
     },
     layoutDiagnostics(_view, ctx, layout) {
+      const rightAxis = stateRef.meta.axes[1];
+      stateRef.meta.collapsedRightAxis = layout.kind === 'plot' && Boolean(rightAxis) && layout.yTicksRight === undefined;
       if (layout.kind !== 'plot') return [];
       const out: DiagnosticInput[] = [];
       const matches = lastResult !== null && lastLayout === layout;
@@ -421,7 +425,6 @@ export function createCartesianLayoutStage(stateRef: CartesianStateRef): LayoutS
       if (matches && leftAxis && lastResult!.yFailures[0]?.drawn(layout.yTicks)) {
         out.push(createDiagnostic('AX160', 'none', { field: leftAxis.id }, 'presentation'));
       }
-      const rightAxis = stateRef.meta.axes[1];
       if (matches && rightAxis && layout.yTicksRight && lastResult!.yFailures[1]?.drawn(layout.yTicksRight)) {
         out.push(createDiagnostic('AX160', 'none', { field: rightAxis.id }, 'presentation'));
       }

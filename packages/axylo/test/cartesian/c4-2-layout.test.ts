@@ -190,12 +190,24 @@ describe('C4.2 dual-axis responsive layout & single projection authority', () =>
     expect(tight.yTicksRight).toBeUndefined();
     expect(stage.layoutDiagnostics!(view, ctx, tight).map(d => d.code)).toEqual(['AX175']);
 
+    // Narrow -> too-small (short height) clears collapsedRightAxis & AX175; returning to narrow restores both
+    const tooSmall = stage.compute(view, { width: DUAL_AXIS_MIN_WIDTH - 20, height: 60 }, { measurer, style }, ctx);
+    expect(tooSmall.kind).toBe('too-small');
+    expect(stateRef.meta.collapsedRightAxis).toBe(false);
+    expect(stage.layoutDiagnostics!(view, ctx, tooSmall)).toEqual([]);
+
+    const narrowAgain = stage.compute(view, { width: DUAL_AXIS_MIN_WIDTH - 20, height: 240 }, { measurer, style }, ctx);
+    expect(narrowAgain.kind).toBe('plot');
+    expect(stateRef.meta.collapsedRightAxis).toBe(true);
+    expect(stage.layoutDiagnostics!(view, ctx, narrowAgain).map(d => d.code)).toEqual(['AX175']);
+
     // Resize back so fitted plot.width >= 360 px -> right axis returns and AX175 clears!
     const wide = stage.compute(view, { width: 560, height: 240 }, { measurer, style }, ctx);
     expect(wide.kind).toBe('plot');
     if (wide.kind !== 'plot') return;
     expect(wide.plot.width).toBeGreaterThanOrEqual(DUAL_AXIS_MIN_WIDTH);
     expect(wide.yTicksRight!.length).toBeGreaterThanOrEqual(2);
+    expect(stateRef.meta.collapsedRightAxis).toBe(false);
     expect(stage.layoutDiagnostics!(view, ctx, wide)).toEqual([]);
   });
 });
