@@ -163,7 +163,7 @@ describe('reentrant diagnostic delivery', () => {
     const chart = r.controller.handle;
     chart.append([{ x: 2, y: 20 }]);
     r.frames();
-    expect(chart.__dev!.retainedRows()).toBeGreaterThan(0);
+    expect(chart.__dev!.retainedRows()).toBe(2);
 
     const error = rejectStrict(() => chart.append([{ x: 3, y: NaN }, { x: 4, y: 'bad' }]));
     expect(codes(error.diagnostics)).toEqual(['AX103', 'AX106']);
@@ -319,6 +319,17 @@ describe('histogram conservation and sample windows', () => {
       }), { numRuns: 150, seed: midpointSeed });
     });
   }
+
+  it('keeps midpoints finite and strictly increasing at float64 overflow and adjacent-ULP boundaries', () => {
+    const huge = histogram([1e308, 1.5e308], [1e308, 1.25e308, 1.5e308], 'count');
+    expect([...huge.x.values]).toEqual([1.125e308, 1.375e308]);
+    const eps = Number.EPSILON;
+    const ulp = histogram([1, 1 + eps, 1 + 2 * eps], [1, 1 + eps, 1 + 2 * eps], 'count');
+    const xs = [...ulp.x.values];
+    expect(xs).toHaveLength(2);
+    expect(xs.every(Number.isFinite)).toBe(true);
+    expect(xs[1]!).toBeGreaterThan(xs[0]!);
+  });
 });
 
 const zoomData = fc.array(fc.integer({ min: -100, max: 100 }), { minLength: 6, maxLength: 30 }).chain(ys => fc.record({

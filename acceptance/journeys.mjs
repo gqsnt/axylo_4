@@ -20,12 +20,13 @@ const normalizePath = value => String(value).replaceAll('\\', '/').replace(/^\.\
 function isConfinedRelative(root, file) {
   if (!isText(file) || isAbsolute(file) || /^[A-Za-z]:[\\/]/.test(file) || file.includes('\\')) return false;
   const rel = relative(root, resolve(root, file));
-  return rel !== '' && rel.split(sep)[0] !== '..' && !isAbsolute(rel);
+  if (rel === '' || rel.split(sep)[0] === '..' || isAbsolute(rel)) return false;
+  return rel.split(sep).join('/') === file;
 }
 
 function checkTestFile(errors, root, where, file) {
   if (!isConfinedRelative(root, file)) {
-    errors.push(`${where}: expected a repository-relative test file, got ${file}`);
+    errors.push(`${where}: expected a canonical repository-relative test file, got ${file}`);
     return;
   }
   if (!isTestFile(file)) {
@@ -35,17 +36,43 @@ function checkTestFile(errors, root, where, file) {
   if (!isFile(resolve(root, file))) errors.push(`${where}: missing file ${file}`);
 }
 
+const stripComments = source => source.replace(
+  /'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`|\/\/[^\r\n]*|\/\*[\s\S]*?\*\//g,
+  match => (match.startsWith('//') || match.startsWith('/*') ? ' ' : match),
+);
+
+function extractSwitchBody(source, headerPattern) {
+  const match = headerPattern.exec(source);
+  if (!match) return null;
+  let depth = 0;
+  let start = -1;
+  for (let i = match.index + match[0].length - 1; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === '{') {
+      if (depth === 0) start = i + 1;
+      depth++;
+    } else if (ch === '}') {
+      depth--;
+      if (depth === 0) return source.slice(start, i);
+    }
+  }
+  return null;
+}
+
 function readBenchRegistry(root) {
   const runnerPath = resolve(root, 'bench/run.mjs');
   const refsPath = resolve(root, 'bench/lib/refs.mjs');
-  if (!isFile(runnerPath)) return { error: 'missing benchmark runner bench/run.mjs', source: null, workloads: null };
-  if (!isFile(refsPath)) return { error: 'missing benchmark workload registry bench/lib/refs.mjs', source: null, workloads: null };
-  const source = readFileSync(runnerPath, 'utf8');
-  const refs = readFileSync(refsPath, 'utf8');
+  if (!isFile(runnerPath)) return { error: 'missing benchmark runner bench/run.mjs', workloads: null, dispatched: null };
+  if (!isFile(refsPath)) return { error: 'missing benchmark workload registry bench/lib/refs.mjs', workloads: null, dispatched: null };
+  const source = stripComments(readFileSync(runnerPath, 'utf8'));
+  const refs = stripComments(readFileSync(refsPath, 'utf8'));
   const match = /export\s+const\s+WORKLOADS\s*=\s*\[([^\]]+)\]/s.exec(refs);
-  if (!match) return { error: 'could not read WORKLOADS registry from bench/lib/refs.mjs', source: null, workloads: null };
+  if (!match) return { error: 'could not read WORKLOADS registry from bench/lib/refs.mjs', workloads: null, dispatched: null };
   const workloads = new Set([...match[1].matchAll(/['"]([^'"]+)['"]/g)].map(entry => entry[1]));
-  return { error: null, source, workloads };
+  const switchBody = extractSwitchBody(source, /\bswitch\s*\(\s*workload\s*\)\s*\{/);
+  if (switchBody === null) return { error: 'could not read workload dispatch switch from bench/run.mjs', workloads: null, dispatched: null };
+  const dispatched = new Set([...switchBody.matchAll(/\bcase\s+['"]([^'"]+)['"]\s*:/g)].map(entry => entry[1]));
+  return { error: null, workloads, dispatched };
 }
 
 function textList(errors, where, value, { nonEmpty = false } = {}) {
@@ -108,7 +135,7 @@ export function readJourneys({ root, journeysFile = resolve(root, 'acceptance/jo
         errors.push(`${at('benchWorkloads')}: ${bench.error}`);
       } else {
         for (const workload of benchWorkloads) {
-          if (!BENCH_WORKLOADS.includes(workload) || !bench.workloads.has(workload) || !bench.source.includes(`case '${workload}':`)) {
+          if (!BENCH_WORKLOADS.includes(workload) || !bench.workloads.has(workload) || !bench.dispatched.has(workload)) {
             errors.push(`${at('benchWorkloads')}: unknown bench workload ${workload}`);
           }
         }

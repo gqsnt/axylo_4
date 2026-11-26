@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { check } from '../check.mjs';
@@ -19,6 +19,7 @@ function workspace(t) {
   t.after(() => rmSync(directory, { recursive: true }));
   return (name, data) => {
     const file = resolve(directory, name);
+    mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, typeof data === 'string' ? data : JSON.stringify(data));
     return file;
   };
@@ -200,7 +201,7 @@ test('a suite-level failure in an automated ARIA test cited only by journeys blo
   assert.notEqual(result.pers.journeys[1].status, 'fail');
 });
 
-test('evidence validation rejects non-test files, escaping paths, unconfined names, and missing bench runner', t => {
+test('evidence validation rejects non-test files, noncanonical/escaping paths, unconfined names, and missing bench runner', t => {
   const write = workspace(t);
   const absTest = resolve(repo, 'acceptance/test/journeys.test.mjs');
   const journeysFile = write('journeys.json', fixtureJourneys(journeys => {
@@ -211,20 +212,60 @@ test('evidence validation rejects non-test files, escaping paths, unconfined nam
     journeys[4].screenshots = ['../README'];
     journeys[5].rehearsalTasks = ['nested/task'];
     journeys[6].benchWorkloads = ['first'];
+    journeys[7].testFiles = ['./chart.test.ts'];
     return journeys;
   }));
   assert.throws(() => readJourneys({ root: fixtures, journeysFile, matrixIds: ['F1'] }), error => {
     for (const expected of [
       'first-impression.testFiles: expected a test file (*.test.*), got matrix.json',
-      `reading.testFiles: expected a repository-relative test file, got ${absTest}`,
-      'hover.testFiles: expected a repository-relative test file, got ../journeys.test.mjs',
+      `reading.testFiles: expected a canonical repository-relative test file, got ${absTest}`,
+      'hover.testFiles: expected a canonical repository-relative test file, got ../journeys.test.mjs',
       'explore.accessibilityEvidence.automated: expected a test file (*.test.*), got matrix.json',
       'compare.screenshots: invalid docs page name ../README',
       'resize.rehearsalTasks: invalid rehearsal task name nested/task',
       'mobile-touch.benchWorkloads: missing benchmark runner bench/run.mjs',
+      'keyboard.testFiles: expected a canonical repository-relative test file, got ./chart.test.ts',
     ]) {
       assert.ok(error.message.includes(expected), `expected: ${expected}\n${error.message}`);
     }
+    return true;
+  });
+});
+
+test('noncanonical in-repo alias paths and commented-out benchmark cases are refused', t => {
+  const directory = mkdtempSync(resolve(tmpdir(), 'axylo-pers-bench-'));
+  t.after(() => rmSync(directory, { recursive: true }));
+  const put = (rel, content) => {
+    const file = resolve(directory, rel);
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, typeof content === 'string' ? content : JSON.stringify(content));
+    return file;
+  };
+  put('packages/a/chart.test.ts', 'export {};\n');
+  put('bench/lib/refs.mjs', "export const WORKLOADS = ['first', 'page', 'hover'];\n");
+  put('bench/run.mjs', [
+    'export function workloadParams(workload) {',
+    '  switch (workload) {',
+    "    // case 'first': return {};",
+    "    /* case 'page': return {}; */",
+    "    case 'hover': return {};",
+    '  }',
+    '}',
+  ].join('\n'));
+  const journeysFile = put('journeys.json', fixtureJourneys(journeys => {
+    for (const j of journeys) {
+      j.testFiles = ['packages/a/chart.test.ts'];
+      j.accessibilityEvidence.automated = ['packages/a/chart.test.ts'];
+    }
+    journeys[0].testFiles = ['packages/a/../a/chart.test.ts'];
+    journeys[1].benchWorkloads = ['first', 'page', 'hover'];
+    return journeys;
+  }));
+  assert.throws(() => readJourneys({ root: directory, journeysFile, matrixIds: ['F1'] }), error => {
+    assert.ok(error.message.includes('first-impression.testFiles: expected a canonical repository-relative test file, got packages/a/../a/chart.test.ts'), error.message);
+    assert.ok(error.message.includes('reading.benchWorkloads: unknown bench workload first'), error.message);
+    assert.ok(error.message.includes('reading.benchWorkloads: unknown bench workload page'), error.message);
+    assert.ok(!error.message.includes('unknown bench workload hover'), error.message);
     return true;
   });
 });
