@@ -1342,13 +1342,13 @@ describe('C3.3 Wave A: touch pin toggle, tap time, table row reuse, donut slice-
     const renderer: MarkRenderer = { kind: 'svg', element: doc.createElement('svg') as unknown as SVGSVGElement, draw() {}, drawOverlay() {}, destroy() {} };
     const actions: Actions = { zoom: () => {}, toggle: () => {}, pause: () => {}, select: () => {}, hover: () => {} };
     const interaction = createInteraction({ overlay: alignedTargetMarks, swatch: lineSwatch, stepInSeries: null, sliceList: donutSliceList }, fig, renderer, actions);
-    const stateOf = (values: number[], ready: boolean): Committed => {
+    const stateOf = (values: number[], ready: boolean, legend: 'right' | false = 'right'): Committed => {
       const r = record('donut', { title: 'D', data: values.map((value, i) => ({ label: `S${i}`, value })), label: 'label', value: 'value' });
       r.frames();
       const c = r.committed!;
       return {
         kind: 'donut', view: c.view, formatters: c.formatters, messages: defaultMessages, reader: c.reader,
-        tooSmall: false, ready, inspectable: true, interactive: true, tooltip: true, legend: 'right', zoom: false, zoomed: false,
+        tooSmall: false, ready, inspectable: true, interactive: true, tooltip: true, legend, zoom: false, zoomed: false,
         streaming: false, paused: false, epoch: 1, english: () => null, pageLang: null,
         layout: c.layout, lookup: c.lookup, bindings: {} as PaintBindings, theme: {} as ResolvedTheme, pixelRatio: 1,
       };
@@ -1363,6 +1363,15 @@ describe('C3.3 Wave A: touch pin toggle, tap time, table row reuse, donut slice-
     const ready = stateOf([1, 2, 3], true);
     interaction.prepare(ready); interaction.commit(ready);
     const proxy = (fig.plot as unknown as MockElement).querySelector('.axylo-proxy')!;
+    expect(activeElementOf(doc as unknown as Document)).toBe(proxy);
+    expect(proxy.getAttribute('aria-valuetext')).toMatch(/^S1\b/);
+
+    // Same transition when the legend is hidden in the very same update: focus still lands on proxy on slice S1.
+    const zeroNoLegend = stateOf([0, 0, 0], false);
+    interaction.prepare(zeroNoLegend); interaction.commit(zeroNoLegend);
+    side.querySelectorAll('.axylo-legend-choice')[1]!.focus();
+    const readyNoLegend = stateOf([1, 2, 3], true, false);
+    interaction.prepare(readyNoLegend); interaction.commit(readyNoLegend);
     expect(activeElementOf(doc as unknown as Document)).toBe(proxy);
     expect(proxy.getAttribute('aria-valuetext')).toMatch(/^S1\b/);
 

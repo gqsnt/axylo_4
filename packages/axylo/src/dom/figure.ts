@@ -48,6 +48,11 @@ export interface FigureModel {
   readonly noteSegments?: readonly NoteSegment[] | null;
   /** `lang` of the generated summary: 'en' when its built-in sentences are English on another page (A10). */
   readonly summaryLang?: string | null;
+  /**
+   * The description as runs of text, each with its own `lang` (A10: e.g. a compact author error followed by
+   * a built-in English omission sentence). When given, it is the description's content and `summaryLang` is not used.
+   */
+  readonly summarySegments?: readonly NoteSegment[] | null;
 }
 
 export interface FigureOptions {
@@ -293,12 +298,14 @@ class DomFigure implements Figure {
     const subtitleChanged = modeChanged || previous!.subtitle !== subtitle;
     const summaryTextChanged = previous?.summary !== summary;
     const summaryLangChanged = (previous?.summaryLang ?? null) !== (summaryLang ?? null);
+    const summarySegments = model.summarySegments ?? null;
+    const summarySegmentsChanged = !sameSegments(summarySegments, previous?.summarySegments);
     const visibilityChanged = modeChanged || previous!.summaryVisible !== model.summaryVisible;
     const segmentsChanged = modeChanged || !sameSegments(model.noteSegments, previous!.noteSegments);
     const noteChanged = segmentsChanged || previous!.note !== noteText || previous!.noteLang !== model.noteLang;
     const messageChanged = previous?.message !== message;
     const messageLangChanged = previous?.messageLang !== messageLang;
-    if (!(nameChanged || subtitleChanged || summaryTextChanged || summaryLangChanged || visibilityChanged ||
+    if (!(nameChanged || subtitleChanged || summaryTextChanged || summaryLangChanged || summarySegmentsChanged || visibilityChanged ||
         noteChanged || messageChanged || messageLangChanged)) return false;
     this.#previous = model;
     const { figure, plot } = this, description = this.#description, note = this.#note, status = this.#message;
@@ -338,12 +345,18 @@ class DomFigure implements Figure {
     }
 
     const lang = summaryLang ?? null;
-    if (summaryTextChanged) setText(description, summary);
-    const summaryNode = this.#summary;
-    if ((modeChanged || summaryLangChanged) && (previous || lang !== null)) {
-      setAttr(description, 'lang', lang);
-      if (summaryNode) setAttr(summaryNode, 'lang', lang);
+    if (summarySegments && summarySegments.length > 1) {
+      if (summarySegmentsChanged || modeChanged) description.replaceChildren(...makeRuns(this.#doc, summarySegments));
+      if (previous || description.hasAttribute('lang')) setAttr(description, 'lang', null);
+    } else {
+      if (summaryTextChanged || summarySegmentsChanged) {
+        if (description.firstElementChild) description.textContent = '';
+        setText(description, summary);
+      }
+      if ((modeChanged || summaryLangChanged || summarySegmentsChanged) && (previous || lang !== null)) setAttr(description, 'lang', lang);
     }
+    const summaryNode = this.#summary;
+    if (summaryNode && (modeChanged || summaryLangChanged) && (previous || lang !== null)) setAttr(summaryNode, 'lang', lang);
     if (summaryNode) {
       const visible = !compact && model.summaryVisible;
       // The description holds the full text. Only the small-plot fallback needs its own sentence.
@@ -359,15 +372,7 @@ class DomFigure implements Figure {
     if (noteChanged) {
       if (segments && segments.length > 1) {
         // One span per language run lets assistive technology switch voice.
-        if (segmentsChanged) {
-          const spans = segments.map(run => {
-            const span = this.#doc.createElement('span');
-            span.textContent = run.text;
-            if (run.lang !== null) span.setAttribute('lang', run.lang);
-            return span;
-          });
-          note.replaceChildren(...spans);
-        }
+        if (segmentsChanged) note.replaceChildren(...makeRuns(this.#doc, segments));
         if (previous) setAttr(note, 'lang', null);
       } else {
         if (note.firstElementChild) note.textContent = '';
@@ -564,6 +569,15 @@ export function createFigure(
 
 function sameTitle(a: TitleModel | null, b: TitleModel | null): boolean {
   return a === b || (a !== null && b !== null && a.text === b.text && a.level === b.level && a.visible === b.visible);
+}
+
+function makeRuns(doc: Document, segments: readonly NoteSegment[]): HTMLSpanElement[] {
+  return segments.map(run => {
+    const span = doc.createElement('span');
+    span.textContent = run.text;
+    if (run.lang !== null) span.setAttribute('lang', run.lang);
+    return span;
+  });
 }
 
 function sameSegments(a: readonly NoteSegment[] | null | undefined, b: readonly NoteSegment[] | null | undefined): boolean {

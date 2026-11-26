@@ -70,5 +70,17 @@ describe('F-A11Y-3: table referrals and compact error descriptions (F12, C5, A4)
     const r = record('line', { title: 'C', compact: true, state: { error: 'The query failed.' }, data: rowsOf([1, 2]), x: 'x', y: 'y' });
     r.frames();
     expect(lastModel(r).summary).toBe('The query failed.');
+    expect(lastModel(r).summarySegments).toBeNull();
+  });
+
+  it('a compact foreign-page author error with built-in English omissions emits mixed language runs (A10)', () => {
+    const data = [{ x: 0, y: 1 }, { x: 1, y: 'n/a' }, { x: 2, y: 3 }];
+    const r = record('line', { title: 'C', compact: true, state: { error: 'Abfrage fehlgeschlagen.' }, data, x: 'x', y: 'y' }, { pageLang: 'de' });
+    r.frames();
+    const m = lastModel(r);
+    expect(m.summarySegments).toEqual([
+      { text: 'Abfrage fehlgeschlagen. ', lang: null },
+      { text: m.note!, lang: 'en' },
+    ]);
   });
 });

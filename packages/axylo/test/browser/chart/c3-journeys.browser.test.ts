@@ -91,6 +91,25 @@ describe('C3.3 accessibility & responsive/touch browser regressions', () => {
       expect(await page.evaluate(() => !!document.activeElement?.closest('#chart [role="toolbar"]'))).toBe(true);
       await page.keyboard.press('Tab');
       expect(await page.evaluate(() => document.activeElement?.id)).toBe('after');
+
+      // Same transition when legend is hidden in the same update: focus still lands on proxy with slice B.
+      await page.evaluate(async () => {
+        window.charts[0]!.update({ legend: 'right', data: [{ l: 'A', v: 0 }, { l: 'B', v: 0 }, { l: 'C', v: 0 }] });
+        await window.charts[0]!.__bench.ready();
+      });
+      await settle(page);
+      await sliceBtns.nth(0).focus();
+      await page.keyboard.press('ArrowRight');
+      expect(await page.evaluate(() => document.activeElement?.textContent ?? '')).toContain('B');
+      await page.evaluate(async () => {
+        window.charts[0]!.update({ legend: false, data: [{ l: 'A', v: 1 }, { l: 'B', v: 3 }, { l: 'C', v: 1 }] });
+        await window.charts[0]!.__bench.ready();
+      });
+      await settle(page);
+      expect(await page.evaluate(() => document.activeElement?.classList.contains('axylo-proxy') ?? false)).toBe(true);
+      const vtNoLegend = (await page.locator('#chart .axylo-proxy').getAttribute('aria-valuetext')) ?? '';
+      expect(vtNoLegend).toContain('B');
+      expect(vtNoLegend).toContain('60%');
       expect(await closePage(page)).toEqual([]);
     } catch (error) {
       await closePage(page).catch(() => {});
@@ -105,17 +124,21 @@ describe('C3.3 accessibility & responsive/touch browser regressions', () => {
         title: 'Out of range', data: [{ v: 10 }, { v: 11 }], x: 'v', bins: [0, 1, 2],
       });
       const histText = await page.evaluate(() => ({
+        note: document.querySelector('#chart .axylo-note')?.textContent ?? '',
         summary: document.querySelector('#chart .axylo-summary')?.textContent ?? '',
         hasTableBtn: [...document.querySelectorAll('#chart button')].some(b => /table/i.test(b.textContent ?? '')),
       }));
       expect(histText.hasTableBtn).toBe(false);
+      expect(histText.note).toMatch(/Values not shown: 2/i);
+      expect(histText.note).not.toMatch(/See table/i);
       expect(histText.summary).not.toMatch(/See table/i);
 
       await page.evaluate(async () => {
         window.charts[0]!.destroy();
         window.charts.length = 0;
+        document.documentElement.lang = 'de';
         const c = window.Axylo.line!('#chart', {
-          title: 'Compact Err', compact: true, state: { error: 'Feed offline' },
+          title: 'Compact Err', compact: true, state: { error: 'Abfrage fehlgeschlagen.' },
           data: [{ x: 1, y: 10 }, { x: 2, y: NaN }, { x: 3, y: 30 }], x: 'x', y: 'y',
         });
         window.charts.push(c);
@@ -125,11 +148,21 @@ describe('C3.3 accessibility & responsive/touch browser regressions', () => {
       const compactDesc = await page.evaluate(() => {
         const img = document.querySelector('#chart [role="img"]');
         const descId = img?.getAttribute('aria-describedby') ?? '';
-        const text = descId.split(/\s+/).filter(Boolean).map(id => document.getElementById(id)?.textContent ?? '').join(' ');
-        return { text, hasMarker: !!document.querySelector('#chart .axylo-omission-marker, #chart [data-omitted]') || /left out|omitted/i.test(text) };
+        const descEl = descId ? document.getElementById(descId) : null;
+        const runs = descEl ? [...descEl.querySelectorAll('span')].map(s => ({ text: s.textContent ?? '', lang: s.getAttribute('lang') })) : [];
+        return {
+          text: descEl?.textContent ?? '',
+          descLang: descEl?.getAttribute('lang') ?? null,
+          runs,
+        };
       });
-      expect(compactDesc.text).toContain('Feed offline');
-      expect(compactDesc.text).toMatch(/1 value|values not shown|left out|omitted/i);
+      expect(compactDesc.text).toContain('Abfrage fehlgeschlagen.');
+      expect(compactDesc.text).toMatch(/Values not shown: 1/i);
+      expect(compactDesc.descLang).toBeNull();
+      expect(compactDesc.runs).toHaveLength(2);
+      expect(compactDesc.runs[0]).toEqual({ text: 'Abfrage fehlgeschlagen. ', lang: null });
+      expect(compactDesc.runs[1]?.lang).toBe('en');
+      expect(compactDesc.runs[1]?.text).toMatch(/Values not shown: 1/i);
       expect(await closePage(page)).toEqual([]);
     } catch (error) {
       await closePage(page).catch(() => {});
@@ -210,21 +243,37 @@ describe('C3.3 accessibility & responsive/touch browser regressions', () => {
     }
   });
 
-  it('F-RESP-6: compact chart at 24x16 lower bound renders cleanly with zero Tab stops', async () => {
+  it('F-RESP-6: compact chart at 24x16 lower bound renders cleanly with zero Tab stops and no pointer capture', async () => {
     const page = await chartPage({ css: '#chart { width: 24px; height: 16px; }' });
     try {
-      await create(page, 'line', {
-        title: 'Spark', compact: true, data: Array.from({ length: 6 }, (_, x) => ({ x, y: (x % 3) + 1 })), x: 'x', y: 'y',
+      await page.evaluate(async () => {
+        const counts = { hover: 0, select: 0 };
+        (window as unknown as { __c3Counts: typeof counts }).__c3Counts = counts;
+        const c = window.Axylo.line!('#chart', {
+          title: 'Spark', compact: true, data: Array.from({ length: 6 }, (_, x) => ({ x, y: (x % 3) + 1 })), x: 'x', y: 'y',
+          onHover: () => { counts.hover++; },
+          onSelect: () => { counts.select++; },
+        });
+        window.charts.push(c);
+        await c.__bench.ready();
       });
       await frames(page, 2);
+      const box = await page.locator('#chart').boundingBox();
+      await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+      await page.mouse.click(box!.x + box!.width / 2, box!.y + box!.height / 2);
+      await settle(page);
       const info = await page.evaluate(() => ({
         imgCount: document.querySelectorAll('#chart [role="img"]').length,
         tabStops: document.querySelectorAll('#chart [tabindex]:not([tabindex="-1"]), #chart button, #chart input').length,
         hasPath: document.querySelectorAll('#chart svg path').length > 0,
+        tooltipVisible: !!document.querySelector('#chart .axylo-tooltip:not([hidden])'),
+        counts: (window as unknown as { __c3Counts: { hover: number; select: number } }).__c3Counts,
       }));
       expect(info.imgCount).toBe(1);
       expect(info.tabStops).toBe(0);
       expect(info.hasPath).toBe(true);
+      expect(info.tooltipVisible).toBe(false);
+      expect(info.counts).toEqual({ hover: 0, select: 0 });
       expect(await closePage(page)).toEqual([]);
     } catch (error) {
       await closePage(page).catch(() => {});

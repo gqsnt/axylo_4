@@ -335,26 +335,33 @@ export function figureModelFor(f: FrameState, r: ReaderModel, small: boolean, di
   const named = f.named;
   const english = f.english;
   const message = shown.kind === 'ready' ? null : shown.text;
+  const messageLang = message !== null && shown.kind !== 'ready' && shown.message ? english(shown.message) : null;
+  const noteSegments = f.noteShown && r.note !== null ? noteRunsFor(f, r, disclosure) : null;
+  const compactErrorNote = compact && message !== null && shown.kind !== 'ready' && shown.kind !== 'empty' && noteSegments !== null;
   // A compact chart is one image: its description says what state it is in (C1).
   // Loading and error are not empty (documentation findings 1 and 3): their description is the state, not
   // a reading of data the plot does not show.
   const summary = message === null ? r.summary
     : shown.kind === 'empty' ? (compact ? `${message} ${r.summary}` : r.summary)
     // A compact error still shows the omission marker, whose text equivalent is this description (C5).
-    : compact && f.noteShown && r.note ? `${message} ${r.note}` : message;
+    : compactErrorNote ? `${message} ${r.note}` : message;
+  const summarySegments = compactErrorNote && noteSegments.some(run => run.lang !== messageLang)
+    ? [{ text: `${message} `, lang: messageLang }, ...noteSegments]
+    : null;
   return {
     compact, title: named ? null : f.title, labelledBy: named ? f.by : null, name: r.name || a.name,
     subtitle: stringOption(a.options, 'subtitle'), summary,
     summaryVisible: small, note: f.noteShown ? r.note : null, message,
-    messageLang: message !== null && shown.kind !== 'ready' && shown.message ? english(shown.message) : null,
+    messageLang,
     noteLang: noteLangFor(f, disclosure),
     // The reader's runs, each in its own language (reader review, finding 5); English is marked only on a
     // page in another language (A10).
-    noteSegments: f.noteShown && r.note !== null ? noteRunsFor(f, r, disclosure) : null,
+    noteSegments,
     // The generated summary's sentences are the built-in templates; the names in them do not change that.
     summaryLang: message !== null && shown.kind !== 'ready' && shown.kind !== 'empty'
       ? (shown.message && english(shown.message) ? 'en' : null)
       : english('chartSummary') && english('seriesSummary') ? 'en' : null,
+    summarySegments,
   };
 }
 

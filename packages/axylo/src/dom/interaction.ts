@@ -122,6 +122,7 @@ class DomInteraction implements Interaction {
   #controlsState: ControlsState | null = null;
   #lastControls: unknown[] | null = null;
   #focus: DatumRef | null = null;
+  #handoffSliceKey: string | null = null;
   #single = false;
   #shown: Shown = NONE;
   #pointer: Mutable<Point> | null = null;
@@ -1131,11 +1132,16 @@ class DomInteraction implements Interaction {
     const before = measure ? this.#figure.controlsSignature() : '';
     this.#controlNodes = null; this.#clearGeo();
 
-    const inLegend = this.#legendList !== null && this.#legendList.contains(this.#activeElement());
+    const prevAct = this.#activeElement();
+    const inLegend = this.#legendList !== null && this.#legendList.contains(prevAct);
+    const sliceKey = inLegend ? (prevAct as HTMLElement).parentElement?.dataset.key ?? null : null;
     const nextList = this.#parts.sliceList?.(this.#doc, d, this.#actions, this.#legendList) ?? null;
     if (!nextList && this.#legendList) this.#removeLegend();
     this.#legendList = nextList;
-    if (inLegend && (!this.#legendList || !this.#legendList.contains(this.#activeElement()))) this.#focusFigure();
+    if (inLegend && (!this.#legendList || !this.#legendList.contains(this.#activeElement()))) {
+      this.#handoffSliceKey = d.ready ? sliceKey : null;
+      this.#focusFigure();
+    }
 
     const items = buildControlItems(d, controls, this.#parts.swatch, this.#range !== null, this.#tableView?.element.id ?? null);
     const inToolbar = this.#toolbar?.element.contains(this.#activeElement());
@@ -1155,11 +1161,16 @@ class DomInteraction implements Interaction {
   }
 
   #leaveSlices(d: Committed): void {
+    const handoff = this.#handoffSliceKey;
+    this.#handoffSliceKey = null;
     const list = this.#legendList, act = this.#activeElement();
-    const key = list?.dataset.roving === 'false' && list.contains(act) ? (act as HTMLElement).parentElement?.dataset.key : undefined;
+    const key = list?.dataset.roving === 'false' && list.contains(act)
+      ? (act as HTMLElement).parentElement?.dataset.key
+      : handoff !== null && act === this.#root ? handoff : undefined;
     if (key === undefined || !plotReady(d)) return;
     // A ready donut's slices are no longer a tab stop (A2): focus moves on, still on the slice it was on.
-    this.#focus = { kind: 'slice', sliceKey: key };
+    const ref: DatumRef = { kind: 'slice', sliceKey: key };
+    this.#focus = d.lookup.resolve(ref) ?? firstDatum(d);
     if (this.#tableView) this.#tableView.focus(); else this.#restorePlotFocus(true);
   }
 
@@ -1215,7 +1226,7 @@ class DomInteraction implements Interaction {
 
   #dropHold(d: Committed, allowPick = true) { this.#rest = null; if (allowPick && this.#pointer) this.#pointTo(this.#pick(d, this.#pointer)); else this.#shown = this.#idle(); }
 
-  #resetCore() { this.#single = false; this.#dismissed = this.#shownText = this.#focus = this.#rest = null; this.#pinPage = 0; }
+  #resetCore() { this.#single = false; this.#dismissed = this.#shownText = this.#focus = this.#handoffSliceKey = this.#rest = null; this.#pinPage = 0; }
 
   #reconcile(previous: Committed | null, next: Committed): void {
     const { lookup } = next;
