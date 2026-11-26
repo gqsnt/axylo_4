@@ -3,6 +3,7 @@
 import type { Frame } from '../core/contracts';
 import type { FrameBuffers } from './store-buffers';
 import type { RawRows, RowRevisions } from './store-rows';
+import { existingSharedStates } from './store-statistics';
 import type { Column } from './store-window';
 import type { Table } from './table';
 
@@ -80,7 +81,14 @@ export class ByteCount {
   frame(frame: Frame): void {
     if (frame.shape === 'aligned') {
       this.add('frame x', frame.x.values);
-      for (const series of frame.series) this.plain(`frame series ${series.key}`, series, ['y', 'slot', 'row']);
+      for (const series of frame.series) {
+        this.plain(`frame series ${series.key}`, series, ['y', 'slot', 'row']);
+        const y: unknown = Object.getOwnPropertyDescriptor(series, 'y')?.value;
+        if (y instanceof Float64Array) {
+          const shared = existingSharedStates(y);
+          if (shared) this.add(`frame series ${series.key} slot`, shared);
+        }
+      }
     } else if (frame.shape === 'points') {
       for (const series of frame.series) this.plain(`frame series ${series.key}`, series, ['x', 'y', 'row', 'missingX', 'missingRow']);
     } else {
@@ -117,7 +125,9 @@ export function countBuffers(buffers: FrameBuffers, bytes: ByteCount): void {
   if (categories.length) bytes.add('category positions', categories);
   for (const [key, series] of buffers.series) {
     bytes.add(`series ${key} y`, series.y);
-    bytes.add(`series ${key} slot`, series.slot);
+    // A dense series keeps no state column (null), unless one was already materialized for its shared y buffer.
+    const slot = series.slot ?? existingSharedStates(series.y);
+    if (slot) bytes.add(`series ${key} slot`, slot);
     if (series.row) bytes.add(`series ${key} row`, series.row);
   }
 }

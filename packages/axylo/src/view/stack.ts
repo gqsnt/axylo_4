@@ -1,5 +1,6 @@
 import { SLOT_VALUE, type AlignedFrame, type DiagnosticInput, type DiagnosticSink, type StackView } from '../core/contracts';
 import { createDiagnostic } from '../diagnostics';
+import { seriesSlots } from '../data/store-statistics';
 
 const overflow = new WeakMap<StackView, readonly DiagnosticInput[]>();
 
@@ -24,10 +25,11 @@ export function buildStack(frame: AlignedFrame, visible: readonly boolean[]): St
     let count = 0;
     const rows: number[] = [];
 
+    const states = seriesSlots(series);
     for (let slot = 0; slot < frame.length; slot++) {
       let above = prevPositive?.[slot] ?? 0;
       let below = prevNegative?.[slot] ?? 0;
-      if (series.slot[slot] === SLOT_VALUE) {
+      if (states === null || states[slot] === SLOT_VALUE) {
         const value = series.y[slot]!;
         if (value >= 0) above += value;
         else below += value;

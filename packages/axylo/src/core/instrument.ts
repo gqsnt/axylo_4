@@ -13,6 +13,7 @@ import { SLOT_NO_ROW, SLOT_VALUE } from './contracts';
 import type { Chart } from '../public';
 import { drawing } from '../scene/lines';
 import { simplifyLine } from '../simplify';
+import { seriesSlots, slotState } from '../data/store-statistics';
 
 type Span = readonly [number, number];
 
@@ -137,7 +138,7 @@ export function attachHooks(handle: ChartHandle, probe: Probe): void {
           out.series = out.series.map((s, i) => {
             const series = view.frame.series[i]!;
             if (!view.visible[i]) return { ...s, kept: [], breaks: [], isolatedMarkers: false, keptBasis: d.streaming ? 'window' : 'rows' };
-            const runs = simplifyLine({ ...draw, range: view.drawSlots[i]!, slot: series.slot, y: series.y });
+            const runs = simplifyLine({ ...draw, range: view.drawSlots[i]!, slot: seriesSlots(series), y: series.y });
             // A streaming chart's row indexes keep growing: its kept samples are given within the window shown.
             const kept = d.streaming
               ? Array.from(runs.indexes, slot => slot - window)
@@ -209,7 +210,7 @@ function describe(view: View): Omit<ReturnType<BenchHook['describe']>, 'renderer
       let first = -1;
       let last = -1;
       for (let i = 0; i < frame.length; i++) {
-        const state = s.slot[i];
+        const state = slotState(s, i);
         if (state === SLOT_NO_ROW) continue;
         points++;
         if (first < 0) first = i;

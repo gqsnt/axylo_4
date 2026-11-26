@@ -8,6 +8,7 @@ import { lowerBound, upperBound } from '../lookup/search';
 import { donutRatio, incomplete, slotLabel, slotText } from '../lookup/text';
 import type { Messages, XValue } from '../public';
 import { readPosition } from './x';
+import { slotState } from '../data/store-statistics';
 
 const PAGE_SIZE = 100;
 
@@ -132,7 +133,7 @@ export const alignedTable: TableBuilder = (view, caption, formatters, messages, 
       const row = [stack?.incomplete?.[at] ? incomplete(x, messages) : x];
       for (let s = 0; s < series.length; s++) {
         const entry = series[s]!;
-        row.push(slotText(formatters, s, entry.y[at]!, entry.slot[at] as SlotState));
+        row.push(slotText(formatters, s, entry.y[at]!, slotState(entry, at) as SlotState));
       }
       return row;
     },

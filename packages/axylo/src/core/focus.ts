@@ -10,6 +10,7 @@ import type { Messages } from '../public';
 import { fill, pointOf } from '../messages';
 import { lowerBound, pageDistance, stepIndex } from '../lookup/search';
 import { slotText } from '../lookup/text';
+import { slotState } from '../data/store-statistics';
 
 export { pageDistance };
 
@@ -93,7 +94,7 @@ export function alignedRows(view: AlignedView, formatters: Formatters, x: number
   const series = view.frame.series;
   for (let s = 0; s < series.length; s++) {
     if (!view.visible[s] || !series[s]!.drawable || shown.has(s)) continue;
-    const ser = series[s]!, state = ser.slot[i] as SlotState;
+    const ser = series[s]!, state = slotState(ser, i) as SlotState;
     rows.push({
       ref: { kind: 'aligned', seriesKey: ser.key, x }, seriesIndex: s, seriesLabel: ser.label, x: model.title,
       value: slotText(formatters, s, ser.y[i]!, state), state, percent: null, row: ser.row?.[i] ?? i,

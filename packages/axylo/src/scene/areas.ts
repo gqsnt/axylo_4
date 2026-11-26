@@ -5,6 +5,7 @@ import { buildPath, buildPoints, simplifyArea, stackIndexes, type LineInput } fr
 import { interpolated, stackAreaRange } from '../view';
 import { affinePosition, seriesPaint, token } from './geometry';
 import { addLine, type Drawing } from './lines';
+import { seriesSlots } from '../data/store-statistics';
 
 export function addArea(
   input: LineInput & Drawing, view: AlignedView, series: number, compact: boolean,
@@ -43,7 +44,8 @@ function addStackLine(
 ): void {
   const component = view.frame.series[series]!;
   const end = start + input.x.length;
-  const slot = component.slot.subarray(start, end);
+  // null: every slot is SLOT_VALUE; reading component.slot would make a column of zeros.
+  const slot = seriesSlots(component)?.subarray(start, end) ?? null;
   const draw = view.drawSlots[series]!;
   const range = { start: draw.start - start, end: draw.end - start };
   const visible = { start: view.visibleSlots.start - start, end: view.visibleSlots.end - start };
@@ -64,10 +66,10 @@ function addStackLine(
       for (let i = 0; i < y.length; i++) values[i] = (y[i]! < 0 ? negative : positive)[i]!;
     }
   }
-  const selection = segments(vertices, (a, b) =>
-    a >= range.start && b < range.end && slot[a] === SLOT_VALUE && slot[b] === SLOT_VALUE);
-  const isolated = vertices.filter(i => i >= visible.start && i < visible.end && slot[i] === SLOT_VALUE &&
-    (i === range.start || slot[i - 1] !== SLOT_VALUE) && (i + 1 === range.end || slot[i + 1] !== SLOT_VALUE));
+  const value = (i: number) => slot ? slot[i] === SLOT_VALUE : i >= 0 && i < y.length;
+  const selection = segments(vertices, (a, b) => a >= range.start && b < range.end && value(a) && value(b));
+  const isolated = vertices.filter(i => i >= visible.start && i < visible.end && value(i) &&
+    (i === range.start || !value(i - 1)) && (i + 1 === range.end || !value(i + 1)));
   addLine({ ...input, range, slot, y: values },
     view, series, visible, compact, paths, points, { ...selection, isolated });
 }

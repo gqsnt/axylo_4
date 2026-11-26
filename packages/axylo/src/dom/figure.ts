@@ -134,9 +134,9 @@ class DomFigure implements Figure {
   _st: HTMLElement | null = null;
   _c: HTMLElement | null = null;
   _t: HTMLElement | null = null;
-  _su: HTMLElement | null = null;
+  declare _su?: HTMLElement;
   _sm: HTMLElement | null = null;
-  _co: HTMLElement | null = null;
+  declare _co?: HTMLElement;
   _l: HTMLElement | null = null;
   _tp: HTMLElement | null = null;
   _ro: HTMLElement | null = null;
@@ -322,9 +322,11 @@ class DomFigure implements Figure {
       if (!compact && subtitle) {
         const sub = this._su ??= identified(this._d, 'p', 'subtitle', this.id, 'st');
         setText(sub, subtitle);
-        show(sub, true);
         mount(this._c!, sub, description);
-      } else clearSubtitle(this._su);
+      } else if (this._su) {
+        this._su.remove();
+        this._su = undefined;
+      }
     }
 
     const summaryTextChanged = previous === null || previous.summary !== summary;
@@ -379,13 +381,11 @@ class DomFigure implements Figure {
         hideFromAT(corner);
         corner.textContent = '*';
       }
-      show(this._co, true);
       setAttr(this._co, 'title', noteText);
       mount(plot, this._co);
-    } else if (this._co && (modeChanged || previous!.note !== noteText)) {
-      detach(this._co);
-      show(this._co, false);
-      setAttr(this._co, 'title', null);
+    } else if (this._co) {
+      this._co.remove();
+      this._co = undefined;
     }
 
     if (previous === null || previous.message !== message) {
@@ -496,7 +496,6 @@ function makeCompact(f: DomFigure, previous: FigureModel | null): void {
     insertBefore(figure, f._ds, beforeBody(f));
     f._c.remove();
   }
-  clearSubtitle(f._su);
   detach(f._ct, figure);
   if (f._st) detach(f._ro, f._st);
   detach(f._tp, figure);
@@ -519,14 +518,6 @@ function mount(parent: HTMLElement, node: HTMLElement, before: Node | null = nul
 
 function detach(node: HTMLElement | null, parent = node?.parentNode): void {
   if (node && parent && node.parentNode === parent) node.remove();
-}
-
-function clearSubtitle(node: HTMLElement | null): void {
-  if (node) {
-    detach(node);
-    setText(node, '');
-    show(node, false);
-  }
 }
 
 function middleNode(f: DomFigure): HTMLElement {

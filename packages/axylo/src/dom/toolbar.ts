@@ -53,12 +53,6 @@ interface ButtonEntry {
   readonly b: HTMLButtonElement;
   i: ToolbarItem;
   s: string;
-  cls: string;
-  pressed: boolean | undefined;
-  expanded: boolean | undefined;
-  controls: string | null;
-  lang: string | null;
-  disabled: boolean;
 }
 
 export function createToolbar(doc: Document): Toolbar {
@@ -105,12 +99,11 @@ export function createToolbar(doc: Document): Toolbar {
       const nodes: HTMLButtonElement[] = [];
       for (const item of items) {
         let e = buttons.get(item.key);
+        const previous = e?.i;
         if (!e) {
           const b = doc.createElement('button');
           b.type = 'button';
-          buttons.set(item.key, e = {
-            b, i: item, s: '', cls: '', pressed: undefined, expanded: undefined, controls: null, lang: null, disabled: false,
-          });
+          buttons.set(item.key, e = { b, i: item, s: '' });
         }
         e.i = item;
         const { b } = e, sig = itemSignature(item);
@@ -125,23 +118,16 @@ export function createToolbar(doc: Document): Toolbar {
           setAttr(b, 'title', item.symbol ? item.label : null);
           e.s = sig;
         }
-        const cls = item.struck ? `${item.className} axylo-struck` : item.className;
-        if (e.cls !== cls) b.className = e.cls = cls;
-        if (e.pressed !== item.pressed) {
-          e.pressed = item.pressed;
-          setAttr(b, 'aria-pressed', item.pressed === undefined ? null : String(item.pressed));
+        if (previous?.className !== item.className || !!previous.struck !== !!item.struck) {
+          b.className = item.struck ? `${item.className} axylo-struck` : item.className;
         }
-        if (e.expanded !== item.expanded) {
-          e.expanded = item.expanded;
-          setAttr(b, 'aria-expanded', item.expanded === undefined ? null : String(item.expanded));
-        }
+        if (previous?.pressed !== item.pressed) setAttr(b, 'aria-pressed', item.pressed === undefined ? null : String(item.pressed));
+        if (previous?.expanded !== item.expanded) setAttr(b, 'aria-expanded', item.expanded === undefined ? null : String(item.expanded));
         const controls = item.expanded ? item.controls ?? null : null;
-        if (e.controls !== controls) setAttr(b, 'aria-controls', e.controls = controls);
-        if (e.lang !== item.lang) setAttr(b, 'lang', e.lang = item.lang);
-        const disabled = item.disabled === true;
-        if (e.disabled !== disabled) {
-          e.disabled = disabled;
-          setAttr(b, 'aria-disabled', disabled ? 'true' : null);
+        if ((previous?.expanded ? previous.controls ?? null : null) !== controls) setAttr(b, 'aria-controls', controls);
+        if ((previous?.lang ?? null) !== item.lang) setAttr(b, 'lang', item.lang);
+        if (!!previous?.disabled !== !!item.disabled) {
+          setAttr(b, 'aria-disabled', item.disabled ? 'true' : null);
         }
         nodes.push(b);
       }

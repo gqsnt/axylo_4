@@ -107,10 +107,6 @@ ${forced}
    * this layer's computed font, so the same values reach measurement.
    */
   .axylo .axylo-text {
-    contain: layout style;
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
     color: var(--axylo-text, currentColor);
     font-family: var(--axylo-font-family, inherit);
     font-size: var(--axylo-font-size, max(12px, 1em));
@@ -119,12 +115,15 @@ ${forced}
     letter-spacing: var(--axylo-letter-spacing, inherit);
     white-space: nowrap;
   }
-  .axylo .axylo-text .axylo-label { position: absolute; left: 0; top: 0; transform-origin: 0 0; white-space: pre; }
-  .axylo .axylo-text .axylo-label > div { display: block; }
 }
 
 /* structure: added by the figure module (inside "@layer axylo { … }") */
 @layer axylo {
+  .axylo .axylo-text, .axylo .axylo-tick-x-group { position: absolute; inset: 0; pointer-events: none; contain: layout style; }
+  .axylo .axylo-text .axylo-label { position: absolute; left: 0; top: 0; transform-origin: 0 0; white-space: pre; text-align: right; }
+  .axylo .axylo-text .axylo-label > div { display: block; }
+  .axylo .axylo-label.axylo-label-start { text-align: left; }
+  .axylo .axylo-label.axylo-label-middle { text-align: center; }
   .axylo [hidden] { display: none !important; }
   .axylo-visually-hidden {
     position: absolute !important; width: 1px !important; height: 1px !important; margin: -1px !important;

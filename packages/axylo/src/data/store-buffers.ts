@@ -1,7 +1,8 @@
 import { mapValues } from './store-map';
 import { BufferWindow } from './store-window';
-import { SLOT_NO_ROW, type AlignedFrame, type RowSource, type Series, type XColumn } from '../core/contracts';
+import { SLOT_NO_ROW, SLOT_VALUE, type AlignedFrame, type RowSource, type Series, type XColumn } from '../core/contracts';
 import { lazyColumns } from './store-bytes';
+import { denseSeries, seriesSlots, sharedStatesFor } from './store-statistics';
 
 interface OpenSlot {
   readonly index: number;
@@ -16,7 +17,11 @@ type SeriesDescription = Omit<Series, 'y' | 'slot' | 'row'>;
 export interface SeriesBuffers {
   description: SeriesDescription;
   y: Float64Array;
-  slot: Uint8Array;
+  /**
+   * null while every slot is SLOT_VALUE: a continuous million-point line would otherwise own a megabyte of
+   * zeros (spec P7). Made, at the y column's capacity, by the first write of any other state.
+   */
+  slot: Uint8Array | null;
   /**
    * null while every slot came from the row with the same number (shifted by `FrameBuffers.rowShift`): a
    * typed-column frame has no row index, and a dense identity index would cost 4 bytes a slot (spec P7).
@@ -27,9 +32,24 @@ export interface SeriesBuffers {
 
 function buffers(description: SeriesDescription, capacity: number, rows = true): SeriesBuffers {
   return {
-    description, y: new Float64Array(capacity), slot: new Uint8Array(capacity),
+    description, y: new Float64Array(capacity), slot: null,
     row: rows ? new Int32Array(capacity) : null,
   };
+}
+
+/**
+ * The state column made for a y buffer while its series had none: by a reader of a dense frame's `slot`, or by
+ * the first other state written. Revisions that share the y buffer share it, as columns were always shared.
+ * Competing writers open new buffers (BufferWindow), so no index is written twice through one y buffer.
+ */
+function sharedStates(y: Float64Array): Uint8Array {
+  return sharedStatesFor(y);
+}
+
+/** Writes one slot state, making the state column only when the state is not SLOT_VALUE. */
+export function writeSlot(series: SeriesBuffers, index: number, state: number): void {
+  if (series.slot) series.slot[index] = state;
+  else if (state !== SLOT_VALUE) (series.slot = sharedStates(series.y))[index] = state;
 }
 
 // Spare slots when storage opens. The store opens on the first append to a static chart, so the copy
@@ -92,10 +112,14 @@ export class FrameBuffers {
     }
     // Most frames observe every slot; the flags are kept only when an expected step has no observation.
     this.observedFlags = this.distinct === this.end ? null : flags;
-    for (const { row, slot, y, ...description } of frame.series) {
+    for (const source of frame.series) {
+      const { key, label, field, unit, valueScale, drawable, y, row } = source;
+      const description = { key, label, field, unit, valueScale, drawable };
       const series = buffers(description, capacity, row !== null);
       series.y.set(y);
-      series.slot.set(slot);
+      // A dense static series has no state column to copy; the fresh buffer is already all SLOT_VALUE.
+      const slot = seriesSlots(source);
+      if (slot) (series.slot = new Uint8Array(capacity)).set(slot);
       if (row) series.row!.set(row);
       this.#series.set(description.key, series);
     }
@@ -198,7 +222,7 @@ export class FrameBuffers {
     const copy = buffers(series.description, capacity, series.row !== null);
     const { start, end } = this;
     copy.y.set(series.y.subarray(start, end), offset);
-    copy.slot.set(series.slot.subarray(start, end), offset);
+    if (series.slot) (copy.slot = new Uint8Array(capacity)).set(series.slot.subarray(start, end), offset);
     copy.row?.set(series.row!.subarray(start, end), offset);
     restoreTail(series.tail, copy, offset + end - start - 1);
     this.#ownSeries().set(series.description.key, copy);
@@ -221,7 +245,8 @@ export class FrameBuffers {
     series.row!.fill(-1, this.start, this.end);
     if (!zero) {
       series.y.fill(NaN, this.start, this.end);
-      series.slot.fill(SLOT_NO_ROW, this.start, this.end);
+      // The new series had no row at any slot already in the window.
+      if (this.end > this.start) (series.slot = sharedStates(series.y)).fill(SLOT_NO_ROW, this.start, this.end);
     }
     this.#ownSeries().set(description.key, series);
     return series;
@@ -276,11 +301,10 @@ export class FrameBuffers {
       if (start !== end && open?.(key)) {
         series.push(this.#openSeries(buffer, start, end));
       } else {
-        series.push({
-          key, label, field, unit, valueScale, drawable,
-          y: buffer.y.subarray(start, end), slot: buffer.slot.subarray(start, end),
-          row: buffer.row?.subarray(start, end) ?? null,
-        });
+        const owned = buffer.y, y = owned.subarray(start, end), row = buffer.row?.subarray(start, end) ?? null;
+        series.push(buffer.slot ? { key, label, field, unit, valueScale, drawable, y, slot: buffer.slot.subarray(start, end), row }
+          : denseSeries({ key, label, field, unit, valueScale, drawable, y, row }, end - start,
+            () => sharedStates(owned).subarray(start, end)));
       }
     }
     const { shape, epoch, xLabel, yLabel, binEdges } = previous;
@@ -292,7 +316,10 @@ export class FrameBuffers {
     const { description, y, slot, row } = series;
     const index = end - 1;
     if (series.tail?.index !== index) {
-      series.tail = { index, exposed: false, claimed: false, y: y[index]!, slot: slot[index]!, row: row ? row[index]! : index + this.#rowShift };
+      series.tail = {
+        index, exposed: false, claimed: false, y: y[index]!, slot: slot ? slot[index]! : SLOT_VALUE,
+        row: row ? row[index]! : index + this.#rowShift,
+      };
     }
     const tail = series.tail;
     let values: Float64Array | undefined;
@@ -301,18 +328,23 @@ export class FrameBuffers {
     const columns = {
       ...description,
       get y() { return values ??= readColumn(y, tail, start, end, tail.y); },
-      get slot() { return states ??= readColumn(slot, tail, start, end, tail.slot); },
       get row() { return row ? rows ??= readColumn(row, tail, start, end, tail.row) : null; },
     };
     if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) lazyColumns.set(columns, () => [values, states, rows]);
-    return columns;
+    // Captured dense, the window was all SLOT_VALUE then, the open slot included, whatever a later writer stores.
+    if (!slot) return denseSeries(columns, end - start, () => readColumn(sharedStates(y), tail, start, end, SLOT_VALUE));
+    Object.defineProperty(columns, 'slot', {
+      configurable: true, enumerable: true,
+      get() { return states ??= readColumn(slot, tail, start, end, tail.slot); },
+    });
+    return columns as Series;
   }
 }
 
 function restoreTail(tail: OpenSlot | undefined, series: SeriesBuffers, index: number): void {
   if (!tail?.claimed || index < 0) return;
   series.y[index] = tail.y;
-  series.slot[index] = tail.slot;
+  writeSlot(series, index, tail.slot);
   // An identity series keeps no index: the claimed slot's row was the identity and still is.
   if (series.row) series.row[index] = tail.row;
 }

@@ -2,6 +2,7 @@ import { SLOT_NULL, SLOT_VALUE, type AlignedFrame, type AlignedView, type DonutV
 import { createFormatters } from '../format';
 import type { Messages } from '../public';
 import { defaultMessages, fill } from '../messages';
+import { slotState } from '../data/store-statistics';
 
 export function singleContinuousSeries(view: AlignedView) {
   const { frame, visible, stack } = view;
@@ -24,7 +25,7 @@ export function firstSlotReading(view: AlignedView, formatters: Formatters, mess
   const { frame, visibleSlots: { start } } = view;
   const series = frame.series[0]!;
   const x = slotLabel(frame, formatters, start);
-  const value = slotText(formatters, 0, series.y[start]!, series.slot[start] as SlotState);
+  const value = slotText(formatters, 0, series.y[start]!, slotState(series, start) as SlotState);
   // Preserve the heading and row calls for author formatters, even though only the heading is read here.
   slotLabel(frame, formatters, start);
   const values = fill(messages.seriesValue, { series: series.label, value });

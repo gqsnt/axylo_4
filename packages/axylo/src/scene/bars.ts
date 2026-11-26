@@ -2,6 +2,7 @@ import {
   SLOT_NO_ROW, SLOT_VALUE, type AlignedView, type Projection, type Rect, type RectMark,
 } from '../core/contracts';
 import { clamp, projectBands, position, seriesPaint, token } from './geometry';
+import { seriesSlots } from '../data/store-statistics';
 
 type Bands = Extract<Projection, { kind: 'bands' }>;
 // With the eight palette colours, no pattern and three patterns give the 32 combinations of spec F9.
@@ -48,14 +49,17 @@ export function barMarks(view: AlignedView, projection: Bands, plot: Rect): Rect
 
   for (let i = 0; i < order.length; i++) {
     const series = order[i]!;
-    const { slot, y } = frame.series[series]!;
+    const { y } = frame.series[series]!;
+    const slot = seriesSlots(frame.series[series]!);
     const pos = stack?.positive[i];
     const neg = stack?.negative[i];
     const prevPos = stack?.positive[i - 1];
     const prevNeg = stack?.negative[i - 1];
     let valid = 0;
     let missed = 0;
-    for (let j = start; j < end; j++) {
+    // null: every slot is SLOT_VALUE.
+    if (!slot) valid = Math.max(0, end - start);
+    else for (let j = start; j < end; j++) {
       if (slot[j] === SLOT_VALUE) valid++;
       else if (slot[j] !== SLOT_NO_ROW) missed++;
     }
@@ -67,7 +71,7 @@ export function barMarks(view: AlignedView, projection: Bands, plot: Rect): Rect
     const bandOffset = (stack ? 0 : i) + 0.5;
 
     for (let j = start, k = 0; j < end; j++, k += 2) {
-      const state = slot[j];
+      const state = slot ? slot[j] : SLOT_VALUE;
       if (state === SLOT_NO_ROW) continue;
       const isValue = state === SLOT_VALUE;
       const bandStart = extents[k]!;

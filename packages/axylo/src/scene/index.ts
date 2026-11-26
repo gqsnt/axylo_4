@@ -6,6 +6,7 @@ import { addArea, addStackedAreas } from './areas';
 import { barMarks } from './bars';
 import { boundaryPixel, position, projectReference, rule, seriesPaint, token } from './geometry';
 import { addLine, drawing, scatterPoints } from './lines';
+import { seriesSlots } from '../data/store-statistics';
 
 type Plot = Extract<Layout, { kind: 'plot' }>;
 type Cartesian = Exclude<Projection, { kind: 'ring' }>;
@@ -123,8 +124,9 @@ export const lineLayers: DataLayers = (view, projection, clip, compact, devicePi
   const points: PointMark[] = [];
   for (let i = 0; i < view.frame.series.length; i++) {
     if (!view.visible[i]) continue;
-    const { slot, y } = view.frame.series[i]!;
-    addLine({ ...draw, range: view.drawSlots[i]!, slot, y }, view, i, view.visibleSlots, compact, paths, points);
+    const series = view.frame.series[i]!;
+    // A dense series hands no state column; reading series.slot would make one of zeros.
+    addLine({ ...draw, range: view.drawSlots[i]!, slot: seriesSlots(series), y: series.y }, view, i, view.visibleSlots, compact, paths, points);
   }
   return [paths, points];
 };

@@ -1,7 +1,7 @@
 import { SLOT_ABSENT_FIELD, SLOT_INVALID, SLOT_NULL, SLOT_VALUE, type DiagnosticSink, type SlotState } from '../core/contracts';
 import type { ResolvedValueField } from './options';
 import { Reports } from './reports';
-import { denseSlots, type FullStatistics } from './store-statistics';
+import type { FullStatistics } from './store-statistics';
 import type { Table } from './table';
 
 const decimal = /^[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
@@ -26,13 +26,11 @@ export function inspectValues(table: Table, field: string, included?: (row: numb
 
 export interface Values {
   readonly y: Float64Array | Float32Array;
-  readonly slot: Uint8Array;
+  /** null when every slot is SLOT_VALUE: an all-zero column would cost a byte per row and say nothing. */
+  readonly slot: Uint8Array | null;
   readonly allValid: boolean;
   readonly statistics?: FullStatistics;
 }
-
-let emptySlots: Uint8Array | null = null;
-const getNoSlots = (): Uint8Array => emptySlots ??= new Uint8Array(0);
 
 export function readValues(
   table: Table,
@@ -83,9 +81,7 @@ export function readValues(
           }
         }
         counts.other += table.length;
-        const slot = new Uint8Array(table.length);
-        denseSlots.set(slot, 'fresh');
-        return { y, slot, allValid: true, statistics: { ordered, signed } };
+        return { y, slot: null, allValid: true, statistics: { ordered, signed } };
       }
     }
     let missing = 0;
@@ -99,8 +95,7 @@ export function readValues(
     if (counts) counts.other += i - missing;
     allValid = missing === 0;
     if (i === table.length) {
-      // A scatter frame only needs slots when some values could be missing.
-      return { y, slot: slot ?? (keepAllValidSlots ? new Uint8Array(table.length) : getNoSlots()), allValid };
+      return { y, slot: slot ?? null, allValid };
     }
   }
   slot ??= new Uint8Array(table.length);
@@ -154,5 +149,5 @@ export function readValues(
   }
 
   reports.flush(sink);
-  return { y, slot, allValid };
+  return { y, slot: allValid ? null : slot, allValid };
 }

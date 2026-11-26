@@ -2,7 +2,7 @@ import {
   SLOT_VALUE, type AlignedView, type IndexRange, type PathMark, type PointMark, type Projection,
   type Rect, type ScatterView, type SeriesCue,
 } from '../core/contracts';
-import { buildPath, buildPoints, emptyIndexes, simplifiedPath, unthinnedPath, type JoinedRuns, type LineInput } from '../simplify';
+import { buildPath, buildPoints, emptyIndexes, simplifiedPath, unthinnedPath, type JoinedRuns, type LineInput, type LineSource } from '../simplify';
 import { affinePosition, affineProjection, exactProjection, position, seriesPaint, type AffineProjection } from './geometry';
 
 const MARKER_SPACING = 12;
@@ -27,27 +27,27 @@ export function drawing(x: Float64Array, xy: XY, plot: Rect, devicePixelRatio: n
 let markerScratch: Uint32Array | undefined;
 
 function denseMarkerPoints(
-  input: LineInput & Drawing, range: IndexRange, affine: AffineProjection, path: Float32Array | null,
+  input: LineSource & Drawing, range: IndexRange, affine: AffineProjection, path: Float32Array | null,
 ): Float32Array | null {
   const { exact } = affine;
   // A special-cased end pixel must agree with the monotone interpolation used by the search.
   if (exact && exact.origin + exact.extent !== exact.edge) return null;
   const { slot, x } = input;
   let first = range.start;
-  while (first < range.end && slot[first] !== SLOT_VALUE) first++;
+  while (first < range.end && slot && slot[first] !== SLOT_VALUE) first++;
   if (first === range.end) return new Float32Array(0);
   const firstPixel = affinePosition(affine, x[first]!);
   let previous = firstPixel;
   let next = first + 1;
   for (; next < range.end; next++) {
-    if (slot[next] !== SLOT_VALUE) continue;
+    if (slot && slot[next] !== SLOT_VALUE) continue;
     const pixel = affinePosition(affine, x[next]!);
     if (Math.abs(pixel - previous) < MARKER_SPACING) break;
     previous = pixel;
   }
   if (next === range.end) return null;
   let last = range.end - 1;
-  while (slot[last] !== SLOT_VALUE) last--;
+  while (slot && slot[last] !== SLOT_VALUE) last--;
   previous = affinePosition(affine, x[last]!);
   const capacity = Math.min(last - first + 1, Math.floor(Math.abs(previous - firstPixel) / SPARSE_SPACING) + 1);
   const indexes = markerScratch && markerScratch.length >= capacity ? markerScratch : new Uint32Array(capacity);
@@ -74,7 +74,7 @@ function denseMarkerPoints(
       else high = mid;
     }
     i = low - 1;
-    while (i >= first && slot[i] !== SLOT_VALUE) i--;
+    while (i >= first && slot && slot[i] !== SLOT_VALUE) i--;
     if (i >= first) previous = affinePosition(affine, x[i]!);
   }
   let xy: Float32Array;
@@ -93,7 +93,7 @@ function denseMarkerPoints(
 }
 
 function markerIndexes(
-  input: LineInput & Drawing, range: IndexRange, isolated: Uint32Array, compact: boolean,
+  input: LineSource & Drawing, range: IndexRange, isolated: Uint32Array, compact: boolean,
 ): Uint32Array {
   if (compact) return isolated;
   const { slot, x, mapX, affineX } = input;
@@ -104,7 +104,7 @@ function markerIndexes(
   let previousPixel = 0;
   let showAll = true;
   for (let i = range.start; i < range.end; i++) {
-    if (slot[i] !== SLOT_VALUE) continue;
+    if (slot && slot[i] !== SLOT_VALUE) continue;
     if (count++ === 0) first = i;
     if (showAll) {
       const pixel = pixelAt(i);
@@ -122,7 +122,7 @@ function markerIndexes(
   let single = isolated.length - 1;
   // Walk back from the last observed value so the series always has its identity at that end.
   for (let i = last; i >= first; i--) {
-    if (slot[i] !== SLOT_VALUE) continue;
+    if (slot && slot[i] !== SLOT_VALUE) continue;
     const pixel = showAll ? 0 : pixelAt(i);
     const required = isolated[single] === i;
     if (required) single--;
@@ -139,7 +139,7 @@ function pointMark(series: number, cue: SeriesCue, xy: Float32Array): PointMark 
 }
 
 export function addLine(
-  input: LineInput & Drawing, view: AlignedView, series: number, visible: IndexRange, compact: boolean,
+  input: LineSource & Drawing, view: AlignedView, series: number, visible: IndexRange, compact: boolean,
   paths: PathMark[], points: PointMark[], selection?: JoinedRuns, packed?: Float32Array,
 ): void {
   const cue = view.cues[series]!;

@@ -6,7 +6,7 @@ import {
 import { report, type DiagnosticDetails } from '../diagnostics';
 import { MAX_DATE } from '../scale/zone';
 import type { AlignedChartType, ChartType, ResolvedOptions, ResolvedValueField } from './options';
-import { fullStatistics } from './store-statistics';
+import { denseSeries, denseSlots, fullStatistics } from './store-statistics';
 import { Reports } from './reports';
 import { calendarIntervals, inferGaps, snapGap } from './steps';
 import { recordDiagnostics, StreamDiagnostics, type DiagnosticTrace } from './store-diagnostics';
@@ -314,6 +314,9 @@ export function reportGaps(
   report(sink, 'AX105', 'none', details);
 }
 
+/** From this many slots, a series whose every slot is SLOT_VALUE makes its state column only when read. */
+const LAZY_SLOTS = 4096;
+
 function alignedSeries(aligned: AlignedGroup, axis: XColumn, x: XData, table: Table, values: Values): Series {
   const { group, order, gaps, drawable } = aligned;
   const { value } = group;
@@ -322,15 +325,23 @@ function alignedSeries(aligned: AlignedGroup, axis: XColumn, x: XData, table: Ta
 
   if (order === null && axis.values === x.positions) {
     let row = table.columns ? null : sourceRows(table);
-    if (zero && !values.allValid) {
-      for (let i = 0; i < values.slot.length; i++) {
-        if (values.slot[i] !== SLOT_NULL && values.slot[i] !== SLOT_ABSENT_FIELD) continue;
+    const slots = values.slot;
+    if (zero && slots) {
+      for (let i = 0; i < slots.length; i++) {
+        if (slots[i] !== SLOT_NULL && slots[i] !== SLOT_ABSENT_FIELD) continue;
         row ??= sourceRows(table);
         row[i] = -1;
-        values.slot[i] = SLOT_VALUE;
+        slots[i] = SLOT_VALUE;
       }
     }
-    const series = { ...description, drawable, y: values.y, slot: values.slot, row };
+    let series: Series;
+    if (slots) series = { ...description, drawable, y: values.y, slot: slots, row };
+    else if (values.y.length < LAZY_SLOTS) {
+      // A few kilobytes at most: an ordinary column keeps the series a plain data object.
+      const slot = new Uint8Array(values.y.length);
+      denseSlots.set(slot, 'fresh');
+      series = { ...description, drawable, y: values.y, slot, row };
+    } else series = denseSeries({ ...description, drawable, y: values.y, row });
     if (values.statistics) fullStatistics.set(series, values.statistics);
     return series;
   }
@@ -345,7 +356,7 @@ function alignedSeries(aligned: AlignedGroup, axis: XColumn, x: XData, table: Ta
     const position = axis.values[i]!;
     const source = order?.[observed] ?? observed;
     if (observed < observations && x.positions[source] === position) {
-      const state = values.slot[source]!;
+      const state = values.slot ? values.slot[source]! : SLOT_VALUE;
       if (zero && (state === SLOT_NULL || state === SLOT_ABSENT_FIELD)) {
         y[i] = 0;
       } else {
@@ -442,11 +453,12 @@ export function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticS
   const members = groups(options, x, sink);
   const values = readValues(table, value, sink, true, 0, undefined, included, 'The affected points are not drawn.', undefined, false);
   let allValid = values.allValid;
-  if (value.missing === 'zero' && !allValid) {
+  const slots = values.slot;
+  if (value.missing === 'zero' && !allValid && slots) {
     allValid = !included;
-    for (let row = 0; row < values.slot.length; row++) {
-      const state = values.slot[row];
-      if (state === SLOT_NULL || state === SLOT_ABSENT_FIELD) values.slot[row] = SLOT_VALUE;
+    for (let row = 0; row < slots.length; row++) {
+      const state = slots[row];
+      if (state === SLOT_NULL || state === SLOT_ABSENT_FIELD) slots[row] = SLOT_VALUE;
       else if (state !== SLOT_VALUE) allValid = false;
     }
   }
@@ -464,7 +476,7 @@ export function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticS
     let missingStart = length;
     for (let i = 0; i < length; i++) {
       const row = group.order?.[i] ?? i;
-      if (allValid || values.slot[row] === SLOT_VALUE) rows[next++] = row;
+      if (allValid || !slots || slots[row] === SLOT_VALUE) rows[next++] = row;
       else rows[--missingStart] = row;
     }
     // The reader still needs each valid x when a diagnostic kept its y out of the plot.
@@ -524,14 +536,16 @@ function donutFrame(options: ResolvedOptions, sink: DiagnosticSink, version: Fra
   issues.flush(sink);
   const order = rows.subarray(0, labels.length);
   const values = readValues(table, field, sink, true, 0, undefined, i => included[i] === 1);
+  // The donut frame always carries its own state column; it is one byte per category.
+  const slots = values.slot ?? new Uint8Array(table.length);
   const provenance = table.columns && order.length === table.length && field.missing !== 'zero'
     ? null : Int32Array.from(order, table.rowIndex);
   for (let i = 0; i < order.length; i++) {
     const row = order[i]!;
     const value = values.y[row]!;
     if (value < 0) negatives.add('AX120', 'chart-error', table.rowIndex(row), value);
-    if (field.missing === 'zero' && (values.slot[row] === SLOT_NULL || values.slot[row] === SLOT_ABSENT_FIELD)) {
-      values.slot[row] = SLOT_VALUE;
+    if (field.missing === 'zero' && (slots[row] === SLOT_NULL || slots[row] === SLOT_ABSENT_FIELD)) {
+      slots[row] = SLOT_VALUE;
       provenance![i] = -1;
     }
   }
@@ -540,7 +554,7 @@ function donutFrame(options: ResolvedOptions, sink: DiagnosticSink, version: Fra
   return {
     ...base(table, version), shape: 'donut', labels,
     values: allRows && values.y instanceof Float64Array ? values.y : Float64Array.from(order, row => values.y[row]!),
-    slot: allRows ? values.slot : Uint8Array.from(order, row => values.slot[row]!),
+    slot: allRows ? slots : Uint8Array.from(order, row => slots[row]!),
     row: provenance,
     valueLabel: field.label, unit: field.unit, valueScale: field.scale,
   };

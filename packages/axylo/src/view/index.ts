@@ -1,4 +1,4 @@
-import { denseSlots, fullStatistics, hasBlockSummary, windowStatistics, withSignedZeros, WINDOW_SIZE as BLOCK, type Statistics } from '../data/store-statistics';
+import { denseSlots, fullStatistics, seriesSlots, hasBlockSummary, windowStatistics, withSignedZeros, WINDOW_SIZE as BLOCK, type Statistics } from '../data/store-statistics';
 import { lowerBound, upperBound } from '../data/search';
 import {
   SLOT_NO_ROW, SLOT_VALUE, type AlignedFrame, type AlignedView, type DiagnosticSink, type DonutFrame,
@@ -115,9 +115,19 @@ function rangeOf(values: Float64Array, domain: Span, previous?: IndexRange, edge
   return previous?.start === start && previous.end === end ? previous : { start, end };
 }
 
-function nextObservation(slot: Uint8Array, from: number, end: number, direction: -1 | 1): number {
-  while (from !== end && slot[from] === SLOT_NO_ROW) from += direction;
+function nextObservation(slot: Uint8Array | null, from: number, end: number, direction: -1 | 1): number {
+  // null: every slot is SLOT_VALUE, so the first slot looked at is an observation.
+  while (slot && from !== end && slot[from] === SLOT_NO_ROW) from += direction;
   return from;
+}
+
+/** drawRange for a series of `length` slots that are all SLOT_VALUE: no state is read. */
+function denseDrawRange(length: number, range: IndexRange): IndexRange {
+  const { start, end } = range;
+  const left = start > 0 && start - 1 < length ? start - 1 : start;
+  const right = end >= 0 && end < length ? end + 1 : end;
+  if (start === end && (left === start || right === end)) return range;
+  return left === start && right === end ? range : { start: left, end: right };
 }
 
 function drawRange(slot: Uint8Array, range: IndexRange): IndexRange {
@@ -149,9 +159,10 @@ export function stackAreaRange(frame: AlignedFrame, visible: IndexRange, domain:
   return left === start && right === end ? visible : { start: left, end: right };
 }
 
-function adjacentDrawRange(slot: Uint8Array, visible: IndexRange, fill: IndexRange): IndexRange {
-  const start = slot[fill.start] === SLOT_VALUE ? fill.start : visible.start;
-  const end = slot[fill.end - 1] === SLOT_VALUE ? fill.end : visible.end;
+function adjacentDrawRange(slot: Uint8Array | null, length: number, visible: IndexRange, fill: IndexRange): IndexRange {
+  const value = (i: number) => slot ? slot[i] === SLOT_VALUE : i >= 0 && i < length;
+  const start = value(fill.start) ? fill.start : visible.start;
+  const end = value(fill.end - 1) ? fill.end : visible.end;
   return { start, end };
 }
 
@@ -187,9 +198,10 @@ interface WindowStatistics {
 let summaries: WeakMap<AlignedSeries, WindowStatistics> | undefined;
 
 export function alignedStatistics(series: AlignedSeries, start: number, end: number, signedExtrema = false): Statistics {
-  const { slot, y } = series;
+  const { y } = series;
+  const slot = seriesSlots(series);
   const size = end - start;
-  const full = start === 0 && end === slot.length;
+  const full = start === 0 && end === y.length;
   if (full) {
     const known = fullStatistics.get(series);
     if (known) return signedExtrema ? known.signed : known.ordered;
@@ -197,7 +209,7 @@ export function alignedStatistics(series: AlignedSeries, start: number, end: num
     const known = summaries?.get(series);
     if (known?.start === start && known.end === end) return signedExtrema ? known.signed : known.ordered;
     // A short slice of a large column is cheaper to scan until a drawing index exists.
-    if ((size >= SUMMARY_THRESHOLD && size >= slot.length / 16) || hasBlockSummary(y, slot)) {
+    if ((size >= SUMMARY_THRESHOLD && size >= y.length / 16) || hasBlockSummary(y, slot)) {
       const stats = windowStatistics(y, slot, start, end);
       (summaries ??= new WeakMap()).set(series, { start, end, ...stats });
       return signedExtrema ? stats.signed : stats.ordered;
@@ -211,7 +223,7 @@ export function alignedStatistics(series: AlignedSeries, start: number, end: num
   // Layout and the reader can ask for the same window with different signed-zero ordering.
   const trackZeros = signedExtrema || size >= BLOCK;
   for (let i = start; i < end; i++) {
-    if (slot[i] !== SLOT_VALUE) { continuous = false; continue; }
+    if (slot && slot[i] !== SLOT_VALUE) { continuous = false; continue; }
     const value = y[i]!;
     if (!(value > -Infinity && value < Infinity)) continue;
     if (value < min) min = value;
@@ -225,7 +237,7 @@ export function alignedStatistics(series: AlignedSeries, start: number, end: num
   if (size >= BLOCK) {
     if (full) {
       fullStatistics.set(series, summaryStats);
-      if (continuous) denseSlots.set(slot, 'fresh');
+      if (continuous && slot) denseSlots.set(slot, 'fresh');
     } else {
       (summaries ??= new WeakMap()).set(series, { start, end, ...summaryStats });
     }
@@ -264,7 +276,8 @@ export function alignedExtrema(
   for (let series = 0; series < frame.series.length; series++) {
     if (!visible[series]) continue;
     const component = frame.series[series]!;
-    const { y, slot } = component;
+    const { y } = component;
+    const slot = seriesSlots(component);
     const { start, end } = kind === 'bar' ? draws[series] ?? range : range;
     const stats = alignedStatistics(component, start, end, true);
     min = Math.min(min, stats.min);
@@ -523,8 +536,12 @@ function buildAligned(frame: AlignedFrame, state: AlignedViewState, sink: Diagno
     visibleSlots.start === 0 && visibleSlots.end === frame.length && frame.length === old.frame.length &&
     frame.series.length === old.drawSlots.length;
   const drawSlots = sameDrawWindow || sameFullLine ? old.drawSlots : reuse(
-    frame.series.map(({ slot }) => fill ? adjacentDrawRange(slot, visibleSlots, fill)
-      : state.kind === 'bar' || edges || category || singlePosition ? barSlots : drawRange(slot, visibleSlots)),
+    frame.series.map(series => {
+      const slot = seriesSlots(series);
+      return fill ? adjacentDrawRange(slot, series.y.length, visibleSlots, fill)
+        : state.kind === 'bar' || edges || category || singlePosition ? barSlots
+        : slot ? drawRange(slot, visibleSlots) : denseDrawRange(series.y.length, visibleSlots);
+    }),
     old?.drawSlots, sameRange,
   );
   if (stack) extras.reportStack?.(stack, sink);

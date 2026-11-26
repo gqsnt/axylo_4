@@ -7,6 +7,7 @@ import { clipBox, contains, pointBox, POINTER_SLACK, type PlotLayout } from './g
 import { clamp, projectBand } from '../scene/geometry';
 import { lowerBound, stepIndex } from './search';
 import { incomplete, singleContinuousSeries, slotLabel, slotText } from './text';
+import { seriesSlots, slotState } from '../data/store-statistics';
 
 const TOOLTIP_LIMIT = 8;
 let firstSeries: readonly number[] | undefined;
@@ -115,11 +116,12 @@ class AlignedLookup implements AlignedHoverLookup {
   }
 
   private isValue(s: number, i: number): boolean {
-    return this.series[s]!.slot[i] === SLOT_VALUE;
+    return slotState(this.series[s]!, i) === SLOT_VALUE;
   }
 
   private seek(s: number, i: number, delta: 1 | -1, lo = this.start, hi = this.end): number {
-    const { slot } = this.series[s]!;
+    const slot = seriesSlots(this.series[s]!);
+    if (!slot) return i >= lo && i < hi ? i : -1;
     for (; i >= lo && i < hi; i += delta) if (slot[i] === SLOT_VALUE) return i;
     return -1;
   }
@@ -144,7 +146,7 @@ class AlignedLookup implements AlignedHoverLookup {
    */
   private write(s: number, i: number, announce = false, reuse?: MutableRow): MutableRow {
     const entry = this.series[s]!;
-    const state = entry.slot[i] as SlotState;
+    const state = slotState(entry, i) as SlotState;
     const value = slotText(this.formatters, s, entry.y[i]!, state);
     const missingComponent = announce && state !== SLOT_VALUE
       && this.stack?.incomplete?.[i] && this.stack.order.includes(s) && this.visible.includes(s);

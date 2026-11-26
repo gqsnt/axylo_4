@@ -25,6 +25,68 @@ export const denseSlots = {
   set(slot: Uint8Array, _state: 'fresh') { (continuous ??= new WeakSet()).add(slot); },
 };
 
+// Shared state columns allocated for a dense store y buffer on first .slot read or first sparse write.
+let sharedStatesMap: WeakMap<ArrayBufferLike, Uint8Array> | undefined;
+export function existingSharedStates(y: Float64Array): Uint8Array | undefined {
+  return sharedStatesMap?.get(y.buffer);
+}
+export function sharedStatesFor(y: Float64Array): Uint8Array {
+  let states = sharedStatesMap?.get(y.buffer);
+  if (!states) (sharedStatesMap ??= new WeakMap()).set(y.buffer, states = new Uint8Array(y.length));
+  return states;
+}
+
+// Series whose every slot is SLOT_VALUE and whose state column was never asked for. A million-point line
+// would otherwise carry a megabyte of zeros; the column is made only when a reader outside the hot paths reads it.
+// Each maps to its slot count, so a state can be answered without reading a lazily copied y column.
+let unmaterialized: WeakMap<object, number> | undefined;
+
+/**
+ * Gives `fields` an all-SLOT_VALUE `slot` made on first read. `length` spares a lazy y column from being read;
+ * `make` lets a store hand out a view on a column it shares between revisions, as it does for y.
+ */
+export function denseSeries<T extends Omit<Series, 'slot'>>(
+  fields: T, length?: number, make?: () => Uint8Array,
+): T & { readonly slot: Uint8Array } {
+  const series = fields as T & { slot: Uint8Array };
+  Object.defineProperty(series, 'slot', {
+    configurable: true, enumerable: true,
+    get(this: T & { slot: Uint8Array }): Uint8Array {
+      const slot = make?.() ?? new Uint8Array(unmaterialized?.get(this) ?? this.y.length);
+      unmaterialized?.delete(this);
+      // A data property from here on, so byte counting and later reads see an ordinary column.
+      Object.defineProperty(this, 'slot', { value: slot, configurable: true, enumerable: true, writable: true });
+      denseSlots.set(slot, 'fresh');
+      return slot;
+    },
+  });
+  (unmaterialized ??= new WeakMap()).set(series, length ?? series.y.length);
+  return series;
+}
+
+/** The series' slot states, or null when every slot is SLOT_VALUE and no column exists. Never makes the column. */
+export function seriesSlots(series: { readonly slot: Uint8Array }): Uint8Array | null {
+  return unmaterialized?.has(series) ? null : series.slot;
+}
+
+/** The state of one slot, read without making a dense series' column. */
+export function slotState(series: { readonly slot: Uint8Array }, index: number): number {
+  const length = unmaterialized?.get(series);
+  if (length === undefined) return series.slot[index]!;
+  // Out of range answers what a column read would: no state.
+  return index >= 0 && index < length ? SLOT_VALUE : NaN;
+}
+
+/** A copy of `series` with some descriptive fields replaced, without making a dense series' state column. */
+export function reviseSeries(series: Series, patch: Partial<Pick<Series, 'label' | 'unit' | 'drawable'>>): Series {
+  if (!unmaterialized?.has(series)) return { ...series, ...patch };
+  const { key, label, field, unit, valueScale, drawable, y, row } = series;
+  const next = denseSeries({ key, label, field, unit, valueScale, drawable, y, row, ...patch });
+  const known = fullStatistics.get(series);
+  if (known) fullStatistics.set(next, known);
+  return next;
+}
+
 export function withSignedZeros(ordered: Statistics, zeros: number): FullStatistics {
   const { min, max, last } = ordered;
   return { ordered, signed: zeros ? {
@@ -38,8 +100,9 @@ export function extendStatistics(previous: Series, next: Series, dropped: boolea
   const known = fullStatistics.get(previous);
   if (!known) return;
   const { ordered, signed } = known;
-  if (denseSlots.has(previous.slot)) denseSlots.set(next.slot, 'fresh');
-  if (dropped && previous.slot[0] === SLOT_VALUE) {
+  const before = seriesSlots(previous), after = seriesSlots(next);
+  if (after && (!before || denseSlots.has(before))) denseSlots.set(after, 'fresh');
+  if (dropped && (!before || before[0] === SLOT_VALUE)) {
     const outgoing = previous.y[0];
     if (outgoing === ordered.min || outgoing === ordered.max) return;
   }
@@ -72,7 +135,9 @@ export interface BlockSummary {
   end: number;
   windows?: WindowBlocks;
 }
-type SlotSummaries = WeakMap<Uint8Array, BlockSummary | null>;
+type SlotSummaries = WeakMap<object, BlockSummary | null>;
+// The key of a y view's summary when its series has no state column (null: every slot is SLOT_VALUE).
+const allValues = {};
 let summaries: WeakMap<Values, SlotSummaries> | undefined;
 
 function slotSummaries(y: Values): SlotSummaries {
@@ -82,27 +147,29 @@ function slotSummaries(y: Values): SlotSummaries {
   return bySlot;
 }
 
-export function hasBlockSummary(y: Values, slot: Uint8Array): boolean {
-  return !!summaries?.get(y)?.get(slot);
+export function hasBlockSummary(y: Values, slot: Uint8Array | null): boolean {
+  return !!summaries?.get(y)?.get(slot ?? allValues);
 }
 
-export function drawingBlocks(y: Values, slot: Uint8Array, start: number, end: number): BlockSummary | undefined {
+export function drawingBlocks(y: Values, slot: Uint8Array | null, start: number, end: number): BlockSummary | undefined {
   const bySlot = slotSummaries(y);
-  if (!bySlot.has(slot)) {
+  if (!bySlot.has(slot ?? allValues)) {
     // A single draw needs no index, even for gapped data or a shared slot column.
-    bySlot.set(slot, null);
+    bySlot.set(slot ?? allValues, null);
     return;
   }
   return summarizeBlocks(y, slot, start, end, bySlot);
 }
 
-export function summarizeBlocks(y: Values, slot: Uint8Array, start: number, end: number, bySlot = slotSummaries(y)): BlockSummary {
+/** `slot` null: every slot is SLOT_VALUE, so no state is read. */
+export function summarizeBlocks(y: Values, slot: Uint8Array | null, start: number, end: number, bySlot = slotSummaries(y)): BlockSummary {
   // Published series views are immutable. The store appends beyond them and copies an
   // exposed tail before filling it, so views sharing a backing buffer have separate keys.
-  const count = Math.floor(Math.min(y.length, slot.length) / BLOCK_SIZE);
-  let summary = bySlot.get(slot);
+  const count = Math.floor((slot ? Math.min(y.length, slot.length) : y.length) / BLOCK_SIZE);
+  const key = slot ?? allValues;
+  let summary = bySlot.get(key);
   if (summary?.blocks.length !== 2 * count) {
-    bySlot.set(slot, summary = { blocks: new Uint8Array(2 * count), start: 0, end: 0 });
+    bySlot.set(key, summary = { blocks: new Uint8Array(2 * count), start: 0, end: 0 });
   }
   const { blocks } = summary;
   const begin = Math.ceil(start / BLOCK_SIZE);
@@ -117,9 +184,9 @@ export function summarizeBlocks(y: Values, slot: Uint8Array, start: number, end:
     if (blocks[offset]) continue;
     const first = block * BLOCK_SIZE;
     let i = 0;
-    while (i < BLOCK_SIZE && slot[first + i] === SLOT_VALUE && Number.isNaN(y[first + i])) i++;
+    while (i < BLOCK_SIZE && (!slot || slot[first + i] === SLOT_VALUE) && Number.isNaN(y[first + i])) i++;
     let low = y[first + i]!, high = low, min = i, max = i;
-    for (; i < BLOCK_SIZE && slot[first + i] === SLOT_VALUE; i++) {
+    for (; i < BLOCK_SIZE && (!slot || slot[first + i] === SLOT_VALUE); i++) {
       const value = y[first + i]!;
       if (value < low) { low = value; min = i; }
       if (value > high) { high = value; max = i; }
@@ -139,9 +206,9 @@ export function summarizeBlocks(y: Values, slot: Uint8Array, start: number, end:
 }
 
 /** Whole windows reuse the drawing's earliest extrema. Only their two cut edges need a row scan. */
-export function windowStatistics(y: Values, slot: Uint8Array, start: number, end: number): FullStatistics {
+export function windowStatistics(y: Values, slot: Uint8Array | null, start: number, end: number): FullStatistics {
   const summary = summarizeBlocks(y, slot, start, end);
-  const count = Math.floor(slot.length / WINDOW_SIZE);
+  const count = Math.floor((slot ?? y).length / WINDOW_SIZE);
   const windows = summary.windows ??= {
     min: new Float64Array(count), max: new Float64Array(count), last: new Int32Array(count), zeros: new Uint8Array(count),
   };
@@ -173,7 +240,7 @@ export function windowStatistics(y: Values, slot: Uint8Array, start: number, end
           }
         }
         const value = y[j]!;
-        if (slot[j] === SLOT_VALUE && Number.isFinite(value)) {
+        if ((!slot || slot[j] === SLOT_VALUE) && Number.isFinite(value)) {
           if (value < low) low = value;
           if (value > high) high = value;
           if (value === 0) signs |= Object.is(value, -0) ? 1 : 2;

@@ -3,9 +3,10 @@
  * page font and color, honour the reader's text spacing (spec A6) and adapt to forced colors. The layer is
  * aria-hidden; readers get the same information from the summary and table.
  *
- * Each label is one absolutely positioned element with one block child per line. Its transform puts the
- * anchor point of the text on (x, y) and rotates about that point. Elements are reused between renders,
- * text is only ever set through textContent (spec DX8), and render writes without reading layout.
+ * Each label is one absolutely positioned element with one block child per line. An unrotated top-left
+ * anchor can use offsets directly. Other anchors need the element's own dimensions to align the text.
+ * Elements are reused between renders. Text is only ever set through textContent (spec DX8), and render
+ * writes without reading layout.
  */
 import type { PlacedText } from '../core/contracts';
 
@@ -32,23 +33,18 @@ interface Label {
 type TickRole = 'tick-x' | 'tick-y';
 type SpareTicks = Partial<Record<TickRole, Label>>;
 
-const ALIGN = { start: 'left', middle: 'center', end: 'right' } as const;
+const LABEL_CLASS = { start: 'axylo-label axylo-label-start', middle: 'axylo-label axylo-label-middle', end: 'axylo-label' } as const;
 const SHIFT_X = { start: '0%', middle: '-50%', end: '-100%' } as const;
 const SHIFT_Y = { top: '0%', middle: '-50%', bottom: '-100%' } as const;
-const POSITION = 'position:absolute;left:0;top:0;transform-origin:0 0;white-space:pre;';
 
 const round = (v: number): number => Math.round(v * 100) / 100;
 
 // Transforms apply right to left: align the text at the origin, rotate, then position it.
-function transformEnd(t: PlacedText, y: number, keepZeroShift = false): string {
+function transformEnd(t: PlacedText, y: number): string {
   const rotate = t.rotate !== 0 ? ` rotate(${t.rotate}deg)` : '';
   const end = `px,${y}px)${rotate}`;
-  return !keepZeroShift && t.anchor === 'start' && t.baseline === 'top'
+  return t.anchor === 'start' && t.baseline === 'top'
     ? end : `${end} translate(${SHIFT_X[t.anchor]},${SHIFT_Y[t.baseline]})`;
-}
-
-export function labelStyle(t: PlacedText): string {
-  return `${POSITION}text-align:${ALIGN[t.anchor]};transform:translate(${round(t.x)}${transformEnd(t, round(t.y), true)}`;
 }
 
 function appendLine(doc: Document, label: HTMLDivElement): HTMLDivElement {
@@ -96,9 +92,7 @@ function renderLines(doc: Document, label: Label, text: readonly string[]): void
 
 function createLabel(doc: Document, role: PlacedText['role']): Label {
   const el = doc.createElement('div');
-  el.className = 'axylo-label';
   el.setAttribute('data-role', role);
-  el.style.cssText = POSITION;
   return { el, role, placed: null, baseX: NaN, sliding: false, rx: NaN, ry: NaN, line0: null, text0: '', lines: null, text: null };
 }
 
@@ -107,7 +101,8 @@ function takeLabel(doc: Document, role: PlacedText['role'], spare?: SpareTicks):
     const label = spare[role];
     if (label) {
       spare[role] = undefined;
-      label.placed = null;
+      // A recycled tick keeps its style history but cannot serve as a survivor for a group slide.
+      label.baseX = NaN;
       return label;
     }
   }
@@ -120,6 +115,10 @@ function releaseLabel(label: Label, spare: SpareTicks): void {
   if (label.role === 'tick-x' || label.role === 'tick-y') spare[label.role] ??= label;
 }
 
+function usesOffsets(t: PlacedText): boolean {
+  return t.rotate === 0 && t.anchor === 'start' && t.baseline === 'top';
+}
+
 function renderLabel(doc: Document, label: Label, t: PlacedText, x = t.x): void {
   const previous = label.placed;
   if (previous === t && label.baseX === x) return;
@@ -127,12 +126,23 @@ function renderLabel(doc: Document, label: Label, t: PlacedText, x = t.x): void 
   label.baseX = x;
   const ry = previous?.y === t.y ? label.ry : round(t.y);
   const anchorChanged = previous?.anchor !== t.anchor;
-  if (anchorChanged) label.el.style.textAlign = ALIGN[t.anchor];
+  if (anchorChanged) label.el.className = LABEL_CLASS[t.anchor];
   const endChanged = anchorChanged || label.ry !== ry || previous?.rotate !== t.rotate || previous.baseline !== t.baseline;
   if (endChanged || label.rx !== rx) {
+    const style = label.el.style, wasOffset = previous !== null && usesOffsets(previous);
+    if (usesOffsets(t)) {
+      if (previous && !wasOffset) style.transform = '';
+      if (!wasOffset || label.rx !== rx) style.setProperty('left', `${rx}px`);
+      if (!wasOffset || label.ry !== ry) style.setProperty('top', `${ry}px`);
+    } else {
+      if (wasOffset) {
+        style.setProperty('left', '');
+        style.setProperty('top', '');
+      }
+      style.transform = `translate(${rx}${transformEnd(t, ry)}`;
+    }
     label.rx = rx;
     label.ry = ry;
-    label.el.style.transform = `translate(${rx}${transformEnd(t, ry)}`;
   }
   if (previous?.lines !== t.lines && !sameLines(label, t)) {
     renderLines(doc, label, t.lines);
@@ -223,7 +233,7 @@ function slideOffset(
   for (let i = start; i < end; i++) {
     const label = labels[i]!, t = texts[i]!, old = label.placed;
     label.sliding = false;
-    if (!old) continue;
+    if (!old || Number.isNaN(label.baseX)) continue;
     if (old.lines !== t.lines && !sameSingleLine(label, t)) {
       if (old.lines.length !== t.lines.length || !old.lines.every((line, j) => line === t.lines[j])) continue;
     }
@@ -254,7 +264,7 @@ function unchangedSlide(labels: Label[], texts: readonly PlacedText[], start: nu
     if (old === t) continue;
     if (t.role !== label.role || t.y !== old.y || t.anchor !== old.anchor || t.rotate !== old.rotate ||
         t.baseline !== old.baseline || (t.lines !== old.lines && !sameLines(label, t))) return null;
-    // Even on a later mismatch this prefix already has the correct text and local transforms.
+    // Even on a later mismatch this prefix already has the correct text and local positions.
     label.placed = t;
   }
   return round(dx);
@@ -338,7 +348,6 @@ class DomTextLayer implements TextLayer {
     if (!this.tickGroup && dx !== 0) {
       this.tickGroup = doc.createElement('div');
       this.tickGroup.className = 'axylo-tick-x-group';
-      this.tickGroup.style.cssText = 'position:absolute;inset:0;pointer-events:none;contain:layout style';
       reorder = true;
     } else if (this.tickGroup && !groupable) {
       this.tickGroup.remove();
@@ -350,7 +359,7 @@ class DomTextLayer implements TextLayer {
     for (let i = 0; i < texts.length; i++) {
       const label = labels[i]!, t = texts[i]!;
       if (this.tickGroup && i >= this.tickStart && i < this.tickEnd && slide !== null) {
-        // A survivor's existing local transform already puts it at its base. Only an entering
+        // A survivor's existing local position already puts it at its base. Only an entering
         // label needs its position expressed in the group's coordinate system.
         if (label.sliding) label.placed = t;
         else renderLabel(doc, label, t, t.x - slide);

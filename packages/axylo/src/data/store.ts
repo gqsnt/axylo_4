@@ -17,7 +17,7 @@ import { gapPosition, snapGap, stepDelta, stepMultiple, supportsSteps, tooSparse
 import { extendStatistics } from './store-statistics';
 import { BufferWindow } from './store-window';
 import { mapValues, StoreMap } from './store-map';
-import { FrameBuffers, type SeriesBuffers } from './store-buffers';
+import { FrameBuffers, writeSlot, type SeriesBuffers } from './store-buffers';
 import { ByteCount, CallerBuffers, countBuffers, countRevisions, type OwnedBytes } from './store-bytes';
 import { CalendarWindow } from './store-calendar';
 import { StreamDiagnostics } from './store-diagnostics';
@@ -538,10 +538,10 @@ function keptTable(table: Table, x: XData, keep: number): {
 function writeObservation(
   buffers: FrameBuffers, series: SeriesBuffers, target: number, values: Values, row: number, base: number, zero: boolean,
 ): void {
-  const state = values.slot[row]!;
+  const state = values.slot ? values.slot[row]! : SLOT_VALUE;
   const imputed = zero && (state === SLOT_NULL || state === SLOT_ABSENT_FIELD);
   series.y[target] = values.y[row]!;
-  series.slot[target] = imputed ? SLOT_VALUE : state;
+  writeSlot(series, target, imputed ? SLOT_VALUE : state);
   buffers.setRow(series, target, imputed ? -1 : base + row);
 }
 
@@ -744,7 +744,7 @@ class AlignedData {
           if (missing) gap++;
           buffers.setRow(series, target, -1);
           series.y[target] = zero ? 0 : NaN;
-          series.slot[target] = zero ? SLOT_VALUE : missing ? SLOT_GAP : SLOT_NO_ROW;
+          writeSlot(series, target, zero ? SLOT_VALUE : missing ? SLOT_GAP : SLOT_NO_ROW);
         }
       }
     }
@@ -1132,7 +1132,8 @@ export class AlignedStore extends RevisionStore<AlignedFrame> {
     for (let i = 0; i < fields.values.length; i++) {
       const series = draft.series.get(fields.values[i]!.field)!;
       series.y[target] = i === 0 ? firstValue : rest![i - 1]!;
-      series.slot[target] = SLOT_VALUE;
+      // A dense series has no state column; the slot is SLOT_VALUE already.
+      if (series.slot) series.slot[target] = SLOT_VALUE;
       draft.setRow(series, target, index);
     }
     draft.markObserved(null, target, 1);

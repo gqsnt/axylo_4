@@ -1,4 +1,4 @@
-import { BLOCK_SIZE, denseSlots, drawingBlocks, MIXED_BLOCK, type BlockSummary } from '../data/store-statistics';
+import { BLOCK_SIZE, denseSlots, drawingBlocks, MIXED_BLOCK, seriesSlots, type BlockSummary } from '../data/store-statistics';
 import { SLOT_GAP, SLOT_NO_ROW, SLOT_VALUE } from '../core/contracts';
 import type { AlignedFrame, AreaMark, ContinuousScale, IndexRange, PathMark, PointMark, StackView, XScale } from '../core/contracts';
 import { affinePosition, position, type AffineProjection } from '../scene/geometry';
@@ -33,6 +33,10 @@ export interface LineInput extends DrawingInput {
   /** View of a published frame, with the same lifetime guarantee as slot. */
   readonly y: Values;
 }
+
+/** A line whose `slot` is null when every slot is SLOT_VALUE, so drawing never makes a dense series' column. */
+export type LineSource = Omit<LineInput, 'slot'> & { readonly slot: Uint8Array | null };
+type BoundarySource = Omit<DrawingInput, 'slot'> & { readonly slot: Uint8Array | null };
 
 export interface PathInput {
   readonly x: Float64Array;
@@ -267,6 +271,18 @@ function keepAffineRun(
   return cursor;
 }
 
+/** scan for `total` slots that are all SLOT_VALUE: one run, or one isolated value that joins nothing. */
+function denseScan(total: number, range: IndexRange) {
+  const { start, end } = range, length = Math.max(0, end - start);
+  const joins = start > 0 || end < total;
+  const single = length === 1 && !joins;
+  return {
+    values: length, vertices: single ? 0 : length, runCount: length && !single ? 1 : 0,
+    runs: length && !single ? Uint32Array.of(start, end - 1, length) : emptyIndexes(),
+    isolated: single ? Uint32Array.of(start) : emptyIndexes(),
+  };
+}
+
 function scan(slot: Uint8Array, range: IndexRange, blocks?: Uint8Array) {
   let values = 0, vertices = 0, runCount = 0, singles = 0, runFirst = -1, runLast = -1, runValues = 0;
   const { start, end } = range, length = end - start;
@@ -314,16 +330,18 @@ function scan(slot: Uint8Array, range: IndexRange, blocks?: Uint8Array) {
   return { values, vertices, runCount, runs: runs.data, isolated: singles ? isolated.data.subarray(0, singles) : emptyIndexes() };
 }
 
-function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Columns, scratch?: IndexBuffer) {
+/** `slot` null: every one of the series' `total` slots is SLOT_VALUE. */
+function select(slot: Uint8Array | null, range: IndexRange, limit: number, columns?: Columns, scratch?: IndexBuffer, total = 0) {
   const length = range.end - range.start, affine = columns?.affine, y = columns?.y;
   // Near the density threshold, most blocks would straddle device columns.
   const indexable = affine && y && length >= 1024 && length >= 4 * limit && range.end <= y.length;
   // Validated slots need no run scan, including on a first draw without a block index.
   const continuous = affine && y && length > 1 && length > limit && range.start >= 0 &&
-    range.end <= y.length && range.end <= slot.length && denseSlots.has(slot);
+    range.end <= y.length && (!slot || range.end <= slot.length && denseSlots.has(slot));
   const summary: DrawingSummary | undefined = indexable ? drawingBlocks(y, slot, range.start, range.end) : undefined;
   const full = summary?.full;
-  const size = continuous || full && full.start <= range.start && full.end >= range.end ? undefined : scan(slot, range, summary?.blocks);
+  const size = continuous || full && full.start <= range.start && full.end >= range.end ? undefined
+    : slot ? scan(slot, range, summary?.blocks) : denseScan(total, range);
   const values = size?.values ?? length;
   const vertices = size?.vertices ?? length;
   const runCount = size?.runCount ?? 1;
@@ -375,7 +393,7 @@ function select(slot: Uint8Array, range: IndexRange, limit: number, columns?: Co
       for (let index = first; index <= last; index++) data[cursor++] = index;
     } else {
       const data = buffer.data;
-      for (let index = first; index <= last; index++) if (slot[index] === SLOT_VALUE) data[cursor++] = index;
+      for (let index = first; index <= last; index++) if (!slot || slot[index] === SLOT_VALUE) data[cursor++] = index;
     }
   }
   const selection: JoinedRuns = { indexes: buffer?.data.subarray(0, cursor) ?? emptyIndexes(), breaks, isolated };
@@ -391,18 +409,19 @@ function columnLimit({ width, left, devicePixelRatio: ratio }: Pick<DrawingInput
   return width > 0 ? 4 * (Math.ceil((left + width) * ratio) - Math.floor(left * ratio)) : 0;
 }
 
-function simplifyBoundary(input: DrawingInput, y: Values | 0, scratch?: IndexBuffer) {
+function simplifyBoundary(input: BoundarySource, y: Values | 0, scratch?: IndexBuffer) {
   const { range, devicePixelRatio: ratio } = input, limit = columnLimit(input);
+  // The x column is the frame's, so its length is the series' slot count.
   return select(input.slot, range, limit, range.end - range.start <= limit ? undefined
-    : { x: input.x, y, scale: input.mapX, affine: input.affineX, ratio }, scratch);
+    : { x: input.x, y, scale: input.mapX, affine: input.affineX, ratio }, scratch, input.x.length);
 }
 
-export function simplifyLine(input: LineInput): JoinedRuns {
+export function simplifyLine(input: LineSource): JoinedRuns {
   return simplifyBoundary(input, input.y).selection;
 }
 
 /** Scenes retain coordinates, so their intermediate source indexes can be recycled. */
-export function simplifiedPath(input: LineInput & PathInput): { xy: Float32Array | null; isolated: Uint32Array } {
+export function simplifiedPath(input: LineSource & PathInput): { xy: Float32Array | null; isolated: Uint32Array } {
   const repeated = lineScratch !== undefined;
   const scratch = lineScratch ?? { data: emptyIndexes(), limit: 0 };
   // A custom projection may enter scene construction again before packing has finished.
@@ -430,13 +449,16 @@ export function stackIndexes(
   const buffer: IndexBuffer = { data: scratch, limit: size };
   const columns = { x: input.x, scale: input.mapX, affine: input.affineX, ratio: input.devicePixelRatio, y: 0 as Values | 0 };
   for (let k = 0; k < stack.order.length; k++) {
-    const { y, slot } = frame.series[stack.order[k]!]!;
+    const series = frame.series[stack.order[k]!]!, { y } = series;
+    // null: every slot is SLOT_VALUE, so only a sign change pinches.
+    const slot = seriesSlots(series);
     for (const values of [stack.positive[k]!, stack.negative[k]!]) {
       columns.y = values;
       let first = start;
       for (let i = start + 1; i <= end; i++) {
         // Keep both ends of every pinch, including zero and wholly missing stretches.
-        if (i < end && slot[i] === slot[first] && (slot[i] !== SLOT_VALUE || Math.sign(y[i]!) === Math.sign(y[first]!))) continue;
+        if (i < end && (slot ? slot[i] === slot[first] && (slot[i] !== SLOT_VALUE || Math.sign(y[i]!) === Math.sign(y[first]!))
+          : Math.sign(y[i]!) === Math.sign(y[first]!))) continue;
         const count = keepRun(null, first, i - 1, columns, buffer, 0);
         for (let j = 0; j < count; j++) kept[scratch[j]! - start] = 1;
         first = i;
@@ -506,12 +528,15 @@ function pack(indexes: Uint32Array | null, breaks: Uint32Array | null, input: Pa
 }
 
 /** A short continuous line needs neither source indexes nor pen lifts. */
-export function unthinnedPath(input: LineInput & PathInput): Float32Array | null {
+export function unthinnedPath(input: LineSource & PathInput): Float32Array | null {
   const { start, end } = input.range;
   const length = end - start;
   if (length < 2 || length > columnLimit(input)) return null;
-  if (!denseSlots.has(input.slot) || start < 0 || end > input.slot.length) {
-    for (let i = start; i < end; i++) if (input.slot[i] !== SLOT_VALUE) return null;
+  const { slot } = input;
+  if (!slot) {
+    if (start < 0 || end > input.x.length) return null;
+  } else if (!denseSlots.has(slot) || start < 0 || end > slot.length) {
+    for (let i = start; i < end; i++) if (slot[i] !== SLOT_VALUE) return null;
   }
   return pack(null, null, input, start, length);
 }

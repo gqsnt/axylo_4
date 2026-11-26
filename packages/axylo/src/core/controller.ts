@@ -45,6 +45,7 @@ import { sameKey, type Composition, type Store } from './composition';
 import { sameTextStyle } from './environment';
 import { attachHooks, StageCounter, type ChartHandle, type Probe, type Stage } from './instrument';
 import { COMPOSITIONS } from '../kinds';
+import { reviseSeries, seriesSlots, slotState } from '../data/store-statistics';
 
 export type ChartKind = ChartType;
 
@@ -2898,7 +2899,7 @@ class ChartController implements Controller, FrameDriver {
     if (ref.kind === 'aligned' && frame.shape === 'aligned') {
       x = positionValue(frame, ref.x);
       const series = frame.series[text.seriesIndex];
-      if (series && i >= 0 && series.slot[i] === SLOT_VALUE) y = series.y[i]!;
+      if (series && i >= 0 && slotState(series, i) === SLOT_VALUE) y = series.y[i]!;
     } else if (ref.kind === 'point' && frame.shape === 'points') {
       const series = frame.series[text.seriesIndex];
       x = positionValue(frame, series && i >= 0 ? series.x[i]! : ref.x);
@@ -3188,7 +3189,7 @@ function renamed(frame: Frame, resolved: ResolvedOptions, revision: number): Fra
       const v = byField.get(s.field) ?? value;
       if (!v) return s;
       // Named by its field (wide form, or one series without a series field), else by its series value.
-      return { ...s, unit: v.unit, label: resolved.form === 'wide' || resolved.series === null ? v.label : s.label };
+      return reviseSeries(s, { unit: v.unit, label: resolved.form === 'wide' || resolved.series === null ? v.label : s.label });
     }),
   };
 }
@@ -3243,7 +3244,9 @@ export function hasData(view: View, hidden = false): boolean {
   return view.frame.series.some((s, i) => {
     if (!shown(i)) return false;
     const { start, end } = view.drawSlots[i] ?? view.visibleSlots;
-    for (let j = start; j < end; j++) if (drawable(s.slot[j]!)) return true;
+    const slots = seriesSlots(s);
+    if (!slots) return end > start;
+    for (let j = start; j < end; j++) if (drawable(slots[j]!)) return true;
     return false;
   });
 }
