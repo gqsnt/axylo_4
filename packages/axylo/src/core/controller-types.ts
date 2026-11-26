@@ -3,16 +3,16 @@ import type { DatumRef, DiagnosticInput, Formatters, Frame, Layout, Lookup, Mark
 } from './contracts';
 import type { ChartEvents, Diagnostic, Messages, XValue } from '../public';
 import type { ChartType, ResolvedOptions } from '../data/options';
+import type { Table } from '../data/table';
 import type { DiagnosticCollector } from '../diagnostics';
 import type { ThemeResolution } from '../theme';
 import type { FigureModel } from '../dom/figure';
 import type { Committed, ControlsState } from '../dom/interaction';
+import type { Store } from './composition';
 import type { ChartHandle, StageCounter } from './instrument';
 import type { DeliveryConsole } from './delivery';
 import type { OptionRecord } from './options';
 import type { Span } from './stages';
-import type { FrameState } from './frame-state';
-import type { StreamSession } from './controller-stream';
 
 export type ChartKind = ChartType;
 
@@ -140,6 +140,19 @@ export interface Controller {
   beginFrame(): FrameRun | null;
 }
 
+/** Internal streaming retention handle implemented by StreamSession (controller-stream.ts). */
+export interface StreamSessionHandle {
+  readonly store: Store;
+  track(frame: Frame): void;
+  ends(frame: Frame, from: Frame, added?: number): void;
+  drop(resolved: ResolvedOptions): ResolvedOptions;
+  row(frame: Frame, row: number): unknown;
+  table(frame: Frame): Table;
+  release(screen: Frame | null, pending: Frame, running: Frame | null, pausedFrame: Frame | undefined): void;
+  shown(frame: Frame): void;
+  clear(): void;
+}
+
 /** The state a call produced. Only accepted states are drawn. */
 export interface Accepted {
   readonly options: OptionRecord;
@@ -148,7 +161,7 @@ export interface Accepted {
   /** The resolution the current data was normalized with (on the static path it holds the borrowed table). */
   readonly source: ResolvedOptions;
   /** A published snapshot keeps the session that owns its rows even if a call replaces the data. */
-  readonly stream: StreamSession | null;
+  readonly stream: StreamSessionHandle | null;
   /** The frame shown (while paused, the store may hold a newer one). */
   readonly frame: Frame;
   readonly dataDiagnostics: readonly DiagnosticInput[];
@@ -189,14 +202,6 @@ export interface PlotLayout {
 export type Disclosure = { readonly omitted: number; readonly changed: number };
 export interface ReaderEntry { readonly reader: ReaderModel; readonly inputs: readonly unknown[] }
 
-/** What a frame's steps reach in their controller: made once per chart. */
-export interface FrameDriver {
-  frameStep(f: FrameState, id: number): boolean;
-  removeStripProbe(f: FrameState): void;
-  finishFrame(f: FrameState): void;
-  afterFrame(f: FrameState): void;
-}
-
 /** Presentation diagnostics by the stage that found them (spec 3.5: reported when found, never thrown). */
 export type PresentationStage = 'theme' | 'layout' | 'fit' | 'format' | 'naming' | 'internal';
 
@@ -204,7 +209,7 @@ export interface Candidate {
   readonly options: OptionRecord;
   readonly resolved: ResolvedOptions;
   readonly source: ResolvedOptions;
-  readonly stream: StreamSession | null;
+  readonly stream: StreamSessionHandle | null;
   readonly frame: Frame;
   readonly dataDiagnostics: readonly DiagnosticInput[];
   readonly dataOptions: readonly DiagnosticInput[];

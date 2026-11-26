@@ -1,6 +1,6 @@
 import type { Frame } from './contracts';
 import type { Composition, Store } from './composition';
-import type { Accepted } from './controller-types';
+import type { Accepted, StreamSessionHandle } from './controller-types';
 import type { DataEnvironment } from '../data';
 import { withoutTable, type ChartType, type ResolvedOptions } from '../data/options';
 import { rowsTable, type Table } from '../data/table';
@@ -16,7 +16,7 @@ export function openStreamSession(openStore: Composition['openStore'], a: Accept
 }
 
 /** Retention bookkeeping belongs to the store whose revisions it tracks. */
-export class StreamSession {
+export class StreamSession implements StreamSessionHandle {
   /** Frames the store produced, whose rows live in its revisions until retirement. */
   #storeFrames: WeakSet<Frame> | null = null;
   /**

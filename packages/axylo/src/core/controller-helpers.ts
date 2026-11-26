@@ -17,8 +17,7 @@ import type { Committed, ControlsState } from '../dom/interaction';
 import type { Composition } from './composition';
 import { sameValue, type OptionRecord } from './options';
 import { isCompact, object, stringOption, type Span } from './stages';
-import type { Accepted, Disclosure, Display, Drawn, Held, PresentationStage, ReadoutMode } from './controller-types';
-import type { StreamSession } from './controller-stream';
+import type { Accepted, Disclosure, Display, Drawn, Held, PresentationStage, ReadoutMode, StreamSessionHandle } from './controller-types';
 import { builtIn, EMPTY_DIAGNOSTICS, READY, READER_INPUTS, sameEntry, type FrameState } from './frame-state';
 
 /** AX100 and AX101 describe the supplied data, so they stay with the call that set it. */
@@ -469,7 +468,7 @@ export function renamed(frame: Frame, resolved: ResolvedOptions, revision: numbe
 
 let pointDateUnits: WeakMap<Frame, 'day' | 'month' | 'year'> | undefined;
 
-function rowOf(frame: Frame, row: number, stream: StreamSession | null): unknown {
+function rowOf(frame: Frame, row: number, stream: StreamSessionHandle | null): unknown {
   return stream ? stream.row(frame, row) : frame.source.rowAt(row);
 }
 
@@ -480,7 +479,7 @@ function rowOf(frame: Frame, row: number, stream: StreamSession | null): unknown
  * that kept its own copy after the store moved on reads that copy (verification, defect 5).
  */
 function pointDateUnit(
-  frame: Extract<Frame, { shape: 'points' }>, field: string, stream: StreamSession | null,
+  frame: Extract<Frame, { shape: 'points' }>, field: string, stream: StreamSessionHandle | null,
 ): 'day' | 'month' | 'year' | null {
   if (frame.xKind !== 'date') return null;
   const known = pointDateUnits?.get(frame);

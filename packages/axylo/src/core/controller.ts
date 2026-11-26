@@ -39,15 +39,15 @@ import { sameTextStyle } from './environment';
 import { attachHooks, StageCounter, type ChartHandle, type Stage } from './instrument';
 import { COMPOSITIONS } from '../kinds';
 import type {
-  Accepted, Candidate, ChartKind, Controller, ControllerActions, ControllerCore, Disclosure, Display, Drawn, FrameDriver,
-  FrameRun, Held, Host, Invalidate, PlotLayout, Preparation, PresentationStage, ReaderEntry, ReadoutMode, Size, Viewed,
+  Accepted, Candidate, ChartKind, Controller, ControllerActions, ControllerCore, Disclosure, Display, Drawn,
+  FrameRun, Held, Host, Invalidate, PlotLayout, Preparation, PresentationStage, ReaderEntry, ReadoutMode, Size, StreamSessionHandle, Viewed,
 } from './controller-types';
 // Keep the extracted stages next to their caller in the bundle so gzip sees their shared names.
 import {
   COMPACT_TEXT_STYLE, EMPTY_DIAGNOSTICS, EMPTY_DISCLOSURE, INHERIT_LANGUAGE, ENGLISH_TAG, ALL_ENGLISH,
   STEP_PHASE1, STEP_PHASE2, STEP_THEME, STEP_MEASURE, STEP_PROBE, STEP_LAYOUT_CHECK, STEP_STRIP_MOUNT, STEP_STRIP_READ,
   STEP_READOUT, STEP_STRIP_WRITE, STEP_STRIP_MEASURE, STEP_INIT, STEP_PASS_WRITE, STEP_PASS_MEASURE, STEP_PUBLISH,
-  FrameHandle, acquireFrame, hiddenIn, readoutSteps, releaseFrame, reservedStrip, sameDisclosure, sameLayoutSize, type FrameState,
+  FrameHandle, acquireFrame, hiddenIn, readoutSteps, releaseFrame, reservedStrip, sameDisclosure, sameLayoutSize, type FrameDriver, type FrameState,
 } from './frame-state';
 import {
   buildFormatSpec, canRecoverFields, committedStateFor, controlsStateFor, dataFindings, displayState, englishMarker, figureModelFor,
@@ -55,7 +55,7 @@ import {
   messagesFor, messagesOf, presentationDiagnostics, readerInputsMatch, readyText, renamed, sameFormatInputs, sameReading,
   sameSeriesKeys, stateDiagnostics, streamOptions, themeKeys, zoomable, zoomPayload,
 } from './controller-helpers';
-import { openStreamSession, type StreamFactory, type StreamSession } from './controller-stream';
+import { openStreamSession, type StreamFactory } from './controller-stream';
 import { ChartActions, ChartInvalidate, ControllerProbe, DeadHost, Handle } from './controller-wrappers';
 
 export type { ChartKind, Controller, ControllerActions, FrameRun, Host, Invalidate, Size } from './controller-types';
@@ -143,7 +143,7 @@ class ChartController implements Controller, ControllerCore, FrameDriver {
   #streaming: boolean = false;
   #paused: boolean = false;
   /** The accepted session, used to release revisions after a call or a frame publishes. */
-  #stream: StreamSession | null = null;
+  #stream: StreamSessionHandle | null = null;
   #openStream: StreamFactory | null;
   /** While paused: the store's newest frame and its findings, accepted but not shown. */
   held: Held = null;
@@ -624,7 +624,7 @@ class ChartController implements Controller, ControllerCore, FrameDriver {
     });
   }
 
-  #recoverFields(previous: Accepted, stream: StreamSession, c: Candidate, before: Frame) {
+  #recoverFields(previous: Accepted, stream: StreamSessionHandle, c: Candidate, before: Frame) {
     const store = stream.store;
     const check = new DiagnosticCollector();
     const resolved = store.resolveEncoding(publicOptions(previous.options), check);
@@ -638,7 +638,7 @@ class ChartController implements Controller, ControllerCore, FrameDriver {
     return { candidate, commit: again.commit };
   }
 
-  #commitRetained(prepared: PreparedFrame<Frame>, stream: StreamSession): void {
+  #commitRetained(prepared: PreparedFrame<Frame>, stream: StreamSessionHandle): void {
     prepared.commit();
     stream.track(prepared.frame);
     this.#frameRevision = Math.max(this.#frameRevision, prepared.frame.revision);

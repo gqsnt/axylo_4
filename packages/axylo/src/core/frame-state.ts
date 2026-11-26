@@ -3,7 +3,15 @@ import type { Messages } from '../public';
 import type { ControlsState } from '../dom/interaction';
 import type { AxisContext } from './axes';
 import type { titleOf } from './stages';
-import type { Accepted, Disclosure, Display, FrameDriver, FrameRun, PlotLayout, ReaderEntry, Size } from './controller-types';
+import type { Accepted, Disclosure, Display, FrameRun, PlotLayout, ReaderEntry, Size } from './controller-types';
+
+/** What a frame's steps reach in their controller: made once per chart. */
+export interface FrameDriver {
+  frameStep(f: FrameState, id: number): boolean;
+  removeStripProbe(f: FrameState): void;
+  finishFrame(f: FrameState): void;
+  afterFrame(f: FrameState): void;
+}
 
 /** Shared neutral text style used for compact charts, which never lay out text labels. */
 export const COMPACT_TEXT_STYLE: TextStyle = { font: '', letterSpacing: 0, wordSpacing: 0, lineHeight: 0 };
