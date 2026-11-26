@@ -57,12 +57,25 @@ export function resultFiles() {
     : [{ config, engine: config === 'dist-browser' ? 'chromium' : null, file: defaultResultFile(config) }]);
 }
 
-export function citedTestFiles(matrix) {
+export function citedTestFiles(matrix, journeys = null) {
   const files = new Set();
   for (const row of matrix) {
     for (const citations of [row.evidence, row.weak]) {
       for (const refs of Object.values(citations ?? {})) {
         for (const { kind, file } of refs) if (kinds.has(kind)) files.add(file);
+      }
+    }
+  }
+  if (Array.isArray(journeys)) {
+    for (const journey of journeys) {
+      if (Array.isArray(journey?.testFiles)) {
+        for (const file of journey.testFiles) if (typeof file === 'string' && file) files.add(file);
+      }
+      if (Array.isArray(journey?.accessibilityEvidence?.automated)) {
+        for (const file of journey.accessibilityEvidence.automated) if (typeof file === 'string' && file) files.add(file);
+      }
+      if (Array.isArray(journey?.testCitations)) {
+        for (const ref of journey.testCitations) if (typeof ref?.file === 'string' && ref.file) files.add(ref.file);
       }
     }
   }

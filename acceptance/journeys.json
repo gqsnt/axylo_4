@@ -31,6 +31,13 @@
       "packages/axylo/test/acceptance/type-matrix.test.ts",
       "packages/axylo/test/browser/chart/histogram.browser.test.ts"
     ],
+    "testCitations": [
+      {
+        "kind": "browser",
+        "file": "packages/axylo/test/browser/chart/histogram.browser.test.ts",
+        "title": "draws unequal bins, reads intervals by pointer and keyboard, zooms and exposes the data table"
+      }
+    ],
     "screenshots": [
       "getting-started",
       "index",
@@ -61,13 +68,13 @@
     },
     "ownedGaps": [
       {
-        "id": "histogram-matrix-column",
+        "id": "histogram-first-impression-visual",
         "kinds": [
           "histogram"
         ],
-        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "reason": "Histogram empty/loading/error plot-state rendering and visual screenshot review across light/dark schemes have not been audited in N2.",
         "owner": "core-experience",
-        "targetCycle": "C3.2"
+        "targetCycle": "N2"
       }
     ]
   },
@@ -106,7 +113,55 @@
       "packages/axylo/test/acceptance/f-format.test.ts",
       "packages/axylo/test/acceptance/f-time.test.ts",
       "packages/axylo/test/data/histogram.test.ts",
-      "packages/axylo/test/core/split-seams.test.ts"
+      "packages/axylo/test/core/split-seams.test.ts",
+      "packages/axylo/test/browser/chart/histogram.browser.test.ts"
+    ],
+    "testCitations": [
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/data/histogram.test.ts",
+        "title": "assigns internal boundaries to the right and the final boundary to the final bin",
+        "ancestors": [
+          "histogram bins"
+        ]
+      },
+      {
+        "kind": "property",
+        "file": "packages/axylo/test/data/histogram.test.ts",
+        "title": "conserves counts under reordering, probability mass and density area for uneven bins",
+        "ancestors": [
+          "histogram bins"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/data/histogram.test.ts",
+        "title": "uses interpolated quartiles, Sturges for zero IQR, and equal widths for integer bins",
+        "ancestors": [
+          "histogram bins"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/data/histogram.test.ts",
+        "title": "fits y to overlapping bins, includes zero and leaves sample counts intact across zoom",
+        "ancestors": [
+          "histogram stages together"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/core/split-seams.test.ts",
+        "title": "keeps midpoints finite and strictly increasing at float64 overflow and adjacent-ULP boundaries",
+        "ancestors": [
+          "histogram conservation and sample windows"
+        ]
+      },
+      {
+        "kind": "browser",
+        "file": "packages/axylo/test/browser/chart/histogram.browser.test.ts",
+        "title": "resizes across wide, narrow strip, and too-small widths without label overlap or focus loss (histogram-resize-test)"
+      }
     ],
     "screenshots": [
       "line",
@@ -127,13 +182,13 @@
     },
     "ownedGaps": [
       {
-        "id": "histogram-matrix-column",
+        "id": "histogram-legibility-contrast",
         "kinds": [
           "histogram"
         ],
-        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "reason": "WCAG 1.4.12 text-spacing overrides, 200% zoom, and 4.5:1 contrast pixel checks across light/dark schemes are not yet covered specifically for histogram tick/axis labels.",
         "owner": "core-experience",
-        "targetCycle": "C3.2"
+        "targetCycle": "N3"
       }
     ]
   },
@@ -177,6 +232,29 @@
       "packages/axylo/test/data/histogram.test.ts",
       "packages/axylo/test/browser/chart/split-seams.browser.test.ts"
     ],
+    "testCitations": [
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/data/histogram.test.ts",
+        "title": "picks the full interval including an empty bin and jumps to the containing table page",
+        "ancestors": [
+          "histogram stages together"
+        ]
+      },
+      {
+        "kind": "browser",
+        "file": "packages/axylo/test/browser/chart/histogram.browser.test.ts",
+        "title": "draws unequal bins, reads intervals by pointer and keyboard, zooms and exposes the data table"
+      },
+      {
+        "kind": "browser",
+        "file": "packages/axylo/test/browser/chart/split-seams.browser.test.ts",
+        "title": "histogram bins [0, 2, 5, 10] with an empty interior bin agree five ways under count, probability and zoom",
+        "ancestors": [
+          "seam 3: one frame behind pointer, keyboard, tooltip, events and table"
+        ]
+      }
+    ],
     "screenshots": [
       "line",
       "histogram"
@@ -197,13 +275,13 @@
     },
     "ownedGaps": [
       {
-        "id": "histogram-matrix-column",
+        "id": "histogram-hover-stability-multibrowser",
         "kinds": [
           "histogram"
         ],
-        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "reason": "Pointer-still corridor stability on histogram bars and multi-browser (Firefox/WebKit) hover verification remain open for N3.",
         "owner": "interaction",
-        "targetCycle": "C3.2"
+        "targetCycle": "N3"
       }
     ]
   },
@@ -238,7 +316,47 @@
       "packages/axylo/test/core/focus-range.test.ts",
       "packages/axylo/test/browser/chart/histogram.browser.test.ts",
       "packages/axylo/test/data/histogram.test.ts",
-      "packages/axylo/test/core/split-seams.test.ts"
+      "packages/axylo/test/core/split-seams.test.ts",
+      "packages/axylo/test/browser/chart/split-seams.browser.test.ts"
+    ],
+    "testCitations": [
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/data/histogram.test.ts",
+        "title": "fits y to overlapping bins, includes zero and leaves sample counts intact across zoom",
+        "ancestors": [
+          "histogram stages together"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/data/histogram.test.ts",
+        "title": "honors x.missing = zero on create and append and clips huge zoomed bins in double precision",
+        "ancestors": [
+          "histogram stages together"
+        ]
+      },
+      {
+        "kind": "property",
+        "file": "packages/axylo/test/core/split-seams.test.ts",
+        "title": "histogram zooms inward, preserves the frame and resets once",
+        "ancestors": [
+          "controller zoom domains"
+        ]
+      },
+      {
+        "kind": "browser",
+        "file": "packages/axylo/test/browser/chart/histogram.browser.test.ts",
+        "title": "draws unequal bins, reads intervals by pointer and keyboard, zooms and exposes the data table"
+      },
+      {
+        "kind": "browser",
+        "file": "packages/axylo/test/browser/chart/split-seams.browser.test.ts",
+        "title": "histogram bins [0, 2, 5, 10] with an empty interior bin agree five ways under count, probability and zoom",
+        "ancestors": [
+          "seam 3: one frame behind pointer, keyboard, tooltip, events and table"
+        ]
+      }
     ],
     "screenshots": [
       "line"
@@ -266,13 +384,13 @@
     },
     "ownedGaps": [
       {
-        "id": "histogram-matrix-column",
+        "id": "histogram-zoom-inputs",
         "kinds": [
           "histogram"
         ],
-        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "reason": "Wheel, pinch, keyboard +/-/0, and two-click range selection + Reset button round-trips in browser have not been exercised specifically on histogram.",
         "owner": "interaction",
-        "targetCycle": "C3.2"
+        "targetCycle": "N3"
       },
       {
         "id": "explore-manual-at",
@@ -285,7 +403,7 @@
         ],
         "reason": "Range-selection and zoom announcements are verified only through automated ARIA checks, not with real assistive technology.",
         "owner": "a11y",
-        "targetCycle": "C3.3"
+        "targetCycle": "N3"
       }
     ]
   },
@@ -379,6 +497,13 @@
       "packages/axylo/test/browser/chart/histogram.browser.test.ts",
       "packages/axylo/test/browser/chart/split-seams.browser.test.ts"
     ],
+    "testCitations": [
+      {
+        "kind": "browser",
+        "file": "packages/axylo/test/browser/chart/histogram.browser.test.ts",
+        "title": "resizes across wide, narrow strip, and too-small widths without label overlap or focus loss (histogram-resize-test)"
+      }
+    ],
     "screenshots": [
       "line",
       "compact"
@@ -399,13 +524,13 @@
     },
     "ownedGaps": [
       {
-        "id": "histogram-matrix-column",
+        "id": "histogram-resize-a6-multibrowser",
         "kinds": [
           "histogram"
         ],
-        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "reason": "320 CSS px / 400% reflow (A6), height: auto 16:9 stability (L3), and multi-browser resize checks remain open for histogram in N3.",
         "owner": "core-experience",
-        "targetCycle": "C3.2"
+        "targetCycle": "N3"
       }
     ]
   },
@@ -459,13 +584,13 @@
     },
     "ownedGaps": [
       {
-        "id": "histogram-matrix-column",
+        "id": "histogram-touch-emulation",
         "kinds": [
           "histogram"
         ],
-        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "reason": "Emulated touch tap/pin/re-tap and narrow-viewport strip behaviour have not yet been verified specifically on a histogram chart.",
         "owner": "interaction",
-        "targetCycle": "C3.2"
+        "targetCycle": "N3"
       },
       {
         "id": "real-device-touch",
@@ -480,7 +605,7 @@
         ],
         "reason": "Touch and narrow-viewport behaviour is verified only in emulated desktop Chrome, never on a real phone.",
         "owner": "interaction",
-        "targetCycle": "C3.2"
+        "targetCycle": "N3"
       }
     ]
   },
@@ -520,6 +645,26 @@
       "packages/axylo/test/browser/chart/split-seams.browser.test.ts",
       "packages/axylo/test/browser/chart/c3-journeys.browser.test.ts"
     ],
+    "testCitations": [
+      {
+        "kind": "browser",
+        "file": "packages/axylo/test/browser/chart/histogram.browser.test.ts",
+        "title": "draws unequal bins, reads intervals by pointer and keyboard, zooms and exposes the data table"
+      },
+      {
+        "kind": "browser",
+        "file": "packages/axylo/test/browser/chart/histogram.browser.test.ts",
+        "title": "resizes across wide, narrow strip, and too-small widths without label overlap or focus loss (histogram-resize-test)"
+      },
+      {
+        "kind": "browser",
+        "file": "packages/axylo/test/browser/chart/split-seams.browser.test.ts",
+        "title": "histogram bins [0, 2, 5, 10] with an empty interior bin agree five ways under count, probability and zoom",
+        "ancestors": [
+          "seam 3: one frame behind pointer, keyboard, tooltip, events and table"
+        ]
+      }
+    ],
     "screenshots": [
       "accessibility"
     ],
@@ -544,13 +689,13 @@
     },
     "ownedGaps": [
       {
-        "id": "histogram-matrix-column",
+        "id": "histogram-keyboard-update-append-focus",
         "kinds": [
           "histogram"
         ],
-        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "reason": "Keyboard focus survival across update({ data }) and append() has been verified on line charts but not yet specifically on histogram.",
         "owner": "a11y",
-        "targetCycle": "C3.2"
+        "targetCycle": "N3"
       },
       {
         "id": "a3-manual-at",
@@ -564,7 +709,7 @@
         ],
         "reason": "A3 (focused point conveyed through assistive technology) has not been verified with NVDA, JAWS or VoiceOver.",
         "owner": "a11y",
-        "targetCycle": "C3.3"
+        "targetCycle": "N3"
       }
     ]
   },
@@ -605,10 +750,55 @@
       "packages/axylo/test/browser/chart/plot-description.browser.test.ts",
       "packages/axylo/test/reader/index.test.ts",
       "packages/axylo/test/acceptance/reader-model.test.ts",
+      "packages/axylo/test/data/histogram.test.ts",
       "packages/axylo/test/browser/chart/histogram.browser.test.ts",
       "packages/axylo/test/browser/chart/split-seams.browser.test.ts",
       "packages/axylo/test/core/c3-a11y-touch.test.ts",
       "packages/axylo/test/browser/chart/c3-journeys.browser.test.ts"
+    ],
+    "testCitations": [
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/data/histogram.test.ts",
+        "title": "picks the full interval including an empty bin and jumps to the containing table page",
+        "ancestors": [
+          "histogram stages together"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/core/c3-a11y-touch.test.ts",
+        "title": "a full histogram whose samples all fall outside its bins does not point to a table it cannot open",
+        "ancestors": [
+          "F-A11Y-3: table referrals and compact error descriptions (F12, C5, A4)"
+        ]
+      },
+      {
+        "kind": "browser",
+        "file": "packages/axylo/test/browser/chart/histogram.browser.test.ts",
+        "title": "draws unequal bins, reads intervals by pointer and keyboard, zooms and exposes the data table"
+      },
+      {
+        "kind": "browser",
+        "file": "packages/axylo/test/browser/chart/histogram.browser.test.ts",
+        "title": "paints histogram across light, dark, forced-colors, and custom color override with zero axe violations (histogram-theme-test)"
+      },
+      {
+        "kind": "browser",
+        "file": "packages/axylo/test/browser/chart/split-seams.browser.test.ts",
+        "title": "histogram bins [0, 2, 5, 10] with an empty interior bin agree five ways under count, probability and zoom",
+        "ancestors": [
+          "seam 3: one frame behind pointer, keyboard, tooltip, events and table"
+        ]
+      },
+      {
+        "kind": "browser",
+        "file": "packages/axylo/test/browser/chart/c3-journeys.browser.test.ts",
+        "title": "F-A11Y-3: all-omitted explicit-bin histogram omits See table; compact dirty error retains omission sentence",
+        "ancestors": [
+          "C3.3 accessibility & responsive/touch browser regressions"
+        ]
+      }
     ],
     "screenshots": [
       "accessibility",
@@ -636,15 +826,6 @@
     },
     "ownedGaps": [
       {
-        "id": "histogram-matrix-column",
-        "kinds": [
-          "histogram"
-        ],
-        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
-        "owner": "a11y",
-        "targetCycle": "C3.2"
-      },
-      {
         "id": "manual-screen-reader",
         "kinds": [
           "line",
@@ -657,7 +838,7 @@
         ],
         "reason": "No manual pass with NVDA, JAWS or VoiceOver has been recorded for the summary, table or live-region behaviour.",
         "owner": "a11y",
-        "targetCycle": "C3.3"
+        "targetCycle": "N3"
       }
     ]
   },
@@ -696,7 +877,67 @@
       "packages/axylo/test/browser/acceptance/negative-controls.browser.test.ts",
       "packages/axylo/test/data/histogram.test.ts",
       "packages/axylo/test/core/split-seams.test.ts",
-      "packages/axylo/test/browser/chart/split-seams.browser.test.ts"
+      "packages/axylo/test/browser/chart/split-seams.browser.test.ts",
+      "packages/axylo/test/core/c3-a11y-touch.test.ts",
+      "packages/axylo/test/browser/chart/c3-journeys.browser.test.ts"
+    ],
+    "testCitations": [
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/data/histogram.test.ts",
+        "title": "handles empty, missing, constant, singleton and extreme samples",
+        "ancestors": [
+          "histogram bins"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/data/histogram.test.ts",
+        "title": "preserves borrowed sample order and distinguishes missing, invalid and out-of-range rows",
+        "ancestors": [
+          "histogram bins"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/data/histogram.test.ts",
+        "title": "validates the numeric field and options without a document",
+        "ancestors": [
+          "histogram bins"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/data/histogram.test.ts",
+        "title": "keeps source rows, re-encodes the retained window, and rejects dirty strict appends atomically",
+        "ancestors": [
+          "histogram stages together"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/data/histogram.test.ts",
+        "title": "reports stream errors at original indexes and drops their disclosures on eviction",
+        "ancestors": [
+          "histogram stages together"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/core/c3-a11y-touch.test.ts",
+        "title": "a full histogram whose samples all fall outside its bins does not point to a table it cannot open",
+        "ancestors": [
+          "F-A11Y-3: table referrals and compact error descriptions (F12, C5, A4)"
+        ]
+      },
+      {
+        "kind": "browser",
+        "file": "packages/axylo/test/browser/chart/c3-journeys.browser.test.ts",
+        "title": "F-A11Y-3: all-omitted explicit-bin histogram omits See table; compact dirty error retains omission sentence",
+        "ancestors": [
+          "C3.3 accessibility & responsive/touch browser regressions"
+        ]
+      }
     ],
     "screenshots": [
       "diagnostics",
@@ -721,13 +962,13 @@
     },
     "ownedGaps": [
       {
-        "id": "histogram-matrix-column",
+        "id": "histogram-strict-update-rollback",
         "kinds": [
           "histogram"
         ],
-        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "reason": "packages/axylo/test/data/histogram.test.ts verifies strict append() rejection and rollback, while histogram-specific rejected strict update() rollback has not yet been asserted.",
         "owner": "diagnostics",
-        "targetCycle": "C3.2"
+        "targetCycle": "N2"
       }
     ]
   },
@@ -764,6 +1005,13 @@
       "packages/axylo/test/browser/acceptance/a6-a10.browser.test.ts",
       "packages/axylo/test/browser/chart/histogram.browser.test.ts"
     ],
+    "testCitations": [
+      {
+        "kind": "browser",
+        "file": "packages/axylo/test/browser/chart/histogram.browser.test.ts",
+        "title": "paints histogram across light, dark, forced-colors, and custom color override with zero axe violations (histogram-theme-test)"
+      }
+    ],
     "screenshots": [
       "theming"
     ],
@@ -782,13 +1030,13 @@
     },
     "ownedGaps": [
       {
-        "id": "histogram-matrix-column",
+        "id": "histogram-messages-font-spacing",
         "kinds": [
           "histogram"
         ],
-        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "reason": "Built-in string replacement via messages and CSS custom-property font/spacing inheritance have not yet been verified specifically on histogram (histogram-theme-test currently verifies light, dark, forced-colors, --axylo-series-1, and colors overrides).",
         "owner": "theme",
-        "targetCycle": "C3.2"
+        "targetCycle": "N2"
       },
       {
         "id": "windows-forced-colors",
@@ -803,7 +1051,7 @@
         ],
         "reason": "forced-colors is emulated in headless Chrome; native Windows High Contrast (Edge) has not been verified on a Windows host.",
         "owner": "theme",
-        "targetCycle": "C3.2"
+        "targetCycle": "N3"
       }
     ]
   },
@@ -841,6 +1089,42 @@
       "packages/axylo/test/core/split-seams.test.ts",
       "packages/axylo/test/browser/chart/split-seams.browser.test.ts"
     ],
+    "testCitations": [
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/data/histogram.test.ts",
+        "title": "keeps source rows, re-encodes the retained window, and rejects dirty strict appends atomically",
+        "ancestors": [
+          "histogram stages together"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/data/histogram.test.ts",
+        "title": "reports stream errors at original indexes and drops their disclosures on eviction",
+        "ancestors": [
+          "histogram stages together"
+        ]
+      },
+      {
+        "kind": "property",
+        "file": "packages/axylo/test/core/split-seams.test.ts",
+        "title": "conserves counts, mass and area through sample eviction (explicit bins)",
+        "registration": "conserves counts, mass and area through sample eviction (${name} bins)",
+        "ancestors": [
+          "histogram conservation and sample windows"
+        ]
+      },
+      {
+        "kind": "property",
+        "file": "packages/axylo/test/core/split-seams.test.ts",
+        "title": "conserves counts, mass and area through sample eviction (integer bins)",
+        "registration": "conserves counts, mass and area through sample eviction (${name} bins)",
+        "ancestors": [
+          "histogram conservation and sample windows"
+        ]
+      }
+    ],
     "screenshots": [
       "updating"
     ],
@@ -867,13 +1151,13 @@
     },
     "ownedGaps": [
       {
-        "id": "histogram-matrix-column",
+        "id": "histogram-live-pause-browser",
         "kinds": [
           "histogram"
         ],
-        "reason": "acceptance/matrix.json and CHART_TYPES in acceptance/check.mjs have no histogram column, so histogram evidence is cited by test file only and has no matrix cell rollup.",
+        "reason": "Browser Pause/Resume eviction UI and focus preservation have been exercised on line charts but not yet on histogram.",
         "owner": "streaming",
-        "targetCycle": "C3.2"
+        "targetCycle": "N3"
       },
       {
         "id": "a7-manual-at",
@@ -888,7 +1172,657 @@
         ],
         "reason": "Silence of live updates (A7) is checked through live-region attributes only, not with a running screen reader.",
         "owner": "a11y",
-        "targetCycle": "C3.3"
+        "targetCycle": "N3"
+      }
+    ]
+  },
+  {
+    "id": "static-stream",
+    "title": "Static & stream isolation",
+    "owner": "streaming",
+    "entryPoints": [
+      "axylo/static",
+      "axylo/stream"
+    ],
+    "outcomeGuarantees": [
+      "axylo/static bundles omit streaming storage/session code (adoptNormalized, StreamSession) and remain smaller than root axylo.",
+      "StaticChart rejects append() both statically under TypeScript Bundler/NodeNext and at runtime without mutating chart state, while axylo/stream matches root axylo.",
+      "Both entry points import cleanly in Node without a DOM (validate parity) and bundle to 0 raw bytes on bare import with side-effect hints ignored."
+    ],
+    "applicableKinds": [
+      "static",
+      "stream"
+    ],
+    "matrixIds": [],
+    "testFiles": [
+      "packages/axylo/test/core/static-stream.test.ts",
+      "tests/dist/subpaths.test.ts"
+    ],
+    "testCitations": [
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/core/static-stream.test.ts",
+        "title": "line: has no openStore and agrees with the streaming composition on every other stage",
+        "registration": "${kind}: has no openStore and agrees with the streaming composition on every other stage",
+        "ancestors": [
+          "static compositions"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/core/static-stream.test.ts",
+        "title": "area: has no openStore and agrees with the streaming composition on every other stage",
+        "registration": "${kind}: has no openStore and agrees with the streaming composition on every other stage",
+        "ancestors": [
+          "static compositions"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/core/static-stream.test.ts",
+        "title": "bar: has no openStore and agrees with the streaming composition on every other stage",
+        "registration": "${kind}: has no openStore and agrees with the streaming composition on every other stage",
+        "ancestors": [
+          "static compositions"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/core/static-stream.test.ts",
+        "title": "histogram: has no openStore and agrees with the streaming composition on every other stage",
+        "registration": "${kind}: has no openStore and agrees with the streaming composition on every other stage",
+        "ancestors": [
+          "static compositions"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/core/static-stream.test.ts",
+        "title": "scatter: has no openStore and agrees with the streaming composition on every other stage",
+        "registration": "${kind}: has no openStore and agrees with the streaming composition on every other stage",
+        "ancestors": [
+          "static compositions"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/core/static-stream.test.ts",
+        "title": "donut: has no openStore and agrees with the streaming composition on every other stage",
+        "registration": "${kind}: has no openStore and agrees with the streaming composition on every other stage",
+        "ancestors": [
+          "static compositions"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/core/static-stream.test.ts",
+        "prefix": "staticControllerFor"
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/core/static-stream.test.ts",
+        "prefix": "entry modules in Node"
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "exports ./static, ./stream, ./cartesian, ./stats, ./sync, ./export and ./finance with types, development and default files that were packed",
+        "ancestors": [
+          "package.json"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "\"import 'axylo/static'\" bundles to 0 raw bytes",
+        "ancestors": [
+          "import for effect, with side-effect hints ignored"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "\"import 'axylo/stream'\" bundles to 0 raw bytes",
+        "ancestors": [
+          "import for effect, with side-effect hints ignored"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "line",
+        "registration": "${label}",
+        "ancestors": [
+          "axylo/static carries no streaming storage and is smaller than the root entry"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "everything",
+        "registration": "${label}",
+        "ancestors": [
+          "axylo/static carries no streaming storage and is smaller than the root entry"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "IIFE bundle stays <= +0 B vs C3-sealed b097f1a baseline",
+        "ancestors": [
+          "axylo/static carries no streaming storage and is smaller than the root entry"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "compile under Bundler against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "ancestors": [
+          "declarations"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "compile under NodeNext against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "ancestors": [
+          "declarations"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "imports axylo/static and axylo/stream and runs validate as the root entry does",
+        "ancestors": [
+          "Node import (no DOM)"
+        ]
+      }
+    ],
+    "screenshots": [],
+    "benchWorkloads": [],
+    "rehearsalTasks": [],
+    "accessibilityEvidence": {
+      "automated": [
+        "tests/dist/first-chart.browser.test.ts",
+        "tests/dist/export.browser.test.ts"
+      ],
+      "manualAt": {
+        "status": "not-applicable",
+        "environments": [],
+        "protocolNote": "Entry-point bundle isolation and API parity; assistive-technology interaction is owned by core chart journeys and J14–J16."
+      }
+    },
+    "ownedGaps": []
+  },
+  {
+    "id": "cartesian-multiscale",
+    "title": "Multi-scale cartesian composition",
+    "owner": "core-experience",
+    "entryPoints": [
+      "axylo/cartesian"
+    ],
+    "outcomeGuarantees": [
+      "Supports 1 or 2 y-axes (left primary, optional right secondary) with linear and overflow-safe log scales sharing one projection authority.",
+      "Mixed bar, area, and line layers paint deterministically (bar -> area -> line), reject bar/area on log statically and via AX173, disclose nonpositive log rows via AX171 while keeping raw values in the table, and collapse the right y-axis below 360 px (L9, AX175).",
+      "Strict update() rolls back cleanly without corrupting subsequent updates, and standalone packed bundle stays <= 127,000 B gzip-9 with 0 B bare import."
+    ],
+    "applicableKinds": [
+      "cartesian"
+    ],
+    "matrixIds": [],
+    "testFiles": [
+      "packages/axylo/test/scale/log.test.ts",
+      "packages/axylo/test/cartesian/c4-2-layout.test.ts",
+      "packages/axylo/test/cartesian/c4-3-cartesian.test.ts",
+      "tests/dist/cartesian.browser.test.ts",
+      "tests/dist/subpaths.test.ts"
+    ],
+    "testCitations": [
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/scale/log.test.ts",
+        "prefix": "C4.2 logScale numerical oracle (RFC §4.1–4.2)"
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/scale/log.test.ts",
+        "prefix": "C4.2 niceLogDomain & logTickCandidates (RFC §4.3)"
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/cartesian/c4-2-layout.test.ts",
+        "prefix": "C4.2 per-axis domains & diagnostics"
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/cartesian/c4-2-layout.test.ts",
+        "prefix": "C4.2 dual-axis responsive layout & single projection authority"
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/cartesian/c4-3-cartesian.test.ts",
+        "prefix": "C4.3 axylo/cartesian mixed layers, picking, and readout parity"
+      },
+      {
+        "kind": "browser",
+        "file": "tests/dist/cartesian.browser.test.ts",
+        "title": "renders bars + log line + dual y-axes, preserves nonpositive log values in table, supports update() and L9 resize collapse",
+        "ancestors": [
+          "axylo/cartesian packed Chrome integration under strict CSP"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "\"import 'axylo/cartesian'\" bundles to 0 raw bytes",
+        "ancestors": [
+          "import for effect, with side-effect hints ignored"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "cartesian and finance standalone bundles omit streaming storage and stay <= 127,000 B gzip-9",
+        "ancestors": [
+          "axylo/cartesian, axylo/finance, axylo/stats, axylo/sync and axylo/export packed sizes stay under caps"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "compile under Bundler against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "ancestors": [
+          "declarations"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "compile under NodeNext against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "ancestors": [
+          "declarations"
+        ]
+      }
+    ],
+    "screenshots": [],
+    "benchWorkloads": [],
+    "rehearsalTasks": [],
+    "accessibilityEvidence": {
+      "automated": [
+        "tests/dist/cartesian.browser.test.ts"
+      ],
+      "manualAt": {
+        "status": "gap-open",
+        "environments": [
+          "NVDA + Firefox (Windows)",
+          "JAWS + Chrome (Windows)",
+          "VoiceOver + Safari (macOS)",
+          "VoiceOver + Safari (iOS)",
+          "TalkBack + Chrome (Android)"
+        ],
+        "protocolNote": "Dual-axis summary, L9 collapse announcement, and mixed-layer keyboard navigation have not been checked with a real screen reader."
+      }
+    },
+    "ownedGaps": [
+      {
+        "id": "cartesian-visual-swatches",
+        "kinds": [
+          "cartesian"
+        ],
+        "reason": "Visual swatches, dual-axis legend/tick layout screenshots, and visual review across light/dark/forced-colors modes are scheduled for Cycle N2.",
+        "owner": "core-experience",
+        "targetCycle": "N2"
+      },
+      {
+        "id": "cartesian-axe-multibrowser",
+        "kinds": [
+          "cartesian"
+        ],
+        "reason": "axe-core audit, Chrome keyboard/focus parity, multi-browser (Firefox/WebKit) coverage, and manual screen-reader verification for axylo/cartesian remain open for Cycle N3.",
+        "owner": "a11y",
+        "targetCycle": "N3"
+      },
+      {
+        "id": "cartesian-scale-perf-spec",
+        "kinds": [
+          "cartesian"
+        ],
+        "reason": "Building the Cartesian benchmark fixture/adapter (bench/src/multichart.js currently has no cartesian workload), running the paired 100k Chrome performance proof per RFC C4.1 §8, dense-line simplification/decimation, and formal docs/02-product-spec.md amendment (F13/L9/AX170-AX181) are assigned to Cycle N4.",
+        "owner": "performance",
+        "targetCycle": "N4"
+      },
+      {
+        "id": "cartesian-interval-legend-scatter",
+        "kinds": [
+          "cartesian"
+        ],
+        "reason": "Interval-layer (range/errorBar) legend leakage hardening and scatter layer support inside axylo/cartesian are assigned to Cycle N5.",
+        "owner": "core-experience",
+        "targetCycle": "N5"
+      }
+    ]
+  },
+  {
+    "id": "stats-sync",
+    "title": "Statistical summaries & synchronized dashboards",
+    "owner": "core-experience",
+    "entryPoints": [
+      "axylo/stats",
+      "axylo/sync"
+    ],
+    "outcomeGuarantees": [
+      "axylo/stats computes deterministic R-7 quantiles and Tukey 1.5xIQR whisker/outlier fences without mutating borrowed typed columns.",
+      "Cartesian range/errorBar layers and annotations (point, threshold, range) render in batched O(N) marks, track label overflow via fit.y.hidden, and disclose reversed bounds (AX176).",
+      "axylo/sync propagates zoom and hover callbacks (onZoomSync/onHoverSync) and linked zoom across compatible peers without feedback loops, enforces xKind/xUnit compatibility, and bundles tiny (<= 3,500 B gzip-9 each) with 0 B bare imports (visual peer hover crosshair/readout and CDP 0/0/0 teardown remain open in N6)."
+    ],
+    "applicableKinds": [
+      "stats",
+      "sync"
+    ],
+    "matrixIds": [],
+    "testFiles": [
+      "packages/axylo/test/stats/c5-1-stats.test.ts",
+      "packages/axylo/test/cartesian/c5-ranges-annotations.test.ts",
+      "packages/axylo/test/sync/c5-3-sync.test.ts",
+      "tests/dist/c5.browser.test.ts",
+      "tests/dist/subpaths.test.ts"
+    ],
+    "testCitations": [
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/stats/c5-1-stats.test.ts",
+        "prefix": "C5.1 axylo/stats R-7 quantiles & Tukey box-plot transform"
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/cartesian/c5-ranges-annotations.test.ts",
+        "prefix": "C5.1 range bands & error bars in axylo/cartesian"
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/cartesian/c5-ranges-annotations.test.ts",
+        "prefix": "C5.2 opt-in annotations in axylo/cartesian"
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/sync/c5-3-sync.test.ts",
+        "prefix": "C5.3 axylo/sync linked hover and zoom"
+      },
+      {
+        "kind": "browser",
+        "file": "tests/dist/c5.browser.test.ts",
+        "title": "renders boxplot via cartesian range/errorBar + annotations and verifies linked sync + 0/0/0 teardown under strict CSP",
+        "ancestors": [
+          "Campaign 5 packed Chrome integration (stats + ranges + annotations + sync)"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "\"import 'axylo/stats'\" bundles to 0 raw bytes",
+        "ancestors": [
+          "import for effect, with side-effect hints ignored"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "\"import 'axylo/sync'\" bundles to 0 raw bytes",
+        "ancestors": [
+          "import for effect, with side-effect hints ignored"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "stats, sync and export standalone bundles stay tiny (<= 3,500 B gzip-9 each)",
+        "ancestors": [
+          "axylo/cartesian, axylo/finance, axylo/stats, axylo/sync and axylo/export packed sizes stay under caps"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "compile under Bundler against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "ancestors": [
+          "declarations"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "compile under NodeNext against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "ancestors": [
+          "declarations"
+        ]
+      }
+    ],
+    "screenshots": [],
+    "benchWorkloads": [],
+    "rehearsalTasks": [],
+    "accessibilityEvidence": {
+      "automated": [
+        "tests/dist/c5.browser.test.ts"
+      ],
+      "manualAt": {
+        "status": "gap-open",
+        "environments": [
+          "NVDA + Firefox (Windows)",
+          "JAWS + Chrome (Windows)",
+          "VoiceOver + Safari (macOS)",
+          "VoiceOver + Safari (iOS)",
+          "TalkBack + Chrome (Android)"
+        ],
+        "protocolNote": "Annotation summary readouts and synchronized dashboard focus/hover announcements have not been checked with a real screen reader."
+      }
+    },
+    "ownedGaps": [
+      {
+        "id": "stats-native-boxplot-quantile-overflow",
+        "kinds": [
+          "stats"
+        ],
+        "reason": "Native boxplot mark/entry ergonomics and quantile() overflow hardening for extreme finite inputs remain open for Cycle N5.",
+        "owner": "core-experience",
+        "targetCycle": "N5"
+      },
+      {
+        "id": "sync-visual-peer-hover-teardown",
+        "kinds": [
+          "sync"
+        ],
+        "reason": "tests/dist/c5.browser.test.ts checks linked zoom propagation, group membership (group.size === 0), and leftoverNodes === 0, leaving real visual peer hover crosshair/readout rendering and CDP-instrumented 0/0/0 listener/observer teardown verification open for Cycle N6.",
+        "owner": "interaction",
+        "targetCycle": "N6"
+      },
+      {
+        "id": "stats-sync-visual-a11y-parity",
+        "kinds": [
+          "stats",
+          "sync"
+        ],
+        "reason": "axe-core audit, keyboard/focus parity across annotations/range layers, multi-browser (Firefox/WebKit) runs, and manual screen-reader verification remain open for Cycle N3.",
+        "owner": "a11y",
+        "targetCycle": "N3"
+      }
+    ]
+  },
+  {
+    "id": "export-finance",
+    "title": "Export & financial candlesticks",
+    "owner": "core-experience",
+    "entryPoints": [
+      "axylo/export",
+      "axylo/finance"
+    ],
+    "outcomeGuarantees": [
+      "axylo/export serializes self-contained plot SVG (resolved CSS custom properties, concrete <text>, <title>/<desc>), 2x PNG rasterization, and RFC 4180 round-trip CSV matching rendered tables.",
+      "axylo/finance renders hollow-up, filled-down, and horizontal-doji OHLC candlesticks with optional volume bars, discloses AX180/AX181 while keeping raw values in the table, throws on invalid strict update(), and accepts a subsequent update() without throwing (titleText and preserved pre-failure state rollback verification remain open in N7).",
+      "Standalone packed bundles stay <= 3,500 B gzip-9 (axylo/export) and <= 127,000 B gzip-9 (axylo/finance) with 0 B bare imports."
+    ],
+    "applicableKinds": [
+      "export",
+      "finance"
+    ],
+    "matrixIds": [],
+    "testFiles": [
+      "packages/axylo/test/export/c6-1-export.test.ts",
+      "packages/axylo/test/finance/c6-3-finance.test.ts",
+      "tests/dist/export.browser.test.ts",
+      "tests/dist/finance.browser.test.ts",
+      "tests/dist/subpaths.test.ts"
+    ],
+    "testCitations": [
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/export/c6-1-export.test.ts",
+        "prefix": "C6.1 axylo/export CSV round-trip parity"
+      },
+      {
+        "kind": "unit",
+        "file": "packages/axylo/test/finance/c6-3-finance.test.ts",
+        "prefix": "C6.3 axylo/finance candlestick + volume"
+      },
+      {
+        "kind": "browser",
+        "file": "tests/dist/export.browser.test.ts",
+        "title": "exports self-contained SVG, 2x PNG Blob/dataURL, and exact accessible-table CSV",
+        "ancestors": [
+          "C6.1 axylo/export packed Chrome integration"
+        ]
+      },
+      {
+        "kind": "browser",
+        "file": "tests/dist/finance.browser.test.ts",
+        "title": "renders candlesticks + volume, discloses AX180, matches table/summary, and rolls back rejected strict updates",
+        "ancestors": [
+          "C6.3 axylo/finance packed Chrome integration under strict CSP"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "\"import 'axylo/export'\" bundles to 0 raw bytes",
+        "ancestors": [
+          "import for effect, with side-effect hints ignored"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "\"import 'axylo/finance'\" bundles to 0 raw bytes",
+        "ancestors": [
+          "import for effect, with side-effect hints ignored"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "cartesian and finance standalone bundles omit streaming storage and stay <= 127,000 B gzip-9",
+        "ancestors": [
+          "axylo/cartesian, axylo/finance, axylo/stats, axylo/sync and axylo/export packed sizes stay under caps"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "stats, sync and export standalone bundles stay tiny (<= 3,500 B gzip-9 each)",
+        "ancestors": [
+          "axylo/cartesian, axylo/finance, axylo/stats, axylo/sync and axylo/export packed sizes stay under caps"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "compile under Bundler against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "ancestors": [
+          "declarations"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "compile under NodeNext against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "ancestors": [
+          "declarations"
+        ]
+      }
+    ],
+    "screenshots": [],
+    "benchWorkloads": [],
+    "rehearsalTasks": [],
+    "accessibilityEvidence": {
+      "automated": [
+        "tests/dist/export.browser.test.ts",
+        "tests/dist/finance.browser.test.ts"
+      ],
+      "manualAt": {
+        "status": "gap-open",
+        "environments": [
+          "NVDA + Firefox (Windows)",
+          "JAWS + Chrome (Windows)",
+          "VoiceOver + Safari (macOS)",
+          "VoiceOver + Safari (iOS)",
+          "TalkBack + Chrome (Android)"
+        ],
+        "protocolNote": "Candlestick OHLC/Change/Volume table and summary announcements have not been verified with a real screen reader."
+      }
+    },
+    "ownedGaps": [
+      {
+        "id": "export-whole-figure-and-unpaginated-csv",
+        "kinds": [
+          "export"
+        ],
+        "reason": "Whole-figure SVG/PNG export including chart title/legend (currently exportSvg exports the .axylo-scene plot surface) and unpaginated CSV export from a closed-table chart instance remain open for Cycle N7.",
+        "owner": "core-experience",
+        "targetCycle": "N7"
+      },
+      {
+        "id": "finance-split-pane-volume-and-ylabel",
+        "kinds": [
+          "finance"
+        ],
+        "reason": "Dedicated split-pane volume y-axis ticks/gutter and yAxis.label rendering on axylo/finance candlestick charts remain open for Cycle N7.",
+        "owner": "core-experience",
+        "targetCycle": "N7"
+      },
+      {
+        "id": "finance-strict-rollback-state-assertion",
+        "kinds": [
+          "finance"
+        ],
+        "reason": "tests/dist/finance.browser.test.ts verifies that invalid strict update() throws and a subsequent update() completes without rejection, without asserting titleText or preserved pre-failure marks and state (full rollback assertion open for Cycle N7).",
+        "owner": "core-experience",
+        "targetCycle": "N7"
+      },
+      {
+        "id": "export-finance-visual-parity",
+        "kinds": [
+          "export",
+          "finance"
+        ],
+        "reason": "Visual review, swatches, and dark/light/forced-colors screenshots for exported SVG/PNG and candlestick charts are scheduled for Cycle N2.",
+        "owner": "core-experience",
+        "targetCycle": "N2"
+      },
+      {
+        "id": "export-finance-a11y-multibrowser",
+        "kinds": [
+          "export",
+          "finance"
+        ],
+        "reason": "axe-core audit, candlestick keyboard navigation in Chrome, multi-browser (Firefox/WebKit) runs, and manual screen-reader verification remain open for Cycle N3.",
+        "owner": "a11y",
+        "targetCycle": "N3"
       }
     ]
   }

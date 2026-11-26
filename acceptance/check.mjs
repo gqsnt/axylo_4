@@ -3,18 +3,17 @@ import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path
 import { fileURLToPath } from 'node:url';
 import { citedTestFiles, declaredEngines, engineLabel, ENGINES, hashFile, packIntegrity, snapshot } from './provenance.mjs';
 import { exceeds, SIZE_TARGETS } from '../scripts/size.mjs';
-import { matchesTemplate, readTitles } from './titles.mjs';
-import { evaluateJourneys, readJourneys, renderJourneysMarkdown } from './journeys.mjs';
+import {
+  browserFile, evaluateJourneys, evaluateTestCitation, journeyScanMeta, multiEngineBrowserFile,
+  readJourneys, renderJourneysMarkdown, TEST_KINDS as testKinds, validateTestCitation,
+} from './journeys.mjs';
 
 const chartTypes = ['line', 'area', 'bar', 'scatter', 'donut', 'compact'];
 const statuses = ['pass', 'fail', 'weak', 'no evidence', 'not run', 'not recorded for this revision', 'cannot be verified here', 'not applicable'];
 const STALE = 'not recorded for this revision';
-/** Vitest's browser test files: the only ones a `browser` citation can name, and the ones a Node citation cannot. */
-const browserFile = file => /\.browser\.test\.[cm]?[jt]sx?$/.test(file);
 /** The matrix's chart types, in column order, and every status a cell can have (README's table). */
 export const CHART_TYPES = Object.freeze([...chartTypes]);
 export const STATUSES = Object.freeze([...statuses]);
-const testKinds = ['unit', 'property', 'browser'];
 const otherKinds = ['benchmark', 'size', 'document', 'manual rehearsal'];
 const isText = value => typeof value === 'string' && value.trim() !== '';
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -100,68 +99,20 @@ function readMatrix(root, file, { entries: expected, diagnosticCodes }, sizeTarg
   }
   function checkReference(reference, weak, where) {
     if (!isRecord(reference)) throw new Error('expected an evidence object');
-    const { kind, file, title, prefix, casePrefix, cases, atLeast, registration, ancestors, reason, workload, history, entries, engine } = reference;
+    const { kind, file, title, prefix, casePrefix, cases, registration, ancestors, reason, workload, history, entries, engine } = reference;
     if (![...testKinds, ...otherKinds].includes(kind)) throw new Error(`unknown evidence kind: ${kind}`);
     // Browser evidence names the engine it needs (Chrome when it names none); Node tests have no engine.
     if (engine !== undefined && kind !== 'browser') throw new Error('only browser evidence takes an engine');
     if (engine !== undefined && !ENGINES.includes(engine)) throw new Error(`unknown engine: ${engine} (expected ${ENGINES.join(', ')})`);
     if (weak && !isText(reason)) throw new Error('weak evidence needs a reason');
     const entry = source(file);
-    if (kind === 'browser' && !browserFile(file)) throw new Error(`a browser citation names a file that is not a browser test (*.browser.test.*): ${file}`);
-    if ((kind === 'unit' || kind === 'property') && browserFile(file)) throw new Error(`a ${kind} citation names a browser test file: ${file}`);
     if (testKinds.includes(kind)) {
-      if (!(isText(title) && prefix === undefined) && !(isText(prefix) && title === undefined)) {
-        throw new Error('specify exactly one test title or describe prefix');
+      validateTestCitation({ ref: reference, where, sourceEntry: entry, confirmations });
+    } else {
+      if (kind === 'browser' && !browserFile(file)) throw new Error(`a browser citation names a file that is not a browser test (*.browser.test.*): ${file}`);
+      if ([title, prefix, casePrefix, cases, registration, ancestors].some(value => value !== undefined)) {
+        throw new Error('only test evidence takes a title, prefix, registration or ancestors');
       }
-      if (ancestors !== undefined && (!isText(title) || !Array.isArray(ancestors) || !ancestors.every(isText))) {
-        throw new Error('ancestors need an exact test title and an array of suite titles');
-      }
-      if ((casePrefix !== undefined || cases !== undefined)
-        && (!isText(prefix) || !isText(casePrefix) || !Number.isSafeInteger(cases) || cases < 1)) {
-        throw new Error('a scoped describe prefix needs a case prefix and a positive case count');
-      }
-      if (atLeast !== undefined && (!isText(prefix) || casePrefix !== undefined || cases !== undefined || !Number.isSafeInteger(atLeast) || atLeast < 1)) {
-        throw new Error('atLeast goes with a describe prefix alone and is a positive count');
-      }
-      entry.titles ??= readTitles(readFileSync(entry.path, 'utf8'), entry.path);
-      if (atLeast !== undefined && !entry.titles.tests.some(test => test.title === null && inSuite(test.ancestors, prefix))) {
-        throw new Error(`atLeast is for a suite whose cases the source scan cannot list; every case under ${prefix} in ${file} is known: cite the prefix alone`);
-      }
-      if (registration !== undefined && (!isText(title) || !isText(registration)
-        || !entry.titles.templates.some(test => test.template === registration) || !matchesTemplate(title, registration))) {
-        throw new Error(`invalid source registration for ${file}: ${title}`);
-      }
-      if (title && !registration && !entry.titles.tests.some(test => test.title === title)) {
-        throw new Error(`missing test title in ${file}: ${title}`);
-      }
-      // A title reached only through a template, or only from registrations under a condition, may never run.
-      if (title) {
-        const found = entry.titles.tests.filter(test => test.title === title);
-        const why = registration ? 'it matches a template only' : found.length && found.every(test => test.conditional) ? 'it is registered under a condition' : null;
-        if (why) confirmations.push({ where, file, path: entry.path, title, why });
-      }
-      if (prefix && !entry.titles.suites.some(suite => suite.title !== null && suite.title.startsWith(prefix))) {
-        throw new Error(`missing describe prefix in ${file}: ${prefix}`);
-      }
-      const registrations = prefix ? [
-        ...entry.titles.tests.filter(test => inSuite(test.ancestors, prefix)
-          && (!casePrefix || test.title?.startsWith(casePrefix))),
-        ...entry.titles.templates.filter(test => {
-          const leadingText = test.template.split('${')[0];
-          return inSuite(test.ancestors, prefix)
-            && (!casePrefix || casePrefix.startsWith(leadingText) || leadingText.startsWith(casePrefix));
-        }),
-      ] : [];
-      if (casePrefix && !registrations.length) throw new Error(`missing case prefix in ${file}: ${casePrefix}`);
-      const candidates = prefix
-        ? [...entry.titles.suites.filter(suite => suite.title !== null && suite.title.startsWith(prefix)), ...registrations]
-        : (registration ? entry.titles.templates.filter(test => test.template === registration)
-          : entry.titles.tests.filter(test => test.title === title));
-      const scoped = ancestors && candidates.filter(test => JSON.stringify(test.ancestors) === JSON.stringify(ancestors));
-      const forbidden = (scoped?.length ? scoped : candidates).flatMap(candidate => candidate.forbidden);
-      if (forbidden.length) throw new Error(`citation uses .${forbidden[0]} in ${file}: ${title ?? prefix}`);
-    } else if ([title, prefix, casePrefix, cases, registration, ancestors].some(value => value !== undefined)) {
-      throw new Error('only test evidence takes a title, prefix, registration or ancestors');
     }
     if (kind === 'size') {
       if (!Array.isArray(entries) || !entries.length || !entries.every(isText) || new Set(entries).size !== entries.length) {
@@ -252,17 +203,9 @@ function readMatrix(root, file, { entries: expected, diagnosticCodes }, sizeTarg
   return { matrix, sources, confirmations };
 }
 
-/**
- * A citation the source scan alone cannot vouch for (a template match, or a title registered only under a
- * condition) needs a run that shows it: a supplied result of its file, or the EVIDENCE.json beside the test
- * file (a list of { file, title } from a run). A file one of them covers but that lacks the title is a
- * structural error; a file neither covers is a warning.
- */
-function confirmTitles(root, confirmations, index) {
-  const errors = [];
-  const warnings = [];
+function evidenceLoader(root) {
   const evidence = new Map();
-  const listed = path => {
+  return path => {
     const file = resolve(dirname(path), 'EVIDENCE.json');
     if (!evidence.has(file)) {
       let titles = null;
@@ -280,6 +223,17 @@ function confirmTitles(root, confirmations, index) {
     }
     return evidence.get(file)?.get(path) ?? null;
   };
+}
+
+/**
+ * A citation the source scan alone cannot vouch for (a template match, or a title registered only under a
+ * condition) needs a run that shows it: a supplied result of its file, or the EVIDENCE.json beside the test
+ * file (a list of { file, title } from a run). A file one of them covers but that lacks the title is a
+ * structural error; a file neither covers is a warning.
+ */
+function confirmTitles(root, confirmations, index, listed = evidenceLoader(root)) {
+  const errors = [];
+  const warnings = [];
   for (const { where, file, path, title, why } of confirmations) {
     const ran = index.get(path);
     const fromEvidence = listed(path);
@@ -292,6 +246,22 @@ function confirmTitles(root, confirmations, index) {
     }
   }
   if (errors.length) throw new Error(errors.join('\n'));
+  return [...new Set(warnings)];
+}
+
+/**
+ * Journey-only template/conditional citations are warned when unconfirmed rather than throwing from confirmTitles,
+ * so a filtered run that omitted them reaches evaluateJourneys() and reports unrun-citations cleanly.
+ */
+function warnUnconfirmedJourneyTitles(confirmations, index, listed) {
+  const warnings = [];
+  for (const { where, file, path, title, why } of confirmations) {
+    const ran = index.get(path);
+    const fromEvidence = listed(path);
+    if (!ran?.some(test => test.title === title) && !fromEvidence?.has(title)) {
+      warnings.push(`${where}: title not confirmed by any run (${why}) in ${file}: ${title}`);
+    }
+  }
   return [...new Set(warnings)];
 }
 
@@ -314,10 +284,20 @@ function readSize(file) {
 
 function readProvenance(file) {
   const sidecar = file.replace(/\.json$/, '') + '.provenance.json';
-  return statSync(sidecar, { throwIfNoEntry: false }) ? json(sidecar) : null;
+  if (!statSync(sidecar, { throwIfNoEntry: false })?.isFile()) return { provenance: null, error: null };
+  let parsed;
+  try {
+    parsed = json(sidecar);
+  } catch (error) {
+    return { provenance: null, error: `malformed provenance JSON in ${basename(sidecar)}: ${error.message}` };
+  }
+  if (!isRecord(parsed)) {
+    return { provenance: null, error: `malformed provenance payload in ${basename(sidecar)}: expected a JSON object` };
+  }
+  return { provenance: parsed, error: null };
 }
 
-function readResults(root, roots, files, sources, extraSources = new Set()) {
+function readResults(root, roots, files, sources, extraSources = new Set(), { strict = false } = {}) {
   const index = new Map();
   const runs = [];
   const suiteFailures = new Map();
@@ -327,17 +307,24 @@ function readResults(root, roots, files, sources, extraSources = new Set()) {
   const bases = [...new Set([root, ...roots])];
   for (const file of files) {
     const { testResults } = json(file);
-    const provenance = readProvenance(file);
+    const { provenance, error: provenanceReadError } = readProvenance(file);
     if (!Array.isArray(testResults)) throw new Error(`${file}: expected Vitest JSON testResults`);
-    const failures = [];
-    const touched = new Set();
-    let passed = 0;
-    let skipped = 0;
-    const { engine, engineVersion } = runEngine(file, { testResults }, provenance);
     for (const suite of testResults) {
       if (!isText(suite?.name) || !Array.isArray(suite.assertionResults)) {
         throw new Error(`${file}: expected a test file name and assertionResults`);
       }
+      for (const test of suite.assertionResults) {
+        if (!isText(test?.title) || !isText(test.status) || !Array.isArray(test.ancestorTitles) || !test.ancestorTitles.every(isText)) {
+          throw new Error(`${file}: expected assertion title, status and ancestorTitles in ${suite.name}`);
+        }
+      }
+    }
+    const failures = [];
+    const touched = new Set();
+    let passed = 0;
+    let skipped = 0;
+    const { engine, engineVersion, provenanceError: engineProvenanceError } = runEngine(file, { testResults }, provenance, { strict });
+    for (const suite of testResults) {
       const name = suite.name.replaceAll('\\', '/');
       const candidates = [...new Set(bases.map(base => resolve(base, name)))];
       let matches = candidates.filter(path => knownPaths.has(path));
@@ -348,16 +335,13 @@ function readResults(root, roots, files, sources, extraSources = new Set()) {
       }
       if (matches.length > 1) throw new Error(`${file}: ambiguous report path ${suite.name}`);
       const [resolved] = matches;
-      const path = resolved && sources.has(resolved) ? resolved : undefined;
+      const path = resolved && knownPaths.has(resolved) ? resolved : undefined;
       if (path && !index.has(path)) index.set(path, []);
       const source = relative(root, resolved ?? candidates[0]).split(sep).join('/');
       touched.add(source);
       let failed = false;
       for (const test of suite.assertionResults) {
-        if (!isText(test?.title) || !isText(test.status) || !Array.isArray(test.ancestorTitles) || !test.ancestorTitles.every(isText)) {
-          throw new Error(`${file}: expected assertion title, status and ancestorTitles in ${suite.name}`);
-        }
-        if (path) index.get(path).push({ ...test, file, engine: testEngine(test, engine), runEngine: engine });
+        if (path) index.get(path).push({ ...test, file, engine: testEngine(test, engine), explicitEngine: test.meta?.engine ?? null, runEngine: engine });
         if (test.status === 'passed') passed++;
         else if (test.status !== 'failed') skipped++;
         if (test.status === 'failed') {
@@ -375,7 +359,7 @@ function readResults(root, roots, files, sources, extraSources = new Set()) {
       }
     }
     runSources.set(file, touched);
-    runs.push({ file, passed, skipped, failures, provenance, engine, engineVersion });
+    runs.push({ file, passed, skipped, failures, provenance, provenanceReadError: provenanceReadError ?? engineProvenanceError, engine, engineVersion });
   }
   return { index, runs, suiteFailures, runSources };
 }
@@ -386,17 +370,34 @@ function readResults(root, roots, files, sources, extraSources = new Set()) {
  * sidecar, is refused: one engine's results must never be read as another's. A file that declares none and
  * has no engine in its sidecar predates the switch (or holds Node tests): null.
  */
-function runEngine(file, results, provenance) {
+function runEngine(file, results, provenance, { strict = false } = {}) {
   const { engines, versions } = declaredEngines(results);
   if (engines.length > 1) throw new Error(`${file}: mixes engines (${engines.join(', ')}); run each engine into its own results file`);
   if (versions.length > 1) throw new Error(`${file}: mixes engine versions (${versions.join(', ')})`);
   const recorded = provenance?.engine;
-  if (recorded !== undefined && recorded !== null && !ENGINES.includes(recorded)) throw new Error(`${file}: unknown engine in provenance: ${recorded}`);
-  if (engines.length && recorded && recorded !== engines[0]) {
-    throw new Error(`${file}: the provenance records ${recorded} but the results declare ${engines[0]}`);
+  const sidecarName = basename(file.replace(/\.json$/, '.provenance.json'));
+  let provenanceError = null;
+  if (recorded !== undefined && recorded !== null && !ENGINES.includes(recorded)) {
+    const msg = `unknown engine in provenance: ${recorded}`;
+    if (!strict) throw new Error(`${file}: ${msg}`);
+    provenanceError = `${sidecarName}: ${msg}`;
+  } else if (engines.length && recorded && recorded !== engines[0]) {
+    const msg = `the provenance records ${recorded} but the results declare ${engines[0]}`;
+    if (!strict) throw new Error(`${file}: ${msg}`);
+    provenanceError = `${sidecarName}: ${msg}`;
   }
-  const engine = engines[0] ?? recorded ?? null;
-  return { engine, engineVersion: versions.length ? versions[0].slice(engine.length + 1) : provenance?.engineVersion ?? null };
+  const recordedVersion = provenance?.engineVersion;
+  if (!provenanceError && strict && recordedVersion !== undefined && recordedVersion !== null && typeof recordedVersion !== 'string') {
+    provenanceError = `${sidecarName}: invalid engineVersion in provenance`;
+  }
+  const validRecorded = provenanceError ? null : recorded;
+  const validRecordedVersion = provenanceError ? null : recordedVersion;
+  const engine = engines[0] ?? validRecorded ?? null;
+  return {
+    engine,
+    engineVersion: versions.length ? versions[0].slice(engine.length + 1) : validRecordedVersion ?? null,
+    provenanceError,
+  };
 }
 
 /**
@@ -409,13 +410,6 @@ function testEngine(test, runEngine) {
   if (test.meta?.engine !== undefined) return test.meta.engine;
   return runEngine === null || runEngine === 'chromium' ? 'chromium' : null;
 }
-
-const testKey = (ancestors, title) => JSON.stringify([ancestors, title]);
-const inSuite = (ancestors, prefix) => ancestors.some(suite => suite !== null && suite.startsWith(prefix));
-
-/** Whether a test the scan found (ancestors with null for a suite of unknown title) is this reported one. */
-const sameTest = (known, reported) => known.title === reported.title && known.ancestors.length === reported.ancestorTitles.length
-  && known.ancestors.every((suite, i) => suite === null || suite === reported.ancestorTitles[i]);
 
 function resultFor(source, ref, context) {
   const { results, suiteFailures, stale, pack, sizeTargets } = context;
@@ -430,67 +424,11 @@ function resultFor(source, ref, context) {
     const status = exceeded ? 'fail' : 'pass';
     return { status, reports: new Map([[source.path, new Set([status])]]), reasons };
   }
-  const reports = new Map();
-  if (!testKinds.includes(ref.kind)) return { status: 'not run', reports, reasons };
-  // A browser citation is answered only by results of its own engine: a pass elsewhere is no evidence here.
-  const engine = ref.kind === 'browser' ? ref.engine ?? 'chromium' : null;
-  const sameEngine = test => engine === null || test.engine === engine;
-  const known = ref.ancestors ? [{ title: ref.title, ancestors: ref.ancestors }] : ref.registration
-    ? source.titles.templates.filter(test => test.template === ref.registration).map(test => ({ title: ref.title, ancestors: test.ancestors }))
-    : source.titles.tests.filter(({ title, ancestors }) => ref.title
-      ? title === ref.title : inSuite(ancestors, ref.prefix) && (!ref.casePrefix || title?.startsWith(ref.casePrefix)));
-  // Under atLeast, the cases the scan could not list are counted from the results instead.
-  const expected = ref.atLeast ? known.filter(test => test.title !== null) : known;
-  const templates = ref.casePrefix ? source.titles.templates.filter(test => inSuite(test.ancestors, ref.prefix)) : [];
-  for (const [file, runEngine] of suiteFailures.get(source.path) ?? []) {
-    if (!(engine === null || runEngine === engine || (runEngine === null && engine === 'chromium'))) continue;
-    if (stale.has(file)) {
-      reports.set(file, new Set(['not recorded']));
-      reasons.add(`${basename(file)}: not recorded for this revision (${stale.get(file)})`);
-    } else reports.set(file, new Set(['fail']));
-  }
-  const passed = [];
-  for (const test of results.get(source.path) ?? []) {
-    const matches = ref.prefix ? inSuite(test.ancestorTitles, ref.prefix) && (!ref.casePrefix || test.title.startsWith(ref.casePrefix))
-      : ref.ancestors ? known.some(k => sameTest(k, test)) : test.title === ref.title;
-    if (!matches) continue;
-    if (!sameEngine(test)) {
-      if (test.engine === null) reasons.add(`${basename(test.file)}: engine not recorded in a ${engineLabel(test.runEngine)} run`);
-      continue;
-    }
-    // A run whose provenance does not match this tree answers nothing about it.
-    if (stale.has(test.file)) {
-      if (!reports.has(test.file)) reports.set(test.file, new Set());
-      reports.get(test.file).add('not recorded');
-      reasons.add(`${basename(test.file)}: not recorded for this revision (${stale.get(test.file)})`);
-      continue;
-    }
-    if (test.status !== 'passed' && test.status !== 'failed' && isText(test.meta?.notRun)) reasons.add(`Not run on ${test.meta.notRun}`);
-    // Historical failures remain visible even when a suite has since replaced the assertion.
-    if (test.status === 'passed' && (!ref.casePrefix || expected.some(k => sameTest(k, test))
-      || templates.some(candidate => sameTest({ title: test.title, ancestors: candidate.ancestors }, test) && matchesTemplate(test.title, candidate.template)))) {
-      passed.push(test);
-    }
-    if (!reports.has(test.file)) reports.set(test.file, new Set());
-    reports.get(test.file).add(test.status === 'failed' ? 'fail' : test.status === 'passed' ? 'pass' : 'skipped');
-  }
-  const distinct = new Set(passed.map(test => testKey(test.ancestorTitles, test.title))).size;
-  const current = [...reports.values()].filter(values => !values.has('not recorded'));
-  const status = current.some(values => values.has('fail')) ? 'fail'
-    : distinct && (!ref.cases || distinct === ref.cases) && (!ref.atLeast || distinct >= ref.atLeast)
-      && expected.every(k => passed.some(test => sameTest(k, test))) && current.every(values => !values.has('skipped')) ? 'pass'
-      : [...reports.values()].some(values => values.has('not recorded')) ? STALE : 'not run';
-  if (status === 'not run') {
-    const citation = `${ref.file}: ${ref.title ?? ref.prefix}${ref.casePrefix ? ` (${ref.casePrefix})` : ''}`;
-    if (ref.atLeast && distinct < ref.atLeast && current.length) {
-      reasons.add(`${distinct} of at least ${ref.atLeast} cases passed for ${citation}`);
-    } else if ((current.length || !reasons.size) && current.every(values => !values.has('skipped'))) {
-      if (engine !== null && !reports.size) reasons.add(`No ${engineLabel(engine)} result for ${citation}`);
-      else if (ref.cases && distinct && distinct !== ref.cases) reasons.add(`Expected ${ref.cases} passing cases for ${citation}, found ${distinct}`);
-      else reasons.add(`No matching passing test for ${citation}`);
-    }
-  }
-  return { status, reports, reasons };
+  if (!testKinds.includes(ref.kind)) return { status: 'not run', reports: new Map(), reasons };
+  return evaluateTestCitation(source, ref, {
+    results, suiteFailures, stale,
+    requireExplicitEngine: Boolean(context.strictPers && multiEngineBrowserFile(ref.file)),
+  });
 }
 
 function cellFor(row, type, root, sources, context) {
@@ -670,18 +608,19 @@ function describeReview(review, rows, counts) {
   ];
 }
 
-function describeProvenance(provenance) {
-  if (!provenance) return 'missing';
+function describeProvenance(provenance, provenanceReadError = null, provenanceInventory = null) {
+  if (!provenance) return provenanceReadError ? 'invalid' : 'missing';
   const changed = provenance.changedDuringRun ? ', working tree changed during run' : '';
-  return `commit ${provenance.commit}, dirty ${provenance.dirty}, tree SHA-256 ${provenance.tree}, result SHA-256 ${provenance.resultSha256}, ${Object.keys(provenance.hashes ?? {}).length} cited test hashes in the sidecar${changed}`;
+  const inventory = provenanceInventory === 'matrix-only' ? ', matrix-only inventory' : '';
+  return `commit ${provenance.commit}, dirty ${provenance.dirty}, tree SHA-256 ${provenance.tree}, result SHA-256 ${provenance.resultSha256}, ${Object.keys(provenance.hashes ?? {}).length} cited test hashes in the sidecar${changed}${inventory}`;
 }
 
 function describeRuns(runs, root) {
   if (!runs.length) return ['Static coverage only. No Vitest reports supplied.'];
   return ['## Supplied Vitest runs', '', 'Suite counts include assertions outside the matrix. Each cell lists the reports with matching assertions, including partial evidence in weak cells.', '',
-    ...runs.flatMap(({ file, passed, skipped, failures, provenance, provenanceError, engine, engineVersion }) => [
+    ...runs.flatMap(({ file, passed, skipped, failures, provenance, provenanceError, provenanceReadError, provenanceInventory, engine, engineVersion }) => [
       `- \`${relative(root, file)}\` · ${engine ? `${engineLabel(engine, engineVersion)} · ` : ''}${passed} passed assertions, ${failures.length} reported failures${skipped ? `, ${skipped} skipped or pending` : ''}`,
-      `  - Provenance: ${describeProvenance(provenance)}${provenanceError ? ' · ' + provenanceError : ''}`,
+      `  - Provenance: ${describeProvenance(provenance, provenanceReadError, provenanceInventory)}${provenanceError ? ' · ' + provenanceError : ''}`,
       ...failures.map(({ source, test, message, assertionFailed }) => `  - \`${source}\` · ${test ? label(test)
         : (assertionFailed ? 'Suite failed in addition to its failing assertions' : 'Suite failed without a failing assertion result')
           + (message ? ' (' + label(message) + ')' : '')}`),
@@ -719,38 +658,97 @@ function uniqueReportLabel(file, files, root) {
  * tree now (provenance.mjs), computed only when a size citation needs it, and the targets are scripts/size.mjs's.
  */
 export function check({ root, matrixFile = resolve(root, 'acceptance/matrix.json'), resultFiles = [], resultRoots = [], release = false,
-  packIntegrity: currentPack, sizeTargets = SIZE_TARGETS, pers = false, journeysFile }) {
+  packIntegrity: currentPack, sizeTargets = SIZE_TARGETS, pers = false, persStrict = false, journeysFile }) {
   root = resolve(root);
+  const usePers = Boolean(pers || persStrict);
+  const strictPers = Boolean(persStrict || (usePers && release));
   const expected = specIds(readFileSync(resolve(root, 'docs/02-product-spec.md'), 'utf8'));
   const { matrix, sources, confirmations } = readMatrix(root, matrixFile, expected, sizeTargets);
-  const journeys = pers ? readJourneys({ root, journeysFile, matrixIds: matrix.map(row => row.id) }) : null;
+  const journeys = usePers ? readJourneys({ root, journeysFile, matrixIds: matrix.map(row => row.id) }) : null;
+  const journeyMeta = journeys ? journeyScanMeta(journeys) : { sources: new Map(), confirmations: [] };
+  let journeysForHashes = journeys;
+  if (!journeysForHashes) {
+    const defaultJourneys = resolve(root, 'acceptance/journeys.json');
+    if (statSync(defaultJourneys, { throwIfNoEntry: false })?.isFile()) {
+      try {
+        journeysForHashes = readJourneys({ root, journeysFile: defaultJourneys, matrixIds: matrix.map(row => row.id) });
+      } catch {
+        // When --pers is not enabled, an unrelated or malformed optional journeys.json falls back to matrix-only inventory.
+        journeysForHashes = null;
+      }
+    }
+  }
   const extraSources = journeys
-    ? new Set(journeys.flatMap(journey => [...journey.testFiles, ...journey.accessibilityEvidence.automated]).map(file => resolve(root, file)))
+    ? new Set(journeys.flatMap(journey => [
+      ...journey.testFiles,
+      ...journey.accessibilityEvidence.automated,
+      ...(journey.testCitations ?? []).map(ref => ref.file),
+    ]).map(file => resolve(root, file)))
     : new Set();
   const roots = resultRoots.map(path => resolve(root, path));
   const reports = [...new Set(resultFiles.map(file => resolve(file)))].sort();
-  const { index, runs, suiteFailures, runSources } = readResults(root, roots, reports, sources, extraSources);
-  const warnings = confirmTitles(root, confirmations, index);
-  // Provenance is judged in every mode: a recorded run of another tree answers nothing about this one. Only a
-  // release also requires every run to have a record.
-  if (runs.length && (release || runs.some(run => run.provenance))) {
-    const current = runs.some(run => run.provenance) ? snapshot(root, citedTestFiles(matrix)) : null;
+  const { index, runs, suiteFailures, runSources } = readResults(root, roots, reports, sources, extraSources, { strict: strictPers });
+  const listedEvidence = evidenceLoader(root);
+  const warnings = [
+    ...new Set([
+      ...(strictPers
+        ? warnUnconfirmedJourneyTitles(confirmations, index, listedEvidence)
+        : confirmTitles(root, confirmations, index, listedEvidence)),
+      ...warnUnconfirmedJourneyTitles(journeyMeta.confirmations, index, listedEvidence),
+    ]),
+  ];
+  // Provenance is judged in every mode: a recorded run of another tree answers nothing about this one. A
+  // release or --pers-strict check also requires every supplied run to have a provenance sidecar.
+  const matrixFiles = citedTestFiles(matrix);
+  const combinedFiles = citedTestFiles(matrix, journeysForHashes);
+  const hasProvenance = runs.some(run => run.provenance || run.provenanceReadError);
+  if (runs.length && (release || persStrict || hasProvenance)) {
+    const current = hasProvenance ? snapshot(root, combinedFiles) : null;
+    const matrixHashEntries = current ? matrixFiles.map(file => [file, current.hashes[file]]) : [];
     for (const run of runs) {
       const recorded = run.provenance;
-      if (!recorded) { if (release) run.provenanceError = 'release requires recorded provenance'; }
-      else if (recorded.changedDuringRun) run.provenanceError = 'release requires an unchanged working tree during the run';
-      else if (recorded.commit !== current.commit || recorded.dirty !== current.dirty || recorded.tree !== current.tree
-        || recorded.resultSha256 !== hashFile(run.file)
-        || Object.keys(recorded.hashes ?? {}).length !== Object.keys(current.hashes).length
-        || Object.entries(current.hashes).some(([file, hash]) => recorded.hashes?.[file] !== hash)) {
+      if (run.provenanceReadError) {
+        run.provenanceError = run.provenanceReadError;
+      } else if (!recorded) {
+        if (release || persStrict) {
+          run.provenanceError = release ? 'release requires recorded provenance' : 'strict PERS requires recorded provenance';
+        }
+      } else if (recorded.changedDuringRun === true || (!strictPers && recorded.changedDuringRun)) {
+        run.provenanceError = 'release requires an unchanged working tree during the run';
+      } else if (!isRecord(recorded.hashes)
+        || recorded.commit !== current.commit
+        || recorded.dirty !== current.dirty
+        || recorded.tree !== current.tree
+        || recorded.resultSha256 !== hashFile(run.file)) {
         run.provenanceError = 'provenance does not match the working tree';
+      } else {
+        const recordedKeys = Object.keys(recorded.hashes);
+        const matchesCombined = recordedKeys.length === Object.keys(current.hashes).length
+          && Object.entries(current.hashes).every(([file, hash]) => recorded.hashes[file] === hash);
+        const matchesMatrixOnly = !matchesCombined
+          && recordedKeys.length === matrixHashEntries.length
+          && matrixHashEntries.every(([file, hash]) => recorded.hashes[file] === hash);
+        if (!matchesCombined && !matchesMatrixOnly) {
+          run.provenanceError = 'provenance does not match the working tree';
+        } else if (strictPers && typeof recorded.dirty !== 'boolean') {
+          run.provenanceError = 'strict PERS requires boolean dirty: false';
+        } else if (strictPers && recorded.changedDuringRun !== false) {
+          run.provenanceError = 'strict PERS requires boolean changedDuringRun: false';
+        } else if (matchesCombined) {
+          run.provenanceInventory = 'combined';
+        } else {
+          run.provenanceInventory = 'matrix-only';
+          if (strictPers) {
+            run.provenanceError = 'provenance covers matrix-only inventory; strict PERS requires combined matrix and journey test hashes';
+          }
+        }
       }
     }
   }
   const stale = new Map(runs.filter(run => run.provenanceError).map(run => [run.file, run.provenanceError]));
   let packed;
   const pack = () => (packed ??= typeof currentPack === 'function' ? currentPack() : currentPack !== undefined ? currentPack : packIntegrity(root));
-  const context = { results: index, suiteFailures, stale, pack, sizeTargets, release };
+  const context = { results: index, suiteFailures, stale, pack, sizeTargets, release, strictPers };
   const reportFiles = [...runs.map(run => run.file), ...[...sources.values()].filter(source => source.size).map(source => source.path)];
   const counts = Object.fromEntries(statuses.map(status => [status, 0]));
   const rows = matrix.map(row => ({
@@ -777,16 +775,28 @@ export function check({ root, matrixFile = resolve(root, 'acceptance/matrix.json
     'The matrix contains individual test citations and applicability reasons. ' + fileLink(from, root, relative(root, matrixFile)), '',
     table, '', readerDetails(rows, root, from, review), ...describeReview(review, rows, counts)].join('\n') + '\n';
   const blocked = rows.some(({ cells }) => cells.some(cell => cell.blocksRelease));
+  const matrixReleaseBlocked = Boolean(release && (blocked || runs.some(run => run.provenanceError)));
   const result = {
     table, summary, report, counts, runs, warnings, rows: structuredRows(rows, runs, reportFiles, root, sources),
-    exitCode: release && (blocked || runs.some(run => run.provenanceError)) ? 1 : 0,
+    exitCode: matrixReleaseBlocked ? 1 : 0,
   };
-  if (!pers) return result;
-  // PERS gates in every mode, not only --release: a failing or stale journey is a product regression now.
-  const evaluation = evaluateJourneys({ journeys, checkResult: result, runSources });
+  if (!usePers) return result;
+  const mergedSources = new Map([...journeyMeta.sources, ...sources]);
+  const evaluation = evaluateJourneys({
+    journeys,
+    checkResult: result,
+    runSources,
+    index,
+    suiteFailures,
+    sources: mergedSources,
+    root,
+    strict: strictPers,
+  });
   return {
-    ...result, pers: evaluation,
-    report: result.report + '\n' + renderJourneysMarkdown(evaluation),
+    ...result,
+    matrixReleaseBlocked,
+    pers: evaluation,
+    report: result.report + '\n' + renderJourneysMarkdown({ ...evaluation, releaseBlocked: matrixReleaseBlocked }),
     exitCode: evaluation.blocked ? 1 : result.exitCode,
   };
 }
@@ -822,6 +832,8 @@ function structuredRows(rows, runs, reportFiles, root, sources) {
   }));
 }
 
+const USAGE = 'usage: node acceptance/check.mjs [--results <file>…] [--roots <directory>…] [--release] [--write] [--pers] [--pers-strict]';
+
 function main(args) {
   const root = fileURLToPath(new URL('..', import.meta.url));
   const resultFiles = [];
@@ -829,11 +841,28 @@ function main(args) {
   let release = false;
   let write = false;
   let pers = false;
+  let persStrict = false;
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--release') {
+    if (args[i] === '--help' || args[i] === '-h') {
+      console.log([
+        USAGE,
+        '',
+        'Flags:',
+        '  --results <file>…     Vitest JSON report files (with neighbouring *.provenance.json sidecars)',
+        '  --roots <directory>…  Additional roots for relative test paths',
+        '  --release             Enforce release matrix rules and provenance requirements',
+        '  --write               Write acceptance/report.md',
+        '  --pers                Diagnostic PERS journey rollup (blocks on fail or provenanceError)',
+        '  --pers-strict         Strict PERS graduation gate (same strictness as --pers --release)',
+      ].join('\n'));
+      return 0;
+    } else if (args[i] === '--release') {
       release = true;
     } else if (args[i] === '--pers') {
       pers = true;
+    } else if (args[i] === '--pers-strict') {
+      pers = true;
+      persStrict = true;
     } else if (args[i] === '--write') {
       write = true;
     } else if (args[i] === '--results' || args[i] === '--roots') {
@@ -843,29 +872,39 @@ function main(args) {
       while (args[i + 1] && !args[i + 1].startsWith('--')) paths.push(resolve(args[++i]));
       if (before === paths.length) throw new Error(option + ' needs at least one path');
     } else {
-      throw new Error(`unknown argument ${args[i]} (usage: node acceptance/check.mjs [--results <file>…] [--roots <directory>…] [--release] [--write] [--pers])`);
+      throw new Error(`unknown argument ${args[i]} (${USAGE})`);
     }
   }
   let result;
   try {
-    result = check({ root, resultFiles, resultRoots, release, pers });
+    result = check({ root, resultFiles, resultRoots, release, pers, persStrict });
   } catch (error) {
     for (const file of [...new Set(resultFiles)].sort()) {
-      let provenance;
-      try {
-        provenance = describeProvenance(readProvenance(file));
-      } catch (error) {
-        provenance = `unreadable (${error.message})`;
-      }
-      console.log(`${relative(root, file)} · Provenance: ${provenance}`);
+      const { provenance, error: provenanceError } = readProvenance(file);
+      const description = provenanceError ? `unreadable (${provenanceError})` : describeProvenance(provenance);
+      console.log(`${relative(root, file)} · Provenance: ${description}`);
     }
     throw error;
   }
   if (write) writeFileSync(resolve(root, 'acceptance/report.md'), result.report);
   if (result.runs.length) console.log(describeRuns(result.runs, root).join('\n'));
   console.log(`${result.table}\n\n${result.summary}`);
-  if (result.pers) console.log('\n' + renderJourneysMarkdown(result.pers));
+  if (result.pers) {
+    console.log('\n' + renderJourneysMarkdown({ ...result.pers, releaseBlocked: result.matrixReleaseBlocked }));
+    console.log(formatPersSummary(result));
+  }
   return result.exitCode;
+}
+
+export function formatPersSummary(result) {
+  const { pers, exitCode } = result;
+  if (pers.blocked) {
+    return `PERS (${pers.mode}): BLOCKED (exit ${exitCode}) — ${pers.summary.pass}/${pers.summary.journeys} pass, ${pers.blockers.length} blocker(s)`;
+  }
+  if (exitCode !== 0) {
+    return `PERS (${pers.mode}): ${pers.summary.pass}/${pers.summary.journeys} pass, 0 PERS blocker(s); Overall release: BLOCKED by matrix release rules (exit ${exitCode})`;
+  }
+  return `PERS (${pers.mode}): PASS (exit ${exitCode}) — ${pers.summary.pass}/${pers.summary.journeys} pass, 0 blocker(s)`;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -1,9 +1,9 @@
 # RFC C4.1 — Opt-In `axylo/cartesian` Multi-Scale & Log-Scale Composition
 
-**Status:** Proposed (Architecture Council Verified & Revised After Semantic Audit; Awaiting Owner Authorization for Minimal Type-Only `contracts.ts` Diff & Spec Rows `F13`/`L9`)  
+**Status:** **Approved / Owner-Ratified (`2026-11-26`)** — C4.2–C4.4 implementation landed in `axylo/cartesian` (`packages/axylo/src/public.ts` untouched, 0 lines changed; Section 3 minimal type-only `contracts.ts` diff ratified). Remaining open RFC §8 & spec obligations are assigned to **Cycle N4** (see Section 9A).  
 **Branch:** `feat/c4-cartesian-multiscale` (branched from sealed `C3` at `b097f1a`)  
 **Date:** `2026-11-26`  
-**Council Provenance:** Prism 6.2 `plan-council --profile arch` (`axylo-c4-1-cartesian-rfc`: Google `neon-4-medium` [Alpha, 21 grounded stream reads] + Anthropic `opus-5.5-high` [Delta, 11 grounded stream reads]) + live source verification + OpenAI `sol-6.2-medium` adversarial semantic audit (`axylo_c4_1_rfc_audit2` → revised & re-verified).
+**Council Provenance:** Prism 6.2 `plan-council --profile arch` (`axylo-c4-1-cartesian-rfc`: Google `neon-4-medium` [Alpha, 21 grounded stream reads] + Anthropic `opus-5.5-high` [Delta, 11 grounded stream reads]) + live source verification + OpenAI `sol-6.2-medium` adversarial semantic audit (`axylo_c4_1_rfc_audit2` → revised & re-verified; `axylo_c4_1_rfc_signoff3`: `Verdict: Approve RFC`).
 
 ---
 
@@ -54,10 +54,10 @@ This RFC specifies the additive, zero-legacy-tax architecture for **`axylo/carte
 
 ---
 
-## 3. Minimal Type-Only Contract Diff Proposal (Owner Authorization Required)
+## 3. Minimal Type-Only Contract Diff (Owner-Ratified `2026-11-26`)
 
 **`packages/axylo/src/public.ts`:** **0 lines changed.**  
-**`packages/axylo/src/core/contracts.ts`:** Strictly additive, type-only changes (verified: **0 B emitted JS**, `241 B === 241 B` identical via esbuild, `0` TS 7.0.2 library diagnostics):
+**`packages/axylo/src/core/contracts.ts`:** Strictly additive, type-only changes **ratified by the owner on `2026-11-26`** (see Section 9) and already landed (verified: **0 B emitted JS**, `241 B === 241 B` identical via esbuild, `0` TS 7.0.2 library diagnostics):
 
 ```diff
 --- a/packages/axylo/src/core/contracts.ts
@@ -400,27 +400,35 @@ cartesian('#reject-widened-record', {
 
 ## 8. Frozen C4.2–C4.4 Size & Performance Budgets
 
-Baseline captured cleanly on sealed `C3` (`b097f1ab89d5c5bfecc45b67a8887662f91303b7`, `dirty: false` in `bench/size-latest.json`, `npm run size`, `esbuild 0.28.2`, gzip-9). As C4.2's first implementation step before adding `axylo/cartesian`, add an `axylo/stream` row to `scripts/size.mjs` (establishing its clean baseline) and tighten `tests/dist/subpaths.test.ts` to assert exact `<= 0 B` legacy gzip deltas AND `rawCode.length === 0` (untrimmed!) under `ignoreAnnotations: true` for every bare import (`'axylo'`, `'axylo/static'`, `'axylo/stream'`, `'axylo/cartesian'`).
+Baseline captured cleanly on sealed `C3` (`b097f1ab89d5c5bfecc45b67a8887662f91303b7`, `dirty: false` in `bench/size-latest.json`, `npm run size`, `esbuild 0.28.2`, gzip-9). Size measurements in `scripts/size.mjs` cover `'axylo/stream'` (`targetKiB: null`), `'axylo/cartesian'`, `'axylo/stats'`, `'axylo/sync'`, `'axylo/export'`, and `'axylo/finance'`; `tests/dist/subpaths.test.ts` enforces `<= +0 B` legacy gzip deltas vs the `b097f1a` caps, `<= 127,000 B` gzip-9 for `axylo/cartesian`, and `0` raw bytes under `ignoreAnnotations: true` for bare imports (including `'axylo/stream'`), while a standalone gzip cap on `axylo/stream` remains open/unenforced and the paired 100k Chrome performance proof remains open for **Cycle N4** (see Section 9A).
 
 | Metric / Entry | Clean `b097f1a` Baseline (`dirty: false`) | Frozen `C4.2–C4.4` Cap | Enforcement |
 |---|---:|---:|---|
-| Root `line only` (`examples/first-chart/npm.ts`) | `135,293 B` gz9 | **`≤ +0 B`** (`≤ 135,293 B`) | `scripts/size.mjs` + exact-byte check in `tests/dist/subpaths.test.ts` |
-| Root `everything` (`export * from 'axylo'`) | `158,096 B` gz9 | **`≤ +0 B`** (`≤ 158,096 B`) | `scripts/size.mjs` + `tests/dist/subpaths.test.ts` |
-| `axylo/static` `line only` / `everything` | `120,729 B` / `140,988 B` gz9 | **`≤ +0 B`** | `scripts/size.mjs` + `tests/dist/subpaths.test.ts` |
-| `axylo/stream` (new row in `scripts/size.mjs`) | Capture at C4.2 start | **`≤ +0 B`** vs C4.2 baseline | `scripts/size.mjs` + `tests/dist/subpaths.test.ts` |
-| `axylo.iife.min.js` (JS gzip) | `158,425 B` gz9 | **`≤ +0 B`** (`≤ 158,425 B`) | `scripts/size.mjs` |
-| Bare imports (`'axylo'`, `'axylo/static'`, `'axylo/stream'`, `'axylo/cartesian'`) | `0 B` raw | **`0 B` raw** (`ignoreAnnotations: true`) | `tests/dist/side-effects.test.ts` & `subpaths.test.ts` |
-| **`axylo/cartesian` standalone fixture** (static dual-y line+bar+log) | — (new) | **`≤ 127,000 B` gz9** (`axylo/static` line `+ ≤ 6,271 B`) | New row in `scripts/size.mjs` + `tests/dist/subpaths.test.ts` |
-| Dual-axis 1×100k line + 1×100k bar startup | Paired vs `first-1x100000` | **`≤ 1.15×`** paired baseline | `bench/run.mjs` paired A/B |
-| Dual-axis 100k zoom p95 / hover p95 | Paired vs `zoom-1x100000` / `hover-1x100000` | **`≤ 1.10×`** paired baseline | `bench/run.mjs` paired A/B |
+| Root `line only` (`examples/first-chart/npm.ts`) | `135,293 B` gz9 | **`≤ +0 B`** (`≤ 135,293 B`) | `scripts/size.mjs` + exact-byte check in `tests/dist/subpaths.test.ts` (landed) |
+| Root `everything` (`export * from 'axylo'`) | `158,096 B` gz9 | **`≤ +0 B`** (`≤ 158,096 B`) | `scripts/size.mjs` + `tests/dist/subpaths.test.ts` (landed) |
+| `axylo/static` `line only` / `everything` | `120,729 B` / `140,988 B` gz9 | **`≤ +0 B`** | `scripts/size.mjs` + `tests/dist/subpaths.test.ts` (landed) |
+| `axylo/stream` (`scripts/size.mjs` row) | Tracked in `scripts/size.mjs` | **`≤ +0 B`** vs C4.2 baseline (intent) | Measured in `scripts/size.mjs` (`targetKiB: null`); bare-import `0 B` in `tests/dist/subpaths.test.ts`; standalone gzip cap open/unenforced |
+| `axylo.iife.min.js` (JS gzip) | `158,425 B` gz9 | **`≤ +0 B`** (`≤ 158,425 B`) | `scripts/size.mjs` + `tests/dist/subpaths.test.ts` (landed) |
+| Bare imports (`'axylo'`, `'axylo/static'`, `'axylo/stream'`, `'axylo/cartesian'`) | `0 B` raw | **`0 B` raw** (`ignoreAnnotations: true`) | `tests/dist/side-effects.test.ts` & `subpaths.test.ts` (landed) |
+| **`axylo/cartesian` standalone fixture** (static dual-y line+bar+log) | Tracked in `scripts/size.mjs` | **`≤ 127,000 B` gz9** (`axylo/static` line `+ ≤ 6,271 B`) | `scripts/size.mjs` + `tests/dist/subpaths.test.ts` (landed) |
+| Dual-axis 1×100k line + 1×100k bar startup | Paired vs `first-1x100000` | **`≤ 1.15×`** paired baseline | Open N4 (`bench/` fixture/adapter + `bench/run.mjs` paired A/B) |
+| Dual-axis 100k zoom p95 / hover p95 | Paired vs `zoom-1x100000` / `hover-1x100000` | **`≤ 1.10×`** paired baseline | Open N4 (`bench/` fixture/adapter + `bench/run.mjs` paired A/B) |
 | Hot-path allocation invariant | Zero per-point objects | **0 per-point objects; 0 copies of borrowed typed columns** | Unit + memory profile check |
 
 ---
 
-## 9. Owner Authorization Packet (Before Starting `C4.2` Implementation)
+## 9. Owner Authorization Record (`2026-11-26`)
 
-Per `AXYLO4_LONG_TERM_MASTER_PLAN.md` and `AGENTS.md`, `C4.2` is ready to begin as soon as the owner approves these 3 scoped decisions (recommended default listed first):
+Owner decision on **`2026-11-26`** ratified the targeted internal RFC contract evolution while keeping `packages/axylo/src/public.ts` completely untouched (`0` lines edited, `0 B` emitted JS):
 
-1. **Minimal Type-Only `contracts.ts` Diff (Section 3):** Authorize the 6 additive, strictly type-only additions to `packages/axylo/src/core/contracts.ts` (`'log'` in `ContinuousScale.type`, optional `axisId`/`axisIndex` on `Series`, optional `axisId` on `ResolvedReference`, optional `yDomains`/`yAxisIds` on `CartesianViewBase`, optional `yAxes` on `Projection`, optional `yTicksRight`/`fit.yRight` on `Layout`). **0 edits to `public.ts`; 0 B emitted JS.**
-2. **Product Spec Amendment (`F13` & `L9`) + Bar/Area on Log Rejection:** Authorize adding row **`F13`** (log scale rules, nonpositive omission via `AX171`, bar/area incompatibility via `AX173`) and row **`L9`** (dual y-axis `≥ 360 px` / narrow collapse via `AX175`) to `docs/02-product-spec.md`, confirming that `bar`/`area` on `'log'` is rejected rather than drawn from a domain floor.
-3. **Static-Only `axylo/cartesian` in C4.2–C4.3 & 1–2 Y-Axes Scope:** Confirm **`axylo/cartesian` ships static-only** in C4.2–C4.3 (`createStaticChart`, `≤ 127,000 B` gz9 matching §8, deferring `axylo/cartesian/stream` until store-resolver injection lands) and confirm **1–2 y-axes** (`'left'` and `'right'`) with duplicate-field-across-axes rejected via `AX174`.
+1. **Minimal Type-Only `contracts.ts` Diff (Section 3) — Ratified (`2026-11-26`):** Authorized the 6 additive, strictly type-only additions to `packages/axylo/src/core/contracts.ts` (`'log'` in `ContinuousScale.type`, optional `axisId`/`axisIndex` on `Series`, optional `axisId` on `ResolvedReference`, optional `yDomains`/`yAxisIds` on `CartesianViewBase`, optional `yAxes` on `Projection`, optional `yTicksRight`/`fit.yRight` on `Layout`). **0 edits to `public.ts`; 0 B emitted JS.**
+2. **Product Spec Amendment (`F13` & `L9`) + Bar/Area on Log Rejection — Ratified in Design, Spec Edit Assigned to N4:** Confirmed that `bar`/`area` on `'log'` is rejected statically and via `AX173` rather than drawn from a domain floor; formal `docs/02-product-spec.md` amendment (`F13`, `L9`, and `AX170–AX181`) is queued for Cycle N4 closure.
+3. **Static-Only `axylo/cartesian` in C4.2–C4.3 & 1–2 Y-Axes Scope — Ratified (`2026-11-26`):** Confirmed **`axylo/cartesian` ships static-only** (`createStaticChart`, `<= 127,000 B` gz9 matching §8, deferring `axylo/cartesian/stream` until store-resolver injection lands) with **1–2 y-axes** (`'left'` and `'right'`) and duplicate-field-across-axes rejected via `AX174`.
+
+## 9A. Remaining Open RFC §8 & Spec Obligations (Assigned to Cycle N4)
+
+While C4.2–C4.4 delivered the log scale, multi-scale layout/composition, and packed size guards (`<= 127,000 B` gz9, `<= +0 B` legacy tax, `0 B` bare imports), the following RFC obligations remain open in `acceptance/journeys.json` (`cartesian-multiscale` / `cartesian-scale-perf-spec`) and are explicitly assigned to **Cycle N4**:
+
+1. **Paired 100k-row Chrome Performance Proof (RFC §8):** Because the current benchmark harness (`bench/src/multichart.js`, `bench/lib/refs.mjs`, `bench/run.mjs`) builds only root `axylo` kinds (`['line', 'area', 'bar', 'donut', 'histogram', 'scatter']`) and has no Cartesian multi-scale workload yet, Cycle N4 includes building the Cartesian benchmark fixture and adapter before executing `bench/run.mjs` paired A/B comparisons proving dual-axis 1×100k line + 1×100k bar startup (`<= 1.15×` paired baseline) and 100k zoom p95 / hover p95 (`<= 1.10×` paired baseline).
+2. **Dense-Line Simplification / Decimation:** Verify and harden F5-equivalent simplification/decimation across multi-scale cartesian series.
+3. **Product Spec Amendment (`docs/02-product-spec.md`):** Formally land spec rows `F13` (log scale & `AX170–AX173`), `L9` (dual y-axis `>= 360 px` / narrow collapse `AX175`), and diagnostic registry entries `AX170–AX181`.

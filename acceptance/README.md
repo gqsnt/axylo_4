@@ -24,6 +24,23 @@ Use `--roots <directory>…` for result paths relative to additional roots such 
 
 Structural errors exit 1. In `--release` mode, results must have provenance that matches the working tree.
 
+## Product Experience Regression Suite (PERS: `--pers`, `--pers-strict`, `--pers --release`)
+
+`acceptance/journeys.json` tracks 16 product journeys: the 12 core journeys (`first-impression` through `live-data`, including exact source-scanned `histogram` citations) plus the 4 Axylo 4 opt-in entry-point journeys (`static-stream`, `cartesian-multiscale`, `stats-sync`, `export-finance`) covering all 7 package subpath exports (`axylo/static`, `axylo/stream`, `axylo/cartesian`, `axylo/stats`, `axylo/sync`, `axylo/export`, `axylo/finance`).
+
+- **Diagnostic PERS (`node acceptance/check.mjs --pers`):** evaluates all 16 journeys from supplied results and matrix rows without altering ordinary release matrix semantics. Blocks (`exitCode = 1`, `pers.blocked = true`) on any failing matrix cell, failing journey-cited test assertion/suite, or `provenanceError`. Accepts a genuinely matching legacy matrix-only provenance sidecar in diagnostic mode while documenting that its evidence is bound to the matrix-only inventory (granting no strict credit and no credit for unhashed journey-only files).
+- **Strict PERS graduation (`node acceptance/check.mjs --pers --release` or `--pers-strict`):** enforces the hard graduation bar. Every journey must `pass` with:
+  1. At least one supplied Vitest run with matching, **clean** combined-inventory provenance (`dirty: false`, `changedDuringRun: false` as explicit booleans, matching commit, tree SHA-256, result SHA-256, and combined matrix + journey cited test hashes).
+  2. Every cited test file (`testFiles` and `accessibilityEvidence.automated`) executed in a current clean run with source-registered passing assertions (and identifiable engine metadata on browser files), and every exact `testCitations` entry passing on its target engine with source-backed ancestry and without `.skip`/skips.
+  3. Zero open `ownedGaps` (and no `gap-open` manual AT), plus passing cells for any linked `matrixIds`. (Journeys with `matrixIds: []` pass strict graduation through clean direct evidence alone.)
+  - Any missing/malformed provenance sidecar, non-boolean or `true` `dirty`/`changedDuringRun`, stale/legacy matrix-only provenance, `not run` / `weak` journey, open `ownedGaps`, skipped exact assertion, empty suite, unknown-only assertions, unidentifiable-engine browser results, or wrong suite ancestor **blocks graduation** (`exitCode = 1`, `pers.blocked = true`) and records structured `pers.blockers` in both `check()` output and the rendered Markdown report. Combined `--pers --release` reports distinguish a passing PERS rollup from an overall release blocked by independent matrix release rules.
+
+```sh
+node acceptance/check.mjs --pers-strict --results \
+  acceptance/results/unit.json acceptance/results/browser.json \
+  acceptance/results/dist.json acceptance/results/dist-browser.json
+```
+
 ## Release gate and statuses
 
 **Owner’s decision, 2026-11-19, “Documented gaps”.** Each cell must pass, be `not applicable`, qualify as weak with a documented gap, or carry the owner’s waiver for `not run` or `cannot be verified here`. A weak cell qualifies only if its `gaps` entry names what remains unverified and every cited result passes for this revision. The checker verifies that cited documents exist. The report lists qualifying weak cells under “Released with documented gaps” and gives each gap in full.

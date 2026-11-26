@@ -20,7 +20,9 @@ if (!Object.hasOwn(configs, name) || !result?.endsWith('.json') || filters.some(
   process.exitCode = 1;
 } else {
   const matrix = JSON.parse(readFileSync(resolve(root, 'acceptance/matrix.json'), 'utf8'));
-  const files = citedTestFiles(matrix);
+  const journeysPath = resolve(root, 'acceptance/journeys.json');
+  const journeys = existsSync(journeysPath) ? JSON.parse(readFileSync(journeysPath, 'utf8')) : null;
+  const files = citedTestFiles(matrix, journeys);
   const before = snapshot(root, files);
   const output = resolve(root, result);
   const provenance = output.slice(0, -5) + '.provenance.json';
