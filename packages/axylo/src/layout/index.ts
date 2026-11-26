@@ -124,10 +124,7 @@ function metrics(input: TextInput, shared?: Map<string, number>): Metrics {
 
 function moveText(text: PlacedText, dx: number, dy: number): PlacedText {
   const { box } = text;
-  return {
-    lines: text.lines, full: text.full, x: text.x + dx, y: text.y + dy, anchor: text.anchor, baseline: text.baseline,
-    rotate: text.rotate, role: text.role, box: { x: box.x + dx, y: box.y + dy, width: box.width, height: box.height },
-  };
+  return { ...text, x: text.x + dx, y: text.y + dy, box: { ...box, x: box.x + dx, y: box.y + dy } };
 }
 
 function lane(fit: FittedLabels): number {
@@ -167,19 +164,7 @@ function axisLabels(candidates: TickCandidates, firstOnly: boolean): PreparedLab
  * reads a non-band scale only through `position(scale, tick)` for ticks of the prepared sets, and measures
  * text only through the shared widths of one measurer and style.
  */
-interface FitKey {
-  readonly fitter: 'value' | 'bottom';
-  readonly side: 'left' | 'bottom';
-  readonly role: PlacedText['role'];
-  readonly span: number;
-  readonly room: number;
-  readonly rotatedRoom: number;
-  readonly mayThin: boolean;
-  readonly nativeLinear?: boolean;
-  readonly widths: Map<string, number>;
-  readonly measurer: TextMeasurer;
-  readonly style: TextStyle;
-}
+type FitKey = readonly unknown[];
 
 interface FitMemo {
   readonly key: FitKey;
@@ -196,9 +181,7 @@ let layoutRun = 0;
 let tickPixels: Float64Array | undefined;
 
 function sameFitKey(a: FitKey, b: FitKey): boolean {
-  return a.fitter === b.fitter && a.side === b.side && a.role === b.role && Object.is(a.span, b.span) &&
-    Object.is(a.room, b.room) && Object.is(a.rotatedRoom, b.rotatedRoom) && a.mayThin === b.mayThin && a.nativeLinear === b.nativeLinear &&
-    a.widths === b.widths && a.measurer === b.measurer && a.style === b.style;
+  return a.every((v, i) => Object.is(v, b[i]));
 }
 
 /** The exact mapping inputs, or tick positions for an injected constructor whose mapping is unknown. */
@@ -235,7 +218,7 @@ function rememberedFit(prepared: PreparedLabels, scale: XScale, key: FitKey | nu
     return fit();
   }
   if (memo === layoutRun) return fit();
-  const count = fitPositions(prepared, scale, key.nativeLinear);
+  const count = fitPositions(prepared, scale, key[7] as boolean | undefined);
   if (count < 0) return fit();
   const entries = typeof memo === 'number' ? [] : memo;
   if (typeof memo === 'number') memos.set(prepared, entries);
@@ -289,12 +272,9 @@ function layoutAxes(
   let bottomLineSet = -1, bottomLane = 0;
 
   const fitKey = (
-    fitter: FitKey['fitter'], side: FitKey['side'], role: FitKey['role'], span: number,
+    fitter: 'value' | 'bottom', side: 'left' | 'bottom', role: PlacedText['role'], span: number,
     room: number, rotatedRoom: number, mayThin: boolean, nativeLinear?: boolean,
-  ): FitKey | null => widths ? {
-    fitter, side, role, span, room, rotatedRoom, mayThin, nativeLinear,
-    widths, measurer: input.measurer, style: input.style,
-  } : null;
+  ): FitKey | null => widths ? [fitter, side, role, span, room, rotatedRoom, mayThin, nativeLinear, widths, input.measurer, input.style] : null;
 
   for (;;) {
     const plot = { x: left, y: top, width: width - left - INSET, height: height - top - bottom };

@@ -213,23 +213,18 @@ function keepAffineRun(
       const guess = Math.min(to, predicted > first && predicted <= first + 2 * prevSize
         ? predicted : first + Math.max(1, prevSize));
       const pixel = columnAt(guess);
+      const dir = pixel === column ? 1 : -1;
       let next: number;
-      if (pixel === column) {
-        last = guess;
-        next = to;
-        for (let step = 1; last + step < next; step *= 2) {
-          const at = last + step, c = columnAt(at);
-          if (c !== column) { next = at; nextColumn = c; break; }
+      if (dir > 0) { last = guess; next = to; }
+      else { next = guess; nextColumn = pixel; last = first; }
+      for (let step = 1; last + step < next; step *= 2) {
+        const at = (dir > 0 ? last : next) + dir * step, c = columnAt(at);
+        if (c === column) {
           last = at;
-        }
-      } else {
-        next = guess;
-        nextColumn = pixel;
-        last = first;
-        for (let step = 1; next - step > last; step *= 2) {
-          const at = next - step, c = columnAt(at);
-          if (c === column) { last = at; break; }
+          if (dir < 0) break;
+        } else {
           next = at; nextColumn = c;
+          if (dir > 0) break;
         }
       }
       while (last + 1 < next) {
@@ -388,12 +383,9 @@ function select(slot: Uint8Array | null, range: IndexRange, limit: number, colum
     }
     buffer ??= indexBuffer(initialCapacity, vertices, scratch);
     if (dense) cursor = keepRun(contiguous ? null : slot, first, last, columns, buffer, cursor);
-    else if (contiguous) {
+    else {
       const data = buffer.data;
-      for (let index = first; index <= last; index++) data[cursor++] = index;
-    } else {
-      const data = buffer.data;
-      for (let index = first; index <= last; index++) if (!slot || slot[index] === SLOT_VALUE) data[cursor++] = index;
+      for (let index = first; index <= last; index++) if (contiguous || !slot || slot[index] === SLOT_VALUE) data[cursor++] = index;
     }
   }
   const selection: JoinedRuns = { indexes: buffer?.data.subarray(0, cursor) ?? emptyIndexes(), breaks, isolated };
@@ -509,17 +501,10 @@ function pack(indexes: Uint32Array | null, breaks: Uint32Array | null, input: Pa
     return xy;
   }
   const toX = xMapper(input.mapX, affineX), toY = affineY ? affineMapper(affineY) : yMapper(mapY);
-  if (!breaks?.length) {
-    for (let i = 0; i < length; i++) {
-      const idx = indexes ? indexes[i]! : start + i;
-      xy[2 * i] = toX(x[idx]!);
-      xy[2 * i + 1] = toY(y === 0 ? 0 : y[idx]!);
-    }
-    return xy;
-  }
   let cursor = 0, nextBreak = 0;
+  const hasBreaks = Boolean(breaks?.length);
   for (let i = 0; i < length; i++) {
-    if (i === breaks[nextBreak]) { xy[cursor++] = NaN; xy[cursor++] = NaN; nextBreak++; }
+    if (hasBreaks && i === breaks![nextBreak]) { xy[cursor++] = NaN; xy[cursor++] = NaN; nextBreak++; }
     const idx = indexes ? indexes[i]! : start + i;
     xy[cursor++] = toX(x[idx]!);
     xy[cursor++] = toY(y === 0 ? 0 : y[idx]!);

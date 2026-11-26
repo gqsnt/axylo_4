@@ -12,15 +12,21 @@ export interface PointOrderWork {
   steps?: number;
 }
 
+export function rangeSummary(ranges: readonly IndexRange[]) {
+  const active: number[] = [];
+  let count = 0;
+  for (let s = 0; s < ranges.length; s++) {
+    const { start, end } = ranges[s]!;
+    if (start < end) active.push(s);
+    count += end - start;
+  }
+  return { active, count };
+}
+
 /** A sorted view of several already sorted columns, without a merged array of points. */
 export function pointOrder(series: readonly { readonly x: PointSeries['x']; readonly y: PointSeries['y'] | null }[], ranges: readonly IndexRange[], work?: PointOrderWork) {
   const trackWork = __DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__);
-  const active: number[] = [];
-  let count = 0;
-  ranges.forEach(({ start, end }, s) => {
-    if (start < end) active.push(s);
-    count += end - start;
-  });
+  const { active, count } = rangeSummary(ranges);
 
   function compare(s: number, i: number, t: number, j: number): number {
     if (trackWork && work) work.comparisons++;

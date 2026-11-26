@@ -42,18 +42,16 @@ function node(doc: Document, tag: keyof SVGElementTagNameMap, key: string, attrs
   return { key, el: svgElement(doc, tag, attrs), attrs: null, styles: null, source: null };
 }
 
-/** Sets `d` from `build()` unless every input is identical (===) to the ones the current `d` came from. */
-function data(n: SvgNode, source: unknown[], build: () => string): void {
-  if (sameKey(n.source, source)) return;
-  n.source = source;
-  setPath(n, build());
-}
-
 // The shared prototype has no inherited keys. Nodes with the same attributes can
 // share an object shape instead of keeping a separate dictionary for each cache.
 let cachePrototype: object | undefined;
 function propertyCache<T>(): Record<string, T> {
   return Object.create(cachePrototype ??= Object.create(null));
+}
+
+function writeAttr(n: SvgNode, name: string, key: string | number, text = String(key)): void {
+  (n.attrs ??= propertyCache())[name] = key;
+  n.el.setAttribute(name, text);
 }
 
 function setPath(n: SvgNode, value: string): void {
@@ -62,67 +60,32 @@ function setPath(n: SvgNode, value: string): void {
   // after the source geometry changes. Reading the attribute does not read layout.
   const key = value.length > 64 ? value.length : value;
   if (key === cached && (typeof key === 'string' || n.el.getAttribute('d') === value)) return;
-  (n.attrs ??= propertyCache()).d = key;
-  n.el.setAttribute('d', value);
-}
-
-function attrStr(n: SvgNode, name: string, value: string): void {
-  if (n.attrs?.[name] !== value) {
-    (n.attrs ??= propertyCache())[name] = value;
-    n.el.setAttribute(name, value);
-  }
+  writeAttr(n, 'd', key, value);
 }
 
 function attr(n: SvgNode, name: string, input: number | string | null): void {
+  const cached = n.attrs?.[name];
   if (input === null) {
-    if (n.attrs?.[name] !== undefined) {
-      delete n.attrs[name];
+    if (cached !== undefined) {
+      delete n.attrs![name];
       n.el.removeAttribute(name);
     }
   } else {
     const value = input !== input ? 'NaN' : input;
-    if (n.attrs?.[name] === value) return;
-    (n.attrs ??= propertyCache())[name] = value;
-    n.el.setAttribute(name, String(value));
+    if (cached !== value) writeAttr(n, name, value);
   }
 }
 
-function hasDigits(s: string, prefix: string): boolean {
-  const start = prefix.length;
-  if (!s.startsWith(prefix) || !s.endsWith(')') || s.length <= start + 1) return false;
-  for (let i = start; i < s.length - 1; i++) {
-    const ch = s.charCodeAt(i);
-    if (ch < 48 || ch > 57) return false;
-  }
-  return true;
-}
+// Match only generated color expressions. Other CSS values still go through CSSOM validation.
+const generatedColor = /^var\(--axylo-(?:series-color-\d+|(axis|grid|reference|muted|focus), var\(--axylo-default-\1\))\)$/;
 
 function isTrustedCss(name: string, value: string): boolean {
-  if (name === 'color') return hasDigits(value, 'var(--axylo-series-color-')
+  if (name === 'color') return (value.endsWith(')') && generatedColor.test(value))
     || value === 'var(--axylo-background, transparent)'
     || value === 'var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)))'
-    || value === 'var(--axylo-text, currentColor)'
-    || value === 'var(--axylo-axis, var(--axylo-default-axis))'
-    || value === 'var(--axylo-grid, var(--axylo-default-grid))'
-    || value === 'var(--axylo-reference, var(--axylo-default-reference))'
-    || value === 'var(--axylo-muted, var(--axylo-default-muted))'
-    || value === 'var(--axylo-focus, var(--axylo-default-focus))';
+    || value === 'var(--axylo-text, currentColor)';
   if (name === 'fill-opacity') return value === '0' || value === '0.25' || value === '0.5' || value === '0.8' || value === '1';
   return (name === 'fill' || name === 'stroke') && (value === 'none' || value === 'currentColor');
-}
-
-function cssClear(n: SvgNode, name: string): void {
-  if (n.styles?.[name] !== undefined) {
-    delete n.styles[name];
-    n.el.style.removeProperty(name);
-  }
-}
-
-function cssTrusted(n: SvgNode, name: string, value: string): void {
-  if (n.styles?.[name] !== value) {
-    (n.styles ??= propertyCache())[name] = value;
-    n.el.style.setProperty(name, value);
-  }
 }
 
 // Style properties, not presentation attributes: those do not accept var(), and CSSOM writes are allowed
@@ -144,21 +107,31 @@ function setCss(style: CSSStyleDeclaration, name: string, value: string): boolea
   return false;
 }
 
-function css(n: SvgNode, name: string, value: string | null): void {
-  if (value === null) cssClear(n, name);
-  else if (n.styles?.[name] !== value) {
-    if (setCss(n.el.style, name, value)) (n.styles ??= propertyCache())[name] = value;
-    else if (n.styles !== null) delete n.styles[name];
+function css(n: SvgNode, name: string, value: string | null, trusted = false): void {
+  const cached = n.styles?.[name];
+  if (value === null) {
+    if (cached !== undefined) {
+      delete n.styles![name];
+      n.el.style.removeProperty(name);
+    }
+  } else if (cached !== value) {
+    const style = n.el.style;
+    if (trusted) style.setProperty(name, value);
+    else if (!setCss(style, name, value)) {
+      if (n.styles) delete n.styles[name];
+      return;
+    }
+    (n.styles ??= propertyCache())[name] = value;
   }
 }
 
 /** Paints `role` ('fill' or 'stroke') with a CSS color expression, through `color` and currentColor. */
 function paint(n: SvgNode, role: 'fill' | 'stroke', value: string | null): void {
   if (value !== null && n.styles?.color === value && n.styles[role] === 'currentColor') return;
-  cssTrusted(n, role === 'fill' ? 'stroke' : 'fill', 'none');
-  if (value === null) { cssTrusted(n, role, 'none'); cssClear(n, 'color'); return; }
+  css(n, role === 'fill' ? 'stroke' : 'fill', 'none', true);
+  if (value === null) { css(n, role, 'none', true); css(n, 'color', null); return; }
   css(n, 'color', value);
-  cssTrusted(n, role, 'currentColor');
+  css(n, role, 'currentColor', true);
 }
 
 function paintFill(n: SvgNode, mark: AreaMark | BandMark, bindings: PaintBindings): void {
@@ -252,9 +225,7 @@ function writeCmd(b: Uint8Array, pos: number, cmd: number, v: number): number {
 }
 
 function writeXY(b: Uint8Array, pos: number, cmd: number, x: number, y: number): number {
-  pos = writeCmd(b, pos, cmd, x);
-  b[pos++] = 32;
-  return writeFixed(b, pos, Math.round(y * 100));
+  return writeCmd(b, writeCmd(b, pos, cmd, x), 32, y);
 }
 
 function decodeBuf(len: number): string {
@@ -432,10 +403,7 @@ function packedArcs(radius: number): PackedArcs {
 let absoluteArc: { radius: number; bytes: Uint8Array } | null = null;
 
 function absoluteArcFor(radius: number): Uint8Array {
-  if (absoluteArc?.radius !== radius) {
-    const r = fstr(radius);
-    absoluteArc = { radius, bytes: new TextEncoder().encode(`A${r} ${r} 0 1 1 `) };
-  }
+  if (absoluteArc?.radius !== radius) absoluteArc = { radius, bytes: new TextEncoder().encode(circleArc(radius, 1)) };
   return absoluteArc.bytes;
 }
 
@@ -675,8 +643,8 @@ function slidingPath(source: unknown[], xy: Float32Array): string | null {
 
 export const svgPath: SvgMark<PathMark> = (_c, n, mark, bindings) => {
   if (!n.source) {
-    attrStr(n, 'stroke-linejoin', 'round');
-    attrStr(n, 'stroke-linecap', 'butt');
+    attr(n, 'stroke-linejoin', 'round');
+    attr(n, 'stroke-linecap', 'butt');
   }
   const source = n.source ??= [];
   if (source[0] !== mark.xy) {
@@ -690,11 +658,11 @@ export const svgPath: SvgMark<PathMark> = (_c, n, mark, bindings) => {
   const { normal, contrast } = mark.dash;
   if (normal === null && contrast === null) {
     attr(n, 'class', null);
-    cssClear(n, 'stroke-dasharray');
-    cssClear(n, '--axylo-dash-contrast');
+    css(n, 'stroke-dasharray', null);
+    css(n, '--axylo-dash-contrast', null);
   } else {
     // The normal pattern inline; the stylesheet swaps in the contrast pattern with !important.
-    attrStr(n, 'class', 'axylo-dashed');
+    attr(n, 'class', 'axylo-dashed');
     css(n, 'stroke-dasharray', dashText(normal));
     css(n, '--axylo-dash-contrast', dashText(contrast));
   }
@@ -714,10 +682,14 @@ export const svgArea: SvgMark<AreaMark> = (_c, n, mark, bindings) => {
 export const svgRects: SvgMark<RectMark> = (c, n, mark, bindings, _dpr, clip) => {
   if (mark.variant === 'bar') updateBars(c.doc, n, mark, bindings, mark.pattern && mark.pattern !== 'none' ? patternUrl(c, mark.pattern, bindings) : null);
   else {
-    data(n, [mark.xywh, clip?.x, clip?.y, clip?.width, clip?.height], () => missingData(mark, c.scratch, clip));
+    const source = [mark.xywh, clip?.x, clip?.y, clip?.width, clip?.height];
+    if (!sameKey(n.source, source)) {
+      setPath(n, missingData(mark, c.scratch, clip));
+      n.source = source;
+    }
     paint(n, 'stroke', paintOf(mark.fill, bindings));
     attr(n, 'stroke-width', MISSING_STROKE);
-    attrStr(n, 'stroke-linejoin', 'miter');
+    attr(n, 'stroke-linejoin', 'miter');
   }
 };
 
@@ -738,13 +710,20 @@ export const svgPoints: SvgMark<PointMark> = (_c, n, mark, bindings) => {
 
 export const svgArcs: SvgMark<ArcMark> = (c, n, mark, bindings) => updateArcs(c.doc, n, mark, bindings, c.scratch);
 
+function sameRuleShape(a: RuleMark, b: RuleMark): boolean {
+  return a === b || (a.x1 === b.x1 && a.y1 === b.y1 && a.x2 === b.x2 && a.y2 === b.y2 && a.strokeWidth === b.strokeWidth);
+}
+
+function snapMark(mark: RuleMark, dpr: number, into: Float64Array): void {
+  snapRule(mark.x1, mark.y1, mark.x2, mark.y2, mark.strokeWidth, dpr, into);
+}
+
 export const svgRule: SvgMark<RuleMark> = (c, n, mark, bindings, dpr) => {
   const source = n.source ??= [];
   const old = source[0] as RuleMark | undefined;
-  if (source[1] !== dpr || !old || (old !== mark && (old.x1 !== mark.x1 || old.y1 !== mark.y1 ||
-      old.x2 !== mark.x2 || old.y2 !== mark.y2 || old.strokeWidth !== mark.strokeWidth))) {
+  if (source[1] !== dpr || !old || !sameRuleShape(old, mark)) {
     const s = c.scratch;
-    snapRule(mark.x1, mark.y1, mark.x2, mark.y2, mark.strokeWidth, dpr, s);
+    snapMark(mark, dpr, s);
     attr(n, 'x1', s[0]!);
     attr(n, 'y1', s[1]!);
     attr(n, 'x2', s[2]!);
@@ -818,22 +797,25 @@ function trim(list: SvgNode[], count: number): void {
   while (list.length > count) list.pop()!.el.remove();
 }
 
+const SVG_STYLE = [
+  'position', 'absolute', 'left', '0', 'top', '0', 'display', 'block',
+  'overflow', 'hidden', 'pointer-events', 'none', 'forced-color-adjust', 'none',
+];
+
 class SvgRenderer implements MarkRenderer, SvgContext {
   readonly kind = 'svg';
   readonly element: SVGSVGElement;
   readonly defs: SVGElement;
   #geometryScratch?: Float64Array;
   get scratch(): Float64Array { return this.#geometryScratch ??= new Float64Array(8); }
-  readonly #sceneClip: SvgNode;
+  readonly #sceneClip: PlotClip;
   readonly #sceneGroup: SVGElement;
   readonly #background: SVGRectElement;
   readonly #overlayNode: SvgNode;
-  #overlayClip: SvgNode | null = null;
+  #overlayClip: PlotClip | null = null;
   #overlaySlots?: SvgNode[];
   readonly #slots: SvgNode[] = [];
   readonly #batchRules: boolean;
-  #sceneBounds: Rect | null = null;
-  #overlayBounds: Rect | null = null;
   #width = -1;
   #height = -1;
 
@@ -844,13 +826,7 @@ class SvgRenderer implements MarkRenderer, SvgContext {
     this.#batchRules = marks.rule === svgRule;
     const svg = this.element = svgElement(doc, 'svg', { class: 'axylo-svg', 'aria-hidden': 'true', focusable: 'false' });
     const style = svg.style;
-    style.setProperty('position', 'absolute');
-    style.setProperty('left', '0');
-    style.setProperty('top', '0');
-    style.setProperty('display', 'block');
-    style.setProperty('overflow', 'hidden');
-    style.setProperty('pointer-events', 'none');
-    style.setProperty('forced-color-adjust', 'none');
+    for (let i = 0; i < SVG_STYLE.length; i += 2) style.setProperty(SVG_STYLE[i]!, SVG_STYLE[i + 1]!);
 
     const defs = this.defs = svgElement(doc, 'defs');
     this.#sceneClip = clipPath(doc, defs);
@@ -885,11 +861,7 @@ class SvgRenderer implements MarkRenderer, SvgContext {
       this.#width = width;
       this.#height = height;
     }
-    if (this.#sceneBounds !== scene.clip) {
-      setRect(this.#sceneClip, scene.clip);
-      this.#sceneBounds = scene.clip;
-    }
-    const sceneClipUrl = this.#sceneClip.key;
+    const sceneClipUrl = updateClip(this.#sceneClip, scene.clip);
     let slot = 0;
     for (let i = 0; i < scene.marks.length;) {
       const mark = scene.marks[i]!;
@@ -921,13 +893,11 @@ class SvgRenderer implements MarkRenderer, SvgContext {
       return;
     }
     const dpr = devicePixelRatio > 0 ? devicePixelRatio : 1;
-    if (overlay.clipped.length && overlay.clip !== this.#overlayBounds) {
-      setRect(this.#overlayClip ??= clipPath(this.doc, this.defs), overlay.clip);
-      this.#overlayBounds = overlay.clip;
-    }
-    // The cursor, halo and marker all use the same plot clip. A focus outline can extend past it.
+    const clipUrl = overlay.clipped.length
+      ? updateClip(this.#overlayClip ??= clipPath(this.doc, this.defs), overlay.clip)
+      : this.#overlayClip?.key ?? null;
+    // The cursor, halo and marker all use the plot clip. A focus outline can extend past it.
     const groupClip = overlay.clipped.length > 0 && overlay.unclipped.length === 0;
-    const clipUrl = this.#overlayClip?.key ?? null;
     attr(this.#overlayNode, 'clip-path', groupClip ? clipUrl : null);
     const markClip = groupClip ? null : clipUrl;
     const overlaySlots = this.#overlaySlots ??= [];
@@ -948,7 +918,17 @@ export function svgRendererWith(marks: SvgMarks, doc: Document = document): Mark
   return new SvgRenderer(marks, doc);
 }
 
-function clipPath(doc: Document, defs: SVGElement): SvgNode {
+type PlotClip = SvgNode & { bounds?: Rect };
+
+function updateClip(clip: PlotClip, bounds: Rect): string {
+  if (clip.bounds !== bounds) {
+    setRect(clip, bounds);
+    clip.bounds = bounds;
+  }
+  return clip.key;
+}
+
+function clipPath(doc: Document, defs: SVGElement): PlotClip {
   const id = `axylo-clip-${++ids}`;
   const clip = svgElement(doc, 'clipPath', { id, clipPathUnits: 'userSpaceOnUse' });
   // Use the clip's URL as its key so the renderer only needs to keep the node.
@@ -1061,7 +1041,7 @@ function ruleRunEnd(marks: readonly Mark[], start: number, first: RuleMark, bind
     // A path has one stroke width. Only horizontal and vertical rules get a device-snapped width.
     if (aligned !== (next.x1 === next.x2 || next.y1 === next.y2) && first.strokeWidth > 0) {
       const o = aligned ? first : next;
-      snapRule(o.x1, o.y1, o.x2, o.y2, o.strokeWidth, dpr, s);
+      snapMark(o, dpr, s);
       if (s[4] !== first.strokeWidth) break;
     }
   }
@@ -1073,39 +1053,31 @@ function updateRules(n: SvgNode, marks: readonly Mark[], start: number, end: num
   let same = source[0] === dpr && source.length === end - start + 2;
   for (let i = start; same && i < end; i++) {
     const old = source[i - start + 2] as RuleMark, m = marks[i] as RuleMark;
-    same = old === m || old.x1 === m.x1 && old.x2 === m.x2 && old.y1 === m.y1 && old.y2 === m.y2 &&
-      old.strokeWidth === m.strokeWidth;
+    same = sameRuleShape(old, m);
   }
-  if (same) {
-    styleRule(n, first, color, source[1] as number);
-    return;
+  if (!same) {
+    source.length = end - start + 2;
+    source[0] = dpr;
+    let d = '', orthogonal = false;
+    for (let i = start; i < end; i++) {
+      const m = marks[i] as RuleMark;
+      source[i - start + 2] = m;
+      snapMark(m, dpr, s);
+      const h = s[1] === s[3], v = !h && s[0] === s[2];
+      if (h || v) orthogonal = true;
+      d += `M${s[0]} ${s[1]}${h ? `H${s[2]}` : v ? `V${s[3]}` : `L${s[2]} ${s[3]}`}`;
+    }
+    // The benchmark recognizes paths made of only M and L as data. The butt cap leaves this subpath invisible.
+    if (!orthogonal) d += 'M0 0H0';
+    setPath(n, d);
+    source[1] = first.strokeWidth > 0 ? s[4]! : 0;
   }
-  source.length = end - start + 2;
-  source[0] = dpr;
-  let d = '', orthogonal = false;
-  for (let i = start; i < end; i++) {
-    const m = marks[i] as RuleMark;
-    source[i - start + 2] = m;
-    snapRule(m.x1, m.y1, m.x2, m.y2, m.strokeWidth, dpr, s);
-    const h = s[1] === s[3], v = !h && s[0] === s[2];
-    if (h || v) orthogonal = true;
-    d += `M${s[0]} ${s[1]}${h ? `H${s[2]}` : v ? `V${s[3]}` : `L${s[2]} ${s[3]}`}`;
-  }
-  // The benchmark recognizes paths made of only M and L as data. The butt cap leaves this subpath invisible.
-  if (!orthogonal) d += 'M0 0H0';
-  setPath(n, d);
-  const width = first.strokeWidth > 0 ? s[4]! : 0;
-  source[1] = width;
-  styleRule(n, first, color, width);
-}
-
-function styleRule(n: SvgNode, mark: RuleMark, color: string | null, width: number): void {
-  attr(n, 'stroke-width', width);
-  setRuleDash(n, mark);
+  attr(n, 'stroke-width', source[1] as number);
+  setRuleDash(n, first);
   paint(n, 'stroke', color);
 }
 
 function setRuleDash(n: SvgNode, mark: RuleMark): void {
-  attrStr(n, 'stroke-linecap', 'butt');
+  attr(n, 'stroke-linecap', 'butt');
   attr(n, 'stroke-dasharray', mark.dash === null ? null : dashText(mark.dash));
 }

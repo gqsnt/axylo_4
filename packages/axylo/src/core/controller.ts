@@ -56,6 +56,9 @@ export type { BenchHook, ChartHandle, DevHook, Stage } from './instrument';
 
 /** Option resolution reports these about the data; they belong to the call that set the data. */
 const DATA_CODES = new Set(['AX100', 'AX101']);
+/** The findings of `list` about the data (`data` true) or about everything else. */
+const dataFindings = (list: readonly DiagnosticInput[], data: boolean): DiagnosticInput[] =>
+  list.filter(d => DATA_CODES.has(d.code) === data);
 /** Rows a store may hold beyond twice what was on screen before the frames that pin it copy their rows. */
 const RETENTION_SLACK = 8;
 /**
@@ -281,6 +284,10 @@ type Display =
   };
 
 const READY: Display = { kind: 'ready' };
+
+/** A state shown in a built-in message. */
+const builtIn = (kind: Exclude<Display['kind'], 'ready'>, m: Messages, message: 'internalError' | 'loading' | 'error' | 'empty'): Display =>
+  ({ kind, text: m[message], message });
 
 interface PlotLayout {
   readonly layout: Layout;
@@ -533,24 +540,29 @@ class FrameState implements FrameRun {
 
   /** Only once phase 2 completed for this frame (a failure closes the frame, and the skipped steps would have done nothing either way). */
   stripless(): boolean { return this.noReadout && !this.closed; }
-  phase1(): void { this.driver?.frameStep(this, STEP_PHASE1); }
-  phase2(): void { this.driver?.frameStep(this, STEP_PHASE2); }
-  phase3Theme(): void { this.driver?.frameStep(this, STEP_THEME); }
-  phase3Measure(): void { this.driver?.frameStep(this, STEP_MEASURE); }
-  phase3Probe(): void { this.driver?.frameStep(this, STEP_PROBE); }
-  phase3LayoutCheck(): boolean { return this.driver?.frameStep(this, STEP_LAYOUT_CHECK) ?? false; }
-  phase3StripMount(): void { this.driver?.frameStep(this, STEP_STRIP_MOUNT); }
-  phase3StripRead(): void { this.driver?.frameStep(this, STEP_STRIP_READ); }
+  phase1(): void { runStep(this, STEP_PHASE1); }
+  phase2(): void { runStep(this, STEP_PHASE2); }
+  phase3Theme(): void { runStep(this, STEP_THEME); }
+  phase3Measure(): void { runStep(this, STEP_MEASURE); }
+  phase3Probe(): void { runStep(this, STEP_PROBE); }
+  phase3LayoutCheck(): boolean { return runStep(this, STEP_LAYOUT_CHECK); }
+  phase3StripMount(): void { runStep(this, STEP_STRIP_MOUNT); }
+  phase3StripRead(): void { runStep(this, STEP_STRIP_READ); }
   /** Unconditional, even on error or after the frame closed. */
   phase3StripRemove(): void { this.driver?.removeStripProbe(this); }
-  phase3ReadoutDecide(): void { this.driver?.frameStep(this, STEP_READOUT); }
-  phase4StripWrite(): void { this.driver?.frameStep(this, STEP_STRIP_WRITE); }
-  phase4StripMeasure(): void { this.driver?.frameStep(this, STEP_STRIP_MEASURE); }
-  phase4Init(): void { this.driver?.frameStep(this, STEP_INIT); }
-  phase4PassWrite(): boolean { return this.driver?.frameStep(this, STEP_PASS_WRITE) ?? false; }
-  phase4PassMeasure(): boolean { return this.driver?.frameStep(this, STEP_PASS_MEASURE) ?? false; }
+  phase3ReadoutDecide(): void { runStep(this, STEP_READOUT); }
+  phase4StripWrite(): void { runStep(this, STEP_STRIP_WRITE); }
+  phase4StripMeasure(): void { runStep(this, STEP_STRIP_MEASURE); }
+  phase4Init(): void { runStep(this, STEP_INIT); }
+  phase4PassWrite(): boolean { return runStep(this, STEP_PASS_WRITE); }
+  phase4PassMeasure(): boolean { return runStep(this, STEP_PASS_MEASURE); }
   phase5(): void { this.driver?.finishFrame(this); }
   after(): void { this.driver?.afterFrame(this); }
+}
+
+/** Module-level step helper avoids adding a V8 private-brand slot to pooled FrameState instances. */
+function runStep(frame: FrameState, step: number): boolean {
+  return frame.driver?.frameStep(frame, step) ?? false;
 }
 
 /**
@@ -720,6 +732,11 @@ export function createController(kind: ChartKind, input: unknown, page: Host): C
 }
 
 /** The controller for one chart kind: every stage that differs between kinds comes from its composition. */
+/** AX199 (spec 3.5): Axylo itself failed. */
+function internalFailure(): DiagnosticInput {
+  return createDiagnostic('AX199', 'chart-error', {}, 'presentation');
+}
+
 export function controllerFor(composition: Composition, input: unknown, page: Host): Controller {
   return new ChartController(composition, input, page);
 }
@@ -782,7 +799,8 @@ interface Drawn {
 /**
  * One chart's controller. Its state is fields and its stages are methods, shared by every chart through the
  * prototype: a page of charts holds one small object per chart rather than a scope and a function per stage
- * each. Every field is set in the constructor, in one order, so all charts share one shape.
+ * each. Every field is set as the chart is made (initializers, then the constructor), in one order, so all charts
+ * share one shape.
  */
 class ChartController implements Controller, FrameDriver {
   readonly #composition: Composition;
@@ -797,123 +815,123 @@ class ChartController implements Controller, FrameDriver {
   #viewerZone: string | undefined;
   // ── synchronous phase ──────────────────────────────────────────────────────────────────────────
   #options: OptionsStore;
-  #accepted: Accepted | null;
+  #accepted: Accepted | null = null;
   // Read through getters by the same-file wrappers below, so the many uses inside the class stay private (mangled).
   get accepted(): Accepted | null { return this.#accepted; }
-  #presentation: Map<PresentationStage, readonly DiagnosticInput[]> | null;
+  #presentation: Map<PresentationStage, readonly DiagnosticInput[]> | null = null;
   /** Keys of the current diagnostics already printed and handed to `onDiagnostic`. */
-  #deliveredKeys: Set<string> | null;
+  #deliveredKeys: Set<string> | null = null;
   /** The finding list whose keys `deliveredKeys` holds after the last full delivery pass (see deliverChanges). */
-  #settledInputs: readonly DiagnosticInput[] | null;
+  #settledInputs: readonly DiagnosticInput[] | null = null;
   /** Increases with every delivery pass; a pass started inside author code supersedes the outer one. */
-  #destroyed: boolean;
+  #destroyed: boolean = false;
   get destroyed(): boolean { return this.#destroyed; }
-  #internalError: unknown;
+  #internalError: unknown = null;
   /** `append` was called at least once: the pause control is offered (spec I6). */
-  #streaming: boolean;
-  #paused: boolean;
+  #streaming: boolean = false;
+  #paused: boolean = false;
   /** While paused: the store's newest frame and its findings, accepted but not shown. */
-  held: Held;
+  held: Held = null;
   /**
    * The displayed snapshot's row ownership: what the marks on screen came from (see the invariants at the top
    * of this file). `frozen` holds the caller's rows of that frame once the store had to let go of its revision.
    */
-  onScreen: { frame: Frame; store: Store | null; frozen: Map<number, unknown> | null } | null;
+  onScreen: { frame: Frame; store: Store | null; frozen: Map<number, unknown> | null } | null = null;
   /** Frames a store produced (their rows live in that store's revisions). Lazily allocated when streaming starts. */
-  #storeFrames: WeakSet<Frame> | null;
+  #storeFrames: WeakSet<Frame> | null = null;
   /**
    * Rows copied out of the store for a frame that still needs them after the store moved on: the displayed
    * frame, the pending (accepted, not yet drawn) one and the one being published each own theirs, so none of
    * them pins the store's history (final review, finding 2).
    */
-  #frozenRows: WeakMap<Frame, Map<number, unknown>> | null;
+  #frozenRows: WeakMap<Frame, Map<number, unknown>> | null = null;
   /**
    * One past the last source index each store frame can address: a store numbers rows in arrival order (the
    * opening data first), so a frame's raw window can be read back without the store (re-encoding while paused).
    */
-  #rowEnds: WeakMap<Frame, number> | null;
+  #rowEnds: WeakMap<Frame, number> | null = null;
   /** Rows of a store below this source index came from the caller's typed columns (its opening data). */
-  #columnRows: WeakMap<Store, number> | null;
+  #columnRows: WeakMap<Store, number> | null = null;
   /** The wider x domain the layout drew a scatter's automatic domain on, with the domain it widened. */
-  #widenedX: { epoch: number; drawn: readonly [number, number] } | null;
+  #widenedX: { epoch: number; drawn: readonly [number, number] } | null = null;
   /** What the store held right after the last release with a frame on screen: the bound's baseline. */
-  #retainedBaseline: number;
+  #retainedBaseline: number = 0;
   /** The revision on screen when the baseline was taken (a number: a hidden chart keeps no frame alive). */
-  #baselineRevision: number;
-  #epochs: number;
-  #frameRevision: number;
-  #commits: number;
-  listeners: Map<keyof ChartEvents<unknown>, Set<(payload: never) => void>> | null;
+  #baselineRevision: number = -1;
+  #epochs: number = 0;
+  #frameRevision: number = 0;
+  #commits: number = 0;
+  listeners: Map<keyof ChartEvents<unknown>, Set<(payload: never) => void>> | null = null;
   /** True while a frame runs: findings are delivered at its end, not from inside a stage. */
-  inFrame: boolean;
+  inFrame: boolean = false;
   /** The accepted state a running frame publishes: its rows are kept until it is on screen. */
-  inflight: Accepted | null;
+  inflight: Accepted | null = null;
   /**
    * Notifications to author code (onDiagnostic, the console, event listeners) in call order: each delivery
    * is a snapshot taken when it is made and is drained in full, and one made by author code during a drain
    * waits behind it. Only destruction stops a drain (review 3, finding 7).
    */
-  #notifications: (() => void)[] | null;
-  #draining: boolean;
-  #presentationVersion: number;
+  #notifications: (() => void)[] | null = null;
+  #draining: boolean = false;
+  #presentationVersion: number = 0;
   /** Resolutions this chart already let go of the caller's table: a later append keeps them as they are. */
-  #tableless: WeakSet<ResolvedOptions> | null;
+  #tableless: WeakSet<ResolvedOptions> | null = null;
   // ── frame phase ────────────────────────────────────────────────────────────────────────────────
-  #frameRequest: number;
-  #frameScheduled: boolean;
+  #frameRequest: number = 0;
+  #frameScheduled: boolean = false;
   get frameScheduled(): boolean { return this.#frameScheduled; }
-  #microtaskToken: number;
-  #size: Size | null;
-  sizeDirty: boolean;
+  #microtaskToken: number = 0;
+  #size: Size | null = null;
+  sizeDirty: boolean = true;
   /** The readout strip is reserved under the plot (decision 0004 revision 2, rule 5). */
-  #readoutMode: boolean;
+  #readoutMode: boolean = false;
   /** The strip's height as last measured (two 24 px lines until then). */
-  #stripHeight: number;
+  #stripHeight: number = 0;
   /** The text style the strip's height was measured for; null after resize or font changes. */
-  #stripStyle: TextStyle | null;
-  #stripFontEpoch: number;
+  #stripStyle: TextStyle | null = null;
+  #stripFontEpoch: number = -1;
   /** Decision 0004 revision 3, rule 5: how a datum's values are shown when pointed at. */
-  #readoutKind: ReadoutMode;
+  #readoutKind: ReadoutMode = 'floating';
   /** L8 fallback: what the fallback's own DOM adds to the plot size, measured when it was entered. */
-  #fallback: { width: number; height: number } | null;
-  #textStyle: TextStyle | null;
-  textStyleDirty: boolean;
-  fontEpoch: number;
+  #fallback: { width: number; height: number } | null = null;
+  #textStyle: TextStyle | null = null;
+  textStyleDirty: boolean = true;
+  fontEpoch: number = 0;
   pixelRatio: number;
-  themeDirty: boolean;
-  #themeSeries: readonly string[] | null;
+  themeDirty: boolean = true;
+  #themeSeries: readonly string[] | null = null;
   #themeColors: unknown;
-  theme: { bindings: PaintBindings; theme: ResolvedTheme } | null;
-  #themeRevision: number;
+  theme: { bindings: PaintBindings; theme: ResolvedTheme } | null = null;
+  #themeRevision: number = 0;
   /** The display state last shown, for announcing changes once (spec L7). */
-  #announced: Display['kind'] | null;
+  #announced: Display['kind'] | null = null;
   /** The accepted revision the page last settled on (drawn, or its error shown). */
-  settledRevision: number;
-  drawn: Drawn | null;
+  settledRevision: number = 0;
+  drawn: Drawn | null = null;
   #fitKey: {
     small: boolean; dense: boolean; hidden: number; field: string;
     xKind: XKind | undefined; horizontal: boolean | undefined; kind: View['kind'];
-  } | null;
+  } | null = null;
   /** The last layout computed, also at a size that was only an estimate (the L8 fallback). */
-  #lastLayout: PlotLayout | null;
+  #lastLayout: PlotLayout | null = null;
   /** Marks were drawn at some point (cleared marks after a failure count): a later empty frame must clear them. */
-  #hadMarks: boolean;
+  #hadMarks: boolean = false;
   /** The host hid the mark and text surfaces for an error revision; the next drawn frame shows them again. */
-  #surfacesHidden: boolean;
-  waiters: { revision: number; resolve: () => void }[] | null;
+  #surfacesHidden: boolean = false;
+  waiters: { revision: number; resolve: () => void }[] | null = null;
   /** The axis context of the last frame: kept while what it holds is unchanged. */
-  #lastAxisContext: AxisContext | null;
+  #lastAxisContext: AxisContext | null = null;
   /** The English marking of the last frame on a page in another language, by the messages option it read. */
-  #englishMemo: { readonly source: unknown; readonly english: (key: keyof Messages) => string | null } | null;
+  #englishMemo: { readonly source: unknown; readonly english: (key: keyof Messages) => string | null } | null = null;
   /** What the late theme probe reported, written by one callback made once per chart. */
-  #probeWrote: boolean;
+  #probeWrote: boolean = true;
   /** The interaction layer's and the page watchers' ways in, made when first asked for (a sparkline has no interaction layer). */
-  #actionsMade: ChartActions | null;
-  #invalidateMade: ChartInvalidate | null;
+  #actionsMade: ChartActions | null = null;
+  #invalidateMade: ChartInvalidate | null = null;
   /** Callbacks the host keeps (the frame request, the formatters' error report, the late theme probe), each made once when first needed. */
-  #frameCallback: ((time?: number) => void) | null;
-  #formatterError: ((field: string) => void) | null;
-  #probeReport: ((wrote: boolean) => void) | null;
+  #frameCallback: ((time?: number) => void) | null = null;
+  #formatterError: ((field: string) => void) | null = null;
+  #probeReport: ((wrote: boolean) => void) | null = null;
   readonly handle: ChartHandle;
 
   constructor(composition: Composition, input: unknown, page: Host) {
@@ -924,68 +942,7 @@ class ChartController implements Controller, FrameDriver {
     // Development and benchmark builds make it now: making one installs their delivery hook.
     this.#deliveryMade = __DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__) ? this.#newDelivery() : null;
     this.#options = new OptionsStore(input);
-    this.#accepted = null;
-    this.#presentation = null;
-    this.#deliveredKeys = null;
-    this.#settledInputs = null;
-    this.#destroyed = false;
-    this.#internalError = null;
-    this.#streaming = false;
-    this.#paused = false;
-    this.held = null;
-    this.onScreen = null;
-    this.#storeFrames = null;
-    this.#frozenRows = null;
-    this.#rowEnds = null;
-    this.#columnRows = null;
-    this.#widenedX = null;
-    this.#retainedBaseline = 0;
-    this.#baselineRevision = -1;
-    this.#epochs = 0;
-    this.#frameRevision = 0;
-    this.#commits = 0;
-    this.listeners = null;
-    this.inFrame = false;
-    this.inflight = null;
-    this.#notifications = null;
-    this.#draining = false;
-    this.#presentationVersion = 0;
-    this.#tableless = null;
-    this.#frameRequest = 0;
-    this.#frameScheduled = false;
-    this.#microtaskToken = 0;
-    this.#size = null;
-    this.sizeDirty = true;
-    this.#readoutMode = false;
-    this.#stripHeight = 0;
-    this.#stripStyle = null;
-    this.#stripFontEpoch = -1;
-    this.#readoutKind = 'floating';
-    this.#fallback = null;
-    this.#textStyle = null;
-    this.textStyleDirty = true;
-    this.fontEpoch = 0;
     this.pixelRatio = this.host.devicePixelRatio();
-    this.themeDirty = true;
-    this.#themeSeries = null;
-    this.theme = null;
-    this.#themeRevision = 0;
-    this.#announced = null;
-    this.settledRevision = 0;
-    this.drawn = null;
-    this.#fitKey = null;
-    this.#lastLayout = null;
-    this.#hadMarks = false;
-    this.#surfacesHidden = false;
-    this.waiters = null;
-    this.#lastAxisContext = null;
-    this.#englishMemo = null;
-    this.#probeWrote = true;
-    this.#actionsMade = null;
-    this.#invalidateMade = null;
-    this.#frameCallback = null;
-    this.#formatterError = null;
-    this.#probeReport = null;
     // ── create ─────────────────────────────────────────────────────────────────────────────────────
     try {
       this.update(input);
@@ -1271,7 +1228,10 @@ class ChartController implements Controller, FrameDriver {
 
   /** A strict chart rejects a create, update or append whose own findings include an error or warning. */
   #rejectIfStrict(strict: boolean, found: readonly DiagnosticInput[], name: string, handler: unknown): void {
-    if (!strict || strictViolations(found).length === 0) return;
+    if (strict && strictViolations(found).length) this.#reject(found, name, handler);
+  }
+
+  #reject(found: readonly DiagnosticInput[], name: string, handler: unknown): never {
     this.#deliverRejected(found, name, handler);
     throw new StrictError(name, toPublic(found, name));
   }
@@ -1291,11 +1251,7 @@ class ChartController implements Controller, FrameDriver {
       // accepted chart changes (final review, finding 7).
       const before = call.sink?.inputs() ?? [];
       const after = this.#accepted === null ? call.naming : [];
-      if (call.strict) {
-        const found = [...before, createDiagnostic('AX199', 'chart-error', {}, 'presentation'), ...after];
-        this.#deliverRejected(found, call.name, call.handler);
-        throw new StrictError(call.name, toPublic(found, call.name));
-      }
+      if (call.strict) this.#reject([...before, internalFailure(), ...after], call.name, call.handler);
       this.#raiseInternal(error, before, after);
       // A create that failed has nothing to draw from: show the error state now (never a blank box).
       if (this.#accepted === null) this.#showInternal(messagesOf(this.#options.current.messages), this.#chartName(this.#options.current), this.#options.current);
@@ -1324,7 +1280,7 @@ class ChartController implements Controller, FrameDriver {
       });
       const messages = this.#messagesFor(next, previous);
       const common = { options: next, messages, zoom: previous?.zoom ?? null, hidden: previous?.hidden ?? EMPTY_HIDDEN };
-      const resolve = (table?: Table) => (this.#composition.resolve ?? resolveFields)(this.#kind, publicOptions(next), optionSink, table);
+      const resolve = (table?: Table, sink = optionSink) => (this.#composition.resolve ?? resolveFields)(this.#kind, publicOptions(next), sink, table);
       let c: Candidate;
       let commit: (() => void) | null = null;
       let heldAfter: Held = null;
@@ -1334,7 +1290,7 @@ class ChartController implements Controller, FrameDriver {
         // Labels or units only, over the caller's own data: the same columns with new names (finding 12).
         const resolved = resolve(previous!.source.table);
         const p = previous!;
-        const opts = optionSink.inputs().filter(d => !DATA_CODES.has(d.code));
+        const opts = dataFindings(optionSink.inputs(), false);
         c = {
           ...common, resolved, source: resolved, store: null, frame: renamed(p.frame, resolved, this.#frameRevision += 1),
           dataDiagnostics: p.dataDiagnostics, dataOptions: p.dataOptions,
@@ -1351,7 +1307,7 @@ class ChartController implements Controller, FrameDriver {
         const opts = optionSink.inputs();
         c = {
           ...common, resolved, source: resolved, store: null, frame, dataDiagnostics: data,
-          dataOptions: opts.filter(d => DATA_CODES.has(d.code)), optionDiagnostics: dedupe(opts, data),
+          dataOptions: dataFindings(opts, true), optionDiagnostics: dedupe(opts, data),
         };
       } else if (reencode) {
         // New fields after streaming: the retained rows are read again (a new epoch, plan 1.5).
@@ -1372,8 +1328,8 @@ class ChartController implements Controller, FrameDriver {
           // What the fields say about the rows on screen counts too: a field only the held rows have leaves
           // the plot shown without values (AX101), which strict rejects (re-check, C4).
           const shownOptions = new DiagnosticCollector();
-          const shownResolved = (this.#composition.resolve ?? resolveFields)(this.#kind, publicOptions(next), shownOptions, table);
-          const shownData = shownOptions.inputs().filter(d => DATA_CODES.has(d.code));
+          const shownResolved = resolve(table, shownOptions);
+          const shownData = dataFindings(shownOptions.inputs(), true);
           const shownSink = new DiagnosticCollector();
           const shown = this.#composition.normalize(this.#kind, shownResolved, this, shownSink, this.#nextVersion());
           // Both views are built and validated before either is accepted: the held one keeps its findings
@@ -1397,7 +1353,7 @@ class ChartController implements Controller, FrameDriver {
           ? p.resolved.valid ? resolve(rowsTable([]))
             : p.store.resolveEncoding(publicOptions(next), optionSink)
           : resolve(p.source.table);
-        const opts = optionSink.inputs().filter(d => !DATA_CODES.has(d.code));
+        const opts = dataFindings(optionSink.inputs(), false);
         c = {
           ...p, ...common, resolved, optionDiagnostics: dedupe([...p.dataOptions, ...opts], p.dataDiagnostics),
         };
@@ -1438,7 +1394,7 @@ class ChartController implements Controller, FrameDriver {
     this.#ends(again.frame, before);
     const candidate = {
       ...c, resolved, source: resolved, frame: again.frame, dataDiagnostics: again.diagnostics, dataOptions: [],
-      optionDiagnostics: previous.optionDiagnostics.filter(d => !DATA_CODES.has(d.code)),
+      optionDiagnostics: dataFindings(previous.optionDiagnostics, false),
     };
     return { candidate, commit: again.commit };
   }
@@ -1797,21 +1753,21 @@ class ChartController implements Controller, FrameDriver {
 
   #display(a: Accepted, diagnostics: readonly DiagnosticInput[]): Display {
     const m = a.messages;
-    if (this.#internalError !== null) return { kind: 'internal', text: m.internalError, message: 'internalError' };
+    if (this.#internalError !== null) return builtIn('internal', m, 'internalError');
     const state = a.options.state;
-    if (state === 'loading') return { kind: 'loading', text: m.loading, message: 'loading' };
+    if (state === 'loading') return builtIn('loading', m, 'loading');
     if (state && typeof state === 'object') {
       const s = state as { error?: unknown; empty?: unknown };
       for (const kind of ['error', 'empty'] as const) {
         if (!(kind in s)) continue;
         const text = s[kind];
         if (typeof text === 'string' && text !== '') return { kind, text, message: null };
-        return { kind, text: m[kind], message: kind };
+        return builtIn(kind, m, kind);
       }
     }
     // A loop rather than `some`: every frame asks, and most have nothing to scan.
     for (let i = 0; i < diagnostics.length; i++) {
-      if (diagnostics[i]!.effect === 'chart-error') return { kind: 'error', text: m.error, message: 'error' };
+      if (diagnostics[i]!.effect === 'chart-error') return builtIn('error', m, 'error');
     }
     // Series the reader hid are still data: the chart stays ready, so the legend can show them again.
     if (!hasData(a.view, true)) {
@@ -1823,7 +1779,7 @@ class ChartController implements Controller, FrameDriver {
         const text = undrawn.map(s => seriesNotDrawnSentence(m, s.label, table)).join(' ');
         return { kind: 'error', text, message: 'seriesNotDrawn' };
       }
-      return { kind: 'empty', text: m.empty, message: 'empty' };
+      return builtIn('empty', m, 'empty');
     }
     return READY;
   }
@@ -1843,7 +1799,7 @@ class ChartController implements Controller, FrameDriver {
     const first = this.#internalError === null;
     this.#internalError = error;
     if (first) this.#delivery.internal(this.#accepted?.name ?? (this.host.targetId || this.host.id), error);
-    this.#setPresentationQuiet('internal', [...before, createDiagnostic('AX199', 'chart-error', {}, 'presentation'), ...after]);
+    this.#setPresentationQuiet('internal', [...before, internalFailure(), ...after]);
     if (!this.inFrame) this.deliverChanges();
   }
 
@@ -1975,22 +1931,23 @@ class ChartController implements Controller, FrameDriver {
     if (!this.#destroyed) {
       try {
         switch (id) {
-          case STEP_PHASE1: this.#phase1(f); return false;
-          case STEP_PHASE2: this.#phase2(f); return false;
-          case STEP_THEME: this.#finishTheme(f); return false;
-          case STEP_MEASURE: this.#measurePending(f); return false;
-          case STEP_PROBE: this.#probeTheme(f); return false;
+          case STEP_PHASE1: this.#phase1(f); break;
+          case STEP_PHASE2: this.#phase2(f); break;
+          case STEP_THEME: this.#finishTheme(f); break;
+          case STEP_MEASURE: this.#measurePending(f); break;
+          case STEP_PROBE: this.#probeTheme(f); break;
           case STEP_LAYOUT_CHECK: return this.#layoutCheck(f);
-          case STEP_STRIP_MOUNT: this.#stripMount(f); return false;
-          case STEP_STRIP_READ: this.#stripRead(f); return false;
-          case STEP_READOUT: this.#readoutDecide(f); return false;
-          case STEP_STRIP_WRITE: this.#stripWrite(f); return false;
-          case STEP_STRIP_MEASURE: this.#stripMeasure(f); return false;
-          case STEP_INIT: this.#layoutInit(f); return false;
+          case STEP_STRIP_MOUNT: this.#stripMount(f); break;
+          case STEP_STRIP_READ: this.#stripRead(f); break;
+          case STEP_READOUT: this.#readoutDecide(f); break;
+          case STEP_STRIP_WRITE: this.#stripWrite(f); break;
+          case STEP_STRIP_MEASURE: this.#stripMeasure(f); break;
+          case STEP_INIT: this.#layoutInit(f); break;
           case STEP_PASS_WRITE: return this.#passWrite(f);
           case STEP_PASS_MEASURE: return this.#passMeasure(f);
-          default: this.#publish(f); return false;
+          default: this.#publish(f);
         }
+        return false;
       } catch (error) {
         const a = f.a!;
         if (error !== ABORT && this.#current(a)) this.#failSafe(a, error);
@@ -2027,18 +1984,15 @@ class ChartController implements Controller, FrameDriver {
   // Post-frame: re-schedule if superseded, deliver diagnostics, and drain notifications.
   afterFrame(f: FrameState): void {
     this.#closeFrame(f);
-    if (f.idle) {
-      // Already finished: only what author code queued since is left to deliver.
-      this.deliverChanges();
-      this.#drain();
-      return;
+    // Already finished (idle): only what author code queued since is left to deliver.
+    if (!f.idle) {
+      const a = f.a;
+      // The frame's references go now, and the state back to the pool: a pooled state holds nothing of this
+      // chart. A frame author code starts from here (below) may take it again; this one is done with it.
+      releaseFrame(f);
+      // A call made by author code during the frame is drawn by the next one.
+      if (!this.#destroyed && this.#accepted !== a) this.schedule();
     }
-    const a = f.a;
-    // The frame's references go now, and the state back to the pool: a pooled state holds nothing of this
-    // chart. A frame author code starts from here (below) may take it again; this one is done with it.
-    releaseFrame(f);
-    // A call made by author code during the frame is drawn by the next one.
-    if (!this.#destroyed && this.#accepted !== a) this.schedule();
     // Author code last: the frame is complete before any handler runs.
     this.deliverChanges();
     this.#drain();
@@ -2601,29 +2555,28 @@ class ChartController implements Controller, FrameDriver {
     const action = f.passAction;
     f.passAction = null;
     if (action === null || this.#size === null) return false;
+    // Every pass action changed what the figure holds: each reads the plot again first.
+    const size = this.#size = this.host.measure();
     if (action === 'drop-strip') {
-      this.#size = this.host.measure();
       const result = f.result = this.#layoutForSize(f);
       f.layoutDone = result === null;
     } else if (action === 'enter-fallback') {
       const normal = f.normalSize!;
-      this.#size = this.host.measure();
-      this.#fallback = { width: (this.#size?.width ?? normal.width) - normal.width, height: (this.#size?.height ?? normal.height) - normal.height };
-      if (this.#size === null || this.#size.width <= 0) f.result = null;
+      this.#fallback = { width: (size?.width ?? normal.width) - normal.width, height: (size?.height ?? normal.height) - normal.height };
+      if (size === null || size.width <= 0) f.result = null;
       f.layoutDone = true;
     } else if (action === 'leave-fallback') {
       // The estimate let us leave fallback. Only the restored plot's measured room can decide readout.
-      this.#size = this.host.measure();
       f.readoutPending = true;
       return true;
-    } else if (action === 'note-moved') {
-      this.#size = this.host.measure();
+    } else {
       const next = this.#layoutForSize(f);
       f.layoutDone = next === null || f.result === next;
       f.result = next;
     }
     return false;
   }
+
 
   #publish(f: FrameState): void {
     const a = f.a!;
@@ -2941,7 +2894,9 @@ class ChartController implements Controller, FrameDriver {
   }
 
   // ── watchers ───────────────────────────────────────────────────────────────────────────────────
-  dirtyTextAndStrip(): void {
+  /** The text style and the strip's height are read again; with `size`, the plot size too. */
+  dirtyTextAndStrip(size: boolean): void {
+    if (size) this.sizeDirty = true;
     this.textStyleDirty = true;
     this.#stripStyle = null;
   }
@@ -2996,26 +2951,29 @@ class ChartController implements Controller, FrameDriver {
  * The handle the page holds. Prototype getters lazily bind and memoize each public method on first access,
  * keeping static charts allocation-free while preserving receiver-independent destructured/callback calls.
  */
+/** Replaces a lazy getter with the value it made, so later reads are plain properties. */
+function own<T>(handle: object, key: string, value: T): T {
+  Object.defineProperty(handle, key, { value, enumerable: true, configurable: true });
+  return value;
+}
+
 class Handle implements ChartHandle {
   readonly #c: ChartController;
   constructor(c: ChartController) { this.#c = c; }
   get update(): (patch: unknown) => void {
     const c = this.#c;
     const fn = (patch: unknown): void => { c.update(patch); };
-    Object.defineProperty(this, 'update', { value: fn, enumerable: true, configurable: true });
-    return fn;
+    return own(this, 'update', fn);
   }
   get append(): (rows: unknown, options?: { keep?: number }) => void {
     const c = this.#c;
     const fn = (rows: unknown, options?: { keep?: number }): void => { c.append(rows, options); };
-    Object.defineProperty(this, 'append', { value: fn, enumerable: true, configurable: true });
-    return fn;
+    return own(this, 'append', fn);
   }
   get zoom(): (domain: unknown) => void {
     const c = this.#c;
     const fn = (domain: unknown): void => { c.zoom(domain); };
-    Object.defineProperty(this, 'zoom', { value: fn, enumerable: true, configurable: true });
-    return fn;
+    return own(this, 'zoom', fn);
   }
   get on(): <E extends keyof ChartEvents<unknown>>(event: E, listener: (payload: ChartEvents<unknown>[E]) => void) => () => void {
     const c = this.#c;
@@ -3028,8 +2986,7 @@ class Handle implements ChartHandle {
       // Resolved through the chart's map, which destroy clears and nulls: a kept unsubscribe holds no one else.
       return () => { c.listeners?.get(event)?.delete(listener as (payload: never) => void); };
     };
-    Object.defineProperty(this, 'on', { value: fn, enumerable: true, configurable: true });
-    return fn;
+    return own(this, 'on', fn);
   }
   get diagnostics(): Diagnostic[] {
     const c = this.#c;
@@ -3038,8 +2995,7 @@ class Handle implements ChartHandle {
   get destroy(): () => void {
     const c = this.#c;
     const fn = (): void => { c.destroy(); };
-    Object.defineProperty(this, 'destroy', { value: fn, enumerable: true, configurable: true });
-    return fn;
+    return own(this, 'destroy', fn);
   }
 }
 
@@ -3076,9 +3032,8 @@ class ChartInvalidate implements Invalidate {
   resize(): void {
     const c = this.c;
     if (c.destroyed) return;
-    c.sizeDirty = true;
     // Responsive CSS can change the font or spacing with the size (plan 2.2), and the strip's height (R11).
-    c.dirtyTextAndStrip();
+    c.dirtyTextAndStrip(true);
     c.schedule();
   }
   page(): void {
@@ -3087,8 +3042,7 @@ class ChartInvalidate implements Invalidate {
     // Back in the document: anything the page could have changed meanwhile is read again, the pixel ratio
     // and web fonts included (review 3, finding 19).
     c.themeDirty = true;
-    c.dirtyTextAndStrip();
-    c.sizeDirty = true;
+    c.dirtyTextAndStrip(true);
     c.pixelRatio = c.host.devicePixelRatio();
     c.fontEpoch++;
     c.schedule();
@@ -3097,7 +3051,7 @@ class ChartInvalidate implements Invalidate {
     const c = this.c;
     if (c.destroyed) return;
     c.themeDirty = true;
-    c.dirtyTextAndStrip();
+    c.dirtyTextAndStrip(false);
     // The colours are resolved and written now, in the observer's callback, so the marks show the new
     // scheme in the first frame after the change (L4): their paint refers to the custom properties written
     // here. The light-dark() defaults follow prefers-color-scheme in CSS. Resolve AX141 when the
@@ -3121,8 +3075,7 @@ class ChartInvalidate implements Invalidate {
     const c = this.c;
     if (c.destroyed) return;
     c.fontEpoch++;
-    c.dirtyTextAndStrip();
-    c.sizeDirty = true;
+    c.dirtyTextAndStrip(true);
     c.schedule();
   }
   pixelRatio(): void {

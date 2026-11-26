@@ -95,11 +95,9 @@ export function cartesianScene(layers: DataLayers, view: View, layout: Layout, d
   const marks: Mark[] = [];
   const lines = !compact && view.references.length ? addReferenceBands(view, projection, clip, marks) : null;
   const edges = layout.kind === 'plot' && !compact ? addGrid(layout, projection, marks) : null;
-  for (const layer of layers(view, projection, clip, compact, devicePixelRatio)) {
-    for (const mark of layer) marks.push(mark);
-  }
-  if (edges) for (const edge of edges) marks.push(edge);
-  if (lines) for (const line of lines) marks.push(line);
+  for (const layer of layers(view, projection, clip, compact, devicePixelRatio)) marks.push(...layer);
+  if (edges) marks.push(...edges);
+  if (lines) marks.push(...lines);
   return { width, height, clip, marks };
 }
 

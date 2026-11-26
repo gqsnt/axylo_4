@@ -247,7 +247,7 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
   readonly interaction: Interaction;
   readonly measurer: TextMeasurer;
 
-  controller: Controller | null;
+  controller: Controller | null = null;
   readonly #composition: Composition;
   readonly #root: HTMLElement;
   readonly #win: Window & typeof globalThis;
@@ -256,31 +256,31 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
   /** The plot and the figure: what the size observers watch. */
   readonly #geometryTargets: readonly Element[];
   /** How many setup steps succeeded (STEP_*). */
-  #built: number;
-  #disposed: boolean;
+  #built: number = 0;
+  #disposed: boolean = false;
   #tree: Document | ShadowRoot;
 
-  #textLayer: TextLayer | null;
-  #textMounted: boolean;
-  #textHidden: boolean;
+  #textLayer: TextLayer | null = null;
+  #textMounted: boolean = false;
+  #textHidden: boolean = false;
 
   /** Watchers that the document holds; released while the target is out of the document. */
-  #watching: boolean;
-  #watchedBefore: boolean;
-  #stopTheme: (() => void) | null;
-  #environment: EnvSubscriber | null;
-  #language: LanguageWatch | null;
-  #interactionAttached: boolean;
+  #watching: boolean = false;
+  #watchedBefore: boolean = false;
+  #stopTheme: (() => void) | null = null;
+  #environment: EnvSubscriber | null = null;
+  #language: LanguageWatch | null = null;
+  #interactionAttached: boolean = false;
 
   /**
    * Deferred font-load probe until first non-empty text render so compact/donut charts skip it. The probe
    * stays in this chart's text layer (it inherits the chart's font and spacing); the observer is the
    * document's shared one.
    */
-  #fontProbe: HTMLDivElement | null;
-  #probeRegistration: ProbeRegistration | null;
+  #fontProbe: HTMLDivElement | null = null;
+  #probeRegistration: ProbeRegistration | null = null;
   /** One strip-height probe per chart, made when first asked for: it is mounted for a read and taken out again. */
-  #stripHolder: HTMLDivElement | null;
+  #stripHolder: HTMLDivElement | null = null;
 
   /**
    * Size and attachment. While the target is in the document its figure and plot are observed on the
@@ -288,27 +288,27 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
    * reachable from the page and its return is still noticed. Observers are never started from inside a
    * ResizeObserver delivery (that would be reported as a resize loop): the switch waits for the next frame.
    */
-  #geometry: GeometryRegistration | null;
-  #detachedObserver: ResizeObserver | null;
-  #switchFrame: number;
+  #geometry: GeometryRegistration | null = null;
+  #detachedObserver: ResizeObserver | null = null;
+  #switchFrame: number = 0;
   /** The next shared delivery is the first since the targets were observed there. */
-  #firstDelivery: boolean;
+  #firstDelivery: boolean = false;
   /**
    * The border boxes the last measure() read, in layout pixels (what a ResizeObserver reports); `comparable`
    * only while they are known to be that: the plot's mapping is the identity (no scale on it or above it) and
    * the figure's box agrees with its integer layout size, so no transform makes a viewport size pass for a
    * layout one. Otherwise every delivery is a resize.
    */
-  #comparable: boolean;
-  #figureWidth: number;
-  #figureHeight: number;
-  #plotWidth: number;
-  #plotHeight: number;
+  #comparable: boolean = false;
+  #figureWidth: number = 0;
+  #figureHeight: number = 0;
+  #plotWidth: number = 0;
+  #plotHeight: number = 0;
   /** A frame or a zoom microtask the controller asked for and that has not run yet. */
-  #framePending: number;
-  #microtasksPending: number;
+  #framePending: number = 0;
+  #microtasksPending: number = 0;
   /** The controller keeps at most one frame request; tracked so a resize delivery can tell it is still due. */
-  #frameCallback: ((time?: number) => void) | null;
+  #frameCallback: ((time?: number) => void) | null = null;
 
   constructor(
     composition: Composition, root: HTMLElement, doc: Document, win: Window & typeof globalThis, input: unknown,
@@ -318,33 +318,6 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
     this.#root = root;
     this.page = doc;
     this.#win = win;
-    this.controller = null;
-    this.#built = 0;
-    this.#disposed = false;
-    this.#textLayer = null;
-    this.#textMounted = false;
-    this.#textHidden = false;
-    this.#watching = false;
-    this.#watchedBefore = false;
-    this.#stopTheme = null;
-    this.#environment = null;
-    this.#language = null;
-    this.#interactionAttached = false;
-    this.#fontProbe = null;
-    this.#probeRegistration = null;
-    this.#stripHolder = null;
-    this.#geometry = null;
-    this.#detachedObserver = null;
-    this.#switchFrame = 0;
-    this.#firstDelivery = false;
-    this.#comparable = false;
-    this.#figureWidth = 0;
-    this.#figureHeight = 0;
-    this.#plotWidth = 0;
-    this.#plotHeight = 0;
-    this.#framePending = 0;
-    this.#microtasksPending = 0;
-    this.#frameCallback = null;
     this.targetId = root.id || null;
     this.console = overrides.console === undefined ? (win.console as DeliveryConsole) : overrides.console;
     this.#isDonut = composition.kind === 'donut';
@@ -472,6 +445,13 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
 
   // ── font probe ────────────────────────────────────────────────────────────────────────────────
 
+  /** Lets go of what only a connected chart watches. */
+  #stopAttached(): void {
+    this.#unwatch();
+    this.#leaveShared();
+    this.#stopProbe();
+  }
+
   #stopProbe(): void {
     const registration = this.#probeRegistration;
     this.#probeRegistration = null;
@@ -555,9 +535,7 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
     const controller = this.controller;
     if (!controller) return;
     if (!this.#root.isConnected) {
-      this.#unwatch();
-      this.#leaveShared();
-      this.#stopProbe();
+      this.#stopAttached();
       this.#scheduleSwitch();
       return;
     }
@@ -617,9 +595,7 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
       this.#observeProbe();
     } else {
       // Out again since the last delivery: nothing of the document may keep holding the chart.
-      this.#unwatch();
-      this.#leaveShared();
-      this.#stopProbe();
+      this.#stopAttached();
       this.#startDetached();
     }
   }

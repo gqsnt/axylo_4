@@ -13,6 +13,13 @@ export function rovingIndex(e: KeyboardEvent, at: number, n: number): number | n
     : k === 'Home' ? 0 : k === 'End' ? n - 1 : null;
 }
 
+/** Chooses the next surviving control, keeping forward traversal when possible. */
+export function focusNeighbor<T>(order: readonly T[], at: number, kept: (item: T) => boolean): T | undefined {
+  for (let i = at + 1; i < order.length; i++) if (kept(order[i]!)) return order[i];
+  for (let i = at - 1; i >= 0; i--) if (kept(order[i]!)) return order[i];
+  return undefined;
+}
+
 export interface ToolbarItem {
   readonly key: string;
   readonly label: string;
@@ -25,7 +32,7 @@ export interface ToolbarItem {
   readonly className: string;
   readonly symbol?: 'range';
   readonly disabled?: boolean;
-  activate(): void;
+  readonly action?: string;
 }
 
 export interface Toolbar {
@@ -55,7 +62,7 @@ interface ButtonEntry {
   s: string;
 }
 
-export function createToolbar(doc: Document): Toolbar {
+export function createToolbar(doc: Document, actions: { activateControl(action: string): void }): Toolbar {
   const element = make(doc, 'div', 'axylo-toolbar');
   setAttr(element, 'role', 'toolbar');
   const listening = new Listeners();
@@ -76,7 +83,7 @@ export function createToolbar(doc: Document): Toolbar {
     for (const [k, { b }] of buttons) if (b === e.target) setCurrent(k);
   });
   listening.on(element, 'click', e => {
-    for (const { b, i } of buttons.values()) if (b.contains(e.target as Node) && !i.disabled) { i.activate(); return; }
+    for (const { b, i } of buttons.values()) if (b.contains(e.target as Node) && !i.disabled) { actions.activateControl(i.action ?? i.key); return; }
   });
 
   return {
@@ -90,10 +97,7 @@ export function createToolbar(doc: Document): Toolbar {
       const keys = items.map(i => i.key);
       let heir: string | null = null;
       if (focusedKey !== null && !keys.includes(focusedKey)) {
-        const was = order.indexOf(focusedKey);
-        for (let i = was + 1; i < order.length && !heir; i++) if (keys.includes(order[i]!)) heir = order[i]!;
-        for (let i = was - 1; i >= 0 && !heir; i--) if (keys.includes(order[i]!)) heir = order[i]!;
-        heir ??= keys[0] ?? null;
+        heir = focusNeighbor(order, order.indexOf(focusedKey), key => keys.includes(key)) ?? keys[0] ?? null;
       }
       for (const k of buttons.keys()) if (!keys.includes(k)) buttons.delete(k);
       const nodes: HTMLButtonElement[] = [];

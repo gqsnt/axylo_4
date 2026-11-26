@@ -40,9 +40,8 @@ export function placeText(
   const height = lines.length * metrics.lineHeight;
   const left = anchor === 'start' ? 0 : anchor === 'middle' ? -width / 2 : -width;
   const top = baseline === 'top' ? 0 : baseline === 'middle' ? -height / 2 : -height;
-  if (rotate === 0) return { lines, full, x, y, anchor, baseline, rotate, role, box: { x: x + left, y: y + top, width, height } };
-  const sine = rotate === -45 ? DIAGONAL : 1;
-  const cosine = rotate === -45 ? DIAGONAL : 0;
+  const sine = rotate === -45 ? DIAGONAL : rotate ? 1 : 0;
+  const cosine = rotate === -45 ? DIAGONAL : rotate ? 0 : 1;
   return {
     lines, full, x, y, anchor, baseline, rotate, role,
     box: {
@@ -108,48 +107,34 @@ function hasLabel(text: string): boolean {
   return (first > 0x20 && first <= 0x7e) || NON_WHITESPACE.test(text);
 }
 
-function endOfSpaces(text: string, start: number): number {
-  let end = start + 1;
-  while (text.charCodeAt(end) === 32) end++;
-  return end;
-}
-
 function wrapLabel(text: string, current: readonly string[], count: 2 | 3, metrics: Metrics): readonly string[] {
   let best = current;
   let width = widest(current, metrics);
   // Replace exactly one space at each break so the lines still identify the source.
-  let end = 0;
-  for (let start = text.indexOf(' '); start >= 0; start = text.indexOf(' ', end)) {
-    end = endOfSpaces(text, start);
-    const split = start + Math.floor((end - start - 1) / 2);
-    const first = text.slice(0, split);
-    if (!hasLabel(first)) continue;
-    const firstWidth = metrics.width(first);
-    if (firstWidth >= width) break;
-    if (count === 2) {
+  const search = (sliceFrom: number, searchFrom: number, parts: number, maxPrior: number, prior: string | null): void => {
+    let end = searchFrom;
+    for (let start = text.indexOf(' ', searchFrom); start >= 0; start = text.indexOf(' ', end)) {
+      end = start + 1;
+      while (text.charCodeAt(end) === 32) end++;
+      const split = start + Math.floor((end - start - 1) / 2);
+      const part = text.slice(sliceFrom, split);
+      if (!hasLabel(part)) continue;
+      const partWidth = metrics.width(part);
+      if (partWidth >= width) break;
+      const prefixWidth = Math.max(maxPrior, partWidth);
+      if (parts > 2) {
+        search(split + 1, end, parts - 1, prefixWidth, part);
+        continue;
+      }
       const last = text.slice(split + 1);
-      const next = Math.max(firstWidth, metrics.width(last));
+      const next = Math.max(prefixWidth, metrics.width(last));
       if (hasLabel(last) && next < width) {
-        best = [first, last];
-        width = next;
-      }
-      continue;
-    }
-    let secondEnd = end;
-    for (let secondStart = text.indexOf(' ', end); secondStart >= 0; secondStart = text.indexOf(' ', secondEnd)) {
-      secondEnd = endOfSpaces(text, secondStart);
-      const secondSplit = secondStart + Math.floor((secondEnd - secondStart - 1) / 2);
-      const second = text.slice(split + 1, secondSplit);
-      const secondWidth = metrics.width(second);
-      if (secondWidth >= width) break;
-      const last = text.slice(secondSplit + 1);
-      const next = Math.max(firstWidth, secondWidth, metrics.width(last));
-      if (hasLabel(last) && next < width) {
-        best = [first, second, last];
+        best = prior === null ? [part, last] : [prior, part, last];
         width = next;
       }
     }
-  }
+  };
+  search(0, 0, count, 0, null);
   return best;
 }
 
@@ -373,9 +358,8 @@ function singleLineResult(
   for (let i = 0; i < ticks.length; i++) {
     const { label } = ticks[i]!;
     const anchor = measured[2 * i]!, width = measured[2 * i + 1]!;
-    texts.push(bottom
-      ? placeText([label], label, anchor, bottomY, 'middle', 'top', 0, role, metrics, width)
-      : placeText([label], label, 0, anchor, 'end', 'middle', 0, role, metrics, width));
+    texts.push(placeText([label], label, bottom ? anchor : 0, bottom ? bottomY : anchor,
+      bottom ? 'middle' : 'end', bottom ? 'top' : 'middle', 0, role, metrics, width));
     if (!bottom) depth = Math.max(depth, width);
   }
   return { ticks, texts, depth, remedies };

@@ -82,6 +82,21 @@ function markerPath(shape: MarkerShape, cx: number, cy: number, size: number): s
   return d + 'Z';
 }
 
+function appendShape(svg: SVGSVGElement, doc: Document, spec: SwatchSpec, square: boolean, marked: boolean, onChip: boolean): void {
+  const marker = spec.cue?.marker;
+  const shape = svgElement(doc, 'path', {
+    class: square ? 'axylo-swatch-chip' : 'axylo-swatch-marker',
+    d: square ? 'M5 1H15V11H5Z' : (markerPaths[marker!] ??= markerPath(marker!, 10, 6, 10)),
+  });
+  if (square && marked && !spec.hollow) shape.setAttribute('fill-opacity', '0.4');
+  shape.setAttribute('fill', spec.hollow ? BACKGROUND : 'currentColor');
+  if (spec.hollow || onChip) {
+    shape.setAttribute('stroke', spec.hollow ? 'currentColor' : BACKGROUND);
+    shape.setAttribute('stroke-width', spec.hollow ? '1.5' : '1');
+  }
+  svg.appendChild(shape);
+}
+
 /** A 20 × 12 swatch (CSS px). aria-hidden: the series name beside it is the text. */
 export function createSwatch(doc: Document, spec: SwatchSpec): SVGSVGElement {
   const svg = svgElement(doc, 'svg', {
@@ -101,22 +116,8 @@ export function createSwatch(doc: Document, spec: SwatchSpec): SVGSVGElement {
   // Under the line a hollow marker needs the background inside it, or the line shows through.
   const chip = spec.fill === true || !spec.cue;
   const marked = chip && spec.marker === true && spec.cue !== null;
-  const appendShape = (square: boolean, onChip: boolean): void => {
-    const marker = spec.cue?.marker;
-    const shape = svgElement(doc, 'path', {
-      class: square ? 'axylo-swatch-chip' : 'axylo-swatch-marker',
-      d: square ? 'M5 1H15V11H5Z' : (markerPaths[marker!] ??= markerPath(marker!, 10, 6, 10)),
-    });
-    if (square && marked && !spec.hollow) shape.setAttribute('fill-opacity', '0.4');
-    shape.setAttribute('fill', spec.hollow ? BACKGROUND : 'currentColor');
-    if (spec.hollow || onChip) {
-      shape.setAttribute('stroke', spec.hollow ? 'currentColor' : BACKGROUND);
-      shape.setAttribute('stroke-width', spec.hollow ? '1.5' : '1');
-    }
-    svg.appendChild(shape);
-  };
-  appendShape(chip, false);
-  if (marked) appendShape(false, true);
+  appendShape(svg, doc, spec, chip, marked, false);
+  if (marked) appendShape(svg, doc, spec, false, marked, true);
   if (chip && spec.pattern && !spec.hollow) {
     const dots = spec.pattern.kind === 'dots';
     const pattern = svgElement(doc, 'path', { class: 'axylo-swatch-pattern', d: spec.pattern.d, fill: dots ? BACKGROUND : 'none' });

@@ -102,6 +102,9 @@ export function readValues(
   const reports = new Reports(field.field, sink);
   mode ??= borrowed ? 'other' : inspectValues(table, field.field, included);
 
+  const reportError = (code: 'AX102' | 'AX103' | 'AX104' | 'AX106', effect: 'omitted' | 'changed' | 'none', row: number, example?: unknown, info?: string) =>
+    reports.add(code, effect, startRow + table.rowIndex(row), example, undefined, info === undefined ? undefined : { outcome: info });
+
   for (; i < table.length; i++) {
     if (included && !included(i)) continue;
     const raw = column === undefined ? table.read(i, field.field) : column[i];
@@ -116,12 +119,11 @@ export function readValues(
       else if (Number.isNaN(raw) && (column || table.isColumnRow(i))) state = SLOT_NULL;
       else {
         state = SLOT_INVALID;
-        reports.add('AX103', 'omitted', startRow + table.rowIndex(i), raw, undefined, { outcome });
+        reportError('AX103', 'omitted', i, raw, outcome);
       }
     } else if (raw === undefined) {
       state = SLOT_ABSENT_FIELD;
-      reports.add('AX102', zero ? 'changed' : 'omitted', startRow + table.rowIndex(i), undefined, undefined,
-        { outcome: zero ? undefined : outcome });
+      reportError('AX102', zero ? 'changed' : 'omitted', i, undefined, zero ? undefined : outcome);
     } else if (raw === null || raw === '') {
       state = SLOT_NULL;
     } else if (mode === 'decimal' || mode === 'parsed' && typeof raw === 'string' && decimal.test(raw)) {
@@ -129,12 +131,12 @@ export function readValues(
       if (!Number.isFinite(value)) {
         value = NaN;
         state = SLOT_INVALID;
-        reports.add('AX103', 'omitted', startRow + table.rowIndex(i), raw, undefined, { outcome });
+        reportError('AX103', 'omitted', i, raw, outcome);
       }
-      if (field.parse !== 'number') reports.add('AX104', 'none', startRow + table.rowIndex(i));
+      if (field.parse !== 'number') reportError('AX104', 'none', i);
     } else {
       state = SLOT_INVALID;
-      reports.add('AX106', 'omitted', startRow + table.rowIndex(i), raw, undefined, { outcome });
+      reportError('AX106', 'omitted', i, raw, outcome);
     }
     if (zero && (state === SLOT_NULL || state === SLOT_ABSENT_FIELD)) value = 0;
     if (y === column && !Object.is(y[i], value)) {

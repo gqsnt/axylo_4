@@ -121,13 +121,17 @@ function nextObservation(slot: Uint8Array | null, from: number, end: number, dir
   return from;
 }
 
+function spanRange(range: IndexRange, start: number, end: number): IndexRange {
+  return start === range.start && end === range.end ? range : { start, end };
+}
+
 /** drawRange for a series of `length` slots that are all SLOT_VALUE: no state is read. */
 function denseDrawRange(length: number, range: IndexRange): IndexRange {
   const { start, end } = range;
   const left = start > 0 && start - 1 < length ? start - 1 : start;
   const right = end >= 0 && end < length ? end + 1 : end;
   if (start === end && (left === start || right === end)) return range;
-  return left === start && right === end ? range : { start: left, end: right };
+  return spanRange(range, left, right);
 }
 
 function drawRange(slot: Uint8Array, range: IndexRange): IndexRange {
@@ -146,7 +150,7 @@ function drawRange(slot: Uint8Array, range: IndexRange): IndexRange {
   }
   // A view between observations can show their connecting segment, but only if both ends exist.
   if (first === end && (left === start || right === end)) return range;
-  return left === start && right === end ? range : { start: left, end: right };
+  return spanRange(range, left, right);
 }
 
 /** Stacked bands taper across the immediate frame interval even when a component has no stroke there. */
@@ -156,7 +160,7 @@ export function stackAreaRange(frame: AlignedFrame, visible: IndexRange, domain:
   if (frame.x.kind === 'category') return visible;
   const left = start > 0 && start < x.length && domain[0] < x[start]! ? start - 1 : start;
   const right = end > 0 && end < x.length && x[end - 1]! < domain[1] ? end + 1 : end;
-  return left === start && right === end ? visible : { start: left, end: right };
+  return spanRange(visible, left, right);
 }
 
 function adjacentDrawRange(slot: Uint8Array | null, length: number, visible: IndexRange, fill: IndexRange): IndexRange {
@@ -251,6 +255,9 @@ export function alignedExtrema(
 ): Span {
   let min = Infinity;
   let max = -Infinity;
+  const include = (value: number) => {
+    if (Number.isFinite(value)) { min = Math.min(min, value); max = Math.max(max, value); }
+  };
   const x = frame.x.values;
   if (stack) {
     const { start, end } = kind === 'bar' ? draws[0] ?? range : range;
@@ -258,18 +265,9 @@ export function alignedExtrema(
     const fill = domain && kind === 'area' ? stackAreaRange(frame, range, domain) : range;
     for (const total of [stack.negative.at(-1), stack.positive.at(-1)]) {
       if (!total) continue;
-      for (let i = start; i < end; i++) {
-        const value = total[i]!;
-        if (Number.isFinite(value)) { min = Math.min(min, value); max = Math.max(max, value); }
-      }
-      if (domain && fill.start < start) {
-        const value = interpolated(x, domain[0], start - 1, start, total);
-        if (Number.isFinite(value)) { min = Math.min(min, value); max = Math.max(max, value); }
-      }
-      if (domain && end < fill.end) {
-        const value = interpolated(x, domain[1], end - 1, end, total);
-        if (Number.isFinite(value)) { min = Math.min(min, value); max = Math.max(max, value); }
-      }
+      for (let i = start; i < end; i++) include(total[i]!);
+      if (domain && fill.start < start) include(interpolated(x, domain[0], start - 1, start, total));
+      if (domain && end < fill.end) include(interpolated(x, domain[1], end - 1, end, total));
     }
     return [min, max];
   }
@@ -284,17 +282,8 @@ export function alignedExtrema(
     max = Math.max(max, stats.max);
     if (!domain || kind === 'bar') continue;
     const draw = draws[series]!;
-    if (draw.start < start) {
-      const right = nextObservation(slot, start, draw.end, 1);
-      const value = interpolated(x, domain[0], draw.start, right, y);
-      if (Number.isFinite(value)) { min = Math.min(min, value); max = Math.max(max, value); }
-    }
-    if (draw.end > end) {
-      const left = nextObservation(slot, end - 1, draw.start - 1, -1);
-      const right = draw.end - 1;
-      const value = interpolated(x, domain[1], left, right, y);
-      if (Number.isFinite(value)) { min = Math.min(min, value); max = Math.max(max, value); }
-    }
+    if (draw.start < start) include(interpolated(x, domain[0], draw.start, nextObservation(slot, start, draw.end, 1), y));
+    if (draw.end > end) include(interpolated(x, domain[1], nextObservation(slot, end - 1, draw.start - 1, -1), draw.end - 1, y));
   }
   return [min, max];
 }
@@ -308,11 +297,9 @@ export function pointExtrema(frame: PointFrame, visible: readonly boolean[], ran
     const { start, end } = ranges[i]!;
     for (let j = start; j < end; j++) {
       const v = y[j]!;
-      if (!(v > -Infinity && v < Infinity)) continue;
-      if (v < min) min = v;
-      else if (v === 0 && min === 0) min = Math.min(min, v);
-      if (v > max) max = v;
-      else if (v === 0 && max === 0) max = Math.max(max, v);
+      if (!Number.isFinite(v)) continue;
+      min = Math.min(min, v);
+      max = Math.max(max, v);
     }
   }
   return [min, max];

@@ -3,7 +3,7 @@
  */
 import { Listeners } from './mapping';
 import type { TableModel, XValue } from '../core/contracts';
-import { activeElementOf, setAttr, make } from './attributes';
+import { activeElementOf, announceText, focusQuiet, make, setAttr, setLanguageText } from './attributes';
 
 export interface TableTexts {
   readonly previousPage: string;
@@ -103,14 +103,12 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
       rows.push(tr);
     }
     body.replaceChildren(...rows);
-    if (count <= 1 && pager.contains(activeElementOf(doc, pager))) scroll.focus({ preventScroll: true });
+    if (count <= 1 && pager.contains(activeElementOf(doc, pager))) focusQuiet(scroll);
     pager.hidden = count <= 1;
-    previous.textContent = t.previousPage;
-    next.textContent = t.nextPage;
-    labelText.textContent = t.jump;
     const pageLang = t.lang('pageOf');
-    setAttr(previous, 'lang', t.lang('previousPage'));
-    setAttr(next, 'lang', t.lang('nextPage'));
+    setLanguageText(previous, t.previousPage, t.lang('previousPage'));
+    setLanguageText(next, t.nextPage, t.lang('nextPage'));
+    labelText.textContent = t.jump;
     setAttr(status, 'lang', pageLang);
     setAttr(label, 'lang', t.lang('jumpToX'));
     setAttr(previous, 'aria-disabled', page === 0 ? 'true' : null);
@@ -118,7 +116,7 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
     const pageText = t.pageOf(page + 1, count);
     if (status.textContent !== pageText) {
       status.textContent = pageText;
-      if (reader) { setAttr(announcement, 'lang', pageLang); announcement.textContent = pageText; }
+      if (reader) announceText(announcement, pageText, pageLang);
     }
   }
 
@@ -155,7 +153,7 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
       if (maxHeight !== shownHeight) { scroll.style.maxHeight = maxHeight > 0 ? `${Math.floor(maxHeight)}px` : ''; shownHeight = maxHeight; }
       render();
     },
-    focus() { scroll.focus({ preventScroll: true }); },
+    focus() { focusQuiet(scroll); },
     destroy() { listening.clear(); element.remove(); model = null; },
   };
 }

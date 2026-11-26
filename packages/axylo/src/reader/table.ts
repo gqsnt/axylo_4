@@ -16,10 +16,6 @@ export function withUnit(label: string, unit: string | null): string {
   return unit ? `${label} (${unit})` : label;
 }
 
-function page(ordinal: number, count: number): number | null {
-  return ordinal >= 0 && ordinal < count ? Math.floor(ordinal / PAGE_SIZE) : null;
-}
-
 function paged(
   caption: string, headers: readonly string[], rowCount: number,
   row: TableModel['row'], ordinalForX: (x: XValue) => number,
@@ -27,7 +23,10 @@ function paged(
   return {
     caption, headers, rowCount, pageSize: PAGE_SIZE,
     row: i => Number.isInteger(i) && i >= 0 && i < rowCount ? row(i) : null,
-    pageForX: x => page(ordinalForX(x), rowCount),
+    pageForX(x) {
+      const ordinal = ordinalForX(x);
+      return ordinal >= 0 && ordinal < rowCount ? Math.floor(ordinal / PAGE_SIZE) : null;
+    },
   };
 }
 
@@ -40,6 +39,11 @@ export interface ReaderLabels {
   readonly xUnit?: string | null;
 }
 
+function visibleX(x: Float64Array, min: number, max: number): IndexRange {
+  const start = lowerBound(x, min);
+  return { start, end: upperBound(x, max, start) };
+}
+
 function scatterRows(view: ScatterView, work?: PointOrderWork) {
   const { frame, visiblePoints, xDomain: [min, max] } = view;
   const gaps: { x: Float64Array; y: null }[] = [];
@@ -48,11 +52,10 @@ function scatterRows(view: ScatterView, work?: PointOrderWork) {
   frame.series.forEach((series, s) => {
     const x = series.missingX;
     if (!x?.length) return;
-    const start = lowerBound(x, min);
-    const end = upperBound(x, max, start);
-    if (start === end) return;
+    const range = visibleX(x, min, max);
+    if (range.start === range.end) return;
     gaps.push({ x, y: null });
-    ranges.push({ start, end });
+    ranges.push(range);
     sources.push(s);
   });
   const order = pointOrder(gaps.length ? [...frame.series, ...gaps] : frame.series,
@@ -152,18 +155,14 @@ export const alignedTable: TableBuilder = (view, caption, formatters, messages, 
  */
 export function printedX(view: View, formatters: Formatters, matches: (printed: string) => boolean): number | null {
   let found = Infinity;
-  const scan = (xs: Float64Array, start: number, end: number) => {
-    for (let i = start; i < end; i++) if (xs[i]! < found && matches(formatters.x(xs[i]!))) found = xs[i]!;
-  };
   if (view.kind === 'scatter') {
-    const [min, max] = view.xDomain;
-    view.frame.series.forEach((series, s) => {
-      scan(series.x, view.visiblePoints[s]!.start, view.visiblePoints[s]!.end);
-      const missing = series.missingX;
-      if (missing) {
-        const start = lowerBound(missing, min);
-        scan(missing, start, upperBound(missing, max, start));
-      }
+    const { xDomain: [min, max], visiblePoints } = view;
+    const scan = (xs: Float64Array, { start, end }: IndexRange) => {
+      for (let i = start; i < end; i++) if (xs[i]! < found && matches(formatters.x(xs[i]!))) found = xs[i]!;
+    };
+    view.frame.series.forEach(({ x, missingX }, s) => {
+      scan(x, visiblePoints[s]!);
+      if (missingX) scan(missingX, visibleX(missingX, min, max));
     });
   } else if (view.kind !== 'donut') {
     for (let i = view.visibleSlots.start; i < view.visibleSlots.end; i++) {

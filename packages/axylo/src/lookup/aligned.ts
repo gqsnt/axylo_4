@@ -358,27 +358,19 @@ class AlignedLookup implements AlignedHoverLookup {
     if (resolved?.kind !== 'aligned') return null;
     const s = this.#seriesIndex(resolved.seriesKey)!;
     const at = this.#index(resolved.x);
-    let to = -1;
-    switch (direction) {
-      case 'series-next':
-      case 'series-previous': {
-        const neighbor = this.#visible[this.#visible.indexOf(s) + (direction === 'series-next' ? 1 : -1)];
-        return neighbor === undefined ? null : this.#ref(neighbor, at);
-      }
-      case 'first': to = this.#seek(s, this.#start, 1); break;
-      case 'last': to = this.#seek(s, this.#end - 1, -1); break;
-      case 'next': to = this.#seek(s, at + 1, 1); break;
-      case 'previous': to = this.#seek(s, at - 1, -1); break;
-      case 'page-next':
-      case 'page-previous': {
-        const forward = direction === 'page-next';
-        const delta = forward ? 1 : -1;
-        const target = stepIndex(direction, at, this.#start, this.#end);
-        if (target === null) return null;
-        to = this.#seek(s, target, delta);
-        if (to < 0) to = this.#seek(s, target - delta, forward ? -1 : 1, forward ? at + 1 : this.#start, forward ? this.#end : at);
-        break;
-      }
+    if (direction === 'series-next' || direction === 'series-previous') {
+      const neighbor = this.#visible[this.#visible.indexOf(s) + (direction === 'series-next' ? 1 : -1)];
+      return neighbor === undefined ? null : this.#ref(neighbor, at);
+    }
+    // An exact ref can name a missing boundary slot. Home/End must search
+    // inward even when the range control is already at that boundary.
+    const edge = direction === 'first' || direction === 'last';
+    const target = stepIndex(direction, edge ? -1 : at, this.#start, this.#end);
+    if (target === null) return null;
+    const delta = direction === 'first' || direction === 'next' || direction === 'page-next' ? 1 : -1;
+    let to = this.#seek(s, target, delta);
+    if (to < 0 && (direction === 'page-next' || direction === 'page-previous')) {
+      to = this.#seek(s, target - delta, delta === 1 ? -1 : 1, delta === 1 ? at + 1 : this.#start, delta === 1 ? this.#end : at);
     }
     return to < 0 || to === at ? null : this.#ref(s, to);
   }

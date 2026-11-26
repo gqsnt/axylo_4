@@ -1,7 +1,7 @@
 /**
  * Renders a tooltip model as text (spec I1, DX8: textContent only), floating or in the strip under the plot.
  */
-import { activeElementOf, placeChildren, setAttr, setText, make, keepFocusOnPress, shadowRootsOf } from './attributes';
+import { activeElementOf, focusQuiet, placeChildren, setAttr, setLanguageText, setText, make, keepFocusOnPress, shadowRootsOf } from './attributes';
 import type { DatumRef, DatumText, Rect, TextMeasurer, TextStyle, TooltipModel } from '../core/contracts';
 import { createMeasurer, readTextStyle } from '../core/environment';
 import { createSwatch, type SwatchSpec } from './swatch';
@@ -33,20 +33,23 @@ export interface TooltipView {
   destroy(): void;
 }
 
-interface RowEntry {
-  readonly button: boolean;
+interface ReadoutRow {
   readonly e: HTMLElement;
   readonly n: HTMLElement;
   readonly v: HTMLElement;
+  p: SwatchSpec | null;
+  l: string;
+  g: string | null;
+  value: string;
+}
+
+interface RowEntry extends ReadoutRow {
+  readonly button: boolean;
   readonly t: Text;
   readonly label: Text;
   readonly s: Text | null;
   r: DatumText;
   ref: DatumRef;
-  p: SwatchSpec | null;
-  l: string | null;
-  g: string | null;
-  value: string;
 }
 
 interface MoreEntry {
@@ -64,7 +67,7 @@ interface HoverText {
 
 interface HoverRow extends HoverText {
   readonly element: HTMLElement;
-  readonly label: string | null;
+  readonly label: string;
   readonly swatch: SwatchSpec | null;
   readonly lang: string | null;
   readonly fixed: number;
@@ -120,8 +123,7 @@ function sameRow(a: DatumRef, b: DatumRef | null): boolean {
   return b?.kind === 'slice' && a.sliceKey === b.sliceKey;
 }
 
-type FloatTotal = { row: HTMLElement; name: HTMLElement; value: HTMLElement; label: string; lang: string | null; text: string };
-const FLOAT_PINNED = 'axylo-tooltip-pinned', STRIP_PINNED = 'axylo-readout-pinned';
+const PINNED_CLASS = ['axylo-tooltip-pinned', 'axylo-readout-pinned'] as const;
 const CHOICE_EVENTS = ['mousedown', 'pointerdown', 'pointerup', 'pointercancel', 'click'] as const;
 const FLOAT_WRAPPED = 1, FLOAT_OBSERVED = 2;
 const buttonOf = (e: Event) => (e.target as Element | null)?.closest?.('button.axylo-tooltip-choice');
@@ -130,11 +132,11 @@ function tooltipText(doc: Document, part: 'title' | 'series' | 'value', tag: 'sp
   return make(doc, tag, `axylo-tooltip-${part}`);
 }
 
-function floatingTotal(doc: Document): FloatTotal {
-  const row = make(doc, 'div', 'axylo-tooltip-row axylo-tooltip-total');
-  const name = tooltipText(doc, 'series'), value = tooltipText(doc, 'value');
-  row.append(name, value);
-  return { row, name, value, label: '', lang: null, text: '' };
+function floatingTotal(doc: Document): ReadoutRow {
+  const e = make(doc, 'div', 'axylo-tooltip-row axylo-tooltip-total');
+  const n = tooltipText(doc, 'series'), v = tooltipText(doc, 'value');
+  e.append(n, v);
+  return { e, n, v, p: null, l: '', g: null, value: '' };
 }
 
 function withinStrip(el: Element | null, box: Rect, right: number, bottom: number): boolean {
@@ -184,7 +186,7 @@ class DomTooltip implements TooltipView {
   #measurer: TextMeasurer | undefined;
   #sizeObserver: ResizeObserver | undefined;
   #floatTitleText = '';
-  #floatTotal: FloatTotal | null = null;
+  #floatTotal: ReadoutRow | null = null;
   #stripParts: [title: HTMLElement, total: HTMLElement, moreSep: Text, totalSep: Text] | null = null;
 
   readonly #element: HTMLElement;
@@ -224,24 +226,26 @@ class DomTooltip implements TooltipView {
 
   #onChoice(event: MouseEvent): void {
     const rows = this.#entries[event.currentTarget === this.#readoutElement ? 1 : 0];
-    if (event.type === 'mousedown') {
-      if (buttonOf(event)) keepFocusOnPress(event);
-    } else if (event.type === 'pointerdown') {
-      const button = buttonOf(event), row = button && rows?.find(entry => entry.e === button);
-      if (row) this.#startPress(row.ref, (event as PointerEvent).pointerId); else this.#clearPress();
-    } else if (event.type === 'pointerup') {
+    const { type } = event;
+    if (type === 'pointercancel') { this.#cancelPointer(event); return; }
+    if (type === 'pointerup') {
       const ref = this.#pressRef;
       if (ref === null || this.#pressPtr !== (event as PointerEvent).pointerId) return;
       this.#clearPress();
       this.#pressedRef = ref; this.#pressedAt = event.timeStamp;
       const row = rows?.find(entry => entry.button && sameRow(entry.ref, ref));
       if (row) this.#current?.select?.(row.r);
-    } else if (event.type === 'pointercancel') {
-      this.#cancelPointer(event);
-    } else if (event.type === 'click') {
-      const button = buttonOf(event);
-      if (!button) return;
-      const row = rows?.find(entry => entry.e === button);
+      return;
+    }
+    const button = buttonOf(event);
+    if (type === 'mousedown') {
+      if (button) keepFocusOnPress(event);
+      return;
+    }
+    const row = button && rows?.find(entry => entry.e === button);
+    if (type === 'pointerdown') {
+      if (row) this.#startPress(row.ref, (event as PointerEvent).pointerId); else this.#clearPress();
+    } else if (button) {
       if (!row) this.#current?.more?.(this.#displayed);
       else if (!(event.detail > 0 && sameRow(row.ref, this.#pressedRef) && event.timeStamp - this.#pressedAt < 1000)) this.#current?.select?.(row.r);
     }
@@ -334,6 +338,31 @@ class DomTooltip implements TooltipView {
     return entry;
   }
 
+  #mountRows(
+    title: HTMLElement, rows: readonly RowEntry[], shown: number, content: TooltipContent, pinned: boolean, total: HTMLElement | null,
+    strip?: readonly [HTMLElement, HTMLElement, Text, Text],
+  ): MoreEntry | null {
+    const parts = this.#children ??= [];
+    parts.push(title);
+    for (let i = 0; i < shown; i++) {
+      const row = rows[i]!;
+      if (strip && i) parts.push(row.s!);
+      parts.push(row.e);
+    }
+    this.#displayed = shown;
+    if (strip && total) parts.push(strip[3], total);
+    const count = content.model.count;
+    const more = count > shown ? this.#moreEntry(strip !== undefined, pinned, content, count - shown) : null;
+    if (more) {
+      if (strip && shown) parts.push(strip[2]);
+      parts.push(more.el);
+    }
+    if (!strip && total) parts.push(total);
+    placeChildren(strip ? this.#readoutElement : this.#element, parts);
+    parts.length = 0;
+    return more;
+  }
+
   #observeSize(): void {
     if (this.#floatFlags & FLOAT_OBSERVED) return;
     const Observer = (this.#doc.defaultView as (Window & typeof globalThis) | null)?.ResizeObserver;
@@ -367,8 +396,15 @@ class DomTooltip implements TooltipView {
     return entry;
   }
 
+  #measureRow(win: Window, measure: TextMeasurer, entry: ReadoutRow, key: string): HoverRow {
+    const swatch = entry.p ? entry.n.firstElementChild : null;
+    const swatchWidth = swatch ? (parseFloat(win.getComputedStyle(swatch).width) || 20) + columnGap(win, entry.n) : 0;
+    const fixed = measure.width(entry.l, readTextStyle(entry.n)) + swatchWidth + columnGap(win, entry.e);
+    return { ...this.#hoverText(entry.v, key, entry.value), element: entry.e, label: entry.l, swatch: entry.p, lang: entry.g, fixed };
+  }
+
   // The first DOM measurement calibrates the canvas estimate for the same tooltip chrome.
-  #calibrate(rows: readonly RowEntry[], more: MoreEntry | null, total: FloatTotal | null, width: number, height: number): HoverSize | null {
+  #calibrate(rows: readonly RowEntry[], more: MoreEntry | null, total: ReadoutRow | null, width: number, height: number): HoverSize | null {
     const win = this.#doc.defaultView;
     if (typeof win?.getComputedStyle !== 'function') return null;
     const measure = this.#measurer ??= createMeasurer(this.#doc);
@@ -378,34 +414,26 @@ class DomTooltip implements TooltipView {
     const moreWidth = more ? measure.width(more.text, readTextStyle(more.el)) : 0;
     let natural = Math.max(moreWidth, title.width);
     const measured = rows.map((entry, index) => {
-      const swatch = entry.n.firstElementChild;
-      const swatchWidth = swatch ? (parseFloat(win.getComputedStyle(swatch).width) || 20) + columnGap(win, entry.n) : 0;
-      const fixed = measure.width(entry.l ?? '', readTextStyle(entry.n)) + swatchWidth + columnGap(win, entry.e);
-      const text = this.#hoverText(entry.v, `${index}:`, entry.value);
-      natural = Math.max(natural, fixed + text.width);
-      return { ...text, element: entry.e, label: entry.l, swatch: entry.p, lang: entry.g, fixed };
+      const row = this.#measureRow(win, measure, entry, `${index}:`);
+      natural = Math.max(natural, row.fixed + row.width);
+      return row;
     });
-    let measuredTotal: HoverRow | null = null;
-    if (total) {
-      const text = this.#hoverText(total.value, 's:', total.text);
-      const fixed = measure.width(total.label, readTextStyle(total.name)) + columnGap(win, total.row);
-      natural = Math.max(natural, fixed + text.width);
-      measuredTotal = { ...text, element: total.row, label: total.label, swatch: null, lang: total.lang, fixed };
-    }
+    const measuredTotal = total ? this.#measureRow(win, measure, total, 's:') : null;
+    if (measuredTotal) natural = Math.max(natural, measuredTotal.fixed + measuredTotal.width);
     return { title, rows: measured, more: more?.text ?? null, moreLang: more?.lang ?? null, moreWidth,
       total: measuredTotal, correction: width - natural, width, height };
   }
 
-  #predictedWidth(size: HoverSize, rows: readonly RowEntry[], more: MoreEntry | null, total: FloatTotal | null): number {
+  #predictedWidth(size: HoverSize, rows: readonly RowEntry[], more: MoreEntry | null, total: ReadoutRow | null): number {
     if (size.rows.length !== rows.length || size.more !== (more?.text ?? null) || size.moreLang !== (more?.lang ?? null) ||
-        size.total?.label !== total?.label || size.total?.lang !== total?.lang) return NaN;
+        size.total?.label !== total?.l || size.total?.lang !== total?.g) return NaN;
     let natural = Math.max(size.moreWidth, this.#shapeWidth(this.#floatTitleText, size.title));
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i]!, calibrated = size.rows[i]!;
       if (row.e !== calibrated.element || row.l !== calibrated.label || row.p !== calibrated.swatch || row.g !== calibrated.lang) return NaN;
       natural = Math.max(natural, calibrated.fixed + this.#shapeWidth(row.value, calibrated));
     }
-    if (total && size.total) natural = Math.max(natural, size.total.fixed + this.#shapeWidth(total.text, size.total));
+    if (total && size.total) natural = Math.max(natural, size.total.fixed + this.#shapeWidth(total.value, size.total));
     return natural + size.correction;
   }
 
@@ -432,7 +460,7 @@ class DomTooltip implements TooltipView {
     }
     this.#clearPress();
     host.hidden = true;
-    host.classList.remove(idx === 0 ? FLOAT_PINNED : STRIP_PINNED);
+    host.classList.remove(PINNED_CLASS[idx]);
     setAttr(host, 'aria-hidden', 'true');
     host.replaceChildren();
     const rows = this.#entries[idx];
@@ -451,7 +479,7 @@ class DomTooltip implements TooltipView {
     const host = idx === 0 ? this.#element : this.#readoutElement;
     if (this.#where !== idx + 1 || pinned !== this.#wasPinned || host.hidden) {
       if (host.hidden) host.hidden = false;
-      if (pinned || (this.#where === idx + 1 && this.#wasPinned)) host.classList.toggle(idx === 0 ? FLOAT_PINNED : STRIP_PINNED, pinned);
+      if (pinned || (this.#where === idx + 1 && this.#wasPinned)) host.classList.toggle(PINNED_CLASS[idx], pinned);
       setAttr(host, 'aria-hidden', pinned ? null : 'true');
     }
     this.#wasPinned = pinned;
@@ -464,7 +492,7 @@ class DomTooltip implements TooltipView {
       if (this.#hadFocus !== null) {
         const entry = this.#entries[idx]?.find(e => e.button && sameRow(e.ref, this.#hadFocus));
         if (!entry?.e.isConnected) this.#lost();
-        else if (this.#active() !== entry.e) entry.e.focus({ preventScroll: true });
+        else if (this.#active() !== entry.e) focusQuiet(entry.e);
       }
     } else {
       this.#hideIdx(idx);
@@ -524,13 +552,13 @@ class DomTooltip implements TooltipView {
     }
     const title = this.#floatTitle ??= this.#floatingTitle();
     if (this.#floatTitleText !== model.title) this.#floatTitleNode!.textContent = this.#floatTitleText = model.title;
-    let totalRow: FloatTotal | null = null;
+    let totalRow: ReadoutRow | null = null;
     if (model.total !== null) {
       totalRow = this.#floatTotal ??= floatingTotal(this.#doc);
       const label = content.totalLabel ?? '', lang = content.totalLang || null;
-      if (totalRow.label !== label) setText(totalRow.name, totalRow.label = label);
-      if (totalRow.lang !== lang) setAttr(totalRow.name, 'lang', totalRow.lang = lang);
-      if (totalRow.text !== model.total) setText(totalRow.value, totalRow.text = model.total);
+      if (totalRow.l !== label) setText(totalRow.n, totalRow.l = label);
+      if (totalRow.g !== lang) setAttr(totalRow.n, 'lang', totalRow.g = lang);
+      if (totalRow.value !== model.total) setText(totalRow.v, totalRow.value = model.total);
     }
     if (this.#hoverSize) {
       const more = model.count > total ? this.#moreEntry(false, pinned, content, model.count - total) : null;
@@ -548,16 +576,8 @@ class DomTooltip implements TooltipView {
       }
       this.#hoverSize = null;
     }
-    const children = this.#children ??= [];
     for (let shown = total; shown >= Math.min(1, total); shown--) {
-      children.push(title);
-      for (let i = 0; i < shown; i++) children.push(rows[i]!.e);
-      this.#displayed = shown;
-      const more = model.count > shown ? this.#moreEntry(false, pinned, content, model.count - shown) : null;
-      if (more) children.push(more.el);
-      if (totalRow) children.push(totalRow.row);
-      placeChildren(this.#element, children);
-      children.length = 0;
+      const more = this.#mountRows(title, rows, shown, content, pinned, totalRow?.e ?? null);
       let size = this.#element.getBoundingClientRect();
       if (size.width >= (maxW - 2) * m.kx || size.height >= (maxH - 2) * m.ky) {
         let over = this.#overflows();
@@ -589,30 +609,23 @@ class DomTooltip implements TooltipView {
 
   strip(content: TooltipContent, pinned: boolean, visible: Rect): boolean {
     this.#begin(1, content, pinned);
-    const [stripTitle, stripTotal, moreSep, totalSep] = this.#stripParts ??= [
+    const parts = this.#stripParts ??= [
       tooltipText(this.#doc, 'title'), make(this.#doc, 'span', 'axylo-readout-total'), this.#txt('; '), this.#txt('; '),
     ];
+    const [stripTitle, stripTotal] = parts;
     const { model } = content, rows = this.#rowEntries(1, content, pinned);
     setText(stripTitle, `${model.title}: `);
-    if (model.total !== null) { setText(stripTotal, `${content.totalLabel ?? ''} ${model.total}`); setAttr(stripTotal, 'lang', content.totalLang || null); }
+    if (model.total !== null) setLanguageText(stripTotal, `${content.totalLabel ?? ''} ${model.total}`, content.totalLang || null);
     const r = this.#readoutElement.getBoundingClientRect(), box = intersect(r, visible), bx2 = box.x + box.width, by2 = box.y + box.height;
     const cl = this.#readoutElement.classList, minS = Math.min(1, rows.length);
-    const parts = this.#children ??= [];
     cl.remove('axylo-readout-wrap', 'axylo-readout-cut');
     let seen = false;
     for (let pass = 0; pass < 3 && !seen; pass++) {
       if (pass === 1) cl.add('axylo-readout-wrap');
       if (pass === 2) cl.replace('axylo-readout-wrap', 'axylo-readout-cut');
       for (let shown = pass === 2 ? minS : rows.length; shown >= minS && !seen; shown--) {
-        parts.push(stripTitle);
-        this.#displayed = shown;
-        for (let i = 0; i < shown; i++) { if (i && rows[i]!.s) parts.push(rows[i]!.s!); parts.push(rows[i]!.e); }
-        if (model.total !== null) parts.push(totalSep, stripTotal);
-        let pager: HTMLElement | null = null;
-        if (model.count > shown) { if (shown) parts.push(moreSep); parts.push(pager = this.#moreEntry(true, pinned, content, model.count - shown).el); }
-        placeChildren(this.#readoutElement, parts);
-        parts.length = 0;
-        seen = withinStrip(stripTitle, box, bx2, by2) && withinStrip(pager, box, bx2, by2);
+        const pager = this.#mountRows(stripTitle, rows, shown, content, pinned, model.total === null ? null : stripTotal, parts);
+        seen = withinStrip(stripTitle, box, bx2, by2) && withinStrip(pager?.el ?? null, box, bx2, by2);
         for (let i = 0; seen && i < shown; i++) seen = withinStrip(rows[i]!.e, box, bx2, by2);
       }
     }

@@ -1,9 +1,9 @@
 import { SLOT_VALUE } from '../core/contracts';
 import type { DatumRef, DatumText, Formatters, Lookup, PickTarget, PointSeries, ScatterView } from '../core/contracts';
 import { contains, pointBox, pointerOnPlot, scatterPosition, type PlotLayout } from './geometry';
-import { pointOrder, type PointIndex } from './point-order';
-import { POINT_LIMIT, scatterGrid, type GridOptions } from './scatter-grid';
-import { lowerBound, upperBound, pageDistance } from './search';
+import { pointOrder, rangeSummary, type PointIndex } from './point-order';
+import { POINT_LIMIT, scatterGrid, scatterRanges, type GridOptions } from './scatter-grid';
+import { lowerBound, upperBound, stepIndex } from './search';
 
 interface ScatterWork {
   locations: number;
@@ -47,13 +47,8 @@ export function scatterLookup(
   const { series } = view.frame;
   const keys = new Map(series.map((entry, i) => [entry.key, i]));
   const locations = new WeakMap<DatumRef, PointIndex>();
-  const ranges = view.visiblePoints.map((range, s) => view.visible[s] && series[s]!.drawable ? range : { start: 0, end: 0 });
-  const active: number[] = [];
-  let count = 0;
-  ranges.forEach(({ start, end }, s) => {
-    if (start < end) active.push(s);
-    count += end - start;
-  });
+  const ranges = scatterRanges(view);
+  const { active, count } = rangeSummary(ranges);
   let order: ReturnType<typeof pointOrder> | undefined;
   function getOrder() {
     return order ??= pointOrder(series, ranges, trackWork && work ? {
@@ -66,18 +61,24 @@ export function scatterLookup(
   let grid: ReturnType<typeof scatterGrid> | null | undefined;
   function getGrid() {
     if (grid === undefined) {
-      grid = layout && projection ? scatterGrid(view, { ...layout, projection }, count, devicePixelRatio, gridOptions) : null;
+      grid = layout && projection ? scatterGrid(view, { ...layout, projection }, count, devicePixelRatio, gridOptions, ranges) : null;
     }
     return grid;
   }
   // Direct callers can construct the index before the first pointer move.
   if (!gridOptions?.lazy) getGrid();
 
+  function remember(datum: DatumRef, series: number, index: number): PointIndex {
+    const point = { series, index };
+    locations.set(datum, point);
+    return point;
+  }
+
   function ref(s: number, i: number): DatumRef {
     const entry = series[s]!;
     const datum = { kind: 'point', seriesKey: entry.key, row: entry.row?.[i] ?? i, x: entry.x[i]! } as const;
     // A pick already knows the point's position. A ref rebuilt by the caller still resolves by source row.
-    locations.set(datum, { series: s, index: i });
+    remember(datum, s, i);
     return datum;
   }
 
@@ -94,16 +95,11 @@ export function scatterLookup(
     if (!row || rows) {
       const direct = rows ? rows.get(datum.row) : datum.row;
       if (direct === undefined || x[direct] !== datum.x) return null;
-      const point = { series: s, index: direct };
-      locations.set(datum, point);
-      return point;
+      return remember(datum, s, direct);
     }
     for (let i = lowerBound(x, datum.x); x[i] === datum.x; i++) {
       if (trackWork && work) work.locations++;
-      if ((row?.[i] ?? i) !== datum.row) continue;
-      const point = { series: s, index: i };
-      locations.set(datum, point);
-      return point;
+      if (row[i] === datum.row) return remember(datum, s, i);
     }
     return null;
   }
@@ -273,8 +269,8 @@ export function scatterLookup(
       const point = resolved && locate(resolved);
       if (!point) return null;
       switch (direction) {
-        case 'next': return toRef(getOrder().edge(1, point));
-        case 'previous': return toRef(getOrder().edge(-1, point));
+        case 'next':
+        case 'previous': return toRef(getOrder().edge(direction === 'next' ? 1 : -1, point));
         case 'first':
         case 'last': {
           const edge = getOrder().edge(direction === 'first' ? 1 : -1);
@@ -283,10 +279,8 @@ export function scatterLookup(
         case 'page-next':
         case 'page-previous': {
           const order = getOrder();
-          const ordinal = order.ordinal(point.series, point.index);
-          const to = direction === 'page-next' ? Math.min(count - 1, ordinal + pageDistance(count))
-            : Math.max(0, ordinal - pageDistance(count));
-          return to === ordinal ? null : toRef(order.at(to));
+          const to = stepIndex(direction, order.ordinal(point.series, point.index), 0, count);
+          return to === null ? null : toRef(order.at(to));
         }
         case 'series-next':
         case 'series-previous': {

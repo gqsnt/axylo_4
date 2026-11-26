@@ -317,6 +317,10 @@ export function reportGaps(
 /** From this many slots, a series whose every slot is SLOT_VALUE makes its state column only when read. */
 const LAZY_SLOTS = 4096;
 
+function isImputable(state: number): boolean {
+  return state === SLOT_NULL || state === SLOT_ABSENT_FIELD;
+}
+
 function alignedSeries(aligned: AlignedGroup, axis: XColumn, x: XData, table: Table, values: Values): Series {
   const { group, order, gaps, drawable } = aligned;
   const { value } = group;
@@ -328,7 +332,7 @@ function alignedSeries(aligned: AlignedGroup, axis: XColumn, x: XData, table: Ta
     const slots = values.slot;
     if (zero && slots) {
       for (let i = 0; i < slots.length; i++) {
-        if (slots[i] !== SLOT_NULL && slots[i] !== SLOT_ABSENT_FIELD) continue;
+        if (!isImputable(slots[i]!)) continue;
         row ??= sourceRows(table);
         row[i] = -1;
         slots[i] = SLOT_VALUE;
@@ -357,7 +361,7 @@ function alignedSeries(aligned: AlignedGroup, axis: XColumn, x: XData, table: Ta
     const source = order?.[observed] ?? observed;
     if (observed < observations && x.positions[source] === position) {
       const state = values.slot ? values.slot[source]! : SLOT_VALUE;
-      if (zero && (state === SLOT_NULL || state === SLOT_ABSENT_FIELD)) {
+      if (zero && isImputable(state)) {
         y[i] = 0;
       } else {
         slot[i] = state;
@@ -368,8 +372,10 @@ function alignedSeries(aligned: AlignedGroup, axis: XColumn, x: XData, table: Ta
     } else {
       const state = gaps?.[gap] === position ? SLOT_GAP : SLOT_NO_ROW;
       if (state === SLOT_GAP) gap++;
-      if (!zero) slot[i] = state;
-      y[i] = zero ? 0 : NaN;
+      if (!zero) {
+        slot[i] = state;
+        y[i] = NaN;
+      }
     }
   }
   return { ...description, drawable, y, slot, row };
@@ -457,8 +463,8 @@ export function pointFrame(options: ResolvedOptions, x: XData, sink: DiagnosticS
   if (value.missing === 'zero' && !allValid && slots) {
     allValid = !included;
     for (let row = 0; row < slots.length; row++) {
-      const state = slots[row];
-      if (state === SLOT_NULL || state === SLOT_ABSENT_FIELD) slots[row] = SLOT_VALUE;
+      const state = slots[row]!;
+      if (isImputable(state)) slots[row] = SLOT_VALUE;
       else if (state !== SLOT_VALUE) allValid = false;
     }
   }
@@ -544,7 +550,7 @@ function donutFrame(options: ResolvedOptions, sink: DiagnosticSink, version: Fra
     const row = order[i]!;
     const value = values.y[row]!;
     if (value < 0) negatives.add('AX120', 'chart-error', table.rowIndex(row), value);
-    if (field.missing === 'zero' && (slots[row] === SLOT_NULL || slots[row] === SLOT_ABSENT_FIELD)) {
+    if (field.missing === 'zero' && isImputable(slots[row]!)) {
       slots[row] = SLOT_VALUE;
       provenance![i] = -1;
     }

@@ -7,7 +7,7 @@
  * slots (`top` above the plot, `side` beside it, `controls` under it: legend, toolbar, table) and `readout`;
  * the figure only provides those slots. The plot and `side` share the `body` row.
  */
-import { activeElementOf, hideFromAT, isFocusable, make, placeChildren, setAttr, setText } from './attributes';
+import { activeElementOf, announceText, focusContainer, hideFromAT, make, placeChildren, setAttr, setText } from './attributes';
 
 export interface TitleModel {
   readonly text: string;
@@ -165,15 +165,7 @@ class DomFigure implements Figure {
     // The figure carries the `axylo` class too: the theme writes its custom properties and scheme attribute on
     // the figure, so two charts on one target never share them (review 3, finding 10).
     const templates = initialCompact ? compactTemplates ??= new WeakMap() : fullTemplates ??= new WeakMap();
-    let template = templates.get(doc);
-    // A single chart mounts the only skeleton it needs. A dashboard can amortize a detached blueprint.
-    if (template === null) {
-      const skeleton = make(doc, 'figure', 'axylo axylo-figure');
-      if (typeof skeleton.cloneNode === 'function') {
-        template = makeTemplate(doc, skeleton, initialCompact);
-        templates.set(doc, template);
-      }
-    }
+    const template = templates.get(doc);
     const figure = this.figure = template ? template.cloneNode(true) as HTMLElement : make(doc, 'figure', 'axylo axylo-figure');
     let description: HTMLElement, plot: HTMLElement, message: HTMLElement, note: HTMLElement;
     if (template) {
@@ -198,7 +190,6 @@ class DomFigure implements Figure {
       }
       message = plot.firstElementChild as HTMLElement;
     } else {
-      if (typeof figure.cloneNode === 'function') templates.set(doc, null);
       // The description sits before the plot in compact charts and inside the caption in full charts.
       description = element(doc, `description ${HIDDEN}`, 'p');
       plot = element(doc, 'plot');
@@ -216,18 +207,26 @@ class DomFigure implements Figure {
     message.id = `${id}-m`;
     note.id = `${id}-n`;
 
-    if (template) {
-      plot.insertBefore(parts.marks, message);
-      if (parts.text) plot.insertBefore(parts.text, message);
-    } else {
-      if (parts.text) plot.append(parts.marks, parts.text, message);
-      else plot.append(parts.marks, message);
+    if (!template) {
       if (initialCompact) figure.append(description, plot, note);
       else {
         figure.appendChild(note);
         DomFigure.#ensureFull(this);
       }
+      // A single chart creates no detached blueprint. Copy the second skeleton
+      // before adding the rendered marks or labels.
+      if (typeof figure.cloneNode === 'function') {
+        if (template === null) {
+          plot.appendChild(message);
+          templates.set(doc, figure.cloneNode(true) as HTMLElement);
+        } else templates.set(doc, null);
+      }
     }
+    if (message.parentNode === plot) {
+      plot.insertBefore(parts.marks, message);
+      if (parts.text) plot.insertBefore(parts.text, message);
+    } else if (parts.text) plot.append(parts.marks, parts.text, message);
+    else plot.append(parts.marks, message);
     root.appendChild(figure);
   }
 
@@ -286,12 +285,23 @@ class DomFigure implements Figure {
 
   update(model: FigureModel): boolean {
     const previous = this.#previous;
-    if (previous && same(previous, model)) return false;
-    const moved = previous === null || movesLayout(previous, model);
-    this.#previous = model;
+    if (previous === model) return false;
     const { compact, title, subtitle, summary, summaryLang, note: noteText, message, messageLang } = model;
+    const modeChanged = previous?.compact !== compact;
+    const headingChanged = modeChanged || !sameTitle(previous!.title, title);
+    const nameChanged = headingChanged || previous!.labelledBy !== model.labelledBy || previous!.name !== model.name;
+    const subtitleChanged = modeChanged || previous!.subtitle !== subtitle;
+    const summaryTextChanged = previous?.summary !== summary;
+    const summaryLangChanged = (previous?.summaryLang ?? null) !== (summaryLang ?? null);
+    const visibilityChanged = modeChanged || previous!.summaryVisible !== model.summaryVisible;
+    const segmentsChanged = modeChanged || !sameSegments(model.noteSegments, previous!.noteSegments);
+    const noteChanged = segmentsChanged || previous!.note !== noteText || previous!.noteLang !== model.noteLang;
+    const messageChanged = previous?.message !== message;
+    const messageLangChanged = previous?.messageLang !== messageLang;
+    if (!(nameChanged || subtitleChanged || summaryTextChanged || summaryLangChanged || visibilityChanged ||
+        noteChanged || messageChanged || messageLangChanged)) return false;
+    this.#previous = model;
     const { figure, plot } = this, description = this.#description, note = this.#note, status = this.#message;
-    const modeChanged = previous === null || previous.compact !== compact;
     if (modeChanged) {
       figure.classList.toggle('axylo-compact', compact);
       setAttr(figure, 'role', compact ? 'img' : 'group');
@@ -302,7 +312,6 @@ class DomFigure implements Figure {
     // Name: the title, else the page's own heading, else the generated name.
     const heading = compact ? null : title;
     const titleNode = this.#title;
-    const headingChanged = modeChanged || !sameTitle(previous!.title, title);
     if (titleNode && headingChanged) {
       if (heading) {
         setText(titleNode, heading.text);
@@ -311,13 +320,13 @@ class DomFigure implements Figure {
       }
       show(titleNode, heading !== null);
     }
-    if (headingChanged || previous!.labelledBy !== model.labelledBy || previous!.name !== model.name) {
+    if (nameChanged) {
       const labelledBy = model.labelledBy || (heading ? titleNode!.id : null);
       if (previous || labelledBy !== null) setAttr(figure, 'aria-labelledby', labelledBy);
       if (previous || labelledBy === null) setAttr(figure, 'aria-label', labelledBy === null ? model.name : null);
     }
 
-    if (modeChanged || previous!.subtitle !== subtitle) {
+    if (subtitleChanged) {
       if (!compact && subtitle) {
         const sub = this.#subtitle ??= makeSubtitle(this.#doc, this.id);
         setText(sub, subtitle);
@@ -328,9 +337,7 @@ class DomFigure implements Figure {
       }
     }
 
-    const summaryTextChanged = previous === null || previous.summary !== summary;
     const lang = summaryLang ?? null;
-    const summaryLangChanged = (previous?.summaryLang ?? null) !== lang;
     if (summaryTextChanged) setText(description, summary);
     const summaryNode = this.#summary;
     if ((modeChanged || summaryLangChanged) && (previous || lang !== null)) {
@@ -339,7 +346,6 @@ class DomFigure implements Figure {
     }
     if (summaryNode) {
       const visible = !compact && model.summaryVisible;
-      const visibilityChanged = modeChanged || previous!.summaryVisible !== model.summaryVisible;
       // The description holds the full text. Only the small-plot fallback needs its own sentence.
       if (visible && (visibilityChanged || summaryTextChanged)) setText(summaryNode, firstSentence(summary));
       else if (!visible && previous?.summaryVisible && visibilityChanged) setText(summaryNode, '');
@@ -350,8 +356,7 @@ class DomFigure implements Figure {
     // The compact variant has no note element: the summary says what was left out, and a corner marker
     // shows it (spec C5); the marker's text equivalent is that description.
     const segments = compact ? null : model.noteSegments ?? null;
-    const segmentsChanged = modeChanged || !sameSegments(segments, previous!.noteSegments);
-    if (segmentsChanged || previous!.note !== noteText || previous!.noteLang !== model.noteLang) {
+    if (noteChanged) {
       if (segments && segments.length > 1) {
         // One span per language run lets assistive technology switch voice.
         if (segmentsChanged) {
@@ -387,23 +392,17 @@ class DomFigure implements Figure {
       this.#corner = undefined;
     }
 
-    if (previous === null || previous.message !== message) {
+    if (messageChanged) {
       setText(status, message ?? '');
       show(status, message !== null);
     }
-    if (previous ? previous.messageLang !== messageLang : messageLang != null) setAttr(status, 'lang', messageLang ?? null);
-    return moved;
+    if (messageLangChanged && (previous || messageLang != null)) setAttr(status, 'lang', messageLang ?? null);
+    return visibilityChanged || (model.summaryVisible && summaryTextChanged) ||
+      (!compact && (headingChanged || subtitleChanged || previous!.note !== noteText));
   }
 
   announce(text: string, lang: string | null = null): void {
-    const region = DomFigure.#ensureLive(this);
-    setAttr(region, 'lang', lang);
-    if (region.textContent === text) {
-      // Replace the text node so an identical re-announcement is still observed by assistive technology.
-      if (text !== '') region.replaceChildren(this.#doc.createTextNode(text));
-    } else {
-      region.textContent = text;
-    }
+    announceText(DomFigure.#ensureLive(this), text, lang);
   }
 
   destroy(): void {
@@ -432,10 +431,7 @@ class DomFigure implements Figure {
       insertBefore(figure, f.plot, body);
       body.remove();
     }
-    if (hadFocus && isFocusable(figure)) {
-      if (!figure.hasAttribute('tabindex')) figure.setAttribute('tabindex', '-1');
-      figure.focus({ preventScroll: true });
-    }
+    if (hadFocus) focusContainer(figure);
   }
 
   static #middleNode(f: DomFigure): HTMLElement {
@@ -509,17 +505,7 @@ function makeSubtitle(doc: Document, id: string): HTMLElement {
 }
 
 function firstSentence(text: string): string {
-  for (let i = 0; i < text.length; i++) {
-    const code = text.charCodeAt(i);
-    if (code === 10 || code === 13 || code === 0x2028 || code === 0x2029) break;
-    if (code !== 46 && code !== 33 && code !== 63 && code !== 0x3002 && code !== 0xff01 && code !== 0xff1f) continue;
-    const next = text.charCodeAt(i + 1);
-    if (i + 1 === text.length) break;
-    if ((next >= 9 && next <= 13) || next === 32 || next === 0xa0 || next === 0x1680 ||
-        (next >= 0x2000 && next <= 0x200a) || next === 0x2028 || next === 0x2029 ||
-        next === 0x202f || next === 0x205f || next === 0x3000 || next === 0xfeff) return text.slice(0, i + 1);
-  }
-  return text;
+  return /^[^\r\n\u2028\u2029]*?[.!?。！？](?=\s)/.exec(text)?.[0] ?? text;
 }
 
 function makeNote(doc: Document): HTMLElement {
@@ -548,25 +534,6 @@ function makeLive(doc: Document): HTMLElement {
   const live = element(doc, `live ${HIDDEN}`);
   live.setAttribute('aria-live', 'polite');
   return live;
-}
-
-function makeTemplate(doc: Document, figure: HTMLElement, compact: boolean): HTMLElement {
-  const description = element(doc, `description ${HIDDEN}`, 'p');
-  const plot = element(doc, 'plot');
-  const message = element(doc, 'message', 'p');
-  message.hidden = true;
-  plot.appendChild(message);
-  const note = makeNote(doc);
-  if (compact) figure.append(description, plot, note);
-  else {
-    // A figcaption would prevent the figure from taking the group or img role.
-    const caption = element(doc, 'caption'), body = element(doc, 'body'), stage = element(doc, 'stage');
-    caption.append(makeTitle(doc), description, makeSummary(doc));
-    stage.append(plot, hiddenSlot(doc, 'readout', true));
-    body.appendChild(stage);
-    figure.append(caption, body, hiddenSlot(doc, 'controls'), note, makeLive(doc), hiddenSlot(doc, 'tooltip', true));
-  }
-  return figure;
 }
 
 /** Move a node only when its slot's parent changes, so focused descendants stay in place. */
@@ -599,13 +566,6 @@ function sameTitle(a: TitleModel | null, b: TitleModel | null): boolean {
   return a === b || (a !== null && b !== null && a.text === b.text && a.level === b.level && a.visible === b.visible);
 }
 
-/** Whether going from `a` to `b` can change the size of anything around the plot (the caption or the note). */
-function movesLayout(a: FigureModel, b: FigureModel): boolean {
-  return a.compact !== b.compact || (!b.compact && (!sameTitle(a.title, b.title) || a.subtitle !== b.subtitle)) ||
-    a.summaryVisible !== b.summaryVisible || (b.summaryVisible && a.summary !== b.summary) ||
-    (a.compact ? null : a.note) !== (b.compact ? null : b.note);
-}
-
 function sameSegments(a: readonly NoteSegment[] | null | undefined, b: readonly NoteSegment[] | null | undefined): boolean {
   if (a === b || (!a && !b)) return true;
   if (!a || !b || a.length !== b.length) return false;
@@ -613,11 +573,4 @@ function sameSegments(a: readonly NoteSegment[] | null | undefined, b: readonly 
     if (a[i]!.text !== b[i]!.text || a[i]!.lang !== b[i]!.lang) return false;
   }
   return true;
-}
-
-function same(a: FigureModel, b: FigureModel): boolean {
-  return a.compact === b.compact && a.messageLang === b.messageLang && a.noteLang === b.noteLang && a.labelledBy === b.labelledBy && a.name === b.name && a.subtitle === b.subtitle &&
-    a.summary === b.summary && a.summaryLang === b.summaryLang && a.summaryVisible === b.summaryVisible && a.note === b.note && a.message === b.message &&
-    sameSegments(a.noteSegments, b.noteSegments) &&
-    sameTitle(a.title, b.title);
 }

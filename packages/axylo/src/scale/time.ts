@@ -179,6 +179,7 @@ function recall<T>(cache: Map<string, T> | undefined, key: string): T | undefine
 }
 
 function remember<T>(cache: Map<string, T>, key: string, value: T): void {
+  cache.delete(key);
   if (cache.size >= BUILT_IN_CACHE_LIMIT) cache.delete(cache.keys().next().value!);
   cache.set(key, value);
 }
@@ -354,8 +355,7 @@ function label(values: readonly number[], unit: Unit, zone: string, options: Tim
   const known = recall(builtInLabels, key);
   if (known && sameValues(known, values)) return known;
   const ticks = labelled(values, unit, zone, options);
-  if (known) builtInLabels!.set(key, ticks);
-  else remember(builtInLabels ??= new Map(), key, ticks);
+  remember(builtInLabels ??= new Map(), key, ticks);
   return ticks;
 }
 
@@ -389,16 +389,13 @@ function keptLabels(interval: Interval, ends: Ends, locale: string): Tick[] | nu
   if (!recent || recent.zone !== ends.zone || recent.locale !== locale) return null;
   const { lo, hi } = ends;
   let step: number, first: number;
-  if (unit === Unit.Millisecond) {
-    step = interval.n;
-    first = Math.ceil(lo / step) * step;
-  } else if (unit === Unit.Day) {
+  if (unit === Unit.Millisecond || unit === Unit.Day) {
     // UTC days are the multiples of the step: boundaries() finds the same ones through wall time, from three
     // hours before lo, so its first is exactly the least multiple at or after lo (a quotient rounded down to
     // a whole number would give the one before).
     step = interval.approx;
     first = Math.ceil(lo / step) * step;
-    if (first < lo) first += step;
+    if (unit === Unit.Day && first < lo) first += step;
   } else {
     offsetsOf(ends);
     if (ends.offLo !== ends.offHi) return null;

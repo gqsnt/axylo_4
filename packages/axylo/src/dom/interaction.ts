@@ -16,7 +16,7 @@ import {
 } from '../core/focus';
 import type { Figure } from './figure';
 import { createTableView, type TableView } from './table';
-import { rovingIndex, createToolbar, type Toolbar, type ToolbarItem } from './toolbar';
+import { rovingIndex, createToolbar, focusNeighbor, type Toolbar, type ToolbarItem } from './toolbar';
 import { createTooltip, type Presentation, type TooltipContent, type TooltipView } from './tooltip';
 import { createSwatch, swatchPattern, type SwatchPattern, type SwatchSpec } from './swatch';
 import type { AlignedHoverLookup, AlignedHoverModel } from '../lookup/aligned';
@@ -25,7 +25,7 @@ import { barPattern } from '../scene/bars';
 import { clamp } from '../scene/geometry';
 import { readPosition } from '../reader/x';
 import { printedX } from '../reader/table';
-import { activeElementOf, isElement, isFocusable, placeChildren, setAttr, setText, make, keepFocusOnPress, hideFromAT, shadowRootOf, shadowRootsOf } from './attributes';
+import { activeElementOf, focusContainer, focusQuiet, isElement, isFocusable, placeChildren, setAttr, setLanguageText, setText, make, keepFocusOnPress, hideFromAT, shadowRootOf, shadowRootsOf } from './attributes';
 import { Listeners, listenOutside, mappingOf, rectToViewport, toLocal, toViewport, visibleRegion, type Mapping, type Point } from './mapping';
 import { insideCorridor, intersect, type PlacementInput } from './placement';
 import { identityOf, matchesIdentity, sameTarget, type Identity } from './pointer';
@@ -87,12 +87,6 @@ export interface Interaction {
 
 type InstructionKey = 'plotInstructions' | 'donutInstructions' | 'seriesInstructions' | 'zoomInstructions';
 const dist = (ax: number, ay: number, bx: number, by: number) => Math.hypot(ax - bx, ay - by);
-const focusQuiet = (el: HTMLElement) => el.focus({ preventScroll: true });
-function focusFig(fig: Element | null): void {
-  if (!isFocusable(fig)) return;
-  if (!fig.hasAttribute('tabindex')) fig.setAttribute('tabindex', '-1');
-  focusQuiet(fig);
-}
 function setClass(el: Element, cls: string, on: boolean): boolean {
   if (el.classList.contains(cls) === on) return false;
   el.classList.toggle(cls, on);
@@ -255,9 +249,8 @@ export const donutSliceList: SliceList = (doc, d, actions, list) => {
       en.s = sig;
     }
     setText(en.n, sl.label);
-    const pct = datum?.percent;
-    setText(en.v, datum ? (pct && pct !== datum.value ? `${datum.value} (${pct})` : datum.value) : '');
-    setAttr(en.v, 'lang', datum?.value === d.messages.noData ? noDataLang : null);
+    const { percent, value } = datum;
+    setLanguageText(en.v, percent && percent !== value ? `${value} (${percent})` : value, value === d.messages.noData ? noDataLang : null);
     wanted.push(en.li);
     buttons.push(en.c);
   }
@@ -269,11 +262,8 @@ export const donutSliceList: SliceList = (doc, d, actions, list) => {
   if (prev) {
     if (had!.isConnected) { if (activeElementOf(doc, list) !== had) focusQuiet(had as HTMLElement); }
     else if (buttons.length) {
-      let heir: HTMLButtonElement | undefined;
-      for (let i = hadAt + 1; i < prev.length && !heir; i++) if (prev[i]!.isConnected) heir = prev[i];
-      for (let i = hadAt - 1; i >= 0 && !heir; i--) if (prev[i]!.isConnected) heir = prev[i];
-      focusQuiet(heir ?? buttons[clamp(hadAt, 0, buttons.length - 1)]!);
-    } else focusFig(list.closest('.axylo-figure'));
+      focusQuiet(focusNeighbor(prev, hadAt, button => button.isConnected) ?? buttons[clamp(hadAt, 0, buttons.length - 1)]!);
+    } else focusContainer(list.closest('.axylo-figure'));
   }
   const roving = !d.ready;
   if (list.dataset.roving !== String(roving)) list.dataset.roving = String(roving);
@@ -304,7 +294,8 @@ const NO_UNCLIPPED_MARKS: Mark[] = [];
 const CONTROL_SLOTS = ['top', 'side', 'controls'] as const;
 const NO_CONTROLS: readonly Element[] = [];
 const SCROLL_OPTIONS = { capture: true, passive: true };
-const FOCUS_LISTENERS = 1, DOWN_LISTENERS = 2;
+const FOCUS_LISTENERS = 1, DOWN_LISTENERS = 2, MOVE_LISTENERS = 4;
+const INSPECT = 1, RANGE = 2, RESET = 4, CLOSER = 8, LEFT = 16, RIGHT = 32, SERIES = 64;
 let controlScratch: unknown[] | undefined;
 
 const sameWindow = (a: Span | null, b: Span | null) => a === b || (a !== null && b !== null && a[0] === b[0] && a[1] === b[1]);
@@ -399,7 +390,7 @@ class DomInteraction implements Interaction {
   #shownOrdinal = 0;
   #shownText: { r: DatumRef; s: boolean; d: string | null } | null = null;
   #lastHover: DatumRef | null = null;
-  #lastPres: [PickTarget | null, DatumRef | null, DatumRef | null, boolean, boolean, number, Presentation | 'none'] | null = null;
+  #lastPres: [PickTarget | null, DatumRef | null, DatumRef | null, number, number] | null = null;
   #dirty = true;
   #overlayVisible = false;
   #pendingWindow: Span | null | undefined;
@@ -414,17 +405,14 @@ class DomInteraction implements Interaction {
   #destroyed = false;
   #attached = true;
   #listenStage: HTMLElement | null = null;
-  #proxyFocusListener: (() => void) | null = null;
-  #proxyInputListener: (() => void) | null = null;
-  #pointerMoveListener: ((e: PointerEvent) => void) | null = null;
-  #pointerDownListener: ((e: PointerEvent) => void) | null = null;
+  #startupListener: EventListener | null = null;
+  #pointerMoveListener: EventListener | null = null;
   #built: Listeners | null = null;
   #docListeners: Listeners | null = null;
   #pinListeners: Listeners | null = null;
   #shadowScrollListeners: Listeners | null = null;
   #interacted = false;
   #listenerFlags = 0;
-  #moveListeners = false;
   #proxy: HTMLInputElement | null = null;
   #ring: HTMLElement | null = null;
   #proxyRect: Rect | null = null;
@@ -481,16 +469,23 @@ class DomInteraction implements Interaction {
   #activeElement(): Element | null { return activeElementOf(this.#doc, this.#root); }
 
   #getTooltip(): TooltipView {
-    return this.#tooltip ??= createTooltip(this.#figure.tooltip, this.#figure.readout, this.#root, () => {
-      if (this.#proxy && !this.#proxy.hidden) focusQuiet(this.#proxy); else this.#focusFigure();
-    });
+    return this.#tooltip ??= createTooltip(this.#figure.tooltip, this.#figure.readout, this.#root, this.#restorePlotFocus.bind(this));
   }
 
   #clearGeo() { this.#geoPlot = this.#geoFigure = this.#geoVisible = this.#geoReadout = this.#geoControls = this.#geoPlacement = null; }
 
   #mode(): Mode { return this.#single ? 'single' : 'all'; }
 
-  #focusFigure() { return focusFig(this.#root); }
+  #focusFigure() { return focusContainer(this.#root); }
+
+  #restorePlotFocus(verify?: boolean): void {
+    const proxy = this.#proxy;
+    if (proxy && !proxy.hidden) {
+      focusQuiet(proxy);
+      if (!verify || (this.#proxy && !this.#proxy.hidden && this.#activeElement() === this.#proxy)) return;
+    }
+    this.#focusFigure();
+  }
 
   #pointerTarget(): PickTarget | null { return 't' in this.#shown ? this.#shown.t : null; }
 
@@ -558,26 +553,38 @@ class DomInteraction implements Interaction {
   #listenPin(): void {
     if (this.#pinListeners || !this.#attached) return;
     const l = this.#pinListeners = new Listeners();
-    listenOutside(this.#doc, shadowRootsOf(this.#root), 'pointerdown', [this.#plot, this.#figure.tooltip, this.#figure.readout], () => { this.#endPin(); this.#redraw(); }, l);
+    listenOutside(this.#doc, shadowRootsOf(this.#root), 'pointerdown', [this.#plot, this.#figure.tooltip, this.#figure.readout], this.#dismissPin.bind(this), l);
+  }
+
+  #onStartup(event: Event): void {
+    if (event.type === 'focus') this.#onProxyFocus();
+    else if (event.type === 'pointerdown') this.#onPointerDown(event as PointerEvent);
+    else this.#onProxyInput();
+  }
+
+  #bindStartup(method: 'addEventListener' | 'removeEventListener'): void {
+    const proxy = this.#proxy!, listener = this.#startupListener!;
+    proxy[method]('focus', listener);
+    proxy[method]('input', listener);
+    proxy[method]('change', listener);
+    this.#plot[method]('pointerdown', listener);
+    this.#listenStage![method]('pointermove', this.#pointerMoveListener!);
   }
 
   #build(): void {
     if (this.#proxy) return;
     const proxy = this.#proxy = make(this.#doc, 'input', 'axylo-proxy');
     proxy.type = 'range'; proxy.id = `${this.#figure.id}-proxy`; proxy.min = '0'; proxy.step = '1';
-    // These fixed registrations bootstrap the event groups without a per-chart listener list.
-    proxy.addEventListener('focus', this.#proxyFocusListener = this.#onProxyFocus.bind(this));
-    const input = this.#proxyInputListener = this.#onProxyInput.bind(this);
-    proxy.addEventListener('input', input);
-    proxy.addEventListener('change', input);
     this.#ring = make(this.#doc, 'div', 'axylo-focus-ring');
     hideFromAT(this.#ring);
     this.#instructions = make(this.#doc, 'span', 'axylo-visually-hidden');
     this.#instructions.id = `${this.#figure.id}-i`;
     this.#plot.append(proxy, this.#ring, this.#instructions);
-    const stage = this.#listenStage = this.#figure.stage;
-    stage.addEventListener('pointermove', this.#pointerMoveListener = this.#onPointerMove.bind(this));
-    this.#plot.addEventListener('pointerdown', this.#pointerDownListener = this.#onPointerDown.bind(this));
+    // Untouched charts need only the fixed listeners that bootstrap the lazy groups.
+    this.#listenStage = this.#figure.stage;
+    this.#startupListener = this.#onStartup.bind(this);
+    this.#pointerMoveListener = this.#onPointerMove.bind(this);
+    this.#bindStartup('addEventListener');
     this.#listenShadowScroll();
   }
 
@@ -597,13 +604,9 @@ class DomInteraction implements Interaction {
     const owned = ownedBefore || this.#focusOwned();
     this.#cancelGestures(); this.#closeTable(false); this.#unlistenAttached();
     this.#built?.clear(); this.#built = null;
-    this.#proxy.removeEventListener('focus', this.#proxyFocusListener!);
-    this.#proxy.removeEventListener('input', this.#proxyInputListener!);
-    this.#proxy.removeEventListener('change', this.#proxyInputListener!);
-    this.#listenStage!.removeEventListener('pointermove', this.#pointerMoveListener!);
-    this.#plot.removeEventListener('pointerdown', this.#pointerDownListener!);
-    this.#listenStage = this.#proxyFocusListener = this.#proxyInputListener = this.#pointerMoveListener = this.#pointerDownListener = null;
-    this.#interacted = this.#moveListeners = false;
+    this.#bindStartup('removeEventListener');
+    this.#listenStage = this.#startupListener = this.#pointerMoveListener = null;
+    this.#interacted = false;
     this.#listenerFlags = 0;
     for (const n of [this.#proxy, this.#instructions, this.#ring, this.#selection]) n?.remove();
     this.#removeLegend(); this.#toolbar?.destroy();
@@ -624,12 +627,12 @@ class DomInteraction implements Interaction {
     return x === null ? null : d.lookup.primary({ kind: 'x', x });
   }
 
-  #resolveAligned(d: Committed, target: PickTarget): DatumRef | null {
+  #resolveAligned(d: Committed, target: PickTarget, primary?: DatumRef): DatumRef | null {
     if (this.#single && this.#focus?.kind === 'aligned' && target.kind === 'x') {
       const ref = d.lookup.resolve({ kind: 'aligned', seriesKey: this.#focus.seriesKey, x: target.x });
       if (ref) return ref;
     }
-    return d.lookup.primary(target);
+    return primary ?? d.lookup.primary(target);
   }
 
   #takeover(d: Committed): void {
@@ -756,18 +759,16 @@ class DomInteraction implements Interaction {
     const target = this.#shownTarget(), visibleRing = this.#proxyFocused && (this.#keyed || this.#proxy.matches(':focus-visible')) ? this.#focus : null;
     const only = this.#single && this.#shown.k === S_KEY ? this.#focus : null, pres = presentationFor(d), pinned = this.#shown.k === S_PIN;
     const showTip = pres !== 'none' && target !== null && !this.#isDismissed(target), page = pinned ? this.#pinPage : 0;
+    const flags = (showTip ? 1 : 0) | (pinned ? 2 : 0) | (pres === 'strip' ? 4 : pres === 'floating' ? 8 : 0);
     const last = this.#lastPres;
     if (!this.#dirty && last && sameTarget(target, last[0]) && sameRef(visibleRing, last[1]) &&
-      sameRef(only, last[2]) && showTip === last[3] && pinned === last[4] && page === last[5] && pres === last[6]) return;
-    if (!last) this.#lastPres = [target, visibleRing, only, showTip, pinned, page, pres];
-    else {
-      last[0] = target; last[1] = visibleRing; last[2] = only;
-      last[3] = showTip; last[4] = pinned; last[5] = page; last[6] = pres;
-    }
+      sameRef(only, last[2]) && flags === last[3] && page === last[4]) return;
+    if (!last) this.#lastPres = [target, visibleRing, only, flags, page];
+    else { last[0] = target; last[1] = visibleRing; last[2] = only; last[3] = flags; last[4] = page; }
     this.#dirty = false;
     if (pinned) this.#listenPin(); else this.#unlistenPin();
     const prev = this.#content; this.#content = null;
-    if (pinned && !showTip) { this.#endPin(); this.#redraw(); return; }
+    if (pinned && !showTip) { this.#dismissPin(); return; }
     const readHover = showTip && this.#shown.k === S_HOVER && pres === 'floating' && target.kind === 'x'
       ? (lookup as AlignedHoverLookup).alignedHover : undefined;
     let model: TooltipModel | null;
@@ -825,7 +826,7 @@ class DomInteraction implements Interaction {
       this.#hideTooltip();
       this.#draw(d, overlay);
     }
-    if (pinned && !this.#content) { this.#endPin(); this.#redraw(); return; }
+    if (pinned && !this.#content) { this.#dismissPin(); return; }
     this.#hover(!target ? null : this.#shown.k === S_KEY ? this.#focus : this.#shown.k === S_PIN ? this.#shown.r : soleRef ?? lookup.primary(target));
   }
 
@@ -884,7 +885,7 @@ class DomInteraction implements Interaction {
     return d.english(!hasData ? 'empty' : d.view.kind === 'donut' || (!this.#single && d.view.kind !== 'scatter') ? 'pointAll' : 'pointOf');
   }
 
-  #writeIdleAligned(el: HTMLInputElement, d: Committed, view: AlignedView): void {
+  #prepareIdleAligned(d: Committed): void {
     const { lookup, messages, formatters } = d;
     const count = lookup.count;
     if (this.#idleCount !== count || this.#countFormatter !== formatters.count || this.#positionTemplate !== messages.position) {
@@ -892,10 +893,6 @@ class DomInteraction implements Interaction {
       this.#idlePosition = positionText(messages, formatters, 0, count);
       this.#idleMax = String(count - 1);
     }
-    setRangeInput(el, this.#idleMax, '0');
-    setAttr(el, 'aria-valuetext', firstSlotReading(view, formatters, messages, this.#idlePosition));
-    this.#shownOrdinal = 0;
-    this.#shownText = null;
   }
 
   #writeProxy(acted: boolean, readyData?: boolean): void {
@@ -915,15 +912,14 @@ class DomInteraction implements Interaction {
       this.#idleEmpty = empty;
     } else this.#idleProxyState = null;
     if (this.#proxyLang !== lang) { setAttr(this.#proxy, 'lang', lang); this.#proxyLang = lang; }
-    if (inactive && hasData && !this.#single && lookup.count > 0 && (lookup as AlignedHoverLookup).alignedHover && isAligned(view)) {
-      this.#writeIdleAligned(this.#proxy, d, view);
-      return;
-    }
-    const ref = hasData ? this.#focus ?? this.#firstDatum(d) : null;
+    const idleAligned = inactive && hasData && !this.#single && lookup.count > 0 && (lookup as AlignedHoverLookup).alignedHover && isAligned(view);
+    const ref = hasData && !idleAligned ? this.#focus ?? this.#firstDatum(d) : null;
     if (!ref) {
-      setRangeInput(this.#proxy, '0', '0');
+      if (idleAligned) this.#prepareIdleAligned(d);
+      setRangeInput(this.#proxy, idleAligned ? this.#idleMax : '0', '0');
+      const text = idleAligned ? firstSlotReading(view, formatters, messages, this.#idlePosition) : empty;
+      setAttr(this.#proxy, 'aria-valuetext', text);
       this.#shownOrdinal = 0;
-      setAttr(this.#proxy, 'aria-valuetext', empty);
       this.#shownText = null;
       return;
     }
@@ -957,28 +953,22 @@ class DomInteraction implements Interaction {
     this.#present();
   }
 
-  #move(dir: StepDirection): void {
-    const d = this.#committed;
-    if (!plotReady(d)) return;
+  #move(d: Committed, dir: StepDirection): void {
     this.#takeover(d);
     const from = this.#focus;
-    if (this.#focus) this.#focus = this.#stepFrom(d, this.#focus, dir) ?? this.#focus;
-    const moved = !sameRef(from, this.#focus);
-    if (!moved && this.#shown.k === S_PIN) return;
-    this.#presentKeyboard(d, moved);
-  }
-
-  #moveSeries(delta: 1 | -1): void {
-    const d = this.#committed;
-    if (!plotReady(d)) return;
-    this.#takeover(d);
-    if (!this.#focus) return;
-    const step = delta > 0 ? 'series-next' : 'series-previous';
-    if (this.#focus.kind === 'aligned' && isAligned(d.view)) {
-      if (!this.#single) { const refs = refsAt(d.view, this.#focus.x), ref = delta > 0 ? refs[0] : refs.at(-1); if (ref) { this.#focus = ref; this.#single = true; } }
-      else this.#focus = d.lookup.step(this.#focus, step) ?? this.#focus;
-    } else if (this.#focus.kind === 'point') { this.#focus = d.lookup.step(this.#focus, step) ?? this.#focus; this.#single = true; }
-    this.#presentKeyboard(d, true);
+    const series = dir === 'series-next' || dir === 'series-previous';
+    if (series) {
+      if (!from) return;
+      if (from.kind === 'aligned' && isAligned(d.view) && !this.#single) {
+        const refs = refsAt(d.view, from.x), ref = dir === 'series-next' ? refs[0] : refs.at(-1);
+        if (ref) { this.#focus = ref; this.#single = true; }
+      } else if (from.kind === 'point' || (from.kind === 'aligned' && isAligned(d.view))) {
+        this.#focus = d.lookup.step(from, dir) ?? from;
+        if (from.kind === 'point') this.#single = true;
+      }
+    } else if (from) this.#focus = this.#stepFrom(d, from, dir) ?? from;
+    const moved = series || !sameRef(from, this.#focus);
+    if (moved || this.#shown.k !== S_PIN) this.#presentKeyboard(d, moved);
   }
 
   #atOrdinal(d: Committed, ord: number): DatumRef | null {
@@ -1001,9 +991,9 @@ class DomInteraction implements Interaction {
     if (!rec && !plotReady(d)) return;
     if (!rec) this.#fromClick = false;
     if (d!.zoom) {
-      if (!rec && (key === '+' || key === '=')) { consumeKey(e); this.#zoomBy(1 / ZOOM_FACTOR); return; }
-      if (key === '-' || key === '_') { consumeKey(e); this.#zoomBy(ZOOM_FACTOR); return; }
-      if (key === '0') { consumeKey(e); this.#requestZoom(null); return; }
+      const action = !rec && (key === '+' || key === '=') ? 'zoomIn'
+        : key === '-' || key === '_' ? 'zoomOut' : key === '0' ? 'resetZoom' : null;
+      if (action) { consumeKey(e); this.activateControl(action); return; }
     }
     if (e.shiftKey && (key === 'ArrowLeft' || key === 'ArrowRight')) {
       if (rec) consumeKey(e); else e.preventDefault();
@@ -1013,7 +1003,6 @@ class DomInteraction implements Interaction {
     const upDown = key === 'ArrowUp' || key === 'ArrowDown';
     if (rec || !readable(d!)) { if (key in NAVIGATION || upDown || (!rec && (key === 'Enter' || key === ' '))) e.preventDefault(); return; }
     const ready = d as Committed & { readonly ready: true };
-    if (upDown && ready.view.kind !== 'donut') { e.preventDefault(); this.#moveSeries(key === 'ArrowDown' ? 1 : -1); return; }
     if (key === 'Enter' || key === ' ') { e.preventDefault(); this.#focus ??= this.#firstDatum(ready); if (this.#focus) this.#actions.select(this.#focus); return; }
     if (key === 'Escape') {
       if (this.#single) {
@@ -1023,8 +1012,10 @@ class DomInteraction implements Interaction {
       }
       return;
     }
-    const dir = NAVIGATION[key] ?? (ready.view.kind === 'donut' && upDown ? (key === 'ArrowUp' ? 'next' : 'previous') : undefined);
-    if (dir) { e.preventDefault(); this.#move(dir); }
+    const dir = upDown
+      ? ready.view.kind === 'donut' ? (key === 'ArrowUp' ? 'next' : 'previous') : (key === 'ArrowDown' ? 'series-next' : 'series-previous')
+      : NAVIGATION[key];
+    if (dir) { e.preventDefault(); this.#move(ready, dir); }
   }
 
   #onProxyInput(): void {
@@ -1061,7 +1052,10 @@ class DomInteraction implements Interaction {
     this.#proxyFocused = this.#fromClick = this.#keyed = false;
     this.#proxy?.classList.remove('axylo-keyed');
     this.#markLegend(null);
-    if (this.#shown.k === S_KEY) this.#shown = this.#pointer && this.#committed ? { k: S_HOVER, t: plotReady(this.#committed) ? this.#pick(this.#committed, this.#pointer) : null } : NONE;
+    if (this.#shown.k === S_KEY) {
+      if (this.#pointer && this.#committed) this.#showHover(this.#underPointer());
+      else this.#shown = NONE;
+    }
     this.#redraw(1);
   }
 
@@ -1105,11 +1099,20 @@ class DomInteraction implements Interaction {
 
   #reached(t: PickTarget | null): void { if (t && this.#dismissed) { const kept = this.#dismissed.filter(id => this.#dismissedBy(id, t)); this.#dismissed = kept.length ? kept : null; } }
 
-  #pointTo(t: PickTarget | null): void {
-    this.#reached(t);
+  #underPointer(): PickTarget | null {
+    return this.#pointer && plotReady(this.#committed) ? this.#pick(this.#committed, this.#pointer) : null;
+  }
+
+  #showHover(t: PickTarget | null): void {
     const state = this.#hoverState ??= { k: S_HOVER, t };
     state.t = t;
     this.#shown = state;
+  }
+
+  #pointTo(t: PickTarget | null): PickTarget | null {
+    this.#reached(t);
+    this.#showHover(t);
+    return t;
   }
 
   #pointerAt(x: number, y: number, time: number): void {
@@ -1137,10 +1140,11 @@ class DomInteraction implements Interaction {
     this.#present();
   }
 
-  #onPointerMove(e: PointerEvent): void {
+  #onPointerMove(event: Event): void {
+    const e = event as PointerEvent;
     this.#startInteraction();
-    if (!this.#moveListeners && this.#proxy) {
-      this.#moveListeners = true;
+    if (!(this.#listenerFlags & MOVE_LISTENERS) && this.#proxy) {
+      this.#listenerFlags |= MOVE_LISTENERS;
       (this.#built ??= new Listeners()).on(this.#figure.stage, 'pointerleave', this.#onStageLeave.bind(this));
     }
     if (e.pointerType === 'touch') {
@@ -1220,8 +1224,9 @@ class DomInteraction implements Interaction {
     if (!(this.#listenerFlags & DOWN_LISTENERS) && this.#proxy) {
       this.#listenerFlags |= DOWN_LISTENERS;
       const l = this.#built ??= new Listeners();
-      l.on(this.#plot, 'pointerup', this.#onPointerUp.bind(this));
-      l.on(this.#plot, 'pointercancel', this.#onPointerCancel.bind(this));
+      const end = this.#onPointerEnd.bind(this);
+      l.on(this.#plot, 'pointerup', end);
+      l.on(this.#plot, 'pointercancel', end);
       l.on(this.#plot, 'lostpointercapture', ev => { if (this.#down?.id === ev.pointerId) this.#endDrag(); });
     }
     const d = this.#committed;
@@ -1240,18 +1245,20 @@ class DomInteraction implements Interaction {
     try { this.#plot.setPointerCapture(e.pointerId); } catch { /* gone */ }
   }
 
-  #onPointerUp(e: PointerEvent): void {
-    const d = this.#committed;
+  #onPointerEnd(e: PointerEvent): void {
+    const d = this.#committed, cancelled = e.type === 'pointercancel';
     if (e.pointerType === 'touch') {
       const t = this.#touches?.get(e.pointerId);
-      if (this.#endTouch(e.pointerId, true)) return;
+      if (this.#endTouch(e.pointerId, !cancelled) || cancelled) return;
       const up = this.#local(e);
       if (t && plotReady(d) && dist(up.x, up.y, t.x0, t.y0) < TAP_DISTANCE && e.timeStamp - t.t0 < TAP_TIME) this.#activate(d, clientPoint(e), false);
       return;
     }
-    if (this.#down?.id !== e.pointerId) return;
-    const was = this.#down; this.#endDrag();
-    if (!plotReady(d)) return;
+    const was = this.#down;
+    if (was ? was.id !== e.pointerId : !cancelled) return;
+    this.#endDrag();
+    if (cancelled) { this.#leave(); return; }
+    if (!was || !plotReady(d)) return;
     if (was.d) {
       const at = this.#local(e), a = positionAt(d.layout, was.x, was.y), b = positionAt(d.layout, at.x, at.y);
       if (a === null || b === null || d.view.kind === 'donut') return;
@@ -1274,25 +1281,25 @@ class DomInteraction implements Interaction {
     const target = this.#pick(d, at);
     this.#pointer = mouse ? at : null; this.#rest = null; this.#pinPage = 0;
     if (!target) { this.#shown = mouse ? NO_HOVER : this.#idle(); this.#redraw(); return; }
-    const ref = d.lookup.primary(target) ? this.#resolveAligned(d, target) : null;
+    const primary = d.lookup.primary(target);
+    const ref = primary && this.#resolveAligned(d, target, primary);
     this.#dismissed = null;
-    this.#shown = ref && presentationFor(d) !== 'none' ? { k: S_PIN, r: ref, t: target } : { k: S_HOVER, t: target };
-    if (this.#shown.k === S_PIN) this.#listenPin();
+    if (ref && presentationFor(d) !== 'none') {
+      this.#shown = { k: S_PIN, r: ref, t: target };
+      this.#listenPin();
+    } else this.#showHover(target);
     if (mouse && this.#proxy) { this.#clickFocus = true; try { focusQuiet(this.#proxy); } finally { this.#clickFocus = false; } }
     if (ref) { this.#focus = ref; this.#writeProxy(true); this.#actions.select(ref); }
     this.#redraw(2);
   }
 
-  #onPointerCancel(e: PointerEvent): void {
-    if (e.pointerType === 'touch') { this.#endTouch(e.pointerId, false); return; }
-    if (this.#down && this.#down.id !== e.pointerId) return;
-    this.#endDrag(); this.#leave();
-  }
+  #dismissPin(): void { this.#endPin(); this.#redraw(); }
 
   #endPin(): void {
     if (this.#shown.k !== S_PIN) return;
     this.#pinPage = 0;
-    this.#shown = this.#pointer && plotReady(this.#committed) ? { k: S_HOVER, t: this.#pick(this.#committed, this.#pointer) } : this.#idle();
+    if (this.#pointer && plotReady(this.#committed)) this.#showHover(this.#underPointer());
+    else this.#shown = this.#idle();
   }
 
   #startPinch(d: Committed): void {
@@ -1329,10 +1336,13 @@ class DomInteraction implements Interaction {
     this.#dismissed = [identityOf(target, this.#shown.k === S_PIN ? this.#shown.r : this.#shown.k === S_KEY ? this.#focus : this.#committed?.lookup.primary(target) ?? null)];
     this.#pinPage = 0;
     if (this.#shown.k === S_HELD) {
-      const under = this.#pointer && plotReady(this.#committed) ? this.#pick(this.#committed, this.#pointer) : null;
+      const under = this.#underPointer();
       if (under) this.#dismissed.push(identityOf(under, this.#committed!.lookup.primary(under)));
-      this.#shown = { k: S_HOVER, t: under };
-    } else if (this.#shown.k === S_PIN) this.#shown = this.#pointer ? { k: S_HOVER, t: target } : this.#idle();
+      this.#showHover(under);
+    } else if (this.#shown.k === S_PIN) {
+      if (this.#pointer) this.#showHover(target);
+      else this.#shown = this.#idle();
+    }
     this.#rest = null; this.#redraw();
   }
 
@@ -1383,10 +1393,7 @@ class DomInteraction implements Interaction {
     const inside = this.#tableView.element.contains(this.#activeElement());
     this.#tableView.destroy(); this.#tableView = this.#tableModel = null; this.#clearGeo();
     this.#root.classList.remove('axylo-table-open'); this.#plot.inert = false;
-    if (inside && restore && !this.#toolbar?.focus('table')) {
-      if (this.#proxy && !this.#proxy.hidden) focusQuiet(this.#proxy);
-      if (!this.#proxy || this.#proxy.hidden || this.#activeElement() !== this.#proxy) this.#focusFigure();
-    }
+    if (inside && restore && !this.#toolbar?.focus('table')) this.#restorePlotFocus(true);
   }
 
   #renderTable(d: ControlsState): void {
@@ -1411,41 +1418,52 @@ class DomInteraction implements Interaction {
     if (this.#tableView.element.parentNode !== this.#figure.stage) this.#figure.stage.appendChild(this.#tableView.element);
   }
 
-  #controlItems(d: ControlsState): ToolbarItem[] {
+  activateControl(action: string): void {
+    switch (action) {
+      case 'zoomIn': this.#zoomBy(1 / ZOOM_FACTOR); break;
+      case 'zoomOut': this.#zoomBy(ZOOM_FACTOR); break;
+      case 'panLeft': this.#pan(-0.5); break;
+      case 'panRight': this.#pan(0.5); break;
+      case 'resetZoom': this.#requestZoom(null); break;
+      case 'selectRange':
+        if (this.#range) this.#endRange();
+        else { this.#startInteraction(); this.#range = { s: null }; this.#refreshControls(); }
+        break;
+      case 'pause':
+      case 'resume': this.#actions.pause(action === 'pause'); break;
+      case 'table':
+        if (this.#tableView) this.#closeTable(); else this.#openTable();
+        this.#refreshControls();
+        break;
+      default: if (action.startsWith('series:')) this.#actions.toggle(action.slice('series:'.length));
+    }
+  }
+
+  #controlItems(d: ControlsState, controls: number): ToolbarItem[] {
     const { messages: m, view } = d, items: ToolbarItem[] = [], inherited = d.english('controlsLabel') ? d.pageLang : null;
-    if (d.ready && d.legend && view.kind !== 'donut' && !d.tooSmall && view.frame.series.length > 1) {
+    if (controls & SERIES && view.kind !== 'donut') {
       view.frame.series.forEach(({ key, label }, i) => {
         const on = view.visible[i] === true;
         items.push({
           key: `series:${key}`, label, pressed: on, lang: inherited, className: 'axylo-control axylo-legend-entry',
-          struck: !on, swatch: this.#parts.swatch(i, view.cues[i] ?? null, !on), activate: () => this.#actions.toggle(key),
+          struck: !on, swatch: this.#parts.swatch(i, view.cues[i] ?? null, !on),
         });
       });
     }
-    const btn = (key: Exclude<keyof Messages, InstructionKey>, activate: () => void, disabled = false, extra?: Partial<ToolbarItem>): ToolbarItem =>
-      ({ key, label: m[key] ?? defaultMessages[key], lang: d.english(key) ?? inherited, className: 'axylo-control', activate, disabled, ...extra });
-    if (canZoom(d)) {
-      const { xDomain: now, xFull: full } = d.view;
-      if (d.ready) {
-        items.push(
-          btn('zoomIn', () => this.#zoomBy(1 / ZOOM_FACTOR), !this.#canZoomCloser(view, d.zoomed ? now : full)),
-          btn('selectRange', () => {
-            if (this.#range) this.#endRange();
-            else { this.#startInteraction(); this.#range = { s: null }; this.#refreshControls(); }
-          }, false, {
-            pressed: this.#range !== null, symbol: 'range', className: 'axylo-control axylo-control-symbol',
-          }),
-        );
-      }
-      if (d.ready || d.zoomed) items.push(btn('zoomOut', () => this.#zoomBy(ZOOM_FACTOR), !d.zoomed));
-      if (d.zoomed) items.push(btn('panLeft', () => this.#pan(-0.5), !(now[0] > full[0])), btn('panRight', () => this.#pan(0.5), !(now[1] < full[1])), btn('resetZoom', () => this.#requestZoom(null)));
+    const btn = (key: Exclude<keyof Messages, InstructionKey>, disabled = false, extra?: Partial<ToolbarItem>): ToolbarItem =>
+      ({ key, label: m[key] ?? defaultMessages[key], lang: d.english(key) ?? inherited, className: 'axylo-control', disabled, ...extra });
+    if (controls & RANGE) {
+      items.push(
+        btn('zoomIn', !(controls & CLOSER)),
+        btn('selectRange', false, { pressed: this.#range !== null, symbol: 'range', className: 'axylo-control axylo-control-symbol' }),
+      );
     }
-    if (d.streaming) items.push(btn(d.paused ? 'resume' : 'pause', () => this.#actions.pause(!d.paused), false, { key: 'pause' }));
-    if (canInspect(d)) {
+    if (controls & (RANGE | RESET)) items.push(btn('zoomOut', !(controls & RESET)));
+    if (controls & RESET) items.push(btn('panLeft', !(controls & LEFT)), btn('panRight', !(controls & RIGHT)), btn('resetZoom'));
+    if (d.streaming) items.push(d.paused ? btn('resume', false, { key: 'pause', action: 'resume' }) : btn('pause'));
+    if (controls & INSPECT) {
       const open = this.#tableView !== null;
-      items.push(btn(open ? 'hideTable' : 'viewAsTable', () => { if (this.#tableView) this.#closeTable(); else this.#openTable(); this.#refreshControls(); }, false, {
-        key: 'table', expanded: open, controls: `${this.#figure.id}-table`,
-      }));
+      items.push(btn(open ? 'hideTable' : 'viewAsTable', false, { key: 'table', expanded: open, controls: this.#tableView?.element.id }));
     }
     return items;
   }
@@ -1466,26 +1484,28 @@ class DomInteraction implements Interaction {
     return this.#zoomCheckResult;
   }
 
-  #controlInputs(d: ControlsState, out: unknown[]): void {
+  #controlInputs(d: ControlsState, out: unknown[]): number {
     const { view } = d;
-    out.push(d.messages, d.english('controlsLabel'), d.pageLang, d.legend, this.#tableView !== null, this.#range !== null, canInspect(d), d.streaming, d.paused);
+    let controls = canInspect(d) ? INSPECT : 0;
+    out.push(d.messages, d.english('controlsLabel'), d.pageLang, d.legend, this.#tableView !== null, this.#range !== null, d.streaming, d.paused);
     if (this.#tableView) out.push(d.reader.table, d.formatters);
     if (canZoom(d)) {
       const { xDomain: now, xFull: full } = d.view;
-      out.push(true, d.ready, d.zoomed, d.ready && this.#canZoomCloser(view, d.zoomed ? now : full), d.zoomed && now[0] > full[0], d.zoomed && now[1] < full[1]);
-      if (!d.ready) this.#zoomCheckView = this.#zoomCheckWindow = null;
-    } else {
-      this.#zoomCheckView = this.#zoomCheckWindow = null;
-      out.push(false);
+      if (d.ready) controls |= RANGE | (this.#canZoomCloser(view, d.zoomed ? now : full) ? CLOSER : 0);
+      if (d.zoomed) controls |= RESET | (now[0] > full[0] ? LEFT : 0) | (now[1] < full[1] ? RIGHT : 0);
     }
+    if (!(controls & RANGE)) this.#zoomCheckView = this.#zoomCheckWindow = null;
     if (showsSlices(d)) out.push(view, d.formatters, d.ready, d.english('noData'));
     else if (view.kind !== 'donut' && d.ready && d.legend && !d.tooSmall && view.frame.series.length > 1) {
+      controls |= SERIES;
       const { series } = view.frame;
       for (let i = 0; i < series.length; i++) {
         const s = series[i]!, cue = view.cues[i];
         out.push(s.key, s.label, view.visible[i] === true, cue?.marker, cue?.dash.normal, cue?.dash.contrast);
       }
     }
+    out.push(controls);
+    return controls;
   }
 
   #renderControls(d: ControlsState, measure = false): boolean {
@@ -1494,8 +1514,9 @@ class DomInteraction implements Interaction {
     const inputs = controlScratch ?? [];
     controlScratch = undefined;
     let spare: unknown[] | null = inputs;
+    let controls: number;
     try {
-      this.#controlInputs(d, inputs);
+      controls = this.#controlInputs(d, inputs);
       if (sameKey(this.#lastControls, inputs)) return false;
       spare = this.#lastControls;
       this.#lastControls = inputs;
@@ -1514,13 +1535,13 @@ class DomInteraction implements Interaction {
     this.#legendList = nextList;
     if (inLegend && (!this.#legendList || !this.#legendList.contains(this.#activeElement()))) this.#focusFigure();
 
-    const items = this.#controlItems(d), inToolbar = this.#toolbar?.element.contains(this.#activeElement());
-    if (items.length || this.#toolbar) (this.#toolbar ??= createToolbar(this.#doc)).render(items, d.messages.controlsLabel, d.english('controlsLabel'));
+    const items = this.#controlItems(d, controls), inToolbar = this.#toolbar?.element.contains(this.#activeElement());
+    if (items.length || this.#toolbar) (this.#toolbar ??= createToolbar(this.#doc, this)).render(items, d.messages.controlsLabel, d.english('controlsLabel'));
     const legend: Element[] = [];
     if (this.#legendList) legend.push(this.#legendList);
     if (items.length && this.#toolbar) legend.push(this.#toolbar.element);
     const slot = d.legend === 'top' ? 'top' : d.legend === 'right' ? 'side' : 'controls';
-    if (this.#tableView && !canInspect(d)) this.#closeTable(); else if (this.#tableView) this.#renderTable(d);
+    if (this.#tableView) { if (controls & INSPECT) this.#renderTable(d); else this.#closeTable(); }
     const act = this.#activeElement();
     this.#figure.placeControls(slot, legend);
     for (const s of CONTROL_SLOTS) if (s !== slot) this.#figure.placeControls(s, NO_CONTROLS);
@@ -1548,8 +1569,7 @@ class DomInteraction implements Interaction {
     if (!el.firstElementChild && el.firstChild) el.textContent = '';
     list.forEach(({ text, lang }, i) => {
       const span = el.children[i] ?? el.appendChild(this.#doc.createElement('span'));
-      setText(span, i ? ` ${text}` : text);
-      setAttr(span, 'lang', lang ?? fallback);
+      setLanguageText(span, i ? ` ${text}` : text, lang ?? fallback);
     });
     while (el.children.length > list.length) el.lastElementChild!.remove();
   }
@@ -1665,8 +1685,7 @@ class DomInteraction implements Interaction {
     } else if (this.#shown.k === S_HELD) {
       if (pres !== this.#shown.p || !sameRect(this.#anchorOf(next, this.#shown.t), this.#shown.a) || !lookup.tooltip(this.#shown.t).rows.length) this.#dropHold(next, !this.#down?.d);
     } else if (this.#shown.k === S_HOVER && this.#pointer && !this.#down?.d) {
-      const before = this.#shown.t; this.#pointTo(this.#pick(next, this.#pointer));
-      const now = (this.#shown as Shown).k === S_HOVER ? (this.#shown as Extract<Shown, { k: 2 }>).t : null;
+      const before = this.#shown.t, now = this.#pointTo(this.#pick(next, this.#pointer));
       const moved = now !== null && this.#content !== null && sameTarget(this.#content.t, now) && !sameRect(this.#anchorOf(next, now), this.#content.a);
       if (!sameTarget(before, now) || moved) this.#rest = { x: this.#pointer.x, y: this.#pointer.y, t: this.#clock(), g: now };
     }

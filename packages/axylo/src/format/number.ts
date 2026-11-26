@@ -155,15 +155,16 @@ export function defaultReadoutNumber(v: number, locale: string, scale: ValueScal
   if (!finite) return numberFormat(locale, style, true).format(v);
   if (!d) return numberFormat(locale, { ...style, maximumFractionDigits: 0 }, true).format(0); // no "-0"
   const value = decimalString(d, scale === 'percent' ? -2 : 0);
+  const fmt = (extra: Intl.NumberFormatOptions) => formatExact(numberFormat(locale, { ...style, ...extra }, true), value);
   if (digits > MAX_INTL_FRACTION_DIGITS) {
     // Below about 1e-94 fixed notation cannot reach the significant digits.
-    return formatExact(numberFormat(locale, { ...style, notation: 'scientific', maximumSignificantDigits: SIGNIFICANT_FRACTION_DIGITS }, true), value);
+    return fmt({ notation: 'scientific', maximumSignificantDigits: SIGNIFICANT_FRACTION_DIGITS });
   }
   try {
-    return formatExact(numberFormat(locale, { ...style, maximumFractionDigits: digits }, true), value);
+    return fmt({ maximumFractionDigits: digits });
   } catch {
     // Engines before ES2023 allow at most 20 fraction digits.
-    return formatExact(numberFormat(locale, { ...style, maximumFractionDigits: Math.min(digits, 20) }, true), value);
+    return fmt({ maximumFractionDigits: Math.min(digits, 20) });
   }
 }
 

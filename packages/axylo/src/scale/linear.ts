@@ -50,16 +50,6 @@ function interpolate(a: number, b: number, start: number, end: number): (v: numb
   const halfSpan = b / 2 - a / 2;
   const finiteSpan = Number.isFinite(span);
   const finiteExtent = Number.isFinite(extent);
-  if (finiteSpan && finiteExtent) {
-    return v => {
-      if (v === a) return start;
-      if (v === b) return end;
-      const delta = v - a;
-      const f = Number.isFinite(delta) ? delta / span : (v / 2 - a / 2) / halfSpan;
-      const offset = f * extent;
-      return Number.isFinite(offset) ? start + offset : (start / 2 + f * (extent / 2)) * 2;
-    };
-  }
   return v => {
     if (v === a) return start;
     if (v === b) return end;

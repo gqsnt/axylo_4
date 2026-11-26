@@ -304,13 +304,11 @@ export class RawRows {
   indexes(start: number, incoming: number): Int32Array {
     const indexes = new Int32Array(this.size + incoming);
     let i = 0;
-    if (this.#columnCount > 0) {
-      for (const [index, block] of this.columns) {
-        const { end, present } = block;
-        const base = index * blockSize;
-        for (let offset = this.#blockStart(index, block); offset < end; offset++) {
-          if (!present || hasOffset(present, offset)) indexes[i++] = base + offset;
-        }
+    for (const [index, block] of this.columns) {
+      const { end, present } = block;
+      const base = index * blockSize;
+      for (let offset = this.#blockStart(index, block); offset < end; offset++) {
+        if (!present || hasOffset(present, offset)) indexes[i++] = base + offset;
       }
     }
     for (const row of this.#objects.keys()) indexes[i++] = row;
@@ -738,7 +736,6 @@ export class RowRevisions {
   }
 
   get size(): number {
-    if (this.windows.size === 1) return this.current.size;
     let size = 0;
     for (const window of this.windows) size += window.size;
     return size;
@@ -763,10 +760,6 @@ export class RowRevisions {
     // The controller releases after acceptance and again after presentation.
     if (revision <= this.#retired) return;
     this.#retired = revision;
-    if (this.windows.size === 1) {
-      this.current.retire(revision);
-      return;
-    }
     for (const window of this.windows) {
       window.retire(revision);
       if (window.disposable) this.windows.delete(window);

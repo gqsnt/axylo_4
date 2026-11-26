@@ -1,4 +1,4 @@
-import type { ScatterView, XScale } from '../core/contracts';
+import type { IndexRange, ScatterView, XScale } from '../core/contracts';
 import { pointerOnPlot, scatterPosition, type PlotLayout } from './geometry';
 
 // Squares written out, so the module does no work at import time.
@@ -64,6 +64,22 @@ function linearProjection(scale: XScale) {
   return { d0, d1, r0, r1, span, extent, low: Math.min(r0, r1), high: Math.max(r0, r1) };
 }
 
+function projected(scale: XScale, linear: ReturnType<typeof linearProjection>, value: number): number {
+  if (linear) {
+    // Match continuous.map at both endpoints and let it repair rounding outside the range.
+    const { d0, d1, r0, r1, span, extent, low, high } = linear;
+    const pixel = value === d0 ? r0 : value === d1 ? r1 : r0 + ((value - d0) / span) * extent;
+    if (pixel >= low && pixel <= high) return pixel;
+  }
+  return scatterPosition(scale, value);
+}
+
+const NO_POINTS: IndexRange = { start: 0, end: 0 };
+
+export function scatterRanges(view: ScatterView): readonly IndexRange[] {
+  return view.frame.series.map((entry, s) => view.visible[s] && entry.drawable ? view.visiblePoints[s]! : NO_POINTS);
+}
+
 /**
  * The pointer index of a scatter view (contract: `Lookup.pick`).
  *
@@ -76,7 +92,7 @@ function linearProjection(scale: XScale) {
  */
 export function scatterGrid(
   view: ScatterView, layout: PlotLayout & { projection: Extract<PlotLayout['projection'], { kind: 'xy' }> },
-  count: number, devicePixelRatio: number, options: GridOptions = {},
+  count: number, devicePixelRatio: number, options: GridOptions = {}, shown = scatterRanges(view),
 ) {
   const { plot, projection } = layout;
   const columns = Math.floor(plot.width / CELL) + 1;
@@ -88,7 +104,6 @@ export function scatterGrid(
   const points = new Uint32Array(count);
   // Grid index of point i of series s at atOf[first[s] + i - start of its range], -1 when it is not on the
   // plot: sized to the points in view, so a narrow view of a large frame indexes only what it shows.
-  const shown = dataSeries.map((data, s) => view.visible[s] && data.drawable ? view.visiblePoints[s]! : { start: 0, end: 0 });
   const first = new Int32Array(shown.length + 1);
   shown.forEach(({ start, end }, s) => { first[s + 1] = first[s]! + end - start; });
   const atOf = new Int32Array(first[shown.length]!).fill(-1);
@@ -137,27 +152,11 @@ export function scatterGrid(
   dataSeries.forEach((data, s) => {
     const { start, end } = shown[s]!;
     const { x: valuesX, y: valuesY, row: source } = data;
+    const { x: xScale, y: yScale } = projection;
     const offset = first[s]! - start;
     for (let i = start; i < end; i++) {
-      const vx = valuesX[i]!;
-      const vy = valuesY[i]!;
-      // Keep the endpoints and arithmetic of continuous.map. The fallback also repairs rounding at the edges.
-      let x: number;
-      if (linearX) {
-        const { d0, d1, r0, r1, span, extent, low, high } = linearX;
-        x = vx === d0 ? r0 : vx === d1 ? r1 : r0 + ((vx - d0) / span) * extent;
-        if (!(x >= low && x <= high)) x = scatterPosition(projection.x, vx);
-      } else {
-        x = scatterPosition(projection.x, vx);
-      }
-      let y: number;
-      if (linearY) {
-        const { d0, d1, r0, r1, span, extent, low, high } = linearY;
-        y = vy === d0 ? r0 : vy === d1 ? r1 : r0 + ((vy - d0) / span) * extent;
-        if (!(y >= low && y <= high)) y = scatterPosition(projection.y, vy);
-      } else {
-        y = scatterPosition(projection.y, vy);
-      }
+      const x = projected(xScale, linearX, valuesX[i]!);
+      const y = projected(yScale, linearY, valuesY[i]!);
       // Exact positions decide what is in the plot, on both indexes.
       if (!(x >= plot.x && x <= right && y >= plot.y && y <= bottom)) continue;
       const at = length++;
@@ -387,16 +386,11 @@ export function scatterGrid(
       }
       function search(bucket: Bucket, distance: number): void {
         if (distance > best) return;
-        if (bucket.left && bucket.right) {
-          const left = distanceTo(bucket.left, x, y);
-          const right = distanceTo(bucket.right, x, y);
-          if (left <= right) {
-            search(bucket.left, left);
-            search(bucket.right, right);
-          } else {
-            search(bucket.right, right);
-            search(bucket.left, left);
-          }
+        if (bucket.left) {
+          const a = bucket.left, b = bucket.right!;
+          const left = distanceTo(a, x, y), right = distanceTo(b, x, y);
+          if (left <= right) { search(a, left); search(b, right); }
+          else { search(b, right); search(a, left); }
         } else {
           for (let i = bucket.start; i < bucket.end; i++) consider(order[i]!);
         }
@@ -415,9 +409,9 @@ export function scatterGrid(
         if (!later(bucket.latest, nearest) || !inTie(distanceTo(bucket, x, y))) return;
         if (inTie(distanceAcross(bucket, x, y))) {
           nearest = bucket.latest;
-        } else if (bucket.left && bucket.right) {
+        } else if (bucket.left) {
           searchTies(bucket.left);
-          searchTies(bucket.right);
+          searchTies(bucket.right!);
         } else {
           for (let i = bucket.start; i < bucket.end; i++) {
             const at = order[i]!;
@@ -459,7 +453,7 @@ export function scatterGrid(
       function walk(bucket: Bucket): boolean {
         if (distanceTo(bucket, cx, cy) > COINCIDENT2) return true;
         if (distanceAcross(bucket, cx, cy) <= COINCIDENT2 && whole(otherCount(bucket, own))) return true;
-        if (bucket.left && bucket.right) return walk(bucket.left) && walk(bucket.right);
+        if (bucket.left) return walk(bucket.left) && walk(bucket.right!);
         for (let i = bucket.start; i < bucket.end; i++) {
           const entry = order[i]!;
           visit();

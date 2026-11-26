@@ -37,19 +37,18 @@ function buffers(description: SeriesDescription, capacity: number, rows = true):
   };
 }
 
-/**
- * The state column made for a y buffer while its series had none: by a reader of a dense frame's `slot`, or by
- * the first other state written. Revisions that share the y buffer share it, as columns were always shared.
- * Competing writers open new buffers (BufferWindow), so no index is written twice through one y buffer.
- */
-function sharedStates(y: Float64Array): Uint8Array {
-  return sharedStatesFor(y);
+export function copyWindow<T extends Float64Array | Uint8Array | Int32Array>(
+  source: T, start: number, end: number, capacity: number, offset = 0,
+): T {
+  const copy = new (source.constructor as new (length: number) => T)(capacity);
+  copy.set(source.subarray(start, end), offset);
+  return copy;
 }
 
 /** Writes one slot state, making the state column only when the state is not SLOT_VALUE. */
 export function writeSlot(series: SeriesBuffers, index: number, state: number): void {
   if (series.slot) series.slot[index] = state;
-  else if (state !== SLOT_VALUE) (series.slot = sharedStates(series.y))[index] = state;
+  else if (state !== SLOT_VALUE) (series.slot = sharedStatesFor(series.y))[index] = state;
 }
 
 // Spare slots when storage opens. The store opens on the first append to a static chart, so the copy
@@ -204,14 +203,8 @@ export class FrameBuffers {
 
   #resize(capacity: number, extra: number): void {
     const { start, end } = this;
-    const x = new Float64Array(capacity);
-    x.set(this.x.subarray(start, end));
-    this.x = x;
-    if (this.observedFlags) {
-      const observed = new Uint8Array(capacity);
-      observed.set(this.observedFlags.subarray(start, end));
-      this.observedFlags = observed;
-    }
+    this.x = copyWindow(this.x, start, end, capacity);
+    if (this.observedFlags) this.observedFlags = copyWindow(this.observedFlags, start, end, capacity);
     if (this.categoryPositions.length > capacity) this.categoryPositions = new Float64Array();
     for (const series of this.series.values()) this.copySeries(series, capacity, 0);
     this.#rowShift += start;
@@ -219,11 +212,13 @@ export class FrameBuffers {
   }
 
   copySeries(series: SeriesBuffers, capacity = this.x.length, offset = this.start): SeriesBuffers {
-    const copy = buffers(series.description, capacity, series.row !== null);
     const { start, end } = this;
-    copy.y.set(series.y.subarray(start, end), offset);
-    if (series.slot) (copy.slot = new Uint8Array(capacity)).set(series.slot.subarray(start, end), offset);
-    copy.row?.set(series.row!.subarray(start, end), offset);
+    const copy: SeriesBuffers = {
+      description: series.description,
+      y: copyWindow(series.y, start, end, capacity, offset),
+      slot: series.slot ? copyWindow(series.slot, start, end, capacity, offset) : null,
+      row: series.row ? copyWindow(series.row, start, end, capacity, offset) : null,
+    };
     restoreTail(series.tail, copy, offset + end - start - 1);
     this.#ownSeries().set(series.description.key, copy);
     return copy;
@@ -246,7 +241,7 @@ export class FrameBuffers {
     if (!zero) {
       series.y.fill(NaN, this.start, this.end);
       // The new series had no row at any slot already in the window.
-      if (this.end > this.start) (series.slot = sharedStates(series.y)).fill(SLOT_NO_ROW, this.start, this.end);
+      if (this.end > this.start) (series.slot = sharedStatesFor(series.y)).fill(SLOT_NO_ROW, this.start, this.end);
     }
     this.#ownSeries().set(description.key, series);
     return series;
@@ -304,7 +299,7 @@ export class FrameBuffers {
         const owned = buffer.y, y = owned.subarray(start, end), row = buffer.row?.subarray(start, end) ?? null;
         series.push(buffer.slot ? { ...buffer.description, y, slot: buffer.slot.subarray(start, end), row }
           : denseSeries({ ...buffer.description, y, row }, end - start,
-            () => sharedStates(owned).subarray(start, end)));
+            () => sharedStatesFor(owned).subarray(start, end)));
       }
     }
     const { shape, epoch, xLabel, yLabel, binEdges } = previous;
@@ -332,7 +327,7 @@ export class FrameBuffers {
     };
     if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) lazyColumns.set(columns, () => [values, states, rows]);
     // Captured dense, the window was all SLOT_VALUE then, the open slot included, whatever a later writer stores.
-    if (!slot) return denseSeries(columns, end - start, () => readColumn(sharedStates(y), tail, start, end, SLOT_VALUE));
+    if (!slot) return denseSeries(columns, end - start, () => readColumn(sharedStatesFor(y), tail, start, end, SLOT_VALUE));
     Object.defineProperty(columns, 'slot', {
       configurable: true, enumerable: true,
       get() { return states ??= readColumn(slot, tail, start, end, tail.slot); },

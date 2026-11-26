@@ -236,10 +236,7 @@ function sliceWindow(labels: Labels, positions: StoreMap<string, number>, next: 
           rows.evictRead(index.get(label)!);
           index.delete(label);
         }
-        names.drop(dropped);
-        y.drop(dropped);
-        states.drop(dropped);
-        source.drop(dropped);
+        for (const c of [names, y, states, source]) c.drop(dropped);
       }
       return sliceWindow(names, index, next + frame.labels.length, y, states, source);
     },
@@ -321,18 +318,24 @@ export class SampleStore<F extends Frame> extends RevisionStore<F> {
     this.#encoding = withoutTable(options);
     const diagnostics = new DiagnosticCollector();
     const table = this.rows.table();
-    const result = build({ ...options, table }, environment, diagnostics, version);
-    const { frame, positions } = result;
-    if (this.#type !== 'histogram') this.rows.resetPositions(table, positions);
+    const { result, storage } = this.#buildStorage(this.rows, table, options, version, diagnostics);
     this.latest = diagnostics.inputs();
-    this.#storage = this.latest.length ? null : this.#open(result, this.#encoding);
-    this.publish(this.#storage?.frame(frame) ?? frame);
+    this.#storage = storage;
+    this.publish(storage?.frame(result.frame) ?? result.frame);
     forwardDiagnostics(this.latest, sink);
   }
 
   get diagnostics(): readonly DiagnosticInput[] { return this.latest; }
   resolveEncoding(input: unknown, sink: DiagnosticSink): ResolvedOptions {
     return withoutTable(this.#resolve(this.#type, input, sink, this.rows.table()));
+  }
+
+  #buildStorage(
+    rows: StreamRows, table: Table, options: ResolvedOptions, version: FrameVersion, sink: DiagnosticCollector,
+  ): { result: Result<F>; storage: Storage<F> | null } {
+    const result = this.#build({ ...options, table }, this.#environment, sink, version);
+    if (this.#type !== 'histogram') rows.resetPositions(table, result.positions);
+    return { result, storage: sink.inputs().length ? null : this.#open(result, withoutTable(options)) };
   }
 
   prepareAppend(rows: readonly unknown[], options: StoreAppendOptions = {}): Candidate<F> {
@@ -409,10 +412,9 @@ export class SampleStore<F extends Frame> extends RevisionStore<F> {
     checkVersion(base, version);
     const table = rows.table();
     const resolved = retargetOptions(options, replacement?.table ?? table, call, replacement?.valid);
-    const result = this.#build({ ...resolved, table }, this.#environment, call, version);
-    if (this.#type !== 'histogram') rows.resetPositions(table, result.positions);
+    const { result, storage } = this.#buildStorage(rows, table, resolved, version, call);
     const diagnostics = call.inputs();
-    return this.#prepare(base, result.frame, rows, diagnostics.length ? null : this.#open(result, withoutTable(options)), diagnostics, diagnostics, [], options, replacement !== undefined);
+    return this.#prepare(base, result.frame, rows, storage, diagnostics, diagnostics, [], options, replacement !== undefined);
   }
 
   #prepare(

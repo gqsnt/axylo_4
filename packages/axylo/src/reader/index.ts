@@ -232,13 +232,8 @@ function statsCache(input: ReaderInput): StatsCache {
 }
 
 function seriesStats(cache: StatsCache, formatters: Formatters, s: number, min: number, max: number, last: number): FormattedStats {
-  const entry = cache.series[s];
-  if (!entry) {
-    const minText = formatters.value(s, min);
-    const maxText = Object.is(max, min) ? minText : formatters.value(s, max);
-    const lastText = Object.is(last, min) ? minText : Object.is(last, max) ? maxText : formatters.value(s, last);
-    return cache.series[s] = { min, max, last, minText, maxText, lastText };
-  }
+  const previous = cache.series[s];
+  const entry = previous ?? { min: NaN, max: NaN, last: NaN, minText: '', maxText: '', lastText: '' };
   if (!Object.is(entry.min, min)) { entry.minText = formatters.value(s, min); entry.min = min; }
   if (!Object.is(entry.max, max)) {
     entry.maxText = Object.is(max, min) ? entry.minText : formatters.value(s, max);
@@ -248,6 +243,7 @@ function seriesStats(cache: StatsCache, formatters: Formatters, s: number, min: 
     entry.lastText = Object.is(last, min) ? entry.minText : Object.is(last, max) ? entry.maxText : formatters.value(s, last);
     entry.last = last;
   }
+  if (!previous) cache.series[s] = entry;
   return entry;
 }
 
@@ -405,10 +401,11 @@ function stackText(view: View, formatters: Formatters, messages: Messages): stri
 function referenceText(view: View, formatters: Formatters, messages: Messages): string[] {
   if (view.kind === 'donut') return [];
   return view.references.map(({ axis, from, to, label }) => {
-    const start = axis === 'x' ? formatters.x(from) : formatters.value(0, from);
-    if (from === to) return fill(messages.referenceLine, { label, axis, from: start });
-    const end = axis === 'x' ? formatters.x(to) : formatters.value(0, to);
-    return fill(messages.referenceBand, { label, axis, from: start, to: end });
+    const values: { label: string; axis: typeof axis; from: string; to?: string } = {
+      label, axis, from: axis === 'x' ? formatters.x(from) : formatters.value(0, from),
+    };
+    if (from !== to) values.to = axis === 'x' ? formatters.x(to) : formatters.value(0, to);
+    return fill(from === to ? messages.referenceLine : messages.referenceBand, values);
   });
 }
 
@@ -426,7 +423,6 @@ interface SummaryDraft {
   readonly yLabel: string;
   readonly listReady: boolean;
   readonly compact: boolean;
-  readonly hasReferences: boolean;
   readonly references: readonly string[] | undefined;
   readonly omission: string;
 }
@@ -447,12 +443,12 @@ class Reader implements BuiltReader {
   get summary(): string {
     const draft = this.#reading;
     if (typeof draft === 'string') return draft;
-    const { input, type, xLabel, yLabel, listReady, compact, hasReferences, references, omission } = draft;
+    const { input, type, xLabel, yLabel, listReady, compact, references, omission } = draft;
     const { view, formatters, messages, subtitle, description } = input;
     let text = '';
     for (const sentence of draft.parts.text(input, type, xLabel, yLabel, this.table !== null, listReady)) text = addSentence(text, sentence);
     if (compact) text = addSentence(text, stackText(view, formatters, messages));
-    if (hasReferences) {
+    else if (view.kind !== 'donut' && view.references.length) {
       for (const reference of references ?? referenceText(view, formatters, messages)) text = addSentence(text, reference);
     }
     text = addSentence(text, subtitle);
@@ -517,18 +513,15 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
   const listReady = listReadyFor(input.locale);
   const titleText = typeof title === 'string' ? title : title?.text;
   if (!labelledBy && !titleText && input.diagnostics) report(input.diagnostics, 'AX140', 'none');
-  let generated: string | undefined;
-  const name = labelledBy ? '' : titleText || (generated = chartName(formatters, messages.chartName, type, xLabel, yLabel));
+  const name = labelledBy ? '' : titleText || chartName(formatters, messages.chartName, type, xLabel, yLabel);
   const compact = input.compact === true || (view.kind !== 'donut' && view.compact);
-  const hasReferences = !compact && view.kind !== 'donut' && view.references.length > 0;
   let references: string[] | undefined;
   let table: ReaderModel['table'] = null;
   if (input.table !== false && !compact) {
-    let caption = input.caption;
-    if (!caption?.trim()) caption = name;
-    if (!caption.trim()) caption = generated ?? chartName(formatters, messages.chartName, type, xLabel, yLabel);
-    if (!caption.trim()) caption = messages.plotLabel?.trim() ? messages.plotLabel : defaultMessages.plotLabel;
-    if (hasReferences) {
+    const supplied = input.caption?.trim() ? input.caption : name;
+    const generated = supplied.trim() ? supplied : chartName(formatters, messages.chartName, type, xLabel, yLabel);
+    let caption = generated.trim() ? generated : messages.plotLabel?.trim() ? messages.plotLabel : defaultMessages.plotLabel;
+    if (view.kind !== 'donut' && view.references.length) {
       references = referenceText(view, formatters, messages);
       for (const reference of references) caption += ' ' + reference;
     }
@@ -559,6 +552,6 @@ export function readerWith(parts: ReaderParts, input: ReaderInput): BuiltReader 
     note = textOf(noteSegments) || null;
   }
   return new Reader(name, note, table, note ? noteSegments : null, {
-    parts, input, type, xLabel, yLabel, listReady, compact, hasReferences, references, omission,
+    parts, input, type, xLabel, yLabel, listReady, compact, references, omission,
   });
 }

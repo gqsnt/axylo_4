@@ -25,9 +25,7 @@ interface Label {
   rx: number;
   ry: number;
   line0: HTMLDivElement | null;
-  text0: string;
   lines: HTMLDivElement[] | null;
-  text: string[] | null;
 }
 
 type TickRole = 'tick-x' | 'tick-y';
@@ -55,45 +53,30 @@ function appendLine(doc: Document, label: HTMLDivElement): HTMLDivElement {
   return line;
 }
 
-function renderLines(doc: Document, label: Label, text: readonly string[]): void {
-  if (text.length === 0) {
+function renderLines(doc: Document, label: Label, text: readonly string[], previous?: readonly string[]): void {
+  const count = text.length;
+  if (count === 0) {
     label.line0?.remove();
     label.line0 = null;
-    label.text0 = '';
   } else {
-    const line0 = label.line0 ??= appendLine(doc, label.el);
-    const text0 = text[0]!;
-    if (label.text0 !== text0) {
-      label.text0 = text0;
-      line0.textContent = text0;
-    }
+    const line = label.line0 ??= appendLine(doc, label.el);
+    if (text[0] !== (previous?.[0] ?? '')) line.textContent = text[0]!;
   }
-  if (text.length <= 1) {
-    if (label.lines !== null) {
-      for (const line of label.lines) line.remove();
-      label.lines = null;
-      label.text = null;
-    }
-    return;
-  }
-  const lines = label.lines ??= [];
-  const previous = label.text ??= [];
-  const count = text.length - 1;
-  while (lines.length > count) { lines.pop()!.remove(); previous.pop(); }
-  while (lines.length < count) {
-    lines.push(appendLine(doc, label.el));
-    previous.push('');
-  }
-  for (let i = 0; i < count; i++) {
-    const value = text[i + 1]!;
-    if (previous[i] !== value) { previous[i] = value; lines[i]!.textContent = value; }
+  const lines = count > 1 ? label.lines ??= [] : label.lines;
+  if (!lines) return;
+  const tail = Math.max(0, count - 1);
+  while (lines.length > tail) lines.pop()!.remove();
+  if (count <= 1) label.lines = null;
+  for (let i = 1; i < count; i++) {
+    const line = lines[i - 1] ??= appendLine(doc, label.el);
+    if (text[i] !== (previous?.[i] ?? '')) line.textContent = text[i]!;
   }
 }
 
 function createLabel(doc: Document, role: PlacedText['role']): Label {
   const el = doc.createElement('div');
   el.setAttribute('data-role', role);
-  return { el, role, placed: null, baseX: NaN, sliding: false, rx: NaN, ry: NaN, line0: null, text0: '', lines: null, text: null };
+  return { el, role, placed: null, baseX: NaN, sliding: false, rx: NaN, ry: NaN, line0: null, lines: null };
 }
 
 function takeLabel(doc: Document, role: PlacedText['role'], spare?: SpareTicks): Label {
@@ -144,24 +127,23 @@ function renderLabel(doc: Document, label: Label, t: PlacedText, x = t.x): void 
     label.rx = rx;
     label.ry = ry;
   }
-  if (previous?.lines !== t.lines && !sameLines(label, t)) {
-    renderLines(doc, label, t.lines);
-  }
+  if (previous?.lines !== t.lines) renderLines(doc, label, t.lines, previous?.lines);
   label.placed = t;
 }
 
 function sameSingleLine(label: Label, t: PlacedText): boolean {
-  return t.lines.length === 1 && label.line0 !== null && label.lines === null && t.lines[0] === label.text0;
+  const lines = label.placed?.lines;
+  return t.lines.length === 1 && lines?.length === 1 && t.lines[0] === lines[0];
 }
 
-function sameLines(label: Label, t: PlacedText): boolean {
-  if (label.line0 === null) return t.lines.length === 0;
-  if (label.text0 !== t.lines[0]) return false;
-  const tail = label.text;
-  if (tail === null) return t.lines.length === 1;
-  if (tail.length !== t.lines.length - 1) return false;
-  for (let j = 0; j < tail.length; j++) if (tail[j] !== t.lines[j + 1]) return false;
+function sameLines(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
+}
+
+function sameAlignment(a: PlacedText, b: PlacedText): boolean {
+  return a.y === b.y && a.anchor === b.anchor && a.baseline === b.baseline && a.rotate === b.rotate;
 }
 
 function reconcileLabels(
@@ -181,10 +163,11 @@ function reconcileLabels(
     const label = available[j]!;
     let role = roles.get(label.role);
     if (!role) roles.set(label.role, role = { byText: new Map(), cursor: 0 });
-    if (label.placed?.lines.length === 1) {
-      const next = role.byText.get(label.text0);
+    const lines = label.placed?.lines;
+    if (lines?.length === 1) {
+      const key = lines[0]!, next = role.byText.get(key);
       if (next !== undefined) duplicates[j] = next;
-      role.byText.set(label.text0, j);
+      role.byText.set(key, j);
     }
   }
 
@@ -234,12 +217,9 @@ function slideOffset(
     const label = labels[i]!, t = texts[i]!, old = label.placed;
     label.sliding = false;
     if (!old || Number.isNaN(label.baseX)) continue;
-    if (old.lines !== t.lines && !sameSingleLine(label, t)) {
-      if (old.lines.length !== t.lines.length || !old.lines.every((line, j) => line === t.lines[j])) continue;
-    }
+    if (old.lines !== t.lines && !sameLines(old.lines, t.lines)) continue;
     const offset = t.x - label.baseX;
-    if (!Number.isFinite(offset) || t.y !== old.y || t.rotate !== old.rotate ||
-        t.anchor !== old.anchor || t.baseline !== old.baseline ||
+    if (!Number.isFinite(offset) || !sameAlignment(t, old) ||
         (survivors > 0 && Math.abs(offset - dx) > 0.005)) return null;
     if (survivors === 0) dx = offset;
     survivors++;
@@ -262,8 +242,7 @@ function unchangedSlide(labels: Label[], texts: readonly PlacedText[], start: nu
       if (!(Math.abs((t.x - label.baseX) - dx) <= 0.005)) return null;
     } else if (t.x !== label.baseX) return null;
     if (old === t) continue;
-    if (t.role !== label.role || t.y !== old.y || t.anchor !== old.anchor || t.rotate !== old.rotate ||
-        t.baseline !== old.baseline || (t.lines !== old.lines && !sameLines(label, t))) return null;
+    if (t.role !== label.role || !sameAlignment(t, old) || (t.lines !== old.lines && !sameLines(old.lines, t.lines))) return null;
     // Even on a later mismatch this prefix already has the correct text and local positions.
     label.placed = t;
   }
@@ -289,6 +268,11 @@ class DomTextLayer implements TextLayer {
     this.element.setAttribute('aria-hidden', 'true');
   }
 
+  #moveGroup(dx: number): void {
+    if (this.#tickGroup && dx !== this.#groupDx) this.#tickGroup.style.transform = dx ? `translate(${dx}px,0px)` : '';
+    this.#groupDx = dx;
+  }
+
   render(texts: readonly PlacedText[]): void {
     const { element } = this, labels = this.#labels, doc = this.#doc;
     if (texts === this.#previous) return;
@@ -296,8 +280,7 @@ class DomTextLayer implements TextLayer {
     if (this.#tickGroup && count && count === texts.length) {
       const dx = unchangedSlide(labels, texts, this.#tickStart, this.#tickEnd);
       if (dx !== null) {
-        if (dx !== this.#groupDx) this.#tickGroup.style.transform = dx ? `translate(${dx}px,0px)` : '';
-        this.#groupDx = dx;
+        this.#moveGroup(dx);
         this.#previous = texts;
         return;
       }
@@ -357,8 +340,7 @@ class DomTextLayer implements TextLayer {
       this.#tickGroup = null;
       reorder = true;
     }
-    if (this.#tickGroup && dx !== this.#groupDx) this.#tickGroup.style.transform = dx ? `translate(${dx}px,0px)` : '';
-    this.#groupDx = dx;
+    this.#moveGroup(dx);
     for (let i = 0; i < texts.length; i++) {
       const label = labels[i]!, t = texts[i]!;
       if (this.#tickGroup && i >= this.#tickStart && i < this.#tickEnd && slide !== null) {

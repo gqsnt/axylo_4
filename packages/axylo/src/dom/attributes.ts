@@ -1,10 +1,8 @@
 /** Writes an attribute only when it changes; null removes it. Shared by the figure and its controls. */
 export function setAttr(el: Element, name: string, value: string | null): void {
-  if (value === null) {
-    el.removeAttribute(name);
-  } else if (el.getAttribute(name) !== value) {
-    el.setAttribute(name, value);
-  }
+  if (el.getAttribute(name) === value) return;
+  if (value === null) el.removeAttribute(name);
+  else el.setAttribute(name, value);
 }
 
 /** Cross-realm safe check for an Element node (works across iframes). */
@@ -15,6 +13,15 @@ export function isElement(node: unknown): node is Element {
 /** Cross-realm safe check for a focusable Element (HTMLElement / SVGElement across iframes). */
 export function isFocusable(node: unknown): node is HTMLElement {
   return isElement(node) && typeof (node as HTMLElement).focus === 'function';
+}
+
+export const focusQuiet = (el: HTMLElement): void => el.focus({ preventScroll: true });
+
+/** Gives focus a resting place when an active chart control is removed. */
+export function focusContainer(el: Element | null): void {
+  if (!isFocusable(el)) return;
+  if (!el.hasAttribute('tabindex')) el.setAttribute('tabindex', '-1');
+  focusQuiet(el);
 }
 
 /** Cross-realm safe ShadowRoot lookup for a node, or null when not in a shadow tree. */
@@ -102,6 +109,18 @@ export function setText(node: Node, text: string): void {
     }
   }
   if (node.textContent !== text) node.textContent = text;
+}
+
+export function setLanguageText(el: Element, text: string, lang: string | null): void {
+  setAttr(el, 'lang', lang);
+  setText(el, text);
+}
+
+/** Shared by text changes that intentionally speak, even when the words repeat. */
+export function announceText(el: HTMLElement, text: string, lang: string | null): void {
+  setAttr(el, 'lang', lang);
+  if (el.textContent !== text) el.textContent = text;
+  else if (text) el.replaceChildren(el.ownerDocument.createTextNode(text));
 }
 
 /** Puts exactly `wanted`, in order, into `host`, moving a node only when it is out of place. */

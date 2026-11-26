@@ -60,17 +60,18 @@ function denseMarkerPoints(
     let high = i;
     // A regular time window lands on this bracket immediately. Verify it in projected pixels
     // before skipping any slots, including at an exact spacing tie or on an irregular axis.
+    const far = (idx: number) => Math.abs(previous - affinePosition(affine, x[idx]!)) >= SPARSE_SPACING;
     const guess = Math.max(first, i - stride);
-    if (Math.abs(previous - affinePosition(affine, x[guess]!)) >= SPARSE_SPACING) {
+    if (far(guess)) {
       low = guess + 1;
-      if (low < high && Math.abs(previous - affinePosition(affine, x[low]!)) < SPARSE_SPACING) high = low;
+      if (low < high && !far(low)) high = low;
     } else {
       high = guess;
-      if (low < high && Math.abs(previous - affinePosition(affine, x[high - 1]!)) >= SPARSE_SPACING) low = high;
+      if (low < high && far(high - 1)) low = high;
     }
     while (low < high) {
       const mid = low + ((high - low) >>> 1);
-      if (Math.abs(previous - affinePosition(affine, x[mid]!)) >= SPARSE_SPACING) low = mid + 1;
+      if (far(mid)) low = mid + 1;
       else high = mid;
     }
     i = low - 1;

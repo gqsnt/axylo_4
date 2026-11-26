@@ -68,11 +68,11 @@ export function resolveLocale(option: unknown, doc: Document | null, lang = doc?
     ?? new Intl.NumberFormat().resolvedOptions().locale;
 }
 
-function pixels(value: string, fontSize: number): number {
-  if (value === '' || value === 'normal') return NaN;
+/** A computed length in pixels, or `fallback` for one that is not a number ('', 'normal'). */
+function pixels(value: string, fontSize: number, fallback: number): number {
   const n = parseFloat(value);
-  if (!Number.isFinite(n)) return NaN;
-  return value.endsWith('px') ? n : n * fontSize;
+  const px = Number.isFinite(n) && !value.endsWith('px') ? n * fontSize : n;
+  return Number.isFinite(px) ? px : fallback;
 }
 
 /**
@@ -86,15 +86,12 @@ export function readTextStyle(element: Element): TextStyle {
   if (!style) return { font: `${fontSize}px sans-serif`, letterSpacing: 0, wordSpacing: 0, lineHeight: fontSize * 1.2 };
   const family = style.fontFamily || 'sans-serif';
   const font = `${style.fontStyle || 'normal'} ${style.fontWeight || '400'} ${fontSize}px ${family}`;
-  const letterSpacing = pixels(style.letterSpacing, fontSize);
-  const wordSpacing = pixels(style.wordSpacing, fontSize);
-  const lineHeight = pixels(style.lineHeight, fontSize);
   return {
     font,
-    letterSpacing: Number.isFinite(letterSpacing) ? letterSpacing : 0,
-    wordSpacing: Number.isFinite(wordSpacing) ? wordSpacing : 0,
+    letterSpacing: pixels(style.letterSpacing, fontSize, 0),
+    wordSpacing: pixels(style.wordSpacing, fontSize, 0),
     // 'normal' depends on the font's metrics; 1.2 is the common value and errs on the side of room.
-    lineHeight: Number.isFinite(lineHeight) ? lineHeight : Math.ceil(fontSize * 1.2),
+    lineHeight: pixels(style.lineHeight, fontSize, Math.ceil(fontSize * 1.2)),
   };
 }
 
@@ -453,21 +450,13 @@ function deliverGeometry(hub: GeometryHub, entries: readonly ResizeObserverEntry
     }
     registration.entries.push(entry);
   }
-  let failed = false;
-  let failure: unknown;
   try {
-    for (const registration of touched) {
-      if (!registration.live) continue;
-      // One chart's failure does not keep the others from hearing of their own resize.
-      try { registration.listener.geometryChanged(registration.entries); } catch (error) {
-        if (!failed) { failed = true; failure = error; }
-      }
-    }
+    // One chart's failure does not keep the others from hearing of their own resize.
+    notifyLive(touched, notifyGeometry);
   } finally {
     // Entries name their targets: none is kept past its delivery.
     for (const registration of touched) registration.entries.length = 0;
   }
-  if (failed) throw failure;
 }
 
 /**
@@ -585,11 +574,19 @@ function deliverProbes(doc: Document, hub: ProbeHub, entries: readonly ResizeObs
   if (changed === null) return;
   // A font load is seen by every probe of the page at once: widths measured with the old font go once.
   noteFontLoad(doc);
+  notifyLive(changed, notifyProbe);
+}
+
+const notifyGeometry = (r: GeometryRegistration): void => r.listener.geometryChanged(r.entries);
+const notifyProbe = (r: ProbeRegistration): void => r.listener.fontProbeChanged();
+
+/** Calls `notify` on every live registration; the first failure is rethrown once all were called. */
+function notifyLive<R extends { readonly live: boolean }>(list: readonly R[], notify: (r: R) => void): void {
   let failed = false;
   let failure: unknown;
-  for (const registration of changed) {
+  for (const registration of list) {
     if (!registration.live) continue;
-    try { registration.listener.fontProbeChanged(); } catch (error) {
+    try { notify(registration); } catch (error) {
       if (!failed) { failed = true; failure = error; }
     }
   }
@@ -610,14 +607,16 @@ export class ProbeRegistration {
 
   /** Idempotent; the last release disconnects the observer. */
   release(): void {
-    if (!this.live) return;
+    if (this.live) this.detach(--this.hub.count === 0);
+  }
+
+  /** Stops observing the probe; the `last` one disconnects the observer and lets its hub go. */
+  detach(last: boolean): void {
     this.live = false;
-    const hub = this.hub;
-    const probe = this.probe;
-    hub.count--;
+    const { hub, probe, doc } = this;
     if (hub.index.get(probe) === this) hub.index.delete(probe);
-    if (hub.count === 0) {
-      if (probeHubs.get(this.doc) === hub) probeHubs.delete(this.doc);
+    if (last) {
+      if (probeHubs.get(doc) === hub) probeHubs.delete(doc);
       hub.observer.disconnect();
     } else {
       hub.observer.unobserve(probe);
@@ -651,16 +650,7 @@ export function observeFontProbe(
     shared.observer.observe(probe);
   } catch (error) {
     // As for geometry: nothing of this probe stays observed, and a hub it created goes with it.
-    registration.live = false;
-    if (shared.index.get(probe) === registration) shared.index.delete(probe);
-    try {
-      if (fresh && shared.count === 0) {
-        if (probeHubs.get(doc) === shared) probeHubs.delete(doc);
-        shared.observer.disconnect();
-      } else {
-        shared.observer.unobserve(probe);
-      }
-    } catch { /* the original failure matters more */ }
+    try { registration.detach(fresh && shared.count === 0); } catch { /* the original failure matters more */ }
     throw error;
   }
   shared.count++;
