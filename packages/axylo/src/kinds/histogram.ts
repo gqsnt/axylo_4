@@ -8,7 +8,7 @@ import { buildPlainAlignedView } from '../view';
 import { barScene } from '../scene';
 import { alignedLookupFor } from '../lookup';
 import { alignedReader } from '../reader';
-import { barSwatch } from '../dom/interaction';
+import { barSwatch } from '../dom/bar-swatch';
 import { svgBand, svgRects, svgRule } from '../render/svg';
 
 let layout: Composition['layout'] | undefined;

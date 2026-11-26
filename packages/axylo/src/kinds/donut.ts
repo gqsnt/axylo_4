@@ -7,7 +7,8 @@ import { buildDonutView } from '../view';
 import { donutScene } from '../scene';
 import { donutLookupFor } from '../lookup';
 import { donutReader } from '../reader';
-import { donutSliceList, pointSwatch } from '../dom/interaction';
+import { pointSwatch } from '../dom/swatch';
+import { donutSliceList } from '../dom/slice-list';
 import { svgArcs, svgRule } from '../render/svg';
 
 const unchanged = { remedies: [], hidden: 0 } as const;

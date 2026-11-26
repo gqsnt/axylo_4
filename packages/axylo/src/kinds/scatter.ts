@@ -10,7 +10,7 @@ import { scatterScene } from '../scene';
 import { scatterLookupFor } from '../lookup';
 import { scatterReader } from '../reader';
 import { createTimeReadout } from '../format/time';
-import { pointSwatch } from '../dom/interaction';
+import { pointSwatch } from '../dom/swatch';
 import { svgBand, svgPoints, svgRule } from '../render/svg';
 
 let layout: Composition['layout'] | undefined;

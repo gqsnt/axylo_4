@@ -10,7 +10,7 @@ import { areaScene } from '../scene';
 import { alignedLookupFor } from '../lookup';
 import { alignedReader } from '../reader';
 import { createTimeReadout } from '../format/time';
-import { areaSwatch } from '../dom/interaction';
+import { areaSwatch } from '../dom/swatch';
 import { svgArea, svgBand, svgPath, svgPoints, svgRule } from '../render/svg';
 
 let view: Composition['view'] | undefined;

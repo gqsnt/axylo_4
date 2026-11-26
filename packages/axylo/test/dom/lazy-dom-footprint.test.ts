@@ -4,7 +4,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import { createFigure, type FigureModel } from '../../src/dom/figure';
-import { createInteraction, lineSwatch, type Actions, type Committed, type InteractionParts } from '../../src/dom/interaction';
+import { createInteraction, type Actions, type Committed, type InteractionParts } from '../../src/dom/interaction';
+import { lineSwatch } from '../../src/dom/swatch';
 import { alignedTargetMarks } from '../../src/core/focus';
 import { createChart } from '../../src/core/chart';
 import { LINE } from '../../src/kinds/line';

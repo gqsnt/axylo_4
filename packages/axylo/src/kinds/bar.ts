@@ -9,7 +9,7 @@ import { barScene } from '../scene';
 import { alignedLookupFor } from '../lookup';
 import { alignedReader } from '../reader';
 import { createTimeReadout } from '../format/time';
-import { barSwatch } from '../dom/interaction';
+import { barSwatch } from '../dom/bar-swatch';
 import { svgBand, svgRects, svgRule } from '../render/svg';
 
 export const BAR: Composition = {

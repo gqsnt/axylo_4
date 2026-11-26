@@ -9,7 +9,7 @@ import { lineScene } from '../scene';
 import { alignedLookupFor } from '../lookup';
 import { alignedReader } from '../reader';
 import { createTimeReadout } from '../format/time';
-import { lineSwatch } from '../dom/interaction';
+import { lineSwatch } from '../dom/swatch';
 import { svgBand, svgPath, svgPoints, svgRule } from '../render/svg';
 
 export const LINE: Composition = {

@@ -12,7 +12,7 @@ import type { DonutStore, PointStore, SampleStore } from '../data/store-unaligne
 import type { ViewState } from '../view';
 import type { LookupBuilder } from '../lookup';
 import type { ReaderParts } from '../reader';
-import type { InteractionParts } from '../dom/interaction';
+import type { InteractionParts } from '../dom/interaction-types';
 import type { SvgMarks } from '../render/svg';
 import type { createTimeReadout } from '../format/time';
 import type { AxisContext } from './axes';

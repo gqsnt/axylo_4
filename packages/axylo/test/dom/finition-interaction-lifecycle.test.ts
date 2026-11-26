@@ -11,8 +11,10 @@ import { activeElementOf, isElement, isFocusable, shadowRootOf } from '../../src
 import { createFigure } from '../../src/dom/figure';
 import { createTooltip, type TooltipContent } from '../../src/dom/tooltip';
 import {
-  createInteraction, donutSliceList, lineSwatch, type Actions, type Committed, type ControlsState, type InteractionParts,
+  createInteraction, type Actions, type Committed, type ControlsState, type InteractionParts,
 } from '../../src/dom/interaction';
+import { lineSwatch } from '../../src/dom/swatch';
+import { donutSliceList } from '../../src/dom/slice-list';
 import { alignedTargetMarks } from '../../src/core/focus';
 import type {
   DatumRef, DatumText, MarkRenderer, Overlay, PaintBindings, ResolvedTheme, TooltipModel,

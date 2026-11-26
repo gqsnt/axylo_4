@@ -129,3 +129,8 @@ export function createSwatch(doc: Document, spec: SwatchSpec): SVGSVGElement {
   }
   return svg;
 }
+
+// Typed by hand rather than as SeriesSwatch: dom/interaction-types imports SwatchSpec from here.
+export const areaSwatch = (color: number, cue: SeriesCue | null, hollow: boolean): SwatchSpec => ({ color, cue, line: false, hollow, fill: true, marker: true, pattern: null });
+export const lineSwatch = (color: number, cue: SeriesCue | null, hollow: boolean): SwatchSpec => ({ color, cue, line: true, hollow });
+export const pointSwatch = (color: number, cue: SeriesCue | null, hollow: boolean): SwatchSpec => ({ color, cue, line: false, hollow });

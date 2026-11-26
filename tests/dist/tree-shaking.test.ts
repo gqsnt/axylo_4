@@ -107,6 +107,7 @@ const OWNED: Record<string, readonly Kind[]> = {
   'kinds/line.ts': ['line'], 'kinds/area.ts': ['area'], 'kinds/bar.ts': ['bar'], 'kinds/scatter.ts': ['scatter'], 'kinds/donut.ts': ['donut'],
   'kinds/histogram.ts': ['histogram'], 'data/histogram.ts': ['histogram'],
   'scene/areas.ts': ['area'], 'scene/bars.ts': ['bar', 'histogram'],
+  'dom/bar-swatch.ts': ['bar', 'histogram'], 'dom/slice-list.ts': ['donut'],
   'lookup/scatter.ts': ['scatter'], 'lookup/scatter-grid.ts': ['scatter'], 'lookup/point-order.ts': ['scatter'],
   'lookup/donut.ts': ['donut'], 'view/donut.ts': ['donut'], 'view/donut-geometry.ts': ['donut'],
   // Aligned data (one x shared by every series): line, area and bar.

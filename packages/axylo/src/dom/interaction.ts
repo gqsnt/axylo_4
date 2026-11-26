@@ -3,89 +3,48 @@
  * keyboard, tooltip, overlay, toolbar, table and zoom gestures.
  */
 import type {
-  AlignedView, DatumRef, DatumText, Formatters, Layout, Lookup, Mark, MarkRenderer, Overlay, PaintBindings, PickTarget, ReaderModel,
-  Rect, ResolvedTheme, StepDirection, TooltipModel, View, XValue,
+  DatumRef, DatumText, Formatters, Mark, MarkRenderer, Overlay, PickTarget, Rect, StepDirection, TooltipModel, View,
 } from '../core/contracts';
-import { sameKey } from '../core/axes';
-import type { Messages } from '../public';
-import { chartTypeName, defaultMessages, fill, messageLanguage } from '../messages';
+import { sameKey } from '../core/composition';
+import { chartTypeName, fill } from '../messages';
 import {
-  overlayWith, OUTLINE_REACH, RING_REACH, RING_STROKE, alignedRows, alignedTargetMarks, canZoomIn, datumReading, minimumWidth, panWindow,
-  pinchWidth, pixelOf, positionAt, rangeWindow, refsAt, ringRect, sameRef, stepAcross, zoomStep, targetBox, targetOf, valueText, PAN_SHARE, ZOOM_FACTOR,
-  positionText, type Mode, type OverlayInput, type TargetMarks,
+  overlayWith, OUTLINE_REACH, RING_REACH, RING_STROKE, alignedTargetMarks, canZoomIn, datumReading, minimumWidth, panWindow, pinchWidth,
+  pixelOf, positionAt, rangeWindow, refsAt, ringRect, sameRef, stepAcross, zoomStep, valueText, PAN_SHARE, ZOOM_FACTOR, positionText,
+  type Mode, type OverlayInput,
 } from '../core/focus';
 import type { Figure } from './figure';
 import { createTableView, type TableView } from './table';
-import { rovingIndex, createToolbar, focusNeighbor, type Toolbar, type ToolbarItem } from './toolbar';
+import { createToolbar, type Toolbar } from './toolbar';
 import { createTooltip, type Presentation, type TooltipContent, type TooltipView } from './tooltip';
-import { createSwatch, swatchPattern, type SwatchPattern, type SwatchSpec } from './swatch';
+import type { SwatchSpec } from './swatch';
 import type { AlignedHoverLookup, AlignedHoverModel } from '../lookup/aligned';
-import { firstSlotReading, sliceText } from '../lookup/text';
-import { barPattern } from '../scene/bars';
+import { firstSlotReading } from '../lookup/text';
 import { clamp } from '../scene/geometry';
-import { readPosition } from '../reader/x';
-import { printedX } from '../reader/table';
-import { activeElementOf, focusContainer, focusQuiet, isElement, isFocusable, placeChildren, setAttr, setLanguageText, setText, make, keepFocusOnPress, hideFromAT, shadowRootOf, shadowRootsOf } from './attributes';
+import { activeElementOf, focusContainer, focusQuiet, isElement, isFocusable, setAttr, make, hideFromAT, shadowRootOf, shadowRootsOf } from './attributes';
 import { Listeners, listenOutside, mappingOf, rectToViewport, toLocal, toViewport, visibleRegion, type Mapping, type Point } from './mapping';
 import { insideCorridor, intersect, type PlacementInput } from './placement';
 import { identityOf, matchesIdentity, sameTarget, type Identity } from './pointer';
+import type { Actions, Committed, ControlsState, Interaction, InteractionParts, Span } from './interaction-types';
+import {
+  INSPECT, presentationFor, collectControlInputs, buildControlItems, offersZoom, recoverable, canZoom, missingLang,
+} from './interaction-controls';
+import {
+  isAligned, plotReady, readable, plotBox, horizontalBars, categoriesOf, firstDatum, keyboardTarget, zoomBounds, markBox, pinnedModel,
+  remapTarget, stillPinned, categoryRemapper,
+} from './interaction-nav';
+import {
+  instructionSeries, descriptionFor, renderInstructions, focusedFigure, registerFigure, unregisterFigure, noteShowing, releaseShowing,
+  isLastShowing, readingLangFor,
+} from './interaction-a11y';
+import { resolveJumpTarget } from './table-jump';
 
-type Span = readonly [number, number];
+export type { Actions, Committed, ControlsState, Interaction, InteractionParts, ReadoutMode, SeriesSwatch, SliceList } from './interaction-types';
+export { readoutOf } from './interaction-controls';
+export { plotDescription } from './interaction-a11y';
+export { parseNumberAs } from './table-jump';
+
 type Mutable<T> = { -readonly [K in keyof T]: T[K] };
 type MutablePlacement = Omit<Mutable<PlacementInput>, 'box'> & { box: Mutable<Rect> };
-export type ReadoutMode = 'floating' | 'strip' | 'none';
-
-export interface ControlsState {
-  readonly kind: 'line' | 'area' | 'bar' | 'histogram' | 'scatter' | 'donut';
-  readonly view: View;
-  readonly formatters: Formatters;
-  readonly messages: Messages;
-  readonly reader: ReaderModel;
-  readonly tooSmall: boolean;
-  readonly ready: boolean;
-  readonly inspectable?: boolean;
-  readonly empty?: boolean;
-  readonly message?: string | null;
-  readonly interactive: boolean;
-  readonly tooltip: boolean;
-  readonly legend: false | 'top' | 'right' | 'bottom';
-  readonly zoom: false | true | 'touch';
-  readonly zoomed: boolean;
-  readonly streaming: boolean;
-  readonly paused: boolean;
-  readonly epoch: number;
-  english(key: keyof Messages): string | null;
-  readonly pageLang: string | null;
-  readonly readout?: boolean | ReadoutMode;
-  readonly readoutMode?: ReadoutMode;
-}
-
-export interface Committed extends ControlsState {
-  readonly layout: Layout;
-  readonly lookup: Lookup;
-  readonly bindings: PaintBindings;
-  readonly theme: ResolvedTheme;
-  readonly pixelRatio: number;
-}
-
-export interface Actions {
-  zoom(window: Span | null): void;
-  toggle(seriesKey: string): void;
-  pause(paused: boolean): void;
-  select(ref: DatumRef): void;
-  hover(ref: DatumRef | null): void;
-}
-
-export interface Interaction {
-  prepare(state: ControlsState): boolean;
-  commit(state: Committed | null): void;
-  clear(): void;
-  attach(): void;
-  detach(): void;
-  destroy(): void;
-}
-
-type InstructionKey = 'plotInstructions' | 'donutInstructions' | 'seriesInstructions' | 'zoomInstructions';
 const dist = (ax: number, ay: number, bx: number, by: number) => Math.hypot(ax - bx, ay - by);
 function setClass(el: Element, cls: string, on: boolean): boolean {
   if (el.classList.contains(cls) === on) return false;
@@ -111,172 +70,12 @@ function plotCoordinate(value: number, offset: number, scale: number, start: num
   const pixel = (value - offset) / scale, edge = offset + start * scale;
   return value >= edge - 1 && value <= edge + extent * scale + 1 ? clamp(pixel, start, start + extent) : pixel;
 }
-const isAligned = (v: View): v is AlignedView => v.kind !== 'scatter' && v.kind !== 'donut';
-const offersZoom = (d: ControlsState): d is ControlsState & { readonly zoom: true | 'touch'; readonly tooSmall: false; readonly view: Exclude<View, { kind: 'donut' }> } =>
-  d.zoom !== false && !d.tooSmall && d.view.kind !== 'donut';
-const plotReady = (d: Committed | null): d is Committed & { readonly ready: true } => d !== null && d.ready && d.layout.kind === 'plot';
-const readable = (d: Committed) => d.view.kind === 'donut' || d.view.visible.some(Boolean);
-const canInspect = (d: ControlsState) => Boolean(d.reader.table && (d.ready || d.inspectable));
-const plotBox = (d: Committed): Rect => d.layout.kind === 'plot' ? d.layout.plot : { x: 0, y: 0, width: d.layout.width, height: d.layout.height };
-const horizontalBars = (d: Committed) => d.layout.kind === 'plot' && d.layout.projection.kind === 'bands' && d.layout.projection.horizontal;
 const boxStyle = (r: Rect) => `left:${r.x}px;top:${r.y}px;width:${r.width}px;height:${r.height}px`;
-const missingLang = (d: ControlsState, t: string) =>
-  t === d.messages.noData ? d.english('noData') : t === d.messages.noObservation ? d.english('noObservation') : undefined;
-function posScale(d: Committed) {
-  const p = d.layout.kind === 'plot' ? d.layout.projection : null;
-  return p?.kind === 'xy' ? p.x : p?.kind === 'bands' ? p.band : null;
-}
-
-function instructionSeries(d: Committed, hasData = plotReady(d) && readable(d)): number {
-  if (!d.interactive || !hasData || d.lookup.count === 0) return 0;
-  const { view } = d;
-  if (view.kind === 'donut') return 1;
-  if (view.visible.length <= 1) return 1;
-  let count = 0;
-  for (let i = 0; i < view.visible.length; i++) {
-    if (view.visible[i] && (view.kind !== 'scatter' || view.visiblePoints[i]!.end > view.visiblePoints[i]!.start) && ++count === 2) return count;
-  }
-  return 1;
-}
-
-export function plotDescription(d: Committed): { text: string; lang: string | null }[] {
-  return descriptionFor(d, instructionSeries(d));
-}
-
-function descriptionFor(d: Committed, count: number): { text: string; lang: string | null }[] {
-  if (!d.interactive || !plotReady(d)) return [];
-  const { messages, view } = d, legacy = messageLanguage(messages, 'plotInstructions') === null;
-  const out: { text: string; lang: string | null }[] = [];
-  const add = (key: InstructionKey, fb?: 'plotInstructions') => {
-    if (legacy && messageLanguage(messages, key) !== null) { if (!fb) return; key = fb; }
-    const text = messages[key] ?? defaultMessages[key];
-    if (text) out.push({ text, lang: d.english(key) });
-  };
-  if (count > 0) {
-    if (view.kind === 'donut') add('donutInstructions', 'plotInstructions');
-    else {
-      add('plotInstructions');
-      if (count > 1) add('seriesInstructions');
-    }
-  }
-  if (offersZoom(d)) add('zoomInstructions');
-  return out;
-}
-
-export function readoutOf(state: ControlsState): ReadoutMode {
-  const r = state.readoutMode ?? state.readout;
-  return r === 'floating' || r === 'strip' || r === 'none' ? r : r === true ? 'strip' : 'floating';
-}
-
-const presentationFor = (s: ControlsState): Presentation | 'none' => !s.interactive || !s.tooltip || s.tooSmall ? 'none' : readoutOf(s);
-
-export function seriesPattern(index: number): SwatchPattern['kind'] | null {
-  const p = barPattern(index, false);
-  return p === 'none' ? null : p;
-}
-
-export type SeriesSwatch = (index: number, cue: SwatchSpec['cue'], hollow: boolean) => SwatchSpec;
-export const barSwatch: SeriesSwatch = (color, cue, hollow) => {
-  const p = seriesPattern(color);
-  return { color, cue, line: false, hollow, fill: true, pattern: p && swatchPattern(p) };
-};
-export const areaSwatch: SeriesSwatch = (color, cue, hollow) => ({ color, cue, line: false, hollow, fill: true, marker: true, pattern: null });
-export const lineSwatch: SeriesSwatch = (color, cue, hollow) => ({ color, cue, line: true, hollow });
-export const pointSwatch: SeriesSwatch = (color, cue, hollow) => ({ color, cue, line: false, hollow });
-
-export function seriesSwatch(kind: ControlsState['kind'], index: number, cue: SwatchSpec['cue'], hollow: boolean): SwatchSpec {
-  return (kind === 'bar' || kind === 'histogram' ? barSwatch : kind === 'area' ? areaSwatch : kind === 'line' ? lineSwatch : pointSwatch)(index, cue, hollow);
-}
-
-export type SliceList = (doc: Document, d: ControlsState, actions: Actions, list: HTMLUListElement | null) => HTMLUListElement | null;
-
-export interface InteractionParts {
-  readonly overlay: TargetMarks;
-  readonly swatch: SeriesSwatch;
-  readonly stepInSeries: ((view: Extract<View, { kind: 'scatter' }>, ref: DatumRef, direction: StepDirection) => DatumRef | null) | null;
-  readonly sliceList: SliceList | null;
-}
-
-type SliceEntry = { li: HTMLLIElement; c: HTMLButtonElement; n: HTMLElement; v: HTMLElement; s: string };
-let sliceLists: WeakMap<HTMLUListElement, { e: Map<string, SliceEntry>; l: Listeners }> | undefined;
-const CHOICE = '.axylo-legend-choice';
-const sliceButtons = (ul: Element) => [...ul.querySelectorAll<HTMLButtonElement>(CHOICE)];
-const setTab = (bs: HTMLButtonElement[], idx: number) => bs.forEach((b, i) => { const t = i === idx ? 0 : -1; if (b.tabIndex !== t) b.tabIndex = t; });
-
-function showsSlices(d: ControlsState): d is ControlsState & { readonly view: Extract<View, { kind: 'donut' }> } {
-  const { view } = d;
-  return view.kind === 'donut' && !!d.legend && !d.tooSmall && !!(d.ready || d.inspectable || (view.slices.length > 0 && view.total === 0));
-}
-
-export const donutSliceList: SliceList = (doc, d, actions, list) => {
-  if (!showsSlices(d)) return null;
-  const { view } = d, lists = sliceLists ??= new WeakMap();
-  if (!list) {
-    const own = list = doc.createElement('ul'), l = new Listeners();
-    lists.set(own, { e: new Map(), l });
-    const choice = (ev: Event) => (ev.target as Element | null)?.closest?.(CHOICE);
-    l.on(own, 'mousedown', ev => { if (choice(ev)) keepFocusOnPress(ev); });
-    l.on(own, 'click', ev => { const k = choice(ev)?.parentElement?.dataset.key; if (k !== undefined) actions.select({ kind: 'slice', sliceKey: k }); });
-    l.on(own, 'keydown', ev => {
-      if (own.dataset.roving !== 'true') return;
-      const bs = sliceButtons(own), to = rovingIndex(ev, Math.max(0, bs.indexOf(activeElementOf(doc, own) as HTMLButtonElement)), bs.length);
-      if (to === null) return;
-      ev.preventDefault();
-      setTab(bs, to);
-      bs[to]!.focus();
-    });
-    l.on(own, 'focusin', ev => {
-      if (own.dataset.roving !== 'true') return;
-      const bs = sliceButtons(own);
-      setTab(bs, bs.indexOf(ev.target as HTMLButtonElement));
-    });
-  }
-  if (list.className !== 'axylo-legend-list') list.className = 'axylo-legend-list';
-  let st = lists.get(list);
-  if (!st) lists.set(list, st = { e: new Map(), l: new Listeners() });
-  const kept = st.e, noDataLang = d.english('noData'), wanted: HTMLLIElement[] = [], buttons: HTMLButtonElement[] = [], live = new Set<string>();
-  for (const sl of view.slices) {
-    live.add(sl.key);
-    let en = kept.get(sl.key);
-    if (!en) {
-      const li = doc.createElement('li'), c = make(doc, 'button', 'axylo-legend-choice');
-      li.dataset.key = sl.key; c.type = 'button'; c.tabIndex = -1; li.append(c);
-      kept.set(sl.key, en = { li, c, n: make(doc, 'span', 'axylo-legend-name'), v: make(doc, 'span', 'axylo-legend-value'), s: '' });
-    }
-    const datum = sliceText(view, sl, d.formatters), sig = `${sl.colorIndex}:${sl.angles === null}`;
-    if (sig !== en.s) {
-      en.c.replaceChildren(createSwatch(doc, { color: sl.colorIndex, cue: null, line: false, hollow: sl.angles === null }), en.n, en.v);
-      en.s = sig;
-    }
-    setText(en.n, sl.label);
-    const { percent, value } = datum;
-    setLanguageText(en.v, percent && percent !== value ? `${value} (${percent})` : value, value === d.messages.noData ? noDataLang : null);
-    wanted.push(en.li);
-    buttons.push(en.c);
-  }
-  for (const k of kept.keys()) if (!live.has(k)) kept.delete(k);
-  const had = activeElementOf(doc, list);
-  const prev = isFocusable(had) && list.contains(had) ? sliceButtons(list) : null;
-  const hadAt = prev ? prev.indexOf(had as HTMLButtonElement) : -1;
-  placeChildren(list, wanted);
-  if (prev) {
-    if (had!.isConnected) { if (activeElementOf(doc, list) !== had) focusQuiet(had as HTMLElement); }
-    else if (buttons.length) {
-      focusQuiet(focusNeighbor(prev, hadAt, button => button.isConnected) ?? buttons[clamp(hadAt, 0, buttons.length - 1)]!);
-    } else focusContainer(list.closest('.axylo-figure'));
-  }
-  const roving = !d.ready;
-  if (list.dataset.roving !== String(roving)) list.dataset.roving = String(roving);
-  let at = buttons.indexOf(activeElementOf(doc, list) as HTMLButtonElement);
-  if (at < 0) at = buttons.findIndex(b => b.tabIndex === 0);
-  setTab(buttons, roving ? Math.max(0, at) : -1);
-  return list;
-};
 
 const NAVIGATION: Readonly<Record<string, StepDirection>> = {
   ArrowRight: 'next', ArrowLeft: 'previous', Home: 'first', End: 'last', PageUp: 'page-next', PageDown: 'page-previous',
 };
-const DRAG_THRESHOLD = 4, REST_DISTANCE = 2, REST_TIME = 250, TAP_DISTANCE = 10, TAP_TIME = 500, PAGE_ROWS = 8, FOCUS_OUTLINE = 3, HOLE_CLEARANCE = 5;
+const DRAG_THRESHOLD = 4, REST_DISTANCE = 2, REST_TIME = 250, TAP_DISTANCE = 10, TAP_TIME = 500, FOCUS_OUTLINE = 3, HOLE_CLEARANCE = 5;
 
 const S_NONE = 0, S_KEY = 1, S_HOVER = 2, S_HELD = 3, S_PIN = 4;
 type Shown =
@@ -295,62 +94,11 @@ const CONTROL_SLOTS = ['top', 'side', 'controls'] as const;
 const NO_CONTROLS: readonly Element[] = [];
 const SCROLL_OPTIONS = { capture: true, passive: true };
 const FOCUS_LISTENERS = 1, DOWN_LISTENERS = 2, MOVE_LISTENERS = 4;
-const INSPECT = 1, RANGE = 2, RESET = 4, CLOSER = 8, LEFT = 16, RIGHT = 32, SERIES = 64;
 let controlScratch: unknown[] | undefined;
 
 const sameWindow = (a: Span | null, b: Span | null) => a === b || (a !== null && b !== null && a[0] === b[0] && a[1] === b[1]);
 const sameRect = (a: Rect | null, b: Rect | null) => a === null || b === null ? a === b
   : Math.abs(a.x - b.x) < 0.01 && Math.abs(a.y - b.y) < 0.01 && Math.abs(a.width - b.width) < 0.01 && Math.abs(a.height - b.height) < 0.01;
-const categoriesOf = (v: View) => isAligned(v) && v.frame.x.kind === 'category' ? v.frame.x.categories : null;
-const xKindOf = (v: View) => v.kind === 'donut' ? 'category' : v.kind === 'scatter' ? v.frame.xKind : v.frame.x.kind;
-
-const BIDI = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu;
-const normalized = (s: string) => s.normalize('NFKC').replace(BIDI, '').replace(/[\s\u00a0\u202f]+/gu, ' ').trim().toLowerCase();
-const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-export function parseNumberAs(text: string, format: (n: number) => string, count: (n: number) => string): number | null {
-  const digits = new Map<string, string>();
-  for (let d = 0; d < 10; d++) { const w = count(d); if ([...w].length === 1) digits.set(w, String(d)); }
-  const ascii = (s: string) => [...s.replace(BIDI, '')].map(ch => digits.get(ch) ?? ch).join('');
-  const m = /^(\D*)(\d.*\d|\d)(\D*)$/u.exec(ascii(format(1234.5)));
-  if (!m) return null;
-  const pre = m[1]!.trim(), core = m[2]!, suf = m[3]!.trim();
-  const marks = [...core.replace(/\d/g, '')];
-  const dec = marks.length > 1 || (marks.length === 1 && /\D\d$/u.test(core)) ? marks.at(-1)! : '.';
-  const grp = [...ascii(count(1234567)).replace(/\d/g, '')][0] ?? '';
-  let body = ascii(text).trim();
-  if (pre && body.startsWith(pre)) body = body.slice(pre.length).trim();
-  if (suf && body.endsWith(suf)) body = body.slice(0, -suf.length).trim();
-  const neg = /^[-−‒–]/u.exec(body);
-  if (neg) body = body.slice(neg[0].length);
-  const [ip = '', fp, extra] = body.split(dec);
-  if (extra !== undefined || !ip) return null;
-  const id = grp ? ip.replace(new RegExp(/^[\s\u00a0\u202f]$/u.test(grp) ? '[\\s\\u00a0\\u202f]' : escapeRe(grp), 'gu'), '') : ip;
-  if (!/^\d+$/.test(id) || (fp !== undefined && !/^\d+$/.test(fp))) return null;
-  if (id !== ip && normalized(ip) !== normalized(ascii(count(Number(id))))) return null;
-  const v = Number(`${neg ? '-' : ''}${id}${fp !== undefined ? `.${fp}` : ''}`);
-  return Number.isFinite(v) ? v : null;
-}
-
-let lastShowing: WeakMap<Document, HTMLElement[]> | undefined;
-let liveFigures: WeakMap<Document, Set<HTMLElement>> | undefined;
-
-function focusedFigure(doc: Document, own: HTMLElement): Element | null {
-  const act = activeElementOf(doc, own);
-  const inOwn = isElement(act) ? act.closest('.axylo-figure') : null;
-  if (inOwn) return inOwn;
-  for (const fig of liveFigures?.get(doc) ?? []) {
-    if (fig === own) continue;
-    const inner = shadowRootOf(fig)?.activeElement ?? null;
-    if (isElement(inner) && fig.contains(inner)) return fig;
-  }
-  return null;
-}
-
-const recoverable = <T extends ControlsState>(d: T | null): d is T & { readonly zoomed: true } =>
-  d !== null && !d.ready && d.empty === true && d.zoom !== false && d.zoomed && !d.tooSmall;
-const canZoom = (d: ControlsState): d is ControlsState & { readonly zoom: true | 'touch'; readonly tooSmall: false; readonly view: Exclude<View, { kind: 'donut' }> } =>
-  offersZoom(d) && (d.ready || recoverable(d));
 const clientPoint = (e: MouseEvent): Point => ({ x: e.clientX, y: e.clientY });
 
 class DomInteraction implements Interaction {
@@ -461,7 +209,7 @@ class DomInteraction implements Interaction {
     this.#root = figure.figure;
     this.#doc = this.#root.ownerDocument;
     this.#plot = figure.plot;
-    this.#registerFigure();
+    registerFigure(this.#doc, this.#root);
   }
 
   #win(): Window | null { return this.#doc.defaultView; }
@@ -495,18 +243,6 @@ class DomInteraction implements Interaction {
     if (!o && !this.#overlayVisible) return;
     this.#overlayVisible = o !== null;
     this.#renderer.drawOverlay(o, d.bindings, d.theme, d.pixelRatio);
-  }
-
-  #registerFigure(): void {
-    const figures = liveFigures ??= new WeakMap();
-    let set = figures.get(this.#doc);
-    if (!set) figures.set(this.#doc, set = new Set());
-    set.add(this.#root);
-  }
-
-  #unregisterFigure(): void {
-    const figures = liveFigures?.get(this.#doc);
-    if (figures?.delete(this.#root) && !figures.size) liveFigures!.delete(this.#doc);
   }
 
   #listenDocument(): void {
@@ -621,12 +357,6 @@ class DomInteraction implements Interaction {
     if (owned && (!after || after === this.#doc.body || !this.#root.contains(after))) this.#focusFigure();
   }
 
-  #firstDatum(d: Committed): DatumRef | null {
-    if (!isAligned(d.view)) return d.lookup.step(null, 'first');
-    const x = stepAcross(d.view, null, 'first');
-    return x === null ? null : d.lookup.primary({ kind: 'x', x });
-  }
-
   #resolveAligned(d: Committed, target: PickTarget, primary?: DatumRef): DatumRef | null {
     if (this.#single && this.#focus?.kind === 'aligned' && target.kind === 'x') {
       const ref = d.lookup.resolve({ kind: 'aligned', seriesKey: this.#focus.seriesKey, x: target.x });
@@ -637,23 +367,13 @@ class DomInteraction implements Interaction {
 
   #takeover(d: Committed): void {
     const t = this.#pointerTarget();
-    if (!t) { this.#focus ??= this.#firstDatum(d); return; }
+    if (!t) { this.#focus ??= firstDatum(d); return; }
     if (this.#shown.k === S_PIN) this.#focus = this.#shown.r;
     else if (this.#single && this.#focus?.kind === 'aligned' && t.kind === 'x') this.#focus = this.#resolveAligned(d, t);
-    else this.#focus = d.lookup.primary(t) ?? this.#focus ?? this.#firstDatum(d);
+    else this.#focus = d.lookup.primary(t) ?? this.#focus ?? firstDatum(d);
   }
 
-  #pointGroup(d: Committed, ref: DatumRef, b: Rect): PickTarget {
-    const picked = d.lookup.pick(b.x + b.width / 2, b.y + b.height / 2);
-    return picked?.kind === 'point' && d.lookup.has(picked, ref) ? picked : targetOf(ref);
-  }
-
-  #keyboardTarget(d: Committed, ref: DatumRef): PickTarget {
-    if (ref.kind === 'point' && d.view.kind === 'scatter') { const b = d.lookup.anchor(ref); if (b) return this.#pointGroup(d, ref, b); }
-    return targetOf(ref);
-  }
-
-  #shownTarget(): PickTarget | null { return this.#shown.k === S_KEY ? (this.#proxyFocused && this.#focus && this.#committed ? this.#keyboardTarget(this.#committed, this.#focus) : null) : this.#pointerTarget(); }
+  #shownTarget(): PickTarget | null { return this.#shown.k === S_KEY ? (this.#proxyFocused && this.#focus && this.#committed ? keyboardTarget(this.#committed, this.#focus) : null) : this.#pointerTarget(); }
 
   #swatchFor(row: DatumText): SwatchSpec {
     const { view } = this.#committed!, i = row.seriesIndex;
@@ -693,56 +413,11 @@ class DomInteraction implements Interaction {
     return d.lookup.pick(plotCoordinate(at.x, m.left, m.kx, b.x, b.width), plotCoordinate(at.y, m.top, m.ky, b.y, b.height));
   }
 
-  #zoomBounds(d: Committed): Span {
-    if (d.view.kind === 'donut') return [0, 0];
-    if (!d.zoomed) { const s = posScale(d); if (s && s.type !== 'band') return [Math.min(...s.domain), Math.max(...s.domain)]; }
-    return d.view.xFull;
-  }
-
-  #markBox(d: Committed, target: PickTarget, soleRef?: DatumRef): Rect | null {
-    const box = soleRef ? d.lookup.anchor(soleRef) : targetBox(d.view, d.lookup, target, null);
-    if (box || target.kind !== 'x' || d.layout.kind !== 'plot') return box;
-    const s = posScale(d), at = s ? (s.type === 'band' ? s.center(target.x) : s.map(target.x)) : NaN;
-    if (!Number.isFinite(at)) return null;
-    const pr = d.layout.plot;
-    return horizontalBars(d) ? { x: pr.x + pr.width / 2, y: at, width: 0, height: 0 } : { x: at, y: pr.y + pr.height / 2, width: 0, height: 0 };
-  }
-
-  #anchorOf(d: Committed, t: PickTarget) { const b = this.#markBox(d, t); return b ? rectToViewport(this.#plotMapping(), b) : null; }
-
-  #pinnedModel(d: Committed, target: PickTarget, offset: number): TooltipModel {
-    const { lookup, view, formatters } = d, m = lookup.tooltip(target);
-    if (offset <= 0 || offset >= m.count) return m;
-    if (target.kind === 'x' && isAligned(view)) return { ...m, rows: alignedRows(view, formatters, target.x, m).slice(offset, offset + PAGE_ROWS) };
-    if (target.kind === 'point') {
-      const refs = lookup.members(target, offset, PAGE_ROWS);
-      if (refs.length) return { ...lookup.tooltip({ kind: 'point', refs, count: target.count }), title: m.title, count: m.count };
-    }
-    return m;
-  }
+  #anchorOf(d: Committed, t: PickTarget) { const b = markBox(d, t); return b ? rectToViewport(this.#plotMapping(), b) : null; }
 
   #clock() { return this.#win()?.performance.now() ?? 0; }
 
-  #noteShowing(promote: boolean): void {
-    const showing = lastShowing ??= new WeakMap();
-    let list = showing.get(this.#doc);
-    if (!list) showing.set(this.#doc, list = []);
-    if (list.at(-1) === this.#root) return;
-    const i = list.indexOf(this.#root);
-    if (promote) { if (i >= 0) list.splice(i, 1); list.push(this.#root); } else if (i < 0) list.unshift(this.#root);
-  }
-
-  #releaseShowing(): void {
-    const list = lastShowing?.get(this.#doc);
-    if (!list) return;
-    const i = list.indexOf(this.#root);
-    if (i >= 0) list.splice(i, 1);
-    if (!list.length) lastShowing!.delete(this.#doc);
-  }
-
-  #isLastShowing(): boolean { return lastShowing?.get(this.#doc)?.at(-1) === this.#root; }
-
-  #hideTooltip() { this.#tooltip?.hide(); this.#releaseShowing(); }
+  #hideTooltip() { this.#tooltip?.hide(); releaseShowing(this.#doc, this.#root); }
 
   #dropView(hide = true) { if (hide) { this.#unlistenPin(); this.#hideTooltip(); } this.#content = this.#lastPres = null; }
 
@@ -775,7 +450,7 @@ class DomInteraction implements Interaction {
     if (readHover && target?.kind === 'x') {
       model = this.#hoverModel = readHover.call(lookup, target, this.#hoverModel);
     } else {
-      model = showTip ? (pinned ? this.#pinnedModel(d, target, this.#pinPage) : lookup.tooltip(target)) : null;
+      model = showTip ? (pinned ? pinnedModel(d, target, this.#pinPage) : lookup.tooltip(target)) : null;
     }
     const soleRef = target?.kind === 'x' && model?.count === 1 ? model.rows[0]?.ref : undefined;
     const input = this.#overlayInput ??= { view, layout, lookup, target, ring: visibleRing, only };
@@ -810,7 +485,7 @@ class DomInteraction implements Interaction {
         tc.totalLang = d.english('total');
       }
       if (model.count > 1) tc.moreLang = d.english('moreRows');
-      const marks = this.#markBox(d, target, soleRef), map = this.#plotMapping(), anchor = marks ? rectToViewport(map, marks) : null;
+      const marks = markBox(d, target, soleRef), map = this.#plotMapping(), anchor = marks ? rectToViewport(map, marks) : null;
       const bounds = pres === 'strip' ? this.#visibleReadout() : this.#placementFor(d, marks, visibleRing, map);
       const figureMap = pres === 'strip' ? undefined : this.#figureMapping();
       // When the tooltip needs a layout read, measure after both sets of writes.
@@ -819,9 +494,9 @@ class DomInteraction implements Interaction {
       const placed = 'box' in bounds ? tip.show(tc, bounds, pinned, figureMap) : tip.strip(tc, pinned, bounds);
       const rect = placed ? tip.rect() : null;
       if (rect) {
-        this.#noteShowing(rec === 2 || (rec === 0 && (!prev || !sameTarget(prev.t, target) || prev.pin !== pinned || prev.pg !== page)));
+        noteShowing(this.#doc, this.#root, rec === 2 || (rec === 0 && (!prev || !sameTarget(prev.t, target) || prev.pin !== pinned || prev.pg !== page)));
         this.#content = { t: target, b: rect, a: anchor, p: pres, pin: pinned, pg: page };
-      } else this.#releaseShowing();
+      } else releaseShowing(this.#doc, this.#root);
     } else {
       this.#hideTooltip();
       this.#draw(d, overlay);
@@ -881,10 +556,6 @@ class DomInteraction implements Interaction {
     this.#markLegend(plotReady(d) && this.#proxyFocused && this.#focus?.kind === 'slice' ? this.#focus.sliceKey : null);
   }
 
-  #readingLang(d: Committed, hasData: boolean) {
-    return d.english(!hasData ? 'empty' : d.view.kind === 'donut' || (!this.#single && d.view.kind !== 'scatter') ? 'pointAll' : 'pointOf');
-  }
-
   #prepareIdleAligned(d: Committed): void {
     const { lookup, messages, formatters } = d;
     const count = lookup.count;
@@ -900,7 +571,7 @@ class DomInteraction implements Interaction {
     if (!this.#proxy || !d) return;
     const { view, lookup, formatters, messages } = d;
     if (view.kind === 'donut' || this.#legendMarked) this.#markFocusedSlice(d);
-    const hasData = readyData ?? (plotReady(d) && readable(d)), lang = this.#readingLang(d, hasData);
+    const hasData = readyData ?? (plotReady(d) && readable(d)), lang = readingLangFor(d, hasData, this.#single);
     const empty = hasData ? messages.noData : recoverable(d) || plotReady(d) ? messages.empty : d.message ?? messages.noData;
     const inactive = !acted && !this.#proxyFocused && !this.#focus;
     if (inactive) {
@@ -913,7 +584,7 @@ class DomInteraction implements Interaction {
     } else this.#idleProxyState = null;
     if (this.#proxyLang !== lang) { setAttr(this.#proxy, 'lang', lang); this.#proxyLang = lang; }
     const idleAligned = inactive && hasData && !this.#single && lookup.count > 0 && (lookup as AlignedHoverLookup).alignedHover && isAligned(view);
-    const ref = hasData && !idleAligned ? this.#focus ?? this.#firstDatum(d) : null;
+    const ref = hasData && !idleAligned ? this.#focus ?? firstDatum(d) : null;
     if (!ref) {
       if (idleAligned) this.#prepareIdleAligned(d);
       setRangeInput(this.#proxy, idleAligned ? this.#idleMax : '0', '0');
@@ -945,7 +616,7 @@ class DomInteraction implements Interaction {
     return d.lookup.step(from, dir);
   }
 
-  #keyboardLeads(d: Committed): void { this.#shown = KEY; this.#pinPage = 0; this.#rest = null; if (this.#focus) this.#reached(this.#keyboardTarget(d, this.#focus)); }
+  #keyboardLeads(d: Committed): void { this.#shown = KEY; this.#pinPage = 0; this.#rest = null; if (this.#focus) this.#reached(keyboardTarget(d, this.#focus)); }
 
   #presentKeyboard(d: Committed, acted: boolean): void {
     this.#keyboardLeads(d);
@@ -1003,7 +674,7 @@ class DomInteraction implements Interaction {
     const upDown = key === 'ArrowUp' || key === 'ArrowDown';
     if (rec || !readable(d!)) { if (key in NAVIGATION || upDown || (!rec && (key === 'Enter' || key === ' '))) e.preventDefault(); return; }
     const ready = d as Committed & { readonly ready: true };
-    if (key === 'Enter' || key === ' ') { e.preventDefault(); this.#focus ??= this.#firstDatum(ready); if (this.#focus) this.#actions.select(this.#focus); return; }
+    if (key === 'Enter' || key === ' ') { e.preventDefault(); this.#focus ??= firstDatum(ready); if (this.#focus) this.#actions.select(this.#focus); return; }
     if (key === 'Escape') {
       if (this.#single) {
         consumeKey(e); this.#single = false;
@@ -1059,7 +730,7 @@ class DomInteraction implements Interaction {
     this.#redraw(1);
   }
 
-  #currentWindow(d: Committed): Span | null { return d.view.kind === 'donut' ? null : this.#pendingWindow !== undefined ? (this.#pendingWindow ?? this.#zoomBounds(d)) : d.zoomed ? d.view.xDomain : this.#zoomBounds(d); }
+  #currentWindow(d: Committed): Span | null { return d.view.kind === 'donut' ? null : this.#pendingWindow !== undefined ? (this.#pendingWindow ?? zoomBounds(d)) : d.zoomed ? d.view.xDomain : zoomBounds(d); }
 
   #requestZoom(w: Span | null): void {
     const d = this.#committed;
@@ -1072,7 +743,7 @@ class DomInteraction implements Interaction {
     const d = this.#committed;
     if (!d || d.view.kind === 'donut' || !d.zoom) return false;
     const now = this.#currentWindow(d)!, x = this.#focus?.kind === 'aligned' || this.#focus?.kind === 'point' ? this.#focus.x : NaN;
-    const next = zoomStep(this.#zoomBounds(d), now, factor, center ?? (Number.isFinite(x) && x >= now[0] && x <= now[1] ? x : (now[0] + now[1]) / 2), minimumWidth(d.view));
+    const next = zoomStep(zoomBounds(d), now, factor, center ?? (Number.isFinite(x) && x >= now[0] && x <= now[1] ? x : (now[0] + now[1]) / 2), minimumWidth(d.view));
     if (next === undefined) return false;
     this.#requestZoom(next); return true;
   }
@@ -1080,7 +751,7 @@ class DomInteraction implements Interaction {
   #pan(share: number): void {
     const d = this.#committed;
     if (!d || d.view.kind === 'donut' || !d.zoom) return;
-    const next = panWindow(this.#zoomBounds(d), this.#currentWindow(d)!, share);
+    const next = panWindow(zoomBounds(d), this.#currentWindow(d)!, share);
     if (next) this.#requestZoom(next);
   }
 
@@ -1206,7 +877,7 @@ class DomInteraction implements Interaction {
   }
 
   #applyRange(d: Committed, a: number, b: number): void {
-    const next = rangeWindow(this.#zoomBounds(d), a, b, minimumWidth(d.view));
+    const next = rangeWindow(zoomBounds(d), a, b, minimumWidth(d.view));
     this.#endRange();
     if (next !== undefined) this.#requestZoom(next);
   }
@@ -1317,7 +988,7 @@ class DomInteraction implements Interaction {
     const d = this.#committed, a = this.#pinch && this.#touches?.get(this.#pinch.ids[0]), b = this.#pinch && this.#touches?.get(this.#pinch.ids[1]);
     if (!this.#pinch || !a || !b || !plotReady(d) || d.view.kind === 'donut' || d.layout.kind !== 'plot') return;
     const width = pinchWidth(this.#pinch.w[1] - this.#pinch.w[0], this.#pinch.d / Math.max(1, dist(a.x, a.y, b.x, b.y)), minimumWidth(d.view));
-    const p = d.layout.plot, full = this.#zoomBounds(d);
+    const p = d.layout.plot, full = zoomBounds(d);
     const share = horizontalBars(d) ? (p.y + p.height - (a.y + b.y) / 2) / p.height : ((a.x + b.x) / 2 - p.x) / p.width;
     const start = clamp(this.#pinch.c - share * width, full[0], full[1] - width);
     this.#pinchWindow = width >= full[1] - full[0] ? null : [start, start + width];
@@ -1327,7 +998,7 @@ class DomInteraction implements Interaction {
   #onEscape(e: KeyboardEvent): void {
     if (e.key !== 'Escape' || e.defaultPrevented) return;
     const inChart = focusedFigure(this.#doc, this.#root);
-    if (inChart !== this.#root && (inChart !== null || (!this.#isLastShowing() && !this.#down?.d))) return;
+    if (inChart !== this.#root && (inChart !== null || (!isLastShowing(this.#doc, this.#root) && !this.#down?.d))) return;
     if (this.#down?.d) { consumeKey(e, true); this.#endDrag(); return; }
     if (this.#range) { consumeKey(e, true); this.#endRange(); return; }
     const target = this.#shownTarget();
@@ -1355,34 +1026,10 @@ class DomInteraction implements Interaction {
     this.#redraw();
   }
 
-  #jumpTarget(raw: string): XValue | null {
-    const d = this.#controlsState;
-    if (!d?.reader.table) return null;
-    const { view, formatters: f } = d, kind = xKindOf(view);
-    if (kind === 'category') return raw;
-    const text = raw.trim();
-    if (!text) return null;
-    const want = normalized(text), written = () => printedX(view, f, p => normalized(p) === want);
-    if (kind === 'number') {
-      const n = parseNumberAs(text, f.x, f.count);
-      return n === null ? written() : normalized(f.x(n)) === want ? n : written() ?? n;
-    }
-    const zone = view.kind === 'scatter' ? view.frame.timeZone : view.kind === 'donut' ? null : view.frame.x.timeZone;
-    const pos = (v: XValue) => { try { return readPosition(v, kind, zone); } catch { return NaN; } };
-    if (Number.isFinite(pos(text))) return text;
-    const parsed = Date.parse(text.replace(/,?\s*(?:UTC|GMT)$/u, ' UTC'));
-    if (!Number.isFinite(parsed)) return written();
-    const at = new Date(parsed), pad = (n: number) => String(n).padStart(2, '0');
-    const day = `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}`;
-    const cand: XValue = kind === 'time' ? at : kind === 'date' ? day : `${day}T${pad(at.getHours())}:${pad(at.getMinutes())}:${pad(at.getSeconds())}`;
-    const p = pos(cand);
-    return Number.isFinite(p) && normalized(f.x(p)) === want ? cand : written();
-  }
-
   #openTable(): void {
     const d = this.#controlsState;
     if (!d?.reader.table || this.#tableView) return;
-    this.#tableView = createTableView(this.#doc, this.#figure.id, this.#jumpTarget.bind(this));
+    this.#tableView = createTableView(this.#doc, this.#figure.id, (raw: string) => resolveJumpTarget(this.#controlsState, raw));
     this.#root.classList.add('axylo-table-open'); this.#plot.inert = true;
     this.#pointer = this.#rest = this.#tableModel = null; this.#pinPage = 0; this.#shown = NONE;
     this.#dropView(); this.#clearGeo(); this.#renderTable(d); this.#tableView.focus();
@@ -1439,41 +1086,11 @@ class DomInteraction implements Interaction {
     }
   }
 
-  #controlItems(d: ControlsState, controls: number): ToolbarItem[] {
-    const { messages: m, view } = d, items: ToolbarItem[] = [], inherited = d.english('controlsLabel') ? d.pageLang : null;
-    if (controls & SERIES && view.kind !== 'donut') {
-      view.frame.series.forEach(({ key, label }, i) => {
-        const on = view.visible[i] === true;
-        items.push({
-          key: `series:${key}`, label, pressed: on, lang: inherited, className: 'axylo-control axylo-legend-entry',
-          struck: !on, swatch: this.#parts.swatch(i, view.cues[i] ?? null, !on),
-        });
-      });
-    }
-    const btn = (key: Exclude<keyof Messages, InstructionKey>, disabled = false, extra?: Partial<ToolbarItem>): ToolbarItem =>
-      ({ key, label: m[key] ?? defaultMessages[key], lang: d.english(key) ?? inherited, className: 'axylo-control', disabled, ...extra });
-    if (controls & RANGE) {
-      items.push(
-        btn('zoomIn', !(controls & CLOSER)),
-        btn('selectRange', false, { pressed: this.#range !== null, symbol: 'range', className: 'axylo-control axylo-control-symbol' }),
-      );
-    }
-    if (controls & (RANGE | RESET)) items.push(btn('zoomOut', !(controls & RESET)));
-    if (controls & RESET) items.push(btn('panLeft', !(controls & LEFT)), btn('panRight', !(controls & RIGHT)), btn('resetZoom'));
-    if (d.streaming) items.push(d.paused ? btn('resume', false, { key: 'pause', action: 'resume' }) : btn('pause'));
-    if (controls & INSPECT) {
-      const open = this.#tableView !== null;
-      items.push(btn(open ? 'hideTable' : 'viewAsTable', false, { key: 'table', expanded: open, controls: this.#tableView?.element.id }));
-    }
-    return items;
-  }
-
   #removeLegend(): void {
     if (!this.#legendList) return;
     this.#markLegend(null);
-    sliceLists?.get(this.#legendList)?.l.clear();
-    sliceLists?.delete(this.#legendList);
-    this.#legendList.remove();
+    // The list's owner releases its listeners and detaches it.
+    this.#parts.sliceList?.(this.#doc, null, this.#actions, this.#legendList);
   }
 
   #canZoomCloser(view: View, window: Span): boolean {
@@ -1485,27 +1102,10 @@ class DomInteraction implements Interaction {
   }
 
   #controlInputs(d: ControlsState, out: unknown[]): number {
-    const { view } = d;
-    let controls = canInspect(d) ? INSPECT : 0;
-    out.push(d.messages, d.english('controlsLabel'), d.pageLang, d.legend, this.#tableView !== null, this.#range !== null, d.streaming, d.paused);
-    if (this.#tableView) out.push(d.reader.table, d.formatters);
-    if (canZoom(d)) {
-      const { xDomain: now, xFull: full } = d.view;
-      if (d.ready) controls |= RANGE | (this.#canZoomCloser(view, d.zoomed ? now : full) ? CLOSER : 0);
-      if (d.zoomed) controls |= RESET | (now[0] > full[0] ? LEFT : 0) | (now[1] < full[1] ? RIGHT : 0);
-    }
-    if (!(controls & RANGE)) this.#zoomCheckView = this.#zoomCheckWindow = null;
-    if (showsSlices(d)) out.push(view, d.formatters, d.ready, d.english('noData'));
-    else if (view.kind !== 'donut' && d.ready && d.legend && !d.tooSmall && view.frame.series.length > 1) {
-      controls |= SERIES;
-      const { series } = view.frame;
-      for (let i = 0; i < series.length; i++) {
-        const s = series[i]!, cue = view.cues[i];
-        out.push(s.key, s.label, view.visible[i] === true, cue?.marker, cue?.dash.normal, cue?.dash.contrast);
-      }
-    }
-    out.push(controls);
-    return controls;
+    const zoomable = canZoom(d) && d.ready;
+    const closer = canZoom(d) && d.ready && this.#canZoomCloser(d.view, d.zoomed ? d.view.xDomain : d.view.xFull);
+    if (!zoomable) this.#zoomCheckView = this.#zoomCheckWindow = null;
+    return collectControlInputs(d, out, this.#tableView !== null, this.#range !== null, closer);
   }
 
   #renderControls(d: ControlsState, measure = false): boolean {
@@ -1535,7 +1135,8 @@ class DomInteraction implements Interaction {
     this.#legendList = nextList;
     if (inLegend && (!this.#legendList || !this.#legendList.contains(this.#activeElement()))) this.#focusFigure();
 
-    const items = this.#controlItems(d, controls), inToolbar = this.#toolbar?.element.contains(this.#activeElement());
+    const items = buildControlItems(d, controls, this.#parts.swatch, this.#range !== null, this.#tableView?.element.id ?? null);
+    const inToolbar = this.#toolbar?.element.contains(this.#activeElement());
     if (items.length || this.#toolbar) (this.#toolbar ??= createToolbar(this.#doc, this)).render(items, d.messages.controlsLabel, d.english('controlsLabel'));
     const legend: Element[] = [];
     if (this.#legendList) legend.push(this.#legendList);
@@ -1555,25 +1156,6 @@ class DomInteraction implements Interaction {
     if (this.#controlsState) this.#renderControls(this.#controlsState);
   }
 
-  #renderInstructions(el: HTMLElement, list: readonly { text: string; lang: string | null }[], proxyLang: string | null, pageLang: string | null): void {
-    if (!list.length) { if (el.firstElementChild || el.textContent !== '') el.textContent = ''; setAttr(el, 'lang', null); return; }
-    const fallback = proxyLang ? pageLang : null, first = list[0]!.lang ?? fallback;
-    // Uniform-language single-text fast path (Stage 3 DOM invariant).
-    if (list.every(p => (p.lang ?? fallback) === first)) {
-      const text = list.length === 1 ? list[0]!.text : list.map(p => p.text).join(' ');
-      if (el.firstElementChild) el.textContent = text; else setText(el, text);
-      setAttr(el, 'lang', first);
-      return;
-    }
-    setAttr(el, 'lang', null);
-    if (!el.firstElementChild && el.firstChild) el.textContent = '';
-    list.forEach(({ text, lang }, i) => {
-      const span = el.children[i] ?? el.appendChild(this.#doc.createElement('span'));
-      setLanguageText(span, i ? ` ${text}` : text, lang ?? fallback);
-    });
-    while (el.children.length > list.length) el.lastElementChild!.remove();
-  }
-
   #placeProxy(d: Committed, hasData: boolean): void {
     if (!this.#proxy || !this.#ring) return;
     const ready = plotReady(d), usable = ready || recoverable(d);
@@ -1590,7 +1172,7 @@ class DomInteraction implements Interaction {
       this.#proxy.style.cssText = this.#ring.style.cssText = boxStyle(p);
     }
     this.#proxyRect = p;
-    const count = instructionSeries(d, hasData), lang = this.#readingLang(d, hasData);
+    const count = instructionSeries(d, hasData), lang = readingLangFor(d, hasData, this.#single);
     const zoomInstructions = ready && offersZoom(d), donut = d.view.kind === 'donut';
     const plotLang = count ? d.english('plotInstructions') : null;
     const seriesLang = count > 1 ? d.english('seriesInstructions') : null;
@@ -1612,41 +1194,12 @@ class DomInteraction implements Interaction {
     setAttr(this.#proxy, 'aria-label', d.messages.plotLabel);
     if (this.#instructions) {
       const desc = descriptionFor(d, count);
-      this.#renderInstructions(this.#instructions, desc, lang, d.pageLang);
+      renderInstructions(this.#doc, this.#instructions, desc, lang, d.pageLang);
       setAttr(this.#proxy, 'aria-describedby', desc.length ? this.#instructions.id : null);
     }
     setAttr(this.#proxy, 'aria-roledescription', fill(d.messages.plotRole, { type: chartTypeName(d.messages, d.kind) }));
     setClass(this.#plot, 'axylo-touch-zoom', d.zoom === 'touch');
     setClass(this.#plot, 'axylo-zoomable', d.zoom !== false);
-  }
-
-  #remapper(before: View, after: View): ((ref: DatumRef | null, exact?: boolean) => DatumRef | null) | null {
-    const from = categoriesOf(before), to = categoriesOf(after);
-    if (!from || !to || (from.length === to.length && from.every((n, i) => to[i] === n))) return null;
-    const index = new Map(to.map((n, i) => [n, i]));
-    return (ref, exact) => {
-      if (ref?.kind !== 'aligned') return ref;
-      for (let i = ref.x; i < from.length; i++) { const at = index.get(from[i]!); if (at !== undefined) return { ...ref, x: at }; if (exact) return null; }
-      return null;
-    };
-  }
-
-  #remapTarget<T extends PickTarget | Identity>(t: T | null, map: (r: DatumRef | null, exact?: boolean) => DatumRef | null): T | null {
-    if (t?.kind !== 'x') return t;
-    const m = map({ kind: 'aligned', seriesKey: '', x: t.x }, true);
-    return m?.kind === 'aligned' ? { kind: 'x', x: m.x } as T : null;
-  }
-
-  #stillPinned(next: Committed, ref: DatumRef, target: PickTarget): { r: DatumRef; t: PickTarget } | null {
-    if (!plotReady(next) || !readable(next)) return null;
-    const { lookup } = next;
-    if (target.kind === 'point') {
-      if (ref.kind !== 'point' || lookup.ordinal(ref) < 0) return null;
-      const b = lookup.anchor(ref);
-      return b ? { r: ref, t: this.#pointGroup(next, ref, b) } : null;
-    }
-    if (target.kind === 'slice') return ref.kind === 'slice' && lookup.ordinal(ref) >= 0 ? { r: ref, t: target } : null;
-    return sameRef(lookup.resolve(ref), ref) && lookup.tooltip(target).rows.length ? { r: ref, t: target } : null;
   }
 
   #dropHold(d: Committed, allowPick = true) { this.#rest = null; if (allowPick && this.#pointer) this.#pointTo(this.#pick(d, this.#pointer)); else this.#shown = this.#idle(); }
@@ -1659,27 +1212,27 @@ class DomInteraction implements Interaction {
       this.#resetCore(); this.#lastHover = null;
       this.#shown = this.#shown.k === S_KEY ? this.#shown : this.#pointer ? NO_HOVER : this.#idle();
     } else if (previous) {
-      const map = this.#remapper(previous.view, next.view);
+      const map = categoryRemapper(previous.view, next.view);
       if (map) {
         this.#focus = map(this.#focus);
         if (this.#shownText) { const moved = map(this.#shownText.r, true); this.#shownText = moved ? { ...this.#shownText, r: moved } : null; }
         if (!this.#focus) this.#single = false;
         this.#lastHover = map(this.#lastHover);
-        if (this.#dismissed) { const kept = this.#dismissed.flatMap(id => this.#remapTarget(id, map) ?? []); this.#dismissed = kept.length ? kept : null; }
-        if (this.#shown.k === S_PIN) { const t = this.#remapTarget(this.#shown.t, map), r = map(this.#shown.r, true); this.#shown = t && r ? { k: S_PIN, r, t } : NO_HOVER; }
-        else if (this.#shown.k === S_HELD) { const t = this.#remapTarget(this.#shown.t, map); this.#shown = t ? { ...this.#shown, t } : NO_HOVER; }
+        if (this.#dismissed) { const kept = this.#dismissed.flatMap(id => remapTarget(id, map) ?? []); this.#dismissed = kept.length ? kept : null; }
+        if (this.#shown.k === S_PIN) { const t = remapTarget(this.#shown.t, map), r = map(this.#shown.r, true); this.#shown = t && r ? { k: S_PIN, r, t } : NO_HOVER; }
+        else if (this.#shown.k === S_HELD) { const t = remapTarget(this.#shown.t, map); this.#shown = t ? { ...this.#shown, t } : NO_HOVER; }
       }
     }
     if (this.#focus) {
       const res = lookup.resolve(this.#focus); this.#focus = res;
       if (!res) this.#single = false; else if (!this.#single && res.kind === 'aligned') this.#focus = lookup.primary({ kind: 'x', x: res.x }) ?? res;
     }
-    if (!this.#focus && this.#proxyFocused && plotReady(next) && readable(next)) this.#focus = this.#firstDatum(next);
+    if (!this.#focus && this.#proxyFocused && plotReady(next) && readable(next)) this.#focus = firstDatum(next);
 
     const pres = presentationFor(next);
     if (!plotReady(next)) { if (this.#shown.k !== S_KEY) this.#shown = this.#pointer ? NO_HOVER : this.#idle(); this.#pinPage = 0; return; }
     if (this.#shown.k === S_PIN) {
-      const kept = pres === 'none' ? null : this.#stillPinned(next, this.#shown.r, this.#shown.t);
+      const kept = pres === 'none' ? null : stillPinned(next, this.#shown.r, this.#shown.t);
       if (kept) this.#shown = { k: S_PIN, ...kept };
       else { this.#endPin(); if ((this.#shown as Shown).k === S_HOVER && this.#pointer) this.#pointTo(this.#pick(next, this.#pointer)); }
     } else if (this.#shown.k === S_HELD) {
@@ -1749,16 +1302,16 @@ class DomInteraction implements Interaction {
 
   attach(): void {
     if (this.#attached || this.#destroyed) return;
-    this.#attached = true; this.#clearGeo(); this.#registerFigure();
+    this.#attached = true; this.#clearGeo(); registerFigure(this.#doc, this.#root);
     this.#listenShadowScroll();
     if (this.#interacted) this.#listenDocument();
   }
 
-  detach(): void { if (!this.#attached) return; this.#attached = false; this.#clearGeo(); this.#cancelGestures(); this.#endPin(); this.#dropView(); this.#unregisterFigure(); this.#unlistenAttached(); }
+  detach(): void { if (!this.#attached) return; this.#attached = false; this.#clearGeo(); this.#cancelGestures(); this.#endPin(); this.#dropView(); unregisterFigure(this.#doc, this.#root); this.#unlistenAttached(); }
 
   destroy(): void {
     if (this.#destroyed) return;
-    this.#reset(); this.#unregisterFigure(); this.#tooltip?.destroy();
+    this.#reset(); unregisterFigure(this.#doc, this.#root); this.#tooltip?.destroy();
     this.#tooltip = this.#tooltipContent = this.#committed = this.#controlsState = null;
     this.#destroyed = true; this.#stopPinch();
   }
