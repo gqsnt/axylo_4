@@ -91,8 +91,9 @@ describe('C5.1 range bands & error bars in axylo/cartesian', () => {
     // Area band rendered (run covers rows 0..1; row 2 missing breaks run cleanly!)
     const areas = scene.marks.filter(m => m.type === 'area');
     expect(areas).toHaveLength(1);
-    // Exact raw values preserved in table (row 1 keeps raw low=40 ms, high=20 ms)
-    expect(reader.table!.row(1)).toEqual(['2', '40 ms', '20 ms', '30 ms']);
+    // Exact raw values preserved in table (row 1 keeps raw low=40 ms, high=20 ms), in the range's one column (N5)
+    expect(reader.table!.headers).toEqual(['step', '95% CI (ms)', 'mid (ms)']);
+    expect(reader.table!.row(1)).toEqual(['2', '40 ms – 20 ms', '30 ms']);
 
     // validateCartesian reports AX176 in Node too
     const nodeDiags = validateCartesian(opts as never);

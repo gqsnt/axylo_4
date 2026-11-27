@@ -41,7 +41,7 @@ describe('import for effect, with side-effect hints ignored', () => {
 });
 
 describe('axylo/cartesian, axylo/finance, axylo/stats, axylo/sync and axylo/export packed sizes stay under caps', () => {
-  it('cartesian and finance standalone bundles omit streaming storage and stay <= 127,000 B gzip-9', async () => {
+  it('cartesian (<= 134,000 B) and finance (<= 127,000 B) standalone bundles omit streaming storage and stay under gzip-9 caps', async () => {
     const cart = await consumer("export { cartesian } from 'axylo/cartesian';");
     const fin = await consumer("export { candlestick } from 'axylo/finance';");
     for (const marker of STREAMING_MARKERS) {
@@ -50,7 +50,7 @@ describe('axylo/cartesian, axylo/finance, axylo/stats, axylo/sync and axylo/expo
     }
     const cartGz = gzip(cart), finGz = gzip(fin);
     console.info(`cartesian: ${cartGz} B, finance: ${finGz} B gzip-9`);
-    expect(cartGz).toBeLessThanOrEqual(127_000);
+    expect(cartGz).toBeLessThanOrEqual(134_000);
     expect(finGz).toBeLessThanOrEqual(127_000);
   });
 

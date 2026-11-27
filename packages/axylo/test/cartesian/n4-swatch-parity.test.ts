@@ -31,10 +31,13 @@ describe('N4 Cartesian swatch parity with dom/mark-swatch.ts', () => {
       { type: 'errorBar', y: 'mid', low: 'elo', high: 'ehi', yAxis: 'v', capWidth: 0 },
     ],
   };
-  const fields = ['l', 'b', 'a', 'lo', 'hi', 'mid', 'elo', 'ehi'];
+  // N5: the swatch is asked about published series only, one per layer (cartesian/boxplot.ts): a range is its
+  // `low` field and an error bar its centre. The other carriers (hi, elo, ehi) have no legend entry, and the
+  // error bar's centre is hidden only with the whole error bar.
+  const fields = ['l', 'b', 'a', 'lo', 'mid'];
 
-  for (const hidden of [-1, 5]) {
-    it(`describes every layer's swatch identically${hidden >= 0 ? ' with the error bar centre hidden' : ''}`, () => {
+  for (const hidden of [-1, 4]) {
+    it(`describes every layer's swatch identically${hidden >= 0 ? ' with the error bar hidden' : ''}`, () => {
       const parsed = parseCartesianInput(input);
       const stateRef = { meta: parsed.meta };
       const ours = cartesianSwatch(stateRef);
