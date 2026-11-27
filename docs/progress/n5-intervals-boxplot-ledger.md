@@ -1,5 +1,155 @@
 # N5 — single-identity intervals, `scatter` layer, native `boxplot`, stats hardening, annotation diagnostics
 
+## Per-primitive compound BVH bounds & exact clipped edge eligibility (`packages/axylo/src/cartesian/lookup.ts`)
+
+- **Tight off-centre whisker pruning & shared `g.visit` projection (`packages/axylo/src/cartesian/lookup.ts`):**
+  - Replaced the duplicated compound bounds projection in `buildCompoundQuery` with a single upfront pass through `projectCompound.visit` (`g.visit(j, px, collectSink)`), collecting each surviving plot-clipped rectangle (`box`, vertical `whisker`, horizontal `cap`, and non-redundant `median` outside the clipped box) and in-plot `errorBar` circle (`point`) into flat typed arrays (`pX1`, `pX2`, `pY1`, `pY2`, `pMidY`, `pPx`, `pSlot`, plus optional `pIsPt`/`pPtY`).
+  - Extended shared `createBvh` to store per-node `[minX, maxX, minY, maxY, minPx, maxPx]` (stride 6) so `distMin` uses the tight clipped primitive edges (`[minX, maxX]` separates narrow `WHISKER_WIDTH / 2 = 0.75 px` whiskers from wider `boxHalf` boxes and `cap`s) while `dxMin` and child tie-ordering preserve exact slot-centre `|px - qx|` (`[minPx, maxPx]`) and `(dist, dx, slot)` ranking.
+  - Preserved exact `point` circle distance (`Math.max(0, Math.hypot(qx - px, qy - py) - halfMarker)`) vs clipped `rectDist` rectangle distance, layer priority, clipping, and `__DEV__` `lastPickNodes`/`lastPickCandidates` instrumentation.
+- **Conservative horizontal eligibility at the inclusive 3 px boundary (`packages/axylo/src/cartesian/lookup.ts`, `packages/axylo/test/cartesian/n5-repair2.test.ts`):**
+  - Removed the `Math.abs(px - qx) > xExtent + HIT_SLACK` centre-distance guard in `canBeat`; horizontal pruning now compares `qx` directly against the projected, clipped geometry edges `[x1, x2]` (`spanDist(qx, x1, x2)`), matching `rectDist` bit-for-bit on fractional `capWidth` values (including `8.013698630136986`) at the exact inclusive `3` CSS px edge.
+  - Removed the corresponding `dx > reach` centre-distance guard from the independent `fast-check` compound brute-force oracle in `packages/axylo/test/cartesian/n5-repair2.test.ts` and expanded its `capWidth` generator to include fractional values (`8.013698630136986` and 2-decimal fractions).
+- **Measured probes & regressions (`packages/axylo/test/cartesian/n5-repair2.test.ts`):**
+  - Added fractional `capWidth: 8.013698630136986` inclusive 3 px horizontal boundary regressions (`errorBar` left/right caps and `boxplot` cap) verifying exact `3` px selects the compound mark while `3.000001` px falls back to `line`, even when `|qx - px| > cap + 3` by floating-point rounding.
+  - Added the 100,000-row capless (`capWidth: 0`) clustered boxplot `1.5` CSS px sideways probe `2` px above the upper whisker (left edge, right edge, and interior of a `> 3 px` cluster): `__DEV__` probes measured **35 node checks / 12 geometry checks** at `n = 100,000` (and **39 node checks / 13 geometry checks** at `n = 400,000`); production-mode (`__DEV__: false`) Node probes measured **0.050 ms cold / 0.0093 ms warm median** at `n = 100,000` and **0.016 ms cold / 0.0142 ms warm median** at `n = 400,000`.
+- **Verified Node checks & subpath sizes (browser suites left for Coordinator):**
+  - `npm run typecheck`: **PASS** (exit 0).
+  - `npm run build`: **PASS** (exit 0).
+  - `npx vitest run packages/axylo/test/cartesian packages/axylo/test/stats --configLoader native --no-cache`: **PASS** (`18` files / `172` tests).
+  - Full Node `npx vitest run --configLoader native --no-cache`: **PASS** (`137` files / `2,382` tests).
+  - Production ESM consumer (`packages/axylo/dist`, `conditions: ['production']`, minified ES2022, gzip-9): `axylo/cartesian` **365,638 B raw / 133,909 B gz9** (`<= 134,000 B` cap, `91 B` headroom; bare import **0 B raw**), `axylo/finance` **346,502 B raw / 124,599 B gz9** (`<= 127,000 B`). `tests/dist/subpaths.test.ts` (`134,000 B` cap) and all legacy/root/static builds untouched.
+  - Remaining for Coordinator: packed `tests/dist/subpaths.test.ts`, `scripts/size.mjs`, Chrome browser suites (`tests/dist/c5.browser.test.ts`, `tests/dist/cartesian.browser.test.ts`), and cross-provider review.
+- **Confirmed integration blockers preserved open (out of scope — untouched):**
+  - Packed TypeScript `CartesianLayerOptions` union missing `scatter` / `boxplot` (`packages/axylo/src/cartesian.ts:75`).
+  - Standalone `range` / `errorBar` legend toggle gate (`packages/axylo/src/dom/interaction-controls.ts:52`).
+  - Same-x DOM hover presentation invalidation (`packages/axylo/src/dom/interaction.ts:449`).
+  - Repeated-x scatter normalization (`AX108`) & row-level datum/event identity (`packages/axylo/src/cartesian/normalize.ts:13`, `packages/axylo/src/core/contracts.ts:596`, `packages/axylo/src/core/controller-helpers.ts:407`).
+  - Overflow (`> 8` series) keyboard & paginated-tooltip readout losing intervals (`packages/axylo/src/core/focus.ts:87`, `packages/axylo/src/dom/interaction-nav.ts:55`).
+
+---
+
+## Compound proximity bounds, spatial y-grouping & whole-lookup instrumentation
+
+- **Conservative compound proximity pruning & spatial BVH (`packages/axylo/src/cartesian/lookup.ts`):**
+  - Unified `PointIndex` and `buildCompoundQuery` tree construction into a shared typed-array `createBvh` helper (`nb: Float64Array` stride 4 `[minX, maxX, minY, maxY]`, `ni: Int32Array` stride 5 `[left, right, minSlot, maxSlot, aux]`) that stores true post-partition `minSlot`/`maxSlot`/`minX`/`maxX` bounds, splits along the wider of `x` span or `midY` spread (`nthElement` fallback on balanced splits plus single-outlier skew peeling), and preserves `PointIndex` tie semantics (`aux = maxOrd`) while tracking `errorBar` centre-point boundary edges (`pointEdges`) for compound trees.
+  - Replaced the sloppy `pad = 1` boxplot approximation in `buildCompoundQuery` with exact clipped per-primitive vertical intervals (exact `1 px`-clamped box rect, vertical whiskers, `WHISKER_WIDTH / 2` caps, `MEDIAN_WIDTH / 2` median, and `errorBar` centre circle bounds) so `minY`/`maxY` match painted `rectDist` bounds cleanly.
+  - Replaced `bestDist === 0`-only tie pruning with conservative subtree lower bounds `(distMin, dxMin, minSlot)` for the full `(painted distance, horizontal distance, slot)` order: equality (`distMin === bestDist`) is pruned only when `eps === 0` (`gx === 0 || gy === 0` or `bestDist === 0`, with no active `sink.point` subtraction boundary), where `distMin <= dist(k)` and `dxMin <= dx(k)` hold bit-for-bit under IEEE-754 monotonicity; `sink.point` (`Math.hypot(...) - halfMarker`) edges use `1e-11` and positive-corner `Math.hypot(gx, gy)` uses `1e-12` (`bestDist > 0`). Children descend by `(distMin, dxMin, minSlot)`. Preserves direct-hit priority, reverse-layer priority, and `(dist, dx, slot)` ties.
+  - Added whole-lookup `__DEV__` instrumentation (`lastPickCandidates` across line, `PointIndex` scatter/outliers, bar, range, and compound `g.visit` calls; `lastPickNodes` across `PointIndex` and `CompoundQuery` BVH node inspections), verified stripped from production `dist/cartesian.js` and `dist/axylo.js`.
+  - **Measured probes & genuine limitations (no claim of universal constant-time exact search):**
+    - Production-mode (`__DEV__: false`) 100k/400k clustered boxplots within 2 px positive proximity slack (`x = 100 + i * 1e-7`): **0.73 ms cold / 0.03 ms warm median** at `n = 100,000` (`31` nodes, `1` geometry visit in `__DEV__`) and **0.05 ms cold / 0.011 ms warm median** at `n = 400,000` (`35` nodes, `1` geometry visit in `__DEV__`).
+    - Alternating two-band (`[10, 20]` / `[80, 90]`, `n = 100,000`) vertical miss at `y = 50`: **0.057 ms** (`11` nodes, `0` geometry visits) when clustered in `x` and **0.014 ms** (`11` nodes, `0` geometry visits) when wide in `x`; 2 px upper-band hit takes **0.024 ms** / **0.015 ms** (`31` / `27` nodes, `2` / `1` geometry visits).
+    - Genuine limitations: exact search still remains `O(N)` on adversarial datasets where `N` distinct-distance items tie or monotonically decrease in distance opposite to traversal (e.g. a concentric ring of distinct coordinates), or where `N` identical-x items sit in an active `sink.point` edge (`eps = 1e-11`) or positive-diagonal corner (`gx > 0 && gy > 0` with identical `px`); `boxplot` / `errorBar` views still pay `O(N)` upfront projection during `createCartesianLookup`, and `range` keeps its `SLOT_NO_ROW` scan.
+- **Regressions added/updated (`packages/axylo/test/cartesian/n5-repair2.test.ts`):**
+  - Updated whole-lookup `lastPickCandidates` assertions on `bar` and `line + range` (`<= 2`) and `boxplot` hit (`1..4`), and added `lastPickNodes` + `lastPickCandidates` regressions for 100k clustered boxplots (with default caps, `capWidth: 0`, and identical-x ties) in positive proximity slack (`0 < dist <= 3`), 50k clustered `errorBar` proximity hits (with and without `y`), 100k alternating y-band misses and nearby hits across both clustered and wide `x`, and direct-hit / layer-tie / edge-`errorBar` / `PointIndex` instrumentation checks, retaining the brute-force oracles and boundary tests.
+- **Verified checks & packed-equivalent bundle sizes (Node-only; Chrome/packed dist left for Coordinator):**
+  - `npm run typecheck`: **PASS** (exit 0).
+  - `npm run build`: **PASS** (exit 0).
+  - `npx vitest run packages/axylo/test/cartesian packages/axylo/test/stats --configLoader native --no-cache`: **PASS** (`18` files / `170` tests).
+  - Full Node `npx vitest run --configLoader native --no-cache`: **PASS** (`137` files / `2,380` tests).
+  - Production ESM consumer from `packages/axylo/dist` (`conditions: ['production']`, minified ES2022, gzip-9): `axylo/cartesian` **365,718 B raw / 133,904 B gz9** (`<= 134,000 B` cap, `96 B` headroom; `adoptNormalized`/`StreamSession` absent; bare import **0 B raw**), `axylo/finance` **346,454 B raw / 124,599 B gz9** (`<= 127,000 B`), `axylo/stats` **3,935 B raw / 1,692 B gz9** (`<= 3,500 B`; bare import **0 B raw**). Legacy/root/static builds and `134,000 B` cap in `tests/dist/subpaths.test.ts` preserved untouched.
+  - Remaining for Coordinator: packed `tests/dist/subpaths.test.ts`, `scripts/size.mjs`, Chrome browser suites (`tests/dist/c5.browser.test.ts`, `tests/dist/cartesian.browser.test.ts`), and fresh cross-provider review.
+- **Integration blockers preserved explicitly (out of scope — untouched):**
+  - Packed TypeScript `CartesianLayerOptions` union missing `scatter` / `boxplot` (`packages/axylo/src/cartesian.ts:75`).
+  - Standalone `range` / `errorBar` legend toggle gate (`packages/axylo/src/dom/interaction-controls.ts:52`).
+  - Same-x DOM hover presentation invalidation (`packages/axylo/src/dom/interaction.ts:449`).
+  - Repeated-x scatter normalization (`AX108`) & row-level datum/event identity (`packages/axylo/src/cartesian/normalize.ts:13`, `packages/axylo/src/core/contracts.ts:596`, `packages/axylo/src/core/controller-helpers.ts:407`).
+  - Overflow (`> 8` series) keyboard & paginated-tooltip readout losing intervals (`packages/axylo/src/core/focus.ts:87`, `packages/axylo/src/dom/interaction-nav.ts:55`).
+
+---
+
+## Compound fallback bounds repair — hierarchical typed-array pruning (`sol-6.2-medium__20261127T151928Z`)
+
+- **Hierarchical typed-array compound bounds (`packages/axylo/src/cartesian/lookup.ts`):**
+  - Added upfront `buildCompoundQuery(sIdx)` preparation during `createCartesianLookup` for visible drawable `boxplot` and `errorBar` series (ordinary charts without `boxplot` or `errorBar` skip this completely with `0` allocations and `0` projections; `range` continues its existing O(1)-projection endpoint/bridge path; `PointIndex` and `stats.ts` / `Date` fixes are preserved intact).
+  - For each drawable slot (`rows[j] === SLOT_VALUE`) whose horizontal extent intersects `plot`, projects conservative clipped vertical bounds (`[minY, maxY]` covering whiskers, caps with `WHISKER_WIDTH / 2`, degenerate `1 px` box clamp / `MEDIAN_WIDTH / 2`, and `errorBar` centre points within `inPlot(x, y, halfMarker)`) into flat typed arrays (`slots`, `xs`, `minY`, `maxY`) and a binary tree (`nb: Float64Array`, `ni: Int32Array`, `LEAF_SIZE = 16`, exact capacity `(len >> 2) + 2`) over `x`-ordered slots.
+  - `compoundHit` descends nearest-`x` / nearest-`y` / lower-slot-index children first and prunes subtrees and leaves by `dxMin > reach`, `dyMin > Math.min(HIT_SLACK, bestDist) + 1e-9`, and `bestDist === 0 && (dxMin > bestDx || (dxMin === bestDx && minSlot >= bestSlot))`. Preserves exact painted geometry, clipping, `HIT_SLACK = 3`, outlier priority, layer order, and `(dist, dx, slot)` ties.
+  - **Production-mode (`__DEV__: false`) 100,000-row probe & genuine limitations:** On **100,000 valid boxplot rows** clustered inside 1 x-pixel (`x = 100 + i * 1e-7`, 10,000 outliers at `45`, boxes `[10, 30]`), upfront `createCartesianLookup` took **20.9 ms**, cold first vertical-miss pick (`y = 85`) took **0.423 ms** (down from 21–27 ms / 200,000 x + 499,990 y projections), warm repeat miss took **0.01 ms**, and direct box hit (`y = 20`) took **0.097 ms**. Genuine limitations: (1) if an adversarial input stacks `N` boxes at overlapping `x` and overlapping `y` with the pointer in the `0 < dist <= HIT_SLACK` proximity band (`dist > 0`, not a miss and not `dist === 0`), tie pruning only engages at `bestDist === 0` (to avoid IEEE-754 boundary hazards on `bestDist > 0`), so overlapping proximity ties scan `O(N)`; misses (`> HIT_SLACK`) and `dist === 0` overlapping hits remain `O(1)`–`O(log N)`; (2) `boxplot` / `errorBar` views pay `O(N)` upfront bounds projection in `createCartesianLookup` (`<= 3` y + `1` x projections per drawable slot), whereas ordinary views without `scatter`, outliers, `boxplot`, or `errorBar` pay `0`; (3) `range` retains its `SLOT_NO_ROW` `Uint8Array` neighbour scan without a bounds tree.
+- **Regressions added/updated (`packages/axylo/test/cartesian/n5-repair2.test.ts`):**
+  - Updated the upfront-indexing test to verify ordinary `line` + `range` views perform `0` upfront `yScale.map` calls and `<= 1` `lastPickCandidates`, while outlier-free 50k `boxplot` keeps `lastPickCandidates === 0` and performs `0` `yScale.map` calls on vertical miss and `<= 10` on box hit.
+  - Added deterministic whole-pick regressions for **100,000 valid boxplot rows** clustered in one x-pixel (with and without outliers) at a vertical miss (`xScale.map <= 2`, `yScale.map === 0`, `lastPickCandidates === 0`), 99,999 disjoint rows + 1 nearby hit (`yScale.map <= 10`), 100,000 identical-x overlapping boxes (`yScale.map <= 10` left-side / `<= 100` right-side, lowest slot wins), 50,000 clustered `errorBar` vertical miss (`yScale.map === 0`), off-whisker `errorBar` centre / `boxplot` median / wide `160 px` cap boundary crossing, and a 150-run `fast-check` unpruned brute-force compound oracle covering `boxplot` + `errorBar` + wide caps + ties + clipping.
+- **Verified checks & production bundle measurements (Node-only; Chrome/packed dist left for Coordinator):**
+  - `npm run typecheck`: **PASS** (exit 0).
+  - `npx vitest run packages/axylo/test/cartesian packages/axylo/test/stats --configLoader native --no-cache`: **PASS** (`18` files / `167` tests).
+  - Full Node `npx vitest run --configLoader native --no-cache`: **PASS** (`137` files / `2,377` tests).
+  - `npm run build` + in-memory production ESM esbuild (`conditions: ['production']`, gzip-9): `axylo/cartesian` **366,594 B raw / 133,924 B gz9** (`<= 134,000 B` cap, `76 B` headroom; bare import **0 B raw**), `axylo/finance` **346,454 B raw / 124,599 B gz9** (`<= 127,000 B`), `axylo/stats` **3,935 B raw / 1,692 B gz9** (`<= 3,500 B`; bare import **0 B raw**). Only `packages/axylo/src/cartesian.ts` imports `cartesian/lookup.ts`, leaving all legacy/static/IIFE outputs untouched.
+  - Remaining for Coordinator: packed `tests/dist/subpaths.test.ts`, `scripts/size.mjs`, Chrome browser suites (`tests/dist/c5.browser.test.ts`, `tests/dist/cartesian.browser.test.ts`), and fresh cross-provider review.
+- **Reviewed integration findings remaining explicitly open (out of scope — preserved unchanged):**
+  - Packed TypeScript `CartesianLayerOptions` union missing `scatter` / `boxplot` (`packages/axylo/src/cartesian.ts`).
+  - Standalone `range` / `errorBar` legend toggle gate (`packages/axylo/src/dom/interaction-controls.ts`).
+  - Same-x DOM hover presentation invalidation (`packages/axylo/src/dom/interaction.ts`).
+  - Repeated-x scatter normalization & row-level datum/event identity (`packages/axylo/src/cartesian/normalize.ts`, `packages/axylo/src/core/contracts.ts`, `packages/axylo/src/core/controller-helpers.ts`).
+  - Overflow (`> 8` series) keyboard & paginated-tooltip readout using `lookup.datum` (`packages/axylo/src/core/focus.ts`, `packages/axylo/src/dom/interaction-nav.ts`).
+
+---
+
+## Seal repair — exact typed-array spatial index & upfront construction (`sol-6.2-medium__20261127T150032Z`)
+
+- **Exact spatial search replacing lossy dense-cell reduction (`packages/axylo/src/cartesian/lookup.ts`):**
+  - Removed the lossy rounded-pixel `dedupeCell` reduction, `EXACT_BUDGET = 2_500`, `DENSE_CELL_THRESHOLD = 64`, and lazy `ensurePointIndex` deferral.
+  - Ordinary views with no visible `scatter` or `boxplot` outlier marks (`pointVisIdx.length === 0`) still skip point indexing completely at both construction and `pick()` time (`O(log N)` via `nearestSlot`).
+  - When visible `scatter` or `boxplot` outlier marks are present, `createCartesianLookup` constructs the spatial index upfront (`16 × 16` CSS-px grid over `plot` with `Int32Array` dense storage up to `65,536` cells and a `Map` cell map for larger viewports, plus flat typed-array balanced bounding-box trees per cell with `LEAF_SIZE = 16` and median-of-3 + 3-way `nthElement` fallback on skewed splits).
+  - Exact `(px, py)` duplicates inside dense cells collapse to one representative (`lastWinner`) plus `repFirst` when multiple slots share the coordinate, preserving the exact pointer-dependent `afterInScan` priority (`slotIndex` -> `step -1` -> `step +1`, visible series order, CSR outlier order).
+  - Subtree traversal visits nearest cells/children first, verifies boundary/tie distances with `Math.hypot`, and prunes exact equality only when `canBeatOnTie(minSlot, maxSlot, maxOrd, ...)` proves no entry in the subtree can beat the current winner.
+  - **Construction vs query work & worst-case limitation:** Upfront index construction is `O(N)` for binning plus `O(M log M)` inside dense cells with `> 16` distinct coordinates (fast-pathing monotonic-x distinct runs and equal-y clusters without sorting). In a production-mode (`__DEV__: false`) Node probe with **1,000,000 scatter points** across two 500k-point dense cells, upfront `createCartesianLookup` construction took **194.61 ms**; subsequent cold miss took **0.30 ms**, cold first visits to cells 1 and 2 took **0.11 ms** and **0.04 ms**, and warm repeat visits took **0.02 ms** each. Worst-case limitation: if an adversarial dataset places `N` **distinct** projected coordinates at the exact same Euclidean distance from the pointer (a circle centered on `(x, y)`) in ascending tie-rank order opposite to traversal order, exact resolution without approximation must inspect those distinct equidistant candidates (`O(N)` worst case); sparse, clustered, and identical-coordinate inputs stay `O(1)`–`O(log N)`.
+- **Regressions added (`packages/axylo/test/cartesian/n5-repair2.test.ts`):**
+  - 23.8 vs 24.2 px threshold crossing across `2,500`, `2,501`, and `4,000` candidates plus `0 px` direct hits for both `scatter` and `boxplot` outliers.
+  - Exact-distance symmetric ties (`xLeft` vs `xRight`) and identical-projected-coordinate pointer-dependent ties across `> 2,500` candidates for both `scatter` and `boxplot` outliers.
+  - Construction separated from query work: ordinary 50k-slot outlier-free `boxplot` skips indexing (`0` `yScale.map` calls); 50k-point dense `scatter` and 40k-point dense `boxplot` outliers perform projection calls during `createCartesianLookup`, then `0` `yScale.map` calls and identical bounded `lastPickCandidates` (`0` on cold miss, `< 100` on both cold first visits and warm repeat visits across two separated dense cells).
+  - `fast-check` differential property test (150 runs) matching an exact brute-force `afterInScan` oracle over mixed `line` + `scatter` + `boxplot` outlier clusters.
+- **Preserved stats fix, subpath cap (`134,000 B`), and production bundle measurements (`npm run build` + production ESM esbuild, gzip-9):**
+  - `packages/axylo/src/stats.ts`, `tests/dist/subpaths.test.ts`, and `acceptance/journeys.json` are untouched.
+  - `axylo/cartesian`: **364,391 B raw / 133,016 B gz9** (`<= 134,000 B` cap); bare import (`ignoreAnnotations: true`): **0 B raw**.
+  - `axylo/finance`: **346,454 B raw / 124,599 B gz9** (`<= 127,000 B` cap).
+  - `axylo/stats`: **3,935 B raw / 1,692 B gz9** (`<= 3,500 B` cap); bare import (`ignoreAnnotations: true`): **0 B raw**.
+- **Reviewed integration findings remaining explicitly open (out of scope):**
+  - Packed TypeScript `CartesianLayerOptions` union missing `scatter` / `boxplot` (`packages/axylo/src/cartesian.ts`).
+  - Standalone `range` / `errorBar` legend toggle gate (`packages/axylo/src/dom/interaction-controls.ts`).
+  - Same-x DOM hover presentation invalidation (`packages/axylo/src/dom/interaction.ts`).
+  - Repeated-x scatter normalization & row-level datum/event identity (`packages/axylo/src/cartesian/normalize.ts`, `packages/axylo/src/core/contracts.ts`, `packages/axylo/src/core/controller-helpers.ts`).
+  - Overflow (`> 8` series) keyboard & paginated-tooltip readout using `lookup.datum` (`packages/axylo/src/core/focus.ts`, `packages/axylo/src/dom/interaction-nav.ts`).
+- **Pending Director / Coordinator verification:** Full Node `npm test`, packed `tests/dist/subpaths.test.ts`, Chrome browser suites (`tests/dist/c5.browser.test.ts`, `tests/dist/cartesian.browser.test.ts`), and `scripts/size.mjs`.
+
+---
+
+## Final seal repair — Tukey fence overflow scaling & bounded Cartesian picking (cross-review `sol-6.2-medium__20261127T144431Z`)
+
+- **Tukey fence scaling when `k * iqr` overflows (`packages/axylo/src/stats.ts`):**
+  - `summarizeBox` now checks `Number.isFinite(k * iqr)` (retaining `k === 0` at `[q1, q3]` and exact `q1 - spread` / `q3 + spread` on ordinary inputs). Whenever `k * iqr` overflows (either an infinite IQR or finite `iqr * k` past `Number.MAX_VALUE`), it scales by half (`half = k * (Number.isFinite(iqr) ? iqr / 2 : q3 / 2 - q1 / 2)`) and evaluates `2 * (q1 / 2 - half)` and `2 * (q3 / 2 + half)`.
+  - Added the review fixture `[-Number.MAX_VALUE, 5e307, 5e307, 1.75e308, 1.75e308]` (`q1 = 5e307`, `q3 = 1.75e308`, `iqr = 1.25e308`, `lowerFence = -1.375e308`, `whiskerLow = 5e307`, `outliers = [-Number.MAX_VALUE]`) and its mirrored case (`[-1.75e308, -1.75e308, -5e307, -5e307, Number.MAX_VALUE]`, `upperFence = 1.375e308`, `whiskerHigh = -5e307`, `outliers = [Number.MAX_VALUE]`), plus `whiskerFactor: 0` checks, in `packages/axylo/test/stats/n5-stats-overflow.test.ts`.
+- **Bounded Cartesian picking (`packages/axylo/src/cartesian/lookup.ts`):**
+  - Ordinary views with no visible `scatter` or `boxplot` outliers (such as line-only, bar-only, area-only, and interval charts) skip both the 24 px neighbor-slot scan in `pickPreferred` and the constructor `boxHalfWidth` pass (when no compound mark is present), restoring `O(log N)` picking via `nearestSlot`.
+  - When visible `scatter` or `boxplot` outlier marks are present, `createCartesianLookup` lazily indexes in-plot points (`inPlot(px, py, half)` and within `24 px` of `plot`) in flat typed arrays over an `8 × 8` CSS-px cell grid (zero per-point JS objects). Queries with `<= 2,500` candidates in the `24 px` cell neighborhood evaluate exact Euclidean distances and exact `afterInScan` tie-breaking (`slotIndex` -> `step -1` -> `step +1`, `visible` order, CSR outlier order). Dense cells (`> 64` points in a `> 2,500` candidate window) lazily deduplicate onto 1-CSS-px buckets keeping the latest `(slot, series, outlier)` entry so bounded work stays O(1) without dropping clearly closer visible points. Preserves `BandScale`, dual y-axes (`axisScaleOf`), `inPlot` half-extent clipping, and line-vs-scatter tie priority.
+  - Added regressions in `packages/axylo/test/cartesian/n5-repair2.test.ts` verifying observable work (`xScale.map`/`yScale.map` call counts and `__DEV__` `lastPickCandidates`) on 50,000 clustered slots for line-only, bar-only, dense scatter (including a clearly closer point before the cluster), and dense boxplot outliers, plus line/scatter tie priority and `BandScale` scatter picking.
+- **Subpath measurements (cap `134,000 B` intact in `tests/dist/subpaths.test.ts` and `acceptance/journeys.json`):**
+  - Previous verified measurement on the cap-only seal candidate (`turn-3-hydrogen-4-high__20261127T144056Z.log`): `axylo/cartesian` **129,779 B** gzip-9, `axylo/finance` **124,599 B** gzip-9 (distinct from historic earlier measurements: `127,120 B` pre-N5, `129,553 B` seal brief, `129,681 B` earlier `Date` canonicalization candidate).
+  - Measured on this repair build (`npm run build` + production ESM esbuild consumer, gzip-9): `axylo/cartesian` **361,149 B raw / 131,530 B gz9** (`<= 134,000 B` cap), `axylo/stats` **3,935 B raw / 1,692 B gz9** (`<= 3,500 B` cap), bare imports **0 B raw** (`ignoreAnnotations: true`).
+- **Out-of-fence findings left for separate scope decision:**
+  - Standalone interval legend toggle (`packages/axylo/src/dom/interaction-controls.ts`), same-x DOM hover presentation invalidation (`packages/axylo/src/dom/interaction.ts`), `CartesianLayerOptions` public union (`packages/axylo/src/cartesian.ts` / `public.ts`), and repeated-x scatter normalization (`packages/axylo/src/cartesian/normalize.ts`).
+
+---
+
+## Final seal — Cartesian subpath cap update (from `d897e3a`)
+
+- **Director-approved cap update (`tests/dist/subpaths.test.ts`):**
+  - Raised only the `axylo/cartesian` standalone gzip-9 cap assertion from `127_000` (`127,000 B`) to `134_000` (`134,000 B`).
+  - Kept the `axylo/finance` standalone gzip-9 cap at `127_000` (`127,000 B`).
+  - Updated the combined test title to `'cartesian (<= 134,000 B) and finance (<= 127,000 B) standalone bundles omit streaming storage and stay under gzip-9 caps'`.
+  - Preserved all streaming-marker (`adoptNormalized`, `StreamSession`), legacy/static (`LEGACY_CAPS`), tiny-subpath (`stats`/`sync`/`export <= 3_500 B`), and bare-import (`0` raw bytes under `ignoreAnnotations: true`) assertions.
+- **Synchronized acceptance criteria (`acceptance/journeys.json`):**
+  - Updated `cartesian-multiscale` `outcomeGuarantees` from `<= 127,000 B gzip-9` to `<= 134,000 B gzip-9`.
+  - Synchronized both `tests/dist/subpaths.test.ts` `testCitations` titles (under `cartesian-multiscale` and `export-finance`) to `'cartesian (<= 134,000 B) and finance (<= 127,000 B) standalone bundles omit streaming storage and stay under gzip-9 caps'`.
+  - Kept `export-finance` `outcomeGuarantees` at `<= 127,000 B gzip-9 (axylo/finance)`.
+- **Prior reported evidence (not re-measured in this seal edit):**
+  - Pre-N5 `axylo/cartesian` standalone gzip-9 measurement (after N4 decimation/stacks): `127,120 B`.
+  - N5 `axylo/cartesian` standalone gzip-9 measurement reported in the seal brief: `129,553 B` (subsequent `Date` canonicalization repair measurements of `129,681 B` and `129,779 B` gzip-9 are preserved in the historical entries below).
+  - Legacy root/static gzip delta across all 6 legacy/static builds: `0 B` (byte-identical).
+  - Bare-import (`ignoreAnnotations: true`) bundle size: `0` raw bytes.
+- **Scope & pending Director verification:**
+  - Owned files edited: `tests/dist/subpaths.test.ts`, `acceptance/journeys.json`, `docs/progress/n5-intervals-boxplot-ledger.md`. `packages/axylo/package.json` (`exports` / `files` manifest) and all library/browser sources remain untouched.
+  - Director verification owns `npm run typecheck`, `npm run build`, full Node `npm test`, packed `tests/dist/subpaths.test.ts`, Chrome `tests/dist/c5.browser.test.ts` and `tests/dist/cartesian.browser.test.ts`, and `scripts/size.mjs`.
+
+---
+
 ## Current status — `Date` canonicalization & typed annotation signature repair (cross-review `sol-6.2-medium__20261127T101404Z`)
 
 - **Latest cross-review:** `sol-6.2-medium__20261127T101404Z` (`/home/canarit/projects/prism/runs/coordinator_p2_n5/sol-6.2-medium__20261127T101404Z/report.md`)

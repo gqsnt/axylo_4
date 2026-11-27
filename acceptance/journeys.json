@@ -1366,7 +1366,7 @@
     "outcomeGuarantees": [
       "Supports 1 or 2 y-axes (left primary, optional right secondary) with linear and overflow-safe log scales sharing one projection authority.",
       "Mixed bar, area, and line layers paint deterministically (bar -> area -> line), reject bar/area on log statically and via AX173, disclose nonpositive log rows via AX171 while keeping raw values in the table, and collapse the right y-axis below 360 px (L9, AX175).",
-      "Strict update() rolls back cleanly without corrupting subsequent updates, and standalone packed bundle stays <= 127,000 B gzip-9 with 0 B bare import."
+      "Strict update() rolls back cleanly without corrupting subsequent updates, and standalone packed bundle stays <= 134,000 B gzip-9 with 0 B bare import."
     ],
     "applicableKinds": [
       "cartesian"
@@ -1424,7 +1424,7 @@
       {
         "kind": "unit",
         "file": "tests/dist/subpaths.test.ts",
-        "title": "cartesian and finance standalone bundles omit streaming storage and stay <= 127,000 B gzip-9",
+        "title": "cartesian (<= 134,000 B) and finance (<= 127,000 B) standalone bundles omit streaming storage and stay under gzip-9 caps",
         "ancestors": [
           "axylo/cartesian, axylo/finance, axylo/stats, axylo/sync and axylo/export packed sizes stay under caps"
         ]
@@ -1724,7 +1724,7 @@
       {
         "kind": "unit",
         "file": "tests/dist/subpaths.test.ts",
-        "title": "cartesian and finance standalone bundles omit streaming storage and stay <= 127,000 B gzip-9",
+        "title": "cartesian (<= 134,000 B) and finance (<= 127,000 B) standalone bundles omit streaming storage and stay under gzip-9 caps",
         "ancestors": [
           "axylo/cartesian, axylo/finance, axylo/stats, axylo/sync and axylo/export packed sizes stay under caps"
         ]

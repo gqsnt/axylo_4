@@ -190,12 +190,15 @@ export function summarizeBox(values: ArrayLike<number | null | undefined>, optio
   const median = sortedQuantileR7(sorted, 0.5);
   const q3 = sortedQuantileR7(sorted, 0.75);
   const iqr = q3 - q1;
-  // k = 0 means the fences are the quartiles, also when the IQR itself overflowed (0 * Infinity is NaN). An IQR
-  // past Number.MAX_VALUE is taken at half scale, so a small k still gives the finite fences it should
-  // (q1 - k * iqr = 2 * (q1 / 2 - k * iqr / 2)); a fence past the finite range excludes no finite value.
-  const half = Number.isFinite(iqr) ? 0 : q3 / 2 - q1 / 2;
-  const lowerFence = k === 0 ? q1 : half ? 2 * (q1 / 2 - k * half) : q1 - k * iqr;
-  const upperFence = k === 0 ? q3 : half ? 2 * (q3 / 2 + k * half) : q3 + k * iqr;
+  // k = 0 means the fences are the quartiles, also when the IQR itself overflowed (0 * Infinity is NaN). When
+  // k * iqr overflows (either an infinite IQR or finite IQR * k past Number.MAX_VALUE), evaluate at half scale
+  // so finite fences such as q1 - 1.5 * iqr in [-MAX, MAX] still cancel back into range; ordinary inputs keep
+  // q1 - spread and q3 + spread unchanged.
+  const spread = k === 0 ? 0 : k * iqr;
+  const finiteSpread = Number.isFinite(spread);
+  const half = finiteSpread ? 0 : k * (Number.isFinite(iqr) ? iqr / 2 : q3 / 2 - q1 / 2);
+  const lowerFence = k === 0 ? q1 : finiteSpread ? q1 - spread : 2 * (q1 / 2 - half);
+  const upperFence = k === 0 ? q3 : finiteSpread ? q3 + spread : 2 * (q3 / 2 + half);
 
   // Smallest observed value >= lowerFence (and <= q1), largest observed value <= upperFence (and >= q3).
   let lowIdx = 0;

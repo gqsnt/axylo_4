@@ -112,4 +112,40 @@ describe('N5 stats overflow hardening', () => {
     expect(wide.whiskerLow).toBe(-MAX);
     expect(wide.whiskerHigh).toBe(MAX);
   });
+
+  // Cross-provider seal review finding 4: [-MAX, 5e307, 5e307, 1.75e308, 1.75e308], n = 5, k = 1.5:
+  // Q1 = 5e307, median = 5e307, Q3 = 1.75e308, IQR = 1.25e308 (finite). 1.5 * IQR = 1.875e308 overflows MAX,
+  // yet lowerFence = 5e307 - 1.875e308 = -1.375e308 is finite, so -MAX is an outlier and whiskerLow = 5e307.
+  // Mirrored case [-1.75e308, -1.75e308, -5e307, -5e307, MAX]: upperFence = +1.375e308, MAX is an outlier.
+  it('scales a finite IQR when k * IQR overflows without dropping finite fences', () => {
+    const low = summarizeBox([-MAX, 5e307, 5e307, 1.75e308, 1.75e308]);
+    expect(low.q1).toBe(5e307);
+    expect(low.median).toBe(5e307);
+    expect(low.q3).toBe(1.75e308);
+    expect(low.iqr).toBe(1.25e308);
+    expect(Number.isFinite(low.iqr)).toBe(true);
+    expect(low.whiskerLow).toBe(5e307);
+    expect(low.whiskerHigh).toBe(1.75e308);
+    expect(Array.from(low.outliers)).toEqual([-MAX]);
+
+    const high = summarizeBox([-1.75e308, -1.75e308, -5e307, -5e307, MAX]);
+    expect(high.q1).toBe(-1.75e308);
+    expect(high.median).toBe(-5e307);
+    expect(high.q3).toBe(-5e307);
+    expect(high.iqr).toBe(1.25e308);
+    expect(Number.isFinite(high.iqr)).toBe(true);
+    expect(high.whiskerLow).toBe(-1.75e308);
+    expect(high.whiskerHigh).toBe(-5e307);
+    expect(Array.from(high.outliers)).toEqual([MAX]);
+
+    const lowZero = summarizeBox([-MAX, 5e307, 5e307, 1.75e308, 1.75e308], { whiskerFactor: 0 });
+    expect(lowZero.whiskerLow).toBe(5e307);
+    expect(lowZero.whiskerHigh).toBe(1.75e308);
+    expect(Array.from(lowZero.outliers)).toEqual([-MAX]);
+
+    const highZero = summarizeBox([-1.75e308, -1.75e308, -5e307, -5e307, MAX], { whiskerFactor: 0 });
+    expect(highZero.whiskerLow).toBe(-1.75e308);
+    expect(highZero.whiskerHigh).toBe(-5e307);
+    expect(Array.from(highZero.outliers)).toEqual([MAX]);
+  });
 });
