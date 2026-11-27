@@ -101,7 +101,7 @@ describe('declarations', () => {
   ] as const;
 
   for (const [label, resolution] of configs) {
-    it(`compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it`, () => {
+    it(`compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter and boxplot layers`, () => {
       const project = path.join(cwd, '.out', `subpaths-types-${label.toLowerCase()}`);
       fs.rmSync(project, { recursive: true, force: true });
       fs.mkdirSync(project, { recursive: true });
@@ -139,19 +139,41 @@ describe('declarations', () => {
         "c.update({ axes: { orders: { position: 'left', label: 'Renamed', domain: [0, 200] }, ms: { position: 'right', scale: 'log', domain: [1, 100] } } });",
         "// @ts-expect-error bar cannot bind to log axis",
         "c.update({ layers: [{ type: 'bar', y: 'orders', yAxis: 'ms' }] });",
+        "// W3 integration: scatter and boxplot layers are part of the packed axylo/cartesian declarations.",
+        "type Mark = { g: string; mn: number; q1: number; md: number; q3: number; mx: number; mean: number; out: number[]; s: number };",
+        "const marks: Mark[] = [{ g: 'A', mn: 1, q1: 2, md: 3, q3: 4, mx: 5, mean: 3.2, out: [9], s: 2 }];",
+        "const sb = cartesian(el, {",
+        "  data: marks, x: 'g', axes: { v: { position: 'left' }, r: { position: 'right', scale: 'log' } },",
+        "  layers: [",
+        "    { type: 'boxplot', min: 'mn', q1: 'q1', median: 'md', q3: 'q3', max: 'mx', outliers: 'out', yAxis: 'v', label: 'Spread', capWidth: 8, size: 4 },",
+        "    { type: 'scatter', y: 'mean', yAxis: 'v', label: 'Mean', size: 6 },",
+        "    { type: 'scatter', y: ['s'], yAxis: 'r' },",
+        "  ],",
+        "});",
+        "sb.update({ layers: [{ type: 'scatter', y: 'mean' }, { type: 'boxplot', min: 'mn', q1: 'q1', median: 'md', q3: 'q3', max: 'mx', yAxis: 'r' }] });",
+        "const sbD: readonly Diagnostic[] = validateCartesian({ data: marks, x: 'g', axes: { v: { position: 'left' } }, layers: [{ type: 'scatter', y: 'mean', yAxis: 'left' }] });",
+        "// @ts-expect-error a boxplot needs all five numbers",
+        "sb.update({ layers: [{ type: 'boxplot', min: 'mn', q1: 'q1', median: 'md', max: 'mx', yAxis: 'v' }] });",
+        "// @ts-expect-error a box's outliers must name a field of number lists",
+        "sb.update({ layers: [{ type: 'boxplot', min: 'mn', q1: 'q1', median: 'md', q3: 'q3', max: 'mx', yAxis: 'v', outliers: 'g' }] });",
+        "// @ts-expect-error a scatter names a numeric field",
+        "sb.update({ layers: [{ type: 'scatter', y: 'g' }] });",
+        "// @ts-expect-error a scatter binds to a declared axis or a position",
+        "sb.update({ layers: [{ type: 'scatter', y: 'mean', yAxis: 'nope' }] });",
         "const d: Diagnostic[] = fixed.validate('line', options).concat(stream.validate('line', options), validateCartesian({ data: [{ m: 'Jan', orders: 100, ms: 20 }], x: 'm', axes: { orders: { position: 'left' } }, layers: [{ type: 'bar', y: 'orders', yAxis: 'orders' }] }));",
         "const q = quantile([1, 2, 3, 4], 0.5); const qs = quantiles([1, 2, 3], [0.25, 0.75]); const bx = boxplot([{ g: 'A', v: 1 }], { x: 'g', y: 'v' });",
         "const sg = createSyncGroup(); sg.attach(a); sg.destroy(); const sc = syncCharts([a, b]); sc.destroy();",
         "const csvText = exportCsv([{ x: 1, y: 2 }]); const parsedCsv = parseCsv(csvText);",
         "const fin = candlestick(el, { data: [{ d: '2026-01-01', o: 10, h: 12, l: 9, c: 11 }], x: 'd', open: 'o', high: 'h', low: 'l', close: 'c' });",
         "const finD = validateCandlestick({ data: [{ d: '2026-01-01', o: 10, h: 12, l: 9, c: 11 }], x: 'd', open: 'o', high: 'h', low: 'l', close: 'c' });",
-        "export { a, b, c, d, q, qs, bx, exportSvg, exportPng, csvText, parsedCsv, fin, finD };",
+        "export { a, b, c, d, q, qs, bx, exportSvg, exportPng, csvText, parsedCsv, fin, finD, sb, sbD };",
       ].join('\n'));
       const result = check(project, 'tsconfig.json');
       expect(result.errors).toEqual([]);
       expect(result.status).toBe(0);
       expect(result.files).toContain(installed('axylo', 'dist', 'static.d.ts'));
       expect(result.files).toContain(installed('axylo', 'dist', 'stream.d.ts'));
+      expect(result.files).toContain(installed('axylo', 'dist', 'cartesian.d.ts'));
     });
   }
 });

@@ -8,6 +8,7 @@ import type { ChartType, ResolvedOptions } from '../data/options';
 import type { Table } from '../data/table';
 import type { FormatSpec } from '../format';
 import { dateUnitOf } from '../data/x';
+import { repeatsOf } from '../cartesian/repeats';
 import { reviseSeries, seriesSlots, slotState } from '../data/store-statistics';
 import { createDiagnostic } from '../diagnostics';
 import { resolveMessages } from '../messages';
@@ -413,10 +414,12 @@ export function pointForDatum(d: Drawn, ref: DatumRef): Point<unknown> | null {
   const i = d.lookup.slot(ref);
   let x: XValue = 0;
   let y: number | null = null;
-  if (ref.kind === 'aligned' && frame.shape === 'aligned') {
+  if (ref.kind !== 'slice' && frame.shape === 'aligned') {
     x = positionValue(frame, ref.x);
     const series = frame.series[text.seriesIndex];
-    if (series && i >= 0 && slotState(series, i) === SLOT_VALUE) y = series.y[i]!;
+    // A Cartesian scatter row at an x it shares: its value is not a slot of the frame, so the lookup reads it.
+    if (ref.kind === 'point') y = (d.lookup as { pointValue?: (r: DatumRef) => number | null }).pointValue?.(ref) ?? null;
+    else if (series && i >= 0 && slotState(series, i) === SLOT_VALUE) y = series.y[i]!;
   } else if (ref.kind === 'point' && frame.shape === 'points') {
     const series = frame.series[text.seriesIndex];
     x = positionValue(frame, series && i >= 0 ? series.x[i]! : ref.x);
@@ -522,7 +525,10 @@ export function hasData(view: View, hidden = false): boolean {
   const drawable = (state: number) => state === SLOT_VALUE || (view.kind === 'bar' && state !== SLOT_NO_ROW);
   return view.frame.series.some((s, i) => {
     if (!shown(i)) return false;
-    const { start, end } = view.drawSlots[i] ?? view.visibleSlots;
+    const { start, end } = view.drawSlots[i] ?? view.visibleSlots, more = repeatsOf(s);
+    // A scatter's repeated rows (cartesian/repeats.ts) are values only, so one in the draw range counts as a
+    // slot's own value there does. Without repeats both sides are undefined, which compares false.
+    if (more?.start[end]! > more?.start[start]!) return true;
     const slots = seriesSlots(s);
     if (!slots) return end > start;
     for (let j = start; j < end; j++) if (drawable(slots[j]!)) return true;

@@ -20,6 +20,7 @@ import { cartesianStacks, type CartesianStack } from './stacks';
 import { axisScaleOf } from './scale-ref';
 import { buildBarSlotLayout, writeBarRect, xSlotPixel } from './bar-geom';
 import { buildCartesianAnnotationMarks } from './annotations';
+import { repeatsIn, repeatsOf, visitRepeats } from './repeats';
 import type { CartesianMeta, CartesianStateRef } from './meta';
 import {
   MEDIAN_WIDTH, RANGE_STROKE_WIDTH, WHISKER_WIDTH, axisOf, boxHalfWidth, isCompoundKind, markOf, physicalOf, projectCompound, type CompoundSink,
@@ -284,9 +285,15 @@ export function buildCartesianScene(
   marks.push(...ivStrokes, ...ivPoints, ...boxPoints);
   for (const index of scatterSeries) {
     const s = view.frame.series[index]!, yScale = axisScaleOf(projection, s.axisIndex ?? 0);
-    const xy = new Float32Array(2 * slotCount);
-    let o = 0;
-    for (let i = start; i < end; i++) if (isPlottable(yScale, s.slot[i]!, s.y[i]!)) { xy[o++] = xAt(i); xy[o++] = position(yScale, s.y[i]!); }
+    const more = repeatsOf(s);
+    const xy = new Float32Array(2 * (slotCount + repeatsIn(more, start, end)));
+    let o = 0, px = 0;
+    const put = (v: number) => { if (isPlottable(yScale, SLOT_VALUE, v)) { xy[o++] = px; xy[o++] = position(yScale, v); } };
+    for (let i = start; i < end; i++) {
+      px = xAt(i);
+      if (s.slot[i] === SLOT_VALUE) put(s.y[i]!);
+      visitRepeats(more, i, put);
+    }
     if (o) marks.push(pointMark(view, index, trim(xy, o), compact ? 3 : markOf(meta, s.field)?.size ?? 4));
   }
 

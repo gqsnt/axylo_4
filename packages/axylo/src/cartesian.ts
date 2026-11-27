@@ -77,7 +77,41 @@ export type CartesianLayerOptions<Row, Axes extends AxesRecord> =
   | { readonly type: 'line'; readonly y: ValueField<Row> | readonly ValueField<Row>[]; readonly yAxis: AnyAxisId<Axes> }
   | { readonly type: 'bar' | 'area'; readonly y: ValueField<Row> | readonly ValueField<Row>[]; readonly yAxis: LinearAxisId<Axes>; readonly stacked?: boolean }
   | { readonly type: 'range'; readonly low: ValueField<Row>; readonly high: ValueField<Row>; readonly yAxis: AnyAxisId<Axes>; readonly label?: string }
-  | { readonly type: 'errorBar'; readonly y?: ValueField<Row>; readonly low: ValueField<Row>; readonly high: ValueField<Row>; readonly yAxis: AnyAxisId<Axes>; readonly label?: string; readonly capWidth?: number };
+  | { readonly type: 'errorBar'; readonly y?: ValueField<Row>; readonly low: ValueField<Row>; readonly high: ValueField<Row>; readonly yAxis: AnyAxisId<Axes>; readonly label?: string; readonly capWidth?: number }
+  | ScatterLayerOptions<Row, Axes>
+  | BoxplotLayerOptions<Row, Axes>;
+
+/** Points at their own y; rows that share an x are separate points (spec F11). Omitted `yAxis` is the left axis. */
+export interface ScatterLayerOptions<Row, Axes extends AxesRecord> {
+  readonly type: 'scatter';
+  readonly y: ValueField<Row> | readonly ValueField<Row>[];
+  readonly yAxis?: AnyAxisId<Axes> | 'left' | 'right';
+  readonly label?: string;
+  /** Marker size in CSS px (default 4, at most 24). */
+  readonly size?: number;
+}
+
+/** A field whose values are lists of numbers (a box's outliers). */
+export type NumberListKey<Row> = {
+  [K in Extract<keyof Row, string>]: [Row[K]] extends [ArrayLike<number> | null | undefined] ? K : never;
+}[Extract<keyof Row, string>];
+
+/** A box per x from five precomputed numbers (`axylo/stats` boxplot() gives them). */
+export interface BoxplotLayerOptions<Row, Axes extends AxesRecord> {
+  readonly type: 'boxplot';
+  readonly min: ValueField<Row>;
+  readonly q1: ValueField<Row>;
+  readonly median: ValueField<Row>;
+  readonly q3: ValueField<Row>;
+  readonly max: ValueField<Row>;
+  readonly yAxis: AnyAxisId<Axes>;
+  readonly label?: string;
+  /** Whisker cap width in CSS px; omitted, the caps are as wide as the box. */
+  readonly capWidth?: number;
+  /** Outlier marker size in CSS px (default 3.5, at most 24). */
+  readonly size?: number;
+  readonly outliers?: NumberListKey<Row>;
+}
 
 export interface CartesianOptions<Row, Axes extends AxesRecord> extends CommonOptions<Row> {
   readonly x: XField<Row>;
@@ -133,7 +167,7 @@ function drawnYAxes(lay: Layout): DrawnYAxis[] | null {
   return axes.map(a => ({ type: a.type, domain: [a.domain[0], a.domain[1]], range: [a.range[0], a.range[1]] }));
 }
 
-/** Create a static multi-scale Cartesian chart (line + bar + area, 1–2 y-axes, linear or log). */
+/** Create a static multi-scale Cartesian chart (line, bar, area, range, errorBar, scatter and boxplot layers; 1–2 y-axes, linear or log). */
 export function cartesian<Row, const Axes extends AxesRecord>(
   target: Target,
   options: CartesianOptions<Row, Axes>,

@@ -6,7 +6,8 @@
  */
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { SLOT_NO_ROW, SLOT_VALUE, type AlignedView, type DatumRef, type Lookup } from '../../src/core/contracts';
+import { SLOT_NO_ROW, SLOT_VALUE, type AlignedView, type DatumRef, type Lookup, type MarkerShape, type Rect } from '../../src/core/contracts';
+import { MARKER_POLYGONS } from '../../src/render/geometry';
 import { strictViolations } from '../../src/core/delivery';
 import { position } from '../../src/scene/geometry';
 import {
@@ -32,6 +33,57 @@ const crossing = (extra: Record<string, unknown>[] = []) => ({
   axes: { v: { position: 'left', domain: [0, 320] } },
   layers: [{ type: 'line', y: 'l', yAxis: 'v' }, { type: 'range', low: 'lo', high: 'hi', yAxis: 'v', label: 'Band' }],
 });
+
+/**
+ * Oracle for a marker painted inside the plot clip, built independently of the lookup: the marker polygon is cut
+ * to the plot by Sutherland–Hodgman, then measured as a polygon; a circle is tested against the plot rectangle by
+ * sampling its outline finely and refining the nearest sample's arc (accurate far below the 1e-6 px used here).
+ */
+function paintedMarkerDistance(qx: number, qy: number, cx: number, cy: number, shape: MarkerShape, size: number, plot: Rect): number {
+  const x0 = plot.x, y0 = plot.y, x1 = plot.x + plot.width, y1 = plot.y + plot.height;
+  const insideRect = (px: number, py: number) => px >= x0 && px <= x1 && py >= y0 && py <= y1;
+  if (shape === 'circle') {
+    const r = size / 2;
+    if (Math.hypot(qx - cx, qy - cy) <= r && insideRect(qx, qy)) return 0;
+    let best = Infinity, bestA = NaN;
+    const at = (a: number) => {
+      const px = cx + r * Math.cos(a), py = cy + r * Math.sin(a);
+      if (!insideRect(px, py)) return;
+      const d = Math.hypot(px - qx, py - qy);
+      if (d < best) { best = d; bestA = a; }
+    };
+    for (let k = 0; k < 4096; k++) at((k / 4096) * 2 * Math.PI);
+    for (let step = (2 * Math.PI) / 4096; Number.isFinite(bestA) && step > 1e-12; step /= 2) {
+      const a = bestA;
+      at(a - step); at(a + step);
+    }
+    return best;
+  }
+  let poly: [number, number][] = [];
+  const unit = MARKER_POLYGONS[shape];
+  for (let k = 0; k < unit.length; k += 2) poly.push([cx + unit[k]! * size, cy + unit[k + 1]! * size]);
+  const clip = (keep: (p: [number, number]) => boolean, cut: (a: [number, number], b: [number, number]) => [number, number]) => {
+    const out: [number, number][] = [];
+    poly.forEach((cur, i) => {
+      const prev = poly[(i + poly.length - 1) % poly.length]!;
+      if (keep(cur)) { if (!keep(prev)) out.push(cut(prev, cur)); out.push(cur); } else if (keep(prev)) out.push(cut(prev, cur));
+    });
+    poly = out;
+  };
+  const atX = (x: number) => (a: [number, number], b: [number, number]): [number, number] => [x, a[1] + (b[1] - a[1]) * (x - a[0]) / (b[0] - a[0])];
+  const atY = (y: number) => (a: [number, number], b: [number, number]): [number, number] => [a[0] + (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]), y];
+  clip(p => p[0] >= x0, atX(x0)); clip(p => p[0] <= x1, atX(x1)); clip(p => p[1] >= y0, atY(y0)); clip(p => p[1] <= y1, atY(y1));
+  if (poly.length < 3) return Infinity;
+  let inside = false, best = Infinity;
+  poly.forEach((b, i) => {
+    const a = poly[(i + poly.length - 1) % poly.length]!;
+    if ((a[1] > qy) !== (b[1] > qy) && qx < a[0] + (qy - a[1]) * (b[0] - a[0]) / (b[1] - a[1])) inside = !inside;
+    const ex = b[0] - a[0], ey = b[1] - a[1], len = ex * ex + ey * ey;
+    const t = len > 0 ? Math.max(0, Math.min(1, ((qx - a[0]) * ex + (qy - a[1]) * ey) / len)) : 0;
+    best = Math.min(best, Math.hypot(a[0] + t * ex - qx, a[1] + t * ey - qy));
+  });
+  return inside ? 0 : best;
+}
 
 const keyOf = (ref: DatumRef | null | undefined) => ref?.kind === 'aligned' ? ref.seriesKey : null;
 const pickedKey = (run: { lookup: Lookup }, x: number, y: number) => {
@@ -1528,7 +1580,8 @@ describe('N5 compound fallback bounds: 100k clustered misses, nearby hits, ties,
             median(x1, x2, y) { curDist = Math.min(curDist, x2 > x1 ? rectDist(x1, y - MEDIAN_WIDTH / 2, x2, y + MEDIAN_WIDTH / 2) : Infinity); },
             point(x, y) {
               if (Number.isFinite(y) && inPlot(x, y, halfMarker)) {
-                curDist = Math.min(curDist, Math.max(0, Math.hypot(xPx - x, yPx - y) - halfMarker));
+                // The centre as painted: the series' marker, clipped to the plot (W3 finding 6).
+                curDist = Math.min(curDist, paintedMarkerDistance(xPx, yPx, x, y, run.view.cues[sIdx]?.marker ?? 'circle', m.size, plot));
               }
             },
           };
@@ -1879,5 +1932,484 @@ describe('N5 compound fallback bounds: 100k clustered misses, nearby hits, ties,
     expect(nodesOf(spanRun.lookup)).toBeLessThanOrEqual(80);
     expect(candidatesOf(spanRun.lookup)).toBeGreaterThanOrEqual(1);
     expect(candidatesOf(spanRun.lookup)).toBeLessThanOrEqual(16);
+  });
+});
+
+/**
+ * W3 integration findings 6 and 7. The error-bar centre is painted as the series' marker (scene.ts pointMark:
+ * `view.cues[i].marker`, size 4.5) inside the plot clip, so a pick measures that painted shape: the oracle below
+ * builds the shape on its own (a square's corners, a circle cut by the plot's top edge) rather than reusing the
+ * lookup's distance. Expected winners are worked out by hand in the comments.
+ */
+describe('W3 integration: painted error-bar centres and bounded dense proximity work', () => {
+  const nodesOf = (lookup: Lookup) => (lookup as Lookup & { lastPickNodes?: number }).lastPickNodes ?? -1;
+  const candidatesOf = (lookup: Lookup) => (lookup as Lookup & { lastPickCandidates?: number }).lastPickCandidates ?? -1;
+
+  it('picks a square centre by its painted corner: 4 px off on both axes is 2.47 px from the corner (a circle would be 3.41 px)', () => {
+    const run = n5run({
+      data: [1, 2, 3].map(x => ({ x, l: 0, y: 50, lo: 40, hi: 60 })), x: 'x',
+      axes: { v: { position: 'left', domain: [0, 100] } },
+      layers: [{ type: 'line', y: 'l', yAxis: 'v' }, { type: 'errorBar', y: 'y', low: 'lo', high: 'hi', yAxis: 'v', capWidth: 0 }],
+    });
+    // Series 1 has the second marker of the cycle: a square of side 4.5, corners 2.25 px from its centre.
+    expect(run.view.cues[1]!.marker).toBe('square');
+    const cx = xPixel(run.layout, run.view, 1), cy = position(yScaleOf(run.layout, 0), 50);
+    // Corner (cx + 2.25, cy - 2.25): sqrt(2) * 1.75 = 2.475 px <= 3 px slack. The whisker's edge is 3.25 px away.
+    expect(pickedKey(run, cx + 4, cy - 4)).toBe('y');
+    expect(pickedKey(run, cx - 4, cy + 4)).toBe('y');
+    expect(run.lookup.pick(cx + 4, cy - 4)).toEqual({ kind: 'x', x: 2 });
+    // sqrt(2) * 2.25 = 3.18 px > 3: nothing is near, so the reading falls back to the first series.
+    expect(pickedKey(run, cx + 4.5, cy - 4.5)).toBe('l');
+  });
+
+  it('measures a circular centre cut by the plot top as painted, so a nearer cap wins', () => {
+    const probe = n5run({
+      data: [{ x: 0 }, { x: 1, y: 50, lo: 40, hi: 60 }, { x: 2, y: 20, lo: 10, hi: 90 }], x: 'x',
+      axes: { v: { position: 'left', domain: [0, 100] } },
+      layers: [{ type: 'errorBar', y: 'y', low: 'lo', high: 'hi', yAxis: 'v', capWidth: 0 }],
+    });
+    const plot = plotOf(probe.layout).plot, perPx = 100 / plot.height;
+    const xa = xPixel(probe.layout, probe.view, 1), xb = xPixel(probe.layout, probe.view, 2);
+    const run = n5run({
+      data: [
+        { x: 0 },
+        // A: circle of radius 2.25 centred 2 px above the plot top; whisker far below.
+        { x: 1, y: 100 + 2 * perPx, lo: 40, hi: 60 },
+        // B: its top cap is centred 2.25 px below the plot top and reaches back over A.
+        { x: 2, y: 20, lo: 10, hi: 100 - 2.25 * perPx },
+      ], x: 'x',
+      axes: { v: { position: 'left', domain: [0, 100] } },
+      layers: [{ type: 'errorBar', y: 'y', low: 'lo', high: 'hi', yAxis: 'v', capWidth: 2 * (xb - xa) }],
+    });
+    expect(run.view.cues[0]!.marker).toBe('circle');
+    const qx = xa + 2, qy = plot.y + 0.5;
+    // A's painted part ends where the circle meets the top edge, at x = xa + sqrt(2.25² - 2²) = xa + 1.031:
+    // hypot(0.969, 0.5) = 1.091 px. B's cap spans y0 + 1.5 … y0 + 3: 1.0 px below the pointer. The whole circle
+    // would have been hypot(2, 2.5) - 2.25 = 0.952 px and won.
+    expect(run.lookup.pick(qx, qy)).toEqual({ kind: 'x', x: 2 });
+    // Straight below A's painted sliver, A is 0 px away and wins.
+    expect(run.lookup.pick(xa, plot.y + 0.1)).toEqual({ kind: 'x', x: 1 });
+  });
+
+  it('prunes 100,000 coincident-x whiskers on a diagonal pick by exact ties and keeps the lowest slot', () => {
+    const n = 100_000;
+    const x = new Float64Array(n), lo = new Float64Array(n).fill(10), hi = new Float64Array(n).fill(30);
+    x[0] = -50;
+    for (let i = 1; i < n - 1; i++) x[i] = 1e-6 + i * 1e-20;
+    x[n - 1] = 200;
+    const run = n5run({
+      data: { columns: { x, lo, hi } }, x: 'x',
+      axes: { v: { position: 'left', domain: [0, 100] } },
+      layers: [{ type: 'errorBar', low: 'lo', high: 'hi', yAxis: 'v', capWidth: 0 }],
+    });
+    const p = plotOf(run.layout).projection;
+    if (p.kind !== 'xy') throw new Error('xy');
+    const px = p.x.map(x[1]!);
+    expect(p.x.map(x[n - 2]!)).toBe(px);
+    const top = position(yScaleOf(run.layout, 0), 30);
+    // 1 px right of and 1 px above the 1.5 px whisker's top corner: sqrt(2) px from all 99,998 of them alike.
+    const target = run.lookup.pick(px + 0.75 + 1, top - 1);
+    // Equal distance, equal dx: the lowest slot wins (dist, dx, slot order).
+    expect(target).toEqual({ kind: 'x', x: x[1]! });
+    expect(nodesOf(run.lookup)).toBeGreaterThanOrEqual(1);
+    expect(nodesOf(run.lookup)).toBeLessThanOrEqual(128);
+    expect(candidatesOf(run.lookup)).toBeGreaterThanOrEqual(1);
+    expect(candidatesOf(run.lookup)).toBeLessThanOrEqual(64);
+  });
+
+  it('prunes a 100,000-row subpixel cluster of circular centres on a diagonal pick and finds the nearest one', () => {
+    const n = 100_000;
+    const x = new Float64Array(n), lo = new Float64Array(n).fill(10), hi = new Float64Array(n).fill(30), y = new Float64Array(n).fill(20);
+    x[0] = 0;
+    for (let i = 1; i < n - 1; i++) x[i] = 100 + i * 1e-7;
+    x[n - 1] = 200;
+    const run = n5run({
+      data: { columns: { x, y, lo, hi } }, x: 'x',
+      axes: { v: { position: 'left', domain: [0, 100] } },
+      layers: [{ type: 'errorBar', y: 'y', low: 'lo', high: 'hi', yAxis: 'v', capWidth: 0 }],
+    });
+    expect(run.view.cues[0]!.marker).toBe('circle');
+    const p = plotOf(run.layout).projection;
+    if (p.kind !== 'xy') throw new Error('xy');
+    // The cluster spans 0.01 x units, well under a pixel; its rightmost centre is slot n - 2.
+    const cx = p.x.map(x[n - 2]!), cy = position(yScaleOf(run.layout, 0), 20);
+    expect(cx - p.x.map(x[1]!)).toBeLessThan(1);
+    // 1 px outside the rightmost circle (radius 2.25) on the up-right diagonal. Every other centre lies left of it,
+    // so it is farther; the whiskers' right edge is 3.25 / sqrt(2) - 0.75 = 1.55 px away.
+    const d = 3.25 / Math.SQRT2;
+    const target = run.lookup.pick(cx + d, cy - d);
+    expect(target).toEqual({ kind: 'x', x: x[n - 2]! });
+    expect(run.lookup.primary(target!)).toEqual({ kind: 'aligned', seriesKey: 'y', x: x[n - 2]! });
+    expect(nodesOf(run.lookup)).toBeGreaterThanOrEqual(1);
+    expect(nodesOf(run.lookup)).toBeLessThanOrEqual(256);
+    expect(candidatesOf(run.lookup)).toBeGreaterThanOrEqual(1);
+    expect(candidatesOf(run.lookup)).toBeLessThanOrEqual(128);
+  });
+});
+
+/**
+ * W3 integration repair 3. Expected values are worked out from the fixtures: (1) a zoom window holding three
+ * points needs room for three, whatever repeats lie offscreen; (2) a constant-y run of circular centres whose
+ * projected x values differ by ulps (spanning ~1e-10 CSS px) is pruned by a bound that is not loosened by a
+ * fixed 1e-9 px, and its winner is the rightmost projected centre with the lowest slot among equals (an
+ * up-right diagonal pick, (dist, dx, slot) order), found by a brute-force scan of projected x values.
+ */
+describe('W3 integration repair 3: point index capacity and near-coincident circular centres', () => {
+  const nodesOf = (lookup: Lookup) => (lookup as Lookup & { lastPickNodes?: number }).lastPickNodes ?? -1;
+  const geometryOf = (lookup: Lookup) => (lookup as Lookup & { lastPickGeometry?: number }).lastPickGeometry ?? -1;
+  const capacityOf = (lookup: Lookup) => (lookup as Lookup & { pointCapacity?: number }).pointCapacity ?? -1;
+
+  it('sizes the scatter point index by the zoom window, not by 100,000 offscreen repeated rows', () => {
+    const n = 100_000;
+    const x = new Float64Array(n + 3), y = new Float64Array(n + 3);
+    for (let i = 0; i < n; i++) { x[i] = 0; y[i] = 1 + (i % 50); }
+    x[n] = 10; y[n] = 20; x[n + 1] = 11; y[n + 1] = 40; x[n + 2] = 12; y[n + 2] = 60;
+    const input = {
+      data: { columns: { x, y } }, x: 'x',
+      axes: { v: { position: 'left', domain: [0, 100] } },
+      layers: [{ type: 'scatter', y: 'y', yAxis: 'v' }],
+    };
+    const run = n5run(input, { zoom: [9.5, 12.5] });
+    expect(run.diagnostics.map(d => d.code)).not.toContain('AX108');
+    const { start, end } = run.view.visibleSlots;
+    // The window holds the slots x = 10, 11, 12 (and at most a neighbour each side); x = 0 and its repeats are outside.
+    expect(end - start).toBeLessThanOrEqual(5);
+    expect(capacityOf(run.lookup)).toBeGreaterThanOrEqual(3);
+    expect(capacityOf(run.lookup)).toBeLessThanOrEqual(end - start);
+    // Zoomed picks still find each visible point.
+    const yScale = yScaleOf(run.layout, 0), p = plotOf(run.layout).projection;
+    if (p.kind !== 'xy') throw new Error('xy');
+    for (const [xv, yv] of [[10, 20], [11, 40], [12, 60]] as const) {
+      const target = run.lookup.pick(p.x.map(xv), position(yScale, yv));
+      expect(target).toEqual({ kind: 'x', x: xv });
+      expect(run.lookup.primary(target!)).toEqual({ kind: 'aligned', seriesKey: 'y', x: xv });
+    }
+    // The unzoomed view keeps the repeats at x = 0: room for each of them.
+    const full = n5run(input);
+    expect(capacityOf(full.lookup)).toBeGreaterThanOrEqual(n + 3);
+  });
+
+  it('prunes 100,000 near-coincident circular centres (projected x differing by ulps) by bounded nodes and geometry', () => {
+    const n = 100_000;
+    const x = new Float64Array(n), lo = new Float64Array(n).fill(10), hi = new Float64Array(n).fill(30), y = new Float64Array(n).fill(20);
+    // Consecutive doubles above 1 (one ulp, 2^-52, apart): distinct x values, every one its own slot; several
+    // share a projected pixel position, the rest differ by ulps of it.
+    x[0] = 0;
+    for (let i = 1; i < n - 1; i++) x[i] = 1 + i * 2 ** -52;
+    x[n - 1] = 200;
+    const run = n5run({
+      data: { columns: { x, y, lo, hi } }, x: 'x',
+      axes: { v: { position: 'left', domain: [0, 100] } },
+      layers: [{ type: 'errorBar', y: 'y', low: 'lo', high: 'hi', yAxis: 'v', capWidth: 0 }],
+    });
+    expect(run.diagnostics.map(d => d.code)).not.toContain('AX108');
+    expect(run.view.cues[0]!.marker).toBe('circle');
+    const p = plotOf(run.layout).projection;
+    if (p.kind !== 'xy') throw new Error('xy');
+    // Brute-force oracle over the projected centres: the rightmost one, lowest slot among equal positions.
+    let best = -Infinity, bestSlot = -1, lowest = Infinity;
+    for (let i = 1; i < n - 1; i++) {
+      const px = p.x.map(x[i]!);
+      lowest = Math.min(lowest, px);
+      if (px > best) { best = px; bestSlot = i; }
+    }
+    const span = best - lowest;
+    // Not one position (the exact-tie case) and far under the 1e-9 px slack the old bound subtracted.
+    expect(span).toBeGreaterThan(0);
+    expect(span).toBeLessThan(1e-9);
+    const cy = position(yScaleOf(run.layout, 0), 20);
+    // 1 px outside the rightmost circle (radius 2.25) on the up-right diagonal; the whiskers' edge is 1.55 px away.
+    const d = 3.25 / Math.SQRT2;
+    const target = run.lookup.pick(best + d, cy - d);
+    expect(target).toEqual({ kind: 'x', x: x[bestSlot]! });
+    expect(run.lookup.primary(target!)).toEqual({ kind: 'aligned', seriesKey: 'y', x: x[bestSlot]! });
+    expect(nodesOf(run.lookup)).toBeGreaterThanOrEqual(1);
+    expect(nodesOf(run.lookup)).toBeLessThanOrEqual(256);
+    // Exact marker outlines measured, counted where markerDistance runs (leaves and coincident nodes alike).
+    expect(geometryOf(run.lookup)).toBeGreaterThanOrEqual(1);
+    expect(geometryOf(run.lookup)).toBeLessThanOrEqual(512);
+  });
+
+  it('counts geometry for the earlier whisker and subpixel-circle clusters within bounds', () => {
+    const n = 100_000;
+    const x = new Float64Array(n), lo = new Float64Array(n).fill(10), hi = new Float64Array(n).fill(30), y = new Float64Array(n).fill(20);
+    x[0] = 0;
+    for (let i = 1; i < n - 1; i++) x[i] = 100 + i * 1e-7;
+    x[n - 1] = 200;
+    const run = n5run({
+      data: { columns: { x, y, lo, hi } }, x: 'x',
+      axes: { v: { position: 'left', domain: [0, 100] } },
+      layers: [{ type: 'errorBar', y: 'y', low: 'lo', high: 'hi', yAxis: 'v', capWidth: 0 }],
+    });
+    const p = plotOf(run.layout).projection;
+    if (p.kind !== 'xy') throw new Error('xy');
+    const cx = p.x.map(x[n - 2]!), cy = position(yScaleOf(run.layout, 0), 20), d = 3.25 / Math.SQRT2;
+    expect(run.lookup.pick(cx + d, cy - d)).toEqual({ kind: 'x', x: x[n - 2]! });
+    expect(geometryOf(run.lookup)).toBeGreaterThanOrEqual(1);
+    expect(geometryOf(run.lookup)).toBeLessThanOrEqual(512);
+  });
+
+  it('bounds node and geometry work for 100,000 coincident-x whiskers on a diagonal pick', () => {
+    const n = 100_000;
+    const x = new Float64Array(n), lo = new Float64Array(n).fill(10), hi = new Float64Array(n).fill(30);
+    x[0] = -50;
+    for (let i = 1; i < n - 1; i++) x[i] = 1e-6 + i * 1e-20;
+    x[n - 1] = 200;
+    const run = n5run({
+      data: { columns: { x, lo, hi } }, x: 'x',
+      axes: { v: { position: 'left', domain: [0, 100] } },
+      layers: [{ type: 'errorBar', low: 'lo', high: 'hi', yAxis: 'v', capWidth: 0 }],
+    });
+    const p = plotOf(run.layout).projection;
+    if (p.kind !== 'xy') throw new Error('xy');
+    const px = p.x.map(x[1]!), top = position(yScaleOf(run.layout, 0), 30);
+    expect(run.lookup.pick(px + 0.75 + 1, top - 1)).toEqual({ kind: 'x', x: x[1]! });
+    expect(nodesOf(run.lookup)).toBeGreaterThanOrEqual(1);
+    expect(nodesOf(run.lookup)).toBeLessThanOrEqual(128);
+    expect(geometryOf(run.lookup)).toBeGreaterThanOrEqual(1);
+    expect(geometryOf(run.lookup)).toBeLessThanOrEqual(512);
+  });
+
+  it('bounds node and geometry work for 100,000 circular centres 2 px above the plot, ~0.045 px wide', () => {
+    const n = 100_000, spec = (x: Float64Array, y: Float64Array) => ({
+      data: { columns: { x, y, lo: new Float64Array(n).fill(10), hi: new Float64Array(n).fill(30) } }, x: 'x',
+      axes: { v: { position: 'left', domain: [0, 100] } }, xDomain: [0, 200],
+      layers: [{ type: 'errorBar', y: 'y', low: 'lo', high: 'hi', yAxis: 'v', capWidth: 0 }],
+    });
+    const x = new Float64Array(n), y = new Float64Array(n).fill(50);
+    x[0] = 0; x[n - 1] = 200;
+    for (let i = 1; i < n - 1; i++) x[i] = 100;
+    const probe = n5run(spec(x, y));
+    const pp = plotOf(probe.layout).projection;
+    if (pp.kind !== 'xy') throw new Error('xy');
+    const ys = yScaleOf(probe.layout, 0), perY = (ys.map(0) - ys.map(100)) / 100, perX = pp.x.map(200) - pp.x.map(100);
+    // Centres 2 CSS px above the plot's top (y = 100), spread over 0.045 CSS px; the circles (radius 2.25) are clipped
+    // to a 0.25 px cap whose chord reaches sqrt(2.25² - 2²) = 1.03 px either side of the centre.
+    for (let i = 1; i < n - 1; i++) { x[i] = 100 + (i / n) * 0.045 * 100 / perX; y[i] = 100 + 2 / perY; }
+    const run = n5run(spec(x, y));
+    expect(run.view.cues[0]!.marker).toBe('circle');
+    const p = plotOf(run.layout).projection;
+    if (p.kind !== 'xy') throw new Error('xy');
+    const plotTop = position(yScaleOf(run.layout, 0), 100), right = p.x.map(x[n - 2]!);
+    // 2 px right of the rightmost centre, 1 px inside the plot: the chord's right end of slot n - 2 is nearest
+    // (sqrt(0.97² + 1²) = 1.39 px <= 3 px slack); every other centre's chord ends farther left.
+    expect(run.lookup.pick(right + 2, plotTop + 1)).toEqual({ kind: 'x', x: x[n - 2]! });
+    expect(nodesOf(run.lookup)).toBeGreaterThanOrEqual(1);
+    expect(nodesOf(run.lookup)).toBeLessThanOrEqual(128);
+    expect(geometryOf(run.lookup)).toBeGreaterThanOrEqual(1);
+    expect(geometryOf(run.lookup)).toBeLessThanOrEqual(512);
+  });
+});
+
+describe('W3 integration repair 4: clipped circular centres whose heights vary along one plot edge', () => {
+  const nodesOf = (lookup: Lookup) => (lookup as Lookup & { lastPickNodes?: number }).lastPickNodes ?? -1;
+  const geometryOf = (lookup: Lookup) => (lookup as Lookup & { lastPickGeometry?: number }).lastPickGeometry ?? -1;
+  const RADIUS = 2.25; // an error bar's centre marker is 4.5 px (cartesian/options.ts)
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
+  /**
+   * The cluster's centres between two sentinel rows at x = 0 and x = 200 (they fix the x domain; their centres
+   * are mid-plot, far from every pick here). low = high = y: a cluster whisker has no length, so only the centre
+   * markers can be picked. The returned x and y are the frame's columns: cluster row i is slot i + 1.
+   */
+  const spec = (xc: Float64Array, yc: Float64Array) => {
+    const n = xc.length, x = new Float64Array(n + 2), y = new Float64Array(n + 2).fill(50);
+    x.set(xc, 1); y.set(yc, 1); x[n + 1] = 200;
+    return {
+      data: { columns: { x, y, lo: y.slice(), hi: y.slice() } }, x: 'x',
+      axes: { v: { position: 'left', domain: [0, 100] } },
+      layers: [{ type: 'errorBar', y: 'y', low: 'lo', high: 'hi', yAxis: 'v', capWidth: 0 }],
+    };
+  };
+  /** Pixels per data unit on each axis, from a probe chart with the same layout. */
+  function scales() {
+    const probe = n5run(spec(Float64Array.of(100), Float64Array.of(50)));
+    const pp = plotOf(probe.layout).projection;
+    if (pp.kind !== 'xy') throw new Error('xy');
+    const ys = yScaleOf(probe.layout, 0);
+    return { perY: (ys.map(0) - ys.map(100)) / 100, perX: (pp.x.map(200) - pp.x.map(100)) / 100 };
+  }
+
+  // 0.045 px wide (the review's fixture): the rightmost chord reaches furthest. 0.004 px wide: the height decides,
+  // so the winner is the leftmost centre, not the slot nearest the pointer that a miss would fall back to.
+  for (const [edge, width] of [['top', 0.045], ['bottom', 0.045], ['top', 0.004], ['bottom', 0.004]] as const) {
+    it(`prunes 100,000 clipped circles 2 px past the plot ${edge}, ~${width} px wide and ~0.005 px tall`, () => {
+      const n = 100_000, { perX, perY } = scales(), sign = edge === 'top' ? 1 : -1;
+      const x = new Float64Array(n), y = new Float64Array(n);
+      // Further right is further out by up to 0.005 px, so a node's rightmost centre and its most inward
+      // centre are at opposite ends: the bound pairs them although no one centre is both.
+      for (let i = 0; i < n; i++) {
+        x[i] = 100 + (i / n) * width / perX;
+        y[i] = (edge === 'top' ? 100 : 0) + sign * (2 + 0.005 * (i / n)) / perY;
+      }
+      const run = n5run(spec(x, y));
+      expect(run.view.cues[0]!.marker).toBe('circle');
+      expect(run.diagnostics.map(d => d.code)).toEqual([]);
+      expect(run.view.frame.length).toBe(n + 2);
+      const { plot, projection: p } = plotOf(run.layout);
+      if (p.kind !== 'xy') throw new Error('xy');
+      const ys = yScaleOf(run.layout, 0), edgeY = position(ys, edge === 'top' ? 100 : 0);
+      const qx = p.x.map(x[n - 1]!) + 2, qy = edgeY + sign;
+      // Expected winner, by hand: the pointer is 1 px inside the edge and right of every centre, so each visible cap's
+      // nearest point is its chord's right end, at px + sqrt(r² - h²) on the edge (h: the centre's distance past it).
+      // The nearest is the one whose chord reaches furthest right.
+      let best = -Infinity, winner = -1;
+      for (let i = 0; i < n; i++) {
+        const h = sign * (edgeY - position(ys, y[i]!)), reachRight = p.x.map(x[i]!) + Math.sqrt(RADIUS ** 2 - h ** 2);
+        if (reachRight > best) { best = reachRight; winner = i; }
+      }
+      // Moving right gains `width` px over the cluster; moving out loses about 0.005 · h / sqrt(r² - h²) = 0.0097 px.
+      expect(winner).toBe(width > 0.0097 ? n - 1 : 0);
+      // The sampled painted-outline oracle agrees and puts the winner within the 3 px slack.
+      const painted = (i: number) => paintedMarkerDistance(qx, qy, p.x.map(x[i]!), position(ys, y[i]!), 'circle', 2 * RADIUS, plot);
+      expect(painted(winner)).toBeCloseTo(Math.hypot(qx - best, 1), 6);
+      expect(painted(winner)).toBeLessThan(3);
+      for (const other of [0, n >> 1, n - 1]) if (other !== winner) expect(painted(winner)).toBeLessThan(painted(other));
+      expect(run.lookup.pick(qx, qy)).toEqual({ kind: 'x', x: x[winner]! });
+      expect(run.view.frame.x.values[winner + 1]).toBe(x[winner]);
+      expect(nodesOf(run.lookup)).toBeGreaterThanOrEqual(1);
+      expect(nodesOf(run.lookup)).toBeLessThanOrEqual(128);
+      expect(geometryOf(run.lookup)).toBeGreaterThanOrEqual(1);
+      expect(geometryOf(run.lookup)).toBeLessThanOrEqual(512);
+    });
+  }
+
+  // The same clusters 0.453 px inside the left or right plot edge, so every disk is also cut by that side edge
+  // (its chord at the horizontal edge is ~1 px long either way). The pointer is 2 px further into the plot, so the
+  // winner's nearest painted point is the end of its chord that faces the pointer, which the side cut never reaches.
+  for (const side of ['left', 'right'] as const) {
+    for (const [edge, width] of [['top', 0.045], ['bottom', 0.045], ['top', 0.004], ['bottom', 0.004]] as const) {
+      it(`prunes 100,000 clipped circles at the ${edge}-${side} corner, ~${width} px wide and ~0.005 px tall`, () => {
+        const n = 100_000, { perX, perY } = scales(), sign = edge === 'top' ? 1 : -1, toward = side === 'left' ? 1 : -1;
+        const probe = n5run(spec(Float64Array.of(100), Float64Array.of(50)));
+        const pp = plotOf(probe.layout);
+        if (pp.projection.kind !== 'xy') throw new Error('xy');
+        const sideX = 100 + ((side === 'left' ? pp.plot.x : pp.plot.x + pp.plot.width) - pp.projection.x.map(100)) / perX;
+        const x = new Float64Array(n), y = new Float64Array(n);
+        // k counts from the side edge into the plot: further in is further out past the horizontal edge, so a
+        // node's innermost-reaching centre and its most inward height are at opposite ends. Rows stay ascending in x.
+        for (let i = 0; i < n; i++) {
+          const k = side === 'left' ? i : n - 1 - i;
+          x[i] = sideX + toward * (0.453 + (k / n) * width) / perX;
+          y[i] = (edge === 'top' ? 100 : 0) + sign * (2 + 0.005 * (k / n)) / perY;
+        }
+        const run = n5run(spec(x, y));
+        expect(run.view.cues[0]!.marker).toBe('circle');
+        expect(run.diagnostics.map(d => d.code)).toEqual([]);
+        expect(run.view.frame.length).toBe(n + 2);
+        const { plot, projection: p } = plotOf(run.layout);
+        if (p.kind !== 'xy') throw new Error('xy');
+        const sidePx = side === 'left' ? plot.x : plot.x + plot.width;
+        const ys = yScaleOf(run.layout, 0), edgeY = position(ys, edge === 'top' ? 100 : 0);
+        const deepest = side === 'left' ? n - 1 : 0;
+        // Every disk crosses the side edge: its centre is nearer to it than the radius.
+        expect(Math.abs(p.x.map(x[deepest]!) - sidePx)).toBeLessThan(RADIUS);
+        expect(Math.abs(p.x.map(x[n - 1 - deepest]!) - sidePx)).toBeLessThan(1);
+        const qx = p.x.map(x[deepest]!) + toward * 2, qy = edgeY + sign;
+        // By hand: each visible cap's nearest point is the end of its chord on the horizontal edge facing the
+        // pointer, at px ± sqrt(r² - h²). The one reaching furthest into the plot is nearest.
+        let best = -Infinity, winner = -1;
+        for (let i = 0; i < n; i++) {
+          const h = sign * (edgeY - position(ys, y[i]!)), reach = toward * (p.x.map(x[i]!) - sidePx) + Math.sqrt(RADIUS ** 2 - h ** 2);
+          if (reach > best) { best = reach; winner = i; }
+        }
+        // Going in gains `width` px over the cluster; going out loses ~0.0097 px. A miss would fall back to the
+        // slot nearest in x, the deepest one, so the narrow cluster tells a fallback from the true winner.
+        const outermost = side === 'left' ? 0 : n - 1;
+        expect(winner).toBe(width > 0.0097 ? deepest : outermost);
+        const painted = (i: number) => paintedMarkerDistance(qx, qy, p.x.map(x[i]!), position(ys, y[i]!), 'circle', 2 * RADIUS, plot);
+        expect(painted(winner)).toBeCloseTo(Math.hypot(qx - (sidePx + toward * best), 1), 6);
+        expect(painted(winner)).toBeLessThan(3);
+        for (const other of [0, n >> 1, n - 1]) if (other !== winner) expect(painted(winner)).toBeLessThan(painted(other));
+        expect(run.lookup.pick(qx, qy)).toEqual({ kind: 'x', x: x[winner]! });
+        expect(nodesOf(run.lookup)).toBeGreaterThanOrEqual(1);
+        expect(nodesOf(run.lookup)).toBeLessThanOrEqual(128);
+        expect(geometryOf(run.lookup)).toBeGreaterThanOrEqual(1);
+        expect(geometryOf(run.lookup)).toBeLessThanOrEqual(512);
+      });
+    }
+  }
+
+  it('keeps exact ties and the inclusive slack: centres on one projected x and height tie to the lowest slot', () => {
+    const n = 100_000, { perY } = scales();
+    const x = new Float64Array(n), y = new Float64Array(n).fill(100 + 2 / perY);
+    // One ulp apart near 100: distinct data x (each its own slot) that project to a handful of page positions.
+    for (let i = 0; i < n; i++) x[i] = 100 + i * 2 ** -46;
+    const run = n5run(spec(x, y));
+    expect(run.view.frame.length).toBe(n + 2);
+    const { projection: p } = plotOf(run.layout);
+    if (p.kind !== 'xy') throw new Error('xy');
+    const top = position(yScaleOf(run.layout, 0), 100), chord = Math.sqrt(RADIUS ** 2 - 4);
+    let maxX = -Infinity, first = -1;
+    for (let i = 0; i < n; i++) { const px = p.x.map(x[i]!); if (px > maxX) { maxX = px; first = i; } }
+    // On the edge, right of the farthest-right chord end: every centre at that page position is equally near and
+    // equally far sideways, so the lowest slot wins.
+    expect(run.lookup.pick(maxX + chord + 2.9, top)).toEqual({ kind: 'x', x: x[first]! });
+    expect(nodesOf(run.lookup)).toBeLessThanOrEqual(128);
+    expect(geometryOf(run.lookup)).toBeLessThanOrEqual(512);
+  });
+
+  it('lets the most inward centre of a mixed-height node stand for it, not its outermost one', () => {
+    // Four leaves of 16 centres. The left leaf holds the one near-inward centre (1 px past the top, a long chord)
+    // among centres 2.2 px past it (short chords); the other leaves sit further right at 2 px. Bounding the left
+    // leaf by its outermost height would let a right leaf's nearer-looking chord prune the true winner.
+    const { perX, perY } = scales(), n = 64;
+    const x = new Float64Array(n), y = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      x[i] = 100 + (i < 16 ? i * 0.02 : 0.4 + (i - 16) * 0.01) / perX;
+      y[i] = 100 + (i === 0 ? 1 : i < 16 ? 2.2 : 2) / perY;
+    }
+    const run = n5run(spec(x, y));
+    const { plot, projection: p } = plotOf(run.layout);
+    if (p.kind !== 'xy') throw new Error('xy');
+    const ys = yScaleOf(run.layout, 0), top = position(ys, 100);
+    const qx = p.x.map(x[n - 1]!) + 2, qy = top + 1;
+    const d = Array.from(x, (v, i) => paintedMarkerDistance(qx, qy, p.x.map(v), position(ys, y[i]!), 'circle', 2 * RADIUS, plot));
+    // By hand: centre 0's disk reaches 2.25 · cos(asin(1 / 2.25)) = 2.02 px sideways at the edge, the others
+    // ~1.03 px (2 px past) from at most 0.87 px further right, so centre 0 is nearest.
+    expect(d.indexOf(Math.min(...d))).toBe(0);
+    expect(d[0]!).toBeLessThan(3);
+    expect(run.lookup.pick(qx, qy)).toEqual({ kind: 'x', x: x[0]! });
+  });
+
+  it('matches a brute-force painted oracle for random clusters on or past either horizontal edge, corners included', () => {
+    const { perX, perY } = scales();
+    fc.assert(fc.property(
+      fc.constantFrom('top', 'bottom'),
+      fc.constantFrom(0.1, 100, 199.9),                      // left corner, middle, right corner
+      fc.double({ min: 1e-12, max: 0.6, noNaN: true }),        // px between neighbouring centres
+      fc.double({ min: 0, max: 2.3, noNaN: true }),            // nearest centre's distance past the edge (px)
+      fc.array(fc.double({ min: 0, max: 1, noNaN: true }), { minLength: 24, maxLength: 160 }),
+      fc.double({ min: 0, max: 1, noNaN: true }),              // vertical spread (px)
+      fc.double({ min: -4, max: 4, noNaN: true }), fc.double({ min: 0, max: 2.5, noNaN: true }),
+      (edge, base, stepPx, h0, us, spread, offX, inY) => {
+        const n = us.length, sign = edge === 'top' ? 1 : -1;
+        const x = new Float64Array(n), y = new Float64Array(n);
+        for (let i = 0; i < n; i++) {
+          x[i] = base + (i * stepPx) / perX * (base > 150 ? -1 : 1);
+          // Some centres share a height exactly (u rounded), so nodes of one height and coincident ties occur.
+          const u = us[i]! < 0.2 ? 0 : us[i]!;
+          y[i] = (edge === 'top' ? 100 : 0) + sign * (h0 + spread * u) / perY;
+        }
+        if (base > 150) { x.reverse(); y.reverse(); }
+        const run = n5run(spec(x, y));
+        const { plot, projection: p } = plotOf(run.layout);
+        if (p.kind !== 'xy') throw new Error('xy');
+        const ys = yScaleOf(run.layout, 0), edgeY = position(ys, edge === 'top' ? 100 : 0);
+        const qx = clamp(p.x.map(x[n >> 1]!) + offX, plot.x, plot.x + plot.width), qy = edgeY + sign * inY;
+        const d = Array.from(x, (v, i) => paintedMarkerDistance(qx, qy, p.x.map(v), position(ys, y[i]!), 'circle', 2 * RADIUS, plot));
+        const nearest = Math.min(...d), target = run.lookup.pick(qx, qy);
+        // Within the oracle's sampling error of the 3 px slack, either answer is a rounding question.
+        fc.pre(Math.abs(nearest - 3) > 1e-6);
+        // A miss falls back to the slot nearest in x, which this oracle does not model.
+        if (nearest > 3) return;
+        expect(target?.kind).toBe('x');
+        const k = target!.kind === 'x' ? Array.prototype.indexOf.call(x, target!.x) : -1;
+        expect(k).toBeGreaterThanOrEqual(0);
+        // The picked centre is as near as the nearest painted one (to the oracle's accuracy).
+        expect(d[k]!).toBeLessThanOrEqual(nearest + 1e-6);
+        // An earlier centre at the same page position and height is the same distance: the lowest slot wins.
+        for (let i = 0; i < k; i++) expect(p.x.map(x[i]!) === p.x.map(x[k]!) && y[i] === y[k]).toBe(false);
+      },
+    ), { numRuns: 120, seed: 0x5a17 });
   });
 });

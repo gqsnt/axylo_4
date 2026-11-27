@@ -101,5 +101,9 @@ export function createMarkSwatch(stateRef: CartesianStateRef): SeriesSwatch {
       const { paint, shape } = drawingOf(stateRef, index, view);
       return `${paint}:${typeof shape === 'string' ? shape : shape.key}`;
     },
+    legendForOne: (view: View): boolean => {
+      const shape = view.kind !== 'donut' && view.frame.series.length === 1 ? drawingOf(stateRef, 0, view).shape : null;
+      return shape === BAND_SHAPE || (typeof shape === 'object' && !!shape?.key.startsWith('errorBar'));
+    },
   });
 }

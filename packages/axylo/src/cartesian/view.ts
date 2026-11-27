@@ -14,6 +14,7 @@ import type { AlignedViewState } from '../view';
 import { positionReader, readSpan, resolveReferences, type Span } from '../view/references';
 import { validateCartesianAnnotations } from './annotations';
 import { computeAxisDomain } from './axes';
+import { repeatsOf, visitRepeats } from './repeats';
 import { BOX_ROLES, compoundRows, isCompoundKind, isLogSeries, logicalOf, visitOutliers, physicalOf, registerPhysical, type LogicalMark } from './boxplot';
 import { reportCartesian } from './diagnostics';
 import type { CartesianMeta, CartesianStateRef } from './meta';
@@ -171,6 +172,17 @@ export function buildCartesianView(
 
   const fit = parts ? compoundFit(frame, marks, parts, meta) : null;
   const extents: ResolvedReference[] = [];
+  /** Extra values drawn in the visible window (box outliers, repeated scatter rows) fit their axis like data. */
+  const widen = (log: boolean, axisId: string | undefined, each: (slot: number, include: (v: number) => void) => void) => {
+    let lo = Infinity, hi = -Infinity;
+    const include = (v: number) => {
+      if (log && !(v > 0)) return;
+      if (v < lo) lo = v;
+      if (v > hi) hi = v;
+    };
+    for (let j = visibleSlots.start; j < visibleSlots.end; j++) each(j, include);
+    if (lo <= hi) extents.push({ axis: 'y', from: lo, to: hi, label: '', axisId });
+  };
   if (parts) {
     parts.forEach((p, i) => {
       for (let k = 1; k < p.length; k++) if (p[k]! >= 0) visible[p[k]!] = visible[i]!;
@@ -202,19 +214,14 @@ export function buildCartesianView(
         if (nonPos) reportCartesian(sink, 'AX171', 'omitted', { field: m.outliers.field, count: nonPos });
       }
       // Visible boxplot outliers widen their axis domain in the visible window.
-      if (!visible[i]) return;
-      let lo = Infinity, hi = -Infinity;
-      const include = (v: number) => {
-        if (log && !(v > 0)) return;
-        if (v < lo) lo = v;
-        if (v > hi) hi = v;
-      };
-      for (let j = visibleSlots.start; j < visibleSlots.end; j++) {
-        if (mask[j] === SLOT_VALUE) visitOutliers(m.outliers, rep.row, j, include);
-      }
-      if (lo <= hi) extents.push({ axis: 'y', from: lo, to: hi, label: '', axisId: m.axisId });
+      if (visible[i]) widen(log, m.axisId, (j, include) => { if (mask[j] === SLOT_VALUE) visitOutliers(m.outliers, rep.row, j, include); });
     });
   }
+  // Scatter rows that repeat an x widen their axis in the visible window as the slot's own row does.
+  frame.series.forEach((s, i) => {
+    const more = visible[i] ? repeatsOf(s) : null;
+    if (more) widen(isLogSeries(meta, s), s.axisId, (j, include) => { visitRepeats(more, j, include); });
+  });
   const fitted = extents.length ? [...references, ...extents] : references;
 
   const yDomains: [number, number][] = [];

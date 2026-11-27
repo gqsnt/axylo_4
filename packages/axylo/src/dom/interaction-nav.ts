@@ -52,10 +52,19 @@ export function markBox(d: Committed, target: PickTarget, soleRef?: DatumRef): R
   return horizontalBars(d) ? { x: pr.x + pr.width / 2, y: at, width: 0, height: 0 } : { x: at, y: pr.y + pr.height / 2, width: 0, height: 0 };
 }
 
+/**
+ * The box the pointer's own tooltip is placed against. A lookup whose x pick names the mark that won it
+ * (cartesian/lookup.ts, the one with `pointValue`) places it at that mark (`lead`: the anchor of the target's
+ * primary), so moving between layered marks at one x moves it; otherwise, and for a peer's or the keyboard's
+ * target, it is every mark at the target (`marks`).
+ */
+export const placementBox = (d: Committed, lead: Rect | null, marks: Rect | null, pointer: boolean): Rect | null =>
+  pointer && lead && 'pointValue' in d.lookup ? lead : marks;
+
 export function pinnedModel(d: Committed, target: PickTarget, offset: number): TooltipModel {
   const { lookup, view, formatters } = d, m = lookup.tooltip(target);
   if (offset <= 0 || offset >= m.count) return m;
-  if (target.kind === 'x' && isAligned(view)) return { ...m, rows: alignedRows(view, formatters, target.x, m).slice(offset, offset + PAGE_ROWS) };
+  if (target.kind === 'x' && isAligned(view)) return { ...m, rows: alignedRows(view, formatters, target.x, m, lookup).slice(offset, offset + PAGE_ROWS) };
   if (target.kind === 'point') {
     const refs = lookup.members(target, offset, PAGE_ROWS);
     if (refs.length) return { ...lookup.tooltip({ kind: 'point', refs, count: target.count }), title: m.title, count: m.count };

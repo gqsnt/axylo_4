@@ -85,7 +85,7 @@ export function buildBarSlotLayout(
     groupWidth = slotBandwidth(xScale, view.frame.x.values, start, end, plot.width);
   }
   const laneWidth = Math.max(1, groupWidth / lanes);
-  const barWidth = Math.max(1, laneWidth - (lanes > 1 ? 1 : 0));
+  const barWidth = Math.max(1, laneWidth - +(lanes > 1));
   return { laneCount: lanes, groupWidth, laneWidth, barWidth, laneOf, stacks: cartesianStacks(view, meta) };
 }
 

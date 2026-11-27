@@ -21,6 +21,7 @@ import type {
 } from '../../src/core/contracts';
 import { defaultMessages } from '../../src/messages';
 import { record } from '../core/host';
+import { n5run, xPixel, yScaleOf } from '../cartesian/n5-pipeline';
 
 // ── Lightweight cross-realm DOM mock (distinct classes per "realm" to verify zero instanceof reliance) ────
 
@@ -1389,5 +1390,197 @@ describe('C3.3 Wave A: touch pin toggle, tap time, table row reuse, donut slice-
     interaction.prepare(readyAgain); interaction.commit(readyAgain);
     expect(activeElementOf(doc as unknown as Document)).toBe(scroll);
     interaction.destroy();
+  });
+});
+
+/**
+ * W3 integration repair 3: a held Cartesian tooltip keeps the mark that won its pick. The pointer rests on a
+ * scatter point above a line vertex at the same x, then moves into the tooltip's corridor (S_HOVER -> S_HELD).
+ * That move makes no pick, and each new commit brings a lookup with no pick of its own, so the hold must carry
+ * the winner. Expected values follow from the fixture: at x = 2 the scatter point (a = 80) is the only mark under
+ * the pointer and is 60 y units from the line vertex (b = 20), so it alone is the hover datum and the anchor.
+ */
+describe('W3 repair: a held Cartesian tooltip keeps its pick\'s winning mark', () => {
+  const layered = (a2: number) => ({
+    data: [{ x: 1, b: 10, a: 80 }, { x: 2, b: 20, a: a2 }, { x: 3, b: 30, a: 80 }], x: 'x',
+    axes: { v: { position: 'left', domain: [0, 100] } },
+    layers: [{ type: 'line', y: 'b', yAxis: 'v' }, { type: 'scatter', y: 'a', yAxis: 'v' }],
+  });
+  const frameOf = (base: Committed, run: ReturnType<typeof n5run>): Committed =>
+    ({ ...base, view: run.view, layout: run.layout, lookup: run.lookup, formatters: run.formatters, reader: run.reader });
+
+  function held() {
+    const doc = new MockDocument();
+    const chart = buildLineInteraction(doc, doc.body, 'w3held');
+    const run = n5run(layered(80), { width: 480, height: 300 });
+    const t = frameOf(chart.committed, run);
+    chart.interaction.prepare(t); chart.interaction.commit(t);
+    const events: (string | null)[] = [];
+    chart.actions.hover = ref => { events.push(ref && ref.kind !== 'slice' ? `${ref.seriesKey}@${ref.x}` : null); };
+    const stage = chart.fig.stage as unknown as MockElement, tip = chart.fig.tooltip as unknown as MockElement;
+    const x = xPixel(run.layout, run.view, 1), y = yScaleOf(run.layout, 0).map(80), lower = yScaleOf(run.layout, 0).map(20);
+    const move = (px: number, py: number, timeStamp: number) =>
+      stage.dispatchEvent(new MockEvent('pointermove', { clientX: px, clientY: py, timeStamp }));
+    move(x, y, 100);
+    expect(events.at(-1)).toBe('a@2');
+    // Down to the line vertex and back: the same x, so only the winning mark tells the two apart.
+    move(x, lower, 110);
+    expect(events.at(-1)).toBe('b@2');
+    const atLine = tip.style.transform;
+    move(x, y, 120);
+    expect(events.at(-1)).toBe('a@2');
+    const placed = tip.style.transform;
+    expect(placed).toMatch(/translate/);
+    expect(placed).not.toBe(atLine);
+    // Rest, then move most of the way toward the tooltip's centre: inside the corridor, held.
+    const v = String(placed).match(/-?[0-9.]+/g)!.map(Number);
+    const p = [x + (v[0]! + 60 - x) * 0.6, y + (v[1]! + 20 - y) * 0.6] as const;
+    move(p[0], p[1], 430);
+    return { doc, chart, t, events, tip, stage, placed, p, move };
+  }
+
+  it('keeps the winner, its hover event and its placement on corridor moves and unchanged commits', () => {
+    const { chart, t, events, tip, placed, p, move } = held();
+    const seen = events.length;
+    expect(tip.style.transform).toBe(placed);
+    // The same frame again, then the same data with a new lookup that has made no pick.
+    chart.interaction.commit(t);
+    expect(tip.style.transform).toBe(placed);
+    const again = frameOf(chart.committed, n5run(layered(80), { width: 480, height: 300 }));
+    chart.interaction.prepare(again); chart.interaction.commit(again);
+    expect(tip.style.transform).toBe(placed);
+    move(p[0], p[1], 450);
+    move(p[0] + 1, p[1], 470);
+    expect(tip.style.transform).toBe(placed);
+    expect(tip.hidden).toBe(false);
+    // No hover was raised since the hold began: the scatter point is still the hover datum.
+    expect(events.length).toBe(seen);
+    expect(events.at(-1)).toBe('a@2');
+  });
+
+  it('drops the hold when the held point moves away under new data or its series is hidden', () => {
+    const moved = held();
+    const next = frameOf(moved.chart.committed, n5run(layered(50), { width: 480, height: 300 }));
+    moved.chart.interaction.prepare(next); moved.chart.interaction.commit(next);
+    // The pointer is in the corridor, off every mark: whatever it reads now, it is not the old point.
+    expect(moved.tip.style.transform === moved.placed && !moved.tip.hidden).toBe(false);
+
+    const hidden = held();
+    const gone = frameOf(hidden.chart.committed, n5run(layered(80), { width: 480, height: 300, hidden: ['a'] }));
+    hidden.chart.interaction.prepare(gone); hidden.chart.interaction.commit(gone);
+    expect(hidden.events.at(-1)).not.toBe('a@2');
+    expect(hidden.tip.style.transform === hidden.placed && !hidden.tip.hidden).toBe(false);
+  });
+
+  it('drops the hold when its winning scatter point, coincident with a line vertex, is hidden', () => {
+    // At x = 2 the scatter point (a = 20) sits on the line vertex (b = 20): hiding the scatter series leaves the same
+    // x target and the same anchor box under the hold's pick, so only the winning datum tells the frames apart.
+    const doc = new MockDocument();
+    const chart = buildLineInteraction(doc, doc.body, 'w3overlap');
+    const t = frameOf(chart.committed, n5run(layered(20), { width: 480, height: 300 }));
+    chart.interaction.prepare(t); chart.interaction.commit(t);
+    const events: (string | null)[] = [];
+    chart.actions.hover = ref => { events.push(ref && ref.kind !== 'slice' ? `${ref.seriesKey}@${ref.x}` : null); };
+    const stage = chart.fig.stage as unknown as MockElement, tip = chart.fig.tooltip as unknown as MockElement;
+    const run = n5run(layered(20), { width: 480, height: 300 });
+    const x = xPixel(run.layout, run.view, 1), y = yScaleOf(run.layout, 0).map(20);
+    const move = (px: number, py: number, timeStamp: number) =>
+      stage.dispatchEvent(new MockEvent('pointermove', { clientX: px, clientY: py, timeStamp }));
+    move(x, y, 100);
+    const winner = events.at(-1);
+    expect(winner === 'a@2' || winner === 'b@2').toBe(true);
+    const placed = tip.style.transform;
+    const v = String(placed).match(/-?[0-9.]+/g)!.map(Number);
+    move(x + (v[0]! + 60 - x) * 0.6, y + (v[1]! + 20 - y) * 0.6, 430);
+    expect(tip.hidden).toBe(false);
+    const seen = events.length;
+    const hide = winner === 'a@2' ? 'a' : 'b';
+    const gone = frameOf(chart.committed, n5run(layered(20), { width: 480, height: 300, hidden: [hide] }));
+    chart.interaction.prepare(gone); chart.interaction.commit(gone);
+    // The hold is released and the pointer, in the corridor off every mark, reconciles as a plain hover: no
+    // silent swap to the other series inside a held tooltip.
+    // Released, the pointer's own pick leads: the remaining line vertex under the corridor's x.
+    expect(events.slice(seen)).toEqual(['b@2']);
+    // A plain hover reconciles at the pointer, a hold at its original pick. Bring the scatter point back exactly
+    // under the pointer: the hover follows it, where a hold would have kept the line vertex under its pick.
+    const py = y + (v[1]! + 20 - y) * 0.6, y80 = yScaleOf(run.layout, 0).map(80);
+    const back = frameOf(chart.committed, n5run(layered(20 + (py - y) * 60 / (y80 - y)), { width: 480, height: 300 }));
+    chart.interaction.prepare(back); chart.interaction.commit(back);
+    expect(events.at(-1)).toBe('a@2');
+    expect(tip.hidden).toBe(false);
+  });
+
+  it('a hold whose winner is hidden under a coincident mark becomes a plain hover that picks at the pointer', () => {
+    // A slot at x = 2.4 lies past the 2 / 2.4 midpoint inside the held tooltip's own box. Inside the corridor a hold
+    // ignores the pointer, so a move there while held raises nothing; after the hidden winner releases the hold, the
+    // commit picks again at the pointer and names the x = 2.4 vertex. A hold kept on the coincident line vertex
+    // (the winner check reverted) would instead stay put and raise the swapped `b@2` from the presentation.
+    const dense = (hidden: string[] = []) => n5run({
+      data: [{ x: 1, b: 10, a: 80 }, { x: 2, b: 20, a: 20 }, { x: 2.4, b: 25, a: 80 }, { x: 3, b: 30, a: 80 }], x: 'x',
+      axes: { v: { position: 'left', domain: [0, 100] } },
+      layers: [{ type: 'line', y: 'b', yAxis: 'v' }, { type: 'scatter', y: 'a', yAxis: 'v' }],
+    }, { width: 480, height: 300, hidden });
+    const doc = new MockDocument();
+    const chart = buildLineInteraction(doc, doc.body, 'w3repick');
+    const run = dense(), t = frameOf(chart.committed, run);
+    chart.interaction.prepare(t); chart.interaction.commit(t);
+    const events: (string | null)[] = [];
+    chart.actions.hover = ref => { events.push(ref && ref.kind !== 'slice' ? `${ref.seriesKey}@${ref.x}` : null); };
+    const stage = chart.fig.stage as unknown as MockElement, tip = chart.fig.tooltip as unknown as MockElement;
+    const x = xPixel(run.layout, run.view, 1), y = yScaleOf(run.layout, 0).map(20), x24 = xPixel(run.layout, run.view, 2);
+    const move = (px: number, py: number, timeStamp: number) =>
+      stage.dispatchEvent(new MockEvent('pointermove', { clientX: px, clientY: py, timeStamp }));
+    move(x, y, 100);
+    const winner = events.at(-1);
+    expect(winner === 'a@2' || winner === 'b@2').toBe(true);
+    // The mock tooltip is 120 x 40 px (its centre is the translate plus 60, 20). Rest, then enter the corridor.
+    const v = String(tip.style.transform).match(/-?[0-9.]+/g)!.map(Number);
+    move(x + (v[0]! + 60 - x) * 0.6, y + (v[1]! + 20 - y) * 0.6, 430);
+    // A point in the tooltip's box, nearer the x = 2.4 vertex than the x = 2 one: a plain hover there picks 2.4.
+    const far = { x: v[0]! + 118, y: v[1]! + 20 };
+    expect(Math.abs(far.x - x24)).toBeLessThan(Math.abs(far.x - x));
+    move(far.x, far.y, 450);
+    expect(tip.hidden).toBe(false);
+    expect(events.at(-1)).toBe(winner);
+    const seen = events.length;
+    const gone = frameOf(chart.committed, dense([winner === 'a@2' ? 'a' : 'b']));
+    chart.interaction.prepare(gone); chart.interaction.commit(gone);
+    const other = winner === 'a@2' ? 'b' : 'a';
+    expect(events.slice(seen)).toEqual([`${other}@2.4`]);
+    expect(tip.hidden).toBe(false);
+  });
+
+  it('clears the held hover on pointer leave and on Escape', () => {
+    const left = held();
+    left.stage.dispatchEvent(new MockEvent('pointerleave', {}));
+    expect(left.events.at(-1)).toBeNull();
+    expect(left.tip.hidden).toBe(true);
+
+    const esc = held();
+    const before = esc.events.length;
+    const e = new MockEvent('keydown', { key: 'Escape' });
+    esc.doc.dispatchEvent(e);
+    expect(e.defaultPrevented).toBe(true);
+    // Escape clears the held hover, then the pointer's own pick (dismissed, so no tooltip) leads as on a plain
+    // hover (dom/interaction.ts Escape handler): never the held scatter point again.
+    expect(esc.events[before]).toBeNull();
+    expect(esc.events.slice(before + 1)).not.toContain('a@2');
+    expect(esc.tip.hidden).toBe(true);
+  });
+
+  it('a passive peer cursor raises no hover across commits', () => {
+    const doc = new MockDocument();
+    const chart = buildLineInteraction(doc, doc.body, 'w3sync');
+    const t = frameOf(chart.committed, n5run(layered(80), { width: 480, height: 300 }));
+    chart.interaction.prepare(t); chart.interaction.commit(t);
+    const events: unknown[] = [];
+    chart.actions.hover = ref => { events.push(ref); };
+    const origin = {};
+    chart.interaction.sync!(() => ({ kind: 'x', x: 2 }), origin);
+    chart.interaction.commit(t);
+    const again = frameOf(chart.committed, n5run(layered(80), { width: 480, height: 300 }));
+    chart.interaction.prepare(again); chart.interaction.commit(again);
+    chart.interaction.sync!(null, origin);
+    expect(events).toEqual([]);
   });
 });

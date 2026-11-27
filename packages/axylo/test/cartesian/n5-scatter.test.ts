@@ -2,8 +2,7 @@
  * N5: the `scatter` layer of `axylo/cartesian` — markers without a joining line on the layer's own axis (linear or
  * log, left or right; an omitted `yAxis` is the left axis), nonpositive values left out on log axes (spec F13,
  * AX171) yet read raw, picked within 24 px of the point (spec 3.6), and one point swatch. A scatter layer shares
- * the chart's aligned x: one value per x per field, so duplicate x is AX108 as for any aligned series (the root
- * `scatter` chart is the one for unaligned point clouds).
+ * the chart's aligned x; rows that repeat an x are kept as points of their own (spec F11, w3-integration.test.ts).
  */
 import { describe, expect, it } from 'vitest';
 import { validateCartesian } from '../../src/cartesian';
@@ -89,11 +88,17 @@ describe('N5 scatter layer', () => {
     expect(run.lookup.tooltip({ kind: 'x', x: 1 }).rows.map(r => r.seriesLabel)).toEqual(['b']);
   });
 
-  it('reports duplicate x as for every aligned series (AX108)', () => {
+  // W3 integration: spec F11 says points sharing an x are ordinary data on a scatter, so a repeated x is no
+  // longer AX108 for a scatter layer (it was, while the layer kept one value per x); aligned layers keep AX108.
+  it('keeps rows that share an x as points (spec F11), and AX108 for an aligned layer', () => {
     const diagnostics = validateCartesian({
       data: [{ x: 1, a: 1 }, { x: 1, a: 2 }], x: 'x', axes: { l: { position: 'left' } }, layers: [{ type: 'scatter', y: 'a' }],
     } as never);
-    expect(diagnostics.some(d => d.code === 'AX108')).toBe(true);
+    expect(diagnostics.some(d => d.code === 'AX108')).toBe(false);
+    const aligned = validateCartesian({
+      data: [{ x: 1, a: 1 }, { x: 1, a: 2 }], x: 'x', axes: { l: { position: 'left' } }, layers: [{ type: 'line', y: 'a', yAxis: 'l' }],
+    } as never);
+    expect(aligned.some(d => d.code === 'AX108')).toBe(true);
   });
 
   it('accepts yAxis left/right position aliases for custom axis IDs, prioritizes explicit IDs, and diagnoses absent right axis', () => {

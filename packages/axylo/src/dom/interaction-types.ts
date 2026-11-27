@@ -79,6 +79,12 @@ export interface SeriesSwatch {
    * controls redraw when it changes (a Cartesian update that keeps a series but changes its mark). Absent: nothing.
    */
   readonly key?: (index: number, view: View) => unknown;
+  /**
+   * Whether a view with one published series still gets its legend toggle. A lone Cartesian range or error bar
+   * is one series drawn from several columns, so hiding it is a choice the reader can make; a lone line or bar
+   * keeps no legend. Absent: never.
+   */
+  readonly legendForOne?: (view: View) => boolean;
 }
 
 // Called with null when the legend goes away, so the list can release its listeners.

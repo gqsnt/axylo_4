@@ -20,7 +20,9 @@ export function createCartesianOverlay(stateRef: CartesianStateRef) {
     // A 'line' composition (cartesian.ts) builds aligned views only.
     const view = input.view as AlignedView;
     if (layout.kind !== 'plot' || layout.projection.kind === 'ring') return;
-    const xVal = target?.kind === 'x' ? target.x : ring?.kind === 'aligned' ? ring.x : null;
+    // A point target names one row of a repeated scatter x (cartesian/repeats.ts): only that point is marked.
+    const pt = target?.kind === 'point' ? target.refs[0] : ring?.kind === 'point' ? ring : undefined;
+    const xVal = target?.kind === 'x' ? target.x : pt?.kind === 'point' ? pt.x : ring?.kind === 'aligned' ? ring.x : null;
     if (xVal === null) return;
 
     const vals = view.frame.x.values;
@@ -33,25 +35,26 @@ export function createCartesianOverlay(stateRef: CartesianStateRef) {
     if (!Number.isFinite(px)) return;
 
     clipped.push(rule('cursor', token('axis'), px, plot.y, px, plot.y + plot.height));
+    const at = pt && input.lookup.anchor(pt);
+    if (pt && !at) return;
 
     const stacks = cartesianStacks(view, stateRef.meta);
-    const onlyKey = only?.kind === 'aligned' ? only.seriesKey : null;
+    const onlyKey = pt?.kind === 'point' ? pt.seriesKey : only?.kind === 'aligned' ? only.seriesKey : null;
     for (let sIdx = 0; sIdx < view.frame.series.length; sIdx++) {
       const s = view.frame.series[sIdx]!;
       if (!view.visible[sIdx] || !s.drawable) continue;
       if (onlyKey !== null && s.key !== onlyKey) continue;
-      if (s.slot[slot] !== SLOT_VALUE) continue;
       const v = s.y[slot]!;
       const scale = axisScaleOf(layout.projection, s.axisIndex ?? 0);
-      if (scale.type === 'log' && !(v > 0)) continue;
-      const py = position(scale, drawnValue(view, stacks, sIdx, slot));
+      if (!at && (s.slot[slot] !== SLOT_VALUE || (scale.type === 'log' && !(v > 0)))) continue;
+      const py = at ? at.y + at.height / 2 : position(scale, drawnValue(view, stacks, sIdx, slot));
       if (!Number.isFinite(py)) continue;
       const mark: PointMark = {
         type: 'points',
         series: sIdx,
         xy: Float32Array.from([px, py]),
         shape: view.cues[sIdx]?.marker ?? 'circle',
-        size: ring?.kind === 'aligned' && ring.seriesKey === s.key ? 7 : 5,
+        size: ring?.kind !== 'slice' && ring?.seriesKey === s.key ? 7 : 5,
         fill: seriesPaint(sIdx),
       };
       clipped.push(mark);

@@ -32,6 +32,7 @@ import {
 import {
   isAligned, plotReady, readable, plotBox, horizontalBars, categoriesOf, firstDatum, keyboardTarget, zoomBounds, markBox, pinnedModel,
   remapTarget, stillPinned, categoryRemapper,
+  placementBox,
 } from './interaction-nav';
 import {
   instructionSeries, descriptionFor, renderInstructions, focusedFigure, registerFigure, unregisterFigure, noteShowing, releaseShowing,
@@ -73,11 +74,13 @@ const NAVIGATION: Readonly<Record<string, StepDirection>> = {
 };
 const DRAG_THRESHOLD = 4, REST_DISTANCE = 2, REST_TIME = 250, TAP_DISTANCE = 10, TAP_TIME = 1000, FOCUS_OUTLINE = 3, HOLE_CLEARANCE = 5;
 
+// S_HOVER and S_HELD differ only in the low bit, so `(k | 1) === S_HELD` reads "the pointer leads (hover or held)".
 const S_NONE = 0, S_KEY = 1, S_HOVER = 2, S_HELD = 3, S_PIN = 4, S_SYNC = 5;
 type Shown =
   | { readonly k: 0 | 1 }
   | { readonly k: 2; readonly t: PickTarget | null }
-  | { readonly k: 3; readonly t: PickTarget; readonly f: Point; readonly b: Rect; readonly a: Rect | null; readonly p: Presentation }
+  // q: where the pick that drew the held tooltip was made, to pick there again on a new frame.
+  | { readonly k: 3; readonly t: PickTarget; readonly f: Point; readonly b: Rect; readonly a: Rect | null; readonly p: Presentation; readonly q: Point }
   | { readonly k: 4; readonly r: DatumRef; readonly t: PickTarget }
   // A peer's cursor (axylo/sync): resolved target (null when unmatched on this frame), resolver, and origin.
   | { readonly k: 5; s: PickTarget | null; readonly f: SyncResolve; readonly o: object };
@@ -137,7 +140,7 @@ class DomInteraction implements Interaction {
   #shownOrdinal = 0;
   #shownText: { r: DatumRef; s: boolean; d: string | null } | null = null;
   #lastHover: DatumRef | null = null;
-  #lastPres: [PickTarget | null, DatumRef | null, DatumRef | null, number, number] | null = null;
+  #lastPres: [PickTarget | null, DatumRef | null, DatumRef | null, number, number, DatumRef | null, Rect | null] | null = null;
   #dirty = true;
   #overlayVisible = false;
   #pendingWindow: Span | null | undefined;
@@ -432,12 +435,15 @@ class DomInteraction implements Interaction {
     const visibleRing = this.#proxyFocused && (this.#keyed || this.#proxy.matches(':focus-visible')) ? this.#focus : null;
     const only = this.#single && shown.k === S_KEY ? this.#focus : null, pres = presentationFor(d), pinned = shown.k === S_PIN;
     const showTip = pres !== 'none' && target !== null && !(this.#dismissed !== null && this.#dismissed.some(id => this.#dismissedBy(id, target))), page = pinned ? this.#pinPage : 0;
-    const flags = (showTip ? 1 : 0) | (pinned ? 2 : 0) | (pres === 'strip' ? 4 : pres === 'floating' ? 8 : 0) | (remote ? 16 : 0);
+    const flags = +showTip | +pinned * 2 | (pres === 'strip' ? 4 : pres === 'floating' ? 8 : 0) | +remote * 16;
     const last = this.#lastPres;
+    // Layered marks share an x target: the mark that won the pick decides the hover datum and the tooltip's
+    // anchor, so moving between them at one x is a change even though the target is the same.
+    const lead = target?.kind === 'x' ? lookup.primary(target) : null, leadAt = lead ? lookup.anchor(lead) : null;
     if (!this.#dirty && last && sameTarget(target, last[0]) && sameRef(visibleRing, last[1]) &&
-      sameRef(only, last[2]) && flags === last[3] && page === last[4]) return;
-    if (!last) this.#lastPres = [target, visibleRing, only, flags, page];
-    else { last[0] = target; last[1] = visibleRing; last[2] = only; last[3] = flags; last[4] = page; }
+      sameRef(only, last[2]) && flags === last[3] && page === last[4] && sameRef(lead, last[5]) && sameRect(leadAt, last[6])) return;
+    // A new key only when the presentation changes, which redraws anyway.
+    this.#lastPres = [target, visibleRing, only, flags, page, lead, leadAt];
     this.#dirty = false;
     if (pinned) this.#listenPin(); else this.#unlistenPin();
     const prev = this.#content; this.#content = null;
@@ -489,7 +495,8 @@ class DomInteraction implements Interaction {
       }
       if (model.count > 1) tc.moreLang = d.english('moreRows');
       const marks = markBox(d, target, soleRef), map = this.#plotMapping(), anchor = marks ? rectToViewport(map, marks) : null;
-      const bounds = pres === 'strip' ? (this.#geoReadout ??= visibleRegion(this.#figure.readout, false)) : this.#placementFor(d, marks, visibleRing, map);
+      // Pointer-shown (hover or held) tooltips sit at the mark that won the pick, so a hold does not move it.
+      const bounds = pres === 'strip' ? (this.#geoReadout ??= visibleRegion(this.#figure.readout, false)) : this.#placementFor(d, placementBox(d, leadAt, marks, (shown.k | 1) === S_HELD), visibleRing, map);
       const figureMap = pres === 'strip' ? undefined : (this.#geoFigure ??= mappingOf(this.#root));
       // When the tooltip needs a layout read, measure after both sets of writes.
       this.#draw(d, overlay);
@@ -778,15 +785,17 @@ class DomInteraction implements Interaction {
     const d = this.#committed;
     if (!plotReady(d)) return;
     const at = this.#pointer ??= { x, y };
-    at.x = x; at.y = y;
     let shown = this.#shown;
-    if (shown.k === S_PIN) return;
     const rest = this.#rest, content = this.#content;
     const still = rest !== null && dist(x, y, rest.x, rest.y) <= REST_DISTANCE;
+    // The pointer has not moved yet: it is still where the shown tooltip's pick was made.
     if (shown.k === S_HOVER && shown.t && rest?.g && time - rest.t >= REST_TIME &&
         sameTarget(rest.g, shown.t) && content && sameTarget(content.t, shown.t)) {
-      shown = this.#shown = { k: S_HELD, t: shown.t, f: { x: rest.x, y: rest.y }, b: content.b, a: content.a, p: content.p };
+      // The content's t, b, a and p are the shown target's tooltip (checked just above).
+      shown = this.#shown = { ...content, k: S_HELD, f: { ...rest }, q: { ...at } };
     }
+    at.x = x; at.y = y;
+    if (shown.k === S_PIN) return;
     if (shown.k === S_HELD) {
       if (insideCorridor(shown.f, shown.b, at)) { if (!still) this.#rest = { x, y, t: time, g: shown.t }; this.#present(); return; }
       this.#shown = NO_HOVER;
@@ -835,7 +844,7 @@ class DomInteraction implements Interaction {
     this.#pointerAt(e.clientX, e.clientY, e.timeStamp);
   }
 
-  #leave(): void { this.#pointer = this.#rest = null; if (this.#shown.k === S_HOVER || this.#shown.k === S_HELD) this.#shown = this.#idle(); this.#present(); }
+  #leave(): void { this.#pointer = this.#rest = null; if ((this.#shown.k | 1) === S_HELD) this.#shown = this.#idle(); this.#present(); }
 
   #drawSelection(from: Point, to: Point): void {
     const d = this.#committed;
@@ -985,7 +994,7 @@ class DomInteraction implements Interaction {
     this.#clearGeo();
     const d = this.#committed;
     if (!plotReady(d)) return;
-    if ((this.#shown.k === S_HOVER || this.#shown.k === S_HELD) && this.#pointer) { this.#rest = null; this.#pointTo(this.#pick(d, this.#pointer)); }
+    if ((this.#shown.k | 1) === S_HELD && this.#pointer) { this.#rest = null; this.#pointTo(this.#pick(d, this.#pointer)); }
     else if (!this.#tooltip?.visible) return;
     this.#redraw();
   }
@@ -1190,11 +1199,15 @@ class DomInteraction implements Interaction {
       if (kept) this.#shown = { k: S_PIN, ...kept };
       else { this.#endPin(); if ((this.#shown as Shown).k === S_HOVER && this.#pointer) this.#pointTo(this.#pick(next, this.#pointer)); }
     } else if (this.#shown.k === S_HELD) {
-      if (pres !== this.#shown.p || !sameRect(this.#anchorOf(next, this.#shown.t), this.#shown.a) || !lookup.tooltip(this.#shown.t).rows.length) this.#dropHold(next, !this.#down?.d);
+      // Picking again where the held tooltip's pick was made gives the new lookup that pick's winning mark, which
+      // the hover, anchor and placement follow; a different target or winner there (a hidden mark coincident with
+      // another) means the held datum is gone. A hold raises no hover, so the last hover is its (remapped) winner.
+      const h = this.#shown, t = this.#pick(next, h.q);
+      if (pres !== h.p || !sameTarget(t, h.t) || t!.kind === 'x' && !sameRef(lookup.primary(t!), this.#lastHover) || !sameRect(this.#anchorOf(next, t!), h.a) || !lookup.tooltip(t!).rows.length) this.#dropHold(next, !this.#down?.d);
     } else if (this.#shown.k === S_HOVER && this.#pointer && !this.#down?.d) {
       const before = this.#shown.t, now = this.#pointTo(this.#pick(next, this.#pointer));
       const moved = now !== null && this.#content !== null && sameTarget(this.#content.t, now) && !sameRect(this.#anchorOf(next, now), this.#content.a);
-      if (!sameTarget(before, now) || moved) this.#rest = { x: this.#pointer.x, y: this.#pointer.y, t: this.#clock(), g: now };
+      if (!sameTarget(before, now) || moved) this.#rest = { ...this.#pointer, t: this.#clock(), g: now };
     }
   }
 
@@ -1243,7 +1256,7 @@ class DomInteraction implements Interaction {
       this.#root.classList.toggle('axylo-readout-mode', strip);
       this.#dropView(this.#shown.k !== S_PIN || nextPres === 'none');
       if (this.#shown.k === S_HELD) this.#shown = this.#pointer ? NO_HOVER : this.#idle();
-      this.#rest = this.#pointer ? { x: this.#pointer.x, y: this.#pointer.y, t: this.#clock(), g: this.#pointerTarget() } : null;
+      this.#rest = this.#pointer ? { ...this.#pointer, t: this.#clock(), g: this.#pointerTarget() } : null;
     }
     return readoutChanged || controlsChanged;
   }

@@ -15,6 +15,7 @@ import {
   isValidLogBase, isValidLogDomain, logTickCandidates, niceLogDomain, type Span,
 } from '../scale/log';
 import { reportCartesian } from './diagnostics';
+import { repeatsOf, visitRepeats } from './repeats';
 import type { CartesianAxisSpec, CartesianMeta } from './meta';
 
 export interface AxisDomainResult {
@@ -47,18 +48,13 @@ function positiveExtremaInRange(
 ): [number, number] | null {
   let min = Infinity;
   let max = -Infinity;
+  const take = (v: number) => { if (v > 0 && v < Infinity) { if (v < min) min = v; if (v > max) max = v; } };
   for (const sIdx of seriesIndexes) {
     const s = frame.series[sIdx];
     if (!s) continue;
-    const { y, slot } = s;
-    for (let i = range.start; i < range.end; i++) {
-      if (slot[i] !== SLOT_VALUE) continue;
-      const v = y[i]!;
-      if (v > 0 && Number.isFinite(v)) {
-        if (v < min) min = v;
-        if (v > max) max = v;
-      }
-    }
+    const { y, slot } = s, more = repeatsOf(s);
+    // A scatter's repeated rows count as its slot rows do: a nonpositive first row at an x hides no later one.
+    for (let i = range.start; i < range.end; i++) { if (slot[i] === SLOT_VALUE) take(y[i]!); visitRepeats(more, i, take); }
   }
   return min <= max ? [min, max] : null;
 }

@@ -2,7 +2,7 @@
  * Pure interaction logic: focus, stepping, reading, overlay marks, and zoom windows. Runs in Node with no DOM.
  */
 import {
-  type AlignedView, type DatumRef, type DatumText, type Formatters, type Layout, type Lookup, type Mark, type Overlay,
+  SLOT_VALUE, type AlignedView, type DatumRef, type DatumText, type Formatters, type Layout, type Lookup, type Mark, type Overlay,
   type PickTarget, type Rect, type RuleMark, type ScatterView, type SlotState, type StepDirection, type TooltipModel, type View,
 } from './contracts';
 import { donutGeometry } from '../view/donut-geometry';
@@ -77,27 +77,34 @@ export function valueText(view: View, lookup: Lookup, focus: DatumRef, mode: Mod
   }
   if (isAligned(view) && mode === 'all' && focus.kind === 'aligned') {
     const m = lookup.tooltip({ kind: 'x', x: focus.x });
-    const rows = alignedRows(view, formatters, focus.x, m).map(r => fill(messages.seriesValue, { series: r.seriesLabel, value: r.value }));
+    const rows = alignedRows(view, formatters, focus.x, m, lookup).map(r => fill(messages.seriesValue, { series: r.seriesLabel, value: r.value }));
     if (m.total !== null) rows.push(fill(messages.seriesValue, { series: messages.total, value: m.total }));
     return rows.length ? fill(messages.pointAll, { x: m.title, values: rows.join('; '), position }) : null;
   }
   return pointOf(lookup, focus, formatters, messages);
 }
 
-export function alignedRows(view: AlignedView, formatters: Formatters, x: number, model: TooltipModel): DatumText[] {
+/**
+ * The tooltip's rows, then every other readable series at x. Rows past the tooltip's are read from `lookup`
+ * when given, so a series drawn from several columns (a Cartesian range) reads as it does in the tooltip.
+ */
+export function alignedRows(view: AlignedView, formatters: Formatters, x: number, model: TooltipModel, lookup?: Lookup): DatumText[] {
   const given = model.rows;
   const rows: DatumText[] = given.slice();
   const xs = view.frame.x.values, i = lowerBound(xs, x);
   if (i >= xs.length || xs[i] !== x) return rows;
-  const shown = new Set<number>();
-  for (let r = 0; r < given.length; r++) shown.add(given[r]!.seriesIndex);
+  const shown = new Set(given.map(r => r.seriesIndex));
   const series = view.frame.series;
   for (let s = 0; s < series.length; s++) {
     if (!view.visible[s] || !series[s]!.drawable || shown.has(s)) continue;
-    const ser = series[s]!, state = slotState(ser, i) as SlotState;
+    const ser = series[s]!, state = slotState(ser, i) as SlotState, ref: DatumRef = { kind: 'aligned', seriesKey: ser.key, x };
+    // A datum read on its own may say its stack is incomplete; a tooltip row does not (the total says it), so
+    // only a value is taken from the lookup. An error bar whose centre is missing still has a value there when
+    // its bounds do (Cartesian: "No data (20 – 80)"), which the lookup reports as one.
+    const read = lookup?.datum(ref), d = (read?.state === SLOT_VALUE || state === SLOT_VALUE) && read;
     rows.push({
-      ref: { kind: 'aligned', seriesKey: ser.key, x }, seriesIndex: s, seriesLabel: ser.label, x: model.title,
-      value: slotText(formatters, s, ser.y[i]!, state), state, percent: null, row: ser.row?.[i] ?? i,
+      ref, seriesIndex: s, seriesLabel: ser.label, x: model.title,
+      value: d ? d.value : slotText(formatters, s, ser.y[i]!, state), state: d ? d.state : state, percent: null, row: ser.row?.[i] ?? i,
     });
   }
   return rows;
@@ -109,7 +116,7 @@ export function datumReading(view: View, lookup: Lookup, ref: DatumRef, mode: Mo
   const x = ref.kind === 'aligned' && isAligned(view) ? view.frame.x.categories?.[ref.x] ?? ref.x : null;
   if (isAligned(view) && mode === 'all' && ref.kind === 'aligned') {
     const m = lookup.tooltip({ kind: 'x', x: ref.x });
-    return JSON.stringify(['all', ref.seriesKey, x, m.title, alignedRows(view, formatters, ref.x, m).map(r => [r.seriesIndex, r.seriesLabel, r.value]), m.total, words]);
+    return JSON.stringify(['all', ref.seriesKey, x, m.title, alignedRows(view, formatters, ref.x, m, lookup).map(r => [r.seriesIndex, r.seriesLabel, r.value]), m.total, words]);
   }
   const d = lookup.datum(ref);
   if (!d) return null;

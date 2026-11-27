@@ -16,6 +16,7 @@ import { alignedTable, withUnit, type ReaderLabels } from '../reader/table';
 import { annotationSummarySentences } from './annotations';
 import { formatAxisValue, type CartesianStateRef } from './meta';
 import { cartesianStacks } from './stacks';
+import { repeatsOf, valuesText, visitRepeats } from './repeats';
 import { axisOf, carrierReadout, intervalText, isCompoundKind, isLogSeries, markOf, visitOutliers, partIndex, physicalOf } from './boxplot';
 
 /** Column headers of one logical series: one per series, five numbers and the outliers per box. */
@@ -41,7 +42,7 @@ function cartesianTable(
   const marks = series.map(s => markOf(meta, s.field));
   const compound = marks.some(m => isCompoundKind(m?.kind));
   const logSeries = series.map(s => isLogSeries(meta, s));
-  if (!compound && !logSeries.some(Boolean)) return base;
+  if (!compound && !logSeries.some(Boolean) && !series.some(repeatsOf)) return base;
 
   const read = carrierReadout(meta, physical, formatters, ' (not plotted — log)');
   const headers: string[] = [base.headers[0]!];
@@ -65,6 +66,7 @@ function cartesianTable(
       if (!cells) return null;
       const slotIndex = start + index;
       const out: string[] = [cells[0]!];
+      let all: string | null;
       series.forEach((s, i) => {
         const m = marks[i];
         const at = (role: Parameters<typeof partIndex>[3]) => m ? partIndex(m, physical, i, role) : -1;
@@ -73,6 +75,9 @@ function cartesianTable(
           out.push(read.outliers(at('median'), m.outliers, slotIndex) ?? 'none');
         } else if (m?.kind === 'range' || m?.kind === 'errorBar') {
           out.push(intervalText(m, role => read.cell(at(role), slotIndex)));
+        } else if ((all = valuesText(s, slotIndex, v => read.value(i, v))) !== null) {
+          // Every row of a scatter at this x, in the frame's order: the slot's own row first.
+          out.push(all);
         } else if (logSeries[i] && s.slot[slotIndex] === SLOT_VALUE && !(s.y[slotIndex]! > 0)) {
           out.push(`${cells[i + 1]} (not plotted — log)`);
         } else out.push(cells[i + 1]!);
@@ -129,28 +134,25 @@ export function createCartesianReader(stateRef: CartesianStateRef): ReaderParts 
         // A compound mark is read only where it is drawn: a row whose required parts all hold plottable values.
         const rows = isCompound ? physical.rows?.[k] ?? null : null;
         const log = isCompound && isLogSeries(meta, rep);
+        const include = (v: number, idx: number) => {
+          if (log && !(v > 0)) return;
+          if (v < min) { min = v; minIdx = idx; }
+          if (v > max) { max = v; maxIdx = idx; }
+        };
         for (const idx of isCompound ? parts : [k]) {
           const s = physical.frame.series[idx];
           if (!s) continue;
-          for (let i = start; i < end; i++) {
-            if (s.slot[i] !== SLOT_VALUE || (rows && rows[i] !== SLOT_VALUE)) continue;
-            const v = s.y[i]!;
-            if (log && !(v > 0)) continue;
-            if (v < min) { min = v; minIdx = idx; }
-            if (v > max) { max = v; maxIdx = idx; }
-          }
+          for (let i = start; i < end; i++) if (s.slot[i] === SLOT_VALUE && (!rows || rows[i] === SLOT_VALUE)) include(s.y[i]!, idx);
         }
-        for (let i = end - 1, at = rows ?? rep.slot; i >= start && last < 0; i--) if (at[i] === SLOT_VALUE) last = i;
+        // A scatter's repeated rows are read as its slot's own row is.
+        const more = isCompound ? null : repeatsOf(rep);
+        for (let i = start; more && i < end; i++) visitRepeats(more, i, v => include(v, k));
+        for (let i = end - 1, at = rows ?? rep.slot; i >= start && last < 0; i--) if (at[i] === SLOT_VALUE || visitRepeats(more, i)) last = i;
         if (isCompound && mark.kind === 'boxplot') {
           const medIdx = partIndex(mark, physical, k, 'median');
           const medRow = physical.frame.series[medIdx]?.row ?? null;
-          const include = (v: number) => {
-            if (log && !(v > 0)) return;
-            if (v < min) { min = v; minIdx = medIdx; }
-            if (v > max) { max = v; maxIdx = medIdx; }
-          };
           for (let i = start; i < end; i++) {
-            if (!rows || rows[i] === SLOT_VALUE) visitOutliers(mark.outliers, medRow, i, include);
+            if (!rows || rows[i] === SLOT_VALUE) visitOutliers(mark.outliers, medRow, i, v => include(v, medIdx));
           }
         }
         if (min < allMin) { allMin = min; allMinText = formatters.value(minIdx, min); }
@@ -173,7 +175,7 @@ export function createCartesianReader(stateRef: CartesianStateRef): ReaderParts 
             };
             lastText = mark.kind === 'boxplot' ? `median ${read('median')}` : intervalText(mark, read);
           } else {
-            lastText = formatters.value(k, rep.y[last]!);
+            lastText = (more && valuesText(rep, last, v => formatters.value(k, v))) ?? formatters.value(k, rep.y[last]!);
           }
           entries.push(fillSeriesSummary(messages.seriesSummary, rep.label, minText, maxText, lastText));
         } else {

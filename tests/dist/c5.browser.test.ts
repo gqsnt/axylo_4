@@ -5,9 +5,8 @@
  * N5 cases (second describe, own page and bundle; the sync cases above are unchanged): one legend entry per
  * range / error bar that hides the whole mark, the native boxplot (boxes, medians, whiskers, outliers) with
  * tooltip, keyboard, table and axe-core parity, the scatter layer on a log right axis, and malformed annotations
- * (AX150 / AX103) with strict rollback. The `scatter` and `boxplot` layer objects are runtime options: the public
- * `CartesianLayerOptions` type (cartesian.ts, owned by N6) does not list them yet, so the fixture passes them
- * untyped (`as never`) and claims no TypeScript support.
+ * (AX150 / AX103) with strict rollback. The `scatter` and `boxplot` layers are typed by the packed
+ * `CartesianLayerOptions`; the packed declarations are compiled strictly in subpaths.test.ts.
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,6 +17,7 @@ import { fixture, repo } from './paths';
 let server: Server;
 let scriptUrl: string;
 let n5Url: string;
+let w3Url: string;
 const axeSource = fs.readFileSync(path.join(repo, 'node_modules/axe-core/axe.min.js'), 'utf8');
 
 beforeAll(async () => {
@@ -120,7 +120,7 @@ beforeAll(async () => {
         layers: [
           { type: 'boxplot', min: 'whiskerLow', q1: 'q1', median: 'median', q3: 'q3', max: 'whiskerHigh', outliers: 'outliers', yAxis: 'v', label: 'Spread' },
           { type: 'scatter', y: 'mean', yAxis: 'v', label: 'Mean' },
-        ] as never,
+        ],
       });
 
       const sc = cartesian('#sc', {
@@ -131,7 +131,7 @@ beforeAll(async () => {
         layers: [
           { type: 'line', y: 'b', yAxis: 'l' },
           { type: 'scatter', y: 'a', yAxis: 'r', label: 'Points' },
-        ] as never,
+        ],
       });
 
       const ann = cartesian('#ann', {
@@ -148,6 +148,74 @@ beforeAll(async () => {
       bx.on('hover', p => { hovers.bx = p ? p.series : null; });
       sc.on('hover', p => { hovers.sc = p ? p.series : null; });
       (window as unknown as Record<string, unknown>).__n5 = { iv, bx, sc, ann, hovers };
+    `,
+  })).url;
+  w3Url = (await bundle({
+    name: 'c5-w3',
+    cwd: fixture('npm'),
+    format: 'esm',
+    conditions: ['production'],
+    contents: `
+      import { cartesian } from 'axylo/cartesian';
+
+      for (const id of ['rx', 'lone', 'loneErr', 'layer', 'nine']) {
+        const el = document.getElementById(id)!;
+        el.style.width = '640px';
+        el.style.height = '320px';
+      }
+      type Payload = { series: string; x: unknown; y: number | null; index: number; row: unknown } | null;
+      const events: Record<string, Payload[]> = { hover: [], select: [], layer: [] };
+      const keep = (p: Payload) => p && { series: p.series, x: p.x, y: p.y, index: p.index, row: p.row };
+
+      const rx = cartesian('#rx', {
+        title: 'Repeated x',
+        data: [{ x: 1, y: 2 }, { x: 1, y: 3 }, { x: 2, y: 4 }],
+        x: 'x',
+        axes: { v: { position: 'left', domain: [0, 5] } },
+        layers: [{ type: 'scatter', y: 'y', yAxis: 'v', label: 'Pts' }],
+      });
+      rx.on('hover', p => { if (p) events.hover!.push(keep(p)); });
+      rx.on('select', p => { events.select!.push(keep(p)); });
+
+      const lone = cartesian('#lone', {
+        title: 'Lone band',
+        data: [{ x: 1, lo: 10, hi: 30 }, { x: 2, lo: 20, hi: 40 }, { x: 3, lo: 15, hi: 35 }],
+        x: 'x',
+        axes: { v: { position: 'left' } },
+        layers: [{ type: 'range', low: 'lo', high: 'hi', yAxis: 'v', label: 'Band' }],
+      });
+
+      const loneErr = cartesian('#loneErr', {
+        title: 'Lone error bar',
+        data: [{ x: 1, m: 20, lo: 10, hi: 30 }, { x: 2, m: 30, lo: 20, hi: 40 }, { x: 3, m: 25, lo: 15, hi: 35 }],
+        x: 'x',
+        axes: { v: { position: 'left' } },
+        layers: [{ type: 'errorBar', y: 'm', low: 'lo', high: 'hi', yAxis: 'v', label: 'Spread' }],
+      });
+
+      const layer = cartesian('#layer', {
+        title: 'Layered',
+        data: [{ x: 1, b: 10, a: 80 }, { x: 2, b: 20, a: 80 }, { x: 3, b: 30, a: 80 }],
+        x: 'x',
+        axes: { v: { position: 'left', domain: [0, 100] } },
+        layers: [{ type: 'line', y: 'b', yAxis: 'v' }, { type: 'scatter', y: 'a', yAxis: 'v', label: 'Points' }],
+      });
+      layer.on('hover', p => { events.layer!.push(keep(p)); });
+
+      const lines = ['l1', 'l2', 'l3', 'l4', 'l5', 'l6', 'l7', 'l8'];
+      const nine = cartesian('#nine', {
+        title: 'Nine',
+        data: [1, 2, 3].map(x => ({ x, l1: x, l2: x + 1, l3: x + 2, l4: x + 3, l5: x + 4, l6: x + 5, l7: x + 6, l8: x + 7, lo: 20, hi: 80, m: x === 3 ? null : 50, elo: 20, ehi: 80 })),
+        x: 'x',
+        axes: { v: { position: 'left', domain: [0, 100] } },
+        layers: [
+          { type: 'line', y: 'l1', yAxis: 'v' }, ...lines.slice(1).map(f => ({ type: 'line' as const, y: f as 'l2', yAxis: 'v' as const })),
+          { type: 'range', low: 'lo', high: 'hi', yAxis: 'v', label: 'Band' },
+          // A tenth series: an error bar whose centre is missing at x = 3 while its bounds are there.
+          { type: 'errorBar', y: 'm', low: 'elo', high: 'ehi', yAxis: 'v', label: 'Err' },
+        ],
+      });
+      (window as unknown as Record<string, unknown>).__w3 = { rx, lone, loneErr, layer, nine, events };
     `,
   })).url;
 });
@@ -554,6 +622,171 @@ describe('N5 intervals, boxplot, scatter and annotation diagnostics in packed Ch
       expect(leftovers).toBe(0);
       expect(errors).toEqual([]);
       expect(server.reports.get('n5') ?? []).toEqual([]);
+    } finally {
+      await watched.context.close();
+    }
+  });
+});
+
+/**
+ * W3 integration seal in packed Chrome: repeated-x scatter points with their own hover and select payloads (spec
+ * F11, I3), a lone range's legend toggle by pointer and keyboard, same-x layered marks updating the hover event and
+ * the tooltip's anchor, and a ninth series' interval in a pinned tooltip's second page and the keyboard reading.
+ */
+describe('W3 integration: repeated-x scatter, lone interval legend, same-x layers, overflow intervals', () => {
+  it('hovers and selects each repeated-x point, toggles a lone band, follows same-x layers and reads 20 – 80 past eight rows', async () => {
+    server.pages.set('/w3.html', {
+      html: `<!doctype html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="/npm/node_modules/axylo/dist/axylo.css"></head><body><div id="rx"></div><div id="lone"></div><div id="loneErr"></div><div id="layer"></div><div id="nine"></div><script type="module" src="${w3Url}"></script></body></html>`,
+      headers: { 'content-security-policy': cspPolicy('w3') },
+    });
+    const watched = await open(server);
+    const { page, errors } = watched;
+    await page.goto(`${server.origin}/w3.html`);
+    type Events = Record<string, ({ series: string; x: unknown; y: number | null; index: number; row: unknown } | null)[]>;
+    const events = () => page.evaluate(() => (window as unknown as { __w3: { events: Events } }).__w3.events);
+    try {
+      for (const id of ['#rx', '#lone', '#loneErr', '#layer', '#nine']) await page.waitForSelector(`${id} .axylo-scene path`);
+
+      // ── Finding 4: three points, no AX108, each hovered and selected by its own row.
+      const rxCodes = await page.evaluate(() => (window as unknown as { __w3: { rx: { diagnostics: readonly { code: string }[] } } }).__w3.rx.diagnostics.map(d => d.code));
+      expect(rxCodes).not.toContain('AX108');
+      await expect.poll(async () => (await page.evaluate(painted, '#rx'))['0']?.markers ?? 0, { timeout: 5000 }).toBe(3);
+      // Left to right, then top to bottom: (1, 3), (1, 2), (2, 4) on screen; y = 3 is above y = 2.
+      const pts = (await page.evaluate(markerCentres, ['#rx', 0] as [string, number])).sort((p, q) => p.x - q.x || p.y - q.y);
+      expect(pts).toHaveLength(3);
+      expect(pts[0]!.x).toBeCloseTo(pts[1]!.x, 0);
+      const rxTipShown = page.locator('#rx .axylo-tooltip, #rx .axylo-readout').filter({ visible: true });
+      for (const [i, p] of pts.entries()) {
+        await page.mouse.move(p.x, p.y);
+        await expect.poll(async () => (await events()).hover!.length, { timeout: 5000 }).toBeGreaterThan(i);
+        await page.mouse.down();
+        await page.mouse.up();
+        // The click's select payload is observable: wait for it rather than for a fixed time.
+        await expect.poll(async () => (await events()).select!.length, { timeout: 5000 }).toBe(i + 1);
+        await page.keyboard.press('Escape');
+        await page.mouse.move(1, 1);
+        await expect.poll(() => rxTipShown.count(), { timeout: 5000 }).toBe(0);
+      }
+      const expected = [
+        { series: 'y', x: 1, y: 3, index: 1, row: { x: 1, y: 3 } },
+        { series: 'y', x: 1, y: 2, index: 0, row: { x: 1, y: 2 } },
+        { series: 'y', x: 2, y: 4, index: 2, row: { x: 2, y: 4 } },
+      ];
+      const got = await events();
+      // Each point's hover is the first event raised for it (later moves may raise it again before leaving).
+      const firsts = got.hover!.filter((e, i, all) => i === 0 || JSON.stringify(e) !== JSON.stringify(all[i - 1]));
+      expect(firsts).toEqual(expected);
+      expect(got.select).toEqual(expected);
+      const rxTip = page.locator('#rx .axylo-tooltip, #rx .axylo-readout').filter({ visible: true });
+      await page.mouse.move(pts[0]!.x, pts[0]!.y);
+      await expect.poll(async () => (await rxTip.count()) === 1 ? (await rxTip.textContent()) ?? '' : '', { timeout: 5000 }).toMatch(/Pts\s*3/);
+      await page.mouse.move(1, 1);
+
+      // ── Finding 2: one legend toggle for a lone range; pointer and keyboard hide and restore it.
+      const loneEntry = page.locator('#lone .axylo-legend-entry');
+      await expect.poll(() => loneEntry.count(), { timeout: 5000 }).toBe(1);
+      expect(await loneEntry.textContent()).toBe('Band');
+      await loneEntry.click();
+      await expect.poll(() => loneEntry.getAttribute('aria-pressed'), { timeout: 5000 }).toBe('false');
+      await expect.poll(async () => (await page.evaluate(painted, '#lone'))['0'] ?? null, { timeout: 5000 }).toBeNull();
+      // The last hidden series comes back from the same toggle.
+      await loneEntry.click();
+      await expect.poll(async () => (await page.evaluate(painted, '#lone'))['0']?.paths ?? 0, { timeout: 5000 }).toBeGreaterThan(0);
+      await loneEntry.focus();
+      await page.keyboard.press('Enter');
+      await expect.poll(() => loneEntry.getAttribute('aria-pressed'), { timeout: 5000 }).toBe('false');
+      await page.keyboard.press(' ');
+      await expect.poll(() => loneEntry.getAttribute('aria-pressed'), { timeout: 5000 }).toBe('true');
+      await expect.poll(async () => (await page.evaluate(painted, '#lone'))['0']?.paths ?? 0, { timeout: 5000 }).toBeGreaterThan(0);
+      // A lone error bar has the same toggle, by pointer and by keyboard (Enter and Space).
+      const errEntry = page.locator('#loneErr .axylo-legend-entry');
+      await expect.poll(() => errEntry.count(), { timeout: 5000 }).toBe(1);
+      expect(await errEntry.textContent()).toBe('Spread');
+      await errEntry.click();
+      await expect.poll(() => errEntry.getAttribute('aria-pressed'), { timeout: 5000 }).toBe('false');
+      await expect.poll(async () => (await page.evaluate(painted, '#loneErr'))['0'] ?? null, { timeout: 5000 }).toBeNull();
+      await errEntry.click();
+      await expect.poll(() => errEntry.getAttribute('aria-pressed'), { timeout: 5000 }).toBe('true');
+      await expect.poll(async () => (await page.evaluate(painted, '#loneErr'))['0']?.paths ?? 0, { timeout: 5000 }).toBeGreaterThan(0);
+      await errEntry.focus();
+      await page.keyboard.press('Enter');
+      await expect.poll(() => errEntry.getAttribute('aria-pressed'), { timeout: 5000 }).toBe('false');
+      await expect.poll(async () => (await page.evaluate(painted, '#loneErr'))['0'] ?? null, { timeout: 5000 }).toBeNull();
+      await page.keyboard.press(' ');
+      await expect.poll(() => errEntry.getAttribute('aria-pressed'), { timeout: 5000 }).toBe('true');
+      await expect.poll(async () => (await page.evaluate(painted, '#loneErr'))['0']?.paths ?? 0, { timeout: 5000 }).toBeGreaterThan(0);
+      // A lone line keeps no legend (the #layer chart has two series and so two entries; #rx has none).
+      expect(await page.locator('#rx .axylo-legend-entry').count()).toBe(0);
+
+      // ── Finding 3: at one x, moving from the scatter marker to the line vertex changes the hover and the anchor.
+      await page.locator('#layer').scrollIntoViewIfNeeded();
+      const scatter = (await page.evaluate(markerCentres, ['#layer', 1] as [string, number])).sort((p, q) => p.x - q.x);
+      expect(scatter).toHaveLength(3);
+      // The line's last value (b = 30 at x = 3) carries a marker: with the scatter's a = 80 it fixes the y scale, so
+      // b = 20 at x = 2 sits at y80 + (y30 - y80) * (80 - 20) / (80 - 30).
+      const lineEnd = await page.evaluate(markerCentres, ['#layer', 0] as [string, number]);
+      expect(lineEnd).toHaveLength(1);
+      const lineY = scatter[1]!.y + (lineEnd[0]!.y - scatter[2]!.y) * 1.2;
+      const tip = page.locator('#layer .axylo-tooltip').filter({ visible: true });
+      await page.mouse.move(scatter[1]!.x, scatter[1]!.y);
+      await expect.poll(async () => (await events()).layer!.at(-1)?.series ?? null, { timeout: 5000 }).toBe('a');
+      await expect.poll(() => tip.count(), { timeout: 5000 }).toBe(1);
+      const tipAtScatter = (await tip.boundingBox())!;
+      // Straight down at the same x: the pick moves to the line's vertex within its 12 px radius.
+      for (let y = scatter[1]!.y + 20; y <= lineY; y += 20) await page.mouse.move(scatter[1]!.x, y);
+      await page.mouse.move(scatter[1]!.x, lineY);
+      await expect.poll(async () => (await events()).layer!.at(-1)?.series ?? null, { timeout: 5000 }).toBe('b');
+      const layerEvents = (await events()).layer!.filter(Boolean);
+      expect(layerEvents.every(e => e!.x === 2)).toBe(true);
+      await expect.poll(async () => Math.round(((await tip.boundingBox())?.y ?? tipAtScatter.y) - tipAtScatter.y), { timeout: 5000 }).not.toBe(0);
+      // And back up: the scatter wins again.
+      await page.mouse.move(scatter[1]!.x, scatter[1]!.y);
+      await expect.poll(async () => (await events()).layer!.at(-1)?.series ?? null, { timeout: 5000 }).toBe('a');
+      await page.mouse.move(1, 1);
+
+      // ── Finding 5: the ninth series (a range) reads 20 – 80, and the tenth (an error bar with no centre at x = 3)
+      // "No data (20 – 80)", on the pinned tooltip's later pages and by keyboard.
+      await page.locator('#nine').scrollIntoViewIfNeeded();
+      // l1's last value marker (x = 3): a line vertex there picks x = 3, where every series but the error bar's centre has a value.
+      const nineEnd = await page.evaluate(markerCentres, ['#nine', 0] as [string, number]);
+      expect(nineEnd).toHaveLength(1);
+      await page.mouse.move(nineEnd[0]!.x, nineEnd[0]!.y);
+      await page.mouse.down();
+      await page.mouse.up();
+      const more = page.locator('#nine .axylo-tooltip button.axylo-tooltip-more');
+      const nineTip = page.locator('#nine .axylo-tooltip').filter({ visible: true });
+      await expect.poll(() => more.count(), { timeout: 5000 }).toBe(1);
+      // However many rows a page fits, paging on reaches every series: gather each page's text until both
+      // intervals have been seen (or a bounded number of pages, as ten series need at most ten).
+      const band = /Band\s*20 – 80/, err = /Err\s*No data \(20 – 80\)/;
+      let seen = (await nineTip.textContent()) ?? '';
+      for (let k = 0; k < 10 && !(band.test(seen) && err.test(seen)) && (await more.count()) === 1; k++) {
+        expect((await more.textContent()) ?? '').toMatch(/^\+\d+ more$/);
+        const before = (await nineTip.textContent()) ?? '';
+        await more.click();
+        await expect.poll(async () => (await nineTip.textContent()) ?? '', { timeout: 5000 }).not.toBe(before);
+        seen += ' ' + ((await nineTip.textContent()) ?? '');
+      }
+      expect(seen).toMatch(band);
+      expect(seen).toMatch(err);
+      await page.keyboard.press('Escape');
+      await page.mouse.move(1, 1);
+      const nineProxy = page.locator('#nine .axylo-proxy');
+      await nineProxy.focus();
+      await page.keyboard.press('Home');
+      await expect.poll(async () => (await nineProxy.getAttribute('aria-valuetext')) ?? '', { timeout: 5000 }).toContain('Band 20 – 80');
+      // x = 3, where the error bar has no centre: the keyboard reading keeps its bounds.
+      await page.keyboard.press('End');
+      await expect.poll(async () => (await nineProxy.getAttribute('aria-valuetext')) ?? '', { timeout: 5000 }).toContain('Err No data (20 – 80)');
+
+      const leftovers = await page.evaluate(() => {
+        const charts = (window as unknown as { __w3: Record<'rx' | 'lone' | 'loneErr' | 'layer' | 'nine', { destroy(): void }> }).__w3;
+        for (const id of ['rx', 'lone', 'loneErr', 'layer', 'nine'] as const) charts[id].destroy();
+        return ['rx', 'lone', 'loneErr', 'layer', 'nine'].reduce((n, id) => n + document.getElementById(id)!.childNodes.length, 0);
+      });
+      expect(leftovers).toBe(0);
+      expect(errors).toEqual([]);
+      expect(server.reports.get('w3') ?? []).toEqual([]);
     } finally {
       await watched.context.close();
     }

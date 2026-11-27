@@ -49,7 +49,7 @@ export function collectControlInputs(d: ControlsState, out: unknown[], tableOpen
     if (d.zoomed) controls |= RESET | (now[0] > full[0] ? LEFT : 0) | (now[1] < full[1] ? RIGHT : 0);
   }
   if (showsSlices(d)) out.push(view, d.formatters, d.ready, d.english('noData'));
-  else if (view.kind !== 'donut' && d.ready && d.legend && !d.tooSmall && view.frame.series.length > 1) {
+  else if (view.kind !== 'donut' && d.ready && d.legend && !d.tooSmall && (view.frame.series.length > 1 || swatch.legendForOne?.(view))) {
     controls |= SERIES;
     const { series } = view.frame;
     for (let i = 0; i < series.length; i++) {
