@@ -7,6 +7,7 @@
 import type { CommonOptions, Diagnostic, Target, ValueField, XField, XValue } from './public.js';
 import type { StaticChart } from './static.js';
 import { createStaticChart } from './core/chart';
+import { forwardSync } from './core/peer';
 import type { Composition } from './core/composition';
 import type { Layout } from './core/contracts';
 import { createTimeReadout } from './format/time';
@@ -187,6 +188,8 @@ export function cartesian<Row, const Axes extends AxesRecord>(
       inner.destroy();
     },
   };
+  // axylo/sync reaches the chart through the inner handle's seam (core/peer.ts).
+  forwardSync(handle, inner);
   // The benchmark and test hook (core/instrument.ts) lives on the inner handle; a production build drops this.
   if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) {
     const hook = (inner as { __bench?: { describe?: () => unknown } }).__bench;

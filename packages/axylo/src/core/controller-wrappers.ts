@@ -4,6 +4,7 @@ import type { ThemeResolution } from '../theme';
 import type { Span } from './stages';
 import type { ChartHandle, Probe, StageCounter } from './instrument';
 import type { ControllerActions, ControllerCore, Host, Invalidate, Size } from './controller-types';
+import { SYNC, type SyncResolve } from './peer';
 import { pointForDatum, positionValue, themeKeys } from './controller-helpers';
 
 /**
@@ -13,13 +14,15 @@ import { pointForDatum, positionValue, themeKeys } from './controller-helpers';
 export class DeadHost implements Host {
   readonly console = null;
   readonly timeZone = 'UTC';
-  constructor(readonly id: string, readonly kind: Host['renderer']['kind']) {}
-  get page(): object { return this; }
-  get renderer(): Host['renderer'] { return this; }
-  get text(): Host['text'] { return this; }
-  get figure(): Host['figure'] { return this; }
-  get interaction(): Host['interaction'] { return this; }
-  get measurer(): TextMeasurer { return this; }
+  readonly page: object;
+  readonly renderer: Host['renderer'];
+  readonly text: Host['text'];
+  readonly figure: Host['figure'];
+  readonly interaction: Host['interaction'];
+  readonly measurer: TextMeasurer;
+  constructor(readonly id: string, readonly kind: Host['renderer']['kind']) {
+    this.page = this.renderer = this.text = this.figure = this.interaction = this.measurer = this;
+  }
   draw(): void {}
   render(): void {}
   update(): boolean { return false; }
@@ -52,25 +55,36 @@ function own<T>(handle: object, key: string, value: T): T {
  */
 export class Handle implements ChartHandle {
   readonly #c: ControllerCore;
-  constructor(c: ControllerCore) { this.#c = c; }
+  constructor(c: ControllerCore) {
+    this.#c = c;
+    // Encapsulated capability for axylo/sync (core/peer.ts), not enumerable. On the instance: a computed class
+    // key would be work done at import time, and a bare import must bundle to nothing.
+    Object.defineProperty(this, SYNC, {
+      value: {
+        get drawn() { return c.drawn; },
+        sync(resolve: SyncResolve | null, origin: object) { c.host.interaction.sync?.(resolve, origin); },
+        point(ref: DatumRef) { return c.drawn && pointForDatum(c.drawn, ref); },
+        onDestroy(fn: () => void) {
+          if (c.destroyed) return () => {};
+          const set = c.disposers ??= new Set();
+          set.add(fn);
+          return () => { set.delete(fn); };
+        },
+      },
+    });
+  }
   get update(): (patch: unknown) => void {
-    const c = this.#c;
-    const fn = (patch: unknown): void => { c.update(patch); };
-    return own(this, 'update', fn);
+    return own(this, 'update', (patch: unknown): void => { this.#c.update(patch); });
   }
   get append(): (rows: unknown, options?: { keep?: number }) => void {
-    const c = this.#c;
-    const fn = (rows: unknown, options?: { keep?: number }): void => { c.append(rows, options); };
-    return own(this, 'append', fn);
+    return own(this, 'append', (rows: unknown, options?: { keep?: number }): void => { this.#c.append(rows, options); });
   }
   get zoom(): (domain: unknown) => void {
-    const c = this.#c;
-    const fn = (domain: unknown): void => { c.zoom(domain); };
-    return own(this, 'zoom', fn);
+    return own(this, 'zoom', (domain: unknown): void => { this.#c.zoom(domain); });
   }
   get on(): <E extends keyof ChartEvents<unknown>>(event: E, listener: (payload: ChartEvents<unknown>[E]) => void) => () => void {
     const c = this.#c;
-    const fn = <E extends keyof ChartEvents<unknown>>(event: E, listener: (payload: ChartEvents<unknown>[E]) => void): () => void => {
+    return own(this, 'on', <E extends keyof ChartEvents<unknown>>(event: E, listener: (payload: ChartEvents<unknown>[E]) => void): () => void => {
       if (c.destroyed) return () => {};
       const map = c.listeners ??= new Map();
       let set = map.get(event);
@@ -78,27 +92,27 @@ export class Handle implements ChartHandle {
       set.add(listener as (payload: never) => void);
       // Resolved through the chart's map, which destroy clears and nulls: a kept unsubscribe holds no one else.
       return () => { c.listeners?.get(event)?.delete(listener as (payload: never) => void); };
-    };
-    return own(this, 'on', fn);
+    });
   }
   get diagnostics(): Diagnostic[] {
     const c = this.#c;
     return c.publicDiagnostics(c.diagnosticInputs());
   }
   get destroy(): () => void {
-    const c = this.#c;
-    const fn = (): void => { c.destroy(); };
-    return own(this, 'destroy', fn);
+    return own(this, 'destroy', (): void => { this.#c.destroy(); });
   }
 }
 
-/** What the interaction layer may ask of one chart; everything goes through the public paths. */
+/**
+ * What the interaction layer may ask of one chart; everything goes through the public paths. Destroy nulls the
+ * accepted and drawn state and the listeners, so those checks also stop a destroyed chart.
+ */
 export class ChartActions implements ControllerActions {
   constructor(private readonly c: ControllerCore) {}
   zoom(window: Span | null): void {
     const c = this.c;
     const a = c.accepted;
-    if (!a || c.destroyed) return;
+    if (!a) return;
     c.zoom(window === null ? null : [positionValue(a.frame, window[0]), positionValue(a.frame, window[1])]);
   }
   toggle(seriesKey: string): void { this.c.toggleSeries(seriesKey); }
@@ -106,32 +120,32 @@ export class ChartActions implements ControllerActions {
   select(ref: DatumRef): void {
     const c = this.c;
     const d = c.drawn;
-    const point = d && !c.destroyed ? pointForDatum(d, ref) : null;
+    const point = d && pointForDatum(d, ref);
     if (point) c.emit('select', point);
   }
   hover(ref: DatumRef | null): void {
     const c = this.c;
     const d = c.drawn;
-    if (c.destroyed) return;
     // Nothing is built for a pointer move nobody listens to.
     if (!c.listeners?.get('hover')?.size) return;
     c.emit('hover', d && ref ? pointForDatum(d, ref) : null);
   }
 }
 
-/** What the page tells one chart (observers, watchers). */
+/**
+ * What the page tells one chart (observers, watchers). A destroyed chart schedules no frame (schedule checks),
+ * holds no accepted state and has a dead host, so what these set on it is never read.
+ */
 export class ChartInvalidate implements Invalidate {
   constructor(private readonly c: ControllerCore) {}
   resize(): void {
     const c = this.c;
-    if (c.destroyed) return;
     // Responsive CSS can change the font or spacing with the size (plan 2.2), and the strip's height (R11).
     c.dirtyTextAndStrip(true);
     c.schedule();
   }
   page(): void {
     const c = this.c;
-    if (c.destroyed) return;
     // Back in the document: anything the page could have changed meanwhile is read again, the pixel ratio
     // and web fonts included (review 3, finding 19).
     c.themeDirty = true;
@@ -142,7 +156,6 @@ export class ChartInvalidate implements Invalidate {
   }
   theme(): void {
     const c = this.c;
-    if (c.destroyed) return;
     c.themeDirty = true;
     c.dirtyTextAndStrip(false);
     // The colours are resolved and written now, in the observer's callback, so the marks show the new
@@ -166,14 +179,12 @@ export class ChartInvalidate implements Invalidate {
   language(): void { this.c.schedule(); }
   fonts(): void {
     const c = this.c;
-    if (c.destroyed) return;
     c.fontEpoch++;
     c.dirtyTextAndStrip(true);
     c.schedule();
   }
   pixelRatio(): void {
     const c = this.c;
-    if (c.destroyed) return;
     c.pixelRatio = c.host.devicePixelRatio();
     c.textStyleDirty = true;
     c.schedule();

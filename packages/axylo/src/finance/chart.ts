@@ -6,6 +6,7 @@ import type { ChartHandle } from '../core/instrument';
 import type { Composition } from '../core/composition';
 import type { ControllerCore } from '../core/controller-types';
 import { StrictError } from '../core/delivery';
+import { forwardSync } from '../core/peer';
 import { applyPatch, type OptionRecord } from '../core/options';
 import type { Diagnostic } from '../public';
 import type { DataEnvironment } from '../data/normalize';
@@ -240,7 +241,7 @@ export function openFinanceChart(
     if (failed) throw failure;
   };
 
-  return {
+  const handle: FinanceHandle = {
     update(patch) {
       if (deciding) {
         waiting.push(patch);
@@ -279,4 +280,7 @@ export function openFinanceChart(
     get diagnostics() { return inner.diagnostics; },
     destroy() { destroyed = true; waiting.length = 0; inner.destroy(); },
   };
+  // axylo/sync reaches the chart through the inner handle's seam (core/peer.ts).
+  forwardSync(handle, inner);
+  return handle;
 }

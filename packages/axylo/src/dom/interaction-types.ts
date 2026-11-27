@@ -4,6 +4,7 @@
  * through core/axes).
  */
 import type { DatumRef, Formatters, Layout, Lookup, PaintBindings, ReaderModel, ResolvedTheme, StepDirection, View } from '../core/contracts';
+import type { SyncResolve } from '../core/peer';
 import type { Messages } from '../public';
 import type { TargetMarks } from '../core/focus';
 import type { SwatchSpec } from './swatch';
@@ -59,6 +60,12 @@ export interface Interaction {
   attach(): void;
   detach(): void;
   destroy(): void;
+  /**
+   * A peer's cursor (`axylo/sync`): drawn like a hover but passive. It never raises hover, takes focus, writes
+   * the value text or announces, and the chart's own pointer, keyboard, hold and pin always win over it. A null
+   * target clears it only for the origin that showed it.
+   */
+  sync?(resolve: SyncResolve | null, origin: object): void;
 }
 
 /** The messages that make up the plot's instructions rather than a control's label. */

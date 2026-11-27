@@ -16,6 +16,7 @@
  * not by polling.
  */
 import type { DatumRef, MarkRenderer, PlacedText, TextMeasurer, TextStyle } from './contracts';
+import type { SyncResolve } from './peer';
 import { svgRendererWith } from '../render/svg';
 import { createTextLayer, type TextLayer } from '../render/text';
 import { ensureStyles, resolveTheme, watchTheme, type ThemeResolution } from '../theme';
@@ -230,6 +231,8 @@ class LazyInteraction implements Interaction {
   prepare(state: ControlsState): boolean { return !state.interactive && !this.#real ? false : this.#ensure().prepare(state); }
   commit(state: Committed | null): void { if ((state && state.interactive) || this.#real) this.#ensure().commit(state); }
   clear(): void { this.#real?.clear(); }
+  // A compact chart shows no cursor of its own, so none of a peer's either until it is made full.
+  sync(resolve: SyncResolve | null, origin: object): void { this.#real?.sync?.(resolve, origin); }
   attach(): void { this.attached = true; this.#real?.attach(); }
   detach(): void { this.attached = false; this.#real?.detach(); }
   destroy(): void { this.#real?.destroy(); this.#real = null; }
@@ -372,25 +375,22 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
   #release(): void {
     for (let step = this.#built; step > 0; step = this.#built) {
       this.#built = step - 1;
-      try { this.#undo(step); } catch { /* keep releasing */ }
-    }
-  }
-
-  #undo(step: number): void {
-    switch (step) {
-      case STEP_GEOMETRY: {
-        this.#disposed = true;
-        if (this.#switchFrame !== 0) { const frame = this.#switchFrame; this.#switchFrame = 0; this.#win.cancelAnimationFrame(frame); }
-        this.#stopDetached();
-        this.#leaveShared();
-        return;
-      }
-      case STEP_PROBE: this.#disposed = true; this.#stopProbe(); return;
-      case STEP_WATCHERS: this.#unwatch(); return;
-      case STEP_INTERACTION: this.interaction.destroy(); return;
-      case STEP_FIGURE: this.#parts.destroy(); return;
-      case STEP_TEXT: this.#textLayer?.destroy(); this.#textLayer = null; return;
-      case STEP_RENDERER: this.renderer.destroy(); return;
+      try {
+        switch (step) {
+          case STEP_GEOMETRY:
+            this.#disposed = true;
+            if (this.#switchFrame !== 0) { const frame = this.#switchFrame; this.#switchFrame = 0; this.#win.cancelAnimationFrame(frame); }
+            this.#stopDetached();
+            this.#leaveShared();
+            break;
+          case STEP_PROBE: this.#disposed = true; this.#stopProbe(); break;
+          case STEP_WATCHERS: this.#unwatch(); break;
+          case STEP_INTERACTION: this.interaction.destroy(); break;
+          case STEP_FIGURE: this.#parts.destroy(); break;
+          case STEP_TEXT: this.#textLayer?.destroy(); this.#textLayer = null; break;
+          case STEP_RENDERER: this.renderer.destroy(); break;
+        }
+      } catch { /* keep releasing */ }
     }
   }
 
@@ -558,21 +558,17 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
     geometry?.release();
   }
 
-  #onDetachedResize(): void {
-    const controller = this.controller;
-    if (!controller || !this.#root.isConnected) return;
-    // Back in the document: drawn again now, and observed on the shared observer from the next frame. The
-    // local observer stays until the watchers and the shared registration are both in place: a watcher that
-    // throws here leaves it to report the next resize, which tries again.
-    this.#watch();
-    controller.invalidate.resize();
-    this.#scheduleSwitch();
-  }
-
   /** Only charts out of the document have this observer and its callback. */
   #startDetached(): void {
     if (this.#detachedObserver || this.#disposed) return;
-    const observer = this.#detachedObserver = new this.#win.ResizeObserver(() => this.#onDetachedResize());
+    const observer = this.#detachedObserver = new this.#win.ResizeObserver(() => {
+      const controller = this.controller;
+      if (!controller || !this.#root.isConnected) return;
+      // Back in the document: drawn again now, and observed on the shared observer from the next frame.
+      this.#watch();
+      controller.invalidate.resize();
+      this.#scheduleSwitch();
+    });
     for (const target of this.#geometryTargets) observer.observe(target);
   }
 
@@ -582,27 +578,21 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
     observer?.disconnect();
   }
 
-  #settleSwitch(): void {
-    this.#switchFrame = 0;
-    if (this.#disposed || !this.controller) return;
-    if (this.#root.isConnected) {
-      // Not watching yet (a watcher threw when the chart came back): the local observer's next delivery
-      // sets the watchers up first.
-      if (this.#detachedObserver && !this.#watching) return;
-      // A shared registration that fails leaves the local observer in place.
-      this.#joinShared();
-      this.#stopDetached();
-      this.#observeProbe();
-    } else {
-      // Out again since the last delivery: nothing of the document may keep holding the chart.
-      this.#stopAttached();
-      this.#startDetached();
-    }
-  }
-
   /** Attachment changes are rare: the frame callback is made for each switch. */
   #scheduleSwitch(): void {
-    if (this.#switchFrame === 0 && !this.#disposed) this.#switchFrame = this.#win.requestAnimationFrame(() => this.#settleSwitch());
+    if (this.#switchFrame === 0 && !this.#disposed) this.#switchFrame = this.#win.requestAnimationFrame(() => {
+      this.#switchFrame = 0;
+      if (this.#disposed || !this.controller) return;
+      if (this.#root.isConnected) {
+        if (this.#detachedObserver && !this.#watching) return;
+        this.#joinShared();
+        this.#stopDetached();
+        this.#observeProbe();
+      } else {
+        this.#stopAttached();
+        this.#startDetached();
+      }
+    });
   }
 
   // ── frames ────────────────────────────────────────────────────────────────────────────────────
@@ -779,21 +769,23 @@ class BrowserHost implements Host, ScheduledEntry, GeometryListener, FontProbeLi
   }
 }
 
-export function createChart(composition: Composition, target: unknown, input: unknown, overrides: ChartEnvironmentOverrides = {}): ChartHandle {
+function openChart(
+  composition: Composition, target: unknown, input: unknown, overrides: ChartEnvironmentOverrides, make: typeof controllerFor,
+): ChartHandle {
   const root = resolveTarget(target);
   const doc = root.ownerDocument;
   const win = doc.defaultView;
   if (win === null) throw new Error('Axylo: the target element is not in a document with a window.');
-  return new BrowserHost(composition, root, doc, win, input, overrides, controllerFor).controller!.handle;
+  return new BrowserHost(composition, root, doc, win, input, overrides, make).controller!.handle;
+}
+
+export function createChart(composition: Composition, target: unknown, input: unknown, overrides: ChartEnvironmentOverrides = {}): ChartHandle {
+  return openChart(composition, target, input, overrides, controllerFor);
 }
 
 /** `createChart` for `axylo/static`: the same host, a controller without streaming (no stores bundled). */
 export function createStaticChart(composition: Composition, target: unknown, input: unknown, overrides: ChartEnvironmentOverrides = {}): ChartHandle {
-  const root = resolveTarget(target);
-  const doc = root.ownerDocument;
-  const win = doc.defaultView;
-  if (win === null) throw new Error('Axylo: the target element is not in a document with a window.');
-  return new BrowserHost(composition, root, doc, win, input, overrides, staticControllerFor).controller!.handle;
+  return openChart(composition, target, input, overrides, staticControllerFor);
 }
 
 function resolveTarget(target: unknown): HTMLElement {

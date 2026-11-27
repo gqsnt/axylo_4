@@ -13,6 +13,7 @@ import type { ChartHandle, StageCounter } from './instrument';
 import type { DeliveryConsole } from './delivery';
 import type { OptionRecord } from './options';
 import type { Span } from './stages';
+import type { SyncResolve } from './peer';
 
 export type ChartKind = ChartType;
 
@@ -42,7 +43,11 @@ export interface Host {
   readonly renderer: Pick<MarkRenderer, 'kind' | 'draw'>;
   readonly text: { render(texts: readonly PlacedText[]): void };
   readonly figure: { update(model: FigureModel): boolean; announce(text: string, lang?: string | null): void };
-  readonly interaction: { prepare(state: ControlsState): boolean; commit(state: Committed | null): void; clear(): void };
+  readonly interaction: {
+    prepare(state: ControlsState): boolean; commit(state: Committed | null): void; clear(): void;
+    /** A peer's cursor resolver from `axylo/sync` (core/peer.ts); absent where nothing can show one. */
+    sync?(resolve: SyncResolve | null, origin: object): void;
+  };
   readonly measurer: TextMeasurer;
   /** The callback gets the animation frame's time when the host has one. */
   requestFrame(callback: (time?: number) => void): number;
@@ -276,6 +281,7 @@ export interface ControllerCore {
   readonly theme: { bindings: PaintBindings; theme: ResolvedTheme } | null;
   fontEpoch: number;
   listeners: Map<keyof ChartEvents<unknown>, Set<(payload: never) => void>> | null;
+  disposers: Set<() => void> | null;
   pixelRatio: number;
   textStyleDirty: boolean;
   themeDirty: boolean;
