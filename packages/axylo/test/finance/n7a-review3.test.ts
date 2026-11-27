@@ -18,7 +18,9 @@ import { parseFinanceInput } from '../../src/finance/core';
 import { financeLayout, financePanes, volumeTicks, VolumeTickFailures, type FinancePanes } from '../../src/finance/layout';
 import { createNumberTickLabeler } from '../../src/format';
 import { stage, type Staged } from './fixtures';
-import { record, type Recording } from './host';
+import type { Composition } from '../../src/core/composition';
+import { rowsTable, sameTableData } from '../../src/data/table';
+import { record, resolvedTable, type Recording } from './host';
 
 const THREE = [
   { day: '2026-01-01', o: 100, h: 112, l: 98, c: 110, v: 5000 },
@@ -311,12 +313,17 @@ describe('review 3, blocker 2: format options are snapshotted at submission', ()
     const data = THREE.slice();
     const fn = (v: number) => `${v} sh`;
     let received: Record<string, unknown> | null = null;
+    let used: Composition | null = null;
     const rec = record();
     openFinanceChart({ title: 'Borrowed', data, ...FIELDS, volumeAxis: { format: fn } }, (composition, translated) => {
       received = translated;
+      used = composition;
       return controllerFor(composition, translated, rec.host).handle;
     });
-    expect(received!.data).toBe(data);
+    // The controller holds the wrapper's data holder; what resolution reads is the caller's own array and rows.
+    const table = resolvedTable(used!, received!);
+    expect(sameTableData(table, rowsTable(data))).toBe(true);
+    expect(table.rowAt(0)).toBe(data[0]);
     const volumeSpec = (received!.y as Record<string, unknown>[]).find(s => s.field === 'v')!;
     expect(volumeSpec.format).toBe(fn);
   });

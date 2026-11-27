@@ -11,7 +11,9 @@ import type { Layout, Scene } from '../../src/core/contracts';
 import { controllerFor } from '../../src/core/controller';
 import { StrictError } from '../../src/core/delivery';
 import { openFinanceChart, type FinanceHandle } from '../../src/finance/chart';
-import { record, type Recording } from './host';
+import type { Composition } from '../../src/core/composition';
+import { rowsTable, sameTableData } from '../../src/data/table';
+import { record, resolvedTable, type Recording } from './host';
 
 const THREE = [
   { day: '2026-01-01', o: 100, h: 112, l: 98, c: 110, v: 5000 },
@@ -129,8 +131,12 @@ describe('review 4: explicit undefined resets reach the controller', () => {
     // Watch what the wrapper sends: the reset legend is the finance default, and the relay stays the same function.
     const rec2 = record();
     let first: unknown = null;
+    let firstData: unknown = null;
+    let used: Composition | null = null;
     const watched = openFinanceChart({ title: 'Legend', data: THREE, ...FIELDS, legend: true, onDiagnostic }, (composition, translated) => {
       first = translated.onDiagnostic;
+      firstData = translated.data;
+      used = composition;
       const handle = controllerFor(composition, translated, rec2.host).handle;
       return {
         update(patch) { sent.push({ ...(patch as Record<string, unknown>) }); handle.update(patch); },
@@ -143,7 +149,11 @@ describe('review 4: explicit undefined resets reach the controller', () => {
     watched.update({ legend: undefined });
     expect(sent[0]!.legend).toBe(false);
     expect(sent[0]!.onDiagnostic).toBe(first);
-    expect(sent[0]!.data).toBe(THREE);
+    // The data is unchanged: the controller is given the holder it accepted, which resolves to the caller's rows.
+    expect(sent[0]!.data).toBe(firstData);
+    const table = resolvedTable(used!, sent[0]!);
+    expect(sameTableData(table, rowsTable(THREE))).toBe(true);
+    expect(table.rowAt(0)).toBe(THREE[0]);
     watched.destroy();
     expect(() => chart.update({ legend: undefined })).not.toThrow();
     rec.frames();

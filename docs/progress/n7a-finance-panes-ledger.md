@@ -22,6 +22,9 @@ Files created or changed. A `find -newermt` over the workspace (excluding `node_
 | `packages/axylo/test/finance/host.ts` (new) | Hardening round: replaced the 207-line copy of `test/core/host.ts` with a ~70-line purpose-built host (frame queue, recorded draws and commits) that still drives the real `controllerFor`. |
 | `packages/axylo/test/finance/fixtures.ts` (new, hardening) | The fixture rows, `stage()` over the pure stages, geometry readers and the minimal fake SVG document, shared by both N7a test files (moved out of `n7a-panes.test.ts`). |
 | `packages/axylo/test/finance/n7a-hardening.test.ts` (new, hardening) | 13 tests for the hardening findings (see "Hardening round"), including a Node mirror of the Chrome suite's `#flagged` fixture through the real controller. |
+| `packages/axylo/test/finance/n7a-ax199.test.ts` (new, Repair 6) | 9 real-controller regressions for the two AX199 blockers (see "Repair 6"). |
+| `packages/axylo/test/finance/n7a-preview-boundary.test.ts` (new, Repair 7) | 8 `staticControllerFor` recording-host regressions for the preview-order blocker and the data holder (see "Repair 7"). |
+| `packages/axylo/test/finance/host.ts`, `n7a-resets.test.ts`, `n7a-review3.test.ts` (Repair 7) | `resolvedTable()` helper; two borrowed-identity assertions moved from the controller patch to the resolver boundary (see "Repair 7"). |
 | `tests/dist/finance.browser.test.ts` | Rewritten as a real-Chrome suite under the packed strict-CSP harness (**not run here**). |
 | `docs/progress/n7a-finance-panes-ledger.md` | This file. |
 
@@ -698,3 +701,166 @@ so the controller kept `strict: true` and `reference`.
 ### Not run here
 - Chrome, axe-core, `test:browser`, `test:dist` and `npm run size` (which packs): Director gate.
 - The full Node suite was not rerun in this repair.
+
+## Repair 6 — the two AX199 blockers of the 4th cross-provider review (sol-6.2-medium, `finance/chart.ts:148`)
+
+### Blockers
+1. **Resets lost through AX199 recovery.** Starting from `strict: true` plus a visible `reference`,
+   `update({ strict: undefined, reference: undefined, data: rowsWithThrowingXGetter })` is reported as AX199 by
+   the controller and returns normally (the call is not strict, because its own `strict` is reset). The controller
+   keeps its previous options, but the wrapper advanced `acceptedRaw` / `acceptedTranslated` / `acceptedMeta` /
+   `acceptedIssues` because `inner.update()` returned. A retry of both resets therefore sent neither reset: with one
+   invalid candle it threw a strict AX180; with valid rows it still drew the old reference.
+2. **Row reads outside the controller's boundary.** The wrapper merged each patch with core `applyPatch`, which
+   compares old and new values structurally to compute `changed`. For two `data` arrays of the same length that
+   walks the rows, so a throwing row getter escaped `chart.update()` as a plain `Error`, with no AX199.
+
+### Fix (`packages/axylo/src/finance/chart.ts` only)
+- `mergeRaw(accepted, patch)` replaces `applyPatch(acceptedRaw, patch).next`. When the accepted options hold
+  `data`, the base handed to core `applyPatch` has an own `data: undefined` placeholder at the same key position.
+  A submitted value replaces it (borrowed, never compared, because `sameValue(undefined, x)` is false without
+  reading `x`). An explicit `undefined` deletes the key (it is own in the base). An omitted key keeps the
+  placeholder, which is then given back the accepted borrowed value. Each submitted patch getter is still read once.
+  Small options are still snapshotted by core `applyPatch`. The only row comparison left is the controller's own,
+  inside its `#guarded` boundary.
+- Acceptance comes from the controller itself. `createFinanceComposition` takes an optional `seen(env)` that its
+  `normalize` calls before any row is read. The chart controller passes itself as the `DataEnvironment`, so the
+  wrapper keeps the first env that has an `accepted` accessor (`ControllerCore.accepted`, an unconditional public
+  getter, present in the production `finance.js` as `get accepted(){return this.#r}`). Around each
+  `inner.update()` the wrapper reads `accepted?.options` before and after. The four snapshots advance only when
+  the record after the call exists and is a different record. The controller builds a new options record on
+  every accepted update (`OptionsStore.preview` → `applyPatch` → a fresh object), and a view-only zoom keeps the
+  record, so a bare revision counter is not used. None of this depends on `onDiagnostic` timing or deduplication,
+  `__DEV__` or `__BENCH__`.
+- Edge cases: before the first normalization (a create that failed while resolving) no controller is known.
+  `accepted` is then `undefined`, so nothing advances, and the controller's store still holds the create options,
+  which the wrapper's snapshots match. A destroyed controller has `accepted === null`, so nothing advances.
+  Repeated failed calls change nothing. A strict rejection still throws before the check, as before. Relays,
+  held/queued findings, queued updates and getter re-entrancy are unchanged: the check sits inside the same `try`
+  and `release(call)` still runs for every call.
+
+### Tests: new `packages/axylo/test/finance/n7a-ax199.test.ts` (9 tests, real `controllerFor` on the recording host)
+Fixtures: `THREE` (accepted, 3 rows), `BAD_OHLC` and `VALID_FOUR` (4 rows each, the retries). A throwing x getter
+is an enumerable object-literal `get day()`. Blocker 1 uses a **changed-length** failing payload (5+ rows,
+`VALID_FOUR` plus throwing rows, a different length for each failing call in one test). That way no element-wise
+comparison is reached on the way, and the getter is first read by the controller's normalization. Blocker 2 uses a
+**same-length** payload (3 rows, the first one throwing), which reached the wrapper's comparison on the parent.
+- Blocker 1, fresh chart per branch:
+  1. failed resets (reported AX199, normal return), then the retry of both resets with `BAD_OHLC`: returns, AX180
+     reported, AX199 gone, 4 rows;
+  2. failed resets, then the retry with `VALID_FOUR`: 4 rows, no view references, no dashed reference mark, and a
+     later `update({ data: BAD_OHLC })` is accepted (strict stayed reset);
+  3. two failed reset calls plus one strict-rejected (AX199) call without resets, then the readable retry carries both resets;
+  4. a create that fails before normalization (`data` whose `columns` getter throws, a class instance so it is
+     never compared structurally), a second such call with `reference: undefined`, then
+     `update({ reference: undefined, data: THREE })`: AX199 gone, 3 rows, no reference;
+  5. a failed call, then a view-only `zoom(null)`, then the retry: AX180 is accepted and the reference is gone;
+  6. a destroyed chart ignores updates (no throw).
+- Blocker 2:
+  7. strict: same-length replacement throws `StrictError` with AX199; 3 rows kept; still strict (AX180 rejected);
+  8. non-strict: AX199 reported, normal return; a readable retry clears AX199 and shows 4 rows;
+  9. a replacement through a patch getter is read once and drawn; an omitted `data` keeps it; `data: undefined` clears it.
+
+### Evidence (ran and saw, in this worker)
+- Parent check: the two behavioral edits were reversed in place (`mergeRaw` → `applyPatch(acceptedRaw, patch).next`;
+  the acceptance check → unconditional), the new file was run, and the fix was restored (`cmp` clean):
+  `Tests  7 failed | 2 passed (9)`. Each failure has the intended reason:
+  1 → `expected [ 'AX180' ] to deeply equal []` (strict AX180 on retry); 2 → reference count `expected 1 to be +0`;
+  3 → the second failed reset call strictly rejected (AX199), because its `strict` reset was never re-sent;
+  4 → `expected 1 to be +0` (old reference kept); 5 → strict `AX180` on the retry;
+  7 → `expected Error: x getter failed to be an instance of StrictError`; 8 → `expected Error: x getter failed to be null`.
+  Tests 6 and 9 pass on the parent: they guard the new code path (destroyed handle; borrowed/omitted/explicit-undefined `data`).
+- `npm run typecheck`: exit 0.
+- `npx vitest run packages/axylo/test/finance --configLoader native --no-cache`: `Test Files  8 passed (8)`, `Tests  91 passed (91)`.
+- Full Node suite, `npx vitest run --configLoader native --no-cache`: `Test Files  119 passed (119)`, `Tests  2184 passed (2184)`.
+- `npm run build`: exit 0, for the parent-equivalent source and for the fix, each into workspace-local copies.
+  `axylo.js`, `axylo.iife.js`, `axylo.iife.min.js` and `static.js` are **byte-identical** (`cmp`) between the two.
+  `gzip -9nc`: `axylo.js` 157,854 B and `axylo.iife.min.js` 158,074 B (the same as Repairs 4–5), so the **0 B**
+  root delta holds. `finance.js` 123,918 → 123,984 B gzip (+66 B; raw 345,086 → 345,270 B).
+
+### Not run here (Director gate)
+- Real Chrome `tests/dist/finance.browser.test.ts`, `test:browser`, axe-core, `npm run size` / `size.mjs` (packs).
+- The unconditional cross-provider `Verdict: Merge` on the final verified candidate.
+
+## Repair 7 — preview order of the 5th cross-provider review (sol-6.2-medium__20261126T200021Z)
+
+### Blocker
+`ChartController.update` installs the call's `strict`, name and `onDiagnostic` only after
+`OptionsStore.preview(patch)`. `preview` runs core `applyPatch`, which compares a submitted `data` structurally
+with the accepted one (`sameValue`); for two arrays of the same length that walks the rows and runs their getters.
+A same-length replacement with a throwing row getter therefore failed inside `preview`, and `#guarded` handled it
+with the **previous** call's settings: from `strict: true`, `update({ strict: undefined, reference: undefined, data })`
+threw a strict AX199 instead of returning with AX199 reported; from non-strict, `update({ strict: true, onDiagnostic: h2, data })`
+returned instead of throwing, and a rejection's AX199 went to the previously accepted handler, not `h2`.
+Repair 6's tests did not reach this: blocker-1 used changed-length payloads, and blocker-2's strict test kept the
+same `strict` and handler on both sides. `core/**` is outside the fence, so the fix is finance-only.
+
+### Fix (`packages/axylo/src/finance/chart.ts` only)
+- A module-private `DataHolder` class (`{ readonly source }`, not exported, not a plain object). `translate()` (the
+  wrapper's controller patch) replaces `data` with a holder that points to the exact value given: no iteration,
+  clone or accessor read. core `sameValue` compares non-plain objects by identity only, and `applyPatch` borrows
+  `data` as given, so `preview` never reads a row; the first row read is the controller's resolve/normalize, after
+  it installed the submitted settings, inside its `#guarded` boundary.
+- The holder in `acceptedTranslated` is reused when the merged source is the same value (`===`) as the accepted
+  holder's source. An update that leaves `data` out, or gives the same rows again, is then no data change to the
+  controller (frame kept). `acceptedTranslated` advances only on an accepted call (Repair 6), so the comparison is
+  with the accepted source, never a failed proposal. A different array or columns object gets a new holder, so the
+  controller renormalizes it (a change from the parent, which kept the frame for a same-content copy of the rows).
+- `createFinanceComposition` wraps `createFinanceResolver`: if `options.data` is a holder, the resolver is given a
+  shallow copy of the options with the original `data`. On the static controller every data consumer goes through
+  `composition.resolve`: normalize (replace path), labels-only rename (`resolve(previous.source.table)`) and
+  presentation updates. A finance chart has no `openStore` (stream path), so `streamOptions` / `openStore` never see
+  the holder. `validateCandlestick` uses `parseFinanceInput(...).translated` directly and never sees a holder.
+- Unchanged: `mergeRaw` (Repair 6), explicit `undefined` vs omission (a cleared `data` has no key in the
+  translation and is sent as `undefined` by `resetsFrom`), the create handoff (the same translated object is
+  given to `open`, so `OptionsStore`'s first preview still reuses it), relays and notification ownership, the
+  acceptance check, queued updates.
+
+### Tests
+New `packages/axylo/test/finance/n7a-preview-boundary.test.ts` (8 tests, real `staticControllerFor`, recording host).
+The failing payload is 3 rows (the accepted length) whose first row has an enumerable throwing `get day()`.
+1. from `strict: true` with a visible reference, `update({ strict: undefined, reference: undefined, data: sameLength })`
+   returns normally and AX199 is reported; a readable same-length retry of both resets with one invalid candle
+   (`BAD_THREE`) returns, AX180 is reported, AX199 is gone, 3 rows;
+2. the same failure, then a readable valid same-length retry: no view reference and no dashed reference mark;
+3. from non-strict with handler `h1`, `update({ strict: true, onDiagnostic: h2, data: sameLength })` throws a
+   `StrictError` with AX199; `h2` has AX199 before the throw, `h1` does not; rollback: a following
+   `update({ data: BAD_VOLUME })` is accepted (non-strict) and its AX181 goes to `h1`, not `h2`;
+4. inside a `hover` listener (the controller's notification drain is active), a strict same-length rejection with
+   a changed handler `h2`: `StrictError` with AX199, `h2` gets AX199, `h1` gets nothing; rollback kept `h1` and
+   strict: a following `update({ strict: false, data: BAD_VOLUME })` delivers AX181 to `h1` only;
+5. holder reuse: resolution reads the caller's rows (`table.rowAt(0) === rows[0]`); a title update and the same
+   array again keep `accepted.frame`; a label rename reads the same rows; a new array (same rows) is normalized
+   from that array (`sameTableData(table, rowsTable(copy))`) with a new frame;
+6. caller-owned typed columns: `accepted.source.table.columns === columns` and `.o === o` (the `Float64Array`);
+7. an omitted `data` keeps the accepted rows; `data: undefined` clears them (0 rows);
+8. a failed proposal is not the comparison base: rows whose getter throws once (AX199), a title update keeps the
+   accepted rows, then the same rows, now readable, are accepted as new data (new frame, their rows).
+
+Changed assertions in existing tests (representation, not values): `n7a-resets.test.ts` ("legend: undefined …")
+and `n7a-review3.test.ts` ("keeps borrowed data …") asserted that the controller patch's `data` **is** the
+caller's array. The patch now carries the holder, so these failed with the fix (`expected DataHolder {…} to be [ … ]`).
+They now assert the property they stood for at the boundary where the data is read: the table that
+`composition.resolve` makes from the sent options was made from the caller's array (`sameTableData` with
+`rowsTable(data)`) and returns the caller's row objects; the resets test also asserts that the unchanged data is
+sent as the same holder the create was given. Both pass on the parent too. New helper `resolvedTable()` in `host.ts`.
+
+### Evidence (ran and saw, in this worker)
+- Parent reproduction: the workspace has no `.git`, so the parent `chart.ts` was rebuilt by reversing the three
+  edits. It matches the Repair 6 build exactly: `finance.js` 345,270 B raw, 123,984 B `gzip -9nc`. The fixed file
+  was restored after each check (`cmp` clean). Finance suite on the parent: `Tests  5 failed | 94 passed (99)`.
+  Tests 1, 2 → `expected AxyloStrictError: [axylo AX199] … to be null`; 3 → `expected null to be an instance of
+  StrictError`; 4 → `expected [] to include 'AX199'` (it went to `h1`); 5 → the copy kept the old frame. Tests 6–8
+  pass on the parent: they guard the holder (borrowed columns, omission/clearing, failed-proposal base).
+- `npm run typecheck`: exit 0.
+- `npx vitest run packages/axylo/test/finance --configLoader native --no-cache`: `Test Files  9 passed (9)`, `Tests  99 passed (99)`.
+- Full Node suite, `npx vitest run --configLoader native --no-cache`: `Test Files  120 passed (120)`, `Tests  2192 passed (2192)`.
+- `npm run build`: exit 0 for the parent and for the fix, each `dist` copied to `.prism-cache/tmp`. `axylo.js`,
+  `axylo.iife.js`, `axylo.iife.min.js` and `static.js` are **byte-identical** (`cmp`). `gzip -9c` / `-9nc`:
+  `axylo.js` 157,863 / 157,854 B, `axylo.iife.js` 237,903 / 237,889 B, `axylo.iife.min.js` 158,092 / 158,074 B,
+  identical for both, so the **0 B** legacy root delta holds. `finance.js` raw 345,270 → 345,582 B (+312),
+  `gzip -9nc` 123,984 → 124,098 B (+114).
+
+### Not run here (Director gate)
+- Real Chrome `tests/dist/finance.browser.test.ts`, `test:browser`, axe-core, `npm run size` / `size.mjs`, `npm pack`.
+- The unconditional cross-provider `Verdict: Merge` on the final verified candidate.

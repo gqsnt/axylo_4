@@ -4,9 +4,12 @@
  * plot container is the given size (no caption or controls model: these tests compare a chart with itself).
  * The full recording host used by the core tests is test/core/host.ts.
  */
+import type { Composition } from '../../src/core/composition';
 import type { Scene } from '../../src/core/contracts';
 import type { Host } from '../../src/core/controller';
 import type { Committed } from '../../src/dom/interaction';
+import type { Table } from '../../src/data/table';
+import { DiagnosticCollector } from '../../src/diagnostics/collector';
 import { TOKEN_BINDINGS } from '../../src/theme';
 
 export interface Recording {
@@ -70,4 +73,12 @@ export function record(size: { width: number; height: number } = { width: 720, h
       return rounds;
     },
   };
+}
+
+/**
+ * The table a finance composition resolves from the options the wrapper handed its controller: the controller
+ * holds the wrapper's data holder, and this is the data every stage after resolution reads.
+ */
+export function resolvedTable(composition: Composition, options: Record<string, unknown>): Table {
+  return composition.resolve!('line', options, new DiagnosticCollector()).table;
 }
