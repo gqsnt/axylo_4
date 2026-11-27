@@ -139,11 +139,11 @@ function floatingTotal(doc: Document): ReadoutRow {
   return { e, n, v, p: null, l: '', g: null, value: '' };
 }
 
-function withinStrip(el: Element | null, box: Rect, right: number, bottom: number): boolean {
+function withinStrip(el: Element | null, box: Rect): boolean {
   if (!el?.isConnected) return true;
   const rects = el.getClientRects();
   for (const r of rects) {
-    if (r.left < box.x - 0.5 || r.top < box.y - 0.5 || r.right > right + 0.5 || r.bottom > bottom + 0.5) return false;
+    if (r.left < box.x - 0.5 || r.top < box.y - 0.5 || r.right > box.x + box.width + 0.5 || r.bottom > box.y + box.height + 0.5) return false;
   }
   return rects.length > 0;
 }
@@ -187,6 +187,7 @@ class DomTooltip implements TooltipView {
   #sizeObserver: ResizeObserver | undefined;
   #floatTitleText = '';
   #floatTotal: ReadoutRow | null = null;
+  #compact: RowEntry | null = null;
   #stripParts: [title: HTMLElement, total: HTMLElement, moreSep: Text, totalSep: Text] | null = null;
 
   readonly #element: HTMLElement;
@@ -440,6 +441,7 @@ class DomTooltip implements TooltipView {
   #hideIdx(idx: 0 | 1): void {
     const host = idx === 0 ? this.#element : this.#readoutElement;
     if (idx === 0) {
+      this.#plain();
       this.#hoverSize = null;
       if (this.#floatFlags & FLOAT_OBSERVED) {
         this.#sizeObserver!.unobserve(this.#element);
@@ -524,12 +526,10 @@ class DomTooltip implements TooltipView {
 
   invalidateSize(): void { this.#hoverSize = null; }
 
-  #floatingTitle(): HTMLElement {
-    const title = tooltipText(this.#doc, 'title', 'div');
-    // Width prediction assumes the same width for every digit in the heading.
-    title.style.fontVariantNumeric = 'tabular-nums';
-    title.appendChild(this.#floatTitleNode = this.#txt());
-    return title;
+  // Undoes the compact pass before anything else reads or reuses the floating rows.
+  #plain(): void {
+    const row = this.#compact;
+    if (row) { this.#compact = null; this.#element.classList.remove('axylo-tooltip-compact'); row.label.data = row.l; }
   }
 
   #overflows(): boolean {
@@ -539,9 +539,10 @@ class DomTooltip implements TooltipView {
 
   show(content: TooltipContent, p: PlacementInput, pinned: boolean, figMapping?: Mapping): boolean {
     const m = figMapping ?? mappingOf(this.#figure);
-    const maxW = Math.max(0, Math.min(320, p.visible.width / m.kx)), maxH = Math.max(0, p.visible.height / m.ky);
+    let maxW = Math.max(0, Math.min(320, p.visible.width / m.kx)), maxH = Math.max(0, p.visible.height / m.ky);
     const steady = this.#where === 1 && !pinned && !this.#wasPinned && !this.#element.hidden;
     if (steady) this.#current = content; else this.#begin(0, content, pinned);
+    this.#plain();
     if (this.#maxWidth !== maxW || this.#maxHeight !== maxH || pinned || (this.#floatFlags & FLOAT_WRAPPED) || this.#where !== 1) this.#hoverSize = null;
     if (this.#maxWidth !== maxW) { this.#maxWidth = maxW; this.#element.style.maxWidth = `${maxW}px`; }
     if (this.#maxHeight !== maxH) { this.#maxHeight = maxH; this.#element.style.maxHeight = `${maxH}px`; }
@@ -550,7 +551,8 @@ class DomTooltip implements TooltipView {
       this.#element.classList.remove('axylo-tooltip-wrap');
       this.#floatFlags &= ~FLOAT_WRAPPED;
     }
-    const title = this.#floatTitle ??= this.#floatingTitle();
+    const title = this.#floatTitle ??= tooltipText(this.#doc, 'title', 'div');
+    if (!title.firstChild) title.append(this.#floatTitleNode = this.#txt());
     if (this.#floatTitleText !== model.title) this.#floatTitleNode!.textContent = this.#floatTitleText = model.title;
     let totalRow: ReadoutRow | null = null;
     if (model.total !== null) {
@@ -576,9 +578,13 @@ class DomTooltip implements TooltipView {
       }
       this.#hoverSize = null;
     }
+    const firstMax = maxW, h = p.hole, ring = p.rings[0], v = p.visible;
+    // The wider free column beside a keyboard ring, in CSS px.
+    const column = ring ? Math.max(ring.x - v.x, v.x + v.width - ring.x - ring.width) / m.kx | 0 : 0;
+    let holeTry = 0;
     for (let shown = total; shown >= Math.min(1, total); shown--) {
       const more = this.#mountRows(title, rows, shown, content, pinned, totalRow?.e ?? null);
-      let size = this.#element.getBoundingClientRect();
+      let size = this.#element.getBoundingClientRect(), clipped = false;
       if (size.width >= (maxW - 2) * m.kx || size.height >= (maxH - 2) * m.ky) {
         let over = this.#overflows();
         if (over && !(this.#floatFlags & FLOAT_WRAPPED)) {
@@ -586,13 +592,17 @@ class DomTooltip implements TooltipView {
           this.#floatFlags |= FLOAT_WRAPPED;
           over = this.#overflows();
           // Wrapping changes the rendered box and must be measured before placement.
-          if (!over || shown <= 1) size = this.#element.getBoundingClientRect();
+          if (!over) size = this.#element.getBoundingClientRect();
         }
+        // Fewer rows first. One row that still overflows once wrapped would be placed cut by the tooltip's
+        // maxima (L1): it is not shown, and the datum keeps its highlight, keyboard reading and table row (I1).
+        // The last row still reaches the narrower retries below: a wrapped row too tall for one width may fit another.
         if (over && shown > 1) continue;
+        clipped = over;
       }
       const { width, height } = size;
-      let spot = placeTooltip(p, width, height);
-      if (!spot && shown <= 1 && width > 0) spot = fallbackPlacement(p, width, height);
+      let spot = clipped ? null : placeTooltip(p, width, height);
+      if (!spot && !clipped && shown <= 1 && width > 0) spot = fallbackPlacement(p, width, height);
       if (spot) {
         const localW = width / m.kx, localH = height / m.ky;
         if (!pinned && !(this.#floatFlags & FLOAT_WRAPPED) && shown === total && localW > 0 && localW < maxW - 8 && localH < maxH - 8) {
@@ -603,6 +613,46 @@ class DomTooltip implements TooltipView {
         this.#observeSize();
         return this.#finish(0, true);
       }
+      // A keyboard ring around a large slice can span most of a small plot, so one row fits neither the hole nor
+      // any side of it. It is tried once more, no wider than the wider free column beside the ring and wrapped if
+      // it must, under the same rules, which never cover the ring or the controls (decision 0004 rules 2, 6). The
+      // changed maximum also makes the next show restore the usual one.
+      // No column beside the ring either (a dominant slice), or a pointer with no ring at all: the hole may still
+      // hold the row once it is narrower and wrapped. Two widths are tried, the inscribed square's and a wider,
+      // shorter one (1.6 r, still inside the hole's chord for two wrapped lines), since wrapping makes the row taller; the hole's own test still decides, so the ring and the controls stay clear.
+      let w = shown === 1 ? column : 0;
+      if (!(w > 48 && w < maxW)) w = shown === 1 && h && holeTry < 2 ? (holeTry++ ? 1.6 : 1.41) * h.rx / m.kx | 0 : 0;
+      // A width already tried (or the current one) would only repeat the same measurement.
+      if (w > 48 && w < firstMax && w !== maxW) { this.#element.style.maxWidth = `${this.#maxWidth = maxW = w}px`; shown++; }
+    }
+    // Nothing else fits a donut's single slice (a dominant slice in a small plot): its name is the heading and the
+    // row's label both, so one compact pass shows it once, on one line, ellipsized if it must be, over the swatch and
+    // the whole value. Only hover and keyboard tooltips take it: they are hidden from assistive technology, which reads
+    // the slice from the keyboard proxy's value text, while a pinned row is a button that keeps its full name.
+    // Widths: the usual maximum, then the widest box the hole's ellipse holds at the height just measured (holeSpot's
+    // own test solved for the width; narrowing can wrap the value and add a line, so it is solved again), then the
+    // free column beside the ring. holeSpot and the side rules still decide; only the last width may fall back, under
+    // the rules that never cover a ring or a control. Content that would be cut is never placed (L1).
+    const only = rows[0]!;
+    if (h && !pinned && total === 1 && only.l === model.title) {
+      const el = this.#element;
+      // The last pass left this one row mounted; emptying its label leaves the swatch and the value.
+      el.classList.add('axylo-tooltip-compact', 'axylo-tooltip-wrap');
+      this.#floatFlags |= FLOAT_WRAPPED;
+      (this.#compact = only).label.data = '';
+      for (let i = 0, w = firstMax, last = w, height = 0; i < 5; i++) {
+        if (w > 24) {
+          el.style.maxWidth = `${this.#maxWidth = last = w}px`;
+          const size = el.getBoundingClientRect(), width = size.width;
+          height = size.height;
+          const spot = this.#overflows() ? null : placeTooltip(p, width, height) ?? (i > 3 ? fallbackPlacement(p, width, height) : null);
+          if (spot) {
+            this.#positionFloat(spot, width, height, m);
+            return this.#finish(0, true);
+          }
+        }
+        w = Math.min(firstMax, i < 3 ? (2 * h.rx * Math.sqrt(1 - (height / 2 / h.ry) ** 2) / m.kx | 0) - 1 : column > 24 ? column : last);
+      }
     }
     return this.#finish(0, false);
   }
@@ -612,11 +662,16 @@ class DomTooltip implements TooltipView {
     const parts = this.#stripParts ??= [
       tooltipText(this.#doc, 'title'), make(this.#doc, 'span', 'axylo-readout-total'), this.#txt('; '), this.#txt('; '),
     ];
+    // The total's label and number are apart, so a cut strip can ellipsize a long localized label and keep the number.
+    if (!parts[1].firstChild) parts[1].append(make(this.#doc, 'span', ''), this.#txt());
     const [stripTitle, stripTotal] = parts;
     const { model } = content, rows = this.#rowEntries(1, content, pinned);
     setText(stripTitle, `${model.title}: `);
-    if (model.total !== null) setLanguageText(stripTotal, `${content.totalLabel ?? ''} ${model.total}`, content.totalLang || null);
-    const r = this.#readoutElement.getBoundingClientRect(), box = intersect(r, visible), bx2 = box.x + box.width, by2 = box.y + box.height;
+    if (model.total !== null) {
+      setLanguageText(stripTotal.firstChild as Element, `${content.totalLabel ?? ''} `, content.totalLang || null);
+      (stripTotal.lastChild as Text).data = model.total;
+    }
+    const r = this.#readoutElement.getBoundingClientRect(), box = intersect(r, visible);
     const cl = this.#readoutElement.classList, minS = Math.min(1, rows.length);
     cl.remove('axylo-readout-wrap', 'axylo-readout-cut');
     let seen = false;
@@ -625,8 +680,8 @@ class DomTooltip implements TooltipView {
       if (pass === 2) cl.replace('axylo-readout-wrap', 'axylo-readout-cut');
       for (let shown = pass === 2 ? minS : rows.length; shown >= minS && !seen; shown--) {
         const pager = this.#mountRows(stripTitle, rows, shown, content, pinned, model.total === null ? null : stripTotal, parts);
-        seen = withinStrip(stripTitle, box, bx2, by2) && withinStrip(pager?.el ?? null, box, bx2, by2);
-        for (let i = 0; seen && i < shown; i++) seen = withinStrip(rows[i]!.e, box, bx2, by2);
+        seen = withinStrip(stripTitle, box) && withinStrip(pager?.el ?? null, box) && (model.total === null || withinStrip(stripTotal, box));
+        for (let i = 0; seen && i < shown; i++) seen = withinStrip(rows[i]!.e, box);
       }
     }
     if (seen) this.#lastRect = r;

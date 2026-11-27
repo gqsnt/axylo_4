@@ -55,15 +55,23 @@ describe('documented defaults are the painted colours', () => {
     await page.keyboard.press('Tab');
     await page.waitForTimeout(150);
     const painted = await page.evaluate(() => {
-      const stroke = (sel: string) => { const e = document.querySelector(sel); return e ? getComputedStyle(e).stroke : 'missing'; };
+      // The SVG renderer batches consecutive grid (and tick) rules into one stroked <path>, and draws an axis
+      // or reference rule as a <line>: look at every stroked shape that names the token, whatever its element,
+      // and insist they all agree, so a missing mark, an unpainted one or a mixed paint still fails.
+      const stroke = (token: string) => {
+        const shapes = [...document.querySelectorAll(`svg.axylo-svg :is(line, path, rect)[style*="${token}"]`)]
+          .filter(e => getComputedStyle(e).fill === 'none' || getComputedStyle(e).stroke !== 'none');
+        const paints = [...new Set(shapes.map(e => getComputedStyle(e).stroke))];
+        return paints.length === 1 ? paints[0]! : shapes.length ? `mixed: ${paints.join(' / ')}` : 'missing';
+      };
       const series = (k: number) => {
         const p = [...document.querySelectorAll(`svg.axylo-svg path[style*="--axylo-series-color-${k}"]`)].find(e => getComputedStyle(e).fill === 'none');
         return p ? getComputedStyle(p).stroke : 'missing';
       };
       return {
-        '--axylo-axis': stroke('svg.axylo-svg line[style*="--axylo-axis"]'),
-        '--axylo-grid': stroke('svg.axylo-svg line[style*="--axylo-grid"]'),
-        '--axylo-reference': stroke('svg.axylo-svg [style*="--axylo-reference"]'),
+        '--axylo-axis': stroke('--axylo-axis'),
+        '--axylo-grid': stroke('--axylo-grid'),
+        '--axylo-reference': stroke('--axylo-reference'),
         '--axylo-series-1': series(1),
         '--axylo-series-2': series(2),
         '--axylo-muted': getComputedStyle(document.querySelector('.axylo-subtitle')!).color,

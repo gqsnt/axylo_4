@@ -9,7 +9,7 @@ import type { StaticChart } from './static.js';
 import { createStaticChart } from './core/chart';
 import type { Composition } from './core/composition';
 import { createTimeReadout } from './format/time';
-import { lineSwatch } from './dom/swatch';
+import { createMarkSwatch } from './dom/mark-swatch';
 import { svgArea, svgBand, svgPath, svgPoints, svgRects, svgRule } from './render/svg';
 import { DiagnosticCollector } from './diagnostics/collector';
 import { toPublic, namingDiagnostics } from './core/stages';
@@ -116,7 +116,7 @@ function createCartesianComposition(
     scene: (view, lay, dpr) => buildCartesianScene(stateRef, view, lay, dpr),
     lookup: (view, lay, formatters, messages) => createCartesianLookup(stateRef, view, lay, formatters, messages),
     reader,
-    interaction: { overlay, swatch: lineSwatch, stepInSeries: null, sliceList: null },
+    interaction: { overlay, swatch: createMarkSwatch(stateRef), stepInSeries: null, sliceList: null },
     svg: { area: svgArea, band: svgBand, path: svgPath, points: svgPoints, rects: svgRects, rule: svgRule },
   };
 }

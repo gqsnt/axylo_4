@@ -35,9 +35,10 @@ export function showsSlices(d: ControlsState): d is ControlsState & { readonly v
 
 /**
  * Pushes onto `out` every input the controls are drawn from, so an unchanged list skips the redraw, and returns
- * which controls show. `closer` is whether zooming in further is possible (cached by the caller).
+ * which controls show. `closer` is whether zooming in further is possible (cached by the caller); `swatch` is the
+ * composition's, whose key covers what its swatches read beyond the series' cue.
  */
-export function collectControlInputs(d: ControlsState, out: unknown[], tableOpen: boolean, rangeOn: boolean, closer: boolean): number {
+export function collectControlInputs(d: ControlsState, out: unknown[], tableOpen: boolean, rangeOn: boolean, closer: boolean, swatch: SeriesSwatch): number {
   const { view } = d;
   let controls = canInspect(d) ? INSPECT : 0;
   out.push(d.messages, d.english('controlsLabel'), d.pageLang, d.legend, tableOpen, rangeOn, d.streaming, d.paused);
@@ -53,7 +54,7 @@ export function collectControlInputs(d: ControlsState, out: unknown[], tableOpen
     const { series } = view.frame;
     for (let i = 0; i < series.length; i++) {
       const s = series[i]!, cue = view.cues[i];
-      out.push(s.key, s.label, view.visible[i] === true, cue?.marker, cue?.dash.normal, cue?.dash.contrast);
+      out.push(s.key, s.label, view.visible[i] === true, cue?.marker, cue?.dash.normal, cue?.dash.contrast, swatch.key?.(i, view));
     }
   }
   out.push(controls);
@@ -68,7 +69,7 @@ export function buildControlItems(d: ControlsState, controls: number, swatch: Se
       const on = view.visible[i] === true;
       items.push({
         key: `series:${key}`, label, pressed: on, lang: inherited, className: 'axylo-control axylo-legend-entry',
-        struck: !on, swatch: swatch(i, view.cues[i] ?? null, !on),
+        struck: !on, swatch: swatch(i, view.cues[i] ?? null, !on, view),
       });
     });
   }

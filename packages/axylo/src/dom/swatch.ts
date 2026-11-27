@@ -27,6 +27,16 @@ export interface SwatchSpec {
   readonly marker?: boolean;
   /** The bar pattern drawn over the fill in the background color (from swatchPattern), or null. */
   readonly pattern?: SwatchPattern | null;
+  /**
+   * A drawing of its own, for a mark the shapes above do not repeat (axylo/cartesian's area, band and
+   * whisker): it fills the swatch in place of them. `key` names the drawing, so a control redraws when it changes.
+   */
+  readonly shape?: SwatchShape;
+}
+
+export interface SwatchShape {
+  readonly key: string;
+  draw(svg: SVGSVGElement, spec: SwatchSpec): void;
 }
 
 export interface SwatchPattern {
@@ -35,7 +45,7 @@ export interface SwatchPattern {
   readonly d: string;
 }
 
-const BACKGROUND = 'var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)))';
+export const BACKGROUND = 'var(--axylo-background, var(--axylo-backdrop, var(--axylo-default-background)))';
 const patterns: Partial<Record<SwatchPattern['kind'], SwatchPattern>> = {};
 const markerPaths: Partial<Record<MarkerShape, string>> = {};
 
@@ -69,7 +79,7 @@ function colorOf(index: number | null): string {
   return index === null ? 'var(--axylo-muted, var(--axylo-default-muted))' : `var(--axylo-series-color-${index + 1})`;
 }
 
-function markerPath(shape: MarkerShape, cx: number, cy: number, size: number): string {
+export function markerPath(shape: MarkerShape, cx: number, cy: number, size: number): string {
   if (shape === 'circle') {
     const r = size / 2;
     return `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0Z`;
@@ -103,6 +113,10 @@ export function createSwatch(doc: Document, spec: SwatchSpec): SVGSVGElement {
     class: 'axylo-swatch', viewBox: '0 0 20 12', width: '20', height: '12', 'aria-hidden': 'true', focusable: 'false',
   });
   svg.style.color = colorOf(spec.color);
+  if (spec.shape) {
+    spec.shape.draw(svg, spec);
+    return svg;
+  }
   if (spec.line) {
     const line = svgElement(doc, 'line', { x1: '0', x2: '20', y1: '6', y2: '6', stroke: 'currentColor', 'stroke-width': '2' });
     // Both patterns, so the stylesheet can switch to the contrast one exactly where the marks do (prefers-
