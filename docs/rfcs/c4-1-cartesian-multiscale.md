@@ -432,3 +432,71 @@ While C4.2–C4.4 delivered the log scale, multi-scale layout/composition, and p
 1. **Paired 100k-row Chrome Performance Proof (RFC §8):** Because the current benchmark harness (`bench/src/multichart.js`, `bench/lib/refs.mjs`, `bench/run.mjs`) builds only root `axylo` kinds (`['line', 'area', 'bar', 'donut', 'histogram', 'scatter']`) and has no Cartesian multi-scale workload yet, Cycle N4 includes building the Cartesian benchmark fixture and adapter before executing `bench/run.mjs` paired A/B comparisons proving dual-axis 1×100k line + 1×100k bar startup (`<= 1.15×` paired baseline) and 100k zoom p95 / hover p95 (`<= 1.10×` paired baseline).
 2. **Dense-Line Simplification / Decimation:** Verify and harden F5-equivalent simplification/decimation across multi-scale cartesian series.
 3. **Product Spec Amendment (`docs/02-product-spec.md`):** Formally land spec rows `F13` (log scale & `AX170–AX173`), `L9` (dual y-axis `>= 360 px` / narrow collapse `AX175`), and diagnostic registry entries `AX170–AX181`.
+
+## 9B. Cycle N4 Record (Wave 2, Track B; Director-verified candidate, independent review pending)
+
+Status of the three §9A obligations as delivered by the N4 author candidate. "Observed" means run in the author's
+sandbox; "pending" means not run. Details, commands and output tails: `docs/progress/n4-cartesian-hardening-ledger.md`.
+
+Director verify after turn 6 (observed in its log): typecheck and build passed; 126 files / 2,243 unit tests passed;
+acceptance 70 passed, 1 existing skip; bench 121 passed; packed `subpaths.test.ts` Cartesian selection 3 passed,
+14 skipped, `axylo/cartesian` 126,974 B gzip-9 and bare `import 'axylo/cartesian'` 0 raw B; real packed Chrome
+`tests/dist/cartesian.browser.test.ts` 3 passed (100k bounded path, log omission, datum parity, L9 960 → 320 → 960,
+signed/incomplete stacks); `node scripts/size.mjs` exit 0 with root `line only` / `everything` 135,671 / 158,539 B and
+`axylo/static` line / everything 121,111 / 141,410 B gzip-9, equal to the cycle's initial measurements (0 B legacy
+tax). Only the §8 timings below remain unmeasured.
+
+1. **Dense drawing (§9A.2) — implemented, observed in Node.** `cartesian/scene.ts` draws lines, unstacked areas and
+   stacked areas through `cartesian/dense.ts`, which gives spec F5's guarantee (per device-pixel column and
+   contiguous run: first, last, minimum, maximum; breaks kept; no-row slots bridged outside stacks; every sample
+   kept at four or fewer per column) in the committed per-axis projection and the scene's device pixel ratio.
+   Log axes skip nonpositive and non-finite values before `position()` without a derived or copied column. Stacked
+   areas share one set of vertices kept on every cumulative boundary plus both ends of each component's state or
+   sign change, with the positive and negative parts as separate bands. A5's marker sits on the last value drawn
+   inside the visible window. A 100,000-point line at 960 px draws ≤ 4 × device columns (3,346 vertices in the
+   Node smoke). **Deviation from "reuse `simplify/`":** importing `simplify/index.ts` added 9.3 kB minified and put
+   `axylo/cartesian` at 132,090 B gzip-9, over this RFC's enforced 127,000 B cap; the owned decimator implements the
+   same guarantee and threshold in one linear pass. Bars are not decimated (spec 3.6: "No; more bars than pixels
+   raises a hint"); 100,000 bars dominate the Node scene time (~9.6 ms median) and are the main risk for §8.
+2. **Spec amendment (§9A.3) — landed.** `docs/02-product-spec.md` has F13 (3.1), L9 (3.2) and registry rows AX170–AX176
+   and AX180–AX181 (3.5); AX177–AX179 are recorded as reserved in prose (no code raises them). `acceptance/matrix.json`
+   has F13 and L9 rows and F3 citations of real tests for each new code; `node acceptance/check.mjs` exits 0.
+3. **Paired 100k Chrome proof (§9A.1) — workload wired in `bench/src`, measurement pending (Director).** Without
+   editing `bench/build.mjs` or `bench/run.mjs`: `bench/src/adapters/axylo-cartesian.js` (an ordinary adapter, built
+   into every artifact; it imports the artifact's own `axylo/axylo-cartesian.bench.js` at run time and contains no
+   library code, so its harness hash is the same in every artifact); `bench/src/cartesian-artifact.mjs` (builds the
+   ordinary artifact with `build()` in a staging directory, copies it into a new directory, adds the Cartesian bundle
+   compiled with the library's own recipe — `PRODUCTION` with `__BENCH__: 'true'`, the stylesheet plugin, the same
+   source snapshot — writes a new manifest listing every file, the bundle, the union of Axylo inputs and the staging
+   artifact it derives from, seals it and verifies it with `readArtifact()`); `--kind cartesian` in
+   `bench/src/multichart.js` with its fixture in `bench/src/fixtures.js` (so the runner's Node oracle derives the
+   expected checksum, view and held columns from the same code as the page). Two workloads:
+   - **one-line, matched fixture:** `--workload first|zoom|hover --size 1x100000` (no kind), baseline `axylo-svg`,
+     candidate `axylo-cartesian`, one artifact from `cartesian-artifact.mjs`: the same fixture bytes (checksum
+     `bfd6a33b`, observed in Node) on both sides. This is the paired A/B for the §8 ratios' "Cartesian entry overhead".
+   - **dual-axis line + bar:** `--kind cartesian` (tag `cartesian-1x100000`, checksum `69a5994a`): drawn by
+     `axylo-cartesian` only, so its genuine A/B is two builds of `axylo/cartesian` (two-build mode,
+     `--adapter axylo-cartesian`). A root line session is a different fixture and is not a matched comparison for it;
+     the §8 rows "dual-axis line + bar vs `first-1x100000`" have no matched-fixture baseline in this harness, which is
+     an owner decision (compare against the one-line pair, or redefine the row).
+   Admission for `--kind cartesian` checks the page fixture checksum against the oracle, then the root adapter's
+   readback against `expectedView`/held columns of both series; whether a dual-axis chart's readback (left-axis
+   domain) satisfies that oracle has not been run in Chrome. No §8 ratio has been measured; the quiet-window paired
+   run is pending until after Wave 2 merges (artifact: `node bench/src/cartesian-artifact.mjs --out <dir>`; commands
+   for both comparisons in the ledger).
+
+Also in N4: the bare `import 'axylo/cartesian'` bundles to 0 raw bytes again under `ignoreAnnotations` (the retained
+statement was `dom/mark-swatch.ts`'s top-level template literal; the entry now uses an owned copy,
+`cartesian/mark-swatch.ts`, pinned to the DOM copy by a parity test); F10 totals and "incomplete" marking in the
+Cartesian tooltip, keyboard reading, table and (repair round) accessible summary, which names the incomplete
+positions of the visible window in the core's `incompleteAt` / `incompleteCount` wording; L9 collapses the right axis instead of the L8 fallback when the right
+gutter alone leaves no plot.
+
+Repair after review `sol-6.2-medium__20261127T054720Z` (see `docs/progress/n4-cartesian-hardening-ledger.md`): F5
+density is decided on drawable values after slot and log filtering; stacked-area edges follow each signed cumulative
+boundary and focus/hover sit on it (raw readouts unchanged); the benchmark adapter and `bench/src/admission.js` admit
+the Cartesian workloads from the real line stroke and bar rectangles, matched by key, with the line on its own
+axis's domain. §8 ratios remain unmeasured: the dual-axis rows and root `first-1x100000` draw different fixtures
+(`69a5994a` / `bfd6a33b`), so only the one-line pair is a matched-fixture comparison, and a Cartesian-to-Cartesian
+baseline must be built from a tree that forwards the `__bench` hook (this N4 candidate or later).
+

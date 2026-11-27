@@ -8,8 +8,8 @@ import type { CommonOptions, Diagnostic, Target, ValueField, XField, XValue } fr
 import type { StaticChart } from './static.js';
 import { createStaticChart } from './core/chart';
 import type { Composition } from './core/composition';
+import type { Layout } from './core/contracts';
 import { createTimeReadout } from './format/time';
-import { createMarkSwatch } from './dom/mark-swatch';
 import { svgArea, svgBand, svgPath, svgPoints, svgRects, svgRule } from './render/svg';
 import { DiagnosticCollector } from './diagnostics/collector';
 import { toPublic, namingDiagnostics } from './core/stages';
@@ -17,6 +17,7 @@ import { resolveOptions } from './data/options';
 import { reportCartesian } from './cartesian/diagnostics';
 import { createCartesianLayoutStage } from './cartesian/layout';
 import { createCartesianLookup } from './cartesian/lookup';
+import { createMarkSwatch } from './cartesian/mark-swatch';
 import type { CartesianStateRef } from './cartesian/meta';
 import { normalizeCartesian } from './cartesian/normalize';
 import { createCartesianResolver, parseCartesianInput } from './cartesian/options';
@@ -121,6 +122,16 @@ function createCartesianComposition(
   };
 }
 
+interface DrawnYAxis { readonly type: string; readonly domain: readonly [number, number]; readonly range: readonly [number, number] }
+
+/** The y axes a layout projects onto, copied for the benchmark hook (called only in instrumented builds). */
+function drawnYAxes(lay: Layout): DrawnYAxis[] | null {
+  const p = lay.kind === 'plot' || lay.kind === 'compact' ? lay.projection : null;
+  if (!p || p.kind === 'ring') return null;
+  const axes = p.yAxes ?? [p.kind === 'xy' ? p.y : p.value];
+  return axes.map(a => ({ type: a.type, domain: [a.domain[0], a.domain[1]], range: [a.range[0], a.range[1]] }));
+}
+
 /** Create a static multi-scale Cartesian chart (line + bar + area, 1–2 y-axes, linear or log). */
 export function cartesian<Row, const Axes extends AxesRecord>(
   target: Target,
@@ -130,7 +141,16 @@ export function cartesian<Row, const Axes extends AxesRecord>(
   const parsed = parseCartesianInput(currentRaw);
   const stateRef: CartesianStateRef = { meta: parsed.meta };
   const pendingIssues = { list: parsed.issues };
-  const composition = createCartesianComposition(stateRef, pendingIssues);
+  const composition: Composition & { benchYAxes?: DrawnYAxis[] | null } = createCartesianComposition(stateRef, pendingIssues);
+  // Benchmark/test only: the y axes the last scene was drawn on. The shared root hook reports the left axis
+  // alone, and bar admission needs the right axis's committed domain. A production build drops all of it.
+  if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) {
+    const scene = composition.scene;
+    (composition as { scene: Composition['scene'] }).scene = (view, lay, dpr) => {
+      composition.benchYAxes = drawnYAxes(lay);
+      return scene(view, lay, dpr);
+    };
+  }
   const inner = createStaticChart(composition, target, parsed.translated);
 
   const handle: StaticCartesianChart<Row, Axes> = {
@@ -167,6 +187,18 @@ export function cartesian<Row, const Axes extends AxesRecord>(
       inner.destroy();
     },
   };
+  // The benchmark and test hook (core/instrument.ts) lives on the inner handle; a production build drops this.
+  if (__DEV__ || (typeof __BENCH__ !== 'undefined' && __BENCH__)) {
+    const hook = (inner as { __bench?: { describe?: () => unknown } }).__bench;
+    if (hook) {
+      // Same hook (ready, revision, memory …) with describe() extended by the drawn y axes.
+      const base = hook.describe;
+      const extended = Object.create(hook, {
+        describe: { value: () => ({ ...(base ? base.call(hook) as object : {}), yAxes: composition.benchYAxes ?? null }), enumerable: true },
+      }) as object;
+      Object.defineProperty(handle, '__bench', { value: extended, configurable: true, enumerable: false });
+    }
+  }
   return handle;
 }
 

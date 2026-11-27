@@ -6,7 +6,7 @@
 import type { ContinuousScale, Projection } from '../core/contracts';
 
 export function axisScaleOf(projection: Projection, axisIndex = 0): ContinuousScale {
-  if (projection.kind === 'ring') throw new TypeError('Ring projection has no y-axis.');
-  const fallback = projection.kind === 'xy' ? projection.y : projection.value;
-  return projection.yAxes?.[axisIndex] ?? fallback;
+  // A Cartesian layout projects onto xy or bands (layout.ts); a ring, which has no value axis, never reaches here.
+  const p = projection as Exclude<Projection, { kind: 'ring' }>;
+  return p.yAxes?.[axisIndex] ?? (p.kind === 'xy' ? p.y : p.value);
 }

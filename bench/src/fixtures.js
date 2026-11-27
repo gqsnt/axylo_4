@@ -218,9 +218,26 @@ export function histogramCounts(fix) {
   return counts;
 }
 
+/**
+ * The `axylo/cartesian` fixture (RFC C4.1 §8). Layout 'line' is lineFixture({ series: 1, points, seed }) itself, so a
+ * paired run against the root line chart compares identical bytes. Layout 'line+bar' adds integer bars of the same
+ * length from a separate stream of the generator (adding them never changes the line's bytes). The fixture carries no
+ * `kind`: the Cartesian adapter draws it through the root adapter's line path (bench/src/cartesian.js).
+ */
+export function cartesianFixture({ points = 100_000, layout = 'line+bar', seed = 1 } = {}) {
+  if (layout !== 'line' && layout !== 'line+bar') throw new Error(`cartesian layout must be line or line+bar, got ${layout}`);
+  const base = lineFixture({ series: 1, points, seed });
+  if (layout === 'line') return { ...base, cartesian: { layout } };
+  const r = rng(seed * 7919 + 17);
+  const bars = new Float64Array(points);
+  for (let i = 0; i < points; i++) bars[i] = 20 + Math.floor(r() * 180);
+  return { ...base, ys: [base.ys[0], bars], names: [base.names[0], 'orders'], cartesian: { layout } };
+}
+
 function multiData(workload, params) {
   const p = multiParams(workload, params);
   const size = p.size && parseSize(p.size);
+  if (p.kind === 'cartesian') return [cartesianFixture({ points: size.points, layout: 'line+bar', seed: params.seed ?? 1 })];
   return Array.from({ length: p.charts ?? 1 }, (_, i) => {
     const seed = (params.seed ?? { area: 1, bar: 11, donut: 13, histogram: 17, scatter: 3 }[p.kind]) + i;
     switch (p.kind) {
@@ -354,6 +371,8 @@ export function expectedView(fix, visible = null) {
     ...(fix.scatter ? { xSlack: 0.25 } : {}),
     // A zoomed view must be exactly the window passed to zoom() (to the millisecond), not a padded one.
     ...(visible ? { xSlack: 0 } : {}),
+    // axylo/cartesian (bench/src/cartesian.js): series are matched by key, each on its own axis (admission.js).
+    ...(fix.cartesian ? { cartesian: fix.cartesian.layout, names: [...fix.names] } : {}),
   };
 }
 

@@ -6,6 +6,10 @@
  *   2. Nearest drawable `line` vertex within `12 px` y-distance (tie-break: later declared layer)
  *   3. Else visible `bar` rectangle hit at slot `i`
  *   4. Else aligned slot `i` (`{ kind: 'x', x }`) listing all visible series in declared layer order
+ *
+ * Stacks follow spec F10 as the core lookup does: the tooltip carries the stack total (the positive and the
+ * negative ends when signs are mixed) marked "incomplete" where a component is missing, and a datum read on its
+ * own (keyboard) says so on the missing component.
  */
 import {
   SLOT_VALUE, type AlignedView, type DatumRef, type DatumText, type Formatters,
@@ -15,26 +19,17 @@ import {
 import type { Messages } from '../public';
 import { clamp, position } from '../scene/geometry';
 import { axisScaleOf } from './scale-ref';
-import { barBoxAt, buildBarSlotLayout, type BarSlotLayout } from './bar-geom';
+import { barBoxAt, buildBarSlotLayout, xSlotPixel, type BarSlotLayout } from './bar-geom';
 import type { CartesianStateRef } from './meta';
+import { cartesianStacks, drawnValue, stackTotalText, type CartesianStacks } from './stacks';
+import { incomplete } from '../lookup/text';
+import { lowerBound } from '../data/search';
 
 const LINE_HIT_RADIUS = 12;
 const TOOLTIP_LIMIT = 8;
 
-function lowerBound(arr: Float64Array, value: number, lo: number, hi: number): number {
-  let l = lo;
-  let r = hi;
-  while (l < r) {
-    const m = (l + r) >>> 1;
-    if (arr[m]! < value) l = m + 1;
-    else r = m;
-  }
-  return l;
-}
-
-function xCoord(xScale: XScale, xValues: Float64Array, i: number): number {
-  return xScale.type === 'band' ? xScale.center(i) : position(xScale, xValues[i]!);
-}
+// The scene's pixel for slot i (bar-geom.ts), so picking and drawing agree.
+const xCoord = xSlotPixel;
 
 function pointBox(x: number, y: number): Rect {
   return { x: x - 5, y: y - 5, width: 10, height: 10 };
@@ -45,25 +40,11 @@ export function createCartesianLookup(
   view: View,
   layout: Layout,
   formatters: Formatters,
-  _messages: Messages,
+  messages: Messages,
 ): Lookup {
-  if (view.kind === 'donut' || view.kind === 'scatter') {
-    return {
-      count: 0,
-      pick: () => null,
-      members: () => [],
-      has: () => false,
-      slot: () => -1,
-      primary: () => null,
-      tooltip: () => ({ title: '', rows: [], count: 0, total: null }),
-      datum: () => null,
-      anchor: () => null,
-      resolve: () => null,
-      ordinal: () => -1,
-      step: () => null,
-    };
-  }
-  return new CartesianLookup(stateRef, view, layout.kind === 'plot' ? layout : null, formatters);
+  // The composition is a 'line' composition (cartesian.ts), so every view it builds is aligned
+  // (buildCartesianView keeps the base view's kind): no donut or scatter view ever reaches this lookup.
+  return new CartesianLookup(stateRef, view as AlignedView, layout.kind === 'plot' ? layout : null, formatters, messages);
 }
 
 class CartesianLookup implements Lookup {
@@ -73,6 +54,8 @@ class CartesianLookup implements Lookup {
   readonly #projection: Projection | null;
   readonly #xScale: XScale | null;
   readonly #formatters: Formatters;
+  readonly #messages: Messages;
+  readonly #stacks: CartesianStacks;
   readonly #visible: readonly number[];
   readonly #barSeries: readonly number[];
   readonly #barLayout: BarSlotLayout;
@@ -85,8 +68,11 @@ class CartesianLookup implements Lookup {
     view: AlignedView,
     layout: Extract<Layout, { kind: 'plot' }> | null,
     formatters: Formatters,
+    messages: Messages,
   ) {
     this.#stateRef = stateRef;
+    this.#messages = messages;
+    this.#stacks = cartesianStacks(view, stateRef.meta);
     this.#view = view;
     this.#plot = layout?.plot ?? null;
     this.#projection = layout?.projection ?? null;
@@ -118,9 +104,7 @@ class CartesianLookup implements Lookup {
   }
 
   #seriesIndex(key: string): number {
-    const list = this.#view.frame.series;
-    for (let i = 0; i < list.length; i++) if (list[i]!.key === key) return i;
-    return -1;
+    return this.#view.frame.series.findIndex(s => s.key === key);
   }
 
   #isLogAxis(seriesIndex: number): boolean {
@@ -132,12 +116,11 @@ class CartesianLookup implements Lookup {
   #isPlottableAt(sIdx: number, slotIndex: number): boolean {
     const s = this.#view.frame.series[sIdx]!;
     if (s.slot[slotIndex] !== SLOT_VALUE) return false;
-    const v = s.y[slotIndex]!;
-    if (!Number.isFinite(v)) return false;
-    return !this.#isLogAxis(sIdx) || v > 0;
+    // A SLOT_VALUE is always finite (core/contracts.ts).
+    return !this.#isLogAxis(sIdx) || s.y[slotIndex]! > 0;
   }
 
-  #datumText(sIdx: number, slotIndex: number): DatumText {
+  #datumText(sIdx: number, slotIndex: number, announce = false): DatumText {
     const s = this.#view.frame.series[sIdx]!;
     const st = s.slot[slotIndex]! as SlotState;
     const xVal = this.#view.frame.x.values[slotIndex]!;
@@ -149,6 +132,10 @@ class CartesianLookup implements Lookup {
       valueText = this.#isLogAxis(sIdx) && !(v > 0) ? `${formatted} (not plotted)` : formatted;
     } else {
       valueText = this.#formatters.missing(st);
+      // Read on its own, the component that makes its stack incomplete says so (F10, as lookup/aligned.ts).
+      if (announce && this.#stacks.groupOf[sIdx]! >= 0) {
+        valueText = incomplete(valueText, this.#messages);
+      }
     }
     return {
       ref,
@@ -278,7 +265,7 @@ class CartesianLookup implements Lookup {
     const shown = Math.min(this.#visible.length, TOOLTIP_LIMIT);
     const rows: DatumText[] = [];
     for (let k = 0; k < shown; k++) rows.push(this.#datumText(this.#visible[k]!, i));
-    return { title, rows, count: this.#visible.length, total: null };
+    return { title, rows, count: this.#visible.length, total: stackTotalText(this.#view, this.#stacks, i, this.#formatters, this.#messages) };
   }
 
   datum(ref: DatumRef): DatumText | null {
@@ -286,7 +273,7 @@ class CartesianLookup implements Lookup {
     const sIdx = this.#seriesIndex(ref.seriesKey);
     const i = this.#slotForX(ref.x);
     if (sIdx < 0 || i < 0) return null;
-    return this.#datumText(sIdx, i);
+    return this.#datumText(sIdx, i, true);
   }
 
   anchor(ref: DatumRef): Rect | null {
@@ -303,7 +290,7 @@ class CartesianLookup implements Lookup {
     const s = this.#view.frame.series[sIdx]!;
     const yScale = axisScaleOf(projection, s.axisIndex ?? 0);
     const px = xCoord(xScale, this.#view.frame.x.values, i);
-    const py = position(yScale, s.y[i]!);
+    const py = position(yScale, drawnValue(this.#view, this.#stacks, sIdx, i));
     if (!Number.isFinite(px) || !Number.isFinite(py)) return null;
     if (px < plot.x - 1 || px > plot.x + plot.width + 1 || py < plot.y - 1 || py > plot.y + plot.height + 1) return null;
     return pointBox(px, py);

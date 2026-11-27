@@ -14,8 +14,28 @@ const sizes = {
   scatter: { scatter: standard.scatter },
 };
 
+// `--kind cartesian`: the RFC C4.1 §8 dual-axis workload (one line on a left axis, bars of the same length on a right
+// axis), drawn only by the axylo-cartesian adapter. Not in `kinds`: no other library or root chart draws it. The
+// one-line paired workload needs no kind: it is the plain line workload (identical fixture) on both sides.
+export const cartesianWorkloads = ['first', 'zoom', 'hover'];
+
+function cartesianParams(workload, args) {
+  if (!cartesianWorkloads.includes(workload)) throw new Error(`${workload} is not available for cartesian`);
+  if (args.fixture || args.gaps || args.clustered || args.bins !== undefined) throw new Error('--kind cartesian takes only --size 1xN (and --moves for hover)');
+  const size = args.size ?? '1x100000';
+  const match = /^1x(\d+)$/.exec(size);
+  if (!match || !Number.isSafeInteger(+match[1]) || +match[1] < 2) throw new Error(`invalid cartesian size: ${size} (one line of N points, plus N bars)`);
+  const p = { kind: 'cartesian', size };
+  if (workload === 'hover') {
+    p.moves = Number(args.moves ?? 200);
+    if (!(Number.isSafeInteger(p.moves) && p.moves > 0)) throw new Error('--moves must be a positive integer');
+  }
+  return p;
+}
+
 export function multiParams(workload, args) {
   const { kind } = args;
+  if (kind === 'cartesian') return cartesianParams(workload, args);
   if (!kinds.includes(kind)) throw new Error(`unknown chart kind ${kind}`);
   const defaultSize = sizes[workload]?.[kind];
   if (!defaultSize) throw new Error(`${workload} is not available for ${kind}`);
@@ -49,6 +69,10 @@ export function multiParams(workload, args) {
 export function kindAvailability(library, workload, { kind } = {}) {
   if (!kind || kind === 'line') return null;
   const unavailable = reason => ({ ok: false, reason });
+  if (kind === 'cartesian') {
+    if (!cartesianWorkloads.includes(workload)) return unavailable(`cartesian is not available for ${workload}`);
+    return library === 'Axylo' ? { ok: true } : unavailable(`${library} has no axylo/cartesian layers`);
+  }
   if (!kinds.includes(kind)) return unavailable(`unknown chart kind ${kind}`);
   if (kind === 'histogram' && library !== 'Axylo') return unavailable(`${library} has no native histogram binning chart API`);
   if (library === 'uPlot' && kind !== 'area') return unavailable(`uPlot has no native ${kind} chart`);
