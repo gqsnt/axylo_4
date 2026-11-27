@@ -27,3 +27,16 @@ npm run test:browser   # browser tests against the built bundle, in system Chrom
 ## Your report
 
 End with a short report: what you built (files), what you verified and how (paste the last lines of the test run), what is not done or not verified, any contract change you need, and any place where the spec was ambiguous and what you assumed. Keep "ran and saw" apart from "expect".
+<!-- loupe:start -->
+## Loupe Task Dispatcher (`ts-node`)
+
+Use `./tools/loupe` for fast local checks and headless Node verification (keep `npm run test:browser`, `npm run test:dist*`, and `npm run size` Director-only):
+
+- `./tools/loupe fmt [PATH...]` — format selected files with `oxfmt`
+- `./tools/loupe fast [PATH...]` — lint (`oxlint --quiet`) + `tsc -p <owning tsconfig> --noEmit` (unscoped checks `packages/axylo`, `docs/api`, `tests/dist`)
+- `./tools/loupe test [PATH...]` — headless Node Vitest unit/property tests (`AXYLO_BROWSER` unset, private caches, emits `PASS: N tests`)
+- `./tools/loupe verify` — offline, browser-free: lint + candidate `build` + 3-project `typecheck` + full headless Node unit suite (`PASS: N tests`)
+- `./tools/loupe verify:heavy` — Director-only full gate (lint + typecheck + unit + build + browser + packed dist + dist:browser + size)
+
+Selectors are literal repo paths (no globs, no `..`). Set `LOUPE_FULL_OUTPUT=1` for uncapped diagnostics.
+<!-- loupe:end -->

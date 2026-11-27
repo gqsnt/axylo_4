@@ -1,0 +1,379 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_ROOT="$(pwd -P)"
+export NO_COLOR=1
+export FORCE_COLOR=0
+export CARGO_TERM_COLOR=never
+export CARGO_TERM_PROGRESS_WHEN=never
+export CI=1
+export PYTHONDONTWRITEBYTECODE=1
+
+die() {
+  echo "error: $*" >&2
+  exit 1
+}
+
+ensure_safe_dir() {
+  local target="$1" abs_target rel cur part
+  local -a parts=()
+  case "$target" in
+    /*) abs_target="$target" ;;
+    *) abs_target="$REPO_ROOT/$target" ;;
+  esac
+  case "/$abs_target/" in
+    */../*) die "state path must not contain '..': $target" ;;
+  esac
+  case "$abs_target" in
+    "$REPO_ROOT"/*) ;;
+    *) die "state path must stay inside repository root: $target" ;;
+  esac
+  rel="${abs_target#"$REPO_ROOT"/}"
+  cur="$REPO_ROOT"
+  IFS='/' read -r -a parts <<< "$rel"
+  for part in "${parts[@]}"; do
+    [ -n "$part" ] || continue
+    cur="$cur/$part"
+    if [ -L "$cur" ]; then
+      die "state path must not traverse symlink: $cur"
+    fi
+    if [ -e "$cur" ] && [ ! -d "$cur" ]; then
+      die "state path component is not a directory: $cur"
+    fi
+  done
+  mkdir -p "$abs_target"
+}
+
+constrain_state_var() {
+  local val="$1" fallback="$2" abs_val part norm=""
+  local -a parts=()
+  if [ -z "$val" ]; then
+    echo "$fallback"
+    return 0
+  fi
+  case "$val" in
+    /*) abs_val="$val" ;;
+    *) abs_val="$REPO_ROOT/$val" ;;
+  esac
+  case "/$abs_val/" in
+    */../*) echo "$fallback"; return 0 ;;
+  esac
+  IFS='/' read -r -a parts <<< "$abs_val"
+  for part in "${parts[@]}"; do
+    [ -n "$part" ] && [ "$part" != "." ] || continue
+    norm="$norm/$part"
+  done
+  [ -n "$norm" ] || norm="/"
+  case "$norm" in
+    "$REPO_ROOT"/*) echo "$norm" ;;
+    *) echo "$fallback" ;;
+  esac
+}
+
+export LOUPE_STATE_DIR="$(constrain_state_var "${LOUPE_STATE_DIR:-}" "$REPO_ROOT/.prism-cache/loupe")"
+export TMPDIR="$(constrain_state_var "${TMPDIR:-}" "$REPO_ROOT/.prism-cache/tmp")"
+ensure_safe_dir "$LOUPE_STATE_DIR"
+ensure_safe_dir "$TMPDIR"
+ensure_safe_dir "$TMPDIR/loupe"
+
+CAP="$REPO_ROOT/tools/cap.sh"
+
+validate_selectors() {
+  local sel resolved
+  for sel in "$@"; do
+    [ -n "$sel" ] || die "empty selector"
+    case "$sel" in
+      -*) die "selector must not start with '-': $sel" ;;
+      *"*"*|*"?"*|*"["*) die "glob characters not allowed in selector: $sel" ;;
+    esac
+    case "/$sel/" in
+      */../*) die "path escape '..' not allowed in selector: $sel" ;;
+    esac
+    if [ ! -e "$sel" ]; then
+      die "selector does not exist: $sel"
+    fi
+    resolved="$(realpath "$sel")"
+    case "$resolved" in
+      "$REPO_ROOT"|"$REPO_ROOT"/*) ;;
+      *) die "selector escapes repository root: $sel" ;;
+    esac
+  done
+}
+
+reject_selectors() {
+  local verb="$1"
+  shift
+  if [ "$#" -gt 0 ]; then
+    die "$verb does not accept selectors"
+  fi
+}
+
+scope_label() {
+  if [ "$#" -eq 0 ]; then
+    echo "all"
+  else
+    echo "$*"
+  fi
+}
+
+
+# Runs a capped command and leaves its full log path in LAST_LOG.
+run_logged() {
+  local ptr
+  ptr="$(mktemp "$TMPDIR/loupe/ptr-XXXXXX")"
+  LOUPE_LOG_FD=3 "$CAP" "$@" 3>"$ptr"
+  LAST_LOG="$(cat "$ptr")"
+  rm -f "$ptr"
+}
+
+
+# ---- TypeScript / Node helpers ----
+unset AXYLO_BROWSER
+export VITE_CACHE_DIR="$LOUPE_STATE_DIR/vite"
+export NODE_COMPILE_CACHE="$LOUPE_STATE_DIR/node-compile"
+export VITEST_FS_MODULE_CACHE_PATH="$LOUPE_STATE_DIR/vitest-fs"
+export npm_config_cache="$LOUPE_STATE_DIR/npm-cache"
+for d in "$VITE_CACHE_DIR" "$NODE_COMPILE_CACHE" "$VITEST_FS_MODULE_CACHE_PATH" "$npm_config_cache" "$LOUPE_STATE_DIR/tsbuildinfo"; do
+  ensure_safe_dir "$d"
+done
+# Same lookup as `loupe doctor`: project-local tools first, then PATH.
+if [ -d "$REPO_ROOT/node_modules/.bin" ] && [ ! -L "$REPO_ROOT/node_modules" ] && [ ! -L "$REPO_ROOT/node_modules/.bin" ]; then
+  export PATH="$REPO_ROOT/node_modules/.bin:$PATH"
+fi
+
+PRUNE=(\( -name node_modules -o -name .prism-cache -o -name .git -o -name target -o -name dist \) -prune -o)
+
+tsc_bin() {
+  command -v tsc || die "tsc not found (install typescript locally or on PATH)"
+}
+
+owning_tsconfig_dir() {
+  local d
+  d="$(realpath "$1")"
+  [ -d "$d" ] || d="$(dirname "$d")"
+  while :; do
+    [ -f "$d/tsconfig.json" ] && { echo "$d"; return 0; }
+    [ "$d" = "$REPO_ROOT" ] && return 1
+    d="$(dirname "$d")"
+  done
+}
+
+# run_tsc <tag> [abs-or-rel paths...]: tsc -p <owning tsconfig> --noEmit, deduplicated.
+# Unscoped matches Axylo's `npm run typecheck` projects (packages/axylo, docs/api, tests/dist).
+# Incremental/composite projects get their .tsbuildinfo redirected into private state.
+run_tsc() {
+  local tag="$1" tsc sel d rel
+  shift
+  tsc="$(tsc_bin)"
+  local -a dirs=() extra=()
+  if [ "$#" -eq 0 ]; then
+    dirs=(
+      "$REPO_ROOT/packages/axylo"
+      "$REPO_ROOT/docs/api"
+      "$REPO_ROOT/tests/dist"
+    )
+  else
+    for sel in "$@"; do
+      d="$(owning_tsconfig_dir "$sel")" || die "no owning tsconfig.json inside repository for selector: $sel"
+      dirs+=("$d")
+    done
+    mapfile -t dirs < <(printf '%s\n' "${dirs[@]}" | LC_ALL=C sort -u)
+  fi
+  [ "${#dirs[@]}" -gt 0 ] || die "no tsconfig.json found in repository"
+  for d in "${dirs[@]}"; do
+    extra=()
+    if "$tsc" -p "$d/tsconfig.json" --showConfig 2>/dev/null | grep -qE '"(incremental|composite)": true'; then
+      rel="${d#"$REPO_ROOT"}"; rel="${rel#/}"; rel="${rel:-root}"
+      extra=(--tsBuildInfoFile "$LOUPE_STATE_DIR/tsbuildinfo/${rel//\//__}.tsbuildinfo")
+    fi
+    "$CAP" "$tag" "$tsc" -p "$d/tsconfig.json" --noEmit --pretty false "${extra[@]}"
+  done
+}
+
+LINT_DEFAULT_PATHS=(packages/axylo/src packages/axylo/test docs/api)
+
+run_lint() {
+  local tag="$1"
+  shift
+  local -a targets=() files=()
+  if [ "$#" -eq 0 ]; then
+    targets=("${LINT_DEFAULT_PATHS[@]}")
+  else
+    targets=("$@")
+  fi
+  mapfile -t files < <(find "${targets[@]}" "${PRUNE[@]}" -type f -print | LC_ALL=C sort | grep -E '\.(js|cjs|mjs|ts|cts|mts|jsx|tsx)$' || true)
+  [ "${#files[@]}" -gt 0 ] || die "no JS/TS files found to lint"
+  "$CAP" "$tag" oxlint --format unix --quiet "${files[@]}"
+}
+
+uses_vitest() {
+  [ -x "$REPO_ROOT/node_modules/.bin/vitest" ] && return 0
+  local f
+  for f in "$REPO_ROOT"/vitest.config.*; do [ -e "$f" ] && return 0; done
+  return 1
+}
+
+JS_EXT_RE='\.(js|cjs|mjs|ts|cts|mts)$'
+
+# Node's default --test discovery: **/*.test.*, *-test.*, *_test.*, test-*.*, test.*, and test/**.
+list_test_files() {
+  find "$1" "${PRUNE[@]}" -type f -print | LC_ALL=C sort | grep -E "$JS_EXT_RE" | grep -E \
+    '(/test/.*|/[^/]*[._-]test\.[^/]+|/test-[^/]+|/test\.[^/]+)$' || true
+}
+
+# select_test_files <lister> [selectors...] -> SEL_FILES (absolute, exact, unique).
+select_test_files() {
+  local lister="$1" sel abs
+  shift
+  SEL_FILES=()
+  if [ "$#" -eq 0 ]; then
+    mapfile -t SEL_FILES < <("$lister" "$REPO_ROOT")
+  else
+    for sel in "$@"; do
+      abs="$(realpath "$sel")"
+      if [ -d "$abs" ]; then
+        mapfile -t -O "${#SEL_FILES[@]}" SEL_FILES < <("$lister" "$abs")
+      elif printf '%s\n' "$abs" | grep -E "$JS_EXT_RE" | grep -Eq '(/test/.*|/[^/]*[._-]test\.[^/]+|/test-[^/]+|/test\.[^/]+)$'; then
+        SEL_FILES+=("$abs")
+      else
+        die "not a test file under the runner's discovery rules: $sel"
+      fi
+    done
+    mapfile -t SEL_FILES < <(printf '%s\n' "${SEL_FILES[@]}" | LC_ALL=C sort -u)
+  fi
+  for abs in "${SEL_FILES[@]}"; do
+    case "$abs" in *"*"*|*"?"*|*"["*|*"{"*) die "test file name contains glob characters: $abs" ;; esac
+  done
+  [ "${#SEL_FILES[@]}" -gt 0 ] && [ -n "${SEL_FILES[0]}" ] || die "no test files selected"
+}
+
+# Counts completed passing test cases: excludes suites, skips, todos and per-file wrappers.
+write_node_reporter() {
+  cat >"$1" <<'JS'
+import { resolve } from "node:path";
+export default async function* (source) {
+  for await (const e of source) {
+    if (e.type !== "test:pass" && e.type !== "test:fail") continue;
+    const d = e.data;
+    if (d.details?.type !== "test" || d.skip || d.todo) continue;
+    if (d.nesting === 0 && d.file && resolve(d.name) === d.file) continue;
+    yield e.type === "test:pass" ? "pass\n" : "fail\n";
+  }
+}
+JS
+}
+
+# Vitest via its own project discovery: browser projects are dropped and selectors filtered to exact
+# module paths (files) or descendants (dirs) before scheduling; caches live in private state.
+write_vitest_runner() {
+  cat >"$1" <<'JS'
+import { writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
+const [vitestNode, out, ...sel] = process.argv.slice(2);
+const { createVitest } = await import(pathToFileURL(vitestNode).href);
+const loupePlugin = { name: "loupe-headless-private-cache", enforce: "pre",
+  config(cfg) { cfg.cacheDir = process.env.VITE_CACHE_DIR;
+    if (cfg.test?.browser) cfg.test.browser = { ...cfg.test.browser, enabled: false }; } };
+const ctx = await createVitest("test", { run: true, watch: false, cache: false, configLoader: "native",
+  reporters: ["dot"], fsModuleCachePath: process.env.VITEST_FS_MODULE_CACHE_PATH },
+  { cacheDir: process.env.VITE_CACHE_DIR, plugins: [loupePlugin] });
+await ctx.init();
+let specs = (await ctx.globTestSpecifications()).filter((s) => !s.project.config.browser?.enabled);
+for (const p of sel) if (!specs.some((s) => s.moduleId === p || s.moduleId.startsWith(p + "/"))) {
+  console.error(`not a unit test file or directory under the resolved Vitest projects: ${p}`); process.exit(1); }
+if (sel.length) specs = specs.filter((s) => sel.some((p) => s.moduleId === p || s.moduleId.startsWith(p + "/")));
+if (!specs.length) { console.error("no test files selected"); process.exit(1); }
+const r = await ctx.runTestSpecifications(specs, !sel.length);
+let n = 0, fail = r.unhandledErrors.length;
+for (const m of r.testModules) {
+  if (m.state() === "failed") fail++;
+  for (const t of m.children.allTests()) { const st = t.result().state; if (st === "passed") n++; else if (st === "failed") fail++; }
+}
+await ctx.close();
+writeFileSync(out, `${n} ${fail}\n`);
+process.exit(fail ? 1 : 0);
+JS
+}
+
+# run_js_tests <tag> [selectors...]: headless unit suite; sets LAST_PASS_COUNT (> 0) or dies.
+run_js_tests() {
+  local tag="$1" n fails work
+  shift
+  work="$(mktemp -d "$TMPDIR/loupe/js-XXXXXX")"
+  if uses_vitest; then
+    [ -x "$REPO_ROOT/node_modules/.bin/vitest" ] || die "vitest config found but ./node_modules/.bin/vitest is missing; run ./tools/loupe setup"
+    write_vitest_runner "$work/run.mjs"
+    SEL_FILES=()
+    for sel in "$@"; do SEL_FILES+=("$(realpath "$sel")"); done
+    run_logged "$tag" node "$work/run.mjs" "$REPO_ROOT/node_modules/vitest/dist/node.js" "$work/count.txt" ${SEL_FILES[@]+"${SEL_FILES[@]}"}
+    read -r n fails <"$work/count.txt" || die "cannot read vitest result (full log: $LAST_LOG)"
+    [ "${fails:-1}" -eq 0 ] || die "vitest reported failures (full log: $LAST_LOG)"
+  else
+    # Unscoped: keep Node's native discovery (it includes e.g. dist/); scoped: exact validated files.
+    SEL_FILES=()
+    [ "$#" -eq 0 ] || select_test_files list_test_files "$@"
+    write_node_reporter "$work/count.mjs"
+    run_logged "$tag" node --test --test-reporter=tap --test-reporter-destination=stdout \
+      --test-reporter="$work/count.mjs" --test-reporter-destination="$work/count.txt" ${SEL_FILES[@]+"${SEL_FILES[@]}"}
+    fails="$(grep -c '^fail$' "$work/count.txt" || true)"
+    [ "${fails:-0}" -eq 0 ] || die "node --test reported failures (full log: $LAST_LOG)"
+    n="$(grep -c '^pass$' "$work/count.txt" || true)"
+  fi
+  rm -rf "$work"
+  if [ -z "${n:-}" ] || [ "$n" -le 0 ]; then
+    die "0 tests passed (skipped/todo do not count; full log: $LAST_LOG)"
+  fi
+  LAST_PASS_COUNT="$n"
+}
+
+USAGE="usage: ./tools/loupe <fmt|fast|test|verify|verify:heavy> [PATH...]"
+[ "$#" -ge 1 ] || die "$USAGE"
+VERB="$1"
+shift
+START_SEC=$SECONDS
+case "$VERB" in
+  fmt)
+    validate_selectors "$@"
+    "$CAP" fmt oxfmt "$@"
+    echo "ok fmt $(scope_label "$@") $((SECONDS - START_SEC))s"
+    ;;
+  fast)
+    validate_selectors "$@"
+    run_lint fast-lint "$@"
+    run_tsc fast-tsc "$@"
+    echo "ok fast $(scope_label "$@") $((SECONDS - START_SEC))s"
+    ;;
+  test)
+    validate_selectors "$@"
+    run_js_tests test "$@"
+    echo "PASS: ${LAST_PASS_COUNT} tests"
+    ;;
+  verify)
+    reject_selectors verify "$@"
+    run_lint verify-lint
+    "$CAP" verify-build node "$REPO_ROOT/scripts/build.mjs"
+    run_tsc verify-tsc
+    run_js_tests verify-test
+    echo "PASS: ${LAST_PASS_COUNT} tests"
+    ;;
+  verify:heavy)
+    reject_selectors verify:heavy "$@"
+    run_lint heavy-lint
+    "$CAP" heavy-typecheck npm run typecheck
+    run_js_tests heavy-unit
+    "$CAP" heavy-build npm run build
+    "$CAP" heavy-browser npm run test:browser
+    "$CAP" heavy-dist npm run test:dist
+    "$CAP" heavy-dist-browser npm run test:dist:browser
+    "$CAP" heavy-size npm run size
+    echo "PASS: ${LAST_PASS_COUNT} tests"
+    ;;
+  setup)
+    reject_selectors setup "$@"
+    if [ -f package-lock.json ]; then "$CAP" setup npm ci; else "$CAP" setup npm install; fi
+    echo "ok setup all $((SECONDS - START_SEC))s"
+    ;;
+  *)
+    die "unknown verb '$VERB'; $USAGE"
+    ;;
+esac
