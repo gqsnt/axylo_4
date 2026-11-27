@@ -18,12 +18,17 @@
     "check": "npm run typecheck && npm test && npm run build && npm run test:browser && npm run test:dist && npm run test:dist:browser && npm run size"
   },
   "devDependencies": {
+    "@rollup/plugin-node-resolve": "^16.0.3",
     "@types/node": "^26.6.6",
     "axe-core": "^4.14.1",
+    "css-loader": "^7.1.5",
     "esbuild": "^0.28.2",
     "fast-check": "^4.10.2",
+    "mini-css-extract-plugin": "^2.10.2",
     "playwright-core": "^1.65.1",
+    "rollup": "^4.68.8",
     "typescript": "^7.0.2",
-    "vitest": "^5.1.0"
+    "vitest": "^5.1.0",
+    "webpack": "^5.113.0"
   }
 }
