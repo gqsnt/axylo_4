@@ -7,10 +7,14 @@
  * - Down candles (`close < open`): solid filled rectangle (`RectMark`).
  * - Unchanged / doji candles (`close === open`): crisp horizontal body bar (`PathMark`).
  * - Wicks: single batched `PathMark` across all valid candles (`1` SVG `<path>` even at 10k rows).
+ *
+ * N7a: candles, wicks and references (x and y) are cut to the price pane, volume bars to the volume pane, in the
+ * geometry and again by per-pane SVG clip paths; paints come from --axylo-up / --axylo-down / --axylo-volume.
+ * A view denser than its pixel columns draws the layout's OHLCV bins (one candle and one bar per 2 px column).
  */
 import {
-  SLOT_VALUE, type AlignedView, type DatumRef, type DatumText, type Formatters, type Layout,
-  type Lookup, type Mark, type PathMark, type PickTarget, type Projection, type Rect, type RectMark,
+  SLOT_VALUE, type AlignedView, type BandMark, type DashStyle, type DatumRef, type DatumText, type Formatters, type Layout,
+  type Lookup, type Mark, type PaintBindings, type PathMark, type PickTarget, type Projection, type Rect, type RectMark,
   type RuleMark, type Scene, type SlotState, type StepDirection, type TableModel, type TooltipModel,
   type View, type XScale,
 } from '../core/contracts';
@@ -18,15 +22,49 @@ import type { OverlayInput } from '../core/focus';
 import type { Messages, XValue } from '../public';
 import type { ReaderParts } from '../reader';
 import { alignedReader } from '../reader';
-import { boundaryPixel, clamp, position, rule, seriesPaint, token } from '../scene/geometry';
+import { boundaryPixel, clamp, position, projectReference, rule, seriesPaint, token } from '../scene/geometry';
 import { positionReader } from '../view/references';
+import { svgElement } from '../dom/attributes';
+import { svgBand, svgPath, svgRects, svgRule, type SvgContext, type SvgMark, type SvgMarks, type SvgNode } from '../render/svg';
+import { BIN_WIDTH } from './aggregate';
 import {
   FLAG_INCOMPLETE_OHLC, FLAG_INVALID_OHLC, FLAG_INVALID_VOLUME,
-  findOhlcSeries, flagsForFrame, type FinanceStateRef,
+  findOhlcSeries, flagsForFrame, frameMeta, type FinanceStateRef,
 } from './core';
+import { candleData, financePanes } from './layout';
 
 const TICK_LENGTH = 4;
 const REFERENCE_DASH = [4, 3] as const;
+const REFERENCE_WIDTH = 1.5;
+/** The shared reference dash in both modes: the line is told apart by its dash, not by contrast. */
+const REFERENCE_DASH_STYLE: DashStyle = { normal: REFERENCE_DASH, contrast: REFERENCE_DASH };
+
+/** Paint slots of the finance marks; their colors come from financeBindings, not from the series palette order. */
+export const UP_PAINT = 0;
+export const DOWN_PAINT = 1;
+export const VOLUME_PAINT = 2;
+
+export type PaneKind = 'price' | 'volume';
+export interface PaneTag {
+  readonly kind: PaneKind;
+  readonly rect: Rect;
+}
+
+/**
+ * The pane each candle, wick and volume mark is clipped to. The shared scene has a single clip rectangle (the
+ * whole plot), so the finance SVG handlers read this to clip each data mark to its own pane. Geometry is also
+ * cut to the pane in the scene itself, so a renderer without these handlers still keeps every mark in its pane.
+ */
+let paneTags: WeakMap<Mark, PaneTag> | undefined;
+
+export function paneOf(mark: Mark): PaneTag | undefined {
+  return paneTags?.get(mark);
+}
+
+function tagged<M extends Mark>(mark: M, tag: PaneTag): M {
+  (paneTags ??= new WeakMap()).set(mark, tag);
+  return mark;
+}
 
 function xCoord(xScale: XScale, xVals: Float64Array, i: number): number {
   return xScale.type === 'band' ? xScale.center(i) : position(xScale, xVals[i]!);
@@ -48,6 +86,125 @@ function candleWidth(xScale: XScale, xVals: Float64Array, start: number, end: nu
   return clamp(base, 2, 24);
 }
 
+/** Packed geometry of the candles, cut to the price pane: wicks and dojis, hollow up bodies, filled down bodies. */
+class CandleBuffers {
+  readonly wick: Float32Array;
+  readonly up: Float32Array;
+  readonly down: Float32Array;
+  wickPos = 0;
+  upPos = 0;
+  downPos = 0;
+
+  constructor(count: number, readonly top: number, readonly bottom: number) {
+    this.wick = new Float32Array(count * 12);
+    this.up = new Float32Array(count * 12);
+    this.down = new Float32Array(count * 4);
+  }
+
+  /**
+   * A vertical segment from y0 down to y1, cut to the pane. Directional: a segment whose ends are not in that
+   * order is empty (an upper wick of a candle with no upper shadow) and is never turned around into one.
+   */
+  #vertical(x: number, y0: number, y1: number): void {
+    if (!(y0 < y1)) return;
+    const a = Math.max(this.top, y0);
+    const b = Math.min(this.bottom, y1);
+    // Compared as stored (float32): ends that round together would be a zero-length segment.
+    if (!(Math.fround(a) < Math.fround(b))) return;
+    const w = this.wick;
+    w[this.wickPos++] = x; w[this.wickPos++] = a;
+    w[this.wickPos++] = x; w[this.wickPos++] = b;
+    w[this.wickPos++] = NaN; w[this.wickPos++] = NaN;
+  }
+
+  /**
+   * One candle, in pixels (yH <= body <= yL for a valid candle). Its raw extent is tested against the pane
+   * before anything is thickened: a candle wholly outside an explicit domain draws nothing, however close it
+   * is (a minimum body pushed into the pane would show a value the domain excludes). A candle that crosses the
+   * pane keeps the parts inside it, real wicks included.
+   */
+  add(cx: number, halfW: number, yO: number, yH: number, yL: number, yC: number, direction: number): void {
+    const { top, bottom } = this;
+    if (!(yL >= top && yH <= bottom)) return;
+    const bodyTop = Math.min(yO, yC);
+    const bodyBottom = Math.max(yO, yC);
+    // The body takes part only where its own raw extent meets the pane; then it is at least 1 px tall.
+    const bodyIn = bodyBottom >= top && bodyTop <= bottom;
+    const thin = bodyBottom - bodyTop < 1;
+    const topY = thin ? (bodyTop + bodyBottom) / 2 - 0.5 : bodyTop;
+    const botY = thin ? topY + 1 : bodyBottom;
+    if (direction > 0) {
+      this.#vertical(cx, yH, bodyTop);
+      this.#vertical(cx, bodyBottom, yL);
+      if (!bodyIn) return;
+      const a = Math.max(top, topY);
+      const b = Math.min(bottom, botY);
+      if (!(a < b)) return;
+      const x0 = cx - halfW;
+      const x1 = cx + halfW;
+      const u = this.up;
+      if (topY >= top && botY <= bottom) {
+        u[this.upPos++] = x0; u[this.upPos++] = topY;
+        u[this.upPos++] = x1; u[this.upPos++] = topY;
+        u[this.upPos++] = x1; u[this.upPos++] = botY;
+        u[this.upPos++] = x0; u[this.upPos++] = botY;
+        u[this.upPos++] = x0; u[this.upPos++] = topY;
+        u[this.upPos++] = NaN; u[this.upPos++] = NaN;
+      } else if (topY >= top) {
+        // The bottom edge lies outside the pane: an open outline down to the pane edge.
+        u[this.upPos++] = x0; u[this.upPos++] = b;
+        u[this.upPos++] = x0; u[this.upPos++] = topY;
+        u[this.upPos++] = x1; u[this.upPos++] = topY;
+        u[this.upPos++] = x1; u[this.upPos++] = b;
+        u[this.upPos++] = NaN; u[this.upPos++] = NaN;
+      } else if (botY <= bottom) {
+        u[this.upPos++] = x0; u[this.upPos++] = a;
+        u[this.upPos++] = x0; u[this.upPos++] = botY;
+        u[this.upPos++] = x1; u[this.upPos++] = botY;
+        u[this.upPos++] = x1; u[this.upPos++] = a;
+        u[this.upPos++] = NaN; u[this.upPos++] = NaN;
+      } else {
+        u[this.upPos++] = x0; u[this.upPos++] = a;
+        u[this.upPos++] = x0; u[this.upPos++] = b;
+        u[this.upPos++] = NaN; u[this.upPos++] = NaN;
+        u[this.upPos++] = x1; u[this.upPos++] = a;
+        u[this.upPos++] = x1; u[this.upPos++] = b;
+        u[this.upPos++] = NaN; u[this.upPos++] = NaN;
+      }
+    } else if (direction < 0) {
+      this.#vertical(cx, yH, yL);
+      if (!bodyIn) return;
+      const a = Math.max(top, topY);
+      const b = Math.min(bottom, botY);
+      if (!(a < b)) return;
+      const d = this.down;
+      d[this.downPos++] = cx - halfW;
+      d[this.downPos++] = a;
+      d[this.downPos++] = halfW * 2;
+      d[this.downPos++] = b - a;
+    } else {
+      this.#vertical(cx, yH, yL);
+      if (yC >= top && yC <= bottom) {
+        const w = this.wick;
+        w[this.wickPos++] = cx - halfW; w[this.wickPos++] = yC;
+        w[this.wickPos++] = cx + halfW; w[this.wickPos++] = yC;
+        w[this.wickPos++] = NaN; w[this.wickPos++] = NaN;
+      }
+    }
+  }
+}
+
+/**
+ * The outline width of a hollow (up) body: a third of the body, between 0.5 and 1.75 px, so the two side
+ * strokes never meet and the interior stays open (body - stroke >= 1 px for any body of 1.5 px or more, the
+ * dense bins' included: a 1.5 px body with 0.5 px strokes spans exactly its 2 px column).
+ */
+export function hollowStroke(bodyWidth: number): number {
+  return clamp(bodyWidth / 3, 0.5, 1.75);
+}
+
+const used = (buf: Float32Array, n: number): Float32Array => (n === buf.length ? buf : buf.subarray(0, n));
+
 export function buildFinanceScene(
   stateRef: FinanceStateRef,
   view: View,
@@ -60,206 +217,254 @@ export function buildFinanceScene(
   const { plot, projection } = layout;
   if (projection.kind === 'ring') return { width: layout.width, height: layout.height, clip: plot, marks: [] };
 
+  // The frame's own fields and labels: a mid-frame update cannot change what this scene draws.
+  const meta = frameMeta(stateRef, view.frame);
   const compact = layout.kind === 'compact' || view.compact;
   const xScale = projection.kind === 'xy' ? projection.x : projection.band;
   const yScale = projection.kind === 'xy' ? projection.y : projection.value;
+  const known = financePanes(layout);
+  const panes = known ?? {
+    price: plot, volume: null, volumeScale: null, volumeTicks: [], volumeMax: 0, divider: null,
+    bins: candleData(view, meta, xScale, plot.x, plot.width, false).bins, volumeFormatFailed: false, volumeLabelsHidden: 0,
+    volumeOmitted: false,
+  };
+  const price = panes.price;
+  const priceTag: PaneTag = { kind: 'price', rect: price };
   const left = plot.x;
   const right = plot.x + plot.width;
   const top = plot.y;
   const bottom = plot.y + plot.height;
+  const pTop = price.y;
+  const pBottom = price.y + price.height;
 
   const marks: Mark[] = [];
   const edges: RuleMark[] = [];
-  const refLines: RuleMark[] = [];
+  const refLines: PathMark[] = [];
 
-  // 1. Reference bands & gridlines
+  // 1. References belong to the price pane: lines and bands, x and y alike, are projected onto the price pane
+  // exactly as their labels are (layout/references.ts), and carry the price pane's SVG clip, so even the
+  // stroke of a line on a pane edge stays inside it. A line outside the domain is not drawn: pinning it to an
+  // edge would show a wrong value. Lines are dashed paths rather than rules so the shared renderer keeps
+  // batching grid and tick rules while these get the pane clip.
   if (!compact && view.references.length) {
     const paint = token('reference');
     for (const ref of view.references) {
-      if (ref.axis === 'x') {
-        const a = xScale.type === 'band' ? xScale.center(ref.from) : position(xScale, ref.from);
-        const b = xScale.type === 'band' ? xScale.center(ref.to) : position(xScale, ref.to);
-        if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
-        const lo = clamp(Math.min(a, b), left, right);
-        const hi = clamp(Math.max(a, b), left, right);
-        if (ref.from === ref.to) refLines.push({ ...rule('reference', paint, lo, top, lo, bottom), strokeWidth: 1.5, dash: REFERENCE_DASH });
-        else marks.push({ type: 'band', box: { x: lo, y: top, width: Math.max(1, hi - lo), height: plot.height }, fill: paint, opacity: 0.12 });
+      const projected = projectReference(ref, projection, price);
+      if (!projected) continue;
+      const { vertical, low, high } = projected;
+      if (low === high) {
+        const xy = vertical ? new Float32Array([low, pTop, low, pBottom]) : new Float32Array([left, low, right, low]);
+        refLines.push(tagged({
+          type: 'path', series: UP_PAINT, xy, stroke: paint, strokeWidth: REFERENCE_WIDTH, dash: REFERENCE_DASH_STYLE,
+        } satisfies PathMark, priceTag));
       } else {
-        const a = position(yScale, ref.from);
-        const b = position(yScale, ref.to);
-        if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
-        const lo = clamp(Math.min(a, b), top, bottom);
-        const hi = clamp(Math.max(a, b), top, bottom);
-        if (ref.from === ref.to) refLines.push({ ...rule('reference', paint, left, lo, right, lo), strokeWidth: 1.5, dash: REFERENCE_DASH });
-        else marks.push({ type: 'band', box: { x: left, y: lo, width: plot.width, height: Math.max(1, hi - lo) }, fill: paint, opacity: 0.12 });
+        const box = vertical ? { x: low, y: pTop, width: high - low, height: price.height } : { x: left, y: low, width: plot.width, height: high - low };
+        marks.push(tagged({ type: 'band', box, fill: paint, opacity: 0.12 } satisfies BandMark, priceTag));
       }
     }
   }
 
+  // 2. Axes, ticks and gridlines, each pane its own.
   if (layout.kind === 'plot' && !compact) {
     const axisPaint = token('axis');
     const gridPaint = token('grid');
     edges.push(rule('axis', axisPaint, left, bottom, right, bottom));
-    edges.push(rule('axis', axisPaint, left, top, left, bottom));
+    edges.push(rule('axis', axisPaint, left, pTop, left, pBottom));
     for (const tick of layout.xTicks) {
       const px = boundaryPixel(xScale.type === 'band' ? xScale.center(tick.value) : position(xScale, tick.value), left, right);
       if (px !== null) edges.push(rule('tick', axisPaint, px, bottom, px, bottom + TICK_LENGTH));
     }
     for (const tick of layout.yTicks) {
-      const py = boundaryPixel(position(yScale, tick.value), top, bottom);
+      const py = boundaryPixel(position(yScale, tick.value), pTop, pBottom);
       if (py === null) continue;
       marks.push(rule('grid', gridPaint, left, py, right, py));
       edges.push(rule('tick', axisPaint, left - TICK_LENGTH, py, left, py));
     }
+    const vol = panes.volume;
+    if (vol && panes.volumeScale) {
+      const vTop = vol.y;
+      const vBottom = vol.y + vol.height;
+      edges.push(rule('axis', axisPaint, right, vTop, right, vBottom));
+      for (const tick of panes.volumeTicks) {
+        const py = boundaryPixel(panes.volumeScale.map(tick.value), vTop, vBottom);
+        if (py === null) continue;
+        if (tick.value !== 0) marks.push(rule('grid', gridPaint, left, py, right, py));
+        edges.push(rule('tick', axisPaint, right, py, right + TICK_LENGTH, py));
+      }
+      if (panes.divider !== null) marks.push(rule('grid', gridPaint, left, panes.divider, right, panes.divider));
+    }
   }
 
-  const { meta } = stateRef;
   const { open, high, low, close, volume } = findOhlcSeries(view.frame, meta);
   if (open && high && low && close) {
     const flags = flagsForFrame(view.frame, meta);
     const xVals = view.frame.x.values;
     const { start, end } = view.visibleSlots;
     const nSlots = Math.max(0, end - start);
-    const bodyW = candleWidth(xScale, xVals, start, end, plot.width);
+    const bins = panes.bins;
+    const bodyW = bins ? BIN_WIDTH * 0.75 : candleWidth(xScale, xVals, start, end, plot.width);
     const halfW = bodyW / 2;
-    const volIdx = volume ? view.frame.series.indexOf(volume) : -1;
-    const showVolume = Boolean(volume && volIdx >= 0 && view.visible[volIdx] !== false);
+    const vol = panes.volume;
+    const vScale = panes.volumeScale;
 
-    // Optional volume panel in dedicated bottom 22% region (respects view.visible[volIdx])
-    if (showVolume && volume && nSlots > 0) {
-      let maxVol = 0;
-      for (let i = start; i < end; i++) {
-        if ((flags[i]! & (FLAG_INVALID_OHLC | FLAG_INCOMPLETE_OHLC | FLAG_INVALID_VOLUME)) !== 0) continue;
-        if (volume.slot[i] !== SLOT_VALUE) continue;
-        const v = volume.y[i]!;
-        if (v > maxVol && Number.isFinite(v)) maxVol = v;
-      }
-      if (maxVol > 0) {
-        const volMaxH = Math.max(8, plot.height * 0.22);
-        const volBuf = new Float32Array(nSlots * 4);
-        let vp = 0;
+    // Volume bars: proportional to the pane's own [0, volumeMax] scale, nothing drawn for zero or missing volume.
+    if (vol && vScale && volume && panes.volumeMax > 0) {
+      const vBottom = vol.y + vol.height;
+      const n = bins ? bins.count : nSlots;
+      const buf = new Float32Array(n * 4);
+      let vp = 0;
+      const push = (cx: number, v: number) => {
+        if (!(v > 0)) return;
+        const y = Math.max(vol.y, vScale.map(v));
+        const h = vBottom - y;
+        if (!(h > 0)) return;
+        buf[vp++] = cx - halfW; buf[vp++] = y; buf[vp++] = bodyW; buf[vp++] = h;
+      };
+      if (bins) {
+        for (let b = 0; b < bins.count; b++) push(bins.center[b]!, bins.volume[b]!);
+      } else {
         for (let i = start; i < end; i++) {
           if ((flags[i]! & (FLAG_INVALID_OHLC | FLAG_INCOMPLETE_OHLC | FLAG_INVALID_VOLUME)) !== 0) continue;
-          if (volume.slot[i] !== SLOT_VALUE) continue;
-          const v = volume.y[i]!;
-          if (!(v > 0) || !Number.isFinite(v)) continue;
-          const cx = xCoord(xScale, xVals, i);
-          const vh = Math.max(1, (v / maxVol) * volMaxH);
-          volBuf[vp++] = cx - halfW;
-          volBuf[vp++] = bottom - vh;
-          volBuf[vp++] = bodyW;
-          volBuf[vp++] = vh;
+          if (volume.slot[i] !== SLOT_VALUE || !Number.isFinite(volume.y[i]!)) continue;
+          push(xCoord(xScale, xVals, i), volume.y[i]!);
         }
-        if (vp > 0) {
-          marks.push({
-            type: 'rects',
-            series: 2,
-            xywh: vp === volBuf.length ? volBuf : volBuf.subarray(0, vp),
-            fill: seriesPaint(2),
-            variant: 'bar',
-          } satisfies RectMark);
-        }
+      }
+      if (vp > 0) {
+        marks.push(tagged({
+          type: 'rects', series: VOLUME_PAINT, xywh: used(buf, vp), fill: seriesPaint(VOLUME_PAINT), variant: 'bar',
+        } satisfies RectMark, { kind: 'volume', rect: vol }));
       }
     }
 
-    // Batched O(N) typed buffers for wicks/dojis, hollow up bodies, and filled down bodies
-    const wickBuf = new Float32Array(nSlots * 12);
-    let wickPos = 0;
-    const upBuf = new Float32Array(nSlots * 12); // closed 5-vertex rect + NaN separator = 12 floats
-    let upPos = 0;
-    const downBuf = new Float32Array(nSlots * 4);
-    let downPos = 0;
-
-    for (let i = start; i < end; i++) {
-      if ((flags[i]! & (FLAG_INVALID_OHLC | FLAG_INCOMPLETE_OHLC)) !== 0) continue;
-      const o = open.y[i]!;
-      const h = high.y[i]!;
-      const l = low.y[i]!;
-      const c = close.y[i]!;
-      const cx = xCoord(xScale, xVals, i);
-      const yH = position(yScale, h);
-      const yL = position(yScale, l);
-      const yO = position(yScale, o);
-      const yC = position(yScale, c);
-
-      if (c > o) {
-        // Up candle: hollow stroked rectangle outline + upper/lower wicks stopping cleanly at body edges
-        const topY = Math.min(yO, yC);
-        const botY = Math.max(topY + 1, Math.max(yO, yC));
-        if (yH < topY) {
-          wickBuf[wickPos++] = cx; wickBuf[wickPos++] = yH;
-          wickBuf[wickPos++] = cx; wickBuf[wickPos++] = topY;
-          wickBuf[wickPos++] = NaN; wickBuf[wickPos++] = NaN;
-        }
-        if (yL > botY) {
-          wickBuf[wickPos++] = cx; wickBuf[wickPos++] = botY;
-          wickBuf[wickPos++] = cx; wickBuf[wickPos++] = yL;
-          wickBuf[wickPos++] = NaN; wickBuf[wickPos++] = NaN;
-        }
-        const x0 = cx - halfW;
-        const x1 = cx + halfW;
-        upBuf[upPos++] = x0; upBuf[upPos++] = topY;
-        upBuf[upPos++] = x1; upBuf[upPos++] = topY;
-        upBuf[upPos++] = x1; upBuf[upPos++] = botY;
-        upBuf[upPos++] = x0; upBuf[upPos++] = botY;
-        upBuf[upPos++] = x0; upBuf[upPos++] = topY;
-        upBuf[upPos++] = NaN; upBuf[upPos++] = NaN;
-      } else if (c < o) {
-        // Down candle: full wick + filled solid rectangle
-        wickBuf[wickPos++] = cx; wickBuf[wickPos++] = yH;
-        wickBuf[wickPos++] = cx; wickBuf[wickPos++] = yL;
-        wickBuf[wickPos++] = NaN; wickBuf[wickPos++] = NaN;
-        const topY = Math.min(yO, yC);
-        const hPx = Math.max(1, Math.abs(yC - yO));
-        downBuf[downPos++] = cx - halfW;
-        downBuf[downPos++] = topY;
-        downBuf[downPos++] = bodyW;
-        downBuf[downPos++] = hPx;
-      } else {
-        // Unchanged / doji: full wick + horizontal crossbar across candle width
-        wickBuf[wickPos++] = cx; wickBuf[wickPos++] = yH;
-        wickBuf[wickPos++] = cx; wickBuf[wickPos++] = yL;
-        wickBuf[wickPos++] = NaN; wickBuf[wickPos++] = NaN;
-        wickBuf[wickPos++] = cx - halfW; wickBuf[wickPos++] = yC;
-        wickBuf[wickPos++] = cx + halfW; wickBuf[wickPos++] = yC;
-        wickBuf[wickPos++] = NaN; wickBuf[wickPos++] = NaN;
+    const candles = new CandleBuffers(bins ? bins.count : nSlots, pTop, pBottom);
+    if (bins) {
+      for (let b = 0; b < bins.count; b++) {
+        if (bins.candles[b] === 0) continue;
+        const o = bins.open[b]!, c = bins.close[b]!;
+        candles.add(bins.center[b]!, halfW, position(yScale, o), position(yScale, bins.high[b]!), position(yScale, bins.low[b]!),
+          position(yScale, c), c > o ? 1 : c < o ? -1 : 0);
+      }
+    } else {
+      for (let i = start; i < end; i++) {
+        if ((flags[i]! & (FLAG_INVALID_OHLC | FLAG_INCOMPLETE_OHLC)) !== 0) continue;
+        const o = open.y[i]!, c = close.y[i]!;
+        candles.add(xCoord(xScale, xVals, i), halfW, position(yScale, o), position(yScale, high.y[i]!), position(yScale, low.y[i]!),
+          position(yScale, c), c > o ? 1 : c < o ? -1 : 0);
       }
     }
 
-    if (wickPos >= 4) {
-      marks.push({
-        type: 'path',
-        series: 0,
-        xy: wickPos === wickBuf.length ? wickBuf : wickBuf.subarray(0, wickPos),
-        stroke: token('axis'),
-        strokeWidth: 1.25,
+    if (candles.wickPos >= 4) {
+      marks.push(tagged({
+        type: 'path', series: UP_PAINT, xy: used(candles.wick, candles.wickPos), stroke: token('axis'), strokeWidth: 1.25,
         dash: { normal: null, contrast: null },
-      } satisfies PathMark);
+      } satisfies PathMark, priceTag));
     }
-    if (downPos >= 4) {
-      marks.push({
-        type: 'rects',
-        series: 1,
-        xywh: downPos === downBuf.length ? downBuf : downBuf.subarray(0, downPos),
-        fill: seriesPaint(1),
-        variant: 'bar',
-      } satisfies RectMark);
+    if (candles.downPos >= 4) {
+      marks.push(tagged({
+        type: 'rects', series: DOWN_PAINT, xywh: used(candles.down, candles.downPos), fill: seriesPaint(DOWN_PAINT), variant: 'bar',
+      } satisfies RectMark, priceTag));
     }
-    if (upPos >= 10) {
-      marks.push({
-        type: 'path',
-        series: 0,
-        xy: upPos === upBuf.length ? upBuf : upBuf.subarray(0, upPos),
-        stroke: seriesPaint(0),
-        strokeWidth: 1.75,
+    if (candles.upPos >= 6) {
+      marks.push(tagged({
+        type: 'path', series: UP_PAINT, xy: used(candles.up, candles.upPos), stroke: seriesPaint(UP_PAINT), strokeWidth: hollowStroke(bodyW),
         dash: { normal: null, contrast: null },
-      } satisfies PathMark);
+      } satisfies PathMark, priceTag));
     }
   }
 
   marks.push(...edges, ...refLines);
   return { width: layout.width, height: layout.height, clip: plot, marks };
 }
+
+// ───────────────────────────── SVG paint and pane clips ─────────────────────────────
+
+/**
+ * Live semantic paints. Under forced colors the stylesheet defines --axylo-forced-series (CanvasText,
+ * !important), which wins over an author's brand colors; otherwise --axylo-up / --axylo-down / --axylo-volume
+ * apply, and unset they fall back to the chart's themed palette slots (contrast-checked by AX141). Direction
+ * never relies on color: up is hollow, down is filled, unchanged is a horizontal tick.
+ */
+export function financePaintExpression(property: '--axylo-up' | '--axylo-down' | '--axylo-volume', fallback: string): string {
+  return `var(--axylo-forced-series, var(${property}, ${fallback}))`;
+}
+
+let derivedBindings: WeakMap<PaintBindings, PaintBindings> | undefined;
+
+export function financeBindings(bindings: PaintBindings): PaintBindings {
+  const cache = derivedBindings ??= new WeakMap();
+  let out = cache.get(bindings);
+  if (!out) {
+    const series = [...bindings.series];
+    const slot = (i: number) => bindings.series[i] ?? bindings.tokens.axis;
+    series[UP_PAINT] = financePaintExpression('--axylo-up', slot(UP_PAINT));
+    series[DOWN_PAINT] = financePaintExpression('--axylo-down', slot(DOWN_PAINT));
+    series[VOLUME_PAINT] = financePaintExpression('--axylo-volume', slot(VOLUME_PAINT));
+    out = { tokens: bindings.tokens, series };
+    cache.set(bindings, out);
+  }
+  return out;
+}
+
+let clipIds = 0;
+let paneClips: WeakMap<SvgContext, Map<PaneKind, { readonly url: string; readonly rect: SVGElement; bounds: Rect | null }>> | undefined;
+
+function paneClipUrl(c: SvgContext, tag: PaneTag): string {
+  const byContext = paneClips ??= new WeakMap();
+  let clips = byContext.get(c);
+  if (!clips) byContext.set(c, clips = new Map());
+  let clip = clips.get(tag.kind);
+  if (!clip) {
+    const id = `axylo-finance-${tag.kind}-${++clipIds}`;
+    const el = svgElement(c.doc, 'clipPath', { id, clipPathUnits: 'userSpaceOnUse' });
+    const rect = svgElement(c.doc, 'rect');
+    el.appendChild(rect);
+    c.defs.appendChild(el);
+    clips.set(tag.kind, clip = { url: `url(#${id})`, rect, bounds: null });
+  }
+  const r = tag.rect;
+  const b = clip.bounds;
+  if (!b || b.x !== r.x || b.y !== r.y || b.width !== r.width || b.height !== r.height) {
+    clip.rect.setAttribute('x', String(r.x));
+    clip.rect.setAttribute('y', String(r.y));
+    clip.rect.setAttribute('width', String(Math.max(0, r.width)));
+    clip.rect.setAttribute('height', String(Math.max(0, r.height)));
+    clip.bounds = r;
+  }
+  return clip.url;
+}
+
+/**
+ * Replaces the plot clip the renderer set with the mark's pane clip. Only the element is changed, not the
+ * renderer's attribute cache, so a node reused for an untagged mark gets the renderer's clip back.
+ */
+function clipToPane(c: SvgContext, n: SvgNode, mark: Mark): void {
+  const tag = paneOf(mark);
+  const wanted = tag ? paneClipUrl(c, tag) : (n.attrs?.['clip-path'] as string | undefined) ?? null;
+  if (n.el.getAttribute('clip-path') === wanted) return;
+  if (wanted === null) n.el.removeAttribute('clip-path');
+  else n.el.setAttribute('clip-path', wanted);
+}
+
+const financePath: SvgMark<PathMark> = (c, n, mark, bindings, dpr, clip) => {
+  svgPath(c, n, mark, financeBindings(bindings), dpr, clip);
+  clipToPane(c, n, mark);
+};
+
+const financeRects: SvgMark<RectMark> = (c, n, mark, bindings, dpr, clip) => {
+  svgRects(c, n, mark, financeBindings(bindings), dpr, clip);
+  clipToPane(c, n, mark);
+};
+
+const financeBand: SvgMark<BandMark> = (c, n, mark, bindings, dpr, clip) => {
+  svgBand(c, n, mark, bindings, dpr, clip);
+  clipToPane(c, n, mark);
+};
+
+/**
+ * The SVG handlers of the finance scene: semantic paints and per-pane clips on data and reference marks. Rules
+ * keep the shared handler itself, which is what lets the renderer batch grid and tick rules.
+ */
+export const financeSvgMarks: SvgMarks = { band: financeBand, path: financePath, rects: financeRects, rule: svgRule };
 
 function lowerBound(arr: Float64Array, value: number, lo: number, hi: number): number {
   let l = lo, r = hi;
@@ -333,7 +538,7 @@ class FinanceLookup implements Lookup {
   }
 
   #primaryKey(): string {
-    return this.#stateRef.meta.closeField || this.#view.frame.series[0]?.key || 'close';
+    return frameMeta(this.#stateRef, this.#view.frame).closeField || this.#view.frame.series[0]?.key || 'close';
   }
 
   #nearestSlot(xPx: number): number {
@@ -374,7 +579,7 @@ class FinanceLookup implements Lookup {
   }
 
   #buildRows(slotIndex: number): DatumText[] {
-    const { meta } = this.#stateRef;
+    const meta = frameMeta(this.#stateRef, this.#view.frame);
     const series = this.#view.frame.series;
     const { open, high, low, close, volume } = findOhlcSeries(this.#view.frame, meta);
     const oIdx = open ? series.indexOf(open) : 0;
@@ -452,7 +657,7 @@ class FinanceLookup implements Lookup {
     if (ref.kind !== 'aligned' || !plot || !projection || !xScale || projection.kind === 'ring') return null;
     const i = this.#slotForX(ref.x);
     if (i < 0) return null;
-    const { close } = findOhlcSeries(this.#view.frame, this.#stateRef.meta);
+    const { close } = findOhlcSeries(this.#view.frame, frameMeta(this.#stateRef, this.#view.frame));
     const yScale = projection.kind === 'xy' ? projection.y : projection.value;
     const px = xCoord(xScale, this.#view.frame.x.values, i);
     const py = close && close.slot[i] === SLOT_VALUE ? position(yScale, close.y[i]!) : plot.y + plot.height / 2;
@@ -516,7 +721,7 @@ export function createFinanceReader(stateRef: FinanceStateRef): ReaderParts {
       if (view.kind === 'donut' || view.kind === 'scatter') {
         return { caption, headers: [], rowCount: 0, pageSize: 50, row: () => null, pageForX: () => null };
       }
-      const { meta } = stateRef;
+      const meta = frameMeta(stateRef, view.frame);
       const series = view.frame.series;
       const { open, high, low, close, volume } = findOhlcSeries(view.frame, meta);
       const oIdx = open ? series.indexOf(open) : 0;

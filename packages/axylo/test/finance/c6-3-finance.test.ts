@@ -6,7 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { validateCandlestick } from '../../src/finance';
 import { buildFinanceView, normalizeFinance, parseFinanceInput } from '../../src/finance/core';
 import { buildFinanceScene, createFinanceLookup, createFinanceReader } from '../../src/finance/render';
-import { alignedLayout, type AxisContext } from '../../src/core/axes';
+import type { AxisContext } from '../../src/core/axes';
+import { financeLayout } from '../../src/finance/layout';
 import { DiagnosticCollector } from '../../src/diagnostics/collector';
 import { resolveOptions } from '../../src/data/options';
 import { createFormatters } from '../../src/format';
@@ -53,7 +54,7 @@ describe('C6.3 axylo/finance candlestick + volume', () => {
       stacked: false, horizontal: false, compact: false,
     }, sink);
     const ctx: AxisContext = { resolved, locale: 'en-US', compact: false, xLabelGiven: true, valueTitle: 'Price' };
-    const layout = alignedLayout().compute(view, { width: 640, height: 320 }, { measurer, style }, ctx);
+    const layout = financeLayout(stateRef).compute(view, { width: 640, height: 320 }, { measurer, style }, ctx);
     const scene = buildFinanceScene(stateRef, view, layout, 1);
 
     // Batched marks: 1 wick+doji PathMark, 1 up-hollow PathMark, 1 down-filled RectMark, 1 volume RectMark

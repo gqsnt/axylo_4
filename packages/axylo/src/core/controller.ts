@@ -135,8 +135,12 @@ class ChartController implements Controller, ControllerCore, FrameDriver {
   // The wrappers read through getters so the controller can keep its own accesses private.
   get accepted(): Accepted | null { return this.#accepted; }
   #presentation: Map<PresentationStage, readonly DiagnosticInput[]> | null = null;
-  /** Keys of the current diagnostics already printed and handed to `onDiagnostic`. */
-  #deliveredKeys: Set<string> | null = null;
+  /**
+   * Keys of the current diagnostics already printed and handed to `onDiagnostic`, each with every handler it was
+   * given to (undefined: none) while it is current. Strict rejections read it (#reject). A handler is held only
+   * until its finding stops being current (a WeakSet would avoid even that, but costs more than the size budget).
+   */
+  #deliveredKeys: Map<string, Set<unknown>> | null = null;
   /** The finding list whose keys `deliveredKeys` holds after the last full delivery pass (see deliverChanges). */
   #settledInputs: readonly DiagnosticInput[] | null = null;
   #destroyed: boolean = false;
@@ -361,25 +365,37 @@ class ChartController implements Controller, ControllerCore, FrameDriver {
     const now = this.publicDiagnostics(inputs);
     if (this.#deliveredKeys && this.#deliveredKeys.size > 0) {
       const keys = new Set(now.map(diagnosticKey));
-      for (const k of [...this.#deliveredKeys]) if (!keys.has(k)) this.#deliveredKeys.delete(k);
+      // Deleting the entry being visited is safe while a Map is iterated.
+      for (const k of this.#deliveredKeys.keys()) if (!keys.has(k)) this.#deliveredKeys.delete(k);
     }
     const fresh = this.#undelivered(now);
     // Settled before any handler runs: a delivery that author code starts from the handler settles its own list.
     this.#settledInputs = inputs;
     if (!fresh.length) return;
-    const delivered = this.#deliveredKeys ??= new Set();
-    for (const d of fresh) delivered.add(diagnosticKey(d));
     const handler = (this.#accepted?.options ?? this.#options.current).onDiagnostic;
+    const delivered = this.#deliveredKeys ??= new Map();
+    for (const d of fresh) delivered.set(diagnosticKey(d), new Set([handler]));
     this.#notifyDiagnostics(fresh, handler);
   }
 
-  /** A rejected or ignored call's findings: printed and given to `onDiagnostic`, never part of `diagnostics`. */
-  #deliverRejected(found: readonly DiagnosticInput[], name: string, handler: unknown): void {
-    this.#notifyDiagnostics(this.#undelivered(toPublic(found, name)), handler);
+  /**
+   * A rejected or ignored call's findings: printed and given to `onDiagnostic`, never part of `diagnostics`.
+   * `owner` is passed by strict rejections only (see #undelivered).
+   */
+  #deliverRejected(found: readonly DiagnosticInput[], name: string, handler: unknown, owner?: unknown): void {
+    this.#notifyDiagnostics(this.#undelivered(toPublic(found, name), owner), handler);
   }
 
-  #undelivered(list: Diagnostic[]): Diagnostic[] {
-    return this.#deliveredKeys?.size ? list.filter(d => !this.#deliveredKeys!.has(diagnosticKey(d))) : list;
+  /**
+   * What `list` holds that is not a current finding already delivered. With an `owner` (strict rejections only,
+   * see #reject), a current finding it never had is kept too, marked as given to it before anything is queued.
+   */
+  #undelivered(list: Diagnostic[], owner?: unknown): Diagnostic[] {
+    const given = this.#deliveredKeys;
+    return given?.size ? list.filter(d => {
+      const seen = given.get(diagnosticKey(d));
+      return !seen || owner && !seen.has(owner) && seen.add(owner);
+    }) : list;
   }
 
   #notifyDiagnostics(list: readonly Diagnostic[], handler: unknown): void {
@@ -482,7 +498,12 @@ class ChartController implements Controller, ControllerCore, FrameDriver {
   }
 
   #reject(found: readonly DiagnosticInput[], name: string, handler: unknown): never {
-    this.#deliverRejected(found, name, handler);
+    // A current finding is held back only from a handler that already had it: one a non-strict failure gave to
+    // none (or to another handler) still reaches this call's own (N7a final review). Every handler given it is
+    // remembered, before the delivery is queued, for as long as it is current: handlers that answer with strict
+    // calls on the same finding (themselves, each other, or the accepted one) are never given it twice, so the
+    // answers cannot go on for ever. Findings that are not current are always delivered and not recorded.
+    this.#deliverRejected(found, name, handler, handler);
     throw new StrictError(name, toPublic(found, name));
   }
 
