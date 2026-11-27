@@ -1700,9 +1700,9 @@
       {
         "kind": "browser",
         "file": "tests/dist/finance.browser.test.ts",
-        "title": "renders candlesticks + volume, discloses AX180, matches table/summary, and rolls back rejected strict updates",
+        "title": "draws split panes, exact domains, live paints, parity, keyboard and zoom, rollback, axe, and bounded dense SVG",
         "ancestors": [
-          "C6.3 axylo/finance packed Chrome integration under strict CSP"
+          "N7a axylo/finance packed Chrome integration under strict CSP"
         ]
       },
       {
