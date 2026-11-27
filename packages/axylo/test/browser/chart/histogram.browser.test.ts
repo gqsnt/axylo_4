@@ -1,11 +1,13 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { DARK, LIGHT } from '../../../src/theme/palette';
-import { start, stop } from '../harness';
+import { ENGINE, start, stop } from '../harness';
+import { startWithShortTmp, stopWithShortTmp } from '../acceptance/short-tmp';
 import { axe } from '../a11y/util';
 import { chartPage, closePage, hex } from './util';
 
-beforeAll(start);
-afterAll(stop);
+// A deep runner TMPDIR is too long for Chrome's socket on Linux; see acceptance/short-tmp.ts.
+beforeAll(() => startWithShortTmp(start, { engine: ENGINE }));
+afterAll(() => stopWithShortTmp(stop));
 
 it('draws unequal bins, reads intervals by pointer and keyboard, zooms and exposes the data table', async () => {
   const page = await chartPage();

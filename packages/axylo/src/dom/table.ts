@@ -116,15 +116,13 @@ export function createTableView(doc: Document, id: string, toValue: (text: strin
     setLanguageText(previous, t.previousPage, t.lang('previousPage'));
     setLanguageText(next, t.nextPage, t.lang('nextPage'));
     labelText.textContent = t.jump;
-    setAttr(status, 'lang', pageLang);
     setAttr(label, 'lang', t.lang('jumpToX'));
     setAttr(previous, 'aria-disabled', page === 0 ? 'true' : null);
     setAttr(next, 'aria-disabled', page >= count - 1 ? 'true' : null);
     const pageText = t.pageOf(page + 1, count);
-    if (status.textContent !== pageText) {
-      status.textContent = pageText;
-      if (reader) announceText(announcement, pageText, pageLang);
-    }
+    setLanguageText(status, pageText, pageLang);
+    // Only the reader's own paging speaks, and every time: a jump to the page already shown is confirmed too (A4).
+    if (reader) announceText(announcement, pageText, pageLang);
   }
 
   function clearError(): void {

@@ -20,7 +20,7 @@ import type { SwatchSpec } from './swatch';
 import type { AlignedHoverLookup, AlignedHoverModel } from '../lookup/aligned';
 import { firstSlotReading } from '../lookup/text';
 import { clamp } from '../scene/geometry';
-import { activeElementOf, focusContainer, focusQuiet, isElement, isFocusable, setAttr, make, hideFromAT, shadowRootOf, shadowRootsOf } from './attributes';
+import { activeElementOf, focusContainer, focusQuiet, isElement, isFocusable, setAttr, make, hideFromAT, setLanguageText, shadowRootOf, shadowRootsOf } from './attributes';
 import { Listeners, listenOutside, mappingOf, rectToViewport, toLocal, toViewport, visibleRegion, type Mapping, type Point } from './mapping';
 import { insideCorridor, intersect, type PlacementInput } from './placement';
 import { identityOf, matchesIdentity, sameTarget, type Identity } from './pointer';
@@ -166,6 +166,8 @@ class DomInteraction implements Interaction {
   #ring: HTMLElement | null = null;
   #proxyRect: Rect | null = null;
   #instructions: HTMLElement | null = null;
+  // The plot's name in its own element: plotLabel and the point reading can be in different languages (A10).
+  #label: HTMLElement | null = null;
   #selection: HTMLElement | null = null;
   #legendList: HTMLUListElement | null = null;
   #toolbar: Toolbar | null = null;
@@ -258,8 +260,19 @@ class DomInteraction implements Interaction {
     l.on(this.#root, 'focusout', clearRects);
   }
 
-  #listenShadowScroll(): void {
-    if (this.#shadowScrollListeners || !this.#attached || !this.#proxy) return;
+  /** Runs where the parts are built and on every attachment, which may be to another document or shadow root. */
+  #joinTree(): void {
+    const label = this.#label;
+    if (!label) return;
+    // The figure's id prefix reserves only its own suffixes: an id the page already gives an element in this tree
+    // (the scope aria-labelledby resolves in, document or shadow root) would take the name, so it is skipped by
+    // growing the id ("-l", "-l0", "-l00", …), the shortest such loop (spec A1; the root's size budget). The
+    // label's own id is cleared first so that only other elements count, and the slider node itself is kept.
+    let id = `${this.#figure.id}-l`;
+    label.id = '';
+    for (const tree = this.#root.getRootNode() as Document; tree.getElementById?.(id); ) id += 0;
+    setAttr(this.#proxy!, 'aria-labelledby', label.id = id);
+    if (this.#shadowScrollListeners || !this.#attached) return;
     const shadow = shadowRootOf(this.#root);
     if (!shadow) return;
     // Scroll events inside a shadow tree do not reach the document listener.
@@ -316,13 +329,15 @@ class DomInteraction implements Interaction {
     hideFromAT(this.#ring);
     this.#instructions = make(this.#doc, 'span', 'axylo-visually-hidden');
     this.#instructions.id = `${this.#figure.id}-i`;
-    this.#plot.append(proxy, this.#ring, this.#instructions);
+    // Hidden from browsing (the proxy's name already says it) but still read as the name it is referenced for.
+    hideFromAT(this.#label = make(this.#doc, 'span', 'axylo-visually-hidden'));
+    this.#plot.append(proxy, this.#ring, this.#instructions, this.#label);
     // Untouched charts need only the fixed listeners that bootstrap the lazy groups.
     this.#listenStage = this.#figure.stage;
     this.#startupListener = this.#onStartup.bind(this);
     this.#pointerMoveListener = this.#onPointerMove.bind(this);
     this.#bindStartup('addEventListener');
-    this.#listenShadowScroll();
+    this.#joinTree();
   }
 
   #stopPinch(apply = false): void {
@@ -345,9 +360,9 @@ class DomInteraction implements Interaction {
     this.#listenStage = this.#startupListener = this.#pointerMoveListener = null;
     this.#interacted = false;
     this.#listenerFlags = 0;
-    for (const n of [this.#proxy, this.#instructions, this.#ring, this.#selection]) n?.remove();
+    for (const n of [this.#proxy, this.#instructions, this.#label, this.#ring, this.#selection]) n?.remove();
     this.#removeLegend(); this.#toolbar?.destroy();
-    this.#proxy = this.#instructions = this.#ring = this.#selection = this.#legendList = this.#legendMarked = this.#proxyRect = this.#toolbar = this.#lastControls = this.#controlNodes = null;
+    this.#proxy = this.#instructions = this.#label = this.#ring = this.#selection = this.#legendList = this.#legendMarked = this.#proxyRect = this.#toolbar = this.#lastControls = this.#controlNodes = null;
     this.#proxyUsable = this.#proxyInstructionState = this.#idleProxyState = this.#zoomCheckView = this.#zoomCheckWindow = null;
     this.#proxyInstructionLang = this.#plotInstructionLang = this.#seriesInstructionLang = this.#donutInstructionLang = this.#zoomInstructionLang = null;
     this.#idlePosition = this.#idleMax = this.#idleEmpty = '';
@@ -963,7 +978,15 @@ class DomInteraction implements Interaction {
       this.#listenPin();
     } else this.#showHover(target);
     if (mouse && this.#proxy) { this.#clickFocus = true; try { focusQuiet(this.#proxy); } finally { this.#clickFocus = false; } }
-    if (ref) { this.#focus = ref; this.#writeProxy(true); this.#actions.select(ref); }
+    if (ref) {
+      this.#focus = ref; this.#writeProxy(true);
+      // When the layout leaves no room for the tooltip the author asked for (readout mode 'none'), a tap takes no
+      // focus, so nothing would say the value: it is spoken once, in the proxy's own reading and language (spec I1,
+      // I4, A7: the reader's own navigation). tooltip: false is the author's choice of no readout and stays silent.
+      // The too-small fallback never has mode 'none' (it resets to 'floating'), so this is the plot's own case.
+      if (!mouse && d.tooltip && d.readoutMode === 'none') this.#figure.announce(this.#proxy!.getAttribute('aria-valuetext')!, this.#proxyLang);
+      this.#actions.select(ref);
+    }
     this.#redraw(2);
   }
 
@@ -1214,6 +1237,8 @@ class DomInteraction implements Interaction {
     this.#donutInstructionLang = donutLang;
     this.#zoomInstructionLang = zoomLang;
     setAttr(this.#proxy, 'aria-label', d.messages.plotLabel);
+    // Tagged on its own, never through the proxy's lang, which follows the reading (pointAll or pointOf).
+    setLanguageText(this.#label!, d.messages.plotLabel, d.english('plotLabel') ?? d.pageLang);
     if (this.#instructions) {
       const desc = descriptionFor(d, count);
       renderInstructions(this.#doc, this.#instructions, desc, lang, d.pageLang);
@@ -1325,7 +1350,7 @@ class DomInteraction implements Interaction {
   attach(): void {
     if (this.#attached || this.#destroyed) return;
     this.#attached = true; this.#clearGeo(); registerFigure(this.#doc, this.#root);
-    this.#listenShadowScroll();
+    this.#joinTree();
     if (this.#interacted) this.#listenDocument();
   }
 
