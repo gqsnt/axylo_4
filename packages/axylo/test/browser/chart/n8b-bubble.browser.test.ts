@@ -4,6 +4,9 @@
  * another series (hover and click), tooltip, keyboard and table reading the same (x, y, size), zoom, axe-core
  * in light, dark and forced colors, single-series legend refresh and cleanup, and the SVG node bound at 50,000.
  *
+ * The shared test page mounts `#chart` straight in `<body>`, which axe-core's `region` rule reports; each page here
+ * first moves the page content into a `<main>` landmark, as the other axe-checked chart suites do.
+ *
  * Bubble positions are read from the committed geometry (`bubbleInternals(chart).geometry`: centres and radii
  * from the scales, not from the lookup that is under test). The painted picture is checked against the
  * painter's order with Chrome's own fill test (`SVGGeometryElement.isPointInFill`, nonzero rule) on each series
@@ -40,6 +43,26 @@ const NESTED = [
   { gdp: 20, life: 80, pop: 250, region: 'Third' },
 ];
 
+/** The page's content in a `<main>` landmark, order kept (before, chart, after), so axe's `region` rule holds. */
+async function landmark(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const main = document.createElement('main');
+    main.append(...document.body.childNodes);
+    document.body.append(main);
+  });
+}
+
+/**
+ * Concentric pair of two series: "Large" and "Small" share one centre (same x and same y), with edge points so
+ * the domain is not degenerate. Hovering inside the large disc outside the small one must read the large bubble.
+ */
+const CONCENTRIC = [
+  { gdp: 50, life: 70, pop: 1000, region: 'Large' },
+  { gdp: 50, life: 70, pop: 4, region: 'Small' },
+  { gdp: 0, life: 50, pop: 100, region: 'Large' },
+  { gdp: 100, life: 90, pop: 9, region: 'Small' },
+];
+
 async function frames(page: Page, n = 3): Promise<void> {
   await page.evaluate(async n => {
     for (let i = 0; i < n; i++) await new Promise(r => requestAnimationFrame(() => r(null)));
@@ -61,6 +84,7 @@ async function drawn(page: Page): Promise<void> {
 
 async function open(options: Record<string, unknown>, context: Parameters<typeof openEntry>[1] = {}): Promise<Page> {
   const page = await openEntry(ENTRY, context);
+  await landmark(page);
   await page.evaluate(options => {
     window.selected = [];
     window.chart = window.n8b.bubble('#chart', options as never);
@@ -145,7 +169,7 @@ async function pictureMismatches(page: Page, samples = 3000): Promise<string[]> 
 const tooltipText = (page: Page) => page.locator('#chart .axylo-tooltip').innerText();
 
 describe('N8b bubble (Chrome, source build)', () => {
-  it('multi-series: size legend beside series toggles, small bubble inside a large one is hovered and clicked', async () => {
+  it('multi-series: size legend beside series toggles, small bubble inside a large one is hovered and clicked, a concentric large one hovered', async () => {
     const page = await open(BASE);
     // Series toggles in the toolbar, and the nested-circle size legend list beside them.
     expect(await page.locator('#chart .axylo-legend-entry').count()).toBe(3);
@@ -176,12 +200,46 @@ describe('N8b bubble (Chrome, source build)', () => {
     await frames(page);
     const selected = await page.evaluate(() => window.selected);
     expect(selected[selected.length - 1]).toMatchObject({ series: 'Small', y: 70, index: 1 });
-
-    // Inside the large disc, away from the small one: the large bubble.
-    await page.mouse.move(big.cx, big.cy + 15);
-    await frames(page);
-    expect(await tooltipText(page)).toContain('Population: 1,000 M');
+    // A mouse click pins the selected datum's tooltip, and pointer moves do not re-pick while it is pinned, so the
+    // hover from the small bubble to the large one is checked before any click, on a page of its own below.
     expect(await closePage(page)).toEqual([]);
+
+    // Hover, no click: a concentric pair of two series with the same x and y. From the small bubble's centre,
+    // straight up or down by 15 px: outside the small disc's hit radius (r + 0.5), inside the large disc's.
+    const nested = await open({ ...BASE, data: CONCENTRIC });
+    const pair = await circles(nested);
+    const large = pair.find(c => c.r === 24)!, inner = pair.find(c => c.r === 2)!;
+    expect(large).toBeDefined();
+    expect(inner).toBeDefined();
+    expect(large.series).not.toBe(inner.series);
+    expect(Math.abs(large.cx - inner.cx)).toBeLessThan(1e-6);
+    expect(Math.abs(large.cy - inner.cy)).toBeLessThan(1e-6);
+    await nested.mouse.move(inner.cx, inner.cy);
+    await frames(nested);
+    const first = await tooltipText(nested);
+    expect(first).toContain('Small');
+    expect(first).toContain('50 k$');
+    expect(first).toContain('70 years; Population: 4 M');
+    // A pointer resting on a datum keeps its tooltip while moving toward it (the hover corridor), so the move goes
+    // vertically away from the tooltip's side: the corridor's hull meets the centre's vertical line only at the
+    // centre when the tooltip is beside it, and only on the tooltip's side when it is above or below.
+    const box = (await nested.locator('#chart .axylo-tooltip').boundingBox())!;
+    expect(box).not.toBeNull();
+    const tooltipAbove = box.y + box.height / 2 < inner.cy;
+    const to = { x: inner.cx, y: inner.cy + (tooltipAbove ? 15 : -15) };
+    const fromSmall = Math.hypot(to.x - inner.cx, to.y - inner.cy), fromLarge = Math.hypot(to.x - large.cx, to.y - large.cy);
+    expect(fromSmall).toBeGreaterThan(inner.r + 0.5 + 5);
+    expect(fromLarge).toBeLessThan(large.r - 5);
+    expect(to.x >= box.x && to.x <= box.x + box.width && to.y >= box.y && to.y <= box.y + box.height).toBe(false);
+    await nested.mouse.move(to.x, to.y);
+    await frames(nested);
+    const second = await tooltipText(nested);
+    expect(second).toContain('Large');
+    expect(second).not.toContain('Small');
+    expect(second).toContain('50 k$');
+    expect(second).toContain('70 years; Population: 1,000 M');
+    expect(await nested.evaluate(() => window.selected)).toEqual([]);
+    expect(await closePage(nested)).toEqual([]);
   });
 
   it('keyboard order is x then y and the reading, tooltip and table say the same (x, y, size)', async () => {
@@ -286,6 +344,7 @@ describe('N8b bubble (Chrome, source build)', () => {
 
   it('50,000 bubbles: bounded SVG DOM, build time recorded', async () => {
     const page = await openEntry(ENTRY);
+    await landmark(page);
     const result = await page.evaluate(async () => {
       const n = 50_000;
       const x = new Float64Array(n), y = new Float64Array(n), s = new Float64Array(n), g = new Array<string>(n);

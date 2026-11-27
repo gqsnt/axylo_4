@@ -1,9 +1,19 @@
 # N8b ledger: `bubble` + `validateBubble` (Wave 4, Track B)
 
-Status: repair after the cross-provider rejection. Built and verified in Node; the Chrome suite is updated and
-**has not been run** (worker sandbox: no browser runs; see "Chrome, still to run"). The current 50k numbers
-for the sealed revision are in "Exact-code seal" at the end; earlier 50k and bundle numbers are per revision.
-No merge verdict is claimed here (last review: "Merge after named fixes").
+Status (current, Chrome seal `p2_n8b_seal`): the two Chrome failures reported by the Director (hover from
+the small to the large bubble after a click; axe-core `region` on `#chart`) are repaired in the Chrome suite
+only, no library source changed; see "Chrome seal (`p2_n8b_seal`)" at the end. Director `verify` exited 0 on the
+browser-fix candidate `opus-5.5-medium__20261127T185721Z` (log `turn-2-opus-5.5-medium__20261127T185721Z.log`):
+typecheck passed, full Node 139/139 files and 2377/2377 tests, real Chrome `n8b-bubble.browser.test.ts` 1/1 file
+and 10/10 tests, zero axe violations in light, dark and forced colors with the table closed and open. The 50k
+Chrome numbers are in "Director verify" at the end. These results were observed by the Director on that parent
+candidate, not by this ledger-only worker; this file is the only change since, so the tested browser code is
+the same.
+Earlier status, kept for history: before that run the repaired Chrome suite had not been run by a worker (no
+browser runs in the sandbox); before that, repair after the cross-provider rejection, Chrome suite then not run.
+Earlier 50k numbers are in "Exact-code seal"; earlier 50k and bundle numbers are per revision.
+No merge verdict is claimed here: merge is pending a fresh independent cross-provider review (last review:
+"Merge after named fixes").
 No commit. No edits outside `packages/axylo/src/spatial/bubble/**`, `packages/axylo/test/spatial/bubble/**`,
 `packages/axylo/test/browser/chart/n8b-bubble.browser.test.ts` and this file. No edit to `public.ts`,
 `core/**`, `render/**`, `theme/**`, `dom/**`, `package.json` or the build scripts.
@@ -237,6 +247,9 @@ concentric series with crossing discs, a zero marker and equal discs (both row o
 fixture; tooltip, `aria-valuetext` and table text; zoom; axe-core light / dark / forced colors with the table
 open and closed; single-series legend refresh and destroy; the 50,000-bubble DOM bound and timing. Bubble
 positions come from `bubbleInternals(chart).geometry`. None of it has been run.
+
+(History: this section describes the suite before the Director's first Chrome run. That run and the seal repair
+are recorded in "Chrome seal (`p2_n8b_seal`)" at the end.)
 
 ## Review repairs (2026-11-27)
 
@@ -601,3 +614,100 @@ The 50k benchmark was not re-run. Its fixture never reaches the subnormal branch
 1,563,858 bytes. That is expected, not observed. **Still pending, unchanged by R10:** Chrome / axe / real SVG DOM
 count, the wired `axylo/spatial` artifact gate, the Director-owned AX160 reporter (not waived), and the
 verify-command scratch paths.
+
+## Chrome seal (`p2_n8b_seal`, 2026-11-27): click pin vs hover, landmark
+
+**Director's Chrome run, as relayed in the seal brief (not observed by this worker):** 88/88 bubble Node tests,
+typecheck and the 0 B bare-import check passed, and 6 of the 10 Chrome tests passed, the 50,000-bubble test among
+them, at `sceneNodes 7`, `svgElements 13`, `bubblePaths 3`. Two real failures remained:
+
+1. `n8b-bubble.browser.test.ts:183`. After `mouse.click` on the small bubble, `mouse.move(big.cx, big.cy + 15)`
+   still read `52 k$ / Small / 70 years; Population: 4 M`.
+2. `n8b-bubble.browser.test.ts:253`, for light, dark and forced colors. The only violation was axe-core
+   `region` ("All page content should be contained by landmarks") on `#chart`.
+
+**Cause of 1: the click pin, not the bubble lookup (traced in source; `dom/**` is outside this fence).** A
+mouse click goes to `#activate` (`src/dom/interaction.ts`). For a datum with a presentation, that sets
+`#shown = { k: S_PIN, … }`, and `#pointerAt` returns early while `#shown.k === S_PIN`. So after the click, no
+pointer move picks again until the pin is dismissed, and the failing move came right after that click. The
+bubble lookup is correct for this case. `pickGrid.pick` returns the containing bubble ranked highest in painter's
+order (hit test: `d ≤ r + 0.5`). Each target carries `{ seriesKey, row, x }`, and `sameTarget`/`sameRef` compare
+series and row, so two series with the same x and y are different targets. No change in
+`src/spatial/bubble/**`.
+
+There is a second interaction rule the test has to respect: the hover corridor (`S_HELD`). Once the pointer has
+rested on a datum for `REST_TIME` (250 ms), moves inside the convex hull of that rest point and the tooltip box
+keep the tooltip. So the hover move has to go away from the tooltip, or the result depends on timing.
+
+**Test repair (`n8b-bubble.browser.test.ts`, still 10 cases):**
+
+- The first test still opens the original non-concentric fixture (`NESTED`, small at x 52 inside the large disc
+  at x 50). It checks the legend, then hovers the small bubble (tooltip `Small`, `52 k$`, `4 M`), then clicks it
+  and checks the `select` payload. The keyboard, table, picture and zoom tests still use `NESTED` as before.
+- The same test then opens a second page with no click. The fixture is `CONCENTRIC`: `Large` 1000 and `Small` 4
+  at the same (50, 70), plus edge points. Preconditions asserted:
+  - the two bubbles are in different series, with the same centre within 1e-6 px;
+  - r = 24 and r = 2;
+  - the target point is 15 px straight up or down from that centre, so it is more than r_small + 0.5 + 5 px
+    from it and less than r_large − 5 px;
+  - the target is on the side away from the tooltip and outside the tooltip box.
+
+  Then the move from the small centre to that point must change the tooltip to `Large`, `50 k$` and
+  `70 years; Population: 1,000 M`, with no `Small` in it and no `select` event.
+- Landmark: the shared `blank.html` and harness are outside this fence. So before mounting, a local `landmark()`
+  moves the body's content into a `<main>`, keeping the order `#before`, `#chart`, `#after`, as the histogram and
+  n3 a11y suites do. Every mount in this suite does this, the 50k mount included. axe still runs with all rules,
+  for all three themes, with the table both closed and open.
+
+**Ran and saw (this workspace, Node, `TMPDIR` under `.prism-cache/tmp`):**
+
+```text
+npm run typecheck                      (tsc -p packages/axylo --noEmit && tsc -p docs/api && tsc -p tests/dist) exit 0
+npx vitest run --configLoader runner --no-cache packages/axylo/test/spatial/bubble
+ Test Files  9 passed (9)
+      Tests  88 passed (88)
+```
+
+**Director verify (real Chrome; observed by the Director, relayed to this worker, not run here).** Candidate
+`opus-5.5-medium__20261127T185721Z`, log `turn-2-opus-5.5-medium__20261127T185721Z.log`, exit 0. The candidate
+after this ledger-only update has the same browser and library code.
+
+```
+AXYLO_BROWSER=1 npx vitest run packages/axylo/test/browser/chart/n8b-bubble.browser.test.ts
+```
+
+| Check | Result |
+|---|---|
+| `npm run typecheck` | passed |
+| Node unit/property (full) | 139/139 files, 2377/2377 tests |
+| Chrome `n8b-bubble.browser.test.ts` | 1/1 file, 10/10 tests |
+| axe-core, light / dark / forced colors | 0 violations each, table closed and table open |
+
+`[N8b 50k Chrome]` output on that candidate:
+
+| Field | Value |
+|---|---|
+| `bubbles` | 50000 |
+| `created` (ms) | 26.3 (raw 26.299999997019768) |
+| `drawn` (ms) | 2303.4 (raw 2303.39999999851) |
+| `frames` | 1 |
+| `sceneNodes` | 7 |
+| `svgElements` | 13 |
+| `bubblePaths` | 3 |
+| `paints` | `[0:series,1:series,2:series]` |
+| `dBytes` | 1246496 |
+
+The counts match the Director's pre-repair run (7 / 13 / 3), as expected from a test change that only added the
+`<main>` wrapper.
+
+**`p2_w4_wire` handoffs (Director-owned; not blockers for this isolated worktree):**
+
+1. **AX160 reporter hook.** `core/controller.ts:1562` calls `layoutDiagnostics` only when
+   `shown.kind === 'ready' && !compact`. A size-format failure in an empty, compact or not-ready chart that a
+   reader can still inspect (its table or export) is reported only once the chart next draws ready and
+   noncompact. Same-frame AX160 there needs the controller's value-formatter reporter
+   (`#addPresentation('format', AX160 'changed')`, `core/controller.ts:324`) exposed to the composition, for
+   example `ControllerCore.reportFormat(field: string)` (fifth repairs, item 5).
+2. **Combined `dist/spatial.js` bare-import check.** Once `axylo/spatial` is wired (barrel, `package.json`
+   export, build entry), the 0 B bare-import purity check has to be rerun on the combined `dist/spatial.js`
+   (heatmap + bubble + shared color scale), not only on the bubble entry ("Distribution recipe" above).
