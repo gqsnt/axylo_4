@@ -1,88 +1,88 @@
 {
- "date": "2026-11-27T01:29:23.263Z",
+ "date": "2026-11-27T07:16:58.583Z",
  "method": "esbuild consumer bundles from tests/dist/fixtures (packed tarballs), minify, production condition; gzip level 9",
  "packed": {
-  "at": "2026-11-27T01:29:21.666Z",
-  "axylo": "sha512-JWRryBylEeFHERRHdJPLV4FikCy27qUmSOC5f2leuaF1aJKDbgAlGOwNNtcf8oI5PySYPFVRD8FGPrMW1FeSWQ==",
-  "commit": "271412957f66634b3c6aa1e26da075b3ca97002e",
+  "at": "2026-11-27T07:16:57.034Z",
+  "axylo": "sha512-jZib69Ihy3EG1SJn0g7qRcc7IJgKd8UWJ3BKnZ3/NCEC5L2E1vvQ7iRZmIWlMdGCe6mgqQEKj+cmwlpGW01Sww==",
+  "commit": "bf11f73e9643629239364d122b46322d4ce93f73",
   "dirty": false
  },
- "cssFileBytes": 16222,
- "cssFileGzipBytes": 3387,
+ "cssFileBytes": 16403,
+ "cssFileGzipBytes": 3418,
  "rows": [
   {
    "entry": "line only (examples/first-chart/npm.ts)",
-   "minBytes": 377187,
-   "jsGzipBytes": 135671,
+   "minBytes": 377744,
+   "jsGzipBytes": 135810,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 135671,
-   "totalKiB": 132.49,
+   "totalGzipBytes": 135810,
+   "totalKiB": 132.63,
    "targetKiB": 108,
    "targetBytes": 110592,
    "over": true
   },
   {
    "entry": "everything (export * from axylo)",
-   "minBytes": 434862,
-   "jsGzipBytes": 158539,
+   "minBytes": 435420,
+   "jsGzipBytes": 158687,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 158539,
-   "totalKiB": 154.82,
+   "totalGzipBytes": 158687,
+   "totalKiB": 154.97,
    "targetKiB": 128,
    "targetBytes": 131072,
    "over": true
   },
   {
    "entry": "area only (export { area } from axylo)",
-   "minBytes": 383971,
-   "jsGzipBytes": 138379,
+   "minBytes": 384528,
+   "jsGzipBytes": 138534,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 138379,
-   "totalKiB": 135.14,
+   "totalGzipBytes": 138534,
+   "totalKiB": 135.29,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
   },
   {
    "entry": "bar only (export { bar } from axylo)",
-   "minBytes": 368281,
-   "jsGzipBytes": 131595,
+   "minBytes": 368838,
+   "jsGzipBytes": 131742,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 131595,
-   "totalKiB": 128.51,
+   "totalGzipBytes": 131742,
+   "totalKiB": 128.65,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
   },
   {
    "entry": "histogram only (export { histogram } from axylo)",
-   "minBytes": 322887,
-   "jsGzipBytes": 114951,
+   "minBytes": 323444,
+   "jsGzipBytes": 115093,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 114951,
-   "totalKiB": 112.26,
+   "totalGzipBytes": 115093,
+   "totalKiB": 112.4,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
   },
   {
    "entry": "scatter only (export { scatter } from axylo)",
-   "minBytes": 341689,
-   "jsGzipBytes": 123217,
+   "minBytes": 342246,
+   "jsGzipBytes": 123364,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 123217,
-   "totalKiB": 120.33,
+   "totalGzipBytes": 123364,
+   "totalKiB": 120.47,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
   },
   {
    "entry": "donut only (export { donut } from axylo)",
-   "minBytes": 271520,
-   "jsGzipBytes": 94892,
+   "minBytes": 272076,
+   "jsGzipBytes": 95015,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 94892,
-   "totalKiB": 92.67,
+   "totalGzipBytes": 95015,
+   "totalKiB": 92.79,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
@@ -100,44 +100,44 @@
   },
   {
    "entry": "line only (export { line } from 'axylo/static')",
-   "minBytes": 334449,
-   "jsGzipBytes": 121111,
+   "minBytes": 335006,
+   "jsGzipBytes": 121251,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 121111,
-   "totalKiB": 118.27,
+   "totalGzipBytes": 121251,
+   "totalKiB": 118.41,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
   },
   {
    "entry": "everything (export * from 'axylo/static')",
-   "minBytes": 384789,
-   "jsGzipBytes": 141410,
+   "minBytes": 385347,
+   "jsGzipBytes": 141547,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 141410,
-   "totalKiB": 138.1,
+   "totalGzipBytes": 141547,
+   "totalKiB": 138.23,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
   },
   {
    "entry": "line only (export { line } from 'axylo/stream')",
-   "minBytes": 376998,
-   "jsGzipBytes": 135593,
+   "minBytes": 377555,
+   "jsGzipBytes": 135736,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 135593,
-   "totalKiB": 132.42,
+   "totalGzipBytes": 135736,
+   "totalKiB": 132.55,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
   },
   {
    "entry": "cartesian (export { cartesian } from 'axylo/cartesian')",
-   "minBytes": 352385,
-   "jsGzipBytes": 125477,
+   "minBytes": 355138,
+   "jsGzipBytes": 127120,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 125477,
-   "totalKiB": 122.54,
+   "totalGzipBytes": 127120,
+   "totalKiB": 124.14,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
@@ -177,11 +177,11 @@
   },
   {
    "entry": "finance (export { candlestick } from 'axylo/finance')",
-   "minBytes": 345945,
-   "jsGzipBytes": 124473,
+   "minBytes": 346502,
+   "jsGzipBytes": 124599,
    "cssFileGzipBytes": 0,
-   "totalGzipBytes": 124473,
-   "totalKiB": 121.56,
+   "totalGzipBytes": 124599,
+   "totalKiB": 121.68,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
@@ -199,23 +199,23 @@
   },
   {
    "entry": "script tag (axylo.iife.min.js + axylo.css)",
-   "minBytes": 435422,
-   "jsGzipBytes": 158867,
-   "cssFileGzipBytes": 3387,
-   "totalGzipBytes": 162254,
-   "totalKiB": 158.45,
+   "minBytes": 435980,
+   "jsGzipBytes": 159027,
+   "cssFileGzipBytes": 3418,
+   "totalGzipBytes": 162445,
+   "totalKiB": 158.64,
    "targetKiB": null,
    "targetBytes": null,
    "over": false
   }
  ],
  "breakdown": {
-  "rebuiltMinBytes": 434930,
-  "packedMinBytes": 434930,
+  "rebuiltMinBytes": 435488,
+  "packedMinBytes": 435488,
   "directories": [
    {
     "directory": "core",
-    "min B": 88636,
+    "min B": 88637,
     "share": "20.4%"
    },
    {
@@ -225,12 +225,12 @@
    },
    {
     "directory": "dom",
-    "min B": 75993,
+    "min B": 76369,
     "share": "17.5%"
    },
    {
     "directory": "theme",
-    "min B": 31591,
+    "min B": 31772,
     "share": "7.3%"
    },
    {
@@ -302,11 +302,11 @@
   "modules": [
    {
     "file": "dom/interaction.ts",
-    "bytes": 30180
+    "bytes": 30603
    },
    {
     "file": "core/controller.ts",
-    "bytes": 28489
+    "bytes": 28493
    },
    {
     "file": "data/store.ts",
@@ -318,7 +318,7 @@
    },
    {
     "file": "theme/css.ts",
-    "bytes": 16232
+    "bytes": 16413
    },
    {
     "file": "data/store-rows.ts",
@@ -326,7 +326,7 @@
    },
    {
     "file": "dom/tooltip.ts",
-    "bytes": 11934
+    "bytes": 11928
    },
    {
     "file": "core/controller-helpers.ts",
@@ -338,7 +338,7 @@
    },
    {
     "file": "core/chart.ts",
-    "bytes": 9965
+    "bytes": 9962
    },
    {
     "file": "theme/resolve.ts",
@@ -442,7 +442,7 @@
    },
    {
     "file": "dom/table.ts",
-    "bytes": 3084
+    "bytes": 3043
    },
    {
     "file": "scene/lines.ts",
