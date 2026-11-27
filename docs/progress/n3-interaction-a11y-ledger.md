@@ -1,7 +1,9 @@
 # Cycle N3 — interaction, multi-engine and accessibility hardening (Wave 2, Track A): ledger
 
-Status: **repaired candidate after Director turn 23, authored in the leaf. Turn 23 was the first run in which Chrome started for the owned suites (through the test-only short-`TMPDIR` helper): Chromium observed 36 passed, 7 failed, 6 skipped (`c3-journeys`, still blocked at Chrome startup by the runner `TMPDIR`). The seven failures were repaired in the test file only (see "Repairs after Director turn 23"). The repairs are not yet run in a browser; Firefox and WebKit have not been reached. `c3-journeys` still needs the runner fix.**
-Nothing in this file says a browser test passed. The leaf workers were told not to launch browsers, and they did not.
+Status: **three engines observed green on fixture candidate `opus-5.5-medium__20261127T070626Z` (Director seal run, exit 0): Node 123/123 files and 2227/2227 tests; Chromium 49/49, Firefox 46/46, WebKit 46/46. See "Three-engine results (Director)". These counts belong to that fixture candidate; the Director verifies the ledger-inclusive candidate separately. Manual assistive technology and hardware cells stay open.**
+
+Historical status (before the seal run): **repaired candidate after Director turn 23, authored in the leaf. Turn 23 was the first run in which Chrome started for the owned suites (through the test-only short-`TMPDIR` helper): Chromium observed 36 passed, 7 failed, 6 skipped (`c3-journeys`, still blocked at Chrome startup by the runner `TMPDIR`). The seven failures were repaired in the test file only (see "Repairs after Director turn 23"). The repairs are not yet run in a browser; Firefox and WebKit have not been reached. `c3-journeys` still needs the runner fix.**
+The leaf workers were told not to launch browsers, and they did not. Every browser pass in this file comes from a Director run log, never from the leaf.
 
 Owned files changed (compared with the coordinator's `initial/` snapshot):
 
@@ -163,7 +165,22 @@ An earlier full run in this round, with a document-plus-shadow `getElementById` 
 
 ### Three-engine results (Director)
 
-**Turn 25 (latest, observed; before the repair above).** `turn-25-opus-5.5-high__20261127T064831Z`: `npm test` (Node) Test Files 123 passed (123), Tests 2227 passed (2227). Chromium browser suites: Test Files 2 failed | 1 passed (3), Tests 1 failed | 42 passed | 6 skipped (49).
+**Seal turn 2 (latest, observed): all three engines green.** Fixture candidate `opus-5.5-medium__20261127T070626Z`, exit 0 as reported by the Director. Full log: `/home/canarit/projects/prism/runs/coordinators/n3_seal/verify/turn-2-opus-5.5-medium__20261127T070626Z.log`. Observed in that log: `npm run typecheck` and `npm run build` passed; `npm test` (Node) Test Files 123 passed (123), Tests 2227 passed (2227).
+
+| Suite | Chromium | Firefox | WebKit |
+|---|---|---|---|
+| `chart/n3-interaction-a11y.browser.test.ts` (40) | 40 passed | 40 passed | 40 passed |
+| `chart/c3-journeys.browser.test.ts` (6) | 6 passed | 6 passed | 6 passed |
+| `chart/histogram.browser.test.ts` (3) | 3 passed | not in this engine's run | not in this engine's run |
+| Total | Test Files 3 passed (3), Tests 49 passed (49) | Test Files 2 passed (2), Tests 46 passed (46) | Test Files 2 passed (2), Tests 46 passed (46) |
+
+These are observed counts for the fixture candidate only. The ledger-inclusive candidate (this file added) is verified by the Director separately.
+
+The fixture candidate changed only `n3-interaction-a11y.browser.test.ts`, for the two WebKit fixture quirks seen in the previous seal run (43/46 on WebKit). Every existing assertion is kept, axe still scans `#chart` with no rule disabled, and no error is caught or filtered.
+- **Sentinel contrast (dark axe cases, `axylo/cartesian` and `axylo/finance`).** The violations were only on the harness's own `#before` / `#after` Tab sentinels, never inside `#chart`: WebKit's default dark `<button>` failed `color-contrast`. The dark scheme's page CSS now gives the sentinels the page's colours (`background: #16181d; color: #e8eaee; border: 1px solid #e8eaee`).
+- **Stylesheet before reparenting (F-A11Y-6 reattachment).** WebKit reported `ResizeObserver loop completed with undelivered notifications.` on the move into a shadow root. Each fresh shadow root now gets a copy of the page's built axylo stylesheet, synchronously, before the chart is moved in, as a page hosting charts in its own shadow trees would do. Inferred, not measured: without it the chart was laid out unstyled first and the sheet was adopted inside the resize delivery that noticed the move, so boxes changed during that delivery.
+
+**Turn 25 (historical, observed; before the repair above).** `turn-25-opus-5.5-high__20261127T064831Z`: `npm test` (Node) Test Files 123 passed (123), Tests 2227 passed (2227). Chromium browser suites: Test Files 2 failed | 1 passed (3), Tests 1 failed | 42 passed | 6 skipped (49).
 
 | Suite | Chromium (turn 25) | Firefox | WebKit |
 |---|---|---|---|
@@ -171,19 +188,19 @@ An earlier full run in this round, with a document-plus-shadow `getElementById` 
 | `chart/histogram.browser.test.ts` (3) | 3 passed | unreached | unreached |
 | `chart/c3-journeys.browser.test.ts` (6) | 0 run, 6 skipped at setup (`browserType.launch: Target page, context or browser has been closed`) | unreached | unreached |
 
-These counts belong to the turn-25 candidate. The repaired file has not been run in a browser. **Final three-engine results: pending** the next Director run on Chromium, Firefox and WebKit.
+These counts belong to the turn-25 candidate. At the time, the repaired file had not been run in a browser and the final three-engine results were pending (historical; superseded by seal turn 2 above).
 
-**Turn 23 (earlier, observed).** `turn-23-opus-5.5-medium__20261127T064401Z`: `npm run typecheck` and `npm run build` passed; `npm test` (Node) Test Files 123 passed (123), Tests 2227 passed (2227). Chromium browser suites: Test Files 2 failed | 1 passed (3), Tests 7 failed | 36 passed | 6 skipped (49).
+**Turn 23 (historical, observed).** `turn-23-opus-5.5-medium__20261127T064401Z`: `npm run typecheck` and `npm run build` passed; `npm test` (Node) Test Files 123 passed (123), Tests 2227 passed (2227). Chromium browser suites: Test Files 2 failed | 1 passed (3), Tests 7 failed | 36 passed | 6 skipped (49).
 
 | Suite | Chromium (turn 23) | Firefox | WebKit |
 |---|---|---|---|
-| `chart/n3-interaction-a11y.browser.test.ts` (40) | 33 passed, 7 failed (repaired since, see above; pending the next Director run) | unreached | unreached |
+| `chart/n3-interaction-a11y.browser.test.ts` (40) | 33 passed, 7 failed (repaired since, see above) | unreached | unreached |
 | `chart/histogram.browser.test.ts` (3) | 3 passed | unreached | unreached |
 | `chart/c3-journeys.browser.test.ts` (6) | 0 run, 6 skipped (Chrome startup: `Socket path too long`, runner `TMPDIR`) | unreached | unreached |
 
-These counts belong to the turn-23 candidate. They do not carry over to the repaired file. The repaired file still needs a Director run on all three engines.
+These counts belong to the turn-23 candidate. They do not carry over to the repaired file. At the time, the repaired file still needed a Director run on all three engines (historical; see seal turn 2 above).
 
-Earlier Director run: `turn-9-opus-5.5-medium__20261127T054101Z` (full log: `/home/canarit/projects/prism/runs/coordinators/axylo_p2_n3_interaction_a11y/verify/turn-9-opus-5.5-medium__20261127T054101Z.log`). Observed in that log:
+Earlier Director run (historical): `turn-9-opus-5.5-medium__20261127T054101Z` (full log: `/home/canarit/projects/prism/runs/coordinators/axylo_p2_n3_interaction_a11y/verify/turn-9-opus-5.5-medium__20261127T054101Z.log`). Observed in that log:
 
 | Step | Result |
 |---|---|
@@ -199,13 +216,13 @@ Earlier Director run: `turn-9-opus-5.5-medium__20261127T054101Z` (full log: `/ho
 | `chart/histogram.browser.test.ts` (3) | 0 run, 3 skipped in setup (browser launch failed) | unreached | unreached |
 | Total | 0 run, 49 skipped | unreached | unreached |
 
-No engine has a pass on this candidate. A skipped test is not a pass.
+No engine had a pass on that turn-9 candidate. A skipped test is not a pass.
 
 **Cause.** `chromium.launch` in `packages/axylo/test/browser/harness.ts:77` fails before any test body. Chrome aborts (`SIGABRT`) at `process_singleton_posix.cc:315` with `Socket path too long`. The generated workspace `TMPDIR` puts its `SingletonSocket` at `/home/canarit/projects/prism/runs/coordinators/axylo_p2_n3_interaction_a11y/verify-6zqtw02t/tmp/tmpf0ft_7hj/com.google.Chrome.<6>/SingletonSocket`. That path is 148 bytes. A Unix socket path (`sun_path`) holds at most 107 bytes plus the terminator.
 
 **Repeats.** The same startup failure happened in Director turns 8 (`turn-8-opus-5.5-medium__20261127T054101Z`, workspace `verify-nib0tpqv`) and 9 on this implementation (Node 2227 passed, browser 49 skipped both times). It also happened in `turn-2` on an earlier candidate (Node 2220 passed, browser 42 skipped). Each time Node passed and the browser suites stopped at launch. Firefox and WebKit were never reached. The failure comes from the runner environment, not from the candidate, and repeating the same Director command will fail the same way.
 
-**Runner-side remediation (pending, outside the candidate file fence).**
+**Runner-side remediation (historical; outside the candidate file fence).** The seal run's Chromium step started Chrome for all three suites, `c3-journeys` included, and Firefox and WebKit were reached.
 - Export a short absolute `TMPDIR` that is backed by the verification workspace before the browser step. A short mount or alias that points to the workspace is fine, for example `ln -s <verify-workspace>/tmp /home/canarit/.pv/<id>` (or a bind mount) with `TMPDIR=/home/canarit/.pv/<id>`. Keep the whole `TMPDIR` under about 50 bytes, so that `TMPDIR/tmpXXXXXXXX/com.google.Chrome.XXXXXX/SingletonSocket` stays well below 107 bytes. Do not use the tmpfs `/tmp`.
 - Set a workspace-local npm cache (`npm_config_cache=<verify-workspace>/npm-cache`).
 - Then run the three engines in turn: `AXYLO_ENGINE=chromium|firefox|webkit` over `n3-interaction-a11y`, `c3-journeys` and `histogram`.
@@ -240,7 +257,7 @@ This is reasoning, not a run.
 
 `npm run typecheck` passed with the change (it includes `packages/axylo/test`).
 
-**Not observed.** Chrome startup through the alias, and every browser result for these suites. Those need a Director `verify()`. That run can give genuine Chromium evidence for `n3-interaction-a11y` and `histogram` only. It is not complete three-engine verification, because `c3-journeys` still fails at Chrome startup until the runner is fixed.
+**Not observed in the leaf (historical).** Chrome startup through the alias, and every browser result for these suites. Those need a Director `verify()`. That run can give genuine Chromium evidence for `n3-interaction-a11y` and `histogram` only. It is not complete three-engine verification, because `c3-journeys` still fails at Chrome startup until the runner is fixed.
 
 ## Bundle size
 

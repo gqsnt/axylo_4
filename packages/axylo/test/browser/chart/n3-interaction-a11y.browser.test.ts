@@ -501,6 +501,16 @@ describe('F-A11Y-6: the plot name and the point reading are tagged with their ow
             decoys: decoys.map(d => [d.id, d.textContent, d.isConnected]),
           };
         };
+        // A page that hosts charts in its own shadow trees gives each tree the stylesheet, as it does the
+        // document. A fresh tree without it would lay the chart out unstyled first and have the library adopt the
+        // sheet from inside the resize delivery that notices the move, so the boxes change during that delivery
+        // (WebKit reports it as a resize-observer loop). Copied from the page's own built sheet, synchronously.
+        const styled = (tree: ShadowRoot) => {
+          const sheet = Array.from(document.styleSheets).find(s => Array.from(s.cssRules).some(r => r.cssText.includes('--axylo-stylesheet')));
+          if (!sheet) throw new Error('the page has no axylo stylesheet to copy');
+          tree.appendChild(document.createElement('style')).textContent = Array.from(sheet.cssRules, r => r.cssText).join('\n');
+          return tree;
+        };
         const move = async (into: Node) => {
           target.remove();
           await window.nextFrames(3);
@@ -510,12 +520,12 @@ describe('F-A11Y-6: the plot name and the point reading are tagged with their ow
         };
         const out: Record<string, unknown> = { figure, start: state(document, []) };
         // Document to a shadow root whose tree already has the label's id, before the chart in tree order.
-        const first = document.body.appendChild(document.createElement('div')).attachShadow({ mode: 'open' });
+        const first = styled(document.body.appendChild(document.createElement('div')).attachShadow({ mode: 'open' }));
         const a = decoy(first, `${figure}-l`);
         await move(first);
         out.shadow = state(first, [a]);
         // Shadow root to another shadow root that also has the next candidate id.
-        const second = document.body.appendChild(document.createElement('div')).attachShadow({ mode: 'open' });
+        const second = styled(document.body.appendChild(document.createElement('div')).attachShadow({ mode: 'open' }));
         const b = [decoy(second, `${figure}-l0`), decoy(second, `${figure}-l`)];
         await move(second);
         out.other = state(second, b);
@@ -1484,7 +1494,8 @@ async function expectOptInShape(page: Page, fn: 'cartesian' | 'candlestick'): Pr
 
 const SCHEMES = {
   light: { colorScheme: 'light', forcedColors: 'none', css: ':root { color-scheme: light; } body { background: #ffffff; color: #1b1d22; }' },
-  dark: { colorScheme: 'dark', forcedColors: 'none', css: ':root { color-scheme: dark; } body { background: #16181d; color: #e8eaee; }' },
+  // The page's own sentinel buttons get the page's colours: WebKit's default dark button fails color-contrast.
+  dark: { colorScheme: 'dark', forcedColors: 'none', css: ':root { color-scheme: dark; } body { background: #16181d; color: #e8eaee; } #before, #after { background: #16181d; color: #e8eaee; border: 1px solid #e8eaee; }' },
   forced: { colorScheme: 'light', forcedColors: 'active', css: ':root { color-scheme: light; } body { background: #ffffff; color: #1b1d22; }' },
 } as const;
 
