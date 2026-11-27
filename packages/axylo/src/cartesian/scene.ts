@@ -9,14 +9,20 @@
  *
  * Uses `axisScaleOf(projection, s.axisIndex)` exclusively (single projection authority) and filters
  * `slot === SLOT_VALUE && (scale.type !== 'log' || y > 0)` BEFORE calling `position()` so `NaN`
- * never hits `±COORDINATE_LIMIT`.
+ * never hits `±COORDINATE_LIMIT`. Lines and areas are drawn from the samples spec F5 keeps
+ * (cartesian/dense.ts) and stacks from cartesian/stacks.ts (spec F10), so their geometry is bounded by the
+ * plot's device-pixel columns rather than by the data's length.
  */
 import {
-  SLOT_NO_ROW, SLOT_VALUE, type AlignedView, type AreaMark, type ContinuousScale, type Layout,
+  SLOT_GAP, SLOT_NO_ROW, SLOT_VALUE, type AlignedView, type AreaMark, type ContinuousScale, type IndexRange, type Layout,
   type Mark, type PathMark, type PointMark, type Projection, type Rect, type RectMark,
-  type RuleMark, type Scene, type View, type XScale,
+  type RuleMark, type Scene, type View,
 } from '../core/contracts';
 import { boundaryPixel, clamp, position, rule, seriesPaint, token } from '../scene/geometry';
+import { seriesSlots } from '../data/store-statistics';
+import { stackAreaRange } from '../view';
+import { bandOf, columnLimit, keep, lastDrawnValue, pathOf, pointsOf, safeRatio } from './dense';
+import { cartesianStacks, type CartesianStack } from './stacks';
 import { axisScaleOf } from './scale-ref';
 import { buildBarSlotLayout, writeBarRect, xSlotPixel } from './bar-geom';
 import { buildCartesianAnnotationMarks } from './annotations';
@@ -32,7 +38,7 @@ function buildBarMarks(
   meta: CartesianMeta,
   barSeriesIndexes: readonly number[],
 ): RectMark[] {
-  if (!barSeriesIndexes.length || projection.kind === 'ring') return [];
+  if (!barSeriesIndexes.length) return [];
   const barLayout = buildBarSlotLayout(view, projection, plot, meta, barSeriesIndexes);
   const { start, end } = view.visibleSlots;
   const maxBars = Math.max(0, end - start);
@@ -59,197 +65,186 @@ function buildBarMarks(
   return marks;
 }
 
+function isPlottable(scale: ContinuousScale, slot: number, value: number): boolean {
+  // A SLOT_VALUE is always finite (core/contracts.ts).
+  return slot === SLOT_VALUE && (scale.type !== 'log' || value > 0);
+}
+
+function lineMark(view: AlignedView, series: number, xy: Float32Array): PathMark {
+  return {
+    type: 'path', series, xy, stroke: seriesPaint(series), strokeWidth: 2,
+    dash: view.cues[series]?.dash ?? { normal: null, contrast: null },
+  };
+}
+
+/** Slot i's CSS x pixel, as bar-geom.ts xSlotPixel and lookup.ts place it. */
+function slotX(projection: Exclude<Projection, { kind: 'ring' }>, xValues: Float64Array): (i: number) => number {
+  const xScale = projection.kind === 'xy' ? projection.x : projection.band;
+  return i => xSlotPixel(xScale, xValues, i);
+}
+
+/**
+ * The common source vertices of one stack (as simplify/stackIndexes): every boundary's kept column extremes, and
+ * both ends of every change of a component's state or sign, so neighbouring bands share one edge, stay ordered
+ * between samples, and pinch exactly where a component starts or stops.
+ */
+function stackVertices(
+  view: AlignedView, group: CartesianStack, range: IndexRange, xAt: (i: number) => number, ratio: number, limit: number,
+): Uint32Array {
+  const { start, end } = range;
+  const size = end - start;
+  const flags = new Uint8Array(size);
+  if (size <= limit) flags.fill(1);
+  else {
+    for (let k = 0; k < group.order.length; k++) {
+      for (const edge of [group.positive[k]!, group.negative[k]!]) {
+        for (const i of keep(edge, null, range, xAt, ratio, limit, true).indexes) flags[i - start] = 1;
+      }
+      const series = view.frame.series[group.order[k]!]!;
+      const states = seriesSlots(series);
+      const kind = (i: number) => states && states[i] !== SLOT_VALUE ? 2 : Math.sign(series.y[i]!);
+      for (let i = start + 1; i < end; i++) {
+        if (kind(i) !== kind(i - 1)) flags[i - 1 - start] = flags[i - start] = 1;
+      }
+    }
+    // The vertices next to the ends stay exact where the plot clips the drawing.
+    flags[0] = flags[1] = flags[size - 2] = flags[size - 1] = 1;
+  }
+  let count = 0;
+  for (let j = 0; j < size; j++) count += flags[j]!;
+  const vertices = new Uint32Array(count);
+  for (let j = 0, o = 0; j < size; j++) if (flags[j]) vertices[o++] = start + j;
+  return vertices;
+}
+
+/**
+ * The edge line of one stacked-area component, through the common vertices. It is drawn on each side of zero
+ * along that side's cumulative boundary, the outer edge of the component's own band there, so between two
+ * samples it lies on the filled polygon: where the value changes sign, the positive edge runs down to the
+ * boundary below it and the negative edge runs out from it, instead of one segment crossing between the bands.
+ * A vertex where the component has no value breaks both (F10: a missing component is never bridged).
+ */
+function stackEdge(
+  vertices: Uint32Array, series: AlignedView['frame']['series'][number], group: CartesianStack, k: number,
+  xAt: (i: number) => number, yScale: ContinuousScale,
+): Float32Array | null {
+  const states = seriesSlots(series), { y } = series, positive = group.positive[k]!;
+  const xy = new Float32Array(8 * vertices.length);
+  let o = 0;
+  for (const side of [positive, group.negative[k]!]) {
+    const put = (i: number) => { xy[o++] = xAt(i); xy[o++] = position(yScale, side[i]!); };
+    for (let j = 1, open = false; j < vertices.length; j++) {
+      const a = vertices[j - 1]!, b = vertices[j]!;
+      // Joined where both ends have a value and either one is on this side.
+      if ((states && (states[a] !== SLOT_VALUE || states[b] !== SLOT_VALUE))
+        || (side === positive ? Math.max(y[a]!, y[b]!) < 0 : Math.min(y[a]!, y[b]!) >= 0)) { open = false; continue; }
+      if (!open) {
+        if (o) xy[o++] = xy[o++] = NaN;
+        put(a);
+        open = true;
+      }
+      put(b);
+    }
+  }
+  return o ? xy.subarray(0, o) : null;
+}
+
+/**
+ * Areas (spec F5, F10). An unstacked area keeps the samples a line would, over the zero baseline. The stacked
+ * areas of one axis share one set of vertices kept on every cumulative boundary; each band has a positive and a
+ * negative part on its own side of zero, a missing component adds zero height, and its edge line is not joined
+ * across that slot.
+ */
 function buildAreaMarks(
   view: AlignedView,
-  projection: Projection,
+  projection: Exclude<Projection, { kind: 'ring' }>,
   plot: Rect,
   meta: CartesianMeta,
   areaSeriesIndexes: readonly number[],
+  ratio: number,
 ): { areas: AreaMark[]; strokes: PathMark[] } {
   const areas: AreaMark[] = [];
   const strokes: PathMark[] = [];
-  if (!areaSeriesIndexes.length || projection.kind === 'ring') return { areas, strokes };
-  const xScale = projection.kind === 'xy' ? projection.x : projection.band;
-  const xVals = view.frame.x.values;
-  const n = view.frame.length;
-  const posStackByAxis = new Map<number, Float64Array>();
-  const negStackByAxis = new Map<number, Float64Array>();
+  if (!areaSeriesIndexes.length) return { areas, strokes };
+  const xAt = slotX(projection, view.frame.x.values);
+  const limit = columnLimit(plot, ratio);
+  const stacks = cartesianStacks(view, meta);
 
   for (const sIdx of areaSeriesIndexes) {
+    if (stacks.groupOf[sIdx]! >= 0) continue;
     const series = view.frame.series[sIdx]!;
-    const spec = meta.seriesByField.get(series.field);
-    const stacked = spec?.stacked === true;
-    const axisIdx = series.axisIndex ?? 0;
-    const yScale = axisScaleOf(projection, axisIdx);
-    const yZero = clamp(position(yScale, 0), plot.y, plot.y + plot.height);
-    const { start, end } = view.drawSlots[sIdx] ?? view.visibleSlots;
+    const yScale = axisScaleOf(projection, series.axisIndex ?? 0);
+    const yAt = (i: number) => position(yScale, series.y[i]!);
+    const kept = keep(series.y, seriesSlots(series), view.drawSlots[sIdx] ?? view.visibleSlots, xAt, ratio, limit, true, yScale.type === 'log');
+    if (!kept.ends.length) continue;
+    const zero = position(yScale, 0);
+    areas.push({ type: 'area', series: sIdx, ...bandOf(kept, xAt, yAt, () => zero), fill: seriesPaint(sIdx), opacity: 0.22 });
+    strokes.push(lineMark(view, sIdx, pathOf(kept, xAt, yAt)));
+  }
 
-    let posAcc = posStackByAxis.get(axisIdx);
-    let negAcc = negStackByAxis.get(axisIdx);
-    if (stacked && !posAcc) {
-      posAcc = new Float64Array(n);
-      negAcc = new Float64Array(n);
-      posStackByAxis.set(axisIdx, posAcc);
-      negStackByAxis.set(axisIdx, negAcc);
-    }
-
-    const upperCoords: number[] = [];
-    const lowerCoords: number[] = [];
-    const runs: number[] = [];
-    const strokeCoords: number[] = [];
-    let runStart = -1;
-    let runCount = 0;
-
-    const flush = () => {
-      if (runCount >= 2) runs.push(runStart, runCount, runStart, runCount);
-      runStart = -1;
-      runCount = 0;
-    };
-
-    for (let i = start; i < end; i++) {
-      const st = series.slot[i]!;
-      if (st === SLOT_NO_ROW && !stacked) continue;
-      const v = st === SLOT_VALUE ? series.y[i]! : NaN;
-      if (st !== SLOT_VALUE || !Number.isFinite(v)) {
-        if (stacked && posAcc && negAcc) {
-          // Stacked missing slot contributes 0 height while keeping cumulative baseline intact.
-          const px = xSlotPixel(xScale, xVals, i);
-          const py = clamp(position(yScale, posAcc[i]!), plot.y, plot.y + plot.height);
-          if (runStart < 0) runStart = upperCoords.length / 2;
-          upperCoords.push(px, py);
-          lowerCoords.push(px, py);
-          runCount++;
-          if (strokeCoords.length && !Number.isNaN(strokeCoords[strokeCoords.length - 1]!)) strokeCoords.push(NaN, NaN);
-          continue;
-        }
-        flush();
-        if (strokeCoords.length && !Number.isNaN(strokeCoords[strokeCoords.length - 1]!)) {
-          strokeCoords.push(NaN, NaN);
-        }
-        continue;
-      }
-      const px = xSlotPixel(xScale, xVals, i);
-      let pyLow = yZero;
-      let pyHigh: number;
-      if (stacked && posAcc && negAcc) {
-        const acc = v >= 0 ? posAcc : negAcc;
-        const prev = acc[i]!;
-        const next = prev + v;
-        acc[i] = next;
-        pyLow = clamp(position(yScale, prev), plot.y, plot.y + plot.height);
-        pyHigh = clamp(position(yScale, next), plot.y, plot.y + plot.height);
-      } else {
-        pyHigh = position(yScale, v);
-      }
-      if (runStart < 0) runStart = upperCoords.length / 2;
-      upperCoords.push(px, pyHigh);
-      lowerCoords.push(px, pyLow);
-      strokeCoords.push(px, pyHigh);
-      runCount++;
-    }
-    flush();
-
-    if (runs.length > 0) {
-      areas.push({
-        type: 'area',
-        series: sIdx,
-        upper: Float32Array.from(upperCoords),
-        lower: Float32Array.from(lowerCoords),
-        runs: Uint32Array.from(runs),
-        fill: seriesPaint(sIdx),
-        opacity: 0.22,
+  for (const group of stacks.groups) {
+    if (group.mark !== 'area') continue;
+    const yScale = axisScaleOf(projection, group.axisIndex);
+    const range = stackAreaRange(view.frame, view.visibleSlots, view.xDomain);
+    if (range.end - range.start < 2) continue;
+    const vertices = stackVertices(view, group, range, xAt, ratio, limit);
+    const count = vertices.length;
+    const zero = position(yScale, 0);
+    const runs = Uint32Array.of(0, count, 0, count);
+    // Each side of zero is its own band per component, so a mixed-sign stack never crosses zero (F10).
+    for (const side of [group.positive, group.negative]) {
+      let lower = pointsOf(vertices, xAt, () => zero);
+      side.forEach((values, k) => {
+        const prior = side[k - 1];
+        if (!vertices.some(i => values[i] !== (prior ? prior[i]! : 0))) return;
+        const upper = pointsOf(vertices, xAt, i => position(yScale, values[i]!));
+        areas.push({ type: 'area', series: group.order[k]!, upper, lower, runs, fill: seriesPaint(group.order[k]!), opacity: 0.22 });
+        lower = upper;
       });
     }
-    if (strokeCoords.length >= 2) {
-      strokes.push({
-        type: 'path',
-        series: sIdx,
-        xy: Float32Array.from(strokeCoords),
-        stroke: seriesPaint(sIdx),
-        strokeWidth: 2,
-        dash: view.cues[sIdx]?.dash ?? { normal: null, contrast: null },
-      });
+    for (let k = 0; k < group.order.length; k++) {
+      const sIdx = group.order[k]!;
+      const edge = stackEdge(vertices, view.frame.series[sIdx]!, group, k, xAt, yScale);
+      if (edge) strokes.push(lineMark(view, sIdx, edge));
     }
   }
   return { areas, strokes };
 }
 
-function isPlottable(scale: ContinuousScale, slot: number, value: number): boolean {
-  if (slot !== SLOT_VALUE || !Number.isFinite(value)) return false;
-  return scale.type !== 'log' || value > 0;
-}
-
+/**
+ * Lines (spec F5). Markers: every isolated value, and (spec A5) the last value drawn inside the visible window,
+ * wherever the drawing's overscan neighbour or trailing gaps fall.
+ */
 function buildLineMarks(
   view: AlignedView,
-  projection: Projection,
+  projection: Exclude<Projection, { kind: 'ring' }>,
+  plot: Rect,
   lineSeriesIndexes: readonly number[],
   compact: boolean,
+  ratio: number,
 ): { paths: PathMark[]; points: PointMark[] } {
   const paths: PathMark[] = [];
   const points: PointMark[] = [];
-  if (!lineSeriesIndexes.length || projection.kind === 'ring') return { paths, points };
-  const xScale = projection.kind === 'xy' ? projection.x : projection.band;
-  const xVals = view.frame.x.values;
+  if (!lineSeriesIndexes.length) return { paths, points };
+  const xAt = slotX(projection, view.frame.x.values);
+  const limit = columnLimit(plot, ratio);
 
   for (const sIdx of lineSeriesIndexes) {
     const series = view.frame.series[sIdx]!;
     const yScale = axisScaleOf(projection, series.axisIndex ?? 0);
-    const { start, end } = view.drawSlots[sIdx] ?? view.visibleSlots;
-    const xy: number[] = [];
-    const pts: number[] = [];
-    let runLen = 0;
-    let lastPx = NaN;
-    let lastPy = NaN;
+    // Filter y <= 0 BEFORE any position() call on log scales (RFC §4.4).
+    const slot = seriesSlots(series);
+    const log = yScale.type === 'log';
+    const yAt = (i: number) => position(yScale, series.y[i]!);
+    const kept = keep(series.y, slot, view.drawSlots[sIdx] ?? view.visibleSlots, xAt, ratio, limit, true, log);
+    if (kept.ends.length) paths.push(lineMark(view, sIdx, pathOf(kept, xAt, yAt)));
 
-    const endRun = () => {
-      if (runLen === 1 && Number.isFinite(lastPx) && Number.isFinite(lastPy)) {
-        pts.push(lastPx, lastPy);
-      }
-      if (runLen > 0) xy.push(NaN, NaN);
-      runLen = 0;
-    };
-
-    for (let i = start; i < end; i++) {
-      const st = series.slot[i]!;
-      if (st === SLOT_NO_ROW) continue;
-      const v = series.y[i]!;
-      // Filter y <= 0 BEFORE calling position() on log scales (RFC §4.4).
-      if (!isPlottable(yScale, st, v)) {
-        endRun();
-        continue;
-      }
-      const px = xSlotPixel(xScale, xVals, i);
-      const py = position(yScale, v);
-      xy.push(px, py);
-      lastPx = px;
-      lastPy = py;
-      runLen++;
-    }
-    if (runLen === 1 && Number.isFinite(lastPx) && Number.isFinite(lastPy)) {
-      pts.push(lastPx, lastPy);
-    } else if (!compact && runLen > 1 && Number.isFinite(lastPx) && Number.isFinite(lastPy)) {
-      // Spec A5: shape marker at the last visible point of each line.
-      pts.push(lastPx, lastPy);
-    }
-
-    if (xy.length >= 2) {
-      paths.push({
-        type: 'path',
-        series: sIdx,
-        xy: Float32Array.from(xy),
-        stroke: seriesPaint(sIdx),
-        strokeWidth: 2,
-        dash: view.cues[sIdx]?.dash ?? { normal: null, contrast: null },
-      });
-    }
-    if (pts.length >= 2) {
+    const last = compact ? -1 : lastDrawnValue(series.y, slot, view.visibleSlots, log);
+    const markers = last >= 0 && !kept.isolated.includes(last) ? new Uint32Array([...kept.isolated, last]) : kept.isolated;
+    if (markers.length) {
       points.push({
-        type: 'points',
-        series: sIdx,
-        xy: Float32Array.from(pts),
-        shape: view.cues[sIdx]?.marker ?? 'circle',
-        size: compact ? 3 : 4,
-        fill: seriesPaint(sIdx),
+        type: 'points', series: sIdx, xy: pointsOf(markers, xAt, yAt),
+        shape: view.cues[sIdx]?.marker ?? 'circle', size: compact ? 3 : 4, fill: seriesPaint(sIdx),
       });
     }
   }
@@ -267,8 +262,7 @@ function buildIntervalMarks(
   const points: PointMark[] = [];
   if (!meta.intervals.length) return { bands, strokes, points };
 
-  const xScale = projection.kind === 'xy' ? projection.x : projection.band;
-  const xVals = view.frame.x.values;
+  const xAt = slotX(projection, view.frame.x.values);
   const idxByField = new Map<string, number>();
   for (let i = 0; i < view.frame.series.length; i++) idxByField.set(view.frame.series[i]!.field, i);
   const { start, end } = view.visibleSlots;
@@ -288,69 +282,24 @@ function buildIntervalMarks(
     const paint = seriesPaint(centerIdx ?? lowIdx);
 
     if (iv.mark === 'range') {
-      const upperCoords: number[] = [];
-      const lowerCoords: number[] = [];
-      const runs: number[] = [];
-      const singletons: number[] = [];
-      let runStart = -1;
-      let runCount = 0;
-      let lastPx = NaN;
-      let lastPyLow = NaN;
-      let lastPyHigh = NaN;
-      const flush = () => {
-        if (runCount >= 2) {
-          runs.push(runStart, runCount, runStart, runCount);
-        } else if (runCount === 1 && Number.isFinite(lastPx) && Number.isFinite(lastPyLow) && Number.isFinite(lastPyHigh)) {
-          // Preserve singleton valid interval (e.g. zoomed onto 1 slot) as a visible vertical span segment.
-          singletons.push(lastPx, lastPyLow, lastPx, lastPyHigh, NaN, NaN);
-        }
-        runStart = -1;
-        runCount = 0;
-      };
+      // One state per slot for the pair: a value where both ends can be placed, bridged where neither has a row.
+      const state = new Uint8Array(view.frame.length).fill(SLOT_GAP);
       for (let i = start; i < end; i++) {
         const loSt = lowS.slot[i]!;
         const hiSt = highS.slot[i]!;
-        if (loSt === SLOT_NO_ROW && hiSt === SLOT_NO_ROW) continue;
-        const loV = lowS.y[i]!;
-        const hiV = highS.y[i]!;
-        if (!isPlottable(yScale, loSt, loV) || !isPlottable(yScale, hiSt, hiV)) {
-          flush();
-          continue;
-        }
-        const px = xSlotPixel(xScale, xVals, i);
-        const a = Math.min(loV, hiV);
-        const b = Math.max(loV, hiV);
-        const pyHigh = position(yScale, b);
-        const pyLow = position(yScale, a);
-        if (runStart < 0) runStart = upperCoords.length / 2;
-        upperCoords.push(px, pyHigh);
-        lowerCoords.push(px, pyLow);
-        lastPx = px;
-        lastPyLow = pyLow;
-        lastPyHigh = pyHigh;
-        runCount++;
+        state[i] = loSt === SLOT_NO_ROW && hiSt === SLOT_NO_ROW ? SLOT_NO_ROW
+          : isPlottable(yScale, loSt, lowS.y[i]!) && isPlottable(yScale, hiSt, highS.y[i]!) ? SLOT_VALUE : SLOT_GAP;
       }
-      flush();
-      if (runs.length > 0) {
-        bands.push({
-          type: 'area',
-          series: lowIdx,
-          upper: Float32Array.from(upperCoords),
-          lower: Float32Array.from(lowerCoords),
-          runs: Uint32Array.from(runs),
-          fill: paint,
-          opacity: 0.22,
-        });
-      }
-      if (singletons.length >= 4) {
-        strokes.push({
-          type: 'path',
-          series: lowIdx,
-          xy: Float32Array.from(singletons),
-          stroke: paint,
-          strokeWidth: 4,
-          dash: { normal: null, contrast: null },
-        });
+      const kept = keep(lowS.y, state, view.visibleSlots, xAt, 1, Infinity, true);
+      const hiAt = (i: number) => position(yScale, Math.max(lowS.y[i]!, highS.y[i]!));
+      const loAt = (i: number) => position(yScale, Math.min(lowS.y[i]!, highS.y[i]!));
+      if (kept.ends.length) bands.push({ type: 'area', series: lowIdx, ...bandOf(kept, xAt, hiAt, loAt), fill: paint, opacity: 0.22 });
+      // A single valid interval (e.g. zoomed onto one slot) is a visible vertical span.
+      const { isolated } = kept;
+      if (isolated.length) {
+        const xy = new Float32Array(6 * isolated.length);
+        isolated.forEach((i, j) => xy.set([xAt(i), loAt(i), xAt(i), hiAt(i), NaN, NaN], 6 * j));
+        strokes.push({ type: 'path', series: lowIdx, xy, stroke: paint, strokeWidth: 4, dash: { normal: null, contrast: null } });
       }
     } else {
       // errorBar: batch all vertical whiskers and end-caps into ONE typed Float32Array PathMark (O(N), 1 SVG node)
@@ -367,7 +316,7 @@ function buildIntervalMarks(
         const loV = lowS.y[i]!;
         const hiV = highS.y[i]!;
         if (!isPlottable(yScale, loSt, loV) || !isPlottable(yScale, hiSt, hiV)) continue;
-        const px = xSlotPixel(xScale, xVals, i);
+        const px = xAt(i);
         const pyA = position(yScale, Math.min(loV, hiV));
         const pyB = position(yScale, Math.max(loV, hiV));
         segBuf[segPos++] = px; segBuf[segPos++] = pyB;
@@ -413,17 +362,18 @@ function buildIntervalMarks(
 
 export function buildCartesianScene(
   stateRef: CartesianStateRef,
-  view: View,
+  input: View,
   layout: Layout,
-  _devicePixelRatio: number,
+  devicePixelRatio: number,
 ): Scene {
-  if ((layout.kind !== 'plot' && layout.kind !== 'compact') || view.kind === 'donut' || view.kind === 'scatter') {
+  // A 'line' composition (cartesian.ts) builds aligned views only, so only the layout can leave nothing to draw.
+  const view = input as AlignedView;
+  if (layout.kind !== 'plot' && layout.kind !== 'compact') {
     return { width: layout.width, height: layout.height, clip: { x: 0, y: 0, width: layout.width, height: layout.height }, marks: [] };
   }
-  const { plot, projection } = layout;
-  if (projection.kind === 'ring') {
-    return { width: layout.width, height: layout.height, clip: plot, marks: [] };
-  }
+  // The Cartesian layout projects onto xy or bands (layout.ts), never a ring.
+  const { plot } = layout;
+  const projection = layout.projection as Exclude<Projection, { kind: 'ring' }>;
 
   const compact = layout.kind === 'compact' || view.compact;
   const marks: Mark[] = [];
@@ -443,8 +393,8 @@ export function buildCartesianScene(
     const paint = token('reference');
     for (const ref of view.references) {
       if (ref.axis === 'x') {
-        const a = xScale.type === 'band' ? xScale.center(ref.from) : position(xScale, ref.from);
-        const b = xScale.type === 'band' ? xScale.center(ref.to) : position(xScale, ref.to);
+        const a = position(xScale, ref.from);
+        const b = position(xScale, ref.to);
         if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
         const lo = clamp(Math.min(a, b), left, right);
         const hi = clamp(Math.max(a, b), left, right);
@@ -477,7 +427,7 @@ export function buildCartesianScene(
     edges.push(rule('axis', axisPaint, left, bottom, right, bottom));
     edges.push(rule('axis', axisPaint, left, top, left, bottom));
     for (const tick of layout.xTicks) {
-      const px = boundaryPixel(xScale.type === 'band' ? xScale.center(tick.value) : position(xScale, tick.value), left, right);
+      const px = boundaryPixel(position(xScale, tick.value), left, right);
       if (px !== null) edges.push(rule('tick', axisPaint, px, bottom, px, bottom + TICK_LENGTH));
     }
     for (const tick of layout.yTicks) {
@@ -518,12 +468,13 @@ export function buildCartesianScene(
   // 2. Bars
   marks.push(...buildBarMarks(view, projection, plot, meta, barSeries));
   // 3. Areas
-  const { areas, strokes } = buildAreaMarks(view, projection, plot, meta, areaSeries);
+  const ratio = safeRatio(devicePixelRatio);
+  const { areas, strokes } = buildAreaMarks(view, projection, plot, meta, areaSeries, ratio);
   marks.push(...areas, ...strokes);
   // 3b. Error bars & singleton range spans (batched typed PathMarks)
   marks.push(...ivMarks.strokes, ...ivMarks.points);
   // 4. Lines (always topmost data marks)
-  const { paths, points } = buildLineMarks(view, projection, lineSeries, compact);
+  const { paths, points } = buildLineMarks(view, projection, plot, lineSeries, compact, ratio);
   marks.push(...paths, ...points);
   // 5. Axes, reference lines, and foreground annotation markers/thresholds
   marks.push(...edges, ...refLines, ...annMarks.foreground);

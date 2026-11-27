@@ -70,13 +70,7 @@ function moveText(text: PlacedText, dx: number, dy: number): PlacedText {
 
 /** Converts a left-anchored (`anchor: 'end'`, `x = 0`) label from `fitValue` into a right-axis label (`anchor: 'start'`). */
 function placeRightTick(label: PlacedText, xRight: number): PlacedText {
-  const { box } = label;
-  return {
-    ...label,
-    x: xRight,
-    anchor: 'start',
-    box: { x: xRight, y: box.y, width: box.width, height: box.height },
-  };
+  return { ...label, x: xRight, anchor: 'start', box: { ...label.box, x: xRight } };
 }
 
 function buildValueScale(axis: CartesianAxisSpec, domain: Span, range: Span): ContinuousScale {
@@ -221,6 +215,11 @@ export function computeCartesianLayoutDetailed(
   const rightAxis = meta.axes[1] ?? null;
   const showRightAxis = rightAxis !== null && !forceCollapseRight && width >= DUAL_AXIS_MIN_WIDTH;
   const collapsedRightAxis = rightAxis !== null && !showRightAxis;
+  // Spec L9 before L8: when the right gutter is what leaves no readable plot, the chart drops the secondary
+  // axis (AX175) and keeps a plot; only a chart that is too small without it shows the L8 fallback.
+  const tooSmall = (): CartesianLayoutComputation => showRightAxis
+    ? computeCartesianLayoutDetailed(view, size, textInput, ctx, stateRef, true)
+    : { layout: { width, height, kind: 'too-small' }, collapsedRightAxis, xFailures, yFailures };
 
   const leftDomain = domains[0] ?? view.yDomain;
   const rightDomain = rightAxis ? (domains[1] ?? view.yDomain) : null;
@@ -264,9 +263,7 @@ export function computeCartesianLayoutDetailed(
 
   for (let iter = 0; iter < 16; iter++) {
     const plot: Rect = { x: left, y: top, width: width - left - right, height: height - top - bottom };
-    if (plot.width < MIN_WIDTH - 1e-7 || plot.height < MIN_HEIGHT - 1e-7) {
-      return { layout: { width, height, kind: 'too-small' }, collapsedRightAxis, xFailures, yFailures };
-    }
+    if (plot.width < MIN_WIDTH - 1e-7 || plot.height < MIN_HEIGHT - 1e-7) return tooSmall();
 
     const projection = makeProjection(plot);
     const xScale = projection.kind === 'xy' ? projection.x : (projection as { readonly band: XScale }).band;
@@ -274,12 +271,12 @@ export function computeCartesianLayoutDetailed(
     const rightScale = showRightAxis ? axisScaleOf(projection, 1) : null;
 
     const lLines = titleLines(leftTitleStr, plot.height, text);
-    if (!lLines) return { layout: { width, height, kind: 'too-small' }, collapsedRightAxis, xFailures, yFailures };
+    if (!lLines) return tooSmall();
     leftTitle = lLines;
     leftTitleSize = titleDepth(lLines, text);
 
     const rLines = showRightAxis ? titleLines(rightTitleStr, plot.height, text) : NO_TITLE;
-    if (!rLines) return { layout: { width, height, kind: 'too-small' }, collapsedRightAxis, xFailures, yFailures };
+    if (!rLines) return tooSmall();
     rightTitle = rLines;
     rightTitleSize = showRightAxis ? titleDepth(rLines, text) : 0;
 
@@ -293,7 +290,7 @@ export function computeCartesianLayoutDetailed(
       : NO_LABELS;
 
     const bLines = titleLines(xTitleStr, plot.width, text);
-    if (!bLines) return { layout: { width, height, kind: 'too-small' }, collapsedRightAxis, xFailures, yFailures };
+    if (!bLines) return tooSmall();
     xTitle = bLines;
     xTitleSize = titleDepth(bLines, text);
 
@@ -386,7 +383,7 @@ export function computeCartesianLayoutDetailed(
     bottom = grow ? Math.max(bottom, nextBottom) : nextBottom;
   }
 
-  return { layout: { width, height, kind: 'too-small' }, collapsedRightAxis, xFailures, yFailures };
+  return tooSmall();
 }
 
 export function createCartesianLayoutStage(stateRef: CartesianStateRef): LayoutStage {
@@ -407,11 +404,8 @@ export function createCartesianLayoutStage(stateRef: CartesianStateRef): LayoutS
       return base;
     },
     compute(view, size, text, ctx) {
-      if (view.kind === 'donut' || view.kind === 'scatter') {
-        stateRef.meta.collapsedRightAxis = false;
-        return { width: size.width, height: size.height, kind: 'unmeasured' };
-      }
-      const res = computeCartesianLayoutDetailed(view, size, text, ctx, stateRef);
+      // A 'line' composition (cartesian.ts) builds aligned views only: no donut or scatter view reaches here.
+      const res = computeCartesianLayoutDetailed(view as AlignedView, size, text, ctx, stateRef);
       lastResult = res;
       lastLayout = res.layout;
       stateRef.meta.collapsedRightAxis = res.layout.kind === 'plot' && Boolean(stateRef.meta.axes[1]) && res.layout.yTicksRight === undefined;

@@ -1061,6 +1061,36 @@
           "file": "packages/axylo/test/acceptance/production.test.ts",
           "title": "F3 line: in production a hint is delivered to onDiagnostic and not printed",
           "registration": "F3 ${type}: in production a hint is delivered to onDiagnostic and not printed"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/c4-2-layout.test.ts",
+          "title": "emits AX170 for invalid log domain or unsupported base, and AX172 when all values are nonpositive"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/c4-3-cartesian.test.ts",
+          "title": "emits AX171 in data stage for nonpositive log values, omits them from line geometry, and retains raw values in table"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/c4-3-cartesian.test.ts",
+          "title": "validateCartesian catches AX170, AX172, AX173, and AX174 cleanly in Node (no DOM)"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/n4-stacks-layout.test.ts",
+          "title": "collapses at 320 px and restores at 960 px, with AX175 and the summary sentence following"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/c5-ranges-annotations.test.ts",
+          "title": "renders range band + errorBar whiskers + center points with zero borrowed column copy and reports AX176 on reversed bounds"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/finance/c6-3-finance.test.ts",
+          "title": "validates OHLC envelope (AX180) and negative volume (AX181) without DOM and omits only offending marks"
         }
       ],
       "area": [
@@ -2821,6 +2851,88 @@
       "bar": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. The changed-values tests in Chrome replace the note's text through messages, so the default wording of that note is checked on the Node model only. The count-of-one case is checked in the development build. For AX107 the note is checked on the model's note and summary (Node).",
       "scatter": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. The changed-values tests in Chrome replace the note's text through messages, so the default wording of that note is checked on the Node model only. The count-of-one case is checked in the development build. For AX107 the note is checked on the model's note and summary (Node).",
       "donut": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. The changed-values tests in Chrome replace the note's text through messages, so the default wording of that note is checked on the Node model only. The count-of-one case is checked in the development build."
+    }
+  },
+  {
+    "id": "F13",
+    "statement": "axylo/cartesian composes bar, area and line layers on one x axis with one left and at most one right y-axis, each 'linear' or 'log' (base 10 or 2), each with its own domain, ticks, title, unit and formats, all drawing and picking through that axis's scale. A log axis draws only values greater than zero (others are never mutated or projected, break the line, are counted once per field for AX171 and stay in the table marked not plotted); no positive value without a valid pinned domain is AX172 (a valid pinned positive domain is drawn as given), an invalid log domain or base AX170; bar and area bind to linear axes only (AX173); each automatic axis is recomputed from its own visible series on zoom, a log window with no positive value keeping its full-data positive domain; dense layers follow F5 in that axis's projection and stacks F10 per axis; undeclarable axes are AX174.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar"
+    ],
+    "notApplicable": {
+      "scatter": "axylo/cartesian composes bar, area and line layers only; a scatter chart has no Cartesian layer.",
+      "donut": "A donut has no value axis to compose.",
+      "compact": "A compact chart draws no axes (C1), so there is no second axis or axis scale to compose."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/c4-3-cartesian.test.ts",
+          "title": "emits AX171 in data stage for nonpositive log values, omits them from line geometry, and retains raw values in table"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/c4-2-layout.test.ts",
+          "title": "emits AX170 for invalid log domain or unsupported base, and AX172 when all values are nonpositive"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/n4-dense.test.ts",
+          "title": "on a 100,000-point log axis, omits nonpositive values before projection, keeps every break, and stays bounded"
+        },
+        {
+          "kind": "browser",
+          "file": "tests/dist/cartesian.browser.test.ts",
+          "title": "renders bars + log line + dual y-axes, preserves nonpositive log values in table, supports update() and L9 resize collapse"
+        },
+        {
+          "kind": "browser",
+          "file": "tests/dist/cartesian.browser.test.ts",
+          "title": "draws 100,000 points with a bounded path, discloses the log omission, keeps pointer, keyboard and table on the same raw datum, and collapses and restores the right axis at 960 → 320 → 960 px"
+        }
+      ],
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/n4-dense.test.ts",
+          "title": "simplifies a 100,000-point unstacked area like its line, over the zero baseline"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/c4-3-cartesian.test.ts",
+          "title": "validateCartesian catches AX170, AX172, AX173, and AX174 cleanly in Node (no DOM)"
+        },
+        {
+          "kind": "browser",
+          "file": "tests/dist/cartesian.browser.test.ts",
+          "title": "stacks signed bars and areas on their own sides of zero and reads totals and incomplete stacks alike by pointer, keyboard and table"
+        }
+      ],
+      "bar": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/c4-3-cartesian.test.ts",
+          "title": "paints bar -> area -> line in deterministic order with left linear + right log axes and exact reference formatting"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/n4-stacks-layout.test.ts",
+          "title": "prefers exact bar containment over an earlier padded hit, and anchors the datum on the drawn rectangle"
+        },
+        {
+          "kind": "browser",
+          "file": "tests/dist/cartesian.browser.test.ts",
+          "title": "renders bars + log line + dual y-axes, preserves nonpositive log values in table, supports update() and L9 resize collapse"
+        },
+        {
+          "kind": "browser",
+          "file": "tests/dist/cartesian.browser.test.ts",
+          "title": "stacks signed bars and areas on their own sides of zero and reads totals and incomplete stacks alike by pointer, keyboard and table"
+        }
+      ]
     }
   },
   {
@@ -6611,6 +6723,74 @@
       "bar": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. The fallback is approached 1 px at a time, from 400 px wide or 260 px tall; the last drawn plot must measure at least 120 (80) px and less than 122 (82) px.",
       "scatter": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. The fallback is approached 1 px at a time, from 400 px wide or 260 px tall; the last drawn plot must measure at least 120 (80) px and less than 122 (82) px.",
       "donut": "Browser evidence: system Chrome, SVG renderer (the default); the citations are answered by Chrome results only, and no Firefox or WebKit result is recorded for this revision. The fallback is approached 1 px at a time, from 400 px wide or 260 px tall; the last drawn plot must measure at least 120 (80) px and less than 122 (82) px."
+    }
+  },
+  {
+    "id": "L9",
+    "statement": "A Cartesian chart with a right axis shows both axes only while the fitted plot is at least 360 CSS px wide (provisional). Narrower, the right axis's ticks, spine and title are left out, the summary names the axis whose series are plotted on their own scale, and AX175 is raised; both come back, and AX175 clears, when the plot is wide enough again. When the right axis alone would leave no readable plot (L8) it collapses instead of the chart falling back; below L8's minimum L8 applies unchanged; ticks and titles never overlap.",
+    "appliesTo": [
+      "line",
+      "area",
+      "bar"
+    ],
+    "notApplicable": {
+      "scatter": "axylo/cartesian composes bar, area and line layers only; a scatter chart has no Cartesian layer.",
+      "donut": "A donut has no value axis to compose.",
+      "compact": "A compact chart draws no axes (C1), so there is no second axis or axis scale to compose."
+    },
+    "evidence": {
+      "line": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/n4-stacks-layout.test.ts",
+          "title": "collapses at 320 px and restores at 960 px, with AX175 and the summary sentence following"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/n4-stacks-layout.test.ts",
+          "title": "near the threshold: the right axis is shown only when the fitted plot is at least 360 px wide, and stays shown above"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/n4-stacks-layout.test.ts",
+          "title": "collapses the right axis instead of falling back to too-small when only its title cannot fit (L9 before L8)"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/n4-stacks-layout.test.ts",
+          "title": "recovers from too-small to the full dual-axis plot, and keeps right tick labels clear of each other and of the plot"
+        },
+        {
+          "kind": "browser",
+          "file": "tests/dist/cartesian.browser.test.ts",
+          "title": "renders bars + log line + dual y-axes, preserves nonpositive log values in table, supports update() and L9 resize collapse"
+        },
+        {
+          "kind": "browser",
+          "file": "tests/dist/cartesian.browser.test.ts",
+          "title": "draws 100,000 points with a bounded path, discloses the log omission, keeps pointer, keyboard and table on the same raw datum, and collapses and restores the right axis at 960 → 320 → 960 px"
+        }
+      ],
+      "bar": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/c4-2-layout.test.ts",
+          "title": "collapses right axis below 360 px with AX175 and clears AX175 upon resize back to >= 360 px (spec L9)"
+        },
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/n4-stacks-layout.test.ts",
+          "title": "collapses at 320 px and restores at 960 px, with AX175 and the summary sentence following"
+        },
+        {
+          "kind": "browser",
+          "file": "tests/dist/cartesian.browser.test.ts",
+          "title": "renders bars + log line + dual y-axes, preserves nonpositive log values in table, supports update() and L9 resize collapse"
+        }
+      ]
+    },
+    "pending": {
+      "area": "No L9 fixture has an area layer bound to the right axis yet; the layout is the same code path as line and bar, but that is inferred, not shown."
     }
   },
   {

@@ -56,7 +56,8 @@ function projectX(view: AlignedView, projection: Exclude<Projection, { kind: 'ri
   const val = resolveXCoord(view, raw);
   if (val === null) return null;
   const xScale = projection.kind === 'xy' ? projection.x : projection.band;
-  const px = xScale.type === 'band' ? xScale.center(val) : position(xScale, val);
+  // position() places a band scale's value at its band's centre.
+  const px = position(xScale, val);
   return Number.isFinite(px) ? px : null;
 }
 

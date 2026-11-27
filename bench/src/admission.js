@@ -287,6 +287,10 @@ function checkSlices(expected, seen, columns) {
 export function checkView(expected, seen, opts = {}) {
   const reasons = [], limits = [];
   if (!seen) return { admitted: false, reasons: ['describe() returned nothing'], limits };
+  if (seen.cartesian) return checkCartesianView(expected, seen, opts);
+  if (expected.cartesian === 'line+bar') {
+    return { admitted: false, reasons: ['the dual-axis Cartesian workload needs the axylo/cartesian readback (series by key, line stroke, bar rectangles)'], limits };
+  }
   if (expected.kind && seen.kind !== expected.kind) return { admitted: false, reasons: ['wrong chart kind'], limits };
   if (['bar', 'histogram', 'donut'].includes(expected.kind)) {
     if (opts.expectRenderer && seen.renderer?.kind !== opts.expectRenderer) reasons.push('wrong mark renderer');
@@ -373,6 +377,140 @@ export function checkView(expected, seen, opts = {}) {
     } else reasons.push(`series ${i}: unknown drawn readback kind ${JSON.stringify(d.kind)}`);
   });
   return { admitted: reasons.length === 0, reasons, limits };
+}
+
+/**
+ * axylo/cartesian (bench/src/cartesian.js). Each fixture series is matched by key, never by position (the chart
+ * holds its layers in declaration order). The line is admitted exactly as a root line on its own left axis: the
+ * committed domain must contain that series' extent and the injected extreme, and its captured SVG stroke must
+ * pass the drawn-pixel check. Kept indexes are refused: the shared root hook computes them with the root line
+ * simplifier, which is not what this chart drew. The bars (right axis) are admitted from the painted rectangles.
+ */
+function checkCartesianView(expected, seen, opts) {
+  const reasons = [], limits = [];
+  const ss = Array.isArray(seen.series) ? seen.series : [];
+  // The one-line workload is the root line fixture itself (same checksum): one series, so no order to confuse.
+  const layout = expected.cartesian ?? (expected.series === 1 && !expected.kind ? 'line' : null);
+  const names = expected.names ?? (layout === 'line' ? [ss[0]?.key] : []);
+  if (!layout || names.length !== expected.series) {
+    return { admitted: false, reasons: ['an axylo/cartesian readback for a fixture that is not a Cartesian workload'], limits };
+  }
+  if (seen.cartesian.layout !== layout) reasons.push(`chart layout ${seen.cartesian.layout}, fixture ${layout}`);
+  if (ss.length !== expected.series) reasons.push(`chart readback has ${ss.length} series, fixture has ${expected.series}`);
+  names.forEach((name, i) => { if (!ss[i] || ss[i].key !== name) reasons.push(`series ${name}: the chart holds no series with this key (held: ${JSON.stringify(seen.cartesian.heldKeys)})`); });
+  if (reasons.length) return { admitted: false, reasons, limits };
+  if (!opts.columns) return { admitted: false, reasons: ['no held columns to check the drawing against'], limits };
+
+  const [line, ...rest] = ss;
+  if (line.drawn?.kind === 'kept' || line.drawn?.kind === 'indices') {
+    reasons.push(`line ${names[0]}: kept indexes are not evidence for axylo/cartesian (the shared hook reruns the root simplifier); the drawn stroke is required`);
+  }
+  const lineView = checkView(
+    { ...expected, cartesian: undefined, names: undefined, series: 1, yMin: expected.seriesY[0][0], yMax: expected.seriesY[0][1], seriesY: [expected.seriesY[0]], missing: [expected.missing[0]] },
+    { ...seen, cartesian: undefined, series: [line] },
+    { ...opts, columns: { x: opts.columns.x, ys: [opts.columns.ys[0]] } },
+  );
+  for (const r of lineView.reasons) reasons.push(`line ${names[0]} (left axis): ${r}`);
+  for (const l of lineView.limits) limits.push(`line ${names[0]} (left axis): ${l}`);
+
+  rest.forEach((s, k) => {
+    const i = k + 1, label = `bars ${names[i]} (right axis)`;
+    if (s.points !== expected.points) reasons.push(`${label}: chart holds ${s.points} points, fixture ${expected.points}`);
+    if (!(Math.abs(s.oldestX - expected.oldestX) <= X_EXACT_MS)) reasons.push(`${label}: oldest x ${s.oldestX}, fixture ${expected.oldestX}`);
+    if (!(Math.abs(s.newestX - expected.newestX) <= X_EXACT_MS)) reasons.push(`${label}: newest x ${s.newestX}, fixture ${expected.newestX}`);
+    if (s.missing !== expected.missing[i]) reasons.push(`${label}: chart holds ${s.missing} missing values, fixture ${expected.missing[i]}`);
+    const bars = seen.cartesian.bars;
+    if (!bars || bars.kind === 'not-captured') {
+      if (opts.requireDrawn) reasons.push(`${label}: rectangles not captured in a run that must capture them`);
+      else limits.push(`${label}: rectangles checked in the untimed probe run only`);
+      return;
+    }
+    for (const r of checkBarRectangles(opts.columns.x, opts.columns.ys[i], bars.xywh, seen.cartesian.plot, seen.x, expected.window ?? [0, expected.points - 1], label, seen.cartesian.rightDomain)) reasons.push(r);
+  });
+  return { admitted: reasons.length === 0, reasons, limits };
+}
+
+/**
+ * Bars of one series on a linear axis with the zero baseline (F1), from painted rectangles in source order.
+ * The right axis's domain is not in the shared hook, so values are checked by proportion: every bar stands on one
+ * zero baseline inside the plot, on the side of its value's sign; the n-th rectangle is the n-th drawn slot (a
+ * clipped overscan neighbour on either side is allowed); its centre is at its x; its height is its value times the
+ * one pixels-per-unit factor of the tallest bar (1 px); the window's extremes are drawn; the tallest bar is inside
+ * the plot and at least a quarter of its height (the domain is not looser than Y_LOOSENESS).
+ * Absolute check on top of the proportions: the right axis's committed domain (the Cartesian hook's drawn y axes)
+ * must be finite, increasing, contain zero and the window's extremes; every bar of a nonzero value must have
+ * positive width and height, and both its edges must sit within PX_TOLERANCE of zero and its value mapped onto the
+ * CSS plot (domain[1] at plot.y). A clipped overscan neighbour may instead match that mapping clamped to the plot.
+ */
+export function checkBarRectangles(x, col, xywh, plot, xDomain, window, label, yDomain) {
+  const reasons = [];
+  if (!plot || !num(plot.x) || !num(plot.y) || !(plot.width > 0) || !(plot.height > 0)) return [`${label}: no plot rectangle`];
+  if (!Array.isArray(xDomain) || !num(xDomain[0]) || !num(xDomain[1]) || !(xDomain[1] > xDomain[0])) return [`${label}: no committed x domain`];
+  if (!Array.isArray(xywh) || xywh.length % 4 || !xywh.every(num)) return [`${label}: malformed rectangle readback`];
+  const [i0, i1] = window;
+  const slots = [];
+  for (let i = i0; i <= i1; i++) if (Number.isFinite(col[i])) slots.push(i);
+  const n = xywh.length / 4;
+  if (!slots.length) return n ? [`${label}: ${n} rectangles for a window with no values`] : [];
+  const extra = n - slots.length;
+  if (extra < 0 || extra > 2) return [`${label}: ${n} rectangles, fixture has ${slots.length} values in the window (plus at most 2 clipped neighbours)`];
+  const top = k => xywh[4 * k + 1], bottom = k => xywh[4 * k + 1] + xywh[4 * k + 3];
+  let tall = 0;
+  for (let j = 1; j < slots.length; j++) if (Math.abs(col[slots[j]]) > Math.abs(col[slots[tall]])) tall = j;
+  const px = v => plot.x + ((v - xDomain[0]) / (xDomain[1] - xDomain[0])) * plot.width;
+  const value = (s, k) => {
+    const i = s + k;
+    return i >= 0 && i < col.length ? col[i] : NaN;
+  };
+  // The first drawn slot: the window's first value or one of the clipped neighbours before it.
+  let lead = null;
+  for (let o = 0; o <= extra && lead === null; o++) {
+    const first = slots[0] - o;
+    if (!(Math.abs(px(x[first]) - (xywh[0] + xywh[2] / 2)) <= PX_TOLERANCE)) continue;
+    lead = first;
+  }
+  if (lead === null) return [`${label}: the first rectangle is not at the x of the window's first value or a neighbour before it`];
+  const kTall = slots[tall] - lead;
+  // The baseline is the edge of the tallest bar on the side of zero (its bottom when positive).
+  const zero = col[slots[tall]] >= 0 ? bottom(kTall) : top(kTall);
+  if (!(zero >= plot.y - PX_TOLERANCE && zero <= plot.y + plot.height + PX_TOLERANCE)) reasons.push(`${label}: zero baseline ${zero} is outside the plot`);
+  const height = Math.abs(col[slots[tall]]) > 0 ? xywh[4 * kTall + 3] / Math.abs(col[slots[tall]]) : NaN;
+  if (!(xywh[4 * kTall + 3] >= plot.height / Y_LOOSENESS - PX_TOLERANCE)) reasons.push(`${label}: the tallest bar is ${xywh[4 * kTall + 3]} px of a ${plot.height} px plot (domain looser than ${Y_LOOSENESS}x)`);
+  if (!(top(kTall) >= plot.y - PX_TOLERANCE)) reasons.push(`${label}: the tallest bar leaves the plot (domain does not cover the window's largest value)`);
+  // Every rectangle in source order is checked: position, baseline, side and height. Constant work per bar.
+  let wrong = 0, first = '';
+  for (let k = 0; k < n; k++) {
+    const v = value(lead, k);
+    const want = Math.abs(v) * height;
+    const sideOk = v >= 0 ? Math.abs(bottom(k) - zero) <= PX_TOLERANCE : Math.abs(top(k) - zero) <= PX_TOLERANCE;
+    const inWindow = lead + k >= i0 && lead + k <= i1;
+    const ok = Number.isFinite(v) && sideOk
+      && (!inWindow || Math.abs(px(x[lead + k]) - (xywh[4 * k] + xywh[4 * k + 2] / 2)) <= PX_TOLERANCE)
+      && (!inWindow || Math.abs(xywh[4 * k + 3] - want) <= PX_TOLERANCE);
+    if (!ok && wrong++ === 0) first = `slot ${lead + k} (value ${v}): rectangle ${JSON.stringify(xywh.slice(4 * k, 4 * k + 4))}, expected height ${want.toFixed(2)} on baseline ${zero.toFixed(2)} at x ${px(x[lead + k]).toFixed(2)}`;
+  }
+  if (wrong) reasons.push(`${label}: ${wrong} rectangle(s) do not show their value; first: ${first}`);
+  if (!Array.isArray(yDomain) || yDomain.length !== 2 || !num(yDomain[0]) || !num(yDomain[1]) || !(yDomain[1] > yDomain[0])) {
+    reasons.push(`${label}: no valid committed right-axis domain (${JSON.stringify(yDomain ?? null)})`);
+    return reasons;
+  }
+  let lo = 0, hi = 0;
+  for (const s of slots) { if (col[s] < lo) lo = col[s]; if (col[s] > hi) hi = col[s]; }
+  if (!(yDomain[0] <= lo && yDomain[1] >= hi)) reasons.push(`${label}: committed right-axis domain ${JSON.stringify(yDomain)} does not contain zero and the window's extremes [${lo}, ${hi}]`);
+  const py = v => plot.y + ((yDomain[1] - v) / (yDomain[1] - yDomain[0])) * plot.height;
+  const clamp = p => Math.min(plot.y + plot.height, Math.max(plot.y, p));
+  const near = (got, want, inWindow) => Math.abs(got - want) <= PX_TOLERANCE || (!inWindow && Math.abs(got - clamp(want)) <= PX_TOLERANCE);
+  let bad = 0, firstBad = '';
+  for (let k = 0; k < n; k++) {
+    const v = value(lead, k);
+    const inWindow = lead + k >= i0 && lead + k <= i1;
+    const wantTop = py(Math.max(v, 0)), wantBottom = py(Math.min(v, 0));
+    const sized = v === 0 || (xywh[4 * k + 2] > 0 && xywh[4 * k + 3] > 0);
+    const ok = Number.isFinite(v) && sized && near(top(k), wantTop, inWindow) && near(bottom(k), wantBottom, inWindow);
+    if (!ok && bad++ === 0) firstBad = `slot ${lead + k} (value ${v}): rectangle ${JSON.stringify(xywh.slice(4 * k, 4 * k + 4))}, expected positive size with top ${wantTop.toFixed(2)} and bottom ${wantBottom.toFixed(2)} on domain ${JSON.stringify(yDomain)}`;
+  }
+  if (bad) reasons.push(`${label}: ${bad} rectangle(s) disagree with the committed right-axis mapping; first: ${firstBad}`);
+  return reasons;
 }
 
 /** Several charts (W-page): every one must pass. */

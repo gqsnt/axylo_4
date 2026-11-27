@@ -8,6 +8,7 @@ import { SLOT_VALUE, type AlignedView, type Projection, type Rect, type XScale }
 import { clamp, position } from '../scene/geometry';
 import { axisScaleOf } from './scale-ref';
 import type { CartesianMeta } from './meta';
+import { cartesianStacks, type CartesianStacks } from './stacks';
 
 export function xSlotPixel(xScale: XScale, xValues: Float64Array, slotIndex: number): number {
   return xScale.type === 'band' ? xScale.center(slotIndex) : position(xScale, xValues[slotIndex]!);
@@ -46,8 +47,8 @@ export interface BarSlotLayout {
   readonly barWidth: number;
   /** Lane index per bar series index (`barSeriesIdx -> lane`). */
   readonly laneOf: ReadonlyMap<number, number>;
-  /** For stacked bar series, ordered list of preceding stacked bar series on the same axis. */
-  readonly stackPredecessors: ReadonlyMap<number, readonly number[]>;
+  /** The chart's stacks (spec F10): a stacked bar starts where the cumulative total on its value's side ends. */
+  readonly stacks: CartesianStacks;
 }
 
 export function buildBarSlotLayout(
@@ -59,8 +60,6 @@ export function buildBarSlotLayout(
 ): BarSlotLayout {
   const laneOf = new Map<number, number>();
   const stackLaneByAxis = new Map<number, number>();
-  const stackGroupByAxis = new Map<number, number[]>();
-  const stackPredecessors = new Map<number, readonly number[]>();
   let laneCount = 0;
 
   for (const sIdx of barSeriesIndexes) {
@@ -72,11 +71,7 @@ export function buildBarSlotLayout(
       if (lane === undefined) {
         lane = laneCount++;
         stackLaneByAxis.set(axisIdx, lane);
-        stackGroupByAxis.set(axisIdx, []);
       }
-      const prev = stackGroupByAxis.get(axisIdx)!;
-      stackPredecessors.set(sIdx, prev.slice());
-      prev.push(sIdx);
       laneOf.set(sIdx, lane);
     } else {
       laneOf.set(sIdx, laneCount++);
@@ -91,7 +86,7 @@ export function buildBarSlotLayout(
   }
   const laneWidth = Math.max(1, groupWidth / lanes);
   const barWidth = Math.max(1, laneWidth - (lanes > 1 ? 1 : 0));
-  return { laneCount: lanes, groupWidth, laneWidth, barWidth, laneOf, stackPredecessors };
+  return { laneCount: lanes, groupWidth, laneWidth, barWidth, laneOf, stacks: cartesianStacks(view, meta) };
 }
 
 /**
@@ -118,18 +113,11 @@ export function writeBarRect(
   const yScale = axisScaleOf(projection, series.axisIndex ?? 0);
   const lane = barLayout.laneOf.get(sIdx) ?? 0;
 
-  let baseVal = 0;
-  const preds = barLayout.stackPredecessors.get(sIdx);
-  if (preds) {
-    for (let p = 0; p < preds.length; p++) {
-      const ps = view.frame.series[preds[p]!]!;
-      if (ps.slot[slotIndex] !== SLOT_VALUE) continue;
-      const pv = ps.y[slotIndex]!;
-      if (!Number.isFinite(pv)) continue;
-      if (v >= 0 && pv >= 0) baseVal += pv;
-      else if (v < 0 && pv < 0) baseVal += pv;
-    }
-  }
+  const { groups, groupOf } = barLayout.stacks;
+  const group = groups[groupOf[sIdx] ?? -1];
+  const k = group ? group.order.indexOf(sIdx) : -1;
+  // Missing components add zero, so the earlier component's cumulative total on this side is the base.
+  const baseVal = k > 0 ? (v >= 0 ? group!.positive : group!.negative)[k - 1]![slotIndex]! : 0;
   const topVal = baseVal + v;
   const yBase = clamp(position(yScale, baseVal), plot.y, plot.y + plot.height);
   const yTop = clamp(position(yScale, topVal), plot.y, plot.y + plot.height);
