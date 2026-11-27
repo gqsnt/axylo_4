@@ -461,3 +461,47 @@ Closes the two candidate blockers of the Sol review (`coordinator_p2_w3i/sol-6.2
 - **Tests** (`test/cartesian/n5-repair2.test.ts`, "W3 integration repair 4"): 8 new 100k cases, one for each corner (top/bottom × left/right) at widths of 0.045 px and 0.004 px. The winner is worked out by hand as the chord end on the horizontal edge that reaches furthest into the plot. At the 0.004 px width it is the outermost centre, which differs from the slot a miss would fall back to. The painted oracle cross-checks the winner. Each case caps nodes at ≤ 128 and geometry evaluations at ≤ 512. Ran and saw: with the parent lookup, all 8 failed on the node cap (`expected 16387 to be less than or equal to 128`, after the winner assertions had passed). With the fix, all 63 tests in the file pass. The random corner oracle, the dense whisker cases and the exact/mixed geometry checks are unchanged and pass.
 - **Measured** (ran and saw), using an in-memory esbuild run with `build.mjs` `PRODUCTION` and the minified stylesheet plugin, then `export { cartesian }` rebundled and gzip -9. Cartesian is **133,990 B**. Swapping only this line back gives 133,997 B, so the change is −7 B. Root (159,089) and static (140,922) are byte-identical before and after. The bare imports of cartesian, stats and sync are 0 B. `npm run typecheck` exited 0. Full Node suite: `Test Files 144 passed (144)`, `Tests 2512 passed (2512)`.
 - **Not run:** `npm pack`, the packed `.d.ts`/subpaths suite and Chrome (left to the coordinator). The Sync declaration and the Director's temp configuration are still pending with the operator and were not touched.
+
+## Final seal: packed `axylo/sync` declaration closure (`bounded_ts_fix`; requested opus-5.5-medium, harness model `claude-opus-5-5`)
+
+- **Blocker.** `package.json` ships `dist/sync.d.ts` and `dist/public.d.ts` only, but `src/sync.ts` re-exported from `./sync/group` and `./sync/dashboard`. Their declarations are not in the tarball, so a consumer's `tsc` failed with `TS2307` (Bundler) or `TS2834` (NodeNext).
+- **Fix** (`src/sync.ts`; `src/sync/group.ts` and `src/sync/dashboard.ts` deleted): the group code comes first, then the dashboard code, moved over without changing any runtime logic. The type imports come from `./public.js` (`ChartEvents`, `Point`, `Target`, `XValue`) and `./core/contracts`, which are used only in unexported internals and do not appear in the emitted `.d.ts`. The runtime import `./core/peer` (`SYNC`) stays the shared seam. `releaseAll` is no longer exported. The `export type { ChartEvents, Point, XValue } from './public.js'` line is kept. No unit test imported either deleted file, so no test changed.
+- **Fixture** (`tests/dist/subpaths.test.ts`, the shared Bundler/NodeNext declaration check only): it now imports `createDashboard` and the types `Dashboard`/`DashboardPanel`. Two panels are made by the real typed factories `fixed.line` and `stream.line`, and the test calls `zoom`, `reset`, `ids`, `add`, `remove` and `destroy`. No cap, gate or other assertion was changed.
+
+### Measured (ran and saw)
+
+- `npm run typecheck`: exit 0 (all three `tsc`).
+- `npm run build`: exit 0. The emitted `dist/sync.d.ts` has one import, `import type { ChartEvents, Point, Target, XValue } from './public.js'`, and the re-export `from './public.js'`. There is no `dist/sync/` directory.
+- Manifest-only consumer (in the workspace's `.prism-cache/tmp`, no `npm pack`): only the 28 `files` entries of `package.json`, plus the manifest itself, were copied into `node_modules/axylo`. The fixture's `check.ts` was taken verbatim from `subpaths.test.ts`. `tsc` exited 0 under both Bundler and NodeNext, and the loaded `axylo` files were only the nine packed `.d.ts`. As a negative control, the old re-export `sync.d.ts` in the same fixture fails with 2× `TS2307` (Bundler) and 2× `TS2834` (NodeNext).
+- Sizes: consumer over that fixture with the esbuild options from `subpaths.test.ts` (without the `fixtureGuard` plugin), gzip-9.
+
+| bundle | before | final | cap / gate |
+|---|---|---|---|
+| `export * from 'axylo/sync'` | 3,494 | **3,494** (raw 6,853) | ≤ 3,500 ✓ |
+| stats / export | 1,692 / 3,295 | same | ≤ 3,500 ✓ |
+| bare `axylo/sync`, `axylo/stats`, `axylo/export` (`ignoreAnnotations`) | 0 | 0 | ✓ |
+| group only (`createSyncGroup`, `syncCharts`) | — | 2,752, no dashboard code | — |
+
+- `npm test -- --configLoader runner --no-cache` (full Node suite): `Test Files 144 passed (144)`, `Tests 2512 passed (2512)`.
+
+### Director verification (ran and saw, by the Director, on parent `opus-5.5-medium__20261127T194202Z`)
+
+The author evidence above is manifest-only: a hand-copied `files` set with no `npm pack`. Everything in this section comes from the Director's packed run of that exact parent candidate (log `p2_w3i_sync/verify/turn-4-opus-5.5-medium__20261127T194202Z.log`). The tarball was `axylo-0.0.0.tgz`, 31 files, 2,234,447 bytes, installed into both the `npm` and `script` fixtures.
+
+- `npm run typecheck` (all three `tsc`) and `npm run build`: exit 0. Build emitted `sync.d.ts`, `sync.dev.js` and `sync.js`.
+- `npm test` (full Node suite): `Test Files 144 passed (144)`, `Tests 2512 passed (2512)`.
+- Packed `tests/dist/package-contents.test.ts`: `Tests 9 passed (9)`.
+- Packed `tests/dist/subpaths.test.ts -t "cartesian|stats|sync"`: `Tests 8 passed | 9 skipped (17)`. The named filter skipped the other 9. The log prints only the counts and the two size lines. Matching the filter against the test names gives these 8: the `package.json` exports check, the bare imports of `axylo/cartesian`, `axylo/stats` and `axylo/sync` (0 raw bytes with `ignoreAnnotations`), the two size-cap tests, and both declaration fixtures (Bundler and NodeNext, which include the new typed `createDashboard` call). The caps are unchanged.
+- Packed Chrome: `Test Files 3 passed (3)`, `Tests 10 passed (10)`. That is `c5.browser.test.ts` 3, `cartesian.browser.test.ts` 3 and `n6-sync-dashboard.browser.test.ts` 4.
+
+| packed bundle (Director, gzip-9) | value | cap |
+|---|---|---|
+| `axylo/sync` | **3,494 B** | ≤ 3,500 ✓ |
+| `axylo/stats` / `axylo/export` | 1,692 / 3,295 B | ≤ 3,500 ✓ |
+| `axylo/cartesian` | 133,990 B | ≤ 134,000 ✓ |
+| `axylo/finance` | 123,889 B | ≤ 127,000 ✓ |
+
+### Review
+
+- Parent candidate `opus-5.5-medium__20261127T194202Z`: unconditional cross-provider `Verdict: Merge` from `sol-6.2-medium__20261127T194506Z`.
+- This ledger-only revision changes no source, test or configuration. The coordinator verifies it and gets a fresh review for the new candidate. The Director results above belong to the parent and are not re-run evidence for this candidate.

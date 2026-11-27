@@ -117,7 +117,8 @@ describe('declarations', () => {
         "import * as stream from 'axylo/stream';",
         "import { cartesian, validateCartesian } from 'axylo/cartesian';",
         "import { boxplot, quantile, quantiles } from 'axylo/stats';",
-        "import { createSyncGroup, syncCharts } from 'axylo/sync';",
+        "import { createDashboard, createSyncGroup, syncCharts } from 'axylo/sync';",
+        "import type { Dashboard, DashboardPanel } from 'axylo/sync';",
         "import { exportSvg, exportPng, exportCsv, parseCsv } from 'axylo/export';",
         "import { candlestick, validateCandlestick } from 'axylo/finance';",
         "import type { StaticChart, LineOptions, Diagnostic } from 'axylo/static';",
@@ -163,10 +164,14 @@ describe('declarations', () => {
         "const d: Diagnostic[] = fixed.validate('line', options).concat(stream.validate('line', options), validateCartesian({ data: [{ m: 'Jan', orders: 100, ms: 20 }], x: 'm', axes: { orders: { position: 'left' } }, layers: [{ type: 'bar', y: 'orders', yAxis: 'orders' }] }));",
         "const q = quantile([1, 2, 3, 4], 0.5); const qs = quantiles([1, 2, 3], [0.25, 0.75]); const bx = boxplot([{ g: 'A', v: 1 }], { x: 'g', y: 'v' });",
         "const sg = createSyncGroup(); sg.attach(a); sg.destroy(); const sc = syncCharts([a, b]); sc.destroy();",
+        "// The packed axylo/sync declarations close over the dashboard too: panels are made by real typed chart factories.",
+        "const panels: DashboardPanel[] = [{ id: 'line', create: e => fixed.line(e, options), sync: { xKind: 'number' } }, { create: e => stream.line(e, options) }];",
+        "const dash: Dashboard = createDashboard(el, panels, { minPanelWidth: 280, gap: 8, label: 'Linked', unmatchedHover: 'nearest' });",
+        "dash.zoom([1, 2]); dash.reset(); const dashIds: readonly string[] = dash.ids; dash.add({ create: e => fixed.line(e, options) }); dash.remove('line'); dash.destroy();",
         "const csvText = exportCsv([{ x: 1, y: 2 }]); const parsedCsv = parseCsv(csvText);",
         "const fin = candlestick(el, { data: [{ d: '2026-01-01', o: 10, h: 12, l: 9, c: 11 }], x: 'd', open: 'o', high: 'h', low: 'l', close: 'c' });",
         "const finD = validateCandlestick({ data: [{ d: '2026-01-01', o: 10, h: 12, l: 9, c: 11 }], x: 'd', open: 'o', high: 'h', low: 'l', close: 'c' });",
-        "export { a, b, c, d, q, qs, bx, exportSvg, exportPng, csvText, parsedCsv, fin, finD, sb, sbD };",
+        "export { a, b, c, d, q, qs, bx, exportSvg, exportPng, csvText, parsedCsv, fin, finD, sb, sbD, dash, dashIds };",
       ].join('\n'));
       const result = check(project, 'tsconfig.json');
       expect(result.errors).toEqual([]);
