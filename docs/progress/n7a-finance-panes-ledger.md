@@ -864,3 +864,197 @@ sent as the same holder the create was given. Both pass on the parent too. New h
 ### Not run here (Director gate)
 - Real Chrome `tests/dist/finance.browser.test.ts`, `test:browser`, axe-core, `npm run size` / `size.mjs`, `npm pack`.
 - The unconditional cross-provider `Verdict: Merge` on the final verified candidate.
+
+## Repair 8 — strict AX199 to the submitted handler while AX199 is current (final review, sol-6.2-medium)
+
+### Blocker
+On the static controller, a non-strict chart (no `onDiagnostic`) whose same-length replacement has a throwing
+`day` getter returns normally with AX199 current. `deliverChanges` marks that AX199 key delivered even with no
+handler. A second, different throwing replacement with `strict: true` and a new handler threw `StrictError` with
+AX199, but `#reject` → `#deliverRejected` filtered the call's findings through `#undelivered` (chart-wide keys),
+so the submitted handler got nothing — in ordinary calls and inside a hover notification drain.
+
+### Fix (`packages/axylo/src/core/controller.ts`, `#reject` only; Director-authorized fence)
+`#reject` now hands `toPublic(found, name)` straight to `#notifyDiagnostics` instead of `#deliverRejected`. A
+strict rejection belongs to its call and its handler; the chart-wide delivered set records what went to the
+accepted handler (or none). Unchanged: `deliverChanges` and its dedup, `#deliverRejected` (still used by the
+ignored-zoom AX150 paths), console once-per-code (in `delivery.print`), `#enqueue` ordering (deferred during a
+drain or frame), and the throw/rollback. The error keeps its own `toPublic` copy, so a handler that mutates a
+diagnostic cannot change `error.diagnostics`. No contract change.
+
+### Tests: 2 new in `packages/axylo/test/finance/n7a-preview-boundary.test.ts` (real `staticControllerFor`, recording host)
+Both start from three valid rows, non-strict, no handler; first update `data: sameLength()` (throwing first `day`)
+returns `null` from `thrown` with AX199 current; second update `strict: true, onDiagnostic: h, data:
+otherSameLength()` (new array, new throwing row, other candle 2).
+1. ordinary calls: second throws `StrictError` containing AX199; `h` received AX199 exactly once (before and after
+   the frame); AX199 still in `chart.diagnostics`; rollback: `update({ data: BAD_VOLUME })` returns (non-strict),
+   AX181 current, AX199 gone, `h` still only `['AX199']`, 4 rows drawn;
+2. both updates inside one `hover` listener (real drain via `emit('hover')`): observations recorded in the listener
+   and asserted after it — first returned, AX199 current, second `StrictError` with AX199, AX199 still current,
+   `h` empty while the listener ran; after it `h` has exactly one AX199; same rollback checks.
+
+### Evidence (ran and saw, in this worker)
+- Baseline (`87f43a4` snapshot, no `.git`; untouched `controller.ts` copied to `.prism-cache/tmp/base/` before
+  editing): `npx vitest run --configLoader native --no-cache packages/axylo/test/finance/n7a-preview-boundary.test.ts`
+  → `Tests  2 failed | 8 passed (10)`; both new tests `expected [] to deeply equal [ 'AX199' ]` (lines 282, 323).
+- With the fix: `npx vitest run --configLoader native --no-cache packages/axylo/test/finance packages/axylo/test/core`
+  → `Test Files  34 passed (34)`, `Tests  429 passed (429)`.
+- Full Node suite `npx vitest run --configLoader native --no-cache` → `Test Files  120 passed (120)`, `Tests  2194 passed (2194)`.
+- `npm run typecheck` → exit 0. `npm run build` → exit 0.
+- Sizes, `dist` built from baseline controller then from the fix (controller restored, `cmp` clean), bytes raw / `gzip -9c` / `gzip -9nc`:
+  - `axylo.js` 433,932 / 157,863 / 157,854 → 433,936 / 157,883 / 157,874 (**+20 B** gzip-9)
+  - `static.js` 383,877 / 140,779 / 140,769 → 383,881 / 140,784 / 140,774 (**+5 B** gzip-9)
+  - `axylo.iife.min.js` 158,092 → 158,066 gzip-9c (−26); `finance.js` 124,109 → 124,113 gzip-9c (+4).
+- Finance contribution: `.prism-cache/tmp/measure.mjs` builds `src/index.ts` and `src/static.ts` in memory with
+  the release settings imported from `scripts/build.mjs` (`PRODUCTION`, minified stylesheet plugin, esm, minify,
+  es2022, `legalComments: 'none'`) and `metafile: true`: `financeInputs 0`, `financeBytesInOutput 0` for root and
+  static, before and after. (Its gzip-9: root 158,155 → 158,174, +19; static 141,054 → 141,058, +4; absolute
+  bytes differ from `dist` only by the in-memory outfile path.)
+
+### Ambiguity / assumption
+A strict rejection now reaches its handler even when that handler is the accepted one and already received the
+same current finding (e.g. the accepted handler got AX199 from the non-strict failure, and a strict call keeps
+that handler). Assumed correct per spec 3.5: the rejection is a new call's finding, thrown and given to that
+call's `onDiagnostic`. Console printing stays once per code either way.
+
+### Not run here (Director gate)
+- Real Chrome `tests/dist/finance.browser.test.ts`, `test:browser`, `npm run size` / `size.mjs`, `npm pack`.
+- The unconditional cross-provider `Verdict: Merge` on the final verified candidate.
+
+## Repair 9 — rejected-call deduplication by handler ownership (review sol-6.2-medium__20261127T010724Z)
+
+### Blocker
+Repair 8 made `#reject` bypass all chart-wide deduplication. On the static finance controller, a non-strict
+update with negative volume reports AX181 to the accepted handler `h`; `h` submits a strict title update, which
+correctly throws `StrictError` with the still-current AX181, but the rejection queued AX181 back to `h`, and so on
+for as long as `h` keeps answering.
+
+### Fix (`packages/axylo/src/core/controller.ts` only; Director-authorized fence)
+- `#deliveredKeys` is now `Map<string, unknown>`: the key of each current finding already delivered, with the
+  handler it went to (`undefined` = none). `deliverChanges` records the handler it is about to call; its key-based
+  deduplication, pruning (now iterating `keys()`, deleting during Map iteration is safe) and clearing are unchanged.
+- `#undelivered(list, owned?, handler?)`: without `owned` it is the old key filter (used by `deliverChanges` and
+  the ignored-zoom AX150 path through `#deliverRejected`, which passes no `owned`; behaviour unchanged). With
+  `owned`, a current finding is dropped only when its recorded owner is `handler`; otherwise it is kept and
+  `handler` becomes its owner **before** `#notifyDiagnostics` queues anything, so a reentrant rejection (immediate
+  or deferred in a drain) for the same key and handler is filtered. Findings that are not current are not in the
+  map and are always delivered, and they are not added to it (a later non-strict acceptance of the same finding is
+  still news for the accepted handler).
+- `#reject` calls `#deliverRejected(found, name, handler, true)` and throws `StrictError` with its own
+  `toPublic` copy (independent of the delivered copies). Throw and rollback unchanged; console printing remains
+  once per code per page in `delivery.print`.
+- Ownership reuses the current-finding key lifecycle: an owner entry goes when its finding stops being current
+  (pruned in `deliverChanges`, cleared when there are no findings or on destroy). A rejected call's handler can be
+  kept referenced until then; nothing else is retained.
+
+### Tests: 4 new in `packages/axylo/test/finance/n7a-preview-boundary.test.ts` (real `staticControllerFor`)
+Each AX181 handler re-enters at most `LIMIT = 3` times, counted on entry, and records each nested call's outcome.
+1. ordinary update: `h` sees AX181 once, its one nested strict title update throws `StrictError` with AX181; AX181
+   stays current; a later non-strict `BAD_THREE` update is accepted (AX180), `h` still has one AX181.
+2. hover drain: the BAD_VOLUME update inside a `hover` listener; `h` empty while the listener ran, then AX181 once,
+   nested throw observable, 4 rows drawn.
+3. new handler re-entering: `h1` gets AX181, submits strict with `h2`; `h2` gets AX181 once, re-enters with strict
+   and `onDiagnostic: h2` → throws, no second AX181 to `h2` (nor to `h1`).
+4. handler changed while AX181 current: a non-strict `update({ onDiagnostic: h2 })` gives `h2` nothing (key
+   dedup); a strict title update then throws AX181 and gives it once to `h2`, whose own nested strict call is not
+   answered with it again; `h1` keeps exactly one AX181.
+The two Repair 8 AX199 regressions are kept unchanged.
+
+### Evidence (ran and saw, in this worker; no `.git` in the workspace)
+- Scratch in `.prism-cache/tmp/n7a/`: `parent/controller.ts` (the sealed Repair 8 controller, copied before
+  editing); `base/controller.ts` = parent with only `#reject` restored to the original
+  `this.#deliverRejected(found, name, handler); throw …` (the only Repair 8 controller change, per its ledger).
+  The base build reproduces the Repair 8 baseline figures exactly (below), so it stands in for `87f43a4`.
+- Parent (`n7a-preview-boundary.test.ts`): `Tests  4 failed | 10 passed (14)`; all four new tests
+  `expected [ 'AX181', 'AX181', 'AX181', 'AX181' ] to deeply equal [ 'AX181' ]` (1 + LIMIT deliveries, no hang).
+  (A first draft that counted completed calls instead of entries recursed ~974 deep on the parent, i.e. the
+  parent can re-deliver synchronously from inside the nested call; the bound now counts entries.)
+- Base: `Tests  4 failed | 10 passed (14)`: the two AX199 tests `expected [] to deeply equal [ 'AX199' ]`, new
+  tests 3 and 4 `expected [] to deeply equal [ 'AX181' ]` (the handler that never had AX181 gets nothing).
+- Fix: `npx vitest run --configLoader native --no-cache packages/axylo/test/finance packages/axylo/test/core`
+  → `Test Files  34 passed (34)`, `Tests  433 passed (433)`; full Node suite → `Test Files  120 passed (120)`,
+  `Tests  2198 passed (2198)`; `npm run typecheck` exit 0; `npm run build` exit 0.
+- Sizes, `npm run build` dist, bytes raw / `gzip -9c` / `gzip -9nc`, base (87f43a4-equivalent) → fix:
+  - `axylo.js` 433,932 / 157,863 / 157,854 → 433,993 / 157,892 / 157,883 (**+29 B** gzip-9, cumulative)
+  - `static.js` 383,877 / 140,779 / 140,769 → 383,938 / 140,797 / 140,787 (**+18 B** gzip-9, cumulative)
+  - `axylo.iife.min.js` 158,092 / 158,074 → 158,119 / 158,101 (+27); `finance.js` 124,109 / 124,098 → 124,143 /
+    124,132 (+34).
+  - For reference, the sealed parent: `axylo.js` 157,883, `static.js` 140,784 (gzip-9c). A first, uncompacted
+    version of this fix measured +57 / +55 B and was reworked into the shared `#undelivered` path.
+- Finance contribution: `.prism-cache/tmp/n7a/measure.mjs` (release settings imported from `scripts/build.mjs`:
+  `PRODUCTION`, minified stylesheet plugin, esm, minify, es2022, `legalComments: 'none'`, `metafile: true`) on
+  `src/index.ts` and `src/static.ts`: `financeInputs 0`, `financeBytesInOutput 0` for both, base and fix
+  (in-memory gzip-9: root 158,155 → 158,185, +30; static 141,054 → 141,090, +36).
+
+### Assumptions
+- One owner per current finding (the last handler given it), not a set: a strict call with a third handler
+  takes ownership, so two handlers that alternately submit each other could still exchange a finding; a handler
+  that re-enters with itself, or keeps the accepted handler, cannot loop.
+- The ignored-zoom path keeps the plain key filter (no ownership), as before.
+
+### Not run here (Director gate)
+- Real Chrome `tests/dist/finance.browser.test.ts`, `test:browser`, `npm run size` / `size.mjs`, `npm pack`.
+- The unconditional cross-provider `Verdict: Merge` on the final verified candidate.
+
+## Repair 10: every handler given a current finding is remembered (candidate inspection before Director verification)
+
+### Edge case
+Repair 9 stored one owner per current key, the latest handler, and overwrote it before each queued strict
+delivery. Take accepted handler A, which gets the current AX181. A submits a strict update with a new handler B,
+so B becomes the owner and gets AX181. B then submits a strict update that omits `onDiagnostic`, so it runs
+under the accepted A. A is not the owner any more, so A gets AX181 a second time and becomes the owner again. If
+A repeats its action, ownership keeps swapping between them and the drain never ends.
+
+### Fix (`packages/axylo/src/core/controller.ts` only; Director-authorized fence)
+- `#deliveredKeys: Map<string, Set<unknown>>`: for each current key, every handler it was given to. `deliverChanges`
+  stores `new Set([handler])` for each fresh key (undefined means none). The key lifecycle has not changed: an
+  entry is pruned when its finding stops being current, and the map is cleared when there are no findings or on
+  destroy.
+- `#undelivered(list, owner?)`: with no `owner`, the filter is the chart-wide key dedup (non-strict deliveries,
+  `deliverChanges`, ignored zoom). Only strict rejections pass an `owner`. In that case a current finding goes
+  through only if this handler never had it, and the handler is added to the set **before**
+  `#notifyDiagnostics` queues anything. Findings that are not current have no entry, so they are always delivered
+  and never recorded.
+- `#deliverRejected(found, name, handler, owner?)`: `#reject` passes `handler, handler`. The zoom paths pass no
+  owner, as before. The strict throw, rollback, error isolation and console once per code (`delivery.print`) are
+  unchanged.
+- I tried a WeakSet first. It measured +41 B root / +47 B static (node zlib level 9, the `size.mjs` measure)
+  against 87f43a4, which is over the budget. Every WeakSet variant I tried landed between +41/+47 and +46/+56 B.
+  The plain Set fits the budget. What it costs: a superseded handler stays referenced until its finding stops
+  being current. Before this repair the map held one handler for that same lifetime.
+
+### Test: 1 new in `packages/axylo/test/finance/n7a-preview-boundary.test.ts` (real `staticControllerFor`)
+5. Hover drain: A gets AX181 and submits a strict update with B. B gets AX181 and submits a strict update that
+   omits the handler. Each handler is `answering` (re-entry bounded at LIMIT = 3, counted on entry). Asserted:
+   A and B each have exactly one AX181, each made exactly one nested call, both calls threw `StrictError`
+   containing AX181, AX181 stays current, and 4 rows are drawn. The two Repair 8 AX199 regressions and the four
+   Repair 9 AX181 regressions are kept unchanged.
+
+### Evidence (ran and saw, in this worker; no `.git` in the workspace)
+- Baseline: `.prism-cache/tmp/n7a/base/controller.ts` is `git show 87f43a4:packages/axylo/src/core/controller.ts`
+  from `phase11_r2_3cycle/axylo-wt-n7a`. Running `diff -rq` against `git archive 87f43a4 packages/axylo/src`
+  shows `core/controller.ts` as the only differing source file. `parent/controller.ts` is the sealed Repair 9
+  controller.
+- Sealed parent with the new test: `Tests  1 failed | 14 passed (15)`. The failure is the new test, with
+  `expected [ 'AX181', 'AX181', 'AX181', 'AX181' ] to deeply equal [ 'AX181' ]` (A was given AX181 1 + LIMIT
+  times; bounded, no hang).
+- Fix: `npm run typecheck` exit 0.
+  `npx vitest run --configLoader native --no-cache packages/axylo/test/finance packages/axylo/test/core` gave
+  `Test Files  34 passed (34)`, `Tests  434 passed (434)`. The full Node suite with the same flags gave
+  `Test Files  120 passed (120)`, `Tests  2199 passed (2199)`. `npm run build` exit 0.
+- Sizes are cumulative against 87f43a4 (base controller swapped in and rebuilt), taken from the `npm run build`
+  dist files.
+  - node zlib level 9: `axylo.js` 158,155 → 158,186 (**+31 B**), `static.js` 141,054 → 141,093 (**+39 B**).
+  - `gzip -9c`: `axylo.js` 157,863 → 157,893 (+30), `static.js` 140,779 → 140,799 (+20),
+    `axylo.iife.min.js` 158,092 → 158,122 (+30), `finance.js` 124,109 → 124,148 (+39).
+  - Raw: `axylo.js` 433,932 → 433,994, `static.js` 383,877 → 383,939.
+  - Sealed Repair 9 parent, for reference: zlib 158,185 / 141,090.
+- Finance contribution: `.prism-cache/tmp/n7a/measure.mjs` builds `src/index.ts` and `src/static.ts` with the
+  release settings imported from `scripts/build.mjs` (`PRODUCTION`, the minified stylesheet plugin, esm, minify,
+  es2022, `legalComments: 'none'`, `metafile: true`). It reports `financeInputs 0` and `financeBytesInOutput 0`
+  for both, base and fix.
+
+### Not run here (Director gate)
+- Real Chrome `tests/dist/finance.browser.test.ts`, `test:browser`, `npm run size` / `size.mjs` on the packed
+  tarballs (its consumer re-bundle may differ by a few bytes from the dist zlib figures above), `npm pack`.
+- The unconditional cross-provider `Verdict: Merge` on the final verified candidate.

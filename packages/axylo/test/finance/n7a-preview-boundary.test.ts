@@ -257,3 +257,216 @@ describe('the data holder: borrowed, reused while the accepted data is unchanged
     chart.destroy();
   });
 });
+
+/**
+ * Final N7a blocker (review sol-6.2-medium): a non-strict failure leaves AX199 among the chart's diagnostics and
+ * marks it delivered, with no handler to give it to. A later strict call that fails the same way is a rejection
+ * of that call (spec 3.5): it throws, and its own onDiagnostic receives the AX199 once, although the chart's
+ * diagnostics already hold an AX199. The rejected call changes nothing (plan 1.5): AX199 stays current and the
+ * proposed `strict` and handler are not kept.
+ */
+describe('a strict rejection while AX199 is already current reaches the submitted handler', () => {
+  /** A distinct second replacement: a new array, a new throwing row, other values in candle 2. */
+  const otherSameLength = (): Record<string, unknown>[] => [throwingRow(), VALID_THREE[1]!, THREE[2]!];
+
+  it('in two ordinary updates: the first returns with AX199, the second throws and delivers AX199 once to its handler', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const submitted = recorder();
+    const { rec, chart } = open({ title: 'Strict after AX199', data: THREE, ...FIELDS });
+    expect(thrown(() => chart.update({ data: sameLength() }))).toBeNull();
+    expect(codes(chart)).toContain('AX199');
+    const error = thrown(() => chart.update({ strict: true, onDiagnostic: submitted.handler, data: otherSameLength() }));
+    expect(error).toBeInstanceOf(StrictError);
+    expect(codesOf(error)).toContain('AX199');
+    expect(submitted.codes.filter(c => c === 'AX199')).toEqual(['AX199']);
+    expect(codes(chart)).toContain('AX199');
+    rec.frames();
+    expect(submitted.codes.filter(c => c === 'AX199')).toEqual(['AX199']);
+    expect(codes(chart)).toContain('AX199');
+    // Rolled back: still non-strict (a warning is accepted) and the submitted handler was not kept.
+    expect(thrown(() => chart.update({ data: BAD_VOLUME }))).toBeNull();
+    rec.frames();
+    expect(codes(chart)).toContain('AX181');
+    expect(codes(chart)).not.toContain('AX199');
+    expect(submitted.codes).toEqual(['AX199']);
+    expect(rec.committed!.lookup.count).toBe(4);
+    chart.destroy();
+  });
+
+  it('with both updates inside one hover notification drain: delivered once to the handler, after the listener', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const submitted = recorder();
+    const { rec, chart, controller } = open({ title: 'Strict after AX199 in drain', data: THREE, ...FIELDS });
+    let first: unknown = 'not run';
+    let second: unknown = null;
+    let codesAfterFirst: string[] = [];
+    let codesAfterSecond: string[] = [];
+    let handlerDuringListener: string[] | null = null;
+    chart.on('hover', () => {
+      first = thrown(() => chart.update({ data: sameLength() }));
+      codesAfterFirst = codes(chart);
+      second = thrown(() => chart.update({ strict: true, onDiagnostic: submitted.handler, data: otherSameLength() }));
+      codesAfterSecond = codes(chart);
+      handlerDuringListener = submitted.codes.slice();
+    });
+    emitHover(controller());
+    rec.frames();
+    expect(first).toBeNull();
+    expect(codesAfterFirst).toContain('AX199');
+    expect(second).toBeInstanceOf(StrictError);
+    expect(codesOf(second)).toContain('AX199');
+    expect(codesAfterSecond).toContain('AX199');
+    // Deferred while the listener ran, then given once.
+    expect(handlerDuringListener).toEqual([]);
+    expect(submitted.codes.filter(c => c === 'AX199')).toEqual(['AX199']);
+    expect(codes(chart)).toContain('AX199');
+    expect(thrown(() => chart.update({ data: BAD_VOLUME }))).toBeNull();
+    rec.frames();
+    expect(codes(chart)).toContain('AX181');
+    expect(codes(chart)).not.toContain('AX199');
+    expect(submitted.codes).toEqual(['AX199']);
+    expect(rec.committed!.lookup.count).toBe(4);
+    chart.destroy();
+  });
+});
+
+/**
+ * Follow-up blocker (review sol-6.2-medium__20261127T010724Z): a strict rejection that names a finding which is
+ * current and was already given to that call's handler does not give it to that handler again (spec 3.5: each
+ * finding reaches onDiagnostic once; a strict call still throws it). A handler that answers AX181 with a strict
+ * call therefore sees AX181 once, and the nested call's throw stays observable to it. The handler re-enters at
+ * most LIMIT times, so a controller that re-delivers fails these assertions instead of looping.
+ */
+describe('a strict rejection does not hand a current finding back to the handler that already has it', () => {
+  const LIMIT = 3;
+  type Nested = { codes: string[]; errors: unknown[]; handler: (d: { code: string }) => void };
+  /** A handler that answers each AX181 with a strict update, at most LIMIT times; `submit` makes the update. */
+  const answering = (submit: (n: number) => void): Nested => {
+    const list: string[] = [];
+    const errors: unknown[] = [];
+    // Counted on entry: a re-delivery made from inside the nested call itself must also stay bounded.
+    let entries = 0;
+    return {
+      codes: list, errors,
+      handler: d => {
+        list.push(d.code);
+        if (d.code !== 'AX181' || entries >= LIMIT) return;
+        const n = entries++;
+        errors.push(thrown(() => submit(n)));
+      },
+    };
+  };
+  const quiet = (): void => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  };
+  const expectOneStrictAX181 = (nested: Nested): void => {
+    expect(nested.codes.filter(c => c === 'AX181')).toEqual(['AX181']);
+    expect(nested.errors).toHaveLength(1);
+    expect(nested.errors[0]).toBeInstanceOf(StrictError);
+    expect(codesOf(nested.errors[0])).toContain('AX181');
+  };
+
+  it('in an ordinary update: the handler runs once for AX181 and sees its strict title update throw', () => {
+    quiet();
+    let chart: FinanceHandle | null = null;
+    const h = answering(n => chart!.update({ strict: true, title: `Strict ${n}` }));
+    const opened = open({ title: 'Volume', data: THREE, ...FIELDS, onDiagnostic: h.handler });
+    chart = opened.chart;
+    expect(thrown(() => chart!.update({ data: BAD_VOLUME }))).toBeNull();
+    opened.rec.frames();
+    expectOneStrictAX181(h);
+    // Rolled back: the title and strict were not kept, AX181 stays current, the four rows are drawn.
+    expect(codes(chart)).toContain('AX181');
+    expect(thrown(() => chart!.update({ data: BAD_THREE }))).toBeNull();
+    opened.rec.frames();
+    expect(codes(chart)).toContain('AX180');
+    expect(h.codes.filter(c => c === 'AX181')).toEqual(['AX181']);
+    chart.destroy();
+  });
+
+  it('inside a hover notification drain: the handler runs once for AX181, after the listener', () => {
+    quiet();
+    let chart: FinanceHandle | null = null;
+    const h = answering(n => chart!.update({ strict: true, title: `Strict ${n}` }));
+    const opened = open({ title: 'Volume in drain', data: THREE, ...FIELDS, onDiagnostic: h.handler });
+    chart = opened.chart;
+    let inListener: unknown = 'not run';
+    let codesDuringListener: string[] | null = null;
+    chart.on('hover', () => {
+      inListener = thrown(() => chart!.update({ data: BAD_VOLUME }));
+      codesDuringListener = h.codes.slice();
+    });
+    emitHover(opened.controller());
+    opened.rec.frames();
+    expect(inListener).toBeNull();
+    expect(codesDuringListener).toEqual([]);
+    expectOneStrictAX181(h);
+    expect(codes(chart)).toContain('AX181');
+    expect(opened.rec.committed!.lookup.count).toBe(4);
+    chart.destroy();
+  });
+
+  it('a newly submitted handler gets the current AX181 once, and not again when it re-enters with itself', () => {
+    quiet();
+    let chart: FinanceHandle | null = null;
+    // The second handler is submitted with each strict call it makes; the first hands over to it.
+    const second: Nested = answering(n => chart!.update({ strict: true, title: `Second ${n}`, onDiagnostic: second.handler }));
+    const first = answering(n => chart!.update({ strict: true, title: `First ${n}`, onDiagnostic: second.handler }));
+    const opened = open({ title: 'Hand over', data: THREE, ...FIELDS, onDiagnostic: first.handler });
+    chart = opened.chart;
+    expect(thrown(() => chart!.update({ data: BAD_VOLUME }))).toBeNull();
+    opened.rec.frames();
+    expectOneStrictAX181(first);
+    expectOneStrictAX181(second);
+    chart.destroy();
+  });
+
+  it('after the accepted handler changes while AX181 stays current, a strict call gives AX181 once to the new handler', () => {
+    quiet();
+    const first = recorder();
+    let chart: FinanceHandle | null = null;
+    const second = answering(n => chart!.update({ strict: true, title: `Strict ${n}` }));
+    const opened = open({ title: 'Handler change', data: THREE, ...FIELDS, onDiagnostic: first.handler });
+    chart = opened.chart;
+    expect(thrown(() => chart!.update({ data: BAD_VOLUME }))).toBeNull();
+    expect(first.codes).toEqual(['AX181']);
+    // Non-strict: AX181 is not news, so the new handler is not given it (key deduplication).
+    expect(thrown(() => chart!.update({ onDiagnostic: second.handler }))).toBeNull();
+    opened.rec.frames();
+    expect(second.codes).toEqual([]);
+    const error = thrown(() => chart!.update({ strict: true, title: 'Strict' }));
+    expect(error).toBeInstanceOf(StrictError);
+    expect(codesOf(error)).toContain('AX181');
+    opened.rec.frames();
+    // Once to the new handler, whose own nested strict call is then not answered with it again.
+    expectOneStrictAX181(second);
+    expect(first.codes).toEqual(['AX181']);
+    chart.destroy();
+  });
+
+  it('inside a hover drain, accepted A submits B and B omits the handler: each gets AX181 once, both nested calls throw', () => {
+    quiet();
+    let chart: FinanceHandle | null = null;
+    // B's strict call omits onDiagnostic, so it is answered through the accepted handler A, which already had
+    // AX181: handing it back to A would let A submit B again, and the two would trade the finding for ever.
+    const b = answering(n => chart!.update({ strict: true, title: `B ${n}` }));
+    const a = answering(n => chart!.update({ strict: true, title: `A ${n}`, onDiagnostic: b.handler }));
+    const opened = open({ title: 'A and B', data: THREE, ...FIELDS, onDiagnostic: a.handler });
+    chart = opened.chart;
+    let inListener: unknown = 'not run';
+    chart.on('hover', () => {
+      inListener = thrown(() => chart!.update({ data: BAD_VOLUME }));
+    });
+    emitHover(opened.controller());
+    opened.rec.frames();
+    expect(inListener).toBeNull();
+    expectOneStrictAX181(a);
+    expectOneStrictAX181(b);
+    expect(codes(chart)).toContain('AX181');
+    expect(opened.rec.committed!.lookup.count).toBe(4);
+    chart.destroy();
+  });
+});
