@@ -1,339 +1,400 @@
 /**
  * Multi-axis mixed-layer lookup for `axylo/cartesian` (C4.3, RFC §5.2).
- * Uses `axisScaleOf(projection, s.axisIndex)` (same projection authority as `scene.ts`), filters
- * nonpositive values on `'log'` axes before projecting, and enforces deterministic pick priority:
- *   1. Shared x-slot `i` in `visibleSlots`
- *   2. Nearest drawable `line` vertex within `12 px` y-distance (tie-break: later declared layer)
- *   3. Else visible `bar` rectangle hit at slot `i`
- *   4. Else aligned slot `i` (`{ kind: 'x', x }`) listing all visible series in declared layer order
- *
- * Stacks follow spec F10 as the core lookup does: the tooltip carries the stack total (the positive and the
- * negative ends when signs are mixed) marked "incomplete" where a component is missing, and a datum read on its
- * own (keyboard) says so on the missing component.
+ * Enforces deterministic pick priority:
+ *   1. Nearest line vertex (12 px at nearest slot) or scatter/box-outlier point (24 px across neighbouring slots)
+ *   2. Visible bar rectangle hit at slot
+ *   3. Drawn geometry of range, errorBar, or boxplot (later layers first)
+ *   4. Aligned slot listing all visible series in declared layer order
  */
 import {
-  SLOT_VALUE, type AlignedView, type DatumRef, type DatumText, type Formatters,
+  SLOT_NO_ROW, SLOT_VALUE, type AlignedView, type DatumRef, type DatumText, type Formatters,
   type Layout, type Lookup, type PickTarget, type Projection, type Rect, type SlotState,
-  type StepDirection, type TooltipModel, type View, type XScale,
+  type StepDirection, type TooltipModel, type View,
 } from '../core/contracts';
 import type { Messages } from '../public';
 import { clamp, position } from '../scene/geometry';
 import { axisScaleOf } from './scale-ref';
-import { barBoxAt, buildBarSlotLayout, xSlotPixel, type BarSlotLayout } from './bar-geom';
+import { barBoxAt, buildBarSlotLayout, xSlotPixel } from './bar-geom';
 import type { CartesianStateRef } from './meta';
-import { cartesianStacks, drawnValue, stackTotalText, type CartesianStacks } from './stacks';
+import {
+  MEDIAN_WIDTH, RANGE_STROKE_WIDTH, WHISKER_WIDTH, boxHalfWidth, carrierReadout, intervalText, isCompoundKind, isLogSeries, markOf, partIndex, physicalOf, projectCompound, type CompoundSink, type LogicalKind, type PartRole,
+} from './boxplot';
+import { cartesianStacks, drawnValue, stackTotalText } from './stacks';
 import { incomplete } from '../lookup/text';
 import { lowerBound } from '../data/search';
 
 const LINE_HIT_RADIUS = 12;
+const POINT_HIT_RADIUS = 24;
+const HIT_SLACK = 3;
 const TOOLTIP_LIMIT = 8;
 
-// The scene's pixel for slot i (bar-geom.ts), so picking and drawing agree.
-const xCoord = xSlotPixel;
-
-function pointBox(x: number, y: number): Rect {
-  return { x: x - 5, y: y - 5, width: 10, height: 10 };
-}
+const pointBox = (x: number, y: number): Rect => ({ x: x - 5, y: y - 5, width: 10, height: 10 });
 
 export function createCartesianLookup(
   stateRef: CartesianStateRef,
-  view: View,
-  layout: Layout,
+  rawView: View,
+  rawLayout: Layout,
   formatters: Formatters,
   messages: Messages,
 ): Lookup {
-  // The composition is a 'line' composition (cartesian.ts), so every view it builds is aligned
-  // (buildCartesianView keeps the base view's kind): no donut or scatter view ever reaches this lookup.
-  return new CartesianLookup(stateRef, view as AlignedView, layout.kind === 'plot' ? layout : null, formatters, messages);
-}
+  const view = rawView as AlignedView;
+  const layout = rawLayout.kind === 'plot' ? rawLayout : null;
+  const { meta } = stateRef;
+  const { frame } = view;
+  const { series } = frame;
+  const vals = frame.x.values;
+  const plot = layout?.plot ?? null;
+  const projection: Exclude<Projection, { kind: 'ring' }> | null = layout && layout.projection.kind !== 'ring' ? layout.projection : null;
+  const xScale = projection ? (projection.kind === 'xy' ? projection.x : projection.band) : null;
+  const stacks = cartesianStacks(view, meta);
+  const start = view.visibleSlots.start;
+  const end = view.visibleSlots.end;
+  const count = Math.max(0, end - start);
+  const physical = physicalOf(view);
+  const marks = series.map(s => markOf(meta, s.field));
+  const boxHalf = projection ? boxHalfWidth(projection, vals, view.visibleSlots) : 0;
 
-class CartesianLookup implements Lookup {
-  readonly #stateRef: CartesianStateRef;
-  readonly #view: AlignedView;
-  readonly #plot: Rect | null;
-  readonly #projection: Projection | null;
-  readonly #xScale: XScale | null;
-  readonly #formatters: Formatters;
-  readonly #messages: Messages;
-  readonly #stacks: CartesianStacks;
-  readonly #visible: readonly number[];
-  readonly #barSeries: readonly number[];
-  readonly #barLayout: BarSlotLayout;
-  readonly #start: number;
-  readonly #end: number;
-  readonly count: number;
+  const geometry = marks.map((m, i) => m && projection && plot
+    ? projectCompound(m, physical, i, projection, plot, boxHalf) : null);
 
-  constructor(
-    stateRef: CartesianStateRef,
-    view: AlignedView,
-    layout: Extract<Layout, { kind: 'plot' }> | null,
-    formatters: Formatters,
-    messages: Messages,
-  ) {
-    this.#stateRef = stateRef;
-    this.#messages = messages;
-    this.#stacks = cartesianStacks(view, stateRef.meta);
-    this.#view = view;
-    this.#plot = layout?.plot ?? null;
-    this.#projection = layout?.projection ?? null;
-    this.#xScale = layout && layout.projection.kind !== 'ring'
-      ? (layout.projection.kind === 'xy' ? layout.projection.x : layout.projection.band)
-      : null;
-    this.#formatters = formatters;
-    this.#start = view.visibleSlots.start;
-    this.#end = view.visibleSlots.end;
-    this.count = Math.max(0, this.#end - this.#start);
+  const kindOf = (sIdx: number): LogicalKind => marks[sIdx]?.kind ?? meta.seriesByField.get(series[sIdx]!.field)?.mark ?? 'line';
 
-    const visible: number[] = [];
-    const barSeries: number[] = [];
-    for (let s = 0; s < view.frame.series.length; s++) {
-      if (view.visible[s] && view.frame.series[s]!.drawable) {
-        visible.push(s);
-        if (stateRef.meta.seriesByField.get(view.frame.series[s]!.field)?.mark === 'bar') barSeries.push(s);
-      }
+  const visible: number[] = [];
+  const barSeries: number[] = [];
+  for (let s = 0; s < series.length; s++) {
+    if (view.visible[s] && series[s]!.drawable) {
+      visible.push(s);
+      if (kindOf(s) === 'bar') barSeries.push(s);
     }
-    this.#visible = visible;
-    this.#barSeries = barSeries;
-    this.#barLayout = buildBarSlotLayout(view, this.#projection, this.#plot, stateRef.meta, barSeries);
   }
+  const barLayout = buildBarSlotLayout(view, projection, plot, meta, barSeries);
 
-  #slotForX(x: number): number {
-    const vals = this.#view.frame.x.values;
-    const i = lowerBound(vals, x, this.#start, this.#end);
-    return i < this.#end && vals[i] === x ? i : -1;
-  }
+  const isLog = (s: AlignedView['frame']['series'][number] | undefined) => isLogSeries(meta, s);
+  const readout = carrierReadout(meta, physical, formatters, ' (not plotted)');
+  const slotForX = (x: number) => {
+    const i = lowerBound(vals, x, start, end);
+    return i < end && vals[i] === x ? i : -1;
+  };
+  const seriesIndex = (key: string) => series.findIndex(s => s.key === key);
+  const isPlottable = (sIdx: number, i: number) => {
+    const s = series[sIdx]!;
+    return s.slot[i] === SLOT_VALUE && (!isLog(s) || s.y[i]! > 0);
+  };
+  const xAt = (i: number) => xSlotPixel(xScale!, vals, i);
 
-  #seriesIndex(key: string): number {
-    return this.#view.frame.series.findIndex(s => s.key === key);
-  }
-
-  #isLogAxis(seriesIndex: number): boolean {
-    const s = this.#view.frame.series[seriesIndex];
-    const axis = s?.axisId ? this.#stateRef.meta.axisById.get(s.axisId) : undefined;
-    return axis?.scale === 'log';
-  }
-
-  #isPlottableAt(sIdx: number, slotIndex: number): boolean {
-    const s = this.#view.frame.series[sIdx]!;
-    if (s.slot[slotIndex] !== SLOT_VALUE) return false;
-    // A SLOT_VALUE is always finite (core/contracts.ts).
-    return !this.#isLogAxis(sIdx) || s.y[slotIndex]! > 0;
-  }
-
-  #datumText(sIdx: number, slotIndex: number, announce = false): DatumText {
-    const s = this.#view.frame.series[sIdx]!;
-    const st = s.slot[slotIndex]! as SlotState;
-    const xVal = this.#view.frame.x.values[slotIndex]!;
-    const ref: DatumRef = { kind: 'aligned', seriesKey: s.key, x: xVal };
-    let valueText: string;
-    if (st === SLOT_VALUE) {
-      const v = s.y[slotIndex]!;
-      const formatted = this.#formatters.value(sIdx, v);
-      valueText = this.#isLogAxis(sIdx) && !(v > 0) ? `${formatted} (not plotted)` : formatted;
+  const datumText = (sIdx: number, i: number, announce = false): DatumText => {
+    const s = series[sIdx]!;
+    let state = s.slot[i]! as SlotState;
+    let value: string;
+    const mark = marks[sIdx];
+    if (mark && isCompoundKind(mark.kind)) {
+      state = SLOT_VALUE;
+      const at = (role: PartRole) => partIndex(mark, physical, sIdx, role);
+      const read = (role: PartRole) => {
+        const idx = at(role);
+        const part = physical.frame.series[idx];
+        if (role !== 'y' && part && state === SLOT_VALUE) state = part.slot[i]! as SlotState;
+        return readout.cell(idx, i);
+      };
+      if (mark.kind === 'boxplot') {
+        const median = read('median'), min = read('min'), q1 = read('q1'), q3 = read('q3'), max = read('max');
+        if (state !== SLOT_VALUE) {
+          value = formatters.missing(state);
+        } else {
+          const list = readout.outliers(at('median'), mark.outliers, i);
+          value = `median ${median} (min ${min}, Q1 ${q1}, Q3 ${q3}, max ${max}; ${list === null ? 'no outliers' : `outliers ${list}`})`;
+        }
+      } else {
+        value = intervalText(mark, read);
+      }
+    } else if (state === SLOT_VALUE) {
+      value = readout.value(sIdx, s.y[i]!);
     } else {
-      valueText = this.#formatters.missing(st);
-      // Read on its own, the component that makes its stack incomplete says so (F10, as lookup/aligned.ts).
-      if (announce && this.#stacks.groupOf[sIdx]! >= 0) {
-        valueText = incomplete(valueText, this.#messages);
-      }
+      value = formatters.missing(state);
+      if (announce && stacks.groupOf[sIdx]! >= 0) value = incomplete(value, messages);
     }
+    const xVal = vals[i]!;
     return {
-      ref,
-      seriesIndex: sIdx,
-      seriesLabel: s.label,
-      x: this.#formatters.x(xVal),
-      value: valueText,
-      state: st,
-      percent: null,
-      row: s.row ? s.row[slotIndex]! : slotIndex,
+      ref: { kind: 'aligned', seriesKey: s.key, x: xVal },
+      seriesIndex: sIdx, seriesLabel: s.label, x: formatters.x(xVal), value, state, percent: null,
+      row: s.row ? s.row[i]! : i,
     };
-  }
+  };
 
-  #nearestSlot(xPx: number): number {
-    const xScale = this.#xScale;
-    if (!xScale || this.count === 0) return -1;
-    if (xScale.type === 'band') {
-      const idx = clamp(Math.round(xScale.invert(xPx)), this.#start, this.#end - 1);
-      return idx;
+  const nearestSlot = (xPx: number) => {
+    if (!xScale || !count) return -1;
+    if (xScale.type === 'band') return clamp(Math.round(xScale.invert(xPx)), start, end - 1);
+    const i = lowerBound(vals, xScale.invert(xPx), start, end);
+    if (i <= start) return start;
+    if (i >= end) return end - 1;
+    return Math.abs(xAt(i - 1) - xPx) <= Math.abs(xAt(i) - xPx) ? i - 1 : i;
+  };
+
+  const compoundBox = (sIdx: number, i: number): Rect | null => {
+    const g = geometry[sIdx], mark = marks[sIdx];
+    if (!g || !mark || g.rows[i] !== SLOT_VALUE) return null;
+    const px = xAt(i), top = g.top(i), bottom = g.bottom(i);
+    const half = mark.kind === 'boxplot' ? Math.max(boxHalf, g.cap) : Math.max(4, mark.kind === 'errorBar' ? g.cap : 0);
+    if (!Number.isFinite(px) || !Number.isFinite(top) || !Number.isFinite(bottom)) return null;
+    return { x: px - half, y: Math.min(top, bottom), width: 2 * half, height: Math.max(1, Math.abs(bottom - top)) };
+  };
+
+  /** The nearest slot from k in direction step that is drawn, skipping SLOT_NO_ROW as the painted band does. */
+  const drawnNeighbour = (rows: Uint8Array, k: number, step: number) => {
+    while (k >= start && k < end && rows[k] === SLOT_NO_ROW) k += step;
+    return k >= start && k < end && rows[k] === SLOT_VALUE ? k : -1;
+  };
+
+  /** Distance from (xPx, yPx) to a painted rectangle clipped to plot, or Infinity when wholly clipped or empty. */
+  const rectDist = (x1: number, y1: number, x2: number, y2: number, xPx: number, yPx: number): number => {
+    if (!plot) return Infinity;
+    const cx1 = Math.max(x1, plot.x), cx2 = Math.min(x2, plot.x + plot.width);
+    const cy1 = Math.max(y1, plot.y), cy2 = Math.min(y2, plot.y + plot.height);
+    if (!(cx2 > cx1 && cy2 > cy1)) return Infinity;
+    const dx = xPx < cx1 ? cx1 - xPx : xPx > cx2 ? xPx - cx2 : 0;
+    const dy = yPx < cy1 ? cy1 - yPx : yPx > cy2 ? yPx - cy2 : 0;
+    return Math.hypot(dx, dy);
+  };
+
+  /** The slot and distance of the drawn compound geometry under/near the pointer, or null. */
+  const compoundHit = (sIdx: number, i: number, xPx: number, yPx: number): { slot: number; dist: number } | null => {
+    const mark = marks[sIdx];
+    const g = geometry[sIdx];
+    if (!mark || !plot || !g) return null;
+    const { rows, cap } = g;
+    // Butt-capped zero-length strokes paint nothing (render/svg.ts stroke-linecap="butt").
+    const hSeg = (x1: number, x2: number, sy: number, sw: number) =>
+      x2 > x1 ? rectDist(x1, sy - sw / 2, x2, sy + sw / 2, xPx, yPx) : Infinity;
+    const vSeg = (sx: number, y1: number, y2: number, sw: number) => {
+      const lo = Math.min(y1, y2), hi = Math.max(y1, y2);
+      return hi > lo ? rectDist(sx - sw / 2, lo, sx + sw / 2, hi, xPx, yPx) : Infinity;
+    };
+    if (mark.kind === 'range') {
+      const bandDist = (l: number, r: number): number => {
+        if (l < 0 || r < 0) return Infinity;
+        const lx = xAt(l), rx = xAt(r);
+        const x0 = Math.max(Math.min(lx, rx), plot.x), x1 = Math.min(Math.max(lx, rx), plot.x + plot.width);
+        if (!(x1 > x0)) return Infinity;
+        const cx = clamp(xPx, x0, x1);
+        const t = rx === lx ? 0 : clamp((cx - lx) / (rx - lx), 0, 1);
+        const a = g.top(l), b = g.bottom(l);
+        const yA = a + t * (g.top(r) - a), yB = b + t * (g.bottom(r) - b);
+        const yLo = Math.min(yA, yB), yHi = Math.max(yA, yB);
+        return yHi > yLo ? rectDist(x0, yLo, x1, yHi, xPx, yPx) : Infinity;
+      };
+      if (rows[i] === SLOT_NO_ROW) {
+        // keep(bridge) paints across a slot with no row; it has no reading, so report the nearer drawn end.
+        const l = drawnNeighbour(rows, i - 1, -1), r = drawnNeighbour(rows, i + 1, 1);
+        const dist = bandDist(l, r);
+        return dist <= HIT_SLACK ? { slot: xPx - xAt(l) <= xAt(r) - xPx ? l : r, dist } : null;
+      }
+      if (rows[i] !== SLOT_VALUE) return null;
+      const px = xAt(i), prev = drawnNeighbour(rows, i - 1, -1), next = drawnNeighbour(rows, i + 1, 1);
+      // A lone row is painted as a 4 px butt-capped vertical stroke; endpoints fall back to their painted side.
+      const dist = prev < 0 && next < 0 ? vSeg(px, g.top(i), g.bottom(i), RANGE_STROKE_WIDTH)
+        : next < 0 || (xPx < px && prev >= 0) ? bandDist(prev, i) : bandDist(i, next);
+      return dist <= HIT_SLACK ? { slot: i, dist } : null;
     }
-    const domainX = xScale.invert(xPx);
-    const vals = this.#view.frame.x.values;
-    const i = lowerBound(vals, domainX, this.#start, this.#end);
-    if (i <= this.#start) return this.#start;
-    if (i >= this.#end) return this.#end - 1;
-    const dPrev = Math.abs(xCoord(xScale, vals, i - 1) - xPx);
-    const dCurr = Math.abs(xCoord(xScale, vals, i) - xPx);
-    return dPrev <= dCurr ? i - 1 : i;
-  }
-
-  #pickPreferredSeries(slotIndex: number, xPx: number, yPx: number): number {
-    const projection = this.#projection;
-    const plot = this.#plot;
-    if (!projection || !plot || projection.kind === 'ring') return this.#visible[0] ?? -1;
-    const { meta } = this.#stateRef;
-
-    // 1. Nearest visible drawable line vertex within 12 px (tie-break: later declared layer)
-    let bestLine = -1;
-    let bestDist = LINE_HIT_RADIUS + 1e-6;
-    for (const sIdx of this.#visible) {
-      const s = this.#view.frame.series[sIdx]!;
-      const spec = meta.seriesByField.get(s.field);
-      if ((spec?.mark ?? 'line') !== 'line') continue;
-      if (!this.#isPlottableAt(sIdx, slotIndex)) continue;
-      const scale = axisScaleOf(projection, s.axisIndex ?? 0);
-      const py = position(scale, s.y[slotIndex]!);
-      const dist = Math.abs(py - yPx);
-      if (dist <= bestDist) {
-        bestDist = dist;
-        bestLine = sIdx;
+    const halfMarker = (view.compact ? 3 : mark.size) / 2;
+    const reach = (mark.kind === 'boxplot' ? Math.max(boxHalf, cap) : Math.max(cap, halfMarker, WHISKER_WIDTH / 2)) + HIT_SLACK;
+    let dist = Infinity;
+    const sink: CompoundSink = {
+      box(x, halfWidth, y, h) { dist = Math.min(dist, rectDist(x - halfWidth, y, x + halfWidth, y + h, xPx, yPx)); },
+      whisker(x1, y1, x2, y2) {
+        const d = x1 === x2 ? vSeg(x1, y1, y2, WHISKER_WIDTH) : hSeg(x1, x2, y1, WHISKER_WIDTH);
+        dist = Math.min(dist, d);
+      },
+      median(x1, x2, y) { dist = Math.min(dist, hSeg(x1, x2, y, MEDIAN_WIDTH)); },
+      point(x, y) {
+        if (Number.isFinite(y) && inPlot(x, y, halfMarker)) {
+          dist = Math.min(dist, Math.max(0, Math.hypot(xPx - x, yPx - y) - halfMarker));
+        }
+      },
+    };
+    let bestSlot = -1, bestDist = Infinity, bestDx = Infinity;
+    const check = (j: number, dx: number) => {
+      if (rows[j] !== SLOT_VALUE) return;
+      dist = Infinity;
+      g.visit(j, xAt(j), sink);
+      if (dist > HIT_SLACK) return;
+      if (dist < bestDist || (dist === bestDist && (dx < bestDx || (dx === bestDx && j < bestSlot)))) {
+        bestDist = dist; bestDx = dx; bestSlot = j;
+      }
+    };
+    const iDx = Math.abs(xAt(i) - xPx);
+    if (iDx <= reach) check(i, iDx);
+    for (const step of [-1, 1]) {
+      for (let j = i + step; j >= start && j < end; j += step) {
+        const dx = Math.abs(xAt(j) - xPx);
+        if (dx > reach) break;
+        check(j, dx);
       }
     }
-    if (bestLine >= 0) return bestLine;
+    return bestSlot >= 0 ? { slot: bestSlot, dist: bestDist } : null;
+  };
 
-    // 2. Visible bar rectangle containing (xPx, yPx) using exact shared bar geometry (grouped + stacked):
-    // check exact containment first so stacked edges never mis-attribute to the adjacent segment.
+  // A glyph clipped entirely outside the plot is not on screen, so it cannot win a pick (half = rendered half extent).
+  const inPlot = (px: number, py: number, half: number) =>
+    !!plot && px + half >= plot.x && px - half <= plot.x + plot.width && py + half >= plot.y && py - half <= plot.y + plot.height;
+
+  let lastPickedSeries = -1;
+  let lastPickedSlot = -1;
+  let lastPickedAt: Rect | null = null;
+
+  const pickPreferred = (slotIndex: number, xPx: number, yPx: number) => {
+    const fallback = { series: visible[0] ?? -1, slot: slotIndex, at: null as Rect | null };
+    if (!projection || !plot) return fallback;
+    let best: typeof fallback | null = null;
+    let bestDist = Infinity;
+    const consider = (sIdx: number, j: number, px: number, py: number, dist: number, radius: number, half: number) => {
+      if (!inPlot(px, py, half)) return;
+      if (dist <= radius + 1e-6 && dist <= bestDist) { bestDist = dist; best = { series: sIdx, slot: j, at: pointBox(px, py) }; }
+    };
+    let outlierSeries = -1;
+    const outlier = (v: number, slot: number) => {
+      const x = xAt(slot), y = geometry[outlierSeries]!.pointY(v);
+      consider(outlierSeries, slot, x, y, Math.hypot(x - xPx, y - yPx), POINT_HIT_RADIUS, marks[outlierSeries]!.size / 2);
+    };
+    const pointsAt = (j: number, px: number) => {
+      for (const sIdx of visible) {
+        const mark = marks[sIdx];
+        const kind = kindOf(sIdx);
+        if (kind === 'line' || kind === 'scatter') {
+          if ((kind === 'line' && j !== slotIndex) || !isPlottable(sIdx, j)) continue;
+          const s = series[sIdx]!;
+          const py = position(axisScaleOf(projection, s.axisIndex ?? 0), s.y[j]!);
+          consider(sIdx, j, px, py, kind === 'line' ? Math.abs(py - yPx) : Math.hypot(px - xPx, py - yPx), kind === 'line' ? LINE_HIT_RADIUS : POINT_HIT_RADIUS, (kind === 'line' ? 4 : mark?.size ?? 4) / 2);
+        } else if (mark?.outliers && physical.rows?.[sIdx]?.[j] === SLOT_VALUE) {
+          outlierSeries = sIdx;
+          geometry[sIdx]?.outliers(j, outlier);
+        }
+      }
+    };
+    pointsAt(slotIndex, xAt(slotIndex));
+    for (const step of [-1, 1]) {
+      for (let j = slotIndex + step; j >= start && j < end; j += step) {
+        const px = xAt(j);
+        if (Math.abs(px - xPx) > POINT_HIT_RADIUS) break;
+        pointsAt(j, px);
+      }
+    }
+    if (best) return best;
+
     let fuzzyBar = -1;
-    for (let k = this.#barSeries.length - 1; k >= 0; k--) {
-      const sIdx = this.#barSeries[k]!;
-      const box = barBoxAt(this.#view, projection, plot, this.#barLayout, sIdx, slotIndex);
+    for (let k = barSeries.length - 1; k >= 0; k--) {
+      const sIdx = barSeries[k]!;
+      const box = barBoxAt(view, projection, plot, barLayout, sIdx, slotIndex);
       if (!box) continue;
-      if (xPx >= box.x && xPx <= box.x + box.width && yPx >= box.y && yPx <= box.y + box.height) {
-        return sIdx;
+      if (xPx >= box.x && xPx <= box.x + box.width && yPx >= box.y && yPx <= box.y + box.height) return { series: sIdx, slot: slotIndex, at: box };
+      if (fuzzyBar < 0 && xPx >= box.x - 1 && xPx <= box.x + box.width + 1 && yPx >= box.y - 2 && yPx <= box.y + box.height + 2) fuzzyBar = sIdx;
+    }
+    if (fuzzyBar >= 0) return { series: fuzzyBar, slot: slotIndex, at: null };
+
+    let bestCompound: { series: number; slot: number; dist: number } | null = null;
+    for (let k = visible.length - 1; k >= 0; k--) {
+      const sIdx = visible[k]!;
+      const hit = compoundHit(sIdx, slotIndex, xPx, yPx);
+      if (!hit) continue;
+      if (hit.dist === 0) return { series: sIdx, slot: hit.slot, at: null };
+      if (!bestCompound || hit.dist < bestCompound.dist) bestCompound = { series: sIdx, slot: hit.slot, dist: hit.dist };
+    }
+    if (bestCompound) return { series: bestCompound.series, slot: bestCompound.slot, at: null };
+    return fallback;
+  };
+
+  const lookup: Lookup = {
+    count,
+    pick(x: number, y: number): PickTarget | null {
+      if (!plot || !count || !visible.length) return null;
+      if (x < plot.x || x > plot.x + plot.width || y < plot.y || y > plot.y + plot.height) return null;
+      const nearest = nearestSlot(x);
+      if (nearest < 0) return null;
+      const hit = pickPreferred(nearest, x, y);
+      lastPickedSlot = hit.slot;
+      lastPickedSeries = hit.series;
+      lastPickedAt = hit.at;
+      return { kind: 'x', x: vals[hit.slot]! };
+    },
+    members(target: PickTarget, from: number, n: number): readonly DatumRef[] {
+      if (target.kind !== 'x' || n <= 0 || slotForX(target.x) < 0) return [];
+      const out: DatumRef[] = [];
+      for (let k = Math.max(0, from), stop = Math.min(visible.length, from + n); k < stop; k++) {
+        out.push({ kind: 'aligned', seriesKey: series[visible[k]!]!.key, x: target.x });
       }
-      if (fuzzyBar < 0 && xPx >= box.x - 1 && xPx <= box.x + box.width + 1 && yPx >= box.y - 2 && yPx <= box.y + box.height + 2) {
-        fuzzyBar = sIdx;
+      return out;
+    },
+    has(target: PickTarget, ref: DatumRef): boolean {
+      if (target.kind !== 'x' || ref.kind !== 'aligned' || ref.x !== target.x) return false;
+      const sIdx = seriesIndex(ref.seriesKey);
+      return sIdx >= 0 && visible.includes(sIdx) && slotForX(target.x) >= 0;
+    },
+    slot: ref => ref.kind === 'aligned' ? slotForX(ref.x) : -1,
+    primary(target: PickTarget): DatumRef | null {
+      if (target.kind !== 'x' || !visible.length) return null;
+      const i = slotForX(target.x);
+      if (i < 0) return null;
+      const preferred = i === lastPickedSlot && lastPickedSeries >= 0 && visible.includes(lastPickedSeries) ? lastPickedSeries : visible[0]!;
+      return { kind: 'aligned', seriesKey: series[preferred]!.key, x: target.x };
+    },
+    tooltip(target: PickTarget): TooltipModel {
+      if (target.kind !== 'x') return { title: '', rows: [], count: 0, total: null };
+      const i = slotForX(target.x);
+      if (i < 0) return { title: '', rows: [], count: 0, total: null };
+      const rows: DatumText[] = [];
+      for (let k = 0, shown = Math.min(visible.length, TOOLTIP_LIMIT); k < shown; k++) rows.push(datumText(visible[k]!, i));
+      return { title: formatters.x(target.x), rows, count: visible.length, total: stackTotalText(view, stacks, i, formatters, messages) };
+    },
+    datum(ref: DatumRef): DatumText | null {
+      if (ref.kind !== 'aligned') return null;
+      const sIdx = seriesIndex(ref.seriesKey), i = slotForX(ref.x);
+      return sIdx >= 0 && i >= 0 ? datumText(sIdx, i, true) : null;
+    },
+    anchor(ref: DatumRef): Rect | null {
+      if (ref.kind !== 'aligned' || !plot || !projection) return null;
+      const sIdx = seriesIndex(ref.seriesKey), i = slotForX(ref.x);
+      if (sIdx < 0 || i < 0 || !visible.includes(sIdx)) return null;
+      if (lastPickedAt && sIdx === lastPickedSeries && i === lastPickedSlot) return lastPickedAt;
+      const kind = kindOf(sIdx);
+      if (kind === 'bar') return barBoxAt(view, projection, plot, barLayout, sIdx, i);
+      if (isCompoundKind(kind)) {
+        const box = compoundBox(sIdx, i);
+        if (!box) return null;
+        const y0 = clamp(box.y, plot.y, plot.y + plot.height), y1 = clamp(box.y + box.height, plot.y, plot.y + plot.height);
+        return { x: box.x, y: y0, width: box.width, height: Math.max(1, y1 - y0) };
       }
-    }
-    if (fuzzyBar >= 0) return fuzzyBar;
-
-    return this.#visible[0] ?? -1;
-  }
-
-  #lastPickedSeries = -1;
-  #lastPickedSlot = -1;
-
-  pick(x: number, y: number): PickTarget | null {
-    const plot = this.#plot;
-    if (!plot || this.count === 0 || this.#visible.length === 0) return null;
-    if (x < plot.x || x > plot.x + plot.width || y < plot.y || y > plot.y + plot.height) return null;
-    const i = this.#nearestSlot(x);
-    if (i < 0) return null;
-    this.#lastPickedSlot = i;
-    this.#lastPickedSeries = this.#pickPreferredSeries(i, x, y);
-    return { kind: 'x', x: this.#view.frame.x.values[i]! };
-  }
-
-  members(target: PickTarget, from: number, count: number): readonly DatumRef[] {
-    if (target.kind !== 'x' || count <= 0) return [];
-    const i = this.#slotForX(target.x);
-    if (i < 0) return [];
-    const out: DatumRef[] = [];
-    const end = Math.min(this.#visible.length, from + count);
-    for (let k = Math.max(0, from); k < end; k++) {
-      const s = this.#view.frame.series[this.#visible[k]!]!;
-      out.push({ kind: 'aligned', seriesKey: s.key, x: target.x });
-    }
-    return out;
-  }
-
-  has(target: PickTarget, ref: DatumRef): boolean {
-    if (target.kind !== 'x' || ref.kind !== 'aligned' || ref.x !== target.x) return false;
-    const sIdx = this.#seriesIndex(ref.seriesKey);
-    return sIdx >= 0 && this.#visible.includes(sIdx) && this.#slotForX(target.x) >= 0;
-  }
-
-  slot(ref: DatumRef): number {
-    if (ref.kind !== 'aligned') return -1;
-    return this.#slotForX(ref.x);
-  }
-
-  primary(target: PickTarget): DatumRef | null {
-    if (target.kind !== 'x' || this.#visible.length === 0) return null;
-    const i = this.#slotForX(target.x);
-    if (i < 0) return null;
-    const preferred = i === this.#lastPickedSlot && this.#lastPickedSeries >= 0 && this.#visible.includes(this.#lastPickedSeries)
-      ? this.#lastPickedSeries
-      : this.#visible[0]!;
-    return { kind: 'aligned', seriesKey: this.#view.frame.series[preferred]!.key, x: target.x };
-  }
-
-  tooltip(target: PickTarget): TooltipModel {
-    if (target.kind !== 'x') return { title: '', rows: [], count: 0, total: null };
-    const i = this.#slotForX(target.x);
-    if (i < 0) return { title: '', rows: [], count: 0, total: null };
-    const title = this.#formatters.x(target.x);
-    const shown = Math.min(this.#visible.length, TOOLTIP_LIMIT);
-    const rows: DatumText[] = [];
-    for (let k = 0; k < shown; k++) rows.push(this.#datumText(this.#visible[k]!, i));
-    return { title, rows, count: this.#visible.length, total: stackTotalText(this.#view, this.#stacks, i, this.#formatters, this.#messages) };
-  }
-
-  datum(ref: DatumRef): DatumText | null {
-    if (ref.kind !== 'aligned') return null;
-    const sIdx = this.#seriesIndex(ref.seriesKey);
-    const i = this.#slotForX(ref.x);
-    if (sIdx < 0 || i < 0) return null;
-    return this.#datumText(sIdx, i, true);
-  }
-
-  anchor(ref: DatumRef): Rect | null {
-    const plot = this.#plot;
-    const projection = this.#projection;
-    const xScale = this.#xScale;
-    if (ref.kind !== 'aligned' || !plot || !projection || !xScale || projection.kind === 'ring') return null;
-    const sIdx = this.#seriesIndex(ref.seriesKey);
-    const i = this.#slotForX(ref.x);
-    if (sIdx < 0 || i < 0 || !this.#visible.includes(sIdx)) return null;
-    const spec = this.#stateRef.meta.seriesByField.get(this.#view.frame.series[sIdx]!.field);
-    if (spec?.mark === 'bar') return barBoxAt(this.#view, projection, plot, this.#barLayout, sIdx, i);
-    if (!this.#isPlottableAt(sIdx, i)) return null;
-    const s = this.#view.frame.series[sIdx]!;
-    const yScale = axisScaleOf(projection, s.axisIndex ?? 0);
-    const px = xCoord(xScale, this.#view.frame.x.values, i);
-    const py = position(yScale, drawnValue(this.#view, this.#stacks, sIdx, i));
-    if (!Number.isFinite(px) || !Number.isFinite(py)) return null;
-    if (px < plot.x - 1 || px > plot.x + plot.width + 1 || py < plot.y - 1 || py > plot.y + plot.height + 1) return null;
-    return pointBox(px, py);
-  }
-
-  resolve(ref: DatumRef): DatumRef | null {
-    if (ref.kind !== 'aligned') return null;
-    const sIdx = this.#seriesIndex(ref.seriesKey);
-    const i = this.#slotForX(ref.x);
-    return sIdx >= 0 && this.#visible.includes(sIdx) && i >= 0 ? ref : null;
-  }
-
-  ordinal(ref: DatumRef): number {
-    if (ref.kind !== 'aligned') return -1;
-    const sIdx = this.#seriesIndex(ref.seriesKey);
-    const i = this.#slotForX(ref.x);
-    return sIdx >= 0 && this.#visible.includes(sIdx) && i >= 0 ? i - this.#start : -1;
-  }
-
-  step(from: DatumRef | null, direction: StepDirection): DatumRef | null {
-    if (this.count === 0 || this.#visible.length === 0) return null;
-    const vals = this.#view.frame.x.values;
-    if (!from) {
-      const s = this.#visible[0]!;
-      return { kind: 'aligned', seriesKey: this.#view.frame.series[s]!.key, x: vals[this.#start]! };
-    }
-    const resolved = this.resolve(from);
-    if (!resolved || resolved.kind !== 'aligned') return null;
-    const sIdx = this.#seriesIndex(resolved.seriesKey);
-    const at = this.#slotForX(resolved.x);
-    if (direction === 'series-next' || direction === 'series-previous') {
-      const pos = this.#visible.indexOf(sIdx);
-      const next = this.#visible[pos + (direction === 'series-next' ? 1 : -1)];
-      return next === undefined ? null : { kind: 'aligned', seriesKey: this.#view.frame.series[next]!.key, x: resolved.x };
-    }
-    const page = Math.max(1, Math.round(this.count / 10));
-    let to = at;
-    if (direction === 'first') to = this.#start;
-    else if (direction === 'last') to = this.#end - 1;
-    else if (direction === 'next') to = Math.min(this.#end - 1, at + 1);
-    else if (direction === 'previous') to = Math.max(this.#start, at - 1);
-    else if (direction === 'page-next') to = Math.min(this.#end - 1, at + page);
-    else if (direction === 'page-previous') to = Math.max(this.#start, at - page);
-    return to === at ? null : { kind: 'aligned', seriesKey: this.#view.frame.series[sIdx]!.key, x: vals[to]! };
-  }
+      if (!isPlottable(sIdx, i)) return null;
+      const px = xAt(i), py = position(axisScaleOf(projection, series[sIdx]!.axisIndex ?? 0), drawnValue(view, stacks, sIdx, i));
+      if (!Number.isFinite(px) || !Number.isFinite(py) || !inPlot(px, py, 1)) return null;
+      return pointBox(px, py);
+    },
+    resolve(ref: DatumRef): DatumRef | null {
+      if (ref.kind !== 'aligned') return null;
+      const sIdx = seriesIndex(ref.seriesKey);
+      return sIdx >= 0 && visible.includes(sIdx) && slotForX(ref.x) >= 0 ? ref : null;
+    },
+    ordinal(ref: DatumRef): number {
+      if (ref.kind !== 'aligned') return -1;
+      const sIdx = seriesIndex(ref.seriesKey), i = slotForX(ref.x);
+      return sIdx >= 0 && visible.includes(sIdx) && i >= 0 ? i - start : -1;
+    },
+    step(from: DatumRef | null, direction: StepDirection): DatumRef | null {
+      if (!count || !visible.length) return null;
+      if (!from) return { kind: 'aligned', seriesKey: series[visible[0]!]!.key, x: vals[start]! };
+      if (!lookup.resolve(from) || from.kind !== 'aligned') return null;
+      const sIdx = seriesIndex(from.seriesKey), at = slotForX(from.x);
+      if (direction === 'series-next' || direction === 'series-previous') {
+        const next = visible[visible.indexOf(sIdx) + (direction === 'series-next' ? 1 : -1)];
+        return next === undefined ? null : { kind: 'aligned', seriesKey: series[next]!.key, x: from.x };
+      }
+      const page = Math.max(1, Math.round(count / 10));
+      const to = direction === 'first' ? start
+        : direction === 'last' ? end - 1
+        : direction === 'next' ? Math.min(end - 1, at + 1)
+        : direction === 'previous' ? Math.max(start, at - 1)
+        : direction === 'page-next' ? Math.min(end - 1, at + page)
+        : direction === 'page-previous' ? Math.max(start, at - page) : at;
+      return to === at ? null : { kind: 'aligned', seriesKey: series[sIdx]!.key, x: vals[to]! };
+    },
+  };
+  return lookup;
 }

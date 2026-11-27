@@ -11,6 +11,11 @@
  *   whiskerLow = smallest observed finite value >= lower fence (clamped <= Q1).
  *   whiskerHigh = largest observed finite value <= upper fence (clamped >= Q3).
  *   outliers = sorted Float64Array of finite values strictly < whiskerLow or > whiskerHigh.
+ * - Extreme finite inputs: the interpolation never overflows (see `between`), so every quantile of finite values
+ *   is finite and ordered. IQR is reported as computed: two finite quartiles of opposite sign can be further
+ *   apart than Number.MAX_VALUE, and then `iqr` is `Infinity` rather than a made-up finite number. Such fences
+ *   are unbounded (no outliers) for k > 0; k = 0 puts the fences on Q1 and Q3 themselves (0 × ∞ is not read as NaN).
+ *   The mean of values whose sum overflows is computed from the scaled values instead.
  *
  * Zero DOM access, zero runtime dependencies, zero top-level side effects (0 B bare import).
  */
@@ -71,7 +76,12 @@ export interface BoxPlotResult {
   readonly convention: typeof BOXPLOT_CONVENTION;
   readonly whiskerFactor: number;
   readonly groups: readonly BoxGroup[];
-  /** Columnar dataset ready to pass directly as `{ columns }` to `axylo/cartesian` (`errorBar` + `range` + `line`). */
+  /**
+   * Columnar dataset ready to pass as `data` to `axylo/cartesian`. A native `boxplot` layer reads it as
+   * `{ type: 'boxplot', min: 'whiskerLow', q1: 'q1', median: 'median', q3: 'q3', max: 'whiskerHigh', outliers }`,
+   * where `outliers` names a column of per-group arrays the caller adds, e.g.
+   * `{ columns: { ...result.data.columns, outliers: result.groups.map(g => g.summary.outliers) } }`.
+   */
   readonly data: { readonly columns: BoxPlotColumns };
   /** Columnar outlier coordinates `(x, y)` for optional scatter/point overlay. */
   readonly outliers: { readonly columns: BoxPlotOutlierColumns };
@@ -116,7 +126,21 @@ function sortedQuantileR7(sorted: Float64Array, p: number): number {
   const lo = Math.floor(h);
   const hi = Math.min(n - 1, lo + 1);
   const frac = h - lo;
-  return sorted[lo]! + frac * (sorted[hi]! - sorted[lo]!);
+  return between(sorted[lo]!, sorted[hi]!, frac);
+}
+
+/**
+ * `a + t * (b - a)` for sorted finite `a <= b` and `t` in [0, 1], kept inside [a, b]. The difference of two
+ * finite values of opposite sign can exceed Number.MAX_VALUE (`[-1e308, 1e308]`), so it is then weighted as
+ * `(1 - t) * a + t * b`, whose terms are each at most one bound in magnitude. The usual form is kept otherwise
+ * because it is exact at t = 0 and for equal bounds. Rounding can step one ulp outside the pair; the clamp keeps
+ * every quantile between its neighbours, so the summary stays ordered.
+ */
+function between(a: number, b: number, t: number): number {
+  if (a === b) return a;
+  const d = b - a;
+  const v = Number.isFinite(d) ? a + t * d : (1 - t) * a + t * b;
+  return v < a ? a : v > b ? b : v;
 }
 
 /** Computes a single R-7 quantile `p in [0, 1]` over finite values (ignores `null`/`undefined`/`NaN`/`±Infinity`). */
@@ -166,8 +190,12 @@ export function summarizeBox(values: ArrayLike<number | null | undefined>, optio
   const median = sortedQuantileR7(sorted, 0.5);
   const q3 = sortedQuantileR7(sorted, 0.75);
   const iqr = q3 - q1;
-  const lowerFence = q1 - k * iqr;
-  const upperFence = q3 + k * iqr;
+  // k = 0 means the fences are the quartiles, also when the IQR itself overflowed (0 * Infinity is NaN). An IQR
+  // past Number.MAX_VALUE is taken at half scale, so a small k still gives the finite fences it should
+  // (q1 - k * iqr = 2 * (q1 / 2 - k * iqr / 2)); a fence past the finite range excludes no finite value.
+  const half = Number.isFinite(iqr) ? 0 : q3 / 2 - q1 / 2;
+  const lowerFence = k === 0 ? q1 : half ? 2 * (q1 / 2 - k * half) : q1 - k * iqr;
+  const upperFence = k === 0 ? q3 : half ? 2 * (q3 / 2 + k * half) : q3 + k * iqr;
 
   // Smallest observed value >= lowerFence (and <= q1), largest observed value <= upperFence (and >= q3).
   let lowIdx = 0;
@@ -201,9 +229,25 @@ export function summarizeBox(values: ArrayLike<number | null | undefined>, optio
     whiskerHigh,
     max,
     iqr,
-    mean: sum / n,
+    mean: meanOf(sorted, sum),
     outliers,
   };
+}
+
+/**
+ * The mean of sorted finite values. When their sum overflowed, it is the running mean, stepped by halves so no
+ * difference exceeds Number.MAX_VALUE, and kept inside [min, max] where rounding would step past a bound.
+ */
+function meanOf(sorted: Float64Array, sum: number): number {
+  const n = sorted.length;
+  if (Number.isFinite(sum)) return sum / n;
+  const lo = sorted[0]!, hi = sorted[n - 1]!;
+  let mean = lo;
+  for (let i = 1; i < n; i++) {
+    mean += ((sorted[i]! / 2 - mean / 2) / (i + 1)) * 2;
+    mean = mean < lo ? lo : mean > hi ? hi : mean;
+  }
+  return mean;
 }
 
 function groupKeyOf(x: XValue): string {
@@ -217,7 +261,7 @@ function groupLabelOf(x: XValue): string {
 
 /**
  * Transforms row or columnar data into grouped R-7 / Tukey box-plot summaries + typed columnar output
- * ready for `axylo/cartesian` (`errorBar` whiskers + `range` IQR band + `line` median).
+ * ready for the `boxplot` layer of `axylo/cartesian` (see `BoxPlotResult.data`).
  */
 export function boxplot<Row>(data: Data<Row>, options: BoxPlotTransformOptions<Row>): BoxPlotResult {
   const k = options.whiskerFactor ?? BOXPLOT_CONVENTION.defaultWhiskerFactor;

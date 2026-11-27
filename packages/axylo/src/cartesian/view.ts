@@ -1,46 +1,130 @@
 /**
  * View stage for `axylo/cartesian` (C4.3, RFC §2.2, §4.4, §5.1).
- * Computes per-axis domains independently from `visibleSlots` on zoom, resolves y-references with `axisId`,
- * and marks all-nonpositive `'log'` series `drawable: false` when `AX172` occurs so `controller-helpers.ts:521`
- * enters the error state cleanly.
+ * Builds the `AlignedView` directly (avoiding `src/view/index.ts` single-axis extrema/stack/donut code),
+ * computes per-axis domains independently via `computeAxisDomain`, and publishes one series per logical mark.
  */
 import {
-  SLOT_VALUE, type AlignedFrame, type AlignedView, type DiagnosticSink, type ResolvedReference,
+  SLOT_NO_ROW, SLOT_VALUE, type AlignedFrame, type AlignedView, type DiagnosticSink, type IndexRange,
+  type MarkerShape, type ResolvedReference, type SeriesCue,
 } from '../core/contracts';
-import { buildPlainAlignedView, type AlignedViewState } from '../view';
+import { lowerBound, upperBound } from '../data/search';
+import { seriesSlots } from '../data/store-statistics';
+import { report } from '../diagnostics';
+import type { AlignedViewState } from '../view';
+import { positionReader, readSpan, resolveReferences, type Span } from '../view/references';
 import { validateCartesianAnnotations } from './annotations';
 import { computeAxisDomain } from './axes';
-import type { CartesianStateRef } from './meta';
+import { BOX_ROLES, compoundRows, isCompoundKind, isLogSeries, logicalOf, visitOutliers, physicalOf, registerPhysical, type LogicalMark } from './boxplot';
+import { reportCartesian } from './diagnostics';
+import type { CartesianMeta, CartesianStateRef } from './meta';
 
-function resolveCartesianReferences(
-  baseRefs: readonly ResolvedReference[],
-  stateRef: CartesianStateRef,
-): readonly ResolvedReference[] {
-  const { meta } = stateRef;
+const SHAPES: readonly MarkerShape[] = ['circle', 'square', 'triangle', 'diamond', 'cross', 'plus', 'triangle-down', 'star'];
+const DASHES: readonly SeriesCue['dash']['contrast'][] = [
+  null, [12, 5], [5, 4], [1, 5], [9, 4, 1, 4], [9, 4, 1, 4, 1, 4], [12, 4, 5, 4], [1, 2],
+];
+
+function buildCues(count: number, compact: boolean, prev: AlignedView | undefined, sink: DiagnosticSink): readonly SeriesCue[] {
+  if (count > 8 && (prev?.cues.length ?? 0) <= 8) report(sink, 'AX130', 'none');
+  if (compact && count > 1 && !(prev?.compact && prev.cues.length > 1)) report(sink, 'AX131', 'none');
+  if (prev?.compact === compact && prev.cues.length === count) return prev.cues;
+  return Array.from({ length: count }, (_, i) => {
+    const contrast = DASHES[i % 8]!;
+    return i < 8
+      ? { marker: SHAPES[i]!, dash: { normal: compact ? contrast : null, contrast } }
+      : { marker: SHAPES[(i + ((i / 8) | 0)) % 8]!, dash: { normal: [2 + i, 3], contrast } };
+  });
+}
+
+function fitZoom(full: Span, zoom: Span | null): Span {
+  if (!zoom) return full;
+  const [low, high] = full, [start, end] = zoom;
+  if (start >= low && end <= high) return zoom;
+  const w = end - start, ov = !Number.isFinite(w), hw = end / 2 - start / 2;
+  if (ov ? hw >= high / 2 - low / 2 : w >= high - low) return full;
+  if (start < low) {
+    const s = ov ? (low / 2 + hw) * 2 : low + w;
+    return s > low ? [low, Math.min(high, s)] : full;
+  }
+  const s = ov ? (high / 2 - hw) * 2 : high - w;
+  return s < high ? [Math.max(low, s), high] : full;
+}
+
+function drawRangeOf(slot: Uint8Array | null, len: number, range: IndexRange): IndexRange {
+  const { start, end } = range;
+  let left = start, right = end;
+  if (!slot) {
+    if (start > 0 && start - 1 < len) left = start - 1;
+    if (end >= 0 && end < len) right = end + 1;
+    return start === end && (left === start || right === end) ? range : { start: left, end: right };
+  }
+  const next = (from: number, stop: number, step: -1 | 1) => {
+    while (from !== stop && slot[from] === SLOT_NO_ROW) from += step;
+    return from;
+  };
+  const first = next(start, end, 1);
+  const last = first === end ? start - 1 : next(end - 1, start - 1, -1);
+  if (first === end || slot[first] === SLOT_VALUE) {
+    const out = next(start - 1, -1, -1);
+    if (slot[out] === SLOT_VALUE) left = out;
+  }
+  if (first === end || slot[last] === SLOT_VALUE) {
+    const out = next(end, slot.length, 1);
+    if (slot[out] === SLOT_VALUE) right = out + 1;
+  }
+  return first === end && (left === start || right === end) ? range : { start: left, end: right };
+}
+
+function resolveCartesianReferences(baseRefs: readonly ResolvedReference[], meta: CartesianMeta): readonly ResolvedReference[] {
   if (!baseRefs.length || !meta.references.length) return baseRefs;
-  // Match each surviving resolved y-reference by identity (label, from, to) so dropped invalid
-  // references never shift a later band onto an earlier reference's axis!
   const ySpecs = meta.references.filter(r => r.axis === 'y');
   const used = new Uint8Array(ySpecs.length);
   return baseRefs.map(ref => {
     if (ref.axis !== 'y') return ref;
-    let matchedAxisId: string | undefined;
+    let axisId: string | undefined;
     for (let i = 0; i < ySpecs.length; i++) {
       if (used[i]) continue;
       const s = ySpecs[i]!;
-      if (typeof s.from !== 'number' || !Number.isFinite(s.from) || typeof s.to !== 'number' || !Number.isFinite(s.to)) {
-        continue;
-      }
-      const lo = Math.min(s.from, s.to);
-      const hi = Math.max(s.from, s.to);
-      if (s.label === ref.label && Object.is(lo, ref.from) && Object.is(hi, ref.to)) {
-        used[i] = 1;
-        matchedAxisId = s.axisId;
-        break;
+      if (typeof s.from === 'number' && Number.isFinite(s.from) && typeof s.to === 'number' && Number.isFinite(s.to)
+        && s.label === ref.label && Object.is(Math.min(s.from, s.to), ref.from) && Object.is(Math.max(s.from, s.to), ref.to)) {
+        used[i] = 1; axisId = s.axisId; break;
       }
     }
-    return { ...ref, axisId: matchedAxisId ?? meta.leftAxisId };
+    return { ...ref, axisId: axisId ?? meta.leftAxisId };
   });
+}
+
+function logicalParts(frame: AlignedFrame, marks: readonly LogicalMark[]): Int32Array[] | null {
+  if (marks.length > frame.series.length) return null;
+  const index = new Map(frame.series.map((s, i) => [s.field, i]));
+  const parts = marks.map(m => Int32Array.from(m.fields, field => index.get(field) ?? -1));
+  return parts.every((p, i) => p[0] === i) ? parts : null;
+}
+
+let compound: WeakMap<AlignedFrame, { readonly rows: (Uint8Array | null)[]; readonly fit: AlignedFrame }> | undefined;
+
+function compoundFit(
+  frame: AlignedFrame, marks: readonly LogicalMark[], parts: readonly Int32Array[], meta: CartesianMeta,
+): { readonly rows: (Uint8Array | null)[]; readonly fit: AlignedFrame } {
+  let known = compound?.get(frame);
+  if (!known) {
+    const rows: (Uint8Array | null)[] = [];
+    let series: AlignedFrame['series'][number][] | null = null;
+    marks.forEach((m, i) => {
+      const idx = parts[i]!, centre = m.kind === 'errorBar' && m.roles[0] === 'y';
+      const needed = Array.from(centre ? idx.subarray(1) : idx, p => frame.series[p]!);
+      if (!isCompoundKind(m.kind) || needed.some(c => !c)) { rows.push(null); return; }
+      const log = meta.axisById.get(m.axisId)?.scale === 'log';
+      const mask = compoundRows(needed, log, frame.length);
+      rows.push(mask);
+      const out = series ??= frame.series.slice();
+      idx.forEach((p, k) => {
+        if (p >= 0) out[p] = { ...frame.series[p]!, slot: centre && k === 0 ? compoundRows([...needed, frame.series[p]!], log, frame.length) : mask };
+      });
+    });
+    known = { rows, fit: series ? { ...frame, series } : frame };
+    (compound ??= new WeakMap()).set(frame, known);
+  }
+  return known;
 }
 
 export function buildCartesianView(
@@ -50,16 +134,94 @@ export function buildCartesianView(
   sink: DiagnosticSink,
 ): AlignedView {
   const { meta } = stateRef;
-  const base = buildPlainAlignedView(frame, { ...state, valueDomain: null }, sink);
-  validateCartesianAnnotations(base, meta, sink);
-  const references = resolveCartesianReferences(base.references, stateRef);
+  const marks = logicalOf(meta).marks;
+  const parts = logicalParts(frame, marks);
+  const projected = parts !== null && parts.length < frame.series.length;
+  const L = projected ? marks.length : frame.series.length;
+  const prior = state.previous?.kind === state.kind ? state.previous as AlignedView : undefined;
+  const compact = state.compact ?? false;
+  const readX = positionReader(frame.x, state.xField);
+  const references = resolveCartesianReferences(compact || !state.references?.length ? [] : resolveReferences(state.references, readX, frame.x.kind, sink), meta);
+  let xMin = frame.x.values[0] ?? Infinity, xMax = frame.x.values[frame.length - 1] ?? -Infinity;
+  for (const r of references) if (r.axis === 'x') { xMin = Math.min(xMin, r.from); xMax = Math.max(xMax, r.to); }
+  const author = readSpan(state.xDomain === undefined ? state.xField?.domain : state.xDomain, readX, 'x.domain', sink);
+  // Same-frame updates (a legend toggle, a hover) keep the previous spans and slot windows by identity, as the
+  // base aligned view does, so the scene and lookup reuse their warm draw-window work.
+  // physicalOf gives the frame a projected view was built from when no axis failed (otherwise no reuse).
+  const same = prior !== undefined && physicalOf(prior).frame === frame;
+  const keepSpan = (next: Span, old: Span | undefined): Span => old && old[0] === next[0] && old[1] === next[1] ? old : next;
+  const xFull = keepSpan(author ?? (xMin <= xMax ? [xMin, xMax] : frame.x.kind === 'category' ? [0, 0] : [0, 1]), prior?.xFull);
+  const zoomed = fitZoom(xFull, compact ? null : readSpan(state.zoom, readX, 'zoom', sink, true));
+  const xDomain = keepSpan(zoomed, zoomed[0] === xFull[0] && zoomed[1] === xFull[1] ? xFull : prior?.xDomain);
+  const xv = frame.x.values;
+  const visibleSlots: IndexRange = same && prior.xDomain === xDomain ? prior.visibleSlots : {
+    start: xDomain[0] <= xv[0]! ? 0 : lowerBound(xv, xDomain[0]),
+    end: xDomain[1] >= xv[xv.length - 1]! ? xv.length : upperBound(xv, xDomain[1]),
+  };
+  const noOverscan = frame.x.kind === 'category' || xDomain[0] === xDomain[1];
+  const drawSlots = same && prior.visibleSlots === visibleSlots && prior.drawSlots.length === L ? prior.drawSlots
+    : frame.series.slice(0, L).map(s => noOverscan ? visibleSlots : drawRangeOf(seriesSlots(s), s.y.length, visibleSlots));
+  const cues = buildCues(L, compact, prior, sink);
+  const visible = frame.series.map(s => s.drawable && !state.hidden?.has(s.key));
+  const baseView: AlignedView = {
+    kind: state.kind, frame, compact, horizontal: false, stack: null, revision: frame.revision,
+    visible, cues, references, xFull, xDomain, visibleSlots, drawSlots, yDomain: [0, 1],
+  };
+  validateCartesianAnnotations(baseView, meta, sink);
+
+  const fit = parts ? compoundFit(frame, marks, parts, meta) : null;
+  const extents: ResolvedReference[] = [];
+  if (parts) {
+    parts.forEach((p, i) => {
+      for (let k = 1; k < p.length; k++) if (p[k]! >= 0) visible[p[k]!] = visible[i]!;
+      const m = marks[i]!;
+      if (m.kind !== 'boxplot') return;
+      // Report unordered box five-numbers (AX176).
+      const cols = BOX_ROLES.map(role => frame.series[p[m.roles.indexOf(role)]!]);
+      if (!cols.some(c => !c)) {
+        let count = 0;
+        const rows: number[] = [];
+        for (let j = 0; j < frame.length; j++) {
+          if (cols.some(c => c!.slot[j] !== SLOT_VALUE)) continue;
+          let ordered = true;
+          for (let k = 1; k < 5; k++) if (cols[k - 1]!.y[j]! > cols[k]!.y[j]!) ordered = false;
+          if (ordered) continue;
+          count++;
+          const row = cols[2]!.row ? cols[2]!.row[j]! : j;
+          if (rows.length < 10 && row >= 0) rows.push(row);
+        }
+        if (count > 0) reportCartesian(sink, 'AX176', 'none', { field: m.label, rows: rows.length ? rows : undefined, count });
+      }
+      const mask = fit!.rows[i];
+      if (!m.outliers || !mask) return;
+      const rep = frame.series[p[0]!]!, log = meta.axisById.get(m.axisId)?.scale === 'log';
+      if (log) {
+        let nonPos = 0;
+        const check = (v: number) => { if (!(v > 0)) nonPos++; };
+        for (let j = 0; j < frame.length; j++) if (rep.slot[j] !== SLOT_NO_ROW) visitOutliers(m.outliers, rep.row, j, check);
+        if (nonPos) reportCartesian(sink, 'AX171', 'omitted', { field: m.outliers.field, count: nonPos });
+      }
+      // Visible boxplot outliers widen their axis domain in the visible window.
+      if (!visible[i]) return;
+      let lo = Infinity, hi = -Infinity;
+      const include = (v: number) => {
+        if (log && !(v > 0)) return;
+        if (v < lo) lo = v;
+        if (v > hi) hi = v;
+      };
+      for (let j = visibleSlots.start; j < visibleSlots.end; j++) {
+        if (mask[j] === SLOT_VALUE) visitOutliers(m.outliers, rep.row, j, include);
+      }
+      if (lo <= hi) extents.push({ axis: 'y', from: lo, to: hi, label: '', axisId: m.axisId });
+    });
+  }
+  const fitted = extents.length ? [...references, ...extents] : references;
 
   const yDomains: [number, number][] = [];
   const yAxisIds: string[] = [];
   const erroredAxes = new Set<string>();
-
   for (const axis of meta.axes) {
-    const res = computeAxisDomain(frame, base.visible, base.visibleSlots, axis, references, meta, sink);
+    const res = computeAxisDomain(fit?.fit ?? frame, visible, visibleSlots, axis, fitted, meta, sink);
     yDomains.push([res.domain[0], res.domain[1]]);
     yAxisIds.push(axis.id);
     if (res.error) erroredAxes.add(axis.id);
@@ -67,29 +229,31 @@ export function buildCartesianView(
 
   let nextFrame = frame;
   if (erroredAxes.size > 0 || meta.invalid) {
-    // Mark affected series non-drawable so controller-helpers.ts:521 shows the error state cleanly.
-    const series = frame.series.map(s => {
-      if (meta.invalid || (s.axisId && erroredAxes.has(s.axisId))) {
-        return { ...s, drawable: false };
-      }
-      if (s.axisId && meta.axisById.get(s.axisId)?.scale === 'log') {
-        let anyPos = false;
-        for (let i = 0; i < frame.length; i++) {
-          if (s.slot[i] === SLOT_VALUE && s.y[i]! > 0) { anyPos = true; break; }
+    nextFrame = {
+      ...frame,
+      series: frame.series.map(s => {
+        if (meta.invalid || (s.axisId && erroredAxes.has(s.axisId))) return { ...s, drawable: false };
+        if (isLogSeries(meta, s)) {
+          let anyPos = false;
+          for (let i = 0; i < frame.length; i++) if (s.slot[i] === SLOT_VALUE && s.y[i]! > 0) { anyPos = true; break; }
+          if (!anyPos) return { ...s, drawable: false };
         }
-        if (!anyPos) return { ...s, drawable: false };
-      }
-      return s;
-    });
-    nextFrame = { ...frame, series };
+        return s;
+      }),
+    };
   }
 
-  return {
-    ...base,
-    frame: nextFrame,
-    yDomain: yDomains[0] ?? base.yDomain,
-    yDomains,
-    yAxisIds,
-    references,
-  };
+  const common = { yDomain: yDomains[0] ?? ([0, 1] as Span), yDomains, yAxisIds, references };
+  if (!parts || !projected) return { ...baseView, frame: nextFrame, ...common };
+
+  const series = nextFrame.series.slice(0, L).map((s, i) => {
+    const m = marks[i]!;
+    const needed = m.kind === 'errorBar' && m.roles[0] === 'y' ? parts[i]!.subarray(1) : parts[i]!;
+    let drawable = true;
+    for (const p of needed) if (p < 0 || !nextFrame.series[p]!.drawable) drawable = false;
+    return drawable === s.drawable ? s : { ...s, drawable };
+  });
+  const published: AlignedFrame = { ...nextFrame, series };
+  registerPhysical(published, { frame: nextFrame, visible, parts, rows: fit!.rows });
+  return { ...baseView, frame: published, visible: visible.slice(0, L), ...common };
 }
