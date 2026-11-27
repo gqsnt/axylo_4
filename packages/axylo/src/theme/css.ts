@@ -365,5 +365,12 @@ ${forced}
   }
   .axylo .axylo-jump-error:empty { position: absolute; }
   .axylo .axylo-jump-error { flex-basis: 100%; margin: 0; font-size: max(12px, 0.875em); }
+  /*
+   * Muted text in forced colors: GrayText is under 4.5:1 on Canvas in common themes (spec L2), so text takes
+   * CanvasText. Last, to outrank the rules above at equal specificity; --axylo-muted stays GrayText for fills.
+   */
+  @media (forced-colors: active) {
+    .axylo .axylo-subtitle, .axylo .axylo-message, .axylo .axylo-tooltip-more:not(button), .axylo .axylo-control[aria-disabled="true"] { color: CanvasText; }
+  }
 }
 `;
