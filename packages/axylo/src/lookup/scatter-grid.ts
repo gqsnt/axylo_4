@@ -204,6 +204,8 @@ export function scatterGrid(
       const positions = byX ? px : py;
       const pivot = byX ? minX / 2 + maxX / 2 : minY / 2 + maxY / 2;
       let mid = start;
+      // A lazy split rewrites the shared order and placed arrays during a pick. That is safe: it runs synchronously
+      // on the one JS thread and only within this bucket's range, which no caller reads until the split returns.
       for (let i = start; i < end; i++) {
         const p = order[i]!;
         if (positions[p]! >= pivot) continue;

@@ -248,8 +248,9 @@ export function scatterProject(scale: XY['x'], fallback: typeof position) {
 export function scatterPoints(view: ScatterView, projection: XY): PointMark[] {
   const result: PointMark[] = [];
   const mapX = scatterProject(projection.x, position), mapY = scatterProject(projection.y, position);
-  view.frame.series.forEach(({ x, y }, i) => {
-    if (!view.visible[i]) return;
+  for (let i = 0; i < view.frame.series.length; i++) {
+    if (!view.visible[i]) continue;
+    const { x, y } = view.frame.series[i]!;
     const { start, end } = view.visiblePoints[i]!;
     const xy = new Float32Array(2 * (end - start));
     for (let j = start, out = 0; j < end; j++) {
@@ -258,7 +259,7 @@ export function scatterPoints(view: ScatterView, projection: XY): PointMark[] {
     }
     const cue = view.cues[i]!;
     result.push(pointMark(i, cue, MARKER_SIZE === 6 && cue.marker === 'circle' && xy.length > 4000 ? coveredCircles(xy, projection) : xy));
-  });
+  }
   return result;
 }
 
