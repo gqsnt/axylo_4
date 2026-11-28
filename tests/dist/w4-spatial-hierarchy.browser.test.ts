@@ -32,6 +32,9 @@ let chartsUrl: string;
 let exportOnlyUrl: string;
 
 const HEATMAP_ROWS = 60, BUBBLES = 120, GROUPS = 120, HIERARCHY_NODES = 1 + 3 + 130 + 1;
+/** Room below each fixed-size host for its opened table to flow into: a 100-row page is a few thousand px tall,
+ *  and without it the treemap's table ran under the sunburst, whose header then took the Next page click. */
+const TABLE_CLEARANCE = 6000;
 const DRILLED: Record<string, string> = { treemap: 'B1', sunburst: 'B0' };
 /** Pre-order paths of the hierarchy fixture (hierarchy/reader.ts joins labels with " / "). */
 const HIERARCHY_PATHS = ['Root', ...[0, 1, 2].flatMap(b => [`Root / B${b}`,
@@ -61,6 +64,10 @@ beforeAll(async () => {
         const el = document.getElementById(id)!;
         el.style.width = width + 'px';
         el.style.height = height + 'px';
+        // An opened table (up to 100 rows a page) overflows the fixed-height host; the host's own section keeps
+        // that overflow clear of the next chart, so real clicks on it (Next page) reach it. The host's size, and so
+        // the plot box, is unchanged. Set through the CSSOM, which the page's CSP allows (no style attribute).
+        el.parentElement!.style.paddingBottom = ${TABLE_CLEARANCE} + 'px';
         return el;
       };
       const cells = Array.from({ length: ${HEATMAP_ROWS} * 4 }, (_, i) => ({ r: 'R' + Math.floor(i / 4), c: 'C' + (i % 4), v: i }));
@@ -106,7 +113,7 @@ async function openPage() {
   const policy = cspPolicy('w4').replace("default-src 'self';", "default-src 'self'; img-src 'self' blob: data:;");
   server.pages.set('/w4.html', {
     html: `<!doctype html><html lang="en"><head><meta charset="utf-8"><link rel="stylesheet" href="/npm/node_modules/axylo/dist/axylo.css"><script src="/pages/instrument.js"></script></head><body>${
-      ['hm', 'bb', 'vio', 'tm', 'sb'].map(id => `<div id="${id}"></div>`).join('')}<script type="module" src="${chartsUrl}"></script><script type="module" src="${exportOnlyUrl}"></script></body></html>`,
+      ['hm', 'bb', 'vio', 'tm', 'sb'].map(id => `<section id="${id}-section"><div id="${id}"></div></section>`).join('')}<script type="module" src="${chartsUrl}"></script><script type="module" src="${exportOnlyUrl}"></script></body></html>`,
     headers: { 'content-security-policy': policy },
   });
   const watched = await open(server);
@@ -300,6 +307,15 @@ describe('W4 spatial, hierarchy and violin export in packed Chrome', () => {
         const c = await csvClosedOpen(page, SELECTOR[key]!, key);
         expectClosedOpenCsv(c, ROWS[key]!);
         // The reader pages forward: page 2 shows the rows after the first page, and the export does not change.
+        // The opened table, however far it overflows its host, ends above the next chart's section.
+        const gap = await page.evaluate(sel => {
+          const host = document.querySelector(sel)!;
+          const next = host.parentElement!.nextElementSibling;
+          if (!next || next.tagName !== 'SECTION') return null;
+          const bottom = Math.max(host.getBoundingClientRect().bottom, ...[...host.querySelectorAll('*')].map(e => e.getBoundingClientRect().bottom));
+          return next.getBoundingClientRect().top - bottom;
+        }, SELECTOR[key]!);
+        if (gap !== null) expect(gap, `${key}: the opened table stays clear of the next chart`).toBeGreaterThanOrEqual(0);
         await page.locator(SELECTOR[key]!).getByRole('button', { name: /Next page/i }).click();
         const second = 1 + table!.pageSize;
         await page.waitForFunction(([sel, first]) => document.querySelector(`${sel} table tbody tr`)?.querySelector('th, td')?.textContent === first,

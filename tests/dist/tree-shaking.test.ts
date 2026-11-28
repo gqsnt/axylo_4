@@ -112,7 +112,8 @@ const OWNED: Record<string, readonly Kind[]> = {
   'lookup/donut.ts': ['donut'], 'view/donut.ts': ['donut'], 'view/donut-geometry.ts': ['donut'],
   // Aligned data (one x shared by every series): line, area and bar.
   'data/store.ts': ['line', 'area', 'bar'], 'data/store-buffers.ts': ['line', 'area', 'bar'], 'lookup/aligned.ts': ['line', 'area', 'bar', 'histogram'],
-  'view/stack.ts': ['line', 'area', 'bar', 'histogram'],
+  // Only the kinds that stack (area, bar) keep the stacking view; line and histogram tree-shake it away entirely.
+  'view/stack.ts': ['area', 'bar'],
   // Unaligned data: scatter points and donut slices.
   'data/store-unaligned.ts': ['scatter', 'donut', 'histogram'],
 };

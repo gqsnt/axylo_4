@@ -100,8 +100,12 @@ describe('axylo/spatial and axylo/hierarchy packed sizes stay under caps', () =>
 });
 
 describe('axylo/static carries no streaming storage and is smaller than the root entry', () => {
-  // C4/C5+ zero-legacy-tax regression guard anchored to the clean C3-sealed b097f1a baseline.
-  const LEGACY_CAPS = { line: 135_293, everything: 158_096, staticLine: 120_729, staticEverything: 140_988, iife: 158_425 } as const;
+  // Regression guard for the root and static entries. Owner decision 2026-11-27: the root caps follow the
+  // post-R2 / Wave 4 (2b3868f) baseline, because the root growth since b097f1a came from the 2026-11-25 R2
+  // speed/memory campaign (about +24.7 KiB), not from Phase 2 Waves 1–4 (under +1.2 KiB root, -752 B static).
+  // line, everything and iife are that baseline plus a little headroom; the static caps keep their C3-sealed
+  // b097f1a values, which Wave 4 already meets. Deeper size cuts are left to a later campaign.
+  const LEGACY_CAPS = { line: 136_500, everything: 159_500, staticLine: 120_729, staticEverything: 140_988, iife: 159_600 } as const;
 
   for (const [label, statement, fullCap, staticCap] of [
     ['line', 'export { line } from', LEGACY_CAPS.line, LEGACY_CAPS.staticLine],
@@ -117,14 +121,14 @@ describe('axylo/static carries no streaming storage and is smaller than the root
       const fullGz = gzip(full), fixedGz = gzip(fixed);
       console.info(`${label}: axylo ${fullGz} B, axylo/static ${fixedGz} B gzip-9`);
       expect(fixedGz).toBeLessThan(fullGz);
-      expect(fullGz, `legacy axylo ${label} exceeded <= +0 B cap`).toBeLessThanOrEqual(fullCap);
-      expect(fixedGz, `legacy axylo/static ${label} exceeded <= +0 B cap`).toBeLessThanOrEqual(staticCap);
+      expect(fullGz, `axylo ${label} exceeded its 2026-11-27 owner-approved cap`).toBeLessThanOrEqual(fullCap);
+      expect(fixedGz, `axylo/static ${label} exceeded its b097f1a cap`).toBeLessThanOrEqual(staticCap);
     });
   }
 
-  it('IIFE bundle stays <= +0 B vs C3-sealed b097f1a baseline', () => {
+  it('IIFE bundle stays within its 2026-11-27 owner-approved cap (<= 159,600 B)', () => {
     const iifeGz = gzipSync(fs.readFileSync(installed('axylo', 'dist', 'axylo.iife.min.js')), { level: 9 }).length;
-    expect(iifeGz).toBeLessThanOrEqual(LEGACY_CAPS.iife);
+    expect(iifeGz, 'IIFE exceeded its 2026-11-27 owner-approved cap').toBeLessThanOrEqual(LEGACY_CAPS.iife);
   });
 });
 

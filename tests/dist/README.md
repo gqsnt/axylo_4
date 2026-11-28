@@ -9,7 +9,7 @@ DX8, DX10, DX11).
 npm run build                    # packages/axylo/dist
 npm run test:dist                # Node tests
 npm run test:dist:browser        # browser tests, system Chrome (in CI: AXYLO_BROWSER=1 npx vitest run --config tests/dist/vitest.config.ts)
-node scripts/size.mjs            # sizes table, bench/size-latest.json; --check fails on a target (116 / 98 KiB; not a CI gate yet)
+node scripts/size.mjs            # sizes table, bench/size-latest.json; --check fails on a target (158 / 135 KiB; not a CI gate yet)
 ```
 
 The config's global setup runs `scripts/pack.mjs --no-build` first: `npm pack` for `packages/axylo` into
@@ -30,6 +30,8 @@ package it never declared. Every resolution in these tests is therefore guarded:
 - esbuild builds carry `fixtureGuard` (scripts/pack.mjs), which fails the build the same way;
 - TypeScript has no option that stops the walk, so its `--listFiles` output is the guard: every file read
   must be in the fixture or be the compiler's own lib.
+- the Rollup, webpack and Vite builds of `bundlers.test.ts` record every `axylo` resolution and fail on one that
+  is unresolved, external, or outside the installed package (webpack searches only the fixture's `node_modules`).
 
 `isolation.test.ts` shows each guard passing the declared imports and stopping an undeclared one that,
 unguarded, resolves into the workspace.
@@ -43,6 +45,7 @@ unguarded, resolves into the workspace.
 | `types.test.ts` | `tsc` (strict, `skipLibCheck: false`) type-checks a consumer of every export and the first-chart snippet in the npm fixture under both `moduleResolution: Bundler` and `NodeNext`, with the DX3 `@ts-expect-error` mistakes failing as they should, reading no file from outside the fixture. |
 | `conditions.test.ts` | The `development` condition and the default are different files in Node and esbuild; no shipped file refers to the build-time `__DEV__` or `__BENCH__` constants. (A source-derived check of development-only text was retired: it failed on ordinary identifiers; `flavours.browser.test.ts` is the evidence.) |
 | `flavours.browser.test.ts` | Development-only behaviour, from a hand-written list (spec 3.5, plan 1.6, the diagnostics docs), on all four shipped JavaScript files: hints print in development only and are delivered in both; warnings print in both. |
+| `bundlers.test.ts` | Real consumer bundlers on the installed tarball, every `axylo` module resolved from the fixture's installed package and nothing external: Rollup 4 with `@rollup/plugin-node-resolve` bundles the root and all nine opt-in entry points from their `default` files, and bare imports of `axylo`, `axylo/spatial` and `axylo/hierarchy` leave no code; webpack 5 (production) bundles the same ten from their `default` files (no `production` key, so `default`), drops the JavaScript of a bare `import 'axylo'`, and, through `sideEffects: ["*.css"]`, keeps `import 'axylo/axylo.css'` and extracts the packed stylesheet with css-loader and mini-css-extract-plugin; webpack's development mode picks the `.dev.js` files; Vite (production) bundles `axylo`, `axylo/spatial`, `axylo/hierarchy` and `axylo/axylo.css` from the npm fixture root with `preserveSymlinks`, and emits the stylesheet. |
 | `side-effects.test.ts` | Importing the package and using nothing bundles to 0 bytes; `sideEffects` marks only the stylesheet, and `import 'axylo/axylo.css'` survives bundling. |
 | `tree-shaking.test.ts` | Importing the production file for its effects alone, with side-effect hints ignored, bundles to nothing; a consumer of one chart kind carries that kind's markers and no other kind's; the library's source, bundled one kind at a time with the release settings, includes no module that belongs only to another kind (hand-listed), and `validate` alone includes no composition, drawing, DOM, lookup or reader module. |
 | `node.test.ts` | DX8 in plain Node: importing `axylo` (both conditions) needs no DOM globals and adds none; `validate()` reports the Phase 1 `dirty` fixture as spec 3.5 says. |
@@ -53,7 +56,7 @@ unguarded, resolves into the workspace.
 | `lifecycle.browser.test.ts` | DX8, without a framework, by bundled module and by script tag: create, destroy and create again on one element gives one figure; the destroyed handle ignores `update`, `append` and `zoom` and its listeners receive no events; after the final destroy the element is exactly as written, and the listeners, observers and animation frames registered since the first create are gone (`pages/instrument.js` records them before the library loads), with nothing responding to resize or the pointer. |
 | `csp.browser.test.ts` | DX8 in Chrome under a real `Content-Security-Policy` header (`browser.ts`, `cspPolicy`): all five types and the compact variant draw, tooltips and tables open, from both script-tag files and from bundled modules, with the stylesheet adopted at run time and linked by the page. No violation event, no report (each page has its own report URL, checked again after all pages ran), no console error; the stylesheet's rules are in the computed styles and its declared series colour is the painted one, and both disappear without the sheet. A missing target throws naming its selector. A negative control matches each report to its directive and page. |
 | `text.browser.test.ts` | DX8 text insertion, under the same policy: a distinct markup-shaped sentinel per text source and chart type reaches heading, accessible name and description, legend, ticks, axis titles, tooltip or readout, table caption, headers and every cell (against its fixture row), and `aria-valuetext`, character for character, and no sentinel is ever parsed. Every built-in message the triggered states show is its override, literally; the dirty-input note reads as its template; author error text is shown as text. |
-| `scripts/size.mjs` | DX7: minified and gzipped bytes of consumer bundles built from the fixtures, against the owner's targets (116 KiB everything, 98 KiB line only), with rows for each other kind and for `validate` alone, and a per-module breakdown from a source rebuild with the release build's own settings. |
+| `scripts/size.mjs` | DX7: minified and gzipped bytes of consumer bundles built from the fixtures, against the owner's targets (158 KiB everything, 135 KiB line only; owner decision 2026-11-27), with rows for each other kind and for `validate` alone, and a per-module breakdown from a source rebuild with the release build's own settings. |
 
 ## Scope of DX1
 
@@ -79,7 +82,7 @@ dirty-input note, with the other templates left built in.
 
 - Other browsers: only system Chrome runs here. Firefox and Safari (spec: real Safari is checked by hand at M8) are not covered.
 - A real registry install: the tarball is installed by `npm install` from a local file, so `npm publish` itself and registry resolution of the package are not exercised. Version `0.0.0` is never published.
-- Other bundlers: only esbuild builds the consumer bundles. webpack and Rollup are not installed; Vite and rolldown are present only as Vitest's own dependencies and are not used as consumer bundlers here. The `sideEffects` declaration for the stylesheet follows webpack's documented rule for CSS imports, which esbuild does not enforce, so its effect in webpack is not tested.
+- Other bundlers and versions: esbuild builds the browser-test bundles; `bundlers.test.ts` adds Rollup 4, webpack 5 and Vite at the versions the root lockfile pins, in Node, without running their output in a browser. Other bundlers (Parcel, rspack, a standalone rolldown) and other major versions are not tested. webpack runs with its minifier off, so the pruning it shows is its `sideEffects` and used-exports analysis, not Terser's.
 - DX10 beyond the first chart: the other documentation examples are not rendered from the packed files by these tests.
 - Third-party code copied into `packages/*/src` without any header would not be detected (see `THIRD-PARTY-NOTICES.md`).
 - Windows and macOS: `scripts/pack.mjs` runs `npm.cmd` through the shell on Windows; it has not been run there.

@@ -2,7 +2,7 @@
 //
 //   node scripts/size.mjs           pack packages/*/dist (scripts/pack.mjs --no-build), measure, print, write bench/size-latest.json
 //   node scripts/size.mjs --check   the same, and exit 1 when a row exceeds its target: total gzip bytes
-//                                   compared as integers against targetKiB * 1024 (116 KiB means 118,784 B)
+//                                   compared as integers against targetKiB * 1024 (158 KiB means 161,792 B)
 //   node scripts/size.mjs --no-pack measure the fixtures already in tests/dist/fixtures
 //
 // Every row is built the way a consumer's bundler would build it: esbuild, from inside a fixture that installed
@@ -13,8 +13,10 @@
 // downloads it inside its JavaScript and needs no axylo.css; the script-tag snippet also links axylo.css, so
 // that row adds the file. "total" is what each page downloads.
 //
-// Targets (spec DX7, updated by the owner on 2026-11-24 after Stages 2–4 SOTA perf/memory/tree-shaking):
-// 128 KiB everything, 108 KiB a page that uses only `line`.
+// Targets (spec DX7; owner decision 2026-11-27, aligned with the post-R2 / Wave 4 2b3868f measurements of
+// 132.91 KiB line and 155.28 KiB everything): 158 KiB everything, 135 KiB a page that uses only `line`. The
+// growth over the 2026-11-24 targets (128 / 108 KiB) came from the 2026-11-25 R2 speed/memory campaign; deeper
+// architectural size cuts are deferred to a later campaign (docs/progress/n10a-hardening-ledger.md).
 // CI runs this script without --check until the targets are met: the flag is correct,
 // but it is not a gate yet. The rows for each other chart kind alone and for `validate` alone have no target;
 // they show what tree-shaking leaves.
@@ -38,12 +40,12 @@ const gzip = bytes => gzipSync(bytes, { level: LEVEL }).length;
 const kib = bytes => +(bytes / 1024).toFixed(2);
 
 /**
- * The size targets (spec DX7, updated by the owner on 2026-11-24 after Stages 2–4 SOTA perf/memory/tree-shaking), by row:
+ * The size targets (spec DX7, updated by the owner on 2026-11-27 after the p2_ext_gap_audit), by row:
  * the one place they are written. The acceptance checker reads them from here, not from a measurement record.
  */
 export const SIZE_TARGETS = Object.freeze({
-  'line only (examples/first-chart/npm.ts)': 108,
-  'everything (export * from axylo)': 128,
+  'line only (examples/first-chart/npm.ts)': 135,
+  'everything (export * from axylo)': 158,
 });
 
 /** Whether `totalBytes` is over a target given in KiB: integer bytes against targetKiB * 1024, never rounded KiB. */

@@ -9,7 +9,9 @@
  * nonpositive log values disclosed (AX171, note) and read with the same raw value by keyboard, pointer and table
  * (F13); right-axis ticks and title shown, collapsed at 320 px and restored at 960 px with no overlapping axis text
  * (L9, AX175, summary); and signed, incomplete stacked bars and areas checked against the fixture's geometry and
- * read with the same totals by keyboard, pointer, table and summary (F10). State is awaited by polling the DOM.
+ * read with the same totals by keyboard, pointer, table and summary (F10). The same signed-stack chart, whose
+ * right axis carries the area layer, also collapses and restores that axis at 960 → 320 → 960 px (L9 for area).
+ * State is awaited by polling the DOM.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page } from 'playwright-core';
@@ -537,6 +539,57 @@ describe('axylo/cartesian N4 in packed Chrome: dense decimation, signed and inco
       expect(firstCells).toEqual(['1', '2 (incomplete)', '3 (incomplete)']);
       // Announcements: the summary names both incomplete positions (messages incompleteAt).
       expect(await summary(p, 'stacks')).toContain('m: incomplete at 2, 3.');
+      await p.locator('#stacks').getByRole('button', { name: /Hide table/i }).click();
+
+      // L9 area: on the same signed-stack fixture (area layer c + d on right axis w, bar layer on left axis v),
+      // resize 960 → 320 → 960 px and verify the right axis collapses with AX175 + summary and restores cleanly.
+      const codes = async () => (await handle(p, '__stacked')).map(d => d.code);
+      const areaBands = () => p.evaluate(() => {
+        const scene = document.querySelector('#stacks .axylo-scene');
+        if (!scene) return 0;
+        return Array.from(scene.querySelectorAll('path')).filter(path => {
+          let at: Element | null = path, paint = '';
+          while (at && at !== scene && !paint) { paint = (at as SVGElement).style?.getPropertyValue('color') ?? ''; at = at.parentElement; }
+          return paint.includes('--axylo-series-') && (path.getAttribute('d') ?? '').includes('Z');
+        }).length;
+      });
+      const rightOf = async () => {
+        const currentPlot = await plotBox(p, 'stacks');
+        return (await texts(p, 'stacks')).filter(l => (l.role === 'tick-y' || l.role === 'title-y') && l.box.x >= currentPlot.x + currentPlot.width - 0.5);
+      };
+      const setWidth = (w: number) => p.evaluate(px => { (document.getElementById('stacks') as HTMLElement).style.width = `${px}px`; }, w);
+      const plotWidth = async () => (await plotBox(p, 'stacks')).width;
+
+      await setWidth(960);
+      await expect.poll(plotWidth, POLL).toBeGreaterThan(plot.width + 50);
+      await expect.poll(async () => (await rightOf()).map(l => l.text), POLL).toContain('w');
+      const wideWidth = await plotWidth();
+      expect(wideWidth).toBeGreaterThanOrEqual(360);
+      const wide = await rightOf();
+      expect(wide.some(l => l.role === 'tick-y')).toBe(true);
+      expect(await areaBands()).toBeGreaterThanOrEqual(3);
+      expect(await codes()).not.toContain('AX175');
+      expect(await summary(p, 'stacks')).not.toContain('Secondary right axis');
+      expect(overlapping(await texts(p, 'stacks'))).toEqual([]);
+
+      await setWidth(320);
+      await expect.poll(codes, POLL).toContain('AX175');
+      await expect.poll(() => summary(p, 'stacks'), POLL).toContain('Secondary right axis (w) values are plotted on their own scale.');
+      expect(await plotWidth()).toBeLessThan(360);
+      expect(await rightOf()).toEqual([]);
+      expect(await areaBands(), 'the areas stay drawn, on their own scale').toBeGreaterThanOrEqual(3);
+      expect(overlapping(await texts(p, 'stacks'))).toEqual([]);
+
+      await setWidth(960);
+      await expect.poll(codes, POLL).not.toContain('AX175');
+      await expect.poll(() => summary(p, 'stacks'), POLL).not.toContain('Secondary right axis');
+      await expect.poll(plotWidth, POLL).toBe(wideWidth);
+      const restored = await rightOf();
+      expect(restored.map(l => l.text)).toContain('w');
+      expect(restored.filter(l => l.role === 'tick-y').map(l => l.text)).toEqual(wide.filter(l => l.role === 'tick-y').map(l => l.text));
+      expect(await areaBands()).toBeGreaterThanOrEqual(3);
+      expect(overlapping(await texts(p, 'stacks'))).toEqual([]);
+
       expect(errors).toEqual([]);
       expect(server.reports.get('cartesian-n4s') ?? []).toEqual([]);
     } finally {

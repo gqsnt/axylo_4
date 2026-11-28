@@ -6771,6 +6771,18 @@
           "title": "draws 100,000 points with a bounded path, discloses the log omission, keeps pointer, keyboard and table on the same raw datum, and collapses and restores the right axis at 960 → 320 → 960 px"
         }
       ],
+      "area": [
+        {
+          "kind": "unit",
+          "file": "packages/axylo/test/cartesian/n4-stacks-layout.test.ts",
+          "title": "area on the right axis, line on the left: collapses at 320 px and restores at 960 px, with AX175, the right ticks, spine and title, and the summary sentence following"
+        },
+        {
+          "kind": "browser",
+          "file": "tests/dist/cartesian.browser.test.ts",
+          "title": "stacks signed bars and areas on their own sides of zero and reads totals and incomplete stacks alike by pointer, keyboard and table"
+        }
+      ],
       "bar": [
         {
           "kind": "unit",
@@ -6788,9 +6800,6 @@
           "title": "renders bars + log line + dual y-axes, preserves nonpositive log values in table, supports update() and L9 resize collapse"
         }
       ]
-    },
-    "pending": {
-      "area": "No L9 fixture has an area layer bound to the right axis yet; the layout is the same code path as line and bar, but that is inferred, not shown."
     }
   },
   {
@@ -12585,7 +12594,7 @@
   },
   {
     "id": "DX7",
-    "statement": "Zero runtime dependencies; size targets for 1.0, gzipped with CSS included: 116 KiB for everything and 98 KiB for a page that uses only line (owner, 2026-11-18).",
+    "statement": "Zero runtime dependencies; size targets, gzipped with CSS included: 158 KiB for everything and 135 KiB for a page that uses only line (owner, 2026-11-27).",
     "appliesTo": [
       "line",
       "area",
@@ -14549,7 +14558,7 @@
   },
   {
     "id": "P6",
-    "statement": "Download: exact minified and gzipped bytes, CSS included, tracked against the DX7 targets (128 KiB everything, 108 KiB line only).",
+    "statement": "Download: exact minified and gzipped bytes, CSS included, tracked against the DX7 targets (158 KiB everything, 135 KiB line only).",
     "appliesTo": [
       "line",
       "area",

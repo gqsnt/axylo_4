@@ -11,7 +11,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import fc from 'fast-check';
-import { SLOT_NO_ROW, type AlignedView, type AreaMark, type PathMark, type RectMark } from '../../src/core/contracts';
+import { SLOT_NO_ROW, type AlignedView, type AreaMark, type PathMark, type RectMark, type RuleMark } from '../../src/core/contracts';
 import { axisScaleOf } from '../../src/cartesian/scale-ref';
 import { cartesianStacks } from '../../src/cartesian/stacks';
 import { DUAL_AXIS_MIN_WIDTH } from '../../src/cartesian/layout';
@@ -226,6 +226,60 @@ describe('N4 L9 right-axis collapse and restore', () => {
     const again = finish(base, 960, 400);
     if (again.layout.kind !== 'plot') throw new Error('expected a plot');
     expect(again.layout.yTicksRight).toBeDefined();
+    expect(codes(again.layoutDiagnostics)).not.toContain('AX175');
+    expect(again.reader.summary).not.toContain('Secondary right axis');
+    expect(again.layout.plot).toEqual(wide.layout.plot);
+  });
+
+  it('area on the right axis, line on the left: collapses at 320 px and restores at 960 px, with AX175, the right ticks, spine and title, and the summary sentence following', () => {
+    // L9 names area among its kinds: the same 960 → 320 → 960 resize with an area layer bound to the right axis.
+    const base = prepare({
+      title: 'Dual area', x: 'x',
+      data: Array.from({ length: 24 }, (_, i) => ({ x: i, orders: 100 + i * 10, ms: 5 + i * 3 })),
+      axes: { orders: { position: 'left', label: 'Orders' }, ms: { position: 'right', label: 'Latency', unit: 'ms' } },
+      layers: [{ type: 'line', y: 'orders', yAxis: 'orders' }, { type: 'area', y: 'ms', yAxis: 'ms' }],
+    });
+    const rightTicks = (res: ReturnType<typeof finish>) => {
+      const layout = res.layout;
+      return layout.kind === 'plot' ? layout.texts.filter(t => t.role === 'tick-y' && t.anchor === 'start' && t.box.x >= layout.plot.x + layout.plot.width) : [];
+    };
+    const titles = (res: ReturnType<typeof finish>) => res.layout.kind === 'plot' ? res.layout.texts.filter(t => t.role === 'title-y').length : -1;
+    // The right spine is the one vertical axis rule at the plot's right edge (cartesian/scene.ts).
+    const rightSpines = (res: ReturnType<typeof finish>) => {
+      if (res.layout.kind !== 'plot') return -1;
+      const right = res.layout.plot.x + res.layout.plot.width;
+      return res.scene.marks.filter((m): m is RuleMark => m.type === 'rule' && (m as RuleMark).role === 'axis')
+        .filter(r => r.x1 === r.x2 && Math.abs(r.x1 - right) < 1).length;
+    };
+    const areaDrawn = (res: ReturnType<typeof finish>) => areas(res.scene).some(m => m.series === 1);
+
+    const wide = finish(base, 960, 400);
+    if (wide.layout.kind !== 'plot') throw new Error('expected a plot');
+    expect(wide.layout.yTicksRight).toBeDefined();
+    expect(rightTicks(wide).length).toBeGreaterThan(1);
+    expect(titles(wide)).toBe(2);
+    expect(rightSpines(wide)).toBe(1);
+    expect(areaDrawn(wide)).toBe(true);
+    expect(codes(wide.layoutDiagnostics)).not.toContain('AX175');
+    expect(wide.reader.summary).not.toContain('Secondary right axis');
+
+    const narrow = finish(base, 320, 400);
+    if (narrow.layout.kind !== 'plot') throw new Error('expected a plot');
+    expect(narrow.layout.yTicksRight).toBeUndefined();
+    expect(rightTicks(narrow)).toEqual([]);
+    expect(titles(narrow)).toBe(1);
+    expect(rightSpines(narrow)).toBe(0);
+    expect(areaDrawn(narrow), 'the area is still drawn, on its own scale').toBe(true);
+    expect(codes(narrow.layoutDiagnostics)).toContain('AX175');
+    expect(narrow.reader.summary).toContain('Secondary right axis (Latency (ms)) values are plotted on their own scale.');
+
+    const again = finish(base, 960, 400);
+    if (again.layout.kind !== 'plot') throw new Error('expected a plot');
+    expect(again.layout.yTicksRight).toBeDefined();
+    expect(rightTicks(again).length).toBe(rightTicks(wide).length);
+    expect(titles(again)).toBe(2);
+    expect(rightSpines(again)).toBe(1);
+    expect(areaDrawn(again)).toBe(true);
     expect(codes(again.layoutDiagnostics)).not.toContain('AX175');
     expect(again.reader.summary).not.toContain('Secondary right axis');
     expect(again.layout.plot).toEqual(wide.layout.plot);

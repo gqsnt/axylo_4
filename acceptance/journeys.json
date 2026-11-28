@@ -1182,12 +1182,15 @@
     "owner": "streaming",
     "entryPoints": [
       "axylo/static",
-      "axylo/stream"
+      "axylo/stream",
+      "axylo/spatial",
+      "axylo/hierarchy"
     ],
     "outcomeGuarantees": [
       "axylo/static bundles omit streaming storage/session code (adoptNormalized, StreamSession) and remain smaller than root axylo.",
       "StaticChart rejects append() both statically under TypeScript Bundler/NodeNext and at runtime without mutating chart state, while axylo/stream matches root axylo.",
-      "Both entry points import cleanly in Node without a DOM (validate parity) and bundle to 0 raw bytes on bare import with side-effect hints ignored."
+      "Both entry points import cleanly in Node without a DOM (validate parity) and bundle to 0 raw bytes on bare import with side-effect hints ignored.",
+      "axylo/spatial and axylo/hierarchy opt-in exports bundle to 0 raw bytes on bare import, omit streaming storage, and stay within their standalone gzip-9 caps."
     ],
     "applicableKinds": [
       "static",
@@ -1266,7 +1269,7 @@
       {
         "kind": "unit",
         "file": "tests/dist/subpaths.test.ts",
-        "title": "exports ./static, ./stream, ./cartesian, ./stats, ./sync, ./export and ./finance with types, development and default files that were packed",
+        "title": "exports ./static, ./stream, ./cartesian, ./stats, ./sync, ./export, ./finance, ./spatial and ./hierarchy with types, development and default files that were packed",
         "ancestors": [
           "package.json"
         ]
@@ -1290,6 +1293,30 @@
       {
         "kind": "unit",
         "file": "tests/dist/subpaths.test.ts",
+        "title": "\"import 'axylo/spatial'\" bundles to 0 raw bytes",
+        "ancestors": [
+          "import for effect, with side-effect hints ignored"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "\"import 'axylo/hierarchy'\" bundles to 0 raw bytes",
+        "ancestors": [
+          "import for effect, with side-effect hints ignored"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
+        "title": "spatial (<= 143,000 B) and hierarchy (<= 21,600 B) standalone bundles stay under gzip-9 caps",
+        "ancestors": [
+          "axylo/spatial and axylo/hierarchy packed sizes stay under caps"
+        ]
+      },
+      {
+        "kind": "unit",
+        "file": "tests/dist/subpaths.test.ts",
         "title": "line",
         "registration": "${label}",
         "ancestors": [
@@ -1308,7 +1335,7 @@
       {
         "kind": "unit",
         "file": "tests/dist/subpaths.test.ts",
-        "title": "IIFE bundle stays <= +0 B vs C3-sealed b097f1a baseline",
+        "title": "IIFE bundle stays within its 2026-11-27 owner-approved cap (<= 159,600 B)",
         "ancestors": [
           "axylo/static carries no streaming storage and is smaller than the root entry"
         ]
@@ -1316,8 +1343,8 @@
       {
         "kind": "unit",
         "file": "tests/dist/subpaths.test.ts",
-        "title": "compile under Bundler against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
-        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "title": "compile under Bundler against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter, boxplot and violin layers",
+        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter, boxplot and violin layers",
         "ancestors": [
           "declarations"
         ]
@@ -1325,8 +1352,8 @@
       {
         "kind": "unit",
         "file": "tests/dist/subpaths.test.ts",
-        "title": "compile under NodeNext against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
-        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "title": "compile under NodeNext against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter, boxplot and violin layers",
+        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter, boxplot and violin layers",
         "ancestors": [
           "declarations"
         ]
@@ -1366,7 +1393,7 @@
     "outcomeGuarantees": [
       "Supports 1 or 2 y-axes (left primary, optional right secondary) with linear and overflow-safe log scales sharing one projection authority.",
       "Mixed bar, area, and line layers paint deterministically (bar -> area -> line), reject bar/area on log statically and via AX173, disclose nonpositive log rows via AX171 while keeping raw values in the table, and collapse the right y-axis below 360 px (L9, AX175).",
-      "Strict update() rolls back cleanly without corrupting subsequent updates, and standalone packed bundle stays <= 134,000 B gzip-9 with 0 B bare import."
+      "Strict update() rolls back cleanly without corrupting subsequent updates, and standalone packed bundle stays <= 138,000 B gzip-9 with 0 B bare import."
     ],
     "applicableKinds": [
       "cartesian"
@@ -1424,7 +1451,7 @@
       {
         "kind": "unit",
         "file": "tests/dist/subpaths.test.ts",
-        "title": "cartesian (<= 134,000 B) and finance (<= 127,000 B) standalone bundles omit streaming storage and stay under gzip-9 caps",
+        "title": "cartesian (<= 138,000 B) and finance (<= 127,000 B) standalone bundles omit streaming storage and stay under gzip-9 caps",
         "ancestors": [
           "axylo/cartesian, axylo/finance, axylo/stats, axylo/sync and axylo/export packed sizes stay under caps"
         ]
@@ -1432,8 +1459,8 @@
       {
         "kind": "unit",
         "file": "tests/dist/subpaths.test.ts",
-        "title": "compile under Bundler against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
-        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "title": "compile under Bundler against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter, boxplot and violin layers",
+        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter, boxplot and violin layers",
         "ancestors": [
           "declarations"
         ]
@@ -1441,8 +1468,8 @@
       {
         "kind": "unit",
         "file": "tests/dist/subpaths.test.ts",
-        "title": "compile under NodeNext against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
-        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "title": "compile under NodeNext against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter, boxplot and violin layers",
+        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter, boxplot and violin layers",
         "ancestors": [
           "declarations"
         ]
@@ -1587,8 +1614,8 @@
       {
         "kind": "unit",
         "file": "tests/dist/subpaths.test.ts",
-        "title": "compile under Bundler against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
-        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "title": "compile under Bundler against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter, boxplot and violin layers",
+        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter, boxplot and violin layers",
         "ancestors": [
           "declarations"
         ]
@@ -1596,8 +1623,8 @@
       {
         "kind": "unit",
         "file": "tests/dist/subpaths.test.ts",
-        "title": "compile under NodeNext against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
-        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "title": "compile under NodeNext against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter, boxplot and violin layers",
+        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter, boxplot and violin layers",
         "ancestors": [
           "declarations"
         ]
@@ -1724,7 +1751,7 @@
       {
         "kind": "unit",
         "file": "tests/dist/subpaths.test.ts",
-        "title": "cartesian (<= 134,000 B) and finance (<= 127,000 B) standalone bundles omit streaming storage and stay under gzip-9 caps",
+        "title": "cartesian (<= 138,000 B) and finance (<= 127,000 B) standalone bundles omit streaming storage and stay under gzip-9 caps",
         "ancestors": [
           "axylo/cartesian, axylo/finance, axylo/stats, axylo/sync and axylo/export packed sizes stay under caps"
         ]
@@ -1740,8 +1767,8 @@
       {
         "kind": "unit",
         "file": "tests/dist/subpaths.test.ts",
-        "title": "compile under Bundler against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
-        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "title": "compile under Bundler against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter, boxplot and violin layers",
+        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter, boxplot and violin layers",
         "ancestors": [
           "declarations"
         ]
@@ -1749,8 +1776,8 @@
       {
         "kind": "unit",
         "file": "tests/dist/subpaths.test.ts",
-        "title": "compile under NodeNext against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
-        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it",
+        "title": "compile under NodeNext against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter, boxplot and violin layers",
+        "registration": "compile under ${label} against packed dist/static.d.ts and dist/stream.d.ts: StaticChart omits append, axylo/stream keeps it, axylo/cartesian types scatter, boxplot and violin layers",
         "ancestors": [
           "declarations"
         ]
