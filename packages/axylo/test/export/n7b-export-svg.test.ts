@@ -259,6 +259,28 @@ describe('N7b exportSvg composes the whole visible figure', () => {
     expect(svg).not.toContain('var(--');
   });
 
+  it('omits computed transform none, removes overridden transforms, and keeps computed matrices', () => {
+    const doc = new FakeDocument();
+    const box = { x: 10, y: 20, w: 100, h: 100 };
+    const matrix = 'matrix(1, 0, 0, 1, 10, 20)';
+    const paint = { fill: 'none', stroke: 'none', 'stroke-dasharray': 'none', 'clip-path': 'none', mask: 'none' };
+    const surface = el(doc, 'svg', {}, {}, box,
+      el(doc, 'path', { id: 'untransformed', d: 'M0 0H10' }, paint, box),
+      el(doc, 'path', { id: 'overridden', d: 'M0 1H10', transform: 'translate(3 4)' }, { transform: 'none' }, box),
+      el(doc, 'path', { id: 'transformed', d: 'M0 2H10' }, { transform: matrix }, box));
+    const root = el(doc, 'div', {}, {}, box, surface);
+
+    const svg = exportSvg(root as unknown as HTMLElement);
+
+    expect(svg).not.toContain('transform="none"');
+    expect(svg).toMatch(/<path id="overridden"(?![^>]* transform=)[^>]*>/);
+    const transformed = svg.match(/<path id="transformed"[^>]*>/)?.[0];
+    expect(transformed).toContain(` transform="${matrix}"`);
+    const untransformed = svg.match(/<path id="untransformed"[^>]*>/)?.[0];
+    for (const name of Object.keys(paint)) expect(untransformed).toContain(` ${name}="none"`);
+    expect(untransformed).not.toContain(' transform=');
+  });
+
   it('plotOnly keeps the plot and its labels only', () => {
     const doc = new FakeDocument();
     const { root } = figure(doc);

@@ -133,7 +133,7 @@ export function exportSvg(target: Target, options: ExportSvgOptions = {}): strin
   const seam = seamOf(root);
   const figure = seam ? seam.figure : root;
   const plot = seam ? seam.plot : root.querySelector('svg')?.parentElement;
-  if (!figure || !plot) fail('no rendered <svg> chart surface.');
+  if (!(figure && plot)) fail('no rendered <svg> chart surface.');
   // An explicit background is the image's: the renderer's own background layer would cover it in the plot.
   let { background } = options;
   const skip = background ? SKIP + ',.axylo-background' : SKIP;
@@ -161,7 +161,9 @@ export function exportSvg(target: Target, options: ExportSvgOptions = {}): strin
     if ((cs.display === 'none' && !source.closest('defs')) || source.matches(skip)) return clone.remove();
     for (const name of PAINT) {
       const value = cs.getPropertyValue(name);
-      if (value) clone.setAttribute(name, value);
+      // The SVG attribute expects a transform list even when CSS cancels an existing transform.
+      if (value === 'none' && name === 'transform') clone.removeAttribute(name);
+      else if (value) clone.setAttribute(name, value);
     }
     for (const { name, value } of [...clone.attributes]) {
       const local = value.replace(/url\(["']?([^#)"']*)#([^)"']+)["']?\)/gi,
@@ -184,7 +186,7 @@ export function exportSvg(target: Target, options: ExportSvgOptions = {}): strin
     if (!(width > 0 && height > 0)) return;
     view = combine(view, visible, Math.min, Math.max);
     if (width < r.width || height < r.height) {
-      const id = `axylo-export-clip-${parts.length}`;
+      const id = 'axylo-export-clip-' + parts.length;
       part = `<clipPath id="${id}"><rect x="${visible.x}" y="${visible.y}" width="${width}" height="${height}"/></clipPath><g clip-path="url(#${id})">${part}</g>`;
     }
     parts += part;
@@ -231,7 +233,7 @@ export function exportSvg(target: Target, options: ExportSvgOptions = {}): strin
 
   let head = '';
   const meta = (tag: string, attr: string, name?: string | null) => {
-    const value = name || (figure.getRootNode() as Document).getElementById?.(figure.getAttribute(attr) ?? '')?.textContent!.trim();
+    const value = name || (figure.getRootNode() as Document).getElementById?.(figure.getAttribute(attr) || '')?.textContent!.trim();
     if (value) head += `<${tag}>${escapeXml(value)}</${tag}>`;
   };
   if (options.includeMetadata !== false) {
