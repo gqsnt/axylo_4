@@ -158,8 +158,7 @@ export class StreamSession implements StreamSessionHandle {
       this.#pinnedRevision(pausedFrame, head));
     // Copy only once the store has grown beyond the retention bound, so copying is amortized over arrivals.
     const bound = 2 * this.#retainedBaseline + RETENTION_SLACK;
-    if (head.revision - floor > bound || store.retainedRowCount > bound &&
-        (this.#pinned(screen, head) || this.#pinned(pending, head) || this.#pinned(running, head) || this.#pinned(pausedFrame, head))) {
+    if (floor !== Infinity && (head.revision - floor > bound || store.retainedRowCount > bound)) {
       // In this order, each after the copies before it: a frame copied once is not pinned the second time.
       this.#freezePinned(screen, head);
       this.#freezePinned(pending, head);
@@ -167,6 +166,7 @@ export class StreamSession implements StreamSessionHandle {
       this.#freezePinned(pausedFrame, head);
       floor = head.revision;
     }
+    floor = Math.min(floor, head.revision);
     if (floor > 0) store.retire(floor - 1);
   }
 
@@ -176,7 +176,7 @@ export class StreamSession implements StreamSessionHandle {
   }
 
   #pinnedRevision(frame: Frame | null | undefined, head: Frame): number {
-    return this.#pinned(frame, head) ? frame.revision : head.revision;
+    return this.#pinned(frame, head) ? frame.revision : Infinity;
   }
 
   #freezePinned(frame: Frame | null | undefined, head: Frame): void {

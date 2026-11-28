@@ -274,7 +274,7 @@ class DomInteraction implements Interaction {
   }
 
   /** Runs where the parts are built and on every attachment, which may be to another document or shadow root. */
-  #joinTree(): void {
+  #joinTree(fresh = false): void {
     const label = this.#label;
     if (!label) return;
     // The figure's id prefix reserves only its own suffixes: an id the page already gives an element in this tree
@@ -282,16 +282,16 @@ class DomInteraction implements Interaction {
     // growing the id ("-l", "-l0", "-l00", …), the shortest such loop (spec A1; the root's size budget). The
     // label's own id is cleared first so that only other elements count, and the slider node itself is kept.
     let id = `${this.#figure.id}-l`;
-    label.id = '';
-    for (const tree = this.#root.getRootNode() as Document; tree.getElementById?.(id); ) id += 0;
-    setAttr(this.#proxy!, 'aria-labelledby', label.id = id);
+    if (!fresh) label.id = '';
+    const tree = this.#root.getRootNode() as Document | ShadowRoot;
+    while (tree.getElementById?.(id)) id += 0;
+    setAttr(this.#proxy!, 'aria-labelledby', label.id = id, fresh);
     if (this.#shadowScrollListeners || !this.#attached) return;
-    const shadow = shadowRootOf(this.#root);
-    if (!shadow) return;
+    if (tree.nodeType !== 11 || !('host' in tree)) return;
     // Scroll events inside a shadow tree do not reach the document listener.
     const l = this.#shadowScrollListeners = new Listeners();
     const scroll = this.#onScroll.bind(this);
-    for (let current: ShadowRoot | null = shadow; current; current = shadowRootOf(current.host)) {
+    for (let current: ShadowRoot | null = tree; current; current = shadowRootOf(current.host)) {
       l.on(current, 'scroll', scroll, SCROLL_OPTIONS);
     }
   }
@@ -346,7 +346,7 @@ class DomInteraction implements Interaction {
     };
     this.#pointerMoveListener = this.#onPointerMove.bind(this);
     this.#bindStartup('addEventListener');
-    this.#joinTree();
+    this.#joinTree(true);
   }
 
   #stopPinch(apply = false): void {
@@ -1094,7 +1094,7 @@ class DomInteraction implements Interaction {
     const before = measure ? this.#figure.controlsSignature() : '';
     this.#controlNodes = null; this.#clearGeo();
 
-    const prevAct = this.#activeElement();
+    const prevAct = this.#legendList && this.#activeElement();
     const inLegend = this.#legendList !== null && this.#legendList.contains(prevAct);
     const sliceKey = inLegend ? (prevAct as HTMLElement).parentElement?.dataset.key ?? null : null;
     const nextList = this.#parts.sliceList?.(this.#doc, d, this.#actions, this.#legendList) ?? null;
@@ -1233,13 +1233,17 @@ class DomInteraction implements Interaction {
     this.#placeProxy(next, hasData); this.#writeProxy(false, hasData); this.#renderControls(next);
     const handoff = this.#handoffSliceKey;
     this.#handoffSliceKey = null;
-    const list = this.#legendList, act = this.#activeElement();
-    const sliceKey = list?.dataset.roving === 'false' && list.contains(act)
-      ? (act as HTMLElement).parentElement?.dataset.key
-      : handoff !== null && act === this.#root ? handoff : undefined;
-    if (sliceKey !== undefined && plotReady(next)) {
-      this.#focus = next.lookup.resolve({ kind: 'slice', sliceKey }) ?? firstDatum(next);
-      if (this.#tableView) this.#tableView.focus(); else this.#restorePlotFocus(true);
+    const list = this.#legendList;
+    const leavingList = list?.dataset.roving === 'false';
+    if (leavingList || handoff !== null) {
+      const act = this.#activeElement();
+      const sliceKey = leavingList && list.contains(act)
+        ? (act as HTMLElement).parentElement?.dataset.key
+        : handoff !== null && act === this.#root ? handoff : undefined;
+      if (sliceKey !== undefined && plotReady(next)) {
+        this.#focus = next.lookup.resolve({ kind: 'slice', sliceKey }) ?? firstDatum(next);
+        if (this.#tableView) this.#tableView.focus(); else this.#restorePlotFocus(true);
+      }
     }
     if (this.#shown.k !== S_NONE || this.#proxyFocused || this.#lastPres || this.#lastHover || this.#overlayVisible || this.#pinListeners) this.#present();
     if (this.#shown.k === S_HELD && (!this.#content || !sameRect(this.#content.b, this.#shown.b)) && plotReady(next)) { this.#dropHold(next); this.#redraw(); }

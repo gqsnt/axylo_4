@@ -43,11 +43,8 @@ export interface Toolbar {
 }
 
 function itemSignature(item: ToolbarItem): string {
-  // What a control's content is drawn from, as JSON: unambiguous whatever the label holds. Every field a swatch
-  // is drawn from is plain data (a shape's drawing is named by its key), so specs that draw the same give the
-  // same text; one built in another field order, or with an absent flag for false, may not: a needless redraw,
-  // never a stale one.
-  return JSON.stringify([item.label, item.struck, item.symbol, item.swatch]);
+  // A swatch snapshots all its drawing inputs. Prefixes distinguish plain and symbol labels from JSON arrays.
+  return item.swatch ? JSON.stringify([item.label, item.symbol, item.swatch]) : (item.symbol ? '+' : ' ') + item.label;
 }
 
 function rangeSymbol(doc: Document): SVGSVGElement {
@@ -64,7 +61,7 @@ interface ButtonEntry {
 
 export function createToolbar(doc: Document, actions: { activateControl(action: string): void }): Toolbar {
   const element = make(doc, 'div', 'axylo-toolbar');
-  setAttr(element, 'role', 'toolbar');
+  element.setAttribute('role', 'toolbar');
   const listening = new Listeners();
   const buttons = new Map<string, ButtonEntry>();
   let current: string | null = null, order: string[] = [];
@@ -119,19 +116,19 @@ export function createToolbar(doc: Document, actions: { activateControl(action: 
           t.textContent = item.label;
           ch.push(t);
           b.replaceChildren(...ch);
-          setAttr(b, 'title', item.symbol ? item.label : null);
+          setAttr(b, 'title', item.symbol ? item.label : null, !previous);
           e.s = sig;
         }
         if (previous?.className !== item.className || !!previous.struck !== !!item.struck) {
           b.className = item.struck ? `${item.className} axylo-struck` : item.className;
         }
-        if (previous?.pressed !== item.pressed) setAttr(b, 'aria-pressed', item.pressed === undefined ? null : String(item.pressed));
-        if (previous?.expanded !== item.expanded) setAttr(b, 'aria-expanded', item.expanded === undefined ? null : String(item.expanded));
+        if (previous?.pressed !== item.pressed) setAttr(b, 'aria-pressed', item.pressed === undefined ? null : String(item.pressed), !previous);
+        if (previous?.expanded !== item.expanded) setAttr(b, 'aria-expanded', item.expanded === undefined ? null : String(item.expanded), !previous);
         const controls = item.expanded ? item.controls ?? null : null;
-        if ((previous?.expanded ? previous.controls ?? null : null) !== controls) setAttr(b, 'aria-controls', controls);
-        if ((previous?.lang ?? null) !== item.lang) setAttr(b, 'lang', item.lang);
+        if ((previous?.expanded ? previous.controls ?? null : null) !== controls) setAttr(b, 'aria-controls', controls, !previous);
+        if ((previous?.lang ?? null) !== item.lang) setAttr(b, 'lang', item.lang, !previous);
         if (!!previous?.disabled !== !!item.disabled) {
-          setAttr(b, 'aria-disabled', item.disabled ? 'true' : null);
+          setAttr(b, 'aria-disabled', item.disabled ? 'true' : null, !previous);
         }
         nodes.push(b);
       }
